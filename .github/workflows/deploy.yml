@@ -13,6 +13,10 @@ on:
         description: Commit on main to put live (empty = tip of main)
         type: string
         required: false
+      rollback_drill:
+        description: Drill - publish, then fail the live check on purpose to prove the automatic rollback
+        type: boolean
+        default: false
 permissions: {}
 concurrency:
   group: deploy-site
@@ -72,7 +76,10 @@ jobs:
         id: publish
         run: scripts/deploy.sh "$(git rev-parse HEAD)"
       - name: Check the live site (read-only)
+        env:
+          DRILL: ${{ inputs.rollback_drill == true }}
         run: |
+          if [[ "$DRILL" == "true" ]]; then echo "::warning::rollback drill: failing the live check on purpose"; exit 1; fi
           export EXPECTED_COMMIT="$(git rev-parse HEAD)"
           node --test tests/live.test.mjs tests/home-browser.test.mjs || { sleep 15; node --test tests/live.test.mjs tests/home-browser.test.mjs; }
       - name: Roll back to the previous live commit

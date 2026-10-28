@@ -72,7 +72,7 @@ test('home page has the basics', async () => {
 });
 
 test('no credentials in the repository', async () => {
-  const patterns = [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, /\bAKIA[0-9A-Z]{16}\b/, /\bgh[pousr]_[A-Za-z0-9]{30,}\b/, /\bsk-[A-Za-z0-9_-]{20,}\b/, /\bxox[abp]-[A-Za-z0-9-]{10,}\b/, /AccountKey=[A-Za-z0-9+/=]{20,}/, /\bsig=[A-Za-z0-9%]{20,}/, /\bth[1ms]_[A-Za-z0-9_-]{30,}/];
+  const patterns = [/-----BEGIN [A-Z ]*PRIVATE KEY-----/, /\bAKIA[0-9A-Z]{16}\b/, /\bgh[pousr]_[A-Za-z0-9]{30,}\b/, /\bsk-[A-Za-z0-9_-]{20,}\b/, /\bxox[abp]-[A-Za-z0-9-]{10,}\b/, /AccountKey=[A-Za-z0-9+/=]{20,}/, /\bsig=[A-Za-z0-9%]{20,}/, /\bth(?:1|m|s|c|w|fp)_[A-Za-z0-9_-]{20,}/];
   for (const f of await files(REPO)) {
     if (f.endsWith('package-lock.json') || /\.(png|ico|woff2?)$/.test(f)) continue;
     const text = await readFile(f, 'utf8');
