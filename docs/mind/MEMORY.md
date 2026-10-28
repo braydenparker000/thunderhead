@@ -208,8 +208,8 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 | # | Rule | On violation |
 |---|---|---|
 | M1 | Every message, event and ledger row has an `origin`; the Worker sets it from the authenticated principal, never from the request body | (not client-settable) |
-| M2 | Evidence ids must exist, be 1–20 per fact, and be messages, events, day notes or (notebook conversion only, P3) `import_items` rows; an `import:` ref alone never supports `source=user` | `422 validation` `bad_evidence` |
-| M3 | `source=user` → every evidence id is owner-origin (`origin` in `owner_device`, `import` with `author=owner`), and at least one is a message | `422` `not_owner_evidence` |
+| M2 | Evidence ids must exist, be 1–20 per fact, and be messages, events, day notes or (notebook conversion only, P3) `import_items` rows, or (an op from a **device** session only) `ledger:` rows with `actor=owner` (the Memory page's own Fix and Add, §12); an `import:` ref alone never supports `source=user` | `422 validation` `bad_evidence` |
+| M3 | `source=user` → every evidence id is owner-origin (`origin` in `owner_device`, `import` with `author=owner`, or an owner `ledger:` row from a device op), and at least one is a message | `422` `not_owner_evidence` |
 | M4 | `kind=rule` → `source=user` | `422` `rule_needs_owner` |
 | M5 | `source=observed` → ≥ 10 owner-device events (or one rollup ref with n ≥ 10) | `422` `too_little_evidence` |
 | M6 | Evidence with `origin` `muse` or `external` (or any message `author=muse`) is never accepted | `422` `tainted_evidence` |
@@ -329,11 +329,11 @@ Reached from Menu → Settings → Memory (layout in [MENU-AND-SETTINGS.md](../p
 | Laws | The approved constitution text and its pin state | Edit (owner-only; [CONSTITUTION.md](CONSTITUTION.md#amendment-rule)) **[proposal]** |
 
 Behaviours:
-- **Fix** opens the text for editing. Saving writes an owner-device event `memory.edit` and supersedes the fact with `source=user`, evidence = that event. Applied at once.
+- **Fix** opens the text for editing. Saving supersedes the fact with `source=user` in one transaction with its ledger row (`actor=owner`, `kind=memory`), and that row is the evidence (`ledger:<id>`). Events have no table in `Core` before `Senses` (P5, [DATA.md §4.4](../engineering/DATA.md)), so the page never writes one. Applied at once.
 - **Pin** sets `pinned=1` (top of the profile, no decay).
 - **Don't bring this up** sets `may_raise=0`: the mind still knows it (so it won't ask again) but never mentions it unprompted. Muted facts never appear in home lines, margin notes or pushes. The Worker can't read meaning in free text, so every surface and push must list the fact ids it draws on (`facts` field), and the Worker refuses one that cites a muted fact **[proposal]**. Whether the mind cited honestly is checked by the weekly in-session review.
 - **Forget** asks once ("Forget this? It can't be brought back."), shows a 10 s undo, then hard-deletes (§3). The next briefing no longer contains it.
-- **Add** lets the owner type a fact or rule directly (`source=user`, evidence = the `memory.add` event).
+- **Add** lets the owner type a fact or rule directly (`source=user`, evidence = its own ledger row, as for Fix).
 - Every action is a ledger row with `actor=owner`.
 
 **Acceptance (P3 done-when):** the owner deletes a fact and it is gone from the next briefing; a muted fact never appears in a surface (Worker test).

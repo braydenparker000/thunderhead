@@ -11,7 +11,7 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 1. Push the prepared history to `main` as soon as the repository exists and the Claude app can reach it.
 2. Run the first Deploy; confirm the live checks and one deliberate rollback.
-3. Start P1: Worker skeleton with `Core` + `Auth`, health, CORS, deploy job; run measurements X1, X3, X4, X5.
+3. Start P1 from the `p1-spike` branch (Worker with `Core` + `Auth`, sign-in, `deploy-worker.yml`, `backend/MEASUREMENTS.md`; X5 already measured): first bring it in line with API.md §11.1–11.4 and §13, SIGN-IN.md §4 and §6.1, SECURITY.md §5.1 and OPERATIONS.md §5.1 (route names, error codes, fingerprint setup, token format, one deploy workflow), then run X1, X3 and X4 in production. The `mind-spike` work (`mind/`: the `th` CLI and hooks) is P2 and waits on the P2 routes.
 
 After P1 comes **P1b · Apps ported as they are**: Music, Guitar, Podcasts, Astra and My Media copied unchanged apart from paths, route folders and the API address; they keep calling the old Worker, whose allowed-origins change is asked first.
 

@@ -43,10 +43,11 @@ Values never appear in the repo or in logs. Rotation steps are in §6. The secur
 | `AZURE_STORAGE_ACCOUNT` (must match `^thunderhead[a-z0-9]{0,13}$`), `SITE_URL`, `AZURE_DEPLOY_ENABLED` | variable | GitHub repo | P0 |
 | `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, one account, no expiry) | secret | GitHub environment `worker` (only `main`) | P1 |
 | `TH_CI_TOKEN` (`thc_` key, role `ci`) | secret | GitHub environment `worker` | P1 |
-| `CLOUDFLARE_ACCOUNT_ID`, `WORKER_URL`, `WORKER_DEPLOY_ENABLED` | variable | GitHub repo | P1 |
+| `CLOUDFLARE_ACCOUNT_ID`, `WORKER_URL`, `SITE_ORIGINS` (the real site origin, passed with `wrangler deploy --var`), `WORKER_BOOTSTRAP` (`true` for the first deploy only, then deleted) | variable | GitHub environment `worker` | P1 |
+| `WORKER_DEPLOY_ENABLED` | variable | GitHub repo | P1 |
 | `TH_SETUP_FINGERPRINT`, `TH_RESET_FINGERPRINT` | secret, temporary | GitHub repo; inputs to `auth-setup.yml` / `auth-reset.yml` | P1 |
 | `R2_MUSIC_RO_ACCESS_KEY_ID`/`_SECRET` (Object Read, `jarvis-music`), `R2_JOBS_ACCESS_KEY_ID`/`_SECRET` (Object Read & Write, `thunderhead-jobs`) | secret | GitHub environment `jobs` | P5 |
-| `SITE_ORIGINS`, `R2_ACCOUNT_ID`, `CORE_INSTANCE` (default `owner`) **[proposal]**, `VAPID_PUBLIC_KEY` (P8) | var | `backend/wrangler.jsonc` | P1+ |
+| `SITE_ORIGINS` (a placeholder; the real value comes from the environment variable above), `OWNER_TZ` (fallback `UTC`; the real zone is the `Core` setting `owner.tz`), `R2_ACCOUNT_ID`, `CORE_INSTANCE` (default `owner`) **[proposal]**, `VAPID_PUBLIC_KEY` (P8) | var | `backend/wrangler.jsonc` | P1+ |
 | `AUTH_PEPPER`, `IP_HASH_KEY` | Worker secret | Cloudflare | P1 |
 | `AUTH_SETUP_FP` (one-time), `AUTH_RESET_FP` (only during a reset) | Worker secret | Cloudflare, via `auth-setup.yml` / `auth-reset.yml` or the dashboard | P1 |
 | `ROUTINE_CHAT_URL`, `ROUTINE_CHAT_TOKEN`, `ROUTINE_NIGHT_URL`, `ROUTINE_NIGHT_TOKEN` (+ `ROUTINE_REFLEX_URL`, `ROUTINE_REFLEX_TOKEN` in P4) | Worker secret | Cloudflare | P2–P4 |
@@ -93,6 +94,7 @@ Confirm: the run is green, and `<site>/release.json` shows the commit.
 | A bad commit got past the checks | agent (or owner) | Actions → Deploy → Run workflow → branch `main` → `ref` = the last good commit → Run | `release.json` shows that commit; reload the phone twice (the SW applies the older build at the next safe moment) |
 | Prefer history to show the fix | agent | `git revert <bad>` on `main` and push | A new deploy run goes green |
 | First deploy ever failed | — | Nothing to go back to; fix forward | — |
+| Rollback drill (P0 "done when", once) | agent, after at least two deploys | Actions → Deploy → Run workflow → `ref` = the commit before the live one, `rollback_drill` = true. The input sets `ROLLBACK_DRILL=1` for the live-check step, which adds one failing test to `tests/live.test.mjs`, so the check fails after publishing | The run is red at the live check; the rollback step ran; `release.json` shows the commit that was live before the drill; Home still loads on the phone |
 
 A rolled-back site build is older than the API, which is fine because `/v1` is additive. If the rollback goes below `min_client`, its writes get `426`. In that case, lower `min_client` through `PATCH /v1/settings` (owner) or roll forward instead.
 
@@ -169,18 +171,21 @@ Undo: the same steps with the recorded pre-restore bookmark.
 The `api` job runs when `backend/**`, `shared/**` or `package-lock.json` changed since the deployed tag, or on dispatch with `target: api|both`.
 
 1. Gate: `vars.WORKER_DEPLOY_ENABLED == 'true'`, ref `main`, the commit is an ancestor of `main`.
-2. `npm ci` (install scripts stay on in this job, because wrangler's toolchain may need them and the job has no OIDC token; open question Q4), then `npm test`.
+2. `npm ci --ignore-scripts` (measured in the P1 spike: workerd and esbuild ship as optional platform packages, so their install scripts aren't needed; settles Q4), then `npm test`.
 3. **Class-change check [proposal]:** `node scripts/api-guard.mjs <deployed-tag> HEAD` compares the `migrations` array.
    - Unchanged: a normal deploy with auto-rollback.
    - Changed: the commit range may touch only `backend/wrangler.jsonc`, the new `objects/<class>.ts`, its export in `src/index.ts`, and tests. Anything else fails the job before deploying. Auto-rollback is off for this run.
 4. Record the current version: `PREV=$(npx wrangler deployments status --json --config backend/wrangler.jsonc)`, taking the active version id.
-5. `npx wrangler deploy --config backend/wrangler.jsonc --tag <sha12> --message "deploy <sha>"`.
+5. Secrets file, then deploy:
+   - **Bootstrap** (step 4 found no live version): allowed only when the environment variable `WORKER_BOOTSTRAP` is `true`; otherwise the job fails with "No live version. Set WORKER_BOOTSTRAP only for the very first deploy." It writes a temporary file (`umask 077`, in `$RUNNER_TEMP`) with `AUTH_PEPPER` and `IP_HASH_KEY` = 32 random bytes, base64url, and `none` for every other name in `secrets.required`. No log line shows a value.
+   - **Normal deploy:** `wrangler secret list --format json`; each name in `secrets.required` that the live Worker lacks goes into the file as `none` (a secret introduced by this commit). A missing `AUTH_PEPPER` or `IP_HASH_KEY` fails the job instead.
+   - `npx wrangler deploy --config backend/wrangler.jsonc --var SITE_ORIGINS:<the environment variable> --tag <sha12> --message "deploy <sha>" [--secrets-file <file>]`; the file is deleted right after.
 6. Smoke:
    1. Poll `GET /v1/health` until `version.tag == <sha12>` (every 5 s, 60 s max).
-   2. Poll `GET /v1/ops/health/deep` with `TH_CI_TOKEN` until `ok` and every `schema` equals the expected `SCHEMA_VERSION` (every 15 s, 6 min max, because DOs may run old code for a few minutes).
+   2. Poll `GET /v1/ops/health/deep` with `TH_CI_TOKEN` until `ok` and every `schema` equals the expected `SCHEMA_VERSION` (every 15 s, 6 min max, because DOs may run old code for a few minutes). Skipped with a notice while `TH_CI_TOKEN` is not set (the deploys before first setup).
    3. `node --test tests/live-api.test.mjs` (read-only: health shape, CORS preflight, 401 without a token, 403 from a foreign origin).
 7. Watch 10 minutes **[proposal]**: every 60 s, `GET /v1/ops/errors?status=open` counts server errors (`source` in `worker`, `do`) with `last_at` after the deploy. Fail at ≥ 5 of them, or at any error whose code is `internal` on an auth route.
-8. On failure after step 5, when no class change happened: `npx wrangler rollback "$PREV" --config backend/wrangler.jsonc --message "auto rollback from <sha>"`. Passing `--message` skips the prompts (wrangler has no `--yes` on rollback). Then re-run step 6.1 expecting the previous tag.
+8. On failure after step 5, when no class change happened: `npx wrangler rollback "$PREV" --config backend/wrangler.jsonc --message "auto rollback from <sha>" --yes`. Then re-run step 6.1 expecting the previous tag. A bootstrap run has nothing to roll back to.
 9. On failure with a class change: no rollback (it would be refused). The run fails, a watchdog posts at 06:30, and the agent fixes forward.
 
 The `site` job starts only after `api` succeeded or was skipped, so a new site never meets an old API.
@@ -207,7 +212,7 @@ Notes:
 | Agent token (`mind:*`, `muse`, `ci`) | Every 180 days **[proposal]**, or on suspicion | Owner: Settings → Agents → New (same role) → copy → paste into the Claude environment (`TH_TOKEN`) or the GitHub environment secret `TH_CI_TOKEN` → revoke the old row | The old token stops within 60 s | Agent: `GET /v1/auth/me` with the new token → 200; with the old → 401 |
 | `AUTH_PEPPER` | Only on suspicion of a leak | Proposal (`access`). Agent: `rotate-secret.yml` with `generate: AUTH_PEPPER_V2`, after a deploy that accepts both peppers and re-hashes lazily at sign-in ([SECURITY.md §14.6](SECURITY.md)) | Hashes move to the new pepper as the owner signs in | Sign-in works; `pepper_v` = 2 on the credential |
 | `IP_HASH_KEY` | Yearly | `rotate-secret.yml` `generate: IP_HASH_KEY` | Throttle counters reset | — |
-| `AUTH_SETUP_FP`, `TH_SETUP_FINGERPRINT` | Delete after setup | Owner: run Open setup with `clear: true`, delete the GitHub secret | None (`/v1/auth/setup` already answers 410) | — |
+| `AUTH_SETUP_FP`, `TH_SETUP_FINGERPRINT` | Clear after setup | Owner: run Open setup with `clear: true` (sets the Worker secret to `none`; never delete it), then delete the GitHub secret | None (`/v1/auth/setup` already answers 410) | — |
 | Mind fire URL/token (per task) | When the task is recreated or on suspicion | Owner: in the scheduled task's API trigger, regenerate → paste into the Cloudflare dashboard as `ROUTINE_CHAT_TOKEN` and `ROUTINE_CHAT_URL` (or the `_NIGHT_`, `_REFLEX_` pair) | Old fires fail with 401 from the platform | Agent: `POST /v1/mind/typing` from a device fires a wake; the wakes list shows `fired` |
 | `CLOUDFLARE_API_TOKEN` | Yearly (reminder in the October briefing) **[proposal]**, or on suspicion | Owner: Cloudflare → API tokens → Roll → paste into the GitHub secret | Deploys use the new token | Next Deploy run is green |
 | `R2_SIGN_ACCESS_KEY_ID` / `R2_SIGN_SECRET` | On suspicion (rolling revokes every signed URL at once) | Owner: R2 → Manage API tokens → create (Object Read; the two buckets) → paste both into the Cloudflare dashboard (or `rotate-secret.yml copy`) → delete the old token | Old URLs 403 at once; clients re-sign | Media plays after one 403 retry |

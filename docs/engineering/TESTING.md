@@ -64,8 +64,9 @@ Time budget: `npm test` ≤ 3 min on a 4-vCPU runner **[proposal]**. A layer tha
 npm ci                                   # once
 npx playwright install chromium          # once per machine
 npm test                                 # every offline layer (today: node --test tests/*.test.mjs)
-npm run test:unit                        # layers 1, 3, 9           [proposal: script names]
-npm run test:backend                     # layers 4–8 (vitest, workerd)
+npm run test:site                        # layers 1, 3, 10: node --test tests/*.test.mjs
+npm run test:backend                     # layers 2, 4–8: tsc, biome, wrangler types --check, vitest on workerd
+npm run test:mind                        # layer 9: node --test mind/tests/   [proposal: script name]
 npm run test:browser                     # layer 10 against scripts/serve.mjs
 npm run test:e2e                         # layer 11: wrangler dev + serve.mjs + Playwright
 SITE_URL=https://<site> node --test tests/live.test.mjs tests/home-browser.test.mjs   # layer 12, site
@@ -76,7 +77,7 @@ npx vitest run backend/tests/cost --reporter=verbose                            
 - `CHROMIUM_PATH` overrides the browser binary (used in sandboxes).
 - Local `wrangler dev` is seeded from `backend/tests/fixtures/seed.jsonl`. The dev setup code and dev agent token come from `backend/.dev.vars`, which is git-ignored. **Never `wrangler dev --remote`.**
 
-Today `npm test` is `node --test tests/*.test.mjs` (static plus the bare `playwright` browser suite at 390×844). The layers above arrive with P1 under npm workspaces (`"."`, `backend`, `mind`).
+Today `npm test` is `node --test tests/*.test.mjs` (static plus the bare `playwright` browser suite at 390×844). The layers above arrive with P1 under npm workspaces (`"."`, `backend`, `mind`). From P1 it is `node --test tests/*.test.mjs && npm test -w backend` (then `&& npm run test:mind` from P2). Change dependencies only with npm 11 or newer (decisions 2026-10-28).
 
 ---
 

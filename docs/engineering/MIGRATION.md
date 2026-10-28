@@ -133,7 +133,7 @@ Rollback target: version <id>."
 | No new binding | The old Worker never gets `thunderhead-private` (decisions 2026-10-28: the export is **pulled**). |
 | Route | `POST /ops/export/step {run_id, instance, table, cursor}` guarded by the existing agent key (`CLAUDE_CHAT_AGENT_KEY`, already in the Claude environment; no new secret). |
 | Behaviour | Reads ≤ 2,000 rows of one table after `cursor` (by `rowid`) and **returns them** as one gzip JSONL part with headers `X-Rows`, `X-Next-Cursor`, `X-Sha256`. **Writes nothing anywhere.** Refuses the never-export tables (§2.1) with 403. |
-| Driver | A script in the mind's session (`mind/jobs/old-export.mjs` [proposal]) loops the steps, posts each part unchanged to the new Worker's `POST /v1/ops/import/parts` (ci scope), which checks the SHA-256 and stores it at `imports/old/<run_id>/<instance>/<table>/part-<nnnn>.jsonl.gz` in `thunderhead-private`, then writes `imports/old/<run_id>/manifest.json`: `{run_id, worker_version, started_at, finished_at, instances: {<name>: {tables: {<table>: {rows, parts, columns, sha256s}}}}}`, including counts (only) for never-export tables. It prints counts only. |
+| Driver | A script in the mind's session (`mind/jobs/old-export.mjs` [proposal]) loops the steps, posts each part unchanged to the new Worker's `POST /v1/ops/import/parts` (a `mind:chat` key named `import-once`, API.md §13; the driver runs in a manual session of the owner's existing Claude environment, the only one whose network secret already carries `CLAUDE_CHAT_AGENT_KEY` for the old Worker, with the new Worker's host and that key added for this run only, [SETUP.md §L](../process/SETUP.md)), which checks the SHA-256 and stores it at `imports/old/<run_id>/<instance>/<table>/part-<nnnn>.jsonl.gz` in `thunderhead-private`, then writes `imports/old/<run_id>/manifest.json`: `{run_id, worker_version, started_at, finished_at, instances: {<name>: {tables: {<table>: {rows, parts, columns, sha256s}}}}}`, including counts (only) for never-export tables. It prints counts only. |
 | Version record | Before deploying: the current old Worker version ID and the old site's commit are written to [STATUS](../process/STATUS.md) as rollback targets. |
 | Rollback | `wrangler rollback <previous version>` from the old repo's deploy workflow. No schema changes, so data is safe either way. |
 | Wait | A Durable Object keeps old code for about 4 minutes after a deploy; the driver waits 5 minutes before the first step. |
@@ -213,6 +213,22 @@ looks, gestures, fonts, engines and stored-data formats do not change.
 
 Check: a test diffs each ported folder against the old repo at the recorded commit and fails on any
 hunk that is not one of the listed adjustments ([TESTING.md §4](TESTING.md#4-static-checks-layer-1)).
+
+`frontend/ported.json` **[proposal]**, one object per ported folder, keys sorted, one file per line so diffs stay readable:
+
+```json
+{ "v": 1, "old_repo_commit": "<40-hex sha of the old repo>",
+  "folders": { "music": { "from": "frontend/claude-player/",
+      "files": { "music/index.html": { "sha256": "<hex of the committed bytes>", "old_sha256": "<hex of the old file>",
+                                        "adjustments": ["paths", "route-folder", "csp"] } },
+      "assets": ["assets/error-report.js"],
+      "csp": "<the exact meta CSP content of the folder's pages>",
+      "hosts": ["https://example-cdn.invalid"] } } }
+```
+
+- `adjustments` ⊆ `paths`, `route-folder`, `api-address`, `csp` (the four kinds above); `[]` means byte-equal to the old file, so `sha256` = `old_sha256`.
+- `assets` lists the `/assets/` files the folder loads (transitively); a file under `/assets/` that no folder lists fails the test.
+- `hosts` is the folder's outside-host allowlist ([SECURITY.md §4.4](SECURITY.md#44-ported-app-pages-p1b)); `csp` must equal every page's meta CSP in that folder.
 
 ### 5.2 What is read on the old origin (verified against the old code)
 

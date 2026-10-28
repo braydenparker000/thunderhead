@@ -128,7 +128,7 @@ Rules:
 **The Open setup workflow** (`.github/workflows/auth-setup.yml`, `workflow_dispatch` only, job `environment: worker`, which only `main` can use) **[proposal]**
 1. Reads secret `TH_SETUP_FINGERPRINT`. Fails unless it matches `^thfp_[A-Za-z0-9_-]{43}$`.
 2. Pipes it to `wrangler secret put AUTH_SETUP_FP` on stdin. It never echoes the value; it prints only "Setup fingerprint installed (ends …<last 4>)".
-3. Writes nothing else. The same workflow with input `clear: true` runs `wrangler secret delete AUTH_SETUP_FP`.
+3. Writes nothing else. The same workflow with input `clear: true` pipes the literal `none` instead (never `wrangler secret delete`: the name is listed in `secrets.required`, so a deleted secret would block every later deploy). The Worker treats an unset value, an empty value and `none` alike: `setup_fp: "missing"`, `409 setup_fp_missing`. The first Worker deploy sets it to `none` ([OPERATIONS.md §5.1](../engineering/OPERATIONS.md)).
 
 **S2. "Choose your sign-in"**
 - Fields (one form, §12 markup): Username (`autocomplete="username"`), New password (`id="new-password"`, `autocomplete="new-password"`, show/hide toggle).
@@ -213,7 +213,7 @@ Typical time on the phone: ~0.3–0.8 s (about 235 ms of scrypt plus the network
 |---|---|---|---|---|
 | Per source: HMAC of the IPv4 /32 or IPv6 /64 with a daily key | 5 | wait 2^(n−5) s after failure n: 2, 4, 8, 16 … | 15 min | A success from that source, or 24 h with no failure |
 | Account-wide (all sources together) | 20 failures in a rolling 24 h | at most 1 attempt every 30 s, all sources together | 30 s | Any success |
-| Recovery code, reset code, setup code (each) | 5 per source per hour; 20 per day account-wide | wait until the hour or day window ends | 1 h (per source) | Window end |
+| Recovery code, reset code, setup code (each) | 5 per source per hour; 20 failures in a rolling 24 h account-wide | Per source: wait until the hour window ends. Account-wide: after failure n ≥ 20, wait min(30 s × 2^(n−20), 5 min): 30 s, 60 s, 120 s, 240 s, then 300 s | 1 h per source; 5 min account-wide (never a day) | Per source: window end. Account-wide: a success, or 24 h after the window's first failure |
 | Password check inside Settings (change password, new recovery code, new agent key) | 5 per session | 2^(n−5) s | 15 min | Success. Never touches the account-wide counter, so an attacker can't block the owner's own signed-in phone. |
 
 - Worst case for the owner: a stranger spraying guesses makes the owner wait at most **30 s** on a fresh source.

@@ -205,7 +205,7 @@ Acceptance: `tests/site.test.mjs` finds every `http(s)://` host in each ported f
 
 | Token | Format | Entropy | Server stores | Lifetime | Held by |
 |---|---|---|---|---|---|
-| Owner session | `th1_` + 43 base62 random + 6 base62 CRC32 checksum **[proposal: base62 + checksum, like GitHub's]** | 256 bits | SHA-256 (unique index) | 90 days idle; no rotation in v1 | IndexedDB `th-auth` on the device |
+| Owner session | `th1_` + 43 base62 random + 6 base62 CRC32 checksum **[proposal: base62 + checksum, like GitHub's]** | 256 bits | SHA-256 (the `sessions` primary key) | 90 days idle; no rotation in v1 | IndexedDB `th-auth` on the device |
 | Mind key (chat/night/reflex) | `thm_` + same body | 256 bits | SHA-256 + role | Until revoked | Claude environment network secret `TH_TOKEN` |
 | Muse key | `ths_` + same body | 256 bits | SHA-256 + role | Until revoked | Muse's settings |
 | CI key | `thc_` + same body | 256 bits | SHA-256 + role | Until revoked | GitHub environment secret `TH_CI_TOKEN` |
@@ -326,8 +326,8 @@ Not fallbacks:
 - **Allowlist:** `SITE_ORIGINS` (a Worker variable): the exact new site origin. The old site's origin is never added: the phone export travels as a file and is uploaded from the new origin ([MIGRATION.md §5](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)), so the owner never signs in to the new Worker from the old origin. `http://127.0.0.1:8080` exists only in the dev config.
 - **The other direction (P1b):** the old Worker allows the new site's origin (its `FRONTEND_ORIGINS` set) so the ported pages work until their data moves. That is an ask-first old-Worker deploy, and the entry goes when the old Worker retires ([MIGRATION.md §6](MIGRATION.md#6-cors-the-new-site-on-the-old-worker-p1b-temporary)).
 - **Allowed origin:** `Access-Control-Allow-Origin: <that exact origin>` and `Vary: Origin`. Never `*`. Never `Access-Control-Allow-Credentials`.
-- **Preflight:** methods `GET, POST, PUT, PATCH, DELETE`; headers `Authorization, Content-Type, TH-Client`; `Access-Control-Max-Age: 7200` (Chrome's cap).
-- **Exposed:** `Retry-After`, `TH-Request-Id` (not CORS-safelisted, so they must be listed to be readable).
+- **Preflight:** methods `GET, POST, PUT, PATCH, DELETE`; headers `Authorization, Content-Type, TH-Client, TH-File-Name, TH-Sha256`; `Access-Control-Max-Age: 7200` (Chrome's cap). [API.md §4](API.md#4-cors) is canonical.
+- **Exposed:** `TH-Request-Id`, `TH-Server`, `TH-Min-Client`, `Retry-After` (not CORS-safelisted, so they must be listed to be readable).
 - **Not allowed:** a request whose `Origin` is present and not on the list gets `403 origin_not_allowed` before any auth work, with no CORS headers.
 - **No `Origin`** (CLI, mind, Muse, Actions): allowed through to token checks. Agents never send `Origin`.
 - **R2 bucket CORS** (for presigned GETs used by `fetch`, pdf.js and Web Audio): allowed origin = the site origin; methods `GET, HEAD`; allowed header `Range`; exposed `Content-Range, Content-Length, Accept-Ranges, ETag`; max age 7200. Setting it is ask-first (decisions: changes to `jarvis-music`).
@@ -370,9 +370,10 @@ Names only. "Rotate" says who does it and how; runbooks are in §14. A test chec
 | Secret | Lives in | Used for | Who rotates, how |
 |---|---|---|---|
 | `AUTH_PEPPER` (v1, later `AUTH_PEPPER_V2`) | Worker secret | Keyed hash of password and recovery code | Owner via the "Rotate secret" workflow **[proposal]**; lazy re-hash at sign-in (§14.6) |
-| `AUTH_SETUP_FP` | Worker secret (one-time) | First setup | Set by the Open setup workflow; deleted after setup |
-| `AUTH_RESET_FP` | Worker secret (only during a reset) | Reset ticket via GitHub | Request reset workflow; deleted after use |
-| `IP_HASH_KEY` | Worker secret | Source keys for back-off; the daily key is `HMAC(IP_HASH_KEY, UTC date)` | Yearly or on suspicion; rotation only resets back-off counters |
+| `AUTH_SETUP_FP` | Worker secret (`none` except during first setup) | First setup | Set by the Open setup workflow; set back to `none` after setup (never deleted: it is in `secrets.required`) |
+| `AUTH_RESET_FP` | Worker secret (`none` except during a reset) | Reset ticket via GitHub | Request reset workflow; set back to `none` after use |
+| `IP_HASH_KEY` | Worker secret | Source keys for back-off; the daily key is `HMAC(IP_HASH_KEY, UTC date)` | First value generated inside the bootstrap deploy run, like `AUTH_PEPPER` ([OPERATIONS.md §5.1](OPERATIONS.md)). Yearly or on suspicion; rotation only resets back-off counters |
+| `ASTRA_SEAL_KEY` (P1b) | Worker secret | AES-256-GCM key sealing Astra's add-on list and backups ([ASTRA.md §5.3](../product/apps/ASTRA.md)) | Made once by `rotate-secret.yml` with `generate: ASTRA_SEAL_KEY` (32 random bytes, never printed) before the first `/import/` run; while it is `none`, `POST /v1/import/phone` answers `503 unavailable` with `details.reason = "seal_key_missing"` and stores nothing. Rotation re-seals lazily (open with the old key, seal with the new), like the pepper (§14.6) |
 | `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` | Worker secrets | Presigning (read-only, two buckets) | Owner: new R2 API token in the Cloudflare dashboard, paste both, delete the old token |
 | `VAPID_PRIVATE_JWK` | Worker secret | Web Push | Agent proposes; owner approves; devices re-subscribe automatically |
 | `ROUTINE_CHAT_URL` + `ROUTINE_CHAT_TOKEN`, `ROUTINE_NIGHT_URL` + `ROUTINE_NIGHT_TOKEN` (+ `ROUTINE_REFLEX_URL` + `ROUTINE_REFLEX_TOKEN` in P4); names as in [RUNTIME.md §2](../mind/RUNTIME.md) | Worker secrets | Firing the Claude scheduled tasks (wake text `wake` only) | Owner regenerates the trigger token in the task's settings in Claude, pastes into the Cloudflare dashboard |

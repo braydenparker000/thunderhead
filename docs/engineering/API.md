@@ -248,7 +248,7 @@ Format of each entry: **Who** (principals) · **Phase** · request · response �
 - Response `200`: `{ ok: true, version: { id: string, tag: string|null }, min_client: number, at: Ms }`. `tag` is the deployed commit's short sha (`wrangler deploy --tag`).
 - No DO call. A `503` from here means the Worker itself is down.
 
-**`GET /v1/ops/health/deep`** · Who: agents, `ci` · P1
+**`GET /v1/ops/health/deep`** · Who: device, agents, `ci` · P1
 - Response `200`:
   ```ts
   { ok: boolean; version: {id; tag}; schema: Record<'core'|'auth'|string, number>;
@@ -258,6 +258,7 @@ Format of each entry: **Who** (principals) · **Phase** · request · response �
     errors_open: number; wakes_today: number; min_client: number }
   ```
 - `ok` is false if any object fails, schema versions are not the expected `SCHEMA_VERSION`, or the backup is older than 8 days. Counts only, never content.
+- Fields whose feature hasn't shipped are present with `null` or `0` (P1: `last_backup` and `last_events_export` are `null`; `jobs_backlog`, `wakes_today` and `meter_today.bulk_rows_written` are `0`; `bulk_lane` is `null`; `meter_today` holds the objects' in-memory counts until the `meter` table exists). The backup age counts toward `ok` only once the first weekly backup exists (P4).
 
 ### 11.2 Auth
 
@@ -266,6 +267,12 @@ Behaviour, copy and throttle numbers are owned by [SIGN-IN.md](../product/SIGN-I
 ```ts
 type DeviceHints = { platform?: string; browser?: string; model?: string; standalone?: boolean };
 type SignedIn = { token: string; session_id: string; idle_days: 90 };
+type Notice = { id: Id; kind: 'new_device'|'password_changed'|'recovery_used'|'reset_used'|'reset_pending'|'reset_cancelled'|'agent_key_created';
+  created_at: Ms; expires_at: Ms|null; about_session_id: string|null;   // the session "Not me" revokes
+  args: { label?: string; region?: string; country?: string; at?: Ms; name?: string; role?: string; ticket_id?: Id; usable_after?: Ms } };
+// GET /v1/auth/me lists the unacknowledged, unexpired notices for this session, newest first. Before the
+// live feed exists (P2) the shell calls it at start and on every visibilitychange to 'visible'; from P2 a
+// `notice` change triggers the same call. Copy per kind: SIGN-IN.md §11.4.
 ```
 
 | Route | Who | Request | Response | Specific errors |
@@ -349,7 +356,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | `POST /v1/threads/:id/continue` | device | — | `200 { today_thread_id }` | Links a filed thread to today (`continues`) |
 | `PUT /v1/messages/:id` | device, `mind:chat`, `muse` (own thread); `mind:night`/`mind:reflex` only `kind:'error'` to the system thread | `{ body: string, kind?: Message['kind'] /* default 'text' */, meta?: object /* ≤ 8 KB */, attachments?: Ref[] /* file:…, ≤ 10 */, reply_to?: Id }` | `201 Message` (200 on a same-body retry) | See below |
 | `PATCH /v1/messages/:id` | `mind:chat` (own posts) | `{ body?: string, meta?: object }` | `200 Message` | Keeps progress cards current (`th amend`) |
-| `GET /v1/search?q=&kind=messages\|facts\|day_notes&since&until&limit` | device, `mind:chat`, `mind:night` | — | `200 { items: { ref, kind, snippet /* ≤ 200 chars, match in «» */, at, thread_id?, score }[] }` | FTS5 bm25; `q` 1–200 chars |
+| `GET /v1/search?q=&kind=messages\|facts\|day_notes&since&until&thread&limit` | device, `mind:chat`, `mind:night` | — | `200 { items: { ref, kind, snippet /* ≤ 200 chars, match in «» */, at, thread_id?, score }[] }` | FTS5 bm25; `q` 1–200 chars |
 | `POST /v1/mind/typing` | device | `{}` | `204` | May fire a pre-warm wake ([RUNTIME.md](../mind/RUNTIME.md)) |
 | `PUT /v1/files/:id` | device, `mind:chat` | raw bytes; headers `Content-Type`, `TH-File-Name` (URL-encoded, ≤ 120), `TH-Sha256` | `201 { ref: 'file:<id>', bytes, type }` | Streams to `thunderhead-private/chat/files/…`; 422 if the sha256 differs **[proposal]** |
 
@@ -360,17 +367,18 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 4. An owner message with no live chat lease and no unclaimed fire younger than 90 s queues a wake (conditions: [RUNTIME.md §3](../mind/RUNTIME.md)).
 5. Owner messages use `text` or `voice`. Agents may use every kind; `system` messages (author `system`) are written only by the Worker.
 6. Wording limits on mind messages (the phrase lint) are enforced as `422 validation` per [BEHAVIOR.md](../mind/BEHAVIOR.md).
+7. **Action chip (P2).** A `mind` message may carry one chip in `meta.chip = { label: string /* 1–28 chars */, app: 'music'|'guitar'|'podcasts'|'astra'|'media'|'study', path: string /* root-absolute, inside that app's folder */ }`. Until an app's agreed evolution adds deep links, `path` is the app's folder root (`/music/` …), and a tap navigates there. Any other `meta.chip` shape is `422 validation`.
 
 ### 11.8 Mind
 
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `POST /v1/mind/brief` | agents | `{ claim: boolean, session_id: string, role: 'chat'\|'night'\|'reflex', constitution_sha256: string, th_version: string }` (`role` must match the key's role) | `200 { wake: {id, reason, claim_match} \| null, day: Day, seq: number, core: string /* ≤ 9,500 chars */, full: string /* ≤ 48,000 chars */ }`; `409 already_live` if another chat session holds the lease |
+| `POST /v1/mind/brief` | agents | `{ claim: boolean, session_id: string, role: 'chat'\|'night'\|'reflex', constitution_sha256: string, th_version: string }` (`role` must match the key's role) | `200 { wake: {id, reason, claim_match} \| null, day: Day, seq: number, core: string /* ≤ 9,500 chars */, full: string /* ≤ 48,000 chars */, night_done: boolean /* night role: that day's run already finished */ }`; `409 already_live` if another chat session holds the lease |
 | `POST /v1/mind/status` | agents | `{ state: 'working'\|'listening'\|'stopping'\|'limited', thread_id?, note? /* ≤ 140 */, error? }` | `204` (feeds the presence light; `working` acknowledges handed-out messages) |
 | `POST /v1/mind/notes` | agents | `{ id: Id, thread_id?, body /* ≤ 120 words */, open_items: {text, ref?}[] /* ≤ 10 */ }` | `201` |
 | `POST /v1/mind/taint` | agents | `{ source: string /* tool name */, ref_kind?: 'url'\|'file'\|'comment' }` | `200 { tainted: true }`; irreversible for the session. The URL itself is not sent |
-| `GET /v1/mind/pending` | agents | — | `200 { unanswered: Id[], stop: boolean, day_closed: boolean, limited: boolean, blocks_used: number }` (the Stop hook) |
-| `POST /v1/mind/night` | `mind:night` | `{ day: Day, action: 'start'\|'step_done'\|'done', step?: number }` | `200 { resume_from: number }` (`night_runs`) |
+| `GET /v1/mind/pending` | agents | — | `200 { unanswered: Id[], stop: boolean, day_closed: boolean, limited: boolean, idle_min: number, idle_cutoff_min: number }` (the Stop hook). `idle_min`: whole minutes since the session's last owner message, or since its claim. `idle_cutoff_min`: 10 for a pre-warm wake with no owner message yet, else 120 (30 in the lean profile, [RUNTIME.md §11](../mind/RUNTIME.md)). The hook counts its own blocks ([RUNTIME.md §6.2](../mind/RUNTIME.md)) |
+| `POST /v1/mind/night` | `mind:night` | `{ day: Day, action: 'start'\|'step_done'\|'done', step?: number, partial?: boolean }` (`partial` only with `done`: the hard stop cut the run and the remaining steps are recorded as skipped) | `200 { resume_from: number, done: boolean }` (`night_runs`; `done: true` when that day's run already finished, and the session ends at once) |
 | `GET /v1/mind/day/:day?part=stats\|messages\|ledger\|notes&cursor` | `mind:night` | — | `200` `stats`: deterministic counts; other parts: `Page<…>` |
 | `GET /v1/mind/wakes?limit` | agents, device | — | `200 Page<{id, at, role, reason, status, fired_at, claimed_at}>` |
 
@@ -418,7 +426,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | Route | Who | Request | Response |
 |---|---|---|---|
 | `GET /v1/surfaces?since_seq=` | device, agents | — | `200 { items: Surface[], seq }` (non-expired, changed after `since_seq`) |
-| `PUT /v1/surfaces/:app/:slot` | `mind:chat`, `mind:night` | `{ kind, schema, payload /* ≤ 16 KB */, why /* 8–200 chars, required */, topic_key /* slug */, ref?, expires_at? }` | `200 Surface` (+ a ledger row); `409 nudge_repeat` if the topic was ignored in the last 14 days; margin notes over 140 characters → 422 |
+| `PUT /v1/surfaces/:app/:slot` | `mind:chat`, `mind:night` | `{ kind, schema, payload /* ≤ 16 KB */, why /* 8–200 chars, required */, topic_key /* slug */, ref?, expires_at?, facts?: Id[] /* every fact it draws on; 422 `validation` reason `muted_fact` if one has may_raise = 0 */ }` | `200 Surface` (+ a ledger row); `409 nudge_repeat` if the topic was ignored in the last 14 days; margin notes over 140 characters → 422 |
 | `DELETE /v1/surfaces/:app/:slot` | device, `mind:chat`, `mind:night` | — | `204` (+ a ledger row) |
 
 `why` is required on every surface, so the owner can always see why something is there.
@@ -428,25 +436,26 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | Route | Who | Request | Response |
 |---|---|---|---|
 | `GET /v1/memory/facts?kind&subject&include_superseded&limit&cursor` | device, agents | — | `200 Page<Fact>` |
-| `POST /v1/memory/ops` | device, `mind:chat`, `mind:night` | `{ batch_id: Id, ops: MemoryOp[] /* ≤ 50 */ }` | `200 { applied: {i, fact_id, ledger_id}[], proposals: {i, proposal_id}[] }` |
+| `POST /v1/memory/ops` | device, `mind:chat`, `mind:night` | `{ batch_id: Id, ops: MemoryOp[] /* ≤ 50 */ }` | `200 { applied: {i, fact_id, ledger_id}[], proposals: {i, proposal_id}[], rejected: {i, reason}[] }` |
 | `GET /v1/memory/profile` | device, agents | — | `200 { text: string /* ≤ 1,500 tokens */, fact_ids: Id[], rendered_at: Ms }` |
 | `GET /v1/memory/day-notes?from&to` | device, agents | — | `200 { items: DayNote[] }` |
 | `PUT /v1/memory/day-notes/:day` | `mind:night` | `{ summary, decisions: string[], importance: 1-10 }` (`stats` is computed by the Worker) | `200 DayNote` (`version` + 1) |
 | `GET /v1/memory/open-threads?status=open\|all` | device, agents | — | `200 { items: OpenThread[] }` |
-| `PUT /v1/memory/open-threads/:id` | device, `mind:chat`, `mind:night` | `{ text, owner: 'mind'\|'owner', due_at?, evidence: Ref[], status? }` | `200 OpenThread` |
+| `PUT /v1/memory/open-threads/:id` | device, `mind:chat`, `mind:night` | `{ text, owner: 'mind'\|'owner', due_at?, evidence: Ref[], status?, why? /* ≤ 200; stored as closed_why; required when status is dropped */ }` | `200 OpenThread` |
 
 ```ts
 type MemoryOp =
   | { op: 'add'; id: Id; kind: Fact['kind']; subject: string; text: string; source: Fact['source'];
       evidence: Ref[]; valid_from?: Ms; sensitivity: 0|1; may_raise?: boolean }
   | { op: 'confirm'; id: Id; evidence?: Ref[] }
-  | { op: 'supersede'; id: Id; new: Omit<Extract<MemoryOp, {op:'add'}>, 'op'> }
+  | { op: 'supersede'; id: Id; reason?: string /* ≤ 140 */;
+      new: { id: Id; text: string; evidence: Ref[] } & Partial<Omit<Extract<MemoryOp, {op:'add'}>, 'op'|'id'|'text'|'evidence'>> }   // omitted fields are copied from the old fact
   | { op: 'pin'; id: Id; pinned: boolean }            // device only
   | { op: 'may_raise'; id: Id; value: boolean }       // device only
   | { op: 'forget'; id: Id };                         // device only: hard delete + tombstone
 ```
 
-- The batch applies atomically: all ops or none. A rule failure returns `422 validation` with `details: [{i, reason}]`. Reasons are MEMORY.md §6's codes (`bad_evidence`, `not_owner_evidence`, `rule_needs_owner`, `too_little_evidence`, `tainted_evidence`, `needs_owner_words`, `too_long`, `no_inferred_sensitive`) plus `unknown_ref`.
+- Each op is validated on its own. The valid ops apply together in one transaction; invalid ops change nothing and are listed as `rejected: {i, reason}[]` in the `200` response. If every op is rejected, the response is `422 validation` with `details: [{i, reason}]` instead (`403 session_tainted` when the reason is taint), so a single-op call such as `th remember` fails loudly. From a device principal `evidence` may be empty: the Worker uses the op's own ledger row (`ledger:<id>`, `actor=owner`) as the evidence ([MEMORY.md §12](../mind/MEMORY.md)). Reasons are MEMORY.md §6's codes (`bad_evidence`, `not_owner_evidence`, `rule_needs_owner`, `too_little_evidence`, `tainted_evidence`, `needs_owner_words`, `too_long`, `no_inferred_sensitive`) plus `unknown_ref`.
 - Ops the memory rules route to the owner (a non-user source superseding a `user` fact; a new `inferred` fact with sensitivity 1) become `memory_big` proposals and are listed in `proposals`.
 - The rules themselves are in [MEMORY.md](../mind/MEMORY.md).
 
@@ -586,7 +595,7 @@ Acceptance: an integration test connects, posts a message over HTTP and receives
 | Route | Who | Phase |
 |---|---|---|
 | `GET /v1/health`, `GET /v1/auth/state` | P | P1 |
-| `GET /v1/ops/health/deep` | C N R I | P1 |
+| `GET /v1/ops/health/deep` | D C N R I | P1 |
 | `POST /v1/auth/setup`, `/login`, `/recover` | P | P1 |
 | `POST /v1/auth/signout`, `/password`, `/recovery-code`, `/recovery-code/confirm`, `/breakglass/cancel`, `/notices/:id/ack`; `/v1/auth/sessions*`; `/v1/auth/agents*` | D | P1 |
 | `GET /v1/auth/me` | D C N R M I | P1 |
@@ -624,9 +633,9 @@ Acceptance: an integration test connects, posts a message over HTTP and receives
 | `POST /v1/import/runs` | D C | P3 |
 | `POST /v1/ops/import/parts`, `PUT /v1/ops/import/manifest/:run_id` | C I | P3 |
 | `GET /v1/import/runs/:id` | D C N R | P3 |
-| `PUT /v1/proposals/:id` | C N R | P4 |
-| `GET /v1/proposals` | D C N R | P4 |
-| `POST /v1/proposals/:id/decide` | D; C with `by_message` | P4 (P3 for `memory_big`) |
+| `PUT /v1/proposals/:id` | C N R | P4 (P3 for class `memory_big`, and class `delete` with op `memory.forget`) |
+| `GET /v1/proposals` | D C N R | P4 (P3 for the classes above) |
+| `POST /v1/proposals/:id/decide` | D; C with `by_message` | P4 (P3 for `memory_big` and `memory.forget`) |
 | `POST /v1/proposals/:id/cancel` | D C N R | P4 |
 | `POST /v1/ops/backups/run`, `POST /v1/ops/drill/run` | N I | P4 |
 | `GET /v1/ops/backups` | D C N R I | P4 |
@@ -637,7 +646,7 @@ Acceptance: an integration test connects, posts a message over HTTP and receives
 | `GET /v1/work/hello`, `POST /v1/work/claim`, `/v1/work/orders/:id/{heartbeat,result,fail,files}`, `GET /v1/work/board/brief`, `/v1/work/thread*` | M | P4 |
 | `PUT /v1/senses/batches/:id` | D | P5 |
 | `POST /v1/senses/query` | C N R | P5 |
-| `POST /v1/media/sign` | D (C N for `book:`/`file:`) | P5 |
+| `POST /v1/media/sign` | D (C N for `book:`/`file:`) | P5 (P2 for `file:` refs) |
 | `POST /v1/import/phone` | D | P1b |
 | `GET /v1/jobs/next`, `POST /v1/jobs/:id/collect` | N I | P5 |
 | `GET /v1/jobs/:id` | C N R I | P5 |
