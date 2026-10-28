@@ -13,6 +13,8 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 2. Run the first Deploy; confirm the live checks and one deliberate rollback.
 3. Start P1: Worker skeleton with `Core` + `Auth`, health, CORS, deploy job; run measurements X1, X3, X4, X5.
 
+After P1 comes **P1b · Apps ported as they are**: Music, Guitar, Podcasts, Astra and My Media copied unchanged apart from paths, route folders and the API address; they keep calling the old Worker, whose allowed-origins change is asked first.
+
 ## Blocked / waiting on the owner
 
 - Setup steps in [SETUP.md](SETUP.md) (repository, Claude app access, storage account, role, federated credential, repository settings, scheduled task).
@@ -25,4 +27,5 @@ None yet.
 ## Notes for the next session
 
 - Hosting is the Azure Storage static website (owner ruling); Static Web Apps is ruled out.
+- Existing apps are ported as they are (owner ruling); any change to them later is an evolution the owner agrees to first. Songsterr and libmedia stay (owner rulings).
 - Read [decisions.md](decisions.md) before changing anything structural.

@@ -1,0 +1,622 @@
+# API
+
+This page is the complete `/v1` contract of the Worker `thunderhead-api`: who may call what, the exact request and response shapes, the errors, and the limits.
+The types here are mirrored in `shared/contract/*.ts`, which the backend (zod `satisfies`), the frontend (JSDoc) and the `th` CLI all type-check against. When this page and `shared/contract/` disagree, fix one of them in the same change.
+Storage behind each route is in [DATA.md](DATA.md). Behaviour seen by the owner is in the product docs. Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal]**.
+
+## Rules at a glance
+
+1. **Base URL:** `https://thunderhead-api.<account-subdomain>.workers.dev`. Every path starts with `/v1/`. JSON in, JSON out, UTF-8.
+2. **Public routes:** `GET /v1/health`, `GET /v1/auth/state` and `POST /v1/auth/{setup,login,recover}`. Everything else needs `Authorization: Bearer <token>`. A route not listed in §13 returns `404 not_found`, and the default for any route is deny.
+3. **Principals:** a device session (the owner), or an agent key with one role: `mind:chat`, `mind:night`, `mind:reflex`, `muse` or `ci`. Each route lists who may call it. Mind requests also name their session in `TH-Session`.
+4. **Every request sends `TH-Client`.** Writes from a client below `min_client` get `426 client_outdated`.
+5. **Errors:** HTTP status plus `{"error":{"code","message","details?","request_id"}}`, with stable snake_case codes (§6). The request body is never echoed.
+6. **Idempotency by natural ID:** creates are `PUT …/:id` with a client UUIDv7. The same ID with the same body returns the stored result. The same ID with a different body returns `409 conflict`.
+7. **Pagination:** `?limit=` (default 50, max 200) and an opaque `cursor`; responses are `{items, next}`.
+8. **Limits:** 64 KB JSON bodies by default; 4 KB on auth; 256 KB for event batches; file uploads by stream up to 50 MB.
+9. **No cookies, no credentials in CORS.** Only exact site origins are allowed.
+10. **Ask-first actions are proposals** that only a device tap can decide (§11.10).
+
+---
+
+## 1. Request basics
+
+| Header (request) | Required | Value |
+|---|---|---|
+| `Authorization` | all non-public routes | `Bearer th1_…` (device), `Bearer thm_…` (mind roles), `Bearer ths_…` (Muse), `Bearer thc_…` (CI). Formats: [SECURITY.md §5.1](SECURITY.md) |
+| `TH-Client` | all | `<build>.<sha7>` (site), `th/<version>` (mind CLI), `ci/<build>` (Actions), `muse/<n>` |
+| `TH-Session` | mind roles, after the claim | the Claude session id sent at `POST /v1/mind/brief`; the Worker keys taint and the constitution pin on it |
+| `Content-Type` | bodies | `application/json` (files: the file's type) |
+
+| Header (response) | Always | Value |
+|---|---|---|
+| `Cache-Control` | yes | `no-store` |
+| `X-Content-Type-Options` | yes | `nosniff` |
+| `Referrer-Policy` | yes | `no-referrer` |
+| `X-Robots-Tag` | yes | `noindex, nofollow` |
+| `TH-Request-Id` | yes | the `cf-ray` value; the same as `error.request_id` |
+| `TH-Server` | yes | the Worker version id (`VERSION.id`) |
+| `TH-Min-Client` | yes **[proposal]** | integer build |
+| `Retry-After` | on 429 and 503 | seconds |
+
+Times in bodies are integer ms UTC (`*_at`). Days are `YYYY-MM-DD` logical days ([DATA.md §2.2](DATA.md#22-time)).
+
+## 2. Shared types
+
+```ts
+type Id = string;            // UUIDv7, lowercase
+type Ms = number;            // ms since epoch, UTC
+type Day = string;           // 'YYYY-MM-DD', logical day
+type Ref = string;           // DATA.md §2.3 grammar
+type Page<T> = { items: T[]; next: string | null };
+type Actor = 'owner' | 'mind:chat' | 'mind:night' | 'mind:reflex' | 'muse' | 'ci' | 'worker';
+
+type Thread = { id: Id; day: Day; kind: 'daily'|'topic'|'muse'; status: 'open'|'filed';
+  title: string|null; title_source: 'instant'|'mind'|'owner'|null; summary: string|null;
+  continues: Id|null; message_count: number; started_at: Ms; updated_at: Ms; filed_at: Ms|null };
+
+type Attachment = { ref: Ref; name: string; type: string; bytes: number };
+type Message = { seq: number; id: Id; thread_id: Id; author: 'owner'|'mind'|'muse'|'system';
+  origin: 'owner_device'|'mind'|'system'|'muse'|'import';
+  kind: 'text'|'voice'|'progress'|'card'|'question'|'error'; body: string; meta: Record<string, unknown>|null;
+  attachments: Attachment[]; reply_to: Id|null; created_at: Ms; delivered_at: Ms|null; acked_at: Ms|null; answered_at: Ms|null };
+
+type LedgerEntry = { seq: number; id: Id; at: Ms; actor: Actor;
+  kind: 'memory'|'arrangement'|'verb'|'deploy'|'proposal'|'mistake'|'undo'|'note';
+  what: string; why: string /* ≥ 8 chars */; ref: Ref|null; topic_key: string|null; undoable: boolean;
+  status: 'done'|'undone'|'failed'; tainted: boolean; proposal_id: Id|null; undone_at: Ms|null };
+
+type ProposalClass = 'delete'|'money'|'access'|'reach_people'|'memory_big';
+type Proposal = { id: Id; created_at: Ms; created_by: Actor; class: ProposalClass;
+  question: string /* ≤ 80 */; why: string /* ≤ 140 */; if_ignored: string; odds: number|null;
+  options: [action: string, safe: string]; spec: ProposalSpec; spec_hash: string;
+  status: 'waiting'|'approved'|'rejected'|'expired'|'cancelled'|'executed'|'failed';
+  expires_at: Ms; decided_at: Ms|null; result: unknown|null };
+type ProposalSpec = { v: 1; op: string; args: Record<string, unknown> };   // op from a fixed executor map
+
+type Verb = { id: Id; verb: string /* '<app>.<action>' */; schema: number; ref: Ref|null; args: Record<string, unknown>;
+  device_id: string|null; status: 'pending'|'claimed'|'done'|'failed'|'expired'; proposal_id: Id|null;
+  created_at: Ms; expires_at: Ms; result: unknown|null };
+
+type Surface = { app: string; slot: string; kind: string; schema: number; payload: Record<string, unknown>;
+  why: string /* ≥ 8 chars */; topic_key: string; ref: Ref|null; expires_at: Ms|null; written_at: Ms };
+
+type Fact = { id: Id; kind: 'preference'|'routine'|'fact'|'goal'|'state'|'rule'; subject: string; text: string;
+  source: 'user'|'observed'|'inferred'; confidence: number /* decayed, at read time */; evidence: Ref[];
+  valid_from: Ms; valid_to: Ms|null; recorded_at: Ms; superseded_at: Ms|null; superseded_by: Id|null;
+  last_confirmed: Ms; sensitivity: 0|1; pinned: boolean; may_raise: boolean };
+
+type SenseEvent = { id: Id; at: Ms; type: string /* 'music.skip' */; ref?: Ref; data?: Record<string, unknown>; sensitivity?: 0|1 };
+type Change = { seq: number; kind: string; ref: Ref|null; at: Ms };
+```
+
+---
+
+## 3. Principals and scopes
+
+| Principal | Token | How it is made | Can |
+|---|---|---|---|
+| `device` | `th1_…` | Sign-in on a device ([SIGN-IN.md](../product/SIGN-IN.md)) | Everything the owner can do. The only principal that can decide proposals, manage devices and agents, forget facts, undo any action and change settings |
+| `mind:chat` | `thm_…` | Settings → Agents, role "Mind (chat)" | Read all; post messages; memory ops (taint rules apply); ledger notes; verbs; surfaces; proposals; brief; wait |
+| `mind:night` | `thm_…` | role "Mind (night)" | Read all; memory ops; day notes; titles; surfaces; jobs; backups; proposals. **No** chat messages (except `system` home lines through surfaces) |
+| `mind:reflex` (P4) | `thm_…` | role "Mind (reflex)" | Read errors, health and ledger; one notice message per wake; resolve errors; ledger notes. **No** memory writes |
+| `muse` (P4) | `ths_…` | role "Muse" | `/v1/work/*` and messages in its own `muse` thread |
+| `ci` | `thc_…` | role "CI"; stored as `TH_CI_TOKEN` in the GitHub environment `worker` | Deep health, meter, backup and drill triggers, job specs and collect. Nothing personal: deep health returns counts only |
+
+- The Worker hashes the bearer (SHA-256) and looks it up in the isolate cache (60 s TTL), then in `Auth`. Revocation takes effect within 60 s everywhere.
+- **Tainted sessions:** once a session calls `POST /v1/mind/taint`, the Worker records it in `mind_sessions` for good. Requests carrying that `TH-Session` may not `remember`, `supersede`, `confirm`, write `rule` facts or take `reach_people` actions (`403 session_tainted`; enforced from P4, logged only before). Rules: [MEMORY.md §6–7](../mind/MEMORY.md). A mind request without `TH-Session` after its claim is treated as tainted **[proposal]**.
+- The full scope matrix is [SECURITY.md §5.3](SECURITY.md); §13 below is the route-level form of it.
+- **Approval is never inferred.** Only `POST /v1/proposals/:id/decide` from a `device` principal approves. A message saying "yes" does not.
+
+Acceptance: `backend/tests/integration/route-scopes.test.ts` walks §13. For every route and every principal not listed, it asserts 401 (no token) or 403 (wrong principal).
+
+## 4. CORS
+
+| Item | Value |
+|---|---|
+| Allowed origins | Exact strings from the var `SITE_ORIGINS` (the storage website origin; during P5 the old site's origin is added for `/v1/import/phone` only) |
+| Methods | `GET, POST, PUT, PATCH, DELETE` |
+| Allowed headers | `Authorization, Content-Type, TH-Client, TH-File-Name, TH-Sha256` (browsers never send `TH-Session`) |
+| Exposed headers | `TH-Request-Id, TH-Server, TH-Min-Client, Retry-After` |
+| `Access-Control-Max-Age` | `7200` (Chrome's cap) |
+| Credentials | never (`Access-Control-Allow-Credentials` is not sent) |
+| `Vary` | `Origin` |
+
+- A preflight from an origin that is not allowed gets `403` with no CORS headers.
+- A request with an `Origin` header that is not allowed gets `403 forbidden_origin` before any DO call **[proposal]**. Requests with no `Origin` (the CLI, Actions) are allowed and rely on the token.
+
+Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site origin and expects 204 with the values above; with `Origin: https://example.com` it expects 403.
+
+## 5. Versions and client skew
+
+- `/v1` changes are additive. A breaking change adds `/v2/<area>` for that one area.
+- `min_client` is a `Core` setting (an integer build). It is raised only when an older client would corrupt data.
+- Below `min_client`, every `PUT`, `POST`, `PATCH` and `DELETE` returns `426 client_outdated` with `details: {min_client}`. `GET` keeps working.
+- The full rule is in [ARCHITECTURE.md §6](ARCHITECTURE.md#6-version-skew-between-the-phone-and-the-api).
+
+## 6. Errors
+
+```json
+{ "error": { "code": "validation", "message": "body.text is too long", "details": [{"path":"text","issue":"max 500"}], "request_id": "8d1c…-EZE" } }
+```
+
+| Status | Code | When | Client does |
+|---|---|---|---|
+| 400 | `bad_request` | Unparseable JSON, a wrong method shape, a foreign cursor | Fix the request; never retry as is |
+| 401 | `unauthorized` | No token, unknown token, bad token checksum | Show sign-in (device) / stop and report (agent, `th` exit 2) |
+| 401 | `session_revoked` | The session was signed out; `details.reason` ∈ `signed_out_here`, `signed_out_elsewhere`, `password_changed`, `recovery_used`, `reset_used`, `device_limit` | Wipe the token, key and private caches; show sign-in with the reason line |
+| 401 | `session_expired` | 90 days idle | Same as revoked |
+| 401 | `wrong_username_or_password` | Sign-in failed | The one line from [SIGN-IN.md §5.3](../product/SIGN-IN.md) |
+| 401 | `wrong_username_or_code` | Recovery or reset code wrong | Same treatment |
+| 401 | `setup_code_wrong` | Setup code doesn't match the installed fingerprint | — |
+| 401 | `current_password_wrong` | Password change or recovery-code regeneration | — |
+| 403 | `forbidden` | The principal lacks the scope | Never retry (`th` exit 6) |
+| 403 | `forbidden_origin` | `Origin` is not allowed | — |
+| 403 | `session_tainted` | A tainted mind session tried a gated write | The mind reports it; no retry |
+| 403 | `laws_unpinned` | `rule` write from a session whose constitution pin failed | — |
+| 403 | `proposal_required` | An ask-first verb or op without an approved proposal | Create a proposal |
+| 404 | `not_found` | No such route or record | — |
+| 409 | `conflict` | Same ID, different body | Never retry with the same ID |
+| 409 | `already_decided`, `already_undone`, `already_claimed` | State has moved on | Refresh |
+| 409 | `already_live` | Another chat session holds the lease | The new session ends (`th` exit 11) |
+| 409 | `decision_budget` | A 4th waiting proposal | Keep it in the mind's own queue |
+| 409 | `nudge_repeat` | A surface or push whose `topic_key` was ignored in the last 14 days | Drop it |
+| 409 | `push_budget`, `push_gap`, `quiet_hours`, `quiet` | Push rules in [BEHAVIOR.md §3.4](../mind/BEHAVIOR.md) (P8) | Drop or wait |
+| 409 | `spec_mismatch` | The decide body's `spec_hash` differs from the stored one | Show the card again |
+| 409 | `setup_required` | Any auth call while UNCLAIMED | Go to `/setup/` |
+| 409 | `setup_fp_missing` | Setup before the fingerprint is installed | Keep waiting ([SIGN-IN.md §4](../product/SIGN-IN.md)) |
+| 409 | `reset_already_pending` | A second reset ticket | — |
+| 410 | `setup_done` | Setup after a credential exists | — |
+| 410 | `expired` | A proposal, ticket or verb past its time | Refresh |
+| 410 | `resync_required` | `/v1/changes?after=` is older than the feed keeps | Reload full state (§11.6) |
+| 413 | `too_large` | The body exceeds its limit | Split |
+| 415 | `unsupported_media_type` | Wrong `Content-Type` | — |
+| 422 | `validation` | Schema or rule failure; `details` lists zod issues or rule reasons (memory: `bad_evidence`, `not_owner_evidence`, `rule_needs_owner`, `too_little_evidence`, `tainted_evidence`, `needs_owner_words`, `too_long`, `no_inferred_sensitive`) | Fix; never retry as is (`th` exit 8) |
+| 422 | `password_too_short`, `password_too_long`, `password_guessable`, `password_breached`, `password_same` | Password rules ([SIGN-IN.md §9.2](../product/SIGN-IN.md)) | Show the line |
+| 425 | `reset_not_ready` | A reset ticket used before `usable_after` | Show the countdown |
+| 426 | `client_outdated` | A write from below `min_client` | Apply the update |
+| 429 | `rate_limited` | Throttled; body `retry_after` (s) and `scope` (`source`\|`account`), plus `Retry-After` | Wait that long (`th` exit 10) |
+| 500 | `internal` | A bug | Retry once after 2 s for idempotent requests |
+| 502 | `upstream` | R2, a push service or a fire URL failed | Retry with back-off |
+| 503 | `budget_exhausted` | A daily Free-plan cap was reached; `Retry-After` = seconds to 00:00 UTC | Queue writes; keep reading (`th` exit 10) |
+| 503 | `auth_unavailable` | `Auth` can't be reached | "Sign-in is having trouble" line |
+| 503 | `unavailable` | A DO is overloaded or restarting | Retry after 1 s, 2 s, 4 s (max 3 tries) |
+
+- `message` is plain English for logs and agents. The owner never sees raw codes; [COPY.md](../design/COPY.md) maps codes to words.
+- The Workers platform's own errors (1027 when the daily request limit is hit, 1102 on CPU overrun) arrive as non-JSON. `api.js` maps a non-JSON 5xx or 429 to `unavailable`.
+
+## 7. Idempotency
+
+| Write | Key | Same key, same body | Same key, other body |
+|---|---|---|---|
+| Creates (`PUT /…/:id`) | the path id | 200 + the stored record | 409 `conflict` |
+| Event batches | `batch_id` | 200 + the stored `{accepted, rejected}` | 409 |
+| Memory ops, verb results, job collect, import runs | `batch_id` / the path id, kept in `Core.op_batches` for 7 days | 200 + the stored result | 409 |
+| Approve / reject / undo | the record's state | 200 if already in the target state from the same request id; else 409 `already_*` | — |
+
+- "Same body" means the same SHA-256 of the canonical JSON (keys sorted, no whitespace).
+- No generic `Idempotency-Key` header exists.
+
+## 8. Pagination
+
+- Query: `limit` (1–200, default 50) and `cursor` (opaque base64url from a previous `next`).
+- Response: `{ "items": [...], "next": "eyJzIjo0MTJ9" }` or `"next": null` at the end.
+- Lists are ordered newest first unless the route says otherwise. The cursor encodes the last sort key; it never expires, but a cursor from another route is `400 bad_request`.
+
+## 9. Limits
+
+| Limit | Value | Over it |
+|---|---|---|
+| JSON body (default) | 64 KB | 413 |
+| `/v1/auth/*` body | 4 KB | 413 |
+| Event batch | 500 events and 256 KB | 413 |
+| `POST /v1/ops/errors` | 50 items, 32 KB | 413 |
+| `POST /v1/import/phone` | 5 MB per chunk | 413 |
+| `POST /v1/ops/import/parts` | 5 MB per part | 413 |
+| File upload (`PUT /v1/files/:id`) | 50 MB, streamed **[proposal]** | 413 |
+| Message body | 16,000 characters | 422 |
+| `media/sign` refs | 50 per call | 422 |
+| Memory ops | 50 per batch | 422 |
+| Per-principal rate | 600 requests/min per token, counted per isolate (approximate) **[proposal]** | 429 |
+| Sign-in throttle | [SIGN-IN.md](../product/SIGN-IN.md) back-off table | 429 |
+| `GET /v1/live/wait` | `timeout` ≤ 25 s | clamped |
+
+---
+
+## 10. Auth middleware order
+
+`requestId → cors → clientVersion → bodyLimit → auth → scope → (taint) → route → onError`. `onError` turns every thrown error into §6's envelope and logs one line ([ARCHITECTURE.md §9](ARCHITECTURE.md#9-key-conventions)).
+
+---
+
+## 11. Endpoints
+
+Format of each entry: **Who** (principals) · **Phase** · request · response · errors beyond §6's general ones · notes. "Agents" means `mind:chat`, `mind:night` and `mind:reflex`.
+
+### 11.1 Health
+
+**`GET /v1/health`** · Who: public · P1
+- Response `200`: `{ ok: true, version: { id: string, tag: string|null }, min_client: number, at: Ms }`. `tag` is the deployed commit's short sha (`wrangler deploy --tag`).
+- No DO call. A `503` from here means the Worker itself is down.
+
+**`GET /v1/ops/health/deep`** · Who: agents, `ci` · P1
+- Response `200`:
+  ```ts
+  { ok: boolean; version: {id; tag}; schema: Record<'core'|'auth'|string, number>;
+    objects: Record<string, { ok: boolean; db_bytes: number; jobs_backlog: number; last_alarm_at: Ms|null }>;
+    meter_today: { rows_written: number; rows_read: number; bulk_rows_written: number; bulk_lane: string|null };
+    last_backup: { date: Day; age_h: number }|null; last_events_export: Day|null;
+    errors_open: number; wakes_today: number; min_client: number }
+  ```
+- `ok` is false if any object fails, schema versions are not the expected `SCHEMA_VERSION`, or the backup is older than 8 days. Counts only, never content.
+
+### 11.2 Auth
+
+Behaviour, copy and throttle numbers are owned by [SIGN-IN.md](../product/SIGN-IN.md) and [SECURITY.md](SECURITY.md). This is the wire shape.
+
+```ts
+type DeviceHints = { platform?: string; browser?: string; model?: string; standalone?: boolean };
+type SignedIn = { token: string; session_id: string; idle_days: 90 };
+```
+
+| Route | Who | Request | Response | Specific errors |
+|---|---|---|---|---|
+| `GET /v1/auth/state?fp=&reset_fp=` | public | — | `200 { setup: 'open'\|'done', setup_fp?: 'ready'\|'missing'\|'mismatch', reset?: 'none'\|'pending'\|'ready'\|'cancelled'\|'expired'\|'used', usable_after?: Ms }` (reset fields only when `reset_fp` matches a ticket) | — |
+| `POST /v1/auth/setup` | public, only while UNCLAIMED | `{ setup_code, username, password, device: DeviceHints }` | `201 SignedIn & { recovery_code }` | 410 `setup_done`, 409 `setup_fp_missing`, 401 `setup_code_wrong`, 422 `password_*`, 429 |
+| `POST /v1/auth/login` | public | `{ username, password, device: DeviceHints }` | `200 SignedIn` | 401 `wrong_username_or_password`, 409 `setup_required`, 429, 503 `auth_unavailable` |
+| `POST /v1/auth/recover` | public | `{ username, code, new_password, device }` (`code` = the recovery code, or the reset code once its ticket is ready) | `200 SignedIn & { recovery_code }`; every other session is revoked | 401 `wrong_username_or_code`, 425 `reset_not_ready`, 422 `password_*`, 429 |
+| `POST /v1/auth/signout` | device | `{ scope: 'this'\|'others'\|'all' }` | `204`; the sessions are revoked and their push subscriptions deleted | — |
+| `GET /v1/auth/me` | device | — | `200 { session_id, label, notices: Notice[], recovery_confirmed: boolean }` | — |
+| `GET /v1/auth/me` | agent keys | — | `200 { agent_id, role, name }` | — |
+| `POST /v1/auth/password` | device | `{ current_password, new_password, sign_out_others: boolean }` | `200 { token? }` | 401 `current_password_wrong`, 422 `password_*` |
+| `POST /v1/auth/recovery-code` | device | `{ current_password }` | `200 { recovery_code }` (the old one stops working at once) | 401 `current_password_wrong` |
+| `POST /v1/auth/recovery-code/confirm` | device | `{ last5 }` | `204` | 422 |
+| `POST /v1/auth/breakglass` | `mind:chat` only | `{ fingerprint }` (`thfp_…`, given by the owner in their own Claude Code session) | `201 { ticket_id, usable_after /* +24 h */, expires_at /* +96 h */ }`; red notice + push to every device | 409 `reset_already_pending`, 409 `setup_required`, 429 |
+| `POST /v1/auth/breakglass/cancel` | device | `{ ticket_id }` | `204`; the ticket and its fingerprint are void for good | 404, 410 |
+| `POST /v1/auth/notices/:id/ack` | device | `{ answer: 'me'\|'not_me'\|'ok' }` (`not_me` revokes the session the notice is about) | `204` | 404 |
+
+- The flows, state machines, back-off numbers and copy are owned by [SIGN-IN.md](../product/SIGN-IN.md). This table must match its §4–§10.
+- Setup and reset prove control through a **fingerprint** (`thfp_…` = SHA-256 of a code made in the owner's browser) that the owner installs as the Worker secret `AUTH_SETUP_FP` / `AUTH_RESET_FP`, through a GitHub workflow or the Cloudflare dashboard. This replaces the review's unauthenticated `POST /v1/auth/setup-ticket` ([SIGN-IN.md §4](../product/SIGN-IN.md)).
+- Auth handlers log only the outcome code. Bodies are never logged.
+
+### 11.3 Sessions (devices)
+
+| Route | Who | Request | Response |
+|---|---|---|---|
+| `GET /v1/auth/sessions` | device | — | `200 { items: { id, label, platform, browser, standalone, region, country, last_country, signed_in_at, last_seen_at, this_device }[] }` |
+| `PATCH /v1/auth/sessions/:id` | device | `{ label: string /* 1–40 chars */ }` | `200` the row |
+| `DELETE /v1/auth/sessions/:id` | device | — | `204` (also when already gone); revoked within 60 s everywhere |
+
+None of these needs the password again. "Sign out everywhere else / everywhere" is `POST /v1/auth/signout` (§11.2).
+
+### 11.4 Agent keys
+
+| Route | Who | Request | Response |
+|---|---|---|---|
+| `GET /v1/auth/agents` | device | — | `200 { items: { id, name, role, created_at, created_on, last_used_at, last_country }[] }` |
+| `POST /v1/auth/agents` | device | `{ name /* ≤ 32, unique */, role: 'mind:chat'\|'mind:night'\|'mind:reflex'\|'muse'\|'ci', current_password }` | `201 { id, token }`. **The key is shown once** and never retrievable again |
+| `DELETE /v1/auth/agents/:id` | device | — | `204`; refused within 60 s everywhere |
+
+Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revokes it, moves the fake clock past the 60 s cache, and gets 401.
+
+### 11.5 Live
+
+**`POST /v1/live/ticket`** · Who: device · P2
+- Response `200 { ticket: string, expires_at: Ms }`. The ticket is `thw_` + 22 base62 characters ([SECURITY.md §5.1](SECURITY.md)), valid 30 s and single-use. `Core.live_tickets` stores only its SHA-256 (2 rows written per connect).
+
+**`GET /v1/live?ticket=…`** (WebSocket upgrade) · Who: a holder of a valid ticket · P2
+- Before the upgrade: `401 unauthorized` for a bad or used ticket; `400 bad_request` without `Upgrade: websocket`.
+- After it: the frames in §12.
+
+**`GET /v1/live/wait?after=<seq>&timeout=<1–25>`** · Who: agents · P2
+- The Worker holds the request for up to `timeout` seconds (default 25) on a WebSocket to `Core`, and returns at the first change after `seq`.
+- Response `200`:
+  ```ts
+  { seq: number; changed: boolean; kinds: string[];
+    messages: Message[];                  // owner messages after `after`, ≤ 20; sets delivered_at
+    events: { type: 'proposal.decided'|'work.done'|'verb.result'|'deploy.result'; ref: Ref; at: Ms }[];
+    signals: ('day_closed' | 'stop')[] }
+  ```
+  `stop` = the owner tapped stop. `day_closed` = the roll happened. The CLI turns these into `th wait`'s output and exit codes ([RUNTIME.md §5](../mind/RUNTIME.md)).
+- A handed-out message must be acknowledged within 120 s (`POST /v1/mind/status` with `working`, or any post in its thread), or it is requeued.
+- Each take renews the role's lease ([DATA.md §4.1](DATA.md#41-settings-ops-the-feed-and-the-minds-bookkeeping)).
+- Fallback if test X1 fails: the CLI polls `GET /v1/changes` every 15 s.
+
+### 11.6 Changes
+
+**`GET /v1/changes?after=<seq>&limit=<1–500>`** · Who: device, agents · P2
+- Response `200 { items: Change[], next_after: number, more: boolean }`, oldest first.
+- `410 resync_required` if `after` is older than the oldest kept row. The client then reloads: `GET /v1/threads/today`, `GET /v1/surfaces`, `GET /v1/proposals?status=waiting`, `GET /v1/verbs/pending`, and sets `after` to the returned `seq`.
+
+### 11.7 Conversation
+
+| Route | Who | Request | Response | Notes |
+|---|---|---|---|---|
+| `GET /v1/threads?status=open\|filed&limit&cursor` | device, agents | — | `200 Page<Thread>` newest `updated_at` first | |
+| `GET /v1/threads/today` | device, agents | — | `200 { thread: Thread\|null, messages: Message[] /* last 50 */, seq: number }` | `thread` is null before the day's first message |
+| `GET /v1/threads/:id` | device, agents | — | `200 Thread` | |
+| `GET /v1/threads/:id/messages?before_seq\|after_seq&limit` | device, agents | — | `200 Page<Message>` | |
+| `PATCH /v1/threads/:id` | `mind:chat`, `mind:night` | `{ title?: string /* ≤ 80 */, summary?: string /* ≤ 400 */ }` | `200 Thread` | Sets `title_source:'mind'`; refused (`409 conflict`) when `title_source='owner'` |
+| `POST /v1/threads/:id/continue` | device | — | `200 { today_thread_id }` | Links a filed thread to today (`continues`) |
+| `PUT /v1/messages/:id` | device, `mind:chat`, `muse` (own thread); `mind:night`/`mind:reflex` only `kind:'error'` to the system thread | `{ body: string, kind?: Message['kind'] /* default 'text' */, meta?: object /* ≤ 8 KB */, attachments?: Ref[] /* file:…, ≤ 10 */, reply_to?: Id }` | `201 Message` (200 on a same-body retry) | See below |
+| `PATCH /v1/messages/:id` | `mind:chat` (own posts) | `{ body?: string, meta?: object }` | `200 Message` | Keeps progress cards current (`th amend`) |
+| `GET /v1/search?q=&kind=messages\|facts\|day_notes&since&until&limit` | device, `mind:chat`, `mind:night` | — | `200 { items: { ref, kind, snippet /* ≤ 200 chars, match in «» */, at, thread_id?, score }[] }` | FTS5 bm25; `q` 1–200 chars |
+| `POST /v1/mind/typing` | device | `{}` | `204` | May fire a pre-warm wake ([RUNTIME.md](../mind/RUNTIME.md)) |
+| `PUT /v1/files/:id` | device, `mind:chat` | raw bytes; headers `Content-Type`, `TH-File-Name` (URL-encoded, ≤ 120), `TH-Sha256` | `201 { ref: 'file:<id>', bytes, type }` | Streams to `thunderhead-private/chat/files/…`; 422 if the sha256 differs **[proposal]** |
+
+`PUT /v1/messages/:id` rules:
+1. The message goes into the open `daily` thread for `day.current`. The Worker creates that thread if needed. The client never names a thread, except `muse` in its own thread.
+2. `author` and `origin` come from the principal (`device` → `owner`/`owner_device`, `mind:chat` → `mind`/`mind`, `muse` → `muse`/`muse`), never from the body.
+3. A `mind` message with `reply_to` sets `answered_at` on that owner message and on earlier unanswered owner messages in the same thread **[proposal]**.
+4. An owner message with no live chat lease and no unclaimed fire younger than 90 s queues a wake (conditions: [RUNTIME.md §3](../mind/RUNTIME.md)).
+5. Owner messages use `text` or `voice`. Agents may use every kind; `system` messages (author `system`) are written only by the Worker.
+6. Wording limits on mind messages (the phrase lint) are enforced as `422 validation` per [BEHAVIOR.md](../mind/BEHAVIOR.md).
+
+### 11.8 Mind
+
+| Route | Who | Request | Response |
+|---|---|---|---|
+| `POST /v1/mind/brief` | agents | `{ claim: boolean, session_id: string, role: 'chat'\|'night'\|'reflex', constitution_sha256: string, th_version: string }` (`role` must match the key's role) | `200 { wake: {id, reason, claim_match} \| null, day: Day, seq: number, core: string /* ≤ 9,500 chars */, full: string /* ≤ 48,000 chars */ }`; `409 already_live` if another chat session holds the lease |
+| `POST /v1/mind/status` | agents | `{ state: 'working'\|'listening'\|'stopping'\|'limited', thread_id?, note? /* ≤ 140 */, error? }` | `204` (feeds the presence light; `working` acknowledges handed-out messages) |
+| `POST /v1/mind/notes` | agents | `{ id: Id, thread_id?, body /* ≤ 120 words */, open_items: {text, ref?}[] /* ≤ 10 */ }` | `201` |
+| `POST /v1/mind/taint` | agents | `{ source: string /* tool name */, ref_kind?: 'url'\|'file'\|'comment' }` | `200 { tainted: true }`; irreversible for the session. The URL itself is not sent |
+| `GET /v1/mind/pending` | agents | — | `200 { unanswered: Id[], stop: boolean, day_closed: boolean, limited: boolean, blocks_used: number }` (the Stop hook) |
+| `POST /v1/mind/night` | `mind:night` | `{ day: Day, action: 'start'\|'step_done'\|'done', step?: number }` | `200 { resume_from: number }` (`night_runs`) |
+| `GET /v1/mind/day/:day?part=stats\|messages\|ledger\|notes&cursor` | `mind:night` | — | `200` `stats`: deterministic counts; other parts: `Page<…>` |
+| `GET /v1/mind/wakes?limit` | agents, device | — | `200 Page<{id, at, role, reason, status, fired_at, claimed_at}>` |
+
+- `claim: true` binds the session to the open wake of its task and sets it `claimed` (`claim_match` `exact`, `loose` or `manual`), and creates its `mind_sessions` row. Every later request from the session carries `TH-Session: <session_id>`.
+- The briefing's sections, order and truncation are owned by [RUNTIME.md](../mind/RUNTIME.md). The Worker truncates; the model never does.
+
+### 11.9 Ledger and undo
+
+| Route | Who | Request | Response | Errors |
+|---|---|---|---|---|
+| `GET /v1/ledger?before_seq&limit&actor&status` | device, agents | — | `200 Page<LedgerEntry>` | |
+| `PUT /v1/ledger/:id` | agents | `{ kind: 'deploy'\|'mistake'\|'note', what /* ≤ 200 */, why /* 8–500 */, ref?, topic_key? }` | `201 LedgerEntry` | For actions outside the Worker (a merged PR, a deploy, an admitted mistake). `undoable` is false for these |
+| `POST /v1/ledger/:id/undo` | device; `mind:chat` for its own actions | `{}` | `200 { undo_ledger_id, status: 'undone' \| 'queued' }` | 409 `already_undone`; 422 `validation` with reason `not_undoable`; 410 `expired` after 30 days **[proposal]** |
+
+- A Core-internal action (memory, surface, setting) is undone in the same transaction as its new `undo` ledger row (`status: 'undone'`).
+- A phone action is undone by queueing its stored inverse verb (`status: 'queued'`). The original row becomes `undone` when that verb reports success.
+
+### 11.10 Proposals (decisions)
+
+| Route | Who | Request | Response | Errors |
+|---|---|---|---|---|
+| `PUT /v1/proposals/:id` | agents | `{ class: ProposalClass, question /* ≤ 80 */, why /* ≤ 140 */, if_ignored /* ≤ 140 */, odds?: number /* 0–1 */, options: [string, string] /* each ≤ 20 */, spec: ProposalSpec }` | `201 Proposal` (`status:'waiting'`, `expires_at` = +7 days, `spec_hash` = SHA-256 of the canonical spec) | 409 `decision_budget` (3 already waiting); 422 if `spec.op` is not in the executor map; 403 `session_tainted` for `delete`/`access`/`reach_people` from a tainted session |
+| `GET /v1/proposals?status=waiting\|all&limit&cursor` | device, agents | — | `200 Page<Proposal>` | |
+| `POST /v1/proposals/:id/decide` | **device only** | `{ decision: 'approve'\|'reject', spec_hash }` | `200 { status: 'executed'\|'approved'\|'rejected', result?: unknown }` (`approved` when execution is a queued verb) | 409 `spec_mismatch`, 409 `already_decided`, 410 `expired` |
+| `POST /v1/proposals/:id/cancel` | the creating agent, device | `{ why /* ≥ 8 */ }` | `200 { status: 'cancelled' }` | 409 `already_decided` |
+
+- The card's parts and limits are owned by [BEHAVIOR.md §4](../mind/BEHAVIOR.md). The Worker validates them (check DEC-1).
+- `spec.op` comes from a fixed map in `backend/src/areas/proposals/executors.ts`, e.g. `verb`, `memory.forget`, `memory.apply_batch`, `agents.revoke`, `files.delete`, `ops.restore`, `music.delete_from_catalog`. Free-form code or SQL is never executed.
+- Deciding writes a ledger row with `proposal_id`. A waiting proposal turns the bottom light gold ([HOME.md](../product/HOME.md)). An owner chat "yes" never decides anything (check DEC-2).
+
+### 11.11 Verbs
+
+| Route | Who | Request | Response | Errors |
+|---|---|---|---|---|
+| `PUT /v1/verbs/:id` | agents | `{ verb, schema, ref?, args, device_id?, expires_at? /* default +24 h */, proposal_id? }` | `201 Verb` | 403 `proposal_required` for an ask-first verb without an approved proposal |
+| `GET /v1/verbs/pending` | device | — | `200 { items: Verb[] }` (for this device or any) | |
+| `POST /v1/verbs/:id/claim` | device | `{}` | `200 Verb` (`claimed`; the claim lasts 120 s) | 409 `already_claimed` |
+| `POST /v1/verbs/:id/result` | device | `{ ok: boolean, result?: unknown, undo?: {verb, args}, error?: {code, message} }` | `200 Verb` | 410 `expired` |
+
+- Verb names and their classes are listed in `shared/contract/verbs.ts`. Each app doc lists its verbs.
+- A claimed verb that reports nothing within 120 s goes back to `pending` (at most 3 claims, then `failed`).
+
+### 11.12 Surfaces
+
+| Route | Who | Request | Response |
+|---|---|---|---|
+| `GET /v1/surfaces?since_seq=` | device, agents | — | `200 { items: Surface[], seq }` (non-expired, changed after `since_seq`) |
+| `PUT /v1/surfaces/:app/:slot` | `mind:chat`, `mind:night` | `{ kind, schema, payload /* ≤ 16 KB */, why /* 8–200 chars, required */, topic_key /* slug */, ref?, expires_at? }` | `200 Surface` (+ a ledger row); `409 nudge_repeat` if the topic was ignored in the last 14 days; margin notes over 140 characters → 422 |
+| `DELETE /v1/surfaces/:app/:slot` | device, `mind:chat`, `mind:night` | — | `204` (+ a ledger row) |
+
+`why` is required on every surface, so the owner can always see why something is there.
+
+### 11.13 Memory
+
+| Route | Who | Request | Response |
+|---|---|---|---|
+| `GET /v1/memory/facts?kind&subject&include_superseded&limit&cursor` | device, agents | — | `200 Page<Fact>` |
+| `POST /v1/memory/ops` | device, `mind:chat`, `mind:night` | `{ batch_id: Id, ops: MemoryOp[] /* ≤ 50 */ }` | `200 { applied: {i, fact_id, ledger_id}[], proposals: {i, proposal_id}[] }` |
+| `GET /v1/memory/profile` | device, agents | — | `200 { text: string /* ≤ 1,500 tokens */, fact_ids: Id[], rendered_at: Ms }` |
+| `GET /v1/memory/day-notes?from&to` | device, agents | — | `200 { items: DayNote[] }` |
+| `PUT /v1/memory/day-notes/:day` | `mind:night` | `{ summary, decisions: string[], importance: 1-10 }` (`stats` is computed by the Worker) | `200 DayNote` (`version` + 1) |
+| `GET /v1/memory/open-threads?status=open\|all` | device, agents | — | `200 { items: OpenThread[] }` |
+| `PUT /v1/memory/open-threads/:id` | device, `mind:chat`, `mind:night` | `{ text, owner: 'mind'\|'owner', due_at?, evidence: Ref[], status? }` | `200 OpenThread` |
+
+```ts
+type MemoryOp =
+  | { op: 'add'; id: Id; kind: Fact['kind']; subject: string; text: string; source: Fact['source'];
+      evidence: Ref[]; valid_from?: Ms; sensitivity: 0|1; may_raise?: boolean }
+  | { op: 'confirm'; id: Id; evidence?: Ref[] }
+  | { op: 'supersede'; id: Id; new: Omit<Extract<MemoryOp, {op:'add'}>, 'op'> }
+  | { op: 'pin'; id: Id; pinned: boolean }            // device only
+  | { op: 'may_raise'; id: Id; value: boolean }       // device only
+  | { op: 'forget'; id: Id };                         // device only: hard delete + tombstone
+```
+
+- The batch applies atomically: all ops or none. A rule failure returns `422 validation` with `details: [{i, reason}]`. Reasons include `evidence_not_owner` (a `user` fact needs owner-device evidence), `rule_needs_user`, `external_evidence`, `observed_needs_10_events` and `unknown_ref`.
+- Ops the memory rules route to the owner (a non-user source superseding a `user` fact; a new `inferred` fact with sensitivity 1) become `memory_big` proposals and are listed in `proposals`.
+- The rules themselves are in [MEMORY.md](../mind/MEMORY.md).
+
+### 11.14 Senses (P5)
+
+**`PUT /v1/senses/batches/:batch_id`** · Who: device
+- Request `{ events: SenseEvent[] /* 1–500, ≤ 256 KB */ }`. The batch is sealed: the client retries exactly these bytes until it gets a 2xx.
+- Response `200 { accepted: number, rejected: { i: number, reason: 'bad_type'|'bad_time'|'too_large'|'bad_ref' }[] }`. Invalid events are dropped and reported; the batch still counts as stored, so the outbox deletes it.
+- `type` matches `^[a-z]+(\.[a-z_]+)+(\.v\d+)?$`. `at` must be within [now − 30 days, now + 5 min]. `data` ≤ 2 KB per event.
+- 409 if the same `batch_id` arrives with a different body.
+
+**`POST /v1/senses/query`** · Who: agents
+- Request `{ name: string, params: Record<string, unknown> }`. `name` comes from a fixed map (`counts_by_day`, `top_refs`, `sequence`, `last_event`, …) in `areas/senses/queries.ts`. Never SQL.
+- Response `200 { rows: unknown[], rows_read: number }`.
+
+### 11.15 Media
+
+**`POST /v1/media/sign`** · Who: device; agents for `book:` and `file:` refs · P5 (P2 for `file:`)
+- Request `{ refs: Ref[] /* 1–50 */ }`.
+- Response `200 { items: { ref, url, expires_at }[], errors: { ref, code: 'not_found'|'not_signable' }[] }`.
+- Signing time (`X-Amz-Date`) is floored to the hour, and every URL expires 3 h after that, so it is valid for at least 2 h and identical within the hour (browser caching works). The client re-signs on a 403.
+- Ref → key mapping is in [DATA.md §7.4](DATA.md#74-media-ref--key-map-used-by-post-v1mediasign). Bucket keys never appear in requests.
+- Never put a signed URL in the address bar, history or logs.
+
+### 11.16 Ops
+
+| Route | Who | Request | Response |
+|---|---|---|---|
+| `POST /v1/ops/errors` | device, agents | `{ items: { fingerprint?, source: 'client'\|'csp'\|'job', route?, code, message /* ≤ 300 */, build: number, at: Ms, count?: number }[] /* ≤ 50 */ }` | `204` |
+| `GET /v1/ops/errors?status=open\|resolved&limit` | device, agents, `ci` | — | `200 Page<ErrorRow>` |
+| `POST /v1/ops/errors/:fingerprint/resolve` | device, `mind:chat`, `mind:reflex` | `{}` | `204` |
+| `POST /v1/ops/perf` **[proposal]** | device | `{ day: Day, build: number, metrics: Record<'inp'\|'loaf_gesture'\|'start_warm'\|'start_cold'\|'api_ms'\|'heap_mb', {p50, p75, p95, n}> }` (one call per day) | `204` |
+| `GET /v1/ops/meter?days=1-30` | device, agents, `ci` | — | `200 { items: { day, class, rows_written, rows_read, bulk_rows_written }[] }` |
+| `POST /v1/ops/backups/run` | `mind:night`, `ci` | `{ class?: string }` | `202 { job_ids: Id[] }` |
+| `GET /v1/ops/backups?limit` | device, agents, `ci` | — | `200 Page<{date, class, rows, bytes, complete}>` |
+| `POST /v1/ops/restore` | device, agents | `{ kind: 'pitr'\|'table'\|'object', class, at?: Ms, date?: Day, table?: string, mode?: 'replace'\|'merge' }` | `202 { proposal_id }` (it executes only when decided `approve`) |
+| `POST /v1/ops/drill/run` | `mind:night`, `ci` | `{}` | `202 { job_id }` |
+| `POST /v1/export` | device | `{}` | `202 { export_id }` (P4) |
+| `GET /v1/export/:id` | device | — | `200 { status: 'building'\|'ready'\|'failed', items: { label, url, bytes, expires_at }[] }` |
+
+`message` fields are scrubbed by the server too (URLs with query strings and token-shaped strings are removed).
+
+### 11.17 Import
+
+| Route | Who | Request | Response |
+|---|---|---|---|
+| `POST /v1/ops/import/parts` | `ci`, `mind:chat` | raw gzip JSONL part; headers `TH-Import: <run_id>/<instance>/<table>/<nnnn>`, `TH-Sha256`, `TH-Rows` (≤ 2,000 rows, ≤ 5 MB) | `201 { key }` (idempotent by the header path; 409 if the bytes differ) |
+| `PUT /v1/ops/import/manifest/:run_id` | `ci`, `mind:chat` | the manifest JSON ([MIGRATION.md §3](MIGRATION.md)) | `201` |
+| `POST /v1/import/runs` | device, `mind:chat` | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music' }` | `202 { import_id }` |
+| `GET /v1/import/runs/:id` | device, agents | — | `200 { state, counts: { expected, imported, skipped, skip_reasons }, report: { spot_checks: {seed, passed, failed}, rerun_delta } \| null }` |
+| `POST /v1/import/phone` | device (CORS also allows the old site's origin for this route and `POST /v1/auth/login`, until P5 ends) | `{ id: Id, chunk: number, chunks: number, exported_at: Ms, data: Record<string, unknown> }`, gzip, ≤ 5 MB per chunk ([MIGRATION.md §5](MIGRATION.md)) | `201 { import_id, counts: Record<string, number> }` (after the last chunk) |
+
+Data mechanics and proof rules: [DATA.md §12](DATA.md#12-importing-the-old-data). The plan: [MIGRATION.md](MIGRATION.md).
+
+### 11.18 Jobs (P5)
+
+| Route | Who | Request | Response |
+|---|---|---|---|
+| `GET /v1/jobs/next?kind=audio.analysis&max=1-1000` | `mind:night`, `ci` | — | `200 { job_id, kind, v, shas: string[] }` or `204` when nothing is due |
+| `GET /v1/jobs/:id/spec` | `ci` | — | `200 { job_id, kind, v, shas: string[] }` (for the Actions run, which receives only `job_id`) |
+| `POST /v1/jobs/:id/collect` | `mind:night`, `ci` | `{}` | `202 { state: 'validating' }` |
+| `GET /v1/jobs/:id` | agents, `ci` | — | `200 { state: 'issued'\|'validating'\|'applied'\|'rejected'\|'expired', counts: {expected, valid, invalid, missing} }` |
+
+Validation rules: [JOBS.md §3](JOBS.md#3-actions-jobs-audio-analysis).
+
+### 11.19 Work orders (P4)
+
+| Route | Who | Request | Response |
+|---|---|---|---|
+| `PUT /v1/work/orders/:id` | `mind:chat`, `mind:night` | `{ assignee: 'muse', spec, schema /* JSON-Schema subset */, deadline: Ms }` | `201` |
+| `GET /v1/work/orders?status=queued\|claimed\|all` | `muse`, device, agents | — | `200 Page<WorkOrder>` |
+| `POST /v1/work/orders/:id/claim` | `muse` | `{}` | `200 WorkOrder` / 409 `already_claimed` |
+| `PUT /v1/work/orders/:id/result` | `muse` | `{ result: unknown /* ≤ 64 KB */ }` | `200 { result_valid: boolean, errors?: string[] }` |
+
+### 11.20 Settings and push
+
+| Route | Who | Request | Response | Phase |
+|---|---|---|---|---|
+| `GET /v1/settings` | device, agents | — | `200 Record<string, unknown>` (no secrets exist here) | P1 |
+| `PATCH /v1/settings` | device | `{ [key]: value }` (keys from [MENU-AND-SETTINGS.md](../product/MENU-AND-SETTINGS.md)) | `200` the changed keys | P1 |
+| `PUT /v1/push/subscription` | device | `{ endpoint, keys: { p256dh, auth } }` | `204` | P8 |
+| `DELETE /v1/push/subscription` | device | — | `204` | P8 |
+| `GET /v1/push/key` | device | — | `200 { vapid_public_key }` | P8 |
+| `GET /v1/push/items/:id` | device (from the service worker) | — | `200 { title, body, url }` (the text a push only points at) | P8 |
+| `PUT /v1/pushes/:id` | `mind:chat` | `{ title, body, ref, why /* ≥ 8 */, topic_key, deadline? }` | `202 { queued_until }` | P8; 409 `push_budget`, `push_gap`, `quiet_hours`, `quiet`, `nudge_repeat` |
+
+Push payloads carry only `{"k": kind, "id": id}`, encrypted. Details: [SECURITY.md](SECURITY.md).
+
+---
+
+## 12. WebSocket protocol (`/v1/live`)
+
+| Direction | Frame | Meaning |
+|---|---|---|
+| server → client | `{"t":"hello","seq":N,"min_client":M}` | Sent once on connect. The client fetches `/v1/changes?after=<its last seq>` |
+| server → client | `{"t":"changed","seq":N,"kinds":["message"]}` | Something committed. The client pulls `/v1/changes` |
+| server → client | `{"t":"typing","who":"mind","until":Ms}` | The mind is writing (presence pulse) |
+| server → client | `{"t":"bye","code":"session_revoked"}` | Then a close with code 4401 |
+| client → server | `ping` (text) | Auto-answered `pong` by `setWebSocketAutoResponse`; does not wake `Core` |
+
+- Close codes: `4401` revoked or expired, `4426` client outdated, `1012` the object restarted (reconnect).
+- The client never sends data over the socket. All writes go through HTTP, so they are idempotent and scoped.
+
+Acceptance: an integration test connects, posts a message over HTTP and receives exactly one `changed` frame with `kinds: ["message"]`.
+
+---
+
+## 13. Route table (the source for the scope test)
+
+`D` device · `C` mind:chat · `N` mind:night · `R` mind:reflex · `M` muse · `I` ci · `P` public.
+
+| Route | Who | Phase |
+|---|---|---|
+| `GET /v1/health`, `GET /v1/auth/state` | P | P1 |
+| `GET /v1/ops/health/deep` | C N R I | P1 |
+| `POST /v1/auth/setup`, `/login`, `/recover` | P | P1 |
+| `POST /v1/auth/signout`, `/password`, `/recovery-code`, `/recovery-code/confirm`, `/breakglass/cancel`, `/notices/:id/ack`; `/v1/auth/sessions*`; `/v1/auth/agents*` | D | P1 |
+| `GET /v1/auth/me` | D C N R M I | P1 |
+| `POST /v1/auth/breakglass` | C | P1 |
+| `GET/PATCH /v1/settings` | GET D C N R; PATCH D | P1 |
+| `POST /v1/ops/errors` | D C N R | P1 |
+| `GET /v1/ops/errors`, `GET /v1/ops/meter` | D C N R I | P1 |
+| `POST /v1/ops/errors/:fp/resolve` | D C R | P1 |
+| `POST /v1/ops/perf` | D | P1 |
+| `POST /v1/live/ticket`, `GET /v1/live` | D | P2 |
+| `GET /v1/live/wait` | C N R | P2 |
+| `GET /v1/changes` | D C N R | P2 |
+| `GET /v1/threads*`, `GET /v1/mind/wakes` | D C N R | P2 |
+| `PATCH /v1/threads/:id` | C N | P2 |
+| `POST /v1/threads/:id/continue`, `POST /v1/mind/typing` | D | P2 |
+| `PUT /v1/messages/:id` | D C M (N R: `error` kind to the system thread) | P2 |
+| `PATCH /v1/messages/:id` | C | P2 |
+| `PUT /v1/files/:id` | D C | P2 |
+| `GET /v1/search` | D C N | P2 |
+| `POST /v1/mind/brief`, `/status`, `/notes`, `/taint`; `GET /v1/mind/pending` | C N R | P2 |
+| `POST /v1/mind/night` | N | P3 |
+| `GET /v1/mind/day/:day` | N | P3 |
+| `GET /v1/ledger` | D C N R | P2 |
+| `PUT /v1/ledger/:id` | C N R | P2 |
+| `POST /v1/ledger/:id/undo` | D C | P2 |
+| `PUT /v1/verbs/:id` | C N | P2 |
+| `GET /v1/verbs/pending`, `POST /v1/verbs/:id/claim`, `/result` | D | P2 |
+| `GET /v1/surfaces` | D C N R | P2 |
+| `PUT /v1/surfaces/:app/:slot` | C N | P2 |
+| `DELETE /v1/surfaces/:app/:slot` | D C N | P2 |
+| `GET /v1/memory/*` | D C N R | P3 |
+| `POST /v1/memory/ops` | D C N | P3 |
+| `PUT /v1/memory/day-notes/:day` | N | P3 |
+| `PUT /v1/memory/open-threads/:id` | D C N | P3 |
+| `POST /v1/import/runs` | D C | P3 |
+| `POST /v1/ops/import/parts`, `PUT /v1/ops/import/manifest/:run_id` | C I | P3 |
+| `GET /v1/import/runs/:id` | D C N R | P3 |
+| `PUT /v1/proposals/:id` | C N R | P4 |
+| `GET /v1/proposals` | D C N R | P4 |
+| `POST /v1/proposals/:id/decide` | D | P4 (P3 for `memory_big`) |
+| `POST /v1/proposals/:id/cancel` | D C N R | P4 |
+| `POST /v1/ops/backups/run`, `POST /v1/ops/drill/run` | N I | P4 |
+| `GET /v1/ops/backups` | D C N R I | P4 |
+| `POST /v1/ops/restore` | D C N R | P4 |
+| `POST /v1/export`, `GET /v1/export/:id` | D | P4 |
+| `/v1/work/*` | see §11.19 | P4 |
+| `PUT /v1/senses/batches/:id` | D | P5 |
+| `POST /v1/senses/query` | C N R | P5 |
+| `POST /v1/media/sign` | D (C N for `book:`/`file:`) | P5 |
+| `POST /v1/import/phone` | D | P5 |
+| `GET /v1/jobs/next`, `POST /v1/jobs/:id/collect` | N I | P5 |
+| `GET /v1/jobs/:id` | C N R I | P5 |
+| `GET /v1/jobs/:id/spec` | I | P5 |
+| `/v1/push/*` | D | P8 |
+| `PUT /v1/pushes/:id` | C | P8 |
+
+---
+
+## 14. Open questions / tests
+
+| # | Question | How to settle it |
+|---|---|---|
+| A1 | decisions.md names `POST /v1/auth/setup-ticket`; SIGN-IN.md replaces it with the fingerprint flow, which this page follows. | Owner accepts or rejects; record the result in decisions.md |
+| A2 | Do Workers Logs record the `?ticket=` query string of `/v1/live`? | Preview: connect once, read the log entry. If yes, keep the 30 s single-use rule and note it in SECURITY.md |
+| A3 | Is `--tag` length-limited, and does `VERSION.tag` carry it? | `wrangler deploy --tag <sha12>` in preview; read `/v1/health` |
+| A4 | Does a non-JSON platform error (1027, 1102) arrive with CORS headers so the page can read the status? | Force 1102 in preview with a CPU-burn route; check in Chrome |
+| A5 | Is 600 requests/min per token right for the phone during a library sync? | Count requests in a P5 sync on the A15 |

@@ -4,6 +4,25 @@ The fixed decisions for the Thunderhead, newest last. Each line: date · decisio
 Owner rulings are marked **(owner)** and are never reopened without the owner asking.
 Everything else can be revisited with evidence; record the change as a new line, never by editing an old one.
 
+## Owner rulings from earlier conversations (rebuilt 2026-10-28 from the full chat history)
+
+These were agreed before tonight's research and were missing from this log. They rank with every other (owner) line.
+
+- 2026-10-24 · **(owner)** The Daily Board keeps being produced by Muse; Muse's procedures may change when a better option exists. · Chat.
+- 2026-10-26 · **(owner)** Talk to the owner casually, in plain words; cover everything that matters, but only as long as necessary. · Chat.
+- 2026-10-27 · **(owner)** The chat home can open apps and complete requests from plain text: "an anime I'd like, 20 min, under 200 MB" → the mind knows past favourites, picks a fitting title from the Astra add-ons and opens it in Astra (the owner picks the stream); "a nostalgic playlist" → the mind builds it in the Music player and sends the owner there. · Chat [265].
+- 2026-10-27 · **(owner)** Inside apps the mind is present without being pushy: intelligent search that is genuinely better than normal search (never worse), an intelligent playlist creator, a live smart DJ shuffle, guitar tips per section like a real teacher drawing on Segovia, Paco de Lucía and Parkening, study answers that summarise from the owner's own PDF books and say which parts to study. · Chat [265].
+- 2026-10-27 · **(owner)** What the mind should know about the owner first: what they believe in, and the music and media they like. · Chat [265].
+- 2026-10-27 · **(owner)** Nothing said so far is the full feature list; more features come over time. · Chat [269].
+- 2026-10-27 · **(owner)** The plan is Max 5x now and may drop to Pro later: everything must keep working (leaner) on Pro. · Chat [273].
+- 2026-10-27 · **(owner)** Clean up the backend and code: old, bloated, redundant or poorly made code does not come over. No review gates: agree → build → live. · Chat [275].
+- 2026-10-27 · **(owner)** Keep the site on Azure. A new storage account is used for the static site, only for the address ("thunderhead" or the closest available name). · Chat [284], [293].
+- 2026-10-27 · **(owner)** Most non-Claude code in the old repo is poor: take over no system unless it is genuinely better than what we can build; the sign-in system is rebuilt. Research to make everything the best it can be. · Chat [295].
+- 2026-10-27 · **(owner)** App list for now: My Media (the new, more fitting name), Podcasts, Astra, the Poweramp-style Music player, Guitar; the Daily Board is merged into the intelligent chat (shown in the Briefing page). Study is new. · Chat [303].
+- 2026-10-27 · **(owner)** Day/night mode: a pure-black night version with the same accents. · Chat [309].
+- 2026-10-28 · **(owner)** Songsterr is permitted as Guitar's tab source (written permission for this project). · Session.
+- 2026-10-28 · **(owner)** Existing apps are ported as they are first; libmedia stays in Astra (permission). See the lines below dated 2026-10-28. · Session.
+
 ## Product
 
 - 2026-10-27 · **(owner)** The Thunderhead is one person's app, for life. It reads everything on the platform, acts mostly by arranging things, speaks only when something needs the owner, and is always ready to talk. · The core idea.
@@ -58,3 +77,12 @@ Everything else can be revisited with evidence; record the change as a new line,
 - 2026-10-28 · Ask-first classes (delete/irreversible, money, security/access, reaching other people) are Worker proposals that only a tap on a signed-in device can approve. · Report 5.
 - 2026-10-28 · Usage credits stay OFF on the Claude account (scheduled tasks would otherwise run on metered overage). The $100/month API credit is not used for now. · Fact-check, owner Q7 pending.
 - 2026-10-28 · Measured: home at 384×832, 4× CPU throttle (rough Galaxy A15 stand-in), local server: first contentful paint ~0.28–0.29 s; zero long animation frames (>50 ms) across hold→ring→pick and three swipes, day and night, after replacing animated blur with radial gradients. Real-device check still required. · Night perf test.
+- 2026-10-28 · **(owner)** Guitar may use Songsterr as the tab source, as the old Guitar app does: the owner has written permission from Songsterr for this project. Guitar moves over normally; don't re-raise the terms. · Owner, 2026-10-28.
+- 2026-10-27 · **(owner)** Scripture text: the owner has copies of all canon scriptures they may use in this project; store them privately (thunderhead-private, behind sign-in), never in the repo. Talks and other Church material: cite the paragraph and link to the source. · Owner, 2026-10-27.
+- 2026-10-27 · **(owner)** Astra: the mind may pick what to watch and open the title, but the owner picks the stream; never auto-pick torrent or debrid streams. · Owner, 2026-10-27.
+- 2026-10-28 · libmedia (used by the old Astra) is built with FFmpeg `--enable-gpl` at the pinned commit, so it is GPL in effect and cannot come into this repo. Astra keeps mediabunny (MPL-2.0) and the browser's own decoders. · Migration research.
+- 2026-10-28 · The old Worker retires only after every caller has switched, including old app pages that still call it until their apps move (P8). P4 switches the chat CLI and Muse only. · Migration research.
+- 2026-10-28 · Old data export is pulled, not pushed: the old Worker gains one read-only, owner-authenticated export route (ask first: it deploys the old Worker), and an import job on the new side fetches it into thunderhead-private. The old Worker never gets the private bucket. · Migration research.
+- 2026-10-28 · **(owner)** The existing apps (Music/the Poweramp-style player, Guitar, Podcasts, Astra, My Media) are ported over **as they are**, with no changes to start. The app specs in docs/product/apps/ describe where each app goes later, after the as-is port. · Owner, 2026-10-28.
+- 2026-10-28 · **(owner)** libmedia stays in Astra: it is Astra's software decoder for files the phone can't decode (HEVC/AV1/VP9 without hardware support, 10-bit H.264, AVI/FLV/MPEG-PS), and the owner has permission to use it. This is a named exception to the no-GPL rule; supersedes the earlier line excluding it. · Owner, 2026-10-28.
+- 2026-10-28 · Approval by the owner's own words counts only when the Worker can verify it: an owner-authored message (owner device origin) sent after the decision card, referencing it; the session's taint state doesn't matter because the Worker checks the message, not the session's claim. · Reconciliation.

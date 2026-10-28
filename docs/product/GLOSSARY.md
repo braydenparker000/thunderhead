@@ -26,7 +26,7 @@ The project's words, used the same way in every document, in code and in convers
 | **Sense / event** | A small fact an app reports (`music.skip`, `guitar.practice`). Shape: `{id, at, type, ref, data, sensitivity}`. |
 | **Verb** | An action the mind can trigger on the phone (`music.queue`). Every verb returns its own undo. |
 | **Surface** | Content the mind prepared for an app slot (a margin note, an arranged list, a home line), shown instantly. |
-| **Ref** | A string pointer to a thing: `music:<id>`, `book:<id>#p212`, `verse:<book>/<chapter>/<verse>`, `thread:<id>`. |
+| **Ref** | A string pointer to a thing: `music:<id>`, `music:playlist/<id>`, `podcast:<show>/<episode>`, `book:<id>#p212`, `verse:<book>/<chapter>/<verse>`, `thread:<id>`. |
 | **Thread** | One conversation. A new one starts automatically each day ("daily thread"); older ones are **filed** and titled. |
 | **Day roll** | The moment the daily thread is filed: 04:00 local, but only after 60 minutes with no messages. |
 | **Day note** | The night shift's short summary of one day. |
@@ -35,7 +35,9 @@ The project's words, used the same way in every document, in code and in convers
 | **Profile** | A deterministic rendering of the strongest current facts, loaded every session. |
 | **Taint** | The rule that text from outside the owner (web pages, song tags, other agents) can never become a fact or a rule. |
 | **Night shift** | The nightly session: day note, titles, facts, open threads, tomorrow's arrangement. |
-| **Muse** | A separate AI agent the owner already has. It takes routine **work orders**; it writes no memory and no code. |
+| **Muse** | A separate AI agent the owner already has. It takes routine **work orders** and produces the Daily Board; it writes no memory and no code. |
+| **Daily Board / the Board** | The daily news edition Muse produces to the owner's brief. Merged into the chat and shown on the Briefing page; no longer a separate app. |
+| **As-is port** | The first move for each existing app (Music, Guitar, Podcasts, Astra, My Media): copied unchanged, adjusted only so it runs on the new site. Later changes need the owner's yes. |
 | **Work order** | A job for Muse or an edge model with a spec and a result schema the Worker validates. |
 | **Worker** | The Cloudflare Worker `thunderhead-api`: the backend. |
 | **Core / Auth** | The two Durable Objects in v1: Core holds conversation, ledger, memory; Auth holds sign-in. |

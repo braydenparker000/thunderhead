@@ -11,7 +11,8 @@ When a detailed spec and this page disagree, this page wins until the decision l
 4. It never takes a choice that is the owner's.
 5. Quiet is a feature: silence is a valid screen.
 6. Nothing personal ever enters the public repository.
-7. $0 extra beyond free tiers and the owner's Claude plan, unless the owner says yes to a specific cost.
+7. $0 extra beyond free tiers and the owner's Claude plan, unless the owner says yes to a specific cost. The plan is Max 5x now and may drop to Pro later: everything must keep working, leaner, on Pro.
+8. The existing apps come over **as they are** first; changes to them come later, only when the owner agrees.
 
 ## The idea
 
@@ -20,7 +21,10 @@ The name comes from the Thunderhead in Neal Shusterman's *Arc of a Scythe*: a mi
 - **Always there.** Every app on the platform (music, guitar, podcasts, media, study) reports what happens, so the mind sees the whole picture.
 - **Acts by arranging.** Instead of asking "what do you want?", it has already queued the right music, prepared the next practice section, found the page to study, and noticed what broke. It reports what it did, with a reason and an undo.
 - **Speaks only when needed.** Most days the home screen says one quiet line. A decision that needs the owner shows as a gold light at the bottom edge.
-- **Ready to talk.** The home screen *is* the conversation. Typing or speaking wakes the mind; it answers in its own voice.
+- **Ready to talk.** The home screen *is* the conversation. Typing or speaking wakes the mind; it answers in its own voice, casually and in plain words.
+- **Does what's asked.** From plain text the chat opens apps and completes requests: it picks an anime from the Astra add-ons and opens it (the owner picks the stream), or builds a nostalgic playlist in the Music player and sends the owner there.
+- **Present in the apps without being pushy.** Search that is genuinely better than normal search and never worse, a playlist creator, a live smart DJ shuffle, guitar tips per section like a real teacher (drawing on Segovia, Paco de Lucía and Parkening), and study answers that summarise from the owner's own PDF books and say which parts to study.
+- **Knows the owner.** First: what the owner believes in, and the music and media they like.
 - **Grows the owner.** For learning (guitar, study, language) it coaches rather than doing the work. Its success is measured by the owner's growth, not by time spent in the app.
 
 ## The laws
@@ -50,9 +54,9 @@ The full, testable text lives in [mind/CONSTITUTION.md](../mind/CONSTITUTION.md)
 |---|---|---|
 | Home | One quiet chat screen with the voice line, the conversation and the ask bar | [HOME.md](HOME.md) |
 | The ring | Hold still anywhere empty: six apps around the finger | [GESTURES.md](../design/GESTURES.md) |
-| Briefing | Swipe right: today at a glance | [BRIEFING.md](BRIEFING.md) |
+| Briefing | Swipe right: today at a glance, including the Daily Board (merged into the chat, still produced by Muse) | [BRIEFING.md](BRIEFING.md) |
 | Menu | Swipe left: search, conversations, settings | [MENU-AND-SETTINGS.md](MENU-AND-SETTINGS.md) |
-| Apps | Music, Guitar, Podcasts, Astra, My Media, Study | [apps/](apps/) |
+| Apps | Music (the Poweramp-style player), Guitar, Podcasts, Astra, My Media, all ported as they are first; Study is new | [apps/](apps/) |
 | Sign-in | Username and password, built right | [SIGN-IN.md](SIGN-IN.md) |
 | The mind | Claude sessions on the owner's plan, with memory | [mind/](../mind/) |
 
@@ -63,6 +67,8 @@ The full, testable text lives in [mind/CONSTITUTION.md](../mind/CONSTITUTION.md)
 - Problems are caught and fixed before the owner notices.
 - The owner's skills measurably grow (guitar tempo, study consistency, language).
 - The owner trusts it: every claim can be traced to evidence, every action can be undone.
+
+None of this is the full feature list; more features come over time (owner).
 
 ## What it is not
 
