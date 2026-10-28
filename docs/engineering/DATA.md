@@ -36,7 +36,8 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 | Audio and art | R2 | `jarvis-music` | the reviewed upload path only | exists |
 | Raw Actions results | R2 | `thunderhead-jobs` | Actions only | P5 |
 | Offline songs, PDFs, podcast downloads | OPFS on the phone | — | the phone | P5+ |
-| Auth token, outbox, surfaces cache | IndexedDB on the phone | `th-auth`, `th` | the phone | P1+ |
+| Auth token, outbox, surfaces cache | IndexedDB on the phone | `th-auth`, `th-data` | the phone | P1+ |
+| The ported apps' own data (plays, ratings, playlists, prefs, songs, follows, progress, add-ons) | localStorage and IndexedDB on the phone, new origin, under the apps' old names (`claude-player`, `jarvis.guitar.v2`, `jarvis.podcasts.v1`, `jarvis-podcasts`, `mymedia.*`, `astra.v2.*`) | — | the ported apps, unchanged; seeded once by the `/import/` page | P1b, until each app's data move |
 
 The instance is created with `env.<CLASS>.getByName('owner', { locationHint: 'enam' })`. The hint is a constant in `backend/src/lib/objects.ts`, so placement never depends on who calls first (a CI runner, say).
 
@@ -177,13 +178,13 @@ The columns match [MEMORY.md §2](../mind/MEMORY.md), which owns their meaning. 
 | Table | Columns (PK first) | Indexes | Phase |
 |---|---|---|---|
 | `ledger` | `seq INTEGER PK, id TEXT UNIQUE, at INTEGER, actor TEXT, session_id TEXT, kind TEXT ('memory'\|'arrangement'\|'verb'\|'deploy'\|'proposal'\|'mistake'\|'undo'\|'note'), what TEXT (≤ 200), why TEXT (8–500), ref TEXT, topic_key TEXT, undo_json TEXT, undoable INTEGER, status TEXT ('done'\|'undone'\|'failed'), tainted INTEGER, proposal_id TEXT`; *eng:* `op_json TEXT, verb_id TEXT, undone_at INTEGER` | — | P2 |
-| `proposals` | `id TEXT PK, created_at INTEGER, created_by TEXT, class TEXT ('delete'\|'money'\|'access'\|'reach_people'\|'memory_big'), question TEXT (≤ 80), why TEXT (≤ 140), if_ignored TEXT, odds REAL, spec_json TEXT, spec_hash TEXT, status TEXT ('waiting'\|'approved'\|'rejected'\|'expired'\|'cancelled'\|'executed'), expires_at INTEGER, decided_by_device TEXT, decided_at INTEGER, executed_ledger_id TEXT`; *eng:* `options_json TEXT, result_json TEXT, req_sha256 TEXT` | partial `(created_at) WHERE status='waiting'` | P4 (`memory_big` in P3) |
+| `proposals` | `id TEXT PK, created_at INTEGER, created_by TEXT, class TEXT ('delete'\|'money'\|'access'\|'reach_people'\|'memory_big'), question TEXT (≤ 80), why TEXT (≤ 140), if_ignored TEXT, odds REAL, spec_json TEXT, spec_hash TEXT, status TEXT ('waiting'\|'approved'\|'rejected'\|'expired'\|'cancelled'\|'executed'), expires_at INTEGER, decided_by_device TEXT, decided_at INTEGER, executed_ledger_id TEXT, decided_via TEXT ('tap'\|'words'), decided_message_id TEXT`; *eng:* `options_json TEXT, result_json TEXT, req_sha256 TEXT` | partial `(created_at) WHERE status='waiting'` | P4 (`memory_big` in P3) |
 | `verbs` | `id TEXT PK, created_at INTEGER, actor TEXT, verb TEXT, schema INTEGER, ref TEXT, args_json TEXT, device_id TEXT (NULL = any), status TEXT ('pending'\|'claimed'\|'done'\|'failed'\|'expired'), proposal_id TEXT, ledger_id TEXT, expires_at INTEGER, claimed_at INTEGER, claimed_by TEXT, claims INTEGER, done_at INTEGER, result_json TEXT, undo_json TEXT, req_sha256 TEXT` | partial `(created_at) WHERE status IN ('pending','claimed')` | P2 |
 | `surfaces` | `(app TEXT, slot TEXT) PK, kind TEXT, schema INTEGER, payload_json TEXT, why TEXT, topic_key TEXT, ref TEXT, expires_at INTEGER, written_at INTEGER, actor TEXT, ledger_id TEXT` WITHOUT ROWID | — | P2 |
-| `work_orders` | `id TEXT PK, assignee TEXT ('muse'), spec_json TEXT, schema_json TEXT, deadline INTEGER, status TEXT ('queued'\|'claimed'\|'done'\|'rejected'\|'expired'), claimed_at INTEGER, result_json TEXT, result_valid INTEGER, created_at INTEGER, updated_at INTEGER` | partial `(deadline) WHERE status IN ('queued','claimed')` | P4 |
+| `work_orders` | Columns as in [MUSE.md §3.1](../mind/MUSE.md), which owns them: `id TEXT PK, kind TEXT, assignee TEXT, title TEXT, spec_json TEXT, schema_json TEXT, personal INTEGER, approval_id TEXT, recurrence TEXT, deadline_at INTEGER, status TEXT ('queued'\|'claimed'\|'done'\|'rejected'\|'failed'\|'expired'\|'cancelled'), attempts INTEGER, created_by TEXT, created_at INTEGER, claimed_at INTEGER, heartbeat_at INTEGER, heartbeat_note TEXT, result_json TEXT, result_files_json TEXT, result_valid INTEGER, result_errors_json TEXT, finished_at INTEGER` | partial `(deadline_at) WHERE status IN ('queued','claimed')` | P4 |
 
-- A ledger row stores its inverse in `undo_json` when it is written. `undoable = 0` marks exactly the ask-first classes, which go through `proposals`. The *eng* columns should be added to MEMORY.md's list in its next edit.
-- A proposal executes only after `POST /v1/proposals/:id/decide` from a **device session** whose body carries the same `spec_hash`. At most 3 are `waiting` at once (`409 decision_budget`); each expires 7 days after creation ([BEHAVIOR.md §3.5](../mind/BEHAVIOR.md)). The proposal status list adds `failed` **[proposal]** for an executor that errors after approval.
+- A ledger row stores its inverse in `undo_json` when it is written. `undoable = 0` marks exactly the ask-first classes, which go through `proposals`. The *eng* columns (`op_json`, `verb_id`, `undone_at`) are listed in the night's patch list for MEMORY.md, so both pages carry them.
+- A proposal executes only after `POST /v1/proposals/:id/decide` whose body carries the same `spec_hash`: from a **device session** (`decided_via='tap'`, `decided_by_device` set), or from `mind:chat` citing the owner's own words (`decided_via='words'`, `decided_message_id` = an owner-device message the Worker has checked; [API.md §11.10](API.md#1110-proposals-decisions)). At most 3 are `waiting` at once (`409 decision_budget`); each expires 7 days after creation ([BEHAVIOR.md §3.5](../mind/BEHAVIOR.md)). The proposal status list adds `failed` **[proposal]** for an executor that errors after approval.
 - A surface is replaced in place per `(app, slot)`. Its history is the ledger. Home lines are app `home`, slots `line.1`–`line.4`.
 
 ### 4.4 Memory
@@ -199,7 +200,7 @@ The columns match [MEMORY.md §2](../mind/MEMORY.md), which also owns the rules 
 | `open_threads` | `id TEXT PK, text TEXT (≤ 200), owner TEXT ('mind'\|'owner'), due_at INTEGER, tags_json TEXT, status TEXT ('open'\|'done'\|'dropped'), evidence_json TEXT, opened_at INTEGER, last_progress_at INTEGER, closed_at INTEGER, closed_why TEXT` | partial `(due_at) WHERE status='open'` | P3 |
 | `session_notes` | `id TEXT PK, session_id TEXT, wake_id TEXT, role TEXT, thread_id TEXT, created_at INTEGER, body TEXT (≤ 120 words), open_items_json TEXT` | — | P2 |
 | `import_items` | `id TEXT PK, run_id TEXT, dataset TEXT, key TEXT, body_json TEXT, converted_at INTEGER` | — | P3 |
-| `imports` | `id TEXT PK, source TEXT ('old_worker'\|'phone'), dataset TEXT, r2_prefix TEXT, manifest_json TEXT, state TEXT ('queued'\|'running'\|'verifying'\|'done'\|'failed'), counts_json TEXT, report_json TEXT, started_at INTEGER, finished_at INTEGER` | — | P3 |
+| `imports` | `id TEXT PK, source TEXT ('old_worker'\|'phone'), dataset TEXT, r2_prefix TEXT, manifest_json TEXT, state TEXT ('queued'\|'running'\|'verifying'\|'done'\|'failed'), counts_json TEXT, report_json TEXT, started_at INTEGER, finished_at INTEGER` | — | P1b (`phone`), P3 (`old_worker`) |
 
 - Facts are never edited in place. A change closes the old row (`superseded_at`, `superseded_by`) and inserts a new one. `forget` (owner only) hard-deletes the row and its FTS entry, and writes a ledger tombstone without the content.
 - Decay is computed at read time and never written.
@@ -251,7 +252,7 @@ Never stored anywhere: raw IP addresses, the full user-agent, city, passwords, r
 
 ### 6.3 `Library` (P7, its own deploy; shardable as `library:<shelf>`)
 
-`books(id PK, title, author, kind, pages, r2_key, sha256, added_at, ingested_at)`. `pages(rowid PK, book_id, page_index, page_label, text)` with UNIQUE `(book_id, page_index)`. `pages_fts` FTS5 with `content='pages'`. `verse_refs(book_code, chapter, v_start, v_end, book_id, page_index, weight, in_heading)` with index `(book_code, chapter)`. `highlights(id PK, book_id, page_index, ref, text, note, created_at, updated_at)`. `positions(book_id PK, page_index, at)` (one row per book, written at most once per page turn and at most every 10 s). Product fields are in [STUDY.md](../product/apps/STUDY.md).
+`books(id PK, title, author, kind, pages, r2_key, sha256, added_at, ingested_at)`. Books include the owner's own licensed copies of the canon scriptures (owner ruling 2026-10-27), stored like any book: privately, behind sign-in, never in the repo. Talks and other Church material are not stored; they are cited by paragraph with a link. `pages(rowid PK, book_id, page_index, page_label, text)` with UNIQUE `(book_id, page_index)`. `pages_fts` FTS5 with `content='pages'`. `verse_refs(book_code, chapter, v_start, v_end, book_id, page_index, weight, in_heading)` with index `(book_code, chapter)`. `highlights(id PK, book_id, page_index, ref, text, note, created_at, updated_at)`. `positions(book_id PK, page_index, at)` (one row per book, written at most once per page turn and at most every 10 s). Product fields are in [STUDY.md](../product/apps/STUDY.md).
 
 The FTS cost per page is unknown (open question D3). Ingestion is a bulk job under the lane cap.
 
@@ -265,12 +266,12 @@ The FTS cost per page is unknown (open question D3). Ingestion is a bulk job und
 |---|---|---|---|---|
 | `backups/` | `backups/<YYYY-MM-DD>/<class>/<table>.<part:0000>.jsonl.gz`, `backups/<date>/manifest.json` | Weekly per-table export | `export.weekly` job | 8 weekly + 12 monthly |
 | `events/` | `events/<YYYY>/<MM>/<DD>.jsonl.gz` | Daily events archive | `events.export` job (P5) | forever |
-| `books/` | `books/<sha256>.pdf` | Study PDFs | upload route (P7) | until the owner deletes (proposal) |
+| `books/` | `books/<sha256>.pdf` | Study PDFs, including the owner's licensed scripture copies (owner ruling) | upload route (P7) | until the owner deletes (proposal) |
 | `chat/files/` | `chat/files/<YYYY>/<MM>/<uuidv7>.<ext>` (imported files keep their old keys under this prefix) | Chat attachments, photos, voice memos | upload route; import I6 | forever unless deleted |
 | `muse/files/` | `muse/files/<id>` | Muse files (imported, then new) | import I4; work orders | forever unless deleted |
 | `takes/` | `takes/<uuidv7>.<ext>` | Guitar recordings the owner sends | P6 | owner-controlled |
 | `indexes/` | `indexes/<kind>/<build>.json.gz`, `indexes/<kind>/latest.json` | Phone-loaded indexes (music search, study) | jobs | latest 3 builds |
-| `imports/` | `imports/old/<run_id>/<instance>/<table>/part-<nnnn>.jsonl.gz` + `imports/old/<run_id>/manifest.json`; `imports/phone/<uuidv7>.json` | Raw imports | `POST /v1/ops/import/parts`; `/v1/import/phone` | until the owner approves deleting them after P4 ([PRIVACY.md §2](PRIVACY.md)) |
+| `imports/` | `imports/old/<run_id>/<instance>/<table>/part-<nnnn>.jsonl.gz` + `imports/old/<run_id>/manifest.json`; `imports/phone/<import_id>.json.gz` | Raw imports | `POST /v1/ops/import/parts`; `/v1/import/phone` (P1b) | until the owner approves deleting them, after the last app's data move (P8) and the old Worker's retirement ([PRIVACY.md §2](PRIVACY.md)) |
 | `jobs/` | `jobs/<kind>/<sha256>.v<n>.json` | Validated Actions results | `/v1/jobs/:id/collect` | forever (small) |
 | `profile/` | `profile/<YYYY-MM-DD>.json` | Weekly snapshot of the rendered profile | night shift | 104 weeks |
 | `drills/` | `drills/<YYYY-MM>/report.json` | Restore drill reports | drill job | forever |
@@ -432,7 +433,7 @@ Pruning runs in daily jobs (`prune.core`, `prune.senses`, …), each in steps of
 | PITR | Cloudflare's 30-day point-in-time recovery for SQLite DOs | Always on. Bookmarks recorded before every migration, import and restore. Availability on Free is test X4. | A whole object to any time in the last 30 days |
 | Weekly export | Per-table JSONL.gz in `thunderhead-private/backups/` | Sundays 02:30 local **[proposal]**, a job per class (`export.weekly`), ≤ 5,000 rows per part file | One table, or a whole object into a fresh instance |
 | Events archive | Daily JSONL.gz | Day D exported at D+1 06:00 local; re-exported if late events arrive | Events beyond 90 days |
-| Old Worker | The untouched `jarvis-hub-api` | Until P4 ends | Pre-import history |
+| Old Worker | The `jarvis-hub-api` (its data untouched; only its origin list gains the new site in P1b) | Until it retires after P8 | Pre-import history |
 
 ### 11.2 The manifest
 
@@ -450,7 +451,7 @@ A backup is complete only when `manifest.json` is written, and it is written las
 
 | Situation | Path | Who approves | Note |
 |---|---|---|---|
-| Bad data in the last 30 days, whole object | PITR: `onNextSessionRestoreBookmark(getBookmarkForTime(t))`, then `ctx.abort()` | `access`-class proposal, device tap | Recent ledger rows go back too, so the restore is also recorded **outside** the object, in `thunderhead-private/ops/restores/<uuidv7>.json` **[proposal]** |
+| Bad data in the last 30 days, whole object | PITR: `onNextSessionRestoreBookmark(getBookmarkForTime(t))`, then `ctx.abort()` | `access`-class proposal, approved by device tap or the owner's own words | Recent ledger rows go back too, so the restore is also recorded **outside** the object, in `thunderhead-private/ops/restores/<uuidv7>.json` **[proposal]** |
 | One table damaged | Bulk job reads `backups/<date>/<class>/<table>.*`, `mode: replace` or `merge` | `delete`-class proposal for `replace` | Under the bulk lane cap |
 | Object lost, PITR unavailable | Restore every table into a fresh instance `owner-r<YYYYMMDD>`, check counts, then point the class at it with the Worker var `<CLASS>_INSTANCE` and deploy **[proposal]** | `access` proposal | Takes days for large objects because of the write cap |
 
@@ -487,7 +488,7 @@ The full plan, with the order of datasets and the switch-over, is in [MIGRATION.
    - per thread, the message count and the first and last `created_at` are equal;
    - 20 random old IDs, chosen with a seed recorded in the report, deep-equal after the normalisation listed per dataset in MIGRATION.md;
    - a second run of the same import changes 0 rows (`meter` delta = 0 for that job).
-5. **Phone-local data** (P5) arrives through `POST /v1/import/phone` ([API.md §11.17](API.md#1117-import)). It is stored raw in `imports/phone/` and in `import_items`, and each app seeds itself from it once.
+5. **Phone-local data** (P1b) is restored verbatim into the ported apps' own stores on the new origin by the `/import/` page, and the same file arrives through `POST /v1/import/phone` ([API.md §11.17](API.md#1117-import)). It is stored raw in `imports/phone/` with an `imports` row; each app's new tables seed from it once, at that app's data move (P5, P6, P8) ([MIGRATION.md §5](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)).
 
 Acceptance: the owner sees "Imported N conversations, M messages. 20 of 20 spot checks matched." in the briefing on the day of the import.
 

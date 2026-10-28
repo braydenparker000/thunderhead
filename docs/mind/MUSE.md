@@ -134,7 +134,7 @@ In this order, in the Worker. The first failure rejects the result.
 2. **Size:** body ≤ 256 KB; each file ≤ 15 MB, ≤ 10 files. Else `413 too_large`.
 3. **Parse:** valid JSON object with `"v"`. Else `422`.
 4. **Schema:** the JSON Schema subset validator (`backend/src/areas/work/validate.ts`, about 80 lines, no ajv). Supported keywords: `type`, `properties`, `required`, `additionalProperties: false`, `items`, `enum`, `minLength`, `maxLength`, `minItems`, `maxItems`, `minimum`, `maximum`, `pattern` (anchored, ≤ 200 chars, no backreferences), `format: "uri"` (https only). Unknown keywords in an order's schema are refused when the mind creates the order, not when Muse answers.
-5. **Hygiene:** strip control characters except newline and tab; refuse token-shaped strings (`tha_`, `sk-`, long base64 runs); refuse `javascript:` and `data:` URLs.
+5. **Hygiene:** strip control characters except newline and tab; refuse token-shaped strings (`th1_`, `thm_`, `ths_`, `thc_`, `thw_`, `thfp_`, `sk-`, long base64 runs); refuse `javascript:` and `data:` URLs.
 6. **Store:** `result_json`, `result_valid=1`, `status=done`, `finished_at`. The result is marked `origin=muse` everywhere it travels.
 7. **Notify:** a `work.done` event reaches the mind's `th wait` (chat) or the next briefing (section 10).
 
@@ -159,7 +159,7 @@ After validation, the mind still treats the content as data: for long results it
 | Property | Value |
 |---|---|
 | Issued | Settings → Agents → "Add agent: Muse" on a signed-in device; shown once |
-| Format | `tha_muse_<43 base64url chars>` **[proposal]** |
+| Format | `ths_` + 43 base62 + 6 base62 checksum ([SECURITY.md §5.1](../engineering/SECURITY.md)) **[proposal]** |
 | Stored | SHA-256 only, in the `Auth` Durable Object (decisions.md) |
 | Scope | `/v1/work/*` above; nothing else |
 | Shown in Settings | Name, created, last used (to the hour), calls today, a Revoke button |

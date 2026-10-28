@@ -37,11 +37,11 @@ owner's yes.
    player, samples, Songsterr search and saved tabs.
 2. Adjust only what it strictly needs to run on the new site:
    - every asset and link path made root-absolute (the host serves `/guitar` without a redirect);
-   - the API address pointed at `thunderhead-api`, which answers the routes the app calls today
-     (including the Songsterr fetch, §11);
-   - its requests signed in with the new session token (sign-in is rebuilt);
-   - the site's `<meta>` security policy first in `<head>` (the host sends no headers), allowing what
-     the unchanged page loads.
+   - the API address left as it is: the ported app keeps calling the old Worker (`jarvis-hub-api`),
+     including the Songsterr fetch (§11), until its data moves in P6; the new site's origin is added
+     to the old Worker's allowed origins (ask first; [MIGRATION](../../engineering/MIGRATION.md) §6);
+   - its own `<meta>` security policy kept first in `<head>`, unchanged except for the new paths
+     ([SECURITY](../../engineering/SECURITY.md) §4.4).
 3. The owner's songs, loops, speeds, practice log and prefs are restored unchanged on the new origin
    **[proposal: through the export page, §12]**.
 4. Done when the owner practises on the phone and nothing has changed.
@@ -480,7 +480,7 @@ released; hide → released and the mic (if on) stopped.
 |---|---|---|
 | Owner's own files (Guitar Pro, MusicXML, alphaTex), added through Guitar's "Add a tab" or the home `+` sheet › Files | **v1** | Stored privately; the owner is responsible for having the right to use them |
 | Public-domain or openly licensed scores (e.g. older classical works the owner downloads) | **v1**, as files | Same path as above |
-| Songsterr, fetched through the new Worker as the old app did through the old one | **v1** | Owner ruling 2026-10-28: the owner has written permission from Songsterr for this project. Search, open, and keep offline copies work as in the old app. The Worker caches responses privately and never puts tab data in logs |
+| Songsterr, fetched through the old Worker by the ported app (P1b), then through the new Worker from P6, as the old app did | **v1** | Owner ruling 2026-10-28: the owner has written permission from Songsterr for this project. Search, open, and keep offline copies work as in the old app. The Worker caches responses privately and never puts tab data in logs |
 | gprotab.net (proxied by the old Worker) | **Owner decision before the port** | The old app uses it, so an as-is port brings it along; its terms are not reviewed. Ask the owner whether it comes over |
 | "Open on the site" links | **v1** | A song record may hold a plain link the owner opens in the browser; no fetching |
 

@@ -15,7 +15,8 @@ Storage behind each route is in [DATA.md](DATA.md). Behaviour seen by the owner 
 7. **Pagination:** `?limit=` (default 50, max 200) and an opaque `cursor`; responses are `{items, next}`.
 8. **Limits:** 64 KB JSON bodies by default; 4 KB on auth; 256 KB for event batches; file uploads by stream up to 50 MB.
 9. **No cookies, no credentials in CORS.** Only exact site origins are allowed.
-10. **Ask-first actions are proposals** that only a device tap can decide (§11.10).
+10. **Ask-first actions are proposals** that only the owner decides: a tap on a signed-in device, or the owner's own words in the conversation, recorded by `mind:chat` and verified by the Worker (§11.10; decisions 2026-10-28).
+11. **Ported apps (P1b) don't call this API yet.** They keep calling the old Worker until their data moves; their routes join this contract then (§11.21).
 
 ---
 
@@ -26,6 +27,7 @@ Storage behind each route is in [DATA.md](DATA.md). Behaviour seen by the owner 
 | `Authorization` | all non-public routes | `Bearer th1_…` (device), `Bearer thm_…` (mind roles), `Bearer ths_…` (Muse), `Bearer thc_…` (CI). Formats: [SECURITY.md §5.1](SECURITY.md) |
 | `TH-Client` | all | `<build>.<sha7>` (site), `th/<version>` (mind CLI), `ci/<build>` (Actions), `muse/<n>` |
 | `TH-Session` | mind roles, after the claim | the Claude session id sent at `POST /v1/mind/brief`; the Worker keys taint and the constitution pin on it |
+| `TH-Role` | mind roles (sent by `th`, [RUNTIME.md §5.1](../mind/RUNTIME.md)) | `chat` \| `night` \| `reflex`. Informational: the Worker trusts only the key's role and answers a mismatch with `403 forbidden` |
 | `Content-Type` | bodies | `application/json` (files: the file's type) |
 
 | Header (response) | Always | Value |
@@ -51,8 +53,8 @@ type Ref = string;           // DATA.md §2.3 grammar
 type Page<T> = { items: T[]; next: string | null };
 type Actor = 'owner' | 'mind:chat' | 'mind:night' | 'mind:reflex' | 'muse' | 'ci' | 'worker';
 
-type Thread = { id: Id; day: Day; kind: 'daily'|'topic'|'muse'; status: 'open'|'filed';
-  title: string|null; title_source: 'instant'|'mind'|'owner'|null; summary: string|null;
+type Thread = { id: Id; day: Day; kind: 'daily'|'muse'|'imported'; status: 'open'|'filed';
+  title: string|null; title_source: 'auto'|'mind'|'owner'|null; summary: string|null;
   continues: Id|null; message_count: number; started_at: Ms; updated_at: Ms; filed_at: Ms|null };
 
 type Attachment = { ref: Ref; name: string; type: string; bytes: number };
@@ -71,7 +73,7 @@ type Proposal = { id: Id; created_at: Ms; created_by: Actor; class: ProposalClas
   question: string /* ≤ 80 */; why: string /* ≤ 140 */; if_ignored: string; odds: number|null;
   options: [action: string, safe: string]; spec: ProposalSpec; spec_hash: string;
   status: 'waiting'|'approved'|'rejected'|'expired'|'cancelled'|'executed'|'failed';
-  expires_at: Ms; decided_at: Ms|null; result: unknown|null };
+  expires_at: Ms; decided_at: Ms|null; decided_via: 'tap'|'words'|null; decided_message_id: Id|null; result: unknown|null };
 type ProposalSpec = { v: 1; op: string; args: Record<string, unknown> };   // op from a fixed executor map
 
 type Verb = { id: Id; verb: string /* '<app>.<action>' */; schema: number; ref: Ref|null; args: Record<string, unknown>;
@@ -106,7 +108,7 @@ type Change = { seq: number; kind: string; ref: Ref|null; at: Ms };
 - The Worker hashes the bearer (SHA-256) and looks it up in the isolate cache (60 s TTL), then in `Auth`. Revocation takes effect within 60 s everywhere.
 - **Tainted sessions:** once a session calls `POST /v1/mind/taint`, the Worker records it in `mind_sessions` for good. Requests carrying that `TH-Session` may not `remember`, `supersede`, `confirm`, write `rule` facts or take `reach_people` actions (`403 session_tainted`; enforced from P4, logged only before). Rules: [MEMORY.md §6–7](../mind/MEMORY.md). A mind request without `TH-Session` after its claim is treated as tainted **[proposal]**.
 - The full scope matrix is [SECURITY.md §5.3](SECURITY.md); §13 below is the route-level form of it.
-- **Approval is never inferred.** Only `POST /v1/proposals/:id/decide` from a `device` principal approves. A message saying "yes" does not.
+- **Approval is never inferred.** A proposal is decided only by `POST /v1/proposals/:id/decide`: from a `device` principal (a tap), or from `mind:chat` citing the owner's own words (`by_message`), which the Worker checks itself: the cited message is owner-authored from a signed-in device (`origin=owner_device`), sent after the card appeared, and is the owner's latest message in that thread (decisions 2026-10-28; [BEHAVIOR.md §4](../mind/BEHAVIOR.md)). The session's taint state does not matter, because the Worker checks the message, not the session. A fired prompt, Muse output or any other text never decides.
 
 Acceptance: `backend/tests/integration/route-scopes.test.ts` walks §13. For every route and every principal not listed, it asserts 401 (no token) or 403 (wrong principal).
 
@@ -114,7 +116,7 @@ Acceptance: `backend/tests/integration/route-scopes.test.ts` walks §13. For eve
 
 | Item | Value |
 |---|---|
-| Allowed origins | Exact strings from the var `SITE_ORIGINS` (the storage website origin; during P5 the old site's origin is added for `/v1/import/phone` only) |
+| Allowed origins | Exact strings from the var `SITE_ORIGINS`: the new storage website origin only. The old site's origin is never allowed (the phone export travels as a file, [MIGRATION.md §5](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)) |
 | Methods | `GET, POST, PUT, PATCH, DELETE` |
 | Allowed headers | `Authorization, Content-Type, TH-Client, TH-File-Name, TH-Sha256` (browsers never send `TH-Session`) |
 | Exposed headers | `TH-Request-Id, TH-Server, TH-Min-Client, Retry-After` |
@@ -123,7 +125,7 @@ Acceptance: `backend/tests/integration/route-scopes.test.ts` walks §13. For eve
 | `Vary` | `Origin` |
 
 - A preflight from an origin that is not allowed gets `403` with no CORS headers.
-- A request with an `Origin` header that is not allowed gets `403 forbidden_origin` before any DO call **[proposal]**. Requests with no `Origin` (the CLI, Actions) are allowed and rely on the token.
+- A request with an `Origin` header that is not allowed gets `403 origin_not_allowed` before any DO call **[proposal]**. Requests with no `Origin` (the CLI, Actions) are allowed and rely on the token.
 
 Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site origin and expects 204 with the values above; with `Origin: https://example.com` it expects 403.
 
@@ -151,10 +153,12 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | 401 | `setup_code_wrong` | Setup code doesn't match the installed fingerprint | — |
 | 401 | `current_password_wrong` | Password change or recovery-code regeneration | — |
 | 403 | `forbidden` | The principal lacks the scope | Never retry (`th` exit 6) |
-| 403 | `forbidden_origin` | `Origin` is not allowed | — |
+| 403 | `origin_not_allowed` | `Origin` is not allowed | — |
+| 403 | `not_owner_words` | A `by_message` decision cites a message that isn't the owner's latest owner-device message after the card | The mind asks the owner again; the card stays |
 | 403 | `session_tainted` | A tainted mind session tried a gated write | The mind reports it; no retry |
 | 403 | `laws_unpinned` | `rule` write from a session whose constitution pin failed | — |
 | 403 | `proposal_required` | An ask-first verb or op without an approved proposal | Create a proposal |
+| 403 | `needs_approval` | A work order with `personal` and no approved `reach_people` proposal ([MUSE.md §6](../mind/MUSE.md)) | Create the proposal first |
 | 404 | `not_found` | No such route or record | — |
 | 409 | `conflict` | Same ID, different body | Never retry with the same ID |
 | 409 | `already_decided`, `already_undone`, `already_claimed` | State has moved on | Refresh |
@@ -166,13 +170,18 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | 409 | `setup_required` | Any auth call while UNCLAIMED | Go to `/setup/` |
 | 409 | `setup_fp_missing` | Setup before the fingerprint is installed | Keep waiting ([SIGN-IN.md §4](../product/SIGN-IN.md)) |
 | 409 | `reset_already_pending` | A second reset ticket | — |
+| 409 | `agent_name_taken`, `agent_limit` | A new agent key with a name in use, or a 21st active key ([SIGN-IN.md §17](../product/SIGN-IN.md)) | Show the line |
 | 410 | `setup_done` | Setup after a credential exists | — |
 | 410 | `expired` | A proposal, ticket or verb past its time | Refresh |
+| 410 | `reset_cancelled`, `reset_expired`, `reset_used` | A reset code whose ticket is void | [SIGN-IN.md §10.3](../product/SIGN-IN.md) |
 | 410 | `resync_required` | `/v1/changes?after=` is older than the feed keeps | Reload full state (§11.6) |
 | 413 | `too_large` | The body exceeds its limit | Split |
 | 415 | `unsupported_media_type` | Wrong `Content-Type` | — |
 | 422 | `validation` | Schema or rule failure; `details` lists zod issues or rule reasons (memory: `bad_evidence`, `not_owner_evidence`, `rule_needs_owner`, `too_little_evidence`, `tainted_evidence`, `needs_owner_words`, `too_long`, `no_inferred_sensitive`) | Fix; never retry as is (`th` exit 8) |
 | 422 | `password_too_short`, `password_too_long`, `password_guessable`, `password_breached`, `password_same` | Password rules ([SIGN-IN.md §9.2](../product/SIGN-IN.md)) | Show the line |
+| 422 | `invalid_result` | A Muse result fails its order's schema or hygiene checks; the order becomes `rejected` ([MUSE.md §5](../mind/MUSE.md)) | Muse fixes and the mind re-orders |
+| 422 | `too_sensitive` | A Home surface or push whose `ref` points at sensitivity-1 data ([PRIVACY.md §4](PRIVACY.md#4-what-the-mind-may-raise-unprompted)) | Drop it |
+| 422 | `username_invalid` | Setup username outside 3–32 letters, digits, `.`, `-`, `_` | Show the line |
 | 425 | `reset_not_ready` | A reset ticket used before `usable_after` | Show the countdown |
 | 426 | `client_outdated` | A write from below `min_client` | Apply the update |
 | 429 | `rate_limited` | Throttled; body `retry_after` (s) and `scope` (`source`\|`account`), plus `Retry-After` | Wait that long (`th` exit 10) |
@@ -385,12 +394,12 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 |---|---|---|---|---|
 | `PUT /v1/proposals/:id` | agents | `{ class: ProposalClass, question /* ≤ 80 */, why /* ≤ 140 */, if_ignored /* ≤ 140 */, odds?: number /* 0–1 */, options: [string, string] /* each ≤ 20 */, spec: ProposalSpec }` | `201 Proposal` (`status:'waiting'`, `expires_at` = +7 days, `spec_hash` = SHA-256 of the canonical spec) | 409 `decision_budget` (3 already waiting); 422 if `spec.op` is not in the executor map; 403 `session_tainted` for `delete`/`access`/`reach_people` from a tainted session |
 | `GET /v1/proposals?status=waiting\|all&limit&cursor` | device, agents | — | `200 Page<Proposal>` | |
-| `POST /v1/proposals/:id/decide` | **device only** | `{ decision: 'approve'\|'reject', spec_hash }` | `200 { status: 'executed'\|'approved'\|'rejected', result?: unknown }` (`approved` when execution is a queued verb) | 409 `spec_mismatch`, 409 `already_decided`, 410 `expired` |
+| `POST /v1/proposals/:id/decide` | device (tap); `mind:chat` with `by_message` only (the owner's own words) | `{ decision: 'approve'\|'reject', spec_hash, by_message?: Id }` (`by_message` is required from `mind:chat` and refused from a device) | `200 { status: 'executed'\|'approved'\|'rejected', result?: unknown }` (`approved` when execution is a queued verb); stores `decided_via` `tap` or `words` and `decided_message_id` | 409 `spec_mismatch`, 409 `already_decided`, 410 `expired`, 403 `not_owner_words` |
 | `POST /v1/proposals/:id/cancel` | the creating agent, device | `{ why /* ≥ 8 */ }` | `200 { status: 'cancelled' }` | 409 `already_decided` |
 
 - The card's parts and limits are owned by [BEHAVIOR.md §4](../mind/BEHAVIOR.md). The Worker validates them (check DEC-1).
 - `spec.op` comes from a fixed map in `backend/src/areas/proposals/executors.ts`, e.g. `verb`, `memory.forget`, `memory.apply_batch`, `agents.revoke`, `files.delete`, `ops.restore`, `music.delete_from_catalog`. Free-form code or SQL is never executed.
-- Deciding writes a ledger row with `proposal_id`. A waiting proposal turns the bottom light gold ([HOME.md](../product/HOME.md)). An owner chat "yes" never decides anything (check DEC-2).
+- Deciding writes a ledger row with `proposal_id` (and the message ref when decided by words). A waiting proposal turns the bottom light gold ([HOME.md](../product/HOME.md)). An owner chat "yes" decides only when `mind:chat` records it with `by_message` and the Worker's message check passes; nothing else in a conversation decides (check DEC-2, [BEHAVIOR.md §4](../mind/BEHAVIOR.md)). `th decide` ([RUNTIME.md](../mind/RUNTIME.md)) is the CLI for this call.
 
 ### 11.11 Verbs
 
@@ -488,7 +497,7 @@ type MemoryOp =
 | `PUT /v1/ops/import/manifest/:run_id` | `ci`, `mind:chat` | the manifest JSON ([MIGRATION.md §3](MIGRATION.md)) | `201` |
 | `POST /v1/import/runs` | device, `mind:chat` | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music' }` | `202 { import_id }` |
 | `GET /v1/import/runs/:id` | device, agents | — | `200 { state, counts: { expected, imported, skipped, skip_reasons }, report: { spot_checks: {seed, passed, failed}, rerun_delta } \| null }` |
-| `POST /v1/import/phone` | device (CORS also allows the old site's origin for this route and `POST /v1/auth/login`, until P5 ends) | `{ id: Id, chunk: number, chunks: number, exported_at: Ms, data: Record<string, unknown> }`, gzip, ≤ 5 MB per chunk ([MIGRATION.md §5](MIGRATION.md)) | `201 { import_id, counts: Record<string, number> }` (after the last chunk) |
+| `POST /v1/import/phone` | device, from the new site's `/import/` page only (P1b) | `{ id: Id, chunk: number, chunks: number, exported_at: Ms, data: Record<string, unknown> }` (`data` = the `th-phone-export/2` file), gzip, ≤ 5 MB per chunk ([MIGRATION.md §5.3](MIGRATION.md#53-the-two-pages)) | `201 { import_id, counts: Record<string, number> }` (after the last chunk) |
 
 Data mechanics and proof rules: [DATA.md §12](DATA.md#12-importing-the-old-data). The plan: [MIGRATION.md](MIGRATION.md).
 
@@ -505,12 +514,22 @@ Validation rules: [JOBS.md §3](JOBS.md#3-actions-jobs-audio-analysis).
 
 ### 11.19 Work orders (P4)
 
+Order states, leases, validation and the Board approval are owned by [MUSE.md §3–§6](../mind/MUSE.md); these are the routes.
+
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `PUT /v1/work/orders/:id` | `mind:chat`, `mind:night` | `{ assignee: 'muse', spec, schema /* JSON-Schema subset */, deadline: Ms }` | `201` |
-| `GET /v1/work/orders?status=queued\|claimed\|all` | `muse`, device, agents | — | `200 Page<WorkOrder>` |
-| `POST /v1/work/orders/:id/claim` | `muse` | `{}` | `200 WorkOrder` / 409 `already_claimed` |
-| `PUT /v1/work/orders/:id/result` | `muse` | `{ result: unknown /* ≤ 64 KB */ }` | `200 { result_valid: boolean, errors?: string[] }` |
+| `PUT /v1/work/orders/:id` | `mind:chat`, `mind:night` | `{ kind, assignee: 'muse', title /* ≤ 80 */, spec /* ≤ 16 KB */, schema /* JSON-Schema subset, ≤ 8 KB */, personal: boolean, approval_id?: Id, deadline_at: Ms }` | `201`; `403 needs_approval` when `personal` without an approved `reach_people` proposal |
+| `POST /v1/work/orders/:id/cancel` | `mind:chat`, `mind:night`, device | `{ why /* ≥ 8 */ }` | `200 { status: 'cancelled' }` |
+| `GET /v1/work/orders?status=queued\|claimed\|all` | device, agents | — | `200 Page<WorkOrder>` |
+| `GET /v1/work/hello` | `muse` | — | `200 { agent: 'muse', scopes, server_time, board_brief_allowed }` |
+| `POST /v1/work/claim` | `muse` | `{}` | `200 { order }` (oldest `queued` order whose deadline hasn't passed) or `204` |
+| `POST /v1/work/orders/:id/heartbeat` | `muse` | `{ note? /* ≤ 120 */ }` | `200 { lease_until }` (30 min lease) |
+| `PUT /v1/work/orders/:id/result` | `muse` | `{ result /* ≤ 256 KB */, files?: Ref[] }` | `200 { status: 'done' }` or `422 invalid_result` with `details` (the order becomes `rejected`) |
+| `POST /v1/work/orders/:id/fail` | `muse` | `{ reason /* ≤ 280 */ }` | `200 { status }` |
+| `POST /v1/work/orders/:id/files` | `muse` | raw bytes, header `TH-File-Name` (≤ 15 MB, ≤ 10 per order) | `201 { ref, sha256 }` |
+| `GET /v1/work/board/brief` | `muse` | — | `200 { version, brief }`, or `403` without the standing Board approval |
+| `GET /v1/work/thread?after=<seq>` | `muse` | — | `200 Page<Message>` (its own `muse` thread) |
+| `POST /v1/work/thread/messages` | `muse` | `{ id: Id, body /* ≤ 2,000 */ }` | `201 { id }` |
 
 ### 11.20 Settings and push
 
@@ -525,6 +544,21 @@ Validation rules: [JOBS.md §3](JOBS.md#3-actions-jobs-audio-analysis).
 | `PUT /v1/pushes/:id` | `mind:chat` | `{ title, body, ref, why /* ≥ 8 */, topic_key, deadline? }` | `202 { queued_until }` | P8; 409 `push_budget`, `push_gap`, `quiet_hours`, `quiet`, `nudge_repeat` |
 
 Push payloads carry only `{"k": kind, "id": id}`, encrypted. Details: [SECURITY.md](SECURITY.md).
+
+### 11.21 App routes (later phases)
+
+The ported apps (P1b) call the old Worker, not this API. Each app's routes are added here, to §13 and to `shared/contract/` in the phase its data moves, with the shapes its app doc gives. Until then they are **[proposal]**, owned by the app docs:
+
+| App (data move) | Routes named in its doc |
+|---|---|
+| Music (P5) | `GET /v1/music/catalog`; `/v1/music/uploads/*` for the upload tools ([MUSIC.md](../product/apps/MUSIC.md), [MIGRATION.md §7](MIGRATION.md#7-caller-switch-over-order)) |
+| Guitar (P6) | The Songsterr and tab-source passthrough the old `/guitar/*` routes provide ([GUITAR.md](../product/apps/GUITAR.md) §11) |
+| Study (P7) | `POST /v1/library/books`, `PUT /v1/library/books/:id/parts/:n`, `POST /v1/library/books/:id/complete`, `PUT /v1/library/books/:id/pages`, `PUT /v1/library/highlights/:id`, `PUT /v1/library/positions/:book_id` ([STUDY.md](../product/apps/STUDY.md)) |
+| Podcasts (P8) | `GET /v1/podcasts/directory`, `GET /v1/podcasts/feed`, `GET /v1/podcasts/audio`, `GET /v1/podcasts/file`, `POST /v1/podcasts/check`, `PUT /v1/podcasts/progress` ([PODCASTS.md](../product/apps/PODCASTS.md)) |
+| Astra (P8) | `PUT /v1/astra/backup`, `GET /v1/astra/backup` (device only) ([ASTRA.md](../product/apps/ASTRA.md)) |
+| My Media (P8) | `GET /v1/media/config`, `GET /v1/media/catalog`, `GET /v1/media/drive/:id`, `PUT /v1/media/progress/:id` ([MY-MEDIA.md](../product/apps/MY-MEDIA.md)); `GET /v1/media/config` may be needed earlier (MIGRATION open question 8) |
+
+Every one of them follows this page's rules (scopes in §13, errors in §6, cost budgets in [TESTING.md §6](TESTING.md#6-cost-tests)).
 
 ---
 
@@ -568,7 +602,7 @@ Acceptance: an integration test connects, posts a message over HTTP and receives
 | `GET /v1/threads*`, `GET /v1/mind/wakes` | D C N R | P2 |
 | `PATCH /v1/threads/:id` | C N | P2 |
 | `POST /v1/threads/:id/continue`, `POST /v1/mind/typing` | D | P2 |
-| `PUT /v1/messages/:id` | D C M (N R: `error` kind to the system thread) | P2 |
+| `PUT /v1/messages/:id` | D C (N R: `error` kind to the system thread) | P2 |
 | `PATCH /v1/messages/:id` | C | P2 |
 | `PUT /v1/files/:id` | D C | P2 |
 | `GET /v1/search` | D C N | P2 |
@@ -592,17 +626,19 @@ Acceptance: an integration test connects, posts a message over HTTP and receives
 | `GET /v1/import/runs/:id` | D C N R | P3 |
 | `PUT /v1/proposals/:id` | C N R | P4 |
 | `GET /v1/proposals` | D C N R | P4 |
-| `POST /v1/proposals/:id/decide` | D | P4 (P3 for `memory_big`) |
+| `POST /v1/proposals/:id/decide` | D; C with `by_message` | P4 (P3 for `memory_big`) |
 | `POST /v1/proposals/:id/cancel` | D C N R | P4 |
 | `POST /v1/ops/backups/run`, `POST /v1/ops/drill/run` | N I | P4 |
 | `GET /v1/ops/backups` | D C N R I | P4 |
 | `POST /v1/ops/restore` | D C N R | P4 |
 | `POST /v1/export`, `GET /v1/export/:id` | D | P4 |
-| `/v1/work/*` | see §11.19 | P4 |
+| `PUT /v1/work/orders/:id`, `POST /v1/work/orders/:id/cancel` | C N (cancel also D) | P4 |
+| `GET /v1/work/orders` | D C N R | P4 |
+| `GET /v1/work/hello`, `POST /v1/work/claim`, `/v1/work/orders/:id/{heartbeat,result,fail,files}`, `GET /v1/work/board/brief`, `/v1/work/thread*` | M | P4 |
 | `PUT /v1/senses/batches/:id` | D | P5 |
 | `POST /v1/senses/query` | C N R | P5 |
 | `POST /v1/media/sign` | D (C N for `book:`/`file:`) | P5 |
-| `POST /v1/import/phone` | D | P5 |
+| `POST /v1/import/phone` | D | P1b |
 | `GET /v1/jobs/next`, `POST /v1/jobs/:id/collect` | N I | P5 |
 | `GET /v1/jobs/:id` | C N R I | P5 |
 | `GET /v1/jobs/:id/spec` | I | P5 |
@@ -615,7 +651,7 @@ Acceptance: an integration test connects, posts a message over HTTP and receives
 
 | # | Question | How to settle it |
 |---|---|---|
-| A1 | decisions.md names `POST /v1/auth/setup-ticket`; SIGN-IN.md replaces it with the fingerprint flow, which this page follows. | Owner accepts or rejects; record the result in decisions.md |
+| A1 | SIGN-IN.md replaces the review's `POST /v1/auth/setup-ticket` with the fingerprint flow, which this page follows. | Proposed as a decisions.md line (night CROSS-DOC-FIXES); ROADMAP P1 still says "setup ticket" |
 | A2 | Do Workers Logs record the `?ticket=` query string of `/v1/live`? | Preview: connect once, read the log entry. If yes, keep the 30 s single-use rule and note it in SECURITY.md |
 | A3 | Is `--tag` length-limited, and does `VERSION.tag` carry it? | `wrangler deploy --tag <sha12>` in preview; read `/v1/health` |
 | A4 | Does a non-JSON platform error (1027, 1102) arrive with CORS headers so the page can read the status? | Force 1102 in preview with a CPU-burn route; check in Chrome |

@@ -458,7 +458,7 @@ Notices are created by `Auth`, never by the mind, and only owner sessions can ac
 - The new site is a new origin with a new account. Nothing from the old sign-in is imported; old device tokens and agent secrets are never reused ([MIGRATION.md](../engineering/MIGRATION.md)).
 - The owner sets the new password once during setup (§4), preferably the strong one Chrome offers, and saves it in the password manager. The old entry stays tied to the old origin and is deleted when the old site is retired.
 - The old site keeps its own sign-in until it is retired.
-- For the one-time phone-data export, the old site's export page signs in to the **new** Worker. During that phase only, the new Worker's CORS allows the old origin on `POST /v1/auth/login` and `POST /v1/import/phone`. That session appears in the device list as "Old site (export)", and the owner signs it out afterwards. **[proposal]**
+- The one-time phone-data export never signs in to the new Worker from the old origin. The old site's `/export/` page only downloads a file; the owner opens it in the new site's `/import/` page, which restores the data on the new origin and uploads the raw copy with the normal device token ([MIGRATION.md §5](../engineering/MIGRATION.md)). The new Worker's CORS never allows the old origin.
 
 ## 15. Deliberate departures and proposals to confirm
 
@@ -535,7 +535,7 @@ Every error body is `{"error": {"code", "message", "details"?, "request_id"}}` (
 | `reset_cancelled` / `reset_expired` / `reset_used` | 410 | recover | §10.3 |
 | `agent_name_taken` | 409 | agents | "You already have a key with that name." |
 | `agent_limit` | 409 | agents | "You have 20 keys. Revoke one first." |
-| `validation` | 400 | any | "Something in the form isn't right." + field highlights from `details` |
+| `validation` | 422 | any | "Something in the form isn't right." + field highlights from `details` |
 | `too_large` | 413 | any | "That's too long." |
 | `client_outdated` | 426 | any | "A newer version is ready." + Reload |
 | `auth_unavailable` | 503 | login, setup, recover, password | "Sign-in is having trouble on our side. Try again in a minute." |

@@ -10,8 +10,8 @@ Sign-in screens and flows are in [../product/SIGN-IN.md](../product/SIGN-IN.md).
 3. **No cookies.** One opaque bearer token per device, stored on the server only as SHA-256. Agents get their own role-scoped keys.
 4. **No Cloudflare or Azure credential ever sits in a Claude session.** Deploy credentials live in GitHub; Worker secrets live in the Worker; agent keys are made by the owner from a signed-in device.
 5. **The password hash (scrypt 2^15/8/3 + pepper) runs in the `Auth` Durable Object**, and only after test X3 proves it fits. If it doesn't, the same hash runs on the phone and the server keeps only a keyed hash of the result (§6.4).
-6. **Storage hosting sends no headers.** So: a meta CSP first in every `<head>`, no inline script, a JavaScript frame guard that fails closed, and no third-party origins at all.
-7. **Ask-first actions (delete, money, access, reaching people) execute only after a tap on a signed-in device.** A fired prompt, a chat message or any text the mind read is never approval.
+6. **Storage hosting sends no headers.** So: a meta CSP first in every `<head>`. The shell and every new page: no inline script, a JavaScript frame guard that fails closed, and no third-party origins at all. Each ported app page (P1b, copied as it is) keeps its own meta CSP that allows exactly what that app loads today, from a per-app allowlist (§4.4).
+7. **Ask-first actions (delete, money, access, reaching people) execute only after the owner approves:** a tap on a signed-in device, or the owner's own words in the conversation, which the Worker verifies (an owner-device message sent after the card, the owner's latest in that thread; decisions 2026-10-28). A fired prompt, Muse output, a web page or any other text the mind read is never approval.
 8. **Logs and public places never hold secrets or personal data:** no tokens in URLs (except 30-second single-use tickets and presigned media URLs, never logged), no request bodies from `/v1/auth/*`, no titles in Actions logs.
 9. **Pin everything:** exact npm versions, a lockfile, `npm ci --ignore-scripts`, Actions by full commit SHA, vendored files by SHA-256.
 10. **Every runbook in §14 can be run by the owner from the phone.**
@@ -96,9 +96,9 @@ Phase tags follow [ARCHITECTURE.md](ARCHITECTURE.md). Each line is testable; the
 - [ ] Presigned GETs as §9; never logged. [tests]
 - [ ] Backups and exports only in `thunderhead-private`; `Auth` tables never exported. [export test]
 
-**Front end (P0–P1)**
-- [ ] Meta CSP first in `<head>` on every HTML file; no inline script; no `on*=` attributes; no third-party origins. [`tests/site.test.mjs`]
-- [ ] Frame guard fails closed on every page. [Playwright frames the page from another origin]
+**Front end (P0–P1; ported pages P1b)**
+- [ ] Meta CSP first in `<head>` on every HTML file. Shell and new pages: no inline script; no `on*=` attributes; no third-party origins. Ported pages: their own CSP, and no outside host beyond their row in §4.4. [`tests/site.test.mjs`]
+- [ ] Frame guard fails closed on every shell and new page (ported pages get it when the owner agrees to change them). [Playwright frames the page from another origin]
 - [ ] `referrer` `no-referrer` and `robots` `noindex,nofollow` meta on every page; no `Disallow` in robots.txt. [static test]
 - [ ] `securitypolicyviolation` listener posts to `POST /v1/ops/errors` when signed in. [Playwright triggers a violation]
 - [ ] No `innerHTML`/`outerHTML`/`insertAdjacentHTML`/`document.write` outside `ui/dom.js`, which only takes trusted templates. **[proposal]** [lint test]
@@ -155,8 +155,8 @@ Rules:
 - Acceptance: `tests/site.test.mjs` parses every HTML file and checks that the first element after `<meta charset>` is the CSP meta, that it matches the expected text for its page type, that no `<script>` has inline content, and that no attribute starts with `on`.
 
 ### 4.2 Other page rules
-- `<meta name="referrer" content="no-referrer">` and `<meta name="robots" content="noindex,nofollow">` on every page.
-- No third-party origin anywhere: fonts and icons are self-hosted (decisions). The test fails on any `http(s)://` URL in HTML/CSS/JS that isn't the API, R2, or a link the owner taps (allowlisted links open in a new tab with `rel="noopener noreferrer"`).
+- `<meta name="referrer" content="no-referrer">` and `<meta name="robots" content="noindex,nofollow">` on every shell and new page.
+- No third-party origin in new code: fonts and icons are self-hosted (decisions). The test fails on any `http(s)://` URL in new HTML/CSS/JS that isn't the API, R2, or a link the owner taps (allowlisted links open in a new tab with `rel="noopener noreferrer"`). Ported folders are checked against their own allowlist instead (§4.4).
 - Camera, mic and other device APIs: requested only from a tap inside the feature that needs them ([PRIVACY.md §7](PRIVACY.md)). No iframes exist, so `allow` attributes are moot.
 
 ### 4.3 Clickjacking analysis and the frame guard
@@ -179,6 +179,25 @@ Without `frame-ancestors` (impossible on this host), any page can put ours in an
 `window.top` can't be spoofed by the framer. If scripts are blocked, the page stays hidden. Acceptance: Playwright serves a page on a second local origin that frames `/` with and without `sandbox="allow-scripts allow-same-origin"`; the frame's `<html>` has no children and no `th-top` class, and no API request is made.
 
 ---
+
+### 4.4 Ported app pages (P1b)
+
+Owner ruling 2026-10-28: Music, Guitar, Podcasts, Astra and My Media are copied as they are. Each keeps its own meta CSP and loads what it loads today. Rules:
+
+1. The shell and every new page keep the strict CSP of §4.1, with no outside hosts.
+2. Each ported page's CSP is its old CSP, changed only for the P1b adjustments (new folder paths; nothing is added for convenience). It allows exactly the hosts in its row below, which `frontend/ported.json` records and the static test enforces.
+3. A ported page holds no new-site token at P1b (it calls the old Worker without the new sign-in), so a frame or a script on it can't reach the new API. It must not import anything from `th/` until it moves.
+4. When an app's data moves to the new Worker, its CSP's `connect-src` swaps the old Worker host for `thunderhead-api`, it gains the frame guard, and only then may it read the new session token. Dropping an outside host (vendoring hls.js, dash.js or butterchurn) is a later change the owner agrees to.
+
+| Ported page | Outside hosts it uses today (from its old CSP and code, 2026-10-28) | Notable allowances it keeps |
+|---|---|---|
+| `/music/` | `https://cdn.jsdelivr.net` (two visualiser scripts: butterchurn 2.6.7 and its presets 2.4.7); the old Worker (library, audio, art) | `'unsafe-eval'` (visualiser), `blob:` workers |
+| `/guitar/` | The old Worker (Songsterr and tab-source proxy; Songsterr permitted, owner ruling); `https://itunes.apple.com`, `https://*.mzstatic.com` (search and covers) | `style-src 'unsafe-inline'`, `font-src data:` |
+| `/podcasts/` | `https:` for images, media and connect (any feed and audio host), plus the old Worker | broad `https:` sources, as today |
+| `/astra/` | `https://cdn.jsdelivr.net` (hls.js 1.6.13 and dash.js 5.2.0, loaded with SRI); `https:` for media, images and connect (the owner's add-ons and streams) | `'wasm-unsafe-eval'` and `blob:` for libmedia (stays, owner ruling); `http://localhost:*` and `http://127.0.0.1:*` (local players), as today |
+| `/media/` | `https://www.googleapis.com`, `https://*.googleusercontent.com`, `https://i.ytimg.com`; the old Worker | `'wasm-unsafe-eval'`, `blob:` |
+
+Acceptance: `tests/site.test.mjs` finds every `http(s)://` host in each ported folder and in its CSP and fails on any host not in that folder's `ported.json` row; the shell and new pages still fail on any outside host at all.
 
 ## 5. Tokens and scopes
 
@@ -219,7 +238,7 @@ Rules:
 | Conversation, threads | RW | RW | R + home lines | R (last 24 h) + one system notice | own Muse thread | — |
 | Memory (facts, day notes, open threads) | RW (edit, forget) | R + remember (taint rules) | R + observed/inferred facts, day notes | — | — | — |
 | Ledger | R + undo | R + W via actions | R + W via actions | R | — | — |
-| Proposals | approve/reject (device tap) | create | create | — | — | — |
+| Proposals | approve/reject (device tap) | create; record the owner's own words (`by_message`, Worker-verified) | create | create | — | — |
 | Verbs, surfaces | R | W | W | — | — | — |
 | Senses (events) | W | R (query) | R (query) | — | — | — |
 | Music, library catalog | RW | R + reversible fixes | R | — | — | — |
@@ -233,7 +252,7 @@ Rules:
 | Run deploy rollback | — | via GitHub | — | via GitHub workflow | — | — |
 
 - No principal can send a push directly. The Worker decides what becomes a push ([PRIVACY.md §8](PRIVACY.md)).
-- Ask-first classes (`delete`, `money`, `access`, `reach_people`) are proposals; only an owner session's tap approves one, bound to the proposal id and the hash of its spec.
+- Ask-first classes (`delete`, `money`, `access`, `reach_people`) are proposals. Only the owner approves one: a tap from an owner session, or the owner's own words recorded by `mind:chat` and checked by the Worker against the message itself ([API.md §11.10](API.md#1110-proposals-decisions)). Either way the approval is bound to the proposal id and the hash of its spec.
 - Acceptance: the generated route test asserts this matrix cell by cell.
 
 ---
@@ -304,7 +323,8 @@ Not fallbacks:
 
 ## 7. CORS
 
-- **Allowlist:** `SITE_ORIGINS` (a Worker variable): the exact new site origin. During migration only, the old site origin is added for `POST /v1/auth/login` and `POST /v1/import/phone`. `http://127.0.0.1:8080` exists only in the dev config.
+- **Allowlist:** `SITE_ORIGINS` (a Worker variable): the exact new site origin. The old site's origin is never added: the phone export travels as a file and is uploaded from the new origin ([MIGRATION.md §5](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)), so the owner never signs in to the new Worker from the old origin. `http://127.0.0.1:8080` exists only in the dev config.
+- **The other direction (P1b):** the old Worker allows the new site's origin (its `FRONTEND_ORIGINS` set) so the ported pages work until their data moves. That is an ask-first old-Worker deploy, and the entry goes when the old Worker retires ([MIGRATION.md §6](MIGRATION.md#6-cors-the-new-site-on-the-old-worker-p1b-temporary)).
 - **Allowed origin:** `Access-Control-Allow-Origin: <that exact origin>` and `Vary: Origin`. Never `*`. Never `Access-Control-Allow-Credentials`.
 - **Preflight:** methods `GET, POST, PUT, PATCH, DELETE`; headers `Authorization, Content-Type, TH-Client`; `Access-Control-Max-Age: 7200` (Chrome's cap).
 - **Exposed:** `Retry-After`, `TH-Request-Id` (not CORS-safelisted, so they must be listed to be readable).
@@ -355,7 +375,7 @@ Names only. "Rotate" says who does it and how; runbooks are in §14. A test chec
 | `IP_HASH_KEY` | Worker secret | Source keys for back-off; the daily key is `HMAC(IP_HASH_KEY, UTC date)` | Yearly or on suspicion; rotation only resets back-off counters |
 | `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` | Worker secrets | Presigning (read-only, two buckets) | Owner: new R2 API token in the Cloudflare dashboard, paste both, delete the old token |
 | `VAPID_PRIVATE_JWK` | Worker secret | Web Push | Agent proposes; owner approves; devices re-subscribe automatically |
-| `MIND_FIRE_CHAT`, `MIND_FIRE_NIGHT` (+ `MIND_FIRE_REFLEX` in P4) | Worker secrets | Firing the Claude scheduled tasks (wake text `wake` only) | Owner regenerates the trigger token in the task's settings in Claude, pastes into the Cloudflare dashboard |
+| `ROUTINE_CHAT_URL` + `ROUTINE_CHAT_TOKEN`, `ROUTINE_NIGHT_URL` + `ROUTINE_NIGHT_TOKEN` (+ `ROUTINE_REFLEX_URL` + `ROUTINE_REFLEX_TOKEN` in P4); names as in [RUNTIME.md §2](../mind/RUNTIME.md) | Worker secrets | Firing the Claude scheduled tasks (wake text `wake` only) | Owner regenerates the trigger token in the task's settings in Claude, pastes into the Cloudflare dashboard |
 | `CLOUDFLARE_API_TOKEN` | GitHub environment `worker` (only `main`) | `wrangler deploy`, secret puts, X3 | Owner in the Cloudflare dashboard: account-scoped, Workers Scripts Edit only, no zones, no expiry (review §1 #24), yearly rotation note in [OPERATIONS.md](OPERATIONS.md) |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | GitHub repo secrets | OIDC sign-in for site deploys (identifiers, not credentials) | Not secret in practice; no rotation. The trust is the federated credential (subject `…:ref:refs/heads/main`). |
 | `TH_CI_TOKEN` | GitHub environment `worker` | `thc_` key for deep health checks and job results | Owner in Settings → Agents |
@@ -395,7 +415,8 @@ Never: Cloudflare, Azure or R2 credentials in any Claude environment; any secret
 - Runtime dependencies kept tiny: backend `hono`, `zod`, `aws4fetch`; frontend none. VAPID/RFC 8291, SigV4 and the push builder are small, own code or a pinned single dependency.
 - Vendored frontend files (`frontend/vendor/<lib>-<version>/`) carry a recorded SHA-256 and a LICENSE; CI recomputes and compares.
 - Dependabot: monthly, grouped, plus security alerts (decisions/review). The agent merges an update only after `npm test` passes, and reads the changelog of any new major version.
-- New dependency checklist: licence (no GPL/AGPL/non-commercial), no install scripts, maintainer and download history, size, whether 50 lines of own code would do. **[proposal]**
+- New dependency checklist: licence (no GPL/AGPL/non-commercial; the one named exception is libmedia, which stays in Astra by owner ruling and is used nowhere else), no install scripts, maintainer and download history, size, whether 50 lines of own code would do. **[proposal]**
+- Ported folders (P1b) keep their files as they are, each listed with its sha256 in `ported.json`; CI recomputes them, so a ported file changes only through a recorded adjustment.
 - `npm audit signatures` in CI to check registry signatures. **[proposal]**
 - The Static Web Apps deploy action is not used (storage hosting), so no Docker image tag is trusted.
 
@@ -441,7 +462,7 @@ Each ends with a ledger entry and a line in `docs/STATUS.md` (no personal conten
 | `R2_SIGN_*` | Owner: delete the R2 API token in the dashboard (kills every outstanding URL), make a new read-only token, update the Worker secrets. |
 | R2 job keys | Delete and re-make the bucket-scoped tokens; audit `thunderhead-jobs` (the Worker validates everything from it anyway). |
 | `VAPID_PRIVATE_JWK` | New key pair; devices re-subscribe at next start. An attacker with it alone can't reach devices without their endpoints. |
-| `MIND_FIRE_*` | Regenerate in the task's settings in Claude. Impact: someone can wake the mind with the text `wake` (burns usage, capped at 30/h). |
+| `ROUTINE_*_TOKEN` / `ROUTINE_*_URL` | Regenerate in the task's settings in Claude. Impact: someone can wake the mind with the text `wake` (burns usage, capped at 30/h). |
 | Any secret pushed to the repo | Rotate first, then remove from history isn't enough on a public repo: assume it's copied. |
 
 ### 14.6 Pepper rotation (lazy, no forced reset) **[proposal]**

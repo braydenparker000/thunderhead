@@ -22,7 +22,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 
 | # | Layer | Tool | Proves | Folder | Phase |
 |---|---|---|---|---|---|
-| 1 | Static | `node --test` | Links resolve by root-absolute paths; no outside hosts; the CSP is first and identical on every page; no inline script, style or handlers; no credentials in the repo; licences of vendored files | `tests/site.test.mjs`, `tests/repo.test.mjs` | P0 (exists) |
+| 1 | Static | `node --test` | Links resolve by root-absolute paths; no outside hosts in new code; the CSP is first on every page and identical on shell and new pages; no inline script, style or handlers in new code; ported folders equal the old copies plus listed adjustments, with only their allowlisted hosts; no credentials in the repo; licences of vendored files | `tests/site.test.mjs`, `tests/repo.test.mjs`, `tests/ported.test.mjs` | P0 (exists); ported checks P1b |
 | 2 | Lint + types | Biome 2.6, `tsc --noEmit` (TypeScript 5.9) | Style; types across `backend/`, `shared/`, `mind/` and the frontend's JSDoc | root | P1 |
 | 3 | Frontend unit | `node --test` | Pure modules: outbox policy, router parsing, ref parser, token contrast, budgets, version compare, logical day | `tests/unit/` | P1 |
 | 4 | Backend | Vitest 4.1 + `@cloudflare/vitest-plugin` (workerd) | Routes, scopes, stores, DO RPC, alarms, WebSockets, rules (taint, proposals) | `backend/tests/{unit,integration}/` | P1 |
@@ -87,9 +87,9 @@ Already in `tests/site.test.mjs`:
 | Test | Acceptance |
 |---|---|
 | Every file a page loads exists, by a root-absolute path | Fails on `src="ui/x.js"` or a missing file |
-| No outside hosts anywhere in the site | Fails on any `http(s)://` except the SVG namespace |
-| Pages fit the CSP | Fails on inline `<script>`, `<style>` or `on*=` |
-| CSP is the first tag after charset and equals `ui/csp.txt` | Fails on any drift |
+| No outside hosts in new code | Fails on any `http(s)://` except the SVG namespace, outside the ported folders (they have their own check below) |
+| Pages fit the CSP | Fails on inline `<script>`, `<style>` or `on*=` in the shell and new pages |
+| CSP is the first tag after charset; on the shell and new pages it equals `ui/csp.txt` | Fails on any drift. Ported pages: first tag after charset, and equal to the CSP recorded for that folder in `ported.json` |
 | Home basics | `<title>`, viewport, robots `noindex,nofollow`, referrer `no-referrer` |
 | No credentials | Fails on private keys, AWS/GitHub/Slack/OpenAI-style keys, `AccountKey=`, `sig=`, and `th1_`/`thm_`/`ths_` tokens (P1 adds `thc_` and `thfp_` per [SECURITY.md §5.2](SECURITY.md)) |
 
@@ -97,15 +97,24 @@ To add (P1):
 
 | Test | Acceptance |
 |---|---|
-| `routes.json` stubs | After `stage.mjs`, each route has `<route>/index.html` byte-equal to `index.html` |
-| `precache.json` | Lists every staged file except `vendor/` and stubs; sizes match |
+| `routes.json` stubs | After `stage.mjs`, each shell route has `<route>/index.html` byte-equal to `index.html`; no route in `routes.json` is a ported folder |
+| `precache.json` | Lists every staged file except `vendor/`, stubs, ported folders and `/assets/`; sizes match |
 | Vendored files | Each `vendor/<lib>-<ver>/` has a LICENSE and its files match the sha256 recorded in `vendor/manifest.json` |
-| Licence list | No dependency in `package-lock.json` has a GPL, AGPL or non-commercial licence |
+| Licence list | No dependency in `package-lock.json` has a GPL, AGPL or non-commercial licence. Named exception: libmedia under `/assets/libmedia/`, used only by `/astra/` (owner ruling 2026-10-28); the test fails if any other page loads it |
 | `no-timers-in-do` | No `setTimeout`/`setInterval` in `backend/src/objects/**` or `**/store.ts` |
 | `no-music-delete` | `MEDIA.delete` never appears; `MEDIA.put` appears only in `areas/music/upload.ts` |
 | `env-inventory` | Every `env.X` in `backend/src` is a declared var or a listed secret ([OPERATIONS.md §2](OPERATIONS.md#2-settings-inventory-names-only)) |
 | `no-secret-vars` | No var name in `wrangler.jsonc` matches `/KEY|SECRET|TOKEN|PEPPER|PASSWORD/` |
 | `fixtures-synthetic` | §13's lint over every fixture file |
+
+To add (P1b, `tests/ported.test.mjs`) **[proposal]**:
+
+| Test | Acceptance |
+|---|---|
+| Ported diff | For each folder in `ported.json`, the files equal the old repo's at the recorded commit (by sha256), except hunks of the listed adjustment kinds: root-absolute paths, the folder rename, the API address where it was derived from the site, and the CSP lines those need. Any other difference fails |
+| Ported hosts | Every `http(s)://` host found in a ported folder's files and CSP is in that folder's allowlist ([SECURITY.md §4.4](SECURITY.md#44-ported-app-pages-p1b)) |
+| Ported isolation | No ported file imports from `/th/`, `/ui/` or `/apps/`, and no shell or new file imports from a ported folder or `/assets/` |
+| No private config | `drive-config.json` and any file matching the secret patterns are absent from `frontend/` |
 
 ---
 
@@ -219,7 +228,8 @@ Each project runs in day, night and reduced motion. Gesture tests drive real tou
 | Clean load | Zero console errors (CSP violations show up as errors); no sideways scroll |
 | Gestures | Hold 220 ms → ring; slide → label; release → open; centre release cancels; swipe right → briefing; swipe left → menu; edge starts (< 24 px) ignored. Values from [GESTURES.md](../design/GESTURES.md) |
 | Overlays and Back | Briefing, menu, `+` sheet and apps are history entries; Back closes the top one; Back at home root leaves |
-| Mount hygiene | Each app mounts and unmounts 20 times; DOM nodes and counted listeners return to baseline ±5% |
+| Mount hygiene | Each shell app (Study, and any ported app later folded into the shell) mounts and unmounts 20 times; DOM nodes and counted listeners return to baseline ±5% |
+| Ported pages (P1b) | Each ported page opens from the ring by navigation and loads with no 404 and no CSP violation, against a local stand-in for the old Worker that allows the site origin; its own service worker (if any) registers at its folder scope and the shell's worker still serves `/` |
 | Offline | `context.setOffline(true)`: the shell opens from the SW; a typed message shows the outbox copy; it sends on reconnect |
 | SW update | Serve build A then B; no reload while `audio.playing`; B active within 2 s once idle; `th-A` cache gone, `th-vendor` kept |
 | Version skew | A stubbed `TH-Min-Client` above the build shows the update line |
@@ -237,7 +247,8 @@ Each project runs in day, night and reduced motion. Gesture tests drive real tou
 | CSP and content types | same | `/` has the meta CSP; JS, CSS and woff2 have the right types |
 | Real 404 | same | `/no-such-file.js` → 404 |
 | Home works | `tests/home-browser.test.mjs` with `SITE_URL` | Loads clean; gestures work; **nothing is sent** (the send step is skipped live) |
-| App stubs (P1) | `tests/live.test.mjs` | `/music/` → 200 with the shell |
+| Shell stubs (P1) | `tests/live.test.mjs` | Each shell route → 200 with the shell |
+| Ported pages (P1b) | same | `/music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/` → 200 with that app's own page and its recorded CSP. Read-only: nothing is played or fetched from the old Worker |
 | API health (P1) | `tests/live-api.test.mjs` | `/v1/health` shape; `version.tag` = the deployed sha |
 | API CORS (P1) | same | Preflight from `SITE_URL`'s origin → exact headers; foreign origin → 403 |
 | API scope (P1) | same | `GET /v1/changes` without a token → 401 |
@@ -263,6 +274,7 @@ Run before calling done any release that touches gestures, audio, the service wo
 3. Sign in with password-manager autofill; sign out from another device and see this one sign out within 60 s.
 4. Turn on airplane mode: the app opens; a message queues; it sends after reconnect.
 5. (P5) Play music, lock the screen for 30 min: playback continues; the lock-screen controls work.
+5b. (P1b) From the ring, open each ported app: a song plays, a Songsterr tab loads, an episode plays, a title plays in Astra, My Media lists its items; the imported counts match the export page; the old pages still work.
 6. (P8) A test push arrives with generic text on the lock screen.
 7. Remote DevTools Performance trace of ring open and swipe: no long task > 50 ms.
 

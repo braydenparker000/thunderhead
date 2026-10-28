@@ -45,7 +45,7 @@ Exact columns. [DATA.md](../engineering/DATA.md) owns indexes and migrations; it
 ```sql
 -- Conversation (L0)
 threads(
-  id TEXT PRIMARY KEY, day TEXT NOT NULL, kind TEXT NOT NULL,          -- 'daily' | 'muse'
+  id TEXT PRIMARY KEY, day TEXT NOT NULL, kind TEXT NOT NULL,          -- 'daily' | 'muse' | 'imported'
   title TEXT, title_source TEXT,                                       -- 'auto' | 'mind' | 'owner'
   summary TEXT,                                                        -- ≤ 400 chars, night shift
   status TEXT NOT NULL,                                                -- 'open' | 'filed'
@@ -125,14 +125,15 @@ ledger(
   ref TEXT, topic_key TEXT,
   undo_json TEXT, undoable INTEGER NOT NULL,
   status TEXT NOT NULL,                                                -- 'done' | 'undone' | 'failed'
-  tainted INTEGER NOT NULL DEFAULT 0, proposal_id TEXT)
+  tainted INTEGER NOT NULL DEFAULT 0, proposal_id TEXT,
+  op_json TEXT, verb_id TEXT, undone_at INTEGER)                      -- engineering columns (DATA.md §4.3)
 
 proposals(
   id TEXT PRIMARY KEY, created_at INTEGER NOT NULL, created_by TEXT NOT NULL,
   class TEXT NOT NULL,                                                 -- 'delete'|'money'|'access'|'reach_people'|'memory_big'
   question TEXT NOT NULL, why TEXT NOT NULL, if_ignored TEXT NOT NULL, odds REAL,
   spec_json TEXT NOT NULL, spec_hash TEXT NOT NULL,                    -- sha256 of canonical spec_json
-  status TEXT NOT NULL,                                                -- 'waiting'|'approved'|'rejected'|'expired'|'cancelled'|'executed'
+  status TEXT NOT NULL,                                                -- 'waiting'|'approved'|'rejected'|'expired'|'cancelled'|'executed'|'failed'
   expires_at INTEGER NOT NULL,                                         -- created_at + 7 d
   decided_by_device TEXT, decided_at INTEGER, executed_ledger_id TEXT,
   decided_via TEXT,                                                    -- 'tap'|'words' (owner ruling: a device tap or the owner's own words)
@@ -360,7 +361,7 @@ Behaviours:
 
 The old system kept one Markdown notebook (sections: about the owner, about the system, open work). It is imported once, carefully.
 
-1. The old Worker's export lands in `thunderhead-private/imports/old/<date>/` (see [MIGRATION.md](../engineering/MIGRATION.md)). The notebook is stored raw in `imports` and never becomes a live table.
+1. The old Worker's export lands in `thunderhead-private/imports/old/<run_id>/` (see [MIGRATION.md](../engineering/MIGRATION.md)). The notebook is stored raw in `import_items` (one row per run, DATA.md §4.4) and never becomes a live table.
 2. Old chat messages are imported first as `messages` with `origin=import` and their original `author`. Imported owner messages count as owner evidence (M3).
 3. A chat session converts the notebook section by section:
    - **About the owner:** each line becomes a candidate fact. If an imported owner message supports it, `source=user` with that evidence. Otherwise `source=inferred`, confidence 0.6, tag `imported`, listed under "Imported, to review".

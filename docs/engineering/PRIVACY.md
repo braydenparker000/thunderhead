@@ -13,7 +13,7 @@ Security controls are in [SECURITY.md](SECURITY.md). Sign-in data handling is in
 6. **Sign-in data is never exported and never shown to the mind.**
 7. **Deleting is real.** Deleted items leave live storage at once and backups within the stated window (§10). The ledger keeps a content-free tombstone.
 8. **The owner can export everything and erase everything** (§9, §10). The music audio bucket is the one deliberate exception to erasing: the system never deletes from it (decisions).
-9. **No analytics, no trackers, no third-party scripts, no fingerprinting.** The only telemetry is the owner's own error reports and performance senses, stored in the owner's own Worker.
+9. **No analytics, no trackers, no third-party scripts, no fingerprinting** in the shell and new pages. The only telemetry is the owner's own error reports and performance senses, stored in the owner's own Worker. The ported apps (P1b, copied as they are) keep the outside services they use today until the owner agrees to a change (§5.1).
 
 ---
 
@@ -58,7 +58,9 @@ Retention marked **[proposal]** is new; the rest comes from decisions, the plan 
 | Music audio and art | `jarvis-music` R2 | upload tools | Never deleted by the system (decisions) | links only (optional) | via presigned URL |
 | Library: PDFs and extracted text | `thunderhead-private` + `Library` DO (P7) | owner, mind (extraction in session) | Until deleted | yes | yes |
 | Chat files: photos, files, voice memos | `thunderhead-private/chat/files/` | owner devices | Until the message or file is deleted | yes | yes |
-| Imports from the old Worker and old site | `thunderhead-private/imports/` | migration jobs | Until the owner approves deletion after P4 **[proposal]** | no (already merged) | yes |
+| Imports from the old Worker and old site | `thunderhead-private/imports/` | migration jobs; the `/import/` page (P1b) | Until the owner approves deletion, after the last app's data move (P8) and the old Worker's retirement **[proposal]** | no (already merged) | yes |
+| Scripture texts (the owner's licensed copies of the canon scriptures) | `thunderhead-private/books/` + `Library` (P7) | owner | Until deleted | yes | yes |
+| The ported apps' own phone data (P1b until each app's data move) | localStorage and IndexedDB on the new origin, under the apps' old names | the ported apps | As on the old site, until the app's data moves | via the raw import copy | via the raw import copy |
 | Backups (weekly, per table) | `thunderhead-private/backups/` | Worker jobs | 8 weekly + 12 monthly | — | no |
 | Job results from Actions | `thunderhead-jobs` | Actions | 30 days after the Worker copies them **[proposal]** | no | yes |
 | **Sign-in:** credential (verifier only), recovery hash | `Auth` DO | Auth | Current only; old verifiers overwritten | **never** | **never** |
@@ -87,6 +89,7 @@ Acceptance: [DATA.md](DATA.md) has a row for every table, and a test fails if a 
 | App code and fonts | Cache Storage `th-<release>`, `th-vendor` | Current release | no |
 | Theme and other UI choices | `localStorage` `th.ui.*` | Always | no |
 | Shuffle learner weights, EQ settings | `localStorage` `th.p.*` / `th-data` | Always | yes |
+| The ported apps' own stores (P1b): `claude-player`, `jarvis.guitar.v2`, `jarvis.podcasts.v1`, `jarvis-podcasts`, `mymedia.*`, `astra.v2.*` and their caches | localStorage, IndexedDB, Cache Storage | As the unchanged apps keep them | **no** at P1b (the unchanged apps don't know the new sign-in); yes once an app moves and joins the wipe list **[proposal]** |
 
 ### 3.2 What never leaves the phone
 1. Live mic audio and camera frames, unless the owner sends a capture or a take (§7).
@@ -128,16 +131,29 @@ Rules:
 | **Weather provider** for the Briefing | Coordinates rounded to 0.1° (about 11 km) from a Settings value, never device GPS | Weather card | Called from the Worker; no key that identifies the owner. Provider choice in [../product/BRIEFING.md](../product/BRIEFING.md); Open-Meteo suggested. **[proposal]** |
 | **Muse** (a separate AI agent on its own plan) | Only the work orders and briefs addressed to it, and its own thread | Routine jobs (e.g. the news board) | Its key reaches only `/v1/work/*` and its own thread; never memory, events or files |
 | **Workers AI** (deferred for v1) | When enabled: only the text a task needs | Small fast models | Same processor as the backend (Cloudflare); no sensitivity-1 text in v1 of that feature **[proposal]** |
-| **Scripture app deep links** (Study) | Nothing, until the owner taps a link, which opens the official app | Verse text is linked, never copied | Link only |
+| **Church sources** (Study) | Nothing, until the owner taps a link | Scripture text comes from the owner's own licensed copies, stored privately in `thunderhead-private` behind sign-in, never in the repo (owner ruling 2026-10-27). Talks and other Church material are cited by paragraph with a link to the source | Link only for talks |
 
-Not used: Google Fonts or any CDN, analytics, ads, error-tracking services, CAPTCHA (no Turnstile at launch), any LLM other than Claude (and later Workers AI).
+Not used by the shell or new pages: Google Fonts or any CDN, analytics, ads, error-tracking services, CAPTCHA (no Turnstile at launch), any LLM other than Claude (and later Workers AI).
+
+### 5.1 Services the ported apps keep using (P1b)
+
+Copied as they are (owner ruling), the ported apps keep reaching what they reach today. Each list is enforced per app ([SECURITY.md §4.4](SECURITY.md#44-ported-app-pages-p1b)); removing one is a later change the owner agrees to.
+
+| Ported app | Reaches | Gets |
+|---|---|---|
+| All five | The old Worker `jarvis-hub-api` (same Cloudflare account) until the app's data moves | The requests the app makes today, and error reports (`/assets/error-report.js`) |
+| Music | `cdn.jsdelivr.net` (visualiser scripts) | The phone's IP and the script request |
+| Guitar | Songsterr (through the old Worker; permitted, owner ruling); `itunes.apple.com`, `*.mzstatic.com` | Search text and cover requests |
+| Podcasts | Podcast directories, feed hosts and audio hosts (via the old Worker's proxy or directly) | Search text; which feeds and episodes are fetched |
+| Astra | `cdn.jsdelivr.net` (hls.js, dash.js); the owner's add-on and stream hosts | The phone's IP; titles requested from add-ons |
+| My Media | Google Drive API, `*.googleusercontent.com`, `i.ytimg.com` | The phone's IP and the Drive files listed and played |
 
 ## 6. The public repo and public logs
 
 Repo and Actions content is readable by anyone. Rules (enforced by tests where possible):
 1. No names of people or places, no faith-specific personal details, no notes, messages, memory, listening or reading history, no titles of the owner's songs, books or files, no username, no secrets.
 2. Example content in code, tests and docs is invented and neutral.
-3. Actions jobs address audio only by `sha256` key and print counts, durations and hashes, never titles or tags.
+3. Actions jobs address audio only by `sha256` key, received through the job spec and never printed: logs show counts and durations only, never hashes, titles or tags ([JOBS.md §2](JOBS.md#2-public-log-rules-actions)).
 4. No artifacts. No job summaries with data. No `set -x`, `env` or `printenv`. Masked derived values.
 5. Actions never hold credentials for `thunderhead-private` (they write `thunderhead-jobs` and read `jarvis-music` only).
 6. Evals with personal data run inside mind sessions, never in Actions; Actions use synthetic fixtures only.
@@ -204,7 +220,7 @@ Deletes are `delete`-class proposals when the **mind** asks for them; when the *
 ### 10.2 Erase everything **[proposal]**
 - Settings → Privacy → "Erase everything". The sheet asks for the password and the typed word `ERASE`.
 - What goes: every `Core`, `Senses`, `Music` and `Library` table; everything in `thunderhead-private` (including backups and the events archive); `thunderhead-jobs`; all sessions except this one; all agent keys; all push subscriptions.
-- What stays, said plainly on the sheet: the account itself (so the owner can still sign in); the music audio in `jarvis-music` (the system never deletes from it, by decision); Cloudflare's own logs (expire in 3–7 days); the owner's Claude session history (delete it in Claude); the old Worker until it is retired.
+- What stays, said plainly on the sheet: the account itself (so the owner can still sign in); the music audio in `jarvis-music` (the system never deletes from it, by decision); Cloudflare's own logs (expire in 3–7 days); the owner's Claude session history (delete it in Claude); the old Worker until it is retired; the ported apps' own phone storage until their data moves (cleared from the phone's site settings).
 - Timing: 7 days during which everything is hidden and "Cancel erase" is offered on every device; then a chunked job deletes, and the ledger keeps one line: "Everything was erased on {date}."
 
 ### 10.3 Backups and deleted data

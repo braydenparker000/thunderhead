@@ -79,20 +79,21 @@ Check: the existing `astra-store.test.mjs` cases move over unchanged and pass.
 ## 2. What changes
 
 **Port** (the first move: strictly needed to run on the new site): rows 1, 2 (plain navigation; the
-view transition is later), 8, 9, 15 and 16, plus root-absolute asset paths (the host serves `/astra`
-without a redirect). **Every other row is a later step**, proposed after the port and built only if
+view transition is later), 8 (the old CSP kept), 15 and 16, plus root-absolute asset paths (the host
+serves `/astra` without a redirect). Row 9 is a later step: at the port Astra keeps
+`/assets/error-report.js`, which reports to the old Worker. **Every other row is a later step**, proposed after the port and built only if
 the owner agrees.
 
 | # | Change | Exact rule | Check |
 |---|---|---|---|
-| 1 | **Location** | Source moves to `frontend/apps/astra/` and is staged to `/astra/` as its own document. `scripts/stage.mjs` must **not** write a shell stub at `astra/index.html`: remove `astra` from `APP_ROUTES` when Astra lands (today's list includes it, which would overwrite Astra's page). | Stage test: `/astra/index.html` is Astra's, not the shell. |
+| 1 | **Location** | Source moves to `frontend/astra/` (ported folders sit at the top of `frontend/`, [ARCHITECTURE](../../engineering/ARCHITECTURE.md) §3) and is staged to `/astra/` as its own document. `scripts/stage.mjs` must **not** write a shell stub at `astra/index.html`: remove `astra` from `APP_ROUTES` when Astra lands (today's list includes it, which would overwrite Astra's page). | Stage test: `/astra/index.html` is Astra's, not the shell. |
 | 2 | **Opening from the ring** | The ring's Astra bubble navigates to `/astra/` with a cross-document view transition (`@view-transition { navigation: auto }` on both documents). Back on Astra's Home returns to `/`. Video stopping on leave is correct. | Playwright: ring → Astra → back lands on Home. |
 | 3 | **Tokens** | `src/styles/tokens.css` maps onto the Thunderhead tokens ([DESIGN-SYSTEM](../../design/DESIGN-SYSTEM.md)). Night: pure black `#000` background, surfaces from the night tokens. Day: the day tokens for browse screens. Accent: `#8b5cf6` for fills (selected tab, primary button, progress); text accent per the design system. **The player screen stays black in both themes.** | Visual snapshot in day and night at 390×844. |
 | 4 | **Fonts** | Remove Astra's six static Inter files (`fonts/inter-400…900.woff2`). Use the shared self-hosted `/ui/fonts/Inter.woff2` (variable). Fraunces is not used in Astra (it is only the Thunderhead's voice). | Static test: no `woff2` under `apps/astra/`; total font bytes unchanged site-wide. |
 | 5 | **Icons** | Astra's drawn icons are replaced by the shared Phosphor sprite where an equivalent exists; player glyphs that have no Phosphor match stay as Astra's own SVG. | Static test: no inline icon map duplicates a sprite symbol. |
 | 6 | **Service worker** | Delete Astra's `sw.js` and its release logic. The root service worker (scope `/`) precaches Astra's files with the rest of the release. The root worker's activate step deletes only `th-<older>` caches, so Astra's `astra-data-v1` cache survives updates. The "Astra has been updated · Reload" toast is replaced by the shell's update rule (apply only when nothing is playing). | Browser test: offline start of `/astra/`; an update never reloads mid-play. |
 | 7 | **Third-party scripts** | hls.js 1.6.13 (Apache-2.0) and dash.js 5.2.0 (BSD-3-Clause) are vendored at `/vendor/hls.js-1.6.13/` and `/vendor/dashjs-5.2.0/` with licences and sha256, loaded on demand as today. `cdn.jsdelivr.net` is removed from the CSP. | Static test: no `https://cdn.` in `apps/astra/`. |
-| 8 | **CSP** | Astra keeps its own `<meta>` CSP (it is a separate document): `script-src 'self' 'wasm-unsafe-eval' blob:`; `connect-src 'self' https:` (add-ons are arbitrary hosts) plus the Worker origin; `media-src 'self' blob: https:`; `img-src 'self' data: blob: https:`; `worker-src 'self' blob:`; `base-uri 'none'`; `form-action 'none'`. The localhost entries are test-only and removed by stage. | Static test parses the meta tag. |
+| 8 | **CSP** | Astra keeps its own `<meta>` CSP (it is a separate document), **unchanged** at the port: today's sources, including `https://cdn.jsdelivr.net` for hls.js and dash.js (rule 5), `'wasm-unsafe-eval'` and `blob:` for libmedia, `https:` for add-ons and streams, and the `http://localhost:*` / `http://127.0.0.1:*` entries. Trimming any of them is a later step the owner agrees to. | Static test: the CSP equals the one recorded for `/astra/` in `ported.json` ([SECURITY](../../engineering/SECURITY.md) §4.4). |
 | 9 | **Error reports** | `/assets/error-report.js` is replaced by the shell's error reporter (`POST /v1/ops/errors`), with the secret scrubber of §5. | Unit test of the scrubber. |
 | 10 | **`th` bridge** | Astra imports `/th/th.js` for `sense()`, verbs and sign-in state (same origin, same IndexedDB token). No other shell code. | Static test: Astra imports only `/th/th.js` from outside its folder. |
 | 11 | **Senses** | `astra.watch` and friends (§3). | Sense schema tests. |

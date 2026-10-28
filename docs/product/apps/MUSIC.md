@@ -44,11 +44,12 @@ for the owner's yes.
    engine, EQ presets, fonts, icons and wording.
 2. Adjust only what it strictly needs to run on the new site:
    - every asset and link path made root-absolute (the host serves `/music` without a redirect);
-   - the API address pointed at `thunderhead-api`, which answers the routes the player calls today;
-   - its requests signed in with the new session token (sign-in is rebuilt; the old sign-in does not
-     come over);
-   - the site's `<meta>` security policy first in `<head>` (the host sends no headers), allowing what
-     the unchanged page loads.
+   - the API address left as it is: the ported player keeps calling the old Worker (`jarvis-hub-api`)
+     until its data moves in P5; the new site's origin is added to the old Worker's allowed origins
+     (a one-line old-Worker deploy, ask first; [MIGRATION](../../engineering/MIGRATION.md) §6). No
+     new-site token is sent, and the old sign-in does not come over;
+   - its own `<meta>` security policy kept first in `<head>`, unchanged except for the new paths; it
+     allows exactly what the unchanged page loads ([SECURITY](../../engineering/SECURITY.md) §4.4).
 3. The owner's player data (plays, ratings, playlists, EQ and settings) is restored into the same
    stores on the new origin, so it looks and plays exactly as before **[proposal: through the export
    page, §11]**.

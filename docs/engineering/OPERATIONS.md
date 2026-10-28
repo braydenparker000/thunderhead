@@ -10,7 +10,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 2. **A rollback is always one tap:** Actions → Deploy → Run workflow, with the commit (site) or version id (API) to put live.
 3. **The Worker cannot roll back across a Durable Object class change.** A class change ships alone, and a failure after it is fixed forward.
 4. **Agents never hold Cloudflare or Azure credentials.** Anything that needs one runs in GitHub Actions, or the owner taps it in a dashboard.
-5. **Ask first** before deleting data, spending money, changing access, or reaching other people. Restores and secret rotations that lock someone out are "access" or "delete" proposals.
+5. **Ask first** before deleting data, spending money, changing access, or reaching other people, and before any deploy of the old Worker or the old site. Restores and secret rotations that lock someone out are "access" or "delete" proposals. The owner approves with a device tap or in their own words (Worker-verified, decisions 2026-10-28).
 6. **Quiet hours:** nothing that needs the owner before 06:30 local. The agent still acts (rolls back, pauses jobs) and tells the owner after 06:30.
 7. **Public logs:** an Actions log may show commit SHAs, file names, counts and timings. Never content, titles, tokens, refs to personal items or URLs with signatures.
 8. **Every incident leaves a ledger row and a one-line STATUS entry with no personal content.**
@@ -21,7 +21,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 
 | Task | Owner (phone) | Agent |
 |---|---|---|
-| Approve or reject proposals | Taps on the gold-lit card | Creates them, explains them in plain words |
+| Approve or reject proposals | Taps on the gold-lit card, or says so in the conversation | Creates them, explains them in plain words; records the owner's own words with `th decide --by-message` |
 | Issue or revoke agent tokens | Settings → Agents; copies the token once | Says which role is needed and where to paste it |
 | Paste a token into a Claude environment or a GitHub secret | Yes (≈ 1 min each) | Gives the exact field name |
 | Cloudflare dashboard: R2 API tokens, bucket CORS, lifecycle rules, r2.dev public access, mind fire secrets | Yes | Writes the step list |
@@ -49,7 +49,7 @@ Values never appear in the repo or in logs. Rotation steps are in §6. The secur
 | `SITE_ORIGINS`, `R2_ACCOUNT_ID`, `CORE_INSTANCE` (default `owner`) **[proposal]**, `VAPID_PUBLIC_KEY` (P8) | var | `backend/wrangler.jsonc` | P1+ |
 | `AUTH_PEPPER`, `IP_HASH_KEY` | Worker secret | Cloudflare | P1 |
 | `AUTH_SETUP_FP` (one-time), `AUTH_RESET_FP` (only during a reset) | Worker secret | Cloudflare, via `auth-setup.yml` / `auth-reset.yml` or the dashboard | P1 |
-| `MIND_FIRE_CHAT`, `MIND_FIRE_NIGHT` (+ `MIND_FIRE_REFLEX` in P4) | Worker secret | Cloudflare | P2–P4 |
+| `ROUTINE_CHAT_URL`, `ROUTINE_CHAT_TOKEN`, `ROUTINE_NIGHT_URL`, `ROUTINE_NIGHT_TOKEN` (+ `ROUTINE_REFLEX_URL`, `ROUTINE_REFLEX_TOKEN` in P4) | Worker secret | Cloudflare | P2–P4 |
 | `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` (Object Read, `jarvis-music` + `thunderhead-private`) | Worker secret | Cloudflare | P5 |
 | `VAPID_PRIVATE_JWK` | Worker secret | Cloudflare | P8 |
 | `TH_TOKEN` (one per environment: `th-chat`, `th-night`, `th-reflex`), plus non-secret `TH_API`, `TH_ROLE` | Claude environment | claude.ai scheduled tasks | P2+ |
@@ -81,7 +81,7 @@ What `deploy.yml` job `site` does today (`th/.github/workflows/deploy.yml`):
 7. Live checks: `tests/live.test.mjs` and `tests/home-browser.test.mjs` against `SITE_URL`, retried once after 15 s.
 8. On failure or cancel after publishing started, the previous commit is checked out into a clean `frontend/`, staged and published.
 
-Planned additions (P1): the stage step also writes the route stubs, `config.js`, `precache.json` and the `build` number ([ARCHITECTURE.md §5–6](ARCHITECTURE.md#5-consequences-of-hosting-on-an-azure-storage-static-website)). The live checks add `GET /music/` → 200 with the shell.
+Planned additions (P1): the stage step also writes the route stubs, `config.js`, `precache.json` and the `build` number ([ARCHITECTURE.md §5–6](ARCHITECTURE.md#5-consequences-of-hosting-on-an-azure-storage-static-website)). The live checks add a shell route → 200 with the shell. From P1b, `GET /music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/` → 200 with that ported app's own page (§3.4).
 
 Confirm: the run is green, and `<site>/release.json` shows the commit.
 
@@ -106,11 +106,29 @@ Use this when a broken service worker keeps serving a bad shell and normal updat
 
 Confirm: the next request from the phone carries the fixed build in `TH-Client`.
 
+### 3.4 Ported app pages (P1b)
+
+The five existing apps are ported as they are (owner ruling; [ARCHITECTURE.md §11](ARCHITECTURE.md#11-the-as-is-port-p1b), [MIGRATION.md §5–6](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)). Steps, in order:
+
+| # | Who | Step | Confirm |
+|---|---|---|---|
+| 1 | agent | Copy each old folder (and the `/assets/` files it loads) from the old repo at a recorded commit into `frontend/<folder>/`; make only the listed adjustments (root-absolute paths, the folder name, the API address where it is derived from the site, the CSP lines those need); record each in `ported.json` | The ported-diff test is green |
+| 2 | agent | Normal site deploy (§3.1). Ported folders upload with the rest; they are outside the shell's precache | Live check: each `/<folder>/` → 200 with its own page |
+| 3 | owner | Approve the proposal "Let the new site's apps use the old Worker until their data moves" | Approval in the ledger |
+| 4 | agent | In the old repo: add the new site's exact origin to `FRONTEND_ORIGINS` (`backend/origins.js`), nothing else; record the old Worker's current version id in STATUS; run the old repo's Worker deploy workflow | From the new site: a song plays, a Songsterr tab loads, an episode plays, Astra and My Media open |
+| 5 | owner | Approve the old-site `/export/` partial publish; on the phone, download the export, then open the new site's `/import/` page and pick the file | Counts on the import page equal the export page's, and each ported app shows the owner's data |
+
+Rollback:
+- A broken ported page: roll back the site (§3.2), or restore that folder's old bytes from the old repo; the old page keeps working meanwhile.
+- A broken old Worker after step 4: `wrangler rollback <recorded version>` from the old repo's workflow (ask first only for a new deploy; a rollback to the recorded version is containment). The ported pages then fail CORS until step 4 is fixed and repeated; the old pages are unaffected.
+
+Each app later switches to `thunderhead-api` when its data moves (Music P5, Guitar P6, Astra, Podcasts, My Media P8), as a normal site + API deploy ([MIGRATION.md §7](MIGRATION.md#7-caller-switch-over-order) step 5).
+
 ---
 
 ## 4. Restore from backup
 
-All restores are proposals. The owner taps approve on a device; nothing restores on a prompt or a message. The storage design is in [DATA.md §11](DATA.md#11-backup-export-and-restore).
+All restores are proposals. The owner approves with a device tap or in their own words, which the Worker checks against the owner's own message; nothing restores on a fired prompt or any other text. The storage design is in [DATA.md §11](DATA.md#11-backup-export-and-restore).
 
 ### 4.1 Point-in-time (whole object, last 30 days)
 
@@ -190,7 +208,7 @@ Notes:
 | `AUTH_PEPPER` | Only on suspicion of a leak | Proposal (`access`). Agent: `rotate-secret.yml` with `generate: AUTH_PEPPER_V2`, after a deploy that accepts both peppers and re-hashes lazily at sign-in ([SECURITY.md §14.6](SECURITY.md)) | Hashes move to the new pepper as the owner signs in | Sign-in works; `pepper_v` = 2 on the credential |
 | `IP_HASH_KEY` | Yearly | `rotate-secret.yml` `generate: IP_HASH_KEY` | Throttle counters reset | — |
 | `AUTH_SETUP_FP`, `TH_SETUP_FINGERPRINT` | Delete after setup | Owner: run Open setup with `clear: true`, delete the GitHub secret | None (`/v1/auth/setup` already answers 410) | — |
-| Mind fire URL/token (per task) | When the task is recreated or on suspicion | Owner: in the scheduled task's API trigger, regenerate → paste into the Cloudflare dashboard as `MIND_FIRE_CHAT` (or `_NIGHT`, `_REFLEX`) | Old fires fail with 401 from the platform | Agent: `POST /v1/mind/typing` from a device fires a wake; the wakes list shows `fired` |
+| Mind fire URL/token (per task) | When the task is recreated or on suspicion | Owner: in the scheduled task's API trigger, regenerate → paste into the Cloudflare dashboard as `ROUTINE_CHAT_TOKEN` and `ROUTINE_CHAT_URL` (or the `_NIGHT_`, `_REFLEX_` pair) | Old fires fail with 401 from the platform | Agent: `POST /v1/mind/typing` from a device fires a wake; the wakes list shows `fired` |
 | `CLOUDFLARE_API_TOKEN` | Yearly (reminder in the October briefing) **[proposal]**, or on suspicion | Owner: Cloudflare → API tokens → Roll → paste into the GitHub secret | Deploys use the new token | Next Deploy run is green |
 | `R2_SIGN_ACCESS_KEY_ID` / `R2_SIGN_SECRET` | On suspicion (rolling revokes every signed URL at once) | Owner: R2 → Manage API tokens → create (Object Read; the two buckets) → paste both into the Cloudflare dashboard (or `rotate-secret.yml copy`) → delete the old token | Old URLs 403 at once; clients re-sign | Media plays after one 403 retry |
 | Actions R2 keys | Yearly or on suspicion | Owner: create new → GitHub secrets → delete old | — | Next jobs run is green |
@@ -232,8 +250,9 @@ Notes:
 | **Sign-in broken** | `/v1/auth/login` 5xx | Roll back the API (§5.2). Signed-in devices keep working: sessions are checked, not passwords |
 | **Media 403 loops** (P5) | The player re-signs repeatedly | Check the signing key (§6) and the clock floor; the Worker logs `sign_failed` counts |
 | **Old code after deploy** | Deep health `schema` lags | Wait up to 6 min (the smoke step already does); after that, treat it as a failed deploy |
-| **Claude usage limit reached** | Sessions don't start | Nothing on the Worker side. The honest line stays; the night shift runs when usage returns. Usage credits stay off (owner decision) |
+| **Claude usage limit reached** | Sessions don't start | Nothing on the Worker side. The honest line stays; the night shift runs when usage returns. Usage credits stay off (owner decision) The plan is Max 5x now and may drop to Pro later (owner ruling 2026-10-27): everything keeps working on Pro, only leaner (fewer wakes, a shorter night shift; [RUNTIME.md §11](../mind/RUNTIME.md)); nothing on the Worker depends on the plan. |
 | **R2 operations near the free tier** (1M Class A, 10M Class B a month) | Monthly owner check (§9) | Find the source (index rebuilds, re-signing loops). Going over costs money: stop the job and propose |
+| **A ported app fails** (P1b–P8) | The app shows its old error lines; its error reporter posts to the old Worker | It still calls the old Worker: check the old Worker's version still carries the new origin (§3.4 step 4), and the shared request quota (both Workers count against one account's 100,000/day). Never fix it by changing the app beyond the listed adjustments; a real fix is a change the owner agrees to |
 
 ---
 

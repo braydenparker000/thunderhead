@@ -38,11 +38,12 @@ rules describe the later steps.
    search, downloads and wording.
 2. Adjust only what it strictly needs to run on the new site:
    - every asset and link path made root-absolute (the host serves `/podcasts` without a redirect);
-   - the API address pointed at `thunderhead-api`, which answers the routes the app calls today
-     (search, browse, feed and audio passthrough; [MIGRATION](../../engineering/MIGRATION.md) §2);
-   - its requests signed in with the new session token (sign-in is rebuilt);
-   - the site's `<meta>` security policy first in `<head>` (the host sends no headers), allowing what
-     the unchanged page loads.
+   - the API address left as it is: the ported app keeps calling the old Worker's search, browse,
+     feed and audio passthrough ([MIGRATION](../../engineering/MIGRATION.md) §2.5) until its data
+     moves in P8; the new site's origin is added to the old Worker's allowed origins (ask first,
+     MIGRATION §6);
+   - its own `<meta>` security policy kept first in `<head>`, unchanged except for the new paths
+     ([SECURITY](../../engineering/SECURITY.md) §4.4).
 3. The owner's follows, queue, progress and settings are restored unchanged on the new origin
    **[proposal: through the export page, §10]**.
 4. Done when the owner listens on the phone and nothing has changed.

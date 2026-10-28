@@ -76,7 +76,7 @@ There is no free-text field, by design: an Actions run (a public, injectable pla
 
 ### 3.2 Tools **[proposal]**
 
-The licence rule is no GPL, AGPL or non-commercial dependencies, which rules out typical ffmpeg builds, aubio and Essentia.
+The licence rule is no GPL, AGPL or non-commercial dependencies, which rules out typical ffmpeg builds, aubio and Essentia. (The one named exception, libmedia, is for Astra's player only, by owner ruling; it does not extend to jobs.)
 
 | Step | Tool | Licence |
 |---|---|---|
@@ -209,13 +209,13 @@ Acceptance: each kind has a vitest test that runs it to completion across at lea
 
 ## 5. PDF extraction in the mind's session (P7)
 
-The text of the owner's study PDFs is personal. It is extracted only inside a Claude cloud session, never in Actions.
+The text of the owner's study PDFs is personal. That includes the owner's licensed copies of the canon scriptures, which are stored privately in `thunderhead-private` like any book (owner ruling 2026-10-27); talks are not stored, only cited with a link. It is extracted only inside a Claude cloud session, never in Actions.
 
 1. The owner adds a PDF in Study. The phone uploads it with `PUT /v1/files/:id` (or the Library upload route in [STUDY.md](../product/apps/STUDY.md)), and the Worker stores it as `thunderhead-private/books/<sha256>.pdf` with a `books` row (`ingested_at = NULL`).
 2. `mind-night` finds books with `ingested_at IS NULL` in its briefing, gets a presigned URL from `POST /v1/media/sign {refs:['book:<id>']}`, and downloads the file into `$TMPDIR`.
 3. It runs `node mind/tools/pdf-extract.mjs <file>` **[proposal]**, which uses `pdfjs-dist` (Apache-2.0) `getTextContent()` page by page. The output is JSON lines `{page_index, page_label, text}`. Text over 20,000 characters on one page is cut at a word boundary and flagged.
 4. Pages with no text layer are flagged `needs_ocr`. v1 does no OCR **[proposal]**. The book shows "Some pages are scans; search skips them."
-5. It sends pages in order with `PUT /v1/library/books/:id/pages` in chunks of ≤ 200 pages (≤ 256 KB a request), with `{chunk_index, pages: [...], book_sha256}`. The route checks that the sha256 matches the stored book, that `page_index` values are contiguous, and the size limits. It stores the pages as a lane job (`library.ingest`) that writes `pages`, `pages_fts` and `verse_refs` (the verse parser is deterministic Worker code, shared with Study).
+5. It sends pages in order with `PUT /v1/library/books/:id/pages` in batches of 50 pages ([STUDY.md](../product/apps/STUDY.md) step 9; ≤ 256 KB a request), with `{chunk_index, pages: [...], book_sha256}`. The route checks that the sha256 matches the stored book, that `page_index` values are contiguous, and the size limits. It stores the pages as a lane job (`library.ingest`) that writes `pages`, `pages_fts` and `verse_refs` (the verse parser is deterministic Worker code, shared with Study).
 6. It deletes the local file and the extracted JSON before the session ends. Nothing extracted is written to the repo, a log or a commit.
 7. The Worker sets `ingested_at` when the last chunk's job finishes, and the briefing reports "Book added: N pages searchable."
 
@@ -232,4 +232,4 @@ Acceptance: a mind test runs `pdf-extract.mjs` on a synthetic 3-page PDF generat
 | J3 | Does the R2 lifecycle rule cost nothing on this account? | Owner checks the bucket settings |
 | J4 | DO CPU per invocation on Free (X3), which fixes the step sizes | Preview bench |
 | J5 | FTS5 rows written per 300-word page (D3) | Local workerd measurement |
-| J6 | Decisions.md allows sha256 keys in public logs; this page is stricter (no hashes at all). Is that worth the extra `GET /v1/jobs/:id/spec` call? | Keep the stricter rule unless it blocks something; record the choice in decisions.md |
+| J6 | Earlier plans allowed sha256 keys in public logs; this page, PRIVACY.md §6 and ARCHITECTURE.md agree on the stricter rule (no hashes at all; the spec travels by `GET /v1/jobs/:id/spec`). | Proposed as a decisions.md line (night CROSS-DOC-FIXES) |

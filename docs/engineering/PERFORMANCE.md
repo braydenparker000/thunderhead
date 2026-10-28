@@ -14,6 +14,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 6. **Worker CPU p99 ≤ 5 ms per request** (Free allows 10 ms). DO CPU p99 ≤ 20 ms per RPC, except sign-in.
 7. **Rows per endpoint are pinned by cost tests.** Daily totals stay inside the targets in [DATA.md §8](DATA.md#8-row-write-budget-free-plan).
 8. **Nothing runs while hidden** except audio and its keep-alive.
+9. **Ported apps (P1b) are measured, not reshaped.** They come over as they are (owner ruling), so the shell's byte, frame and memory budgets don't apply to them; their sizes are recorded at the port and may only change through an owner-agreed evolution.
 
 ---
 
@@ -40,23 +41,26 @@ Enforced by `scripts/stage.mjs` on every deploy (the deploy fails before publish
 | Budget | Limit | Today | Check |
 |---|---|---|---|
 | Files in the release | ≤ 2,000 | 13 | `stage.mjs` (exists) |
-| Total bytes | ≤ 25,000,000 | ~0.15 MB | `stage.mjs` (exists) |
+| Total bytes | ≤ 25,000,000 today; ≤ 40,000,000 from P1b **[proposal]** (the ported apps add ~23 MB) | ~0.15 MB | `stage.mjs` (exists) |
+| Ported folders (P1b) + `/assets/` | Recorded per folder in `ported.json` at the port (measured in the old repo 2026-10-28: Music ~3.4 MB/107 files, Guitar ~2.6 MB/24, Podcasts ~0.3 MB/14, Astra ~4.2 MB/66, My Media ~0.2 MB/11, shared `/assets/` files ~12.5 MB, almost all libmedia); fails if a folder grows without a recorded adjustment | — | `stage.mjs` + `tests/ported.test.mjs` |
 | Home + `ui/` JS (critical path) | ≤ 120,000 | ~13.3 KB | `stage.mjs` (exists) |
 | Home + `ui/` CSS | ≤ 60,000 | ~21.3 KB | `stage.mjs` (exists) |
 | Fonts (`.woff2`) | ≤ 130,000 | ~103 KB | `stage.mjs` (exists) |
 | Icon sprite `ui/icons.svg` | ≤ 30,000 | — | add with the sprite (P1) |
 | `th/` + `lib/` JS loaded by the shell | ≤ 60,000, counted inside the 120 KB | — | add in P1 **[proposal]** |
 | Each app's own code on open (`apps/<id>/**`) | ≤ 300,000 | — | add in P5 |
-| Precache total (everything except `vendor/` and stubs) | ≤ 3,000,000 **[proposal]** | — | add with the SW (P1) |
+| Precache total (everything except `vendor/`, stubs, ported folders and `/assets/`) | ≤ 3,000,000 **[proposal]** | — | add with the SW (P1) |
 | Any single non-vendor file | ≤ 400 lines of JS (soft) / 200,000 bytes (hard) **[proposal]** | — | Biome rule + `stage.mjs` |
 
-- Vendor engines (pdf.js, alphaTab, mediabunny) are loaded only by their app, on use, and are not counted in the shell's budget.
+- Vendor engines (pdf.js, alphaTab, mediabunny) are loaded only by their app, on use, and are not counted in the shell's budget. In P1b the ported apps' own engines (Guitar's bundled engine and pdf.js, Astra's mediabunny and libmedia) live inside their folders as they are.
 - The budget numbers move to `tests/budgets.json` (one source for `stage.mjs` and the tests) in P1.
 - Compression: the static website serves files as uploaded. If the brotli upload proposal passes its live check ([ARCHITECTURE.md §5](ARCHITECTURE.md#5-consequences-of-hosting-on-an-azure-storage-static-website)), transfer sizes fall by about 70% for text. The budgets above stay on raw bytes either way.
 
 ---
 
 ## 3. Phone runtime budgets
+
+These budgets apply to home, the shell and new apps. Ported pages (P1b) are traced once on the A15 at the port and recorded as their baseline; a later change to a ported app must not make its baseline worse **[proposal]**.
 
 ### 3.1 Startup
 

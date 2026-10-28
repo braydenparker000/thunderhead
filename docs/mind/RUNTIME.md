@@ -223,7 +223,7 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th surface` | `<app> <slot> --kind <k> --payload <json> --why <t> --topic <key> [--expires <iso>]` | `{"ledger_id"}` | C N | Home lines use app `home`, slot `line.<1-4>`. |
 | `th push` | `--title <t> --body <b> --ref <ref> --why <t> --topic <key> [--deadline <iso>]` | `{"queued_until"}` | C | The Worker holds it until a natural pause or drops it at the deadline ([BEHAVIOR.md §3.4](BEHAVIOR.md#34-rung-3-push)). |
 | `th propose` | `--class delete\|money\|access\|reach_people\|memory_big --question <q> --why <t> --spec <json> --if-ignored <t> [--odds <0-1>]` | `{"proposal_id","spec_hash"}` | C N R | Shows a decision card. |
-| `th decide` | `<proposal id> --by-message <message id>` | `{"status":"approved","ledger_id"}` | C | Records the owner's own words as the approval (owner ruling). The Worker refuses (exit 6, `not_owner_words`) unless the message is an owner-device message sent after the card and is the owner's latest message in that thread **[proposal]** ([BEHAVIOR.md §4](BEHAVIOR.md#4-how-decisions-and-proposals-are-posed)). Rejections are recorded the same way. |
+| `th decide` | `<proposal id> --by-message <message id>` | `{"status":"approved","ledger_id"}` | C | Records the owner's own words as the approval (owner ruling), through `POST /v1/proposals/:id/decide` with `by_message` ([API.md §11.10](../engineering/API.md)). The Worker refuses (exit 6, `not_owner_words`) unless the message is an owner-device message sent after the card and is the owner's latest message in that thread **[proposal]** ([BEHAVIOR.md §4](BEHAVIOR.md#4-how-decisions-and-proposals-are-posed)). Rejections are recorded the same way. |
 | `th verb` | `<verb> [--args <json>] [--device <id>]` | `{"verb_id","ledger_id"}` | C | Reversible verbs only; ask-first verbs need `--proposal <id>` (approved). |
 | `th undo` | `<ledger id>` | `{"ledger_id"}` | C | |
 | `th ledger` | `[--since <iso>] [--kind <k>]` | `{"items"}` | C N R | |
@@ -332,7 +332,7 @@ Runs instead of Stop when a turn ends on an API error (`error`: `rate_limit`, `o
 | Setup script | `npm ci --ignore-scripts` at the repo root (cached by the platform) | same | same |
 
 Rules:
-1. **Tokens** are issued from Settings → Agents on a signed-in device, shown once, and stored only as hashes in the `Auth` Durable Object (decisions.md). Format: `tha_<role>_<43 base64url chars>` **[proposal]**. The owner pastes each into its environment's network secret.
+1. **Tokens** are issued from Settings → Agents on a signed-in device, shown once, and stored only as hashes in the `Auth` Durable Object (decisions.md). Format: `thm_` + 43 base62 + 6 base62 CRC32 checksum, the same for every mind role (the role is stored with the hash, not in the token) ([SECURITY.md §5.1](../engineering/SECURITY.md)) **[proposal]**. The owner pastes each into its environment's network secret.
 2. **One token per environment.** A token's role is fixed at issue; the Worker never trusts a role claimed in a header.
 3. **No Cloudflare, Azure or R2 credential** in any environment. The current system's read-only Cloudflare observability token is not carried over **[proposal]**; the mind reads errors from the Worker's own `errors` table instead.
 4. Environment variables are visible to anyone using the environment, so they hold no secrets.

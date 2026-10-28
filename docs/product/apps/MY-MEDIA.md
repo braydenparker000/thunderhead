@@ -29,11 +29,16 @@ Ring colour `#14a39a`, icon Phosphor `youtube-logo`, route `/media/`, phase **P8
    Drive listing, player, Quick watches and wording.
 2. Adjust only what it strictly needs to run on the new site:
    - every asset and link path made root-absolute (the host serves `/media` without a redirect);
-   - the Drive key and folder IDs are not committed to the public repo (owner rule): the page reads
-     them from the Worker after sign-in (`GET /v1/media/config`, §2.3 Stage A) instead of
-     `/assets/drive-config.json`, with the new session token;
-   - the site's `<meta>` security policy first in `<head>` (the host sends no headers), allowing what
-     the unchanged page loads.
+   - the Drive key and folder IDs are not committed to the public repo (owner rule). How the ported
+     page gets them is an owner decision before its port ([MIGRATION](../../engineering/MIGRATION.md)
+     open question 8): (a) read from the new Worker after sign-in (`GET /v1/media/config`, §2.3
+     Stage A), a small change beyond the P1b adjustment list, or (b) `/assets/drive-config.json`
+     written into `$web` at stage time from a GitHub secret (out of the repo, world-readable on the
+     site as today) **[proposal]**;
+   - everything else keeps calling the old Worker until the data moves in P8 (the new site's origin
+     is added to its allowed origins, ask first);
+   - its own `<meta>` security policy kept first in `<head>`, unchanged except for the new paths
+     ([SECURITY](../../engineering/SECURITY.md) §4.4).
 3. The owner's `mymedia.*` progress, saved, queue and preferences are restored unchanged on the new
    origin **[proposal: through the export page, §5]**.
 4. Done when the owner watches on the phone and nothing has changed.

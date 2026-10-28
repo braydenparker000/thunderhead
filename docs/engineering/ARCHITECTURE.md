@@ -6,7 +6,7 @@ Fixed decisions come from [decisions.md](../process/decisions.md). Where this pa
 
 ## Rules at a glance
 
-1. **Five places run code:** the phone (a static site on an Azure Storage static website), the Worker `thunderhead-api`, its Durable Objects, GitHub Actions, and the mind (Claude Code scheduled tasks). Nothing else runs code.
+1. **Five places run code:** the phone (a static site on an Azure Storage static website), the Worker `thunderhead-api`, its Durable Objects, GitHub Actions, and the mind (Claude Code scheduled tasks). Nothing else of ours runs code. Until it retires (after P8), the old Worker `jarvis-hub-api` also still answers the ported apps (§11).
 2. **The site is static files only.** No server code, no response headers, no rewrites. Security policy lives in a `<meta>` tag. Every app route is a real file. Every asset path starts with `/`.
 3. **All private data lives behind the Worker.** It is stored in Durable Object SQLite or in the R2 bucket `thunderhead-private`. It never lives in `$web`, the repo, Actions logs or Actions artifacts.
 4. **Everything on the API is under `/v1/`.** Only `GET /v1/health` and the sign-in routes answer without a token.
@@ -15,11 +15,12 @@ Fixed decisions come from [decisions.md](../process/decisions.md). Where this pa
 7. **No timers or long polls inside a Durable Object.** Live updates use hibernatable WebSockets. The mind waits through `GET /v1/live/wait`, which the Worker holds for at most 25 s.
 8. **Media bytes never pass through the Worker.** The phone gets presigned R2 URLs from `POST /v1/media/sign`.
 9. **API changes inside `/v1` are additive.** Every client request carries `TH-Client`. `/v1/health` publishes `min_client`.
-10. **One shell document.** Home is the shell, and apps are lazily imported modules, so audio keeps playing across screens. Astra is its own page at `/astra/` at first.
+10. **Home is the one shell document; the ported apps are their own pages at first.** In P1b each existing app (Music, Guitar, Podcasts, Astra, My Media) is ported **as it is** (owner ruling 2026-10-28) and runs as its own page in its own folder, unchanged; only the new home (with the Briefing, menu, settings and sign-in) is the shell. New apps (Study) are lazily imported shell modules. Folding a ported app into the shell (so audio keeps playing across screens) is a later evolution the owner must agree to first (§7, §11).
 11. **One hand-written service worker** precaches each release as a whole and never applies an update mid-song.
 12. **Heavy work goes to its proper place** (see [JOBS.md](JOBS.md)): audio CPU work runs in Actions, addressed by sha256 only. Personal text runs in the mind's session. Row-heavy work runs as chunked DO alarm jobs. Reasoning runs only in mind sessions.
 13. **No Cloudflare or Azure credential is ever inside a Claude session.** Deploy credentials live only in GitHub Actions secrets.
 14. **$0 extra.** Every design must fit the free tiers in [PERFORMANCE.md](PERFORMANCE.md). Anything that would cost money is asked first.
+15. **Ported apps keep calling the old Worker until their data moves** (Music P5, Guitar P6, Astra, Podcasts and My Media P8). They reach it because the new site's origin is added to the old Worker's allowed origins, a one-line old-Worker deploy that is asked first (§11, [MIGRATION.md §6](MIGRATION.md#6-cors-the-new-site-on-the-old-worker-p1b-temporary)).
 
 ---
 
@@ -29,7 +30,7 @@ Fixed decisions come from [decisions.md](../process/decisions.md). Where this pa
                          ┌─────────────────────────── the owner's phone (Galaxy A15, Chrome) ───────────────────────────┐
                          │  shell: /index.html  ─ home (chat, ring, briefing, menu, + sheet)                            │
                          │          apps/<id>/app.js (lazy)   lib/audio (lives across screens)   sw.js (one SW)          │
-                         │  IndexedDB: th-auth (token), th (outbox, surfaces cache)     OPFS: offline songs, PDFs        │
+                         │  IndexedDB: th-auth (token), th-data (outbox, surfaces cache)     OPFS: offline songs, PDFs   │
                          └──────┬───────────────────────────┬────────────────────────────────┬───────────────────────────┘
                  static files   │ HTTPS GET                 │ HTTPS + Bearer, WSS (ticket)   │ HTTPS GET (presigned, Range)
                                 ▼                           ▼                                ▼
@@ -55,6 +56,8 @@ Fixed decisions come from [decisions.md](../process/decisions.md). Where this pa
    └───────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
+Not drawn: the ported app pages (`/music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/`, from P1b). Each is its own document with its own meta CSP and, where it had one, its own service worker. Until its data moves, it calls the old Worker `jarvis-hub-api` over HTTPS (allowed by the old Worker's origin list), and reaches the outside hosts it uses today ([SECURITY.md §4.4](SECURITY.md#44-ported-app-pages-p1b)).
+
 Acceptance: an agent can name, for any box above, which folder holds its code (§3) and which credentials it holds (§2.2).
 
 ## 2. Components and boundaries
@@ -77,6 +80,8 @@ Acceptance: an agent can name, for any box above, which folder holds its code (�
 | GitHub Actions | GitHub-hosted runners (public logs) | `.github/workflows/` | Deploy secrets only | Azure (OIDC), Cloudflare (API token), R2 jobs | P0 |
 | Mind | Claude Code cloud sessions | `mind/` | One agent token per task environment | Worker (HTTPS), GitHub (git proxy) | P2 |
 | Muse | The existing external helper | — | A `muse`-scoped agent token | `/v1/work/*` only | P4 |
+| Ported app pages (Music, Guitar, Podcasts, Astra, My Media) | The phone's browser, each its own document at `/music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/` | `frontend/<folder>/` + the old shared files they load under `frontend/assets/` (copied as they are) | Their own phone storage under their old names (localStorage, IndexedDB, caches); no new-site token | The old Worker until their data moves; the outside hosts they use today | P1b |
+| Old Worker `jarvis-hub-api` | Cloudflare, same account | old repo | The old data; exported once (P3) | Ported pages and old pages (CORS allowlist `FRONTEND_ORIGINS`) | until after P8 |
 
 ### 2.2 Who holds which credential
 
@@ -89,7 +94,7 @@ Acceptance: an agent can name, for any box above, which folder holds its code (�
 | `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, one account) | GitHub secret | Deploy, roll back, set Worker secrets | Claude sessions |
 | R2 sign key (Object Read on `jarvis-music` + `thunderhead-private`) | Worker secrets `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` | Presign GETs | Actions, sessions |
 | R2 Actions keys (read `jarvis-music`; read/write `thunderhead-jobs`) | GitHub secrets | Read audio bytes by sha256, write job results | The Worker, sessions |
-| Mind fire secrets `MIND_FIRE_CHAT`, `MIND_FIRE_NIGHT`, `MIND_FIRE_REFLEX` | Worker secrets | Fire `mind-chat`, `mind-night`, `mind-reflex` with text `wake` | Everywhere else |
+| Mind fire secrets `ROUTINE_CHAT_URL` + `ROUTINE_CHAT_TOKEN`, `ROUTINE_NIGHT_URL` + `ROUTINE_NIGHT_TOKEN`, `ROUTINE_REFLEX_URL` + `ROUTINE_REFLEX_TOKEN` (P4) (names as in [RUNTIME.md §2](../mind/RUNTIME.md)) | Worker secrets | Fire `mind-chat`, `mind-night`, `mind-reflex` with text `wake` | Everywhere else |
 
 The full inventory, with rotation steps, is in [SECURITY.md](SECURITY.md) and [OPERATIONS.md §6](OPERATIONS.md#6-secret-rotation).
 
@@ -125,8 +130,10 @@ thunderhead/
     ui/                                tokens, base CSS, components, gestures, motion, theme.js, icons.svg, fonts/, csp.txt
     th/                                th.js api.js auth.js outbox.js live.js surfaces.js verbs.js push.js
     lib/                               router.js idb.js files.js audio/
-    apps/<id>/                         app.js (mount/unmount), verbs.js (UI-free), <id>.css
-    astra/                             Astra's own page (until it folds into the shell)
+    apps/<id>/                         new shell apps (Study): app.js (mount/unmount), verbs.js (UI-free), <id>.css
+    music/ guitar/ podcasts/ astra/ media/   ported apps (P1b), each its own page, copied as they are
+    assets/                            old shared files the ported pages load, at the same paths (config.js, error-report.js, libmedia/, …; listed in ported.json)
+    ported.json                        [proposal] per ported folder: old source path, allowed adjustments, outside-host allowlist
     vendor/<lib>-<version>/            pinned third-party ESM with LICENSE and a recorded sha256
   backend/                             the Worker: TypeScript, Hono, zod, aws4fetch
     wrangler.jsonc  vitest.config.ts  worker-configuration.d.ts (generated)
@@ -146,7 +153,7 @@ One line per root:
 
 | Folder | What lives there | Never there |
 |---|---|---|
-| `frontend/` | Everything served from `$web`. What is in Git is what runs on the phone. | Secrets, personal content, build output |
+| `frontend/` | Everything served from `$web`. What is in Git is what runs on the phone. Ported folders are the old apps as they are, plus only the adjustments listed in `ported.json` | Secrets, personal content, build output |
 | `backend/` | The Worker and its Durable Objects, with their tests | Frontend code |
 | `mind/` | The mind's CLI, hooks, laws, skills, and the eval harness with synthetic fixtures | Private probes (they live in the Worker) |
 | `shared/` | Request/response, event, ref and error **types** checked from all three sides | Any runtime code |
@@ -223,10 +230,10 @@ The owner ruled out Static Web Apps and Cloudflare hosting (decisions, 2026-10-2
 
 | Fact about the host | Consequence | Where it is enforced | Acceptance check |
 |---|---|---|---|
-| No custom response headers | The CSP is a `<meta http-equiv>` placed right after `<meta charset>`, byte-for-byte equal to `frontend/ui/csp.txt`. `frame-ancestors`, HSTS, `nosniff`, `X-Robots-Tag`, COOP/COEP and reporting are impossible. A JS frame guard (`if (top !== self)` → hide and stop) replaces `frame-ancestors`. `securitypolicyviolation` events are posted to `/v1/ops/errors`. | `site.test.mjs` "every page carries the CSP…" | Static test passes for every `*.html` |
+| No custom response headers | The CSP is a `<meta http-equiv>` placed right after `<meta charset>`. On the shell and every new page it is byte-for-byte equal to `frontend/ui/csp.txt` (no outside hosts). Each ported page keeps its own meta CSP, allowing exactly what that app loads today (per-app list in [SECURITY.md §4.4](SECURITY.md#44-ported-app-pages-p1b)). `frame-ancestors`, HSTS, `nosniff`, `X-Robots-Tag`, COOP/COEP and reporting are impossible. A JS frame guard (`if (top !== self)` → hide and stop) replaces `frame-ancestors`. `securitypolicyviolation` events are posted to `/v1/ops/errors`. | `site.test.mjs` "every page carries the CSP…" | Static test passes for every `*.html` |
 | `connect-src` must name the API | When the API lands (P1), `csp.txt` adds `https://thunderhead-api.<sub>.workers.dev wss://thunderhead-api.<sub>.workers.dev`. In P5 it adds `https://<account>.r2.cloudflarestorage.com` to `connect-src`, `img-src` and `media-src`. | `csp.txt` is the one source; the test compares every page with it | The browser test has zero CSP console errors |
-| No SPA fallback | Every app route is a real file. `scripts/stage.mjs` copies `index.html` to `<route>/index.html` for each route in `frontend/routes.json` **[proposal]**. App URLs have exactly one path segment (`/music/`); deeper state goes in the query or hash (`/music/?album=…`). | `stage.mjs`; a stage test checks every stub exists and is byte-equal to `index.html` | `GET /music/` returns 200 with the shell on the live site |
-| `/dir` serves `index.html` with no redirect | Relative URLs break on `/music` (no slash). Every `src`/`href` is root-absolute. | `site.test.mjs` root-absolute test | Loading `/music` (no slash) shows no 404 assets |
+| No SPA fallback | Every app route is a real file. `scripts/stage.mjs` copies `index.html` to `<route>/index.html` for each shell route in `frontend/routes.json` **[proposal]**. Ported apps need no stub: their folder already holds the app's own `index.html`, and `stage.mjs` refuses a route that is both in `routes.json` and a ported folder. App URLs have exactly one path segment (`/music/`); deeper state goes in the query or hash (`/music/?album=…`). | `stage.mjs`; a stage test checks every stub exists and is byte-equal to `index.html` | `GET /music/` returns 200 with the shell on the live site |
+| `/dir` serves `index.html` with no redirect | Relative URLs break on `/music` (no slash). Every `src`/`href` is root-absolute, including inside ported pages (one of their allowed adjustments). | `site.test.mjs` root-absolute test | Loading `/music` (no slash) shows no 404 assets |
 | Missing files return `404.html` with status 404 | `404.html` is a plain page with "Nothing here." and a home link. It loads only `/ui/plain.css`. | `live.test.mjs` "missing files get a 404" | `GET /no-such-file.js` → 404 |
 | HTTPS only; `http://` returns 400 | No HTTP links anywhere | No-outside-hosts test | — |
 | `$web` is world-readable | Never stage personal data. `release.json` holds only `{commit, build, staged_at}`. | Diff review; secret scan | — |
@@ -253,16 +260,17 @@ Acceptance: an integration test sets `MIN_CLIENT=500`, sends `TH-Client: 499.abc
 
 ---
 
-## 7. The frontend: one shell, apps as modules
+## 7. The frontend: the shell, new apps as modules, ported apps as their own pages
 
-1. **The shell** is `/index.html`. It owns home (conversation, ring, briefing, menu, `+` sheet), the router, `th/`, the audio engine, and the toast and sheet layers. It stays loaded for the whole visit.
+0. **Ported apps (P1b) are not shell modules.** Music, Guitar, Podcasts, Astra and My Media run as their own documents in their own folders, unchanged (§11). The ring opens them by a normal navigation to `/<folder>/`; leaving one stops its audio, as on the old site. Items 2–6 below apply to shell apps (Study, and any ported app the owner later agrees to fold into the shell).
+1. **The shell** is `/index.html`. It owns home (conversation, ring, briefing, menu, `+` sheet), the router, `th/`, the audio engine for shell apps, and the toast and sheet layers. It stays loaded while the owner is on home or a shell app.
 2. **Apps** live in `frontend/apps/<id>/`. The shell runs `import('/apps/<id>/app.js')` on first open, then `mount(root, ctx)`. `root` is `<section data-app="<id>">`, and `ctx` is `{th, api, router, audio, files, ui}`. `mount` returns `unmount()`, which removes every listener, timer, observer, wake lock and in-flight fetch.
 3. **Verbs** live in a UI-free `apps/<id>/verbs.js`. The shell can import and run them while the app is closed. Each verb returns `{result, undo}`.
 4. **Styles** for an app load on mount, wrapped in `@layer app { @scope ([data-app="<id>"]) { … } }`.
 5. **Routing** uses the Navigation API. Overlays (briefing, menu, `+` sheet) and open apps are history entries created only from a user gesture, so system Back closes them. Back at the home root leaves the app as normal; Back is never trapped. Exact gestures are in [GESTURES.md](../design/GESTURES.md).
 6. **Only one app's DOM is alive at a time.** Heavy engines (pdf.js, alphaTab, mediabunny) are imported only by their app.
-7. **Astra** stays its own document at `/astra/` until it earns a move into the shell. Leaving it stops its video, which is correct.
-8. **Code rules:** ES modules; files of 400 lines or fewer; logic without DOM in its own module with a `node --test`; `// @ts-check` on every file; no globals except `window.th` in development.
+7. **Astra** stays its own document at `/astra/` (decisions), like every ported app, until the owner agrees to a move into the shell. Leaving it stops its video, which is correct.
+8. **Code rules** (new code; ported folders are exempt until the owner agrees to change them): ES modules; files of 400 lines or fewer; logic without DOM in its own module with a `node --test`; `// @ts-check` on every file; no globals except `window.th` in development.
 
 Acceptance: a Playwright test mounts and unmounts each app 20 times. The DOM node count and the number of listeners (counted through an instrumented `on()`) return to their baseline ±5%.
 
@@ -274,7 +282,8 @@ Acceptance: a Playwright test mounts and unmounts each app 20 times. The DOM nod
 
 | Request | Strategy |
 |---|---|
-| Navigation inside scope `/` (except `/astra/` while it owns its page) | The cached `/index.html` from `th-<build>`; the network if it is missing. Offline still opens the app. |
+| Navigation inside scope `/`, except the ported folders (`/music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/`) and `/assets/` | The cached `/index.html` from `th-<build>`; the network if it is missing. Offline still opens the app. |
+| Anything under a ported folder or `/assets/` | **Not intercepted** by the shell worker (network, or the ported app's own service worker, which keeps its own folder scope, e.g. `/music/`, as on the old site) |
 | Same-origin code, CSS, fonts, icons | Cache-first from `th-<build>`. Everything is precached at install. |
 | `/vendor/<lib>-<version>/…` | Cache-first from `th-vendor`, shared across builds (paths never change content). |
 | `/release.json`, `/config.js` | Network-first with a 3 s timeout, then cache. |
@@ -284,7 +293,7 @@ Acceptance: a Playwright test mounts and unmounts each app 20 times. The DOM nod
 
 ### 8.2 Install and activate
 
-1. `install`: fetch `/precache.json` (written by `stage.mjs`: every file except `vendor/` and the route stubs, with sizes) with `cache: 'no-store'`, then `cache.addAll` into `th-<build>`. If any file fails, the install fails and the old worker stays.
+1. `install`: fetch `/precache.json` (written by `stage.mjs`: every file except `vendor/`, the route stubs, the ported folders and `/assets/`, with sizes) with `cache: 'no-store'`, then `cache.addAll` into `th-<build>`. If any file fails, the install fails and the old worker stays.
 2. `activate`: delete only caches named `th-<n>` where `n` ≠ the current build. It never deletes `th-vendor` or any cache an app created (offline audio, PDFs).
 3. Precaching all app code (not just the shell) is what stops an old shell from lazily loading a new app module.
 
@@ -316,7 +325,7 @@ Acceptance (Playwright, local server): serve build A, then B. While a fake `audi
 | Backend structure | All SQL in the area's `store.ts`. DO classes are thin RPC facades. Migrations are expand-only. Every bulk job is chunked and resumable. |
 | Frontend structure | `mount()` returns full cleanup; verbs in `verbs.js` return their own undo; no inline script or style blocks |
 | Logs | One JSON line per request: `{evt, route, status, ms, cpu_ms?, rows_w, rows_r, do_calls}`. Never bodies, tokens, titles, refs to personal items, or push endpoints. |
-| Dependencies | Exact versions, lockfile committed. No GPL, AGPL or non-commercial licences. Runtime deps of the Worker: `hono`, `zod`, `aws4fetch` only. |
+| Dependencies | Exact versions, lockfile committed. No GPL, AGPL or non-commercial licences, with one named exception: libmedia stays in Astra (owner ruling 2026-10-28; its licence files sit beside it, and it may not be used outside `/astra/`). Ported apps keep the libraries they load today (Songsterr stays Guitar's tab source; owner ruling). Runtime deps of the Worker: `hono`, `zod`, `aws4fetch` only. |
 | Owner time zone | Stored as the `Core` setting `owner.tz` (IANA name), set from the phone at setup, **not** as a `wrangler.jsonc` var, so the public repo holds no location **[proposal]** |
 
 ---
@@ -327,15 +336,36 @@ Acceptance (Playwright, local server): serve build A, then B. While a fake `audi
 |---|---|
 | P0 | Site on the storage website, deploy with auto-rollback, meta CSP, self-hosted fonts |
 | P1 | Worker, `Core` + `Auth`, sign-in, devices, agents, `/v1/health`, deploy job `api`, service worker, `config.js` |
+| P1b | The five ported app pages, copied as they are (§11); per-page CSPs; the old Worker's origin list gains the new site (ask first); phone-local data restored on the new origin |
 | P2 | Threads, messages, FTS5, live WebSocket, `/v1/live/wait`, mind wakes, `th` CLI, `mind-chat` |
 | P3 | Import from the old Worker, memory v1, ledger undo for memory, `mind-night` |
 | P4 | Proposals with device approval, role enforcement, `mind-reflex`, watchdogs, weekly backups, restore drill, export, Muse work orders |
-| P5 | `Senses` and `Music` (two deploys), presigned media, R2 CORS, `jobs-audio.yml`, router + view transitions |
-| P6–P9 | Guitar, `Library` + Study, Board/Astra/Podcasts/My Media, push, the meter |
+| P5 | `Senses` and `Music` (two deploys), presigned media, R2 CORS, `jobs-audio.yml`; the ported player switches to the new Worker. Router + view transitions only if the owner agrees |
+| P6 | Guitar's data moves to the new Worker (Songsterr stays the tab source) |
+| P7 | `Library` + Study |
+| P8 | Briefing data (the Board, still produced by Muse, shown in the Briefing); Astra, Podcasts and My Media data moves; push. Then the old Worker can retire (zero callers for 7 days, then an owner-approved proposal) |
+| P9 | The meter |
 
 ---
 
-## 11. Open questions / tests
+## 11. The as-is port (P1b)
+
+Owner ruling 2026-10-28: the existing apps come over **as they are** first. Each later change is an evolution the owner agrees to first ([ROADMAP.md](../process/ROADMAP.md) rule 6). The full plan, with the data move and the checklist, is in [MIGRATION.md §5](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b).
+
+| Item | Rule |
+|---|---|
+| What is copied | From the old repo's `frontend/`: `claude-player/` → `music/`, `guitar/` → `guitar/`, `podcasts/` → `podcasts/`, `astra/` → `astra/` (with libmedia, owner ruling), `mymedia/` → `media/`, plus every old shared file they load, at the same path under `/assets/` (today: `config.js`, `error-report.js`, `file-save.js`, `shell.css`, `premium.css`, `ui.js`, `pip-diagnostics.js`, `libmedia/`; never `drive-config.json`, which holds private Drive IDs). Found by following every `src`, `href`, `import` and `fetch` path from each app's pages; the list is recorded in `frontend/ported.json` **[proposal]**. Songsterr stays Guitar's tab source (owner ruling). |
+| Allowed adjustments (nothing else) | 1. Asset and link paths made root-absolute and moved to the new folder name (`/claude-player/…` → `/music/…`). 2. Real route folders: each app's `index.html` sits in its folder, so `/music/` is a real file. 3. The API address, only where an app derives it from its own site (`location.origin` or a relative URL); an address that is already the old Worker's absolute URL (`/assets/config.js` `API_ORIGIN`, the player's library URL) stays as it is. 4. The page's meta CSP keeps its old content plus only what those three changes need. Every adjustment is a line in `ported.json`. |
+| How a ported page reaches the old Worker | Unchanged code calls `https://jarvis-hub-api.<sub>.workers.dev` as before. The old Worker answers only allowed origins (its `FRONTEND_ORIGINS` set in the old repo's `backend/origins.js`), so the new site's exact origin is added there: a one-line old-Worker deploy, asked first, with the old version id recorded as its rollback target ([MIGRATION.md §6](MIGRATION.md#6-cors-the-new-site-on-the-old-worker-p1b-temporary)). The routes used are the ones the old pages use today ([MIGRATION.md §2.5](MIGRATION.md#25-callers-of-the-old-worker)). No new-site token is sent to the old Worker, and the old sign-in does not come over. |
+| Phone-local data | Browser storage is per origin. The owner downloads a file from an `/export/` page on the old site and opens it in the new site's `/import/` page, which writes each key back verbatim under its old name on the new origin and uploads a raw copy to `thunderhead-private` for the later data moves ([MIGRATION.md §5](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)). |
+| Later switch to the new Worker | Per app, at its data move (Music P5, Guitar P6, Astra, Podcasts, My Media P8): the new Worker gains the routes the app needs ([API.md §11.21](API.md#1121-app-routes-later-phases)), the app's API address and the CSP's `connect-src` swap the old Worker host for `thunderhead-api` (an app that shares `/assets/config.js` first gets its own copy, so the others don't move with it), its requests carry the new session token, and its server data is imported from the old export and the raw phone copy. When no ported or old page calls the old Worker for 7 days (after P8), the old Worker retires ([MIGRATION.md §8](MIGRATION.md#8-retiring-the-old-worker)). |
+| What the shell does with them | The ring navigates to the folder. The shell's service worker leaves ported folders and `/assets/` alone (§8.1). The shell's budgets, CSP and code rules don't apply to them; their own limits are in [PERFORMANCE.md §2](PERFORMANCE.md#2-site-budgets) and [SECURITY.md §4.4](SECURITY.md#44-ported-app-pages-p1b). |
+
+Acceptance: a test diffs each ported folder against the old repo copy at the recorded commit and fails on any change not listed in `ported.json` ([TESTING.md §4](TESTING.md#4-static-checks-layer-1)). On the phone, each app opens from the ring at the new address and does what it did on the old site (ROADMAP P1b "done when").
+
+---
+
+## 12. Open questions / tests
 
 | # | Question | How to settle it |
 |---|---|---|
@@ -344,3 +374,4 @@ Acceptance (Playwright, local server): serve build A, then B. While a fake `audi
 | O3 | Does the static website honour a stored `Content-Encoding: br`, and do Chrome and Node `fetch` decode it? | Upload one test blob to a scratch path; `curl -sI`; load it in Playwright |
 | O4 | Do DOs keep running old code for minutes after a deploy (an old-repo observation of ~4 min)? | Deploy a version that reports `SCHEMA_VERSION` from `Core`; poll deep health every 10 s |
 | O5 | Does `navigationFallback` matter any more? (No: the host has none.) Do one-segment app URLs cover every deep link the apps need? | Review each app doc's routes against the one-segment rule |
+| O6 | Do the ported pages' own service workers (Music, Podcasts, Astra) register and update cleanly at their new folder scope next to the shell worker at `/`? | Playwright: install the shell SW, open each ported folder, check `navigator.serviceWorker.getRegistrations()` scopes and that `/` navigations still get the shell |
