@@ -18,7 +18,7 @@ After P1 comes **P1b · Apps ported as they are**: Music, Guitar, Podcasts, Astr
 ## Blocked / waiting on the owner
 
 - Setup steps in [SETUP.md](SETUP.md) (repository, Claude app access, storage account, role, federated credential, repository settings, scheduled task).
-- Owner questions (see the morning summary): music privacy timing, old repo clean-up, the tiny R2 storage cost, usage credits OFF, phone navigation mode (3-button or gestures), which extra old pages to keep.
+- Owner questions: all answered 2026-10-28 (yes to all 14 recommendations; gesture navigation; permission for everything in the old repo). See decisions.md.
 
 ## Last deploy
 
