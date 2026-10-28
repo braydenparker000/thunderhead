@@ -1,8 +1,8 @@
 /* Thunderhead home. Icons: Phosphor Icons (MIT). Fonts: Fraunces + Inter (OFL), self-hosted in ui/fonts.
    Layout: one screen. A calm gradient field with grain; the Thunderhead is light along the edges; the conversation sits low on the page above a quiet ask bar. Holding on empty space opens a tight Compass ring around the finger. */
 :root{
-  --bg:#eef1f7; --ink:#152231; --ink2:#46566a; --ink3:#6d7988;
-  --accent:#2468d8; --glow:#5b8ff0; --gold:#f2b632; --goldText:#8a5a00;
+  --bg:#eef1f7; --ink:#152231; --ink2:#46566a; --ink3:#525d6b;
+  --accent:#1a56bb; --glow:#5b8ff0; --gold:#f2b632; --goldText:#734a00;
   --field1:#cfe0f7; --field2:#e9dff3; --field3:#f7e7d6;
   --chip:rgba(255,255,255,.55); --chipLine:rgba(21,34,49,.07); --bar:rgba(255,255,255,.5);
   --sheet:rgba(247,249,253,.84); --blob1:#b9d0fa; --blob2:#f5d6c0; --blobO:.6; --scrim:rgba(238,241,247,.35); --disc:rgba(255,255,255,.82); --discLine:rgba(21,34,49,.10);

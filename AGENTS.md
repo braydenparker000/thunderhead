@@ -14,7 +14,8 @@ arranging things, and speaks only when something needs the owner. Its laws are i
 
 1. Read [docs/process/STATUS.md](docs/process/STATUS.md), then the last 20 lines of
    [docs/process/decisions.md](docs/process/decisions.md).
-2. `npm ci && npm test` must pass before you change anything.
+2. `npm ci && npm test` must pass before you change anything. Change dependencies only with npm 11 or newer
+   (`npx npm@11 install …`); npm 10.9 crashes on the workspace.
 3. Take the top task in STATUS, read its spec in `docs/`, build it.
 4. Before ending: update STATUS; append any decision to decisions.md (one line: date · decision · why).
 
@@ -104,7 +105,7 @@ The full system is [docs/design/DESIGN-SYSTEM.md](docs/design/DESIGN-SYSTEM.md).
   thinking.
 - **Type:** Fraunces italic only for the Thunderhead's voice; Inter for everything else.
 - **Colour:** day uses soft drifting colour fields with grain; night is pure black with faint accent
-  light. Accent `#2468d8` fills and text (day text `#1a56bb` proposed), `#2f7df6` icons only; gold `#f2b632` fills / `#8a5a00` text on light (`#734a00` proposed).
+  light. Accent `#1a56bb` for day text and fills, `#2f7df6` icons only; gold `#f2b632` fills / `#734a00` text on light (owner, 2026-10-28).
 - **Motion:** quick and springy, never slow; everything respects reduced motion.
 
 ## Checks before pushing

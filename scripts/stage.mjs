@@ -14,8 +14,12 @@ await rm(join(repo, '.deploy'), { recursive: true, force: true });
 await cp(join(repo, 'frontend'), out, { recursive: true });
 // The storage website has no SPA fallback, so each app route gets a real copy of the shell
 // (all asset paths are root-absolute, so the copy works from any folder).
-const APP_ROUTES = ['music', 'guitar', 'podcasts', 'astra', 'media', 'study', 'settings'];
-for (const route of APP_ROUTES) await cp(join(out, 'index.html'), join(out, route, 'index.html'));
+// Astra has its own page (frontend/astra/), so it is not stubbed; an existing page is never overwritten.
+const APP_ROUTES = ['music', 'guitar', 'podcasts', 'media', 'study', 'settings'];
+for (const route of APP_ROUTES) {
+  const stub = join(out, route, 'index.html');
+  if (!(await stat(stub).catch(() => null))) await cp(join(out, 'index.html'), stub);
+}
 
 await writeFile(join(repo, '.deploy/release.json'), JSON.stringify({ commit: sha, staged_at: new Date().toISOString() }) + '\n');
 

@@ -43,7 +43,7 @@ This replaces the first build's three copies of every dark token (media query, `
 | `--blob-opacity` | `0.6` | `0.22` | (non-colour; per-theme rule) | built |
 | `--ink` | `#152231` | `#eceff4` | Primary text, the voice | built |
 | `--ink-2` | `#46566a` | `#a6b0bc` | Secondary text, icons on controls | built |
-| `--ink-3` | **`#525d6b`** (built: `#6d7988`) | `#77828f` | Tertiary text: date line, hint, meta, labels | **[proposal]** day value: built one fails 4.5:1 (§9) |
+| `--ink-3` | **`#525d6b`** (built: `#6d7988`) | `#77828f` | Tertiary text: date line, hint, meta, labels | **Decided (owner, 2026-10-28)**; the built one fails 4.5:1 (§9) |
 | `--glow` | `#5b8ff0` | `#4d84ff` | Edge light (calm, thinking, listening) | built |
 
 ### 1.2 Accent, gold, alarm
@@ -51,11 +51,11 @@ This replaces the first build's three copies of every dark token (media query, `
 | Token | Day | Night | Use | Status |
 |---|---|---|---|---|
 | `--accent-fill` | `#2468d8` | `#2468d8` | Send button, selected states, focus ring. White on it is 5.19:1. | built in day; **[proposal]** night (built uses `#6aa2ff`, where white is only 2.55:1) |
-| `--accent-text` | **`#1a56bb`** (built: `#2468d8`) | `#6aa2ff` | Links and accent text on the field | **[proposal]** day value: built one is 3.54:1 on the field's darkest point |
+| `--accent-text` | **`#1a56bb`** (built: `#2468d8`) | `#6aa2ff` | Links and accent text on the field | **Decided (owner, 2026-10-28)**; the built one is 3.54:1 on the field's darkest point |
 | `--accent-icon` | `#2f7df6` | `#6aa2ff` | Accent icons only (never text) | built (as Music colour) |
 | `--gold` | `#f2b632` | `#f2b632` | The decision: dot, yes-button fill, bottom edge light. **Never text on light.** | built |
 | `--gold-ink` | `#2b1d00` | `#2b1d00` | Text on a gold fill (9.0:1) | built |
-| `--gold-text` | **`#734a00`** (built: `#8a5a00`) | `#f2b632` | Gold-meaning text ("Waiting on you" label) | **[proposal]** day value: built one is 4.04:1 on the field |
+| `--gold-text` | **`#734a00`** (built: `#8a5a00`) | `#f2b632` | Gold-meaning text ("Waiting on you" label) | **Decided (owner, 2026-10-28)**; the built one is 4.04:1 on the field |
 | `--alarm` | `#b42318` | `#ff6b5e` | Error text ("Didn't send") | **[proposal]** |
 | `--alarm-glow` | `#d6453d` | `#ff6b5e` | Error edge light | **[proposal]** |
 
