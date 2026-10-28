@@ -43,6 +43,23 @@ test('loads clean in day and night', async () => {
   }
 });
 
+test('the page refuses to show inside a frame', async () => {
+  // a fresh page: our own pages forbid frames, so the parent must be a neutral document
+  const page = await browser.newPage();
+  await page.setContent(`<iframe src="${base}/" width="390" height="844"></iframe>`);
+  let frame;
+  for (let i = 0; i < 50 && !frame; i++) {
+    frame = page.frames().find(f => f !== page.mainFrame() && f.url().startsWith(base));
+    if (!frame) await page.waitForTimeout(100);
+  }
+  assert.ok(frame, 'the framed page loaded');
+  await frame.waitForLoadState('load');
+  assert.equal(await frame.evaluate(() => getComputedStyle(document.body).visibility), 'hidden');
+  const top = await open();
+  assert.equal(await top.page.evaluate(() => getComputedStyle(document.body).visibility), 'visible');
+  await top.page.close(); await page.close();
+});
+
 test('holding still opens the Compass ring; sliding picks an app', async () => {
   const { page, errors } = await open();
   await page.mouse.move(200, 300); await page.mouse.down(); await page.waitForTimeout(320);
@@ -51,6 +68,22 @@ test('holding still opens the Compass ring; sliding picks an app', async () => {
   assert.equal(await page.textContent('#lbl'), 'Music');
   await page.mouse.up(); await page.waitForTimeout(300);
   assert.match(await page.textContent('#toast'), /Music/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('the ring keeps its pick until the finger is clearly past the boundary (~7 degrees)', async () => {
+  const { page, errors } = await open();
+  const cx = 200, cy = 420;
+  await page.mouse.move(cx, cy); await page.mouse.down(); await page.waitForTimeout(320);
+  // the ring centre is clamped to the screen; read it back so angles are measured from the real centre
+  const [rx, ry] = await page.$eval('#ring', el => { const r = el.getBoundingClientRect(); return [r.left, r.top]; });
+  const from = deg => [rx + 60 * Math.sin(deg * Math.PI / 180), ry - 60 * Math.cos(deg * Math.PI / 180)];
+  for (const [deg, want] of [[0, 'Music'], [26, 'Music'], [34, 'Music'], [41, 'Guitar'], [26, 'Guitar'], [19, 'Music']]) {
+    await page.mouse.move(...from(deg), { steps: 4 }); await page.waitForTimeout(80);
+    assert.equal(await page.textContent('#lbl'), want, `at ${deg} degrees`);
+  }
+  await page.mouse.move(rx, ry); await page.mouse.up();
   assert.deepEqual(errors, []);
   await page.close();
 });

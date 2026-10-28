@@ -1,3 +1,6 @@
 /* Self-hosted variable fonts (OFL, see fonts/*-OFL.txt). Fraunces italic is the Thunderhead's voice; Inter is everything else. */
 @font-face{font-family:"Fraunces";font-style:italic;font-weight:300 500;font-display:swap;src:url("fonts/Fraunces-Italic.woff2") format("woff2")}
 @font-face{font-family:"Inter";font-style:normal;font-weight:400 600;font-display:swap;src:url("fonts/Inter.woff2") format("woff2")}
+
+/* Frame guard (see ui/theme.js): nothing shows until the page proves it is not framed. */
+html:not([data-unframed]) body{visibility:hidden}

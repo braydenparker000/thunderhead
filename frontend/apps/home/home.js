@@ -63,7 +63,7 @@
   function setDir(d){ if(d===dir) return; dir=d; pets.forEach((p,i)=>p.classList.toggle('on',i===d)); ring.classList.toggle('active',d>=0); lbl.textContent=d>=0?APPS[d][0]:''; lbl.classList.toggle('show',d>=0); if(d>=0) buzz(8) }
   function dirOf(dx,dy){ const dist=Math.hypot(dx,dy); if(dist<14) return -1; if(dir<0&&dist<22) return -1;
     const a=(Math.atan2(dx,-dy)/SEC+N)%N, n=Math.round(a)%N;
-    if(dir>=0&&n!==dir){ const off=Math.abs(((a-dir+N*1.5)%N)-N/2); if(off>N/2-.62) return dir } // stays put until ~7 degrees past the boundary
+    if(dir>=0&&n!==dir){ const off=Math.abs(((a-dir+N*1.5)%N)-N/2); if(off<.62) return dir } // stays put until ~7 degrees past the boundary
     return n }
   const home=$('#home'), brief=$('#brief'), side=$('#side'), dim=$('#dim');
   let view='home', swipe=null, swiped=false;
