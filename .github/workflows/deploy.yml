@@ -63,6 +63,26 @@ jobs:
           persist-credentials: false
       - name: Only commits on main go live
         run: git merge-base --is-ancestor HEAD origin/main
+      # Fails in seconds with a plain message instead of deep inside wrangler. Prints the NAMES of
+      # the secrets and variables this job can see, never a secret's value.
+      - name: Check the settings
+        env:
+          SECRET_NAMES: ${{ toJSON(secrets) }}
+          VAR_NAMES: ${{ toJSON(vars) }}
+        run: |
+          node -e '
+            const names = (j) => Object.keys(JSON.parse(j || "{}")).filter((k) => k !== "github_token").sort().join(", ") || "(none)";
+            console.log("Secrets this job can see: " + names(process.env.SECRET_NAMES));
+            console.log("Variables this job can see: " + names(process.env.VAR_NAMES));
+          '
+          bad=0
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::Secret CLOUDFLARE_API_TOKEN is missing (Settings > Environments > worker > Environment secrets)"; bad=1; }
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]] || { echo "::error::Variable CLOUDFLARE_ACCOUNT_ID must be the 32-character Account ID, got ${#CLOUDFLARE_ACCOUNT_ID} characters"; bad=1; }
+          [[ "$WORKER_URL" =~ ^https://[A-Za-z0-9.-]+\.workers\.dev/?$ ]] || { echo "::error::Variable WORKER_URL must look like https://thunderhead-api.<subdomain>.workers.dev, got \"$WORKER_URL\""; bad=1; }
+          IFS=, read -ra origins <<< "$SITE_ORIGINS"
+          [[ ${#origins[@]} -gt 0 ]] || { echo "::error::Variable SITE_ORIGINS is missing"; bad=1; }
+          for o in "${origins[@]}"; do [[ "$o" =~ ^https://[A-Za-z0-9.-]+$ ]] || { echo "::error::SITE_ORIGINS entry \"$o\" must be https://host with no path, slash or spaces"; bad=1; }; done
+          exit "$bad"
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
