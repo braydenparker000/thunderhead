@@ -88,8 +88,10 @@ jobs:
         run: npx playwright install --with-deps --only-shell chromium
       - name: Test before deploying
         if: ${{ steps.plan.outputs.mode == 'deploy' }}
+        # Local tests only: the live API checks run in the smoke check, after the deploy.
         env:
           SITE_URL: ''
+          WORKER_URL: ''
         run: npm test
       - name: Note the live version (empty on the very first deploy)
         id: before
