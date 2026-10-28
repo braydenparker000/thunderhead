@@ -75,7 +75,7 @@ Measured: the voice line fits **22 characters per visual line** at every phone w
 | Line 2 | ≤ **44** characters (≤ 2 visual lines) | The Worker rejects a longer `home.line` (422) |
 | Whole line | ≤ **3** visual lines at 360 px | Browser test: `#say` height ≤ 3 × line-height |
 | Words | No exclamation marks, no emoji, no counts of other people, ends with a full stop | Worker validation + mind evals |
-| Language | The owner's language of the day; Spanish lines get `lang="es"` | Surface field `lang` |
+| Language | The owner's language of the day; second-language lines get `lang` set to that language's code (a private setting) | Surface field `lang` |
 
 ### 2.3 When and how it changes
 
@@ -427,4 +427,4 @@ Acceptance: computed `box-shadow` of `#edge` matches each row's value per state 
 | Cold-reply latency (estimated 20–60 s) and the "Waking up…" timings | Measure 10+ cold wakes (mind research test 1) and tune 8 s / 60 s. |
 | Does `interactive-widget=resizes-content` keep the bar above the keyboard in the installed app on the A15? | Device test. |
 | Should the night shift's home line rotate during the day (several lines) or stay one line? This doc allows one per day. | Owner preference after a week. |
-| Speech-to-text: Workers AI Whisper (free tier) vs Chrome's on-device recognition | Test both on the A15 for Spanish and English accuracy; on-device keeps audio on the phone. |
+| Speech-to-text: Workers AI Whisper (free tier) vs Chrome's on-device recognition | Test both on the A15 for English and second-language accuracy; on-device keeps audio on the phone. |

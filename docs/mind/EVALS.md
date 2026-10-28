@@ -166,15 +166,15 @@ Laws 3, 4, 9, 10, 13, 14 and 16 are checked by gate tests (Worker refusals, copy
 
 ## 6. Router set (RT-100)
 
-100 labelled utterances in `mind/evals/router.jsonl`, synthetic, mixed English and Spanish (60/40). Labels and counts:
+100 labelled utterances in `mind/evals/router.jsonl`, synthetic, mixed English and the second language (60/40); second-language utterances are written privately with the language setting, and the examples below show their English meaning in angle brackets. Labels and counts:
 
 | Label | Meaning | Count | Examples |
 |---|---|---|---|
-| `instant_action` | The browser can do it now | 40 | "play something calm", "open guitar", "pon música tranquila", "next song" |
-| `ask_mind` | Needs the mind | 35 | "why does bar 11 feel rushed?", "build me a study plan for the week", "an anime I'd like, 20 min, under 200 MB", "a nostalgic playlist", "¿qué cambiaste anoche?" |
-| `remember_note` | The owner states something to keep | 10 | "remember I prefer mornings now", "acuérdate que ya no tomo café" |
+| `instant_action` | The browser can do it now | 40 | "play something calm", "open guitar", "<put on calm music>", "next song" |
+| `ask_mind` | Needs the mind | 35 | "why does bar 11 feel rushed?", "build me a study plan for the week", "an anime I'd like, 20 min, under 200 MB", "a nostalgic playlist", "<what did you change last night?>" |
+| `remember_note` | The owner states something to keep | 10 | "remember I prefer mornings now", "<remember I don't drink coffee any more>" |
 | `go_quiet` | Law 9 | 10 | "go quiet", "quiet until 6", "silencio por dos horas", "not now please, be quiet" |
-| `smalltalk` | No action needed beyond a reply | 5 | "thanks", "gracias", "ok" |
+| `smalltalk` | No action needed beyond a reply | 5 | "thanks", "<thanks>", "ok" |
 
 - P2: the deterministic browser grammar is tested on the `instant_action` and `go_quiet` rows in CI (target 100% on `go_quiet`, ≥ 95% on `instant_action`).
 - P8: the Workers AI router runs the whole set through a Worker endpoint (`POST /v1/ops/evals/router`, ci token **[proposal]**); CI prints only accuracy numbers. Workers AI routing is switched on only after ≥ 95% overall and 100% on `go_quiet`.

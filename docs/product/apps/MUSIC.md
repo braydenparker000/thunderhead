@@ -581,11 +581,11 @@ plays all 5 tracks; search returns results; a non-kept song shows the "Not on th
 
 ### 8.2 Normalisation (applied to queries and to indexed text)
 
-1. Unicode NFKD, remove combining marks (`é → e`, `ñ → n`).
+1. Unicode NFKD, remove combining marks (`é → e`, `ü → u`).
 2. Lowercase with `toLocaleLowerCase('und')`; `ß → ss`, `æ → ae`, `ø → o`, `ł → l`.
 3. `&` and `+` → ` and `; apostrophes removed (`don't → dont`); every other punctuation → space.
 4. Collapse whitespace; trim.
-5. A leading article ("the ", "el ", "la ", "los ", "las ") is indexed both with and without it.
+5. A leading article ("the ", plus the second language's articles from the private language setting) is indexed both with and without it.
 
 ### 8.3 Tiers
 
@@ -593,7 +593,7 @@ plays all 5 tracks; search returns results; a non-kept song shows the "Not on th
 |---|---|---|
 | 0: exact and prefix | Fields title, artist, album, album artist. Ranks: (a) whole title equals query; (b) title starts with query; (c) artist equals query; (d) artist starts with query; (e) album equals/starts with; (f) every query word is a word-prefix somewhere in title+artist+album | By rank a→f, then plays (desc), then title |
 | 1: fuzzy | uFuzzy (MIT) over "title — artist — album" for rows not already in tier 0. Allows one typo per word of ≥ 4 letters and out-of-order words | uFuzzy's score, then plays |
-| 2: similar vibe | Offline tags generated per song (mood, genre, instrument and tempo words, in English and Spanish) and optional 384-dim vectors | Shown only in its own section; never merged into tiers 0–1 |
+| 2: similar vibe | Offline tags generated per song (mood, genre, instrument and tempo words, in English and the second language) and optional 384-dim vectors | Shown only in its own section; never merged into tiers 0–1 |
 
 Hard rule: tier 2 never changes the content or order of the Songs section. A test feeds the same
 query with and without the tier-2 index and asserts the Songs section is identical.
@@ -792,7 +792,7 @@ Sound (EQ) is reached from Now Playing, not here, because it is used while liste
 5. Queue reordering has menu commands (Move up/down, Play next) besides dragging.
 6. Targets ≥ 44 px; text in `rem`; contrast pairs from the design tokens pass WCAG 2.2 AA.
 7. Reduced motion: no cover swipe-follow (a crossfade instead), static level icon, sheets fade.
-8. Spanish titles are not marked `lang` per row (unknown per track); the UI chrome is `lang="en"`.
+8. Second-language titles are not marked `lang` per row (unknown per track); the UI chrome is `lang="en"`.
 
 **Acceptance:** `@axe-core/playwright` reports 0 violations on Now Playing, Queue, Library and
 Search in day and night.

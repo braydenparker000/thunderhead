@@ -14,7 +14,7 @@ Sibling docs: [HOME](../product/HOME.md), [BRIEFING](../product/BRIEFING.md), [M
 6. **Never flattery.** No "Great question", no praise without evidence.
 7. **Calm.** No exclamation marks, no emoji, no capitals for emphasis, no urgency words unless something is truly urgent.
 8. **Casual, plain words** (owner ruling: talk to the owner casually, in plain words). No jargon on screen ("sync", "session", "token" appear only where the owner is managing exactly those things).
-9. **Every fixed string lives in one module**, `ui/strings.js` [proposal], so tests can check limits and a future Spanish set has one place to go.
+9. **Every fixed string lives in one module**, `ui/strings.js` [proposal], so tests can check limits and a future second-language set has one place to go.
 
 ## 1. How the Thunderhead speaks
 
@@ -65,7 +65,7 @@ Use one of these phrases with its number. Never decimals, never percentages over
 - Sentence case. Full stops at the end of voice lines and replies.
 - Numbers as digits ("2 new videos", "bars 9 to 12"), except the voice line's counts, which are words (*Three things need you.*).
 - Times and dates in the phone's locale format (examples here use 24-hour: "19:00").
-- Spanish: when the owner writes in Spanish, the mind answers in Spanish. Fixed strings are English in v1 [proposal: a Spanish set later, chosen in Appearance].
+- Second language (set privately in Settings): when the owner writes in it, the mind answers in it. Fixed strings are English in v1 [proposal: a second-language set later, chosen in Appearance].
 - Quotes: curly (’ “ ”) in fixed strings.
 
 ### 1.4 Example rewrites
@@ -316,5 +316,5 @@ Sign-in strings belong to [SIGN-IN](../product/SIGN-IN.md); app strings belong t
 | Question | How to settle it |
 |---|---|
 | A few fixed lines are in the Thunderhead's voice but sit inside tiles or toasts set in Inter (e.g. "I'll remind you at 19:00.", "I'll arrange this page each night."). Rule 1 says serif = its voice. Keep Inter there (tiles and toasts are UI), or set those in Fraunces? | Owner looks at both. Default in this doc: toasts and tiles stay Inter; the first person still makes clear who is talking. |
-| Should fixed strings get a Spanish set? | Owner choice; the module structure allows it. |
+| Should fixed strings get a second-language set? | Owner choice; the module structure allows it. |
 | Built toast `toast.mic.off` wraps at 360 px. Shorten it, or allow two lines? | This doc proposes both: two-line toasts, and a shorter string. |

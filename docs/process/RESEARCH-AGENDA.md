@@ -109,9 +109,9 @@ Sibling docs: [IDEAS.md](IDEAS.md) (feature backlog; its open questions point he
 | RA-P3-02 | Which old datasets matter enough to import (owner list), and do counts plus 20 spot checks match? | Import scope and proof. | Import plan in [MIGRATION.md](../engineering/MIGRATION.md) | The import test itself; the scope is an owner decision (STATUS owner questions). | AG + OW | PL §17, R7 §6 P3 |
 | RA-P3-03 | Do the night shift's fact candidates pass the provenance rule on real days (no `source=user` without owner-origin evidence)? | Taint is the main memory safety rule. | Turning on automatic fact writes | Run 3 nights in "propose only" mode; the Worker logs refusals. Pass: 0 provenance violations accepted. | AG | R5 §5.2 |
 | RA-P3-04 | Is the memory probe set (≥ 85 % target) reachable with briefing plus FTS only, before embeddings? | Decides how urgent embeddings are. | P8 embeddings priority | Run the 40 probes weekly from P3. | AG | R5 §6 |
-| RA-P3-05 | Is there a licence-clean Spanish frequency list (lemmas, ≥ 5,000) for gloss bands? | Spanish mode's gloss bands need it; GPL/NC data is banned. | IDEAS ES1 | Agent searches for lists under CC BY / CC0 / MIT and checks the licence text. Pass: one list named with licence, or bands computed from a public-domain corpus. | AG | ID ES1 |
-| RA-P3-06 | Does the owner's phone have an offline Spanish `speechSynthesis` voice? | "Hear it" works offline only if so. | IDEAS ES3 | A `/diag/` button lists `speechSynthesis.getVoices()` with `es-*` and speaks one word in airplane mode. | OW | ID ES3 |
-| RA-P3-07 | Does Workers AI MeloTTS support Spanish, and at what quality? | Fallback voice for ES3. | ES3 fallback | Agent reads the model page; one call through the Worker in a dev route. | AG | ID ES3 |
+| RA-P3-05 | Is there a licence-clean frequency list for the second language (lemmas, ≥ 5,000) for gloss bands? | Second-language mode's gloss bands need it; GPL/NC data is banned. | IDEAS SL1 | Agent searches for lists under CC BY / CC0 / MIT and checks the licence text. Pass: one list named with licence, or bands computed from a public-domain corpus. | AG | ID SL1 |
+| RA-P3-06 | Does the owner's phone have an offline second-language `speechSynthesis` voice? | "Hear it" works offline only if so. | IDEAS SL3 | A `/diag/` button lists `speechSynthesis.getVoices()` for the second language's code (a private setting) and speaks one word in airplane mode. | OW | ID SL3 |
+| RA-P3-07 | Does Workers AI MeloTTS support the second language, and at what quality? | Fallback voice for SL3. | SL3 fallback | Agent reads the model page; one call through the Worker in a dev route. | AG | ID SL3 |
 
 ### P4 · Safety, ops, switch-over
 
@@ -131,9 +131,9 @@ Sibling docs: [IDEAS.md](IDEAS.md) (feature backlog; its open questions point he
 | RA-P5-04 | Do OPFS `File` blob URLs play through `MediaElementAudioSourceNode`? | Offline audio (and IDEAS OF1). | Offline playback design | Spike page with a test file. | AG + OW | R4-5, FC C61 |
 | RA-P5-05 | Real size and track count of the music bucket (about 35–45 GB, about 7.5k + 1.3k tracks?). | Cost estimate and analysis job count. | Analysis shards; cost line | Owner reads the bucket's size and object count in the dashboard. | OW | FC A4, FC §D |
 | RA-P5-06 | Per-track CPU time of feature analysis on a runner. | Sets the shard count for the first full analysis. | `jobs-audio.yml` matrix | Benchmark 50 tracks addressed by `sha256` only. | CI | FE risks |
-| RA-P5-07 | Are offline audio tags (mood, genre, instrument, in English and Spanish) good enough across the genres in the library, including solo acoustic guitar? | "Similar vibe" results and search aliases. | Tier-2 search; DJ features | The mind shows the owner 20 tagged tracks privately; the owner marks each tag set right or wrong. Pass: ≥ 15/20 right. | AG + OW | FE risks, PL §16.5 |
+| RA-P5-07 | Are offline audio tags (mood, genre, instrument, in English and the second language) good enough across the genres in the library, including solo acoustic guitar? | "Similar vibe" results and search aliases. | Tier-2 search; DJ features | The mind shows the owner 20 tagged tracks privately; the owner marks each tag set right or wrong. Pass: ≥ 15/20 right. | AG + OW | FE risks, PL §16.5 |
 | RA-P5-08 | Is `persist()` granted automatically to the installed app, and what is the real storage quota? | Offline caches and packs (IDEAS OF1). | Cache caps | `/diag/` shows `navigator.storage.persisted()` and `estimate()`. | OW | R4-6 |
-| RA-P5-09 | Can the sung language of each track be identified cheaply (for IDEAS MU8)? | Spanish hour needs a language tag. | MU8 | Run an open-source (MIT) Whisper language-ID on a 30 s clip of 50 tracks in Actions by `sha256`; compare with owner-known languages for 20. Pass: ≥ 18/20. | CI + OW | ID MU8 |
+| RA-P5-09 | Can the sung language of each track be identified cheaply (for IDEAS MU8)? | Second-language hour needs a language tag. | MU8 | Run an open-source (MIT) Whisper language-ID on a 30 s clip of 50 tracks in Actions by `sha256`; compare with owner-known languages for 20. Pass: ≥ 18/20. | CI + OW | ID MU8 |
 | RA-P5-11 | Can R2 API tokens be limited to a prefix, or only to a bucket? | Actions writes only to the jobs bucket. | The three-bucket split (decided); token scope wording | Owner opens R2 → Manage API tokens → Create and reads the scope options. | OW | R3 T15 |
 
 ### P6 · Evolve Guitar
@@ -171,7 +171,7 @@ Sibling docs: [IDEAS.md](IDEAS.md) (feature backlog; its open questions point he
 | RA-P8-04 | Does Web Share Target work in the installed app on the phone (text, link, image)? | IDEAS HM3; review "share target". | Share target | Add `share_target` to the manifest; share from 3 apps. | OW | ID HM3, R7 §3 |
 | RA-P8-05 | Does Background Fetch continue a pack download after the app closes on Chrome Android? | IDEAS OF1 packs. | Pack resumability | A test pack of 100 MB; close the app; check completion. | OW | ID OF1 |
 | RA-P8-06 | Brute-force cosine over ≤ 10k vectors (256–1,024 dims) inside a DO on Free CPU. | Memory recall without Vectorize. | Embedding dimensions | Probe with synthetic vectors; read `cpuTimeMs`. | PR | R5-9 |
-| RA-P8-07 | Whisper quality and real neuron cost on Spanish speech (podcasts, voice memos). | IDEAS ES4/ES5 and voice notes. | Transcripts on demand | Transcribe 5 public-domain Spanish clips through a dev route; read neurons. | AG | ID ES4, R5 §4 |
+| RA-P8-07 | Whisper quality and real neuron cost on second-language speech (podcasts, voice memos). | IDEAS SL4/SL5 and voice notes. | Transcripts on demand | Transcribe 5 public-domain second-language clips through a dev route; read neurons. | AG | ID SL4, R5 §4 |
 
 ### P9 · The meter + self-improvement
 
@@ -226,7 +226,7 @@ The owner tasks above, grouped so they can be done in one sitting each. Each is 
 | P1 | RA-P1-12 password suggestion check · RA-P1-15 rows written (after a week) · RA-P1-16 back presses · RA-P1-17 `about://webapks` |
 | P1b | RA-P1b-02 open each ported app after the import |
 | P2 | RA-P2-01 / RA-P2-03 `/usage` readings · RA-P2-09 background and return · RA-P2-10 keyboard and theme |
-| P3 | RA-P3-02 import scope · RA-P3-06 Spanish voice |
+| P3 | RA-P3-02 import scope · RA-P3-06 second-language voice |
 | P4 | RA-P4-01 bucket lock settings |
 | P5 | RA-P5-01 seek test · RA-P5-02 public access · RA-P5-03 30-min lock soak · RA-P5-04 offline playback spike · RA-P5-05 bucket size · RA-P5-07 rate 20 tag sets · RA-P5-08 storage `/diag/` · RA-P5-09 confirm 20 song languages · RA-P5-11 token scope options |
 | P6 | RA-P6-01 loopback · RA-P6-02 mic settings · RA-P6-03 5 takes · RA-P6-04 benchmark · RA-P6-07 pedal (if owned) · RA-P6-08 tab header |

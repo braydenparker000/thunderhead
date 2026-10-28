@@ -17,7 +17,7 @@ Ring colour `#2e9e5b`, icon Phosphor `book-bookmark`, route `/study/`, phase **P
 4. **Verse text comes from the owner's licensed copies, stored privately.** Owner ruling
    (2026-10-27): the owner has copies of all canon scriptures they may use in this project. The text
    lives only in `thunderhead-private` behind sign-in, never in the repo, logs or Actions. Talks and
-   other Church material are not stored: answers cite the paragraph and link to the source.
+   other published source material are not stored: answers cite the paragraph and link to the source.
 5. **Every claim in an answer carries a page-block citation.** A sentence without a valid citation is
    dropped before the owner sees it. A quote from a book is at most one sentence.
 6. **Answers report what the books say; they never decide.** The mind never rules on prayer,
@@ -42,7 +42,7 @@ Ring colour `#2e9e5b`, icon Phosphor `book-bookmark`, route `/study/`, phase **P
 | Offline copy of a book | OPFS `study/<book_id>.pdf` on the phone | Only when the owner taps **Keep on this phone**. |
 | Reading events | `Senses` (events) | `study.*` types, §9. |
 | Cited answers about verses | `Core` messages (the conversation) plus a surface per verse | §8. |
-| Scripture book table (abbreviations, chapter and verse counts) | `frontend/apps/study/scripture/books.js` (public repo) | Facts only: names, abbreviations, counts. No verse text. |
+| Scripture book table (names, abbreviations, chapter and verse counts, deep-link template) | `thunderhead-private`, loaded after sign-in and cached on the phone | Owner ruling 2026-10-28: kept privately. Only the generic parser code (`frontend/apps/study/scripture/parse.js`) and a synthetic test table are public. No verse text. |
 | Scripture text (the owner's licensed copies of the canon) | `thunderhead-private`, behind sign-in | Owner ruling 2026-10-27. Never in the repo, logs or Actions. Talks are not stored: cited by paragraph with a link. |
 
 ### 1.1 Data model (`Library` DO)
@@ -63,11 +63,11 @@ All times are integer ms UTC (`*_at`); `day` is the owner-local date. snake_case
 **Refs** ([GLOSSARY](../GLOSSARY.md)):
 - `book:<book_id>` a book; `book:<book_id>#p<pdf_page>` a page; `book:<book_id>#p<pdf_page>.b<n>` a block
   (1-based block number on that page) **[proposal: the `.b<n>` suffix]**.
-- `verse:<book_code>/<chapter>/<verse>` or `verse:<book_code>/<chapter>/<v1>-<v2>`, e.g. `verse:alma/32/21`,
-  `verse:3-ne/27/10`. Book codes are the lowercase slugs in `books.js` (§7.1).
+- `verse:<book_code>/<chapter>/<verse>` or `verse:<book_code>/<chapter>/<v1>-<v2>`, e.g. `verse:a/3/12`,
+  `verse:2-beta/4/7` (invented examples). Book codes are the lowercase slugs in the private book table (§7.1).
 
 Check: a unit test in `backend/` round-trips every ref form through the shared ref parser in
-`shared/contract/refs.ts` and rejects `book:x#p0`, `book:x#p12.b0` and `verse:alma/0/1`.
+`shared/contract/refs.ts` and rejects `book:x#p0`, `book:x#p12.b0` and `verse:a/0/1`.
 
 ---
 
@@ -297,7 +297,7 @@ wash element.
 | Query | Words are ANDed; `"quoted phrases"` are phrases; a trailing `*` is a prefix; FTS syntax characters typed by the owner are escaped. Accents are ignored. | Store tests with fixture pages. |
 | Debounce | 250 ms after typing stops; at least 2 characters. | Browser test. |
 | Results | Grouped by book (books ordered by best hit), up to 5 hits per book with "Show all N"; max 50 hits per request (`limit`, cursor for more). Each hit: snippet, "p. 212". | API test. |
-| Verse in the query | If the parser finds a reference, a **Verse** card appears first (§7.6) and the text search still runs. | Browser test with "Alma 32:21 faith". |
+| Verse in the query | If the parser finds a reference, a **Verse** card appears first (§7.6) and the text search still runs. | Browser test with "Book A 3:12 light". |
 | Books not `ready` | Not searched; a line under the results: "1 book is still being read and isn't searchable yet." | Browser test. |
 | Offline | Search covers only books kept on the phone, using pdf.js's own text layer search over the OPFS copy (slower; shows "Searching your kept books only (offline)"). | Offline browser test. |
 | No results | "Nothing found in your books for “<q>”." | Copy test ([COPY](../../design/COPY.md)). |
@@ -307,66 +307,68 @@ wash element.
 
 ## 7. The scripture-reference parser
 
-One pure ES module, `frontend/apps/study/scripture/parse.js`, with its data in `books.js`. The same file
-runs on the phone (instant lookup, offline), in the Worker (validating refs) and in the ingestion script
-(finding refs in book text), so all three always agree.
+One pure ES module, `frontend/apps/study/scripture/parse.js`, with its data in the book table. The parser
+code is public; the book table is not: it lives in `thunderhead-private` and is loaded after sign-in (and
+cached on the phone for offline use). The same code and table run on the phone (instant lookup, offline),
+in the Worker (validating refs) and in the ingestion script (finding refs in book text), so all three
+always agree. All examples in this section are invented ("Book A", "2 Beta", "Gamma", "Delta", "Sayings and Notes").
 
-### 7.1 The book table (`books.js`)
+### 7.1 The book table (private)
 
-For each scripture book: `code` (slug, e.g. `3-ne`), `volume` (`ot`, `nt`, `bofm`, `dc-testament`,
-`pgp`), `name` ("3 Nephi"), `abbr` (the official abbreviation, "3 Ne."), `aliases` (accepted variants),
+For each scripture book: `code` (slug, e.g. `2-beta`), `volume` (a short volume code), `name`
+("2 Beta"), `abbr` (the official abbreviation, "2 Bet."), `aliases` (accepted variants),
 `chapters` (count), `verses` (array of verse counts per chapter), `single_chapter` (true for books with
 one chapter), `name_collision` (true when the name is also a person's or common word), and the
-Gospel Library URL segment (`gl_volume`, `gl_book`).
+source site's URL segments (`link_volume`, `link_book`).
 
-- Source of abbreviations: the Church's official scripture abbreviation list (the style used in the
-  official scripture footnotes and study helps). The table records the source and the date it was
-  checked in a header comment.
+- The table lives in `thunderhead-private` with the source site's deep-link template, loaded after
+  sign-in; neither is in the repo (owner ruling 2026-10-28). Tests use a synthetic table of invented books.
+- Source of abbreviations: the canon publisher's official abbreviation list (the style used in its
+  official footnotes and study helps). The table records the source and the date it was checked.
 - Verse counts: one integer per chapter, entered from the official structure and checked by a test
   against the published totals per volume **[verify the totals when building the table]**.
-- Doctrine and Covenants sections use `code` `dc` with `chapter` = section number. Official
-  Declarations: `od` with chapter 1 or 2 and no verses.
+- Books divided into numbered sections use `chapter` = section number. Short documents with no
+  verses get chapter numbers only.
 - No verse text anywhere in the repo (AGENTS.md privacy list includes scripture copies).
 
-Check: `node --test` asserts every book has `verses.length === chapters`, every count ≥ 1, no
+Check: `node --test` (on the synthetic table, and in the mind's session on the private one) asserts every book has `verses.length === chapters`, every count ≥ 1, no
 duplicate alias across books, and the per-volume totals.
 
 ### 7.2 What it accepts
 
 | Form | Example | Result |
 |---|---|---|
-| Full name, chapter:verse | `Alma 32:21` | `verse:alma/32/21` |
-| Official abbreviation, with or without period | `3 Ne. 27:10`, `3 Ne 27:10` | `verse:3-ne/27/10` |
-| Numbered books written out | `Third Nephi 27:10`, `3rd Nephi 27:10`, `III Nephi 27:10` | same |
-| Verse range | `Alma 32:21–23` (hyphen, en dash or em dash) | `verse:alma/32/21-23` |
-| Verse list | `Alma 32:21, 26–28` | two refs: `21` and `26-28` |
-| Whole chapter | `Moroni 10` | `verse:moro/10` (chapter ref, no verse) |
-| Cross-chapter range | `Alma 32:21–33:1` | two refs: `alma/32/21-43` (to the chapter's last verse) and `alma/33/1` |
-| D&C | `D&C 4:2`, `DC 4:2`, `Doctrine and Covenants 4:2`, `D. & C. 4:2` | `verse:dc/4/2` |
-| Single-chapter book | `Enos 1:3`, and `Enos 3` meaning verse 3 | `verse:enos/1/3` |
-| Chained after a book | `Alma 32:21; 33:2` | `alma/32/21` and `alma/33/2` |
+| Full name, chapter:verse | `Book A 3:12` | `verse:a/3/12` |
+| Official abbreviation, with or without period | `2 Bet. 4:7`, `2 Bet 4:7` | `verse:2-beta/4/7` |
+| Numbered books written out | `Second Beta 4:7`, `2nd Beta 4:7`, `II Beta 4:7` | same |
+| Verse range | `Book A 3:12–14` (hyphen, en dash or em dash) | `verse:a/3/12-14` |
+| Verse list | `Book A 3:12, 17–19` | two refs: `12` and `17-19` |
+| Whole chapter | `Gamma 10` | `verse:gamma/10` (chapter ref, no verse) |
+| Ampersand abbreviation | `S&N 4:2`, `SN 4:2`, `Sayings and Notes 4:2`, `S. & N. 4:2` | `verse:sn/4/2` |
+| Cross-chapter range | `Book A 3:12–4:1` | two refs: `a/3/12-24` (to the chapter's last verse) and `a/4/1` |
+| Single-chapter book | `Delta 1:3`, and `Delta 3` meaning verse 3 | `verse:delta/1/3` |
+| Chained after a book | `Book A 3:12; 4:2` | `a/3/12` and `a/4/2` |
 
 Case-insensitive; extra spaces allowed; a period after an abbreviation is optional.
 
 ### 7.3 Guards against name collisions
 
-Many book names are also people's names or ordinary words (Alma, Moroni, Ether, Enos, Jacob, Mormon,
-Helaman, Mosiah, Nephi, Abraham, Moses, John, James, Mark, Luke, Daniel, Job, Ruth, Esther, Acts,
-Numbers, Judges, Kings, Revelation…). Rules, in order:
+Many book names are also people's names or ordinary words (the private table marks them with
+`name_collision`; the synthetic table uses invented ones such as Gamma and Delta). Rules, in order:
 
-1. **A book name alone is never a reference.** "Ether said" and "the book of Moroni" produce nothing.
+1. **A book name alone is never a reference.** "Gamma said" and "the book of Delta" produce nothing.
 2. **A number must follow immediately** (only spaces between), and `chapter` must be within the book's
    chapter count; otherwise nothing.
 3. `chapter:verse` is accepted when the verse is within that chapter's count. Out of range → nothing
-   (and, in the ask bar only, the hint "Alma 32 has 43 verses.").
-4. **Chapter-only forms** (`Moroni 10`) for `name_collision` books are accepted only when **not**
+   (and, in the ask bar only, the hint "Book A 3 has 24 verses.").
+4. **Chapter-only forms** (`Gamma 10`) for `name_collision` books are accepted only when **not**
    followed by a unit or counting word (`years`, `days`, `times`, `people`, `men`, `of`, `percent`,
-   `%`, `am`, `pm`, `:` followed by a non-number) and **not** preceded by a number word ("Mormon 2
-   missionaries" → nothing). In book text during ingestion, chapter-only forms of collision books are
+   `%`, `am`, `pm`, `:` followed by a non-number) and **not** preceded by a number word ("Gamma 2
+   visitors" → nothing). In book text during ingestion, chapter-only forms of collision books are
    kept only inside parentheses, after "see"/"cf.", or in a list with another valid reference
    **[proposal: these context rules]**.
-5. **Ambiguous numbered books:** "Nephi 3" without a leading 1–4 is not a reference. "Kings 2:3"
-   without 1/2 is not a reference.
+5. **Ambiguous numbered books:** a numbered book's name without its leading number ("Beta 3",
+   "Beta 2:3") is not a reference.
 6. Bare numbers like "3:16" with no book are never references, except right after a valid reference
    in the same list (rule "chained").
 7. Words inside a URL, an email address or a code span are skipped.
@@ -379,7 +381,7 @@ book and 50 random collision-name mentions and records precision and recall in
 
 ### 7.4 Validation
 
-Every ref the parser emits is validated against `books.js`: book exists, `1 ≤ chapter ≤ chapters`,
+Every ref the parser emits is validated against the book table: book exists, `1 ≤ chapter ≤ chapters`,
 `1 ≤ v_start ≤ v_end ≤ verses[chapter-1]`. The Worker repeats the validation on any ref it stores
 (zod refinement). An invalid ref is never stored or linked.
 
@@ -393,31 +395,33 @@ list. Ties sort by book (most opened first) then page.
 
 Route `/study/verse/<code>/<ch>/<v>`. Contents, top to bottom:
 
-1. The reference, normalised: "Alma 32:21" (Fraunces is not used here: it is the owner's content, so
+1. The reference, normalised: "Book A 3:12" (Fraunces is not used here: it is the owner's content, so
    Inter; [DESIGN-SYSTEM](../../design/DESIGN-SYSTEM.md)).
-2. **The verse text** from the owner's private copy (Inter, owner's content), then **Open in Gospel
-   Library** as a secondary link.
+2. **The verse text** from the owner's private copy (Inter, owner's content), then **Open in the scripture
+   app** as a secondary link.
 3. **Cited in your books (N):** up to 10 rows "Title · p. 212" sorted by weight, each with the first
    line of the block (≤ 140 chars, clipped at a word). Tap → reader at that block. "Show all N".
 4. **Your highlights and notes** on this verse (highlights whose `ref` matches or overlaps).
 5. **Ask about this verse** (§8). If a cached answer exists, it shows here with its date.
 
-**Deep link format** (opened with `target="_blank" rel="noopener noreferrer"`):
-`https://www.churchofjesuschrist.org/study/scriptures/<gl_volume>/<gl_book>/<chapter>?lang=eng&id=p<v>#p<v>`;
-a range uses `id=p<v1>-p<v2>`; a chapter ref omits `id` and the fragment.
-**[verify: the exact path segments per volume (especially D&C and the Pearl of Great Price), the range
-form, and that Android opens the Gospel Library app for these links when it is installed. Settle by
-generating a share link in the app for one verse per volume and comparing.]**
+**Deep link format** (opened with `target="_blank" rel="noopener noreferrer"`): built from the source
+site's deep-link template, kept privately with the book table: the per-book segments (`link_volume`,
+`link_book`), the chapter, and a verse anchor; a range uses a two-verse anchor; a chapter ref omits the
+verse anchor.
+**[verify: the exact path segments per volume, the range form, and that Android opens the official
+scripture app for these links when it is installed. Settle by generating a share link in the app for one
+verse per volume and comparing.]**
 
-Check: unit test builds the URL for one ref per volume and compares with the verified fixtures; the
+Check: unit test builds the URL for one ref per volume and compares with the verified fixtures (a
+synthetic template in the public test; the real template and its verified links checked privately); the
 Playwright test asserts the link has `rel="noopener noreferrer"`; a repo test asserts no verse text is
-committed (the book table holds names, abbreviations and counts only).
+committed and that no real book table or link template is committed.
 
 ### 7.7 Where the parser runs
 
 | Place | Use |
 |---|---|
-| Home ask bar (front desk, instant, offline) | Text that is *only* a reference ("3 Ne 27:10") opens the verse page without waking the mind **[proposal; HOME.md owns the front-desk grammar]**. Text that contains a reference plus other words goes to the mind with the ref attached. |
+| Home ask bar (front desk, instant, offline) | Text that is *only* a reference ("2 Bet 4:7") opens the verse page without waking the mind **[proposal; HOME.md owns the front-desk grammar]**. Text that contains a reference plus other words goes to the mind with the ref attached. |
 | Study search field | Verse card (§6). |
 | Highlights | Sets `ref` (§5.4). |
 | Ingestion | Builds `verse_refs` (§3.3). |
@@ -430,8 +434,8 @@ committed (the book table holds names, abbreviations and counts only).
 ### 8.1 Flow
 
 1. The owner taps **Ask about this verse**, or asks in the conversation ("what do my books say about
-   Alma 32:21?"). The message carries `refs: ["verse:alma/32/21"]`.
-2. The mind (chat session) calls `th library cite verse:alma/32/21` → the Worker returns up to 20
+   Book A 3:12?"). The message carries `refs: ["verse:a/3/12"]`.
+2. The mind (chat session) calls `th library cite verse:a/3/12` → the Worker returns up to 20
    candidate blocks: every `verse_refs` hit (by weight) plus the top FTS hits for the verse's
    reference string, each as `{ref: "book:<id>#p<n>.b<k>", label: "Title, p. 212", text}`.
 3. The mind writes the answer. Every sentence ends with one or more citation markers
@@ -439,7 +443,7 @@ committed (the book table holds names, abbreviations and counts only).
 4. The mind posts it; **the Worker validates it** (§8.2) before storing or showing it.
 5. The phone renders markers as small numbered chips; tapping a chip opens the reader at that block.
    The answer ends with **Where to study:** up to 5 cited pages as tappable rows, plus
-   **Open in Gospel Library**.
+   **Open in the scripture app**.
 
 ### 8.2 Validation (in the Worker, not trusted to the mind)
 
@@ -449,7 +453,7 @@ committed (the book table holds names, abbreviations and counts only).
 | A marker whose block doesn't exist, or wasn't in the candidate set for this answer | Marker removed; if the sentence then has no marker, it is dropped. | Unit test. |
 | A quoted span | Must appear verbatim (whitespace- and quote-style-normalised) in one of the sentence's cited blocks, and be at most one sentence (no internal `.`, `!`, `?` followed by a space and a capital) and at most 40 words **[proposal: 40]**. Otherwise the sentence is dropped. | Unit tests with near-miss quotes. |
 | Length | At most 8 sentences **[proposal]**; extra sentences are cut from the end. | Unit test. |
-| Nothing left | The answer becomes: "I couldn't find this verse discussed in your books." plus **Open in Gospel Library**. | Unit test. |
+| Nothing left | The answer becomes: "I couldn't find this verse discussed in your books." plus **Open in the scripture app**. | Unit test. |
 | Dropped count | Stored with the answer (`dropped_n`) and counted in the evals ([EVALS](../../mind/EVALS.md)); never shown as an error to the owner. | Store test. |
 
 ### 8.3 How the answer speaks
@@ -488,7 +492,7 @@ All `study.*` events use **sensitivity 1** (private: never brought up unprompted
 | `study.search` | Search run | — | `{q_len, hits}` |
 | `study.verse` | Verse page opened | `verse:…` | `{from}` |
 | `study.ask` | Ask about this verse | `verse:…` | `{}` |
-| `study.gl_open` | Gospel Library link tapped | `verse:…` | `{}` |
+| `study.app_open` | Scripture-app link tapped | `verse:…` | `{}` |
 | `study.session` | A session ends (§9.4) | `book:<id>` (the most-read book) | `{active_ms, pages, books}` |
 
 No event carries page text, quotes, notes or search words.
@@ -550,7 +554,7 @@ a day crossing the 04:00 roll).
    (ask first).
 2. Library screen, upload, reader over presigned ranges, positions.
 3. Ingestion script in the mind's session; search.
-4. Parser + book table + verse page + Gospel Library links.
+4. Parser + private book table + verse page + scripture-app links.
 5. Highlights and notes, offline copies.
 6. Cited answers with the Worker validator; evals.
 
@@ -576,7 +580,7 @@ the page — checked on the owner's phone with one real book.
 | # | Question | How to settle |
 |---|---|---|
 | 1 | Settled 2026-10-27 (owner): verse text from the owner's licensed copies, private only. Import format and per-verse storage shape | Agent decides at P7 from the owner's files |
-| 2 | Gospel Library deep-link format per volume, ranges, and Android app hand-off | Generate share links in the app for 5 verses (one per volume) and test on the A15. |
+| 2 | The official scripture app's deep-link format per volume, ranges, and Android app hand-off | Generate share links in the app for one verse per volume and test on the A15. |
 | 3 | pdf.js 6.4 with `useWasm: false` renders the owner's books (JPX/JBIG2 images) | Open every ingested book's 10 image-heaviest pages on the A15; compare with a desktop PDF viewer. |
 | 4 | FTS5 write cost per 1,000 pages (report 2: 3–5k rows, unverified) | Cost test in `backend/tests/cost/` with a 1,000-page synthetic book. |
 | 5 | Tesseract and `pypdfium2` installable in the mind's cloud environment | One session run of the ingestion script on a scanned synthetic PDF. |

@@ -148,7 +148,7 @@ With one GitHub identity, GitHub can't stop the agent from editing `mind/CONSTIT
 - How the mind talks, the push budget, the voice ladder: [BEHAVIOR.md](BEHAVIOR.md).
 - Session mechanics, tokens, hooks: [RUNTIME.md](RUNTIME.md).
 - What is remembered and how: [MEMORY.md](MEMORY.md).
-- Owner-specific standing rules ("answer in Spanish after 21:00"): these are facts of `kind=rule` in memory, written only from the owner's own words, and appear in the briefing's "Standing rules" section. They never edit this file.
+- Owner-specific standing rules ("answer in the second language after 21:00"): these are facts of `kind=rule` in memory, written only from the owner's own words, and appear in the briefing's "Standing rules" section. They never edit this file.
 
 ---
 

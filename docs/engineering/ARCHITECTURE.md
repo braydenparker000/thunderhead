@@ -90,7 +90,7 @@ Acceptance: an agent can name, for any box above, which folder holds its code (�
 | Device session token `th1_…` | Phone IndexedDB `th-auth`; server keeps only its SHA-256 in `Auth` | Everything the owner can do | Logs, URLs, localStorage |
 | Agent keys `thm_…` (roles `mind:chat`, `mind:night`, `mind:reflex`) and `thc_…` (role `ci`) | The matching Claude environment's network secret `TH_TOKEN`, or the GitHub environment secret `TH_CI_TOKEN`; hash in `Auth.agents` | That role's scopes ([API.md §3](API.md#3-principals-and-scopes)) | The repo, Actions logs |
 | Muse key `ths_…` | Muse's environment; hash in `Auth.agents` | `/v1/work/*`, its own thread | Anywhere else |
-| Azure OIDC (`MissionaryTube` app, Storage Blob Data Contributor on the `thunderhead*` account) | Federated trust; IDs as GitHub secrets | Write `$web` | Claude sessions |
+| Azure OIDC (the old site's app registration, Storage Blob Data Contributor on the `thunderhead*` account) | Federated trust; IDs as GitHub secrets | Write `$web` | Claude sessions |
 | `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, one account) | GitHub secret | Deploy, roll back, set Worker secrets | Claude sessions |
 | R2 sign key (Object Read on `jarvis-music` + `thunderhead-private`) | Worker secrets `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` | Presign GETs | Actions, sessions |
 | R2 Actions keys (read `jarvis-music`; read/write `thunderhead-jobs`) | GitHub secrets | Read audio bytes by sha256, write job results | The Worker, sessions |

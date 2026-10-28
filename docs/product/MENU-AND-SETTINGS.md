@@ -283,4 +283,4 @@ Agent tokens let the mind's sessions and helper agents call the Worker (decision
 | A 30-day "Recently deleted" window | Owner accepts or prefers immediate deletion after the confirm. |
 | Default quiet-hours start (22:00 proposed) | Ask the owner. |
 | Should settings sub-pages open full screen (proposed) or inside the 360 px panel (prototype)? | Build both for "What I remember" and look on the A15. |
-| Search over messages in Spanish and English: is FTS5 with accent folding enough, or is cross-language recall needed? | The mind research's later embedding phase; measure missed searches first. |
+| Search over messages in English and the second language: is FTS5 with accent folding enough, or is cross-language recall needed? | The mind research's later embedding phase; measure missed searches first. |

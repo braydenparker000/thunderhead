@@ -95,7 +95,7 @@ fragment = [A-Za-z0-9._:-]{1,64}
 | `music` | `music:1234`, `music:1234#art` | a track (and its cover) |
 | `tab` | `tab:song-77#b12-16` | bars of a tab |
 | `book` | `book:0192…#p212` | a book page |
-| `verse` | `verse:gen/1/1-3` | a scripture reference (book code / chapter / verses) |
+| `verse` | `verse:a/3/12-14` (invented) | a scripture reference (book code / chapter / verses) |
 | `podcast` | `podcast:feed-9/ep-41` | a feed or episode |
 | `astra` | `astra:movie:tt0000001` | an Astra title |
 | `media` | `media:vid-88` | a My Media item |
@@ -252,7 +252,7 @@ Never stored anywhere: raw IP addresses, the full user-agent, city, passwords, r
 
 ### 6.3 `Library` (P7, its own deploy; shardable as `library:<shelf>`)
 
-`books(id PK, title, author, kind, pages, r2_key, sha256, added_at, ingested_at)`. Books include the owner's own licensed copies of the canon scriptures (owner ruling 2026-10-27), stored like any book: privately, behind sign-in, never in the repo. Talks and other Church material are not stored; they are cited by paragraph with a link. `pages(rowid PK, book_id, page_index, page_label, text)` with UNIQUE `(book_id, page_index)`. `pages_fts` FTS5 with `content='pages'`. `verse_refs(book_code, chapter, v_start, v_end, book_id, page_index, weight, in_heading)` with index `(book_code, chapter)`. `highlights(id PK, book_id, page_index, ref, text, note, created_at, updated_at)`. `positions(book_id PK, page_index, at)` (one row per book, written at most once per page turn and at most every 10 s). Product fields are in [STUDY.md](../product/apps/STUDY.md).
+`books(id PK, title, author, kind, pages, r2_key, sha256, added_at, ingested_at)`. Books include the owner's own licensed copies of the canon scriptures (owner ruling 2026-10-27), stored like any book: privately, behind sign-in, never in the repo. Talks and other published source material are not stored; they are cited by paragraph with a link. `pages(rowid PK, book_id, page_index, page_label, text)` with UNIQUE `(book_id, page_index)`. `pages_fts` FTS5 with `content='pages'`. `verse_refs(book_code, chapter, v_start, v_end, book_id, page_index, weight, in_heading)` with index `(book_code, chapter)`. `highlights(id PK, book_id, page_index, ref, text, note, created_at, updated_at)`. `positions(book_id PK, page_index, at)` (one row per book, written at most once per page turn and at most every 10 s). Product fields are in [STUDY.md](../product/apps/STUDY.md).
 
 The FTS cost per page is unknown (open question D3). Ingestion is a bulk job under the lane cap.
 

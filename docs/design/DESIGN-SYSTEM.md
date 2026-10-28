@@ -99,7 +99,7 @@ Rules:
 - `font-variant-numeric: tabular-nums` on times, durations and counts.
 - `text-wrap: balance` on the voice line and titles; `text-wrap: pretty` on replies.
 - All sizes are written in `rem` in the CSS (1 rem = 16 px) so Android's font-size setting scales them. [proposal] Adopt `<meta name="text-scale" content="scale">` once it ships in stable Chrome.
-- Spanish passages are marked `lang="es"` (hyphenation and screen-reader voice).
+- Second-language passages are marked with that language's `lang` code, from the private setting (hyphenation and screen-reader voice).
 - **Measured capacity (Chromium, Fraunces as shipped):** the voice hero fits **22 characters per visual line** at every phone width from 360 to 412 px (the size scales with width). A reply fits **37–42 characters per line** at 360–412 px.
 
 ## 3. Space

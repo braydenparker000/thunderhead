@@ -191,7 +191,7 @@ c(now) = c0 · 0.5 ^ ((now − last_confirmed) / half_life(kind))
 | `routine` | 60 days | "Practises guitar after lunch" |
 | `goal` | 90 days | "Wants to play the piece at 100 bpm" |
 | `fact` | 5 years | "Owns a classical guitar" |
-| `rule` | none | "Answer in Spanish after 21:00" |
+| `rule` | none | "Answer in the second language after 21:00" |
 
 - **Pinned facts don't decay** **[proposal]**.
 - Below **0.25** a fact drops out of the profile. Below **0.10** it is listed under "Fading" on the Memory page. Nothing is deleted by decay.
@@ -289,7 +289,7 @@ Example line: `[f:01936a2b] Prefers short answers on the phone (0.9, u, since 20
 
 ## 10. Search
 
-1. **FTS5 first.** Tables `messages_fts`, `day_notes_fts`, `facts_fts` with `tokenize='unicode61 remove_diacritics 2'` (accent-folded; Spanish and English both work for exact words).
+1. **FTS5 first.** Tables `messages_fts`, `day_notes_fts`, `facts_fts` with `tokenize='unicode61 remove_diacritics 2'` (accent-folded; English and the second language both work for exact words).
 2. **Ranking:** `bm25()` with column weights 1.0; ties by recency. Results carry `ref`, `at`, `snippet` (≤ 160 chars with the match), `score`.
 3. **Query hygiene:** the Worker quotes every user term (`"term"`) and joins with spaces, so FTS operators in the input are inert. Max 12 terms, 200 characters.
 4. **Facets:** `kind`, `since`, `until`, `thread`. The owner's search box in the menu and `th recall` use the same endpoint (`GET /v1/search` **[proposal; API.md is canonical]**).
@@ -379,7 +379,7 @@ The old system kept one Markdown notebook (sections: about the owner, about the 
 | # | Question | How to settle it |
 |---|---|---|
 | 1 | Do FTS5 shadow writes fit the 100k rows/day free write budget at the owner's volume? | DATA.md cost test: 500 messages/day + night batch; count `rowsWritten`. |
-| 2 | Is `remove_diacritics 2` enough for Spanish/English recall before embeddings? | 10 cross-language probes ([EVALS.md](EVALS.md) MP set) at P3. |
+| 2 | Is `remove_diacritics 2` enough for second-language/English recall before embeddings? | 10 cross-language probes ([EVALS.md](EVALS.md) MP set) at P3. |
 | 3 | Half-lives right? | After 60 days, compare Memory-page "Still true" taps on fading facts per kind; adjust half-lives where > 50% are confirmed. |
 | 4 | Is the token-masking regex safe for normal text? | Run over the imported message history in-session; count false positives (target 0 in 10k). |
 | 5 | `about=person` facts: does the owner want any at all? | Owner decision at P3. |

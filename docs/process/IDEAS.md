@@ -120,7 +120,7 @@ Each category has its table, then evaluation notes for the rows where the score 
 | MU5 | Library gardening | ≤ 3 one-tap fixes a week: duplicates, missing tags, forgotten favourites. Any removal is an ask-first proposal. | 3 | M | M (deletes) | yes | B | P5 | 3 |
 | MU6 | Listen like a player | After a guitar session, 1–2 recordings in the piece's style are queued with one "listen for" note. | 3 | S | L | yes | C | P6 | 5 |
 | MU7 | Wind-down | A sleep queue the owner starts; volume fades over the last 10 min; stop timer 20/40/60 min. Never starts itself. | 3 | S | L | yes | A | P5 | 5 |
-| MU8 | Spanish hour | Queue songs sung in Spanish from the library (from language tags). No lyric fetching or display. | 3 | S | L | test | B | P8 | 4 |
+| MU8 | Second-language hour | Queue songs sung in the second language from the library (from language tags). No lyric fetching or display. | 3 | S | L | test | B | P8 | 4 |
 
 - **MU1** belongs to [MUSIC.md](../product/apps/MUSIC.md). It is the purest form of "arrange, don't chat": the cost of a wrong guess is a swipe (Cursor Tab pattern).
 - **MU2** draws on nostalgia research: revisiting meaningful music raises a sense of meaning and social connectedness (Sedikides & Wildschut, *Review of General Psychology*, 2018). One question a week, never pushed.
@@ -159,30 +159,32 @@ Each category has its table, then evaluation notes for the rows where the score 
 - **ST4** exists because missed-day debt is streak guilt in disguise (§5, A1).
 - **ST5** keeps quotes to one sentence: the books are copyrighted and stay private.
 
-### Spanish (ES)
+### Second language (SL)
+
+The second language is set privately in Settings; nothing here names it.
 
 | ID | Idea | Behaviour (one line) | V | E | Risk | $0 | Privacy | Phase | Score |
 |---|---|---|---|---|---|---|---|---|---|
-| ES1 | Spanish mode | The mind replies in Spanish one step above the owner's level, with tap-to-gloss and gentle recasts. TOP 10 #4. | 5 | S | L | yes | C | P3 | 9 |
-| ES2 | Keep a phrase | Any Spanish phrase in chat, podcasts or songs → Keep → review card. Part of TOP 10 #2. | 5 | S | L | yes | B | P3 | 9 |
-| ES3 | Hear it | Tap a word → on-device `speechSynthesis` Spanish voice; fallback Workers AI MeloTTS if the voice is missing. | 3 | S | L | test | A | P3 | 4 |
-| ES4 | Podcast listening ladder | Spanish episodes at 0.85×, transcript on demand (Workers AI Whisper), tap-to-gloss on the transcript. | 4 | M | M (neurons) | budget | B | P8 | 5 |
-| ES5 | Shadowing | Mic switched on by the owner; repeat a line; a Whisper transcript is compared word by word. | 3 | M | M (neurons) | budget | B | P8 | 3 |
-| ES6 | Phrases for what's next | Before a situation the owner mentions (a call, an errand), the mind offers 5 useful phrases as keepable cards. | 4 | S | L | yes | C | P3 | 7 |
+| SL1 | Second-language mode | The mind replies in the second language one step above the owner's level, with tap-to-gloss and gentle recasts. TOP 10 #4. | 5 | S | L | yes | C | P3 | 9 |
+| SL2 | Keep a phrase | Any second-language phrase in chat, podcasts or songs → Keep → review card. Part of TOP 10 #2. | 5 | S | L | yes | B | P3 | 9 |
+| SL3 | Hear it | Tap a word → on-device `speechSynthesis` voice for the second language; fallback Workers AI MeloTTS if the voice is missing. | 3 | S | L | test | A | P3 | 4 |
+| SL4 | Podcast listening ladder | Second-language episodes at 0.85×, transcript on demand (Workers AI Whisper), tap-to-gloss on the transcript. | 4 | M | M (neurons) | budget | B | P8 | 5 |
+| SL5 | Shadowing | Mic switched on by the owner; repeat a line; a Whisper transcript is compared word by word. | 3 | M | M (neurons) | budget | B | P8 | 3 |
+| SL6 | Phrases for what's next | Before a situation the owner mentions (a call, an errand), the mind offers 5 useful phrases as keepable cards. | 4 | S | L | yes | C | P3 | 7 |
 
-- **ES1** uses comprehensible input one step above the learner's level (Krashen 1982). Recasts are gentle but are the feedback type learners notice least (Lyster & Ranta 1997), so explicit correction stays available as an owner switch.
-- **ES3** is `test` because offline Spanish voices on the owner's phone are unverified (`RA-P3-06`). The fallback MeloTTS costs 18.63 neurons per audio minute (Workers AI pricing, read 2026-10-28), so ~2 minutes a day is under 40 neurons.
-- **ES4/ES5** spend Whisper neurons (46.63 per audio minute): 20 minutes a day ≈ 930 of the 10,000 free neurons. Metered with the rest of the neuron budget.
+- **SL1** uses comprehensible input one step above the learner's level (Krashen 1982). Recasts are gentle but are the feedback type learners notice least (Lyster & Ranta 1997), so explicit correction stays available as an owner switch.
+- **SL3** is `test` because offline second-language voices on the owner's phone are unverified (`RA-P3-06`). The fallback MeloTTS costs 18.63 neurons per audio minute (Workers AI pricing, read 2026-10-28), so ~2 minutes a day is under 40 neurons.
+- **SL4/SL5** spend Whisper neurons (46.63 per audio minute): 20 minutes a day ≈ 930 of the 10,000 free neurons. Metered with the rest of the neuron budget.
 
 ### Learning, across domains (LN)
 
 | ID | Idea | Behaviour (one line) | V | E | Risk | $0 | Privacy | Phase | Score |
 |---|---|---|---|---|---|---|---|---|---|
-| LN1 | One review engine | One FSRS scheduler for Spanish phrases, kept lines, study highlights and guitar repertoire. TOP 10 #2. | 5 | M | L | yes | A | P6 | 8 |
+| LN1 | One review engine | One FSRS scheduler for second-language phrases, kept lines, study highlights and guitar repertoire. TOP 10 #2. | 5 | M | L | yes | A | P6 | 8 |
 | LN2 | Skill map | One page per skill: what is solid, what is fading (from review stability), what is next. Trend lines, no levels or badges. | 4 | M | L | yes | B | P9 | 6 |
 | LN3 | Plateau switch | Change-point detection on a growth curve; after a 14-day plateau the mind proposes one change of method, with its source. | 4 | M | M (bad advice) | yes | C | P9 | 5 |
 
-- **LN1** absorbs GT6, ES2, ME6 and ST5: one scheduler, one review sheet, one copy rule. Spacing and retrieval are among the most robust findings in learning research (Cepeda et al. 2006, 839 assessments; Karpicke & Roediger 2008). Specified as top-10 #2.
+- **LN1** absorbs GT6, SL2, ME6 and ST5: one scheduler, one review sheet, one copy rule. Spacing and retrieval are among the most robust findings in learning research (Cepeda et al. 2006, 839 assessments; Karpicke & Roediger 2008). Specified as top-10 #2.
 - **LN3** is `M` risk: a wrong "change your method" suggestion costs trust. It must cite its source and is offered once (`nudge_repeat`).
 
 ### Media (MD)
@@ -296,16 +298,16 @@ Each category has its table, then evaluation notes for the rows where the score 
 
 ## 4. The top 10
 
-**How they were chosen.** Value 5 first, then score. Three value-5 ideas already belong to sibling specs (HM1 → HOME, MU1 → MUSIC, AR3 → BRIEFING) and are not re-specified here. Four value-5 ideas merge into LN1 (GT6, ES2) or GT1 (GT7). Two judgement calls: **AR6** (score 6) is in because it is the only idea that makes the system improve itself from the owner's real behaviour, which is what the Briefing's "what was built overnight" promises; **ME2** (score 5) is in because candour is the precondition for everything else the mind learns.
+**How they were chosen.** Value 5 first, then score. Three value-5 ideas already belong to sibling specs (HM1 → HOME, MU1 → MUSIC, AR3 → BRIEFING) and are not re-specified here. Four value-5 ideas merge into LN1 (GT6, SL2) or GT1 (GT7). Two judgement calls: **AR6** (score 6) is in because it is the only idea that makes the system improve itself from the owner's real behaviour, which is what the Briefing's "what was built overnight" promises; **ME2** (score 5) is in because candour is the precondition for everything else the mind learns.
 
-**Ported apps (owner ruling).** Music, Guitar, Podcasts, Astra and My Media are ported as they are first ([ROADMAP.md](ROADMAP.md) P1b). No top-10 item changes a ported app before the owner agrees to that change. These parts land only inside that app's agreed evolution (P5, P6, P8): #1's in-app policies and the app events they learn from; #2's guitar repertoire cards; all of #5; #6 inside Guitar; #7's in-app defaults (the owner's Yes to the offer is the agreement for that one change); #8's outcomes measured from Guitar events; #9's packing of tracks, tabs and episodes. Until then each item runs only where no ported app changes: #1 in Study and the chat, #2 for Spanish, kept lines and study highlights, #6 in the chat and Study, #8 with outcomes outside the ported apps, #9 for the conversation, the Briefing, reviews and Study pages.
+**Ported apps (owner ruling).** Music, Guitar, Podcasts, Astra and My Media are ported as they are first ([ROADMAP.md](ROADMAP.md) P1b). No top-10 item changes a ported app before the owner agrees to that change. These parts land only inside that app's agreed evolution (P5, P6, P8): #1's in-app policies and the app events they learn from; #2's guitar repertoire cards; all of #5; #6 inside Guitar; #7's in-app defaults (the owner's Yes to the offer is the agreement for that one change); #8's outcomes measured from Guitar events; #9's packing of tracks, tabs and episodes. Until then each item runs only where no ported app changes: #1 in Study and the chat, #2 for second-language phrases, kept lines and study highlights, #6 in the chat and Study, #8 with outcomes outside the ported apps, #9 for the conversation, the Briefing, reviews and Study pages.
 
 | # | Idea | ID | Phase | V | E | Score | Main risk |
 |---|---|---|---|---|---|---|---|
 | 1 | Shadow mode | AR1 | P5 | 5 | M | 8 | none major |
 | 2 | One review engine | LN1 | P6 (cards collected from P3) | 5 | M | 8 | none major |
 | 3 | Commitment keeper | ME1 | P3 | 5 | S | 9 | nag (guarded by remind-once) |
-| 4 | Spanish mode | ES1 | P3 | 5 | S | 9 | none major |
+| 4 | Second-language mode | SL1 | P3 | 5 | S | 9 | none major |
 | 5 | Practice loop | GT1 + GT7 | P6 | 5 | M | 8 | bad heuristics (owner-tunable) |
 | 6 | Your thought first + hint ladder | ST1 | P3 (chat) / P7 (Study UI) | 5 | S | 9 | friction (one-tap escape) |
 | 7 | Friction finder → built overnight | AR6 | P9 | 5 | L | 6 | drift (measured, switch-off) |
@@ -333,16 +335,16 @@ Every arranging behaviour is a named **policy** (`music.morning_queue`, `guitar.
 
 ### 4.2 One review engine (LN1) [proposal]
 
-One spaced-repetition scheduler keeps everything the owner chose to learn from fading: Spanish phrases, kept lines from conversations, study highlights and guitar pieces that were mastered. It runs on the phone with the open-source FSRS algorithm (`ts-fsrs`, MIT, v5.4.2 published 2026-09-01), works offline, and appears only as one quiet row on the Briefing page when something is due. Items are created only when the owner taps **Keep**; the mind may suggest up to five a day in one sheet. There are no counts of overdue items, no streaks and no badges: missed days simply reschedule.
+One spaced-repetition scheduler keeps everything the owner chose to learn from fading: second-language phrases, kept lines from conversations, study highlights and guitar pieces that were mastered. It runs on the phone with the open-source FSRS algorithm (`ts-fsrs`, MIT, v5.4.2 published 2026-09-01), works offline, and appears only as one quiet row on the Briefing page when something is due. Items are created only when the owner taps **Keep**; the mind may suggest up to five a day in one sheet. There are no counts of overdue items, no streaks and no badges: missed days simply reschedule.
 
 | Rule | Exact behaviour |
 |---|---|
-| Item | `cards(id, domain: es\|keep\|study\|guitar, prompt, answer, ref, created_by: owner\|mind, fsrs_json, suspended, created_at)`. Review log as events `learn.review {card, rating 1–4, ms}`; card state is re-derivable by replaying the log. |
+| Item | `cards(id, domain: lang\|keep\|study\|guitar, prompt, answer, ref, created_by: owner\|mind, fsrs_json, suspended, created_at)`. Review log as events `learn.review {card, rating 1–4, ms}`; card state is re-derivable by replaying the log. |
 | Creation | Owner tap **Keep** (long-press on a line, a gloss sheet, a highlight, a passed mastery check). Mind suggestions: ≤ 5 a day, shown together in one "Keep these?" sheet; untouched suggestions expire after 3 days. |
 | Scheduler | `ts-fsrs` 5.x vendored in `frontend/vendor/` with its licence. Desired retention 0.90 (owner range 0.80–0.95). Maximum interval 365 days; guitar items 120 days. |
 | Ratings | Again / Hard / Good / Easy. Guitar play-through: Again = couldn't play through; Hard = with stops; Good = clean at ≥ 90 % of the section's ceiling tempo; Easy = clean at ceiling, relaxed. |
 | Daily limits | 5 new items per domain; 30 reviews in total. Overflow is rescheduled silently. Order: due date, interleaving domains. |
-| Where | Briefing page row "Review · about 4 min" (estimates: Spanish 10 s, kept and study lines 20 s; guitar shown separately as "+ 1 piece"). Hidden when nothing is due. Never on Home, never a badge, never a push. |
+| Where | Briefing page row "Review · about 4 min" (estimates: second-language phrases 10 s, kept and study lines 20 s; guitar shown separately as "+ 1 piece"). Hidden when nothing is due. Never on Home, never a badge, never a push. |
 | Copy | Forbidden in this feature: "overdue", "streak", "behind", "missed", and any number above 30 (article 16 lint). |
 | Later | After ≥ 1,000 reviews, the night session may fit personal FSRS parameters (inside the session, never in Actions: review data is personal). |
 
@@ -365,20 +367,20 @@ When the owner says they will do something ("I'll send the photos by Friday"), o
 
 **Acceptance.** (a) Night fixture: the owner message "I'll send the photos by Friday" creates one `commitment` with that message as evidence. (b) Backend: a second unprompted surface for the same thread within 14 days returns `409 nudge_repeat`. (c) Fake clock at 05:00: nothing is surfaced; at 06:30 the reminder appears. (d) Push count for `commitment` items is 0 across the fixture week.
 
-### 4.4 Spanish mode (ES1) [proposal]
+### 4.4 Second-language mode (SL1) [proposal]
 
-The owner can ask the mind to speak Spanish. It then replies one step above the owner's level, with short sentences at lower levels, and every harder word can be tapped for a gloss, heard aloud and kept as a review card. Mistakes in the owner's Spanish are answered by using the correct form naturally (a recast); explicit correction is an owner switch. Anything serious (decisions, errors, security, money, health, matters under law 8) is always in the owner's primary language. "In English" ends it at once.
+The owner can ask the mind to speak the second language (set privately in Settings). It then replies one step above the owner's level, with short sentences at lower levels, and every harder word can be tapped for a gloss, heard aloud and kept as a review card. Mistakes in the owner's second language are answered by using the correct form naturally (a recast); explicit correction is an owner switch. Anything serious (decisions, errors, security, money, health, matters under law 8) is always in the owner's primary language. "In English" ends it at once.
 
 | Rule | Exact behaviour |
 |---|---|
-| Modes | Off (default) / Spanish replies / Mixed (Spanish, new words glossed in brackets). Set by saying "en español" / "in English" or Settings → Language practice. Stored as a `rule` fact, `source=user`. |
-| Level | CEFR band A1–C1. Starts from one question when first turned on. The night shift may estimate a change from the owner's Spanish messages and proposes it as one Briefing line; never changed silently. |
+| Modes | Off (default) / Second-language replies / Mixed (second language, new words glossed in brackets). Set by asking for it in the second language / "in English" or Settings → Language practice. Stored as a `rule` fact, `source=user`. |
+| Level | CEFR band A1–C1. Starts from one question when first turned on. The night shift may estimate a change from the owner's second-language messages and proposes it as one Briefing line; never changed silently. |
 | Reply limits | A1–A2: sentences ≤ 12 words, present and simple past, ≤ 1 glossed word per sentence. B1: ≤ 18 words. B2+: natural. |
-| Gloss | Each Spanish mind message carries `meta.gloss` for every word outside the owner's band (A2 = top 1,500 lemmas, B1 = 3,000, B2 = 5,000 of a frequency list; list and licence: `RA-P3-05`): `{lemma, en, pos}`. Tap → sheet with lemma, meaning, **Hear it** (ES3), **Keep** (LN1). Works offline because the gloss travels with the message. |
-| Correction | Default: recast only. With "Correct me" on: at most one correction per owner message, as a small line under the owner's bubble ("→ fui"). Error patterns are counted in the day note's stats; on Sundays at most one "one thing to notice" line. |
+| Gloss | Each second-language mind message carries `meta.gloss` for every word outside the owner's band (A2 = top 1,500 lemmas, B1 = 3,000, B2 = 5,000 of a frequency list; list and licence: `RA-P3-05`): `{lemma, en, pos}`. Tap → sheet with lemma, meaning, **Hear it** (SL3), **Keep** (LN1). Works offline because the gloss travels with the message. |
+| Correction | Default: recast only. With "Correct me" on: at most one correction per owner message, as a small line under the owner's bubble ("→ <the corrected form>"). Error patterns are counted in the day note's stats; on Sundays at most one "one thing to notice" line. |
 | Escape | Decision cards, outage lines, security, money, health and law-8 topics are always in the primary language. Under any message: "Say it in English" translates that one message. |
 
-**Acceptance.** Eval set ES-1 (20 prompts, synthetic) in [EVALS.md](../mind/EVALS.md): ≥ 18/20 replies in Spanish and within the level's sentence limit; 20/20 decision cards in the primary language; gloss coverage ≥ 95 % of out-of-band words, checked by a script against the frequency list. Browser test: tapping a glossed word offline opens the sheet.
+**Acceptance.** Eval set SL-1 (20 prompts, synthetic) in [EVALS.md](../mind/EVALS.md): ≥ 18/20 replies in the second language and within the level's sentence limit; 20/20 decision cards in the primary language; gloss coverage ≥ 95 % of out-of-band words, checked by a script against the frequency list. Browser test: tapping a glossed word offline opens the sheet.
 
 ### 4.5 Practice loop (GT1 + GT7) [proposal]
 
@@ -398,11 +400,11 @@ Guitar practice runs as a loop the owner can feel working: each section climbs a
 
 ### 4.6 Your thought first, and the hint ladder (ST1) [proposal]
 
-Wherever learning is the point (study, guitar, Spanish, or any skill the owner set as a goal), the mind helps in rungs: first a question or pointer, then a partial step, then the full answer. In the Study reader, "Summarise" first offers a one-line field for the owner's own take. "Just tell me" or **Skip** always jumps straight to the answer, with no comment. Outside learning (play this, open that, logistics) the mind answers directly. If the owner keeps skipping in a domain, the mind offers once to stop laddering there.
+Wherever learning is the point (study, guitar, the second language, or any skill the owner set as a goal), the mind helps in rungs: first a question or pointer, then a partial step, then the full answer. In the Study reader, "Summarise" first offers a one-line field for the owner's own take. "Just tell me" or **Skip** always jumps straight to the answer, with no comment. Outside learning (play this, open that, logistics) the mind answers directly. If the owner keeps skipping in a domain, the mind offers once to stop laddering there.
 
 | Rule | Exact behaviour |
 |---|---|
-| Learning context | The Study or Guitar app, Spanish mode, or a message the mind classifies as about a skill with a `goal` fact. Everything else is answered directly. |
+| Learning context | The Study or Guitar app, second-language mode, or a message the mind classifies as about a skill with a `goal` fact. Everything else is answered directly. |
 | Rungs | 1: a question or pointer (≤ 2 sentences). 2: a partial (structure or first step). 3: the full answer with citations. Move up by replying, **Another hint**, or **Just tell me** (straight to 3). |
 | Study "Summarise" | A one-line field "Your take" with **Compare** and **Skip**. Compare stores the owner's line as an owner note (`source=user`), then shows the cited summary plus at most 2 lines: what the owner's line caught, and one thing the pages add (cited). Skip shows the summary at once. |
 | Respect rule | If "Just tell me" or Skip is used in ≥ 80 % of ≥ 20 learning turns in a domain over 30 days, the mind offers once: "Answer directly in Study from now on? · Yes · No". Yes stores a `rule` fact (`source=user`); the default rung for that domain becomes 3. |
@@ -430,7 +432,7 @@ The owner can ask "Does practising in the morning help my tempo?" and the mind t
 
 | Rule | Exact behaviour |
 |---|---|
-| Outcomes | Only metrics with a named resolver over owner events: ceiling BPM, clean-rep rate, review retention (share of Good/Easy), study minutes, Spanish reply length. |
+| Outcomes | Only metrics with a named resolver over owner events: ceiling BPM, clean-rep rate, review retention (share of Good/Easy), study minutes, second-language reply length. |
 | Interventions | Things the owner does: time of day, warm-up type, session length, review timing. Excluded: medicine, diet, sleep aids, faith practices (law 8), other people. |
 | Design | 14 days in 7 balanced pairs; order within each pair drawn with `crypto.getRandomValues`. The owner sets a minimum meaningful difference (e.g., +2 BPM) at the start. |
 | Daily | On the first open after 06:30: voice line "Today is a B day: practise after dinner." Also a Briefing-page row. |
@@ -518,10 +520,10 @@ Bold ideas that fail a gate. Recorded so they aren't re-proposed without new evi
 | Chips or quick-reply suggestions on Home | G8 (owner ruling) | "No chips on home." Suggestions live on the Briefing page and inside apps. |
 | A sixth `+` sheet item (e.g., "Off the record") | G8 (owner ruling) | The sheet's five items are fixed; ME2 is triggered by words or Settings. |
 | A standing morning session that listens all day | G7, decisions (mind) | Spends plan usage with nobody talking; cut in decisions.md. |
-| Fetching song lyrics for Spanish practice | G6 (copyright, third party) | Lyrics are copyrighted; MU8 uses audio only. |
+| Fetching song lyrics for second-language practice | G6 (copyright, third party) | Lyrics are copyrighted; MU8 uses audio only. |
 | Scoring spiritual habits or study "consistency" as a faith metric | Law 8 | The mind never judges matters of faith; study minutes are shown only as the owner's own study trend. |
 | Public progress page / sharing achievements | G6, A18 | Public repo and site hold nothing personal. |
-| Paid TTS voices (e.g., premium Spanish voices beyond the free neurons) | G7 | Costs money; on-device voices first (ES3). |
+| Paid TTS voices (e.g., premium second-language voices beyond the free neurons) | G7 | Costs money; on-device voices first (SL3). |
 | Workers Paid ($5/month) for more CPU | G7 | Only on an owner yes, if a free-tier limit is actually hit. |
 | An LLM-written personality profile shown to the owner | G4 (drift) | The profile is a deterministic render of facts (decisions, mind). |
 
@@ -535,12 +537,12 @@ The phase map for the scored ideas. Top-10 items in bold.
 |---|---|
 | P1 | AX1, AX2, AX4, RI3 |
 | P2 | HM4, HM5, OF2, OF3, AX3, DE2, DE3, PE1 |
-| P3 | **ME1**, **ES1**, **ST1 (chat ladder)**, **ME2**, HM2, AR5, AR8, ME3, ME4, ME7, ME9, ES2 (collect), ES3, ES6, PE2, PE3, PE4, RE1, RE4, RI2, DE4 |
+| P3 | **ME1**, **SL1**, **ST1 (chat ladder)**, **ME2**, HM2, AR5, AR8, ME3, ME4, ME7, ME9, SL2 (collect), SL3, SL6, PE2, PE3, PE4, RE1, RE4, RI2, DE4 |
 | P4 | HM6, SY1, SY2, SY3, SY4, SY5 |
 | P5 | **AR1**, AR2, AR3 (starts), HM1, MU1–MU5, MU7, TA1, OF4 |
 | P6 | **LN1**, **GT1 + GT7**, GT2–GT6, GT8, ME6, MU6, DE1 |
 | P7 | **ST1 (Study UI)**, ST2–ST6 |
-| P8 | **OF1**, HM3, AR4, AR9, MU8, ES4, ES5, MD1–MD5, TA2–TA4, RI1 |
+| P8 | **OF1**, HM3, AR4, AR9, MU8, SL4, SL5, MD1–MD5, TA2–TA4, RI1 |
 | P9 | **AR6**, **RE6**, AR7, LN2, LN3, RE2, RE3, RE5, DE5 |
 | P9+ | ME5, ME8 |
 
@@ -554,8 +556,8 @@ Each is tracked with its cheapest test in [RESEARCH-AGENDA.md](RESEARCH-AGENDA.m
 
 | Question | Gates | Agenda ID |
 |---|---|---|
-| Is a licence-clean Spanish frequency list available for the gloss bands? | ES1 gloss bands | RA-P3-05 |
-| Does the owner's phone have an offline Spanish `speechSynthesis` voice? | ES3 | RA-P3-06 |
+| Is a licence-clean second-language frequency list available for the gloss bands? | SL1 gloss bands | RA-P3-05 |
+| Does the owner's phone have an offline second-language `speechSynthesis` voice? | SL3 | RA-P3-06 |
 | Can a session read its own plan usage? | SY3, usage-aware night shift | RA-P2-07 |
 | Does `ts-fsrs` 5.x run unmodified as a vendored ES module with no build step? | LN1 | RA-P6-06 |
 | Do Background Fetch and Web Share Target work in the installed app on the owner's phone? | OF1, HM3 | RA-P8-04, RA-P8-05 |

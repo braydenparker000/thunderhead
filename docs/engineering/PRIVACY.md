@@ -131,7 +131,7 @@ Rules:
 | **Weather provider** for the Briefing | Coordinates rounded to 0.1° (about 11 km) from a Settings value, never device GPS | Weather card | Called from the Worker; no key that identifies the owner. Provider choice in [../product/BRIEFING.md](../product/BRIEFING.md); Open-Meteo suggested. **[proposal]** |
 | **Muse** (a separate AI agent on its own plan) | Only the work orders and briefs addressed to it, and its own thread | Routine jobs (e.g. the news board) | Its key reaches only `/v1/work/*` and its own thread; never memory, events or files |
 | **Workers AI** (deferred for v1) | When enabled: only the text a task needs | Small fast models | Same processor as the backend (Cloudflare); no sensitivity-1 text in v1 of that feature **[proposal]** |
-| **Church sources** (Study) | Nothing, until the owner taps a link | Scripture text comes from the owner's own licensed copies, stored privately in `thunderhead-private` behind sign-in, never in the repo (owner ruling 2026-10-27). Talks and other Church material are cited by paragraph with a link to the source | Link only for talks |
+| **Scripture source site** (Study) | Nothing, until the owner taps a link | Scripture text comes from the owner's own licensed copies, stored privately in `thunderhead-private` behind sign-in, never in the repo (owner ruling 2026-10-27). Talks and other published source material are cited by paragraph with a link to the source | Link only for talks |
 
 Not used by the shell or new pages: Google Fonts or any CDN, analytics, ads, error-tracking services, CAPTCHA (no Turnstile at launch), any LLM other than Claude (and later Workers AI).
 
