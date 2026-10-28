@@ -49,10 +49,16 @@ jobs:
           echo "commit=$prev" >> "$GITHUB_OUTPUT"
           echo "live before: ${prev:-nothing}"
       - uses: azure/login@v2
+        id: login
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: If sign-in failed, show the subject Azure has to trust (never the token)
+        if: ${{ failure() && steps.login.outcome == 'failure' }}
+        run: |
+          token="$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).value))')"
+          printf '%s' "$token" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const c=JSON.parse(Buffer.from(s.split(".")[1],"base64url"));console.log("Federated credential subject must be:",c.sub)})'
       - name: Publish
         id: publish
         run: scripts/deploy.sh "$(git rev-parse HEAD)"

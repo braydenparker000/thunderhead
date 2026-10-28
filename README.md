@@ -36,3 +36,10 @@ SITE_URL=https://<site> node --test tests/home-browser.test.mjs   # check the li
 Deploys need these repository settings: secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`,
 `AZURE_SUBSCRIPTION_ID`; variables `AZURE_STORAGE_ACCOUNT`, `SITE_URL`,
 `AZURE_DEPLOY_ENABLED=true`.
+
+The Azure app registration trusts this repository through a federated credential
+(issuer `https://token.actions.githubusercontent.com`, audience
+`api://AzureADTokenExchange`). Repositories created after July 15, 2026 sign in with
+GitHub's ID-based subject, `repo:<owner>@<owner_id>/<repo>@<repo_id>:ref:refs/heads/main`,
+so the credential uses that exact subject. If sign-in ever fails, the Deploy run prints
+the subject Azure has to trust.
