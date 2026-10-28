@@ -35,3 +35,15 @@ test('the home page arrives with its CSP and the right type', opts, async () => 
 test('missing files get a 404', opts, async () => {
   assert.equal((await get('/no-such-file.js')).status, 404);
 });
+
+test('the sign-in pages are there with their own CSP', opts, async () => {
+  for (const path of ['/signin/', '/setup/', '/recover/']) {
+    const res = await get(path);
+    assert.equal(res.status, 200, path);
+    const html = await res.text();
+    assert.match(html, /http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src /, path);
+  }
+  const config = await get('/config.js');
+  assert.equal(config.status, 200);
+  assert.match(await config.text(), /export const CONFIG = /);
+});

@@ -1,0 +1,36 @@
+/* Settings pages: full screen over the shell, sliding in from the right (MENU-AND-SETTINGS.md §1),
+   on the sheet glass. Rows follow DESIGN-SYSTEM.md §12. Needs ui/tokens.css and ui/forms.css. */
+.spage{position:absolute;inset:0;z-index:30;overflow-y:auto;overscroll-behavior:contain;padding:calc(12px + env(safe-area-inset-top,0px)) 16px calc(32px + env(safe-area-inset-bottom,0px));background:var(--sheet);backdrop-filter:blur(28px) saturate(1.6);-webkit-backdrop-filter:blur(28px) saturate(1.6);transform:translateX(100%);transition:transform .34s var(--spring);user-select:text;-webkit-user-select:text;font-family:var(--ui);color:var(--ink)}
+.spage.in{transform:none}
+.sback{min-height:44px;margin-left:-6px;padding:0 8px;border:0;border-radius:12px;background:none;color:var(--accent-text);font:500 15px var(--ui);cursor:pointer}
+.spage h1{margin:6px 2px 4px;font:600 24px/1.25 var(--ui);letter-spacing:-.015em}
+.spage h2{margin:18px 0 0;font:600 16px/1.35 var(--ui)}
+.slist{margin-top:10px;display:flex;flex-direction:column;gap:2px}
+.srow{display:flex;align-items:center;gap:10px;padding:10px 8px;border-radius:12px}
+.srow:hover{background:var(--tint)}
+.stext{flex:1;min-width:0}
+.st1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sname{max-width:100%;min-height:32px;padding:0;border:0;background:none;font:500 15px/1.3 var(--ui);color:var(--ink);text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text}
+.sname.static{cursor:default}
+.sedit{width:100%;min-height:36px;border-radius:10px;border:1px solid var(--accent-fill);background:var(--glass);color:var(--ink);font:500 15px var(--ui);padding:6px 10px;outline:none}
+.st2{margin-top:2px;font:400 12px/1.45 var(--ui);color:var(--ink-3)}
+.st2.gold{color:var(--gold-text);font-weight:500}
+.badge{padding:2px 8px;border-radius:999px;background:var(--tint);font:600 11px/1.6 var(--ui);color:var(--ink-2);white-space:nowrap}
+.sbtn{flex:none;min-height:44px;padding:0 14px;border:0;border-radius:999px;background:var(--tint);color:var(--ink);font:600 13px var(--ui);cursor:pointer}
+.sactions{margin-top:8px}
+.sactions .btn{margin-top:10px}
+.swarn{margin:12px 0 0;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--gold) 16%,transparent);font:500 13px/1.45 var(--ui);color:var(--gold-text)}
+.sempty{margin:14px 8px;font:400 14px var(--ui);color:var(--ink-3)}
+.srec{margin-top:6px}
+.sform{margin-top:6px}
+.sform .btn+.btn{margin-top:10px}
+.sroles{display:flex;flex-direction:column;gap:6px}
+.srole{display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border-radius:14px;background:var(--glass);border:1px solid var(--glass-line);cursor:pointer}
+.srole input{margin:3px 0 0;width:18px;height:18px;accent-color:var(--accent-fill)}
+.srole b{display:block;font:600 14px var(--ui);color:var(--ink)}
+.srole small{display:block;margin-top:2px;font:400 12px/1.4 var(--ui);color:var(--ink-3)}
+.shelp{margin:12px 2px 0;font:400 13px/1.5 var(--ui);color:var(--ink-2)}
+.shelp.strong{font-weight:600;color:var(--ink)}
+.shelp code,.sform code{font:500 12px var(--mono);background:var(--tint);padding:1px 5px;border-radius:6px}
+.notice .q{white-space:normal}
+@media (prefers-reduced-motion: reduce){.spage{transition:none}}

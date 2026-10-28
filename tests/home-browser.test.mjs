@@ -21,6 +21,9 @@ async function open(theme = 'light', path = '/') {
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.addInitScript(t => { try { localStorage.setItem('th-theme', t); } catch {} }, theme);
+  // The gestures are checked signed out of the API: with an API address the shell would go to
+  // /signin/ (tests/signin-browser.test.mjs covers that against a mocked Worker).
+  await page.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: "export const CONFIG = { api: '', build: 0, commit: 'dev', repo_url: '' };" }));
   await page.goto(base + path, { waitUntil: 'load' });
   await page.waitForTimeout(400);
   return { page, errors };

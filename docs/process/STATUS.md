@@ -9,8 +9,8 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Next three tasks
 
-1. Push `p1-spike` (one clean commit) and start P1 from the `p1-spike` branch (Worker with `Core` + `Auth`, sign-in, `deploy-worker.yml`, `backend/MEASUREMENTS.md`; X5 already measured): first bring it in line with API.md §11.1–11.4 and §13, SIGN-IN.md §4 and §6.1, SECURITY.md §5.1 and OPERATIONS.md §5.1 (route names, error codes, fingerprint setup, token format, one deploy workflow), then run X1, X3 and X4 in production.
-2. Owner: SETUP.md G–I.
+1. **P1 site pages built** on branch `p1-site` (not merged yet): `/signin/`, `/setup/`, `/recover/` (recovery code and reset ticket), Settings → Devices ("Sign-in & devices": list, rename, sign out one/others/everywhere, new recovery code), Agents (new key shown once, revoke) and Account (change password, sign out; `/settings/password/` and `/.well-known/change-password/`), security notices on Home, the sign-out wipe. The shell turns sign-in on only when the repository variable `WORKER_URL` is set (stage.mjs writes it into `config.js` and the CSP), so merging it before the Worker is live changes nothing visible. Left for P1: the service worker, `ui/icons.svg`, Web Push, measuring sign-in p95 on the phone, and T7/T9/T11/T17/T19 on the real site.
+2. Owner: SETUP.md G (Worker; `WORKER_URL` is now a **repository** variable), then the first `api` deploy, then H (first sign-in on the phone) and I (agent keys). Then run X1, X3 and X4 in production.
 3. The `mind-spike` work (`mind/`: the `th` CLI and hooks) is P2 and waits on the P2 routes.
 
 After P1 comes **P1b · Apps ported as they are**: Music, Guitar, Podcasts, Astra and My Media copied unchanged apart from paths, route folders and the API address; they keep calling the old Worker, whose allowed-origins change is asked first.

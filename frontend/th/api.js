@@ -17,6 +17,14 @@
 /** @typedef {import('../../shared/contract/api.ts').DeviceMe} DeviceMe */
 /** @typedef {import('../../shared/contract/api.ts').SignoutRequest} SignoutRequest */
 /** @typedef {import('../../shared/contract/api.ts').SessionsResponse} SessionsResponse */
+/** @typedef {import('../../shared/contract/api.ts').SessionItem} SessionItem */
+/** @typedef {import('../../shared/contract/api.ts').NoticeAckRequest} NoticeAckRequest */
+/** @typedef {import('../../shared/contract/api.ts').PasswordRequest} PasswordRequest */
+/** @typedef {import('../../shared/contract/api.ts').PasswordResponse} PasswordResponse */
+/** @typedef {import('../../shared/contract/api.ts').RecoveryCodeResponse} RecoveryCodeResponse */
+/** @typedef {import('../../shared/contract/api.ts').AgentsResponse} AgentsResponse */
+/** @typedef {import('../../shared/contract/api.ts').NewAgentRequest} NewAgentRequest */
+/** @typedef {import('../../shared/contract/api.ts').NewAgentResponse} NewAgentResponse */
 
 export const TIMEOUT_MS = 15_000;
 
@@ -93,5 +101,30 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
     signout: (token, scope) => call('/v1/auth/signout', { method: 'POST', token, body: { scope } }),
     /** @param {string} token @returns {Promise<SessionsResponse>} */
     sessions: (token) => call('/v1/auth/sessions', { token }),
+    /** @param {string} resetFp @returns {Promise<AuthStateResponse>} */
+    resetState: (resetFp) => call(`/v1/auth/state?reset_fp=${encodeURIComponent(resetFp)}`),
+    /** @param {string} token @param {string} id @param {NoticeAckRequest['answer']} answer @returns {Promise<null>} */
+    ackNotice: (token, id, answer) =>
+      call(`/v1/auth/notices/${encodeURIComponent(id)}/ack`, { method: 'POST', token, body: { answer } }),
+    /** @param {string} token @param {PasswordRequest} body @returns {Promise<PasswordResponse>} */
+    password: (token, body) => call('/v1/auth/password', { method: 'POST', token, body }),
+    /** @param {string} token @param {string} current_password @returns {Promise<RecoveryCodeResponse>} */
+    newRecoveryCode: (token, current_password) =>
+      call('/v1/auth/recovery-code', { method: 'POST', token, body: { current_password } }),
+    /** @param {string} token @param {string} last5 @returns {Promise<null>} */
+    confirmRecovery: (token, last5) => call('/v1/auth/recovery-code/confirm', { method: 'POST', token, body: { last5 } }),
+    /** @param {string} token @param {string} ticket_id @returns {Promise<null>} */
+    cancelReset: (token, ticket_id) => call('/v1/auth/breakglass/cancel', { method: 'POST', token, body: { ticket_id } }),
+    /** @param {string} token @param {string} id @param {string} label @returns {Promise<SessionItem>} */
+    relabel: (token, id, label) =>
+      call(`/v1/auth/sessions/${encodeURIComponent(id)}`, { method: 'PATCH', token, body: { label } }),
+    /** @param {string} token @param {string} id @returns {Promise<null>} */
+    revokeSession: (token, id) => call(`/v1/auth/sessions/${encodeURIComponent(id)}`, { method: 'DELETE', token }),
+    /** @param {string} token @returns {Promise<AgentsResponse>} */
+    agents: (token) => call('/v1/auth/agents', { token }),
+    /** @param {string} token @param {NewAgentRequest} body @returns {Promise<NewAgentResponse>} */
+    newAgent: (token, body) => call('/v1/auth/agents', { method: 'POST', token, body }),
+    /** @param {string} token @param {string} id @returns {Promise<null>} */
+    revokeAgent: (token, id) => call(`/v1/auth/agents/${encodeURIComponent(id)}`, { method: 'DELETE', token }),
   };
 }

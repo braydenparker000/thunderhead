@@ -40,7 +40,8 @@ defaults:
 jobs:
   # The Worker (OPERATIONS.md §5.1). Environment `worker` (deployable from main only) holds the
   # secrets CLOUDFLARE_API_TOKEN and TH_CI_TOKEN and the variables CLOUDFLARE_ACCOUNT_ID,
-  # WORKER_URL, SITE_ORIGINS and, for the very first deploy only, WORKER_BOOTSTRAP=true.
+  # SITE_ORIGINS and, for the very first deploy only, WORKER_BOOTSTRAP=true. WORKER_URL is a
+  # repository variable, shared with the site job.
   api:
     if: ${{ github.ref == 'refs/heads/main' && vars.WORKER_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target != 'site') }}
     runs-on: ubuntu-24.04
@@ -195,6 +196,9 @@ jobs:
     env:
       AZURE_STORAGE_ACCOUNT: ${{ vars.AZURE_STORAGE_ACCOUNT }}
       SITE_URL: ${{ vars.SITE_URL }}
+      # The API address goes into config.js and the pages' CSP at stage time (stage.mjs); it is a
+      # repository variable so this job sees it without the `worker` environment. Empty: sign-in off.
+      WORKER_URL: ${{ vars.WORKER_URL }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -212,6 +216,7 @@ jobs:
       - name: Test before publishing
         env:
           SITE_URL: ''
+          WORKER_URL: ''
         run: npm test
       - name: Note what is live now
         id: before

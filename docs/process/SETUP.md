@@ -70,8 +70,8 @@ Send "done" with the Primary endpoint URL. The agent pushes the first build and 
 1. dash.cloudflare.com → **Workers & Pages** → copy the **Account ID** and note your **workers.dev subdomain**. The API address will be `https://thunderhead-api.<subdomain>.workers.dev`.
 2. **My Profile → API Tokens → Create Token → Custom token.** Name `thunderhead-deploy`. Permissions: **Account · Workers Scripts · Edit**, nothing else. Account resources: only your account. No IP filter, no expiry. **Create** and copy it (shown once).
 3. GitHub, the repo → **Settings → Environments → New environment** `worker`. **Deployment branches and tags → Selected branches and tags → Add** `main`. No reviewers.
-4. In `worker`: secret `CLOUDFLARE_API_TOKEN` (from G2). Variables: `CLOUDFLARE_ACCOUNT_ID` (G1), `WORKER_URL` (the API address from G1), `SITE_ORIGINS` (the Primary endpoint from B8 without the trailing `/`), `WORKER_BOOTSTRAP` = `true`.
-5. **Secrets and variables → Actions → Variables → New repository variable:** `WORKER_DEPLOY_ENABLED` = `true`.
+4. In `worker`: secret `CLOUDFLARE_API_TOKEN` (from G2). Variables: `CLOUDFLARE_ACCOUNT_ID` (G1), `SITE_ORIGINS` (the Primary endpoint from B8 without the trailing `/`), `WORKER_BOOTSTRAP` = `true`.
+5. **Secrets and variables → Actions → Variables → New repository variable** twice: `WORKER_URL` = the API address from G1 (a repository variable, not in `worker`, because the site's deploy needs it too: it turns sign-in on), and `WORKER_DEPLOY_ENABLED` = `true`.
 6. Tell the agent "worker ready". The agent runs Deploy with target `api`. This first run makes `AUTH_PEPPER` and `IP_HASH_KEY` inside the run (nobody ever sees them) and sets every other Worker secret to `none` ([OPERATIONS.md §5.1](../engineering/OPERATIONS.md)).
 7. When the run is green, delete `WORKER_BOOTSTRAP` from the `worker` environment. From then on a run that finds no live Worker fails instead of making a new pepper.
 
