@@ -33,7 +33,7 @@ Fixed by [../process/decisions.md](../process/decisions.md): username + password
 | Agent key | A long-lived token for the mind (roles `chat`, `night`, `reflex`), Muse or CI. Not a session. |
 | Recovery code | 25 Crockford base32 characters, written on paper. Resets the password once. |
 | Setup code / reset code | 25-character codes made **in the browser** during setup or reset. They never leave that browser except as a fingerprint hash, and finally in the one request that uses them. |
-| Fingerprint | `thfp_` + base64url(SHA-256(code)), 48 characters. Safe to paste anywhere: it can't be turned back into the code. |
+| Fingerprint | `thfp_` + base64url(SHA-256(code)), where code is the 25 characters as made (upper case, no hyphens); 48 characters. Safe to paste anywhere: it can't be turned back into the code. |
 | Notice | A security message the `Auth` object creates for the owner's other devices. |
 
 ## 2. Pages and routes

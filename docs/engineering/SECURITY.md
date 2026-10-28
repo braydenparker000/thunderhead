@@ -205,7 +205,7 @@ Acceptance: `tests/site.test.mjs` finds every `http(s)://` host in each ported f
 
 | Token | Format | Entropy | Server stores | Lifetime | Held by |
 |---|---|---|---|---|---|
-| Owner session | `th1_` + 43 base62 random + 6 base62 CRC32 checksum **[proposal: base62 + checksum, like GitHub's]** | 256 bits | SHA-256 (the `sessions` primary key) | 90 days idle; no rotation in v1 | IndexedDB `th-auth` on the device |
+| Owner session | `th1_` + 43 base62 random + 6 base62 CRC32 checksum **[proposal: base62 + checksum, like GitHub's]**. The CRC32 covers `<prefix>_<43 random>`, so a prefix swap fails the checksum; 6 base62 digits, big-endian, zero-padded | 256 bits | SHA-256 (the `sessions` primary key) | 90 days idle; no rotation in v1 | IndexedDB `th-auth` on the device |
 | Mind key (chat/night/reflex) | `thm_` + same body | 256 bits | SHA-256 + role | Until revoked | Claude environment network secret `TH_TOKEN` |
 | Muse key | `ths_` + same body | 256 bits | SHA-256 + role | Until revoked | Muse's settings |
 | CI key | `thc_` + same body | 256 bits | SHA-256 + role | Until revoked | GitHub environment secret `TH_CI_TOKEN` |
@@ -365,11 +365,11 @@ Fixed by decisions: `POST /v1/media/sign {refs}`, signing time floored to the ho
 
 ## 11. Secrets inventory
 
-Names only. "Rotate" says who does it and how; runbooks are in §14. A test checks that every `env.X` used in `backend/src` is either a non-secret variable in `wrangler.jsonc` or listed here, and that no name below appears in `vars`.
+Names only. "Rotate" says who does it and how; runbooks are in §14. A test checks that every `env.X` used in `backend/src` is either a non-secret variable in `wrangler.jsonc` (such as `AUTH_HIBP`, `on`|`off`: the breach check, off in tests) or listed here, and that no name below appears in `vars`.
 
 | Secret | Lives in | Used for | Who rotates, how |
 |---|---|---|---|
-| `AUTH_PEPPER` (v1, later `AUTH_PEPPER_V2`) | Worker secret | Keyed hash of password and recovery code | Owner via the "Rotate secret" workflow **[proposal]**; lazy re-hash at sign-in (§14.6) |
+| `AUTH_PEPPER` (v1, later `AUTH_PEPPER_V2`) | Worker secret | Keyed hash of password and recovery code | Never rotated without a planned password reset (both are keyed by it, so an overwritten value locks the owner out). Owner via the "Rotate secret" workflow **[proposal]**; lazy re-hash at sign-in (§14.6) |
 | `AUTH_SETUP_FP` | Worker secret (`none` except during first setup) | First setup | Set by the Open setup workflow; set back to `none` after setup (never deleted: it is in `secrets.required`) |
 | `AUTH_RESET_FP` | Worker secret (`none` except during a reset) | Reset ticket via GitHub | Request reset workflow; set back to `none` after use |
 | `IP_HASH_KEY` | Worker secret | Source keys for back-off; the daily key is `HMAC(IP_HASH_KEY, UTC date)` | First value generated inside the bootstrap deploy run, like `AUTH_PEPPER` ([OPERATIONS.md §5.1](OPERATIONS.md)). Yearly or on suspicion; rotation only resets back-off counters |

@@ -133,7 +133,7 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 
 - `/v1` changes are additive. A breaking change adds `/v2/<area>` for that one area.
 - `min_client` is a `Core` setting (an integer build). It is raised only when an older client would corrupt data.
-- Below `min_client`, every `PUT`, `POST`, `PATCH` and `DELETE` returns `426 client_outdated` with `details: {min_client}`. `GET` keeps working.
+- Writes whose `TH-Client` is a site build below `min_client` (every `PUT`, `POST`, `PATCH` and `DELETE`) return `426 client_outdated` with `details: {min_client}`. `GET` keeps working.
 - The full rule is in [ARCHITECTURE.md §6](ARCHITECTURE.md#6-version-skew-between-the-phone-and-the-api).
 
 ## 6. Errors
@@ -184,7 +184,7 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | 422 | `username_invalid` | Setup username outside 3–32 letters, digits, `.`, `-`, `_` | Show the line |
 | 425 | `reset_not_ready` | A reset ticket used before `usable_after` | Show the countdown |
 | 426 | `client_outdated` | A write from below `min_client` | Apply the update |
-| 429 | `rate_limited` | Throttled; body `retry_after` (s) and `scope` (`source`\|`account`), plus `Retry-After` | Wait that long (`th` exit 10) |
+| 429 | `rate_limited` | Throttled; `error.retry_after` (s) and `error.scope` (`source`\|`account`), plus `Retry-After` | Wait that long (`th` exit 10) |
 | 500 | `internal` | A bug | Retry once after 2 s for idempotent requests |
 | 502 | `upstream` | R2, a push service or a fire URL failed | Retry with back-off |
 | 503 | `budget_exhausted` | A daily Free-plan cap was reached; `Retry-After` = seconds to 00:00 UTC | Queue writes; keep reading (`th` exit 10) |
@@ -247,6 +247,7 @@ Format of each entry: **Who** (principals) · **Phase** · request · response �
 **`GET /v1/health`** · Who: public · P1
 - Response `200`: `{ ok: true, version: { id: string, tag: string|null }, min_client: number, at: Ms }`. `tag` is the deployed commit's short sha (`wrangler deploy --tag`).
 - No DO call. A `503` from here means the Worker itself is down.
+- `min_client` is this isolate's cached copy of the Core setting (≤ 60 s old; 0 until first read). The same value is sent as `TH-Min-Client`.
 
 **`GET /v1/ops/health/deep`** · Who: device, agents, `ci` · P1
 - Response `200`:
@@ -277,14 +278,14 @@ type Notice = { id: Id; kind: 'new_device'|'password_changed'|'recovery_used'|'r
 
 | Route | Who | Request | Response | Specific errors |
 |---|---|---|---|---|
-| `GET /v1/auth/state?fp=&reset_fp=` | public | — | `200 { setup: 'open'\|'done', setup_fp?: 'ready'\|'missing'\|'mismatch', reset?: 'none'\|'pending'\|'ready'\|'cancelled'\|'expired'\|'used', usable_after?: Ms }` (reset fields only when `reset_fp` matches a ticket) | — |
+| `GET /v1/auth/state?fp=&reset_fp=` | public | — | `200 { setup: 'open'\|'done', setup_fp?: 'ready'\|'missing'\|'mismatch', reset?: 'none'\|'pending'\|'ready'\|'cancelled'\|'expired'\|'used', usable_after?: Ms }` (reset fields only when `reset_fp` is given; `'none'` when no ticket has it) | — |
 | `POST /v1/auth/setup` | public, only while UNCLAIMED | `{ setup_code, username, password, device: DeviceHints }` | `201 SignedIn & { recovery_code }` | 410 `setup_done`, 409 `setup_fp_missing`, 401 `setup_code_wrong`, 422 `password_*`, 429 |
 | `POST /v1/auth/login` | public | `{ username, password, device: DeviceHints }` | `200 SignedIn` | 401 `wrong_username_or_password`, 409 `setup_required`, 429, 503 `auth_unavailable` |
 | `POST /v1/auth/recover` | public | `{ username, code, new_password, device }` (`code` = the recovery code, or the reset code once its ticket is ready) | `200 SignedIn & { recovery_code }`; every other session is revoked | 401 `wrong_username_or_code`, 425 `reset_not_ready`, 422 `password_*`, 429 |
 | `POST /v1/auth/signout` | device | `{ scope: 'this'\|'others'\|'all' }` | `204`; the sessions are revoked and their push subscriptions deleted | — |
 | `GET /v1/auth/me` | device | — | `200 { session_id, label, notices: Notice[], recovery_confirmed: boolean }` | — |
 | `GET /v1/auth/me` | agent keys | — | `200 { agent_id, role, name }` | — |
-| `POST /v1/auth/password` | device | `{ current_password, new_password, sign_out_others: boolean }` | `200 { token? }` | 401 `current_password_wrong`, 422 `password_*` |
+| `POST /v1/auth/password` | device | `{ current_password, new_password, sign_out_others: boolean }` | `200 {}` | 401 `current_password_wrong`, 422 `password_*` |
 | `POST /v1/auth/recovery-code` | device | `{ current_password }` | `200 { recovery_code }` (the old one stops working at once) | 401 `current_password_wrong` |
 | `POST /v1/auth/recovery-code/confirm` | device | `{ last5 }` | `204` | 422 |
 | `POST /v1/auth/breakglass` | `mind:chat` only | `{ fingerprint }` (`thfp_…`, given by the owner in their own Claude Code session) | `201 { ticket_id, usable_after /* +24 h */, expires_at /* +96 h */ }`; red notice + push to every device | 409 `reset_already_pending`, 409 `setup_required`, 429 |
