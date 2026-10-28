@@ -5,24 +5,25 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**P0 · Site live** — code ready, waiting on the owner's setup (repository, Azure storage account, trust, settings).
+**P0 · Site live** — done 2026-10-28. Next: P1.
 
 ## Next three tasks
 
-1. Push the prepared history to `main` as soon as the repository exists and the Claude app can reach it.
-2. Run the first Deploy; confirm the live checks and one deliberate rollback.
-3. Start P1 from the `p1-spike` branch (Worker with `Core` + `Auth`, sign-in, `deploy-worker.yml`, `backend/MEASUREMENTS.md`; X5 already measured): first bring it in line with API.md §11.1–11.4 and §13, SIGN-IN.md §4 and §6.1, SECURITY.md §5.1 and OPERATIONS.md §5.1 (route names, error codes, fingerprint setup, token format, one deploy workflow), then run X1, X3 and X4 in production. The `mind-spike` work (`mind/`: the `th` CLI and hooks) is P2 and waits on the P2 routes.
+1. Push `p1-spike` (one clean commit) and start P1 from the `p1-spike` branch (Worker with `Core` + `Auth`, sign-in, `deploy-worker.yml`, `backend/MEASUREMENTS.md`; X5 already measured): first bring it in line with API.md §11.1–11.4 and §13, SIGN-IN.md §4 and §6.1, SECURITY.md §5.1 and OPERATIONS.md §5.1 (route names, error codes, fingerprint setup, token format, one deploy workflow), then run X1, X3 and X4 in production.
+2. Owner: SETUP.md G–I.
+3. The `mind-spike` work (`mind/`: the `th` CLI and hooks) is P2 and waits on the P2 routes.
 
 After P1 comes **P1b · Apps ported as they are**: Music, Guitar, Podcasts, Astra and My Media copied unchanged apart from paths, route folders and the API address; they keep calling the old Worker, whose allowed-origins change is asked first.
 
 ## Blocked / waiting on the owner
 
-- Setup steps in [SETUP.md](SETUP.md) (repository, Claude app access, storage account, role, federated credential, repository settings, scheduled task).
+- Setup steps G–I in [SETUP.md](SETUP.md). A–F done 2026-10-28.
 - Owner questions: all answered 2026-10-28 (yes to all 14 recommendations; gesture navigation; permission for everything in the old repo). See decisions.md.
 
 ## Last deploy
 
-None yet.
+- 2026-10-28 14:00 UTC: site `7ca3c35` live at https://thunderhead.z13.web.core.windows.net/ (Deploy run #3, green: tests, Azure sign-in, publish, live check).
+- 2026-10-28 14:02 UTC: rollback drill (run #4) failed on purpose, rolled back to `7ca3c35` and confirmed it live. Runs #1–#2 skipped before `AZURE_DEPLOY_ENABLED` was set.
 
 ## Notes for the next session
 
