@@ -8,21 +8,27 @@ apps (Music, Guitar, Podcasts, Astra, My Media, Study) one hold away.
 | Path | What it is |
 | --- | --- |
 | `frontend/` | The site. Plain HTML, CSS and JavaScript, no build step. |
-| `backend/` | The Cloudflare Worker (coming next). |
+| `backend/` | The Cloudflare Worker `thunderhead-api` (TypeScript). See [backend/README.md](backend/README.md). |
+| `shared/` | Types only: the API contract, checked from the backend and the frontend. |
 | `scripts/` | Tools: `serve.mjs` (local server, behaves like Azure), `stage.mjs` (release folder + budgets), `deploy.sh` (publish to Azure). |
-| `tests/` | `node --test` suites: static checks and phone-size browser checks. |
+| `tests/` | `node --test` suites: static checks, the contract check, phone-size browser checks. |
 
 ## Commands
 
 ```sh
-npm ci                                  # install (Playwright for the browser tests)
+npm ci                                  # install (workspaces: root + backend)
 npx playwright install chromium         # once, if Chromium isn't installed
-npm run serve                           # http://127.0.0.1:8080
-npm test                                # everything
+npm run serve                           # the site: http://127.0.0.1:8080
+npm run dev                             # the Worker, local workerd: http://127.0.0.1:8787
+npm test                                # everything (site, contract, backend on workerd)
 SITE_URL=https://<site> node --test tests/home-browser.test.mjs   # check the live site
 ```
 
 ## Release and rollback
+
+The Worker deploys from the same workflow (job `api`, before `site`; off until
+`WORKER_DEPLOY_ENABLED=true`), with a smoke check and `wrangler rollback` on failure; see
+[backend/README.md](backend/README.md). The site:
 
 - **Release:** push to `main`. The Deploy workflow tests, publishes `frontend/` to the
   storage account's `$web` container, waits until the live `release.json` names the

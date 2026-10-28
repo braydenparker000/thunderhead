@@ -1,0 +1,28 @@
+{
+  "name": "@thunderhead/backend",
+  "private": true,
+  "type": "module",
+  "description": "The Cloudflare Worker thunderhead-api.",
+  "scripts": {
+    "dev": "wrangler dev --local",
+    "test": "tsc --noEmit && biome check . && wrangler types --strict-vars false --check && vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "types": "wrangler types --strict-vars false",
+    "bench": "vitest run tests/kdf-timing.test.ts --silent=false"
+  },
+  "dependencies": {
+    "hono": "4.13.14",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.6.3",
+    "@cloudflare/vitest-plugin": "1.4.9",
+    "@types/node": "24.19.2",
+    "typescript": "5.9.3",
+    "vitest": "4.1.12",
+    "wrangler": "4.154.0"
+  }
+}

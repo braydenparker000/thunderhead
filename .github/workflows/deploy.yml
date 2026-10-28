@@ -1,7 +1,11 @@
-# Every push to main: test, publish the site to the Azure Storage static website, then check
-# it live. If anything fails or is cancelled after publishing starts, the previous live commit
-# goes back up and the run is marked failed.
-# Manual deploy or rollback: Actions > Deploy > Run workflow (from main), with the commit to put live.
+# Every push to main: job `api` deploys the Worker thunderhead-api when backend/, shared/ or the
+# lockfile changed since the live tag (off until WORKER_DEPLOY_ENABLED=true), smoke-checks it and
+# runs `wrangler rollback` on failure. Then job `site` tests, publishes the site to the Azure
+# Storage static website and checks it live. If anything fails or is cancelled after publishing
+# starts, the previous live commit goes back up and the run is marked failed. `site` starts
+# only after `api` succeeded or was skipped, so a new site never meets an old API.
+# Manual deploy or rollback: Actions > Deploy > Run workflow (from main), with the commit to put
+# live and the target (OPERATIONS.md §3.2, §5.2).
 name: Deploy
 run-name: Deploy ${{ inputs.ref || github.sha }}
 on:
@@ -17,6 +21,15 @@ on:
         description: Drill - publish, then fail the live check on purpose to prove the automatic rollback
         type: boolean
         default: false
+      target:
+        description: What to deploy
+        type: choice
+        options: [both, site, api, api-rollback]
+        default: both
+      version:
+        description: Worker version id for api-rollback (from wrangler deployments list)
+        type: string
+        required: false
 permissions: {}
 concurrency:
   group: deploy-site
@@ -25,8 +38,153 @@ defaults:
   run:
     shell: bash
 jobs:
+  # The Worker (OPERATIONS.md §5.1). Environment `worker` (deployable from main only) holds the
+  # secrets CLOUDFLARE_API_TOKEN and TH_CI_TOKEN and the variables CLOUDFLARE_ACCOUNT_ID,
+  # WORKER_URL, SITE_ORIGINS and, for the very first deploy only, WORKER_BOOTSTRAP=true.
+  api:
+    if: ${{ github.ref == 'refs/heads/main' && vars.WORKER_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target != 'site') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: worker
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_URL: ${{ vars.WORKER_URL }}
+      SITE_ORIGINS: ${{ vars.SITE_ORIGINS }}
+      WRANGLER_SEND_METRICS: 'false'
+      CONFIG: backend/wrangler.jsonc
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Only commits on main go live
+        run: git merge-base --is-ancestor HEAD origin/main
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: Decide what to do
+        id: plan
+        env:
+          TARGET: ${{ inputs.target }}
+          EVENT: ${{ github.event_name }}
+        run: |
+          health="$(curl -fsS --max-time 15 "${WORKER_URL%/}/v1/health" || true)"
+          live_tag="$(printf '%s' "$health" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).version.tag??"")}catch{}})')"
+          mode=deploy
+          if [[ "$TARGET" == api-rollback ]]; then mode=rollback
+          elif [[ "$EVENT" == push && -n "$live_tag" ]] && git cat-file -e "$live_tag^{commit}" 2>/dev/null \
+            && git diff --quiet "$live_tag" HEAD -- backend shared package-lock.json; then mode=skip; fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "live_tag=$live_tag" >> "$GITHUB_OUTPUT"
+          echo "tag=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+          echo "plan: $mode (live tag: ${live_tag:-none})"
+      - if: ${{ steps.plan.outputs.mode == 'deploy' }}
+        run: npx playwright install --with-deps --only-shell chromium
+      - name: Test before deploying
+        if: ${{ steps.plan.outputs.mode == 'deploy' }}
+        env:
+          SITE_URL: ''
+        run: npm test
+      - name: Note the live version (empty on the very first deploy)
+        id: before
+        if: ${{ steps.plan.outputs.mode != 'skip' }}
+        run: |
+          if out="$(npx wrangler deployments status --json --config "$CONFIG" 2>/dev/null)"; then
+            prev="$(printf '%s' "$out" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const v=(JSON.parse(s).versions||[]).sort((a,b)=>b.percentage-a.percentage)[0];process.stdout.write(v?.version_id??"")})')"
+          else
+            prev=""
+          fi
+          echo "version=$prev" >> "$GITHUB_OUTPUT"
+          echo "live before: ${prev:-nothing (first deploy)}"
+      # The bootstrap run makes AUTH_PEPPER and IP_HASH_KEY here (nobody ever sees them) and
+      # `none` for every other listed secret. A missing live version counts as "first deploy"
+      # only when WORKER_BOOTSTRAP=true, because a new pepper would lock the owner out.
+      - name: Prepare the secrets file
+        id: secrets
+        if: ${{ steps.plan.outputs.mode == 'deploy' }}
+        env:
+          BOOTSTRAP: ${{ vars.WORKER_BOOTSTRAP }}
+          PREV: ${{ steps.before.outputs.version }}
+        run: |
+          umask 077
+          file="$RUNNER_TEMP/worker-secrets.json"
+          if [[ -z "$PREV" ]]; then
+            if [[ "$BOOTSTRAP" != true ]]; then
+              echo "::error::No live version. Set WORKER_BOOTSTRAP only for the very first deploy."
+              exit 1
+            fi
+            node scripts/worker-secrets.mjs "$file" --bootstrap
+          else
+            npx wrangler secret list --format json --config "$CONFIG" > "$RUNNER_TEMP/live-secrets.json"
+            node scripts/worker-secrets.mjs "$file" --live "$RUNNER_TEMP/live-secrets.json"
+          fi
+          [[ -f "$file" ]] && echo "file=$file" >> "$GITHUB_OUTPUT" || true
+      - name: Deploy
+        id: deploy
+        if: ${{ steps.plan.outputs.mode == 'deploy' }}
+        env:
+          SECRETS_FILE: ${{ steps.secrets.outputs.file }}
+          TAG: ${{ steps.plan.outputs.tag }}
+        run: |
+          args=(--config "$CONFIG" --var "SITE_ORIGINS:$SITE_ORIGINS" --tag "$TAG" --message "deploy $(git rev-parse HEAD)")
+          [[ -n "$SECRETS_FILE" ]] && args+=(--secrets-file "$SECRETS_FILE")
+          status=0
+          npx wrangler deploy "${args[@]}" || status=$?
+          [[ -n "$SECRETS_FILE" ]] && rm -f "$SECRETS_FILE"
+          exit "$status"
+      - name: Smoke-check the live API (read-only)
+        if: ${{ steps.plan.outputs.mode == 'deploy' }}
+        env:
+          TH_CI_TOKEN: ${{ secrets.TH_CI_TOKEN }}
+          EXPECTED_TAG: ${{ steps.plan.outputs.tag }}
+        run: |
+          tag_of() { curl -fsS --max-time 10 "${WORKER_URL%/}/v1/health" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).version.tag??"")}catch{}})' || true; }
+          for i in $(seq 1 12); do [[ "$(tag_of)" == "$EXPECTED_TAG" ]] && break; sleep 5; done
+          [[ "$(tag_of)" == "$EXPECTED_TAG" ]] || { echo "::error::/v1/health does not report $EXPECTED_TAG"; exit 1; }
+          if [[ -z "$TH_CI_TOKEN" ]]; then
+            echo "::notice::TH_CI_TOKEN is not set yet; deep health skipped (normal before first setup)"
+          else
+            ok=""
+            for i in $(seq 1 24); do
+              ok="$(curl -fsS --max-time 10 -H "Authorization: Bearer $TH_CI_TOKEN" -H 'TH-Client: ci/deploy' "${WORKER_URL%/}/v1/ops/health/deep" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).ok))}catch{}})' || true)"
+              [[ "$ok" == true ]] && break
+              sleep 15
+            done
+            [[ "$ok" == true ]] || { echo "::error::deep health is not ok"; exit 1; }
+          fi
+          SITE_ORIGIN="${SITE_ORIGINS%%,*}" node --test tests/live-api.test.mjs
+      # Rollback cannot cross a Durable Object class change (migrations); such deploys ship
+      # alone and fix forward. A bootstrap run has nothing to roll back to.
+      - name: Roll back to the version that was live before
+        if: ${{ (failure() || cancelled()) && steps.deploy.outcome != 'skipped' && steps.before.outputs.version != '' }}
+        env:
+          PREV: ${{ steps.before.outputs.version }}
+          PREV_TAG: ${{ steps.plan.outputs.live_tag }}
+        run: |
+          npx wrangler rollback "$PREV" --config "$CONFIG" --message "auto rollback from $(git rev-parse --short=12 HEAD)" --yes
+          for i in $(seq 1 12); do
+            live="$(curl -fsS --max-time 10 "${WORKER_URL%/}/v1/health" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).version.tag??"")}catch{}})' || true)"
+            [[ -z "$PREV_TAG" || "$live" == "$PREV_TAG" ]] && break
+            sleep 5
+          done
+          echo "rolled back; live tag: ${live:-unknown}"
+      - name: Manual rollback to a chosen version
+        if: ${{ steps.plan.outputs.mode == 'rollback' }}
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          [[ "$VERSION" =~ ^[0-9a-f-]{36}$ ]] || { echo "::error::Give the version id to roll back to"; exit 1; }
+          npx wrangler rollback "$VERSION" --config "$CONFIG" --message "manual rollback" --yes
+          node --test tests/live-api.test.mjs
   site:
-    if: ${{ github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true' }}
+    needs: api
+    if: ${{ !cancelled() && (needs.api.result == 'success' || needs.api.result == 'skipped') && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target == 'site' || inputs.target == 'both') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:

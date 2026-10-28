@@ -14,7 +14,7 @@ const PAGES = ['index.html', '404.html'];
 async function files(dir) {
   const out = [];
   for (const e of await readdir(dir, { withFileTypes: true })) {
-    if (['node_modules', '.git', '.deploy', 'test-results'].includes(e.name)) continue;
+    if (['node_modules', '.git', '.deploy', 'test-results', '.wrangler', '.dev.vars'].includes(e.name)) continue;
     const p = join(dir, e.name);
     out.push(...(e.isDirectory() ? await files(p) : [p]));
   }

@@ -1,0 +1,45 @@
+// The Cloudflare Worker thunderhead-api (free plan). Everything here is public: no account IDs,
+// no secrets, no real origins. Secrets are listed in README.md and set by the deploy
+// workflow, never from a Claude session.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "thunderhead-api",
+  "main": "src/index.ts",
+  // nodejs_compat (needed for node:crypto scrypt) is on by default from 2026-08-04; the flag is
+  // listed anyway so the requirement is visible and survives a date change.
+  "compatibility_date": "2026-10-15",
+  "compatibility_flags": ["nodejs_compat"],
+  // No usage metrics leave a developer's or agent's machine.
+  "send_metrics": false,
+  "workers_dev": true,
+  "preview_urls": false,
+  // Every var is declared here; nothing set in the dashboard survives a deploy.
+  "keep_vars": false,
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "triggers": { "crons": ["*/15 * * * *"] },
+  "version_metadata": { "binding": "VERSION" },
+  "durable_objects": {
+    "bindings": [
+      { "name": "CORE", "class_name": "Core" },
+      { "name": "AUTH", "class_name": "Auth" }
+    ]
+  },
+  // Classic migrations array (decision: not the newer `exports` field, which cannot be undone).
+  // A class added later gets its own tag in its own deploy, because rollback cannot cross it.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Core", "Auth"] }],
+  // Secret names only; values never live in files. Listing them makes a deploy refuse to ship
+  // without them, and is also what lets local dev load them from .dev.vars. A secret that is not
+  // configured yet holds the literal `none` (the bootstrap deploy writes it); nothing ever runs
+  // `wrangler secret delete` on a listed name. P1b adds ASTRA_SEAL_KEY, P2 the ROUTINE_* pairs.
+  "secrets": { "required": ["AUTH_PEPPER", "IP_HASH_KEY", "AUTH_SETUP_FP", "AUTH_RESET_FP"] },
+  "vars": {
+    // Exact site origins allowed by CORS, comma-separated. The real value comes from the
+    // `worker` environment through `wrangler deploy --var`; this placeholder matches nothing real.
+    "SITE_ORIGINS": "https://thunderhead.zNN.web.core.windows.net",
+    // Fallback only. The owner's real time zone is the private Core setting `owner.tz`, set from
+    // the phone, never written in this public repo.
+    "OWNER_TZ": "UTC",
+    // The Have I Been Pwned range check on new passwords ("on" | "off"). Tests set "off".
+    "AUTH_HIBP": "on"
+  }
+}
