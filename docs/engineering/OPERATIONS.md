@@ -47,7 +47,7 @@ Values never appear in the repo or in logs. Rotation steps are in §6. The secur
 | `WORKER_DEPLOY_ENABLED` | variable | GitHub repo | P1 |
 | `TH_SETUP_FINGERPRINT`, `TH_RESET_FINGERPRINT` | secret, temporary | GitHub repo; inputs to `auth-setup.yml` / `auth-reset.yml` | P1 |
 | `R2_MUSIC_RO_ACCESS_KEY_ID`/`_SECRET` (Object Read, `jarvis-music`), `R2_JOBS_ACCESS_KEY_ID`/`_SECRET` (Object Read & Write, `thunderhead-jobs`) | secret | GitHub environment `jobs` | P5 |
-| `SITE_ORIGINS` (a placeholder; the real value comes from the environment variable above), `OWNER_TZ` (fallback `UTC`; the real zone is the `Core` setting `owner.tz`), `R2_ACCOUNT_ID`, `CORE_INSTANCE` (default `owner`) **[proposal]**, `VAPID_PUBLIC_KEY` (P8) | var | `backend/wrangler.jsonc` | P1+ |
+| `SITE_ORIGINS` (a placeholder; the real value comes from the environment variable above), `OWNER_TZ` (fallback `UTC`; the real zone is the `Core` setting `owner.tz`), `R2_ACCOUNT_ID`, `CORE_INSTANCE` (default `owner`) **[proposal]**, `AUTH_HIBP` (`on`\|`off`, the breach check; off in tests), `VAPID_PUBLIC_KEY` (P8) | var | `backend/wrangler.jsonc` | P1+ |
 | `AUTH_PEPPER`, `IP_HASH_KEY` | Worker secret | Cloudflare | P1 |
 | `AUTH_SETUP_FP` (one-time), `AUTH_RESET_FP` (only during a reset) | Worker secret | Cloudflare, via `auth-setup.yml` / `auth-reset.yml` or the dashboard | P1 |
 | `ROUTINE_CHAT_URL`, `ROUTINE_CHAT_TOKEN`, `ROUTINE_NIGHT_URL`, `ROUTINE_NIGHT_TOKEN` (+ `ROUTINE_REFLEX_URL`, `ROUTINE_REFLEX_TOKEN` in P4) | Worker secret | Cloudflare | P2–P4 |

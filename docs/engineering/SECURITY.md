@@ -369,7 +369,7 @@ Names only. "Rotate" says who does it and how; runbooks are in §14. A test chec
 
 | Secret | Lives in | Used for | Who rotates, how |
 |---|---|---|---|
-| `AUTH_PEPPER` (v1, later `AUTH_PEPPER_V2`) | Worker secret | Keyed hash of password and recovery code | Never rotated without a planned password reset (both are keyed by it, so an overwritten value locks the owner out). Owner via the "Rotate secret" workflow **[proposal]**; lazy re-hash at sign-in (§14.6) |
+| `AUTH_PEPPER` (v1, later `AUTH_PEPPER_V2`) | Worker secret | Keyed hash of password and recovery code | Never overwritten: the password and recovery code are keyed by it, so replacing the value locks the owner out. Rotate only by adding `AUTH_PEPPER_V2` next to it (§14.6). Owner via the "Rotate secret" workflow **[proposal]**; lazy re-hash at sign-in (§14.6) |
 | `AUTH_SETUP_FP` | Worker secret (`none` except during first setup) | First setup | Set by the Open setup workflow; set back to `none` after setup (never deleted: it is in `secrets.required`) |
 | `AUTH_RESET_FP` | Worker secret (`none` except during a reset) | Reset ticket via GitHub | Request reset workflow; set back to `none` after use |
 | `IP_HASH_KEY` | Worker secret | Source keys for back-off; the daily key is `HMAC(IP_HASH_KEY, UTC date)` | First value generated inside the bootstrap deploy run, like `AUTH_PEPPER` ([OPERATIONS.md §5.1](OPERATIONS.md)). Yearly or on suspicion; rotation only resets back-off counters |
