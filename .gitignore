@@ -1,0 +1,5 @@
+node_modules/
+.deploy/
+test-results/
+*.log
+.DS_Store

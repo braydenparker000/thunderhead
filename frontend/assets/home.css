@@ -1,0 +1,185 @@
+/* Thunderhead home. Icons: Phosphor Icons (MIT). Fonts: Fraunces + Inter (OFL) via Google Fonts.
+   Layout: one screen. A calm gradient field with grain; the Thunderhead is light along the edges; the conversation sits low on the page above a quiet ask bar. Holding on empty space opens a tight Compass ring around the finger. */
+:root{
+  --bg:#eef1f7; --ink:#152231; --ink2:#46566a; --ink3:#6d7988;
+  --accent:#2468d8; --glow:#5b8ff0; --gold:#f2b632; --goldText:#8a5a00;
+  --field1:#cfe0f7; --field2:#e9dff3; --field3:#f7e7d6;
+  --chip:rgba(255,255,255,.55); --chipLine:rgba(21,34,49,.07); --bar:rgba(255,255,255,.5);
+  --sheet:rgba(247,249,253,.84); --blob1:#b9d0fa; --blob2:#f5d6c0; --blobO:.6; --scrim:rgba(238,241,247,.35); --disc:rgba(255,255,255,.82); --discLine:rgba(21,34,49,.10);
+  --voice:"Fraunces", Georgia, "Times New Roman", serif;
+  --ui:"Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#000; --ink:#eceff4; --ink2:#a6b0bc; --ink3:#77828f;
+  --accent:#6aa2ff; --glow:#4d84ff; --gold:#f2b632; --goldText:#f2b632;
+  --sheet:rgba(18,20,24,.86); --field1:#000; --field2:#000; --field3:#000; --blob1:#1d4fb8; --blob2:#6b4a0c; --blobO:.22;
+  --chip:rgba(255,255,255,.07); --chipLine:rgba(255,255,255,.08); --bar:rgba(255,255,255,.07);
+  --scrim:rgba(0,0,0,.35); --disc:rgba(22,26,32,.92); --discLine:rgba(255,255,255,.12); color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#000; --ink:#eceff4; --ink2:#a6b0bc; --ink3:#77828f;
+  --accent:#6aa2ff; --glow:#4d84ff; --gold:#f2b632; --goldText:#f2b632;
+  --sheet:rgba(18,20,24,.86); --field1:#000; --field2:#000; --field3:#000; --blob1:#1d4fb8; --blob2:#6b4a0c; --blobO:.22;
+  --chip:rgba(255,255,255,.07); --chipLine:rgba(255,255,255,.08); --bar:rgba(255,255,255,.07);
+  --scrim:rgba(0,0,0,.35); --disc:rgba(22,26,32,.92); --discLine:rgba(255,255,255,.12); color-scheme:dark}
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden;-webkit-font-smoothing:antialiased}
+.app{position:relative;height:100%;max-width:460px;margin:0 auto;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+.field{position:absolute;inset:0;overflow:hidden;background:linear-gradient(160deg,var(--field1) 0%,var(--field2) 48%,var(--field3) 100%)}
+.field::before,.field::after{content:"";position:absolute;width:85%;aspect-ratio:1;border-radius:50%;filter:blur(90px);opacity:var(--blobO);animation:drift 38s ease-in-out infinite alternate}
+.field::before{background:var(--blob1);left:-28%;top:6%}
+.field::after{background:var(--blob2);right:-32%;bottom:16%;animation-duration:47s;animation-direction:alternate-reverse}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(16%,9%) scale(1.15)}}
+.grain{position:absolute;inset:0;pointer-events:none;opacity:.09;mix-blend-mode:overlay;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+/* edge light */
+.edge{position:absolute;inset:0;pointer-events:none;z-index:6;transition:box-shadow 1.4s ease}
+.edge.calm{box-shadow:inset 0 0 70px -42px var(--glow)}
+.edge.gold{box-shadow:inset 0 -80px 80px -50px var(--gold),inset 0 0 60px -42px var(--glow)}
+:root[data-theme="dark"] .edge.gold{box-shadow:inset 0 -64px 70px -52px var(--gold),inset 0 0 60px -44px var(--glow)}
+.edge.listen{box-shadow:inset 0 0 90px -34px var(--glow)}
+.edge.breathe{animation:breathe 9s ease-in-out infinite}
+.edge.think{animation:think 1.5s ease-in-out infinite}
+@keyframes breathe{0%,100%{opacity:.7}50%{opacity:1}}
+@keyframes think{0%,100%{box-shadow:inset 0 0 50px -36px var(--glow)}50%{box-shadow:inset 0 0 110px -30px var(--glow)}}
+/* top */
+.top{position:absolute;z-index:5;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:14px max(14px,env(safe-area-inset-right,0px)) 0 max(24px,env(safe-area-inset-left,0px));font:600 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ink3)}
+.iconBtn{width:44px;height:44px;border-radius:50%;border:0;background:none;color:var(--ink3);display:grid;place-items:center;cursor:pointer}
+.iconBtn svg{width:20px;height:20px;fill:currentColor}
+.themeBtn .sun,:root[data-theme="dark"] .themeBtn .moon{display:none}
+:root[data-theme="dark"] .themeBtn .sun{display:block}
+/* conversation */
+.convo{position:absolute;z-index:2;left:0;right:0;top:56px;bottom:98px;overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;padding:0 max(24px,env(safe-area-inset-right,0px)) 14px max(24px,env(safe-area-inset-left,0px))}
+.convo::-webkit-scrollbar{display:none}
+.spacer{flex:1 1 auto;min-height:40px}
+.voice{font-family:var(--voice);font-style:italic;font-weight:340;font-variation-settings:"SOFT" 50;letter-spacing:-.01em}
+.say{font-size:clamp(32px,9vw,40px);line-height:1.12;text-wrap:balance;transition:opacity .4s}
+.say .ln{display:block;animation:rise .9s cubic-bezier(.2,.7,.2,1) both}
+.say .ln+.ln{animation-delay:.16s}
+@keyframes rise{from{opacity:0;transform:translateY(10px);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+/* a decision waiting on you: the one glass card on the page */
+.card{margin-top:18px;padding:14px 16px 14px;border-radius:22px;background:var(--chip);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border:1px solid var(--chipLine);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 10px 28px -16px rgba(20,30,60,.25);max-height:280px;overflow:hidden;animation:rise .8s .3s cubic-bezier(.2,.7,.2,1) both;transition:opacity .3s,transform .3s,max-height .45s .12s cubic-bezier(.2,.7,.2,1),margin .45s .12s,padding .45s .12s}
+:root[data-theme="dark"] .card{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 10px 28px -16px #000}
+.card.gone{opacity:0;transform:scale(.97);max-height:0;margin-top:0;padding-top:0;padding-bottom:0;border-color:transparent}
+.why{display:flex;align-items:center;gap:8px;font:500 12px var(--ui);color:var(--ink3)}
+.why .d{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 28%,transparent)}
+.card .q{margin-top:7px;font:500 16px/1.42 var(--ui);color:var(--ink)}
+.decide{display:flex;gap:8px;margin-top:13px}
+.decide button{border:0;border-radius:999px;padding:10px 17px;font:600 14px var(--ui);cursor:pointer;color:var(--ink2);background:color-mix(in srgb,var(--ink) 7%,transparent);transition:transform .15s}
+.decide button:active{transform:scale(.96)}
+.decide .yes{background:var(--gold);color:#2b1d00;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 8px 18px -10px var(--gold)}
+/* today, as small glass chips that carry their app's icon */
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;animation:rise .8s .42s cubic-bezier(.2,.7,.2,1) both}
+.chip{--c:var(--ink3);border:1px solid var(--chipLine);background:var(--chip);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-radius:14px;padding:8px 12px 8px 10px;font:500 14px var(--ui);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:7px;text-align:left;transition:transform .15s}
+.chip:active{transform:scale(.97)}
+.chip .ic{width:17px;height:17px;fill:var(--c);flex:none}
+.chip small{color:var(--ink3);font-weight:400}
+.hint{margin-top:22px;display:flex;align-items:center;gap:8px;font:500 12px var(--ui);color:var(--ink3);transition:opacity .6s;animation:rise .8s .6s both}
+.hint i{width:14px;height:14px;border-radius:50%;border:1.5px solid currentColor;opacity:.7}
+.hint.gone{animation:none;opacity:0}
+/* the conversation */
+.turn{margin-top:22px;display:flex;flex-direction:column;gap:8px;animation:rise .5s cubic-bezier(.2,.7,.2,1) both}
+.you{align-self:flex-end;max-width:80%;font:400 15px/1.4 var(--ui);color:var(--ink);background:var(--chip);border:1px solid var(--chipLine);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);padding:9px 14px;border-radius:19px 19px 6px 19px}
+.reply{font-size:20px;line-height:1.4}
+.turn .chip{align-self:flex-start;opacity:0;transition:opacity .4s}
+.turn .chip.in{opacity:1}
+/* ask bar: liquid glass pill; the mic turns into send when you type */
+.ask{position:absolute;z-index:7;padding-left:7px!important;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(24px + env(safe-area-inset-bottom,0px));height:54px;border-radius:27px;background:var(--bar);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);border:1px solid rgba(255,255,255,.65);box-shadow:inset 0 1px 1px rgba(255,255,255,.9),0 12px 30px -16px rgba(20,30,60,.3);display:flex;align-items:center;gap:6px;padding:0 6px 0 20px}
+:root[data-theme="dark"] .ask{border-color:rgba(255,255,255,.12);box-shadow:inset 0 1px 1px rgba(255,255,255,.1),0 12px 30px -16px #000}
+.ask input{flex:1;min-width:0;border:0;background:none;outline:none;font:400 16px var(--ui);color:var(--ink)}
+.ask input::placeholder{color:var(--ink3)}
+.btns{position:relative;width:42px;height:42px;flex:none}
+.btns button{position:absolute;inset:0;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;transition:transform .22s cubic-bezier(.34,1.45,.64,1),opacity .15s,background .2s,color .2s}
+.btns svg{width:20px;height:20px;fill:currentColor}
+.mic{background:none;color:var(--ink2)}
+.send{background:var(--accent);color:#fff;opacity:0;transform:scale(.5);pointer-events:none}
+.ask.typing .send{opacity:1;transform:scale(1);pointer-events:auto}
+.ask.typing .mic{opacity:0;transform:scale(.5);pointer-events:none}
+.ask.listening .mic{background:var(--accent);color:#fff}
+.ask.listening input::placeholder{color:var(--accent)}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/* compass: tight ring around the finger */
+.scrim{position:absolute;inset:0;z-index:8;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity .16s}
+.scrim.show{opacity:1}
+.ring{position:absolute;z-index:9;width:0;height:0;pointer-events:none}
+.ring .pet{--c:var(--accent);position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;display:grid;place-items:center;color:var(--c);
+  background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.75),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 22%,transparent),transparent 70%),color-mix(in srgb,var(--disc) 45%,transparent);
+  backdrop-filter:blur(14px) saturate(1.8);-webkit-backdrop-filter:blur(14px) saturate(1.8);
+  border:1px solid rgba(255,255,255,.65);
+  box-shadow:inset 0 1.5px 1px rgba(255,255,255,.95),inset 0 -6px 12px color-mix(in srgb,var(--c) 18%,transparent),inset 0 0 0 .5px color-mix(in srgb,var(--c) 25%,transparent),0 10px 26px rgba(20,30,60,.18);
+  opacity:0;transform:translate(0,0) scale(.2);transition:transform .28s cubic-bezier(.34,1.45,.64,1),opacity .12s,background .14s,color .14s,box-shadow .14s;transition-delay:calc(var(--i)*14ms)}
+:root[data-theme="dark"] .ring .pet{border-color:rgba(255,255,255,.18);background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.22),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 30%,transparent),transparent 70%),rgba(255,255,255,.05);box-shadow:inset 0 1.5px 1px rgba(255,255,255,.35),inset 0 -6px 12px color-mix(in srgb,var(--c) 25%,transparent),0 10px 26px rgba(0,0,0,.5)}
+.ring .pet svg.ph{fill:currentColor;stroke:none}
+.ring .pet svg{width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 0 rgba(255,255,255,.5))}
+.ring.show .pet{opacity:1}
+.ring.closing .pet{transition:transform .14s cubic-bezier(.4,0,1,1),opacity .14s;transition-delay:0ms}
+.ring.active .pet:not(.on){opacity:.4}
+.ring .pet.on{color:#fff;border-color:rgba(255,255,255,.5);background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.55),rgba(255,255,255,0) 50%),color-mix(in srgb,var(--c) 88%,transparent);box-shadow:inset 0 1.5px 1px rgba(255,255,255,.8),inset 0 -8px 14px rgba(0,0,0,.12),0 0 0 6px color-mix(in srgb,var(--c) 20%,transparent),0 12px 28px color-mix(in srgb,var(--c) 40%,transparent)}
+.ring .pet.on svg{filter:none}
+.ring .pet.go{transition:transform .22s cubic-bezier(.2,0,0,1),opacity .22s;opacity:0!important}
+.ring .hub{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--ink);opacity:0;transform:translate(0,0);transition:opacity .12s,transform .09s ease-out}
+.ring.show .hub{opacity:.28}
+.ring .lbl{position:absolute;left:0;top:0;transform:translate(-50%,0);white-space:nowrap;font:600 13px var(--ui);color:var(--ink);opacity:0;transition:opacity .1s;padding:5px 10px;border-radius:10px;background:var(--disc);border:1px solid var(--discLine)}
+.ring .lbl.show{opacity:1}
+.press{position:absolute;z-index:9;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:1.5px solid var(--ink3);opacity:0;pointer-events:none}
+.press.on{animation:press .22s cubic-bezier(.2,0,0,1) forwards}
+@keyframes press{from{opacity:.0;transform:scale(.4)}to{opacity:.55;transform:scale(2.2)}}
+.toast{position:absolute;z-index:14;left:50%;top:calc(58px + env(safe-area-inset-top,0px));transform:translate(-50%,-8px);opacity:0;transition:.25s;padding:9px 14px;border-radius:12px;font:500 14px var(--ui);color:var(--ink);background:var(--disc);border:1px solid var(--discLine);white-space:nowrap}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* three places: briefing (swipe right) <- home -> menu (swipe left) */
+.app{touch-action:pan-y}
+.page{position:absolute;inset:0;transition:transform .42s cubic-bezier(.2,.8,.2,1);will-change:transform}
+.home{z-index:2}
+.brief{z-index:2;transform:translateX(-100%);overflow-y:auto;scrollbar-width:none;padding:calc(18px + env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) 40px max(18px,env(safe-area-inset-left,0px))}
+.brief::-webkit-scrollbar,.side::-webkit-scrollbar{display:none}
+.bhead{font:600 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);padding:0 6px}
+.btitle{font-size:34px;line-height:1.12;margin:16px 6px 20px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{--c:var(--ink3);border-radius:22px;padding:14px 15px;background:var(--chip);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border:1px solid var(--chipLine);box-shadow:inset 0 1px 0 rgba(255,255,255,.7);display:flex;flex-direction:column;gap:5px;text-align:left;font:inherit;color:inherit;cursor:pointer}
+:root[data-theme="dark"] .tile{box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
+.tile.wide{grid-column:1/-1}
+.tile .k{display:flex;align-items:center;gap:7px;font:600 12px var(--ui);color:var(--c)}
+.tile .k svg{width:16px;height:16px;fill:currentColor}
+.tile .big{font:500 30px/1.05 var(--ui);letter-spacing:-.02em;color:var(--ink);margin-top:2px}
+.tile .v{font:500 15px/1.35 var(--ui);color:var(--ink)}
+.tile .s{font:400 13px/1.4 var(--ui);color:var(--ink3)}
+.tile.gold,:root[data-theme="dark"] .tile.gold{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 50%,transparent)}
+.bnote{font:500 12px var(--ui);color:var(--ink3);margin-top:18px;text-align:center}
+.dim{position:absolute;inset:0;z-index:11;background:rgba(10,14,22,.3);opacity:0;pointer-events:none;transition:opacity .42s}
+.side{position:absolute;z-index:12;top:0;bottom:0;right:0;width:min(84%,360px);transform:translateX(100%);transition:transform .42s cubic-bezier(.2,.8,.2,1);background:var(--sheet);backdrop-filter:blur(28px) saturate(1.6);-webkit-backdrop-filter:blur(28px) saturate(1.6);border-left:1px solid var(--chipLine);overflow-y:auto;scrollbar-width:none;padding:calc(16px + env(safe-area-inset-top,0px)) 14px calc(24px + env(safe-area-inset-bottom,0px))}
+.side.open{box-shadow:-24px 0 50px -24px rgba(10,20,40,.35)}
+.search{display:flex;align-items:center;gap:9px;height:42px;border-radius:21px;padding:0 14px;background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink3);font:400 15px var(--ui)}
+.search svg{width:18px;height:18px;fill:currentColor}
+.sh{font:600 11px var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--ink3);margin:24px 8px 2px}
+.sh small{display:block;text-transform:none;letter-spacing:0;font-weight:400;font-size:12px;margin-top:4px;line-height:1.4}
+.grp{font:500 12px var(--ui);color:var(--ink3);margin:14px 8px 2px}
+.row{--c:var(--ink3);display:flex;align-items:center;gap:11px;width:100%;border:0;background:none;padding:10px 8px;border-radius:12px;font:500 15px var(--ui);color:var(--ink);text-align:left;cursor:pointer}
+.row:hover,.row.cur{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.row>svg{width:18px;height:18px;fill:var(--c);flex:none}
+.row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row small{color:var(--ink3);font-weight:400;font-size:12px;white-space:nowrap}
+.row .go{width:14px;height:14px;fill:var(--ink3)}
+.seg{display:flex;padding:3px;border-radius:12px;background:color-mix(in srgb,var(--ink) 6%,transparent);margin:6px 8px 4px}
+.seg button{flex:1;border:0;background:none;padding:8px 0;border-radius:9px;font:500 13px var(--ui);color:var(--ink2);cursor:pointer}
+.seg button.on{background:var(--disc);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
+/* + : the options sheet folds up from the ask bar */
+.plusBtn{flex:none;width:40px;height:40px;border-radius:50%;border:0;background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink2);display:grid;place-items:center;cursor:pointer;transition:transform .32s cubic-bezier(.34,1.45,.64,1)}
+.plusBtn svg{width:20px;height:20px;fill:currentColor}
+.ask.menu .plusBtn{transform:rotate(45deg)}
+.opts{position:absolute;z-index:8;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));min-width:220px;display:flex;flex-direction:column;gap:2px;padding:8px;border-radius:26px;background:var(--sheet);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);border:1px solid var(--chipLine);box-shadow:0 24px 50px -22px rgba(10,20,40,.4);transform-origin:24px 100%;transform:translateY(16px) scale(.5);opacity:0;pointer-events:none;transition:transform .34s cubic-bezier(.34,1.3,.64,1),opacity .18s}
+.opts.show{transform:none;opacity:1;pointer-events:auto}
+.convo{transition:filter .3s,opacity .3s}
+.home.menuOpen .convo{filter:blur(8px);opacity:.3}
+.opts button{--c:var(--accent);display:flex;align-items:center;gap:12px;border:0;background:none;padding:8px 14px 8px 8px;border-radius:16px;font:500 16px var(--ui);color:var(--ink);cursor:pointer;text-align:left;opacity:0;transform:translateY(10px);transition:opacity .2s,transform .32s cubic-bezier(.2,.8,.2,1)}
+.opts.show button{opacity:1;transform:none;transition-delay:calc((6 - var(--i))*28ms)}
+.opts button:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.opts .oi{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c)}
+.opts .oi svg{width:19px;height:19px;fill:currentColor}
+/* an older conversation reopened from the menu */
+.past{align-self:flex-start;display:flex;align-items:center;gap:10px;margin:0 0 4px;padding:5px 5px 5px 12px;border-radius:999px;background:var(--chip);border:1px solid var(--chipLine);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);font:500 13px var(--ui);color:var(--ink2)}
+.past span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.past{max-width:100%}
+.past button{white-space:nowrap;flex:none;border:0;background:var(--accent);color:#fff;border-radius:999px;padding:6px 12px;font:600 12px var(--ui);cursor:pointer}
+.turns .turn:first-child{margin-top:8px}
+@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.field::before,.field::after,.say .ln,.card,.chips,.hint,.turn{animation:none}.edge.breathe,.edge.think{animation:none}.ring .pet,.scrim,.toast{transition:none}}

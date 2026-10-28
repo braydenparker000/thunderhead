@@ -1,0 +1,68 @@
+# Every push to main: test, publish the site, check it live. If the live check fails,
+# the previous live commit goes back up on its own and the run is marked failed.
+# To roll back by hand: Actions > Deploy > Run workflow, with the commit to put live.
+name: Deploy
+run-name: Deploy ${{ inputs.ref || github.sha }}
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit to put live (leave empty for the tip of main)
+        type: string
+        required: false
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: deploy-site
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: ${{ vars.AZURE_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      AZURE_STORAGE_ACCOUNT: ${{ vars.AZURE_STORAGE_ACCOUNT }}
+      SITE_URL: ${{ vars.SITE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Test before publishing
+        env:
+          SITE_URL: ''
+        run: npm test
+      - name: Note what is live now
+        id: before
+        run: |
+          prev="$(curl -fsS "${SITE_URL%/}/release.json" 2>/dev/null | sed -n 's/.*"commit":"\([0-9a-f]\{40\}\)".*/\1/p' || true)"
+          echo "commit=$prev" >> "$GITHUB_OUTPUT"
+          echo "live before: ${prev:-nothing}"
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Publish
+        id: publish
+        run: scripts/deploy.sh "$(git rev-parse HEAD)"
+      - name: Check the live site in Chromium
+        run: node --test tests/home-browser.test.mjs
+      - name: Roll back to the previous live commit
+        if: ${{ failure() && steps.publish.outcome != 'skipped' && steps.before.outputs.commit != '' }}
+        run: |
+          git checkout "${{ steps.before.outputs.commit }}" -- frontend
+          scripts/deploy.sh "${{ steps.before.outputs.commit }}"
+      - name: Sign out
+        if: ${{ always() }}
+        run: az logout || true
