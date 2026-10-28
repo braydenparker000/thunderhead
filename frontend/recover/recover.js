@@ -126,9 +126,12 @@ async function startReset() {
     $('#gh-links').hidden = false;
   }
   if (!configured) { $('#rstate').textContent = "Sign-in isn't switched on for this site yet."; return; }
+  // Every 30 s while the page is in view; one timer only, restarted when it comes back.
+  let timer = 0;
   const check = async () => {
+    clearTimeout(timer);
     try { showResetState(await api.resetState(resetFp)); } catch {}
-    if (!document.hidden) setTimeout(check, POLL_MS);
+    if (!document.hidden) timer = setTimeout(check, POLL_MS);
   };
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
   check();
