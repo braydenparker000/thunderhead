@@ -1,0 +1,17 @@
+{
+  // Type-checks the frontend's JSDoc against shared/contract (decision X5). No emit, no build:
+  // the browser runs frontend/ as written. The backend has its own tsconfig in backend/.
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "target": "es2024",
+    "module": "es2022",
+    "moduleResolution": "bundler",
+    "lib": ["es2024", "dom", "dom.iterable"],
+    "types": [],
+    "skipLibCheck": true
+  },
+  "include": ["frontend/th/**/*.js", "shared/**/*.ts"]
+}

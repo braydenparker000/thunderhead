@@ -1,0 +1,1 @@
+{ "extends": "../../tsconfig.json", "include": ["contract-drift.js"] }

@@ -1,0 +1,13 @@
+# Local secrets for `npm run dev` (wrangler dev, local workerd only). Copy to .dev.vars, which
+# git ignores (and the repo's credential scan skips). Throwaway local values only; production
+# secrets are made inside the deploy run or by the auth-setup/auth-reset workflows, never in a
+# file or a Claude session.
+#
+# Make a key:        node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
+# Setup fingerprint: node -e "const c='<25 Crockford characters>';console.log('thfp_'+require('crypto').createHash('sha256').update(c).digest('base64url'))"
+AUTH_PEPPER=local-dev-pepper-change-me
+IP_HASH_KEY=local-dev-ip-hash-key-change-me
+AUTH_SETUP_FP=<fingerprint of your local setup code, or none>
+AUTH_RESET_FP=none
+AUTH_HIBP=off
+SITE_ORIGINS=http://127.0.0.1:8080

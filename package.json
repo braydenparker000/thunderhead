@@ -2,15 +2,22 @@
   "name": "thunderhead",
   "private": true,
   "type": "module",
-  "description": "The Thunderhead: one personal app. Static site in frontend/, tests in tests/.",
+  "description": "The Thunderhead: one personal app. Site in frontend/, Worker in backend/, API types in shared/.",
   "scripts": {
-    "test": "node --test tests/*.test.mjs",
-    "serve": "node scripts/serve.mjs"
+    "test": "node --test tests/*.test.mjs && npm test -w backend",
+    "test:site": "node --test tests/*.test.mjs",
+    "test:backend": "npm test -w backend",
+    "serve": "node scripts/serve.mjs",
+    "dev": "npm run dev -w backend"
   },
   "devDependencies": {
-    "playwright": "1.56.1"
+    "playwright": "1.56.1",
+    "typescript": "5.9.3"
   },
   "engines": {
     "node": ">=22"
-  }
+  },
+  "workspaces": [
+    "backend"
+  ]
 }
