@@ -138,7 +138,7 @@ Any logic without DOM lives in its own module and has a `node --test` next to it
 | `cors` | The allowed origin gets the exact headers; a foreign origin gets 403 |
 | `live` | Ticket single-use; a `changed` frame per commit; `ping` → `pong` without a DO wake (checked by counting `webSocketMessage` calls) |
 | `live-wait` | Returns within 100 ms of a change; returns `changed:false` at the timeout (fake timers in the Worker only) |
-| `taint-and-proposals` | Injection-style inputs (§12.1) create zero facts, rules, verbs or proposals; `decide` needs a device principal and the right `spec_hash` |
+| `taint-and-proposals` | Injection-style inputs (§12.1) create zero facts, rules, verbs or proposals; `decide` needs a device principal (tap) or `mind:chat` citing a qualifying owner-device message (`by_message`, DEC-2), and the right `spec_hash` |
 | `memory-rules` | Each rule reason in [API.md §11.13](API.md#1113-memory) has a failing and a passing case |
 | `day-roll` | With a fake clock: no roll at 04:00 if a message came at 03:30; roll at 04:30 after 60 quiet minutes; a new daily thread on the next message |
 | `watchdogs` | Each watchdog trips once and repeats only after clearing ([OPERATIONS.md §8.2](OPERATIONS.md#82-watchdogs-coretick-every-15-min)) |

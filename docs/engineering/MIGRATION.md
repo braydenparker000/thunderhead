@@ -106,7 +106,7 @@ Worker requests, 100,000 Durable Object rows written, 5M rows read. Imports are 
 | Caller | Routes it uses | Switches when |
 |---|---|---|
 | Old site pages: Chats | `/claude-chat/*`, `/relay/owner/*` (sign-in, Muse line) | The owner uses the new Home daily (P2–P3) |
-| Old site: Daily Board reader | `/shared/state`, `/shared/board-draft` | The Board (still produced by Muse) shows in the Briefing (P8) |
+| Old site: Daily Board reader | `/shared/state`, `/shared/board-draft` | The Board (still produced by Muse) shows in the Briefing (P4, when Muse moves to work orders; [MUSE](../mind/MUSE.md) §8) |
 | Old site **and the ported page on the new site** (P1b): Music player | `/music/*` (library, audio, partial reads) | P5 |
 | Old site and ported page: Podcasts | `/podcasts/search`, `/browse`, `/feed`, `/audio` (proxy) | P8 |
 | Old site and ported page: Guitar | `/guitar/*` (tab sources, Songsterr and search proxy) | P6 |
@@ -157,7 +157,7 @@ All imports are chunked, resumable, idempotent upsert jobs on the target Durable
 |---|---|---|---|
 | I1 | Threads | `cc_threads` → `threads` with `kind='imported'`, `filed_at` = last message time, original title kept, `day` from the first message in owner-local time | trim, ms timestamps |
 | I2 | Messages | `cc_messages` → `messages` (role `owner`/`mind`; old Claude replies → `mind`), body unchanged, attachments rewritten to `thunderhead-private/chat/files/…` refs | body byte-equal |
-| I3 | Notebook | `cc_state['notebook']` → `import_items(dataset='notebook', key, body_json)` raw ([DATA.md §4.4](DATA.md#44-memory)); the mind converts it once into facts (each fact cites `import:<id>` as evidence, source `user`) ([MEMORY](../mind/MEMORY.md)) | body byte-equal |
+| I3 | Notebook | `cc_state['notebook']` → `import_items(dataset='notebook', key, body_json)` raw ([DATA.md §4.4](DATA.md#44-memory)); the mind converts it once into facts as [MEMORY](../mind/MEMORY.md) §14 says (`source=user` only when an imported owner message supports the line; otherwise `inferred`, tag `imported`, citing `import:<id>`, for the owner to review) ([MEMORY](../mind/MEMORY.md)) | body byte-equal |
 | I4 | Muse | `relay_mast_entries` → one `muse` thread's messages; `relay_mast_work` + `_events` → `work_orders` with `status` `done`/`expired`, `result_valid` NULL; `relay_mast_files` → file refs, bytes copied | ids, bodies |
 | I5 | Board | each edition (v1 and v2 JSON) → `thunderhead-private/board/<date>.json` + `Core.board(date, r2_key, top_line)`; profile and draft → `settings` | edition JSON deep-equal |
 | I6 | Chat files | copy job `jarvis-music/chat/files/*` → `thunderhead-private/chat/files/*` (R2 to R2 inside the Worker), verifying size and ETag | size + ETag |
@@ -294,7 +294,7 @@ for 3 consecutive days.
 | 3 | **Muse** | New address + a new Muse token (work orders, Board publish) | A written brief to Muse (reaching another agent is not "reaching people", but the brief is shown to the owner first); 7 days of overlap where the old `/relay/mast/*` still answers. | P4 |
 | 4 | **Upload tools** | `/v1/music/uploads/*` with new signing keys | Change the tools' host and keys; one canary upload; verify the track appears in the new catalog. | P5 |
 | 5 | **Each ported app's data move** | `thunderhead-api` | The new Worker gains the app's routes ([API.md §11.21](API.md#1121-app-routes-later-phases)); the app's server data is imported (old export + the raw phone copy, §5.3); the ported page's API address and CSP `connect-src` swap the old Worker host for `thunderhead-api` (an app sharing `/assets/config.js` first gets its own copy); its requests carry the new session token. Done when the ported page makes zero old-Worker calls for 3 days. | Music P5, Guitar P6, Astra, Podcasts, My Media P8 |
-| 6 | **Old pages one by one** | — | Each old page is retired when its app's data has moved and the new copy has been used for 7 days: Music (P5), Guitar (P6), Board, Astra, Podcasts, My Media (P8). | P5–P8 |
+| 6 | **Old pages one by one** | — | Each old page is retired when its app's data has moved and the new copy has been used for 7 days: Music (P5), Guitar (P6), Astra, Podcasts, My Media (P8); the old Board reader 7 days after the Board shows in the Briefing (P4). | P5–P8 |
 | 7 | **The hourly Drive catalog job** (old repo `publish-drive-catalog.yml`) | none | Disable the workflow when the ported player has switched to the new Worker and the old Music page retires (P5). It feeds only the old Worker's player catalog. | P5 |
 
 Settled (decisions 2026-10-28, ROADMAP P4): P4 switches only `jc` and Muse ("the chat CLI and Muse
@@ -305,7 +305,7 @@ retirement gate in §8 falls **after P8**.
 
 ## 8. Retiring the old Worker
 
-**Gate:** zero requests to the old Worker for **7 consecutive days**, then an owner tap.
+**Gate:** zero requests to the old Worker for **7 consecutive days**, then the owner's approval (a tap or their own words).
 
 | Step | Exact rule | Ask first? |
 |---|---|---|
@@ -324,7 +324,7 @@ The two exports stay in `thunderhead-private/imports/old/` for good (included in
 ## 9. Old repo clean-up (ask-first proposal)
 
 The old repo is **public**. It contains material that must not be public. This section is the exact
-proposal; nothing here is done without the owner's tap.
+proposal; nothing here is done without the owner's approval (a device tap or their own words).
 
 ### 9.1 Files to remove from the old repo
 
@@ -346,7 +346,7 @@ new site is an owner decision before P1b (open question 9).
 
 ### 9.2 How, without breaking the old site the owner still uses
 
-1. One commit on a branch in the old repo removes the files; merged by the agent after the owner's tap.
+1. One commit on a branch in the old repo removes the files; merged by the agent after the owner's approval (tap or own words).
 2. **The old site is not redeployed in full afterwards** (a full deploy would drop the player's model and
    fonts and break the old Music page before P5). Until the old Music page retires, only partial
    publishes (the export page, the "Moved" banner) are allowed. A guard in the old repo's deploy workflow
@@ -405,7 +405,7 @@ when its phase moves. Ask-first steps are marked **[ask]**.
 | P5 + 7 days | Old Music page retired ("Moved" banner, partial publish **[ask]**); commercial fonts and APK model deleted from the old storage account **[ask]** | Old player unused 7 days |
 | After P5 hourly job off | Make the old repo private **[ask]** | `private: true` |
 | P6 | Ported Guitar switched to the new Worker (Songsterr stays); old Guitar page retired | Zero old-Worker calls from `/guitar/` for 3 days; old page 7 days unused |
-| P8 (≈ early 2027) | Ported Astra, Podcasts and My Media switched; old Board, Astra, Podcasts, My Media pages retired | Zero old-Worker calls from ported pages; old pages 7 days unused each |
+| P8 (≈ early 2027) | Ported Astra, Podcasts and My Media switched; old Astra, Podcasts, My Media pages retired (the old Board reader went in P4 + 7 days) | Zero old-Worker calls from ported pages; old pages 7 days unused each |
 | P8 + 7 days | Zero callers for 7 days → export #2 → retirement proposal **[ask]** → gone mode (14 days) | Proposal approved |
 | Gone mode + 14 days | Delete the old Worker and its storage **[ask]**; remove the old federated credential **[ask]**; propose deleting `jarvis-music/chat/files/` originals **[ask]** | Worker absent in the dashboard |
 | Later | Delete the old storage account **[ask]**; archive the old repo | Old origin gone |

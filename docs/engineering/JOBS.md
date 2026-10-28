@@ -209,7 +209,7 @@ Acceptance: each kind has a vitest test that runs it to completion across at lea
 
 ## 5. PDF extraction in the mind's session (P7)
 
-The text of the owner's study PDFs is personal. That includes the owner's licensed copies of the canon scriptures, which are stored privately in `thunderhead-private` like any book (owner ruling 2026-10-27); talks are not stored, only cited with a link. It is extracted only inside a Claude cloud session, never in Actions.
+The text of the owner's study PDFs is personal. That includes the owner's licensed copies of the canon scriptures, which are stored privately in `thunderhead-private` like any book (owner ruling 2026-10-27); talks are not stored, only cited with a link. It is extracted only inside a Claude cloud session, never in Actions. [STUDY.md](../product/apps/STUDY.md) §2–§3 owns the file key (`books/<book_id>.pdf`), the tools (pypdf, pdfplumber, Tesseract OCR) and the steps; where the list below differs, STUDY.md wins.
 
 1. The owner adds a PDF in Study. The phone uploads it with `PUT /v1/files/:id` (or the Library upload route in [STUDY.md](../product/apps/STUDY.md)), and the Worker stores it as `thunderhead-private/books/<sha256>.pdf` with a `books` row (`ingested_at = NULL`).
 2. `mind-night` finds books with `ingested_at IS NULL` in its briefing, gets a presigned URL from `POST /v1/media/sign {refs:['book:<id>']}`, and downloads the file into `$TMPDIR`.
@@ -232,4 +232,4 @@ Acceptance: a mind test runs `pdf-extract.mjs` on a synthetic 3-page PDF generat
 | J3 | Does the R2 lifecycle rule cost nothing on this account? | Owner checks the bucket settings |
 | J4 | DO CPU per invocation on Free (X3), which fixes the step sizes | Preview bench |
 | J5 | FTS5 rows written per 300-word page (D3) | Local workerd measurement |
-| J6 | Earlier plans allowed sha256 keys in public logs; this page, PRIVACY.md §6 and ARCHITECTURE.md agree on the stricter rule (no hashes at all; the spec travels by `GET /v1/jobs/:id/spec`). | Proposed as a decisions.md line (night CROSS-DOC-FIXES) |
+| J6 | Earlier plans allowed sha256 keys in public logs; this page, PRIVACY.md §6 and ARCHITECTURE.md agree on the stricter rule (no hashes at all; the spec travels by `GET /v1/jobs/:id/spec`). | Settled: decisions.md 2026-10-28 |

@@ -73,7 +73,7 @@ One thread per day (decisions.md). The prototype showed two "Today" rows (topics
 
 ### 3.2 Titles and icons
 
-1. At the day roll the Worker gives the old thread a **provisional title** from its first and last 10 messages (a small free model).
+1. At the day roll the Worker gives the old thread a **provisional title**: the first owner message trimmed to 40 characters at a word boundary ([MEMORY](../mind/MEMORY.md) §11; Workers AI titles are deferred).
 2. The night shift rewrites it as the **final title**, unless the owner renamed it.
 3. Titles are ≤ **40** characters, sentence case, no date, no quotes ("A calm playlist for the evening", "Bars 9 to 12, slow then up to tempo").
 4. The row's icon and colour are those of the app the thread was mostly about (from its action chips and senses); a general thread uses `chat-circle` in `--ink-3` [proposal].
@@ -209,7 +209,7 @@ Agent tokens let the mind's sessions and helper agents call the Worker (decision
 
 | Element | Behaviour |
 |---|---|
-| List | Name, role (chat, night, reflex, helper), created, last used |
+| List | Name, role (chat, night, reflex, Muse, CI; [SIGN-IN](SIGN-IN.md) §17), created, last used |
 | **New token** | Pick a role, confirm (access change). The token is shown **once** with a Copy button and the line "This shows once. Paste it where it's needed, then close this." |
 | **Revoke** | Confirm sheet; effective at once |
 

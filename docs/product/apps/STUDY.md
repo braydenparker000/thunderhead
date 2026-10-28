@@ -24,11 +24,11 @@ Ring colour `#2e9e5b`, icon Phosphor `book-bookmark`, route `/study/`, phase **P
    revelation or the owner's leaders' decisions (Law 8, [CONSTITUTION](../../mind/CONSTITUTION.md)).
 7. **Book text is outside content.** It can be cited in an answer but can never become a fact, a rule
    or a memory ([MEMORY](../../mind/MEMORY.md), taint rule).
-8. **Streaks are information, never pressure.** No streak warnings, no pushes about studying, a missed
+8. **Study days are information, never pressure.** No streaks or consecutive-day counters (GROW-1, [IDEAS](../../process/IDEAS.md) A1), no pushes about studying, a missed
    day resets silently.
 9. **Offline works for kept books.** A book kept on the phone (OPFS) opens, scrolls, highlights and
    searches its own pages with no network.
-10. **Nothing in Study is deleted without an owner tap.** Deleting a book is an ask-first proposal.
+10. **Nothing in Study is deleted without the owner's approval (a tap or their own words).** Deleting a book is an ask-first proposal.
 
 ---
 
@@ -518,11 +518,11 @@ Every surface shows its "why" (Law 3).
   activity or when Study is hidden for 10 minutes. It counts when `active_ms ≥ 5 min`.
 - **Study day:** an owner-local day (rolled with the day roll, [GLOSSARY](../GLOSSARY.md)) with at least
   one counting session.
-- **Streak:** consecutive study days ending today or yesterday. Computed in the Worker from `Senses`
+- **Week count:** study days in the current week (Monday start). Computed in the Worker from `Senses`
   rollups, never stored as a counter.
-- Shown: the Briefing tile says "Studied 4 days in a row" only when the streak is ≥ 2; otherwise
+- Shown: the Briefing tile says "Studied 4 days this week" when the week count is ≥ 2; otherwise
   "Last studied: Tuesday, p. 212". No streak text ever mentions losing it.
-- Settings → Study → **Show streaks** (on by default) **[proposal]**.
+- Settings → Study → **Show study days** (on by default) **[proposal]**.
 
 Check: unit tests over synthetic event streams (gap of 9 vs 11 minutes; 4 vs 6 minutes active;
 a day crossing the 04:00 roll).

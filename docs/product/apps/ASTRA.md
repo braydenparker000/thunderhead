@@ -136,9 +136,9 @@ event and no string containing `http`.
 
 | Field | Rule |
 |---|---|
-| Args | `{ref: "astra:<type>:<id>", season?: int, episode?: int}` — validated with a strict schema (unknown keys rejected by the Worker *and* by `verbs.js`). There is no argument for a stream, URL, add-on or quality, so a stream cannot be named. |
+| Args | `{ref: "astra:<type>:<id>", season?: int, episode?: int, max_mb?: int}` (`max_mb` only pre-sets the Streams size filter, F48) — validated with a strict schema (unknown keys rejected by the Worker *and* by `verbs.js`). There is no argument for a stream, URL, add-on or quality, so a stream cannot be named. |
 | Effect | If the shell is visible and the owner asked for something to watch in the last 10 minutes, navigate to `/astra/?open=…` (Details). Otherwise create the surface card "Ready in Astra: <title>" on Home's conversation with **Open**. |
-| Example (owner ruling 2026-10-27) | "An anime I'd like, 20 min, under 200 MB": the mind uses the owner's past favourites to pick a fitting title from the add-ons' catalogs and opens it in Astra; the owner picks the stream. Needs §2 rows 12–13, so it arrives after the port, once the owner agrees. |
+| Example (owner ruling 2026-10-27) | "An anime I'd like, 20 min, under 200 MB": the mind uses the owner's past favourites to pick a fitting title from the add-ons' catalogs and opens it in Astra; the owner picks the stream. The size limit travels as a hint: `/astra/?open=…&max_mb=200` turns on a removable "Under 200 MB" filter on Streams that hides results whose known size is larger; it never ranks, picks or plays **[proposal]**. Needs §2 rows 12–13, so it arrives after the port, once the owner agrees. |
 | Never | Opens Streams, starts the player, or resolves a debrid link. |
 | Undo | `{verb: "astra.close"}` (returns to the previous screen). |
 | Ledger | "Opened <title> in Astra — you asked for something under 25 minutes." (Law 3: the why). |

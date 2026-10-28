@@ -108,7 +108,7 @@ Top to bottom:
 2. **Continue** button (filled, Guitar accent): opens the reader on the first planned block, loop
    and speed already set.
 3. Plan blocks for today (max 4): section name, bars, target BPM, minutes. Tap = open that block.
-4. This week: 7 day dots (filled when ≥ 1 minute practised), total minutes, streak count.
+4. This week: 7 day dots (filled when ≥ 1 minute practised) and total minutes; no streak count (GROW-1).
 5. Recent songs (max 6).
 
 With no plan (teacher off or no songs): Continue opens the last song at its last bar.
@@ -443,7 +443,7 @@ while playing or with a touch, scroll or key in the last 90 s (harvested), and o
 | `guitar.margin` | Tips per bar range (§6.2) |
 | `guitar.plan` | This week's plan and today's voice line (§6.3) |
 | `guitar.section` | Proposed sections |
-| `briefing.practice` | One line for the Briefing: "Practice: second section at 84 · 25 min" plus the streak |
+| `briefing.practice` | One line for the Briefing: "Practice: second section at 84 · 25 min" (no streak, GROW-1) |
 
 ---
 
@@ -498,7 +498,7 @@ From the old origin's localStorage `jarvis.guitar.v2` via the old site's `/expor
 |---|---|---|
 | `songs[key]` title, artist, status, star, added, opened | Song record | Kept; source marked `imported` |
 | `bar`, `loop` (bar indices), `speed`, `best` | Song record | Kept; loops shown once a tab file is attached |
-| `seconds` per song, `log[day].total` and per-song seconds | Practice history (`imported` rows) | Shown in history and streaks; not re-emitted as senses |
+| `seconds` per song, `log[day].total` and per-song seconds | Practice history (`imported` rows) | Shown in history and the week's day dots; not re-emitted as senses |
 | `prefs` (instrument, tone, reverb, click volume, count-in, latency, tab scale, trainer) | Prefs | `latency` becomes the cursor offset; trainer step/target become ladder step/target |
 | `searches` | Not imported | — |
 | Saved tab copies (Cache Storage `jarvis-guitar-v1`) | Not moved | Songsterr is permitted (§11): they re-fetch from Songsterr by song id on first open |

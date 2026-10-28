@@ -466,7 +466,7 @@ The owner says "off the record", and until they say "back on the record" (or 2 h
 | On | Saying "off the record", or Settings → Privacy → Off the record now. First use only: an explanation card with **Turn on**: "I'll still read and answer these messages. They won't become memories, won't appear in search or day notes, and will be deleted in 7 days." |
 | While on | Edge light shifts to a dimmer, cooler calm; one small Inter line above the ask bar: "Off the record · End". Messages stored with `record=0`. |
 | Off | "Back on the record", **End**, 2 h without a message, or the day roll. |
-| Exclusions (Worker-enforced) | No FTS rows. Facts and open threads citing a `record=0` message are refused (`400`, code `off_record_evidence`). Day and session notes may only say "Off the record: N messages". No embeddings. Later sessions' briefings omit these messages; the live session sees them (it must, to reply). |
+| Exclusions (Worker-enforced) | No FTS rows. Facts and open threads citing a `record=0` message are refused (`422`, code `off_record_evidence`). Day and session notes may only say "Off the record: N messages". No embeddings. Later sessions' briefings omit these messages; the live session sees them (it must, to reply). |
 | Deletion | 7 days after the mode ends, a chunked DO alarm job hard-deletes the `record=0` messages; the ledger keeps a content-free tombstone (count and time range). The first-use approval is the owner's approval for this `delete` class action. |
 | Honest limits | Stated on the card: the messages pass through the Claude session like all chat; ledger rows for actions taken (e.g., a queued song) remain, with a generic why. |
 

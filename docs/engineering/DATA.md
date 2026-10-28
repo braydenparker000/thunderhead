@@ -96,7 +96,7 @@ fragment = [A-Za-z0-9._:-]{1,64}
 | `tab` | `tab:song-77#b12-16` | bars of a tab |
 | `book` | `book:0192…#p212` | a book page |
 | `verse` | `verse:gen/1/1-3` | a scripture reference (book code / chapter / verses) |
-| `podcast` | `podcast:feed-9#ep-41` | a feed or episode |
+| `podcast` | `podcast:feed-9/ep-41` | a feed or episode |
 | `astra` | `astra:movie:tt0000001` | an Astra title |
 | `media` | `media:vid-88` | a My Media item |
 | `board` | `board:2026-10-28#s3` | a Board story |
@@ -266,7 +266,7 @@ The FTS cost per page is unknown (open question D3). Ingestion is a bulk job und
 |---|---|---|---|---|
 | `backups/` | `backups/<YYYY-MM-DD>/<class>/<table>.<part:0000>.jsonl.gz`, `backups/<date>/manifest.json` | Weekly per-table export | `export.weekly` job | 8 weekly + 12 monthly |
 | `events/` | `events/<YYYY>/<MM>/<DD>.jsonl.gz` | Daily events archive | `events.export` job (P5) | forever |
-| `books/` | `books/<sha256>.pdf` | Study PDFs, including the owner's licensed scripture copies (owner ruling) | upload route (P7) | until the owner deletes (proposal) |
+| `books/` | `books/<book_id>.pdf` ([STUDY.md](../product/apps/STUDY.md) §2.1) | Study PDFs, including the owner's licensed scripture copies (owner ruling) | upload route (P7) | until the owner deletes (proposal) |
 | `chat/files/` | `chat/files/<YYYY>/<MM>/<uuidv7>.<ext>` (imported files keep their old keys under this prefix) | Chat attachments, photos, voice memos | upload route; import I6 | forever unless deleted |
 | `muse/files/` | `muse/files/<id>` | Muse files (imported, then new) | import I4; work orders | forever unless deleted |
 | `takes/` | `takes/<uuidv7>.<ext>` | Guitar recordings the owner sends | P6 | owner-controlled |

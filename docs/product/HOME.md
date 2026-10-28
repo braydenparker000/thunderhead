@@ -72,7 +72,7 @@ Measured: the voice line fits **22 characters per visual line** at every phone w
 | Part | Limit | Enforced by |
 |---|---|---|
 | Line 1 | ≤ **22** characters (one visual line). All fixed line-1 strings fit. | COPY table test |
-| Line 2 | ≤ **44** characters (≤ 2 visual lines) | The Worker rejects a longer `home.line` (400) |
+| Line 2 | ≤ **44** characters (≤ 2 visual lines) | The Worker rejects a longer `home.line` (422) |
 | Whole line | ≤ **3** visual lines at 360 px | Browser test: `#say` height ≤ 3 × line-height |
 | Words | No exclamation marks, no emoji, no counts of other people, ends with a full stop | Worker validation + mind evals |
 | Language | The owner's language of the day; Spanish lines get `lang="es"` | Surface field `lang` |
@@ -90,14 +90,14 @@ Acceptance: a test sets 0, 1, 3 and 12 pending decisions through a mocked live c
 
 ## 3. The decision card
 
-A decision is a proposal or question from the mind that needs the owner's answer (data model: [API](../engineering/API.md), `proposals`). Ask-first classes (delete, money, access, reaching other people) can be approved **only** by a tap on a signed-in device (decisions.md); the card is that tap.
+A decision is a proposal or question from the mind that needs the owner's answer (data model: [API](../engineering/API.md), `proposals`). Ask-first classes (delete, money, access, reaching other people) are approved by a tap on this card on a signed-in device, or by the owner's own words in the conversation, which the Worker verifies (owner ruling; [BEHAVIOR](../mind/BEHAVIOR.md) §4).
 
 ### 3.1 Anatomy
 
 | Part | Content | Limit |
 |---|---|---|
 | Why line | Gold dot · `<source> · <reason>`, Inter 500 12, `--ink-3`. For ask-first classes, the class label is appended: "Can't be undone", "Costs money", "Changes access", "Reaches someone else". With more than one waiting: "1 of 3" right-aligned [proposal]. | ≤ 60 characters before the class label |
-| Question | Inter 500 16/1.42, `--ink`. A plain question that can be answered yes or no. | ≤ 140 characters |
+| Question | Inter 500 16/1.42, `--ink`. A plain question that can be answered yes or no. | ≤ 80 characters |
 | Yes button | Gold fill, `--gold-ink` text, Inter 600 14. Label from the proposal (e.g. "Yes, take it"). | ≤ 18 characters |
 | Secondary button | Neutral. Either **"Not yet"** (snooze) or **"No"** (reject), as the proposal specifies. | fixed |
 
@@ -113,13 +113,13 @@ A decision is a proposal or question from the mind that needs the owner's answer
 | Offline | Buttons look normal; a tap shows the toast "Needs a connection. Nothing was decided." and nothing else | No network |
 | Expired | Folds as above; toast "That one expired. Nothing was done." | `expires` passes while visible |
 
-**Yes:** sends the approval with the device's session. On success: the card folds; the gold edge fades over 1.4 s (unless another decision waits); the voice line moves to row 8; a toast shows the proposal's confirmation line in the mind's words (e.g. "I'll run that job tonight.", ≤ 48 characters); haptic `[12,40,12]`. The action itself runs on the server (ledger entry with its undo where one exists).
+**Yes:** sends the approval with the device's session. On success: the card folds; the gold edge fades over 1.4 s (unless another decision waits); the voice line moves to row 8; a toast shows the proposal's confirmation line in the mind's words (e.g. "I'll run that job tonight.", ≤ 40 characters); haptic `[12,40,12]`. The action itself runs on the server (ledger entry with its undo where one exists).
 
 **Not yet:** snoozes. The proposal comes back the next day at the first open after 06:30, at most **3** times, then it expires. Toast: "I'll ask again tomorrow."
 
 **No:** rejects. Nothing is done. Toast: "Okay. I won't." The mind sees the rejection in its next briefing.
 
-Answering in chat ("no, don't") can **reject** or snooze a decision (the mind calls reject); it can never **approve** an ask-first one. Only the button can.
+Answering in chat ("no, don't") can **reject** or snooze a decision (the mind calls reject); it approves an ask-first one only when the owner's words clearly answer this card and the Worker verifies them (`th decide --by-message`, [BEHAVIOR](../mind/BEHAVIOR.md) §4 rule 4); otherwise the card stays.
 
 ### 3.3 Several decisions
 
@@ -130,7 +130,7 @@ Answering in chat ("no, don't") can **reject** or snooze a decision (the mind ca
 
 ### 3.4 Expiry and quiet hours
 
-- Every decision has an `expires` (default **72 h** [proposal]; the mind may set 1 h – 14 d).
+- Every decision has an `expires`: **7 days** after creation ([BEHAVIOR](../mind/BEHAVIOR.md) §3.5, [API](../engineering/API.md) §11.10).
 - Decisions created during quiet hours are **held**: not shown, no gold edge, no push, until the first open after 06:30 (or 06:30 itself for the push). A decision already visible before quiet hours began stays visible.
 
 ### 3.5 Finding the card
@@ -298,7 +298,7 @@ Decided: ears work only when the owner switches them on.
 |---|---|---|
 | Off | Mic icon, `--ink-2` | |
 | Listening | Mic button filled `--accent-fill`, white icon; input shows the placeholder "Listening…" in accent (the one placeholder the bar ever shows); edge light **listening**; haptic 18 ms | Toast: "Listening. Tap again to stop" |
-| Transcribing [proposal] | Spinner in the mic slot; "…" in the input | The recording goes to the Worker for speech-to-text; the audio is deleted after transcription |
+| Transcribing [proposal] | Spinner in the mic slot; "…" in the input | On-device speech recognition only ([PRIVACY](../engineering/PRIVACY.md) §7.7); if the phone can't, the mic records a voice memo instead and says so |
 | Done | The text lands in the input for the owner to check and send | Toast on stop: "Stopped. Nothing is kept unless you send it" |
 
 Limits and rules:

@@ -42,7 +42,7 @@ These follow from the laws ([CONSTITUTION](../mind/CONSTITUTION.md); plan §0) a
 | Voice line, line 1 | one short sentence | 22 characters (one visual line, measured) |
 | Voice line, line 2 | one sentence | 44 characters |
 | Reply | 1–3 sentences (≤ 60 words) | No hard limit; longer when needed to cover what matters (owner ruling), when asked ("explain", "in detail"), or when teaching |
-| Decision question | one question | 140 characters |
+| Decision question | one question | 80 characters |
 | Decision confirmation toast | one sentence | 40 characters |
 | Briefing title | one short sentence | 32 characters |
 | Thread title | a noun phrase | 40 characters |

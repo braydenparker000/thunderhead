@@ -431,7 +431,7 @@ Never: Cloudflare, Azure or R2 credentials in any Claude environment; any secret
 
 ## 14. Incident runbooks
 
-Each ends with a ledger entry and a line in `docs/STATUS.md` (no personal content). "Owner" steps work from the phone.
+Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no personal content). "Owner" steps work from the phone.
 
 ### 14.1 A session token leaked (e.g. a screenshot of storage)
 1. Owner: Settings → Sign-in & devices → **Sign out** that device (or **Sign out everywhere**). Effective ≤60 s.

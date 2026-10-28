@@ -39,13 +39,14 @@ arranging things, and speaks only when something needs the owner. Its laws are i
   goes into this repository, GitHub Actions logs, or artifacts. Actions never get credentials for the
   private bucket.
 - Example content in code, tests and docs stays generic.
-- No GPL, AGPL, or non-commercial dependencies. Icons: Phosphor (MIT). Fonts: Fraunces and Inter (OFL).
+- No GPL, AGPL, or non-commercial dependencies, except named exceptions in docs/process/decisions.md
+  (libmedia in Astra, owner has permission). Icons: Phosphor (MIT). Fonts: Fraunces and Inter (OFL).
 
 ## Layout
 
 | Path | What it is |
 |---|---|
-| `frontend/` | The site: plain ES modules, no build. `ui/` design system, `apps/<id>/` each app, `index.html` the shell. |
+| `frontend/` | The site: plain ES modules, no build. `ui/` design system, `apps/<id>/` new shell apps (Study), `music/` `guitar/` `podcasts/` `astra/` `media/` the apps ported as they are, `index.html` the shell. |
 | `backend/` | The Cloudflare Worker `thunderhead-api` (TypeScript). Arrives in P1. |
 | `mind/` | The mind's CLI (`th`), hooks, constitution, skills, eval harness. Arrives in P2. |
 | `shared/` | Types only: the API contract checked from every side. |
@@ -57,7 +58,7 @@ arranging things, and speaks only when something needs the owner. Its laws are i
 
 The site is an **Azure Storage static website** (owner ruling; the `…web.core.windows.net` address must
 not change). It cannot send response headers, so every page carries its Content-Security-Policy as the
-first tag after `<meta charset>` (the text lives in `frontend/ui/csp.txt` and a test keeps them equal).
+first tag after `<meta charset>` (on the shell and new pages the text is `frontend/ui/csp.txt` and a test keeps them equal; each ported app page keeps its own CSP, checked against its allowlist in `frontend/ported.json`).
 There is no SPA fallback, so every asset path is root-absolute and app routes get real `index.html`
 files. Missing files return `404.html` with status 404.
 
@@ -103,7 +104,7 @@ The full system is [docs/design/DESIGN-SYSTEM.md](docs/design/DESIGN-SYSTEM.md).
   thinking.
 - **Type:** Fraunces italic only for the Thunderhead's voice; Inter for everything else.
 - **Colour:** day uses soft drifting colour fields with grain; night is pure black with faint accent
-  light. Accent `#2468d8` text / `#2f7df6` fills; gold `#f2b632` fills / `#8a5a00` text on light.
+  light. Accent `#2468d8` fills and text (day text `#1a56bb` proposed), `#2f7df6` icons only; gold `#f2b632` fills / `#8a5a00` text on light (`#734a00` proposed).
 - **Motion:** quick and springy, never slow; everything respects reduced motion.
 
 ## Checks before pushing

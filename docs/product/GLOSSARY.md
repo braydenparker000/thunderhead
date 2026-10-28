@@ -18,7 +18,7 @@ The project's words, used the same way in every document, in code and in convers
 | **`+` sheet** | The options sheet that folds up from the ask bar (Camera, Photos, Files, Voice memo, Remind me). |
 | **Edge light** | The Thunderhead's presence: light along the screen edges. Calm, gold (decision waiting), pulse (thinking), bright (listening). |
 | **Decision** | Something only the owner can decide, shown as a card on Home with a gold edge. Backed by a **proposal**. |
-| **Proposal** | A Worker record of an ask-first action waiting for the owner's tap: classes `delete`, `money`, `access`, `reach_people`. |
+| **Proposal** | A Worker record of an ask-first action waiting for the owner's approval (a device tap or the owner's own words): classes `delete`, `money`, `access`, `reach_people`. |
 | **Ask-first classes** | Deleting data or anything irreversible; spending money; security or access changes; reaching other people. Everything else runs under the autonomy rule. |
 | **Autonomy rule** | Once the owner agrees on what to build, the agent builds, tests, merges, deploys and reports without further approval. |
 | **Ledger** | The append-only record of everything the mind and the system did, each with a "why" and, where possible, an undo. |

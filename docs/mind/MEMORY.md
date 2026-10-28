@@ -208,7 +208,7 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 | # | Rule | On violation |
 |---|---|---|
 | M1 | Every message, event and ledger row has an `origin`; the Worker sets it from the authenticated principal, never from the request body | (not client-settable) |
-| M2 | Evidence ids must exist, be 1–20 per fact, and be messages, events or day notes | `422 validation` `bad_evidence` |
+| M2 | Evidence ids must exist, be 1–20 per fact, and be messages, events, day notes or (notebook conversion only, P3) `import_items` rows; an `import:` ref alone never supports `source=user` | `422 validation` `bad_evidence` |
 | M3 | `source=user` → every evidence id is owner-origin (`origin` in `owner_device`, `import` with `author=owner`), and at least one is a message | `422` `not_owner_evidence` |
 | M4 | `kind=rule` → `source=user` | `422` `rule_needs_owner` |
 | M5 | `source=observed` → ≥ 10 owner-device events (or one rollup ref with n ≥ 10) | `422` `too_little_evidence` |

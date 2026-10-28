@@ -201,8 +201,8 @@ The old Worker stays untouched and live until every caller has switched (decisio
 |---|---|---|---|
 | An order passes its deadline unfinished | `deadline_at` | `expired`; ledger row | The order's card (if any) shows "Expired" |
 | Claimed but no heartbeat | 30 min | Lease lapses; back to `queued`, `attempts+1` | Nothing |
-| No Muse API call at all | 26 h (watchdog, P4) | Watchdog `muse_silent` trips; one ledger note | Briefing page: "Muse hasn't checked in since yesterday." |
-| Daily Board missing | Not `done` by 07:30 local **[proposal]** | Board section shows the last edition with its date | Briefing page: "No Board today (Muse didn't deliver)." |
+| No Muse API call at all | 26 h (watchdog, P4) | Watchdog `muse.silent` trips; one ledger note | Briefing page: "Muse hasn't checked in since yesterday." |
+| Daily Board missing | Not `done` by 09:00 local ([BRIEFING.md](../product/BRIEFING.md) §5) **[proposal]** | The Board tile shows yesterday's edition | Briefing page: the Board tile with the detail "Yesterday's edition" |
 | Two consecutive daily orders of the same kind expired | 2 | The mind asks once (decision card, not a push) | "Muse went quiet. Shall I take over its Board job tonight?" (the prototype's decision) |
 
 Decision outcomes:
@@ -222,7 +222,7 @@ The mind never contacts Muse about the silence except by a note in the `muse` th
 |---|---|---|
 | 1 | Should the owner's private conversation with Muse ever be visible in the Thunderhead? | Owner decision; default here: no. |
 | 2 | Does the owner accept the Board standing approval as a one-time `reach_people` approval? | Owner decision at P4. |
-| 3 | 07:30 as the Board deadline? | Owner decision; match the owner's usual first open (from events after P5). |
+| 3 | 09:00 as the Board deadline? | Owner decision; match the owner's usual first open (from events after P5). |
 | 4 | The prototype's "No" toast says "I'll ask about Muse tomorrow"; this page says "raise once more after 7 days". | Writer A / COPY.md to align; recommend this page's rule (law 4). |
 | 5 | Can Muse follow a JSON schema reliably enough? | Run the parallel week (step 7); target ≥ 6/7 valid on the first try. |
 | 6 | Is Muse's music procedure (signed uploads) worth keeping as an order kind, or does the music upload tool replace it? | Decide at P5 with [MUSIC.md](../product/apps/MUSIC.md). |

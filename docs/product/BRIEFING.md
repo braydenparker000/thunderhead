@@ -149,7 +149,7 @@ Every tile is `[data-ask]` ([GESTURES](../design/GESTURES.md) §5). The action m
 |---|---|
 | B1 | With a mocked surface of 10 candidate tiles, at most 8 render before the Board, weather first, waiting second, Board last |
 | B2 | Packing: no empty half row for any order of 1–8 tiles |
-| B3 | A surface field over its limit is rejected by the Worker with 400 |
+| B3 | A surface field over its limit is rejected by the Worker with 422 `validation` |
 | B4 | Weather 4 h old shows "as of"; 13 h old shows "Weather is out of date" |
 | B5 | A decision created at 23:00 is not on the briefing at 05:00 and is at 06:31 |
 | B6 | Tapping "Waiting on you" closes the briefing and scrolls the card into view |

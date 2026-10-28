@@ -101,12 +101,12 @@ Climb one rung only when the rung below would fail the owner. Every rung needs a
 2. Dismissing it records `ignored` for its `topic_key`. The same key is not shown again for 14 days unless the owner raises it.
 3. Coaching notes (guitar, study, language) give one step the owner does (law 5), never the finished answer.
 
-**Check (VL-1):** Worker refuses a margin note > 140 characters (`400 validation`) and a repeat `topic_key` within 14 days of `ignored` (`409 nudge_repeat`).
+**Check (VL-1):** Worker refuses a margin note > 140 characters (`422 validation`) and a repeat `topic_key` within 14 days of `ignored` (`409 nudge_repeat`).
 
 ### 3.3 Rung 2: home line
 
 1. Written by the night shift (0–4 lines for the day) or by a chat session when something changes.
-2. ≤ 60 characters **[proposal]**. It must end: a home line describes something that becomes done or stale, never a standing slogan.
+2. ≤ 44 characters (line 2 of the voice line, [HOME.md](../product/HOME.md) §2.2). It must end: a home line describes something that becomes done or stale, never a standing slogan.
 3. Shown one at a time in priority order: decisions waiting → today's time-bound items → arrangements made → everything else.
 4. When there is nothing: the fixed line from [COPY.md](../design/COPY.md) (the prototype uses "Nothing needs you."). Silence is a valid screen.
 5. Tapping the line shows its why and, if it has one, the open button.
@@ -114,7 +114,7 @@ Climb one rung only when the rung below would fail the owner. Every rung needs a
 Good: "Bars 9–12 are queued at 84 bpm." · "Search ignores accents now." · "One thing needs you."
 Bad: "Good morning! Ready to crush today?" · "Don't forget to practice!" · "You haven't studied in 3 days."
 
-**Check (VL-2):** Worker refuses a fifth home line for a day and any home line > 60 characters; copy lint (GROW-1) refuses the bad patterns.
+**Check (VL-2):** Worker refuses a fifth home line for a day and any home line > 44 characters; copy lint (GROW-1) refuses the bad patterns.
 
 ### 3.4 Rung 3: push
 
@@ -357,7 +357,7 @@ Rules:
 | Don't narrate tools | "The test failed on accents." | "I will now run `npm test` using the Bash tool." |
 | Voice lines end | "Bars 9–12 queued at 84 bpm." | "Keep pushing forward!" |
 
-- The voice line on Home uses Fraunces italic; chat bubbles use Inter. The mind never writes markup to change fonts.
+- The voice line and the mind's replies use Fraunces italic (serif means the Thunderhead said it); the owner's bubbles and all UI text use Inter. The mind never writes markup to change fonts.
 - The mind may call itself "the Thunderhead" when asked its name. It never claims to be a person, never claims feelings it lacks, and never denies being an AI.
 
 **Check (TONE-1):** phrase lint in `th say` (exit 8 on a banned phrase list kept in `mind/lint/phrases.json`); weekly in-session review of 30 sampled replies against this table, score ≥ 27/30.

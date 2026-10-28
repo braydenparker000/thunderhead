@@ -98,7 +98,7 @@ type Change = { seq: number; kind: string; ref: Ref|null; at: Ms };
 
 | Principal | Token | How it is made | Can |
 |---|---|---|---|
-| `device` | `th1_…` | Sign-in on a device ([SIGN-IN.md](../product/SIGN-IN.md)) | Everything the owner can do. The only principal that can decide proposals, manage devices and agents, forget facts, undo any action and change settings |
+| `device` | `th1_…` | Sign-in on a device ([SIGN-IN.md](../product/SIGN-IN.md)) | Everything the owner can do. The only principal that can decide proposals by tap (the owner's own words go through `mind:chat` with `by_message`, below), manage devices and agents, forget facts, undo any action and change settings |
 | `mind:chat` | `thm_…` | Settings → Agents, role "Mind (chat)" | Read all; post messages; memory ops (taint rules apply); ledger notes; verbs; surfaces; proposals; brief; wait |
 | `mind:night` | `thm_…` | role "Mind (night)" | Read all; memory ops; day notes; titles; surfaces; jobs; backups; proposals. **No** chat messages (except `system` home lines through surfaces) |
 | `mind:reflex` (P4) | `thm_…` | role "Mind (reflex)" | Read errors, health and ledger; one notice message per wake; resolve errors; ledger notes. **No** memory writes |
@@ -446,7 +446,7 @@ type MemoryOp =
   | { op: 'forget'; id: Id };                         // device only: hard delete + tombstone
 ```
 
-- The batch applies atomically: all ops or none. A rule failure returns `422 validation` with `details: [{i, reason}]`. Reasons include `evidence_not_owner` (a `user` fact needs owner-device evidence), `rule_needs_user`, `external_evidence`, `observed_needs_10_events` and `unknown_ref`.
+- The batch applies atomically: all ops or none. A rule failure returns `422 validation` with `details: [{i, reason}]`. Reasons are MEMORY.md §6's codes (`bad_evidence`, `not_owner_evidence`, `rule_needs_owner`, `too_little_evidence`, `tainted_evidence`, `needs_owner_words`, `too_long`, `no_inferred_sensitive`) plus `unknown_ref`.
 - Ops the memory rules route to the owner (a non-user source superseding a `user` fact; a new `inferred` fact with sensitivity 1) become `memory_big` proposals and are listed in `proposals`.
 - The rules themselves are in [MEMORY.md](../mind/MEMORY.md).
 
@@ -651,7 +651,7 @@ Acceptance: an integration test connects, posts a message over HTTP and receives
 
 | # | Question | How to settle it |
 |---|---|---|
-| A1 | SIGN-IN.md replaces the review's `POST /v1/auth/setup-ticket` with the fingerprint flow, which this page follows. | Proposed as a decisions.md line (night CROSS-DOC-FIXES); ROADMAP P1 still says "setup ticket" |
+| A1 | SIGN-IN.md replaces the review's `POST /v1/auth/setup-ticket` with the fingerprint flow, which this page follows. | Settled: decisions.md 2026-10-28 (fingerprint setup, no setup-ticket endpoint); ROADMAP P1 follows it |
 | A2 | Do Workers Logs record the `?ticket=` query string of `/v1/live`? | Preview: connect once, read the log entry. If yes, keep the 30 s single-use rule and note it in SECURITY.md |
 | A3 | Is `--tag` length-limited, and does `VERSION.tag` carry it? | `wrangler deploy --tag <sha12>` in preview; read `/v1/health` |
 | A4 | Does a non-JSON platform error (1027, 1102) arrive with CORS headers so the page can read the status? | Force 1102 in preview with a CPU-burn route; check in Chrome |

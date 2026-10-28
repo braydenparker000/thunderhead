@@ -172,7 +172,7 @@ behavior kept unless noted. Until then the ported screens stay exactly as they a
 
 Images: YouTube thumbnails from `i.ytimg.com` (by YouTube ID) first, then the Drive sidecar image (Stage
 A: by key; Stage B: through the ticket route), then Drive's `thumbnailLink`. The shell CSP's `img-src`
-adds `https://i.ytimg.com` and `https://*.googleusercontent.com` **[note: this tells Google which IDs
+adds `https://i.ytimg.com` and `https://*.googleusercontent.com` **[proposal: needs the owner's yes and a decisions line, because the shell CSP otherwise allows no outside host (SECURITY.md §4.1); note: this tells Google which IDs
 are being browsed; accepted for now, Open question 4]**.
 
 ---

@@ -94,7 +94,7 @@ Owner ruling: hold still on an empty spot for 220 ms → a tight ring of six app
 | 0 ms | `pointerdown` on empty space. Press ring starts growing (220 ms). |
 | 220 ms | Ring opens. Scrim fades in over **160 ms** (`--scrim`, 35% bg). Bubbles fly out from the centre with `transform .28s cubic-bezier(.34,1.45,.64,1)`, staggered **14 ms** each in clockwise order. Haptic **6 ms**. The hint (if shown) fades out for good this session. |
 | any | Direction changes per §3.2, with the 8 ms tick. |
-| release on a sector | The chosen bubble flies outward to `1.25·R` and scales to **1.7** while fading over **220 ms** (`cubic-bezier(.2,0,0,1)`); the others collapse to the centre (scale 0.2) over **140 ms**. Haptic `[12, 40, 12]`. The app opens (see [HOME](../product/HOME.md) §11 for the app transition). `aria-live` announces "Opening Music". |
+| release on a sector | The chosen bubble flies outward to `1.25·R` and scales to **1.7** while fading over **220 ms** (`cubic-bezier(.2,0,0,1)`); the others collapse to the centre (scale 0.2) over **140 ms**. Haptic `[12, 40, 12]`. The app opens (see [HOME](../product/HOME.md) §12 for the app transition). `aria-live` announces "Opening Music". |
 | release in the centre / no selection | Everything collapses (140 ms), scrim fades out, no haptic, nothing opens. |
 | 230 ms after release | Ring DOM resets. |
 

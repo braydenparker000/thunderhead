@@ -14,7 +14,7 @@ Platform facts come from the Claude Code docs read 2026-10-28 (scheduled tasks, 
 7. **End a chat session** after 120 min with no owner message (10 min if it was a pre-warm that never got a message), on day close, or on Stop.
 8. **Usage limits are reported, never hidden.** Scheduled runs stop at the limit; the Worker shows "mind not waking" and stops refiring until a backoff passes. Usage credits stay off.
 9. **Code ships as:** branch → CI green on that SHA → fast-forward `main` → watch Deploy → confirm `release.json` and `/v1/health` → report "Live". Never force-push, never merge commits on `main`.
-10. **Every session that changed code or plans updates `docs/STATUS.md`** before it ends.
+10. **Every session that changed code or plans updates `docs/process/STATUS.md`** before it ends.
 
 Sibling docs: [CONSTITUTION.md](CONSTITUTION.md), [BEHAVIOR.md](BEHAVIOR.md), [MEMORY.md](MEMORY.md) (what `brief`, `recall`, `remember` read and write), [EVALS.md](EVALS.md), [MUSE.md](MUSE.md). Engineering: [API.md](../engineering/API.md) (canonical for routes; route names here marked **[proposal]** until API.md fixes them), [SECURITY.md](../engineering/SECURITY.md) (token inventory), [OPERATIONS.md](../engineering/OPERATIONS.md), [JOBS.md](../engineering/JOBS.md).
 
@@ -441,7 +441,7 @@ Fired by the day roll (`roll`) or by the 06:07 schedule (`schedule`). Progress l
 | 7 | Arrange tomorrow (P3+): 0–4 home lines, surfaces, practice set (in-app surfaces only in apps whose agreed evolution added them; the as-is ports have none) | 4 min | `surfaces` |
 | 8 | "Built overnight" items for the Briefing page; arrange the Briefing page, including where today's Daily Board (produced by Muse, owner ruling) sits when it arrives | 1 min | Briefing items |
 | 9 | Sunday only: weekly review and evals ([EVALS.md](EVALS.md)) | +15 min | `eval_runs`, one PR at most |
-| 10 | Session note; update `docs/STATUS.md` if code changed; `th night done` | 2 min | — |
+| 10 | Session note; update `docs/process/STATUS.md` if code changed; `th night done` | 2 min | — |
 
 - **Budget:** target ≤ 30 min, hard stop 45 min (Sunday 60). At the hard stop, finish the current step, mark the rest skipped, `th night done --partial`.
 - **Writes:** a few dozen rows per night, well under the Durable Object daily write budget.
@@ -464,7 +464,7 @@ The autonomy rule in commands. The agent pushes as the owner's GitHub identity; 
 6. `th ci <sha> --workflow deploy` waits for the Deploy workflow.
 7. Confirm live: `<site>/release.json` names the SHA; if `backend/` or `shared/` changed, `GET /v1/health` reports the new version.
 8. Ledger row `kind=deploy` with `undo` = "roll back to <previous sha>"; report `Live: …` (BEHAVIOR §5).
-9. Update `docs/STATUS.md` in the same or the next push.
+9. Update `docs/process/STATUS.md` in the same or the next push.
 
 Rules:
 - Protected paths (`mind/CONSTITUTION.md`, `.claude/**`, `mind/hooks/**`, `.github/**`, auth and token code) need an approved `access` proposal for that SHA (§6.4).
@@ -478,7 +478,7 @@ Rules:
 
 ## 14. STATUS.md upkeep
 
-`docs/STATUS.md` is how any agent picks up cold. It holds no personal data.
+`docs/process/STATUS.md` is how any agent picks up cold. It holds no personal data.
 
 | Section | Content | Limit |
 |---|---|---|

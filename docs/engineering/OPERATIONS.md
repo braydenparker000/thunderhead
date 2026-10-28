@@ -242,7 +242,7 @@ Notes:
 | Problem | Signs | Do |
 |---|---|---|
 | **Worker request quota (100,000/day) exhausted** | Phone and CLI get non-JSON 429/1027 errors until 00:00 UTC | The phone queues writes in the outbox and shows the offline copy. The mind cannot be woken. After reset: check the meter and logs for the source. If it was a flood (next row), follow that. |
-| **Request flood from a stranger** (`workers.dev` has no WAF) | Requests far above normal with 401s | Accept and watch (owner ruling Q8 pending). If it repeats, the only fix is a custom domain with a WAF rule, which costs money: proposal of class `money` |
+| **Request flood from a stranger** (`workers.dev` has no WAF) | Requests far above normal with 401s | Accept and watch (owner question pending). If it repeats, the only fix is a custom domain with a WAF rule, which costs money: proposal of class `money` |
 | **DO rows written cap hit** | `503 budget_exhausted` on writes; reads work | Pause the lane (automatic at 60,000); find the table from `meter`; fix the job or query; writes resume at 00:00 UTC. The outbox and the CLI keep retrying after `Retry-After` |
 | **DO rows read cap hit** | Reads fail | Find the scan (`EXPLAIN QUERY PLAN` tests must have missed it); add the index under the expand rule |
 | **DO duration high** | Deep health shows `Core` awake for hours | Look for a timer, a pending fetch or a WebSocket without hibernation in `objects/`; the `no-timers-in-do` test should have failed |
@@ -250,7 +250,7 @@ Notes:
 | **Sign-in broken** | `/v1/auth/login` 5xx | Roll back the API (§5.2). Signed-in devices keep working: sessions are checked, not passwords |
 | **Media 403 loops** (P5) | The player re-signs repeatedly | Check the signing key (§6) and the clock floor; the Worker logs `sign_failed` counts |
 | **Old code after deploy** | Deep health `schema` lags | Wait up to 6 min (the smoke step already does); after that, treat it as a failed deploy |
-| **Claude usage limit reached** | Sessions don't start | Nothing on the Worker side. The honest line stays; the night shift runs when usage returns. Usage credits stay off (owner decision) The plan is Max 5x now and may drop to Pro later (owner ruling 2026-10-27): everything keeps working on Pro, only leaner (fewer wakes, a shorter night shift; [RUNTIME.md §11](../mind/RUNTIME.md)); nothing on the Worker depends on the plan. |
+| **Claude usage limit reached** | Sessions don't start | Nothing on the Worker side. The honest line stays; the night shift runs when usage returns. Usage credits stay off (decisions.md; owner confirmation pending). The plan is Max 5x now and may drop to Pro later (owner ruling 2026-10-27): everything keeps working on Pro, only leaner (fewer wakes, a shorter night shift; [RUNTIME.md §11](../mind/RUNTIME.md)); nothing on the Worker depends on the plan. |
 | **R2 operations near the free tier** (1M Class A, 10M Class B a month) | Monthly owner check (§9) | Find the source (index rebuilds, re-signing loops). Going over costs money: stop the job and propose |
 | **A ported app fails** (P1b–P8) | The app shows its old error lines; its error reporter posts to the old Worker | It still calls the old Worker: check the old Worker's version still carries the new origin (§3.4 step 4), and the shared request quota (both Workers count against one account's 100,000/day). Never fix it by changing the app beyond the listed adjustments; a real fix is a change the owner agrees to |
 
@@ -288,7 +288,7 @@ Up to P3, a tripped watchdog writes a ledger note and a briefing line. From P4 i
 | `jobs.stuck` | A job `running` > 2 h, or `attempts` ≥ 5 | S3 |
 | `db.size` | Any object > 700 MB | S3 |
 | `events.export.late` (P5) | Day D not archived by D+1 09:00 | S3 |
-| `muse.silent` (P4) | No Muse claim in 48 h while orders are queued | S4 |
+| `muse.silent` (P4) | No Muse API call in 26 h ([MUSE.md](../mind/MUSE.md) §9) | S4; Briefing line "Muse hasn't checked in since yesterday." |
 
 Acceptance: each watchdog has a vitest case that sets the condition with fixtures and a fake clock and asserts exactly one ledger note per trip (no repeat until it clears and trips again).
 
