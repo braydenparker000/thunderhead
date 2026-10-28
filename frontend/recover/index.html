@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; manifest-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#eef1f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Forgot password · Thunderhead</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script src="/ui/theme.js"></script>
+<link rel="preload" href="/ui/fonts/Inter.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/ui/fonts.css">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/ui/forms.css">
+<link rel="stylesheet" href="/ui/auth.css">
+<script type="module" src="/recover/recover.js"></script>
+</head>
+<body>
+<div class="bg"><div class="field"></div><div class="grain"></div></div>
+<main class="auth">
+<main class="auth">
+  <h1>Forgot password</h1>
+  <div class="tabs" role="tablist">
+    <button type="button" role="tab" id="tab-code" aria-controls="code-pane" aria-selected="true">I have my recovery code</button>
+    <button type="button" role="tab" id="tab-reset" aria-controls="reset-pane" aria-selected="false">I've lost it too</button>
+  </div>
+
+  <section class="panel" id="code-pane" role="tabpanel" aria-labelledby="tab-code">
+    <form id="recover" method="post" action="/recover/" novalidate>
+      <div class="fld">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      </div>
+      <div class="fld">
+        <label for="code">Recovery code</label>
+        <input id="code" name="code" type="text" class="code-in" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+      </div>
+      <div class="fld">
+        <label for="new-password">New password</label>
+        <div class="inp">
+          <input id="new-password" name="new-password" type="password" autocomplete="new-password" required>
+          <button type="button" class="show" aria-pressed="false" aria-label="Show password as plain text. Warning: this will display your password on the screen.">Show</button>
+        </div>
+        <span class="help">At least 15 characters. A long phrase works well, or let your password manager make one.</span>
+      </div>
+      <button type="submit" class="btn" id="go">Reset password</button>
+      <p class="line" id="line"></p>
+    </form>
+  </section>
+
+  <section class="panel" id="reset-pane" role="tabpanel" aria-labelledby="tab-reset" hidden>
+    <div id="reset-start">
+      <p>You can reset with a reset ticket. It takes 24 hours, and any device that's still signed in can cancel it.</p>
+      <div class="fld">
+        <span class="lbl" id="rfp-label">Reset fingerprint</span>
+        <div class="codebox small" id="rfp" aria-labelledby="rfp-label">…</div>
+      </div>
+      <button type="button" class="btn soft" id="copy">Copy</button>
+      <div class="fld">
+        <span class="lbl">Reset code (write it down if you might switch devices)</span>
+        <div class="codebox" id="rcode" hidden></div>
+        <button type="button" class="link" id="reveal">Show</button>
+      </div>
+      <p>Start it one of these ways:</p>
+      <ol>
+        <li><b>Ask the mind in Claude Code</b>: open a Claude Code session and say: <i>Start a Thunderhead reset with fingerprint <span id="rfp-say">…</span></i></li>
+        <li><b>GitHub</b>: add a repository secret <code>TH_RESET_FINGERPRINT</code> with this value and run the <b>Request reset</b> workflow.<span id="gh-links" hidden> <a class="link" id="gh-secret" target="_blank" rel="noopener noreferrer">New secret</a> · <a class="link" id="gh-run" target="_blank" rel="noopener noreferrer">Request reset workflow</a></span></li>
+      </ol>
+    </div>
+    <p class="line ok" id="rstate"></p>
+    <form id="reset" method="post" action="/recover/" novalidate hidden>
+      <div class="fld">
+        <label for="r-username">Username</label>
+        <input id="r-username" name="username" type="text" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
+      </div>
+      <div class="fld">
+        <label for="r-code">Reset code</label>
+        <input id="r-code" name="reset-code" type="text" class="code-in" autocomplete="off" autocapitalize="characters" spellcheck="false" required>
+      </div>
+      <div class="fld">
+        <label for="r-new-password">New password</label>
+        <div class="inp">
+          <input id="r-new-password" name="new-password" type="password" autocomplete="new-password" required>
+          <button type="button" class="show" aria-pressed="false" aria-label="Show password as plain text. Warning: this will display your password on the screen.">Show</button>
+        </div>
+      </div>
+      <button type="submit" class="btn" id="r-go">Reset password</button>
+      <p class="line" id="r-line"></p>
+    </form>
+  </section>
+
+  <section class="panel" id="done" hidden></section>
+  <p class="foot"><a class="link quiet" href="/signin/">Back to sign in</a></p>
+  <p class="sr" id="sr" role="status" aria-live="polite"></p>
+</main>
+</body>
+</html>

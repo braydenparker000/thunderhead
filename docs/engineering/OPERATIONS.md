@@ -43,7 +43,8 @@ Values never appear in the repo or in logs. Rotation steps are in §6. The secur
 | `AZURE_STORAGE_ACCOUNT` (must match `^thunderhead[a-z0-9]{0,13}$`), `SITE_URL`, `AZURE_DEPLOY_ENABLED` | variable | GitHub repo | P0 |
 | `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, one account, no expiry) | secret | GitHub environment `worker` (only `main`) | P1 |
 | `TH_CI_TOKEN` (`thc_` key, role `ci`) | secret | GitHub environment `worker` | P1 |
-| `CLOUDFLARE_ACCOUNT_ID`, `WORKER_URL`, `SITE_ORIGINS` (the real site origin, passed with `wrangler deploy --var`), `WORKER_BOOTSTRAP` (`true` for the first deploy only, then deleted) | variable | GitHub environment `worker` | P1 |
+| `CLOUDFLARE_ACCOUNT_ID`, `SITE_ORIGINS` (the real site origin, passed with `wrangler deploy --var`), `WORKER_BOOTSTRAP` (`true` for the first deploy only, then deleted) | variable | GitHub environment `worker` | P1 |
+| `WORKER_URL` (the API address; the site's stage step writes it into `config.js` and the pages' CSP) | variable | GitHub repository (both deploy jobs read it) | P1 |
 | `WORKER_DEPLOY_ENABLED` | variable | GitHub repo | P1 |
 | `TH_SETUP_FINGERPRINT`, `TH_RESET_FINGERPRINT` | secret, temporary | GitHub repo; inputs to `auth-setup.yml` / `auth-reset.yml` | P1 |
 | `R2_MUSIC_RO_ACCESS_KEY_ID`/`_SECRET` (Object Read, `jarvis-music`), `R2_JOBS_ACCESS_KEY_ID`/`_SECRET` (Object Read & Write, `thunderhead-jobs`) | secret | GitHub environment `jobs` | P5 |

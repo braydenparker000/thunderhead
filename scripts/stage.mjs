@@ -1,9 +1,13 @@
-// Copies frontend/ to .deploy/site/, writes .deploy/release.json for the commit (deploy.sh
-// uploads it last), and fails if the site breaks a size budget.
-// Usage: node scripts/stage.mjs <commit-sha>
-import { cp, readdir, rm, stat, writeFile } from 'node:fs/promises';
+// Copies frontend/ to .deploy/site/, writes config.js and the API host into the pages' CSP
+// (site-config.mjs; WORKER_URL from the repository variable, empty until the Worker exists),
+// writes .deploy/release.json for the commit (deploy.sh uploads it last), and fails if the
+// site breaks a size budget.
+// Usage: WORKER_URL=… node scripts/stage.mjs <commit-sha>
+import { execFileSync } from 'node:child_process';
+import { cp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { APP_ROUTES, configJs, withApi } from './site-config.mjs';
 
 const sha = process.argv[2] ?? '';
 if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`not a full commit sha: "${sha}"`);
@@ -15,11 +19,16 @@ await cp(join(repo, 'frontend'), out, { recursive: true });
 // The storage website has no SPA fallback, so each app route gets a real copy of the shell
 // (all asset paths are root-absolute, so the copy works from any folder).
 // Astra has its own page (frontend/astra/), so it is not stubbed; an existing page is never overwritten.
-const APP_ROUTES = ['music', 'guitar', 'podcasts', 'media', 'study', 'settings'];
 for (const route of APP_ROUTES) {
   const stub = join(out, route, 'index.html');
   if (!(await stat(stub).catch(() => null))) await cp(join(out, 'index.html'), stub);
 }
+
+const api = process.env.WORKER_URL ?? '';
+let build = 0;
+try { build = Number(execFileSync('git', ['rev-list', '--count', sha], { cwd: repo, encoding: 'utf8' }).trim()) || 0; } catch {}
+const repoUrl = process.env.GITHUB_REPOSITORY ? `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}` : '';
+await writeFile(join(out, 'config.js'), configJs({ api, build, commit: sha, repo_url: repoUrl }));
 
 await writeFile(join(repo, '.deploy/release.json'), JSON.stringify({ commit: sha, staged_at: new Date().toISOString() }) + '\n');
 
@@ -32,6 +41,13 @@ async function files(dir) {
   return all;
 }
 const list = await files(out);
+for (const f of list.filter(f => f.path.endsWith('.html'))) {
+  const p = join(out, f.path);
+  const html = await readFile(p, 'utf8');
+  const next = withApi(html, api);
+  if (next !== html) { await writeFile(p, next); f.size = Buffer.byteLength(next); }
+}
+console.log(`API: ${api || 'none yet (sign-in stays off)'}, build ${build}`);
 const total = list.reduce((n, f) => n + f.size, 0);
 const sum = re => list.filter(f => re.test(f.path)).reduce((n, f) => n + f.size, 0);
 

@@ -1,0 +1,26 @@
+/* Colour and type tokens (DESIGN-SYSTEM.md §1–2), one definition for day and night through
+   light-dark(). theme.js sets data-theme before the first paint. Home still carries its own copy
+   in apps/home/home.css until it moves onto these. */
+:root{color-scheme:light}
+:root[data-theme="dark"]{color-scheme:dark}
+:root{
+  --bg:light-dark(#eef1f7,#000);
+  --ink:light-dark(#152231,#eceff4); --ink-2:light-dark(#46566a,#a6b0bc); --ink-3:light-dark(#525d6b,#77828f);
+  --accent-fill:#2468d8; --accent-text:light-dark(#1a56bb,#6aa2ff); --accent-icon:light-dark(#2f7df6,#6aa2ff);
+  --gold:#f2b632; --gold-ink:#2b1d00; --gold-text:light-dark(#734a00,#f2b632);
+  --alarm:light-dark(#b42318,#ff6b5e);
+  --glow:light-dark(#5b8ff0,#4d84ff);
+  --field-1:light-dark(#cfe0f7,#000); --field-2:light-dark(#e9dff3,#000); --field-3:light-dark(#f7e7d6,#000);
+  --blob-1:light-dark(#b9d0fa,#1d4fb8); --blob-2:light-dark(#f5d6c0,#6b4a0c); --blob-opacity:.6;
+  --glass:light-dark(rgba(255,255,255,.55),rgba(255,255,255,.07)); --glass-line:light-dark(rgba(21,34,49,.07),rgba(255,255,255,.08));
+  --bar:light-dark(rgba(255,255,255,.5),rgba(255,255,255,.07)); --bar-line:light-dark(rgba(255,255,255,.65),rgba(255,255,255,.12));
+  --sheet:light-dark(rgba(247,249,253,.84),rgba(18,20,24,.86));
+  --disc:light-dark(rgba(255,255,255,.82),rgba(22,26,32,.92)); --disc-line:light-dark(rgba(21,34,49,.10),rgba(255,255,255,.12));
+  --dim:rgba(10,14,22,.30);
+  --tint:color-mix(in srgb,var(--ink) 6%,transparent);
+  --voice:"Fraunces",Georgia,"Times New Roman",serif;
+  --ui:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --spring:cubic-bezier(.2,.8,.2,1.05);
+}
+:root[data-theme="dark"]{--blob-opacity:.22}

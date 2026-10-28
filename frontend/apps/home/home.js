@@ -73,6 +73,7 @@
     side.style.transform=`translateX(${(1-s)*100}%)`; dim.style.opacity=s; side.classList.toggle('open',s>0); dim.style.pointerEvents=s>.5?'auto':'none' }
   function go(v){ view=v; setPos(v==='brief'?1:0,v==='side'?1:0,true); if(v!=='home') menu(false) }
   dim.addEventListener('click',()=>go('home'));
+  document.addEventListener('th:go',e=>go(e.detail)); // settings pages return to the open menu
   app.addEventListener('click',e=>{ if(swiped){ e.stopPropagation(); e.preventDefault() } },true);
   app.addEventListener('pointerdown',e=>{ if(!e.isPrimary||e.target.closest('input')) return;
     start={x:e.clientX,y:e.clientY,id:e.pointerId,t:performance.now()}; swipe=null;

@@ -6,10 +6,12 @@ import { readFile, readdir, stat } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { APP_ROUTES } from '../scripts/site-config.mjs';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
 const SITE = join(REPO, 'frontend');
-const PAGES = ['index.html', '404.html'];
+const SIGNIN_PAGES = ['signin/index.html', 'setup/index.html', 'recover/index.html'];
+const PAGES = ['index.html', '404.html', '.well-known/change-password/index.html', ...SIGNIN_PAGES];
 
 async function files(dir) {
   const out = [];
@@ -24,8 +26,10 @@ async function files(dir) {
 test('every file the pages load exists, by a root-absolute path', async () => {
   for (const page of PAGES) {
     const html = await readFile(join(SITE, page), 'utf8');
-    for (const [, ref] of html.matchAll(/\b(?:src|href)="([^"#]+)"/g)) {
+    for (let [, ref] of html.matchAll(/\b(?:src|href)="([^"#]+)"/g)) {
+      ref = ref.split('?')[0];
       if (ref === '/' || ref.startsWith('http://www.w3.org/')) continue;
+      if (APP_ROUTES.some(r => ref === `/${r}/`)) continue; // stage.mjs gives each app route its copy of the shell
       assert.ok(ref.startsWith('/'), `${page}: "${ref}" must start with / so app routes like /music/ still find it`);
       assert.ok(existsSync(join(SITE, ref)), `${page} loads missing ${ref}`);
     }
@@ -52,14 +56,33 @@ test('pages fit the CSP: no inline scripts, no <style> blocks, no inline event h
 });
 
 test('every page carries the CSP as the first tag after charset (Azure Storage sends no headers)', async () => {
-  const csp = (await readFile(join(SITE, 'ui/csp.txt'), 'utf8')).trim();
-  assert.match(csp, /default-src 'none'/);
-  assert.match(csp, /script-src 'self';/);
+  const shell = (await readFile(join(SITE, 'ui/csp.txt'), 'utf8')).trim();
+  const signin = (await readFile(join(SITE, 'ui/csp-signin.txt'), 'utf8')).trim();
+  for (const csp of [shell, signin]) {
+    assert.match(csp, /default-src 'none'/);
+    assert.match(csp, /script-src 'self';/);
+  }
+  // SECURITY.md §4.1: the sign-in pages talk only to the API (filled in at stage time) and allow no inline styles.
+  assert.match(signin, /connect-src 'none';/);
+  assert.doesNotMatch(signin, /unsafe-inline/);
   for (const page of PAGES) {
+    const csp = SIGNIN_PAGES.includes(page) ? signin : shell;
     const html = await readFile(join(SITE, page), 'utf8');
     const head = html.slice(html.indexOf('<head>') + 6).trim().split('\n');
     assert.equal(head[0], '<meta charset="utf-8">', page);
-    assert.equal(head[1], `<meta http-equiv="Content-Security-Policy" content="${csp}">`, `${page}: CSP must come right after charset and match ui/csp.txt`);
+    assert.equal(head[1], `<meta http-equiv="Content-Security-Policy" content="${csp}">`, `${page}: CSP must come right after charset and match ui/${SIGNIN_PAGES.includes(page) ? 'csp-signin' : 'csp'}.txt`);
+  }
+});
+
+test('sign-in pages have no style attributes (their CSP allows none) and every module import resolves', async () => {
+  for (const page of SIGNIN_PAGES) assert.doesNotMatch(await readFile(join(SITE, page), 'utf8'), /\sstyle=/, page);
+  for (const f of (await files(SITE)).filter(f => f.endsWith('.js'))) {
+    const text = await readFile(f, 'utf8');
+    for (const [, spec] of text.matchAll(/(?:^|\s)(?:import|export)\s[^'"]*?from\s+'([^']+)'|import\('([^']+)'\)/gm)) {
+      if (!spec) continue;
+      const target = spec.startsWith('/') ? join(SITE, spec) : join(f, '..', spec);
+      assert.ok(existsSync(target), `${relative(REPO, f)} imports missing ${spec}`);
+    }
   }
 });
 
