@@ -12,6 +12,11 @@ const repo = fileURLToPath(new URL('../', import.meta.url));
 const out = join(repo, '.deploy/site');
 await rm(join(repo, '.deploy'), { recursive: true, force: true });
 await cp(join(repo, 'frontend'), out, { recursive: true });
+// The storage website has no SPA fallback, so each app route gets a real copy of the shell
+// (all asset paths are root-absolute, so the copy works from any folder).
+const APP_ROUTES = ['music', 'guitar', 'podcasts', 'astra', 'media', 'study', 'settings'];
+for (const route of APP_ROUTES) await cp(join(out, 'index.html'), join(out, route, 'index.html'));
+
 await writeFile(join(repo, '.deploy/release.json'), JSON.stringify({ commit: sha, staged_at: new Date().toISOString() }) + '\n');
 
 async function files(dir) {
