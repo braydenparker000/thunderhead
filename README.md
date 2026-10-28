@@ -9,7 +9,7 @@ apps (Music, Guitar, Podcasts, Astra, My Media, Study) one hold away.
 | --- | --- |
 | `frontend/` | The site. Plain HTML, CSS and JavaScript, no build step. |
 | `backend/` | The Cloudflare Worker (coming next). |
-| `scripts/` | Tools: `serve.mjs` (local server), `deploy.sh` (publish to Azure). |
+| `scripts/` | Tools: `serve.mjs` (local server, behaves like Azure), `stage.mjs` (release folder + budgets), `deploy.sh` (publish to Azure). |
 | `tests/` | `node --test` suites: static checks and phone-size browser checks. |
 
 ## Commands

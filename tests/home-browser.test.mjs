@@ -1,5 +1,7 @@
 // Drives the home page in Chromium at phone size: no errors, and the hold, swipe and + gestures work.
-// Set SITE_URL to check a deployed site instead of the local copy.
+// Set SITE_URL to check a deployed site instead of the local copy; against a live site the
+// checks are read-only (nothing is sent).
+// CSP violations show up as console errors, so every test also proves the page fits the CSP.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -13,13 +15,13 @@ before(async () => {
 });
 after(async () => { await browser?.close(); server?.close(); });
 
-async function open(theme = 'light') {
+async function open(theme = 'light', path = '/') {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  page.on('console', m => { if (m.type() === 'error' && !/fonts\.g/.test(m.text())) errors.push(m.text()); });
+  page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.addInitScript(t => { try { localStorage.setItem('th-theme', t); } catch {} }, theme);
-  await page.goto(base + '/', { waitUntil: 'load' });
+  await page.goto(base + path, { waitUntil: 'load' });
   await page.waitForTimeout(400);
   return { page, errors };
 }
@@ -74,9 +76,11 @@ test('+ opens the options sheet; typing swaps the mic for send', async () => {
   await page.click('#plus');
   await page.fill('#q', 'hello');
   assert.ok(await page.$eval('#ask', el => el.classList.contains('typing')));
-  await page.press('#q', 'Enter'); await page.waitForTimeout(2200);
-  assert.equal(await page.textContent('.you'), 'hello');
-  assert.ok((await page.textContent('.reply')).length > 10, 'a reply appears');
+  if (!process.env.SITE_URL) {
+    await page.press('#q', 'Enter'); await page.waitForTimeout(2200);
+    assert.equal(await page.textContent('.you'), 'hello');
+    assert.ok((await page.textContent('.reply')).length > 10, 'a reply appears');
+  }
   assert.deepEqual(errors, []);
   await page.close();
 });
