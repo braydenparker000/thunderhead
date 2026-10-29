@@ -6,7 +6,7 @@
     "StopFailure": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop-failure.mjs\"", "timeout": 10}]}],
     "PreToolUse": [{"matcher": "*",
       "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/pre-tool.mjs\"", "timeout": 10}]}],
-    "PostToolUse": [{"matcher": "WebFetch|WebSearch|Bash|Read",
+    "PostToolUse": [{"matcher": "WebFetch|WebSearch|Bash|Read|Task|Agent",
       "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/post-tool.mjs\"", "timeout": 10}]}]
   }
 }
