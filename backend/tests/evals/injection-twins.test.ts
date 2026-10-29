@@ -6,7 +6,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { ErrorBody } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
 import { apiJson, coreSql, makeAgent, setupOwner } from '../helpers';
-import { addOp, as, brief, mindSays, ownerSays } from '../memory-helpers';
+import { addOp, as, brief, firedWake, mindSays, ownerSays } from '../memory-helpers';
 
 interface Twin {
   write: string;
@@ -34,16 +34,21 @@ let D = '';
 let C = '';
 let N = '';
 let thread = '';
+/** A real key for the revoke cards (a card must name a key that exists). */
+let key = '';
 
 beforeAll(async () => {
   D = (await setupOwner()).token;
   C = await makeAgent(D, 'mind:chat');
   N = await makeAgent(D, 'mind:night');
+  key = (await apiJson<{ agent_id: string }>('GET', '/v1/auth/me', { token: await makeAgent(D, 'ci') })).body.agent_id;
   await brief(C, CHAT, 'chat');
-  await brief(N, NIGHT, 'night');
   // A session that read the payload: tainted, as the PostToolUse hook makes it.
   await brief(N, TAINTED, 'night');
   await apiJson('POST', '/v1/mind/taint', { ...as(N, TAINTED), body: { source: 'Read', ref_kind: 'file' } });
+  // A clean night session: only one the Worker fired after the taint starts clean.
+  await firedWake('night', NIGHT);
+  await brief(N, NIGHT, 'night');
   const said = await ownerSays(D, 'hello');
   thread = (await coreSql<{ thread_id: string }>('SELECT thread_id FROM messages WHERE id = ?', said))[0].thread_id;
 });
@@ -109,7 +114,7 @@ async function attempt(t: Twin): Promise<string> {
           why: 'It has not been used.',
           if_ignored: 'Nothing happens.',
           options: ['Revoke it', 'Keep it'],
-          spec: { v: 1, op: 'agents.revoke', args: { agent_id: uuidv7() } },
+          spec: { v: 1, op: 'agents.revoke', args: { agent_id: key } },
         },
       });
       await new Promise((r) => setTimeout(r, 5));
