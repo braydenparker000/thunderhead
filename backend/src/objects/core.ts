@@ -102,7 +102,7 @@ export class Core extends CoreBase {
 
   mindStatus(c: Caller, r: MindStatusRequest) {
     const out = this.write((w) => mind.status(w, c.session_id, roleOf(c), r));
-    if (r.state === 'limited') this.write((w) => wake.limited(w, r.error ?? null));
+    if (r.state === 'limited' && roleOf(c) === 'chat') this.write((w) => wake.limited(w, r.error ?? null));
     if (out.typing) this.hub.typing(Date.now() + 60_000);
     return out;
   }

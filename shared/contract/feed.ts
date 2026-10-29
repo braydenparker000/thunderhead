@@ -2,6 +2,7 @@
 // (DATA.md §4.1, API.md §11.5–11.6, §12). Forward compatibility is the rule: a client ignores a
 // change kind, frame type or search source it does not know and resyncs from GET /v1/changes,
 // so features add kinds, never sockets. Plain data, importable by Node without a build.
+import { BUILT_PHASES } from './routes.ts';
 
 /** Every `changes.kind`. A feature adds its kind here (EXTENDING.md). */
 export const CHANGE_KINDS = [
@@ -31,17 +32,23 @@ export type FrameType = (typeof FRAME_TYPES)[number];
 /** WebSocket close codes the client acts on. */
 export const CLOSE_CODES = { revoked: 4401, outdated: 4426, restart: 1012 } as const;
 
-/** Apps a reply chip or `app.open` may open, with their route folder. */
+/** Apps a reply chip or `app.open` may open: route folder, name and the phase that ships it. A
+ * chip may name only an app whose phase is built (a test checks its folder exists). */
 export const APPS = {
-  music: { path: '/music/', name: 'Music' },
-  guitar: { path: '/guitar/', name: 'Guitar' },
-  podcasts: { path: '/podcasts/', name: 'Podcasts' },
-  astra: { path: '/astra/', name: 'Astra' },
-  media: { path: '/media/', name: 'My Media' },
-  study: { path: '/study/', name: 'Study' },
+  music: { path: '/music/', name: 'Music', phase: 'P1b' },
+  guitar: { path: '/guitar/', name: 'Guitar', phase: 'P1b' },
+  podcasts: { path: '/podcasts/', name: 'Podcasts', phase: 'P1b' },
+  astra: { path: '/astra/', name: 'Astra', phase: 'P1b' },
+  media: { path: '/media/', name: 'My Media', phase: 'P1b' },
+  study: { path: '/study/', name: 'Study', phase: 'P7' },
 } as const;
 export type AppId = keyof typeof APPS;
 export const APP_IDS = Object.keys(APPS) as AppId[];
+
+/** Whether an app has shipped in this build, so a chip may open it. */
+export function appBuilt(id: string): id is AppId {
+  return Object.hasOwn(APPS, id) && (BUILT_PHASES as readonly string[]).includes(APPS[id as AppId].phase);
+}
 
 /** Federated search: every source `GET /v1/search?sources=` can name, and its phase. A source is
  * a store that answers the same query shape; facts, day notes, the library, senses and semantic

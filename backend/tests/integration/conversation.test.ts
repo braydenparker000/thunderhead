@@ -75,6 +75,7 @@ describe('the daily thread', () => {
     expect((await chip({ label: 'Open in Music', app: 'music', path: '/music/' })).status).toBe(201);
     expect((await chip({ label: 'Open', app: 'music', path: '/guitar/' })).status).toBe(422);
     expect((await chip({ label: 'Open', app: 'mail', path: '/mail/' })).status).toBe(422);
+    expect((await chip({ label: 'Open Study', app: 'study', path: '/study/' })).status).toBe(422); // P7
     expect((await chip({ label: 'x'.repeat(29), app: 'music', path: '/music/' })).status).toBe(422);
     expect((await chip({ label: 'Open', app: 'music', path: '/music/', extra: 1 })).status).toBe(422);
   });

@@ -2,7 +2,7 @@
 // commit. The rules of PUT /v1/messages/:id live here: the thread comes from `day.current`,
 // author and origin from the caller, the mind's reply settles earlier owner messages.
 import type { JsonObject, Message, MessageKind, Thread } from '../../../../shared/contract/api';
-import { APPS, type AppId } from '../../../../shared/contract/feed.ts';
+import { APPS, type AppId, appBuilt } from '../../../../shared/contract/feed.ts';
 import { lintMindText } from '../../../../shared/contract/lint.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
@@ -59,8 +59,12 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
   }
   const thread = today(w, tz);
   if (p.reply_to) {
+    // A reply names a message of the open thread, or an owner message still unanswered from an
+    // earlier day, so nothing the owner said is lost across the roll.
     const target = store.messageById(w.db, p.reply_to);
-    if (!target || target.thread_id !== thread.id) throw invalid('reply_to', 'not a message in this thread');
+    const open = target?.author === 'owner' && target.answered_at === null;
+    if (!target || (target.thread_id !== thread.id && !open))
+      throw invalid('reply_to', 'not a message in this thread or an unanswered owner message');
   }
   const [author, origin] = AUTHOR[c.who];
   const message = store.insertMessage(w.db, {
@@ -77,10 +81,10 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
     session_id: c.who === 'D' ? null : c.session_id,
     req_sha256: p.req_sha256,
   });
-  if (author === 'mind') {
-    // Any post in the thread acknowledges what was handed out; a reply settles earlier ones.
-    store.ackThread(w.db, thread.id, w.at);
-    if (p.reply_to) store.answer(w.db, thread.id, p.reply_to, w.at);
+  if (c.who === 'C') {
+    // Any chat post acknowledges what was handed out; a reply settles it and everything before it.
+    store.ackHandedOut(w.db, w.at);
+    if (p.reply_to) store.answer(w.db, p.reply_to, w.at);
   }
   w.change('message', `msg:${message.id}`);
   return { message: store.messageById(w.db, message.id) as Message, created: true };
@@ -98,11 +102,11 @@ export function checkChip(meta: JsonObject | undefined): void {
     chip.label.length >= 1 &&
     chip.label.length <= 28 &&
     typeof chip.app === 'string' &&
-    Object.hasOwn(APPS, chip.app) &&
+    appBuilt(chip.app) &&
     typeof chip.path === 'string' &&
     chip.path.startsWith(APPS[chip.app as AppId].path) &&
     !chip.path.includes('..');
-  if (!ok) throw invalid('meta.chip', 'one chip: {label ≤ 28, app, path inside that app}');
+  if (!ok) throw invalid('meta.chip', 'one chip: {label ≤ 28, a shipped app, path inside that app}');
 }
 
 /** PATCH /v1/messages/:id: the mind amends its own posts (keeps cards current). */

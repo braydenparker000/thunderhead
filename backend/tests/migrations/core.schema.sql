@@ -55,6 +55,8 @@ CREATE TABLE ledger (
   req_sha256 TEXT
   );
 
+CREATE INDEX ledger_at ON ledger (at);
+
 CREATE TABLE live_tickets (
   hash TEXT PRIMARY KEY,
   session_id TEXT NOT NULL,
@@ -91,6 +93,11 @@ CREATE TABLE 'messages_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
 CREATE TABLE 'messages_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
 
 CREATE TABLE 'messages_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+
+CREATE INDEX messages_handed ON messages (delivered_at)
+  WHERE author = 'owner' AND answered_at IS NULL AND acked_at IS NULL AND delivered_at IS NOT NULL;
+
+CREATE INDEX messages_system ON messages (seq) WHERE author = 'system';
 
 CREATE INDEX messages_thread_seq ON messages (thread_id, seq);
 
@@ -222,5 +229,7 @@ CREATE TABLE wakes (
   ended_at INTEGER,
   end_reason TEXT
   ) WITHOUT ROWID;
+
+CREATE INDEX wakes_at ON wakes (at);
 
 CREATE INDEX wakes_open ON wakes (at) WHERE status IN ('fired', 'unclaimed');

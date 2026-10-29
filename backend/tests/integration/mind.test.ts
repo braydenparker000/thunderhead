@@ -160,4 +160,16 @@ describe('the day roll', () => {
     expect(pending.body.day_closed).toBe(true);
     expect((await wait(0)).body.signals).toContain('day_closed');
   });
+
+  it("a reply after the roll can still answer yesterday's unanswered messages", async () => {
+    const [last] = await coreSql<{ id: string }>(
+      "SELECT id FROM messages WHERE author = 'owner' AND answered_at IS NULL ORDER BY seq DESC LIMIT 1",
+    );
+    const r = await apiJson<Message>('PUT', `/v1/messages/${uuidv7()}`, {
+      ...as(C),
+      body: { body: 'Sorry for the wait. Here it is.', reply_to: last.id },
+    });
+    expect(r.status).toBe(201);
+    expect((await apiJson<PendingResponse>('GET', '/v1/mind/pending', as(C))).body.unanswered).toEqual([]);
+  });
 });

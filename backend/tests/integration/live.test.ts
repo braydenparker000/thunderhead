@@ -18,7 +18,9 @@ async function connect(token: string) {
   ws.accept();
   const frames: LiveFrame[] = [];
   let closed: number | null = null;
-  ws.addEventListener('message', (e) => frames.push(JSON.parse(String(e.data))));
+  ws.addEventListener('message', (e) => {
+    frames.push(JSON.parse(String(e.data)));
+  });
   ws.addEventListener('close', (e) => {
     closed = e.code;
   });

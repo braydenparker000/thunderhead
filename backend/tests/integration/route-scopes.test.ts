@@ -52,10 +52,10 @@ describe('route table (API.md §13)', () => {
   });
 
   it('the live socket takes only a ticket: 400 without an upgrade, 401 with a bad or used ticket', async () => {
-    expect((await api('GET', '/v1/live?ticket=thw_0000000000000000000000')).status).toBe(400);
+    expect((await api('GET', `/v1/live?ticket=thw_${'0'.repeat(22)}`)).status).toBe(400);
     const upgrade = { Upgrade: 'websocket' };
     expect((await api('GET', '/v1/live', { headers: upgrade })).status).toBe(401);
-    expect((await api('GET', '/v1/live?ticket=thw_0000000000000000000000', { headers: upgrade })).status).toBe(401);
+    expect((await api('GET', `/v1/live?ticket=thw_${'0'.repeat(22)}`, { headers: upgrade })).status).toBe(401);
     expect((await api('GET', '/v1/live?ticket=x', { token: tokens.D, headers: upgrade })).status).toBe(401);
   });
 

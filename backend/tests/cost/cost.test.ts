@@ -250,15 +250,12 @@ describe('rows per endpoint', () => {
       k,
     );
     await cost('GET /v1/surfaces (1 surface) (Core)', () => api('GET', '/v1/surfaces', d), 200, k);
-    await cost(
-      'cron tick, nothing due (Core)',
-      async () => {
-        await runInDurableObject(k as unknown as DurableObjectStub<Core>, (o: Core) => o.tick());
-        return new Response(null, { status: 204 });
-      },
-      204,
-      k,
-    );
+    const tick = async () => {
+      await runInDurableObject(k as unknown as DurableObjectStub<Core>, (o: Core) => o.tick());
+      return new Response(null, { status: 204 });
+    };
+    await cost('cron tick, the daily prune pass (Core)', tick, 204, k);
+    await cost('cron tick, nothing due (Core)', tick, 204, k);
   });
 
   it('every endpoint has a budget and stays within it', () => {

@@ -262,24 +262,24 @@ export function takeOwnerMessages(db: Db, now: number, requeueMs: number, limit:
   return rows.map((r) => toMessage({ ...r, delivered_at: now }));
 }
 
-/** A handed-out owner message counts as acknowledged once the mind works on or posts in its thread. */
-export function ackThread(db: Db, threadId: string, at: number): number {
+/** Handed-out owner messages count as acknowledged once the chat mind works or posts (one chat
+ * session holds the lease, so whatever was handed out was handed to it). */
+export function ackHandedOut(db: Db, at: number): number {
   return db.run(
-    `UPDATE messages SET acked_at = ? WHERE thread_id = ? AND author = 'owner' AND answered_at IS NULL
-       AND delivered_at IS NOT NULL AND acked_at IS NULL`,
+    `UPDATE messages SET acked_at = ? WHERE author = 'owner' AND answered_at IS NULL AND acked_at IS NULL
+       AND delivered_at IS NOT NULL`,
     at,
-    threadId,
   );
 }
 
-/** Marks the replied-to owner message and every earlier unanswered one in its thread answered. */
-export function answer(db: Db, threadId: string, replyTo: string, at: number): void {
+/** Marks the replied-to owner message and every earlier unanswered one answered: the chat is one
+ * conversation, so a reply to a later message has seen the earlier ones (API.md §11.7 rule 3). */
+export function answer(db: Db, replyTo: string, at: number): void {
   db.run(
-    `UPDATE messages SET answered_at = ?, acked_at = coalesce(acked_at, ?) WHERE thread_id = ? AND author = 'owner'
+    `UPDATE messages SET answered_at = ?, acked_at = coalesce(acked_at, ?) WHERE author = 'owner'
        AND answered_at IS NULL AND seq <= (SELECT seq FROM messages WHERE id = ?)`,
     at,
     at,
-    threadId,
     replyTo,
   );
 }

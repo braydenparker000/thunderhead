@@ -82,5 +82,69 @@
   "PATCH /v1/settings, 1 key (Core)": {
     "rows_read_max": 0,
     "rows_written_max": 2
+  },
+  "PUT /v1/messages/:id (owner, no session) (Core)": {
+    "rows_read_max": 10,
+    "rows_written_max": 8
+  },
+  "GET /v1/threads/today (20 messages) (Core)": {
+    "rows_read_max": 24,
+    "rows_written_max": 0
+  },
+  "GET /v1/changes (nothing new) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 0
+  },
+  "POST /v1/live/ticket (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 1
+  },
+  "POST /v1/mind/typing (unconnected) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 0
+  },
+  "POST /v1/mind/brief (claim, 20 messages) (Core)": {
+    "rows_read_max": 118,
+    "rows_written_max": 49
+  },
+  "GET /v1/live/wait (nothing new, 1 s) (Core)": {
+    "rows_read_max": 29,
+    "rows_written_max": 0
+  },
+  "POST /v1/mind/status working (Core)": {
+    "rows_read_max": 62,
+    "rows_written_max": 20
+  },
+  "PUT /v1/messages/:id (mind reply) (Core)": {
+    "rows_read_max": 76,
+    "rows_written_max": 28
+  },
+  "GET /v1/search (messages) (Core)": {
+    "rows_read_max": 57,
+    "rows_written_max": 0
+  },
+  "PUT /v1/verbs/:id (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 7
+  },
+  "GET /v1/verbs/pending (1 verb) (Core)": {
+    "rows_read_max": 5,
+    "rows_written_max": 0
+  },
+  "PUT /v1/surfaces/home/:slot (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 7
+  },
+  "GET /v1/surfaces (1 surface) (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
+  },
+  "cron tick, the daily prune pass (Core)": {
+    "rows_read_max": 48,
+    "rows_written_max": 1
+  },
+  "cron tick, nothing due (Core)": {
+    "rows_read_max": 8,
+    "rows_written_max": 0
   }
 }

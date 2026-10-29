@@ -77,14 +77,14 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
   return { wake };
 }
 
-/** POST /v1/mind/status. Returns whether the phone should get a typing pulse. */
+/** POST /v1/mind/status. Returns whether the phone should get a typing pulse. The presence light,
+ * the lease and the hand-outs are the chat session's; night and reflex report through their own
+ * runs (P3, P4), so their status changes nothing here. */
 export function status(w: Writer, sessionId: string | null, role: MindRole, r: MindStatusRequest): { typing: boolean } {
   const { db, at } = w;
-  if (sessionId && role === 'chat') renew(db, sessionId, at, true);
-  if (r.state === 'working') {
-    if (r.thread_id) convo.ackThread(db, r.thread_id, at);
-    else for (const t of convo.threadsPage(db, 'open', 5, null)) convo.ackThread(db, t.id, at);
-  }
+  if (role !== 'chat') return { typing: false };
+  if (sessionId) renew(db, sessionId, at, true);
+  if (r.state === 'working') convo.ackHandedOut(db, at);
   if (r.state === 'stopping' && sessionId) {
     store.dropLease(db, 'chat', sessionId);
     store.endSession(db, sessionId, at);

@@ -47,6 +47,8 @@ export const CONVERSATION_MIGRATIONS: Migration[] = [
       `CREATE INDEX messages_thread_seq ON messages (thread_id, seq)`,
       `CREATE INDEX messages_waiting ON messages (seq) WHERE author = 'owner' AND answered_at IS NULL`,
       `CREATE INDEX messages_system ON messages (seq) WHERE author = 'system'`,
+      `CREATE INDEX messages_handed ON messages (delivered_at)
+        WHERE author = 'owner' AND answered_at IS NULL AND acked_at IS NULL AND delivered_at IS NOT NULL`,
       `CREATE VIRTUAL TABLE messages_fts USING fts5 (body, content = 'messages', content_rowid = 'seq', tokenize = 'unicode61 remove_diacritics 2')`,
     ],
   },
