@@ -96,6 +96,7 @@ export const ROUTES = {
   'POST /v1/mind/night': { who: ['N'], phase: 'P3', deferred: 'P3 stage C (the night shift)' },
   'GET /v1/mind/day/:day': { who: ['N'], phase: 'P3', deferred: 'P3 stage C (the night shift)' },
   'GET /v1/memory/facts': { who: MEMORY_READ, phase: 'P3' },
+  'GET /v1/memory/facts/:id': { who: MEMORY_READ, phase: 'P3', note: 'one fact: its earlier versions, evidence and why' },
   'GET /v1/memory/profile': { who: MEMORY_READ, phase: 'P3' },
   'GET /v1/memory/day-notes': { who: MEMORY_READ, phase: 'P3' },
   'GET /v1/memory/open-threads': { who: MEMORY_READ, phase: 'P3' },

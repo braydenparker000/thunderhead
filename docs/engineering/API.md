@@ -448,6 +448,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | Route | Who | Request | Response |
 |---|---|---|---|
 | `GET /v1/memory/facts?kind&subject&include_superseded&limit&cursor` | device, `mind:chat`, `mind:night` | — | `200 Page<Fact>` (newest first; current versions unless `include_superseded=true`; each with `confidence_now`, the decayed value at read time, and `ledger_id`, the row that wrote it) |
+| `GET /v1/memory/facts/:id` | device, `mind:chat`, `mind:night` | — | `200 { fact: Fact, history: Fact[] /* earlier versions, newest first */, evidence: {ref, kind, at, who, text}[] /* text: the start (≤ 280) of the message or day note cited */, why: string \| null /* the ledger row that wrote this version */ }`; 404 when it was never there or was forgotten |
 | `POST /v1/memory/ops` | device, `mind:chat`, `mind:night` | `{ batch_id: Id, ops: MemoryOp[] /* ≤ 50 */ }` | `200 { applied: {i, fact_id, ledger_id}[], proposals: {i, proposal_id}[], rejected: {i, reason}[] }` |
 | `GET /v1/memory/profile` | device, `mind:chat`, `mind:night` | — | `200 { text: string /* ≤ 1,500 tokens */, fact_ids: Id[], rendered_at: Ms }` |
 | `GET /v1/memory/day-notes?from&to` | device, `mind:chat`, `mind:night` | — | `200 { items: DayNote[] }` |

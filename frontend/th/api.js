@@ -33,6 +33,16 @@
 /** @typedef {import('../../shared/contract/api.ts').SurfacesResponse} SurfacesResponse */
 /** @typedef {import('../../shared/contract/api.ts').Verb} Verb */
 /** @typedef {import('../../shared/contract/api.ts').VerbResultRequest} VerbResultRequest */
+/** @typedef {import('../../shared/contract/api.ts').Fact} Fact */
+/** @typedef {import('../../shared/contract/api.ts').FactDetail} FactDetail */
+/** @typedef {import('../../shared/contract/api.ts').MemoryOp} MemoryOp */
+/** @typedef {import('../../shared/contract/api.ts').MemoryOpsResponse} MemoryOpsResponse */
+/** @typedef {import('../../shared/contract/api.ts').ProfileResponse} ProfileResponse */
+/** @typedef {import('../../shared/contract/api.ts').DayNote} DayNote */
+/** @typedef {import('../../shared/contract/api.ts').PutDayNoteRequest} PutDayNoteRequest */
+/** @typedef {import('../../shared/contract/api.ts').OpenThread} OpenThread */
+/** @typedef {import('../../shared/contract/api.ts').PutOpenThreadRequest} PutOpenThreadRequest */
+/** @typedef {import('../../shared/contract/api.ts').PatchOpenThreadRequest} PatchOpenThreadRequest */
 
 export const TIMEOUT_MS = 15_000;
 
@@ -59,7 +69,7 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
   /**
    * @template T
    * @param {string} path
-   * @param {{ method?: string, token?: string, body?: unknown }} [opts]
+   * @param {{ method?: string, token?: string, body?: unknown, keepalive?: boolean }} [opts]
    * @returns {Promise<T>}
    */
   async function call(path, opts = {}) {
@@ -73,6 +83,8 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
       body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
       credentials: 'omit',
       cache: 'no-store',
+      // A write sent while the page goes away (a pending Forget) must still arrive.
+      keepalive: opts.keepalive ?? false,
       signal: AbortSignal.timeout(timeoutMs),
     });
     const text = await res.text();
@@ -158,5 +170,26 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
     claimVerb: (token, id) => call(`/v1/verbs/${encodeURIComponent(id)}/claim`, { method: 'POST', token, body: {} }),
     /** @param {string} token @param {string} id @param {VerbResultRequest} body @returns {Promise<Verb>} */
     verbResult: (token, id, body) => call(`/v1/verbs/${encodeURIComponent(id)}/result`, { method: 'POST', token, body }),
+
+    // --- memory (P3) ---------------------------------------------------------------------------
+    /** @param {string} token @param {string | null} cursor @returns {Promise<{ items: Fact[], next: string | null }>} */
+    facts: (token, cursor) => call(`/v1/memory/facts?limit=200${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`, { token }),
+    /** @param {string} token @param {string} id @returns {Promise<FactDetail>} */
+    fact: (token, id) => call(`/v1/memory/facts/${encodeURIComponent(id)}`, { token }),
+    /** @param {string} token @returns {Promise<ProfileResponse>} */
+    profile: (token) => call('/v1/memory/profile', { token }),
+    /** @param {string} token @param {string} batch_id @param {MemoryOp[]} ops @param {boolean} [keepalive] @returns {Promise<MemoryOpsResponse>} */
+    memoryOps: (token, batch_id, ops, keepalive = false) =>
+      call('/v1/memory/ops', { method: 'POST', token, body: { batch_id, ops }, keepalive }),
+    /** @param {string} token @returns {Promise<{ items: OpenThread[] }>} */
+    openThreads: (token) => call('/v1/memory/open-threads?status=open', { token }),
+    /** @param {string} token @param {string} id @param {PutOpenThreadRequest} body @returns {Promise<OpenThread>} */
+    putThread: (token, id, body) => call(`/v1/memory/open-threads/${encodeURIComponent(id)}`, { method: 'PUT', token, body }),
+    /** @param {string} token @param {string} id @param {PatchOpenThreadRequest} body @returns {Promise<OpenThread>} */
+    patchThread: (token, id, body) => call(`/v1/memory/open-threads/${encodeURIComponent(id)}`, { method: 'PATCH', token, body }),
+    /** @param {string} token @returns {Promise<{ items: DayNote[] }>} */
+    dayNotes: (token) => call('/v1/memory/day-notes', { token }),
+    /** @param {string} token @param {string} day @param {PutDayNoteRequest} body @returns {Promise<DayNote>} */
+    putDayNote: (token, day, body) => call(`/v1/memory/day-notes/${encodeURIComponent(day)}`, { method: 'PUT', token, body }),
   };
 }

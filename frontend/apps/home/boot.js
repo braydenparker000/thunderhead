@@ -13,7 +13,7 @@ import { updateLine } from '/th/update-rules.js';
 import { checkForUpdate, startUpdates, waiting } from '/th/update.js';
 import { CONFIG } from '/config.js';
 
-const ROUTES = { '/settings/password/': 'account', '/settings/agents/': 'agents', '/settings/devices/': 'devices' };
+const ROUTES = { '/settings/password/': 'account', '/settings/agents/': 'agents', '/settings/devices/': 'devices', '/settings/memory/': 'memory' };
 
 // The service worker and "Check for update" work with or without sign-in.
 startUpdates();

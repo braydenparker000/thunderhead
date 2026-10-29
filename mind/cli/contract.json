@@ -525,6 +525,16 @@
       "phase": "P3",
       "status": "built"
     },
+    "GET /v1/memory/facts/:id": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P3",
+      "status": "built",
+      "note": "one fact: its earlier versions, evidence and why"
+    },
     "GET /v1/memory/profile": {
       "who": [
         "D",

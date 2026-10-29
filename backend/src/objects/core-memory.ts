@@ -5,6 +5,7 @@
 import type {
   DayNote,
   Fact,
+  FactDetail,
   MemoryOpsResponse,
   OpenThread,
   PatchOpenThreadRequest,
@@ -14,6 +15,7 @@ import type {
 } from '../../../shared/contract/api';
 import { FACT_KIND_NAMES } from '../../../shared/contract/memory.ts';
 import { currentDay } from '../areas/conversation/day';
+import { detail } from '../areas/memory/detail';
 import * as notes from '../areas/memory/notes';
 import * as notesOps from '../areas/memory/notes-ops';
 import * as memory from '../areas/memory/ops';
@@ -31,6 +33,10 @@ export abstract class CoreMemory extends CoreBase {
     const now = Date.now();
     const rows = facts.factsPage(this.db, filter, before, limit);
     return { items: rows.map((r) => facts.toFact(r, now)), last: rows.at(-1)?.seq ?? null };
+  }
+
+  factDetail(id: string): FactDetail | null {
+    return detail(this.db, id, Date.now());
   }
 
   profile(): ProfileResponse {

@@ -1,5 +1,5 @@
-// Settings pages that need sign-in: Devices (SIGN-IN.md §11.1, §7.2), Agents (§17) and Account
-// (§9.1). Each opens full screen over the shell and slides in from the right, with a back row
+// Settings pages that need sign-in: Devices (SIGN-IN.md §11.1, §7.2), Agents (§17), Account
+// (§9.1) and What I remember (MEMORY.md §12). Each opens full screen over the shell and slides in from the right, with a back row
 // "‹ Settings" to the open menu (MENU-AND-SETTINGS.md §1). Signing out never asks for the password;
 // handing out a credential (recovery code, agent key) checks it inline (§15).
 import { api, signedIn, signOutHere } from '/th/client.js';
@@ -10,7 +10,7 @@ import { wipe } from '/th/session.js';
 import { confirmSheet, el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
 import { outbox } from '/th/chat/store.js';
 
-const TITLES = { devices: 'Sign-in & devices', agents: 'Agents', account: 'Account' };
+const TITLES = { devices: 'Sign-in & devices', agents: 'Agents', account: 'Account', memory: 'What I remember' };
 
 /** Signs this device out, asking first while messages are still waiting to send (SIGN-IN.md §11.3). */
 export async function signOutAsking() {
@@ -21,9 +21,11 @@ export async function signOutAsking() {
 }
 let current = null;
 
-/** Opens a settings page. @param {'devices' | 'agents' | 'account'} name @param {{ fromRoute?: boolean, role?: string }} [opts] */
+/** Opens a settings page. @param {'devices' | 'agents' | 'account' | 'memory'} name @param {{ fromRoute?: boolean, role?: string }} [opts] */
 export async function openPage(name, opts = {}) {
   current?.remove();
+  /** @type {(() => void) | null} what the page must do as it closes (Memory sends a pending Forget) */
+  let cleanup = null;
   const back = el('button', { type: 'button', class: 'sback', text: '‹ Settings' });
   const body = el('div', { class: 'sbody' });
   const page = el('section', { class: 'spage', role: 'dialog', 'aria-modal': 'true', 'aria-label': TITLES[name] }, [
@@ -35,6 +37,8 @@ export async function openPage(name, opts = {}) {
   current = page;
   requestAnimationFrame(() => page.classList.add('in'));
   const close = () => {
+    cleanup?.();
+    cleanup = null;
     page.classList.remove('in');
     setTimeout(() => page.remove(), 320);
     if (current === page) current = null;
@@ -46,6 +50,7 @@ export async function openPage(name, opts = {}) {
   back.focus({ preventScroll: true });
   if (name === 'devices') await devices(body);
   else if (name === 'agents') (await import('./agents.js')).agents(body, opts);
+  else if (name === 'memory') cleanup = await (await import('./memory.js')).memory(body);
   else (await import('./account.js')).account(body);
 }
 

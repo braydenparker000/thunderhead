@@ -6,6 +6,7 @@ import * as z from 'zod/mini';
 import type {
   DayNote,
   Fact,
+  FactDetail,
   MemoryOpsResponse,
   OpenThread,
   Page,
@@ -25,6 +26,7 @@ import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const bool = z.optional(z.enum(['true', 'false', '1', '0']));
 const factsQuery = z.object({
   kind: z.optional(z.enum(FACT_KIND_NAMES)),
@@ -34,7 +36,7 @@ const factsQuery = z.object({
   cursor: z.optional(z.string().check(z.maxLength(200))),
 });
 const opsBody = z.strictObject({
-  batch_id: z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)),
+  batch_id: z.string().check(z.regex(UUID)),
   ops: z.array(z.unknown()).check(z.minLength(1), z.maxLength(MEMORY_LIMITS.ops_per_batch)),
 });
 const daysQuery = z.object({
@@ -88,6 +90,13 @@ export const memoryRoutes = new Hono<AppEnv>()
     const { items, last } = await fresh(coreObject(c.env).facts(filter, before, limit));
     const next = items.length === limit && last !== null ? encodeCursor('facts', [last]) : null;
     return c.json({ items, next } satisfies Page<Fact>);
+  })
+  .get('/memory/facts/:id', guard('GET /v1/memory/facts/:id'), async (c) => {
+    const id = c.req.param('id') ?? '';
+    if (!UUID.test(id)) throw new ApiError('validation', [{ path: 'id', issue: 'a lowercase UUID' }]);
+    const found = await fresh(coreObject(c.env).factDetail(id));
+    if (!found) throw new ApiError('not_found');
+    return c.json(found satisfies FactDetail);
   })
   .get('/memory/profile', guard('GET /v1/memory/profile'), async (c) => {
     return c.json((await fresh(coreObject(c.env).profile())) satisfies ProfileResponse);

@@ -178,5 +178,9 @@
   "GET /v1/search (messages, facts, day notes) (Core)": {
     "rows_read_max": 9,
     "rows_written_max": 0
+  },
+  "GET /v1/memory/facts/:id (Core)": {
+    "rows_read_max": 14,
+    "rows_written_max": 0
   }
 }

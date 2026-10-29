@@ -121,6 +121,25 @@ export interface Fact {
   ledger_id: Id | null;
 }
 
+/** One piece of evidence as the Memory page shows it: who said it and when, and the start of
+ * what was said (a message or a day note); null text for refs with nothing to quote. */
+export interface EvidenceItem {
+  ref: string;
+  kind: string;
+  at: Ms | null;
+  who: 'owner' | 'mind' | 'system' | 'muse' | null;
+  text: string | null;
+}
+
+/** GET /v1/memory/facts/:id: the fact, its earlier versions (newest first), its evidence and the
+ * reason the mind gave when it wrote this version. */
+export interface FactDetail {
+  fact: Fact;
+  history: Fact[];
+  evidence: EvidenceItem[];
+  why: string | null;
+}
+
 export interface AddOp {
   op: 'add';
   id: Id;

@@ -42,6 +42,8 @@ export async function memoryCalls(cost: Cost, grant: (ip: string, password?: str
     k,
   );
   await cost('GET /v1/memory/facts (4 facts) (Core)', () => api('GET', '/v1/memory/facts', d), 200, k);
+  const [first] = (await apiJson<{ items: { id: string }[] }>('GET', '/v1/memory/facts', d)).body.items;
+  await cost('GET /v1/memory/facts/:id (Core)', () => api('GET', `/v1/memory/facts/${first.id}`, d), 200, k);
   await cost('GET /v1/memory/profile (4 facts) (Core)', () => api('GET', '/v1/memory/profile', d), 200, k);
   const thread = { text: 'Buy more tea', owner: 'owner', evidence: [`msg:${said.id}`] };
   await cost(

@@ -5,6 +5,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type {
   Fact,
+  FactDetail,
   LedgerEntry,
   Page,
   ProfileResponse,
@@ -109,6 +110,21 @@ describe('supersede, confirm, and the owner own fixes', () => {
     expect(profile.text).toContain('Mornings are best');
     expect(profile.text).not.toContain('Evenings are best');
     expect(await reason(chat(), { op: 'confirm', id: old.id, evidence: [`msg:${now}`] })).toBe('superseded');
+  });
+
+  it("a fact's detail has its earlier versions, its evidence with what was said, and its why", async () => {
+    const [f] = (await apiJson<Page<Fact>>('GET', '/v1/memory/facts?kind=routine', device())).body.items;
+    const d = await apiJson<FactDetail>('GET', `/v1/memory/facts/${f.id}`, device());
+    expect(d.body.fact.id).toBe(f.id);
+    expect(d.body.history.map((h) => h.text)).toEqual(['Evenings are best for practice']);
+    expect(d.body.evidence[0]).toMatchObject({
+      kind: 'msg',
+      who: 'owner',
+      text: 'Mornings are best for practice now.',
+    });
+    expect(d.body.why).toBe('the owner changed it');
+    expect((await apiJson('GET', `/v1/memory/facts/${uuidv7()}`, device())).status).toBe(404);
+    expect((await apiJson('GET', '/v1/memory/facts/not-an-id', device())).status).toBe(422);
   });
 
   it("confirm resets the clock; confirmed in the owner's words, a guess becomes a user fact", async () => {

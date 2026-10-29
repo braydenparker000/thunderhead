@@ -74,6 +74,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/mind/night` | N | P3 | deferred: P3 stage C (the night shift) |  |
 | `GET /v1/mind/day/:day` | N | P3 | deferred: P3 stage C (the night shift) |  |
 | `GET /v1/memory/facts` | D C N | P3 | built |  |
+| `GET /v1/memory/facts/:id` | D C N | P3 | built | one fact: its earlier versions, evidence and why |
 | `GET /v1/memory/profile` | D C N | P3 | built |  |
 | `GET /v1/memory/day-notes` | D C N | P3 | built |  |
 | `GET /v1/memory/open-threads` | D C N | P3 | built |  |
