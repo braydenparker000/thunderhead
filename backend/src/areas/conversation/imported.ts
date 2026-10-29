@@ -88,3 +88,14 @@ export function updateBody(db: Db, seq: number, oldBody: string, body: string): 
 export function addMessages(db: Db, threadId: string, n: number): number {
   return db.run('UPDATE threads SET message_count = message_count + ? WHERE id = ?', n, threadId);
 }
+
+/** Each named thread's message count and first and last times, on `messages_thread_seq`. */
+export function threadShapes(db: Db, ids: string[]): Map<string, { n: number; first: number; last: number }> {
+  if (!ids.length) return new Map();
+  const rows = db.all<{ thread_id: string; n: number; first: number; last: number }>(
+    `SELECT thread_id, count(*) AS n, min(created_at) AS first, max(created_at) AS last FROM messages
+     WHERE thread_id IN (SELECT value FROM json_each(?)) GROUP BY thread_id`,
+    JSON.stringify(ids),
+  );
+  return new Map(rows.map((r) => [r.thread_id, r]));
+}

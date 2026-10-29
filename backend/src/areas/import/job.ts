@@ -201,24 +201,15 @@ function tell(w: Writer, p: ImportPayload, what: string): void {
 }
 
 /** The threads whose messages differ from the source's in count or first or last time (at most
- * 20 listed), on `messages_thread_seq`. */
+ * 20 listed). */
 function misshapen(db: Db, shape: Shape): string[] {
   const ids = Object.keys(shape);
-  if (!ids.length) return [];
-  const got = new Map(
-    db
-      .all<{ thread_id: string; n: number; a: number; b: number }>(
-        `SELECT thread_id, count(*) AS n, min(created_at) AS a, max(created_at) AS b FROM messages
-         WHERE thread_id IN (SELECT value FROM json_each(?)) GROUP BY thread_id`,
-        JSON.stringify(ids),
-      )
-      .map((r) => [r.thread_id, r]),
-  );
+  const got = convo.threadShapes(db, ids);
   return ids
     .filter((id) => {
       const g = got.get(id);
-      const [n, a, b] = shape[id];
-      return !g || g.n !== n || g.a !== a || g.b !== b;
+      const [n, first, last] = shape[id];
+      return !g || g.n !== n || g.first !== first || g.last !== last;
     })
     .slice(0, 20);
 }
