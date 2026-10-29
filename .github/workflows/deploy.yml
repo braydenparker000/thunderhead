@@ -169,7 +169,13 @@ jobs:
             # expected), so an object still running the old code can't pass.
             got=""
             for i in $(seq 1 24); do
-              got="$(curl -fsS --max-time 10 -H "Authorization: Bearer $TH_CI_TOKEN" -H 'TH-Client: ci/deploy' "${WORKER_URL%/}/v1/ops/health/deep" | node scripts/schema-version.mjs --ready || true)"
+              deep="$(curl -fsS --max-time 10 -H "Authorization: Bearer $TH_CI_TOKEN" -H 'TH-Client: ci/deploy' "${WORKER_URL%/}/v1/ops/health/deep" || true)"
+              if [[ -f scripts/schema-version.mjs ]]; then
+                got="$(printf '%s' "$deep" | node scripts/schema-version.mjs --ready || true)"
+              else
+                # An older release (a rollback by commit) has no schema check: its deep health `ok` decides.
+                got="$(printf '%s' "$deep" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).ok===true?"ready":"ok is not true")}catch{process.stdout.write("no answer")}})' || true)"
+              fi
               [[ "$got" == ready ]] && break
               sleep 15
             done
