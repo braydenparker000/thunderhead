@@ -2,6 +2,7 @@
 // live channel's sockets, and the helpers every area uses: `write` (commit.ts: one transaction,
 // then the live channel), `run` (area failures as `{ok:false, code}`) and `schedule` (the alarm).
 import type { ChangesResponse, ErrorReport, ErrorRow, PerfRequest, Settings } from '../../../shared/contract/api';
+import { SANDBOX_INSTANCE } from '../../../shared/contract/evals.ts';
 import { sha256Hex } from '../areas/auth/crypto';
 import * as day from '../areas/conversation/day';
 import { Hub } from '../areas/feed/hub';
@@ -45,8 +46,14 @@ export abstract class CoreBase extends OwnerObject {
     return attempt(() => this.write(fn));
   }
 
+  /** This is the eval sandbox (`core-eval`, EVALS.md §1.1): it never fires a routine, and only it
+   * may be reset. Read from the object's own name, never from anything stored in it. */
+  protected get sandboxed(): boolean {
+    return this.ctx.id.name === SANDBOX_INSTANCE;
+  }
+
   protected configured(): boolean {
-    return fireConfig(this.env, 'chat') !== null;
+    return !this.sandboxed && fireConfig(this.env, 'chat') !== null;
   }
 
   /** Sets the alarm to the next due wake retry, requeue or job, writing only when it moves. */

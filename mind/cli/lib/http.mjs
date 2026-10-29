@@ -50,6 +50,8 @@ export async function request(method, path, opts = {}) {
   const headers = {'TH-Client': `th/${VERSION}`, ...(opts.headers || {})};
   if (s.role) headers['TH-Role'] = s.role;
   if (s.session) headers['TH-Session'] = s.session;
+  // The eval sandbox (th eval begin … end, EVALS.md §1.1): every call goes to the scratch instance.
+  if (process.env.TH_SANDBOX === 'eval' || getState('sandbox') === 'eval') headers['TH-Sandbox'] = 'eval';
   if (s.token) headers.Authorization = `Bearer ${s.token}`;
   let body;
   if (opts.raw !== undefined) body = opts.raw;

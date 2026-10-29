@@ -53,3 +53,22 @@ export function latestOwnerMessage(db: Db, threadId: string): { id: string; crea
     threadId,
   );
 }
+
+/** The mind's messages: in the given thread (newest last, at most `limit`), and how many elsewhere
+ * (the eval sandbox's report, where the thread is the eval's own). */
+export function mindMessages(db: Db, threadId: string | null, limit: number): { replies: string[]; outside: number } {
+  const inThread = threadId
+    ? db.all<{ body: string }>(
+        "SELECT body FROM messages WHERE thread_id = ? AND author = 'mind' ORDER BY seq DESC LIMIT ?",
+        threadId,
+        limit,
+      )
+    : [];
+  const outside =
+    db.one<{ n: number }>(
+      "SELECT count(*) AS n FROM messages WHERE author = 'mind' AND (? IS NULL OR thread_id != ?)",
+      threadId,
+      threadId,
+    )?.n ?? 0;
+  return { replies: inThread.map((m) => m.body).reverse(), outside };
+}

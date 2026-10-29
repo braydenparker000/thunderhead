@@ -80,6 +80,7 @@ describe('upgrade from P2', () => {
         'imports',
         'import_items',
         'proposals',
+        'eval_runs',
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       sql.exec('ALTER TABLE surfaces DROP COLUMN facts_json');

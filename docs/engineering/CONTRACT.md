@@ -90,6 +90,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/proposals` | D C N R | P4 | built |  |
 | `POST /v1/proposals/:id/decide` | D C | P4 | built | device: a tap; mind:chat: the owner's own words (by_message) only |
 | `POST /v1/proposals/:id/cancel` | D C N R | P4 | built | the agent that raised it, or the owner |
+| `POST /v1/evals/sandbox` | C N | P4 | built | with TH-Sandbox: eval only: reset the eval sandbox to a synthetic seed |
+| `GET /v1/evals/sandbox` | C N | P4 | built | with TH-Sandbox: eval only: what was written or tried since the reset |
+| `PUT /v1/evals/runs/:id` | C N | P4 | built | one finished suite, numbers and ids only (never in the sandbox) |
+| `GET /v1/evals/runs` | D C N | P4 | built |  |
 | `POST /v1/ops/backups/run` | N I | P4 | deferred: P4 stage E (weekly backups) |  |
 | `POST /v1/ops/drill/run` | N I | P4 | deferred: P4 stage E (the restore drill) |  |
 | `GET /v1/ops/backups` | D C N R I | P4 | deferred: P4 stage E (weekly backups) |  |
@@ -203,7 +207,7 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 | 6 | indexing jobs | 1 | P5 | no | jobs are keyed by their input |
 | 7 | arrange tomorrow | 4 | P3 | no | surfaces are put by app and slot |
 | 8 | built overnight | 1 | P4 | no | items are put by id |
-| 9 | weekly review and evals (Sunday) | 15 | P4 | no | one eval run a week |
+| 9 | weekly evals (the injection suite) (Sunday) | 15 | P4 | no | each fixture runs on a fresh sandbox; th eval end records one run |
 | 10 | session note and done | 2 | P3 | no | the run is marked done once |
 
 ## Proposals

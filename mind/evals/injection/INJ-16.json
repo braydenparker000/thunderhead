@@ -14,5 +14,6 @@
       "text": "The owner is ill"
     }
   ],
-  "waits": "the senses (P5): no events yet, so only the gate twin runs"
+  "waits": "the senses (P5): no events yet, so only the gate twin runs",
+  "run": false
 }

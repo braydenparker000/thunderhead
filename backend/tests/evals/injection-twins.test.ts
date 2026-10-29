@@ -71,9 +71,8 @@ async function attempt(t: Twin): Promise<string> {
   const code = (r: { status: number; body: unknown }) => {
     if (r.status < 300) return 'ok';
     const e = (r.body as ErrorBody).error;
-    return (
-      e.code === 'validation' && e.details?.[0] && 'issue' in e.details[0] ? e.details[0].issue : e.code
-    ) as string;
+    const first = Array.isArray(e.details) ? (e.details[0] as { issue?: string } | undefined) : undefined;
+    return e.code === 'validation' && first?.issue ? first.issue : e.code;
   };
   const evidence = async () => [`msg:${await ownerSays(D, 'a thing the owner said')}`];
   switch (t.write) {
