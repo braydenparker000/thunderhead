@@ -5,19 +5,23 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**P1 · Worker + sign-in**: done 2026-10-29 (X1/X3/X4 pass). **P1b · Apps ported**: live 2026-10-29 (My Media waits on the `DRIVE_CONFIG_JSON` secret). **P2 · The daily conversation**: building on branch `p2-chat`. Stage 1 (the backend: conversation, search, day roll, live channel, wake loop, ledger, verbs, surfaces and the contract registries, [EXTENDING.md](../engineering/EXTENDING.md)) stage 2 (the `th` CLI and hooks in `mind/`, checked against the contract and tested against the real Worker under `wrangler dev`) stage 3 (the home chat: live socket, outbox, presence, chips, Stop, the phone's registries) and stage 4 (waking through the mind-chat trigger: the Worker fires once `ROUTINE_CHAT_URL` and `ROUTINE_CHAT_TOKEN` are set, `none` until then) are built, with stage 3.5 (the chat review fixes) on top. Next on home: the 40-turn window and the collapse of long older replies for very long days (HOME.md §4.1, §4.3). Waiting on the owner: SETUP.md K (the hooks file, the `mind-chat` routine, the two Worker secrets, one test message). Then P2's "done when": three days of chat, a day rolled with no lost message, warm and cold reply times over 10+ wakes.
+**P2 · The daily conversation**: built and live 2026-10-29 (`43003e1`). Home is the Thunderhead chat; messages are stored, searchable and synced live, the day rolls by itself, and the mind's `th` CLI and hooks are ready. Until the owner's SETUP.md K connects the `mind-chat` routine, messages are saved and wait ("Saved. I'll answer once I'm connected."). P1 (Worker, sign-in, measurements X1/X3/X4) and P1b (the five ported apps) are done; My Media waits on the `DRIVE_CONFIG_JSON` secret.
 
 ## Next three tasks
 
-1. Finish P1. Built on branch `p1-finish`: the service worker (precache per release, offline shell and sign-in pages, safe update, kill switch), the install manifest and icons, `ui/icons.svg`, the T7 live check, and the Bench workflow for X1/X3/X4. Left: run Bench `x3`, `x4`, `x1` in production and record the results in decisions.md; the owner's phone checks (TESTING.md §12.2 item 3b: T9, T11, T17, T19; sign-out everywhere; "this device"); sign-in p95 on the phone. Web Push is P8 (ROADMAP), not P1.
-2. **P1b · Apps ported as they are**: Music, Guitar, Podcasts, Astra and My Media copied unchanged apart from paths, route folders and the API address; they keep calling the old Worker, whose allowed-origins change is asked first.
-3. The `mind-spike` work (`mind/`: the `th` CLI and hooks) is P2 and waits on the P2 routes.
+1. Owner: SETUP.md K, then the first chat. Then P2's "done when": three days of chat, a day rolled with no lost message, warm and cold reply times over 10+ wakes. Home follow-up: the 40-turn window and the collapse of long older replies (HOME.md §4.1, §4.3).
+2. **P3 · Import + memory v1** (facts with evidence, day notes, open threads, session notes, the Memory page, the night shift). The old-Worker export waits for the owner's yes; imports and backups need the private bucket (SETUP.md J2).
+3. Overlapping (owner ruling 2026-10-29): the app data moves (P5 Music first), each in its own deploy.
 
 ## Blocked / waiting on the owner
 
 - Nothing for P1. P1b needs the owner's yes to the old Worker's allowed-origins change (SETUP.md J).
 
 ## Last deploy
+
+- 2026-10-29 07:54 UTC: `43003e1` (run #22, site + Worker): P2 stages 3, 3.5 and 4, the home chat and waking via `mind-chat`, after an independent review (no blockers; its eight should-fix items fixed and re-probed).
+- 2026-10-29 06:43 UTC: `247e379` (run #21): stage 2.5 review fixes, deploy-transition fixes, a tag check that needs three matching answers. Run #20 saw one server still on the old version and rolled back automatically, as designed.
+- 2026-10-29 05:58 UTC: `1725976` (run #19): P2 stages 1–2, the conversation backend (Core migrations v2–v7, expand-only) and the `th` CLI.
 
 - 2026-10-29 04:15 UTC: site `22236b7` (run #17): the five ported apps live (P1b), service worker, icons, changed-files-only upload. Run #16 hit the job limit mid-upload (fixed: step limits keep the rollback runnable).
 - 2026-10-29 04:21–04:36 UTC: production measurements X3, X4, X1 all PASS (decisions.md).
