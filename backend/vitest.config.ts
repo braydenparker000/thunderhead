@@ -26,6 +26,8 @@ export default defineConfig({
           ROUTINE_CHAT_TOKEN: 'none',
           ROUTINE_NIGHT_URL: 'none',
           ROUTINE_NIGHT_TOKEN: 'none',
+          ROUTINE_REFLEX_URL: 'none',
+          ROUTINE_REFLEX_TOKEN: 'none',
           SITE_ORIGINS: 'https://site.example.test',
         },
       },

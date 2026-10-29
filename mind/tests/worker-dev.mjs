@@ -38,6 +38,8 @@ export async function startWorker({timeoutMs = 120_000} = {}) {
     'ROUTINE_CHAT_TOKEN=none',
     'ROUTINE_NIGHT_URL=none',
     'ROUTINE_NIGHT_TOKEN=none',
+    'ROUTINE_REFLEX_URL=none',
+    'ROUTINE_REFLEX_TOKEN=none',
     '',
   ].join('\n'));
   const port = await freePort();

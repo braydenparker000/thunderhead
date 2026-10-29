@@ -94,6 +94,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/evals/sandbox` | C N | P4 | built | with TH-Sandbox: eval only: what was written or tried since the reset |
 | `PUT /v1/evals/runs/:id` | C N | P4 | built | one finished suite, numbers and ids only (never in the sandbox) |
 | `GET /v1/evals/runs` | D C N | P4 | built |  |
+| `GET /v1/ops/watchdogs` | D C N R I | P4 | built | every watchdog, its state and the SLO it guards |
+| `POST /v1/ops/watchdogs/:name/handled` | C N R | P4 | built | what a mind session did about a trip (the reflex reports each one) |
 | `POST /v1/ops/backups/run` | N I | P4 | deferred: P4 stage E (weekly backups) |  |
 | `POST /v1/ops/drill/run` | N I | P4 | deferred: P4 stage E (the restore drill) |  |
 | `GET /v1/ops/backups` | D C N R I | P4 | deferred: P4 stage E (weekly backups) |  |

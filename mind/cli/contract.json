@@ -717,6 +717,28 @@
       "phase": "P4",
       "status": "built"
     },
+    "GET /v1/ops/watchdogs": {
+      "who": [
+        "D",
+        "C",
+        "N",
+        "R",
+        "I"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "every watchdog, its state and the SLO it guards"
+    },
+    "POST /v1/ops/watchdogs/:name/handled": {
+      "who": [
+        "C",
+        "N",
+        "R"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "what a mind session did about a trip (the reflex reports each one)"
+    },
     "POST /v1/ops/backups/run": {
       "who": [
         "N",

@@ -7,7 +7,7 @@ import { plan, requiredSecrets } from '../scripts/worker-secrets.mjs';
 
 const required = requiredSecrets(readFileSync(new URL('../backend/wrangler.jsonc', import.meta.url), 'utf8'));
 
-test('wrangler.jsonc lists the P1 secrets, the P2 mind-chat trigger and the P3 mind-night trigger', () => {
+test('wrangler.jsonc lists the P1 secrets and the mind-chat (P2), mind-night (P3) and mind-reflex (P4) triggers', () => {
   assert.deepEqual(required, [
     'AUTH_PEPPER',
     'IP_HASH_KEY',
@@ -17,6 +17,8 @@ test('wrangler.jsonc lists the P1 secrets, the P2 mind-chat trigger and the P3 m
     'ROUTINE_CHAT_TOKEN',
     'ROUTINE_NIGHT_URL',
     'ROUTINE_NIGHT_TOKEN',
+    'ROUTINE_REFLEX_URL',
+    'ROUTINE_REFLEX_TOKEN',
   ]);
 });
 
@@ -40,6 +42,8 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
     ROUTINE_CHAT_TOKEN: 'none',
     ROUTINE_NIGHT_URL: 'none',
     ROUTINE_NIGHT_TOKEN: 'none',
+    ROUTINE_REFLEX_URL: 'none',
+    ROUTINE_REFLEX_TOKEN: 'none',
   });
   // The first P3 deploy onto a P2 Worker whose mind-chat trigger is set: only the night pair is
   // added, as `none`, and the chat pair is left as the owner set it.
@@ -47,8 +51,13 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
   assert.deepEqual(plan(required, { bootstrap: false, live: p2 }), {
     ROUTINE_NIGHT_URL: 'none',
     ROUTINE_NIGHT_TOKEN: 'none',
+    ROUTINE_REFLEX_URL: 'none',
+    ROUTINE_REFLEX_TOKEN: 'none',
   });
-  const all = [...p2, ...['ROUTINE_NIGHT_URL', 'ROUTINE_NIGHT_TOKEN'].map((name) => ({ name }))];
+  // The first P4 stage D deploy onto a P3 Worker: only the reflex pair is added, as `none`.
+  const p3 = [...p2, ...['ROUTINE_NIGHT_URL', 'ROUTINE_NIGHT_TOKEN'].map((name) => ({ name }))];
+  assert.deepEqual(plan(required, { bootstrap: false, live: p3 }), { ROUTINE_REFLEX_URL: 'none', ROUTINE_REFLEX_TOKEN: 'none' });
+  const all = [...p3, ...['ROUTINE_REFLEX_URL', 'ROUTINE_REFLEX_TOKEN'].map((name) => ({ name }))];
   assert.deepEqual(plan(required, { bootstrap: false, live: all }), {});
   assert.throws(() => plan(required, { bootstrap: false, live: live.slice(1) }), /AUTH_PEPPER/);
 });

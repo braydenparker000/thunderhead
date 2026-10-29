@@ -143,6 +143,12 @@ export const ROUTES = {
   'GET /v1/evals/sandbox': { who: ['C', 'N'], phase: 'P4', note: 'with TH-Sandbox: eval only: what was written or tried since the reset' },
   'PUT /v1/evals/runs/:id': { who: ['C', 'N'], phase: 'P4', note: 'one finished suite, numbers and ids only (never in the sandbox)' },
   'GET /v1/evals/runs': { who: ['D', 'C', 'N'], phase: 'P4' },
+  'GET /v1/ops/watchdogs': { who: ['D', 'C', 'N', 'R', 'I'], phase: 'P4', note: 'every watchdog, its state and the SLO it guards' },
+  'POST /v1/ops/watchdogs/:name/handled': {
+    who: ['C', 'N', 'R'],
+    phase: 'P4',
+    note: 'what a mind session did about a trip (the reflex reports each one)',
+  },
   'POST /v1/ops/backups/run': { who: ['N', 'I'], phase: 'P4', deferred: 'P4 stage E (weekly backups)' },
   'POST /v1/ops/drill/run': { who: ['N', 'I'], phase: 'P4', deferred: 'P4 stage E (the restore drill)' },
   'GET /v1/ops/backups': { who: ['D', 'C', 'N', 'R', 'I'], phase: 'P4', deferred: 'P4 stage E (weekly backups)' },
