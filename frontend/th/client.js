@@ -15,8 +15,17 @@ export const api = createApi({ base: CONFIG.api.replace(/\/+$/, ''), client: `${
 /** Where /signin/ should come back to: this page. */
 export const here = () => location.pathname + location.search;
 
+// The page leaves for /signin/ once. A signed-out 401 records its reason before it wipes the
+// device, so a call that meanwhile finds no session (and so has no reason of its own) still
+// carries it; later calls change nothing.
+let leaving = false;
+let knownReason = '';
+
 /** @param {string} reason */
 export function toSignin(reason = '') {
+  if (leaving) return;
+  leaving = true;
+  reason = reason || knownReason;
   const q = new URLSearchParams();
   if (reason && reason !== 'signed_out_here') q.set('reason', reason);
   const next = here();
@@ -43,6 +52,7 @@ export async function signedIn(fn) {
   } catch (e) {
     const reason = signedOutReason(failure(e));
     if (reason) {
+      knownReason = knownReason || reason;
       await wipe();
       toSignin(reason);
       return new Promise(() => {});
