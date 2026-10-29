@@ -74,6 +74,21 @@ test('all roles: protected paths may be read but not written', () => {
   assert.equal(denied('chat', tool('Write', {file_path: '/elsewhere/.claude/x'})), null, 'outside the project');
 });
 
+test('an approved repo.change card lets exactly its paths be edited and pushed (RUNTIME.md §6.4)', () => {
+  const ok = ['.github/workflows/ci.yml'];
+  const approved = paths => paths.every(p => ok.includes(p));
+  assert.equal(denied('chat', tool('Edit', {file_path: '.github/workflows/ci.yml', old_string: 'a', new_string: 'b'}), {approved}), null);
+  assert.equal(denied('chat', bash('sed -i s/a/b/ .github/workflows/ci.yml'), {approved}), null);
+  assert.match(denied('chat', tool('Write', {file_path: 'mind/hooks/stop.mjs', content: 'x'}), {approved}), /protected path/);
+  assert.match(denied('chat', bash('echo x > .github/workflows/ci.yml && echo y > .claude/settings.json'), {approved}), /protected path/);
+  // A push carries what the branch's commits change since its base.
+  const carries = paths => ({approved, pushProtected: () => paths});
+  assert.equal(denied('chat', bash('git push -u origin claude/ci-fix'), carries([])), null);
+  assert.equal(denied('chat', bash('git push -u origin claude/ci-fix'), carries(['.github/workflows/ci.yml'])), null);
+  assert.match(denied('chat', bash('git push origin HEAD:main'), carries(['mind/CONSTITUTION.md'])), /push changes protected paths \(mind\/CONSTITUTION\.md\)/);
+  assert.match(denied('chat', bash('git push origin HEAD:main'), {pushProtected: () => ['.claude/settings.json']}), /without the owner's approval/);
+});
+
 test('night: no chat posts except --kind error, no pushes, no push to main', () => {
   for (const cmd of ['th say today hello', 'node mind/cli/th.mjs say today hi', 'th say today --kind text x', 'th push --title t',
     'git push origin HEAD:main', 'git push origin main', 'git push origin claude/x:refs/heads/main', 'git push']) {

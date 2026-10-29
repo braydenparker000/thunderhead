@@ -218,6 +218,7 @@ export function createFake(options = {}) {
       const isJson = (req.headers['content-type'] || '').includes('json');
       let body = {};
       if (isJson && raw.length) { try { body = JSON.parse(raw.toString('utf8')); } catch { throw new HttpError(400, 'bad_request'); } }
+      log.body = body;
       const result = await handler({req, role, session, body, raw, params: re.exec(url.pathname).slice(1), query: url.searchParams, base: `http://127.0.0.1:${server.address().port}`});
       if (failure && failure.after) { failure.times--; return send(failure.status, {error: {code: failure.code, message: 'injected after handling'}}); }
       const [status, data] = Array.isArray(result) ? result : [result === null ? 204 : 200, result];

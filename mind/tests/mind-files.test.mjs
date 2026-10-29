@@ -44,8 +44,14 @@ test('the hooks block to paste names hooks that exist, and the pasted copy is th
         const file = /mind\/hooks\/([a-z-]+\.mjs)/.exec(h.command)?.[1];
         assert.ok(file && existsSync(join(ROOT, 'mind/hooks', file)), h.command);
       }
-  // The owner pastes .claude/settings.json (SETUP.md K1); nothing here writes it. Once it is there,
-  // it holds exactly this block, so the hooks that run are the ones these tests cover.
-  if (existsSync(join(ROOT, '.claude/settings.json')))
-    assert.deepEqual(JSON.parse(read('.claude/settings.json')).hooks, block.hooks, 'the pasted hooks are mind/hooks/settings.example.json');
+  // The owner pastes .claude/settings.json (SETUP.md K1, M1); nothing here writes it. Once it is
+  // there, it holds exactly this block, so the hooks that run are the ones these tests cover. A hook
+  // event added since the owner's last paste may be missing until the next one (PENDING, with the
+  // SETUP step that brings it); nothing else may differ.
+  const PENDING = ['PostToolUse']; // P4 stage C, SETUP.md M1
+  if (existsSync(join(ROOT, '.claude/settings.json'))) {
+    const pasted = JSON.parse(read('.claude/settings.json')).hooks;
+    const lagging = Object.fromEntries(Object.entries(block.hooks).filter(([k]) => !PENDING.includes(k) || k in pasted));
+    assert.deepEqual(pasted, lagging, 'the pasted hooks are mind/hooks/settings.example.json (less a pending event)');
+  }
 });

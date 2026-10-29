@@ -1556,6 +1556,43 @@
           "additionalProperties": false
         }
       },
+      "repo.change": {
+        "classes": [
+          "access"
+        ],
+        "by": [
+          "C"
+        ],
+        "runs": "core",
+        "ref": [
+          "repo",
+          "base"
+        ],
+        "doc": "Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push.",
+        "args": {
+          "type": "object",
+          "properties": {
+            "paths": {
+              "minItems": 1,
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(mind\\/CONSTITUTION\\.md|(\\.claude|mind\\/hooks|\\.github)\\/(?!.*\\.\\.)[A-Za-z0-9._/-]{1,200})$"
+              }
+            },
+            "base": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            }
+          },
+          "required": [
+            "paths",
+            "base"
+          ],
+          "additionalProperties": false
+        }
+      },
       "laws.pin": {
         "classes": [
           "access"

@@ -27,6 +27,8 @@ export const CORE_RUNS: Partial<Record<ProposalOpName, CoreRun>> = {
     const r = forget(w, owner, ctx, String(a.id));
     return { result: { fact_id: r.fact_id }, ledger_id: r.ledger_id };
   },
+  // The approval is the record: the hook asks for it (th approved) before an edit or a push.
+  'repo.change': (_w, a) => ({ result: { paths: Array.isArray(a.paths) ? a.paths.length : 0 }, ledger_id: null }),
   'laws.pin': (w, a, p) => {
     const sha = String(a.sha256);
     return { result: { pinned: sha }, ledger_id: pin(w, sha, p.id) };

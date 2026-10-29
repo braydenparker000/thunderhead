@@ -35,6 +35,7 @@ export const USAGE = {
   forget: ['<fact id> --why <text>', 'propose forgetting a fact (a delete card for the owner)'],
   thread: ['add <text> --evidence <ids> | done <id> | drop <id> --why <t> | list', 'open threads (P3)'],
   propose: ['--class <c> --question <q> --why <t> --spec <json> --if-ignored <t> [--odds] [--options "A|B"] [--safe reject|snooze]', 'a decision card for the owner (the ops are listed below)'],
+  approved: ['--paths <p1,p2> --sha <commit>', 'whether the owner approved changing these protected paths on a branch from that commit (exit 6: not approved)'],
   decide: ['<proposal id> --by-message <message id> [--spec-hash <h>] [--reject]', 'record the owner\'s words as the decision (P4)'],
   order: ['new … | list | get <id> | cancel <id> --why <t>', 'work orders for Muse (P4)'],
   push: ['--title --body --ref --why --topic [--deadline]', 'a push (P8)'],
