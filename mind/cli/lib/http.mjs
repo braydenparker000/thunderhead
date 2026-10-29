@@ -40,11 +40,11 @@ async function readBody(res) {
  */
 export async function request(method, path, opts = {}) {
   checkRoute(method, path);
-  // A taint the PostToolUse hook couldn't send goes first, to the owner's Core: no write leaves
-  // before it, and if it can't be sent the write isn't either (RUNTIME.md §6.5).
+  // A taint the hooks marked but couldn't send goes first, to the Core the write goes to: no write
+  // leaves before it, and if it can't be sent the write isn't either (RUNTIME.md §6.5).
   const pending = method !== 'GET' && path !== '/v1/mind/taint' ? getState('taint_pending') : null;
   if (pending) {
-    await request('POST', '/v1/mind/taint', {sandbox: false, body: {source: String(pending.source || 'hook').slice(0, 40),
+    await request('POST', '/v1/mind/taint', {sandbox: opts.sandbox, body: {source: String(pending.source || 'hook').slice(0, 40),
       ref_kind: /^https?:\/\//.test(String(pending.ref)) ? 'url' : pending.ref === 'comment' ? 'comment' : 'file'}});
     setState('tainted', true);
     setState('taint_pending', null);

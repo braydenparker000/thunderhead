@@ -388,4 +388,9 @@ test('approved: an executed repo.change card for these paths and this base (exit
   assert.equal((await ask('.github/workflows/ci.yml,.github/workflows/deploy.yml')).code, 6, 'every path must be covered');
   assert.equal((await ask('.github/workflows/ci.yml', 'b'.repeat(40))).code, 6, 'another base');
   assert.equal((await ask('.github/workflows/ci.yml', 'HEAD')).code, 8);
+  // In the eval sandbox it still asks the owner's Core: a card approved there approves nothing real.
+  const inEval = await th(['approved', '--paths', '.github/workflows/ci.yml', '--sha', base], {...e, TH_SANDBOX: 'eval'});
+  assert.equal(inEval.code, 0);
+  const last = fake.state.requests.filter(r => r.path === '/v1/proposals').pop();
+  assert.equal(last.headers['th-sandbox'], undefined);
 }));

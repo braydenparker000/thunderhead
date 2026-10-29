@@ -1,39 +1,44 @@
 #!/usr/bin/env node
 // PostToolUse hook (RUNTIME.md §6.5). 1. Taint: the first time the session may have taken in text
-// the owner did not write (lib/taint.mjs, an allowlist of plainly local calls), it calls `th taint`
-// once; from then on the Worker refuses the session's memory writes and its ask-first cards. 2. Live progress: while the chat session reports
-// `working`, a Bash call's description becomes the presence note, at most one every 3 s.
+// the owner did not write (lib/taint.mjs: every call but a short list of plainly local ones), it
+// calls `th taint` once; from then on the Worker refuses the session's memory writes and its
+// ask-first cards. 2. Live progress: while the chat session reports `working`, a Bash call's
+// description becomes the presence note, at most one every 3 s.
 // It never blocks and prints nothing; with TH_ROLE unset (the owner's own Claude Code) it does nothing.
+//
+// The taint fails closed: `taint_pending` is in th's state before `th taint` runs (the PreToolUse
+// hook usually set it already), and only a `th taint` that got through clears it. So when th fails,
+// times out, or this hook breaks or is killed, it stays, and th sends the taint before its next
+// write. If this file can't run at all, the command in .claude/settings.json writes it.
 import {realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
-import {readInput, runTh} from './lib/hook-io.mjs';
+import {ownHosts, readInput, runTh} from './lib/hook-io.mjs';
 import {taintOf} from './lib/taint.mjs';
 import {getState, setState} from '../cli/lib/state.mjs';
 
 const PROGRESS_EVERY_MS = 3_000;
 const real = path => { try { return realpathSync(path); } catch { return path; } };
-const hostOf = url => { try { return new URL(url).hostname.toLowerCase(); } catch { return null; } };
+const pending = taint => { if (!getState('taint_pending')) setState('taint_pending', {...taint, at: Date.now()}); };
 
 const role = process.env.TH_ROLE || '';
 const input = role ? readInput() : null;
-// Fails closed: when the taint can't be sent (th failed, timed out, or this hook broke before it
-// knew), th's state keeps `taint_pending`, and th sends the taint before its next write.
-const pending = (source, ref) => { if (!getState('tainted')) setState('taint_pending', {source, ref, at: Date.now()}); };
 if (role) {
   try {
-    if (input === null) pending('hook', '');
+    if (input === null) pending({source: 'hook', ref: ''});
     else run(input);
   } catch {
-    pending('hook', '');
+    if (!getState('tainted')) pending({source: 'hook', ref: ''});
   }
 }
 
 function run(input) {
   const cwd = input.cwd || process.cwd();
-  const ownHosts = [process.env.TH_API, process.env.TH_SITE].map(u => (u ? hostOf(u) : null)).filter(Boolean);
-  const taint = getState('tainted') ? null : taintOf(input, {cwd, projectDir: process.env.CLAUDE_PROJECT_DIR || cwd, tmpDir: real(tmpdir()), ownHosts});
-  // The ref's kind is all the Worker hears (never the URL itself); th records the taint locally too.
-  if (taint && runTh(['taint', '--source', taint.source, '--ref', taint.ref], {timeoutMs: 8_000}).code !== 0) pending(taint.source, taint.ref);
+  const taint = getState('tainted') ? null : taintOf(input, {cwd, projectDir: process.env.CLAUDE_PROJECT_DIR || cwd, tmpDir: real(tmpdir()), ownHosts: ownHosts()});
+  if (taint) {
+    pending(taint);
+    // The ref's kind is all the Worker hears (never the URL itself); th records the taint locally too.
+    runTh(['taint', '--source', taint.source, '--ref', taint.ref], {timeoutMs: 8_000});
+  }
   const description = input.tool_name === 'Bash' ? String(input.tool_input?.description ?? '').trim() : '';
   if (role === 'chat' && description && getState('status')?.state === 'working') {
     const last = getState('progress_at', 0);

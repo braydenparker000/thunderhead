@@ -96,6 +96,7 @@ export function allow(who: readonly Who[], name?: string, key?: string) {
       sandbox !== 'eval' ||
       name !== undefined ||
       key?.includes(' /v1/auth/') ||
+      c.req.path.startsWith('/v1/auth/') ||
       p.kind !== 'agent' ||
       (p.role !== 'mind:chat' && p.role !== 'mind:night')
     )

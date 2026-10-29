@@ -70,10 +70,11 @@ test('th read --check taints the session first, prints only a checked answer, an
   }
 });
 
-test('the reader’s answer taints the session in the PostToolUse hook too; another subagent’s does not', () => {
+test('the reader’s answer taints the session in the PostToolUse hook too, and so does any other subagent’s (C.5: not on the local list)', () => {
   const ctx = {cwd: ROOT, tmpDir: '/tmp', ownHosts: []};
   for (const tool_name of ['Task', 'Agent'])
     assert.deepEqual(taintOf({tool_name, tool_input: {subagent_type: 'reader', prompt: 'Read https://example.test/a'}}, ctx),
       {source: 'reader', ref: 'file'});
-  assert.equal(taintOf({tool_name: 'Task', tool_input: {subagent_type: 'general-purpose', prompt: 'Sum these numbers'}}, ctx), null);
+  assert.deepEqual(taintOf({tool_name: 'Task', tool_input: {subagent_type: 'general-purpose', prompt: 'Sum these numbers'}}, ctx),
+    {source: 'subagent', ref: 'file'});
 });
