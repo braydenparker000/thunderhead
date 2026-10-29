@@ -36,11 +36,15 @@ export function assemble(
   const earlier = all.slice(0, -12);
   const yThread = convo.threadsPage(db, null, 5, null).find((t) => t.kind === 'daily' && t.day < day) ?? null;
   const yDay = yThread?.day ?? dayBefore(day);
-  const current = facts.currentFacts(
-    db,
-    FACT_KIND_NAMES.filter((k) => k !== 'rule'),
-    FACTS_READ,
-  );
+  // Reflex reads no memory (RUNTIME.md §7.1): none of it is even read for its briefing.
+  const memory = role !== 'reflex';
+  const current = memory
+    ? facts.currentFacts(
+        db,
+        FACT_KIND_NAMES.filter((k) => k !== 'rule'),
+        FACTS_READ,
+      )
+    : [];
   const { core, full } = buildBrief({
     role,
     constitution,
@@ -59,14 +63,14 @@ export function assemble(
     yesterday: {
       threadId: yThread?.id ?? null,
       tail: yThread ? convo.lastMessages(db, yThread.id, 20) : [],
-      note: notes.dayNote(db, yDay),
+      note: memory ? notes.dayNote(db, yDay) : null,
     },
     ledger: ledger.since(db, now - 24 * HOUR, 30),
     errorsOpen: ops.countOpenErrors(db),
-    rules: facts.currentFacts(db, ['rule'], RULES_READ),
-    threads: notes.openThreads(db, 'open', 60),
-    profile: renderProfile(current, now, tz).text,
-    days: notes.dayNotes(db, dayBefore(day, 7), dayBefore(day), 7),
+    rules: memory ? facts.currentFacts(db, ['rule'], RULES_READ) : [],
+    threads: memory ? notes.openThreads(db, 'open', 60) : [],
+    profile: memory ? renderProfile(current, now, tz).text : '',
+    days: memory ? notes.dayNotes(db, dayBefore(day, 7), dayBefore(day), 7) : [],
     night: null,
   });
   return { wake, day, seq: feed.lastSeq(db), core, full, night_done: false };

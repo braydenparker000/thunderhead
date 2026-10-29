@@ -73,10 +73,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/media/sign` | D C N | P2 | deferred: the private bucket (SETUP.md J2) |  |
 | `POST /v1/mind/night` | N | P3 | deferred: P3 stage C (the night shift) |  |
 | `GET /v1/mind/day/:day` | N | P3 | deferred: P3 stage C (the night shift) |  |
-| `GET /v1/memory/facts` | D C N R | P3 | built |  |
-| `GET /v1/memory/profile` | D C N R | P3 | built |  |
-| `GET /v1/memory/day-notes` | D C N R | P3 | built |  |
-| `GET /v1/memory/open-threads` | D C N R | P3 | built |  |
+| `GET /v1/memory/facts` | D C N | P3 | built |  |
+| `GET /v1/memory/profile` | D C N | P3 | built |  |
+| `GET /v1/memory/day-notes` | D C N | P3 | built |  |
+| `GET /v1/memory/open-threads` | D C N | P3 | built |  |
 | `POST /v1/memory/ops` | D C N | P3 | built | pin, may_raise and forget: device only |
 | `PUT /v1/memory/day-notes/:day` | D N | P3 | built | device: the owner's edit (written_by owner) |
 | `PUT /v1/memory/open-threads/:id` | D C N | P3 | built |  |

@@ -248,6 +248,15 @@ describe('the briefing (MEMORY.md §9)', () => {
     expect(b.core).toContain('## 5. Today so far\nSee section 2.');
   });
 
+  it('reflex reads no memory: its briefing names the memory sections without their content', () => {
+    const rules = [fact({ kind: 'rule', text: 'A standing rule' })];
+    const b = buildBrief(input({ role: 'reflex', rules, profile: 'A profile line', days: [] }));
+    for (const n of [3, 4, 8, 9]) expect(b.full).toContain(`## ${n}. `);
+    expect(b.full).not.toContain('A standing rule');
+    expect(b.full).not.toContain('A profile line');
+    expect(b.full.match(/Not in the reflex briefing/g)).toHaveLength(4);
+  });
+
   it('the later sections keep their budgets (today earlier ≤ 8,000)', () => {
     const earlier = Array.from({ length: 188 }, (_, i) => msg(i, 'e'.repeat(200)));
     const b = buildBrief(input({ todayEarlier: earlier }));

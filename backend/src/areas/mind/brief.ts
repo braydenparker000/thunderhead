@@ -10,6 +10,8 @@ import type { FactRow } from '../memory/store';
 
 export const CORE_MAX = 9_500;
 export const FULL_MAX = 48_000;
+/** Reflex handles breakage and reads no memory (RUNTIME.md §7.1): its briefing says so in place. */
+export const NO_MEMORY = 'Not in the reflex briefing (reflex reads no memory).';
 
 export interface BriefInput {
   role: MindRole;
@@ -104,7 +106,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
   const body: Record<number, string> = {
     1: now.slice(0, 500),
     2: waiting.slice(0, 2_800),
-    3: renderRules(i.rules, i.tz, 1_400),
+    3: i.role === 'reflex' ? NO_MEMORY : renderRules(i.rules, i.tz, 1_400),
     7: 'Full briefing: $TMPDIR/th/brief.md · Search: th recall "<q>"',
   };
   let left =
@@ -114,7 +116,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     body[s] = b >= 80 ? make(b) : `(no room in the core: th brief --section ${s})`;
     left -= body[s].length;
   };
-  take(4, 1_600, (b) => renderThreads(i.threads, i.tz, b));
+  take(4, 1_600, (b) => (i.role === 'reflex' ? NO_MEMORY : renderThreads(i.threads, i.tz, b)));
   take(6, 800, (b) =>
     i.yesterday.note
       ? renderDayNote(i.yesterday.note, b)
@@ -137,8 +139,8 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
   if (core.length > CORE_MAX) core = `${core.slice(0, core.lastIndexOf('\n', CORE_MAX - 40))}\n(+cut: th brief --full)`;
   const pending = i.ledger.map((l) => `${clock(l.at, i.tz)} ${l.actor} ${l.kind}: ${l.what}`);
   const later: [number, string][] = [
-    [8, i.profile.slice(0, 6_000)],
-    [9, renderDays(i.days, 1_400)],
+    [8, i.role === 'reflex' ? NO_MEMORY : i.profile.slice(0, 6_000)],
+    [9, i.role === 'reflex' ? NO_MEMORY : renderDays(i.days, 1_400)],
     [10, pending.length ? budgeted(pending, 2_000, 10, 'newest') : 'Nothing in the last 24 h.'],
     [11, [`errors open ${i.errorsOpen}`, i.night ?? 'night shift: not connected yet'].join(' · ').slice(0, 1_200)],
     [

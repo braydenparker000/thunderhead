@@ -447,12 +447,12 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `GET /v1/memory/facts?kind&subject&include_superseded&limit&cursor` | device, agents | — | `200 Page<Fact>` (newest first; current versions unless `include_superseded=true`; each with `confidence_now`, the decayed value at read time, and `ledger_id`, the row that wrote it) |
+| `GET /v1/memory/facts?kind&subject&include_superseded&limit&cursor` | device, `mind:chat`, `mind:night` | — | `200 Page<Fact>` (newest first; current versions unless `include_superseded=true`; each with `confidence_now`, the decayed value at read time, and `ledger_id`, the row that wrote it) |
 | `POST /v1/memory/ops` | device, `mind:chat`, `mind:night` | `{ batch_id: Id, ops: MemoryOp[] /* ≤ 50 */ }` | `200 { applied: {i, fact_id, ledger_id}[], proposals: {i, proposal_id}[], rejected: {i, reason}[] }` |
-| `GET /v1/memory/profile` | device, agents | — | `200 { text: string /* ≤ 1,500 tokens */, fact_ids: Id[], rendered_at: Ms }` |
-| `GET /v1/memory/day-notes?from&to` | device, agents | — | `200 { items: DayNote[] }` |
+| `GET /v1/memory/profile` | device, `mind:chat`, `mind:night` | — | `200 { text: string /* ≤ 1,500 tokens */, fact_ids: Id[], rendered_at: Ms }` |
+| `GET /v1/memory/day-notes?from&to` | device, `mind:chat`, `mind:night` | — | `200 { items: DayNote[] }` |
 | `PUT /v1/memory/day-notes/:day` | `mind:night`, device (the owner's edit, `written_by: 'owner'`) | `{ summary /* ≤ 150 words */, decisions: string[] /* ≤ 10 */, importance: 1-10 }` (`stats` is computed by the Worker) | `200 DayNote` (`version` + 1; the same body again keeps the version, so a rerun night step never writes version 2; a future day is 422) |
-| `GET /v1/memory/open-threads?status=open\|all` | device, agents | — | `200 { items: OpenThread[] }` |
+| `GET /v1/memory/open-threads?status=open\|all` | device, `mind:chat`, `mind:night` | — | `200 { items: OpenThread[] }` |
 | `PUT /v1/memory/open-threads/:id` | device, `mind:chat`, `mind:night` | `{ text, owner: 'mind'\|'owner', due_at?, evidence: Ref[] /* 1–20 existing refs; a device may send none */, tags?: string[], status?, why? /* ≤ 200; stored as closed_why; required when status is dropped */ }` | `200 OpenThread` (the same body again changes nothing) |
 | `PATCH /v1/memory/open-threads/:id` | device, `mind:chat`, `mind:night` | `{ status: 'done'\|'dropped', why? /* required for dropped */ }` | `200 OpenThread` |
 
@@ -645,7 +645,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `GET /v1/surfaces` | D C N R | P2 |
 | `PUT /v1/surfaces/:app/:slot` | C N | P2 |
 | `DELETE /v1/surfaces/:app/:slot` | D C N | P2 |
-| `GET /v1/memory/*` | D C N R | P3 |
+| `GET /v1/memory/*` | D C N (reflex reads no memory, RUNTIME.md §7.1) | P3 |
 | `PATCH /v1/memory/open-threads/:id` | D C N | P3 |
 | `POST /v1/memory/ops` | D C N | P3 |
 | `PUT /v1/memory/day-notes/:day` | D N | P3 |

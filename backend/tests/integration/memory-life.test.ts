@@ -12,7 +12,7 @@ import type {
   UndoResponse,
 } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
-import { apiJson, coreSql } from '../helpers';
+import { apiJson, coreSql, makeAgent } from '../helpers';
 import { addOp, as, brief, CHAT_SESSION, ops, ownerSays, type Principals, principals, reason } from '../memory-helpers';
 
 let P = {} as Principals;
@@ -52,6 +52,25 @@ describe('remember and recall', () => {
     );
     expect(row.what).toBe('remembered a goal');
     expect(`${row.what} ${row.why} ${row.undo_json}`).not.toContain('100 bpm');
+  });
+
+  it('reflex reads no memory: 403 on the memory routes, and its briefing carries none', async () => {
+    const R = await makeAgent(P.D, 'mind:reflex');
+    expect((await apiJson('GET', '/v1/memory/facts', { token: R })).status).toBe(403);
+    expect((await apiJson('GET', '/v1/memory/profile', { token: R })).status).toBe(403);
+    const b = await apiJson<{ full: string }>('POST', '/v1/mind/brief', {
+      ...as(R, 'cse_memory_reflex'),
+      body: {
+        claim: true,
+        session_id: 'cse_memory_reflex',
+        role: 'reflex',
+        constitution_sha256: 'none',
+        th_version: '0.1.0',
+      },
+    });
+    expect(b.status).toBe(200);
+    expect(b.body.full).not.toContain('Wants the second piece at 100 bpm');
+    expect(b.body.full).toContain('Not in the reflex briefing');
   });
 
   it('rules go to section 3 of the core, not the profile', async () => {

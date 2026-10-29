@@ -108,7 +108,7 @@ export function extraRoutes(ctl) {
         return {applied, proposals, rejected};
       });
     }],
-    ['GET', /^\/v1\/memory\/open-threads$/, ALL, ({query}) => ({items: [...s.openThreads.values()].filter(t => query.get('status') === 'all' || t.status === 'open')})],
+    ['GET', /^\/v1\/memory\/open-threads$/, CN, ({query}) => ({items: [...s.openThreads.values()].filter(t => query.get('status') === 'all' || t.status === 'open')})],
     ['PUT', /^\/v1\/memory\/open-threads\/([^/]+)$/, CN, ({params, body}) => {
       if (!body.text || !Array.isArray(body.evidence) || !body.evidence.length) throw new HttpError(422, 'validation');
       const row = {id: params[0], status: 'open', ...body};

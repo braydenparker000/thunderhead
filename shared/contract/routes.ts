@@ -22,6 +22,9 @@ export interface RouteSpec {
 const D: Who[] = ['D'];
 const AGENTS_READ: Who[] = ['D', 'C', 'N', 'R'];
 const MIND: Who[] = ['C', 'N', 'R'];
+/** Memory is read by the owner, chat and night only: reflex handles breakage and reads no
+ * memory (RUNTIME.md §7.1, least privilege; decisions.md 2026-10-29). */
+const MEMORY_READ: Who[] = ['D', 'C', 'N'];
 
 export const ROUTES = {
   // --- P1: health, sign-in, devices, agents, settings, ops -------------------------------------
@@ -92,10 +95,10 @@ export const ROUTES = {
   // --- P3: memory and the night shift -----------------------------------------------------------
   'POST /v1/mind/night': { who: ['N'], phase: 'P3', deferred: 'P3 stage C (the night shift)' },
   'GET /v1/mind/day/:day': { who: ['N'], phase: 'P3', deferred: 'P3 stage C (the night shift)' },
-  'GET /v1/memory/facts': { who: AGENTS_READ, phase: 'P3' },
-  'GET /v1/memory/profile': { who: AGENTS_READ, phase: 'P3' },
-  'GET /v1/memory/day-notes': { who: AGENTS_READ, phase: 'P3' },
-  'GET /v1/memory/open-threads': { who: AGENTS_READ, phase: 'P3' },
+  'GET /v1/memory/facts': { who: MEMORY_READ, phase: 'P3' },
+  'GET /v1/memory/profile': { who: MEMORY_READ, phase: 'P3' },
+  'GET /v1/memory/day-notes': { who: MEMORY_READ, phase: 'P3' },
+  'GET /v1/memory/open-threads': { who: MEMORY_READ, phase: 'P3' },
   'POST /v1/memory/ops': { who: ['D', 'C', 'N'], phase: 'P3', note: 'pin, may_raise and forget: device only' },
   'PUT /v1/memory/day-notes/:day': { who: ['D', 'N'], phase: 'P3', note: "device: the owner's edit (written_by owner)" },
   'PUT /v1/memory/open-threads/:id': { who: ['D', 'C', 'N'], phase: 'P3' },
