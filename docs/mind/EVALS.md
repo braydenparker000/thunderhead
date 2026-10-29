@@ -103,6 +103,8 @@ From LongMemEval's five abilities, plus one for implicit conflicts **[proposal]*
 
 **Acceptance:** the harness runs on the synthetic seed in CI with a stub model (fixed answers) and produces the expected score; the private run writes only `{suite, n, correct, by_cat}` to summaries.
 
+**In the repo (P3), synthetic only:** `mind/evals/seed.jsonl` (a fake owner: messages, facts, one supersede, one forget), `mind/evals/probes/memory.json` (synthetic probes MP-S01…, categories A, D and E, a rule and a forgotten fact), `mind/evals/abstain.json` and the deterministic scorer `mind/evals/probes/score.mjs` (`mind/tests/evals.test.mjs` scores a stub model's fixed answers). The Worker's half is `backend/tests/evals/memory-probes.test.ts`: it writes the seed through the real API and checks that every probe is answerable from what a fresh session gets (search over facts, the profile, the rules): recall, the newer value winning, nothing invented, and the forgotten fact gone from the briefing and search. Memory changes must keep both passing.
+
 ---
 
 ## 4. Injection fixtures (INJ)

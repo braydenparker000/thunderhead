@@ -50,9 +50,25 @@ test('th against the real Worker', {timeout: 300_000, skip: available() ? false 
     ok(today, 'get');
     assert.ok(today.json.messages.some(m => m.id === asked));
     assert.match((await th(['help'], chat)).stdout, /shell\.appearance/);
-    const later = await th(['remember', '--kind', 'fact', '--text', 'x', '--evidence', `msg:${asked}`], chat);
+    const later = await th(['order', 'list'], chat);
     assert.equal(later.code, 8);
     assert.match(later.stderr, /not_built/);
+  });
+
+  await t.test("memory (P3): remember from the owner's words, recall it, refuse a mind message as owner evidence (6)", async () => {
+    const r = await th(['remember', '--kind', 'preference', '--text', 'Likes a walk before music', '--evidence', `msg:${asked}`], chat);
+    ok(r, 'remember');
+    assert.match(r.json.fact_id, /^[0-9a-f-]{36}$/);
+    const found = await th(['recall', 'walk before music', '--sources', 'facts'], chat);
+    ok(found, 'recall');
+    assert.equal(found.json.items[0].ref, `fact:${r.json.fact_id}`);
+    const thread = await th(['thread', 'add', 'Plan the evening walk', '--evidence', `msg:${asked}`], chat);
+    ok(thread, 'thread add');
+    assert.equal((await th(['thread', 'list'], chat)).json.items[0].id, thread.json.id);
+    const mine = (await th(['history', 'today'], chat)).json.items.find(m => m.author === 'mind');
+    const refused = await th(['remember', '--kind', 'fact', '--text', 'Likes music', '--evidence', `msg:${mine.id}`], chat);
+    assert.equal(refused.code, 8, refused.stderr);
+    assert.match(refused.stderr, /not_owner_evidence/);
   });
 
   await t.test('a verb reaches the phone; a surface is placed, undone, and the 14-day quiet rule is 7', async () => {

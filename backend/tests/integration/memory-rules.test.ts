@@ -4,7 +4,7 @@
 // stored result and refuses a different body.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { uuidv7 } from '../../src/lib/ids';
-import { coreSql } from '../helpers';
+import { apiJson, coreSql } from '../helpers';
 import {
   addOp,
   as,
@@ -18,7 +18,6 @@ import {
   principals,
   reason,
 } from '../memory-helpers';
-import { apiJson } from '../helpers';
 
 let P = {} as Principals;
 let owner = '';
@@ -35,13 +34,15 @@ beforeAll(async () => {
 const facts = async () => (await coreSql<{ n: number }>('SELECT count(*) AS n FROM facts'))[0].n;
 
 describe('M2 evidence exists, is a citable kind, 1–20 ids', () => {
-  it('refuses unknown, malformed, too many, events, imports and ledger rows from a mind', async () => {
-    expect(await reason(chat(), addOp([`msg:${uuidv7()}`]))).toBe('unknown_ref');
+  it('refuses missing, malformed, too many, events, imports and ledger rows from a mind', async () => {
+    expect(await reason(chat(), addOp([`msg:${uuidv7()}`]))).toBe('bad_evidence');
     expect(await reason(chat(), addOp(['not a ref']))).toBe('bad_evidence');
     expect(await reason(chat(), addOp([]))).toBe('bad_evidence');
     expect(await reason(chat(), addOp(Array.from({ length: 21 }, (_, i) => `msg:${owner}#${i}`)))).toBe('bad_evidence');
-    expect(await reason(chat(), addOp([`event:${uuidv7()}`], { source: 'inferred' }))).toBe('unknown_ref');
-    expect(await reason(chat(), addOp([`import:${uuidv7()}`], { source: 'inferred' }))).toBe('unknown_ref');
+    expect(await reason(chat(), addOp([`event:${uuidv7()}`], { source: 'inferred' }))).toBe('bad_evidence');
+    expect(await reason(chat(), addOp([`import:${uuidv7()}`], { source: 'inferred' }))).toBe('bad_evidence');
+    expect(await reason(chat(), addOp([`day:2020-01-01`], { source: 'inferred' }))).toBe('bad_evidence');
+    expect(await reason(chat(), { op: 'confirm', id: uuidv7(), evidence: [`msg:${owner}`] })).toBe('unknown_ref');
     expect(await reason(chat(), addOp([`thread:${uuidv7()}`], { source: 'inferred' }))).toBe('bad_evidence');
     expect(await reason(chat(), addOp([`ledger:${uuidv7()}`]))).toBe('bad_evidence');
     expect(await facts()).toBe(0);
@@ -62,7 +63,9 @@ describe('M3 a user fact rests on the owner own words only', () => {
 
 describe('M4, M5, M6, M7, M13, M14', () => {
   it('M4: a rule needs source user', async () => {
-    expect(await reason(chat(), addOp([`msg:${owner}`], { kind: 'rule', source: 'inferred' }))).toBe('rule_needs_owner');
+    expect(await reason(chat(), addOp([`msg:${owner}`], { kind: 'rule', source: 'inferred' }))).toBe(
+      'rule_needs_owner',
+    );
   });
 
   it('M5: observed needs 10 owner-device events (none exist before Senses)', async () => {
@@ -116,7 +119,11 @@ describe('M8, M9, M10: changes the owner decides (proposals arrive in P4)', () =
   it("M9: a non-user source can't replace a user fact", async () => {
     const op = addOp([`msg:${owner}`], { text: 'Practises in the evening', kind: 'routine' });
     expect(await reason(chat(), op)).toBeNull();
-    const sup = { op: 'supersede', id: op.id, new: { id: uuidv7(), text: 'Practises at noon', evidence: [`msg:${owner}`], source: 'inferred' } };
+    const sup = {
+      op: 'supersede',
+      id: op.id,
+      new: { id: uuidv7(), text: 'Practises at noon', evidence: [`msg:${owner}`], source: 'inferred' },
+    };
     expect(await reason(chat(), sup)).toBe('proposal_required');
   });
 

@@ -220,7 +220,7 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th search` (or `th recall`) | `<query> [--sources messages,facts,day_notes,library] [--since <date>] [--until <date>] [--thread <id>] [--limit 20]` (`--kind` is kept as an alias) | `{"items":[{source,ref,at,snippet,score}]}` | C N R | Federated over the built sources, fused by rank ([MEMORY.md §10](MEMORY.md#10-search)). |
 | `th get` | `<path> [key=value …]` | the route's JSON | C N R | Any built GET route the role may call (listed by `th help`). |
 | `th help` | `[command]` | text | C N R | The commands, then the routes, verbs and surface kinds of this build, from the contract. |
-| `th remember` | `--kind <k> --text <t> --evidence <ids> [--subject <s>] [--sensitivity 0\|1] [--valid-from <date>] [--source user\|observed\|inferred]` | `{"fact_id","ledger_id"}` | C N | Worker enforces provenance and taint. Exit 6 on a tainted session or bad evidence. |
+| `th remember` | `--kind <k> --text <t> --evidence <ids> [--subject <s>] [--sensitivity 0\|1] [--valid-from <date>] [--source user\|observed\|inferred]` | `{"fact_id","ledger_id"}` | C N | Worker enforces provenance and taint. Exit 6 on a tainted session (403); exit 8 when the evidence is refused (422, the reason in the error's `details`). |
 | `th confirm` | `<fact id> --evidence <ids>` | `{"ok":true}` | C N | Sets `last_confirmed`. |
 | `th supersede` | `<fact id> --text <t> --evidence <ids> [--reason <r>]` | `{"fact_id","ledger_id"}` | C N | Closes the old fact, inserts the new one. A non-user source superseding a `user` fact becomes a proposal. |
 | `th forget` | `<fact id> --why <text>` | `{"proposal_id"}` | C | Owner-only hard delete, so the mind can only propose it (`delete` class). |

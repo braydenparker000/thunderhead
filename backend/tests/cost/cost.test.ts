@@ -29,6 +29,7 @@ import {
   USERNAME,
 } from '../helpers';
 import budgets from './budgets.json';
+import { memoryCalls } from './memory-calls';
 
 type Budget = { rows_read_max: number; rows_written_max: number };
 const measured: Record<string, Rows> = {};
@@ -257,6 +258,9 @@ describe('rows per endpoint', () => {
     await cost('cron tick, the daily prune pass (Core)', tick, 204, k);
     await cost('cron tick, nothing due (Core)', tick, 204, k);
   });
+
+  // P3: memory on a Core that already holds the P2 rows above (memory-calls.ts).
+  it('measures every P3 memory endpoint against its budget', () => memoryCalls(cost, grant));
 
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);

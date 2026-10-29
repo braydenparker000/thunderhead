@@ -45,7 +45,8 @@ skipped. [CONTRACT.md](CONTRACT.md) is the generated list of what exists today.
 | `feed.ts` | Change kinds, the live protocol version, frame types, close codes, apps, search sources, message kinds | Worker, phone, `th` |
 | `codes.ts` | Each error code's HTTP status and log message | Worker errors, `th` exit codes |
 | `lint.ts` | The phrase lint | Worker (422) and `th say` (before sending) |
-| `api.ts`, `actions.ts`, `conversation.ts` | Types only: request and response shapes | Worker `satisfies`, the phone's JSDoc |
+| `memory.ts` | Fact kinds (half-life, profile cap), sources (starting confidence, cap), the confidence thresholds, limits, the refusal reasons, the decay formula; and the memory wire types | Worker validation and renders, the Memory page, `th remember` |
+| `api.ts`, `actions.ts`, `conversation.ts`, `memory.ts` | Types: request and response shapes | Worker `satisfies`, the phone's JSDoc |
 
 The registries are plain data with zod/mini schemas, so Node imports them without a build
 (type stripping). `node scripts/contract.mjs` writes the three copies:
@@ -123,9 +124,26 @@ area's commit. Phones that do not know it ignore it and resync; nothing else cha
 ### A search source
 
 Add it to `SEARCH_SOURCES` in `feed.ts` (phase and ref kind), and its query to `SOURCES` in
-`backend/src/areas/search/sources.ts`: a function of `(db, query, limit)` returning
-`{source, ref, snippet, score, at}` hits. The route fuses all requested sources by reciprocal rank
-(k = 60), so scores from different stores never need to agree.
+`backend/src/areas/search/sources.ts`: a function of `(env, query)` returning
+`{source, ref, snippet, at}` hits, ranked. The route fuses all requested sources by reciprocal rank
+(k = 60), so scores from different stores never need to agree. Messages (P2), facts and day notes
+(P3) are the built ones; a source with no thread facet returns nothing when one is asked.
+
+### Semantic recall (P8)
+
+Embeddings plug in behind the same route, not as a new endpoint: set `SEMANTIC.recall` in
+`sources.ts` to an object whose `run(env, query, sources)` returns one ranked hit list over the
+asked sources (it gets `query.text`, the query as typed). The route fuses it with the FTS lists by
+rank. `backend/tests/integration/memory-notes.test.ts` plugs in a fake to prove the fusion; the
+real one ships only after the cross-language probes pass (EVALS.md §3.4).
+
+### An object method (deploy-transition tolerance)
+
+During a deploy the new Worker can briefly reach an object still running the previous release. A
+route that calls a Core method added in this release wraps the call in `fresh(...)`
+(`backend/src/objects/rpc.ts`), so the moment answers `503 unavailable` (clients retry) instead
+of a 500. Object methods accept what the previous Worker sends (new arguments optional, arrays read
+with `Array.isArray`), and new fields in responses are optional for old readers.
 
 ### An app
 

@@ -115,32 +115,32 @@ interface Cited {
   event: boolean;
 }
 
-/** M2 and M6: every cited id exists, is a kind memory may cite, and is not Muse or outside text. */
+/** M2 and M6: every cited id exists (else `bad_evidence`), is a kind memory may cite, and is not
+ * Muse or outside text. `unknown_ref` is kept for the fact an op names. */
 function cite(ctx: OpContext, r: string): Cited {
   const m = REF.exec(r);
   if (!m) throw new Reject('bad_evidence');
   const [, kind, key] = m;
   if (kind === 'msg') {
     const msg = messageOrigin(ctx.db, key);
-    if (!msg) throw new Reject('unknown_ref');
+    if (!msg) throw new Reject('bad_evidence');
     if (msg.author === 'muse' || msg.origin === 'muse') throw new Reject('tainted_evidence');
     const owner = msg.author === 'owner' && (msg.origin === 'owner_device' || msg.origin === 'import');
     return { ref: r, owner, words: owner, event: false };
   }
   if (kind === 'day') {
-    if (!dayNote(ctx.db, key)) throw new Reject('unknown_ref');
+    if (!dayNote(ctx.db, key)) throw new Reject('bad_evidence');
     return { ref: r, owner: false, words: false, event: false };
   }
   if (kind === 'ledger') {
     if (!ctx.device) throw new Reject('bad_evidence');
     if (key === ctx.selfLedger) return { ref: r, owner: true, words: true, event: false };
     const row = ledgerRow(ctx.db, key);
-    if (!row) throw new Reject('unknown_ref');
+    if (!row) throw new Reject('bad_evidence');
     return { ref: r, owner: row.actor === 'owner', words: row.actor === 'owner', event: false };
   }
   // Events have no table before Senses (P5) and import items none before the import (P3 stage
-  // D), so neither can be checked yet.
-  if (kind === 'event' || kind === 'import') throw new Reject('unknown_ref');
+  // D): neither can be checked yet, so neither is accepted.
   throw new Reject('bad_evidence');
 }
 

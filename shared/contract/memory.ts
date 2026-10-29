@@ -55,8 +55,8 @@ export const MEMORY_LIMITS = {
 /** Why one memory op was not applied (API.md §11.13): MEMORY.md §6's codes plus the Worker's. */
 export const MEMORY_REASONS = {
   bad_op: 'The op does not match its shape.',
-  bad_evidence: 'Evidence must be 1–20 known messages, day notes, imports or owner ledger rows.',
-  unknown_ref: 'A cited id does not exist.',
+  bad_evidence: 'Evidence must be 1–20 existing messages, day notes, imports or owner ledger rows.',
+  unknown_ref: 'The fact this op names does not exist.',
   not_owner_evidence: "A 'user' fact needs evidence that is all the owner's own words.",
   rule_needs_owner: "A rule needs source 'user'.",
   too_little_evidence: "An 'observed' fact needs at least 10 owner-device events.",

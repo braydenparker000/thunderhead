@@ -7,8 +7,9 @@ import {CONTRACT} from './contract.mjs';
 import {request} from './http.mjs';
 import {uuidv7} from './ids.mjs';
 
-export const FACT_KINDS = ['preference', 'routine', 'fact', 'goal', 'state', 'rule'];
-const SOURCES = ['user', 'observed', 'inferred'];
+// The fact kinds and sources are the contract's (shared/contract/memory.ts via contract.json).
+export const FACT_KINDS = Object.keys(CONTRACT.memory.kinds);
+const SOURCES = Object.keys(CONTRACT.memory.sources);
 const seg = value => encodeURIComponent(String(value));
 
 /** Evidence ids: a bare id is a message (`msg:<id>`); anything with a kind prefix is kept. */

@@ -1,0 +1,5 @@
+{
+  "v": 1,
+  "note": "Abstention phrases for category E (EVALS.md §3.3): an answer is an abstention when it contains one of these, accent- and case-folded.",
+  "phrases": ["i don't know", "i do not know", "you haven't told me", "you have not told me", "i don't have that", "nothing about that", "i'm not sure", "no record of"]
+}

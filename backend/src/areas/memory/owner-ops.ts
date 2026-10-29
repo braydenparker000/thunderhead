@@ -50,6 +50,7 @@ export function forget(w: Writer, c: Caller, ctx: OpContext, id: string): Applie
   scrubMemory(
     w.db,
     versions.map((v) => short(v.id)),
+    Math.min(...versions.map((v) => v.recorded_at)),
   );
   const ledgerId = w.ledger({
     id: ctx.selfLedger,

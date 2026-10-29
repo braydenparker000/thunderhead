@@ -31,10 +31,10 @@ test('a route this build lacks exits 8 not_built before the network', withFake(a
   const e = {...env(fake), TH_ALLOW_UNBUILT: undefined};
   delete e.TH_ALLOW_UNBUILT;
   const before = fake.state.requests.length;
-  const r = await th(['remember', '--kind', 'fact', '--text', 'x', '--evidence', 'msg:1'], e);
+  const r = await th(['order', 'list'], e);
   assert.equal(r.code, 8);
   assert.equal(errCode(r), 'not_built');
-  assert.match(r.stderr, /POST \/v1\/memory\/ops is later \(P3\)/);
+  assert.match(r.stderr, /GET \/v1\/work\/orders is later \(P4\)/);
   assert.equal(fake.state.requests.length, before);
   assert.equal((await th(['pending'], e)).code, 0, 'built routes still work');
 }));
@@ -70,7 +70,8 @@ test('th get reads any built GET route; th help comes from the contract', withFa
   assert.equal(help.code, 0);
   for (const name of [...Object.keys(CONTRACT.verbs), ...Object.keys(CONTRACT.surfaces), 'GET /v1/threads/today'])
     assert.ok(help.stdout.includes(name), name);
-  assert.ok(!help.stdout.includes('POST /v1/memory/ops'), 'routes of later phases are not offered');
+  assert.ok(help.stdout.includes('POST /v1/memory/ops'), 'built P3 routes are offered');
+  assert.ok(!help.stdout.includes('GET /v1/work/orders'), 'routes of later phases are not offered');
   assert.match((await th(['help', 'verb'], e)).stdout, /^th verb <app\.action>/);
 }));
 

@@ -40,7 +40,10 @@ describe('open threads', () => {
     expect((await putThread(chat(), uuidv7(), { ...body, evidence: [`msg:${uuidv7()}`] })).status).toBe(422);
     const drop = await apiJson('PATCH', `/v1/memory/open-threads/${id}`, { ...night(), body: { status: 'dropped' } });
     expect(drop.status).toBe(422);
-    const done = await apiJson<OpenThread>('PATCH', `/v1/memory/open-threads/${id}`, { ...night(), body: { status: 'done' } });
+    const done = await apiJson<OpenThread>('PATCH', `/v1/memory/open-threads/${id}`, {
+      ...night(),
+      body: { status: 'done' },
+    });
     expect(done.body).toMatchObject({ status: 'done', closed_at: expect.any(Number) });
     const open = await apiJson<{ items: OpenThread[] }>('GET', '/v1/memory/open-threads', { token: P.D });
     expect(open.body.items.map((t) => t.id)).not.toContain(id);
@@ -52,7 +55,12 @@ describe('open threads', () => {
     const mine = uuidv7();
     const theirs = uuidv7();
     await putThread({ token: P.D }, theirs, { text: 'Owner: send the recording', owner: 'owner', evidence: [] });
-    await putThread(chat(), mine, { text: 'Mind: tidy the practice list', owner: 'mind', evidence: [`msg:${said}`], due_at: Date.now() + 3_600_000 });
+    await putThread(chat(), mine, {
+      text: 'Mind: tidy the practice list',
+      owner: 'mind',
+      evidence: [`msg:${said}`],
+      due_at: Date.now() + 3_600_000,
+    });
     const b = await brief(P.C, CHAT_SESSION, 'chat');
     const four = b.body.core.slice(b.body.core.indexOf('## 4.'), b.body.core.indexOf('## 5.'));
     expect(four.indexOf(`[${mine}] Mind: tidy`)).toBeGreaterThan(-1);
@@ -78,17 +86,31 @@ describe('open threads', () => {
 describe('day notes', () => {
   it('version 1, the same body again stays 1, a new body is version 2; the owner may edit', async () => {
     const day = yesterday();
-    const body = { summary: 'A calm day of practice and one bug report.', decisions: ['Fix the metronome first'], importance: 4 };
+    const body = {
+      summary: 'A calm day of practice and one bug report.',
+      decisions: ['Fix the metronome first'],
+      importance: 4,
+    };
     const v1 = await putNote(night(), day, body);
-    expect(v1.body).toMatchObject({ day, version: 1, written_by: NIGHT_SESSION, decisions: ['Fix the metronome first'] });
+    expect(v1.body).toMatchObject({
+      day,
+      version: 1,
+      written_by: NIGHT_SESSION,
+      decisions: ['Fix the metronome first'],
+    });
     expect(v1.body.stats).toMatchObject({ messages: expect.any(Number) });
     expect((await putNote(night(), day, body)).body.version).toBe(1);
-    expect((await putNote({ token: P.D }, day, { ...body, importance: 5 })).body).toMatchObject({ version: 2, written_by: 'owner' });
+    expect((await putNote({ token: P.D }, day, { ...body, importance: 5 })).body).toMatchObject({
+      version: 2,
+      written_by: 'owner',
+    });
     expect((await putNote(chat(), day, body)).status).toBe(403);
     expect((await putNote(night(), '2999-01-01', body)).status).toBe(422);
     const words = { ...body, summary: 'word '.repeat(151) };
     expect((await putNote(night(), day, words)).status).toBe(422);
-    const list = await apiJson<{ items: DayNote[] }>('GET', `/v1/memory/day-notes?from=${day}&to=${day}`, { token: P.D });
+    const list = await apiJson<{ items: DayNote[] }>('GET', `/v1/memory/day-notes?from=${day}&to=${day}`, {
+      token: P.D,
+    });
     expect(list.body.items.map((n) => n.version)).toEqual([2]);
   });
 

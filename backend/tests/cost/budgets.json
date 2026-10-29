@@ -104,7 +104,7 @@
     "rows_written_max": 0
   },
   "POST /v1/mind/brief (claim, 20 messages) (Core)": {
-    "rows_read_max": 120,
+    "rows_read_max": 129,
     "rows_written_max": 49
   },
   "GET /v1/live/wait (nothing new, 1 s) (Core)": {
@@ -120,7 +120,7 @@
     "rows_written_max": 30
   },
   "GET /v1/search (messages) (Core)": {
-    "rows_read_max": 57,
+    "rows_read_max": 59,
     "rows_written_max": 0
   },
   "PUT /v1/verbs/:id (Core)": {
@@ -140,11 +140,43 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 48,
+    "rows_read_max": 56,
     "rows_written_max": 1
   },
   "cron tick, nothing due (Core)": {
     "rows_read_max": 8,
+    "rows_written_max": 0
+  },
+  "POST /v1/memory/ops (1 add) (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 10
+  },
+  "GET /v1/memory/facts (4 facts) (Core)": {
+    "rows_read_max": 4,
+    "rows_written_max": 0
+  },
+  "GET /v1/memory/profile (4 facts) (Core)": {
+    "rows_read_max": 14,
+    "rows_written_max": 0
+  },
+  "PUT /v1/memory/open-threads/:id (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 7
+  },
+  "GET /v1/memory/open-threads (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
+  },
+  "PUT /v1/memory/day-notes/:day (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 8
+  },
+  "GET /v1/memory/day-notes (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "GET /v1/search (messages, facts, day notes) (Core)": {
+    "rows_read_max": 9,
     "rows_written_max": 0
   }
 }

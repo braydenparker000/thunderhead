@@ -3,7 +3,14 @@
 // (no surface may cite it), undone, and forgotten: gone from facts, search, the FTS index, the
 // briefing and every ledger row's words, with one contentless tombstone left.
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Fact, LedgerEntry, Page, ProfileResponse, SearchResponse, UndoResponse } from '../../../shared/contract/api';
+import type {
+  Fact,
+  LedgerEntry,
+  Page,
+  ProfileResponse,
+  SearchResponse,
+  UndoResponse,
+} from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
 import { apiJson, coreSql } from '../helpers';
 import { addOp, as, brief, CHAT_SESSION, ops, ownerSays, type Principals, principals, reason } from '../memory-helpers';
@@ -35,7 +42,9 @@ describe('remember and recall', () => {
     expect(f).toMatchObject({ source: 'user', confidence: 0.95, evidence: [`msg:${said}`], written_by: CHAT_SESSION });
     expect(f?.confidence_now).toBeCloseTo(0.95, 2);
     const b = await brief(P.C, CHAT_SESSION, 'chat');
-    expect(b.body.full).toContain(`[f:${op.id.replace(/-/g, '').slice(-8)}] Wants the second piece at 100 bpm (0.9, u, since`);
+    expect(b.body.full).toContain(
+      `[f:${op.id.replace(/-/g, '').slice(-8)}] Wants the second piece at 100 bpm (0.9, u, since`,
+    );
     expect((await search('100 bpm')).map((h) => h.ref)).toContain(`fact:${op.id}`);
     const [row] = await coreSql<{ what: string; why: string; undo_json: string }>(
       'SELECT what, why, undo_json FROM ledger WHERE id = ?',
@@ -51,7 +60,9 @@ describe('remember and recall', () => {
     const b = await brief(P.C, CHAT_SESSION, 'chat');
     const three = b.body.core.slice(b.body.core.indexOf('## 3.'), b.body.core.indexOf('## 4.'));
     expect(three).toContain('Answer in two lines on the phone (since');
-    expect((await apiJson<ProfileResponse>('GET', '/v1/memory/profile', device())).body.text).not.toContain('two lines');
+    expect((await apiJson<ProfileResponse>('GET', '/v1/memory/profile', device())).body.text).not.toContain(
+      'two lines',
+    );
   });
 });
 
@@ -62,7 +73,12 @@ describe('supersede, confirm, and the owner own fixes', () => {
     const now = await ownerSays(P.D, 'Mornings are best for practice now.');
     const fresh = uuidv7();
     const r = await ops(chat(), [
-      { op: 'supersede', id: old.id, reason: 'the owner changed it', new: { id: fresh, text: 'Mornings are best for practice', evidence: [`msg:${now}`] } },
+      {
+        op: 'supersede',
+        id: old.id,
+        reason: 'the owner changed it',
+        new: { id: fresh, text: 'Mornings are best for practice', evidence: [`msg:${now}`] },
+      },
     ]);
     expect(r.body.applied[0].fact_id).toBe(fresh);
     expect(await fact(old.id)).toMatchObject({ superseded_by: fresh });
@@ -77,24 +93,40 @@ describe('supersede, confirm, and the owner own fixes', () => {
   });
 
   it("confirm resets the clock; confirmed in the owner's words, a guess becomes a user fact", async () => {
-    const guess = addOp([`msg:${said}`], { source: 'inferred', kind: 'goal', text: 'Wants to perform the piece', tags: ['imported'] });
+    const guess = addOp([`msg:${said}`], {
+      source: 'inferred',
+      kind: 'goal',
+      text: 'Wants to perform the piece',
+      tags: ['imported'],
+    });
     await ops(chat(), [guess]);
     expect((await fact(guess.id))?.confidence).toBe(0.6);
     await coreSql('UPDATE facts SET last_confirmed = last_confirmed - 86400000 WHERE id = ?', guess.id);
     const yes = await ownerSays(P.D, 'Yes, I want to perform it.');
     const r = await ops(chat(), [{ op: 'confirm', id: guess.id, evidence: [`msg:${yes}`] }]);
     const lifted = await fact(r.body.applied[0].fact_id);
-    expect(lifted).toMatchObject({ source: 'user', tags: [], evidence: [`msg:${yes}`], text: 'Wants to perform the piece' });
+    expect(lifted).toMatchObject({
+      source: 'user',
+      tags: [],
+      evidence: [`msg:${yes}`],
+      text: 'Wants to perform the piece',
+    });
     expect((await fact(guess.id))?.superseded_by).toBe(lifted?.id);
   });
 
   it('the Memory page: Add and Fix cite their own ledger row; Pin; a device add is always the owner', async () => {
     const add = addOp([], { text: 'Owns a classical guitar', kind: 'fact' });
     const r = await ops(device(), [add]);
-    expect(await fact(add.id)).toMatchObject({ source: 'user', evidence: [`ledger:${r.body.applied[0].ledger_id}`], written_by: 'owner' });
+    expect(await fact(add.id)).toMatchObject({
+      source: 'user',
+      evidence: [`ledger:${r.body.applied[0].ledger_id}`],
+      written_by: 'owner',
+    });
     expect(await reason(device(), addOp([], { source: 'inferred' }))).toBe('bad_op');
     const fix = uuidv7();
-    await ops(device(), [{ op: 'supersede', id: add.id, new: { id: fix, text: 'Owns two classical guitars', evidence: [] } }]);
+    await ops(device(), [
+      { op: 'supersede', id: add.id, new: { id: fix, text: 'Owns two classical guitars', evidence: [] } },
+    ]);
     await ops(device(), [{ op: 'pin', id: fix, pinned: true }]);
     expect(await fact(fix)).toMatchObject({ pinned: true, confidence_now: 1, source: 'user' });
   });
@@ -107,7 +139,14 @@ describe("muting: don't bring this up", () => {
     const line = (facts: string[]) =>
       apiJson('PUT', '/v1/surfaces/home/line.1', {
         ...as(P.C, CHAT_SESSION),
-        body: { kind: 'line', schema: 1, payload: { text: 'A walk by the river later.' }, why: 'the weather is good', topic_key: 'walk', facts },
+        body: {
+          kind: 'line',
+          schema: 1,
+          payload: { text: 'A walk by the river later.' },
+          why: 'the weather is good',
+          topic_key: 'walk',
+          facts,
+        },
       });
     expect((await line([op.id])).status).toBe(200);
     await ops(device(), [{ op: 'may_raise', id: op.id, value: false }]);
@@ -119,7 +158,7 @@ describe("muting: don't bring this up", () => {
     await ops(chat(), [secret]);
     expect((await line([secret.id])).status).toBe(422);
     expect((await apiJson<ProfileResponse>('GET', '/v1/memory/profile', device())).body.text).toContain(
-      "Likes walking by the river (0.9, u, since",
+      'Likes walking by the river (0.9, u, since',
     );
   });
 });
@@ -129,7 +168,11 @@ describe('undo (ledger)', () => {
     const a = addOp([`msg:${said}`], { text: 'Drinks coffee at nine' });
     const added = (await ops(chat(), [a])).body.applied[0];
     const next = uuidv7();
-    const sup = (await ops(chat(), [{ op: 'supersede', id: a.id, new: { id: next, text: 'Drinks coffee at ten', evidence: [`msg:${said}`] } }])).body.applied[0];
+    const sup = (
+      await ops(chat(), [
+        { op: 'supersede', id: a.id, new: { id: next, text: 'Drinks coffee at ten', evidence: [`msg:${said}`] } },
+      ])
+    ).body.applied[0];
     expect((await undo(P.C, added.ledger_id)).status).toBe(409); // the add is no longer the newest state
     expect((await undo(P.C, sup.ledger_id)).body.status).toBe('undone');
     expect(await fact(a.id)).toMatchObject({ superseded_at: null, superseded_by: null });
@@ -152,7 +195,12 @@ describe('forget (MEMORY.md §3, §12 acceptance)', () => {
     await ops(chat(), [first]);
     const second = uuidv7();
     await ops(chat(), [
-      { op: 'supersede', id: first.id, reason: `zebrafinch reason`, new: { id: second, text: `${words} two`, evidence: [`msg:${said}`] } },
+      {
+        op: 'supersede',
+        id: first.id,
+        reason: `zebrafinch reason`,
+        new: { id: second, text: `${words} two`, evidence: [`msg:${said}`] },
+      },
     ]);
     expect((await brief(P.C, CHAT_SESSION, 'chat')).body.full).toContain('Zebrafinch');
     const r = await ops(device(), [{ op: 'forget', id: second }]);
@@ -166,11 +214,17 @@ describe('forget (MEMORY.md §3, §12 acceptance)', () => {
     expect(JSON.stringify(ledger).toLowerCase()).not.toContain('zebrafinch');
     const tomb = ledger.find((l) => l.id === r.body.applied[0].ledger_id);
     expect(tomb).toMatchObject({ what: 'forgot a preference', undoable: 0 });
-    expect(JSON.parse(String(tomb?.op_json))).toMatchObject({ op: 'memory.forget', fact_id: second, kind: 'preference', versions: 2 });
+    expect(JSON.parse(String(tomb?.op_json))).toMatchObject({
+      op: 'memory.forget',
+      fact_id: second,
+      kind: 'preference',
+      versions: 2,
+    });
     const page = await apiJson<Page<LedgerEntry>>('GET', '/v1/ledger?limit=50', device());
     const chain = page.body.items.filter((l) => l.ref === `fact:${first.id}` || l.ref === `fact:${second}`);
     expect(chain.length).toBeGreaterThanOrEqual(2);
-    for (const l of chain.filter((x) => x.id !== tomb?.id)) expect(l).toMatchObject({ undoable: false, why: 'the owner forgot this' });
+    for (const l of chain.filter((x) => x.id !== tomb?.id))
+      expect(l).toMatchObject({ undoable: false, why: 'the owner forgot this' });
     expect((await undo(P.D, String(tomb?.id))).status).toBe(422);
   });
 });

@@ -4,7 +4,7 @@
 
 The runtime contract as data, generated from [`shared/contract`](../../shared/contract). [API.md](API.md) describes each route; this appendix lists what the code enforces. How to add to it: [EXTENDING.md](EXTENDING.md).
 
-Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2.
+Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2, P3.
 
 ## Routes
 
@@ -71,20 +71,20 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/surfaces/:app/:slot` | C N | P2 | built |  |
 | `DELETE /v1/surfaces/:app/:slot` | D C N | P2 | built |  |
 | `POST /v1/media/sign` | D C N | P2 | deferred: the private bucket (SETUP.md J2) |  |
-| `POST /v1/mind/night` | N | P3 | later (P3) |  |
-| `GET /v1/mind/day/:day` | N | P3 | later (P3) |  |
-| `GET /v1/memory/facts` | D C N R | P3 | later (P3) |  |
-| `GET /v1/memory/profile` | D C N R | P3 | later (P3) |  |
-| `GET /v1/memory/day-notes` | D C N R | P3 | later (P3) |  |
-| `GET /v1/memory/open-threads` | D C N R | P3 | later (P3) |  |
-| `POST /v1/memory/ops` | D C N | P3 | later (P3) |  |
-| `PUT /v1/memory/day-notes/:day` | N | P3 | later (P3) |  |
-| `PUT /v1/memory/open-threads/:id` | D C N | P3 | later (P3) |  |
-| `PATCH /v1/memory/open-threads/:id` | D C N | P3 | later (P3) | {status, why}: done or dropped |
-| `POST /v1/import/runs` | D C | P3 | later (P3) |  |
-| `POST /v1/ops/import/parts` | C I | P3 | later (P3) |  |
-| `PUT /v1/ops/import/manifest/:run_id` | C I | P3 | later (P3) |  |
-| `GET /v1/import/runs/:id` | D C N R | P3 | later (P3) |  |
+| `POST /v1/mind/night` | N | P3 | deferred: P3 stage C (the night shift) |  |
+| `GET /v1/mind/day/:day` | N | P3 | deferred: P3 stage C (the night shift) |  |
+| `GET /v1/memory/facts` | D C N R | P3 | built |  |
+| `GET /v1/memory/profile` | D C N R | P3 | built |  |
+| `GET /v1/memory/day-notes` | D C N R | P3 | built |  |
+| `GET /v1/memory/open-threads` | D C N R | P3 | built |  |
+| `POST /v1/memory/ops` | D C N | P3 | built | pin, may_raise and forget: device only |
+| `PUT /v1/memory/day-notes/:day` | D N | P3 | built | device: the owner's edit (written_by owner) |
+| `PUT /v1/memory/open-threads/:id` | D C N | P3 | built |  |
+| `PATCH /v1/memory/open-threads/:id` | D C N | P3 | built | {status, why}: done or dropped |
+| `POST /v1/import/runs` | D C | P3 | deferred: P3 stage D (the import) |  |
+| `POST /v1/ops/import/parts` | C I | P3 | deferred: P3 stage D (the import) |  |
+| `PUT /v1/ops/import/manifest/:run_id` | C I | P3 | deferred: P3 stage D (the import) |  |
+| `GET /v1/import/runs/:id` | D C N R | P3 | deferred: P3 stage D (the import) |  |
 | `PUT /v1/proposals/:id` | C N R | P4 | later (P4) |  |
 | `GET /v1/proposals` | D C N R | P4 | later (P4) |  |
 | `POST /v1/proposals/:id/decide` | D C | P4 | later (P4) | mind:chat with by_message only |
@@ -149,6 +149,42 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `facts` | P3 | `fact` |
 | `day_notes` | P3 | `day` |
 | `library` | P7 | `book` |
+
+## Memory
+
+| Fact kind | Half-life (days) | Profile cap |
+|---|---|---|
+| `state` | 3 | 10 |
+| `goal` | 90 | 10 |
+| `preference` | 180 | 25 |
+| `routine` | 60 | 15 |
+| `fact` | 1825 | 30 |
+| `rule` | never decays | not in the profile (briefing section 3) |
+
+| Source | Starts at | Cap | Profile letter |
+|---|---|---|---|
+| `user` | 0.95 | 0.95 | u |
+| `observed` | 0.7 | 0.85 | o |
+| `inferred` | 0.5 | 0.8 | i |
+
+| Refusal reason | Meaning |
+|---|---|
+| `bad_op` | The op does not match its shape. |
+| `bad_evidence` | Evidence must be 1–20 existing messages, day notes, imports or owner ledger rows. |
+| `unknown_ref` | The fact this op names does not exist. |
+| `not_owner_evidence` | A 'user' fact needs evidence that is all the owner's own words. |
+| `rule_needs_owner` | A rule needs source 'user'. |
+| `too_little_evidence` | An 'observed' fact needs at least 10 owner-device events. |
+| `tainted_evidence` | Muse or outside text is never evidence. |
+| `needs_owner_words` | Faith and facts about people come only from the owner's words. |
+| `too_long` | One claim, at most 280 characters. |
+| `no_inferred_sensitive` | Sensitive traits are never inferred. |
+| `session_tainted` | This session read outside text, so it may not write memory. |
+| `laws_unpinned` | This session's constitution is missing, so it may not write rules. |
+| `device_only` | Only the owner can do this, from the Memory page. |
+| `duplicate_id` | A fact with this id already exists. |
+| `superseded` | This fact was already replaced; work on its newest version. |
+| `proposal_required` | This change needs the owner first (decision cards arrive in P4). |
 
 ## Error codes
 

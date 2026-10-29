@@ -73,7 +73,11 @@ export function putThread(w: Writer, c: Caller, id: string, r: PutOpenThreadRequ
     due_at: r.due_at ?? null,
     tags_json: tags.length ? JSON.stringify(tags) : null,
     status,
-    evidence_json: JSON.stringify(cited(w, c, r.evidence, self)),
+    // The owner editing a loose end without citing anything keeps what it already cites.
+    evidence_json:
+      before && !r.evidence.length && c.who === 'D'
+        ? before.evidence_json
+        : JSON.stringify(cited(w, c, r.evidence, self)),
     opened_at: before?.opened_at ?? w.at,
     last_progress_at: before ? w.at : null,
     closed_at: status === 'open' ? null : closing ? w.at : (before?.closed_at ?? w.at),
@@ -113,7 +117,11 @@ function write(
     session_id: c.session_id,
     what: WORDS[what],
     why:
-      row.closed_why && what === 'dropped' ? row.closed_why : device ? 'the owner changed it' : 'from the conversation',
+      row.closed_why && what === 'dropped'
+        ? `dropped: ${row.closed_why}`
+        : device
+          ? 'the owner changed it'
+          : 'from the conversation',
     ref: `open:${row.id}`,
     undo: { op: 'open.restore', args: { id: row.id, before, after: row } },
   });

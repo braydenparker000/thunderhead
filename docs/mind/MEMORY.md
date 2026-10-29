@@ -113,7 +113,8 @@ facts(
   pinned INTEGER NOT NULL DEFAULT 0,
   may_raise INTEGER NOT NULL DEFAULT 1,                                -- 0 = don't bring this up
   written_by TEXT NOT NULL)                                            -- session id or 'owner'
--- facts_fts: FTS5(text, subject)
+-- facts_fts: FTS5(text, subject). Engineering adds `seq` (the FTS rowid, as for messages) and
+-- `ledger_id` (the row that wrote the version); day_notes gets `seq` too (DATA.md §4.4).
 
 -- Audit and undo for every memory or world change
 ledger(
@@ -153,9 +154,9 @@ All writes go through `th` → the Worker. The Worker validates, writes the row,
 | Op | Who | Effect | Undo stored |
 |---|---|---|---|
 | `remember` | chat, night, owner | INSERT a new fact | Close it (`superseded_at`, no successor) |
-| `confirm` | chat, night, owner | Set `last_confirmed = now`; `confidence = max(confidence, base(source of new evidence))`. If the new evidence is an owner message and the fact was not `user`, it becomes a supersede to `source=user` **[proposal]** | Restore previous values |
+| `confirm` | chat, night, owner | Set `last_confirmed = now`; `confidence = max(confidence, base(source of new evidence))`, within the fact's own cap. If the new evidence is all the owner's own words and the fact was not `user`, it becomes a supersede to `source=user` (tag `imported` dropped: "Yes, that's right") | Restore previous values |
 | `supersede` | chat, night, owner | Close the old row (`valid_to = valid_from of new` if world-time change, `superseded_at = now`, `superseded_by = new id`), INSERT the new row | Reopen the old row, close the new one |
-| `forget` | **owner only** | DELETE the fact row and its FTS entry; ledger keeps a tombstone: `{fact_id, kind, forgotten_at}` and **no text** | None (that is the point). A 10 s "Undo" on the phone before the request is sent **[proposal]** |
+| `forget` | **owner only** | DELETE every version of the fact and their FTS entries (then an FTS `optimize`, so the words leave the index segments too); the memory ledger rows that pointed at them lose their `why` and their undo; one tombstone row remains: `{fact_id, kind, forgotten_at, versions}` and **no text** (memory rows never carry fact text) | None (that is the point). A 10 s "Undo" on the phone before the request is sent **[proposal]** |
 | `batch` | night | Up to 50 ops applied atomically; each op validated; rejected ops are listed, valid ones applied | Per op |
 | `mute` / `unmute` | owner | Set `may_raise` 0/1 | Toggle back |
 | `pin` / `unpin` | owner | Set `pinned` 1/0 | Toggle back |
@@ -208,8 +209,8 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 | # | Rule | On violation |
 |---|---|---|
 | M1 | Every message, event and ledger row has an `origin`; the Worker sets it from the authenticated principal, never from the request body | (not client-settable) |
-| M2 | Evidence ids must exist, be 1–20 per fact, and be messages, events, day notes or (notebook conversion only, P3) `import_items` rows, or (an op from a **device** session only) `ledger:` rows with `actor=owner` (the Memory page's own Fix and Add, §12); an `import:` ref alone never supports `source=user` | `422 validation` `bad_evidence` |
-| M3 | `source=user` → every evidence id is owner-origin (`origin` in `owner_device`, `import` with `author=owner`, or an owner `ledger:` row from a device op), and at least one is a message | `422` `not_owner_evidence` |
+| M2 | Evidence ids must exist, be 1–20 per fact, and be messages, events, day notes or (notebook conversion only, P3) `import_items` rows, or (an op from a **device** session only) `ledger:` rows with `actor=owner` (the Memory page's own Fix and Add, §12); an `import:` ref never supports `source=user` (it is not owner-origin, M3). Events (no table before P5) and imports (none before the import runs) can't be checked yet, so they are refused for now. An `inferred` fact never rests on the mind's or the system's own messages (§4) | `422 validation` `bad_evidence` (and `unknown_ref` when the fact an op names does not exist) |
+| M3 | `source=user` → every evidence id is owner-origin (`origin` in `owner_device`, `import` with `author=owner`, or an owner `ledger:` row from a device op), and at least one is a message (or, from a device, that owner ledger row) | `422` `not_owner_evidence` |
 | M4 | `kind=rule` → `source=user` | `422` `rule_needs_owner` |
 | M5 | `source=observed` → ≥ 10 owner-device events (or one rollup ref with n ≥ 10) | `422` `too_little_evidence` |
 | M6 | Evidence with `origin` `muse` or `external` (or any message `author=muse`) is never accepted | `422` `tainted_evidence` |
@@ -217,8 +218,8 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 | M8 | `source=inferred` → confidence ≤ 0.80; `sensitivity=1` inferred → becomes a `memory_big` proposal, not applied | Proposal |
 | M9 | Superseding a `user` fact with a non-`user` source → `memory_big` proposal | Proposal |
 | M10 | More than 10 supersessions in one night batch → the batch is applied up to 10; the rest become one `memory_big` proposal "Many changes tonight; review?" **[proposal]** | Proposal |
-| M11 | A session marked tainted (`th taint`) may not `remember`, `supersede`, `confirm` or write `rule` (P4; logged-only before P4) | `403 forbidden` `session_tainted` |
-| M12 | If the constitution pin is broken this session, `rule` writes are refused | `403` `laws_unpinned` |
+| M11 | A session marked tainted (`th taint`) may not `remember`, `supersede`, `confirm` or write `rule` (enforced from P3, when memory writes arrive; other gated writes from P4) | `403 forbidden` `session_tainted` |
+| M12 | If the constitution pin is broken this session, `rule` writes are refused. Until the pin arrives (P4) the check is the hash the session claimed with: a session that sent `none` (its file was missing), or never claimed, writes no rules | `403` `laws_unpinned` |
 | M13 | `text` ≤ 280 characters and one claim (no "and also") — length is enforced; one-claim is checked weekly in-session | `422` `too_long` |
 | M14 | Health, sexuality, politics, religion and similar sensitive traits are never `inferred` **[proposal]** | `422` `no_inferred_sensitive` |
 
@@ -246,11 +247,11 @@ Rendered by the Worker at brief time. No LLM writes it, so it can't drift.
 2. Compute decayed confidence `c`. Drop `c < 0.25` unless pinned.
 3. Order: pinned first; then by kind in this order: `state`, `goal`, `preference`, `routine`, `fact`; within a kind by `c` descending, then `recorded_at` descending.
 4. Per-kind caps **[proposal]**: state 10, goal 10, preference 25, routine 15, fact 30.
-5. Line format: `[f:<first 8 of id>] <text> (<c to 1 decimal>, <source letter u|o|i>, since <YYYY-MM>)`, plus ` · don't raise` when `may_raise=0` and ` · private` when `sensitivity=1`.
+5. Line format: `[f:<last 8 hex digits of id>] <text> (<c to 1 decimal>, <source letter u|o|i>, since <YYYY-MM>)`, plus ` · don't raise` when `may_raise=0` and ` · private` when `sensitivity=1`. (The last 8, not the first: a UUIDv7 starts with its timestamp, so every fact of one batch would share its first 8.) Text is always one line, so no fact can fake a `## <n>.` section marker.
 6. Stop at 6,000 characters; append `(+N more: th recall --kind facts)`.
 7. A weekly snapshot goes to `thunderhead-private/memory/profile/<YYYY>-W<ww>.txt`; the Memory page shows the diff with last week ("What changed").
 
-Example line: `[f:01936a2b] Prefers short answers on the phone (0.9, u, since 2026-11)`
+Example line: `[f:7c41e9a2] Prefers short answers on the phone (0.9, u, since 2026-11)`
 
 **Acceptance:** same inputs → byte-identical output (snapshot test); 200 synthetic facts render ≤ 6,000 characters.
 

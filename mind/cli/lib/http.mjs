@@ -73,7 +73,7 @@ export async function request(method, path, opts = {}) {
     const code = data?.error?.code || `http_${res.status}`;
     const exit = exitFor(res.status, code);
     last = new ThError(exit, code, data?.error?.message || `HTTP ${res.status}`,
-      data?.error?.request_id || res.headers.get('th-request-id'));
+      data?.error?.request_id || res.headers.get('th-request-id'), data?.error?.details);
     if (exit !== EXIT.unreachable) throw last;
   }
   throw last;

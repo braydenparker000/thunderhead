@@ -150,7 +150,7 @@ All of these live in instance `Core/owner`. "Phase" is when the table first appe
 | `mind_sessions` | `session_id TEXT PK, role TEXT, wake_id TEXT, claimed_at INTEGER, th_version TEXT, constitution_sha256 TEXT, laws_pinned INTEGER, tainted_at INTEGER, taint_source TEXT, ended_at INTEGER`; *eng:* `day TEXT` (the logical day it was claimed on, for `day_closed`), `last_owner_at INTEGER` (for `idle_min`) | — | P2 |
 | `night_runs` | `day TEXT PK, started_at INTEGER, step INTEGER, steps_json TEXT, done_at INTEGER, session_id TEXT` | — | P3 |
 | `topics` | `topic_key TEXT PK, last_shown_at INTEGER, ignored_at INTEGER, shown_count INTEGER` WITHOUT ROWID | — | P2 |
-| `op_batches` | `key TEXT PK, route TEXT, req_sha256 TEXT, status INTEGER, result_json TEXT, at INTEGER` WITHOUT ROWID | — | P2 |
+| `op_batches` | `key TEXT PK, route TEXT, req_sha256 TEXT, status INTEGER, result_json TEXT, at INTEGER` WITHOUT ROWID | — | P3 (first used by memory batches, key `memory.ops:<batch_id>`) |
 
 - `changes.kind` ∈ `message | thread | ledger | proposal | verb | surface | notice | fact | day_note | open_thread | setting | mind_status | error`.
 - `settings` keys used by the engineering side: `owner.tz`, `min_client`, `bulk.lane` (which object holds the bulk lane, see §8.3), `day.current` (the open logical day), `roll.last_at`, `mind.status` (the presence light), `mind.backoff` (`{until, step}` after a failed or limited wake), `prune.day` (the logical day the prune pass last finished). Product settings are listed in [MENU-AND-SETTINGS.md](../product/MENU-AND-SETTINGS.md).
@@ -193,16 +193,17 @@ The columns match [MEMORY.md §2](../mind/MEMORY.md), which also owns the rules 
 
 | Table | Columns (PK first) | Indexes | Phase |
 |---|---|---|---|
-| `facts` | `id TEXT PK, kind TEXT ('preference'\|'routine'\|'fact'\|'goal'\|'state'\|'rule'), about TEXT ('owner'\|'world'\|'person'), subject TEXT, text TEXT (≤ 280), tags_json TEXT, source TEXT ('user'\|'observed'\|'inferred'), confidence REAL, evidence_json TEXT (1–20 ids), valid_from INTEGER, valid_to INTEGER, recorded_at INTEGER, superseded_at INTEGER, superseded_by TEXT, last_confirmed INTEGER, sensitivity INTEGER, pinned INTEGER, may_raise INTEGER, written_by TEXT` | partial `(kind) WHERE superseded_at IS NULL` | P3 |
-| `facts_fts` | FTS5 `(text, subject)`, `content='facts'` | — | P3 |
-| `day_notes` | `day TEXT PK, summary TEXT (≤ 150 words), decisions_json TEXT, stats_json TEXT, importance INTEGER (1–10), written_by TEXT, version INTEGER, written_at INTEGER` | — | P3 |
-| `day_notes_fts` | FTS5 `(summary)`, `content='day_notes'` | — | P3 |
+| `facts` | *eng:* `seq INTEGER PK` (the FTS rowid, as for messages); `id TEXT UNIQUE, kind TEXT ('preference'\|'routine'\|'fact'\|'goal'\|'state'\|'rule'), about TEXT ('owner'\|'world'\|'person'), subject TEXT, text TEXT (≤ 280), tags_json TEXT, source TEXT ('user'\|'observed'\|'inferred'), confidence REAL, evidence_json TEXT (1–20 ids), valid_from INTEGER, valid_to INTEGER, recorded_at INTEGER, superseded_at INTEGER, superseded_by TEXT, last_confirmed INTEGER, sensitivity INTEGER, pinned INTEGER, may_raise INTEGER, written_by TEXT`; *eng:* `ledger_id TEXT` (the row that wrote this version: its why) | partial `(kind) WHERE superseded_at IS NULL`; partial `(superseded_by) WHERE superseded_by IS NOT NULL` (the lineage `forget` deletes) | P3 |
+| `facts_fts` | FTS5 `(text, subject)`, `content='facts'`, `content_rowid='seq'`, tokenizer `unicode61 remove_diacritics 2` | — | P3 |
+| `day_notes` | *eng:* `seq INTEGER PK` (the FTS rowid); `day TEXT UNIQUE, summary TEXT (≤ 150 words), decisions_json TEXT, stats_json TEXT, importance INTEGER (1–10), written_by TEXT, version INTEGER, written_at INTEGER` | — | P3 |
+| `day_notes_fts` | FTS5 `(summary)`, `content='day_notes'`, `content_rowid='seq'`, same tokenizer | — | P3 |
 | `open_threads` | `id TEXT PK, text TEXT (≤ 200), owner TEXT ('mind'\|'owner'), due_at INTEGER, tags_json TEXT, status TEXT ('open'\|'done'\|'dropped'), evidence_json TEXT, opened_at INTEGER, last_progress_at INTEGER, closed_at INTEGER, closed_why TEXT` | partial `(due_at) WHERE status='open'` | P3 |
 | `session_notes` | `id TEXT PK, session_id TEXT, wake_id TEXT, role TEXT, thread_id TEXT, created_at INTEGER, body TEXT (≤ 120 words), open_items_json TEXT` | — | P2 |
 | `import_items` | `id TEXT PK, run_id TEXT, dataset TEXT, key TEXT, body_json TEXT, converted_at INTEGER` | — | P3 |
 | `imports` | `id TEXT PK, source TEXT ('old_worker'\|'phone'), dataset TEXT, r2_prefix TEXT, manifest_json TEXT, state TEXT ('queued'\|'running'\|'verifying'\|'done'\|'failed'), counts_json TEXT, report_json TEXT, started_at INTEGER, finished_at INTEGER` | — | P1b (`phone`), P3 (`old_worker`) |
 
-- Facts are never edited in place. A change closes the old row (`superseded_at`, `superseded_by`) and inserts a new one. `forget` (owner only) hard-deletes the row and its FTS entry, and writes a ledger tombstone without the content.
+- Facts are never edited in place. A change closes the old row (`superseded_at`, `superseded_by`) and inserts a new one. `forget` (owner only) hard-deletes every version and their FTS entries, runs an FTS `optimize` (a plain FTS5 delete leaves the words in the index segments until a merge; measured in workerd), scrubs the `why` and undo of the memory ledger rows that pointed at those versions, and writes a ledger tombstone without the content. Memory ledger rows never carry fact text.
+- Migration step 8 (P3) adds facts, day notes, open threads and `op_batches`, expand-only.
 - Decay is computed at read time and never written.
 - `import_items` holds raw documents (the old notebook, for instance) until the mind converts them once. Converted rows are deleted 30 days after `converted_at`.
 - MEMORY.md allows an `events` table in `Core` before `Senses` exists. Engineering keeps events out of `Core`: nothing on the phone emits events before P5, and phone performance goes to `perf_days` **[proposal]**. If an earlier need appears, the table goes into `Core` with the `Senses` columns (§6.1) and moves by a bulk job when `Senses` ships.
@@ -329,18 +330,18 @@ Rules from the platform that drive the numbers: every index entry touched is one
 | Core.proposals | 5 | ~8 | 40 |
 | Core.wakes | 40 | ~8 | 320 |
 | Core.leases (written at most every 30 s while a session lives) | ≤ 120/h, ~6 h | 1 | ~720 |
-| Core.facts (+fts, ledger) | 50 ops | ~10 | 500 |
-| Core.day_notes, open_threads, session_notes | ~30 | ~4 | 120 |
+| Core.facts (+fts, ledger, feed, batch record) | 50 ops | 10 (measured) | 500 |
+| Core.day_notes, open_threads (+ledger, feed), session_notes | ~30 | 7–8 (measured) | 240 |
 | Core.errors | ≤ 200 upserts (capped) | 1 | 200 |
 | Core.perf_days, settings | ~25 | 1 | 25 |
 | meter + jobs + alarms (all classes) | — | — | ~1,000 |
 | Auth (last_seen hourly, agents last_used hourly, notices) | — | — | ~200 |
-| **Subtotal P1–P4** | | | **~8,600** |
+| **Subtotal P1–P4** | | | **~8,700** |
 | Senses.events (3,000 events × row + 1 index; same again pruned 90 days later) | — | 2 + 2 | 12,000 |
 | Senses.batches (+prune), rollups | 150 batches; 300 rollups | ~2 | 900 |
 | Music.track_stats nightly | ≤ 200 tracks | 2 | 400 |
 | Library.positions, highlights | ~200 | 1–3 | 300 |
-| **Total steady (P5+)** | | | **~22,200 (22%)** |
+| **Total steady (P5+)** | | | **~22,300 (22%)** |
 
 ### 8.3 The bulk lane
 

@@ -24,7 +24,7 @@ export const FRAME_TYPES = Object.freeze(["hello","changed","typing","bye"]);
 export const CLOSE_CODES = Object.freeze({"revoked":4401,"outdated":4426,"restart":1012});
 
 /** @type {readonly import('../../shared/contract/routes.ts').Phase[]} */
-export const BUILT_PHASES = Object.freeze(["P1","P1b","P2"]);
+export const BUILT_PHASES = Object.freeze(["P1","P1b","P2","P3"]);
 
 /** @type {Readonly<Record<AppId, { path: string, name: string, phase: string }>>} */
 export const APPS = Object.freeze({"music":{"path":"/music/","name":"Music","phase":"P1b"},"guitar":{"path":"/guitar/","name":"Guitar","phase":"P1b"},"podcasts":{"path":"/podcasts/","name":"Podcasts","phase":"P1b"},"astra":{"path":"/astra/","name":"Astra","phase":"P1b"},"media":{"path":"/media/","name":"My Media","phase":"P1b"},"study":{"path":"/study/","name":"Study","phase":"P7"}});
@@ -37,3 +37,8 @@ export const VERBS = Object.freeze({"app.open":{"app":"shell","executor":"device
 
 /** @type {Readonly<Record<SurfaceKindName, SurfaceInfo>>} */
 export const SURFACE_KINDS = Object.freeze({"line":{"slots":{"home":"^line\\.[1-4]$"},"versions":[1]}});
+
+/** Memory (MEMORY.md §2–§8): fact kinds in profile order, sources, the confidence thresholds, and
+ * the reasons an op can be refused. A kind or source not listed renders generically.
+ * @type {Readonly<{kinds: readonly import('../../shared/contract/memory.ts').FactKind[], sources: readonly import('../../shared/contract/memory.ts').FactSource[], confidence: typeof import('../../shared/contract/memory.ts').CONFIDENCE, limits: typeof import('../../shared/contract/memory.ts').MEMORY_LIMITS, reasons: readonly import('../../shared/contract/memory.ts').MemoryReason[]}>} */
+export const MEMORY = Object.freeze({"kinds":["state","goal","preference","routine","fact","rule"],"sources":["user","observed","inferred"],"confidence":{"profile":0.25,"fading":0.1,"hedge":0.5,"pinned_user":1,"imported":0.6},"limits":{"ops_per_batch":50,"fact_text":280,"evidence_max":20,"tags_max":8,"thread_text":200,"day_note_words":150,"decisions_max":10,"profile_chars":6000,"night_supersedes":10},"reasons":["bad_op","bad_evidence","unknown_ref","not_owner_evidence","rule_needs_owner","too_little_evidence","tainted_evidence","needs_owner_words","too_long","no_inferred_sensitive","session_tainted","laws_unpinned","device_only","duplicate_id","superseded","proposal_required"]});

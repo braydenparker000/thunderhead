@@ -2,8 +2,8 @@
 // profile render (byte-identical for the same rows, ≤ 6,000 characters, caps, order, line
 // format), the briefing's fill order and budgets, and the deploy-transition wrapper.
 import { describe, expect, it } from 'vitest';
-import { decayed, FACT_KINDS, type FactKind } from '../../../shared/contract/memory.ts';
 import type { Message } from '../../../shared/contract/api';
+import { decayed, FACT_KINDS, type FactKind } from '../../../shared/contract/memory.ts';
 import { renderProfile, renderRules, shortId } from '../../src/areas/memory/profile';
 import type { FactRow } from '../../src/areas/memory/store';
 import { type BriefInput, buildBrief, CORE_MAX, FULL_MAX } from '../../src/areas/mind/brief';
@@ -84,7 +84,12 @@ describe('the profile (MEMORY.md §8)', () => {
     const rows = [
       fact({ kind: 'fact', text: 'Owns a classical guitar' }),
       fact({ kind: 'state', text: 'Is learning a new piece', last_confirmed: NOW - DAY }),
-      fact({ kind: 'preference', text: 'Prefers short answers on the phone', pinned: 1, recorded_at: Date.UTC(2026, 10, 2) }),
+      fact({
+        kind: 'preference',
+        text: 'Prefers short answers on the phone',
+        pinned: 1,
+        recorded_at: Date.UTC(2026, 10, 2),
+      }),
       fact({ kind: 'goal', text: 'Wants to play the piece at 100 bpm', source: 'inferred', confidence: 0.5 }),
       fact({ kind: 'routine', text: 'Practises after lunch', may_raise: 0, sensitivity: 1 }),
       fact({ kind: 'rule', text: 'Answer in the second language after 21:00' }),
@@ -114,7 +119,10 @@ describe('the profile (MEMORY.md §8)', () => {
 
   it('200 synthetic facts stay within 6,000 characters with the "more" marker, and caps hold', () => {
     const rows = Array.from({ length: 200 }, (_, i) =>
-      fact({ kind: (['state', 'goal', 'preference', 'routine', 'fact'] as const)[i % 5], text: `Synthetic fact ${i} `.repeat(6).trim() }),
+      fact({
+        kind: (['state', 'goal', 'preference', 'routine', 'fact'] as const)[i % 5],
+        text: `Synthetic fact ${i} `.repeat(6).trim(),
+      }),
     );
     const p = renderProfile(rows, NOW, 'UTC');
     expect(p.text.length).toBeLessThanOrEqual(6_000);
@@ -196,7 +204,9 @@ describe('the briefing (MEMORY.md §9)', () => {
 
   it('30 long waiting messages and 60 rules: the cap holds, 1, 2, 3 and 7 stay, cuts are marked', () => {
     const waiting = Array.from({ length: 30 }, (_, i) => msg(i, `please look at this ${'x'.repeat(300)}`));
-    const rules = Array.from({ length: 60 }, (_, i) => fact({ kind: 'rule', text: `Rule number ${i} ${'y'.repeat(60)}` }));
+    const rules = Array.from({ length: 60 }, (_, i) =>
+      fact({ kind: 'rule', text: `Rule number ${i} ${'y'.repeat(60)}` }),
+    );
     const threads = Array.from({ length: 30 }, (_, i) => ({
       id: `0192f0c4-0000-7000-8000-${i.toString(16).padStart(12, '0')}`,
       text: `Loose end ${i} ${'z'.repeat(120)}`,

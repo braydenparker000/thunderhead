@@ -117,12 +117,14 @@ export function undoRowFor(db: Db, verbId: string, at: number): string | null {
 }
 
 /** Forget (MEMORY.md §3): the memory rows that pointed at the forgotten versions keep their time
- * and kind but lose their words and their undo. A rare owner action, so the scan is acceptable. */
-export function scrubMemory(db: Db, refs: string[]): number {
+ * and kind but lose their words and their undo. Rows are read through the time index from the
+ * first version's `recorded_at` (no memory row about a fact is older than the fact). */
+export function scrubMemory(db: Db, refs: string[], since: number): number {
   if (!refs.length) return 0;
   return db.run(
     `UPDATE ledger SET why = 'the owner forgot this', undo_json = NULL, undoable = 0, op_json = NULL
-     WHERE kind = 'memory' AND ref IN (${refs.map(() => '?').join(', ')})`,
+     WHERE at >= ? AND kind = 'memory' AND ref IN (${refs.map(() => '?').join(', ')})`,
+    since,
     ...refs,
   );
 }
