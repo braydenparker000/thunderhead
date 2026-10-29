@@ -273,6 +273,7 @@ Run before calling done any release that touches gestures, audio, the service wo
 1. Cold open from the home-screen icon: the voice line shows in ≤ 3 s on 4G; warm in ≤ 1 s.
 2. Hold → ring → each of the six apps; swipe right and left ten times; no system Back fires from a mid-screen swipe.
 3. Sign in with password-manager autofill; sign out from another device and see this one sign out within 60 s.
+3b. (P1, once) The sign-in questions that only the phone can answer ([SIGN-IN.md §19](../product/SIGN-IN.md#19-open-questions--tests)): **T9** after closing the app from recents and after a reboot, both the Chrome tab and the installed app are still signed in; **T11** Settings → Devices shows this phone's place as "Region, Country" (only a country means `cf.region` is missing on Free); **T17** the same row names the phone's model (e.g. "Galaxy A15 · Chrome"), not only "Android phone"; **T19** the password Chrome generated at setup was accepted, so it has 15 or more characters. **T7** is a live test in `tests/live.test.mjs`.
 4. Turn on airplane mode: the app opens; a message queues; it sends after reconnect.
 5. (P5) Play music, lock the screen for 30 min: playback continues; the lock-screen controls work.
 5b. (P1b) From the ring, open each ported app: a song plays, a Songsterr tab loads, an episode plays, a title plays in Astra, My Media lists its items; the imported counts match the export page; the old pages still work.
