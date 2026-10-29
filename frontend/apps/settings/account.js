@@ -31,7 +31,9 @@ export async function account(body) {
   ]);
   const out = el('button', { type: 'button', class: 'btn soft', text: 'Sign out of this device' });
   out.addEventListener('click', () => signOutHere());
-  body.replaceChildren(form, el('div', { class: 'sactions' }, [out]));
+  // MIGRATION.md §5.3: the phone's app data from the old site's /export/ page.
+  const bring = el('a', { class: 'btn soft', href: '/import/', text: 'Bring data from the old site' });
+  body.replaceChildren(form, el('div', { class: 'sactions' }, [bring, out]));
   wireShowButtons(form);
 
   form.addEventListener('submit', async (e) => {

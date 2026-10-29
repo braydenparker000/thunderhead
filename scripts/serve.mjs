@@ -6,10 +6,10 @@ import { readFile } from 'node:fs/promises';
 import { extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { existsSync } from 'node:fs';
-import { APP_ROUTES, configJs, withApi } from './site-config.mjs';
+import { APP_ROUTES, CONTENT_TYPES, configJs, withApi } from './site-config.mjs';
 
 const ROOT = fileURLToPath(new URL('../frontend/', import.meta.url));
-const TYPES = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8', '.webmanifest': 'application/manifest+json' };
+const TYPES = CONTENT_TYPES;
 
 /** `api`: serve the site as staged for that API address (config.js and CSP), for the tests. */
 export function serve(port = 0, { api = '' } = {}) {

@@ -69,8 +69,9 @@ test('holding still opens the Compass ring; sliding picks an app', async () => {
   assert.ok(await page.$eval('#ring', el => el.classList.contains('show')), 'ring opens');
   await page.mouse.move(200, 230, { steps: 5 }); await page.waitForTimeout(150);
   assert.equal(await page.textContent('#lbl'), 'Music');
-  await page.mouse.up(); await page.waitForTimeout(300);
-  assert.match(await page.textContent('#toast'), /Music/);
+  // The app itself is checked in tests/ported-browser.test.mjs; here only the hand-off counts.
+  await page.route('**/music/', r => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Music</title>' }));
+  await Promise.all([page.waitForURL(/\/music\/$/, { timeout: 5000 }), page.mouse.up()]);
   assert.deepEqual(errors, []);
   await page.close();
 });
