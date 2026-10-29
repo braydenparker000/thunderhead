@@ -66,24 +66,31 @@ export function byId(db: Db, id: string): Full | null {
     : null;
 }
 
-/** Newest first; `before` is the previous page's last seq. */
-export function page(
-  db: Db,
-  before: number | null,
-  limit: number,
-  actor: string | null,
-  status: string | null,
-): LedgerEntry[] {
+export interface LedgerFilter {
+  actor: string | null;
+  status: string | null;
+  /** Rows at or after this time (ms), read through the `ledger_at` index. */
+  since: number | null;
+  kind: string | null;
+}
+
+/** Newest first; `before` is the previous page's last seq. With `since`, the time index bounds the
+ * read; without it, the newest rows are read from the end. */
+export function page(db: Db, before: number | null, limit: number, f: LedgerFilter): LedgerEntry[] {
+  const [range, order] = f.since === null ? ['', 'seq DESC'] : ['at >= ? AND ', 'at DESC, seq DESC'];
   return db
     .all<Raw>(
-      `SELECT ${COLS} FROM ledger WHERE (? IS NULL OR seq < ?) AND (? IS NULL OR actor = ?) AND (? IS NULL OR status = ?)
-       ORDER BY seq DESC LIMIT ?`,
+      `SELECT ${COLS} FROM ledger WHERE ${range}(? IS NULL OR seq < ?) AND (? IS NULL OR actor = ?)
+       AND (? IS NULL OR status = ?) AND (? IS NULL OR kind = ?) ORDER BY ${order} LIMIT ?`,
+      ...(f.since === null ? [] : [f.since]),
       before,
       before,
-      actor,
-      actor,
-      status,
-      status,
+      f.actor,
+      f.actor,
+      f.status,
+      f.status,
+      f.kind,
+      f.kind,
       limit,
     )
     .map(toEntry);

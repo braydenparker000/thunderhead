@@ -41,6 +41,7 @@ export function toVerb(r: Row): Verb {
     expires_at: r.expires_at,
     result: r.result_json ? JSON.parse(r.result_json) : null,
     error: r.error_json ? JSON.parse(r.error_json) : null,
+    ledger_id: r.ledger_id,
   };
 }
 
@@ -159,4 +160,9 @@ export function prune(db: Db, now: number, max: number): number {
     now - 30 * 86_400_000,
     max,
   ).length;
+}
+
+/** Points a verb at its outcome's ledger row (the undo handle). */
+export function setLedger(db: Db, id: string, ledgerId: string): void {
+  db.run('UPDATE verbs SET ledger_id = ? WHERE id = ?', ledgerId, id);
 }

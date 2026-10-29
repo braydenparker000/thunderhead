@@ -70,6 +70,7 @@ export const ROUTES = {
   'PUT /v1/files/:id': { who: ['D', 'C'], phase: 'P2', deferred: 'the private bucket (SETUP.md J2)' },
   'GET /v1/search': { who: ['D', 'C', 'N'], phase: 'P2' },
   'POST /v1/mind/typing': { who: D, phase: 'P2' },
+  'POST /v1/mind/stop': { who: D, phase: 'P2', note: 'the owner taps Stop: the work ends, not the session' },
   'GET /v1/mind/wakes': { who: AGENTS_READ, phase: 'P2' },
   'POST /v1/mind/brief': { who: MIND, phase: 'P2' },
   'POST /v1/mind/status': { who: MIND, phase: 'P2' },
@@ -95,6 +96,7 @@ export const ROUTES = {
   'POST /v1/memory/ops': { who: ['D', 'C', 'N'], phase: 'P3' },
   'PUT /v1/memory/day-notes/:day': { who: ['N'], phase: 'P3' },
   'PUT /v1/memory/open-threads/:id': { who: ['D', 'C', 'N'], phase: 'P3' },
+  'PATCH /v1/memory/open-threads/:id': { who: ['D', 'C', 'N'], phase: 'P3', note: '{status, why}: done or dropped' },
   'POST /v1/import/runs': { who: ['D', 'C'], phase: 'P3' },
   'POST /v1/ops/import/parts': { who: ['C', 'I'], phase: 'P3' },
   'PUT /v1/ops/import/manifest/:run_id': { who: ['C', 'I'], phase: 'P3' },
@@ -114,6 +116,7 @@ export const ROUTES = {
   'PUT /v1/work/orders/:id': { who: ['C', 'N'], phase: 'P4' },
   'POST /v1/work/orders/:id/cancel': { who: ['D', 'C', 'N'], phase: 'P4' },
   'GET /v1/work/orders': { who: AGENTS_READ, phase: 'P4' },
+  'GET /v1/work/orders/:id': { who: AGENTS_READ, phase: 'P4' },
   'GET /v1/work/hello': { who: ['M'], phase: 'P4' },
   'POST /v1/work/claim': { who: ['M'], phase: 'P4' },
 

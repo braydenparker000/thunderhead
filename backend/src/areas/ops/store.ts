@@ -37,12 +37,19 @@ export function countOpenErrors(db: Db): number {
 }
 
 /** Newest `last_at` first; `after` is the [last_at, fingerprint] of the previous page's end. */
-export function listErrors(db: Db, open: boolean, limit: number, after: [number, string] | null): ErrorRow[] {
+export function listErrors(
+  db: Db,
+  open: boolean,
+  limit: number,
+  after: [number, string] | null,
+  since: number | null = null,
+): ErrorRow[] {
   return db.all<ErrorRow>(
     `SELECT fingerprint, source, route, code, message, count, first_at, last_at, last_build, resolved_at FROM errors
-     WHERE (resolved_at IS NULL) = ? AND (? IS NULL OR last_at < ? OR (last_at = ? AND fingerprint < ?))
+     WHERE (resolved_at IS NULL) = ? AND last_at >= ? AND (? IS NULL OR last_at < ? OR (last_at = ? AND fingerprint < ?))
      ORDER BY last_at DESC, fingerprint DESC LIMIT ?`,
     open ? 1 : 0,
+    since ?? 0,
     after?.[0] ?? null,
     after?.[0] ?? null,
     after?.[0] ?? null,

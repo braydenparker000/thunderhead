@@ -102,6 +102,12 @@ describe('error inbox', () => {
       token: ci,
     });
     expect(p2.body, JSON.stringify([p1.body, p2.body])).toMatchObject({ items: [expect.any(Object)], next: null });
+    const newest = Math.max(...[...p1.body.items, ...p2.body.items].map((e) => e.last_at));
+    const recent = await apiJson<Page<ErrorRow>>('GET', `/v1/ops/errors?status=open&since=${newest}`, { token: ci });
+    expect(recent.body.items.length).toBeGreaterThan(0);
+    expect(recent.body.items.every((e) => e.last_at >= newest)).toBe(true);
+    const none = await apiJson<Page<ErrorRow>>('GET', `/v1/ops/errors?status=open&since=${newest + 1}`, { token: ci });
+    expect(none.body.items).toEqual([]);
     const fps = [...p1.body.items, ...p2.body.items].map((e) => e.fingerprint);
     expect(new Set(fps).size).toBe(3);
     expect((await api('POST', '/v1/ops/errors/fp-a/resolve', { token: owner, body: {} })).status).toBe(204);

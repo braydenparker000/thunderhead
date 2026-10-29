@@ -53,6 +53,7 @@ export const conversationRoutes = new Hono<AppEnv>()
     const body = await json(c, s.putMessage);
     const out = value(await coreObject(c.env).putMessage(callerOf(c), { ...body, id, req_sha256: reqHash(body) }));
     if (out.wake) c.executionCtx.waitUntil(fireWake(c.env, out.wake));
+    if (out.stop) c.header('TH-Stop', '1');
     return c.json(out.message satisfies Message, out.created ? 201 : 200);
   })
   .patch('/messages/:id', guard('PATCH /v1/messages/:id'), async (c) => {

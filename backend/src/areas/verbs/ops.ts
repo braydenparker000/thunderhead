@@ -2,7 +2,7 @@
 // the result. Everything is checked against the contract (shared/contract/verbs.ts): the verb
 // must exist and be queueable, its schema version known, its args and result valid. A phone that
 // lacks the verb reports `unsupported_verb`; ask-first verbs need an approved proposal (P4).
-import type { JsonObject, PutVerbRequest, Verb, VerbResultRequest } from '../../../../shared/contract/api';
+import type { Actor, JsonObject, PutVerbRequest, Verb, VerbResultRequest } from '../../../../shared/contract/api';
 import { latestVersion, verbSpec } from '../../../../shared/contract/verbs.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
@@ -124,16 +124,20 @@ export function result(w: Writer, id: string, deviceId: string, r: VerbResultReq
     ledger.setStatus(w.db, v.ref.slice('ledger:'.length), 'undone', w.at);
     w.change('ledger', v.ref);
   }
-  w.ledger({
+  // The outcome is the action of whoever queued it (the phone only ran it), and its row is the
+  // verb's undo handle from now on.
+  const outcome = w.ledger({
     kind: 'verb',
-    actor: 'owner',
+    actor: v.actor as Actor,
+    session_id: null,
     what: `${v.verb} ${r.ok ? 'done' : `failed (${r.error?.code ?? 'failed'})`}`,
-    why: `the phone ran a verb the mind queued (verb:${id})`,
+    why: `the phone ran a verb that was queued (verb:${id})`,
     ref: `verb:${id}`,
     verb_id: id,
     undo: undo ? { verb: undo.verb, schema: undo.schema ?? 1, args: undo.args } : null,
     status: r.ok ? 'done' : 'failed',
   });
+  store.setLedger(w.db, id, outcome);
   w.change('verb', `verb:${id}`);
   return store.toVerb(store.byId(w.db, id) as store.VerbRow);
 }

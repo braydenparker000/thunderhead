@@ -22,6 +22,7 @@ export const errorsBody = z.object({
 
 export const errorsQuery = z.object({
   status: z.optional(z.enum(['open', 'resolved'])),
+  since: z.optional(z.coerce.number().check(z.int(), z.gte(0))),
   limit: z.optional(z.coerce.number().check(z.int(), z.gte(1), z.lte(200))),
   cursor: z.optional(z.string().check(z.maxLength(200))),
 });

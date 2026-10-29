@@ -57,7 +57,12 @@ export const mindRoutes = new Hono<AppEnv>()
     return c.json(out satisfies BriefResponse);
   })
   .post('/mind/status', guard('POST /v1/mind/status'), async (c) => {
-    await coreObject(c.env).mindStatus(callerOf(c), await json(c, statusBody));
+    const out = await coreObject(c.env).mindStatus(callerOf(c), await json(c, statusBody));
+    if (out.stop) c.header('TH-Stop', '1');
+    return c.body(null, 204);
+  })
+  .post('/mind/stop', guard('POST /v1/mind/stop'), async (c) => {
+    await coreObject(c.env).stop();
     return c.body(null, 204);
   })
   .post('/mind/notes', guard('POST /v1/mind/notes'), async (c) => {

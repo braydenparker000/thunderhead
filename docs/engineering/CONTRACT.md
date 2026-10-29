@@ -53,6 +53,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/files/:id` | D C | P2 | deferred: the private bucket (SETUP.md J2) |  |
 | `GET /v1/search` | D C N | P2 | built |  |
 | `POST /v1/mind/typing` | D | P2 | built |  |
+| `POST /v1/mind/stop` | D | P2 | built | the owner taps Stop: the work ends, not the session |
 | `GET /v1/mind/wakes` | D C N R | P2 | built |  |
 | `POST /v1/mind/brief` | C N R | P2 | built |  |
 | `POST /v1/mind/status` | C N R | P2 | built |  |
@@ -76,6 +77,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/memory/ops` | D C N | P3 | later (P3) |  |
 | `PUT /v1/memory/day-notes/:day` | N | P3 | later (P3) |  |
 | `PUT /v1/memory/open-threads/:id` | D C N | P3 | later (P3) |  |
+| `PATCH /v1/memory/open-threads/:id` | D C N | P3 | later (P3) | {status, why}: done or dropped |
 | `POST /v1/import/runs` | D C | P3 | later (P3) |  |
 | `POST /v1/ops/import/parts` | C I | P3 | later (P3) |  |
 | `PUT /v1/ops/import/manifest/:run_id` | C I | P3 | later (P3) |  |
@@ -93,6 +95,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/work/orders/:id` | C N | P4 | later (P4) |  |
 | `POST /v1/work/orders/:id/cancel` | D C N | P4 | later (P4) |  |
 | `GET /v1/work/orders` | D C N R | P4 | later (P4) |  |
+| `GET /v1/work/orders/:id` | D C N R | P4 | later (P4) |  |
 | `GET /v1/work/hello` | M | P4 | later (P4) |  |
 | `POST /v1/work/claim` | M | P4 | later (P4) |  |
 | `PUT /v1/senses/batches/:id` | D | P5 | later (P5) |  |

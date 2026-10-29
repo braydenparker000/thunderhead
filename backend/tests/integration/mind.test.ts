@@ -10,7 +10,7 @@ import * as wake from '../../src/areas/mind/wake';
 import { uuidv7 } from '../../src/lib/ids';
 import { commit, type Writer } from '../../src/objects/commit';
 import type { Core } from '../../src/objects/core';
-import { apiJson, core, coreSql, makeAgent, setupOwner } from '../helpers';
+import { api, apiJson, core, coreSql, makeAgent, setupOwner } from '../helpers';
 
 let D = '';
 let C = '';
@@ -100,6 +100,32 @@ describe('hand-out, acknowledgement and requeue', () => {
     expect(row.delivered_at).toBeNull();
     const pending = await apiJson<PendingResponse>('GET', '/v1/mind/pending', as(C));
     expect(pending.body.unanswered).toContain(m.id);
+  });
+});
+
+describe("the owner's Stop", () => {
+  it('reaches a waiting mind once, marks say and status replies, and the next text reply clears it', async () => {
+    const { body: start } = await wait(0);
+    expect((await apiJson('POST', '/v1/mind/stop', { token: D })).status).toBe(204);
+    expect((await apiJson('POST', '/v1/mind/stop', { token: C })).status).toBe(403);
+    const first = await wait(start.seq);
+    expect(first.body.signals).toContain('stop');
+    expect((await wait(first.body.seq)).body.signals).not.toContain('stop');
+    expect((await apiJson<PendingResponse>('GET', '/v1/mind/pending', as(C))).body.stop).toBe(true);
+    const st = await api('POST', '/v1/mind/status', { ...as(C), body: { state: 'working' } });
+    expect(st.headers.get('TH-Stop')).toBe('1');
+    const progress = await api('PUT', `/v1/messages/${uuidv7()}`, {
+      ...as(C),
+      body: { body: 'Wrapping up.', kind: 'progress' },
+    });
+    expect(progress.headers.get('TH-Stop')).toBe('1');
+    const reply = await api('PUT', `/v1/messages/${uuidv7()}`, {
+      ...as(C),
+      body: { body: 'Stopped. Done: the list. Not done: the rest.' },
+    });
+    expect(reply.status).toBe(201);
+    expect(reply.headers.get('TH-Stop')).toBeNull();
+    expect((await apiJson<PendingResponse>('GET', '/v1/mind/pending', as(C))).body.stop).toBe(false);
   });
 });
 

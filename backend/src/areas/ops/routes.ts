@@ -90,7 +90,7 @@ export const opsRoutes = new Hono<AppEnv>()
     const q = parse(errorsQuery, c.req.query());
     const limit = q.limit ?? 50;
     const after = decodeCursor('ops/errors', q.cursor) as [number, string] | null;
-    const items = await coreObject(c.env).listErrors(q.status !== 'resolved', limit, after);
+    const items = await coreObject(c.env).listErrors(q.status !== 'resolved', limit, after, q.since ?? null);
     const last = items.at(-1);
     const next = items.length === limit && last ? encodeCursor('ops/errors', [last.last_at, last.fingerprint]) : null;
     return c.json({ items, next } satisfies Page<ErrorRow>);

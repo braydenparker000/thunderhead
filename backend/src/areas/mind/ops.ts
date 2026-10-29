@@ -19,6 +19,7 @@ import { currentDay } from '../conversation/day';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
 import * as verbs from '../verbs/store';
+import * as stop from './stop';
 import * as store from './store';
 import { ACK_MS, backoff, clearBackoff, LEASE_MS, leaseLive, setPresence } from './wake';
 
@@ -73,6 +74,8 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
     if (waiting.length) store.sessionSeenOwner(db, r.session_id, waiting.at(-1)?.created_at ?? at);
   }
   clearBackoff(db, at);
+  // A new chat session has no work in progress, so a Stop left standing is moot.
+  if (r.role === 'chat') stop.clear(w);
   setPresence(w, 'working');
   return { wake };
 }
@@ -130,7 +133,7 @@ export function pending(db: Db, sessionId: string | null, role: MindRole, now: n
   const prewarmOnly = wake?.reason === 'prewarm' && s?.last_owner_at === null;
   return {
     unanswered: role === 'chat' ? convo.unansweredIds(db) : [],
-    stop: false,
+    stop: role === 'chat' && stop.standing(db) !== null,
     day_closed: s !== null && s.day < currentDay(db, tz, now),
     limited: backoff(db).until > now,
     idle_min: Math.floor((now - since) / MINUTE),
@@ -169,6 +172,8 @@ export function take(w: Writer, after: number, role: MindRole, sessionId: string
     }
   const s = sessionId ? store.session(db, sessionId) : null;
   const signals: LiveWaitResponse['signals'] = s && s.day < currentDay(db, tz, at) ? ['day_closed'] : [];
+  const st = role === 'chat' ? stop.standing(db) : null;
+  if (st && st.seq > after) signals.push('stop');
   return {
     seq: Math.max(after, changes.at(-1)?.seq ?? feed.lastSeq(db)),
     changed: changes.length > 0 || messages.length > 0,

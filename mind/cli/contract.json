@@ -346,6 +346,14 @@
       "phase": "P2",
       "status": "built"
     },
+    "POST /v1/mind/stop": {
+      "who": [
+        "D"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "the owner taps Stop: the work ends, not the session"
+    },
     "GET /v1/mind/wakes": {
       "who": [
         "D",
@@ -543,6 +551,16 @@
       "phase": "P3",
       "status": "later (P3)"
     },
+    "PATCH /v1/memory/open-threads/:id": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P3",
+      "status": "later (P3)",
+      "note": "{status, why}: done or dropped"
+    },
     "POST /v1/import/runs": {
       "who": [
         "D",
@@ -684,6 +702,16 @@
       "status": "later (P4)"
     },
     "GET /v1/work/orders": {
+      "who": [
+        "D",
+        "C",
+        "N",
+        "R"
+      ],
+      "phase": "P4",
+      "status": "later (P4)"
+    },
+    "GET /v1/work/orders/:id": {
       "who": [
         "D",
         "C",

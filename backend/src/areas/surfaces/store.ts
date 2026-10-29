@@ -32,6 +32,7 @@ export const toSurface = (r: Row): Surface => ({
   expires_at: r.expires_at,
   written_at: r.written_at,
   seq: r.seq,
+  ledger_id: r.ledger_id,
 });
 
 export function get(db: Db, app: string, slot: string): Row | null {

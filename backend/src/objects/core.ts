@@ -21,10 +21,11 @@ import * as convo from '../areas/conversation/ops';
 import { searchMessages } from '../areas/conversation/search';
 import * as cstore from '../areas/conversation/store';
 import * as ledger from '../areas/ledger/ops';
-import { page as ledgerPage } from '../areas/ledger/store';
+import { type LedgerFilter, page as ledgerPage } from '../areas/ledger/store';
 import { assemble } from '../areas/mind/assemble';
 import { type FireResult, fire, fireConfig } from '../areas/mind/fire';
 import * as mind from '../areas/mind/ops';
+import * as stop from '../areas/mind/stop';
 import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
 import { getSetting, putSetting } from '../areas/settings/store';
@@ -63,7 +64,13 @@ export class Core extends CoreBase {
     const out = this.run((w) => {
       const r = convo.putMessage(w, c, p, this.tz());
       const ownerNew = r.created && r.message.author === 'owner';
-      return { ...r, wake: ownerNew ? wake.maybeWake(w, 'message', this.configured()) : null };
+      // The chat mind's reply after a Stop ("Stopped. Done: … Not done: …") clears it.
+      if (r.created && c.who === 'C' && r.message.kind === 'text') stop.clear(w);
+      return {
+        ...r,
+        wake: ownerNew ? wake.maybeWake(w, 'message', this.configured()) : null,
+        stop: c.who === 'C' && stop.standing(w.db) !== null,
+      };
     });
     this.schedule();
     return out;
@@ -100,11 +107,16 @@ export class Core extends CoreBase {
     });
   }
 
-  mindStatus(c: Caller, r: MindStatusRequest) {
+  mindStatus(c: Caller, r: MindStatusRequest): { typing: boolean; stop: boolean } {
     const out = this.write((w) => mind.status(w, c.session_id, roleOf(c), r));
     if (r.state === 'limited' && roleOf(c) === 'chat') this.write((w) => wake.limited(w, r.error ?? null));
     if (out.typing) this.hub.typing(Date.now() + 60_000);
-    return out;
+    return { ...out, stop: roleOf(c) === 'chat' && stop.standing(this.db) !== null };
+  }
+
+  /** The owner tapped Stop (POST /v1/mind/stop). */
+  stop(): void {
+    this.write((w) => stop.request(w));
   }
 
   mindNote(c: Caller, r: MindNoteRequest) {
@@ -173,8 +185,8 @@ export class Core extends CoreBase {
 
   // --- the ledger, verbs and surfaces ------------------------------------------------------------
 
-  ledger(before: number | null, limit: number, actor: string | null, status: string | null) {
-    return ledgerPage(this.db, before, limit, actor, status);
+  ledger(before: number | null, limit: number, filter: LedgerFilter) {
+    return ledgerPage(this.db, before, limit, filter);
   }
 
   putLedger(c: Caller, id: string, r: PutLedgerRequest, hash: string) {

@@ -52,6 +52,8 @@ export interface Verb {
   expires_at: Ms;
   result: Json | null;
   error: { code: string; message?: string } | null;
+  /** The ledger row of this action (the undo handle). */
+  ledger_id: Id | null;
 }
 
 /** PUT /v1/verbs/:id. `why` is the ledger line the owner can read (8–200 characters). */
@@ -86,6 +88,8 @@ export interface Surface {
   expires_at: Ms | null;
   written_at: Ms;
   seq: number;
+  /** The ledger row of the last write (the undo handle). */
+  ledger_id: Id | null;
 }
 
 export interface PutSurfaceRequest {

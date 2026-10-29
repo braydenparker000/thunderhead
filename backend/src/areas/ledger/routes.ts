@@ -21,13 +21,20 @@ const pageQuery = z.object({
   limit: z.optional(z.coerce.number().check(z.int(), z.gte(1), z.lte(200))),
   actor: z.optional(z.enum(['owner', 'mind:chat', 'mind:night', 'mind:reflex', 'muse', 'ci', 'worker'])),
   status: z.optional(z.enum(['done', 'undone', 'failed'])),
+  since: z.optional(z.coerce.number().check(z.int(), z.gte(0))),
+  kind: z.optional(z.enum(['memory', 'arrangement', 'verb', 'deploy', 'proposal', 'mistake', 'undo', 'note'])),
 });
 
 export const ledgerRoutes = new Hono<AppEnv>()
   .get('/ledger', guard('GET /v1/ledger'), async (c) => {
     const q = parse(pageQuery, c.req.query());
     const limit = q.limit ?? 50;
-    const items = await coreObject(c.env).ledger(q.before_seq ?? null, limit, q.actor ?? null, q.status ?? null);
+    const items = await coreObject(c.env).ledger(q.before_seq ?? null, limit, {
+      actor: q.actor ?? null,
+      status: q.status ?? null,
+      since: q.since ?? null,
+      kind: q.kind ?? null,
+    });
     const last = items.at(-1);
     return c.json({
       items,

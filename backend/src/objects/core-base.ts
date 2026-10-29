@@ -91,8 +91,8 @@ export abstract class CoreBase extends OwnerObject {
     });
   }
 
-  listErrors(open: boolean, limit: number, after: [number, string] | null): ErrorRow[] {
-    return ops.listErrors(this.db, open, limit, after);
+  listErrors(open: boolean, limit: number, after: [number, string] | null, since: number | null = null): ErrorRow[] {
+    return ops.listErrors(this.db, open, limit, after, since);
   }
 
   resolveError(fingerprint: string): number {

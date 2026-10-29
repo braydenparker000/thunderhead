@@ -57,6 +57,7 @@ describe('verbs', () => {
       body: { ok: true, result: { previous: 'sepia' } },
     });
     expect(bad.status).toBe(422);
+    expect(put.body.ledger_id).toMatch(/^[0-9a-f-]{36}$/); // the "queued" row
     const done = await apiJson<Verb>('POST', `/v1/verbs/${id}/result`, {
       token: D,
       body: {
@@ -66,9 +67,14 @@ describe('verbs', () => {
       },
     });
     expect(done.body.status).toBe('done');
+    expect(done.body.ledger_id).toMatch(/^[0-9a-f-]{36}$/);
     const rows = (await apiJson<{ items: LedgerEntry[] }>('GET', '/v1/ledger?limit=10', { token: D })).body.items;
     const ran = rows.find((r) => r.kind === 'verb' && r.undoable) as LedgerEntry;
     expect(ran.what).toBe('shell.appearance done');
+    expect(ran.id).toBe(done.body.ledger_id);
+    const since = await apiJson<{ items: LedgerEntry[] }>('GET', `/v1/ledger?kind=verb&since=${ran.at}`, { token: D });
+    expect(since.body.items.map((r) => r.id)).toContain(ran.id);
+    expect(since.body.items.every((r) => r.kind === 'verb' && r.at >= ran.at)).toBe(true);
     const undo = await apiJson<UndoResponse>('POST', `/v1/ledger/${ran.id}/undo`, { token: D });
     expect(undo.body.status).toBe('queued');
     const inverse = (await apiJson<{ items: Verb[] }>('GET', '/v1/verbs/pending', { token: D })).body.items.find(
@@ -99,7 +105,9 @@ describe('surfaces', () => {
   it('validates kind, slot, version and payload against the contract', async () => {
     const put = (slot: string, body: object) =>
       apiJson<Surface>('PUT', `/v1/surfaces/home/${slot}`, { token: C, body });
-    expect((await put('line.1', line('Good morning.'))).status).toBe(200);
+    const first = await put('line.1', line('Good morning.'));
+    expect(first.status).toBe(200);
+    expect(first.body.ledger_id).toMatch(/^[0-9a-f-]{36}$/);
     expect((await put('line.9', line('Good morning.'))).status).toBe(422);
     expect((await put('line.2', line('Good morning!'))).status).toBe(422);
     expect((await put('line.2', line('No full stop'))).status).toBe(422);
