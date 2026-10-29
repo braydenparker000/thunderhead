@@ -3,9 +3,11 @@
 // mind:chat records words only from its claimed session; the import key touches no card; forgetting
 // a fact scrubs every field of every card that named it; and a card's target line is the Worker's,
 // so a revoke card says which key a Yes revokes. The taint cases have files of their own
-// (proposals-review-a5-taint, -borrow): a taint carries over to the role's later claims.
+// (proposals-review-a5-taint, -borrow): a taint carries over to the role's later claims. The
+// re-check of d08cbdc added two, each failing there: a message a snooze used stays used when the
+// card is cancelled later, and reflex never gets a fact card's words from GET /v1/proposals.
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Proposal } from '../../../shared/contract/api';
+import type { Proposal, ProposalsResponse } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
 import { apiJson, coreSql, makeAgent } from '../helpers';
 import { ownerSays } from '../memory-helpers';
@@ -48,6 +50,13 @@ describe('who decides, and with which words', () => {
     await later();
     const m = await ownerSays(P.D, 'not yet');
     expect((await decide(a.id, by(a, m, 'snooze'), chat())).body.status).toBe('waiting');
+    expect(outcome(await decide(b.id, by(b, m), chat()))).toBe('403 not_owner_words');
+    // Cancelling the card it put off doesn't free the message either.
+    const x = await apiJson('POST', `/v1/proposals/${a.id}/cancel`, {
+      ...chat(),
+      body: { why: 'the owner put it off' },
+    });
+    expect(x.status).toBe(200);
     expect(outcome(await decide(b.id, by(b, m), chat()))).toBe('403 not_owner_words');
   });
 
@@ -153,5 +162,20 @@ describe('what a card names', () => {
     // A forget card names its fact by kind and words; a card for no fact is refused.
     expect((await raise(forgetCard(await fact()))).body.target).toBe('preference: Likes calm music in the evening');
     expect((await raise(forgetCard(uuidv7()))).status).toBe(422);
+  });
+});
+
+describe('what reflex sees', () => {
+  it('a card about a fact reaches reflex without its words or target line', async () => {
+    await clearAgentCards();
+    const card = (await raise(forgetCard(await fact(), { question: 'Forget that you like calm music?' }))).body;
+    const R = await makeAgent(P.D, 'mind:reflex');
+    const r = await apiJson<ProposalsResponse>('GET', '/v1/proposals', { token: R });
+    const seen = r.body.items.find((p) => p.id === card.id);
+    expect(seen).toMatchObject({ status: 'waiting', target: null, options: [] });
+    expect(JSON.stringify(seen)).not.toMatch(/calm music/i);
+    // The owner's device still sees all of it.
+    const mine = (await waiting()).find((p) => p.id === card.id);
+    expect(mine?.target).toBe('preference: Likes calm music in the evening');
   });
 });

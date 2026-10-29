@@ -126,15 +126,14 @@ export function startDecisions() {
   function arm(s) {
     const rise = s.el.getAnimations?.() ?? [];
     const risen = rise.length
-      ? Promise.all(rise.map((a) => a.finished))
+      ? Promise.allSettled(rise.map((a) => a.finished))
       : new Promise((r) => setTimeout(r, RISE_MS));
-    risen.then(
-      () =>
-        setTimeout(() => {
-          s.armed = true;
-          s.el.classList.add('armed');
-        }, ARM_MS),
-      () => {}, // gone before it rose
+    // Settled, not fulfilled: a rise cut short (the "· 1 waiting" pulse replaces it) still arms.
+    risen.then(() =>
+      setTimeout(() => {
+        s.armed = true;
+        s.el.classList.add('armed');
+      }, ARM_MS),
     );
   }
 
