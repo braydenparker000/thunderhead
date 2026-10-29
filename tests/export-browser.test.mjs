@@ -92,6 +92,8 @@ test('Export: leaving and coming back finds the export still building; a failed 
   const { page, context, errors } = await open({ exportState: state });
   await page.click('[data-open="export"]');
   await page.waitForSelector('.xport .btn');
+  // The backups line fills in once its own request answers.
+  await page.waitForFunction(() => /\S/.test(document.querySelector('.spage .sbody > .shelp:last-child')?.textContent ?? ''));
   assert.match(await page.textContent('.spage .sbody > .shelp:last-child'), /^Automatic backups run every Sunday at 02:30/);
   await page.click('.xport .btn');
   await page.fill('#current-password', 'right password here');

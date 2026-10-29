@@ -502,8 +502,9 @@ type MemoryOp =
 - 409 if the same `batch_id` arrives with a different body.
 
 **`POST /v1/senses/query`** · Who: agents
-- Request `{ name: string, params: Record<string, unknown> }`. `name` comes from a fixed map (`counts_by_day`, `top_refs`, `sequence`, `last_event`, …) in `areas/senses/queries.ts`. Never SQL.
-- Response `200 { rows: unknown[], rows_read: number }`.
+- Request `{ name: string, params: Record<string, unknown> }`. `name` comes from a fixed map (`counts_by_day`, `top_refs`, `sequence`, `last_event`, `day_summary`) in `areas/senses/queries.ts`, each with checked parameters (422 names the bad one). Never SQL.
+- Response `200 { rows: unknown[], rows_read: number }`. A sensitivity-1 event shows its type and time only, never its ref or data. The eval sandbox has no senses (422).
+- Built in P5 (`backend/src/objects/senses.ts`, `areas/senses/`; `SENSE_LIMITS` and the queries in `shared/contract/senses.ts`). Each accepted event lands on the owner's logical day with its rollup (`n`, and `sum_ms` from `listened_ms`, `duration_ms` or `ms` in its data). The same batch id with the same bytes answers `{ accepted, rejected: [] }` again and stores nothing; also rejected: `bad_id` (not a uuidv7). Core's 15-minute tick archives each finished day (the last 31) to `thunderhead-private/senses/<day>.jsonl.gz` with its SHA-256, writes it again when a late event arrives, and prunes events past 90 days once their day is archived (batch records after 30 days). Nothing on the phone sends events yet: the player's are an evolution the owner agrees to first.
 
 ### 11.15 Media
 

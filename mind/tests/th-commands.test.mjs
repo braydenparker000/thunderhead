@@ -268,8 +268,11 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   const e = env(fake, {TH_ROLE: 'night'});
   const said = fake.addOwnerMessage('I like slow jazz in the evening');
   assert.equal((await th(['brief', '--claim'], e)).code, 0);
+  fake.state.senseRows = [{type: 'music.play', n: 12, sum_ms: 0}, {type: 'music.skip', n: 3, sum_ms: 0}];
   const d = await th(['day', '2026-10-28'], e);
   assert.equal(d.code, 0, d.stderr);
+  assert.deepEqual(d.json.events_summary, {day: '2026-10-28', total: 15, by_type: fake.state.senseRows},
+    'what the owner did that day, counts by type only');
   assert.equal(d.json.stats.owner, 1);
   assert.deepEqual(d.json.messages, [{id: said.id, author: 'owner', kind: 'text', body: said.body, reply_to: null, at: said.created_at}],
     'each message as the night reads it: what it says and its id for evidence');

@@ -238,7 +238,7 @@ Never stored anywhere: raw IP addresses, the full user-agent, city, passwords, r
 
 ### 6.1 `Senses` (P5, its own deploy)
 
-Built as specified (P5, `backend/src/objects/senses.ts`; the class shipped alone with migration tag `v3`). The batches, queries, rollups, archive and pruning come with the next deploy.
+Built as specified (P5, `backend/src/objects/senses.ts`; the class shipped alone with migration tag `v3`), with its batches, queries, rollups, daily archive (`thunderhead-private/senses/<day>.jsonl.gz`) and pruning ([API.md §11.14](API.md#1114-senses-p5)).
 
 | Table | Columns | Indexes | Retention |
 |---|---|---|---|

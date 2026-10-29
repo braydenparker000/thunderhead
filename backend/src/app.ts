@@ -19,6 +19,7 @@ import { BIG_OPS, UPLOAD_LIMITS, uploadRoutes } from './areas/music/upload';
 import { opsRoutes } from './areas/ops/routes';
 import { proposalsRoutes } from './areas/proposals/routes';
 import { searchRoutes } from './areas/search/routes';
+import { sensesRoutes } from './areas/senses/routes';
 import { surfacesRoutes } from './areas/surfaces/routes';
 import { verbsRoutes } from './areas/verbs/routes';
 import { watchdogsRoutes } from './areas/watchdogs/routes';
@@ -43,6 +44,8 @@ const [audio, art, batch] = [UPLOAD_LIMITS.audio, UPLOAD_LIMITS.art, UPLOAD_LIMI
   bodyLimit({ maxSize, onError: tooLarge }),
 );
 const UPLOADS = '/v1/music/uploads/';
+// A batch of sense events (API.md §8).
+const batchOfEvents = bodyLimit({ maxSize: 256 * 1024, onError: tooLarge });
 const limitFor = (path: string) =>
   path === '/v1/ops/import/parts'
     ? part
@@ -54,7 +57,9 @@ const limitFor = (path: string) =>
           ? art
           : path.startsWith(UPLOADS) && BIG_OPS.has(path.slice(UPLOADS.length))
             ? batch
-            : small;
+            : path.startsWith('/v1/senses/batches/')
+              ? batchOfEvents
+              : small;
 
 export const app = new Hono<AppEnv>()
   .use(async (c, next) => {
@@ -96,5 +101,6 @@ export const app = new Hono<AppEnv>()
   .route('/v1', briefingRoutes)
   .route('/v1', musicRoutes)
   .route('/v1', uploadRoutes)
+  .route('/v1', sensesRoutes)
   .notFound(notFound)
   .onError(onError);

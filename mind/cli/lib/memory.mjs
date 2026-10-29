@@ -171,8 +171,13 @@ export async function day(argv) {
   const messages = await all('messages');
   const ledger = await all('ledger');
   const notes = await all('notes');
+  // What the owner did that day, counts by type only (the senses, P5); null where there are none to
+  // give (an older Worker, the eval sandbox).
+  const events_summary = await request('POST', '/v1/senses/query', {body: {name: 'day_summary', params: {day: d}}})
+    .then(r => { const by_type = r.data?.rows ?? []; return {day: d, total: by_type.reduce((n, t) => n + t.n, 0), by_type}; })
+    .catch(() => null);
   out({stats, messages: messages.items, ledger: ledger.items, session_notes: notes.items,
-    next: {messages: messages.next, ledger: ledger.next, notes: notes.next}, events_summary: null});
+    next: {messages: messages.next, ledger: ledger.next, notes: notes.next}, events_summary});
 }
 
 export async function daynote(argv) {

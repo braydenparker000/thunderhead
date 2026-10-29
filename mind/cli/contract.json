@@ -1007,7 +1007,8 @@
         "D"
       ],
       "phase": "P5",
-      "status": "deferred: P5: the Senses object"
+      "status": "built",
+      "note": "a sealed batch of 1–500 events, ≤ 256 KB"
     },
     "POST /v1/senses/query": {
       "who": [
@@ -1016,7 +1017,8 @@
         "R"
       ],
       "phase": "P5",
-      "status": "deferred: P5: the Senses object"
+      "status": "built",
+      "note": "a fixed, named query; never SQL"
     },
     "GET /v1/jobs/next": {
       "who": [

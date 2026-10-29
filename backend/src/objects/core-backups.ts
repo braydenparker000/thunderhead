@@ -14,6 +14,7 @@ import { manifestKey } from '../areas/backups/job';
 import * as backups from '../areas/backups/ops';
 import { count, putRows, type Row } from '../areas/backups/rows';
 import * as bstore from '../areas/backups/store';
+import { logicalDay } from '../areas/conversation/day';
 import type { Out } from '../lib/result';
 import { Fail } from '../lib/result';
 import { ownerDay, wallMinute } from '../lib/time';
@@ -22,6 +23,7 @@ import type { Caller } from './caller';
 import { CORE_MIGRATIONS, CORE_TABLES } from './core.migrations';
 import { CoreWatchdogs } from './core-watchdogs';
 import { MUSIC_TABLES, musicObject } from './music';
+import { sensesObject } from './senses';
 
 const BACKUP_TABLES = () =>
   Object.entries(CORE_TABLES)
@@ -52,6 +54,10 @@ export abstract class CoreBackups extends CoreWatchdogs {
     if (backups.weeklyDue(this.db, day, wallMinute(now, tz))) await this.startBackup(day, now);
     const due = backups.drillDue(this.db, day);
     if (due) await this.startDrill(due.month, now).catch(() => undefined);
+    // Each finished day's events archived, and events past 90 days pruned (the Senses object).
+    await sensesObject(this.env)
+      .daily(now, logicalDay(now, tz))
+      .catch(() => undefined);
     for (const e of bstore.expiredExports(this.db, now)) {
       const listed = await this.vault.list({ prefix: exportPrefix(e.id) });
       if (listed.objects.length) await this.vault.delete(listed.objects.map((o) => o.key));

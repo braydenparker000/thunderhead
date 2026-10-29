@@ -38,6 +38,11 @@ export function extraRoutes(ctl) {
   }
 
   return [
+    // The senses' fixed questions (API.md §11.14): a test sets s.senseRows to what one answers.
+    ['POST', /^\/v1\/senses\/query$/, ALL, ({body}) => {
+      if (body?.name !== 'day_summary') throw new HttpError(422, 'validation');
+      return [200, {rows: s.senseRows ?? [], rows_read: 1}];
+    }],
     // The watchdogs (OPERATIONS.md §8.2): a test sets s.watchdogs to the items it needs.
     ['GET', /^\/v1\/ops\/watchdogs$/, ALL, () => [200, {items: s.watchdogs}]],
     ['POST', /^\/v1\/ops\/watchdogs\/([^/]+)\/handled$/, ALL, ({body, params, session}) => {

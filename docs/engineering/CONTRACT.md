@@ -127,8 +127,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/music/uploads/audio/:file` | public | P5 | built | signed by an upload tool key; Ogg Opus, ≤ 32 MiB |
 | `PUT /v1/music/uploads/art/:file` | public | P5 | built | signed by an upload tool key; JPEG or PNG, ≤ 2 MiB |
 | `POST /v1/music/uploads/:op` | public | P5 | built | signed by an upload tool key; the catalog writer's operations, export and links |
-| `PUT /v1/senses/batches/:id` | D | P5 | deferred: P5: the Senses object |  |
-| `POST /v1/senses/query` | C N R | P5 | deferred: P5: the Senses object |  |
+| `PUT /v1/senses/batches/:id` | D | P5 | built | a sealed batch of 1–500 events, ≤ 256 KB |
+| `POST /v1/senses/query` | C N R | P5 | built | a fixed, named query; never SQL |
 | `GET /v1/jobs/next` | N I | P5 | deferred: P5: the indexing jobs |  |
 | `POST /v1/jobs/:id/collect` | N I | P5 | deferred: P5: the indexing jobs |  |
 | `GET /v1/jobs/:id` | C N R I | P5 | deferred: P5: the indexing jobs |  |
