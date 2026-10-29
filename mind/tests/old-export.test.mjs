@@ -46,14 +46,14 @@ function listen(handler) {
 }
 const json = (res, status, body) => { res.writeHead(status, {'Content-Type': 'application/json'}); res.end(JSON.stringify(body)); };
 
-async function fakes({partRows = 2, wroteOnStep = 0, failDataset = null} = {}) {
+async function fakes({partRows = 2, wroteOnStep = 0, failDataset = null, shared = null, tooLarge = null} = {}) {
   const log = [];
   let steps = 0;
   const old = await listen((req, res, body) => {
     log.push({at: Date.now(), side: 'old', path: req.url});
     if (req.headers.authorization !== `Bearer ${OLD_KEY}`) return json(res, 401, {error: 'Agent key required'});
     const b = JSON.parse(body.toString() || '{}');
-    const here = b.instance === 'claude-chat-v1' ? TABLES : {};
+    const here = b.instance === 'claude-chat-v1' ? TABLES : b.instance === 'jarvis-shared-v2' && shared ? shared : {};
     if (req.url === '/ops/export/tables') {
       return json(res, 200, {instance: b.instance, rows_written: 0, tables: Object.entries(here).map(([table, t]) => ({
         table, rows: t.rows.length, columns: Object.keys(t.rows[0]), never_export: !!t.never, virtual: !!t.virtual}))});
@@ -74,6 +74,9 @@ async function fakes({partRows = 2, wroteOnStep = 0, failDataset = null} = {}) {
     log.push({at: Date.now(), side: 'new', path: req.url});
     if (req.headers.authorization !== `Bearer ${NEW_KEY}`) return json(res, 401, {error: {code: 'unauthorized'}});
     if (req.url === '/v1/ops/import/parts') {
+      const path = req.headers['th-import'];
+      if (tooLarge && path.includes(`/${tooLarge.table}/`) && Number(path.slice(-4)) >= tooLarge.from)
+        return json(res, 413, {error: {code: 'too_large'}});
       if (sha(body) !== req.headers['th-sha256']) return json(res, 422, {error: {code: 'validation'}});
       stored.parts.set(req.headers['th-import'], {bytes: body, rows: Number(req.headers['th-rows'])});
       return json(res, 201, {key: req.headers['th-import']});
@@ -134,7 +137,27 @@ test('pulls each table part by part, posts the parts unchanged, writes the manif
     assert.match(r.stdout, /claude-chat-v1\/cc_messages: 4 rows in 2 parts/);
     assert.match(r.stdout, /relay_owner_credentials: 2 rows, counted only \(never exported\)/);
     assert.match(r.stdout, /import messages: done, 3 of 3 imported, 0 skipped, 3 of 3 spot checks matched/);
-    assert.deepEqual({...r.json, imports: undefined}, {run_id: 'run-t1', tables: 5, rows: 11, parts: 5, manifest: 'written', imports: undefined});
+    assert.deepEqual({...r.json, imports: undefined}, {run_id: 'run-t1', tables: 5, rows: 11, parts: 5, manifest: 'written', deferred: [],
+      imports: undefined});
+  } finally { await f.stop(); }
+});
+
+test('a table with a part too large to post is counted only and deferred; the export and the imports go on', async () => {
+  const data = {$b64: 'QUJD'};
+  const shared = {relay_owner_attachments: {rows: [1, 2, 3].map(i => ({id: `a${i}`, name: `file ${i}`, data}))}};
+  const f = await fakes({shared, tooLarge: {table: 'relay_owner_attachments', from: 2}});
+  try {
+    const r = await drive(f, ['--run', 'run-t5', '--deployed', LONG_AGO]);
+    assert.equal(r.code, 0, r.stderr);
+    assert.match(r.stdout,
+      /^jarvis-shared-v2\/relay_owner_attachments: 3 rows, counted only \(too large to post; stays in the old Worker for now\)$/m);
+    const m = f.stored.manifest;
+    assert.deepEqual(m.instances['jarvis-shared-v2'].tables.relay_owner_attachments,
+      {rows: 3, parts: 0, columns: ['id', 'name', 'data'], sha256s: [], part_rows: []});
+    assert.ok(f.stored.parts.has('run-t5/jarvis-shared-v2/relay_owner_attachments/0001'), 'the part posted before stays, unlisted');
+    assert.equal(m.instances['claude-chat-v1'].tables.cc_messages.parts, 2, 'the other tables as before');
+    assert.deepEqual(r.json.deferred, ['jarvis-shared-v2/relay_owner_attachments']);
+    assert.deepEqual(f.stored.runs.map(x => x.dataset), ['threads', 'messages', 'notebook']);
   } finally { await f.stop(); }
 });
 

@@ -53,17 +53,29 @@ export async function storedShas(vault: R2Bucket, runId: string): Promise<Map<st
   return out;
 }
 
-/** The first row of a gzip JSONL part, read only as far as its first newline (null for an empty
- * part); throws on a body that is not gzip JSONL. */
-export async function firstRow(bytes: ArrayBuffer): Promise<Record<string, unknown> | null> {
-  const reader = new Blob([bytes])
-    .stream()
-    .pipeThrough(new DecompressionStream('gzip'))
-    .pipeThrough(new TextDecoderStream())
-    .getReader();
+const SLICE = 64 * 1024;
+const FIRST_ROW_TEXT = 1024 * 1024;
+
+/** The column names of a gzip JSONL part's first row (none for an empty part); throws on a body
+ * that is not gzip JSONL. It decompresses from 64 KiB slices of the part, never a copy of all of
+ * it, and only as far as the first newline or 1 MiB of text: a first row longer than that (a big
+ * BLOB) gives the names seen so far. */
+export async function firstKeys(bytes: ArrayBuffer): Promise<string[]> {
+  let at = 0;
+  const slices = new ReadableStream<Uint8Array>({
+    pull(c) {
+      if (at >= bytes.byteLength) {
+        c.close();
+        return;
+      }
+      c.enqueue(new Uint8Array(bytes.slice(at, at + SLICE)));
+      at += SLICE;
+    },
+  });
+  const reader = slices.pipeThrough(new DecompressionStream('gzip')).pipeThrough(new TextDecoderStream()).getReader();
   let text = '';
   try {
-    while (!text.includes('\n')) {
+    while (!text.includes('\n') && text.length < FIRST_ROW_TEXT) {
       const { done, value } = await reader.read();
       if (done) break;
       text += value;
@@ -71,11 +83,14 @@ export async function firstRow(bytes: ArrayBuffer): Promise<Record<string, unkno
   } finally {
     await reader.cancel().catch(() => undefined);
   }
-  const line = text.split('\n')[0];
-  if (!line) return null;
+  const end = text.indexOf('\n');
+  if (end === -1 && text.length >= FIRST_ROW_TEXT)
+    return [...text.matchAll(/"([A-Za-z_][A-Za-z0-9_]{0,63})":/g)].map((m) => m[1]);
+  const line = end === -1 ? text : text.slice(0, end);
+  if (!line) return [];
   const row = JSON.parse(line) as unknown;
   if (!row || typeof row !== 'object' || Array.isArray(row)) throw new Error('not a row');
-  return row as Record<string, unknown>;
+  return Object.keys(row);
 }
 
 export async function readManifest(vault: R2Bucket, runId: string): Promise<ImportManifest | null> {

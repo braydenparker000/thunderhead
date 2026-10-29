@@ -4,9 +4,12 @@
 // one not built yet says what it waits for; a run of it is refused until then.
 import type { Id, Ms } from './api';
 
-/** At most this many rows, and bytes, in one part (the old export's own step). */
+/** At most this many rows, and bytes, in one part (the old export's own step). 25 MiB holds the
+ * old tables with base64 BLOBs in them, far under the Workers request limit (100 MB); the route
+ * holds one part in memory once (decisions 2026-10-29). A part still larger is not posted: the
+ * driver counts its table only, and it stays in the old Worker (MIGRATION.md §8). */
 export const IMPORT_PART_ROWS = 2_000;
-export const IMPORT_PART_BYTES = 5 * 1024 * 1024;
+export const IMPORT_PART_BYTES = 25 * 1024 * 1024;
 /** Source rows a finished run compares with what it wrote, chosen with a recorded seed. */
 export const IMPORT_SPOT_CHECKS = 20;
 
