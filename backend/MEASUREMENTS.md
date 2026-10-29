@@ -165,6 +165,18 @@ Checked locally (2026-10-29, `wrangler dev`): the routes and the workflow's step
 to end (X3 and X1 pass; X4 reports FAIL because local storage cannot restore a bookmark, as §3
 expects).
 
+### Results (2026-10-29, production, Free plan)
+
+| Test | Result |
+|---|---|
+| X3 | PASS. 2^15/8/3: 20/20 ok, cpuTime p50 289 · p95 367 · p99 367 ms, wallTime p99 445 ms, round trip p99 662 ms. 2^16/8/2: 20/20 ok, cpuTime p99 503 ms. |
+| X4 | PASS. Current bookmark restore returns "before"; `getBookmarkForTime(1 min ago)` returned nothing for a sub-minute-old object. |
+| X1 | PASS from Actions. Poked takes 100/100 delivered (p99 1,674 ms incl. the 1.5 s poke delay); idle 25 s takes 3/3 ended cleanly. |
+
+The bench Worker is gone after each run (checked against the account's Worker list); the earlier
+"could not delete" warning came from `wrangler delete`'s exit status, so the step now checks
+whether the Worker still exists instead.
+
 ## Findings (things that should change a decision or a plan)
 
 1. **The X3 fallback does not fit 10 ms either.** (Since settled in decisions 2026-10-28: the

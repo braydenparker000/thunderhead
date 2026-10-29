@@ -5,7 +5,7 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**P1 · Worker + sign-in**: live and set up 2026-10-29. The owner's setup (SETUP.md A–I) is complete; engineering leftovers below.
+**P1 · Worker + sign-in**: done 2026-10-29 (X1/X3/X4 pass). **P1b · Apps ported**: live 2026-10-29 (My Media waits on the `DRIVE_CONFIG_JSON` secret). **P2 · The daily conversation**: building on branch `p2-chat`.
 
 ## Next three tasks
 
@@ -18,6 +18,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 - Nothing for P1. P1b needs the owner's yes to the old Worker's allowed-origins change (SETUP.md J).
 
 ## Last deploy
+
+- 2026-10-29 04:15 UTC: site `22236b7` (run #17): the five ported apps live (P1b), service worker, icons, changed-files-only upload. Run #16 hit the job limit mid-upload (fixed: step limits keep the rollback runnable).
+- 2026-10-29 04:21–04:36 UTC: production measurements X3, X4, X1 all PASS (decisions.md).
 
 - 2026-10-29 01:53 UTC: Worker `5c0f33e53fb7` (Deploy run #14, target api): settings check, tests, deploy, smoke check with `TH_CI_TOKEN` (deep health ok) and the 4 live API tests.
 - 2026-10-28 15:12 UTC: site `5c0f33e` with sign-in on (run #13, target site; `config.js` carries the API address).

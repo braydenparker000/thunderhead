@@ -62,8 +62,11 @@ jobs:
       - name: Clean up the bench Workers
         if: ${{ inputs.test == 'cleanup' }}
         run: |
+          gone() { [[ "$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$1/settings")" == 404 ]]; }
           for name in thunderhead-x1 thunderhead-x3 thunderhead-x4; do
-            if npx wrangler delete "$name" --config "$CONFIG" > /dev/null 2>&1; then echo "deleted $name"; else echo "$name: not there"; fi
+            if gone "$name"; then echo "$name: not there"; continue; fi
+            npx wrangler delete "$name" --config "$CONFIG" > /dev/null 2>&1 || true
+            if gone "$name"; then echo "deleted $name"; else echo "::warning::could not delete $name"; fi
           done
       - name: Deploy the bench Worker
         id: deploy
@@ -160,4 +163,7 @@ jobs:
         if: ${{ always() && inputs.test != 'cleanup' && !(inputs.test == 'x1' && inputs.keep) }}
         run: |
           rm -f "$RUNNER_TEMP/bench-key"
-          if npx wrangler delete "$NAME" --config "$CONFIG" > /dev/null 2>&1; then echo "deleted $NAME"; else echo "::warning::could not delete $NAME; run Bench with test cleanup"; fi
+          # wrangler delete can exit non-zero after deleting, so ask the API whether the Worker still exists.
+          npx wrangler delete "$NAME" --config "$CONFIG" > /dev/null 2>&1 || true
+          code="$(curl -s -o /dev/null -w '%{http_code}' -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/scripts/$NAME/settings")"
+          if [[ "$code" == 404 ]]; then echo "deleted $NAME"; else echo "::warning::$NAME may still exist (API answered $code); run Bench with test cleanup"; fi
