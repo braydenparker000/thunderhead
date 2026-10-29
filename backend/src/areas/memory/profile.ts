@@ -19,10 +19,25 @@ const rank = (kind: string) => {
   const i = ORDER.indexOf(kind);
   return i < 0 ? ORDER.length : i;
 };
-const month = (at: number, tz: string) =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit' }).format(at);
-const date = (at: number, tz: string) =>
-  new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(at);
+/** One formatter per zone and shape, made once: building an Intl.DateTimeFormat per line cost
+ * the briefing tens of milliseconds of CPU (review of P3 stage A). */
+const FORMATS = new Map<string, Intl.DateTimeFormat>();
+function formatter(tz: string, withDay: boolean): Intl.DateTimeFormat {
+  const key = `${withDay ? 'd' : 'm'}|${tz}`;
+  let f = FORMATS.get(key);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-CA', {
+      timeZone: tz,
+      year: 'numeric',
+      month: '2-digit',
+      ...(withDay ? { day: '2-digit' } : {}),
+    });
+    FORMATS.set(key, f);
+  }
+  return f;
+}
+const month = (at: number, tz: string) => formatter(tz, false).format(at);
+const date = (at: number, tz: string) => formatter(tz, true).format(at);
 const one = (t: string) => t.replace(/\s+/g, ' ').trim();
 
 /** The short id the renders show: the id's last 8 hex digits (its random part; a UUIDv7's first
@@ -90,7 +105,12 @@ export function renderProfile(rows: FactRow[], now: number, tz: string): Profile
 }
 
 /** Section 3: every current rule, pinned first, oldest first (rules never decay). */
-export function renderRules(rows: FactRow[], tz: string, budget: number): string {
+export function renderRules(
+  rows: FactRow[],
+  tz: string,
+  budget: number,
+  more = (n: number) => `(+${n} more: th brief --section 3)`,
+): string {
   const rules = rows
     .filter((f) => f.kind === 'rule' && f.superseded_at === null)
     .sort((a, b) => b.pinned - a.pinned || a.recorded_at - b.recorded_at || (a.id < b.id ? -1 : 1));
@@ -98,13 +118,18 @@ export function renderRules(rows: FactRow[], tz: string, budget: number): string
   return within(
     rules.map((f) => factLine(f, f.confidence, tz, false)),
     budget,
-    (n) => `(+${n} more: th brief --section 3)`,
+    more,
   ).text;
 }
 
 /** Section 4: mind-owned first, then the owner's; due soonest first, then the oldest. Full ids,
  * because `th thread done <id>` needs them. */
-export function renderThreads(rows: OpenThreadRow[], tz: string, budget: number): string {
+export function renderThreads(
+  rows: OpenThreadRow[],
+  tz: string,
+  budget: number,
+  more = (n: number) => `(+${n} more: th brief --section 4)`,
+): string {
   const open = rows
     .filter((t) => t.status === 'open')
     .sort(
@@ -120,12 +145,16 @@ export function renderThreads(rows: OpenThreadRow[], tz: string, budget: number)
         `[${t.id}] ${one(t.text)} (${t.owner}${t.due_at ? `, due ${date(t.due_at, tz)}` : ''}, since ${date(t.opened_at, tz)})`,
     ),
     budget,
-    (n) => `(+${n} more: th thread list)`,
+    more,
   ).text;
 }
 
 /** Section 6 when the night shift wrote yesterday's note. */
-export function renderDayNote(n: DayNoteRow, budget: number): string {
+export function renderDayNote(
+  n: DayNoteRow,
+  budget: number,
+  more = (k: number) => `(+${k} more: th brief --section 6)`,
+): string {
   let decisions: string[] = [];
   try {
     const v = JSON.parse(n.decisions_json ?? '[]');
@@ -135,7 +164,7 @@ export function renderDayNote(n: DayNoteRow, budget: number): string {
   }
   const lines = [`Day note ${n.day} (importance ${n.importance}, v${n.version}): ${one(n.summary)}`];
   for (const d of decisions) lines.push(`- decided: ${one(d)}`);
-  return within(lines, budget, (k) => `(+${k} more: th brief --section 6)`).text;
+  return within(lines, budget, more).text;
 }
 
 /** Section 9: one line per day note, newest first. */

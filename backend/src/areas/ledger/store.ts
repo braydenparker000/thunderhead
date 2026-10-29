@@ -128,3 +128,16 @@ export function scrubMemory(db: Db, refs: string[], since: number): number {
     ...refs,
   );
 }
+
+/** Arrangement rows since `since` whose stored undo mentions one of these ids (a surface citing a
+ * muted or forgotten fact) lose that undo, so nothing can put the surface back. */
+export function scrubUndo(db: Db, ids: string[], since: number): number {
+  let n = 0;
+  for (const id of ids)
+    n += db.run(
+      `UPDATE ledger SET undo_json = NULL, undoable = 0 WHERE at >= ? AND kind = 'arrangement' AND undo_json LIKE ?`,
+      since,
+      `%${id.replace(/[%_]/g, '')}%`,
+    );
+  return n;
+}

@@ -140,9 +140,10 @@ describe('supersede, confirm, and the owner own fixes', () => {
     const yes = await ownerSays(P.D, 'Yes, I want to perform it.');
     const r = await ops(chat(), [{ op: 'confirm', id: guess.id, evidence: [`msg:${yes}`] }]);
     const lifted = await fact(r.body.applied[0].fact_id);
+    // The mind lifts it on the owner's newer words but keeps "imported": only the owner's tap clears it.
     expect(lifted).toMatchObject({
       source: 'user',
-      tags: [],
+      tags: ['imported'],
       evidence: [`msg:${yes}`],
       text: 'Wants to perform the piece',
     });

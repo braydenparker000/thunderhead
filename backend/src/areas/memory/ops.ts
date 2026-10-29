@@ -8,7 +8,7 @@ import { uuidv7 } from '../../lib/ids';
 import { Fail } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
-import { sessionGuards } from '../mind/guards';
+import { claimedSession } from '../mind/guards';
 import { type Applied, add, confirm, supersede } from './fact-ops';
 import { batch, putBatch } from './notes';
 import { flag, forget } from './owner-ops';
@@ -23,9 +23,9 @@ export function apply(w: Writer, c: Caller, batchId: string, raw: unknown[], has
     return JSON.parse(seen.result_json) as MemoryOpsResponse;
   }
   const device = c.who === 'D';
-  if (!device && !c.session_id)
-    throw new Fail('validation', [{ path: 'TH-Session', issue: 'required for memory writes' }]);
-  const guards = !device && c.session_id ? sessionGuards(w.db, c.session_id) : null;
+  // A mind writes only from a claimed, live session of its role; a tainted one writes nothing.
+  const guards = device ? null : claimedSession(w.db, c.session_id, c.who === 'N' ? 'night' : 'chat');
+  if (guards?.tainted) throw new Fail('session_tainted');
   const out: MemoryOpsResponse = { applied: [], proposals: [], rejected: [] };
   let supersedes = 0;
   raw.forEach((r, i) => {
@@ -33,16 +33,15 @@ export function apply(w: Writer, c: Caller, batchId: string, raw: unknown[], has
       db: w.db,
       at: w.at,
       device,
-      night: c.who === 'N',
       tainted: guards?.tainted ?? false,
-      // M12: the pin needs the constitution hash the session claimed with; none claimed, no rules.
-      lawsBroken: !device && (guards?.constitution ?? 'none') === 'none',
+      // M12: the pin needs the constitution hash the session claimed with.
+      lawsBroken: guards !== null && guards.constitution === 'none',
       selfLedger: uuidv7(w.at),
     };
     try {
       const op = parseOp(r);
-      if (op.op === 'supersede' && ctx.night && supersedes >= MEMORY_LIMITS.night_supersedes)
-        throw new Reject('proposal_required'); // M10
+      if (op.op === 'supersede' && !device && supersedes >= MEMORY_LIMITS.supersedes_per_batch)
+        throw new Reject('proposal_required'); // M10, for every batch from the mind
       const done = one(w, c, ctx, op);
       if (op.op === 'supersede') supersedes++;
       out.applied.push({ i, ...done });

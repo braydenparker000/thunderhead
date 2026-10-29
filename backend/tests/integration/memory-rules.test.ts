@@ -146,10 +146,10 @@ describe('M8, M9, M10: changes the owner decides (proposals arrive in P4)', () =
 describe('M11 and M12: the session', () => {
   it('a tainted session may not write memory: 403 session_tainted, nothing written', async () => {
     const s = 'cse_memory_tainted';
-    await brief(P.C, s, 'chat');
-    await apiJson('POST', '/v1/mind/taint', { ...as(P.C, s), body: { source: 'WebFetch' } });
+    expect((await brief(P.N, s, 'night')).status).toBe(200);
+    await apiJson('POST', '/v1/mind/taint', { ...as(P.N, s), body: { source: 'WebFetch' } });
     const before = await facts();
-    const r = await ops(as(P.C, s), [addOp([`msg:${owner}`])]);
+    const r = await ops(as(P.N, s), [addOp([`msg:${owner}`])]);
     expect(r.status).toBe(403);
     expect(r.body.error?.code).toBe('session_tainted');
     expect(await facts()).toBe(before);
@@ -162,12 +162,14 @@ describe('M11 and M12: the session', () => {
     const r = await ops(as(P.N, s), [rule()]);
     expect(r.status).toBe(403);
     expect(r.body.error?.code).toBe('laws_unpinned');
-    expect(await reason(as(P.C, 'cse_never_claimed'), rule())).toBe('laws_unpinned');
+    expect(await reason(as(P.C, 'cse_never_claimed'), rule())).toBe('session_required');
     expect(await reason(night(), rule())).toBeNull();
   });
 
-  it('a mind write without TH-Session is refused', async () => {
-    expect((await ops({ token: P.C }, [addOp([`msg:${owner}`])])).status).toBe(422);
+  it('a mind write without TH-Session, or from a session that never claimed, is refused', async () => {
+    const r = await ops({ token: P.C }, [addOp([`msg:${owner}`])]);
+    expect([r.status, r.body.error?.code]).toEqual([403, 'session_required']);
+    expect(await reason(as(P.C, 'cse_made_up'), addOp([`msg:${owner}`]))).toBe('session_required');
   });
 });
 

@@ -13,7 +13,6 @@ import type {
   PutDayNoteRequest,
   PutOpenThreadRequest,
 } from '../../../shared/contract/api';
-import { FACT_KIND_NAMES } from '../../../shared/contract/memory.ts';
 import { currentDay } from '../areas/conversation/day';
 import { detail } from '../areas/memory/detail';
 import * as notes from '../areas/memory/notes';
@@ -41,11 +40,7 @@ export abstract class CoreMemory extends CoreBase {
 
   profile(): ProfileResponse {
     const now = Date.now();
-    const rows = facts.currentFacts(
-      this.db,
-      FACT_KIND_NAMES.filter((k) => k !== 'rule'),
-      PROFILE_READ,
-    );
+    const rows = facts.recentCurrent(this.db, PROFILE_READ);
     return { ...renderProfile(rows, now, this.tz()), rendered_at: now };
   }
 

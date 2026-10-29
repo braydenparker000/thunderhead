@@ -217,11 +217,13 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 | M7 | Tags `faith` or `about=person` → `source=user` only; `faith` defaults to `may_raise=0` | `422` `needs_owner_words` |
 | M8 | `source=inferred` → confidence ≤ 0.80; `sensitivity=1` inferred → becomes a `memory_big` proposal, not applied | Proposal |
 | M9 | Superseding a `user` fact with a non-`user` source → `memory_big` proposal | Proposal |
-| M10 | More than 10 supersessions in one night batch → the batch is applied up to 10; the rest become one `memory_big` proposal "Many changes tonight; review?" **[proposal]** | Proposal |
-| M11 | A session marked tainted (`th taint`) may not `remember`, `supersede`, `confirm` or write `rule` (enforced from P3, when memory writes arrive; other gated writes from P4) | `403 forbidden` `session_tainted` |
-| M12 | If the constitution pin is broken this session, `rule` writes are refused. Until the pin arrives (P4) the check is the hash the session claimed with: a session that sent `none` (its file was missing), or never claimed, writes no rules | `403` `laws_unpinned` |
+| M10 | More than 10 supersessions in one batch from the mind (night or chat) → the batch is applied up to 10; the rest become one `memory_big` proposal "Many changes tonight; review?" **[proposal]** | Proposal (`proposal_required` until P4) |
+| M11 | A session marked tainted (`th taint`) may not `remember`, `supersede`, `confirm`, write `rule` or write a day note (enforced from P3, when memory writes arrive; other gated writes from P4). Every mind memory write needs a claimed, live session of its role, so a new session id can't step around a taint; a day note written while its session was tainted is never evidence | `403` `session_tainted`; `403` `session_required` |
+| M12 | If the constitution pin is broken this session, `rule` writes are refused, and so is superseding a rule into anything else. Until the pin arrives (P4) the check is the hash the session claimed with: a session that sent `none` (its file was missing) writes no rules | `403` `laws_unpinned` |
 | M13 | `text` ≤ 280 characters and one claim (no "and also") — length is enforced; one-claim is checked weekly in-session | `422` `too_long` |
 | M14 | Health, sexuality, politics, religion and similar sensitive traits are never `inferred` **[proposal]** | `422` `no_inferred_sensitive` |
+| M15 | The mind only makes a fact more protected: it never lowers `sensitivity` (a sensitive tag or `about=person` makes it 1), never sets `may_raise=1` on its own (faith never), never drops a sensitive, `faith` or `imported` tag ([PRIVACY.md §4](../engineering/PRIVACY.md)); only the owner can | (applied as the protected value) |
+| M16 | §13's never-stored text (keys and tokens, passwords, card and bank numbers) is refused in facts, loose ends and day notes | `422` `never_stored` |
 
 **Taint sources:** web pages, search results, song tags and tab files, PDFs and other files not written by the owner, emails, Board sources, PR or issue comments not by the owner, Muse output, the wake text. Outside content is stored, if at all, as `origin=external` (Board items, imported web text) and can only be cited in answers.
 
@@ -333,7 +335,8 @@ Behaviours:
 - **Fix** opens the text for editing. Saving supersedes the fact with `source=user` in one transaction with its ledger row (`actor=owner`, `kind=memory`), and that row is the evidence (`ledger:<id>`). Events have no table in `Core` before `Senses` (P5, [DATA.md §4.4](../engineering/DATA.md)), so the page never writes one. Applied at once.
 - **Pin** sets `pinned=1` (top of the profile, no decay).
 - **Don't bring this up** sets `may_raise=0`: the mind still knows it (so it won't ask again) but never mentions it unprompted. Muted facts never appear in home lines, margin notes or pushes. The Worker can't read meaning in free text, so every surface and push must list the fact ids it draws on (`facts` field), and the Worker refuses one that cites a muted fact **[proposal]**. Whether the mind cited honestly is checked by the weekly in-session review.
-- **Forget** asks once ("Forget this? It can't be brought back."), shows a 10 s undo, then hard-deletes (§3); leaving the page inside the 10 s sends it at once. The next briefing no longer contains it.
+- **Forget** asks once ("Forget this? It can't be brought back."), shows a 10 s undo, then hard-deletes (§3); leaving the page inside the 10 s sends it at once. The next briefing no longer contains it, and surfaces citing it leave their slots. The system's point-in-time recovery (Cloudflare, 30 days) still holds the old pages for up to 30 days; the sheet says so ([PRIVACY.md §10](../engineering/PRIVACY.md)).
+- **Don't bring this up** also clears, at once, any surface that cites the fact.
 - **Add** lets the owner type a fact or rule directly (`source=user`, evidence = its own ledger row, as for Fix).
 - Every action is a ledger row with `actor=owner`.
 
@@ -347,12 +350,12 @@ Built in P3 (`frontend/apps/settings/memory*.js`, `/settings/memory/`): What I k
 
 | Never | Instead |
 |---|---|
-| Passwords, tokens, keys, recovery codes in memory or messages | The mind refuses to repeat them and replies "Don't send me secrets; I've hidden that message." The Worker masks token-shaped strings in message bodies on write **[proposal]** |
+| Passwords, tokens, keys, recovery codes in memory or messages | The mind refuses to repeat them and replies "Don't send me secrets; I've hidden that message." The Worker refuses them in facts, loose ends and day notes (`never_stored`, P3: this system's token shapes, common provider keys, JWTs, private keys, recovery codes, "password is …"); masking token-shaped strings in message bodies on write is still **[proposal]** |
 | Raw camera or microphone streams | Analysed on the phone while switched on; only the result the owner chooses to save (a voice memo they send, a practice score) is stored |
 | Precise location history | Coarse weather location only, set by the owner |
 | Inferred sensitive traits (health, sexuality, politics, religion, finances) | Only what the owner states, `source=user`, `sensitivity=1` |
 | Other people's contact details or inferred traits | Names as the owner wrote them, in messages; facts `about=person` only from the owner's words |
-| Payment card or bank numbers | Refused as secrets |
+| Payment card or bank numbers | Refused as secrets (card numbers by the Luhn check, bank accounts as IBANs) |
 | Outside text as facts | Cited only; `origin=external` rows |
 | Anything personal in the repo, Actions logs or artifacts | Private Worker and R2 only |
 

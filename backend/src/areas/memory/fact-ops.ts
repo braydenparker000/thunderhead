@@ -1,6 +1,8 @@
 // The fact ops of a memory batch (MEMORY.md §3): add, supersede and confirm, each checked by the
 // provenance rules (validate.ts) before it writes one ledger row (with its inverse, never the
 // fact's text) and the version itself. ops.ts runs the batch; owner-ops.ts has the owner's own.
+// The mind may only make a fact more protected (PRIVACY.md §4): never lower its sensitivity, never
+// set "may raise" on its own, never drop a protecting tag; the owner may do either.
 import {
   CONFIDENCE,
   FACT_SOURCES,
@@ -14,17 +16,59 @@ import { uuidv7 } from '../../lib/ids';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import * as store from './store';
-import { askFirst, clean, content, evidence, type FactShape, type OpContext, type ParsedOp, Reject } from './validate';
+import {
+  askFirst,
+  clean,
+  content,
+  evidence,
+  type FactShape,
+  newestOwnerWords,
+  type OpContext,
+  type ParsedOp,
+  Reject,
+} from './validate';
 
 export type Applied = Omit<MemoryOpsResponse['applied'][number], 'i'>;
 
 export const short = (id: string) => `fact:${id}`;
 const cites = (refs: string[]) => `from ${refs[0]}${refs.length > 1 ? ` and ${refs.length - 1} more` : ''}`;
 const has = (tags: string[], list: readonly string[]) => tags.some((t) => list.includes(t));
+/** Tags only the owner may take off: what makes a fact sensitive, owner-only or unreviewed. */
+const PROTECTING: readonly string[] = [...SENSITIVE_TAGS, ...OWNER_ONLY_TAGS, IMPORTED_TAG];
 
 /** The starting confidence of a source (MEMORY.md §4); an imported guess starts at 0.6. */
 function base(source: FactSource, tags: string[]): number {
   return source === 'inferred' && tags.includes(IMPORTED_TAG) ? CONFIDENCE.imported : FACT_SOURCES[source].base;
+}
+
+interface Flags {
+  tags: string[];
+  sensitivity: 0 | 1;
+  may_raise: 0 | 1;
+}
+
+/** A version's tags and flags. The owner's word is final; the mind's only ever adds protection:
+ * protecting tags stay, sensitivity only rises (a sensitive tag or a fact about a person makes it
+ * 1), and "may raise" only falls (faith is never raised). */
+function flags(
+  ctx: OpContext,
+  about: string,
+  given: { tags?: string[]; sensitivity?: 0 | 1; may_raise?: boolean },
+  old: store.FactRow | null,
+): Flags {
+  const oldTags = old ? store.strings(old.tags_json) : [];
+  const asked = [...new Set(given.tags ?? oldTags)];
+  const tags = ctx.device ? asked : [...new Set([...asked, ...oldTags.filter((t) => PROTECTING.includes(t))])];
+  const implied = has(tags, SENSITIVE_TAGS) || about === 'person' ? 1 : 0;
+  const askedSens = given.sensitivity ?? (old?.sensitivity === 1 ? 1 : 0);
+  const sensitivity = ctx.device
+    ? (given.sensitivity ?? (implied || askedSens ? 1 : 0))
+    : Math.max(askedSens, implied, old?.sensitivity ?? 0) === 1
+      ? 1
+      : 0;
+  const was = old ? old.may_raise === 1 : !has(tags, OWNER_ONLY_TAGS);
+  const may = ctx.device ? (given.may_raise ?? was) : was && given.may_raise !== false && !has(tags, OWNER_ONLY_TAGS);
+  return { tags, sensitivity: sensitivity as 0 | 1, may_raise: may ? 1 : 0 };
 }
 
 /** The checks every new version passes: taint, content rules, evidence, a fresh id, ask-first. */
@@ -32,7 +76,8 @@ function admit(ctx: OpContext, f: FactShape, id: string, given: string[] | undef
   clean(ctx);
   content(ctx, f);
   const refs = evidence(ctx, given, f.source);
-  if (store.fact(ctx.db, id)) throw new Reject('duplicate_id');
+  // A forgotten id is never used again (its tombstone stays).
+  if (store.fact(ctx.db, id) || store.forgotten(ctx.db, id)) throw new Reject('duplicate_id');
   askFirst(f);
   return refs;
 }
@@ -51,14 +96,9 @@ type Add = Extract<ParsedOp, { op: 'add' }>;
 export function add(w: Writer, c: Caller, ctx: OpContext, op: Add): Applied {
   const source: FactSource = ctx.device ? 'user' : op.source;
   if (ctx.device && op.source !== 'user') throw new Reject('bad_op');
-  const tags = [...new Set(op.tags ?? [])];
-  const shape: FactShape = {
-    kind: op.kind,
-    source,
-    about: op.about ?? 'owner',
-    tags,
-    sensitivity: op.sensitivity === 1 || has(tags, SENSITIVE_TAGS) ? 1 : 0,
-  };
+  const about = op.about ?? 'owner';
+  const f = flags(ctx, about, op, null);
+  const shape: FactShape = { kind: op.kind, source, about, tags: f.tags, sensitivity: f.sensitivity };
   const refs = admit(ctx, shape, op.id, op.evidence);
   const ledgerId = w.ledger({
     id: ctx.selfLedger,
@@ -73,12 +113,12 @@ export function add(w: Writer, c: Caller, ctx: OpContext, op: Add): Applied {
   insert(w, ctx, {
     id: op.id,
     kind: op.kind,
-    about: shape.about as store.NewFact['about'],
+    about: about as store.NewFact['about'],
     subject: op.subject ?? null,
     text: op.text,
-    tags_json: tags.length ? JSON.stringify(tags) : null,
+    tags_json: f.tags.length ? JSON.stringify(f.tags) : null,
     source,
-    confidence: Math.min(FACT_SOURCES[source].cap, base(source, tags)),
+    confidence: Math.min(FACT_SOURCES[source].cap, base(source, f.tags)),
     evidence_json: JSON.stringify(refs),
     valid_from: op.valid_from ?? null,
     valid_to: null,
@@ -86,11 +126,12 @@ export function add(w: Writer, c: Caller, ctx: OpContext, op: Add): Applied {
     superseded_at: null,
     superseded_by: null,
     last_confirmed: w.at,
-    sensitivity: shape.sensitivity,
+    sensitivity: f.sensitivity,
     pinned: 0,
-    may_raise: (op.may_raise ?? !has(tags, OWNER_ONLY_TAGS)) ? 1 : 0,
+    may_raise: f.may_raise,
     written_by: writtenBy(c),
     ledger_id: ledgerId,
+    lineage_id: op.id,
   });
   return { fact_id: op.id, ledger_id: ledgerId };
 }
@@ -110,15 +151,12 @@ export function supersede(w: Writer, c: Caller, ctx: OpContext, op: Supersede, w
   const old = current(ctx, op.id);
   const n = op.new;
   if (ctx.device && n.source !== undefined && n.source !== 'user') throw new Reject('bad_op');
+  // M12 covers the rule being replaced too, not only a rule being written.
+  if (old.kind === 'rule' && ctx.lawsBroken && !ctx.device) throw new Reject('laws_unpinned');
   const source: FactSource = ctx.device ? 'user' : (n.source ?? old.source);
-  const tags = [...new Set(n.tags ?? store.strings(old.tags_json))];
-  const shape: FactShape = {
-    kind: n.kind ?? old.kind,
-    source,
-    about: n.about ?? old.about,
-    tags,
-    sensitivity: (n.sensitivity ?? old.sensitivity) === 1 || has(tags, SENSITIVE_TAGS) ? 1 : 0,
-  };
+  const about = n.about ?? old.about;
+  const f = flags(ctx, about, n, old);
+  const shape: FactShape = { kind: n.kind ?? old.kind, source, about, tags: f.tags, sensitivity: f.sensitivity };
   const refs = admit(ctx, shape, n.id, n.evidence);
   if (old.source === 'user' && source !== 'user') throw new Reject('proposal_required'); // M9
   const ledgerId = w.ledger({
@@ -136,12 +174,12 @@ export function supersede(w: Writer, c: Caller, ctx: OpContext, op: Supersede, w
   insert(w, ctx, {
     id: n.id,
     kind: shape.kind as store.NewFact['kind'],
-    about: shape.about as store.NewFact['about'],
+    about: about as store.NewFact['about'],
     subject: n.subject ?? old.subject,
     text: n.text,
-    tags_json: tags.length ? JSON.stringify(tags) : null,
+    tags_json: f.tags.length ? JSON.stringify(f.tags) : null,
     source,
-    confidence: Math.min(FACT_SOURCES[source].cap, base(source, tags)),
+    confidence: Math.min(FACT_SOURCES[source].cap, base(source, f.tags)),
     evidence_json: JSON.stringify(refs),
     valid_from: n.valid_from ?? old.valid_from,
     valid_to: null,
@@ -149,19 +187,22 @@ export function supersede(w: Writer, c: Caller, ctx: OpContext, op: Supersede, w
     superseded_at: null,
     superseded_by: null,
     last_confirmed: w.at,
-    sensitivity: shape.sensitivity,
+    sensitivity: f.sensitivity,
     pinned: old.pinned,
-    may_raise: (n.may_raise ?? old.may_raise === 1) ? 1 : 0,
+    may_raise: f.may_raise,
     written_by: writtenBy(c),
     ledger_id: ledgerId,
+    lineage_id: old.lineage_id,
   });
   return { fact_id: n.id, ledger_id: ledgerId };
 }
 
 type Confirm = Extract<ParsedOp, { op: 'confirm' }>;
 
-/** Still true: confidence up to its source's base and the decay clock reset. Confirmed in the
- * owner's own words, a fact that was not `user` becomes a `user` version ("Yes, that's right"). */
+/** Still true: confidence up to its source's base and the decay clock reset. A fact that was not
+ * `user` becomes a `user` version when the owner says so: their tap ("Yes, that's right"), or,
+ * from the mind, the owner's own words written after the fact was. An older message can't lift
+ * it; whether the words really state it is the weekly in-session review's check. */
 export function confirm(w: Writer, c: Caller, ctx: OpContext, op: Confirm): Applied {
   clean(ctx);
   const f = current(ctx, op.id);
@@ -174,12 +215,19 @@ export function confirm(w: Writer, c: Caller, ctx: OpContext, op: Confirm): Appl
     ownerWords = false;
     refs = evidence(ctx, op.evidence, 'inferred');
   }
-  if (ownerWords && f.source !== 'user') {
-    const tags = store.strings(f.tags_json).filter((t) => t !== IMPORTED_TAG);
+  const lifts = ownerWords && f.source !== 'user' && (ctx.device || (newestOwnerWords(ctx, refs) ?? 0) > f.recorded_at);
+  if (lifts) {
+    const tags = store.strings(f.tags_json);
     const lift: Supersede = {
       op: 'supersede',
       id: f.id,
-      new: { id: uuidv7(w.at), text: f.text, evidence: refs, source: 'user', tags },
+      new: {
+        id: uuidv7(w.at),
+        text: f.text,
+        evidence: refs,
+        source: 'user',
+        tags: ctx.device ? tags.filter((t) => t !== IMPORTED_TAG) : tags,
+      },
     };
     return supersede(w, c, ctx, lift, ctx.device ? 'the owner said it is right' : `confirmed ${cites(refs)}`);
   }

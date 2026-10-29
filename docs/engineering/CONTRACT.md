@@ -186,6 +186,8 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `duplicate_id` | A fact with this id already exists. |
 | `superseded` | This fact was already replaced; work on its newest version. |
 | `proposal_required` | This change needs the owner first (decision cards arrive in P4). |
+| `never_stored` | Keys, tokens, passwords and card or bank numbers are never stored (MEMORY.md §13). |
+| `session_required` | Memory writes need a mind session that claimed its briefing and has not ended. |
 
 ## Error codes
 
@@ -203,6 +205,7 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `origin_not_allowed` | 403 | This origin is not allowed. |
 | `not_owner_words` | 403 | The cited message is not the owner's latest words after the card. |
 | `session_tainted` | 403 | This session is tainted. |
+| `session_required` | 403 | Memory writes need a mind session that claimed its briefing and has not ended. |
 | `laws_unpinned` | 403 | The constitution pin failed for this session. |
 | `proposal_required` | 403 | This needs an approved proposal. |
 | `needs_approval` | 403 | This work order needs an approved reach_people proposal. |

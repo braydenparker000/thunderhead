@@ -116,9 +116,9 @@ export function messageById(
   return r ? { ...toMessage(r), req_sha256: r.req_sha256, session_id: r.session_id } : null;
 }
 
-/** Who wrote a message and through what: what memory's provenance rules read (MEMORY.md §6). */
-export function messageOrigin(db: Db, id: string): Pick<Message, 'author' | 'origin' | 'kind'> | null {
-  return db.one('SELECT author, origin, kind FROM messages WHERE id = ?', id);
+/** Who wrote a message, through what and when: what memory's provenance rules read (MEMORY.md §6). */
+export function messageOrigin(db: Db, id: string): Pick<Message, 'author' | 'origin' | 'kind' | 'created_at'> | null {
+  return db.one('SELECT author, origin, kind, created_at FROM messages WHERE id = ?', id);
 }
 
 export function insertMessage(db: Db, m: NewMessage): Message {

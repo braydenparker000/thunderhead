@@ -10,12 +10,14 @@ import {
   type FactSource,
   MEMORY_LIMITS,
   type MemoryReason,
+  neverStored,
   OWNER_ONLY_TAGS,
   SENSITIVE_TAGS,
 } from '../../../../shared/contract/memory.ts';
 import type { Db } from '../../objects/base';
 import { messageOrigin } from '../conversation/store';
 import { byId as ledgerRow } from '../ledger/store';
+import { taintedAt } from '../mind/guards';
 import { dayNote } from './notes';
 
 export class Reject extends Error {
@@ -30,7 +32,6 @@ export interface OpContext {
   db: Db;
   at: number;
   device: boolean;
-  night: boolean;
   tainted: boolean;
   /** M12: the session's constitution file was missing (its pin cannot hold). */
   lawsBroken: boolean;
@@ -94,12 +95,14 @@ export function parseOp(raw: unknown): ParsedOp {
   return op;
 }
 
-/** Whitespace folded to single spaces; other control characters refused; ≤ 280 (M13). */
+/** Whitespace folded to single spaces; other control characters refused; ≤ 280 (M13); nothing
+ * MEMORY.md §13 says is never stored (keys, tokens, card or bank numbers, passwords). */
 export function claim(t: string): string {
   const one = t.replace(/\s+/g, ' ').trim();
   // biome-ignore lint/suspicious/noControlCharactersInRegex: refusing them is the point
   if (!one || /[\u0000-\u001f\u007f]/.test(one)) throw new Reject('bad_op');
   if (one.length > MEMORY_LIMITS.fact_text) throw new Reject('too_long');
+  if (neverStored(one)) throw new Reject('never_stored');
   return one;
 }
 
@@ -107,6 +110,8 @@ const REF = /^([a-z][a-z0-9]{1,15}):([A-Za-z0-9._:/-]{1,160})(#[A-Za-z0-9._:-]{1
 
 interface Cited {
   ref: string;
+  /** When a cited message was written (null for other refs). */
+  at: number | null;
   /** The owner's own words: an owner-device or imported owner message, or an owner ledger row
    * from a device op. */
   owner: boolean;
@@ -126,22 +131,37 @@ function cite(ctx: OpContext, r: string): Cited {
     if (!msg) throw new Reject('bad_evidence');
     if (msg.author === 'muse' || msg.origin === 'muse') throw new Reject('tainted_evidence');
     const owner = msg.author === 'owner' && (msg.origin === 'owner_device' || msg.origin === 'import');
-    return { ref: r, owner, words: owner, event: false };
+    return { ref: r, at: msg.created_at, owner, words: owner, event: false };
   }
   if (kind === 'day') {
-    if (!dayNote(ctx.db, key)) throw new Reject('bad_evidence');
-    return { ref: r, owner: false, words: false, event: false };
+    const note = dayNote(ctx.db, key);
+    if (!note) throw new Reject('bad_evidence');
+    // A note from a session that was tainted when it wrote it carries outside text (M6).
+    const taint = note.written_by === 'owner' ? null : taintedAt(ctx.db, note.written_by);
+    if (taint !== null && taint <= note.written_at) throw new Reject('tainted_evidence');
+    return { ref: r, at: null, owner: false, words: false, event: false };
   }
   if (kind === 'ledger') {
     if (!ctx.device) throw new Reject('bad_evidence');
-    if (key === ctx.selfLedger) return { ref: r, owner: true, words: true, event: false };
+    if (key === ctx.selfLedger) return { ref: r, at: ctx.at, owner: true, words: true, event: false };
     const row = ledgerRow(ctx.db, key);
     if (!row) throw new Reject('bad_evidence');
-    return { ref: r, owner: row.actor === 'owner', words: row.actor === 'owner', event: false };
+    return { ref: r, at: null, owner: row.actor === 'owner', words: row.actor === 'owner', event: false };
   }
   // Events have no table before Senses (P5) and import items none before the import (P3 stage
   // D): neither can be checked yet, so neither is accepted.
   throw new Reject('bad_evidence');
+}
+
+/** The newest of the owner's own messages among checked refs (null: none). */
+export function newestOwnerWords(ctx: OpContext, refs: string[]): number | null {
+  let newest: number | null = null;
+  for (const r of refs) {
+    if (!r.startsWith('msg:')) continue;
+    const c = cite(ctx, r);
+    if (c.owner && c.at !== null && (newest === null || c.at > newest)) newest = c.at;
+  }
+  return newest;
 }
 
 /** The evidence of one op, checked against its source (M2, M3, M5, M6). From a device, no

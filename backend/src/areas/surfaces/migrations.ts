@@ -1,6 +1,6 @@
 // Surfaces and the topics behind the voice-ladder repeat rule (DATA.md §4.1, §4.3), with
 // retention (§10). `surfaces.seq` is the feed seq of the last write, so GET /v1/surfaces can
-// answer "changed after since_seq" without a scan.
+// answer "changed after since_seq" without a scan; `facts_json` (P3) lists the facts it cites.
 import type { Migration, TableInfo } from '../../objects/base';
 import { prune } from './store';
 
@@ -33,6 +33,13 @@ export const SURFACES_MIGRATIONS: Migration[] = [
         shown_count INTEGER NOT NULL DEFAULT 0
       ) WITHOUT ROWID`,
     ],
+  },
+  {
+    // P3: the facts a surface draws on, so muting or forgetting one clears it (MEMORY.md §12).
+    version: 9,
+    name: 'surfaces.facts_json',
+    kind: 'expand',
+    sql: ['ALTER TABLE surfaces ADD COLUMN facts_json TEXT'],
   },
 ];
 

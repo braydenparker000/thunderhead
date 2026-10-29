@@ -38,6 +38,7 @@ function fact(over: Partial<FactRow> = {}): FactRow {
     may_raise: 1,
     written_by: 'owner',
     ledger_id: null,
+    lineage_id: `0192f0c4-0000-7000-8000-${hex}`,
     ...over,
   };
 }
@@ -192,6 +193,7 @@ function input(over: Partial<BriefInput> = {}): BriefInput {
 }
 
 const sections = (text: string) => [...text.matchAll(/^## (\d+)\. /gm)].map((m) => Number(m[1]));
+const section = (text: string, n: number) => text.slice(text.indexOf(`## ${n}. `), text.indexOf(`## ${n + 1}. `));
 
 describe('the briefing (MEMORY.md §9)', () => {
   it('an empty first day has every section in order, core 1–7 and full 1–12', () => {
@@ -225,7 +227,10 @@ describe('the briefing (MEMORY.md §9)', () => {
     expect(b.core.length).toBeLessThanOrEqual(CORE_MAX);
     expect(b.full.length).toBeLessThanOrEqual(FULL_MAX);
     expect(sections(b.core)).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(b.core).toMatch(/\(\+\d+ more waiting: th history today\)/);
+    expect(b.core).toMatch(/\(\+\d+ more waiting: th brief --section 2\)/);
+    // The full file holds what the core cut, so `th brief --section 3` gives more, and points on.
+    expect(section(b.full, 3).split('\n').length).toBeGreaterThan(section(b.core, 3).split('\n').length);
+    expect(section(b.full, 3)).toContain('more: th get /v1/memory/facts kind=rule');
     expect(b.core).toMatch(/\(\+\d+ more: th brief --section 3\)/);
     expect(b.core).toContain('## 7. Pointer\nFull briefing: $TMPDIR/th/brief.md');
     expect(b.core).not.toContain('(+cut: th brief --full)');
@@ -262,7 +267,7 @@ describe('the briefing (MEMORY.md §9)', () => {
     const b = buildBrief(input({ todayEarlier: earlier }));
     const twelve = b.full.slice(b.full.indexOf('## 12. Today earlier'));
     expect(twelve.length).toBeLessThanOrEqual(8_100);
-    expect(twelve).toMatch(/\(\+\d+ more: th brief --section 12\)/);
+    expect(twelve).toMatch(/\(\+\d+ more: th history today\)/);
   });
 });
 

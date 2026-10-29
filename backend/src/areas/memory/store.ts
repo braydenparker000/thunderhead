@@ -34,10 +34,12 @@ export interface FactRow {
   may_raise: number;
   written_by: string;
   ledger_id: string | null;
+  /** The first version's id, shared by every version (forget deletes by it). */
+  lineage_id: string;
 }
 
 const FACT_COLS =
-  'seq, id, kind, about, subject, text, tags_json, source, confidence, evidence_json, valid_from, valid_to, recorded_at, superseded_at, superseded_by, last_confirmed, sensitivity, pinned, may_raise, written_by, ledger_id';
+  'seq, id, kind, about, subject, text, tags_json, source, confidence, evidence_json, valid_from, valid_to, recorded_at, superseded_at, superseded_by, last_confirmed, sensitivity, pinned, may_raise, written_by, ledger_id, lineage_id';
 
 /** A JSON array column, read defensively: anything but an array of strings reads as empty. */
 export function strings(json: string | null): string[] {
@@ -85,8 +87,9 @@ export type NewFact = Omit<FactRow, 'seq'>;
 export function insertFact(db: Db, f: NewFact): void {
   db.run(
     `INSERT INTO facts (id, kind, about, subject, text, tags_json, source, confidence, evidence_json, valid_from, valid_to,
-       recorded_at, superseded_at, superseded_by, last_confirmed, sensitivity, pinned, may_raise, written_by, ledger_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       recorded_at, superseded_at, superseded_by, last_confirmed, sensitivity, pinned, may_raise, written_by, ledger_id,
+       lineage_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     f.id,
     f.kind,
     f.about,
@@ -107,6 +110,7 @@ export function insertFact(db: Db, f: NewFact): void {
     f.may_raise,
     f.written_by,
     f.ledger_id,
+    f.lineage_id,
   );
   db.run('INSERT INTO facts_fts (rowid, text, subject) VALUES (last_insert_rowid(), ?, ?)', f.text, f.subject ?? '');
 }
@@ -133,6 +137,15 @@ export function confirmFact(db: Db, id: string, confidence: number, at: number):
 
 export function setFlag(db: Db, id: string, flag: 'pinned' | 'may_raise', on: boolean): void {
   db.run(`UPDATE facts SET ${flag === 'pinned' ? 'pinned' : 'may_raise'} = ? WHERE id = ?`, on ? 1 : 0, id);
+}
+
+/** The newest current facts other than rules, read backwards by `seq` (NOT INDEXED: the scan
+ * stops at the limit, where the kind index would read every current fact first). */
+export function recentCurrent(db: Db, limit: number): FactRow[] {
+  return db.all<FactRow>(
+    `SELECT ${FACT_COLS} FROM facts NOT INDEXED WHERE superseded_at IS NULL AND kind != 'rule' ORDER BY seq DESC LIMIT ?`,
+    limit,
+  );
 }
 
 /** Current versions of the given kinds (the `facts_current` index), newest first. */
@@ -170,24 +183,25 @@ export function factsPage(db: Db, f: FactsFilter, before: number | null, limit: 
   );
 }
 
-/** A fact's whole lineage: every earlier version (through the `facts_successor` index) and every
- * later one, at most 200 versions. `forget` removes all of them. */
+/** Every version of a fact's lineage (the `facts_lineage` index), at most 500. Undo can unlink
+ * versions from each other; the lineage id still holds them together. */
 export function lineage(db: Db, id: string): FactRow[] {
   return db.all<FactRow>(
-    `WITH RECURSIVE
-       back(id, n) AS (SELECT ?, 0 UNION SELECT f.id, back.n + 1 FROM facts f JOIN back ON f.superseded_by = back.id WHERE back.n < 200),
-       fwd(id, n) AS (SELECT ?, 0 UNION SELECT f.superseded_by, fwd.n + 1 FROM facts f JOIN fwd ON f.id = fwd.id
-                      WHERE f.superseded_by IS NOT NULL AND fwd.n < 200)
-     SELECT ${FACT_COLS} FROM facts WHERE id IN (SELECT id FROM back UNION SELECT id FROM fwd)`,
-    id,
+    `SELECT ${FACT_COLS} FROM facts WHERE lineage_id = (SELECT lineage_id FROM facts WHERE id = ?) LIMIT 500`,
     id,
   );
 }
 
+/** Whether an id was forgotten (it is never used again). */
+export function forgotten(db: Db, id: string): boolean {
+  return db.one('SELECT 1 AS x FROM fact_tombstones WHERE id = ?', id) !== null;
+}
+
 /** Hard delete (forget): the FTS entries first (external content needs the old values), then
- * the rows, then an FTS `optimize`, which rewrites the index so the forgotten words leave its
- * segments too (a plain FTS5 delete only marks them; measured in workerd). */
-export function deleteFacts(db: Db, rows: FactRow[]): void {
+ * the rows (each id kept as a tombstone, no text), then an FTS `optimize`, which rewrites the
+ * index so the forgotten words leave its segments too (a plain FTS5 delete only marks them;
+ * measured in workerd). */
+export function deleteFacts(db: Db, rows: FactRow[], at: number): void {
   for (const r of rows) {
     db.run(
       `INSERT INTO facts_fts (facts_fts, rowid, text, subject) VALUES ('delete', ?, ?, ?)`,
@@ -196,6 +210,12 @@ export function deleteFacts(db: Db, rows: FactRow[]): void {
       r.subject ?? '',
     );
     db.run('DELETE FROM facts WHERE seq = ?', r.seq);
+    db.run(
+      'INSERT OR IGNORE INTO fact_tombstones (id, lineage_id, forgotten_at) VALUES (?, ?, ?)',
+      r.id,
+      r.lineage_id,
+      at,
+    );
   }
   if (rows.length) db.run(`INSERT INTO facts_fts (facts_fts) VALUES ('optimize')`);
 }

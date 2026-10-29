@@ -287,7 +287,7 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.memory.still` / `.right` | Still true / Yes, that's right | Fading and Imported actions (built, P3) |
 | `set.memory.add` | Add something I should know · What kind of thing · In one sentence | The Add form (built, P3) |
 | `set.memory.fixform` | Say it the way it is | The Fix form's label (built, P3) |
-| `set.memory.forget.ask` | Forget this? · It can't be brought back. · Forget · Keep | The confirm sheet (built, P3) |
+| `set.memory.forget.ask` | Forget this? · It can't be brought back. The system's recovery points keep it for up to 30 days, then it's gone everywhere. · Forget · Keep | The confirm sheet (built, P3) |
 | `toast.forgotten` | Forgotten. Undo | After Forget, for 10 s before it is sent (built, P3) |
 | `set.memory.empty` | Nothing yet. When you tell me something worth keeping, it shows here with where you said it. | Empty page (built, P3) |
 | `set.memory.later` | Memory arrives with the next update of the Thunderhead. | An older Worker without memory (built, P3) |

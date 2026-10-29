@@ -16,6 +16,7 @@ export const CODES: Record<ErrorCode, readonly [status: number, message: string]
   origin_not_allowed: [403, 'This origin is not allowed.'],
   not_owner_words: [403, "The cited message is not the owner's latest words after the card."],
   session_tainted: [403, 'This session is tainted.'],
+  session_required: [403, 'Memory writes need a mind session that claimed its briefing and has not ended.'],
   laws_unpinned: [403, 'The constitution pin failed for this session.'],
   proposal_required: [403, 'This needs an approved proposal.'],
   needs_approval: [403, 'This work order needs an approved reach_people proposal.'],

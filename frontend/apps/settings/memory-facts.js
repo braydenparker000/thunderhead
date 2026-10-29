@@ -145,4 +145,9 @@ function fix(host, f, ctx, row, shelf) {
 
 /** Asks once ("It can't be brought back"); the caller then hides the row and offers Undo. */
 export const confirmForget = () =>
-  confirmSheet({ title: 'Forget this?', body: "It can't be brought back.", action: 'Forget', keep: 'Keep' });
+  confirmSheet({
+    title: 'Forget this?',
+    body: "It can't be brought back. The system's recovery points keep it for up to 30 days, then it's gone everywhere.",
+    action: 'Forget',
+    keep: 'Keep',
+  });

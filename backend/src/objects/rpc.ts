@@ -5,7 +5,9 @@
 // instead of a 500.
 import { ApiError } from '../http/errors';
 
-const MISSING = /does not implement|not implement the method|is not a function|no such method/i;
+/** workerd's own words for a method the object lacks (probed: `The RPC receiver does not
+ * implement "x".`). Only that: any other TypeError is a real bug and stays a logged 500. */
+const MISSING = /^The RPC receiver does not implement /;
 
 export function missingMethod(e: unknown): boolean {
   return e instanceof TypeError && MISSING.test(e.message);
@@ -15,7 +17,9 @@ export async function fresh<P extends PromiseLike<unknown>>(call: P): Promise<Aw
   try {
     return await call;
   } catch (e) {
-    if (missingMethod(e)) throw new ApiError('unavailable');
-    throw e;
+    if (!missingMethod(e)) throw e;
+    // The name only, as onError logs (the message names the method, never request data).
+    console.error(JSON.stringify({ evt: 'rpc_missing_method', name: (e as Error).name }));
+    throw new ApiError('unavailable');
   }
 }

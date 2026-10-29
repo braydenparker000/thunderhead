@@ -26,6 +26,15 @@ export async function memoryCalls(cost: Cost, grant: (ip: string, password?: str
   const n = { token: await agent('night-cost-3', 'mind:night'), headers: { 'TH-Session': 'cse_cost_night' } };
   await api('GET', '/v1/auth/me', m);
   await api('GET', '/v1/auth/me', n);
+  // Memory writes need a claimed session of the writer's role (the chat one claimed in the P2 run).
+  const claim = {
+    claim: true,
+    session_id: 'cse_cost_night',
+    role: 'night',
+    constitution_sha256: 'none',
+    th_version: '0.1.0',
+  };
+  await api('POST', '/v1/mind/brief', { ...n, body: claim });
   const said = (await apiJson<Message>('PUT', `/v1/messages/${uuidv7()}`, { ...d, body: { body: 'I like tea.' } }))
     .body;
   const k = core();

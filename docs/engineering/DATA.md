@@ -193,7 +193,8 @@ The columns match [MEMORY.md §2](../mind/MEMORY.md), which also owns the rules 
 
 | Table | Columns (PK first) | Indexes | Phase |
 |---|---|---|---|
-| `facts` | *eng:* `seq INTEGER PK` (the FTS rowid, as for messages); `id TEXT UNIQUE, kind TEXT ('preference'\|'routine'\|'fact'\|'goal'\|'state'\|'rule'), about TEXT ('owner'\|'world'\|'person'), subject TEXT, text TEXT (≤ 280), tags_json TEXT, source TEXT ('user'\|'observed'\|'inferred'), confidence REAL, evidence_json TEXT (1–20 ids), valid_from INTEGER, valid_to INTEGER, recorded_at INTEGER, superseded_at INTEGER, superseded_by TEXT, last_confirmed INTEGER, sensitivity INTEGER, pinned INTEGER, may_raise INTEGER, written_by TEXT`; *eng:* `ledger_id TEXT` (the row that wrote this version: its why) | partial `(kind) WHERE superseded_at IS NULL`; partial `(superseded_by) WHERE superseded_by IS NOT NULL` (the lineage `forget` deletes) | P3 |
+| `facts` | *eng:* `seq INTEGER PK` (the FTS rowid, as for messages); `id TEXT UNIQUE, kind TEXT ('preference'\|'routine'\|'fact'\|'goal'\|'state'\|'rule'), about TEXT ('owner'\|'world'\|'person'), subject TEXT, text TEXT (≤ 280), tags_json TEXT, source TEXT ('user'\|'observed'\|'inferred'), confidence REAL, evidence_json TEXT (1–20 ids), valid_from INTEGER, valid_to INTEGER, recorded_at INTEGER, superseded_at INTEGER, superseded_by TEXT, last_confirmed INTEGER, sensitivity INTEGER, pinned INTEGER, may_raise INTEGER, written_by TEXT`; *eng:* `ledger_id TEXT` (the row that wrote this version: its why), `lineage_id TEXT` (the first version's id, shared by every later one) | partial `(kind) WHERE superseded_at IS NULL`; `(lineage_id)` (what `forget` deletes, even a version an undo unlinked) | P3 |
+| `fact_tombstones` | `id TEXT PK, lineage_id TEXT, forgotten_at INTEGER` WITHOUT ROWID (no text) | — | P3 |
 | `facts_fts` | FTS5 `(text, subject)`, `content='facts'`, `content_rowid='seq'`, tokenizer `unicode61 remove_diacritics 2` | — | P3 |
 | `day_notes` | *eng:* `seq INTEGER PK` (the FTS rowid); `day TEXT UNIQUE, summary TEXT (≤ 150 words), decisions_json TEXT, stats_json TEXT, importance INTEGER (1–10), written_by TEXT, version INTEGER, written_at INTEGER` | — | P3 |
 | `day_notes_fts` | FTS5 `(summary)`, `content='day_notes'`, `content_rowid='seq'`, same tokenizer | — | P3 |
@@ -203,7 +204,7 @@ The columns match [MEMORY.md §2](../mind/MEMORY.md), which also owns the rules 
 | `imports` | `id TEXT PK, source TEXT ('old_worker'\|'phone'), dataset TEXT, r2_prefix TEXT, manifest_json TEXT, state TEXT ('queued'\|'running'\|'verifying'\|'done'\|'failed'), counts_json TEXT, report_json TEXT, started_at INTEGER, finished_at INTEGER` | — | P1b (`phone`), P3 (`old_worker`) |
 
 - Facts are never edited in place. A change closes the old row (`superseded_at`, `superseded_by`) and inserts a new one. `forget` (owner only) hard-deletes every version and their FTS entries, runs an FTS `optimize` (a plain FTS5 delete leaves the words in the index segments until a merge; measured in workerd), scrubs the `why` and undo of the memory ledger rows that pointed at those versions, and writes a ledger tombstone without the content. Memory ledger rows never carry fact text.
-- Migration step 8 (P3) adds facts, day notes, open threads and `op_batches`, expand-only.
+- Migration step 8 (P3) adds facts, `fact_tombstones`, day notes, open threads and `op_batches`; step 9 adds `surfaces.facts_json` (the facts a surface cites, cleared when one is muted or forgotten). Both expand-only.
 - Decay is computed at read time and never written.
 - `import_items` holds raw documents (the old notebook, for instance) until the mind converts them once. Converted rows are deleted 30 days after `converted_at`.
 - MEMORY.md allows an `events` table in `Core` before `Senses` exists. Engineering keeps events out of `Core`: nothing on the phone emits events before P5, and phone performance goes to `perf_days` **[proposal]**. If an earlier need appears, the table goes into `Core` with the `Senses` columns (§6.1) and moves by a bulk job when `Senses` ships.
@@ -330,13 +331,13 @@ Rules from the platform that drive the numbers: every index entry touched is one
 | Core.proposals | 5 | ~8 | 40 |
 | Core.wakes | 40 | ~8 | 320 |
 | Core.leases (written at most every 30 s while a session lives) | ≤ 120/h, ~6 h | 1 | ~720 |
-| Core.facts (+fts, ledger, feed, batch record) | 50 ops | 10 (measured) | 500 |
+| Core.facts (+fts, ledger, feed, batch record) | 50 ops | 11 (measured) | 550 |
 | Core.day_notes, open_threads (+ledger, feed), session_notes | ~30 | 7–8 (measured) | 240 |
 | Core.errors | ≤ 200 upserts (capped) | 1 | 200 |
 | Core.perf_days, settings | ~25 | 1 | 25 |
 | meter + jobs + alarms (all classes) | — | — | ~1,000 |
 | Auth (last_seen hourly, agents last_used hourly, notices) | — | — | ~200 |
-| **Subtotal P1–P4** | | | **~8,700** |
+| **Subtotal P1–P4** | | | **~8,750** |
 | Senses.events (3,000 events × row + 1 index; same again pruned 90 days later) | — | 2 + 2 | 12,000 |
 | Senses.batches (+prune), rollups | 150 batches; 300 rollups | ~2 | 900 |
 | Music.track_stats nightly | ≤ 200 tracks | 2 | 400 |
@@ -398,6 +399,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.surfaces | expired rows deleted within 24 h of `expires_at` (the next daily pass) | yes | no |
 | Core.work_orders | finished rows 180 days | yes | yes |
 | Core.facts, day_notes | forever (facts until forgotten) | yes | yes |
+| Core.fact_tombstones | forever (forgotten ids only, no text: an id is never reused, and a restore re-applies the forget) | yes | no |
 | Core.open_threads | open: until closed; closed: 1 year | yes | yes |
 | Core.session_notes | 180 days | yes | yes |
 | Core.import_items | 30 days after conversion | yes | no |

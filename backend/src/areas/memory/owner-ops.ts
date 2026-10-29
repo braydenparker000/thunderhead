@@ -3,6 +3,7 @@
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { scrubMemory } from '../ledger/store';
+import { clearCiting } from '../surfaces/ops';
 import { type Applied, current, short } from './fact-ops';
 import * as store from './store';
 import { type OpContext, owner, Reject } from './validate';
@@ -35,18 +36,28 @@ export function flag(
   });
   store.setFlag(w.db, f.id, which, on);
   w.change('fact', short(f.id));
+  // Muted: no surface may keep drawing on it (MEMORY.md §12).
+  if (which === 'may_raise' && !on) clearCiting(w, c, [f.id], 'muted');
   return { fact_id: f.id, ledger_id: ledgerId };
 }
 
-/** The owner's forget (MEMORY.md §3): the fact and every version of it are deleted with their FTS
- * entries, the ledger rows that pointed at them lose their words and their undo, and one
- * tombstone row remains: `{fact_id, kind, forgotten_at}`, no text. Not undoable. */
+/** The owner's forget (MEMORY.md §3): every version of the fact's lineage (even one an undo
+ * unlinked) is deleted with its FTS entries, its id kept as a tombstone; the ledger rows that
+ * pointed at them lose their words and their undo; surfaces citing them leave their slots; and
+ * one tombstone ledger row remains: `{fact_id, kind, forgotten_at, versions}`, no text. Not
+ * undoable. */
 export function forget(w: Writer, c: Caller, ctx: OpContext, id: string): Applied {
   owner(ctx);
   const versions = store.lineage(ctx.db, id);
   if (!versions.length) throw new Reject('unknown_ref');
   const kind = versions[0].kind;
-  store.deleteFacts(w.db, versions);
+  store.deleteFacts(w.db, versions, w.at);
+  clearCiting(
+    w,
+    c,
+    versions.map((v) => v.id),
+    'forgot',
+  );
   scrubMemory(
     w.db,
     versions.map((v) => short(v.id)),

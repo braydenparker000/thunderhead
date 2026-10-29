@@ -2,7 +2,6 @@
 // only, each bounded; runs after the claim's commit so the briefing reflects it. Memory (rules,
 // open threads, the profile, day notes) comes from areas/memory through its own store and renders.
 import type { BriefResponse, MindRole } from '../../../../shared/contract/api';
-import { FACT_KIND_NAMES } from '../../../../shared/contract/memory.ts';
 import { dayBefore, HOUR } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import { currentDay } from '../conversation/day';
@@ -38,13 +37,7 @@ export function assemble(
   const yDay = yThread?.day ?? dayBefore(day);
   // Reflex reads no memory (RUNTIME.md §7.1): none of it is even read for its briefing.
   const memory = role !== 'reflex';
-  const current = memory
-    ? facts.currentFacts(
-        db,
-        FACT_KIND_NAMES.filter((k) => k !== 'rule'),
-        FACTS_READ,
-      )
-    : [];
+  const current = memory ? facts.recentCurrent(db, FACTS_READ) : [];
   const { core, full } = buildBrief({
     role,
     constitution,

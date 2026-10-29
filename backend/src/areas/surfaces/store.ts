@@ -16,6 +16,8 @@ interface Row {
   actor: string;
   ledger_id: string | null;
   seq: number;
+  /** The fact ids it draws on (P3); absent in rows written before. */
+  facts_json?: string | null;
 }
 
 export type SurfaceRow = Row;
@@ -52,11 +54,13 @@ export function list(db: Db, since: number, now: number): Surface[] {
 
 export function put(db: Db, r: Row): void {
   db.run(
-    `INSERT INTO surfaces (app, slot, kind, schema, payload_json, why, topic_key, ref, expires_at, written_at, actor, ledger_id, seq)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO surfaces (app, slot, kind, schema, payload_json, why, topic_key, ref, expires_at, written_at, actor, ledger_id, seq,
+       facts_json)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (app, slot) DO UPDATE SET kind = excluded.kind, schema = excluded.schema, payload_json = excluded.payload_json,
        why = excluded.why, topic_key = excluded.topic_key, ref = excluded.ref, expires_at = excluded.expires_at,
-       written_at = excluded.written_at, actor = excluded.actor, ledger_id = excluded.ledger_id, seq = excluded.seq`,
+       written_at = excluded.written_at, actor = excluded.actor, ledger_id = excluded.ledger_id, seq = excluded.seq,
+       facts_json = excluded.facts_json`,
     r.app,
     r.slot,
     r.kind,
@@ -70,7 +74,21 @@ export function put(db: Db, r: Row): void {
     r.actor,
     r.ledger_id,
     r.seq,
+    r.facts_json ?? null,
   );
+}
+
+/** The surfaces that cite any of these facts. The table holds a few rows (one per slot). */
+export function citing(db: Db, factIds: string[]): Row[] {
+  const ids = new Set(factIds);
+  return db.all<Row>('SELECT * FROM surfaces WHERE facts_json IS NOT NULL LIMIT 200').filter((r) => {
+    try {
+      const v = JSON.parse(r.facts_json ?? '[]');
+      return Array.isArray(v) && v.some((id) => ids.has(id));
+    } catch {
+      return false;
+    }
+  });
 }
 
 export function remove(db: Db, app: string, slot: string): void {

@@ -48,6 +48,12 @@ CREATE TABLE errors (
   resolved_at INTEGER
   ) WITHOUT ROWID;
 
+CREATE TABLE fact_tombstones (
+  id TEXT PRIMARY KEY,
+  lineage_id TEXT NOT NULL,
+  forgotten_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
 CREATE TABLE facts (
   seq INTEGER PRIMARY KEY,
   id TEXT NOT NULL UNIQUE,
@@ -69,7 +75,8 @@ CREATE TABLE facts (
   pinned INTEGER NOT NULL DEFAULT 0,
   may_raise INTEGER NOT NULL DEFAULT 1,
   written_by TEXT NOT NULL,
-  ledger_id TEXT
+  ledger_id TEXT,
+  lineage_id TEXT NOT NULL
   );
 
 CREATE INDEX facts_current ON facts (kind) WHERE superseded_at IS NULL;
@@ -84,7 +91,7 @@ CREATE TABLE 'facts_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
 
 CREATE TABLE 'facts_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
-CREATE INDEX facts_successor ON facts (superseded_by) WHERE superseded_by IS NOT NULL;
+CREATE INDEX facts_lineage ON facts (lineage_id);
 
 CREATE TABLE leases (
   task TEXT PRIMARY KEY,
@@ -242,7 +249,7 @@ CREATE TABLE surfaces (
   written_at INTEGER NOT NULL,
   actor TEXT NOT NULL,
   ledger_id TEXT,
-  seq INTEGER NOT NULL,
+  seq INTEGER NOT NULL, facts_json TEXT,
   PRIMARY KEY (app, slot)
   ) WITHOUT ROWID;
 

@@ -2,14 +2,17 @@
 // threads (commitments), and op_batches, the idempotency window of batch writes (API.md §7).
 // Like messages, facts and day notes carry an integer `seq` as their rowid so their external-
 // content FTS tables survive a VACUUM; `id` (facts) and `day` (day notes) stay the keys clients
-// use. `facts.ledger_id` (eng) names the ledger row that wrote each version, its "why".
+// use. `facts.ledger_id` (eng) names the ledger row that wrote each version, its "why";
+// `lineage_id` (eng) is the first version's id, shared by every later one, so `forget` finds
+// them all even after an undo unlinked a version. `fact_tombstones` keeps the forgotten ids (no
+// text) so none is used again and a restore can re-apply the forgets.
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneBatches, pruneThreads } from './notes';
 
 export const MEMORY_MIGRATIONS: Migration[] = [
   {
     version: 8,
-    name: 'facts, day_notes, open_threads, op_batches',
+    name: 'facts, fact_tombstones, day_notes, open_threads, op_batches',
     kind: 'expand',
     sql: [
       `CREATE TABLE facts (
@@ -33,10 +36,16 @@ export const MEMORY_MIGRATIONS: Migration[] = [
         pinned INTEGER NOT NULL DEFAULT 0,
         may_raise INTEGER NOT NULL DEFAULT 1,
         written_by TEXT NOT NULL,
-        ledger_id TEXT
+        ledger_id TEXT,
+        lineage_id TEXT NOT NULL
       )`,
       `CREATE INDEX facts_current ON facts (kind) WHERE superseded_at IS NULL`,
-      `CREATE INDEX facts_successor ON facts (superseded_by) WHERE superseded_by IS NOT NULL`,
+      `CREATE INDEX facts_lineage ON facts (lineage_id)`,
+      `CREATE TABLE fact_tombstones (
+        id TEXT PRIMARY KEY,
+        lineage_id TEXT NOT NULL,
+        forgotten_at INTEGER NOT NULL
+      ) WITHOUT ROWID`,
       `CREATE VIRTUAL TABLE facts_fts USING fts5 (text, subject, content = 'facts', content_rowid = 'seq', tokenize = 'unicode61 remove_diacritics 2')`,
       `CREATE TABLE day_notes (
         seq INTEGER PRIMARY KEY,
@@ -79,6 +88,7 @@ export const MEMORY_MIGRATIONS: Migration[] = [
 export const MEMORY_TABLES: Record<string, TableInfo> = {
   facts: { retention: 'forever (until forgotten)', backup: true, export: true },
   facts_fts: { retention: 'derived (rebuilt)', backup: false, export: false },
+  fact_tombstones: { retention: 'forever (ids only, no text)', backup: true, export: false },
   day_notes: { retention: 'forever', backup: true, export: true },
   day_notes_fts: { retention: 'derived (rebuilt)', backup: false, export: false },
   open_threads: { retention: 'open until closed; closed 1 year', backup: true, export: true, prune: pruneThreads },

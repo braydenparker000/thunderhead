@@ -995,6 +995,10 @@
       403,
       "This session is tainted."
     ],
+    "session_required": [
+      403,
+      "Memory writes need a mind session that claimed its briefing and has not ended."
+    ],
     "laws_unpinned": [
       403,
       "The constitution pin failed for this session."
@@ -1324,7 +1328,7 @@
       "day_note_words": 150,
       "decisions_max": 10,
       "profile_chars": 6000,
-      "night_supersedes": 10
+      "supersedes_per_batch": 10
     },
     "reasons": {
       "bad_op": "The op does not match its shape.",
@@ -1342,7 +1346,9 @@
       "device_only": "Only the owner can do this, from the Memory page.",
       "duplicate_id": "A fact with this id already exists.",
       "superseded": "This fact was already replaced; work on its newest version.",
-      "proposal_required": "This change needs the owner first (decision cards arrive in P4)."
+      "proposal_required": "This change needs the owner first (decision cards arrive in P4).",
+      "never_stored": "Keys, tokens, passwords and card or bank numbers are never stored (MEMORY.md §13).",
+      "session_required": "Memory writes need a mind session that claimed its briefing and has not ended."
     }
   },
   "lint": {
