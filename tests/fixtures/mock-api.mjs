@@ -87,7 +87,7 @@ function chatState(o = {}) {
     typing: 0,
     /** Per path: answer this many ms late, or with a 503 this many times. */
     slow: {},
-    fail: {},
+    fail: { ...o.fail },
   };
 }
 

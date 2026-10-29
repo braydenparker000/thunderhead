@@ -79,12 +79,13 @@ export async function memory(body) {
   }
 
   /** The profile, a line each; a private fact's line is blurred until tapped, like its row. The
-   * Worker names the private lines by fact id; an older Worker's are found from the facts. */
+   * Worker names the private lines by fact id; an older Worker's are found from the facts, and a
+   * line the Worker marks "· private" is blurred even if the ids don't line up. */
   function drawProfile() {
     const { text, fact_ids: ids, private_ids: priv } = data.profile;
     const secret = (id) => Boolean(id) && (priv.includes(id) || data.facts.some((f) => f.id === id && f.sensitivity === 1));
     const lines = (text || 'Nothing yet.').split('\n');
-    profile.replaceChildren(...lines.map((t, i) => (secret(ids[i]) ? privateText('pline', t) : el('p', { class: 'pline', text: t }))));
+    profile.replaceChildren(...lines.map((t, i) => (secret(ids[i]) || / · private$/.test(t) ? privateText('pline', t) : el('p', { class: 'pline', text: t }))));
   }
 
   const ctx = { reload: () => load(), forget: (f) => forget(f) };

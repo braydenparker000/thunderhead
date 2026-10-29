@@ -30,8 +30,9 @@ const transient = (/** @type {unknown} */ e) => {
  *   (re-render); `done`: a Forget went through (reload).
  */
 export async function forgets(on) {
-  /** id → its Undo window (`undo`), its retry timer and how many tries failed. */
-  /** @type {Map<string, { undo: boolean, timer?: ReturnType<typeof setTimeout>, tries: number }>} */
+  /** id → its Undo window (`undo`), its retry timer, how many tries failed, and whether a keepalive
+   * send is out (`kept`: the page hiding and then unloading sends it once, not twice). */
+  /** @type {Map<string, { undo: boolean, timer?: ReturnType<typeof setTimeout>, tries: number, kept?: boolean }>} */
   const waiting = new Map();
   const token = (await store.read())?.token ?? null;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
@@ -80,15 +81,21 @@ export async function forgets(on) {
   function flush() {
     hideUndo();
     for (const [id, w] of waiting) {
+      if (w.kept) continue;
       clearTimeout(w.timer);
       w.undo = false;
       if (!token) {
         later(id); // signed out when the page opened: the retry signs in first
         continue;
       }
+      w.kept = true;
       sendForget(token, id, true).then(
         () => finished(id),
-        (e) => (gone(e) ? finished(id) : later(id)),
+        (e) => {
+          w.kept = false;
+          if (gone(e)) finished(id);
+          else later(id);
+        },
       );
     }
   }
@@ -140,7 +147,7 @@ export async function forgets(on) {
     if (document.visibilityState === 'hidden') flush();
   };
   const onOnline = () => {
-    for (const [id, w] of waiting) if (!w.undo) send(id);
+    for (const [id, w] of waiting) if (!w.undo && !w.kept) send(id);
   };
   addEventListener('pagehide', flush);
   document.addEventListener('visibilitychange', onHide);

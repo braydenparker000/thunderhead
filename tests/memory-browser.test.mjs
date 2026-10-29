@@ -47,8 +47,10 @@ test('a kind and a source this build does not know still render; private text is
   const belief = page.locator('.mrow', { hasText: 'Prays every morning' }).locator('.mtext');
   assert.equal(await belief.getAttribute('class'), 'mtext blur');
   assert.equal(await belief.getAttribute('aria-label'), 'Private. Tap to show.');
+  assert.equal(await belief.locator('span').getAttribute('aria-hidden'), 'true', 'its words stay out of the accessibility tree');
   await belief.click();
   assert.equal(await belief.getAttribute('class'), 'mtext');
+  assert.equal(await belief.locator('span').getAttribute('aria-hidden'), null);
   assert.equal(await page.locator('.mrow', { hasText: 'Prays every morning' }).locator('.mdetail').isHidden(), true, 'the first tap only shows it');
   await page.close();
 });

@@ -100,8 +100,41 @@ test("a private fact's line in the profile is blurred until tapped", opts, async
   const line = page.locator('.mprofile .pline', { hasText: 'Prays every morning' });
   assert.deepEqual([await line.getAttribute('class'), await line.getAttribute('aria-label')], ['pline blur', 'Private. Tap to show.']);
   assert.equal(await page.locator('.mprofile .pline.blur').count(), 1, 'only that one');
+  assert.equal(await line.locator('span').getAttribute('aria-hidden'), 'true', 'its words stay out of the accessibility tree');
   await line.click();
   assert.equal(await line.getAttribute('class'), 'pline');
+  assert.equal(await line.locator('span').getAttribute('aria-hidden'), null);
+  await context.close();
+});
+
+test('a line the Worker marks private is blurred even when the ids do not line up', opts, async () => {
+  const memory = memoryState();
+  memory.profileIds = [];
+  memory.privateIds = [];
+  memory.facts = memory.facts.map((f) => ({ ...f, sensitivity: 0 }));
+  const { page, context } = await pages.open({ mock: { memory } });
+  await page.click('.mfold summary');
+  const line = page.locator('.mprofile .pline', { hasText: 'Prays every morning' });
+  assert.equal(await line.getAttribute('class'), 'pline blur');
+  assert.equal(await page.locator('.mprofile .pline.blur').count(), 1, 'only that one');
+  await context.close();
+});
+
+test('the page hiding and then unloading sends a waiting Forget once', opts, async () => {
+  const { page, context } = await pages.open();
+  let sends = 0;
+  context.on('request', (r) => {
+    if (r.method() === 'POST' && r.url().endsWith('/v1/memory/ops') && (r.postData() ?? '').includes(CALM)) sends++;
+  });
+  await forget(page, 'Likes calm music');
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
+    document.dispatchEvent(new Event('visibilitychange'));
+    dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }));
+  });
+  await until(() => sends, 1, 'one keepalive send');
+  await page.waitForTimeout(300);
+  assert.equal(sends, 1, 'not a second one for pagehide');
   await context.close();
 });
 

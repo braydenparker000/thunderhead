@@ -260,6 +260,8 @@ test('changes during a slow load, and a load that fails once, still reach the sc
   const { page, context, errors, api } = await open({ chat: { messages: [owner('m1', 'Are you there?')], presence: { state: 'working', note: null, since: Date.now() } } });
   const edge = () => page.$eval('#edge', (e) => e.dataset.state);
   const reply = (text) => page.waitForFunction((t) => [...document.querySelectorAll('#talk .reply')].some((r) => r.textContent === t), text);
+  // The first load sets the edge; on a busy machine it lands after open() returns.
+  await until(async () => (await edge()) === 'think');
   assert.equal(await edge(), 'think');
   // The mind's presence changes, and its reply lands while that is still loading.
   api.state.chat.slow['/v1/settings'] = 800;
@@ -350,6 +352,32 @@ test('signing out with a message still unsent asks first', opts, async () => {
   await page.waitForURL((u) => u.pathname === '/signin/');
   assert.equal(api.calls.filter((c) => c.call === 'POST /v1/auth/signout').length, 1);
   assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('signing out with a Forget still waiting sends it first, and asks while it cannot go', opts, async () => {
+  const CALM = '0192f0c4-0000-7000-8000-000000000001';
+  const { page, context, errors, api } = await open({
+    path: '/settings/password/',
+    chat: { fail: { '/v1/memory/ops': 99 } },
+    setup: (p) => p.evaluate((id) => localStorage.setItem('th.p.forget', JSON.stringify([id])), CALM),
+  });
+  const out = 'button:has-text("Sign out of this device")';
+  await page.waitForSelector(out);
+  await page.click(out);
+  await page.waitForSelector('.csheet');
+  assert.equal(await page.textContent('.csheet h2'), "1 Forget hasn't gone through yet. Sign out anyway?");
+  assert.equal(await page.textContent('.csheet p'), "If you sign out now, I'll keep remembering that fact.");
+  await page.click('.csheet button:has-text("Cancel")');
+  await page.waitForTimeout(700);
+  assert.equal(api.calls.filter((c) => c.call === 'POST /v1/auth/signout').length, 0, 'Cancel keeps this phone signed in');
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('th.p.forget'))), [CALM], 'and the Forget still waits');
+  api.state.chat.fail['/v1/memory/ops'] = 0;
+  await page.click(out);
+  await page.waitForURL((u) => u.pathname === '/signin/');
+  assert.ok(!api.state.memory.facts.some((f) => f.id === CALM), 'the Forget reached the Worker before the sign-out');
+  assert.equal(api.calls.filter((c) => c.call === 'POST /v1/auth/signout').length, 1);
+  assert.deepEqual(errors.filter((e) => !/503/.test(e)), []);
   await context.close();
 });
 

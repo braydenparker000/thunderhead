@@ -306,6 +306,7 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.account` | Account | Row (built) |
 | `set.account.deleted` | Recently deleted | (proposal) |
 | `set.account.unsent` | 2 messages haven't sent yet. Sign out anyway? | Sign-out with a non-empty outbox; "1 message hasn't sent yet." for one; buttons "Sign out" · "Cancel" (built, P2) |
+| `set.account.unforgotten` | 1 Forget hasn't gone through yet. Sign out anyway? / If you sign out now, I'll keep remembering that fact. | Sign-out (this device or everywhere) while a Forget still waits after one more try; "2 Forgets haven't…", "those facts" for more; after the unsent-messages title the line starts "1 Forget hasn't gone through either."; buttons "Sign out" · "Cancel" (built, P3 B.6) |
 | `set.export` | Export | Row (proposal) |
 | `set.export.go` | Download everything | (plan §8) |
 | `set.export.backup` | Last automatic backup: Sunday 03:20 | (proposal) |

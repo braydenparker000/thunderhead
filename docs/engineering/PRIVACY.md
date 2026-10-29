@@ -89,7 +89,7 @@ Acceptance: [DATA.md](DATA.md) has a row for every table, and a test fails if a 
 | App code and fonts | Cache Storage `th-<release>`, `th-vendor` | Current release | no |
 | Theme and other UI choices | `localStorage` `th.ui.*` | Always | no |
 | Shuffle learner weights, EQ settings | `localStorage` `th.p.*` / `th-data` | Always | yes |
-| Forgets not yet sent (Memory page) | `localStorage` `th.p.forget`: fact ids only, never their text | Until the Worker has each one (sent again when the Memory page or Home opens) | yes |
+| Forgets not yet sent (Memory page) | `localStorage` `th.p.forget`: fact ids only, never their text | Until the Worker has each one (sent again when the Memory page or Home opens, and before a sign-out, which asks while any can't go) | yes |
 | The ported apps' own stores (P1b): `claude-player`, `jarvis.guitar.v2`, `jarvis.podcasts.v1`, `jarvis-podcasts`, `mymedia.*`, `astra.v2.*` and their caches | localStorage, IndexedDB, Cache Storage | As the unchanged apps keep them | **no** at P1b (the unchanged apps don't know the new sign-in); yes once an app moves and joins the wipe list **[proposal]** |
 
 ### 3.2 What never leaves the phone

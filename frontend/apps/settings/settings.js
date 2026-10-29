@@ -12,12 +12,38 @@ import { outbox } from '/th/chat/store.js';
 
 const TITLES = { devices: 'Sign-in & devices', agents: 'Agents', account: 'Account', memory: 'What I remember' };
 
-/** Signs this device out, asking first while messages are still waiting to send (SIGN-IN.md §11.3). */
+/** Signs this device out, asking first while messages are still waiting to send (SIGN-IN.md §11.3)
+ * or a Forget hasn't reached the Worker (MEMORY.md §12): signing out wipes the phone, and with it
+ * what is still waiting. */
 export async function signOutAsking() {
+  const forgets = await forgetsLeft();
   const n = (await outbox.list()).length;
-  const title = n === 1 ? "1 message hasn't sent yet. Sign out anyway?" : `${n} messages haven't sent yet. Sign out anyway?`;
-  if (n && !(await confirmSheet({ title, action: 'Sign out', keep: 'Cancel' }))) return;
+  const unsent = n === 1 ? "1 message hasn't sent yet." : `${n} messages haven't sent yet.`;
+  const title = n ? `${unsent} Sign out anyway?` : forgets === 1 ? "1 Forget hasn't gone through yet. Sign out anyway?" : `${forgets} Forgets haven't gone through yet. Sign out anyway?`;
+  if ((n || forgets) && !(await confirmSheet({ title, body: forgetsBody(forgets, n ? 'either' : ''), action: 'Sign out', keep: 'Cancel' }))) return;
   signOutHere();
+}
+
+/** Sends the Forgets still waiting (memory-queue.js) once more, for 4 s at most so signing out
+ * never hangs on a slow network; how many are left. */
+async function forgetsLeft() {
+  let waiting = false;
+  try {
+    waiting = Boolean(localStorage.getItem('th.p.forget'));
+  } catch {}
+  if (!waiting) return 0;
+  const queue = await import('./memory-queue.js');
+  await Promise.race([queue.flush().catch(() => {}), new Promise((r) => setTimeout(r, 4_000))]);
+  return queue.pendingIds().length;
+}
+
+/** The sheet's line for Forgets that would be lost: after a title that already counts them (''),
+ * after one about messages ('either'), or after any other title ('yet').
+ * @param {number} forgets @param {'' | 'either' | 'yet'} lead */
+function forgetsBody(forgets, lead) {
+  if (!forgets) return undefined;
+  const count = forgets === 1 ? "1 Forget hasn't" : `${forgets} Forgets haven't`;
+  return `${lead ? `${count} gone through ${lead}. ` : ''}If you sign out now, I'll keep remembering ${forgets === 1 ? 'that fact' : 'those facts'}.`;
 }
 let current = null;
 
@@ -125,7 +151,8 @@ async function devices(body) {
     try { await signedIn((t) => api.signout(t, 'others')); toast('Signed out everywhere else'); load(); } catch (e) { errLine(body, e); }
   });
   btn('Sign out everywhere', 'danger', async () => {
-    if (!(await confirmSheet({ title: 'Sign out everywhere, including this phone?', action: 'Sign out', keep: 'Cancel' }))) return;
+    const forgets = await forgetsLeft();
+    if (!(await confirmSheet({ title: 'Sign out everywhere, including this phone?', body: forgetsBody(forgets, 'yet'), action: 'Sign out', keep: 'Cancel' }))) return;
     try { await signedIn((t) => api.signout(t, 'all')); } catch (e) { if (failure(e).kind !== 'api') { errLine(body, e); return; } }
     await wipe();
     location.replace('/signin/');

@@ -25,10 +25,12 @@ export function memoryLine(e) {
 }
 
 /** Text kept blurred until tapped (a private fact's, PRIVACY.md §4): a button, so it can be
- * reached and is read out as private until shown. @param {string} cls @param {string} text */
+ * reached and is read out as private until shown; its words stay out of the accessibility tree
+ * until then. @param {string} cls @param {string} text */
 export function privateText(cls, text) {
-  const b = el('button', { type: 'button', class: `${cls} blur`, text, 'aria-label': 'Private. Tap to show.' });
-  b.addEventListener('click', () => { b.classList.remove('blur'); b.removeAttribute('aria-label'); }, { once: true });
+  const words = el('span', { 'aria-hidden': 'true', text });
+  const b = el('button', { type: 'button', class: `${cls} blur`, 'aria-label': 'Private. Tap to show.' }, [words]);
+  b.addEventListener('click', () => { b.classList.remove('blur'); b.removeAttribute('aria-label'); words.removeAttribute('aria-hidden'); }, { once: true });
   return b;
 }
 
@@ -49,7 +51,8 @@ export function metaLine(f) {
  */
 export function factRow(f, ctx, shelf) {
   const secret = f.sensitivity === 1;
-  const text = el('button', { type: 'button', class: `mtext${secret ? ' blur' : ''}`, 'aria-expanded': 'false', text: f.text });
+  const words = el('span', secret ? { 'aria-hidden': 'true', text: f.text } : { text: f.text });
+  const text = el('button', { type: 'button', class: `mtext${secret ? ' blur' : ''}`, 'aria-expanded': 'false' }, [words]);
   if (secret) text.setAttribute('aria-label', 'Private. Tap to show.');
   const badges = el('div', { class: 'mbadges' });
   if (f.pinned) badges.append(el('span', { class: 'badge', text: 'Pinned' }));
@@ -61,6 +64,7 @@ export function factRow(f, ctx, shelf) {
     if (text.classList.contains('blur')) {
       text.classList.remove('blur');
       text.removeAttribute('aria-label');
+      words.removeAttribute('aria-hidden');
       return;
     }
     const open = detail.hidden;

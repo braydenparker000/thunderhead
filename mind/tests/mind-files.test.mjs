@@ -1,7 +1,7 @@
 // The files a mind session reads (RUNTIME.md §2): mind/CONSTITUTION.md is the constitution's loaded
 // text byte for byte (CONSTITUTION.md rule 2) and stays ≤ 5,000 characters (rule 3); mind/ROLES.md
 // has the chat, night and reflex sections and stays ≤ 6,000 characters; the hooks block the owner
-// pastes names only hooks that exist.
+// pastes names only hooks that exist, and the pasted copy is that block.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {existsSync, readFileSync} from 'node:fs';
@@ -24,7 +24,7 @@ test('mind/ROLES.md has the three role sections and stays under 6,000 characters
   assert.ok(roles.length <= 6000, `${roles.length} characters`);
 });
 
-test('the hooks block to paste names hooks that exist and never writes .claude/', () => {
+test('the hooks block to paste names hooks that exist, and the pasted copy is that block', () => {
   const block = JSON.parse(read('mind/hooks/settings.example.json'));
   for (const entries of Object.values(block.hooks))
     for (const e of entries)
@@ -32,5 +32,8 @@ test('the hooks block to paste names hooks that exist and never writes .claude/'
         const file = /mind\/hooks\/([a-z-]+\.mjs)/.exec(h.command)?.[1];
         assert.ok(file && existsSync(join(ROOT, 'mind/hooks', file)), h.command);
       }
-  assert.equal(existsSync(join(ROOT, '.claude/settings.json')), false, 'the owner pastes it; th never writes it');
+  // The owner pastes .claude/settings.json (SETUP.md K1); nothing here writes it. Once it is there,
+  // it holds exactly this block, so the hooks that run are the ones these tests cover.
+  if (existsSync(join(ROOT, '.claude/settings.json')))
+    assert.deepEqual(JSON.parse(read('.claude/settings.json')).hooks, block.hooks, 'the pasted hooks are mind/hooks/settings.example.json');
 });

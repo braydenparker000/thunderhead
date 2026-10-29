@@ -37,6 +37,15 @@ describe('never stored (MEMORY.md §13)', () => {
     ['a passcode for something', 'The passcode for the gate is 4821'],
     ['a passphrase for something', 'The passphrase for the vault is correct horse battery staple'],
     ['a PIN for something', 'PIN for the card is 4821'],
+    // Stage B.6: a describing word is exempt only when it is all that follows `is` or `was`.
+    ['a password after a describing word', 'my password is new. It is Tr0ub4dor&3'],
+    ['a password after a describing word and a semicolon', 'my password was reset; use hunter2'],
+    ['a password after a describing word and a comma', 'password is strong, it is Pa55word!'],
+    ['a password after a describing sentence', 'my password was strong. Now: x9!kq'],
+    ['a describing word given as the value after a colon', 'Wi-Fi password: secure'],
+    ['a describing word given as the value after =', 'password=simple'],
+    ['a describing word with a symbol after a colon', 'password: Strong!'],
+    ['a one-word password that starts like a describing word', 'my password is weak1'],
     ['a card number', 'Card 4111 1111 1111 1111 exp 12/29'],
     ['a card with dashes', 'Card 4111-1111-1111-1111'],
     ['an Amex number', 'Amex 3782 822463 10005'],
@@ -79,6 +88,10 @@ describe('never stored (MEMORY.md §13)', () => {
     'The passcode was changed',
     'password is case-sensitive',
     'Tracking 1234567812345670 arrives Monday',
+    // Stage B.6: the same with capitals, and with what it is for in between.
+    'My password is WEAK',
+    'The password for the gate was changed.',
+    "The owner's password was reset yesterday",
   ])('keeps "%s"', (text) => {
     expect(neverStored(text)).toBeNull();
   });

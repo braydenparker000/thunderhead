@@ -54,7 +54,11 @@ function oneWord(value: string): boolean {
   const [first = '', ...rest] = value.split(/\s+/);
   return first !== '' && (rest.join('') === '' || /[.!?;,]$/.test(first));
 }
-const firstWord = (value: string) => (value.split(/\s+/, 1)[0] ?? '').replace(/[.!?;,]+$/, '').toLowerCase();
+/** The value when it is a single word and nothing follows it but punctuation ("weak."), lower-cased. */
+const onlyWord = (value: string) => {
+  const v = value.trim().replace(/[.!?;,]+$/, '');
+  return /^\S+$/.test(v) ? v.toLowerCase() : '';
+};
 
 function passwordSaid(text: string): boolean {
   if (DIGITS_SAID.test(text)) return true;
@@ -62,8 +66,10 @@ function passwordSaid(text: string): boolean {
     for (const m of text.matchAll(re)) {
       const said = m[2] ?? m[3];
       const value = text.slice((m.index ?? 0) + m[0].length);
-      // "Her password was reset": one word that describes it, not the password itself.
-      if (!value || (oneWord(value) && DESCRIBING.has(firstWord(value)))) continue;
+      if (!value) continue;
+      // "Her password was reset": a word that describes it is all that follows `is` or `was`. After
+      // `:` or `=`, or with more after it ("is new. It is …"), that word may be the password.
+      if (said && /^(?:is|was)$/i.test(said) && DESCRIBING.has(onlyWord(value))) continue;
       // A passphrase is words; a password said in one word is that word.
       if (said && SAID_ONCE.test(m[1]) && (/^passphrase$/i.test(m[1]) || oneWord(value))) return true;
       if (secretish(value)) return true;
