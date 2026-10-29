@@ -399,6 +399,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.verbs | done/failed/expired deleted 30 days after `done_at` or `expires_at` | yes | yes |
 | Core.surfaces | expired rows deleted within 24 h of `expires_at` (the next daily pass) | yes | no |
 | Core.work_orders | finished rows 180 days | yes | yes |
+| Core.eval_runs | forever (one row per suite a week; numbers and ids only) | yes | no |
 | Core.facts, day_notes | forever (facts until forgotten) | yes | yes |
 | Core.fact_tombstones | forever (forgotten ids only, no text: an id is never reused, and a restore re-applies the forget) | yes | no |
 | Core.open_threads | open: until closed; closed: 1 year | yes | yes |

@@ -13,6 +13,7 @@ import type {
 import { PROPOSAL_LIMITS as L, PROPOSAL_CLASS_NAMES } from '../../../../shared/contract/proposals.ts';
 import { type AppEnv, guard } from '../../http/auth';
 import { callerOf, idParam, reqHash } from '../../http/caller';
+import { inSandbox } from '../../http/sandbox';
 import { json, parse } from '../../http/validate';
 import { UUIDV7 } from '../../lib/ids';
 import { value } from '../../lib/result';
@@ -72,8 +73,10 @@ export const proposalsRoutes = new Hono<AppEnv>()
     const { after, ...out } = value(await fresh(core.decideProposal(callerOf(c), id, body)));
     if (!after) return c.json(out satisfies DecideProposalResponse);
     // An op of the Auth object: run it now; if Auth can't be reached, the card stays `approved`
-    // and the cron runs it again.
-    const ran = await runAfter(c.env, after);
+    // and the cron runs it again. In the eval sandbox nothing outside it runs: it is recorded only.
+    const ran = inSandbox()
+      ? { ok: true as const, result: { sandbox: true }, what: 'nothing was run (the eval sandbox)' }
+      : await runAfter(c.env, after);
     if (!ran) return c.json(out satisfies DecideProposalResponse);
     return c.json(value(await core.proposalRan(id, ran)) satisfies DecideProposalResponse);
   })

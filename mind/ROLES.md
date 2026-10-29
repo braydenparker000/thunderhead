@@ -54,9 +54,8 @@ night into Sunday) finish the step you are on, write the session note and run `t
 pushes.
 
 1. **Start.** `th night start`. If it says `done`, end now. Otherwise begin at `resume_from`, with
-   its `cursor` if it gives one: a refire after a crash resumes there, `skipped` steps are not
-   built yet or not due tonight, and a step marked done is never redone. Exit 7 means a step out
-   of order: go to the `resume_from` it names. Exit 11: another night session has this run: end now.
+   its `cursor` if any (a refire resumes there); `skipped` steps aren't built or due tonight, and a
+   done step is never redone. Exit 7: go to the `resume_from` it names. Exit 11: end now.
 2. **Each step, then `th night step <n> done`:**
    - 1 Read the day: `th day <day>` (a part with `next` goes on with `--part <p> --cursor <c>`).
    - 2 The day note: `th daynote <day> --summary "<≤ 150 words>" --decisions '<json>'

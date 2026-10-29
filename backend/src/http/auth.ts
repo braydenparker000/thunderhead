@@ -11,7 +11,9 @@ import type { Principal } from '../areas/auth/account';
 import { tokenHash } from '../areas/auth/crypto';
 import { checkToken } from '../areas/auth/tokens';
 import { authObject } from '../objects/auth';
+import { coreObject } from '../objects/core';
 import { ApiError } from './errors';
+import { inScope, NOT_ATTEMPTS, SANDBOX_HEADER } from './sandbox';
 
 export type { Who };
 
@@ -77,7 +79,7 @@ async function authenticate(c: Context<AppEnv>): Promise<Principal & { token_has
  * key whose TH-Role header names another role is refused too (the key's role is what counts).
  * With `name` (RouteSpec.key), an agent must also be the key of exactly that name; a device is
  * the owner and needs no name. */
-export function allow(who: readonly Who[], name?: string) {
+export function allow(who: readonly Who[], name?: string, key?: string) {
   const mw = createMiddleware<AppEnv>(async (c, next) => {
     const p = await authenticate(c);
     if (!who.includes(whoOf(p))) throw new ApiError('forbidden');
@@ -86,7 +88,28 @@ export function allow(who: readonly Who[], name?: string) {
     if (role && p.kind === 'agent' && p.role.startsWith('mind:') && `mind:${role}` !== p.role)
       throw new ApiError('forbidden');
     c.set('principal', p);
-    await next();
+    const sandbox = c.req.header(SANDBOX_HEADER);
+    if (sandbox === undefined) return next();
+    // The eval sandbox (http/sandbox.ts): chat and night keys only, never a named key's route.
+    if (
+      sandbox !== 'eval' ||
+      name !== undefined ||
+      p.kind !== 'agent' ||
+      (p.role !== 'mind:chat' && p.role !== 'mind:night')
+    )
+      throw new ApiError('forbidden');
+    await inScope(async () => {
+      try {
+        await next();
+      } finally {
+        if (key && c.req.method !== 'GET' && !NOT_ATTEMPTS.has(key))
+          c.executionCtx.waitUntil(
+            coreObject(c.env)
+              .evalAttempt(key, c.res?.status ?? 500)
+              .catch(() => {}),
+          );
+      }
+    });
   });
   // Tagged so the route test can compare every guard with API.md §13.
   return Object.assign(mw, { who, named: name });
@@ -98,7 +121,7 @@ export function allow(who: readonly Who[], name?: string) {
 export function guard(key: RouteKey) {
   const spec: RouteSpec = ROUTES[key];
   if (spec.who === 'P' || spec.auth) throw new Error(`${key} has no bearer guard`);
-  return Object.assign(allow(spec.who, spec.key), { key });
+  return Object.assign(allow(spec.who, spec.key, key), { key });
 }
 
 /** The principal of a guarded route. */

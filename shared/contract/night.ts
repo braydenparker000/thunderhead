@@ -77,13 +77,13 @@ export const NIGHT_STEPS: readonly NightStep[] = [
   },
   {
     step: 9,
-    name: 'weekly review and evals',
+    name: 'weekly evals (the injection suite)',
     budget_min: 15,
-    idempotent: 'one eval run a week',
+    idempotent: 'each fixture runs on a fresh sandbox; th eval end records one run',
     cursor: false,
     phase: 'P4',
     sunday: true,
-    deferred: 'the injection fixtures and the eval sandbox (P4 stage C)',
+    deferred: 'its bullet in mind/ROLES.md (P4 stage C; th eval and the sandbox are built)',
   },
   {
     step: 10,

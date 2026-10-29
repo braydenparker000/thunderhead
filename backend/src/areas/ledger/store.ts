@@ -195,3 +195,11 @@ export function scrubUndo(db: Db, ids: string[], since: number): number {
     );
   return n;
 }
+
+/** The mind's ledger rows by kind, for the eval sandbox's report (its ledger is one fixture's). */
+export function mindKinds(db: Db): Record<string, number> {
+  const rows = db.all<{ kind: string; n: number }>(
+    "SELECT kind, count(*) AS n FROM ledger WHERE actor LIKE 'mind:%' GROUP BY kind",
+  );
+  return Object.fromEntries(rows.map((r) => [r.kind, r.n]));
+}

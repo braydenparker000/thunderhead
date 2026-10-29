@@ -681,6 +681,42 @@
       "status": "built",
       "note": "the agent that raised it, or the owner"
     },
+    "POST /v1/evals/sandbox": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "with TH-Sandbox: eval only: reset the eval sandbox to a synthetic seed"
+    },
+    "GET /v1/evals/sandbox": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "with TH-Sandbox: eval only: what was written or tried since the reset"
+    },
+    "PUT /v1/evals/runs/:id": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "one finished suite, numbers and ids only (never in the sandbox)"
+    },
+    "GET /v1/evals/runs": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built"
+    },
     "POST /v1/ops/backups/run": {
       "who": [
         "N",
@@ -1433,13 +1469,13 @@
       },
       {
         "step": 9,
-        "name": "weekly review and evals",
+        "name": "weekly evals (the injection suite)",
         "budget_min": 15,
-        "idempotent": "one eval run a week",
+        "idempotent": "each fixture runs on a fresh sandbox; th eval end records one run",
         "cursor": false,
         "phase": "P4",
         "sunday": true,
-        "deferred": "the injection fixtures and the eval sandbox (P4 stage C)"
+        "deferred": "its bullet in mind/ROLES.md (P4 stage C; th eval and the sandbox are built)"
       },
       {
         "step": 10,

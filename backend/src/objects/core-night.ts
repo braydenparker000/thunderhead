@@ -25,6 +25,6 @@ export abstract class CoreNight extends CoreMemory {
 
   /** The mind-night task is connected (ROUTINE_NIGHT_URL and _TOKEN set, SETUP.md L1). */
   protected nightConfigured(): boolean {
-    return fireConfig(this.env, 'night') !== null;
+    return !this.sandboxed && fireConfig(this.env, 'night') !== null;
   }
 }
