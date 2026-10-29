@@ -187,6 +187,7 @@ The `api` job runs when `backend/**`, `shared/**` or `package-lock.json` changed
    3. `node --test tests/live-api.test.mjs` (read-only: health shape, CORS preflight, 401 without a token, 403 from a foreign origin).
 7. Watch 10 minutes **[proposal]**: every 60 s, `GET /v1/ops/errors?status=open` counts server errors (`source` in `worker`, `do`) with `last_at` after the deploy. Fail at ≥ 5 of them, or at any error whose code is `internal` on an auth route.
 8. On failure after step 5, when no class change happened: `npx wrangler rollback "$PREV" --config backend/wrangler.jsonc --message "auto rollback from <sha>" --yes`. Then re-run step 6.1 expecting the previous tag. A bootstrap run has nothing to roll back to.
+   - First, `node scripts/rollback-guard.mjs` reads `wrangler deployments status --json`. It rolls back only over this run's own deployment, found by the version id that step 5 printed or by its `deploy <sha>` message. If `$PREV` is still live, nothing is rolled back. If a newer deployment by someone else is live, the run fails without a rollback, because a forced rollback past it would bring back the old secret values. Setting a secret in the dashboard makes such a deployment (SETUP.md K4). Check it, then use §5.2 if it is broken. When the status can't be read, the rollback runs as before.
 9. On failure with a class change: no rollback (it would be refused). The run fails, a watchdog posts at 06:30, and the agent fixes forward.
 
 The `site` job starts only after `api` succeeded or was skipped, so a new site never meets an old API.

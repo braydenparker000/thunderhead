@@ -150,8 +150,10 @@ jobs:
           args=(--config "$CONFIG" --var "SITE_ORIGINS:$SITE_ORIGINS" --tag "$TAG" --message "deploy $(git rev-parse HEAD)")
           [[ -n "$SECRETS_FILE" ]] && args+=(--secrets-file "$SECRETS_FILE")
           status=0
-          npx wrangler deploy "${args[@]}" || status=$?
+          npx wrangler deploy "${args[@]}" | tee "$RUNNER_TEMP/deploy.out" || status=$?
           [[ -n "$SECRETS_FILE" ]] && rm -f "$SECRETS_FILE"
+          # The new version's id, so the rollback step can tell this run's deployment from a newer one.
+          echo "version=$(grep -oE 'Current Version ID: [0-9a-f-]{36}' "$RUNNER_TEMP/deploy.out" | tail -n 1 | cut -d' ' -f4)" >> "$GITHUB_OUTPUT"
           exit "$status"
       - name: Smoke-check the live API (read-only)
         if: ${{ steps.plan.outputs.mode == 'deploy' }}
@@ -195,7 +197,19 @@ jobs:
         env:
           PREV: ${{ steps.before.outputs.version }}
           PREV_TAG: ${{ steps.plan.outputs.live_tag }}
+          OURS: ${{ steps.deploy.outputs.version }}
         run: |
+          # Only over this run's own deployment: a newer one made meanwhile by someone else (setting
+          # a secret in the dashboard makes one) stays live, because rolling back past it would bring
+          # back the old secret values. An older release (a rollback by commit) has no such check.
+          if [[ -f scripts/rollback-guard.mjs ]]; then
+            now="$(npx wrangler deployments status --json --config "$CONFIG" 2>/dev/null || true)"
+            verdict="$(printf '%s' "$now" | node scripts/rollback-guard.mjs "$PREV" "$OURS" "deploy $(git rev-parse HEAD)" || true)"
+            case "$verdict" in
+              live) echo "the version from before ($PREV) is live; nothing to roll back"; exit 0 ;;
+              keep:*) echo "::error::Not rolled back: ${verdict#keep: }. Check it, then roll back by hand (Deploy, target api-rollback) if it is broken."; exit 1 ;;
+            esac
+          fi
           npx wrangler rollback "$PREV" --config "$CONFIG" --message "auto rollback from $(git rev-parse --short=12 HEAD)" --yes
           for i in $(seq 1 12); do
             live="$(curl -fsS --max-time 10 "${WORKER_URL%/}/v1/health" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).version.tag??"")}catch{}})' || true)"
