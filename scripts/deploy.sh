@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publishes the staged site (.deploy/site from scripts/stage.mjs) to the storage account's
-# $web container: assets first, then pages, then the service worker, then release.json last, so release.json only
+# $web container: changed assets first, then changed pages, then the service worker, then release.json last, so release.json only
 # names this commit once everything is up. Then it waits until the live site reports the
 # commit and removes files that are no longer part of the site.
 # Needs: `az login` done, AZURE_STORAGE_ACCOUNT, SITE_URL. Usage: scripts/deploy.sh <commit-sha>
@@ -19,11 +19,22 @@ grep -q "\"commit\":\"$sha\"" .deploy/release.json || { echo "staged release is 
 az_blob() { az storage blob "$@" --account-name "$account" --auth-mode login --only-show-errors; }
 
 [[ -f .deploy/types.txt ]] || { echo "run scripts/stage.mjs first (no types.txt)" >&2; exit 1; }
+# Only files whose bytes or content type differ from the live copy go up (scripts/changed.mjs
+# compares Content-MD5). If the listing fails, everything goes up, as before.
+src="$out"
+if az_blob list --container-name '$web' --num-results '*' \
+    --query '[].{n:name,m:properties.contentSettings.contentMd5,t:properties.contentSettings.contentType}' \
+    --output json > .deploy/live.json && node scripts/changed.mjs .deploy/live.json "$out" .deploy/changed; then
+  src=.deploy/changed
+else
+  echo "::warning::could not compare with the live site; uploading every file"
+fi
 # One kind of file at a time, each with its exact content type (stage.mjs wrote the list, pages
 # last), so pages never point at assets that are not up yet and nothing relies on type guessing.
 while IFS=$'\t' read -r ext type; do
   [[ -n "$ext" ]] || continue
-  az_blob upload-batch --destination '$web' --source "$out" --pattern "*.$ext" \
+  [[ -n "$(find "$src" -type f -name "*.$ext" -print -quit)" ]] || continue
+  az_blob upload-batch --destination '$web' --source "$src" --pattern "*.$ext" \
     --overwrite --content-type "$type" --content-cache-control 'no-cache' --output none
 done < .deploy/types.txt
 # The service worker's list and the worker go up again once everything they name is there, so

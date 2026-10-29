@@ -201,7 +201,7 @@ jobs:
     needs: api
     if: ${{ !cancelled() && (needs.api.result == 'success' || needs.api.result == 'skipped') && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target == 'site' || inputs.target == 'both') }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 40
     permissions:
       contents: read
       id-token: write
@@ -253,8 +253,11 @@ jobs:
         run: |
           token="$(curl -fsS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=api://AzureADTokenExchange" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).value))')"
           printf '%s' "$token" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const c=JSON.parse(Buffer.from(s.split(".")[1],"base64url"));console.log("Federated credential subject must be:",c.sub)})'
+      # Step limits stay well under the job's, so a slow publish fails the step and the rollback
+      # below still runs; a job timeout would cancel the rollback too.
       - name: Publish
         id: publish
+        timeout-minutes: 15
         run: scripts/deploy.sh "$(git rev-parse HEAD)"
       - name: Check the live site (read-only)
         env:
@@ -265,6 +268,7 @@ jobs:
           node --test tests/live.test.mjs tests/home-browser.test.mjs || { sleep 15; node --test tests/live.test.mjs tests/home-browser.test.mjs; }
       - name: Roll back to the previous live commit
         if: ${{ (failure() || cancelled()) && steps.publish.outcome != 'skipped' && steps.before.outputs.commit != '' }}
+        timeout-minutes: 15
         env:
           PREV: ${{ steps.before.outputs.commit }}
         run: |
