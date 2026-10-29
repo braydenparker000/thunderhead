@@ -131,3 +131,42 @@ describe('work orders', () => {
     expect((await api('POST', '/v1/work/claim', { token: M, body: {} })).status).toBe(204);
   });
 });
+
+describe('what reaches Muse', () => {
+  it('nothing never stored, and nothing at all from a session that read outside content', async () => {
+    const brief = {
+      focus: 'The week, briefly.',
+      interests: [{ topic: 'Weather', priority: 'high' }],
+      depth: 'headlines',
+      stories: { min: 1, max: 3 },
+      lookbackHours: 24,
+    };
+    const pw = await apiJson<{ error: { details: { issue: string }[] } }>('PUT', '/v1/board/brief', {
+      ...as(p.C, CHAT_SESSION),
+      body: { version: 0, brief: { ...brief, notes: 'My password is hunter2' } },
+    });
+    expect(pw.status).toBe(422);
+    expect(pw.body.error.details[0].issue).toBe('never_stored');
+    const leak = { ...research(), spec: { ...research().spec, inputs: { card: '4111 1111 1111 1111' } } };
+    expect((await api('PUT', `/v1/work/orders/${uuidv7()}`, { ...as(p.C, CHAT_SESSION), body: leak })).status).toBe(
+      422,
+    );
+    expect(
+      (await api('PUT', `/v1/work/orders/${uuidv7()}`, { ...as(p.C, 'cse_never_claimed'), body: research() })).status,
+    ).toBe(403);
+    await apiJson('POST', '/v1/mind/taint', {
+      ...as(p.C, CHAT_SESSION),
+      body: { source: 'WebFetch', ref_kind: 'url' },
+    });
+    const tainted = await apiJson<{ error: { code: string } }>('PUT', `/v1/work/orders/${uuidv7()}`, {
+      ...as(p.C, CHAT_SESSION),
+      body: research(),
+    });
+    expect([tainted.status, tainted.body.error.code]).toEqual([403, 'session_tainted']);
+    expect(
+      (await api('PUT', '/v1/board/brief', { ...as(p.C, CHAT_SESSION), body: { version: 0, brief } })).status,
+    ).toBe(403);
+    // The owner's own device may always.
+    expect((await api('PUT', '/v1/board/brief', { token: p.D, body: { version: 0, brief } })).status).toBe(200);
+  });
+});

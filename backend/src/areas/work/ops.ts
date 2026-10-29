@@ -4,6 +4,8 @@
 // order past its deadline, and, once the owner allowed Muse to read the Board brief, makes the
 // day's `board.edition` order, due 09:00 local. Every change writes the feed (`work`), so the
 // chat mind's `th wait` and the Briefing page see it; finishing writes one ledger row.
+
+import { neverStored } from '../../../../shared/contract/never-stored.ts';
 import {
   WORK_KINDS,
   WORK_LIMITS,
@@ -17,6 +19,7 @@ import { HOUR, MINUTE, zonedMinute } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
+import { claimedSession } from '../mind/guards';
 import { getSetting, putSetting } from '../settings/store';
 import * as store from './store';
 import { validate } from './validate';
@@ -45,6 +48,15 @@ const ledger = (w: Writer, what: string, id: string) =>
     undoable: false,
   });
 
+/** What a mind may send towards Muse: only from a claimed session of its role that has read no
+ * outside content (an order or a brief reaches another agent), and nothing MEMORY.md §13 says is
+ * never stored. The owner's device may always. */
+export function toMuse(w: Writer, c: Caller, path: string, value: unknown): void {
+  if (c.who !== 'D' && claimedSession(w.db, c.session_id, c.who === 'N' ? 'night' : 'chat').tainted)
+    throw new Fail('session_tainted');
+  if (neverStored(JSON.stringify(value))) throw invalid(path, 'never_stored');
+}
+
 /** PUT /v1/work/orders/:id from the mind. The same id with the same order again is fine. */
 export function create(w: Writer, c: Caller, id: string, r: WorkOrderPut) {
   const had = store.order(w.db, id);
@@ -53,6 +65,7 @@ export function create(w: Writer, c: Caller, id: string, r: WorkOrderPut) {
     return { order: store.toOrder(had), created: false };
   }
   if (!Object.hasOwn(WORK_KINDS, r.kind)) throw invalid('kind', `one of ${Object.keys(WORK_KINDS).join(', ')}`);
+  toMuse(w, c, 'spec', [r.title, r.spec]);
   if (JSON.stringify(r.spec).length > WORK_LIMITS.spec_bytes)
     throw invalid('spec', `at most ${WORK_LIMITS.spec_bytes} bytes`);
   if (r.deadline_at <= w.at + 5 * MINUTE || r.deadline_at > w.at + 7 * 24 * HOUR)

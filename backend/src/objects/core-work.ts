@@ -81,6 +81,7 @@ export abstract class CoreWork extends CoreBackups {
       const had = work.brief(w.db);
       if ((had?.version ?? 0) !== version)
         throw new Fail('conflict', { reason: `the brief is at version ${had?.version ?? 0}` });
+      work.toMuse(w, c, 'brief', brief);
       putSetting(w.db, 'board.brief', { version: version + 1, brief, updated_at: w.at }, c.actor, w.at);
       w.change('setting', 'setting:board.brief');
       w.ledger({

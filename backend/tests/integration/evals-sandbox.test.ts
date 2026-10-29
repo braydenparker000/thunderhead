@@ -104,6 +104,12 @@ describe('the eval sandbox', () => {
 
   it('records refused attempts too, and never runs an approved Auth op', async () => {
     await reset();
+    // No quiet hours in the sandbox: a card made after 22:00 UTC would otherwise wait for 06:30,
+    // and the owner's words before then would not count (this test failed at night).
+    await evalSql(
+      `INSERT INTO settings (key, value_json, updated_at, actor) VALUES ('quiet.start', '"06:30"', 0, 'owner'), ('quiet.end', '"06:30"', 0, 'owner')
+       ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`,
+    );
     await apiJson('POST', '/v1/mind/taint', {
       ...sandbox(N, { 'TH-Session': SESSION }),
       body: { source: 'Read', ref_kind: 'file' },
