@@ -113,7 +113,8 @@ facts(
   pinned INTEGER NOT NULL DEFAULT 0,
   may_raise INTEGER NOT NULL DEFAULT 1,                                -- 0 = don't bring this up
   written_by TEXT NOT NULL)                                            -- session id or 'owner'
--- facts_fts: FTS5(text, subject)
+-- facts_fts: FTS5(text, subject). Engineering adds `seq` (the FTS rowid, as for messages) and
+-- `ledger_id` (the row that wrote the version); day_notes gets `seq` too (DATA.md §4.4).
 
 -- Audit and undo for every memory or world change
 ledger(
@@ -153,9 +154,9 @@ All writes go through `th` → the Worker. The Worker validates, writes the row,
 | Op | Who | Effect | Undo stored |
 |---|---|---|---|
 | `remember` | chat, night, owner | INSERT a new fact | Close it (`superseded_at`, no successor) |
-| `confirm` | chat, night, owner | Set `last_confirmed = now`; `confidence = max(confidence, base(source of new evidence))`. If the new evidence is an owner message and the fact was not `user`, it becomes a supersede to `source=user` **[proposal]** | Restore previous values |
+| `confirm` | chat, night, owner | Set `last_confirmed = now`; `confidence = max(confidence, base(source of new evidence))`, within the fact's own cap. If the new evidence is all the owner's own words and the fact was not `user`, it becomes a supersede to `source=user` (tag `imported` dropped: "Yes, that's right") | Restore previous values |
 | `supersede` | chat, night, owner | Close the old row (`valid_to = valid_from of new` if world-time change, `superseded_at = now`, `superseded_by = new id`), INSERT the new row | Reopen the old row, close the new one |
-| `forget` | **owner only** | DELETE the fact row and its FTS entry; ledger keeps a tombstone: `{fact_id, kind, forgotten_at}` and **no text** | None (that is the point). A 10 s "Undo" on the phone before the request is sent **[proposal]** |
+| `forget` | **owner only** | DELETE every version of the fact and their FTS entries (then an FTS `optimize`, so the words leave the index segments too); the memory ledger rows that pointed at them lose their `why` and their undo, and so does every surface row that drew on them (its `why` may quote the fact; puts list their facts for this); one tombstone row remains: `{fact_id, kind, forgotten_at, versions}` and **no text** (memory rows never carry fact text) | None (that is the point). A 10 s "Undo" on the phone before the request is sent (built, P3) |
 | `batch` | night | Up to 50 ops applied atomically; each op validated; rejected ops are listed, valid ones applied | Per op |
 | `mute` / `unmute` | owner | Set `may_raise` 0/1 | Toggle back |
 | `pin` / `unpin` | owner | Set `pinned` 1/0 | Toggle back |
@@ -208,19 +209,21 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 | # | Rule | On violation |
 |---|---|---|
 | M1 | Every message, event and ledger row has an `origin`; the Worker sets it from the authenticated principal, never from the request body | (not client-settable) |
-| M2 | Evidence ids must exist, be 1–20 per fact, and be messages, events, day notes or (notebook conversion only, P3) `import_items` rows, or (an op from a **device** session only) `ledger:` rows with `actor=owner` (the Memory page's own Fix and Add, §12); an `import:` ref alone never supports `source=user` | `422 validation` `bad_evidence` |
-| M3 | `source=user` → every evidence id is owner-origin (`origin` in `owner_device`, `import` with `author=owner`, or an owner `ledger:` row from a device op), and at least one is a message | `422` `not_owner_evidence` |
+| M2 | Evidence ids must exist, be 1–20 per fact, and be messages, events, day notes or (notebook conversion only, P3) `import_items` rows, or (an op from a **device** session only) `ledger:` rows with `actor=owner` (the Memory page's own Fix and Add, §12); an `import:` ref never supports `source=user` (it is not owner-origin, M3). Events (no table before P5) and imports (none before the import runs) can't be checked yet, so they are refused for now. An `inferred` fact never rests on the mind's or the system's own messages (§4) | `422 validation` `bad_evidence` (and `unknown_ref` when the fact an op names does not exist) |
+| M3 | `source=user` → every evidence id is owner-origin (`origin` in `owner_device`, `import` with `author=owner`, or an owner `ledger:` row from a device op), and at least one is a message (or, from a device, that owner ledger row) | `422` `not_owner_evidence` |
 | M4 | `kind=rule` → `source=user` | `422` `rule_needs_owner` |
 | M5 | `source=observed` → ≥ 10 owner-device events (or one rollup ref with n ≥ 10) | `422` `too_little_evidence` |
 | M6 | Evidence with `origin` `muse` or `external` (or any message `author=muse`) is never accepted | `422` `tainted_evidence` |
 | M7 | Tags `faith` or `about=person` → `source=user` only; `faith` defaults to `may_raise=0` | `422` `needs_owner_words` |
 | M8 | `source=inferred` → confidence ≤ 0.80; `sensitivity=1` inferred → becomes a `memory_big` proposal, not applied | Proposal |
 | M9 | Superseding a `user` fact with a non-`user` source → `memory_big` proposal | Proposal |
-| M10 | More than 10 supersessions in one night batch → the batch is applied up to 10; the rest become one `memory_big` proposal "Many changes tonight; review?" **[proposal]** | Proposal |
-| M11 | A session marked tainted (`th taint`) may not `remember`, `supersede`, `confirm` or write `rule` (P4; logged-only before P4) | `403 forbidden` `session_tainted` |
-| M12 | If the constitution pin is broken this session, `rule` writes are refused | `403` `laws_unpinned` |
+| M10 | More than 10 supersessions in one batch from the mind (night or chat) → the batch is applied up to 10; the rest become one `memory_big` proposal "Many changes tonight; review?" **[proposal]** | Proposal (`proposal_required` until P4) |
+| M11 | A session marked tainted (`th taint`) may not `remember`, `supersede`, `confirm`, write `rule` or write a day note (enforced from P3, when memory writes arrive; other gated writes from P4). Every mind memory write needs a claimed, live session of its role, so a new session id can't step around a taint; a day note written while its session was tainted is never evidence | `403` `session_tainted`; `403` `session_required` |
+| M12 | If the constitution pin is broken this session, `rule` writes are refused, and so is superseding a rule into anything else. Until the pin arrives (P4) the check is the hash the session claimed with: a session that sent `none` (its file was missing) writes no rules | `403` `laws_unpinned` |
 | M13 | `text` ≤ 280 characters and one claim (no "and also") — length is enforced; one-claim is checked weekly in-session | `422` `too_long` |
 | M14 | Health, sexuality, politics, religion and similar sensitive traits are never `inferred` **[proposal]** | `422` `no_inferred_sensitive` |
+| M15 | The mind only makes a fact more protected: it never lowers `sensitivity` (a sensitive tag or `about=person` makes it 1), never sets `may_raise=1` on its own (faith never), never drops a sensitive, `faith` or `imported` tag ([PRIVACY.md §4](../engineering/PRIVACY.md)); only the owner can | (applied as the protected value) |
+| M16 | §13's never-stored text (keys and tokens, passwords, card and bank numbers) is refused in facts, loose ends and day notes | `422` `never_stored` |
 
 **Taint sources:** web pages, search results, song tags and tab files, PDFs and other files not written by the owner, emails, Board sources, PR or issue comments not by the owner, Muse output, the wake text. Outside content is stored, if at all, as `origin=external` (Board items, imported web text) and can only be cited in answers.
 
@@ -230,7 +233,7 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 
 ## 7. Sessions and taint, in practice
 
-1. A session is clean when it starts.
+1. A session is clean when it starts, unless a session of its role was tainted in the last 24 hours: a taint carries over for 24 hours, counted from the taint itself (not from the day a session was claimed on, so a session that runs across the day roll can't shed it). The Worker can't tell a session id the mind made up from a new cloud session, so a claim takes over the taint of its role's latest session tainted in those 24 hours (`taint_source = inherited:<source>`, keeping the taint's own time, so a chain of claims never stretches it). The one way out is the session the Worker itself fired after the taint: a claim that matches a still-open wake's fire exactly (`claim_match = exact`, [RUNTIME.md §4.3](RUNTIME.md#43-claim-binding)) starts clean. A loose or manual claim inherits. `POST /v1/mind/brief` answers `tainted`, and section 1 of the briefing says so.
 2. The PostToolUse hook calls `th taint` the first time the session fetches outside text ([RUNTIME.md §6.5](RUNTIME.md#65-posttooluse)).
 3. A tainted session can still answer, read memory, arrange things and ship code. It cannot write memory or reach people.
 4. If a tainted session learns something the owner said that should be remembered, it adds an open thread "remember: <text> (evidence msg …)" and the next clean session (or the night shift, which never fetches outside text before step 4) writes the fact. **[proposal]**
@@ -246,11 +249,11 @@ Rendered by the Worker at brief time. No LLM writes it, so it can't drift.
 2. Compute decayed confidence `c`. Drop `c < 0.25` unless pinned.
 3. Order: pinned first; then by kind in this order: `state`, `goal`, `preference`, `routine`, `fact`; within a kind by `c` descending, then `recorded_at` descending.
 4. Per-kind caps **[proposal]**: state 10, goal 10, preference 25, routine 15, fact 30.
-5. Line format: `[f:<first 8 of id>] <text> (<c to 1 decimal>, <source letter u|o|i>, since <YYYY-MM>)`, plus ` · don't raise` when `may_raise=0` and ` · private` when `sensitivity=1`.
+5. Line format: `[f:<last 8 hex digits of id>] <text> (<c to 1 decimal>, <source letter u|o|i>, since <YYYY-MM>)`, plus ` · don't raise` when `may_raise=0` and ` · private` when `sensitivity=1`. (The last 8, not the first: a UUIDv7 starts with its timestamp, so every fact of one batch would share its first 8.) Text is always one line, so no fact can fake a `## <n>.` section marker.
 6. Stop at 6,000 characters; append `(+N more: th recall --kind facts)`.
 7. A weekly snapshot goes to `thunderhead-private/memory/profile/<YYYY>-W<ww>.txt`; the Memory page shows the diff with last week ("What changed").
 
-Example line: `[f:01936a2b] Prefers short answers on the phone (0.9, u, since 2026-11)`
+Example line: `[f:7c41e9a2] Prefers short answers on the phone (0.9, u, since 2026-11)`
 
 **Acceptance:** same inputs → byte-identical output (snapshot test); 200 synthetic facts render ≤ 6,000 characters.
 
@@ -332,9 +335,12 @@ Behaviours:
 - **Fix** opens the text for editing. Saving supersedes the fact with `source=user` in one transaction with its ledger row (`actor=owner`, `kind=memory`), and that row is the evidence (`ledger:<id>`). Events have no table in `Core` before `Senses` (P5, [DATA.md §4.4](../engineering/DATA.md)), so the page never writes one. Applied at once.
 - **Pin** sets `pinned=1` (top of the profile, no decay).
 - **Don't bring this up** sets `may_raise=0`: the mind still knows it (so it won't ask again) but never mentions it unprompted. Muted facts never appear in home lines, margin notes or pushes. The Worker can't read meaning in free text, so every surface and push must list the fact ids it draws on (`facts` field), and the Worker refuses one that cites a muted fact **[proposal]**. Whether the mind cited honestly is checked by the weekly in-session review.
-- **Forget** asks once ("Forget this? It can't be brought back."), shows a 10 s undo, then hard-deletes (§3). The next briefing no longer contains it.
+- **Forget** asks once ("Forget this? It can't be brought back."), shows a 10 s undo, then hard-deletes (§3); leaving the page inside the 10 s sends it at once. It must arrive however the page ends: the fact's id (never its text) waits in the phone's storage (`th.p.forget`) until the Worker has it; leaving, reloading or hiding the page sends it with a keepalive request started in that event; a send the network or the server refuses is tried again with back-off ("Not forgotten yet. I'll keep trying."); and the next open of this page or Home sends what is left. The fact stays off the page until its Forget went through. The next briefing no longer contains it, and surfaces citing it leave their slots. The system's point-in-time recovery (Cloudflare, 30 days) still holds the old pages for up to 30 days; the sheet says so ([PRIVACY.md §10](../engineering/PRIVACY.md)).
+- **Don't bring this up** also clears, at once, any surface that cites the fact.
 - **Add** lets the owner type a fact or rule directly (`source=user`, evidence = its own ledger row, as for Fix).
 - Every action is a ledger row with `actor=owner`.
+
+Built in P3 (`frontend/apps/settings/memory*.js`, `/settings/memory/`): What I know (grouped as MENU-AND-SETTINGS.md §4.4 says), Standing rules, Loose ends, Days, Fading and Imported, to review, with the filter (over every fact: the page reads all pages of `GET /v1/memory/facts`, and a section draws its first 100 rows until "Show all") and every action above; the profile's private lines are blurred until tapped, like their rows (the Worker names them, `private_ids`); a fact's detail comes from `GET /v1/memory/facts/:id`, and its evidence shows in place (the quoted words and their date; there is no History page to link to yet). The page reloads when the change feed reports `fact`, `open_thread` or `day_note`; a row that didn't change keeps whatever detail or form the owner has open. Waiting: **What changed** needs the weekly profile snapshots in the private bucket (SETUP.md J2, P4), and **Laws** needs the constitution pin (P4).
 
 **Acceptance (P3 done-when):** the owner deletes a fact and it is gone from the next briefing; a muted fact never appears in a surface (Worker test).
 
@@ -344,12 +350,12 @@ Behaviours:
 
 | Never | Instead |
 |---|---|
-| Passwords, tokens, keys, recovery codes in memory or messages | The mind refuses to repeat them and replies "Don't send me secrets; I've hidden that message." The Worker masks token-shaped strings in message bodies on write **[proposal]** |
+| Passwords, tokens, keys, recovery codes in memory or messages | The mind refuses to repeat them and replies "Don't send me secrets; I've hidden that message." The Worker refuses them in facts, loose ends and day notes (`never_stored`, P3, `shared/contract/never-stored.ts`): this system's token shapes, common provider keys, JWTs, private keys, recovery codes; "password", "passcode" or "passphrase", maybe with what it is for ("for the gate", up to 4 words), then "is", "was", ":" or "=" and one word ("my password is Summer"); a passphrase with any value; "password", "passcode", "recovery code", "PIN" (in capitals) or "PIN code" followed by a value that looks like a secret (quoted, or one word of 4+ characters with a digit or a symbol); a lower-case "pin" only before 4–8 digits, and a security code before 3–4. Everyday words stay: "my bus pass is in the drawer", "the bridge pin is loose", a "PIN-protected" or "password-protected" thing (a hyphen makes an adjective), "my password is in the blue drawer". Masking token-shaped strings in message bodies on write is still **[proposal]** |
 | Raw camera or microphone streams | Analysed on the phone while switched on; only the result the owner chooses to save (a voice memo they send, a practice score) is stored |
 | Precise location history | Coarse weather location only, set by the owner |
 | Inferred sensitive traits (health, sexuality, politics, religion, finances) | Only what the owner states, `source=user`, `sensitivity=1` |
 | Other people's contact details or inferred traits | Names as the owner wrote them, in messages; facts `about=person` only from the owner's words |
-| Payment card or bank numbers | Refused as secrets |
+| Payment card or bank numbers | Refused as secrets: a card number passes the Luhn check and is either written like a card (groups of four, or 4-6-5) or starts like one (the major networks' leading digits and lengths), since Luhn alone passes one number in ten (ISBNs, timestamps, order numbers); bank accounts as IBANs (mod 97) |
 | Outside text as facts | Cited only; `origin=external` rows |
 | Anything personal in the repo, Actions logs or artifacts | Private Worker and R2 only |
 

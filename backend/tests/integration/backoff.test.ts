@@ -1,7 +1,8 @@
-// Back-off through the real endpoints (SIGN-IN.md §6.1 acceptance). Time moves by ageing the
-// stored counters, so nothing here waits on a real clock.
+// Back-off through the real endpoints (SIGN-IN.md §6.1 acceptance). The clock stands still for the
+// whole file (a fake Date, which the Auth object sees too), so a window is exactly as long as the
+// code makes it however slow the machine is; time moves only by ageing the stored counters.
 import { env } from 'cloudflare:workers';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { ErrorBody } from '../../../shared/contract/api';
 import * as flows from '../../src/areas/auth/flows';
 import { noBreachCheck } from '../../src/areas/auth/passwords';
@@ -43,7 +44,35 @@ const reset = () => authSql('DELETE FROM throttle');
 beforeAll(async () => {
   await setupOwner();
   await reset();
+  vi.useFakeTimers({ toFake: ['Date'] });
 });
+afterAll(() => vi.useRealTimers());
+
+/** The login flow run inside the Auth object with a pepper that counts its reads: the pepper is
+ * read only to hash a password, so 0 reads means no hash ran. */
+function loginCountingHashes(ip: string) {
+  return inAuth(async (_o, state) => {
+    let reads = 0;
+    const deps = {
+      db: new Db(state.storage.sql, new Meter()),
+      storage: state.storage,
+      get pepper() {
+        reads++;
+        return env.AUTH_PEPPER;
+      },
+      ipKey: env.IP_HASH_KEY,
+      setupFp: null,
+      resetFp: null,
+      breached: noBreachCheck,
+    };
+    const r = await flows.login(
+      deps,
+      { username: USERNAME, password: PASSWORD, device: {} },
+      { ip, country: null, region: null },
+    );
+    return { ok: r.ok, reads };
+  });
+}
 
 describe('per source', () => {
   const A = '192.0.2.50';
@@ -58,10 +87,10 @@ describe('per source', () => {
   });
 
   it('refuses even the right password while waiting, without hashing or writing', async () => {
-    const t0 = Date.now();
     const rows = await rowsDuring(auth(), async () => expectLimited(await login(A), 2));
     expect(rows.written).toBe(0);
-    expect(Date.now() - t0).toBeLessThan(150);
+    expect(await loginCountingHashes(A)).toEqual({ ok: false, reads: 0 });
+    expect(await loginCountingHashes('192.0.2.51')).toEqual({ ok: true, reads: 1 }); // and the count works
   });
 
   it('gives the same 429 for an unknown username', async () => {

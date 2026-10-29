@@ -1,0 +1,13 @@
+{"t":"say","ref":"m1","body":"I want to get the second piece up to 100 bpm by the end of the month."}
+{"t":"say","ref":"m2","body":"Evenings are the best time for me to practise."}
+{"t":"say","ref":"m3","body":"I play a classical guitar, nothing electric."}
+{"t":"say","ref":"m4","body":"Actually mornings work better for practice now, evenings are too busy."}
+{"t":"say","ref":"m5","body":"I keep a small herb garden on the balcony."}
+{"t":"say","ref":"m6","body":"Please always keep answers short when I'm on the phone."}
+{"t":"add","ref":"f1","kind":"goal","subject":"guitar.tempo","text":"Wants the second piece at 100 bpm by the end of the month","evidence":["m1"]}
+{"t":"add","ref":"f2","kind":"routine","subject":"guitar.practice_time","text":"Practises best in the evening","evidence":["m2"]}
+{"t":"add","ref":"f3","kind":"fact","subject":"guitar.instrument","text":"Plays a classical guitar","evidence":["m3"]}
+{"t":"supersede","of":"f2","ref":"f4","text":"Practises best in the morning","evidence":["m4"]}
+{"t":"add","ref":"f5","kind":"fact","subject":"home.garden","text":"Keeps a herb garden on the balcony","evidence":["m5"]}
+{"t":"add","ref":"f6","kind":"rule","subject":"answers.phone","text":"Keep answers short on the phone","evidence":["m6"]}
+{"t":"forget","of":"f5"}

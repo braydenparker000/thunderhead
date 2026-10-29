@@ -170,13 +170,13 @@ The owner's window into the mind's memory ([MEMORY](../mind/MEMORY.md)). "You ca
 
 | Part | Behaviour |
 |---|---|
-| Top | A search field, then **Profile** (the deterministic summary of the strongest facts, read-only) |
-| Groups | By kind: Preferences · Routines · Facts · Goals · Rules ("how to talk to me") · Beliefs. Sensitive facts are listed but their text is blurred until tapped [proposal]. |
-| A fact row | The fact's text; its source ("you said" / "I noticed" / "I inferred"); its confidence as words with odds ("pretty sure, about 8 in 10"); when it was last confirmed |
-| Tap a fact | Detail: evidence (links to the messages or events it came from), history (earlier versions), and actions |
-| **Fix** | Edit the text; saves as a new version that replaces the old one (the old one is kept as history) |
+| Top | A filter field, **Add something I should know**, then **Profile** ("What a new session reads first": the deterministic summary of the strongest facts, read-only, folded) |
+| Groups | Built (P3): How to talk to me (rules) · Beliefs (facts tagged `faith`, whatever their kind) · Right now · Goals · Preferences · Routines · Facts · Other (a kind this phone doesn't know yet), then Loose ends · Days · Fading · Imported, to review. Sensitive facts are listed but their text is blurred until tapped. |
+| A fact row | The fact's text; its source ("You said" / "I noticed" / "I inferred"); its confidence now as words with odds ("Pretty sure, about 8 in 10", COPY.md §1.2); since when |
+| Tap a fact | Detail: what it rests on (who said it, when, and the start of what was said), the mind's reason when it gave one, history (earlier versions), and actions |
+| **Fix** | Edit the text; saves as a new version in the owner's words that replaces the old one (the old one is kept as history) |
 | **Pin** | The mind treats it as true until unpinned and never lets it fade |
-| **Forget** | Removes it now. Toast "Forgotten. Undo" for 8 s. It goes to Recently deleted for 30 days (Account). The owner's tap is the approval. |
+| **Forget** | Asks once ("Forget this? It can't be brought back."), then the fact leaves the page and the toast "Forgotten. Undo" shows for 10 s; only then is it deleted for good with every version (MEMORY.md §3). Leaving the page inside those 10 s sends it at once. There is no Recently deleted for facts: forgetting is the point. The owner's tap is the approval. |
 | Proposals | Facts the night shift wants to add or replace that need the owner (e.g. replacing something the owner said) appear as decision cards on home, not here |
 
 ### 4.5 Connected apps

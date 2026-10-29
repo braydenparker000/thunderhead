@@ -20,6 +20,11 @@ const putBody = z.strictObject({
   topic_key: z.string().check(z.regex(/^[a-z0-9][a-z0-9._-]{0,63}$/)),
   ref: z.optional(z.string().check(z.maxLength(200))),
   expires_at: z.optional(z.number().check(z.int())),
+  facts: z.optional(
+    z
+      .array(z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)))
+      .check(z.maxLength(20)),
+  ),
 }) satisfies z.ZodMiniType<PutSurfaceRequest>;
 const listQuery = z.object({ since_seq: z.optional(z.coerce.number().check(z.int(), z.gte(0))) });
 

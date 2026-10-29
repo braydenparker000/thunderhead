@@ -195,6 +195,8 @@ export async function startChat() {
       if (failure(e).code === 'resync_required') return full();
       throw e;
     }
+    // Other views (the Memory page) hear which kinds changed, without a socket of their own.
+    document.dispatchEvent(new CustomEvent('th:changed', { detail: [...kinds] }));
     const jobs = [];
     if (kinds.has('message') || kinds.has('thread')) jobs.push(loadToday());
     if (kinds.has('setting') || kinds.has('mind_status')) jobs.push(loadSettings());
@@ -211,6 +213,7 @@ export async function startChat() {
     const seq = await loadToday();
     await Promise.all([loadSettings(), loadSurfaces()]);
     state.applied = seq;
+    document.dispatchEvent(new CustomEvent('th:changed', { detail: ['*'] }));
     runVerbs();
     paint();
     save();

@@ -29,3 +29,8 @@ export function utcDay(at: number): string {
 export function floorHour(at: number): number {
   return at - (at % HOUR);
 }
+
+/** The calendar day `n` days before `day` (both `YYYY-MM-DD`). */
+export function dayBefore(day: string, n = 1): string {
+  return new Date(Date.parse(`${day}T12:00:00Z`) - n * DAY).toISOString().slice(0, 10);
+}

@@ -1,7 +1,6 @@
 // SQL for the mind's bookkeeping inside Core (DATA.md §4.1, RUNTIME.md §4): wakes, the chat
 // lease, per-session state and session notes. Stores never write the change feed.
 import type { MindRole, WakeItem } from '../../../../shared/contract/api';
-import { DAY } from '../../lib/time';
 import type { Db } from '../../objects/base';
 
 export interface WakeRow {
@@ -199,6 +198,22 @@ export function sessionSeenOwner(db: Db, id: string, at: number): void {
   db.run('UPDATE mind_sessions SET last_owner_at = max(coalesce(last_owner_at, 0), ?) WHERE session_id = ?', at, id);
 }
 
+/** The latest session of a role tainted at or after `since` (usually none), on the partial index.
+ * By the taint's own time, not the claim's day: a session that runs across the day roll keeps
+ * the day it was claimed on. */
+export function taintedSince(
+  db: Db,
+  role: MindRole,
+  since: number,
+): { session_id: string; tainted_at: number; taint_source: string | null } | null {
+  return db.one(
+    `SELECT session_id, tainted_at, taint_source FROM mind_sessions
+     WHERE role = ? AND tainted_at IS NOT NULL AND tainted_at >= ? ORDER BY tainted_at DESC LIMIT 1`,
+    role,
+    since,
+  );
+}
+
 /** Marks a session tainted, making its row if it never claimed (taint must never be dropped). */
 export function taintSession(db: Db, s: { id: string; role: MindRole; day: string; source: string; at: number }): void {
   db.run(
@@ -251,41 +266,4 @@ export function putNote(
 
 export function latestNote(db: Db): { body: string; created_at: number } | null {
   return db.one('SELECT body, created_at FROM session_notes ORDER BY created_at DESC LIMIT 1');
-}
-
-// --- retention (DATA.md §10) -------------------------------------------------------------------
-
-export function pruneWakes(db: Db, now: number, max: number): number {
-  return db.all(
-    'DELETE FROM wakes WHERE id IN (SELECT id FROM wakes WHERE at < ? LIMIT ?) RETURNING 1',
-    now - 30 * DAY,
-    max,
-  ).length;
-}
-
-/** Sessions go 90 days after they ended (or were claimed, if they never said so). */
-export function pruneSessions(db: Db, now: number, max: number): number {
-  return db.all(
-    `DELETE FROM mind_sessions WHERE session_id IN
-       (SELECT session_id FROM mind_sessions WHERE coalesce(ended_at, claimed_at) < ? LIMIT ?) RETURNING 1`,
-    now - 90 * DAY,
-    max,
-  ).length;
-}
-
-export function pruneNotes(db: Db, now: number, max: number): number {
-  return db.all(
-    'DELETE FROM session_notes WHERE id IN (SELECT id FROM session_notes WHERE created_at < ? LIMIT ?) RETURNING 1',
-    now - 180 * DAY,
-    max,
-  ).length;
-}
-
-/** A lease left by a session that stopped renewing a day ago (live only). */
-export function pruneLeases(db: Db, now: number, max: number): number {
-  return db.all(
-    'DELETE FROM leases WHERE task IN (SELECT task FROM leases WHERE renewed_at < ? LIMIT ?) RETURNING 1',
-    now - DAY,
-    max,
-  ).length;
 }

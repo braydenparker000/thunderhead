@@ -108,7 +108,7 @@ export function extraRoutes(ctl) {
         return {applied, proposals, rejected};
       });
     }],
-    ['GET', /^\/v1\/memory\/open-threads$/, ALL, ({query}) => ({items: [...s.openThreads.values()].filter(t => query.get('status') === 'all' || t.status === 'open')})],
+    ['GET', /^\/v1\/memory\/open-threads$/, CN, ({query}) => ({items: [...s.openThreads.values()].filter(t => query.get('status') === 'all' || t.status === 'open')})],
     ['PUT', /^\/v1\/memory\/open-threads\/([^/]+)$/, CN, ({params, body}) => {
       if (!body.text || !Array.isArray(body.evidence) || !body.evidence.length) throw new HttpError(422, 'validation');
       const row = {id: params[0], status: 'open', ...body};
@@ -123,7 +123,9 @@ export function extraRoutes(ctl) {
     }],
     ['PUT', /^\/v1\/memory\/day-notes\/([^/]+)$/, ['night'], ({params, body}) => {
       if (!body.summary || !(body.importance >= 1 && body.importance <= 10)) throw new HttpError(422, 'validation');
-      const version = (s.dayNotes.get(params[0])?.version || 0) + 1;
+      const had = s.dayNotes.get(params[0]);
+      if (had?.written_by === 'owner') return {day: params[0], ...had, kept_owner_edit: true};
+      const version = (had?.version || 0) + 1;
       s.dayNotes.set(params[0], {...body, version});
       return {day: params[0], version};
     }],

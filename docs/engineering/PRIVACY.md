@@ -89,6 +89,7 @@ Acceptance: [DATA.md](DATA.md) has a row for every table, and a test fails if a 
 | App code and fonts | Cache Storage `th-<release>`, `th-vendor` | Current release | no |
 | Theme and other UI choices | `localStorage` `th.ui.*` | Always | no |
 | Shuffle learner weights, EQ settings | `localStorage` `th.p.*` / `th-data` | Always | yes |
+| Forgets not yet sent (Memory page) | `localStorage` `th.p.forget`: fact ids only, never their text | Until the Worker has each one (sent again when the Memory page or Home opens) | yes |
 | The ported apps' own stores (P1b): `claude-player`, `jarvis.guitar.v2`, `jarvis.podcasts.v1`, `jarvis-podcasts`, `mymedia.*`, `astra.v2.*` and their caches | localStorage, IndexedDB, Cache Storage | As the unchanged apps keep them | **no** at P1b (the unchanged apps don't know the new sign-in); yes once an app moves and joins the wipe list **[proposal]** |
 
 ### 3.2 What never leaves the phone
@@ -210,7 +211,7 @@ Acceptance: a unit test of the notification builder over every kind, with detail
 | Action | Effect |
 |---|---|
 | Delete a message | Removed from `Core` and the FTS index at once; any file it carried is deleted from R2; ledger keeps "message deleted" without content. |
-| Forget a fact (Memory page) | Hard delete of the fact and its superseded history; facts derived from it are flagged for review; ledger tombstone without content. |
+| Forget a fact (Memory page) | Hard delete of the fact and every version of it (even one an undo unlinked), its FTS entries rewritten away; surfaces citing it cleared, and the ledger rows of every surface that drew on it lose their words; the ledger rows about it keep only time and kind; one tombstone without content, and the ids kept so they are never reused. Durable Object point-in-time recovery still holds the deleted pages for up to 30 days (the Memory page says so). |
 | Delete a day's conversation | Messages, thread, day note and session notes of that day. |
 | Delete a file or book | R2 object and its extracted text and index rows. |
 | Delete events | By app and date range in Settings → Privacy; SQLite rows and the matching lines in the daily archives are rewritten. |

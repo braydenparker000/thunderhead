@@ -2,7 +2,7 @@
 // thin call into an area, every write runs through `write` (commit.ts: area mutation + ledger +
 // change feed in one transaction, then the live channel), and area failures come back as
 // `{ok:false, code}` (lib/result.ts). No timers: wake retries and requeues use the alarm. The P1
-// data, the feed and the sockets are in core-base.ts.
+// data, the feed and the sockets are in core-base.ts; memory (P3) is in core-memory.ts.
 import type {
   BriefRequest,
   JsonObject,
@@ -35,11 +35,11 @@ import * as verbs from '../areas/verbs/ops';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
-import { CoreBase } from './core-base';
+import { CoreMemory } from './core-memory';
 
 const PRUNE_STEP = 2_000;
 
-export class Core extends CoreBase {
+export class Core extends CoreMemory {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
@@ -109,7 +109,7 @@ export class Core extends CoreBase {
       const claimed = r.claim ? this.write((w) => mind.claim(w, r, this.tz())).wake : null;
       // A claim hands out what the briefing shows: the requeue alarm must cover it.
       if (r.claim) this.schedule();
-      return assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256);
+      return assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256, r.session_id);
     });
   }
 

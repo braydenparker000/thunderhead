@@ -8,6 +8,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
+import { isDeepStrictEqual } from 'node:util';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
@@ -69,13 +70,24 @@ async function open({ theme = 'light', chat = {}, clock = false, outbox = [], in
   return { page, context, errors, api };
 }
 const say = (page) => page.$$eval('#say .ln', (ls) => ls.map((l) => l.textContent));
+/** Reads until the value is `want` (5 s at most), then asserts it: a step waits on what the page
+ * shows or the mock saw, never on a guessed delay. */
+async function eventually(read, want, message) {
+  const end = Date.now() + 5_000;
+  let got = await read();
+  while (!isDeepStrictEqual(got, want) && Date.now() < end) {
+    await new Promise((r) => setTimeout(r, 20));
+    got = await read();
+  }
+  assert.deepEqual(got, want, message);
+}
 const shot = async (page, name, theme) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-${theme === 'light' ? 'day' : 'night'}.png` }); };
 const send = async (page, text) => { await page.fill('#q', text); await page.press('#q', 'Enter'); };
 
 test('first run: the voice line welcomes; nothing else on the page', opts, async () => {
   for (const theme of ['light', 'dark']) {
     const { page, context, errors } = await open({ theme });
-    assert.deepEqual(await say(page), ["I'm here.", 'Ask me anything, any time.']);
+    await eventually(() => say(page), ["I'm here.", 'Ask me anything, any time.']);
     assert.equal(await page.$$eval('#talk .turn', (t) => t.length), 0);
     await page.waitForTimeout(900);
     await shot(page, 'empty', theme);
@@ -132,7 +144,7 @@ test("the mind not waking: the honest line and the error edge; the voice line's 
     const { page, context, errors } = await open({ theme, chat: { messages, presence: { state: 'failed', note: null, since: Date.now() } } });
     await page.waitForSelector('#talk .sys');
     assert.equal(await page.textContent('#talk .sys'), NOT_WAKING);
-    assert.deepEqual(await say(page), ['Nothing needs you.'], 'said once, in the thread');
+    await eventually(() => say(page), ['Nothing needs you.'], 'said once, in the thread');
     assert.ok(await page.$eval('#edge', (e) => e.classList.contains('err')));
     assert.equal(await page.$('#talk .wait'), null, 'no waking line under the honest one');
     await page.waitForTimeout(900);
@@ -141,7 +153,7 @@ test("the mind not waking: the honest line and the error edge; the voice line's 
     await context.close();
   }
   const { page, context } = await open({ chat: { presence: { state: 'failed', note: null, since: Date.now() } } });
-  assert.deepEqual(await say(page), ["I can't wake just now.", "I'll answer when I'm back."]);
+  await eventually(() => say(page), ["I can't wake just now.", "I'll answer when I'm back."]);
   await context.close();
 });
 
@@ -172,12 +184,20 @@ test('offline: the message waits with its meta, then goes once when the phone is
 test('a failed send says so and Retry sends it', opts, async () => {
   const { page, context, errors, api } = await open({ clock: true, chat: { failSay: 9 } });
   const puts = () => api.calls.filter((c) => c.call.startsWith('PUT /v1/messages/')).length;
-  const until = async (ok) => { for (let i = 0; i < 100 && !ok(); i++) await new Promise((r) => setTimeout(r, 50)); };
+  const until = async (ok) => { for (let i = 0; i < 100 && !(await ok()); i++) await new Promise((r) => setTimeout(r, 50)); };
+  // The retry's timer is set before the outbox copy is written, so a copy with n tries has it set.
+  const kept = () => page.evaluate(() => new Promise((resolve) => {
+    const req = indexedDB.open('th-data', 1);
+    req.onsuccess = () => {
+      const all = req.result.transaction('kv').objectStore('kv').getAll();
+      all.onsuccess = () => { req.result.close(); resolve(Math.max(0, ...all.result.filter((v) => v?.body === 'Hello there').map((v) => v.tries))); };
+    };
+  }));
   await send(page, 'Hello there');
   // Each retry waits 2, 5, then 15 s; the page's clock moves only once the try before has failed.
   for (const [n, ms] of [[1, 2500], [2, 5500], [3, 15500]]) {
     await until(() => puts() >= n);
-    await page.waitForTimeout(150);
+    await until(async () => (await kept()) >= n);
     await page.clock.runFor(ms);
   }
   await until(() => puts() >= 4);
@@ -214,8 +234,7 @@ test('a verb queued for this phone runs once and reports its undo; one it lacks 
   const verb = (id, name, args) => ({ id, verb: name, schema: 1, ref: null, args, device_id: null, status: 'pending', proposal_id: null, created_at: Date.now(), expires_at: Date.now() + 86_400_000, result: null, error: null, ledger_id: null });
   const { page, context, errors, api } = await open({ chat: { verbs: [verb('v1', 'shell.appearance', { mode: 'night' }), verb('v2', 'music.queue_add', { ref: 'music:1' })] } });
   await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
-  await page.waitForFunction(() => true);
-  await page.waitForTimeout(300);
+  await eventually(() => api.state.chat.results.map((r) => r.id).sort(), ['v1', 'v2'], 'both reported');
   const results = api.state.chat.results;
   assert.deepEqual(results.find((r) => r.id === 'v1'), { id: 'v1', ok: true, result: { previous: 'day' }, undo: { verb: 'shell.appearance', schema: 1, args: { mode: 'day' } } });
   assert.deepEqual(results.find((r) => r.id === 'v2'), { id: 'v2', ok: false, error: { code: 'unsupported_verb' } });

@@ -115,3 +115,55 @@ export function undoRowFor(db: Db, verbId: string, at: number): string | null {
     null
   );
 }
+
+/** Forget (MEMORY.md §3): the memory rows that pointed at the forgotten versions keep their time
+ * and kind but lose their words and their undo. Rows are read through the time index from the
+ * first version's `recorded_at` (no memory row about a fact is older than the fact). */
+export function scrubMemory(db: Db, refs: string[], since: number): number {
+  if (!refs.length) return 0;
+  return db.run(
+    `UPDATE ledger SET why = 'the owner forgot this', undo_json = NULL, undoable = 0, op_json = NULL
+     WHERE at >= ? AND kind = 'memory' AND ref IN (${refs.map(() => '?').join(', ')})`,
+    since,
+    ...refs,
+  );
+}
+
+/** `LIKE` patterns for ids, in groups small enough for one statement each, so a scrub reads the
+ * rows in its window once per group instead of once per id. */
+function likeGroups(ids: string[]): string[][] {
+  const pats = ids.map((id) => `%${id.replace(/[%_]/g, '')}%`);
+  const out: string[][] = [];
+  for (let i = 0; i < pats.length; i += 40) out.push(pats.slice(i, i + 40));
+  return out;
+}
+const anyLike = (col: string, group: string[]) => `(${group.map(() => `${col} LIKE ?`).join(' OR ')})`;
+
+/** Arrangement rows that drew on forgotten facts keep their time and slot but lose their words
+ * and their undo: one row by id, or every row since `since` whose `op_json` lists one of `facts`
+ * (a surface put records the facts it cites there), read through the time index. */
+export function scrubArrangements(
+  db: Db,
+  which: { id: string } | { facts: string[]; since: number },
+  why: string,
+): number {
+  const set = 'UPDATE ledger SET why = ?, undo_json = NULL, undoable = 0';
+  if ('id' in which) return db.run(`${set} WHERE id = ? AND kind = 'arrangement'`, why, which.id);
+  let n = 0;
+  for (const g of likeGroups(which.facts))
+    n += db.run(`${set} WHERE at >= ? AND kind = 'arrangement' AND ${anyLike('op_json', g)}`, why, which.since, ...g);
+  return n;
+}
+
+/** Arrangement rows since `since` whose stored undo mentions one of these ids (a surface citing a
+ * muted or forgotten fact) lose that undo, so nothing can put the surface back. */
+export function scrubUndo(db: Db, ids: string[], since: number): number {
+  let n = 0;
+  for (const g of likeGroups(ids))
+    n += db.run(
+      `UPDATE ledger SET undo_json = NULL, undoable = 0 WHERE at >= ? AND kind = 'arrangement' AND ${anyLike('undo_json', g)}`,
+      since,
+      ...g,
+    );
+  return n;
+}

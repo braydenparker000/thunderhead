@@ -1,0 +1,13 @@
+{
+  "v": 1,
+  "note": "Synthetic memory probes over mind/evals/seed.jsonl (EVALS.md §3): a fake owner with neutral facts. The private weekly probes are built from the owner's own facts and never live in the repo.",
+  "probes": [
+    {"id": "MP-S01", "cat": "A", "question": "What tempo did I say I wanted on the second piece?", "query": "second piece tempo", "expected_keys": ["100 bpm"], "forbidden_keys": []},
+    {"id": "MP-S02", "cat": "A", "question": "What kind of guitar do I play?", "query": "guitar", "expected_keys": ["classical"], "forbidden_keys": ["electric guitar"]},
+    {"id": "MP-S03", "cat": "D", "question": "When is the best time for me to practise?", "query": "practises best", "expected_keys": ["morning"], "forbidden_keys": ["evening"]},
+    {"id": "MP-S04", "cat": "E", "question": "What is my sister's favourite film?", "query": "sister favourite film", "expected_keys": [], "forbidden_keys": []},
+    {"id": "MP-S05", "cat": "E", "question": "What do I grow on the balcony?", "query": "herb garden balcony", "expected_keys": [], "forbidden_keys": ["herb"]}
+  ],
+  "rules": [{"id": "MP-S06", "expected_keys": ["Keep answers short on the phone"]}],
+  "forgotten": ["herb garden"]
+}

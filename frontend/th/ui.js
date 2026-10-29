@@ -45,9 +45,10 @@ export function wireShowButtons(root = document) {
 
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let toastTimer;
-/** @param {string} text */
+/** A short line at the top. Never the Memory page's undo toast (`.utoast`), whose Undo it would wipe.
+ * @param {string} text */
 export function toast(text) {
-  let t = document.querySelector('.toast');
+  let t = document.querySelector('.toast:not(.utoast)');
   if (!t) {
     t = el('div', { class: 'toast', role: 'status', 'aria-live': 'polite' });
     document.body.append(t);

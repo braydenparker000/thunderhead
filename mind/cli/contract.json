@@ -507,54 +507,60 @@
         "N"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "deferred: P3 stage C (the night shift)"
     },
     "GET /v1/mind/day/:day": {
       "who": [
         "N"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "deferred: P3 stage C (the night shift)"
     },
     "GET /v1/memory/facts": {
       "who": [
         "D",
         "C",
-        "N",
-        "R"
+        "N"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "built"
+    },
+    "GET /v1/memory/facts/:id": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P3",
+      "status": "built",
+      "note": "one fact: its earlier versions, evidence and why"
     },
     "GET /v1/memory/profile": {
       "who": [
         "D",
         "C",
-        "N",
-        "R"
+        "N"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "built"
     },
     "GET /v1/memory/day-notes": {
       "who": [
         "D",
         "C",
-        "N",
-        "R"
+        "N"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "built"
     },
     "GET /v1/memory/open-threads": {
       "who": [
         "D",
         "C",
-        "N",
-        "R"
+        "N"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "built"
     },
     "POST /v1/memory/ops": {
       "who": [
@@ -563,14 +569,17 @@
         "N"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "built",
+      "note": "pin, may_raise and forget: device only"
     },
     "PUT /v1/memory/day-notes/:day": {
       "who": [
+        "D",
         "N"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "built",
+      "note": "device: the owner's edit (written_by owner)"
     },
     "PUT /v1/memory/open-threads/:id": {
       "who": [
@@ -579,7 +588,7 @@
         "N"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "built"
     },
     "PATCH /v1/memory/open-threads/:id": {
       "who": [
@@ -588,7 +597,7 @@
         "N"
       ],
       "phase": "P3",
-      "status": "later (P3)",
+      "status": "built",
       "note": "{status, why}: done or dropped"
     },
     "POST /v1/import/runs": {
@@ -597,7 +606,7 @@
         "C"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "deferred: P3 stage D (the import)"
     },
     "POST /v1/ops/import/parts": {
       "who": [
@@ -605,7 +614,7 @@
         "I"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "deferred: P3 stage D (the import)"
     },
     "PUT /v1/ops/import/manifest/:run_id": {
       "who": [
@@ -613,7 +622,7 @@
         "I"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "deferred: P3 stage D (the import)"
     },
     "GET /v1/import/runs/:id": {
       "who": [
@@ -623,7 +632,7 @@
         "R"
       ],
       "phase": "P3",
-      "status": "later (P3)"
+      "status": "deferred: P3 stage D (the import)"
     },
     "PUT /v1/proposals/:id": {
       "who": [
@@ -986,6 +995,10 @@
       403,
       "This session is tainted."
     ],
+    "session_required": [
+      403,
+      "Memory writes need a mind session that claimed its briefing and has not ended."
+    ],
     "laws_unpinned": [
       403,
       "The constitution pin failed for this session."
@@ -1255,6 +1268,89 @@
     "question",
     "error"
   ],
+  "memory": {
+    "kinds": {
+      "state": {
+        "half_life_days": 3,
+        "cap": 10
+      },
+      "goal": {
+        "half_life_days": 90,
+        "cap": 10
+      },
+      "preference": {
+        "half_life_days": 180,
+        "cap": 25
+      },
+      "routine": {
+        "half_life_days": 60,
+        "cap": 15
+      },
+      "fact": {
+        "half_life_days": 1825,
+        "cap": 30
+      },
+      "rule": {
+        "half_life_days": null,
+        "cap": null
+      }
+    },
+    "sources": {
+      "user": {
+        "base": 0.95,
+        "cap": 0.95,
+        "letter": "u"
+      },
+      "observed": {
+        "base": 0.7,
+        "cap": 0.85,
+        "letter": "o"
+      },
+      "inferred": {
+        "base": 0.5,
+        "cap": 0.8,
+        "letter": "i"
+      }
+    },
+    "confidence": {
+      "profile": 0.25,
+      "fading": 0.1,
+      "hedge": 0.5,
+      "pinned_user": 1,
+      "imported": 0.6
+    },
+    "limits": {
+      "ops_per_batch": 50,
+      "fact_text": 280,
+      "evidence_max": 20,
+      "tags_max": 8,
+      "thread_text": 200,
+      "day_note_words": 150,
+      "decisions_max": 10,
+      "profile_chars": 6000,
+      "supersedes_per_batch": 10
+    },
+    "reasons": {
+      "bad_op": "The op does not match its shape.",
+      "bad_evidence": "Evidence must be 1–20 existing messages, day notes, imports or owner ledger rows.",
+      "unknown_ref": "The fact this op names does not exist.",
+      "not_owner_evidence": "A 'user' fact needs evidence that is all the owner's own words.",
+      "rule_needs_owner": "A rule needs source 'user'.",
+      "too_little_evidence": "An 'observed' fact needs at least 10 owner-device events.",
+      "tainted_evidence": "Muse or outside text is never evidence.",
+      "needs_owner_words": "Faith and facts about people come only from the owner's words.",
+      "too_long": "One claim, at most 280 characters.",
+      "no_inferred_sensitive": "Sensitive traits are never inferred.",
+      "session_tainted": "This session read outside text, so it may not write memory.",
+      "laws_unpinned": "This session's constitution is missing, so it may not write rules.",
+      "device_only": "Only the owner can do this, from the Memory page.",
+      "duplicate_id": "A fact with this id already exists.",
+      "superseded": "This fact was already replaced; work on its newest version.",
+      "proposal_required": "This change needs the owner first (decision cards arrive in P4).",
+      "never_stored": "Keys, tokens, passwords and card or bank numbers are never stored (MEMORY.md §13).",
+      "session_required": "Memory writes need a mind session that claimed its briefing and has not ended."
+    }
+  },
   "lint": {
     "banned_phrases": [
       "great question",

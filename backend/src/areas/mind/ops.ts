@@ -12,7 +12,7 @@ import type {
 } from '../../../../shared/contract/api';
 import { uuidv7 } from '../../lib/ids';
 import { Fail } from '../../lib/result';
-import { MINUTE } from '../../lib/time';
+import { HOUR, MINUTE } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
 import { currentDay } from '../conversation/day';
@@ -24,6 +24,8 @@ import * as store from './store';
 import { ACK_MS, backoff, clearBackoff, LEASE_MS, leaseLive, setPresence } from './wake';
 
 const RENEW_EVERY_MS = 30_000;
+/** How long a taint carries over to the role's new claims, counted from the taint itself. */
+export const TAINT_HOLDS_MS = 24 * HOUR;
 
 /** Ids compare after the last `_` (`cse_…` in the VM, `session_…` in the fire response). */
 const tail = (id: string | null) => (id ? id.slice(id.lastIndexOf('_') + 1) : null);
@@ -33,7 +35,11 @@ export interface Claimed {
 }
 
 /** `th brief --claim` (RUNTIME.md §4.3). 409 already_live when another chat session holds the
- * lease. Messages shown in the briefing count as handed out (mind Finding 4). */
+ * lease. Messages shown in the briefing count as handed out (mind Finding 4). A taint lasts 24
+ * hours for its role (MEMORY.md §7): the Worker can't tell a session id the mind made up from a
+ * new cloud session, so a claim takes over the taint of the role's latest session tainted in the
+ * last 24 hours, unless it is the very session the Worker fired after that taint (an exact id
+ * match on a wake still open). A loose match can't prove that, so it inherits too. */
 export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
   const { db, at } = w;
   if (r.role === 'chat') {
@@ -63,6 +69,9 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
     wake = { id, reason: 'manual', claim_match: 'manual' };
   }
   const day = currentDay(db, tz, at);
+  const prior = store.taintedSince(db, r.role, at - TAINT_HOLDS_MS);
+  const firedAfter =
+    open !== null && wake.claim_match === 'exact' && prior !== null && (open.fired_at ?? open.at) > prior.tainted_at;
   store.putSession(db, {
     session_id: r.session_id,
     role: r.role,
@@ -72,6 +81,16 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
     sha: r.constitution_sha256,
     day,
   });
+  // The taint keeps its own time, so a wake fired after it still starts clean however many
+  // claims inherited it in between.
+  if (prior && !firedAfter)
+    store.taintSession(db, {
+      id: r.session_id,
+      role: r.role,
+      day,
+      source: `inherited:${prior.taint_source}`,
+      at: prior.tainted_at,
+    });
   if (r.role === 'chat') {
     store.putLease(db, 'chat', r.session_id, at);
     const waiting = convo.unanswered(db, 30);

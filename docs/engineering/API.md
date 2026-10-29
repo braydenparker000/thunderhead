@@ -107,7 +107,7 @@ type Change = { seq: number; kind: string; ref: Ref|null; at: Ms };
 | `ci` | `thc_…` | role "CI"; stored as `TH_CI_TOKEN` in the GitHub environment `worker` | Deep health, meter, backup and drill triggers, job specs and collect. Nothing personal: deep health returns counts only |
 
 - The Worker hashes the bearer (SHA-256) and looks it up in the isolate cache (60 s TTL), then in `Auth`. Revocation takes effect within 60 s everywhere.
-- **Tainted sessions:** once a session calls `POST /v1/mind/taint`, the Worker records it in `mind_sessions` for good. Requests carrying that `TH-Session` may not `remember`, `supersede`, `confirm`, write `rule` facts or take `reach_people` actions (`403 session_tainted`; enforced from P4, logged only before). Rules: [MEMORY.md §6–7](../mind/MEMORY.md). A mind request without `TH-Session` after its claim is treated as tainted **[proposal]**.
+- **Tainted sessions:** once a session calls `POST /v1/mind/taint`, the Worker records it in `mind_sessions` for good. Requests carrying that `TH-Session` may not `remember`, `supersede`, `confirm`, write `rule` facts or day notes, or take `reach_people` actions (`403 session_tainted`; memory from P3, the rest from P4). Rules: [MEMORY.md §6–7](../mind/MEMORY.md). **Memory writes need a claimed session** (P3): a mind's memory write (ops, loose ends, day notes) must carry the `TH-Session` of a session that claimed its briefing in the key's role and has not ended, else `403 session_required`, so a fresh or made-up session id can't step around a taint. Nor can a new claim: **a taint holds for 24 hours for its role**, counted from the taint, and a claim takes it over from the role's latest session tainted in that time unless it matches, exactly, a wake the Worker fired after the taint (MEMORY.md §7, RUNTIME.md §4.3).
 - The full scope matrix is [SECURITY.md §5.3](SECURITY.md); §13 below is the route-level form of it.
 - **Approval is never inferred.** A proposal is decided only by `POST /v1/proposals/:id/decide`: from a `device` principal (a tap), or from `mind:chat` citing the owner's own words (`by_message`), which the Worker checks itself: the cited message is owner-authored from a signed-in device (`origin=owner_device`), sent after the card appeared, and is the owner's latest message in that thread (decisions 2026-10-28; [BEHAVIOR.md §4](../mind/BEHAVIOR.md)). The session's taint state does not matter, because the Worker checks the message, not the session. A fired prompt, Muse output or any other text never decides.
 
@@ -136,6 +136,7 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 - `min_client` is a `Core` setting (an integer build). It is raised only when an older client would corrupt data.
 - Writes whose `TH-Client` is a site build below `min_client` (every `PUT`, `POST`, `PATCH` and `DELETE`) return `426 client_outdated` with `details: {min_client}`. `GET` keeps working.
 - The full rule is in [ARCHITECTURE.md §6](ARCHITECTURE.md#6-version-skew-between-the-phone-and-the-api).
+- **Worker and object skew during a deploy.** For a moment the new Worker can reach an object that still runs the previous release. A route that calls an object method added in this release wraps the call in `fresh` (`backend/src/objects/rpc.ts`): a missing method answers `503 unavailable`, which clients retry, never a 500. Object methods keep accepting what the previous Worker sends (new fields optional, arrays read defensively).
 
 ## 6. Errors
 
@@ -157,6 +158,7 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | 403 | `origin_not_allowed` | `Origin` is not allowed | — |
 | 403 | `not_owner_words` | A `by_message` decision cites a message that isn't the owner's latest owner-device message after the card | The mind asks the owner again; the card stays |
 | 403 | `session_tainted` | A tainted mind session tried a gated write | The mind reports it; no retry |
+| 403 | `session_required` | A mind memory write without a claimed, live session of the key's role (P3) | Claim with `th brief --claim` first; no retry as is |
 | 403 | `laws_unpinned` | `rule` write from a session whose constitution pin failed | — |
 | 403 | `proposal_required` | An ask-first verb or op without an approved proposal | Create a proposal |
 | 403 | `needs_approval` | A work order with `personal` and no approved `reach_people` proposal ([MUSE.md §6](../mind/MUSE.md)) | Create the proposal first |
@@ -190,7 +192,7 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | 502 | `upstream` | R2, a push service or a fire URL failed | Retry with back-off |
 | 503 | `budget_exhausted` | A daily Free-plan cap was reached; `Retry-After` = seconds to 00:00 UTC | Queue writes; keep reading (`th` exit 10) |
 | 503 | `auth_unavailable` | `Auth` can't be reached | "Sign-in is having trouble" line |
-| 503 | `unavailable` | A DO is overloaded or restarting | Retry after 1 s, 2 s, 4 s (max 3 tries) |
+| 503 | `unavailable` | A DO is overloaded or restarting, or (for a moment during a deploy) still runs the previous release and lacks a method this one calls (`objects/rpc.ts` `fresh`) | Retry after 1 s, 2 s, 4 s (max 3 tries) |
 
 - `message` is plain English for logs and agents. The owner never sees raw codes; [COPY.md](../design/COPY.md) maps codes to words.
 - The Workers platform's own errors (1027 when the daily request limit is hit, 1102 on CPU overrun) arrive as non-JSON. `api.js` maps a non-JSON 5xx or 429 to `unavailable`.
@@ -380,7 +382,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `POST /v1/mind/brief` | agents | `{ claim: boolean, session_id: string, role: 'chat'\|'night'\|'reflex', constitution_sha256: string, th_version: string }` (`role` must match the key's role) | `200 { wake: {id, reason, claim_match} \| null, day: Day, seq: number, core: string /* ≤ 9,500 chars */, full: string /* ≤ 48,000 chars */, night_done: boolean /* night role: that day's run already finished */ }`; `409 already_live` if another chat session holds the lease |
+| `POST /v1/mind/brief` | agents | `{ claim: boolean, session_id: string, role: 'chat'\|'night'\|'reflex', constitution_sha256: string, th_version: string }` (`role` must match the key's role) | `200 { wake: {id, reason, claim_match} \| null, day: Day, seq: number, core: string /* ≤ 9,500 chars */, full: string /* ≤ 48,000 chars */, night_done: boolean /* night role: that day's run already finished */, tainted: boolean /* this session's own taint, or one its claim took over from a session of its role tainted in the last 24 hours (MEMORY.md §7) */ }`; `409 already_live` if another chat session holds the lease |
 | `POST /v1/mind/status` | agents | `{ state: 'working'\|'listening'\|'stopping'\|'limited', thread_id?, note? /* ≤ 140 */, error? }` | `204` (feeds the presence light; `working` acknowledges handed-out messages) |
 | `POST /v1/mind/notes` | agents | `{ id: Id, thread_id?, body /* ≤ 120 words */, open_items: {text, ref?}[] /* ≤ 10 */ }` | `201` |
 | `POST /v1/mind/taint` | agents | `{ source: string /* tool name */, ref_kind?: 'url'\|'file'\|'comment' }` | `200 { tainted: true }`; irreversible for the session. The URL itself is not sent |
@@ -437,7 +439,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | Route | Who | Request | Response |
 |---|---|---|---|
 | `GET /v1/surfaces?since_seq=` | device, agents | — | `200 { items: Surface[], seq }` (non-expired, changed after `since_seq`) |
-| `PUT /v1/surfaces/:app/:slot` | `mind:chat`, `mind:night` | `{ kind, schema, payload /* ≤ 16 KB */, why /* 8–200 chars, required */, topic_key /* slug */, ref?, expires_at?, facts?: Id[] /* every fact it draws on; 422 `validation` reason `muted_fact` if one has may_raise = 0 */ }` | `200 Surface` (+ a ledger row); `409 nudge_repeat` if the topic was ignored in the last 14 days; margin notes over 140 characters → 422 |
+| `PUT /v1/surfaces/:app/:slot` | `mind:chat`, `mind:night` | `{ kind, schema, payload /* ≤ 16 KB */, why /* 8–200 chars, required */, topic_key /* slug */, ref?, expires_at?, facts?: Id[] /* ≤ 20; every fact it draws on (a `fact:` ref counts too); 422 `validation` reason `muted_fact` if one has may_raise = 0, `unknown_fact` if one does not exist, 422 `too_sensitive` if one is sensitivity 1 */ }` | `200 Surface` (+ a ledger row); `409 nudge_repeat` if the topic was ignored in the last 14 days; margin notes over 140 characters → 422 |
 | `DELETE /v1/surfaces/:app/:slot` | device, `mind:chat`, `mind:night` | — | `204` (+ a ledger row) |
 
 `why` is required on every surface, so the owner can always see why something is there. `kind`, `schema`, the slot and the payload are validated against `shared/contract/surfaces.ts` (P2: kind `line` in `home/line.1`–`line.4`, ≤ 44 characters ending with a full stop, no exclamation marks or emoji). A phone without a renderer for a kind or version shows the generic card with the `why`. The `nudge_repeat` rule reads the `topics` row of `topic_key`.
@@ -446,18 +448,21 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `GET /v1/memory/facts?kind&subject&include_superseded&limit&cursor` | device, agents | — | `200 Page<Fact>` |
+| `GET /v1/memory/facts?kind&subject&include_superseded&limit&cursor` | device, `mind:chat`, `mind:night` | — | `200 Page<Fact>` (newest first; current versions unless `include_superseded=true`; each with `confidence_now`, the decayed value at read time, and `ledger_id`, the row that wrote it) |
+| `GET /v1/memory/facts/:id` | device, `mind:chat`, `mind:night` | — | `200 { fact: Fact, history: Fact[] /* earlier versions, newest first */, evidence: {ref, kind, at, who, text}[] /* text: the start (≤ 280) of the message or day note cited */, why: string \| null /* the ledger row that wrote this version */ }`; 404 when it was never there or was forgotten |
 | `POST /v1/memory/ops` | device, `mind:chat`, `mind:night` | `{ batch_id: Id, ops: MemoryOp[] /* ≤ 50 */ }` | `200 { applied: {i, fact_id, ledger_id}[], proposals: {i, proposal_id}[], rejected: {i, reason}[] }` |
-| `GET /v1/memory/profile` | device, agents | — | `200 { text: string /* ≤ 1,500 tokens */, fact_ids: Id[], rendered_at: Ms }` |
-| `GET /v1/memory/day-notes?from&to` | device, agents | — | `200 { items: DayNote[] }` |
-| `PUT /v1/memory/day-notes/:day` | `mind:night` | `{ summary, decisions: string[], importance: 1-10 }` (`stats` is computed by the Worker) | `200 DayNote` (`version` + 1) |
-| `GET /v1/memory/open-threads?status=open\|all` | device, agents | — | `200 { items: OpenThread[] }` |
-| `PUT /v1/memory/open-threads/:id` | device, `mind:chat`, `mind:night` | `{ text, owner: 'mind'\|'owner', due_at?, evidence: Ref[], status?, why? /* ≤ 200; stored as closed_why; required when status is dropped */ }` | `200 OpenThread` |
+| `GET /v1/memory/profile` | device, `mind:chat`, `mind:night` | — | `200 { text: string /* ≤ 1,500 tokens */, fact_ids: Id[] /* each line's fact, in line order */, private_ids: Id[] /* the private lines' facts, which a screen blurs until tapped */, rendered_at: Ms }` |
+| `GET /v1/memory/day-notes?from&to` | device, `mind:chat`, `mind:night` | — | `200 { items: DayNote[] }` |
+| `PUT /v1/memory/day-notes/:day` | `mind:night`, device (the owner's edit, `written_by: 'owner'`) | `{ summary /* ≤ 150 words */, decisions: string[] /* ≤ 10 */, importance: 1-10 }` (`stats` is computed by the Worker) | `200 DayNote` (`version` + 1; the same body again keeps the version, so a rerun night step never writes version 2; once the owner edited a day, the night's write returns the owner's version unchanged with `kept_owner_edit: true`; a future day is 422; 403 from a tainted or unclaimed session) |
+| `GET /v1/memory/open-threads?status=open\|all` | device, `mind:chat`, `mind:night` | — | `200 { items: OpenThread[] }` |
+| `PUT /v1/memory/open-threads/:id` | device, `mind:chat`, `mind:night` | `{ text, owner: 'mind'\|'owner', due_at?, evidence: Ref[] /* 1–20 existing refs; a device may send none */, tags?: string[], status?, why? /* ≤ 200; stored as closed_why; required when status is dropped */ }` | `200 OpenThread` (the same body again changes nothing) |
+| `PATCH /v1/memory/open-threads/:id` | device, `mind:chat`, `mind:night` | `{ status: 'done'\|'dropped', why? /* required for dropped */ }` | `200 OpenThread` |
 
 ```ts
 type MemoryOp =
-  | { op: 'add'; id: Id; kind: Fact['kind']; subject: string; text: string; source: Fact['source'];
-      evidence: Ref[]; valid_from?: Ms; sensitivity: 0|1; may_raise?: boolean }
+  | { op: 'add'; id: Id; kind: Fact['kind']; subject?: string; text: string; source: Fact['source'];
+      evidence: Ref[]; about?: 'owner'|'world'|'person'; tags?: string[] /* ≤ 8 */; valid_from?: Ms;
+      sensitivity?: 0|1; may_raise?: boolean }
   | { op: 'confirm'; id: Id; evidence?: Ref[] }
   | { op: 'supersede'; id: Id; reason?: string /* ≤ 140 */;
       new: { id: Id; text: string; evidence: Ref[] } & Partial<Omit<Extract<MemoryOp, {op:'add'}>, 'op'|'id'|'text'|'evidence'>> }   // omitted fields are copied from the old fact
@@ -466,8 +471,15 @@ type MemoryOp =
   | { op: 'forget'; id: Id };                         // device only: hard delete + tombstone
 ```
 
-- Each op is validated on its own. The valid ops apply together in one transaction; invalid ops change nothing and are listed as `rejected: {i, reason}[]` in the `200` response. If every op is rejected, the response is `422 validation` with `details: [{i, reason}]` instead (`403 session_tainted` when the reason is taint), so a single-op call such as `th remember` fails loudly. From a device principal `evidence` may be empty: the Worker uses the op's own ledger row (`ledger:<id>`, `actor=owner`) as the evidence ([MEMORY.md §12](../mind/MEMORY.md)). Reasons are MEMORY.md §6's codes (`bad_evidence`, `not_owner_evidence`, `rule_needs_owner`, `too_little_evidence`, `tainted_evidence`, `needs_owner_words`, `too_long`, `no_inferred_sensitive`) plus `unknown_ref`.
-- Ops the memory rules route to the owner (a non-user source superseding a `user` fact; a new `inferred` fact with sensitivity 1) become `memory_big` proposals and are listed in `proposals`.
+- Each op is validated on its own. The valid ops apply together in one transaction; invalid ops change nothing and are listed as `rejected: {i, reason}[]` in the `200` response. If every op is rejected, the response is `422 validation` with `details: [{path: 'ops.<i>', issue: <reason>}]` instead (`403 session_tainted` or `403 laws_unpinned` when that is the only reason), so a single-op call such as `th remember` fails loudly (`th` prints the details). From a device principal `evidence` may be empty: the Worker uses the op's own ledger row (`ledger:<id>`, `actor=owner`) as the evidence ([MEMORY.md §12](../mind/MEMORY.md)), and a device's `add` and `supersede` are always `source: 'user'`. A mind write needs `TH-Session`.
+- Reasons are MEMORY.md §6's codes (`bad_evidence` for evidence that is missing, malformed or of a kind memory can't cite yet (events before P5, imports before the import), `not_owner_evidence`, `rule_needs_owner`, `too_little_evidence`, `tainted_evidence`, `needs_owner_words`, `too_long`, `no_inferred_sensitive`, `session_tainted`, `laws_unpinned`), plus the Worker's: `bad_op` (shape), `unknown_ref` (the fact the op names does not exist), `superseded` (it was replaced; work on its newest version), `duplicate_id`, `device_only` (pin, may_raise and forget) and `proposal_required`. `shared/contract/memory.ts` lists them ([CONTRACT.md](CONTRACT.md)).
+- Ops the memory rules route to the owner (a non-user source superseding a `user` fact; a new `inferred` fact with sensitivity 1; the 11th supersession of a night batch) become `memory_big` proposals listed in `proposals` once proposals exist (P4). Until then they are rejected with `proposal_required` and `proposals` is always empty; the mind asks the owner in the conversation instead, and the owner's own words make the change a `user` one.
+- A `confirm` whose evidence is all the owner's own words turns a non-`user` fact into a `user` version (a supersede the Worker writes; `applied[].fact_id` is the new version): from a device always (tag `imported` dropped), from the mind only when one cited owner message is newer than the fact.
+- The mind can only make a fact more protected (PRIVACY.md §4): its add and supersede never lower `sensitivity` (a sensitive tag or `about: 'person'` makes it 1), never set `may_raise` to true on their own (faith is never raised), and never drop a protecting tag (sensitive, `faith`, `imported`). The owner's word is final.
+- Text MEMORY.md §13 never stores (keys and tokens, passwords, card and bank numbers) is refused: reason `never_stored` (a loose end's or day note's text: 422 with issue `never_stored`).
+- A forgotten fact's ids are never used again (`duplicate_id`); forget reaches every version of the lineage, even one an undo unlinked.
+- M10 caps every batch from the mind (chat or night) at 10 supersessions.
+- The ledger rows of memory carry no fact text (`what` names the kind, `ref` the fact), so `forget` can scrub every row that pointed at the forgotten versions (their `why` and undo) and leave one tombstone, `op_json = {op:'memory.forget', fact_id, kind, forgotten_at, versions}`.
 - The rules themselves are in [MEMORY.md](../mind/MEMORY.md).
 
 ### 11.14 Senses (P5)
@@ -639,9 +651,10 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `GET /v1/surfaces` | D C N R | P2 |
 | `PUT /v1/surfaces/:app/:slot` | C N | P2 |
 | `DELETE /v1/surfaces/:app/:slot` | D C N | P2 |
-| `GET /v1/memory/*` | D C N R | P3 |
+| `GET /v1/memory/*` | D C N (reflex reads no memory, RUNTIME.md §7.1) | P3 |
+| `PATCH /v1/memory/open-threads/:id` | D C N | P3 |
 | `POST /v1/memory/ops` | D C N | P3 |
-| `PUT /v1/memory/day-notes/:day` | N | P3 |
+| `PUT /v1/memory/day-notes/:day` | D N | P3 |
 | `PUT /v1/memory/open-threads/:id` | D C N | P3 |
 | `POST /v1/import/runs` | D C | P3 |
 | `POST /v1/ops/import/parts`, `PUT /v1/ops/import/manifest/:run_id` | C I | P3 |

@@ -13,7 +13,7 @@ import { updateLine } from '/th/update-rules.js';
 import { checkForUpdate, startUpdates, waiting } from '/th/update.js';
 import { CONFIG } from '/config.js';
 
-const ROUTES = { '/settings/password/': 'account', '/settings/agents/': 'agents', '/settings/devices/': 'devices' };
+const ROUTES = { '/settings/password/': 'account', '/settings/agents/': 'agents', '/settings/devices/': 'devices', '/settings/memory/': 'memory' };
 
 // The service worker and "Check for update" work with or without sign-in.
 startUpdates();
@@ -41,6 +41,12 @@ async function start() {
   }, true);
   const path = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`;
   if (ROUTES[path]) open(ROUTES[path], { role: new URLSearchParams(location.search).get('new') ?? undefined, fromRoute: true });
+  // A Forget that never reached the Worker (the Memory page closed first) goes now; that page
+  // sends its own when it is the one opening.
+  try {
+    if (localStorage.getItem('th.p.forget') && ROUTES[path] !== 'memory')
+      import('/apps/settings/memory-queue.js').then((m) => m.flush()).catch(() => {});
+  } catch {}
   // The conversation loads after the first paint, so the shell stays small (PERFORMANCE.md §2). If
   // it can't, the ask bar says so (home.js) rather than doing nothing.
   requestAnimationFrame(() => setTimeout(() => import('/th/chat/index.js').then((m) => m.startChat()).catch(() => { root.dataset.chat = 'failed'; }), 0));

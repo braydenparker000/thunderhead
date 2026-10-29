@@ -5,7 +5,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { APPS, SURFACE_KINDS, VERBS } from '../frontend/th/contract.js';
+import { APPS, MEMORY, SURFACE_KINDS, VERBS } from '../frontend/th/contract.js';
+import { GROUPS, groupOf, odds, SOURCES, sourceLabel, shelfOf } from '../frontend/th/registry/memory.js';
 import { RING, apps, appFor, deepLink } from '../frontend/th/registry/apps.js';
 import { hasRenderer, homeLine, place } from '../frontend/th/registry/surfaces.js';
 import { EXECUTORS, canRun, run } from '../frontend/th/registry/verbs.js';
@@ -51,4 +52,24 @@ test('every surface kind and version is drawn, and anything else becomes the gen
   assert.equal(place(surface('line', 7, { text: 'x' })).place, 'card', 'an unknown version falls back');
   const lines = [surface('line', 1, { text: 'Third.' }, 'home', 'line.3'), surface('line', 1, { text: 'First.' }, 'home', 'line.1')];
   assert.deepEqual(homeLine(lines), { place: 'voice', order: 1, text: 'First.', lang: null });
+});
+
+test('every fact kind and source in the contract has its place on the Memory page; anything else still renders', () => {
+  const groups = GROUPS.map((g) => g.id);
+  for (const kind of MEMORY.kinds) assert.ok(groups.includes(kind), `kind ${kind} has no group`);
+  for (const source of MEMORY.sources) assert.ok(Object.hasOwn(SOURCES, source), `source ${source} has no label`);
+  assert.equal(groupOf({ kind: 'telepathy', tags: [] }), 'other');
+  assert.equal(groupOf({ kind: 'routine', tags: ['faith'] }), 'beliefs');
+  assert.equal(groupOf({ kind: 'constructor', tags: [] }), 'other');
+  assert.equal(sourceLabel('dreamed'), 'dreamed');
+  assert.equal(sourceLabel('toString'), 'toString', 'no prototype lookups');
+  const fact = (over) => ({ kind: 'fact', tags: [], source: 'user', pinned: false, confidence_now: 0.9, ...over });
+  assert.equal(shelfOf(fact({ confidence_now: 0.05 })), 'fading');
+  assert.equal(shelfOf(fact({ confidence_now: 0.05, pinned: true })), 'fact', 'pinned never fades');
+  assert.equal(shelfOf(fact({ tags: ['imported'], source: 'inferred' })), 'review');
+  assert.equal(shelfOf(fact({ tags: ['imported'], source: 'user' })), 'fact', 'reviewed: back in its group');
+  assert.deepEqual([0.95, 0.8, 0.65, 0.5, 0.3, 0.05].map(odds), [
+    'Almost certainly, about 9 in 10 or more', 'Pretty sure, about 8 in 10', 'Probably, about 7 in 10',
+    'Maybe, maybe not, about 5 in 10', 'I doubt it, about 3 in 10', 'Very unlikely, 1 in 10 or less',
+  ]);
 });

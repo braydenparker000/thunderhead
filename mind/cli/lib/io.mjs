@@ -11,12 +11,14 @@ export const EXIT = Object.freeze({
 });
 
 export class ThError extends Error {
-  /** @param {number} exit @param {string} code @param {string} message @param {string|null} [requestId] */
-  constructor(exit, code, message, requestId = null) {
+  /** @param {number} exit @param {string} code @param {string} message @param {string|null} [requestId]
+   * @param {unknown} [details] the Worker's field issues or reason (never request values), e.g. why a memory op was refused */
+  constructor(exit, code, message, requestId = null, details = undefined) {
     super(message);
     this.exit = exit;
     this.code = code;
     this.requestId = requestId;
+    this.details = details;
   }
 }
 
@@ -52,7 +54,8 @@ export function out(value) {
 export function printError(error) {
   const e = error instanceof ThError ? error
     : new ThError(EXIT.unexpected, 'unexpected', error?.message || String(error));
-  process.stderr.write(redact(JSON.stringify({error: {code: e.code, message: e.message, request_id: e.requestId}})) + '\n');
+  const details = Array.isArray(e.details) ? e.details.slice(0, 50) : e.details && typeof e.details === 'object' ? e.details : undefined;
+  process.stderr.write(redact(JSON.stringify({error: {code: e.code, message: e.message, request_id: e.requestId, details}})) + '\n');
   return e.exit;
 }
 

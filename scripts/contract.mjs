@@ -77,7 +77,23 @@ export const VERBS = Object.freeze(${j(verbs)});
 
 /** @type {Readonly<Record<SurfaceKindName, SurfaceInfo>>} */
 export const SURFACE_KINDS = Object.freeze(${j(kinds)});
+
+/** Memory (MEMORY.md §2–§8): fact kinds in profile order, sources, the confidence thresholds, and
+ * the reasons an op can be refused. A kind or source not listed renders generically.
+ * @type {Readonly<{kinds: readonly import('../../shared/contract/memory.ts').FactKind[], sources: readonly import('../../shared/contract/memory.ts').FactSource[], confidence: typeof import('../../shared/contract/memory.ts').CONFIDENCE, limits: typeof import('../../shared/contract/memory.ts').MEMORY_LIMITS, reasons: readonly import('../../shared/contract/memory.ts').MemoryReason[]}>} */
+export const MEMORY = Object.freeze(${j(memory())});
 `;
+}
+
+/** The memory vocabulary both copies carry. */
+function memory() {
+  return {
+    kinds: c.FACT_KIND_NAMES,
+    sources: Object.keys(c.FACT_SOURCES),
+    confidence: c.CONFIDENCE,
+    limits: c.MEMORY_LIMITS,
+    reasons: Object.keys(c.MEMORY_REASONS),
+  };
 }
 
 /** The mind's copy: everything `th` validates or prints before it calls the Worker. */
@@ -125,6 +141,7 @@ function mind() {
     apps: c.APPS,
     search_sources: c.SEARCH_SOURCES,
     message_kinds: c.MESSAGE_KINDS,
+    memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
     lint: { banned_phrases: BANNED_PHRASES },
   };
   return `${JSON.stringify(out, null, 2)}\n`;
@@ -194,6 +211,13 @@ function docs() {
   for (const [id, a] of Object.entries(c.APPS)) L.push(`| \`${id}\` | \`${a.path}\` | ${a.name} | ${a.phase} |`);
   L.push('', '## Search sources', '', '| Source | Phase | Ref kind |', '|---|---|---|');
   for (const [id, s] of Object.entries(c.SEARCH_SOURCES)) L.push(`| \`${id}\` | ${s.phase} | \`${s.ref}\` |`);
+  L.push('', '## Memory', '', '| Fact kind | Half-life (days) | Profile cap |', '|---|---|---|');
+  for (const [k, v] of Object.entries(c.FACT_KINDS))
+    L.push(`| \`${k}\` | ${v.half_life_days ?? 'never decays'} | ${v.cap ?? 'not in the profile (briefing section 3)'} |`);
+  L.push('', '| Source | Starts at | Cap | Profile letter |', '|---|---|---|---|');
+  for (const [k, v] of Object.entries(c.FACT_SOURCES)) L.push(`| \`${k}\` | ${v.base} | ${v.cap} | ${v.letter} |`);
+  L.push('', '| Refusal reason | Meaning |', '|---|---|');
+  for (const [k, v] of Object.entries(c.MEMORY_REASONS)) L.push(`| \`${k}\` | ${cell(v)} |`);
   L.push('', '## Error codes', '', '| Code | Status | Message |', '|---|---|---|');
   for (const [code, [status, message]] of Object.entries(c.CODES)) L.push(`| \`${code}\` | ${status} | ${cell(message)} |`);
   L.push('', '## Phrase lint', '', BANNED_PHRASES.map((p) => `"${p}"`).join(' · '), '');

@@ -34,3 +34,38 @@
 .shelp code,.sform code{font:500 12px var(--mono);background:var(--tint);padding:1px 5px;border-radius:6px}
 .notice .q{white-space:normal}
 @media (prefers-reduced-motion: reduce){.spage{transition:none}}
+/* What I remember (MEMORY.md §12): rows open in place; private text stays blurred until tapped. */
+.msearch{margin-top:10px;min-height:44px}
+.mfold{margin-top:12px;padding:8px 10px;border-radius:12px;background:var(--glass);border:1px solid var(--glass-line)}
+.mfold summary{min-height:44px;display:flex;align-items:center;font:500 14px var(--ui);color:var(--ink-2);cursor:pointer}
+.mprofile{margin-top:6px;font:400 12px/1.5 var(--mono);color:var(--ink-2);overflow-wrap:anywhere}
+.pline{display:block;width:100%;margin:0;padding:2px 0;border:0;background:none;font:inherit;color:inherit;text-align:left;white-space:pre-wrap}
+button.pline{min-height:44px;cursor:pointer}
+.pline.blur{filter:blur(5px);user-select:none;-webkit-user-select:none}
+.mmore{margin-top:8px}
+.msec{margin-top:18px}
+.msec>.st2{margin:2px 2px 6px}
+.mrow{padding:10px 8px;border-radius:12px}
+.mrow+.mrow{border-top:1px solid var(--glass-line)}
+.mtext{display:block;width:100%;min-height:44px;padding:0;border:0;background:none;font:500 15px/1.4 var(--ui);color:var(--ink);text-align:left;cursor:pointer;overflow-wrap:anywhere}
+.mtext.static{cursor:default}
+.mtext.blur{filter:blur(6px);user-select:none;-webkit-user-select:none}
+.mbadges{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.mbadges:empty{display:none}
+.mdetail{margin-top:8px}
+.mdetail:empty{display:none}
+.mwhy{margin:6px 0;font:400 13px/1.5 var(--ui);color:var(--ink-2)}
+.mev,.mhist{margin:6px 0;padding:0;list-style:none;display:flex;flex-direction:column;gap:6px}
+.mev li{display:flex;flex-direction:column;gap:2px}
+.mev q{font:400 14px/1.45 var(--voice);font-style:italic;color:var(--ink);overflow-wrap:anywhere}
+.mhist li{font:400 13px/1.45 var(--ui);color:var(--ink-3);text-decoration:line-through;text-decoration-color:color-mix(in srgb,var(--ink-3) 50%,transparent)}
+.macts{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.sbtn.danger{color:var(--alarm)}
+.mform{margin-top:8px;display:flex;flex-direction:column;gap:6px}
+.mform .btn{margin-top:4px}
+.marea{min-height:72px;resize:vertical;font:400 15px/1.45 var(--ui)}
+select.sedit{appearance:auto}
+.utoast{position:fixed;z-index:60;top:auto;bottom:calc(24px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:12px;pointer-events:auto;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.uundo{min-height:44px;min-width:44px;padding:0 12px;border:0;border-radius:999px;background:var(--tint);color:var(--accent-text);font:600 13px var(--ui);cursor:pointer}
+/* Toasts float above a settings page (the shell's own toast sits under it otherwise). */
+.toast{z-index:40}

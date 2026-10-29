@@ -60,3 +60,40 @@ describe('upgrade from P1', () => {
     });
   });
 });
+
+describe('upgrade from P2', () => {
+  it('keeps the P2 rows (messages and their index, the ledger) and adds the memory steps once', async () => {
+    await runInDurableObject(core() as unknown as DurableObjectStub<Auth>, async (_o, state) => {
+      const sql = state.storage.sql;
+      const all = (q: string, ...b: unknown[]) => sql.exec(q, ...b).toArray() as Row[];
+      // Back to what P2 had: steps 1–7 (test-only SQL; migrations never drop).
+      for (const t of [
+        'facts_fts',
+        'day_notes_fts',
+        'facts',
+        'fact_tombstones',
+        'day_notes',
+        'open_threads',
+        'op_batches',
+      ])
+        sql.exec(`DROP TABLE IF EXISTS ${t}`);
+      sql.exec('ALTER TABLE surfaces DROP COLUMN facts_json');
+      sql.exec('DROP INDEX IF EXISTS mind_sessions_tainted');
+      sql.exec('DELETE FROM _migrations WHERE version > 7');
+      sql.exec(
+        `INSERT INTO messages (id, thread_id, created_at, author, origin, kind, body) VALUES ('m-p2', 't-p2', 1, 'owner', 'owner_device', 'text', 'kept across the upgrade')`,
+      );
+      sql.exec("INSERT INTO messages_fts (rowid, body) SELECT seq, body FROM messages WHERE id = 'm-p2'");
+      sql.exec(
+        "INSERT INTO ledger (id, at, actor, kind, what, why, undoable, status, tainted) VALUES ('l-p2', 1, 'owner', 'note', 'a P2 row', 'written before memory', 0, 'done', 0)",
+      );
+      const applied = await applyMigrations(state.storage, new Db(sql, new Meter()), CORE_MIGRATIONS);
+      expect(applied).toBe(Math.max(...CORE_MIGRATIONS.map((m) => m.version)));
+      expect(all("SELECT body FROM messages WHERE id = 'm-p2'")).toEqual([{ body: 'kept across the upgrade' }]);
+      expect(all(`SELECT rowid FROM messages_fts WHERE messages_fts MATCH '"upgrade"'`)).toHaveLength(1);
+      expect(all("SELECT what FROM ledger WHERE id = 'l-p2'")).toEqual([{ what: 'a P2 row' }]);
+      expect(all('SELECT version FROM _migrations WHERE version > 7').map((r) => r.version)).toEqual([8, 9, 10]);
+      expect(all('SELECT count(*) AS n FROM facts')).toEqual([{ n: 0 }]);
+    });
+  });
+});

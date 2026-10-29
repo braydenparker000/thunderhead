@@ -16,6 +16,7 @@ export type ErrorCode =
   | 'origin_not_allowed'
   | 'not_owner_words'
   | 'session_tainted'
+  | 'session_required'
   | 'laws_unpinned'
   | 'proposal_required'
   | 'needs_approval'

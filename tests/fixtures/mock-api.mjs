@@ -1,12 +1,14 @@
 // A stand-in for the Worker inside Playwright (route interception): the /v1/auth routes, so the
 // sign-in pages and Settings can be driven end to end, and the conversation's routes with a live
 // socket (page.routeWebSocket), so home's chat can be too. No network; synthetic data only.
+import { memoryAnswer, memoryState } from './mock-memory.mjs';
+
 export const API = 'https://api.th.test';
 
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-headers': 'Authorization, Content-Type, TH-Client',
-  'access-control-allow-methods': 'GET, POST, PATCH, DELETE',
+  'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE',
   'access-control-max-age': '600',
 };
 
@@ -34,6 +36,7 @@ export async function mockApi(page, overrides = {}) {
     ...overrides,
   };
   state.chat = chatState(overrides.chat);
+  state.memory = 'memory' in overrides ? overrides.memory : memoryState(now);
   const calls = [];
   await page.routeWebSocket(/\/v1\/live\?ticket=/, (ws) => {
     state.chat.sockets.push(ws);
@@ -183,5 +186,5 @@ function answer(state, method, url, body) {
   if (method === 'PATCH' && p.startsWith('/v1/auth/sessions/')) return [200, { ...state.sessions[0], label: body.label }];
   if (method === 'POST' && /^\/v1\/auth\/notices\/[^/]+\/ack$/.test(p)) return [204, null];
   if (k === 'POST /v1/auth/breakglass/cancel') return [204, null];
-  return chatAnswer(state.chat, method, p, url, body) ?? err(404, 'not_found');
+  return memoryAnswer(state.memory, method, p, url, body) ?? chatAnswer(state.chat, method, p, url, body) ?? err(404, 'not_found');
 }
