@@ -1,32 +1,31 @@
 // Who is calling, and may they (API.md §3, §13). Default deny: every route outside PUBLIC_ROUTES
-// carries an `allow(...)` guard naming its principals, and route-scopes.test.ts walks them all.
+// carries a `guard('<METHOD> <path>')` that takes its principals from the shared route table
+// (shared/contract/routes.ts), and route-scopes.test.ts walks them all.
 // The guard checks the token's prefix and checksum before any object call, then the isolate
 // cache (60 s, positive results only), then Auth. Unknown routes never reach a guard, so they
 // answer 404 before any token check.
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
+import { ROUTES, type RouteKey, type Who } from '../../../shared/contract/routes.ts';
 import type { Principal } from '../areas/auth/account';
 import { tokenHash } from '../areas/auth/crypto';
 import { checkToken } from '../areas/auth/tokens';
 import { authObject } from '../objects/auth';
 import { ApiError } from './errors';
 
-/** D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci (API.md §13). */
-export type Who = 'D' | 'C' | 'N' | 'R' | 'M' | 'I';
+export type { Who };
 
 export type AppEnv = {
   Bindings: Env;
   Variables: { principal?: Principal & { token_hash: string }; requestId: string };
 };
 
-/** `METHOD path` pairs reachable without a token. */
-export const PUBLIC_ROUTES: ReadonlySet<string> = new Set([
-  'GET /v1/health',
-  'GET /v1/auth/state',
-  'POST /v1/auth/setup',
-  'POST /v1/auth/login',
-  'POST /v1/auth/recover',
-]);
+/** `METHOD path` pairs reachable without a token: the contract's `P` rows. */
+export const PUBLIC_ROUTES: ReadonlySet<string> = new Set(
+  Object.entries(ROUTES)
+    .filter(([, r]) => r.who === 'P')
+    .map(([k]) => k),
+);
 
 const LETTER: Record<string, Who> = { 'mind:chat': 'C', 'mind:night': 'N', 'mind:reflex': 'R', muse: 'M', ci: 'I' };
 
@@ -88,6 +87,15 @@ export function allow(...who: Who[]) {
   });
   // Tagged so the route test can compare every guard with API.md §13.
   return Object.assign(mw, { who });
+}
+
+/** The guard for one row of the shared route table: its principals come from the contract, so
+ * the table and the Worker cannot drift. The key is checked against the registered path by the
+ * route-scope test. */
+export function guard(key: RouteKey) {
+  const spec = ROUTES[key];
+  if (spec.who === 'P' || 'auth' in spec) throw new Error(`${key} has no bearer guard`);
+  return Object.assign(allow(...spec.who), { key });
 }
 
 /** The principal of a guarded route. */

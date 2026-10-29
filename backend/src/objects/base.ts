@@ -13,6 +13,17 @@ export interface Migration {
   sql: string[];
 }
 
+/** A table's place in DATA.md §10: how long rows live and which exports carry them. A table kept
+ * for less than forever names the prune that enforces it, which the daily pass in Core.tick runs
+ * (at most `max` deletes a call, returning how many rows went); a guardrail test checks that
+ * every such table has one. */
+export interface TableInfo {
+  retention: string;
+  backup: boolean;
+  export: boolean;
+  prune?: (db: Db, now: number, max: number) => number;
+}
+
 /** What one object reports to deep health: counts only, never content. */
 export interface ClassHealth {
   schema: number;

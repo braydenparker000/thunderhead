@@ -68,7 +68,7 @@
     "rows_written_max": 0
   },
   "GET /v1/ops/health/deep (Core)": {
-    "rows_read_max": 1,
+    "rows_read_max": 2,
     "rows_written_max": 0
   },
   "POST /v1/ops/errors, 1 item (Core)": {

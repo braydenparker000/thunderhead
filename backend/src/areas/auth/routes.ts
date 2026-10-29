@@ -15,10 +15,11 @@ import type {
   SignedIn,
   SignedInWithCode,
 } from '../../../../shared/contract/api';
-import { type AppEnv, allow, country, deviceOf, forget, principalOf } from '../../http/auth';
+import { type AppEnv, country, deviceOf, forget, guard, principalOf } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { json, parse } from '../../http/validate';
 import { authObject } from '../../objects/auth';
+import { coreObject } from '../../objects/core';
 import type { Failure, RequestMeta } from './flows';
 import * as s from './schema';
 
@@ -37,6 +38,13 @@ function ok<T extends object>(result: ({ ok: true } & T) | Failure): T {
 }
 
 const auth = (c: Context<AppEnv>) => authObject(c.env);
+
+/** Signed-out sessions: dropped from this isolate's cache at once, and their live sockets are
+ * closed with 4401 (API.md §12) after the response. */
+function revoke(c: Context<AppEnv>, ids: string[]): void {
+  forget(ids);
+  if (ids.length) c.executionCtx.waitUntil(coreObject(c.env).liveRevoke(ids));
+}
 
 export const authRoutes = new Hono<AppEnv>()
   // --- public ----------------------------------------------------------------------------------
@@ -60,72 +68,72 @@ export const authRoutes = new Hono<AppEnv>()
     return c.json(out);
   })
   // --- this device -----------------------------------------------------------------------------
-  .get('/me', allow('D', 'C', 'N', 'R', 'M', 'I'), async (c) => {
+  .get('/me', guard('GET /v1/auth/me'), async (c) => {
     const p = principalOf(c);
     if (p.kind === 'agent') return c.json({ agent_id: p.agent_id, role: p.role, name: p.name } satisfies AgentMe);
     return c.json(ok<DeviceMe>(await auth(c).me(p.session_id)));
   })
-  .post('/signout', allow('D'), async (c) => {
+  .post('/signout', guard('POST /v1/auth/signout'), async (c) => {
     const { scope } = await json(c, s.signoutBody);
-    forget(await auth(c).signout(deviceOf(c).session_id, scope));
+    revoke(c, await auth(c).signout(deviceOf(c).session_id, scope));
     return c.body(null, 204);
   })
-  .post('/notices/:id/ack', allow('D'), async (c) => {
+  .post('/notices/:id/ack', guard('POST /v1/auth/notices/:id/ack'), async (c) => {
     const { id } = parse(s.idParam, c.req.param());
     const { answer } = await json(c, s.ackBody);
-    forget(ok<{ forget: string[] }>(await auth(c).ackNotice(deviceOf(c).session_id, id, answer)).forget);
+    revoke(c, ok<{ forget: string[] }>(await auth(c).ackNotice(deviceOf(c).session_id, id, answer)).forget);
     return c.body(null, 204);
   })
   // --- password and recovery code --------------------------------------------------------------
-  .post('/password', allow('D'), async (c) => {
+  .post('/password', guard('POST /v1/auth/password'), async (c) => {
     const body = await json(c, s.passwordBody);
-    forget(ok<{ forget: string[] }>(await auth(c).changePassword(deviceOf(c).session_id, body)).forget);
+    revoke(c, ok<{ forget: string[] }>(await auth(c).changePassword(deviceOf(c).session_id, body)).forget);
     return c.json({} satisfies PasswordResponse);
   })
-  .post('/recovery-code', allow('D'), async (c) => {
+  .post('/recovery-code', guard('POST /v1/auth/recovery-code'), async (c) => {
     const { current_password } = await json(c, s.recoveryCodeBody);
     return c.json(ok<RecoveryCodeResponse>(await auth(c).newRecoveryCode(deviceOf(c).session_id, current_password)));
   })
-  .post('/recovery-code/confirm', allow('D'), async (c) => {
+  .post('/recovery-code/confirm', guard('POST /v1/auth/recovery-code/confirm'), async (c) => {
     const { last5 } = await json(c, s.recoveryConfirmBody);
     ok(await auth(c).confirmRecovery(last5));
     return c.body(null, 204);
   })
   // --- reset ticket ----------------------------------------------------------------------------
-  .post('/breakglass', allow('C'), async (c) => {
+  .post('/breakglass', guard('POST /v1/auth/breakglass'), async (c) => {
     const { fingerprint } = await json(c, s.breakglassBody);
     return c.json(ok<BreakglassResponse>(await auth(c).breakglass(fingerprint)), 201);
   })
-  .post('/breakglass/cancel', allow('D'), async (c) => {
+  .post('/breakglass/cancel', guard('POST /v1/auth/breakglass/cancel'), async (c) => {
     const { ticket_id } = await json(c, s.cancelBody);
     const me = deviceOf(c);
     ok(await auth(c).cancelReset(me.session_id, me.label, ticket_id));
     return c.body(null, 204);
   })
   // --- sessions (devices) ----------------------------------------------------------------------
-  .get('/sessions', allow('D'), async (c) => {
+  .get('/sessions', guard('GET /v1/auth/sessions'), async (c) => {
     return c.json({ items: await auth(c).sessions(deviceOf(c).session_id) } satisfies SessionsResponse);
   })
-  .patch('/sessions/:id', allow('D'), async (c) => {
+  .patch('/sessions/:id', guard('PATCH /v1/auth/sessions/:id'), async (c) => {
     const { id } = parse(s.idParam, c.req.param());
     const { label } = await json(c, s.labelBody);
     return c.json(ok<SessionItem>(await auth(c).relabel(deviceOf(c).session_id, id, label)));
   })
-  .delete('/sessions/:id', allow('D'), async (c) => {
+  .delete('/sessions/:id', guard('DELETE /v1/auth/sessions/:id'), async (c) => {
     const { id } = parse(s.idParam, c.req.param());
     // 204 also when already gone; revoked within 60 s everywhere (this isolate at once).
-    forget([id, ...(await auth(c).revokeSession(deviceOf(c).session_id, id))]);
+    revoke(c, [id, ...(await auth(c).revokeSession(deviceOf(c).session_id, id))]);
     return c.body(null, 204);
   })
   // --- agent keys ------------------------------------------------------------------------------
-  .get('/agents', allow('D'), async (c) => {
+  .get('/agents', guard('GET /v1/auth/agents'), async (c) => {
     return c.json({ items: await auth(c).agents() } satisfies AgentsResponse);
   })
-  .post('/agents', allow('D'), async (c) => {
+  .post('/agents', guard('POST /v1/auth/agents'), async (c) => {
     const body = await json(c, s.agentBody);
     return c.json(ok<NewAgentResponse>(await auth(c).createAgent(deviceOf(c).session_id, body)), 201);
   })
-  .delete('/agents/:id', allow('D'), async (c) => {
+  .delete('/agents/:id', guard('DELETE /v1/auth/agents/:id'), async (c) => {
     const { id } = parse(s.idParam, c.req.param());
     await auth(c).revokeAgent(id);
     forget([id]);

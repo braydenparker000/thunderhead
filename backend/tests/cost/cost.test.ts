@@ -2,10 +2,20 @@
 // against tests/cost/budgets.json. These are the units the free plan bills (5M read, 100k written
 // a day). An endpoint without a budget fails; a budget rises only with DATA.md §8.2 and
 // PERFORMANCE.md §4. The budgets are the numbers measured in local workerd (MEASUREMENTS.md §2).
+import { runInDurableObject } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
-import type { SignedIn, SignedInWithCode } from '../../../shared/contract/api';
+import type {
+  Message,
+  NewAgentResponse,
+  SignedIn,
+  SignedInWithCode,
+  TodayResponse,
+} from '../../../shared/contract/api';
+import { uuidv7 } from '../../src/lib/ids';
+import type { Core } from '../../src/objects/core';
 import {
   api,
+  apiJson,
   auth,
   authSql,
   core,
@@ -37,7 +47,7 @@ const wrong = (ip: string) =>
 const grant = async (ip: string, password = PASSWORD) => (await (await login(ip, password)).json()) as SignedIn;
 
 describe('rows per endpoint', () => {
-  it('measures every P1 endpoint against its budget', async () => {
+  it('measures every P1 endpoint', async () => {
     await cost('GET /v1/auth/state', () => api('GET', '/v1/auth/state'), 200);
     let owner = {} as SignedInWithCode;
     await cost(
@@ -154,7 +164,104 @@ describe('rows per endpoint', () => {
       200,
       core(),
     );
+  });
 
+  // P2: the paths the phone and the mind use all day (DATA.md §8.2). A daily thread of 20
+  // messages, a mind session holding the lease, and an unconnected trigger (no fire).
+  it('measures every P2 endpoint against its budget', async () => {
+    const pw = `${PASSWORD} new`;
+    const d = await grant('192.0.2.230', pw);
+    const made = await apiJson<NewAgentResponse>('POST', '/v1/auth/agents', {
+      token: d.token,
+      body: { name: 'chat-cost', role: 'mind:chat', current_password: pw },
+    });
+    const m = { token: made.body.token, headers: { 'TH-Session': 'cse_cost_session' } };
+    await api('GET', '/v1/auth/me', { token: d.token });
+    await api('GET', '/v1/auth/me', m);
+    const say = (body: string, call: { token: string; headers?: Record<string, string> } = d) =>
+      apiJson<Message>('PUT', `/v1/messages/${uuidv7()}`, { ...call, body: { body } });
+    for (let i = 0; i < 19; i++) await say(`message number ${i}`);
+    const k = core();
+
+    await cost(
+      'PUT /v1/messages/:id (owner, no session) (Core)',
+      () => api('PUT', `/v1/messages/${uuidv7()}`, { token: d.token, body: { body: 'what is on today' } }),
+      201,
+      k,
+    );
+    await cost('GET /v1/threads/today (20 messages) (Core)', () => api('GET', '/v1/threads/today', d), 200, k);
+    const seq = (await apiJson<TodayResponse>('GET', '/v1/threads/today', d)).body.seq;
+    await cost('GET /v1/changes (nothing new) (Core)', () => api('GET', `/v1/changes?after=${seq}`, d), 200, k);
+    await cost('POST /v1/live/ticket (Core)', () => api('POST', '/v1/live/ticket', d), 200, k);
+    await cost('POST /v1/mind/typing (unconnected) (Core)', () => api('POST', '/v1/mind/typing', d), 204, k);
+    const brief = {
+      claim: true,
+      session_id: 'cse_cost_session',
+      role: 'chat',
+      constitution_sha256: 'none',
+      th_version: '0.1.0',
+    };
+    await cost(
+      'POST /v1/mind/brief (claim, 20 messages) (Core)',
+      () => api('POST', '/v1/mind/brief', { ...m, body: brief }),
+      200,
+      k,
+    );
+    await cost(
+      'GET /v1/live/wait (nothing new, 1 s) (Core)',
+      () => api('GET', `/v1/live/wait?after=${seq + 50}&timeout=1`, m),
+      200,
+      k,
+    );
+    const status = { state: 'working', thread_id: 'x' };
+    await cost(
+      'POST /v1/mind/status working (Core)',
+      () => api('POST', '/v1/mind/status', { ...m, body: status }),
+      204,
+      k,
+    );
+    const q = await say('one owner question');
+    await cost(
+      'PUT /v1/messages/:id (mind reply) (Core)',
+      () => api('PUT', `/v1/messages/${uuidv7()}`, { ...m, body: { body: 'The answer.', reply_to: q.body.id } }),
+      201,
+      k,
+    );
+    await cost('GET /v1/search (messages) (Core)', () => api('GET', '/v1/search?q=message', d), 200, k);
+    const verb = {
+      verb: 'shell.appearance',
+      schema: 1,
+      args: { mode: 'night' },
+      why: 'the owner asked for night mode',
+    };
+    await cost('PUT /v1/verbs/:id (Core)', () => api('PUT', `/v1/verbs/${uuidv7()}`, { ...m, body: verb }), 201, k);
+    await cost('GET /v1/verbs/pending (1 verb) (Core)', () => api('GET', '/v1/verbs/pending', d), 200, k);
+    const line = {
+      kind: 'line',
+      schema: 1,
+      payload: { text: 'Good morning.' },
+      why: 'a short morning greeting',
+      topic_key: 'greeting',
+    };
+    await cost(
+      'PUT /v1/surfaces/home/:slot (Core)',
+      () => api('PUT', '/v1/surfaces/home/line.1', { ...m, body: line }),
+      200,
+      k,
+    );
+    await cost('GET /v1/surfaces (1 surface) (Core)', () => api('GET', '/v1/surfaces', d), 200, k);
+    await cost(
+      'cron tick, nothing due (Core)',
+      async () => {
+        await runInDurableObject(k as unknown as DurableObjectStub<Core>, (o: Core) => o.tick());
+        return new Response(null, { status: 204 });
+      },
+      204,
+      k,
+    );
+  });
+
+  it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);
     console.log(['| Call | Rows read | Rows written |', '|---|---|---|', ...lines].join('\n'));
     const table = budgets as Record<string, Budget>;

@@ -84,7 +84,9 @@ export type RevokeReason =
   | 'reset_used'
   | 'device_limit';
 
-export type ErrorDetails = Issue[] | { reason?: RevokeReason; min_client?: number; usable_after?: number };
+/** Field issues (422) or a small reason object. `reason` is a RevokeReason on 401s and a short
+ * machine reason elsewhere (e.g. `not_undoable`). */
+export type ErrorDetails = Issue[] | { reason?: RevokeReason | (string & {}); min_client?: number; usable_after?: number };
 
 export interface ErrorBody {
   error: {

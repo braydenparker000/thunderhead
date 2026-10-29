@@ -10,7 +10,7 @@ import type {
   Settings,
   Version,
 } from '../../../../shared/contract/api';
-import { type AppEnv, allow, principalOf, whoOf } from '../../http/auth';
+import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { cachedMinClient, rememberMinClient } from '../../http/client-version';
 import { ApiError } from '../../http/errors';
 import { json, parse } from '../../http/validate';
@@ -48,7 +48,7 @@ export const opsRoutes = new Hono<AppEnv>()
     } satisfies HealthResponse),
   )
   // Counts only, never content (ci keys see the same).
-  .get('/ops/health/deep', allow('D', 'C', 'N', 'R', 'I'), async (c) => {
+  .get('/ops/health/deep', guard('GET /v1/ops/health/deep'), async (c) => {
     const [core, auth] = await Promise.all([coreObject(c.env).deepHealth(), authObject(c.env).health()]);
     rememberMinClient(core.min_client);
     const objects = Object.fromEntries(
@@ -76,12 +76,17 @@ export const opsRoutes = new Hono<AppEnv>()
     };
     return c.json(body);
   })
-  .post('/ops/errors', allow('D', 'C', 'N', 'R'), bodyLimit({ maxSize: 32 * 1024, onError: tooLarge }), async (c) => {
-    const { items } = await json(c, errorsBody);
-    await coreObject(c.env).reportErrors(items);
-    return c.body(null, 204);
-  })
-  .get('/ops/errors', allow('D', 'C', 'N', 'R', 'I'), async (c) => {
+  .post(
+    '/ops/errors',
+    guard('POST /v1/ops/errors'),
+    bodyLimit({ maxSize: 32 * 1024, onError: tooLarge }),
+    async (c) => {
+      const { items } = await json(c, errorsBody);
+      await coreObject(c.env).reportErrors(items);
+      return c.body(null, 204);
+    },
+  )
+  .get('/ops/errors', guard('GET /v1/ops/errors'), async (c) => {
     const q = parse(errorsQuery, c.req.query());
     const limit = q.limit ?? 50;
     const after = decodeCursor('ops/errors', q.cursor) as [number, string] | null;
@@ -90,18 +95,18 @@ export const opsRoutes = new Hono<AppEnv>()
     const next = items.length === limit && last ? encodeCursor('ops/errors', [last.last_at, last.fingerprint]) : null;
     return c.json({ items, next } satisfies Page<ErrorRow>);
   })
-  .post('/ops/errors/:fp/resolve', allow('D', 'C', 'R'), async (c) => {
+  .post('/ops/errors/:fp/resolve', guard('POST /v1/ops/errors/:fp/resolve'), async (c) => {
     const fp = c.req.param('fp');
     if (!/^[A-Za-z0-9._:-]{1,64}$/.test(fp) || !(await coreObject(c.env).resolveError(fp)))
       throw new ApiError('not_found');
     return c.body(null, 204);
   })
-  .post('/ops/perf', allow('D'), async (c) => {
+  .post('/ops/perf', guard('POST /v1/ops/perf'), async (c) => {
     await coreObject(c.env).putPerf(await json(c, perfBody));
     return c.body(null, 204);
   })
   // P1 has no meter table yet: today's in-memory counts per class (DATA.md §3).
-  .get('/ops/meter', allow('D', 'C', 'N', 'R', 'I'), async (c) => {
+  .get('/ops/meter', guard('GET /v1/ops/meter'), async (c) => {
     parse(meterQuery, c.req.query());
     const [core, auth] = await Promise.all([coreObject(c.env).health(), authObject(c.env).health()]);
     const day = utcDay(Date.now());
@@ -114,10 +119,10 @@ export const opsRoutes = new Hono<AppEnv>()
     }));
     return c.json({ items } satisfies MeterResponse);
   })
-  .get('/settings', allow('D', 'C', 'N', 'R'), async (c) => {
+  .get('/settings', guard('GET /v1/settings'), async (c) => {
     return c.json((await coreObject(c.env).settings()) satisfies Settings);
   })
-  .patch('/settings', allow('D'), async (c) => {
+  .patch('/settings', guard('PATCH /v1/settings'), async (c) => {
     const patch = await json(c, settingsPatch);
     const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
     if (Object.keys(clean).length === 0) throw new ApiError('validation', [{ path: '', issue: 'no settings given' }]);
