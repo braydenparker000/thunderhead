@@ -50,7 +50,7 @@ const SECRETS = [
   'MUSIC_UPLOAD_PUBLIC_KEYS',
 ];
 const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP', 'LIVE_WAIT', 'R2_ACCOUNT_ID'];
-const BINDINGS = ['VERSION', 'CORE', 'AUTH', 'MUSIC', 'VAULT', 'MEDIA'];
+const BINDINGS = ['VERSION', 'CORE', 'AUTH', 'MUSIC', 'SENSES', 'VAULT', 'MEDIA'];
 
 describe('source rules', () => {
   it('found the files it checks', () => {

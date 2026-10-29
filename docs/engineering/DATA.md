@@ -238,6 +238,8 @@ Never stored anywhere: raw IP addresses, the full user-agent, city, passwords, r
 
 ### 6.1 `Senses` (P5, its own deploy)
 
+Built as specified (P5, `backend/src/objects/senses.ts`; the class shipped alone with migration tag `v3`). The batches, queries, rollups, archive and pruning come with the next deploy.
+
 | Table | Columns | Indexes | Retention |
 |---|---|---|---|
 | `batches` | `batch_id TEXT PK, device_id TEXT, received_at INTEGER, n INTEGER, sha256 TEXT` WITHOUT ROWID | — | 30 days |
@@ -429,6 +431,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Senses.events | 90 days | archive in R2 daily instead | yes (the archive) |
 | Senses.batches | 30 days | no | no |
 | Senses.rollups | forever | yes | yes |
+| Senses.exports | forever (one row a day: the day's archive key, count and hash) | yes | no |
 | Music.* | forever | yes | yes |
 | Library.* except `pages_fts` | forever | yes | yes (PDFs by signed URL) |
 

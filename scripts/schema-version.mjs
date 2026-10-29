@@ -2,7 +2,7 @@
 // (DATA.md §9), for the deploy's smoke check: deep health must report this schema as applied
 // and expected before a deploy counts as live, so an object still running the old code can't
 // pass it. `backend/tests/migrations/schema.test.ts` checks this against the real lists.
-//   node scripts/schema-version.mjs core|auth|music  prints the number
+//   node scripts/schema-version.mjs core|auth|music|senses  prints the number
 //   node scripts/schema-version.mjs --ready < deep    prints `ready`, or why deep health isn't
 import { readdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -16,10 +16,11 @@ export function latestOf(texts) {
   return max;
 }
 
-/** @param {'core' | 'auth' | 'music'} cls */
+/** @param {'core' | 'auth' | 'music' | 'senses'} cls */
 export function files(cls) {
   if (cls === 'auth') return [`${SRC}objects/auth.migrations.ts`];
   if (cls === 'music') return [`${SRC}objects/music.ts`];
+  if (cls === 'senses') return [`${SRC}objects/senses.ts`];
   const areas = readdirSync(`${SRC}areas`, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => `${SRC}areas/${d.name}/migrations.ts`)
@@ -57,13 +58,13 @@ if (process.argv[1] === fileURLToPath(import.meta.url) && process.argv[2] === '-
     try {
       body = JSON.parse(text);
     } catch {}
-    const want = Object.fromEntries(['core', 'auth', 'music'].map((c) => [c, latestOf(files(c).map((f) => readFileSync(f, 'utf8')))]));
+    const want = Object.fromEntries(['core', 'auth', 'music', 'senses'].map((c) => [c, latestOf(files(c).map((f) => readFileSync(f, 'utf8')))]));
     process.stdout.write(ready(body, want) ?? 'ready');
   });
 } else if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const cls = process.argv[2];
-  if (cls !== 'core' && cls !== 'auth' && cls !== 'music') {
-    console.error('usage: node scripts/schema-version.mjs core|auth|music');
+  if (!['core', 'auth', 'music', 'senses'].includes(cls)) {
+    console.error('usage: node scripts/schema-version.mjs core|auth|music|senses');
     process.exit(2);
   }
   console.log(latestOf(files(cls).map((f) => readFileSync(f, 'utf8'))));

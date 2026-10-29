@@ -12,7 +12,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 - Step 3, going live with this push: the upload tools' routes (`/v1/music/uploads/*`, Ed25519-signed, the catalog's single writer now in `Music`; audio and art stored once, verified, in `jarvis-music` through the new `MEDIA` binding; nothing ever deleted from that bucket), and Music in the weekly backup and in "download everything". Owner step: SETUP.md N4 on the switch day.
 - Step 3 is live since 23:20 UTC (`5389195`, run #40); checked live: uploads answer 503 until the tools' key is set, and 403 to any browser origin.
 - Step 4, going live with this push: the player's switch, through its own service worker (`music/sw.js` loads `th/music/bridge.js`): the player's library requests, still addressed to the old Worker's URLs, are answered from the new Worker (the catalog with its ETag, audio and art by signed links, waveforms), with the owner's session and only for a top-level page; until the new Worker can answer, the old one does, so it switches by itself once SETUP.md N1–N4 are done. Checked in Chromium: the tone plays through range requests the worker answers, Web Audio hears it, the old Worker is never reached, the bucket never sees the session.
-- Next: the upload tool pointed at the new Worker (for N4); then, after 3 days of zero old-Worker music calls, N5 (music private, ask-first) and the hourly Drive workflow off (ask-first).
+- Step 4 is live since 23:34 UTC (`39baf5c`, run #41); checked live: the files match, and the player's new worker installs and controls the page with no errors (signed out, it passes the library request to the old Worker). Step 4b (`63a9989`): the upload tool in this repository (`scripts/music/upload.py`, tested end to end against the real Worker), and new uploads keep the import's places free.
+- The `Senses` object, going live alone with this push (migration tag `v3`); its routes, rollups, archive and pruning next.
+- Then, after 3 days of zero old-Worker music calls: N5 (music private, ask-first) and the hourly Drive workflow off (ask-first).
 
 **P4 · Safety, ops, switch-over**, built in batches (A+B, C, D, E+F, G+H with I), each reviewed, then deployed.
 - Live: A+B (owner-approved proposals, the decision card, the constitution pin, pinned by the owner; quiet hours) and C with C.5 (session taint, protected paths, the role matrix, the injection fixtures, the eval sandbox, the reader). SETUP.md M1 done.
@@ -40,7 +42,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Last deploy
 
-- 2026-10-29: this push, P5 step 4 (the player's switch through its own worker; site only).
+- 2026-10-29: this push, the `Senses` object alone (migration tag `v3`).
+- 2026-10-29 23:4x UTC: `63a9989` (run #42), P5 step 4b (the upload tool; new uploads' places).
+- 2026-10-29 23:34 UTC: `39baf5c` (run #41), P5 step 4 (the player's switch through its own worker; site only). Checked live.
 - 2026-10-29 23:20 UTC: `5389195` (run #40), P5 step 3 (the upload tools' routes, the `MEDIA` binding to `jarvis-music`, Music in the backup and the export; no schema change). Checked live.
 - 2026-10-29 22:59 UTC: `02f2004` (run #39), P5 step 2 (the music catalog import, catalog and waveform routes, media signing; no schema change). Checked live.
 - 2026-10-29 22:32 UTC: `c369d05` (run #38), P5 step 1, the `Music` object alone (migration tag `v2`). The deploy's smoke check passed.

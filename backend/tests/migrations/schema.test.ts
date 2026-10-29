@@ -8,6 +8,7 @@ import type { Auth } from '../../src/objects/auth';
 import { AUTH_MIGRATIONS } from '../../src/objects/auth.migrations';
 import { CORE_MIGRATIONS } from '../../src/objects/core.migrations';
 import { MUSIC_MIGRATIONS } from '../../src/objects/music';
+import { SENSES_MIGRATIONS } from '../../src/objects/senses';
 import { auth, core } from '../helpers';
 import authSchema from './auth.schema.sql?raw';
 import coreSchema from './core.schema.sql?raw';
@@ -60,5 +61,7 @@ describe('the deploy check knows the newest step', () => {
     expect(latestOf(raw(auth))).toBe(Math.max(...AUTH_MIGRATIONS.map((m) => m.version)));
     const music = import.meta.glob('../../src/objects/music.ts', { query: '?raw', import: 'default', eager: true });
     expect(latestOf(raw(music))).toBe(Math.max(...MUSIC_MIGRATIONS.map((m) => m.version)));
+    const senses = import.meta.glob('../../src/objects/senses.ts', { query: '?raw', import: 'default', eager: true });
+    expect(latestOf(raw(senses))).toBe(Math.max(...SENSES_MIGRATIONS.map((m) => m.version)));
   });
 });
