@@ -20,6 +20,7 @@
 <link rel="stylesheet" href="/ui/forms.css">
 <link rel="stylesheet" href="/apps/settings/settings.css">
 <link rel="stylesheet" href="/apps/home/chat.css">
+<link rel="stylesheet" href="/apps/home/menu.css">
 <script type="module" src="/apps/home/home.js"></script>
 <script type="module" src="/apps/home/boot.js"></script>
 </head>
@@ -56,8 +57,8 @@
     <div class="voice btitle"><span class="ln">Here's your day.</span></div>
     <div class="grid">
       <div class="tile wide">
-        <span class="k"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#moon-stars"/></svg>Not connected yet</span>
-        <span class="v">Your briefing fills in once I'm connected.</span>
+        <span class="k"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#moon-stars"/></svg>Not built yet</span>
+        <span class="v">This page comes with an upcoming update.</span>
         <span class="s">Weather, practice, study, and what I built overnight.</span>
       </div>
     </div>
@@ -66,10 +67,11 @@
 
   <div class="dim" id="dim"></div>
   <nav class="side" id="side" aria-label="Menu">
-    <div class="search"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#magnifying-glass"/></svg>Search everything</div>
+    <button class="search" id="search" type="button" data-toast="Search comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#magnifying-glass"/></svg>Search everything</button>
     <div class="sh">Conversations<small>A fresh one starts on its own each morning. Nothing to start or name.</small></div>
-    <div class="grp">Today</div>
-    <button class="row cur" type="button" style="--c:var(--accent)" data-toast="This is the current conversation"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#moon-stars"/></svg><span class="t">Now</span></button>
+    <div class="grp today">Today</div>
+    <button class="row cur" id="now" type="button" data-toast="This is the current conversation"><span class="av"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#moon-stars"/></svg></span><span class="t">Now</span><small></small></button>
+    <div id="convos"></div>
     <div class="sh">Settings</div>
     <div class="grp">Appearance</div>
     <div class="seg" id="seg"><button type="button" data-th="auto">Auto</button><button type="button" data-th="light">Day</button><button type="button" data-th="dark">Night</button></div>

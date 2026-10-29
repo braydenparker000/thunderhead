@@ -30,6 +30,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Last deploy
 
+- 2026-10-29: this push, the menu's Conversations list, the read-only past view, and Search. The old chats are visible.
+- 2026-10-29 20:3x UTC: `ef10c21`, P4 batch C (taint, protected paths, injection fixtures, the eval sandbox, the reader; Core v16), after a deep review whose 3 blockers are fixed (C.5). Owner step: SETUP.md M1, the new `.claude/settings.json`.
+- 2026-10-29: import run `old-5` done. 5 of 5 threads, 425 of 425 messages, the notebook (1 of 6 cc_state rows; the rest are bookkeeping), 20 of 20 and 5 of 5 spot checks. 70 tables, 39,549 rows and 55 parts are archived in `thunderhead-private`, with nothing deferred. SETUP.md L1 done: the first night ran clean at 19:46 UTC.
 - 2026-10-29: this push, P3 import stages D and D.5 (Core v12–v13, expand-only; the VAULT binding), after a focused review. Its blocker was fixed: any chat key could write "old chats" that memory takes as the owner's words, and now only the `import-once` key can.
 - 2026-10-29 14:52 UTC: `e61fd66` (run #28): P3 night shift stages C, C.5 and C.6 (Core v11, expand-only; inert until SETUP.md L1), after a focused security review. All of its findings are fixed.
 - 2026-10-29 13:26 UTC: `c4bc51e` (run #27, site + Worker): P3 memory stages A–A.7, B, B.5 and B.6 (Core v8–v10), after reviews of the backend and the Memory page. B.6 fixed a never-stored gap and a lost Forget on sign-out.

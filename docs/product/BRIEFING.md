@@ -64,7 +64,7 @@ The Thunderhead's own line, Fraunces italic. Fixed lines by time of day, unless 
 | 15:00–18:59 | *Here's the rest of today.* [proposal] |
 | 19:00–03:59 | *Here's tonight.* [proposal] |
 | No tiles except weather | *A quiet day.* [proposal] |
-| Not connected yet | *Here's your day.* plus the "Not connected yet" tile (built) |
+| Not built yet | *Here's your day.* plus the "Not built yet" tile (built; until stage H) |
 
 ## 4. Ordering and arrangement
 
@@ -119,7 +119,7 @@ The whole page is cached in IndexedDB. Offline, it paints from cache with the da
 
 | State | Shown |
 |---|---|
-| Not signed in / not connected (first build) | Title *Here's your day.*; one wide tile: "Not connected yet" / "Your briefing fills in once I'm connected." / "Weather, practice, study, and what I built overnight." |
+| Until the page is built (P4 stage H) | Title *Here's your day.*; one wide tile: "Not built yet" / "This page comes with an upcoming update." / "Weather, practice, study, and what I built overnight." (built; it said "Your briefing fills in once I'm connected.", untrue once the mind is connected) |
 | First day after sign-in | Weather (if a place is set) and one wide tile: "I'll arrange this page each night. Tomorrow it fills in." [proposal] |
 | No place set for weather | The weather tile reads "Weather" / "Set a place for the weather" and opens Settings → Briefing place [proposal] |
 | Nothing at all to show | Title *A quiet day.* and the weather tile only |

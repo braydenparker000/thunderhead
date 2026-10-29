@@ -262,8 +262,12 @@ bucket `thunderhead-private` (J2) and the deploy that carries the import.
 1. Tell the agent "L2 done" with the output. It reads each run's report (`GET /v1/import/runs/:id`:
    every row counted, 20 of 20 spot checks, every thread's shape) and the Ledger's import rows, and
    writes the counts to STATUS.
-2. **On the phone:** Menu shows the old chats filed by their dates, with their titles; open the 3
-   most recent old conversations: they read as they did. (The Board history waits for P4.)
+2. **On the phone** (once the menu's Conversations list is live, branch `ui-conversations`):
+   Menu → Conversations. Old chats from the last week are under Yesterday or This week, marked
+   "from the old Chats"; the rest are under **All conversations ›**, by month, with their titles
+   (one without a title shows its date). Open the 3 most recent: each shows on home, read-only,
+   with **Back to now** at the top, and reads as it did. Search everything finds their words too.
+   (The Board history waits for P4.)
 3. **Clean up.** Settings → Agents → `import-once` → **Revoke**. In the environment from L2.2:
    delete the network secret for `thunderhead-api.braydenparker999.workers.dev` and remove that
    line from the allowed hosts → **Save**. Check: Settings → Agents no longer lists `import-once`.

@@ -136,7 +136,11 @@ Status: **built** = in the first build or prototype; **proposal** = new. Voice s
 | `toast.stop.failed` | Couldn't reach the mind. Try again. | Stop couldn't reach the Worker (built, P2) |
 | `toast.chat.failed` | Couldn't load the conversation. Reload to try again. | Send tapped while signed in but the chat code failed to load (built, P2) |
 | `convo.showall` | Show all | Collapsed older reply (proposal) |
-| `past.back` | Back to now | Viewing a filed conversation (prototype) |
+| `past.back` | Back to now | Viewing a filed conversation (built) |
+| `past.pill` | <title> · <when> (Yesterday · Monday · 12 Sep · 3 Dec 2025) | The pill over a filed conversation (built) |
+| `past.earlier` | Show earlier | Top of a filed conversation with more above (built) |
+| `past.offline` | You're offline. This conversation shows once you're back. · Retry | A filed conversation opened offline (built) |
+| `past.empty` | No messages in this one yet. | A filed conversation with no messages (an old chat whose messages haven't come over) (built) |
 | `convo.notconnected` | *I'm not connected yet. Sign-in and my memory come next.* | First-build scripted reply (built; goes away with sign-in) |
 | `sys.newdevice` | New sign-in on another device · Sign it out | A new device signed in ([SIGN-IN](../product/SIGN-IN.md)) |
 
@@ -222,7 +226,7 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | ID | Text | When |
 |---|---|---|
 | `brief.back` | Swipe left to go back | Footer while learning (built) |
-| `brief.notconnected.k` / `.v` / `.s` | Not connected yet / Your briefing fills in once I'm connected. / Weather, practice, study, and what I built overnight. | First build (built) |
+| `brief.soon.k` / `.v` / `.s` | Not built yet / This page comes with an upcoming update. / Weather, practice, study, and what I built overnight. | Until the Briefing page is built (P4 stage H) (built; replaced "Not connected yet / Your briefing fills in once I'm connected.", untrue once the mind is connected) |
 | `brief.waiting.k` | Waiting on you | Gold tile (prototype) |
 | `brief.waiting.one` | One tap on home | Detail with 1 waiting (prototype) |
 | `brief.waiting.n` | 3 waiting · one tap each on home | Detail with several (proposal) |
@@ -243,14 +247,31 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | ID | Text | When |
 |---|---|---|
 | `menu.search` | Search everything | Search pill (built) |
-| `search.offline` | Offline: searching this phone only. | Offline search (proposal) |
-| `search.none` | Nothing found for "<query>". | No results (proposal) |
-| `search.ask` | Ask me instead | Button under no results (proposal) |
-| `search.showall` | Show all <N> | Group overflow (proposal) |
+| `menu.search.signin` | Search comes with sign-in | Search tapped while signed out (built) |
+| `search.groups` | Go to / Conversations / What I remember | Result groups (built) |
+| `search.offline` | Offline: searching this phone only. | Offline search (built) |
+| `search.partial` | Couldn't reach the full search. These are from this phone. | The Worker's search failed (built) |
+| `search.none` | Nothing found for “<query>”. | No results (built) |
+| `search.ask` | Ask me instead | Button under no results (built) |
+| `search.showall` | Show all <N> | Group overflow (built) |
+| `search.daynote` | Day note · <date> | Under a day note's snippet (built) |
+| `search.failed` | Couldn't load search. Reload to try again. | Toast when the search code can't load (built) |
 | `menu.convos` | Conversations | Section head (built) |
 | `menu.convos.sub` | A fresh one starts on its own each morning. Nothing to start or name. | Under the head (built) |
-| `menu.today` / `.yesterday` / `.week` / `.all` | Today / Yesterday / This week / All conversations | Groups (built: Today; prototype: Yesterday, This week; proposal: All conversations) |
+| `menu.today` / `.yesterday` / `.week` / `.last` / `.all` | Today / Yesterday / Earlier this week / Last week / All conversations | Groups by the calendar, weeks Monday to Sunday (built) |
 | `menu.now` | Now | Today's thread row (built) |
+| `menu.now.meta` | this morning / this afternoon / this evening / tonight | Now card's meta (built) |
+| `menu.now.sub` | <weekday> <day> <month> · <N> messages | Under Now (built) |
+| `menu.row.sub` | <summary> / <N> messages | A row's second line (built) |
+| `menu.all.sub` | <N> conversations, by month / By month, newest first | Under All conversations (built) |
+| `menu.oldchats` | Old Chats | Gold tag on an imported old chat's row and in its past view (built) |
+| `menu.untitled` | <weekday> <day> <month> ("Monday 26 October") | A thread with no title yet (built) |
+| `menu.all.back` / `.more` | ‹ Menu / Show more | All conversations page (built) |
+| `menu.all.none` | Each day files itself here once it is over. | The list and All conversations, empty (built) |
+| `menu.all.offline` | You're offline. The rest shows once you're back. | All conversations, more offline (built) |
+| `menu.convos.offline` | Offline: showing what this phone has. | The list offline, from this phone (built) |
+| `menu.convos.offline.none` | You're offline. Your conversations show once you're back. | The list offline with nothing on this phone (built) |
+| `menu.convos.failed` | Couldn't load your conversations. <reason> / Couldn't refresh your conversations. <reason> | The Worker didn't answer (built) |
 | `toast.now` | This is the current conversation | Tapping Now while on it (built) |
 | `row.continue` / `.rename` / `.delete` | Continue this / Rename / Delete | Row actions (mind research; proposal) |
 | `toast.continue` | I'll keep that in mind today. | After Continue this (proposal) |

@@ -28,11 +28,13 @@ Sibling docs: [HOME](HOME.md), [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM
 
 ## 2. Search
 
+Built: the field, local-first results, the Worker's search appended, offline, nothing found and the groups Go to, Conversations and What I remember (`frontend/th/convos/search.js`, loaded with the menu; `tests/convos-browser.test.mjs`). This phone's part covers app and settings names, thread titles and today's messages; a cache of the last 30 days of messages is not built yet. Day notes are listed under What I remember ("Day note · 28 Oct") and open that page filtered by the query.
+
 ### 2.1 Behaviour
 
 | Step | Rule |
 |---|---|
-| Field | A pill at the top (42 px tall, radius 21, `--tint` fill, magnifier icon) reading "Search everything" (a label, not a placeholder in the ask bar sense). |
+| Field | A pill at the top (42 px tall, radius 21, `--tint` fill, magnifier icon) reading "Search everything" (a label, not a placeholder in the ask bar sense). (built) |
 | Tap | It becomes a real `<input type="search">`, focused, keyboard up. The rest of the panel is replaced by results. An × clears; Back or Escape leaves search mode. |
 | Query | Case-insensitive and accent-folded ("cancion" finds "canción"). Minimum **2** characters. Debounce **150 ms**. |
 | Local first | Results from this phone's cache (thread titles, the last 30 days of messages, settings and app names) show within one frame. |
@@ -50,7 +52,7 @@ Groups appear in this order; empty groups are hidden.
 | **Go to** | App names, settings page names, exact commands ("quiet hours") | Icon + name | 4 | Opens the app or settings page |
 | **Conversations** | Messages (owner's and the mind's) and thread titles | Thread title · date, and a snippet of ±40 characters around the match with the match in **bold** | 5 | Closes the menu, shows that thread on home scrolled to the message, highlighted with an accent tint for 2 s ([HOME](HOME.md) §4.9) |
 | **What I remember** | Facts | The fact's text and its source ("you said", "I noticed", "I inferred") | 3 | Opens What I remember at that fact |
-| **App results** [proposal] | Each app registers a search provider as it moves over (songs and artists in Music, pieces in Guitar, books and pages in Study, saved videos in My Media, episodes in Podcasts) | App-specific row | 3 per app | Opens the item in its app |
+| **App results** [proposal, not built] | Each app registers a search provider as it moves over (songs and artists in Music, pieces in Guitar, books and pages in Study, saved videos in My Media, episodes in Podcasts) | App-specific row | 3 per app | Opens the item in its app |
 
 Every search follows the owner's rule: intelligent search must be genuinely better than plain search and never worse. Exact and prefix matches come first, then typo-tolerant, and smarter results never reorder them ([MUSIC](apps/MUSIC.md) §8).
 
@@ -60,14 +62,17 @@ Acceptance: with fixture threads, "canción" and "cancion" return the same hits;
 
 The section head reads "Conversations" with the line "A fresh one starts on its own each morning. Nothing to start or name." (built).
 
+Built: the groups, titles with their fallback, the row metas and the taps below (`frontend/th/convos/`, loaded when the menu first opens; `tests/convos-browser.test.mjs`, `tests/convos-logic.test.mjs`). Now is a glass card with today's date and message count. Each group under it has a heading with its count and a chevron; a tap folds its rows away (the height eases, the rows cascade back in on opening), and what is folded is remembered on this phone. A row is an icon tile, the title with its date on the right, and a second line: the night shift's summary, else how many messages. Imported old chats (`kind = 'imported'`) land by their own day like any thread, tagged gold "Old Chats" with a clock icon, and open read-only like any past thread. The list is read newest first, 30 a page, again on opening the menu after 30 s or when the feed reports a thread change; the first pages are kept on this phone (IndexedDB) for offline, with the line "Offline: showing what this phone has." Not built yet: the long-press actions (decisions.md) and the per-app icons (every older row uses `chat-circle` in `--ink-3`).
+
 ### 3.1 Grouping
 
 | Group | Contains | Row meta |
 |---|---|---|
 | **Today** | Only the current thread, titled **Now** (built), accent icon | "this morning" / "this afternoon" / "this evening" / "tonight" by the time of its last message (05–12 / 12–18 / 18–22 / 22–05) |
-| **Yesterday** | The previous day's thread | Time of its last message ("21:40", locale format) |
-| **This week** | 2–6 days ago | Weekday ("Mon") |
-| **All conversations ›** [proposal] | One row that opens a full-screen list of every older thread, grouped by month ("September 2026"), newest first, 30 at a time | Date ("12 Sep") |
+| **Yesterday** (built) | The previous day's thread (and any old chat of that day) | Time of its last message ("21:40", 24-hour) |
+| **Earlier this week** (built) | From Monday of this week to the day before yesterday (weeks run Monday to Sunday, so a Saturday is never "this week" on a Thursday) | Weekday and date ("Mon 26") |
+| **Last week** (built) | Monday to Sunday of the week before | Weekday and date ("Sat 24") |
+| **All conversations ›** (built) | One row that opens a full-screen list of every thread but Now, grouped by month ("October", "December 2025" outside this year), each month folding like the menu's groups, newest first, 30 at a time ("Show more"), with "‹ Menu" back | Weekday and date ("Sat 19") |
 
 One thread per day (decisions.md). The prototype showed two "Today" rows (topics within a day); this doc does not, see Open questions.
 
@@ -76,7 +81,8 @@ One thread per day (decisions.md). The prototype showed two "Today" rows (topics
 1. At the day roll the Worker gives the old thread a **provisional title**: the first owner message trimmed to 40 characters at a word boundary ([MEMORY](../mind/MEMORY.md) §11; Workers AI titles are deferred).
 2. The night shift rewrites it as the **final title**, unless the owner renamed it.
 3. Titles are ≤ **40** characters, sentence case, no date, no quotes ("A calm playlist for the evening", "Bars 9 to 12, slow then up to tempo").
-4. The row's icon and colour are those of the app the thread was mostly about (from its action chips and senses); a general thread uses `chat-circle` in `--ink-3` [proposal].
+4. The row's icon and colour are those of the app the thread was mostly about (from its action chips and senses); a general thread uses `chat-circle` in `--ink-3` [proposal; built: every older row uses `chat-circle`].
+6. Until a thread has a title, its row shows its date ("Monday 26 October") (built).
 5. An empty day (no messages) has no thread and no row.
 
 ### 3.3 Tap and long-press
@@ -84,8 +90,8 @@ One thread per day (decisions.md). The prototype showed two "Today" rows (topics
 | Gesture on a row | Result |
 |---|---|
 | Tap "Now" | Closes the menu; home shows today (built: toast "This is the current conversation" when already there) |
-| Tap an older row | Closes the menu; home shows that thread read-only with the "Back to now" pill ([HOME](HOME.md) §4.9) |
-| Long-press an older row (450 ms) | Action sheet: **Continue this** · **Rename** · **Delete** |
+| Tap an older row | Closes the menu; home shows that thread read-only with the "Back to now" pill ([HOME](HOME.md) §4.9) (built) |
+| Long-press an older row (450 ms) | Action sheet: **Continue this** · **Rename** · **Delete** [not built yet; Delete waits as a proposal, decisions.md] |
 | Long-press "Now" | Nothing (today cannot be renamed or deleted from here) |
 
 **Continue this.** Links the old thread to today: the mind's next briefing loads that thread's summary and its last 15 messages ([RUNTIME](../mind/RUNTIME.md)). Today's thread gets a system line "Continuing: <title>". Toast: "I'll keep that in mind today." Reversible (the link can be removed by long-pressing again: "Stop continuing").
@@ -266,8 +272,8 @@ Agent tokens let the mind's sessions and helper agents call the Worker (decision
 | # | Check |
 |---|---|
 | M1 | Swipe, Menu button, Back, Escape and dim-tap all open/close the panel as in Rules 1 |
-| M2 | Search: accent folding, 2-character minimum, offline line, server results appended without reordering |
-| M3 | Grouping: fixture threads of today, yesterday, 3 days ago and 40 days ago land in Today/Now, Yesterday, This week, All conversations |
+| M2 | Search: accent folding, 2-character minimum, offline line, server results appended without reordering (built: `tests/convos-browser.test.mjs`) |
+| M3 | Grouping by the calendar: on a Thursday, fixture threads of today, yesterday, Monday, last Saturday and 40 days ago land in Today/Now, Yesterday, Earlier this week, Last week and All conversations; Monday and Sunday edges, month and year crossings; a folded group stays folded on reload (built: `tests/convos-logic.test.mjs`, `tests/convos-browser.test.mjs`) |
 | M4 | Rename: 61 characters is cut to 60; empty reverts; the night shift does not overwrite (`title_source=owner`) |
 | M5 | Delete: confirm sheet, Undo for 8 s, Recently deleted for 30 days, purge after |
 | M6 | Quiet hours: end time cannot be before 06:30; decisions held as §4.2 |

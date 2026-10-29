@@ -26,6 +26,10 @@ import { createView, voice } from './view.js';
 
 const $ = (/** @type {string} */ s) => /** @type {HTMLElement} */ (document.querySelector(s));
 
+/** What home holds of today, for the menu's conversations and search (th/convos).
+ * @type {{ today: TodayResponse | null }} */
+export const current = { today: null };
+
 export async function startChat() {
   const convo = $('#convo');
   const edgeEl = $('#edge');
@@ -119,7 +123,7 @@ export async function startChat() {
     const t = await signedIn((tok) => api.today(tok));
     const known = new Set((state.today?.messages ?? []).map((m) => m.id));
     if (state.loaded) for (const m of t.messages) if (!known.has(m.id) && m.author !== 'owner') state.fresh.add(m.id);
-    state.today = t;
+    state.today = current.today = t;
     return t.seq;
   }
   async function loadSettings() {
@@ -368,6 +372,7 @@ export async function startChat() {
   const cached = await cache.read();
   if (cached) {
     Object.assign(state, { today: cached.today, presence: cached.presence, surfaces: cached.surfaces ?? [] });
+    current.today ??= cached.today;
     paint();
   }
   // The first pass loads everything; offline or with the Worker away, the cache stands, the

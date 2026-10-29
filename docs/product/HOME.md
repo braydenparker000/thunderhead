@@ -229,9 +229,10 @@ Attachments go to private storage behind sign-in (R2 `thunderhead-private`), nev
 
 ### 4.9 Viewing an older conversation
 
-Opened from the menu (prototype v11):
+Opened from the menu (prototype v11; built, `frontend/th/convos/past.js`). The thread loads its newest 200 messages, with "Show earlier" above for the rest; a search hit further back is found by reading back up to 1,000. Messages show as on home, without chips, Retry or Stop. If it can't load, a line says why with **Retry** ("You're offline. This conversation shows once you're back." offline).
 
-- The voice line and the decision card hide. A glass pill at the top of the column reads "<title> · <when>" with a **Back to now** button (accent fill, Inter 600 12).
+- The voice line and the decision card hide. A glass card at the top of the column holds the title (two lines at most), "<when> · <N> messages" under it (the day left out when the title is the day; an imported one tagged gold "Old Chats"), and a **Back to now** button (accent fill, Inter 600 12).
+- The mind's short replies keep the voice. A reply of an imported old chat, one of 280 characters or more, or one written in Markdown reads as text instead (Inter 16, `frontend/th/convos/prose.js`): headings, bullet and numbered lists, bold, `code`, fenced code, tables and https links, built as elements with text only.
 - The filed thread shows read-only, scrolled to the bottom (or to the search hit, highlighted for 2 s).
 - Typing and sending returns to now first, then sends.
 - Back, the pill's button, or a menu tap on "Now" returns to today.
