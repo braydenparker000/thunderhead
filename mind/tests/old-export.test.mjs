@@ -165,7 +165,7 @@ test('waits until 5 minutes after the deploy before its first call to the old Wo
   } finally { await f.stop(); }
 });
 
-test('a failed import stops with its code; bad arguments and a missing host are refused before any call', async () => {
+test('a failed import stops with its code and runs again alone; bad arguments and a missing host are refused before any call', async () => {
   const f = await fakes({failDataset: 'messages'});
   try {
     const r = await drive(f, ['--run', 'run-t4', '--deployed', LONG_AGO, '--instances', 'claude-chat-v1']);
@@ -173,8 +173,13 @@ test('a failed import stops with its code; bad arguments and a missing host are 
     const err = JSON.parse(r.stderr.trim().split('\n').pop());
     assert.equal(err.error.code, 'import_failed');
     assert.deepEqual(Object.keys(err.imports), ['threads', 'messages']);
+    const again = await drive(f, ['--run', 'run-t4', '--imports-only']);
+    assert.equal(again.code, 5, 'the imports again, without the export');
+    assert.equal(f.log.filter(l => l.side === 'old').length, 1 + 6, 'no old call the second time');
+    assert.deepEqual(f.stored.runs.map(x => x.dataset), ['threads', 'messages', 'threads', 'messages']);
     const calls = f.log.length;
-    for (const [args, extra] of [[['--run', 'bad id']], [['--run', 'ok', '--instances', 'nope']], [['--run', 'ok'], {OLD_API: ''}]]) {
+    for (const [args, extra] of [[['--run', 'bad id']], [['--run', 'ok', '--instances', 'nope']], [['--run', 'ok'], {OLD_API: ''}],
+      [['--run', 'ok', '--no-runs', '--imports-only']]]) {
       const bad = await drive(f, args, extra);
       assert.equal(bad.code, 2, args.join(' '));
     }

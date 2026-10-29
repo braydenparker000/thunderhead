@@ -203,7 +203,9 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 |---|---|---|---|
 | Creates (`PUT /…/:id`) | the path id | 200 + the stored record | 409 `conflict` |
 | Event batches | `batch_id` | 200 + the stored `{accepted, rejected}` | 409 |
-| Memory ops, verb results, job collect, import runs | `batch_id` / the path id, kept in `Core.op_batches` for 7 days | 200 + the stored result | 409 |
+| Memory ops, verb results, job collect | `batch_id` / the path id, kept in `Core.op_batches` for 7 days | 200 + the stored result | 409 |
+| Import runs | the request `id`, kept as its `imports` row | 202 + the same `import_id` | 409 |
+| Import parts and the manifest | the part's path / the run id, kept in `thunderhead-private` | 201 | 409 |
 | Approve / reject / undo | the record's state | 200 if already in the target state from the same request id; else 409 `already_*` | — |
 
 - "Same body" means the same SHA-256 of the canonical JSON (keys sorted, no whitespace).
@@ -263,7 +265,7 @@ Format of each entry: **Who** (principals) · **Phase** · request · response �
   ```
 - Per object, `schema` is the applied migration step and `expected` the newest step this code knows. An object is `ok` when `schema >= expected`: migrations are expand-only, so older code (after a rollback) runs safely on a newer schema. The deploy's smoke check waits for more: every object's `schema` and `expected` equal the newest step in the repo (`scripts/schema-version.mjs`), so an object still running the old code can't pass it.
 - `ok` is false if any object fails, or the backup is older than 8 days (from P4). Counts only, never content.
-- Fields whose feature hasn't shipped are present with `null` or `0` (P1: `last_backup` and `last_events_export` are `null`; `jobs_backlog`, `wakes_today` and `meter_today.bulk_rows_written` are `0`; `bulk_lane` is `null`; `meter_today` holds the objects' in-memory counts until the `meter` table exists). The backup age counts toward `ok` only once the first weekly backup exists (P4).
+- Fields whose feature hasn't shipped are present with `null` or `0` (P1: `last_backup` and `last_events_export` are `null`; `jobs_backlog` (counted from P3: the jobs not done or failed), `wakes_today` and `meter_today.bulk_rows_written` are `0`; `bulk_lane` is `null`; `meter_today` holds the objects' in-memory counts until the `meter` table exists). The backup age counts toward `ok` only once the first weekly backup exists (P4).
 
 ### 11.2 Auth
 
@@ -525,13 +527,13 @@ type MemoryOp =
 
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `POST /v1/ops/import/parts` | `ci`, `mind:chat` | raw gzip JSONL part; headers `TH-Import: <run_id>/<instance>/<table>/<nnnn>`, `TH-Sha256`, `TH-Rows` (≤ 2,000 rows, ≤ 5 MB) | `201 { key }` (idempotent by the header path; 409 if the bytes differ) |
-| `PUT /v1/ops/import/manifest/:run_id` | `ci`, `mind:chat` | the manifest JSON ([MIGRATION.md §3](MIGRATION.md)) | `201` |
-| `POST /v1/import/runs` | device, `mind:chat` | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music' }` | `202 { import_id }` |
-| `GET /v1/import/runs/:id` | device, agents | — | `200 { state, counts: { expected, imported, skipped, skip_reasons }, report: { spot_checks: {seed, passed, failed}, rerun_delta } \| null }` |
+| `POST /v1/ops/import/parts` | `ci`, `mind:chat` | raw gzip JSONL part, sent as the old export answered it; headers `TH-Import: <run_id>/<instance>/<table>/<nnnn>` (from `0001`), `TH-Sha256`, `TH-Rows` (≤ 2,000 rows, ≤ 5 MB) | `201 { key }` (idempotent by the header path; 409 if the bytes differ; 422 on a wrong digest; 415 if not gzip) |
+| `PUT /v1/ops/import/manifest/:run_id` | `ci`, `mind:chat` | the manifest JSON ([MIGRATION.md §3](MIGRATION.md); `ImportManifest` in `shared/contract/imports.ts`) | `201` (the same again is fine; another one 409) |
+| `POST /v1/import/runs` | device, `mind:chat` | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music' }` | `202 { import_id }` (422: a dataset not built yet, a run without a manifest or that table, messages before threads are done; 409: the id names another run, or the dataset is already running) |
+| `GET /v1/import/runs/:id` | device, agents | — | `200 ImportStatus { id, run_id, dataset, state, counts: { expected, imported, skipped, skip_reasons, files_waiting }, report: { spot_checks: {seed, checked, passed, failed}, thread_shapes: {checked, failed} \| null, rows_changed, rerun_delta } \| null, last_error, started_at, finished_at }` |
 | `POST /v1/import/phone` | device, from the new site's `/import/` page only (P1b) | `{ id: Id, chunk: number, chunks: number, exported_at: Ms, data: Record<string, unknown> }` (`data` = the `th-phone-export/2` file), gzip, ≤ 5 MB per chunk ([MIGRATION.md §5.3](MIGRATION.md#53-the-two-pages)) | `201 { import_id, counts: Record<string, number> }` (after the last chunk) |
 
-Data mechanics and proof rules: [DATA.md §12](DATA.md#12-importing-the-old-data). The plan: [MIGRATION.md](MIGRATION.md).
+Data mechanics and proof rules: [DATA.md §12](DATA.md#12-importing-the-old-data). The plan: [MIGRATION.md](MIGRATION.md). Without the private bucket's binding (`VAULT`) the parts, the manifest and a new run answer `503 not_configured`; a run's status still reads.
 
 ### 11.18 Jobs (P5)
 

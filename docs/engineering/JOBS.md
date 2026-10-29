@@ -142,24 +142,24 @@ Acceptance: vitest cases for each row of the table, using synthetic manifests an
 
 ### 4.1 The contract
 
-Each class has a `jobs` table ([DATA.md §3](DATA.md#3-shared-machinery-in-every-class)) and handlers in `backend/src/areas/<area>/jobs.ts`:
+Each class has a `jobs` table ([DATA.md §3](DATA.md#3-shared-machinery-in-every-class)); the runner is `backend/src/areas/jobs/runner.ts` and each area keeps its handlers (the import's: `backend/src/areas/import/job.ts`):
 
 ```ts
-type JobHandler<P, C> = {
+type JobHandler = {
   kind: string;
   lane: boolean;                          // true = uses the bulk lane and its cap
-  step(ctx: JobCtx, payload: P, cursor: C | null): StepResult<C>;   // synchronous; one transactionSync
+  maxAttempts?: number;                   // failures in a row before the job fails (default 6)
+  load(env, db, payload, cursor): Promise<unknown>;   // R2 reads, outside any transaction
+  step(w: Writer, payload, cursor, input): { next: unknown } | { done: true };  // one commit
+  failed?(w: Writer, payload, code): void; // what the area records when the job fails for good
 };
-type StepResult<C> =
-  | { next: C; rows_written: number }     // more to do
-  | { done: true; rows_written: number; report?: unknown };
 ```
 
 1. `alarm()` picks due jobs (`state IN ('queued','paused','running') AND due_at <= now`), oldest `due_at` first.
-2. Before a step it sets `state='running'` with `updated_at = now`. A job left `running` with `updated_at` older than 5 minutes is treated as crashed and resumed from its stored cursor (the step's transaction never committed, so nothing is half-written).
-3. A step runs inside one `transactionSync`, writes its rows, and stores the new cursor in the same transaction. A step is therefore all-or-nothing, and repeating it is safe.
+2. A step is the handler's `load`, then its `step` inside one commit (the `Writer` of `commit()`), which also stores the new cursor, the job's state and its rows written. A crash before the commit leaves the stored cursor as it was and the job due, so the next alarm resumes it; the commit checks that the cursor it loaded for is still the job's.
+3. A step is therefore all-or-nothing, and repeating it is safe.
 4. Step size: ≤ 2,000 rows and ≤ 200 ms of CPU **[proposal]**. If test X3 shows a 10 ms CPU limit per invocation, the per-kind step sizes shrink to fit, and each alarm runs exactly one step.
-5. After each step: if more remains and the cap allows, set `due_at = now` (the alarm re-fires at once, as one new invocation); otherwise compute the next due time. Then `setAlarm` only if the earliest `due_at` changed.
+5. After each step the job is due at once (`due_at = now`); the alarm is set to the earliest due time of any wake or job, only when it changes.
 6. One alarm invocation runs at most 5 steps or 1 s of wall time, whichever comes first. Then it re-arms. **[proposal]**
 
 ### 4.2 Retries
@@ -175,12 +175,12 @@ type StepResult<C> =
 
 Import jobs stop after 3 failures in a row and show the Home line from [MIGRATION.md §4](MIGRATION.md); the old Worker still has the data, so the fix is a code change and a re-run.
 
-`last_error` keeps a code from a fixed list plus ≤ 200 scrubbed characters.
+`last_error` keeps a code from the job's fixed list (`missing_part`, `bad_part`, …) or `step_failed:<error name>`, never a message that could hold data.
 
 ### 4.3 The write cap (bulk lane)
 
-- Only one lane job runs account-wide. `Core.settings['bulk.lane']` names it, and `Core.tick` grants and revokes the lane every 15 minutes ([DATA.md §8.3](DATA.md#83-the-bulk-lane)).
-- The holder may write 40,000 rows a day. Before each step it checks `meter.bulk_rows_written + estimated step rows ≤ 40,000`. If not, it sets `state='paused'` and `due_at` = next 00:05 UTC.
+- Only one lane job runs account-wide. `Core.settings['bulk.lane']` names it, and `Core.tick` grants and revokes the lane every 15 minutes ([DATA.md §8.3](DATA.md#83-the-bulk-lane)). **P3 builds the cap only:** the import is the one lane kind and runs in `Core`, so there is no holder to grant yet; the grant and the revoke at 60,000 come with the second lane kind (restores, P4).
+- The holder may write 40,000 rows a day. P3 counts the lane's rows per UTC day in `Core.settings['bulk.day']` (`{day, rows}`, each step's measured rows) and checks before each step that the day's rows are below 40,000; past it the job is `paused` with `due_at` = next 00:05 UTC. A step can overrun the cap by its own size (≤ 2,000 rows and their index and FTS writes).
 - When the account total reaches 60,000 writes in a day, `tick` revokes the lane at once. Non-lane jobs (prunes, exports, rollups) keep running, since they are part of the steady budget.
 - Lane jobs queue in this order: restores, then imports, then backfills, then ingestion **[proposal]**.
 

@@ -149,6 +149,25 @@ free number (numbers never change meaning, since `night_runs` keeps them). Give 
 per built step, in order, and the Worker refuses a step it doesn't list. A step that works in
 parts sets `cursor: true` and saves its place with `th night step <n> cursor <c>`.
 
+### A job kind
+
+A chunked job is a `JobHandler` (`backend/src/areas/jobs/runner.ts`, [JOBS.md §4](JOBS.md)) that
+its area owns: `load` reads what the step needs from outside the object (R2) before any
+transaction, `step` writes through the `Writer` and returns the next cursor or done, all in one
+commit with the job's own row. Register it in `JOB_HANDLERS` (`backend/src/objects/core.ts`), insert
+its job in the same commit as the record that asks for it (`insertJob`), and call `schedule()` so
+the alarm runs it. A bulk writer sets `lane: true`. Its test runs it across at least 3 steps, kills
+it once inside a step, and checks the end state equals an uninterrupted run
+(`backend/tests/integration/import-resume.test.ts`).
+
+### An import dataset
+
+`IMPORT_DATASETS` in `shared/contract/imports.ts` names each dataset's old object and table, what
+it waits for while `built: false` (a run of it is refused until then) and the datasets it runs
+`after`. Its mapper (`backend/src/areas/import/map.ts`) turns an old row into a row with a
+deterministic id (`importedId`) or a skip with its reason, never an error; the import job puts it
+idempotently and its spot check compares the sampled source row with what was written.
+
 ### An object method (deploy-transition tolerance)
 
 During a deploy the new Worker can briefly reach an object still running the previous release. A

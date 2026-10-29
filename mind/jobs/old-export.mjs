@@ -6,7 +6,7 @@
 // OLD_TOKEN and TH_TOKEN are used only when set (local runs, tests).
 //
 //   node mind/jobs/old-export.mjs --run <run_id> [--deployed <time>] [--old-version <id>]
-//                                 [--instances a,b] [--no-runs]
+//                                 [--instances a,b] [--no-runs | --imports-only]
 //
 // 1. Waits until 5 minutes after the old Worker's export deploy (`--deployed`, else 5 minutes from
 //    now): a Durable Object keeps its old code for about 4 minutes after a deploy.
@@ -16,7 +16,8 @@
 //    It stops at once if the old Worker ever reports a row written, or a part's SHA-256 differs.
 // 3. Writes the manifest last (PUT /v1/ops/import/manifest/:run_id).
 // 4. Unless --no-runs: starts the import of threads, then messages, then the notebook
-//    (POST /v1/import/runs) and waits for each (GET /v1/import/runs/:id).
+//    (POST /v1/import/runs) and waits for each (GET /v1/import/runs/:id). --imports-only does only
+//    this, for a run whose parts and manifest are stored (after a fix, the same parts again).
 // It prints counts only: never a row, a title or a body. The last line is one JSON summary.
 // Exit: 0 done, 2 usage, 3 the old Worker wrote a row, 4 a call failed, 5 an import failed or
 // did not finish in time.
@@ -54,8 +55,10 @@ export function parseArgs(argv) {
     else if (a === '--old-version') o.oldVersion = value();
     else if (a === '--instances') o.instances = value().split(',').filter(Boolean);
     else if (a === '--no-runs') o.runs = false;
+    else if (a === '--imports-only') o.importsOnly = true;
     else throw new Stop(2, 'usage', `unknown argument ${a}`);
   }
+  if (o.importsOnly && !o.runs) throw new Stop(2, 'usage', '--imports-only and --no-runs exclude each other');
   if (!RUN_ID.test(o.run ?? '')) throw new Stop(2, 'usage', '--run <run_id>: letters, digits, _ and -, at most 64');
   const unknown = o.instances.filter(n => !INSTANCES.includes(n));
   if (unknown.length || !o.instances.length) throw new Stop(2, 'usage', `--instances: some of ${INSTANCES.join(', ')}`);
@@ -194,6 +197,7 @@ export async function main(argv, env = process.env) {
   const started = Date.now();
   const o = parseArgs(argv);
   const s = settings(env);
+  if (o.importsOnly) return {run_id: o.run, imports: await runImports(s, o)};
   const wait = Math.max(0, (o.deployed ?? started) + DEPLOY_WAIT_MS - Date.now());
   if (wait) {
     say(`waiting ${Math.ceil(wait / 1000)} s for the old Worker's objects to run the export's code`);

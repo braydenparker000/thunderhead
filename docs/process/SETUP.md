@@ -218,13 +218,49 @@ nothing is fired. Do the steps in order; each says how to check it before the ne
 6. Tell the agent "L1 done". From now on the day roll fires the night shift once a day, and the
    06:07 schedule is the fallback (it ends at once when the night already ran).
 
-### L2. The import (after the old-Worker export ships)
+### L2. The import (about 20 minutes, after the old-Worker export ships)
 
 You said yes to the old-Worker export ([MIGRATION.md §3](../engineering/MIGRATION.md)); the agent
-ships it to the old Worker and tells you when it is live.
+ships it to the old Worker and tells you when it is live. The new Worker already has the private
+bucket `thunderhead-private` (J2) and the deploy that carries the import.
 
-1. For the export run only: in the existing Claude environment that already reaches the old Worker
-   with `CLAUDE_CHAT_AGENT_KEY`, add `thunderhead-api.braydenparker999.workers.dev` to its allowed
-   hosts, with a network secret for it: header `Authorization`, value `Bearer ` followed by a new
-   **Mind · chat** key named `import-once`.
-2. When the import report is green, revoke `import-once` (Settings → Agents) and remove the host.
+1. **The key.** On the phone: Menu → Settings → Agents → **New agent key**, role **Mind · chat**,
+   name `import-once` → **Create**. It is shown once; keep it only for the next step. Check:
+   Settings → Agents lists `import-once` with role Mind · chat.
+2. **The environment, for this run only.** claude.ai/code → **Environments** → the existing
+   environment whose network secret already carries the old Worker's agent key for
+   `jarvis-hub-api.braydenparker999.workers.dev` → **Edit**:
+   - Allowed hosts: add this line, keeping every other line:
+
+     ```text
+     thunderhead-api.braydenparker999.workers.dev
+     ```
+
+   - **Network secrets** → **Add**: host `thunderhead-api.braydenparker999.workers.dev`, header
+     `Authorization`, value `Bearer ` followed by the key → **Save**. Never put the key in the
+     variables. Check: the secret for `jarvis-hub-api.braydenparker999.workers.dev` is still there.
+3. **The run.** claude.ai/code → new session, repository `braydenparker000/thunderhead`, that
+   environment. The prompt, word for word:
+
+   ```text
+   Run this once from the repository root, in the background, and wait until it exits (it waits 5 minutes before its first call, then pulls the old Worker's export and imports it; it prints counts only). Then show me its whole output and its exit code, and do nothing else:
+   OLD_API=https://jarvis-hub-api.braydenparker999.workers.dev TH_API=https://thunderhead-api.braydenparker999.workers.dev node mind/jobs/old-export.mjs --run old-1
+   ```
+
+   Check: the last line is one JSON line with `"manifest":"written"` and `threads`, `messages` and
+   `notebook` each `"state":"done"`; exit code 0. If it stops: exit 3 (the old Worker reported a
+   row written) or 5 (an import failed): stop and tell the agent "L2 stopped" with the output;
+   exit 4 (a call failed): run it again with `--run old-2` in place of `--run old-1`.
+
+### L3. The import's check and clean-up (about 5 minutes)
+
+1. Tell the agent "L2 done" with the output. It reads each run's report (`GET /v1/import/runs/:id`:
+   every row counted, 20 of 20 spot checks, every thread's shape) and the Ledger's import rows, and
+   writes the counts to STATUS.
+2. **On the phone:** Menu shows the old chats filed by their dates, with their titles; open the 3
+   most recent old conversations: they read as they did. (The Board history waits for P4.)
+3. **Clean up.** Settings → Agents → `import-once` → **Revoke**. In the environment from L2.2:
+   delete the network secret for `thunderhead-api.braydenparker999.workers.dev` and remove that
+   line from the allowed hosts → **Save**. Check: Settings → Agents no longer lists `import-once`.
+4. The old Worker stays as it is: it is the live backup until its retirement
+   ([MIGRATION.md §8](../engineering/MIGRATION.md)).
