@@ -21,12 +21,17 @@
   "durable_objects": {
     "bindings": [
       { "name": "CORE", "class_name": "Core" },
-      { "name": "AUTH", "class_name": "Auth" }
+      { "name": "AUTH", "class_name": "Auth" },
+      { "name": "MUSIC", "class_name": "Music" }
     ]
   },
   // Classic migrations array (decision: not the newer `exports` field, which cannot be undone).
   // A class added later gets its own tag in its own deploy, because rollback cannot cross it.
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Core", "Auth"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Core", "Auth"] },
+    // P5: the Music object, shipped alone (its own deploy, no rollback across it).
+    { "tag": "v2", "new_sqlite_classes": ["Music"] }
+  ],
   // The private bucket (DATA.md §7.1, SETUP.md J2): never public, no r2.dev, no custom domain.
   // P3 keeps the old Worker's export parts and manifest in it (imports/old/). A rollback stays
   // safe while the bucket exists; without the binding (local dev, older configs) the routes

@@ -5,6 +5,7 @@ import { runCron } from './areas/ops/cron';
 
 export { Auth } from './objects/auth';
 export { Core } from './objects/core';
+export { Music } from './objects/music';
 
 export default {
   fetch: app.fetch,
