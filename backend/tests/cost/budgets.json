@@ -104,7 +104,7 @@
     "rows_written_max": 0
   },
   "POST /v1/mind/brief (claim, 20 messages) (Core)": {
-    "rows_read_max": 124,
+    "rows_read_max": 126,
     "rows_written_max": 49
   },
   "GET /v1/live/wait (nothing new, 1 s) (Core)": {

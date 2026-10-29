@@ -166,6 +166,9 @@ export interface BriefResponse {
   core: string;
   full: string;
   night_done: boolean;
+  /** The session is tainted: its own mark, or one its claim took over from that day's tainted
+   * session of its role (MEMORY.md §7). Its memory writes are refused. */
+  tainted: boolean;
 }
 
 export interface MindStatusRequest {

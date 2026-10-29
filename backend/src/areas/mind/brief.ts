@@ -18,6 +18,8 @@ export interface BriefInput {
   role: MindRole;
   /** The constitution's SHA-256 the session sent (`none` if its file was missing). */
   constitution: string;
+  /** The session is tainted (MEMORY.md §7): section 1 says so, before anything else is read. */
+  tainted: boolean;
   now: number;
   tz: string;
   day: string;
@@ -113,10 +115,19 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     `wake: ${i.wakeReason ?? 'manual'} · wakes today ${i.wakesToday} · pre-warms left ${i.prewarmsLeft}`,
     i.backoffUntil > i.now ? `usage backoff until ${clock(i.backoffUntil, i.tz)}` : 'no usage backoff',
     `laws: ${i.constitution === 'none' ? 'mind/CONSTITUTION.md missing' : `sha256 ${i.constitution.slice(0, 12)}`} (the pin arrives with proposals, P4) · open decisions 0 · quiet: off`,
+    ...(i.tainted
+      ? [
+          'taint: this session is tainted (it, or an earlier one of its role today, read outside content); memory writes are refused',
+        ]
+      : []),
   ].join('\n');
   const waiting = i.waiting.map((m) => line(m, i.tz));
   const tail = [
-    i.note ? `Latest session note (${clock(i.note.created_at, i.tz)}): ${i.note.body}` : 'No session note yet today.',
+    reflex
+      ? `Session notes: ${NO_MEMORY}`
+      : i.note
+        ? `Latest session note (${clock(i.note.created_at, i.tz)}): ${i.note.body}`
+        : 'No session note yet today.',
     ...i.todayTail.map((m) => line(m, i.tz)),
   ];
   const yesterday = i.yesterday.tail.map((m) => line(m, i.tz, false));

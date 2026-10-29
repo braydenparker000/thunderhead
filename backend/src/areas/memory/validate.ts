@@ -10,10 +10,10 @@ import {
   type FactSource,
   MEMORY_LIMITS,
   type MemoryReason,
-  neverStored,
   OWNER_ONLY_TAGS,
   SENSITIVE_TAGS,
 } from '../../../../shared/contract/memory.ts';
+import { neverStored } from '../../../../shared/contract/never-stored.ts';
 import type { Db } from '../../objects/base';
 import { messageOrigin } from '../conversation/store';
 import { byId as ledgerRow } from '../ledger/store';

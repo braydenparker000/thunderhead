@@ -7,7 +7,7 @@ import { surfaceKind } from '../../../../shared/contract/surfaces.ts';
 import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
-import { scrubUndo } from '../ledger/store';
+import { scrubArrangements, scrubUndo } from '../ledger/store';
 import { factFlags } from '../memory/store';
 import * as store from './store';
 
@@ -43,6 +43,8 @@ export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfa
     undo: before
       ? { op: 'surface.restore', args: { app, slot, row: before, was: 'put' } }
       : { op: 'surface.delete', args: { app, slot, was: 'put' } },
+    // The facts it drew on, so forgetting one can find this row and take its words (never shown).
+    op: cites.length ? { op: 'surface.put', facts: cites } : null,
   });
   w.change('surface', `app:${app}#${slot}`);
   store.put(w.db, {
@@ -80,9 +82,14 @@ function drawsOn(w: Writer, r: PutSurfaceRequest): string[] {
 
 /** The owner muted or forgot facts: every surface citing one leaves its slot at once (one ledger
  * row each, no undo), and no arrangement row of the last 30 days (the undo window) keeps an undo
- * that would put one back. Called by memory's owner ops. */
-export function clearCiting(w: Writer, c: Caller, factIds: string[], why: 'muted' | 'forgot'): void {
+ * that would put one back. A forget also takes the words of every row that drew on the facts
+ * since `since` (the lineage's first version): the put's `why` may quote what was forgotten.
+ * Called by memory's owner ops. */
+export function clearCiting(w: Writer, c: Caller, factIds: string[], why: 'muted' | 'forgot', since = w.at): void {
+  const forgot = why === 'forgot' ? 'it drew on something the owner forgot' : null;
   for (const row of store.citing(w.db, factIds)) {
+    // Its put, found by id (rows written before puts listed their facts, too).
+    if (forgot && row.ledger_id) scrubArrangements(w.db, { id: row.ledger_id }, forgot);
     w.ledger({
       kind: 'arrangement',
       actor: c.actor,
@@ -95,6 +102,7 @@ export function clearCiting(w: Writer, c: Caller, factIds: string[], why: 'muted
     store.remove(w.db, row.app, row.slot);
     w.change('surface', `app:${row.app}#${row.slot}`);
   }
+  if (forgot) scrubArrangements(w.db, { facts: factIds, since }, forgot);
   scrubUndo(w.db, factIds, w.at - UNDO_WINDOW_MS);
 }
 

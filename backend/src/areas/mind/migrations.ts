@@ -1,8 +1,9 @@
 // The mind's bookkeeping (DATA.md §4.1): wakes, the chat lease, per-session state and session
 // notes, with their retention (§10). `mind_sessions.day` and `last_owner_at` are additions that
-// back `day_closed` and `idle_min` (API.md §11.8) without scanning messages.
+// back `day_closed` and `idle_min` (API.md §11.8) without scanning messages. v10 indexes only the
+// tainted sessions, which a claim looks up (a taint lasts the role's logical day, MEMORY.md §7).
 import type { Migration, TableInfo } from '../../objects/base';
-import { pruneLeases, pruneNotes, pruneSessions, pruneWakes } from './store';
+import { pruneLeases, pruneNotes, pruneSessions, pruneWakes } from './prune';
 
 export const MIND_MIGRATIONS: Migration[] = [
   {
@@ -60,6 +61,12 @@ export const MIND_MIGRATIONS: Migration[] = [
         open_items_json TEXT NOT NULL
       ) WITHOUT ROWID`,
     ],
+  },
+  {
+    version: 10,
+    name: 'mind_sessions_tainted index',
+    kind: 'expand',
+    sql: ['CREATE INDEX mind_sessions_tainted ON mind_sessions (role, day, tainted_at) WHERE tainted_at IS NOT NULL'],
   },
 ];
 

@@ -135,6 +135,7 @@ end      120 min since the last owner message (10 min if prewarm and no message 
 2. The Worker accepts the claim if the token's role equals `role` and there is an open wake for that task. It compares session ids after normalising the prefix (the current system observed that the in-VM id `cse_…` shares its suffix with the link id `session_…`) **[unverified: test R-6]**. Equal → `exact`; not comparable → `loose` (logged).
 3. If a **chat** lease is already live for another session, the claim returns `already_live`; the hook prints "Another chat session is live. End this session now." and the session ends without speaking (`end_reason=already_live`).
 4. If there is no open wake, the claim is recorded as `manual` (the owner started it by hand), allowed, and logged.
+5. A taint lasts the rest of the role's logical day ([MEMORY.md §7](MEMORY.md#7-sessions-and-taint-in-practice)): a claim takes over the taint of that day's latest tainted session of its role, unless it is `exact` on a wake fired after that taint (the session the Worker started). The briefing's section 1 and the response's `tainted` say so. Until R-6 shows exact matches happen, every claim after a taint that day inherits it, which errs on the safe side.
 
 ### 4.4 Unclaimed wakes
 
@@ -227,7 +228,7 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th thread` | `add <text> [--owner mind\|owner] [--due <date>] --evidence <ids>` · `done <id>` · `drop <id> --why <t>` · `list` | `{"id"}` / `{"items"}` | C N | Open threads (commitments), not conversations. |
 | `th note` | `--session <text\|-> [--open <json>]` | `{"id"}` | C N R | Session note ≤ 120 words. |
 | `th day` | `<YYYY-MM-DD>` | `{"stats","messages","ledger","session_notes","events_summary"}` | N | Night input. |
-| `th daynote` | `<YYYY-MM-DD> --summary <t> --decisions <json> --importance <1-10>` | `{"version"}` | N | |
+| `th daynote` | `<YYYY-MM-DD> --summary <t> --decisions <json> --importance <1-10>` | `{"version"}`, plus `"kept_owner_edit": true` when the owner had edited that day (their note stands; nothing was written) | N | |
 | `th facts` | `--batch <file.json>` | `{"applied":n,"proposed":n,"rejected":[…]}` | N | One batch: valid ops apply together, rejected ones are listed (§12 step 4). |
 | `th surface` | `<app> <slot> --kind <k> --payload <json> --why <t> --topic <key> [--expires <iso>]` · `ls` · `rm <app> <slot>` | `{"ledger_id"}` · `{"items","seq"}` · `{"ok":true}` | C N | Kind, slot and payload are checked against the contract first. Home lines use app `home`, slot `line.<1-4>`. Exit 7 `nudge_repeat` if the owner dismissed the topic in the last 14 days. |
 | `th push` | `--title <t> --body <b> --ref <ref> --why <t> --topic <key> [--deadline <iso>]` | `{"queued_until"}` | C | The Worker holds it until a natural pause or drops it at the deadline ([BEHAVIOR.md §3.4](BEHAVIOR.md#34-rung-3-push)). |

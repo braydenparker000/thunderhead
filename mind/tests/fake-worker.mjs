@@ -124,7 +124,7 @@ export function createFake(options = {}) {
       }
       const core = o.coreOverride ?? buildCore(role);
       return {wake: wake && {id: wake.id, reason: wake.reason, claim_match: wake.claim_match}, day: o.day, seq: s.seq, core,
-        full: o.fullOverride ?? `${core}\n\n## 8. Profile\n(no facts yet)`, ...(o.nightDone ? {night_done: true} : {})};
+        full: o.fullOverride ?? `${core}\n\n## 8. Profile\n(no facts yet)`, night_done: Boolean(o.nightDone), tainted: s.tainted.has(body.session_id)};
     }],
     ['POST', /^\/v1\/mind\/status$/, ['chat', 'night', 'reflex'], ({body, session}) => {
       if (!['working', 'listening', 'stopping', 'limited'].includes(body.state)) throw new HttpError(422, 'validation');

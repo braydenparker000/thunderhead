@@ -152,7 +152,8 @@ export async function daynote(argv) {
   if (!Array.isArray(decisions)) throw invalid('--decisions must be a JSON array of strings');
   if (!(importance >= 1 && importance <= 10)) throw invalid('--importance must be 1-10');
   const {data} = await request('PUT', `/v1/memory/day-notes/${d}`, {body: {summary: need(flags, 'summary'), decisions, importance}});
-  out({version: data.version ?? null});
+  // The owner edited this day: their note stands and this one was not written.
+  out(data.kept_owner_edit ? {version: data.version ?? null, kept_owner_edit: true} : {version: data.version ?? null});
 }
 
 /** One batch of memory ops from a file: `{"ops":[…]}` or `[…]`. */

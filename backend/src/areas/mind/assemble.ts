@@ -27,8 +27,10 @@ export function assemble(
   now: number,
   wake: BriefResponse['wake'],
   constitution: string,
+  sessionId: string,
 ): BriefResponse {
   const day = currentDay(db, tz, now);
+  const tainted = (store.session(db, sessionId)?.tainted_at ?? null) !== null;
   const thread = convo.dailyThread(db, day);
   const all = thread ? convo.lastMessages(db, thread.id, 200) : [];
   const tail = all.slice(-12);
@@ -41,6 +43,7 @@ export function assemble(
   const { core, full } = buildBrief({
     role,
     constitution,
+    tainted,
     now,
     tz,
     day,
@@ -52,7 +55,7 @@ export function assemble(
     waiting: role === 'chat' ? convo.unanswered(db, 30) : [],
     todayTail: tail,
     todayEarlier: earlier,
-    note: store.latestNote(db),
+    note: memory ? store.latestNote(db) : null,
     yesterday: {
       threadId: yThread?.id ?? null,
       tail: yThread ? convo.lastMessages(db, yThread.id, 20) : [],
@@ -66,5 +69,5 @@ export function assemble(
     days: memory ? notes.dayNotes(db, dayBefore(day, 7), dayBefore(day), 7) : [],
     night: null,
   });
-  return { wake, day, seq: feed.lastSeq(db), core, full, night_done: false };
+  return { wake, day, seq: feed.lastSeq(db), core, full, night_done: false, tainted };
 }

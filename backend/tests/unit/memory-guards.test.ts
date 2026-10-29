@@ -1,8 +1,9 @@
-// Stage A.5 unit checks: what MEMORY.md §13 says is never stored is refused (keys, tokens,
-// passwords, card and bank numbers) without catching ordinary numbers; `fresh` turns only
+// Stage A.5 and A.6 unit checks: what MEMORY.md §13 says is never stored is refused (keys, tokens,
+// passwords, card and bank numbers) without catching everyday words ("pass", "pin") or ordinary
+// numbers that happen to pass Luhn (ISBNs, timestamps, order numbers); `fresh` turns only
 // workerd's missing-method error into a 503; and the renders build each date formatter once.
 import { describe, expect, it } from 'vitest';
-import { neverStored } from '../../../shared/contract/memory.ts';
+import { neverStored } from '../../../shared/contract/never-stored.ts';
 import { renderProfile } from '../../src/areas/memory/profile';
 import type { FactRow } from '../../src/areas/memory/store';
 import { type BriefInput, buildBrief } from '../../src/areas/mind/brief';
@@ -20,8 +21,17 @@ describe('never stored (MEMORY.md §13)', () => {
     ['a private key', ['-----BEGIN', 'OPENSSH', 'PRIVATE', 'KEY-----'].join(' ')],
     ['a recovery code', '7KQ2M-XW4TR-9DHPA-3NB6E-QY8VC'],
     ['a password', 'Password is hunter2-Correct-Horse'],
+    ['a password with a digit', 'My password is hunter2'],
+    ['a quoted password', "The wifi password is 'open sesame'"],
+    ['a passcode', 'The passcode was 1234'],
+    ['a passphrase', 'passphrase: correct horse battery staple'],
     ['a PIN', 'my pin: 4412'],
+    ['a PIN in capitals', 'My PIN is 4821'],
+    ['a PIN code', 'pin code is 2468'],
+    ['a security code', 'cvv 123'],
     ['a card number', 'Card 4111 1111 1111 1111 exp 12/29'],
+    ['a card with dashes', 'Card 4111-1111-1111-1111'],
+    ['an Amex number', 'Amex 3782 822463 10005'],
     ['a card without spaces', '5555555555554444'],
     ['an IBAN', 'Pay to GB82 WEST 1234 5698 7654 32'],
   ])('refuses %s', (_name, text) => {
@@ -36,8 +46,28 @@ describe('never stored (MEMORY.md §13)', () => {
     'Order number 1234567890123456 is not a card (fails Luhn)',
     'Likes the passing lane on the motorway',
     'The password manager is called Vault',
+    // Stage A.6: the review's false positives, kept word for word.
+    'The bridge pin is loose on the old guitar',
+    'The second pass was cleaner than the first',
+    'My bus pass is in the blue drawer',
+    'Pin: practise scales before the piece',
+    'Reading ISBN 9780141439518 this month',
+    'Practised at 1793269074337 ms',
+    'Code: the metronome app is open source',
+    'Wants a passport photo: book it Friday',
+    'The password manager is the blue app',
+    'Practised the piece; the second pass was cleaner.',
+    'The password is fine.',
+    'PIN numbers are printed on the letter',
+    'Tracking 1234567812345670 arrives Monday',
   ])('keeps "%s"', (text) => {
     expect(neverStored(text)).toBeNull();
+  });
+
+  it('a Luhn-valid number is a card only when written like one or starting like one', () => {
+    const luhnOk = '1234567812345670'; // passes Luhn; no card network starts with 1
+    expect(neverStored(`Order ${luhnOk}`)).toBeNull();
+    expect(neverStored(`Order ${luhnOk.replace(/(\d{4})(?=\d)/g, '$1 ')}`)).toBe('card');
   });
 });
 
@@ -95,6 +125,7 @@ describe('the renders build each date formatter once (briefing CPU)', () => {
       const input = {
         role: 'chat',
         constitution: 'none',
+        tainted: false,
         now,
         tz,
         day: '2026-11-03',

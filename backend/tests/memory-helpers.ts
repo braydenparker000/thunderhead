@@ -2,7 +2,7 @@
 // cite, and one-call wrappers for memory ops. Everything is synthetic.
 import type { BriefResponse, MemoryOp, MemoryOpsResponse, Message } from '../../shared/contract/api';
 import { uuidv7 } from '../src/lib/ids';
-import { apiJson, makeAgent, setupOwner } from './helpers';
+import { apiJson, coreSql, makeAgent, setupOwner } from './helpers';
 
 export interface Principals {
   D: string;
@@ -21,6 +21,23 @@ export function brief(token: string, session: string, role: 'chat' | 'night', sh
     ...as(token, session),
     body: { claim: true, session_id: session, role, constitution_sha256: sha, th_version: '0.1.0' },
   });
+}
+
+/** A wake the Worker fired for `role` (at now + `offset` ms) whose fire answered with `session`:
+ * a claim whose id ends the same way is that session (an exact match, RUNTIME.md §4.3), which
+ * starts clean even after a taint earlier that day (MEMORY.md §7). */
+export async function firedWake(role: 'chat' | 'night', session: string, offset = 1): Promise<string> {
+  const id = uuidv7();
+  const at = Date.now() + offset;
+  await coreSql(
+    `INSERT INTO wakes (id, at, task, reason, status, fired_at, session_id) VALUES (?, ?, ?, 'schedule', 'fired', ?, ?)`,
+    id,
+    at,
+    role,
+    at,
+    session,
+  );
+  return id;
 }
 
 /** The owner, a chat key and a night key, each mind key with a claimed session. */

@@ -77,57 +77,6 @@ export type MemoryReason = keyof typeof MEMORY_REASONS;
 
 const DAY_MS = 86_400_000;
 
-/** Token and key shapes: this system's own (th1_, thm_, ths_, thc_, tha_, thw_, thfp_) and the
- * common providers', a JWT, a private key block, a Bearer header, and a recovery code. */
-const SECRET_SHAPES = [
-  /\b(?:th1|thm|ths|thc|tha|thw|thfp)_[A-Za-z0-9_-]{16,}/,
-  /\b(?:sk|pk|rk)[-_](?:live|test|proj)?[-_]?[A-Za-z0-9]{20,}/,
-  /\b(?:ghp|gho|ghu|ghs|ghr|github_pat)_[A-Za-z0-9_]{20,}/,
-  /\bxox[abprs]-[A-Za-z0-9-]{10,}/,
-  /\bAKIA[0-9A-Z]{16}\b/,
-  /\bAIza[0-9A-Za-z_-]{30,}/,
-  /\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}/,
-  /-----BEGIN [A-Z ]*PRIVATE KEY-----/,
-  /\bBearer\s+[A-Za-z0-9._~+/=-]{16,}/i,
-  /\b[0-9A-HJKMNP-TV-Z]{5}(?:-[0-9A-HJKMNP-TV-Z]{5}){4}\b/,
-];
-/** "password is …", "pin: …", "my code = …" and the like. */
-const PASSWORD_SAID = /\b(?:pass(?:word|phrase|code)?|pwd|pin|passcode|recovery code|security code|cvv|cvc)\s*(?:is|was|:|=)\s*\S+/i;
-
-function luhn(digits: string): boolean {
-  let sum = 0;
-  for (let i = 0; i < digits.length; i++) {
-    let d = digits.charCodeAt(digits.length - 1 - i) - 48;
-    if (i % 2 === 1) {
-      d *= 2;
-      if (d > 9) d -= 9;
-    }
-    sum += d;
-  }
-  return sum % 10 === 0;
-}
-
-function iban(raw: string): boolean {
-  const s = raw.replace(/\s/g, '').toUpperCase();
-  const moved = s.slice(4) + s.slice(0, 4);
-  let rest = 0;
-  for (const ch of moved) {
-    const v = ch >= 'A' && ch <= 'Z' ? ch.charCodeAt(0) - 55 : Number(ch);
-    rest = Number(`${rest}${v}`) % 97;
-  }
-  return rest === 1;
-}
-
-/** What MEMORY.md §13 says is never stored, if the text holds one: a key or token, a password, a
- * card number (13–19 digits passing the Luhn check) or a bank account number (an IBAN). */
-export function neverStored(text: string): 'secret' | 'password' | 'card' | 'bank' | null {
-  if (SECRET_SHAPES.some((re) => re.test(text))) return 'secret';
-  if (PASSWORD_SAID.test(text)) return 'password';
-  for (const m of text.matchAll(/\b\d(?:[ -]?\d){12,18}\b/g)) if (luhn(m[0].replace(/\D/g, ''))) return 'card';
-  for (const m of text.matchAll(/\b[A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}(?:\s?[A-Z0-9]{1,4})?\b/g)) if (iban(m[0])) return 'bank';
-  return null;
-}
-
 /** The confidence now (MEMORY.md §5): `c0 · 0.5^((now − last_confirmed) / half_life(kind))`.
  * Computed at read time, never written. Rules and pinned facts do not decay; a pinned `user`
  * fact reads 1.0. A kind this build does not know decays like `fact`. */
@@ -249,6 +198,8 @@ export interface DayNote {
   written_by: string;
   version: number;
   written_at: Ms;
+  /** On a night write only: the owner had edited this day, so their version stands, unchanged. */
+  kept_owner_edit?: true;
 }
 
 export interface PutDayNoteRequest {

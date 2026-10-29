@@ -10,6 +10,7 @@ import {
   as,
   brief,
   CHAT_SESSION,
+  firedWake,
   mindSays,
   NIGHT_SESSION,
   ops,
@@ -157,7 +158,9 @@ describe('M11 and M12: the session', () => {
 
   it('a session whose constitution was missing, or that never claimed, may not write rules', async () => {
     const s = 'cse_memory_nolaws';
-    expect((await brief(P.N, s, 'night', 'none')).status).toBe(200);
+    // A session the Worker fired: clean, though the test before tainted a night session today.
+    await firedWake('night', 'session_nolaws');
+    expect((await brief(P.N, s, 'night', 'none')).body.tainted).toBe(false);
     const rule = () => addOp([`msg:${owner}`], { kind: 'rule', text: 'Answer briefly' });
     const r = await ops(as(P.N, s), [rule()]);
     expect(r.status).toBe(403);

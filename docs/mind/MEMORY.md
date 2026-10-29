@@ -156,7 +156,7 @@ All writes go through `th` → the Worker. The Worker validates, writes the row,
 | `remember` | chat, night, owner | INSERT a new fact | Close it (`superseded_at`, no successor) |
 | `confirm` | chat, night, owner | Set `last_confirmed = now`; `confidence = max(confidence, base(source of new evidence))`, within the fact's own cap. If the new evidence is all the owner's own words and the fact was not `user`, it becomes a supersede to `source=user` (tag `imported` dropped: "Yes, that's right") | Restore previous values |
 | `supersede` | chat, night, owner | Close the old row (`valid_to = valid_from of new` if world-time change, `superseded_at = now`, `superseded_by = new id`), INSERT the new row | Reopen the old row, close the new one |
-| `forget` | **owner only** | DELETE every version of the fact and their FTS entries (then an FTS `optimize`, so the words leave the index segments too); the memory ledger rows that pointed at them lose their `why` and their undo; one tombstone row remains: `{fact_id, kind, forgotten_at, versions}` and **no text** (memory rows never carry fact text) | None (that is the point). A 10 s "Undo" on the phone before the request is sent **[proposal]** |
+| `forget` | **owner only** | DELETE every version of the fact and their FTS entries (then an FTS `optimize`, so the words leave the index segments too); the memory ledger rows that pointed at them lose their `why` and their undo, and so does every surface row that drew on them (its `why` may quote the fact; puts list their facts for this); one tombstone row remains: `{fact_id, kind, forgotten_at, versions}` and **no text** (memory rows never carry fact text) | None (that is the point). A 10 s "Undo" on the phone before the request is sent (built, P3) |
 | `batch` | night | Up to 50 ops applied atomically; each op validated; rejected ops are listed, valid ones applied | Per op |
 | `mute` / `unmute` | owner | Set `may_raise` 0/1 | Toggle back |
 | `pin` / `unpin` | owner | Set `pinned` 1/0 | Toggle back |
@@ -233,7 +233,7 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 
 ## 7. Sessions and taint, in practice
 
-1. A session is clean when it starts.
+1. A session is clean when it starts, unless a session of its role was tainted earlier that logical day: the taint lasts the rest of the role's day. The Worker can't tell a session id the mind made up from a new cloud session, so a claim takes over the taint of that day's latest tainted session of its role (`taint_source = inherited:<source>`, the taint's own time). The one way out is the session the Worker itself fired after the taint: a claim that matches a still-open wake's fire exactly (`claim_match = exact`, [RUNTIME.md §4.3](RUNTIME.md#43-claim-binding)) starts clean. A loose or manual claim inherits; the next logical day starts clean. `POST /v1/mind/brief` answers `tainted`, and section 1 of the briefing says so.
 2. The PostToolUse hook calls `th taint` the first time the session fetches outside text ([RUNTIME.md §6.5](RUNTIME.md#65-posttooluse)).
 3. A tainted session can still answer, read memory, arrange things and ship code. It cannot write memory or reach people.
 4. If a tainted session learns something the owner said that should be remembered, it adds an open thread "remember: <text> (evidence msg …)" and the next clean session (or the night shift, which never fetches outside text before step 4) writes the fact. **[proposal]**
@@ -350,12 +350,12 @@ Built in P3 (`frontend/apps/settings/memory*.js`, `/settings/memory/`): What I k
 
 | Never | Instead |
 |---|---|
-| Passwords, tokens, keys, recovery codes in memory or messages | The mind refuses to repeat them and replies "Don't send me secrets; I've hidden that message." The Worker refuses them in facts, loose ends and day notes (`never_stored`, P3: this system's token shapes, common provider keys, JWTs, private keys, recovery codes, "password is …"); masking token-shaped strings in message bodies on write is still **[proposal]** |
+| Passwords, tokens, keys, recovery codes in memory or messages | The mind refuses to repeat them and replies "Don't send me secrets; I've hidden that message." The Worker refuses them in facts, loose ends and day notes (`never_stored`, P3, `shared/contract/never-stored.ts`): this system's token shapes, common provider keys, JWTs, private keys, recovery codes; "password", "passcode", "recovery code", "PIN" (in capitals) or "PIN code" followed by a value that looks like a secret (quoted, or one word of 4+ characters with a digit or a symbol); "passphrase" with any value; a lower-case "pin" only before 4–8 digits, and a security code before 3–4. Everyday words stay: "my bus pass is in the drawer", "the bridge pin is loose". Masking token-shaped strings in message bodies on write is still **[proposal]** |
 | Raw camera or microphone streams | Analysed on the phone while switched on; only the result the owner chooses to save (a voice memo they send, a practice score) is stored |
 | Precise location history | Coarse weather location only, set by the owner |
 | Inferred sensitive traits (health, sexuality, politics, religion, finances) | Only what the owner states, `source=user`, `sensitivity=1` |
 | Other people's contact details or inferred traits | Names as the owner wrote them, in messages; facts `about=person` only from the owner's words |
-| Payment card or bank numbers | Refused as secrets (card numbers by the Luhn check, bank accounts as IBANs) |
+| Payment card or bank numbers | Refused as secrets: a card number passes the Luhn check and is either written like a card (groups of four, or 4-6-5) or starts like one (the major networks' leading digits and lengths), since Luhn alone passes one number in ten (ISBNs, timestamps, order numbers); bank accounts as IBANs (mod 97) |
 | Outside text as facts | Cited only; `origin=external` rows |
 | Anything personal in the repo, Actions logs or artifacts | Private Worker and R2 only |
 

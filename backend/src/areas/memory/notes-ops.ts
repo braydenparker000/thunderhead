@@ -3,14 +3,14 @@
 // nothing, so a night step that reruns never writes a second version, and the owner's edit of a
 // day note is never written over by the night. A mind writes from a claimed, live session; a
 // tainted one may still add a loose end ("remember: …", MEMORY.md §7.4) but no day note.
-import {
-  type DayNote,
-  neverStored,
-  type OpenThread,
-  type PatchOpenThreadRequest,
-  type PutDayNoteRequest,
-  type PutOpenThreadRequest,
+import type {
+  DayNote,
+  OpenThread,
+  PatchOpenThreadRequest,
+  PutDayNoteRequest,
+  PutOpenThreadRequest,
 } from '../../../../shared/contract/memory.ts';
+import { neverStored } from '../../../../shared/contract/never-stored.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
@@ -157,8 +157,8 @@ export function putDayNote(w: Writer, c: Caller, day: string, today: string, r: 
   if (!summary) throw invalid('summary', 'required');
   const decisions = (Array.isArray(r.decisions) ? r.decisions : []).map((d) => clean('decisions', d)).filter(Boolean);
   const before = notes.dayNote(w.db, day);
-  // The owner's edit wins: the night shift never writes over it (it reads the owner's version).
-  if (before?.written_by === 'owner' && c.who !== 'D') return notes.toDayNote(before);
+  // The owner's edit wins: the night shift never writes over it, and is told so.
+  if (before?.written_by === 'owner' && c.who !== 'D') return { ...notes.toDayNote(before), kept_owner_edit: true };
   const decisionsJson = JSON.stringify(decisions);
   if (
     before &&

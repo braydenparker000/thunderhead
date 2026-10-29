@@ -259,6 +259,9 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   assert.equal(d.code, 0, d.stderr);
   assert.equal(d.json.stats.owner_messages, 1);
   assert.equal((await th(['daynote', '2026-10-28', '--summary', 'A quiet day.', '--decisions', '[]', '--importance', '3'], e)).json.version, 1);
+  fake.state.dayNotes.set('2026-10-27', {summary: 'The owner wrote this.', decisions: [], importance: 4, version: 2, written_by: 'owner'});
+  assert.deepEqual((await th(['daynote', '2026-10-27', '--summary', 'Night words.', '--decisions', '[]', '--importance', '3'], e)).json,
+    {version: 2, kept_owner_edit: true}, "the owner's edit stands, and th says so");
   const batch = join(e.TMPDIR, 'batch.json');
   writeFileSync(batch, JSON.stringify({ops: [{op: 'add', kind: 'preference', subject: 'music', text: 'Likes slow jazz in the evening', source: 'user', evidence: [`msg:${said.id}`], sensitivity: 0}]}));
   assert.deepEqual((await th(['facts', '--batch', batch], e)).json, {applied: 1, proposed: 0, rejected: []});

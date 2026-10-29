@@ -13,6 +13,7 @@ import {
   as,
   brief,
   CHAT_SESSION,
+  firedWake,
   NIGHT_SESSION,
   ops,
   ownerSays,
@@ -198,7 +199,9 @@ describe('8, 10 and the nits', () => {
     const rule = addOp([`msg:${said}`], { kind: 'rule', text: 'Answer briefly at night' });
     await ops(chat(), [rule]);
     const s = 'cse_review_nolaws';
-    expect((await brief(P.N, s, 'night', 'none')).status).toBe(200);
+    // A session the Worker fired: clean, though an earlier test tainted a night session today.
+    await firedWake('night', 'session_nolaws');
+    expect((await brief(P.N, s, 'night', 'none')).body.tainted).toBe(false);
     const sup = {
       op: 'supersede',
       id: rule.id,

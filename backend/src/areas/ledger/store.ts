@@ -129,15 +129,41 @@ export function scrubMemory(db: Db, refs: string[], since: number): number {
   );
 }
 
+/** `LIKE` patterns for ids, in groups small enough for one statement each, so a scrub reads the
+ * rows in its window once per group instead of once per id. */
+function likeGroups(ids: string[]): string[][] {
+  const pats = ids.map((id) => `%${id.replace(/[%_]/g, '')}%`);
+  const out: string[][] = [];
+  for (let i = 0; i < pats.length; i += 40) out.push(pats.slice(i, i + 40));
+  return out;
+}
+const anyLike = (col: string, group: string[]) => `(${group.map(() => `${col} LIKE ?`).join(' OR ')})`;
+
+/** Arrangement rows that drew on forgotten facts keep their time and slot but lose their words
+ * and their undo: one row by id, or every row since `since` whose `op_json` lists one of `facts`
+ * (a surface put records the facts it cites there), read through the time index. */
+export function scrubArrangements(
+  db: Db,
+  which: { id: string } | { facts: string[]; since: number },
+  why: string,
+): number {
+  const set = 'UPDATE ledger SET why = ?, undo_json = NULL, undoable = 0';
+  if ('id' in which) return db.run(`${set} WHERE id = ? AND kind = 'arrangement'`, why, which.id);
+  let n = 0;
+  for (const g of likeGroups(which.facts))
+    n += db.run(`${set} WHERE at >= ? AND kind = 'arrangement' AND ${anyLike('op_json', g)}`, why, which.since, ...g);
+  return n;
+}
+
 /** Arrangement rows since `since` whose stored undo mentions one of these ids (a surface citing a
  * muted or forgotten fact) lose that undo, so nothing can put the surface back. */
 export function scrubUndo(db: Db, ids: string[], since: number): number {
   let n = 0;
-  for (const id of ids)
+  for (const g of likeGroups(ids))
     n += db.run(
-      `UPDATE ledger SET undo_json = NULL, undoable = 0 WHERE at >= ? AND kind = 'arrangement' AND undo_json LIKE ?`,
+      `UPDATE ledger SET undo_json = NULL, undoable = 0 WHERE at >= ? AND kind = 'arrangement' AND ${anyLike('undo_json', g)}`,
       since,
-      `%${id.replace(/[%_]/g, '')}%`,
+      ...g,
     );
   return n;
 }

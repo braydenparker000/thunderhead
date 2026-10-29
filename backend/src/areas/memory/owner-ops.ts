@@ -52,16 +52,18 @@ export function forget(w: Writer, c: Caller, ctx: OpContext, id: string): Applie
   if (!versions.length) throw new Reject('unknown_ref');
   const kind = versions[0].kind;
   store.deleteFacts(w.db, versions, w.at);
+  const first = Math.min(...versions.map((v) => v.recorded_at));
   clearCiting(
     w,
     c,
     versions.map((v) => v.id),
     'forgot',
+    first,
   );
   scrubMemory(
     w.db,
     versions.map((v) => short(v.id)),
-    Math.min(...versions.map((v) => v.recorded_at)),
+    first,
   );
   const ledgerId = w.ledger({
     id: ctx.selfLedger,

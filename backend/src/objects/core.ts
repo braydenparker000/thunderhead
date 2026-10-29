@@ -109,7 +109,7 @@ export class Core extends CoreMemory {
       const claimed = r.claim ? this.write((w) => mind.claim(w, r, this.tz())).wake : null;
       // A claim hands out what the briefing shows: the requeue alarm must cover it.
       if (r.claim) this.schedule();
-      return assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256);
+      return assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256, r.session_id);
     });
   }
 

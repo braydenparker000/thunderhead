@@ -210,7 +210,7 @@ Acceptance: a unit test of the notification builder over every kind, with detail
 | Action | Effect |
 |---|---|
 | Delete a message | Removed from `Core` and the FTS index at once; any file it carried is deleted from R2; ledger keeps "message deleted" without content. |
-| Forget a fact (Memory page) | Hard delete of the fact and every version of it (even one an undo unlinked), its FTS entries rewritten away; surfaces citing it cleared; the ledger rows about it keep only time and kind; one tombstone without content, and the ids kept so they are never reused. Durable Object point-in-time recovery still holds the deleted pages for up to 30 days (the Memory page says so). |
+| Forget a fact (Memory page) | Hard delete of the fact and every version of it (even one an undo unlinked), its FTS entries rewritten away; surfaces citing it cleared, and the ledger rows of every surface that drew on it lose their words; the ledger rows about it keep only time and kind; one tombstone without content, and the ids kept so they are never reused. Durable Object point-in-time recovery still holds the deleted pages for up to 30 days (the Memory page says so). |
 | Delete a day's conversation | Messages, thread, day note and session notes of that day. |
 | Delete a file or book | R2 object and its extracted text and index rows. |
 | Delete events | By app and date range in Settings → Privacy; SQLite rows and the matching lines in the daily archives are rewritten. |
