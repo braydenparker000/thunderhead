@@ -78,6 +78,13 @@ export const VERBS = Object.freeze(${j(verbs)});
 /** @type {Readonly<Record<SurfaceKindName, SurfaceInfo>>} */
 export const SURFACE_KINDS = Object.freeze(${j(kinds)});
 
+/** Decision cards (shared/contract/proposals.ts): each class's label and the card's limits. */
+/** @type {typeof import('../../shared/contract/proposals.ts').PROPOSAL_CLASSES} */
+export const PROPOSAL_CLASSES = Object.freeze(${j(c.PROPOSAL_CLASSES)});
+
+/** @type {typeof import('../../shared/contract/proposals.ts').PROPOSAL_LIMITS} */
+export const PROPOSAL_LIMITS = Object.freeze(${j(c.PROPOSAL_LIMITS)});
+
 /** Memory (MEMORY.md §2–§8): fact kinds in profile order, sources, the confidence thresholds, and
  * the reasons an op can be refused. A kind or source not listed renders generically.
  * @type {Readonly<{kinds: readonly import('../../shared/contract/memory.ts').FactKind[], sources: readonly import('../../shared/contract/memory.ts').FactSource[], confidence: typeof import('../../shared/contract/memory.ts').CONFIDENCE, limits: typeof import('../../shared/contract/memory.ts').MEMORY_LIMITS, reasons: readonly import('../../shared/contract/memory.ts').MemoryReason[]}>} */
@@ -157,6 +164,16 @@ function mind() {
       day_parts: c.NIGHT_DAY_PARTS,
       page_max: c.NIGHT_PAGE_MAX,
       backfill_days: c.NIGHT_BACKFILL_DAYS,
+    },
+    proposals: {
+      classes: c.PROPOSAL_CLASSES,
+      limits: c.PROPOSAL_LIMITS,
+      ops: Object.fromEntries(
+        Object.entries(c.PROPOSAL_OPS).map(([n, o]) => [
+          n,
+          { classes: o.classes, by: o.by, runs: o.runs, ref: o.ref, doc: o.doc, args: schema(o.args) },
+        ]),
+      ),
     },
     lint: { banned_phrases: BANNED_PHRASES },
   };
@@ -247,6 +264,22 @@ function docs() {
   for (const s of c.NIGHT_STEPS)
     L.push(
       `| ${s.step} | ${s.name}${s.sunday ? ' (Sunday)' : ''} | ${s.budget_min} | ${s.phase} | ${s.cursor ? 'yes' : 'no'} | ${cell(s.idempotent)} |`,
+    );
+  const lim = c.PROPOSAL_LIMITS;
+  L.push(
+    '',
+    '## Proposals',
+    '',
+    `Decision cards (\`PUT /v1/proposals/:id\`, \`th propose\`). A card: question ≤ ${lim.question}, why ≤ ${lim.why}, if ignored ≤ ${lim.if_ignored}, two options ≤ ${lim.option} each; at most ${lim.waiting} raised by agents wait at once; each expires after ${lim.expires_days} days; "Not yet" brings it back the next morning at most ${lim.snoozes} times; the canonical spec ≤ ${lim.spec_bytes} bytes. Only the owner decides: a tap on a device, or their own words recorded by mind:chat (\`by_message\`).`,
+    '',
+    '| Class | Ask first | Card label |',
+    '|---|---|---|',
+  );
+  for (const [k, v] of Object.entries(c.PROPOSAL_CLASSES)) L.push(`| \`${k}\` | ${v.ask_first ? 'yes' : 'no'} | ${cell(v.label)} |`);
+  L.push('', '| Op | Classes | Raised by | Runs in | Acts on | Args | What approving does |', '|---|---|---|---|---|---|---|');
+  for (const [n, o] of Object.entries(c.PROPOSAL_OPS))
+    L.push(
+      `| \`${n}\` | ${o.classes.join(', ')} | ${o.by.join(' ')} | ${o.runs} | \`${o.ref[0]}:<${o.ref[1]}>\` | ${shape(o.args)} | ${cell(o.doc)} |`,
     );
   L.push('', '## Error codes', '', '| Code | Status | Message |', '|---|---|---|');
   for (const [code, [status, message]] of Object.entries(c.CODES)) L.push(`| \`${code}\` | ${status} | ${cell(message)} |`);

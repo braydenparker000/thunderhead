@@ -648,7 +648,8 @@
         "R"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "built",
+      "note": "an agent raises a decision card (from a claimed, untainted session)"
     },
     "GET /v1/proposals": {
       "who": [
@@ -658,7 +659,7 @@
         "R"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "built"
     },
     "POST /v1/proposals/:id/decide": {
       "who": [
@@ -666,8 +667,8 @@
         "C"
       ],
       "phase": "P4",
-      "status": "later (P4)",
-      "note": "mind:chat with by_message only"
+      "status": "built",
+      "note": "device: a tap; mind:chat: the owner's own words (by_message) only"
     },
     "POST /v1/proposals/:id/cancel": {
       "who": [
@@ -677,7 +678,8 @@
         "R"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "built",
+      "note": "the agent that raised it, or the owner"
     },
     "POST /v1/ops/backups/run": {
       "who": [
@@ -685,7 +687,7 @@
         "I"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage E (weekly backups)"
     },
     "POST /v1/ops/drill/run": {
       "who": [
@@ -693,7 +695,7 @@
         "I"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage E (the restore drill)"
     },
     "GET /v1/ops/backups": {
       "who": [
@@ -704,7 +706,7 @@
         "I"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage E (weekly backups)"
     },
     "POST /v1/ops/restore": {
       "who": [
@@ -714,21 +716,21 @@
         "R"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage E (restores)"
     },
     "POST /v1/export": {
       "who": [
         "D"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage F (download everything)"
     },
     "GET /v1/export/:id": {
       "who": [
         "D"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage F (download everything)"
     },
     "PUT /v1/work/orders/:id": {
       "who": [
@@ -736,7 +738,7 @@
         "N"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage G (Muse on work orders)"
     },
     "POST /v1/work/orders/:id/cancel": {
       "who": [
@@ -745,7 +747,7 @@
         "N"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage G (Muse on work orders)"
     },
     "GET /v1/work/orders": {
       "who": [
@@ -755,7 +757,7 @@
         "R"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage G (Muse on work orders)"
     },
     "GET /v1/work/orders/:id": {
       "who": [
@@ -765,21 +767,21 @@
         "R"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage G (Muse on work orders)"
     },
     "GET /v1/work/hello": {
       "who": [
         "M"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage G (Muse on work orders)"
     },
     "POST /v1/work/claim": {
       "who": [
         "M"
       ],
       "phase": "P4",
-      "status": "later (P4)"
+      "status": "deferred: P4 stage G (Muse on work orders)"
     },
     "PUT /v1/senses/batches/:id": {
       "who": [
@@ -1353,7 +1355,7 @@
       "too_long": "One claim, at most 280 characters.",
       "no_inferred_sensitive": "Sensitive traits are never inferred.",
       "session_tainted": "This session read outside text, so it may not write memory.",
-      "laws_unpinned": "This session's constitution is missing, so it may not write rules.",
+      "laws_unpinned": "This session's laws file is missing or is not the version the owner approved, so it may not write rules.",
       "device_only": "Only the owner can do this, from the Memory page.",
       "duplicate_id": "A fact with this id already exists.",
       "superseded": "This fact was already replaced; work on its newest version.",
@@ -1426,7 +1428,8 @@
         "budget_min": 1,
         "idempotent": "items are put by id",
         "cursor": false,
-        "phase": "P4"
+        "phase": "P4",
+        "deferred": "the Briefing page's Built overnight tile (P4 stage H)"
       },
       {
         "step": 9,
@@ -1435,7 +1438,8 @@
         "idempotent": "one eval run a week",
         "cursor": false,
         "phase": "P4",
-        "sunday": true
+        "sunday": true,
+        "deferred": "the injection fixtures and the eval sandbox (P4 stage C)"
       },
       {
         "step": 10,
@@ -1461,6 +1465,137 @@
     ],
     "page_max": 200,
     "backfill_days": 7
+  },
+  "proposals": {
+    "classes": {
+      "delete": {
+        "ask_first": true,
+        "label": "Can't be undone"
+      },
+      "money": {
+        "ask_first": true,
+        "label": "Costs money"
+      },
+      "access": {
+        "ask_first": true,
+        "label": "Changes access"
+      },
+      "reach_people": {
+        "ask_first": true,
+        "label": "Reaches someone else"
+      },
+      "memory_big": {
+        "ask_first": false,
+        "label": "Changes what I remember"
+      }
+    },
+    "limits": {
+      "question": 80,
+      "why": 140,
+      "if_ignored": 140,
+      "option": 20,
+      "waiting": 3,
+      "expires_days": 7,
+      "snoozes": 3,
+      "spec_bytes": 8192
+    },
+    "ops": {
+      "memory.forget": {
+        "classes": [
+          "delete"
+        ],
+        "by": [
+          "C"
+        ],
+        "runs": "core",
+        "ref": [
+          "fact",
+          "id"
+        ],
+        "doc": "Forget a fact and every version of it for good (the owner's hard delete, MEMORY.md §3).",
+        "args": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "agents.revoke": {
+        "classes": [
+          "access"
+        ],
+        "by": [
+          "C",
+          "N",
+          "R"
+        ],
+        "runs": "auth",
+        "ref": [
+          "agent",
+          "agent_id"
+        ],
+        "doc": "Revoke one agent key; it stops working within 60 s (SECURITY.md §14.2).",
+        "args": {
+          "type": "object",
+          "properties": {
+            "agent_id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            }
+          },
+          "required": [
+            "agent_id"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "laws.pin": {
+        "classes": [
+          "access"
+        ],
+        "by": [
+          "worker"
+        ],
+        "runs": "core",
+        "ref": [
+          "laws",
+          "sha256"
+        ],
+        "doc": "Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only.",
+        "args": {
+          "type": "object",
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "previous": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "sha256",
+            "previous"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
   },
   "lint": {
     "banned_phrases": [

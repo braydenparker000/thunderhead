@@ -2,6 +2,7 @@
 // sign-in pages and Settings can be driven end to end, and the conversation's routes with a live
 // socket (page.routeWebSocket), so home's chat can be too. No network; synthetic data only.
 import { memoryAnswer, memoryState } from './mock-memory.mjs';
+import { proposalsAnswer, proposalsState } from './mock-proposals.mjs';
 
 export const API = 'https://api.th.test';
 
@@ -37,6 +38,7 @@ export async function mockApi(page, overrides = {}) {
   };
   state.chat = chatState(overrides.chat);
   state.memory = 'memory' in overrides ? overrides.memory : memoryState(now);
+  state.proposals = proposalsState(overrides.proposals);
   const calls = [];
   await page.routeWebSocket(/\/v1\/live\?ticket=/, (ws) => {
     state.chat.sockets.push(ws);
@@ -62,7 +64,12 @@ export async function mockApi(page, overrides = {}) {
     if (c.slow[url.pathname]) await new Promise((r) => setTimeout(r, c.slow[url.pathname]));
     await route.fulfill({ status, headers: { ...CORS, 'content-type': 'application/json' }, body: json === null ? '' : JSON.stringify(json) });
   });
-  return { state, calls, chat: chatControls(state.chat) };
+  const proposals = {
+    /** A card arrives while the page is open (a `proposal` change). */
+    add: (p) => { state.proposals.items.push(p); changed(state.chat, 'proposal'); },
+    get state() { return state.proposals; },
+  };
+  return { state, calls, chat: chatControls(state.chat), proposals };
 }
 
 const DAY = '2026-10-29';
@@ -186,5 +193,10 @@ function answer(state, method, url, body) {
   if (method === 'PATCH' && p.startsWith('/v1/auth/sessions/')) return [200, { ...state.sessions[0], label: body.label }];
   if (method === 'POST' && /^\/v1\/auth\/notices\/[^/]+\/ack$/.test(p)) return [204, null];
   if (k === 'POST /v1/auth/breakglass/cancel') return [204, null];
-  return memoryAnswer(state.memory, method, p, url, body) ?? chatAnswer(state.chat, method, p, url, body) ?? err(404, 'not_found');
+  return (
+    proposalsAnswer(state.proposals, method, p, url, body, (kind) => changed(state.chat, kind)) ??
+    memoryAnswer(state.memory, method, p, url, body) ??
+    chatAnswer(state.chat, method, p, url, body) ??
+    err(404, 'not_found')
+  );
 }

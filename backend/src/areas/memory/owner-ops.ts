@@ -3,6 +3,7 @@
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { scrubMemory } from '../ledger/store';
+import { forgotten } from '../proposals/scrub';
 import { clearCiting } from '../surfaces/ops';
 import { type Applied, current, short } from './fact-ops';
 import * as store from './store';
@@ -43,7 +44,8 @@ export function flag(
 
 /** The owner's forget (MEMORY.md §3): every version of the fact's lineage (even one an undo
  * unlinked) is deleted with its FTS entries, its id kept as a tombstone; the ledger rows that
- * pointed at them lose their words and their undo; surfaces citing them leave their slots; and
+ * pointed at them lose their words and their undo; surfaces citing them leave their slots; the
+ * decision cards that name them lose their words (proposals/scrub.ts); and
  * one tombstone ledger row remains: `{fact_id, kind, forgotten_at, versions}`, no text. Not
  * undoable. */
 export function forget(w: Writer, c: Caller, ctx: OpContext, id: string): Applied {
@@ -64,6 +66,11 @@ export function forget(w: Writer, c: Caller, ctx: OpContext, id: string): Applie
     w.db,
     versions.map((v) => short(v.id)),
     first,
+  );
+  // Decision cards that name it lose their words too (a waiting one is cancelled).
+  forgotten(
+    w,
+    versions.map((v) => v.id),
   );
   const ledgerId = w.ledger({
     id: ctx.selfLedger,

@@ -2,7 +2,7 @@
 // (RUNTIME.md §5.3, BEHAVIOR.md §4, API.md §11.10–11.12, §11.19–11.20).
 import {parseArgs} from './args.mjs';
 import {invalid, jsonFlag, need, out, toMs} from './io.mjs';
-import {CONTRACT, checkSurface, checkVerb} from './contract.mjs';
+import {CONTRACT, checkProposal, checkSurface, checkVerb} from './contract.mjs';
 import {request} from './http.mjs';
 import {getState, setState} from './state.mjs';
 import {uuidv7} from './ids.mjs';
@@ -27,17 +27,24 @@ export async function propose(argv) {
   if (options.length !== 2 || options.some(o => !o || o.length > 20)) throw invalid('--options must be "Action|Safe choice", each ≤ 20 characters');
   const odds = flags.odds === undefined ? undefined : Number(flags.odds);
   if (odds !== undefined && !(odds >= 0 && odds <= 1)) throw invalid('--odds must be between 0 and 1');
+  const safe = flags.safe === undefined ? undefined : flags.safe;
+  if (safe !== undefined && safe !== 'reject' && safe !== 'snooze') throw invalid('--safe must be reject (No) or snooze (Not yet)');
+  const full = {v: 1, args: {}, ...spec};
+  checkProposal(cls, full);
   const id = uuidv7();
   const {data} = await request('PUT', `/v1/proposals/${seg(id)}`, {body: {
     class: cls, question: bounded(flags, 'question', 80), why: bounded(flags, 'why', 140),
-    if_ignored: bounded(flags, 'if-ignored', 140), odds, options, spec: {v: 1, args: {}, ...spec},
+    if_ignored: bounded(flags, 'if-ignored', 140), odds, options, safe, spec: full,
   }});
-  out({proposal_id: data.id || id, spec_hash: data.spec_hash ?? null});
+  // `target`: the Worker's own line naming what a Yes changes (the card shows it under the question).
+  out({proposal_id: data.id || id, spec_hash: data.spec_hash ?? null, target: data.target ?? null});
 }
 
 /**
  * Records the owner's own words as the decision (API.md §11.10: `{decision, spec_hash, by_message}`); the
- * Worker verifies the message (exit 6 not_owner_words). `spec_hash` is the hash of the spec the card showed
+ * Worker verifies the message and who records it (exit 6: not_owner_words, also for the laws card, which
+ * takes a tap only; session_required unless this session holds the chat lease; session_tainted for an
+ * approval from a tainted session). `spec_hash` is the hash of the spec the card showed
  * the owner: taken from --spec-hash (what `th propose` printed) or read from the waiting proposal.
  */
 export async function decide(argv) {

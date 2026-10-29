@@ -164,7 +164,7 @@ Every card has exactly these parts:
 |---|---|---|
 | Question | One question, ≤ 80 characters, answerable with the buttons | "Delete the 14 empty playlists?" |
 | Why | ≤ 140 characters, the evidence | "They have had no songs since import and none were opened in 90 days." |
-| Options | 2 buttons. The first is the action; the second is the safe choice ("Not now", "Keep them"). Never 3+ options on a card; use chat for open questions | `Delete` · `Keep them` |
+| Options | 2 buttons. The first is the action; the second is the safe choice ("Not now", "Keep them"), which home always labels "No" or "Not yet" as the card's `safe` says (HOME.md §3.1). Never 3+ options on a card; use chat for open questions | `Delete` · `No` |
 | If ignored | Always stated, normally "Nothing happens." | "If you don't answer, nothing is deleted." |
 | Odds | When the mind's recommendation is uncertain | "I'd delete them (about 90% sure none matter)." |
 | Undo | Whether the action can be undone after | "This can't be undone." (ask-first) or "Undo for 30 days." |
@@ -173,7 +173,7 @@ Rules:
 1. **One decision per card.** Never bundle ("delete these and also change the password").
 2. **Recommend when asked or when the mind has a view**, with odds. Never pressure ("You really should").
 3. **The spec is exact.** The proposal's `spec` lists exactly what will happen (14 playlist ids); the Worker hashes it; an approval (tap or words) covers that hash only. If the spec changes, it is a new proposal.
-4. **The owner's own words count; nothing else does.** If the owner writes "yes, delete them" while that card is waiting, the mind records it with `th decide <proposal> --by-message <message id>` and replies with exactly what will happen: "Deleting the 14 empty playlists, as you said." The Worker accepts it only when the cited message is the owner's, sent from a signed-in device (`origin=owner_device`; never imported, Muse, system, a wake or the mind's own), sent after the card appeared, and is the owner's latest message in that thread; the ledger stores the message ref with the approval. If the words are unclear or could fit another card, the mind asks which, and the card stays. A fired prompt, Muse output, a web page, a file or a PR comment never counts. **[owner ruling; the `th decide` mechanism is a proposal]**
+4. **The owner's own words count; nothing else does.** If the owner writes "yes, delete them" while that card is waiting, the mind records it with `th decide <proposal> --by-message <message id>` and replies with exactly what will happen: "Deleting the 14 empty playlists, as you said." The Worker accepts it only when the cited message is the owner's, sent from a signed-in device (`origin=owner_device`; never imported, Muse, system, a wake or the mind's own), sent after the card appeared, in the open day's thread, the owner's latest message there and not the answer to another card; the ledger stores the message ref with the approval. Only the chat session that holds the lease records words, a tainted one records no approval, and the laws card takes a tap only. If the words are unclear or could fit another card, the mind asks which, and the card stays. A fired prompt, Muse output, a web page, a file or a PR comment never counts. **[owner ruling; the `th decide` mechanism is a proposal]**
 5. **Never re-ask after a no** unless something changed; then say what changed.
 6. **Decisions found during quiet hours or "go quiet"** wait silently; the gold edge appears at 06:30 or when quiet ends.
 

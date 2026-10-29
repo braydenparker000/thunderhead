@@ -3,7 +3,8 @@
 // change feed in one transaction, then the live channel), and area failures come back as
 // `{ok:false, code}` (lib/result.ts). No timers: wake retries and requeues use the alarm. The P1
 // data, the feed and the sockets are in core-base.ts; memory (P3) is in core-memory.ts, the
-// night shift's run and input in core-night.ts, and the import in core-import.ts.
+// night shift's run and input in core-night.ts, the import in core-import.ts and proposals (P4) in
+// core-proposals.ts.
 // The alarm also runs the chunked jobs (areas/jobs), a step at a time.
 import type {
   BriefRequest,
@@ -34,6 +35,7 @@ import * as mind from '../areas/mind/ops';
 import * as stop from '../areas/mind/stop';
 import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
+import { lawsAtClaim, settle as settleProposals } from '../areas/proposals/ops';
 import { getSetting, putSetting } from '../areas/settings/store';
 import * as surfaces from '../areas/surfaces/ops';
 import { list as listSurfaces } from '../areas/surfaces/store';
@@ -41,13 +43,13 @@ import * as verbs from '../areas/verbs/ops';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
-import { CoreImport } from './core-import';
+import { CoreProposals } from './core-proposals';
 
 const PRUNE_STEP = 2_000;
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
 const JOB_HANDLERS: Record<string, JobHandler> = { [importJob.kind]: importJob };
 
-export class Core extends CoreImport {
+export class Core extends CoreProposals {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
@@ -114,7 +116,14 @@ export class Core extends CoreImport {
 
   brief(_c: Caller, r: BriefRequest) {
     return attempt(() => {
-      const claimed = r.claim ? this.write((w) => mind.claim(w, r, this.tz())).wake : null;
+      // The claim also checks the session's laws file against the pin (a card when it differs).
+      const claimed = r.claim
+        ? this.write((w) => {
+            const out = mind.claim(w, r, this.tz());
+            lawsAtClaim(w, r.constitution_sha256, this.tz());
+            return out;
+          }).wake
+        : null;
       // A claim hands out what the briefing shows: the requeue alarm must cover it.
       if (r.claim) this.schedule();
       return assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256, r.session_id, {
@@ -192,7 +201,10 @@ export class Core extends CoreImport {
           return nightWake(w, due, this.nightConfigured());
         }, now)
       : null;
-    this.write((w) => verbs.settle(w), now);
+    this.write((w) => {
+      verbs.settle(w);
+      settleProposals(w);
+    }, now);
     const pruned = this.pruneDaily(now, day.logicalDay(now, tz));
     const cfg = wakeNight ? fireConfig(this.env, 'night') : null;
     // Recorded without the chat back-off (wake.fired): a 429 on the night fire must not hold the

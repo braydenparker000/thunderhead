@@ -65,7 +65,7 @@ export const MEMORY_REASONS = {
   too_long: 'One claim, at most 280 characters.',
   no_inferred_sensitive: 'Sensitive traits are never inferred.',
   session_tainted: 'This session read outside text, so it may not write memory.',
-  laws_unpinned: "This session's constitution is missing, so it may not write rules.",
+  laws_unpinned: "This session's laws file is missing or is not the version the owner approved, so it may not write rules.",
   device_only: 'Only the owner can do this, from the Memory page.',
   duplicate_id: 'A fact with this id already exists.',
   superseded: 'This fact was already replaced; work on its newest version.',

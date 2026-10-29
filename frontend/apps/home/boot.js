@@ -1,8 +1,9 @@
 // Sign-in for the shell. With no API address configured, it does nothing and Home stays as in P0.
 // Otherwise: no session → /signin/?next=<this path>; a session → the menu's Devices, Agents and
-// Account rows open their pages, /settings/<page>/ opens one directly, and security notices show
-// on Home as cards with the gold bottom edge until answered (SIGN-IN.md §3.3, §11.4). Always: the
-// service worker (th/update.js) and the menu's About row.
+// Account rows open their pages, /settings/<page>/ opens one directly, security notices show on
+// Home as cards with the gold bottom edge until answered (SIGN-IN.md §3.3, §11.4), and so do
+// decision cards (th/decide/card.js, HOME.md §3). Always: the service worker (th/update.js) and the
+// menu's About row.
 import { api, configured, flushPendingSignout, signedIn, toSignin } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
@@ -50,6 +51,8 @@ async function start() {
   // The conversation loads after the first paint, so the shell stays small (PERFORMANCE.md §2). If
   // it can't, the ask bar says so (home.js) rather than doing nothing.
   requestAnimationFrame(() => setTimeout(() => import('/th/chat/index.js').then((m) => m.startChat()).catch(() => { root.dataset.chat = 'failed'; }), 0));
+  // Decision cards (HOME.md §3) load after the first paint too.
+  requestAnimationFrame(() => setTimeout(() => import('/th/decide/card.js').then((m) => m.startDecisions()).catch(() => {}), 0));
   try {
     const me = await signedIn((t) => api.me(t));
     notices(me.notices ?? [], open);
@@ -64,7 +67,8 @@ function notices(items, open) {
   const turns = document.querySelector('#turns');
   const edge = document.querySelector('#edge');
   const shown = items.filter((n) => !hidden(n.id));
-  const glow = () => edge?.classList.toggle('gold', turns.querySelector('.notice:not(.gone)') !== null);
+  // Gold while any card needs the owner: a notice here, or a decision card (th/decide/card.js).
+  const glow = () => edge?.classList.toggle('gold', document.querySelector('#convo .card.notice:not(.gone), #decision .card:not(.gone)') !== null);
   for (const n of shown) {
     const c = noticeCard(n);
     const buttons = c.buttons.map((b) => {

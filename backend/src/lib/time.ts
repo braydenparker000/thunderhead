@@ -51,9 +51,22 @@ function offset(at: number, timeZone: string): number {
 
 /** The instant `day` reaches `hour`:00 in the owner's zone (twice through, for a DST change). */
 export function zonedInstant(day: string, hour: number, timeZone: string): number {
-  const naive = Date.parse(`${day}T${String(hour).padStart(2, '0')}:00:00Z`);
+  return zonedMinute(day, hour * 60, timeZone);
+}
+
+/** The instant `day` reaches the given minute of its local day (0–1439) in the zone. */
+export function zonedMinute(day: string, minute: number, timeZone: string): number {
+  const hh = String(Math.floor(minute / 60)).padStart(2, '0');
+  const mm = String(minute % 60).padStart(2, '0');
+  const naive = Date.parse(`${day}T${hh}:${mm}:00Z`);
   const first = naive - offset(naive, timeZone);
   return naive - offset(first, timeZone);
+}
+
+/** Minutes past local midnight at an instant, in the zone (0–1439). */
+export function wallMinute(at: number, timeZone: string): number {
+  const wall = at + offset(at, timeZone);
+  return Math.floor((((wall % DAY) + DAY) % DAY) / MINUTE);
 }
 
 /** The UTC day (`YYYY-MM-DD`), for keys that must rotate at one fixed instant everywhere. */

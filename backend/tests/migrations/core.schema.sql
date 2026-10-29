@@ -228,6 +228,8 @@ CREATE TABLE mind_sessions (
   last_owner_at INTEGER
   ) WITHOUT ROWID;
 
+CREATE INDEX mind_sessions_open ON mind_sessions (role) WHERE ended_at IS NULL;
+
 CREATE INDEX mind_sessions_tainted ON mind_sessions (role, tainted_at) WHERE tainted_at IS NOT NULL;
 
 CREATE TABLE night_runs (
@@ -271,6 +273,45 @@ CREATE TABLE perf_days (
   n INTEGER NOT NULL,
   PRIMARY KEY (day, metric)
   ) WITHOUT ROWID;
+
+CREATE TABLE proposals (
+  id TEXT PRIMARY KEY,
+  created_at INTEGER NOT NULL,
+  created_by TEXT NOT NULL,
+  session_id TEXT,
+  class TEXT NOT NULL,
+  question TEXT NOT NULL,
+  why TEXT NOT NULL,
+  if_ignored TEXT NOT NULL,
+  odds REAL,
+  options_json TEXT NOT NULL,
+  safe TEXT NOT NULL DEFAULT 'reject',
+  target TEXT,
+  spec_json TEXT NOT NULL,
+  spec_hash TEXT NOT NULL,
+  op TEXT NOT NULL,
+  ref TEXT,
+  status TEXT NOT NULL,
+  expires_at INTEGER NOT NULL,
+  visible_from INTEGER NOT NULL,
+  show_from INTEGER NOT NULL,
+  snoozes INTEGER NOT NULL DEFAULT 0,
+  decided_at INTEGER,
+  decided_by_device TEXT,
+  decided_via TEXT,
+  decided_message_id TEXT,
+  executed_ledger_id TEXT,
+  result_json TEXT,
+  req_sha256 TEXT
+  ) WITHOUT ROWID;
+
+CREATE INDEX proposals_decided ON proposals (decided_at) WHERE decided_at IS NOT NULL;
+
+CREATE INDEX proposals_message ON proposals (decided_message_id) WHERE decided_message_id IS NOT NULL;
+
+CREATE INDEX proposals_open ON proposals (created_at) WHERE status IN ('waiting', 'approved');
+
+CREATE INDEX proposals_ref ON proposals (ref) WHERE ref IS NOT NULL;
 
 CREATE TABLE session_notes (
   id TEXT PRIMARY KEY,

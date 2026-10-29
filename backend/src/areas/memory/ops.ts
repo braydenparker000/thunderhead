@@ -9,6 +9,7 @@ import { Fail } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { claimedSession } from '../mind/guards';
+import { lawsBroken } from '../proposals/laws';
 import { type Applied, add, confirm, supersede } from './fact-ops';
 import { batch, putBatch } from './notes';
 import { flag, forget } from './owner-ops';
@@ -34,8 +35,9 @@ export function apply(w: Writer, c: Caller, batchId: string, raw: unknown[], has
       at: w.at,
       device,
       tainted: guards?.tainted ?? false,
-      // M12: the pin needs the constitution hash the session claimed with.
-      lawsBroken: guards !== null && guards.constitution === 'none',
+      // M12 and the constitution pin: a session without the laws file, or with a version the
+      // owner has not approved, writes no rule.
+      lawsBroken: guards !== null && lawsBroken(w.db, guards.constitution),
       selfLedger: uuidv7(w.at),
     };
     try {

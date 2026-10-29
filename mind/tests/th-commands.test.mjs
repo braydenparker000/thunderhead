@@ -169,8 +169,8 @@ test('thread add, list, done, drop', withFake({}, async fake => {
 
 test('propose, decide --by-message (owner words verified), decision budget exit 7', withFake({}, async fake => {
   const e = env(fake);
-  const args = ['propose', '--class', 'delete', '--question', 'Delete the 3 empty playlists?', '--why', 'They have been empty for 90 days.',
-    '--spec', '{"op":"verb","args":{"verb":"music.delete_playlist","ids":["p1","p2","p3"]}}', '--if-ignored', 'Nothing is deleted.', '--odds', '0.9', '--options', 'Delete|Keep them'];
+  const args = ['propose', '--class', 'delete', '--question', 'Forget this fact for good?', '--why', 'You said it was wrong.',
+    '--spec', '{"op":"memory.forget","args":{"id":"01890a5d-ac96-774b-bcce-b302099a8057"}}', '--if-ignored', 'Nothing happens.', '--odds', '0.9', '--options', 'Forget it|Keep it'];
   const p = await th(args, e);
   assert.equal(p.code, 0, p.stderr);
   assert.match(p.json.spec_hash, /^[0-9a-f]{64}$/);
@@ -194,6 +194,15 @@ test('propose, decide --by-message (owner words verified), decision budget exit 
   assert.equal(over.code, 7);
   assert.equal(errCode(over), 'decision_budget');
   assert.equal((await th(['propose', '--class', 'fun', '--question', 'q', '--why', 'w', '--spec', '{"op":"verb"}', '--if-ignored', 'x'], e)).code, 8);
+  // Checked against the contract's executor map before the network: an unknown op, a wrong class,
+  // bad args, and an op the role may not raise.
+  const before = fake.state.requests.length;
+  const card = spec => ['propose', '--class', 'delete', '--question', 'q', '--why', 'w', '--spec', spec, '--if-ignored', 'x'];
+  assert.equal((await th(card('{"op":"sql.run","args":{}}'), e)).code, 8);
+  assert.equal((await th(['propose', '--class', 'money', ...card('{"op":"memory.forget","args":{"id":"01890a5d-ac96-774b-bcce-b302099a8057"}}').slice(3)], e)).code, 8);
+  assert.equal((await th(card('{"op":"memory.forget","args":{"id":"nope"}}'), e)).code, 8);
+  assert.equal((await th(card('{"op":"memory.forget","args":{"id":"01890a5d-ac96-774b-bcce-b302099a8057"}}'), {...e, TH_ROLE: 'night'})).code, 8);
+  assert.equal(fake.state.requests.length, before);
 }));
 
 test('verb (checked against the contract), undo, ledger', withFake({}, async fake => {

@@ -120,12 +120,12 @@ Prompts are not gates. Wherever a law can be enforced in code, it is, and the mo
 
 With one GitHub identity, GitHub can't stop the agent from editing `mind/CONSTITUTION.md` (the `guard` check is deferred; see [decisions.md](../process/decisions.md)). The pin makes an unapproved edit visible within one session instead.
 
-1. The Worker stores `constitution_sha256`: the SHA-256 of the last version the owner approved (device tap or the owner's own words). It is set at setup from the first committed file.
+1. The Worker stores `constitution_sha256`: the SHA-256 of the last version the owner approved, as the setting `laws.pin`. The laws card takes a tap on a signed-in device only, never the owner's words as the mind records them, so the mind can't move its own laws (P4 stage A.5). The first pin is the owner's too: the first claim raises a card "Pin the laws as they are now?" (built in P4 stage A; until it is approved, nothing is refused).
 2. The SessionStart hook computes the SHA-256 of `mind/CONSTITUTION.md` in the clone and sends it with `th brief --claim` (`constitution_sha256` field).
 3. The Worker compares:
    - **Match:** the briefing's "Now" line says `laws: pinned`.
    - **Mismatch:** the briefing's "Now" line says `laws: CHANGED, NOT APPROVED (approved sha256 abc123…)`. The Worker creates an `access` proposal "The laws file changed without your OK. Keep the change or restore the approved text?" unless one is already waiting. The session's memory writes of `kind=rule` are refused until the owner decides.
-4. Approving the proposal updates `constitution_sha256`. Rejecting it creates a work item for the mind: restore the approved text (the Worker keeps the approved text in `settings`, key `constitution_approved`).
+4. Approving the proposal updates `constitution_sha256`. Rejecting it leaves the pin as it was, and the briefing's laws line tells the mind to restore the approved text from git history (the Worker keeps the hash only; the text of that version is in the repository's history). A version is asked about once: a "no" is not asked again for the same text.
 
 **Acceptance:** edit one character of `mind/CONSTITUTION.md` on a test branch, start a session from it: the briefing shows `laws: CHANGED`, a gold decision card appears, and `th remember --kind rule` exits 6.
 

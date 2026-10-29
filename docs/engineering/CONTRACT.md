@@ -4,7 +4,7 @@
 
 The runtime contract as data, generated from [`shared/contract`](../../shared/contract). [API.md](API.md) describes each route; this appendix lists what the code enforces. How to add to it: [EXTENDING.md](EXTENDING.md).
 
-Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2, P3.
+Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2, P3, P4.
 
 ## Routes
 
@@ -86,22 +86,22 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/ops/import/parts` | C (agents: the key `import-once` only) | P3 | built | one gzip JSONL part of the old export, stored as sent; never-exported tables 403 |
 | `PUT /v1/ops/import/manifest/:run_id` | C (agents: the key `import-once` only) | P3 | built | the export run's manifest, written last, after every part it names |
 | `GET /v1/import/runs/:id` | D C N R | P3 | built | state, counts and the verification report |
-| `PUT /v1/proposals/:id` | C N R | P4 | later (P4) |  |
-| `GET /v1/proposals` | D C N R | P4 | later (P4) |  |
-| `POST /v1/proposals/:id/decide` | D C | P4 | later (P4) | mind:chat with by_message only |
-| `POST /v1/proposals/:id/cancel` | D C N R | P4 | later (P4) |  |
-| `POST /v1/ops/backups/run` | N I | P4 | later (P4) |  |
-| `POST /v1/ops/drill/run` | N I | P4 | later (P4) |  |
-| `GET /v1/ops/backups` | D C N R I | P4 | later (P4) |  |
-| `POST /v1/ops/restore` | D C N R | P4 | later (P4) |  |
-| `POST /v1/export` | D | P4 | later (P4) |  |
-| `GET /v1/export/:id` | D | P4 | later (P4) |  |
-| `PUT /v1/work/orders/:id` | C N | P4 | later (P4) |  |
-| `POST /v1/work/orders/:id/cancel` | D C N | P4 | later (P4) |  |
-| `GET /v1/work/orders` | D C N R | P4 | later (P4) |  |
-| `GET /v1/work/orders/:id` | D C N R | P4 | later (P4) |  |
-| `GET /v1/work/hello` | M | P4 | later (P4) |  |
-| `POST /v1/work/claim` | M | P4 | later (P4) |  |
+| `PUT /v1/proposals/:id` | C N R | P4 | built | an agent raises a decision card (from a claimed, untainted session) |
+| `GET /v1/proposals` | D C N R | P4 | built |  |
+| `POST /v1/proposals/:id/decide` | D C | P4 | built | device: a tap; mind:chat: the owner's own words (by_message) only |
+| `POST /v1/proposals/:id/cancel` | D C N R | P4 | built | the agent that raised it, or the owner |
+| `POST /v1/ops/backups/run` | N I | P4 | deferred: P4 stage E (weekly backups) |  |
+| `POST /v1/ops/drill/run` | N I | P4 | deferred: P4 stage E (the restore drill) |  |
+| `GET /v1/ops/backups` | D C N R I | P4 | deferred: P4 stage E (weekly backups) |  |
+| `POST /v1/ops/restore` | D C N R | P4 | deferred: P4 stage E (restores) |  |
+| `POST /v1/export` | D | P4 | deferred: P4 stage F (download everything) |  |
+| `GET /v1/export/:id` | D | P4 | deferred: P4 stage F (download everything) |  |
+| `PUT /v1/work/orders/:id` | C N | P4 | deferred: P4 stage G (Muse on work orders) |  |
+| `POST /v1/work/orders/:id/cancel` | D C N | P4 | deferred: P4 stage G (Muse on work orders) |  |
+| `GET /v1/work/orders` | D C N R | P4 | deferred: P4 stage G (Muse on work orders) |  |
+| `GET /v1/work/orders/:id` | D C N R | P4 | deferred: P4 stage G (Muse on work orders) |  |
+| `GET /v1/work/hello` | M | P4 | deferred: P4 stage G (Muse on work orders) |  |
+| `POST /v1/work/claim` | M | P4 | deferred: P4 stage G (Muse on work orders) |  |
 | `PUT /v1/senses/batches/:id` | D | P5 | later (P5) |  |
 | `POST /v1/senses/query` | C N R | P5 | later (P5) |  |
 | `GET /v1/jobs/next` | N I | P5 | later (P5) |  |
@@ -181,7 +181,7 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `too_long` | One claim, at most 280 characters. |
 | `no_inferred_sensitive` | Sensitive traits are never inferred. |
 | `session_tainted` | This session read outside text, so it may not write memory. |
-| `laws_unpinned` | This session's constitution is missing, so it may not write rules. |
+| `laws_unpinned` | This session's laws file is missing or is not the version the owner approved, so it may not write rules. |
 | `device_only` | Only the owner can do this, from the Memory page. |
 | `duplicate_id` | A fact with this id already exists. |
 | `superseded` | This fact was already replaced; work on its newest version. |
@@ -205,6 +205,24 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 | 8 | built overnight | 1 | P4 | no | items are put by id |
 | 9 | weekly review and evals (Sunday) | 15 | P4 | no | one eval run a week |
 | 10 | session note and done | 2 | P3 | no | the run is marked done once |
+
+## Proposals
+
+Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80, why ≤ 140, if ignored ≤ 140, two options ≤ 20 each; at most 3 raised by agents wait at once; each expires after 7 days; "Not yet" brings it back the next morning at most 3 times; the canonical spec ≤ 8192 bytes. Only the owner decides: a tap on a device, or their own words recorded by mind:chat (`by_message`).
+
+| Class | Ask first | Card label |
+|---|---|---|
+| `delete` | yes | Can't be undone |
+| `money` | yes | Costs money |
+| `access` | yes | Changes access |
+| `reach_people` | yes | Reaches someone else |
+| `memory_big` | no | Changes what I remember |
+
+| Op | Classes | Raised by | Runs in | Acts on | Args | What approving does |
+|---|---|---|---|---|---|---|
+| `memory.forget` | delete | C | core | `fact:<id>` | `{ id: string }` | Forget a fact and every version of it for good (the owner's hard delete, MEMORY.md §3). |
+| `agents.revoke` | access | C N R | auth | `agent:<agent_id>` | `{ agent_id: string }` | Revoke one agent key; it stops working within 60 s (SECURITY.md §14.2). |
+| `laws.pin` | access | worker | core | `laws:<sha256>` | `{ sha256: string, previous: undefined }` | Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only. |
 
 ## Error codes
 

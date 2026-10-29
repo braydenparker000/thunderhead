@@ -19,13 +19,14 @@ export interface LedgerRow {
   op_json: string | null;
   verb_id: string | null;
   req_sha256: string | null;
+  proposal_id: string | null;
 }
 
 /** Only objects/commit.ts calls this. */
 export function insert(db: Db, r: LedgerRow): void {
   db.run(
     `INSERT INTO ledger (id, at, actor, session_id, kind, what, why, ref, topic_key, undo_json, undoable, status,
-       tainted, op_json, verb_id, req_sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       tainted, op_json, verb_id, req_sha256, proposal_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     r.id,
     r.at,
     r.actor,
@@ -42,6 +43,7 @@ export function insert(db: Db, r: LedgerRow): void {
     r.op_json,
     r.verb_id,
     r.req_sha256,
+    r.proposal_id,
   );
 }
 

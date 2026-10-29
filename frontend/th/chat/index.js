@@ -10,6 +10,7 @@ import { api, signedIn } from '../client.js';
 import { failure } from '../flow.js';
 import { homeLine, fallbackCards } from '../registry/surfaces.js';
 import { appFor } from '../registry/apps.js';
+import { decisions } from '../decide/state.js';
 import { run as runVerb } from '../registry/verbs.js';
 import { toast } from '../ui.js';
 import { BACKOFF_S, createLive } from './live.js';
@@ -74,7 +75,7 @@ export async function startChat() {
       sent = localStorage.getItem('th.p.sent') === '1';
     } catch {}
     const firstRun = !sent && shown.length === 0;
-    const line = model.voiceLine({ presence: state.presence, firstRun, homeLine: homeLine(state.surfaces)?.text ?? null, noWake: model.noWakeShown(shown) });
+    const line = model.voiceLine({ presence: state.presence, firstRun, homeLine: homeLine(state.surfaces)?.text ?? null, noWake: model.noWakeShown(shown), decisions: decisions.waiting, answered: decisions.answered });
     // Never while typing (HOME.md §2.3): a change waits until the bar is empty and blurred, except
     // one the owner's own action caused (the first message ends the first-run line at once).
     const own = wasFirstRun && !firstRun;
@@ -386,6 +387,7 @@ export async function startChat() {
     state.offline = true;
     paint();
   });
+  document.addEventListener('th:decisions', () => paint());
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
     live.wake();

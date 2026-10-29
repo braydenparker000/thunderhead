@@ -28,7 +28,7 @@ test('the night section walks the contract\'s steps: each step that works by P3 
   const roles = read('mind/ROLES.md');
   const night = roles.slice(roles.indexOf('## night'), roles.indexOf('## reflex'));
   const contract = JSON.parse(read('mind/cli/contract.json')).night;
-  const built = contract.steps.filter(s => s.phase === 'P3').map(s => s.step);
+  const built = contract.steps.filter(s => s.phase === 'P3' || (s.phase === 'P4' && !s.deferred)).map(s => s.step);
   const named = [...night.matchAll(/^ {3}- (\d+) /gm)].map(m => Number(m[1]));
   assert.deepEqual(named, built, 'one bullet per step built by P3, in order');
   for (const cmd of ['th night start', 'th night steps', 'th night step <n> done', 'th night done', 'th day', 'th facts --batch <file> --night'])

@@ -11,6 +11,7 @@ import { LEDGER_MIGRATIONS, LEDGER_TABLES } from '../areas/ledger/migrations';
 import { MEMORY_MIGRATIONS, MEMORY_TABLES } from '../areas/memory/migrations';
 import { MIND_MIGRATIONS, MIND_TABLES } from '../areas/mind/migrations';
 import { OPS_TABLES } from '../areas/ops/tables';
+import { PROPOSALS_MIGRATIONS, PROPOSALS_TABLES } from '../areas/proposals/migrations';
 import { SETTINGS_TABLES } from '../areas/settings/tables';
 import { SURFACES_MIGRATIONS, SURFACES_TABLES } from '../areas/surfaces/migrations';
 import { VERBS_MIGRATIONS, VERBS_TABLES } from '../areas/verbs/migrations';
@@ -66,6 +67,7 @@ export const CORE_MIGRATIONS: Migration[] = [
   ...MEMORY_MIGRATIONS,
   ...JOBS_MIGRATIONS,
   ...IMPORT_MIGRATIONS,
+  ...PROPOSALS_MIGRATIONS,
 ].sort((a, b) => a.version - b.version);
 
 /** Every Core table with its retention and export inclusion (DATA.md §10); a test fails if a
@@ -82,4 +84,5 @@ export const CORE_TABLES: Record<string, TableInfo> = {
   ...MEMORY_TABLES,
   ...JOBS_TABLES,
   ...IMPORT_TABLES,
+  ...PROPOSALS_TABLES,
 };

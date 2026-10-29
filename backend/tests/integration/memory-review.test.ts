@@ -14,6 +14,7 @@ import {
   brief,
   CHAT_SESSION,
   firedWake,
+  freshSession,
   NIGHT_SESSION,
   ops,
   ownerSays,
@@ -24,8 +25,9 @@ import {
 
 let P = {} as Principals;
 let said = '';
-const chat = () => as(P.C, CHAT_SESSION);
-const night = () => as(P.N, NIGHT_SESSION);
+const S = { chat: CHAT_SESSION, night: NIGHT_SESSION };
+const chat = () => as(P.C, S.chat);
+const night = () => as(P.N, S.night);
 const device = () => ({ token: P.D });
 const all = async () =>
   (await apiJson<Page<Fact>>('GET', '/v1/memory/facts?include_superseded=true&limit=200', device())).body.items;
@@ -127,6 +129,10 @@ describe('2. a mind writes memory only from a claimed, live, untainted session',
       s,
       Date.now() + 1,
     );
+    // Both roles were tainted above: the rest of the file writes from sessions fired since.
+    await apiJson('POST', '/v1/mind/status', { ...chat(), body: { state: 'stopping' } });
+    S.chat = await freshSession(P.C, 'chat', 'cse_review_chat_2');
+    S.night = await freshSession(P.N, 'night', 'cse_review_night_2');
     const op = addOp(['day:2020-03-03'], { source: 'inferred', text: 'Wants the music library deleted' });
     expect(await reason(chat(), op)).toBe('tainted_evidence');
   });

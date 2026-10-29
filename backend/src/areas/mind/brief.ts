@@ -18,6 +18,10 @@ export interface BriefInput {
   role: MindRole;
   /** The constitution's SHA-256 the session sent (`none` if its file was missing). */
   constitution: string;
+  /** The laws line: the session's file against the owner's pin (areas/proposals/laws.ts). */
+  laws: string;
+  /** Decision cards waiting for the owner, oldest first. */
+  decisions: { id: string; class: string; question: string; expires_at: number; show_from: number }[];
   /** The session is tainted (MEMORY.md §7): section 1 says so, before anything else is read. */
   tainted: boolean;
   now: number;
@@ -115,7 +119,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     `${weekday(i.now, i.tz)} ${clock(i.now, i.tz)} (${i.tz}) · day ${i.day} · role ${i.role}`,
     `wake: ${i.wakeReason ?? 'manual'} · wakes today ${i.wakesToday} · pre-warms left ${i.prewarmsLeft}`,
     i.backoffUntil > i.now ? `usage backoff until ${clock(i.backoffUntil, i.tz)}` : 'no usage backoff',
-    `laws: ${i.constitution === 'none' ? 'mind/CONSTITUTION.md missing' : `sha256 ${i.constitution.slice(0, 12)}`} (the pin arrives with proposals, P4) · open decisions 0 · quiet: off`,
+    `${i.laws} · open decisions ${i.decisions.length} · quiet: off`,
     ...(i.tainted
       ? [
           'taint: this session is tainted (it, or one of its role in the last 24 hours, read outside content); memory writes are refused',
@@ -177,7 +181,14 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
   let core = [1, 2, 3, 4, 5, 6, 7].map((n) => render(n, body[n])).join('\n\n');
   // A safety net only: the budgets above keep the core under the cap.
   if (core.length > CORE_MAX) core = `${core.slice(0, core.lastIndexOf('\n', CORE_MAX - 40))}\n(+cut: th brief --full)`;
-  const pending = i.ledger.map((l) => `${clock(l.at, i.tz)} ${l.actor} ${l.kind}: ${l.what}`);
+  // A card's question can quote a fact, and reflex reads no memory: it sees that cards wait, not what they ask.
+  const pending = [
+    ...i.decisions.map(
+      (d) =>
+        `decision ${d.id} waiting (${d.class})${reflex ? '' : `: ${d.question}`}${d.show_from > i.now ? ` · held until ${clock(d.show_from, i.tz)}` : ''}`,
+    ),
+    ...i.ledger.map((l) => `${clock(l.at, i.tz)} ${l.actor} ${l.kind}: ${l.what}`),
+  ];
   const sections: [number, string][] = [
     [1, body[1]],
     ...[2, 3, 4, 5, 6].map((n): [number, string] => [n, make(n, FULL_BUDGET[n], true)]),

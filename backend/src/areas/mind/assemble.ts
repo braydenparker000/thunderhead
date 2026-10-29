@@ -14,6 +14,8 @@ import * as notes from '../memory/notes';
 import { renderProfile } from '../memory/profile';
 import * as facts from '../memory/store';
 import * as ops from '../ops/store';
+import { lawsLine } from '../proposals/laws';
+import * as proposals from '../proposals/store';
 import { buildBrief } from './brief';
 import { nightDayOf, nightDone, nightLine } from './night';
 import * as sessionNotes from './notes';
@@ -51,6 +53,8 @@ export function assemble(
   const { core, full } = buildBrief({
     role,
     constitution,
+    laws: lawsLine(db, constitution),
+    decisions: proposals.waiting(db),
     tainted,
     now,
     tz,
