@@ -21,15 +21,18 @@ import { applyMigrations } from './base';
 import type { Caller } from './caller';
 import { CORE_MIGRATIONS, CORE_TABLES } from './core.migrations';
 import { CoreWatchdogs } from './core-watchdogs';
+import { MUSIC_TABLES, musicObject } from './music';
 
 const BACKUP_TABLES = () =>
   Object.entries(CORE_TABLES)
     .filter(([, t]) => t.backup)
     .map(([n]) => n);
-const EXPORT_TABLES = () =>
-  Object.entries(CORE_TABLES)
+const EXPORT_TABLES = () => [
+  ...Object.entries(CORE_TABLES)
     .filter(([, t]) => t.export)
-    .map(([n]) => n);
+    .map(([n]) => n),
+  ...MUSIC_TABLES.map((t) => `music.${t}`),
+];
 
 export abstract class CoreBackups extends CoreWatchdogs {
   private get vault(): R2Bucket | null {
@@ -58,10 +61,12 @@ export abstract class CoreBackups extends CoreWatchdogs {
 
   private async startBackup(day: string, now = Date.now()): Promise<BackupRunResponse> {
     const bookmark = await this.ctx.storage.getCurrentBookmark().catch(() => null);
-    const out = this.write(
-      (w) => backups.startBackup(w, { date: day, tables: BACKUP_TABLES(), schema_version: this.migration, bookmark }),
-      now,
-    );
+    const core = { tables: BACKUP_TABLES(), schema_version: this.migration, bookmark };
+    // The Music object's catalog goes with it; if that object can't answer, Core's still runs.
+    const music = await musicObject(this.env)
+      .backupOf()
+      .catch(() => undefined);
+    const out = this.write((w) => backups.startBackup(w, { date: day, core, music }), now);
     this.schedule();
     return out;
   }

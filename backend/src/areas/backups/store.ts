@@ -51,12 +51,20 @@ export function failBackup(db: Db, id: string, at: number): void {
   db.run("UPDATE backups SET state = 'failed', finished_at = ? WHERE id = ?", at, id);
 }
 
-/** The newest complete backup, if any (on the index `backups_done`). */
-export const lastComplete = (db: Db) =>
-  db.one<BackupRow>("SELECT * FROM backups WHERE state = 'complete' ORDER BY finished_at DESC LIMIT 1");
+/** The newest complete backup of a class (Core's by default: the drill, deep health and the
+ * staleness watchdog are about Core), if any (on the index `backups_done`). */
+export const lastComplete = (db: Db, cls: BackupClass = 'core') =>
+  db.one<BackupRow>(
+    "SELECT * FROM backups WHERE state = 'complete' AND class = ? ORDER BY finished_at DESC LIMIT 1",
+    cls,
+  );
 
 export const runningBackup = (db: Db) =>
   db.one<BackupRow>("SELECT * FROM backups WHERE state = 'running' ORDER BY started_at DESC LIMIT 1");
+
+/** Every running backup (Core's and Music's start together), oldest first. */
+export const runningBackups = (db: Db) =>
+  db.all<BackupRow>("SELECT * FROM backups WHERE state = 'running' ORDER BY started_at, class");
 
 export function list(db: Db, limit: number): BackupItem[] {
   return db.all<BackupRow>('SELECT * FROM backups ORDER BY date DESC, class LIMIT ?', limit).map((r) => ({

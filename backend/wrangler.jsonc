@@ -36,7 +36,13 @@
   // P3 keeps the old Worker's export parts and manifest in it (imports/old/). A rollback stays
   // safe while the bucket exists; without the binding (local dev, older configs) the routes
   // that need it answer 503 not_configured.
-  "r2_buckets": [{ "binding": "VAULT", "bucket_name": "thunderhead-private" }],
+  // `jarvis-music` (MEDIA, DATA.md §7.2) is shared with the old Worker: this Worker stores only the
+  // upload tools' verified audio and art there, once each under its content address, and never
+  // deletes from it (areas/music/upload.ts; the no-music-delete test). Phones read it by signed link.
+  "r2_buckets": [
+    { "binding": "VAULT", "bucket_name": "thunderhead-private" },
+    { "binding": "MEDIA", "bucket_name": "jarvis-music" }
+  ],
   // Secret names only; values never live in files. Listing them makes a deploy refuse to ship
   // without them, and is also what lets local dev load them from .dev.vars. A secret that is not
   // configured yet holds the literal `none` (the deploy writes it); nothing ever runs
@@ -45,6 +51,8 @@
   // ROUTINE_REFLEX_URL/TOKEN the mind-reflex task's (SETUP.md M2); while a pair is `none` that
   // task is never fired. R2_SIGN_ACCESS_KEY_ID/SECRET are the read-only R2 token that signs media
   // links (SECURITY.md §9, SETUP.md N1); while either is `none`, POST /v1/media/sign answers 503.
+  // MUSIC_UPLOAD_PUBLIC_KEYS is the upload tools' public keys, a JSON list (SETUP.md N4); while it
+  // is `none`, /v1/music/uploads/* answers 503.
   "secrets": {
     "required": [
       "AUTH_PEPPER",
@@ -58,7 +66,8 @@
       "ROUTINE_REFLEX_URL",
       "ROUTINE_REFLEX_TOKEN",
       "R2_SIGN_ACCESS_KEY_ID",
-      "R2_SIGN_SECRET"
+      "R2_SIGN_SECRET",
+      "MUSIC_UPLOAD_PUBLIC_KEYS"
     ]
   },
   "vars": {

@@ -38,26 +38,32 @@ export function drillDue(db: Db, day: string): { month: string; backup: store.Ba
   return b?.state === 'complete' && !store.drill(db, month) ? { month, backup: b } : null;
 }
 
-export function startBackup(
-  w: Writer,
-  r: { date: string; tables: string[]; schema_version: number; bookmark: string | null },
-): BackupRunResponse {
-  const id = store.backupId(r.date, 'core');
-  const running = store.runningBackup(w.db);
-  if (running) return { job_ids: [running.job_id] };
-  const jobId = uuidv7(w.at);
-  const payload: BackupPayload = {
-    backup_id: id,
-    date: r.date,
-    class: 'core',
-    tables: r.tables,
-    schema_version: r.schema_version,
-    bookmark: r.bookmark,
-    started_at: w.at,
-  };
-  store.insertBackup(w.db, { id, date: r.date, cls: 'core', job_id: jobId, at: w.at });
-  insertJob(w.db, { id: jobId, kind: 'export.weekly', payload, at: w.at });
-  return { job_ids: [jobId] };
+/** One class's tables, schema step and bookmark, read when the backup starts. */
+export interface BackupOf {
+  tables: string[];
+  schema_version: number;
+  bookmark: string | null;
+}
+
+/** Core's backup, and the Music object's with it (each its own job and manifest). */
+export function startBackup(w: Writer, r: { date: string; core: BackupOf; music?: BackupOf }): BackupRunResponse {
+  const running = store.runningBackups(w.db);
+  if (running.length) return { job_ids: running.map((b) => b.job_id) };
+  const job_ids: string[] = [];
+  for (const [cls, of] of [
+    ['core', r.core],
+    ['music', r.music],
+  ] as const) {
+    if (!of) continue;
+    const id = store.backupId(r.date, cls);
+    if (store.backup(w.db, id)) continue;
+    const jobId = uuidv7(w.at);
+    const payload: BackupPayload = { backup_id: id, date: r.date, class: cls, ...of, started_at: w.at };
+    store.insertBackup(w.db, { id, date: r.date, cls, job_id: jobId, at: w.at });
+    insertJob(w.db, { id: jobId, kind: 'export.weekly', payload, at: w.at });
+    job_ids.push(jobId);
+  }
+  return { job_ids };
 }
 
 export function startDrill(w: Writer, month: string, manifest: BackupManifest): { job_id: string } {

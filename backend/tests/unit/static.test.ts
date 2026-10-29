@@ -47,9 +47,10 @@ const SECRETS = [
   'ROUTINE_REFLEX_TOKEN',
   'R2_SIGN_ACCESS_KEY_ID',
   'R2_SIGN_SECRET',
+  'MUSIC_UPLOAD_PUBLIC_KEYS',
 ];
 const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP', 'LIVE_WAIT', 'R2_ACCOUNT_ID'];
-const BINDINGS = ['VERSION', 'CORE', 'AUTH', 'MUSIC', 'VAULT'];
+const BINDINGS = ['VERSION', 'CORE', 'AUTH', 'MUSIC', 'VAULT', 'MEDIA'];
 
 describe('source rules', () => {
   it('found the files it checks', () => {
@@ -122,6 +123,22 @@ describe('source rules', () => {
         expect(prev === undefined || prev === area, `${t} used by ${prev} and ${area}`).toBe(true);
         owner.set(t, area);
       }
+  });
+
+  it('no-music-delete: nothing deletes from jarvis-music; only the upload routes store in it (DATA.md §7.2)', () => {
+    const users = Object.entries(src).filter(([, code]) => /\bMEDIA\b|\bmedia\b/.test(stripComments(code)));
+    expect(users.map(([f]) => f.replace(/^.*\/src\//, '')).sort()).toEqual([
+      'areas/music/routes.ts',
+      'areas/music/upload.ts',
+      'areas/music/writer-edit.ts',
+      'areas/music/writer.ts',
+      'objects/music.ts',
+    ]);
+    for (const [file, code] of users) {
+      const c = stripComments(code);
+      expect(c, file).not.toMatch(/\.delete\(/);
+      if (!file.endsWith('areas/music/upload.ts')) expect(c, file).not.toMatch(/\.put\(/);
+    }
   });
 
   it('secrets.required lists exactly the declared secrets', () => {

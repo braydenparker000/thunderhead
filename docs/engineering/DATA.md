@@ -443,7 +443,7 @@ Pruning runs once a logical day: Core's 15-minute tick runs every table's prune 
 | Layer | What | When | Restores |
 |---|---|---|---|
 | PITR | Cloudflare's 30-day point-in-time recovery for SQLite DOs | Always on. Bookmarks recorded before every migration, import and restore. Availability on Free is test X4. | A whole object to any time in the last 30 days |
-| Weekly export | Per-table JSONL.gz in `thunderhead-private/backups/<date>/<class>/<table>.<nnnn>.jsonl.gz` | Sundays 02:30 local, a job per class (`export.weekly`), ≤ 5,000 rows per part file in key order (built for Core, P4 stage E: every table marked `backup` in §10) | One table, or a whole object into a fresh instance |
+| Weekly export | Per-table JSONL.gz in `thunderhead-private/backups/<date>/<class>/<table>.<nnnn>.jsonl.gz` | Sundays 02:30 local, a job per class (`export.weekly`), ≤ 5,000 rows per part file in key order (built for Core, P4 stage E: every table marked `backup` in §10; the Music object's three tables from P5, by RPC, with its own manifest; the drill and `backup.stale` read Core's) | One table, or a whole object into a fresh instance |
 | Events archive | Daily JSONL.gz | Day D exported at D+1 06:00 local; re-exported if late events arrive | Events beyond 90 days |
 | Old Worker | The `jarvis-hub-api` (its data untouched; only its origin list gains the new site in P1b) | Until it retires after P8 | Pre-import history |
 

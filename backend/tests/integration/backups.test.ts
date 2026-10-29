@@ -75,7 +75,8 @@ describe('the weekly backup', () => {
     expect((await api('POST', '/v1/ops/backups/run', { token: p.C, body: {} })).status).toBe(403);
     const r = await apiJson<BackupRunResponse>('POST', '/v1/ops/backups/run', { token: p.N, body: {} });
     expect(r.status).toBe(202);
-    expect(r.body.job_ids).toHaveLength(1);
+    // Core's backup and the Music object's, each its own job.
+    expect(r.body.job_ids).toHaveLength(2);
     // Asked again while it runs: the same job.
     expect((await apiJson<BackupRunResponse>('POST', '/v1/ops/backups/run', { token: I, body: {} })).body).toEqual(
       r.body,
@@ -117,6 +118,14 @@ describe('the weekly backup', () => {
         expect(Array.from(new Uint8Array(d), (b) => b.toString(16).padStart(2, '0')).join('')).toBe(part.sha256);
       }
     expect(m.tables.some((t) => t.name === 'jobs' || t.name.endsWith('_fts'))).toBe(false);
+    // The Music object's catalog, by its own manifest.
+    const music = (await (await env.VAULT.get(`backups/${date}/music/manifest.json`))?.json()) as BackupManifest;
+    expect(music).toMatchObject({ v: 1, date, class: 'music', schema_version: 1 });
+    expect(music.tables.map((t) => t.name)).toEqual(['tracks', 'catalog_log', 'music_state']);
+    expect((await backups()).map((b) => [b.class, b.complete])).toEqual([
+      ['core', true],
+      ['music', true],
+    ]);
   });
 
   it('restores into a fresh instance equal to Core, table for table (the CI round trip)', async () => {
@@ -182,12 +191,13 @@ describe('the weekly backup', () => {
     await watch(sunday);
     expect((await backups()).some((b) => b.date === '2026-11-01')).toBe(false);
     await watch(sunday + 15 * MINUTE);
-    expect((await backups()).filter((b) => b.date === '2026-11-01')).toHaveLength(1);
+    const started = (await backups()).filter((b) => b.date === '2026-11-01');
+    expect(started.map((b) => b.class)).toEqual(['core', 'music']);
     for (let i = 0; i < 40 && !(await backups()).find((x) => x.date === '2026-11-01')?.complete; i++)
       await runJobsWith(REAL, sunday + 20 * MINUTE);
     expect((await backups()).find((x) => x.date === '2026-11-01')?.complete).toBe(true);
     await watch(sunday + 30 * MINUTE);
-    expect((await backups()).filter((b) => b.date === '2026-11-01')).toHaveLength(1);
+    expect((await backups()).filter((b) => b.date === '2026-11-01')).toHaveLength(2);
   });
 });
 

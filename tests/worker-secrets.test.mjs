@@ -7,7 +7,7 @@ import { plan, requiredSecrets } from '../scripts/worker-secrets.mjs';
 
 const required = requiredSecrets(readFileSync(new URL('../backend/wrangler.jsonc', import.meta.url), 'utf8'));
 
-test('wrangler.jsonc lists the P1 secrets, the mind-chat (P2), mind-night (P3) and mind-reflex (P4) triggers and the media signing key (P5)', () => {
+test('wrangler.jsonc lists the P1 secrets, the mind-chat (P2), mind-night (P3) and mind-reflex (P4) triggers, the media signing key and the upload tools’ keys (P5)', () => {
   assert.deepEqual(required, [
     'AUTH_PEPPER',
     'IP_HASH_KEY',
@@ -21,6 +21,7 @@ test('wrangler.jsonc lists the P1 secrets, the mind-chat (P2), mind-night (P3) a
     'ROUTINE_REFLEX_TOKEN',
     'R2_SIGN_ACCESS_KEY_ID',
     'R2_SIGN_SECRET',
+    'MUSIC_UPLOAD_PUBLIC_KEYS',
   ]);
 });
 
@@ -48,6 +49,7 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
     ROUTINE_REFLEX_TOKEN: 'none',
     R2_SIGN_ACCESS_KEY_ID: 'none',
     R2_SIGN_SECRET: 'none',
+    MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
   });
   // The first P3 deploy onto a P2 Worker whose mind-chat trigger is set: only the night pair is
   // added, as `none`, and the chat pair is left as the owner set it.
@@ -59,6 +61,7 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
     ROUTINE_REFLEX_TOKEN: 'none',
     R2_SIGN_ACCESS_KEY_ID: 'none',
     R2_SIGN_SECRET: 'none',
+    MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
   });
   // The first P4 stage D deploy onto a P3 Worker: the reflex pair (and the later signing key).
   const p3 = [...p2, ...['ROUTINE_NIGHT_URL', 'ROUTINE_NIGHT_TOKEN'].map((name) => ({ name }))];
@@ -67,11 +70,19 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
     ROUTINE_REFLEX_TOKEN: 'none',
     R2_SIGN_ACCESS_KEY_ID: 'none',
     R2_SIGN_SECRET: 'none',
+    MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
   });
   // The first P5 step 2 deploy onto a P4 Worker: only the signing key, as `none` until SETUP.md N1.
   const p4 = [...p3, ...['ROUTINE_REFLEX_URL', 'ROUTINE_REFLEX_TOKEN'].map((name) => ({ name }))];
-  assert.deepEqual(plan(required, { bootstrap: false, live: p4 }), { R2_SIGN_ACCESS_KEY_ID: 'none', R2_SIGN_SECRET: 'none' });
-  const all = [...p4, ...['R2_SIGN_ACCESS_KEY_ID', 'R2_SIGN_SECRET'].map((name) => ({ name }))];
+  assert.deepEqual(plan(required, { bootstrap: false, live: p4 }), {
+    R2_SIGN_ACCESS_KEY_ID: 'none',
+    R2_SIGN_SECRET: 'none',
+    MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
+  });
+  // The first P5 step 3 deploy onto step 2: only the upload tools' keys, `none` until SETUP.md N4.
+  const p5 = [...p4, ...['R2_SIGN_ACCESS_KEY_ID', 'R2_SIGN_SECRET'].map((name) => ({ name }))];
+  assert.deepEqual(plan(required, { bootstrap: false, live: p5 }), { MUSIC_UPLOAD_PUBLIC_KEYS: 'none' });
+  const all = [...p5, { name: 'MUSIC_UPLOAD_PUBLIC_KEYS' }];
   assert.deepEqual(plan(required, { bootstrap: false, live: all }), {});
   assert.throws(() => plan(required, { bootstrap: false, live: live.slice(1) }), /AUTH_PEPPER/);
 });

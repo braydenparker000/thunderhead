@@ -187,6 +187,14 @@ export const ROUTES = {
   // --- P5 and later ---------------------------------------------------------------------------
   'GET /v1/music/catalog': { who: D, phase: 'P5', note: "the ported player's format; ETag, 304; 409 before the import" },
   'GET /v1/music/waveforms/:id': { who: D, phase: 'P5' },
+  // The upload tools, server to server: no bearer token, each request signed (Ed25519) by a tool's key.
+  'PUT /v1/music/uploads/audio/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; Ogg Opus, ≤ 32 MiB' },
+  'PUT /v1/music/uploads/art/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; JPEG or PNG, ≤ 2 MiB' },
+  'POST /v1/music/uploads/:op': {
+    who: 'P',
+    phase: 'P5',
+    note: "signed by an upload tool key; the catalog writer's operations, export and links",
+  },
   'PUT /v1/senses/batches/:id': { who: D, phase: 'P5', deferred: 'P5: the Senses object' },
   'POST /v1/senses/query': { who: MIND, phase: 'P5', deferred: 'P5: the Senses object' },
   'GET /v1/jobs/next': { who: ['N', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },

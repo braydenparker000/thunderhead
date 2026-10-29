@@ -15,6 +15,7 @@ import { ledgerRoutes } from './areas/ledger/routes';
 import { memoryRoutes } from './areas/memory/routes';
 import { mindRoutes } from './areas/mind/routes';
 import { musicRoutes } from './areas/music/routes';
+import { BIG_OPS, UPLOAD_LIMITS, uploadRoutes } from './areas/music/upload';
 import { opsRoutes } from './areas/ops/routes';
 import { proposalsRoutes } from './areas/proposals/routes';
 import { searchRoutes } from './areas/search/routes';
@@ -36,6 +37,24 @@ const small = bodyLimit({ maxSize: 64 * 1024, onError: tooLarge });
 // only big bodies.
 const part = bodyLimit({ maxSize: IMPORT_PART_BYTES, onError: tooLarge });
 const manifest = bodyLimit({ maxSize: 1024 * 1024, onError: tooLarge });
+// The music upload tools' audio, art and batch operations (areas/music/upload.ts, which checks
+// each against its signed size too).
+const [audio, art, batch] = [UPLOAD_LIMITS.audio, UPLOAD_LIMITS.art, UPLOAD_LIMITS.batch].map((maxSize) =>
+  bodyLimit({ maxSize, onError: tooLarge }),
+);
+const UPLOADS = '/v1/music/uploads/';
+const limitFor = (path: string) =>
+  path === '/v1/ops/import/parts'
+    ? part
+    : path.startsWith('/v1/ops/import/manifest/')
+      ? manifest
+      : path.startsWith(`${UPLOADS}audio/`)
+        ? audio
+        : path.startsWith(`${UPLOADS}art/`)
+          ? art
+          : path.startsWith(UPLOADS) && BIG_OPS.has(path.slice(UPLOADS.length))
+            ? batch
+            : small;
 
 export const app = new Hono<AppEnv>()
   .use(async (c, next) => {
@@ -56,13 +75,7 @@ export const app = new Hono<AppEnv>()
   .use('/v1/*', clientVersion)
   // Sign-in bodies are tiny; anything bigger is refused before it is parsed.
   .use('/v1/auth/*', bodyLimit({ maxSize: 4 * 1024, onError: tooLarge }))
-  .use('/v1/*', (c, next) =>
-    (c.req.path === '/v1/ops/import/parts'
-      ? part
-      : c.req.path.startsWith('/v1/ops/import/manifest/')
-        ? manifest
-        : small)(c, next),
-  )
+  .use('/v1/*', (c, next) => limitFor(c.req.path)(c, next))
   .route('/v1', opsRoutes)
   .route('/v1/auth', authRoutes)
   // Each area mounts its own routes; the contract (shared/contract/routes.ts) names them all.
@@ -82,5 +95,6 @@ export const app = new Hono<AppEnv>()
   .route('/v1', workRoutes)
   .route('/v1', briefingRoutes)
   .route('/v1', musicRoutes)
+  .route('/v1', uploadRoutes)
   .notFound(notFound)
   .onError(onError);

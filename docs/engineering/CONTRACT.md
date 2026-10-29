@@ -124,6 +124,9 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/board/editions/:day` | D C N | P4 | built | outside text from Muse, checked against the v2 schema |
 | `GET /v1/music/catalog` | D | P5 | built | the ported player's format; ETag, 304; 409 before the import |
 | `GET /v1/music/waveforms/:id` | D | P5 | built |  |
+| `PUT /v1/music/uploads/audio/:file` | public | P5 | built | signed by an upload tool key; Ogg Opus, ≤ 32 MiB |
+| `PUT /v1/music/uploads/art/:file` | public | P5 | built | signed by an upload tool key; JPEG or PNG, ≤ 2 MiB |
+| `POST /v1/music/uploads/:op` | public | P5 | built | signed by an upload tool key; the catalog writer's operations, export and links |
 | `PUT /v1/senses/batches/:id` | D | P5 | deferred: P5: the Senses object |  |
 | `POST /v1/senses/query` | C N R | P5 | deferred: P5: the Senses object |  |
 | `GET /v1/jobs/next` | N I | P5 | deferred: P5: the indexing jobs |  |

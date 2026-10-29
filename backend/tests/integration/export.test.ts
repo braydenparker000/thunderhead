@@ -80,6 +80,8 @@ describe('download everything', () => {
     expect(names).toContain('tables/messages.jsonl');
     expect(names).toContain('tables/ledger.jsonl');
     expect(names).toContain('tables/ledger-2.jsonl');
+    // The music catalog's tables, from the Music object (empty here: one empty file each).
+    for (const t of ['tracks', 'catalog_log', 'music_state']) expect(names).toContain(`tables/music.${t}.jsonl`);
     expect(names.some((n) => /auth|sessions|jobs|_fts/.test(n))).toBe(false);
     const messages = (files.get('tables/messages.jsonl') as string)
       .split('\n')

@@ -476,5 +476,25 @@ The same way as L2, for the music catalog only:
 4. Tell the agent "N3 done" with the output. On the switch day the agent asks for it once more
    with `--run music-2`, so songs added since are in the new catalog too.
 
-N4 (the upload tools' new keys) and N5 (music private: the old Worker's public read off,
-ask-first) come with the next steps.
+### N4. The upload tools' key (about 5 minutes, on the switch day)
+
+The new Worker takes uploads only signed by a key it knows. Make a new one on the computer you
+upload music from (it never leaves that computer):
+
+1. In a terminal there:
+
+   ```text
+   openssl genpkey -algorithm ed25519 -out music-upload-new.pem
+   openssl pkey -in music-upload-new.pem -pubout -outform DER | tail -c 32 | xxd -p -c 64
+   ```
+
+   The second line prints the public key: 64 letters and digits. Keep `music-upload-new.pem` with
+   the old key file; never paste it anywhere.
+2. dash.cloudflare.com → **Workers & Pages** → `thunderhead-api` → **Settings** → **Variables and
+   Secrets** → `MUSIC_UPLOAD_PUBLIC_KEYS` → **Edit** → paste `["` + the 64 characters + `"]` (for
+   example `["0a1b…"]`) → **Save**.
+3. Tell the agent "N4 done". It points the upload tools at the new Worker (its address and
+   `/v1/music/uploads/`, with `--key music-upload-new.pem`) and runs one canary upload with you.
+
+N5 (music private: the old Worker's public read off, ask-first) comes after the player has used
+only the new Worker for 3 days.

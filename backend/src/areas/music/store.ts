@@ -114,3 +114,74 @@ export function bump(db: Db, at: number): CatalogVersion {
 
 /** The catalog's ETag: its version and when it last changed. */
 export const etagOf = (v: CatalogVersion) => `"m${v.version}-${v.changed_at.toString(36)}"`;
+
+// --- the catalog's writer (the upload tools' operations, ./writer.ts) ---------------------------
+
+/** The change log keeps this many rows (the old catalog's own number). */
+export const LOG_KEEP = 20_000;
+
+export function trackRow(db: Db, id: string): TrackRow | null {
+  return db.one<TrackRow>('SELECT * FROM tracks WHERE id = ?', id);
+}
+
+/** The track holding this audio (by hash and size), other than `except`. */
+export function byContent(db: Db, sha256: string, size: number, except = ''): string | null {
+  return (
+    db.one<{ id: string }>('SELECT id FROM tracks WHERE sha256 = ? AND size = ? AND id <> ?', sha256, size, except)
+      ?.id ?? null
+  );
+}
+
+/** Writes a track's record; a new track goes last in the catalog's order. */
+export function writeTrack(db: Db, record: Record<string, unknown>, waveform: string | null, at: number): void {
+  db.run(
+    `INSERT INTO tracks (id, sha256, size, audio_key, cover_key, record_json, waveform, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET sha256 = excluded.sha256, size = excluded.size, audio_key = excluded.audio_key,
+       cover_key = excluded.cover_key, record_json = excluded.record_json, waveform = excluded.waveform,
+       updated_at = excluded.updated_at`,
+    record.id,
+    record.sha256,
+    record.size,
+    record.audioKey,
+    (record.coverKey as string | undefined) ?? null,
+    JSON.stringify(record),
+    waveform,
+    at,
+  );
+}
+
+export function deleteTrack(db: Db, id: string): void {
+  db.run('DELETE FROM tracks WHERE id = ?', id);
+}
+
+/** One change, with what it replaced (for undo); the oldest rows past LOG_KEEP go. */
+export function logOp(db: Db, at: number, op: string, trackId: string | null, before: unknown): void {
+  db.run(
+    'INSERT INTO catalog_log (at, op, track_id, before_json) VALUES (?, ?, ?, ?)',
+    at,
+    op,
+    trackId,
+    before == null ? null : JSON.stringify(before),
+  );
+  db.run('DELETE FROM catalog_log WHERE seq <= (SELECT max(seq) FROM catalog_log) - ?', LOG_KEEP);
+}
+
+export function trackCount(db: Db): number {
+  return db.one<{ n: number }>('SELECT count(*) AS n FROM tracks')?.n ?? 0;
+}
+
+/** Every content key the catalog uses, with its track and size (the audit). */
+export function referencedKeys(db: Db): { id: string; audio_key: string; cover_key: string | null; size: number }[] {
+  return db.all('SELECT id, audio_key, cover_key, size FROM tracks');
+}
+
+/** The catalog's records with their waveforms, in order (the tools' export). */
+export function exportRows(db: Db): { record_json: string; waveform: string | null }[] {
+  return db.all('SELECT record_json, waveform FROM tracks ORDER BY ord');
+}
+
+/** The catalog's records' total length: what the catalog's size limit counts. */
+export function recordBytes(db: Db): number {
+  return db.one<{ n: number | null }>('SELECT sum(length(record_json)) AS n FROM tracks')?.n ?? 0;
+}

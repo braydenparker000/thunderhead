@@ -3,8 +3,13 @@
 // state. The class shipped alone in its own deploy (a Durable Object class change cannot be rolled
 // back). P5 step 2 fills it from the old export (areas/import, datasets `music` and `music_log`) and
 // serves it: the whole catalog without waveforms under one ETag, one track's waveform, and the
-// content keys a signed link needs. Catalog writes from the upload tools come later.
+// content keys a signed link needs. P5 step 3 makes it the catalog's single writer for the upload
+// tools (areas/music/writer.ts), one operation at a time.
+import type { BackupOf } from '../areas/backups/ops';
+import { page, type Row } from '../areas/backups/rows';
 import * as store from '../areas/music/store';
+import { type Ctx, MusicError, OPS, type Op } from '../areas/music/writer';
+import { EDIT_OPS } from '../areas/music/writer-edit';
 import { type Migration, OwnerObject } from './base';
 
 export const MUSIC_MIGRATIONS: Migration[] = [
@@ -40,11 +45,23 @@ export const MUSIC_MIGRATIONS: Migration[] = [
   },
 ];
 
+/** Every table, all kept forever and all in the weekly backup and the export (DATA.md §10). */
+export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state'] as const;
+
 /** The one instance: the owner's library. */
 export const MUSIC_INSTANCE = 'library';
 
 export function musicObject(env: Env): DurableObjectStub<Music> {
   return env.MUSIC.getByName(MUSIC_INSTANCE);
+}
+
+/** The upload tools' operations (POST /v1/music/uploads/:op). */
+export const WRITE_OPS: Readonly<Record<string, Op>> = { ...OPS, ...EDIT_OPS };
+
+/** An operation's answer: the old writer's own body, or its status and why not. */
+export interface WriteResult {
+  status: number;
+  body: Record<string, unknown>;
 }
 
 /** What an import step wrote: rows (index entries included) and tracks or log rows changed. */
@@ -56,6 +73,8 @@ export interface PutResult {
 export class Music extends OwnerObject {
   /** The catalog as last built, by its ETag: built once per change, not per phone. */
   private built: { etag: string; text: string } | null = null;
+  /** The records' total length, read once per start and grown by each new track. */
+  private recordBytes: number | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env, MUSIC_MIGRATIONS);
@@ -129,5 +148,58 @@ export class Music extends OwnerObject {
 
   counts(): { tracks: number; waveforms: number; log: number } {
     return store.counts(this.db);
+  }
+
+  /** One upload-tool operation. Its R2 checks run first; its writes are one transaction. */
+  async write(op: string, body: Record<string, unknown>, now = Date.now()): Promise<WriteResult> {
+    const fn = Object.hasOwn(WRITE_OPS, op) ? WRITE_OPS[op] : undefined;
+    if (!fn) return { status: 404, body: { error: 'Unknown music operation' } };
+    const media = this.env.MEDIA;
+    if (!media) return { status: 503, body: { error: 'Music storage is not configured' } };
+    const c: Ctx = {
+      db: this.db,
+      tx: (f) => this.ctx.storage.transactionSync(f),
+      media,
+      now,
+      bytes: () => {
+        this.recordBytes ??= store.recordBytes(this.db);
+        return this.recordBytes;
+      },
+      grow: (n) => {
+        if (this.recordBytes !== null) this.recordBytes += n;
+      },
+    };
+    try {
+      return { status: 200, body: await fn(c, body) };
+    } catch (e) {
+      if (e instanceof MusicError) return { status: e.status, body: { error: e.message, ...e.extra } };
+      throw e;
+    }
+  }
+
+  /** What the weekly backup of this object needs when it starts (areas/backups). */
+  async backupOf(): Promise<BackupOf> {
+    const bookmark = await this.ctx.storage.getCurrentBookmark().catch(() => null);
+    return { tables: [...MUSIC_TABLES], schema_version: this.migration, bookmark };
+  }
+
+  /** One page of a table in key order, for the backup and the export. */
+  page(table: string, after: unknown[] | null, limit: number): { rows: Row[]; last: unknown[] | null } {
+    if (!(MUSIC_TABLES as readonly string[]).includes(table)) throw new Error('not a Music table');
+    return page(this.db, table, after, limit);
+  }
+
+  /** The whole catalog with each waveform inline, for the tools (the old writer's `export`). */
+  exportCatalog(): string {
+    const v = store.version(this.db);
+    const tracks = store.exportRows(this.db).map((r) => {
+      if (!r.waveform) return r.record_json;
+      const t = JSON.parse(r.record_json) as { metadata: Record<string, unknown> };
+      t.metadata.waveform = r.waveform;
+      return JSON.stringify(t);
+    });
+    const head = { version: 1, kind: 'r2-library', complete: true, count: tracks.length };
+    const generatedAt = new Date(v.changed_at || Date.now()).toISOString();
+    return `${JSON.stringify({ ...head, generatedAt }).slice(0, -1)},"tracks":[${tracks.join(',')}]}`;
   }
 }

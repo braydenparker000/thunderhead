@@ -984,6 +984,24 @@
       "phase": "P5",
       "status": "built"
     },
+    "PUT /v1/music/uploads/audio/:file": {
+      "who": "P",
+      "phase": "P5",
+      "status": "built",
+      "note": "signed by an upload tool key; Ogg Opus, ≤ 32 MiB"
+    },
+    "PUT /v1/music/uploads/art/:file": {
+      "who": "P",
+      "phase": "P5",
+      "status": "built",
+      "note": "signed by an upload tool key; JPEG or PNG, ≤ 2 MiB"
+    },
+    "POST /v1/music/uploads/:op": {
+      "who": "P",
+      "phase": "P5",
+      "status": "built",
+      "note": "signed by an upload tool key; the catalog writer's operations, export and links"
+    },
     "PUT /v1/senses/batches/:id": {
       "who": [
         "D"

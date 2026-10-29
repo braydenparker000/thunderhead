@@ -1,12 +1,14 @@
 // "Download everything" (MENU-AND-SETTINGS.md §4.9, JOBS.md §4.4): every table DATA.md §10 marks
 // for export, 5,000 rows a file (`tables/<table>.jsonl`, then `<table>-2.jsonl`…), each deflated
 // into `exports/<id>/<n>.bin` in the private bucket with its CRC-32 and sizes, then a README and a
-// list of what is in it. The download (routes.ts) streams those parts as one ZIP for an hour.
+// list of what is in it. The download (routes.ts) streams those parts as one ZIP for an hour. The
+// Music object's tables come by RPC as `music.<table>` (P5).
 // Reads only, so it stays off the bulk lane.
 import { BACKUP_LIMITS } from '../../../../shared/contract/backups.ts';
 import { MINUTE } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
+import { musicObject } from '../../objects/music';
 import type { JobHandler } from '../jobs/runner';
 import { vaultOf } from './job';
 import { line, page } from './rows';
@@ -47,7 +49,8 @@ const readme = (p: ExportPayload, counts: Record<string, number>) =>
     `# Thunderhead export, ${p.date}`,
     '',
     'Everything the Thunderhead keeps about you that DATA.md marks for export: your conversations,',
-    'what it remembers, day notes, loose ends, the ledger of what it did, and decisions.',
+    'what it remembers, day notes, loose ends, the ledger of what it did, decisions, and your music',
+    "library's catalog (`music.*`; the audio itself stays in your music bucket).",
     '',
     'Each table is in `tables/` as JSON Lines: one JSON object a line, one line a row, with the',
     "table's own column names. A big table continues in `<table>-2.jsonl`, `<table>-3.jsonl` and so on.",
@@ -86,7 +89,11 @@ export const exportJob: JobHandler = {
       return { files };
     }
     const table = p.tables[c.t];
-    const { rows, last } = page(db, table, c.after, BACKUP_LIMITS.part_rows);
+    const { rows, last } = table.startsWith('music.')
+      ? ((await musicObject(env).page(table.slice(6), c.after, BACKUP_LIMITS.part_rows)) as unknown as ReturnType<
+          typeof page
+        >)
+      : page(db, table, c.after, BACKUP_LIMITS.part_rows);
     if (!rows.length && c.n > 0) return { file: null, rows: 0, full: false, last: null };
     const name = `tables/${table}${c.n ? `-${c.n + 1}` : ''}.jsonl`;
     const text = rows.length ? `${rows.map(line).join('\n')}\n` : '';
