@@ -8,8 +8,17 @@ import { failure } from '/th/flow.js';
 import { dMMM, lastActive, place } from '/th/format.js';
 import { wipe } from '/th/session.js';
 import { confirmSheet, el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
+import { outbox } from '/th/chat/store.js';
 
 const TITLES = { devices: 'Sign-in & devices', agents: 'Agents', account: 'Account' };
+
+/** Signs this device out, asking first while messages are still waiting to send (SIGN-IN.md §11.3). */
+export async function signOutAsking() {
+  const n = (await outbox.list()).length;
+  const title = n === 1 ? "1 message hasn't sent yet. Sign out anyway?" : `${n} messages haven't sent yet. Sign out anyway?`;
+  if (n && !(await confirmSheet({ title, action: 'Sign out', keep: 'Cancel' }))) return;
+  signOutHere();
+}
 let current = null;
 
 /** Opens a settings page. @param {'devices' | 'agents' | 'account'} name @param {{ fromRoute?: boolean, role?: string }} [opts] */
@@ -105,7 +114,7 @@ async function devices(body) {
     b.addEventListener('click', () => { if (!tooSoon()) fn(); });
     actions.append(b);
   };
-  btn('Sign out of this device', 'soft', () => signOutHere());
+  btn('Sign out of this device', 'soft', () => signOutAsking());
   btn('Sign out all other devices', 'soft', async () => {
     if (!(await confirmSheet({ title: 'Sign out all other devices?', body: 'They stop working within a minute.', action: 'Sign out' }))) return;
     try { await signedIn((t) => api.signout(t, 'others')); toast('Signed out everywhere else'); load(); } catch (e) { errLine(body, e); }

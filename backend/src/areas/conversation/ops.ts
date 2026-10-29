@@ -109,9 +109,23 @@ export function checkChip(meta: JsonObject | undefined): void {
     typeof chip.app === 'string' &&
     appBuilt(chip.app) &&
     typeof chip.path === 'string' &&
-    chip.path.startsWith(APPS[chip.app as AppId].path) &&
-    !chip.path.includes('..');
+    chipPath(chip.app as AppId, chip.path) !== null;
   if (!ok) throw invalid('meta.chip', 'one chip: {label ≤ 28, a shipped app, path inside that app}');
+}
+
+const BASE = 'https://th.invalid';
+
+/** A chip's path resolved the way the browser resolves it (so "/music/%2e%2e/" is outside Music):
+ * the path if it stays inside that app's folder, else null. The phone checks the same way. */
+export function chipPath(app: AppId, path: string): string | null {
+  if (!path.startsWith('/') || path.includes('..') || /%2f|%5c|\\/i.test(path)) return null;
+  let u: URL;
+  try {
+    u = new URL(path, BASE);
+  } catch {
+    return null;
+  }
+  return u.origin === BASE && u.pathname.startsWith(APPS[app].path) ? `${u.pathname}${u.search}${u.hash}` : null;
 }
 
 /** PATCH /v1/messages/:id: the mind amends its own posts (keeps cards current). */

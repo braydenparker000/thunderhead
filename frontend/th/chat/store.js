@@ -1,7 +1,8 @@
 // @ts-check
 // What the phone keeps of the conversation, in IndexedDB `th-data` (PRIVACY.md §4, wiped on
 // sign-out): the last state, so home paints at once from cache, and the outbox of messages not
-// sent yet. One tab writes at a time; the outbox is small (≤ 200 messages, HOME.md §4.7).
+// sent yet, one key per message (`chat.outbox.<id>`; ids are UUIDv7, so key order is the order
+// they were written), so two quick writes never overwrite each other. ≤ 200 (HOME.md §4.7).
 import { kv } from '../idb.js';
 
 /** @typedef {import('./model.js').Local} Local */
@@ -9,6 +10,7 @@ import { kv } from '../idb.js';
  *   surfaces: import('../../../shared/contract/api.ts').Surface[], seq: number, at: number }} Cached */
 
 const db = kv('th-data');
+const KEY = 'chat.outbox.';
 export const OUTBOX_MAX = 200;
 
 export const cache = {
@@ -20,17 +22,9 @@ export const cache = {
 
 export const outbox = {
   /** @returns {Promise<Local[]>} */
-  list: async () => (await db.get('chat.outbox').catch(() => null)) ?? [],
-  /** @param {Local} m */
-  async put(m) {
-    const all = await outbox.list();
-    const i = all.findIndex((x) => x.id === m.id);
-    if (i >= 0) all[i] = m;
-    else all.push(m);
-    await db.set('chat.outbox', all);
-  },
+  list: () => db.list(KEY).catch(() => []),
+  /** Rejects if IndexedDB can't write; the caller keeps the message in memory. @param {Local} m */
+  put: (m) => db.set(`${KEY}${m.id}`, m),
   /** @param {string} id */
-  async remove(id) {
-    await db.set('chat.outbox', (await outbox.list()).filter((x) => x.id !== id));
-  },
+  remove: (id) => db.del(`${KEY}${id}`),
 };

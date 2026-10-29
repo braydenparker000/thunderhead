@@ -1,11 +1,12 @@
 // Settings → Account: change password (SIGN-IN.md §9.1, also /settings/password/ for the
 // browser's change-password link) and signing out this device. The hidden username lets the
 // password manager update the right entry.
-import { api, signedIn, signOutHere } from '/th/client.js';
+import { api, signedIn } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { store } from '/th/session.js';
 import { el, wireShowButtons } from '/th/ui.js';
+import { signOutAsking } from './settings.js';
 
 /** @param {HTMLElement} body */
 export async function account(body) {
@@ -30,7 +31,7 @@ export async function account(body) {
     go, line,
   ]);
   const out = el('button', { type: 'button', class: 'btn soft', text: 'Sign out of this device' });
-  out.addEventListener('click', () => signOutHere());
+  out.addEventListener('click', () => signOutAsking());
   // MIGRATION.md §5.3: the phone's app data from the old site's /export/ page.
   const bring = el('a', { class: 'btn soft', href: '/import/', text: 'Bring data from the old site' });
   body.replaceChildren(form, el('div', { class: 'sactions' }, [bring, out]));

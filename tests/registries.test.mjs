@@ -26,6 +26,9 @@ test('deep links: only inside a shipped app, never out of it', () => {
   assert.equal(deepLink('music', '/guitar/'), null);
   assert.equal(deepLink('music', '/music/../signin/'), null);
   assert.equal(deepLink('music', 'https://example.com/music/'), null);
+  // Resolved as the browser would: an encoded dot segment or separator leaves the app.
+  for (const path of ['/music/%2e%2e/settings/agents/?new=mind:chat', '/music/.%2E/settings/', '/music/%2f..%2fsettings/', '//example.com/music/', '/music/\\..\\settings/'])
+    assert.equal(deepLink('music', path), null, path);
   assert.equal(deepLink('study', '/study/'), null, 'Study ships in P7');
   assert.equal(deepLink('mail', '/mail/'), null);
   assert.equal(appFor('constructor'), null);

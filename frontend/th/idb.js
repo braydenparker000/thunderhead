@@ -50,6 +50,8 @@ export function kv(name) {
     set: (key, value) => tx(name, 'readwrite', (s) => s.put(value, key)),
     /** @param {string} key @returns {Promise<void>} */
     del: (key) => tx(name, 'readwrite', (s) => s.delete(key), false),
+    /** Every value whose key starts with `prefix`, in key order. @param {string} prefix @returns {Promise<any[]>} */
+    list: async (prefix) => (await tx(name, 'readonly', (s) => s.getAll(IDBKeyRange.bound(prefix, `${prefix}\uffff`)))) ?? [],
     /** Deletes the whole database. @returns {Promise<void>} */
     drop: () =>
       new Promise((resolve) => {

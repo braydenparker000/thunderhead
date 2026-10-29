@@ -30,11 +30,19 @@ export const apps = Object.freeze(
 export const appFor = (id) => apps.find((a) => a.id === id) ?? null;
 
 const PATH = /^\/[A-Za-z0-9._~!$&'()*+,;=:@/?#%-]*$/;
+const BASE = 'https://th.invalid';
 
-/** A place the shell may open: a shipped app's folder or a path inside it, else null.
- * @param {string} id @param {string} path */
+/** A place the shell may open: a shipped app's folder or a path inside it, resolved the way the
+ * browser will resolve it (so "/music/%2e%2e/" is outside Music), else null. The Worker checks a
+ * chip the same way (conversation/ops.ts chipPath). @param {string} id @param {string} path */
 export function deepLink(id, path) {
   const a = appFor(id);
-  if (!a?.built || typeof path !== 'string' || !PATH.test(path) || path.includes('..')) return null;
-  return path.startsWith(a.path) ? path : null;
+  if (!a?.built || typeof path !== 'string' || !PATH.test(path) || path.includes('..') || /%2f|%5c/i.test(path)) return null;
+  let u;
+  try {
+    u = new URL(path, BASE);
+  } catch {
+    return null;
+  }
+  return u.origin === BASE && u.pathname.startsWith(a.path) ? `${u.pathname}${u.search}${u.hash}` : null;
 }

@@ -32,7 +32,7 @@ import { apps } from '/th/registry/apps.js';
   $('#mic').addEventListener('click',()=>{ listening=!listening; ask.classList.toggle('listening',listening); edge.classList.toggle('listen',listening);
     q.placeholder=listening?'Listening…':''; toast(listening?'Listening. Tap again to stop':'Stopped. Nothing is kept unless you send it'); buzz(8) });
   ask.addEventListener('submit',e=>{
-    e.preventDefault(); if(root.dataset.signedIn!==undefined) return; // signed in: th/chat/index.js sends it
+    e.preventDefault(); if(root.dataset.signedIn!==undefined){ if(root.dataset.chat==='failed') toast("Couldn't load the conversation. Reload to try again."); return; } // signed in: th/chat/index.js sends it
     const text=q.value.trim(); if(!text) return; q.value=''; ask.classList.remove('typing'); hint.classList.add('gone');
     const t=document.createElement('div'); t.className='turn';
     t.innerHTML='<div class="you"></div><div class="voice reply"></div>'; t.firstChild.textContent=text; $('#turns').appendChild(t);

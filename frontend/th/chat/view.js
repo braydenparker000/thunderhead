@@ -2,8 +2,9 @@
 // The conversation on home, drawn (HOME.md §4): owner bubbles on the right, the mind's replies in
 // Fraunces italic with no bubble, system lines small and centred, one action chip under a reply,
 // the reply slot while a reply is on its way, and the "New reply ↓" pill. Messages are keyed by
-// id, so a re-render only adds, changes or removes what changed; text is always set with
-// textContent, never parsed as markup.
+// id, so a re-render only adds, changes or removes what changed, and the slot is one element that
+// changes only when what it says does (a screen reader hears each change once; focus stays on
+// Stop). Text is always set with textContent, never parsed as markup.
 import { appFor } from '../registry/apps.js';
 import { lines, meta, revealMs } from './model.js';
 
@@ -51,6 +52,14 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
   /** @type {Map<string, { node: HTMLElement, sig: string }>} */
   const nodes = new Map();
   const slot = el('div', 'slot');
+  const wait = el('span', 'wait');
+  const stop = el('button', 'stop', 'Stop');
+  stop.type = 'button';
+  stop.addEventListener('click', () => {
+    if (stop.getAttribute('aria-disabled') !== 'true') onStop();
+  });
+  slot.append(wait, stop);
+  let drawn = '';
   const pill = el('button', 'newpill', 'New reply ↓');
   pill.type = 'button';
   pill.addEventListener('click', () => {
@@ -119,7 +128,7 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
     const wasNear = nearBottom();
     let newOwner = false;
     let newReply = false;
-    slot.remove();
+    let newLine = false;
     // An owner message starts a turn and the mind's posts join it; a system line stands alone.
     /** @type {Shown[][]} */
     const groups = [];
@@ -159,7 +168,8 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
           const node = draw(m, s);
           if (rec) rec.node.replaceWith(node);
           else if (m.author === 'owner') newOwner = true;
-          else if (s.fresh.has(m.id)) newReply = true;
+          else if (m.author === 'mind') newReply = true; // live, or loaded on the way back from an app
+          else newLine = true;
           rec = { node, sig };
           nodes.set(m.id, rec);
         }
@@ -169,17 +179,22 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
       }
     }
     // The reply slot sits under the newest turn while a reply is on its way.
-    if (s.slot !== 'none' || s.stop !== 'none') {
-      slot.replaceChildren();
-      if (s.slot !== 'none') slot.append(el('span', `wait ${s.slot}`, SLOT_TEXT[/** @type {keyof typeof SLOT_TEXT} */ (s.slot)] ?? ''));
-      if (s.stop === 'button') {
-        const b = el('button', 'stop', 'Stop');
-        b.type = 'button';
-        b.addEventListener('click', onStop);
-        slot.append(b);
-      } else if (s.stop === 'stopping') slot.append(el('span', 'stopping', 'Stopping…'));
-      (prevTurn ?? talk).append(slot);
+    const key = `${s.slot}|${s.stop}`;
+    if (s.slot === 'none' && s.stop === 'none') slot.remove();
+    else {
+      if (key !== drawn) {
+        wait.className = `wait ${s.slot}`;
+        wait.textContent = SLOT_TEXT[/** @type {keyof typeof SLOT_TEXT} */ (s.slot)] ?? '';
+        wait.hidden = s.slot === 'none';
+        stop.hidden = s.stop === 'none';
+        stop.textContent = s.stop === 'stopping' ? 'Stopping…' : 'Stop';
+        stop.classList.toggle('stopping', s.stop === 'stopping');
+        stop.setAttribute('aria-disabled', String(s.stop === 'stopping'));
+      }
+      const host = prevTurn ?? talk;
+      if (host.lastElementChild !== slot) host.append(slot);
     }
+    drawn = key;
     cards.replaceChildren(
       ...s.cards.map((c) => {
         const card = el('div', 'card fallback');
@@ -187,7 +202,7 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
         return card;
       }),
     );
-    if (newOwner || (newReply && wasNear)) convo.scrollTop = convo.scrollHeight;
+    if (newOwner || ((newReply || newLine) && wasNear)) convo.scrollTop = convo.scrollHeight;
     else if (newReply) pill.classList.add('show');
   }
 

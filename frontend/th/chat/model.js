@@ -6,7 +6,7 @@
 
 /** @typedef {import('../../../shared/contract/api.ts').Message} Message */
 /** @typedef {import('../../../shared/contract/api.ts').MindPresence} MindPresence */
-/** @typedef {{ id: string, body: string, created_at: number, state: 'sending' | 'queued' | 'failed' | 'toolong', tries: number }} Local */
+/** @typedef {{ id: string, body: string, created_at: number, state: 'sending' | 'queued' | 'failed' | 'toolong', tries: number, failed_at?: number }} Local */
 /** @typedef {(Message & { local?: false }) | (Local & { author: 'owner', kind: 'text', local: true })} Shown */
 
 export const THINK_AFTER_MS = 1200;
@@ -20,6 +20,8 @@ export const REVEAL_CPS = 160;
 export const REVEAL_MAX_MS = 1200;
 export const TYPING_IDLE_MS = 90_000;
 export const TYPING_EVERY_MS = 60_000;
+/** A message that didn't send keeps the edge on error this long, or until it is retried (HOME.md §7). */
+export const FAILED_EDGE_MS = 60_000;
 
 /** Server messages in seq order, then outbox messages the server doesn't have yet.
  * @param {Message[]} server @param {Local[]} local @returns {Shown[]} */
@@ -34,14 +36,27 @@ export function merge(server, local) {
 const REPLY_KINDS = new Set(['text', 'question', 'card']);
 
 /** The newest owner message no mind reply came after, or null (system lines and progress posts
- * don't answer). @param {Shown[]} shown */
+ * don't answer; a message still in the outbox waits for a reply only while it is sending, so a
+ * queued or failed one shows its meta line and nothing else). @param {Shown[]} shown */
 export function waitingFor(shown) {
   for (let i = shown.length - 1; i >= 0; i--) {
     const m = shown[i];
     if (m.author === 'mind' && REPLY_KINDS.has(m.kind)) return null;
-    if (m.author === 'owner') return !m.local && m.answered_at ? null : m;
+    if (m.author !== 'owner' || (m.local && m.state !== 'sending')) continue;
+    return !m.local && m.answered_at ? null : m;
   }
   return null;
+}
+
+/** Whether the Worker's "isn't waking" line stands in the thread with no reply after it, so the
+ * voice line doesn't say the same thing again (HOME.md §4.4). @param {Shown[]} shown */
+export function noWakeShown(shown) {
+  for (let i = shown.length - 1; i >= 0; i--) {
+    const m = shown[i];
+    if (m.author === 'mind' && REPLY_KINDS.has(m.kind)) return false;
+    if (m.author === 'system' && /** @type {any} */ (m.meta)?.line === 'not_waking') return true;
+  }
+  return false;
 }
 
 /** Whether the mind posted progress after the waiting message. @param {Shown[]} shown @param {Shown} waiting */
@@ -67,22 +82,25 @@ export function slot({ sentAt, now, presence, progress }) {
 }
 
 /** The two voice lines (HOME.md §2.1 rows 2, 3, 7 and 10; decisions arrive with proposals in P4).
- * @param {{ presence: MindPresence | null, firstRun: boolean, homeLine: string | null }} s
+ * Row 3 gives way to the Worker's system line when that is in the thread (`noWake`).
+ * @param {{ presence: MindPresence | null, firstRun: boolean, homeLine: string | null, noWake?: boolean }} s
  * @returns {[string, string | null]} */
-export function voiceLine({ presence, firstRun, homeLine }) {
-  if (presence?.state === 'failed' || presence?.state === 'limited') return ["I can't wake just now.", "I'll answer when I'm back."];
+export function voiceLine({ presence, firstRun, homeLine, noWake = false }) {
+  if ((presence?.state === 'failed' || presence?.state === 'limited') && !noWake) return ["I can't wake just now.", "I'll answer when I'm back."];
   if (firstRun) return ["I'm here.", 'Ask me anything, any time.'];
   return ['Nothing needs you.', homeLine];
 }
 
 /** The edge light's state (HOME.md §7): thinking > error > offline > calm; listening is home.js's.
- * @param {{ presence: MindPresence | null, waiting: boolean, typingUntil: number, offline: boolean, now: number }} s
+ * `failedAt` is when the newest message that didn't send failed (0 for none).
+ * @param {{ presence: MindPresence | null, waiting: boolean, typingUntil: number, offline: boolean, now: number, failedAt?: number }} s
  * @returns {'think' | 'error' | 'offline' | 'calm'} */
-export function edge({ presence, waiting, typingUntil, offline, now }) {
+export function edge({ presence, waiting, typingUntil, offline, now, failedAt = 0 }) {
   const state = presence?.state;
   const working = state === 'working' && now - (presence?.since ?? now) < WORKING_MAX_MS;
   if (state === 'failed' || state === 'limited') return waiting && typingUntil > now ? 'think' : 'error';
   if (working || state === 'waking' || typingUntil > now || (waiting && state !== 'unconfigured')) return 'think';
+  if (failedAt && now - failedAt < FAILED_EDGE_MS) return 'error';
   if (offline) return 'offline';
   return 'calm';
 }
@@ -100,6 +118,7 @@ export function meta(m, now) {
 /** How long a reply's reveal takes: 160 characters a second, at most 1.2 s. @param {string} text */
 export const revealMs = (text) => Math.min(REVEAL_MAX_MS, Math.round((text.length / REVEAL_CPS) * 1000));
 
+const LIST_AFTER = /(?<=[.!?:])\s+(?=– )/;
 const LINK = /https:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]]/g;
 
 /** A long URL shows as its host plus "…". @param {string} href */
@@ -112,10 +131,11 @@ export function label(href) {
   }
 }
 
-/** A reply's text as lines: line breaks kept, lines starting "– " as a hanging list, https links.
+/** A reply's text as lines: line breaks kept, lines starting "– " as a hanging list (a "– " straight
+ * after a full stop, question mark or colon starts a list line too), https links.
  * @param {string} text @returns {{ list: boolean, parts: ({ text: string } | { href: string, label: string })[] }[]} */
 export function lines(text) {
-  return text.split('\n').map((raw) => {
+  return text.split('\n').flatMap((l) => l.split(LIST_AFTER)).map((raw) => {
     const list = raw.startsWith('– ');
     const line = list ? raw.slice(2) : raw;
     /** @type {({ text: string } | { href: string, label: string })[]} */
