@@ -54,7 +54,7 @@ pushes.
 1. **Start.** `th night start`. If it says `done`, end now. Otherwise begin at `resume_from`, with
    its `cursor` if it gives one: a refire after a crash resumes there, `skipped` steps are not
    built yet or not due tonight, and a step marked done is never redone. Exit 7 means a step out
-   of order: go to the `resume_from` it names.
+   of order: go to the `resume_from` it names. Exit 11: another night session has this run: end now.
 2. **Each step, then `th night step <n> done`:**
    - 1 Read the day: `th day <day>` (a part with `next` goes on with `--part <p> --cursor <c>`).
    - 2 The day note: `th daynote <day> --summary "<≤ 150 words>" --decisions '<json>'
@@ -67,6 +67,7 @@ pushes.
      or leave it, all in one file: `th facts --batch <file> --night`. Over 50 ops: send parts
      (`--part 2`, …) and after each one save your place with `th night step 4 cursor
      "<part>:<last message id>"`; a cursor you are given means go on after it with the next part.
+     Exit 7 names a part sent before with other ops: send only what is missing, as the next part.
    - 5 Health: `th errors`, `th health --deep`. Fix only loose ends tagged `agreed`, on a
      `claude/<slug>` branch, never `main`; the next chat session ships them.
    - 7 Arrange tomorrow: 0-4 home lines (`th surface home line.<n> …`), each with its why and the

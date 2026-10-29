@@ -40,7 +40,7 @@ export const USAGE = {
   push: ['--title --body --ref --why --topic [--deadline]', 'a push (P8)'],
   day: ['<YYYY-MM-DD> [--part messages|ledger|notes [--cursor <c>]]', 'the night\'s input: counts and every part, or one page of a part (P3)'],
   daynote: ['<day> --summary --decisions <json> --importance <1-10>', 'the day note (P3)'],
-  facts: ['--batch <file.json> [--night [--part <k>]]', 'a batch of memory ops; --night: step 4\'s part k, sent once (P3)'],
+  facts: ['--batch <file.json> [--night [--part <k>] [--day <day>]]', 'a batch of memory ops; --night: part k of step 4 for the night run\'s day (P3)'],
   night: ['start | step <n> done | step <n> cursor <c> | done [--partial] | steps [--day <day>]', 'the night run: where it stands, each step done, a saved place (P3)'],
 };
 

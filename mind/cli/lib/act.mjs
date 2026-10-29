@@ -4,7 +4,7 @@ import {parseArgs} from './args.mjs';
 import {invalid, jsonFlag, need, out, toMs} from './io.mjs';
 import {CONTRACT, checkSurface, checkVerb} from './contract.mjs';
 import {request} from './http.mjs';
-import {getState} from './state.mjs';
+import {getState, setState} from './state.mjs';
 import {uuidv7} from './ids.mjs';
 
 export const CLASSES = ['delete', 'money', 'access', 'reach_people', 'memory_big'];
@@ -144,17 +144,19 @@ export async function push(argv) {
 
 const NIGHT_USAGE = 'usage: th night start | step <n> done | step <n> cursor <c> | done [--partial] | steps  [--day <YYYY-MM-DD>]';
 
-/** `th night` (RUNTIME.md §12): the night run's progress for the briefing's day (the closed day the
- * night works on), or `--day` for another closed day of the last week. `steps` lists the steps
- * from the contract. Out: where the run stands, `{resume_from, done, cursor, skipped}`; a step out
- * of order exits 7 with `resume_from` in the error's details. */
+/** `th night` (RUNTIME.md §12): the night run's progress. `start` works on the briefing's day (the
+ * closed day the night works on), or `--day` for another closed day of the last week; the run's
+ * day is kept, so the steps after it (and `th facts --night`) go to the same run without `--day`.
+ * `steps` lists the steps from the contract. Out: where the run stands, `{resume_from, done,
+ * cursor, skipped}`; a step out of order exits 7 with `resume_from` in the error's details. */
 export async function night(argv) {
   const {flags, rest} = parseArgs(argv, {bool: ['partial']});
   const n = CONTRACT.night;
   if (rest[0] === 'steps')
     return out({steps: n.steps.map(({step, name, budget_min, cursor, phase, sunday}) => ({step, name, budget_min, cursor, phase, ...(sunday ? {sunday} : {})})),
       budget_min: n.budget_min});
-  const day = typeof flags.day === 'string' ? flags.day : getState('day');
+  const day = typeof flags.day === 'string' ? flags.day
+    : rest[0] === 'start' ? getState('day') : getState('night_day') ?? getState('day');
   if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) throw invalid('--day is required (no briefing day recorded)');
   const step = Number(rest[1]);
   let body;
@@ -170,5 +172,6 @@ export async function night(argv) {
   }
   if (body.cursor !== undefined && body.cursor.length > n.cursor_max) throw invalid(`a cursor is at most ${n.cursor_max} characters`);
   const {data} = await request('POST', '/v1/mind/night', {body});
+  setState('night_day', day);
   out({resume_from: data.resume_from ?? null, done: !!data.done, cursor: data.cursor ?? null, skipped: data.skipped ?? []});
 }

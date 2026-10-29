@@ -55,8 +55,13 @@ const noteBody = z.strictObject({
 const taintBody = z.strictObject({ source: text(40), ref_kind: z.optional(z.enum(['url', 'file', 'comment'])) });
 const wakesQuery = z.object({ limit: z.optional(z.coerce.number().check(z.int(), z.gte(1), z.lte(200))) });
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+/** A real calendar day: the shape, and it reads back as itself (no month 00 or 31 June). */
+const realDay = (d: string) => {
+  const t = DAY.test(d) ? Date.parse(`${d}T12:00:00Z`) : Number.NaN;
+  return !Number.isNaN(t) && new Date(t).toISOString().slice(0, 10) === d;
+};
 const nightBody = z.strictObject({
-  day: z.string().check(z.regex(DAY)),
+  day: z.string().check(z.regex(DAY), z.refine(realDay, 'a real calendar day')),
   action: z.enum(['start', 'step_done', 'cursor', 'done']),
   step: z.optional(z.number().check(z.int(), z.gte(0), z.lte(99))),
   cursor: z.optional(z.string().check(z.minLength(1), z.maxLength(NIGHT_CURSOR_MAX))),
@@ -128,7 +133,7 @@ export const mindRoutes = new Hono<AppEnv>()
   })
   .get('/mind/day/:day', guard('GET /v1/mind/day/:day'), async (c) => {
     const day = c.req.param('day') ?? '';
-    if (!DAY.test(day)) throw new ApiError('validation', [{ path: 'day', issue: 'YYYY-MM-DD' }]);
+    if (!realDay(day)) throw new ApiError('validation', [{ path: 'day', issue: 'YYYY-MM-DD' }]);
     const q = parse(dayQuery, c.req.query());
     // A cursor names its day and part, so one from another day or part is refused (400).
     const route = `day:${day}:${q.part}`;

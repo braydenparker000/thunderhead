@@ -33,6 +33,15 @@ const inCore = <T>(fn: (w: Writer) => T) =>
     stub(),
     (o: Core, state) => commit(state.storage, (o as unknown as { db: Writer['db'] }).db, fn).value,
   );
+/** A killed session goes quiet: the run's last move is 21 minutes old, past the 20-minute hold. */
+const silence = (day: string) =>
+  coreSql(
+    `UPDATE night_runs SET started_at = started_at - ?, steps_json = (SELECT json_group_object(key,
+       json_set(value, '$.at', json_extract(value, '$.at') - ?)) FROM json_each(night_runs.steps_json)) WHERE day = ?`,
+    21 * 60_000,
+    21 * 60_000,
+    day,
+  );
 /** Makes the roll due: an older open day, and a conversation quiet for two hours. */
 async function rollDue() {
   await coreSql(
@@ -152,6 +161,7 @@ describe('the run record', () => {
       apiJson<DayNote>('PUT', `/v1/memory/day-notes/${yday}`, { ...as(p.N, session), body: note });
     expect((await put('cse_night_a')).body.version).toBe(1);
     // Session a is killed after writing the note, before reporting step 2.
+    await silence(yday);
     await brief(p.N, 'cse_night_b', 'night');
     expect((await night({ day: yday, action: 'start' }, 'cse_night_b')).body.resume_from).toBe(2);
     expect((await put('cse_night_b')).body.version).toBe(1);
@@ -164,6 +174,7 @@ describe('the run record', () => {
       skipped: [],
     });
     // Session b is killed in step 4; the refire resumes at 4 with its cursor.
+    await silence(yday);
     await brief(p.N, 'cse_night_c', 'night');
     expect((await night({ day: yday, action: 'start' }, 'cse_night_c')).body).toEqual({
       resume_from: 4,
@@ -194,6 +205,15 @@ describe('the run record', () => {
     expect([steps[6].skipped, steps[8].skipped, steps[9].skipped]).toEqual(['later', 'later', 'later']);
     expect(steps[1]).toMatchObject({ done: true, session: 'cse_night_a' });
     expect(steps[4]).toMatchObject({ done: true, session: 'cse_night_c' });
+  });
+
+  it('one session works a run at a time: another live night session is refused while the run moved in the last 20 minutes', async () => {
+    await brief(p.N, 'cse_night_d', 'night');
+    const r = await night({ day: yday, action: 'start' }, 'cse_night_d');
+    expect(r.status).toBe(409);
+    expect(r.body.error).toMatchObject({ code: 'already_live' });
+    const steps = JSON.parse((await run(yday)).steps_json);
+    expect(steps[7]).toMatchObject({ done: true, session: 'cse_night_c' });
   });
 
   it('done ends the session and its wake; the fallback after it is told at once and ends too', async () => {
