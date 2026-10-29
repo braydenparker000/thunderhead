@@ -1,5 +1,7 @@
 // Per-role deny rules for the PreToolUse hook (RUNTIME.md §6.4). Pure and deterministic: the same
 // tool call, role and context always give the same answer, and nothing here touches the network.
+// What needs git or the Worker (the protected paths a push carries, whether the owner approved a
+// change to them) comes in through the context, computed by pre-tool.mjs.
 // Deny only, never "ask": an ask would stall an unattended run waiting for a human.
 import {isAbsolute, relative, resolve, sep} from 'node:path';
 import {parseShell, unwrap} from './shell.mjs';
@@ -11,7 +13,10 @@ const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
 
 /**
  * @typedef {{role: string, cwd: string, projectDir: string, tmpDir: string, allowedHosts: string[],
- *   headSubject?: () => string}} Context
+ *   headSubject?: () => string, approved?: (paths: string[]) => boolean, pushProtected?: () => string[]}} Context
+ * `approved`: the owner approved changing these repository-relative protected paths on a branch
+ * from the current base (`th approved`); missing means never. `pushProtected`: the protected paths
+ * the commits being pushed change; missing means none.
  */
 
 /** True for mind/CONSTITUTION.md, .claude/**, mind/hooks/**, .github/** inside the project. */
@@ -20,6 +25,14 @@ export function isProtected(path, ctx) {
   if (rel === null) return false;
   const r = rel.split(sep).join('/');
   return r === 'mind/CONSTITUTION.md' || /^(\.claude|mind\/hooks|\.github)(\/|$)/.test(r);
+}
+
+/** Protected paths written without the owner's approval (RUNTIME.md §6.4, `repo.change` cards). */
+function unapproved(paths, ctx) {
+  const prot = paths.filter(p => isProtected(p, ctx));
+  if (!prot.length) return null;
+  const rels = prot.map(p => projectRelative(p, ctx).split(sep).join('/'));
+  return ctx.approved?.(rels) ? null : prot[0];
 }
 
 function projectRelative(path, ctx) {
@@ -82,7 +95,7 @@ export function gitPush(args) {
 }
 
 /** The th subcommand when the simple command runs th (`th …`, `node …/th.mjs …`). */
-function thSub({cmd, args}) {
+export function thSub({cmd, args}) {
   if (cmd === 'th') return {sub: args[0] ?? '', rest: args.slice(1)};
   if ((cmd === 'node' || cmd === 'nodejs') && /(^|\/)th\.mjs$/.test(args.find(a => !a.startsWith('-')) ?? '')) {
     const k = args.findIndex(a => /(^|\/)th\.mjs$/.test(a));
@@ -145,7 +158,7 @@ function checkSegment(seg, ctx) {
   if (push?.force) return 'Force pushes are never allowed.';
   if (push?.del) return 'Deleting a remote branch is not allowed.';
   const writes = writtenPaths({cmd, args}, seg.redirects);
-  const prot = writes.find(p => isProtected(p, ctx));
+  const prot = unapproved(writes, ctx);
   if (prot) return protectedReason(prot);
 
   const th = thSub({cmd, args});
@@ -160,12 +173,17 @@ function checkSegment(seg, ctx) {
     const outside = writes.find(p => !insideTmp(p, ctx));
     if (outside) return `The reflex role may write files only under $TMPDIR (not ${outside}).`;
   }
+  // Last, as it asks git: what the commits being pushed change.
+  if (push) {
+    const carried = ctx.pushProtected?.() ?? [];
+    if (carried.length && !ctx.approved?.(carried)) return `This push changes protected paths (${carried.join(', ')}) without the owner's approval. Raise a card: th propose --class access --spec '{"op":"repo.change","args":{"paths":[…],"base":"<commit>"}}'.`;
+  }
   return null;
 }
 
 const kindIsError = rest => rest.some((a, i) => a === '--kind=error' || (a === '--kind' && rest[i + 1] === 'error'));
 const isRevert = ctx => { try { return /^Revert "/.test(ctx.headSubject?.() ?? ''); } catch { return false; } };
-const protectedReason = path => `${path} is a protected path (mind/CONSTITUTION.md, .claude/**, mind/hooks/**, .github/**). Changing it needs an approved access proposal; raise one with th propose --class access.`;
+const protectedReason = path => `${path} is a protected path (mind/CONSTITUTION.md, .claude/**, mind/hooks/**, .github/**). Changing it needs the owner's approval for this branch's base: th propose --class access --spec '{"op":"repo.change","args":{"paths":[…],"base":"<commit>"}}', then th approved checks it.`;
 
 /**
  * @param {{tool_name?: string, tool_input?: Record<string, any>}} input
@@ -190,7 +208,7 @@ export function decide(input, ctx) {
     if (targets.some(p => isEnvFile(p) || isProcEnviron(p))) return 'Reading or writing .env files and process environments is not allowed.';
   }
   if (WRITE_TOOLS.includes(tool) && typeof path === 'string') {
-    if (isProtected(path, ctx)) return protectedReason(path);
+    if (unapproved([path], ctx)) return protectedReason(path);
     if (ctx.role === 'reflex' && !insideTmp(path, ctx)) return `The reflex role may write files only under $TMPDIR (not ${path}).`;
   }
   if (tool === 'WebFetch' && typeof ti.url === 'string') {

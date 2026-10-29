@@ -1,7 +1,7 @@
-// Acting commands: propose, decide, verb, order, surface, push, night
+// Acting commands: propose, decide, approved, verb, order, surface, push, night
 // (RUNTIME.md §5.3, BEHAVIOR.md §4, API.md §11.10–11.12, §11.19–11.20).
 import {parseArgs} from './args.mjs';
-import {invalid, jsonFlag, need, out, toMs} from './io.mjs';
+import {EXIT, invalid, jsonFlag, need, out, toMs} from './io.mjs';
 import {CONTRACT, checkProposal, checkSurface, checkVerb} from './contract.mjs';
 import {request} from './http.mjs';
 import {getState, setState} from './state.mjs';
@@ -59,6 +59,23 @@ export async function decide(argv) {
   const {data} = await request('POST', `/v1/proposals/${seg(rest[0])}/decide`,
     {body: {decision: flags.reject ? 'reject' : 'approve', spec_hash: specHash, by_message: flags['by-message']}});
   out({status: data.status, ledger_id: data.ledger_id ?? null});
+}
+
+/**
+ * Whether the owner approved changing these protected paths on a branch from this commit: an
+ * executed `repo.change` card whose base is the commit and whose paths cover every one asked about
+ * (RUNTIME.md §6.4). Exit 0 approved, 6 not approved. The pre-tool hook asks before an edit or a push.
+ */
+export async function approved(argv) {
+  const {flags} = parseArgs(argv);
+  const paths = String(need(flags, 'paths')).split(',').map(p => p.trim()).filter(Boolean);
+  const sha = need(flags, 'sha');
+  if (!paths.length || !/^[0-9a-f]{40}$/.test(sha)) throw invalid('usage: th approved --paths <p1,p2> --sha <40-hex commit>');
+  const {data} = await request('GET', '/v1/proposals', {query: {status: 'all', limit: 200}});
+  const card = (data.items || []).find(p => p.status === 'executed' && p.spec?.op === 'repo.change' && p.spec.args?.base === sha &&
+    paths.every(x => (p.spec.args.paths || []).includes(x)));
+  out({approved: Boolean(card), proposal_id: card?.id ?? null});
+  return card ? EXIT.ok : EXIT.forbidden;
 }
 
 /** why: the ledger line the owner reads (8–200 characters), required for every action. */
