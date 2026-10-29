@@ -17,6 +17,7 @@ later night and reflex) uses to talk to the Worker, plus the two files every ses
 | `hooks/stop-failure.mjs` | Reports `th status limited --error <e>` after an API error. |
 | `hooks/pre-tool.mjs`, `hooks/lib/rules.mjs` | Per-role deny rules (deterministic, no network). A soft gate: the environment's network list is the real control. |
 | `hooks/settings.example.json` | The hooks block the owner pastes into `.claude/settings.json` (a protected path; nothing here writes it). |
+| `jobs/old-export.mjs` | The one-time pull of the old Worker's export into the import ([MIGRATION.md §3](../docs/engineering/MIGRATION.md), [SETUP.md L2](../docs/process/SETUP.md)): parts posted unchanged, the manifest last, then the imports. Run by hand in the owner's existing environment; prints counts only. |
 | `evals/` | Synthetic memory-eval fixtures: `seed.jsonl` (a fake owner), `probes/memory.json`, `abstain.json` and the deterministic scorer `probes/score.mjs` ([EVALS.md §3](../docs/mind/EVALS.md)). The private weekly probes live only in the Worker. |
 | `tests/` | `th.test.mjs` runs `th` against the real Worker under `wrangler dev --local`; the other suites use `tests/fake-worker.mjs`, an in-memory fake that also serves later phases' routes. |
 

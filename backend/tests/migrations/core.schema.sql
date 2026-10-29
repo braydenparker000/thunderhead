@@ -93,6 +93,49 @@ CREATE TABLE 'facts_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOU
 
 CREATE INDEX facts_lineage ON facts (lineage_id);
 
+CREATE TABLE import_items (
+  id TEXT PRIMARY KEY,
+  run_id TEXT NOT NULL,
+  dataset TEXT NOT NULL,
+  key TEXT NOT NULL,
+  body_json TEXT NOT NULL,
+  converted_at INTEGER
+  ) WITHOUT ROWID;
+
+CREATE TABLE imports (
+  id TEXT PRIMARY KEY,
+  source TEXT NOT NULL,
+  dataset TEXT NOT NULL,
+  r2_prefix TEXT NOT NULL,
+  manifest_json TEXT,
+  state TEXT NOT NULL,
+  counts_json TEXT NOT NULL,
+  report_json TEXT,
+  started_at INTEGER NOT NULL,
+  finished_at INTEGER,
+  run_id TEXT NOT NULL,
+  job_id TEXT,
+  last_error TEXT
+  ) WITHOUT ROWID;
+
+CREATE INDEX imports_run ON imports (run_id, dataset);
+
+CREATE TABLE jobs (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  state TEXT NOT NULL,
+  due_at INTEGER NOT NULL,
+  payload_json TEXT NOT NULL,
+  cursor_json TEXT,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  last_error TEXT,
+  rows_written INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE INDEX jobs_due ON jobs (due_at) WHERE state IN ('queued', 'running', 'paused');
+
 CREATE TABLE leases (
   task TEXT PRIMARY KEY,
   session_id TEXT NOT NULL,

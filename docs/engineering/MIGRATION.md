@@ -133,7 +133,7 @@ Rollback target: version <id>."
 | No new binding | The old Worker never gets `thunderhead-private` (decisions 2026-10-28: the export is **pulled**). |
 | Route | `POST /ops/export/step {run_id, instance, table, cursor}` guarded by the existing agent key (`CLAUDE_CHAT_AGENT_KEY`, already in the Claude environment; no new secret). |
 | Behaviour | Reads ≤ 2,000 rows of one table after `cursor` (by `rowid`) and **returns them** as one gzip JSONL part with headers `X-Rows`, `X-Next-Cursor`, `X-Sha256`. **Writes nothing anywhere.** Refuses the never-export tables (§2.1) with 403. |
-| Driver | A script in the mind's session (`mind/jobs/old-export.mjs` [proposal]) loops the steps, posts each part unchanged to the new Worker's `POST /v1/ops/import/parts` (a `mind:chat` key named `import-once`, API.md §13; the driver runs in a manual session of the owner's existing Claude environment, the only one whose network secret already carries `CLAUDE_CHAT_AGENT_KEY` for the old Worker, with the new Worker's host and that key added for this run only, [SETUP.md §L](../process/SETUP.md)), which checks the SHA-256 and stores it at `imports/old/<run_id>/<instance>/<table>/part-<nnnn>.jsonl.gz` in `thunderhead-private`, then writes `imports/old/<run_id>/manifest.json`: `{run_id, worker_version, started_at, finished_at, instances: {<name>: {tables: {<table>: {rows, parts, columns, sha256s}}}}}`, including counts (only) for never-export tables. It prints counts only. |
+| Driver | A script in the mind's session (`mind/jobs/old-export.mjs`) loops the steps, posts each part unchanged to the new Worker's `POST /v1/ops/import/parts` (a `mind:chat` key named `import-once`, the only key the import routes accept, API.md §13; the driver runs in a manual session of the owner's existing Claude environment, the only one whose network secret already carries `CLAUDE_CHAT_AGENT_KEY` for the old Worker, with the new Worker's host and that key added for this run only, [SETUP.md §L](../process/SETUP.md)), which checks the SHA-256 and stores it at `imports/old/<run_id>/<instance>/<table>/part-<nnnn>.jsonl.gz` in `thunderhead-private`, then writes `imports/old/<run_id>/manifest.json`: `{run_id, worker_version, started_at, finished_at, instances: {<name>: {tables: {<table>: {rows, parts, columns, sha256s, part_rows, never_export?}}}}}`, including counts (only) for never-export tables (and for virtual or rowid-less ones). An empty part is not posted. It stops at once if `X-Rows-Written` is ever not 0 or a part's SHA-256 differs from `X-Sha256`, then starts the imports (threads, messages, notebook, §4) and waits for each; `--imports-only` runs them again on the stored parts after a fix. It prints counts only ([SETUP.md L2](../process/SETUP.md)). |
 | Version record | Before deploying: the current old Worker version ID and the old site's commit are written to [STATUS](../process/STATUS.md) as rollback targets. |
 | Rollback | `wrangler rollback <previous version>` from the old repo's deploy workflow. No schema changes, so data is safe either way. |
 | Wait | A Durable Object keeps old code for about 4 minutes after a deploy; the driver waits 5 minutes before the first step. |
@@ -165,7 +165,8 @@ All imports are chunked, resumable, idempotent upsert jobs on the target Durable
 
 **Proof, per dataset** (the import test, decisions/plan §17):
 1. `imported + skipped = manifest rows`, and every skip has a reason code (`duplicate`, `empty`,
-   `invalid_ref`).
+   `invalid_ref`, `dropped`); for messages, every thread's count and first and last times equal the
+   source's.
 2. 20 random source IDs (chosen by the job with a seeded RNG; the seed is stored) deep-equal their imported
    rows after normalisation.
 3. Running the import again changes 0 rows (the cost meter shows 0 rows written for that job).
@@ -173,11 +174,16 @@ All imports are chunked, resumable, idempotent upsert jobs on the target Durable
    recent old conversations open and read correctly; the Board history shows the last 7 editions.
 
 Order and budget: I1–I6 run on day 1 of P3 (estimate well under 40,000 rows); I7 on its own day in P5.
-Each job reports `{dataset, exported, imported, skipped, ms}` to the Ledger and to STATUS.
+P3 builds I1–I3; I4–I7 wait for their homes (`IMPORT_DATASETS` in `shared/contract/imports.ts` says for
+what), and a run of one is refused until then. Each run ends with one ledger row of counts only
+("Imported 412 of 412 conversations (0 skipped); 20 of 20 spot checks matched; 412 rows changed.") and
+its report in `GET /v1/import/runs/:id`; the agent copies the counts to STATUS (SETUP.md L3).
 
-Failure: a job that fails 3 times in a row stops, records `last_error`, and shows a Home line "The import
-of <dataset> stopped. Nothing was lost; the old system still has it." The old Worker is untouched, so the
-fix is a code change and a re-run.
+Failure: a job that fails 3 times in a row stops, records `last_error`, and writes the ledger row "The
+import of <dataset> stopped (<code>). Nothing was lost; the old system still has it." A run whose proof
+fails ends `failed` the same way (`count_mismatch`, `spot_check_failed`, `thread_shape_mismatch`). The
+Home line with that text waits for the mind to raise it from the ledger (P4). The old Worker is
+untouched, so the fix is a code change and a re-run (`--imports-only`).
 
 ---
 

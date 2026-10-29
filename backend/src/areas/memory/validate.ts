@@ -16,6 +16,7 @@ import {
 import { neverStored } from '../../../../shared/contract/never-stored.ts';
 import type { Db } from '../../objects/base';
 import { messageOrigin } from '../conversation/store';
+import { item as importItem } from '../import/store';
 import { byId as ledgerRow } from '../ledger/store';
 import { taintedAt } from '../mind/guards';
 import { dayNote } from './notes';
@@ -148,8 +149,13 @@ function cite(ctx: OpContext, r: string): Cited {
     if (!row) throw new Reject('bad_evidence');
     return { ref: r, at: null, owner: row.actor === 'owner', words: row.actor === 'owner', event: false };
   }
-  // Events have no table before Senses (P5) and import items none before the import (P3 stage
-  // D): neither can be checked yet, so neither is accepted.
+  if (kind === 'import') {
+    // A raw imported document (the old notebook, MEMORY.md §14): evidence of what the old system
+    // held, never the owner's own words, so a fact citing only it is not `user`.
+    if (!importItem(ctx.db, key)) throw new Reject('bad_evidence');
+    return { ref: r, at: null, owner: false, words: false, event: false };
+  }
+  // Events have no table before Senses (P5): they can't be checked yet, so they aren't accepted.
   throw new Reject('bad_evidence');
 }
 

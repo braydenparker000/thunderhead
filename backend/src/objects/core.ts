@@ -2,8 +2,9 @@
 // thin call into an area, every write runs through `write` (commit.ts: area mutation + ledger +
 // change feed in one transaction, then the live channel), and area failures come back as
 // `{ok:false, code}` (lib/result.ts). No timers: wake retries and requeues use the alarm. The P1
-// data, the feed and the sockets are in core-base.ts; memory (P3) is in core-memory.ts and the
-// night shift's run and input in core-night.ts.
+// data, the feed and the sockets are in core-base.ts; memory (P3) is in core-memory.ts, the
+// night shift's run and input in core-night.ts, and the import in core-import.ts.
+// The alarm also runs the chunked jobs (areas/jobs), a step at a time.
 import type {
   BriefRequest,
   JsonObject,
@@ -20,7 +21,10 @@ import type {
 import * as day from '../areas/conversation/day';
 import * as convo from '../areas/conversation/ops';
 import { searchMessages } from '../areas/conversation/search';
+import { lastMessageAt } from '../areas/conversation/stats';
 import * as cstore from '../areas/conversation/store';
+import { importJob } from '../areas/import/job';
+import { type JobHandler, runJobs } from '../areas/jobs/runner';
 import * as ledger from '../areas/ledger/ops';
 import { type LedgerFilter, page as ledgerPage } from '../areas/ledger/store';
 import { assemble } from '../areas/mind/assemble';
@@ -37,11 +41,13 @@ import * as verbs from '../areas/verbs/ops';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
-import { CoreNight } from './core-night';
+import { CoreImport } from './core-import';
 
 const PRUNE_STEP = 2_000;
+/** Every job kind Core runs, by kind (JOBS.md §4.4). */
+const JOB_HANDLERS: Record<string, JobHandler> = { [importJob.kind]: importJob };
 
-export class Core extends CoreNight {
+export class Core extends CoreImport {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
@@ -160,12 +166,13 @@ export class Core extends CoreNight {
     this.schedule();
   }
 
-  /** Wake retries, give-ups and requeues (RUNTIME.md §4.4–4.5). */
+  /** Wake retries, give-ups and requeues (RUNTIME.md §4.4–4.5), then the jobs that are due. */
   override async alarm(): Promise<void> {
     this.alarmAt = null;
     const fires = this.write((w) => wake.onAlarm(w, this.configured(), this.tz()));
     const cfg = fireConfig(this.env, 'chat');
     if (cfg) for (const f of fires) this.recordFire(f.id, await fire(cfg));
+    await runJobs({ env: this.env, db: this.db, write: (fn, at) => this.write(fn, at) }, JOB_HANDLERS);
     this.schedule();
   }
 
@@ -178,7 +185,7 @@ export class Core extends CoreNight {
   ): Promise<{ rolled: string | null; pruned: number; night: string | null }> {
     const tz = this.tz();
     const d = day.currentDay(this.db, tz, now);
-    const due = day.rollDue(d, now, tz, cstore.lastMessageAt(this.db));
+    const due = day.rollDue(d, now, tz, lastMessageAt(this.db, cstore.dailyThread(this.db, d)?.id ?? null));
     const wakeNight = due
       ? this.write((w) => {
           convo.roll(w, due);

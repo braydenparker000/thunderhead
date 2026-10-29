@@ -201,10 +201,10 @@ The columns match [MEMORY.md §2](../mind/MEMORY.md), which also owns the rules 
 | `open_threads` | `id TEXT PK, text TEXT (≤ 200), owner TEXT ('mind'\|'owner'), due_at INTEGER, tags_json TEXT, status TEXT ('open'\|'done'\|'dropped'), evidence_json TEXT, opened_at INTEGER, last_progress_at INTEGER, closed_at INTEGER, closed_why TEXT` | partial `(due_at) WHERE status='open'` | P3 |
 | `session_notes` | `id TEXT PK, session_id TEXT, wake_id TEXT, role TEXT, thread_id TEXT, created_at INTEGER, body TEXT (≤ 120 words), open_items_json TEXT` | `session_notes_at (created_at)` (P3 step 11: the night reads a day's notes, the briefing the latest) | P2 |
 | `import_items` | `id TEXT PK, run_id TEXT, dataset TEXT, key TEXT, body_json TEXT, converted_at INTEGER` | — | P3 |
-| `imports` | `id TEXT PK, source TEXT ('old_worker'\|'phone'), dataset TEXT, r2_prefix TEXT, manifest_json TEXT, state TEXT ('queued'\|'running'\|'verifying'\|'done'\|'failed'), counts_json TEXT, report_json TEXT, started_at INTEGER, finished_at INTEGER` | — | P1b (`phone`), P3 (`old_worker`) |
+| `imports` | `id TEXT PK, source TEXT ('old_worker'\|'phone'), dataset TEXT, r2_prefix TEXT, manifest_json TEXT, state TEXT ('queued'\|'running'\|'verifying'\|'done'\|'failed'), counts_json TEXT, report_json TEXT, started_at INTEGER, finished_at INTEGER`; *eng:* `run_id TEXT` (the export run), `job_id TEXT` (the job doing the work), `last_error TEXT` (a code) | `imports_run (run_id, dataset)` | P1b (`phone`), P3 (`old_worker`) |
 
 - Facts are never edited in place. A change closes the old row (`superseded_at`, `superseded_by`) and inserts a new one. `forget` (owner only) hard-deletes every version and their FTS entries, runs an FTS `optimize` (a plain FTS5 delete leaves the words in the index segments until a merge; measured in workerd), scrubs the `why` and undo of the memory ledger rows that pointed at those versions, and writes a ledger tombstone without the content. Memory ledger rows never carry fact text.
-- Migration step 8 (P3) adds facts, `fact_tombstones`, day notes, open threads and `op_batches`; step 9 adds `surfaces.facts_json` (the facts a surface cites, cleared when one is muted or forgotten); step 10 adds the partial index `mind_sessions_tainted`; step 11 adds `night_runs` and the index `session_notes_at`. All expand-only. A surface put that cites facts lists them in its ledger row's `op_json` (`{op: 'surface.put', facts}`, never shown), so a forget can take the words of every such row.
+- Migration step 8 (P3) adds facts, `fact_tombstones`, day notes, open threads and `op_batches`; step 9 adds `surfaces.facts_json` (the facts a surface cites, cleared when one is muted or forgotten); step 10 adds the partial index `mind_sessions_tainted`; step 11 adds `night_runs` and the index `session_notes_at`; step 12 (P3 stage D) adds `jobs`, and step 13 `imports` and `import_items`. All expand-only. A surface put that cites facts lists them in its ledger row's `op_json` (`{op: 'surface.put', facts}`, never shown), so a forget can take the words of every such row.
 - Decay is computed at read time and never written.
 - `import_items` holds raw documents (the old notebook, for instance) until the mind converts them once. Converted rows are deleted 30 days after `converted_at`.
 - MEMORY.md allows an `events` table in `Core` before `Senses` exists. Engineering keeps events out of `Core`: nothing on the phone emits events before P5, and phone performance goes to `perf_days` **[proposal]**. If an earlier need appears, the table goes into `Core` with the `Senses` columns (§6.1) and moves by a bulk job when `Senses` ships.
@@ -410,6 +410,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.live_tickets | deleted 1 h after `expires_at` | no | no |
 | Core.mind_sessions | 90 days after `ended_at` | yes | no |
 | Core.night_runs | 400 days | yes | no |
+| Core.jobs | done or failed jobs 30 days after their last step | no | no |
 | Core.topics | forever (one row per topic key) | yes | no |
 | Core.op_batches | 7 days (idempotency window for batch writes, [API.md §7](API.md#7-idempotency)) | no | no |
 | Core.errors | 30 days after `last_at`; at most 1,000 fingerprints (oldest resolved go first) | yes | no |
@@ -479,7 +480,7 @@ The full plan, with the order of datasets and the switch-over, is in [MIGRATION.
    | Old dataset | New home | Notes |
    |---|---|---|
    | I1 chat threads | `Core.threads`, `kind='imported'` | Deterministic IDs (§2.1); `day` from the first message in `owner.tz`; original title kept |
-   | I2 chat messages | `Core.messages`, `origin='import'` | Body byte-equal; FTS backfilled after (`fts.backfill`) |
+   | I2 chat messages | `Core.messages`, `origin='import'` | Body byte-equal; each message's FTS entry written with it; a reply to a message not imported keeps no link |
    | I3 notebook | `Core.import_items` | The mind converts it once into facts citing `import:<id>` (P3) |
    | I4 Muse chat, work, files | a `muse` thread + closed `work_orders`; files to `muse/files/` | |
    | I5 Board editions and profile | `board/<date>.json` + `Core.board` + `settings` | |
@@ -488,10 +489,10 @@ The full plan, with the order of datasets and the switch-over, is in [MIGRATION.
    | sign-in tables | **not imported** | The owner signs in fresh |
 
 4. **Proof** (`imports.report_json`, and the test in TESTING.md §8):
-   - per dataset, `imported + skipped` = manifest rows, and every skip has a reason (`duplicate`, `empty`, `invalid_ref`);
+   - per dataset, `imported + skipped` = manifest rows, and every skip has a reason (`duplicate`, `empty`, `invalid_ref`, or `dropped` for rows the inventory leaves behind: the old lease and error inbox, roles other than the owner's and Claude's);
    - per thread, the message count and the first and last `created_at` are equal;
    - 20 random old IDs, chosen with a seed recorded in the report, deep-equal after the normalisation listed per dataset in MIGRATION.md;
-   - a second run of the same import changes 0 rows (`meter` delta = 0 for that job).
+   - a second run of the same import changes 0 rows (`rerun_delta` = 0; its job writes only its own bookkeeping, measured in the cost suite).
 5. **Phone-local data** (P1b) is restored verbatim into the ported apps' own stores on the new origin by the `/import/` page, and the same file arrives through `POST /v1/import/phone` ([API.md §11.17](API.md#1117-import)). It is stored raw in `imports/phone/` with an `imports` row; each app's new tables seed from it once, at that app's data move (P5, P6, P8) ([MIGRATION.md §5](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)).
 
 Acceptance: the owner sees "Imported N conversations, M messages. 20 of 20 spot checks matched." in the briefing on the day of the import.

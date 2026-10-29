@@ -203,7 +203,9 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 |---|---|---|---|
 | Creates (`PUT /…/:id`) | the path id | 200 + the stored record | 409 `conflict` |
 | Event batches | `batch_id` | 200 + the stored `{accepted, rejected}` | 409 |
-| Memory ops, verb results, job collect, import runs | `batch_id` / the path id, kept in `Core.op_batches` for 7 days | 200 + the stored result | 409 |
+| Memory ops, verb results, job collect | `batch_id` / the path id, kept in `Core.op_batches` for 7 days | 200 + the stored result | 409 |
+| Import runs | the request `id`, kept as its `imports` row | 202 + the same `import_id` | 409 |
+| Import parts and the manifest | the part's path / the run id, kept in `thunderhead-private` | 201 | 409 |
 | Approve / reject / undo | the record's state | 200 if already in the target state from the same request id; else 409 `already_*` | — |
 
 - "Same body" means the same SHA-256 of the canonical JSON (keys sorted, no whitespace).
@@ -263,7 +265,7 @@ Format of each entry: **Who** (principals) · **Phase** · request · response �
   ```
 - Per object, `schema` is the applied migration step and `expected` the newest step this code knows. An object is `ok` when `schema >= expected`: migrations are expand-only, so older code (after a rollback) runs safely on a newer schema. The deploy's smoke check waits for more: every object's `schema` and `expected` equal the newest step in the repo (`scripts/schema-version.mjs`), so an object still running the old code can't pass it.
 - `ok` is false if any object fails, or the backup is older than 8 days (from P4). Counts only, never content.
-- Fields whose feature hasn't shipped are present with `null` or `0` (P1: `last_backup` and `last_events_export` are `null`; `jobs_backlog`, `wakes_today` and `meter_today.bulk_rows_written` are `0`; `bulk_lane` is `null`; `meter_today` holds the objects' in-memory counts until the `meter` table exists). The backup age counts toward `ok` only once the first weekly backup exists (P4).
+- Fields whose feature hasn't shipped are present with `null` or `0` (P1: `last_backup` and `last_events_export` are `null`; `jobs_backlog` (counted from P3: the jobs not done or failed), `wakes_today` and `meter_today.bulk_rows_written` are `0`; `bulk_lane` is `null`; `meter_today` holds the objects' in-memory counts until the `meter` table exists). The backup age counts toward `ok` only once the first weekly backup exists (P4).
 
 ### 11.2 Auth
 
@@ -472,7 +474,7 @@ type MemoryOp =
 ```
 
 - Each op is validated on its own. The valid ops apply together in one transaction; invalid ops change nothing and are listed as `rejected: {i, reason}[]` in the `200` response. If every op is rejected, the response is `422 validation` with `details: [{path: 'ops.<i>', issue: <reason>}]` instead (`403 session_tainted` or `403 laws_unpinned` when that is the only reason), so a single-op call such as `th remember` fails loudly (`th` prints the details). From a device principal `evidence` may be empty: the Worker uses the op's own ledger row (`ledger:<id>`, `actor=owner`) as the evidence ([MEMORY.md §12](../mind/MEMORY.md)), and a device's `add` and `supersede` are always `source: 'user'`. A mind write needs `TH-Session`.
-- Reasons are MEMORY.md §6's codes (`bad_evidence` for evidence that is missing, malformed or of a kind memory can't cite yet (events before P5, imports before the import), `not_owner_evidence`, `rule_needs_owner`, `too_little_evidence`, `tainted_evidence`, `needs_owner_words`, `too_long`, `no_inferred_sensitive`, `session_tainted`, `laws_unpinned`), plus the Worker's: `bad_op` (shape), `unknown_ref` (the fact the op names does not exist), `superseded` (it was replaced; work on its newest version), `duplicate_id`, `device_only` (pin, may_raise and forget) and `proposal_required`. `shared/contract/memory.ts` lists them ([CONTRACT.md](CONTRACT.md)).
+- Reasons are MEMORY.md §6's codes (`bad_evidence` for evidence that is missing, malformed or of a kind memory can't cite yet (events before P5); `import:<id>` cites a raw imported document (`import_items`), never as the owner's words, `not_owner_evidence`, `rule_needs_owner`, `too_little_evidence`, `tainted_evidence`, `needs_owner_words`, `too_long`, `no_inferred_sensitive`, `session_tainted`, `laws_unpinned`), plus the Worker's: `bad_op` (shape), `unknown_ref` (the fact the op names does not exist), `superseded` (it was replaced; work on its newest version), `duplicate_id`, `device_only` (pin, may_raise and forget) and `proposal_required`. `shared/contract/memory.ts` lists them ([CONTRACT.md](CONTRACT.md)).
 - Ops the memory rules route to the owner (a non-user source superseding a `user` fact; a new `inferred` fact with sensitivity 1; the 11th supersession of a night batch) become `memory_big` proposals listed in `proposals` once proposals exist (P4). Until then they are rejected with `proposal_required` and `proposals` is always empty; the mind asks the owner in the conversation instead, and the owner's own words make the change a `user` one.
 - A `confirm` whose evidence is all the owner's own words turns a non-`user` fact into a `user` version (a supersede the Worker writes; `applied[].fact_id` is the new version): from a device always (tag `imported` dropped), from the mind only when one cited owner message is newer than the fact.
 - The mind can only make a fact more protected (PRIVACY.md §4): its add and supersede never lower `sensitivity` (a sensitive tag or `about: 'person'` makes it 1), never set `may_raise` to true on their own (faith is never raised), and never drop a protecting tag (sensitive, `faith`, `imported`). The owner's word is final.
@@ -525,13 +527,13 @@ type MemoryOp =
 
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `POST /v1/ops/import/parts` | `ci`, `mind:chat` | raw gzip JSONL part; headers `TH-Import: <run_id>/<instance>/<table>/<nnnn>`, `TH-Sha256`, `TH-Rows` (≤ 2,000 rows, ≤ 5 MB) | `201 { key }` (idempotent by the header path; 409 if the bytes differ) |
-| `PUT /v1/ops/import/manifest/:run_id` | `ci`, `mind:chat` | the manifest JSON ([MIGRATION.md §3](MIGRATION.md)) | `201` |
-| `POST /v1/import/runs` | device, `mind:chat` | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music' }` | `202 { import_id }` |
-| `GET /v1/import/runs/:id` | device, agents | — | `200 { state, counts: { expected, imported, skipped, skip_reasons }, report: { spot_checks: {seed, passed, failed}, rerun_delta } \| null }` |
+| `POST /v1/ops/import/parts` | the `mind:chat` key named `import-once` only | raw gzip JSONL part, sent as the old export answered it; headers `TH-Import: <run_id>/<instance>/<table>/<nnnn>` (from `0001`), `TH-Sha256`, `TH-Rows` (≤ 2,000 rows, ≤ 5 MB) | `201 { key }` (idempotent by the header path; 409 if the bytes differ; 422 on a wrong digest; 415 if not gzip JSONL; 403 for a never-exported table, by its name or a credential column in its first row, `IMPORT_NEVER_EXPORT` and `IMPORT_SECRET_COLUMN` in `shared/contract/imports.ts`) |
+| `PUT /v1/ops/import/manifest/:run_id` | the `import-once` key only | the manifest JSON ([MIGRATION.md §3](MIGRATION.md); `ImportManifest` in `shared/contract/imports.ts`) | `201` (the same again is fine; another one 409). Written last: every part it names must be stored with its SHA-256 (422 naming the first that is not), one SHA-256 per part, and a never-exported table has counts only (403 with parts) |
+| `POST /v1/import/runs` | device, or the `import-once` key | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music' }` | `202 { import_id }` (422: a dataset not built yet, a run without a manifest or that table, messages before threads are done; 409: the id names another run, or the dataset is already running) |
+| `GET /v1/import/runs/:id` | device, agents | — | `200 ImportStatus { id, run_id, dataset, state, counts: { expected, imported, skipped, skip_reasons, files_waiting }, report: { spot_checks: {seed, checked, passed, failed}, thread_shapes: {checked, failed} \| null, rows_changed, rerun_delta } \| null, last_error, started_at, finished_at }` |
 | `POST /v1/import/phone` | device, from the new site's `/import/` page only (P1b) | `{ id: Id, chunk: number, chunks: number, exported_at: Ms, data: Record<string, unknown> }` (`data` = the `th-phone-export/2` file), gzip, ≤ 5 MB per chunk ([MIGRATION.md §5.3](MIGRATION.md#53-the-two-pages)) | `201 { import_id, counts: Record<string, number> }` (after the last chunk) |
 
-Data mechanics and proof rules: [DATA.md §12](DATA.md#12-importing-the-old-data). The plan: [MIGRATION.md](MIGRATION.md).
+Data mechanics and proof rules: [DATA.md §12](DATA.md#12-importing-the-old-data). The plan: [MIGRATION.md](MIGRATION.md). Without the private bucket's binding (`VAULT`) the parts, the manifest and a new run answer `503 not_configured`; a run's status still reads.
 
 ### 11.18 Jobs (P5)
 
@@ -615,7 +617,7 @@ Acceptance: an integration test connects, posts a message over HTTP and receives
 
 `D` device · `C` mind:chat · `N` mind:night · `R` mind:reflex · `M` muse · `I` ci · `P` public.
 
-From P2 this table is data: `shared/contract/routes.ts` is the source the Worker's guards and the scope test read, and [CONTRACT.md](CONTRACT.md) lists every row with its status. Rows that wait on the private bucket (SETUP.md J2) are marked `deferred` there: `POST /v1/import/phone`, `PUT /v1/files/:id`, `POST /v1/media/sign`.
+From P2 this table is data: `shared/contract/routes.ts` is the source the Worker's guards and the scope test read, and [CONTRACT.md](CONTRACT.md) lists every row with its status. A row with `key` takes, of its agent roles, only the one key of exactly that name (a device is the owner and needs none): the import's `import-once`, which the owner makes for that run only (SETUP.md L2), so no routine's key can write "old" owner messages that memory would take as the owner's words. Rows that wait on the private bucket (SETUP.md J2) are marked `deferred` there: `POST /v1/import/phone`, `PUT /v1/files/:id`, `POST /v1/media/sign`.
 
 | Route | Who | Phase |
 |---|---|---|
@@ -656,8 +658,8 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `POST /v1/memory/ops` | D C N | P3 |
 | `PUT /v1/memory/day-notes/:day` | D N | P3 |
 | `PUT /v1/memory/open-threads/:id` | D C N | P3 |
-| `POST /v1/import/runs` | D C | P3 |
-| `POST /v1/ops/import/parts`, `PUT /v1/ops/import/manifest/:run_id` | C I | P3 |
+| `POST /v1/import/runs` | D C (agents: the key `import-once` only) | P3 |
+| `POST /v1/ops/import/parts`, `PUT /v1/ops/import/manifest/:run_id` | C (the key `import-once` only) | P3 |
 | `GET /v1/import/runs/:id` | D C N R | P3 |
 | `PUT /v1/proposals/:id` | C N R | P4 (P3 for class `memory_big`, and class `delete` with op `memory.forget`) |
 | `GET /v1/proposals` | D C N R | P4 (P3 for the classes above) |

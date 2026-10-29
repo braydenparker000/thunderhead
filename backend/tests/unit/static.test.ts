@@ -44,7 +44,7 @@ const SECRETS = [
   'ROUTINE_NIGHT_TOKEN',
 ];
 const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP', 'LIVE_WAIT'];
-const BINDINGS = ['VERSION', 'CORE', 'AUTH'];
+const BINDINGS = ['VERSION', 'CORE', 'AUTH', 'VAULT'];
 
 describe('source rules', () => {
   it('found the files it checks', () => {

@@ -82,10 +82,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/memory/day-notes/:day` | D N | P3 | built | device: the owner's edit (written_by owner) |
 | `PUT /v1/memory/open-threads/:id` | D C N | P3 | built |  |
 | `PATCH /v1/memory/open-threads/:id` | D C N | P3 | built | {status, why}: done or dropped |
-| `POST /v1/import/runs` | D C | P3 | deferred: P3 stage D (the import) |  |
-| `POST /v1/ops/import/parts` | C I | P3 | deferred: P3 stage D (the import) |  |
-| `PUT /v1/ops/import/manifest/:run_id` | C I | P3 | deferred: P3 stage D (the import) |  |
-| `GET /v1/import/runs/:id` | D C N R | P3 | deferred: P3 stage D (the import) |  |
+| `POST /v1/import/runs` | D C (agents: the key `import-once` only) | P3 | built | one dataset of an export run (the owner, or the import-once key); 503 not_configured without VAULT |
+| `POST /v1/ops/import/parts` | C (agents: the key `import-once` only) | P3 | built | one gzip JSONL part of the old export, stored as sent; never-exported tables 403 |
+| `PUT /v1/ops/import/manifest/:run_id` | C (agents: the key `import-once` only) | P3 | built | the export run's manifest, written last, after every part it names |
+| `GET /v1/import/runs/:id` | D C N R | P3 | built | state, counts and the verification report |
 | `PUT /v1/proposals/:id` | C N R | P4 | later (P4) |  |
 | `GET /v1/proposals` | D C N R | P4 | later (P4) |  |
 | `POST /v1/proposals/:id/decide` | D C | P4 | later (P4) | mind:chat with by_message only |
@@ -269,6 +269,7 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 | `budget_exhausted` | 503 | Today's free-plan budget is used up. |
 | `auth_unavailable` | 503 | Sign-in is unavailable. |
 | `unavailable` | 503 | Temporarily unavailable. |
+| `not_configured` | 503 | This needs a binding that is not set up yet. |
 
 ## Phrase lint
 

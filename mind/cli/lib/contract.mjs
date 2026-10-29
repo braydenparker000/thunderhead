@@ -33,10 +33,11 @@ export function checkRoute(method, path, env = process.env) {
 /** The role letters of the contract's `who` lists. */
 export const ROLE_LETTER = {chat: 'C', night: 'N', reflex: 'R'};
 
-/** Built routes the role may call, for `th help` and `th get`. */
+/** Built routes the role may call, for `th help` and `th get`. A route that takes one named agent
+ * key only (`agent_key`, such as the import's `import-once`) is not the routine's, so it is left out. */
 export function routesFor(role) {
   const letter = ROLE_LETTER[role];
-  return ROUTES.filter(r => r.status === 'built' && Array.isArray(r.who) && (!letter || r.who.includes(letter)));
+  return ROUTES.filter(r => r.status === 'built' && !r.agent_key && Array.isArray(r.who) && (!letter || r.who.includes(letter)));
 }
 
 /** Validates a verb call: known, queueable, a known schema version, args matching it. Returns the version. */

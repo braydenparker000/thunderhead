@@ -29,6 +29,7 @@ import {
   USERNAME,
 } from '../helpers';
 import budgets from './budgets.json';
+import { importCalls } from './import-calls';
 import { memoryCalls } from './memory-calls';
 
 type Budget = { rows_read_max: number; rows_written_max: number };
@@ -261,6 +262,9 @@ describe('rows per endpoint', () => {
 
   // P3: memory on a Core that already holds the P2 rows above (memory-calls.ts).
   it('measures every P3 memory endpoint against its budget', () => memoryCalls(cost, grant));
+
+  // P3 stage D: the import (import-calls.ts).
+  it('measures the import against its budget', () => importCalls(cost, grant));
 
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);

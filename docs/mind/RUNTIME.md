@@ -349,6 +349,7 @@ Rules:
 3. **No Cloudflare, Azure or R2 credential** in any environment. The current system's read-only Cloudflare observability token is not carried over **[proposal]**; the mind reads errors from the Worker's own `errors` table instead.
 4. Environment variables are visible to anyone using the environment, so they hold no secrets.
 5. **Rotation:** the owner revokes and reissues from Settings → Agents (an `access` action). The Worker accepts the new hash at once and the old one stops within 60 s.
+6. **The one-time import** (P3, [SETUP.md L2–L3](../process/SETUP.md)) is the one exception to rule 2, and it is not a mind role: a manual session of the owner's existing Claude environment, the only one whose network secret carries the old Worker's agent key, runs `mind/jobs/old-export.mjs` with the new Worker's host and a `mind:chat` key named `import-once` added for that run only (the import routes take no other key, so no routine can write "old" owner messages); the owner revokes the key and removes the host afterwards. The driver has no token of its own and prints counts only.
 
 ### 7.1 Token scopes (Worker-enforced)
 

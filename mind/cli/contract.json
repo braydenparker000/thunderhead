@@ -608,23 +608,27 @@
         "C"
       ],
       "phase": "P3",
-      "status": "deferred: P3 stage D (the import)"
+      "status": "built",
+      "agent_key": "import-once",
+      "note": "one dataset of an export run (the owner, or the import-once key); 503 not_configured without VAULT"
     },
     "POST /v1/ops/import/parts": {
       "who": [
-        "C",
-        "I"
+        "C"
       ],
       "phase": "P3",
-      "status": "deferred: P3 stage D (the import)"
+      "status": "built",
+      "agent_key": "import-once",
+      "note": "one gzip JSONL part of the old export, stored as sent; never-exported tables 403"
     },
     "PUT /v1/ops/import/manifest/:run_id": {
       "who": [
-        "C",
-        "I"
+        "C"
       ],
       "phase": "P3",
-      "status": "deferred: P3 stage D (the import)"
+      "status": "built",
+      "agent_key": "import-once",
+      "note": "the export run's manifest, written last, after every part it names"
     },
     "GET /v1/import/runs/:id": {
       "who": [
@@ -634,7 +638,8 @@
         "R"
       ],
       "phase": "P3",
-      "status": "deferred: P3 stage D (the import)"
+      "status": "built",
+      "note": "state, counts and the verification report"
     },
     "PUT /v1/proposals/:id": {
       "who": [
@@ -1184,6 +1189,10 @@
     "unavailable": [
       503,
       "Temporarily unavailable."
+    ],
+    "not_configured": [
+      503,
+      "This needs a binding that is not set up yet."
     ]
   },
   "change_kinds": [

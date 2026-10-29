@@ -7,14 +7,15 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 **P3 · Import + memory v1**, in progress.
 - Live since 2026-10-29 13:26 UTC (`c4bc51e`): memory (facts with provenance, supersede, forget and decay; day notes; loose ends; the profile and the briefing's memory sections) and Settings → What I remember.
-- Live with this deploy, inert until the owner's SETUP.md L1: the night shift's wiring (stages C–C.6, Core v11).
+- Live since 2026-10-29 14:52 UTC (`e61fd66`), inert until the owner's SETUP.md L1: the night shift's wiring (stages C–C.6, Core v11).
+- Live with this deploy: the import (stages D and D.5, Core v12–v13, the VAULT binding to `thunderhead-private`). Only the `import-once` key writes it, and it waits for the old-Worker export and SETUP.md L2.
 - P2 is live and connected: SETUP.md K done 2026-10-29, first reply received. Its "done when" (three days of chat, a day rolled with no lost message, reply times over 10+ wakes) is counting from 2026-10-29.
 
 ## Next three tasks
 
 1. Owner: SETUP.md L1 (the night shift), then P3's "three clean night shifts".
-2. P3 stage D, the import, in progress on branch `p3-memory`: the import routes and job, the VAULT binding (bucket `thunderhead-private` exists), and the driver. Then SETUP.md L2–L3 and the import run, checked by matching counts and 20 spot checks. The old-Worker export is Missionarytube- PR #370; the owner approved it, and its merge and deploy wait on the owner's tap.
-3. Follow-ups: home's 40-turn window and the collapse of long older replies (HOME.md §4.1, §4.3); then P4. The owner kept the chat-built playlist with P5.
+2. Owner: the "Merge and deploy" tap on the old-Worker export (Missionarytube- PR #370). Then SETUP.md L2–L3: the import run with the `import-once` key, checked by matching counts and 20 spot checks.
+3. P3's other "done when" (a fact stated on day N in day N+1's briefing, with evidence; forgetting it removes it). Then home's 40-turn window and the collapse of long older replies (HOME.md §4.1, §4.3), then P4. The owner kept the chat-built playlist with P5.
 
 ## Blocked / waiting on the owner
 
@@ -23,7 +24,8 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Last deploy
 
-- 2026-10-29: this push, P3 night shift stages C, C.5 and C.6 (Core v11, expand-only; inert until SETUP.md L1), after a focused security review. All of its findings are fixed.
+- 2026-10-29: this push, P3 import stages D and D.5 (Core v12–v13, expand-only; the VAULT binding), after a focused review. Its blocker was fixed: any chat key could write "old chats" that memory takes as the owner's words, and now only the `import-once` key can.
+- 2026-10-29 14:52 UTC: `e61fd66` (run #28): P3 night shift stages C, C.5 and C.6 (Core v11, expand-only; inert until SETUP.md L1), after a focused security review. All of its findings are fixed.
 - 2026-10-29 13:26 UTC: `c4bc51e` (run #27, site + Worker): P3 memory stages A–A.7, B, B.5 and B.6 (Core v8–v10), after reviews of the backend and the Memory page. B.6 fixed a never-stored gap and a lost Forget on sign-out.
 - 2026-10-29 12:53 UTC: `7970c01` (run #25): the automatic rollback undoes only the run's own Worker deployment (`scripts/rollback-guard.mjs`). Run #26 (`0a1b05f`, the owner's hooks file) was red on an outdated test and deployed nothing; fixed in `c4bc51e`.
 - 2026-10-29 07:54 UTC: `43003e1` (run #22, site + Worker): P2 stages 3, 3.5 and 4, the home chat and waking via `mind-chat`, after an independent review (no blockers; its eight should-fix items fixed and re-probed).

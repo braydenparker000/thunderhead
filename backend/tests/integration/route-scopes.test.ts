@@ -1,8 +1,9 @@
 // API.md §13 walked principal by principal, from the shared route table (shared/contract/
 // routes.ts), so the table, the guards and this test cannot drift: every registered route is a
 // built row with exactly its principals; without a token each guarded route answers 401, every
-// principal not listed gets 403 forbidden, every listed one gets through the guard; unknown
-// routes are 404 before any token check; the ticket-only socket refuses anything but a ticket.
+// principal not listed gets 403 forbidden, every listed one gets through the guard (on a keyed
+// route an agent only as the key of that name: any other key of its role is 403); unknown routes
+// are 404 before any token check; the ticket-only socket refuses anything but a ticket.
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ErrorBody } from '../../../shared/contract/api';
 import { builtRoutes, type RouteSpec } from '../../../shared/contract/routes.ts';
@@ -20,11 +21,13 @@ const TABLE: Record<string, Who[] | typeof P | 'T'> = Object.fromEntries(
   BUILT.map(([k, r]) => [k, r.auth === 'ticket' ? 'T' : r.who === 'P' ? P : [...r.who]]),
 );
 
-type RouteEntry = { method: string; path: string; handler: { who?: Who[]; key?: string } };
+type RouteEntry = { method: string; path: string; handler: { who?: Who[]; key?: string; named?: string } };
 const entries = app.routes as RouteEntry[];
 // Middleware registered with .use() shows up as method ALL; real routes have a verb.
 const routes = [...new Set(entries.filter((r) => r.method !== 'ALL').map((r) => `${r.method} ${r.path}`))];
 const guarded = Object.entries(TABLE).filter(([, who]) => Array.isArray(who)) as [string, Who[]][];
+/** Keyed rows (RouteSpec.key): an agent must be the key of exactly that name. */
+const KEYED = Object.fromEntries(BUILT.filter(([, r]) => r.key).map(([k, r]) => [k, r.key as string]));
 const fill = (path: string) => path.replace(/:[a-z_]+/g, () => uuidv7());
 const call = (route: string, token?: string) => {
   const [method, path] = route.split(' ');
@@ -32,9 +35,13 @@ const call = (route: string, token?: string) => {
 };
 
 const tokens = {} as Record<Who, string>;
+/** A Mind · chat key with each keyed row's name (all `import-once` today). */
+const named = {} as Record<string, string>;
+const tokenFor = (route: string, p: Who) => (KEYED[route] && p !== 'D' ? named[KEYED[route]] : tokens[p]);
 beforeAll(async () => {
   tokens.D = (await setupOwner()).token;
   tokens.C = await makeAgent(tokens.D, 'mind:chat');
+  for (const name of new Set(Object.values(KEYED))) named[name] = await makeAgent(tokens.D, 'mind:chat', name);
   tokens.N = await makeAgent(tokens.D, 'mind:night');
   tokens.R = await makeAgent(tokens.D, 'mind:reflex');
   tokens.M = await makeAgent(tokens.D, 'muse');
@@ -73,6 +80,7 @@ describe('route table (API.md §13)', () => {
     const guards = entries.filter((e) => e.method === method && e.path === path && e.handler.who);
     expect(guards).toHaveLength(1);
     expect([...(guards[0].handler.who ?? [])].sort()).toEqual([...who].sort());
+    expect(guards[0].handler.named).toBe(KEYED[route]);
   });
 
   it.each(guarded)('%s answers 401 without a token', async (route) => {
@@ -83,12 +91,24 @@ describe('route table (API.md §13)', () => {
 
   it.each(guarded)('%s answers 403 to every unlisted principal and lets listed ones through', async (route, who) => {
     for (const p of ALL) {
-      const { status, body } = await call(route, tokens[p]);
+      const { status, body } = await call(route, who.includes(p) ? tokenFor(route, p) : tokens[p]);
       if (who.includes(p)) expect([401, 403], `${p}: ${JSON.stringify(body)}`).not.toContain(status);
       else {
         expect(status, `${p} on ${route}`).toBe(403);
         expect(body?.error.code).toBe('forbidden');
       }
+    }
+  });
+
+  it('a keyed route refuses every other key of its roles (the routine chat key on the import)', async () => {
+    expect(Object.keys(KEYED).sort()).toEqual([
+      'POST /v1/import/runs',
+      'POST /v1/ops/import/parts',
+      'PUT /v1/ops/import/manifest/:run_id',
+    ]);
+    for (const route of Object.keys(KEYED)) {
+      const { status, body } = await call(route, tokens.C);
+      expect([status, body?.error.code], route).toEqual([403, 'forbidden']);
     }
   });
 

@@ -6,6 +6,20 @@ const HEX = Array.from({ length: 256 }, (_, i) => i.toString(16).padStart(2, '0'
 export function uuidv7(at: number = Date.now()): string {
   const b = new Uint8Array(16);
   crypto.getRandomValues(b);
+  return format(b, at);
+}
+
+/** An imported row's id (DATA.md §2.1): a UUIDv7 whose time is the old row's creation time and
+ * whose other bits come from sha256("<dataset>:<old id>"), so a re-run makes the same id with no
+ * mapping table. */
+export async function importedId(dataset: string, oldId: string, createdAt: number): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${dataset}:${oldId}`));
+  const b = new Uint8Array(16);
+  b.set(new Uint8Array(digest).subarray(0, 10), 6);
+  return format(b, createdAt);
+}
+
+function format(b: Uint8Array, at: number): string {
   // 48-bit big-endian timestamp. Division, not bit shifts: JS shifts are 32-bit.
   let t = Math.floor(at);
   for (let i = 5; i >= 0; i--) {

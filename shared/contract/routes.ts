@@ -14,12 +14,17 @@ export interface RouteSpec {
   phase: Phase;
   /** How the caller proves itself, when it is not the bearer token: `ticket` = a live ticket. */
   auth?: 'ticket';
+  /** An agent of a listed role must be the one key with exactly this name (a device is not
+   * affected): the one-time import's `import-once`, so no routine's key can write old rows. */
+  key?: string;
   /** Built in a later step of its phase; the text says what it waits on. */
   deferred?: string;
   note?: string;
 }
 
 const D: Who[] = ['D'];
+/** The one key that may write the import (SETUP.md L2): a Mind · chat key with this name. */
+export const IMPORT_KEY = 'import-once';
 const AGENTS_READ: Who[] = ['D', 'C', 'N', 'R'];
 const MIND: Who[] = ['C', 'N', 'R'];
 /** Memory is read by the owner, chat and night only: reflex handles breakage and reads no
@@ -104,10 +109,25 @@ export const ROUTES = {
   'PUT /v1/memory/day-notes/:day': { who: ['D', 'N'], phase: 'P3', note: "device: the owner's edit (written_by owner)" },
   'PUT /v1/memory/open-threads/:id': { who: ['D', 'C', 'N'], phase: 'P3' },
   'PATCH /v1/memory/open-threads/:id': { who: ['D', 'C', 'N'], phase: 'P3', note: '{status, why}: done or dropped' },
-  'POST /v1/import/runs': { who: ['D', 'C'], phase: 'P3', deferred: 'P3 stage D (the import)' },
-  'POST /v1/ops/import/parts': { who: ['C', 'I'], phase: 'P3', deferred: 'P3 stage D (the import)' },
-  'PUT /v1/ops/import/manifest/:run_id': { who: ['C', 'I'], phase: 'P3', deferred: 'P3 stage D (the import)' },
-  'GET /v1/import/runs/:id': { who: AGENTS_READ, phase: 'P3', deferred: 'P3 stage D (the import)' },
+  'POST /v1/import/runs': {
+    who: ['D', 'C'],
+    phase: 'P3',
+    key: IMPORT_KEY,
+    note: 'one dataset of an export run (the owner, or the import-once key); 503 not_configured without VAULT',
+  },
+  'POST /v1/ops/import/parts': {
+    who: ['C'],
+    phase: 'P3',
+    key: IMPORT_KEY,
+    note: 'one gzip JSONL part of the old export, stored as sent; never-exported tables 403',
+  },
+  'PUT /v1/ops/import/manifest/:run_id': {
+    who: ['C'],
+    phase: 'P3',
+    key: IMPORT_KEY,
+    note: "the export run's manifest, written last, after every part it names",
+  },
+  'GET /v1/import/runs/:id': { who: AGENTS_READ, phase: 'P3', note: 'state, counts and the verification report' },
 
   // --- P4: proposals, backups, export, Muse -----------------------------------------------------
   'PUT /v1/proposals/:id': { who: MIND, phase: 'P4' },

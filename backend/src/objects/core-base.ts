@@ -6,6 +6,7 @@ import { sha256Hex } from '../areas/auth/crypto';
 import * as day from '../areas/conversation/day';
 import { Hub } from '../areas/feed/hub';
 import * as feed from '../areas/feed/store';
+import * as jobs from '../areas/jobs/store';
 import { fireConfig } from '../areas/mind/fire';
 import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
@@ -48,9 +49,10 @@ export abstract class CoreBase extends OwnerObject {
     return fireConfig(this.env, 'chat') !== null;
   }
 
-  /** Sets the alarm to the next due wake retry or requeue, writing only when it moves. */
+  /** Sets the alarm to the next due wake retry, requeue or job, writing only when it moves. */
   protected schedule(): void {
-    const t = wake.nextAlarmAt(this.db);
+    const times = [wake.nextAlarmAt(this.db), jobs.nextDue(this.db)].filter((x): x is number => x !== null);
+    const t = times.length ? Math.min(...times) : null;
     if (t !== null && t !== this.alarmAt) {
       this.alarmAt = t;
       void this.ctx.storage.setAlarm(t);
@@ -107,9 +109,10 @@ export abstract class CoreBase extends OwnerObject {
     this.ctx.storage.transactionSync(() => ops.putPerf(this.db, p));
   }
 
-  deepHealth(): ClassHealth & { errors_open: number; min_client: number; wakes_today: number } {
+  deepHealth(): ClassHealth & { errors_open: number; min_client: number; wakes_today: number; jobs_backlog: number } {
     return {
       ...this.health(),
+      jobs_backlog: jobs.backlog(this.db),
       errors_open: ops.countOpenErrors(this.db),
       min_client: this.minClient(),
       wakes_today: mstore.wakesToday(this.db, Date.now() - 24 * HOUR),

@@ -68,7 +68,7 @@
     "rows_written_max": 0
   },
   "GET /v1/ops/health/deep (Core)": {
-    "rows_read_max": 2,
+    "rows_read_max": 3,
     "rows_written_max": 0
   },
   "POST /v1/ops/errors, 1 item (Core)": {
@@ -84,7 +84,7 @@
     "rows_written_max": 2
   },
   "PUT /v1/messages/:id (owner, no session) (Core)": {
-    "rows_read_max": 10,
+    "rows_read_max": 11,
     "rows_written_max": 8
   },
   "GET /v1/threads/today (20 messages) (Core)": {
@@ -100,7 +100,7 @@
     "rows_written_max": 1
   },
   "POST /v1/mind/typing (unconnected) (Core)": {
-    "rows_read_max": 3,
+    "rows_read_max": 4,
     "rows_written_max": 0
   },
   "POST /v1/mind/brief (claim, 20 messages) (Core)": {
@@ -108,7 +108,7 @@
     "rows_written_max": 49
   },
   "GET /v1/live/wait (nothing new, 1 s) (Core)": {
-    "rows_read_max": 29,
+    "rows_read_max": 30,
     "rows_written_max": 0
   },
   "POST /v1/mind/status working (Core)": {
@@ -116,7 +116,7 @@
     "rows_written_max": 20
   },
   "PUT /v1/messages/:id (mind reply) (Core)": {
-    "rows_read_max": 78,
+    "rows_read_max": 79,
     "rows_written_max": 30
   },
   "GET /v1/search (messages) (Core)": {
@@ -140,11 +140,11 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 60,
+    "rows_read_max": 69,
     "rows_written_max": 1
   },
   "cron tick, nothing due (Core)": {
-    "rows_read_max": 8,
+    "rows_read_max": 9,
     "rows_written_max": 0
   },
   "POST /v1/memory/ops (1 add) (Core)": {
@@ -210,5 +210,25 @@
   "GET /v1/mind/day/:day (notes) (Core)": {
     "rows_read_max": 4,
     "rows_written_max": 0
+  },
+  "POST /v1/ops/import/parts (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "PUT /v1/ops/import/manifest/:run_id (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "POST /v1/import/runs and its job: 1 part of 50 threads, verified (Core)": {
+    "rows_read_max": 70,
+    "rows_written_max": 116
+  },
+  "GET /v1/import/runs/:id (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "POST /v1/import/runs and its job: the same part again, no row changed (Core)": {
+    "rows_read_max": 70,
+    "rows_written_max": 15
   }
 }

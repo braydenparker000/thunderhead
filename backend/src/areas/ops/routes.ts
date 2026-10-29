@@ -59,7 +59,8 @@ export const opsRoutes = new Hono<AppEnv>()
           schema: h.schema,
           expected: h.expected,
           db_bytes: h.db_bytes,
-          jobs_backlog: 0,
+          // A Core still on the release before the jobs table reports none.
+          jobs_backlog: (h as { jobs_backlog?: number }).jobs_backlog ?? 0,
           last_alarm_at: null,
         },
       ]),
