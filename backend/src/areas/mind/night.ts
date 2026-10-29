@@ -87,7 +87,7 @@ export function nightWake(w: Writer, today: string, configured: boolean): ToFire
 }
 
 /** The weekly step runs on the night into Sunday, the one that works on Saturday. */
-const weekly = (day: string) => new Date(`${day}T12:00:00Z`).getUTCDay() === 6;
+export const weekly = (day: string) => new Date(`${day}T12:00:00Z`).getUTCDay() === 6;
 
 function notDue(s: NightStep, day: string): Skip | null {
   if (!BUILT_PHASES.includes(s.phase) || s.deferred) return 'later';

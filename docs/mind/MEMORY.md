@@ -237,7 +237,7 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 2. The PostToolUse hook calls `th taint` the first time the session fetches outside text ([RUNTIME.md §6.5](RUNTIME.md#65-posttooluse)).
 3. A tainted session can still answer, read memory, arrange things and ship code. It cannot write memory or reach people.
 4. If a tainted session learns something the owner said that should be remembered, it adds an open thread "remember: <text> (evidence msg …)" and the next clean session (or the night shift, which never fetches outside text before step 4) writes the fact. **[proposal]**
-5. Long outside reading goes to the quarantined reader subagent (P4), which has no write tools and returns schema-checked JSON.
+5. Long outside reading goes to the quarantined reader subagent (built in P4 stage C, [RUNTIME.md §6.6](RUNTIME.md#66-the-reader-subagent)), which has no shell and no write tools and returns schema-checked JSON. It doesn't lift the taint: its answer is outside text too.
 
 ---
 

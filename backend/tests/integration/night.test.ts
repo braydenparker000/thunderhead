@@ -8,7 +8,7 @@ import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { DayNote, ErrorBody, MindNightResponse, TodayResponse } from '../../../shared/contract/api';
 import { fireConfig } from '../../src/areas/mind/fire';
-import { nightWake } from '../../src/areas/mind/night';
+import { nightWake, weekly } from '../../src/areas/mind/night';
 import { dayBefore, HOUR } from '../../src/lib/time';
 import { commit, type Writer } from '../../src/objects/commit';
 import type { Core } from '../../src/objects/core';
@@ -193,16 +193,23 @@ describe('the run record', () => {
       cursor: null,
       skipped: [6],
     });
+    // Step 9 (the weekly evals) is due only on the night into Sunday, whatever day this runs on.
+    const sunday = weekly(yday);
     expect((await night({ day: yday, action: 'step_done', step: 7 }, 'cse_night_c')).body).toEqual({
-      resume_from: 10,
+      resume_from: sunday ? 9 : 10,
       done: false,
       cursor: null,
-      skipped: [6, 8, 9],
+      skipped: sunday ? [6, 8] : [6, 8, 9],
     });
+    if (sunday) await night({ day: yday, action: 'step_done', step: 9 }, 'cse_night_c');
     const r = await run(yday);
     expect(r.step).toBe(9);
     const steps = JSON.parse(r.steps_json);
-    expect([steps[6].skipped, steps[8].skipped, steps[9].skipped]).toEqual(['later', 'later', 'later']);
+    expect([steps[6].skipped, steps[8].skipped, steps[9].skipped]).toEqual([
+      'later',
+      'later',
+      sunday ? undefined : 'not_sunday',
+    ]);
     expect(steps[1]).toMatchObject({ done: true, session: 'cse_night_a' });
     expect(steps[4]).toMatchObject({ done: true, session: 'cse_night_c' });
   });
@@ -273,7 +280,7 @@ describe('the run record', () => {
       'later',
       'hard_stop',
       'later',
-      'later',
+      weekly(d2) ? 'hard_stop' : 'not_sunday',
     ]);
     expect(steps[10]).toMatchObject({ done: true, session: 'cse_night_e' });
   });

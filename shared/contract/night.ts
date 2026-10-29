@@ -83,7 +83,6 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     cursor: false,
     phase: 'P4',
     sunday: true,
-    deferred: 'its bullet in mind/ROLES.md (P4 stage C; th eval and the sandbox are built)',
   },
   {
     step: 10,

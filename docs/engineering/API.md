@@ -28,6 +28,7 @@ Storage behind each route is in [DATA.md](DATA.md). Behaviour seen by the owner 
 | `TH-Client` | all | `<build>.<sha7>` (site), `th/<version>` (mind CLI), `ci/<build>` (Actions), `muse/<n>` |
 | `TH-Session` | mind roles, after the claim | the Claude session id sent at `POST /v1/mind/brief`; the Worker keys taint and the constitution pin on it |
 | `TH-Role` | mind roles (sent by `th`, [RUNTIME.md §5.1](../mind/RUNTIME.md)) | `chat` \| `night` \| `reflex`. Informational: the Worker trusts only the key's role and answers a mismatch with `403 forbidden` |
+| `TH-Sandbox` | the injection suite only (P4, sent by `th` between `th eval begin` and `end`) | `eval`: the request goes, through the same route, to the scratch Core instance `core-eval` instead of the owner's ([EVALS.md §1.1](../mind/EVALS.md)). Chat and night keys only, never on a route that takes one named key; any other principal or value is `403 forbidden`. There nothing reaches Auth, the routines or the owner's Core, and each write the mind tries is recorded |
 | `Content-Type` | bodies | `application/json` (files: the file's type) |
 
 | Header (response) | Always | Value |
@@ -602,6 +603,15 @@ The ported apps (P1b) call the old Worker, not this API. Each app's routes are a
 
 Every one of them follows this page's rules (scopes in §13, errors in §6, cost budgets in [TESTING.md §6](TESTING.md#6-cost-tests)).
 
+### 11.22 Evals (P4)
+
+| Route | Who | Request | Response | Errors |
+|---|---|---|---|---|
+| `POST /v1/evals/sandbox` | C N, with `TH-Sandbox: eval` only | `{ seed: SeedRow[] /* ≤ 200: owner and Muse lines, the owner's memory ops; synthetic */ }` | `200 { seeded, thread_id }`: every table of `core-eval` emptied, then the seed written through the normal paths | 422 outside the sandbox, or a seed row naming an earlier row that isn't there |
+| `GET /v1/evals/sandbox` | C N, with `TH-Sandbox: eval` only | — | `200 SandboxReport`: since the reset, the mind's ledger rows by kind, its messages outside the eval thread, its last 20 replies (each cut to 2,000 characters) and every write it tried (route and status, refused ones too) | 422 outside the sandbox |
+| `PUT /v1/evals/runs/:id` | C N, never in the sandbox | `{ id, suite: 'INJ', git_sha, n, passed, failures: string[], skipped?: string[], judged? }`: numbers and fixture ids only | `201 EvalRun` (`score` = passed / n), `200` for the same body again | 409 another body under this id; 422 in the sandbox, or `passed > n` |
+| `GET /v1/evals/runs?suite&limit` | D C N | — | `200 { items: EvalRun[] }`, newest first | |
+
 ---
 
 ## 12. WebSocket protocol (`/v1/live`)
@@ -675,6 +685,9 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `POST /v1/proposals/:id/cancel` | D C N R | P4 |
 | `POST /v1/ops/backups/run`, `POST /v1/ops/drill/run` | N I | P4 |
 | `GET /v1/ops/backups` | D C N R I | P4 |
+| `POST /v1/evals/sandbox`, `GET /v1/evals/sandbox` | C N (with `TH-Sandbox: eval` only) | P4 |
+| `PUT /v1/evals/runs/:id` | C N | P4 |
+| `GET /v1/evals/runs` | D C N | P4 |
 | `POST /v1/ops/restore` | D C N R | P4 |
 | `POST /v1/export`, `GET /v1/export/:id` | D | P4 |
 | `PUT /v1/work/orders/:id`, `POST /v1/work/orders/:id/cancel` | C N (cancel also D) | P4 |
