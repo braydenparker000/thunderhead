@@ -1,12 +1,12 @@
 // The import job's resume and lane (TESTING.md §8, JOBS.md §4): a seeded export of 50 old chats
 // and 2,000 messages is imported twice under two sets of old ids, once straight through and once
 // with the job killed inside its third step (a throw after the step's writes, so its transaction
-// rolls back); resumed, the killed run ends in the same state as the straight one, counted once.
+// rolls back); resumed, the killed run ends in the same state as the straight one, counted once,
+// and no imported reply points at a message that was skipped.
 // A run past the bulk lane's 40,000 rows a day pauses until 00:05 UTC and then finishes.
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ImportStatus } from '../../../shared/contract/api';
 import { importJob } from '../../src/areas/import/job';
-import type { JobHandler } from '../../src/areas/jobs/runner';
 import { importedId, uuidv7 } from '../../src/lib/ids';
 import { utcDay } from '../../src/lib/time';
 import { apiJson, coreSql } from '../helpers';
@@ -83,17 +83,22 @@ describe('a killed import resumes', () => {
 
     const b = await exportChats('run-b', 'b');
     expect((await untilDone(p.D, await start('run-b', 'threads'))).state).toBe('done');
-    const id = await start('run-b', 'messages');
+    // The kill goes into the handler itself, since Core's own alarm may run the job first.
+    const real = importJob.step;
     let steps = 0;
-    const killer: JobHandler = {
-      ...importJob,
-      step(w, payload, cursor, input) {
-        const r = importJob.step(w, payload, cursor, input);
-        if (++steps === 3) throw new Error('killed');
-        return r;
-      },
+    importJob.step = (w, payload, cursor, input) => {
+      const r = real(w, payload, cursor, input);
+      if (++steps === 3) throw new Error('killed');
+      return r;
     };
-    for (let i = 0; i < 10 && steps < 3; i++) await runJobsWith({ import: killer });
+    let id = '';
+    try {
+      id = await start('run-b', 'messages');
+      for (let i = 0; i < 10 && steps < 3; i++) await runJobsWith(REAL);
+    } finally {
+      importJob.step = real;
+    }
+    expect(steps).toBe(3);
     const [job] = await coreSql<{ attempts: number; last_error: string; cursor_json: string; rows_written: number }>(
       'SELECT j.attempts, j.last_error, j.cursor_json, j.rows_written FROM jobs j JOIN imports i ON i.job_id = j.id WHERE i.id = ?',
       id,
@@ -122,7 +127,7 @@ describe('the bulk lane', () => {
   it('pauses a run past 40,000 rows today until 00:05 UTC, then finishes it', async () => {
     const { threads } = oldChats('l', 11, 10, 0);
     await exportRun(p.C, 'run-lane', { 'claude-chat-v1/cc_threads': [threads] });
-    const id = await start('run-lane', 'threads');
+    // The lane is full before the run starts, so whichever alarm runs it first pauses it.
     const now = Date.now();
     await coreSql(
       `INSERT INTO settings (key, value_json, updated_at, actor) VALUES ('bulk.day', ?, ?, 'worker')
@@ -130,7 +135,8 @@ describe('the bulk lane', () => {
       JSON.stringify({ day: utcDay(now), rows: 40_000 }),
       now,
     );
-    await runJobsWith(REAL, now);
+    const id = await start('run-lane', 'threads');
+    await runJobsWith(REAL);
     const [job] = await coreSql<{ state: string; due_at: number }>(
       'SELECT j.state, j.due_at FROM jobs j JOIN imports i ON i.job_id = j.id WHERE i.id = ?',
       id,
