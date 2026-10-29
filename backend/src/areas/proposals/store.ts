@@ -159,8 +159,9 @@ export interface Decision {
 
 export function decide(db: Db, id: string, d: Decision): void {
   db.run(
-    `UPDATE proposals SET status = ?, decided_at = ?, decided_by_device = ?, decided_via = ?, decided_message_id = ?
-     WHERE id = ?`,
+    // A message that answered the card once (a snooze in words) stays used, whatever ends it later.
+    `UPDATE proposals SET status = ?, decided_at = ?, decided_by_device = ?, decided_via = ?,
+       decided_message_id = coalesce(?, decided_message_id) WHERE id = ?`,
     d.status,
     d.decided_at,
     d.decided_by_device ?? null,

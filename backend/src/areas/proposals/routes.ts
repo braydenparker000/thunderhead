@@ -74,6 +74,19 @@ async function agentLine(env: Env, id: unknown): Promise<string | null> {
   return a ? `key ${a.name} (${ROLE_LABEL[a.role]})` : null;
 }
 
+/** A card about a fact as reflex sees it: that it waits, never what it says. */
+const withoutWords = (r: ProposalRow): ProposalRow =>
+  r.ref?.startsWith('fact:')
+    ? {
+        ...r,
+        question: '(a card about a fact)',
+        why: '(not shown)',
+        if_ignored: '(not shown)',
+        options_json: '[]',
+        target: null,
+      }
+    : r;
+
 export const proposalsRoutes = new Hono<AppEnv>()
   .put('/proposals/:id', guard('PUT /v1/proposals/:id'), async (c) => {
     notImportKey(c);
@@ -88,7 +101,10 @@ export const proposalsRoutes = new Hono<AppEnv>()
     const q = parse(listQuery, c.req.query());
     const limit = q.limit ?? 50;
     const rows = await fresh(coreObject(c.env).proposals(q.status ?? 'waiting', q.cursor ?? null, limit));
-    const items = rows.map((r) => toProposal(r as ProposalRow));
+    // Reflex reads no memory (RUNTIME.md §7.1): a card about a fact reaches it without its words.
+    const p = principalOf(c);
+    const reflex = p.kind === 'agent' && p.role === 'mind:reflex';
+    const items = rows.map((r) => toProposal(reflex ? withoutWords(r as ProposalRow) : (r as ProposalRow)));
     const page: ProposalsResponse = { items, next: items.length === limit ? (items.at(-1)?.id ?? null) : null };
     // Sent as text: Hono's JSON typing recurses without end through the `Json` fields of a list.
     return c.body(JSON.stringify(page), 200, { 'Content-Type': 'application/json' });

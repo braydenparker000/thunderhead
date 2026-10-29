@@ -231,3 +231,23 @@ test('after a Yes the next card rises only once the first has gone', opts, async
   assert.ok(at('removed', a.id) !== undefined && at('added', b.id) >= at('removed', a.id), JSON.stringify(log));
   await context.close();
 });
+
+test('a card pulsed by "· 1 waiting" during its rise still arms (each failed on d08cbdc)', opts, async () => {
+  const thread = '0192f0c4-0000-7000-8000-0000000000ab';
+  const messages = Array.from({ length: 30 }, (_, i) => ({
+    seq: i + 1, id: `0192f0c4-0000-7000-8000-${String(950 + i).padStart(12, '0')}`, thread_id: thread,
+    author: i % 2 ? 'mind' : 'owner', origin: i % 2 ? 'mind' : 'owner_device', kind: 'text', body: `Line ${i} of a long day.`,
+    meta: null, attachments: [], reply_to: null, created_at: Date.now() - (60 - i) * 60_000, delivered_at: null, acked_at: null, answered_at: Date.now(),
+  }));
+  const { page, context, api } = await open({ chat: { messages } });
+  await page.$eval('#convo', (c) => { c.scrollTop = c.scrollHeight; });
+  api.proposals.add(proposal());
+  await page.waitForSelector('#decision .card', { state: 'attached' });
+  await page.$eval('#convo', (c) => { c.scrollTop = c.scrollHeight; });
+  await page.waitForSelector('#waiting:not([hidden])', { timeout: 3000 });
+  await page.click('#waiting'); // within the card's 1.1 s rise: the pulse replaces it
+  await page.waitForSelector('#decision .card.armed', { timeout: 3000 });
+  await page.click('#decision .yes');
+  await eventually(() => api.proposals.state.decided.length, 1);
+  await context.close();
+});
