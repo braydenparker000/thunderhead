@@ -2,9 +2,11 @@
 // table a step, read from the private bucket and checked against the manifest's SHA-256, its rows
 // put by their deterministic ids (a row already there writes nothing), the run's counts kept in
 // the same commit. Then one verification step: `imported + skipped` must equal the manifest's
-// rows, and 20 source rows chosen with a recorded seed must equal what was written. A run of a
-// dataset already imported reports how many rows it changed (`rerun_delta`, 0 expected). Uses
-// the bulk lane; three failures in a row fail the run.
+// rows, 20 source rows chosen with a recorded seed must equal what was written, and for messages
+// every thread's count and first and last times must equal the source's (carried in the cursor).
+// A run of a dataset already imported reports how many rows it changed (`rerun_delta`, 0
+// expected). Its end is one ledger row with counts only. Uses the bulk lane; three failures in a
+// row fail the run.
 import type { ImportDataset } from '../../../../shared/contract/api';
 import { IMPORT_SPOT_CHECKS } from '../../../../shared/contract/imports.ts';
 import type { Db } from '../../objects/base';
@@ -12,7 +14,16 @@ import type { Writer } from '../../objects/commit';
 import { ownerTz } from '../conversation/day';
 import * as convo from '../conversation/imported';
 import { JobError, type JobHandler } from '../jobs/runner';
-import { type Mapped, mapMessage, mapNotebook, mapThread, type NotebookItem, type Refs } from './map';
+import {
+  type Mapped,
+  mapMessage,
+  mapNotebook,
+  mapThread,
+  messageSkip,
+  type NotebookItem,
+  type Refs,
+  threadKey,
+} from './map';
 import * as store from './store';
 import { readPart, sha256 } from './vault';
 
@@ -30,11 +41,19 @@ export interface ImportPayload {
   /** For messages: the threads table's parts, whose ids a message names. */
   threads?: { sha256s: string[] };
 }
-type Cursor = { phase: 'rows'; part: number } | { phase: 'verify' };
+/** Per new thread id, the source's imported messages: how many, the first and the last time. */
+type Shape = Record<string, [n: number, first: number, last: number]>;
+type Cursor = { phase: 'rows'; part: number; shape?: Shape } | { phase: 'verify'; shape?: Shape };
 type AnyMapped = Mapped<convo.ImportedThread | convo.ImportedMessage | NotebookItem>;
 type Input = { rows: AnyMapped[] } | { seed: number; samples: AnyMapped[] };
 
 const PART_ROWS = 2_000;
+/** What the ledger row calls each dataset's rows. */
+const NOUN: Record<ImportPayload['dataset'], string> = {
+  threads: 'conversations',
+  messages: 'messages',
+  notebook: 'notebook rows',
+};
 const refCache = new Map<string, Refs>();
 
 async function refs(vault: R2Bucket, p: ImportPayload): Promise<Refs> {
@@ -43,11 +62,13 @@ async function refs(vault: R2Bucket, p: ImportPayload): Promise<Refs> {
   const threads = new Map<string, number>();
   const messages = new Map<string, number>();
   for (const [n, sha] of (p.threads?.sha256s ?? []).entries())
-    for (const r of await readPart(vault, p.run_id, p.instance, 'cc_threads', n + 1, sha))
-      if (typeof r.id === 'string' && typeof r.created_ms === 'number') threads.set(r.id, r.created_ms);
+    for (const r of await readPart(vault, p.run_id, p.instance, 'cc_threads', n + 1, sha)) {
+      const key = threadKey(r);
+      if (key) threads.set(...key);
+    }
   for (const [n, sha] of p.sha256s.entries())
     for (const r of await readPart(vault, p.run_id, p.instance, p.table, n + 1, sha))
-      if (typeof r.id === 'string' && typeof r.created_ms === 'number') messages.set(r.id, r.created_ms);
+      if (!messageSkip(r, threads)) messages.set(r.id as string, r.created_ms as number);
   const out = { threads, messages };
   refCache.clear();
   refCache.set(p.run_id, out);
@@ -123,37 +144,87 @@ export const importJob: JobHandler = {
     const run = store.importRow(w.db, p.import_id);
     if (!run) throw new JobError('no_run');
     const counts = JSON.parse(run.counts_json) as store.RunCounts;
+    const shape = p.dataset === 'messages' ? { ...c.shape } : undefined;
     if (c.phase === 'rows') {
-      put(w, p, (input as { rows: AnyMapped[] }).rows, counts);
+      put(w, p, (input as { rows: AnyMapped[] }).rows, counts, shape);
       const last = c.part >= p.sha256s.length;
       store.setImport(w.db, p.import_id, { state: last ? 'verifying' : 'running', counts });
-      return { next: last ? { phase: 'verify' } : { phase: 'rows', part: c.part + 1 } };
+      return { next: last ? { phase: 'verify', shape } : { phase: 'rows', part: c.part + 1, shape } };
     }
     const { seed, samples } = input as { seed: number; samples: AnyMapped[] };
     const failed = samples.filter((s) => !matches(w.db, p.dataset, s)).map((s) => s.old_id);
+    const shapes = shape ? { checked: Object.keys(shape).length, failed: misshapen(w.db, shape) } : null;
     const whole = counts.imported + counts.skipped === counts.expected;
     const report = {
       spot_checks: { seed, checked: samples.length, passed: samples.length - failed.length, failed },
+      thread_shapes: shapes,
       rows_changed: counts.rows_changed,
       rerun_delta: store.doneBefore(w.db, p.run_id, p.dataset, p.import_id) ? counts.rows_changed : null,
     };
-    const ok = whole && failed.length === 0;
+    const error = !whole
+      ? 'count_mismatch'
+      : failed.length
+        ? 'spot_check_failed'
+        : shapes?.failed.length
+          ? 'thread_shape_mismatch'
+          : null;
     store.setImport(w.db, p.import_id, {
-      state: ok ? 'done' : 'failed',
+      state: error ? 'failed' : 'done',
       report,
       finished_at: w.at,
-      last_error: ok ? null : whole ? 'spot_check_failed' : 'count_mismatch',
+      last_error: error,
     });
+    const n = report.spot_checks;
+    tell(
+      w,
+      p,
+      error
+        ? stopped(p, error)
+        : `Imported ${counts.imported} of ${counts.expected} ${NOUN[p.dataset]} (${counts.skipped} skipped); ${n.passed} of ${n.checked} spot checks matched; ${counts.rows_changed} rows changed.`,
+    );
+    if (counts.rows_changed > 0 && p.dataset !== 'notebook') w.change('thread');
     return { done: true };
   },
   failed(w, payload, code) {
     const p = payload as ImportPayload;
     store.setImport(w.db, p.import_id, { state: 'failed', finished_at: w.at, last_error: code });
+    tell(w, p, stopped(p, code));
   },
 };
 
-/** One part's rows, put; the counts move in place. */
-function put(w: Writer, p: ImportPayload, rows: AnyMapped[], counts: store.RunCounts): void {
+const stopped = (p: ImportPayload, code: string) =>
+  `The import of ${NOUN[p.dataset]} stopped (${code}). Nothing was lost; the old system still has it.`;
+
+/** The run's end in the ledger (MIGRATION.md §4): counts and codes only, never a row's content. */
+function tell(w: Writer, p: ImportPayload, what: string): void {
+  w.ledger({ kind: 'note', actor: 'worker', what, why: `the import of run ${p.run_id}`, undoable: false });
+}
+
+/** The threads whose messages differ from the source's in count or first or last time (at most
+ * 20 listed), on `messages_thread_seq`. */
+function misshapen(db: Db, shape: Shape): string[] {
+  const ids = Object.keys(shape);
+  if (!ids.length) return [];
+  const got = new Map(
+    db
+      .all<{ thread_id: string; n: number; a: number; b: number }>(
+        `SELECT thread_id, count(*) AS n, min(created_at) AS a, max(created_at) AS b FROM messages
+         WHERE thread_id IN (SELECT value FROM json_each(?)) GROUP BY thread_id`,
+        JSON.stringify(ids),
+      )
+      .map((r) => [r.thread_id, r]),
+  );
+  return ids
+    .filter((id) => {
+      const g = got.get(id);
+      const [n, a, b] = shape[id];
+      return !g || g.n !== n || g.a !== a || g.b !== b;
+    })
+    .slice(0, 20);
+}
+
+/** One part's rows, put; the counts (and, for messages, the threads' shape) move in place. */
+function put(w: Writer, p: ImportPayload, rows: AnyMapped[], counts: store.RunCounts, shape?: Shape): void {
   const added = new Map<string, number>();
   for (const m of rows) {
     if ('skip' in m) {
@@ -179,6 +250,12 @@ function put(w: Writer, p: ImportPayload, rows: AnyMapped[], counts: store.RunCo
         added.set(msg.thread_id, (added.get(msg.thread_id) ?? 0) + 1);
       } else if (had.body !== msg.body) written = convo.updateBody(w.db, had.seq, had.body, msg.body);
       if (m.files) counts.files_waiting++;
+      if (shape) {
+        const s = shape[msg.thread_id];
+        shape[msg.thread_id] = s
+          ? [s[0] + 1, Math.min(s[1], msg.created_at), Math.max(s[2], msg.created_at)]
+          : [1, msg.created_at, msg.created_at];
+      }
     }
     counts.imported++;
     if (written > 0) counts.rows_changed++;

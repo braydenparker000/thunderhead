@@ -1,8 +1,10 @@
 // The import of the old Chats (DATA.md §12, MIGRATION.md §4 I1–I3) from parts in the private
 // bucket: threads, then messages across three parts, then the notebook. Each run counts every
 // source row as imported or skipped with its reason, checks 20 (here: all) source rows against
-// what it wrote with a recorded seed, and a second run of a dataset changes no row. A part lost
-// in the middle fails a step, which is retried and ends as an uninterrupted run would.
+// what it wrote with a recorded seed, checks each thread's shape (count, first and last time)
+// against the source, ends with one ledger row of counts, and a second run of a dataset changes
+// no row. A part lost in the middle fails a step, which is retried and ends as an uninterrupted
+// run would.
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ImportStatus, MemoryOpsResponse } from '../../../shared/contract/api';
@@ -71,7 +73,20 @@ describe('the old Chats, imported', () => {
     expect(s).toMatchObject({
       state: 'done',
       counts: { expected: 4, imported: 4, skipped: 0, skip_reasons: {}, files_waiting: 0 },
-      report: { spot_checks: { checked: 4, passed: 4, failed: [] }, rows_changed: 4, rerun_delta: null },
+      report: {
+        spot_checks: { checked: 4, passed: 4, failed: [] },
+        thread_shapes: null,
+        rows_changed: 4,
+        rerun_delta: null,
+      },
+    });
+    const [told] = await coreSql<{ what: string; actor: string; kind: string }>(
+      "SELECT what, actor, kind FROM ledger WHERE why = 'the import of run run-chats-1'",
+    );
+    expect(told).toEqual({
+      what: 'Imported 4 of 4 conversations (0 skipped); 4 of 4 spot checks matched; 4 rows changed.',
+      actor: 'worker',
+      kind: 'note',
     });
     const rows = await coreSql<{ title: string; status: string; day: string }>(
       "SELECT title, status, day FROM threads WHERE kind = 'imported' ORDER BY started_at",
@@ -100,7 +115,11 @@ describe('the old Chats, imported', () => {
     expect(s).toMatchObject({
       state: 'done',
       counts: { expected: 8, imported: 6, skipped: 2, skip_reasons: { invalid_ref: 1, empty: 1 }, files_waiting: 1 },
-      report: { spot_checks: { checked: 8, passed: 8, failed: [] }, rerun_delta: null },
+      report: {
+        spot_checks: { checked: 8, passed: 8, failed: [] },
+        thread_shapes: { checked: 4, failed: [] },
+        rerun_delta: null,
+      },
     });
     const m1 = await importedId('messages', 'm1', BASE + MIN);
     const [m2] = await coreSql<{ reply_to: string; origin: string; author: string }>(
@@ -129,6 +148,35 @@ describe('the old Chats, imported', () => {
     );
     expect((await start(threadsRun, 'threads')).body.import_id).toBe(threadsRun);
     expect((await start(threadsRun, 'notebook')).status).toBe(409);
+  });
+
+  it('a thread whose messages differ from the source fails verification, naming the thread', async () => {
+    const t2 = await importedId('threads', 't2', BASE + 2 * 3_600_000);
+    const m3 = await importedId('messages', 'm3', BASE + 3 * MIN);
+    await coreSql(
+      `INSERT INTO messages (id, thread_id, created_at, author, origin, kind, body, req_sha256)
+       SELECT ?, thread_id, created_at + 1, author, origin, kind, body, req_sha256 FROM messages WHERE id = ?`,
+      uuidv7(),
+      m3,
+    );
+    const s = await untilDone(p.D, (await start(uuidv7(), 'messages')).body.import_id);
+    expect(s).toMatchObject({
+      state: 'failed',
+      last_error: 'thread_shape_mismatch',
+      report: { spot_checks: { passed: 8 }, thread_shapes: { checked: 4, failed: [t2] }, rerun_delta: 0 },
+    });
+    const told = await coreSql<{ what: string }>(
+      "SELECT what FROM ledger WHERE why = 'the import of run run-chats-1' ORDER BY seq DESC LIMIT 1",
+    );
+    expect(told[0].what).toBe(
+      'The import of messages stopped (thread_shape_mismatch). Nothing was lost; the old system still has it.',
+    );
+    await coreSql(
+      'DELETE FROM messages WHERE thread_id = ? AND created_at = ? AND id != ?',
+      t2,
+      BASE + 3 * MIN + 1,
+      m3,
+    );
   });
 
   it("the notebook becomes one raw document, citable as import evidence but never as the owner's words", async () => {

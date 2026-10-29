@@ -16,8 +16,8 @@ export interface NotebookItem {
   key: string;
   body: string;
 }
-/** The creation times of the export's threads and messages, by old id: what a message needs to
- * name its thread and the message it replies to by their new ids. */
+/** The creation times of the export's importable threads and messages, by old id: what a message
+ * needs to name its thread and the message it replies to by their new ids. */
 export interface Refs {
   threads: Map<string, number>;
   messages: Map<string, number>;
@@ -27,10 +27,17 @@ const str = (v: unknown) => (typeof v === 'string' ? v : null);
 const ms = (v: unknown) => (typeof v === 'number' && Number.isSafeInteger(v) && v > 0 ? v : null);
 const KINDS: readonly MessageKind[] = ['text', 'voice', 'progress', 'card', 'question', 'error'];
 
-export async function mapThread(o: Old, tz: string): Promise<Mapped<ImportedThread>> {
+/** An old thread's id and creation time, or null when it can't be imported. */
+export function threadKey(o: Old): [id: string, created: number] | null {
   const id = str(o.id);
   const created = ms(o.created_ms);
-  if (!id || created === null) return { old_id: id ?? String(o.__rowid__), skip: 'empty' };
+  return id && created !== null ? [id, created] : null;
+}
+
+export async function mapThread(o: Old, tz: string): Promise<Mapped<ImportedThread>> {
+  const key = threadKey(o);
+  if (!key) return { old_id: str(o.id) ?? String(o.__rowid__), skip: 'empty' };
+  const [id, created] = key;
   const title = str(o.title)?.trim() || null;
   return {
     old_id: id,
@@ -54,17 +61,25 @@ function meta(v: unknown): JsonObject | null {
   }
 }
 
+/** Why an old message can't be imported (nothing in it, not the owner's or Claude's, or in a
+ * thread the export lacks), or null. */
+export function messageSkip(o: Old, threads: Refs['threads']): ImportSkipReason | null {
+  if (!str(o.id) || ms(o.created_ms) === null || (!(str(o.body) ?? '').trim() && !meta(o.meta))) return 'empty';
+  if (o.role !== 'owner' && o.role !== 'claude') return 'dropped';
+  const thread = str(o.thread_id);
+  return thread && threads.has(thread) ? null : 'invalid_ref';
+}
+
 export async function mapMessage(o: Old, refs: Refs): Promise<Mapped<ImportedMessage>> {
-  const id = str(o.id);
-  const created = ms(o.created_ms);
+  const skip = messageSkip(o, refs.threads);
+  if (skip) return { old_id: str(o.id) ?? String(o.__rowid__), skip };
+  const id = o.id as string;
+  const created = o.created_ms as number;
   const body = str(o.body) ?? '';
   const m = meta(o.meta);
-  if (!id || created === null || (!body.trim() && !m)) return { old_id: id ?? String(o.__rowid__), skip: 'empty' };
-  const author = o.role === 'owner' ? 'owner' : o.role === 'claude' ? 'mind' : null;
-  if (!author) return { old_id: id, skip: 'dropped' };
-  const threadOld = str(o.thread_id);
-  const threadAt = threadOld ? refs.threads.get(threadOld) : undefined;
-  if (!threadOld || threadAt === undefined) return { old_id: id, skip: 'invalid_ref' };
+  const author = o.role === 'owner' ? 'owner' : 'mind';
+  const threadOld = o.thread_id as string;
+  const threadAt = refs.threads.get(threadOld) as number;
   const replyOld = str(o.reply_to);
   const replyAt = replyOld ? refs.messages.get(replyOld) : undefined;
   const files = typeof o.attachments === 'string' && o.attachments !== '[]' && o.attachments !== '';
@@ -78,7 +93,8 @@ export async function mapMessage(o: Old, refs: Refs): Promise<Mapped<ImportedMes
       author,
       kind: KINDS.includes(o.kind as MessageKind) ? (o.kind as MessageKind) : 'text',
       body,
-      // A reply to a message the export doesn't have keeps the message, without the link.
+      // A reply to a message the export doesn't have, or that is skipped, keeps the message
+      // without the link, so no reply points at nothing.
       reply_to: replyOld && replyAt !== undefined ? await importedId('messages', replyOld, replyAt) : null,
       meta: m,
       delivered_at: ms(o.delivered_ms),

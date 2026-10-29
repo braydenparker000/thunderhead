@@ -76,7 +76,10 @@ export interface ImportCounts {
 }
 
 /** GET /v1/import/runs/:id. `report` once the run is verified: the spot checks (old ids that
- * failed) and, for a run of a dataset already imported, how many rows it changed (0 expected). */
+ * failed), for messages each thread's count and first and last times against the source's (new
+ * thread ids that differ, at most 20), and, for a run of a dataset already imported, how many
+ * rows it changed (0 expected). `last_error` is a code: `count_mismatch`, `spot_check_failed`,
+ * `thread_shape_mismatch`, or a step's own (`missing_part`, `bad_part`, `not_configured`, …). */
 export interface ImportStatus {
   id: Id;
   run_id: string;
@@ -85,6 +88,7 @@ export interface ImportStatus {
   counts: ImportCounts;
   report: {
     spot_checks: { seed: number; checked: number; passed: number; failed: string[] };
+    thread_shapes: { checked: number; failed: string[] } | null;
     rows_changed: number;
     rerun_delta: number | null;
   } | null;

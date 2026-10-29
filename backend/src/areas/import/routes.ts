@@ -15,7 +15,7 @@ import {
 import { type AppEnv, guard } from '../../http/auth';
 import { callerOf } from '../../http/caller';
 import { ApiError } from '../../http/errors';
-import { json, parse } from '../../http/validate';
+import { json } from '../../http/validate';
 import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';

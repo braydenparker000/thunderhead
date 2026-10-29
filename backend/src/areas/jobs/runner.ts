@@ -119,7 +119,10 @@ const codeOf = (e: unknown, fallback: string) =>
 
 function retry(w: Writer, job: store.JobRow, h: JobHandler, code: string, now: number): void {
   const attempts = job.attempts + 1;
-  if (attempts >= (h.maxAttempts ?? RETRY_MS.length + 1)) return fail(w, { ...job, attempts }, code, h);
+  if (attempts >= (h.maxAttempts ?? RETRY_MS.length + 1)) {
+    fail(w, { ...job, attempts }, code, h);
+    return;
+  }
   const delay = RETRY_MS[Math.min(attempts - 1, RETRY_MS.length - 1)];
   store.updateJob(w.db, job.id, {
     state: job.state,
