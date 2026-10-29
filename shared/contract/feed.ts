@@ -19,6 +19,7 @@ export const CHANGE_KINDS = [
   'setting',
   'mind_status',
   'error',
+  'work',
 ] as const;
 export type ChangeKind = (typeof CHANGE_KINDS)[number];
 

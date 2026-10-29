@@ -289,6 +289,14 @@ CREATE INDEX mind_sessions_open ON mind_sessions (role) WHERE ended_at IS NULL;
 
 CREATE INDEX mind_sessions_tainted ON mind_sessions (role, tainted_at) WHERE tainted_at IS NOT NULL;
 
+CREATE TABLE muse_notes (
+  seq INTEGER PRIMARY KEY,
+  id TEXT NOT NULL UNIQUE,
+  author TEXT NOT NULL,
+  body TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+  );
+
 CREATE TABLE night_runs (
   day TEXT PRIMARY KEY,
   started_at INTEGER NOT NULL,
@@ -492,3 +500,31 @@ CREATE TABLE watchdogs (
   handled_outcome TEXT,
   handled_note TEXT
   ) WITHOUT ROWID;
+
+CREATE TABLE work_orders (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  assignee TEXT NOT NULL,
+  title TEXT NOT NULL,
+  spec_json TEXT NOT NULL,
+  personal INTEGER NOT NULL DEFAULT 0,
+  approval_id TEXT,
+  recurrence TEXT,
+  day TEXT,
+  deadline_at INTEGER NOT NULL,
+  status TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  created_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  claimed_at INTEGER,
+  heartbeat_at INTEGER,
+  heartbeat_note TEXT,
+  result_json TEXT,
+  result_valid INTEGER,
+  result_errors_json TEXT,
+  finished_at INTEGER
+  ) WITHOUT ROWID;
+
+CREATE INDEX work_orders_kind_day ON work_orders (kind, day);
+
+CREATE INDEX work_orders_open ON work_orders (status, created_at);

@@ -1,7 +1,7 @@
 // Acting commands: propose, decide, approved, verb, order, surface, push, night
 // (RUNTIME.md §5.3, BEHAVIOR.md §4, API.md §11.10–11.12, §11.19–11.20).
 import {parseArgs} from './args.mjs';
-import {EXIT, invalid, jsonFlag, need, out, toMs} from './io.mjs';
+import {EXIT, invalid, jsonFlag, need, out, textArg, toMs} from './io.mjs';
 import {CONTRACT, checkProposal, checkSurface, checkVerb} from './contract.mjs';
 import {request} from './http.mjs';
 import {getState, setState} from './state.mjs';
@@ -111,10 +111,11 @@ export async function order(argv) {
     const kind = need(flags, 'kind');
     const title = typeof flags.title === 'string' ? flags.title : kind;
     if (title.length > 80) throw invalid('--title is over 80 characters');
+    // No order kind carries the owner's data yet: one that would needs a reach_people card first (MUSE.md §6).
+    if (flags.personal) throw invalid('no personal order kinds are built: the owner\'s data never goes to Muse without a reach_people card');
     const orderId = uuidv7();
-    await request('PUT', `/v1/work/orders/${seg(orderId)}`, {body: {kind, assignee: 'muse', title,
-      spec: jsonFlag(need(flags, 'spec'), 'spec'), schema: jsonFlag(need(flags, 'schema'), 'schema'), personal: !!flags.personal,
-      approval_id: typeof flags.approval === 'string' ? flags.approval : undefined, deadline_at: toMs(need(flags, 'deadline'), 'deadline')}});
+    await request('PUT', `/v1/work/orders/${seg(orderId)}`, {body: {kind, title,
+      spec: jsonFlag(need(flags, 'spec'), 'spec'), deadline_at: toMs(need(flags, 'deadline'), 'deadline')}});
     return out({id: orderId});
   }
   if (sub === 'list') {
@@ -128,7 +129,27 @@ export async function order(argv) {
     const {data} = await request('POST', `/v1/work/orders/${seg(id)}/cancel`, {body: {why}});
     return out({id, status: data.status ?? 'cancelled'});
   }
-  throw invalid('usage: th order new --kind <k> --spec <json> --schema <json> --deadline <iso> [--title <t>] [--personal --approval <id>] | list | get <id> | cancel <id> --why <t>');
+  throw invalid('usage: th order new --kind <k> --spec <json> --deadline <iso> [--title <t>] | list | get <id> | cancel <id> --why <t>');
+}
+
+/** `th board brief | set --version <n> <json|-> | notes [--after <seq>] | note <text>`: the owner's
+ * Board brief (written from the owner's own words), and Muse's thread. */
+export async function board(argv) {
+  const {flags, rest} = parseArgs(argv);
+  const [sub, ...words] = rest;
+  if (sub === 'brief') return out((await request('GET', '/v1/board/brief')).data);
+  if (sub === 'set') {
+    const version = Number(need(flags, 'version'));
+    const text = textArg(words.length ? words : ['-']);
+    return out((await request('PUT', '/v1/board/brief', {body: {version, brief: jsonFlag(text, 'brief')}})).data);
+  }
+  if (sub === 'notes') return out((await request('GET', '/v1/work/thread', {query: {after: flags.after ?? 0}})).data);
+  if (sub === 'note' && words.length) {
+    const noteId = uuidv7();
+    await request('POST', '/v1/work/thread/messages', {body: {id: noteId, body: words.join(' ')}});
+    return out({id: noteId});
+  }
+  throw invalid('usage: th board brief | set --version <n> <json|-> | notes [--after <seq>] | note <text>');
 }
 
 /** `th surface <app> <slot> --kind … | ls | rm <app> <slot>`: any surface kind in the contract. */

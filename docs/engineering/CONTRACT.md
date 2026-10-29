@@ -104,12 +104,24 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/export` | D | P4 | built | with the password again |
 | `GET /v1/export/:id` | D | P4 | built | only the device that asked |
 | `GET /v1/export/:id/zip` | D | P4 | built | the ZIP, streamed, for an hour, to the device that asked |
-| `PUT /v1/work/orders/:id` | C N | P4 | deferred: P4 stage G (Muse on work orders) |  |
-| `POST /v1/work/orders/:id/cancel` | D C N | P4 | deferred: P4 stage G (Muse on work orders) |  |
-| `GET /v1/work/orders` | D C N R | P4 | deferred: P4 stage G (Muse on work orders) |  |
-| `GET /v1/work/orders/:id` | D C N R | P4 | deferred: P4 stage G (Muse on work orders) |  |
-| `GET /v1/work/hello` | M | P4 | deferred: P4 stage G (Muse on work orders) |  |
-| `POST /v1/work/claim` | M | P4 | deferred: P4 stage G (Muse on work orders) |  |
+| `PUT /v1/work/orders/:id` | C N | P4 | built | a work order for Muse; its result schema is the kind's |
+| `POST /v1/work/orders/:id/cancel` | D C N | P4 | built |  |
+| `GET /v1/work/orders` | D C N R | P4 | built |  |
+| `GET /v1/work/orders/:id` | D C N R | P4 | built |  |
+| `GET /v1/work/hello` | M | P4 | built |  |
+| `POST /v1/work/claim` | M | P4 | built | the order Muse holds, else the oldest queued one; 204 when none |
+| `POST /v1/work/orders/:id/heartbeat` | M | P4 | built | a 30-minute lease from now |
+| `PUT /v1/work/orders/:id/result` | M | P4 | built | checked against the kind's schema; 422 names each problem |
+| `POST /v1/work/orders/:id/fail` | M | P4 | built |  |
+| `POST /v1/work/orders/:id/files` | M | P4 | deferred: an order kind with files (music.ingest, P5) |  |
+| `GET /v1/work/board/brief` | M | P4 | built | only with the owner's standing approval |
+| `GET /v1/work/thread` | M D C N | P4 | built | Muse's own thread, never the owner's conversation |
+| `POST /v1/work/thread/messages` | M D C N | P4 | built |  |
+| `GET /v1/board/brief` | D C N | P4 | built |  |
+| `PUT /v1/board/brief` | D C N | P4 | built | the owner's Board choices; the mind writes it from the owner's words |
+| `DELETE /v1/board/approval` | D | P4 | built | withdraws Muse's reading of the brief |
+| `GET /v1/briefing` | D | P4 | built |  |
+| `GET /v1/board/editions/:day` | D C N | P4 | built | outside text from Muse, checked against the v2 schema |
 | `PUT /v1/senses/batches/:id` | D | P5 | later (P5) |  |
 | `POST /v1/senses/query` | C N R | P5 | later (P5) |  |
 | `GET /v1/jobs/next` | N I | P5 | later (P5) |  |
@@ -133,7 +145,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 
 ## Change kinds
 
-`message` · `thread` · `ledger` · `proposal` · `verb` · `surface` · `notice` · `fact` · `day_note` · `open_thread` · `setting` · `mind_status` · `error`
+`message` · `thread` · `ledger` · `proposal` · `verb` · `surface` · `notice` · `fact` · `day_note` · `open_thread` · `setting` · `mind_status` · `error` · `work`
 
 ## Live channel
 
@@ -232,6 +244,7 @@ Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80,
 | `agents.revoke` | access | C N R | auth | `agent:<agent_id>` | `{ agent_id: string }` | Revoke one agent key; it stops working within 60 s (SECURITY.md §14.2). |
 | `repo.change` | access | C | core | `repo:<base>` | `{ paths: array, base: string }` | Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push. Decided by a tap on a signed-in device only. |
 | `laws.pin` | access | worker | core | `laws:<sha256>` | `{ sha256: string, previous: string \| null }` | Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only. |
+| `board.allow` | reach_people | C worker | core | `board:<kind>` | `{ kind: 'board.edition' }` | Let Muse read the owner's Board brief (the topics, depth and length the owner chose, nothing else) to write the daily Board, until the owner withdraws it (MUSE.md §6, the standing approval). |
 
 ## Reader kinds
 
@@ -262,7 +275,7 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `backup.stale` | the newest complete backup is more than 8 days old (once one exists) | S3 | Backups: newest complete backup < 8 days old | yes | P4 | built |
 | `drill.failed` | the last restore drill failed | S3 | Backups: the monthly drill passes | yes | P4 | built |
 | `drill.overdue` | no restore drill for 35 days since the first complete backup | S3 | Backups: the monthly drill passes | yes | P4 | built |
-| `muse.silent` | no Muse API call in 26 hours | S4 | Muse checks in daily (MUSE.md §9) | no | P4 | waits for Muse on work orders (P4 stage G) |
+| `muse.silent` | no Muse API call in 26 hours | S4 | Muse checks in daily (MUSE.md §9) | no | P4 | built |
 | `events.export.late` | day D not archived by D+1 09:00 | S3 | Senses: each day archived by the next morning | yes | P5 | later |
 
 ## Error codes

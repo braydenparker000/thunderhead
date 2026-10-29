@@ -6,6 +6,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { IMPORT_PART_BYTES } from '../../shared/contract/imports.ts';
 import { authRoutes } from './areas/auth/routes';
 import { backupsRoutes } from './areas/backups/routes';
+import { briefingRoutes } from './areas/briefing/routes';
 import { conversationRoutes } from './areas/conversation/routes';
 import { evalsRoutes } from './areas/evals/routes';
 import { feedRoutes } from './areas/feed/routes';
@@ -19,6 +20,7 @@ import { searchRoutes } from './areas/search/routes';
 import { surfacesRoutes } from './areas/surfaces/routes';
 import { verbsRoutes } from './areas/verbs/routes';
 import { watchdogsRoutes } from './areas/watchdogs/routes';
+import { workRoutes } from './areas/work/routes';
 import type { AppEnv } from './http/auth';
 import { cachedMinClient, clientVersion } from './http/client-version';
 import { cors } from './http/cors';
@@ -76,5 +78,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', evalsRoutes)
   .route('/v1', watchdogsRoutes)
   .route('/v1', backupsRoutes)
+  .route('/v1', workRoutes)
+  .route('/v1', briefingRoutes)
   .notFound(notFound)
   .onError(onError);

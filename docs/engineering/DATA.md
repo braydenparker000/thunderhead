@@ -404,6 +404,8 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.backups | forever (one row a week: its date, state, counts and the manifest's key) | yes | no |
 | Core.drills | forever (one row a month: the backup it restored, passed or failed, the report's key) | yes | no |
 | Core.exports | 1 day after it expires (the ZIP's parts leave the bucket when it does, an hour after it was ready) | no | no |
+| Core.work_orders | 1 year after it finished (each with its validated result, outside text from Muse) | yes | yes |
+| Core.muse_notes | newest 500 notes (Muse's own thread, never the owner's conversation) | yes | yes |
 | Core.facts, day_notes | forever (facts until forgotten) | yes | yes |
 | Core.fact_tombstones | forever (forgotten ids only, no text: an id is never reused, and a restore re-applies the forget) | yes | no |
 | Core.open_threads | open: until closed; closed: 1 year | yes | yes |

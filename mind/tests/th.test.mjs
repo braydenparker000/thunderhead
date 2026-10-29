@@ -50,7 +50,7 @@ test('th against the real Worker', {timeout: 300_000, skip: available() ? false 
     ok(today, 'get');
     assert.ok(today.json.messages.some(m => m.id === asked));
     assert.match((await th(['help'], chat)).stdout, /shell\.appearance/);
-    const later = await th(['order', 'list'], chat);
+    const later = await th(['get', '/v1/jobs/x'], chat);
     assert.equal(later.code, 8);
     assert.match(later.stderr, /not_built/);
   });

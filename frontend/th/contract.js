@@ -15,7 +15,7 @@
 export const LIVE_PROTOCOL = 1;
 
 /** @type {readonly ChangeKind[]} */
-export const CHANGE_KINDS = Object.freeze(["message","thread","ledger","proposal","verb","surface","notice","fact","day_note","open_thread","setting","mind_status","error"]);
+export const CHANGE_KINDS = Object.freeze(["message","thread","ledger","proposal","verb","surface","notice","fact","day_note","open_thread","setting","mind_status","error","work"]);
 
 /** @type {readonly FrameType[]} */
 export const FRAME_TYPES = Object.freeze(["hello","changed","typing","bye"]);

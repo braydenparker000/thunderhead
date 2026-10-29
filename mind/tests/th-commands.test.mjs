@@ -228,20 +228,23 @@ test('verb (checked against the contract), undo, ledger', withFake({}, async fak
   assert.equal(fake.state.requests.length, before);
 }));
 
-test('order new, list, get, cancel; a personal order needs an approved reach_people proposal', withFake({}, async fake => {
+test('order new, list, get, cancel; no personal order kinds; the Board brief and Muse\'s thread', withFake({}, async fake => {
   const e = env(fake);
-  const n = await th(['order', 'new', '--kind', 'board.story', '--title', 'Weather story', '--spec', '{"topic":"weather"}', '--schema', '{"type":"object"}', '--deadline', '2026-10-29T06:00:00Z'], e);
+  const spec = '{"v":1,"goal":"Check the weather feed.","inputs":{},"constraints":[],"done_when":"Each URL checked."}';
+  const n = await th(['order', 'new', '--kind', 'media.check', '--title', 'Weather feeds', '--spec', spec, '--deadline', '2026-10-29T06:00:00Z'], e);
   assert.equal(n.code, 0, n.stderr);
   const stored = fake.state.orders.get(n.json.id).value;
-  assert.deepEqual([stored.deadline_at, stored.personal, stored.title], [Date.parse('2026-10-29T06:00:00Z'), false, 'Weather story']);
+  assert.deepEqual([stored.deadline_at, stored.title, stored.schema, stored.personal], [Date.parse('2026-10-29T06:00:00Z'), 'Weather feeds', undefined, undefined]);
   assert.equal((await th(['order', 'list'], e)).json.items.length, 1);
-  assert.equal((await th(['order', 'get', n.json.id], e)).json.kind, 'board.story');
+  assert.equal((await th(['order', 'get', n.json.id], e)).json.kind, 'media.check');
   assert.equal((await th(['order', 'cancel', n.json.id], e)).code, 8, '--why is required');
   assert.equal((await th(['order', 'cancel', n.json.id, '--why', 'No longer needed today'], e)).json.status, 'cancelled');
   assert.equal((await th(['order', 'get', 'nope'], e)).code, 8);
-  const personal = await th(['order', 'new', '--kind', 'reply.draft', '--personal', '--spec', '{}', '--schema', '{}', '--deadline', '2026-10-29T06:00:00Z'], e);
-  assert.equal(personal.code, 6);
-  assert.equal(errCode(personal), 'needs_approval');
+  const before = fake.state.requests.length;
+  const personal = await th(['order', 'new', '--kind', 'research.brief', '--personal', '--spec', spec, '--deadline', '2026-10-29T06:00:00Z'], e);
+  assert.equal(personal.code, 8, 'refused before anything is sent');
+  assert.equal(fake.state.requests.length, before);
+  assert.equal((await th(['board', 'nonsense'], e)).code, 8);
 }));
 
 test('surface, push (quiet hours exit 7), pending, health, errors', withFake({}, async fake => {

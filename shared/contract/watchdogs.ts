@@ -156,9 +156,8 @@ export const WATCHDOGS = {
     severity: 'S4',
     slo: 'Muse checks in daily (MUSE.md §9)',
     wakes: false,
-    handle: REPORT,
+    handle: `Read th get /v1/work/orders?status=all for the orders Muse left. Contact Muse by no channel: a note in its thread is the most (th post /v1/work/thread/messages). ${REPORT}.`,
     phase: 'P4',
-    deferred: 'Muse on work orders (P4 stage G)',
   },
   'events.export.late': {
     trips: 'day D not archived by D+1 09:00',

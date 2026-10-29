@@ -41,11 +41,8 @@ describe('the routes', () => {
       'backup.stale',
       'drill.failed',
       'drill.overdue',
+      'muse.silent',
     ]);
-    expect(items.find((i) => i.name === 'muse.silent')).toMatchObject({
-      state: 'later',
-      waits: 'Muse on work orders (P4 stage G)',
-    });
     expect(items.find((i) => i.name === 'events.export.late')).toMatchObject({ state: 'later', waits: 'phase P5' });
     const body = { outcome: 'nothing', note: 'Nothing changed; it cleared.' };
     const report = (token: string, name: string, b: object = body) =>

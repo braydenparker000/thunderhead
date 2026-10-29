@@ -10,6 +10,7 @@ import { stuckJob } from '../jobs/store';
 import { dayNote } from '../memory/notes';
 import { nightDayOf, nightDone } from '../mind/night';
 import { errorCounts } from '../ops/store';
+import { WORK_CHECKS } from '../work/checks';
 import * as store from './store';
 
 export interface CheckCtx {
@@ -108,7 +109,7 @@ const dbSize: Check = (_db, c) => ({
  * entry (shared/contract/watchdogs.ts) has no `deferred` and its check is here. An area that brings
  * a watchdog's data adds its check (and, if it reads outside SQL, its GATHER entry) in its own
  * module and spreads it in below: the backups' `backup.stale`, `drill.failed` and `drill.overdue`
- * (P4 stage E, areas/backups/checks.ts); Muse's `muse.silent` comes with stage G. */
+ * (P4 stage E, areas/backups/checks.ts) and Muse's `muse.silent` (stage G, areas/work/checks.ts). */
 export const CHECKS: Partial<Record<WatchdogName, Check>> = {
   'errors.spike': errorsSpike,
   'client.errors': clientErrors,
@@ -117,6 +118,7 @@ export const CHECKS: Partial<Record<WatchdogName, Check>> = {
   'jobs.stuck': jobsStuck,
   'db.size': dbSize,
   ...BACKUP_CHECKS,
+  ...WORK_CHECKS,
 };
 
 /** The gathers the built checks need (none yet: every check above reads Core's SQL). */

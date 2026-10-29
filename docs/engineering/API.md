@@ -565,18 +565,22 @@ Order states, leases, validation and the Board approval are owned by [MUSE.md §
 
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `PUT /v1/work/orders/:id` | `mind:chat`, `mind:night` | `{ kind, assignee: 'muse', title /* ≤ 80 */, spec /* ≤ 16 KB */, schema /* JSON-Schema subset, ≤ 8 KB */, personal: boolean, approval_id?: Id, deadline_at: Ms }` | `201`; `403 needs_approval` when `personal` without an approved `reach_people` proposal |
+| `PUT /v1/work/orders/:id` | `mind:chat`, `mind:night` | `{ kind: 'board.edition'\|'research.brief'\|'media.check', title /* ≤ 80 */, spec: { v: 1, goal, inputs, constraints, done_when, sources_policy? } /* ≤ 16 KB */, deadline_at: Ms /* 5 min to 7 days ahead */ }` | `201` the order (`200` the same again); the result schema is the kind's own (`WORK_KINDS` in `shared/contract/work.ts`), never the mind's. No kind is personal yet: one that is will need an approved `reach_people` proposal (`403 needs_approval`). Built P4 stage G |
 | `POST /v1/work/orders/:id/cancel` | `mind:chat`, `mind:night`, device | `{ why /* ≥ 8 */ }` | `200 { status: 'cancelled' }` |
-| `GET /v1/work/orders?status=queued\|claimed\|all` | device, agents | — | `200 Page<WorkOrder>` |
+| `GET /v1/work/orders?status=…\|all`, `GET /v1/work/orders/:id` | device, `mind:chat`, `mind:night`, `mind:reflex` | — | `200 Page<WorkOrder>` / `200 WorkOrder` (results marked `origin: 'muse'`) |
 | `GET /v1/work/hello` | `muse` | — | `200 { agent: 'muse', scopes, server_time, board_brief_allowed }` |
 | `POST /v1/work/claim` | `muse` | `{}` | `200 { order }` (oldest `queued` order whose deadline hasn't passed) or `204` |
 | `POST /v1/work/orders/:id/heartbeat` | `muse` | `{ note? /* ≤ 120 */ }` | `200 { lease_until }` (30 min lease) |
 | `PUT /v1/work/orders/:id/result` | `muse` | `{ result /* ≤ 256 KB */, files?: Ref[] }` | `200 { status: 'done' }` or `422 invalid_result` with `details` (the order becomes `rejected`) |
 | `POST /v1/work/orders/:id/fail` | `muse` | `{ reason /* ≤ 280 */ }` | `200 { status }` |
-| `POST /v1/work/orders/:id/files` | `muse` | raw bytes, header `TH-File-Name` (≤ 15 MB, ≤ 10 per order) | `201 { ref, sha256 }` |
-| `GET /v1/work/board/brief` | `muse` | — | `200 { version, brief }`, or `403` without the standing Board approval |
-| `GET /v1/work/thread?after=<seq>` | `muse` | — | `200 Page<Message>` (its own `muse` thread) |
-| `POST /v1/work/thread/messages` | `muse` | `{ id: Id, body /* ≤ 2,000 */ }` | `201 { id }` |
+| `POST /v1/work/orders/:id/files` | `muse` | raw bytes, header `TH-File-Name` (≤ 15 MB, ≤ 10 per order) | `201 { ref, sha256 }` [not built: no P4 kind has files; `music.ingest` in P5] |
+| `GET /v1/work/board/brief` | `muse` | — | `200 { version, brief }`, or `409` (with the reason) until the owner approved the standing Board card and wrote a brief (409, not 403: Muse may call the route) |
+| `GET /v1/work/thread?after=<seq>` | `muse`, device, `mind:chat`, `mind:night` | — | `200 Page<MuseNote>` (Muse's own thread, never the owner's conversation; newest 500 kept) |
+| `POST /v1/work/thread/messages` | `muse`, device, `mind:chat`, `mind:night` | `{ id: Id, body /* ≤ 2,000 */ }` | `201 { id }` (the author is the caller's: muse, owner or mind) |
+| `GET /v1/board/brief`, `PUT /v1/board/brief` | device, `mind:chat`, `mind:night` | PUT: `{ version, brief: BoardBrief }` (the old relay's board profile, unchanged) | `200 { version, brief, allowed }` / `200 { version }`; `409` when the version moved. The first brief raises the Worker's standing card `board.allow` (`reach_people`) once |
+| `DELETE /v1/board/approval` | device | — | `200 { allowed: false }`: Muse can't read the brief from then on |
+| `GET /v1/briefing` | device | — | `200 BriefingResponse` (`shared/contract/briefing.ts`): the title line, "Waiting on you", the Board tile, Muse's line |
+| `GET /v1/board/editions/:day` | device, `mind:chat`, `mind:night` | — | `200 { day, edition, finished_at, origin: 'muse' }` (the v2 edition Muse returned, checked); `404` |
 
 ### 11.20 Settings and push
 
@@ -699,7 +703,10 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `POST /v1/export`, `GET /v1/export/:id`, `GET /v1/export/:id/zip` | D | P4 |
 | `PUT /v1/work/orders/:id`, `POST /v1/work/orders/:id/cancel` | C N (cancel also D) | P4 |
 | `GET /v1/work/orders` | D C N R | P4 |
-| `GET /v1/work/hello`, `POST /v1/work/claim`, `/v1/work/orders/:id/{heartbeat,result,fail,files}`, `GET /v1/work/board/brief`, `/v1/work/thread*` | M | P4 |
+| `GET /v1/work/hello`, `POST /v1/work/claim`, `/v1/work/orders/:id/{heartbeat,result,fail,files}`, `GET /v1/work/board/brief` | M | P4 |
+| `/v1/work/thread*` | M D C N | P4 |
+| `GET /v1/board/brief`, `PUT /v1/board/brief`, `GET /v1/board/editions/:day` | D C N | P4 |
+| `DELETE /v1/board/approval`, `GET /v1/briefing` | D | P4 |
 | `PUT /v1/senses/batches/:id` | D | P5 |
 | `POST /v1/senses/query` | C N R | P5 |
 | `POST /v1/media/sign` | D (C N for `book:`/`file:`) | P5 (P2 for `file:` refs) |

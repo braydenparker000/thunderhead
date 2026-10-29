@@ -4,6 +4,8 @@ The Briefing is the page one swipe right of home: the day at a glance, arranged 
 This file specifies its sections, ordering, data sources, freshness, empty states, tap and long-press behaviour, and limits.
 Sibling docs: [HOME](HOME.md), [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM](../design/DESIGN-SYSTEM.md), [COPY](../design/COPY.md), [mind BEHAVIOR](../mind/BEHAVIOR.md), [JOBS](../engineering/JOBS.md), [API](../engineering/API.md), [MUSIC](apps/MUSIC.md), [GUITAR](apps/GUITAR.md), [STUDY](apps/STUDY.md), [MY-MEDIA](apps/MY-MEDIA.md), [PODCASTS](apps/PODCASTS.md).
 
+**Built in P4 stage H** (`frontend/th/briefing/`, `tests/briefing-browser.test.mjs`; the Worker side `GET /v1/briefing`, `GET /v1/board/editions/:day`): the date, the title line by the hour (and *A quiet day.* with nothing to show), "Waiting on you" (gold; a tap goes home and pulses the card), the Board tile last with today's edition or yesterday's marked, the Board reader (cover, "In 30 seconds", every v2 block type, numbered sources, "Ask about this" filling the ask bar), Muse's line, and the page painted from this phone first. Weather, the night shift's tiles, media and podcasts come with P8's Briefing data; until then the page says so in one quiet line instead of a placeholder tile.
+
 ## Rules at a glance
 
 1. **Open it:** swipe right on home, or the hidden "Briefing" button. **Close it:** swipe left, Back, or a tile that goes home ([GESTURES](../design/GESTURES.md) §4, §7).

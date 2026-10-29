@@ -51,6 +51,8 @@ async function start() {
   // The conversation loads after the first paint, so the shell stays small (PERFORMANCE.md §2). If
   // it can't, the ask bar says so (home.js) rather than doing nothing.
   requestAnimationFrame(() => setTimeout(() => import('/th/chat/index.js').then((m) => m.startChat()).catch(() => { root.dataset.chat = 'failed'; }), 0));
+  // The Briefing page (BRIEFING.md) too: from this phone at once, then from the Worker.
+  requestAnimationFrame(() => setTimeout(() => import('/th/briefing/page.js').then((m) => m.startBriefing()).catch(() => {}), 0));
   // Decision cards (HOME.md §3) load after the first paint too.
   requestAnimationFrame(() => setTimeout(() => import('/th/decide/card.js').then((m) => m.startDecisions()).catch(() => {}), 0));
   menuCode();

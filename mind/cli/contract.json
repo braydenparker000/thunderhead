@@ -818,7 +818,8 @@
         "N"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage G (Muse on work orders)"
+      "status": "built",
+      "note": "a work order for Muse; its result schema is the kind's"
     },
     "POST /v1/work/orders/:id/cancel": {
       "who": [
@@ -827,7 +828,7 @@
         "N"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage G (Muse on work orders)"
+      "status": "built"
     },
     "GET /v1/work/orders": {
       "who": [
@@ -837,7 +838,7 @@
         "R"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage G (Muse on work orders)"
+      "status": "built"
     },
     "GET /v1/work/orders/:id": {
       "who": [
@@ -847,21 +848,125 @@
         "R"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage G (Muse on work orders)"
+      "status": "built"
     },
     "GET /v1/work/hello": {
       "who": [
         "M"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage G (Muse on work orders)"
+      "status": "built"
     },
     "POST /v1/work/claim": {
       "who": [
         "M"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage G (Muse on work orders)"
+      "status": "built",
+      "note": "the order Muse holds, else the oldest queued one; 204 when none"
+    },
+    "POST /v1/work/orders/:id/heartbeat": {
+      "who": [
+        "M"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "a 30-minute lease from now"
+    },
+    "PUT /v1/work/orders/:id/result": {
+      "who": [
+        "M"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "checked against the kind's schema; 422 names each problem"
+    },
+    "POST /v1/work/orders/:id/fail": {
+      "who": [
+        "M"
+      ],
+      "phase": "P4",
+      "status": "built"
+    },
+    "POST /v1/work/orders/:id/files": {
+      "who": [
+        "M"
+      ],
+      "phase": "P4",
+      "status": "deferred: an order kind with files (music.ingest, P5)"
+    },
+    "GET /v1/work/board/brief": {
+      "who": [
+        "M"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "only with the owner's standing approval"
+    },
+    "GET /v1/work/thread": {
+      "who": [
+        "M",
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "Muse's own thread, never the owner's conversation"
+    },
+    "POST /v1/work/thread/messages": {
+      "who": [
+        "M",
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built"
+    },
+    "GET /v1/board/brief": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built"
+    },
+    "PUT /v1/board/brief": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "the owner's Board choices; the mind writes it from the owner's words"
+    },
+    "DELETE /v1/board/approval": {
+      "who": [
+        "D"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "withdraws Muse's reading of the brief"
+    },
+    "GET /v1/briefing": {
+      "who": [
+        "D"
+      ],
+      "phase": "P4",
+      "status": "built"
+    },
+    "GET /v1/board/editions/:day": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "outside text from Muse, checked against the v2 schema"
     },
     "PUT /v1/senses/batches/:id": {
       "who": [
@@ -1290,7 +1395,8 @@
     "open_thread",
     "setting",
     "mind_status",
-    "error"
+    "error",
+    "work"
   ],
   "frame_types": [
     "hello",
@@ -1710,6 +1816,34 @@
           ],
           "additionalProperties": false
         }
+      },
+      "board.allow": {
+        "classes": [
+          "reach_people"
+        ],
+        "by": [
+          "C",
+          "worker"
+        ],
+        "runs": "core",
+        "ref": [
+          "board",
+          "kind"
+        ],
+        "doc": "Let Muse read the owner's Board brief (the topics, depth and length the owner chose, nothing else) to write the daily Board, until the owner withdraws it (MUSE.md §6, the standing approval).",
+        "args": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "board.edition"
+            }
+          },
+          "required": [
+            "kind"
+          ],
+          "additionalProperties": false
+        }
       }
     }
   },
@@ -1856,9 +1990,8 @@
         "severity": "S4",
         "slo": "Muse checks in daily (MUSE.md §9)",
         "wakes": false,
-        "handle": "Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\"",
-        "phase": "P4",
-        "deferred": "Muse on work orders (P4 stage G)"
+        "handle": "Read th get /v1/work/orders?status=all for the orders Muse left. Contact Muse by no channel: a note in its thread is the most (th post /v1/work/thread/messages). Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
+        "phase": "P4"
       },
       "events.export.late": {
         "trips": "day D not archived by D+1 09:00",

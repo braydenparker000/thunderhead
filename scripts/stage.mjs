@@ -87,6 +87,8 @@ const budgets = [
   ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 60_000],
   // The menu's conversations and search, loaded when the menu first opens.
   ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 60_000],
+  // The Briefing page and the Board reader, loaded after the first paint.
+  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 30_000],
   ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 60_000],
   ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 130_000],
   ['precache bytes', list.filter((f) => precached(f.path)).reduce((n, f) => n + f.size, 0), 3_000_000],

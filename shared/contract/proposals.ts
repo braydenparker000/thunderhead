@@ -104,6 +104,14 @@ export const PROPOSAL_OPS = {
     args: z.strictObject({ sha256, previous: z.nullable(sha256) }),
     doc: 'Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only.',
   },
+  'board.allow': {
+    classes: ['reach_people'],
+    by: ['C', 'worker'],
+    runs: 'core',
+    ref: ['board', 'kind'],
+    args: z.strictObject({ kind: z.literal('board.edition') }),
+    doc: "Let Muse read the owner's Board brief (the topics, depth and length the owner chose, nothing else) to write the daily Board, until the owner withdraws it (MUSE.md §6, the standing approval).",
+  },
 } as const satisfies Record<string, ProposalOp>;
 export type ProposalOpName = keyof typeof PROPOSAL_OPS;
 

@@ -231,10 +231,10 @@ export function extraRoutes(ctl) {
       return idem(s.pushes, params[0], body, () => ({queued_until: ctl.now() + 60_000}));
     }],
     ['PUT', /^\/v1\/work\/orders\/([^/]+)$/, CN, ({params, body}) => {
-      if (body.assignee !== 'muse' || !body.kind || !body.title || body.title.length > 80 || !body.spec || !body.schema ||
-        typeof body.personal !== 'boolean' || !Number.isFinite(body.deadline_at)) throw new HttpError(422, 'validation');
-      if (body.personal && s.proposals.get(body.approval_id)?.value.status !== 'approved') throw new HttpError(403, 'needs_approval');
-      return idem(s.orders, params[0], body, () => ({id: params[0], ...body, status: 'queued'}));
+      const extra = Object.keys(body).filter(k => !['kind', 'title', 'spec', 'deadline_at'].includes(k));
+      if (extra.length || !['board.edition', 'research.brief', 'media.check'].includes(body.kind) || !body.title || body.title.length > 80 ||
+        !body.spec || !Number.isFinite(body.deadline_at)) throw new HttpError(422, 'validation');
+      return idem(s.orders, params[0], body, () => ({id: params[0], ...body, assignee: 'muse', status: 'queued', origin: 'muse'}));
     }],
     ['GET', /^\/v1\/work\/orders$/, ALL, () => ({items: [...s.orders.values()].map(o => o.value), next: null})],
     ['GET', /^\/v1\/work\/orders\/([^/]+)$/, ALL, ({params}) => {

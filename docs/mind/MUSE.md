@@ -12,6 +12,8 @@ Muse's place in the Thunderhead: a separate AI agent that does routine jobs thro
 6. **The switch from the old relay happens in P4**, with 7 days of running in parallel, and the old token is retired only with the owner's approval.
 7. **When Muse goes silent,** orders expire on time, the Briefing page says so plainly, and after two missed daily orders the mind asks once whether to take the job over.
 
+**Built in P4 stages G–H** (`backend/src/areas/work/`, `shared/contract/work.ts`; tests `backend/tests/integration/work.test.ts`, `board.test.ts`): the order kinds `board.edition`, `research.brief` and `media.check` with their schemas, the routes of §4 but file uploads, the validator and hygiene of §5, leases, deadlines and the daily `board.edition` order (due 09:00 local, made by the tick once the owner allowed it), Muse's thread, the standing approval (the Worker's card `board.allow`, raised once when the first brief is written or Muse first calls), its withdrawal, the `muse.silent` watchdog and the Briefing page's lines. Not built yet: importing Muse's history (§8 step 2), file uploads (no P4 kind has files), and the takeover card after two expired Board orders (§9).
+
 Sibling docs: [BEHAVIOR.md §11](BEHAVIOR.md#11-outside-content-muse-output-web-pages-files) (outside content), [RUNTIME.md §7](RUNTIME.md#7-environments-and-tokens) (token roles), [MEMORY.md §6](MEMORY.md#6-provenance-and-taint-rules-worker-enforced) (taint rules M6), [EVALS.md](EVALS.md) (INJ-10, INJ-11). Engineering: [API.md](../engineering/API.md) (canonical routes), [SECURITY.md](../engineering/SECURITY.md), [MIGRATION.md](../engineering/MIGRATION.md) (importing Muse's history), [JOBS.md](../engineering/JOBS.md).
 
 ---

@@ -4,6 +4,7 @@
 // docs/engineering/CONTRACT.md; a test fails when any of them is stale. Types are in api.ts.
 export { BACKUP_LIMITS } from './backups.ts';
 export { CODES } from './codes.ts';
+export { WORK_KINDS, WORK_LIMITS } from './work.ts';
 export * from './feed.ts';
 export * from './imports.ts';
 export * from './memory.ts';
