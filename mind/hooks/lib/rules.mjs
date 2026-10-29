@@ -13,18 +13,22 @@ const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
 
 /**
  * @typedef {{role: string, cwd: string, projectDir: string, tmpDir: string, allowedHosts: string[],
- *   headSubject?: () => string, approved?: (paths: string[]) => boolean, pushProtected?: () => string[]}} Context
+ *   headSubject?: () => string, approved?: (paths: string[], base?: string) => boolean,
+ *   pushProtected?: (push: Push) => {base: string, paths: string[]}[]}} Context
  * `approved`: the owner approved changing these repository-relative protected paths on a branch
- * from the current base (`th approved`); missing means never. `pushProtected`: the protected paths
- * the commits being pushed change; missing means none.
+ * from `base` (default: the current branch's; `th approved`); missing means never. `pushProtected`:
+ * for each source the push sends (HEAD when it names none), its base on the remote's real main and
+ * the protected paths its commits change, renames counted as both paths; it throws (and so denies)
+ * when a source, the remote's main or the base can't be found.
  */
 
-/** True for mind/CONSTITUTION.md, .claude/**, mind/hooks/**, .github/** inside the project. */
+/** A repository-relative path (forward slashes) that is protected: mind/CONSTITUTION.md, .claude/**, mind/hooks/**, .github/**. */
+export const protectedRel = r => r === 'mind/CONSTITUTION.md' || /^(\.claude|mind\/hooks|\.github)(\/|$)/.test(r);
+
+/** True for a protected path inside the project. */
 export function isProtected(path, ctx) {
   const rel = projectRelative(path, ctx);
-  if (rel === null) return false;
-  const r = rel.split(sep).join('/');
-  return r === 'mind/CONSTITUTION.md' || /^(\.claude|mind\/hooks|\.github)(\/|$)/.test(r);
+  return rel !== null && protectedRel(rel.split(sep).join('/'));
 }
 
 /** Protected paths written without the owner's approval (RUNTIME.md §6.4, `repo.change` cards). */
@@ -40,6 +44,11 @@ function projectRelative(path, ctx) {
   const rel = relative(ctx.projectDir, resolve(ctx.cwd, expanded));
   return rel.startsWith('..') || isAbsolute(rel) ? null : rel;
 }
+
+const inside = (path, dir, ctx) => {
+  const abs = resolve(ctx.cwd, String(path).replace(/^\$\{?TMPDIR\}?/, ctx.tmpDir));
+  return abs === dir || abs.startsWith(dir + sep);
+};
 
 const insideTmp = (path, ctx) => {
   const abs = resolve(ctx.cwd, String(path).replace(/^\$\{?TMPDIR\}?/, ctx.tmpDir));
@@ -66,23 +75,39 @@ export function writtenPaths({cmd, args}, redirects) {
 }
 
 /** git's subcommand after global options (-C dir, -c k=v, --git-dir=…). */
-function gitSub(args) {
-  let i = 0;
-  while (i < args.length && args[i].startsWith('-')) i += ['-C', '-c', '--git-dir', '--work-tree', '--namespace'].includes(args[i]) ? 2 : 1;
-  return {sub: args[i] ?? '', rest: args.slice(i + 1)};
+export function gitSub(args) {
+  let i = 0, dir = null, elsewhere = false, config = false;
+  while (i < args.length && args[i].startsWith('-')) {
+    const a = args[i];
+    if (a === '-C') dir = dir && !isAbsolute(args[i + 1] ?? '') ? `${dir}/${args[i + 1]}` : args[i + 1];
+    if (/^--(git-dir|work-tree)(=|$)/.test(a)) elsewhere = true;
+    if (a === '-c' || a.startsWith('--config-env')) config = true;
+    i += ['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--config-env'].includes(a) ? 2 : 1;
+  }
+  return {sub: args[i] ?? '', rest: args.slice(i + 1), dir, elsewhere, config};
 }
 
-/** Parses `git push` arguments: force, delete, and the destination refs. */
+/**
+ * @typedef {{force: boolean, del: boolean, all: boolean, dests: string[], sources: string[], implicit: boolean,
+ *   remote: string|null, dir: string|null, elsewhere: boolean}} Push
+ * `sources`: what each refspec sends (HEAD is the caller's default for none); `remote`: the
+ * repository named (null: git's default); `dir`: `git -C`; `elsewhere`: --git-dir or --work-tree.
+ */
+
+/** Parses `git push` arguments: force, delete, what it sends, and where. @returns {Push|null} */
 export function gitPush(args) {
-  const {sub, rest} = gitSub(args);
+  const {sub, rest, dir, elsewhere} = gitSub(args);
   if (sub !== 'push') return null;
-  let force = false, del = false;
+  let force = false, del = false, all = false, repo = null;
   const pos = [];
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
-    if (a === '-o' || a === '--push-option' || a === '--repo' || a === '--receive-pack' || a === '--exec') { i++; continue; }
+    if (a === '--repo') { repo = rest[++i] ?? null; continue; }
+    if (a.startsWith('--repo=')) { repo = a.slice(7); continue; }
+    if (a === '-o' || a === '--push-option' || a === '--receive-pack' || a === '--exec') { i++; continue; }
     if (/^--force(-with-lease|-if-includes)?(=|$)/.test(a) || a === '--mirror' || /^-[a-zA-Z]*f[a-zA-Z]*$/.test(a)) force = true;
     if (a === '--delete' || /^-[a-zA-Z]*d[a-zA-Z]*$/.test(a)) del = true;
+    if (['--all', '--branches', '--tags', '--mirror', '--follow-tags'].includes(a)) all = true;
     if (!a.startsWith('-')) pos.push(a);
   }
   const refspecs = pos.slice(1);
@@ -91,7 +116,9 @@ export function gitPush(args) {
     if (spec.startsWith(':')) del = true;
   }
   const dests = refspecs.map(s => s.replace(/^\+/, '').split(':').pop().replace(/^refs\/heads\//, ''));
-  return {force, del, dests, implicit: refspecs.length === 0};
+  // What each refspec sends: its part before the colon (the whole spec when there is none).
+  const sources = refspecs.map(s => s.replace(/^\+/, '').split(':')[0]).filter(Boolean);
+  return {force, del, all, dests, sources, implicit: refspecs.length === 0, remote: pos[0] ?? repo, dir, elsewhere};
 }
 
 /** The th subcommand when the simple command runs th (`th …`, `node …/th.mjs …`). */
@@ -154,9 +181,14 @@ function checkSegment(seg, ctx) {
     return 'wrangler deploy/secret/dev --remote is not allowed: deploys go through the workflows, and no Cloudflare credential is in a session.';
   if (cmd === 'az') return 'Azure CLI is not allowed in a mind session.';
   if (cmd === 'gh' && args[0] === 'repo' && (args[1] === 'delete' || args[1] === 'edit')) return 'gh repo delete/edit is not allowed.';
+  if (cmd === 'gh' && args[0] === 'api' && ghApiWrites(args.slice(1)))
+    return 'gh api may not write repository contents, git objects or refs: changes go through commits and pushes the hook checks.';
   const push = cmd === 'git' ? gitPush(args) : null;
   if (push?.force) return 'Force pushes are never allowed.';
   if (push?.del) return 'Deleting a remote branch is not allowed.';
+  if (push?.all) return 'Push one branch at a time, named explicitly (no --all, --branches, --tags or --mirror).';
+  if (push && (push.elsewhere || seg.words.some(w => /^GIT_[A-Z_]+=/.test(w))))
+    return "Push from the project's own checkout (no --git-dir, --work-tree or GIT_* variables).";
   const writes = writtenPaths({cmd, args}, seg.redirects);
   const prot = unapproved(writes, ctx);
   if (prot) return protectedReason(prot);
@@ -175,10 +207,29 @@ function checkSegment(seg, ctx) {
   }
   // Last, as it asks git: what the commits being pushed change.
   if (push) {
-    const carried = ctx.pushProtected?.() ?? [];
-    if (carried.length && !ctx.approved?.(carried)) return `This push changes protected paths (${carried.join(', ')}) without the owner's approval. Raise a card: th propose --class access --spec '{"op":"repo.change","args":{"paths":[…],"base":"<commit>"}}'.`;
+    for (const c of ctx.pushProtected?.(push) ?? [])
+      if (c.paths.length && !ctx.approved?.(c.paths, c.base))
+        return `This push changes protected paths (${c.paths.join(', ')}) without the owner's approval. Raise a card: th propose --class access --spec '{"op":"repo.change","args":{"paths":[…],"base":"${c.base}"}}'.`;
   }
   return null;
+}
+
+/** A `gh api` call that writes contents, git objects or refs: any method but GET (fields make it a
+ * POST) to repos/…/contents or repos/…/git (refs live there), or a GraphQL mutation. Every word is
+ * checked, so an option value that looks like a path can't hide the endpoint. */
+function ghApiWrites(args) {
+  let explicit = null, fields = false;
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '-X' || a === '--method') explicit = String(args[++i] ?? '').toUpperCase();
+    else if (a.startsWith('--method=')) explicit = a.slice(9).toUpperCase();
+    else if (/^-X./.test(a)) explicit = a.slice(2).toUpperCase();
+    else if (/^(-[fF]|--field|--raw-field|--input)(=|$)/.test(a) || /^-[fF]./.test(a)) fields = true;
+  }
+  const method = explicit ?? (fields ? 'POST' : 'GET');
+  const words = args.map(a => a.replace(/^https?:\/\/[^/]+/, '').replace(/^\//, ''));
+  if (words.includes('graphql') && args.some(a => /\bmutation\b/i.test(a) || /^--input/.test(a))) return true;
+  return method !== 'GET' && words.some(w => /(^|\/)repos\/[^/]+\/[^/]+\/(contents|git)(\/|$|\?)/.test(w));
 }
 
 const kindIsError = rest => rest.some((a, i) => a === '--kind=error' || (a === '--kind' && rest[i + 1] === 'error'));
@@ -195,6 +246,9 @@ export function decide(input, ctx) {
   if (!ROLES.includes(ctx.role)) return `Unknown TH_ROLE "${ctx.role}": every tool is denied until it is chat, night or reflex.`;
   const tool = input.tool_name ?? '';
   const ti = input.tool_input ?? {};
+  // The reader subagent (when Claude Code names it) has its five tools and nothing else.
+  if (input.agent_type === 'reader' && !READ_TOOLS.includes(tool) && tool !== 'WebFetch' && tool !== 'WebSearch')
+    return `The reader has only WebFetch, WebSearch, Read, Grep and Glob (not ${tool}).`;
   if (tool === 'Bash') {
     for (const seg of parseShell(String(ti.command ?? ''))) {
       const reason = checkSegment(seg, ctx);
@@ -211,9 +265,17 @@ export function decide(input, ctx) {
     if (unapproved([path], ctx)) return protectedReason(path);
     if (ctx.role === 'reflex' && !insideTmp(path, ctx)) return `The reflex role may write files only under $TMPDIR (not ${path}).`;
   }
+  // It reads only the drop folder and the web.
+  if (input.agent_type === 'reader' && READ_TOOLS.includes(tool)) {
+    const where = [path, tool === 'Glob' ? ti.pattern : undefined].filter(p => typeof p === 'string');
+    if (!where.length || where.some(p => !inside(p, `${ctx.tmpDir}${sep}th${sep}ext`, ctx)))
+      return 'The reader reads only the drop folder $TMPDIR/th/ext/ and the web.';
+  }
   if (tool === 'WebFetch' && typeof ti.url === 'string') {
     const host = hostOf(ti.url);
     if (ctx.role === 'reflex' && host && !hostAllowed(host, ctx.allowedHosts)) return `The reflex role may not fetch ${host}.`;
+    // What the reader fetches was chosen by outside text: no query may carry data out.
+    if (input.agent_type === 'reader' && ti.url.includes('?')) return 'The reader may not fetch a URL with a query: it could carry data out.';
   }
   return null;
 }

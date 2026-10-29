@@ -90,10 +90,13 @@ export function allow(who: readonly Who[], name?: string, key?: string) {
     c.set('principal', p);
     const sandbox = c.req.header(SANDBOX_HEADER);
     if (sandbox === undefined) return next();
-    // The eval sandbox (http/sandbox.ts): chat and night keys only, never a named key's route.
+    // The eval sandbox (http/sandbox.ts): chat and night keys only, never a named key's route, and
+    // never the Auth object's routes (the sandbox reaches nothing outside its own Core).
     if (
       sandbox !== 'eval' ||
       name !== undefined ||
+      key?.includes(' /v1/auth/') ||
+      c.req.path.startsWith('/v1/auth/') ||
       p.kind !== 'agent' ||
       (p.role !== 'mind:chat' && p.role !== 'mind:night')
     )

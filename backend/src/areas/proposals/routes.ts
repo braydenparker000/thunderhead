@@ -92,7 +92,13 @@ export const proposalsRoutes = new Hono<AppEnv>()
     notImportKey(c);
     const id = idParam(c);
     const body = await json(c, putBody);
-    const target = body.spec.op === 'agents.revoke' ? await agentLine(c.env, body.spec.args.agent_id) : null;
+    // In the eval sandbox nothing reaches Auth: a revoke card names the id it was given.
+    const target =
+      body.spec.op !== 'agents.revoke'
+        ? null
+        : inSandbox()
+          ? `key ${String(body.spec.args.agent_id).slice(0, 8)}… (not looked up: the eval sandbox)`
+          : await agentLine(c.env, body.spec.args.agent_id);
     const core = coreObject(c.env);
     const out = value(await fresh(core.putProposal(callerOf(c), id, body, reqHash(body), target)));
     return c.json(out.proposal satisfies Proposal, out.created ? 201 : 200);

@@ -47,11 +47,14 @@ test('the hooks block to paste names hooks that exist, and the pasted copy is th
   // The owner pastes .claude/settings.json (SETUP.md K1, M1); nothing here writes it. Once it is
   // there, it holds exactly this block, so the hooks that run are the ones these tests cover. A hook
   // event added since the owner's last paste may be missing until the next one (PENDING, with the
-  // SETUP step that brings it); nothing else may differ.
-  const PENDING = ['PostToolUse']; // P4 stage C, SETUP.md M1
+  // SETUP step that brings it), or still be the older paste; nothing else may differ.
+  const PENDING = ['PreToolUse', 'PostToolUse']; // P4 stages C and C.5, SETUP.md M1
+  const settled = hooks => Object.fromEntries(Object.entries(hooks).filter(([k]) => !PENDING.includes(k)));
   if (existsSync(join(ROOT, '.claude/settings.json'))) {
     const pasted = JSON.parse(read('.claude/settings.json')).hooks;
-    const lagging = Object.fromEntries(Object.entries(block.hooks).filter(([k]) => !PENDING.includes(k) || k in pasted));
-    assert.deepEqual(pasted, lagging, 'the pasted hooks are mind/hooks/settings.example.json (less a pending event)');
+    assert.deepEqual(settled(pasted), settled(block.hooks), 'the pasted hooks are mind/hooks/settings.example.json (less a pending event)');
   }
+  // The text SETUP.md M1 asks the owner to paste is exactly this block.
+  const m1 = /### M1\.[\s\S]*?```json\n([\s\S]*?)```/.exec(read('docs/process/SETUP.md'))?.[1] ?? '';
+  assert.deepEqual(JSON.parse(m1.replace(/^ {3}/gm, '')), block);
 });

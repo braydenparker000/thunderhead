@@ -6,7 +6,7 @@
 // The token is never logged, printed or put in a URL.
 import {checkRoute} from './contract.mjs';
 import {EXIT, ThError, VERSION, exitFor} from './io.mjs';
-import {getState} from './state.mjs';
+import {getState, setState} from './state.mjs';
 
 const num = (value, fallback) => (Number.isFinite(Number(value)) && value !== '' && value !== undefined ? Number(value) : fallback);
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -40,6 +40,15 @@ async function readBody(res) {
  */
 export async function request(method, path, opts = {}) {
   checkRoute(method, path);
+  // A taint the hooks marked but couldn't send goes first, to the Core the write goes to: no write
+  // leaves before it, and if it can't be sent the write isn't either (RUNTIME.md §6.5).
+  const pending = method !== 'GET' && path !== '/v1/mind/taint' ? getState('taint_pending') : null;
+  if (pending) {
+    await request('POST', '/v1/mind/taint', {sandbox: opts.sandbox, body: {source: String(pending.source || 'hook').slice(0, 40),
+      ref_kind: /^https?:\/\//.test(String(pending.ref)) ? 'url' : pending.ref === 'comment' ? 'comment' : 'file'}});
+    setState('tainted', true);
+    setState('taint_pending', null);
+  }
   const s = settings();
   if (!s.api) throw new ThError(EXIT.unreachable, 'no_api', 'TH_API is not set');
   const url = new URL(s.api + path);
@@ -51,7 +60,7 @@ export async function request(method, path, opts = {}) {
   if (s.role) headers['TH-Role'] = s.role;
   if (s.session) headers['TH-Session'] = s.session;
   // The eval sandbox (th eval begin … end, EVALS.md §1.1): every call goes to the scratch instance.
-  if (process.env.TH_SANDBOX === 'eval' || getState('sandbox') === 'eval') headers['TH-Sandbox'] = 'eval';
+  if (opts.sandbox !== false && (process.env.TH_SANDBOX === 'eval' || getState('sandbox') === 'eval')) headers['TH-Sandbox'] = 'eval';
   if (s.token) headers.Authorization = `Bearer ${s.token}`;
   let body;
   if (opts.raw !== undefined) body = opts.raw;
