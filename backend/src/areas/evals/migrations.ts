@@ -5,7 +5,7 @@ import type { Migration, TableInfo } from '../../objects/base';
 
 export const EVALS_MIGRATIONS: Migration[] = [
   {
-    version: 15,
+    version: 16,
     name: 'eval_runs',
     kind: 'expand',
     sql: [
