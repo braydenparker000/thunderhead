@@ -26,7 +26,7 @@ import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 import {
-  firstRow,
+  firstKeys,
   manifestKey,
   NAME,
   partKey,
@@ -107,10 +107,11 @@ export const importRoutes = new Hono<AppEnv>()
     const head = new Uint8Array(bytes, 0, Math.min(2, bytes.byteLength));
     if (head[0] !== 0x1f || head[1] !== 0x8b) throw new ApiError('unsupported_media_type');
     if ((await sha256(bytes)) !== sha) throw issue('TH-Sha256', 'does not match the body');
-    const row = await firstRow(bytes).catch(() => {
+    // In memory: the body once (≤ 25 MiB, its digest, and the first row's names, read in slices).
+    const keys = await firstKeys(bytes).catch(() => {
       throw new ApiError('unsupported_media_type');
     });
-    if (row && Object.keys(row).some((k) => IMPORT_SECRET_COLUMN.test(k))) throw new ApiError('forbidden');
+    if (keys.some((k) => IMPORT_SECRET_COLUMN.test(k))) throw new ApiError('forbidden');
     const key = partKey(where[1], where[2], where[3], Number(where[4]));
     const stored = await putOnce(vault, key, bytes, sha, 'application/gzip', { rows: String(rows) });
     if (stored === 'conflict') throw new ApiError('conflict');

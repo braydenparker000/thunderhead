@@ -226,7 +226,7 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | Event batch | 500 events and 256 KB | 413 |
 | `POST /v1/ops/errors` | 50 items, 32 KB | 413 |
 | `POST /v1/import/phone` | 5 MB per chunk | 413 |
-| `POST /v1/ops/import/parts` | 5 MB per part | 413 |
+| `POST /v1/ops/import/parts` | 25 MiB per part (`IMPORT_PART_BYTES`) | 413 |
 | File upload (`PUT /v1/files/:id`) | 50 MB, streamed **[proposal]** | 413 |
 | Message body | 16,000 characters | 422 |
 | `media/sign` refs | 50 per call | 422 |
@@ -527,7 +527,7 @@ type MemoryOp =
 
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `POST /v1/ops/import/parts` | the `mind:chat` key named `import-once` only | raw gzip JSONL part, sent as the old export answered it; headers `TH-Import: <run_id>/<instance>/<table>/<nnnn>` (from `0001`), `TH-Sha256`, `TH-Rows` (≤ 2,000 rows, ≤ 5 MB) | `201 { key }` (idempotent by the header path; 409 if the bytes differ; 422 on a wrong digest; 415 if not gzip JSONL; 403 for a never-exported table, by its name or a credential column in its first row, `IMPORT_NEVER_EXPORT` and `IMPORT_SECRET_COLUMN` in `shared/contract/imports.ts`) |
+| `POST /v1/ops/import/parts` | the `mind:chat` key named `import-once` only | raw gzip JSONL part, sent as the old export answered it; headers `TH-Import: <run_id>/<instance>/<table>/<nnnn>` (from `0001`), `TH-Sha256`, `TH-Rows` (≤ 2,000 rows, ≤ 25 MiB; the route holds the part in memory once and reads only its first row's names, from 64 KiB slices) | `201 { key }` (idempotent by the header path; 409 if the bytes differ; 422 on a wrong digest; 415 if not gzip JSONL; 403 for a never-exported table, by its name or a credential column in its first row, `IMPORT_NEVER_EXPORT` and `IMPORT_SECRET_COLUMN` in `shared/contract/imports.ts`) |
 | `PUT /v1/ops/import/manifest/:run_id` | the `import-once` key only | the manifest JSON ([MIGRATION.md §3](MIGRATION.md); `ImportManifest` in `shared/contract/imports.ts`) | `201` (the same again is fine; another one 409). Written last: every part it names must be stored with its SHA-256 (422 naming the first that is not), one SHA-256 per part, and a never-exported table has counts only (403 with parts) |
 | `POST /v1/import/runs` | device, or the `import-once` key | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music' }` | `202 { import_id }` (422: a dataset not built yet, a run without a manifest or that table, messages before threads are done; 409: the id names another run, or the dataset is already running) |
 | `GET /v1/import/runs/:id` | device, agents | — | `200 ImportStatus { id, run_id, dataset, state, counts: { expected, imported, skipped, skip_reasons, files_waiting }, report: { spot_checks: {seed, checked, passed, failed}, thread_shapes: {checked, failed} \| null, rows_changed, rerun_delta } \| null, last_error, started_at, finished_at }` |

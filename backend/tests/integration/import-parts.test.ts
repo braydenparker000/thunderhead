@@ -10,6 +10,7 @@ import { createExecutionContext } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ErrorBody } from '../../../shared/contract/api';
+import { IMPORT_PART_BYTES } from '../../../shared/contract/imports.ts';
 import { app } from '../../src/app';
 import { uuidv7 } from '../../src/lib/ids';
 import { apiJson, coreSql, makeAgent } from '../helpers';
@@ -47,6 +48,23 @@ describe('parts and the manifest', () => {
       expect((await postPart(k, path, a, 1)).status, path).toBe(422);
     expect((await postPart(p.N, where(2), a, 1)).status).toBe(403);
     expect((await postPart(p.D, where(2), a, 1)).status).toBe(403);
+  });
+
+  it('takes a part just over 5 MiB (a row with a base64 BLOB) and refuses one over 25 MiB with 413', async () => {
+    // Random base64, which gzip can't bring under 5 MiB; its first row is longer than the 1 MiB
+    // the route decompresses to read its column names.
+    const A = new TextEncoder().encode('ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/');
+    const text = new Uint8Array(7_500_000);
+    for (let i = 0; i < text.length; i += 65_536) crypto.getRandomValues(text.subarray(i, i + 65_536));
+    for (let i = 0; i < text.length; i++) text[i] = A[text[i] & 63];
+    const row = { __rowid__: 1, id: 'att1', name: 'photo.jpg', data: { $b64: new TextDecoder().decode(text) } };
+    const big = await gz([row]);
+    expect(big.byteLength).toBeGreaterThan(5 * 1024 * 1024);
+    expect((await postPart(k, 'run-big/jarvis-shared-v2/relay_owner_attachments/0001', big, 1)).status).toBe(201);
+    const over = new Uint8Array(IMPORT_PART_BYTES + 1);
+    over.set([0x1f, 0x8b]);
+    const res = await postPart(k, 'run-big/jarvis-shared-v2/relay_owner_attachments/0002', over, 1);
+    expect([res.status, await code(res)]).toEqual([413, 'too_large']);
   });
 
   it('the manifest names its run; the same again is fine, another one a conflict', async () => {

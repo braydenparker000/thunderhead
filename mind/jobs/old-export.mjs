@@ -12,8 +12,11 @@
 //    now): a Durable Object keeps its old code for about 4 minutes after a deploy.
 // 2. For each named object, lists its tables (POST /ops/export/tables), then pulls each exportable
 //    table part by part (POST /ops/export/step) and posts every part unchanged to the new Worker
-//    (POST /v1/ops/import/parts). Never-exported, virtual and rowid-less tables are counted only.
-//    It stops at once if the old Worker ever reports a row written, or a part's SHA-256 differs.
+//    (POST /v1/ops/import/parts). Never-exported, virtual and rowid-less tables are counted only,
+//    and so is a table one of whose parts the new Worker finds too large (413: base64 BLOBs such as
+//    the old attachments): it is listed as `deferred` and stays in the old Worker for now
+//    (MIGRATION.md §8); its parts posted before are left unlisted. It stops at once if the old
+//    Worker ever reports a row written, or a part's SHA-256 differs.
 // 3. Writes the manifest last (PUT /v1/ops/import/manifest/:run_id).
 // 4. Unless --no-runs: starts the import of threads, then messages, then the notebook
 //    (POST /v1/import/runs) and waits for each (GET /v1/import/runs/:id). --imports-only does only
@@ -119,6 +122,7 @@ async function exportTable(s, o, instance, t) {
   const where = `${instance}/${t.table}`;
   const counted = (why, never = false) => {
     say(`${where}: ${t.rows} rows, counted only (${why})`);
+    if (why.startsWith('too large')) o.deferred.push(where);
     return {rows: t.rows, parts: 0, columns: never ? [] : t.columns, sha256s: [], part_rows: [], ...(never ? {never_export: true} : {})};
   };
   if (t.never_export) return counted('never exported', true);
@@ -142,6 +146,10 @@ async function exportTable(s, o, instance, t) {
       const path = `${o.run}/${instance}/${t.table}/${String(n).padStart(4, '0')}`;
       const put = await newCall(s, 'POST', '/v1/ops/import/parts', bytes, `part ${path}`,
         {'Content-Type': 'application/gzip', 'TH-Import': path, 'TH-Sha256': sha, 'TH-Rows': String(rows)});
+      if (put.status === 413) {
+        await put.arrayBuffer().catch(() => null);
+        return counted('too large to post; stays in the old Worker for now');
+      }
       if (put.status !== 201) throw await fail(put, `part ${path}`);
       await put.arrayBuffer().catch(() => null);
       entry.parts = n;
@@ -204,6 +212,7 @@ export async function main(argv, env = process.env) {
     await sleep(wait);
   }
   const manifest = {run_id: o.run, worker_version: o.oldVersion ?? null, started_at: Date.now(), finished_at: 0, instances: {}};
+  o.deferred = [];
   const total = {tables: 0, rows: 0, parts: 0};
   for (const instance of o.instances) {
     const res = await oldPost(s, '/ops/export/tables', {instance}, `tables ${instance}`);
@@ -223,9 +232,10 @@ export async function main(argv, env = process.env) {
   manifest.finished_at = Date.now();
   const put = await newCall(s, 'PUT', `/v1/ops/import/manifest/${o.run}`, manifest, 'manifest');
   if (put.status !== 201) throw await fail(put, 'manifest');
-  say(`manifest ${o.run}: ${total.tables} tables, ${total.rows} rows, ${total.parts} parts`);
+  say(`manifest ${o.run}: ${total.tables} tables, ${total.rows} rows, ${total.parts} parts` +
+    (o.deferred.length ? `; ${o.deferred.length} deferred (too large to post)` : ''));
   const imports = o.runs ? await runImports(s, o) : null;
-  return {run_id: o.run, ...total, manifest: 'written', imports};
+  return {run_id: o.run, ...total, manifest: 'written', deferred: o.deferred, imports};
 }
 
 const isMain = () => { try { return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url)); } catch { return false; } };

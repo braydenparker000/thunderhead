@@ -249,7 +249,11 @@ bucket `thunderhead-private` (J2) and the deploy that carries the import.
    ```
 
    Check: the last line is one JSON line with `"manifest":"written"` and `threads`, `messages` and
-   `notebook` each `"state":"done"`; exit code 0. If it stops: exit 3 (the old Worker reported a
+   `notebook` each `"state":"done"`; exit code 0. A `"deferred"` list (tables whose parts are too
+   large to post, such as `jarvis-shared-v2/relay_owner_attachments`, each printed as `counted only
+   (too large to post; stays in the old Worker for now)`) is fine with exit 0: those rows stay in
+   the old Worker until their archive before it retires ([MIGRATION.md §8](../engineering/MIGRATION.md)).
+   A run id is used once: a run again is `--run old-2`, then `old-3`. If it stops: exit 3 (the old Worker reported a
    row written) or 5 (an import failed): stop and tell the agent "L2 stopped" with the output;
    exit 4 (a call failed): run it again with `--run old-2` in place of `--run old-1`.
 
