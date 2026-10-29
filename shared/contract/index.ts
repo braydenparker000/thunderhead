@@ -21,3 +21,4 @@ export { READER_KINDS, READER_LIMITS, type ReaderKind } from './reader.ts';
 export { BUILT_PHASES, builtRoutes, type Phase, ROUTES, type RouteKey, type RouteSpec, type Who } from './routes.ts';
 export { SURFACE_KINDS, type SurfaceKind, type SurfaceKindName, surfaceKind } from './surfaces.ts';
 export { latestVersion, VERBS, type VerbName, type VerbSpec, type VerbVersion, verbSpec } from './verbs.ts';
+export { REFLEX_PROCEDURE, WATCHDOG_LIMITS, WATCHDOG_NAMES, WATCHDOGS, type WatchdogName } from './watchdogs.ts';

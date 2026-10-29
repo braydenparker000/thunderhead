@@ -4,7 +4,7 @@
 // `{ok:false, code}` (lib/result.ts). No timers: wake retries and requeues use the alarm. The P1
 // data, the feed and the sockets are in core-base.ts; memory (P3) is in core-memory.ts, the
 // night shift's run and input in core-night.ts, the import in core-import.ts and proposals (P4) in
-// core-proposals.ts.
+// core-proposals.ts, the evals in core-evals.ts and the watchdogs (each tick) in core-watchdogs.ts.
 // The alarm also runs the chunked jobs (areas/jobs), a step at a time.
 import type {
   BriefRequest,
@@ -44,13 +44,13 @@ import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
-import { CoreEvals } from './core-evals';
+import { CoreWatchdogs } from './core-watchdogs';
 
 const PRUNE_STEP = 2_000;
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
 const JOB_HANDLERS: Record<string, JobHandler> = { [importJob.kind]: importJob };
 
-export class Core extends CoreEvals {
+export class Core extends CoreWatchdogs {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
@@ -192,7 +192,7 @@ export class Core extends CoreEvals {
   async tick(
     now = Date.now(),
     fetchImpl: typeof fetch = fetch,
-  ): Promise<{ rolled: string | null; pruned: number; night: string | null }> {
+  ): Promise<{ rolled: string | null; pruned: number; night: string | null; reflex: string | null }> {
     const tz = this.tz();
     const d = day.currentDay(this.db, tz, now);
     const due = day.rollDue(d, now, tz, lastMessageAt(this.db, cstore.dailyThread(this.db, d)?.id ?? null));
@@ -215,7 +215,8 @@ export class Core extends CoreEvals {
       this.write((w) => mstore.recordFire(w.db, wakeNight.id, r.status, r.session_id, r.error));
       this.schedule();
     }
-    return { rolled: due, pruned, night: wakeNight?.id ?? null };
+    const reflex = await this.watchdogTick(now, fetchImpl);
+    return { rolled: due, pruned, night: wakeNight?.id ?? null, reflex };
   }
 
   /** Every table's prune, ≤ 2,000 rows each a step. The day counts as done only when no prune was

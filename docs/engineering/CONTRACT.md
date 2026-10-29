@@ -94,6 +94,9 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/evals/sandbox` | C N | P4 | built | with TH-Sandbox: eval only: what was written or tried since the reset |
 | `PUT /v1/evals/runs/:id` | C N | P4 | built | one finished suite, numbers and ids only (never in the sandbox) |
 | `GET /v1/evals/runs` | D C N | P4 | built |  |
+| `GET /v1/ops/watchdogs` | D C N R I | P4 | built | every watchdog, its state and the SLO it guards |
+| `POST /v1/ops/watchdogs/:name/handled` | C N R | P4 | built | what a mind session did about a trip (the reflex reports each one) |
+| `POST /v1/ops/watchdogs/:name/drill` | D C | P4 | built | trip one watchdog by hand when the owner asks, to check that mind-reflex handles it (nothing is wrong) |
 | `POST /v1/ops/backups/run` | N I | P4 | deferred: P4 stage E (weekly backups) |  |
 | `POST /v1/ops/drill/run` | N I | P4 | deferred: P4 stage E (the restore drill) |  |
 | `GET /v1/ops/backups` | D C N R I | P4 | deferred: P4 stage E (weekly backups) |  |
@@ -239,6 +242,27 @@ What the reader subagent (`.claude/agents/reader.md`) answers with, checked by `
 | `answer` | `{ kind: 'answer', question: string, answer: string, odds: number, sources: array, quote: string \| null, instructions_seen: boolean, instructions_note: string \| null }` | The question the task asked, answered from the material only, with odds. |
 | `list` | `{ kind: 'list', items: array, instructions_seen: boolean, instructions_note: string \| null }` | Items found (search results, a setlist, a table), each with a short note and its source. |
 | `unreadable` | `{ kind: 'unreadable', source: string, why: string }` | The source could not be read (blocked, empty, not text, too large). |
+
+## Watchdogs
+
+Each 15-minute tick runs every built watchdog; a trip writes one ledger note and, for one that wakes, wakes `mind-reflex` (at most 4 in any 24 hours); `th reflex` prints what to do (OPERATIONS.md §8.2).
+
+| Watchdog | Trips when | Severity | Guards | Wakes reflex | Phase | Built |
+|---|---|---|---|---|---|---|
+| `errors.spike` | ≥ 20 new server errors in 60 min, or ≥ 5 of one fingerprint in 15 min | S3 | API: ≤ 10 server errors a day | yes | P4 | built |
+| `client.errors` | ≥ 50 client error reports in 60 min | S3 | Phone: no repeated client errors | yes | P4 | built |
+| `roll.stuck` | the open day began more than 30 hours ago (the day roll never ran) | S2 | Chat: every day rolls after its quiet hour | yes | P4 | built |
+| `night.late` | no day note for the night's day by 09:00 local (the night shift is connected) | S3 | Night shift: done by 09:00 local on ≥ 6 nights of 7 | yes | P4 | built |
+| `jobs.stuck` | a job running for more than 2 hours, or one tried 5 times | S3 | Jobs: every job finishes or fails within its runs | yes | P4 | built |
+| `db.size` | the Core object holds more than 700 MB | S3 | Budgets: storage stays inside the Free plan | yes | P4 | built |
+| `quota.rows_written` | the account's rows written today ≥ 70,000 | S3 | Budgets: no Free-plan quota above 70% before 18:00 UTC | yes | P4 | waits for a stored per-day meter (DATA.md §3): today the counts live in each isolate only |
+| `quota.rows_read` | rows read today ≥ 3,500,000 | S3 | Budgets: no Free-plan quota above 70% before 18:00 UTC | yes | P4 | waits for a stored per-day meter (DATA.md §3) |
+| `quota.do_calls` | object calls today ≥ 70,000 | S3 | Budgets: no Free-plan quota above 70% before 18:00 UTC | yes | P4 | waits for a stored per-day meter (DATA.md §3) |
+| `backup.stale` | the newest complete backup is more than 8 days old | S3 | Backups: newest complete backup < 8 days old | yes | P4 | waits for the weekly backups (P4 stage E) |
+| `drill.failed` | the last restore drill failed | S3 | Backups: the monthly drill passes | yes | P4 | waits for the restore drill (P4 stage E) |
+| `drill.overdue` | no restore drill for 35 days | S3 | Backups: the monthly drill passes | yes | P4 | waits for the restore drill (P4 stage E) |
+| `muse.silent` | no Muse API call in 26 hours | S4 | Muse checks in daily (MUSE.md §9) | no | P4 | waits for Muse on work orders (P4 stage G) |
+| `events.export.late` | day D not archived by D+1 09:00 | S3 | Senses: each day archived by the next morning | yes | P5 | later |
 
 ## Error codes
 

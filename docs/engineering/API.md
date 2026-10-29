@@ -527,6 +527,9 @@ type MemoryOp =
 | `GET /v1/ops/backups?limit` | device, agents, `ci` | — | `200 Page<{date, class, rows, bytes, complete}>` |
 | `POST /v1/ops/restore` | device, agents | `{ kind: 'pitr'\|'table'\|'object', class, at?: Ms, date?: Day, table?: string, mode?: 'replace'\|'merge' }` | `202 { proposal_id }` (it executes only when decided `approve`) |
 | `POST /v1/ops/drill/run` | `mind:night`, `ci` | `{}` | `202 { job_id }` |
+| `GET /v1/ops/watchdogs` | device, agents but Muse, `ci` | — | `200 { items: { name, state: 'ok'\|'tripped'\|'later', severity, slo, trips, since, detail, handled: {at, outcome, note} \| null, waits }[] }` (P4; never in the eval sandbox) |
+| `POST /v1/ops/watchdogs/:name/handled` | `mind:chat`, `mind:night`, `mind:reflex` | `{ outcome: 'fixed'\|'reported'\|'nothing', note /* 8-200 */ }` | `200` the watchdog; `409` when it isn't tripped (a ledger note) |
+| `POST /v1/ops/watchdogs/:name/drill` | device, `mind:chat` | `{}` | `200 { item, wake_id, fired: 'fired'\|'failed'\|'limited'\|'not_connected' }`; `409` tripped already; `422` not built or wakes nobody (OPERATIONS.md §8.2) |
 | `POST /v1/export` | device | `{}` | `202 { export_id }` (P4) |
 | `GET /v1/export/:id` | device | — | `200 { status: 'building'\|'ready'\|'failed', items: { label, url, bytes, expires_at }[] }` |
 
@@ -688,6 +691,9 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `POST /v1/evals/sandbox`, `GET /v1/evals/sandbox` | C N (with `TH-Sandbox: eval` only) | P4 |
 | `PUT /v1/evals/runs/:id` | C N | P4 |
 | `GET /v1/evals/runs` | D C N | P4 |
+| `GET /v1/ops/watchdogs` | D C N R I | P4 |
+| `POST /v1/ops/watchdogs/:name/handled` | C N R | P4 |
+| `POST /v1/ops/watchdogs/:name/drill` | D C | P4 |
 | `POST /v1/ops/restore` | D C N R | P4 |
 | `POST /v1/export`, `GET /v1/export/:id` | D | P4 |
 | `PUT /v1/work/orders/:id`, `POST /v1/work/orders/:id/cancel` | C N (cancel also D) | P4 |

@@ -21,6 +21,7 @@ import * as memory from './lib/memory.mjs';
 import * as act from './lib/act.mjs';
 import {evalCmd} from './lib/eval.mjs';
 import {read} from './lib/read.mjs';
+import * as reflexCmds from './lib/reflex.mjs';
 
 const withFlags = (fn, spec) => argv => fn(parseArgs(argv, spec).flags);
 
@@ -35,7 +36,7 @@ export const COMMANDS = {
   supersede: memory.supersede, forget: memory.forget, thread: memory.thread, day: memory.day,
   daynote: memory.daynote, facts: memory.facts,
   propose: act.propose, decide: act.decide, approved: act.approved, verb: act.verb, order: act.order, surface: act.surface,
-  push: act.push, night: act.night, eval: evalCmd, read,
+  push: act.push, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
   help: async argv => { out(helpText(argv[0])); },
 };
 

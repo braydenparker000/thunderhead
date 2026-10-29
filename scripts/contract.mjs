@@ -176,6 +176,7 @@ function mind() {
       ),
     },
     lint: { banned_phrases: BANNED_PHRASES },
+    watchdogs: { limits: c.WATCHDOG_LIMITS, reflex_procedure: c.REFLEX_PROCEDURE, items: c.WATCHDOGS },
     reader: {
       limits: c.READER_LIMITS,
       kinds: Object.fromEntries(
@@ -303,6 +304,19 @@ function docs() {
     '|---|---|---|',
   );
   for (const [n, k] of Object.entries(c.READER_KINDS)) L.push(`| \`${n}\` | ${shape(k.schema)} | ${cell(k.doc)} |`);
+  L.push(
+    '',
+    '## Watchdogs',
+    '',
+    `Each 15-minute tick runs every built watchdog; a trip writes one ledger note and, for one that wakes, wakes \`mind-reflex\` (at most ${c.WATCHDOG_LIMITS.reflex_wakes_per_day} in any 24 hours); \`th reflex\` prints what to do (OPERATIONS.md §8.2).`,
+    '',
+    '| Watchdog | Trips when | Severity | Guards | Wakes reflex | Phase | Built |',
+    '|---|---|---|---|---|---|---|',
+  );
+  for (const [n, w] of Object.entries(c.WATCHDOGS))
+    L.push(
+      `| \`${n}\` | ${cell(w.trips)} | ${w.severity} | ${cell(w.slo)} | ${w.wakes ? 'yes' : 'no'} | ${w.phase} | ${w.deferred ? `waits for ${cell(w.deferred)}` : c.BUILT_PHASES.includes(w.phase) ? 'built' : 'later'} |`,
+    );
   L.push('', '## Error codes', '', '| Code | Status | Message |', '|---|---|---|');
   for (const [code, [status, message]] of Object.entries(c.CODES)) L.push(`| \`${code}\` | ${status} | ${cell(message)} |`);
   L.push('', '## Phrase lint', '', BANNED_PHRASES.map((p) => `"${p}"`).join(' · '), '');

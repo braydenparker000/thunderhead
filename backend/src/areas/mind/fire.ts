@@ -1,8 +1,8 @@
 // The fire call that starts a mind session (RUNTIME.md §3): POST to the task's API trigger with
 // the constant text `wake`. The URL and token are Worker secrets that hold `none` until the owner
-// connects the task (SETUP.md K for mind-chat, L1 for mind-night), so an unconnected task never
-// fires. Runs after the commit that created the wake, from the Worker (waitUntil), the object's
-// alarm or the cron's day roll.
+// connects the task (SETUP.md K for mind-chat, L1 for mind-night, M2 for mind-reflex), so an
+// unconnected task never fires. Runs after the commit that created the wake, from the Worker
+// (waitUntil), the object's alarm, the cron's day roll or its watchdogs.
 import type { MindRole } from '../../../../shared/contract/api';
 
 export interface FireConfig {
@@ -18,11 +18,17 @@ export interface FireResult {
 
 const set = (v: string | undefined) => (v && v !== 'none' ? v : null);
 
-/** The task's trigger, or null while it is not connected. Reflex arrives with P4. */
+const PAIRS = {
+  chat: ['ROUTINE_CHAT_URL', 'ROUTINE_CHAT_TOKEN'],
+  night: ['ROUTINE_NIGHT_URL', 'ROUTINE_NIGHT_TOKEN'],
+  reflex: ['ROUTINE_REFLEX_URL', 'ROUTINE_REFLEX_TOKEN'],
+} as const satisfies Record<MindRole, readonly [keyof Env, keyof Env]>;
+
+/** The task's trigger, or null while it is not connected (SETUP.md K, L1, M2). */
 export function fireConfig(env: Env, task: MindRole): FireConfig | null {
-  if (task === 'reflex') return null;
-  const url = set(task === 'chat' ? env.ROUTINE_CHAT_URL : env.ROUTINE_NIGHT_URL);
-  const token = set(task === 'chat' ? env.ROUTINE_CHAT_TOKEN : env.ROUTINE_NIGHT_TOKEN);
+  const [u, t] = PAIRS[task];
+  const url = set(env[u] as string | undefined);
+  const token = set(env[t] as string | undefined);
   return url && token && url.startsWith('https://') ? { url, token } : null;
 }
 

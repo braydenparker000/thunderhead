@@ -16,6 +16,7 @@ import * as facts from '../memory/store';
 import * as ops from '../ops/store';
 import { lawsLine } from '../proposals/laws';
 import * as proposals from '../proposals/store';
+import * as watchdogs from '../watchdogs/ops';
 import { buildBrief } from './brief';
 import { nightDayOf, nightDone, nightLine } from './night';
 import * as sessionNotes from './notes';
@@ -76,6 +77,10 @@ export function assemble(
     },
     ledger: ledger.since(db, now - 24 * HOUR, 30),
     errorsOpen: ops.countOpenErrors(db),
+    watchdogs: watchdogs
+      .list(db)
+      .filter((w) => w.state === 'tripped')
+      .map((w) => ({ name: w.name, since: w.since ?? now, handled: w.handled?.outcome ?? null })),
     rules: memory ? facts.currentFacts(db, ['rule'], RULES_READ) : [],
     threads: memory ? notes.openThreads(db, 'open', 60) : [],
     profile: memory ? renderProfile(current, now, tz).text : '',

@@ -17,6 +17,7 @@ import { proposalsRoutes } from './areas/proposals/routes';
 import { searchRoutes } from './areas/search/routes';
 import { surfacesRoutes } from './areas/surfaces/routes';
 import { verbsRoutes } from './areas/verbs/routes';
+import { watchdogsRoutes } from './areas/watchdogs/routes';
 import type { AppEnv } from './http/auth';
 import { cachedMinClient, clientVersion } from './http/client-version';
 import { cors } from './http/cors';
@@ -72,5 +73,6 @@ export const app = new Hono<AppEnv>()
   .route('/v1', importRoutes)
   .route('/v1', proposalsRoutes)
   .route('/v1', evalsRoutes)
+  .route('/v1', watchdogsRoutes)
   .notFound(notFound)
   .onError(onError);

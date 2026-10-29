@@ -19,7 +19,7 @@ export function createFake(options = {}) {
   const today = {id: '0192f0c4-0000-7000-8000-000000000001', day: o.day, kind: 'daily', status: 'open', title: null, title_source: null};
   const s = {seq: 0, threads: [today], messages: [], wakes: [], lease: null, stop: null, dayClosed: null, events: [],
     notes: [], facts: [], openThreads: new Map(), proposals: new Map(), verbs: new Map(), orders: new Map(), ledger: [],
-    files: new Map(), tainted: new Set(), statuses: [], fires: [], takes: [], requests: [], failures: [], batches: new Map(),
+    files: new Map(), tainted: new Set(), watchdogs: [], statuses: [], fires: [], takes: [], requests: [], failures: [], batches: new Map(),
     dayNotes: new Map(), night: new Map(), surfaces: new Map(), pushes: new Map(), errors: []};
   let waiters = [];
   const notify = () => { const w = waiters; waiters = []; w.forEach(fn => fn()); };

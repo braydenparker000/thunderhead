@@ -40,6 +40,8 @@ export interface BriefInput {
   yesterday: { threadId: string | null; tail: Message[]; note: DayNoteRow | null; count?: number };
   ledger: LedgerEntry[];
   errorsOpen: number;
+  /** The tripped watchdogs (OPERATIONS.md §8.2): one briefing line while any is. */
+  watchdogs: { name: string; since: number; handled: string | null }[];
   rules: FactRow[];
   threads: OpenThreadRow[];
   /** The rendered profile (MEMORY.md §8, ≤ 6,000 characters). */
@@ -112,6 +114,10 @@ const render = (n: number, body: string) => `## ${n}. ${NAMES[n]}\n${body}`;
 /** What a section costs in the core beyond its body: its heading and the blank line before it. */
 const frame = (n: number) => render(n, '').length + 2;
 
+/** e.g. `watchdogs tripped: errors.spike since 14:05 (reported) · th reflex` */
+const watchdogLine = (ws: BriefInput['watchdogs'], tz: string) =>
+  `watchdogs tripped: ${ws.map((w) => `${w.name} since ${clock(w.since, tz)}${w.handled ? ` (${w.handled})` : ''}`).join(', ')} · th reflex`;
+
 export function buildBrief(i: BriefInput): { core: string; full: string } {
   const night = i.role === 'night';
   const reflex = i.role === 'reflex';
@@ -120,6 +126,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     `wake: ${i.wakeReason ?? 'manual'} · wakes today ${i.wakesToday} · pre-warms left ${i.prewarmsLeft}`,
     i.backoffUntil > i.now ? `usage backoff until ${clock(i.backoffUntil, i.tz)}` : 'no usage backoff',
     `${i.laws} · open decisions ${i.decisions.length} · quiet: off`,
+    ...(i.watchdogs.length ? [watchdogLine(i.watchdogs, i.tz)] : []),
     ...(i.tainted
       ? [
           'taint: this session is tainted (it, or one of its role in the last 24 hours, read outside content); memory writes are refused',
@@ -201,7 +208,16 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
         ? budgeted(pending, 2_000, 'newest', (k) => `(+${k} more: th ledger)`)
         : 'Nothing in the last 24 h.',
     ],
-    [11, [`errors open ${i.errorsOpen}`, i.night ?? 'night shift: not connected yet'].join(' · ').slice(0, 1_200)],
+    [
+      11,
+      [
+        `errors open ${i.errorsOpen}`,
+        i.watchdogs.length ? watchdogLine(i.watchdogs, i.tz) : 'watchdogs: none tripped',
+        i.night ?? 'night shift: not connected yet',
+      ]
+        .join(' · ')
+        .slice(0, 1_200),
+    ],
     [
       12,
       budgeted(

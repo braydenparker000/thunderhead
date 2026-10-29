@@ -247,3 +247,13 @@ export function sessionOpen(db: Db, sessionId: string): boolean {
 export function endSession(db: Db, id: string, at: number): void {
   db.run('UPDATE mind_sessions SET ended_at = coalesce(ended_at, ?) WHERE session_id = ?', at, id);
 }
+
+/** Reflex wakes since `since`, and whether one is still open (the watchdogs' wake limits). */
+export function reflexWakes(db: Db, since: number): { n: number; open: number } {
+  return (
+    db.one<{ n: number; open: number }>(
+      `SELECT count(*) AS n, coalesce(sum(status IN ('fired', 'unclaimed')), 0) AS open FROM wakes WHERE task = 'reflex' AND at >= ?`,
+      since,
+    ) ?? { n: 0, open: 0 }
+  );
+}

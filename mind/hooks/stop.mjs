@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // Stop hook, bounded (RUNTIME.md §6.2): keeps a chat session from ending while an owner message is
-// unanswered or no background `th wait` is running, at most 3 times per session.
+// unanswered or no background `th wait` is running, and a reflex session while a tripped watchdog
+// that wakes it has no report (`th handled`), at most 3 times per session.
 //
 // Format (Claude Code hooks reference, https://code.claude.com/docs/en/hooks, "Stop input" and
 // "Stop decision control", read 2026-10-28):
@@ -9,7 +10,8 @@
 // - block: exit 0 with {"decision":"block","reason":"…"} (reason is required and is shown to Claude);
 // - allow: exit 0 with no output. Claude Code also caps consecutive continuations at 8; ours is 3.
 //
-// Decision, in order:
+// Decision, in order (reflex: allow when th reflex fails or after 3 blocks; block while its
+// `unreported` list isn't empty; else allow):
 // 1. allow: role ≠ chat (including TH_ROLE unset: not a mind session, so no output at all); th pending
 //    fails (never trap a session we can't see); stop, day_closed or limited (also the local mark
 //    StopFailure leaves); 3 blocks already used (counted here, in $TMPDIR/th/state/); past the idle
@@ -49,7 +51,23 @@ function recentlyLimited() {
   return Date.now() - mark.at < ttl;
 }
 
+const blocksKey = () => `stop_blocks_${String(input.session_id || 'session').replace(/[^A-Za-z0-9_-]/g, '_')}`;
+
+/** Reflex: every tripped watchdog that woke it gets a report before it ends. */
+function reflexStop() {
+  const r = runTh(['reflex'], {timeoutMs: Number(env.TH_HOOK_TIMEOUT_MS) || 15_000});
+  if (r.code !== 0) return allow();
+  let left;
+  try { left = JSON.parse(r.stdout).unreported; } catch { return allow(); }
+  if (!Array.isArray(left) || !left.length) return allow();
+  const used = Number(getState(blocksKey(), 0)) || 0;
+  if (used >= MAX_BLOCKS) return allow();
+  setState(blocksKey(), used + 1);
+  return block(`Watchdog ${left.join(', ')} has no report yet. Say what you did: th handled ${left[0]} --outcome fixed|reported|nothing --note "<what you saw and did>".`);
+}
+
 function run() {
+  if (env.TH_ROLE === 'reflex') return reflexStop();
   if (env.TH_ROLE !== 'chat') return allow();
   const r = runTh(['pending'], {timeoutMs: Number(env.TH_HOOK_TIMEOUT_MS) || 15_000});
   if (r.code !== 0) return allow();
@@ -57,7 +75,7 @@ function run() {
   try { pending = JSON.parse(r.stdout); } catch { return allow(); }
   if (pending.stop || pending.day_closed || pending.limited || recentlyLimited()) return allow();
 
-  const key = `stop_blocks_${String(input.session_id || 'session').replace(/[^A-Za-z0-9_-]/g, '_')}`;
+  const key = blocksKey();
   const used = Number(getState(key, 0)) || 0;
   if (used >= MAX_BLOCKS) return allow();
 

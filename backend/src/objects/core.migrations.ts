@@ -16,6 +16,7 @@ import { PROPOSALS_MIGRATIONS, PROPOSALS_TABLES } from '../areas/proposals/migra
 import { SETTINGS_TABLES } from '../areas/settings/tables';
 import { SURFACES_MIGRATIONS, SURFACES_TABLES } from '../areas/surfaces/migrations';
 import { VERBS_MIGRATIONS, VERBS_TABLES } from '../areas/verbs/migrations';
+import { WATCHDOGS_MIGRATIONS, WATCHDOGS_TABLES } from '../areas/watchdogs/migrations';
 import type { Migration, TableInfo } from './base';
 
 const P1_BASE: Migration = {
@@ -70,6 +71,7 @@ export const CORE_MIGRATIONS: Migration[] = [
   ...IMPORT_MIGRATIONS,
   ...PROPOSALS_MIGRATIONS,
   ...EVALS_MIGRATIONS,
+  ...WATCHDOGS_MIGRATIONS,
 ].sort((a, b) => a.version - b.version);
 
 /** Every Core table with its retention and export inclusion (DATA.md §10); a test fails if a
@@ -88,4 +90,5 @@ export const CORE_TABLES: Record<string, TableInfo> = {
   ...IMPORT_TABLES,
   ...PROPOSALS_TABLES,
   ...EVALS_TABLES,
+  ...WATCHDOGS_TABLES,
 };

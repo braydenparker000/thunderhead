@@ -66,7 +66,7 @@ The prompt is deliberately short and constant: how the mind works lives in the r
 `mind/ROLES.md` (chat section in P2, night in P3, reflex in P4) is the procedure the prompts point at. It speaks to the mind as "you", stays ≤ 6,000 characters, and holds no rule that isn't in this page, [BEHAVIOR.md](BEHAVIOR.md) or [MEMORY.md](MEMORY.md):
 - `## chat`: 1. Answer each message in briefing section 2 with `th say today --reply-to <id>` (first `th status working --thread <thread>` if the answer takes more than a minute). 2. Start `th wait` in the background before any other work (§4.5). 3. When it exits, read its output in the foreground, start the next wait, then act: exit 0 → answer; 3 → nothing more; 4 → §4.6 Stop row; 5 → §4.6 day-closed row; 2, 6, 9, 10, 11 → the §9 row for that code. 4. End only by §4.6.
 - `## night`: §12's table, one step at a time, `th night step <n> done` after each.
-- `## reflex`: written with the watchdogs (P4).
+- `## reflex`: run `th reflex` and do what it prints; `th handled` reports each trip. The procedure itself is in the contract (`REFLEX_PROCEDURE`, shared/contract/watchdogs.ts), so this section stays one line and the file under its cap.
 A test checks the three headings and the size.
 
 **Acceptance:** the setup checklist in [OPERATIONS.md](../engineering/OPERATIONS.md) ends with one manual fire per task; each fire is claimed within 120 s and the briefing's first line names the right role.
@@ -82,7 +82,7 @@ A test checks the three headings and the size.
 | Message requeued after a session vanished | `mind-chat` | `requeue` | As above; at most 3 refires in a row without an answer, then only the owner's next message fires **[from the current system]** |
 | Day roll (04:00 local after 60 quiet minutes) | `mind-night` | `roll` | The task is connected (`ROUTINE_NIGHT_URL`/`TOKEN` set, SETUP.md L1); the night of the day before the new open day not yet done; no night wake still open from the last 12 hours (an older unclaimed one is marked `failed`). Fired once, after the roll's commit; no retry (the 06:07 schedule is the fallback) |
 | Schedule 06:07 local | `mind-night` | `schedule` | Always fires; the session exits at once if night is done (§12) |
-| Watchdog trips (P4) | `mind-reflex` | `watchdog:<name>` | Reflex wakes today < 4 |
+| Watchdog trips (P4), or a drill (`th drill`, SETUP.md M2) | `mind-reflex` | `watchdog:<name>` | The task is connected (`ROUTINE_REFLEX_URL`/`TOKEN` set, SETUP.md M2); the watchdog wakes the reflex (OPERATIONS.md §8.2); no reflex wake open (one unclaimed for 30 minutes is marked `failed`); fewer than 4 reflex wakes in the last 24 hours. Fired once, after the tick's commit; no retry |
 | Owner opens a task by hand at claude.ai | any | `manual` | None (the Worker allows a manual claim; it is logged) |
 
 - The Worker sends the fire as `POST <ROUTINE_*_URL>` with headers `Authorization: Bearer <token>`, `anthropic-beta: experimental-cc-routine-2026-04-01`, `anthropic-version: 2023-06-01`, and body `{"text":"wake"}`.
@@ -247,6 +247,9 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th approved` | `--paths <p1,p2> --sha <40-hex commit>` | `{"approved":bool,"proposal_id"}` | C N R | Whether an executed `repo.change` card covers these protected paths on a branch from that commit; exit 6 when not. The PreToolUse hook asks it before an edit to or a push of a protected path (§6.4). |
 | `th eval` | `begin` · `list` · `inj <id>` · `check <id> [--answer <text>]` · `end` | `begin`: `{"sandbox","fixtures","next"}` (`next`: the procedure); `inj`: `{"id","run","file","task"}`; `check`: `{"id","pass","why"}`; `end`: the run's numbers | C N | The injection suite in the eval sandbox ([EVALS.md §1.1, §4](EVALS.md)); night step 9 on Sundays. `begin` taints the real session first, then sends every call with `TH-Sandbox: eval`; `end` leaves the sandbox and records the suite in the owner's Core. |
 | `th read` | `--kinds` · `--check <kind> [--json <answer> \| --file <path>]` (else stdin) | `--kinds`: the reader kinds; `--check`: `{"ok":true,"kind","tainted":true,"answer"}` | C N | The reader subagent's answer (§6.6): taints the session first, checks it against the kind's schema and rules, prints only what passed; exit 8 names the first problem. |
+| `th reflex` | — | `{"procedure":[…],"tripped":[{name,severity,since,detail,slo,handle,handled}],"unreported":[…],"ok":[…],"later":n}` | C N R | What to do now (P4 stage D): the reflex procedure and each tripped watchdog with its `handle`, both from the contract; `unreported` is what the Stop hook waits for (§6.2). |
+| `th handled` | `<watchdog> --outcome fixed\|reported\|nothing --note <8-200 chars>` | the watchdog's state | C N R | What the session did about a trip; a ledger note. Exit 7 (`conflict`) when it isn't tripped. |
+| `th drill` | `<watchdog>` | `{"item","wake_id","fired":"fired\|failed\|limited\|not_connected"}` | C | Only when the owner asks: trips one built watchdog that wakes the reflex, by hand (SETUP.md M2); it holds until the reflex reports it, or for an hour. |
 
 **Acceptance:** `mind/tests/th.test.mjs` runs th against the real Worker under `wrangler dev --local` with a dev key per role and produces exit codes 0, 2, 3, 4, 6, 7, 8, 9 and 11; the fake-Worker suites produce 1, 5 and 10 and cover the commands of later phases.
 
@@ -292,6 +295,7 @@ Rules:
 Runs when the model ends a turn. Input includes `stop_hook_active`, `last_assistant_message` and `background_tasks` (each with `type`, `status`, `command`).
 
 Decision, in order:
+0. **Reflex:** block with `"Watchdog <names> has no report yet. Say what you did: th handled <name> --outcome fixed|reported|nothing --note …"` while `th reflex` lists a tripped watchdog that wakes the reflex and has no report (`unreported`), at most 3 times; allow when `th reflex` fails. Every other role goes on with step 1.
 1. **Allow** if any: `th pending` says `stop`, `day_closed` or `limited`; the role is not `chat`; `blocks_used ≥ 3` this session **[proposal]**; the session is past its idle cutoff and has written its session note.
 2. **Block** with reason `"Owner message <id> is unanswered. Answer it with th say before ending."` if `unanswered` is not empty.
 3. **Block** with reason `"No th wait is running. Start: th wait --minutes 50 (run_in_background), then end your turn."` if no entry in `background_tasks` has `type: "shell"`, `status: "running"` and a `command` containing `th wait` (or `th.mjs wait`), and the idle cutoff hasn't passed.
@@ -380,6 +384,8 @@ Rules:
 | Create proposals | ✓ | ✓ | ✓ | — |
 | Approve proposals by tap (owner device sessions only) | — | — | — | — |
 | Record the owner's own words as a decision (`th decide --by-message`, Worker-verified) | ✓ | — | — | — |
+| Watchdogs: read; report a trip (`th handled`) | ✓ | ✓ | ✓ | — |
+| Watchdog drill, when the owner asks (`th drill`) | ✓ | — | — | — |
 | Work orders: create / cancel | ✓ | ✓ | — | — |
 | Work orders: claim / result | — | — | — | ✓ |
 | Auth admin, tokens, devices, export-everything | — | — | — | — |

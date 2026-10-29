@@ -88,3 +88,17 @@ export function pruneJobs(db: Db, now: number, max: number): number {
     max,
   ).length;
 }
+
+/** A job running too long or tried too often, if any. */
+export function stuckJob(
+  db: Db,
+  runningBefore: number,
+  attempts: number,
+): { id: string; kind: string; state: string; attempts: number } | null {
+  return db.one(
+    `SELECT id, kind, state, attempts FROM jobs WHERE state IN ('queued', 'running', 'paused')
+       AND ((state = 'running' AND updated_at < ?) OR attempts >= ?) LIMIT 1`,
+    runningBefore,
+    attempts,
+  );
+}

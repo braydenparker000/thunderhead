@@ -188,6 +188,7 @@ function input(over: Partial<BriefInput> = {}): BriefInput {
     yesterday: { threadId: null, tail: [], note: null },
     ledger: [],
     errorsOpen: 0,
+    watchdogs: [],
     rules: [],
     threads: [],
     profile: 'Nothing known yet.',
