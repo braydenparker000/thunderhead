@@ -20,7 +20,7 @@ before(async () => {
 after(async () => { await browser?.close(); server?.close(); });
 
 async function open(path, { theme = 'light', mock = {}, session = false } = {}) {
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block' });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });

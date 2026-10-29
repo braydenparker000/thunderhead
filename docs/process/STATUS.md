@@ -9,7 +9,7 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Next three tasks
 
-1. Finish P1: the service worker and precache, `ui/icons.svg`, Web Push, sign-in p95 on the phone, T7/T9/T11/T17/T19 on the real site, and X1, X3 and X4 in production. Owner checks on the phone: sign-out everywhere, the device list shows "this device".
+1. Finish P1. Built on branch `p1-finish`: the service worker (precache per release, offline shell and sign-in pages, safe update, kill switch), the install manifest and icons, `ui/icons.svg`, the T7 live check, and the Bench workflow for X1/X3/X4. Left: run Bench `x3`, `x4`, `x1` in production and record the results in decisions.md; the owner's phone checks (TESTING.md §12.2 item 3b: T9, T11, T17, T19; sign-out everywhere; "this device"); sign-in p95 on the phone. Web Push is P8 (ROADMAP), not P1.
 2. **P1b · Apps ported as they are**: Music, Guitar, Podcasts, Astra and My Media copied unchanged apart from paths, route folders and the API address; they keep calling the old Worker, whose allowed-origins change is asked first.
 3. The `mind-spike` work (`mind/`: the `th` CLI and hooks) is P2 and waits on the P2 routes.
 

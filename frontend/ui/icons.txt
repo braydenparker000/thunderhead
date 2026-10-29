@@ -1,0 +1,45 @@
+# Phosphor Icons (regular weight) in ui/icons.svg, one name per line (DESIGN-SYSTEM.md §13).
+# Rebuild after editing: node scripts/icons.mjs
+# The six app icons
+music-notes-simple
+guitar
+book-bookmark
+monitor-play
+microphone
+youtube-logo
+# Shell and settings
+plus
+arrow-up
+camera
+image
+file-text
+waveform
+alarm
+magnifying-glass
+moon-stars
+bell
+brain
+plugs-connected
+user-circle
+caret-right
+arrow-left
+x
+copy
+question
+cloud-sun
+warning-circle
+wifi-slash
+devices
+key
+download-simple
+info
+trash
+pencil-simple
+push-pin
+device-mobile
+chat-circle
+newspaper
+clock
+play
+stop
+check

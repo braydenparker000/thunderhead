@@ -20,6 +20,9 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-sm
 .panel p{margin:8px 0 0;font:400 14px/1.5 var(--ui);color:var(--ink-2)}
 .panel ol{margin:10px 0 0;padding-left:20px;font:400 14px/1.5 var(--ui);color:var(--ink-2)}
 .panel li+li{margin-top:8px}
+/* the two GitHub links under step 1: their own line, side by side, wrapping cleanly */
+.glinks{display:flex;flex-wrap:wrap;column-gap:20px}
+.glinks[hidden]{display:none}
 .panel code{font:500 13px var(--mono);color:var(--ink);background:var(--tint);padding:1px 5px;border-radius:6px;word-break:break-all}
 .reason{margin:16px 4px 0;padding:12px 14px;border-radius:16px;background:var(--disc);border:1px solid var(--disc-line);font:500 14px/1.45 var(--ui);color:var(--ink)}
 .reason a{color:var(--accent-text)}

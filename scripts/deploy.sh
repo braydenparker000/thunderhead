@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Publishes the staged site (.deploy/site from scripts/stage.mjs) to the storage account's
-# $web container: assets first, then pages, then release.json last, so release.json only
+# $web container: assets first, then pages, then the service worker, then release.json last, so release.json only
 # names this commit once everything is up. Then it waits until the live site reports the
 # commit and removes files that are no longer part of the site.
 # Needs: `az login` done, AZURE_STORAGE_ACCOUNT, SITE_URL. Usage: scripts/deploy.sh <commit-sha>
@@ -26,6 +26,12 @@ while IFS=$'\t' read -r ext type; do
   az_blob upload-batch --destination '$web' --source "$out" --pattern "*.$ext" \
     --overwrite --content-type "$type" --content-cache-control 'no-cache' --output none
 done < .deploy/types.txt
+# The service worker's list and the worker go up again once everything they name is there, so
+# a phone that installs the new worker finds the whole release (it also checks build and sizes).
+az_blob upload --container-name '$web' --name precache.json --file "$out/precache.json" \
+  --overwrite --content-type 'application/json' --content-cache-control 'no-cache' --output none
+az_blob upload --container-name '$web' --name sw.js --file "$out/sw.js" \
+  --overwrite --content-type 'text/javascript; charset=utf-8' --content-cache-control 'no-cache' --output none
 az_blob upload --container-name '$web' --name release.json --file .deploy/release.json \
   --overwrite --content-type 'application/json' --content-cache-control 'no-cache' --output none
 

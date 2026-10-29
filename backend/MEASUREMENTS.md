@@ -139,6 +139,32 @@ types with `satisfies`. The `.d.ts` fallback is not needed.
   switch to `zod/mini` and with every P1 route, `wrangler deploy --dry-run` reports
   **192 KB (48 KB gzipped)** (Finding 4, done).
 
+## 6. Production measurements (X1, X3, X4): the Bench workflow
+
+None of these can be measured locally, and no Claude session holds a Cloudflare credential, so
+they run from GitHub: **Actions → Bench → Run workflow** (branch `main`), one `test` per run. Each
+run deploys the throwaway Worker in `bench/` as `thunderhead-<test>` with a random per-run key
+(`BENCH_KEY`, so nobody else can spend its CPU), calls it, prints numbers only (in the log and the
+run summary), and deletes it. The bench code never ships in `thunderhead-api`.
+
+| Test | What it does | Pass |
+|---|---|---|
+| `x3` | `wrangler tail --format json` in the background; 20 × scrypt (2^15, 8, 3), then 20 × (2^16, 8, 2), each a separate request to one object; per setting: request outcomes, round trip, and from the tail the object's `outcome`, `cpuTime` and `wallTime` p50/p95/p99/max | 20/20 ok, no `exceededCpu`, p99 `cpuTime` ≤ 600 ms for 2^15/8/3 (SECURITY.md §6.3); 2^16/8/2 the same → adopt it (T2) |
+| `x4` | write "before", `getCurrentBookmark()`, write "after", `getBookmarkForTime(1 min ago)`, `onNextSessionRestoreBookmark()` + `abort()`, read back | the value read back is "before" |
+| `x1` | 100 takes: the Worker opens a WebSocket to the object (which hibernates, `acceptWebSocket`) and waits up to 20 s; a poke 1.5 s later wakes the object and answers it; then 3 idle 25 s takes | 100/100 delivered, idle takes end cleanly |
+
+Not covered by the workflow: X1 through the Claude session proxy (its 30 s cut) waits for
+`/v1/live/wait` (P2); X1's billed duration is read in the dashboard (run with `keep`, then
+Workers & Pages → `thunderhead-x1` → Metrics, then run `cleanup`). If the tail shows no events, the
+deploy token may lack tail access; the outcome counts still decide X3, and the dashboard's
+Metrics tab shows CPU time.
+
+Record each result as a line in `docs/process/decisions.md` and in STATUS.
+
+Checked locally (2026-10-29, `wrangler dev`): the routes and the workflow's step scripts run end
+to end (X3 and X1 pass; X4 reports FAIL because local storage cannot restore a bookmark, as §3
+expects).
+
 ## Findings (things that should change a decision or a plan)
 
 1. **The X3 fallback does not fit 10 ms either.** (Since settled in decisions 2026-10-28: the

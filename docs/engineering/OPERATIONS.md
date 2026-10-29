@@ -318,9 +318,9 @@ Acceptance: each watchdog has a vitest case that sets the condition with fixture
 
 | # | Question | How to settle it |
 |---|---|---|
-| X1 | Worker-held WebSocket to a hibernating DO for `/v1/live/wait`: works, unbilled while waiting, and through the session proxy | Preview Worker, 100 takes from a Claude session, check DO duration |
-| X3 | DO CPU limit on Free (10 ms vs 30 s); scrypt cost at the edge | Preview bench route; read `cpuTimeMs` in Workers Logs |
-| X4 | PITR available on Free | Preview: bookmark, write, restore |
+| X1 | Worker-held WebSocket to a hibernating DO for `/v1/live/wait`: works, unbilled while waiting, and through the session proxy | Bench workflow, test `x1` (100 takes from Actions; with `keep`, DO duration in the dashboard); the session-proxy leg needs a `th-chat` session once `/v1/live/wait` exists (P2) |
+| X3 | DO CPU limit on Free (10 ms vs 30 s); scrypt cost at the edge | Bench workflow, test `x3` ([SECURITY.md §6.3](SECURITY.md)) |
+| X4 | PITR available on Free | Bench workflow, test `x4`: bookmark, write, restore, read back |
 | Q1 | Does a step guarded by `cancelled()` get time to finish after `timeout-minutes` cancels the job? | Force a cancel once in a test repo |
 | Q2 | Does `wrangler deployments status --json` give the active version id directly? | Run it in the first `api` deploy; adjust step 4 |
 | Q3 | Does `wrangler secret bulk` from stdin work in Actions without a TTY? | First `rotate-secret.yml` run with a dummy secret |
