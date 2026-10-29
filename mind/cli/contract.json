@@ -739,6 +739,15 @@
       "status": "built",
       "note": "what a mind session did about a trip (the reflex reports each one)"
     },
+    "POST /v1/ops/watchdogs/:name/drill": {
+      "who": [
+        "D",
+        "C"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "trip one watchdog by hand when the owner asks, to check that mind-reflex handles it (nothing is wrong)"
+    },
     "POST /v1/ops/backups/run": {
       "who": [
         "N",

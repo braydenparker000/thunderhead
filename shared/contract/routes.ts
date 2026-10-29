@@ -149,6 +149,11 @@ export const ROUTES = {
     phase: 'P4',
     note: 'what a mind session did about a trip (the reflex reports each one)',
   },
+  'POST /v1/ops/watchdogs/:name/drill': {
+    who: ['D', 'C'],
+    phase: 'P4',
+    note: 'trip one watchdog by hand when the owner asks, to check that mind-reflex handles it (nothing is wrong)',
+  },
   'POST /v1/ops/backups/run': { who: ['N', 'I'], phase: 'P4', deferred: 'P4 stage E (weekly backups)' },
   'POST /v1/ops/drill/run': { who: ['N', 'I'], phase: 'P4', deferred: 'P4 stage E (the restore drill)' },
   'GET /v1/ops/backups': { who: ['D', 'C', 'N', 'R', 'I'], phase: 'P4', deferred: 'P4 stage E (weekly backups)' },

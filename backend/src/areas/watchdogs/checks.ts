@@ -16,6 +16,8 @@ export interface CheckCtx {
   tz: string;
   dbBytes: number;
   nightConfigured: boolean;
+  /** What each watchdog's GATHER entry read before the tick's write (absent when it failed). */
+  gathered?: Partial<Record<WatchdogName, unknown>>;
 }
 
 /** The error checks' memory: totals by check time, and the last check's counts per fingerprint. */
@@ -29,7 +31,13 @@ export interface CheckOut {
   snapshot?: Snapshot;
 }
 
-type Check = (db: Db, c: CheckCtx, prev: Snapshot | null) => CheckOut;
+/** A watchdog's check: reads counts in the tick's write, returns what tripped it (counts and names
+ * only) or null. Pure in `db`, `c` and `prev`. */
+export type Check = (db: Db, c: CheckCtx, prev: Snapshot | null) => CheckOut;
+
+/** Reads a check needs from outside Core's SQL (a bucket listing, say), run before the tick's write;
+ * the value reaches the check as `c.gathered[name]`. A gather that throws leaves it absent. */
+export type Gather = (env: Env, db: Db) => Promise<unknown>;
 
 const SERVER = ['worker', 'do'] as const;
 const CLIENT = ['client', 'csp'] as const;
@@ -95,7 +103,11 @@ const dbSize: Check = (_db, c) => ({
   detail: c.dbBytes > L.db_bytes ? `Core holds ${Math.round(c.dbBytes / 1024 / 1024)} MB` : null,
 });
 
-/** The watchdogs built now; every other registry entry waits (`deferred` or a later phase). */
+/** The watchdog registry's checks (EXTENDING.md "A watchdog"): a watchdog runs once its contract
+ * entry (shared/contract/watchdogs.ts) has no `deferred` and its check is here. An area that brings
+ * a watchdog's data adds its check (and, if it reads outside SQL, its GATHER entry) in its own
+ * module and spreads it in below: the backups' `backup.stale`, `drill.failed` and `drill.overdue`
+ * (P4 stage E), Muse's `muse.silent` (stage G). */
 export const CHECKS: Partial<Record<WatchdogName, Check>> = {
   'errors.spike': errorsSpike,
   'client.errors': clientErrors,
@@ -104,3 +116,6 @@ export const CHECKS: Partial<Record<WatchdogName, Check>> = {
   'jobs.stuck': jobsStuck,
   'db.size': dbSize,
 };
+
+/** The gathers the built checks need (none yet: every check above reads Core's SQL). */
+export const GATHER: Partial<Record<WatchdogName, Gather>> = {};

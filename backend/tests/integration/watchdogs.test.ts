@@ -4,103 +4,34 @@
 // task is connected, one open wake at a time, at most 4 in any 24 hours. These passes run watch()
 // in the object through commit() at the clock each case sets. Then the whole path through the
 // tick: a trip fires the connected task after the commit, the reflex session claims that wake, its
-// briefing names the trip, and its report lands in the ledger. Everything is synthetic.
-import { runInDurableObject } from 'cloudflare:test';
+// briefing names the trip, and its report lands in the ledger. The drill and the routes are in
+// watchdogs-drill.test.ts. Everything is synthetic.
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { BriefResponse } from '../../../shared/contract/api';
-import { WATCHDOG_NAMES, type WatchdogItem, type WatchdogsResponse } from '../../../shared/contract/watchdogs.ts';
-import * as watchdogs from '../../src/areas/watchdogs/ops';
+import type { WatchdogItem, WatchdogsResponse } from '../../../shared/contract/watchdogs.ts';
 import { DAY, HOUR, MINUTE } from '../../src/lib/time';
-import { commit, type Writer } from '../../src/objects/commit';
-import type { Core } from '../../src/objects/core';
-import { api, apiJson, core, coreSql, makeAgent } from '../helpers';
-import { type Principals, principals, SHA } from '../memory-helpers';
+import { apiJson, coreSql } from '../helpers';
+import { SHA } from '../memory-helpers';
+import {
+  BIG,
+  CLEAR,
+  connected,
+  errorsAt,
+  job,
+  notes,
+  resetWatchdogs,
+  setDay,
+  setupWatchdogs,
+  T0,
+  TRIP,
+  watch,
+} from '../watchdog-helpers';
 
-const stub = () => core() as unknown as DurableObjectStub<Core>;
-/** 10:00 UTC on a Tuesday. */
-const T0 = Date.UTC(2026, 9, 20, 10, 0);
-const BIG = 800 * 1024 * 1024;
-let p: Principals;
 let R = '';
-let mark = 0;
-let dayRow: Record<string, unknown> | undefined;
-
-type Ctx = { dbBytes?: number; nightConfigured?: boolean; reflexOn?: boolean };
-/** One watchdog pass at `at` (time zone UTC), as the tick runs it. */
-const watch = (at: number, c: Ctx = {}) =>
-  runInDurableObject(
-    stub(),
-    (o: Core, state) =>
-      commit(
-        state.storage,
-        (o as unknown as { db: Writer['db'] }).db,
-        (w) =>
-          watchdogs.watch(
-            w,
-            { tz: 'UTC', dbBytes: c.dbBytes ?? 1_000, nightConfigured: c.nightConfigured ?? false },
-            c.reflexOn ?? false,
-          ),
-        at,
-      ).value,
-  );
-/** The watchdog's ledger notes since this case began. */
-const notes = async (name: string) =>
-  (
-    await coreSql<{ what: string }>(
-      'SELECT what FROM ledger WHERE ref = ? AND seq > ? ORDER BY seq',
-      `watchdog:${name}`,
-      mark,
-    )
-  ).map((r) => r.what);
-const setDay = (day: string, at: number) =>
-  coreSql(
-    "INSERT OR REPLACE INTO settings (key, value_json, updated_at, actor) VALUES ('day.current', ?, ?, 'worker')",
-    JSON.stringify(day),
-    at,
-  );
-const errorsAt = (source: string, count: number) =>
-  coreSql(
-    `INSERT OR REPLACE INTO errors (fingerprint, source, route, code, message, count, first_at, last_at, last_build, resolved_at)
-     VALUES (?, ?, '/v1/x', 'internal', 'synthetic', ?, ?, ?, NULL, NULL)`,
-    `fp-${source}`,
-    source,
-    count,
-    Date.now(),
-    Date.now(),
-  );
-const job = (id: string, state: string, updated: number, attempts = 0) =>
-  coreSql(
-    `INSERT OR REPLACE INTO jobs (id, kind, state, due_at, payload_json, attempts, created_at, updated_at)
-     VALUES (?, 'import', ?, 0, '{}', ?, 0, ?)`,
-    id,
-    state,
-    attempts,
-    updated,
-  );
-const TRIP = (name: string) => expect.stringMatching(new RegExp(`^watchdog ${name.replace('.', '\\.')} tripped: `));
-const CLEAR = (name: string) =>
-  expect.stringMatching(new RegExp(`^watchdog ${name.replace('.', '\\.')} cleared after \\d+ min$`));
-
 beforeAll(async () => {
-  p = await principals();
-  R = await makeAgent(p.D, 'mind:reflex');
-  [dayRow] = await coreSql("SELECT * FROM settings WHERE key = 'day.current'");
+  R = (await setupWatchdogs()).R;
 });
-
-beforeEach(async () => {
-  for (const q of ['DELETE FROM watchdogs', "DELETE FROM wakes WHERE task = 'reflex'", 'DELETE FROM errors'])
-    await coreSql(q);
-  await coreSql("DELETE FROM jobs WHERE id LIKE 'job-wd-%'");
-  if (dayRow)
-    await coreSql(
-      'INSERT OR REPLACE INTO settings (key, value_json, updated_at, actor) VALUES (?, ?, ?, ?)',
-      dayRow.key,
-      dayRow.value_json,
-      dayRow.updated_at,
-      dayRow.actor,
-    );
-  [{ s: mark }] = await coreSql<{ s: number }>('SELECT coalesce(max(seq), 0) AS s FROM ledger');
-});
+beforeEach(resetWatchdogs);
 
 describe('each built watchdog: one note per trip, none while it holds, one when it clears', () => {
   it('errors.spike: 20 new server errors in 60 min, or 5 of one fingerprint since the last check', async () => {
@@ -231,17 +162,7 @@ describe('mind-reflex', () => {
       calls.push({ url, body: init.body });
       return Response.json({ claude_code_session_id: 'session_reflexwd' });
     }) as unknown as typeof fetch;
-    const tick = (at: number) =>
-      runInDurableObject(stub(), async (o: Core) => {
-        const self = o as unknown as { env: Env };
-        const before = self.env;
-        self.env = { ...before, ROUTINE_REFLEX_URL: 'https://api.example.test/reflex', ROUTINE_REFLEX_TOKEN: 'tok' };
-        try {
-          return await o.tick(at, fake);
-        } finally {
-          self.env = before;
-        }
-      });
+    const tick = (at: number) => connected((o) => o.tick(at, fake));
     const now = Date.now();
     await errorsAt('worker', 1);
     expect((await tick(now - 15 * MINUTE)).reflex).toBeNull();
@@ -288,40 +209,5 @@ describe('mind-reflex', () => {
       body: { claim: false, session_id: session, role: 'reflex', constitution_sha256: SHA, th_version: '0.1.0' },
     });
     expect(again.body.core).toMatch(/^watchdogs tripped: errors\.spike since \d\d:\d\d \(reported\) · th reflex$/m);
-  });
-});
-
-describe('the routes', () => {
-  it('every registry entry for D C N R I, never Muse or the sandbox; a report needs a trip and the report route', async () => {
-    const M = await makeAgent(p.D, 'muse');
-    const I = await makeAgent(p.D, 'ci', 'ci-wd');
-    for (const t of [p.D, p.C, p.N, R, I])
-      expect((await api('GET', '/v1/ops/watchdogs', { token: t })).status).toBe(200);
-    expect((await api('GET', '/v1/ops/watchdogs', { token: M })).status).toBe(403);
-    expect((await api('GET', '/v1/ops/watchdogs', { token: p.C, headers: { 'TH-Sandbox': 'eval' } })).status).toBe(422);
-    const items = (await apiJson<WatchdogsResponse>('GET', '/v1/ops/watchdogs', { token: p.D })).body.items;
-    expect(items.map((i) => i.name)).toEqual(WATCHDOG_NAMES);
-    expect(items.filter((i) => i.state === 'ok').map((i) => i.name)).toEqual([
-      'errors.spike',
-      'client.errors',
-      'roll.stuck',
-      'night.late',
-      'jobs.stuck',
-      'db.size',
-    ]);
-    expect(items.find((i) => i.name === 'backup.stale')).toMatchObject({
-      state: 'later',
-      waits: 'the weekly backups (P4 stage E)',
-    });
-    expect(items.find((i) => i.name === 'events.export.late')).toMatchObject({ state: 'later', waits: 'phase P5' });
-    const body = { outcome: 'nothing', note: 'Nothing changed; it cleared.' };
-    const report = (token: string, name: string, b: object = body) =>
-      api('POST', `/v1/ops/watchdogs/${name}/handled`, { token, body: b });
-    expect((await report(R, 'db.size')).status).toBe(409);
-    expect((await report(R, 'nope')).status).toBe(404);
-    await watch(Date.now(), { dbBytes: BIG });
-    expect((await report(R, 'db.size', { outcome: 'nothing', note: 'short' })).status).toBe(422);
-    expect((await report(p.D, 'db.size')).status).toBe(403);
-    expect((await report(R, 'db.size')).status).toBe(200);
   });
 });

@@ -299,6 +299,10 @@ Up to P3, a tripped watchdog writes a ledger note and a briefing line. From P4 i
 
 Acceptance: each watchdog has a vitest case that sets the condition with fixtures and a fake clock and asserts exactly one ledger note per trip (no repeat until it clears and trips again).
 
+**Built in P4 stage D** (the registry is `shared/contract/watchdogs.ts`; [CONTRACT.md](CONTRACT.md#watchdogs) lists each with what it waits for): `errors.spike`, `client.errors`, `roll.stuck`, `night.late` (once the night shift is connected), `jobs.stuck` and `db.size`. The `quota.*` three wait for a stored per-day meter (today the counts live in each isolate), `backup.stale` and the two drill watchdogs for the backups (stage E), `muse.silent` for Muse on work orders (stage G), and `events.export.late` for P5. `GET /v1/ops/watchdogs` shows each one's state (`ok`, `tripped`, `later`), the SLO it guards and, while tripped, since when, what the check saw (counts and names only) and the reflex's report. A trip writes one ledger note and puts one line in every mind briefing (section 1, and Health); a watchdog whose state and counts didn't change writes nothing on a tick.
+
+**mind-reflex** (RUNTIME.md §3; SETUP.md M2 connects it): a trip of a watchdog that wakes it fires the task after the tick's commit, at most one open wake and 4 wakes in any 24 hours. The session runs `th reflex`, which prints the procedure and each tripped watchdog's handling: look first, the one change it may make is a revert of the commit behind an errors spike, everything else is reported, never fixed. It reports each trip with `th handled <name> --outcome fixed|reported|nothing --note …` (a ledger note), and the Stop hook keeps it going until each one has its report. **A drill** checks that path on the live Worker: when the owner asks, the chat session runs `th drill <name>` (or the owner's device calls `POST /v1/ops/watchdogs/:name/drill`); the watchdog trips with the detail "a drill: tripped by hand, nothing is wrong", wakes the reflex the same way, and holds until the reflex has reported it, or for an hour.
+
 ---
 
 ## 9. Routine checks

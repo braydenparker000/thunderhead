@@ -40,6 +40,7 @@ export const USAGE = {
   read: ['--kinds | --check <kind> [--json <answer> | --file <path>] (else stdin)', 'check the reader subagent\'s answer and work only from what this prints (it taints the session)'],
   reflex: ['', 'what to do now: the reflex procedure and each tripped watchdog with its handling (P4)'],
   handled: ['<watchdog> --outcome fixed|reported|nothing --note <text>', 'report what you did about a tripped watchdog (the reflex reports each one)'],
+  drill: ['<watchdog>', 'only when the owner asks for a watchdog drill: trip it by hand so mind-reflex handles it (db.size is a good one)'],
   decide: ['<proposal id> --by-message <message id> [--spec-hash <h>] [--reject]', 'record the owner\'s words as the decision (P4)'],
   order: ['new … | list | get <id> | cancel <id> --why <t>', 'work orders for Muse (P4)'],
   push: ['--title --body --ref --why --topic [--deadline]', 'a push (P8)'],

@@ -200,3 +200,11 @@ export interface WatchdogHandledRequest {
   outcome: 'fixed' | 'reported' | 'nothing';
   note: string;
 }
+
+/** POST /v1/ops/watchdogs/:name/drill: the drilled watchdog and whether mind-reflex was woken
+ * (`not_connected`: SETUP.md M2 isn't done; `limited`: a reflex wake is open, or 4 in 24 hours). */
+export interface WatchdogDrillResponse {
+  item: WatchdogItem;
+  wake_id: string | null;
+  fired: 'fired' | 'failed' | 'limited' | 'not_connected';
+}

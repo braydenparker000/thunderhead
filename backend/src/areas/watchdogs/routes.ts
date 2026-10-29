@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import {
   WATCHDOG_NAMES,
+  type WatchdogDrillResponse,
   type WatchdogHandledRequest,
   type WatchdogItem,
   type WatchdogName,
@@ -39,4 +40,10 @@ export const watchdogsRoutes = new Hono<AppEnv>()
     const name = nameOf(c.req.param('name'));
     const body = await json(c, handledBody);
     return c.json(value(await fresh(coreObject(c.env).watchdogHandled(callerOf(c), name, body))) as WatchdogItem);
+  })
+  .post('/ops/watchdogs/:name/drill', guard('POST /v1/ops/watchdogs/:name/drill'), async (c) => {
+    if (inSandbox()) throw new ApiError('validation', [{ path: 'TH-Sandbox', issue: 'the sandbox has no watchdogs' }]);
+    const name = nameOf(c.req.param('name'));
+    const out = value(await fresh(coreObject(c.env).watchdogDrill(callerOf(c), name)));
+    return c.json(out satisfies WatchdogDrillResponse);
   });

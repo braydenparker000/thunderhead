@@ -2,7 +2,8 @@
 // and every tripped watchdog with what to do about it: the procedure and each watchdog's `handle`
 // come from the contract (shared/contract/watchdogs.ts), so mind/ROLES.md stays under 6,000
 // characters. `th handled` reports what the session did about one trip; the Stop hook keeps a
-// reflex session going until each tripped watchdog that wakes it has its report.
+// reflex session going until each tripped watchdog that wakes it has its report. `th drill` trips
+// one by hand when the owner asks (SETUP.md M2), to check that the reflex handles it.
 import {parseArgs} from './args.mjs';
 import {invalid, need, out} from './io.mjs';
 import {CONTRACT} from './contract.mjs';
@@ -40,5 +41,13 @@ export async function handled(argv) {
   if (!OUTCOMES.includes(outcome)) throw invalid(`--outcome must be one of ${OUTCOMES.join(', ')}`);
   if (note.length < 8 || note.length > 200) throw invalid('--note must be 8-200 characters');
   const {data} = await request('POST', `/v1/ops/watchdogs/${encodeURIComponent(name)}/handled`, {body: {outcome, note}});
+  out(data);
+}
+
+export async function drill(argv) {
+  const {rest} = parseArgs(argv);
+  const name = rest[0];
+  if (!name || !(name in W().items)) throw invalid(`usage: th drill <watchdog>; watchdogs: ${Object.keys(W().items).join(', ')}`);
+  const {data} = await request('POST', `/v1/ops/watchdogs/${encodeURIComponent(name)}/drill`, {body: {}});
   out(data);
 }

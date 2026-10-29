@@ -13,7 +13,7 @@ import {
 } from '../../../../shared/contract/watchdogs.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail } from '../../lib/result';
-import { DAY } from '../../lib/time';
+import { DAY, HOUR } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
@@ -23,8 +23,9 @@ import { CHECKS, type CheckCtx, type Snapshot } from './checks';
 import * as store from './store';
 
 const REFLEX_OPEN_MS = 30 * 60_000;
+const DRILL_DETAIL = 'a drill: tripped by hand, nothing is wrong';
 
-const built = (name: WatchdogName) => {
+export const built = (name: WatchdogName) => {
   const s = WATCHDOGS[name];
   return BUILT_PHASES.includes(s.phase) && !('deferred' in s) && CHECKS[name] !== undefined;
 };
@@ -39,6 +40,9 @@ export function watch(w: Writer, ctx: Omit<CheckCtx, 'at'>, reflexOn: boolean): 
     const snap = prev?.snapshot_json ? (JSON.parse(prev.snapshot_json) as Snapshot) : null;
     const out = (CHECKS[name] as NonNullable<(typeof CHECKS)[WatchdogName]>)(w.db, { ...ctx, at }, snap);
     const was = prev?.state === 'tripped';
+    // A drill holds until the reflex has reported it (or for an hour), whatever the check says.
+    const drillHolds = was && prev?.detail === DRILL_DETAIL && !prev.handled_at && at - (prev.since ?? at) < HOUR;
+    if (drillHolds) continue;
     const base = {
       name,
       trips: prev?.trips ?? 0,
@@ -99,14 +103,59 @@ export function watch(w: Writer, ctx: Omit<CheckCtx, 'at'>, reflexOn: boolean): 
       });
     }
   }
-  if (!woke.length || !reflexOn) return null;
+  return woke.length && reflexOn ? wakeReflex(w, woke[0]) : null;
+}
+
+/** A reflex wake for this trip, unless one is open or 4 woke it in the last 24 hours. */
+function wakeReflex(w: Writer, name: WatchdogName): ToFire | null {
   // A reflex wake nobody claimed in 30 minutes has failed (there are no retries): it doesn't block the next.
-  for (const o of openWakes(w.db, 'reflex')) if (at - o.at >= REFLEX_OPEN_MS) setWakeStatus(w.db, o.id, 'failed');
-  const wakes = reflexWakes(w.db, at - DAY);
+  for (const o of openWakes(w.db, 'reflex')) if (w.at - o.at >= REFLEX_OPEN_MS) setWakeStatus(w.db, o.id, 'failed');
+  const wakes = reflexWakes(w.db, w.at - DAY);
   if (wakes.open > 0 || wakes.n >= WATCHDOG_LIMITS.reflex_wakes_per_day) return null;
-  const id = uuidv7(at);
-  insertWake(w.db, { id, at, task: 'reflex', reason: `watchdog:${woke[0]}` });
+  const id = uuidv7(w.at);
+  insertWake(w.db, { id, at: w.at, task: 'reflex', reason: `watchdog:${name}` });
   return { id, task: 'reflex' };
+}
+
+/** POST /v1/ops/watchdogs/:name/drill: trips one built watchdog that wakes the reflex, by hand (the
+ * owner asked: a check that mind-reflex handles a trip end to end). Its check doesn't clear it until
+ * the reflex has reported it, or for an hour. */
+export function drill(
+  w: Writer,
+  c: Caller,
+  name: WatchdogName,
+  reflexOn: boolean,
+): { item: WatchdogItem; wake: ToFire | null } {
+  if (!built(name) || !WATCHDOGS[name].wakes)
+    throw new Fail('validation', [
+      { path: 'name', issue: 'only a built watchdog that wakes the reflex can be drilled' },
+    ]);
+  const prev = store.byName(w.db, name);
+  if (prev?.state === 'tripped')
+    throw new Fail('conflict', [{ path: 'name', issue: 'this watchdog is tripped already' }]);
+  store.put(w.db, {
+    name,
+    state: 'tripped',
+    since: w.at,
+    detail: DRILL_DETAIL,
+    trips: (prev?.trips ?? 0) + 1,
+    checked_at: w.at,
+    snapshot_json: prev?.snapshot_json ?? null,
+    handled_at: null,
+    handled_outcome: null,
+    handled_note: null,
+  });
+  w.ledger({
+    kind: 'note',
+    actor: c.actor,
+    session_id: c.session_id,
+    what: `watchdog ${name} tripped: ${DRILL_DETAIL}`,
+    why: 'a drill: does mind-reflex handle a trip end to end (OPERATIONS.md §8.2)',
+    ref: `watchdog:${name}`,
+    undoable: false,
+  });
+  const wake = reflexOn ? wakeReflex(w, name) : null;
+  return { item: list(w.db).find((x) => x.name === name) as WatchdogItem, wake };
 }
 
 /** Every watchdog of the registry with its state (`later` for one not built yet). */
