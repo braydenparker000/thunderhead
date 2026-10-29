@@ -5,27 +5,29 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**P0 · Site live** — done 2026-10-28. Next: P1.
+**P1 · Worker + sign-in**: live and set up 2026-10-29. The owner's setup (SETUP.md A–I) is complete; engineering leftovers below.
 
 ## Next three tasks
 
-1. **P1 site pages built** on branch `p1-site` (not merged yet): `/signin/`, `/setup/`, `/recover/` (recovery code and reset ticket), Settings → Devices ("Sign-in & devices": list, rename, sign out one/others/everywhere, new recovery code), Agents (new key shown once, revoke) and Account (change password, sign out; `/settings/password/` and `/.well-known/change-password/`), security notices on Home, the sign-out wipe. The shell turns sign-in on only when the repository variable `WORKER_URL` is set (stage.mjs writes it into `config.js` and the CSP), so merging it before the Worker is live changes nothing visible. Left for P1: the service worker, `ui/icons.svg`, Web Push, measuring sign-in p95 on the phone, and T7/T9/T11/T17/T19 on the real site.
-2. Owner: SETUP.md G (Worker; `WORKER_URL` is now a **repository** variable), then the first `api` deploy, then H (first sign-in on the phone) and I (agent keys). Then run X1, X3 and X4 in production.
+1. Finish P1: the service worker and precache, `ui/icons.svg`, Web Push, sign-in p95 on the phone, T7/T9/T11/T17/T19 on the real site, and X1, X3 and X4 in production. Owner checks on the phone: sign-out everywhere, the device list shows "this device".
+2. **P1b · Apps ported as they are**: Music, Guitar, Podcasts, Astra and My Media copied unchanged apart from paths, route folders and the API address; they keep calling the old Worker, whose allowed-origins change is asked first.
 3. The `mind-spike` work (`mind/`: the `th` CLI and hooks) is P2 and waits on the P2 routes.
-
-After P1 comes **P1b · Apps ported as they are**: Music, Guitar, Podcasts, Astra and My Media copied unchanged apart from paths, route folders and the API address; they keep calling the old Worker, whose allowed-origins change is asked first.
 
 ## Blocked / waiting on the owner
 
-- Setup steps G–I in [SETUP.md](SETUP.md). A–F done 2026-10-28.
-- Owner questions: all answered 2026-10-28 (yes to all 14 recommendations; gesture navigation; permission for everything in the old repo). See decisions.md.
+- Nothing for P1. P1b needs the owner's yes to the old Worker's allowed-origins change (SETUP.md J).
 
 ## Last deploy
 
-- 2026-10-28 14:00 UTC: site `7ca3c35` live at https://thunderhead.z13.web.core.windows.net/ (Deploy run #3, green: tests, Azure sign-in, publish, live check).
-- 2026-10-28 14:02 UTC: rollback drill (run #4) failed on purpose, rolled back to `7ca3c35` and confirmed it live. Runs #1–#2 skipped before `AZURE_DEPLOY_ENABLED` was set.
+- 2026-10-29 01:53 UTC: Worker `5c0f33e53fb7` (Deploy run #14, target api): settings check, tests, deploy, smoke check with `TH_CI_TOKEN` (deep health ok) and the 4 live API tests.
+- 2026-10-28 15:12 UTC: site `5c0f33e` with sign-in on (run #13, target site; `config.js` carries the API address).
+- 2026-10-28 14:57 UTC: first Worker deploy (run #11, bootstrap; `WORKER_BOOTSTRAP` deleted afterwards). Runs #6–#10 stopped before deploying: settings typed with placeholders or in the wrong place; #9 was held by GitHub because the check read `toJSON(secrets)`.
+- 2026-10-28 14:00 UTC: first site deploy `7ca3c35` (run #3); rollback drill (run #4) rolled back automatically.
+- 2026-10-29: the mind key (`mind-chat`, role Mind · chat) reaches `/v1/ops/health/deep` from a `th-chat` session (HTTP 200).
 
 ## Notes for the next session
+
+- Setup instructions for the owner: ready-to-paste values only, one exact place per step (page, tab, secret or variable, repository or environment), a screenshot first for screens the agent cannot see, and verify each step before the next.
 
 - Hosting is the Azure Storage static website (owner ruling); Static Web Apps is ruled out.
 - Existing apps are ported as they are (owner ruling); any change to them later is an evolution the owner agrees to first. Songsterr and libmedia stay (owner rulings).
