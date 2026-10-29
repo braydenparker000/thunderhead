@@ -142,11 +142,13 @@ export function night(w: Writer, c: Caller, r: MindNightRequest, today: string):
     if (step > resume) throw new Fail('conflict', { resume_from: resume });
   }
   // `done` is the last step's own end (so is that step reported done); with `partial`, the hard
-  // stop cut the steps between, and they are recorded as skipped.
+  // stop cut the steps between, and they are recorded as skipped (those not due tonight anyway
+  // with their own reason).
   if (r.action === 'done' || (r.action === 'step_done' && step === NIGHT_LAST_STEP && step === resume)) {
     if (resume < NIGHT_LAST_STEP && !r.partial) throw new Fail('conflict', { resume_from: resume });
     for (const s of NIGHT_STEPS)
-      if (s.step >= resume && s.step < NIGHT_LAST_STEP) steps[s.step] = { at, skipped: 'hard_stop' };
+      if (s.step >= resume && s.step < NIGHT_LAST_STEP)
+        steps[s.step] = { at, skipped: notDue(s, r.day) ?? 'hard_stop' };
     steps[NIGHT_LAST_STEP] = { at, session: c.session_id, done: true };
     row.done_at = at;
     resume = NIGHT_LAST_STEP + 1;

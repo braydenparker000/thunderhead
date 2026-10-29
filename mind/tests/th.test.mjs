@@ -98,6 +98,27 @@ test('th against the real Worker', {timeout: 300_000, skip: available() ? false 
     assert.equal((await th(['wait', '--minutes', '0.05'], chat)).code, 3, 'nothing more: timeout');
   });
 
+  await t.test("night (P3): the briefing names yesterday; the run takes steps in order (7 out of order); th day reads it", async () => {
+    const night = {...base, TMPDIR: freshTmp(), TH_ROLE: 'night', TH_TOKEN: keys['mind:night'], CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_e2e_nightrun'};
+    const b = await th(['brief', '--claim', '--json'], night);
+    ok(b, 'brief');
+    const today = (await th(['get', '/v1/threads/today'], chat)).json.day;
+    assert.ok(b.json.day < today, 'the night works on the day before the open one');
+    assert.equal(b.json.night_done, false);
+    assert.deepEqual((await th(['night', 'start'], night)).json, {resume_from: 1, done: false, cursor: null, skipped: []});
+    const ahead = await th(['night', 'step', '4', 'cursor', 'msg:x'], night);
+    assert.equal(ahead.code, 7);
+    assert.equal(JSON.parse(ahead.stderr).error.details.resume_from, 1);
+    const d = await th(['day', b.json.day], night);
+    ok(d, 'day');
+    assert.equal(d.json.stats.day, b.json.day);
+    assert.deepEqual(d.json.next, {messages: null, ledger: null, notes: null});
+    for (const n of ['1', '2', '3']) ok(await th(['night', 'step', n, 'done'], night), `step ${n}`);
+    assert.equal((await th(['night', 'step', '4', 'cursor', 'msg:x'], night)).json.cursor, 'msg:x');
+    assert.equal((await th(['night', 'done', '--partial'], night)).json.done, true);
+    assert.equal((await th(['day', b.json.day], chat)).code, 6, 'the night input is the night key\'s');
+  });
+
   await t.test('roles, tokens and reachability: 6, 2 and 9', async () => {
     const night = {...base, TMPDIR: freshTmp(), TH_ROLE: 'night', TH_TOKEN: keys['mind:night'], CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_e2e_night'};
     assert.equal((await th(['say', 'today', 'Hello there.'], night)).code, 6, 'night posts only errors');

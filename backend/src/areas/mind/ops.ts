@@ -19,7 +19,7 @@ import { currentDay } from '../conversation/day';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
 import * as verbs from '../verbs/store';
-import { endNight, nightDayOf, nightDone } from './night';
+import { nightDayOf, nightDone } from './night';
 import * as sessionNotes from './notes';
 import * as stop from './stop';
 import * as store from './store';
@@ -103,9 +103,11 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
     );
     if (waiting.length) store.sessionSeenOwner(db, r.session_id, waiting.at(-1)?.created_at ?? at);
   }
-  // A night with nothing left to do (the 06:07 fallback after the roll's run) ends at once; its
-  // briefing says so (`night_done`).
-  if (r.role === 'night' && nightDone(db, nightDayOf(day))) endNight(db, r.session_id, at);
+  // A night with nothing left to do (the 06:07 fallback after the roll's run): its wake ends at
+  // once and its briefing says so (`night_done`). The session stays open for `th night start`,
+  // which answers done and ends it, or for a missed day's run (`th night start --day <day>`).
+  if (r.role === 'night' && nightDone(db, nightDayOf(day)))
+    store.setWakeStatus(db, wake.id, 'ended', { ended_at: at, end_reason: 'night_done' });
   // The presence light, the usage backoff and the Stop are the chat session's.
   if (r.role === 'chat') {
     clearBackoff(db, at);

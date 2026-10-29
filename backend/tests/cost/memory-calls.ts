@@ -1,7 +1,8 @@
 // The P3 memory calls of the cost suite (cost.test.ts runs them and checks every budget): on a
 // Core that already holds the P2 rows, plus a handful of facts, one loose end and one day note,
-// so each figure is a call's own cost, not a table scan.
-import type { Message, NewAgentResponse, SignedIn } from '../../../shared/contract/api';
+// so each figure is a call's own cost, not a table scan. Then the night shift's run record and a
+// closed day's input (stage C).
+import type { BriefResponse, Message, NewAgentResponse, SignedIn } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
 import { api, apiJson, core, PASSWORD } from '../helpers';
 
@@ -34,7 +35,8 @@ export async function memoryCalls(cost: Cost, grant: (ip: string, password?: str
     constitution_sha256: 'none',
     th_version: '0.1.0',
   };
-  await api('POST', '/v1/mind/brief', { ...n, body: claim });
+  // The night briefing names the closed day the night works on.
+  const nightDay = (await apiJson<BriefResponse>('POST', '/v1/mind/brief', { ...n, body: claim })).body.day;
   const said = (await apiJson<Message>('PUT', `/v1/messages/${uuidv7()}`, { ...d, body: { body: 'I like tea.' } }))
     .body;
   const k = core();
@@ -71,4 +73,21 @@ export async function memoryCalls(cost: Cost, grant: (ip: string, password?: str
   );
   await cost('GET /v1/memory/day-notes (Core)', () => api('GET', '/v1/memory/day-notes', d), 200, k);
   await cost('GET /v1/search (messages, facts, day notes) (Core)', () => api('GET', '/v1/search?q=tea', d), 200, k);
+
+  const step = (body: object) => api('POST', '/v1/mind/night', { ...n, body: { day: nightDay, ...body } });
+  await cost('POST /v1/mind/night (start) (Core)', () => step({ action: 'start' }), 200, k);
+  await cost('POST /v1/mind/night (step done) (Core)', () => step({ action: 'step_done', step: 1 }), 200, k);
+  await cost(
+    'POST /v1/mind/night (step again, nothing new) (Core)',
+    () => step({ action: 'step_done', step: 1 }),
+    200,
+    k,
+  );
+  for (const part of ['stats', 'messages', 'ledger', 'notes'])
+    await cost(
+      `GET /v1/mind/day/:day (${part}) (Core)`,
+      () => api('GET', `/v1/mind/day/${nightDay}?part=${part}`, n),
+      200,
+      k,
+    );
 }

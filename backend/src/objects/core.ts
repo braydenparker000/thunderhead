@@ -172,7 +172,10 @@ export class Core extends CoreNight {
   /** The 15-minute cron: the day roll after 60 quiet minutes (which fires the night shift for the
    * day it closed, once the mind-night task is connected), expiring verbs, and once a logical day
    * the prune pass (DATA.md §10, JOBS.md §4.4). The fire runs after the roll's commit. */
-  async tick(now = Date.now()): Promise<{ rolled: string | null; pruned: number; night: string | null }> {
+  async tick(
+    now = Date.now(),
+    fetchImpl: typeof fetch = fetch,
+  ): Promise<{ rolled: string | null; pruned: number; night: string | null }> {
     const tz = this.tz();
     const d = day.currentDay(this.db, tz, now);
     const due = day.rollDue(d, now, tz, cstore.lastMessageAt(this.db));
@@ -185,7 +188,7 @@ export class Core extends CoreNight {
     this.write((w) => verbs.settle(w), now);
     const pruned = this.pruneDaily(now, day.logicalDay(now, tz));
     const cfg = wakeNight ? fireConfig(this.env, 'night') : null;
-    if (wakeNight && cfg) this.recordFire(wakeNight.id, await fire(cfg));
+    if (wakeNight && cfg) this.recordFire(wakeNight.id, await fire(cfg, fetchImpl));
     return { rolled: due, pruned, night: wakeNight?.id ?? null };
   }
 

@@ -80,7 +80,7 @@ A test checks the three headings and the size.
 | Owner's first keystroke in the ask bar | `mind-chat` | `prewarm` | No live chat lease; no fire in the last 90 s; pre-warms today < 8; chat fires this hour < 20; mind not in usage backoff (§11) |
 | Owner sends a message | `mind-chat` | `message` | No live chat lease; no unclaimed fire younger than 90 s; chat fires this hour < 20; not in usage backoff |
 | Message requeued after a session vanished | `mind-chat` | `requeue` | As above; at most 3 refires in a row without an answer, then only the owner's next message fires **[from the current system]** |
-| Day roll (04:00 local after 60 quiet minutes) | `mind-night` | `roll` | Night not yet done for that day |
+| Day roll (04:00 local after 60 quiet minutes) | `mind-night` | `roll` | The task is connected (`ROUTINE_NIGHT_URL`/`TOKEN` set, SETUP.md L1); the night of the day before the new open day not yet done; no night wake still open from the last 12 hours (an older unclaimed one is marked `failed`). Fired once, after the roll's commit; no retry (the 06:07 schedule is the fallback) |
 | Schedule 06:07 local | `mind-night` | `schedule` | Always fires; the session exits at once if night is done (§12) |
 | Watchdog trips (P4) | `mind-reflex` | `watchdog:<name>` | Reflex wakes today < 4 |
 | Owner opens a task by hand at claude.ai | any | `manual` | None (the Worker allows a manual claim; it is logged) |
@@ -227,9 +227,9 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th forget` | `<fact id> --why <text>` | `{"proposal_id"}` | C | Owner-only hard delete, so the mind can only propose it (`delete` class). |
 | `th thread` | `add <text> [--owner mind\|owner] [--due <date>] --evidence <ids>` · `done <id>` · `drop <id> --why <t>` · `list` | `{"id"}` / `{"items"}` | C N | Open threads (commitments), not conversations. |
 | `th note` | `--session <text\|-> [--open <json>]` | `{"id"}` | C N R | Session note ≤ 120 words. |
-| `th day` | `<YYYY-MM-DD>` | `{"stats","messages","ledger","session_notes","events_summary"}` | N | Night input. |
+| `th day` | `<YYYY-MM-DD> [--part messages\|ledger\|notes [--cursor <c>]]` | `{"stats","messages","ledger","session_notes","next","events_summary"}`; with `--part`, `{"items","next"}` | N | Night input (§12 step 1): the counts, then each part page by page (≤ 200 rows a page, 10 pages a part; a part with more says where to go on in `next`). Each row as the night reads it: its id, who, what it says, when. `events_summary` is null until the senses (P5). |
 | `th daynote` | `<YYYY-MM-DD> --summary <t> --decisions <json> --importance <1-10>` | `{"version"}`, plus `"kept_owner_edit": true` when the owner had edited that day (their note stands; nothing was written) | N | |
-| `th facts` | `--batch <file.json>` | `{"applied":n,"proposed":n,"rejected":[…]}` | N | One batch: valid ops apply together, rejected ones are listed (§12 step 4). |
+| `th facts` | `--batch <file.json> [--night [--part <k>]]` | `{"applied":n,"proposed":n,"rejected":[…]}`, or `{"applied":0,…,"already":true}` | N | One batch: valid ops apply together, rejected ones are listed (§12 step 4). With `--night` the batch id is the night's own for the briefing day and part `k` (1 by default), so a refired session sending a part again is refused as sent (`already`). |
 | `th surface` | `<app> <slot> --kind <k> --payload <json> --why <t> --topic <key> [--expires <iso>]` · `ls` · `rm <app> <slot>` | `{"ledger_id"}` · `{"items","seq"}` · `{"ok":true}` | C N | Kind, slot and payload are checked against the contract first. Home lines use app `home`, slot `line.<1-4>`. Exit 7 `nudge_repeat` if the owner dismissed the topic in the last 14 days. |
 | `th push` | `--title <t> --body <b> --ref <ref> --why <t> --topic <key> [--deadline <iso>]` | `{"queued_until"}` | C | The Worker holds it until a natural pause or drops it at the deadline ([BEHAVIOR.md §3.4](BEHAVIOR.md#34-rung-3-push)). |
 | `th propose` | `--class delete\|money\|access\|reach_people\|memory_big --question <q> --why <t> --spec <json> --if-ignored <t> [--odds <0-1>] [--options "<action>\|<safe>"]` (default "Do it\|Not now", each ≤ 20 characters) | `{"proposal_id","spec_hash"}` | C N R | Shows a decision card. |
@@ -243,7 +243,7 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th ci` | `<sha> [--card <message id>] [--workflow ci\|deploy]` | `{"state":"passed\|failed","url"}` | C N | Polls the public GitHub API for check runs on that SHA every 20 s (≤ 45 polls per hour, under the 60/h unauthenticated limit) and keeps the card current. Exit 0 passed, 1 failed. **[proposal; unverified: api.github.com reachable from the environment]** |
 | `th health` | `[--deep]` | Worker health JSON | C N R | `--deep` needs the role's ops scope. |
 | `th errors` | `[--hours 24]` | `{"items":[…]}` | C N R | The Core errors table (`since` on the Worker). |
-| `th night` | `start` · `step <n> done` · `done [--partial]` | `{"resume_from":n,"done":bool}` | N | Idempotent night progress (§12). |
+| `th night` | `start` · `step <n> done` · `step <n> cursor <c>` · `done [--partial]` · `steps` (`--day <day>`: another closed day of the last week) | `{"resume_from":n,"done":bool,"cursor","skipped":[n]}`; `steps`: the registry | N | Idempotent night progress (§12). A step out of order exits 7 with `resume_from` in the error's details. |
 | `th approved` | — | — | — | Dropped: protected paths are always denied in mind sessions until P4 brings `access` proposals (§6.4). |
 
 **Acceptance:** `mind/tests/th.test.mjs` runs th against the real Worker under `wrangler dev --local` with a dev key per role and produces exit codes 0, 2, 3, 4, 6, 7, 8, 9 and 11; the fake-Worker suites produce 1, 5 and 10 and cover the commands of later phases.
@@ -439,7 +439,13 @@ Behaviour:
 
 ## 12. The night shift
 
-Fired by the day roll (`roll`) or by the 06:07 schedule (`schedule`). Progress lives in `night_runs` (`day` PK, `started_at`, `step`, `steps_json`, `done_at`, `session_id`), so a rerun resumes and never repeats a finished step.
+Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its claim shows as `manual`, since the Worker cannot tell it from a run started by hand). Its day is the one before the open day: the briefing's `day`, which `th night` and `th facts --night` use. Progress lives in `night_runs` (`day` PK, `started_at`, `step`, `steps_json`, `done_at`, `session_id`; DATA.md §4.1), through `POST /v1/mind/night` (API.md §11.8), so a rerun resumes and never repeats a finished step:
+
+- **The steps are data:** `shared/contract/night.ts` lists each step's number, name, budget, phase, whether it keeps a cursor and why running it twice is harmless; `th night steps` prints it, CONTRACT.md has it as a table, and a test keeps `mind/ROLES.md` (night) in step with it. A number never changes meaning; a new step takes a free number (EXTENDING.md).
+- **In order:** a step reported before the run reaches it is `409 conflict` with `resume_from`; one reported again changes nothing. Steps of a phase not built yet are skipped on the way (`later`), and step 9 on any night but the one into Sunday (`not_sunday`).
+- **A cursor:** a step that works in parts (step 4) saves where it got to (`th night step 4 cursor <c>`, ≤ 200 characters, opaque to the Worker); a refired session gets it back with `resume_from`.
+- **Done:** `th night done` (after step 10's note) marks the run done and ends the session and its wake (`night_done`). With `--partial` (the hard stop) the steps left are recorded as skipped (`hard_stop`). A claim after that (the 06:07 fallback) gets `night_done: true`, its wake ends at once, and its `th night start` answers done and ends the session.
+- **Backfill:** any closed day of the last 7 can be worked on with `--day`; nothing fires for a missed day.
 
 | Step | Work | Budget | Output |
 |---|---|---|---|
@@ -447,7 +453,7 @@ Fired by the day roll (`roll`) or by the 06:07 schedule (`schedule`). Progress l
 | 1 | `th day <yesterday>`: deterministic stats, messages, ledger, session notes | 1 min | — |
 | 2 | Day note (≤ 150 words, decisions, importance 1–10); final titles and summaries for filed threads (unless `title_source=owner`) | 5 min | `day_notes`, `threads` |
 | 3 | Open threads: close finished ones, add commitments found in messages (evidence = message ids) | 3 min | `open_threads` |
-| 4 | Facts: candidates from owner messages (`user`) and stats (`observed`, n ≥ 10); for each, `th recall --kind facts` and choose ADD / CONFIRM / SUPERSEDE / NOOP; submit one batch with `th facts --batch` | 6 min | `facts`, ledger, proposals for risky changes |
+| 4 | Facts: candidates from owner messages (`user`) and stats (`observed`, n ≥ 10); for each, `th recall --kind facts` and choose ADD / CONFIRM / SUPERSEDE / NOOP; submit them with `th facts --batch <file> --night`, in parts of ≤ 50 ops (`--part 2`, …, each part sent once, its place saved as the step's cursor) | 6 min | `facts`, ledger, proposals for risky changes (P4) |
 | 5 | Health: `th errors`, `th health --deep`; small agreed fixes on a branch (only `agreed` work, pushed to a branch; never to `main`) | ≤ 8 min | Branch, maybe a release |
 | 6 | Dispatch indexing jobs (P5+) through the Worker's job endpoint | 1 min | Jobs queued |
 | 7 | Arrange tomorrow (P3+): 0–4 home lines, surfaces, practice set (in-app surfaces only in apps whose agreed evolution added them; the as-is ports have none) | 4 min | `surfaces` |
@@ -457,7 +463,7 @@ Fired by the day roll (`roll`) or by the 06:07 schedule (`schedule`). Progress l
 
 - **Budget:** target ≤ 30 min, hard stop 45 min (Sunday 60). At the hard stop, finish the current step, mark the rest skipped, `th night done --partial`.
 - **Writes:** a few dozen rows per night, well under the Durable Object daily write budget.
-- **Quiet hours:** the night shift posts nothing that notifies the owner. Home lines and decision cards it creates become visible at 06:30.
+- **Quiet hours:** the night shift posts nothing that notifies the owner. Home lines and decision cards it creates become visible at 06:30 **[not built: surfaces show when placed; a `visible_from` arrives with decision cards, P4]**.
 - **Predictions** (P9) are added as step 7b later, with SQL resolvers only.
 
 **Acceptance (P3 done-when):** the night shift ran 3 nights clean; killing a session after step 3 and refiring resumes at step 4 with no duplicate day note (`version` stays 1).

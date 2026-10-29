@@ -11,7 +11,7 @@ export const TOKENS = {chat: 'thm_fake_chat_token', night: 'thm_fake_night_token
 const canon = v => (Array.isArray(v) ? `[${v.map(canon).join(',')}]` : v && typeof v === 'object'
   ? `{${Object.keys(v).sort().filter(k => v[k] !== undefined).map(k => `${JSON.stringify(k)}:${canon(v[k])}`).join(',')}}` : JSON.stringify(v));
 export const hash = v => createHash('sha256').update(canon(v)).digest('hex');
-export class HttpError extends Error { constructor(status, code, message = code) { super(message); this.status = status; this.code = code; } }
+export class HttpError extends Error { constructor(status, code, message = code, details = undefined) { super(message); this.status = status; this.code = code; this.details = details; } }
 
 export function createFake(options = {}) {
   const o = {holdUnitMs: 1000, leaseMs: 90_000, ackMs: 120_000, injectRole: null, day: '2026-10-28', ...options};
@@ -223,7 +223,7 @@ export function createFake(options = {}) {
       const [status, data] = Array.isArray(result) ? result : [result === null ? 204 : 200, result];
       send(status, data);
     } catch (error) {
-      if (error instanceof HttpError) return send(error.status, {error: {code: error.code, message: error.message, request_id: `req-${s.requests.length}`}});
+      if (error instanceof HttpError) return send(error.status, {error: {code: error.code, message: error.message, request_id: `req-${s.requests.length}`, details: error.details}});
       send(500, {error: {code: 'internal', message: String(error?.message || error)}});
     }
   });

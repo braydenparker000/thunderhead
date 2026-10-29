@@ -148,7 +148,7 @@ All of these live in instance `Core/owner`. "Phase" is when the table first appe
 | `wakes` | `id TEXT PK, at INTEGER, task TEXT ('chat'\|'night'\|'reflex'), reason TEXT ('prewarm'\|'message'\|'requeue'\|'roll'\|'schedule'\|'watchdog:<name>'\|'manual'), status TEXT ('fired'\|'claimed'\|'ended'\|'unclaimed'\|'failed'), fired_at INTEGER, fire_status INTEGER, fire_error TEXT, session_id TEXT, claimed_at INTEGER, claim_match TEXT ('exact'\|'loose'\|'manual'), retry_of TEXT, first_reply_at INTEGER, ended_at INTEGER, end_reason TEXT` | partial `(at) WHERE status IN ('fired','unclaimed')` | P2 |
 | `leases` | `task TEXT PK, session_id TEXT, acquired_at INTEGER, renewed_at INTEGER` WITHOUT ROWID | — | P2 |
 | `mind_sessions` | `session_id TEXT PK, role TEXT, wake_id TEXT, claimed_at INTEGER, th_version TEXT, constitution_sha256 TEXT, laws_pinned INTEGER, tainted_at INTEGER, taint_source TEXT, ended_at INTEGER`; *eng:* `day TEXT` (the logical day it was claimed on, for `day_closed`), `last_owner_at INTEGER` (for `idle_min`) | `mind_sessions_tainted (role, tainted_at) WHERE tainted_at IS NOT NULL` (P3 step 10: a claim finds its role's latest taint of the last 24 hours) | P2 |
-| `night_runs` | `day TEXT PK, started_at INTEGER, step INTEGER, steps_json TEXT, done_at INTEGER, session_id TEXT` | — | P3 |
+| `night_runs` | `day TEXT PK, started_at INTEGER, step INTEGER, steps_json TEXT, done_at INTEGER, session_id TEXT` (one row per closed day the night worked on; `step` is the last step done or skipped; `steps_json` holds each step's time and session, or why it was skipped (`later`, `not_sunday`, `hard_stop`), or the cursor of the step under way; the steps are `shared/contract/night.ts`'s, RUNTIME.md §12) | — (by its key) | P3 (step 11) |
 | `topics` | `topic_key TEXT PK, last_shown_at INTEGER, ignored_at INTEGER, shown_count INTEGER` WITHOUT ROWID | — | P2 |
 | `op_batches` | `key TEXT PK, route TEXT, req_sha256 TEXT, status INTEGER, result_json TEXT, at INTEGER` WITHOUT ROWID | — | P3 (first used by memory batches, key `memory.ops:<batch_id>`) |
 
@@ -199,12 +199,12 @@ The columns match [MEMORY.md §2](../mind/MEMORY.md), which also owns the rules 
 | `day_notes` | *eng:* `seq INTEGER PK` (the FTS rowid); `day TEXT UNIQUE, summary TEXT (≤ 150 words), decisions_json TEXT, stats_json TEXT, importance INTEGER (1–10), written_by TEXT, version INTEGER, written_at INTEGER` | — | P3 |
 | `day_notes_fts` | FTS5 `(summary)`, `content='day_notes'`, `content_rowid='seq'`, same tokenizer | — | P3 |
 | `open_threads` | `id TEXT PK, text TEXT (≤ 200), owner TEXT ('mind'\|'owner'), due_at INTEGER, tags_json TEXT, status TEXT ('open'\|'done'\|'dropped'), evidence_json TEXT, opened_at INTEGER, last_progress_at INTEGER, closed_at INTEGER, closed_why TEXT` | partial `(due_at) WHERE status='open'` | P3 |
-| `session_notes` | `id TEXT PK, session_id TEXT, wake_id TEXT, role TEXT, thread_id TEXT, created_at INTEGER, body TEXT (≤ 120 words), open_items_json TEXT` | — | P2 |
+| `session_notes` | `id TEXT PK, session_id TEXT, wake_id TEXT, role TEXT, thread_id TEXT, created_at INTEGER, body TEXT (≤ 120 words), open_items_json TEXT` | `session_notes_at (created_at)` (P3 step 11: the night reads a day's notes, the briefing the latest) | P2 |
 | `import_items` | `id TEXT PK, run_id TEXT, dataset TEXT, key TEXT, body_json TEXT, converted_at INTEGER` | — | P3 |
 | `imports` | `id TEXT PK, source TEXT ('old_worker'\|'phone'), dataset TEXT, r2_prefix TEXT, manifest_json TEXT, state TEXT ('queued'\|'running'\|'verifying'\|'done'\|'failed'), counts_json TEXT, report_json TEXT, started_at INTEGER, finished_at INTEGER` | — | P1b (`phone`), P3 (`old_worker`) |
 
 - Facts are never edited in place. A change closes the old row (`superseded_at`, `superseded_by`) and inserts a new one. `forget` (owner only) hard-deletes every version and their FTS entries, runs an FTS `optimize` (a plain FTS5 delete leaves the words in the index segments until a merge; measured in workerd), scrubs the `why` and undo of the memory ledger rows that pointed at those versions, and writes a ledger tombstone without the content. Memory ledger rows never carry fact text.
-- Migration step 8 (P3) adds facts, `fact_tombstones`, day notes, open threads and `op_batches`; step 9 adds `surfaces.facts_json` (the facts a surface cites, cleared when one is muted or forgotten); step 10 adds the partial index `mind_sessions_tainted`. All expand-only. A surface put that cites facts lists them in its ledger row's `op_json` (`{op: 'surface.put', facts}`, never shown), so a forget can take the words of every such row.
+- Migration step 8 (P3) adds facts, `fact_tombstones`, day notes, open threads and `op_batches`; step 9 adds `surfaces.facts_json` (the facts a surface cites, cleared when one is muted or forgotten); step 10 adds the partial index `mind_sessions_tainted`; step 11 adds `night_runs` and the index `session_notes_at`. All expand-only. A surface put that cites facts lists them in its ledger row's `op_json` (`{op: 'surface.put', facts}`, never shown), so a forget can take the words of every such row.
 - Decay is computed at read time and never written.
 - `import_items` holds raw documents (the old notebook, for instance) until the mind converts them once. Converted rows are deleted 30 days after `converted_at`.
 - MEMORY.md allows an `events` table in `Core` before `Senses` exists. Engineering keeps events out of `Core`: nothing on the phone emits events before P5, and phone performance goes to `perf_days` **[proposal]**. If an earlier need appears, the table goes into `Core` with the `Senses` columns (§6.1) and moves by a bulk job when `Senses` ships.
@@ -333,6 +333,7 @@ Rules from the platform that drive the numbers: every index entry touched is one
 | Core.leases (written at most every 30 s while a session lives) | ≤ 120/h, ~6 h | 1 | ~720 |
 | Core.facts (+fts, ledger, feed, batch record) | 50 ops | 11 (measured) | 550 |
 | Core.day_notes, open_threads (+ledger, feed), session_notes | ~30 | 7–8 (measured) | 240 |
+| Core.night_runs (one row, rewritten per step) | ~12 | 1 (measured) | 12 |
 | Core.errors | ≤ 200 upserts (capped) | 1 | 200 |
 | Core.perf_days, settings | ~25 | 1 | 25 |
 | meter + jobs + alarms (all classes) | — | — | ~1,000 |

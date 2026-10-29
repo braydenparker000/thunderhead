@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {readFileSync, writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {VERSION} from '../cli/lib/io.mjs';
+import {DAY_PAGES, nightBatchId} from '../cli/lib/memory.mjs';
 import {env, errCode, startFake, th} from './helpers.mjs';
 
 /** A fresh fake per test, stopped afterwards. */
@@ -257,7 +258,10 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   assert.equal((await th(['brief', '--claim'], e)).code, 0);
   const d = await th(['day', '2026-10-28'], e);
   assert.equal(d.code, 0, d.stderr);
-  assert.equal(d.json.stats.owner_messages, 1);
+  assert.equal(d.json.stats.owner, 1);
+  assert.deepEqual(d.json.messages, [{id: said.id, author: 'owner', kind: 'text', body: said.body, reply_to: null, at: said.created_at}],
+    'each message as the night reads it: what it says and its id for evidence');
+  assert.deepEqual(d.json.next, {messages: null, ledger: null, notes: null});
   assert.equal((await th(['daynote', '2026-10-28', '--summary', 'A quiet day.', '--decisions', '[]', '--importance', '3'], e)).json.version, 1);
   fake.state.dayNotes.set('2026-10-27', {summary: 'The owner wrote this.', decisions: [], importance: 4, version: 2, written_by: 'owner'});
   assert.deepEqual((await th(['daynote', '2026-10-27', '--summary', 'Night words.', '--decisions', '[]', '--importance', '3'], e)).json,
@@ -268,10 +272,60 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   writeFileSync(batch, JSON.stringify([{op: 'add', kind: 'routine', subject: 'music', text: 'Plays guitar after dinner', source: 'observed', evidence: [`msg:${said.id}`], sensitivity: 0},
     {op: 'add', kind: 'fact', subject: 'x', text: 'Unsupported', source: 'user', evidence: ['msg:does-not-exist'], sensitivity: 0}]));
   assert.deepEqual((await th(['facts', '--batch', batch], e)).json, {applied: 1, proposed: 0, rejected: [{i: 1, reason: 'bad_evidence'}]}, 'valid ops apply, bad ones are listed');
-  assert.deepEqual((await th(['night', 'start'], e)).json, {resume_from: 1, done: false});
-  assert.equal((await th(['night', 'step', '3', 'done'], e)).json.resume_from, 4);
-  assert.deepEqual((await th(['night', 'done'], e)).json, {resume_from: 4, done: true});
+  assert.deepEqual((await th(['night', 'start'], e)).json, {resume_from: 1, done: false, cursor: null, skipped: []});
+  const ahead = await th(['night', 'step', '3', 'done'], e);
+  assert.equal(ahead.code, 7, 'a step ahead of the run is a conflict');
+  assert.equal(JSON.parse(ahead.stderr).error.details.resume_from, 1, 'and says where the run is');
+  for (const n of ['1', '2', '3']) assert.equal((await th(['night', 'step', n, 'done'], e)).code, 0);
+  assert.deepEqual((await th(['night', 'step', '4', 'cursor', 'msg:abc'], e)).json, {resume_from: 4, done: false, cursor: 'msg:abc', skipped: []});
+  assert.equal((await th(['night', 'step', '2', 'cursor', 'x'], e)).code, 8, 'step 2 keeps no cursor, checked before the call');
+  assert.equal((await th(['night', 'step', '12', 'done'], e)).code, 8, 'no step 12');
+  assert.equal((await th(['night', 'done'], e)).code, 7, 'steps are left');
+  assert.deepEqual((await th(['night', 'done', '--partial'], e)).json, {resume_from: 11, done: true, cursor: null, skipped: [4, 5, 6, 7, 8, 9]});
   assert.equal((await th(['day', '2026-10-28'], env(fake))).code, 6, 'chat may not read night input');
+}));
+
+test('night steps come from the contract; the day comes from the briefing or --day', withFake({}, async fake => {
+  const e = env(fake, {TH_ROLE: 'night'});
+  const r = await th(['night', 'steps'], e);
+  assert.deepEqual(r.json.steps.map(s => s.step), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.deepEqual(r.json.steps.filter(s => s.cursor).map(s => s.step), [4]);
+  assert.deepEqual(r.json.budget_min, {target: 30, hard: 45, sunday_hard: 60});
+  assert.equal(fake.state.requests.length, 0, 'listing the steps asks the Worker nothing');
+  assert.equal((await th(['night', 'start'], e)).code, 8, 'no briefing day recorded and no --day');
+  assert.deepEqual((await th(['night', 'start', '--day', '2026-10-25'], e)).json.resume_from, 1);
+  assert.ok(fake.state.night.has('2026-10-25'));
+  for (const bad of [['night', 'step', 'x', 'done'], ['night', 'step', '4', 'cursor'], ['night', 'later']])
+    assert.equal((await th(bad, e)).code, 8, bad.join(' '));
+}));
+
+test('facts --night: a part keeps one id for its day, so a refired session sending it again changes nothing', withFake({}, async fake => {
+  const e = env(fake, {TH_ROLE: 'night'});
+  const said = fake.addOwnerMessage('I take the bus to work');
+  assert.equal((await th(['brief', '--claim'], e)).code, 0);
+  const batch = join(e.TMPDIR, 'night.json');
+  const op = text => ({op: 'add', kind: 'routine', subject: 'commute', text, source: 'user', evidence: [`msg:${said.id}`], sensitivity: 0});
+  writeFileSync(batch, JSON.stringify({ops: [op('Takes the bus to work')]}));
+  assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 1, proposed: 0, rejected: []});
+  writeFileSync(batch, JSON.stringify({ops: [op('Goes to work by bus')]}));
+  assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 0, proposed: 0, rejected: [], already: true});
+  assert.deepEqual((await th(['facts', '--batch', batch, '--night', '--part', '2'], e)).json, {applied: 1, proposed: 0, rejected: []});
+  assert.deepEqual([...fake.state.batches.keys()], [nightBatchId('2026-10-28', 1), nightBatchId('2026-10-28', 2)]);
+  assert.equal((await th(['facts', '--batch', batch, '--part', '2'], e)).code, 8, '--part goes with --night');
+  assert.equal((await th(['facts', '--batch', batch, '--night', '--part', '0'], e)).code, 8);
+}));
+
+test('th day reads every page of a part up to its cap; --part reads one page after --cursor', withFake({}, async fake => {
+  const e = env(fake, {TH_ROLE: 'night'});
+  for (let i = 0; i < 25; i++) fake.addOwnerMessage(`message ${i}`);
+  fake.state.dayPage = 2;
+  const all = await th(['day', '2026-10-28'], e);
+  assert.equal(all.json.messages.length, 2 * DAY_PAGES, 'the cap: ten pages');
+  assert.equal(all.json.next.messages, 'c20', 'and where to go on');
+  const rest = await th(['day', '2026-10-28', '--part', 'messages', '--cursor', 'c20'], e);
+  assert.deepEqual(rest.json.items.map(m => m.body), ['message 20', 'message 21']);
+  assert.equal(rest.json.next, 'c22');
+  assert.equal((await th(['day', '2026-10-28', '--part', 'everything'], e)).code, 8);
 }));
 
 test('exit codes: 1 bad JSON, 2 bad token, 8 unknown command, 9 unreachable, 10 budget', withFake({}, async fake => {
