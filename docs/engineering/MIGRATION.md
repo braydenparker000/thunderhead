@@ -319,6 +319,14 @@ for 3 consecutive days.
 | 6 | **Old pages one by one** | — | Each old page is retired when its app's data has moved and the new copy has been used for 7 days: Music (P5), Guitar (P6), Astra, Podcasts, My Media (P8); the old Board reader 7 days after the Board shows in the Briefing (P4). | P5–P8 |
 | 7 | **The hourly Drive catalog job** (old repo `publish-drive-catalog.yml`) | none | Disable the workflow when the ported player has switched to the new Worker and the old Music page retires (P5). It feeds only the old Worker's player catalog. | P5 |
 
+**Where P4's switch-over stands** (stage I; STATUS.md keeps the dates current):
+
+| Step | Built | Owner | Done when |
+|---|---|---|---|
+| `jc` → `th` | `th` since P2 (SETUP.md K, 2026-10-29); the agent stopped using `jc` the same day | SETUP.md M4: remove the old host's network secret from the Claude environment, from 2026-11-05 | No `/claude-chat/*` agent call for 7 days, then the secret is gone |
+| Muse → work orders | `/v1/work/*`, the Board brief and its card, the daily `board.edition` order, the Briefing page (P4 G–H) | SETUP.md M3: the brief, the card, Muse's key, the message to Muse | 7 consecutive valid editions on the new Worker; then the `access` card "Muse has moved. Retire its old relay token?" and the owner removes the old secret |
+| The old Board reader | The Board in the Briefing page (P4 H) | — | Retired 7 days after the first edition shows in the Briefing |
+
 Settled (decisions 2026-10-28, ROADMAP P4): P4 switches only `jc` and Muse ("the chat CLI and Muse
 use only the new Worker"). The ported apps and the old pages call the old Worker until P5–P8, so the
 retirement gate in §8 falls **after P8**.

@@ -10,7 +10,8 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 - Batch D, live since 21:12 UTC (`a02b5f7`): the watchdogs (six built of fourteen, Core v17, `GET /v1/ops/watchdogs`, a briefing line), `mind-reflex` woken by a trip (one open wake, 4 a day, `th reflex`, `th handled`, the Stop hook), and the drill (`th drill`). Inert until SETUP.md M2. The Agents page now says where a mind key goes (a network secret, `Bearer ` and the key).
 - Batch E+F, live since 21:45 UTC (`e0afe43`, Core v18): the weekly backup (Sundays 02:30 local), the monthly restore drill (first Sunday, after the backup), the backup watchdogs, and Settings → Export ("download everything"). The first backup and drill run on their own this Sunday; that drill is P4's "a restore drill passed".
 - Batch G+H, going live with this push (Core v19): work orders for Muse (`/v1/work/*`, the validator, leases, deadlines, Muse's thread), the Board brief with its standing approval card, the daily Board order, `muse.silent`, and the Briefing page with the Board reader. Owner step: SETUP.md M3 (the brief, the approval, Muse's key, the message to Muse).
-- Next: I (the switch-over docs, `jc` retired), then P5.
+- Stage I (the switch-over docs) is written: MIGRATION.md §7 has P4's switch-over checklist; SETUP.md M4 retires `jc` from 2026-11-05.
+- P4's "done when": injection fixtures create nothing (built, C); one real watchdog handled end to end (SETUP.md M2's drill); a restore drill passed (the first runs on its own on Sunday 2026-11-01); the chat CLI and Muse use only the new Worker (`th` since 2026-10-29; Muse after SETUP.md M3, then 7 days of editions).
 
 **P3 · Import + memory v1**, live: memory, the night shift (SETUP.md L1 done; the first night ran clean) and the import (`old-5`: 5 of 5 threads, 425 of 425 messages). It still counts its "done when" (three clean night shifts; a fact stated on day N in day N+1's briefing).
 
@@ -19,8 +20,8 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 ## Next three tasks
 
 1. Deploy G+H and check it live. Sunday's first backup and drill are P4's "a restore drill passed".
-2. Build I: the switch-over docs and `jc` retired. Then P5 (Music's data moves over).
-3. Owner: SETUP.md M2 (the reflex routine and its drill) and M3 (Muse moves over).
+2. P5: Music's data moves to the new Worker (the ported player keeps working throughout).
+3. Owner: SETUP.md M2 (the reflex routine and its drill), M3 (Muse moves over), M4 from 2026-11-05.
 
 ## Blocked / waiting on the owner
 

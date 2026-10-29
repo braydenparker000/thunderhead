@@ -397,3 +397,13 @@ Briefing page shows it. The old relay keeps working through a 7-day overlap.
 5. Check: the Briefing page (swipe right on home) says "Muse is connected to the new Worker.", and
    the next morning shows the Board tile. Tell the agent "M3 done".
 
+### M4. Retire `jc` (about 2 minutes, from 2026-11-05)
+
+`th` has been the mind's only way to the Worker since 2026-10-29 (SETUP.md K), and the agent stopped
+using the old `jc` the same day. After 7 days without a `/claude-chat/*` agent call:
+
+1. claude.ai/code → **Environments** → the environment this agent runs in → **Network secrets** →
+   remove the entry for the old host `jarvis-hub-api.braydenparker999.workers.dev` → **Save**. The
+   old Worker itself stays untouched (it retires after P8).
+2. Tell the agent "M4 done". It checks once that the old host no longer answers it with a key.
+
