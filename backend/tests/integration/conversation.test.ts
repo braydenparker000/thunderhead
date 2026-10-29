@@ -63,6 +63,14 @@ describe('the daily thread', () => {
     for (const id of [a.id, b.id]) expect(page.body.items.find((m) => m.id === id)?.answered_at).not.toBeNull();
   });
 
+  it('once nothing waits, a reply leaves the mind listening (the edge stops pulsing)', async () => {
+    const q = (await say(D, { body: 'one more question' })).body;
+    await apiJson('POST', '/v1/mind/status', { ...mind(C), body: { state: 'working' } });
+    await say(C, { body: 'Here it is.', reply_to: q.id }, uuidv7(), mind(C));
+    const s = (await apiJson<Record<string, { state?: string }>>('GET', '/v1/settings', { token: D })).body;
+    expect(s['mind.status']?.state).toBe('listening');
+  });
+
   it('lints the mind (banned phrases, emoji) but never the owner', async () => {
     expect((await say(C, { body: 'Great question. Here it is.' }, uuidv7(), mind(C))).status).toBe(422);
     expect((await say(C, { body: 'Done 🎉' }, uuidv7(), mind(C))).status).toBe(422);
@@ -78,6 +86,16 @@ describe('the daily thread', () => {
     expect((await chip({ label: 'Open Study', app: 'study', path: '/study/' })).status).toBe(422); // P7
     expect((await chip({ label: 'x'.repeat(29), app: 'music', path: '/music/' })).status).toBe(422);
     expect((await chip({ label: 'Open', app: 'music', path: '/music/', extra: 1 })).status).toBe(422);
+    // Resolved as the browser would, an encoded dot segment or separator leaves the app.
+    for (const path of [
+      '/music/%2e%2e/settings/agents/?new=mind:chat',
+      '/music/.%2E/settings/',
+      '/music/%2f..%2fsettings/',
+      '//example.com/music/',
+      '/music/\\..\\settings/',
+    ])
+      expect((await chip({ label: 'Open', app: 'music', path })).status, path).toBe(422);
+    expect((await chip({ label: 'Open', app: 'music', path: '/music/?q=calm' })).status).toBe(201);
   });
 
   it('night and reflex post only kind error to the system thread', async () => {

@@ -128,7 +128,13 @@ Status: **built** = in the first build or prototype; **proposal** = new. Voice s
 | `convo.earlier` | Earlier conversations are in the menu | Top of today's thread (proposal) |
 | `convo.filed` | Yesterday is filed in the menu. | Once after a roll, first 3 days (proposal) |
 | `convo.continuing` | Continuing: <title> | After "Continue this" (proposal) |
-| `convo.new` | New reply ↓ | A reply arrived while scrolled up (proposal) |
+| `convo.new` | New reply ↓ | A reply arrived while scrolled up (built, P2) |
+| `convo.unconnected` | Saved. I'll answer once I'm connected. | Reply slot while the mind-chat task isn't connected yet (SETUP.md K) (built, P2) |
+| `convo.stop` | Stop | Text button in the reply slot while the mind works on an answer (built, P2) |
+| `convo.stopping` | Stopping… | After Stop, until the mind's "Stopped." reply (built, P2) |
+| `toast.stop` | Stopping after this step. | After Stop (built, P2) |
+| `toast.stop.failed` | Couldn't reach the mind. Try again. | Stop couldn't reach the Worker (built, P2) |
+| `toast.chat.failed` | Couldn't load the conversation. Reload to try again. | Send tapped while signed in but the chat code failed to load (built, P2) |
 | `convo.showall` | Show all | Collapsed older reply (proposal) |
 | `past.back` | Back to now | Viewing a filed conversation (prototype) |
 | `convo.notconnected` | *I'm not connected yet. Sign-in and my memory come next.* | First-build scripted reply (built; goes away with sign-in) |
@@ -284,7 +290,7 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.agents.revoke` | Revoke | (proposal) |
 | `set.account` | Account | Row (built) |
 | `set.account.deleted` | Recently deleted | (proposal) |
-| `set.account.unsent` | 2 messages haven't sent yet. Sign out anyway? | Sign-out with a non-empty outbox (proposal) |
+| `set.account.unsent` | 2 messages haven't sent yet. Sign out anyway? | Sign-out with a non-empty outbox; "1 message hasn't sent yet." for one; buttons "Sign out" · "Cancel" (built, P2) |
 | `set.export` | Export | Row (proposal) |
 | `set.export.go` | Download everything | (plan §8) |
 | `set.export.backup` | Last automatic backup: Sunday 03:20 | (proposal) |

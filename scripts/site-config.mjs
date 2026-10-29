@@ -42,7 +42,9 @@ export function withApi(html, api) {
   const origin = apiOrigin(api);
   if (!origin) return html;
   return html.replace(/(<meta http-equiv="Content-Security-Policy" content=")([^"]*)(")/, (m, a, csp, b) => {
-    if (csp === SHELL) return a + csp.replace("connect-src 'self'", `connect-src 'self' ${origin}`) + b;
+    // The shell also opens the live socket (wss://, API.md §12) to the same host.
+    if (csp === SHELL)
+      return a + csp.replace("connect-src 'self'", `connect-src 'self' ${origin} ${origin.replace(/^https:/, 'wss:')}`) + b;
     if (csp === SIGNIN) return a + csp.replace("connect-src 'none'", `connect-src ${origin}`) + b;
     return m;
   });

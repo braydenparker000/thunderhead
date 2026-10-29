@@ -46,7 +46,7 @@ The client chooses the line from state, top row first. Fixed lines are written i
 |---|---|---|---|
 | 1 | Signed out | (Home is replaced by sign-in, see [SIGN-IN](SIGN-IN.md)) | |
 | 2 | First run: signed in, no message ever sent [proposal] | *I'm here.* | *Ask me anything, any time.* |
-| 3 | The mind can't wake (Worker flag `mind_unavailable`, §4.4) | *I can't wake just now.* | *I'll answer when I'm back.* |
+| 3 | The mind can't wake (Worker flag `mind_unavailable`, §4.4), and the Worker's "isn't waking" line isn't already in the thread | *I can't wake just now.* | *I'll answer when I'm back.* |
 | 4 | 1 decision waiting, outside quiet hours | *One thing needs you.* | the `home.line` if any, else *The rest is handled.* |
 | 5 | 2–9 decisions waiting | *Two things need you.* … *Nine things need you.* | same as row 4 |
 | 6 | 10 or more decisions waiting | *Many things need you.* | same as row 4 |
@@ -80,7 +80,7 @@ Measured: the voice line fits **22 characters per visual line** at every phone w
 ### 2.3 When and how it changes
 
 1. It is computed on load, on every live update (WebSocket), on `visibilitychange → visible`, and on a decision being answered.
-2. **Debounce:** at most one change every **10 s**, except row 4–8 transitions caused by the owner's own tap, which change at once. [proposal]
+2. **Debounce:** at most one change every **10 s**, except row 4–8 transitions caused by the owner's own tap, which change at once, and the end of the first-run line when the owner sends the first message (built). [proposal]
 3. **Never while typing:** if the ask bar has text or focus, a pending change waits until the input is empty and blurred for 2 s. [proposal]
 4. **Change animation:** the old line fades to opacity 0 over **400 ms**; at **320 ms** the new spans replace it and play `rise`: from `opacity 0; translateY(10px); blur(4px)` to rest over **900 ms** `cubic-bezier(.2,.7,.2,1)`, line 2 delayed **160 ms**. Haptic: none.
 5. **On cold start and the first open of the day** the line plays `rise` once. Returning to the app within the same day shows it instantly (no animation).
@@ -164,7 +164,7 @@ Acceptance: with two mocked proposals, the first card shows "1 of 2"; tapping Ye
 ### 4.3 The mind's replies
 
 - Fraunces italic 340, 20/1.4, `--ink`, left-aligned, no bubble. Serif means the Thunderhead said it.
-- Plain text with three exceptions: line breaks, `https://` links, and lines that start with "– " shown as a hanging list. No headings, tables, bold or code blocks [proposal].
+- Plain text with three exceptions: line breaks, `https://` links, and lines that start with "– " shown as a hanging list (a "– " straight after a full stop, question mark or colon also starts a list line, so a list never runs into the sentence before it). No headings, tables, bold or code blocks [proposal].
 - **Links:** underlined, `--accent-text`, open in a new tab with `rel="noopener noreferrer"`. Only `https:` URLs become links. Long URLs show the host plus "…".
 - **Length:** the mind's default is ≤ 3 sentences ([COPY](../design/COPY.md)). The **latest** reply is always shown in full. Older replies taller than **14 lines** collapse to 10 lines with a fade and a "Show all" text button [proposal].
 - Copy: long-press → "Copy" ([GESTURES](../design/GESTURES.md) §5).
@@ -178,12 +178,16 @@ Acceptance: with two mocked proposals, the first card shows "1 of 2"; tapping Ye
 | ≥ 1.2 s | Italic "…" in `--ink-3`, opacity pulsing 0.4 ↔ 1 every 1.2 s | think |
 | ≥ 8 s and the session has not claimed the wake | "Waking up…" (Inter 13, `--ink-3`) | think |
 | ≥ 60 s, still unclaimed | "Still waking. This can take a minute." | think |
-| 240 s, still unclaimed | The Worker posts a system line: "The mind isn't waking (likely a usage limit or an outage). I'll answer when it's back." Voice line row 3. | error (§7) |
+| 240 s, still unclaimed | The Worker posts a system line: "The mind isn't waking (likely a usage limit or an outage). I'll answer when it's back." While that line stands in the thread with no reply after it, the voice line keeps its usual row: it never says the same thing twice. Row 3 shows when the mind can't wake and the thread doesn't say so (opening home during the back-off). | error (§7) |
 | Reply arrives | Text reveals (§4.4.1); then any action chip fades in (400 ms) | back to calm |
 
 The wake timings come from the mind's loop: the page fires a pre-warm on the first keystroke, the Worker retries an unclaimed fire once at 120 s and gives up at 240 s ([RUNTIME](../mind/RUNTIME.md)). Cold replies are expected to take 20–60 s and are not yet measured.
 
 **Reveal.** The reply is delivered whole (the mind posts complete messages; there is no token streaming). The client reveals it at **160 characters per second**, capped at **1.2 s** total (longer replies reveal faster), then shows it all. The first build reveals 2 characters per animation frame, which is 180 per second on the A15's 90 Hz screen and frame-rate dependent. [proposal: time-based]. Reduced motion: no reveal. A screen reader gets the whole reply at once (`aria-live="polite"` on the turns list, text set in one go, the visual reveal done with a clip mask, not by changing the text).
+
+**Stop (built, P2).** While the mind works on an answer (presence `working`), the reply slot carries a quiet **Stop** text button (Inter 13, accent, 44 px hit area) beside the "…". A tap sends `POST /v1/mind/stop`; the slot reads "Stopping…" until the mind's reply ("Stopped. Done: … Not done: …", [BEHAVIOR.md](../mind/BEHAVIOR.md)). Stop ends the work, not the session. The ask bar does not change.
+
+**Not connected yet (built, P2).** Until the owner connects the mind-chat task (SETUP.md K), the reply slot reads "Saved. I'll answer once I'm connected." instead of the waking lines, and the edge stays calm; messages wait and are answered once a session runs.
 
 **Progress posts.** For long work the mind may post a short status ("On it. About 5 minutes.") and keep working. The edge keeps pulsing while the session reports `working`, for at most **30 min**, then returns to calm. [proposal]
 
@@ -209,8 +213,8 @@ Attachments go to private storage behind sign-in (R2 `thunderhead-private`), nev
 
 ### 4.7 Offline outbox
 
-1. A message sent offline is written to the IndexedDB outbox at once and shown with "Sends when you're back online".
-2. On `online`, on `visibilitychange → visible`, and through Background Sync where Chrome allows, the outbox sends in order, one message at a time. Each has a client id, so a retry never duplicates.
+1. A message sent offline is written to the IndexedDB outbox at once and shown with "Sends when you're back online". It is drawn before the ask bar empties, one outbox key per message; if IndexedDB can't write, the message still sends from memory.
+2. On `online`, on `visibilitychange → visible`, and through Background Sync where Chrome allows, the outbox sends in order, one message at a time; a message waiting on a retry holds the ones after it, and a failed one waits for Retry without holding them. Each has a client id, so a retry never duplicates. A queued or failed message shows only its meta line: no reply slot under it.
 3. On acknowledgement the meta disappears.
 4. If the day rolled while a message waited, it is filed into the thread whose day matches the message's own time if that thread is still open, otherwise into today's thread with the meta "Written yesterday, 23:40" [proposal].
 5. Limits: 200 queued messages or 20 MB of attachments; beyond that, the send button shows the toast "Too much waiting to send. Connect to send the rest." [proposal]

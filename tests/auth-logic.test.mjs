@@ -143,7 +143,7 @@ test('staging fills the API host into config.js and the CSP of the shell and sig
   assert.match(configJs({ api: 'https://api.example/', build: 7, commit: 'abc' }), /"api":"https:\/\/api.example","build":7/);
   const shell = await readFile(new URL('../frontend/index.html', import.meta.url), 'utf8');
   const signin = await readFile(new URL('../frontend/signin/index.html', import.meta.url), 'utf8');
-  assert.match(withApi(shell, 'https://api.example'), /connect-src 'self' https:\/\/api\.example;/);
+  assert.match(withApi(shell, 'https://api.example'), /connect-src 'self' https:\/\/api\.example wss:\/\/api\.example;/);
   assert.match(withApi(signin, 'https://api.example'), /connect-src https:\/\/api\.example;/);
   const other = '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; connect-src \'self\'">';
   assert.equal(withApi(other, 'https://api.example'), other, 'a ported page keeps its own CSP');

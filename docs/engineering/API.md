@@ -373,7 +373,8 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 4. An owner message with no live chat lease and no unclaimed fire younger than 90 s queues a wake (conditions: [RUNTIME.md §3](../mind/RUNTIME.md)).
 5. Owner messages use `text` or `voice`. Agents may use every kind; `system` messages (author `system`) are written only by the Worker.
 6. Wording limits on mind messages (the phrase lint) are enforced as `422 validation` per [BEHAVIOR.md](../mind/BEHAVIOR.md).
-7. **Action chip (P2).** A `mind` message may carry one chip in `meta.chip = { label: string /* 1–28 chars */, app: 'music'|'guitar'|'podcasts'|'astra'|'media'|'study', path: string /* root-absolute, inside that app's folder */ }`. Until an app's agreed evolution adds deep links, `path` is the app's folder root (`/music/` …), and a tap navigates there. Any other `meta.chip` shape is `422 validation`.
+7. A `mind:chat` text reply clears a standing Stop and, when no owner message is left unanswered, sets the presence (`mind.status`) to `listening`, so the edge stops pulsing while the session waits.
+8. **Action chip (P2).** A `mind` message may carry one chip in `meta.chip = { label: string /* 1–28 chars */, app: 'music'|'guitar'|'podcasts'|'astra'|'media'|'study', path: string /* root-absolute, inside that app's folder */ }`. Until an app's agreed evolution adds deep links, `path` is the app's folder root (`/music/` …), and a tap navigates there. Any other `meta.chip` shape is `422 validation`.
 
 ### 11.8 Mind
 
@@ -386,7 +387,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | `GET /v1/mind/pending` | agents | — | `200 { unanswered: Id[], stop: boolean, day_closed: boolean, limited: boolean, idle_min: number, idle_cutoff_min: number }` (the Stop hook). `idle_min`: whole minutes since the session's last owner message, or since its claim. `idle_cutoff_min`: 10 for a pre-warm wake with no owner message yet, else 120 (30 in the lean profile, [RUNTIME.md §11](../mind/RUNTIME.md)). The hook counts its own blocks ([RUNTIME.md §6.2](../mind/RUNTIME.md)) |
 | `POST /v1/mind/night` | `mind:night` | `{ day: Day, action: 'start'\|'step_done'\|'done', step?: number, partial?: boolean }` (`partial` only with `done`: the hard stop cut the run and the remaining steps are recorded as skipped) | `200 { resume_from: number, done: boolean }` (`night_runs`; `done: true` when that day's run already finished, and the session ends at once) |
 | `GET /v1/mind/day/:day?part=stats\|messages\|ledger\|notes&cursor` | `mind:night` | — | `200` `stats`: deterministic counts; other parts: `Page<…>` |
-| `GET /v1/mind/wakes?limit` | agents, device | — | `200 Page<{id, at, role, reason, status, fired_at, claimed_at}>` |
+| `GET /v1/mind/wakes?limit` | agents, device | — | `200 Page<{id, at, role, reason, status, fired_at, claimed_at, fire_status, fire_error}>` (`fire_status`: the routine's HTTP answer, 0 when none; `fire_error`: `http_<status>`, `timeout` or `network`) |
 
 - `claim: true` binds the session to the open wake of its task and sets it `claimed` (`claim_match` `exact`, `loose` or `manual`), and creates its `mind_sessions` row. Every later request from the session carries `TH-Session: <session_id>`.
 - The briefing's sections, order and truncation are owned by [RUNTIME.md](../mind/RUNTIME.md). The Worker truncates; the model never does.

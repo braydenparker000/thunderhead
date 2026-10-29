@@ -106,3 +106,12 @@ export function since(db: Db, at: number, limit: number): LedgerEntry[] {
     .all<Raw>(`SELECT ${COLS} FROM ledger WHERE at >= ? ORDER BY at DESC, seq DESC LIMIT ?`, at, limit)
     .map(toEntry);
 }
+
+/** The undo row written with an inverse verb (same commit, so the same `at`; the time index
+ * keeps the read to that instant). For inverses queued before they carried the link. */
+export function undoRowFor(db: Db, verbId: string, at: number): string | null {
+  return (
+    db.one<{ id: string }>("SELECT id FROM ledger WHERE at = ? AND kind = 'undo' AND verb_id = ?", at, verbId)?.id ??
+    null
+  );
+}

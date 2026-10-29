@@ -212,4 +212,8 @@ export interface WakeItem {
   status: 'fired' | 'claimed' | 'ended' | 'unclaimed' | 'failed';
   fired_at: Ms | null;
   claimed_at: Ms | null;
+  /** The routine's HTTP status for the fire (0: no answer), and a short reason when it failed
+   * (`http_401`, `timeout`, `network`): what SETUP.md K's check reads. */
+  fire_status: number | null;
+  fire_error: string | null;
 }

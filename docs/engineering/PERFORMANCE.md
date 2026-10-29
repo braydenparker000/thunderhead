@@ -47,7 +47,8 @@ Enforced by `scripts/stage.mjs` on every deploy (the deploy fails before publish
 | Home + `ui/` CSS | ≤ 60,000 | ~21.3 KB | `stage.mjs` (exists) |
 | Fonts (`.woff2`) | ≤ 130,000 | ~103 KB | `stage.mjs` (exists) |
 | Icon sprite `ui/icons.svg` | ≤ 30,000 | — | add with the sprite (P1) |
-| `th/` + `lib/` JS loaded by the shell | ≤ 60,000, counted inside the 120 KB | — | add in P1 **[proposal]** |
+| `th/` JS loaded by the shell at boot (`th/*.js`) | ≤ 60,000, counted inside the 120 KB | ~52 KB | `stage.mjs` (P2) |
+| The conversation, loaded after the first paint (`th/chat/**`, `th/registry/**`) | ≤ 60,000 | ~41 KB | `stage.mjs` (P2) |
 | Each app's own code on open (`apps/<id>/**`) | ≤ 300,000 | — | add in P5 |
 | Precache total (everything except `vendor/`, stubs, ported folders and `/assets/`) | ≤ 3,000,000 **[proposal]** | — | add with the SW (P1) |
 | Any single non-vendor file | ≤ 400 lines of JS (soft) / 200,000 bytes (hard) **[proposal]** | — | Biome rule + `stage.mjs` |
@@ -173,7 +174,7 @@ Starting budgets for `backend/tests/cost/budgets.json`, at the year-2 scale fixt
 
 Wherever the measured number comes in lower, the budget is lowered to measured + 25%.
 
-P2 measured in local workerd (a day of 20 messages; `budgets.json` holds every number, rows read / written): `PUT /v1/messages/:id` from the owner 10 / 8, a mind reply that settles 21 waiting messages 76 / 28; `GET /v1/threads/today` 24 / 0; `GET /v1/changes` with nothing new 2 / 0; `POST /v1/live/ticket` 0 / 1; `GET /v1/live/wait` with nothing new 29 / 0; `POST /v1/mind/brief` claiming with 20 waiting 120 / 49 (it arms the requeue alarm); `GET /v1/search` 57 / 0; `PUT /v1/verbs/:id` 1 / 7; `PUT /v1/surfaces/home/:slot` 1 / 7; `Core.tick` 8 / 0, and 48 / 1 on the daily prune pass. The wait and the brief grow with the unanswered owner messages, which the next reply clears; nothing grows with the age of the data.
+P2 measured in local workerd (a day of 20 messages; `budgets.json` holds every number, rows read / written): `PUT /v1/messages/:id` from the owner 10 / 8, a mind reply that settles 21 waiting messages 78 / 30 (it also sets the presence to listening); `GET /v1/threads/today` 24 / 0; `GET /v1/changes` with nothing new 2 / 0; `POST /v1/live/ticket` 0 / 1; `GET /v1/live/wait` with nothing new 29 / 0; `POST /v1/mind/brief` claiming with 20 waiting 120 / 49 (it arms the requeue alarm); `GET /v1/search` 57 / 0; `PUT /v1/verbs/:id` 1 / 7; `PUT /v1/surfaces/home/:slot` 1 / 7; `Core.tick` 8 / 0, and 48 / 1 on the daily prune pass. The wait and the brief grow with the unanswered owner messages, which the next reply clears; nothing grows with the age of the data.
 
 ### 4.4 Daily totals
 

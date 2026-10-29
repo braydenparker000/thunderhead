@@ -102,7 +102,8 @@ export function lastFireAt(db: Db, task: MindRole, unclaimedOnly: boolean): numb
 
 export function wakesPage(db: Db, limit: number, before: number | null): WakeItem[] {
   return db.all<WakeItem>(
-    `SELECT id, at, task AS role, reason, status, fired_at, claimed_at FROM wakes WHERE (? IS NULL OR at < ?)
+    `SELECT id, at, task AS role, reason, status, fired_at, claimed_at, fire_status, fire_error FROM wakes
+     WHERE (? IS NULL OR at < ?)
      ORDER BY at DESC LIMIT ?`,
     before,
     before,
@@ -182,7 +183,7 @@ export function putSession(
   db.run(
     `INSERT INTO mind_sessions (session_id, role, wake_id, claimed_at, th_version, constitution_sha256, day)
      VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (session_id) DO UPDATE SET wake_id = excluded.wake_id, th_version = excluded.th_version,
+     ON CONFLICT (session_id) DO UPDATE SET role = excluded.role, wake_id = excluded.wake_id, th_version = excluded.th_version,
        constitution_sha256 = excluded.constitution_sha256, day = excluded.day, ended_at = NULL`,
     s.session_id,
     s.role,

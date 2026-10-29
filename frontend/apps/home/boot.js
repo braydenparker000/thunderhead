@@ -41,6 +41,9 @@ async function start() {
   }, true);
   const path = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`;
   if (ROUTES[path]) open(ROUTES[path], { role: new URLSearchParams(location.search).get('new') ?? undefined, fromRoute: true });
+  // The conversation loads after the first paint, so the shell stays small (PERFORMANCE.md §2). If
+  // it can't, the ask bar says so (home.js) rather than doing nothing.
+  requestAnimationFrame(() => setTimeout(() => import('/th/chat/index.js').then((m) => m.startChat()).catch(() => { root.dataset.chat = 'failed'; }), 0));
   try {
     const me = await signedIn((t) => api.me(t));
     notices(me.notices ?? [], open);

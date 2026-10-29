@@ -112,6 +112,21 @@ describe('waking', () => {
     expect(row).toEqual({ status: 'claimed', session_id: 'cse_claims_all' });
   });
 
+  it("the wakes list shows each fire's status, so a refused trigger is visible", async () => {
+    const f = await inCore((w) => {
+      w.db.run('DELETE FROM leases');
+      return wake.maybeWake(w, 'message', true);
+    });
+    expect(f).not.toBeNull();
+    await inCore((w) => wake.fired(w, (f as { id: string }).id, { status: 401, session_id: null, error: 'http_401' }));
+    const list = await apiJson<{ items: { id: string; fire_status: number; fire_error: string }[] }>(
+      'GET',
+      '/v1/mind/wakes',
+      { token: D },
+    );
+    expect(list.body.items.find((x) => x.id === f?.id)).toMatchObject({ fire_status: 401, fire_error: 'http_401' });
+  });
+
   it('a night claim leaves the chat backoff, presence and Stop alone', async () => {
     await coreSql(
       "INSERT OR REPLACE INTO settings (key, value_json, updated_at, actor) VALUES ('mind.backoff', '{\"until\":9999999999999,\"step\":1}', 1, 'worker')",
@@ -149,6 +164,12 @@ describe('edges', () => {
     const r = await apiJson<{ error: { code: string } }>('GET', '/v1/changes?after=99999999', { token: D });
     expect(r.status).toBe(410);
     expect(r.body.error.code).toBe('resync_required');
+  });
+
+  it("the mind's wait with a cursor past the newest change starts from the newest", async () => {
+    const r = await apiJson<{ seq: number }>('GET', '/v1/live/wait?after=99999999&timeout=1', as(C, 'cse_claims_all'));
+    expect(r.status).toBe(200);
+    expect(r.body.seq).toBeLessThan(99999999);
   });
 
   it('a created message comes back without engineering fields', async () => {
