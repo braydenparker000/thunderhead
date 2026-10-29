@@ -3,10 +3,14 @@
 // Pin and mute, Forget with its confirm and 10 s undo (and the send when the page closes early),
 // loose ends and day notes, a kind and a source this build doesn't know, the empty page, and a
 // Worker from before memory. TH_SHOTS=<dir> saves screenshots for review. Local only.
+// No guessed delays: each step waits on what the page shows or on the request the mock saw, and
+// once the page is up its clock stands still unless a test moves it (the tap guard, the filter's
+// pause, the 10 s undo).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
@@ -24,13 +28,13 @@ before(async () => {
 });
 after(async () => { await browser?.close(); server?.close(); });
 
-async function open({ theme = 'light', mock = {}, clock = false } = {}) {
+async function open({ theme = 'light', mock = {} } = {}) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block' });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   await page.addInitScript((t) => { try { localStorage.setItem('th-theme', t); } catch {} }, theme);
-  if (clock) await page.clock.install();
+  await page.clock.install();
   const api = await mockApi(page, mock);
   await page.goto(`${base}/no-such-page`);
   await page.evaluate(([token]) => new Promise((resolve, reject) => {
@@ -46,13 +50,24 @@ async function open({ theme = 'light', mock = {}, clock = false } = {}) {
   errors.length = 0;
   await page.goto(`${base}/settings/memory/`, { waitUntil: 'load' });
   await page.waitForSelector('.msections:not([aria-busy])');
-  if (clock) await page.clock.runFor(800); // past the 500 ms tap guard
-  else await page.waitForTimeout(600);
+  // Time stops here, 800 ms on: past the 500 ms tap guard.
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 800));
   return { page, errors, api };
 }
-const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`) }); };
+const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`), animations: 'disabled' }); };
 const headings = (page) => page.$$eval('.msec h2', (hs) => hs.map((h) => h.textContent));
 const ops = (api) => api.calls.filter((c) => c.call === 'POST /v1/memory/ops').map((c) => c.body.ops[0]);
+
+/** Reads until the value is `want` (5 s at most), then asserts it. */
+async function until(read, want, message) {
+  const end = Date.now() + 5_000;
+  let got = await read();
+  while (!isDeepStrictEqual(got, want) && Date.now() < end) {
+    await new Promise((r) => setTimeout(r, 20));
+    got = await read();
+  }
+  assert.deepEqual(got, want, message);
+}
 
 test('the page groups what I know, in day and night, with no errors and no sideways scroll', opts, async () => {
   for (const theme of ['light', 'dark']) {
@@ -85,11 +100,11 @@ test('a kind and a source this build does not know still render; private text is
 test('the filter narrows every section; nothing matching says so', opts, async () => {
   const { page } = await open();
   await page.fill('.msearch', 'music');
-  await page.waitForTimeout(250);
-  assert.deepEqual(await headings(page), ['Preferences (1)']);
+  await page.clock.runFor(200);
+  await until(() => headings(page), ['Preferences (1)']);
   await page.fill('.msearch', 'zzz nothing');
-  await page.waitForTimeout(250);
-  assert.equal(await page.locator('.msections > .sempty').textContent(), 'Nothing matches.');
+  await page.clock.runFor(200);
+  await until(() => page.locator('.msections > .sempty').allTextContents(), ['Nothing matches.']);
   await page.close();
 });
 
@@ -111,24 +126,26 @@ test("a fact's detail shows what it rests on and why; Fix writes a new version i
   await page.close();
 });
 
-test('pin, mute, still true and yes that is right send their ops', opts, async () => {
+test('pin, mute, still true and yes that is right send their ops, and the page shows each at once', opts, async () => {
   const { page, api } = await open();
-  const act = async (row, button) => {
-    await page.click(`.mrow:has-text("${row}") .mtext`);
-    await page.click(`.mrow:has-text("${row}") button:has-text("${button}")`);
-    await page.waitForTimeout(150);
+  const row = (text) => page.locator('.mrow', { hasText: text });
+  const under = (title, text) => page.locator('.msec', { has: page.locator('h2', { hasText: title }) }).locator('.mrow', { hasText: text });
+  const act = async (text, button, shown) => {
+    await row(text).locator('.mtext').click();
+    await row(text).locator('button', { hasText: button }).click();
+    await shown.waitFor();
   };
-  await act('Likes calm music', 'Pin');
-  await act('Likes calm music', "Don't bring this up");
-  await act('Was tired last month', 'Still true');
-  await act('Has a herb garden', "Yes, that's right");
+  await act('Likes calm music', 'Pin', row('Likes calm music').locator('.badge', { hasText: 'Pinned' }));
+  await act('Likes calm music', "Don't bring this up", row('Likes calm music').locator('.badge', { hasText: "Won't bring up" }));
+  await act('Was tired last month', 'Still true', under('Right now', 'Was tired last month'));
+  await act('Has a herb garden', "Yes, that's right", under('Facts', 'Has a herb garden'));
   assert.deepEqual(ops(api).map((o) => o.op), ['pin', 'may_raise', 'confirm', 'confirm']);
   assert.equal(await page.locator('.msec h2', { hasText: 'Imported, to review' }).count(), 0, 'reviewed: off the review shelf');
   await page.close();
 });
 
 test('Forget asks once, hides the fact, and sends only after the 10 s undo; Undo keeps it', opts, async () => {
-  const { page, api } = await open({ clock: true });
+  const { page, api } = await open();
   const row = '.mrow:has-text("Likes calm music")';
   await page.click(`${row} .mtext`);
   await page.click(`${row} button:has-text("Forget")`);
@@ -149,38 +166,76 @@ test('Forget asks once, hides the fact, and sends only after the 10 s undo; Undo
   await page.clock.runFor(9_000);
   assert.equal(ops(api).length, 0, 'still inside the undo window');
   await page.clock.runFor(1_500);
-  await page.waitForTimeout(100);
-  assert.deepEqual(ops(api), [{ op: 'forget', id: '0192f0c4-0000-7000-8000-000000000001' }]);
+  await until(() => ops(api), [{ op: 'forget', id: '0192f0c4-0000-7000-8000-000000000001' }]);
   await page.close();
 });
 
-test('the Forget screens: the confirm sheet, then the undo toast (real time, for the screenshots)', opts, async () => {
+test('the Forget screens: the confirm sheet, then the undo toast', opts, async () => {
   const { page, api } = await open();
   const row = '.mrow:has-text("Likes calm music")';
   await page.click(`${row} .mtext`);
   await page.click(`${row} button:has-text("Forget")`);
+  await page.clock.runFor(600); // the sheet slides in on the next frame
   await page.waitForSelector('.csheet.on');
-  await page.waitForTimeout(400);
   await shot(page, 'memory-forget-confirm');
   await page.click('.csheet button:has-text("Forget")');
   await page.waitForSelector('.utoast.show');
-  await page.waitForTimeout(300);
   assert.equal(await page.locator('.utoast').getAttribute('role'), 'status');
   await shot(page, 'memory-forget-undo');
   await page.click('.uundo');
+  await page.clock.runFor(11_000);
   assert.equal(ops(api).length, 0);
   await page.close();
 });
 
 test('closing the page inside the undo window sends the Forget at once', opts, async () => {
-  const { page, api } = await open({ clock: true });
+  const { page, api } = await open();
   await page.click('.mrow:has-text("Practises after lunch") .mtext');
   await page.click('.mrow:has-text("Practises after lunch") button:has-text("Forget")');
   await page.clock.runFor(600);
   await page.click('.csheet button:has-text("Forget")');
+  await page.waitForSelector('.utoast.show');
   await page.click('.sback');
-  await page.waitForTimeout(200);
-  assert.deepEqual(ops(api).map((o) => o.op), ['forget']);
+  await until(() => ops(api).map((o) => o.op), ['forget']);
+  await until(() => page.locator('.utoast').count(), 0, 'no Undo left for what was already sent');
+  await page.close();
+});
+
+test('another toast inside the undo window leaves Undo alone; a second Forget gets its own 10 s', opts, async () => {
+  const { page, api } = await open();
+  const forget = async (text) => {
+    await page.click(`.mrow:has-text("${text}") .mtext`);
+    await page.click(`.mrow:has-text("${text}") button:has-text("Forget")`);
+    await page.clock.runFor(600);
+    await page.click('.csheet button:has-text("Forget")');
+    await page.waitForSelector('.utoast.show');
+  };
+  await forget('Likes calm music');
+  await page.click('.mrow:has-text("Practises after lunch") .mtext');
+  await page.click('.mrow:has-text("Practises after lunch") button:has-text("Pin")');
+  await until(() => page.locator('.toast:not(.utoast)').allTextContents(), ['Pinned']);
+  assert.equal(await page.locator('.utoast .uundo').isVisible(), true, 'the Pinned toast did not replace Undo');
+  await page.clock.runFor(4_000);
+  await forget('Has a herb garden');
+  await page.clock.runFor(6_000);
+  await until(() => ops(api).map((o) => o.op), ['pin', 'forget'], 'the first went at its 10 s');
+  assert.equal(await page.locator('.utoast.show .uundo').isVisible(), true, 'the second still has its Undo');
+  await page.click('.uundo');
+  await page.clock.runFor(11_000);
+  assert.deepEqual(ops(api).map((o) => o.op), ['pin', 'forget'], 'undone: the second never went');
+  assert.equal(await page.locator('.mrow:has-text("Has a herb garden")').isVisible(), true);
+  await page.close();
+});
+
+test('a card number, key or password is refused with its own line, and the words stay to fix', opts, async () => {
+  const { page, api } = await open();
+  await page.click('button:has-text("Add something I should know")');
+  await page.fill('#memory-text', 'My card is 4111 1111 1111 1111');
+  await page.click('.mform button:has-text("Save")');
+  await until(() => page.locator('.toast').allTextContents(), ["I don't keep passwords, keys or card numbers. Say it without them."]);
+  assert.equal(await page.inputValue('#memory-text'), 'My card is 4111 1111 1111 1111', 'the form stays open with the words');
+  assert.equal(ops(api).length, 1);
+  assert.equal(await page.locator('.mrow', { hasText: 'My card is' }).count(), 0, 'nothing was kept');
   await page.close();
 });
 
@@ -189,15 +244,16 @@ test('loose ends close with Done, or Drop with a reason; a day note is edited in
   await page.click('.mrow:has-text("Fix the metronome bug") button:has-text("Drop")');
   await page.fill('.mrow:has-text("Fix the metronome bug") input', 'Not needed any more');
   await page.click('.mrow:has-text("Fix the metronome bug") button:has-text("Drop it")');
-  await page.waitForTimeout(200);
-  const patch = api.calls.find((c) => c.call.startsWith('PATCH /v1/memory/open-threads/'));
-  assert.deepEqual(patch.body, { status: 'dropped', why: 'Not needed any more' });
+  await page.locator('.mrow', { hasText: 'Fix the metronome bug' }).waitFor({ state: 'detached' });
+  const bodies = (call) => api.calls.filter((c) => call(c.call)).map((c) => c.body);
+  assert.deepEqual(bodies((c) => c.startsWith('PATCH /v1/memory/open-threads/')), [{ status: 'dropped', why: 'Not needed any more' }]);
   await page.click('.mrow[data-day="2026-10-28"] button:has-text("Edit")');
   await page.fill('.mrow[data-day="2026-10-28"] textarea', 'A calm day. The bug report came in the evening.');
   await page.click('.mrow[data-day="2026-10-28"] button:has-text("Save")');
-  await page.waitForTimeout(200);
-  const put = api.calls.find((c) => c.call === 'PUT /v1/memory/day-notes/2026-10-28');
-  assert.deepEqual(put.body, { summary: 'A calm day. The bug report came in the evening.', decisions: ['Fix the metronome first'], importance: 4 });
+  await page.locator('.mrow[data-day="2026-10-28"]', { hasText: 'edited by you' }).waitFor();
+  assert.deepEqual(bodies((c) => c === 'PUT /v1/memory/day-notes/2026-10-28'), [
+    { summary: 'A calm day. The bug report came in the evening.', decisions: ['Fix the metronome first'], importance: 4 },
+  ]);
   await page.close();
 });
 

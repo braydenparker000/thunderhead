@@ -15,6 +15,7 @@ const REFUSED = {
   superseded: 'That changed in the meantime. Here is the newest version.',
   unknown_ref: "That's already gone.",
   bad_op: "That couldn't be saved. Try other words.",
+  never_stored: "I don't keep passwords, keys or card numbers. Say it without them.",
 };
 
 /** One line for a failed memory call. */

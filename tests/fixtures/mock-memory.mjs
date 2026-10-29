@@ -51,8 +51,10 @@ export function memoryAnswer(m, method, p, url, body) {
   }
   if (k === 'GET /v1/memory/profile') return [200, { text: m.profile, fact_ids: [], rendered_at: Date.now() }];
   if (k === 'POST /v1/memory/ops') {
-    m.ops.push(...body.ops);
     const o = body.ops[0];
+    // The Worker's never-stored check (API.md §11.13), here only for a card-shaped number.
+    if (/\b\d{4} \d{4} \d{4} \d{4}\b/.test(o.text ?? o.new?.text ?? '')) return err(422, 'validation', [{ path: 'ops.0', issue: 'never_stored' }]);
+    m.ops.push(...body.ops);
     const f = m.facts.find((x) => x.id === o.id);
     if (o.op === 'add') m.facts.push(fact(o.id, { kind: o.kind, text: o.text, evidence: ['ledger:l1'], recorded_at: Date.now() }));
     else if (!f) return err(422, 'validation', [{ path: 'ops.0', issue: 'unknown_ref' }]);

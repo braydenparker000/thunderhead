@@ -45,7 +45,8 @@ export function threadRow(t, ctx) {
   return row;
 }
 
-/** "Add a loose end": the owner's own, or one for the mind. */
+/** "Add a loose end": the owner's own, or one for the mind. The page keeps one across refreshes,
+ * so it goes back to its button once the loose end is added. */
 export function threadAdd(ctx) {
   const host = el('div', { class: 'srec' });
   const button = el('button', { type: 'button', class: 'btn soft', text: 'Add a loose end' });
@@ -71,6 +72,7 @@ export function threadAdd(ctx) {
       try {
         await signedIn((tok) => api.putThread(tok, uuidv7(), { text: words, owner: owner.value, evidence: [] }));
         toast('Added');
+        host.replaceChildren(button);
         ctx.reload();
       } catch (err) {
         save.disabled = false;

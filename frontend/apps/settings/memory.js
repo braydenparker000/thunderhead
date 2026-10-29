@@ -5,7 +5,7 @@
 // without memory says so instead of failing. Returns the page's cleanup (it sends a pending Forget).
 import { api, signedIn } from '/th/client.js';
 import { uuidv7 } from '/th/chat/model.js';
-import { ADD_KINDS, fold, GROUPS, shelfOf } from '/th/registry/memory.js';
+import { ADD_KINDS, fold, GROUPS, odds, shelfOf } from '/th/registry/memory.js';
 import { el, toast, tooSoon } from '/th/ui.js';
 import { confirmForget, factRow, memoryLine, op } from './memory-facts.js';
 import { dayRow, threadAdd, threadRow } from './memory-notes.js';
@@ -28,8 +28,15 @@ export async function memory(body) {
   /** Facts waiting out their 10 s undo: id → send now. */
   const pending = new Map();
   let ready = false;
+  /** Only the newest load is shown, so a slow older one never paints over it. */
+  let loads = 0;
+  /** The rows of the last render by what they show (key → { shows, row }): a refresh (the feed, a
+   * Forget going out, another row's action) keeps every row that didn't change, with whatever
+   * detail or form the owner has open in it. */
+  let rows = new Map();
 
   async function load() {
+    const mine = ++loads;
     try {
       const all = [];
       let cursor = null;
@@ -40,6 +47,7 @@ export async function memory(body) {
         if (!cursor) break;
       }
       const [threads, days, prof] = await signedIn((t) => Promise.all([api.openThreads(t), api.dayNotes(t), api.profile(t)]));
+      if (mine !== loads) return;
       data.facts = all;
       data.threads = Array.isArray(threads?.items) ? threads.items : [];
       data.days = Array.isArray(days?.items) ? days.items.slice(0, 14) : [];
@@ -48,6 +56,7 @@ export async function memory(body) {
       line.textContent = '';
       render();
     } catch (e) {
+      if (mine !== loads) return;
       sections.removeAttribute('aria-busy');
       // A Worker from before memory (P2) answers 404: say what's coming instead of an error.
       if (e?.status === 404 && !ready) {
@@ -61,6 +70,7 @@ export async function memory(body) {
   }
 
   const ctx = { reload: () => load(), forget: (f) => forget(f) };
+  const addThread = threadAdd(ctx);
 
   function render() {
     const q = fold(filter.value.trim());
@@ -74,10 +84,20 @@ export async function memory(body) {
     }
     if (!q && !data.facts.length && !data.threads.length && !data.days.length) {
       const empty = "Nothing yet. When you tell me something worth keeping, it shows here with where you said it.";
-      sections.replaceChildren(el('p', { class: 'sempty', text: empty }), threadAdd(ctx));
+      sections.replaceChildren(el('p', { class: 'sempty', text: empty }), addThread);
       sections.removeAttribute('aria-busy');
+      rows = new Map();
       return;
     }
+    const next = new Map();
+    const keep = (key, shows, make) => {
+      const had = rows.get(key);
+      const row = had?.shows === shows ? had.row : make();
+      next.set(key, { shows, row });
+      return row;
+    };
+    // A fact's odds move a little at every read (decay); only a change of phrase redraws its row.
+    const fRow = (f, shelf) => keep(`f:${f.id}:${shelf ?? ''}`, JSON.stringify({ ...f, confidence_now: odds(f.confidence_now) }), () => factRow(f, ctx, shelf));
     const out = [];
     /** A section with a count of its rows; `extra` (an Add button) follows the rows uncounted. */
     const section = (title, help, rows, empty = '', extra = []) => {
@@ -92,17 +112,19 @@ export async function memory(body) {
     const byPin = (a, b) => Number(b.pinned) - Number(a.pinned) || b.confidence_now - a.confidence_now;
     for (const g of GROUPS) {
       const list = (shelves.get(g.id) ?? []).sort(byPin);
-      section(g.label, g.help, list.map((f) => factRow(f, ctx)), g.id === 'rule' && !q ? 'No standing rules yet.' : '');
+      section(g.label, g.help, list.map((f) => fRow(f)), g.id === 'rule' && !q ? 'No standing rules yet.' : '');
     }
     const threads = data.threads.filter((t) => match(t.text));
-    section('Loose ends', 'Things one of us said would happen.', threads.map((t) => threadRow(t, ctx)), q ? '' : 'Nothing open.', q ? [] : [threadAdd(ctx)]);
+    const tRow = (t) => keep(`t:${t.id}`, JSON.stringify(t), () => threadRow(t, ctx));
+    section('Loose ends', 'Things one of us said would happen.', threads.map(tRow), q ? '' : 'Nothing open.', q ? [] : [addThread]);
     const days = data.days.filter((d) => match(d.summary));
-    section('Days', 'My note on each day, newest first.', days.map((d) => dayRow(d, ctx)));
-    section('Fading', "I haven't heard these in a while.", (shelves.get('fading') ?? []).map((f) => factRow(f, ctx, 'fading')));
-    section('Imported, to review', 'From your old notebook. Tell me which are right.', (shelves.get('review') ?? []).map((f) => factRow(f, ctx, 'review')));
+    section('Days', 'My note on each day, newest first.', days.map((d) => keep(`d:${d.day}`, JSON.stringify(d), () => dayRow(d, ctx))));
+    section('Fading', "I haven't heard these in a while.", (shelves.get('fading') ?? []).map((f) => fRow(f, 'fading')));
+    section('Imported, to review', 'From your old notebook. Tell me which are right.', (shelves.get('review') ?? []).map((f) => fRow(f, 'review')));
     if (!out.length) out.push(el('p', { class: 'sempty', text: 'Nothing matches.' }));
     sections.replaceChildren(...out);
     sections.removeAttribute('aria-busy');
+    rows = next;
   }
 
   /** Forget: asked once, the fact leaves the page, and the request goes after 10 s unless undone. */
@@ -139,12 +161,18 @@ export async function memory(body) {
   await load();
   return () => {
     flush();
+    // What it could undo is sent now, so its Undo must not outlive the page.
+    clearTimeout(undoHide);
+    document.querySelector('.utoast')?.remove();
     removeEventListener('pagehide', flush);
     document.removeEventListener('th:changed', onChanged);
   };
 }
 
-/** The toast with an Undo button (COPY.md `toast.forgotten`), one at a time, in one live region. */
+/** @type {ReturnType<typeof setTimeout> | undefined} */
+let undoHide;
+/** The toast with an Undo button (COPY.md `toast.forgotten`), one at a time, in one live region;
+ * a second Forget takes it over for its own full 10 s. */
 function undoToast(text, onUndo) {
   let t = document.querySelector('.utoast');
   if (!t) {
@@ -154,9 +182,10 @@ function undoToast(text, onUndo) {
   const undo = el('button', { type: 'button', class: 'uundo', text: 'Undo' });
   t.replaceChildren(el('span', { text }), undo);
   t.classList.add('show');
-  const hide = setTimeout(() => t.classList.remove('show'), UNDO_MS);
+  clearTimeout(undoHide);
+  undoHide = setTimeout(() => t.classList.remove('show'), UNDO_MS);
   undo.addEventListener('click', () => {
-    clearTimeout(hide);
+    clearTimeout(undoHide);
     t.classList.remove('show');
     onUndo();
   }, { once: true });

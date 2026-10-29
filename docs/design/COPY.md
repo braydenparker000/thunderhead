@@ -291,7 +291,7 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `toast.forgotten` | Forgotten. Undo | After Forget, for 10 s before it is sent (built, P3) |
 | `set.memory.empty` | Nothing yet. When you tell me something worth keeping, it shows here with where you said it. | Empty page (built, P3) |
 | `set.memory.later` | Memory arrives with the next update of the Thunderhead. | An older Worker without memory (built, P3) |
-| `set.memory.refused` | Keep it to one short sentence (280 characters at most). · That changed in the meantime. Here is the newest version. · That's already gone. · That couldn't be saved. Try other words. | A refused change (built, P3) |
+| `set.memory.refused` | Keep it to one short sentence (280 characters at most). · That changed in the meantime. Here is the newest version. · That's already gone. · That couldn't be saved. Try other words. · I don't keep passwords, keys or card numbers. Say it without them. | A refused change (built, P3) |
 | `set.memory.thread` | I'll do this · Yours · Done · Drop · Why drop it? · Add a loose end · It's mine to do · It's for you to do | Loose ends (built, P3) |
 | `set.memory.day` | importance 4 of 10 · edited by you · Decided: … · Edit · The day, in at most 150 words | Days (built, P3) |
 | `set.apps` | Connected apps | Row (built) |
