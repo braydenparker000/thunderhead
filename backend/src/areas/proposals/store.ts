@@ -23,6 +23,7 @@ export interface ProposalRow {
   odds: number | null;
   options_json: string;
   safe: 'reject' | 'snooze';
+  target: string | null;
   spec_json: string;
   spec_hash: string;
   op: string;
@@ -41,7 +42,7 @@ export interface ProposalRow {
   req_sha256: string | null;
 }
 
-const COLS = `id, created_at, created_by, session_id, class, question, why, if_ignored, odds, options_json, safe,
+const COLS = `id, created_at, created_by, session_id, class, question, why, if_ignored, odds, options_json, safe, target,
   spec_json, spec_hash, op, ref, status, expires_at, visible_from, show_from, snoozes, decided_at,
   decided_by_device, decided_via, decided_message_id, executed_ledger_id, result_json, req_sha256`;
 /** The exact term of the `proposals_open` index, so SQLite can use it. */
@@ -60,6 +61,7 @@ export type NewProposal = Pick<
   | 'odds'
   | 'options_json'
   | 'safe'
+  | 'target'
   | 'spec_json'
   | 'spec_hash'
   | 'op'
@@ -73,8 +75,8 @@ export type NewProposal = Pick<
 export function insert(db: Db, p: NewProposal): void {
   db.run(
     `INSERT INTO proposals (id, created_at, created_by, session_id, class, question, why, if_ignored, odds,
-       options_json, safe, spec_json, spec_hash, op, ref, status, expires_at, visible_from, show_from, req_sha256)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?, ?, ?, ?)`,
+       options_json, safe, target, spec_json, spec_hash, op, ref, status, expires_at, visible_from, show_from, req_sha256)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'waiting', ?, ?, ?, ?)`,
     p.id,
     p.created_at,
     p.created_by,
@@ -86,6 +88,7 @@ export function insert(db: Db, p: NewProposal): void {
     p.odds,
     p.options_json,
     p.safe,
+    p.target,
     p.spec_json,
     p.spec_hash,
     p.op,
@@ -111,12 +114,24 @@ export function waiting(db: Db): ProposalRow[] {
   return open(db).filter((p) => p.status === 'waiting');
 }
 
-/** Every card that names this thing, newest first. */
-export function byRef(db: Db, ref: string): ProposalRow[] {
-  return db.all<ProposalRow>(
-    `SELECT ${COLS} FROM proposals WHERE ref IS NOT NULL AND ref = ? ORDER BY created_at DESC LIMIT 20`,
+/** The newest card that names this thing, or null. */
+export function latestFor(db: Db, ref: string): ProposalRow | null {
+  return db.one<ProposalRow>(
+    `SELECT ${COLS} FROM proposals WHERE ref IS NOT NULL AND ref = ? ORDER BY created_at DESC LIMIT 1`,
     ref,
   );
+}
+
+/** Whether any card that names this thing exists, in any status but `cancelled`. */
+export function askedAbout(db: Db, ref: string): boolean {
+  return (
+    db.one("SELECT 1 FROM proposals WHERE ref IS NOT NULL AND ref = ? AND status != 'cancelled' LIMIT 1", ref) !== null
+  );
+}
+
+/** The card waiting for this thing, if any (at most one waits per thing). */
+export function waitingFor(db: Db, ref: string): ProposalRow | null {
+  return waiting(db).find((p) => p.ref === ref) ?? null;
 }
 
 /** A page, newest first: waiting cards only, or every proposal by its time-ordered id. */
@@ -172,8 +187,14 @@ export function finish(
   );
 }
 
-export function snooze(db: Db, id: string, showFrom: number): void {
-  db.run('UPDATE proposals SET snoozes = snoozes + 1, show_from = ? WHERE id = ?', showFrom, id);
+/** "Not yet": back at `showFrom`; in words, the message is used up (one message, one card). */
+export function snooze(db: Db, id: string, showFrom: number, messageId: string | null): void {
+  db.run(
+    'UPDATE proposals SET snoozes = snoozes + 1, show_from = ?, decided_message_id = coalesce(?, decided_message_id) WHERE id = ?',
+    showFrom,
+    messageId,
+    id,
+  );
 }
 
 /** Waiting cards past their time become `expired` (nothing happens); returns their ids. */
@@ -187,20 +208,31 @@ export function expireDue(db: Db, at: number): string[] {
     .map((r) => r.id);
 }
 
-/** Whether a message already answered a card decided since it was sent (one message, one card). */
-export function decidedByMessage(db: Db, messageId: string, since: number): boolean {
+/** Whether a message already answered a card, or put one off (one message, one card). */
+export function messageUsed(db: Db, messageId: string): boolean {
   return (
     db.one(
-      'SELECT 1 FROM proposals WHERE decided_at IS NOT NULL AND decided_at >= ? AND decided_message_id = ? LIMIT 1',
-      since,
+      'SELECT 1 FROM proposals WHERE decided_message_id IS NOT NULL AND decided_message_id = ? LIMIT 1',
       messageId,
     ) !== null
   );
 }
 
-/** A card's words when what it names is forgotten: the fact's text must not outlive it. */
-export function scrubWords(db: Db, id: string, question: string, why: string): void {
-  db.run('UPDATE proposals SET question = ?, why = ? WHERE id = ?', question, why, id);
+/** Every card that names a forgotten thing loses all of its words (question, why, if ignored, the
+ * buttons and the Worker's target line), however many there are. Returns the rows changed. */
+export function scrubRef(
+  db: Db,
+  ref: string,
+  words: { question: string; why: string; if_ignored: string; options: string[] },
+): number {
+  return db.run(
+    'UPDATE proposals SET question = ?, why = ?, if_ignored = ?, options_json = ?, target = NULL WHERE ref IS NOT NULL AND ref = ?',
+    words.question,
+    words.why,
+    words.if_ignored,
+    JSON.stringify(words.options),
+    ref,
+  );
 }
 
 /** Decided proposals a year on (DATA.md §10, PRIVACY.md §2), on the `proposals_decided` index. */
@@ -225,6 +257,7 @@ export function toProposal(r: ProposalRow): Proposal {
     odds: r.odds,
     options: JSON.parse(r.options_json) as string[],
     safe: r.safe,
+    target: r.target,
     spec: JSON.parse(r.spec_json) as ProposalSpec,
     spec_hash: r.spec_hash,
     status: r.status,

@@ -6,6 +6,7 @@
 import type { MindRole } from '../../../../shared/contract/api';
 import { Fail } from '../../lib/result';
 import type { Db } from '../../objects/base';
+import { taintedSince } from './store';
 
 export interface Guards {
   tainted: boolean;
@@ -15,6 +16,7 @@ export interface Guards {
 interface Row {
   role: string;
   wake_id: string | null;
+  claimed_at: number;
   ended_at: number | null;
   tainted_at: number | null;
   constitution_sha256: string | null;
@@ -22,15 +24,27 @@ interface Row {
 
 const read = (db: Db, id: string) =>
   db.one<Row>(
-    'SELECT role, wake_id, ended_at, tainted_at, constitution_sha256 FROM mind_sessions WHERE session_id = ?',
+    'SELECT role, wake_id, claimed_at, ended_at, tainted_at, constitution_sha256 FROM mind_sessions WHERE session_id = ?',
     id,
   );
 
-/** The session a mind write comes from: claimed (a claim binds a wake), live, and of its role. */
+/** The session a mind write comes from: claimed (a claim binds a wake), live, and of its role; for
+ * chat, also the session that holds the lease (the newest claim). It counts as tainted when it
+ * read outside text, and also when any session of its role was tainted after it claimed: an older
+ * session id can't be borrowed to step around a newer session's taint. */
 export function claimedSession(db: Db, sessionId: string | null, role: MindRole): Guards {
   const s = sessionId ? read(db, sessionId) : null;
   if (!s || s.wake_id === null || s.ended_at !== null || s.role !== role) throw new Fail('session_required');
-  return { tainted: s.tainted_at !== null, constitution: s.constitution_sha256 ?? 'none' };
+  if (
+    role === 'chat' &&
+    db.one<{ session_id: string }>("SELECT session_id FROM leases WHERE task = 'chat'")?.session_id !== sessionId
+  )
+    throw new Fail('session_required');
+  const later = taintedSince(db, role, s.claimed_at);
+  return {
+    tainted: s.tainted_at !== null || (later !== null && later.session_id !== sessionId),
+    constitution: s.constitution_sha256 ?? 'none',
+  };
 }
 
 /** When a session was marked tainted (null: never, or no such session). */

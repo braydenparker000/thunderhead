@@ -1,5 +1,6 @@
 // Helpers for the memory suites: principals with claimed sessions, owner and mind messages to
 // cite, and one-call wrappers for memory ops. Everything is synthetic.
+import { expect } from 'vitest';
 import type { BriefResponse, MemoryOp, MemoryOpsResponse, Message } from '../../shared/contract/api';
 import { uuidv7 } from '../src/lib/ids';
 import { apiJson, coreSql, makeAgent, setupOwner } from './helpers';
@@ -38,6 +39,14 @@ export async function firedWake(role: 'chat' | 'night', session: string, offset 
     session,
   );
   return id;
+}
+
+/** A session the Worker fired just now, claimed: clean, though its role was tainted before (a
+ * session claimed before a taint of its role counts as tainted, so suites move on to one of these). */
+export async function freshSession(token: string, role: 'chat' | 'night', session: string): Promise<string> {
+  await firedWake(role, session);
+  expect((await brief(token, session, role)).body.tainted).toBe(false);
+  return session;
 }
 
 /** The owner, a chat key and a night key, each mind key with a claimed session. */

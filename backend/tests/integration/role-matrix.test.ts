@@ -11,6 +11,8 @@ type Role = 'D' | 'C' | 'N' | 'R' | 'M' | 'I';
 const SESSION: Partial<Record<Role, string>> = { C: 'cse_matrix_chat', N: 'cse_matrix_night', R: 'cse_matrix_reflex' };
 const ROLE = { C: 'chat', N: 'night', R: 'reflex' } as const;
 const tokens = {} as Record<Role, string>;
+/** The CI key's id: a revoke card must name a key that exists. */
+let ciKey = '';
 
 beforeAll(async () => {
   tokens.D = (await setupOwner()).token;
@@ -19,6 +21,7 @@ beforeAll(async () => {
   tokens.R = await makeAgent(tokens.D, 'mind:reflex');
   tokens.M = await makeAgent(tokens.D, 'muse');
   tokens.I = await makeAgent(tokens.D, 'ci');
+  ciKey = (await apiJson<{ agent_id: string }>('GET', '/v1/auth/me', { token: tokens.I })).body.agent_id;
   for (const r of ['C', 'N', 'R'] as const) {
     const s = SESSION[r] as string;
     const b = await apiJson<BriefResponse>('POST', '/v1/mind/brief', {
@@ -36,6 +39,14 @@ const as = (r: Role): { token: string; headers: Record<string, string> } => {
 };
 const status = async (r: Role, method: string, path: string, body?: unknown) =>
   (await apiJson(method, path, { ...as(r), body })).status;
+const revokeCard = () => ({
+  class: 'access',
+  question: 'Revoke the CI key?',
+  why: 'It is no longer used.',
+  if_ignored: 'Nothing happens.',
+  options: ['Revoke it', 'Keep it'],
+  spec: { v: 1, op: 'agents.revoke', args: { agent_id: ciKey } },
+});
 
 /** Each capability: the request, and the roles that may do it (every other role is refused). */
 const CAPABILITIES: { name: string; may: Role[]; call: (r: Role) => Promise<number> }[] = [
@@ -79,15 +90,16 @@ const CAPABILITIES: { name: string; may: Role[]; call: (r: Role) => Promise<numb
   {
     name: 'raise a decision card',
     may: ['C', 'N', 'R'],
-    call: (r) =>
-      status(r, 'PUT', `/v1/proposals/${uuidv7()}`, {
-        class: 'access',
-        question: 'Revoke an old key?',
-        why: 'It is no longer used.',
-        if_ignored: 'Nothing happens.',
-        options: ['Revoke it', 'Keep it'],
-        spec: { v: 1, op: 'agents.revoke', args: { agent_id: uuidv7() } },
-      }),
+    // Cancelled at once: one card waits per key, and the next role asks about the same one.
+    call: async (r) => {
+      const put = await apiJson<{ id: string }>('PUT', `/v1/proposals/${uuidv7()}`, { ...as(r), body: revokeCard() });
+      if (put.status < 300)
+        await apiJson('POST', `/v1/proposals/${put.body.id}/cancel`, {
+          token: tokens.D,
+          body: { why: 'clearing the matrix' },
+        });
+      return put.status;
+    },
   },
   {
     name: 'read the ledger, errors and health',
@@ -108,29 +120,12 @@ describe('RUNTIME.md §7.1, capability by role', () => {
         // (only night and reflex may name the system thread).
         else expect([403, 422], `${r} may not ${cap.name} (${s})`).toContain(s);
       }
-      // Each card raised above fills the budget; clear them for the next capability.
-      const cards = await apiJson<{ items: { id: string; created_by: string }[] }>('GET', '/v1/proposals', {
-        token: tokens.D,
-      });
-      for (const p of cards.body.items)
-        if (p.created_by !== 'worker')
-          await apiJson('POST', `/v1/proposals/${p.id}/cancel`, {
-            token: tokens.D,
-            body: { why: 'clearing the matrix' },
-          });
     });
 
   it('only a device decides by a tap, and only mind:chat records the owner’s words', async () => {
     const put = await apiJson<{ id: string; spec_hash: string }>('PUT', `/v1/proposals/${uuidv7()}`, {
       ...as('C'),
-      body: {
-        class: 'access',
-        question: 'Revoke an unused key?',
-        why: 'It has not been used.',
-        if_ignored: 'Nothing happens.',
-        options: ['Revoke it', 'Keep it'],
-        spec: { v: 1, op: 'agents.revoke', args: { agent_id: uuidv7() } },
-      },
+      body: revokeCard(),
     });
     const decide = (r: Role, body: object) => status(r, 'POST', `/v1/proposals/${put.body.id}/decide`, body);
     const tap = { decision: 'reject', spec_hash: put.body.spec_hash };

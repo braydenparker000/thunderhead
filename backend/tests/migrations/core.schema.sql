@@ -245,6 +245,8 @@ CREATE TABLE mind_sessions (
   last_owner_at INTEGER
   ) WITHOUT ROWID;
 
+CREATE INDEX mind_sessions_open ON mind_sessions (role) WHERE ended_at IS NULL;
+
 CREATE INDEX mind_sessions_tainted ON mind_sessions (role, tainted_at) WHERE tainted_at IS NOT NULL;
 
 CREATE TABLE night_runs (
@@ -301,6 +303,7 @@ CREATE TABLE proposals (
   odds REAL,
   options_json TEXT NOT NULL,
   safe TEXT NOT NULL DEFAULT 'reject',
+  target TEXT,
   spec_json TEXT NOT NULL,
   spec_hash TEXT NOT NULL,
   op TEXT NOT NULL,
@@ -320,6 +323,8 @@ CREATE TABLE proposals (
   ) WITHOUT ROWID;
 
 CREATE INDEX proposals_decided ON proposals (decided_at) WHERE decided_at IS NOT NULL;
+
+CREATE INDEX proposals_message ON proposals (decided_message_id) WHERE decided_message_id IS NOT NULL;
 
 CREATE INDEX proposals_open ON proposals (created_at) WHERE status IN ('waiting', 'approved');
 

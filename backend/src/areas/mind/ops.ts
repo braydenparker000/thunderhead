@@ -95,6 +95,8 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
     });
   if (r.role === 'chat') {
     store.putLease(db, 'chat', r.session_id, at);
+    // Only the newest chat session writes: the older ones end here (they can't take the lease back).
+    store.endOthers(db, 'chat', r.session_id, at);
     const waiting = convo.unanswered(db, 30);
     convo.markDelivered(
       db,
@@ -188,7 +190,8 @@ function renew(db: Db, sessionId: string, at: number, takeIfFree: boolean): bool
     if (at - l.renewed_at >= RENEW_EVERY_MS) store.renewLease(db, 'chat', at);
     return true;
   }
-  if (takeIfFree && !leaseLive(db, at)) {
+  // Only a session still open may take a lapsed lease back (one a newer claim ended may not).
+  if (takeIfFree && !leaseLive(db, at) && store.sessionOpen(db, sessionId)) {
     store.putLease(db, 'chat', sessionId, at);
     return true;
   }

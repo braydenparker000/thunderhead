@@ -1,9 +1,11 @@
 // /v1/proposals (API.md §11.10): agents raise decision cards; the owner decides them by a tap on a
 // signed-in device, or in their own words, which mind:chat records with `by_message` and the
 // Worker checks. The ops, classes and limits are the contract's (shared/contract/proposals.ts).
-import { Hono } from 'hono';
+// The one-time import key moves history in and nothing else: it raises, decides and cancels no card.
+import { type Context, Hono } from 'hono';
 import * as z from 'zod/mini';
 import type {
+  AgentRole,
   DecideProposalRequest,
   DecideProposalResponse,
   Proposal,
@@ -11,12 +13,15 @@ import type {
   PutProposalRequest,
 } from '../../../../shared/contract/api';
 import { PROPOSAL_LIMITS as L, PROPOSAL_CLASS_NAMES } from '../../../../shared/contract/proposals.ts';
-import { type AppEnv, guard } from '../../http/auth';
+import { IMPORT_KEY } from '../../../../shared/contract/routes.ts';
+import { type AppEnv, guard, principalOf } from '../../http/auth';
 import { callerOf, idParam, reqHash } from '../../http/caller';
+import { ApiError } from '../../http/errors';
 import { inSandbox } from '../../http/sandbox';
 import { json, parse } from '../../http/validate';
 import { UUIDV7 } from '../../lib/ids';
 import { value } from '../../lib/result';
+import { authObject } from '../../objects/auth';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 import { runAfter } from './after';
@@ -50,11 +55,33 @@ const listQuery = z.object({
   limit: z.optional(z.coerce.number().check(z.int(), z.gte(1), z.lte(200))),
 });
 
+const ROLE_LABEL: Record<AgentRole, string> = {
+  'mind:chat': 'Mind · chat',
+  'mind:night': 'Mind · night',
+  'mind:reflex': 'Mind · reflex',
+  muse: 'Muse',
+  ci: 'CI',
+};
+
+function notImportKey(c: Context<AppEnv>): void {
+  const p = principalOf(c);
+  if (p.kind === 'agent' && p.name === IMPORT_KEY) throw new ApiError('forbidden');
+}
+
+/** The target line of a revoke card: the active key's name and role, from Auth (none: 422). */
+async function agentLine(env: Env, id: unknown): Promise<string | null> {
+  const a = (await authObject(env).agents()).find((k) => k.id === id);
+  return a ? `key ${a.name} (${ROLE_LABEL[a.role]})` : null;
+}
+
 export const proposalsRoutes = new Hono<AppEnv>()
   .put('/proposals/:id', guard('PUT /v1/proposals/:id'), async (c) => {
+    notImportKey(c);
     const id = idParam(c);
     const body = await json(c, putBody);
-    const out = value(await fresh(coreObject(c.env).putProposal(callerOf(c), id, body, reqHash(body))));
+    const target = body.spec.op === 'agents.revoke' ? await agentLine(c.env, body.spec.args.agent_id) : null;
+    const core = coreObject(c.env);
+    const out = value(await fresh(core.putProposal(callerOf(c), id, body, reqHash(body), target)));
     return c.json(out.proposal satisfies Proposal, out.created ? 201 : 200);
   })
   .get('/proposals', guard('GET /v1/proposals'), async (c) => {
@@ -67,6 +94,7 @@ export const proposalsRoutes = new Hono<AppEnv>()
     return c.body(JSON.stringify(page), 200, { 'Content-Type': 'application/json' });
   })
   .post('/proposals/:id/decide', guard('POST /v1/proposals/:id/decide'), async (c) => {
+    notImportKey(c);
     const id = idParam(c);
     const body = await json(c, decideBody);
     const core = coreObject(c.env);
@@ -78,9 +106,10 @@ export const proposalsRoutes = new Hono<AppEnv>()
       ? { ok: true as const, result: { sandbox: true }, what: 'nothing was run (the eval sandbox)' }
       : await runAfter(c.env, after);
     if (!ran) return c.json(out satisfies DecideProposalResponse);
-    return c.json(value(await core.proposalRan(id, ran)) satisfies DecideProposalResponse);
+    return c.json(value(await fresh(core.proposalRan(id, ran))) satisfies DecideProposalResponse);
   })
   .post('/proposals/:id/cancel', guard('POST /v1/proposals/:id/cancel'), async (c) => {
+    notImportKey(c);
     const id = idParam(c);
     const { why } = await json(c, cancelBody);
     return c.json(value(await fresh(coreObject(c.env).cancelProposal(callerOf(c), id, why))));

@@ -31,6 +31,7 @@ import {
 import budgets from './budgets.json';
 import { importCalls } from './import-calls';
 import { memoryCalls } from './memory-calls';
+import { proposalCalls } from './proposal-calls';
 
 type Budget = { rows_read_max: number; rows_written_max: number };
 const measured: Record<string, Rows> = {};
@@ -265,6 +266,9 @@ describe('rows per endpoint', () => {
 
   // P3 stage D: the import (import-calls.ts).
   it('measures the import against its budget', () => importCalls(cost, grant));
+
+  // P4 stage A: decision cards (proposal-calls.ts).
+  it('measures the decision cards against their budget', () => proposalCalls(cost, grant));
 
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);

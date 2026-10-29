@@ -2,7 +2,9 @@
 // their retention (§10: a year after they were decided). `show_from` holds a card made in quiet
 // hours, or snoozed with "Not yet", until the morning; `visible_from` is when it first could show,
 // which the owner's words must come after. `ref` names what the op acts on (one waiting card per
-// thing; the words of a card are scrubbed when the owner forgets the fact it names).
+// thing; the words of a card are scrubbed when the owner forgets the fact it names). `target` is
+// the Worker's own line naming what the op acts on (a key's name and role, a fact's kind and text),
+// so the card never rests on the mind's words alone.
 import type { Migration, TableInfo } from '../../objects/base';
 import { prune } from './store';
 
@@ -24,6 +26,7 @@ export const PROPOSALS_MIGRATIONS: Migration[] = [
         odds REAL,
         options_json TEXT NOT NULL,
         safe TEXT NOT NULL DEFAULT 'reject',
+        target TEXT,
         spec_json TEXT NOT NULL,
         spec_hash TEXT NOT NULL,
         op TEXT NOT NULL,
@@ -45,6 +48,8 @@ export const PROPOSALS_MIGRATIONS: Migration[] = [
       `CREATE INDEX proposals_open ON proposals (created_at) WHERE status IN ('waiting', 'approved')`,
       'CREATE INDEX proposals_ref ON proposals (ref) WHERE ref IS NOT NULL',
       'CREATE INDEX proposals_decided ON proposals (decided_at) WHERE decided_at IS NOT NULL',
+      // One owner message answers one card, a snooze in words included.
+      'CREATE INDEX proposals_message ON proposals (decided_message_id) WHERE decided_message_id IS NOT NULL',
     ],
   },
 ];

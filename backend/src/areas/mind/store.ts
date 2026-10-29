@@ -229,6 +229,21 @@ export function taintSession(db: Db, s: { id: string; role: MindRole; day: strin
   );
 }
 
+/** Ends every other open session of the role (a new chat claim: only the newest may write). */
+export function endOthers(db: Db, role: MindRole, sessionId: string, at: number): number {
+  return db.run(
+    'UPDATE mind_sessions SET ended_at = ? WHERE role = ? AND ended_at IS NULL AND session_id != ?',
+    at,
+    role,
+    sessionId,
+  );
+}
+
+/** Whether a session exists and has not ended. */
+export function sessionOpen(db: Db, sessionId: string): boolean {
+  return db.one('SELECT 1 FROM mind_sessions WHERE session_id = ? AND ended_at IS NULL', sessionId) !== null;
+}
+
 export function endSession(db: Db, id: string, at: number): void {
   db.run('UPDATE mind_sessions SET ended_at = coalesce(ended_at, ?) WHERE session_id = ?', at, id);
 }

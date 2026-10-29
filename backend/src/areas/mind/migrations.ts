@@ -71,6 +71,13 @@ export const MIND_MIGRATIONS: Migration[] = [
     sql: ['CREATE INDEX mind_sessions_tainted ON mind_sessions (role, tainted_at) WHERE tainted_at IS NOT NULL'],
   },
   {
+    version: 16,
+    name: 'mind_sessions_open index',
+    kind: 'expand',
+    // A chat claim ends the role's other open sessions, found through this index.
+    sql: ['CREATE INDEX mind_sessions_open ON mind_sessions (role) WHERE ended_at IS NULL'],
+  },
+  {
     version: 11,
     name: 'night_runs',
     kind: 'expand',

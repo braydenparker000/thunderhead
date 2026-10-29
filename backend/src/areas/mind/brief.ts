@@ -181,10 +181,11 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
   let core = [1, 2, 3, 4, 5, 6, 7].map((n) => render(n, body[n])).join('\n\n');
   // A safety net only: the budgets above keep the core under the cap.
   if (core.length > CORE_MAX) core = `${core.slice(0, core.lastIndexOf('\n', CORE_MAX - 40))}\n(+cut: th brief --full)`;
+  // A card's question can quote a fact, and reflex reads no memory: it sees that cards wait, not what they ask.
   const pending = [
     ...i.decisions.map(
       (d) =>
-        `decision ${d.id} waiting (${d.class}): ${d.question}${d.show_from > i.now ? ` · held until ${clock(d.show_from, i.tz)}` : ''}`,
+        `decision ${d.id} waiting (${d.class})${reflex ? '' : `: ${d.question}`}${d.show_from > i.now ? ` · held until ${clock(d.show_from, i.tz)}` : ''}`,
     ),
     ...i.ledger.map((l) => `${clock(l.at, i.tz)} ${l.actor} ${l.kind}: ${l.what}`),
   ];

@@ -36,12 +36,15 @@ export async function propose(argv) {
     class: cls, question: bounded(flags, 'question', 80), why: bounded(flags, 'why', 140),
     if_ignored: bounded(flags, 'if-ignored', 140), odds, options, safe, spec: full,
   }});
-  out({proposal_id: data.id || id, spec_hash: data.spec_hash ?? null});
+  // `target`: the Worker's own line naming what a Yes changes (the card shows it under the question).
+  out({proposal_id: data.id || id, spec_hash: data.spec_hash ?? null, target: data.target ?? null});
 }
 
 /**
  * Records the owner's own words as the decision (API.md §11.10: `{decision, spec_hash, by_message}`); the
- * Worker verifies the message (exit 6 not_owner_words). `spec_hash` is the hash of the spec the card showed
+ * Worker verifies the message and who records it (exit 6: not_owner_words, also for the laws card, which
+ * takes a tap only; session_required unless this session holds the chat lease; session_tainted for an
+ * approval from a tainted session). `spec_hash` is the hash of the spec the card showed
  * the owner: taken from --spec-hash (what `th propose` printed) or read from the waiting proposal.
  */
 export async function decide(argv) {

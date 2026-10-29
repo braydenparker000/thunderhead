@@ -11,6 +11,7 @@ import {
   brief,
   CHAT_SESSION,
   firedWake,
+  freshSession,
   mindSays,
   NIGHT_SESSION,
   ops,
@@ -23,8 +24,9 @@ import {
 let P = {} as Principals;
 let owner = '';
 let mind = '';
+const S = { night: NIGHT_SESSION };
 const chat = () => as(P.C, CHAT_SESSION);
-const night = () => as(P.N, NIGHT_SESSION);
+const night = () => as(P.N, S.night);
 
 beforeAll(async () => {
   P = await principals();
@@ -166,6 +168,9 @@ describe('M11 and M12: the session', () => {
     expect(r.status).toBe(403);
     expect(r.body.error?.code).toBe('laws_unpinned');
     expect(await reason(as(P.C, 'cse_never_claimed'), rule())).toBe('session_required');
+    // The night session claimed before the taint above counts as tainted now; one fired since doesn't.
+    expect(await reason(night(), rule())).toBe('session_tainted');
+    S.night = await freshSession(P.N, 'night', 'cse_memory_night_2');
     expect(await reason(night(), rule())).toBeNull();
   });
 

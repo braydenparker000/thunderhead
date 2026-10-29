@@ -1641,7 +1641,7 @@
           "laws",
           "sha256"
         ],
-        "doc": "Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin).",
+        "doc": "Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only.",
         "args": {
           "type": "object",
           "properties": {
