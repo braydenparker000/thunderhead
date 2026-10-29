@@ -3,17 +3,22 @@
 // with the job killed inside its third step (a throw after the step's writes, so its transaction
 // rolls back); resumed, the killed run ends in the same state as the straight one, counted once,
 // and no imported reply points at a message that was skipped.
-// A run past the bulk lane's 40,000 rows a day pauses until 00:05 UTC and then finishes.
+// A run past the bulk lane's 40,000 rows a day pauses until 00:05 UTC and then finishes. And the
+// day roll still waits for a live conversation after an import: imported messages come later by
+// seq with their old times, and the quiet hour is the open daily thread's own.
+import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ImportStatus } from '../../../shared/contract/api';
 import { importJob } from '../../src/areas/import/job';
 import { importedId, uuidv7 } from '../../src/lib/ids';
 import { utcDay } from '../../src/lib/time';
-import { apiJson, coreSql } from '../helpers';
-import { exportRun, oldChats, parts, runJobsWith, untilDone } from '../import-helpers';
+import type { Core } from '../../src/objects/core';
+import { apiJson, core, coreSql } from '../helpers';
+import { exportRun, importKey, oldChats, parts, runJobsWith, untilDone } from '../import-helpers';
 import { type Principals, principals } from '../memory-helpers';
 
 let p: Principals;
+let k = '';
 const MINUTE = 60_000;
 const REAL = { [importJob.kind]: importJob };
 const start = async (run: string, dataset: string) =>
@@ -27,7 +32,7 @@ const status = async (id: string) => (await apiJson<ImportStatus>('GET', `/v1/im
 
 async function exportChats(run: string, prefix: string) {
   const { threads, messages } = oldChats(prefix, 7);
-  await exportRun(p.C, run, {
+  await exportRun(k, run, {
     'claude-chat-v1/cc_threads': [threads],
     'claude-chat-v1/cc_messages': parts(messages, 700),
   });
@@ -68,6 +73,7 @@ const same = (s: ImportStatus) => ({
 
 beforeAll(async () => {
   p = await principals();
+  k = await importKey(p.D);
 });
 
 describe('a killed import resumes', () => {
@@ -126,7 +132,7 @@ describe('a killed import resumes', () => {
 describe('the bulk lane', () => {
   it('pauses a run past 40,000 rows today until 00:05 UTC, then finishes it', async () => {
     const { threads } = oldChats('l', 11, 10, 0);
-    await exportRun(p.C, 'run-lane', { 'claude-chat-v1/cc_threads': [threads] });
+    await exportRun(k, 'run-lane', { 'claude-chat-v1/cc_threads': [threads] });
     // The lane is full before the run starts, so whichever alarm runs it first pauses it.
     const now = Date.now();
     await coreSql(
@@ -149,5 +155,28 @@ describe('the bulk lane', () => {
     expect(await status(id)).toMatchObject({ state: 'done', counts: { expected: 10, imported: 10 } });
     const [lane] = await coreSql<{ value_json: string }>("SELECT value_json FROM settings WHERE key = 'bulk.day'");
     expect(JSON.parse(lane.value_json)).toMatchObject({ day: utcDay(opens) });
+  });
+});
+
+describe('the day roll after an import', () => {
+  it('waits for the live conversation: old messages imported after it do not make it look quiet', async () => {
+    await coreSql(
+      `INSERT INTO settings (key, value_json, updated_at, actor) VALUES ('day.current', '"2000-01-01"', 0, 'worker')
+       ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`,
+    );
+    expect(
+      (await apiJson('PUT', `/v1/messages/${uuidv7()}`, { token: p.D, body: { body: 'Still here.' } })).status,
+    ).toBe(201);
+    const { threads, messages } = oldChats('r', 5, 3, 30);
+    await exportRun(k, 'run-roll', {
+      'claude-chat-v1/cc_threads': [threads],
+      'claude-chat-v1/cc_messages': [messages],
+    });
+    expect((await untilDone(p.D, await start('run-roll', 'threads'))).state).toBe('done');
+    expect((await untilDone(p.D, await start('run-roll', 'messages'))).state).toBe('done');
+    const tick = await runInDurableObject(core() as unknown as DurableObjectStub<Core>, (o: Core) => o.tick());
+    expect(tick.rolled).toBeNull();
+    const [d] = await coreSql<{ value_json: string }>("SELECT value_json FROM settings WHERE key = 'day.current'");
+    expect(JSON.parse(d.value_json)).toBe('2000-01-01');
   });
 });

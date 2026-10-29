@@ -4,6 +4,7 @@
 // (the run, the job, the lane and the ledger row): no imported row changes.
 import { runInDurableObject } from 'cloudflare:test';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
+import { IMPORT_KEY } from '../../../shared/contract/routes.ts';
 import { uuidv7 } from '../../src/lib/ids';
 import type { Core } from '../../src/objects/core';
 import { api, apiJson, core, PASSWORD } from '../helpers';
@@ -22,7 +23,7 @@ export async function importCalls(cost: Cost, grant: (ip: string, password?: str
   const chat = (
     await apiJson<NewAgentResponse>('POST', '/v1/auth/agents', {
       token: d.token,
-      body: { name: 'import-cost', role: 'mind:chat', current_password: pw },
+      body: { name: IMPORT_KEY, role: 'mind:chat', current_password: pw },
     })
   ).body.token;
   await api('GET', '/v1/auth/me', { token: chat });

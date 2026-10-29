@@ -180,7 +180,7 @@ Import jobs stop after 3 failures in a row and show the Home line from [MIGRATIO
 ### 4.3 The write cap (bulk lane)
 
 - Only one lane job runs account-wide. `Core.settings['bulk.lane']` names it, and `Core.tick` grants and revokes the lane every 15 minutes ([DATA.md §8.3](DATA.md#83-the-bulk-lane)). **P3 builds the cap only:** the import is the one lane kind and runs in `Core`, so there is no holder to grant yet; the grant and the revoke at 60,000 come with the second lane kind (restores, P4).
-- The holder may write 40,000 rows a day. P3 counts the lane's rows per UTC day in `Core.settings['bulk.day']` (`{day, rows}`, each step's measured rows) and checks before each step that the day's rows are below 40,000; past it the job is `paused` with `due_at` = next 00:05 UTC. A step can overrun the cap by its own size (≤ 2,000 rows and their index and FTS writes).
+- The holder may write 40,000 rows a day. P3 counts the lane's rows per UTC day in `Core.settings['bulk.day']` (`{day, rows}`, each step's measured rows) and checks before each step that the day's rows are below 40,000; past it the job is `paused` with `due_at` = next 00:05 UTC. A step can overrun the cap by its own size: one part of 2,000 old messages writes about 7,900 rows (each message, its indexes and its FTS entry; measured in local workerd), so the lane takes about five such parts, 10,000 messages, a day.
 - When the account total reaches 60,000 writes in a day, `tick` revokes the lane at once. Non-lane jobs (prunes, exports, rollups) keep running, since they are part of the steady budget.
 - Lane jobs queue in this order: restores, then imports, then backfills, then ingestion **[proposal]**.
 

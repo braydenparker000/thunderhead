@@ -19,7 +19,8 @@ export const hex = (buffer: ArrayBuffer) =>
 export const sha256 = async (bytes: ArrayBuffer | Uint8Array) => hex(await crypto.subtle.digest('SHA-256', bytes));
 
 /** Stores bytes once at `key`: `stored` when new or the same bytes again, `conflict` when other
- * bytes are there. R2 checks the SHA-256 on the way in. */
+ * bytes are there. The put is conditional (`If-None-Match: *`), so of two senders racing for one
+ * key only the first writes; R2 checks the SHA-256 on the way in. */
 export async function putOnce(
   vault: R2Bucket,
   key: string,
@@ -28,14 +29,53 @@ export async function putOnce(
   type: string,
   meta: Record<string, string> = {},
 ): Promise<'stored' | 'conflict'> {
-  const had = await vault.head(key);
-  if (had) return had.customMetadata?.sha256 === sha ? 'stored' : 'conflict';
-  await vault.put(key, bytes, {
+  const put = await vault.put(key, bytes, {
+    onlyIf: new Headers({ 'If-None-Match': '*' }),
     sha256: sha,
     httpMetadata: { contentType: type },
     customMetadata: { ...meta, sha256: sha },
   });
-  return 'stored';
+  if (put) return 'stored';
+  const had = await vault.head(key);
+  return had?.customMetadata?.sha256 === sha ? 'stored' : 'conflict';
+}
+
+/** Every object stored under a run's prefix, with the SHA-256 it was stored with: one list call
+ * per 1,000 objects, where a head per part would spend the request's subrequests. */
+export async function storedShas(vault: R2Bucket, runId: string): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  let cursor: string | undefined;
+  do {
+    const page = await vault.list({ prefix: prefix(runId), include: ['customMetadata'], cursor });
+    for (const o of page.objects) out.set(o.key, o.customMetadata?.sha256 ?? '');
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  return out;
+}
+
+/** The first row of a gzip JSONL part, read only as far as its first newline (null for an empty
+ * part); throws on a body that is not gzip JSONL. */
+export async function firstRow(bytes: ArrayBuffer): Promise<Record<string, unknown> | null> {
+  const reader = new Blob([bytes])
+    .stream()
+    .pipeThrough(new DecompressionStream('gzip'))
+    .pipeThrough(new TextDecoderStream())
+    .getReader();
+  let text = '';
+  try {
+    while (!text.includes('\n')) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += value;
+    }
+  } finally {
+    await reader.cancel().catch(() => undefined);
+  }
+  const line = text.split('\n')[0];
+  if (!line) return null;
+  const row = JSON.parse(line) as unknown;
+  if (!row || typeof row !== 'object' || Array.isArray(row)) throw new Error('not a row');
+  return row as Record<string, unknown>;
 }
 
 export async function readManifest(vault: R2Bucket, runId: string): Promise<ImportManifest | null> {

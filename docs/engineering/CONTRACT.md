@@ -82,9 +82,9 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/memory/day-notes/:day` | D N | P3 | built | device: the owner's edit (written_by owner) |
 | `PUT /v1/memory/open-threads/:id` | D C N | P3 | built |  |
 | `PATCH /v1/memory/open-threads/:id` | D C N | P3 | built | {status, why}: done or dropped |
-| `POST /v1/import/runs` | D C | P3 | built | one dataset of an export run; 503 not_configured without VAULT |
-| `POST /v1/ops/import/parts` | C I | P3 | built | one gzip JSONL part of the old export, stored as sent |
-| `PUT /v1/ops/import/manifest/:run_id` | C I | P3 | built | the export run's manifest, written last |
+| `POST /v1/import/runs` | D C (agents: the key `import-once` only) | P3 | built | one dataset of an export run (the owner, or the import-once key); 503 not_configured without VAULT |
+| `POST /v1/ops/import/parts` | C (agents: the key `import-once` only) | P3 | built | one gzip JSONL part of the old export, stored as sent; never-exported tables 403 |
+| `PUT /v1/ops/import/manifest/:run_id` | C (agents: the key `import-once` only) | P3 | built | the export run's manifest, written last, after every part it names |
 | `GET /v1/import/runs/:id` | D C N R | P3 | built | state, counts and the verification report |
 | `PUT /v1/proposals/:id` | C N R | P4 | later (P4) |  |
 | `GET /v1/proposals` | D C N R | P4 | later (P4) |  |

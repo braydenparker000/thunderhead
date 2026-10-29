@@ -4,10 +4,11 @@
 import { runInDurableObject } from 'cloudflare:test';
 import { exports } from 'cloudflare:workers';
 import type { ImportManifest, ImportStatus } from '../../shared/contract/api';
+import { IMPORT_KEY } from '../../shared/contract/routes.ts';
 import { type JobHandler, type JobHost, runJobs } from '../src/areas/jobs/runner';
 import type { Db } from '../src/objects/base';
 import type { Core } from '../src/objects/core';
-import { apiJson, core } from './helpers';
+import { apiJson, core, makeAgent } from './helpers';
 
 export const BASE = Date.parse('2026-09-01T12:00:00Z');
 const HOUR = 3_600_000;
@@ -55,6 +56,9 @@ export function oldChats(prefix: string, seed: number, threads = 50, messages = 
   });
   return { threads: ts, messages: ms };
 }
+
+/** The one key that may write the import: a Mind · chat key named `import-once` (SETUP.md L2). */
+export const importKey = (device: string) => makeAgent(device, 'mind:chat', IMPORT_KEY);
 
 /** Splits rows into parts of `size`. */
 export const parts = <T>(rows: T[], size: number): T[][] =>

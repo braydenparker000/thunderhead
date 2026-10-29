@@ -1,10 +1,19 @@
 // Deterministic counts of a day's conversation (MEMORY.md §2 `day_notes.stats_json`, RUNTIME.md
 // §12 step 1): messages of the day's thread by author, read through `messages_thread_seq`; and
-// when a logical day was open, which bounds the night's read of that day's ledger and notes.
+// when a logical day was open, which bounds the night's read of that day's ledger and notes; and
+// when the open day's thread last spoke, for the roll's quiet hour.
 import { dayBefore, zonedInstant } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import { DAY_STARTS_HOUR } from './day';
 import { dailyThread } from './store';
+
+/** When a thread last had a message, by seq on `messages_thread_seq` (one row). The day roll's
+ * quiet hour asks it of the open daily thread only: imported messages come later by seq with their
+ * old times, and must not make a live conversation look quiet. */
+export function lastMessageAt(db: Db, threadId: string | null): number | null {
+  const q = 'SELECT created_at AS at FROM messages WHERE thread_id = ? ORDER BY seq DESC LIMIT 1';
+  return threadId === null ? null : (db.one<{ at: number }>(q, threadId)?.at ?? null);
+}
 
 /** From the roll that opened `day` to the one that closed it (each day's thread is filed at its
  * roll); a roll not recorded falls back to 04:00 owner-local, and an open day ends `now`. */

@@ -12,7 +12,7 @@ import {createServer} from 'node:http';
 import {join} from 'node:path';
 import {gzipSync} from 'node:zlib';
 import {ROOT, freshTmp, runNode} from './helpers.mjs';
-import {available, setupOwner, startWorker} from './worker-dev.mjs';
+import {PASSWORD, available, setupOwner, startWorker} from './worker-dev.mjs';
 
 const DRIVER = join(ROOT, 'mind/jobs/old-export.mjs');
 const OLD_KEY = 'old_fake_agent_key';
@@ -192,10 +192,17 @@ test('the pull and the import against the real Worker, its alarm running the job
   const w = await startWorker();
   t.after(() => w.stop());
   const {device, keys} = await setupOwner(w, ['mind:chat']);
+  // Only the key named exactly import-once may write the import; the routine's chat key is refused.
+  const once = await w.call('POST', '/v1/auth/agents', {token: device, body: {name: 'import-once', role: 'mind:chat', current_password: PASSWORD}});
+  assert.equal(once.status, 201);
   const f = await fakes();
   t.after(() => f.stop());
+  const routine = await runNode(DRIVER, ['--run', 'run-e2e', '--deployed', LONG_AGO, '--instances', 'claude-chat-v1'],
+    {env: {...env(f), TH_API: w.url, TH_TOKEN: keys['mind:chat']}});
+  assert.equal(routine.code, 4);
+  assert.equal(JSON.parse(routine.stderr.trim().split('\n').pop()).error.code, 'forbidden');
   const r = await runNode(DRIVER, ['--run', 'run-e2e', '--deployed', LONG_AGO, '--instances', 'claude-chat-v1'],
-    {env: {...env(f), TH_API: w.url, TH_TOKEN: keys['mind:chat'], TH_POLL_MS: '200'}});
+    {env: {...env(f), TH_API: w.url, TH_TOKEN: once.body.token, TH_POLL_MS: '200'}});
   assert.equal(r.code, 0, `${r.stderr}\n${r.stdout}`);
   assert.deepEqual(Object.fromEntries(Object.entries(r.json.imports).map(([k, v]) => [k, [v.state, v.imported, v.skipped]])),
     {threads: ['done', 3, 0], messages: ['done', 4, 0], notebook: ['done', 1, 0]});
@@ -206,7 +213,7 @@ test('the pull and the import against the real Worker, its alarm running the job
   assert.equal(found.body.items.filter(i => i.source === 'messages').length, 4);
   // The same part again is stored once; other bytes under its name are refused.
   const again = await runNode(DRIVER, ['--run', 'run-e2e', '--deployed', LONG_AGO, '--instances', 'claude-chat-v1', '--no-runs'],
-    {env: {...env(f), TH_API: w.url, TH_TOKEN: keys['mind:chat']}});
+    {env: {...env(f), TH_API: w.url, TH_TOKEN: once.body.token}});
   assert.equal(again.code, 4);
   assert.equal(JSON.parse(again.stderr.trim().split('\n').pop()).error.code, 'conflict', 'the manifest of a run is written once');
 });

@@ -10,10 +10,11 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import type { ImportStatus, MemoryOpsResponse } from '../../../shared/contract/api';
 import { importedId, uuidv7 } from '../../src/lib/ids';
 import { apiJson, coreSql } from '../helpers';
-import { BASE, exportRun, gz, postPart, untilDone } from '../import-helpers';
+import { BASE, exportRun, gz, importKey, postPart, untilDone } from '../import-helpers';
 import { as, CHAT_SESSION, type Principals, principals } from '../memory-helpers';
 
 let p: Principals;
+let k = '';
 const RUN = 'run-chats-1';
 const MIN = 60_000;
 const thread = (i: number) => ({
@@ -51,7 +52,8 @@ const start = (id: string, dataset: string, run = RUN) =>
 
 beforeAll(async () => {
   p = await principals();
-  await exportRun(p.C, RUN, {
+  k = await importKey(p.D);
+  await exportRun(k, RUN, {
     'claude-chat-v1/cc_threads': [[thread(1), thread(2), thread(3), thread(4)]],
     'claude-chat-v1/cc_messages': MESSAGES,
     'claude-chat-v1/cc_state': [
@@ -109,7 +111,7 @@ describe('the old Chats, imported', () => {
     // The first step already reads every part (a message names its reply by the old one's time).
     expect(job).toMatchObject({ attempts: 1, last_error: 'missing_part' });
     expect(['queued', 'running']).toContain(job.state);
-    expect((await postPart(p.C, `${RUN}/claude-chat-v1/cc_messages/0002`, bytes, 3)).status).toBe(201);
+    expect((await postPart(k, `${RUN}/claude-chat-v1/cc_messages/0002`, bytes, 3)).status).toBe(201);
     await coreSql('UPDATE jobs SET due_at = 0 WHERE state != ?', 'done');
     const s = await untilDone(p.D, id);
     expect(s).toMatchObject({
@@ -220,7 +222,7 @@ describe('the old Chats, imported', () => {
 
   it('a manifest whose count the parts do not reach fails verification, with its report', async () => {
     await exportRun(
-      p.C,
+      k,
       'run-short',
       { 'claude-chat-v1/cc_threads': [[thread(9)]] },
       { rows: { 'claude-chat-v1/cc_threads': 2 } },

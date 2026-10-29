@@ -225,11 +225,6 @@ export function requeueUnacked(db: Db, now: number, ms: number): number {
   );
 }
 
-/** When the newest message was written (by seq, so one row is read). */
-export function lastMessageAt(db: Db): number | null {
-  return db.one<{ at: number }>('SELECT created_at AS at FROM messages ORDER BY seq DESC LIMIT 1')?.at ?? null;
-}
-
 /** The newest system message with `meta.line` = `line`, for the once-an-hour rule. Reads only
  * system messages (the `messages_system` index), newest first. */
 export function lastSystemLine(db: Db, line: string): number | null {

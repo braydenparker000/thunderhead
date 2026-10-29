@@ -225,8 +225,9 @@ ships it to the old Worker and tells you when it is live. The new Worker already
 bucket `thunderhead-private` (J2) and the deploy that carries the import.
 
 1. **The key.** On the phone: Menu → Settings → Agents → **New agent key**, role **Mind · chat**,
-   name `import-once` → **Create**. It is shown once; keep it only for the next step. Check:
-   Settings → Agents lists `import-once` with role Mind · chat.
+   name exactly `import-once` → **Create** (the import refuses every other key, the chat
+   routine's own included). It is shown once; keep it only for the next step. Check: Settings →
+   Agents lists `import-once` with role Mind · chat.
 2. **The environment, for this run only.** claude.ai/code → **Environments** → the existing
    environment whose network secret already carries the old Worker's agent key for
    `jarvis-hub-api.braydenparker999.workers.dev` → **Edit**:

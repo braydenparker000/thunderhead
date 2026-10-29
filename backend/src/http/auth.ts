@@ -6,7 +6,7 @@
 // answer 404 before any token check.
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { ROUTES, type RouteKey, type Who } from '../../../shared/contract/routes.ts';
+import { ROUTES, type RouteKey, type RouteSpec, type Who } from '../../../shared/contract/routes.ts';
 import type { Principal } from '../areas/auth/account';
 import { tokenHash } from '../areas/auth/crypto';
 import { checkToken } from '../areas/auth/tokens';
@@ -74,11 +74,14 @@ async function authenticate(c: Context<AppEnv>): Promise<Principal & { token_has
 }
 
 /** The route guard: 401 without a valid token, 403 forbidden for a principal not listed. A mind
- * key whose TH-Role header names another role is refused too (the key's role is what counts). */
-export function allow(...who: Who[]) {
+ * key whose TH-Role header names another role is refused too (the key's role is what counts).
+ * With `name` (RouteSpec.key), an agent must also be the key of exactly that name; a device is
+ * the owner and needs no name. */
+export function allow(who: readonly Who[], name?: string) {
   const mw = createMiddleware<AppEnv>(async (c, next) => {
     const p = await authenticate(c);
     if (!who.includes(whoOf(p))) throw new ApiError('forbidden');
+    if (name !== undefined && p.kind === 'agent' && p.name !== name) throw new ApiError('forbidden');
     const role = c.req.header('TH-Role');
     if (role && p.kind === 'agent' && p.role.startsWith('mind:') && `mind:${role}` !== p.role)
       throw new ApiError('forbidden');
@@ -86,16 +89,16 @@ export function allow(...who: Who[]) {
     await next();
   });
   // Tagged so the route test can compare every guard with API.md §13.
-  return Object.assign(mw, { who });
+  return Object.assign(mw, { who, named: name });
 }
 
 /** The guard for one row of the shared route table: its principals come from the contract, so
  * the table and the Worker cannot drift. The key is checked against the registered path by the
  * route-scope test. */
 export function guard(key: RouteKey) {
-  const spec = ROUTES[key];
-  if (spec.who === 'P' || 'auth' in spec) throw new Error(`${key} has no bearer guard`);
-  return Object.assign(allow(...spec.who), { key });
+  const spec: RouteSpec = ROUTES[key];
+  if (spec.who === 'P' || spec.auth) throw new Error(`${key} has no bearer guard`);
+  return Object.assign(allow(spec.who, spec.key), { key });
 }
 
 /** The principal of a guarded route. */

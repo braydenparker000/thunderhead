@@ -76,7 +76,8 @@ The conversation client lives in `frontend/th/chat/`: `live.js` (the socket: tic
 
 ### A route
 
-1. Add the row to `ROUTES` in `routes.ts` (who, phase, optional `note`). Rows of later phases
+1. Add the row to `ROUTES` in `routes.ts` (who, phase, optional `note`; `key` when, of its agent
+   roles, only the one key of that name may call it, as the import's `import-once`). Rows of later phases
    belong there too: `th` already answers them with `not_built` until their phase is built. A route that waits on
    something else in its phase gets `deferred: '<what it waits on>'`.
 2. Register it in the area's `routes.ts` with `guard('<METHOD> <path>')`. The guard reads its

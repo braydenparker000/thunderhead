@@ -527,9 +527,9 @@ type MemoryOp =
 
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `POST /v1/ops/import/parts` | `ci`, `mind:chat` | raw gzip JSONL part, sent as the old export answered it; headers `TH-Import: <run_id>/<instance>/<table>/<nnnn>` (from `0001`), `TH-Sha256`, `TH-Rows` (≤ 2,000 rows, ≤ 5 MB) | `201 { key }` (idempotent by the header path; 409 if the bytes differ; 422 on a wrong digest; 415 if not gzip) |
-| `PUT /v1/ops/import/manifest/:run_id` | `ci`, `mind:chat` | the manifest JSON ([MIGRATION.md §3](MIGRATION.md); `ImportManifest` in `shared/contract/imports.ts`) | `201` (the same again is fine; another one 409) |
-| `POST /v1/import/runs` | device, `mind:chat` | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music' }` | `202 { import_id }` (422: a dataset not built yet, a run without a manifest or that table, messages before threads are done; 409: the id names another run, or the dataset is already running) |
+| `POST /v1/ops/import/parts` | the `mind:chat` key named `import-once` only | raw gzip JSONL part, sent as the old export answered it; headers `TH-Import: <run_id>/<instance>/<table>/<nnnn>` (from `0001`), `TH-Sha256`, `TH-Rows` (≤ 2,000 rows, ≤ 5 MB) | `201 { key }` (idempotent by the header path; 409 if the bytes differ; 422 on a wrong digest; 415 if not gzip JSONL; 403 for a never-exported table, by its name or a credential column in its first row, `IMPORT_NEVER_EXPORT` and `IMPORT_SECRET_COLUMN` in `shared/contract/imports.ts`) |
+| `PUT /v1/ops/import/manifest/:run_id` | the `import-once` key only | the manifest JSON ([MIGRATION.md §3](MIGRATION.md); `ImportManifest` in `shared/contract/imports.ts`) | `201` (the same again is fine; another one 409). Written last: every part it names must be stored with its SHA-256 (422 naming the first that is not), one SHA-256 per part, and a never-exported table has counts only (403 with parts) |
+| `POST /v1/import/runs` | device, or the `import-once` key | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music' }` | `202 { import_id }` (422: a dataset not built yet, a run without a manifest or that table, messages before threads are done; 409: the id names another run, or the dataset is already running) |
 | `GET /v1/import/runs/:id` | device, agents | — | `200 ImportStatus { id, run_id, dataset, state, counts: { expected, imported, skipped, skip_reasons, files_waiting }, report: { spot_checks: {seed, checked, passed, failed}, thread_shapes: {checked, failed} \| null, rows_changed, rerun_delta } \| null, last_error, started_at, finished_at }` |
 | `POST /v1/import/phone` | device, from the new site's `/import/` page only (P1b) | `{ id: Id, chunk: number, chunks: number, exported_at: Ms, data: Record<string, unknown> }` (`data` = the `th-phone-export/2` file), gzip, ≤ 5 MB per chunk ([MIGRATION.md §5.3](MIGRATION.md#53-the-two-pages)) | `201 { import_id, counts: Record<string, number> }` (after the last chunk) |
 
@@ -617,7 +617,7 @@ Acceptance: an integration test connects, posts a message over HTTP and receives
 
 `D` device · `C` mind:chat · `N` mind:night · `R` mind:reflex · `M` muse · `I` ci · `P` public.
 
-From P2 this table is data: `shared/contract/routes.ts` is the source the Worker's guards and the scope test read, and [CONTRACT.md](CONTRACT.md) lists every row with its status. Rows that wait on the private bucket (SETUP.md J2) are marked `deferred` there: `POST /v1/import/phone`, `PUT /v1/files/:id`, `POST /v1/media/sign`.
+From P2 this table is data: `shared/contract/routes.ts` is the source the Worker's guards and the scope test read, and [CONTRACT.md](CONTRACT.md) lists every row with its status. A row with `key` takes, of its agent roles, only the one key of exactly that name (a device is the owner and needs none): the import's `import-once`, which the owner makes for that run only (SETUP.md L2), so no routine's key can write "old" owner messages that memory would take as the owner's words. Rows that wait on the private bucket (SETUP.md J2) are marked `deferred` there: `POST /v1/import/phone`, `PUT /v1/files/:id`, `POST /v1/media/sign`.
 
 | Route | Who | Phase |
 |---|---|---|
@@ -658,8 +658,8 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `POST /v1/memory/ops` | D C N | P3 |
 | `PUT /v1/memory/day-notes/:day` | D N | P3 |
 | `PUT /v1/memory/open-threads/:id` | D C N | P3 |
-| `POST /v1/import/runs` | D C | P3 |
-| `POST /v1/ops/import/parts`, `PUT /v1/ops/import/manifest/:run_id` | C I | P3 |
+| `POST /v1/import/runs` | D C (agents: the key `import-once` only) | P3 |
+| `POST /v1/ops/import/parts`, `PUT /v1/ops/import/manifest/:run_id` | C (the key `import-once` only) | P3 |
 | `GET /v1/import/runs/:id` | D C N R | P3 |
 | `PUT /v1/proposals/:id` | C N R | P4 (P3 for class `memory_big`, and class `delete` with op `memory.forget`) |
 | `GET /v1/proposals` | D C N R | P4 (P3 for the classes above) |

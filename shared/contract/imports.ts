@@ -10,6 +10,33 @@ export const IMPORT_PART_BYTES = 5 * 1024 * 1024;
 /** Source rows a finished run compares with what it wrote, chosen with a recorded seed. */
 export const IMPORT_SPOT_CHECKS = 20;
 
+/** The old Worker's never-exported tables, as its export lists them (Missionarytube-
+ * backend/export.js at d65b253): sign-in, OAuth and token diagnostics, webhook signing secrets
+ * and token hashes. The manifest carries their counts only, and a part of one is refused. */
+export const IMPORT_NEVER_EXPORT: readonly string[] = [
+  'relay_owner_credentials',
+  'relay_owner_sessions',
+  'relay_owner_pairings',
+  'relay_owner_password_rates',
+  'relay_owner_pair_rates',
+  'relay_owner_credential_consents',
+  'relay_owner_session_audit',
+  'relay_owner_meta',
+  'relay_oauth',
+  'makima_oauth_diagnostics',
+  'makima_token_diagnostics',
+  'relay_subscriptions',
+  'project_grants',
+  'relay_mast_presence',
+];
+/** A column that holds a credential (the old export's own rule): its table is never exported
+ * either, listed or not. */
+export const IMPORT_SECRET_COLUMN =
+  /^(secret|previous_secret|token|token_hash|password|salt|credential)$|_(secret|token|password|salt|credential)$/i;
+/** Whether a table is one the import never takes rows of. */
+export const neverExported = (table: string, columns: readonly string[]): boolean =>
+  IMPORT_NEVER_EXPORT.includes(table) || columns.some((c) => IMPORT_SECRET_COLUMN.test(c));
+
 export type ImportDataset = 'threads' | 'messages' | 'notebook' | 'muse' | 'board' | 'chat_files' | 'music';
 
 export interface ImportDatasetSpec {

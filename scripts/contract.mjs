@@ -105,7 +105,14 @@ function mind() {
     routes: Object.fromEntries(
       Object.entries(c.ROUTES).map(([k, r]) => [
         k,
-        { who: r.who, phase: r.phase, status: routeStatus(r), ...(r.note ? { note: r.note } : {}) },
+        {
+          who: r.who,
+          phase: r.phase,
+          status: routeStatus(r),
+          // `key` names the route in th's own rows, so the one agent key a route takes is `agent_key`.
+          ...(r.key ? { agent_key: r.key } : {}),
+          ...(r.note ? { note: r.note } : {}),
+        },
       ]),
     ),
     verbs: Object.fromEntries(
@@ -187,7 +194,7 @@ function docs() {
   ];
   for (const [k, r] of Object.entries(c.ROUTES))
     L.push(
-      `| \`${k}\` | ${who(r.who)}${r.auth ? ` (${r.auth})` : ''} | ${r.phase} | ${cell(routeStatus(r))} | ${cell(r.note ?? '')} |`,
+      `| \`${k}\` | ${who(r.who)}${r.auth ? ` (${r.auth})` : ''}${r.key ? ` (agents: the key \`${r.key}\` only)` : ''} | ${r.phase} | ${cell(routeStatus(r))} | ${cell(r.note ?? '')} |`,
     );
   L.push('', '## Verbs', '', '| Verb | App | Class | Runs on | Queueable | Undo | Versions | Args (newest) | What it does |');
   L.push('|---|---|---|---|---|---|---|---|---|');

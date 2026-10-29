@@ -21,6 +21,7 @@ import type {
 import * as day from '../areas/conversation/day';
 import * as convo from '../areas/conversation/ops';
 import { searchMessages } from '../areas/conversation/search';
+import { lastMessageAt } from '../areas/conversation/stats';
 import * as cstore from '../areas/conversation/store';
 import { importJob } from '../areas/import/job';
 import { type JobHandler, runJobs } from '../areas/jobs/runner';
@@ -184,7 +185,7 @@ export class Core extends CoreImport {
   ): Promise<{ rolled: string | null; pruned: number; night: string | null }> {
     const tz = this.tz();
     const d = day.currentDay(this.db, tz, now);
-    const due = day.rollDue(d, now, tz, cstore.lastMessageAt(this.db));
+    const due = day.rollDue(d, now, tz, lastMessageAt(this.db, cstore.dailyThread(this.db, d)?.id ?? null));
     const wakeNight = due
       ? this.write((w) => {
           convo.roll(w, due);
