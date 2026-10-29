@@ -340,7 +340,7 @@ Behaviours:
 - **Add** lets the owner type a fact or rule directly (`source=user`, evidence = its own ledger row, as for Fix).
 - Every action is a ledger row with `actor=owner`.
 
-Built in P3 (`frontend/apps/settings/memory*.js`, `/settings/memory/`): What I know (grouped as MENU-AND-SETTINGS.md §4.4 says), Standing rules, Loose ends, Days, Fading and Imported, to review, with the filter and every action above; a fact's detail comes from `GET /v1/memory/facts/:id`. The page reloads when the change feed reports `fact`, `open_thread` or `day_note`. Waiting: **What changed** needs the weekly profile snapshots in the private bucket (SETUP.md J2, P4), and **Laws** needs the constitution pin (P4).
+Built in P3 (`frontend/apps/settings/memory*.js`, `/settings/memory/`): What I know (grouped as MENU-AND-SETTINGS.md §4.4 says), Standing rules, Loose ends, Days, Fading and Imported, to review, with the filter and every action above; a fact's detail comes from `GET /v1/memory/facts/:id`, and its evidence shows in place (the quoted words and their date; there is no History page to link to yet). The page reloads when the change feed reports `fact`, `open_thread` or `day_note`; a row that didn't change keeps whatever detail or form the owner has open. Waiting: **What changed** needs the weekly profile snapshots in the private bucket (SETUP.md J2, P4), and **Laws** needs the constitution pin (P4).
 
 **Acceptance (P3 done-when):** the owner deletes a fact and it is gone from the next briefing; a muted fact never appears in a surface (Worker test).
 
