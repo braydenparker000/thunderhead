@@ -681,6 +681,42 @@
       "status": "built",
       "note": "the agent that raised it, or the owner"
     },
+    "POST /v1/evals/sandbox": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "with TH-Sandbox: eval only: reset the eval sandbox to a synthetic seed"
+    },
+    "GET /v1/evals/sandbox": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "with TH-Sandbox: eval only: what was written or tried since the reset"
+    },
+    "PUT /v1/evals/runs/:id": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "one finished suite, numbers and ids only (never in the sandbox)"
+    },
+    "GET /v1/evals/runs": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built"
+    },
     "POST /v1/ops/backups/run": {
       "who": [
         "N",
@@ -1433,13 +1469,12 @@
       },
       {
         "step": 9,
-        "name": "weekly review and evals",
+        "name": "weekly evals (the injection suite)",
         "budget_min": 15,
-        "idempotent": "one eval run a week",
+        "idempotent": "each fixture runs on a fresh sandbox; th eval end records one run",
         "cursor": false,
         "phase": "P4",
-        "sunday": true,
-        "deferred": "the injection fixtures and the eval sandbox (P4 stage C)"
+        "sunday": true
       },
       {
         "step": 10,
@@ -1556,6 +1591,43 @@
           "additionalProperties": false
         }
       },
+      "repo.change": {
+        "classes": [
+          "access"
+        ],
+        "by": [
+          "C"
+        ],
+        "runs": "core",
+        "ref": [
+          "repo",
+          "base"
+        ],
+        "doc": "Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push. Decided by a tap on a signed-in device only.",
+        "args": {
+          "type": "object",
+          "properties": {
+            "paths": {
+              "minItems": 1,
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^(mind\\/CONSTITUTION\\.md|(\\.claude|mind\\/hooks|\\.github)\\/(?!.*\\.\\.)[A-Za-z0-9._/-]{1,200})$"
+              }
+            },
+            "base": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{40}$"
+            }
+          },
+          "required": [
+            "paths",
+            "base"
+          ],
+          "additionalProperties": false
+        }
+      },
       "laws.pin": {
         "classes": [
           "access"
@@ -1611,5 +1683,278 @@
       "i will now run",
       "using the bash tool"
     ]
+  },
+  "reader": {
+    "limits": {
+      "quote_sentences": 1,
+      "fetches": 10
+    },
+    "kinds": {
+      "page": {
+        "doc": "One page, file or document: what it says, in the reader’s own words.",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "page"
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "title": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 120
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "summary": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 600
+            },
+            "points": {
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "quote": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "links": {
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "instructions_seen": {
+              "type": "boolean"
+            },
+            "instructions_note": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 140
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "source",
+            "title",
+            "summary",
+            "points",
+            "quote",
+            "links",
+            "instructions_seen",
+            "instructions_note"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "answer": {
+        "doc": "The question the task asked, answered from the material only, with odds.",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "answer"
+            },
+            "question": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            "answer": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 600
+            },
+            "odds": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "sources": {
+              "minItems": 1,
+              "maxItems": 5,
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              }
+            },
+            "quote": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 300
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "instructions_seen": {
+              "type": "boolean"
+            },
+            "instructions_note": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 140
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "question",
+            "answer",
+            "odds",
+            "sources",
+            "quote",
+            "instructions_seen",
+            "instructions_note"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "list": {
+        "doc": "Items found (search results, a setlist, a table), each with a short note and its source.",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "list"
+            },
+            "items": {
+              "maxItems": 20,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 120
+                  },
+                  "note": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 200
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "source": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  }
+                },
+                "required": [
+                  "title",
+                  "note",
+                  "source"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "instructions_seen": {
+              "type": "boolean"
+            },
+            "instructions_note": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 140
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "kind",
+            "items",
+            "instructions_seen",
+            "instructions_note"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "unreadable": {
+        "doc": "The source could not be read (blocked, empty, not text, too large).",
+        "schema": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "const": "unreadable"
+            },
+            "source": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            "why": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "required": [
+            "kind",
+            "source",
+            "why"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
   }
 }

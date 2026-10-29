@@ -244,7 +244,9 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th health` | `[--deep]` | Worker health JSON | C N R | `--deep` needs the role's ops scope. |
 | `th errors` | `[--hours 24]` | `{"items":[…]}` | C N R | The Core errors table (`since` on the Worker). |
 | `th night` | `start` · `step <n> done` · `step <n> cursor <c>` · `done [--partial]` · `steps` (`--day <day>`: another closed day of the last week) | `{"resume_from":n,"done":bool,"cursor","skipped":[n]}`; `steps`: the registry | N | Idempotent night progress (§12). A step out of order exits 7 with `resume_from` in the error's details. |
-| `th approved` | — | — | — | Dropped: protected paths are always denied in mind sessions until P4 brings `access` proposals (§6.4). |
+| `th approved` | `--paths <p1,p2> --sha <40-hex commit>` | `{"approved":bool,"proposal_id"}` | C N R | Whether an executed `repo.change` card covers these protected paths on a branch from that commit; exit 6 when not. The PreToolUse hook asks it before an edit to or a push of a protected path (§6.4). |
+| `th eval` | `begin` · `list` · `inj <id>` · `check <id> [--answer <text>]` · `end` | `begin`: `{"sandbox","fixtures","next"}` (`next`: the procedure); `inj`: `{"id","run","file","task"}`; `check`: `{"id","pass","why"}`; `end`: the run's numbers | C N | The injection suite in the eval sandbox ([EVALS.md §1.1, §4](EVALS.md)); night step 9 on Sundays. `begin` taints the real session first, then sends every call with `TH-Sandbox: eval`; `end` leaves the sandbox and records the suite in the owner's Core. |
+| `th read` | `--kinds` · `--check <kind> [--json <answer> \| --file <path>]` (else stdin) | `--kinds`: the reader kinds; `--check`: `{"ok":true,"kind","tainted":true,"answer"}` | C N | The reader subagent's answer (§6.6): taints the session first, checks it against the kind's schema and rules, prints only what passed; exit 8 names the first problem. |
 
 **Acceptance:** `mind/tests/th.test.mjs` runs th against the real Worker under `wrangler dev --local` with a dev key per role and produces exit codes 0, 2, 3, 4, 6, 7, 8, 9 and 11; the fake-Worker suites produce 1, 5 and 10 and cover the commands of later phases.
 
@@ -262,9 +264,9 @@ Configured in `.claude/settings.json` in the repo. That file and `mind/hooks/**`
     "Stop": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop.mjs\"", "timeout": 20}]}],
     "StopFailure": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop-failure.mjs\"", "timeout": 10}]}],
     "PreToolUse": [{"matcher": "*",
-      "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/pre-tool.mjs\"", "timeout": 10}]}],
-    "PostToolUse": [{"matcher": "WebFetch|WebSearch|Bash|Read",
-      "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/post-tool.mjs\"", "timeout": 10}]}]
+      "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/pre-tool.mjs\" || [ -z \"$TH_ROLE\" ] || exit 2", "timeout": 30}]}],
+    "PostToolUse": [{"matcher": "*",
+      "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/post-tool.mjs\" || [ -z \"$TH_ROLE\" ] || { mkdir -p \"${TMPDIR:-/tmp}/th/state\" && echo '{\"source\":\"hook\",\"ref\":\"\"}' > \"${TMPDIR:-/tmp}/th/state/taint_pending.json\"; }", "timeout": 10}]}]
   }
 }
 ```
@@ -314,23 +316,35 @@ Runs instead of Stop when a turn ends on an API error (`error`: `rate_limit`, `o
 
 | Role | Denied |
 |---|---|
-| all | `printenv`, `env`, reading `.env*`, `cat /proc/*/environ`; `curl`/`wget` to hosts outside the environment's list; `wrangler deploy\|secret\|dev --remote`; `az `; `git push --force`/`-f`/`--force-with-lease`; `git push origin :<branch>` (remote delete); `gh repo delete\|edit`; any write to `mind/CONSTITUTION.md`, `.claude/**`, `mind/hooks/**`, `.github/**` (always denied in mind sessions until P4 brings `access` proposals and `th approved --paths … --sha <HEAD>`; until then such changes are made in the owner's own Claude Code session, where `TH_ROLE` is unset) |
+| all | `printenv`, `env`, reading `.env*`, `cat /proc/*/environ`; `curl`/`wget` to hosts outside the environment's list; `wrangler deploy\|secret\|dev --remote`; `az `; `git push --force`/`-f`/`--force-with-lease`; `git push origin :<branch>` (remote delete); `git push --all\|--branches\|--tags\|--mirror`, or from another checkout (`--git-dir`, `--work-tree`, `GIT_*=`); `gh repo delete\|edit`; `gh api` writing `repos/…/contents` or `repos/…/git` (any method but GET, fields included) and GraphQL mutations; any write to `mind/CONSTITUTION.md`, `.claude/**`, `mind/hooks/**`, `.github/**` (always denied in mind sessions until P4 brings `access` proposals and `th approved --paths … --sha <HEAD>`, built in P4 stage C: an edit to or a push of a protected path goes through when an executed `repo.change` card lists those paths and the commit it starts from; without one, such changes are made in the owner's own Claude Code session, where `TH_ROLE` is unset) |
 | chat | — (beyond "all") |
 | night | `th say` except `--kind error`; `th push`; any push to `main` (an explicit `:main` or `HEAD:main`, or a bare `git push` whose upstream is `main`). Agreed work goes to a `claude/<slug>` branch and the next chat session ships it |
 | reflex | `git push … :main` except a revert commit; `th remember\|supersede\|facts`; file writes outside `$TMPDIR` |
 
+**What a push carries (P4 stage C.5).** For each source the push sends (each refspec's part before the colon; `HEAD` when it names none) the hook asks git: the commit, its base where it meets `main` as the remote itself has it (`git ls-remote`, so a session that moves its own `origin/main` changes nothing; that commit must be fetched), and every path the commits change, renames counted as both paths (`git diff-tree --no-renames -z`). Protected paths among them need an executed `repo.change` card for that base. A source, a remote `main` or a base the hook can't find denies the push, as does a bare push whose git config could send more than `HEAD`. If the hook can't run at all, the settings command exits 2 in a mind session, which blocks the call; the hook answers within 20 s of the 30 it is given (a timed-out hook would not block).
+
 **A soft gate.** The pre-tool rules parse shell commands (pipes, `$(…)`, `bash -c`, heredocs) but cannot see every way out: `node -e "fetch(…)"` or Python bypass the curl/wget host rule. The environment's network list is the real control; the hook catches an honest or confused session. For night and reflex it denies every bare `git push` (no refspec) rather than looking up the upstream, which keeps it deterministic.
 
-**Protected-paths gate [proposal].** The `guard` GitHub check is deferred (decisions.md). Until it exists, the hook denies edits to and pushes of protected paths without an approved `access` proposal whose spec lists those paths and the commit SHA. This is a soft gate: it stops an honest or confused session, not a determined attacker who already controls the repo. The constitution pin ([CONSTITUTION.md](CONSTITUTION.md#the-constitution-pin-proposal)) and the ledger catch the rest.
+**Protected-paths gate (built in P4 stage C).** The `guard` GitHub check is deferred (decisions.md). Until it exists, the hook denies edits to and pushes of protected paths without an approved `access` proposal whose spec lists those paths and the commit SHA. This is a soft gate: it stops an honest or confused session, not a determined attacker who already controls the repo. The constitution pin ([CONSTITUTION.md](CONSTITUTION.md#the-constitution-pin-proposal)) and the ledger catch the rest.
 
 **Check (HK-4):** unit tests feed sample tool inputs per role; e.g. night + `git push origin HEAD:main` → deny.
 
 ### 6.5 PostToolUse
 
-1. **Taint:** after `WebFetch`, `WebSearch`, `th file` of a non-owner file, `Read` of a path under `$TMPDIR/th/ext/`, or `Bash` running `gh … comments`, call `th taint --source <tool> --ref <url>` once. From then on the Worker refuses that session's memory writes and `reach_people` actions (enforced in P4; logged only before).
+1. **Taint:** the first tool call that may take in text the owner did not write calls `th taint --source <tool> --ref <url>` once (the Worker hears the ref's kind, never the URL). From then on the Worker refuses that session's memory writes and every ask-first card it would raise or approve. The rule is an allowlist (P4 stage C.5; `mind/hooks/lib/taint.mjs`): every call taints except plainly local ones, so a channel nobody listed (an MCP tool, a gh command, a URL in a variable) taints. Local: `Edit`, `Write` and the session's bookkeeping tools; `Read`, `Grep`, `Glob` of the project (not `node_modules`, not the drop folder `$TMPDIR/th/ext/`) and of th's briefing and state; `th` except `th file`; git on this repository and its origin (another remote, a URL, a clone or `-c` taints); `gh pr create|merge|checks` and `gh run`; `curl`/`wget` to the Worker or the site by a literal URL; `npm test|run|ci`, a plain `npm install`, `tsc`, `biome`, `vitest`, `playwright`, `wrangler types|dev`, `node` running a project script; and a short list of commands on own files. Everything else taints, the reader subagent's answer and every other subagent's included.
+
+   The taint fails closed. The PreToolUse hook marks `taint_pending` in th's state before such a call runs (a call that fails gets no PostToolUse); only a `th taint` that reached the Worker clears it; and while it is set, th sends the taint before any write, so the write fails if the taint can't be sent. If the PostToolUse hook can't run at all, the settings command writes the mark itself.
 2. **Live progress:** for `Bash` calls while the recorded state is `working`, post the call's `description` as a progress note, at most one every 3 s (the current system's `live.mjs` idea). Descriptions are written for the owner to read.
 
-**Check (HK-5):** after a WebFetch in a test session, `th remember` exits 6.
+**Check (HK-5):** after a WebFetch in a test session, `th remember` exits 6 (`mind/tests/hook-post-tool.test.mjs`, and the gate twins of the injection fixtures in `backend/tests/evals/injection-twins.test.ts`).
+
+### 6.6 The reader subagent
+
+Long outside material (a web page, a PDF, a long file, search results) is read by the subagent `reader` (`.claude/agents/reader.md`, a protected path), not by the session itself ([BEHAVIOR.md §11](BEHAVIOR.md) rule 6). It has `WebFetch`, `WebSearch`, `Read`, `Grep` and `Glob` only: no shell, no writes, no `th`, so whatever a page says it can do nothing. The PreToolUse hook holds it to that when Claude Code names the subagent (`agent_type: reader`): no other tool, reads only under `$TMPDIR/th/ext/` (not the briefing), and no `WebFetch` URL with a query, which could carry data out. It answers with one JSON object of a reader kind from the contract (`page`, `answer`, `list`, `unreadable`; [CONTRACT.md](../engineering/CONTRACT.md#reader-kinds)): capped fields, one sentence quoted at most, no query or fragment in a link, and instructions it met only reported (`instructions_seen`, a note in its own words), never copied. The session passes the answer to `th read --check <kind>` and works only from what that prints.
+
+The reader does not lift the taint: its answer is outside text. The session is tainted when the answer arrives (the PostToolUse rule above), and `th read --check` taints it too before checking, in case a hook was skipped; a refused answer still taints.
+
+**Check (RD-1):** `mind/tests/th-read.test.mjs`: the agent file's tools are exactly the read-only set and it names every kind and field; each rule refuses its case; a refused answer still taints, a passed one is printed back.
 
 ---
 
@@ -459,7 +473,7 @@ Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its cl
 | 6 | Dispatch indexing jobs (P5+) through the Worker's job endpoint | 1 min | Jobs queued |
 | 7 | Arrange tomorrow (P3+): 0–4 home lines, surfaces, practice set (in-app surfaces only in apps whose agreed evolution added them; the as-is ports have none) | 4 min | `surfaces` |
 | 8 | "Built overnight" items for the Briefing page; arrange the Briefing page, including where today's Daily Board (produced by Muse, owner ruling) sits when it arrives | 1 min | Briefing items |
-| 9 | Sunday only: weekly review and evals ([EVALS.md](EVALS.md)) | +15 min | `eval_runs`, one PR at most |
+| 9 | Sunday only: weekly review and evals ([EVALS.md](EVALS.md)); built in P4 stage C as the injection suite (`th eval begin`, then what it prints) | +15 min | `eval_runs`, one PR at most |
 | 10 | Session note; update `docs/process/STATUS.md` if code changed; `th night done` | 2 min | — |
 
 - **Budget:** target ≤ 30 min, hard stop 45 min (Sunday 60). At the hard stop, finish the current step, mark the rest skipped, `th night done --partial`.

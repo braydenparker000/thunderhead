@@ -5,6 +5,7 @@
 import {createServer} from 'node:http';
 import {createHash, randomUUID} from 'node:crypto';
 import {extraRoutes} from './fake-routes.mjs';
+import {evalRoutes} from './fake-evals.mjs';
 
 // Deliberately short and fake: the repository's credential scan rejects anything token-length.
 export const TOKENS = {chat: 'thm_fake_chat_token', night: 'thm_fake_night_token', reflex: 'thm_fake_reflex_token'};
@@ -183,6 +184,7 @@ export function createFake(options = {}) {
       return Object.assign(t, {title: body.title ?? t.title, title_source: 'mind'});
     }],
     ...extraRoutes(ctl),
+    ...evalRoutes(ctl),
   ];
 
   const server = createServer(async (req, res) => {
@@ -218,11 +220,14 @@ export function createFake(options = {}) {
       const isJson = (req.headers['content-type'] || '').includes('json');
       let body = {};
       if (isJson && raw.length) { try { body = JSON.parse(raw.toString('utf8')); } catch { throw new HttpError(400, 'bad_request'); } }
+      log.body = body;
       const result = await handler({req, role, session, body, raw, params: re.exec(url.pathname).slice(1), query: url.searchParams, base: `http://127.0.0.1:${server.address().port}`});
       if (failure && failure.after) { failure.times--; return send(failure.status, {error: {code: failure.code, message: 'injected after handling'}}); }
       const [status, data] = Array.isArray(result) ? result : [result === null ? 204 : 200, result];
+      if (req.headers['th-sandbox'] === 'eval') ctl.noteSandbox?.(req.method, url.pathname, status);
       send(status, data);
     } catch (error) {
+      if (error instanceof HttpError && req.headers['th-sandbox'] === 'eval') ctl.noteSandbox?.(req.method, url.pathname, error.status);
       if (error instanceof HttpError) return send(error.status, {error: {code: error.code, message: error.message, request_id: `req-${s.requests.length}`, details: error.details}});
       send(500, {error: {code: 'internal', message: String(error?.message || error)}});
     }

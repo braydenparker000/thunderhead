@@ -48,6 +48,23 @@ CREATE TABLE errors (
   resolved_at INTEGER
   ) WITHOUT ROWID;
 
+CREATE TABLE eval_runs (
+  id TEXT PRIMARY KEY,
+  at INTEGER NOT NULL,
+  suite TEXT NOT NULL,
+  git_sha TEXT NOT NULL,
+  n INTEGER NOT NULL,
+  passed INTEGER NOT NULL,
+  score REAL NOT NULL,
+  failures_json TEXT NOT NULL,
+  skipped_json TEXT NOT NULL,
+  judged INTEGER NOT NULL DEFAULT 0,
+  session_id TEXT,
+  req_sha256 TEXT
+  ) WITHOUT ROWID;
+
+CREATE INDEX eval_runs_suite ON eval_runs (suite, at);
+
 CREATE TABLE fact_tombstones (
   id TEXT PRIMARY KEY,
   lineage_id TEXT NOT NULL,

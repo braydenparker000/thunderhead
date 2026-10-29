@@ -17,6 +17,7 @@ import { IMPORT_KEY } from '../../../../shared/contract/routes.ts';
 import { type AppEnv, guard, principalOf } from '../../http/auth';
 import { callerOf, idParam, reqHash } from '../../http/caller';
 import { ApiError } from '../../http/errors';
+import { inSandbox } from '../../http/sandbox';
 import { json, parse } from '../../http/validate';
 import { UUIDV7 } from '../../lib/ids';
 import { value } from '../../lib/result';
@@ -73,12 +74,31 @@ async function agentLine(env: Env, id: unknown): Promise<string | null> {
   return a ? `key ${a.name} (${ROLE_LABEL[a.role]})` : null;
 }
 
+/** A card about a fact as reflex sees it: that it waits, never what it says. */
+const withoutWords = (r: ProposalRow): ProposalRow =>
+  r.ref?.startsWith('fact:')
+    ? {
+        ...r,
+        question: '(a card about a fact)',
+        why: '(not shown)',
+        if_ignored: '(not shown)',
+        options_json: '[]',
+        target: null,
+      }
+    : r;
+
 export const proposalsRoutes = new Hono<AppEnv>()
   .put('/proposals/:id', guard('PUT /v1/proposals/:id'), async (c) => {
     notImportKey(c);
     const id = idParam(c);
     const body = await json(c, putBody);
-    const target = body.spec.op === 'agents.revoke' ? await agentLine(c.env, body.spec.args.agent_id) : null;
+    // In the eval sandbox nothing reaches Auth: a revoke card names the id it was given.
+    const target =
+      body.spec.op !== 'agents.revoke'
+        ? null
+        : inSandbox()
+          ? `key ${String(body.spec.args.agent_id).slice(0, 8)}… (not looked up: the eval sandbox)`
+          : await agentLine(c.env, body.spec.args.agent_id);
     const core = coreObject(c.env);
     const out = value(await fresh(core.putProposal(callerOf(c), id, body, reqHash(body), target)));
     return c.json(out.proposal satisfies Proposal, out.created ? 201 : 200);
@@ -87,7 +107,10 @@ export const proposalsRoutes = new Hono<AppEnv>()
     const q = parse(listQuery, c.req.query());
     const limit = q.limit ?? 50;
     const rows = await fresh(coreObject(c.env).proposals(q.status ?? 'waiting', q.cursor ?? null, limit));
-    const items = rows.map((r) => toProposal(r as ProposalRow));
+    // Reflex reads no memory (RUNTIME.md §7.1): a card about a fact reaches it without its words.
+    const p = principalOf(c);
+    const reflex = p.kind === 'agent' && p.role === 'mind:reflex';
+    const items = rows.map((r) => toProposal(reflex ? withoutWords(r as ProposalRow) : (r as ProposalRow)));
     const page: ProposalsResponse = { items, next: items.length === limit ? (items.at(-1)?.id ?? null) : null };
     // Sent as text: Hono's JSON typing recurses without end through the `Json` fields of a list.
     return c.body(JSON.stringify(page), 200, { 'Content-Type': 'application/json' });
@@ -100,8 +123,10 @@ export const proposalsRoutes = new Hono<AppEnv>()
     const { after, ...out } = value(await fresh(core.decideProposal(callerOf(c), id, body)));
     if (!after) return c.json(out satisfies DecideProposalResponse);
     // An op of the Auth object: run it now; if Auth can't be reached, the card stays `approved`
-    // and the cron runs it again.
-    const ran = await runAfter(c.env, after);
+    // and the cron runs it again. In the eval sandbox nothing outside it runs: it is recorded only.
+    const ran = inSandbox()
+      ? { ok: true as const, result: { sandbox: true }, what: 'nothing was run (the eval sandbox)' }
+      : await runAfter(c.env, after);
     if (!ran) return c.json(out satisfies DecideProposalResponse);
     return c.json(value(await fresh(core.proposalRan(id, ran))) satisfies DecideProposalResponse);
   })

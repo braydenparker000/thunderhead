@@ -176,6 +176,12 @@ function mind() {
       ),
     },
     lint: { banned_phrases: BANNED_PHRASES },
+    reader: {
+      limits: c.READER_LIMITS,
+      kinds: Object.fromEntries(
+        Object.entries(c.READER_KINDS).map(([n, k]) => [n, { doc: k.doc, schema: schema(k.schema) }]),
+      ),
+    },
   };
   return `${JSON.stringify(out, null, 2)}\n`;
 }
@@ -187,7 +193,13 @@ const shape = (s) => {
   if (j.type !== 'object') return `\`${j.type}\``;
   const req = new Set(j.required ?? []);
   const props = Object.entries(j.properties ?? {}).map(([k, p]) => {
-    const t = p.enum ? p.enum.map((e) => `'${e}'`).join(' \\| ') : p.type;
+    const t = p.enum
+      ? p.enum.map((e) => `'${e}'`).join(' \\| ')
+      : p.const !== undefined
+        ? `'${p.const}'`
+        : p.anyOf
+          ? p.anyOf.map((x) => x.type).join(' \\| ')
+          : p.type;
     return `${k}${req.has(k) ? '' : '?'}: ${t}`;
   });
   return props.length ? `\`{ ${props.join(', ')} }\`` : '`{}`';
@@ -281,6 +293,16 @@ function docs() {
     L.push(
       `| \`${n}\` | ${o.classes.join(', ')} | ${o.by.join(' ')} | ${o.runs} | \`${o.ref[0]}:<${o.ref[1]}>\` | ${shape(o.args)} | ${cell(o.doc)} |`,
     );
+  L.push(
+    '',
+    '## Reader kinds',
+    '',
+    `What the reader subagent (\`.claude/agents/reader.md\`) answers with, checked by \`th read --check <kind>\`: at most ${c.READER_LIMITS.quote_sentences} sentence quoted, no query or fragment in a source or link, a note exactly when instructions were seen, at most ${c.READER_LIMITS.fetches} fetches.`,
+    '',
+    '| Kind | Fields | What it holds |',
+    '|---|---|---|',
+  );
+  for (const [n, k] of Object.entries(c.READER_KINDS)) L.push(`| \`${n}\` | ${shape(k.schema)} | ${cell(k.doc)} |`);
   L.push('', '## Error codes', '', '| Code | Status | Message |', '|---|---|---|');
   for (const [code, [status, message]] of Object.entries(c.CODES)) L.push(`| \`${code}\` | ${status} | ${cell(message)} |`);
   L.push('', '## Phrase lint', '', BANNED_PHRASES.map((p) => `"${p}"`).join(' · '), '');

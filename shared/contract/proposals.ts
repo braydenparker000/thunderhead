@@ -41,6 +41,9 @@ export const PROPOSAL_LIMITS = {
 
 const uuid = z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/));
 const sha256 = z.string().check(z.regex(/^[0-9a-f]{64}$/));
+const commit = z.string().check(z.regex(/^[0-9a-f]{40}$/));
+/** A protected path (RUNTIME.md §6.4), repository-relative, no `..`. */
+export const PROTECTED_PATH = /^(mind\/CONSTITUTION\.md|(\.claude|mind\/hooks|\.github)\/(?!.*\.\.)[A-Za-z0-9._/-]{1,200})$/;
 
 /** Who may raise an op: mind roles by their route letter, or the Worker itself. */
 export type ProposalBy = 'C' | 'N' | 'R' | 'worker';
@@ -77,6 +80,19 @@ export const PROPOSAL_OPS = {
     ref: ['agent', 'agent_id'],
     args: z.strictObject({ agent_id: uuid }),
     doc: 'Revoke one agent key; it stops working within 60 s (SECURITY.md §14.2).',
+  },
+  'repo.change': {
+    classes: ['access'],
+    by: ['C'],
+    runs: 'core',
+    // The mind must never approve a change to its own hooks or laws: the owner's tap only.
+    decide: 'tap',
+    ref: ['repo', 'base'],
+    args: z.strictObject({
+      paths: z.array(z.string().check(z.regex(PROTECTED_PATH))).check(z.minLength(1), z.maxLength(20)),
+      base: commit,
+    }),
+    doc: 'Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push. Decided by a tap on a signed-in device only.',
   },
   'laws.pin': {
     classes: ['access'],

@@ -35,6 +35,9 @@ export const USAGE = {
   forget: ['<fact id> --why <text>', 'propose forgetting a fact (a delete card for the owner)'],
   thread: ['add <text> --evidence <ids> | done <id> | drop <id> --why <t> | list', 'open threads (P3)'],
   propose: ['--class <c> --question <q> --why <t> --spec <json> --if-ignored <t> [--odds] [--options "A|B"] [--safe reject|snooze]', 'a decision card for the owner (the ops are listed below)'],
+  approved: ['--paths <p1,p2> --sha <commit>', 'whether the owner approved changing these protected paths on a branch from that commit (exit 6: not approved)'],
+  eval: ['begin | list | inj <id> | check <id> [--answer <text>] | end', 'the injection suite in the eval sandbox (night step 9, Sundays)'],
+  read: ['--kinds | --check <kind> [--json <answer> | --file <path>] (else stdin)', 'check the reader subagent\'s answer and work only from what this prints (it taints the session)'],
   decide: ['<proposal id> --by-message <message id> [--spec-hash <h>] [--reject]', 'record the owner\'s words as the decision (P4)'],
   order: ['new … | list | get <id> | cancel <id> --why <t>', 'work orders for Muse (P4)'],
   push: ['--title --body --ref --why --topic [--deadline]', 'a push (P8)'],
@@ -63,6 +66,8 @@ export function helpText(command, role = process.env.TH_ROLE || '') {
     const args = Object.keys(o.args.properties || {}).join(', ');
     lines.push(`  ${name} {${args}} --class ${o.classes.join('|')} (raised by ${o.by.join(' ')}): ${o.doc}`);
   }
+  lines.push('', 'Reader kinds (the reader subagent answers in one; th read --check <kind>):');
+  for (const [name, k] of Object.entries(CONTRACT.reader?.kinds ?? {})) lines.push(`  ${name}: ${k.doc}`);
   lines.push('', `Exit codes: ${Object.entries(EXIT).map(([k, v]) => `${v} ${k}`).join(' · ')}`);
   return lines.join('\n');
 }

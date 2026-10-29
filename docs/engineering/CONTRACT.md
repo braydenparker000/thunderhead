@@ -90,6 +90,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/proposals` | D C N R | P4 | built |  |
 | `POST /v1/proposals/:id/decide` | D C | P4 | built | device: a tap; mind:chat: the owner's own words (by_message) only |
 | `POST /v1/proposals/:id/cancel` | D C N R | P4 | built | the agent that raised it, or the owner |
+| `POST /v1/evals/sandbox` | C N | P4 | built | with TH-Sandbox: eval only: reset the eval sandbox to a synthetic seed |
+| `GET /v1/evals/sandbox` | C N | P4 | built | with TH-Sandbox: eval only: what was written or tried since the reset |
+| `PUT /v1/evals/runs/:id` | C N | P4 | built | one finished suite, numbers and ids only (never in the sandbox) |
+| `GET /v1/evals/runs` | D C N | P4 | built |  |
 | `POST /v1/ops/backups/run` | N I | P4 | deferred: P4 stage E (weekly backups) |  |
 | `POST /v1/ops/drill/run` | N I | P4 | deferred: P4 stage E (the restore drill) |  |
 | `GET /v1/ops/backups` | D C N R I | P4 | deferred: P4 stage E (weekly backups) |  |
@@ -203,7 +207,7 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 | 6 | indexing jobs | 1 | P5 | no | jobs are keyed by their input |
 | 7 | arrange tomorrow | 4 | P3 | no | surfaces are put by app and slot |
 | 8 | built overnight | 1 | P4 | no | items are put by id |
-| 9 | weekly review and evals (Sunday) | 15 | P4 | no | one eval run a week |
+| 9 | weekly evals (the injection suite) (Sunday) | 15 | P4 | no | each fixture runs on a fresh sandbox; th eval end records one run |
 | 10 | session note and done | 2 | P3 | no | the run is marked done once |
 
 ## Proposals
@@ -222,7 +226,19 @@ Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80,
 |---|---|---|---|---|---|---|
 | `memory.forget` | delete | C | core | `fact:<id>` | `{ id: string }` | Forget a fact and every version of it for good (the owner's hard delete, MEMORY.md §3). |
 | `agents.revoke` | access | C N R | auth | `agent:<agent_id>` | `{ agent_id: string }` | Revoke one agent key; it stops working within 60 s (SECURITY.md §14.2). |
-| `laws.pin` | access | worker | core | `laws:<sha256>` | `{ sha256: string, previous: undefined }` | Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only. |
+| `repo.change` | access | C | core | `repo:<base>` | `{ paths: array, base: string }` | Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push. Decided by a tap on a signed-in device only. |
+| `laws.pin` | access | worker | core | `laws:<sha256>` | `{ sha256: string, previous: string \| null }` | Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only. |
+
+## Reader kinds
+
+What the reader subagent (`.claude/agents/reader.md`) answers with, checked by `th read --check <kind>`: at most 1 sentence quoted, no query or fragment in a source or link, a note exactly when instructions were seen, at most 10 fetches.
+
+| Kind | Fields | What it holds |
+|---|---|---|
+| `page` | `{ kind: 'page', source: string, title: string \| null, summary: string, points: array, quote: string \| null, links: array, instructions_seen: boolean, instructions_note: string \| null }` | One page, file or document: what it says, in the reader’s own words. |
+| `answer` | `{ kind: 'answer', question: string, answer: string, odds: number, sources: array, quote: string \| null, instructions_seen: boolean, instructions_note: string \| null }` | The question the task asked, answered from the material only, with odds. |
+| `list` | `{ kind: 'list', items: array, instructions_seen: boolean, instructions_note: string \| null }` | Items found (search results, a setlist, a table), each with a short note and its source. |
+| `unreadable` | `{ kind: 'unreadable', source: string, why: string }` | The source could not be read (blocked, empty, not text, too large). |
 
 ## Error codes
 

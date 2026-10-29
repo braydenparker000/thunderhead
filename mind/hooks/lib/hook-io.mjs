@@ -42,3 +42,12 @@ export function allowedHosts(env = process.env) {
   for (const h of String(env.TH_ALLOWED_HOSTS || '').split(',')) if (h.trim()) hosts.push(h.trim().toLowerCase());
   return hosts;
 }
+
+/** The Worker's and the site's hosts: text from them is the owner's own (lib/taint.mjs). */
+export function ownHosts(env = process.env) {
+  const hosts = [];
+  for (const url of [env.TH_API, env.TH_SITE]) {
+    try { if (url) hosts.push(new URL(url).hostname.toLowerCase()); } catch { /* ignore a bad URL */ }
+  }
+  return hosts;
+}

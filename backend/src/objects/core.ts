@@ -40,16 +40,17 @@ import { getSetting, putSetting } from '../areas/settings/store';
 import * as surfaces from '../areas/surfaces/ops';
 import { list as listSurfaces } from '../areas/surfaces/store';
 import * as verbs from '../areas/verbs/ops';
+import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
-import { CoreProposals } from './core-proposals';
+import { CoreEvals } from './core-evals';
 
 const PRUNE_STEP = 2_000;
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
 const JOB_HANDLERS: Record<string, JobHandler> = { [importJob.kind]: importJob };
 
-export class Core extends CoreProposals {
+export class Core extends CoreEvals {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
@@ -179,7 +180,7 @@ export class Core extends CoreProposals {
   override async alarm(): Promise<void> {
     this.alarmAt = null;
     const fires = this.write((w) => wake.onAlarm(w, this.configured(), this.tz()));
-    const cfg = fireConfig(this.env, 'chat');
+    const cfg = this.sandboxed ? null : fireConfig(this.env, 'chat');
     if (cfg) for (const f of fires) this.recordFire(f.id, await fire(cfg));
     await runJobs({ env: this.env, db: this.db, write: (fn, at) => this.write(fn, at) }, JOB_HANDLERS);
     this.schedule();
@@ -206,7 +207,7 @@ export class Core extends CoreProposals {
       settleProposals(w);
     }, now);
     const pruned = this.pruneDaily(now, day.logicalDay(now, tz));
-    const cfg = wakeNight ? fireConfig(this.env, 'night') : null;
+    const cfg = wakeNight && !this.sandboxed ? fireConfig(this.env, 'night') : null;
     // Recorded without the chat back-off (wake.fired): a 429 on the night fire must not hold the
     // owner's chat wakes for an hour; a chat fire that meets the same limit sets it itself.
     if (wakeNight && cfg) {
@@ -279,6 +280,7 @@ export class Core extends CoreProposals {
 
 const roleOf = (c: Caller) => (c.who === 'N' ? 'night' : c.who === 'R' ? 'reflex' : 'chat');
 
+/** The owner's Core, or the eval sandbox's while a request runs in its scope (http/sandbox.ts). */
 export function coreObject(env: Env): DurableObjectStub<Core> {
-  return env.CORE.getByName('owner');
+  return env.CORE.getByName(coreInstance());
 }

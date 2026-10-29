@@ -269,3 +269,39 @@ bucket `thunderhead-private` (J2) and the deploy that carries the import.
    line from the allowed hosts → **Save**. Check: Settings → Agents no longer lists `import-once`.
 4. The old Worker stays as it is: it is the live backup until its retirement
    ([MIGRATION.md §8](../engineering/MIGRATION.md)).
+
+## M. Safety (P4)
+
+### M1. The taint hook (about 3 minutes, after batch C is live)
+
+Until this is done a session that reads a web page is not marked tainted by the hook (the Worker
+still refuses what the reader's check and the eval suite mark). Do it after the agent says batch C
+is deployed.
+
+1. GitHub, the repo → `.claude/settings.json` → the pencil (**Edit this file**). Select everything,
+   paste exactly this, then **Commit changes… → Commit directly to the `main` branch → Commit
+   changes**:
+
+   ```json
+   {
+     "hooks": {
+       "SessionStart": [{"matcher": "startup|resume|clear|compact",
+         "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/session-start.mjs\"", "timeout": 30}]}],
+       "Stop": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop.mjs\"", "timeout": 20}]}],
+       "StopFailure": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop-failure.mjs\"", "timeout": 10}]}],
+       "PreToolUse": [{"matcher": "*",
+         "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/pre-tool.mjs\" || [ -z \"$TH_ROLE\" ] || exit 2", "timeout": 30}]}],
+       "PostToolUse": [{"matcher": "*",
+         "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/post-tool.mjs\" || [ -z \"$TH_ROLE\" ] || { mkdir -p \"${TMPDIR:-/tmp}/th/state\" && echo '{\"source\":\"hook\",\"ref\":\"\"}' > \"${TMPDIR:-/tmp}/th/state/taint_pending.json\"; }", "timeout": 10}]}]
+     }
+   }
+   ```
+
+   Check: the file on `main` ends with the `PostToolUse` line. Like the rest, the hooks do
+   nothing in your own or a developer's sessions (`TH_ROLE` unset); in a mind session a hook that
+   can't run blocks the call (`exit 2`) or leaves the taint pending, so they fail closed.
+2. **The check from the phone.** Home → type `Summarise https://example.com for me` → send. The
+   reply arrives as usual: the mind hands the page to its `reader` subagent, and from then on that
+   session writes no memory. A page whose host the environment's network list doesn't allow comes
+   back as "unreadable"; each host you add there is one the mind can read.
+3. Tell the agent "M1 done".

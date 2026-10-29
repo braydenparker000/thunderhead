@@ -161,6 +161,7 @@ export async function taint(argv) {
   const refKind = /^https?:\/\//.test(ref) ? 'url' : /comment/i.test(source + ref) ? 'comment' : ref ? 'file' : undefined;
   const {data} = await request('POST', '/v1/mind/taint', {body: {source, ref_kind: refKind}});
   setState('tainted', true);
+  setState('taint_pending', null); // the hooks' mark (RUNTIME.md §6.5): sent now
   out({tainted: data?.tainted ?? true});
 }
 

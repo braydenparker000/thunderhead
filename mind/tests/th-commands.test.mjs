@@ -369,3 +369,28 @@ test('exit codes: 1 bad JSON, 2 bad token, 8 unknown command, 9 unreachable, 10 
   assert.equal(gaveUp.code, 9, '5xx after 3 retries');
   assert.equal(fake.state.requests.filter(r => r.path === '/v1/mind/pending').length, 1 + 1 + 1 + 1 + 3 + 4);
 }));
+
+test('approved: an executed repo.change card for these paths and this base (exit 0), anything else exit 6', withFake({}, async fake => {
+  const e = env(fake);
+  const base = 'a'.repeat(40);
+  const put = (paths, status) => {
+    const id = `01890a5d-ac96-774b-bcce-${String(fake.state.proposals.size + 1).padStart(12, '0')}`;
+    fake.state.proposals.set(id, {value: {id, status, spec: {v: 1, op: 'repo.change', args: {paths, base}}}});
+  };
+  put(['.github/workflows/ci.yml', 'mind/hooks/stop.mjs'], 'executed');
+  put(['.claude/settings.json'], 'waiting');
+  const ask = (paths, sha = base) => th(['approved', '--paths', paths, '--sha', sha], e);
+  const yes = await ask('.github/workflows/ci.yml,mind/hooks/stop.mjs');
+  assert.equal(yes.code, 0, yes.stderr);
+  assert.equal(yes.json.approved, true);
+  assert.equal((await ask('.github/workflows/ci.yml')).code, 0);
+  assert.equal((await ask('.claude/settings.json')).code, 6, 'a waiting card approves nothing');
+  assert.equal((await ask('.github/workflows/ci.yml,.github/workflows/deploy.yml')).code, 6, 'every path must be covered');
+  assert.equal((await ask('.github/workflows/ci.yml', 'b'.repeat(40))).code, 6, 'another base');
+  assert.equal((await ask('.github/workflows/ci.yml', 'HEAD')).code, 8);
+  // In the eval sandbox it still asks the owner's Core: a card approved there approves nothing real.
+  const inEval = await th(['approved', '--paths', '.github/workflows/ci.yml', '--sha', base], {...e, TH_SANDBOX: 'eval'});
+  assert.equal(inEval.code, 0);
+  const last = fake.state.requests.filter(r => r.path === '/v1/proposals').pop();
+  assert.equal(last.headers['th-sandbox'], undefined);
+}));

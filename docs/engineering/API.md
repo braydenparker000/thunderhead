@@ -28,6 +28,7 @@ Storage behind each route is in [DATA.md](DATA.md). Behaviour seen by the owner 
 | `TH-Client` | all | `<build>.<sha7>` (site), `th/<version>` (mind CLI), `ci/<build>` (Actions), `muse/<n>` |
 | `TH-Session` | mind roles, after the claim | the Claude session id sent at `POST /v1/mind/brief`; the Worker keys taint and the constitution pin on it |
 | `TH-Role` | mind roles (sent by `th`, [RUNTIME.md §5.1](../mind/RUNTIME.md)) | `chat` \| `night` \| `reflex`. Informational: the Worker trusts only the key's role and answers a mismatch with `403 forbidden` |
+| `TH-Sandbox` | the injection suite only (P4, sent by `th` between `th eval begin` and `end`) | `eval`: the request goes, through the same route, to the scratch Core instance `core-eval` instead of the owner's ([EVALS.md §1.1](../mind/EVALS.md)). Chat and night keys only, never on a route that takes one named key; any other principal or value is `403 forbidden`. There nothing reaches Auth, the routines or the owner's Core, and each write the mind tries is recorded |
 | `Content-Type` | bodies | `application/json` (files: the file's type) |
 
 | Header (response) | Always | Value |
@@ -417,7 +418,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | Route | Who | Request | Response | Errors |
 |---|---|---|---|---|
 | `PUT /v1/proposals/:id` | agents, from a claimed session of the key's role | `{ class: ProposalClass, question /* ≤ 80 */, why /* ≤ 140 */, if_ignored /* ≤ 140 */, odds?: number /* 0–1 */, options: [string, string] /* each ≤ 20 */, safe?: 'reject'\|'snooze' /* default reject */, spec: ProposalSpec }` | `201 Proposal` (`status:'waiting'`, `expires_at` = +7 days, `spec_hash` = SHA-256 of the canonical spec, `show_from` = now or the end of the quiet hours it was made in, `target` = the Worker's line naming what a Yes changes); the same id and body again is `200` | 409 `decision_budget` (3 raised by agents already waiting); 409 `conflict` (another body under this id, or a card for the same thing already waits); 422 if `spec.op` is not in the executor map, its class is not one the op is filed under, its args don't match, what it names doesn't exist (no such fact; no active agent key with this id), or a text or button trips the phrase lint; 403 `forbidden` for an op this role may not raise (`by` in the registry), and for the `import-once` key; 403 `session_required`; 403 `session_tainted` for any ask-first class from a tainted session |
-| `GET /v1/proposals?status=waiting\|all&limit&cursor` | device, agents | — | `200 Page<Proposal>`, newest first (`cursor`: the last id of the page before; `limit` 1–200, default 50) | |
+| `GET /v1/proposals?status=waiting\|all&limit&cursor` | device, agents | — | `200 Page<Proposal>`, newest first (`cursor`: the last id of the page before; `limit` 1–200, default 50); to `mind:reflex`, which reads no memory, a card about a fact comes without its words, buttons or target line | |
 | `POST /v1/proposals/:id/decide` | device (tap); `mind:chat` with `by_message` only (the owner's own words) | `{ decision: 'approve'\|'reject'\|'snooze', spec_hash, by_message?: Id }` (`by_message` is required from `mind:chat` and refused from a device; `snooze` is the card's "Not yet": back at the next end of quiet hours, at most 3 times, the 4th expires it) | `200 { status: 'executed'\|'approved'\|'rejected'\|'waiting'\|'expired'\|'failed', result?, ledger_id }` (`approved` while an op of the Auth object has not reported yet; the 15-minute cron runs it again after 2 minutes; `failed` with `result.code` when the executor refused, which changes nothing); stores `decided_via` `tap` or `words` and `decided_message_id` | 409 `spec_mismatch`, 409 `already_decided`, 410 `expired`, 403 `not_owner_words` (also for a card only a tap decides: the laws pin), 403 `session_required` (`mind:chat` without its claimed session that holds the chat lease), 403 `session_tainted` (an approval recorded by a tainted session; a reject or snooze still goes through), 403 `forbidden` (another role, or the `import-once` key), 422 `validation` (`by_message` from a device, or missing from `mind:chat`) |
 | `POST /v1/proposals/:id/cancel` | the creating agent, device | `{ why /* 8–200 */ }` | `200 { status: 'cancelled' }` | 409 `already_decided`, 410 `expired`, 403 `forbidden` (another agent's card, or the `import-once` key) |
 
@@ -602,6 +603,15 @@ The ported apps (P1b) call the old Worker, not this API. Each app's routes are a
 
 Every one of them follows this page's rules (scopes in §13, errors in §6, cost budgets in [TESTING.md §6](TESTING.md#6-cost-tests)).
 
+### 11.22 Evals (P4)
+
+| Route | Who | Request | Response | Errors |
+|---|---|---|---|---|
+| `POST /v1/evals/sandbox` | C N, with `TH-Sandbox: eval` only | `{ seed: SeedRow[] /* ≤ 200: owner and Muse lines, the owner's memory ops; synthetic */ }` | `200 { seeded, thread_id }`: every table of `core-eval` emptied, then the seed written through the normal paths | 422 outside the sandbox, or a seed row naming an earlier row that isn't there |
+| `GET /v1/evals/sandbox` | C N, with `TH-Sandbox: eval` only | — | `200 SandboxReport`: since the reset, the mind's ledger rows by kind, its messages outside the eval thread, its last 20 replies (each cut to 2,000 characters) and every write it tried (route and status, refused ones too) | 422 outside the sandbox |
+| `PUT /v1/evals/runs/:id` | C N, never in the sandbox | `{ id, suite: 'INJ', git_sha, n, passed, failures: string[], skipped?: string[], judged? }`: numbers and fixture ids only | `201 EvalRun` (`score` = passed / n), `200` for the same body again | 409 another body under this id; 422 in the sandbox, or `passed > n` |
+| `GET /v1/evals/runs?suite&limit` | D C N | — | `200 { items: EvalRun[] }`, newest first | |
+
 ---
 
 ## 12. WebSocket protocol (`/v1/live`)
@@ -675,6 +685,9 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `POST /v1/proposals/:id/cancel` | D C N R | P4 |
 | `POST /v1/ops/backups/run`, `POST /v1/ops/drill/run` | N I | P4 |
 | `GET /v1/ops/backups` | D C N R I | P4 |
+| `POST /v1/evals/sandbox`, `GET /v1/evals/sandbox` | C N (with `TH-Sandbox: eval` only) | P4 |
+| `PUT /v1/evals/runs/:id` | C N | P4 |
+| `GET /v1/evals/runs` | D C N | P4 |
 | `POST /v1/ops/restore` | D C N R | P4 |
 | `POST /v1/export`, `GET /v1/export/:id` | D | P4 |
 | `PUT /v1/work/orders/:id`, `POST /v1/work/orders/:id/cancel` | C N (cancel also D) | P4 |
