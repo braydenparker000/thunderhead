@@ -3,71 +3,27 @@
 // Pin and mute, Forget with its confirm and 10 s undo (and the send when the page closes early),
 // loose ends and day notes, a kind and a source this build doesn't know, the empty page, and a
 // Worker from before memory. TH_SHOTS=<dir> saves screenshots for review. Local only.
-// No guessed delays: each step waits on what the page shows or on the request the mock saw, and
-// once the page is up its clock stands still unless a test moves it (the tap guard, the filter's
-// pause, the 10 s undo).
+// The page helpers (tests/fixtures/memory-page.mjs) wait on what the page shows or what the mock
+// saw, never on a guessed delay; once the page is up its clock moves only when a test moves it.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
-import { chromium } from 'playwright';
-import { serve } from '../scripts/serve.mjs';
-import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { headings, memoryPages, ops, until } from './fixtures/memory-page.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
 const SHOTS = process.env.TH_SHOTS ?? '';
-let server, browser, base;
+const pages = memoryPages();
 before(async () => {
   if (live) return;
   if (SHOTS) mkdirSync(SHOTS, { recursive: true });
-  server = await serve(0, { api: API });
-  base = `http://127.0.0.1:${server.address().port}`;
-  browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
+  await pages.start();
 });
-after(async () => { await browser?.close(); server?.close(); });
+after(() => pages.stop());
 
-async function open({ theme = 'light', mock = {} } = {}) {
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block' });
-  const errors = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
-  await page.addInitScript((t) => { try { localStorage.setItem('th-theme', t); } catch {} }, theme);
-  await page.clock.install();
-  const api = await mockApi(page, mock);
-  await page.goto(`${base}/no-such-page`);
-  await page.evaluate(([token]) => new Promise((resolve, reject) => {
-    const req = indexedDB.open('th-auth', 1);
-    req.onupgradeneeded = () => req.result.createObjectStore('kv');
-    req.onsuccess = () => {
-      const tx = req.result.transaction('kv', 'readwrite');
-      tx.objectStore('kv').put({ session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' }, 'session');
-      tx.oncomplete = () => { req.result.close(); resolve(); };
-      tx.onerror = () => reject(tx.error);
-    };
-  }), [TOKEN]);
-  errors.length = 0;
-  await page.goto(`${base}/settings/memory/`, { waitUntil: 'load' });
-  await page.waitForSelector('.msections:not([aria-busy])');
-  // Time stops here, 800 ms on: past the 500 ms tap guard.
-  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 800));
-  return { page, errors, api };
-}
+const open = (o) => pages.open(o);
 const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: join(SHOTS, `${name}.png`), animations: 'disabled' }); };
-const headings = (page) => page.$$eval('.msec h2', (hs) => hs.map((h) => h.textContent));
-const ops = (api) => api.calls.filter((c) => c.call === 'POST /v1/memory/ops').map((c) => c.body.ops[0]);
-
-/** Reads until the value is `want` (5 s at most), then asserts it. */
-async function until(read, want, message) {
-  const end = Date.now() + 5_000;
-  let got = await read();
-  while (!isDeepStrictEqual(got, want) && Date.now() < end) {
-    await new Promise((r) => setTimeout(r, 20));
-    got = await read();
-  }
-  assert.deepEqual(got, want, message);
-}
 
 test('the page groups what I know, in day and night, with no errors and no sideways scroll', opts, async () => {
   for (const theme of ['light', 'dark']) {

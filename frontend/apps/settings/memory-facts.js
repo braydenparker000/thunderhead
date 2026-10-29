@@ -24,6 +24,14 @@ export function memoryLine(e) {
   return issue && Object.hasOwn(REFUSED, issue) ? REFUSED[issue] : lineFor(failure(e));
 }
 
+/** Text kept blurred until tapped (a private fact's, PRIVACY.md §4): a button, so it can be
+ * reached and is read out as private until shown. @param {string} cls @param {string} text */
+export function privateText(cls, text) {
+  const b = el('button', { type: 'button', class: `${cls} blur`, text, 'aria-label': 'Private. Tap to show.' });
+  b.addEventListener('click', () => { b.classList.remove('blur'); b.removeAttribute('aria-label'); }, { once: true });
+  return b;
+}
+
 /** One op from this device; the Worker cites its own ledger row as the evidence. */
 export const op = (o, keepalive = false) => signedIn((t) => api.memoryOps(t, uuidv7(), [o], keepalive));
 

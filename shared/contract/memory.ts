@@ -185,7 +185,10 @@ export interface MemoryOpsResponse {
 
 export interface ProfileResponse {
   text: string;
+  /** The fact of each line, in line order. */
   fact_ids: Id[];
+  /** The private lines' facts (sensitivity 1): a screen blurs those lines until tapped. */
+  private_ids: Id[];
   rendered_at: Ms;
 }
 

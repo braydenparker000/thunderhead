@@ -30,6 +30,13 @@ const SECRET_SAID = [
 ];
 /** Words whose value is a secret whatever it looks like, once it is said ("my password is Summer"). */
 const SAID_ONCE = /^pass(?:word|code|phrase)$/i;
+/** Words that describe a password rather than being one ("her password was reset"). */
+const DESCRIBING = new Set(
+  (
+    'reset changed weak strong wrong correct fine long short expired old new saved required needed ' +
+    'missing forgotten simple complicated secure insecure case-sensitive'
+  ).split(' '),
+);
 /** A lower-case "pin" counts only before 4–8 digits; a card's security code is 3–4. */
 const DIGITS_SAID = /\b(?:pin\s*(?:is|was|:|=)\s*\d{4,8}|(?:cvv|cvc|security code)\s*(?:is|was|:|=)?\s*\d{3,4})\b/i;
 const QUOTES = '"\'‘’“”`«»';
@@ -47,6 +54,7 @@ function oneWord(value: string): boolean {
   const [first = '', ...rest] = value.split(/\s+/);
   return first !== '' && (rest.join('') === '' || /[.!?;,]$/.test(first));
 }
+const firstWord = (value: string) => (value.split(/\s+/, 1)[0] ?? '').replace(/[.!?;,]+$/, '').toLowerCase();
 
 function passwordSaid(text: string): boolean {
   if (DIGITS_SAID.test(text)) return true;
@@ -54,7 +62,8 @@ function passwordSaid(text: string): boolean {
     for (const m of text.matchAll(re)) {
       const said = m[2] ?? m[3];
       const value = text.slice((m.index ?? 0) + m[0].length);
-      if (!value) continue;
+      // "Her password was reset": one word that describes it, not the password itself.
+      if (!value || (oneWord(value) && DESCRIBING.has(firstWord(value)))) continue;
       // A passphrase is words; a password said in one word is that word.
       if (said && SAID_ONCE.test(m[1]) && (/^passphrase$/i.test(m[1]) || oneWord(value))) return true;
       if (secretish(value)) return true;

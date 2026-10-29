@@ -66,7 +66,10 @@ function within(lines: string[], max: number, more: (n: number) => string): { te
 
 export interface Profile {
   text: string;
+  /** The fact of each line, in line order (the cut marker has none). */
   fact_ids: string[];
+  /** The lines that are private (sensitivity 1), so a screen blurs them by id, not by wording. */
+  private_ids: string[];
 }
 
 /** MEMORY.md §8: current non-rule facts, decayed, below 0.25 dropped unless pinned; pinned first,
@@ -101,7 +104,12 @@ export function renderProfile(rows: FactRow[], now: number, tz: string): Profile
     (n) => `(+${n + dropped} more: th recall --kind facts)`,
   );
   const extra = kept === lines.length && dropped ? `\n(+${dropped} more: th recall --kind facts)` : '';
-  return { text: (text + extra).trim() || 'Nothing known yet.', fact_ids: chosen.slice(0, kept).map(({ f }) => f.id) };
+  const shown = chosen.slice(0, kept).map(({ f }) => f);
+  return {
+    text: (text + extra).trim() || 'Nothing known yet.',
+    fact_ids: shown.map((f) => f.id),
+    private_ids: shown.filter((f) => f.sensitivity === 1).map((f) => f.id),
+  };
 }
 
 /** Section 3: every current rule, pinned first, oldest first (rules never decay). */

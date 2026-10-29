@@ -111,6 +111,8 @@ describe('the profile (MEMORY.md §8)', () => {
     expect(lines[3]).toMatch(/ · don't raise · private$/);
     expect(a.text).not.toContain('second language');
     expect(a.fact_ids).toHaveLength(5);
+    // The private line is named by its fact (stage B.5), so a screen blurs it by id, not wording.
+    expect(a.private_ids).toEqual([a.fact_ids[3]]);
   });
 
   it('short ids come from the random tail, so one batch never shares them', () => {

@@ -289,6 +289,7 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.memory.fixform` | Say it the way it is | The Fix form's label (built, P3) |
 | `set.memory.forget.ask` | Forget this? · It can't be brought back. The system's recovery points keep it for up to 30 days, then it's gone everywhere. · Forget · Keep | The confirm sheet (built, P3) |
 | `toast.forgotten` | Forgotten. Undo | After Forget, for 10 s before it is sent (built, P3) |
+| `toast.notforgotten` | Not forgotten yet. I'll keep trying. | A Forget the network or the server refused for now; the fact stays off the page and the phone tries again (built, P3) |
 | `set.memory.empty` | Nothing yet. When you tell me something worth keeping, it shows here with where you said it. | Empty page (built, P3) |
 | `set.memory.later` | Memory arrives with the next update of the Thunderhead. | An older Worker without memory (built, P3) |
 | `set.memory.refused` | Keep it to one short sentence (280 characters at most). · That changed in the meantime. Here is the newest version. · That's already gone. · That couldn't be saved. Try other words. · I don't keep passwords, keys or card numbers. Say it without them. | A refused change (built, P3) |

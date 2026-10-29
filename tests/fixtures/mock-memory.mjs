@@ -27,7 +27,13 @@ export function memoryState(now = Date.now(), over = {}) {
     ],
     threads: [{ id: '0192f0c4-0000-7000-8000-0000000000t1', text: 'Fix the metronome bug', owner: 'mind', due_at: now + DAY, tags: ['agreed'], status: 'open', evidence: ['msg:x'], opened_at: now - DAY, last_progress_at: null, closed_at: null, closed_why: null }],
     days: [{ day: '2026-10-28', summary: 'A calm day of practice and one bug report.', decisions: ['Fix the metronome first'], stats: { messages: 12 }, importance: 4, written_by: 'cse_night', version: 1, written_at: now - DAY }],
-    profile: '[f:00000002] Wants the second piece at 100 bpm (1.0, u, since 2026-10)\n[f:00000001] Likes calm music in the evening (0.9, u, since 2026-10)',
+    profile: [
+      '[f:00000002] Wants the second piece at 100 bpm (1.0, u, since 2026-10)',
+      "[f:00000005] Prays every morning (0.9, u, since 2026-10) · don't raise · private",
+      '[f:00000001] Likes calm music in the evening (0.9, u, since 2026-10)',
+    ].join('\n'),
+    profileIds: ['0192f0c4-0000-7000-8000-000000000002', '0192f0c4-0000-7000-8000-000000000005', '0192f0c4-0000-7000-8000-000000000001'],
+    privateIds: ['0192f0c4-0000-7000-8000-000000000005'],
     ops: [],
     ...over,
   };
@@ -40,7 +46,12 @@ export function memoryAnswer(m, method, p, url, body) {
   if (!p.startsWith('/v1/memory/')) return null;
   if (!m) return err(404, 'not_found');
   const k = `${method} ${p}`;
-  if (k === 'GET /v1/memory/facts') return [200, { items: m.facts.filter((f) => f.superseded_at === null), next: null }];
+  if (k === 'GET /v1/memory/facts') {
+    // Pages of 200 like the Worker, the cursor an offset here.
+    const current = m.facts.filter((f) => f.superseded_at === null);
+    const at = Number(url.searchParams.get('cursor') ?? 0);
+    return [200, { items: current.slice(at, at + 200), next: at + 200 < current.length ? String(at + 200) : null }];
+  }
   const one = /^\/v1\/memory\/facts\/([^/]+)$/.exec(p);
   if (method === 'GET' && one) {
     const f = m.facts.find((x) => x.id === one[1]);
@@ -49,7 +60,8 @@ export function memoryAnswer(m, method, p, url, body) {
     const evidence = f.evidence.map((ref) => ({ ref, kind: ref.split(':')[0], at: f.recorded_at, who: 'owner', text: ref.startsWith('msg:') ? `I said: ${f.text.toLowerCase()}.` : null }));
     return [200, { fact: f, history, evidence, why: f.kind === 'routine' ? 'you mentioned it twice last week' : null }];
   }
-  if (k === 'GET /v1/memory/profile') return [200, { text: m.profile, fact_ids: [], rendered_at: Date.now() }];
+  if (k === 'GET /v1/memory/profile')
+    return [200, { text: m.profile, fact_ids: m.profileIds ?? [], private_ids: m.privateIds ?? [], rendered_at: Date.now() }];
   if (k === 'POST /v1/memory/ops') {
     const o = body.ops[0];
     // The Worker's never-stored check (API.md §11.13), here only for a card-shaped number.

@@ -73,6 +73,11 @@ describe('never stored (MEMORY.md §13)', () => {
     'My password is in the blue drawer',
     'A PIN is required to open it',
     'The password for my bank is long and complicated',
+    // Stage B.5: a word that describes the password is not one.
+    'Her password was reset',
+    'My password is weak.',
+    'The passcode was changed',
+    'password is case-sensitive',
     'Tracking 1234567812345670 arrives Monday',
   ])('keeps "%s"', (text) => {
     expect(neverStored(text)).toBeNull();
