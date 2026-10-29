@@ -53,12 +53,29 @@ async function start() {
   requestAnimationFrame(() => setTimeout(() => import('/th/chat/index.js').then((m) => m.startChat()).catch(() => { root.dataset.chat = 'failed'; }), 0));
   // Decision cards (HOME.md §3) load after the first paint too.
   requestAnimationFrame(() => setTimeout(() => import('/th/decide/card.js').then((m) => m.startDecisions()).catch(() => {}), 0));
+  menuCode();
   try {
     const me = await signedIn((t) => api.me(t));
     notices(me.notices ?? [], open);
   } catch (e) {
     if (failure(e).kind === 'api') toast(lineFor(failure(e)));
   }
+}
+
+/** The menu's conversations and search (th/convos) load once the menu starts to open, so the shell
+ * stays inside its budget; a tap on "Search everything" waits for them. */
+function menuCode() {
+  const side = document.querySelector('#side');
+  /** @type {Promise<unknown> | null} */
+  let menu = null;
+  const load = () => (menu ??= import('/th/convos/menu.js').then((m) => m.startMenu()).catch((e) => { menu = null; throw e; }));
+  new MutationObserver(() => { if (side.classList.contains('open')) load().catch(() => {}); }).observe(side, { attributes: true, attributeFilter: ['class'] });
+  // Capture phase: the pill's "comes with sign-in" toast (home.js) never runs once signed in.
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest?.('#search')) return;
+    e.stopImmediatePropagation();
+    load().then(() => import('/th/convos/search.js')).then((s) => s.enter()).catch(() => toast("Couldn't load search. Reload to try again."));
+  }, true);
 }
 
 const hidden = (id) => { try { return localStorage.getItem(`th.p.hide.${id}`) === '1'; } catch { return false; } };

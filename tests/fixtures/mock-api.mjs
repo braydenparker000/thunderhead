@@ -3,6 +3,7 @@
 // socket (page.routeWebSocket), so home's chat can be too. No network; synthetic data only.
 import { memoryAnswer, memoryState } from './mock-memory.mjs';
 import { proposalsAnswer, proposalsState } from './mock-proposals.mjs';
+import { threadsAnswer, threadsState } from './mock-threads.mjs';
 
 export const API = 'https://api.th.test';
 
@@ -39,6 +40,7 @@ export async function mockApi(page, overrides = {}) {
   state.chat = chatState(overrides.chat);
   state.memory = 'memory' in overrides ? overrides.memory : memoryState(now);
   state.proposals = proposalsState(overrides.proposals);
+  state.threads = overrides.threads ?? threadsState();
   const calls = [];
   await page.routeWebSocket(/\/v1\/live\?ticket=/, (ws) => {
     state.chat.sockets.push(ws);
@@ -197,6 +199,7 @@ function answer(state, method, url, body) {
     proposalsAnswer(state.proposals, method, p, url, body, (kind) => changed(state.chat, kind)) ??
     memoryAnswer(state.memory, method, p, url, body) ??
     chatAnswer(state.chat, method, p, url, body) ??
+    threadsAnswer(state.threads, method, p, url, state.chat.thread, state.memory?.facts) ??
     err(404, 'not_found')
   );
 }

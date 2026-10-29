@@ -27,7 +27,7 @@ function el(tag, cls, text) {
 }
 
 /** A reply's text: lines, a hanging list for "– " lines, https links (HOME.md §4.3). @param {string} text */
-function replyBody(text) {
+export function replyBody(text) {
   const frag = document.createDocumentFragment();
   for (const line of lines(text)) {
     const p = el('span', line.list ? 'li' : 'p');
@@ -166,6 +166,7 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
         let rec = nodes.get(m.id);
         if (!rec || rec.sig !== sig) {
           const node = draw(m, s);
+          node.dataset.id = m.id; // a search hit scrolls to it (th/convos)
           if (rec) rec.node.replaceWith(node);
           else if (m.author === 'owner') newOwner = true;
           else if (m.author === 'mind') newReply = true; // live, or loaded on the way back from an app
