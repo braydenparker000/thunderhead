@@ -50,7 +50,7 @@ arranging things, and speaks only when something needs the owner. Its laws are i
 | `frontend/` | The site: plain ES modules, no build. `ui/` design system, `apps/<id>/` new shell apps (Study), `music/` `guitar/` `podcasts/` `astra/` `media/` the apps ported as they are, `index.html` the shell. |
 | `backend/` | The Cloudflare Worker `thunderhead-api` (TypeScript, Hono, zod/mini, SQLite Durable Objects). See `backend/README.md`. |
 | `mind/` | The mind's CLI (`th`), hooks, constitution, skills, eval harness. Arrives in P2. |
-| `shared/` | Types only: the API contract checked from every side. |
+| `shared/` | The contract: types (`api.ts`) and the runtime registries (routes, verbs, surface kinds, change kinds, codes) that the Worker, the phone and `th` all derive from. Adding a feature: [docs/engineering/EXTENDING.md](docs/engineering/EXTENDING.md). |
 | `scripts/` | `serve.mjs` (local server that behaves like Azure), `stage.mjs` (release folder + budgets), `deploy.sh` (publish). |
 | `tests/` | `node --test` suites: static checks, Chromium at phone size, read-only live checks. |
 | `docs/` | Product, design, mind and engineering specs; process (status, roadmap, decisions). |
@@ -70,6 +70,8 @@ files. Missing files return `404.html` with status 404.
 - **Frontend:** ES modules; files of 400 lines or fewer; logic without DOM in its own module with a node
   test; every app `mount()` returns a full cleanup; verbs live in a UI-free `verbs.js` and return their
   own undo; no inline scripts or `<style>` blocks (CSP).
+- **Extending:** every feature goes through the seams in [docs/engineering/EXTENDING.md](docs/engineering/EXTENDING.md)
+  (one contract source, one write path, area-owned tables, phone registries); tests fail when one is skipped.
 - **Backend:** all SQL in the area's `store.ts`; Durable Object classes are thin RPC facades;
   migrations are expand-only; no timers or long polls inside Durable Objects; every route declares a
   scope and a test proves it returns 401 without one; bulk jobs are chunked and resumable.

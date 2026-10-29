@@ -2,7 +2,7 @@
 // guardrails of docs/engineering/EXTENDING.md rule 9: every verb has a class, an executor, schemas
 // and a doc line; every surface kind has slots, versions and a doc line; every route names its
 // principals; every shipped app has its folder. The phone-side half (renderers and executors)
-// is checked in tests/registries.test.mjs.
+// arrives with the home chat UI and is checked with it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';

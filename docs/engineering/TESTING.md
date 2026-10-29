@@ -107,6 +107,8 @@ To add (P1):
 | `env-inventory` | Every `env.X` in `backend/src` is a declared var or a listed secret ([OPERATIONS.md §2](OPERATIONS.md#2-settings-inventory-names-only)) |
 | `no-secret-vars` | No var name in `wrangler.jsonc` matches `/KEY|SECRET|TOKEN|PEPPER|PASSWORD/` |
 | `fixtures-synthetic` | §13's lint over every fixture file |
+| `contract-gen` (P2, `tests/contract-gen.test.mjs`) | `frontend/th/contract.js`, `mind/cli/contract.json` and `CONTRACT.md` equal what `scripts/contract.mjs` writes; every verb has a class, executor, schemas and a doc line; every surface kind has slots, versions and a doc line; every route a method, `/v1` path, principals and phase; every shipped app its folder ([EXTENDING.md](EXTENDING.md) rule 9) |
+| `one write path`, `area seams` (P2, `backend/tests/unit/static.test.ts`) | Only `objects/commit.ts` writes the change feed and the ledger; no SQL table is used by two areas |
 
 To add (P1b, `tests/ported.test.mjs`) **[proposal]**:
 
@@ -132,7 +134,9 @@ Any logic without DOM lives in its own module and has a `node --test` next to it
 
 | Suite | Acceptance |
 |---|---|
-| `route-scopes` | Walks [API.md §13](API.md#13-route-table-the-source-for-the-scope-test). Every route without a token → 401; every unlisted principal → 403; an unknown route → 404 |
+| `route-scopes` | Walks the built rows of `shared/contract/routes.ts` ([API.md §13](API.md#13-route-table-the-source-for-the-scope-test)). Every route without a token → 401; every unlisted principal → 403; an unknown route → 404; each guard names its own row; the socket takes only a ticket |
+| `conversation`, `mind`, `live`, `actions` (P2) | The daily thread and its rules, the phrase lint and chips; claim, lease, briefing, hand-out, ack, requeue, the wake retry and give-up with the honest line, the roll (and answering across it); hello and one `changed` frame per commit, 4401 on sign-out; verbs, surfaces and undo against the contract registries |
+| `tables` (P2) | Every Core table has a retention entry and a DATA.md §10 row; every retention short of forever has a prune, and the daily pass removes old rows once a day |
 | `errors` | Every thrown error becomes the §6 envelope with `request_id`; no body is echoed |
 | `idempotency` | Each `PUT …/:id` and batch route: the same body twice → 200 with the same result; a different body → 409 |
 | `client-version` | Writes below `min_client` → 426; reads → 200 |

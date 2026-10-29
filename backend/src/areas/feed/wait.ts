@@ -1,10 +1,10 @@
 // The one seam between the mind's `GET /v1/live/wait` and how the Worker learns that something
-// changed (API.md §11.5). Test X1 decides the mode; until it is measured both exist and the var
-// LIVE_WAIT picks one, so changing it is a var change, not a code change:
+// changed (API.md §11.5). X1 passed in production (decisions.md 2026-10-29), so `ws` is the
+// design; the var LIVE_WAIT keeps `poll` one var change away, never a code change:
 //   ws   — the Worker holds a hibernatable WebSocket to Core and returns at the first frame whose
 //          seq is past `after` (Core sends `hello` with its seq at once, so nothing committed
 //          between the first take and the connect is missed). Default.
-//   poll — the Worker asks Core for its last seq every 3 s (the fallback if X1 fails).
+//   poll — the Worker asks Core for its last seq every 3 s.
 // Runs in the Worker, never inside the object (no timers in Durable Objects).
 import { coreObject } from '../../objects/core';
 

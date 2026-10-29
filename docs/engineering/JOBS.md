@@ -190,7 +190,7 @@ Import jobs stop after 3 failures in a row and show the Home line from [MIGRATIO
 |---|---|---|---|---|---|
 | `export.weekly` | each | no (reads only) | Sunday 02:30 local | 5,000 rows → one `.jsonl.gz` part | Manifest written last |
 | `backups.prune` | Core | no | after `export.weekly` | R2 deletes only | Keeps 8 weekly + 12 monthly |
-| `prune.<class>` | each | no | daily 03:30 local | 2,000 deletes | Retention per [DATA.md §10](DATA.md#10-retention-and-export-inclusion) |
+| `prune.<class>` | each | no | the first tick of each logical day (after 04:00 local) | 2,000 deletes | Retention per [DATA.md §10](DATA.md#10-retention-and-export-inclusion) |
 | `changes.prune` | Core | no | daily | 2,000 | Keeps the newest 10,000 |
 | `profile.snapshot` | Core | no | weekly, after the night shift | 1 R2 put | |
 | `import.<dataset>` | Core (Music for `music`) | yes | `POST /v1/import/runs` | 2,000 rows | Idempotent upserts with deterministic IDs |

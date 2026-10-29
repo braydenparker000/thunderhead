@@ -330,14 +330,15 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 - Response `200`:
   ```ts
   { seq: number; changed: boolean; kinds: string[];
-    messages: Message[];                  // owner messages after `after`, ≤ 20; sets delivered_at
+    messages: Message[];                  // owner messages not yet handed out (or handed out > 120 s ago and never acknowledged), ≤ 20; sets delivered_at; chat lease holder only
     events: { type: 'proposal.decided'|'work.done'|'verb.result'|'deploy.result'; ref: Ref; at: Ms }[];
     signals: ('day_closed' | 'stop')[] }
   ```
   `stop` = the owner tapped stop. `day_closed` = the roll happened. The CLI turns these into `th wait`'s output and exit codes ([RUNTIME.md §5](../mind/RUNTIME.md)).
-- A handed-out message must be acknowledged within 120 s (`POST /v1/mind/status` with `working`, or any post in its thread), or it is requeued.
+- A handed-out message (including one shown in a claimed briefing) must be acknowledged within 120 s (`POST /v1/mind/status` with `working`, or any post by the chat mind), or it is requeued.
+- A take returns `changed: true` for any committed change after `seq`, including the mind's own posts; `th wait` waits again when a take carries nothing for it.
 - Each take renews the role's lease ([DATA.md §4.1](DATA.md#41-settings-ops-the-feed-and-the-minds-bookkeeping)).
-- Fallback if test X1 fails: the CLI polls `GET /v1/changes` every 15 s.
+- X1 passed in production (decisions.md 2026-10-29): the Worker-held wait is the design. The Worker var `LIVE_WAIT=poll` switches the hold to a 3 s check of Core's last seq, as a var change (`backend/src/areas/feed/wait.ts`).
 
 ### 11.6 Changes
 
@@ -357,14 +358,14 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | `POST /v1/threads/:id/continue` | device | — | `200 { today_thread_id }` | Links a filed thread to today (`continues`) |
 | `PUT /v1/messages/:id` | device, `mind:chat`, `muse` (own thread); `mind:night`/`mind:reflex` only `kind:'error'` to the system thread | `{ body: string, kind?: Message['kind'] /* default 'text' */, meta?: object /* ≤ 8 KB */, attachments?: Ref[] /* file:…, ≤ 10 */, reply_to?: Id }` | `201 Message` (200 on a same-body retry) | See below |
 | `PATCH /v1/messages/:id` | `mind:chat` (own posts) | `{ body?: string, meta?: object }` | `200 Message` | Keeps progress cards current (`th amend`) |
-| `GET /v1/search?q=&kind=messages\|facts\|day_notes&since&until&thread&limit` | device, `mind:chat`, `mind:night` | — | `200 { items: { ref, kind, snippet /* ≤ 200 chars, match in «» */, at, thread_id?, score }[] }` | FTS5 bm25; `q` 1–200 chars |
+| `GET /v1/search?q=&sources=messages,facts,day_notes,library&since&until&thread&limit` | device, `mind:chat`, `mind:night` | — | `200 { items: { source, ref, snippet /* ≤ 200 chars, match in «» */, at, thread_id?, score }[] }` | Federated: each source (`shared/contract/feed.ts` `SEARCH_SOURCES`) answers with FTS5 bm25 and the Worker fuses them by reciprocal rank (k = 60); default all built sources (P2: `messages`); an unknown source is 422; `kind=` is kept as an alias of `sources=`; `q` 1–200 chars |
 | `POST /v1/mind/typing` | device | `{}` | `204` | May fire a pre-warm wake ([RUNTIME.md](../mind/RUNTIME.md)) |
 | `PUT /v1/files/:id` | device, `mind:chat` | raw bytes; headers `Content-Type`, `TH-File-Name` (URL-encoded, ≤ 120), `TH-Sha256` | `201 { ref: 'file:<id>', bytes, type }` | Streams to `thunderhead-private/chat/files/…`; 422 if the sha256 differs **[proposal]** |
 
 `PUT /v1/messages/:id` rules:
 1. The message goes into the open `daily` thread for `day.current`. The Worker creates that thread if needed. The client never names a thread, except `muse` in its own thread.
 2. `author` and `origin` come from the principal (`device` → `owner`/`owner_device`, `mind:chat` → `mind`/`mind`, `muse` → `muse`/`muse`), never from the body.
-3. A `mind` message with `reply_to` sets `answered_at` on that owner message and on earlier unanswered owner messages in the same thread **[proposal]**.
+3. A `mind` message with `reply_to` sets `answered_at` on that owner message and on every earlier unanswered owner message. `reply_to` names a message in the open thread, or an owner message still unanswered from an earlier day, so a reply after the roll still settles it (nothing the owner said is lost across the roll).
 4. An owner message with no live chat lease and no unclaimed fire younger than 90 s queues a wake (conditions: [RUNTIME.md §3](../mind/RUNTIME.md)).
 5. Owner messages use `text` or `voice`. Agents may use every kind; `system` messages (author `system`) are written only by the Worker.
 6. Wording limits on mind messages (the phrase lint) are enforced as `422 validation` per [BEHAVIOR.md](../mind/BEHAVIOR.md).
@@ -414,12 +415,14 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 
 | Route | Who | Request | Response | Errors |
 |---|---|---|---|---|
-| `PUT /v1/verbs/:id` | agents | `{ verb, schema, ref?, args, device_id?, expires_at? /* default +24 h */, proposal_id? }` | `201 Verb` | 403 `proposal_required` for an ask-first verb without an approved proposal |
+| `PUT /v1/verbs/:id` | `mind:chat`, `mind:night` | `{ verb, schema, args, why /* 8–200 chars, required */, ref?, device_id?, expires_at? /* default +24 h */, proposal_id? }` | `201 Verb` (200 on a same-body retry) | 403 `proposal_required` for an ask-first verb without an approved proposal; 422 for an unknown verb or version, a verb that is not queueable (owner taps only, e.g. `app.open`), or args that fail its schema |
 | `GET /v1/verbs/pending` | device | — | `200 { items: Verb[] }` (for this device or any) | |
 | `POST /v1/verbs/:id/claim` | device | `{}` | `200 Verb` (`claimed`; the claim lasts 120 s) | 409 `already_claimed` |
-| `POST /v1/verbs/:id/result` | device | `{ ok: boolean, result?: unknown, undo?: {verb, args}, error?: {code, message} }` | `200 Verb` | 410 `expired` |
+| `POST /v1/verbs/:id/result` | device | `{ ok: boolean, result?: unknown, undo?: {verb, schema, args}, error?: {code, message?} }` | `200 Verb` | 410 `expired`; 422 if `result` or `undo` fails the verb's schemas |
 
-- Verb names and their classes are listed in `shared/contract/verbs.ts`. Each app doc lists its verbs.
+- Verbs are data in `shared/contract/verbs.ts` (class, executor, queueable, undo, versioned schemas for args and result); [CONTRACT.md](CONTRACT.md) lists them and each app doc lists its own. Adding one: [EXTENDING.md](EXTENDING.md).
+- A phone that lacks a verb, or its schema version, answers `{ ok: false, error: { code: 'unsupported_verb' } }`: the verb is `failed` and its ledger row says so. New verbs never break an older phone.
+- A verb that reports `undo` gets an undoable ledger row; undoing it queues the inverse verb, and the original row becomes `undone` when that inverse succeeds.
 - A claimed verb that reports nothing within 120 s goes back to `pending` (at most 3 claims, then `failed`).
 
 ### 11.12 Surfaces
@@ -430,7 +433,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | `PUT /v1/surfaces/:app/:slot` | `mind:chat`, `mind:night` | `{ kind, schema, payload /* ≤ 16 KB */, why /* 8–200 chars, required */, topic_key /* slug */, ref?, expires_at?, facts?: Id[] /* every fact it draws on; 422 `validation` reason `muted_fact` if one has may_raise = 0 */ }` | `200 Surface` (+ a ledger row); `409 nudge_repeat` if the topic was ignored in the last 14 days; margin notes over 140 characters → 422 |
 | `DELETE /v1/surfaces/:app/:slot` | device, `mind:chat`, `mind:night` | — | `204` (+ a ledger row) |
 
-`why` is required on every surface, so the owner can always see why something is there.
+`why` is required on every surface, so the owner can always see why something is there. `kind`, `schema`, the slot and the payload are validated against `shared/contract/surfaces.ts` (P2: kind `line` in `home/line.1`–`line.4`, ≤ 44 characters ending with a full stop, no exclamation marks or emoji). A phone without a renderer for a kind or version shows the generic card with the `why`. The `nudge_repeat` rule reads the `topics` row of `topic_key`.
 
 ### 11.13 Memory
 
@@ -576,7 +579,7 @@ Every one of them follows this page's rules (scopes in §13, errors in §6, cost
 
 | Direction | Frame | Meaning |
 |---|---|---|
-| server → client | `{"t":"hello","seq":N,"min_client":M}` | Sent once on connect. The client fetches `/v1/changes?after=<its last seq>` |
+| server → client | `{"t":"hello","v":1,"seq":N,"min_client":M}` | Sent once on connect; `v` is the protocol version (`LIVE_PROTOCOL`). The client fetches `/v1/changes?after=<its last seq>` |
 | server → client | `{"t":"changed","seq":N,"kinds":["message"]}` | Something committed. The client pulls `/v1/changes` |
 | server → client | `{"t":"typing","who":"mind","until":Ms}` | The mind is writing (presence pulse) |
 | server → client | `{"t":"bye","code":"session_revoked"}` | Then a close with code 4401 |
@@ -592,6 +595,8 @@ Acceptance: an integration test connects, posts a message over HTTP and receives
 ## 13. Route table (the source for the scope test)
 
 `D` device · `C` mind:chat · `N` mind:night · `R` mind:reflex · `M` muse · `I` ci · `P` public.
+
+From P2 this table is data: `shared/contract/routes.ts` is the source the Worker's guards and the scope test read, and [CONTRACT.md](CONTRACT.md) lists every row with its status. Rows that wait on the private bucket (SETUP.md J2) are marked `deferred` there: `POST /v1/import/phone`, `PUT /v1/files/:id`, `POST /v1/media/sign`.
 
 | Route | Who | Phase |
 |---|---|---|
