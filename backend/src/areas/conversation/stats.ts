@@ -14,7 +14,9 @@ export function dayOpen(db: Db, day: string, tz: string, now: number, current: s
     day,
   );
   const own = dailyThread(db, day);
-  const from = before?.filed_at ?? zonedInstant(day, DAY_STARTS_HOUR, tz);
+  // Not before the day's own start: with no thread the day before, the last filed one is older,
+  // and two nights would read the same rows.
+  const from = Math.max(before?.filed_at ?? 0, zonedInstant(day, DAY_STARTS_HOUR, tz));
   const next = dayBefore(day, -1);
   const to = own?.filed_at ?? (day >= current ? now : zonedInstant(next, DAY_STARTS_HOUR, tz));
   return { from, to: Math.max(from, to) };

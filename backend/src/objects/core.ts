@@ -188,7 +188,13 @@ export class Core extends CoreNight {
     this.write((w) => verbs.settle(w), now);
     const pruned = this.pruneDaily(now, day.logicalDay(now, tz));
     const cfg = wakeNight ? fireConfig(this.env, 'night') : null;
-    if (wakeNight && cfg) this.recordFire(wakeNight.id, await fire(cfg, fetchImpl));
+    // Recorded without the chat back-off (wake.fired): a 429 on the night fire must not hold the
+    // owner's chat wakes for an hour; a chat fire that meets the same limit sets it itself.
+    if (wakeNight && cfg) {
+      const r = await fire(cfg, fetchImpl);
+      this.write((w) => mstore.recordFire(w.db, wakeNight.id, r.status, r.session_id, r.error));
+      this.schedule();
+    }
     return { rolled: due, pruned, night: wakeNight?.id ?? null };
   }
 
