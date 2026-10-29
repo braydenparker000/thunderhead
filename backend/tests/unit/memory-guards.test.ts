@@ -1,7 +1,8 @@
-// Stage A.5 and A.6 unit checks: what MEMORY.md §13 says is never stored is refused (keys, tokens,
-// passwords, card and bank numbers) without catching everyday words ("pass", "pin") or ordinary
-// numbers that happen to pass Luhn (ISBNs, timestamps, order numbers); `fresh` turns only
-// workerd's missing-method error into a 503; and the renders build each date formatter once.
+// Stage A.5–A.7 unit checks: what MEMORY.md §13 says is never stored is refused (keys, tokens,
+// passwords, card and bank numbers) without catching everyday words ("pass", "pin",
+// "PIN-protected") or ordinary numbers that happen to pass Luhn (ISBNs, timestamps, order
+// numbers); `fresh` turns only workerd's missing-method error into a 503; and the renders build
+// each date formatter once.
 import { describe, expect, it } from 'vitest';
 import { neverStored } from '../../../shared/contract/never-stored.ts';
 import { renderProfile } from '../../src/areas/memory/profile';
@@ -29,6 +30,13 @@ describe('never stored (MEMORY.md §13)', () => {
     ['a PIN in capitals', 'My PIN is 4821'],
     ['a PIN code', 'pin code is 2468'],
     ['a security code', 'cvv 123'],
+    // Stage A.7: a password said in one word is that word, and what it is for may come between.
+    ['a one-word password', 'My password is Summer'],
+    ['a one-word password at the end of a sentence', 'My password is Summer. Remember that.'],
+    ['a long one-word password', 'password is correcthorsebatterystaple'],
+    ['a passcode for something', 'The passcode for the gate is 4821'],
+    ['a passphrase for something', 'The passphrase for the vault is correct horse battery staple'],
+    ['a PIN for something', 'PIN for the card is 4821'],
     ['a card number', 'Card 4111 1111 1111 1111 exp 12/29'],
     ['a card with dashes', 'Card 4111-1111-1111-1111'],
     ['an Amex number', 'Amex 3782 822463 10005'],
@@ -57,8 +65,14 @@ describe('never stored (MEMORY.md §13)', () => {
     'Wants a passport photo: book it Friday',
     'The password manager is the blue app',
     'Practised the piece; the second pass was cleaner.',
-    'The password is fine.',
     'PIN numbers are printed on the letter',
+    // Stage A.7: hyphenated adjectives and a password word with no value after it.
+    'Keeps a PIN-protected notebook',
+    'A password-protected file',
+    'Changed the wifi password on 2026-10-29',
+    'My password is in the blue drawer',
+    'A PIN is required to open it',
+    'The password for my bank is long and complicated',
     'Tracking 1234567812345670 arrives Monday',
   ])('keeps "%s"', (text) => {
     expect(neverStored(text)).toBeNull();

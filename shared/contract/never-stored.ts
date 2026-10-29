@@ -1,7 +1,7 @@
 // What MEMORY.md §13 says is never stored, as one check the Worker runs on every fact, loose end
 // and day note it is asked to keep (`422 never_stored`): keys and tokens by their shapes, a
-// password or PIN said with a value that looks like one, a card number and an IBAN. It errs
-// toward everyday words: "my bus pass is in the drawer" and an ISBN are kept.
+// password or PIN said with its value, a card number and an IBAN. It errs toward everyday words:
+// "my bus pass is in the drawer", a "PIN-protected notebook" and an ISBN are kept.
 
 /** Token and key shapes: this system's own (th1_, thm_, ths_, thc_, tha_, thw_, thfp_) and the
  * common providers', a JWT, a private key block, a Bearer header, and a recovery code. */
@@ -17,31 +17,48 @@ const SECRET_SHAPES = [
   /\bBearer\s+[A-Za-z0-9._~+/=-]{16,}/i,
   /\b[0-9A-HJKMNP-TV-Z]{5}(?:-[0-9A-HJKMNP-TV-Z]{5}){4}\b/,
 ];
-/** The word for a secret, then its value: "my password is …", "PIN: …", "recovery code = …". A
+/** After the word for a secret: what it is for ("for the gate", "of my laptop", up to 4 words)
+ * and then `is`, `was`, `:` or `=`; or a separator alone, or nothing. */
+const THEN = String.raw`(?:\s+(?:for|of)(?:\s+[^\s:=]+){1,4}?\s*(is|was|:|=)|\s*(is|was|:|=)?)\s*`;
+/** The word for a secret, then its value: "my password is …", "PIN: …", "the passcode for the
+ * gate is …". A hyphen after it makes an adjective ("PIN-protected", "password-protected"), and a
  * bare "pass" or a lower-case "pin" is an everyday word ("my bus pass is", "the bridge pin is
- * loose"), so only these count, and only with a value that looks like a secret (`secretish`). */
+ * loose"), so neither counts. */
 const SECRET_SAID = [
-  /\b(?:password|passcode|recovery code|pin code)\s*(?:is|was|:|=)?\s*/gi,
-  /\bPIN\b\s*(?:is|was|:|=)?\s*/g,
+  new RegExp(String.raw`\b(password|passcode|passphrase|recovery code|pin code)(?!-)${THEN}`, 'gi'),
+  new RegExp(String.raw`\b(PIN)\b(?!-)${THEN}`, 'g'),
 ];
-/** A passphrase is words, so any value after one counts. */
-const PASSPHRASE_SAID = /\bpassphrase\s*(?:is|was|:|=)\s*\S/i;
+/** Words whose value is a secret whatever it looks like, once it is said ("my password is Summer"). */
+const SAID_ONCE = /^pass(?:word|code|phrase)$/i;
 /** A lower-case "pin" counts only before 4–8 digits; a card's security code is 3–4. */
 const DIGITS_SAID = /\b(?:pin\s*(?:is|was|:|=)\s*\d{4,8}|(?:cvv|cvc|security code)\s*(?:is|was|:|=)?\s*\d{3,4})\b/i;
 const QUOTES = '"\'‘’“”`«»';
 
 /** Quoted, or one word of 4 or more characters with a digit or a symbol (trailing punctuation
- * aside): "hunter2", "Tr0ub4dor&3", "'open sesame'"; not "loose", "fine." or "in the drawer". */
+ * aside): "hunter2", "Tr0ub4dor&3", "'open sesame'"; not "loose" or "in the drawer". */
 function secretish(value: string): boolean {
   if (QUOTES.includes(value[0] ?? ' ')) return value.length > 2;
   const word = (value.split(/\s/, 1)[0] ?? '').replace(/[.,;:!?)\]]+$/, '');
   return word.length >= 4 && /\p{N}|[^\p{L}\p{N}\s]/u.test(word);
 }
 
+/** The value is one word: nothing follows it, or its sentence ends with it ("is Summer."). */
+function oneWord(value: string): boolean {
+  const [first = '', ...rest] = value.split(/\s+/);
+  return first !== '' && (rest.join('') === '' || /[.!?;,]$/.test(first));
+}
+
 function passwordSaid(text: string): boolean {
-  if (PASSPHRASE_SAID.test(text) || DIGITS_SAID.test(text)) return true;
+  if (DIGITS_SAID.test(text)) return true;
   for (const re of SECRET_SAID)
-    for (const m of text.matchAll(re)) if (secretish(text.slice((m.index ?? 0) + m[0].length))) return true;
+    for (const m of text.matchAll(re)) {
+      const said = m[2] ?? m[3];
+      const value = text.slice((m.index ?? 0) + m[0].length);
+      if (!value) continue;
+      // A passphrase is words; a password said in one word is that word.
+      if (said && SAID_ONCE.test(m[1]) && (/^passphrase$/i.test(m[1]) || oneWord(value))) return true;
+      if (secretish(value)) return true;
+    }
   return false;
 }
 

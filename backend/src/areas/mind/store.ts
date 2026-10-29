@@ -198,17 +198,19 @@ export function sessionSeenOwner(db: Db, id: string, at: number): void {
   db.run('UPDATE mind_sessions SET last_owner_at = max(coalesce(last_owner_at, 0), ?) WHERE session_id = ?', at, id);
 }
 
-/** The latest tainted session of a role on a logical day (usually none), on the partial index. */
-export function taintedOn(
+/** The latest session of a role tainted at or after `since` (usually none), on the partial index.
+ * By the taint's own time, not the claim's day: a session that runs across the day roll keeps
+ * the day it was claimed on. */
+export function taintedSince(
   db: Db,
   role: MindRole,
-  day: string,
+  since: number,
 ): { session_id: string; tainted_at: number; taint_source: string | null } | null {
   return db.one(
     `SELECT session_id, tainted_at, taint_source FROM mind_sessions
-     WHERE role = ? AND day = ? AND tainted_at IS NOT NULL ORDER BY tainted_at DESC LIMIT 1`,
+     WHERE role = ? AND tainted_at IS NOT NULL AND tainted_at >= ? ORDER BY tainted_at DESC LIMIT 1`,
     role,
-    day,
+    since,
   );
 }
 

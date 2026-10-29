@@ -185,7 +185,7 @@ CREATE TABLE mind_sessions (
   last_owner_at INTEGER
   ) WITHOUT ROWID;
 
-CREATE INDEX mind_sessions_tainted ON mind_sessions (role, day, tainted_at) WHERE tainted_at IS NOT NULL;
+CREATE INDEX mind_sessions_tainted ON mind_sessions (role, tainted_at) WHERE tainted_at IS NOT NULL;
 
 CREATE TABLE op_batches (
   key TEXT PRIMARY KEY,

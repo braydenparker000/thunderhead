@@ -117,7 +117,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     `laws: ${i.constitution === 'none' ? 'mind/CONSTITUTION.md missing' : `sha256 ${i.constitution.slice(0, 12)}`} (the pin arrives with proposals, P4) · open decisions 0 · quiet: off`,
     ...(i.tainted
       ? [
-          'taint: this session is tainted (it, or an earlier one of its role today, read outside content); memory writes are refused',
+          'taint: this session is tainted (it, or one of its role in the last 24 hours, read outside content); memory writes are refused',
         ]
       : []),
   ].join('\n');

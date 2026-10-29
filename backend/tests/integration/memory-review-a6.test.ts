@@ -8,7 +8,7 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { DayNote, LedgerEntry, Page } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
-import { dayBefore } from '../../src/lib/time';
+import { dayBefore, HOUR } from '../../src/lib/time';
 import { apiJson, coreSql, makeAgent } from '../helpers';
 import {
   addOp,
@@ -114,7 +114,7 @@ describe('before any taint', () => {
   });
 });
 
-describe('a taint lasts the rest of its role’s day: a new claim takes it over', () => {
+describe('a taint holds for its role: a new claim takes it over (24 hours since A.7)', () => {
   it('night: after th taint, a claim with a new id is tainted too (no fact, no day note)', async () => {
     await taint(P.N, NIGHT_SESSION);
     const s = 'cse_a6_minted';
@@ -167,8 +167,8 @@ describe('a taint lasts the rest of its role’s day: a new claim takes it over'
     );
   });
 
-  it("a taint from an earlier day doesn't carry over", async () => {
-    await coreSql('UPDATE mind_sessions SET day = ? WHERE tainted_at IS NOT NULL', dayBefore(today));
+  it("a taint more than 24 hours old doesn't carry over", async () => {
+    await coreSql('UPDATE mind_sessions SET tainted_at = ? WHERE tainted_at IS NOT NULL', Date.now() - 25 * HOUR);
     const b = await brief(P.N, 'cse_a6_next_day', 'night');
     expect(b.body.tainted).toBe(false);
   });
