@@ -754,7 +754,8 @@
         "I"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage E (weekly backups)"
+      "status": "built",
+      "note": "start the weekly backup now (the one running is answered again)"
     },
     "POST /v1/ops/drill/run": {
       "who": [
@@ -762,7 +763,8 @@
         "I"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage E (the restore drill)"
+      "status": "built",
+      "note": "the restore drill of the newest complete backup, now"
     },
     "GET /v1/ops/backups": {
       "who": [
@@ -773,7 +775,8 @@
         "I"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage E (weekly backups)"
+      "status": "built",
+      "note": "counts only"
     },
     "POST /v1/ops/restore": {
       "who": [
@@ -783,21 +786,31 @@
         "R"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage E (restores)"
+      "status": "deferred: restores as proposals (OPERATIONS.md §4), after the drill has passed live"
     },
     "POST /v1/export": {
       "who": [
         "D"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage F (download everything)"
+      "status": "built",
+      "note": "with the password again"
     },
     "GET /v1/export/:id": {
       "who": [
         "D"
       ],
       "phase": "P4",
-      "status": "deferred: P4 stage F (download everything)"
+      "status": "built",
+      "note": "only the device that asked"
+    },
+    "GET /v1/export/:id/zip": {
+      "who": [
+        "D"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "the ZIP, streamed, for an hour, to the device that asked"
     },
     "PUT /v1/work/orders/:id": {
       "who": [
@@ -1815,31 +1828,28 @@
         "deferred": "a stored per-day meter (DATA.md §3)"
       },
       "backup.stale": {
-        "trips": "the newest complete backup is more than 8 days old",
+        "trips": "the newest complete backup is more than 8 days old (once one exists)",
         "severity": "S3",
         "slo": "Backups: newest complete backup < 8 days old",
         "wakes": true,
-        "handle": "Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\"",
-        "phase": "P4",
-        "deferred": "the weekly backups (P4 stage E)"
+        "handle": "Read th get /v1/ops/backups and th health --deep (jobs_backlog), and th errors for export.weekly. Start nothing yourself. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
+        "phase": "P4"
       },
       "drill.failed": {
         "trips": "the last restore drill failed",
         "severity": "S3",
         "slo": "Backups: the monthly drill passes",
         "wakes": true,
-        "handle": "Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\"",
-        "phase": "P4",
-        "deferred": "the restore drill (P4 stage E)"
+        "handle": "Read the drill's ledger note (th ledger) for its problems. Change nothing: the backups go on. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
+        "phase": "P4"
       },
       "drill.overdue": {
-        "trips": "no restore drill for 35 days",
+        "trips": "no restore drill for 35 days since the first complete backup",
         "severity": "S3",
         "slo": "Backups: the monthly drill passes",
         "wakes": true,
-        "handle": "Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\"",
-        "phase": "P4",
-        "deferred": "the restore drill (P4 stage E)"
+        "handle": "Read th get /v1/ops/backups: a drill needs a complete backup. Start nothing yourself. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
+        "phase": "P4"
       },
       "muse.silent": {
         "trips": "no Muse API call in 26 hours",

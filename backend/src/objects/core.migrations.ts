@@ -3,6 +3,7 @@
 // step is owned by its area (areas/<name>/migrations.ts), which also declares its tables'
 // retention (DATA.md §10). This file only composes them, so an area can later move to its own
 // object with its migrations and rows.
+import { BACKUPS_MIGRATIONS, BACKUPS_TABLES } from '../areas/backups/migrations';
 import { CONVERSATION_MIGRATIONS, CONVERSATION_TABLES } from '../areas/conversation/migrations';
 import { EVALS_MIGRATIONS, EVALS_TABLES } from '../areas/evals/migrations';
 import { FEED_MIGRATIONS, FEED_TABLES } from '../areas/feed/migrations';
@@ -72,6 +73,7 @@ export const CORE_MIGRATIONS: Migration[] = [
   ...PROPOSALS_MIGRATIONS,
   ...EVALS_MIGRATIONS,
   ...WATCHDOGS_MIGRATIONS,
+  ...BACKUPS_MIGRATIONS,
 ].sort((a, b) => a.version - b.version);
 
 /** Every Core table with its retention and export inclusion (DATA.md §10); a test fails if a
@@ -91,4 +93,5 @@ export const CORE_TABLES: Record<string, TableInfo> = {
   ...PROPOSALS_TABLES,
   ...EVALS_TABLES,
   ...WATCHDOGS_TABLES,
+  ...BACKUPS_TABLES,
 };

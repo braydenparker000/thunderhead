@@ -48,6 +48,8 @@
 /** @typedef {import('../../shared/contract/api.ts').PatchOpenThreadRequest} PatchOpenThreadRequest */
 
 export const TIMEOUT_MS = 15_000;
+/** A download may take this long (a large export on a slow line). */
+const DOWNLOAD_MS = 300_000;
 
 /** An API failure, carrying the server's stable error code. */
 export class ApiError extends Error {
@@ -106,8 +108,24 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
     throw new ApiError(res.status, /** @type {ErrorBody} */ (data).error);
   }
 
+  /** A file the Worker streams (the export's ZIP), as a Blob; errors as `call`'s.
+   * @param {string} path @param {string} token @returns {Promise<Blob>} */
+  async function download(path, token) {
+    const res = await fetch(base + path, {
+      headers: { 'TH-Client': client, Authorization: `Bearer ${token}` },
+      credentials: 'omit',
+      cache: 'no-store',
+      signal: AbortSignal.timeout(DOWNLOAD_MS),
+    });
+    if (res.ok) return res.blob();
+    /** @type {any} */
+    const data = await res.json().catch(() => null);
+    throw new ApiError(res.status, data?.error ?? { code: /** @type {ErrorCode} */ ('unavailable'), message: `HTTP ${res.status}`, request_id: '' });
+  }
+
   return {
     call,
+    download,
     /** @returns {Promise<HealthResponse>} */
     health: () => call('/v1/health'),
     /** @param {string} [fp] @returns {Promise<AuthStateResponse>} */

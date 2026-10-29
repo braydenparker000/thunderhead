@@ -7,8 +7,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 **P4 · Safety, ops, switch-over**, built in batches (A+B, C, D, E+F, G+H with I), each reviewed, then deployed.
 - Live: A+B (owner-approved proposals, the decision card, the constitution pin, pinned by the owner; quiet hours) and C with C.5 (session taint, protected paths, the role matrix, the injection fixtures, the eval sandbox, the reader). SETUP.md M1 done.
-- Batch D, going live with this push: the watchdogs (six built of fourteen, Core v17, `GET /v1/ops/watchdogs`, a briefing line), `mind-reflex` woken by a trip (one open wake, 4 a day, `th reflex`, `th handled`, the Stop hook), and the drill (`th drill`). Inert until SETUP.md M2. The Agents page now says where a mind key goes (a network secret, `Bearer ` and the key).
-- Next: E+F (weekly backups, the restore drill, download everything), then G+H (Muse on work orders, the Briefing page) and I (switch-over docs).
+- Batch D, live since 21:12 UTC (`a02b5f7`): the watchdogs (six built of fourteen, Core v17, `GET /v1/ops/watchdogs`, a briefing line), `mind-reflex` woken by a trip (one open wake, 4 a day, `th reflex`, `th handled`, the Stop hook), and the drill (`th drill`). Inert until SETUP.md M2. The Agents page now says where a mind key goes (a network secret, `Bearer ` and the key).
+- Batch E+F, going live with this push (Core v18): the weekly backup (Sundays 02:30 local), the monthly restore drill (first Sunday, after the backup), the backup watchdogs, and Settings → Export ("download everything"). The first backup and drill run on their own this Sunday; that drill is P4's "a restore drill passed".
+- Next: G+H (Muse on work orders, the Briefing page) and I (switch-over docs).
 
 **P3 · Import + memory v1**, live: memory, the night shift (SETUP.md L1 done; the first night ran clean) and the import (`old-5`: 5 of 5 threads, 425 of 425 messages). It still counts its "done when" (three clean night shifts; a fact stated on day N in day N+1's briefing).
 
@@ -16,9 +17,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Next three tasks
 
-1. Deploy batch D, then send the owner SETUP.md M2 (the reflex routine and its drill).
-2. Build E+F: weekly backups as a job, the restore drill, "download everything".
-3. Build G+H and I: Muse on work orders with the Daily Board in the Briefing page, then the switch-over docs and `jc` retired.
+1. Deploy E+F and check it live; Sunday's first backup and drill are P4's "a restore drill passed".
+2. Build G+H and I: Muse on work orders with the Daily Board in the Briefing page, then the switch-over docs and `jc` retired.
+3. Owner: SETUP.md M2 (the reflex routine and its drill), then P5.
 
 ## Blocked / waiting on the owner
 
@@ -27,7 +28,8 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Last deploy
 
-- 2026-10-29: this push, P4 batch D (the watchdogs and `mind-reflex`, Core v17, expand-only; inert until SETUP.md M2).
+- 2026-10-29: this push, P4 batch E+F (backups, the drill, download everything; Core v18, expand-only).
+- 2026-10-29 21:12 UTC: `a02b5f7` (run #35), P4 batch D (the watchdogs and `mind-reflex`, Core v17, expand-only; inert until SETUP.md M2).
 - 2026-10-29 21:01 UTC: `ba01f3d` (run #34), the Conversations list rebuilt by the calendar (Yesterday, Earlier this week, Last week, then by month), with folding groups, richer rows, Now as a card, and long or imported replies read as text. Live files checked against the commit.
 - 2026-10-29 20:31 UTC: `816a256`, the menu's Conversations list, the read-only past view, and Search. The old chats are visible.
 - 2026-10-29 20:3x UTC: `ef10c21`, P4 batch C (taint, protected paths, injection fixtures, the eval sandbox, the reader; Core v16), after a deep review whose 3 blockers are fixed (C.5). Owner step: SETUP.md M1, the new `.claude/settings.json`.

@@ -49,7 +49,15 @@ export const opsRoutes = new Hono<AppEnv>()
   )
   // Counts only, never content (ci keys see the same).
   .get('/ops/health/deep', guard('GET /v1/ops/health/deep'), async (c) => {
-    const [core, auth] = await Promise.all([coreObject(c.env).deepHealth(), authObject(c.env).health()]);
+    const [core, auth, backup] = await Promise.all([
+      coreObject(c.env).deepHealth(),
+      authObject(c.env).health(),
+      // A Core still on the release before backups has no lastBackup: none yet.
+      coreObject(c.env)
+        .lastBackup()
+        .catch(() => null),
+    ]);
+    const lastBackup = backup ? { date: backup.date, age_h: backup.age_h } : null;
     rememberMinClient(core.min_client);
     const objects = Object.fromEntries(
       Object.entries({ core, auth }).map(([k, h]) => [
@@ -66,7 +74,8 @@ export const opsRoutes = new Hono<AppEnv>()
       ]),
     );
     const body: DeepHealthResponse = {
-      ok: Object.values(objects).every((o) => o.ok),
+      // From the first complete backup on, one older than 8 days is not ok (API.md §11.1).
+      ok: Object.values(objects).every((o) => o.ok) && (lastBackup === null || lastBackup.age_h <= 8 * 24),
       version: version(c.env),
       schema: { core: core.schema, auth: auth.schema },
       objects,
@@ -76,7 +85,7 @@ export const opsRoutes = new Hono<AppEnv>()
         bulk_rows_written: 0,
         bulk_lane: null,
       },
-      last_backup: null,
+      last_backup: lastBackup,
       last_events_export: null,
       errors_open: core.errors_open,
       wakes_today: core.wakes_today,

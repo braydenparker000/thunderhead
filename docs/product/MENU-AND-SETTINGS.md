@@ -231,14 +231,14 @@ Agent tokens let the mind's sessions and helper agents call the Worker (decision
 
 ### 4.9 Export
 
-"Download everything" (plan §8). Ships with the safety-rails phase (P4); until then the row shows "soon".
+"Download everything" (plan §8). Built in P4 stage F (`frontend/apps/settings/export.js`, `tests/export-browser.test.mjs`; the Worker side in `backend/src/areas/backups/`): the row **Export** with `download-simple` after Account.
 
 | Step | Behaviour |
 |---|---|
-| Start | **Download everything**. Asks for the password again (step-up for export, as the architecture review plans for P4). |
-| Building | Progress line ("Gathering conversations… 40%"); the page can be left; a push says when it is ready if push is on |
-| Ready | A link valid for **1 hour** to a ZIP: one JSON file per table, plus attachments and files, plus a README explaining the format |
-| Backups | A line: "Last automatic backup: Sunday 03:20" (weekly, private) |
+| Start | **Download everything**. Asks for the password again (step-up; a wrong one says so and asks again, throttled like every password check). |
+| Building | A bar and the line "Gathering everything… 40%"; the page can be left: coming back finds it still building (this phone remembers which). The push when it is ready waits for Web Push (P8). |
+| Ready | **Download (2.3 MB)**, saving one ZIP to the phone, with the line "The link works for an hour, on this phone only.": `tables/<table>.jsonl` for each table DATA.md §10 marks for export (JSON Lines; a big table continues in `<table>-2.jsonl`), `README.md` explaining the format, and `export.json` with the counts. Attachments come with the files feature (none are stored yet). Only the device that asked can see or download it. |
+| Backups | A line: "Last automatic backup: Sunday 03:20 (weekly, private)." or, before the first, "Automatic backups run every Sunday at 02:30 (weekly, private)." |
 
 ### 4.10 On this phone [proposal]
 

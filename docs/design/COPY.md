@@ -269,6 +269,10 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `menu.all.back` / `.more` | ‹ Menu / Show more | All conversations page (built) |
 | `menu.all.none` | Each day files itself here once it is over. | The list and All conversations, empty (built) |
 | `menu.all.offline` | You're offline. The rest shows once you're back. | All conversations, more offline (built) |
+| `export.lead` | One ZIP with everything I keep about you: our conversations, what I remember, day notes, loose ends, decisions and the ledger of what I did. Sign-in data stays out. | Settings → Export (built) |
+| `export.start` / `.building` / `.ready` | Download everything / Gathering everything… <N>% / Download (<size>) | The page's button and line (built) |
+| `export.ready.note` / `.saved` / `.expired` / `.failed` | The link works for an hour, on this phone only. / Saved to this phone. / That link has expired. Make a new one. / Couldn't gather everything. Try again. | After it is ready, saved, gone or failed (built) |
+| `export.backup` / `.none` | Last automatic backup: <weekday> <hh:mm> (weekly, private). / Automatic backups run every Sunday at 02:30 (weekly, private). | Under the button (built) |
 | `menu.convos.offline` | Offline: showing what this phone has. | The list offline, from this phone (built) |
 | `menu.convos.offline.none` | You're offline. Your conversations show once you're back. | The list offline with nothing on this phone (built) |
 | `menu.convos.failed` | Couldn't load your conversations. <reason> / Couldn't refresh your conversations. <reason> | The Worker didn't answer (built) |

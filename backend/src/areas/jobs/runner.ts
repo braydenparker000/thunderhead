@@ -26,8 +26,14 @@ export interface JobHandler {
   maxAttempts?: number;
   /** What the step needs from outside the object (R2), read before its transaction. */
   load(env: Env, db: Db, payload: unknown, cursor: unknown): Promise<unknown>;
-  /** One all-or-nothing step: its writes, then the next cursor or done. */
-  step(w: Writer, payload: unknown, cursor: unknown, input: unknown): { next: unknown } | { done: true };
+  /** One all-or-nothing step: its writes, then the next cursor or done. `rows`: rows its load wrote
+   * elsewhere (another object), which the bulk lane counts too. */
+  step(
+    w: Writer,
+    payload: unknown,
+    cursor: unknown,
+    input: unknown,
+  ): ({ next: unknown } | { done: true }) & { rows?: number };
   /** The job failed for good: what the area records about it. */
   failed?(w: Writer, payload: unknown, code: string): void;
 }
@@ -90,7 +96,7 @@ export async function runJobs(host: JobHost, handlers: Record<string, JobHandler
           return;
         const before = w.db.meter.rowsWritten;
         const r = h.step(w, payload, cursor, input);
-        const rows = w.db.meter.rowsWritten - before;
+        const rows = w.db.meter.rowsWritten - before + (r.rows ?? 0);
         const done = 'done' in r;
         store.updateJob(w.db, job.id, {
           state: done ? 'done' : 'running',

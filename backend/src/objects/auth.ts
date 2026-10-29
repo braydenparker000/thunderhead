@@ -87,6 +87,12 @@ export class Auth extends OwnerObject {
   newRecoveryCode(sessionId: string, current: string): Promise<R<{ recovery_code: string }>> {
     return account.newRecoveryCode(this.deps, sessionId, current);
   }
+  /** The password again before a sensitive step ("download everything"), throttled like every
+   * other check of it. */
+  async stepUp(sessionId: string, password: string): Promise<R<object>> {
+    const cred = await account.checkPassword(this.deps, sessionId, password);
+    return 'ok' in cred ? cred : { ok: true };
+  }
   confirmRecovery(last5: string): R<object> {
     return account.confirmRecovery(this.deps, last5);
   }

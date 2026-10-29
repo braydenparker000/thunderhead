@@ -4,7 +4,8 @@
 // `{ok:false, code}` (lib/result.ts). No timers: wake retries and requeues use the alarm. The P1
 // data, the feed and the sockets are in core-base.ts; memory (P3) is in core-memory.ts, the
 // night shift's run and input in core-night.ts, the import in core-import.ts and proposals (P4) in
-// core-proposals.ts, the evals in core-evals.ts and the watchdogs (each tick) in core-watchdogs.ts.
+// core-proposals.ts, the evals in core-evals.ts, the watchdogs (each tick) in core-watchdogs.ts and
+// backups, the drill and exports in core-backups.ts.
 // The alarm also runs the chunked jobs (areas/jobs), a step at a time.
 import type {
   BriefRequest,
@@ -19,6 +20,9 @@ import type {
   TodayResponse,
   VerbResultRequest,
 } from '../../../shared/contract/api';
+import { drillJob } from '../areas/backups/drill';
+import { exportJob } from '../areas/backups/export-job';
+import { backupJob } from '../areas/backups/job';
 import * as day from '../areas/conversation/day';
 import * as convo from '../areas/conversation/ops';
 import { searchMessages } from '../areas/conversation/search';
@@ -44,13 +48,18 @@ import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
-import { CoreWatchdogs } from './core-watchdogs';
+import { CoreBackups } from './core-backups';
 
 const PRUNE_STEP = 2_000;
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
-const JOB_HANDLERS: Record<string, JobHandler> = { [importJob.kind]: importJob };
+const JOB_HANDLERS: Record<string, JobHandler> = {
+  [importJob.kind]: importJob,
+  [backupJob.kind]: backupJob,
+  [drillJob.kind]: drillJob,
+  [exportJob.kind]: exportJob,
+};
 
-export class Core extends CoreWatchdogs {
+export class Core extends CoreBackups {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
@@ -216,6 +225,7 @@ export class Core extends CoreWatchdogs {
       this.schedule();
     }
     const reflex = await this.watchdogTick(now, fetchImpl);
+    await this.backupsTick(now);
     return { rolled: due, pruned, night: wakeNight?.id ?? null, reflex };
   }
 

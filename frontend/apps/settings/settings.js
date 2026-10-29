@@ -1,5 +1,5 @@
 // Settings pages that need sign-in: Devices (SIGN-IN.md §11.1, §7.2), Agents (§17), Account
-// (§9.1) and What I remember (MEMORY.md §12). Each opens full screen over the shell and slides in from the right, with a back row
+// (§9.1), What I remember (MEMORY.md §12) and Export (MENU-AND-SETTINGS.md §4.9). Each opens full screen over the shell and slides in from the right, with a back row
 // "‹ Settings" to the open menu (MENU-AND-SETTINGS.md §1). Signing out never asks for the password;
 // handing out a credential (recovery code, agent key) checks it inline (§15).
 import { api, signedIn, signOutHere } from '/th/client.js';
@@ -10,7 +10,7 @@ import { wipe } from '/th/session.js';
 import { confirmSheet, el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
 import { outbox } from '/th/chat/store.js';
 
-const TITLES = { devices: 'Sign-in & devices', agents: 'Agents', account: 'Account', memory: 'What I remember' };
+const TITLES = { devices: 'Sign-in & devices', agents: 'Agents', account: 'Account', memory: 'What I remember', export: 'Export' };
 
 /** Signs this device out, asking first while messages are still waiting to send (SIGN-IN.md §11.3)
  * or a Forget hasn't reached the Worker (MEMORY.md §12): signing out wipes the phone, and with it
@@ -47,7 +47,7 @@ function forgetsBody(forgets, lead) {
 }
 let current = null;
 
-/** Opens a settings page. @param {'devices' | 'agents' | 'account' | 'memory'} name @param {{ fromRoute?: boolean, role?: string }} [opts] */
+/** Opens a settings page. @param {'devices' | 'agents' | 'account' | 'memory' | 'export'} name @param {{ fromRoute?: boolean, role?: string }} [opts] */
 export async function openPage(name, opts = {}) {
   current?.remove();
   /** @type {(() => void) | null} what the page must do as it closes (Memory sends a pending Forget) */
@@ -77,6 +77,7 @@ export async function openPage(name, opts = {}) {
   if (name === 'devices') await devices(body);
   else if (name === 'agents') (await import('./agents.js')).agents(body, opts);
   else if (name === 'memory') cleanup = await (await import('./memory.js')).memory(body);
+  else if (name === 'export') await (await import('./export.js')).exportPage(body);
   else (await import('./account.js')).account(body);
 }
 

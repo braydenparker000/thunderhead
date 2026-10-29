@@ -1,6 +1,7 @@
 // A stand-in for the Worker inside Playwright (route interception): the /v1/auth routes, so the
 // sign-in pages and Settings can be driven end to end, and the conversation's routes with a live
 // socket (page.routeWebSocket), so home's chat can be too. No network; synthetic data only.
+import { EXPORT_ID, exportAnswer, exportState, ZIP_BYTES } from './mock-export.mjs';
 import { memoryAnswer, memoryState } from './mock-memory.mjs';
 import { proposalsAnswer, proposalsState } from './mock-proposals.mjs';
 import { threadsAnswer, threadsState } from './mock-threads.mjs';
@@ -39,6 +40,7 @@ export async function mockApi(page, overrides = {}) {
   };
   state.chat = chatState(overrides.chat);
   state.memory = 'memory' in overrides ? overrides.memory : memoryState(now);
+  state.export = 'export' in overrides ? overrides.export : exportState();
   state.proposals = proposalsState(overrides.proposals);
   state.threads = overrides.threads ?? threadsState();
   const calls = [];
@@ -62,6 +64,8 @@ export async function mockApi(page, overrides = {}) {
       c.fail[url.pathname]--;
       return route.fulfill({ status: 503, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify({ error: { code: 'unavailable', message: 'down', request_id: 't' } }) });
     }
+    if (req.method() === 'GET' && url.pathname === `/v1/export/${EXPORT_ID}/zip` && state.export?.started)
+      return route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'application/zip' }, body: Buffer.from(ZIP_BYTES) });
     const [status, json] = answer(state, req.method(), url, body);
     if (c.slow[url.pathname]) await new Promise((r) => setTimeout(r, c.slow[url.pathname]));
     await route.fulfill({ status, headers: { ...CORS, 'content-type': 'application/json' }, body: json === null ? '' : JSON.stringify(json) });
@@ -198,6 +202,7 @@ function answer(state, method, url, body) {
   return (
     proposalsAnswer(state.proposals, method, p, url, body, (kind) => changed(state.chat, kind)) ??
     memoryAnswer(state.memory, method, p, url, body) ??
+    exportAnswer(state.export, method, p, body) ??
     chatAnswer(state.chat, method, p, url, body) ??
     threadsAnswer(state.threads, method, p, url, state.chat.thread, state.memory?.facts) ??
     err(404, 'not_found')

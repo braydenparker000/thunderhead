@@ -38,10 +38,13 @@ describe('the routes', () => {
       'night.late',
       'jobs.stuck',
       'db.size',
+      'backup.stale',
+      'drill.failed',
+      'drill.overdue',
     ]);
-    expect(items.find((i) => i.name === 'backup.stale')).toMatchObject({
+    expect(items.find((i) => i.name === 'muse.silent')).toMatchObject({
       state: 'later',
-      waits: 'the weekly backups (P4 stage E)',
+      waits: 'Muse on work orders (P4 stage G)',
     });
     expect(items.find((i) => i.name === 'events.export.late')).toMatchObject({ state: 'later', waits: 'phase P5' });
     const body = { outcome: 'nothing', note: 'Nothing changed; it cleared.' };
@@ -64,7 +67,7 @@ describe('the drill (SETUP.md M2)', () => {
       return Response.json({ claude_code_session_id: 'session_drill' });
     }) as unknown as typeof fetch;
     const owner = { actor: 'owner', who: 'D', session_id: null, device_id: null } as const;
-    const drill = (name: 'db.size' | 'roll.stuck' | 'backup.stale') =>
+    const drill = (name: 'db.size' | 'roll.stuck' | 'muse.silent') =>
       connected((o) => o.watchdogDrill(owner, name, fake));
     const d = await drill('db.size');
     expect(d.ok && { fired: d.value.fired, state: d.value.item.state, detail: d.value.item.detail }).toEqual({
@@ -78,7 +81,7 @@ describe('the drill (SETUP.md M2)', () => {
     expect(w).toEqual({ reason: 'watchdog:db.size', fire_status: 200, session_id: 'session_drill' });
     // Tripped already, not built, or one that wakes nobody: refused.
     expect((await drill('db.size')).ok).toBe(false);
-    expect((await drill('backup.stale')).ok).toBe(false);
+    expect((await drill('muse.silent')).ok).toBe(false);
     // Its check passes, but the drill holds until the reflex reports it.
     const now = Date.now();
     await watch(now + 15 * MINUTE);

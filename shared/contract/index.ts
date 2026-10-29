@@ -2,6 +2,7 @@
 // and live channel vocabularies, error codes. scripts/contract.mjs reads this to write the
 // phone's frontend/th/contract.js, the mind's mind/cli/contract.json and the appendix
 // docs/engineering/CONTRACT.md; a test fails when any of them is stale. Types are in api.ts.
+export { BACKUP_LIMITS } from './backups.ts';
 export { CODES } from './codes.ts';
 export * from './feed.ts';
 export * from './imports.ts';

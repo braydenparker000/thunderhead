@@ -523,15 +523,16 @@ type MemoryOp =
 | `POST /v1/ops/errors/:fingerprint/resolve` | device, `mind:chat`, `mind:reflex` | `{}` | `204` |
 | `POST /v1/ops/perf` **[proposal]** | device | `{ day: Day, build: number, metrics: Record<'inp'\|'loaf_gesture'\|'start_warm'\|'start_cold'\|'api_ms'\|'heap_mb', {p50, p75, p95, n}> }` (one call per day) | `204` |
 | `GET /v1/ops/meter?days=1-30` | device, agents, `ci` | — | `200 { items: { day, class, rows_written, rows_read, bulk_rows_written }[] }` |
-| `POST /v1/ops/backups/run` | `mind:night`, `ci` | `{ class?: string }` | `202 { job_ids: Id[] }` |
-| `GET /v1/ops/backups?limit` | device, agents, `ci` | — | `200 Page<{date, class, rows, bytes, complete}>` |
-| `POST /v1/ops/restore` | device, agents | `{ kind: 'pitr'\|'table'\|'object', class, at?: Ms, date?: Day, table?: string, mode?: 'replace'\|'merge' }` | `202 { proposal_id }` (it executes only when decided `approve`) |
-| `POST /v1/ops/drill/run` | `mind:night`, `ci` | `{}` | `202 { job_id }` |
+| `POST /v1/ops/backups/run` | `mind:night`, `ci` | `{ class?: 'core' }` | `202 { job_ids: Id[] }` (built P4 stage E; the one running is answered again; the Worker's tick also starts one each Sunday at 02:30 local) |
+| `GET /v1/ops/backups?limit` | device, agents, `ci` | — | `200 Page<{date, class, rows, bytes, complete, started_at, finished_at}>` (counts only; `BackupItem` in `shared/contract/backups.ts`) |
+| `POST /v1/ops/restore` | device, agents | `{ kind: 'pitr'\|'table'\|'object', class, at?: Ms, date?: Day, table?: string, mode?: 'replace'\|'merge' }` | `202 { proposal_id }` (it executes only when decided `approve`) [not built yet: after the drill has passed live] |
+| `POST /v1/ops/drill/run` | `mind:night`, `ci` | `{}` | `202 { job_id }` (built; the newest complete backup; 409 with none; the tick also starts one on the first Sunday of a month after that day's backup) |
 | `GET /v1/ops/watchdogs` | device, agents but Muse, `ci` | — | `200 { items: { name, state: 'ok'\|'tripped'\|'later', severity, slo, trips, since, detail, handled: {at, outcome, note} \| null, waits }[] }` (P4; never in the eval sandbox) |
 | `POST /v1/ops/watchdogs/:name/handled` | `mind:chat`, `mind:night`, `mind:reflex` | `{ outcome: 'fixed'\|'reported'\|'nothing', note /* 8-200 */ }` | `200` the watchdog; `409` when it isn't tripped (a ledger note) |
 | `POST /v1/ops/watchdogs/:name/drill` | device, `mind:chat` | `{}` | `200 { item, wake_id, fired: 'fired'\|'failed'\|'limited'\|'not_connected' }`; `409` tripped already; `422` not built or wakes nobody (OPERATIONS.md §8.2) |
-| `POST /v1/export` | device | `{}` | `202 { export_id }` (P4) |
-| `GET /v1/export/:id` | device | — | `200 { status: 'building'\|'ready'\|'failed', items: { label, url, bytes, expires_at }[] }` |
+| `POST /v1/export` | device | `{ password }` (the password again; throttled like every check of it) | `202 { export_id }`; `401 current_password_wrong`; `409` while another device's export is building (built P4 stage F) |
+| `GET /v1/export/:id` | the device that asked | — | `200 { status: 'building'\|'ready'\|'failed'\|'expired', progress /* 0-100 */, items: { label, url, bytes, expires_at }[], last_backup: {date, finished_at} \| null }`; `404` for any other session |
+| `GET /v1/export/:id/zip` | the device that asked | — | `200 application/zip`, streamed from the bucket, for an hour after it was ready; `404` after |
 
 `message` fields are scrubbed by the server too (URLs with query strings and token-shaped strings are removed).
 
@@ -695,7 +696,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `POST /v1/ops/watchdogs/:name/handled` | C N R | P4 |
 | `POST /v1/ops/watchdogs/:name/drill` | D C | P4 |
 | `POST /v1/ops/restore` | D C N R | P4 |
-| `POST /v1/export`, `GET /v1/export/:id` | D | P4 |
+| `POST /v1/export`, `GET /v1/export/:id`, `GET /v1/export/:id/zip` | D | P4 |
 | `PUT /v1/work/orders/:id`, `POST /v1/work/orders/:id/cancel` | C N (cancel also D) | P4 |
 | `GET /v1/work/orders` | D C N R | P4 |
 | `GET /v1/work/hello`, `POST /v1/work/claim`, `/v1/work/orders/:id/{heartbeat,result,fail,files}`, `GET /v1/work/board/brief`, `/v1/work/thread*` | M | P4 |

@@ -69,3 +69,8 @@ select.sedit{appearance:auto}
 .uundo{min-height:44px;min-width:44px;padding:0 12px;border:0;border-radius:999px;background:var(--tint);color:var(--accent-text);font:600 13px var(--ui);cursor:pointer}
 /* Toasts float above a settings page (the shell's own toast sits under it otherwise). */
 .toast{z-index:40}
+/* Export: the bar while everything is gathered (MENU-AND-SETTINGS.md §4.9) */
+.xbar{height:6px;margin-top:18px;border-radius:3px;overflow:hidden;background:color-mix(in srgb,var(--ink) 9%,transparent)}
+.xstat{margin-top:10px}
+.xbar span{display:block;height:100%;width:var(--p,0%);border-radius:3px;background:var(--accent-fill);transition:width .5s var(--spring)}
+@media (prefers-reduced-motion: reduce){.xbar span{transition:none}}

@@ -5,6 +5,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { IMPORT_PART_BYTES } from '../../shared/contract/imports.ts';
 import { authRoutes } from './areas/auth/routes';
+import { backupsRoutes } from './areas/backups/routes';
 import { conversationRoutes } from './areas/conversation/routes';
 import { evalsRoutes } from './areas/evals/routes';
 import { feedRoutes } from './areas/feed/routes';
@@ -74,5 +75,6 @@ export const app = new Hono<AppEnv>()
   .route('/v1', proposalsRoutes)
   .route('/v1', evalsRoutes)
   .route('/v1', watchdogsRoutes)
+  .route('/v1', backupsRoutes)
   .notFound(notFound)
   .onError(onError);

@@ -6,6 +6,22 @@ CREATE TABLE _migrations (
   bookmark TEXT
 );
 
+CREATE TABLE backups (
+  id TEXT PRIMARY KEY,
+  date TEXT NOT NULL,
+  class TEXT NOT NULL,
+  state TEXT NOT NULL,
+  job_id TEXT NOT NULL,
+  started_at INTEGER NOT NULL,
+  finished_at INTEGER,
+  rows INTEGER NOT NULL DEFAULT 0,
+  bytes INTEGER NOT NULL DEFAULT 0,
+  parts INTEGER NOT NULL DEFAULT 0,
+  manifest_key TEXT
+  ) WITHOUT ROWID;
+
+CREATE INDEX backups_done ON backups (state, finished_at);
+
 CREATE TABLE changes (
   seq INTEGER PRIMARY KEY,
   kind TEXT NOT NULL,
@@ -34,6 +50,17 @@ CREATE TABLE 'day_notes_fts_data'(id INTEGER PRIMARY KEY, block BLOB);
 CREATE TABLE 'day_notes_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
 
 CREATE TABLE 'day_notes_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
+
+CREATE TABLE drills (
+  month TEXT PRIMARY KEY,
+  backup_date TEXT NOT NULL,
+  state TEXT NOT NULL,
+  job_id TEXT NOT NULL,
+  started_at INTEGER NOT NULL,
+  finished_at INTEGER,
+  report_key TEXT,
+  problems INTEGER NOT NULL DEFAULT 0
+  ) WITHOUT ROWID;
 
 CREATE TABLE errors (
   fingerprint TEXT PRIMARY KEY,
@@ -64,6 +91,19 @@ CREATE TABLE eval_runs (
   ) WITHOUT ROWID;
 
 CREATE INDEX eval_runs_suite ON eval_runs (suite, at);
+
+CREATE TABLE exports (
+  id TEXT PRIMARY KEY,
+  state TEXT NOT NULL,
+  job_id TEXT NOT NULL,
+  session_id TEXT,
+  created_at INTEGER NOT NULL,
+  ready_at INTEGER,
+  expires_at INTEGER,
+  progress INTEGER NOT NULL DEFAULT 0,
+  bytes INTEGER NOT NULL DEFAULT 0,
+  files_json TEXT NOT NULL DEFAULT '[]'
+  ) WITHOUT ROWID;
 
 CREATE TABLE fact_tombstones (
   id TEXT PRIMARY KEY,

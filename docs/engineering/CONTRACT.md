@@ -97,12 +97,13 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/ops/watchdogs` | D C N R I | P4 | built | every watchdog, its state and the SLO it guards |
 | `POST /v1/ops/watchdogs/:name/handled` | C N R | P4 | built | what a mind session did about a trip (the reflex reports each one) |
 | `POST /v1/ops/watchdogs/:name/drill` | D C | P4 | built | trip one watchdog by hand when the owner asks, to check that mind-reflex handles it (nothing is wrong) |
-| `POST /v1/ops/backups/run` | N I | P4 | deferred: P4 stage E (weekly backups) |  |
-| `POST /v1/ops/drill/run` | N I | P4 | deferred: P4 stage E (the restore drill) |  |
-| `GET /v1/ops/backups` | D C N R I | P4 | deferred: P4 stage E (weekly backups) |  |
-| `POST /v1/ops/restore` | D C N R | P4 | deferred: P4 stage E (restores) |  |
-| `POST /v1/export` | D | P4 | deferred: P4 stage F (download everything) |  |
-| `GET /v1/export/:id` | D | P4 | deferred: P4 stage F (download everything) |  |
+| `POST /v1/ops/backups/run` | N I | P4 | built | start the weekly backup now (the one running is answered again) |
+| `POST /v1/ops/drill/run` | N I | P4 | built | the restore drill of the newest complete backup, now |
+| `GET /v1/ops/backups` | D C N R I | P4 | built | counts only |
+| `POST /v1/ops/restore` | D C N R | P4 | deferred: restores as proposals (OPERATIONS.md §4), after the drill has passed live |  |
+| `POST /v1/export` | D | P4 | built | with the password again |
+| `GET /v1/export/:id` | D | P4 | built | only the device that asked |
+| `GET /v1/export/:id/zip` | D | P4 | built | the ZIP, streamed, for an hour, to the device that asked |
 | `PUT /v1/work/orders/:id` | C N | P4 | deferred: P4 stage G (Muse on work orders) |  |
 | `POST /v1/work/orders/:id/cancel` | D C N | P4 | deferred: P4 stage G (Muse on work orders) |  |
 | `GET /v1/work/orders` | D C N R | P4 | deferred: P4 stage G (Muse on work orders) |  |
@@ -258,9 +259,9 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `quota.rows_written` | the account's rows written today ≥ 70,000 | S3 | Budgets: no Free-plan quota above 70% before 18:00 UTC | yes | P4 | waits for a stored per-day meter (DATA.md §3): today the counts live in each isolate only |
 | `quota.rows_read` | rows read today ≥ 3,500,000 | S3 | Budgets: no Free-plan quota above 70% before 18:00 UTC | yes | P4 | waits for a stored per-day meter (DATA.md §3) |
 | `quota.do_calls` | object calls today ≥ 70,000 | S3 | Budgets: no Free-plan quota above 70% before 18:00 UTC | yes | P4 | waits for a stored per-day meter (DATA.md §3) |
-| `backup.stale` | the newest complete backup is more than 8 days old | S3 | Backups: newest complete backup < 8 days old | yes | P4 | waits for the weekly backups (P4 stage E) |
-| `drill.failed` | the last restore drill failed | S3 | Backups: the monthly drill passes | yes | P4 | waits for the restore drill (P4 stage E) |
-| `drill.overdue` | no restore drill for 35 days | S3 | Backups: the monthly drill passes | yes | P4 | waits for the restore drill (P4 stage E) |
+| `backup.stale` | the newest complete backup is more than 8 days old (once one exists) | S3 | Backups: newest complete backup < 8 days old | yes | P4 | built |
+| `drill.failed` | the last restore drill failed | S3 | Backups: the monthly drill passes | yes | P4 | built |
+| `drill.overdue` | no restore drill for 35 days since the first complete backup | S3 | Backups: the monthly drill passes | yes | P4 | built |
 | `muse.silent` | no Muse API call in 26 hours | S4 | Muse checks in daily (MUSE.md §9) | no | P4 | waits for Muse on work orders (P4 stage G) |
 | `events.export.late` | day D not archived by D+1 09:00 | S3 | Senses: each day archived by the next morning | yes | P5 | later |
 

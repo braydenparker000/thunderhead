@@ -401,6 +401,9 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.work_orders | finished rows 180 days | yes | yes |
 | Core.eval_runs | forever (one row per suite a week; numbers and ids only) | yes | no |
 | Core.watchdogs | forever (one row per watchdog: its state, the last check's counts, the reflex's report) | yes | yes |
+| Core.backups | forever (one row a week: its date, state, counts and the manifest's key) | yes | no |
+| Core.drills | forever (one row a month: the backup it restored, passed or failed, the report's key) | yes | no |
+| Core.exports | 1 day after it expires (the ZIP's parts leave the bucket when it does, an hour after it was ready) | no | no |
 | Core.facts, day_notes | forever (facts until forgotten) | yes | yes |
 | Core.fact_tombstones | forever (forgotten ids only, no text: an id is never reused, and a restore re-applies the forget) | yes | no |
 | Core.open_threads | open: until closed; closed: 1 year | yes | yes |
@@ -438,7 +441,7 @@ Pruning runs once a logical day: Core's 15-minute tick runs every table's prune 
 | Layer | What | When | Restores |
 |---|---|---|---|
 | PITR | Cloudflare's 30-day point-in-time recovery for SQLite DOs | Always on. Bookmarks recorded before every migration, import and restore. Availability on Free is test X4. | A whole object to any time in the last 30 days |
-| Weekly export | Per-table JSONL.gz in `thunderhead-private/backups/` | Sundays 02:30 local **[proposal]**, a job per class (`export.weekly`), ≤ 5,000 rows per part file | One table, or a whole object into a fresh instance |
+| Weekly export | Per-table JSONL.gz in `thunderhead-private/backups/<date>/<class>/<table>.<nnnn>.jsonl.gz` | Sundays 02:30 local, a job per class (`export.weekly`), ≤ 5,000 rows per part file in key order (built for Core, P4 stage E: every table marked `backup` in §10) | One table, or a whole object into a fresh instance |
 | Events archive | Daily JSONL.gz | Day D exported at D+1 06:00 local; re-exported if late events arrive | Events beyond 90 days |
 | Old Worker | The `jarvis-hub-api` (its data untouched; only its origin list gains the new site in P1b) | Until it retires after P8 | Pre-import history |
 
@@ -466,7 +469,7 @@ The runbooks are in [OPERATIONS.md §4](OPERATIONS.md#4-restore-from-backup).
 
 ### 11.4 Proof that backups work
 
-- **CI round trip** (every push): seed a fixture into `Core`, export every table, import into a fresh DO, then deep-equal every table. The same runs for each class once it exists.
+- **CI round trip** (every push): seed a fixture into `Core`, export every table, import into a fresh DO, then deep-equal every table. The same runs for each class once it exists. Built: `backend/tests/integration/backups.test.ts`, which also kills a backup step mid-way and checks each part's sha256 against the manifest.
 - **Monthly restore drill** in production: the latest weekly backup of `Core` goes into a scratch instance `drill-<YYYYMM>`. Counts and per-part sha256 are compared with the manifest. The report goes to `drills/<YYYY-MM>/report.json`, a line in the briefing, and STATUS. To stay inside the write cap, any table over 30,000 rows is restored as a deterministic sample (every k-th `seq`, so that ≤ 30,000 rows are written), with its full row count still checked from the export **[proposal]**. The scratch instance is then emptied with `deleteAll()`.
 
 ---

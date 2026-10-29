@@ -188,15 +188,16 @@ Import jobs stop after 3 failures in a row and show the Home line from [MIGRATIO
 
 | Kind | Class | Lane | Trigger | Step | Notes |
 |---|---|---|---|---|---|
-| `export.weekly` | each | no (reads only) | Sunday 02:30 local | 5,000 rows → one `.jsonl.gz` part | Manifest written last |
-| `backups.prune` | Core | no | after `export.weekly` | R2 deletes only | Keeps 8 weekly + 12 monthly |
+| `export.weekly` | each | no (reads only) | Sunday 02:30 local | 5,000 rows → one `.jsonl.gz` part | Manifest written last (built for Core, `areas/backups/job.ts`) |
+| `backups.prune` | Core | no | after `export.weekly` | R2 deletes only | Keeps 8 weekly + 12 monthly [not built: every backup is kept until the owner agrees to the retention, since it deletes data] |
 | `prune.<class>` | each | no | the first tick of each logical day (after 04:00 local) | 2,000 deletes | Retention per [DATA.md §10](DATA.md#10-retention-and-export-inclusion) |
 | `changes.prune` | Core | no | daily | 2,000 | Keeps the newest 10,000 |
 | `profile.snapshot` | Core | no | weekly, after the night shift | 1 R2 put | |
 | `import.<dataset>` | Core (Music for `music`) | yes | `POST /v1/import/runs` | 2,000 rows | Idempotent upserts with deterministic IDs |
 | `fts.backfill` | Core, Library | yes | after a migration adds FTS | 2,000 rows | |
 | `restore.table`, `restore.object` | any | yes | an approved proposal | 2,000 rows | Each part's hash checked first |
-| `drill.monthly` | Core | yes | first Sunday | 2,000 rows | Sampled above 30,000 rows per table |
+| `drill.monthly` | Core | yes | first Sunday | one part (≤ 5,000 rows) | Sampled above 30,000 rows per table; its rows are written in the scratch instance and counted on the lane (built, `areas/backups/drill.ts`) |
+| `export.download` | Core | no (reads only) | `POST /v1/export` | 5,000 rows → one deflated ZIP file part | README and counts last; the parts leave the bucket an hour after it is ready (built, `areas/backups/export-job.ts`) |
 | `events.export` | Senses | no | daily 06:00 local for day D−1 | one day | Re-runs if late events arrive |
 | `rollups.daily` | Senses | no | after `events.export` | one day | |
 | `music.stats` | Music | no | nightly | 2,000 tracks | From `Senses.rollups` over RPC |

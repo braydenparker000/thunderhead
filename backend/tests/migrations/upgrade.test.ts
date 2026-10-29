@@ -82,6 +82,9 @@ describe('upgrade from P2', () => {
         'proposals',
         'eval_runs',
         'watchdogs',
+        'backups',
+        'drills',
+        'exports',
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       sql.exec('ALTER TABLE surfaces DROP COLUMN facts_json');
@@ -102,7 +105,7 @@ describe('upgrade from P2', () => {
       expect(all(`SELECT rowid FROM messages_fts WHERE messages_fts MATCH '"upgrade"'`)).toHaveLength(1);
       expect(all("SELECT what FROM ledger WHERE id = 'l-p2'")).toEqual([{ what: 'a P2 row' }]);
       expect(all('SELECT version FROM _migrations WHERE version > 7').map((r) => r.version)).toEqual([
-        8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+        8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18,
       ]);
       expect(all('SELECT count(*) AS n FROM facts')).toEqual([{ n: 0 }]);
       expect(all('SELECT count(*) AS n FROM night_runs')).toEqual([{ n: 0 }]);
