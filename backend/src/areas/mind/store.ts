@@ -102,7 +102,8 @@ export function lastFireAt(db: Db, task: MindRole, unclaimedOnly: boolean): numb
 
 export function wakesPage(db: Db, limit: number, before: number | null): WakeItem[] {
   return db.all<WakeItem>(
-    `SELECT id, at, task AS role, reason, status, fired_at, claimed_at FROM wakes WHERE (? IS NULL OR at < ?)
+    `SELECT id, at, task AS role, reason, status, fired_at, claimed_at, fire_status, fire_error FROM wakes
+     WHERE (? IS NULL OR at < ?)
      ORDER BY at DESC LIMIT ?`,
     before,
     before,

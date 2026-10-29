@@ -116,8 +116,8 @@
     "rows_written_max": 20
   },
   "PUT /v1/messages/:id (mind reply) (Core)": {
-    "rows_read_max": 76,
-    "rows_written_max": 28
+    "rows_read_max": 78,
+    "rows_written_max": 30
   },
   "GET /v1/search (messages) (Core)": {
     "rows_read_max": 57,

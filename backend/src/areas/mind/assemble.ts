@@ -12,7 +12,14 @@ import { buildBrief } from './brief';
 import * as store from './store';
 import { backoff } from './wake';
 
-export function assemble(db: Db, role: MindRole, tz: string, now: number, wake: BriefResponse['wake']): BriefResponse {
+export function assemble(
+  db: Db,
+  role: MindRole,
+  tz: string,
+  now: number,
+  wake: BriefResponse['wake'],
+  constitution: string,
+): BriefResponse {
   const day = currentDay(db, tz, now);
   const thread = convo.dailyThread(db, day);
   const all = thread ? convo.lastMessages(db, thread.id, 200) : [];
@@ -21,6 +28,7 @@ export function assemble(db: Db, role: MindRole, tz: string, now: number, wake: 
   const yThread = convo.threadsPage(db, null, 5, null).find((t) => t.kind === 'daily' && t.day < day) ?? null;
   const { core, full } = buildBrief({
     role,
+    constitution,
     now,
     tz,
     day,

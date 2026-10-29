@@ -63,6 +63,14 @@ describe('the daily thread', () => {
     for (const id of [a.id, b.id]) expect(page.body.items.find((m) => m.id === id)?.answered_at).not.toBeNull();
   });
 
+  it('once nothing waits, a reply leaves the mind listening (the edge stops pulsing)', async () => {
+    const q = (await say(D, { body: 'one more question' })).body;
+    await apiJson('POST', '/v1/mind/status', { ...mind(C), body: { state: 'working' } });
+    await say(C, { body: 'Here it is.', reply_to: q.id }, uuidv7(), mind(C));
+    const s = (await apiJson<Record<string, { state?: string }>>('GET', '/v1/settings', { token: D })).body;
+    expect(s['mind.status']?.state).toBe('listening');
+  });
+
   it('lints the mind (banned phrases, emoji) but never the owner', async () => {
     expect((await say(C, { body: 'Great question. Here it is.' }, uuidv7(), mind(C))).status).toBe(422);
     expect((await say(C, { body: 'Done 🎉' }, uuidv7(), mind(C))).status).toBe(422);

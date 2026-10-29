@@ -10,6 +10,8 @@ export const FULL_MAX = 48_000;
 
 export interface BriefInput {
   role: MindRole;
+  /** The constitution's SHA-256 the session sent (`none` if its file was missing). */
+  constitution: string;
   now: number;
   tz: string;
   day: string;
@@ -59,7 +61,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     `${weekday(i.now, i.tz)} ${clock(i.now, i.tz)} (${i.tz}) · day ${i.day} · role ${i.role}`,
     `wake: ${i.wakeReason ?? 'manual'} · wakes today ${i.wakesToday} · pre-warms left ${i.prewarmsLeft}`,
     i.backoffUntil > i.now ? `usage backoff until ${clock(i.backoffUntil, i.tz)}` : 'no usage backoff',
-    'laws: pinned · open decisions 0 · quiet: off',
+    `laws: ${i.constitution === 'none' ? 'mind/CONSTITUTION.md missing' : `sha256 ${i.constitution.slice(0, 12)}`} (the pin arrives with proposals, P4) · open decisions 0 · quiet: off`,
   ].join('\n');
   const waiting = night
     ? `Yesterday's thread: ${i.yesterday.threadId ?? 'none'}, ${i.yesterday.tail.length} messages; run th day ${i.day}`

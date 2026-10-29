@@ -64,8 +64,12 @@ export class Core extends CoreBase {
     const out = this.run((w) => {
       const r = convo.putMessage(w, c, p, this.tz());
       const ownerNew = r.created && r.message.author === 'owner';
-      // The chat mind's reply after a Stop ("Stopped. Done: … Not done: …") clears it.
-      if (r.created && c.who === 'C' && r.message.kind === 'text') stop.clear(w);
+      if (r.created && c.who === 'C' && r.message.kind === 'text') {
+        // The chat mind's reply after a Stop ("Stopped. Done: … Not done: …") clears it, and once
+        // nothing waits the mind is listening again, so the edge stops pulsing.
+        stop.clear(w);
+        if (cstore.unansweredIds(w.db).length === 0) wake.setPresence(w, 'listening');
+      }
       return {
         ...r,
         wake: ownerNew ? wake.maybeWake(w, 'message', this.configured()) : null,
@@ -105,7 +109,7 @@ export class Core extends CoreBase {
       const claimed = r.claim ? this.write((w) => mind.claim(w, r, this.tz())).wake : null;
       // A claim hands out what the briefing shows: the requeue alarm must cover it.
       if (r.claim) this.schedule();
-      return assemble(this.db, r.role, this.tz(), Date.now(), claimed);
+      return assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256);
     });
   }
 
