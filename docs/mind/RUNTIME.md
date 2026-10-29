@@ -335,7 +335,7 @@ Runs instead of Stop when a turn ends on an API error (`error`: `rate_limit`, `o
 | Network access | Custom: the Worker host, the site host, `api.github.com`, plus the default package-manager list | same | Worker host, `api.github.com` |
 | Network secret | Worker host → `Authorization: Bearer <chat token>` | Worker host → `<night token>` | Worker host → `<reflex token>` |
 | Env vars (not secret) | `TH_ROLE=chat`, `TH_API=https://<worker host>`, `TH_SITE=https://<site host>`, `NODE_USE_ENV_PROXY=1`, `BASH_MAX_TIMEOUT_MS=7200000` | `TH_ROLE=night`, rest same | `TH_ROLE=reflex`, rest same |
-| Setup script | `npm ci --ignore-scripts` at the repo root (cached by the platform) | same | same |
+| Setup script | `cd ~/thunderhead && npm ci --ignore-scripts` (the script starts outside the repository folder; cached by the platform) | same | same |
 
 Rules:
 1. **Tokens** are issued from Settings → Agents on a signed-in device, shown once, and stored only as hashes in the `Auth` Durable Object (decisions.md). Format: `thm_` + 43 base62 + 6 base62 CRC32 checksum, the same for every mind role (the role is stored with the hash, not in the token) ([SECURITY.md §5.1](../engineering/SECURITY.md)) **[proposal]**. The owner pastes each into its environment's network secret.

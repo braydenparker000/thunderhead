@@ -87,7 +87,7 @@ Send "done" with the Primary endpoint URL. The agent pushes the first build and 
 ## I. Keys for CI and the mind (P1, Settings → Agents)
 
 1. **New agent key**, role **CI**, name `ci` → copy → GitHub environment `worker` → secret `TH_CI_TOKEN`.
-2. claude.ai/code → environments → new environment `th-chat` with the values in [RUNTIME.md §7](../mind/RUNTIME.md) (allowed hosts: the API host, the site host, `api.github.com`, plus the default package list; variables `TH_ROLE=chat`, `TH_API`, `TH_SITE`, `NODE_USE_ENV_PROXY=1`, `BASH_MAX_TIMEOUT_MS=7200000`; setup script `npm ci --ignore-scripts`).
+2. claude.ai/code → environments → new environment `th-chat` with the values in [RUNTIME.md §7](../mind/RUNTIME.md) (allowed hosts: the API host, the site host, `api.github.com`, plus the default package list; variables `TH_ROLE=chat`, `TH_API`, `TH_SITE`, `NODE_USE_ENV_PROXY=1`, `BASH_MAX_TIMEOUT_MS=7200000`; setup script `cd ~/thunderhead && npm ci --ignore-scripts`, because the script starts outside the repository folder). The **API key goes in the environment's network secret for the API host, never in the variables**: variables are readable inside the session.
 3. **New agent key**, role **Mind · chat**, name `mind-chat` → paste it at once into `th-chat` as the network secret for the API host (`Authorization: Bearer <key>`); it is shown once.
 4. Tell the agent; it checks from a `th-chat` session that the key reaches `/v1/ops/health/deep` (P1 "done when").
 
