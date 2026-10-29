@@ -41,10 +41,12 @@ function ok<T extends object>(result: ({ ok: true } & T) | Failure): T {
 const auth = (c: Context<AppEnv>) => authObject(c.env);
 
 /** Signed-out sessions: dropped from this isolate's cache at once, and their live sockets are
- * closed with 4401 (API.md §12) after the response. */
-function revoke(c: Context<AppEnv>, ids: string[]): void {
-  forget(ids);
-  if (ids.length) c.executionCtx.waitUntil(coreObject(c.env).liveRevoke(ids));
+ * closed with 4401 (API.md §12) after the response. `ids` is missing while the Auth object still
+ * runs the previous release's code during a deploy; sign-in must keep working then. */
+function revoke(c: Context<AppEnv>, ids: string[] | undefined): void {
+  const list = Array.isArray(ids) ? ids : [];
+  forget(list);
+  if (list.length) c.executionCtx.waitUntil(coreObject(c.env).liveRevoke(list));
 }
 
 export const authRoutes = new Hono<AppEnv>()

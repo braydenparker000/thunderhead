@@ -33,14 +33,17 @@ export function files(cls) {
   return [`${SRC}objects/core.migrations.ts`, ...areas];
 }
 
-/** Whether a deep health body shows every object on the newest step, applied and expected; the
- * reason when not. @param {any} body @param {{ core: number, auth: number }} want */
+/** Whether a deep health body shows every object running this commit's code (it expects the
+ * newest step) on a schema at least that new (a rollback runs older code on a newer schema, which
+ * expand-only migrations allow); the reason when not.
+ * @param {any} body @param {{ core: number, auth: number }} want */
 export function ready(body, want) {
   const why = [];
   if (body?.ok !== true) why.push('ok is not true');
   for (const [cls, n] of Object.entries(want)) {
     const o = body?.objects?.[cls];
-    if (o?.schema !== n || o?.expected !== n) why.push(`${cls} schema ${o?.schema}/${o?.expected}, want ${n}/${n}`);
+    if (o?.expected !== n || !(typeof o?.schema === 'number' && o.schema >= n))
+      why.push(`${cls} schema ${o?.schema}/${o?.expected}, want >=${n}/${n}`);
   }
   return why.length ? why.join('; ') : null;
 }

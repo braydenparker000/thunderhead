@@ -13,11 +13,14 @@ test('ready only when every object has its newest step applied and expected', ()
   assert.equal(ready(body([want.core, want.core], [want.auth, want.auth]), want), null);
   assert.match(ready(body([want.core, want.core - 1], [want.auth, want.auth]), want), /core schema/, 'old code still running');
   assert.match(ready(body([want.core - 1, want.core], [want.auth, want.auth]), want), /core schema/, 'migration not applied');
+  assert.equal(ready(body([want.core + 1, want.core], [want.auth, want.auth]), want), null, 'rollback: older code on a newer schema');
+  assert.match(ready({ ok: true }, want), /core schema undefined/, 'a body without per-object schema is not ready');
   assert.match(ready(body([want.core, want.core], [want.auth, want.auth], false), want), /ok is not true/);
   assert.match(ready(null, want), /ok is not true/);
 });
 
 test('the deploy workflow waits on it', () => {
   const yml = readFileSync(new URL('../.github/workflows/deploy.yml', import.meta.url), 'utf8');
-  assert.match(yml, /health\/deep" \| node scripts\/schema-version\.mjs --ready/);
+  assert.match(yml, /node scripts\/schema-version\.mjs --ready/);
+  assert.match(yml, /if \[\[ -f scripts\/schema-version\.mjs \]\]/, 'older releases fall back to the ok check');
 });
