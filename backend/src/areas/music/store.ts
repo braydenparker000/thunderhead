@@ -28,8 +28,14 @@ export interface CatalogVersion {
   changed_at: number;
 }
 
-/** Inserts or updates one track by id; the rows it wrote (0 when nothing changed). */
+/** New tracks from the upload tools take places from here on, so the old catalog's places (from 1,
+ * never reused) stay free for an import run after them. */
+export const NEW_ORD_BASE = 1_000_000_000_000;
+
+/** Inserts or updates one imported track by id; the rows it wrote (0 when nothing changed), or -1
+ * when another track already holds its place (it is skipped, not moved). */
 export function putTrack(db: Db, t: TrackRow): number {
+  if (db.one('SELECT 1 AS x FROM tracks WHERE ord = ? AND id <> ?', t.ord, t.id)) return -1;
   return db.run(
     `INSERT INTO tracks (ord, id, sha256, size, audio_key, cover_key, record_json, waveform, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -132,14 +138,15 @@ export function byContent(db: Db, sha256: string, size: number, except = ''): st
   );
 }
 
-/** Writes a track's record; a new track goes last in the catalog's order. */
+/** Writes a track's record; a new track goes last in the catalog's order, at NEW_ORD_BASE or after. */
 export function writeTrack(db: Db, record: Record<string, unknown>, waveform: string | null, at: number): void {
   db.run(
-    `INSERT INTO tracks (id, sha256, size, audio_key, cover_key, record_json, waveform, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO tracks (ord, id, sha256, size, audio_key, cover_key, record_json, waveform, updated_at)
+     VALUES ((SELECT max(coalesce(max(ord), 0) + 1, ?) FROM tracks), ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (id) DO UPDATE SET sha256 = excluded.sha256, size = excluded.size, audio_key = excluded.audio_key,
        cover_key = excluded.cover_key, record_json = excluded.record_json, waveform = excluded.waveform,
        updated_at = excluded.updated_at`,
+    NEW_ORD_BASE,
     record.id,
     record.sha256,
     record.size,

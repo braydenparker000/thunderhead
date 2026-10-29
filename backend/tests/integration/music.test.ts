@@ -129,6 +129,30 @@ describe('the music catalog, imported (I7)', () => {
     });
   });
 
+  it('a song uploaded through the new Worker keeps its place when the import runs again (N4, then N3)', async () => {
+    const h = sha('e');
+    await env.MEDIA.put(`native/audio/${h}.opus`, new Uint8Array(1234), {
+      customMetadata: { 'verified-sha256': h, verification: 'worker-upload-sha256-v1' },
+    });
+    const music = env.MUSIC.get(env.MUSIC.idFromName('library'));
+    const reg = (await music.write('register', {
+      sha256: h,
+      size: 1234,
+      name: 'Uploaded.opus',
+      metadata: { title: 'Uploaded', artist: 'Someone', dur: 10 },
+    })) as unknown as { status: number; body: { id: string } };
+    expect(reg.status).toBe(200);
+    const rerun = uuidv7();
+    await start(rerun, 'music');
+    expect(await untilDone(p.D, rerun)).toMatchObject({
+      state: 'done',
+      counts: { imported: 3, skipped: 2 },
+      report: { rows_changed: 0 },
+    });
+    const cat = (await apiJson<MusicCatalog>('GET', '/v1/music/catalog', { token: p.D })).body;
+    expect(cat.tracks.map((t) => t.id)).toEqual([B, C, A, reg.body.id]);
+  });
+
   it('a waveform is one track at a time; the catalog and waveforms are the device’s only', async () => {
     const w = await apiJson<{ id: string; bars: string }>('GET', `/v1/music/waveforms/${A}`, { token: p.D });
     expect(w).toEqual({ status: 200, body: { id: A, bars: WAVE } });

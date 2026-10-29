@@ -93,7 +93,10 @@ export async function putPart(env: Env, dataset: MusicDataset, rows: Old[], at: 
   }
   const music = musicObject(env);
   const done = dataset === 'music' ? await music.importTracks(tracks, at) : await music.importLog(log);
-  return { imported: tracks.length + log.length, skipped, written: done.written, changed: done.changed };
+  // A track whose place another track holds is skipped as a duplicate, never moved.
+  const clashes = done.clashes?.length ?? 0;
+  if (clashes) skipped.duplicate = (skipped.duplicate ?? 0) + clashes;
+  return { imported: tracks.length + log.length - clashes, skipped, written: done.written, changed: done.changed };
 }
 
 /** The sampled source rows that don't match what the Music object holds (their old ids). A row

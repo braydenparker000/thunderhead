@@ -64,10 +64,12 @@ export interface WriteResult {
   body: Record<string, unknown>;
 }
 
-/** What an import step wrote: rows (index entries included) and tracks or log rows changed. */
+/** What an import step wrote: rows (index entries included), tracks or log rows changed, and the
+ * tracks skipped because another track holds their place. */
 export interface PutResult {
   written: number;
   changed: number;
+  clashes?: string[];
 }
 
 export class Music extends OwnerObject {
@@ -85,13 +87,15 @@ export class Music extends OwnerObject {
     return this.ctx.storage.transactionSync(() => {
       let written = 0;
       let changed = 0;
+      const clashes: string[] = [];
       for (const r of rows) {
         const n = store.putTrack(this.db, r);
-        written += n;
+        if (n < 0) clashes.push(r.id);
+        else written += n;
         if (n > 0) changed++;
       }
       if (changed) store.bump(this.db, at);
-      return { written, changed };
+      return { written, changed, clashes };
     });
   }
 

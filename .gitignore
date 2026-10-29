@@ -7,3 +7,4 @@ test-results/
 .dev.vars.*
 !.dev.vars.example
 .wrangler/
+__pycache__/

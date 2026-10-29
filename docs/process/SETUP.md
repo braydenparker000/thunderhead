@@ -501,8 +501,16 @@ upload music from (it never leaves that computer):
 2. dash.cloudflare.com → **Workers & Pages** → `thunderhead-api` → **Settings** → **Variables and
    Secrets** → `MUSIC_UPLOAD_PUBLIC_KEYS` → **Edit** → paste `["` + the 64 characters + `"]` (for
    example `["0a1b…"]`) → **Save**.
-3. Tell the agent "N4 done". It points the upload tools at the new Worker (its address and
-   `/v1/music/uploads/`, with `--key music-upload-new.pem`) and runs one canary upload with you.
+3. From then on, upload with this repository's tool instead of the old one (same use, the new
+   Worker, the new key):
+
+   ```text
+   python3 scripts/music/upload.py "Song.opus" --key music-upload-new.pem
+   ```
+
+   Its last line is one JSON line with `"registered": true`. Upload one song this way as the
+   canary and tell the agent "N4 done" with that line; it checks the song is in the new catalog.
+   The old tool and the old key stay as they are until the old Worker retires.
 
 N5 (music private: the old Worker's public read off, ask-first) comes after the player has used
 only the new Worker for 3 days.

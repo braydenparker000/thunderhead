@@ -26,7 +26,7 @@ const freePort = () => new Promise((resolve, reject) => {
 export const available = () => existsSync(WRANGLER);
 
 /** @returns {Promise<{url: string, call: Function, stop: () => Promise<void>, log: () => string}>} */
-export async function startWorker({timeoutMs = 120_000} = {}) {
+export async function startWorker({timeoutMs = 120_000, vars = {}} = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'th-e2e-'));
   const envFile = join(dir, '.env');
   writeFileSync(envFile, [
@@ -40,6 +40,11 @@ export async function startWorker({timeoutMs = 120_000} = {}) {
     'ROUTINE_NIGHT_TOKEN=none',
     'ROUTINE_REFLEX_URL=none',
     'ROUTINE_REFLEX_TOKEN=none',
+    'R2_SIGN_ACCESS_KEY_ID=none',
+    'R2_SIGN_SECRET=none',
+    'MUSIC_UPLOAD_PUBLIC_KEYS=none',
+    // A test's own values (e.g. an upload tool's public key) after the defaults: the last one wins.
+    ...Object.entries(vars).map(([k, v]) => `${k}=${v}`),
     '',
   ].join('\n'));
   const port = await freePort();
