@@ -1,10 +1,13 @@
 // The decision card on home (HOME.md §3): one card at a time, 18 px under the voice line, the
 // waiting decision that expires soonest first. Yes approves with this device's session; the second
-// button turns the card down or puts it off until the morning, as the card says. The Worker checks
-// and runs everything; the card only asks. A tap within 500 ms of the page appearing is ignored
-// (SECURITY.md §4.3, a framed overlay can't time a tap onto it) and nothing is sent offline. The
-// bottom edge is gold while a card shows; while it is scrolled out of view the date line says
-// "· 1 waiting", and a tap there brings it back. The card follows the change feed (`th:changed`).
+// button ("No" or "Not yet") turns the card down or puts it off until the morning, as the card says.
+// The Worker checks and runs everything; the card only asks, and shows the Worker's target line. A
+// card takes no tap until 500 ms after its rise ends, and the next card rises only 300 ms after the
+// last one folded, so a second tap never lands on a card the owner hasn't seen. A tap within 500 ms
+// of the page appearing is ignored too (SECURITY.md §4.3, a framed overlay can't time a tap onto it)
+// and nothing is sent offline. The bottom edge is gold while a card shows; while it is scrolled out
+// of view the date line says "· 1 waiting", and a tap there brings it back. The card follows the
+// change feed (`th:changed`).
 import { api, signedIn } from '../client.js';
 import { failure } from '../flow.js';
 import { el, toast, tooSoon } from '../ui.js';
@@ -16,6 +19,9 @@ import { setDecisions } from './state.js';
 const DECIDE_TIMEOUT_MS = 15_000;
 const FOLD_MS = 650;
 const RISE_GAP_MS = 300;
+/** The rise (home.css `.card`: 800 ms after 300 ms), where the browser can't report it. */
+const RISE_MS = 1_100;
+const ARM_MS = 500;
 const buzz = (/** @type {number[]} */ p) => {
   try {
     navigator.vibrate?.(p);
@@ -39,11 +45,16 @@ export function startDecisions() {
 
   /** @type {Proposal[]} */
   let items = [];
-  /** @type {{ el: HTMLElement, id: string, of: HTMLElement } | null} */
+  /** @typedef {{ el: HTMLElement, id: string, of: HTMLElement, armed: boolean }} Shown */
+  /** @type {Shown | null} */
   let shown = null;
   let busy = false;
+  /** No card rises before this (`performance.now()`): the last one is still folding. */
+  let nextAt = 0;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let timer;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let later;
 
   async function load() {
     try {
@@ -70,16 +81,22 @@ export function startDecisions() {
     if (shown) {
       const gone = items.find((p) => p.id === shown?.id);
       if (gone && gone.expires_at <= now) toast(m.LINES.expired);
-      fold(shown.el);
-      shown = null;
-      if (first) setTimeout(() => place(first, show.length), FOLD_MS + RISE_GAP_MS);
-    } else if (first) place(first, show.length);
+      retire();
+    }
+    if (first) place(first, show.length);
     glow();
   }
 
   /** @param {Proposal} p @param {number} n */
   function place(p, n) {
     if (shown || busy) return;
+    // Not while the last card folds: the next rises 300 ms after (HOME.md §3.3).
+    const wait = nextAt - performance.now();
+    if (wait > 0) {
+      clearTimeout(later);
+      later = setTimeout(render, wait);
+      return;
+    }
     const b = m.buttons(p);
     const qid = `q-${p.id}`;
     const yes = el('button', { type: 'button', class: 'yes', text: b.yes });
@@ -89,22 +106,42 @@ export function startDecisions() {
     const card = el('div', { class: 'card decision', role: 'group', 'aria-labelledby': qid, 'data-id': p.id }, [
       el('div', { class: 'why' }, [el('span', { class: 'd' }), m.whyLine(p), of]),
       el('div', { class: 'q', id: qid, text: p.question }),
+      ...(p.target ? [el('div', { class: 'tg', text: p.target })] : []),
       ...m.details(p).map((t) => el('div', { class: 'dx', text: t })),
       el('div', { class: 'decide' }, [yes, safe]),
       err,
     ]);
-    yes.addEventListener('click', () => decide(p, 'approve', yes, [yes, safe], err));
-    safe.addEventListener('click', () => decide(p, b.safeDecision, safe, [yes, safe], err));
+    /** @type {Shown} */
+    const s = { el: card, id: p.id, of, armed: false };
+    yes.addEventListener('click', () => decide(s, p, 'approve', yes, [yes, safe], err));
+    safe.addEventListener('click', () => decide(s, p, b.safeDecision, safe, [yes, safe], err));
     slot.append(card);
-    shown = { el: card, id: p.id, of };
+    shown = s;
+    arm(s);
     watch(card);
     glow();
   }
 
-  /** @param {Proposal} p @param {'approve' | 'reject' | 'snooze'} decision @param {HTMLElement} pressed
-   * @param {HTMLButtonElement[]} both @param {HTMLElement} err */
-  async function decide(p, decision, pressed, both, err) {
-    if (busy || tooSoon()) return;
+  /** Arms a card 500 ms after its rise ends; until then a tap on it does nothing. @param {Shown} s */
+  function arm(s) {
+    const rise = s.el.getAnimations?.() ?? [];
+    const risen = rise.length
+      ? Promise.all(rise.map((a) => a.finished))
+      : new Promise((r) => setTimeout(r, RISE_MS));
+    risen.then(
+      () =>
+        setTimeout(() => {
+          s.armed = true;
+          s.el.classList.add('armed');
+        }, ARM_MS),
+      () => {}, // gone before it rose
+    );
+  }
+
+  /** @param {Shown} s @param {Proposal} p @param {'approve' | 'reject' | 'snooze'} decision
+   * @param {HTMLElement} pressed @param {HTMLButtonElement[]} both @param {HTMLElement} err */
+  async function decide(s, p, decision, pressed, both, err) {
+    if (busy || !s.armed || shown !== s || tooSoon()) return;
     if (!navigator.onLine) return toast(m.LINES.offline);
     busy = true;
     err.hidden = true;
@@ -140,14 +177,19 @@ export function startDecisions() {
   /** The card is done with: it folds, and the next one rises after it. @param {string} id */
   function settle(id) {
     items = items.filter((x) => x.id !== id);
-    if (shown?.id === id) {
-      fold(shown.el);
-      shown = null;
-    }
-    const first = m.showing(items, Date.now())[0];
+    if (shown?.id === id) retire();
     setDecisions({ waiting: m.showing(items, Date.now()).length });
-    if (first) setTimeout(() => place(first, m.showing(items, Date.now()).length), FOLD_MS + RISE_GAP_MS);
+    clearTimeout(later);
+    later = setTimeout(render, FOLD_MS + RISE_GAP_MS);
     glow();
+  }
+
+  /** The shown card folds, and no other rises until 300 ms after the fold. */
+  function retire() {
+    if (!shown) return;
+    fold(shown.el);
+    shown = null;
+    nextAt = performance.now() + FOLD_MS + RISE_GAP_MS;
   }
 
   /** @param {HTMLElement} card */

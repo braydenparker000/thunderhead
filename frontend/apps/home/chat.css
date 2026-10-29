@@ -40,6 +40,7 @@
    the odds and what happens if ignored; a spinner on the pressed button; the error line. */
 #decision .card{margin-top:18px}
 .card .why .of{margin-left:auto}
+.card .tg{margin-top:4px;font:500 13px/1.4 var(--ui);color:var(--ink2);overflow-wrap:anywhere}
 .card .dx{margin-top:6px;font:400 13px/1.4 var(--ui);color:var(--ink3)}
 .card .dx+.dx{margin-top:2px}
 .card .err{margin-top:10px;font:500 13px/1.4 var(--ui);color:var(--alarm,#b42318)}

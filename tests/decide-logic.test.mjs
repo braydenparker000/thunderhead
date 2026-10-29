@@ -35,8 +35,10 @@ test("the why line names who asked and, for an ask-first card, the class's words
 
 test('the small lines, the buttons and what each answer says', () => {
   assert.deepEqual(m.details(proposal({ odds: 0.9 })), ['They have had no songs since import.', 'About 90% sure.', 'Nothing happens; they stay.']);
-  assert.deepEqual(m.buttons(proposal()), { yes: 'Delete', safe: 'Keep them', safeDecision: 'reject' });
-  assert.deepEqual(m.buttons(proposal({ safe: 'snooze', options: ['Pin them', 'Not now'] })), { yes: 'Pin them', safe: 'Not now', safeDecision: 'snooze' });
+  // The second label is fixed, whatever the card's second option says (HOME.md §3.1).
+  assert.deepEqual(m.buttons(proposal()), { yes: 'Delete', safe: 'No', safeDecision: 'reject' });
+  assert.deepEqual(m.buttons(proposal({ options: ['Delete', 'Yes, keep them'] })), { yes: 'Delete', safe: 'No', safeDecision: 'reject' });
+  assert.deepEqual(m.buttons(proposal({ safe: 'snooze', options: ['Pin them', 'Approve'] })), { yes: 'Pin them', safe: 'Not yet', safeDecision: 'snooze' });
   assert.deepEqual(m.buttons(proposal({ options: [], safe: 'snooze' })), { yes: 'Yes', safe: 'Not yet', safeDecision: 'snooze' });
   const ok = { status: 'executed', ledger_id: 'l' };
   assert.equal(m.toastFor('approve', ok), 'Done.');

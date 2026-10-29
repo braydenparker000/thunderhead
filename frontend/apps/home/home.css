@@ -60,7 +60,8 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 /* a decision waiting on you: the one glass card on the page */
 .card{margin-top:18px;padding:14px 16px 14px;border-radius:22px;background:var(--chip);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border:1px solid var(--chipLine);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 10px 28px -16px rgba(20,30,60,.25);max-height:280px;overflow:hidden;animation:rise .8s .3s cubic-bezier(.2,.7,.2,1) both;transition:opacity .3s,transform .3s,max-height .45s .12s cubic-bezier(.2,.7,.2,1),margin .45s .12s,padding .45s .12s}
 :root[data-theme="dark"] .card{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 10px 28px -16px #000}
-.card.gone{opacity:0;transform:scale(.97);max-height:0;margin-top:0;padding-top:0;padding-bottom:0;border-color:transparent}
+.card.gone{opacity:0;transform:scale(.97);max-height:0;margin-top:0;padding-top:0;padding-bottom:0;border-color:transparent;pointer-events:none}
+.card.decision:not(.armed) .decide button{pointer-events:none}
 .why{display:flex;align-items:center;gap:8px;font:500 12px var(--ui);color:var(--ink3)}
 .why .d{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 28%,transparent)}
 .card .q{margin-top:7px;font:500 16px/1.42 var(--ui);color:var(--ink)}

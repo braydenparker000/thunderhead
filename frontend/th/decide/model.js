@@ -64,16 +64,13 @@ export function details(p) {
   return [p.why, odds, p.if_ignored].filter((x) => typeof x === 'string' && x.length > 0);
 }
 
-/** The two buttons: the action first, then the safe choice and what it sends.
+/** The two buttons: the action in the card's words, then the safe choice, whose label is fixed
+ * (HOME.md §3.1: "Not yet" snoozes, "No" turns it down), so no wording can hide what it sends.
  * @param {Proposal} p @returns {{ yes: string, safe: string, safeDecision: 'reject' | 'snooze' }} */
 export function buttons(p) {
   const snooze = p.safe === 'snooze';
-  const [yes, safe] = Array.isArray(p.options) ? p.options : [];
-  return {
-    yes: yes || 'Yes',
-    safe: safe || (snooze ? LINES.notyet : LINES.no),
-    safeDecision: snooze ? 'snooze' : 'reject',
-  };
+  const yes = Array.isArray(p.options) ? p.options[0] : '';
+  return { yes: yes || 'Yes', safe: snooze ? LINES.notyet : LINES.no, safeDecision: snooze ? 'snooze' : 'reject' };
 }
 
 /** The toast after the Worker answered. `null` when the card stays (a snooze that left it waiting

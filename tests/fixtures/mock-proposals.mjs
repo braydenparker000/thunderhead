@@ -19,6 +19,7 @@ export function proposal(fields = {}, now = Date.now()) {
     odds: null,
     options: ['Delete', 'Keep them'],
     safe: 'reject',
+    target: null,
     spec: { v: 1, op: 'memory.forget', args: { id: 'x' } },
     spec_hash: 'a'.repeat(64),
     status: 'waiting',

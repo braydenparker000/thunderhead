@@ -164,7 +164,7 @@ Every card has exactly these parts:
 |---|---|---|
 | Question | One question, ≤ 80 characters, answerable with the buttons | "Delete the 14 empty playlists?" |
 | Why | ≤ 140 characters, the evidence | "They have had no songs since import and none were opened in 90 days." |
-| Options | 2 buttons. The first is the action; the second is the safe choice ("Not now", "Keep them"). Never 3+ options on a card; use chat for open questions | `Delete` · `Keep them` |
+| Options | 2 buttons. The first is the action; the second is the safe choice ("Not now", "Keep them"), which home always labels "No" or "Not yet" as the card's `safe` says (HOME.md §3.1). Never 3+ options on a card; use chat for open questions | `Delete` · `No` |
 | If ignored | Always stated, normally "Nothing happens." | "If you don't answer, nothing is deleted." |
 | Odds | When the mind's recommendation is uncertain | "I'd delete them (about 90% sure none matter)." |
 | Undo | Whether the action can be undone after | "This can't be undone." (ask-first) or "Undo for 30 days." |
