@@ -5,7 +5,10 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**P3 · Import + memory v1**, in progress.
+**P4 · Safety, ops, switch-over**, being built on branch `p4-safety` in batches (A+B, C, D, E+F, G+H with I), each reviewed, then deployed.
+- Batch A+B, ready for review (not live): owner-approved proposals (one registry, a tap or the owner's own words checked by the Worker, Core v14) and the decision card on home with the gold edge; the constitution pin (the first pin is the owner's tap); quiet hours as settings.
+
+**P3 · Import + memory v1**, still counting its "done when".
 - Live since 2026-10-29 13:26 UTC (`c4bc51e`): memory (facts with provenance, supersede, forget and decay; day notes; loose ends; the profile and the briefing's memory sections) and Settings → What I remember.
 - Live since 2026-10-29 14:52 UTC (`e61fd66`), inert until the owner's SETUP.md L1: the night shift's wiring (stages C–C.6, Core v11).
 - Live with this deploy: the import (stages D and D.5, Core v12–v13, the VAULT binding to `thunderhead-private`). Only the `import-once` key writes it, and it waits for the old-Worker export and SETUP.md L2.
@@ -13,9 +16,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Next three tasks
 
-1. Owner: SETUP.md L1 (the night shift), then P3's "three clean night shifts".
-2. Owner: the "Merge and deploy" tap on the old-Worker export (Missionarytube- PR #370). Then SETUP.md L2–L3: the import run with the `import-once` key, checked by matching counts and 20 spot checks.
-3. P3's other "done when" (a fact stated on day N in day N+1's briefing, with evidence; forgetting it removes it). Then home's 40-turn window and the collapse of long older replies (HOME.md §4.1, §4.3), then P4. The owner kept the chat-built playlist with P5.
+1. P4 batch A+B: deep review, then deploy. After it is live, the first mind claim raises the card "Pin the laws as they are now?"; the owner taps **Pin them** (held until 06:30 if it comes in quiet hours). Then P4 stage C (taint, injection fixtures, the reader subagent).
+2. Owner: SETUP.md L1 (the night shift), then P3's "three clean night shifts".
+3. Owner: the "Merge and deploy" tap on the old-Worker export (Missionarytube- PR #370). Then SETUP.md L2–L3: the import run with the `import-once` key, checked by matching counts and 20 spot checks. P3's other "done when" (a fact stated on day N in day N+1's briefing, with evidence; forgetting it removes it). Home's 40-turn window and the collapse of long older replies (HOME.md §4.1, §4.3) are still to do. The owner kept the chat-built playlist with P5.
 
 ## Blocked / waiting on the owner
 

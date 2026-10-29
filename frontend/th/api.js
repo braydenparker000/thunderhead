@@ -35,6 +35,9 @@
 /** @typedef {import('../../shared/contract/api.ts').VerbResultRequest} VerbResultRequest */
 /** @typedef {import('../../shared/contract/api.ts').Fact} Fact */
 /** @typedef {import('../../shared/contract/api.ts').FactDetail} FactDetail */
+/** @typedef {import('../../shared/contract/api.ts').ProposalsResponse} ProposalsResponse */
+/** @typedef {import('../../shared/contract/api.ts').DecideProposalRequest} DecideProposalRequest */
+/** @typedef {import('../../shared/contract/api.ts').DecideProposalResponse} DecideProposalResponse */
 /** @typedef {import('../../shared/contract/api.ts').MemoryOp} MemoryOp */
 /** @typedef {import('../../shared/contract/api.ts').MemoryOpsResponse} MemoryOpsResponse */
 /** @typedef {import('../../shared/contract/api.ts').ProfileResponse} ProfileResponse */
@@ -191,5 +194,9 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
     dayNotes: (token) => call('/v1/memory/day-notes', { token }),
     /** @param {string} token @param {string} day @param {PutDayNoteRequest} body @returns {Promise<DayNote>} */
     putDayNote: (token, day, body) => call(`/v1/memory/day-notes/${encodeURIComponent(day)}`, { method: 'PUT', token, body }),
+    /** @param {string} token @returns {Promise<ProposalsResponse>} */
+    proposals: (token) => call('/v1/proposals?status=waiting&limit=50', { token }),
+    /** @param {string} token @param {string} id @param {DecideProposalRequest} body @returns {Promise<DecideProposalResponse>} */
+    decide: (token, id, body) => call(`/v1/proposals/${encodeURIComponent(id)}/decide`, { method: 'POST', token, body }),
   };
 }

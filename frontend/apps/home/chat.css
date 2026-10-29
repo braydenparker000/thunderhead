@@ -36,3 +36,18 @@
 .edge.off{opacity:.5}
 .top #date[data-offline]::after{content:" · Offline"}
 @media (prefers-reduced-motion: reduce){.talk .reply.reveal{animation:none;-webkit-mask-image:none;mask-image:none}.talk .wait.dots{animation:none}.newpill{transition:none}}
+/* Decision cards (HOME.md §3): the why line carries "1 of 3" at its end; smaller lines for the why,
+   the odds and what happens if ignored; a spinner on the pressed button; the error line. */
+#decision .card{margin-top:18px}
+.card .why .of{margin-left:auto}
+.card .dx{margin-top:6px;font:400 13px/1.4 var(--ui);color:var(--ink3)}
+.card .dx+.dx{margin-top:2px}
+.card .err{margin-top:10px;font:500 13px/1.4 var(--ui);color:var(--alarm,#b42318)}
+.decide button:disabled{opacity:.7;cursor:default}
+.decide button.busy::after{content:"";display:inline-block;width:12px;height:12px;margin-left:8px;vertical-align:-2px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.card.pulse{animation:pulse .3s ease-out}
+@keyframes pulse{50%{border-color:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 35%,transparent)}}
+/* The date line's "· 1 waiting" (HOME.md §3.5): gold text, a 44 px tap target. */
+.top .waiting{margin-right:auto;border:0;background:none;padding:0 0 0 6px;min-height:44px;margin-top:-15px;margin-bottom:-15px;font:600 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--goldText);cursor:pointer}
+@media (prefers-reduced-motion: reduce){.decide button.busy::after,.card.pulse{animation:none}}

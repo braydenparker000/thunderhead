@@ -156,7 +156,10 @@ Status: **built** = in the first build or prototype; **proposal** = new. Voice s
 | `toast.decide.notyet` | I'll ask again tomorrow. | After Not yet (prototype wording adapted) |
 | `toast.decide.no` | Okay. I won't. | After No (proposal) |
 | `toast.decide.expired` | That one expired. Nothing was done. | Expired while visible (proposal) |
-| `date.waiting` | 1 waiting | Date-line suffix, card off-screen (proposal) |
+| `date.waiting` | 1 waiting | Date-line suffix, card off-screen (built, P4) |
+| `toast.decide.done` | Done. | After Yes, when the card's op ran or is running (built, P4; a card's own confirmation line may come later) |
+| `toast.decide.failed` | That didn't work. Nothing changed. | After Yes, when the Worker's executor refused (built, P4) |
+| `decide.source.chat` · `.night` · `.reflex` · `.worker` | From our chat · Night shift · Watchdog · Safety check | The why line's first part: who asked (built, P4) |
 
 The yes-button label and the confirmation toast come from the proposal itself (written by the mind, ≤ 18 and ≤ 40 characters), e.g. "Yes, take it" / "I'll run that job tonight."
 

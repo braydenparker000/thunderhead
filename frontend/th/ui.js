@@ -22,7 +22,11 @@ export function el(tag, attrs = {}, kids = []) {
   return node;
 }
 
-const shownAt = performance.now();
+let shownAt = performance.now();
+// The page "appears" again each time it comes back into view (SECURITY.md §4.3 rule 4).
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) shownAt = performance.now();
+});
 /** Taps on access buttons within 500 ms of the page appearing are ignored (a framed overlay can't
  * time a tap onto them). */
 export const tooSoon = () => performance.now() - shownAt < 500;

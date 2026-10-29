@@ -135,7 +135,7 @@ Answering in chat ("no, don't") can **reject** or snooze a decision (the mind ca
 
 ### 3.5 Finding the card
 
-When a decision waits but the card is scrolled out of view, the date line gains a gold-text suffix "· 1 waiting" (44 px tall hit area); tapping it scrolls the card into view and pulses its border once (300 ms). The briefing's "Waiting on you" tile does the same from the briefing. [proposal]
+When a decision waits but the card is scrolled out of view, the date line gains a gold-text suffix "· 1 waiting" (44 px tall hit area); tapping it scrolls the card into view and pulses its border once (300 ms). The briefing's "Waiting on you" tile does the same from the briefing. (Built in P4 stage B: `frontend/th/decide/card.js`, its logic in `model.js` with `tests/decide-logic.test.mjs`, the browser checks in `tests/decide-browser.test.mjs`. The why line's source is "From our chat", "Night shift", "Watchdog" or "Safety check" (the Worker's own cards, such as the laws pin); the card also shows the proposal's why, its odds and what happens if ignored, in small type under the question. Yes toasts "Done." and, if the Worker's executor refused, "That didn't work. Nothing changed.")
 
 Acceptance: with two mocked proposals, the first card shows "1 of 2"; tapping Yes calls the approve endpoint once, folds within 700 ms, and the second card appears; with the network offline the tap shows the toast and makes no request.
 
