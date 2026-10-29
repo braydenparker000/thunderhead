@@ -232,38 +232,3 @@ export function taintSession(db: Db, s: { id: string; role: MindRole; day: strin
 export function endSession(db: Db, id: string, at: number): void {
   db.run('UPDATE mind_sessions SET ended_at = coalesce(ended_at, ?) WHERE session_id = ?', at, id);
 }
-
-export function note(db: Db, id: string): { body: string; open_items_json: string; session_id: string | null } | null {
-  return db.one('SELECT body, open_items_json, session_id FROM session_notes WHERE id = ?', id);
-}
-
-export function putNote(
-  db: Db,
-  n: {
-    id: string;
-    session_id: string | null;
-    wake_id: string | null;
-    role: MindRole;
-    thread_id: string | null;
-    at: number;
-    body: string;
-    open: string;
-  },
-): void {
-  db.run(
-    `INSERT INTO session_notes (id, session_id, wake_id, role, thread_id, created_at, body, open_items_json)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    n.id,
-    n.session_id,
-    n.wake_id,
-    n.role,
-    n.thread_id,
-    n.at,
-    n.body,
-    n.open,
-  );
-}
-
-export function latestNote(db: Db): { body: string; created_at: number } | null {
-  return db.one('SELECT body, created_at FROM session_notes ORDER BY created_at DESC LIMIT 1');
-}

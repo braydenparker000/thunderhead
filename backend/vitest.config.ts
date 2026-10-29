@@ -21,9 +21,11 @@ export default defineConfig({
           AUTH_SETUP_FP: SETUP_FP,
           AUTH_RESET_FP: 'none',
           AUTH_HIBP: 'off',
-          // The mind-chat trigger is not connected in tests; fire tests inject their own fetch.
+          // The mind's triggers are not connected in tests; fire tests inject their own fetch.
           ROUTINE_CHAT_URL: 'none',
           ROUTINE_CHAT_TOKEN: 'none',
+          ROUTINE_NIGHT_URL: 'none',
+          ROUTINE_NIGHT_TOKEN: 'none',
           SITE_ORIGINS: 'https://site.example.test',
         },
       },

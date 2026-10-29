@@ -31,9 +31,19 @@
   // without them, and is also what lets local dev load them from .dev.vars. A secret that is not
   // configured yet holds the literal `none` (the deploy writes it); nothing ever runs
   // `wrangler secret delete` on a listed name. ROUTINE_CHAT_URL/TOKEN are the mind-chat task's
-  // API trigger (SETUP.md K); while they are `none` the mind is never fired.
+  // API trigger (SETUP.md K), ROUTINE_NIGHT_URL/TOKEN the mind-night task's (SETUP.md L1); while
+  // a pair is `none` that task is never fired.
   "secrets": {
-    "required": ["AUTH_PEPPER", "IP_HASH_KEY", "AUTH_SETUP_FP", "AUTH_RESET_FP", "ROUTINE_CHAT_URL", "ROUTINE_CHAT_TOKEN"]
+    "required": [
+      "AUTH_PEPPER",
+      "IP_HASH_KEY",
+      "AUTH_SETUP_FP",
+      "AUTH_RESET_FP",
+      "ROUTINE_CHAT_URL",
+      "ROUTINE_CHAT_TOKEN",
+      "ROUTINE_NIGHT_URL",
+      "ROUTINE_NIGHT_TOKEN"
+    ]
   },
   "vars": {
     // Exact site origins allowed by CORS, comma-separated. The real value comes from the

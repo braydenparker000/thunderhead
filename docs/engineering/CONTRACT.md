@@ -71,8 +71,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/surfaces/:app/:slot` | C N | P2 | built |  |
 | `DELETE /v1/surfaces/:app/:slot` | D C N | P2 | built |  |
 | `POST /v1/media/sign` | D C N | P2 | deferred: the private bucket (SETUP.md J2) |  |
-| `POST /v1/mind/night` | N | P3 | deferred: P3 stage C (the night shift) |  |
-| `GET /v1/mind/day/:day` | N | P3 | deferred: P3 stage C (the night shift) |  |
+| `POST /v1/mind/night` | N | P3 | built | the night run: start, step done, cursor, done |
+| `GET /v1/mind/day/:day` | N | P3 | built | a closed day's stats, messages, ledger and notes |
 | `GET /v1/memory/facts` | D C N | P3 | built |  |
 | `GET /v1/memory/facts/:id` | D C N | P3 | built | one fact: its earlier versions, evidence and why |
 | `GET /v1/memory/profile` | D C N | P3 | built |  |
@@ -188,6 +188,23 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `proposal_required` | This change needs the owner first (decision cards arrive in P4). |
 | `never_stored` | Keys, tokens, passwords and card or bank numbers are never stored (MEMORY.md §13). |
 | `session_required` | Memory writes need a mind session that claimed its briefing and has not ended. |
+
+## Night shift
+
+The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, hard stop 45 (Sunday 60). A step of a phase not built yet, and the Sunday step on another night, is skipped on the way.
+
+| Step | Name | Budget (min) | Phase | Cursor | Runs again without harm because |
+|---|---|---|---|---|---|
+| 1 | read the day | 1 | P3 | no | reads only |
+| 2 | day note and thread titles | 5 | P3 | no | the same note again keeps version 1; titles are set, not added |
+| 3 | loose ends | 3 | P3 | no | a loose end is put by its id; closing a closed one is a no-op |
+| 4 | facts | 6 | P3 | yes | each part is one batch with its own id (`th facts --night --part <k>`); sent again, it is already applied |
+| 5 | health and agreed fixes | 8 | P3 | no | reads, then one branch per agreed loose end |
+| 6 | indexing jobs | 1 | P5 | no | jobs are keyed by their input |
+| 7 | arrange tomorrow | 4 | P3 | no | surfaces are put by app and slot |
+| 8 | built overnight | 1 | P4 | no | items are put by id |
+| 9 | weekly review and evals (Sunday) | 15 | P4 | no | one eval run a week |
+| 10 | session note and done | 2 | P3 | no | the run is marked done once |
 
 ## Error codes
 

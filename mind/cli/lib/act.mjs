@@ -2,7 +2,7 @@
 // (RUNTIME.md §5.3, BEHAVIOR.md §4, API.md §11.10–11.12, §11.19–11.20).
 import {parseArgs} from './args.mjs';
 import {invalid, jsonFlag, need, out, toMs} from './io.mjs';
-import {checkSurface, checkVerb} from './contract.mjs';
+import {CONTRACT, checkSurface, checkVerb} from './contract.mjs';
 import {request} from './http.mjs';
 import {getState} from './state.mjs';
 import {uuidv7} from './ids.mjs';
@@ -142,16 +142,33 @@ export async function push(argv) {
   out({queued_until: data.queued_until ?? null});
 }
 
-/** Night progress: start · step <n> done · done. */
+const NIGHT_USAGE = 'usage: th night start | step <n> done | step <n> cursor <c> | done [--partial] | steps  [--day <YYYY-MM-DD>]';
+
+/** `th night` (RUNTIME.md §12): the night run's progress for the briefing's day (the closed day the
+ * night works on), or `--day` for another closed day of the last week. `steps` lists the steps
+ * from the contract. Out: where the run stands, `{resume_from, done, cursor, skipped}`; a step out
+ * of order exits 7 with `resume_from` in the error's details. */
 export async function night(argv) {
   const {flags, rest} = parseArgs(argv, {bool: ['partial']});
+  const n = CONTRACT.night;
+  if (rest[0] === 'steps')
+    return out({steps: n.steps.map(({step, name, budget_min, cursor, phase, sunday}) => ({step, name, budget_min, cursor, phase, ...(sunday ? {sunday} : {})})),
+      budget_min: n.budget_min});
   const day = typeof flags.day === 'string' ? flags.day : getState('day');
-  if (!day) throw invalid('--day is required (no briefing day recorded)');
+  if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) throw invalid('--day is required (no briefing day recorded)');
+  const step = Number(rest[1]);
   let body;
-  if (rest[0] === 'start') body = {day, action: 'start'};
-  else if (rest[0] === 'done') body = {day, action: 'done', partial: flags.partial ? true : undefined};
-  else if (rest[0] === 'step' && rest[2] === 'done' && Number.isInteger(Number(rest[1]))) body = {day, action: 'step_done', step: Number(rest[1])};
-  else throw invalid('usage: th night start | step <n> done | done [--partial]');
+  if (rest[0] === 'start' && rest.length === 1) body = {day, action: 'start'};
+  else if (rest[0] === 'done' && rest.length === 1) body = {day, action: 'done', partial: flags.partial ? true : undefined};
+  else if (rest[0] === 'step' && Number.isInteger(step) && rest[2] === 'done' && rest.length === 3) body = {day, action: 'step_done', step};
+  else if (rest[0] === 'step' && Number.isInteger(step) && rest[2] === 'cursor' && rest[3] && rest.length === 4) body = {day, action: 'cursor', step, cursor: rest[3]};
+  else throw invalid(NIGHT_USAGE);
+  if (body.step !== undefined) {
+    const known = n.steps.find(s => s.step === body.step);
+    if (!known) throw invalid(`steps are ${n.steps.map(s => s.step).join(', ')}`);
+    if (body.action === 'cursor' && !known.cursor) throw invalid(`step ${body.step} keeps no cursor`);
+  }
+  if (body.cursor !== undefined && body.cursor.length > n.cursor_max) throw invalid(`a cursor is at most ${n.cursor_max} characters`);
   const {data} = await request('POST', '/v1/mind/night', {body});
-  out({resume_from: data.resume_from ?? null, done: !!data.done});
+  out({resume_from: data.resume_from ?? null, done: !!data.done, cursor: data.cursor ?? null, skipped: data.skipped ?? []});
 }

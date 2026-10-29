@@ -87,7 +87,15 @@ export type RevokeReason =
 
 /** Field issues (422) or a small reason object. `reason` is a RevokeReason on 401s and a short
  * machine reason elsewhere (e.g. `not_undoable`). */
-export type ErrorDetails = Issue[] | { reason?: RevokeReason | (string & {}); min_client?: number; usable_after?: number };
+export type ErrorDetails =
+  | Issue[]
+  | {
+      reason?: RevokeReason | (string & {});
+      min_client?: number;
+      usable_after?: number;
+      /** A night step out of order (409): the step the run is at. */
+      resume_from?: number;
+    };
 
 export interface ErrorBody {
   error: {

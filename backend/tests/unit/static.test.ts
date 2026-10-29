@@ -32,7 +32,7 @@ const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').re
 const config = JSON.parse(wrangler.replace(/^\s*\/\/.*$/gm, '')) as { vars: Record<string, string>; secrets: unknown };
 
 /** Every secret name (SECURITY.md §11) and var (OPERATIONS.md §2) the Worker reads. P2 adds the
- * mind-chat trigger (SETUP.md K) and the live-wait mode (X1). */
+ * mind-chat trigger (SETUP.md K) and the live-wait mode (X1), P3 the mind-night trigger (L1). */
 const SECRETS = [
   'AUTH_PEPPER',
   'IP_HASH_KEY',
@@ -40,6 +40,8 @@ const SECRETS = [
   'AUTH_RESET_FP',
   'ROUTINE_CHAT_URL',
   'ROUTINE_CHAT_TOKEN',
+  'ROUTINE_NIGHT_URL',
+  'ROUTINE_NIGHT_TOKEN',
 ];
 const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP', 'LIVE_WAIT'];
 const BINDINGS = ['VERSION', 'CORE', 'AUTH'];

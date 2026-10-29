@@ -1,14 +1,31 @@
 // /v1/mind (API.md §11.8): the typing pre-warm from the phone, and the session routes the `th` CLI
-// calls. The key's role is what counts; a body `role` that differs is 403 (RUNTIME.md §4.3).
+// calls. The key's role is what counts; a body `role` that differs is 403 (RUNTIME.md §4.3). The
+// night shift's run (`th night`) and its input, a closed day in parts (`th day`), are night-only.
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
-import type { BriefResponse, Page, PendingResponse, WakeItem } from '../../../../shared/contract/api';
+import type {
+  BriefResponse,
+  DayStats,
+  MindNightRequest,
+  MindNightResponse,
+  Page,
+  PendingResponse,
+  WakeItem,
+} from '../../../../shared/contract/api';
+import {
+  NIGHT_CURSOR_MAX,
+  NIGHT_DAY_PARTS,
+  NIGHT_PAGE_MAX,
+  type NightDayPart,
+} from '../../../../shared/contract/night.ts';
 import { type AppEnv, guard } from '../../http/auth';
 import { callerOf } from '../../http/caller';
 import { ApiError } from '../../http/errors';
 import { json, parse } from '../../http/validate';
+import { decodeCursor, encodeCursor } from '../../lib/cursor';
 import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
+import { fresh } from '../../objects/rpc';
 import { fireWake } from './wakeup';
 
 const ROLE = { C: 'chat', N: 'night', R: 'reflex' } as const;
@@ -37,6 +54,34 @@ const noteBody = z.strictObject({
 });
 const taintBody = z.strictObject({ source: text(40), ref_kind: z.optional(z.enum(['url', 'file', 'comment'])) });
 const wakesQuery = z.object({ limit: z.optional(z.coerce.number().check(z.int(), z.gte(1), z.lte(200))) });
+const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const nightBody = z.strictObject({
+  day: z.string().check(z.regex(DAY)),
+  action: z.enum(['start', 'step_done', 'cursor', 'done']),
+  step: z.optional(z.number().check(z.int(), z.gte(0), z.lte(99))),
+  cursor: z.optional(z.string().check(z.minLength(1), z.maxLength(NIGHT_CURSOR_MAX))),
+  partial: z.optional(z.boolean()),
+}) satisfies z.ZodMiniType<MindNightRequest>;
+const dayQuery = z.object({
+  part: z.enum(NIGHT_DAY_PARTS),
+  cursor: z.optional(z.string().check(z.maxLength(400))),
+  limit: z.optional(z.coerce.number().check(z.int(), z.gte(1), z.lte(NIGHT_PAGE_MAX))),
+});
+
+/** A day part's cursor key, checked: `[seq]` (messages), `[at, seq]` (ledger), `[created_at, id]`
+ * (notes). The stats have none. */
+function cursorKey(part: NightDayPart, k: unknown[] | null): (number | string)[] | null {
+  if (!k) return null;
+  const n = (v: unknown) => Number.isSafeInteger(v) && (v as number) >= 0;
+  const ok =
+    part === 'messages'
+      ? k.length === 1 && n(k[0])
+      : part === 'ledger'
+        ? k.length === 2 && n(k[0]) && n(k[1])
+        : part === 'notes' && k.length === 2 && n(k[0]) && typeof k[1] === 'string' && k[1].length <= 64;
+  if (!ok) throw new ApiError('bad_request');
+  return k as (number | string)[];
+}
 
 export const mindRoutes = new Hono<AppEnv>()
   .post('/mind/typing', guard('POST /v1/mind/typing'), async (c) => {
@@ -76,4 +121,21 @@ export const mindRoutes = new Hono<AppEnv>()
   })
   .get('/mind/pending', guard('GET /v1/mind/pending'), async (c) => {
     return c.json((await coreObject(c.env).mindPending(callerOf(c))) satisfies PendingResponse);
+  })
+  .post('/mind/night', guard('POST /v1/mind/night'), async (c) => {
+    const body = await json(c, nightBody);
+    return c.json(value(await fresh(coreObject(c.env).night(callerOf(c), body))) satisfies MindNightResponse);
+  })
+  .get('/mind/day/:day', guard('GET /v1/mind/day/:day'), async (c) => {
+    const day = c.req.param('day') ?? '';
+    if (!DAY.test(day)) throw new ApiError('validation', [{ path: 'day', issue: 'YYYY-MM-DD' }]);
+    const q = parse(dayQuery, c.req.query());
+    // A cursor names its day and part, so one from another day or part is refused (400).
+    const route = `day:${day}:${q.part}`;
+    const after = cursorKey(q.part, decodeCursor(route, q.cursor));
+    const out = value(
+      await fresh(coreObject(c.env).nightDay({ day, part: q.part, after, limit: q.limit ?? NIGHT_PAGE_MAX })),
+    );
+    if (!('items' in out)) return c.json(out satisfies DayStats);
+    return c.json({ items: out.items, next: out.last ? encodeCursor(route, out.last) : null } satisfies Page<unknown>);
   });

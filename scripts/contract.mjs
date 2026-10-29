@@ -142,6 +142,15 @@ function mind() {
     search_sources: c.SEARCH_SOURCES,
     message_kinds: c.MESSAGE_KINDS,
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
+    night: {
+      steps: c.NIGHT_STEPS,
+      last_step: c.NIGHT_LAST_STEP,
+      budget_min: c.NIGHT_BUDGET_MIN,
+      cursor_max: c.NIGHT_CURSOR_MAX,
+      day_parts: c.NIGHT_DAY_PARTS,
+      page_max: c.NIGHT_PAGE_MAX,
+      backfill_days: c.NIGHT_BACKFILL_DAYS,
+    },
     lint: { banned_phrases: BANNED_PHRASES },
   };
   return `${JSON.stringify(out, null, 2)}\n`;
@@ -218,6 +227,20 @@ function docs() {
   for (const [k, v] of Object.entries(c.FACT_SOURCES)) L.push(`| \`${k}\` | ${v.base} | ${v.cap} | ${v.letter} |`);
   L.push('', '| Refusal reason | Meaning |', '|---|---|');
   for (const [k, v] of Object.entries(c.MEMORY_REASONS)) L.push(`| \`${k}\` | ${cell(v)} |`);
+  const b = c.NIGHT_BUDGET_MIN;
+  L.push(
+    '',
+    '## Night shift',
+    '',
+    `The steps in order (\`POST /v1/mind/night\`, \`th night\`). The run: target ${b.target} min, hard stop ${b.hard} (Sunday ${b.sunday_hard}). A step of a phase not built yet, and the Sunday step on another night, is skipped on the way.`,
+    '',
+    '| Step | Name | Budget (min) | Phase | Cursor | Runs again without harm because |',
+    '|---|---|---|---|---|---|',
+  );
+  for (const s of c.NIGHT_STEPS)
+    L.push(
+      `| ${s.step} | ${s.name}${s.sunday ? ' (Sunday)' : ''} | ${s.budget_min} | ${s.phase} | ${s.cursor ? 'yes' : 'no'} | ${cell(s.idempotent)} |`,
+    );
   L.push('', '## Error codes', '', '| Code | Status | Message |', '|---|---|---|');
   for (const [code, [status, message]] of Object.entries(c.CODES)) L.push(`| \`${code}\` | ${status} | ${cell(message)} |`);
   L.push('', '## Phrase lint', '', BANNED_PHRASES.map((p) => `"${p}"`).join(' · '), '');

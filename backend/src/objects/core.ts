@@ -2,7 +2,8 @@
 // thin call into an area, every write runs through `write` (commit.ts: area mutation + ledger +
 // change feed in one transaction, then the live channel), and area failures come back as
 // `{ok:false, code}` (lib/result.ts). No timers: wake retries and requeues use the alarm. The P1
-// data, the feed and the sockets are in core-base.ts; memory (P3) is in core-memory.ts.
+// data, the feed and the sockets are in core-base.ts; memory (P3) is in core-memory.ts and the
+// night shift's run and input in core-night.ts.
 import type {
   BriefRequest,
   JsonObject,
@@ -24,6 +25,7 @@ import * as ledger from '../areas/ledger/ops';
 import { type LedgerFilter, page as ledgerPage } from '../areas/ledger/store';
 import { assemble } from '../areas/mind/assemble';
 import { type FireResult, fire, fireConfig } from '../areas/mind/fire';
+import { nightWake } from '../areas/mind/night';
 import * as mind from '../areas/mind/ops';
 import * as stop from '../areas/mind/stop';
 import * as mstore from '../areas/mind/store';
@@ -35,11 +37,11 @@ import * as verbs from '../areas/verbs/ops';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
-import { CoreMemory } from './core-memory';
+import { CoreNight } from './core-night';
 
 const PRUNE_STEP = 2_000;
 
-export class Core extends CoreMemory {
+export class Core extends CoreNight {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
@@ -109,7 +111,9 @@ export class Core extends CoreMemory {
       const claimed = r.claim ? this.write((w) => mind.claim(w, r, this.tz())).wake : null;
       // A claim hands out what the briefing shows: the requeue alarm must cover it.
       if (r.claim) this.schedule();
-      return assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256, r.session_id);
+      return assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256, r.session_id, {
+        nightConfigured: this.nightConfigured(),
+      });
     });
   }
 
@@ -165,15 +169,24 @@ export class Core extends CoreMemory {
     this.schedule();
   }
 
-  /** The 15-minute cron: the day roll after 60 quiet minutes, expiring verbs, and once a logical
-   * day the prune pass (DATA.md §10, JOBS.md §4.4). */
-  tick(now = Date.now()): { rolled: string | null; pruned: number } {
+  /** The 15-minute cron: the day roll after 60 quiet minutes (which fires the night shift for the
+   * day it closed, once the mind-night task is connected), expiring verbs, and once a logical day
+   * the prune pass (DATA.md §10, JOBS.md §4.4). The fire runs after the roll's commit. */
+  async tick(now = Date.now()): Promise<{ rolled: string | null; pruned: number; night: string | null }> {
     const tz = this.tz();
     const d = day.currentDay(this.db, tz, now);
     const due = day.rollDue(d, now, tz, cstore.lastMessageAt(this.db));
-    if (due) this.write((w) => convo.roll(w, due), now);
+    const wakeNight = due
+      ? this.write((w) => {
+          convo.roll(w, due);
+          return nightWake(w, due, this.nightConfigured());
+        }, now)
+      : null;
     this.write((w) => verbs.settle(w), now);
-    return { rolled: due, pruned: this.pruneDaily(now, day.logicalDay(now, tz)) };
+    const pruned = this.pruneDaily(now, day.logicalDay(now, tz));
+    const cfg = wakeNight ? fireConfig(this.env, 'night') : null;
+    if (wakeNight && cfg) this.recordFire(wakeNight.id, await fire(cfg));
+    return { rolled: due, pruned, night: wakeNight?.id ?? null };
   }
 
   /** Every table's prune, ≤ 2,000 rows each a step. The day counts as done only when no prune was
