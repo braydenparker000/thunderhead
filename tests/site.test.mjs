@@ -10,7 +10,7 @@ import { APP_ROUTES } from '../scripts/site-config.mjs';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
 const SITE = join(REPO, 'frontend');
-const SIGNIN_PAGES = ['signin/index.html', 'setup/index.html', 'recover/index.html'];
+const SIGNIN_PAGES = ['signin/index.html', 'setup/index.html', 'recover/index.html', 'import/index.html'];
 const PAGES = ['index.html', '404.html', '.well-known/change-password/index.html', ...SIGNIN_PAGES];
 
 async function files(dir) {

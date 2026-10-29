@@ -31,3 +31,4 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-sm
 .toast{position:fixed;left:50%;top:calc(18px + env(safe-area-inset-top,0px));transform:translate(-50%,-8px);z-index:50;max-width:calc(100% - 32px);padding:9px 14px;border-radius:12px;background:var(--disc);border:1px solid var(--disc-line);font:500 13px var(--ui);color:var(--ink);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
 .toast.show{opacity:1;transform:translate(-50%,0)}
 @media (prefers-reduced-motion: reduce){.field::before,.field::after{animation:none}.toast{transition:none}}
+.counts{margin:16px 0 0;padding:0 0 0 18px;font:500 14px/1.6 var(--ui);color:var(--ink-2)}
