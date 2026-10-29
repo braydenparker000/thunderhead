@@ -27,6 +27,11 @@
   // Classic migrations array (decision: not the newer `exports` field, which cannot be undone).
   // A class added later gets its own tag in its own deploy, because rollback cannot cross it.
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Core", "Auth"] }],
+  // The private bucket (DATA.md §7.1, SETUP.md J2): never public, no r2.dev, no custom domain.
+  // P3 keeps the old Worker's export parts and manifest in it (imports/old/). A rollback stays
+  // safe while the bucket exists; without the binding (local dev, older configs) the routes
+  // that need it answer 503 not_configured.
+  "r2_buckets": [{ "binding": "VAULT", "bucket_name": "thunderhead-private" }],
   // Secret names only; values never live in files. Listing them makes a deploy refuse to ship
   // without them, and is also what lets local dev load them from .dev.vars. A secret that is not
   // configured yet holds the literal `none` (the deploy writes it); nothing ever runs

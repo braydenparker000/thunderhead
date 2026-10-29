@@ -104,10 +104,10 @@ export const ROUTES = {
   'PUT /v1/memory/day-notes/:day': { who: ['D', 'N'], phase: 'P3', note: "device: the owner's edit (written_by owner)" },
   'PUT /v1/memory/open-threads/:id': { who: ['D', 'C', 'N'], phase: 'P3' },
   'PATCH /v1/memory/open-threads/:id': { who: ['D', 'C', 'N'], phase: 'P3', note: '{status, why}: done or dropped' },
-  'POST /v1/import/runs': { who: ['D', 'C'], phase: 'P3', deferred: 'P3 stage D (the import)' },
-  'POST /v1/ops/import/parts': { who: ['C', 'I'], phase: 'P3', deferred: 'P3 stage D (the import)' },
-  'PUT /v1/ops/import/manifest/:run_id': { who: ['C', 'I'], phase: 'P3', deferred: 'P3 stage D (the import)' },
-  'GET /v1/import/runs/:id': { who: AGENTS_READ, phase: 'P3', deferred: 'P3 stage D (the import)' },
+  'POST /v1/import/runs': { who: ['D', 'C'], phase: 'P3', note: 'one dataset of an export run; 503 not_configured without VAULT' },
+  'POST /v1/ops/import/parts': { who: ['C', 'I'], phase: 'P3', note: 'one gzip JSONL part of the old export, stored as sent' },
+  'PUT /v1/ops/import/manifest/:run_id': { who: ['C', 'I'], phase: 'P3', note: "the export run's manifest, written last" },
+  'GET /v1/import/runs/:id': { who: AGENTS_READ, phase: 'P3', note: 'state, counts and the verification report' },
 
   // --- P4: proposals, backups, export, Muse -----------------------------------------------------
   'PUT /v1/proposals/:id': { who: MIND, phase: 'P4' },

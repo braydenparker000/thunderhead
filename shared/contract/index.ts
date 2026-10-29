@@ -4,6 +4,7 @@
 // docs/engineering/CONTRACT.md; a test fails when any of them is stale. Types are in api.ts.
 export { CODES } from './codes.ts';
 export * from './feed.ts';
+export * from './imports.ts';
 export * from './memory.ts';
 export * from './night.ts';
 export { BUILT_PHASES, builtRoutes, type Phase, ROUTES, type RouteKey, type RouteSpec, type Who } from './routes.ts';

@@ -63,4 +63,5 @@ export const CODES: Record<ErrorCode, readonly [status: number, message: string]
   budget_exhausted: [503, "Today's free-plan budget is used up."],
   auth_unavailable: [503, 'Sign-in is unavailable.'],
   unavailable: [503, 'Temporarily unavailable.'],
+  not_configured: [503, 'This needs a binding that is not set up yet.'],
 };

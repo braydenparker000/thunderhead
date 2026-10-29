@@ -3,6 +3,7 @@
 // responses with `satisfies`; the frontend imports them through JSDoc. Wire format is snake_case.
 export type * from './actions';
 export type * from './conversation';
+export type * from './imports';
 export type * from './memory';
 export type { ErrorBody, ErrorCode, ErrorDetails, Issue, RevokeReason } from './errors';
 export type { AppId, ChangeKind, FrameType, SearchSource } from './feed';

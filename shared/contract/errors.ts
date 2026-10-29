@@ -67,7 +67,8 @@ export type ErrorCode =
   | 'upstream'
   | 'budget_exhausted'
   | 'auth_unavailable'
-  | 'unavailable';
+  | 'unavailable'
+  | 'not_configured';
 
 /** One schema or rule problem: the field path and what is wrong with it (never the value). */
 export interface Issue {
