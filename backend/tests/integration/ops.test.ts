@@ -36,7 +36,7 @@ describe('deep health', () => {
       expect(body).toEqual({
         ok: true,
         version: { id: env.VERSION.id, tag: env.VERSION.tag || null },
-        schema: { core: 19, auth: 1 },
+        schema: { core: 19, auth: 1, music: 1 },
         objects: {
           core: {
             ok: true,
@@ -47,6 +47,14 @@ describe('deep health', () => {
             last_alarm_at: null,
           },
           auth: {
+            ok: true,
+            schema: 1,
+            expected: 1,
+            db_bytes: expect.any(Number),
+            jobs_backlog: 0,
+            last_alarm_at: null,
+          },
+          music: {
             ok: true,
             schema: 1,
             expected: 1,
@@ -158,7 +166,7 @@ describe('settings, perf and meter', () => {
     expect((await api('POST', '/v1/ops/perf', { token: owner, body })).status).toBe(204);
     expect(await coreSql('SELECT metric, n FROM perf_days')).toEqual([{ metric: 'inp', n: 30 }]);
     const m = await apiJson<MeterResponse>('GET', '/v1/ops/meter?days=7', { token: ci });
-    expect(m.body.items.map((i) => i.class).sort()).toEqual(['auth', 'core']);
+    expect(m.body.items.map((i) => i.class).sort()).toEqual(['auth', 'core', 'music']);
     expect((await api('GET', '/v1/ops/meter?days=31', { token: ci })).status).toBe(422);
   });
 });

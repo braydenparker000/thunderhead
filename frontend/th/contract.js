@@ -24,7 +24,7 @@ export const FRAME_TYPES = Object.freeze(["hello","changed","typing","bye"]);
 export const CLOSE_CODES = Object.freeze({"revoked":4401,"outdated":4426,"restart":1012});
 
 /** @type {readonly import('../../shared/contract/routes.ts').Phase[]} */
-export const BUILT_PHASES = Object.freeze(["P1","P1b","P2","P3","P4"]);
+export const BUILT_PHASES = Object.freeze(["P1","P1b","P2","P3","P4","P5"]);
 
 /** @type {Readonly<Record<AppId, { path: string, name: string, phase: string }>>} */
 export const APPS = Object.freeze({"music":{"path":"/music/","name":"Music","phase":"P1b"},"guitar":{"path":"/guitar/","name":"Guitar","phase":"P1b"},"podcasts":{"path":"/podcasts/","name":"Podcasts","phase":"P1b"},"astra":{"path":"/astra/","name":"Astra","phase":"P1b"},"media":{"path":"/media/","name":"My Media","phase":"P1b"},"study":{"path":"/study/","name":"Study","phase":"P7"}});

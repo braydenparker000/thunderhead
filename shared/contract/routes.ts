@@ -95,7 +95,11 @@ export const ROUTES = {
   'GET /v1/surfaces': { who: AGENTS_READ, phase: 'P2' },
   'PUT /v1/surfaces/:app/:slot': { who: ['C', 'N'], phase: 'P2' },
   'DELETE /v1/surfaces/:app/:slot': { who: ['D', 'C', 'N'], phase: 'P2' },
-  'POST /v1/media/sign': { who: ['D', 'C', 'N'], phase: 'P2', deferred: 'the private bucket (SETUP.md J2)' },
+  'POST /v1/media/sign': {
+    who: ['D', 'C', 'N'],
+    phase: 'P2',
+    note: 'built with P5: music: refs, the device only; book: and file: refs are not signable yet; 503 not_configured until the signing key is set',
+  },
 
   // --- P3: memory and the night shift -----------------------------------------------------------
   'POST /v1/mind/night': { who: ['N'], phase: 'P3', note: 'the night run: start, step done, cursor, done' },
@@ -181,19 +185,21 @@ export const ROUTES = {
   'GET /v1/board/editions/:day': { who: ['D', 'C', 'N'], phase: 'P4', note: 'outside text from Muse, checked against the v2 schema' },
 
   // --- P5 and later ---------------------------------------------------------------------------
-  'PUT /v1/senses/batches/:id': { who: D, phase: 'P5' },
-  'POST /v1/senses/query': { who: MIND, phase: 'P5' },
-  'GET /v1/jobs/next': { who: ['N', 'I'], phase: 'P5' },
-  'POST /v1/jobs/:id/collect': { who: ['N', 'I'], phase: 'P5' },
-  'GET /v1/jobs/:id': { who: ['C', 'N', 'R', 'I'], phase: 'P5' },
-  'GET /v1/jobs/:id/spec': { who: ['I'], phase: 'P5' },
+  'GET /v1/music/catalog': { who: D, phase: 'P5', note: "the ported player's format; ETag, 304; 409 before the import" },
+  'GET /v1/music/waveforms/:id': { who: D, phase: 'P5' },
+  'PUT /v1/senses/batches/:id': { who: D, phase: 'P5', deferred: 'P5: the Senses object' },
+  'POST /v1/senses/query': { who: MIND, phase: 'P5', deferred: 'P5: the Senses object' },
+  'GET /v1/jobs/next': { who: ['N', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
+  'POST /v1/jobs/:id/collect': { who: ['N', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
+  'GET /v1/jobs/:id': { who: ['C', 'N', 'R', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
+  'GET /v1/jobs/:id/spec': { who: ['I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
   'PUT /v1/pushes/:id': { who: ['C'], phase: 'P8' },
 } as const satisfies Record<string, RouteSpec>;
 
 export type RouteKey = keyof typeof ROUTES;
 
 /** The phases whose routes are live in this build (the scope test registers exactly these). */
-export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4'];
+export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P5'];
 
 /** The rows this build must register: built phases, minus deferred rows. */
 export function builtRoutes(): [RouteKey, RouteSpec][] {

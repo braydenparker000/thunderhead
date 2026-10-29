@@ -43,7 +43,8 @@
   // `wrangler secret delete` on a listed name. ROUTINE_CHAT_URL/TOKEN are the mind-chat task's
   // API trigger (SETUP.md K), ROUTINE_NIGHT_URL/TOKEN the mind-night task's (SETUP.md L1),
   // ROUTINE_REFLEX_URL/TOKEN the mind-reflex task's (SETUP.md M2); while a pair is `none` that
-  // task is never fired.
+  // task is never fired. R2_SIGN_ACCESS_KEY_ID/SECRET are the read-only R2 token that signs media
+  // links (SECURITY.md §9, SETUP.md N1); while either is `none`, POST /v1/media/sign answers 503.
   "secrets": {
     "required": [
       "AUTH_PEPPER",
@@ -55,13 +56,18 @@
       "ROUTINE_NIGHT_URL",
       "ROUTINE_NIGHT_TOKEN",
       "ROUTINE_REFLEX_URL",
-      "ROUTINE_REFLEX_TOKEN"
+      "ROUTINE_REFLEX_TOKEN",
+      "R2_SIGN_ACCESS_KEY_ID",
+      "R2_SIGN_SECRET"
     ]
   },
   "vars": {
     // Exact site origins allowed by CORS, comma-separated. The real value comes from the
     // `worker` environment through `wrangler deploy --var`; this placeholder matches nothing real.
     "SITE_ORIGINS": "https://thunderhead.zNN.web.core.windows.net",
+    // The account's R2 host for signed media links (`<id>.r2.cloudflarestorage.com`). The real id
+    // comes from the `worker` environment's CLOUDFLARE_ACCOUNT_ID through `--var`, never this file.
+    "R2_ACCOUNT_ID": "none",
     // Fallback only. The owner's real time zone is the private Core setting `owner.tz`, set from
     // the phone, never written in this public repo.
     "OWNER_TZ": "UTC",

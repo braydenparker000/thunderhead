@@ -18,6 +18,7 @@ import { decodeCursor, encodeCursor } from '../../lib/cursor';
 import { utcDay } from '../../lib/time';
 import { authObject } from '../../objects/auth';
 import { coreObject } from '../../objects/core';
+import { musicObject } from '../../objects/music';
 import { errorsBody, errorsQuery, meterQuery, perfBody, settingsPatch } from './schema';
 
 export function version(env: Env): Version {
@@ -49,9 +50,10 @@ export const opsRoutes = new Hono<AppEnv>()
   )
   // Counts only, never content (ci keys see the same).
   .get('/ops/health/deep', guard('GET /v1/ops/health/deep'), async (c) => {
-    const [core, auth, backup] = await Promise.all([
+    const [core, auth, music, backup] = await Promise.all([
       coreObject(c.env).deepHealth(),
       authObject(c.env).health(),
+      musicObject(c.env).health(),
       // A Core still on the release before backups has no lastBackup: none yet.
       coreObject(c.env)
         .lastBackup()
@@ -60,7 +62,7 @@ export const opsRoutes = new Hono<AppEnv>()
     const lastBackup = backup ? { date: backup.date, age_h: backup.age_h } : null;
     rememberMinClient(core.min_client);
     const objects = Object.fromEntries(
-      Object.entries({ core, auth }).map(([k, h]) => [
+      Object.entries({ core, auth, music }).map(([k, h]) => [
         k,
         {
           ok: h.schema >= h.expected,
@@ -77,11 +79,11 @@ export const opsRoutes = new Hono<AppEnv>()
       // From the first complete backup on, one older than 8 days is not ok (API.md §11.1).
       ok: Object.values(objects).every((o) => o.ok) && (lastBackup === null || lastBackup.age_h <= 8 * 24),
       version: version(c.env),
-      schema: { core: core.schema, auth: auth.schema },
+      schema: { core: core.schema, auth: auth.schema, music: music.schema },
       objects,
       meter_today: {
-        rows_written: core.rows_written + auth.rows_written,
-        rows_read: core.rows_read + auth.rows_read,
+        rows_written: core.rows_written + auth.rows_written + music.rows_written,
+        rows_read: core.rows_read + auth.rows_read + music.rows_read,
         bulk_rows_written: 0,
         bulk_lane: null,
       },
@@ -125,9 +127,13 @@ export const opsRoutes = new Hono<AppEnv>()
   // P1 has no meter table yet: today's in-memory counts per class (DATA.md §3).
   .get('/ops/meter', guard('GET /v1/ops/meter'), async (c) => {
     parse(meterQuery, c.req.query());
-    const [core, auth] = await Promise.all([coreObject(c.env).health(), authObject(c.env).health()]);
+    const [core, auth, music] = await Promise.all([
+      coreObject(c.env).health(),
+      authObject(c.env).health(),
+      musicObject(c.env).health(),
+    ]);
     const day = utcDay(Date.now());
-    const items = Object.entries({ core, auth }).map(([cls, h]) => ({
+    const items = Object.entries({ core, auth, music }).map(([cls, h]) => ({
       day,
       class: cls,
       rows_written: h.rows_written,

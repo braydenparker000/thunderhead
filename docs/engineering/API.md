@@ -123,8 +123,8 @@ Acceptance: `backend/tests/integration/route-scopes.test.ts` walks §13. For eve
 |---|---|
 | Allowed origins | Exact strings from the var `SITE_ORIGINS`: the new storage website origin only. The old site's origin is never allowed (the phone export travels as a file, [MIGRATION.md §5](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)) |
 | Methods | `GET, POST, PUT, PATCH, DELETE` |
-| Allowed headers | `Authorization, Content-Type, TH-Client, TH-File-Name, TH-Sha256` (browsers never send `TH-Session`) |
-| Exposed headers | `TH-Request-Id, TH-Server, TH-Min-Client, Retry-After` |
+| Allowed headers | `Authorization, Content-Type, TH-Client, TH-File-Name, TH-Sha256, If-None-Match` (browsers never send `TH-Session`; `If-None-Match` revalidates the music catalog, P5) |
+| Exposed headers | `TH-Request-Id, TH-Server, TH-Min-Client, Retry-After, ETag` |
 | `Access-Control-Max-Age` | `7200` (Chrome's cap) |
 | Credentials | never (`Access-Control-Allow-Credentials` is not sent) |
 | `Vary` | `Origin` |
@@ -513,6 +513,7 @@ type MemoryOp =
 - Signing time (`X-Amz-Date`) is floored to the hour, and every URL expires 3 h after that, so it is valid for at least 2 h and identical within the hour (browser caching works). The client re-signs on a 403.
 - Ref → key mapping is in [DATA.md §7.4](DATA.md#74-media-ref--key-map-used-by-post-v1mediasign). Bucket keys never appear in requests.
 - Never put a signed URL in the address bar, history or logs.
+- Built in P5 step 2 (`backend/src/areas/music/sign.ts`, SigV4 on WebCrypto, checked against AWS's own presigned-URL example): `music:<id>` (the track's audio) and `music:<id>#art` (its cover) for the device; a mind's music ref, and every `book:`/`file:` ref until their homes exist, is `not_signable`; an unknown track, or art for a track without a cover, is `not_found`. `503 not_configured` until the owner sets the read-only signing token (`R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET`, [SETUP.md N1](../process/SETUP.md)); the account's R2 host comes from the deploy's `CLOUDFLARE_ACCOUNT_ID` (`R2_ACCOUNT_ID`).
 
 ### 11.16 Ops
 
@@ -542,7 +543,7 @@ type MemoryOp =
 |---|---|---|---|
 | `POST /v1/ops/import/parts` | the `mind:chat` key named `import-once` only | raw gzip JSONL part, sent as the old export answered it; headers `TH-Import: <run_id>/<instance>/<table>/<nnnn>` (from `0001`), `TH-Sha256`, `TH-Rows` (≤ 2,000 rows, ≤ 25 MiB; the route holds the part in memory once and reads only its first row's names, from 64 KiB slices) | `201 { key }` (idempotent by the header path; 409 if the bytes differ; 422 on a wrong digest; 415 if not gzip JSONL; 403 for a never-exported table, by its name or a credential column in its first row, `IMPORT_NEVER_EXPORT` and `IMPORT_SECRET_COLUMN` in `shared/contract/imports.ts`) |
 | `PUT /v1/ops/import/manifest/:run_id` | the `import-once` key only | the manifest JSON ([MIGRATION.md §3](MIGRATION.md); `ImportManifest` in `shared/contract/imports.ts`) | `201` (the same again is fine; another one 409). Written last: every part it names must be stored with its SHA-256 (422 naming the first that is not), one SHA-256 per part, and a never-exported table has counts only (403 with parts) |
-| `POST /v1/import/runs` | device, or the `import-once` key | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music' }` | `202 { import_id }` (422: a dataset not built yet, a run without a manifest or that table, messages before threads are done; 409: the id names another run, or the dataset is already running) |
+| `POST /v1/import/runs` | device, or the `import-once` key | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music'\|'music_log' }` | `202 { import_id }` (422: a dataset not built yet, a run without a manifest or that table, messages before threads or the music log before the music are done; 409: the id names another run, or the dataset is already running) |
 | `GET /v1/import/runs/:id` | device, agents | — | `200 ImportStatus { id, run_id, dataset, state, counts: { expected, imported, skipped, skip_reasons, files_waiting }, report: { spot_checks: {seed, checked, passed, failed}, thread_shapes: {checked, failed} \| null, rows_changed, rerun_delta } \| null, last_error, started_at, finished_at }` |
 | `POST /v1/import/phone` | device, from the new site's `/import/` page only (P1b) | `{ id: Id, chunk: number, chunks: number, exported_at: Ms, data: Record<string, unknown> }` (`data` = the `th-phone-export/2` file), gzip, ≤ 5 MB per chunk ([MIGRATION.md §5.3](MIGRATION.md#53-the-two-pages)) | `201 { import_id, counts: Record<string, number> }` (after the last chunk) |
 
@@ -602,7 +603,7 @@ The ported apps (P1b) call the old Worker, not this API. Each app's routes are a
 
 | App (data move) | Routes named in its doc |
 |---|---|
-| Music (P5) | `GET /v1/music/catalog`; `/v1/music/uploads/*` for the upload tools ([MUSIC.md](../product/apps/MUSIC.md), [MIGRATION.md §7](MIGRATION.md#7-caller-switch-over-order)) |
+| Music (P5) | Built: `GET /v1/music/catalog` (device; the whole catalog in the ported player's own `r2-library` format without waveforms, `ETag` and `304` on `If-None-Match`, `409 conflict` before the I7 import; `MusicCatalog` in `shared/contract/music.ts`), `GET /v1/music/waveforms/:id` (device; `{ id, bars }`, base64 of one byte a bar; 404 when the track has none). Next: `/v1/music/uploads/*` for the upload tools ([MUSIC.md](../product/apps/MUSIC.md), [MIGRATION.md §7](MIGRATION.md#7-caller-switch-over-order)) |
 | Guitar (P6) | The Songsterr and tab-source passthrough the old `/guitar/*` routes provide ([GUITAR.md](../product/apps/GUITAR.md) §11) |
 | Study (P7) | `POST /v1/library/books`, `PUT /v1/library/books/:id/parts/:n`, `POST /v1/library/books/:id/complete`, `PUT /v1/library/books/:id/pages`, `PUT /v1/library/highlights/:id`, `PUT /v1/library/positions/:book_id` ([STUDY.md](../product/apps/STUDY.md)) |
 | Podcasts (P8) | `GET /v1/podcasts/directory`, `GET /v1/podcasts/feed`, `GET /v1/podcasts/audio`, `GET /v1/podcasts/file`, `POST /v1/podcasts/check`, `PUT /v1/podcasts/progress` ([PODCASTS.md](../product/apps/PODCASTS.md)) |
@@ -709,7 +710,8 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `DELETE /v1/board/approval`, `GET /v1/briefing` | D | P4 |
 | `PUT /v1/senses/batches/:id` | D | P5 |
 | `POST /v1/senses/query` | C N R | P5 |
-| `POST /v1/media/sign` | D (C N for `book:`/`file:`) | P5 (P2 for `file:` refs) |
+| `POST /v1/media/sign` | D (C N for `book:`/`file:`) | P5 (P2 for `file:` refs) · built: `music:` refs for D; `book:`/`file:` refs answer `not_signable` until their homes exist |
+| `GET /v1/music/catalog`, `GET /v1/music/waveforms/:id` | D | P5 |
 | `POST /v1/import/phone` | D | P1b |
 | `GET /v1/jobs/next`, `POST /v1/jobs/:id/collect` | N I | P5 |
 | `GET /v1/jobs/:id` | C N R I | P5 |

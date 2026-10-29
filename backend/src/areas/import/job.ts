@@ -6,7 +6,7 @@
 // every thread's count and first and last times must equal the source's (carried in the cursor).
 // A run of a dataset already imported reports how many rows it changed (`rerun_delta`, 0
 // expected). Its end is one ledger row with counts only. Uses the bulk lane; three failures in a
-// row fail the run.
+// row fail the run. The music catalog's rows (I7) go to the Music object instead (./music.ts).
 import type { ImportDataset } from '../../../../shared/contract/api';
 import { IMPORT_SPOT_CHECKS } from '../../../../shared/contract/imports.ts';
 import type { Db } from '../../objects/base';
@@ -24,13 +24,14 @@ import {
   type Refs,
   threadKey,
 } from './map';
+import { failedChecks, isMusic, type MusicPart, putPart, tally } from './music';
 import * as store from './store';
 import { readPart, sha256 } from './vault';
 
 export interface ImportPayload {
   import_id: string;
   run_id: string;
-  dataset: Extract<ImportDataset, 'threads' | 'messages' | 'notebook'>;
+  dataset: Extract<ImportDataset, 'threads' | 'messages' | 'notebook' | 'music' | 'music_log'>;
   instance: string;
   table: string;
   rows: number;
@@ -45,7 +46,11 @@ export interface ImportPayload {
 type Shape = Record<string, [n: number, first: number, last: number]>;
 type Cursor = { phase: 'rows'; part: number; shape?: Shape } | { phase: 'verify'; shape?: Shape };
 type AnyMapped = Mapped<convo.ImportedThread | convo.ImportedMessage | NotebookItem>;
-type Input = { rows: AnyMapped[] } | { seed: number; samples: AnyMapped[] };
+type Input =
+  | { rows: AnyMapped[] }
+  | { seed: number; samples: AnyMapped[] }
+  | { music: MusicPart }
+  | { seed: number; checked: number; failed: string[] };
 
 const PART_ROWS = 2_000;
 /** What the ledger row calls each dataset's rows. */
@@ -53,6 +58,8 @@ const NOUN: Record<ImportPayload['dataset'], string> = {
   threads: 'conversations',
   messages: 'messages',
   notebook: 'notebook rows',
+  music: 'songs',
+  music_log: 'catalog changes',
 };
 const refCache = new Map<string, Refs>();
 
@@ -115,6 +122,7 @@ export const importJob: JobHandler = {
     const c = first(cursor, p);
     if (c.phase === 'rows') {
       const rows = await readPart(vault, p.run_id, p.instance, p.table, c.part, p.sha256s[c.part - 1]);
+      if (isMusic(p.dataset)) return { music: await putPart(env, p.dataset, rows, Date.now()) } satisfies Input;
       return { rows: await mapAll(rows, p, db, env, vault) } satisfies Input;
     }
     // 20 source rows (or all, if fewer), by a seeded draw over the table's rows in part order.
@@ -136,6 +144,8 @@ export const importJob: JobHandler = {
       const rows = await readPart(vault, p.run_id, p.instance, p.table, part + 1, p.sha256s[part]);
       for (const o of offsets) if (rows[o]) sampled.push(rows[o]);
     }
+    if (isMusic(p.dataset))
+      return { seed, checked: sampled.length, failed: await failedChecks(env, p.dataset, sampled) } satisfies Input;
     return { seed, samples: await mapAll(sampled, p, db, env, vault) } satisfies Input;
   },
   step(w, payload, cursor, input) {
@@ -146,17 +156,23 @@ export const importJob: JobHandler = {
     const counts = JSON.parse(run.counts_json) as store.RunCounts;
     const shape = p.dataset === 'messages' ? { ...c.shape } : undefined;
     if (c.phase === 'rows') {
-      put(w, p, (input as { rows: AnyMapped[] }).rows, counts, shape);
+      const m = 'music' in (input as object) ? (input as { music: MusicPart }).music : null;
+      if (m) tally(counts, m);
+      else put(w, p, (input as { rows: AnyMapped[] }).rows, counts, shape);
       const last = c.part >= p.sha256s.length;
       store.setImport(w.db, p.import_id, { state: last ? 'verifying' : 'running', counts });
-      return { next: last ? { phase: 'verify', shape } : { phase: 'rows', part: c.part + 1, shape } };
+      const rows = m?.written ?? 0;
+      return { next: last ? { phase: 'verify', shape } : { phase: 'rows', part: c.part + 1, shape }, rows };
     }
-    const { seed, samples } = input as { seed: number; samples: AnyMapped[] };
-    const failed = samples.filter((s) => !matches(w.db, p.dataset, s)).map((s) => s.old_id);
+    const i = input as { seed: number; samples?: AnyMapped[]; checked?: number; failed?: string[] };
+    const seed = i.seed;
+    const samples = i.samples ?? [];
+    const failed = i.failed ?? samples.filter((s) => !matches(w.db, p.dataset, s)).map((s) => s.old_id);
+    const checked = i.checked ?? samples.length;
     const shapes = shape ? { checked: Object.keys(shape).length, failed: misshapen(w.db, shape) } : null;
     const whole = counts.imported + counts.skipped === counts.expected;
     const report = {
-      spot_checks: { seed, checked: samples.length, passed: samples.length - failed.length, failed },
+      spot_checks: { seed, checked, passed: checked - failed.length, failed },
       thread_shapes: shapes,
       rows_changed: counts.rows_changed,
       rerun_delta: store.doneBefore(w.db, p.run_id, p.dataset, p.import_id) ? counts.rows_changed : null,
@@ -182,7 +198,7 @@ export const importJob: JobHandler = {
         ? stopped(p, error)
         : `Imported ${counts.imported} of ${counts.expected} ${NOUN[p.dataset]} (${counts.skipped} skipped); ${n.passed} of ${n.checked} spot checks matched; ${counts.rows_changed} rows changed.`,
     );
-    if (counts.rows_changed > 0 && p.dataset !== 'notebook') w.change('thread');
+    if (counts.rows_changed > 0 && (p.dataset === 'threads' || p.dataset === 'messages')) w.change('thread');
     return { done: true };
   },
   failed(w, payload, code) {

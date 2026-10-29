@@ -14,6 +14,7 @@ import { importRoutes } from './areas/import/routes';
 import { ledgerRoutes } from './areas/ledger/routes';
 import { memoryRoutes } from './areas/memory/routes';
 import { mindRoutes } from './areas/mind/routes';
+import { musicRoutes } from './areas/music/routes';
 import { opsRoutes } from './areas/ops/routes';
 import { proposalsRoutes } from './areas/proposals/routes';
 import { searchRoutes } from './areas/search/routes';
@@ -80,5 +81,6 @@ export const app = new Hono<AppEnv>()
   .route('/v1', backupsRoutes)
   .route('/v1', workRoutes)
   .route('/v1', briefingRoutes)
+  .route('/v1', musicRoutes)
   .notFound(notFound)
   .onError(onError);

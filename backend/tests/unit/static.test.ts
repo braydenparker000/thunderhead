@@ -32,7 +32,8 @@ const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').re
 const config = JSON.parse(wrangler.replace(/^\s*\/\/.*$/gm, '')) as { vars: Record<string, string>; secrets: unknown };
 
 /** Every secret name (SECURITY.md §11) and var (OPERATIONS.md §2) the Worker reads. P2 adds the
- * mind-chat trigger (SETUP.md K) and the live-wait mode (X1), P3 the mind-night trigger (L1). */
+ * mind-chat trigger (SETUP.md K) and the live-wait mode (X1), P3 the mind-night trigger (L1), P4
+ * the reflex's, P5 the media signing key (N1), its account (from the deploy) and the Music object. */
 const SECRETS = [
   'AUTH_PEPPER',
   'IP_HASH_KEY',
@@ -44,9 +45,11 @@ const SECRETS = [
   'ROUTINE_NIGHT_TOKEN',
   'ROUTINE_REFLEX_URL',
   'ROUTINE_REFLEX_TOKEN',
+  'R2_SIGN_ACCESS_KEY_ID',
+  'R2_SIGN_SECRET',
 ];
-const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP', 'LIVE_WAIT'];
-const BINDINGS = ['VERSION', 'CORE', 'AUTH', 'VAULT'];
+const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP', 'LIVE_WAIT', 'R2_ACCOUNT_ID'];
+const BINDINGS = ['VERSION', 'CORE', 'AUTH', 'MUSIC', 'VAULT'];
 
 describe('source rules', () => {
   it('found the files it checks', () => {
@@ -83,6 +86,7 @@ describe('source rules', () => {
     for (const name of Object.keys(config.vars)) expect(name).not.toMatch(/KEY|SECRET|TOKEN|PEPPER|PASSWORD/);
     expect(config.vars.SITE_ORIGINS).toBe('https://thunderhead.zNN.web.core.windows.net');
     expect(config.vars.OWNER_TZ).toBe('UTC');
+    expect(config.vars.R2_ACCOUNT_ID).toBe('none');
     expect(wrangler).not.toMatch(/account_id|[0-9a-f]{32}/);
     for (const code of Object.values(src)) expect(code).not.toMatch(/locationHint/);
   });

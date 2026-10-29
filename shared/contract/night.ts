@@ -57,7 +57,15 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     cursor: false,
     phase: 'P3',
   },
-  { step: 6, name: 'indexing jobs', budget_min: 1, idempotent: 'jobs are keyed by their input', cursor: false, phase: 'P5' },
+  {
+    step: 6,
+    name: 'indexing jobs',
+    budget_min: 1,
+    idempotent: 'jobs are keyed by their input',
+    cursor: false,
+    phase: 'P5',
+    deferred: 'the indexing jobs (P5)',
+  },
   {
     step: 7,
     name: 'arrange tomorrow',

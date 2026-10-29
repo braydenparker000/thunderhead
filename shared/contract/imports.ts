@@ -40,7 +40,15 @@ export const IMPORT_SECRET_COLUMN =
 export const neverExported = (table: string, columns: readonly string[]): boolean =>
   IMPORT_NEVER_EXPORT.includes(table) || columns.some((c) => IMPORT_SECRET_COLUMN.test(c));
 
-export type ImportDataset = 'threads' | 'messages' | 'notebook' | 'muse' | 'board' | 'chat_files' | 'music';
+export type ImportDataset =
+  | 'threads'
+  | 'messages'
+  | 'notebook'
+  | 'muse'
+  | 'board'
+  | 'chat_files'
+  | 'music'
+  | 'music_log';
 
 export interface ImportDatasetSpec {
   /** MIGRATION.md §4's number. */
@@ -79,7 +87,9 @@ export const IMPORT_DATASETS: Readonly<Record<ImportDataset, ImportDatasetSpec>>
     built: false,
     waits: 'a read binding to jarvis-music for the copy into the private bucket',
   },
-  music: { item: 'I7', instance: 'music-catalog-v1', table: 'music_tracks', built: false, waits: 'the Music object (P5)' },
+  // I7 (P5): into the Music object, the tracks first, then their change log.
+  music: { item: 'I7', instance: 'music-catalog-v1', table: 'music_tracks', built: true },
+  music_log: { item: 'I7', instance: 'music-catalog-v1', table: 'music_log', built: true, after: ['music'] },
 };
 export const IMPORT_DATASET_NAMES = Object.keys(IMPORT_DATASETS) as [ImportDataset, ...ImportDataset[]];
 

@@ -500,7 +500,8 @@
         "N"
       ],
       "phase": "P2",
-      "status": "deferred: the private bucket (SETUP.md J2)"
+      "status": "built",
+      "note": "built with P5: music: refs, the device only; book: and file: refs are not signable yet; 503 not_configured until the signing key is set"
     },
     "POST /v1/mind/night": {
       "who": [
@@ -968,12 +969,27 @@
       "status": "built",
       "note": "outside text from Muse, checked against the v2 schema"
     },
+    "GET /v1/music/catalog": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "the ported player's format; ETag, 304; 409 before the import"
+    },
+    "GET /v1/music/waveforms/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built"
+    },
     "PUT /v1/senses/batches/:id": {
       "who": [
         "D"
       ],
       "phase": "P5",
-      "status": "later (P5)"
+      "status": "deferred: P5: the Senses object"
     },
     "POST /v1/senses/query": {
       "who": [
@@ -982,7 +998,7 @@
         "R"
       ],
       "phase": "P5",
-      "status": "later (P5)"
+      "status": "deferred: P5: the Senses object"
     },
     "GET /v1/jobs/next": {
       "who": [
@@ -990,7 +1006,7 @@
         "I"
       ],
       "phase": "P5",
-      "status": "later (P5)"
+      "status": "deferred: P5: the indexing jobs"
     },
     "POST /v1/jobs/:id/collect": {
       "who": [
@@ -998,7 +1014,7 @@
         "I"
       ],
       "phase": "P5",
-      "status": "later (P5)"
+      "status": "deferred: P5: the indexing jobs"
     },
     "GET /v1/jobs/:id": {
       "who": [
@@ -1008,14 +1024,14 @@
         "I"
       ],
       "phase": "P5",
-      "status": "later (P5)"
+      "status": "deferred: P5: the indexing jobs"
     },
     "GET /v1/jobs/:id/spec": {
       "who": [
         "I"
       ],
       "phase": "P5",
-      "status": "later (P5)"
+      "status": "deferred: P5: the indexing jobs"
     },
     "PUT /v1/pushes/:id": {
       "who": [
@@ -1598,7 +1614,8 @@
         "budget_min": 1,
         "idempotent": "jobs are keyed by their input",
         "cursor": false,
-        "phase": "P5"
+        "phase": "P5",
+        "deferred": "the indexing jobs (P5)"
       },
       {
         "step": 7,

@@ -147,7 +147,7 @@ jobs:
           SECRETS_FILE: ${{ steps.secrets.outputs.file }}
           TAG: ${{ steps.plan.outputs.tag }}
         run: |
-          args=(--config "$CONFIG" --var "SITE_ORIGINS:$SITE_ORIGINS" --tag "$TAG" --message "deploy $(git rev-parse HEAD)")
+          args=(--config "$CONFIG" --var "SITE_ORIGINS:$SITE_ORIGINS" --var "R2_ACCOUNT_ID:$CLOUDFLARE_ACCOUNT_ID" --tag "$TAG" --message "deploy $(git rev-parse HEAD)")
           [[ -n "$SECRETS_FILE" ]] && args+=(--secrets-file "$SECRETS_FILE")
           status=0
           npx wrangler deploy "${args[@]}" | tee "$RUNNER_TEMP/deploy.out" || status=$?

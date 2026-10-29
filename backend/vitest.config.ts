@@ -28,6 +28,9 @@ export default defineConfig({
           ROUTINE_NIGHT_TOKEN: 'none',
           ROUTINE_REFLEX_URL: 'none',
           ROUTINE_REFLEX_TOKEN: 'none',
+          // No media signing key in tests; the signing tests pass their own env.
+          R2_SIGN_ACCESS_KEY_ID: 'none',
+          R2_SIGN_SECRET: 'none',
           SITE_ORIGINS: 'https://site.example.test',
         },
       },

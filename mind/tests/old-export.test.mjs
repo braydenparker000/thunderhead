@@ -200,9 +200,12 @@ test('a failed import stops with its code and runs again alone; bad arguments an
     assert.equal(again.code, 5, 'the imports again, without the export');
     assert.equal(f.log.filter(l => l.side === 'old').length, 1 + 6, 'no old call the second time');
     assert.deepEqual(f.stored.runs.map(x => x.dataset), ['threads', 'messages', 'threads', 'messages']);
+    // The music catalog on its own day: only the datasets named, in that order.
+    await drive(f, ['--run', 'run-t4', '--imports-only', '--datasets', 'music,music_log']);
+    assert.deepEqual(f.stored.runs.slice(4).map(x => x.dataset), ['music', 'music_log']);
     const calls = f.log.length;
     for (const [args, extra] of [[['--run', 'bad id']], [['--run', 'ok', '--instances', 'nope']], [['--run', 'ok'], {OLD_API: ''}],
-      [['--run', 'ok', '--no-runs', '--imports-only']]]) {
+      [['--run', 'ok', '--no-runs', '--imports-only']], [['--run', 'ok', '--datasets', 'music,nope']]]) {
       const bad = await drive(f, args, extra);
       assert.equal(bad.code, 2, args.join(' '));
     }

@@ -6,7 +6,7 @@
 // OLD_TOKEN and TH_TOKEN are used only when set (local runs, tests).
 //
 //   node mind/jobs/old-export.mjs --run <run_id> [--deployed <time>] [--old-version <id>]
-//                                 [--instances a,b] [--no-runs | --imports-only]
+//                                 [--instances a,b] [--datasets a,b] [--no-runs | --imports-only]
 //
 // 1. Waits until 5 minutes after the old Worker's export deploy (`--deployed`, else 5 minutes from
 //    now): a Durable Object keeps its old code for about 4 minutes after a deploy.
@@ -21,6 +21,8 @@
 // 4. Unless --no-runs: starts the import of threads, then messages, then the notebook
 //    (POST /v1/import/runs) and waits for each (GET /v1/import/runs/:id). --imports-only does only
 //    this, for a run whose parts and manifest are stored (after a fix, the same parts again).
+//    --datasets names others, in order: the music catalog runs on its own day (MIGRATION.md §4),
+//    `--instances music-catalog-v1 --datasets music,music_log` (SETUP.md N3).
 // It prints counts only: never a row, a title or a body. The last line is one JSON summary.
 // Exit: 0 done, 2 usage, 3 the old Worker wrote a row, 4 a call failed, 5 an import failed or
 // did not finish in time.
@@ -31,7 +33,9 @@ import {fileURLToPath} from 'node:url';
 
 export const INSTANCES = ['claude-chat-v1', 'music-catalog-v1', 'jarvis-shared-v2', 'jarvis-makima-v1',
   'jarvis-coordination-v2', 'public-coordination-v2', 'jarvis-publication-v1'];
-/** The datasets built so far, in the order they must run (IMPORT_DATASETS in shared/contract). */
+/** The datasets built so far, in the order they must run (IMPORT_DATASETS in shared/contract), and
+ * the ones a run imports unless told otherwise: the old Chats. */
+export const ALL_DATASETS = ['threads', 'messages', 'notebook', 'music', 'music_log'];
 export const DATASETS = ['threads', 'messages', 'notebook'];
 const DEPLOY_WAIT_MS = 5 * 60_000;
 const RUN_ID = /^[A-Za-z0-9_-]{1,64}$/;
@@ -45,7 +49,7 @@ const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 const say = line => process.stdout.write(`${line}\n`);
 
 export function parseArgs(argv) {
-  const o = {runs: true, instances: INSTANCES};
+  const o = {runs: true, instances: INSTANCES, datasets: DATASETS};
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     const value = () => {
@@ -57,6 +61,7 @@ export function parseArgs(argv) {
     else if (a === '--deployed') o.deployed = value();
     else if (a === '--old-version') o.oldVersion = value();
     else if (a === '--instances') o.instances = value().split(',').filter(Boolean);
+    else if (a === '--datasets') o.datasets = value().split(',').filter(Boolean);
     else if (a === '--no-runs') o.runs = false;
     else if (a === '--imports-only') o.importsOnly = true;
     else throw new Stop(2, 'usage', `unknown argument ${a}`);
@@ -65,6 +70,8 @@ export function parseArgs(argv) {
   if (!RUN_ID.test(o.run ?? '')) throw new Stop(2, 'usage', '--run <run_id>: letters, digits, _ and -, at most 64');
   const unknown = o.instances.filter(n => !INSTANCES.includes(n));
   if (unknown.length || !o.instances.length) throw new Stop(2, 'usage', `--instances: some of ${INSTANCES.join(', ')}`);
+  if (!o.datasets.length || o.datasets.some(d => !ALL_DATASETS.includes(d)))
+    throw new Stop(2, 'usage', `--datasets: some of ${ALL_DATASETS.join(', ')}`);
   if (o.deployed !== undefined) {
     const t = /^\d+$/.test(o.deployed) ? Number(o.deployed) : Date.parse(o.deployed);
     if (!Number.isFinite(t)) throw new Stop(2, 'usage', '--deployed: an ISO time or epoch ms');
@@ -170,7 +177,7 @@ async function exportTable(s, o, instance, t) {
 
 async function runImports(s, o) {
   const out = {};
-  for (const dataset of DATASETS) {
+  for (const dataset of o.datasets) {
     const id = randomUUID();
     const res = await newCall(s, 'POST', '/v1/import/runs', {id, run_id: o.run, dataset}, `import ${dataset}`);
     if (res.status !== 202) throw await fail(res, `import ${dataset}`);

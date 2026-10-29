@@ -7,7 +7,7 @@ import { plan, requiredSecrets } from '../scripts/worker-secrets.mjs';
 
 const required = requiredSecrets(readFileSync(new URL('../backend/wrangler.jsonc', import.meta.url), 'utf8'));
 
-test('wrangler.jsonc lists the P1 secrets and the mind-chat (P2), mind-night (P3) and mind-reflex (P4) triggers', () => {
+test('wrangler.jsonc lists the P1 secrets, the mind-chat (P2), mind-night (P3) and mind-reflex (P4) triggers and the media signing key (P5)', () => {
   assert.deepEqual(required, [
     'AUTH_PEPPER',
     'IP_HASH_KEY',
@@ -19,6 +19,8 @@ test('wrangler.jsonc lists the P1 secrets and the mind-chat (P2), mind-night (P3
     'ROUTINE_NIGHT_TOKEN',
     'ROUTINE_REFLEX_URL',
     'ROUTINE_REFLEX_TOKEN',
+    'R2_SIGN_ACCESS_KEY_ID',
+    'R2_SIGN_SECRET',
   ]);
 });
 
@@ -44,6 +46,8 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
     ROUTINE_NIGHT_TOKEN: 'none',
     ROUTINE_REFLEX_URL: 'none',
     ROUTINE_REFLEX_TOKEN: 'none',
+    R2_SIGN_ACCESS_KEY_ID: 'none',
+    R2_SIGN_SECRET: 'none',
   });
   // The first P3 deploy onto a P2 Worker whose mind-chat trigger is set: only the night pair is
   // added, as `none`, and the chat pair is left as the owner set it.
@@ -53,11 +57,21 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
     ROUTINE_NIGHT_TOKEN: 'none',
     ROUTINE_REFLEX_URL: 'none',
     ROUTINE_REFLEX_TOKEN: 'none',
+    R2_SIGN_ACCESS_KEY_ID: 'none',
+    R2_SIGN_SECRET: 'none',
   });
-  // The first P4 stage D deploy onto a P3 Worker: only the reflex pair is added, as `none`.
+  // The first P4 stage D deploy onto a P3 Worker: the reflex pair (and the later signing key).
   const p3 = [...p2, ...['ROUTINE_NIGHT_URL', 'ROUTINE_NIGHT_TOKEN'].map((name) => ({ name }))];
-  assert.deepEqual(plan(required, { bootstrap: false, live: p3 }), { ROUTINE_REFLEX_URL: 'none', ROUTINE_REFLEX_TOKEN: 'none' });
-  const all = [...p3, ...['ROUTINE_REFLEX_URL', 'ROUTINE_REFLEX_TOKEN'].map((name) => ({ name }))];
+  assert.deepEqual(plan(required, { bootstrap: false, live: p3 }), {
+    ROUTINE_REFLEX_URL: 'none',
+    ROUTINE_REFLEX_TOKEN: 'none',
+    R2_SIGN_ACCESS_KEY_ID: 'none',
+    R2_SIGN_SECRET: 'none',
+  });
+  // The first P5 step 2 deploy onto a P4 Worker: only the signing key, as `none` until SETUP.md N1.
+  const p4 = [...p3, ...['ROUTINE_REFLEX_URL', 'ROUTINE_REFLEX_TOKEN'].map((name) => ({ name }))];
+  assert.deepEqual(plan(required, { bootstrap: false, live: p4 }), { R2_SIGN_ACCESS_KEY_ID: 'none', R2_SIGN_SECRET: 'none' });
+  const all = [...p4, ...['R2_SIGN_ACCESS_KEY_ID', 'R2_SIGN_SECRET'].map((name) => ({ name }))];
   assert.deepEqual(plan(required, { bootstrap: false, live: all }), {});
   assert.throws(() => plan(required, { bootstrap: false, live: live.slice(1) }), /AUTH_PEPPER/);
 });

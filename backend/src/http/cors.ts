@@ -8,8 +8,15 @@ import type { AppEnv } from './auth';
 import { ApiError, errorResponse } from './errors';
 
 export const PREFLIGHT_MAX_AGE = 7200;
-export const ALLOW_HEADERS = ['Authorization', 'Content-Type', 'TH-Client', 'TH-File-Name', 'TH-Sha256'];
-export const EXPOSE_HEADERS = ['TH-Request-Id', 'TH-Server', 'TH-Min-Client', 'Retry-After'];
+export const ALLOW_HEADERS = [
+  'Authorization',
+  'Content-Type',
+  'TH-Client',
+  'TH-File-Name',
+  'TH-Sha256',
+  'If-None-Match',
+];
+export const EXPOSE_HEADERS = ['TH-Request-Id', 'TH-Server', 'TH-Min-Client', 'Retry-After', 'ETag'];
 
 const parsed = new Map<string, Set<string>>();
 

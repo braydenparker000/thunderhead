@@ -5,11 +5,16 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
+**P5 · Evolve Music**, data move first (ROADMAP P5; owner steps in SETUP.md N).
+- Step 1, live since 22:32 UTC (`c369d05`, run #38): the `Music` object alone (migration tag `v2`; a class change can't be rolled back).
+- Step 2, going live with this push: the music catalog import (I7: datasets `music` then `music_log`, run by the owner as SETUP.md N3), `GET /v1/music/catalog` (the ported player's own format, ETag and 304), `GET /v1/music/waveforms/:id`, and `POST /v1/media/sign` for `music:` refs (signed links straight from `jarvis-music`, 503 until SETUP.md N1). Music is in deep health and the meter.
+- Next: the upload tools' routes (`/v1/music/uploads/*`, the catalog's single writer in `Music`, the `jarvis-music` write binding), Music in the weekly backup, then the ported player's switch (catalog, signed links, sign-in; its CSP) once N1–N3 are done. Music private (N5) and the hourly Drive workflow off are ask-first.
+
 **P4 · Safety, ops, switch-over**, built in batches (A+B, C, D, E+F, G+H with I), each reviewed, then deployed.
 - Live: A+B (owner-approved proposals, the decision card, the constitution pin, pinned by the owner; quiet hours) and C with C.5 (session taint, protected paths, the role matrix, the injection fixtures, the eval sandbox, the reader). SETUP.md M1 done.
 - Batch D, live since 21:12 UTC (`a02b5f7`): the watchdogs (six built of fourteen, Core v17, `GET /v1/ops/watchdogs`, a briefing line), `mind-reflex` woken by a trip (one open wake, 4 a day, `th reflex`, `th handled`, the Stop hook), and the drill (`th drill`). Inert until SETUP.md M2. The Agents page now says where a mind key goes (a network secret, `Bearer ` and the key).
 - Batch E+F, live since 21:45 UTC (`e0afe43`, Core v18): the weekly backup (Sundays 02:30 local), the monthly restore drill (first Sunday, after the backup), the backup watchdogs, and Settings → Export ("download everything"). The first backup and drill run on their own this Sunday; that drill is P4's "a restore drill passed".
-- Batch G+H, going live with this push (Core v19): work orders for Muse (`/v1/work/*`, the validator, leases, deadlines, Muse's thread), the Board brief with its standing approval card, the daily Board order, `muse.silent`, and the Briefing page with the Board reader. Owner step: SETUP.md M3 (the brief, the approval, Muse's key, the message to Muse).
+- Batch G+H, live since 22:26 UTC (`f82d706`, run #37; Core v19): work orders for Muse (`/v1/work/*`, the validator, leases, deadlines, Muse's thread), the Board brief with its standing approval card, the daily Board order, `muse.silent`, and the Briefing page with the Board reader. Owner step: SETUP.md M3 (the brief, the approval, Muse's key, the message to Muse).
 - Stage I (the switch-over docs) is written: MIGRATION.md §7 has P4's switch-over checklist; SETUP.md M4 retires `jc` from 2026-11-05.
 - P4's "done when": injection fixtures create nothing (built, C); one real watchdog handled end to end (SETUP.md M2's drill); a restore drill passed (the first runs on its own on Sunday 2026-11-01); the chat CLI and Muse use only the new Worker (`th` since 2026-10-29; Muse after SETUP.md M3, then 7 days of editions).
 
@@ -19,18 +24,21 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Next three tasks
 
-1. Deploy G+H and check it live. Sunday's first backup and drill are P4's "a restore drill passed".
-2. P5: Music's data moves to the new Worker (the ported player keeps working throughout).
-3. Owner: SETUP.md M2 (the reflex routine and its drill), M3 (Muse moves over), M4 from 2026-11-05.
+1. Deploy P5 step 2 and check it live; then the upload routes and Music's backup.
+2. The ported player's switch to the new Worker, built and tested, flipped once SETUP.md N1–N3 are done.
+3. Owner: SETUP.md N1–N3 (music), M2 (the reflex routine and its drill), M3 (Muse moves over), M4 from 2026-11-05. Sunday's first backup and drill are P4's "a restore drill passed".
 
 ## Blocked / waiting on the owner
 
-- SETUP.md M2 (batch D is live) and M3 (once G+H is live).
+- SETUP.md M2 (batch D is live) and M3 (G+H is live).
+- SETUP.md N1 (the signing token), N2 (`jarvis-music` CORS, ask-first) and N3 (the music catalog import): the player's switch waits on them.
 - The decision card's place at the top of home: the owner wants to talk about its design first; unchanged until then.
 
 ## Last deploy
 
-- 2026-10-29: this push, P4 batch G+H (Muse on work orders, the Board, the Briefing page; Core v19, expand-only).
+- 2026-10-29: this push, P5 step 2 (the music catalog import, catalog and waveform routes, media signing; no schema change).
+- 2026-10-29 22:32 UTC: `c369d05` (run #38), P5 step 1, the `Music` object alone (migration tag `v2`). The deploy's smoke check passed.
+- 2026-10-29 22:26 UTC: `f82d706` (run #37), P4 batch G+H with its review fixes (Muse on work orders, the Board, the Briefing page; Core v19, expand-only). The live Briefing page drew its tiles and the Board reader with no errors.
 - 2026-10-29 21:45 UTC: `e0afe43` (run #36), P4 batch E+F (backups, the drill, download everything; Core v18, expand-only). Live files checked against the commit.
 - 2026-10-29 21:12 UTC: `a02b5f7` (run #35), P4 batch D (the watchdogs and `mind-reflex`, Core v17, expand-only; inert until SETUP.md M2).
 - 2026-10-29 21:01 UTC: `ba01f3d` (run #34), the Conversations list rebuilt by the calendar (Yesterday, Earlier this week, Last week, then by month), with folding groups, richer rows, Now as a card, and long or imported replies read as text. Live files checked against the commit.

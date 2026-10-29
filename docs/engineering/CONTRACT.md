@@ -4,7 +4,7 @@
 
 The runtime contract as data, generated from [`shared/contract`](../../shared/contract). [API.md](API.md) describes each route; this appendix lists what the code enforces. How to add to it: [EXTENDING.md](EXTENDING.md).
 
-Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2, P3, P4.
+Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2, P3, P4, P5.
 
 ## Routes
 
@@ -70,7 +70,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/surfaces` | D C N R | P2 | built |  |
 | `PUT /v1/surfaces/:app/:slot` | C N | P2 | built |  |
 | `DELETE /v1/surfaces/:app/:slot` | D C N | P2 | built |  |
-| `POST /v1/media/sign` | D C N | P2 | deferred: the private bucket (SETUP.md J2) |  |
+| `POST /v1/media/sign` | D C N | P2 | built | built with P5: music: refs, the device only; book: and file: refs are not signable yet; 503 not_configured until the signing key is set |
 | `POST /v1/mind/night` | N | P3 | built | the night run: start, step done, cursor, done |
 | `GET /v1/mind/day/:day` | N | P3 | built | a closed day's stats, messages, ledger and notes |
 | `GET /v1/memory/facts` | D C N | P3 | built |  |
@@ -122,12 +122,14 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `DELETE /v1/board/approval` | D | P4 | built | withdraws Muse's reading of the brief |
 | `GET /v1/briefing` | D | P4 | built |  |
 | `GET /v1/board/editions/:day` | D C N | P4 | built | outside text from Muse, checked against the v2 schema |
-| `PUT /v1/senses/batches/:id` | D | P5 | later (P5) |  |
-| `POST /v1/senses/query` | C N R | P5 | later (P5) |  |
-| `GET /v1/jobs/next` | N I | P5 | later (P5) |  |
-| `POST /v1/jobs/:id/collect` | N I | P5 | later (P5) |  |
-| `GET /v1/jobs/:id` | C N R I | P5 | later (P5) |  |
-| `GET /v1/jobs/:id/spec` | I | P5 | later (P5) |  |
+| `GET /v1/music/catalog` | D | P5 | built | the ported player's format; ETag, 304; 409 before the import |
+| `GET /v1/music/waveforms/:id` | D | P5 | built |  |
+| `PUT /v1/senses/batches/:id` | D | P5 | deferred: P5: the Senses object |  |
+| `POST /v1/senses/query` | C N R | P5 | deferred: P5: the Senses object |  |
+| `GET /v1/jobs/next` | N I | P5 | deferred: P5: the indexing jobs |  |
+| `POST /v1/jobs/:id/collect` | N I | P5 | deferred: P5: the indexing jobs |  |
+| `GET /v1/jobs/:id` | C N R I | P5 | deferred: P5: the indexing jobs |  |
+| `GET /v1/jobs/:id/spec` | I | P5 | deferred: P5: the indexing jobs |  |
 | `PUT /v1/pushes/:id` | C | P8 | later (P8) |  |
 
 ## Verbs
@@ -276,7 +278,7 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `drill.failed` | the last restore drill failed | S3 | Backups: the monthly drill passes | yes | P4 | built |
 | `drill.overdue` | no restore drill for 35 days since the first complete backup | S3 | Backups: the monthly drill passes | yes | P4 | built |
 | `muse.silent` | no Muse API call in 26 hours | S4 | Muse checks in daily (MUSE.md §9) | no | P4 | built |
-| `events.export.late` | day D not archived by D+1 09:00 | S3 | Senses: each day archived by the next morning | yes | P5 | later |
+| `events.export.late` | day D not archived by D+1 09:00 | S3 | Senses: each day archived by the next morning | yes | P5 | built |
 
 ## Error codes
 

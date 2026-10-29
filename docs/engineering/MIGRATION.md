@@ -161,7 +161,7 @@ All imports are chunked, resumable, idempotent upsert jobs on the target Durable
 | I4 | Muse | `relay_mast_entries` → one `muse` thread's messages; `relay_mast_work` + `_events` → `work_orders` with `status` `done`/`expired`, `result_valid` NULL; `relay_mast_files` → file refs, bytes copied | ids, bodies |
 | I5 | Board | each edition (v1 and v2 JSON) → `thunderhead-private/board/<date>.json` + `Core.board(date, r2_key, top_line)`; profile and draft → `settings` | edition JSON deep-equal |
 | I6 | Chat files | copy job `jarvis-music/chat/files/*` → `thunderhead-private/chat/files/*` (R2 to R2 inside the Worker), verifying size and ETag | size + ETag |
-| I7 | Music catalog (P5) | `music_tracks` → `Music.tracks` keeping track IDs and `native/audio/<sha256>.opus` keys; `music_log` → `catalog_log` | ids, sha256, title fields |
+| I7 | Music catalog (P5) | `music_tracks` → `Music.tracks` keeping track IDs, order and `native/audio/<sha256>.opus` keys, each record byte-equal; `music_log` → `catalog_log` by its old `seq`. Built in P5 step 2 as two datasets, `music` then `music_log` (`backend/src/areas/import/music.ts`; the rows are written in the Music object by the step's load) | ids, sha256, size, keys, record and waveform byte-equal |
 
 **Proof, per dataset** (the import test, decisions/plan §17):
 1. `imported + skipped = manifest rows`, and every skip has a reason code (`duplicate`, `empty`,
@@ -174,7 +174,7 @@ All imports are chunked, resumable, idempotent upsert jobs on the target Durable
    recent old conversations open and read correctly; the Board history shows the last 7 editions.
 
 Order and budget: I1–I6 run on day 1 of P3 (estimate well under 40,000 rows); I7 on its own day in P5.
-P3 builds I1–I3; I4–I7 wait for their homes (`IMPORT_DATASETS` in `shared/contract/imports.ts` says for
+P3 builds I1–I3 and P5 builds I7; I4–I6 wait for their homes (`IMPORT_DATASETS` in `shared/contract/imports.ts` says for
 what), and a run of one is refused until then. Each run ends with one ledger row of counts only
 ("Imported 412 of 412 conversations (0 skipped); 20 of 20 spot checks matched; 412 rows changed.") and
 its report in `GET /v1/import/runs/:id`; the agent copies the counts to STATUS (SETUP.md L3).

@@ -407,3 +407,74 @@ using the old `jc` the same day. After 7 days without a `/claude-chat/*` agent c
    old Worker itself stays untouched (it retires after P8).
 2. Tell the agent "M4 done". It checks once that the old host no longer answers it with a key.
 
+
+## N. Music moves (P5)
+
+Music's data moves to the new Worker in steps (ROADMAP P5, [MUSIC.md](../product/apps/MUSIC.md)):
+the catalog is copied into the new `Music` object, the player gets each song through a signed
+link straight from `jarvis-music` (audio never passes through the Worker), and only then does the
+ported player switch. You decided music becomes sign-in only at that switch (decisions
+2026-10-28). Nothing here changes what the old site or the old Worker do.
+
+### N1. The signing token (about 5 minutes, after batch P5-2 is live)
+
+1. dash.cloudflare.com → **R2 Object Storage** → **Manage API tokens** → **Create API token**:
+   name `thunderhead-sign`, permission **Object Read only**, **Apply to specific buckets only**:
+   `jarvis-music` and `thunderhead-private`, TTL **Forever** → **Create**. The page shows an
+   **Access Key ID** and a **Secret Access Key** once; keep them only for the next step.
+2. **Workers & Pages** → `thunderhead-api` → **Settings** → **Variables and Secrets**:
+   `R2_SIGN_ACCESS_KEY_ID` → **Edit** → paste the Access Key ID → **Save**; then
+   `R2_SIGN_SECRET` → **Edit** → paste the Secret Access Key → **Save**. Never put either in a
+   file, a chat or a variable.
+3. Tell the agent "N1 done". It checks that `POST /v1/media/sign` no longer answers
+   `503 not_configured` (it never sees a link: music links are your device's alone).
+
+To revoke every link at once later: delete the token in the dashboard and make a new one
+([SECURITY.md §14](../engineering/SECURITY.md)).
+
+### N2. Let the site read `jarvis-music` (about 3 minutes, ask-first: it changes the shared bucket's settings)
+
+1. dash.cloudflare.com → **R2 Object Storage** → `jarvis-music` → **Settings** → **CORS Policy** →
+   **Add CORS policy** (if one is there already, add this rule to it and keep the others):
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://thunderhead.z13.web.core.windows.net"],
+       "AllowedMethods": ["GET", "HEAD"],
+       "AllowedHeaders": ["Range"],
+       "ExposeHeaders": ["Content-Length", "Content-Range", "Accept-Ranges", "ETag"],
+       "MaxAgeSeconds": 7200
+     }
+   ]
+   ```
+
+   → **Save**. It lets only the new site read the bucket's bytes through a signed link (the EQ
+   path needs it; without it the player is silent). Nothing in the bucket changes.
+2. While there: **Settings** → **Public access** → note whether **R2.dev subdomain** says
+   *Allowed* or *Not allowed* (RA-P5-02); don't change it yet. Tell the agent "N2 done, r2.dev
+   <what it said>".
+
+### N3. The music catalog import (about 15 minutes; again on the switch day)
+
+The same way as L2, for the music catalog only:
+
+1. The key and the environment exactly as L2.1 and L2.2 (Mind · chat key named `import-once`;
+   the environment's network secret for `thunderhead-api.braydenparker999.workers.dev`).
+2. claude.ai/code → new session, repository `braydenparker000/thunderhead`, that environment. The
+   prompt, word for word:
+
+   ```text
+   Run this once from the repository root, in the background, and wait until it exits (it pulls the old Worker's music catalog and imports it; it prints counts only). Then show me its whole output and its exit code, and do nothing else:
+   OLD_API=https://jarvis-hub-api.braydenparker999.workers.dev TH_API=https://thunderhead-api.braydenparker999.workers.dev node mind/jobs/old-export.mjs --run music-1 --deployed 2026-10-29T00:00:00Z --instances music-catalog-v1 --datasets music,music_log
+   ```
+
+   Check: the last line has `"manifest":"written"` and `music` and `music_log` each
+   `"state":"done"`; exit code 0. The catalog is big: if it reports `still running`, the import
+   goes on by itself (it pauses at the day's row budget and continues after 00:05 UTC).
+3. Clean up as L3.3 (revoke `import-once`, remove the network secret and the allowed host).
+4. Tell the agent "N3 done" with the output. On the switch day the agent asks for it once more
+   with `--run music-2`, so songs added since are in the new catalog too.
+
+N4 (the upload tools' new keys) and N5 (music private: the old Worker's public read off,
+ask-first) come with the next steps.

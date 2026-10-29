@@ -8,6 +8,7 @@ export { WORK_KINDS, WORK_LIMITS } from './work.ts';
 export * from './feed.ts';
 export * from './imports.ts';
 export * from './memory.ts';
+export { MUSIC_LIMITS } from './music.ts';
 export * from './night.ts';
 export {
   PROPOSAL_CLASS_NAMES,

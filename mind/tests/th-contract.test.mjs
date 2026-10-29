@@ -34,7 +34,7 @@ test('a route this build lacks exits 8 not_built before the network', withFake(a
   const r = await th(['get', '/v1/jobs/x'], {...e, TH_ROLE: 'night'});
   assert.equal(r.code, 8);
   assert.equal(errCode(r), 'not_built');
-  assert.match(r.stderr, /GET \/v1\/jobs\/:id is later \(P5\)/);
+  assert.match(r.stderr, /GET \/v1\/jobs\/:id is deferred/);
   assert.equal(fake.state.requests.length, before);
   assert.equal((await th(['pending'], e)).code, 0, 'built routes still work');
 }));
@@ -72,7 +72,7 @@ test('th get reads any built GET route; th help comes from the contract', withFa
     assert.ok(help.stdout.includes(name), name);
   assert.ok(help.stdout.includes('POST /v1/memory/ops'), 'built P3 routes are offered');
   assert.ok(help.stdout.includes('GET /v1/work/orders'), 'built P4 routes are offered');
-  assert.ok(!help.stdout.includes('GET /v1/jobs/next'), 'routes of later phases are not offered');
+  assert.ok(!help.stdout.includes('GET /v1/jobs/next'), 'routes not built yet are not offered');
   assert.match((await th(['help', 'verb'], e)).stdout, /^th verb <app\.action>/);
 }));
 
