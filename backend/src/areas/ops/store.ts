@@ -107,3 +107,11 @@ export function prunePerf(db: Db, now: number, max: number): number {
     max,
   ).length;
 }
+
+/** Every fingerprint's count for these sources (the errors table is a few hundred rows at most; the watchdogs). */
+export function errorCounts(db: Db, sources: readonly string[]): { fingerprint: string; count: number }[] {
+  return db.all(
+    `SELECT fingerprint, count FROM errors WHERE source IN (${sources.map(() => '?').join(', ')}) LIMIT 500`,
+    ...sources,
+  );
+}

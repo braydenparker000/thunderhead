@@ -439,3 +439,16 @@ CREATE TABLE wakes (
 CREATE INDEX wakes_at ON wakes (at);
 
 CREATE INDEX wakes_open ON wakes (at) WHERE status IN ('fired', 'unclaimed');
+
+CREATE TABLE watchdogs (
+  name TEXT PRIMARY KEY,
+  state TEXT NOT NULL,
+  since INTEGER,
+  detail TEXT,
+  trips INTEGER NOT NULL DEFAULT 0,
+  checked_at INTEGER NOT NULL,
+  snapshot_json TEXT,
+  handled_at INTEGER,
+  handled_outcome TEXT,
+  handled_note TEXT
+  ) WITHOUT ROWID;

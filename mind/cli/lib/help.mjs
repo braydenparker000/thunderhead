@@ -38,6 +38,8 @@ export const USAGE = {
   approved: ['--paths <p1,p2> --sha <commit>', 'whether the owner approved changing these protected paths on a branch from that commit (exit 6: not approved)'],
   eval: ['begin | list | inj <id> | check <id> [--answer <text>] | end', 'the injection suite in the eval sandbox (night step 9, Sundays)'],
   read: ['--kinds | --check <kind> [--json <answer> | --file <path>] (else stdin)', 'check the reader subagent\'s answer and work only from what this prints (it taints the session)'],
+  reflex: ['', 'what to do now: the reflex procedure and each tripped watchdog with its handling (P4)'],
+  handled: ['<watchdog> --outcome fixed|reported|nothing --note <text>', 'report what you did about a tripped watchdog (the reflex reports each one)'],
   decide: ['<proposal id> --by-message <message id> [--spec-hash <h>] [--reject]', 'record the owner\'s words as the decision (P4)'],
   order: ['new … | list | get <id> | cancel <id> --why <t>', 'work orders for Muse (P4)'],
   push: ['--title --body --ref --why --topic [--deadline]', 'a push (P8)'],

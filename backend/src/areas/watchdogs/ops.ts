@@ -17,7 +17,7 @@ import { DAY } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
-import { insertWake, openWakes, setWakeStatus } from '../mind/store';
+import { insertWake, openWakes, reflexWakes, setWakeStatus } from '../mind/store';
 import type { ToFire } from '../mind/wake';
 import { CHECKS, type CheckCtx, type Snapshot } from './checks';
 import * as store from './store';
@@ -85,11 +85,14 @@ export function watch(w: Writer, ctx: Omit<CheckCtx, 'at'>, reflexOn: boolean): 
         undoable: false,
       });
     } else {
+      const detail = was ? (out.detail ?? prev?.detail ?? null) : null;
+      // Nothing changed (the usual tick): no write. checked_at moves only with a write.
+      if (prev && prev.detail === detail && prev.snapshot_json === base.snapshot_json) continue;
       store.put(w.db, {
         ...base,
         state: was ? 'tripped' : 'ok',
         since: prev?.since ?? null,
-        detail: was ? (out.detail ?? prev?.detail ?? null) : null,
+        detail,
         handled_at: prev?.handled_at ?? null,
         handled_outcome: prev?.handled_outcome ?? null,
         handled_note: prev?.handled_note ?? null,
@@ -99,7 +102,7 @@ export function watch(w: Writer, ctx: Omit<CheckCtx, 'at'>, reflexOn: boolean): 
   if (!woke.length || !reflexOn) return null;
   // A reflex wake nobody claimed in 30 minutes has failed (there are no retries): it doesn't block the next.
   for (const o of openWakes(w.db, 'reflex')) if (at - o.at >= REFLEX_OPEN_MS) setWakeStatus(w.db, o.id, 'failed');
-  const wakes = store.reflexWakes(w.db, at - DAY);
+  const wakes = reflexWakes(w.db, at - DAY);
   if (wakes.open > 0 || wakes.n >= WATCHDOG_LIMITS.reflex_wakes_per_day) return null;
   const id = uuidv7(at);
   insertWake(w.db, { id, at, task: 'reflex', reason: `watchdog:${woke[0]}` });
@@ -133,8 +136,7 @@ export function list(db: Db): WatchdogItem[] {
 /** POST /v1/ops/watchdogs/:name/handled: what a mind session did about a trip. */
 export function handled(w: Writer, c: Caller, name: WatchdogName, r: WatchdogHandledRequest): WatchdogItem {
   const row = store.byName(w.db, name);
-  if (!row || row.state !== 'tripped')
-    throw new Fail('conflict', [{ path: 'name', issue: 'this watchdog has not tripped' }]);
+  if (row?.state !== 'tripped') throw new Fail('conflict', [{ path: 'name', issue: 'this watchdog has not tripped' }]);
   store.put(w.db, { ...row, handled_at: w.at, handled_outcome: r.outcome, handled_note: r.note });
   w.ledger({
     kind: 'note',

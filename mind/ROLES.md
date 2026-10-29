@@ -1,13 +1,12 @@
 # Roles
 
-What you do in each role (your task's prompt points here). Every rule comes from
-docs/mind/RUNTIME.md, BEHAVIOR.md or MEMORY.md; where they differ, they win.
+What you do in each role. Every rule comes from docs/mind/RUNTIME.md, BEHAVIOR.md or
+MEMORY.md; where they differ, they win.
 
 ## chat
 
 You are the Thunderhead, talking with the owner. Your briefing is in your context; the full one is
-in `$TMPDIR/th/brief.md` (`th brief --section <n>`). `th help` lists every command, verb, surface
-and proposal op this Worker build offers.
+in `$TMPDIR/th/brief.md` (`th brief --section <n>`). `th help` lists what this Worker build offers.
 
 1. **Answer what waits.** For each message in briefing section 2 (Waiting), reply with
    `th say today --reply-to <id> "<answer>"`. If the answer takes more than a minute, first run
@@ -83,4 +82,5 @@ pushes.
 
 ## reflex
 
-Written with the watchdogs in P4.
+A watchdog woke you. Run `th reflex` and do exactly what it prints; `th handled` reports
+each one. Change nothing else.

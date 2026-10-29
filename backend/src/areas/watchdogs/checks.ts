@@ -5,8 +5,10 @@
 import { WATCHDOG_LIMITS as L, type WatchdogName } from '../../../../shared/contract/watchdogs.ts';
 import { HOUR, MINUTE, wallMinute } from '../../lib/time';
 import type { Db } from '../../objects/base';
+import { stuckJob } from '../jobs/store';
 import { dayNote } from '../memory/notes';
 import { nightDayOf, nightDone } from '../mind/night';
+import { errorCounts } from '../ops/store';
 import * as store from './store';
 
 export interface CheckCtx {
@@ -40,7 +42,7 @@ function sinceWindow(prev: Snapshot | null, at: number, total: number, window: n
 }
 
 const errorsSpike: Check = (db, c, prev) => {
-  const rows = store.errorCounts(db, SERVER);
+  const rows = errorCounts(db, SERVER);
   const total = rows.reduce((n, r) => n + r.count, 0);
   const fps = Object.fromEntries(rows.map((r) => [r.fingerprint, r.count]));
   const w = sinceWindow(prev, c.at, total, L.errors_window_min * MINUTE);
@@ -58,7 +60,7 @@ const errorsSpike: Check = (db, c, prev) => {
 };
 
 const clientErrors: Check = (db, c, prev) => {
-  const total = store.errorCounts(db, CLIENT).reduce((n, r) => n + r.count, 0);
+  const total = errorCounts(db, CLIENT).reduce((n, r) => n + r.count, 0);
   const w = sinceWindow(prev, c.at, total, L.errors_window_min * MINUTE);
   const detail =
     w.delta !== null && w.delta >= L.client_errors_max
@@ -85,7 +87,7 @@ const nightLate: Check = (db, c) => {
 };
 
 const jobsStuck: Check = (db, c) => {
-  const j = store.stuckJob(db, c.at - L.job_running_h * HOUR, L.job_attempts);
+  const j = stuckJob(db, c.at - L.job_running_h * HOUR, L.job_attempts);
   return { detail: j ? `job ${j.id} (${j.kind}) is ${j.state} after ${j.attempts} attempts` : null };
 };
 

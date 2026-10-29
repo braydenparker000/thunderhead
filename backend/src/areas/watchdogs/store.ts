@@ -47,35 +47,3 @@ export const dayStartedAt = (db: Db): { day: string; at: number } | null => {
   );
   return r ? { day: JSON.parse(r.value_json) as string, at: r.updated_at } : null;
 };
-
-/** Every fingerprint's count for these sources (the errors table is a few hundred rows at most). */
-export function errorCounts(db: Db, sources: readonly string[]): { fingerprint: string; count: number }[] {
-  return db.all(
-    `SELECT fingerprint, count FROM errors WHERE source IN (${sources.map(() => '?').join(', ')}) LIMIT 500`,
-    ...sources,
-  );
-}
-
-/** A job running too long or tried too often, if any. */
-export function stuckJob(
-  db: Db,
-  runningBefore: number,
-  attempts: number,
-): { id: string; kind: string; state: string; attempts: number } | null {
-  return db.one(
-    `SELECT id, kind, state, attempts FROM jobs WHERE state IN ('queued', 'running', 'paused')
-       AND ((state = 'running' AND updated_at < ?) OR attempts >= ?) LIMIT 1`,
-    runningBefore,
-    attempts,
-  );
-}
-
-/** Reflex wakes since `since`, and whether one is still open. */
-export function reflexWakes(db: Db, since: number): { n: number; open: number } {
-  return (
-    db.one<{ n: number; open: number }>(
-      `SELECT count(*) AS n, coalesce(sum(status IN ('fired', 'unclaimed')), 0) AS open FROM wakes WHERE task = 'reflex' AND at >= ?`,
-      since,
-    ) ?? { n: 0, open: 0 }
-  );
-}

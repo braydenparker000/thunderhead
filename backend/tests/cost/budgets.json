@@ -104,7 +104,7 @@
     "rows_written_max": 0
   },
   "POST /v1/mind/brief (claim, 20 messages) (Core)": {
-    "rows_read_max": 130,
+    "rows_read_max": 145,
     "rows_written_max": 50
   },
   "GET /v1/live/wait (nothing new, 1 s) (Core)": {
@@ -140,12 +140,12 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 78,
-    "rows_written_max": 1
+    "rows_read_max": 90,
+    "rows_written_max": 8
   },
   "cron tick, nothing due (Core)": {
-    "rows_read_max": 12,
-    "rows_written_max": 0
+    "rows_read_max": 30,
+    "rows_written_max": 2
   },
   "POST /v1/memory/ops (1 add) (Core)": {
     "rows_read_max": 4,
@@ -243,7 +243,7 @@
     "rows_read_max": 50,
     "rows_written_max": 21
   },
-  "POST /v1/proposals/:id/decide (the owner’s words; the forget runs) (Core)": {
+  "POST /v1/proposals/:id/decide (the owner\u2019s words; the forget runs) (Core)": {
     "rows_read_max": 59,
     "rows_written_max": 22
   },

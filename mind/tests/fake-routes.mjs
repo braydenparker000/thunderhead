@@ -38,6 +38,15 @@ export function extraRoutes(ctl) {
   }
 
   return [
+    // The watchdogs (OPERATIONS.md §8.2): a test sets s.watchdogs to the items it needs.
+    ['GET', /^\/v1\/ops\/watchdogs$/, ALL, () => [200, {items: s.watchdogs}]],
+    ['POST', /^\/v1\/ops\/watchdogs\/([^/]+)\/handled$/, ALL, ({body, params, session}) => {
+      const item = s.watchdogs.find(w => w.name === decodeURIComponent(params[0]));
+      if (!item) throw new HttpError(404, 'not_found');
+      if (item.state !== 'tripped') throw new HttpError(409, 'conflict');
+      item.handled = {at: ctl.now(), outcome: body.outcome, note: body.note, session};
+      return [200, item];
+    }],
     ['POST', /^\/v1\/mind\/notes$/, ALL, ({body, session}) => {
       if (!body.id || typeof body.body !== 'string' || body.body.split(/\s+/).filter(Boolean).length > 120) throw new HttpError(422, 'validation');
       if (!s.notes.some(n => n.id === body.id)) s.notes.push({...body, session, at: ctl.now()});

@@ -175,6 +175,7 @@ describe('the renders build each date formatter once (briefing CPU)', () => {
         yesterday: { threadId: null, tail: [], note: null },
         ledger: [],
         errorsOpen: 0,
+        watchdogs: [],
         rules: rows.slice(0, 60).map((r) => ({ ...r, kind: 'rule' as const })),
         threads: [],
         profile: '',
