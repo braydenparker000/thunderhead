@@ -1,15 +1,23 @@
 // Sign-in for the shell. With no API address configured, it does nothing and Home stays as in P0.
 // Otherwise: no session → /signin/?next=<this path>; a session → the menu's Devices, Agents and
 // Account rows open their pages, /settings/<page>/ opens one directly, and security notices show
-// on Home as cards with the gold bottom edge until answered (SIGN-IN.md §3.3, §11.4).
+// on Home as cards with the gold bottom edge until answered (SIGN-IN.md §3.3, §11.4). Always: the
+// service worker (th/update.js) and the menu's About row.
 import { api, configured, flushPendingSignout, signedIn, toSignin } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { noticeCard } from '/th/format.js';
 import { onSignedOut, store } from '/th/session.js';
 import { el, toast, tooSoon } from '/th/ui.js';
+import { updateLine } from '/th/update-rules.js';
+import { checkForUpdate, startUpdates, waiting } from '/th/update.js';
+import { CONFIG } from '/config.js';
 
 const ROUTES = { '/settings/password/': 'account', '/settings/agents/': 'agents', '/settings/devices/': 'devices' };
+
+// The service worker and "Check for update" work with or without sign-in.
+startUpdates();
+aboutRow();
 
 // A framed copy does nothing at all (frame guard, SECURITY.md §4.3).
 if (configured && window.top === window.self) {
@@ -86,4 +94,15 @@ function notices(items, open) {
       toast(lineFor(failure(e)));
     }
   }
+}
+
+/** Menu → About: the running release ("a1b2c3d") and "Check for update" (MENU-AND-SETTINGS.md §4.11). */
+function aboutRow() {
+  const version = document.querySelector('#version');
+  if (version && CONFIG.commit !== 'dev') version.textContent = CONFIG.commit.slice(0, 7);
+  document.querySelector('#update')?.addEventListener('click', async () => {
+    if (!navigator.serviceWorker) return toast(updateLine('unsupported'));
+    toast(updateLine('checking'));
+    toast(updateLine((await checkForUpdate()) || waiting() ? 'waiting' : 'current'));
+  });
 }

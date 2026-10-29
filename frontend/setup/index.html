@@ -10,6 +10,7 @@
 <meta name="referrer" content="no-referrer">
 <title>Set up · Thunderhead</title>
 <link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="manifest" href="/manifest.webmanifest">
 <script src="/ui/theme.js"></script>
 <link rel="preload" href="/ui/fonts/Inter.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="/ui/fonts.css">
@@ -33,7 +34,7 @@
     <button type="button" class="btn soft" id="copy">Copy</button>
     <p>Do one of these:</p>
     <ol>
-      <li><b>GitHub</b> (easiest): add a repository secret named <code>TH_SETUP_FINGERPRINT</code> with this value, then run the <b>Open setup</b> workflow.<span id="gh-links" hidden> <a class="link" id="gh-secret" target="_blank" rel="noopener noreferrer">New secret</a> · <a class="link" id="gh-run" target="_blank" rel="noopener noreferrer">Open setup workflow</a></span></li>
+      <li><b>GitHub</b> (easiest): add a repository secret named <code>TH_SETUP_FINGERPRINT</code> with this value, then run the <b>Open setup</b> workflow.<span id="gh-links" class="glinks" hidden><a class="link" id="gh-secret" target="_blank" rel="noopener noreferrer">New secret</a><a class="link" id="gh-run" target="_blank" rel="noopener noreferrer">Open setup workflow</a></span></li>
       <li><b>Cloudflare dashboard</b>: Workers → thunderhead-api → Settings → Variables and Secrets → Add → Secret, name <code>AUTH_SETUP_FP</code>, value as above → Deploy.</li>
     </ol>
     <button type="button" class="btn" id="done">I've done that</button>

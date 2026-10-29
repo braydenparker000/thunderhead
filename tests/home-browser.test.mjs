@@ -16,7 +16,7 @@ before(async () => {
 after(async () => { await browser?.close(); server?.close(); });
 
 async function open(theme = 'light', path = '/') {
-  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 });
+  const page = await browser.newPage({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block' });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
@@ -48,7 +48,7 @@ test('loads clean in day and night', async () => {
 
 test('the page refuses to show inside a frame', async () => {
   // a fresh page: our own pages forbid frames, so the parent must be a neutral document
-  const page = await browser.newPage();
+  const page = await browser.newPage({ serviceWorkers: 'block' });
   await page.setContent(`<iframe src="${base}/" width="390" height="844"></iframe>`);
   let frame;
   for (let i = 0; i < 50 && !frame; i++) {

@@ -37,3 +37,31 @@ export function withApi(html, api) {
     return m;
   });
 }
+
+/** Ported app folders (P1b) and the old shared files: outside the shell's precache, and the shell
+ * worker never intercepts them (ARCHITECTURE.md §8.1). Keep in step with PORTED in frontend/sw.js. */
+export const PORTED = ['music', 'guitar', 'podcasts', 'astra', 'media', 'assets'];
+
+/** sw.js with its build number (the cache it fills is th-<build>). */
+export function swJs(source, build) {
+  const next = source.replace(/^const BUILD = \d+;$/m, `const BUILD = ${build};`);
+  if (next === source && !/^const BUILD = \d+;$/m.test(source)) throw new Error('sw.js has no "const BUILD = <n>;" line');
+  return next;
+}
+
+/** Whether a staged file belongs in /precache.json: everything the shell and its pages use, but not
+ * vendor/ (its own cache), the route stubs (copies of index.html), the ported folders, the worker
+ * scripts themselves, or text files no page loads. */
+export function precached(path) {
+  const top = path.split('/')[0];
+  if (top === 'vendor' || PORTED.includes(top)) return false;
+  if (APP_ROUTES.some((r) => path === `${r}/index.html`)) return false;
+  if (['sw.js', 'sw-kill.js', 'precache.json'].includes(path)) return false;
+  return !path.endsWith('.txt');
+}
+
+/** @param {number} build @param {{ path: string, size: number }[]} list */
+export function precacheJson(build, list) {
+  const files = list.filter((f) => precached(f.path)).sort((a, b) => (a.path < b.path ? -1 : 1));
+  return `${JSON.stringify({ build, files })}\n`;
+}
