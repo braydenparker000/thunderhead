@@ -1,14 +1,16 @@
 // @ts-check
 // An older conversation on home, read-only (HOME.md §4.9): the voice line, the decision card and
-// today's thread step aside; a glass pill at the top of the column reads "<title> · <when>" with
-// Back to now; the filed thread shows scrolled to the bottom, or to a search hit, highlighted for
-// 2 s. Back, the pill's button, the menu's Now row, or sending a message returns to today (the
+// today's thread step aside; a glass card at the top of the column holds the title, when it was
+// and how many messages (an imported one tagged "Old Chats") with Back to now; the filed thread
+// shows scrolled to the bottom, or to a search hit, highlighted for 2 s. A long or imported reply
+// reads as text (prose.js) rather than in the voice. Back, the pill's button, the menu's Now row, or sending a message returns to today (the
 // message then sends as usual). Text is set with textContent only.
 import { replyBody } from '../chat/view.js';
 import { lineFor } from '../copy.js';
 import { failure } from '../flow.js';
 import * as data from './data.js';
-import { titleOf, whenOf } from './model.js';
+import { count, OLD_CHATS, titleOf, whenOf } from './model.js';
+import { isProse, prose } from './prose.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').Thread} Thread */
 /** @typedef {import('../../../shared/contract/api.ts').Message} Message */
@@ -28,15 +30,18 @@ function el(tag, cls, text) {
 }
 
 const pill = el('div', 'past');
-const label = el('span');
+const info = el('div', 'pinfo');
+const label = el('span', 'ptl');
+const when = el('span', 'pmeta');
+info.append(label, when);
 const back = el('button', '', 'Back to now');
 back.type = 'button';
-pill.append(label, back);
+pill.append(info, back);
 const log = el('div', 'turns talk pastlog');
 log.id = 'past';
 log.setAttribute('role', 'log');
 
-/** @typedef {{ id: string, before: number | null, items: Message[] }} Open */
+/** @typedef {{ id: string, before: number | null, items: Message[], imported: boolean }} Open */
 /** @type {Open | null} */
 let open = null;
 let wired = false;
@@ -60,9 +65,16 @@ function wire() {
 export async function show(t, focus = null) {
   wire();
   const was = open;
-  open = { id: t.id, before: null, items: [] };
+  open = { id: t.id, before: null, items: [], imported: t.kind === 'imported' };
   const mine = open;
   label.textContent = titleOf(t);
+  /** "Yesterday · 3 messages", the day left out when the title already is it. @param {string} [day] */
+  const meta = (day) => {
+    const w = day ? whenOf(t.day, day) : '';
+    const text = [w !== titleOf(t) && w, t.message_count && count(t.message_count)].filter(Boolean).join(' · ');
+    when.replaceChildren(...(t.kind === 'imported' ? [el('span', 'tag', OLD_CHATS)] : []), text);
+  };
+  meta();
   log.setAttribute('aria-label', titleOf(t));
   log.replaceChildren();
   const home = $('#home');
@@ -75,7 +87,7 @@ export async function show(t, focus = null) {
   else history.pushState({ th: 'past' }, '');
   back.focus({ preventScroll: true });
   data.today().then(({ day }) => {
-    if (open === mine) label.textContent = `${titleOf(t)} · ${whenOf(t.day, day)}`;
+    if (open === mine) meta(day);
   }, () => {});
   await load(mine, focus);
 }
@@ -137,13 +149,16 @@ async function earlier(o, btn) {
   }
 }
 
-/** One message, as home draws it, without its actions (read-only). @param {Message} m */
-function message(m) {
+/** One message, as home draws it, without its actions (read-only). @param {Message} m @param {boolean} imported */
+function message(m, imported) {
   /** @type {HTMLElement} */
   let node;
   if (m.author === 'owner') {
     node = el('div', 'mine');
     node.append(el('div', 'you', m.body));
+  } else if (m.author === 'mind' && m.kind !== 'error' && isProse(m.body, imported)) {
+    node = el('div', 'reply prose');
+    node.append(prose(m.body));
   } else if (m.author === 'mind' && m.kind !== 'error') {
     node = el('div', `voice reply${m.kind === 'progress' ? ' progress' : ''}`);
     node.append(replyBody(m.body));
@@ -173,7 +188,7 @@ function draw(o) {
       alone = lone;
       out.push(turn);
     }
-    turn.append(message(m));
+    turn.append(message(m, o.imported));
   }
   if (!o.items.length) out.push(el('div', 'sys', 'No messages in this one yet.'));
   log.replaceChildren(...out);

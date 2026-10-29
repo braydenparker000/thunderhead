@@ -63,16 +63,35 @@ export function titleOf(t) {
   return s || longDate(t.day);
 }
 
-/** @typedef {'today' | 'yesterday' | 'week' | 'older'} Group */
+/** @typedef {'today' | 'yesterday' | 'week' | 'last' | 'older'} Group */
 
-/** Where a thread goes, by its day against today's. @param {string} day @param {string} today @returns {Group} */
+/** The menu's collapsible groups under Now, in order, with their headings (§3.1). */
+export const GROUPS = /** @type {const} */ ([['yesterday', 'Yesterday'], ['week', 'Earlier this week'], ['last', 'Last week']]);
+
+/** The Monday that starts `day`'s week (weeks run Monday to Sunday). @param {string} day */
+export function mondayOf(day) {
+  const d = parse(day);
+  d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
+  return d.toISOString().slice(0, 10);
+}
+
+/** Where a thread goes, by its day against today's on the calendar: today, yesterday, earlier this
+ * week (since Monday), last week (the Monday to Sunday before), or older. A Saturday is never "this
+ * week" on a Thursday. @param {string} day @param {string} today @returns {Group} */
 export function groupOf(day, today) {
   const n = daysBetween(day, today);
-  return n <= 0 ? 'today' : n === 1 ? 'yesterday' : n <= 6 ? 'week' : 'older';
+  if (n <= 0) return 'today';
+  if (n === 1) return 'yesterday';
+  const monday = mondayOf(today);
+  if (day >= monday) return 'week';
+  return daysBetween(day, monday) <= 7 ? 'last' : 'older';
 }
 
 /** Newest day first, then the latest message first. @param {Thread} a @param {Thread} b */
 const newest = (a, b) => (a.day === b.day ? b.updated_at - a.updated_at : a.day < b.day ? 1 : -1);
+
+/** Whether a thread is today's open one, the Now row (left out of every list). @param {Thread} t @param {string} today @param {string | null} currentId */
+export const isNow = (t, today, currentId) => t.id === currentId || (t.kind === 'daily' && t.status === 'open' && t.day >= today);
 
 /**
  * The menu's groups. Today's open thread is the Now row, so it is left out; anything else of today
@@ -83,46 +102,53 @@ const newest = (a, b) => (a.day === b.day ? b.updated_at - a.updated_at : a.day 
  */
 export function grouped(threads, today, currentId) {
   /** @type {Record<Group, Thread[]>} */
-  const out = { today: [], yesterday: [], week: [], older: [] };
-  for (const t of threads) {
-    if (t.id === currentId || (t.kind === 'daily' && t.status === 'open' && t.day >= today)) continue;
-    out[groupOf(t.day, today)].push(t);
-  }
+  const out = { today: [], yesterday: [], week: [], last: [], older: [] };
+  for (const t of threads) if (!isNow(t, today, currentId)) out[groupOf(t.day, today)].push(t);
   for (const g of Object.values(out)) g.sort(newest);
   return out;
 }
 
-/** Older threads by month, newest first. @param {Thread[]} older @returns {{ label: string, items: Thread[] }[]} */
-export function byMonth(older) {
+/** Threads by month, newest first: "October", or "December 2025" outside today's year.
+ * @param {Thread[]} threads @param {string} today @returns {{ key: string, label: string, items: Thread[] }[]} */
+export function byMonth(threads, today) {
   /** @type {Map<string, Thread[]>} */
   const months = new Map();
-  for (const t of [...older].sort(newest)) {
+  for (const t of [...threads].sort(newest)) {
     const k = t.day.slice(0, 7);
     if (!months.has(k)) months.set(k, []);
     months.get(k)?.push(t);
   }
-  return [...months.values()].map((items) => ({ label: monthLabel(items[0].day), items }));
+  return [...months].map(([key, items]) => ({ key, label: key.slice(0, 4) === today.slice(0, 4) ? MONTH[Number(key.slice(5)) - 1] : monthLabel(key), items }));
 }
 
-/** A row's meta: the time (Yesterday), the weekday (This week) or the date. @param {Thread} t @param {Group} g */
+/** "Sat 24" @param {string} day */
+export const dayLabel = (day) => `${weekday(day)} ${parse(day).getUTCDate()}`;
+
+/** A row's date on the right: the time of its last message yesterday, else its weekday and date
+ * ("Sat 24"), so two days are never in doubt. @param {Thread} t @param {Group} g */
 export function metaOf(t, g) {
-  if (g === 'yesterday') return clock(t.updated_at);
-  if (g === 'week') return weekday(t.day);
   if (g === 'today') return partOfDay(t.updated_at);
-  return shortDate(t.day);
+  if (g === 'yesterday') return clock(t.updated_at);
+  return dayLabel(t.day);
 }
 
-/** The "when" in the past view's pill: "Yesterday", "Monday", "12 Sep", "12 Sep 2025". @param {string} day @param {string} today */
+/** "1 message", "14 messages" @param {number} n */
+export const count = (n) => `${n} ${n === 1 ? 'message' : 'messages'}`;
+
+/** A row's second line: the night shift's summary on one line, else how many messages. @param {Thread} t */
+export const subOf = (t) => (t.summary ?? '').replace(/\s+/g, ' ').trim() || count(t.message_count);
+
+/** The past view's "when": "Today", "Yesterday", "Monday 26 October", "Wednesday 3 December 2025".
+ * @param {string} day @param {string} today */
 export function whenOf(day, today) {
   const g = groupOf(day, today);
   if (g === 'today') return 'Today';
   if (g === 'yesterday') return 'Yesterday';
-  if (g === 'week') return WEEKDAY[parse(day).getUTCDay()];
-  return day.slice(0, 4) === today.slice(0, 4) ? shortDate(day) : `${shortDate(day)} ${day.slice(0, 4)}`;
+  return day.slice(0, 4) === today.slice(0, 4) ? longDate(day) : `${longDate(day)} ${day.slice(0, 4)}`;
 }
 
-/** The line under an imported thread's title. */
-export const OLD_CHATS = 'from the old Chats';
+/** The tag on an imported thread's row and in its past view. */
+export const OLD_CHATS = 'Old Chats';
 
 // --- search -----------------------------------------------------------------------------------
 

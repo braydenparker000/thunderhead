@@ -1,7 +1,8 @@
 // The thread list, past threads' messages and search of the mocked Worker (API.md §11.7), for the
-// menu's conversations and search: filed daily threads of yesterday, three days ago and 40 days
-// ago, an imported old chat this week (long, so it pages back) and one from last year, and 35
-// more in the summer so the full list pages 30 at a time. All synthetic; days are counted from the
+// menu's conversations and search: filed daily threads of yesterday, three days ago, last
+// Saturday (summarised, its reply in Markdown) and 40 days ago, an imported old chat this week
+// (long, so it pages back) and one from last year, and 35 more in the summer so the full list
+// pages 30 at a time. All synthetic; days are counted from the
 // mock's today (2026-10-29), and every hour is UTC.
 
 const DAY = 86_400_000;
@@ -16,8 +17,22 @@ const thread = (n, day, fields = {}) => ({
 
 /** The fixture ids by name, for the tests. */
 export const T = {
-  yesterday: id(101), monday: id(102), imported: id(103), september: id(104), lastYear: id(105), markup: id(106),
+  yesterday: id(101), monday: id(102), imported: id(103), september: id(104), lastYear: id(105), markup: id(106), saturday: id(107),
 };
+
+/** Last Saturday's reply, in the Markdown the old Chats wrote (and a tag that must stay text). */
+export const PLAN = [
+  '## Practice plan for the weekend',
+  '- **Scales** first, ten minutes',
+  '- Bars 9 to 12 at `84 bpm`, then up',
+  '',
+  '| Day | Minutes |',
+  '|---|---|',
+  '| Mon | 30 |',
+  '| Wed | 45 |',
+  '',
+  'Tags stay <img src=x onerror="document.title=1"> text. The metronome: https://example.com/metronome',
+].join('\n');
 
 const msg = (thread, seq, author, body, created) => ({
   seq, id: `${thread.slice(0, 24)}${String(seq).padStart(12, '0')}`, thread_id: thread, author,
@@ -34,6 +49,7 @@ export function threadsState() {
     thread(104, '2026-09-19', { title: 'Planning the garden beds' }),
     thread(105, '2025-12-03', { kind: 'imported', title: 'Notes on a long walk' }),
     thread(106, '2026-09-02', { title: '<img src=x onerror="document.title=1">Tags stay text' }),
+    thread(107, '2026-10-24', { title: 'Weekend practice plan', summary: 'Scales first, then bars 9 to 12 at 84.', updated_at: at('2026-10-24', '10:15') }),
   ];
   for (let i = 0; i < 35; i++) {
     const d = new Date(Date.UTC(2026, 7, 31) - i * DAY).toISOString().slice(0, 10);
@@ -60,6 +76,8 @@ export function threadsState() {
   add(T.imported, 'mind', 'It was the third one on the list.');
   for (let i = 0; i < 228; i++) add(T.imported, i % 2 ? 'mind' : 'owner', i % 2 ? `Reply number ${i}` : `Practice note number ${i}`);
   add(T.september, 'owner', 'Which beds get the most sun?');
+  add(T.saturday, 'owner', 'Plan my practice for the weekend');
+  add(T.saturday, 'mind', PLAN);
   return { threads, messages };
 }
 

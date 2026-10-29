@@ -258,13 +258,16 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `search.failed` | Couldn't load search. Reload to try again. | Toast when the search code can't load (built) |
 | `menu.convos` | Conversations | Section head (built) |
 | `menu.convos.sub` | A fresh one starts on its own each morning. Nothing to start or name. | Under the head (built) |
-| `menu.today` / `.yesterday` / `.week` / `.all` | Today / Yesterday / This week / All conversations | Groups (built) |
+| `menu.today` / `.yesterday` / `.week` / `.last` / `.all` | Today / Yesterday / Earlier this week / Last week / All conversations | Groups by the calendar, weeks Monday to Sunday (built) |
 | `menu.now` | Now | Today's thread row (built) |
-| `menu.now.meta` | this morning / this afternoon / this evening / tonight | Now row's meta (built) |
-| `menu.oldchats` | from the old Chats | Under an imported old chat's title (built) |
+| `menu.now.meta` | this morning / this afternoon / this evening / tonight | Now card's meta (built) |
+| `menu.now.sub` | <weekday> <day> <month> · <N> messages | Under Now (built) |
+| `menu.row.sub` | <summary> / <N> messages | A row's second line (built) |
+| `menu.all.sub` | <N> conversations, by month / By month, newest first | Under All conversations (built) |
+| `menu.oldchats` | Old Chats | Gold tag on an imported old chat's row and in its past view (built) |
 | `menu.untitled` | <weekday> <day> <month> ("Monday 26 October") | A thread with no title yet (built) |
 | `menu.all.back` / `.more` | ‹ Menu / Show more | All conversations page (built) |
-| `menu.all.none` | Nothing older than this week yet. | All conversations, empty (built) |
+| `menu.all.none` | Each day files itself here once it is over. | The list and All conversations, empty (built) |
 | `menu.all.offline` | You're offline. The rest shows once you're back. | All conversations, more offline (built) |
 | `menu.convos.offline` | Offline: showing what this phone has. | The list offline, from this phone (built) |
 | `menu.convos.offline.none` | You're offline. Your conversations show once you're back. | The list offline with nothing on this phone (built) |

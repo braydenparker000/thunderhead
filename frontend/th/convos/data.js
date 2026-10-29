@@ -8,7 +8,7 @@
 import { api, signedIn } from '../client.js';
 import { current } from '../chat/index.js';
 import { kv } from '../idb.js';
-import { PAGE, daysBetween } from './model.js';
+import { PAGE } from './model.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').Thread} Thread */
 /** @typedef {import('../../../shared/contract/api.ts').Message} Message */
@@ -62,8 +62,8 @@ export async function fromCache() {
   return true;
 }
 
-/** Reads the list again from the start: pages until this week is all there (threads are listed by
- * their last message, so once a page ends before this week began, every thread of it is in). */
+/** Reads the list again from the start: pages until last week is all there (threads are listed by
+ * their last message, so once a page ends before last week began, every thread of it is in). */
 export async function refresh() {
   const { day } = await today();
   /** @type {Map<string, Thread>} */
@@ -76,7 +76,7 @@ export async function refresh() {
     cursor = p.next;
     done = !p.next;
     const last = p.items.at(-1);
-    if (done || !last || Date.now() - last.updated_at > 8 * 86_400_000) break;
+    if (done || !last || Date.now() - last.updated_at > 15 * 86_400_000) break;
   }
   list.threads = fresh;
   Object.assign(list, { cursor, done, at: Date.now() });
@@ -84,13 +84,12 @@ export async function refresh() {
   return day;
 }
 
-/** The next older threads for the full list: pages until `want` more older than this week, or the
- * end. @param {string} day today @param {number} [want] */
-export async function more(day, want = PAGE) {
+/** The next threads for the full list: pages until `want` more, or the end. @param {number} [want] */
+export async function more(want = PAGE) {
   let got = 0;
   while (!list.done && got < want) {
     const p = await page(list.cursor);
-    got += p.items.filter((t) => !list.threads.has(t.id) && daysBetween(t.day, day) > 6).length;
+    got += p.items.filter((t) => !list.threads.has(t.id)).length;
     keep(p.items);
     list.cursor = p.next;
     list.done = !p.next;

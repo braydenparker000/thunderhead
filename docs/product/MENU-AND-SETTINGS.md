@@ -62,7 +62,7 @@ Acceptance: with fixture threads, "canción" and "cancion" return the same hits;
 
 The section head reads "Conversations" with the line "A fresh one starts on its own each morning. Nothing to start or name." (built).
 
-Built: the groups, titles with their fallback, the row metas and the taps below (`frontend/th/convos/`, loaded when the menu first opens; `tests/convos-browser.test.mjs`, `tests/convos-logic.test.mjs`). Imported old chats (`kind = 'imported'`) land by their own day like any thread, with the line "from the old Chats" under the title, and open read-only like any past thread. The list is read newest first, 30 a page, again on opening the menu after 30 s or when the feed reports a thread change; the first pages are kept on this phone (IndexedDB) for offline, with the line "Offline: showing what this phone has." Not built yet: the long-press actions (decisions.md) and the per-app icons (every older row uses `chat-circle` in `--ink-3`).
+Built: the groups, titles with their fallback, the row metas and the taps below (`frontend/th/convos/`, loaded when the menu first opens; `tests/convos-browser.test.mjs`, `tests/convos-logic.test.mjs`). Now is a glass card with today's date and message count. Each group under it has a heading with its count and a chevron; a tap folds its rows away (the height eases, the rows cascade back in on opening), and what is folded is remembered on this phone. A row is an icon tile, the title with its date on the right, and a second line: the night shift's summary, else how many messages. Imported old chats (`kind = 'imported'`) land by their own day like any thread, tagged gold "Old Chats" with a clock icon, and open read-only like any past thread. The list is read newest first, 30 a page, again on opening the menu after 30 s or when the feed reports a thread change; the first pages are kept on this phone (IndexedDB) for offline, with the line "Offline: showing what this phone has." Not built yet: the long-press actions (decisions.md) and the per-app icons (every older row uses `chat-circle` in `--ink-3`).
 
 ### 3.1 Grouping
 
@@ -70,8 +70,9 @@ Built: the groups, titles with their fallback, the row metas and the taps below 
 |---|---|---|
 | **Today** | Only the current thread, titled **Now** (built), accent icon | "this morning" / "this afternoon" / "this evening" / "tonight" by the time of its last message (05–12 / 12–18 / 18–22 / 22–05) |
 | **Yesterday** (built) | The previous day's thread (and any old chat of that day) | Time of its last message ("21:40", 24-hour) |
-| **This week** (built) | 2–6 days ago | Weekday ("Mon") |
-| **All conversations ›** (built) | One row that opens a full-screen list of every older thread, grouped by month ("September 2026"), newest first, 30 at a time ("Show more"), with "‹ Menu" back | Date ("12 Sep") |
+| **Earlier this week** (built) | From Monday of this week to the day before yesterday (weeks run Monday to Sunday, so a Saturday is never "this week" on a Thursday) | Weekday and date ("Mon 26") |
+| **Last week** (built) | Monday to Sunday of the week before | Weekday and date ("Sat 24") |
+| **All conversations ›** (built) | One row that opens a full-screen list of every thread but Now, grouped by month ("October", "December 2025" outside this year), each month folding like the menu's groups, newest first, 30 at a time ("Show more"), with "‹ Menu" back | Weekday and date ("Sat 19") |
 
 One thread per day (decisions.md). The prototype showed two "Today" rows (topics within a day); this doc does not, see Open questions.
 
@@ -272,7 +273,7 @@ Agent tokens let the mind's sessions and helper agents call the Worker (decision
 |---|---|
 | M1 | Swipe, Menu button, Back, Escape and dim-tap all open/close the panel as in Rules 1 |
 | M2 | Search: accent folding, 2-character minimum, offline line, server results appended without reordering (built: `tests/convos-browser.test.mjs`) |
-| M3 | Grouping: fixture threads of today, yesterday, 3 days ago and 40 days ago land in Today/Now, Yesterday, This week, All conversations (built: `tests/convos-logic.test.mjs`, `tests/convos-browser.test.mjs`) |
+| M3 | Grouping by the calendar: on a Thursday, fixture threads of today, yesterday, Monday, last Saturday and 40 days ago land in Today/Now, Yesterday, Earlier this week, Last week and All conversations; Monday and Sunday edges, month and year crossings; a folded group stays folded on reload (built: `tests/convos-logic.test.mjs`, `tests/convos-browser.test.mjs`) |
 | M4 | Rename: 61 characters is cut to 60; empty reverts; the night shift does not overwrite (`title_source=owner`) |
 | M5 | Delete: confirm sheet, Undo for 8 s, Recently deleted for 30 days, purge after |
 | M6 | Quiet hours: end time cannot be before 06:30; decisions held as §4.2 |

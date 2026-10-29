@@ -1,11 +1,13 @@
 // The menu's Conversations and Search, and an older conversation on home, in Chromium at 390×844
-// against the mocked Worker (tests/fixtures/mock-threads.mjs): the groups (Now, Yesterday, This
-// week with an imported old chat marked, All conversations by month, 30 at a time), titles as text
-// only, the read-only past view with Back to now (the pill, Back, Now, and sending), a long
-// imported thread paging back, search (local first, the Worker's rows appended, accent-folded,
+// against the mocked Worker (tests/fixtures/mock-threads.mjs): the groups (Now's card, Yesterday,
+// Earlier this week with an imported old chat tagged, Last week; each folding and remembered, All
+// conversations by month, 30 at a time), titles as text only, the read-only past view with Back to
+// now (the card, Back, Now, and sending), a Markdown reply read as text, a long imported thread
+// paging back, search (local first, the Worker's rows appended, accent-folded,
 // "Show all N", a hit opening its thread highlighted, nothing found, offline), and the list's
 // error and offline lines. CSP violations are console errors, so each test also proves the page
-// fits its CSP. Set SHOTS=<dir> to keep the screenshots (day and night: menu, all, past, search).
+// fits its CSP. Set SHOTS=<dir> to keep the screenshots (day and night: menu, folded, all, past,
+// prose, search).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -13,7 +15,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
-import { T } from './fixtures/mock-threads.mjs';
+import { PLAN, T } from './fixtures/mock-threads.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -71,47 +73,75 @@ const menu = async (page) => {
   await page.waitForTimeout(450);
 };
 const menuOpen = (page) => page.$eval('#side', (s) => s.classList.contains('open'));
-/** The Conversations section as [kind, text…] rows. */
-const section = (page) => page.$$eval('#convos > *', (els) => els.map((e) => (e.classList.contains('grp') ? ['grp', e.textContent] : [e.classList.contains('all') ? 'all' : 'row', ...[...e.querySelectorAll('.tl, .src, small, .t')].filter((x) => !x.matches('.t') || !x.children.length).map((x) => x.textContent)])));
+/** A row as "title | date | tag | second line". */
+const rowText = (r) => [...r.querySelectorAll('.tl, .when, .tag, .sum, .row.all .l2')].map((x) => x.textContent).join(' | ');
+/** The Conversations section: each group as [name, count, rows…], then the All row. */
+const section = (page) => page.$$eval('#convos > *', (els, f) => {
+  const text = new Function(`return ${f}`)();
+  return els.map((e) => (e.matches('section.cg') ? [e.querySelector('.gl').textContent, e.querySelector('.gn').textContent, ...[...e.querySelectorAll('.row')].map(text)] : [e.matches('.all') ? 'all' : 'row', text(e)]));
+}, rowText.toString());
+const pastMeta = (page) => page.$eval('.pmeta', (e) => e.lastChild.textContent);
 const partOfDay = (h) => (h >= 5 && h < 12 ? 'this morning' : h >= 12 && h < 18 ? 'this afternoon' : h >= 18 && h < 22 ? 'this evening' : 'tonight');
 const hidden = (page, sel) => page.$eval(sel, (e) => getComputedStyle(e).display === 'none');
 
-test('the menu groups conversations: Now, Yesterday, This week with an old chat marked, then All conversations by month', opts, async () => {
+test('the menu groups conversations by the calendar: Now, Yesterday, Earlier this week, Last week, then All conversations by month', opts, async () => {
   for (const theme of ['light', 'dark']) {
     const { page, context, errors } = await open({ theme });
+    await page.evaluate(() => localStorage.removeItem('th.convos.closed'));
     await menu(page);
     assert.equal(await page.textContent('#now small'), partOfDay(new Date().getUTCHours()), 'Now carries its part of the day');
+    assert.match(await page.textContent('#now .sub'), /^Thursday 29 October( · \d+ messages?)?$/, "Now's card says which day it is");
+    // The mock's today is Thursday 29 October: its week began on Monday 26, so Saturday 24 is last week.
     assert.deepEqual(await section(page), [
-      ['grp', 'Yesterday'],
-      ['row', 'A calm playlist for the evening', '21:40'],
-      ['grp', 'This week'],
-      ['row', 'Bars 9 to 12, slow then up to tempo', 'from the old Chats', 'Tue'],
-      ['row', 'Monday 26 October', 'Mon'],
-      ['all', 'All conversations'],
+      ['Yesterday', '1', 'A calm playlist for the evening | 21:40 | 3 messages'],
+      ['Earlier this week', '2', 'Bars 9 to 12, slow then up to tempo | Tue 27 | Old Chats | 230 messages', 'Monday 26 October | Mon 26 | 2 messages'],
+      ['Last week', '1', 'Weekend practice plan | Sat 24 | Scales first, then bars 9 to 12 at 84.'],
+      ['all', 'All conversations | By month, newest first'],
     ]);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0, 'no sideways scroll');
+    assert.ok(await page.$eval('#side', (s) => s.scrollWidth <= s.clientWidth), 'the menu does not scroll sideways');
     await shot(page, 'menu', theme);
-    // The full list: older than this week, by month, newest first, 30 at a time.
+    // A heading folds its rows away (they leave the tab order), says so, and stays folded on reload.
+    const week = 'section.cg[data-g="week"]';
+    await page.click(`${week} .ghead`);
+    assert.equal(await page.getAttribute(`${week} .ghead`, 'aria-expanded'), 'false');
+    await page.waitForFunction((w) => getComputedStyle(document.querySelector(`${w} .gin`)).visibility === 'hidden' && document.querySelector(`${w} .gbody`).getBoundingClientRect().height < 1, week);
+    await shot(page, 'folded', theme);
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('#talk .you');
+    await menu(page);
+    assert.equal(await page.getAttribute(`${week} .ghead`, 'aria-expanded'), 'false', 'folded stays folded');
+    assert.equal(await page.getAttribute('section.cg[data-g="last"] .ghead', 'aria-expanded'), 'true');
+    await page.click(`${week} .ghead`);
+    await page.waitForFunction((w) => document.querySelector(`${w} .gbody`).getBoundingClientRect().height > 100, week);
+    assert.equal(await page.getAttribute(`${week} .ghead`, 'aria-expanded'), 'true');
+    // The full list: every conversation but Now, by month, newest first, 30 at a time.
     await page.click('#convos .row.all');
     await page.waitForSelector('.allconvos .row.thr');
-    const months = () => page.$$eval('.allconvos .grp', (g) => g.map((x) => x.textContent));
+    const months = () => page.$$eval('.allconvos .gl', (g) => g.map((x) => x.textContent));
     const rows = () => page.$$eval('.allconvos .row.thr', (r) => r.length);
     await eventually(rows, 30);
-    assert.deepEqual(await months(), ['September 2026', 'August 2026']);
-    assert.deepEqual(await page.$$eval('.allconvos .row.thr', (r) => r.slice(0, 2).map((x) => [x.querySelector('.tl').textContent, x.querySelector('small').textContent])),
-      [['Planning the garden beds', '19 Sep'], ['<img src=x onerror="document.title=1">Tags stay text', '2 Sep']]);
+    assert.deepEqual(await months(), ['October', 'September', 'August']);
+    assert.deepEqual(await page.$$eval('.allconvos [data-g="m:2026-09"] .row.thr', (r) => r.map((x) => [x.querySelector('.tl').textContent, x.querySelector('.when').textContent])),
+      [['Planning the garden beds', 'Sat 19'], ['<img src=x onerror="document.title=1">Tags stay text', 'Wed 2']]);
     assert.equal(await page.$('#app img'), null, 'a title is text, never markup');
+    await page.waitForTimeout(400);
     await shot(page, 'all', theme);
     await page.click('.allconvos .btn');
-    await eventually(rows, 38);
-    assert.deepEqual(await months(), ['September 2026', 'August 2026', 'July 2026', 'December 2025']);
-    assert.equal(await page.$eval('.allconvos .row.thr:last-of-type .src', (s) => s.textContent), 'from the old Chats');
+    await eventually(rows, 42);
+    assert.deepEqual(await months(), ['October', 'September', 'August', 'July', 'December 2025']);
+    assert.equal(await page.textContent('.allconvos .alllead'), '42 conversations, newest first.');
+    assert.equal(await page.$$eval('.allconvos .row.thr', (r) => r.at(-1).querySelector('.tag')?.textContent), 'Old Chats');
     assert.ok(await page.$eval('.allconvos .btn', (b) => b.hidden), 'nothing more to show');
     assert.equal(await page.title(), 'Thunderhead');
+    // A month folds there too.
+    await page.click('.allconvos [data-g="m:2026-08"] .ghead');
+    assert.equal(await page.getAttribute('.allconvos [data-g="m:2026-08"] .ghead', 'aria-expanded'), 'false');
     // A row there opens the thread on home.
     await page.click(`.allconvos [data-id="${T.september}"]`);
     await page.waitForSelector('#home.pastview #past .you');
-    assert.equal(await page.textContent('.past span'), 'Planning the garden beds · 19 Sep');
+    assert.equal(await page.textContent('.past .ptl'), 'Planning the garden beds');
+    assert.equal(await pastMeta(page), 'Saturday 19 September · 1 message');
     await page.waitForFunction(() => !document.querySelector('.allconvos'));
     assert.deepEqual(errors, []);
     await context.close();
@@ -128,7 +158,8 @@ test('an older conversation shows read-only with Back to now; Back, the pill, No
       await eventually(() => menuOpen(page), false, 'the menu closes');
     };
     await openYesterday();
-    assert.equal(await page.textContent('.past span'), 'A calm playlist for the evening · Yesterday');
+    assert.equal(await page.textContent('.past .ptl'), 'A calm playlist for the evening');
+    assert.equal(await pastMeta(page), 'Yesterday · 3 messages');
     assert.deepEqual(await page.$$eval('#past .you, #past .reply, #past .sys', (n) => n.map((x) => x.textContent)),
       ['Put on something calm for the evening', 'It is in Music, under Evening.', 'Yesterday is filed in the menu.']);
     assert.equal(await page.$eval('#past .reply', (r) => getComputedStyle(r).fontStyle), 'italic');
@@ -170,12 +201,40 @@ test('an older conversation shows read-only with Back to now; Back, the pill, No
   }
 });
 
+test('a Markdown reply reads as text: a heading, lists, bold, code, a table and a link, tags kept as text', opts, async () => {
+  for (const theme of ['light', 'dark']) {
+    const { page, context, errors } = await open({ theme });
+    await menu(page);
+    await page.click(`#convos [data-id="${T.saturday}"]`);
+    await page.waitForSelector('#past .reply.prose');
+    const p = '#past .reply.prose';
+    assert.equal(await page.$eval(p, (r) => getComputedStyle(r).fontStyle), 'normal');
+    assert.equal(await page.textContent(`${p} .h`), 'Practice plan for the weekend');
+    assert.deepEqual(await page.$$eval(`${p} ul > li`, (l) => l.map((x) => x.textContent)), ['Scales first, ten minutes', 'Bars 9 to 12 at 84 bpm, then up']);
+    assert.equal(await page.textContent(`${p} li b`), 'Scales');
+    assert.equal(await page.textContent(`${p} li code`), '84 bpm');
+    assert.deepEqual(await page.$$eval(`${p} tr`, (r) => r.map((x) => [...x.children].map((c) => `${c.tagName}:${c.textContent}`).join(' '))), ['TH:Day TH:Minutes', 'TD:Mon TD:30', 'TD:Wed TD:45']);
+    assert.deepEqual(await page.$eval(`${p} a`, (a) => [a.getAttribute('href'), a.textContent, a.rel]), ['https://example.com/metronome', 'example.com/metronome', 'noopener noreferrer']);
+    assert.equal(await page.$('#app img'), null, 'a tag in a reply is text');
+    assert.ok((await page.textContent(p)).includes('<img src=x onerror="document.title=1">'));
+    assert.equal(PLAN.split('\n')[0], '## Practice plan for the weekend');
+    assert.ok(await page.$eval('#convo', (c) => c.scrollWidth <= c.clientWidth), 'nothing scrolls sideways');
+    await page.waitForTimeout(300);
+    await shot(page, 'prose', theme);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
 test('a long imported old chat shows its newest 200, then earlier ones above', opts, async () => {
   const { page, context, errors, api } = await open();
   await menu(page);
   await page.click(`#convos [data-id="${T.imported}"]`);
   await page.waitForSelector('#past .earlier');
-  assert.equal(await page.textContent('.past span'), 'Bars 9 to 12, slow then up to tempo · Tuesday');
+  assert.equal(await page.textContent('.past .ptl'), 'Bars 9 to 12, slow then up to tempo');
+  assert.equal(await page.textContent('.past .tag'), 'Old Chats');
+  assert.equal(await pastMeta(page), 'Tuesday 27 October · 230 messages');
+  assert.equal(await page.$$eval('#past .reply', (r) => r.every((x) => x.matches('.prose') && getComputedStyle(x).fontStyle === 'normal')), true, 'an old chat reads as text');
   const count = () => page.$$eval('#past [data-id]', (n) => n.length);
   assert.equal(await count(), 200);
   assert.ok(await page.$eval('#convo', (c) => c.scrollHeight - c.scrollTop - c.clientHeight < 4), 'scrolled to the bottom');
@@ -290,7 +349,8 @@ test('the list and a thread say when they cannot load, and Retry or reopening lo
   await page.click(`#convos [data-id="${T.monday}"]`);
   await page.waitForSelector('#past .retry');
   assert.match(await page.textContent('#past .sys'), /^You're offline\. This conversation shows once you're back\./);
-  assert.equal(await page.textContent('.past span'), 'Monday 26 October · Monday');
+  assert.equal(await page.textContent('.past .ptl'), 'Monday 26 October');
+  assert.equal(await pastMeta(page), '2 messages', 'the day is the title already');
   await context.setOffline(false);
   await page.evaluate(() => dispatchEvent(new Event('online')));
   await page.click('#past .retry');
