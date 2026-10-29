@@ -1603,7 +1603,7 @@
           "repo",
           "base"
         ],
-        "doc": "Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push.",
+        "doc": "Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push. Decided by a tap on a signed-in device only.",
         "args": {
           "type": "object",
           "properties": {

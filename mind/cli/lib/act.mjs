@@ -71,7 +71,8 @@ export async function approved(argv) {
   const paths = String(need(flags, 'paths')).split(',').map(p => p.trim()).filter(Boolean);
   const sha = need(flags, 'sha');
   if (!paths.length || !/^[0-9a-f]{40}$/.test(sha)) throw invalid('usage: th approved --paths <p1,p2> --sha <40-hex commit>');
-  const {data} = await request('GET', '/v1/proposals', {query: {status: 'all', limit: 200}});
+  // Always the owner's Core: an approval in the eval sandbox approves nothing real.
+  const {data} = await request('GET', '/v1/proposals', {query: {status: 'all', limit: 200}, sandbox: false});
   const card = (data.items || []).find(p => p.status === 'executed' && p.spec?.op === 'repo.change' && p.spec.args?.base === sha &&
     paths.every(x => (p.spec.args.paths || []).includes(x)));
   out({approved: Boolean(card), proposal_id: card?.id ?? null});

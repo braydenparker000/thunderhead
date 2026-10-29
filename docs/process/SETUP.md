@@ -290,15 +290,16 @@ is deployed.
        "Stop": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop.mjs\"", "timeout": 20}]}],
        "StopFailure": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop-failure.mjs\"", "timeout": 10}]}],
        "PreToolUse": [{"matcher": "*",
-         "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/pre-tool.mjs\"", "timeout": 10}]}],
-       "PostToolUse": [{"matcher": "WebFetch|WebSearch|Bash|Read|Task|Agent",
-         "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/post-tool.mjs\"", "timeout": 10}]}]
+         "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/pre-tool.mjs\" || [ -z \"$TH_ROLE\" ] || exit 2", "timeout": 10}]}],
+       "PostToolUse": [{"matcher": "*",
+         "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/post-tool.mjs\" || [ -z \"$TH_ROLE\" ] || { mkdir -p \"${TMPDIR:-/tmp}/th/state\" && echo '{\"source\":\"hook\",\"ref\":\"\"}' > \"${TMPDIR:-/tmp}/th/state/taint_pending.json\"; }", "timeout": 10}]}]
      }
    }
    ```
 
-   Check: the file on `main` ends with the `PostToolUse` line. Like the rest, the hook does
-   nothing in your own or a developer's sessions (`TH_ROLE` unset).
+   Check: the file on `main` ends with the `PostToolUse` line. Like the rest, the hooks do
+   nothing in your own or a developer's sessions (`TH_ROLE` unset); in a mind session a hook that
+   can't run blocks the call (`exit 2`) or leaves the taint pending, so they fail closed.
 2. **The check from the phone.** Home → type `Summarise https://example.com for me` → send. The
    reply arrives as usual: the mind hands the page to its `reader` subagent, and from then on that
    session writes no memory. A page whose host the environment's network list doesn't allow comes

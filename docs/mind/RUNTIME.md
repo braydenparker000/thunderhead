@@ -264,9 +264,9 @@ Configured in `.claude/settings.json` in the repo. That file and `mind/hooks/**`
     "Stop": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop.mjs\"", "timeout": 20}]}],
     "StopFailure": [{"hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/stop-failure.mjs\"", "timeout": 10}]}],
     "PreToolUse": [{"matcher": "*",
-      "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/pre-tool.mjs\"", "timeout": 10}]}],
-    "PostToolUse": [{"matcher": "WebFetch|WebSearch|Bash|Read|Task|Agent",
-      "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/post-tool.mjs\"", "timeout": 10}]}]
+      "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/pre-tool.mjs\" || [ -z \"$TH_ROLE\" ] || exit 2", "timeout": 10}]}],
+    "PostToolUse": [{"matcher": "*",
+      "hooks": [{"type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/mind/hooks/post-tool.mjs\" || [ -z \"$TH_ROLE\" ] || { mkdir -p \"${TMPDIR:-/tmp}/th/state\" && echo '{\"source\":\"hook\",\"ref\":\"\"}' > \"${TMPDIR:-/tmp}/th/state/taint_pending.json\"; }", "timeout": 10}]}]
   }
 }
 ```

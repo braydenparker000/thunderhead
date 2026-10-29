@@ -12,11 +12,14 @@ const READ_TOOLS = ['Read', 'Grep', 'Glob', 'NotebookRead'];
 const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
 
 /**
- * @typedef {{role: string, cwd: string, projectDir: string, tmpDir: string, allowedHosts: string[],
- *   headSubject?: () => string, approved?: (paths: string[]) => boolean, pushProtected?: () => string[]}} Context
+ * @typedef {{role: string, cwd: string, projectDir: string, tmpDir: string, allowedHosts: string[], tainted?: boolean,
+ *   headSubject?: () => string, approved?: (paths: string[], base?: string) => boolean,
+ *   pushProtected?: (sources: string[]) => {base: string, paths: string[]}[]}} Context
  * `approved`: the owner approved changing these repository-relative protected paths on a branch
- * from the current base (`th approved`); missing means never. `pushProtected`: the protected paths
- * the commits being pushed change; missing means none.
+ * from `base` (default: the current branch's; `th approved`); missing means never. `pushProtected`:
+ * for each source a push sends (HEAD when it names none), its base and the protected paths its
+ * commits change, renames counted as both paths; it throws when a source can't be resolved.
+ * `tainted`: this session read outside text (th's state).
  */
 
 /** True for mind/CONSTITUTION.md, .claude/**, mind/hooks/**, .github/** inside the project. */
@@ -40,6 +43,11 @@ function projectRelative(path, ctx) {
   const rel = relative(ctx.projectDir, resolve(ctx.cwd, expanded));
   return rel.startsWith('..') || isAbsolute(rel) ? null : rel;
 }
+
+const inside = (path, dir, ctx) => {
+  const abs = resolve(ctx.cwd, String(path).replace(/^\$\{?TMPDIR\}?/, ctx.tmpDir));
+  return abs === dir || abs.startsWith(dir + sep);
+};
 
 const insideTmp = (path, ctx) => {
   const abs = resolve(ctx.cwd, String(path).replace(/^\$\{?TMPDIR\}?/, ctx.tmpDir));
@@ -76,13 +84,14 @@ function gitSub(args) {
 export function gitPush(args) {
   const {sub, rest} = gitSub(args);
   if (sub !== 'push') return null;
-  let force = false, del = false;
+  let force = false, del = false, all = false;
   const pos = [];
   for (let i = 0; i < rest.length; i++) {
     const a = rest[i];
     if (a === '-o' || a === '--push-option' || a === '--repo' || a === '--receive-pack' || a === '--exec') { i++; continue; }
     if (/^--force(-with-lease|-if-includes)?(=|$)/.test(a) || a === '--mirror' || /^-[a-zA-Z]*f[a-zA-Z]*$/.test(a)) force = true;
     if (a === '--delete' || /^-[a-zA-Z]*d[a-zA-Z]*$/.test(a)) del = true;
+    if (['--all', '--branches', '--tags', '--mirror', '--follow-tags'].includes(a)) all = true;
     if (!a.startsWith('-')) pos.push(a);
   }
   const refspecs = pos.slice(1);
@@ -91,7 +100,9 @@ export function gitPush(args) {
     if (spec.startsWith(':')) del = true;
   }
   const dests = refspecs.map(s => s.replace(/^\+/, '').split(':').pop().replace(/^refs\/heads\//, ''));
-  return {force, del, dests, implicit: refspecs.length === 0};
+  // What each refspec sends: its part before the colon (the whole spec when there is none).
+  const sources = refspecs.map(s => s.replace(/^\+/, '').split(':')[0]).filter(Boolean);
+  return {force, del, all, dests, sources, implicit: refspecs.length === 0};
 }
 
 /** The th subcommand when the simple command runs th (`th …`, `node …/th.mjs …`). */
@@ -154,9 +165,12 @@ function checkSegment(seg, ctx) {
     return 'wrangler deploy/secret/dev --remote is not allowed: deploys go through the workflows, and no Cloudflare credential is in a session.';
   if (cmd === 'az') return 'Azure CLI is not allowed in a mind session.';
   if (cmd === 'gh' && args[0] === 'repo' && (args[1] === 'delete' || args[1] === 'edit')) return 'gh repo delete/edit is not allowed.';
+  if (cmd === 'gh' && args[0] === 'api' && ghApiWrites(args.slice(1)))
+    return 'gh api may not write repository contents, git objects or refs: changes go through commits and pushes the hook checks.';
   const push = cmd === 'git' ? gitPush(args) : null;
   if (push?.force) return 'Force pushes are never allowed.';
   if (push?.del) return 'Deleting a remote branch is not allowed.';
+  if (push?.all) return 'Push one branch at a time, named explicitly (no --all, --branches, --tags or --mirror).';
   const writes = writtenPaths({cmd, args}, seg.redirects);
   const prot = unapproved(writes, ctx);
   if (prot) return protectedReason(prot);
@@ -175,10 +189,27 @@ function checkSegment(seg, ctx) {
   }
   // Last, as it asks git: what the commits being pushed change.
   if (push) {
-    const carried = ctx.pushProtected?.() ?? [];
-    if (carried.length && !ctx.approved?.(carried)) return `This push changes protected paths (${carried.join(', ')}) without the owner's approval. Raise a card: th propose --class access --spec '{"op":"repo.change","args":{"paths":[…],"base":"<commit>"}}'.`;
+    for (const c of ctx.pushProtected?.(push.sources) ?? [])
+      if (c.paths.length && !ctx.approved?.(c.paths, c.base))
+        return `This push changes protected paths (${c.paths.join(', ')}) without the owner's approval. Raise a card: th propose --class access --spec '{"op":"repo.change","args":{"paths":[…],"base":"${c.base}"}}'.`;
   }
   return null;
+}
+
+/** A `gh api` call that writes contents, git objects or refs (any method but GET, or fields, which make it a POST). */
+function ghApiWrites(args) {
+  let method = 'GET';
+  let path = '';
+  for (let i = 0; i < args.length; i++) {
+    const a = args[i];
+    if (a === '-X' || a === '--method') method = String(args[++i] ?? '').toUpperCase();
+    else if (/^--method=/.test(a)) method = a.slice(9).toUpperCase();
+    else if (/^-X./.test(a)) method = a.slice(2).toUpperCase();
+    else if (['-f', '-F', '--field', '--raw-field', '--input'].includes(a)) { if (method === 'GET') method = 'POST'; i++; }
+    else if (a === '-H' || a === '--header' || a === '-q' || a === '--jq' || a === '-t' || a === '--template' || a === '--hostname') i++;
+    else if (!a.startsWith('-') && !path) path = a;
+  }
+  return method !== 'GET' && /(^|\/)repos\/[^/]+\/[^/]+\/(contents|git)(\/|$)/.test(path.replace(/^\//, ''));
 }
 
 const kindIsError = rest => rest.some((a, i) => a === '--kind=error' || (a === '--kind' && rest[i + 1] === 'error'));
@@ -211,9 +242,18 @@ export function decide(input, ctx) {
     if (unapproved([path], ctx)) return protectedReason(path);
     if (ctx.role === 'reflex' && !insideTmp(path, ctx)) return `The reflex role may write files only under $TMPDIR (not ${path}).`;
   }
+  // The reader subagent (when Claude Code names it) reads only the drop folder and the web.
+  if (input.agent_type === 'reader' && READ_TOOLS.includes(tool)) {
+    const where = [path, tool === 'Glob' ? ti.pattern : undefined].filter(p => typeof p === 'string');
+    if (!where.length || where.some(p => !inside(p, `${ctx.tmpDir}${sep}th${sep}ext`, ctx)))
+      return 'The reader reads only the drop folder $TMPDIR/th/ext/ and the web.';
+  }
   if (tool === 'WebFetch' && typeof ti.url === 'string') {
     const host = hostOf(ti.url);
     if (ctx.role === 'reflex' && host && !hostAllowed(host, ctx.allowedHosts)) return `The reflex role may not fetch ${host}.`;
+    // Outside text could have asked for it: once tainted (and always for the reader), no URL carries data out.
+    if ((ctx.tainted || input.agent_type === 'reader') && /[?#]/.test(ti.url.replace(/#$/, '')))
+      return 'A tainted session (or the reader) may not fetch a URL with a query or fragment: it could carry data out.';
   }
   return null;
 }

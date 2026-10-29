@@ -85,12 +85,14 @@ export const PROPOSAL_OPS = {
     classes: ['access'],
     by: ['C'],
     runs: 'core',
+    // The mind must never approve a change to its own hooks or laws: the owner's tap only.
+    decide: 'tap',
     ref: ['repo', 'base'],
     args: z.strictObject({
       paths: z.array(z.string().check(z.regex(PROTECTED_PATH))).check(z.minLength(1), z.maxLength(20)),
       base: commit,
     }),
-    doc: 'Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push.',
+    doc: 'Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push. Decided by a tap on a signed-in device only.',
   },
   'laws.pin': {
     classes: ['access'],
