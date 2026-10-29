@@ -410,6 +410,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.live_tickets | deleted 1 h after `expires_at` | no | no |
 | Core.mind_sessions | 90 days after `ended_at` | yes | no |
 | Core.night_runs | 400 days | yes | no |
+| Core.jobs | done or failed jobs 30 days after their last step | no | no |
 | Core.topics | forever (one row per topic key) | yes | no |
 | Core.op_batches | 7 days (idempotency window for batch writes, [API.md §7](API.md#7-idempotency)) | no | no |
 | Core.errors | 30 days after `last_at`; at most 1,000 fingerprints (oldest resolved go first) | yes | no |

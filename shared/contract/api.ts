@@ -1,6 +1,5 @@
-// The /v1 request and response shapes, as types: P1's here (API.md §2, §11.1–11.4, §11.16, §11.20),
-// P2's in conversation.ts and actions.ts, P3's in memory.ts. The backend checks its schemas and
-// responses with `satisfies`; the frontend imports them through JSDoc. Wire format is snake_case.
+// The /v1 shapes as types: P1's here (API.md §2, §11.1–11.4, §11.16, §11.20), P2's in conversation.ts and
+// actions.ts, P3's in memory.ts and imports.ts; the backend `satisfies` them, the frontend reads them in JSDoc.
 export type * from './actions';
 export type * from './conversation';
 export type * from './imports';

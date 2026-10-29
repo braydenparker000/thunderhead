@@ -39,6 +39,6 @@ export const IMPORT_MIGRATIONS: Migration[] = [
 ];
 
 export const IMPORT_TABLES: Record<string, TableInfo> = {
-  imports: { retention: 'forever (small)', backup: true, export: true },
-  import_items: { retention: '30 days after converted_at', backup: true, export: true, prune: pruneItems },
+  imports: { retention: 'forever (small)', backup: true, export: false },
+  import_items: { retention: '30 days after converted_at', backup: true, export: false, prune: pruneItems },
 };
