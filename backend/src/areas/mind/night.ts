@@ -90,7 +90,7 @@ export function nightWake(w: Writer, today: string, configured: boolean): ToFire
 const weekly = (day: string) => new Date(`${day}T12:00:00Z`).getUTCDay() === 6;
 
 function notDue(s: NightStep, day: string): Skip | null {
-  if (!BUILT_PHASES.includes(s.phase)) return 'later';
+  if (!BUILT_PHASES.includes(s.phase) || s.deferred) return 'later';
   if (s.sunday && !weekly(day)) return 'not_sunday';
   return null;
 }

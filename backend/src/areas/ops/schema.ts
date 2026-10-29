@@ -58,7 +58,11 @@ export function knownZone(tz: string): boolean {
 }
 
 /** Only the keys P1 knows; anything else is 422. */
+const hhmm = z.string().check(z.regex(/^([01]\d|2[0-3]):[0-5]\d$/));
 export const settingsPatch = z.strictObject({
   'owner.tz': z.optional(z.string().check(z.maxLength(64), z.refine(knownZone, 'unknown time zone'))),
   min_client: z.optional(int(0, 1e9)),
+  // Quiet hours (MENU-AND-SETTINGS.md §4.2): nothing that needs the owner before 06:30.
+  'quiet.start': z.optional(hhmm),
+  'quiet.end': z.optional(hhmm.check(z.refine((v) => v >= '06:30', 'not earlier than 06:30'))),
 }) satisfies z.ZodMiniType<SettingsPatch>;

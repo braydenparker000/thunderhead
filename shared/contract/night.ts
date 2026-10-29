@@ -19,6 +19,8 @@ export interface NightStep {
   phase: 'P3' | 'P4' | 'P5';
   /** Run on Sundays only. */
   sunday?: true;
+  /** Built in a later step of its phase: the text says what it waits on. Skipped (`later`) until then. */
+  deferred?: string;
 }
 
 export const NIGHT_STEPS: readonly NightStep[] = [
@@ -64,7 +66,15 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     cursor: false,
     phase: 'P3',
   },
-  { step: 8, name: 'built overnight', budget_min: 1, idempotent: 'items are put by id', cursor: false, phase: 'P4' },
+  {
+    step: 8,
+    name: 'built overnight',
+    budget_min: 1,
+    idempotent: 'items are put by id',
+    cursor: false,
+    phase: 'P4',
+    deferred: "the Briefing page's Built overnight tile (P4 stage H)",
+  },
   {
     step: 9,
     name: 'weekly review and evals',
@@ -73,6 +83,7 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     cursor: false,
     phase: 'P4',
     sunday: true,
+    deferred: 'the injection fixtures and the eval sandbox (P4 stage C)',
   },
   {
     step: 10,

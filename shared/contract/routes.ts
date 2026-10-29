@@ -130,22 +130,27 @@ export const ROUTES = {
   'GET /v1/import/runs/:id': { who: AGENTS_READ, phase: 'P3', note: 'state, counts and the verification report' },
 
   // --- P4: proposals, backups, export, Muse -----------------------------------------------------
-  'PUT /v1/proposals/:id': { who: MIND, phase: 'P4' },
+  // Built stage by stage: a row of a later stage says which one it waits for.
+  'PUT /v1/proposals/:id': { who: MIND, phase: 'P4', note: 'an agent raises a decision card (from a claimed, untainted session)' },
   'GET /v1/proposals': { who: AGENTS_READ, phase: 'P4' },
-  'POST /v1/proposals/:id/decide': { who: ['D', 'C'], phase: 'P4', note: 'mind:chat with by_message only' },
-  'POST /v1/proposals/:id/cancel': { who: AGENTS_READ, phase: 'P4' },
-  'POST /v1/ops/backups/run': { who: ['N', 'I'], phase: 'P4' },
-  'POST /v1/ops/drill/run': { who: ['N', 'I'], phase: 'P4' },
-  'GET /v1/ops/backups': { who: ['D', 'C', 'N', 'R', 'I'], phase: 'P4' },
-  'POST /v1/ops/restore': { who: AGENTS_READ, phase: 'P4' },
-  'POST /v1/export': { who: D, phase: 'P4' },
-  'GET /v1/export/:id': { who: D, phase: 'P4' },
-  'PUT /v1/work/orders/:id': { who: ['C', 'N'], phase: 'P4' },
-  'POST /v1/work/orders/:id/cancel': { who: ['D', 'C', 'N'], phase: 'P4' },
-  'GET /v1/work/orders': { who: AGENTS_READ, phase: 'P4' },
-  'GET /v1/work/orders/:id': { who: AGENTS_READ, phase: 'P4' },
-  'GET /v1/work/hello': { who: ['M'], phase: 'P4' },
-  'POST /v1/work/claim': { who: ['M'], phase: 'P4' },
+  'POST /v1/proposals/:id/decide': {
+    who: ['D', 'C'],
+    phase: 'P4',
+    note: "device: a tap; mind:chat: the owner's own words (by_message) only",
+  },
+  'POST /v1/proposals/:id/cancel': { who: AGENTS_READ, phase: 'P4', note: 'the agent that raised it, or the owner' },
+  'POST /v1/ops/backups/run': { who: ['N', 'I'], phase: 'P4', deferred: 'P4 stage E (weekly backups)' },
+  'POST /v1/ops/drill/run': { who: ['N', 'I'], phase: 'P4', deferred: 'P4 stage E (the restore drill)' },
+  'GET /v1/ops/backups': { who: ['D', 'C', 'N', 'R', 'I'], phase: 'P4', deferred: 'P4 stage E (weekly backups)' },
+  'POST /v1/ops/restore': { who: AGENTS_READ, phase: 'P4', deferred: 'P4 stage E (restores)' },
+  'POST /v1/export': { who: D, phase: 'P4', deferred: 'P4 stage F (download everything)' },
+  'GET /v1/export/:id': { who: D, phase: 'P4', deferred: 'P4 stage F (download everything)' },
+  'PUT /v1/work/orders/:id': { who: ['C', 'N'], phase: 'P4', deferred: 'P4 stage G (Muse on work orders)' },
+  'POST /v1/work/orders/:id/cancel': { who: ['D', 'C', 'N'], phase: 'P4', deferred: 'P4 stage G (Muse on work orders)' },
+  'GET /v1/work/orders': { who: AGENTS_READ, phase: 'P4', deferred: 'P4 stage G (Muse on work orders)' },
+  'GET /v1/work/orders/:id': { who: AGENTS_READ, phase: 'P4', deferred: 'P4 stage G (Muse on work orders)' },
+  'GET /v1/work/hello': { who: ['M'], phase: 'P4', deferred: 'P4 stage G (Muse on work orders)' },
+  'POST /v1/work/claim': { who: ['M'], phase: 'P4', deferred: 'P4 stage G (Muse on work orders)' },
 
   // --- P5 and later ---------------------------------------------------------------------------
   'PUT /v1/senses/batches/:id': { who: D, phase: 'P5' },
@@ -160,7 +165,7 @@ export const ROUTES = {
 export type RouteKey = keyof typeof ROUTES;
 
 /** The phases whose routes are live in this build (the scope test registers exactly these). */
-export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3'];
+export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4'];
 
 /** The rows this build must register: built phases, minus deferred rows. */
 export function builtRoutes(): [RouteKey, RouteSpec][] {

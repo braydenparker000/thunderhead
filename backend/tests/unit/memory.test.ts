@@ -170,6 +170,8 @@ function input(over: Partial<BriefInput> = {}): BriefInput {
   return {
     role: 'chat',
     constitution: 'a'.repeat(64),
+    laws: 'laws: pinned',
+    decisions: [],
     tainted: false,
     now: NOW,
     tz: 'UTC',

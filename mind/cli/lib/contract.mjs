@@ -66,3 +66,15 @@ export function checkSurface(app, slot, kind, schema, payload) {
   if (problem) throw invalid(`${kind} v${ver}: ${problem}`);
   return ver;
 }
+
+/** Validates a proposal's spec before it is sent: an op in the executor map, a class it is filed
+ * under, a role that may raise it, args matching its schema. */
+export function checkProposal(cls, spec, role = process.env.TH_ROLE) {
+  const op = CONTRACT.proposals?.ops?.[spec.op];
+  if (!op) throw invalid(`unknown op ${spec.op}; ops: ${Object.keys(CONTRACT.proposals?.ops ?? {}).join(', ')}`);
+  if (!op.classes.includes(cls)) throw invalid(`${spec.op} is filed under --class ${op.classes.join(' or ')}`);
+  const letter = ROLE_LETTER[role];
+  if (letter && !op.by.includes(letter)) throw invalid(`the ${role} role may not raise ${spec.op}`);
+  const problem = check(spec.args, op.args, 'spec.args');
+  if (problem) throw invalid(`${spec.op}: ${problem}`);
+}

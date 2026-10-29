@@ -7,6 +7,16 @@ export * from './feed.ts';
 export * from './imports.ts';
 export * from './memory.ts';
 export * from './night.ts';
+export {
+  PROPOSAL_CLASS_NAMES,
+  PROPOSAL_CLASSES,
+  PROPOSAL_LIMITS,
+  PROPOSAL_OPS,
+  type ProposalClass,
+  type ProposalOp,
+  type ProposalOpName,
+  proposalOp,
+} from './proposals.ts';
 export { BUILT_PHASES, builtRoutes, type Phase, ROUTES, type RouteKey, type RouteSpec, type Who } from './routes.ts';
 export { SURFACE_KINDS, type SurfaceKind, type SurfaceKindName, surfaceKind } from './surfaces.ts';
 export { latestVersion, VERBS, type VerbName, type VerbSpec, type VerbVersion, verbSpec } from './verbs.ts';

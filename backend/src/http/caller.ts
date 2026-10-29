@@ -3,6 +3,7 @@
 import type { Context } from 'hono';
 import type { Actor } from '../../../shared/contract/api';
 import { sha256Hex } from '../areas/auth/crypto';
+import { canonicalJson } from '../lib/canonical';
 import type { Caller } from '../objects/caller';
 import { type AppEnv, principalOf, whoOf } from './auth';
 import { ApiError } from './errors';
@@ -26,19 +27,8 @@ export function callerOf(c: Context<AppEnv>): Caller {
   return { actor: ACTOR[who], who, session_id: s, device_id: null };
 }
 
-function canonical(v: unknown): unknown {
-  if (Array.isArray(v)) return v.map(canonical);
-  if (v && typeof v === 'object')
-    return Object.fromEntries(
-      Object.keys(v as object)
-        .sort()
-        .map((k) => [k, canonical((v as Record<string, unknown>)[k])]),
-    );
-  return v;
-}
-
 export function reqHash(body: unknown): string {
-  return sha256Hex(JSON.stringify(canonical(body)));
+  return sha256Hex(canonicalJson(body));
 }
 
 /** A path id that must be a lowercase UUIDv7 (API.md §2). */

@@ -44,3 +44,12 @@ export function dayCounts(db: Db, day: string): Record<string, number> {
   }
   return out;
 }
+
+/** The owner's newest message in a thread (DEC-2: the words that decide a card must be it), walked
+ * back along the thread's seq index. */
+export function latestOwnerMessage(db: Db, threadId: string): { id: string; created_at: number } | null {
+  return db.one(
+    "SELECT id, created_at FROM messages WHERE thread_id = ? AND author = 'owner' ORDER BY seq DESC LIMIT 1",
+    threadId,
+  );
+}

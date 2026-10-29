@@ -1,9 +1,10 @@
 // The /v1 shapes as types: P1's here (API.md §2, §11.1–11.4, §11.16, §11.20), P2's in conversation.ts and
-// actions.ts, P3's in memory.ts and imports.ts; the backend `satisfies` them, the frontend reads them in JSDoc.
+// actions.ts, P3's in memory.ts and imports.ts, P4's in proposals.ts; the backend `satisfies` them, the frontend reads them in JSDoc.
 export type * from './actions';
 export type * from './conversation';
 export type * from './imports';
 export type * from './memory';
+export type * from './proposals';
 export type { ErrorBody, ErrorCode, ErrorDetails, Issue, RevokeReason } from './errors';
 export type { AppId, ChangeKind, FrameType, SearchSource } from './feed';
 export type { Ref, RefKind } from './refs';
@@ -289,11 +290,10 @@ export interface MeterResponse {
   items: { day: Day; class: string; rows_written: number; rows_read: number; bulk_rows_written: number }[];
 }
 
-/** Settings known in P1. `owner.tz` is an IANA name set from the phone; it lives only in Core. */
+/** Settings: `owner.tz` (IANA, set from the phone, only in Core); quiet hours `HH:MM`, ending ≥ 06:30. */
 export interface Settings {
   'owner.tz': string;
   min_client: number;
   [key: string]: unknown;
 }
-
-export type SettingsPatch = Partial<Pick<Settings, 'owner.tz' | 'min_client'>>;
+export type SettingsPatch = Partial<Pick<Settings, 'owner.tz' | 'min_client'> & Record<'quiet.start' | 'quiet.end', string>>;

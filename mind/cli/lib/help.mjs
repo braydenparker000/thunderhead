@@ -32,9 +32,9 @@ export const USAGE = {
   remember: ['--kind <k> --text <t> --evidence <ids> [--subject] [--sensitivity 0|1] [--source]', 'add a fact (P3)'],
   confirm: ['<fact id> --evidence <ids>', 'confirm a fact (P3)'],
   supersede: ['<fact id> --text <t> --evidence <ids> [--reason <r>]', 'replace a fact (P3)'],
-  forget: ['<fact id> --why <text>', 'propose forgetting a fact (P4 proposals)'],
+  forget: ['<fact id> --why <text>', 'propose forgetting a fact (a delete card for the owner)'],
   thread: ['add <text> --evidence <ids> | done <id> | drop <id> --why <t> | list', 'open threads (P3)'],
-  propose: ['--class <c> --question <q> --why <t> --spec <json> --if-ignored <t> [--odds] [--options "A|B"]', 'a decision card (P4)'],
+  propose: ['--class <c> --question <q> --why <t> --spec <json> --if-ignored <t> [--odds] [--options "A|B"] [--safe reject|snooze]', 'a decision card for the owner (the ops are listed below)'],
   decide: ['<proposal id> --by-message <message id> [--spec-hash <h>] [--reject]', 'record the owner\'s words as the decision (P4)'],
   order: ['new … | list | get <id> | cancel <id> --why <t>', 'work orders for Muse (P4)'],
   push: ['--title --body --ref --why --topic [--deadline]', 'a push (P8)'],
@@ -58,6 +58,11 @@ export function helpText(command, role = process.env.TH_ROLE || '') {
   }
   lines.push('', 'Surface kinds (th surface):');
   for (const [name, k] of Object.entries(CONTRACT.surfaces)) lines.push(`  ${name} in ${Object.entries(k.slots).map(([a, p]) => `${a} ${p}`).join('; ')}: ${k.doc}`);
+  lines.push('', 'Proposal ops (th propose --spec {"op": …, "args": {…}}):');
+  for (const [name, o] of Object.entries(CONTRACT.proposals?.ops ?? {})) {
+    const args = Object.keys(o.args.properties || {}).join(', ');
+    lines.push(`  ${name} {${args}} --class ${o.classes.join('|')} (raised by ${o.by.join(' ')}): ${o.doc}`);
+  }
   lines.push('', `Exit codes: ${Object.entries(EXIT).map(([k, v]) => `${v} ${k}`).join(' · ')}`);
   return lines.join('\n');
 }

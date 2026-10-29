@@ -30,11 +30,15 @@ export interface LedgerDraft {
   tainted?: boolean;
   /** For agent-created rows (PUT /v1/ledger/:id): the canonical body hash (API.md §7). */
   req_sha256?: string | null;
+  /** The proposal this row belongs to (else the one the Writer is running, below). */
+  proposal_id?: string | null;
 }
 
 export class Writer {
   readonly kinds = new Set<ChangeKind>();
   seq = 0;
+  /** Set while an approved proposal's op runs: every ledger row it writes carries its id. */
+  proposal: string | null = null;
 
   constructor(
     readonly db: Db,
@@ -67,6 +71,7 @@ export class Writer {
       op_json: d.op ? JSON.stringify({ v: 1, ...d.op }) : null,
       verb_id: d.verb_id ?? null,
       req_sha256: d.req_sha256 ?? null,
+      proposal_id: d.proposal_id ?? this.proposal,
     });
     this.change('ledger', `ledger:${id}`);
     return id;

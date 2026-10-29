@@ -24,7 +24,7 @@ export const FRAME_TYPES = Object.freeze(["hello","changed","typing","bye"]);
 export const CLOSE_CODES = Object.freeze({"revoked":4401,"outdated":4426,"restart":1012});
 
 /** @type {readonly import('../../shared/contract/routes.ts').Phase[]} */
-export const BUILT_PHASES = Object.freeze(["P1","P1b","P2","P3"]);
+export const BUILT_PHASES = Object.freeze(["P1","P1b","P2","P3","P4"]);
 
 /** @type {Readonly<Record<AppId, { path: string, name: string, phase: string }>>} */
 export const APPS = Object.freeze({"music":{"path":"/music/","name":"Music","phase":"P1b"},"guitar":{"path":"/guitar/","name":"Guitar","phase":"P1b"},"podcasts":{"path":"/podcasts/","name":"Podcasts","phase":"P1b"},"astra":{"path":"/astra/","name":"Astra","phase":"P1b"},"media":{"path":"/media/","name":"My Media","phase":"P1b"},"study":{"path":"/study/","name":"Study","phase":"P7"}});
@@ -37,6 +37,13 @@ export const VERBS = Object.freeze({"app.open":{"app":"shell","executor":"device
 
 /** @type {Readonly<Record<SurfaceKindName, SurfaceInfo>>} */
 export const SURFACE_KINDS = Object.freeze({"line":{"slots":{"home":"^line\\.[1-4]$"},"versions":[1]}});
+
+/** Decision cards (shared/contract/proposals.ts): each class's label and the card's limits. */
+/** @type {typeof import('../../shared/contract/proposals.ts').PROPOSAL_CLASSES} */
+export const PROPOSAL_CLASSES = Object.freeze({"delete":{"ask_first":true,"label":"Can't be undone"},"money":{"ask_first":true,"label":"Costs money"},"access":{"ask_first":true,"label":"Changes access"},"reach_people":{"ask_first":true,"label":"Reaches someone else"},"memory_big":{"ask_first":false,"label":"Changes what I remember"}});
+
+/** @type {typeof import('../../shared/contract/proposals.ts').PROPOSAL_LIMITS} */
+export const PROPOSAL_LIMITS = Object.freeze({"question":80,"why":140,"if_ignored":140,"option":20,"waiting":3,"expires_days":7,"snoozes":3,"spec_bytes":8192});
 
 /** Memory (MEMORY.md §2–§8): fact kinds in profile order, sources, the confidence thresholds, and
  * the reasons an op can be refused. A kind or source not listed renders generically.

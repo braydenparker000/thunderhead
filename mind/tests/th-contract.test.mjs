@@ -34,7 +34,7 @@ test('a route this build lacks exits 8 not_built before the network', withFake(a
   const r = await th(['order', 'list'], e);
   assert.equal(r.code, 8);
   assert.equal(errCode(r), 'not_built');
-  assert.match(r.stderr, /GET \/v1\/work\/orders is later \(P4\)/);
+  assert.match(r.stderr, /GET \/v1\/work\/orders is deferred: P4 stage G/);
   assert.equal(fake.state.requests.length, before);
   assert.equal((await th(['pending'], e)).code, 0, 'built routes still work');
 }));

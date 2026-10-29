@@ -12,6 +12,7 @@ import { ledgerRoutes } from './areas/ledger/routes';
 import { memoryRoutes } from './areas/memory/routes';
 import { mindRoutes } from './areas/mind/routes';
 import { opsRoutes } from './areas/ops/routes';
+import { proposalsRoutes } from './areas/proposals/routes';
 import { searchRoutes } from './areas/search/routes';
 import { surfacesRoutes } from './areas/surfaces/routes';
 import { verbsRoutes } from './areas/verbs/routes';
@@ -68,5 +69,6 @@ export const app = new Hono<AppEnv>()
   .route('/v1', surfacesRoutes)
   .route('/v1', memoryRoutes)
   .route('/v1', importRoutes)
+  .route('/v1', proposalsRoutes)
   .notFound(notFound)
   .onError(onError);

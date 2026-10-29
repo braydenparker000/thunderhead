@@ -157,6 +157,8 @@ describe('the renders build each date formatter once (briefing CPU)', () => {
       const input = {
         role: 'chat',
         constitution: 'none',
+        laws: 'laws: mind/CONSTITUTION.md missing',
+        decisions: [],
         tainted: false,
         now,
         tz,
