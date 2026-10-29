@@ -12,6 +12,7 @@ import {
   notice,
   type RequestMeta,
   type Result,
+  type Revoked,
   reserve,
   source,
   throttled,
@@ -96,7 +97,7 @@ export interface LoginInput {
   device: DeviceHints;
 }
 
-export async function login(d: AuthDeps, input: LoginInput, meta: RequestMeta): Promise<Result<SignedIn>> {
+export async function login(d: AuthDeps, input: LoginInput, meta: RequestMeta): Promise<Result<SignedIn & Revoked>> {
   const now = Date.now();
   if (!store.hasCredential(d.db)) return fail('setup_required');
   if (overCap(input.password)) return fail('password_too_long');
@@ -136,7 +137,7 @@ export async function login(d: AuthDeps, input: LoginInput, meta: RequestMeta): 
         now,
         14,
       );
-    return s.grant;
+    return { ...s.grant, revoked: s.evicted };
   });
   return { ok: true, ...grant };
 }
@@ -150,7 +151,11 @@ export interface RecoverInput {
 
 /** Recovery code or ready reset ticket: new password, every session signed out, this device
  * signed in, a new recovery code (SIGN-IN.md §8, §10.3). */
-export async function recover(d: AuthDeps, input: RecoverInput, meta: RequestMeta): Promise<Result<SignedInWithCode>> {
+export async function recover(
+  d: AuthDeps,
+  input: RecoverInput,
+  meta: RequestMeta,
+): Promise<Result<SignedInWithCode & Revoked>> {
   const now = Date.now();
   if (!store.hasCredential(d.db)) return fail('setup_required');
   syncResetFp(d, now);
@@ -187,7 +192,7 @@ export async function recover(d: AuthDeps, input: RecoverInput, meta: RequestMet
   const out = d.storage.transactionSync(() => {
     clearCounters(d, refs);
     store.updatePassword(d.db, { ...KDF_CURRENT, salt, hash, at: now }, true);
-    store.revokeSessions(d.db, now, reason, {});
+    const revoked = store.revokeSessions(d.db, now, reason, {});
     if (ticket?.ok) {
       keys.useTicket(d.db, ticket.id, now);
       keys.ackTicketNotices(d.db, ticket.id, now);
@@ -196,7 +201,7 @@ export async function recover(d: AuthDeps, input: RecoverInput, meta: RequestMet
     const s = newSession(d, meta, input.device, cred.version + 1, now);
     // Agent keys stay; the new session is told to check them.
     notice(d, reason, s.grant.session_id, { at: now }, now, null);
-    return { ...s.grant, recovery_code };
+    return { ...s.grant, recovery_code, revoked };
   });
   return { ok: true, ...out };
 }

@@ -103,6 +103,8 @@ export class Core extends CoreBase {
   brief(_c: Caller, r: BriefRequest) {
     return attempt(() => {
       const claimed = r.claim ? this.write((w) => mind.claim(w, r, this.tz())).wake : null;
+      // A claim hands out what the briefing shows: the requeue alarm must cover it.
+      if (r.claim) this.schedule();
       return assemble(this.db, r.role, this.tz(), Date.now(), claimed);
     });
   }
@@ -123,8 +125,12 @@ export class Core extends CoreBase {
     return this.run((w) => mind.note(w, c.session_id, roleOf(c), r));
   }
 
-  mindTaint(c: Caller, source: string): void {
-    this.ctx.storage.transactionSync(() => mind.taint(this.db, c.session_id, source, Date.now()));
+  mindTaint(c: Caller, source: string) {
+    return attempt(() =>
+      this.ctx.storage.transactionSync(() =>
+        mind.taint(this.db, c.session_id, roleOf(c), source, Date.now(), this.tz()),
+      ),
+    );
   }
 
   mindPending(c: Caller): PendingResponse {

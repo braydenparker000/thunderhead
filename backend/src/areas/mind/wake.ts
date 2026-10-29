@@ -83,6 +83,13 @@ export function onAlarm(w: Writer, configured: boolean, tz: string): ToFire[] {
     if (f) fires.push(f);
   }
   const open = store.openWakes(db, 'chat');
+  // A live session already answers: no retry, no give-up, no honest line. Its holder takes them.
+  const lease = store.lease(db, 'chat');
+  if (lease && at - lease.renewed_at < LEASE_MS) {
+    for (const wk of open)
+      store.setWakeStatus(db, wk.id, 'claimed', { claimed_at: at, claim_match: 'loose', session_id: lease.session_id });
+    return fires;
+  }
   const retried = new Set(open.map((wk) => wk.retry_of));
   for (const wk of open) {
     if (wk.status !== 'fired') continue;

@@ -101,12 +101,12 @@ export function topicIgnored(db: Db, key: string, at: number): void {
   );
 }
 
-/** Expired rows go within 24 h (DATA.md §10). */
+/** Expired rows go on the next daily pass, so within 24 h of expiry (DATA.md §10). */
 export function prune(db: Db, now: number, max: number): number {
   return db.all(
     `DELETE FROM surfaces WHERE (app, slot) IN
-       (SELECT app, slot FROM surfaces WHERE expires_at IS NOT NULL AND expires_at < ? LIMIT ?) RETURNING 1`,
-    now - 86_400_000,
+       (SELECT app, slot FROM surfaces WHERE expires_at IS NOT NULL AND expires_at <= ? LIMIT ?) RETURNING 1`,
+    now,
     max,
   ).length;
 }

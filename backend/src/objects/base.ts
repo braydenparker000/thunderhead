@@ -87,6 +87,31 @@ const MIGRATIONS_TABLE = `CREATE TABLE IF NOT EXISTS _migrations (
   bookmark TEXT
 )`;
 
+/** Applies every step after the recorded version, one transaction each, and returns the version
+ * now applied. Each step is preceded by a point-in-time-recovery bookmark, so a bad migration can
+ * be undone with onNextSessionRestoreBookmark (see MEASUREMENTS.md). */
+export async function applyMigrations(storage: DurableObjectStorage, db: Db, migrations: Migration[]): Promise<number> {
+  db.run(MIGRATIONS_TABLE);
+  let applied = db.one<{ v: number | null }>('SELECT max(version) AS v FROM _migrations')?.v ?? 0;
+  for (const m of [...migrations].sort((a, b) => a.version - b.version)) {
+    if (m.version <= applied) continue;
+    const bookmark = await storage.getCurrentBookmark();
+    storage.transactionSync(() => {
+      for (const statement of m.sql) db.run(statement);
+      db.run(
+        'INSERT INTO _migrations (version, name, kind, applied_at, bookmark) VALUES (?, ?, ?, ?, ?)',
+        m.version,
+        m.name,
+        m.kind,
+        Date.now(),
+        bookmark,
+      );
+    });
+    applied = m.version;
+  }
+  return applied;
+}
+
 export abstract class OwnerObject extends DurableObject<Env> {
   readonly meter = new Meter();
   protected readonly db: Db;
@@ -103,27 +128,7 @@ export abstract class OwnerObject extends DurableObject<Env> {
   }
 
   private async migrate(migrations: Migration[]): Promise<void> {
-    this.db.run(MIGRATIONS_TABLE);
-    const row = this.db.one<{ v: number | null }>('SELECT max(version) AS v FROM _migrations');
-    this.migration = row?.v ?? 0;
-    for (const m of [...migrations].sort((a, b) => a.version - b.version)) {
-      if (m.version <= this.migration) continue;
-      // A point-in-time-recovery bookmark taken just before the change, so a bad migration can
-      // be undone with onNextSessionRestoreBookmark (see MEASUREMENTS.md for local support).
-      const bookmark = await this.ctx.storage.getCurrentBookmark();
-      this.ctx.storage.transactionSync(() => {
-        for (const statement of m.sql) this.db.run(statement);
-        this.db.run(
-          'INSERT INTO _migrations (version, name, kind, applied_at, bookmark) VALUES (?, ?, ?, ?, ?)',
-          m.version,
-          m.name,
-          m.kind,
-          Date.now(),
-          bookmark,
-        );
-      });
-      this.migration = m.version;
-    }
+    this.migration = await applyMigrations(this.ctx.storage, this.db, migrations);
   }
 
   /** Schema version (applied and expected), database size, metered rows since start. RPC. */

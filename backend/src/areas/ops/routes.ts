@@ -54,7 +54,14 @@ export const opsRoutes = new Hono<AppEnv>()
     const objects = Object.fromEntries(
       Object.entries({ core, auth }).map(([k, h]) => [
         k,
-        { ok: h.schema === h.expected, db_bytes: h.db_bytes, jobs_backlog: 0, last_alarm_at: null },
+        {
+          ok: h.schema >= h.expected,
+          schema: h.schema,
+          expected: h.expected,
+          db_bytes: h.db_bytes,
+          jobs_backlog: 0,
+          last_alarm_at: null,
+        },
       ]),
     );
     const body: DeepHealthResponse = {
@@ -71,7 +78,7 @@ export const opsRoutes = new Hono<AppEnv>()
       last_backup: null,
       last_events_export: null,
       errors_open: core.errors_open,
-      wakes_today: 0,
+      wakes_today: core.wakes_today,
       min_client: core.min_client,
     };
     return c.json(body);

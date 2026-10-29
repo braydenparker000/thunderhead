@@ -254,12 +254,13 @@ Format of each entry: **Who** (principals) · **Phase** · request · response �
 - Response `200`:
   ```ts
   { ok: boolean; version: {id; tag}; schema: Record<'core'|'auth'|string, number>;
-    objects: Record<string, { ok: boolean; db_bytes: number; jobs_backlog: number; last_alarm_at: Ms|null }>;
+    objects: Record<string, { ok: boolean; schema: number; expected: number; db_bytes: number; jobs_backlog: number; last_alarm_at: Ms|null }>;
     meter_today: { rows_written: number; rows_read: number; bulk_rows_written: number; bulk_lane: string|null };
     last_backup: { date: Day; age_h: number }|null; last_events_export: Day|null;
     errors_open: number; wakes_today: number; min_client: number }
   ```
-- `ok` is false if any object fails, schema versions are not the expected `SCHEMA_VERSION`, or the backup is older than 8 days. Counts only, never content.
+- Per object, `schema` is the applied migration step and `expected` the newest step this code knows. An object is `ok` when `schema >= expected`: migrations are expand-only, so older code (after a rollback) runs safely on a newer schema. The deploy's smoke check waits for more: every object's `schema` and `expected` equal the newest step in the repo (`scripts/schema-version.mjs`), so an object still running the old code can't pass it.
+- `ok` is false if any object fails, or the backup is older than 8 days (from P4). Counts only, never content.
 - Fields whose feature hasn't shipped are present with `null` or `0` (P1: `last_backup` and `last_events_export` are `null`; `jobs_backlog`, `wakes_today` and `meter_today.bulk_rows_written` are `0`; `bulk_lane` is `null`; `meter_today` holds the objects' in-memory counts until the `meter` table exists). The backup age counts toward `ok` only once the first weekly backup exists (P4).
 
 ### 11.2 Auth
@@ -323,7 +324,8 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 - Response `200 { ticket: string, expires_at: Ms }`. The ticket is `thw_` + 22 base62 characters ([SECURITY.md §5.1](SECURITY.md)), valid 30 s and single-use. `Core.live_tickets` stores only its SHA-256 (2 rows written per connect).
 
 **`GET /v1/live?ticket=…`** (WebSocket upgrade) · Who: a holder of a valid ticket · P2
-- Before the upgrade: `401 unauthorized` for a bad or used ticket; `400 bad_request` without `Upgrade: websocket`.
+- Before the upgrade: `401 unauthorized` for a bad or used ticket, or one whose session has since been signed out; `400 bad_request` without `Upgrade: websocket`. The session is checked again right after the upgrade, so a sign-out that lands in between still closes the socket.
+- Every way a session ends closes its sockets with 4401: sign-out (this, others, all), a device removed in Settings, a password change that signs others out, recovery or a reset (all sessions), and the device limit evicting the idlest session at a new sign-in.
 - After it: the frames in §12.
 
 **`GET /v1/live/wait?after=<seq>&timeout=<1–25>`** · Who: agents · P2
@@ -345,7 +347,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 
 **`GET /v1/changes?after=<seq>&limit=<1–500>`** · Who: device, agents · P2
 - Response `200 { items: Change[], next_after: number, more: boolean }`, oldest first.
-- `410 resync_required` if `after` is older than the oldest kept row. The client then reloads: `GET /v1/threads/today`, `GET /v1/surfaces`, `GET /v1/proposals?status=waiting`, `GET /v1/verbs/pending`, and sets `after` to the returned `seq`.
+- `410 resync_required` if `after` is older than the oldest kept row, or newer than the newest (the store was restored to an earlier point). The client then reloads: `GET /v1/threads/today`, `GET /v1/surfaces`, `GET /v1/proposals?status=waiting`, `GET /v1/verbs/pending`, and sets `after` to the returned `seq`.
 
 ### 11.7 Conversation
 
@@ -398,7 +400,8 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | `POST /v1/ledger/:id/undo` | device; `mind:chat` for its own actions | `{}` | `200 { undo_ledger_id, status: 'undone' \| 'queued' }` | 409 `already_undone`; 422 `validation` with reason `not_undoable`; 410 `expired` after 30 days **[proposal]** |
 
 - A Core-internal action (memory, surface, setting) is undone in the same transaction as its new `undo` ledger row (`status: 'undone'`).
-- A phone action is undone by queueing its stored inverse verb (`status: 'queued'`). The original row becomes `undone` when that verb reports success.
+- A phone action is undone by queueing its stored inverse verb (`status: 'queued'`). The original row becomes `undone` when that verb reports success. Asking again while the inverse waits returns the same `{undo_ledger_id, status: 'queued'}`; only a failed or expired inverse lets a new one be queued.
+- A surface action is undone only while it is the newest state of its slot: undoing a write needs the slot to still hold it, undoing a clear needs the slot to still be empty; otherwise `409 conflict` (reason "a newer surface is in this slot").
 - Verb and surface replies carry `ledger_id`, the row to undo: for a surface, its last write; for a verb, its `queued` row until the phone reports, then the outcome row (actor: whoever queued it), which holds the inverse.
 
 ### 11.10 Proposals (decisions)

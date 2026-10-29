@@ -221,3 +221,9 @@ export function confirmRecovery(d: AuthDeps, last5: string): Result<object> {
   store.confirmRecovery(d.db, Date.now());
   return { ok: true };
 }
+
+/** Signed in, not revoked and not idle past its expiry. */
+export function sessionLive(d: AuthDeps, id: string): boolean {
+  const s = store.sessionById(d.db, id);
+  return s !== null && s.revoked_at === null && s.idle_expires_at > Date.now();
+}

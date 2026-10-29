@@ -38,8 +38,22 @@ describe('deep health', () => {
         version: { id: env.VERSION.id, tag: env.VERSION.tag || null },
         schema: { core: 7, auth: 1 },
         objects: {
-          core: { ok: true, db_bytes: expect.any(Number), jobs_backlog: 0, last_alarm_at: null },
-          auth: { ok: true, db_bytes: expect.any(Number), jobs_backlog: 0, last_alarm_at: null },
+          core: {
+            ok: true,
+            schema: 7,
+            expected: 7,
+            db_bytes: expect.any(Number),
+            jobs_backlog: 0,
+            last_alarm_at: null,
+          },
+          auth: {
+            ok: true,
+            schema: 1,
+            expected: 1,
+            db_bytes: expect.any(Number),
+            jobs_backlog: 0,
+            last_alarm_at: null,
+          },
         },
         meter_today: {
           rows_written: expect.any(Number),

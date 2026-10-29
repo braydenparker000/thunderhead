@@ -13,7 +13,7 @@ const QUIET_MS = 14 * 86_400_000;
 export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfaceRequest): Surface {
   const kind = surfaceKind(r.kind);
   if (!kind) throw invalid('kind', 'unknown surface kind');
-  const slots = kind.slots[app];
+  const slots = Object.hasOwn(kind.slots, app) ? (kind.slots as Record<string, RegExp>)[app] : undefined;
   if (!slots?.test(slot)) throw invalid('slot', `${r.kind} lives in ${Object.keys(kind.slots).join(', ')}`);
   const schema = kind.versions[r.schema];
   if (!schema) throw invalid('schema', `known versions: ${Object.keys(kind.versions).join(', ')}`);
@@ -36,8 +36,8 @@ export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfa
     ref: r.ref ?? null,
     topic_key: r.topic_key,
     undo: before
-      ? { op: 'surface.restore', args: { app, slot, row: before } }
-      : { op: 'surface.delete', args: { app, slot } },
+      ? { op: 'surface.restore', args: { app, slot, row: before, was: 'put' } }
+      : { op: 'surface.delete', args: { app, slot, was: 'put' } },
   });
   w.change('surface', `app:${app}#${slot}`);
   store.put(w.db, {
@@ -70,17 +70,28 @@ export function remove(w: Writer, c: Caller, app: string, slot: string): void {
     what: `${app}/${slot} cleared`,
     why: c.who === 'D' ? 'the owner dismissed it' : 'the mind cleared it',
     topic_key: before.topic_key,
-    undo: { op: 'surface.restore', args: { app, slot, row: before } },
+    undo: { op: 'surface.restore', args: { app, slot, row: before, was: 'clear' } },
   });
   store.remove(w.db, app, slot);
   if (c.who === 'D') store.topicIgnored(w.db, before.topic_key, w.at);
   w.change('surface', `app:${app}#${slot}`);
 }
 
-/** Core-internal undo ops for surfaces (ledger/ops.ts dispatches by `op`). */
-export function undo(w: Writer, op: string, args: { app: string; slot: string; row?: store.SurfaceRow }): void {
+/** Core-internal undo ops for surfaces (ledger/ops.ts dispatches by `op`). Only the newest state
+ * of a slot is undone: after a put, the slot must still hold that put; after a clear, it must
+ * still be empty, so an older action never overwrites what came after it. */
+export function undo(
+  w: Writer,
+  ledgerId: string,
+  op: string,
+  args: { app: string; slot: string; row?: store.SurfaceRow; was?: 'put' | 'clear' },
+): void {
   if (op !== 'surface.delete' && !(op === 'surface.restore' && args.row))
     throw new Fail('validation', { reason: 'not_undoable' });
+  const now = store.get(w.db, args.app, args.slot);
+  const was = args.was ?? (op === 'surface.delete' ? 'put' : 'clear');
+  if (was === 'put' ? now?.ledger_id !== ledgerId : now !== null)
+    throw new Fail('conflict', { reason: 'a newer surface is in this slot' });
   w.change('surface', `app:${args.app}#${args.slot}`);
   if (op === 'surface.delete') store.remove(w.db, args.app, args.slot);
   else if (args.row) store.put(w.db, { ...args.row, written_at: w.at, seq: w.seq });

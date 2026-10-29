@@ -13,6 +13,7 @@ import type {
 } from '../../../shared/contract/api';
 import * as account from '../areas/auth/account';
 import * as agents from '../areas/auth/agents';
+import type { Revoked } from '../areas/auth/common';
 import * as flows from '../areas/auth/flows';
 import { hibpCheck, noBreachCheck } from '../areas/auth/passwords';
 import * as reset from '../areas/auth/reset';
@@ -49,11 +50,15 @@ export class Auth extends OwnerObject {
   setup(input: flows.SetupInput, meta: flows.RequestMeta): Promise<R<SignedInWithCode>> {
     return flows.setup(this.deps, input, meta);
   }
-  login(input: flows.LoginInput, meta: flows.RequestMeta): Promise<R<SignedIn>> {
+  login(input: flows.LoginInput, meta: flows.RequestMeta): Promise<R<SignedIn & Revoked>> {
     return flows.login(this.deps, input, meta);
   }
-  recover(input: flows.RecoverInput, meta: flows.RequestMeta): Promise<R<SignedInWithCode>> {
+  recover(input: flows.RecoverInput, meta: flows.RequestMeta): Promise<R<SignedInWithCode & Revoked>> {
     return flows.recover(this.deps, input, meta);
+  }
+  /** Whether a device session is still signed in (the live socket checks it, API.md §12). */
+  sessionLive(id: string): boolean {
+    return account.sessionLive(this.deps, id);
   }
   verify(tokenHash: string, agent: boolean, country: string | null): R<account.Principal> {
     return account.verify(this.deps, tokenHash, agent, country);

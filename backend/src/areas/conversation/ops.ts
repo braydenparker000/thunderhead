@@ -87,7 +87,12 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
     if (p.reply_to) store.answer(w.db, p.reply_to, w.at);
   }
   w.change('message', `msg:${message.id}`);
-  return { message: store.messageById(w.db, message.id) as Message, created: true };
+  const {
+    req_sha256: _h,
+    session_id: _s,
+    ...stored
+  } = store.messageById(w.db, message.id) as NonNullable<ReturnType<typeof store.messageById>>;
+  return { message: stored as Message, created: true };
 }
 
 /** `meta.chip` (API.md §11.7 rule 7): one chip, `app.open` args, path inside that app. */

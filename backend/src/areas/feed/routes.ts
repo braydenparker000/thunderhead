@@ -10,6 +10,7 @@ import { callerOf } from '../../http/caller';
 import { ApiError } from '../../http/errors';
 import { parse } from '../../http/validate';
 import { value } from '../../lib/result';
+import { authObject } from '../../objects/auth';
 import { coreObject } from '../../objects/core';
 import { tokenHash } from '../auth/crypto';
 import { newLiveTicket } from '../auth/tokens';
@@ -41,8 +42,19 @@ export const feedRoutes = new Hono<AppEnv>()
     if (!TICKET.test(ticket)) throw new ApiError('unauthorized');
     const core = coreObject(c.env);
     const session = await core.consumeTicket(tokenHash(ticket));
-    if (!session) throw new ApiError('unauthorized');
-    return core.fetch('https://core/live', { headers: { Upgrade: 'websocket', 'TH-Live-Session': session } });
+    // A ticket minted before a sign-out must not open a socket after it.
+    const live = (id: string) => authObject(c.env).sessionLive(id);
+    if (!session || !(await live(session))) throw new ApiError('unauthorized');
+    const res = await core.fetch('https://core/live', {
+      headers: { Upgrade: 'websocket', 'TH-Live-Session': session },
+    });
+    // A sign-out landing between that check and the accept would miss this socket: look once more.
+    c.executionCtx.waitUntil(
+      (async () => {
+        if (!(await live(session))) await core.liveRevoke([session]);
+      })(),
+    );
+    return res;
   })
   .get('/live/wait', guard('GET /v1/live/wait'), async (c) => {
     const q = parse(waitQuery, c.req.query());

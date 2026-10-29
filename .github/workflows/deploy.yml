@@ -165,13 +165,15 @@ jobs:
           if [[ -z "$TH_CI_TOKEN" ]]; then
             echo "::notice::TH_CI_TOKEN is not set yet; deep health skipped (normal before first setup)"
           else
-            ok=""
+            # Ready = every object runs this commit's code on its newest schema step (applied and
+            # expected), so an object still running the old code can't pass.
+            got=""
             for i in $(seq 1 24); do
-              ok="$(curl -fsS --max-time 10 -H "Authorization: Bearer $TH_CI_TOKEN" -H 'TH-Client: ci/deploy' "${WORKER_URL%/}/v1/ops/health/deep" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(String(JSON.parse(s).ok))}catch{}})' || true)"
-              [[ "$ok" == true ]] && break
+              got="$(curl -fsS --max-time 10 -H "Authorization: Bearer $TH_CI_TOKEN" -H 'TH-Client: ci/deploy' "${WORKER_URL%/}/v1/ops/health/deep" | node scripts/schema-version.mjs --ready || true)"
+              [[ "$got" == ready ]] && break
               sleep 15
             done
-            [[ "$ok" == true ]] || { echo "::error::deep health is not ok"; exit 1; }
+            [[ "$got" == ready ]] || { echo "::error::deep health is not ready: $got"; exit 1; }
           fi
           SITE_ORIGIN="${SITE_ORIGINS%%,*}" node --test tests/live-api.test.mjs
       # Rollback cannot cross a Durable Object class change (migrations); such deploys ship

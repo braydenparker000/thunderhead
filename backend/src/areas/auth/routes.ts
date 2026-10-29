@@ -20,6 +20,7 @@ import { ApiError } from '../../http/errors';
 import { json, parse } from '../../http/validate';
 import { authObject } from '../../objects/auth';
 import { coreObject } from '../../objects/core';
+import type { Revoked } from './common';
 import type { Failure, RequestMeta } from './flows';
 import * as s from './schema';
 
@@ -58,14 +59,18 @@ export const authRoutes = new Hono<AppEnv>()
   })
   .post('/login', async (c) => {
     const body = await json(c, s.loginBody);
-    return c.json(ok<SignedIn>(await auth(c).login(body, meta(c))));
+    // A sign-in past the device limit revokes the idlest session; its socket closes too.
+    const { revoked, ...out } = ok<SignedIn & Revoked>(await auth(c).login(body, meta(c)));
+    revoke(c, revoked);
+    return c.json(out satisfies SignedIn);
   })
   .post('/recover', async (c) => {
     const body = await json(c, s.recoverBody);
-    const out = ok<SignedInWithCode>(await auth(c).recover(body, meta(c)));
-    // Recovery ended every session; drop this isolate's cached ones right away.
+    const { revoked, ...out } = ok<SignedInWithCode & Revoked>(await auth(c).recover(body, meta(c)));
+    // Recovery ended every session: drop this isolate's cached ones and close their sockets.
     forget();
-    return c.json(out);
+    revoke(c, revoked);
+    return c.json(out satisfies SignedInWithCode);
   })
   // --- this device -----------------------------------------------------------------------------
   .get('/me', guard('GET /v1/auth/me'), async (c) => {

@@ -7,6 +7,7 @@ import { latestVersion, verbSpec } from '../../../../shared/contract/verbs.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
 import { HOUR } from '../../lib/time';
+import type { Db } from '../../objects/base';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import * as ledger from '../ledger/store';
@@ -165,4 +166,14 @@ export function queueInverse(
   });
   w.change('verb', `verb:${id}`);
   return id;
+}
+
+/** The inverse queued for a ledger row and not run yet, if any (open verbs only, so few rows). */
+export function openInverse(db: Db, ledgerId: string): store.VerbRow | null {
+  return store.openByRef(db, `ledger:${ledgerId}`);
+}
+
+/** An inverse's own undo row, so asking again returns the same one. */
+export function linkInverse(db: Db, verbId: string, undoLedgerId: string): void {
+  store.setLedger(db, verbId, undoLedgerId);
 }

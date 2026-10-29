@@ -166,3 +166,8 @@ export function prune(db: Db, now: number, max: number): number {
 export function setLedger(db: Db, id: string, ledgerId: string): void {
   db.run('UPDATE verbs SET ledger_id = ? WHERE id = ?', ledgerId, id);
 }
+
+/** An open (pending or claimed) verb with this ref, read through the `verbs_open` index. */
+export function openByRef(db: Db, ref: string): Row | null {
+  return db.one<Row>("SELECT * FROM verbs WHERE status IN ('pending', 'claimed') AND ref = ? LIMIT 1", ref);
+}

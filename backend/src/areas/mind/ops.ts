@@ -40,11 +40,19 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
     const l = store.lease(db, 'chat');
     if (l && l.session_id !== r.session_id && at - l.renewed_at < LEASE_MS) throw new Fail('already_live');
   }
-  const open = store.openWakes(db, r.role)[0] ?? null;
+  // The fire whose session id matches, else the newest; every other open wake of the role is
+  // settled too, so the alarm never retries a wake this session already answers.
+  const openWakes = store.openWakes(db, r.role);
+  const open = openWakes.find((o) => o.session_id && tail(o.session_id) === tail(r.session_id)) ?? openWakes[0] ?? null;
   let wake: Claimed['wake'];
   if (open) {
     const match = open.session_id && tail(open.session_id) === tail(r.session_id) ? 'exact' : 'loose';
-    store.setWakeStatus(db, open.id, 'claimed', { claimed_at: at, claim_match: match, session_id: r.session_id });
+    for (const o of openWakes)
+      store.setWakeStatus(db, o.id, 'claimed', {
+        claimed_at: at,
+        claim_match: o.id === open.id ? match : 'loose',
+        session_id: r.session_id,
+      });
     if (open.retry_of) store.setWakeStatus(db, open.retry_of, 'claimed', { claimed_at: at, claim_match: match });
     wake = { id: open.id, reason: open.reason, claim_match: match };
   } else {
@@ -73,10 +81,13 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
     );
     if (waiting.length) store.sessionSeenOwner(db, r.session_id, waiting.at(-1)?.created_at ?? at);
   }
-  clearBackoff(db, at);
-  // A new chat session has no work in progress, so a Stop left standing is moot.
-  if (r.role === 'chat') stop.clear(w);
-  setPresence(w, 'working');
+  // The presence light, the usage backoff and the Stop are the chat session's.
+  if (r.role === 'chat') {
+    clearBackoff(db, at);
+    // A new chat session has no work in progress, so a Stop left standing is moot.
+    stop.clear(w);
+    setPresence(w, 'working');
+  }
   return { wake };
 }
 
@@ -121,9 +132,11 @@ export function note(w: Writer, sessionId: string | null, role: MindRole, r: Min
   });
 }
 
-/** Irreversible for the session; enforced from P4, recorded now (API.md §3). */
-export function taint(db: Db, sessionId: string | null, source: string, at: number): void {
-  if (sessionId) store.taintSession(db, sessionId, source, at);
+/** Irreversible for the session; enforced from P4, recorded now (API.md §3). A session that never
+ * claimed gets its row here, so the mark is never lost. */
+export function taint(db: Db, sessionId: string | null, role: MindRole, source: string, at: number, tz: string): void {
+  if (!sessionId) throw new Fail('validation', [{ path: 'TH-Session', issue: 'required to mark a session tainted' }]);
+  store.taintSession(db, { id: sessionId, role, day: currentDay(db, tz, at), source, at });
 }
 
 export function pending(db: Db, sessionId: string | null, role: MindRole, now: number, tz: string): PendingResponse {

@@ -3,6 +3,7 @@
 // the snapshot in the same commit.
 import { runInDurableObject } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
+import { latestOf } from '../../../scripts/schema-version.mjs';
 import type { Auth } from '../../src/objects/auth';
 import { AUTH_MIGRATIONS } from '../../src/objects/auth.migrations';
 import { CORE_MIGRATIONS } from '../../src/objects/core.migrations';
@@ -37,5 +38,24 @@ describe('schema snapshots', () => {
     );
     const expected = name === 'core' ? CORE_MIGRATIONS : AUTH_MIGRATIONS;
     expect(steps).toEqual(expected.map((m) => ({ version: m.version, kind: 'expand', bookmark: expect.any(String) })));
+  });
+});
+
+describe('the deploy check knows the newest step', () => {
+  // scripts/schema-version.mjs reads the migration files; the smoke check waits for its number.
+  const raw = (files: Record<string, unknown>) => Object.values(files) as string[];
+  it('core and auth: the script finds the highest version of the real lists', () => {
+    const core = import.meta.glob(['../../src/objects/core.migrations.ts', '../../src/areas/*/migrations.ts'], {
+      query: '?raw',
+      import: 'default',
+      eager: true,
+    });
+    const auth = import.meta.glob('../../src/objects/auth.migrations.ts', {
+      query: '?raw',
+      import: 'default',
+      eager: true,
+    });
+    expect(latestOf(raw(core))).toBe(Math.max(...CORE_MIGRATIONS.map((m) => m.version)));
+    expect(latestOf(raw(auth))).toBe(Math.max(...AUTH_MIGRATIONS.map((m) => m.version)));
   });
 });

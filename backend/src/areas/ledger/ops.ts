@@ -48,6 +48,9 @@ export function undo(w: Writer, c: Caller, id: string): UndoResponse {
   if (w.at - row.at > UNDO_DAYS * 86_400_000) throw new Fail('expired');
   const inverse = JSON.parse(row.undo_json) as { op?: string; args?: JsonObject; verb?: string; schema?: number };
   if (inverse.verb) {
+    // Asked again while the phone hasn't run the first inverse: the same undo, not a second one.
+    const queued = verbs.openInverse(w.db, id);
+    if (queued) return { undo_ledger_id: queued.ledger_id ?? '', status: 'queued' };
     const verbId = verbs.queueInverse(
       w,
       { verb: inverse.verb, schema: inverse.schema ?? 1, args: inverse.args ?? {} },
@@ -62,9 +65,11 @@ export function undo(w: Writer, c: Caller, id: string): UndoResponse {
       ref: `ledger:${id}`,
       verb_id: verbId,
     });
+    verbs.linkInverse(w.db, verbId, undoId);
     return { undo_ledger_id: undoId, status: 'queued' };
   }
-  if (inverse.op?.startsWith('surface.')) surfaces.undo(w, inverse.op, inverse.args as { app: string; slot: string });
+  if (inverse.op?.startsWith('surface.'))
+    surfaces.undo(w, id, inverse.op, inverse.args as { app: string; slot: string });
   else throw new Fail('validation', { reason: 'not_undoable' });
   store.setStatus(w.db, id, 'undone', w.at);
   const undoId = w.ledger({

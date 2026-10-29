@@ -71,7 +71,7 @@ export const mindRoutes = new Hono<AppEnv>()
   })
   .post('/mind/taint', guard('POST /v1/mind/taint'), async (c) => {
     const { source } = await json(c, taintBody);
-    await coreObject(c.env).mindTaint(callerOf(c), source);
+    value(await coreObject(c.env).mindTaint(callerOf(c), source));
     return c.json({ tainted: true });
   })
   .get('/mind/pending', guard('GET /v1/mind/pending'), async (c) => {

@@ -42,6 +42,12 @@ export type Failure = {
 };
 export type Result<T> = ({ ok: true } & T) | Failure;
 
+/** Sessions a sign-in flow revoked (device limit, recovery), so the route can close their live
+ * sockets. Never sent to the client. */
+export interface Revoked {
+  revoked: string[];
+}
+
 export const fail = (code: ErrorCode, details?: ErrorDetails): Failure => ({ ok: false, code, details });
 
 const key = ([kind, who]: CounterRef) => `${kind}:${who}`;
@@ -83,12 +89,14 @@ export function defaultLabel(device: DeviceHints): string {
   return device.standalone ? `${label} app` : label;
 }
 
-/** Creates a session (in the caller's transaction), revoking the one idle longest beyond 50. */
+/** Creates a session (in the caller's transaction), revoking the one idle longest beyond 50;
+ * `evicted` names it so its live socket can be closed. */
 export function newSession(d: AuthDeps, meta: RequestMeta, device: DeviceHints, credVersion: number, now: number) {
   const active = store.activeSessions(d.db, now);
+  let evicted: string[] = [];
   if (active.length >= MAX_SESSIONS) {
     const idlest = active.reduce((a, b) => (b.last_seen_at < a.last_seen_at ? b : a));
-    store.revokeSessions(d.db, now, 'device_limit', { only: idlest.id });
+    evicted = store.revokeSessions(d.db, now, 'device_limit', { only: idlest.id });
   }
   const token = newToken('th1');
   const label = defaultLabel(device).slice(0, 40);
@@ -110,7 +118,7 @@ export function newSession(d: AuthDeps, meta: RequestMeta, device: DeviceHints, 
     credential_version: credVersion,
   });
   const grant: SignedIn = { token, session_id, idle_days: IDLE_DAYS };
-  return { grant, label, others: active.length };
+  return { grant, label, others: active.length - evicted.length, evicted };
 }
 
 export function notice(

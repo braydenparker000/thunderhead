@@ -125,11 +125,14 @@ export abstract class CoreBase extends OwnerObject {
   changes(after: number, limit: number): Out<ChangesResponse> {
     return attempt(() => {
       const oldest = feed.oldestSeq(this.db);
-      if (after > 0 && oldest > 0 && after < oldest - 1) throw new Fail('resync_required');
-      const items = feed.changesAfter(this.db, after, limit + 1);
+      const last = feed.lastSeq(this.db);
+      // Older than the oldest kept row, or past the newest (the store was restored to an earlier
+      // point): either way the client must reload instead of trusting its cursor.
+      if (after > last || (after > 0 && oldest > 0 && after < oldest - 1)) throw new Fail('resync_required');
+      const items = after === last ? [] : feed.changesAfter(this.db, after, limit + 1);
       const more = items.length > limit;
       const page = items.slice(0, limit);
-      return { items: page, next_after: page.at(-1)?.seq ?? Math.max(after, feed.lastSeq(this.db)), more };
+      return { items: page, next_after: page.at(-1)?.seq ?? Math.max(after, last), more };
     });
   }
 

@@ -92,7 +92,7 @@
     "rows_written_max": 0
   },
   "GET /v1/changes (nothing new) (Core)": {
-    "rows_read_max": 3,
+    "rows_read_max": 2,
     "rows_written_max": 0
   },
   "POST /v1/live/ticket (Core)": {
@@ -104,7 +104,7 @@
     "rows_written_max": 0
   },
   "POST /v1/mind/brief (claim, 20 messages) (Core)": {
-    "rows_read_max": 118,
+    "rows_read_max": 120,
     "rows_written_max": 49
   },
   "GET /v1/live/wait (nothing new, 1 s) (Core)": {

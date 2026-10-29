@@ -198,12 +198,18 @@ export function sessionSeenOwner(db: Db, id: string, at: number): void {
   db.run('UPDATE mind_sessions SET last_owner_at = max(coalesce(last_owner_at, 0), ?) WHERE session_id = ?', at, id);
 }
 
-export function taintSession(db: Db, id: string, source: string, at: number): void {
+/** Marks a session tainted, making its row if it never claimed (taint must never be dropped). */
+export function taintSession(db: Db, s: { id: string; role: MindRole; day: string; source: string; at: number }): void {
   db.run(
-    'UPDATE mind_sessions SET tainted_at = coalesce(tainted_at, ?), taint_source = coalesce(taint_source, ?) WHERE session_id = ?',
-    at,
-    source.slice(0, 40),
-    id,
+    `INSERT INTO mind_sessions (session_id, role, claimed_at, day, tainted_at, taint_source) VALUES (?, ?, ?, ?, ?, ?)
+     ON CONFLICT (session_id) DO UPDATE SET tainted_at = coalesce(tainted_at, excluded.tainted_at),
+       taint_source = coalesce(taint_source, excluded.taint_source)`,
+    s.id,
+    s.role,
+    s.at,
+    s.day,
+    s.at,
+    s.source.slice(0, 40),
   );
 }
 

@@ -38,7 +38,10 @@ export interface HealthResponse {
 }
 
 export interface ObjectHealth {
+  /** `schema >= expected` (applied step vs the newest this code knows): expand-only migrations. */
   ok: boolean;
+  schema: number;
+  expected: number;
   db_bytes: number;
   jobs_backlog: number;
   last_alarm_at: Ms | null;

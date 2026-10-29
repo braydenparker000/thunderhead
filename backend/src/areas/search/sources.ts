@@ -40,10 +40,13 @@ export const SOURCES: Partial<Record<SearchSource, Source>> = {
 
 export const SOURCE_NAMES = Object.keys(SEARCH_SOURCES) as SearchSource[];
 
-/** Every user term quoted and joined, so FTS operators in the input are inert (≤ 12 terms). */
+/** Every user term quoted and joined, so FTS operators in the input are inert (≤ 12 terms).
+ * Control characters (NUL among them) are dropped first: FTS5 refuses them. */
 export function ftsMatch(q: string): string | null {
   const terms = q
     .slice(0, 200)
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: removing them is the point
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
     .split(/\s+/)
     .map((t) => t.replace(/"/g, ''))
     .filter(Boolean)

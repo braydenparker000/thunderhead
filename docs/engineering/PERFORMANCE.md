@@ -173,7 +173,7 @@ Starting budgets for `backend/tests/cost/budgets.json`, at the year-2 scale fixt
 
 Wherever the measured number comes in lower, the budget is lowered to measured + 25%.
 
-P2 measured in local workerd (a day of 20 messages; `budgets.json` holds every number, rows read / written): `PUT /v1/messages/:id` from the owner 10 / 8, a mind reply that settles 21 waiting messages 76 / 28; `GET /v1/threads/today` 24 / 0; `GET /v1/changes` with nothing new 3 / 0; `POST /v1/live/ticket` 0 / 1; `GET /v1/live/wait` with nothing new 29 / 0; `POST /v1/mind/brief` claiming with 20 waiting 118 / 49; `GET /v1/search` 57 / 0; `PUT /v1/verbs/:id` 1 / 7; `PUT /v1/surfaces/home/:slot` 1 / 7; `Core.tick` 8 / 0, and 48 / 1 on the daily prune pass. The wait and the brief grow with the unanswered owner messages, which the next reply clears; nothing grows with the age of the data.
+P2 measured in local workerd (a day of 20 messages; `budgets.json` holds every number, rows read / written): `PUT /v1/messages/:id` from the owner 10 / 8, a mind reply that settles 21 waiting messages 76 / 28; `GET /v1/threads/today` 24 / 0; `GET /v1/changes` with nothing new 2 / 0; `POST /v1/live/ticket` 0 / 1; `GET /v1/live/wait` with nothing new 29 / 0; `POST /v1/mind/brief` claiming with 20 waiting 120 / 49 (it arms the requeue alarm); `GET /v1/search` 57 / 0; `PUT /v1/verbs/:id` 1 / 7; `PUT /v1/surfaces/home/:slot` 1 / 7; `Core.tick` 8 / 0, and 48 / 1 on the daily prune pass. The wait and the brief grow with the unanswered owner messages, which the next reply clears; nothing grows with the age of the data.
 
 ### 4.4 Daily totals
 
