@@ -67,6 +67,10 @@ export function put(
     return { proposal: store.toProposal(found), created: false };
   }
   if (c.who !== 'C' && c.who !== 'N' && c.who !== 'R') throw new Fail('forbidden');
+  // Only a claimed, live session of the key's role may ask, and never a tainted one: checked before
+  // the op, so outside text can't even learn which ops exist.
+  const s = claimedSession(w.db, c.session_id, ROLE[c.who]);
+  if (s.tainted && PROPOSAL_CLASSES[r.class].ask_first) throw new Fail('session_tainted');
   const op = proposalOp(r.spec.op);
   if (!op) throw invalid('spec.op', 'not an op in the executor map');
   if (!op.by.includes(c.who)) throw new Fail('forbidden');
@@ -77,9 +81,6 @@ export function put(
       'validation',
       args.error.issues.map((i) => ({ path: ['spec', 'args', ...i.path.map(String)].join('.'), issue: i.message })),
     );
-  // Only a claimed, live session of the key's role may ask, and never a tainted one.
-  const s = claimedSession(w.db, c.session_id, ROLE[c.who]);
-  if (s.tainted && PROPOSAL_CLASSES[r.class].ask_first) throw new Fail('session_tainted');
   lint('question', r.question);
   lint('why', r.why);
   lint('if_ignored', r.if_ignored);
