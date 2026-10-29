@@ -52,6 +52,7 @@ export async function startChat() {
   const view = createView({ talk, convo, onRetry: retry, onChip: openChip, onStop: stopMind });
   const setVoice = voice($('#say'));
   let pendingVoice = /** @type {[string, string | null] | null} */ (null);
+  let wasFirstRun = false;
 
   // --- paint ----------------------------------------------------------------------------------
   function paint() {
@@ -68,10 +69,17 @@ export async function startChat() {
     try {
       sent = localStorage.getItem('th.p.sent') === '1';
     } catch {}
-    const line = model.voiceLine({ presence: state.presence, firstRun: !sent && shown.length === 0, homeLine: homeLine(state.surfaces)?.text ?? null });
-    // Never while typing (HOME.md §2.3): a change waits until the bar is empty and blurred.
-    if (document.activeElement === q || q.value.trim()) pendingVoice = line;
-    else setVoice(line, state.loaded);
+    const firstRun = !sent && shown.length === 0;
+    const line = model.voiceLine({ presence: state.presence, firstRun, homeLine: homeLine(state.surfaces)?.text ?? null });
+    // Never while typing (HOME.md §2.3): a change waits until the bar is empty and blurred, except
+    // one the owner's own action caused (the first message ends the first-run line at once).
+    const own = wasFirstRun && !firstRun;
+    wasFirstRun = firstRun;
+    if (!own && (document.activeElement === q || q.value.trim())) pendingVoice = line;
+    else {
+      pendingVoice = null;
+      setVoice(line, state.loaded);
+    }
     const e = model.edge({ presence: state.presence, waiting: waiting !== null, typingUntil: state.typingUntil, offline: state.offline, now });
     edgeEl.dataset.state = e;
     edgeEl.classList.toggle('think', e === 'think');

@@ -137,6 +137,8 @@ test('offline: the message waits with its meta, then goes once when the phone is
   assert.match(await page.$eval('#date', (d) => getComputedStyle(d, '::after').content), /Offline/);
   await context.setOffline(false);
   await page.evaluate(() => dispatchEvent(new Event('online')));
+  // Sent: the Worker has it (the bubble's meta goes as soon as it is sending, so wait on the call).
+  for (let i = 0; i < 100 && api.state.chat.messages.length === 0; i++) await page.waitForTimeout(50);
   await page.waitForFunction(() => !document.querySelector('#talk .meta'));
   assert.equal(api.calls.filter((c) => c.call.startsWith('PUT /v1/messages/')).length, 1);
   // A second load shows it once, from the server, with nothing left in the outbox.
@@ -149,8 +151,16 @@ test('offline: the message waits with its meta, then goes once when the phone is
 
 test('a failed send says so and Retry sends it', opts, async () => {
   const { page, context, errors, api } = await open({ clock: true, chat: { failSay: 9 } });
+  const puts = () => api.calls.filter((c) => c.call.startsWith('PUT /v1/messages/')).length;
+  const until = async (ok) => { for (let i = 0; i < 100 && !ok(); i++) await new Promise((r) => setTimeout(r, 50)); };
   await send(page, 'Hello there');
-  for (const ms of [2500, 5500, 15500]) await page.clock.runFor(ms);
+  // Each retry waits 2, 5, then 15 s; the page's clock moves only once the try before has failed.
+  for (const [n, ms] of [[1, 2500], [2, 5500], [3, 15500]]) {
+    await until(() => puts() >= n);
+    await page.waitForTimeout(150);
+    await page.clock.runFor(ms);
+  }
+  await until(() => puts() >= 4);
   await page.waitForSelector('#talk .meta.bad');
   assert.match(await page.textContent('#talk .meta'), /^Didn't send · Retry$/);
   api.state.chat.failSay = 0;
@@ -164,7 +174,7 @@ test('a failed send says so and Retry sends it', opts, async () => {
 test('Stop: while the mind works on an answer, Stop asks it to stop after the current step', opts, async () => {
   const { page, context, errors, api } = await open({ chat: { messages: [owner('m1', 'Rebuild the playlist')], presence: { state: 'working', note: null, since: Date.now() } } });
   await page.waitForSelector('#talk .stop');
-  assert.ok(await page.$eval('#edge', (e) => e.classList.contains('think')));
+  await page.waitForFunction(() => document.querySelector('#edge').classList.contains('think'), null, { timeout: 3000 });
   await page.click('#talk .stop');
   await page.waitForSelector('#talk .stopping');
   assert.ok(api.calls.some((c) => c.call === 'POST /v1/mind/stop'));

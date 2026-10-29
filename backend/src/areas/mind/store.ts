@@ -182,7 +182,7 @@ export function putSession(
   db.run(
     `INSERT INTO mind_sessions (session_id, role, wake_id, claimed_at, th_version, constitution_sha256, day)
      VALUES (?, ?, ?, ?, ?, ?, ?)
-     ON CONFLICT (session_id) DO UPDATE SET wake_id = excluded.wake_id, th_version = excluded.th_version,
+     ON CONFLICT (session_id) DO UPDATE SET role = excluded.role, wake_id = excluded.wake_id, th_version = excluded.th_version,
        constitution_sha256 = excluded.constitution_sha256, day = excluded.day, ended_at = NULL`,
     s.session_id,
     s.role,

@@ -5,7 +5,7 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**P1 · Worker + sign-in**: done 2026-10-29 (X1/X3/X4 pass). **P1b · Apps ported**: live 2026-10-29 (My Media waits on the `DRIVE_CONFIG_JSON` secret). **P2 · The daily conversation**: building on branch `p2-chat`. Stage 1 (the backend: conversation, search, day roll, live channel, wake loop, ledger, verbs, surfaces and the contract registries, [EXTENDING.md](../engineering/EXTENDING.md)) and stage 2 (the `th` CLI and hooks in `mind/`, checked against the contract and tested against the real Worker under `wrangler dev`) are built; next the home chat UI, and waking through the mind-chat trigger (SETUP.md K).
+**P1 · Worker + sign-in**: done 2026-10-29 (X1/X3/X4 pass). **P1b · Apps ported**: live 2026-10-29 (My Media waits on the `DRIVE_CONFIG_JSON` secret). **P2 · The daily conversation**: building on branch `p2-chat`. Stage 1 (the backend: conversation, search, day roll, live channel, wake loop, ledger, verbs, surfaces and the contract registries, [EXTENDING.md](../engineering/EXTENDING.md)) stage 2 (the `th` CLI and hooks in `mind/`, checked against the contract and tested against the real Worker under `wrangler dev`) and stage 3 (the home chat: live socket, outbox, presence, chips, Stop, the phone's registries) are built; next waking through the mind-chat trigger (SETUP.md K).
 
 ## Next three tasks
 

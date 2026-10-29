@@ -128,7 +128,12 @@ Status: **built** = in the first build or prototype; **proposal** = new. Voice s
 | `convo.earlier` | Earlier conversations are in the menu | Top of today's thread (proposal) |
 | `convo.filed` | Yesterday is filed in the menu. | Once after a roll, first 3 days (proposal) |
 | `convo.continuing` | Continuing: <title> | After "Continue this" (proposal) |
-| `convo.new` | New reply ↓ | A reply arrived while scrolled up (proposal) |
+| `convo.new` | New reply ↓ | A reply arrived while scrolled up (built, P2) |
+| `convo.unconnected` | Saved. I'll answer once I'm connected. | Reply slot while the mind-chat task isn't connected yet (SETUP.md K) (built, P2) |
+| `convo.stop` | Stop | Text button in the reply slot while the mind works on an answer (built, P2) |
+| `convo.stopping` | Stopping… | After Stop, until the mind's "Stopped." reply (built, P2) |
+| `toast.stop` | Stopping after this step. | After Stop (built, P2) |
+| `toast.stop.failed` | Couldn't reach the mind. Try again. | Stop couldn't reach the Worker (built, P2) |
 | `convo.showall` | Show all | Collapsed older reply (proposal) |
 | `past.back` | Back to now | Viewing a filed conversation (prototype) |
 | `convo.notconnected` | *I'm not connected yet. Sign-in and my memory come next.* | First-build scripted reply (built; goes away with sign-in) |

@@ -123,7 +123,7 @@ function chatAnswer(c, method, p, url, body) {
     const items = c.changes.filter((x) => x.seq > after);
     return [200, { items, next_after: items.at(-1)?.seq ?? after, more: false }];
   }
-  if (k === 'POST /v1/live/ticket') return [200, { ticket: 'thw_0testticketvalue00000', expires_at: Date.now() + 30_000 }];
+  if (k === 'POST /v1/live/ticket') return [200, { ticket: `thw_${'0'.repeat(22)}`, expires_at: Date.now() + 30_000 }];
   if (k === 'GET /v1/settings') return [200, { 'owner.tz': 'UTC', min_client: 0, 'mind.status': c.presence, ...(c.stop ? { 'mind.stop': c.stop } : {}) }];
   if (k === 'GET /v1/surfaces') return [200, { items: c.surfaces, seq: c.seq }];
   if (k === 'POST /v1/mind/typing') { c.typing++; return [204, null]; }

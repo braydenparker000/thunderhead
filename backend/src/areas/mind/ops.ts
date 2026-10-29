@@ -51,7 +51,8 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
       store.setWakeStatus(db, o.id, 'claimed', {
         claimed_at: at,
         claim_match: o.id === open.id ? match : 'loose',
-        session_id: r.session_id,
+        // Only the matched wake takes this session; the others keep their own fire's id.
+        ...(o.id === open.id ? { session_id: r.session_id } : {}),
       });
     if (open.retry_of) store.setWakeStatus(db, open.retry_of, 'claimed', { claimed_at: at, claim_match: match });
     wake = { id: open.id, reason: open.reason, claim_match: match };
@@ -170,8 +171,12 @@ function renew(db: Db, sessionId: string, at: number, takeIfFree: boolean): bool
 
 /** One take of GET /v1/live/wait: what changed after `after`, owner messages handed out to the
  * chat session that holds the lease, verb results, and the day-closed signal. */
-export function take(w: Writer, after: number, role: MindRole, sessionId: string | null, tz: string): LiveWaitResponse {
+export function take(w: Writer, since: number, role: MindRole, sessionId: string | null, tz: string): LiveWaitResponse {
   const { db, at } = w;
+  // A cursor past the newest change (a restored store, stale local state) would wait forever:
+  // start from the newest instead.
+  const last = feed.lastSeq(db);
+  const after = Math.min(since, last);
   const holds = role === 'chat' && sessionId !== null && renew(db, sessionId, at, true);
   const changes = feed.changesAfter(db, after, 500);
   const kinds = [...new Set(changes.map((c) => c.kind))];
@@ -188,7 +193,7 @@ export function take(w: Writer, after: number, role: MindRole, sessionId: string
   const st = role === 'chat' ? stop.standing(db) : null;
   if (st && st.seq > after) signals.push('stop');
   return {
-    seq: Math.max(after, changes.at(-1)?.seq ?? feed.lastSeq(db)),
+    seq: changes.at(-1)?.seq ?? last,
     changed: changes.length > 0 || messages.length > 0,
     kinds,
     messages,

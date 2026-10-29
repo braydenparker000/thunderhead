@@ -151,6 +151,12 @@ describe('edges', () => {
     expect(r.body.error.code).toBe('resync_required');
   });
 
+  it("the mind's wait with a cursor past the newest change starts from the newest", async () => {
+    const r = await apiJson<{ seq: number }>('GET', '/v1/live/wait?after=99999999&timeout=1', as(C, 'cse_claims_all'));
+    expect(r.status).toBe(200);
+    expect(r.body.seq).toBeLessThan(99999999);
+  });
+
   it('a created message comes back without engineering fields', async () => {
     const r = await apiJson<Record<string, unknown>>('PUT', `/v1/messages/${uuidv7()}`, {
       token: D,

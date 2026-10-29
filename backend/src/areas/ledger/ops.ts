@@ -50,7 +50,11 @@ export function undo(w: Writer, c: Caller, id: string): UndoResponse {
   if (inverse.verb) {
     // Asked again while the phone hasn't run the first inverse: the same undo, not a second one.
     const queued = verbs.openInverse(w.db, id);
-    if (queued) return { undo_ledger_id: queued.ledger_id ?? '', status: 'queued' };
+    if (queued)
+      return {
+        undo_ledger_id: queued.ledger_id ?? store.undoRowFor(w.db, queued.id, queued.created_at) ?? id,
+        status: 'queued',
+      };
     const verbId = verbs.queueInverse(
       w,
       { verb: inverse.verb, schema: inverse.schema ?? 1, args: inverse.args ?? {} },
@@ -68,9 +72,12 @@ export function undo(w: Writer, c: Caller, id: string): UndoResponse {
     verbs.linkInverse(w.db, verbId, undoId);
     return { undo_ledger_id: undoId, status: 'queued' };
   }
-  if (inverse.op?.startsWith('surface.'))
-    surfaces.undo(w, id, inverse.op, inverse.args as { app: string; slot: string });
-  else throw new Fail('validation', { reason: 'not_undoable' });
+  if (inverse.op?.startsWith('surface.')) {
+    const args = inverse.args as { app: string; slot: string; was?: 'put' | 'clear' };
+    // Rows written before undo args carried `was`: the ledger line says which action it was.
+    const was = args.was ?? (row.what.endsWith(' cleared') ? 'clear' : 'put');
+    surfaces.undo(w, id, inverse.op, { ...args, was });
+  } else throw new Fail('validation', { reason: 'not_undoable' });
   store.setStatus(w.db, id, 'undone', w.at);
   const undoId = w.ledger({
     kind: 'undo',

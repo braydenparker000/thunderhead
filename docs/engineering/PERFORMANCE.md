@@ -47,7 +47,8 @@ Enforced by `scripts/stage.mjs` on every deploy (the deploy fails before publish
 | Home + `ui/` CSS | ≤ 60,000 | ~21.3 KB | `stage.mjs` (exists) |
 | Fonts (`.woff2`) | ≤ 130,000 | ~103 KB | `stage.mjs` (exists) |
 | Icon sprite `ui/icons.svg` | ≤ 30,000 | — | add with the sprite (P1) |
-| `th/` + `lib/` JS loaded by the shell | ≤ 60,000, counted inside the 120 KB | — | add in P1 **[proposal]** |
+| `th/` JS loaded by the shell at boot (`th/*.js`) | ≤ 60,000, counted inside the 120 KB | ~52 KB | `stage.mjs` (P2) |
+| The conversation, loaded after the first paint (`th/chat/**`, `th/registry/**`) | ≤ 60,000 | ~41 KB | `stage.mjs` (P2) |
 | Each app's own code on open (`apps/<id>/**`) | ≤ 300,000 | — | add in P5 |
 | Precache total (everything except `vendor/`, stubs, ported folders and `/assets/`) | ≤ 3,000,000 **[proposal]** | — | add with the SW (P1) |
 | Any single non-vendor file | ≤ 400 lines of JS (soft) / 200,000 bytes (hard) **[proposal]** | — | Biome rule + `stage.mjs` |

@@ -80,7 +80,7 @@ Measured: the voice line fits **22 characters per visual line** at every phone w
 ### 2.3 When and how it changes
 
 1. It is computed on load, on every live update (WebSocket), on `visibilitychange → visible`, and on a decision being answered.
-2. **Debounce:** at most one change every **10 s**, except row 4–8 transitions caused by the owner's own tap, which change at once. [proposal]
+2. **Debounce:** at most one change every **10 s**, except row 4–8 transitions caused by the owner's own tap, which change at once, and the end of the first-run line when the owner sends the first message (built). [proposal]
 3. **Never while typing:** if the ask bar has text or focus, a pending change waits until the input is empty and blurred for 2 s. [proposal]
 4. **Change animation:** the old line fades to opacity 0 over **400 ms**; at **320 ms** the new spans replace it and play `rise`: from `opacity 0; translateY(10px); blur(4px)` to rest over **900 ms** `cubic-bezier(.2,.7,.2,1)`, line 2 delayed **160 ms**. Haptic: none.
 5. **On cold start and the first open of the day** the line plays `rise` once. Returning to the app within the same day shows it instantly (no animation).
@@ -184,6 +184,10 @@ Acceptance: with two mocked proposals, the first card shows "1 of 2"; tapping Ye
 The wake timings come from the mind's loop: the page fires a pre-warm on the first keystroke, the Worker retries an unclaimed fire once at 120 s and gives up at 240 s ([RUNTIME](../mind/RUNTIME.md)). Cold replies are expected to take 20–60 s and are not yet measured.
 
 **Reveal.** The reply is delivered whole (the mind posts complete messages; there is no token streaming). The client reveals it at **160 characters per second**, capped at **1.2 s** total (longer replies reveal faster), then shows it all. The first build reveals 2 characters per animation frame, which is 180 per second on the A15's 90 Hz screen and frame-rate dependent. [proposal: time-based]. Reduced motion: no reveal. A screen reader gets the whole reply at once (`aria-live="polite"` on the turns list, text set in one go, the visual reveal done with a clip mask, not by changing the text).
+
+**Stop (built, P2).** While the mind works on an answer (presence `working`), the reply slot carries a quiet **Stop** text button (Inter 13, accent, 44 px hit area) beside the "…". A tap sends `POST /v1/mind/stop`; the slot reads "Stopping…" until the mind's reply ("Stopped. Done: … Not done: …", [BEHAVIOR.md](../mind/BEHAVIOR.md)). Stop ends the work, not the session. The ask bar does not change.
+
+**Not connected yet (built, P2).** Until the owner connects the mind-chat task (SETUP.md K), the reply slot reads "Saved. I'll answer once I'm connected." instead of the waking lines, and the edge stays calm; messages wait and are answered once a session runs.
 
 **Progress posts.** For long work the mind may post a short status ("On it. About 5 minutes.") and keep working. The edge keeps pulsing while the session reports `working`, for at most **30 min**, then returns to calm. [proposal]
 

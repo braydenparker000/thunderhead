@@ -57,6 +57,18 @@ The registries are plain data with zod/mini schemas, so Node imports them withou
 
 `tests/contract-gen.test.mjs` fails while any copy is stale and checks the registry guardrails.
 
+### The phone's registries
+
+| File | Keyed by | Holds | Fallback |
+|---|---|---|---|
+| `frontend/th/registry/apps.js` | `APPS` ids | Colour and icon per app; the ring, chips and deep links derive from it | An app whose phase isn't built says it comes later |
+| `frontend/th/registry/verbs.js` | verb name and schema version | The executor: runs it, returns its result and (for `undo: 'reported'`) its inverse | `unsupported_verb` |
+| `frontend/th/registry/surfaces.js` | surface kind and schema version | The renderer: where the surface shows (the voice line's second line for `line`) | The generic card with the surface's `why` |
+
+`tests/registries.test.mjs` checks them against `frontend/th/contract.js`: every app has a ring entry and an icon in the sprite, every device verb the Worker can queue has an executor, and every surface kind and version has a renderer (anything else falls back).
+
+The conversation client lives in `frontend/th/chat/`: `live.js` (the socket: ticket, `hello`/`changed`, pings, back-off, close codes), `model.js` (the logic without DOM, with node tests in `tests/chat-logic.test.mjs`), `store.js` (the cache and the outbox in IndexedDB `th-data`), `view.js` (drawing) and `index.js` (wiring). A feature that changes what the phone shows adds a change kind and reloads its data on that kind in `index.js`'s `sync`; it never opens a second socket.
+
 ## 2. Recipes
 
 ### A route
@@ -94,8 +106,8 @@ area's commit. Phones that do not know it ignore it and resync; nothing else cha
 1. Add it to `VERBS` in `verbs.ts`: app, class (`reversible` or `ask_first`), executor (`device`
    or `worker`), `queueable` (false = owner taps only, e.g. a chip), `undo` (`reported` = the
    executor returns its inverse), schema version 1 with `args` and `result`, and a doc line.
-2. A device verb gets its executor in the phone's verb registry; it returns its result and, for
-   `undo: 'reported'`, its inverse. Until a phone has it, that phone answers `unsupported_verb`
+2. A device verb gets its executor in `frontend/th/registry/verbs.js`; it returns its result and,
+   for `undo: 'reported'`, its inverse. Until a phone has it, that phone answers `unsupported_verb`
    and the ledger shows the attempt failed.
 3. Changing args or result means a new schema version beside the old one. Phones run the newest
    version they know; the Worker keeps validating every listed version.
@@ -105,8 +117,8 @@ area's commit. Phones that do not know it ignore it and resync; nothing else cha
 
 1. Add it to `SURFACE_KINDS` in `surfaces.ts`: the app/slot patterns it may fill, payload schema
    version 1, a doc line.
-2. Give it a renderer in the phone's surface registry. Without one the phone shows the generic
-   card with the surface's `why`, so a new kind can ship to the Worker first.
+2. Give it a renderer in `frontend/th/registry/surfaces.js`. Without one the phone shows the
+   generic card with the surface's `why`, so a new kind can ship to the Worker first.
 
 ### A search source
 
@@ -118,8 +130,8 @@ Add it to `SEARCH_SOURCES` in `feed.ts` (phase and ref kind), and its query to `
 ### An app
 
 Add it to `APPS` in `feed.ts` with its folder, name and phase. Once its phase is built, its
-folder must hold an `index.html` (a test checks), and replies may carry a chip to it. The ring and
-deep links come from the phone's app registry.
+folder must hold an `index.html` (a test checks), and replies may carry a chip to it. Give it its
+colour and icon in `frontend/th/registry/apps.js`; the ring and deep links come from there.
 
 ### A live frame or protocol change
 

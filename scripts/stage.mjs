@@ -82,6 +82,9 @@ const budgets = [
   ['files', list.length, 2000],
   ['total bytes', total, 40_000_000],
   ['home JS bytes', sum(/^(apps\/home|ui)\/.*\.js$/), 120_000],
+  // th/ modules the shell loads at boot, and the conversation it loads after the first paint.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 60_000],
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 60_000],
   ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 60_000],
   ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 130_000],
   ['precache bytes', list.filter((f) => precached(f.path)).reduce((n, f) => n + f.size, 0), 3_000_000],
