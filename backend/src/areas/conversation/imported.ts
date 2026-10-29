@@ -46,7 +46,10 @@ export interface ImportedMessage {
   answered_at: number | null;
 }
 
-export function message(db: Db, id: string): { seq: number; thread_id: string; body: string; author: string; created_at: number } | null {
+export function message(
+  db: Db,
+  id: string,
+): { seq: number; thread_id: string; body: string; author: string; created_at: number } | null {
   return db.one('SELECT seq, thread_id, body, author, created_at FROM messages WHERE id = ?', id);
 }
 

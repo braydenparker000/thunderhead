@@ -86,7 +86,8 @@ export async function runJobs(host: JobHost, handlers: Record<string, JobHandler
       host.write((w) => {
         // Only the alarm moves a job, but check: the cursor this step loaded for is still the job's.
         const fresh = store.job(w.db, job.id);
-        if (!fresh || fresh.cursor_json !== job.cursor_json || fresh.state === 'done' || fresh.state === 'failed') return;
+        if (!fresh || fresh.cursor_json !== job.cursor_json || fresh.state === 'done' || fresh.state === 'failed')
+          return;
         const before = w.db.meter.rowsWritten;
         const r = h.step(w, payload, cursor, input);
         const rows = w.db.meter.rowsWritten - before;
@@ -120,7 +121,14 @@ function retry(w: Writer, job: store.JobRow, h: JobHandler, code: string, now: n
   const attempts = job.attempts + 1;
   if (attempts >= (h.maxAttempts ?? RETRY_MS.length + 1)) return fail(w, { ...job, attempts }, code, h);
   const delay = RETRY_MS[Math.min(attempts - 1, RETRY_MS.length - 1)];
-  store.updateJob(w.db, job.id, { state: job.state, due_at: now + delay, attempts, last_error: code, rows: 0, at: now });
+  store.updateJob(w.db, job.id, {
+    state: job.state,
+    due_at: now + delay,
+    attempts,
+    last_error: code,
+    rows: 0,
+    at: now,
+  });
 }
 
 function fail(w: Writer, job: store.JobRow, code: string, h: JobHandler | undefined): void {

@@ -5,6 +5,8 @@
 // object with its migrations and rows.
 import { CONVERSATION_MIGRATIONS, CONVERSATION_TABLES } from '../areas/conversation/migrations';
 import { FEED_MIGRATIONS, FEED_TABLES } from '../areas/feed/migrations';
+import { IMPORT_MIGRATIONS, IMPORT_TABLES } from '../areas/import/migrations';
+import { JOBS_MIGRATIONS, JOBS_TABLES } from '../areas/jobs/migrations';
 import { LEDGER_MIGRATIONS, LEDGER_TABLES } from '../areas/ledger/migrations';
 import { MEMORY_MIGRATIONS, MEMORY_TABLES } from '../areas/memory/migrations';
 import { MIND_MIGRATIONS, MIND_TABLES } from '../areas/mind/migrations';
@@ -62,6 +64,8 @@ export const CORE_MIGRATIONS: Migration[] = [
   ...VERBS_MIGRATIONS,
   ...SURFACES_MIGRATIONS,
   ...MEMORY_MIGRATIONS,
+  ...JOBS_MIGRATIONS,
+  ...IMPORT_MIGRATIONS,
 ].sort((a, b) => a.version - b.version);
 
 /** Every Core table with its retention and export inclusion (DATA.md §10); a test fails if a
@@ -76,4 +80,6 @@ export const CORE_TABLES: Record<string, TableInfo> = {
   ...VERBS_TABLES,
   ...SURFACES_TABLES,
   ...MEMORY_TABLES,
+  ...JOBS_TABLES,
+  ...IMPORT_TABLES,
 };

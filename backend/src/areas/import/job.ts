@@ -9,9 +9,9 @@ import type { ImportDataset } from '../../../../shared/contract/api';
 import { IMPORT_SPOT_CHECKS } from '../../../../shared/contract/imports.ts';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
-import * as convo from '../conversation/imported';
 import { ownerTz } from '../conversation/day';
-import { type JobHandler, JobError } from '../jobs/runner';
+import * as convo from '../conversation/imported';
+import { JobError, type JobHandler } from '../jobs/runner';
 import { type Mapped, mapMessage, mapNotebook, mapThread, type NotebookItem, type Refs } from './map';
 import * as store from './store';
 import { readPart, sha256 } from './vault';
@@ -24,6 +24,8 @@ export interface ImportPayload {
   table: string;
   rows: number;
   sha256s: string[];
+  /** Each part's rows, when the manifest has them (else 2,000 a part but the last). */
+  part_rows?: number[];
   run_started: number;
   /** For messages: the threads table's parts, whose ids a message names. */
   threads?: { sha256s: string[] };
@@ -99,8 +101,15 @@ export const importJob: JobHandler = {
     const rand = mulberry32(seed);
     const picks = new Set<number>();
     while (picks.size < Math.min(IMPORT_SPOT_CHECKS, p.rows)) picks.add(Math.floor(rand() * p.rows));
+    // Row i of the table is in the first part whose rows reach past it.
+    const sizes = p.part_rows ?? p.sha256s.map(() => PART_ROWS);
     const byPart = new Map<number, number[]>();
-    for (const i of picks) byPart.set(Math.floor(i / PART_ROWS), [...(byPart.get(Math.floor(i / PART_ROWS)) ?? []), i % PART_ROWS]);
+    for (const i of picks) {
+      let part = 0;
+      let before = 0;
+      while (part < sizes.length - 1 && i >= before + sizes[part]) before += sizes[part++];
+      byPart.set(part, [...(byPart.get(part) ?? []), i - before]);
+    }
     const sampled: Record<string, unknown>[] = [];
     for (const [part, offsets] of byPart) {
       const rows = await readPart(vault, p.run_id, p.instance, p.table, part + 1, p.sha256s[part]);

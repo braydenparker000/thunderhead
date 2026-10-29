@@ -30,7 +30,15 @@ export function importRow(db: Db, id: string): ImportRow | null {
 
 export function insertImport(
   db: Db,
-  r: { id: string; run_id: string; dataset: ImportDataset; prefix: string; counts: RunCounts; job_id: string; at: number },
+  r: {
+    id: string;
+    run_id: string;
+    dataset: ImportDataset;
+    prefix: string;
+    counts: RunCounts;
+    job_id: string;
+    at: number;
+  },
 ): void {
   db.run(
     `INSERT INTO imports (id, source, dataset, r2_prefix, state, counts_json, started_at, run_id, job_id)
@@ -48,7 +56,13 @@ export function insertImport(
 export function setImport(
   db: Db,
   id: string,
-  u: { state: ImportState; counts?: RunCounts; report?: unknown; finished_at?: number | null; last_error?: string | null },
+  u: {
+    state: ImportState;
+    counts?: RunCounts;
+    report?: unknown;
+    finished_at?: number | null;
+    last_error?: string | null;
+  },
 ): void {
   db.run(
     `UPDATE imports SET state = ?, counts_json = coalesce(?, counts_json), report_json = coalesce(?, report_json),
@@ -62,16 +76,27 @@ export function setImport(
   );
 }
 
+/** Whether a run of this dataset of this export run is still going, on `imports_run`. */
+export function going(db: Db, runId: string, dataset: string): boolean {
+  return (
+    (db.one<{ n: number }>(
+      "SELECT count(*) AS n FROM imports WHERE run_id = ? AND dataset = ? AND state IN ('queued', 'running', 'verifying')",
+      runId,
+      dataset,
+    )?.n ?? 0) > 0
+  );
+}
+
 /** Whether this dataset of this export run finished before (another import id), on `imports_run`. */
 export function doneBefore(db: Db, runId: string, dataset: string, except: string): boolean {
   return (
-    db.one<{ n: number }>(
+    (db.one<{ n: number }>(
       "SELECT count(*) AS n FROM imports WHERE run_id = ? AND dataset = ? AND state = 'done' AND id != ?",
       runId,
       dataset,
       except,
-    )?.n ?? 0
-  ) > 0;
+    )?.n ?? 0) > 0
+  );
 }
 
 export function toStatus(r: ImportRow): ImportStatus {

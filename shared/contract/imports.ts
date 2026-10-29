@@ -105,7 +105,15 @@ export interface ImportManifest {
     {
       tables: Record<
         string,
-        { rows: number; parts: number; columns: string[]; sha256s: string[]; never_export?: boolean }
+        {
+          rows: number;
+          parts: number;
+          columns: string[];
+          sha256s: string[];
+          /** Each part's rows (the old export sends 2,000 a part but the last). */
+          part_rows?: number[];
+          never_export?: boolean;
+        }
       >;
     }
   >;

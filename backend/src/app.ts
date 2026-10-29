@@ -3,9 +3,11 @@
 // onError. Unknown routes fall through to 404 before any token check.
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { IMPORT_PART_BYTES } from '../../shared/contract/imports.ts';
 import { authRoutes } from './areas/auth/routes';
 import { conversationRoutes } from './areas/conversation/routes';
 import { feedRoutes } from './areas/feed/routes';
+import { importRoutes } from './areas/import/routes';
 import { ledgerRoutes } from './areas/ledger/routes';
 import { memoryRoutes } from './areas/memory/routes';
 import { mindRoutes } from './areas/mind/routes';
@@ -22,6 +24,11 @@ import { uuidv7 } from './lib/ids';
 const tooLarge = (): never => {
   throw new ApiError('too_large');
 };
+const small = bodyLimit({ maxSize: 64 * 1024, onError: tooLarge });
+// The old export's parts (≤ 5 MB each, checked again in the route) and its manifest are the only
+// big bodies.
+const part = bodyLimit({ maxSize: IMPORT_PART_BYTES, onError: tooLarge });
+const manifest = bodyLimit({ maxSize: 1024 * 1024, onError: tooLarge });
 
 export const app = new Hono<AppEnv>()
   .use(async (c, next) => {
@@ -42,7 +49,13 @@ export const app = new Hono<AppEnv>()
   .use('/v1/*', clientVersion)
   // Sign-in bodies are tiny; anything bigger is refused before it is parsed.
   .use('/v1/auth/*', bodyLimit({ maxSize: 4 * 1024, onError: tooLarge }))
-  .use('/v1/*', bodyLimit({ maxSize: 64 * 1024, onError: tooLarge }))
+  .use('/v1/*', (c, next) =>
+    (c.req.path === '/v1/ops/import/parts'
+      ? part
+      : c.req.path.startsWith('/v1/ops/import/manifest/')
+        ? manifest
+        : small)(c, next),
+  )
   .route('/v1', opsRoutes)
   .route('/v1/auth', authRoutes)
   // Each area mounts its own routes; the contract (shared/contract/routes.ts) names them all.
@@ -54,5 +67,6 @@ export const app = new Hono<AppEnv>()
   .route('/v1', verbsRoutes)
   .route('/v1', surfacesRoutes)
   .route('/v1', memoryRoutes)
+  .route('/v1', importRoutes)
   .notFound(notFound)
   .onError(onError);

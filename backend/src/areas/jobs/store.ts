@@ -18,7 +18,8 @@ export interface JobRow {
   updated_at: number;
 }
 
-const COLS = 'id, kind, state, due_at, payload_json, cursor_json, attempts, last_error, rows_written, created_at, updated_at';
+const COLS =
+  'id, kind, state, due_at, payload_json, cursor_json, attempts, last_error, rows_written, created_at, updated_at';
 const RUNNABLE = "state IN ('queued', 'running', 'paused')";
 
 export function job(db: Db, id: string): JobRow | null {
@@ -55,7 +56,15 @@ export function backlog(db: Db): number {
 export function updateJob(
   db: Db,
   id: string,
-  u: { state: JobState; due_at: number; cursor?: unknown; attempts: number; last_error: string | null; rows: number; at: number },
+  u: {
+    state: JobState;
+    due_at: number;
+    cursor?: unknown;
+    attempts: number;
+    last_error: string | null;
+    rows: number;
+    at: number;
+  },
 ): void {
   db.run(
     `UPDATE jobs SET state = ?, due_at = ?, cursor_json = coalesce(?, cursor_json), attempts = ?, last_error = ?,

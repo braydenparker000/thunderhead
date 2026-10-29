@@ -30,7 +30,11 @@ export async function putOnce(
 ): Promise<'stored' | 'conflict'> {
   const had = await vault.head(key);
   if (had) return had.customMetadata?.sha256 === sha ? 'stored' : 'conflict';
-  await vault.put(key, bytes, { sha256: sha, httpMetadata: { contentType: type }, customMetadata: { ...meta, sha256: sha } });
+  await vault.put(key, bytes, {
+    sha256: sha,
+    httpMetadata: { contentType: type },
+    customMetadata: { ...meta, sha256: sha },
+  });
   return 'stored';
 }
 
