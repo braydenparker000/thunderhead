@@ -5,32 +5,31 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**P4 · Safety, ops, switch-over**, being built on branch `p4-safety` in batches (A+B, C, D, E+F, G+H with I), each reviewed, then deployed.
-- Batch A+B with its review fixes (A.5, B.5; branch `p4-ab`, `d08cbdc`, Core v14–v15), being deployed: owner-approved proposals (one registry, a tap or the owner's own words checked by the Worker) and the decision card on home with the gold edge; the constitution pin (the first pin is the owner's tap); quiet hours as settings.
-- Batch C on `p4-safety`, ready for review (not live): session taint (the PostToolUse hook, SETUP.md M1), approved changes to protected paths (`repo.change`, `th approved`), the role matrix, the 25 injection fixtures with their gate twins, the eval sandbox and record (Core v16, `th eval`, night step 9 on Sundays), the reader subagent (`.claude/agents/reader.md`, `th read`), and the A.5 follow-ups from the re-check.
-- C.5, the C review's fixes, on `p4-c` (`5c93b72`, in re-check): `repo.change` by a tap only, the push check (each refspec source, renames, the remote's real main, fail closed), taint as an allowlist marked before each call, the sandbox kept from Auth, the reader held to the drop folder. SETUP.md M1's paste text changed with it.
-- Batch D on `p4-safety`, ready for its focused review (not live): the watchdogs (six built of fourteen, Core v17, `GET /v1/ops/watchdogs`, a briefing line), `mind-reflex` woken by a trip (one open wake, 4 a day, `th reflex`, `th handled`, the Stop hook), and the drill (`th drill`) that checks it end to end on the live Worker. Owner step: SETUP.md M2.
+**P4 · Safety, ops, switch-over**, built in batches (A+B, C, D, E+F, G+H with I), each reviewed, then deployed.
+- Live: A+B (owner-approved proposals, the decision card, the constitution pin, pinned by the owner; quiet hours) and C with C.5 (session taint, protected paths, the role matrix, the injection fixtures, the eval sandbox, the reader). SETUP.md M1 done.
+- Batch D, going live with this push: the watchdogs (six built of fourteen, Core v17, `GET /v1/ops/watchdogs`, a briefing line), `mind-reflex` woken by a trip (one open wake, 4 a day, `th reflex`, `th handled`, the Stop hook), and the drill (`th drill`). Inert until SETUP.md M2. The Agents page now says where a mind key goes (a network secret, `Bearer ` and the key).
+- Next: E+F (weekly backups, the restore drill, download everything), then G+H (Muse on work orders, the Briefing page) and I (switch-over docs).
 
-**P3 · Import + memory v1**, still counting its "done when".
-- Live since 2026-10-29 13:26 UTC (`c4bc51e`): memory (facts with provenance, supersede, forget and decay; day notes; loose ends; the profile and the briefing's memory sections) and Settings → What I remember.
-- Live since 2026-10-29 14:52 UTC (`e61fd66`), inert until the owner's SETUP.md L1: the night shift's wiring (stages C–C.6, Core v11).
-- Live with this deploy: the import (stages D and D.5, Core v12–v13, the VAULT binding to `thunderhead-private`). Only the `import-once` key writes it, and it waits for the old-Worker export and SETUP.md L2.
-- P2 is live and connected: SETUP.md K done 2026-10-29, first reply received. Its "done when" (three days of chat, a day rolled with no lost message, reply times over 10+ wakes) is counting from 2026-10-29.
+**P3 · Import + memory v1**, live: memory, the night shift (SETUP.md L1 done; the first night ran clean) and the import (`old-5`: 5 of 5 threads, 425 of 425 messages). It still counts its "done when" (three clean night shifts; a fact stated on day N in day N+1's briefing).
+
+**P2** is live and connected (SETUP.md K), counting its "done when" from 2026-10-29.
 
 ## Next three tasks
 
-1. P4 batch A+B is going live: the first mind claim after it raises the card "Pin the laws as they are now?"; the owner taps **Pin them** (held until 06:30 if it comes in quiet hours). Batch C (with C.5): re-check, deploy, SETUP.md M1. Batch D: focused review, deploy, SETUP.md M2 with its drill. Then E+F (backups, the restore drill, download everything).
-2. Owner: SETUP.md L1 (the night shift), then P3's "three clean night shifts".
-3. Owner: the "Merge and deploy" tap on the old-Worker export (Missionarytube- PR #370). Then SETUP.md L2–L3: the import run with the `import-once` key, checked by matching counts and 20 spot checks. P3's other "done when" (a fact stated on day N in day N+1's briefing, with evidence; forgetting it removes it). Home's 40-turn window and the collapse of long older replies (HOME.md §4.1, §4.3) are still to do. The owner kept the chat-built playlist with P5.
+1. Deploy batch D, then send the owner SETUP.md M2 (the reflex routine and its drill).
+2. Build E+F: weekly backups as a job, the restore drill, "download everything".
+3. Build G+H and I: Muse on work orders with the Daily Board in the Briefing page, then the switch-over docs and `jc` retired.
 
 ## Blocked / waiting on the owner
 
-- The old-Worker export deploy: the "Merge and deploy" tap on PR #370's card.
-- SETUP.md L1 (the night shift), sent ready to paste.
+- SETUP.md M2 once batch D is live.
+- The decision card's place at the top of home: the owner wants to talk about its design first; unchanged until then.
 
 ## Last deploy
 
-- 2026-10-29: this push, the menu's Conversations list, the read-only past view, and Search. The old chats are visible.
+- 2026-10-29: this push, P4 batch D (the watchdogs and `mind-reflex`, Core v17, expand-only; inert until SETUP.md M2).
+- 2026-10-29 21:01 UTC: `ba01f3d` (run #34), the Conversations list rebuilt by the calendar (Yesterday, Earlier this week, Last week, then by month), with folding groups, richer rows, Now as a card, and long or imported replies read as text. Live files checked against the commit.
+- 2026-10-29 20:31 UTC: `816a256`, the menu's Conversations list, the read-only past view, and Search. The old chats are visible.
 - 2026-10-29 20:3x UTC: `ef10c21`, P4 batch C (taint, protected paths, injection fixtures, the eval sandbox, the reader; Core v16), after a deep review whose 3 blockers are fixed (C.5). Owner step: SETUP.md M1, the new `.claude/settings.json`.
 - 2026-10-29: import run `old-5` done. 5 of 5 threads, 425 of 425 messages, the notebook (1 of 6 cc_state rows; the rest are bookkeeping), 20 of 20 and 5 of 5 spot checks. 70 tables, 39,549 rows and 55 parts are archived in `thunderhead-private`, with nothing deferred. SETUP.md L1 done: the first night ran clean at 19:46 UTC.
 - 2026-10-29: this push, P3 import stages D and D.5 (Core v12–v13, expand-only; the VAULT binding), after a focused review. Its blocker was fixed: any chat key could write "old chats" that memory takes as the owner's words, and now only the `import-once` key can.

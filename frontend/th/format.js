@@ -53,9 +53,9 @@ export function place(s) {
 
 /** @type {Record<AgentRole, { label: string, name: string, does: string, goes: string }>} */
 export const ROLES = {
-  'mind:chat': { label: 'Mind · chat', name: 'mind-chat', does: 'Talks with you and works for you; asks before anything big.', goes: 'Paste it into the Claude environment `th-chat` as the secret `TH_TOKEN`.' },
-  'mind:night': { label: 'Mind · night', name: 'mind-night', does: 'Works overnight: reads, tidies and writes your briefing.', goes: 'Paste it into the Claude environment `th-night` as the secret `TH_TOKEN`.' },
-  'mind:reflex': { label: 'Mind · reflex', name: 'mind-reflex', does: 'Watches for breakage and reports it (from P4).', goes: 'Paste it into the Claude environment `th-reflex` as the secret `TH_TOKEN`.' },
+  'mind:chat': { label: 'Mind · chat', name: 'mind-chat', does: 'Talks with you and works for you; asks before anything big.', goes: 'In the Claude environment `th-chat`: Network secrets, header `Authorization`, value `Bearer ` and then the key.' },
+  'mind:night': { label: 'Mind · night', name: 'mind-night', does: 'Works overnight: reads, tidies and writes your briefing.', goes: 'In the Claude environment `th-night`: Network secrets, header `Authorization`, value `Bearer ` and then the key.' },
+  'mind:reflex': { label: 'Mind · reflex', name: 'mind-reflex', does: 'Watches for breakage and reports it (from P4).', goes: 'In the Claude environment `th-reflex`: Network secrets, header `Authorization`, value `Bearer ` and then the key.' },
   muse: { label: 'Muse', name: 'muse', does: 'Reads and answers its own work orders.', goes: 'Send it to Muse in its settings.' },
   ci: { label: 'CI', name: 'ci', does: "Lets GitHub check the API's health after a deploy.", goes: 'Add it in GitHub as the environment secret `TH_CI_TOKEN`.' },
 };
