@@ -66,7 +66,9 @@ The registries are plain data with zod/mini schemas, so Node imports them withou
 | `frontend/th/registry/verbs.js` | verb name and schema version | The executor: runs it, returns its result and (for `undo: 'reported'`) its inverse | `unsupported_verb` |
 | `frontend/th/registry/surfaces.js` | surface kind and schema version | The renderer: where the surface shows (the voice line's second line for `line`) | The generic card with the surface's `why` |
 
-`tests/registries.test.mjs` checks them against `frontend/th/contract.js`: every app has a ring entry and an icon in the sprite, every device verb the Worker can queue has an executor, and every surface kind and version has a renderer (anything else falls back).
+`tests/registries.test.mjs` checks them against `frontend/th/contract.js`: every app has a ring entry and an icon in the sprite, every device verb the Worker can queue has an executor, and every surface kind and version has a renderer (anything else falls back). `frontend/th/registry/memory.js` does the same for the Memory page: every fact kind and source in the contract has its group and label, and a kind, source or evidence ref it doesn't know renders under "Other" by its own name.
+
+A view that needs to follow the change feed listens for the document event `th:changed` (its `detail` is the list of change kinds, `['*']` after a resync), which the home chat's one socket dispatches after every pull: no view opens a socket of its own.
 
 The conversation client lives in `frontend/th/chat/`: `live.js` (the socket: ticket, `hello`/`changed`, pings, back-off, close codes), `model.js` (the logic without DOM, with node tests in `tests/chat-logic.test.mjs`), `store.js` (the cache and the outbox in IndexedDB `th-data`), `view.js` (drawing) and `index.js` (wiring). A feature that changes what the phone shows adds a change kind and reloads its data on that kind in `index.js`'s `sync`; it never opens a second socket.
 

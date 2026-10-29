@@ -333,9 +333,11 @@ Behaviours:
 - **Fix** opens the text for editing. Saving supersedes the fact with `source=user` in one transaction with its ledger row (`actor=owner`, `kind=memory`), and that row is the evidence (`ledger:<id>`). Events have no table in `Core` before `Senses` (P5, [DATA.md §4.4](../engineering/DATA.md)), so the page never writes one. Applied at once.
 - **Pin** sets `pinned=1` (top of the profile, no decay).
 - **Don't bring this up** sets `may_raise=0`: the mind still knows it (so it won't ask again) but never mentions it unprompted. Muted facts never appear in home lines, margin notes or pushes. The Worker can't read meaning in free text, so every surface and push must list the fact ids it draws on (`facts` field), and the Worker refuses one that cites a muted fact **[proposal]**. Whether the mind cited honestly is checked by the weekly in-session review.
-- **Forget** asks once ("Forget this? It can't be brought back."), shows a 10 s undo, then hard-deletes (§3). The next briefing no longer contains it.
+- **Forget** asks once ("Forget this? It can't be brought back."), shows a 10 s undo, then hard-deletes (§3); leaving the page inside the 10 s sends it at once. The next briefing no longer contains it.
 - **Add** lets the owner type a fact or rule directly (`source=user`, evidence = its own ledger row, as for Fix).
 - Every action is a ledger row with `actor=owner`.
+
+Built in P3 (`frontend/apps/settings/memory*.js`, `/settings/memory/`): What I know (grouped as MENU-AND-SETTINGS.md §4.4 says), Standing rules, Loose ends, Days, Fading and Imported, to review, with the filter and every action above; a fact's detail comes from `GET /v1/memory/facts/:id`. The page reloads when the change feed reports `fact`, `open_thread` or `day_note`. Waiting: **What changed** needs the weekly profile snapshots in the private bucket (SETUP.md J2, P4), and **Laws** needs the constitution pin (P4).
 
 **Acceptance (P3 done-when):** the owner deletes a fact and it is gone from the next briefing; a muted fact never appears in a surface (Worker test).
 

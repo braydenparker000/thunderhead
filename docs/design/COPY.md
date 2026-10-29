@@ -277,9 +277,23 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.notify.test` | Send a test | (proposal) |
 | `push.test` | This is a test. Nothing needs you. | The test push (proposal) |
 | `set.memory` | What I remember | Row (built) |
-| `set.memory.source` | you said · I noticed · I inferred | Fact sources (proposal) |
-| `set.memory.fix` / `.pin` / `.forget` | Fix / Pin / Forget | Fact actions (plan §3; proposal) |
-| `toast.forgotten` | Forgotten. Undo | After Forget (proposal) |
+| `set.memory.source` | You said · I noticed · I inferred | Fact sources, first word of the row's line (built, P3) |
+| `set.memory.odds` | Almost certainly, about 9 in 10 or more · Pretty sure, about 8 in 10 · Probably, about 7 in 10 · Maybe, maybe not, about 5 in 10 · I doubt it, about 3 in 10 · Very unlikely, 1 in 10 or less | A fact's confidence now (§1.2); a rule reads "A standing rule" (built, P3) |
+| `set.memory.groups` | How to talk to me · Beliefs · Right now · Goals · Preferences · Routines · Facts · Other · Loose ends · Days · Fading · Imported, to review | Section titles, each with its count (built, P3) |
+| `set.memory.help` | Standing rules. I follow these every time. · Only from your own words. I don't bring these up. · Things one of us said would happen. · My note on each day, newest first. · I haven't heard these in a while. · From your old notebook. Tell me which are right. | Under the section titles (built, P3) |
+| `set.memory.badges` | Pinned · Won't bring up · Private | On a fact's row; private text is blurred until tapped (built, P3) |
+| `set.memory.fix` / `.pin` / `.forget` | Fix / Pin · Unpin / Forget | Fact actions (built, P3) |
+| `set.memory.mute` | Don't bring this up · You can bring this up | Fact action (built, P3) |
+| `set.memory.still` / `.right` | Still true / Yes, that's right | Fading and Imported actions (built, P3) |
+| `set.memory.add` | Add something I should know · What kind of thing · In one sentence | The Add form (built, P3) |
+| `set.memory.fixform` | Say it the way it is | The Fix form's label (built, P3) |
+| `set.memory.forget.ask` | Forget this? · It can't be brought back. · Forget · Keep | The confirm sheet (built, P3) |
+| `toast.forgotten` | Forgotten. Undo | After Forget, for 10 s before it is sent (built, P3) |
+| `set.memory.empty` | Nothing yet. When you tell me something worth keeping, it shows here with where you said it. | Empty page (built, P3) |
+| `set.memory.later` | Memory arrives with the next update of the Thunderhead. | An older Worker without memory (built, P3) |
+| `set.memory.refused` | Keep it to one short sentence (280 characters at most). · That changed in the meantime. Here is the newest version. · That's already gone. · That couldn't be saved. Try other words. | A refused change (built, P3) |
+| `set.memory.thread` | I'll do this · Yours · Done · Drop · Why drop it? · Add a loose end · It's mine to do · It's for you to do | Loose ends (built, P3) |
+| `set.memory.day` | importance 4 of 10 · edited by you · Decided: … · Edit · The day, in at most 150 words | Days (built, P3) |
 | `set.apps` | Connected apps | Row (built) |
 | `set.devices` | Devices | Row (proposal) |
 | `set.devices.this` | This device | (proposal) |
