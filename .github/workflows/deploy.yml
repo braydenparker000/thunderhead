@@ -160,8 +160,14 @@ jobs:
           EXPECTED_TAG: ${{ steps.plan.outputs.tag }}
         run: |
           tag_of() { curl -fsS --max-time 10 "${WORKER_URL%/}/v1/health" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{process.stdout.write(JSON.parse(s).version.tag??"")}catch{}})' || true; }
-          for i in $(seq 1 12); do [[ "$(tag_of)" == "$EXPECTED_TAG" ]] && break; sleep 5; done
-          [[ "$(tag_of)" == "$EXPECTED_TAG" ]] || { echo "::error::/v1/health does not report $EXPECTED_TAG"; exit 1; }
+          # A new version spreads over Cloudflare's servers for a few seconds, so one answer can come
+          # from a server still on the old version: wait for three matching answers in a row.
+          same=0
+          for i in $(seq 1 24); do
+            if [[ "$(tag_of)" == "$EXPECTED_TAG" ]]; then same=$((same + 1)); (( same >= 3 )) && break; else same=0; fi
+            sleep 5
+          done
+          (( same >= 3 )) || { echo "::error::/v1/health does not report $EXPECTED_TAG steadily"; exit 1; }
           if [[ -z "$TH_CI_TOKEN" ]]; then
             echo "::notice::TH_CI_TOKEN is not set yet; deep health skipped (normal before first setup)"
           else
