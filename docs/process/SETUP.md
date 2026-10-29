@@ -412,11 +412,17 @@ using the old `jc` the same day. After 7 days without a `/claude-chat/*` agent c
 
 Music's data moves to the new Worker in steps (ROADMAP P5, [MUSIC.md](../product/apps/MUSIC.md)):
 the catalog is copied into the new `Music` object, the player gets each song through a signed
-link straight from `jarvis-music` (audio never passes through the Worker), and only then does the
-ported player switch. You decided music becomes sign-in only at that switch (decisions
-2026-10-28). Nothing here changes what the old site or the old Worker do.
+link straight from `jarvis-music` (audio never passes through the Worker), and the player
+switches. You decided music becomes sign-in only at that switch (decisions 2026-10-28). Nothing
+here changes what the old site or the old Worker do.
 
-### N1. The signing token (about 5 minutes, after batch P5-2 is live)
+**Order.** N1 and N2 any time. Then, on one day: N4 (the upload tools' key; the agent points the
+tools at the new Worker), then N3 (the catalog import) last. The player on the new site switches
+by itself as soon as the new Worker can answer it (you signed in on this phone, the catalog is
+imported, the signing key and the bucket rule are set); until then it keeps using the old Worker,
+so music never stops. The tools and the player switch the same day, so no new song is missed.
+
+### N1. The signing token (about 5 minutes, any time)
 
 1. dash.cloudflare.com → **R2 Object Storage** → **Manage API tokens** → **Create API token**:
    name `thunderhead-sign`, permission **Object Read only**, **Apply to specific buckets only**:
@@ -426,13 +432,14 @@ ported player switch. You decided music becomes sign-in only at that switch (dec
    `R2_SIGN_ACCESS_KEY_ID` → **Edit** → paste the Access Key ID → **Save**; then
    `R2_SIGN_SECRET` → **Edit** → paste the Secret Access Key → **Save**. Never put either in a
    file, a chat or a variable.
-3. Tell the agent "N1 done". It checks that `POST /v1/media/sign` no longer answers
-   `503 not_configured` (it never sees a link: music links are your device's alone).
+3. Tell the agent "N1 done". Music links are your device's alone, so the agent never sees one;
+   the check is the switch itself (after N3, a song plays on the new site with the old Worker
+   unused).
 
 To revoke every link at once later: delete the token in the dashboard and make a new one
 ([SECURITY.md §14](../engineering/SECURITY.md)).
 
-### N2. Let the site read `jarvis-music` (about 3 minutes, ask-first: it changes the shared bucket's settings)
+### N2. Let the site read `jarvis-music` (about 3 minutes, any time; ask-first: it changes the shared bucket's settings)
 
 1. dash.cloudflare.com → **R2 Object Storage** → `jarvis-music` → **Settings** → **CORS Policy** →
    **Add CORS policy** (if one is there already, add this rule to it and keep the others):
@@ -455,7 +462,7 @@ To revoke every link at once later: delete the token in the dashboard and make a
    *Allowed* or *Not allowed* (RA-P5-02); don't change it yet. Tell the agent "N2 done, r2.dev
    <what it said>".
 
-### N3. The music catalog import (about 15 minutes; again on the switch day)
+### N3. The music catalog import (about 15 minutes; last, on the switch day)
 
 The same way as L2, for the music catalog only:
 
@@ -473,8 +480,9 @@ The same way as L2, for the music catalog only:
    `"state":"done"`; exit code 0. The catalog is big: if it reports `still running`, the import
    goes on by itself (it pauses at the day's row budget and continues after 00:05 UTC).
 3. Clean up as L3.3 (revoke `import-once`, remove the network secret and the allowed host).
-4. Tell the agent "N3 done" with the output. On the switch day the agent asks for it once more
-   with `--run music-2`, so songs added since are in the new catalog too.
+4. Tell the agent "N3 done" with the output. It checks the import's report and that the player
+   now takes its catalog and songs from the new Worker. If you ran N3 before N4, run it once more
+   after N4 with `--run music-2`, so songs added in between are in the new catalog too.
 
 ### N4. The upload tools' key (about 5 minutes, on the switch day)
 

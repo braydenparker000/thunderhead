@@ -288,7 +288,7 @@ Acceptance: a Playwright test mounts and unmounts each app 20 times. The DOM nod
 | `/vendor/<lib>-<version>/…` | Cache-first from `th-vendor`, shared across builds (paths never change content). |
 | `/release.json`, `/config.js` | Network-first with a 3 s timeout, then cache. |
 | Worker API, WebSocket | **Not intercepted.** |
-| R2 presigned URLs | Not intercepted, except the optional song-heads module in P5 ([MUSIC.md](../product/apps/MUSIC.md)). |
+| R2 presigned URLs | Not intercepted by the shell's worker. The ported player's own worker (`music/sw.js` with `th/music/bridge.js`, P5) fetches them for the player's library requests and passes the bytes through unchanged ([MUSIC.md](../product/apps/MUSIC.md), [SECURITY.md §4.4](SECURITY.md)). |
 | `POST /share` | Arrives with the share target in P8. |
 
 ### 8.2 Install and activate

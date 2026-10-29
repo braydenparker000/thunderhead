@@ -13,6 +13,10 @@
 // answered from it, as much as it holds; the rest of the song comes from the
 // network as usual. Requests a head does not cover are not touched, so the
 // browser's own retries keep working.
+// P5 data move (MIGRATION.md §7 step 5): the library's requests are answered from the new Worker, the old one while it can't.
+importScripts('/th/music/bridge.js');
+self.thMusicBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');
+const net = (req, e) => self.thMusicBridge.handles(new URL(req.url)) ? self.thMusicBridge.answer(req, e) : fetch(req);
 const CACHE = 'claude-player-v1';
 const HEADS = 'claude-player-heads';
 // A network that answers nothing for this long counts as offline...
@@ -52,11 +56,11 @@ function covered(req) {
 }
 
 /** A song's byte range from its head or tail: 206 with what they hold of it (gone from storage: the network's). */
-async function fromHead(req, h, a, b) {
+async function fromHead(req, h, a, b, e) {
   const url = req.url, tail = a >= h.tailStart;
   const stored = await caches.open(HEADS).then(c => c.match(tail ? url + (url.includes('?') ? '&' : '?') + 'cp-tail' : url)).catch(() => null);
   const bytes = stored && new Uint8Array(await stored.arrayBuffer()), base = tail ? h.tailStart : 0;
-  if (!bytes || a - base >= bytes.length) { heads.delete(url); return fetch(req); }
+  if (!bytes || a - base >= bytes.length) { heads.delete(url); return net(req, e); }
   const end = Math.min(b ?? h.total - 1, base + bytes.length - 1);
   return new Response(bytes.slice(a - base, end - base + 1), {status: 206, headers: {
     'Content-Type': h.type || 'application/octet-stream', 'Content-Range': `bytes ${a}-${end}/${h.total}`,
@@ -69,10 +73,11 @@ self.addEventListener('fetch', e => {
   const url = new URL(req.url);
   // A song's range request that its head or tail covers.
   if (req.method === 'GET' && req.headers.has('range')) {
-    if (!headsKnown) { e.respondWith(headsLoaded.then(() => { const c = covered(req); return c ? fromHead(req, ...c) : fetch(req); })); return; }
+    if (!headsKnown) { e.respondWith(headsLoaded.then(() => { const c = covered(req); return c ? fromHead(req, ...c, e) : net(req, e); })); return; }
     const c = covered(req);
-    if (c) { e.respondWith(fromHead(req, ...c)); return; }
+    if (c) { e.respondWith(fromHead(req, ...c, e)); return; }
   }
+  if (self.thMusicBridge.handles(url)) { e.respondWith(self.thMusicBridge.answer(req, e)); return; }
   // Only same-origin GETs of the app itself; never media or range requests.
   if (req.method !== 'GET' || url.origin !== self.location.origin || req.headers.has('range')) return;
   if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname)) return;

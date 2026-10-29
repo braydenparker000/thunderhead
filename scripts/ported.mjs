@@ -23,6 +23,18 @@ export const EDITS = {
   'media/index.html': { adjustments: ['paths'], edits: [['href="/media/mymedia.css', 'href="/mymedia/mymedia.css'], ['src="/media/app.js', 'src="/mymedia/app.js']] },
   // The reporter only reports on its own live site; its site is now this one.
   'assets/error-report.js': { adjustments: ['api-address'], edits: [["const SITE = 'https://thunderhead.z13.web.core.windows.net';", "const SITE = 'https://missionarytube.z13.web.core.windows.net';"]] },
+  // P5 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the player's worker answers its library
+  // requests from the new Worker (th/music/bridge.js), the old one while the new one can't.
+  'music/sw.js': {
+    adjustments: ['data-move'],
+    edits: [
+      ["// P5 data move (MIGRATION.md \u00a77 step 5): the library's requests are answered from the new Worker, the old one while it can't.\nimportScripts('/th/music/bridge.js');\nself.thMusicBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');\nconst net = (req, e) => self.thMusicBridge.handles(new URL(req.url)) ? self.thMusicBridge.answer(req, e) : fetch(req);\nconst CACHE = 'claude-player-v1';", "const CACHE = 'claude-player-v1';"],
+      ["async function fromHead(req, h, a, b, e) {", "async function fromHead(req, h, a, b) {"],
+      ["heads.delete(url); return net(req, e); }", "heads.delete(url); return fetch(req); }"],
+      ["return c ? fromHead(req, ...c, e) : net(req, e); }));", "return c ? fromHead(req, ...c) : fetch(req); }));"],
+      ["if (c) { e.respondWith(fromHead(req, ...c, e)); return; }\n  }\n  if (self.thMusicBridge.handles(url)) { e.respondWith(self.thMusicBridge.answer(req, e)); return; }", "if (c) { e.respondWith(fromHead(req, ...c)); return; }\n  }"],
+    ],
+  },
 };
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex');

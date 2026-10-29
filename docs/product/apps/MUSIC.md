@@ -54,6 +54,14 @@ for the owner's yes.
    stores on the new origin, so it looks and plays exactly as before **[proposal: through the export
    page, §11]**.
 4. Done when the owner uses it on the phone and nothing has changed.
+5. **The data move (P5, built).** The player itself is still unchanged. Its own service worker
+   answers its library requests (still addressed to the old Worker's URLs, so its offline copies
+   and song heads stay valid) from the new Worker: the catalog from `GET /v1/music/catalog` (kept
+   with its ETag), audio and art by signed links straight from `jarvis-music`, waveforms from
+   `GET /v1/music/waveforms/:id` (`frontend/th/music/bridge.js`). It uses the owner's session on
+   this site; until the new Worker can answer (signed out, no catalog imported, no signing key, the
+   bucket not open to the site) it asks the old Worker as before and tries the new one again 5
+   minutes later, so music never stops during the move (SETUP.md N).
 
 Everything after this section describes later steps. Each is proposed after the port and built only
 if the owner agrees.

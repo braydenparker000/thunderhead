@@ -14,5 +14,8 @@
     "types": [],
     "skipLibCheck": true
   },
-  "include": ["frontend/th/**/*.js", "shared/**/*.ts"]
+  "include": ["frontend/th/**/*.js", "shared/**/*.ts"],
+  // The music player's worker script runs in a classic service worker (worker globals, no DOM) and
+  // is no API client; tests/music-bridge*.test.mjs check it.
+  "exclude": ["frontend/th/music/**"]
 }

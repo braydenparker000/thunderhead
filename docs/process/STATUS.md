@@ -10,7 +10,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 - Step 2, going live with this push: the music catalog import (I7: datasets `music` then `music_log`, run by the owner as SETUP.md N3), `GET /v1/music/catalog` (the ported player's own format, ETag and 304), `GET /v1/music/waveforms/:id`, and `POST /v1/media/sign` for `music:` refs (signed links straight from `jarvis-music`, 503 until SETUP.md N1). Music is in deep health and the meter.
 - Step 2 is live since 22:59 UTC (`02f2004`, run #39); checked live: the new routes answer 401 without a key, the preflight allows `If-None-Match` and exposes `ETag`.
 - Step 3, going live with this push: the upload tools' routes (`/v1/music/uploads/*`, Ed25519-signed, the catalog's single writer now in `Music`; audio and art stored once, verified, in `jarvis-music` through the new `MEDIA` binding; nothing ever deleted from that bucket), and Music in the weekly backup and in "download everything". Owner step: SETUP.md N4 on the switch day.
-- Next: the ported player's switch (catalog, signed links, sign-in; its CSP) once N1–N3 are done, with the tools' switch (N4) the same day. Music private (N5) and the hourly Drive workflow off are ask-first.
+- Step 3 is live since 23:20 UTC (`5389195`, run #40); checked live: uploads answer 503 until the tools' key is set, and 403 to any browser origin.
+- Step 4, going live with this push: the player's switch, through its own service worker (`music/sw.js` loads `th/music/bridge.js`): the player's library requests, still addressed to the old Worker's URLs, are answered from the new Worker (the catalog with its ETag, audio and art by signed links, waveforms), with the owner's session and only for a top-level page; until the new Worker can answer, the old one does, so it switches by itself once SETUP.md N1–N4 are done. Checked in Chromium: the tone plays through range requests the worker answers, Web Audio hears it, the old Worker is never reached, the bucket never sees the session.
+- Next: the upload tool pointed at the new Worker (for N4); then, after 3 days of zero old-Worker music calls, N5 (music private, ask-first) and the hourly Drive workflow off (ask-first).
 
 **P4 · Safety, ops, switch-over**, built in batches (A+B, C, D, E+F, G+H with I), each reviewed, then deployed.
 - Live: A+B (owner-approved proposals, the decision card, the constitution pin, pinned by the owner; quiet hours) and C with C.5 (session taint, protected paths, the role matrix, the injection fixtures, the eval sandbox, the reader). SETUP.md M1 done.
@@ -26,19 +28,20 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Next three tasks
 
-1. Deploy P5 step 2 and check it live; then the upload routes and Music's backup.
-2. The ported player's switch to the new Worker, built and tested, flipped once SETUP.md N1–N3 are done.
-3. Owner: SETUP.md N1–N3 (music), M2 (the reflex routine and its drill), M3 (Muse moves over), M4 from 2026-11-05. Sunday's first backup and drill are P4's "a restore drill passed".
+1. Deploy P5 step 4 and check the live files; point the upload tool at the new Worker for N4.
+2. P5's later parts that need no owner yes: the `Senses` object (its own deploy) and the indexing jobs. Player changes beyond the data move wait for the owner's yes.
+3. Owner: SETUP.md N1–N4 (music), M2 (the reflex routine and its drill), M3 (Muse moves over), M4 from 2026-11-05. Sunday's first backup and drill are P4's "a restore drill passed"; the Music object's first backup runs with it.
 
 ## Blocked / waiting on the owner
 
 - SETUP.md M2 (batch D is live) and M3 (G+H is live).
-- SETUP.md N1 (the signing token), N2 (`jarvis-music` CORS, ask-first) and N3 (the music catalog import): the player's switch waits on them. N4 (the tools' key) on the switch day.
+- SETUP.md N1 (the signing token) and N2 (`jarvis-music` CORS, ask-first) any time; N4 (the tools' key) then N3 (the catalog import) on one day: the player switches by itself after them.
 - The decision card's place at the top of home: the owner wants to talk about its design first; unchanged until then.
 
 ## Last deploy
 
-- 2026-10-29: this push, P5 step 3 (the upload tools' routes, the `MEDIA` binding to `jarvis-music`, Music in the backup and the export; no schema change).
+- 2026-10-29: this push, P5 step 4 (the player's switch through its own worker; site only).
+- 2026-10-29 23:20 UTC: `5389195` (run #40), P5 step 3 (the upload tools' routes, the `MEDIA` binding to `jarvis-music`, Music in the backup and the export; no schema change). Checked live.
 - 2026-10-29 22:59 UTC: `02f2004` (run #39), P5 step 2 (the music catalog import, catalog and waveform routes, media signing; no schema change). Checked live.
 - 2026-10-29 22:32 UTC: `c369d05` (run #38), P5 step 1, the `Music` object alone (migration tag `v2`). The deploy's smoke check passed.
 - 2026-10-29 22:26 UTC: `f82d706` (run #37), P4 batch G+H with its review fixes (Muse on work orders, the Board, the Briefing page; Core v19, expand-only). The live Briefing page drew its tiles and the Board reader with no errors.

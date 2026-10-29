@@ -431,7 +431,7 @@ when its phase moves. Ask-first steps are marked **[ask]**.
 | P3 (≈ 2026-11-17) | Imports I1–I6; chat files copied | Proof §4 passes; owner check passes |
 | P4 (≈ 2026-11-23 → 12-06) | Muse switched (brief shown to owner first); `jc` unused 7 days, then its secret removed by the owner | Zero `/relay/mast/*` and `/claude-chat/*` agent calls for 7 days |
 | 2026-12-01 | Workers Logs on Free change to 0.5 GB/day, 7-day retention | Note in OPERATIONS |
-| P5 (≈ December) | Ported player switched to the new Worker (§7 step 5); its server data seeded from the raw phone copy | Zero old-Worker calls from `/music/` for 3 days |
+| P5 (≈ December) | Ported player switched to the new Worker (§7 step 5; built in P5 step 4 as the player's own worker, which switches by itself once SETUP.md N1–N4 are done); its server data seeded from the raw phone copy | Zero old-Worker calls from `/music/` for 3 days |
 | P5 | Upload tools switched; I7 music catalog import; `MUSIC_PUBLIC_READ` off **[ask]**; hourly Drive workflow disabled **[ask]** | Canary upload visible in the new catalog |
 | P5 + 7 days | Old Music page retired ("Moved" banner, partial publish **[ask]**); commercial fonts and APK model deleted from the old storage account **[ask]** | Old player unused 7 days |
 | After P5 hourly job off | Make the old repo private **[ask]** | `private: true` |

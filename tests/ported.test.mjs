@@ -12,7 +12,10 @@ import { TEXT, cspOf, filesUnder, hostsIn, undo } from '../scripts/ported.mjs';
 
 const SITE = fileURLToPath(new URL('../frontend/', import.meta.url));
 const P = JSON.parse(await readFile(join(SITE, 'ported.json'), 'utf8'));
-const KINDS = ['paths', 'route-folder', 'api-address', 'csp'];
+const KINDS = ['paths', 'route-folder', 'api-address', 'csp', 'data-move'];
+/** Apps whose data has moved to the new Worker (SECURITY.md §4.4 rule 4), and the one new-site file
+ * each may load: Music in P5, through its own worker. */
+const MOVED = { 'music/sw.js': ['/th/music/bridge.js'] };
 const sha = b => createHash('sha256').update(b).digest('hex');
 const listed = async dir => (await filesUnder(join(SITE, dir))).map(f => relative(SITE, f));
 
@@ -20,6 +23,7 @@ async function checkFile(rel, r) {
   const bytes = await readFile(join(SITE, rel));
   assert.equal(sha(bytes), r.sha256, `${rel} changed since ported.json was written (re-run scripts/ported.mjs)`);
   for (const k of r.adjustments) assert.ok(KINDS.includes(k), `${rel}: unknown adjustment ${k}`);
+  if (r.adjustments.includes('data-move')) assert.ok(rel in MOVED, `${rel}: a data move only where its app moved`);
   if (r.edits?.length) {
     assert.ok(r.adjustments.length, `${rel}: edits without an adjustment kind`);
     assert.equal(sha(Buffer.from(undo(bytes.toString('utf8'), r.edits), 'utf8')), r.old_sha256, `${rel}: differs from the old file beyond its recorded edits`);
@@ -73,7 +77,8 @@ test('no ported page touches the new sign-in (SECURITY.md §4.4 rule 3)', async 
   const all = [...Object.values(P.folders).flatMap(f => Object.keys(f.files)), ...Object.keys(P.shared)].filter(r => /\.(js|html)$/.test(r));
   for (const rel of all) {
     const text = await readFile(join(SITE, rel), 'utf8');
-    assert.doesNotMatch(text, /['"](?:\/|\.\.\/)+th\/[a-z-]+\.js['"]/, `${rel} imports from th/`);
+    const fromTh = [...text.matchAll(/['"]((?:\/|\.\.\/)+th\/[a-z/-]+\.js)['"]/g)].map((m) => m[1]);
+    assert.deepEqual(fromTh, MOVED[rel] ?? [], `${rel} loads from th/`);
     assert.doesNotMatch(text, /thunderhead-api\./, `${rel} names the new API`);
   }
 });
