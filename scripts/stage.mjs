@@ -5,9 +5,9 @@
 // Usage: WORKER_URL=… node scripts/stage.mjs <commit-sha>
 import { execFileSync } from 'node:child_process';
 import { cp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { APP_ROUTES, configJs, withApi } from './site-config.mjs';
+import { APP_ROUTES, CONTENT_TYPES, configJs, withApi } from './site-config.mjs';
 
 const sha = process.argv[2] ?? '';
 if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`not a full commit sha: "${sha}"`);
@@ -30,6 +30,17 @@ try { build = Number(execFileSync('git', ['rev-list', '--count', sha], { cwd: re
 const repoUrl = process.env.GITHUB_REPOSITORY ? `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}` : '';
 await writeFile(join(out, 'config.js'), configJs({ api, build, commit: sha, repo_url: repoUrl }));
 
+// My Media's Drive settings come from the DRIVE_CONFIG_JSON secret (owner ruling 2026-10-28); without
+// it the page says the Drive key is not configured, as the unchanged app does.
+const drive = process.env.DRIVE_CONFIG_JSON?.trim();
+if (drive) {
+  let parsed;
+  try { parsed = JSON.parse(drive); } catch { throw new Error('DRIVE_CONFIG_JSON is not valid JSON'); }
+  if (typeof parsed?.apiKey !== 'string' || typeof parsed?.folderId !== 'string') throw new Error('DRIVE_CONFIG_JSON needs apiKey and folderId');
+  await writeFile(join(out, 'assets/drive-config.json'), JSON.stringify(parsed));
+}
+console.log(`Drive config: ${drive ? 'written' : 'not set'}`);
+
 await writeFile(join(repo, '.deploy/release.json'), JSON.stringify({ commit: sha, staged_at: new Date().toISOString() }) + '\n');
 
 async function files(dir) {
@@ -47,16 +58,26 @@ for (const f of list.filter(f => f.path.endsWith('.html'))) {
   const next = withApi(html, api);
   if (next !== html) { await writeFile(p, next); f.size = Buffer.byteLength(next); }
 }
+const kinds = [...new Set(list.map(f => extname(f.path)))].sort();
+const unknown = list.filter(f => !CONTENT_TYPES[extname(f.path)]).map(f => f.path);
+if (unknown.length) throw new Error(`no content type for: ${unknown.join(', ')} (add it to CONTENT_TYPES in site-config.mjs)`);
+// deploy.sh uploads one kind at a time with this exact type, pages last.
+await writeFile(join(repo, '.deploy/types.txt'), kinds.sort((a, b) => (a === '.html') - (b === '.html')).map(k => `${k.slice(1)}\t${CONTENT_TYPES[k]}`).join('\n') + '\n');
 console.log(`API: ${api || 'none yet (sign-in stays off)'}, build ${build}`);
 const total = list.reduce((n, f) => n + f.size, 0);
 const sum = re => list.filter(f => re.test(f.path)).reduce((n, f) => n + f.size, 0);
 
+// The ported apps (P1b) are recorded and checked by size in ported.json instead; their own fonts
+// and engines don't count against the shell's budgets (PERFORMANCE.md §2).
+const ported = JSON.parse(await readFile(join(out, 'ported.json'), 'utf8'));
+const portedRoots = [...Object.keys(ported.folders), 'assets', 'drawercast'];
+const shellFile = f => !portedRoots.some(r => f.path.startsWith(r + '/'));
 const budgets = [
   ['files', list.length, 2000],
-  ['total bytes', total, 25_000_000],
+  ['total bytes', total, 40_000_000],
   ['home JS bytes', sum(/^(apps\/home|ui)\/.*\.js$/), 120_000],
   ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 60_000],
-  ['font bytes', sum(/\.woff2$/), 130_000],
+  ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 130_000],
 ];
 const over = budgets.filter(([, value, limit]) => value > limit);
 for (const [name, value, limit] of budgets) console.log(`${name}: ${value} (limit ${limit})`);

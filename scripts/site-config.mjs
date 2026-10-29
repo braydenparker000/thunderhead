@@ -12,6 +12,16 @@ const SIGNIN = readFileSync(`${UI}csp-signin.txt`, 'utf8').trim();
  * SPA fallback). An existing page (e.g. astra/) is never overwritten. */
 export const APP_ROUTES = ['music', 'guitar', 'podcasts', 'media', 'study', 'settings', 'settings/password', 'settings/agents', 'settings/devices'];
 
+/** The content type of every file kind the site may hold. stage.mjs refuses any other kind, and
+ * deploy.sh uploads each kind with exactly this type, so nothing depends on the uploader guessing
+ * (a guessed gzip content-encoding would break the player's own decompression of `.json.gz`). */
+export const CONTENT_TYPES = {
+  '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
+  '.json': 'application/json', '.webmanifest': 'application/manifest+json', '.txt': 'text/plain; charset=utf-8',
+  '.md': 'text/markdown; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon',
+  '.woff2': 'font/woff2', '.woff': 'font/woff', '.otf': 'font/otf', '.wasm': 'application/wasm', '.gz': 'application/gzip',
+};
+
 /** The API's origin, checked: https only (plain http only for a local test host). */
 export function apiOrigin(raw) {
   if (!raw) return '';

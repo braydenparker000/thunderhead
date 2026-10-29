@@ -36,8 +36,13 @@ test('every file the pages load exists, by a root-absolute path', async () => {
   }
 });
 
+// The as-is ported apps (and the old files they load) have their own host allowlist, checked in
+// tests/ported.test.mjs (SECURITY.md §4.4); everything else may reach no outside host at all.
+const PORTED = JSON.parse(await readFile(join(SITE, 'ported.json'), 'utf8'));
+const portedFile = rel => Object.values(PORTED.folders).some(f => rel in f.files) || rel in PORTED.shared;
+
 test('no outside hosts anywhere in the site', async () => {
-  for (const f of (await files(SITE)).filter(f => /\.(html|css|js|json)$/.test(f))) {
+  for (const f of (await files(SITE)).filter(f => /\.(html|css|js|json)$/.test(f) && !portedFile(relative(SITE, f)) && !f.endsWith('ported.json'))) {
     const text = await readFile(f, 'utf8');
     for (const [url] of text.matchAll(/https?:\/\/[^\s"'()<>]+/g)) {
       if (url.startsWith('http://www.w3.org/')) continue;
@@ -80,7 +85,8 @@ test('sign-in pages have no style attributes (their CSP allows none) and every m
     const text = await readFile(f, 'utf8');
     for (const [, spec] of text.matchAll(/(?:^|\s)(?:import|export)\s[^'"]*?from\s+'([^']+)'|import\('([^']+)'\)/gm)) {
       if (!spec) continue;
-      const target = spec.startsWith('/') ? join(SITE, spec) : join(f, '..', spec);
+      const path = spec.split('?')[0];
+      const target = path.startsWith('/') ? join(SITE, path) : join(f, '..', path);
       assert.ok(existsSync(target), `${relative(REPO, f)} imports missing ${spec}`);
     }
   }

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' blob: 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' data: https://i.ytimg.com https://www.googleapis.com https://*.googleusercontent.com; media-src 'self' blob: https://www.googleapis.com; connect-src 'self' https://www.googleapis.com https://jarvis-hub-api.braydenparker999.workers.dev; font-src 'self'; worker-src 'self' blob:; base-uri 'none';  form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f0f0f">
+  <meta name="mymedia-release" content="0.39.0">
+  <title>My Media · Jarvis</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/media/mymedia.css?v=0.39.0">
+  <script type="module" src="/assets/error-report.js" data-app="mymedia"></script>
+  <script type="module" src="/media/app.js?v=0.39.0"></script>
+</head>
+<body>
+  <a class="skip-link" href="#page">Skip to videos</a>
+  <header class="topbar" id="topbar">
+    <div class="topbar-row">
+      <a class="tb-btn" id="exit" href="/" aria-label="Back to Jarvis" data-icon="back"></a>
+      <a class="brand" id="brand" href="#explore"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">My Media</span></a>
+      <h1 class="tb-title" id="tb-title" hidden></h1>
+      <span class="tb-spacer"></span>
+      <button class="tb-btn" id="refresh" type="button" aria-label="Check Drive for new videos" data-icon="refresh"></button>
+      <button class="tb-btn" id="open-search" type="button" aria-label="Search" data-icon="search"></button>
+    </div>
+    <div class="chipbar" id="chipbar" role="toolbar" aria-label="Filters" hidden></div>
+    <div class="sync-line" id="sync-line" aria-hidden="true" hidden></div>
+  </header>
+
+  <main class="page" id="page" tabindex="-1" aria-live="off"></main>
+
+  <nav class="tabbar" id="tabbar" aria-label="My Media">
+    <a href="#explore" data-tab="explore"><span class="tab-ic" data-icon="home" data-icon-on="homeFill"></span><span>Home</span></a>
+    <a href="#creators" data-tab="creators"><span class="tab-ic" data-icon="people" data-icon-on="peopleFill"></span><span>Creators</span></a>
+    <a href="#library" data-tab="library"><span class="tab-ic" data-icon="stack" data-icon-on="stackFill"></span><span>Collections</span></a>
+    <a href="#saved" data-tab="saved"><span class="tab-ic" data-icon="you" data-icon-on="youFill"></span><span>You</span></a>
+  </nav>
+
+  <section class="watch" id="watch" aria-label="Now playing" hidden>
+    <div class="watch-body" id="watch-body"></div>
+  </section>
+
+  <div class="snackbar" id="snackbar" role="status" aria-live="polite" hidden></div>
+  <noscript><p>Enable JavaScript to use My Media.</p></noscript>
+</body>
+</html>

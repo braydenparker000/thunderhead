@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0d0d">
+  <meta name="referrer" content="no-referrer">
+  <meta name="color-scheme" content="dark">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net; style-src 'self'; img-src 'self' data: blob: https: http://localhost:* http://127.0.0.1:*; font-src 'self'; media-src 'self' blob: https: http://localhost:* http://127.0.0.1:*; connect-src 'self' https: http://localhost:* http://127.0.0.1:*; worker-src 'self' blob:; manifest-src 'self'; base-uri 'none'; form-action 'none'">
+  <title>Astra</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="src/styles/tokens.css">
+  <link rel="stylesheet" href="src/styles/app.css">
+  <link rel="stylesheet" href="src/player/player.css">
+  <script type="module" src="/assets/error-report.js" data-app="astra"></script>
+  <script type="module" src="src/main.js"></script>
+  <!-- Every module the app needs to start, fetched at once instead of import by import
+       (kept in step with src/main.js by tests/astra-startup.test.mjs). The player loads later. -->
+  <link rel="modulepreload" href="src/app/app.js">
+  <link rel="modulepreload" href="src/app/store.js">
+  <link rel="modulepreload" href="src/addons/client.js">
+  <link rel="modulepreload" href="src/app/content.js">
+  <link rel="modulepreload" href="src/app/cache.js">
+  <link rel="modulepreload" href="src/app/back-stack.js">
+  <link rel="modulepreload" href="src/addons/debrid.js">
+  <link rel="modulepreload" href="src/addons/subtitles.js">
+  <link rel="modulepreload" href="src/ui/dom.js">
+  <link rel="modulepreload" href="src/ui/icons.js">
+  <link rel="modulepreload" href="src/ui/components.js">
+  <link rel="modulepreload" href="src/screens/home.js">
+  <link rel="modulepreload" href="src/screens/search.js">
+  <link rel="modulepreload" href="src/screens/library.js">
+  <link rel="modulepreload" href="src/screens/settings.js">
+  <link rel="modulepreload" href="src/player/prefs.js">
+  <link rel="modulepreload" href="src/engine/languages.js">
+  <link rel="modulepreload" href="src/screens/details.js">
+  <link rel="modulepreload" href="src/screens/streams.js">
+  <link rel="modulepreload" href="src/player/external.js">
+  <link rel="modulepreload" href="src/screens/catalog.js">
+  <link rel="modulepreload" href="src/app/recovery.js">
+</head>
+<body>
+  <main id="app" class="astra"></main>
+  <div id="launch" class="launch" aria-hidden="true"><span class="wordmark">Astra</span><span class="spinner"></span></div>
+</body>
+</html>

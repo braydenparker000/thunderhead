@@ -18,12 +18,14 @@ grep -q "\"commit\":\"$sha\"" .deploy/release.json || { echo "staged release is 
 
 az_blob() { az storage blob "$@" --account-name "$account" --auth-mode login --only-show-errors; }
 
-az_blob upload-batch --destination '$web' --source "$out" --pattern 'ui/*' \
-  --overwrite --content-cache-control 'no-cache' --output none
-az_blob upload-batch --destination '$web' --source "$out" --pattern 'apps/*' \
-  --overwrite --content-cache-control 'no-cache' --output none
-az_blob upload-batch --destination '$web' --source "$out" \
-  --overwrite --content-cache-control 'no-cache' --output none
+[[ -f .deploy/types.txt ]] || { echo "run scripts/stage.mjs first (no types.txt)" >&2; exit 1; }
+# One kind of file at a time, each with its exact content type (stage.mjs wrote the list, pages
+# last), so pages never point at assets that are not up yet and nothing relies on type guessing.
+while IFS=$'\t' read -r ext type; do
+  [[ -n "$ext" ]] || continue
+  az_blob upload-batch --destination '$web' --source "$out" --pattern "*.$ext" \
+    --overwrite --content-type "$type" --content-cache-control 'no-cache' --output none
+done < .deploy/types.txt
 az_blob upload --container-name '$web' --name release.json --file .deploy/release.json \
   --overwrite --content-type 'application/json' --content-cache-control 'no-cache' --output none
 

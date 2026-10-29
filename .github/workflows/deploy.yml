@@ -211,6 +211,9 @@ jobs:
       # The API address goes into config.js and the pages' CSP at stage time (stage.mjs); it is a
       # repository variable so this job sees it without the `worker` environment. Empty: sign-in off.
       WORKER_URL: ${{ vars.WORKER_URL }}
+      # My Media's Drive key and folder ids (owner ruling 2026-10-28): the whole drive-config.json
+      # as one repository secret, written into the site at stage time, never into the repository.
+      DRIVE_CONFIG_JSON: ${{ secrets.DRIVE_CONFIG_JSON }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -229,6 +232,7 @@ jobs:
         env:
           SITE_URL: ''
           WORKER_URL: ''
+          DRIVE_CONFIG_JSON: ''
         run: npm test
       - name: Note what is live now
         id: before
