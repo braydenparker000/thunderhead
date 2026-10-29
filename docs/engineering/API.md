@@ -40,6 +40,7 @@ Storage behind each route is in [DATA.md](DATA.md). Behaviour seen by the owner 
 | `TH-Server` | yes | the Worker version id (`VERSION.id`) |
 | `TH-Min-Client` | yes **[proposal]** | integer build |
 | `Retry-After` | on 429 and 503 | seconds |
+| `TH-Stop` | on `PUT /v1/messages/:id` and `POST /v1/mind/status` replies to `mind:chat` while the owner's Stop stands | `1`. `th` prints `th: STOP` ([RUNTIME.md §5.1](../mind/RUNTIME.md)); the chat mind's next text reply clears the Stop |
 
 Times in bodies are integer ms UTC (`*_at`). Days are `YYYY-MM-DD` logical days ([DATA.md §2.2](DATA.md#22-time)).
 
@@ -360,6 +361,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | `PATCH /v1/messages/:id` | `mind:chat` (own posts) | `{ body?: string, meta?: object }` | `200 Message` | Keeps progress cards current (`th amend`) |
 | `GET /v1/search?q=&sources=messages,facts,day_notes,library&since&until&thread&limit` | device, `mind:chat`, `mind:night` | — | `200 { items: { source, ref, snippet /* ≤ 200 chars, match in «» */, at, thread_id?, score }[] }` | Federated: each source (`shared/contract/feed.ts` `SEARCH_SOURCES`) answers with FTS5 bm25 and the Worker fuses them by reciprocal rank (k = 60); default all built sources (P2: `messages`); an unknown source is 422; `kind=` is kept as an alias of `sources=`; `q` 1–200 chars |
 | `POST /v1/mind/typing` | device | `{}` | `204` | May fire a pre-warm wake ([RUNTIME.md](../mind/RUNTIME.md)) |
+| `POST /v1/mind/stop` | device | `{}` | `204` | The owner taps Stop: setting `mind.stop`, the `stop` signal to a waiting chat mind (once), `TH-Stop: 1` on its say/status replies and `stop: true` in `GET /v1/mind/pending` until its next text reply or a new claim. Stop ends the work, not the session ([BEHAVIOR.md](../mind/BEHAVIOR.md)) |
 | `PUT /v1/files/:id` | device, `mind:chat` | raw bytes; headers `Content-Type`, `TH-File-Name` (URL-encoded, ≤ 120), `TH-Sha256` | `201 { ref: 'file:<id>', bytes, type }` | Streams to `thunderhead-private/chat/files/…`; 422 if the sha256 differs **[proposal]** |
 
 `PUT /v1/messages/:id` rules:
@@ -391,12 +393,13 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 
 | Route | Who | Request | Response | Errors |
 |---|---|---|---|---|
-| `GET /v1/ledger?before_seq&limit&actor&status` | device, agents | — | `200 Page<LedgerEntry>` | |
+| `GET /v1/ledger?before_seq&limit&actor&status&since&kind` | device, agents | — | `200 Page<LedgerEntry>` | `since` (ms) reads through the time index |
 | `PUT /v1/ledger/:id` | agents | `{ kind: 'deploy'\|'mistake'\|'note', what /* ≤ 200 */, why /* 8–500 */, ref?, topic_key? }` | `201 LedgerEntry` | For actions outside the Worker (a merged PR, a deploy, an admitted mistake). `undoable` is false for these |
 | `POST /v1/ledger/:id/undo` | device; `mind:chat` for its own actions | `{}` | `200 { undo_ledger_id, status: 'undone' \| 'queued' }` | 409 `already_undone`; 422 `validation` with reason `not_undoable`; 410 `expired` after 30 days **[proposal]** |
 
 - A Core-internal action (memory, surface, setting) is undone in the same transaction as its new `undo` ledger row (`status: 'undone'`).
 - A phone action is undone by queueing its stored inverse verb (`status: 'queued'`). The original row becomes `undone` when that verb reports success.
+- Verb and surface replies carry `ledger_id`, the row to undo: for a surface, its last write; for a verb, its `queued` row until the phone reports, then the outcome row (actor: whoever queued it), which holds the inverse.
 
 ### 11.10 Proposals (decisions)
 
@@ -489,7 +492,7 @@ type MemoryOp =
 | Route | Who | Request | Response |
 |---|---|---|---|
 | `POST /v1/ops/errors` | device, agents | `{ items: { fingerprint?, source: 'client'\|'csp'\|'job', route?, code, message /* ≤ 300 */, build: number, at: Ms, count?: number }[] /* ≤ 50 */ }` | `204` |
-| `GET /v1/ops/errors?status=open\|resolved&limit` | device, agents, `ci` | — | `200 Page<ErrorRow>` |
+| `GET /v1/ops/errors?status=open\|resolved&since&limit` | device, agents, `ci` | — | `200 Page<ErrorRow>` (`since`: only errors last seen at or after it, ms) |
 | `POST /v1/ops/errors/:fingerprint/resolve` | device, `mind:chat`, `mind:reflex` | `{}` | `204` |
 | `POST /v1/ops/perf` **[proposal]** | device | `{ day: Day, build: number, metrics: Record<'inp'\|'loaf_gesture'\|'start_warm'\|'start_cold'\|'api_ms'\|'heap_mb', {p50, p75, p95, n}> }` (one call per day) | `204` |
 | `GET /v1/ops/meter?days=1-30` | device, agents, `ci` | — | `200 { items: { day, class, rows_written, rows_read, bulk_rows_written }[] }` |

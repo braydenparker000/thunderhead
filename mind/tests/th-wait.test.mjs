@@ -70,7 +70,7 @@ test('wait retries through 5xx and exits at once on 401 (2) and 403 (6)', withFa
   later(400, () => fake.addOwnerMessage('still there?'));
   const ok = await th(['wait', '--minutes', '0.2'], env(fake));
   assert.equal(ok.code, 0, ok.stderr);
-  const bad = await th(['wait', '--minutes', '0.2'], env(fake, {TH_TOKEN: 'thm_not_a_real_token_value'}));
+  const bad = await th(['wait', '--minutes', '0.2'], env(fake, {TH_TOKEN: 'thm_wrong_key_three'}));
   assert.equal(bad.code, 2);
   assert.ok(bad.ms < 2000);
   fake.failNext('GET', '/v1/live/wait', 403, 'forbidden');

@@ -274,7 +274,7 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
 test('exit codes: 1 bad JSON, 2 bad token, 8 unknown command, 9 unreachable, 10 budget', withFake({}, async fake => {
   fake.failNext('GET', '/v1/mind/pending', 200, 'garbage');
   assert.equal((await th(['pending'], env(fake))).code, 1);
-  const bad = await th(['pending'], env(fake, {TH_TOKEN: 'thm_wrong_token_value_for_tests'}));
+  const bad = await th(['pending'], env(fake, {TH_TOKEN: 'thm_wrong_key_two'}));
   assert.equal(bad.code, 2);
   assert.equal((await th(['frobnicate'], env(fake))).code, 8);
   const down = await th(['pending'], env(null));

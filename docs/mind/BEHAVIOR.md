@@ -44,7 +44,7 @@ A reply never counts against an unprompted budget. A follow-up the owner asked f
 | Mind is asleep | The message shows as sent; edge pulses; the Worker fires a wake. First reply within 90 s at p90 | REP-2 |
 | Work will take > 30 s | A progress card appears within 30 s of the message: one line per milestone, 3–8 steps, each starting with a verb ("Reading the search code") | REP-3: Worker flags any owner message with no mind post within 30 s of the session's claim |
 | Wake never claimed (240 s) | The Worker's honest line (see [RUNTIME.md §9](RUNTIME.md#9-failure-modes-and-what-the-owner-sees)) | RT-F1 |
-| Owner taps Stop | The mind finishes the current step (never leaves a half-made commit), then replies "Stopped. Done: … Not done: …" | REP-4: `th wait` exit 4 test |
+| Owner taps Stop | The mind finishes the current step (never leaves a half-made commit), then replies "Stopped. Done: … Not done: …" (that reply clears the Stop) | REP-4: `th wait` exit 4 test (`mind/tests/th.test.mjs` against the real Worker) |
 
 ### 2.2 Shape
 

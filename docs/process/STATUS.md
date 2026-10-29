@@ -5,7 +5,7 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**P1 · Worker + sign-in**: done 2026-10-29 (X1/X3/X4 pass). **P1b · Apps ported**: live 2026-10-29 (My Media waits on the `DRIVE_CONFIG_JSON` secret). **P2 · The daily conversation**: building on branch `p2-chat`. Stage 1 (the backend: conversation, search, day roll, live channel, wake loop, ledger, verbs, surfaces and the contract registries, [EXTENDING.md](../engineering/EXTENDING.md)) is built; next the `th` CLI and hooks, the home chat UI, and waking through the mind-chat trigger (SETUP.md K).
+**P1 · Worker + sign-in**: done 2026-10-29 (X1/X3/X4 pass). **P1b · Apps ported**: live 2026-10-29 (My Media waits on the `DRIVE_CONFIG_JSON` secret). **P2 · The daily conversation**: building on branch `p2-chat`. Stage 1 (the backend: conversation, search, day roll, live channel, wake loop, ledger, verbs, surfaces and the contract registries, [EXTENDING.md](../engineering/EXTENDING.md)) and stage 2 (the `th` CLI and hooks in `mind/`, checked against the contract and tested against the real Worker under `wrangler dev`) are built; next the home chat UI, and waking through the mind-chat trigger (SETUP.md K).
 
 ## Next three tasks
 
@@ -35,4 +35,4 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 - Hosting is the Azure Storage static website (owner ruling); Static Web Apps is ruled out.
 - Existing apps are ported as they are (owner ruling); any change to them later is an evolution the owner agrees to first. Songsterr and libmedia stay (owner rulings).
 - Read [decisions.md](decisions.md) before changing anything structural.
-- Before P2: apply the eight spec gaps found while building the `th` CLI (branch `mind-spike`, commit 2251bf7, `mind/README.md` → Findings): `thread_id: 'system'` on `PUT /v1/messages/:id`; a `TH-Stop: 1` header on the 204 status reply; define the briefing section marker (`## `) in MEMORY.md §9; say that messages shown in a claimed briefing need an ack within 120 s; a PATCH for open threads; small missing routes (get one work order, `since` on errors, `ledger_id` in verb/surface replies, `th approved`); the R2 host in the environment's network list for `th file`; and note that the pre-tool hook is a soft gate (the network allowlist is the real control).
+- The eight spec gaps from `mind-spike` (2251bf7) are applied in P2 stage 2 (docs and code); `mind/README.md` → "The spike's findings, and where they went" maps each one.

@@ -79,7 +79,7 @@ test('HK-1: Worker down → the exact fallback line, exit 0', async () => {
 test('fallback on a refused token, a hung Worker, and bad JSON input still exits 0', async () => {
   const fake = await startFake({holdUnitMs: 20});
   try {
-    const refused = await hook('session-start', {source: 'startup'}, env(fake, {TH_TOKEN: 'thm_wrong_token_for_tests_x'}));
+    const refused = await hook('session-start', {source: 'startup'}, env(fake, {TH_TOKEN: 'thm_wrong_key_one'}));
     assert.equal(FALLBACK.exec(refused.stdout)?.[1], 'unauthorized');
     const garbage = await hook('session-start', 'not json', env(fake));
     assert.equal(garbage.code, 0);

@@ -61,7 +61,8 @@ The registries are plain data with zod/mini schemas, so Node imports them withou
 
 ### A route
 
-1. Add the row to `ROUTES` in `routes.ts` (who, phase, optional `note`). A route that waits on
+1. Add the row to `ROUTES` in `routes.ts` (who, phase, optional `note`). Rows of later phases
+   belong there too: `th` already answers them with `not_built` until their phase is built. A route that waits on
    something else in its phase gets `deferred: '<what it waits on>'`.
 2. Register it in the area's `routes.ts` with `guard('<METHOD> <path>')`. The guard reads its
    principals from the row; a typo is a type error.
@@ -131,6 +132,15 @@ an old phone cannot ignore raises `LIVE_PROTOCOL`, ships phone support first, th
 An area can move into its own object when it outgrows Core: its migrations and store already
 stand alone. A new class arrives in **its own deploy** (ROADMAP rule 3: a Worker rollback cannot
 cross a class change), with its migration tag in `wrangler.jsonc`, and nothing else in that deploy.
+
+### A th command
+
+Usually none is needed: `th get <path>` reads any built GET route, `th verb`, `th surface` and
+`th search` take any verb, surface kind and search source in the contract, and `th help` lists
+them. A new command (one that combines calls or keeps local state) goes into `mind/cli/lib/`, is
+listed in `lib/help.mjs`, and calls only routes in the contract: `mind/tests/th-contract.test.mjs`
+fails on a call to a route the contract lacks, and `mind/tests/th.test.mjs` runs th against the
+real Worker under `wrangler dev`.
 
 ## 3. Budgets that shape every addition
 

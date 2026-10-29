@@ -260,7 +260,7 @@ Example line: `[f:01936a2b] Prefers short answers on the phone (0.9, u, since 20
 
 ## 9. The briefing
 
-`th brief` returns sections in this order. The Worker builds and truncates; the model never trims. The SessionStart hook prints the **core** (sections 1–7). The **full** briefing (1–12) goes to `$TMPDIR/th/brief.md`.
+`th brief` returns sections in this order. Each section starts at a line `## <n>. <Name>` (for example `## 2. Waiting`); the SessionStart hook's cap and `th brief --section` cut only on that marker. The Worker builds and truncates; the model never trims. The SessionStart hook prints the **core** (sections 1–7). The **full** briefing (1–12) goes to `$TMPDIR/th/brief.md`.
 
 | # | Section | Content | Budget (chars) | In core |
 |---|---|---|---|---|
