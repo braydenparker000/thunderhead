@@ -290,7 +290,7 @@ The Worker on Free has **10 ms CPU per request**. Even scrypt N=2^14, p=1 costs 
 ### 6.3 Test X3 (run before any auth code ships) **[proposal: run it from Actions]**
 
 No Claude session holds a Cloudflare credential, so X3 runs as a GitHub workflow:
-1. `.github/workflows/x3-bench.yml`, `workflow_dispatch`, job `environment: worker`.
+1. `.github/workflows/bench.yml` (test `x3`), `workflow_dispatch`, job `environment: worker`. The same workflow runs X1 and X4.
 2. It deploys a throwaway Worker `thunderhead-x3` from `backend/bench/` (a Worker plus a SQLite DO class `Bench` with one RPC method `kdf(n, r, p)` that hashes a fixed dummy password). The bench code never ships in `thunderhead-api`.
 3. It starts `wrangler tail thunderhead-x3 --format json` in the background.
 4. It calls the bench 20 times in a row with (2^15, 8, 3), then 20 times with (2^16, 8, 2), each call a separate request to the same DO instance.

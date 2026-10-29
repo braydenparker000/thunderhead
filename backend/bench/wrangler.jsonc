@@ -1,0 +1,16 @@
+// The throwaway measurement Worker (bench/index.ts). The Bench workflow deploys it with
+// `--name thunderhead-x3` (or -x4, -x1) and deletes it afterwards; nothing here is real.
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "thunderhead-bench",
+  "main": "index.ts",
+  "compatibility_date": "2026-10-15",
+  "compatibility_flags": ["nodejs_compat"],
+  "send_metrics": false,
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "durable_objects": { "bindings": [{ "name": "BENCH", "class_name": "Bench" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Bench"] }],
+  "secrets": { "required": ["BENCH_KEY"] }
+}

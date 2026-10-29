@@ -1,0 +1,163 @@
+# Bench (OPERATIONS.md §10, SECURITY.md §6.3): the production measurements no Claude session can
+# make, because no session holds a Cloudflare credential. It deploys the throwaway Worker in
+# backend/bench/ as thunderhead-<test>, calls it, prints numbers only, and deletes it.
+#   x3: scrypt in a Durable Object on Free: 20 × (2^15, 8, 3) then 20 × (2^16, 8, 2).
+#   x4: point-in-time recovery: bookmark, write, restore, read back.
+#   x1: a Worker-held WebSocket to a hibernating object: 100 takes with a poke, 3 idle 25 s takes.
+#       With `keep`, the Worker stays up so its Durable Object duration can be read in the
+#       dashboard (Workers & Pages → thunderhead-x1 → Metrics); then run `cleanup`.
+#   cleanup: deletes every thunderhead-x* bench Worker.
+name: Bench
+on:
+  workflow_dispatch:
+    inputs:
+      test:
+        description: Which measurement
+        type: choice
+        options: [x3, x4, x1, cleanup]
+        default: x3
+      keep:
+        description: (x1 only) leave the bench Worker up to read its duration in the dashboard
+        type: boolean
+        default: false
+permissions: {}
+concurrency:
+  group: bench
+  cancel-in-progress: false
+defaults:
+  run:
+    shell: bash
+jobs:
+  bench:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: worker
+    permissions:
+      contents: read
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_URL: ${{ vars.WORKER_URL }}
+      WRANGLER_SEND_METRICS: 'false'
+      CONFIG: backend/bench/wrangler.jsonc
+      NAME: thunderhead-${{ inputs.test }}
+      TEST: ${{ inputs.test }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: Check the settings
+        run: |
+          bad=0
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::Secret CLOUDFLARE_API_TOKEN is missing (Settings > Environments > worker)"; bad=1; }
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-f]{32}$ ]] || { echo "::error::Variable CLOUDFLARE_ACCOUNT_ID must be the 32-character Account ID"; bad=1; }
+          [[ "$WORKER_URL" =~ ^https://thunderhead-api\.[A-Za-z0-9-]+\.workers\.dev/?$ ]] || { echo "::error::Repository variable WORKER_URL must be https://thunderhead-api.<subdomain>.workers.dev"; bad=1; }
+          exit "$bad"
+      - name: Clean up the bench Workers
+        if: ${{ inputs.test == 'cleanup' }}
+        run: |
+          for name in thunderhead-x1 thunderhead-x3 thunderhead-x4; do
+            if npx wrangler delete "$name" --config "$CONFIG" > /dev/null 2>&1; then echo "deleted $name"; else echo "$name: not there"; fi
+          done
+      - name: Deploy the bench Worker
+        id: deploy
+        if: ${{ inputs.test != 'cleanup' }}
+        run: |
+          umask 077
+          key="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(24).toString("hex"))')"
+          echo "::add-mask::$key"
+          printf '%s' "$key" > "$RUNNER_TEMP/bench-key"
+          printf '{"BENCH_KEY":"%s"}' "$key" > "$RUNNER_TEMP/bench-secrets.json"
+          status=0
+          npx wrangler deploy --config "$CONFIG" --name "$NAME" --secrets-file "$RUNNER_TEMP/bench-secrets.json" > "$RUNNER_TEMP/deploy.log" 2>&1 || status=$?
+          rm -f "$RUNNER_TEMP/bench-secrets.json"
+          [[ "$status" == 0 ]] || { tail -n 20 "$RUNNER_TEMP/deploy.log"; exit "$status"; }
+          sub="${WORKER_URL#https://thunderhead-api.}"; sub="${sub%/}"
+          url="https://$NAME.$sub"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          # a new workers.dev address can take a little while to answer
+          for i in $(seq 1 30); do
+            [[ "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 "$url/")" == 401 ]] && { echo "deployed $NAME"; exit 0; }
+            sleep 4
+          done
+          echo "::error::$NAME did not answer"; exit 1
+      - name: X3 · scrypt in a Durable Object
+        if: ${{ inputs.test == 'x3' }}
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          key="$(cat "$RUNNER_TEMP/bench-key")"
+          npx wrangler tail "$NAME" --format json --config "$CONFIG" > "$RUNNER_TEMP/tail.json" 2> /dev/null &
+          tail_pid=$!
+          sleep 10
+          for setting in "32768 8 3" "65536 8 2"; do
+            read -r n r p <<< "$setting"
+            for i in $(seq 1 20); do
+              start=$(date +%s%3N)
+              code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 60 -H "x-bench-key: $key" "$URL/kdf?n=$n&r=$r&p=$p&object=x3" || echo 0)
+              printf '{"setting":"%s","status":%s,"ms":%s}\n' "$setting" "$code" "$(( $(date +%s%3N) - start ))" >> "$RUNNER_TEMP/calls.jsonl"
+            done
+          done
+          sleep 15
+          kill "$tail_pid" 2> /dev/null || true
+          node scripts/bench-summary.mjs x3 "$RUNNER_TEMP/calls.jsonl" "$RUNNER_TEMP/tail.json" | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: X4 · point-in-time recovery
+        if: ${{ inputs.test == 'x4' }}
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          key="$(cat "$RUNNER_TEMP/bench-key")"
+          call() { curl -fsS --max-time 30 -H "x-bench-key: $key" "$URL$1"; }
+          bookmark="$(call '/x4/start?object=x4' | node -pe 'JSON.parse(require("fs").readFileSync(0)).bookmark')"
+          [[ -n "$bookmark" && "$bookmark" != undefined ]] || { echo "X4: no bookmark from getCurrentBookmark()"; exit 1; }
+          fortime="$(call '/x4/fortime?object=x4' | node -pe 'JSON.parse(require("fs").readFileSync(0)).forTime')"
+          call "/x4/restore?object=x4&bookmark=$bookmark" > /dev/null
+          sleep 3
+          mark="$(call '/x4/read?object=x4' | node -pe 'JSON.parse(require("fs").readFileSync(0)).mark')"
+          {
+            echo "getCurrentBookmark: works"
+            echo "getBookmarkForTime (1 min ago): $([[ "$fortime" == true ]] && echo works || echo 'returned nothing')"
+            echo "value after restore: $mark (expected: before)"
+            [[ "$mark" == before ]] && echo "X4: PASS (PITR works on this plan)" || echo "X4: FAIL (PITR did not restore)"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+          [[ "$mark" == before ]]
+      - name: X1 · a Worker-held WebSocket to a hibernating object
+        if: ${{ inputs.test == 'x1' }}
+        env:
+          URL: ${{ steps.deploy.outputs.url }}
+        run: |
+          key="$(cat "$RUNNER_TEMP/bench-key")"
+          out="$RUNNER_TEMP/calls.jsonl"
+          take() { # $1 setting, $2 timeout s; prints one calls line
+            local start body code
+            start=$(date +%s%3N)
+            body="$(curl -s -w '\n%{http_code}' --max-time 40 -H "x-bench-key: $key" "$URL/x1/wait?object=x1&timeout=$2" || printf '\n0')"
+            code="${body##*$'\n'}"; body="${body%$'\n'*}"
+            got="$(printf '%s' "$body" | node -pe 'try { String(JSON.parse(require("fs").readFileSync(0)).got) } catch { "false" }')"
+            printf '{"setting":"%s","status":%s,"ms":%s,"got":%s}\n' "$1" "$code" "$(( $(date +%s%3N) - start ))" "$got"
+          }
+          for i in $(seq 1 100); do
+            take poke 20 >> "$out" &
+            sleep 1.5
+            # poke once the take's socket is there (the object answers with how many it reached)
+            for try in $(seq 1 20); do
+              n="$(curl -s --max-time 20 -X POST -H "x-bench-key: $key" "$URL/x1/poke?object=x1" | node -pe 'try { JSON.parse(require("fs").readFileSync(0)).sockets } catch { 0 }')"
+              [[ "$n" -ge 1 ]] && break
+              sleep 0.5
+            done
+            wait
+          done
+          for i in 1 2 3; do take idle 25 >> "$out"; done
+          node scripts/bench-summary.mjs x1 "$out" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "Not covered here: takes through the Claude session proxy (30 s cut) and the billed duration; with keep, read Workers & Pages → thunderhead-x1 → Metrics → Durable Objects, then run cleanup." | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Delete the bench Worker
+        if: ${{ always() && inputs.test != 'cleanup' && !(inputs.test == 'x1' && inputs.keep) }}
+        run: |
+          rm -f "$RUNNER_TEMP/bench-key"
+          if npx wrangler delete "$NAME" --config "$CONFIG" > /dev/null 2>&1; then echo "deleted $NAME"; else echo "::warning::could not delete $NAME; run Bench with test cleanup"; fi
