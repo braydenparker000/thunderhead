@@ -50,7 +50,6 @@ export function dayPart(
     const items = notesBetween(db, from, to, after, n).map(
       (r): SessionNote => ({
         id: r.id,
-        session_id: r.session_id,
         role: r.role,
         thread_id: r.thread_id,
         created_at: r.created_at,

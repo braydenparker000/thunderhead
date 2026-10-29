@@ -36,7 +36,6 @@ export function putNote(
 
 export interface NoteRow {
   id: string;
-  session_id: string | null;
   role: MindRole;
   thread_id: string | null;
   created_at: number;
@@ -55,7 +54,7 @@ export function notesBetween(
 ): NoteRow[] {
   const lo = after ? Math.max(from, after[0]) : from;
   return db.all<NoteRow>(
-    `SELECT id, session_id, role, thread_id, created_at, body, open_items_json FROM session_notes
+    `SELECT id, role, thread_id, created_at, body, open_items_json FROM session_notes
      WHERE created_at >= ? AND created_at < ? AND (created_at > ? OR id > ?) ORDER BY created_at, id LIMIT ?`,
     lo,
     to,

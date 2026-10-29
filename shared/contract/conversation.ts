@@ -212,10 +212,10 @@ export interface MindNightResponse {
   skipped: number[];
 }
 
-/** One session note, as `GET /v1/mind/day/:day?part=notes` lists them. */
+/** One session note, as `GET /v1/mind/day/:day?part=notes` lists them (without the session's id,
+ * which the night has no use for). */
 export interface SessionNote {
   id: Id;
-  session_id: string | null;
   role: MindRole;
   thread_id: Id | null;
   created_at: Ms;

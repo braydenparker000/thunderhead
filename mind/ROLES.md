@@ -67,6 +67,7 @@ pushes.
      or leave it, all in one file: `th facts --batch <file> --night`. Over 50 ops: send parts
      (`--part 2`, …) and after each one save your place with `th night step 4 cursor
      "<part>:<last message id>"`; a cursor you are given means go on after it with the next part.
+     Exit 7 names a part sent before with other ops: send only what is missing, as the next part.
    - 5 Health: `th errors`, `th health --deep`. Fix only loose ends tagged `agreed`, on a
      `claude/<slug>` branch, never `main`; the next chat session ships them.
    - 7 Arrange tomorrow: 0-4 home lines (`th surface home line.<n> …`), each with its why and the

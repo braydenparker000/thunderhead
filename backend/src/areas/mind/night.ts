@@ -125,7 +125,9 @@ export function night(w: Writer, c: Caller, r: MindNightRequest, today: string):
   const stored = nightRun(db, r.day);
   if (stored && stored.done_at !== null) {
     // Finished already (the 06:07 fallback's start, a refire, a repeated done): nothing to do,
-    // and the asking session's work is over. Nothing is written but that session's end.
+    // and the asking session's work is over. Only a night session that claimed (and is live,
+    // or ended with this run) is answered; its end is the one write.
+    doneCaller(db, c.session_id, stored.done_at);
     endNight(db, c.session_id, at);
     return answer(stored, JSON.parse(stored.steps_json) as Record<string, StepRecord>, NIGHT_LAST_STEP + 1);
   }
@@ -176,6 +178,16 @@ export function night(w: Writer, c: Caller, r: MindNightRequest, today: string):
     c.session_id,
   );
   return answer(row, steps, resume);
+}
+
+/** The caller of a run already done: a night session that claimed, and is live or ended at or
+ * after that run's end (so a retried `done` gets the same answer). Anyone else (a session that
+ * never claimed, a made-up id, another role's session, one ended before) is 403, and nothing is
+ * ended. */
+function doneCaller(db: Db, sessionId: string | null, doneAt: number): void {
+  const s = sessionId ? store.session(db, sessionId) : null;
+  if (s?.role !== 'night' || s.wake_id === null || (s.ended_at !== null && s.ended_at < doneAt))
+    throw new Fail('session_required');
 }
 
 /** The night session's work is over: it ends, and so does the wake it claimed (`night_done`). */

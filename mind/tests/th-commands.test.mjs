@@ -299,20 +299,32 @@ test('night steps come from the contract; the day comes from the briefing or --d
     assert.equal((await th(bad, e)).code, 8, bad.join(' '));
 }));
 
-test('facts --night: a part keeps one id for its day, so a refired session sending it again changes nothing', withFake({}, async fake => {
+test('facts --night: a part of the night run\'s day is one batch; the same file again is `already`, other ops an error', withFake({}, async fake => {
   const e = env(fake, {TH_ROLE: 'night'});
   const said = fake.addOwnerMessage('I take the bus to work');
   assert.equal((await th(['brief', '--claim'], e)).code, 0);
   const batch = join(e.TMPDIR, 'night.json');
   const op = text => ({op: 'add', kind: 'routine', subject: 'commute', text, source: 'user', evidence: [`msg:${said.id}`], sensitivity: 0});
   writeFileSync(batch, JSON.stringify({ops: [op('Takes the bus to work')]}));
+  assert.equal((await th(['facts', '--batch', batch, '--night'], e)).code, 8, 'no night run started yet');
+  assert.equal((await th(['night', 'start'], e)).code, 0);
   assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 1, proposed: 0, rejected: []});
+  assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 1, proposed: 0, rejected: [], already: true},
+    'the same file is the same batch: the Worker answers what it applied the first time');
   writeFileSync(batch, JSON.stringify({ops: [op('Goes to work by bus')]}));
-  assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 0, proposed: 0, rejected: [], already: true});
+  const again = await th(['facts', '--batch', batch, '--night'], e);
+  assert.equal(again.code, 7, 'a second file without --part is part 1 again, with other ops');
+  assert.match(JSON.parse(again.stderr).error.message, /part 1 of the night of 2026-10-28 .* as --part 2/);
   assert.deepEqual((await th(['facts', '--batch', batch, '--night', '--part', '2'], e)).json, {applied: 1, proposed: 0, rejected: []});
-  assert.deepEqual([...fake.state.batches.keys()], [nightBatchId('2026-10-28', 1), nightBatchId('2026-10-28', 2)]);
-  assert.equal((await th(['facts', '--batch', batch, '--part', '2'], e)).code, 8, '--part goes with --night');
-  assert.equal((await th(['facts', '--batch', batch, '--night', '--part', '0'], e)).code, 8);
+  // A backfill night: its own day, so its own batch ids.
+  assert.equal((await th(['night', 'start', '--day', '2026-10-25'], e)).code, 0);
+  assert.equal((await th(['night', 'step', '1', 'done'], e)).json.resume_from, 2, 'the steps go to the run started');
+  assert.equal(fake.state.night.get('2026-10-25').resume, 2);
+  assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 1, proposed: 0, rejected: []});
+  assert.deepEqual([...fake.state.batches.keys()],
+    [nightBatchId('2026-10-28', 1), nightBatchId('2026-10-28', 2), nightBatchId('2026-10-25', 1)]);
+  for (const bad of [['--part', '2'], ['--day', '2026-10-25'], ['--night', '--part', '0']])
+    assert.equal((await th(['facts', '--batch', batch, ...bad], e)).code, 8, bad.join(' '));
 }));
 
 test('th day reads every page of a part up to its cap; --part reads one page after --cursor', withFake({}, async fake => {

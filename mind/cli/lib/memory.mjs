@@ -2,10 +2,10 @@
 // (RUNTIME.md §5.3, MEMORY.md §3, API.md §11.13). Writes are small operations, never documents.
 import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
-import {ThError, invalid, jsonFlag, list, need, out, toMs} from './io.mjs';
+import {EXIT, ThError, invalid, jsonFlag, list, need, out, toMs} from './io.mjs';
 import {CONTRACT} from './contract.mjs';
 import {request} from './http.mjs';
-import {getState} from './state.mjs';
+import {getState, setState} from './state.mjs';
 import {sha256, uuidv7} from './ids.mjs';
 
 // The fact kinds and sources are the contract's (shared/contract/memory.ts via contract.json).
@@ -187,36 +187,50 @@ export async function daynote(argv) {
   out(data.kept_owner_edit ? {version: data.version ?? null, kept_owner_edit: true} : {version: data.version ?? null});
 }
 
-/** The night's batch id for part `k` of step 4 on its day: the same every time, so a part sent
- * again by a refired session is the same batch and the Worker refuses to apply it twice. */
-export function nightBatchId(day, part) {
-  const h = sha256(`night:${day}:4:${part}`);
+/** A UUID (version 8) from a name: the same name, the same id. */
+const nameId = name => {
+  const h = sha256(name);
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-8${h.slice(13, 16)}-${((parseInt(h[16], 16) & 3) | 8).toString(16)}${h.slice(17, 20)}-${h.slice(20, 32)}`;
-}
+};
+/** The night's batch id for part `k` of step 4 on its day: the same every time, so the Worker
+ * applies a part once. */
+export const nightBatchId = (day, part) => nameId(`night:${day}:4:${part}`);
 
-/** One batch of memory ops from a file: `{"ops":[…]}` or `[…]`. With `--night` (step 4) the batch
- * id is the night's for that day and `--part` (1 when not given). */
+/** One batch of memory ops from a file: `{"ops":[…]}` or `[…]`. With `--night` (step 4) it is part
+ * `--part` (1 when not given) of the night run's day (the one `th night start` set; `--day` names
+ * another): its batch id and its new facts' ids come from that day and part, so sending the same
+ * file again is the same batch (`already`, nothing applied twice), and a part sent before with
+ * other ops is an error that names it. */
 export async function facts(argv) {
   const {flags} = parseArgs(argv, {bool: ['night']});
   let parsed;
   try { parsed = JSON.parse(readFileSync(need(flags, 'batch'), 'utf8')); } catch (e) { throw invalid(`--batch: ${e.message}`); }
   const list = Array.isArray(parsed) ? parsed : parsed.ops;
   if (!Array.isArray(list) || !list.length || list.length > 50) throw invalid('--batch must hold 1–50 ops');
-  let batchId = uuidv7();
-  if (flags.night) {
-    const d = typeof flags.day === 'string' ? flags.day : getState('day');
-    if (!d) throw invalid('--night needs the briefing day (or --day <YYYY-MM-DD>)');
-    const part = flags.part === undefined ? 1 : Number(flags.part);
-    if (!Number.isInteger(part) || part < 1 || part > 99) throw invalid('--part must be 1-99');
-    batchId = nightBatchId(dayArg(d), part);
-  } else if (flags.part !== undefined) throw invalid('--part goes with --night');
+  if (!flags.night) {
+    if (flags.part !== undefined || flags.day !== undefined) throw invalid('--part and --day go with --night');
+    const data = await ops(list.map(op => (op.op === 'add' && !op.id ? {...op, id: uuidv7()} : op)));
+    return out(applied(data));
+  }
+  const day = typeof flags.day === 'string' ? flags.day : getState('night_day');
+  if (!day) throw invalid('--night: start the night first (th night start), or give --day <YYYY-MM-DD>');
+  const part = flags.part === undefined ? 1 : Number(flags.part);
+  if (!Number.isInteger(part) || part < 1 || part > 99) throw invalid('--part must be 1-99');
+  const batchId = nightBatchId(dayArg(day), part);
+  const body = list.map((op, i) => (op.op === 'add' && !op.id ? {...op, id: nameId(`${batchId}:${i}`)} : op));
+  const sha = sha256(JSON.stringify(body));
+  const sent = getState('night_batches', {}) || {};
   let data;
   try {
-    data = await ops(list.map(op => (op.op === 'add' && !op.id ? {...op, id: uuidv7()} : op)), batchId);
+    data = await ops(body, batchId);
   } catch (e) {
-    // That part of tonight's facts went through before (a refired session redoing step 4): it stands.
-    if (flags.night && e instanceof ThError && e.code === 'conflict') return out({applied: 0, proposed: 0, rejected: [], already: true});
+    if (e instanceof ThError && e.code === 'conflict')
+      throw new ThError(EXIT.conflict, 'conflict', `part ${part} of the night of ${day} was sent before with other ops; ` +
+        `check what it applied (th recall), then send only what is still missing as --part ${part + 1}`, e.requestId, e.details);
     throw e;
   }
-  out({applied: (data.applied || []).length, proposed: (data.proposals || []).length, rejected: data.rejected || []});
+  setState('night_batches', {...sent, [batchId]: sha});
+  out(sent[batchId] === sha ? {...applied(data), already: true} : applied(data));
 }
+
+const applied = data => ({applied: (data.applied || []).length, proposed: (data.proposals || []).length, rejected: data.rejected || []});
