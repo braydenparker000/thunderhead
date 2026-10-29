@@ -26,8 +26,8 @@ const tooLarge = (): never => {
   throw new ApiError('too_large');
 };
 const small = bodyLimit({ maxSize: 64 * 1024, onError: tooLarge });
-// The old export's parts (≤ 5 MB each, checked again in the route) and its manifest are the only
-// big bodies.
+// The old export's parts (≤ 25 MiB each, checked again in the route) and its manifest are the
+// only big bodies.
 const part = bodyLimit({ maxSize: IMPORT_PART_BYTES, onError: tooLarge });
 const manifest = bodyLimit({ maxSize: 1024 * 1024, onError: tooLarge });
 
