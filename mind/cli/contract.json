@@ -526,6 +526,36 @@
       "phase": "P3",
       "status": "later (P3)"
     },
+    "GET /v1/memory/profile": {
+      "who": [
+        "D",
+        "C",
+        "N",
+        "R"
+      ],
+      "phase": "P3",
+      "status": "later (P3)"
+    },
+    "GET /v1/memory/day-notes": {
+      "who": [
+        "D",
+        "C",
+        "N",
+        "R"
+      ],
+      "phase": "P3",
+      "status": "later (P3)"
+    },
+    "GET /v1/memory/open-threads": {
+      "who": [
+        "D",
+        "C",
+        "N",
+        "R"
+      ],
+      "phase": "P3",
+      "status": "later (P3)"
+    },
     "POST /v1/memory/ops": {
       "who": [
         "D",

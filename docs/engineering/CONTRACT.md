@@ -74,6 +74,9 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/mind/night` | N | P3 | later (P3) |  |
 | `GET /v1/mind/day/:day` | N | P3 | later (P3) |  |
 | `GET /v1/memory/facts` | D C N R | P3 | later (P3) |  |
+| `GET /v1/memory/profile` | D C N R | P3 | later (P3) |  |
+| `GET /v1/memory/day-notes` | D C N R | P3 | later (P3) |  |
+| `GET /v1/memory/open-threads` | D C N R | P3 | later (P3) |  |
 | `POST /v1/memory/ops` | D C N | P3 | later (P3) |  |
 | `PUT /v1/memory/day-notes/:day` | N | P3 | later (P3) |  |
 | `PUT /v1/memory/open-threads/:id` | D C N | P3 | later (P3) |  |
