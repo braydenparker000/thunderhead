@@ -1,11 +1,13 @@
 // Surfaces (API.md §11.12): the mind places a versioned kind in an app's slot, validated against
 // the contract (shared/contract/surfaces.ts); every write and delete is a ledger row whose undo
-// restores what was there. A topic the owner dismissed stays quiet for 14 days (409 nudge_repeat).
+// restores what was there. A topic the owner dismissed stays quiet for 14 days (409 nudge_repeat),
+// and a surface may not draw on a fact the owner muted (422 muted_fact).
 import type { PutSurfaceRequest, Surface } from '../../../../shared/contract/api';
 import { surfaceKind } from '../../../../shared/contract/surfaces.ts';
 import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
+import { factFlags } from '../memory/store';
 import * as store from './store';
 
 const QUIET_MS = 14 * 86_400_000;
@@ -23,6 +25,7 @@ export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfa
       'validation',
       payload.error.issues.map((i) => ({ path: ['payload', ...i.path.map(String)].join('.'), issue: i.message })),
     );
+  drawsOn(w, r);
   const ignored = store.topicIgnoredAt(w.db, r.topic_key);
   if (ignored !== null && w.at - ignored < QUIET_MS) throw new Fail('nudge_repeat');
   if (r.expires_at !== undefined && r.expires_at <= w.at) throw invalid('expires_at', 'in the future');
@@ -57,6 +60,18 @@ export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfa
   });
   store.topicShown(w.db, r.topic_key, w.at);
   return store.toSurface(store.get(w.db, app, slot) as store.SurfaceRow);
+}
+
+/** The facts a surface cites (its `facts`, and a `fact:` ref): each must exist, and none may be
+ * muted (`may_raise = 0`, MEMORY.md §12) or private (sensitivity 1, PRIVACY.md §4). */
+function drawsOn(w: Writer, r: PutSurfaceRequest): void {
+  const ids = new Set(r.facts ?? []);
+  if (r.ref?.startsWith('fact:')) ids.add(r.ref.slice('fact:'.length));
+  if (!ids.size) return;
+  const flags = factFlags(w.db, [...ids]);
+  if (flags.length < ids.size) throw new Fail('validation', { reason: 'unknown_fact' });
+  if (flags.some((f) => f.may_raise === 0)) throw new Fail('validation', { reason: 'muted_fact' });
+  if (flags.some((f) => f.sensitivity === 1)) throw new Fail('too_sensitive');
 }
 
 /** DELETE: the owner dismissing a surface also quiets its topic for 14 days. */

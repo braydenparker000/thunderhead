@@ -1,16 +1,25 @@
 // Gathers the briefing's inputs from the stores (MEMORY.md §9) and renders it (brief.ts). Reads
-// only; runs after the claim's commit so the briefing reflects it.
+// only, each bounded; runs after the claim's commit so the briefing reflects it. Memory (rules,
+// open threads, the profile, day notes) comes from areas/memory through its own store and renders.
 import type { BriefResponse, MindRole } from '../../../../shared/contract/api';
-import { HOUR } from '../../lib/time';
+import { FACT_KIND_NAMES } from '../../../../shared/contract/memory.ts';
+import { dayBefore, HOUR } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import { currentDay } from '../conversation/day';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
 import * as ledger from '../ledger/store';
+import * as notes from '../memory/notes';
+import { renderProfile } from '../memory/profile';
+import * as facts from '../memory/store';
 import * as ops from '../ops/store';
 import { buildBrief } from './brief';
 import * as store from './store';
 import { backoff } from './wake';
+
+/** How many current facts a briefing reads at most (newest first), and how many rules. */
+const FACTS_READ = 2_000;
+const RULES_READ = 200;
 
 export function assemble(
   db: Db,
@@ -26,6 +35,12 @@ export function assemble(
   const tail = all.slice(-12);
   const earlier = all.slice(0, -12);
   const yThread = convo.threadsPage(db, null, 5, null).find((t) => t.kind === 'daily' && t.day < day) ?? null;
+  const yDay = yThread?.day ?? dayBefore(day);
+  const current = facts.currentFacts(
+    db,
+    FACT_KIND_NAMES.filter((k) => k !== 'rule'),
+    FACTS_READ,
+  );
   const { core, full } = buildBrief({
     role,
     constitution,
@@ -41,9 +56,18 @@ export function assemble(
     todayTail: tail,
     todayEarlier: earlier,
     note: store.latestNote(db),
-    yesterday: { threadId: yThread?.id ?? null, tail: yThread ? convo.lastMessages(db, yThread.id, 20) : [] },
+    yesterday: {
+      threadId: yThread?.id ?? null,
+      tail: yThread ? convo.lastMessages(db, yThread.id, 20) : [],
+      note: notes.dayNote(db, yDay),
+    },
     ledger: ledger.since(db, now - 24 * HOUR, 30),
     errorsOpen: ops.countOpenErrors(db),
+    rules: facts.currentFacts(db, ['rule'], RULES_READ),
+    threads: notes.openThreads(db, 'open', 60),
+    profile: renderProfile(current, now, tz).text,
+    days: notes.dayNotes(db, dayBefore(day, 7), dayBefore(day), 7),
+    night: null,
   });
   return { wake, day, seq: feed.lastSeq(db), core, full, night_done: false };
 }

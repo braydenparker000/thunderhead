@@ -90,20 +90,20 @@ export const ROUTES = {
   'POST /v1/media/sign': { who: ['D', 'C', 'N'], phase: 'P2', deferred: 'the private bucket (SETUP.md J2)' },
 
   // --- P3: memory and the night shift -----------------------------------------------------------
-  'POST /v1/mind/night': { who: ['N'], phase: 'P3' },
-  'GET /v1/mind/day/:day': { who: ['N'], phase: 'P3' },
+  'POST /v1/mind/night': { who: ['N'], phase: 'P3', deferred: 'P3 stage C (the night shift)' },
+  'GET /v1/mind/day/:day': { who: ['N'], phase: 'P3', deferred: 'P3 stage C (the night shift)' },
   'GET /v1/memory/facts': { who: AGENTS_READ, phase: 'P3' },
   'GET /v1/memory/profile': { who: AGENTS_READ, phase: 'P3' },
   'GET /v1/memory/day-notes': { who: AGENTS_READ, phase: 'P3' },
   'GET /v1/memory/open-threads': { who: AGENTS_READ, phase: 'P3' },
-  'POST /v1/memory/ops': { who: ['D', 'C', 'N'], phase: 'P3' },
-  'PUT /v1/memory/day-notes/:day': { who: ['N'], phase: 'P3' },
+  'POST /v1/memory/ops': { who: ['D', 'C', 'N'], phase: 'P3', note: 'pin, may_raise and forget: device only' },
+  'PUT /v1/memory/day-notes/:day': { who: ['D', 'N'], phase: 'P3', note: "device: the owner's edit (written_by owner)" },
   'PUT /v1/memory/open-threads/:id': { who: ['D', 'C', 'N'], phase: 'P3' },
   'PATCH /v1/memory/open-threads/:id': { who: ['D', 'C', 'N'], phase: 'P3', note: '{status, why}: done or dropped' },
-  'POST /v1/import/runs': { who: ['D', 'C'], phase: 'P3' },
-  'POST /v1/ops/import/parts': { who: ['C', 'I'], phase: 'P3' },
-  'PUT /v1/ops/import/manifest/:run_id': { who: ['C', 'I'], phase: 'P3' },
-  'GET /v1/import/runs/:id': { who: AGENTS_READ, phase: 'P3' },
+  'POST /v1/import/runs': { who: ['D', 'C'], phase: 'P3', deferred: 'P3 stage D (the import)' },
+  'POST /v1/ops/import/parts': { who: ['C', 'I'], phase: 'P3', deferred: 'P3 stage D (the import)' },
+  'PUT /v1/ops/import/manifest/:run_id': { who: ['C', 'I'], phase: 'P3', deferred: 'P3 stage D (the import)' },
+  'GET /v1/import/runs/:id': { who: AGENTS_READ, phase: 'P3', deferred: 'P3 stage D (the import)' },
 
   // --- P4: proposals, backups, export, Muse -----------------------------------------------------
   'PUT /v1/proposals/:id': { who: MIND, phase: 'P4' },
@@ -136,7 +136,7 @@ export const ROUTES = {
 export type RouteKey = keyof typeof ROUTES;
 
 /** The phases whose routes are live in this build (the scope test registers exactly these). */
-export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2'];
+export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3'];
 
 /** The rows this build must register: built phases, minus deferred rows. */
 export function builtRoutes(): [RouteKey, RouteSpec][] {

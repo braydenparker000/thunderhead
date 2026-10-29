@@ -1,9 +1,10 @@
 // The /v1 request and response shapes, as types only: the P1 routes here (API.md §2,
-// §11.1–11.4, §11.16, §11.20), P2's in conversation.ts and actions.ts. The backend checks its
-// zod schemas and responses against these with `satisfies`; the frontend imports them through
-// JSDoc. Wire format is snake_case. Runtime vocabularies are in index.ts.
+// §11.1–11.4, §11.16, §11.20), P2's in conversation.ts and actions.ts, P3's in memory.ts. The
+// backend checks its zod schemas and responses against these with `satisfies`; the frontend
+// imports them through JSDoc. Wire format is snake_case. Runtime vocabularies are in index.ts.
 export type * from './actions';
 export type * from './conversation';
+export type * from './memory';
 export type { ErrorBody, ErrorCode, ErrorDetails, Issue, RevokeReason } from './errors';
 export type { AppId, ChangeKind, FrameType, SearchSource } from './feed';
 export type { Ref, RefKind } from './refs';

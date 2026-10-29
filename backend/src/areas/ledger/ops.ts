@@ -1,11 +1,12 @@
 // The ledger's own routes (API.md §11.9): agents record actions taken outside the Worker, and any
-// stored inverse can be undone. A Core-internal action is undone in the same transaction; a phone
-// action is undone by queueing its inverse verb, and the row becomes `undone` when the phone
-// reports that verb done.
+// stored inverse can be undone. A Core-internal action (surfaces, memory) is undone in the same
+// transaction; a phone action is undone by queueing its inverse verb, and the row becomes
+// `undone` when the phone reports that verb done.
 import type { JsonObject, LedgerEntry, PutLedgerRequest, UndoResponse } from '../../../../shared/contract/api';
 import { Fail } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
+import * as memory from '../memory/undo';
 import * as surfaces from '../surfaces/ops';
 import * as verbs from '../verbs/ops';
 import * as store from './store';
@@ -77,7 +78,8 @@ export function undo(w: Writer, c: Caller, id: string): UndoResponse {
     // Rows written before undo args carried `was`: the ledger line says which action it was.
     const was = args.was ?? (row.what.endsWith(' cleared') ? 'clear' : 'put');
     surfaces.undo(w, id, inverse.op, { ...args, was });
-  } else throw new Fail('validation', { reason: 'not_undoable' });
+  } else if (inverse.op && memory.MEMORY_UNDO_OPS.includes(inverse.op)) memory.undo(w, inverse.op, inverse.args ?? {});
+  else throw new Fail('validation', { reason: 'not_undoable' });
   store.setStatus(w.db, id, 'undone', w.at);
   const undoId = w.ledger({
     kind: 'undo',

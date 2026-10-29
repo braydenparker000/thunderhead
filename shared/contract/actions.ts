@@ -100,6 +100,9 @@ export interface PutSurfaceRequest {
   topic_key: string;
   ref?: string;
   expires_at?: Ms;
+  /** Every fact the surface draws on (MEMORY.md §12): one the owner muted is refused
+   * (422 `muted_fact`), a private one too (422 `too_sensitive`). */
+  facts?: Id[];
 }
 
 export interface SurfacesResponse {
