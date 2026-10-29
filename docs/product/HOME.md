@@ -98,14 +98,15 @@ A decision is a proposal or question from the mind that needs the owner's answer
 |---|---|---|
 | Why line | Gold dot · `<source> · <reason>`, Inter 500 12, `--ink-3`. For ask-first classes, the class label is appended: "Can't be undone", "Costs money", "Changes access", "Reaches someone else". With more than one waiting: "1 of 3" right-aligned [proposal]. | ≤ 60 characters before the class label |
 | Question | Inter 500 16/1.42, `--ink`. A plain question that can be answered yes or no. | ≤ 80 characters |
+| Target | Inter 500 13, `--ink-2`, under the question: what a Yes changes, in the Worker's words, never the mind's ("key ci-deploy (CI)", "preference: Likes calm music in the evening"), so a question worded otherwise can't hide it (P4 stage A.5). | the Worker's line |
 | Yes button | Gold fill, `--gold-ink` text, Inter 600 14. Label from the proposal (e.g. "Yes, take it"). | ≤ 18 characters |
-| Secondary button | Neutral. Either **"Not yet"** (snooze) or **"No"** (reject), as the proposal specifies. | fixed |
+| Secondary button | Neutral. Either **"Not yet"** (snooze) or **"No"** (reject), as the proposal's `safe` says; the label never comes from the proposal's words. | fixed |
 
 ### 3.2 States and behaviour
 
 | State | Looks like | Happens when |
 |---|---|---|
-| Rising | `rise` 800 ms after a 300 ms delay (it follows the voice line) | First render of a waiting decision |
+| Rising | `rise` 800 ms after a 300 ms delay (it follows the voice line); its buttons take a tap only 500 ms after the rise ends, so a tap never lands on a card the owner hasn't seen | First render of a waiting decision |
 | Waiting | Card visible; bottom edge turns gold (§7) | Proposal `status=waiting` and not inside quiet hours |
 | Deciding | Pressed button shows a 16 px spinner; both buttons disabled | Tap sent, waiting for the Worker (timeout 15 s) |
 | Folded | Opacity 0, scale .97, height and padding → 0 over **450 ms** (+120 ms delay); removed at 650 ms | Worker confirmed |
@@ -125,7 +126,7 @@ Answering in chat ("no, don't") can **reject** or snooze a decision (the mind ca
 
 1. Only **one card** is visible (one gold element at a time).
 2. Order: soonest `expires` first, then oldest `at`.
-3. After one is answered, the next rises **300 ms** after the fold finishes.
+3. After one is answered, the next rises **300 ms** after the fold finishes, never sooner (not even when the feed brings the list back first), so a second tap of the same finger lands on nothing.
 4. The voice line counts all waiting decisions (rows 4–6).
 
 ### 3.4 Expiry and quiet hours
