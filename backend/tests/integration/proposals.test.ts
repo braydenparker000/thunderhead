@@ -128,7 +128,12 @@ describe('deciding by a tap', () => {
   });
 
   it('a forget that finds nothing fails without harm; "No" turns a card down; a forgotten fact cancels its card', async () => {
-    const gone = await raise(forgetCard(uuidv7()));
+    // A card names a fact that exists (422 otherwise); one gone by the time of the tap, say after a
+    // restore from an older backup, fails without harm.
+    expect((await raise(forgetCard(uuidv7()))).status).toBe(422);
+    const lost = await fact();
+    const gone = await raise(forgetCard(lost));
+    await coreSql('DELETE FROM facts WHERE id = ?', lost);
     const failed = await decide(gone.body.id, { decision: 'approve', spec_hash: gone.body.spec_hash });
     expect(failed.body).toMatchObject({ status: 'failed', result: { code: 'unknown_ref' } });
     const id = await fact();

@@ -21,8 +21,9 @@ export abstract class CoreProposals extends CoreImport {
     id: string,
     r: PutProposalRequest,
     hash: string,
+    target: string | null = null,
   ): Out<{ proposal: Proposal; created: boolean }> {
-    return this.run((w) => proposals.put(w, c, id, r, hash, this.tz()));
+    return this.run((w) => proposals.put(w, c, id, r, hash, this.tz(), target));
   }
 
   /** Newest first, as stored rows (the route shapes them: a list of the recursive `Json` type is

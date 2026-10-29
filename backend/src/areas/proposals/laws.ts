@@ -36,11 +36,18 @@ export function lawsLine(db: Db, sha: string): string {
   if (sha === 'none') return 'laws: mind/CONSTITUTION.md missing';
   const pin = lawsPin(db);
   if (pin?.sha256 === sha) return 'laws: pinned';
-  const card = store.byRef(db, `laws:${sha}`)[0] ?? null;
-  if (!pin)
-    return card?.status === 'rejected'
-      ? `laws: not pinned (the owner said not now; sha256 ${sha.slice(0, 12)})`
-      : `laws: not pinned yet (a card waits for the owner; sha256 ${sha.slice(0, 12)})`;
+  const card = store.latestFor(db, `laws:${sha}`);
+  if (!pin) {
+    const why =
+      card?.status === 'waiting'
+        ? 'a card waits for the owner'
+        : card?.status === 'expired'
+          ? 'its card expired unanswered'
+          : card?.status === 'rejected'
+            ? 'the owner said not now'
+            : 'no card yet';
+    return `laws: not pinned (${why}; sha256 ${sha.slice(0, 12)})`;
+  }
   const restore =
     card?.status === 'rejected' ? '; the owner said restore it: put back the approved file from git history' : '';
   return `laws: CHANGED, NOT APPROVED (approved sha256 ${pin.sha256.slice(0, 12)}, this clone ${sha.slice(0, 12)}); rule writes are refused${restore}`;
@@ -61,7 +68,7 @@ export function lawsCard(db: Db, sha: string): LawsCard | null {
   if (sha === 'none') return null;
   const pin = lawsPin(db);
   if (pin?.sha256 === sha) return null;
-  if (store.byRef(db, `laws:${sha}`).some((p) => p.status !== 'cancelled')) return null;
+  if (store.askedAbout(db, `laws:${sha}`)) return null;
   const short = sha.slice(0, 12);
   return pin
     ? {

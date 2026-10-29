@@ -10,13 +10,15 @@ import type {
   ProposalDecision,
   ProposalResult,
 } from '../../../../shared/contract/api';
-import { PROPOSAL_LIMITS } from '../../../../shared/contract/proposals.ts';
+import { PROPOSAL_LIMITS, proposalOp } from '../../../../shared/contract/proposals.ts';
 import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
+import { currentDay } from '../conversation/day';
 import { latestOwnerMessage } from '../conversation/stats';
 import * as convo from '../conversation/store';
 import { Reject } from '../memory/validate';
+import { claimedSession } from '../mind/guards';
 import { nextQuietEnd, quietWindow } from '../settings/quiet';
 import { CORE_RUNS, runsIn } from './executors';
 import { settle } from './ops';
@@ -36,15 +38,17 @@ export interface Decided {
   after?: After;
 }
 
-/** DEC-2: the cited message is the owner's own, typed on a signed-in device, sent after the card
- * could first be seen, still the owner's latest in its thread, and not already the answer to
- * another card. The session's taint does not matter: the Worker checks the message. */
-function ownerWords(w: Writer, messageId: string, p: store.ProposalRow): void {
+/** DEC-2: the cited message is the owner's own, typed on a signed-in device, in the open day's
+ * thread (a "yes" left in yesterday's thread is overtaken by whatever the owner wrote today), sent
+ * after the card could first be seen, still the owner's latest in that thread, and not already
+ * used to answer a card (a snooze in words uses it up too). Who records it is checked first. */
+function ownerWords(w: Writer, messageId: string, p: store.ProposalRow, tz: string): void {
   const m = convo.messageById(w.db, messageId);
   if (m?.author !== 'owner' || m.origin !== 'owner_device') throw new Fail('not_owner_words');
+  if (m.thread_id !== convo.dailyThread(w.db, currentDay(w.db, tz, w.at))?.id) throw new Fail('not_owner_words');
   if (m.created_at <= p.visible_from || m.created_at > w.at) throw new Fail('not_owner_words');
   if (latestOwnerMessage(w.db, m.thread_id)?.id !== m.id) throw new Fail('not_owner_words');
-  if (store.decidedByMessage(w.db, messageId, m.created_at)) throw new Fail('not_owner_words');
+  if (store.messageUsed(w.db, messageId)) throw new Fail('not_owner_words');
 }
 
 const WORDS: Record<ProposalDecision, [tap: string, words: string]> = {
@@ -67,7 +71,13 @@ export function decide(w: Writer, c: Caller, id: string, r: DecideProposalReques
   if (!device) {
     if (c.who !== 'C') throw new Fail('forbidden');
     if (r.by_message === undefined) throw invalid('by_message', "mind:chat decides only with the owner's own words");
-    ownerWords(w, r.by_message, p);
+    // The words must be the owner's, and who records them matters too: only the claimed chat
+    // session that holds the lease, and a tainted one may not record a yes (SECURITY.md §5.3).
+    const s = claimedSession(w.db, c.session_id, 'chat');
+    if (s.tainted && r.decision === 'approve') throw new Fail('session_tainted');
+    // Some cards only a tap decides: the laws pin, so the mind never moves its own laws.
+    if (proposalOp(p.op)?.decide === 'tap') throw new Fail('not_owner_words');
+    ownerWords(w, r.by_message, p, tz);
   }
   const via = device ? 'tap' : 'words';
   const decision = {
@@ -94,7 +104,7 @@ export function decide(w: Writer, c: Caller, id: string, r: DecideProposalReques
       store.decide(w.db, id, { ...decision, status: 'expired' });
       return { status: 'expired', ledger_id: ledger('a decision card expired after its last "not yet"') };
     }
-    store.snooze(w.db, id, nextQuietEnd(w.at, tz, quietWindow(w.db)));
+    store.snooze(w.db, id, nextQuietEnd(w.at, tz, quietWindow(w.db)), decision.decided_message_id);
     return { status: 'waiting', ledger_id: ledger(words) };
   }
   if (r.decision === 'reject') {

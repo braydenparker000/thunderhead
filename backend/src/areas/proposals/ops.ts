@@ -13,6 +13,7 @@ import { DAY } from '../../lib/time';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { sha256Hex } from '../auth/crypto';
+import { lineage } from '../memory/store';
 import { claimedSession } from '../mind/guards';
 import { heldUntil, quietWindow } from '../settings/quiet';
 import { lawsCard } from './laws';
@@ -29,6 +30,25 @@ function lint(path: string, text: string): void {
 const refOf = (op: { ref: readonly [string, string] }, args: Record<string, unknown>) =>
   `${op.ref[0]}:${String(args[op.ref[1]])}`;
 
+/** The card's target line, written by the Worker from what the op acts on (never the agent's
+ * words), so the owner sees what a Yes changes. `given` is the route's line for an op it resolved
+ * in another object (an agent key, from Auth). */
+function targetOf(w: Writer, op: string, args: Record<string, Json>, given: string | null): string {
+  if (op === 'memory.forget') {
+    const versions = lineage(w.db, String(args.id));
+    const f = versions.find((v) => v.superseded_at === null) ?? versions[0];
+    if (!f) throw invalid('spec.args.id', 'no such fact');
+    return `${f.kind}: ${short(f.text, 80)}`;
+  }
+  if (op === 'agents.revoke') {
+    if (!given) throw invalid('spec.args.agent_id', 'no active agent key with this id');
+    return given;
+  }
+  if (op === 'laws.pin') return `mind/CONSTITUTION.md, sha256 ${String(args.sha256).slice(0, 12)}`;
+  throw invalid('spec.op', 'no target line for this op');
+}
+const short = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
+
 /** PUT /v1/proposals/:id from an agent. `hash` is the canonical body hash (API.md §7). */
 export function put(
   w: Writer,
@@ -37,6 +57,7 @@ export function put(
   r: PutProposalRequest,
   hash: string,
   tz: string,
+  given: string | null = null,
 ): { proposal: Proposal; created: boolean } {
   const found = store.byId(w.db, id);
   if (found) {
@@ -60,16 +81,18 @@ export function put(
   lint('question', r.question);
   lint('why', r.why);
   lint('if_ignored', r.if_ignored);
+  for (const [i, o] of r.options.entries()) lint(`options.${i}`, o);
   const spec = { v: 1 as const, op: r.spec.op, args: args.data as Record<string, Json> };
   const specJson = canonicalJson(spec);
-  if (specJson.length > PROPOSAL_LIMITS.spec_bytes)
+  if (new TextEncoder().encode(specJson).length > PROPOSAL_LIMITS.spec_bytes)
     throw invalid('spec', `at most ${PROPOSAL_LIMITS.spec_bytes} bytes`);
   if (store.waiting(w.db).filter((p) => p.created_by !== 'worker').length >= PROPOSAL_LIMITS.waiting)
     throw new Fail('decision_budget');
   const ref = refOf(op, spec.args);
-  if (store.byRef(w.db, ref).some((p) => p.status === 'waiting'))
+  if (store.waitingFor(w.db, ref))
     throw new Fail('conflict', [{ path: 'spec', issue: 'a card for this already waits' }]);
-  insert(w, c.actor, c.session_id, id, { ...r, spec }, specJson, ref, hash, tz);
+  const target = targetOf(w, spec.op, spec.args, given);
+  insert(w, c.actor, c.session_id, id, { ...r, spec }, specJson, ref, hash, tz, target);
   return { proposal: store.toProposal(store.byId(w.db, id) as store.ProposalRow), created: true };
 }
 
@@ -77,7 +100,8 @@ export function put(
 export function raise(w: Writer, id: string, r: PutProposalRequest, tz: string): void {
   const op = proposalOp(r.spec.op);
   if (!op?.by.includes('worker')) throw new Error(`not a Worker op: ${r.spec.op}`);
-  insert(w, 'worker', null, id, r, canonicalJson(r.spec), refOf(op, r.spec.args), null, tz);
+  const target = targetOf(w, r.spec.op, r.spec.args, null);
+  insert(w, 'worker', null, id, r, canonicalJson(r.spec), refOf(op, r.spec.args), null, tz, target);
 }
 
 function insert(
@@ -90,6 +114,7 @@ function insert(
   ref: string,
   hash: string | null,
   tz: string,
+  target: string,
 ): void {
   // A card made in quiet hours waits for their end (HOME.md §3.4); the owner's words must come
   // after it could first be seen.
@@ -106,6 +131,7 @@ function insert(
     odds: r.odds ?? null,
     options_json: JSON.stringify(r.options),
     safe: r.safe ?? 'reject',
+    target,
     spec_json: specJson,
     spec_hash: sha256Hex(specJson),
     op: r.spec.op,

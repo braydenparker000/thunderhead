@@ -138,7 +138,7 @@ describe('the constitution pin', () => {
       spec: { args: { sha256: SHA, previous: null } },
     });
     const again = await claimChat(CHAT_SESSION);
-    expect(lawsLine(again.body)).toMatch(/^laws: not pinned yet/);
+    expect(lawsLine(again.body)).toMatch(/^laws: not pinned \(a card waits for the owner; sha256 /);
     expect(await lawsCards()).toHaveLength(1);
     const ok = await decide(first.id, { decision: 'approve', spec_hash: first.spec_hash });
     expect(ok.body).toMatchObject({ status: 'executed', result: { pinned: SHA } });

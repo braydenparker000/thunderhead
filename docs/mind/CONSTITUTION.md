@@ -120,7 +120,7 @@ Prompts are not gates. Wherever a law can be enforced in code, it is, and the mo
 
 With one GitHub identity, GitHub can't stop the agent from editing `mind/CONSTITUTION.md` (the `guard` check is deferred; see [decisions.md](../process/decisions.md)). The pin makes an unapproved edit visible within one session instead.
 
-1. The Worker stores `constitution_sha256`: the SHA-256 of the last version the owner approved (device tap or the owner's own words), as the setting `laws.pin`. The first pin is the owner's too: the first claim raises a card "Pin the laws as they are now?" (built in P4 stage A; until it is approved, nothing is refused).
+1. The Worker stores `constitution_sha256`: the SHA-256 of the last version the owner approved, as the setting `laws.pin`. The laws card takes a tap on a signed-in device only, never the owner's words as the mind records them, so the mind can't move its own laws (P4 stage A.5). The first pin is the owner's too: the first claim raises a card "Pin the laws as they are now?" (built in P4 stage A; until it is approved, nothing is refused).
 2. The SessionStart hook computes the SHA-256 of `mind/CONSTITUTION.md` in the clone and sends it with `th brief --claim` (`constitution_sha256` field).
 3. The Worker compares:
    - **Match:** the briefing's "Now" line says `laws: pinned`.

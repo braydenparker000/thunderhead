@@ -105,7 +105,7 @@
   },
   "POST /v1/mind/brief (claim, 20 messages) (Core)": {
     "rows_read_max": 130,
-    "rows_written_max": 49
+    "rows_written_max": 50
   },
   "GET /v1/live/wait (nothing new, 1 s) (Core)": {
     "rows_read_max": 30,
@@ -148,7 +148,7 @@
     "rows_written_max": 0
   },
   "POST /v1/memory/ops (1 add) (Core)": {
-    "rows_read_max": 2,
+    "rows_read_max": 4,
     "rows_written_max": 11
   },
   "GET /v1/memory/facts (4 facts) (Core)": {
@@ -160,7 +160,7 @@
     "rows_written_max": 0
   },
   "PUT /v1/memory/open-threads/:id (Core)": {
-    "rows_read_max": 2,
+    "rows_read_max": 4,
     "rows_written_max": 7
   },
   "GET /v1/memory/open-threads (Core)": {
@@ -168,7 +168,7 @@
     "rows_written_max": 0
   },
   "PUT /v1/memory/day-notes/:day (Core)": {
-    "rows_read_max": 3,
+    "rows_read_max": 4,
     "rows_written_max": 8
   },
   "GET /v1/memory/day-notes (Core)": {
@@ -184,15 +184,15 @@
     "rows_written_max": 0
   },
   "POST /v1/mind/night (start) (Core)": {
-    "rows_read_max": 3,
+    "rows_read_max": 4,
     "rows_written_max": 1
   },
   "POST /v1/mind/night (step done) (Core)": {
-    "rows_read_max": 4,
+    "rows_read_max": 5,
     "rows_written_max": 1
   },
   "POST /v1/mind/night (step again, nothing new) (Core)": {
-    "rows_read_max": 4,
+    "rows_read_max": 5,
     "rows_written_max": 0
   },
   "GET /v1/mind/day/:day (stats) (Core)": {
@@ -230,5 +230,29 @@
   "POST /v1/import/runs and its job: the same part again, no row changed (Core)": {
     "rows_read_max": 70,
     "rows_written_max": 15
+  },
+  "PUT /v1/proposals/:id (a forget card) (Core)": {
+    "rows_read_max": 12,
+    "rows_written_max": 8
+  },
+  "GET /v1/proposals (3 waiting) (Core)": {
+    "rows_read_max": 6,
+    "rows_written_max": 0
+  },
+  "POST /v1/proposals/:id/decide (a tap; the forget runs) (Core)": {
+    "rows_read_max": 50,
+    "rows_written_max": 21
+  },
+  "POST /v1/proposals/:id/decide (the owner’s words; the forget runs) (Core)": {
+    "rows_read_max": 59,
+    "rows_written_max": 22
+  },
+  "POST /v1/proposals/:id/cancel (Core)": {
+    "rows_read_max": 5,
+    "rows_written_max": 7
+  },
+  "cron: approvals whose Auth step never reported (none) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
   }
 }

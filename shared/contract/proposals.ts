@@ -55,6 +55,8 @@ export interface ProposalOp {
   /** The thing it acts on, as `[ref kind, arg name]`: one waiting card per thing, and the card's
    * words are scrubbed when the owner forgets what it names. */
   ref: readonly [kind: string, arg: string];
+  /** `tap`: only a tap on a signed-in device decides it, never words a mind records (the laws). */
+  decide?: 'tap';
   args: z.ZodMiniType;
   doc: string;
 }
@@ -80,9 +82,11 @@ export const PROPOSAL_OPS = {
     classes: ['access'],
     by: ['worker'],
     runs: 'core',
+    // The mind must never move its own laws: the owner's tap only.
+    decide: 'tap',
     ref: ['laws', 'sha256'],
     args: z.strictObject({ sha256, previous: z.nullable(sha256) }),
-    doc: 'Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin).',
+    doc: 'Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only.',
   },
 } as const satisfies Record<string, ProposalOp>;
 export type ProposalOpName = keyof typeof PROPOSAL_OPS;
@@ -117,6 +121,9 @@ export interface Proposal {
   options: string[];
   /** What the second button does: `reject` ("No": nothing happens) or `snooze` ("Not yet"). */
   safe: 'reject' | 'snooze';
+  /** The Worker's own line naming what the op acts on ("key ci-deploy (CI)", "preference: Likes
+   * calm music…"), shown on the card so it never rests on the mind's words alone; null once scrubbed. */
+  target: string | null;
   spec: ProposalSpec;
   /** SHA-256 of the canonical spec: an approval covers exactly this. */
   spec_hash: string;
