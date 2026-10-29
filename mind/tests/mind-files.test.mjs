@@ -24,6 +24,18 @@ test('mind/ROLES.md has the three role sections and stays under 6,000 characters
   assert.ok(roles.length <= 6000, `${roles.length} characters`);
 });
 
+test('the night section walks the contract\'s steps: each step that works by P3 in order, and the commands th has', () => {
+  const roles = read('mind/ROLES.md');
+  const night = roles.slice(roles.indexOf('## night'), roles.indexOf('## reflex'));
+  const contract = JSON.parse(read('mind/cli/contract.json')).night;
+  const built = contract.steps.filter(s => s.phase === 'P3').map(s => s.step);
+  const named = [...night.matchAll(/^ {3}- (\d+) /gm)].map(m => Number(m[1]));
+  assert.deepEqual(named, built, 'one bullet per step built by P3, in order');
+  for (const cmd of ['th night start', 'th night steps', 'th night step <n> done', 'th night done', 'th day', 'th facts --batch <file> --night'])
+    assert.ok(night.includes(cmd), cmd);
+  assert.match(night, new RegExp(`at ${contract.budget_min.hard} \\(${contract.budget_min.sunday_hard} on the`));
+});
+
 test('the hooks block to paste names hooks that exist, and the pasted copy is that block', () => {
   const block = JSON.parse(read('mind/hooks/settings.example.json'));
   for (const entries of Object.values(block.hooks))

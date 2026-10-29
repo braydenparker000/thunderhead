@@ -19,6 +19,8 @@ import { currentDay } from '../conversation/day';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
 import * as verbs from '../verbs/store';
+import { nightDayOf, nightDone } from './night';
+import * as sessionNotes from './notes';
 import * as stop from './stop';
 import * as store from './store';
 import { ACK_MS, backoff, clearBackoff, LEASE_MS, leaseLive, setPresence } from './wake';
@@ -101,6 +103,11 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
     );
     if (waiting.length) store.sessionSeenOwner(db, r.session_id, waiting.at(-1)?.created_at ?? at);
   }
+  // A night with nothing left to do (the 06:07 fallback after the roll's run): its wake ends at
+  // once and its briefing says so (`night_done`). The session stays open for `th night start`,
+  // which answers done and ends it, or for a missed day's run (`th night start --day <day>`).
+  if (r.role === 'night' && nightDone(db, nightDayOf(day)))
+    store.setWakeStatus(db, wake.id, 'ended', { ended_at: at, end_reason: 'night_done' });
   // The presence light, the usage backoff and the Stop are the chat session's.
   if (r.role === 'chat') {
     clearBackoff(db, at);
@@ -134,13 +141,13 @@ export function status(w: Writer, sessionId: string | null, role: MindRole, r: M
 
 export function note(w: Writer, sessionId: string | null, role: MindRole, r: MindNoteRequest): void {
   const body = JSON.stringify(r.open_items);
-  const found = store.note(w.db, r.id);
+  const found = sessionNotes.note(w.db, r.id);
   if (found) {
     if (found.body !== r.body || found.open_items_json !== body) throw new Fail('conflict');
     return;
   }
   const s = sessionId ? store.session(w.db, sessionId) : null;
-  store.putNote(w.db, {
+  sessionNotes.putNote(w.db, {
     id: r.id,
     session_id: sessionId,
     wake_id: s?.wake_id ?? null,

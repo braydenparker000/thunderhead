@@ -1,4 +1,5 @@
-// The mind's retention (DATA.md §10): wakes, sessions, notes and leases, a bounded batch at a time.
+// The mind's retention (DATA.md §10): wakes, sessions, notes, leases and night runs, a bounded
+// batch at a time.
 import { DAY } from '../../lib/time';
 import type { Db } from '../../objects/base';
 
@@ -33,6 +34,16 @@ export function pruneLeases(db: Db, now: number, max: number): number {
   return db.all(
     'DELETE FROM leases WHERE task IN (SELECT task FROM leases WHERE renewed_at < ? LIMIT ?) RETURNING 1',
     now - DAY,
+    max,
+  ).length;
+}
+
+/** A night run's record goes after 400 days (its `day` is the closed day it worked on). */
+export function pruneNightRuns(db: Db, now: number, max: number): number {
+  const cutoff = new Date(now - 400 * DAY).toISOString().slice(0, 10);
+  return db.all(
+    'DELETE FROM night_runs WHERE day IN (SELECT day FROM night_runs WHERE day < ? LIMIT ?) RETURNING 1',
+    cutoff,
     max,
   ).length;
 }

@@ -22,7 +22,7 @@ describe('objects', () => {
     const { body } = await apiJson<DeepHealthResponse>('GET', '/v1/ops/health/deep', {
       token: (await loginOk()).token,
     });
-    expect(body.schema).toEqual({ core: 10, auth: 1 });
+    expect(body.schema).toEqual({ core: 11, auth: 1 });
     expect(body.ok).toBe(true);
   });
 

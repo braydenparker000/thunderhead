@@ -20,6 +20,42 @@ export function ownerDay(at: number, timeZone: string): string {
   return f.format(at);
 }
 
+const clocks = new Map<string, Intl.DateTimeFormat>();
+/** The zone's offset from UTC at an instant, in ms (its wall clock minus UTC). */
+function offset(at: number, timeZone: string): number {
+  let f = clocks.get(timeZone);
+  if (!f) {
+    f = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      hourCycle: 'h23',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
+    clocks.set(timeZone, f);
+  }
+  const p = Object.fromEntries(f.formatToParts(at).map((x) => [x.type, x.value]));
+  const wall = Date.UTC(
+    Number(p.year),
+    Number(p.month) - 1,
+    Number(p.day),
+    Number(p.hour),
+    Number(p.minute),
+    Number(p.second),
+  );
+  return wall - (at - (at % 1000));
+}
+
+/** The instant `day` reaches `hour`:00 in the owner's zone (twice through, for a DST change). */
+export function zonedInstant(day: string, hour: number, timeZone: string): number {
+  const naive = Date.parse(`${day}T${String(hour).padStart(2, '0')}:00:00Z`);
+  const first = naive - offset(naive, timeZone);
+  return naive - offset(first, timeZone);
+}
+
 /** The UTC day (`YYYY-MM-DD`), for keys that must rotate at one fixed instant everywhere. */
 export function utcDay(at: number): string {
   return new Date(at).toISOString().slice(0, 10);

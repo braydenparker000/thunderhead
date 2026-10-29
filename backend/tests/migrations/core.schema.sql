@@ -187,6 +187,15 @@ CREATE TABLE mind_sessions (
 
 CREATE INDEX mind_sessions_tainted ON mind_sessions (role, tainted_at) WHERE tainted_at IS NOT NULL;
 
+CREATE TABLE night_runs (
+  day TEXT PRIMARY KEY,
+  started_at INTEGER NOT NULL,
+  step INTEGER NOT NULL DEFAULT 0,
+  steps_json TEXT NOT NULL DEFAULT '{}',
+  done_at INTEGER,
+  session_id TEXT
+  ) WITHOUT ROWID;
+
 CREATE TABLE op_batches (
   key TEXT PRIMARY KEY,
   route TEXT NOT NULL,
@@ -230,6 +239,8 @@ CREATE TABLE session_notes (
   body TEXT NOT NULL,
   open_items_json TEXT NOT NULL
   ) WITHOUT ROWID;
+
+CREATE INDEX session_notes_at ON session_notes (created_at);
 
 CREATE TABLE settings (
   key TEXT PRIMARY KEY,

@@ -93,8 +93,8 @@ export const ROUTES = {
   'POST /v1/media/sign': { who: ['D', 'C', 'N'], phase: 'P2', deferred: 'the private bucket (SETUP.md J2)' },
 
   // --- P3: memory and the night shift -----------------------------------------------------------
-  'POST /v1/mind/night': { who: ['N'], phase: 'P3', deferred: 'P3 stage C (the night shift)' },
-  'GET /v1/mind/day/:day': { who: ['N'], phase: 'P3', deferred: 'P3 stage C (the night shift)' },
+  'POST /v1/mind/night': { who: ['N'], phase: 'P3', note: 'the night run: start, step done, cursor, done' },
+  'GET /v1/mind/day/:day': { who: ['N'], phase: 'P3', note: "a closed day's stats, messages, ledger and notes" },
   'GET /v1/memory/facts': { who: MEMORY_READ, phase: 'P3' },
   'GET /v1/memory/facts/:id': { who: MEMORY_READ, phase: 'P3', note: 'one fact: its earlier versions, evidence and why' },
   'GET /v1/memory/profile': { who: MEMORY_READ, phase: 'P3' },

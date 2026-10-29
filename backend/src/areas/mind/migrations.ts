@@ -2,9 +2,10 @@
 // notes, with their retention (§10). `mind_sessions.day` and `last_owner_at` are additions that
 // back `day_closed` and `idle_min` (API.md §11.8) without scanning messages. v10 indexes only the
 // tainted sessions, which a claim looks up by the taint's time (a taint lasts 24 hours for its
-// role, MEMORY.md §7).
+// role, MEMORY.md §7). v11 is the night shift's run record, one row per closed day (RUNTIME.md
+// §12), and a time index on session notes (the night reads a day's, the briefing the latest).
 import type { Migration, TableInfo } from '../../objects/base';
-import { pruneLeases, pruneNotes, pruneSessions, pruneWakes } from './prune';
+import { pruneLeases, pruneNightRuns, pruneNotes, pruneSessions, pruneWakes } from './prune';
 
 export const MIND_MIGRATIONS: Migration[] = [
   {
@@ -69,6 +70,23 @@ export const MIND_MIGRATIONS: Migration[] = [
     kind: 'expand',
     sql: ['CREATE INDEX mind_sessions_tainted ON mind_sessions (role, tainted_at) WHERE tainted_at IS NOT NULL'],
   },
+  {
+    version: 11,
+    name: 'night_runs',
+    kind: 'expand',
+    sql: [
+      `CREATE TABLE night_runs (
+        day TEXT PRIMARY KEY,
+        started_at INTEGER NOT NULL,
+        step INTEGER NOT NULL DEFAULT 0,
+        steps_json TEXT NOT NULL DEFAULT '{}',
+        done_at INTEGER,
+        session_id TEXT
+      ) WITHOUT ROWID`,
+      // The night reads a day's notes by time, and the briefing the latest one.
+      'CREATE INDEX session_notes_at ON session_notes (created_at)',
+    ],
+  },
 ];
 
 export const MIND_TABLES: Record<string, TableInfo> = {
@@ -76,4 +94,5 @@ export const MIND_TABLES: Record<string, TableInfo> = {
   leases: { retention: 'live only', backup: false, export: false, prune: pruneLeases },
   mind_sessions: { retention: '90 days after ended_at', backup: true, export: false, prune: pruneSessions },
   session_notes: { retention: '180 days', backup: true, export: true, prune: pruneNotes },
+  night_runs: { retention: '400 days', backup: true, export: false, prune: pruneNightRuns },
 };

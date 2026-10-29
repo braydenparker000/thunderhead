@@ -7,7 +7,7 @@ skipped. [CONTRACT.md](CONTRACT.md) is the generated list of what exists today.
 ## Rules at a glance
 
 1. **One contract source.** Routes, verbs, surface kinds, change kinds, live frames, apps, search
-   sources, error codes and the phrase lint are data in [`shared/contract`](../../shared/contract).
+   sources, error codes, the night steps and the phrase lint are data in [`shared/contract`](../../shared/contract).
    The Worker's guards and validation, the phone's copy, `th help`, the route-scope test and
    CONTRACT.md all derive from it. Add there first.
 2. **Forward compatible by default.** Everything is versioned and every reader skips what it does
@@ -138,6 +138,16 @@ Embeddings plug in behind the same route, not as a new endpoint: set `SEMANTIC.r
 asked sources (it gets `query.text`, the query as typed). The route fuses it with the FTS lists by
 rank. `backend/tests/integration/memory-notes.test.ts` plugs in a fake to prove the fusion; the
 real one ships only after the cross-language probes pass (EVALS.md §3.4).
+
+### A night step
+
+The night shift's steps are `NIGHT_STEPS` in `shared/contract/night.ts`: number, name, budget,
+phase, whether it keeps a cursor, and why running it twice is harmless. A step of a later phase
+waits in the list and is skipped on the way (`later`) until its phase is built; a new step takes a
+free number (numbers never change meaning, since `night_runs` keeps them). Give it its bullet in
+`mind/ROLES.md` (night) when its phase is built: `mind/tests/mind-files.test.mjs` checks one bullet
+per built step, in order, and the Worker refuses a step it doesn't list. A step that works in
+parts sets `cursor: true` and saves its place with `th night step <n> cursor <c>`.
 
 ### An object method (deploy-transition tolerance)
 

@@ -96,6 +96,32 @@ export function page(db: Db, before: number | null, limit: number, f: LedgerFilt
     .map(toEntry);
 }
 
+/** Rows written in [from, to), oldest first, after (`at`, `seq`) when given: a range on `ledger_at`
+ * (which holds seq), starting at the cursor's own time, so a page reads about its own rows. */
+export function between(
+  db: Db,
+  from: number,
+  to: number,
+  after: [number, number] | null,
+  limit: number,
+): LedgerEntry[] {
+  const lo = after ? Math.max(from, after[0]) : from;
+  return db
+    .all<Raw>(
+      `SELECT ${COLS} FROM ledger WHERE at >= ? AND at < ? AND (at > ? OR seq > ?) ORDER BY at, seq LIMIT ?`,
+      lo,
+      to,
+      lo,
+      after ? after[1] : -1,
+      limit,
+    )
+    .map(toEntry);
+}
+
+export function countBetween(db: Db, from: number, to: number): number {
+  return db.one<{ n: number }>('SELECT count(*) AS n FROM ledger WHERE at >= ? AND at < ?', from, to)?.n ?? 0;
+}
+
 export function setStatus(db: Db, id: string, status: 'done' | 'undone' | 'failed', at: number | null): void {
   db.run('UPDATE ledger SET status = ?, undone_at = coalesce(?, undone_at) WHERE id = ?', status, at, id);
 }

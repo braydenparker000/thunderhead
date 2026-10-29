@@ -32,7 +32,8 @@ export interface BriefInput {
   todayTail: Message[];
   todayEarlier: Message[];
   note: { body: string; created_at: number } | null;
-  yesterday: { threadId: string | null; tail: Message[]; note: DayNoteRow | null };
+  /** `count`: all of the day's messages (the night role's section 2), not only the tail's. */
+  yesterday: { threadId: string | null; tail: Message[]; note: DayNoteRow | null; count?: number };
   ledger: LedgerEntry[];
   errorsOpen: number;
   rules: FactRow[];
@@ -147,7 +148,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     const more = deep ? deeper[n] : (k: number) => `(+${k} more${n === 2 ? ' waiting' : ''}: th brief --section ${n})`;
     if (n === 2) {
       if (night)
-        return `Yesterday's thread: ${i.yesterday.threadId ?? 'none'}, ${i.yesterday.tail.length} messages; run th day ${i.day}`;
+        return `Yesterday's thread: ${i.yesterday.threadId ?? 'none'}, ${i.yesterday.count ?? i.yesterday.tail.length} messages; run th day ${i.day}`;
       return waiting.length ? budgeted(waiting, b, 'oldest', more) : 'Nothing is waiting.';
     }
     if (n === 3) return reflex ? NO_MEMORY : renderRules(i.rules, i.tz, b, more);

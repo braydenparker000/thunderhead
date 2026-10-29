@@ -140,7 +140,7 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 56,
+    "rows_read_max": 60,
     "rows_written_max": 1
   },
   "cron tick, nothing due (Core)": {
@@ -181,6 +181,34 @@
   },
   "GET /v1/memory/facts/:id (Core)": {
     "rows_read_max": 5,
+    "rows_written_max": 0
+  },
+  "POST /v1/mind/night (start) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 1
+  },
+  "POST /v1/mind/night (step done) (Core)": {
+    "rows_read_max": 4,
+    "rows_written_max": 1
+  },
+  "POST /v1/mind/night (step again, nothing new) (Core)": {
+    "rows_read_max": 4,
+    "rows_written_max": 0
+  },
+  "GET /v1/mind/day/:day (stats) (Core)": {
+    "rows_read_max": 5,
+    "rows_written_max": 0
+  },
+  "GET /v1/mind/day/:day (messages) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 0
+  },
+  "GET /v1/mind/day/:day (ledger) (Core)": {
+    "rows_read_max": 4,
+    "rows_written_max": 0
+  },
+  "GET /v1/mind/day/:day (notes) (Core)": {
+    "rows_read_max": 4,
     "rows_written_max": 0
   }
 }

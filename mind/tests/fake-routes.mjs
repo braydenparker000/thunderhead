@@ -129,15 +129,38 @@ export function extraRoutes(ctl) {
       s.dayNotes.set(params[0], {...body, version});
       return {day: params[0], version};
     }],
-    ['GET', /^\/v1\/mind\/day\/([^/]+)$/, ['night'], ({query}) => (query.get('part') === 'stats'
-      ? {messages: s.messages.length, owner_messages: s.messages.filter(m => m.author === 'owner').length}
-      : {items: query.get('part') === 'messages' ? s.messages : query.get('part') === 'ledger' ? s.ledger : s.notes, next: null})],
+    // The night's input as the Worker gives it: counts, then pages after an opaque cursor
+    // (`s.dayPage` rows a page, 200 unless a test makes it smaller).
+    ['GET', /^\/v1\/mind\/day\/([^/]+)$/, ['night'], ({params, query}) => {
+      const part = query.get('part');
+      const by = a => s.messages.filter(m => m.author === a).length;
+      if (part === 'stats') return {day: params[0], from: 0, to: 1, messages: s.messages.length, owner: by('owner'), mind: by('mind'),
+        system: by('system'), muse: by('muse'), ledger: s.ledger.length, notes: s.notes.length};
+      const rows = {messages: s.messages, ledger: s.ledger, notes: s.notes}[part];
+      if (!rows) throw new HttpError(422, 'validation');
+      const size = Math.min(Number(query.get('limit')) || 200, s.dayPage ?? 200);
+      const start = query.get('cursor') ? Number(query.get('cursor').slice(1)) : 0;
+      return {items: rows.slice(start, start + size), next: start + size < rows.length ? `c${start + size}` : null};
+    }],
+    // The run record: steps in order (409 with resume_from), 6, 8 and 9 skipped as not built,
+    // a cursor for step 4, done ending it (with --partial, before the last step).
     ['POST', /^\/v1\/mind\/night$/, ['night'], ({body}) => {
-      const run = s.night.get(body.day) || {step: 0, done: false};
-      if (body.action === 'step_done') run.step = Math.max(run.step, body.step);
-      if (body.action === 'done') run.done = true;
+      const run = s.night.get(body.day) || {resume: 1, done: false, cursors: {}, skipped: []};
+      const answer = () => ({resume_from: run.resume, done: run.done, cursor: run.cursors[run.resume] ?? null, skipped: run.skipped});
+      const advance = () => { run.resume++; while ([6, 8, 9].includes(run.resume)) { run.skipped.push(run.resume); run.resume++; } };
       s.night.set(body.day, run);
-      return {resume_from: run.step + 1, done: run.done};
+      if (run.done) return answer();
+      if ((body.action === 'step_done' || body.action === 'cursor') && body.step > run.resume)
+        throw new HttpError(409, 'conflict', 'a step out of order', {resume_from: run.resume});
+      if (body.action === 'step_done' && body.step === run.resume) advance();
+      if (body.action === 'cursor' && body.step === run.resume) run.cursors[body.step] = body.cursor;
+      if (body.action === 'done') {
+        if (run.resume < 10 && !body.partial) throw new HttpError(409, 'conflict', 'steps left', {resume_from: run.resume});
+        for (let n = run.resume; n < 10; n++) if (!run.skipped.includes(n)) run.skipped.push(n);
+        run.resume = 11;
+        run.done = true;
+      }
+      return answer();
     }],
     ['PUT', /^\/v1\/proposals\/([^/]+)$/, ALL, ({params, body, role}) => {
       const ok = ['delete', 'money', 'access', 'reach_people', 'memory_big'].includes(body.class) && body.question?.length <= 80 &&

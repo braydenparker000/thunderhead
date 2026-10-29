@@ -190,6 +190,54 @@ export interface TaintRequest {
   ref_kind?: 'url' | 'file' | 'comment';
 }
 
+/** POST /v1/mind/night (RUNTIME.md §12): the run's progress for a closed `day`. `cursor` saves
+ * where a step with a cursor got to (shared/contract/night.ts); `partial` (with `done`) records
+ * the steps the hard stop cut as skipped. */
+export interface MindNightRequest {
+  day: Day;
+  action: 'start' | 'step_done' | 'cursor' | 'done';
+  step?: number;
+  cursor?: string;
+  partial?: boolean;
+}
+
+export interface MindNightResponse {
+  /** The first step not finished yet (the last step + 1 once the run is done). Steps of a later
+   * phase, and the Sunday step on another day, are skipped on the way. */
+  resume_from: number;
+  done: boolean;
+  /** The cursor saved for `resume_from`, if that step keeps one. */
+  cursor: string | null;
+  /** Steps recorded as skipped so far (not built yet, not Sunday, or cut by the hard stop). */
+  skipped: number[];
+}
+
+/** One session note, as `GET /v1/mind/day/:day?part=notes` lists them (without the session's id,
+ * which the night has no use for). */
+export interface SessionNote {
+  id: Id;
+  role: MindRole;
+  thread_id: Id | null;
+  created_at: Ms;
+  body: string;
+  open_items: { text: string; ref?: string }[];
+}
+
+/** `GET /v1/mind/day/:day?part=stats`: deterministic counts for the night's input. */
+export interface DayStats {
+  day: Day;
+  /** When the day was open: from the roll that opened it to the one that closed it. */
+  from: Ms;
+  to: Ms;
+  messages: number;
+  owner: number;
+  mind: number;
+  system: number;
+  muse: number;
+  ledger: number;
+  notes: number;
+}
+
 export interface PendingResponse {
   unanswered: Id[];
   stop: boolean;

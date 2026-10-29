@@ -75,10 +75,12 @@ describe('upgrade from P2', () => {
         'day_notes',
         'open_threads',
         'op_batches',
+        'night_runs',
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       sql.exec('ALTER TABLE surfaces DROP COLUMN facts_json');
       sql.exec('DROP INDEX IF EXISTS mind_sessions_tainted');
+      sql.exec('DROP INDEX IF EXISTS session_notes_at');
       sql.exec('DELETE FROM _migrations WHERE version > 7');
       sql.exec(
         `INSERT INTO messages (id, thread_id, created_at, author, origin, kind, body) VALUES ('m-p2', 't-p2', 1, 'owner', 'owner_device', 'text', 'kept across the upgrade')`,
@@ -92,8 +94,9 @@ describe('upgrade from P2', () => {
       expect(all("SELECT body FROM messages WHERE id = 'm-p2'")).toEqual([{ body: 'kept across the upgrade' }]);
       expect(all(`SELECT rowid FROM messages_fts WHERE messages_fts MATCH '"upgrade"'`)).toHaveLength(1);
       expect(all("SELECT what FROM ledger WHERE id = 'l-p2'")).toEqual([{ what: 'a P2 row' }]);
-      expect(all('SELECT version FROM _migrations WHERE version > 7').map((r) => r.version)).toEqual([8, 9, 10]);
+      expect(all('SELECT version FROM _migrations WHERE version > 7').map((r) => r.version)).toEqual([8, 9, 10, 11]);
       expect(all('SELECT count(*) AS n FROM facts')).toEqual([{ n: 0 }]);
+      expect(all('SELECT count(*) AS n FROM night_runs')).toEqual([{ n: 0 }]);
     });
   });
 });

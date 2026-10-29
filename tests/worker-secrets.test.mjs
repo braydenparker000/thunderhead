@@ -7,7 +7,7 @@ import { plan, requiredSecrets } from '../scripts/worker-secrets.mjs';
 
 const required = requiredSecrets(readFileSync(new URL('../backend/wrangler.jsonc', import.meta.url), 'utf8'));
 
-test('wrangler.jsonc lists the P1 secrets and the P2 mind-chat trigger', () => {
+test('wrangler.jsonc lists the P1 secrets, the P2 mind-chat trigger and the P3 mind-night trigger', () => {
   assert.deepEqual(required, [
     'AUTH_PEPPER',
     'IP_HASH_KEY',
@@ -15,6 +15,8 @@ test('wrangler.jsonc lists the P1 secrets and the P2 mind-chat trigger', () => {
     'AUTH_RESET_FP',
     'ROUTINE_CHAT_URL',
     'ROUTINE_CHAT_TOKEN',
+    'ROUTINE_NIGHT_URL',
+    'ROUTINE_NIGHT_TOKEN',
   ]);
 });
 
@@ -36,8 +38,17 @@ test('normal deploy: none only for missing names; a missing key fails', () => {
     AUTH_RESET_FP: 'none',
     ROUTINE_CHAT_URL: 'none',
     ROUTINE_CHAT_TOKEN: 'none',
+    ROUTINE_NIGHT_URL: 'none',
+    ROUTINE_NIGHT_TOKEN: 'none',
   });
-  const all = [...live, ...['AUTH_RESET_FP', 'ROUTINE_CHAT_URL', 'ROUTINE_CHAT_TOKEN'].map((name) => ({ name }))];
+  // The first P3 deploy onto a P2 Worker whose mind-chat trigger is set: only the night pair is
+  // added, as `none`, and the chat pair is left as the owner set it.
+  const p2 = [...live, ...['AUTH_RESET_FP', 'ROUTINE_CHAT_URL', 'ROUTINE_CHAT_TOKEN'].map((name) => ({ name }))];
+  assert.deepEqual(plan(required, { bootstrap: false, live: p2 }), {
+    ROUTINE_NIGHT_URL: 'none',
+    ROUTINE_NIGHT_TOKEN: 'none',
+  });
+  const all = [...p2, ...['ROUTINE_NIGHT_URL', 'ROUTINE_NIGHT_TOKEN'].map((name) => ({ name }))];
   assert.deepEqual(plan(required, { bootstrap: false, live: all }), {});
   assert.throws(() => plan(required, { bootstrap: false, live: live.slice(1) }), /AUTH_PEPPER/);
 });
