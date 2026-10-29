@@ -87,7 +87,13 @@ describe('the daily thread', () => {
     expect((await chip({ label: 'x'.repeat(29), app: 'music', path: '/music/' })).status).toBe(422);
     expect((await chip({ label: 'Open', app: 'music', path: '/music/', extra: 1 })).status).toBe(422);
     // Resolved as the browser would, an encoded dot segment or separator leaves the app.
-    for (const path of ['/music/%2e%2e/settings/agents/?new=mind:chat', '/music/.%2E/settings/', '/music/%2f..%2fsettings/', '//example.com/music/', '/music/\\..\\settings/'])
+    for (const path of [
+      '/music/%2e%2e/settings/agents/?new=mind:chat',
+      '/music/.%2E/settings/',
+      '/music/%2f..%2fsettings/',
+      '//example.com/music/',
+      '/music/\\..\\settings/',
+    ])
       expect((await chip({ label: 'Open', app: 'music', path })).status, path).toBe(422);
     expect((await chip({ label: 'Open', app: 'music', path: '/music/?q=calm' })).status).toBe(201);
   });

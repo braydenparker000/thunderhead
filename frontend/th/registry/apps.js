@@ -30,7 +30,6 @@ export const apps = Object.freeze(
 export const appFor = (id) => apps.find((a) => a.id === id) ?? null;
 
 const PATH = /^\/[A-Za-z0-9._~!$&'()*+,;=:@/?#%-]*$/;
-const BASE = 'https://th.invalid';
 
 /** A place the shell may open: a shipped app's folder or a path inside it, resolved the way the
  * browser will resolve it (so "/music/%2e%2e/" is outside Music), else null. The Worker checks a
@@ -40,9 +39,9 @@ export function deepLink(id, path) {
   if (!a?.built || typeof path !== 'string' || !PATH.test(path) || path.includes('..') || /%2f|%5c/i.test(path)) return null;
   let u;
   try {
-    u = new URL(path, BASE);
+    u = new URL(path, 'file:///'); // a base with no host: "//host/…" gets one and is refused
   } catch {
     return null;
   }
-  return u.origin === BASE && u.pathname.startsWith(a.path) ? `${u.pathname}${u.search}${u.hash}` : null;
+  return u.host === '' && u.pathname.startsWith(a.path) ? `${u.pathname}${u.search}${u.hash}` : null;
 }

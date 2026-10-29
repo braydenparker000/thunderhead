@@ -49,7 +49,14 @@ export async function mockApi(page, overrides = {}) {
     let body = null;
     try { body = req.postDataJSON(); } catch {}
     calls.push({ call: `${req.method()} ${url.pathname}`, body, auth: req.headers().authorization ?? null, client: req.headers()['th-client'] ?? null, query: url.search });
+    const c = state.chat;
+    // A load the test made slow or made fail (`c.slow[path] = ms`, `c.fail[path] = times`).
+    if (c.fail[url.pathname] > 0) {
+      c.fail[url.pathname]--;
+      return route.fulfill({ status: 503, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify({ error: { code: 'unavailable', message: 'down', request_id: 't' } }) });
+    }
     const [status, json] = answer(state, req.method(), url, body);
+    if (c.slow[url.pathname]) await new Promise((r) => setTimeout(r, c.slow[url.pathname]));
     await route.fulfill({ status, headers: { ...CORS, 'content-type': 'application/json' }, body: json === null ? '' : JSON.stringify(json) });
   });
   return { state, calls, chat: chatControls(state.chat) };
@@ -75,6 +82,9 @@ function chatState(o = {}) {
     reply: o.reply ?? null,
     failSay: o.failSay ?? 0,
     typing: 0,
+    /** Per path: answer this many ms late, or with a 503 this many times. */
+    slow: {},
+    fail: {},
   };
 }
 

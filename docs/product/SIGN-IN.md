@@ -392,7 +392,7 @@ Run in this order, for owner sign-out on this device and for any revocation the 
 6. Remove `localStorage` keys starting `th.p.`. Keep `th.ui.` keys (theme and other non-personal UI choices).
 7. Post `signed_out` on BroadcastChannel `th-auth` so other tabs wipe and go to `/signin/`; tell the service worker to drop its in-memory token.
 
-- **Owner sign-out with things pending:** if the outbox has unsent items or offline files exist, a confirm sheet first: "Sign out of this phone? {N} unsent messages and {size} of offline files will be removed." · "Sign out" · "Cancel".
+- **Owner sign-out with things pending:** if the outbox has unsent items or offline files exist, a confirm sheet first: "Sign out of this phone? {N} unsent messages and {size} of offline files will be removed." · "Sign out" · "Cancel". Built for the outbox in P2 with COPY.md `set.account.unsent` ("2 messages haven't sent yet. Sign out anyway?"), which wins; the offline-files half joins it when offline files can block a sign-out.
 - **Offline sign-out:** the wipe happens at once; the token is kept in a `pending_signout` record (and nothing else) until the revoke request succeeds, then deleted.
 - **Remote revocation while the phone is off or offline:** the private data stays on the phone until it next reaches the API. Once Web Push exists, revocation also sends `{"k":"signout"}`; the service worker runs the wipe on receipt and shows "You were signed out of Thunderhead." **[proposal]**
 - Not wiped: app code, fonts, the `th.ui.` keys, and the browser's password-manager entry (the browser owns it).
