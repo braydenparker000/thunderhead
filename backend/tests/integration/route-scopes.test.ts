@@ -1,9 +1,11 @@
-// API.md §13, P1 rows, walked principal by principal: every registered route is in the table
-// with exactly its principals; without a token each guarded route answers 401, every principal
-// not listed gets 403 forbidden, every listed one gets through the guard; unknown routes are
-// 404 before any token check.
+// API.md §13 walked principal by principal, from the shared route table (shared/contract/
+// routes.ts), so the table, the guards and this test cannot drift: every registered route is a
+// built row with exactly its principals; without a token each guarded route answers 401, every
+// principal not listed gets 403 forbidden, every listed one gets through the guard; unknown
+// routes are 404 before any token check; the ticket-only socket refuses anything but a ticket.
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ErrorBody } from '../../../shared/contract/api';
+import { builtRoutes, type RouteSpec } from '../../../shared/contract/routes.ts';
 import { app } from '../../src/app';
 import { PUBLIC_ROUTES, type Who } from '../../src/http/auth';
 import { uuidv7 } from '../../src/lib/ids';
@@ -12,42 +14,17 @@ import { api, apiJson, auth, makeAgent, rowsDuring, setupOwner } from '../helper
 const ALL: Who[] = ['D', 'C', 'N', 'R', 'M', 'I'];
 const P = 'P';
 
-/** API.md §13, the P1 rows, one route per line. */
-const TABLE: Record<string, Who[] | typeof P> = {
-  'GET /v1/health': P,
-  'GET /v1/auth/state': P,
-  'POST /v1/auth/setup': P,
-  'POST /v1/auth/login': P,
-  'POST /v1/auth/recover': P,
-  'GET /v1/ops/health/deep': ['D', 'C', 'N', 'R', 'I'],
-  'POST /v1/auth/signout': ['D'],
-  'POST /v1/auth/password': ['D'],
-  'POST /v1/auth/recovery-code': ['D'],
-  'POST /v1/auth/recovery-code/confirm': ['D'],
-  'POST /v1/auth/breakglass/cancel': ['D'],
-  'POST /v1/auth/notices/:id/ack': ['D'],
-  'GET /v1/auth/sessions': ['D'],
-  'PATCH /v1/auth/sessions/:id': ['D'],
-  'DELETE /v1/auth/sessions/:id': ['D'],
-  'GET /v1/auth/agents': ['D'],
-  'POST /v1/auth/agents': ['D'],
-  'DELETE /v1/auth/agents/:id': ['D'],
-  'GET /v1/auth/me': ['D', 'C', 'N', 'R', 'M', 'I'],
-  'POST /v1/auth/breakglass': ['C'],
-  'GET /v1/settings': ['D', 'C', 'N', 'R'],
-  'PATCH /v1/settings': ['D'],
-  'POST /v1/ops/errors': ['D', 'C', 'N', 'R'],
-  'GET /v1/ops/errors': ['D', 'C', 'N', 'R', 'I'],
-  'GET /v1/ops/meter': ['D', 'C', 'N', 'R', 'I'],
-  'POST /v1/ops/errors/:fp/resolve': ['D', 'C', 'R'],
-  'POST /v1/ops/perf': ['D'],
-};
+const BUILT = builtRoutes() as [string, RouteSpec][];
+/** The built rows: principals, or P for public, or T for the ticket-only socket. */
+const TABLE: Record<string, Who[] | typeof P | 'T'> = Object.fromEntries(
+  BUILT.map(([k, r]) => [k, r.auth === 'ticket' ? 'T' : r.who === 'P' ? P : [...r.who]]),
+);
 
-type RouteEntry = { method: string; path: string; handler: { who?: Who[] } };
+type RouteEntry = { method: string; path: string; handler: { who?: Who[]; key?: string } };
 const entries = app.routes as RouteEntry[];
 // Middleware registered with .use() shows up as method ALL; real routes have a verb.
 const routes = [...new Set(entries.filter((r) => r.method !== 'ALL').map((r) => `${r.method} ${r.path}`))];
-const guarded = Object.entries(TABLE).filter(([, who]) => who !== P) as [string, Who[]][];
+const guarded = Object.entries(TABLE).filter(([, who]) => Array.isArray(who)) as [string, Who[]][];
 const fill = (path: string) => path.replace(/:[a-z_]+/g, () => uuidv7());
 const call = (route: string, token?: string) => {
   const [method, path] = route.split(' ');
@@ -65,8 +42,21 @@ beforeAll(async () => {
 });
 
 describe('route table (API.md §13)', () => {
-  it('registers exactly the documented P1 routes', () => {
+  it('registers exactly the built rows of the shared route table', () => {
     expect([...routes].sort()).toEqual(Object.keys(TABLE).sort());
+  });
+
+  it("names each guard's own route", () => {
+    for (const e of entries.filter((e) => e.handler.key)) expect(e.handler.key).toBe(`${e.method} ${e.path}`);
+    expect(entries.filter((e) => e.handler.key).length).toBe(guarded.length);
+  });
+
+  it('the live socket takes only a ticket: 400 without an upgrade, 401 with a bad or used ticket', async () => {
+    expect((await api('GET', `/v1/live?ticket=thw_${'0'.repeat(22)}`)).status).toBe(400);
+    const upgrade = { Upgrade: 'websocket' };
+    expect((await api('GET', '/v1/live', { headers: upgrade })).status).toBe(401);
+    expect((await api('GET', `/v1/live?ticket=thw_${'0'.repeat(22)}`, { headers: upgrade })).status).toBe(401);
+    expect((await api('GET', '/v1/live?ticket=x', { token: tokens.D, headers: upgrade })).status).toBe(401);
   });
 
   it('has exactly the documented public routes', () => {

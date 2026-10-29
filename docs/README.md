@@ -42,6 +42,7 @@ behavior; anything marked **[proposal]** is not decided yet. Fixed decisions liv
 - [ARCHITECTURE.md](engineering/ARCHITECTURE.md) · [DATA.md](engineering/DATA.md) · [API.md](engineering/API.md)
 - [SECURITY.md](engineering/SECURITY.md) · [PRIVACY.md](engineering/PRIVACY.md)
 - [OPERATIONS.md](engineering/OPERATIONS.md) · [TESTING.md](engineering/TESTING.md) · [PERFORMANCE.md](engineering/PERFORMANCE.md) · [JOBS.md](engineering/JOBS.md)
+- [EXTENDING.md](engineering/EXTENDING.md): how to add a route, table, verb, surface kind, search source or app · [CONTRACT.md](engineering/CONTRACT.md): the generated contract appendix
 - [MIGRATION.md](engineering/MIGRATION.md): moving from the old system
 
 ## Process

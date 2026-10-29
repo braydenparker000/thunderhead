@@ -4,7 +4,14 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { authRoutes } from './areas/auth/routes';
+import { conversationRoutes } from './areas/conversation/routes';
+import { feedRoutes } from './areas/feed/routes';
+import { ledgerRoutes } from './areas/ledger/routes';
+import { mindRoutes } from './areas/mind/routes';
 import { opsRoutes } from './areas/ops/routes';
+import { searchRoutes } from './areas/search/routes';
+import { surfacesRoutes } from './areas/surfaces/routes';
+import { verbsRoutes } from './areas/verbs/routes';
 import type { AppEnv } from './http/auth';
 import { cachedMinClient, clientVersion } from './http/client-version';
 import { cors } from './http/cors';
@@ -37,5 +44,13 @@ export const app = new Hono<AppEnv>()
   .use('/v1/*', bodyLimit({ maxSize: 64 * 1024, onError: tooLarge }))
   .route('/v1', opsRoutes)
   .route('/v1/auth', authRoutes)
+  // Each area mounts its own routes; the contract (shared/contract/routes.ts) names them all.
+  .route('/v1', feedRoutes)
+  .route('/v1', conversationRoutes)
+  .route('/v1', searchRoutes)
+  .route('/v1', mindRoutes)
+  .route('/v1', ledgerRoutes)
+  .route('/v1', verbsRoutes)
+  .route('/v1', surfacesRoutes)
   .notFound(notFound)
   .onError(onError);

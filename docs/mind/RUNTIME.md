@@ -150,7 +150,7 @@ end      120 min since the last owner message (10 min if prewarm and no message 
 1. Exactly one `th wait` runs in the background at all times while the session lives, including while it works. It is how messages, Stop and day close reach the session, and it renews the lease.
 2. `th wait --minutes N` loops `GET /v1/live/wait?after=<seq>` requests. Each request is held by the Worker for at most 25 s (the session proxy cuts requests at 30 s). The client aborts at 28 s and retries.
 3. **Lease:** every `th` call renews the chat lease for 90 s **[proposal]**. If the lease lapses, messages handed to the session but not acknowledged within 120 s go back in the queue and the next message fires a fresh session.
-4. **Acknowledge:** a handed-out message counts as acknowledged when the session posts `th status working --thread <id>` or any post in that thread.
+4. **Acknowledge:** a handed-out message counts as acknowledged when the session posts `th status working` or anything at all in the conversation (one chat session holds the lease, so whatever was handed out was handed to it). Messages shown in a claimed briefing count as handed out too, so they also need an acknowledgement within 120 s or they are requeued.
 5. **Wait length:** `N = 50` (under the 1-hour prompt-cache lifetime, so each idle wake-up reads a warm cache). The Bash call that starts it sets `run_in_background` with a timeout of 3,300,000 ms (55 min), within the 2 h background maximum. **Launch value in P2 is 24 min** (proven in the current system) until test R-2 shows 50-min waits survive VM pauses. **[proposal]**
 6. When the wait exits, the model reads its output **in the foreground at once**, starts the next background wait **before** acting, then acts. (This removes the current system's "read the output later" fragility.)
 
@@ -181,7 +181,8 @@ The 120-min cutoff is a starting value. Test R-3 measures the usage cost of idle
 - **Output:** one line of compact JSON on stdout for success. Errors print `{"error":{"code","message","request_id"}}` on stderr.
 - **Retries:** network errors and 5xx retry 3 times (1 s, 2 s, 4 s), except `say`, which is idempotent by its client-generated message id and is safe to retry.
 - **Idempotency:** every create sends a UUIDv7 made by `th`. Re-sending returns the stored result.
-- **Stop notice:** when the owner has tapped Stop, every `say`/`status` response says so and `th` prints `th: STOP` on stderr.
+- **Stop notice:** when the owner has tapped Stop (`POST /v1/mind/stop`), every `say`/`status` reply carries the header `TH-Stop: 1` and `th` prints `th: STOP` on stderr, until the chat mind's next text reply.
+- **The contract:** `th` checks every call against `mind/cli/contract.json` (generated from `shared/contract`) before the network. A route the Worker build does not have yet exits 8 with `not_built` and its phase; verb args, surface payloads and the phrase lint are checked locally (exit 8). `th help` prints the commands and, from the contract, the routes, verbs and surface kinds the role can use, so new features reach the mind through `th get`, `th verb`, `th surface` and `th search` without a CLI change ([EXTENDING.md](../engineering/EXTENDING.md) rule 8).
 - **Role:** `th` sends `TH-Role: <TH_ROLE>`; the Worker trusts only the token's role, and a mismatch is a `403`.
 - **Version:** `th` sends `TH-Client: th/<version>`.
 
@@ -210,13 +211,15 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 |---|---|---|---|---|
 | `th brief` | `[--claim] [--full] [--section <n>] [--json]` | Core text (with `--claim`, also writes `$TMPDIR/th/brief.md`) | C N R | `--claim` binds the wake (§4.3). Exit 11 `already_live`. |
 | `th wait` | `[--minutes 24] [--after <seq>]` (default from `TH_WAIT_MINUTES`, else 24; 50 after test R-2) | `{"messages":[…],"events":[…]}` or `{"stop":{…}}` or `{"day_closed":{…}}` or `{"timeout":{"idle_min":n}}` | C | Exit 0 / 3 / 4 / 5. Events include `proposal.decided`, `work.done`, `verb.result`, `deploy.result`. |
-| `th say` | `<thread> [--reply-to <id>] [--kind text\|progress\|card\|question\|error] [--meta <json>] [--attach <file>]… <text\|->` | `{"id"}` | C (N, R: `--kind error` to the system thread only) | Phrase lint and length limits. Attachments ≤ 15 MB each, ≤ 10. |
+| `th say` | `today\|system [--reply-to <id>] [--kind text\|progress\|card\|question\|error] [--meta <json>] [--attach <file>]… <text\|->` | `{"id"}` | C (N, R: `system --kind error` only) | Messages always go to today's thread (`system` sends `thread_id: 'system'` for night and reflex errors). Phrase lint (checked before sending) and length limits. Attachments ≤ 15 MB each, ≤ 10, once the private bucket exists. |
 | `th amend` | `<message id> [--meta <json>] [--body <text\|->]` | `{"id"}` | C | Own posts only (keeps cards current). |
 | `th history` | `<thread> [--limit 40] [--before <seq>]` | `{"items":[…],"next"}` | C N R | |
 | `th file` | `<attachment id> [--out <path>]` | `{"path"}` | C N | Saves into `$TMPDIR/th/files/`. |
 | `th status` | `working\|listening\|stopping\|limited [--thread <id>] [--note <text>] [--error <code>]` | `{"ok":true}` | C N R | `working` acknowledges messages; the note shows on the owner's progress card. `limited` is sent by the StopFailure hook. |
 | `th title` | `<thread> <title>` | `{"ok":true}` | C N | Refused if `title_source=owner`. |
-| `th recall` | `<query> [--kind messages\|facts\|day_notes\|all] [--since <date>] [--until <date>] [--thread <id>] [--limit 20] [--section <name>]` | `{"items":[{ref,at,snippet,score}]}` | C N R | FTS5 first ([MEMORY.md §10](MEMORY.md#10-search)). |
+| `th search` (or `th recall`) | `<query> [--sources messages,facts,day_notes,library] [--since <date>] [--until <date>] [--thread <id>] [--limit 20]` (`--kind` is kept as an alias) | `{"items":[{source,ref,at,snippet,score}]}` | C N R | Federated over the built sources, fused by rank ([MEMORY.md §10](MEMORY.md#10-search)). |
+| `th get` | `<path> [key=value …]` | the route's JSON | C N R | Any built GET route the role may call (listed by `th help`). |
+| `th help` | `[command]` | text | C N R | The commands, then the routes, verbs and surface kinds of this build, from the contract. |
 | `th remember` | `--kind <k> --text <t> --evidence <ids> [--subject <s>] [--sensitivity 0\|1] [--valid-from <date>] [--source user\|observed\|inferred]` | `{"fact_id","ledger_id"}` | C N | Worker enforces provenance and taint. Exit 6 on a tainted session or bad evidence. |
 | `th confirm` | `<fact id> --evidence <ids>` | `{"ok":true}` | C N | Sets `last_confirmed`. |
 | `th supersede` | `<fact id> --text <t> --evidence <ids> [--reason <r>]` | `{"fact_id","ledger_id"}` | C N | Closes the old fact, inserts the new one. A non-user source superseding a `user` fact becomes a proposal. |
@@ -226,23 +229,23 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th day` | `<YYYY-MM-DD>` | `{"stats","messages","ledger","session_notes","events_summary"}` | N | Night input. |
 | `th daynote` | `<YYYY-MM-DD> --summary <t> --decisions <json> --importance <1-10>` | `{"version"}` | N | |
 | `th facts` | `--batch <file.json>` | `{"applied":n,"proposed":n,"rejected":[…]}` | N | One batch: valid ops apply together, rejected ones are listed (§12 step 4). |
-| `th surface` | `<app> <slot> --kind <k> --payload <json> --why <t> --topic <key> [--expires <iso>]` | `{"ledger_id"}` | C N | Home lines use app `home`, slot `line.<1-4>`. |
+| `th surface` | `<app> <slot> --kind <k> --payload <json> --why <t> --topic <key> [--expires <iso>]` · `ls` · `rm <app> <slot>` | `{"ledger_id"}` · `{"items","seq"}` · `{"ok":true}` | C N | Kind, slot and payload are checked against the contract first. Home lines use app `home`, slot `line.<1-4>`. Exit 7 `nudge_repeat` if the owner dismissed the topic in the last 14 days. |
 | `th push` | `--title <t> --body <b> --ref <ref> --why <t> --topic <key> [--deadline <iso>]` | `{"queued_until"}` | C | The Worker holds it until a natural pause or drops it at the deadline ([BEHAVIOR.md §3.4](BEHAVIOR.md#34-rung-3-push)). |
 | `th propose` | `--class delete\|money\|access\|reach_people\|memory_big --question <q> --why <t> --spec <json> --if-ignored <t> [--odds <0-1>] [--options "<action>\|<safe>"]` (default "Do it\|Not now", each ≤ 20 characters) | `{"proposal_id","spec_hash"}` | C N R | Shows a decision card. |
-| `th decide` | `<proposal id> --by-message <message id>` | `{"status":"approved","ledger_id"}` | C | Records the owner's own words as the approval (owner ruling), through `POST /v1/proposals/:id/decide` with `by_message` ([API.md §11.10](../engineering/API.md)). The Worker refuses (exit 6, `not_owner_words`) unless the message is an owner-device message sent after the card and is the owner's latest message in that thread **[proposal]** ([BEHAVIOR.md §4](BEHAVIOR.md#4-how-decisions-and-proposals-are-posed)). Rejections are recorded the same way. |
-| `th verb` | `<verb> [--args <json>] [--device <id>]` | `{"verb_id","ledger_id"}` | C | Reversible verbs only; ask-first verbs need `--proposal <id>` (approved). |
+| `th decide` | `<proposal id> --by-message <message id> [--spec-hash <hash>] [--reject]` | `{"status":"approved","ledger_id"}` | C | Records the owner's own words as the approval (owner ruling), through `POST /v1/proposals/:id/decide` with `by_message` ([API.md §11.10](../engineering/API.md)). The Worker refuses (exit 6, `not_owner_words`) unless the message is an owner-device message sent after the card and is the owner's latest message in that thread **[proposal]** ([BEHAVIOR.md §4](BEHAVIOR.md#4-how-decisions-and-proposals-are-posed)). Rejections are recorded the same way. |
+| `th verb` | `<verb> [<args json>] --why <8–200 chars> [--schema <n>] [--device <id>] [--ref <ref>]` | `{"verb_id","status","ledger_id"}` | C N | Any queueable verb in the contract, args checked first; owner-tap verbs (`app.open`) are refused. Ask-first verbs need `--proposal <id>` (approved, P4). |
 | `th undo` | `<ledger id>` | `{"ledger_id"}` | C | |
-| `th ledger` | `[--since <iso>] [--kind <k>]` | `{"items"}` | C N R | |
+| `th ledger` | `[--since <iso>] [--kind <k>] [--limit 50]` | `{"items","next"}` | C N R | Filtered by the Worker. |
 | `th order` | `new --kind <k> --spec <json> --schema <json> --deadline <iso>` · `list` · `get <id>` · `cancel <id>` | `{"id"}` | C N | Work orders for Muse ([MUSE.md](MUSE.md)). |
 | `th taint` | `--source <tool> --ref <url or id>` | `{"tainted":true}` | C N R | Called by the PostToolUse hook; irreversible for the session. |
 | `th pending` | — | `{"unanswered":[ids],"stop":bool,"day_closed":bool,"limited":bool,"idle_min":n,"idle_cutoff_min":n}` | C N R | Used by the Stop hook. |
 | `th ci` | `<sha> [--card <message id>] [--workflow ci\|deploy]` | `{"state":"passed\|failed","url"}` | C N | Polls the public GitHub API for check runs on that SHA every 20 s (≤ 45 polls per hour, under the 60/h unauthenticated limit) and keeps the card current. Exit 0 passed, 1 failed. **[proposal; unverified: api.github.com reachable from the environment]** |
 | `th health` | `[--deep]` | Worker health JSON | C N R | `--deep` needs the role's ops scope. |
-| `th errors` | `[--hours 24]` | `{"items":[…]}` | C N R | The Core errors table. |
+| `th errors` | `[--hours 24]` | `{"items":[…]}` | C N R | The Core errors table (`since` on the Worker). |
 | `th night` | `start` · `step <n> done` · `done [--partial]` | `{"resume_from":n,"done":bool}` | N | Idempotent night progress (§12). |
-| `th approved` | `--paths <list> --sha <sha>` | `{"approved":bool,"proposal_id"}` | C N (P4) | Used by the protected-paths pre-push hook (§6.4). |
+| `th approved` | — | — | — | Dropped: protected paths are always denied in mind sessions until P4 brings `access` proposals (§6.4). |
 
-**Acceptance:** `mind/tests/th.test.mjs` runs every command against local `wrangler dev` with a dev token per role; each exit code is produced at least once.
+**Acceptance:** `mind/tests/th.test.mjs` runs th against the real Worker under `wrangler dev --local` with a dev key per role and produces exit codes 0, 2, 3, 4, 6, 7, 8, 9 and 11; the fake-Worker suites produce 1, 5 and 10 and cover the commands of later phases.
 
 ---
 
@@ -315,6 +318,8 @@ Runs instead of Stop when a turn ends on an API error (`error`: `rate_limit`, `o
 | night | `th say` except `--kind error`; `th push`; any push to `main` (an explicit `:main` or `HEAD:main`, or a bare `git push` whose upstream is `main`). Agreed work goes to a `claude/<slug>` branch and the next chat session ships it |
 | reflex | `git push … :main` except a revert commit; `th remember\|supersede\|facts`; file writes outside `$TMPDIR` |
 
+**A soft gate.** The pre-tool rules parse shell commands (pipes, `$(…)`, `bash -c`, heredocs) but cannot see every way out: `node -e "fetch(…)"` or Python bypass the curl/wget host rule. The environment's network list is the real control; the hook catches an honest or confused session. For night and reflex it denies every bare `git push` (no refspec) rather than looking up the upstream, which keeps it deterministic.
+
 **Protected-paths gate [proposal].** The `guard` GitHub check is deferred (decisions.md). Until it exists, the hook denies edits to and pushes of protected paths without an approved `access` proposal whose spec lists those paths and the commit SHA. This is a soft gate: it stops an honest or confused session, not a determined attacker who already controls the repo. The constitution pin ([CONSTITUTION.md](CONSTITUTION.md#the-constitution-pin-proposal)) and the ledger catch the rest.
 
 **Check (HK-4):** unit tests feed sample tool inputs per role; e.g. night + `git push origin HEAD:main` → deny.
@@ -332,7 +337,7 @@ Runs instead of Stop when a turn ends on an API error (`error`: `rate_limit`, `o
 
 | | `th-chat` | `th-night` | `th-reflex` (P4) |
 |---|---|---|---|
-| Network access | Custom: the Worker host, the site host, `api.github.com`, plus the default package-manager list | same | Worker host, `api.github.com` |
+| Network access | Custom: the Worker host, the site host, `api.github.com`, plus the default package-manager list (and the private bucket's host once `th file` downloads attachments: its presigned URLs carry no Authorization) | same | Worker host, `api.github.com` |
 | Network secret | Worker host → `Authorization: Bearer <chat token>` | Worker host → `<night token>` | Worker host → `<reflex token>` |
 | Env vars (not secret) | `TH_ROLE=chat`, `TH_API=https://<worker host>`, `TH_SITE=https://<site host>`, `NODE_USE_ENV_PROXY=1`, `BASH_MAX_TIMEOUT_MS=7200000` | `TH_ROLE=night`, rest same | `TH_ROLE=reflex`, rest same |
 | Setup script | `cd /home/user/thunderhead && npm ci --ignore-scripts` (the script runs as root outside the repository, so `~` is `/root`; cached by the platform) | same | same |

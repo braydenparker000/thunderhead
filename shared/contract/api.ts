@@ -1,11 +1,22 @@
-// The /v1 request and response shapes of the P1 routes (API.md §2, §11.1–11.4, §11.16, §11.20),
-// as types only. The backend checks its zod schemas and responses against these with
-// `satisfies`; the frontend imports them through JSDoc. Wire format is snake_case.
+// The /v1 request and response shapes, as types only: the P1 routes here (API.md §2,
+// §11.1–11.4, §11.16, §11.20), P2's in conversation.ts and actions.ts. The backend checks its
+// zod schemas and responses against these with `satisfies`; the frontend imports them through
+// JSDoc. Wire format is snake_case. Runtime vocabularies are in index.ts.
+export type * from './actions';
+export type * from './conversation';
 export type { ErrorBody, ErrorCode, ErrorDetails, Issue, RevokeReason } from './errors';
+export type { AppId, ChangeKind, FrameType, SearchSource } from './feed';
 export type { Ref, RefKind } from './refs';
 
 export type Id = string;
 export type Ms = number;
+/** Any JSON value: what `meta`, verb args and results, and surface payloads may hold. Interfaces
+ * (not a recursive type alias) keep the Durable Object RPC types shallow. */
+export type Json = string | number | boolean | null | JsonArray | JsonObject;
+export interface JsonObject {
+  [key: string]: Json;
+}
+export interface JsonArray extends Array<Json> {}
 export type Day = string;
 export type Page<T> = { items: T[]; next: string | null };
 

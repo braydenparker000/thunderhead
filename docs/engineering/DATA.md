@@ -147,13 +147,13 @@ All of these live in instance `Core/owner`. "Phase" is when the table first appe
 | `live_tickets` | `hash TEXT PK, session_id TEXT, expires_at INTEGER, used_at INTEGER` WITHOUT ROWID | — | P2 |
 | `wakes` | `id TEXT PK, at INTEGER, task TEXT ('chat'\|'night'\|'reflex'), reason TEXT ('prewarm'\|'message'\|'requeue'\|'roll'\|'schedule'\|'watchdog:<name>'\|'manual'), status TEXT ('fired'\|'claimed'\|'ended'\|'unclaimed'\|'failed'), fired_at INTEGER, fire_status INTEGER, fire_error TEXT, session_id TEXT, claimed_at INTEGER, claim_match TEXT ('exact'\|'loose'\|'manual'), retry_of TEXT, first_reply_at INTEGER, ended_at INTEGER, end_reason TEXT` | partial `(at) WHERE status IN ('fired','unclaimed')` | P2 |
 | `leases` | `task TEXT PK, session_id TEXT, acquired_at INTEGER, renewed_at INTEGER` WITHOUT ROWID | — | P2 |
-| `mind_sessions` **[proposal]** | `session_id TEXT PK, role TEXT, wake_id TEXT, claimed_at INTEGER, th_version TEXT, constitution_sha256 TEXT, laws_pinned INTEGER, tainted_at INTEGER, taint_source TEXT, ended_at INTEGER` | — | P2 |
+| `mind_sessions` | `session_id TEXT PK, role TEXT, wake_id TEXT, claimed_at INTEGER, th_version TEXT, constitution_sha256 TEXT, laws_pinned INTEGER, tainted_at INTEGER, taint_source TEXT, ended_at INTEGER`; *eng:* `day TEXT` (the logical day it was claimed on, for `day_closed`), `last_owner_at INTEGER` (for `idle_min`) | — | P2 |
 | `night_runs` | `day TEXT PK, started_at INTEGER, step INTEGER, steps_json TEXT, done_at INTEGER, session_id TEXT` | — | P3 |
-| `topics` **[proposal]** | `topic_key TEXT PK, last_shown_at INTEGER, ignored_at INTEGER, shown_count INTEGER` WITHOUT ROWID | — | P2 |
+| `topics` | `topic_key TEXT PK, last_shown_at INTEGER, ignored_at INTEGER, shown_count INTEGER` WITHOUT ROWID | — | P2 |
 | `op_batches` | `key TEXT PK, route TEXT, req_sha256 TEXT, status INTEGER, result_json TEXT, at INTEGER` WITHOUT ROWID | — | P2 |
 
 - `changes.kind` ∈ `message | thread | ledger | proposal | verb | surface | notice | fact | day_note | open_thread | setting | mind_status | error`.
-- `settings` keys used by the engineering side: `owner.tz`, `min_client`, `bulk.lane` (which object holds the bulk lane, see §8.3), `day.current` (the open logical day), `roll.last_at`, `mind.status`. Product settings are listed in [MENU-AND-SETTINGS.md](../product/MENU-AND-SETTINGS.md).
+- `settings` keys used by the engineering side: `owner.tz`, `min_client`, `bulk.lane` (which object holds the bulk lane, see §8.3), `day.current` (the open logical day), `roll.last_at`, `mind.status` (the presence light), `mind.backoff` (`{until, step}` after a failed or limited wake), `prune.day` (the logical day the prune pass last finished). Product settings are listed in [MENU-AND-SETTINGS.md](../product/MENU-AND-SETTINGS.md).
 - The wake and lease semantics are owned by [RUNTIME.md §4](../mind/RUNTIME.md). Storage rule **[proposal]**: every `th` call renews the chat lease for 90 s, but `renewed_at` is written only when the stored value is ≥ 30 s old. A listening hour then costs ≤ 120 writes instead of one per call.
 - `mind_sessions` holds per-session state the Worker enforces: taint ([MEMORY.md §7](../mind/MEMORY.md)) and the constitution pin. Agent requests name their session with the header `TH-Session` ([API.md §1](API.md#1-request-basics)). `taint_source` keeps the tool name only, never the URL.
 - `topics` backs the voice-ladder repeat rule (a dismissed `topic_key` stays quiet for 14 days, [BEHAVIOR.md §3](../mind/BEHAVIOR.md)).
@@ -171,7 +171,7 @@ The columns match [MEMORY.md §2](../mind/MEMORY.md), which owns their meaning. 
 
 - `seq` is the rowid (`INTEGER PRIMARY KEY`) so that FTS5's external content can use it; `id` is the UUID the clients use. MEMORY.md shows the same two columns the other way round; the columns and their meaning are identical.
 - The owner never creates a thread. The Worker creates the `daily` thread for `day.current` on the first message of a logical day, and files it at the roll.
-- A message is handed to a waiting mind session by `/v1/live/wait` (`delivered_at`), acknowledged by `th status working` or any post in the thread (`acked_at`), and answered when a mind message names it in `reply_to` (`answered_at`; earlier unanswered owner messages in the same thread are marked too **[proposal]**). Unacknowledged after 120 s → requeued ([RUNTIME.md §4.5](../mind/RUNTIME.md)).
+- A message is handed to a waiting mind session by `/v1/live/wait` (`delivered_at`), acknowledged by `th status working` or any post in the thread (`acked_at`), and answered when a mind message names it in `reply_to` (`answered_at`; every earlier unanswered owner message is marked too, across the roll, [API.md §11.7](API.md) rule 3). A claimed briefing counts as a hand-out. Unacknowledged after 120 s → requeued ([RUNTIME.md §4.5](../mind/RUNTIME.md)).
 
 ### 4.3 Ledger, proposals, verbs, surfaces
 
@@ -179,8 +179,8 @@ The columns match [MEMORY.md §2](../mind/MEMORY.md), which owns their meaning. 
 |---|---|---|---|
 | `ledger` | `seq INTEGER PK, id TEXT UNIQUE, at INTEGER, actor TEXT, session_id TEXT, kind TEXT ('memory'\|'arrangement'\|'verb'\|'deploy'\|'proposal'\|'mistake'\|'undo'\|'note'), what TEXT (≤ 200), why TEXT (8–500), ref TEXT, topic_key TEXT, undo_json TEXT, undoable INTEGER, status TEXT ('done'\|'undone'\|'failed'), tainted INTEGER, proposal_id TEXT`; *eng:* `op_json TEXT, verb_id TEXT, undone_at INTEGER` | — | P2 |
 | `proposals` | `id TEXT PK, created_at INTEGER, created_by TEXT, class TEXT ('delete'\|'money'\|'access'\|'reach_people'\|'memory_big'), question TEXT (≤ 80), why TEXT (≤ 140), if_ignored TEXT, odds REAL, spec_json TEXT, spec_hash TEXT, status TEXT ('waiting'\|'approved'\|'rejected'\|'expired'\|'cancelled'\|'executed'), expires_at INTEGER, decided_by_device TEXT, decided_at INTEGER, executed_ledger_id TEXT, decided_via TEXT ('tap'\|'words'), decided_message_id TEXT`; *eng:* `options_json TEXT, result_json TEXT, req_sha256 TEXT` | partial `(created_at) WHERE status='waiting'` | P4 (`memory_big` in P3) |
-| `verbs` | `id TEXT PK, created_at INTEGER, actor TEXT, verb TEXT, schema INTEGER, ref TEXT, args_json TEXT, device_id TEXT (NULL = any), status TEXT ('pending'\|'claimed'\|'done'\|'failed'\|'expired'), proposal_id TEXT, ledger_id TEXT, expires_at INTEGER, claimed_at INTEGER, claimed_by TEXT, claims INTEGER, done_at INTEGER, result_json TEXT, undo_json TEXT, req_sha256 TEXT` | partial `(created_at) WHERE status IN ('pending','claimed')` | P2 |
-| `surfaces` | `(app TEXT, slot TEXT) PK, kind TEXT, schema INTEGER, payload_json TEXT, why TEXT, topic_key TEXT, ref TEXT, expires_at INTEGER, written_at INTEGER, actor TEXT, ledger_id TEXT` WITHOUT ROWID | — | P2 |
+| `verbs` | `id TEXT PK, created_at INTEGER, actor TEXT, verb TEXT, schema INTEGER, ref TEXT, args_json TEXT, device_id TEXT (NULL = any), status TEXT ('pending'\|'claimed'\|'done'\|'failed'\|'expired'), proposal_id TEXT, ledger_id TEXT, expires_at INTEGER, claimed_at INTEGER, claimed_by TEXT, claims INTEGER, done_at INTEGER, result_json TEXT, undo_json TEXT, req_sha256 TEXT`; *eng:* `error_json TEXT` (a failed result's `{code, message?}`, e.g. `unsupported_verb`) | partial `(created_at) WHERE status IN ('pending','claimed')` | P2 |
+| `surfaces` | `(app TEXT, slot TEXT) PK, kind TEXT, schema INTEGER, payload_json TEXT, why TEXT, topic_key TEXT, ref TEXT, expires_at INTEGER, written_at INTEGER, actor TEXT, ledger_id TEXT`; *eng:* `seq INTEGER` (the feed seq of its last write, for `since_seq`) WITHOUT ROWID | — | P2 |
 | `work_orders` | Columns as in [MUSE.md §3.1](../mind/MUSE.md), which owns them: `id TEXT PK, kind TEXT, assignee TEXT, title TEXT, spec_json TEXT, schema_json TEXT, personal INTEGER, approval_id TEXT, recurrence TEXT, deadline_at INTEGER, status TEXT ('queued'\|'claimed'\|'done'\|'rejected'\|'failed'\|'expired'\|'cancelled'), attempts INTEGER, created_by TEXT, created_at INTEGER, claimed_at INTEGER, heartbeat_at INTEGER, heartbeat_note TEXT, result_json TEXT, result_files_json TEXT, result_valid INTEGER, result_errors_json TEXT, finished_at INTEGER` | partial `(deadline_at) WHERE status IN ('queued','claimed')` | P4 |
 
 - A ledger row stores its inverse in `undo_json` when it is written. `undoable = 0` marks exactly the ask-first classes, which go through `proposals`. The *eng* columns (`op_json`, `verb_id`, `undone_at`) are listed in the night's patch list for MEMORY.md, so both pages carry them.
@@ -420,7 +420,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Music.* | forever | yes | yes |
 | Library.* except `pages_fts` | forever | yes | yes (PDFs by signed URL) |
 
-Pruning runs in daily jobs (`prune.core`, `prune.senses`, …), each in steps of ≤ 2,000 deletes.
+Pruning runs once a logical day: Core's 15-minute tick runs every table's prune (`TableInfo.prune` in the area's `migrations.ts`), each in steps of ≤ 2,000 deletes, and marks the day done only when no prune was cut short. A test fails if a table kept for less than forever has no prune.
 
 ---
 

@@ -1,6 +1,7 @@
-// SQL for ops inside the Core object: the error inbox (deduplicated by fingerprint), the daily
-// performance summary and the change feed rows that P1 writes (DATA.md §4.1).
+// SQL for ops inside the Core object: the error inbox (deduplicated by fingerprint) and the daily
+// performance summary (DATA.md §4.1). The change feed is the feed area's.
 import type { ErrorReport, ErrorRow, PerfRequest } from '../../../../shared/contract/api';
+import { DAY } from '../../lib/time';
 import type { Db } from '../../objects/base';
 
 /** Server-side scrub: no URLs with query strings, nothing token-shaped, ≤ 300 characters. */
@@ -36,12 +37,19 @@ export function countOpenErrors(db: Db): number {
 }
 
 /** Newest `last_at` first; `after` is the [last_at, fingerprint] of the previous page's end. */
-export function listErrors(db: Db, open: boolean, limit: number, after: [number, string] | null): ErrorRow[] {
+export function listErrors(
+  db: Db,
+  open: boolean,
+  limit: number,
+  after: [number, string] | null,
+  since: number | null = null,
+): ErrorRow[] {
   return db.all<ErrorRow>(
     `SELECT fingerprint, source, route, code, message, count, first_at, last_at, last_build, resolved_at FROM errors
-     WHERE (resolved_at IS NULL) = ? AND (? IS NULL OR last_at < ? OR (last_at = ? AND fingerprint < ?))
+     WHERE (resolved_at IS NULL) = ? AND last_at >= ? AND (? IS NULL OR last_at < ? OR (last_at = ? AND fingerprint < ?))
      ORDER BY last_at DESC, fingerprint DESC LIMIT ?`,
     open ? 1 : 0,
+    since ?? 0,
     after?.[0] ?? null,
     after?.[0] ?? null,
     after?.[0] ?? null,
@@ -71,7 +79,31 @@ export function putPerf(db: Db, p: PerfRequest): void {
   }
 }
 
-/** One row in the change feed (read from P2 by `GET /v1/changes`). */
-export function addChange(db: Db, kind: string, ref: string | null, at: number): void {
-  db.run('INSERT INTO changes (kind, ref, at) VALUES (?, ?, ?)', kind, ref, at);
+/** Errors go 30 days after their last sighting, and past 1,000 fingerprints the oldest go,
+ * resolved ones first (DATA.md §10). At most `max` a call. */
+export function pruneErrors(db: Db, now: number, max: number): number {
+  const old = db.all(
+    'DELETE FROM errors WHERE fingerprint IN (SELECT fingerprint FROM errors WHERE last_at < ? LIMIT ?) RETURNING 1',
+    now - 30 * DAY,
+    max,
+  ).length;
+  const over = (db.one<{ n: number }>('SELECT count(*) AS n FROM errors')?.n ?? 0) - 1_000;
+  if (over <= 0 || old >= max) return old;
+  return (
+    old +
+    db.all(
+      `DELETE FROM errors WHERE fingerprint IN
+         (SELECT fingerprint FROM errors ORDER BY resolved_at IS NULL, last_at LIMIT ?) RETURNING 1`,
+      Math.min(over, max - old),
+    ).length
+  );
+}
+
+/** Daily summaries are kept 400 days (DATA.md §10). */
+export function prunePerf(db: Db, now: number, max: number): number {
+  return db.all(
+    'DELETE FROM perf_days WHERE (day, metric) IN (SELECT day, metric FROM perf_days WHERE day < ? LIMIT ?) RETURNING 1',
+    new Date(now - 400 * DAY).toISOString().slice(0, 10),
+    max,
+  ).length;
 }

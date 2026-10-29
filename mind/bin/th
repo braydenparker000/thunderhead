@@ -1,0 +1,3 @@
+#!/bin/sh
+# `th` on PATH: the SessionStart hook adds this directory to PATH through $CLAUDE_ENV_FILE.
+exec node "$(dirname "$0")/../cli/th.mjs" "$@"

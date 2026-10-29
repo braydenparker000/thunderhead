@@ -36,7 +36,7 @@ describe('deep health', () => {
       expect(body).toEqual({
         ok: true,
         version: { id: env.VERSION.id, tag: env.VERSION.tag || null },
-        schema: { core: 1, auth: 1 },
+        schema: { core: 7, auth: 1 },
         objects: {
           core: { ok: true, db_bytes: expect.any(Number), jobs_backlog: 0, last_alarm_at: null },
           auth: { ok: true, db_bytes: expect.any(Number), jobs_backlog: 0, last_alarm_at: null },
@@ -102,6 +102,12 @@ describe('error inbox', () => {
       token: ci,
     });
     expect(p2.body, JSON.stringify([p1.body, p2.body])).toMatchObject({ items: [expect.any(Object)], next: null });
+    const newest = Math.max(...[...p1.body.items, ...p2.body.items].map((e) => e.last_at));
+    const recent = await apiJson<Page<ErrorRow>>('GET', `/v1/ops/errors?status=open&since=${newest}`, { token: ci });
+    expect(recent.body.items.length).toBeGreaterThan(0);
+    expect(recent.body.items.every((e) => e.last_at >= newest)).toBe(true);
+    const none = await apiJson<Page<ErrorRow>>('GET', `/v1/ops/errors?status=open&since=${newest + 1}`, { token: ci });
+    expect(none.body.items).toEqual([]);
     const fps = [...p1.body.items, ...p2.body.items].map((e) => e.fingerprint);
     expect(new Set(fps).size).toBe(3);
     expect((await api('POST', '/v1/ops/errors/fp-a/resolve', { token: owner, body: {} })).status).toBe(204);

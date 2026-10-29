@@ -4,6 +4,8 @@
 import { runInDurableObject } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import type { Auth } from '../../src/objects/auth';
+import { AUTH_MIGRATIONS } from '../../src/objects/auth.migrations';
+import { CORE_MIGRATIONS } from '../../src/objects/core.migrations';
 import { auth, core } from '../helpers';
 import authSchema from './auth.schema.sql?raw';
 import coreSchema from './core.schema.sql?raw';
@@ -33,6 +35,7 @@ describe('schema snapshots', () => {
     const steps = await runInDurableObject(stub(), (_o, s) =>
       s.storage.sql.exec('SELECT version, kind, bookmark FROM _migrations').toArray(),
     );
-    expect(steps).toEqual([{ version: 1, kind: 'expand', bookmark: expect.any(String) }]);
+    const expected = name === 'core' ? CORE_MIGRATIONS : AUTH_MIGRATIONS;
+    expect(steps).toEqual(expected.map((m) => ({ version: m.version, kind: 'expand', bookmark: expect.any(String) })));
   });
 });

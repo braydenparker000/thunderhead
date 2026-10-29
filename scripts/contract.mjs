@@ -1,0 +1,235 @@
+// Writes the three copies of the runtime contract from shared/contract (EXTENDING.md rule 1):
+//   frontend/th/contract.js       the phone's vocabularies, verbs and surface kinds (JSDoc-typed
+//                                 against shared/contract, so the type check catches drift)
+//   mind/cli/contract.json        what `th` needs: routes, verbs and surfaces with JSON Schemas,
+//                                 error codes, the phrase lint
+//   docs/engineering/CONTRACT.md  the generated appendix to API.md
+//   node scripts/contract.mjs           rewrites them
+//   node scripts/contract.mjs --check   exits 1 naming any that are stale (tests/contract-gen.test.mjs)
+// Node strips the contract's types on import; nothing is built or bundled.
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import * as z from 'zod/mini';
+import * as c from '../shared/contract/index.ts';
+import { BANNED_PHRASES } from '../shared/contract/lint.ts';
+
+const REPO = fileURLToPath(new URL('../', import.meta.url));
+export const OUTPUTS = ['frontend/th/contract.js', 'mind/cli/contract.json', 'docs/engineering/CONTRACT.md'];
+
+const schema = (s) => {
+  const { $schema: _, ...rest } = z.toJSONSchema(s, { io: 'input' });
+  return rest;
+};
+const versions = (o) => Object.keys(o).map(Number).sort((a, b) => a - b);
+const routeStatus = (r) =>
+  r.deferred ? `deferred: ${r.deferred}` : c.BUILT_PHASES.includes(r.phase) ? 'built' : `later (${r.phase})`;
+const slots = (k) => Object.fromEntries(Object.entries(k.slots).map(([app, re]) => [app, re.source]));
+
+/** The phone's copy: data only, no schemas (the Worker has validated whatever reaches a phone). */
+function phone() {
+  const verbs = Object.fromEntries(
+    Object.entries(c.VERBS).map(([n, v]) => [
+      n,
+      { app: v.app, executor: v.executor, queueable: v.queueable, undo: v.undo, versions: versions(v.versions) },
+    ]),
+  );
+  const kinds = Object.fromEntries(
+    Object.entries(c.SURFACE_KINDS).map(([n, k]) => [n, { slots: slots(k), versions: versions(k.versions) }]),
+  );
+  const j = (v) => JSON.stringify(v);
+  return `// Generated from shared/contract by scripts/contract.mjs; do not edit (run \`node scripts/contract.mjs\`).
+// The phone's copy of the runtime contract (docs/engineering/EXTENDING.md): change kinds, live
+// frames, apps, verbs and surface kinds with their versions. The JSDoc types point at
+// shared/contract, so the type check fails if this copy drifts from it.
+
+/** @typedef {import('../../shared/contract/feed.ts').ChangeKind} ChangeKind */
+/** @typedef {import('../../shared/contract/feed.ts').FrameType} FrameType */
+/** @typedef {import('../../shared/contract/feed.ts').AppId} AppId */
+/** @typedef {import('../../shared/contract/verbs.ts').VerbName} VerbName */
+/** @typedef {import('../../shared/contract/surfaces.ts').SurfaceKindName} SurfaceKindName */
+/** @typedef {{ app: string, executor: 'device' | 'worker', queueable: boolean, undo: 'reported' | 'none', versions: readonly number[] }} VerbInfo */
+/** @typedef {{ slots: Readonly<Record<string, string>>, versions: readonly number[] }} SurfaceInfo */
+
+/** @type {typeof import('../../shared/contract/feed.ts').LIVE_PROTOCOL} */
+export const LIVE_PROTOCOL = ${j(c.LIVE_PROTOCOL)};
+
+/** @type {readonly ChangeKind[]} */
+export const CHANGE_KINDS = Object.freeze(${j(c.CHANGE_KINDS)});
+
+/** @type {readonly FrameType[]} */
+export const FRAME_TYPES = Object.freeze(${j(c.FRAME_TYPES)});
+
+/** @type {Readonly<typeof import('../../shared/contract/feed.ts').CLOSE_CODES>} */
+export const CLOSE_CODES = Object.freeze(${j(c.CLOSE_CODES)});
+
+/** @type {readonly import('../../shared/contract/routes.ts').Phase[]} */
+export const BUILT_PHASES = Object.freeze(${j(c.BUILT_PHASES)});
+
+/** @type {Readonly<Record<AppId, { path: string, name: string, phase: string }>>} */
+export const APPS = Object.freeze(${j(c.APPS)});
+
+/** @type {readonly import('../../shared/contract/api.ts').MessageKind[]} */
+export const MESSAGE_KINDS = Object.freeze(${j(c.MESSAGE_KINDS)});
+
+/** @type {Readonly<Record<VerbName, VerbInfo>>} */
+export const VERBS = Object.freeze(${j(verbs)});
+
+/** @type {Readonly<Record<SurfaceKindName, SurfaceInfo>>} */
+export const SURFACE_KINDS = Object.freeze(${j(kinds)});
+`;
+}
+
+/** The mind's copy: everything `th` validates or prints before it calls the Worker. */
+function mind() {
+  const out = {
+    v: 1,
+    note: 'Generated from shared/contract by scripts/contract.mjs; do not edit.',
+    live_protocol: c.LIVE_PROTOCOL,
+    routes: Object.fromEntries(
+      Object.entries(c.ROUTES).map(([k, r]) => [
+        k,
+        { who: r.who, phase: r.phase, status: routeStatus(r), ...(r.note ? { note: r.note } : {}) },
+      ]),
+    ),
+    verbs: Object.fromEntries(
+      Object.entries(c.VERBS).map(([n, v]) => [
+        n,
+        {
+          app: v.app,
+          class: v.class,
+          executor: v.executor,
+          queueable: v.queueable,
+          undo: v.undo,
+          doc: v.doc,
+          versions: Object.fromEntries(
+            Object.entries(v.versions).map(([ver, s]) => [ver, { args: schema(s.args), result: schema(s.result) }]),
+          ),
+        },
+      ]),
+    ),
+    surfaces: Object.fromEntries(
+      Object.entries(c.SURFACE_KINDS).map(([n, k]) => [
+        n,
+        {
+          slots: slots(k),
+          doc: k.doc,
+          versions: Object.fromEntries(Object.entries(k.versions).map(([ver, s]) => [ver, schema(s)])),
+        },
+      ]),
+    ),
+    codes: c.CODES,
+    change_kinds: c.CHANGE_KINDS,
+    frame_types: c.FRAME_TYPES,
+    close_codes: c.CLOSE_CODES,
+    apps: c.APPS,
+    search_sources: c.SEARCH_SOURCES,
+    message_kinds: c.MESSAGE_KINDS,
+    lint: { banned_phrases: BANNED_PHRASES },
+  };
+  return `${JSON.stringify(out, null, 2)}\n`;
+}
+
+const cell = (s) => String(s).replaceAll('|', '\\|');
+const who = (w) => (w === 'P' ? 'public' : w.join(' '));
+const shape = (s) => {
+  const j = schema(s);
+  if (j.type !== 'object') return `\`${j.type}\``;
+  const req = new Set(j.required ?? []);
+  const props = Object.entries(j.properties ?? {}).map(([k, p]) => {
+    const t = p.enum ? p.enum.map((e) => `'${e}'`).join(' \\| ') : p.type;
+    return `${k}${req.has(k) ? '' : '?'}: ${t}`;
+  });
+  return props.length ? `\`{ ${props.join(', ')} }\`` : '`{}`';
+};
+
+/** The appendix: every registry as a table, so API.md's prose never has to repeat them. */
+function docs() {
+  const L = [
+    '# Contract appendix',
+    '',
+    '<!-- Generated from shared/contract by scripts/contract.mjs; do not edit. Run `node scripts/contract.mjs`. -->',
+    '',
+    'The runtime contract as data, generated from [`shared/contract`](../../shared/contract). [API.md](API.md) describes each route; this appendix lists what the code enforces. How to add to it: [EXTENDING.md](EXTENDING.md).',
+    '',
+    `Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: ${c.BUILT_PHASES.join(', ')}.`,
+    '',
+    '## Routes',
+    '',
+    '| Route | Who | Phase | Status | Note |',
+    '|---|---|---|---|---|',
+  ];
+  for (const [k, r] of Object.entries(c.ROUTES))
+    L.push(
+      `| \`${k}\` | ${who(r.who)}${r.auth ? ` (${r.auth})` : ''} | ${r.phase} | ${cell(routeStatus(r))} | ${cell(r.note ?? '')} |`,
+    );
+  L.push('', '## Verbs', '', '| Verb | App | Class | Runs on | Queueable | Undo | Versions | Args (newest) | What it does |');
+  L.push('|---|---|---|---|---|---|---|---|---|');
+  for (const [n, v] of Object.entries(c.VERBS)) {
+    const vs = versions(v.versions);
+    L.push(
+      `| \`${n}\` | ${v.app} | ${v.class} | ${v.executor} | ${v.queueable ? 'yes' : 'no (owner tap)'} | ${v.undo} | ${vs.join(', ')} | ${shape(v.versions[vs.at(-1)].args)} | ${cell(v.doc)} |`,
+    );
+  }
+  L.push('', '## Surface kinds', '', '| Kind | Slots | Versions | Payload (newest) | What it is |', '|---|---|---|---|---|');
+  for (const [n, k] of Object.entries(c.SURFACE_KINDS)) {
+    const vs = versions(k.versions);
+    const where = Object.entries(slots(k))
+      .map(([app, re]) => `${app} \`${re}\``)
+      .join('; ');
+    L.push(`| \`${n}\` | ${cell(where)} | ${vs.join(', ')} | ${shape(k.versions[vs.at(-1)])} | ${cell(k.doc)} |`);
+  }
+  L.push('', '## Change kinds', '', c.CHANGE_KINDS.map((k) => `\`${k}\``).join(' · '), '');
+  L.push(
+    '## Live channel',
+    '',
+    `Protocol ${c.LIVE_PROTOCOL}. Frames (server → client): ${c.FRAME_TYPES.map((t) => `\`${t}\``).join(', ')}. Close codes: ${Object.entries(
+      c.CLOSE_CODES,
+    )
+      .map(([k, v]) => `${v} ${k}`)
+      .join(', ')}.`,
+    '',
+  );
+  L.push('## Apps', '', '| App | Folder | Name | Phase |', '|---|---|---|---|');
+  for (const [id, a] of Object.entries(c.APPS)) L.push(`| \`${id}\` | \`${a.path}\` | ${a.name} | ${a.phase} |`);
+  L.push('', '## Search sources', '', '| Source | Phase | Ref kind |', '|---|---|---|');
+  for (const [id, s] of Object.entries(c.SEARCH_SOURCES)) L.push(`| \`${id}\` | ${s.phase} | \`${s.ref}\` |`);
+  L.push('', '## Error codes', '', '| Code | Status | Message |', '|---|---|---|');
+  for (const [code, [status, message]] of Object.entries(c.CODES)) L.push(`| \`${code}\` | ${status} | ${cell(message)} |`);
+  L.push('', '## Phrase lint', '', BANNED_PHRASES.map((p) => `"${p}"`).join(' · '), '');
+  return `${L.join('\n')}`;
+}
+
+export function render() {
+  return { [OUTPUTS[0]]: phone(), [OUTPUTS[1]]: mind(), [OUTPUTS[2]]: docs() };
+}
+
+/** Files whose committed text differs from what the contract gives. */
+export function stale() {
+  return Object.entries(render())
+    .filter(([path, text]) => {
+      try {
+        return readFileSync(REPO + path, 'utf8') !== text;
+      } catch {
+        return true;
+      }
+    })
+    .map(([path]) => path);
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  if (process.argv.includes('--check')) {
+    const s = stale();
+    if (s.length) {
+      console.error(`Stale (run node scripts/contract.mjs): ${s.join(', ')}`);
+      process.exit(1);
+    }
+    console.log('contract outputs are current');
+  } else {
+    for (const [path, text] of Object.entries(render())) {
+      mkdirSync(dirname(REPO + path), { recursive: true });
+      writeFileSync(REPO + path, text);
+      console.log(`wrote ${path}`);
+    }
+  }
+}

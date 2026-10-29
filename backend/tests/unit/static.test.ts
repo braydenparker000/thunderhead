@@ -31,9 +31,17 @@ const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').re
 // wrangler.jsonc has whole-line comments only, so dropping them leaves plain JSON.
 const config = JSON.parse(wrangler.replace(/^\s*\/\/.*$/gm, '')) as { vars: Record<string, string>; secrets: unknown };
 
-/** Every secret name (SECURITY.md §11, P1) and var (OPERATIONS.md §2) the Worker reads. */
-const SECRETS = ['AUTH_PEPPER', 'IP_HASH_KEY', 'AUTH_SETUP_FP', 'AUTH_RESET_FP'];
-const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP'];
+/** Every secret name (SECURITY.md §11) and var (OPERATIONS.md §2) the Worker reads. P2 adds the
+ * mind-chat trigger (SETUP.md K) and the live-wait mode (X1). */
+const SECRETS = [
+  'AUTH_PEPPER',
+  'IP_HASH_KEY',
+  'AUTH_SETUP_FP',
+  'AUTH_RESET_FP',
+  'ROUTINE_CHAT_URL',
+  'ROUTINE_CHAT_TOKEN',
+];
+const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP', 'LIVE_WAIT'];
 const BINDINGS = ['VERSION', 'CORE', 'AUTH'];
 
 describe('source rules', () => {
@@ -75,7 +83,40 @@ describe('source rules', () => {
     for (const code of Object.values(src)) expect(code).not.toMatch(/locationHint/);
   });
 
-  it('secrets.required lists exactly the P1 secrets', () => {
+  it('one write path: only objects/commit.ts writes the change feed and the ledger (EXTENDING.md rule 4)', () => {
+    for (const [file, code] of Object.entries(src)) {
+      const c = stripComments(code);
+      if (!file.endsWith('/areas/feed/store.ts')) expect(c, file).not.toMatch(/INSERT INTO changes/);
+      if (!file.endsWith('/areas/ledger/store.ts')) expect(c, file).not.toMatch(/INSERT INTO ledger/);
+      if (!file.endsWith('/objects/commit.ts')) {
+        expect(c, file).not.toMatch(/(?<!function )\b(feed\.)?addChange\(/);
+        expect(c, file).not.toMatch(/\bledger\.insert\(/);
+      }
+    }
+  });
+
+  it('area seams: no SQL joins across areas (tables are linked by refs)', () => {
+    const own: Record<string, string[]> = {};
+    for (const [file, code] of Object.entries(src)) {
+      const area = /\/areas\/([a-z]+)\//.exec(file)?.[1];
+      if (!area) continue;
+      own[area] = [
+        ...(own[area] ?? []),
+        ...[...code.matchAll(/\b(?:FROM|JOIN|INTO|UPDATE)\s+([a-z_]+)/g)].map((m) => m[1]),
+      ];
+    }
+    const owner = new Map<string, string>();
+    const shared = new Set(['settings', 'changes', 'sqlite_schema']);
+    for (const [area, tables] of Object.entries(own))
+      for (const t of new Set(tables)) {
+        if (shared.has(t)) continue;
+        const prev = owner.get(t);
+        expect(prev === undefined || prev === area, `${t} used by ${prev} and ${area}`).toBe(true);
+        owner.set(t, area);
+      }
+  });
+
+  it('secrets.required lists exactly the declared secrets', () => {
     expect(config.secrets).toEqual({ required: SECRETS });
   });
 

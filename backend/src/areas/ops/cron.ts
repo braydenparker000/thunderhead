@@ -1,8 +1,11 @@
-// The 15-minute cron. In P1 it tidies the Auth object (old sessions, spent counters, old notices)
-// and picks up a new AUTH_RESET_FP; Core.tick() with its job table arrives in P2.
+// The 15-minute cron: Core's tick (the day roll after 60 quiet minutes, expiring verbs, and the
+// daily prune pass over every table's retention) and the Auth object's tidy-up (old sessions,
+// spent counters, old notices, a new AUTH_RESET_FP).
 import { authObject } from '../../objects/auth';
+import { coreObject } from '../../objects/core';
 
 export async function runCron(env: Env): Promise<void> {
-  const pruned = await authObject(env).prune();
-  if (pruned.sessions || pruned.counters || pruned.notices) console.log(JSON.stringify({ evt: 'cron', ...pruned }));
+  const [pruned, tick] = await Promise.all([authObject(env).prune(), coreObject(env).tick()]);
+  if (pruned.sessions || pruned.counters || pruned.notices || tick.rolled || tick.pruned)
+    console.log(JSON.stringify({ evt: 'cron', ...pruned, rolled: tick.rolled, core_pruned: tick.pruned }));
 }

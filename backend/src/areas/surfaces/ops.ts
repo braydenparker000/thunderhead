@@ -1,0 +1,87 @@
+// Surfaces (API.md §11.12): the mind places a versioned kind in an app's slot, validated against
+// the contract (shared/contract/surfaces.ts); every write and delete is a ledger row whose undo
+// restores what was there. A topic the owner dismissed stays quiet for 14 days (409 nudge_repeat).
+import type { PutSurfaceRequest, Surface } from '../../../../shared/contract/api';
+import { surfaceKind } from '../../../../shared/contract/surfaces.ts';
+import { Fail, invalid } from '../../lib/result';
+import type { Caller } from '../../objects/caller';
+import type { Writer } from '../../objects/commit';
+import * as store from './store';
+
+const QUIET_MS = 14 * 86_400_000;
+
+export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfaceRequest): Surface {
+  const kind = surfaceKind(r.kind);
+  if (!kind) throw invalid('kind', 'unknown surface kind');
+  const slots = kind.slots[app];
+  if (!slots?.test(slot)) throw invalid('slot', `${r.kind} lives in ${Object.keys(kind.slots).join(', ')}`);
+  const schema = kind.versions[r.schema];
+  if (!schema) throw invalid('schema', `known versions: ${Object.keys(kind.versions).join(', ')}`);
+  const payload = schema.safeParse(r.payload);
+  if (!payload.success)
+    throw new Fail(
+      'validation',
+      payload.error.issues.map((i) => ({ path: ['payload', ...i.path.map(String)].join('.'), issue: i.message })),
+    );
+  const ignored = store.topicIgnoredAt(w.db, r.topic_key);
+  if (ignored !== null && w.at - ignored < QUIET_MS) throw new Fail('nudge_repeat');
+  if (r.expires_at !== undefined && r.expires_at <= w.at) throw invalid('expires_at', 'in the future');
+  const before = store.get(w.db, app, slot);
+  const ledgerId = w.ledger({
+    kind: 'arrangement',
+    actor: c.actor,
+    session_id: c.session_id,
+    what: `${app}/${slot} ← ${r.kind}`,
+    why: r.why,
+    ref: r.ref ?? null,
+    topic_key: r.topic_key,
+    undo: before
+      ? { op: 'surface.restore', args: { app, slot, row: before } }
+      : { op: 'surface.delete', args: { app, slot } },
+  });
+  w.change('surface', `app:${app}#${slot}`);
+  store.put(w.db, {
+    app,
+    slot,
+    kind: r.kind,
+    schema: r.schema,
+    payload_json: JSON.stringify({ v: r.schema, ...(payload.data as object) }),
+    why: r.why,
+    topic_key: r.topic_key,
+    ref: r.ref ?? null,
+    expires_at: r.expires_at ?? null,
+    written_at: w.at,
+    actor: c.actor,
+    ledger_id: ledgerId,
+    seq: w.seq,
+  });
+  store.topicShown(w.db, r.topic_key, w.at);
+  return store.toSurface(store.get(w.db, app, slot) as store.SurfaceRow);
+}
+
+/** DELETE: the owner dismissing a surface also quiets its topic for 14 days. */
+export function remove(w: Writer, c: Caller, app: string, slot: string): void {
+  const before = store.get(w.db, app, slot);
+  if (!before) return;
+  w.ledger({
+    kind: 'arrangement',
+    actor: c.actor,
+    session_id: c.session_id,
+    what: `${app}/${slot} cleared`,
+    why: c.who === 'D' ? 'the owner dismissed it' : 'the mind cleared it',
+    topic_key: before.topic_key,
+    undo: { op: 'surface.restore', args: { app, slot, row: before } },
+  });
+  store.remove(w.db, app, slot);
+  if (c.who === 'D') store.topicIgnored(w.db, before.topic_key, w.at);
+  w.change('surface', `app:${app}#${slot}`);
+}
+
+/** Core-internal undo ops for surfaces (ledger/ops.ts dispatches by `op`). */
+export function undo(w: Writer, op: string, args: { app: string; slot: string; row?: store.SurfaceRow }): void {
+  if (op !== 'surface.delete' && !(op === 'surface.restore' && args.row))
+    throw new Fail('validation', { reason: 'not_undoable' });
+  w.change('surface', `app:${args.app}#${args.slot}`);
+  if (op === 'surface.delete') store.remove(w.db, args.app, args.slot);
+  else if (args.row) store.put(w.db, { ...args.row, written_at: w.at, seq: w.seq });
+}

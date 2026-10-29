@@ -2,13 +2,14 @@
   "name": "thunderhead",
   "private": true,
   "type": "module",
-  "description": "The Thunderhead: one personal app. Site in frontend/, Worker in backend/, API types in shared/.",
+  "description": "The Thunderhead: one personal app. Site in frontend/, Worker in backend/, the mind's th CLI and hooks in mind/, the contract in shared/.",
   "scripts": {
-    "test": "node --test tests/*.test.mjs && npm test -w backend",
+    "test": "node --test tests/*.test.mjs mind/tests/*.test.mjs && npm test -w backend",
     "test:site": "node --test tests/*.test.mjs",
     "test:backend": "npm test -w backend",
     "serve": "node scripts/serve.mjs",
-    "dev": "npm run dev -w backend"
+    "dev": "npm run dev -w backend",
+    "test:mind": "node --test mind/tests/*.test.mjs"
   },
   "devDependencies": {
     "@phosphor-icons/core": "2.1.1",
