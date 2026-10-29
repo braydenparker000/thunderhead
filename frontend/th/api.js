@@ -25,6 +25,14 @@
 /** @typedef {import('../../shared/contract/api.ts').AgentsResponse} AgentsResponse */
 /** @typedef {import('../../shared/contract/api.ts').NewAgentRequest} NewAgentRequest */
 /** @typedef {import('../../shared/contract/api.ts').NewAgentResponse} NewAgentResponse */
+/** @typedef {import('../../shared/contract/api.ts').TodayResponse} TodayResponse */
+/** @typedef {import('../../shared/contract/api.ts').Message} Message */
+/** @typedef {import('../../shared/contract/api.ts').ChangesResponse} ChangesResponse */
+/** @typedef {import('../../shared/contract/api.ts').LiveTicket} LiveTicket */
+/** @typedef {import('../../shared/contract/api.ts').Settings} Settings */
+/** @typedef {import('../../shared/contract/api.ts').SurfacesResponse} SurfacesResponse */
+/** @typedef {import('../../shared/contract/api.ts').Verb} Verb */
+/** @typedef {import('../../shared/contract/api.ts').VerbResultRequest} VerbResultRequest */
 
 export const TIMEOUT_MS = 15_000;
 
@@ -126,5 +134,29 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
     newAgent: (token, body) => call('/v1/auth/agents', { method: 'POST', token, body }),
     /** @param {string} token @param {string} id @returns {Promise<null>} */
     revokeAgent: (token, id) => call(`/v1/auth/agents/${encodeURIComponent(id)}`, { method: 'DELETE', token }),
+
+    // --- the conversation and the live channel (P2) --------------------------------------------
+    /** @param {string} token @returns {Promise<TodayResponse>} */
+    today: (token) => call('/v1/threads/today', { token }),
+    /** @param {string} token @param {string} id @param {string} body @returns {Promise<Message>} */
+    say: (token, id, body) => call(`/v1/messages/${encodeURIComponent(id)}`, { method: 'PUT', token, body: { body } }),
+    /** @param {string} token @param {number} after @returns {Promise<ChangesResponse>} */
+    changes: (token, after) => call(`/v1/changes?after=${after}&limit=500`, { token }),
+    /** @param {string} token @returns {Promise<LiveTicket>} */
+    liveTicket: (token) => call('/v1/live/ticket', { method: 'POST', token }),
+    /** @param {string} token @returns {Promise<Settings>} */
+    settings: (token) => call('/v1/settings', { token }),
+    /** @param {string} token @returns {Promise<SurfacesResponse>} */
+    surfaces: (token) => call('/v1/surfaces', { token }),
+    /** @param {string} token @returns {Promise<null>} */
+    typing: (token) => call('/v1/mind/typing', { method: 'POST', token, body: {} }),
+    /** @param {string} token @returns {Promise<null>} */
+    stop: (token) => call('/v1/mind/stop', { method: 'POST', token, body: {} }),
+    /** @param {string} token @returns {Promise<{ items: Verb[] }>} */
+    pendingVerbs: (token) => call('/v1/verbs/pending', { token }),
+    /** @param {string} token @param {string} id @returns {Promise<Verb>} */
+    claimVerb: (token, id) => call(`/v1/verbs/${encodeURIComponent(id)}/claim`, { method: 'POST', token, body: {} }),
+    /** @param {string} token @param {string} id @param {VerbResultRequest} body @returns {Promise<Verb>} */
+    verbResult: (token, id, body) => call(`/v1/verbs/${encodeURIComponent(id)}/result`, { method: 'POST', token, body }),
   };
 }

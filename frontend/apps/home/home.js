@@ -1,5 +1,6 @@
 // Thunderhead home: one quiet chat screen. Hold still for the Compass ring, swipe right for the briefing, swipe left for the menu.
-'use strict';
+// The ring's apps come from the app registry (th/registry/apps.js, EXTENDING.md rule 3).
+import { apps } from '/th/registry/apps.js';
 (function(){
   const $=s=>document.querySelector(s), root=document.documentElement;
   const edge=$('#edge'), toastEl=$('#toast'); let tt;
@@ -11,7 +12,9 @@
   const seg=$('#seg'); let pref='auto'; try{pref=localStorage.getItem('th-theme')||'auto'}catch(e){}
   function applyTheme(p){ pref=p; const hr=new Date().getHours(); root.dataset.theme=p==='auto'?((hr>=19||hr<7)?'dark':'light'):p; seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.th===p)) }
   applyTheme(pref);
-  seg.addEventListener('click',e=>{const b=e.target.closest('button'); if(!b) return; applyTheme(b.dataset.th); try{localStorage.setItem('th-theme',b.dataset.th)}catch(e){}});
+  const setTheme=t=>{ applyTheme(t); try{localStorage.setItem('th-theme',t)}catch(e){} };
+  seg.addEventListener('click',e=>{const b=e.target.closest('button'); if(b) setTheme(b.dataset.th)});
+  document.addEventListener('th:theme',e=>{ if(['auto','light','dark'].includes(e.detail)) setTheme(e.detail) }); // the shell.appearance verb
   try{$('#bdate').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}catch(e){}
 
   document.querySelectorAll('[data-toast]').forEach(b=>b.addEventListener('click',()=>toast(b.dataset.toast)));
@@ -29,7 +32,8 @@
   $('#mic').addEventListener('click',()=>{ listening=!listening; ask.classList.toggle('listening',listening); edge.classList.toggle('listen',listening);
     q.placeholder=listening?'Listening…':''; toast(listening?'Listening. Tap again to stop':'Stopped. Nothing is kept unless you send it'); buzz(8) });
   ask.addEventListener('submit',e=>{
-    e.preventDefault(); const text=q.value.trim(); if(!text) return; q.value=''; ask.classList.remove('typing'); hint.classList.add('gone');
+    e.preventDefault(); if(root.dataset.signedIn!==undefined) return; // signed in: th/chat/index.js sends it
+    const text=q.value.trim(); if(!text) return; q.value=''; ask.classList.remove('typing'); hint.classList.add('gone');
     const t=document.createElement('div'); t.className='turn';
     t.innerHTML='<div class="you"></div><div class="voice reply"></div>'; t.firstChild.textContent=text; $('#turns').appendChild(t);
     convo.scrollTop=convo.scrollHeight;
@@ -41,15 +45,8 @@
   });
 
   // Compass: hold an empty spot ~220 ms, a tight ring of six apps springs out around the finger; slide toward one, let go to open
-  const I={
-    music:'<svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#music-notes-simple"/></svg>',
-    guitar:'<svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#guitar"/></svg>',
-    study:'<svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#book-bookmark"/></svg>',
-    astra:'<svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#monitor-play"/></svg>',
-    podcasts:'<svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#microphone"/></svg>',
-    media:'<svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#youtube-logo"/></svg>'};
-  // six directions, 60 degrees apart, clockwise from the top
-  const APPS=[['Music',I.music,'#2f7df6','/music/'],['Guitar',I.guitar,'#e08a1e','/guitar/'],['Podcasts',I.podcasts,'#e0457b','/podcasts/'],['Astra',I.astra,'#8b5cf6','/astra/'],['My Media',I.media,'#14a39a','/media/'],['Study',I.study,'#2e9e5b','']];
+  // six directions, 60 degrees apart, clockwise from the top; an app not shipped yet says it comes later
+  const APPS=apps.map(a=>[a.name,`<svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}"/></svg>`,a.color,a.built?a.path:'']);
   const N=APPS.length, SEC=Math.PI*2/N;
   const ring=$('#ring'), scrim=$('#scrim'), lbl=$('#lbl'), hub=$('#hub'), press=$('#press'), app=$('#app'), R=62;
   const pets=APPS.map(([n,svg,c],i)=>{const p=document.createElement('div');p.className='pet';p.innerHTML=svg;p.title=n;p.style.setProperty('--c',c);p.style.setProperty('--i',i);ring.appendChild(p);return p});

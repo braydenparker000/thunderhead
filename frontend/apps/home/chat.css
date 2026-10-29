@@ -1,0 +1,37 @@
+/* The conversation once signed in (HOME.md §4, §7): meta lines, system lines, the reply's lines,
+   links and reveal, the reply slot with its Stop, the "New reply ↓" pill, the generic card, and
+   the error and offline edge. Uses home.css's tokens. */
+.talk .mine{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.talk .you{white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
+.talk .meta{font:400 12px/1.3 var(--ui);color:var(--ink3);display:flex;align-items:center;gap:4px}
+.talk .meta.bad{color:#b42318}
+:root[data-theme="dark"] .talk .meta.bad{color:#ff6b5e}
+.talk .retry,.talk .stop{border:0;background:none;padding:0 6px;min-height:44px;margin:-14px 0;font:600 12px var(--ui);color:var(--accent);cursor:pointer}
+.talk .stop{font-size:13px;margin:-12px 0 -12px 4px}
+.talk .sys{align-self:center;max-width:88%;text-align:center;font:400 13px/1.4 var(--ui);color:var(--ink3);user-select:text;-webkit-user-select:text}
+.talk .turn.sysline{align-items:center}
+.talk .replybox{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
+.talk .reply{color:var(--ink);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
+.talk .reply .p,.talk .reply .li{display:block}
+.talk .reply .li{padding-left:1.1em;text-indent:-1.1em}
+.talk .reply .li::before{content:"– "}
+.talk .reply a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}
+.talk .reply.progress{color:var(--ink2);font-size:17px}
+/* The reply reveals top to bottom behind a moving mask; its text is all there for a screen reader. */
+@property --reveal{syntax:"<percentage>";inherits:false;initial-value:100%}
+.talk .reply.reveal{-webkit-mask-image:linear-gradient(to bottom,#000 var(--reveal),transparent calc(var(--reveal) + 1.6em));mask-image:linear-gradient(to bottom,#000 var(--reveal),transparent calc(var(--reveal) + 1.6em));animation:reveal var(--reveal-ms,600ms) linear both}
+@keyframes reveal{from{--reveal:-1.6em}to{--reveal:100%}}
+.talk .slot{display:flex;align-items:center;gap:6px;min-height:28px}
+.talk .wait{font:400 13px var(--ui);color:var(--ink3)}
+.talk .wait.dots{font:italic 340 20px/1 var(--voice);animation:dots 1.2s ease-in-out infinite}
+@keyframes dots{0%,100%{opacity:.4}50%{opacity:1}}
+.talk .stopping{font:400 13px var(--ui);color:var(--ink3)}
+.fallbacks .card{animation:none}
+.fallbacks .card .q{margin-top:0}
+.newpill{position:absolute;z-index:7;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;pointer-events:none;transition:.25s;padding:8px 14px;border-radius:14px;border:1px solid var(--chipLine);background:var(--disc);font:500 13px var(--ui);color:var(--ink)}
+.newpill.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+.say .ln.still{animation:none}
+.edge.err{box-shadow:inset 0 0 70px -40px #ff6b5e}
+.edge.off{opacity:.5}
+.top #date[data-offline]::after{content:" · Offline"}
+@media (prefers-reduced-motion: reduce){.talk .reply.reveal{animation:none;-webkit-mask-image:none;mask-image:none}.talk .wait.dots{animation:none}.newpill{transition:none}}
