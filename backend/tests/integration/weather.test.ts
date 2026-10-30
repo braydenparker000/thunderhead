@@ -30,8 +30,10 @@ function openMeteo(url: string): Response {
       precipitation_probability: time.map(() => 10),
       weather_code: time.map(() => 2),
     },
+    // Open-Meteo stamps each day at its local midnight (here UTC, the owner's zone in this test); the
+    // current hour instead made "tomorrow" today's row after 12:00.
     daily: {
-      time: [0, 1, 2].map((d) => (start + d * 24 * H) / 1000),
+      time: [0, 1, 2].map((d) => ((Math.floor(Date.now() / (24 * H)) + d) * 24 * H) / 1000),
       temperature_2m_max: [20, 21, 22],
       temperature_2m_min: [9, 10, 11],
     },
