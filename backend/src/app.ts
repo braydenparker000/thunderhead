@@ -13,6 +13,7 @@ import { evalsRoutes } from './areas/evals/routes';
 import { feedRoutes } from './areas/feed/routes';
 import { guitarRoutes } from './areas/guitar/routes';
 import { importRoutes } from './areas/import/routes';
+import { insightRoutes } from './areas/insight/routes';
 import { ledgerRoutes } from './areas/ledger/routes';
 import { ingestRoutes } from './areas/library/ingest';
 import { libraryRoutes } from './areas/library/routes';
@@ -117,6 +118,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', proposalsRoutes)
   .route('/v1', evalsRoutes)
   .route('/v1', predictionsRoutes)
+  .route('/v1', insightRoutes)
   .route('/v1', watchdogsRoutes)
   .route('/v1', backupsRoutes)
   .route('/v1', workRoutes)

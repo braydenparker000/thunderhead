@@ -97,6 +97,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/predictions/:id` | N | P9 | built | a prediction about the open day or the next, with a fixed resolver; at most 12 a day |
 | `GET /v1/predictions` | D C N | P9 | built | newest first; ?open=1 for the unresolved |
 | `GET /v1/predictions/skill` | D C N | P9 | built | Brier skill per category (EVALS.md M-18) |
+| `GET /v1/insight` | D C N | P9 | built | the meter: M-8, M-10, M-16, M-18 (EVALS.md §9), counts only |
 | `GET /v1/ops/watchdogs` | D C N R I | P4 | built | every watchdog, its state and the SLO it guards |
 | `POST /v1/ops/watchdogs/:name/handled` | C N R | P4 | built | what a mind session did about a trip (the reflex reports each one) |
 | `POST /v1/ops/watchdogs/:name/drill` | D C | P4 | built | trip one watchdog by hand when the owner asks, to check that mind-reflex handles it (nothing is wrong) |

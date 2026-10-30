@@ -294,5 +294,9 @@
   "cron tick, resolving a prediction (Core)": {
     "rows_read_max": 56,
     "rows_written_max": 5
+  },
+  "GET /v1/insight (Core)": {
+    "rows_read_max": 62,
+    "rows_written_max": 0
   }
 }

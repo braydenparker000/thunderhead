@@ -632,6 +632,7 @@ The night shift's predictions about the owner's day ([EVALS.md](../mind/EVALS.md
 |---|---|---|---|---|
 | `PUT /v1/predictions/:id` | N | `{ category, args, day, p /* 0.01–0.99, two decimals */, why /* ≤ 200 */ }`: `day` the open day or the next | `200 Prediction`, the same for the same body again | 409 another body under this id; 422 an unknown category or arguments, another day, a chat prediction about the open day after the owner's first message of it, an app prediction about the open day once that app was opened, a card not waiting, or the 13th in 24 hours |
 | `GET /v1/predictions?open&limit` | D C N | — | `200 { items: Prediction[] }`, newest first; `open=1` only the unresolved | |
+| `GET /v1/insight` | D C N | — | `200 InsightResponse`, the meter on the Memory page ([EVALS.md §9](../mind/EVALS.md)), counts only: M-8 by week (the owner's fixes and forgets of facts, and the facts the mind wrote), the newest 4 memory checks (MP), M-16 over the 28 days up to 48 hours ago (an arrangement undone within 48 h; kept when its tile was tapped or the app its `ref: app:<id>` names was opened on its day or the next; else ignored; newer ones waiting), and M-18 per category | |
 | `GET /v1/predictions/skill` | D C N | — | `200 { categories: CategorySkill[] }`: per category the open and resolved counts, the Brier score, the base rate's Brier score, the skill (1 − the two's ratio, only from 30 resolved) and 5 reliability bins | |
 
 ---
@@ -711,7 +712,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `PUT /v1/evals/runs/:id` | C N | P4 |
 | `GET /v1/evals/runs` | D C N | P4 |
 | `PUT /v1/predictions/:id` | N | P9 |
-| `GET /v1/predictions`, `GET /v1/predictions/skill` | D C N | P9 |
+| `GET /v1/predictions`, `GET /v1/predictions/skill`, `GET /v1/insight` | D C N | P9 |
 | `GET /v1/ops/watchdogs` | D C N R I | P4 |
 | `POST /v1/ops/watchdogs/:name/handled` | C N R | P4 |
 | `POST /v1/ops/watchdogs/:name/drill` | D C | P4 |

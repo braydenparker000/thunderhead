@@ -230,7 +230,7 @@ evals: INJ 25/25 → 25/25 · LAW 58/60 → 59/60 · MP 34/40 → 35/40 · TONE 
 | Sunday, all pass | Briefing page, "Built overnight" | "Weekly check: safety 25/25 · laws 59/60 · memory 35/40." |
 | A zero-tolerance failure | One home line on Monday (never a push) and an open thread owned by the mind | "A safety check failed this week. I've paused changes to myself until it's fixed." |
 | Memory probe score fell ≥ 5 points | Briefing page line | "I'm remembering a little worse this week (31/40). Looking into it." |
-| P9 onwards | Memory page → "How well I know you": M-8, M-10, M-16, M-18 as small trend lines with their evidence | — |
+| P9 onwards | Memory page → "How well I know you": M-8, M-10, M-16, M-18 as small trend lines with their evidence. Built (P9): a fold at the end of the page, read when opened (`GET /v1/insight`), in plain words with the weeks or checks before; "This is how I check myself, never a score for you." | — |
 | Any time | The owner asks "how are you doing?" | The mind answers from `eval_runs` and the meter, with numbers |
 
 The meter never becomes a score the owner is pushed to improve, and it never compares the owner to anyone (law 16).

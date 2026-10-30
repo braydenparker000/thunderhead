@@ -203,3 +203,22 @@ export function mindKinds(db: Db): Record<string, number> {
   );
   return Object.fromEntries(rows.map((r) => [r.kind, r.n]));
 }
+
+/** The meter's rows since `from` (P9, EVALS.md M-8 and M-16): when the owner fixed or forgot a fact, and
+ * each arrangement the mind placed (a surface put) with its ref and when it was undone. */
+export function meterRows(db: Db, from: number) {
+  return {
+    corrections: db
+      .all<{ at: number }>(
+        `SELECT at FROM ledger WHERE at >= ? AND actor = 'owner' AND kind = 'memory'
+          AND (json_extract(op_json, '$.op') = 'memory.forget' OR json_extract(undo_json, '$.op') = 'memory.reopen')`,
+        from,
+      )
+      .map((r) => r.at),
+    arrangements: db.all<{ id: string; at: number; ref: string | null; undone_at: number | null }>(
+      `SELECT id, at, ref, undone_at FROM ledger
+        WHERE at >= ? AND kind = 'arrangement' AND actor LIKE 'mind:%' AND what LIKE '%←%'`,
+      from,
+    ),
+  };
+}

@@ -158,6 +158,7 @@ export const ROUTES = {
   },
   'GET /v1/predictions': { who: ['D', 'C', 'N'], phase: 'P9', note: 'newest first; ?open=1 for the unresolved' },
   'GET /v1/predictions/skill': { who: ['D', 'C', 'N'], phase: 'P9', note: 'Brier skill per category (EVALS.md M-18)' },
+  'GET /v1/insight': { who: ['D', 'C', 'N'], phase: 'P9', note: 'the meter: M-8, M-10, M-16, M-18 (EVALS.md §9), counts only' },
   'GET /v1/ops/watchdogs': { who: ['D', 'C', 'N', 'R', 'I'], phase: 'P4', note: 'every watchdog, its state and the SLO it guards' },
   'POST /v1/ops/watchdogs/:name/handled': {
     who: ['C', 'N', 'R'],

@@ -1,6 +1,7 @@
 // Settings → What I remember (MEMORY.md §12, MENU-AND-SETTINGS.md §4.4): everything the mind
 // knows, grouped as the owner thinks of it, with a filter over all of it; the standing rules; loose
-// ends; the day notes; facts that are fading and imported ones to review. Every action is a ledger
+// ends; the day notes; facts that are fading and imported ones to review; and, folded at the end, how
+// well the mind knows the owner (memory-meter.js, P9). Every action is a ledger
 // row with actor owner. Reloads when the feed says memory changed (the chat's `th:changed`); an
 // older Worker without memory says so instead of failing. Forget is memory-forget.js. Returns the
 // page's cleanup (it sends whatever Forget still waits).
@@ -10,6 +11,7 @@ import { ADD_KINDS, fold, GROUPS, odds, shelfOf } from '/th/registry/memory.js';
 import { el, toast, tooSoon } from '/th/ui.js';
 import { factRow, memoryLine, op, privateText } from './memory-facts.js';
 import { forgets } from './memory-forget.js';
+import { meterFold } from './memory-meter.js';
 import { dayRow, threadAdd, threadRow } from './memory-notes.js';
 
 const MEMORY_KINDS = new Set(['fact', 'open_thread', 'day_note', '*']);
@@ -27,7 +29,7 @@ export async function memory(body) {
   const summary = el('details', { class: 'mfold' }, [el('summary', { text: 'What a new session reads first' }), profile]);
   const sections = el('div', { class: 'msections', 'aria-busy': 'true' });
   const line = el('p', { class: 'line', role: 'status' });
-  body.replaceChildren(filter, add, addHost, summary, sections, line);
+  body.replaceChildren(filter, add, addHost, summary, sections, meterFold(), line);
 
   const data = { facts: [], threads: [], days: [], profile: { text: '', fact_ids: [], private_ids: [] } };
   let ready = false;

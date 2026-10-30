@@ -1,5 +1,5 @@
 // The P9 prediction calls of the cost suite (cost.test.ts checks every budget): the night shift's
-// prediction, the list, the skill, and a tick that resolves one whose day is over.
+// prediction, the list, the skill, the meter, and a tick that resolves one whose day is over.
 import { runInDurableObject } from 'cloudflare:test';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
 import { logicalDay } from '../../src/areas/conversation/day';
@@ -39,6 +39,7 @@ export async function predictionCalls(cost: Cost, grant: (ip: string, password?:
   );
   await cost('GET /v1/predictions (Core)', () => api('GET', '/v1/predictions?open=1', d), 200, core());
   await cost('GET /v1/predictions/skill (Core)', () => api('GET', '/v1/predictions/skill', d), 200, core());
+  await cost('GET /v1/insight (Core)', () => api('GET', '/v1/insight', d), 200, core());
   await coreSql(
     `INSERT INTO predictions (id, made_at, made_by, category, args_json, day, p, why, req_sha256)
      VALUES (?, 0, 'mind:night', 'chat.before', '{"time":"09:00"}', ?, 0.6, 'synthetic', 'x')`,

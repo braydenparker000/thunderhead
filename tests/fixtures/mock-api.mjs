@@ -176,6 +176,15 @@ function chatAnswer(c, method, p, url, body) {
   return null;
 }
 
+/** The meter (GET /v1/insight, P9): a month of synthetic counts. */
+const skill = (category, resolved, s) => ({ category, open: 1, resolved, brier: 0.2, brier_base: 0.25, skill: s, bins: [] });
+const INSIGHT = {
+  corrections: [{ fixed: 0, learned: 3 }, { fixed: 1, learned: 5 }, { fixed: 0, learned: 2 }, { fixed: 1, learned: 2 }],
+  memory: [{ passed: 35, n: 40, at: Date.UTC(2026, 10, 1, 9) }, { passed: 34, n: 40, at: Date.UTC(2026, 9, 25, 9) }],
+  arrangements: { kept: 4, undone: 1, ignored: 5, waiting: 2 },
+  skill: [skill('chat.any', 34, 0.23), skill('chat.before', 12, null), skill('app.open', 31, -0.05), skill('chat.count', 0, null)],
+};
+
 const err = (status, code, extra = {}) => [status, { error: { code, message: code, request_id: 'test', ...extra } }];
 
 function answer(state, method, url, body) {
@@ -206,6 +215,7 @@ function answer(state, method, url, body) {
   if (method === 'POST' && /^\/v1\/auth\/notices\/[^/]+\/ack$/.test(p)) return [204, null];
   if (k === 'POST /v1/auth/breakglass/cancel') return [204, null];
   if (method === 'PUT' && p.startsWith('/v1/senses/batches/')) return [200, { accepted: body.events.length, rejected: [] }];
+  if (k === 'GET /v1/insight') return [200, state.insight ?? INSIGHT];
   return (
     proposalsAnswer(state.proposals, method, p, url, body, (kind) => changed(state.chat, kind)) ??
     memoryAnswer(state.memory, method, p, url, body) ??

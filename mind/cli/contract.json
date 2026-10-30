@@ -748,6 +748,16 @@
       "status": "built",
       "note": "Brier skill per category (EVALS.md M-18)"
     },
+    "GET /v1/insight": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "the meter: M-8, M-10, M-16, M-18 (EVALS.md §9), counts only"
+    },
     "GET /v1/ops/watchdogs": {
       "who": [
         "D",

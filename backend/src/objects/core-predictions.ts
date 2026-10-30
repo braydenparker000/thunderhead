@@ -8,10 +8,13 @@ import {
   type PutPredictionRequest,
 } from '../../../shared/contract/predictions.ts';
 import { currentDay } from '../areas/conversation/day';
+import { runs } from '../areas/evals/store';
+import { meterRows } from '../areas/ledger/store';
+import { mindFactsSince } from '../areas/memory/store';
 import * as predictions from '../areas/predictions/ops';
 import type { Sensed } from '../areas/predictions/resolvers';
 import type { Out } from '../lib/result';
-import { dayBefore } from '../lib/time';
+import { DAY, dayBefore } from '../lib/time';
 import type { Caller } from './caller';
 import { CoreWork } from './core-work';
 import { sensesObject } from './senses';
@@ -35,6 +38,19 @@ export abstract class CorePredictions extends CoreWork {
 
   predictionSkill(): CategorySkill[] {
     return predictions.skill(this.db);
+  }
+
+  /** The meter's rows of the last 28 days (GET /v1/insight; EVALS.md §9). */
+  meterInput(now: number) {
+    const { corrections, arrangements } = meterRows(this.db, now - 28 * DAY);
+    return {
+      tz: this.tz(),
+      corrections,
+      learned: mindFactsSince(this.db, now - 28 * DAY),
+      arrangements,
+      memory: runs(this.db, 'MP', 4).map((r) => ({ passed: r.passed, n: r.n, at: r.at })),
+      skill: predictions.skill(this.db),
+    };
   }
 
   /** The tick's pass: the predictions whose day is over; an app's from the Senses object first (one

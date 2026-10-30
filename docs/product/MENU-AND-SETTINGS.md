@@ -185,6 +185,7 @@ The owner's window into the mind's memory ([MEMORY](../mind/MEMORY.md)). "You ca
 | **Fix** | Edit the text; saves as a new version in the owner's words that replaces the old one (the old one is kept as history) |
 | **Pin** | The mind treats it as true until unpinned and never lets it fade |
 | **Forget** | Asks once ("Forget this? It can't be brought back."), then the fact leaves the page and the toast "Forgotten. Undo" shows for 10 s; only then is it deleted for good with every version (MEMORY.md §3). Leaving the page inside those 10 s sends it at once. There is no Recently deleted for facts: forgetting is the point. The owner's tap is the approval. |
+| How well I know you (P9) | Folded at the end, read when opened: corrections in the last 4 weeks by week, the last memory checks, what the mind arranged and what the owner did with it, and its guesses about the owner's day against their usual pattern (from 30 checked). A check on the mind, never a score for the owner (EVALS.md §9) |
 | Proposals | Facts the night shift wants to add or replace that need the owner (e.g. replacing something the owner said) appear as decision cards on home, not here |
 
 ### 4.5 Connected apps

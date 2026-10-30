@@ -242,3 +242,13 @@ export function searchFacts(db: Db, match: string, since: number | null, until: 
     limit,
   );
 }
+
+/** When each fact the mind wrote since `from` was recorded (P9, EVALS.md M-8's denominator). */
+export function mindFactsSince(db: Db, from: number): number[] {
+  return db
+    .all<{ at: number }>(
+      `SELECT recorded_at AS at FROM facts WHERE recorded_at >= ? AND written_by LIKE 'mind:%'`,
+      from,
+    )
+    .map((r) => r.at);
+}

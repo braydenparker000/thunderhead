@@ -83,3 +83,16 @@ export interface SkillResponse {
 export interface PredictionsResponse {
   items: Prediction[];
 }
+
+/** GET /v1/insight: the meter on the Memory page (EVALS.md §9: M-8, M-10, M-16, M-18), counts only. */
+export interface InsightResponse {
+  /** M-8, the last 4 weeks, oldest first: the owner's fixes and forgets of facts, and the facts the mind wrote. */
+  corrections: { fixed: number; learned: number }[];
+  /** M-10: the newest memory checks (suite MP), newest first. */
+  memory: { passed: number; n: number; at: Ms }[];
+  /** M-16 over the 28 days up to 48 hours ago (`waiting`: placed since, not decided yet). */
+  arrangements: { kept: number; undone: number; ignored: number; waiting: number };
+  /** M-18, per category. */
+  skill: CategorySkill[];
+}
+

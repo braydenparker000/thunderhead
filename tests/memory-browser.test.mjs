@@ -231,3 +231,21 @@ test('Add saves a fact in my words; an empty memory and an older Worker each say
   assert.equal(await page.locator('.msections .sempty').textContent(), 'Memory arrives with the next update of the Thunderhead.');
   await page.close();
 });
+
+test('How well I know you: read when opened, in plain words, never a score for the owner', opts, async () => {
+  const { page, api, errors } = await open({});
+  const fold = page.locator('details.mfold', { hasText: 'How well I know you' });
+  assert.equal(api.calls.filter((c) => c.call === 'GET /v1/insight').length, 0, 'nothing read until it opens');
+  await fold.locator('summary').click();
+  await page.waitForSelector('.mmeter');
+  assert.deepEqual(await fold.locator('.mmeter').evaluateAll((ss) => ss.map((s) => [...s.children].map((c) => c.textContent))), [
+    ['Corrections', 'You fixed or forgot 2 of the 12 things I learned in the last 4 weeks.', 'By week, oldest first: 0 of 3 · 1 of 5 · 0 of 2 · 1 of 2'],
+    ['Memory checks', `35 of 40 right on the last check (${new Date(Date.UTC(2026, 10, 1, 9)).toLocaleDateString('en', { weekday: 'long' })}).`, 'Before: 34 of 40'],
+    ['What I arranged', 'Of the 10 things I arranged in the last 4 weeks, you used 4, took back 1 and left 5.', '2 more are still new.'],
+    ['My guesses about your day', 'Whether you write to me: 34 checked; better than your usual pattern by 23%.', 'How early you write: 12 checked; this shows from 30.', 'Which apps you open: 31 checked; no better than your usual pattern yet.'],
+  ]);
+  assert.match(await fold.textContent(), /never a score for you/);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+

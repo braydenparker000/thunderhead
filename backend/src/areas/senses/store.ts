@@ -158,3 +158,14 @@ export function typeDays(db: Db, type: string, from: string, to: string) {
     first: db.one<{ day: string | null }>('SELECT min(day) AS day FROM rollups WHERE type = ?', type)?.day ?? null,
   };
 }
+
+/** The rollups of some types from `from` to `to` (inclusive): for the meter's kept arrangements (P9). */
+export function rollupsFor(db: Db, types: string[], from: string, to: string) {
+  if (!types.length) return [];
+  return db.all<{ day: string; type: string; ref: string; n: number }>(
+    `SELECT day, type, ref, n FROM rollups WHERE day >= ? AND day <= ? AND type IN (${types.map(() => '?').join(', ')})`,
+    from,
+    to,
+    ...types,
+  );
+}

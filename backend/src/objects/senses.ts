@@ -129,6 +129,11 @@ export class Senses extends OwnerObject {
     return { rows, rows_read: this.meter.rowsRead - before };
   }
 
+  /** Some types' rollups for the meter (P9): counts by day and ref only. */
+  rollupsFor(types: string[], from: string, to: string): { day: string; type: string; ref: string; n: number }[] {
+    return store.rollupsFor(this.db, types, from, to);
+  }
+
   /** A type's days for the predictions' resolvers (P9): counts only. */
   typeDays(type: string, from: string, to: string): { days: { day: string; n: number }[]; first: string | null } {
     return store.typeDays(this.db, type, from, to);
