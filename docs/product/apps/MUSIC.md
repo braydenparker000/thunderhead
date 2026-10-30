@@ -715,6 +715,16 @@ returns `{result, undo}`.
 Not verbs, on purpose: rating, deleting an owner playlist (ask-first class), changing sound
 settings, clearing offline copies.
 
+**Built (2026-10-30, the owner's day-1 request):** `music.create_playlist` v1 `{name, refs}` and its
+undo `music.delete_playlist` v1 `{list_id}` (not queueable by the mind; refuses `owner_edited` once
+the owner has changed the playlist). The phone's executor (`frontend/th/music/playlists.js`) writes
+the playlist into the player's own storage (`claude-player`, `state`, `pl:<id>`, marked
+`made_by: 'thunderhead'`), so the as-is player shows it; a chip to `/music/#pl=<list_id>` opens the
+player on it (a recorded `improvement` edit to `music/src/app.js`). The mind picks songs with
+`GET /v1/music/tracks?q=&limit=` (C N: each track's title, artist, album, genre, composer, year,
+seconds). The other verbs of this table wait for their features. It needs the catalog on the new
+Worker (SETUP.md N1–N4).
+
 ### 10.3 When a verb may start sound
 
 Browsers allow audio only after a user gesture, and the Thunderhead never surprises the owner with

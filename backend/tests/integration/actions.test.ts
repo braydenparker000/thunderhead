@@ -160,4 +160,44 @@ describe('the ledger', () => {
     expect((await apiJson('POST', `/v1/ledger/${id}/undo`, { token: C })).status).toBe(422);
     expect((await apiJson('PUT', `/v1/ledger/${uuidv7()}`, { token: N, body })).status).toBe(201);
   });
+  it('a playlist the mind asks a phone to make, and its undo, which only removes it', async () => {
+    const make = {
+      verb: 'music.create_playlist',
+      schema: 1,
+      args: {
+        name: 'Dramatic classical',
+        refs: [`music:r2_native_${'a'.repeat(64)}`, `music:r2_native_${'b'.repeat(64)}`],
+      },
+      why: 'the owner asked for a dramatic classical playlist',
+    };
+    const put = await apiJson<Verb>('PUT', `/v1/verbs/${uuidv7()}`, { token: C, body: make });
+    expect(put.status).toBe(201);
+    expect(
+      (
+        await apiJson('PUT', `/v1/verbs/${uuidv7()}`, {
+          token: C,
+          body: { ...make, args: { ...make.args, refs: ['x'] } },
+        })
+      ).status,
+    ).toBe(422);
+    // The mind can't queue the removal itself: it runs only as the creation's undo.
+    const remove = {
+      verb: 'music.delete_playlist',
+      schema: 1,
+      args: { list_id: 'abc123def' },
+      why: 'tidy up the list',
+    };
+    expect((await apiJson('PUT', `/v1/verbs/${uuidv7()}`, { token: C, body: remove })).status).toBe(422);
+    const id = put.body.id;
+    await apiJson('POST', `/v1/verbs/${id}/claim`, { token: D });
+    const done = await apiJson<Verb>('POST', `/v1/verbs/${id}/result`, {
+      token: D,
+      body: {
+        ok: true,
+        result: { list_id: 'abc123def', tracks: 2 },
+        undo: { verb: 'music.delete_playlist', schema: 1, args: { list_id: 'abc123def' } },
+      },
+    });
+    expect(done.status).toBe(200);
+  });
 });

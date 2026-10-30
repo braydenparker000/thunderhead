@@ -35,6 +35,14 @@ export const EDITS = {
       ["    const r = (await viaNew(`sounds/${instrument}/${note}.mp3`)) ?? await fetch(url);", "    const r = await fetch(url);"],
     ],
   },
+  // P5 improvement the owner agreed to (decisions 2026-10-30, ROADMAP P10): a chip to /music/#pl=<id> opens
+  // that playlist, so a playlist the Thunderhead made opens where the owner lands.
+  'music/src/app.js': {
+    adjustments: ['improvement'],
+    edits: [
+      ["  // The Thunderhead's \"Open in Music\" for a playlist (#pl=<id>, MUSIC.md \u00a710.2): that playlist's tracks.\n  const pl = /^#pl=([a-z0-9]{6,24})$/.exec(location.hash)?.[1];\n  if (pl && ctx.playlists?.get(pl)) {\n    history.replaceState(null, '', location.pathname + location.search);\n    ctx.bus.post('bus_gui', 'cmd_nav_to_playlist', null, {playlist: ctx.playlists.get(pl)});\n  }\n  // A library that arrives later (R2 index refresh) fills an empty player.", "  // A library that arrives later (R2 index refresh) fills an empty player."],
+    ],
+  },
   // P5 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the player's worker answers its library
   // requests from the new Worker (th/music/bridge.js), the old one while the new one can't.
   'music/sw.js': {

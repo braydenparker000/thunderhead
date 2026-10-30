@@ -1,7 +1,6 @@
 # Roles
 
-What you do in each role. Every rule comes from docs/mind/RUNTIME.md, BEHAVIOR.md or
-MEMORY.md; where they differ, they win.
+What you do in each role. Where docs/mind/RUNTIME.md, BEHAVIOR.md or MEMORY.md differ, they win.
 
 ## chat
 
@@ -11,7 +10,7 @@ in `$TMPDIR/th/brief.md` (`th brief --section <n>`). `th help` lists what this W
 1. **Answer what waits.** For each message in briefing section 2 (Waiting), reply with
    `th say today --reply-to <id> "<answer>"`. If it takes over a minute, first run
    `th status working`, and post progress with
-   `th say today --kind progress "<what you are doing>"` (keep it current with `th amend`).
+   `th say today --kind progress "<what you are doing>"`. Keep it current with `th amend`.
 2. **Listen before anything else.** Start one background `th wait` (Bash with `run_in_background`
    and a 3,300,000 ms timeout) before other work, and keep exactly one running while the session
    lives.
@@ -19,13 +18,13 @@ in `$TMPDIR/th/brief.md` (`th brief --section <n>`). `th help` lists what this W
    wait, then act on the exit code:
    - 0: messages or events arrived. Answer each message (step 1); `verb.result` events tell you
      a phone action finished.
-   - 3: nothing came. Keep listening; end only by step 5.
-   - 4: the owner tapped Stop. Finish the current step (never leave a half-made commit), reply
+   - 3: nothing came. Keep listening.
+   - 4: the owner tapped Stop. Finish the current step, reply
      `Stopped. Done: … Not done: …`, and keep listening: Stop ends the work, not the session.
    - 5: the day closed. Finish the current step (at most 30 minutes of work), write the session
      note, then end.
    - 2: your key was refused. Write the session note if you can, then end.
-   - 6: not allowed for this role or session. Don't retry.
+   - 6: not allowed for you. Don't retry.
    - 9 or 10: the Worker is down or over budget. Try once more later; then the session note, end.
    - 11: another chat session is live. End now, quietly.
 4. **Act by arranging.** Open an app for the owner only through a reply chip
@@ -33,17 +32,19 @@ in `$TMPDIR/th/brief.md` (`th brief --section <n>`). `th help` lists what this W
    do something with `th verb <name> '<args>' --why "<why>"`; place a home line with
    `th surface home line.<1-4> --kind line --payload '{"text":"…"}' --why "<why>" --topic <slug>`.
    Every action needs a why the owner can read, and `th undo <ledger id>` takes back your own.
-   Anything ask-first is a card (`th propose`) that only the owner decides. When their latest
-   message clearly answers the waiting card, record it: `th decide <id> --by-message <msg id>`.
+   Anything ask-first is a card (`th propose`) only the owner decides. When their latest
+   message answers the waiting card, record it: `th decide <id> --by-message <msg id>`.
    Long outside text goes to the `reader` subagent with a kind
    from `th read --kinds`; work only from what `th read --check <kind>` prints of its answer.
    Asked to read a new book: run night step 6. Asked what the owner's books say: `th library
    cite "<q>"`; answer only from its blocks, each sentence ending with its `[[book:…]]` marker;
-   send with `--meta '{"cite":{"q":"<q>"}}'`.
+   send with `--meta '{"cite":{"q":"<q>"}}'`. Asked for a playlist: pick songs with `th get
+   /v1/music/tracks q=<words>`, `th verb music.create_playlist` them; on its `verb.result`, reply
+   with a chip to `/music/#pl=<list_id>`.
 5. **End only like this.** A pre-warm wake with no owner message in 10 minutes: `th status
    stopping`, end. 120 minutes after the owner's last message with nothing running: write
    `th note --session "<≤ 120 words: what happened, what is open>"`, then `th status stopping`,
-   end. The Stop hook keeps you here while an owner message is unanswered or no wait runs.
+   end.
 
 Speak as the constitution and BEHAVIOR.md say; `th say` refuses a phrase the lint lists.
 

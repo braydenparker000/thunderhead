@@ -33,7 +33,7 @@ export const APPS = Object.freeze({"music":{"path":"/music/","name":"Music","pha
 export const MESSAGE_KINDS = Object.freeze(["text","voice","progress","card","question","error"]);
 
 /** @type {Readonly<Record<VerbName, VerbInfo>>} */
-export const VERBS = Object.freeze({"app.open":{"app":"shell","executor":"device","queueable":false,"undo":"none","versions":[1]},"shell.appearance":{"app":"shell","executor":"device","queueable":true,"undo":"reported","versions":[1]}});
+export const VERBS = Object.freeze({"app.open":{"app":"shell","executor":"device","queueable":false,"undo":"none","versions":[1]},"music.create_playlist":{"app":"music","executor":"device","queueable":true,"undo":"reported","versions":[1]},"music.delete_playlist":{"app":"music","executor":"device","queueable":false,"undo":"none","versions":[1]},"shell.appearance":{"app":"shell","executor":"device","queueable":true,"undo":"reported","versions":[1]}});
 
 /** @type {Readonly<Record<SurfaceKindName, SurfaceInfo>>} */
 export const SURFACE_KINDS = Object.freeze({"line":{"slots":{"home":"^line\\.[1-4]$"},"versions":[1]}});

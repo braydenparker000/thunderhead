@@ -6,7 +6,12 @@
 // Study's books are not signed: the phone reads them through the Worker (GET /v1/library/books/:id/file).
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
-import { type MediaSignResponse, MUSIC_LIMITS, type MusicWaveform } from '../../../../shared/contract/music.ts';
+import {
+  type MediaSignResponse,
+  MUSIC_LIMITS,
+  type MusicTracksResponse,
+  type MusicWaveform,
+} from '../../../../shared/contract/music.ts';
 import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { json } from '../../http/validate';
@@ -39,6 +44,12 @@ export const musicRoutes = new Hono<AppEnv>()
     // The object may have moved on between the two calls: the ETag sent is the text's own.
     c.header('ETag', held.etag);
     return c.body(held.text, 200, { 'Content-Type': 'application/json; charset=utf-8' });
+  })
+  // The mind picks a playlist's tracks by their tags (MUSIC.md §10.2), then asks a phone to make it.
+  .get('/music/tracks', guard('GET /v1/music/tracks'), async (c) => {
+    const q = (c.req.query('q') ?? '').trim().slice(0, 200);
+    const limit = Math.min(1000, Math.max(1, Math.floor(Number(c.req.query('limit') ?? 200)) || 200));
+    return c.json((await fresh(musicObject(c.env).findTracks(q, limit))) satisfies MusicTracksResponse);
   })
   .get('/music/waveforms/:id', guard('GET /v1/music/waveforms/:id'), async (c) => {
     const id = c.req.param('id');

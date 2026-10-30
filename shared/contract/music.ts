@@ -23,6 +23,24 @@ export interface MusicCatalog {
   tracks: (Record<string, unknown> & { id: string; waveformBars?: true })[];
 }
 
+/** One track as the mind sees it (GET /v1/music/tracks?q=&limit=): its tags, for picking songs. */
+export interface MusicTrackRow {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  genre: string;
+  composer: string;
+  year: number;
+  /** Seconds. */
+  dur: number;
+}
+export interface MusicTracksResponse {
+  items: MusicTrackRow[];
+  /** Every track the words match, though only `limit` come back. */
+  total: number;
+}
+
 /** GET /v1/music/waveforms/:id: base64 of one byte a bar (16–1000 bars). */
 export interface MusicWaveform {
   id: string;

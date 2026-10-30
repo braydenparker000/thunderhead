@@ -77,9 +77,17 @@
      "adjustments": []
     },
     "music/src/app.js": {
-     "sha256": "c3478bfced550f958049e990f7c8f505c6531f664fd6294564bf647124bd6de7",
+     "sha256": "256b1b6aee0c29789fe39f829ce227851e1bc0d40a8d32d662c26bc4b29e3839",
      "old_sha256": "c3478bfced550f958049e990f7c8f505c6531f664fd6294564bf647124bd6de7",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "  // The Thunderhead's \"Open in Music\" for a playlist (#pl=<id>, MUSIC.md §10.2): that playlist's tracks.\n  const pl = /^#pl=([a-z0-9]{6,24})$/.exec(location.hash)?.[1];\n  if (pl && ctx.playlists?.get(pl)) {\n    history.replaceState(null, '', location.pathname + location.search);\n    ctx.bus.post('bus_gui', 'cmd_nav_to_playlist', null, {playlist: ctx.playlists.get(pl)});\n  }\n  // A library that arrives later (R2 index refresh) fills an empty player.",
+       "  // A library that arrives later (R2 index refresh) fills an empty player."
+      ]
+     ]
     },
     "music/src/context.js": {
      "sha256": "628169de68c02b9d455500be2dff5999d27981bd40b6b169b416c48362f842ac",

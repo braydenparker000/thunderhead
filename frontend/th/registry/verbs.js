@@ -30,6 +30,13 @@ export const EXECUTORS = {
       return { ok: true, result: {} };
     },
   },
+  // The Music player's playlists, in its own storage (th/music/playlists.js, loaded when needed).
+  'music.create_playlist': {
+    1: async (args) => (await import('../music/playlists.js')).createPlaylist(args),
+  },
+  'music.delete_playlist': {
+    1: async (args) => (await import('../music/playlists.js')).deletePlaylist(args),
+  },
   'shell.appearance': {
     1: async ({ mode }) => {
       const previous = currentMode();

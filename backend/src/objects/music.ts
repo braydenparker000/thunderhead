@@ -5,6 +5,7 @@
 // serves it: the whole catalog without waveforms under one ETag, one track's waveform, and the
 // content keys a signed link needs. P5 step 3 makes it the catalog's single writer for the upload
 // tools (areas/music/writer.ts), one operation at a time.
+import type { MusicTrackRow, MusicTracksResponse } from '../../../shared/contract/music.ts';
 import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
 import * as store from '../areas/music/store';
@@ -140,6 +141,42 @@ export class Music extends OwnerObject {
     const text = `${JSON.stringify({ ...head, generatedAt }).slice(0, -1)},"tracks":[${tracks.join(',')}]}`;
     this.built = { etag, text };
     return this.built;
+  }
+
+  /** Tracks whose tags hold every word of `q` (title, artist, album, genre, composer), in catalog
+   * order, at most `limit`, with how many match in all: what the mind picks a playlist from. */
+  findTracks(q: string, limit: number): MusicTracksResponse {
+    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+    const items: MusicTrackRow[] = [];
+    let total = 0;
+    for (const r of this.db.all<{ id: string; record_json: string }>(
+      'SELECT id, record_json FROM tracks ORDER BY ord',
+    )) {
+      const t = JSON.parse(r.record_json) as { path?: string; metadata?: Record<string, unknown> };
+      const m = t.metadata ?? {};
+      const s = (k: string) => (typeof m[k] === 'string' ? (m[k] as string) : '');
+      const row: MusicTrackRow = {
+        id: r.id,
+        title:
+          s('title') ||
+          (t.path ?? '')
+            .split('/')
+            .pop()
+            ?.replace(/\.[^.]+$/, '') ||
+          '',
+        artist: s('artist'),
+        album: s('album'),
+        genre: s('genre'),
+        composer: s('composer'),
+        year: Number(m.year) || 0,
+        dur: Math.round(Number(m.dur) || 0),
+      };
+      const hay = `${row.title} ${row.artist} ${row.album} ${row.genre} ${row.composer}`.toLowerCase();
+      if (!words.every((w) => hay.includes(w))) continue;
+      total++;
+      if (items.length < limit) items.push(row);
+    }
+    return { items, total };
   }
 
   waveform(id: string): string | null {

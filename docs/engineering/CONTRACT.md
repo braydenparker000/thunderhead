@@ -124,6 +124,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/board/editions/:day` | D C N | P4 | built | outside text from Muse, checked against the v2 schema |
 | `GET /v1/music/catalog` | D | P5 | built | the ported player's format; ETag, 304; 409 before the import |
 | `GET /v1/music/waveforms/:id` | D | P5 | built |  |
+| `GET /v1/music/tracks` | C N | P5 | built | ?q=&limit=: tracks by their tags, for a playlist the mind makes |
 | `PUT /v1/music/uploads/audio/:file` | public | P5 | built | signed by an upload tool key; Ogg Opus, ≤ 32 MiB |
 | `PUT /v1/music/uploads/art/:file` | public | P5 | built | signed by an upload tool key; JPEG or PNG, ≤ 2 MiB |
 | `POST /v1/music/uploads/:op` | public | P5 | built | signed by an upload tool key; the catalog writer's operations, export and links |
@@ -169,6 +170,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | Verb | App | Class | Runs on | Queueable | Undo | Versions | Args (newest) | What it does |
 |---|---|---|---|---|---|---|---|---|
 | `app.open` | shell | reversible | device | no (owner tap) | none | 1 | `{ app: 'music' \| 'guitar' \| 'podcasts' \| 'astra' \| 'media' \| 'study', path: string }` | Opens an app at a place. Runs only when the owner taps a reply's action chip; the mind never opens an app by itself (BEHAVIOR.md §2.2). |
+| `music.create_playlist` | music | reversible | device | yes | reported | 1 | `{ name: string, refs: array }` | Makes a playlist in the Music player from tracks (`music:<id>`), on this phone. Open it with a reply chip to `/music/#pl=<list_id>`. Its undo removes it while the owner hasn't changed it. |
+| `music.delete_playlist` | music | reversible | device | no (owner tap) | none | 1 | `{ list_id: string }` | Only the undo of music.create_playlist: removes a playlist the Thunderhead made, while the owner hasn't changed it (else `owner_edited`). Deleting the owner's own playlists is ask-first and no verb. |
 | `shell.appearance` | shell | reversible | device | yes | reported | 1 | `{ mode: 'auto' \| 'day' \| 'night' }` | Sets the phone's appearance (auto, day or night). The phone reports the previous mode as the undo. |
 
 ## Surface kinds

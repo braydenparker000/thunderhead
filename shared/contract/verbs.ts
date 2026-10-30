@@ -27,6 +27,9 @@ export interface VerbSpec {
   doc: string;
 }
 
+const SONG_REF = /^music:r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$/;
+const LIST_ID = /^[a-z0-9]{6,24}$/;
+
 const path = z.string().check(z.minLength(1), z.maxLength(200), z.regex(/^\/[A-Za-z0-9._~!$&'()*+,;=:@/?#%-]*$/));
 const mode = z.enum(['auto', 'day', 'night']);
 
@@ -44,6 +47,37 @@ export const VERBS = {
       },
     },
     doc: "Opens an app at a place. Runs only when the owner taps a reply's action chip; the mind never opens an app by itself (BEHAVIOR.md §2.2).",
+  },
+  'music.create_playlist': {
+    app: 'music',
+    class: 'reversible',
+    executor: 'device',
+    queueable: true,
+    undo: 'reported',
+    versions: {
+      1: {
+        args: z.object({
+          name: z.string().check(z.minLength(1), z.maxLength(60)),
+          refs: z.array(z.string().check(z.regex(SONG_REF))).check(z.minLength(1), z.maxLength(500)),
+        }),
+        result: z.object({ list_id: z.string().check(z.regex(LIST_ID)), tracks: z.number() }),
+      },
+    },
+    doc: "Makes a playlist in the Music player from tracks (`music:<id>`), on this phone. Open it with a reply chip to `/music/#pl=<list_id>`. Its undo removes it while the owner hasn't changed it.",
+  },
+  'music.delete_playlist': {
+    app: 'music',
+    class: 'reversible',
+    executor: 'device',
+    queueable: false,
+    undo: 'none',
+    versions: {
+      1: {
+        args: z.object({ list_id: z.string().check(z.regex(LIST_ID)) }),
+        result: z.object({}),
+      },
+    },
+    doc: "Only the undo of music.create_playlist: removes a playlist the Thunderhead made, while the owner hasn't changed it (else `owner_edited`). Deleting the owner's own playlists is ask-first and no verb.",
   },
   'shell.appearance': {
     app: 'shell',

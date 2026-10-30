@@ -5,6 +5,8 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
+**The playlist from plain words** (P10, going live with this push): "make me a playlist with dramatic classical music and open Music" → the mind finds songs by their tags, a phone makes the playlist in the player's own storage, and the reply's Open in Music opens the player on it; undoable while unchanged. Works once SETUP.md N1–N4 put the catalog on the new Worker.
+
 **P7 · Study**, built. Step 6, going live with this push: ask the chat what your books say about anything (a verse or a topic); the mind answers only from your books' blocks, each sentence with a numbered source that opens Study at that page, and "Where to study" under it; the Worker drops any sentence the blocks don't back before it is stored. Step 5 (`030b060`): books are downloaded once through the Worker and kept on the phone (instant, offline; no owner step). P7's done-when waits on one real book on the owner's phone.
 Step 4 (`ac998ec`): verses. The scripture parser runs on the phone, in the Worker and in the mind; the owner's book table and verse text live only in the private bucket (stored by the mind, SETUP.md O2; a repo test fails on any real table, link template or verse text); the Worker stores no verse ref the table doesn't hold; the night's reading records each block's verse refs with their weights; the verse page (`/study/?verse=`: the reference, the owner's copy, Open in the scripture app, Cited in your books, the owner's highlights) and the search's verse card. Checked in Chromium, and end to end against the real Worker (table imported, a book read, its verse cited). Until O2 is done, Study works without verses.
 Step 3, live since 01:37 UTC (`8d51a0b`, run #50; the site's files match): reading the owner's books in the mind's session, as night step 6 (at most 2 books and 10 minutes a night; a book goes on from its cursor): text, printed page numbers, OCR where a page needs it, blocks, pages under the bulk lane; counts only in its output (tested end to end against the real Worker, OCR included). Step 2, live since 01:36 UTC (`ab6d3bd`, run #49; checked live: signed out it goes to sign-in and back, pdf.js 6.4.299 loads and reads a PDF on the site with its worker, the ring opens Study, no errors): the Study app on its own page (`/study/`: the library with Continue and covers drawn on the phone, adding a book in parts with Resume, search grouped by book, and the reader over signed 256 KB ranges with printed page numbers, Go to page, the place kept across devices, night pages). Checked in Chromium against a mock API and bucket. Reading needs SETUP.md N1 and O1 (ask-first).
@@ -37,9 +39,9 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Next three tasks
 
-1. Check P7 on the owner's phone with one real book (the done-when): add a book, let the night read it, ask in the chat what it says.
-2. Then each app's day-1 feature, finishing its phase (owner, 2026-10-30, "what's actually best"): Music (the playlist from plain words, the smart DJ shuffle, better search), Guitar (tips per section); then P8 with Astra's anime pick and the others' search; then P9.
-3. Owner: SETUP.md N1–N4 (music), M2 (the reflex routine and its drill), M3 (Muse moves over), M4 from 2026-11-05. Sunday's first backup and drill are P4's "a restore drill passed"; the Music object's first backup runs with it.
+1. Music's other day-1 features: the smart DJ shuffle and better search in the player; then Guitar's tips per section.
+2. P8 with each app's day-1 feature (Astra's anime pick first), then P9.
+3. Owner: SETUP.md N1–N4 (music on the new Worker: the playlist from plain words works once they're done), M2, M3, M4 from 2026-11-05; one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
 
 ## Blocked / waiting on the owner
 
@@ -51,7 +53,8 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Last deploy
 
-- 2026-10-30: this push, P7 step 6 ("ask about your books": `th library cite`, the Worker's check of cited answers, numbered sources and "Where to study" on the phone; no schema change).
+- 2026-10-30: this push, the playlist from plain words (no schema change).
+- 2026-10-30: `24edbb0` (run #54), P7 step 6 ("ask about your books": `th library cite`, the Worker's check of cited answers, numbered sources and "Where to study" on the phone; no schema change).
 - 2026-10-30: `030b060` (run #53), P7 step 5 (books read through the Worker and kept on the phone).
 - 2026-10-30: `ac998ec` (run #51), P7 step 4 (verses: the parser, the private table and text, the verse page).
 - 2026-10-30 01:37 UTC: `8d51a0b` (run #50), P7 step 3 (the mind reads the owner's books, night step 6; no Worker schema change). Checked live: the site's files match.

@@ -195,6 +195,12 @@ export async function boot() {
     // The song left off: its start on the phone, so the first play starts at once.
     player.wantStartHead();
   }
+  // The Thunderhead's "Open in Music" for a playlist (#pl=<id>, MUSIC.md §10.2): that playlist's tracks.
+  const pl = /^#pl=([a-z0-9]{6,24})$/.exec(location.hash)?.[1];
+  if (pl && ctx.playlists?.get(pl)) {
+    history.replaceState(null, '', location.pathname + location.search);
+    ctx.bus.post('bus_gui', 'cmd_nav_to_playlist', null, {playlist: ctx.playlists.get(pl)});
+  }
   // A library that arrives later (R2 index refresh) fills an empty player.
   // A refreshed index replaces the records: the player takes the new ones.
   ctx.bus.subscribe('bus_library', () => {

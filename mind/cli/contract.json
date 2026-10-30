@@ -984,6 +984,15 @@
       "phase": "P5",
       "status": "built"
     },
+    "GET /v1/music/tracks": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "?q=&limit=: tracks by their tags, for a playlist the mind makes"
+    },
     "PUT /v1/music/uploads/audio/:file": {
       "who": "P",
       "phase": "P5",
@@ -1345,6 +1354,85 @@
             "required": [
               "app",
               "path"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      }
+    },
+    "music.create_playlist": {
+      "app": "music",
+      "class": "reversible",
+      "executor": "device",
+      "queueable": true,
+      "undo": "reported",
+      "doc": "Makes a playlist in the Music player from tracks (`music:<id>`), on this phone. Open it with a reply chip to `/music/#pl=<list_id>`. Its undo removes it while the owner hasn't changed it.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "refs": {
+                "minItems": 1,
+                "maxItems": 500,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^music:r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$"
+                }
+              }
+            },
+            "required": [
+              "name",
+              "refs"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "list_id": {
+                "type": "string",
+                "pattern": "^[a-z0-9]{6,24}$"
+              },
+              "tracks": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "list_id",
+              "tracks"
+            ]
+          }
+        }
+      }
+    },
+    "music.delete_playlist": {
+      "app": "music",
+      "class": "reversible",
+      "executor": "device",
+      "queueable": false,
+      "undo": "none",
+      "doc": "Only the undo of music.create_playlist: removes a playlist the Thunderhead made, while the owner hasn't changed it (else `owner_edited`). Deleting the owner's own playlists is ask-first and no verb.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "list_id": {
+                "type": "string",
+                "pattern": "^[a-z0-9]{6,24}$"
+              }
+            },
+            "required": [
+              "list_id"
             ]
           },
           "result": {

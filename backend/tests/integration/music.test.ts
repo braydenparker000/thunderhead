@@ -7,7 +7,7 @@
 import { createExecutionContext } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { MediaSignResponse, MusicCatalog } from '../../../shared/contract/music.ts';
+import type { MediaSignResponse, MusicCatalog, MusicTracksResponse } from '../../../shared/contract/music.ts';
 import { app } from '../../src/app';
 import { presign } from '../../src/areas/music/sign';
 import { uuidv7 } from '../../src/lib/ids';
@@ -151,6 +151,27 @@ describe('the music catalog, imported (I7)', () => {
     });
     const cat = (await apiJson<MusicCatalog>('GET', '/v1/music/catalog', { token: p.D })).body;
     expect(cat.tracks.map((t) => t.id)).toEqual([B, C, A, reg.body.id]);
+  });
+
+  it('the mind finds tracks by their tags (every word), at most `limit`, with how many match', async () => {
+    const find = (q: string, limit = 200, token = p.C) =>
+      apiJson<MusicTracksResponse>('GET', `/v1/music/tracks?q=${encodeURIComponent(q)}&limit=${limit}`, { token });
+    const all = await find('an artist');
+    expect([all.body.total, all.body.items.map((t) => t.id)]).toEqual([3, [B, C, A]]);
+    expect(all.body.items[0]).toEqual({
+      id: B,
+      title: `Song ${B}`,
+      artist: 'An Artist',
+      album: '',
+      genre: '',
+      composer: '',
+      year: 0,
+      dur: 202,
+    });
+    expect((await find('uploaded someone')).body.items.map((t) => t.title)).toEqual(['Uploaded']);
+    expect((await find('artist', 1)).body).toMatchObject({ total: 3, items: [{ id: B }] });
+    expect((await find('', 200, p.N)).body.total).toBe(4);
+    expect((await api('GET', '/v1/music/tracks?q=x', { token: p.D })).status).toBe(403);
   });
 
   it('a waveform is one track at a time; the catalog and waveforms are the device’s only', async () => {

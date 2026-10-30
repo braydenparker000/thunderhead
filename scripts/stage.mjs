@@ -83,7 +83,7 @@ const budgets = [
   ['total bytes', total, 40_000_000],
   ['home JS bytes', sum(/^(apps\/home|ui)\/.*\.js$/), 120_000],
   // th/ modules the shell loads at boot, and the conversation it loads after the first paint.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 60_000],
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 64_000],
   ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 60_000],
   // The menu's conversations and search, loaded when the menu first opens.
   ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 60_000],
