@@ -3,7 +3,8 @@
 // and one overlay), so a long conversation, the Briefing and Settings scroll and slide smoothly;
 // Settings sits on home's own field with a round back button and focuses its title, not a ring;
 // the 404 wears the shell's field and voice; with reduced motion nothing keeps moving on home; the
-// shell's pages cross-fade, and opening an app from home throws nothing, even on a slow phone.
+// shell's pages cross-fade, and neither opening an app from home nor home handing a signed-out
+// owner on to sign-in throws anything, even on a slow phone.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -105,4 +106,23 @@ test('opening an app from home skips the cross-fade cleanly, even on a slow phon
   await page.waitForTimeout(1500);
   assert.deepEqual(errors, []);
   await context.close();
+});
+
+test('signed out, the 404’s Back home goes on to sign-in without a cross-fade error, even on a slow phone', opts, async () => {
+  // Home leaves before it shows, so the cross-fade into it is dropped; without the catch this threw
+  // in about half the runs at 6× slower.
+  for (let i = 0; i < 4; i++) {
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+    const page = await context.newPage();
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    await mockApi(page, {});
+    await (await context.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: 6 });
+    await page.goto(`${base}/no-such-page`, { waitUntil: 'load' });
+    await page.click('a.home');
+    await page.waitForURL(/\/signin\//);
+    await page.waitForTimeout(1000);
+    assert.deepEqual(errors, [], `run ${i + 1}`);
+    await context.close();
+  }
 });

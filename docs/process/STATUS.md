@@ -70,9 +70,11 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 - SETUP.md O2 (the owner's scripture volumes added in Study, then the mind builds the table and text): verses need it.
 - SETUP.md N1 (the signing token) and N2 (`jarvis-music` CORS, ask-first) any time; N4 (the tools' key) then N3 (the catalog import) on one day: the player switches by itself after them.
 - The decision card's place at the top of home: the owner wants to talk about its design first; unchanged until then.
+- Azure's error document (SETUP.md step 7): the live site answers a missing page with Azure's own "WebContentNotFound" page, not ours. Storage account → Data management → Static website → Error document path: `404.html` → Save.
 
 ## Last deploy
 
+- 2026-10-30 09:57 UTC: `a845401` (run #76), the shell's one look. Checked live: the 11 CSS and JS files match, the 3 pages differ only by the API origin in their CSP, and the 404 page (at `/404.html`) and sign-in render with the field, the voice and the 30 px title. The cross-fade into a page that leaves before it shows threw live; fixed in the next commit.
 - 2026-10-30: `1402a13` (run #74), `th surface --ref` (the mind's CLI and ROLES only).
 - 2026-10-30 08:03 UTC: `d1b0298` (run #73), P9 the meter on the Memory page. Checked live: the Worker's tag, the page's files, `/v1/insight` 401 without a key.
 - 2026-10-30: `6483400` (run #72), P9 app use from the phone and `app.open` predictions. Checked live: the files match; a signed-out ported page sends nothing.
