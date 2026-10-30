@@ -576,3 +576,40 @@ test('Find in today: every match marked, "3 of 3" newest first, Enter steps back
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('what you were writing survives a reload, and goes once sent; a quiet order says what it will do first', opts, async () => {
+  const { page, context, errors } = await open();
+  await page.fill('#q', 'Half a thought about the');
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('#talk', { state: 'attached' });
+  assert.equal(await page.inputValue('#q'), 'Half a thought about the');
+  assert.ok(await page.$eval('#ask', (a) => a.classList.contains('typing')), 'send shows, not the mic');
+  await page.fill('#q', 'go quiet for 2 hours');
+  assert.match(await page.textContent('#cmdhint'), /^Quiet until \d\d:\d\d\. No notifications until then\.$/);
+  await page.fill('#q', 'Half a thought about the weekend');
+  assert.equal(await page.textContent('#cmdhint'), '');
+  await page.press('#q', 'Enter');
+  await page.waitForSelector('#talk .you');
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('#talk', { state: 'attached' });
+  assert.equal(await page.inputValue('#q'), '', 'sent: no draft');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('an app opens growing from its chip; a chart reads out the column tapped', opts, async () => {
+  const reply = { after: 200, text: 'Here is your week.', meta: { chip: { label: 'Open in Music', app: 'music', path: '/music/' }, blocks: [{ type: 'chart', kind: 'column', text: 'Minutes a day', labels: ['Mon', 'Tue', 'Wed'], series: [{ name: 'Minutes', values: [30, 20, 40] }], unit: 'min' }] } };
+  const { page, context, errors } = await open({ chat: { reply, presence: { state: 'listening', note: null, since: Date.now() } } });
+  await send(page, 'How was my week?');
+  await page.waitForSelector('#talk .bchart rect');
+  const box = await page.$eval('#talk .bchart svg', (s) => { const r = s.getBoundingClientRect(); return { x: r.left, y: r.top, w: r.width, h: r.height }; });
+  await page.mouse.click(box.x + box.w * 0.5, box.y + box.h * 0.8);
+  assert.equal(await page.textContent('#talk .bread'), 'Tue: 20 min');
+  assert.deepEqual(await page.$$eval('#talk .bchart rect', (r) => r.map((x) => x.classList.contains('on'))), [false, true, false]);
+  await page.waitForSelector('#talk .chip.in');
+  await page.click('#talk .chip');
+  await page.waitForSelector('.launch');
+  await page.waitForURL(`${base}/music/`);
+  assert.deepEqual(errors, []);
+  await context.close();
+});

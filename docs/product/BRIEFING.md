@@ -106,6 +106,8 @@ The Board (the old Daily Board) is a daily news edition **produced by Muse** to 
   - Stories in the edition's order, each with title, label, dek, "Why it matters", blocks (text, stats, chart, timeline, quote and the rest of the v2 format) and numbered source marks that open the source list.
   - Type: Inter for everything. The Board is not the Thunderhead's voice, so it never uses Fraunces (owner ruling on type) [the old Board used a serif headline face; that changes].
   - Long-press a story: "Ask about this".
+  - **Charts answer a tap** (built 2026-10-30): tapping a chart reads out the column under the finger ("Tue: 20 min") and dims the rest; a line chart marks its points. A timeline's current step (`state: now`) carries an accent rule and bold text. The same blocks under a reply in the chat behave the same.
+- **Values roll in** (built 2026-10-30): when the Briefing redraws and a tile's value or detail has changed (the temperature, a count, "as of"), the new text rises in over 380 ms instead of jumping; reduced motion: no roll.
 - **Brief:** the owner's Board choices (topics, depth, number of stories) are edited by asking the Thunderhead ("more economy, less sport"); the mind updates the brief. No settings screen in v1 [proposal].
 - Its full reader spec belongs in a future `docs/product/apps/BOARD.md` (not yet assigned).
 

@@ -130,8 +130,8 @@ There are three positions. Only one is "at rest" at any time.
 | Home | Drag left | `p ≥ 0.28` **or** velocity ≥ 0.45 px/ms leftwards | Springs back home |
 | Briefing | Drag left | `p ≤ 0.72` (28% of the way back) **or** velocity ≥ 0.45 px/ms leftwards | Springs back to the briefing |
 | Menu | Drag right | `p ≤ 0.72` **or** velocity ≥ 0.45 px/ms rightwards | Springs back open |
-| Briefing | Drag right | Nothing further (rubber-band to max 24 px, then stops) | n/a |
-| Menu | Drag left | Nothing further (rubber-band to max 24 px) | n/a |
+| Briefing | Drag right | Nothing further: a rubber band (built 2026-10-30: past the end the page moves 0.22 of the overshoot, easing off, about 25 px at most on a phone) and springs back on release | n/a |
+| Menu | Drag left | Nothing further: the same rubber band | n/a |
 
 - **Velocity** is measured over the last **80 ms** of moves before release (at least 2 samples). A fling against the drag direction cancels even past 28%.
 - **One hop per gesture.** A single drag from the briefing can never pass home and open the menu.

@@ -62,6 +62,14 @@ button.tile:active{transform:scale(.98)}
 .bchart .axis{stroke:var(--glass-line);stroke-width:1}
 .bchart rect.s0{fill:var(--accent-text)}.bchart rect.s1{fill:var(--gold)}.bchart rect.s2{fill:var(--ink-3)}
 .bchart polyline.s0{stroke:var(--accent-text);stroke-width:2.5}.bchart polyline.s1{stroke:var(--gold);stroke-width:2.5}.bchart polyline.s2{stroke:var(--ink-3);stroke-width:2.5}
+.bchart svg{cursor:pointer}
+.bchart circle.s0{fill:var(--accent-text)}.bchart circle.s1{fill:var(--gold)}.bchart circle.s2{fill:var(--ink-3)}
+.bchart rect,.bchart circle{transition:opacity var(--d-fast)}
+.bchart svg.picked rect:not(.on),.bchart svg.picked circle:not(.on){opacity:.35}
+.bchart circle.on{r:5.5px}
+.bread{margin:6px 0 0;min-height:1.4em;font:600 13px/1.4 var(--ui);color:var(--ink);font-variant-numeric:tabular-nums}
+.btime li.now{border-left:3px solid var(--accent-text);padding-left:9px;margin-left:-12px}
+.btime li.now p{font-weight:600;color:var(--ink)}
 .bchart figcaption{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font:400 12px var(--ui);color:var(--ink-3)}
 .bnote2{margin-top:6px!important;font-size:12.5px;color:var(--ink-3)}
 .bsrc{margin-top:14px;font:400 13px/1.5 var(--ui);color:var(--ink-2)}

@@ -226,3 +226,21 @@ test('at the top of the conversation, pulling down 64 px opens Find in today; a 
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('past the end a page stretches a little and springs back', opts, async () => {
+  const { page, context, errors } = await open({ touch: true });
+  const cdp = await context.newCDPSession(page);
+  await go(page, 'brief');
+  await page.waitForTimeout(700);
+  const t0 = Date.now() / 1000;
+  const at = (i) => t0 + i * 0.02;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 60, y: 400 }], timestamp: at(0) });
+  for (let i = 1; i <= 10; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 60 + i * 20, y: 400 }], timestamp: at(i) });
+  const stretched = await page.$eval('#brief', (b) => b.getBoundingClientRect().left);
+  assert.ok(stretched > 2 && stretched < 40, `stretched ${stretched}px, not dragged off`);
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: at(40) });
+  await page.waitForTimeout(700);
+  assert.equal(Math.round(await page.$eval('#brief', (b) => b.getBoundingClientRect().left)), 0, 'and springs back');
+  assert.deepEqual(errors, []);
+  await context.close();
+});

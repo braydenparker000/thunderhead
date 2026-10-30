@@ -4,7 +4,8 @@
 // verb or version missing here is answered `unsupported_verb`, so a newer mind never breaks an
 // older phone. An executor returns its result and, for `undo: 'reported'` verbs, its inverse.
 import { VERBS } from '../contract.js';
-import { deepLink } from './apps.js';
+import { launch } from '../../ui/launch.js';
+import { appFor, deepLink } from './apps.js';
 
 /** @typedef {{ ok: true, result: Record<string, unknown>, undo?: { verb: string, schema: number, args: Record<string, unknown> } } | { ok: false, error: { code: string, message?: string } }} Outcome */
 /** @typedef {(args: any) => Promise<Outcome>} Executor */
@@ -26,6 +27,7 @@ export const EXECUTORS = {
     1: async ({ app, path }) => {
       const to = deepLink(app, path);
       if (!to) return { ok: false, error: { code: 'app_missing' } };
+      await launch(/** @type {{ color: string }} */ (appFor(app)).color);
       location.assign(to);
       return { ok: true, result: {} };
     },

@@ -377,6 +377,19 @@ export async function startChat() {
     flush();
   }
 
+  // What a command will do, shown before it goes: only where this phone knows exactly (the quiet
+  // orders it carries out itself, HOME.md §6).
+  const cmd = document.createElement('div');
+  cmd.id = 'cmdhint';
+  cmd.setAttribute('aria-live', 'polite');
+  ask.before(cmd);
+  const hintCmd = () => {
+    const o = quietOrder(q.value.trim());
+    cmd.textContent = !o ? '' : 'until' in o ? `${quietLine(o.until)} No notifications until then.` : quietUntil() ? 'Ends quiet now.' : '';
+  };
+  q.addEventListener('input', hintCmd);
+  ask.addEventListener('submit', () => setTimeout(hintCmd));
+
   // The pre-warm: the first keystroke after a quiet spell tells the Worker, so the mind wakes.
   let lastKey = 0;
   let lastSent = 0;

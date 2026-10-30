@@ -94,6 +94,8 @@ const budgets = [
   // The Briefing page and the Board reader, loaded after the first paint.
   ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 30_000],
   ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 60_000],
+  // Styles home loads just after its first paint (th/reply/tools.css).
+  ['later CSS bytes', sum(/^th\/.*\.css$/), 16_000],
   // The upright Fraunces for replies (30.6 KB, 2026-10-30) on top of the italic and Inter.
   ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 140_000],
   ['precache bytes', list.filter((f) => precached(f.path)).reduce((n, f) => n + f.size, 0), 3_000_000],

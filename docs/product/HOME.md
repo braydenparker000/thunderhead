@@ -302,6 +302,8 @@ Closing: tap `+` again, tap anywhere outside, pick an item, Back, or Escape. Bef
 - Whitespace-only input never sends.
 - Limit: **8,000 characters** [proposal]. From 7,500 a counter "500 left" shows at the bar's top-right; over the limit send is disabled and the toast reads "Too long to send. Try sending it as a file."
 - On send: the input clears, the bubble appears at once (optimistic), haptic none (typing is not a gesture).
+- **The draft** (built 2026-10-30): what is in the bar is kept on this phone as it is typed (`th.p.draft`), comes back after the app is closed or reloaded, and goes once sent; signing out clears it with the rest of `th.p.*`.
+- **What a command will do** (built 2026-10-30): while the text is an order this phone carries out itself, an accent line over the bar says what will happen before it is sent: "Quiet until 06:30. No notifications until then." or "Ends quiet now." Requests the mind decides (play, remind) get no promise here.
 - Pre-warm: the first keystroke after ≥ 90 s of no typing tells the Worker the owner is typing, so the mind can start waking ([RUNTIME](../mind/RUNTIME.md)). No text is sent with it.
 
 ### 6.4 The mic (dictation)
@@ -398,6 +400,7 @@ Acceptance: the state classes on `#edge` per state (mocked, `tests/chat-browser.
 - From the ring ([GESTURES](../design/GESTURES.md) §3), an action chip, or a plain request in the chat.
 - **Plain requests** (owner ruling 2026-10-27): the chat opens apps and completes requests from normal text. "An anime I'd like, 20 min, under 200 MB" → the mind picks a fitting title from the Astra add-ons using past favourites and opens it in Astra; the owner picks the stream ([ASTRA](apps/ASTRA.md) §4). "A nostalgic playlist" → the mind builds it in the Music player and sends the owner there ([MUSIC](apps/MUSIC.md) §4.2). The reply carries the action chip; anything an app can't do yet is said plainly.
 - The ported apps (Music, Guitar, Podcasts, Astra, My Media) first open **as they are**, each at its own page (owner ruling 2026-10-28). Later, only if the owner agrees, an app module loads lazily into the shell (decisions.md), so audio keeps playing. [proposal] The chosen ring bubble morphs into the app's header icon with a same-document View Transition (`view-transition-name`), 300 ms; Astra, which is its own page at `/astra/`, uses a cross-document transition.
+- **The launch** (built 2026-10-30, `ui/launch.js`): a circle in the app's colour over the page background grows from the chosen bubble or chip to the whole screen (300 ms, an ease-out), and the app loads under it; reduced motion fades it in (120 ms). Back restores home without it (the page drops it on `pageshow`), and if the app never loads (offline) it is gone after 8 s.
 - While the module loads (> 400 ms), the bubble's icon pulses once; on failure: toast "Couldn't open Music. Try again." and home stays.
 - Back from the app's root returns to home at the same scroll position.
 

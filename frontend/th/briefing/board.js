@@ -195,10 +195,11 @@ function chart(b) {
     if (txt(b.kind) === 'line') {
       const pts = vs.map((v, i) => (typeof v === 'number' ? `${(i + 0.5) * step},${y(v)}` : null)).filter(Boolean).join(' ');
       g.append(svg('polyline', { points: pts, class: `s${si}`, fill: 'none' }));
+      for (const [i, v] of vs.entries()) if (typeof v === 'number') g.append(svg('circle', { cx: (i + 0.5) * step, cy: y(v), r: 3.5, class: `s${si}`, 'data-i': i }));
     } else {
       const bw = (step * 0.7) / series.length;
       for (const [i, v] of vs.entries())
-        if (typeof v === 'number') g.append(svg('rect', { x: i * step + step * 0.15 + si * bw, y: Math.min(y(v), y(0)), width: bw, height: Math.abs(y(0) - y(v)), class: `s${si}` }));
+        if (typeof v === 'number') g.append(svg('rect', { x: i * step + step * 0.15 + si * bw, y: Math.min(y(v), y(0)), width: bw, height: Math.abs(y(0) - y(v)), class: `s${si}`, 'data-i': i }));
     }
   }
   const legend = el('figcaption', {}, [
@@ -206,7 +207,17 @@ function chart(b) {
     el('span', { text: `${min}–${max}${txt(b.unit) ? ` ${b.unit}` : ''}` }),
     ...series.map((s, si) => el('span', { class: `lg s${si}`, text: txt(s.name) })),
   ]);
-  fig.append(g, legend);
+  // A tap reads out the column under the finger and marks it; the figure's label has every value.
+  const read = el('p', { class: 'bread', 'aria-live': 'polite' });
+  g.addEventListener('click', (e) => {
+    const box = g.getBoundingClientRect();
+    const i = Math.min(labels.length - 1, Math.max(0, Math.floor(((e.clientX - box.left) / box.width) * labels.length)));
+    const unit = txt(b.unit) ? ` ${b.unit}` : '';
+    read.textContent = `${labels[i]}: ${series.map((s) => `${list(s.values)[i] ?? '–'}${unit}${series.length > 1 ? ` ${txt(s.name)}` : ''}`).join(' · ')}`;
+    for (const m of g.querySelectorAll('[data-i]')) m.classList.toggle('on', Number(m.getAttribute('data-i')) === i);
+    g.classList.add('picked');
+  });
+  fig.append(g, read, legend);
   return fig;
 }
 

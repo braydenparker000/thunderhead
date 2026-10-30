@@ -1,6 +1,7 @@
 // Thunderhead home: one quiet chat screen. Hold still for the Compass ring, swipe right for the briefing, swipe left for the menu.
 // The ring's apps come from the app registry (th/registry/apps.js, EXTENDING.md rule 3).
 import { apps } from '/th/registry/apps.js';
+import { from as launchFrom, launch } from '/ui/launch.js';
 (function(){
   const $=s=>document.querySelector(s), root=document.documentElement;
   const edge=$('#edge'), toastEl=$('#toast'); let tt;
@@ -28,6 +29,12 @@ import { apps } from '/th/registry/apps.js';
 
   // asking (scripted examples only); the mic is on only while it's lit
   q.addEventListener('input',()=>ask.classList.toggle('typing',q.value.trim()!==''));
+  // What you were writing survives closing the app: kept on this phone as you type, gone once sent
+  // (and with everything else of yours at sign-out: th.p.*).
+  const DRAFT='th.p.draft';
+  try{ const d=localStorage.getItem(DRAFT); if(d&&!q.value){ q.value=d; ask.classList.add('typing') } }catch(e){}
+  const keepDraft=()=>{ try{ q.value.trim()?localStorage.setItem(DRAFT,q.value):localStorage.removeItem(DRAFT) }catch(e){} };
+  q.addEventListener('input',keepDraft); ask.addEventListener('submit',()=>setTimeout(keepDraft));
   // Enter sends (the line break a phone's keyboard asks for, whatever its key code); Shift+Enter on a
   // keyboard starts a new line, and pasted lines stay.
   let newLine=false;
@@ -38,6 +45,8 @@ import { apps } from '/th/registry/apps.js';
   let atEnd=true; convo.addEventListener('scroll',()=>{ atEnd=convo.scrollHeight-convo.scrollTop-convo.clientHeight<24 },{passive:true});
   const keep=new ResizeObserver(()=>{ document.documentElement.style.setProperty('--ask-h',ask.offsetHeight+'px'); if(atEnd) convo.scrollTop=convo.scrollHeight });
   keep.observe(ask); keep.observe(convo);
+  // The styles for what only shows after a tap or a pull, once the first paint is done.
+  requestAnimationFrame(()=>setTimeout(()=>{ const l=document.createElement('link'); l.rel='stylesheet'; l.href='/th/reply/tools.css'; document.head.append(l) }));
   // Find in today (HOME.md §4.10): at the top of the conversation, pull down 64 px and let go.
   const pullEl=document.createElement('div'); pullEl.className='pullfind'; pullEl.setAttribute('aria-hidden','true'); pullEl.textContent='Find in today'; convo.parentElement.append(pullEl);
   let pull=null;
@@ -84,7 +93,7 @@ import { apps } from '/th/registry/apps.js';
   function setPos(b,s,anim,ms){ const W=app.clientWidth, S=side.offsetWidth;
     [home,brief,side,dim].forEach(el=>{ el.style.transition=anim?'':'none'; el.style.transitionDuration=anim&&ms?ms+'ms':'' });
     brief.style.transform=`translateX(${(b-1)*W}px)`; home.style.transform=`translateX(${b*W-s*S*.2}px)`;
-    side.style.transform=`translateX(${(1-s)*100}%)`; dim.style.opacity=s; side.classList.toggle('open',s>0); dim.style.pointerEvents=s>.5?'auto':'none' }
+    side.style.transform=`translateX(${(1-s)*100}%)`; dim.style.opacity=Math.min(1,s); side.classList.toggle('open',s>0); dim.style.pointerEvents=s>.5?'auto':'none' }
   function go(v,ms){ view=v; setPos(v==='brief'?1:0,v==='side'?1:0,true,ms); if(v!=='home') menu(false) }
   dim.addEventListener('click',()=>go('home'));
   document.addEventListener('th:go',e=>go(e.detail)); // settings pages return to the open menu
@@ -101,10 +110,12 @@ import { apps } from '/th/registry/apps.js';
       if(!swipe){ if(d>=6&&Math.abs(mx)>Math.abs(my)){ clearTimeout(holdT); press.classList.remove('on'); swipe={from:view,b:view==='brief'?1:0,s:view==='side'?1:0,v:[]} }
         else { if(d>10){ clearTimeout(holdT); press.classList.remove('on'); start=null } return } }
       e.preventDefault(); swipe.v.push([e.timeStamp,e.clientX]); if(swipe.v.length>8) swipe.v.shift();
-      const W=app.clientWidth, S=side.offsetWidth, cl=v=>Math.max(0,Math.min(1,v));
-      if(swipe.from==='home'){ swipe.b=mx>0?cl(mx/W):0; swipe.s=mx<0?cl(-mx/S):0 }
-      else if(swipe.from==='brief') swipe.b=cl(1+mx/W);
-      else swipe.s=cl(1-mx/S);
+      const W=app.clientWidth, S=side.offsetWidth;
+      // Past the end a page stretches a little and springs back on release (a rubber band).
+      const band=v=>v<=1?Math.max(0,v):1+(v-1)*.22/(1+(v-1)*2);
+      if(swipe.from==='home'){ swipe.b=mx>0?band(mx/W):0; swipe.s=mx<0?band(-mx/S):0 }
+      else if(swipe.from==='brief') swipe.b=band(1+mx/W);
+      else swipe.s=band(1-mx/S);
       setPos(swipe.b,swipe.s,false); return }
     e.preventDefault(); const dx=e.clientX-start.cx, dy=e.clientY-start.cy, d=Math.hypot(dx,dy), k=Math.min(1,R*.55/(d||1));
     hub.style.transform=`translate(${dx*k}px,${dy*k}px)`; setDir(dirOf(dx,dy)) },{passive:false});
@@ -121,7 +132,7 @@ import { apps } from '/th/registry/apps.js';
     if(to!==from) buzz(5) }
   function close(commit){ clearTimeout(holdT); press.classList.remove('on');
     if(open){ const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
-      if(chosen>=0){ const p=pets[chosen], a=chosen*SEC; p.classList.add('go'); p.style.transform=`translate(${R*1.25*Math.sin(a)}px,${-R*1.25*Math.cos(a)}px) scale(1.7)`; buzz([12,40,12]); const to=APPS[chosen][3]; if(to) setTimeout(()=>location.assign(to),230); else toast(APPS[chosen][0]+' comes later') }
+      if(chosen>=0){ const p=pets[chosen], a=chosen*SEC; p.classList.add('go'); p.style.transform=`translate(${R*1.25*Math.sin(a)}px,${-R*1.25*Math.cos(a)}px) scale(1.7)`; buzz([12,40,12]); const to=APPS[chosen][3]; if(to){ const r=p.getBoundingClientRect(); launchFrom(r.left+r.width/2,r.top+r.height/2); launch(APPS[chosen][2]).then(()=>location.assign(to)) } else toast(APPS[chosen][0]+' comes later') }
       ring.classList.add('closing'); pets.forEach((p,i)=>{ if(i!==chosen) p.style.transform='translate(0,0) scale(.2)' });
       setTimeout(()=>{ ring.classList.remove('show','closing','active'); pets.forEach(p=>{p.classList.remove('go','on')}); fan(false) },230);
       dir=-1; lbl.classList.remove('show') }

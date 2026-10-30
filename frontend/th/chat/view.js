@@ -10,6 +10,7 @@
 import { appFor } from '../registry/apps.js';
 import { citeHref, meta, revealMs } from './model.js';
 import { rich } from './rich.js';
+import { from } from '../../ui/launch.js';
 
 /** @typedef {import('./model.js').Shown} Shown */
 /** @typedef {{ shown: Shown[], slot: string, words?: string, stop: 'none' | 'button' | 'stopping', cards: { text: string, kind: string }[], fresh: Set<string>, now: number }} ViewState */
@@ -133,7 +134,11 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
       b.style.setProperty('--c', app.color);
       b.innerHTML = `<svg class="ic" aria-hidden="true"><use href="/ui/icons.svg#${app.icon}"/></svg>`;
       b.append(String(chip.label));
-      b.addEventListener('click', () => onChip(chip));
+      b.addEventListener('click', () => {
+        const r = b.getBoundingClientRect();
+        from(r.left + r.width / 2, r.top + r.height / 2);
+        onChip(chip);
+      });
       under.push(b);
     }
     // Up to two follow-ups the mind suggests (`meta.followups`); a tap sends one, answering this reply.

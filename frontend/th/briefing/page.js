@@ -142,7 +142,15 @@ function draw(b) {
   if (halves.length % 2 === 1) halves.at(-1)?.classList.add('wide');
   $('#brief .btitle .ln').textContent = b.title;
   const grid = $('#brief .grid');
+  // A value or a detail that changed rolls in rather than jumping (keyed by the tile's label).
+  const key = (/** @type {Element} */ t) => `${t.getAttribute('data-go') ?? ''}|${t.querySelector('.k')?.textContent ?? ''}`;
+  const was = new Map([...grid.querySelectorAll('.tile')].map((t) => [key(t), [...t.querySelectorAll('.big,.v,.s')].map((n) => n.textContent)]));
   grid.replaceChildren(...tiles);
+  if (!matchMedia('(prefers-reduced-motion: reduce)').matches)
+    for (const t of tiles) {
+      const old = was.get(key(t));
+      if (old) for (const [i, n] of [...t.querySelectorAll('.big,.v,.s')].entries()) if (old[i] !== undefined && old[i] !== n.textContent) n.animate([{ opacity: 0, transform: 'translateY(.45em)' }, { opacity: 1, transform: 'none' }], { duration: 380, easing: 'cubic-bezier(.2,.8,.2,1)' });
+    }
   /** @type {HTMLElement[]} */
   const notes = [];
   if (b.muse) notes.push(el('p', { class: 'bmuse', text: b.muse }));
