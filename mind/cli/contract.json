@@ -1448,7 +1448,7 @@
         "C"
       ],
       "phase": "P8",
-      "status": "deferred: being built: the + sheet (2026-10-30)",
+      "status": "built",
       "note": "mind:chat: names the owner's message that asked"
     },
     "GET /v1/reminders": {
@@ -1458,7 +1458,7 @@
         "N"
       ],
       "phase": "P8",
-      "status": "deferred: being built: the + sheet (2026-10-30)"
+      "status": "built"
     },
     "DELETE /v1/reminders/:id": {
       "who": [
@@ -1466,7 +1466,7 @@
         "C"
       ],
       "phase": "P8",
-      "status": "deferred: being built: the + sheet (2026-10-30)",
+      "status": "built",
       "note": "takes back one not yet delivered; the row stays"
     }
   },

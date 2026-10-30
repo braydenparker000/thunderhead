@@ -178,9 +178,9 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/push/test` | D | P8 | built | one test push to this phone, now |
 | `GET /v1/push/items/:id` | D | P8 | built | a push's words, for the service worker |
 | `PUT /v1/pushes/:id` | C | P8 | built | a nudge: at most 2 a day, 2 h apart, never in quiet hours |
-| `PUT /v1/reminders/:id` | D C | P8 | deferred: being built: the + sheet (2026-10-30) | mind:chat: names the owner's message that asked |
-| `GET /v1/reminders` | D C N | P8 | deferred: being built: the + sheet (2026-10-30) |  |
-| `DELETE /v1/reminders/:id` | D C | P8 | deferred: being built: the + sheet (2026-10-30) | takes back one not yet delivered; the row stays |
+| `PUT /v1/reminders/:id` | D C | P8 | built | mind:chat: names the owner's message that asked |
+| `GET /v1/reminders` | D C N | P8 | built |  |
+| `DELETE /v1/reminders/:id` | D C | P8 | built | takes back one not yet delivered; the row stays |
 
 ## Verbs
 

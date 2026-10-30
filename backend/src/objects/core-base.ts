@@ -58,9 +58,14 @@ export abstract class CoreBase extends OwnerObject {
     return !this.sandboxed && fireConfig(this.env, 'chat') !== null;
   }
 
-  /** Sets the alarm to the next due wake retry, requeue or job, writing only when it moves. */
+  /** When the soonest set reminder is due, or null (core-reminders.ts keeps it in memory). */
+  protected abstract reminderDue(): number | null;
+
+  /** Sets the alarm to the next due wake retry, requeue, job or reminder, writing only when it moves. */
   protected schedule(): void {
-    const times = [wake.nextAlarmAt(this.db), jobs.nextDue(this.db)].filter((x): x is number => x !== null);
+    const times = [wake.nextAlarmAt(this.db), jobs.nextDue(this.db), this.reminderDue()].filter(
+      (x): x is number => x !== null,
+    );
     const t = times.length ? Math.min(...times) : null;
     if (t !== null && t !== this.alarmAt) {
       this.alarmAt = t;

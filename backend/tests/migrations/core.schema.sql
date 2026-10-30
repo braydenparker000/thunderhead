@@ -413,6 +413,28 @@ CREATE INDEX proposals_open ON proposals (created_at) WHERE status IN ('waiting'
 
 CREATE INDEX proposals_ref ON proposals (ref) WHERE ref IS NOT NULL;
 
+CREATE TABLE reminders (
+  id TEXT PRIMARY KEY,
+  text TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  fire_at INTEGER NOT NULL,
+  state TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  source_message_id TEXT,
+  created_at INTEGER NOT NULL,
+  fired_at INTEGER,
+  cancelled_at INTEGER,
+  message_id TEXT,
+  push_until INTEGER,
+  req_sha256 TEXT NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE INDEX reminders_closed ON reminders (coalesce(fired_at, cancelled_at)) WHERE state != 'set';
+
+CREATE INDEX reminders_due ON reminders (fire_at) WHERE state = 'set';
+
+CREATE INDEX reminders_source ON reminders (source_message_id) WHERE source_message_id IS NOT NULL;
+
 CREATE TABLE session_notes (
   id TEXT PRIMARY KEY,
   session_id TEXT,

@@ -1,13 +1,11 @@
-// The Core object: the owner's data. It only composes the areas (areas/<name>/): every RPC is a
-// thin call into an area, every write runs through `write` (commit.ts: area mutation + ledger +
-// change feed in one transaction, then the live channel), and area failures come back as
-// `{ok:false, code}` (lib/result.ts). No timers: wake retries and requeues use the alarm. The P1
-// data, the feed and the sockets are in core-base.ts; memory (P3) is in core-memory.ts, the
-// night shift's run and input in core-night.ts, the import in core-import.ts and proposals (P4) in
-// core-proposals.ts, the evals in core-evals.ts, the watchdogs (each tick) in core-watchdogs.ts and
-// backups, the drill and exports in core-backups.ts, Muse's work orders and the Briefing in
-// core-work.ts, and the predictions (P9) in core-predictions.ts. The alarm also runs the chunked
-// jobs (areas/jobs), a step at a time.
+// The Core object: the owner's data. It only composes the areas (areas/<name>/): every RPC is a thin call into an
+// area, every write runs through `write` (commit.ts: area mutation + ledger + change feed in one transaction, then the
+// live channel), and area failures come back as `{ok:false, code}` (lib/result.ts). No timers: wake retries and
+// requeues use the alarm. The P1 data, the feed and the sockets are in core-base.ts; memory (P3) is in core-memory.ts,
+// the night shift's run and input in core-night.ts, the import in core-import.ts and proposals (P4) in
+// core-proposals.ts, the evals in core-evals.ts, the watchdogs (each tick) in core-watchdogs.ts and backups, the drill
+// and exports in core-backups.ts, Muse's work orders and the Briefing in core-work.ts, the predictions (P9) in
+// core-predictions.ts and the reminders in core-reminders.ts. The alarm also runs the chunked jobs (areas/jobs).
 import type {
   BriefRequest,
   JsonObject,
@@ -186,9 +184,10 @@ export class Core extends CoreReminders {
     this.schedule();
   }
 
-  /** Wake retries, give-ups and requeues (RUNTIME.md §4.4–4.5), then the jobs that are due. */
+  /** The reminders that are due, wake retries, give-ups and requeues (RUNTIME.md §4.4–4.5), then the jobs. */
   override async alarm(): Promise<void> {
     this.alarmAt = null;
+    await this.deliverReminders(Date.now());
     const fires = this.write((w) => wake.onAlarm(w, this.configured(), this.tz()));
     const cfg = this.sandboxed ? null : fireConfig(this.env, 'chat');
     if (cfg) for (const f of fires) this.recordFire(f.id, await fire(cfg));
@@ -228,6 +227,7 @@ export class Core extends CoreReminders {
     await this.backupsTick(now);
     this.workTick(now);
     await this.predictionsTick(now, tz, due ?? d);
+    await this.deliverReminders(now);
     return { rolled: due, pruned, night: wakeNight?.id ?? null, reflex };
   }
 

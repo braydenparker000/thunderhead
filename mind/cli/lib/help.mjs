@@ -30,7 +30,7 @@ export const USAGE = {
   // Later phases: the commands exist so the procedure never changes; the Worker answers when its
   // phase is built, and until then th exits 8 not_built.
   file: ['<id|file:id> [--out <path>]', 'save an attachment from the Worker to $TMPDIR/th/files/<id>.<ext>; prints path, type, name and a voice memo\'s words (text)'],
-  remind: ['<when> <text> --from <owner message id> | list | cancel <id>', "a reminder the owner asked for: delivered once at that time"],
+  remind: ['<when> <text|-> --from <owner message id> | list | cancel <id>', 'a reminder the owner asked for in that message (sent in the last 48 h, at most 3 from one): <when> is an ISO time with its offset or +90m, +2h, +1d; delivered once at that time as a line and a push, a time in quiet hours moved to their end (shifted: true says so in the reply)'],
   remember: ['--kind <k> --text <t> --evidence <ids> [--subject] [--sensitivity 0|1] [--source]', 'add a fact (P3)'],
   confirm: ['<fact id> --evidence <ids>', 'confirm a fact (P3)'],
   supersede: ['<fact id> --text <t> --evidence <ids> [--reason <r>]', 'replace a fact (P3)'],

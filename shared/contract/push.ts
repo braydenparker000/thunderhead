@@ -3,8 +3,9 @@
 import type { Ms } from './api.ts';
 
 
-/** What a push is: the mind's nudge, a sign-in notice, or the owner's own test. */
-export type PushKind = 'nudge' | 'security' | 'test';
+/** What a push is: the mind's nudge, a sign-in notice, the owner's own test, or a reminder the
+ * owner set (its id is the reminder's). */
+export type PushKind = 'nudge' | 'security' | 'test' | 'reminder';
 export interface PushKeyResponse {
   /** The VAPID public key, base64url (the uncompressed P-256 point). */
   vapid_public_key: string;

@@ -152,7 +152,7 @@ What quiet hours hold back, and when it comes back:
 
 | Thing | During quiet hours | Afterwards |
 |---|---|---|
-| Push notifications | Not sent | Decisions: one push at the end, if any still wait (counts against the daily budget). Reminders set in quiet hours move to 06:30. |
+| Push notifications | Not sent | Decisions: one push at the end, if any still wait (counts against the daily budget). A reminder for a time inside quiet hours moves to their end (06:30 by default). |
 | Decision cards | New ones not shown | Shown at the first open after the end |
 | Sounds | None (the app makes no sounds of its own anyway, except media the owner plays) | n/a |
 | The conversation | Works normally if the owner writes | n/a |
