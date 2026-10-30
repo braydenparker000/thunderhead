@@ -10,14 +10,23 @@ const meta = z.optional(
   z.record(z.string(), z.json()).check(z.refine((m) => JSON.stringify(m).length <= 8_192, 'at most 8 KB')),
 );
 
-export const putMessage = z.strictObject({
-  body: z.string().check(z.minLength(1), z.maxLength(16_000)),
-  kind: z.optional(z.enum(MESSAGE_KINDS)),
-  meta,
-  reply_to: z.optional(z.string().check(z.regex(UUID7))),
-  thread_id: z.optional(z.literal('system')),
-  attachments: z.optional(z.array(z.string().check(z.maxLength(200))).check(z.maxLength(10))),
-}) satisfies z.ZodMiniType<PutMessageRequest & { attachments?: string[] }>;
+// A body may be empty only beside attachments (an owner's photo without words); ops.ts keeps that
+// to owner messages and checks the refs (areas/files/ops.ts).
+export const putMessage = z
+  .strictObject({
+    body: z.string().check(z.maxLength(16_000)),
+    kind: z.optional(z.enum(MESSAGE_KINDS)),
+    meta,
+    reply_to: z.optional(z.string().check(z.regex(UUID7))),
+    thread_id: z.optional(z.literal('system')),
+    attachments: z.optional(z.array(z.string().check(z.maxLength(200))).check(z.maxLength(10))),
+  })
+  .check(
+    z.refine((p) => p.body.length > 0 || (p.attachments?.length ?? 0) > 0, {
+      error: 'empty: a message has words or attachments',
+      path: ['body'],
+    }),
+  ) satisfies z.ZodMiniType<PutMessageRequest & { attachments?: string[] }>;
 
 export const patchMessage = z
   .strictObject({ body: z.optional(z.string().check(z.minLength(1), z.maxLength(16_000))), meta })

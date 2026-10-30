@@ -9,6 +9,9 @@ const EXECUTORS = ['verb', 'memory.forget', 'memory.apply_batch', 'agents.revoke
 const ASK_FIRST_VERBS = ['music.delete_playlist', 'files.delete'];
 const actorOf = role => `mind:${role}`;
 
+const fileRecord = (id, f) => ({ref: `file:${id}`, name: f.name, type: f.type, bytes: f.bytes.length,
+  ...(f.seconds ? {seconds: f.seconds} : {}), ...(f.text ? {text: f.text} : {})});
+
 /** @param {any} ctl the fake's control object */
 export function extraRoutes(ctl) {
   const s = ctl.state;
@@ -65,15 +68,24 @@ export function extraRoutes(ctl) {
       return [201, {id: body.id}];
     }],
     ['POST', /^\/v1\/mind\/taint$/, ALL, ({session}) => { s.tainted.add(session); return {tainted: true}; }],
+    // Chat files (API.md §11.7): the record answers as a message carries it; the bytes come back
+    // only through GET with the caller's token.
     ['PUT', /^\/v1\/files\/([^/]+)$/, ['chat'], ({params, raw, req}) => {
-      if (createHash('sha256').update(raw).digest('hex') !== req.headers['th-sha256']) throw new HttpError(422, 'validation', 'sha256 mismatch');
-      s.files.set(params[0], {bytes: raw, type: req.headers['content-type'], name: decodeURIComponent(req.headers['th-file-name'] || '')});
-      return [201, {ref: `file:${params[0]}`, bytes: raw.length, type: req.headers['content-type']}];
+      const sha = createHash('sha256').update(raw).digest('hex');
+      if (sha !== req.headers['th-sha256']) throw new HttpError(422, 'validation', 'sha256 mismatch');
+      if (raw.length > 25 * 1024 * 1024) throw new HttpError(413, 'too_large');
+      const had = s.files.get(params[0]);
+      if (had) { if (had.sha !== sha) throw new HttpError(409, 'conflict'); return [200, fileRecord(params[0], had)]; }
+      const type = (req.headers['content-type'] || 'application/octet-stream').split(';')[0].trim().toLowerCase();
+      const f = {bytes: raw, sha, type, name: decodeURIComponent(req.headers['th-file-name'] || '')};
+      s.files.set(params[0], f);
+      return [201, fileRecord(params[0], f)];
     }],
-    ['POST', /^\/v1\/media\/sign$/, CN, ({body, base}) => {
-      const refs = body.refs || [];
-      return {items: refs.filter(r => s.files.has(r.slice(5))).map(ref => ({ref, url: `${base}/_files/${ref.slice(5)}`, expires_at: ctl.now() + 3_600_000})),
-        errors: refs.filter(r => !s.files.has(r.slice(5))).map(ref => ({ref, code: 'not_found'}))};
+    ['GET', /^\/v1\/files\/([^/]+)$/, CN, ({params, query}) => {
+      const f = s.files.get(params[0]);
+      if (!f) throw new HttpError(404, 'not_found');
+      if (query.get('meta') === '1') return fileRecord(params[0], f);
+      return {raw: f.bytes, headers: {'Content-Type': f.type, ETag: `"${f.sha}"`}};
     }],
     ['GET', /^\/v1\/search$/, CN, ({query}) => {
       const q = (query.get('q') || '').toLowerCase();

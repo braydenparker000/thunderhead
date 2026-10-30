@@ -78,14 +78,12 @@ export const ROUTES = {
   'PUT /v1/files/:id': {
     who: ['D', 'C'],
     phase: 'P2',
-    deferred: 'being built: the + sheet (2026-10-30)',
-    note: 'raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos)',
+    note: 'raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos, transcribed)',
   },
   'GET /v1/files/:id': {
     who: ['D', 'C', 'N'],
     phase: 'P2',
-    deferred: 'being built: the + sheet (2026-10-30)',
-    note: 'the bytes, through the Worker; private and immutable',
+    note: 'the bytes, through the Worker; private and immutable; ?meta=1 the record',
   },
   'GET /v1/search': { who: ['D', 'C', 'N'], phase: 'P2' },
   'POST /v1/mind/typing': { who: D, phase: 'P2' },

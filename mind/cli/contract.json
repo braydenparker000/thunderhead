@@ -328,8 +328,8 @@
         "C"
       ],
       "phase": "P2",
-      "status": "deferred: being built: the + sheet (2026-10-30)",
-      "note": "raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos)"
+      "status": "built",
+      "note": "raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos, transcribed)"
     },
     "GET /v1/files/:id": {
       "who": [
@@ -338,8 +338,8 @@
         "N"
       ],
       "phase": "P2",
-      "status": "deferred: being built: the + sheet (2026-10-30)",
-      "note": "the bytes, through the Worker; private and immutable"
+      "status": "built",
+      "note": "the bytes, through the Worker; private and immutable; ?meta=1 the record"
     },
     "GET /v1/search": {
       "who": [
@@ -2038,6 +2038,15 @@
     "question",
     "error"
   ],
+  "files": {
+    "limits": {
+      "bytes": 26214400,
+      "owner_per_message": 4,
+      "mind_per_message": 10,
+      "name": 120,
+      "memo_seconds": 600
+    }
+  },
   "memory": {
     "kinds": {
       "state": {

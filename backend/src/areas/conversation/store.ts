@@ -2,7 +2,7 @@
 // mind (DATA.md §4.2). The FTS table uses external content, so every write to `messages.body`
 // writes `messages_fts` in the same transaction (no triggers: migrations stay plain). Stores
 // never write the change feed; the caller's commit does (objects/commit.ts).
-import type { JsonObject, Message, MessageKind, Thread } from '../../../../shared/contract/api';
+import type { Attachment, JsonObject, Message, MessageKind, Thread } from '../../../../shared/contract/api';
 import type { Db } from '../../objects/base';
 
 type MessageRow = Omit<Message, 'meta' | 'attachments'> & { meta_json: string | null; attachments_json: string | null };
@@ -103,6 +103,8 @@ export interface NewMessage {
   device_id: string | null;
   session_id: string | null;
   req_sha256: string;
+  /** Its files in order, as checked by areas/files/ops.ts `attach` (none when left out). */
+  attachments?: Attachment[];
 }
 
 export function messageById(
@@ -124,7 +126,7 @@ export function messageOrigin(db: Db, id: string): Pick<Message, 'author' | 'ori
 export function insertMessage(db: Db, m: NewMessage): Message {
   db.run(
     `INSERT INTO messages (id, thread_id, created_at, author, origin, kind, body, reply_to, meta_json, attachments_json,
-       device_id, session_id, req_sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+       device_id, session_id, req_sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     m.id,
     m.thread_id,
     m.created_at,
@@ -134,6 +136,7 @@ export function insertMessage(db: Db, m: NewMessage): Message {
     m.body,
     m.reply_to,
     m.meta ? JSON.stringify(m.meta) : null,
+    m.attachments?.length ? JSON.stringify(m.attachments) : null,
     m.device_id,
     m.session_id,
     m.req_sha256,

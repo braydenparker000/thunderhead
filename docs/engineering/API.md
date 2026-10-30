@@ -13,7 +13,7 @@ Storage behind each route is in [DATA.md](DATA.md). Behaviour seen by the owner 
 5. **Errors:** HTTP status plus `{"error":{"code","message","details?","request_id"}}`, with stable snake_case codes (§6). The request body is never echoed.
 6. **Idempotency by natural ID:** creates are `PUT …/:id` with a client UUIDv7. The same ID with the same body returns the stored result. The same ID with a different body returns `409 conflict`.
 7. **Pagination:** `?limit=` (default 50, max 200) and an opaque `cursor`; responses are `{items, next}`.
-8. **Limits:** 64 KB JSON bodies by default; 4 KB on auth; 256 KB for event batches; file uploads by stream up to 50 MB.
+8. **Limits:** 64 KB JSON bodies by default; 4 KB on auth; 256 KB for event batches; a chat file up to 25 MiB (§9).
 9. **No cookies, no credentials in CORS.** Only exact site origins are allowed.
 10. **Ask-first actions are proposals** that only the owner decides: a tap on a signed-in device, or the owner's own words in the conversation, recorded by `mind:chat` and verified by the Worker (§11.10; decisions 2026-10-28).
 11. **Ported apps (P1b) don't call this API yet.** They keep calling the old Worker until their data moves; their routes join this contract then (§11.21).
@@ -30,6 +30,7 @@ Storage behind each route is in [DATA.md](DATA.md). Behaviour seen by the owner 
 | `TH-Role` | mind roles (sent by `th`, [RUNTIME.md §5.1](../mind/RUNTIME.md)) | `chat` \| `night` \| `reflex`. Informational: the Worker trusts only the key's role and answers a mismatch with `403 forbidden` |
 | `TH-Sandbox` | the injection suite only (P4, sent by `th` between `th eval begin` and `end`) | `eval`: the request goes, through the same route, to the scratch Core instance `core-eval` instead of the owner's ([EVALS.md §1.1](../mind/EVALS.md)). Chat and night keys only, never on a route that takes one named key; any other principal or value is `403 forbidden`. There nothing reaches Auth, the routines or the owner's Core, and each write the mind tries is recorded |
 | `Content-Type` | bodies | `application/json` (files: the file's type) |
+| `TH-File-Name`, `TH-Sha256`, `TH-Seconds` | `PUT /v1/files/:id` | the file's name (URL-encoded), the lowercase hex SHA-256 of the body, and a voice memo's length in seconds (§11.7) |
 
 | Header (response) | Always | Value |
 |---|---|---|
@@ -59,7 +60,8 @@ type Thread = { id: Id; day: Day; kind: 'daily'|'muse'|'imported'; status: 'open
   title: string|null; title_source: 'auto'|'mind'|'owner'|null; summary: string|null;
   continues: Id|null; message_count: number; started_at: Ms; updated_at: Ms; filed_at: Ms|null };
 
-type Attachment = { ref: Ref; name: string; type: string; bytes: number };
+type Attachment = { ref: Ref /* file:<id> */; name: string; type: string; bytes: number;
+  seconds?: number /* a voice memo's length */; text?: string /* a voice memo's words, when the Worker could transcribe them */ };
 type Message = { seq: number; id: Id; thread_id: Id; author: 'owner'|'mind'|'muse'|'system';
   origin: 'owner_device'|'mind'|'system'|'muse'|'import';
   kind: 'text'|'voice'|'progress'|'card'|'question'|'error'; body: string; meta: Record<string, unknown>|null;
@@ -231,8 +233,11 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | `POST /v1/ops/errors` | 50 items, 32 KB | 413 |
 | `POST /v1/import/phone` | 5 MB per chunk | 413 |
 | `POST /v1/ops/import/parts` | 25 MiB per part (`IMPORT_PART_BYTES`) | 413 |
-| File upload (`PUT /v1/files/:id`) | 50 MB, streamed **[proposal]** | 413 |
-| Message body | 16,000 characters | 422 |
+| Chat file (`PUT /v1/files/:id`) | 25 MiB (`FILE_LIMITS.bytes`, `shared/contract/files.ts`); the body is read whole, so a sender without `Content-Length` is cut off there too | 413 |
+| A file's name (`TH-File-Name`) | 120 characters, once decoded and made safe | 422 |
+| A voice memo (`TH-Seconds`) | more than 0 and at most 600 s; transcribed words kept up to 16,000 characters (cut, never refused) | 422 |
+| Attachments on a message | owner 4, chat mind 10 (`FILE_LIMITS`); the request schema takes at most 10 refs | 422 |
+| Message body | 16,000 characters; empty only on an owner message with attachments | 422 |
 | `media/sign` refs | 50 per call | 422 |
 | Memory ops | 50 per batch | 422 |
 | Per-principal rate | 600 requests/min per token, counted per isolate (approximate) **[proposal]** | 429 |
@@ -367,12 +372,13 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | `GET /v1/threads/:id/messages?before_seq\|after_seq&limit` | device, agents | — | `200 Page<Message>` | |
 | `PATCH /v1/threads/:id` | `mind:chat`, `mind:night` | `{ title?: string /* ≤ 80 */, summary?: string /* ≤ 400 */ }` | `200 Thread` | Sets `title_source:'mind'`; refused (`409 conflict`) when `title_source='owner'` |
 | `POST /v1/threads/:id/continue` | device | — | `200 { today_thread_id }` | Links a filed thread to today (`continues`) |
-| `PUT /v1/messages/:id` | device, `mind:chat`, `muse` (own thread); `mind:night`/`mind:reflex` only `kind:'error'` to the system thread | `{ body: string, kind?: Message['kind'] /* default 'text' */, meta?: object /* ≤ 8 KB */, attachments?: Ref[] /* file:…, ≤ 10 */, reply_to?: Id }` | `201 Message` (200 on a same-body retry) | See below |
+| `PUT /v1/messages/:id` | device, `mind:chat`, `muse` (own thread); `mind:night`/`mind:reflex` only `kind:'error'` to the system thread | `{ body: string /* '' only on an owner message with attachments */, kind?: Message['kind'] /* default 'text' */, meta?: object /* ≤ 8 KB */, attachments?: Ref[] /* file:<id>, owner ≤ 4, mind ≤ 10 */, reply_to?: Id }` | `201 Message` (200 on a same-body retry) | See below |
 | `PATCH /v1/messages/:id` | `mind:chat` (own posts) | `{ body?: string, meta?: object }` | `200 Message` | Keeps progress cards current (`th amend`) |
 | `GET /v1/search?q=&sources=messages,facts,day_notes,library&since&until&thread&limit` | device, `mind:chat`, `mind:night` | — | `200 { items: { source, ref, snippet /* ≤ 200 chars, match in «» */, at, thread_id?, score }[] }` | Federated: each source (`shared/contract/feed.ts` `SEARCH_SOURCES`) answers with FTS5 bm25 and the Worker fuses them by reciprocal rank (k = 60); default all built sources (P2: `messages`); an unknown source is 422; `kind=` is kept as an alias of `sources=`; `q` 1–200 chars |
 | `POST /v1/mind/typing` | device | `{}` | `204` | May fire a pre-warm wake ([RUNTIME.md](../mind/RUNTIME.md)) |
 | `POST /v1/mind/stop` | device | `{}` | `204` | The owner taps Stop: setting `mind.stop`, the `stop` signal to a waiting chat mind (once), `TH-Stop: 1` on its say/status replies and `stop: true` in `GET /v1/mind/pending` until its next text reply or a new claim. Stop ends the work, not the session ([BEHAVIOR.md](../mind/BEHAVIOR.md)) |
-| `PUT /v1/files/:id` | device, `mind:chat` | raw bytes; headers `Content-Type`, `TH-File-Name` (URL-encoded, ≤ 120), `TH-Sha256` | `201 { ref: 'file:<id>', bytes, type }` | Streams to `thunderhead-private/chat/files/…`; 422 if the sha256 differs **[proposal]** |
+| `PUT /v1/files/:id` | device, `mind:chat` | raw bytes (`:id` a client UUIDv7); headers `Content-Type` (default `application/octet-stream`), `TH-File-Name` (URL-encoded, required), `TH-Sha256` (hex, required), `TH-Seconds` (audio only, optional) | `201 Attachment` (`{ref: 'file:<id>', name, type, bytes, seconds?, text?}`); `200` the same `Attachment` when the id is sent again with the same SHA-256 | Rules below. `409 conflict`: the id holds other bytes. `413`: over 25 MiB. `415`: a form body (`multipart/*`, `application/x-www-form-urlencoded`). `422`: a bad name, digest, memo length or id, an empty body, or the eval sandbox. `503 not_configured`: no `VAULT` binding |
+| `GET /v1/files/:id` | device, `mind:chat`, `mind:night` | — (`If-None-Match` optional; `?meta=1` for the record) | `200` the bytes, or with `?meta=1` the `Attachment` as JSON; `304` when `If-None-Match` names its ETag | `404` unless the file's row exists. Headers: its `Content-Type` and `Content-Length`, `ETag: "<sha256>"`, `Cache-Control: private, max-age=31536000, immutable` (set by the route; the common response headers in `backend/src/app.ts` still replace it with `no-store` until they keep a route's own), `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, `Content-Disposition` (`inline` for `image/*`, `audio/*`, `video/*`, `application/pdf`, else `attachment`; `filename` in ASCII and `filename*` in UTF-8, RFC 5987). The bytes come only from here, never by a link ([SECURITY.md §9](SECURITY.md#9-presigned-media-urls)) |
 
 `PUT /v1/messages/:id` rules:
 1. The message goes into the open `daily` thread for `day.current`. The Worker creates that thread if needed. The client never names a thread, except `muse` in its own thread.
@@ -383,6 +389,16 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 6. Wording limits on mind messages (the phrase lint) are enforced as `422 validation` per [BEHAVIOR.md](../mind/BEHAVIOR.md).
 7. A `mind:chat` text reply clears a standing Stop and, when no owner message is left unanswered, sets the presence (`mind.status`) to `listening`, so the edge stops pulsing while the session waits.
 8. **Action chip (P2).** A `mind` message may carry one chip in `meta.chip = { label: string /* 1–28 chars */, app: 'music'|'guitar'|'podcasts'|'astra'|'media'|'study', path: string /* root-absolute, inside that app's folder */ }`. Until an app's agreed evolution adds deep links, `path` is the app's folder root (`/music/` …), and a tap navigates there. Any other `meta.chip` shape is `422 validation`.
+9. **Attachments.** `attachments` lists refs only, `file:<id>` of files already uploaded with `PUT /v1/files/:id`. An owner message (device) takes at most 4, a `mind:chat` message at most 10; night, reflex and Muse posts take none. Each file must exist, have been uploaded by the same kind of author (a device's files go only on owner messages, `mind:chat`'s only on mind messages) and be listed once; otherwise `422 validation` with `details` naming each `attachments.<i>`. A file already on another message is `409 conflict` (same `details`). The message stores the full `Attachment` of each, in the order given, and each file is marked as that message's in the same write; a refused message changes no file. A retry of the same message with the same body (attachments included) answers the stored message as before. An owner message may have an empty `body` when it has at least one attachment; every other message needs words.
+
+`PUT /v1/files/:id` rules:
+1. **Name.** `TH-File-Name` is URL-decoded, then made safe: `/` and `\` become `_`, control and format characters (bidi overrides included) are removed, and leading dots and spaces are dropped. Undecodable, empty after that, or over 120 characters is `422`.
+2. **Type.** `Content-Type` is stored as its lower-case essence (`audio/webm;codecs=opus` → `audio/webm`); absent or malformed is `application/octet-stream`.
+3. **Digest.** `TH-Sha256` must equal the SHA-256 of the body (`422` otherwise); R2 checks it again on the way in.
+4. **Bytes first.** The object goes to `thunderhead-private` at `chat/files/<YYYY>/<MM>/<id>.<ext>` (the month in UTC from the UUIDv7's own time, so a retry names the same key; the extension from a fixed list of types, else `bin`), stored once with its type; then the row (`Core.files`, [DATA.md §4.2](DATA.md#42-conversation)). A row never names missing bytes. The uploader is `owner` for a device, `mind` for `mind:chat`.
+5. **Voice memo words.** An `audio/*` upload with `TH-Seconds` (more than 0, at most 600) is sent to Workers AI Whisper (`@cf/openai/whisper-large-v3-turbo`, binding `AI`, as a stream with its type; once more as base64 if the stream form is refused) after it is stored, for at most 25 s; its words, trimmed and cut at 16,000 characters, are kept on the row and returned as `text`. No binding (`backend/wrangler.jsonc` does not declare `AI` yet), a failure, an empty answer or the deadline means no `text`; the upload still succeeds. `TH-Seconds` on another type is `422`.
+6. **The site's preflight.** The phone sends `TH-File-Name` and `TH-Sha256`, which §4 allows; `TH-Seconds` must join that list (`backend/src/http/cors.ts`) before the phone can send a memo's length.
+7. **Sandbox.** In the eval sandbox (`TH-Sandbox: eval`) the route answers `422`: the bucket is the owner's.
 
 ### 11.8 Mind
 
@@ -514,7 +530,7 @@ type MemoryOp =
 - Signing time (`X-Amz-Date`) is floored to the hour, and every URL expires 3 h after that, so it is valid for at least 2 h and identical within the hour (browser caching works). The client re-signs on a 403.
 - Ref → key mapping is in [DATA.md §7.4](DATA.md#74-media-ref--key-map-used-by-post-v1mediasign). Bucket keys never appear in requests.
 - Never put a signed URL in the address bar, history or logs.
-- Built in P5 step 2 (`backend/src/areas/music/sign.ts`, SigV4 on WebCrypto, checked against AWS's own presigned-URL example): `music:<id>` (the track's audio) and `music:<id>#art` (its cover) for the device; from P7, `book:<id>` (the PDF in `thunderhead-private`, once its upload is whole) for the device and the mind; a mind's music ref, and every `file:` ref until its home exists, is `not_signable`; an unknown track, or art for a track without a cover, is `not_found`. `503 not_configured` until the owner sets the read-only signing token (`R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET`, [SETUP.md N1](../process/SETUP.md)); the account's R2 host comes from the deploy's `CLOUDFLARE_ACCOUNT_ID` (`R2_ACCOUNT_ID`).
+- Built in P5 step 2 (`backend/src/areas/music/sign.ts`, SigV4 on WebCrypto, checked against AWS's own presigned-URL example): `music:<id>` (the track's audio) and `music:<id>#art` (its cover) for the device; from P7, `book:<id>` (the PDF in `thunderhead-private`, once its upload is whole) for the device and the mind; a mind's music ref, and every `file:` ref, is `not_signable` (chat files are never signed: they are read through `GET /v1/files/:id`, §11.7); an unknown track, or art for a track without a cover, is `not_found`. `503 not_configured` until the owner sets the read-only signing token (`R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET`, [SETUP.md N1](../process/SETUP.md)); the account's R2 host comes from the deploy's `CLOUDFLARE_ACCOUNT_ID` (`R2_ACCOUNT_ID`).
 
 ### 11.16 Ops
 
@@ -658,7 +674,7 @@ Acceptance: an integration test connects, posts a message over HTTP and receives
 
 `D` device · `C` mind:chat · `N` mind:night · `R` mind:reflex · `M` muse · `I` ci · `P` public.
 
-From P2 this table is data: `shared/contract/routes.ts` is the source the Worker's guards and the scope test read, and [CONTRACT.md](CONTRACT.md) lists every row with its status. A row with `key` takes, of its agent roles, only the one key of exactly that name (a device is the owner and needs none): the import's `import-once`, which the owner makes for that run only (SETUP.md L2), so no routine's key can write "old" owner messages that memory would take as the owner's words. Rows that wait on the private bucket (SETUP.md J2) are marked `deferred` there: `POST /v1/import/phone`, `PUT /v1/files/:id`, `POST /v1/media/sign`.
+From P2 this table is data: `shared/contract/routes.ts` is the source the Worker's guards and the scope test read, and [CONTRACT.md](CONTRACT.md) lists every row with its status. A row with `key` takes, of its agent roles, only the one key of exactly that name (a device is the owner and needs none): the import's `import-once`, which the owner makes for that run only (SETUP.md L2), so no routine's key can write "old" owner messages that memory would take as the owner's words. Rows that wait on the private bucket (SETUP.md J2) are marked `deferred` there: `POST /v1/import/phone`, `POST /v1/media/sign`.
 
 | Route | Who | Phase |
 |---|---|---|
@@ -682,6 +698,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `PUT /v1/messages/:id` | D C (N R: `error` kind to the system thread) | P2 |
 | `PATCH /v1/messages/:id` | C | P2 |
 | `PUT /v1/files/:id` | D C | P2 |
+| `GET /v1/files/:id` | D C N | P2 |
 | `GET /v1/search` | D C N | P2 |
 | `POST /v1/mind/brief`, `/status`, `/notes`, `/taint`; `GET /v1/mind/pending` | C N R | P2 |
 | `POST /v1/mind/night` | N | P3 |
@@ -727,7 +744,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `PUT /v1/briefing/place` | D | P8 |
 | `PUT /v1/senses/batches/:id` | D | P5 |
 | `POST /v1/senses/query` | C N R | P5 |
-| `POST /v1/media/sign` | D (C N for `file:`) | P5 (P2 for `file:` refs) · built: `music:` refs for D (`book:` refs are not signed: Study reads books through `GET /v1/library/books/:id/file`); `file:` refs answer `not_signable` until their home exists |
+| `POST /v1/media/sign` | D (C N for `file:`) | P5 (P2 for `file:` refs) · built: `music:` refs for D (`book:` refs are not signed: Study reads books through `GET /v1/library/books/:id/file`); `file:` refs answer `not_signable`: chat files are read through `GET /v1/files/:id` |
 | `GET /v1/music/catalog`, `GET /v1/music/waveforms/:id` | D | P5 |
 | `PUT /v1/music/uploads/audio/:file`, `PUT /v1/music/uploads/art/:file`, `POST /v1/music/uploads/:op` | P (no bearer token: each request signed by an upload tool key) | P5 |
 | `GET /v1/guitar/search`, `/songs/:id`, `/songs/:id/score`, `/gprotab/search`, `/gprotab/file`, `/sounds/:instrument/:file` | D | P6 |
