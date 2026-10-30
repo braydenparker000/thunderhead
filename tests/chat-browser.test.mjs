@@ -588,7 +588,12 @@ test('what you were writing survives a reload, and goes once sent; a quiet order
   assert.match(await page.textContent('#cmdhint'), /^Quiet until \d\d:\d\d\. No notifications until then\.$/);
   await page.fill('#q', 'Half a thought about the weekend');
   assert.equal(await page.textContent('#cmdhint'), '');
-  await page.press('#q', 'Enter');
+  // Sent and the draft gone in the same moment: the app may close right after.
+  const kept = await page.evaluate(() => {
+    /** @type {HTMLFormElement} */ (document.querySelector('#ask')).requestSubmit();
+    return localStorage.getItem('th.p.draft');
+  });
+  assert.equal(kept, null, 'the draft goes with the send, not a tick later');
   await page.waitForSelector('#talk .you');
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('#talk', { state: 'attached' });

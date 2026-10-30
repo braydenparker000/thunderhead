@@ -346,6 +346,12 @@ export async function startChat() {
     paint();
     flush();
   }
+  /** Empties the bar as typing would, so its saved draft and hints follow at once, not a tick later
+   * (the app could close in that tick and bring the sent words back). */
+  const clearBar = () => {
+    q.value = '';
+    q.dispatchEvent(new Event('input'));
+  };
   ask.addEventListener('submit', (e) => {
     e.preventDefault();
     const body = q.value.trim();
@@ -361,7 +367,7 @@ export async function startChat() {
     // "Go quiet" is done here, mind or no mind (BEHAVIOR.md §8.1); "I'm back" only ends a quiet.
     const order = picked.length ? null : quietOrder(body, now);
     if (order && ('until' in order || quietUntil(now))) {
-      q.value = '';
+      clearBar();
       ask.classList.remove('typing');
       quietOwn = true;
       setQuiet('until' in order ? order.until : 0);
@@ -373,7 +379,7 @@ export async function startChat() {
     about?.remove();
     paint();
     // Painted first: the words are never only in the bar, or only in IndexedDB.
-    q.value = '';
+    clearBar();
     ask.classList.remove('typing');
     $('#hint')?.classList.add('gone');
     keep(m);
