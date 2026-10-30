@@ -111,7 +111,7 @@ Worker requests, 100,000 Durable Object rows written, 5M rows read. Imports are 
 | Old site and ported page: Podcasts | `/podcasts/search`, `/browse`, `/feed`, `/audio` (proxy) | P8 |
 | Old site and ported page: Guitar | `/guitar/*` (tab sources, Songsterr and search proxy) | P6 |
 | Old site and ported page: Astra, My Media | whatever routes the P1b inventory finds (`/assets/error-report.js` at least) | P8 |
-| Every old and ported page's error reporter (`/assets/error-report.js`) | `POST /claude-chat/errors` | When its app's data moves (ported page) or its page retires (old page) |
+| Every old and ported page's error reporter (`/assets/error-report.js`) | `POST /claude-chat/errors` | When its app's data moves (ported page) or its page retires (old page). Built for Music, Guitar and Podcasts (P8): signed in, their pages send to `POST /v1/ops/errors` with the session (`source: 'client'`, `code: '<app>.error'` or `'.rejection'`, the path as `route`, the message with where in the code, no stack or browser string); Astra and My Media join at their moves |
 | `jc` (the old CLI in Claude sessions) | `/claude-chat/*` agent ops | P4 (replaced by `th`) |
 | Muse | `/relay/mast/*` (chat, files, work, Board publish) | P4 |
 | Music upload tools (`scripts/upload-music-r2.py`, `music-upload-canary.py`, `manage-r2-library.py`) | `/music/uploads/*` (signed ops) | P5 |

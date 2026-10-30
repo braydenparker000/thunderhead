@@ -22,7 +22,17 @@ export const SHARED = ['assets/', 'drawercast/drive-api.js'];
 export const EDITS = {
   'media/index.html': { adjustments: ['paths'], edits: [['href="/media/mymedia.css', 'href="/mymedia/mymedia.css'], ['src="/media/app.js', 'src="/mymedia/app.js']] },
   // The reporter only reports on its own live site; its site is now this one.
-  'assets/error-report.js': { adjustments: ['api-address'], edits: [["const SITE = 'https://thunderhead.z13.web.core.windows.net';", "const SITE = 'https://missionarytube.z13.web.core.windows.net';"]] },
+  // Data moves (MIGRATION.md §2.5): a moved app's page (Music, Guitar, Podcasts) reports its errors to the new
+  // Worker's inbox with the owner's session (th/ported/session.js); Astra and My Media to the old one until they move.
+  'assets/error-report.js': {
+    adjustments: ['api-address', 'data-move'],
+    edits: [
+      ["const SITE = 'https://thunderhead.z13.web.core.windows.net';", "const SITE = 'https://missionarytube.z13.web.core.windows.net';"],
+      ["import {API_ORIGIN} from './config.js';\nimport {CONFIG} from '/config.js';\n", "import {API_ORIGIN} from './config.js';\n"],
+      ["const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';\n// Data moves (MIGRATION.md §2.5): a moved app's page reports to the new Worker's inbox with the owner's session (a top-level page only); the others, and a page signed out, as before.\nconst MOVED = ['player', 'guitar', 'podcasts'];\nlet session = null;\nif (MOVED.includes(app)) import('/th/ported/session.js').then(m => m.sessionToken()).then(t => { session = t; }, () => {});\n// The new inbox's shape (API.md §11.16): a code and a message, where in the code the error came from instead of a stack.\nconst where = stack => /\\/[^\\s()]+:\\d+:\\d+/.exec(stack.replaceAll(location.origin, ''))?.[0];\nconst item = r => ({source: 'client', code: `${r.app}.${r.kind}`, route: r.path, message: (where(r.stack) ? `${r.message} @ ${where(r.stack)}` : r.message).slice(0, 300), build: 0, at: r.at});\n", "const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';\n"],
+      ["    if (session && CONFIG.api) fetch(CONFIG.api + '/v1/ops/errors', {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + session}, body: JSON.stringify({items: reports.map(item)}), keepalive: true, credentials: 'omit', mode: 'cors'}).catch(() => {});\n    else fetch(ENDPOINT, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reports}), keepalive: true, credentials: 'omit', mode: 'cors'}).catch(() => {});\n", "    fetch(ENDPOINT, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reports}), keepalive: true, credentials: 'omit', mode: 'cors'}).catch(() => {});\n"],
+    ],
+  },
   // P6 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the new Worker with the owner's session, the old
   // one while it can't answer.
   'guitar/sources.js': {

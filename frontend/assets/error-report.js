@@ -11,6 +11,7 @@
 // goes out when the page is hidden. Only on the live site.
 
 import {API_ORIGIN} from './config.js';
+import {CONFIG} from '/config.js';
 
 const SITE = 'https://thunderhead.z13.web.core.windows.net';
 const ENDPOINT = API_ORIGIN + '/claude-chat/errors';
@@ -18,6 +19,13 @@ const PER_ERROR = 3, PER_PAGE = 20, BATCH_MS = 2000;
 
 const script = document.currentScript || document.querySelector('script[src*="/assets/error-report.js"]');
 const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';
+// Data moves (MIGRATION.md §2.5): a moved app's page reports to the new Worker's inbox with the owner's session (a top-level page only); the others, and a page signed out, as before.
+const MOVED = ['player', 'guitar', 'podcasts'];
+let session = null;
+if (MOVED.includes(app)) import('/th/ported/session.js').then(m => m.sessionToken()).then(t => { session = t; }, () => {});
+// The new inbox's shape (API.md §11.16): a code and a message, where in the code the error came from instead of a stack.
+const where = stack => /\/[^\s()]+:\d+:\d+/.exec(stack.replaceAll(location.origin, ''))?.[0];
+const item = r => ({source: 'client', code: `${r.app}.${r.kind}`, route: r.path, message: (where(r.stack) ? `${r.message} @ ${where(r.stack)}` : r.message).slice(0, 300), build: 0, at: r.at});
 const seen = new Map();
 let queue = [], sent = 0, timer = 0;
 
@@ -46,7 +54,8 @@ function flush() {
   const reports = queue.splice(0, 10);
   sent += reports.length;
   try {
-    fetch(ENDPOINT, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reports}), keepalive: true, credentials: 'omit', mode: 'cors'}).catch(() => {});
+    if (session && CONFIG.api) fetch(CONFIG.api + '/v1/ops/errors', {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + session}, body: JSON.stringify({items: reports.map(item)}), keepalive: true, credentials: 'omit', mode: 'cors'}).catch(() => {});
+    else fetch(ENDPOINT, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reports}), keepalive: true, credentials: 'omit', mode: 'cors'}).catch(() => {});
   } catch {}
   if (queue.length) timer = setTimeout(flush, BATCH_MS);
 }
