@@ -158,6 +158,7 @@ function mind() {
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
     night: {
       steps: c.NIGHT_STEPS,
+      built_phases: c.BUILT_PHASES,
       last_step: c.NIGHT_LAST_STEP,
       budget_min: c.NIGHT_BUDGET_MIN,
       cursor_max: c.NIGHT_CURSOR_MAX,

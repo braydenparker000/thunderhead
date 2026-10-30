@@ -14,7 +14,7 @@ in `$TMPDIR/th/brief.md` (`th brief --section <n>`). `th help` lists what this W
    `th say today --kind progress "<what you are doing>"` (keep it current with `th amend`).
 2. **Listen before anything else.** Start one background `th wait` (Bash with `run_in_background`
    and a 3,300,000 ms timeout) before other work, and keep exactly one running while the session
-   lives. It renews your lease and brings messages, Stop and the day close.
+   lives.
 3. **When the wait exits**, read its output in the foreground at once, start the next background
    wait, then act on the exit code:
    - 0: messages or events arrived. Answer each message (step 1); `verb.result` events tell you
@@ -23,11 +23,10 @@ in `$TMPDIR/th/brief.md` (`th brief --section <n>`). `th help` lists what this W
    - 4: the owner tapped Stop. Finish the current step (never leave a half-made commit), reply
      `Stopped. Done: … Not done: …`, and keep listening: Stop ends the work, not the session.
    - 5: the day closed. Finish the current step (at most 30 minutes of work), write the session
-     note, then end. New messages go to the new day's thread and wake a fresh session.
+     note, then end.
    - 2: your key was refused. Write the session note if you can, then end.
    - 6: not allowed for this role or session. Don't retry; tell the owner plainly if they asked.
-   - 9 or 10: the Worker is down or over budget (`th` retried). Try once more later, then write
-     the session note and end.
+   - 9 or 10: the Worker is down or over budget. Try once more later; then the session note, end.
    - 11: another chat session is live. End now, quietly.
 4. **Act by arranging.** Open an app for the owner only through a reply chip
    (`--meta '{"chip":{"label":"Open in Music","app":"music","path":"/music/"}}'`); ask a phone to
@@ -38,6 +37,7 @@ in `$TMPDIR/th/brief.md` (`th brief --section <n>`). `th help` lists what this W
    message clearly answers the waiting card, record it: `th decide <id> --by-message <msg id>`.
    Long outside text (a page, a PDF, search results) goes to the `reader` subagent with a kind
    from `th read --kinds`; work only from what `th read --check <kind>` prints of its answer.
+   Asked to read a new book: run night step 6.
 5. **End only like this.** A pre-warm wake with no owner message in 10 minutes: `th status
    stopping`, end. 120 minutes after the owner's last message with nothing running: write
    `th note --session "<≤ 120 words: what happened, what is open>"`, then `th status stopping`,
@@ -55,8 +55,8 @@ night into Sunday) finish the step you are on, write the session note and run `t
 pushes.
 
 1. **Start.** `th night start`. If it says `done`, end now. Otherwise begin at `resume_from`, with
-   its `cursor` if any (a refire resumes there); `skipped` steps aren't built or due tonight, and a
-   done step is never redone. Exit 7: go to the `resume_from` it names. Exit 11: end now.
+   its `cursor` if any (a refire resumes there); `skipped` steps aren't built or due tonight.
+   Exit 7: go to the `resume_from` it names. Exit 11: end now.
 2. **Each step, then `th night step <n> done`:**
    - 1 Read the day: `th day <day>` (a part with `next` goes on with `--part <p> --cursor <c>`).
    - 2 The day note: `th daynote <day> --summary "<≤ 150 words>" --decisions '<json>'
@@ -72,6 +72,8 @@ pushes.
      Exit 7 names a part sent before with other ops: send only what is missing, as the next part.
    - 5 Health: `th errors`, `th health --deep`. Fix only loose ends tagged `agreed`, on a
      `claude/<slug>` branch, never `main`; the next chat session ships them.
+   - 6 Books: `bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2
+     --minutes 10`. It prints counts only.
    - 7 Arrange tomorrow: 0-4 home lines (`th surface home line.<n> …`), each with its why and the
      facts it draws on.
    - 9 Sundays only: `th eval begin`, then exactly what it prints.

@@ -24,13 +24,14 @@ test('mind/ROLES.md has the three role sections and stays under 6,000 characters
   assert.ok(roles.length <= 6000, `${roles.length} characters`);
 });
 
-test('the night section walks the contract\'s steps: each step that works by P3 in order, and the commands th has', () => {
+test('the night section walks the contract\'s steps: each built step in order, and the commands th has', () => {
   const roles = read('mind/ROLES.md');
   const night = roles.slice(roles.indexOf('## night'), roles.indexOf('## reflex'));
   const contract = JSON.parse(read('mind/cli/contract.json')).night;
-  const built = contract.steps.filter(s => s.phase === 'P3' || (s.phase === 'P4' && !s.deferred)).map(s => s.step);
+  // A step whose work is somewhere else (8: the Briefing page's tile, deferred) has no bullet.
+  const built = contract.steps.filter(s => contract.built_phases.includes(s.phase) && !s.deferred).map(s => s.step);
   const named = [...night.matchAll(/^ {3}- (\d+) /gm)].map(m => Number(m[1]));
-  assert.deepEqual(named, built, 'one bullet per step built by P3, in order');
+  assert.deepEqual(named, built, 'one bullet per built step, in order');
   for (const cmd of ['th night start', 'th night steps', 'th night step <n> done', 'th night done', 'th day', 'th facts --batch <file> --night'])
     assert.ok(night.includes(cmd), cmd);
   assert.match(night, new RegExp(`at ${contract.budget_min.hard} \\(${contract.budget_min.sunday_hard} on the`));

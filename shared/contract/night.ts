@@ -16,7 +16,7 @@ export interface NightStep {
   /** The step saves a cursor (`th night step <n> cursor <c>`) and resumes from it. */
   cursor: boolean;
   /** The phase in which the step starts doing work. */
-  phase: 'P3' | 'P4' | 'P5';
+  phase: 'P3' | 'P4' | 'P5' | 'P7';
   /** Run on Sundays only. */
   sunday?: true;
   /** Built in a later step of its phase: the text says what it waits on. Skipped (`later`) until then. */
@@ -57,14 +57,15 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     cursor: false,
     phase: 'P3',
   },
+  // Indexing: from P7, reading Study's waiting books (mind/jobs/study-ingest.mjs: at most 2 books,
+  // 10 minutes; a book not finished goes on the next night). The P5 indexing jobs join it later.
   {
     step: 6,
-    name: 'indexing jobs',
-    budget_min: 1,
-    idempotent: 'jobs are keyed by their input',
+    name: 'indexing (Study’s books)',
+    budget_min: 10,
+    idempotent: 'a book is claimed by one run at a time and goes on from its cursor; a page is put by its number',
     cursor: false,
-    phase: 'P5',
-    deferred: 'the indexing jobs (P5)',
+    phase: 'P7',
   },
   {
     step: 7,

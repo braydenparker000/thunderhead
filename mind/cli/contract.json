@@ -1806,12 +1806,11 @@
       },
       {
         "step": 6,
-        "name": "indexing jobs",
-        "budget_min": 1,
-        "idempotent": "jobs are keyed by their input",
+        "name": "indexing (Study’s books)",
+        "budget_min": 10,
+        "idempotent": "a book is claimed by one run at a time and goes on from its cursor; a page is put by its number",
         "cursor": false,
-        "phase": "P5",
-        "deferred": "the indexing jobs (P5)"
+        "phase": "P7"
       },
       {
         "step": 7,
@@ -1847,6 +1846,16 @@
         "cursor": false,
         "phase": "P3"
       }
+    ],
+    "built_phases": [
+      "P1",
+      "P1b",
+      "P2",
+      "P3",
+      "P4",
+      "P5",
+      "P6",
+      "P7"
     ],
     "last_step": 10,
     "budget_min": {

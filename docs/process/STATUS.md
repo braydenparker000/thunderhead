@@ -5,7 +5,7 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**P7 · Study**. Step 2, going live with this push: the Study app on its own page (`/study/`: the library with Continue and covers drawn on the phone, adding a book in parts with Resume, search grouped by book, and the reader over signed 256 KB ranges with printed page numbers, Go to page, the place kept across devices, night pages). Checked in Chromium against a mock API and bucket. Reading needs SETUP.md N1 and O1 (ask-first).
+**P7 · Study**. Step 3, going live with this push: reading the owner's books in the mind's session, as night step 6 (at most 2 books and 10 minutes a night; a book goes on from its cursor): text, printed page numbers, OCR where a page needs it, blocks, pages under the bulk lane; counts only in its output (tested end to end against the real Worker, OCR included). Step 2, live since 01:36 UTC (`ab6d3bd`, run #49; checked live: signed out it goes to sign-in and back, pdf.js 6.4.299 loads and reads a PDF on the site with its worker, the ring opens Study, no errors): the Study app on its own page (`/study/`: the library with Continue and covers drawn on the phone, adding a book in parts with Resume, search grouped by book, and the reader over signed 256 KB ranges with printed page numbers, Go to page, the place kept across devices, night pages). Checked in Chromium against a mock API and bucket. Reading needs SETUP.md N1 and O1 (ask-first).
 Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, migration tag `v4`), and its routes since 00:57 UTC (`8c79055`, run #47; checked live: every route answers 401 without a key, the parts preflight is allowed): (API.md §11.21: books uploaded in 50 MiB parts straight into the private bucket, reading places, highlights, search, the mind's claimed reading runs with pages under the bulk lane), `book:` signing, the Library's daily pass, and the Library and the senses' rollups in the weekly backup and the export. Owner step: SETUP.md O1 (the private bucket's CORS rule for the reader; approved 2026-10-30, the owner applies it).
 
 **P6 · Evolve Guitar**, data move, live since 00:19 UTC (`ce29c20`, run #45): `/v1/guitar/*` (Songsterr, GProTab, samples, the old routes ported), and the ported app's sources module asks the new Worker with the owner's session when signed in on this site (else the old Worker). No owner step: it switches as soon as the page loads signed in. Checked in Chromium both ways, and live: the page's CSP carries the API host, the routes answer 401 without a key, the live files match the commit, and signed out the live page searches through the old Worker with no errors. The improvements (practice senses, tempo ladder, tips, calibration, ears) wait for the owner's yes.
@@ -35,8 +35,8 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Next three tasks
 
-1. P7 step 3: ingestion in the mind's session (`th library`, `mind/jobs/study-ingest.mjs`: text, OCR, labels, blocks, refs).
-2. P7 steps 4–6: the parser and verse page, highlights and offline copies, cited answers with the validator.
+1. P7 step 4: the scripture parser, the private book table, the verse page and its links.
+2. P7 steps 5–6: the parser and verse page, highlights and offline copies, cited answers with the validator.
 3. Owner: SETUP.md N1–N4 (music), M2 (the reflex routine and its drill), M3 (Muse moves over), M4 from 2026-11-05. Sunday's first backup and drill are P4's "a restore drill passed"; the Music object's first backup runs with it.
 
 ## Blocked / waiting on the owner
@@ -48,7 +48,8 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Last deploy
 
-- 2026-10-30: this push, P7 step 2 again with pdf.js's legacy build (run #48 stopped at its tests before deploying: the modern build needs built-ins CI's Chromium lacks). Site, and the Worker's chips may now open Study.
+- 2026-10-30: this push, P7 step 3 (the mind reads the owner's books, night step 6; no Worker schema change).
+- 2026-10-30 01:36 UTC: `ab6d3bd` (run #49), P7 step 2, the Study app, with pdf.js's legacy build (run #48 stopped at its tests before deploying: the modern build needs built-ins CI's Chromium lacks). Checked live.
 - 2026-10-30 00:57 UTC: `8c79055` (run #47), P7 step 1b (the Library's routes, `book:` signing, its daily pass; the Library and the senses' rollups in the backup and the export; no schema change). Checked live.
 - 2026-10-30 00:31 UTC: `75aa1da` (run #46), the `Library` object alone (migration tag `v4`). The deploy's smoke check passed.
 - 2026-10-30 00:19 UTC: `ce29c20` (run #45), P6 Guitar's data move. Checked live.

@@ -188,25 +188,26 @@ describe('the run record', () => {
   it('the steps of later phases are skipped on the way, each with why', async () => {
     expect((await night({ day: yday, action: 'step_done', step: 4 }, 'cse_night_c')).body.resume_from).toBe(5);
     expect((await night({ day: yday, action: 'step_done', step: 5 }, 'cse_night_c')).body).toEqual({
-      resume_from: 7,
+      resume_from: 6,
       done: false,
       cursor: null,
-      skipped: [6],
+      skipped: [],
     });
+    expect((await night({ day: yday, action: 'step_done', step: 6 }, 'cse_night_c')).body.resume_from).toBe(7); // P7
     // Step 9 (the weekly evals) is due only on the night into Sunday, whatever day this runs on.
     const sunday = weekly(yday);
     expect((await night({ day: yday, action: 'step_done', step: 7 }, 'cse_night_c')).body).toEqual({
       resume_from: sunday ? 9 : 10,
       done: false,
       cursor: null,
-      skipped: sunday ? [6, 8] : [6, 8, 9],
+      skipped: sunday ? [8] : [8, 9],
     });
     if (sunday) await night({ day: yday, action: 'step_done', step: 9 }, 'cse_night_c');
     const r = await run(yday);
     expect(r.step).toBe(9);
     const steps = JSON.parse(r.steps_json);
-    expect([steps[6].skipped, steps[8].skipped, steps[9].skipped]).toEqual([
-      'later',
+    expect([steps[6].done, steps[8].skipped, steps[9].skipped]).toEqual([
+      true,
       'later',
       sunday ? undefined : 'not_sunday',
     ]);
@@ -228,7 +229,7 @@ describe('the run record', () => {
       resume_from: 11,
       done: true,
       cursor: null,
-      skipped: [6, 8, 9],
+      skipped: [8, 9],
     });
     const ended = async (session: string) => {
       const [s] = await coreSql<{ ended_at: number | null; wake_id: string }>(
@@ -277,7 +278,7 @@ describe('the run record', () => {
       'hard_stop',
       'hard_stop',
       'hard_stop',
-      'later',
+      'hard_stop',
       'hard_stop',
       'later',
       weekly(d2) ? 'hard_stop' : 'not_sunday',

@@ -572,7 +572,15 @@ a day crossing the 04:00 roll).
    SETUP.md N1 and O1; until then the reader says "Books can't open yet". Not yet: keeping a book on the
    phone, highlights and notes (step 5), the verse card (step 4), Study's senses (with the phone's
    senses batcher), Delete book (a proposal).
-3. Ingestion script in the mind's session; search.
+3. Ingestion script in the mind's session; search. **Built:** `mind/jobs/study-ingest.mjs` with
+   `mind/jobs/study_extract.py` (pypdf text, the PDF's `/PageLabels` else labels inferred from printed
+   numbers, OCR by pypdfium2 + Tesseract where a page needs it) and `mind/jobs/study-blocks.mjs`;
+   `mind/jobs/study-setup.sh` installs the pinned tools when missing. It runs as night step 6 (at most
+   2 books and 10 minutes a night, not the 45 minutes above, which the night's own 45-minute hard stop
+   can't hold; a book goes on from its cursor the next night) and in a chat session when the owner
+   asks. Tested end to end against the real Worker: a canary phrase, the title and the file name never
+   appear in its output. Tesseract 5.3.4 installed with apt in a cloud session (open question 5). The
+   search screen shipped with step 2. Verse refs come with step 4's parser.
 4. Parser + private book table + verse page + scripture-app links.
 5. Highlights and notes, offline copies.
 6. Cited answers with the Worker validator; evals.
