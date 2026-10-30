@@ -18,7 +18,7 @@ Sibling docs: [HOME](HOME.md), [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM
 
 | Part | Values (built) |
 |---|---|
-| Panel | Right side, `width: min(84%, 360px)`, full height, live glass `--sheet` with blur 28 px saturate 1.6, 1 px left border `--glass-line`, sideways E3 shadow when open |
+| Panel | Right side, `width: min(84%, 360px)`, full height, `--panel` (frosted by day; near-black, 94%, by night, so it sits with the black field: the old `--sheet` grey with saturate 1.6 read greyish brown over the warm glow, owner 2026-10-30) with blur 24 px, 1 px left border `--glass-line`, sideways E3 shadow when open |
 | Padding | top `16px + safe-area`, sides 14 px, bottom `24px + safe-area`; scrolls vertically, no scrollbar |
 | Home behind it | Moves left by 20% of the panel width; a dim layer `rgba(10,14,22,.3)` fades in with the drag |
 | Section heads | Inter 600 11 px caps, +0.12em, `--ink-3`, 24 px above, with an optional sentence under (Inter 400 12, sentence case) |
@@ -62,7 +62,7 @@ Acceptance: with fixture threads, "canción" and "cancion" return the same hits;
 
 The section head reads "Conversations" with the line "A fresh one starts on its own each morning. Nothing to start or name." (built).
 
-Built: the groups, titles with their fallback, the row metas and the taps below (`frontend/th/convos/`, loaded when the menu first opens; `tests/convos-browser.test.mjs`, `tests/convos-logic.test.mjs`). Now is a glass card with today's date and message count. Each group under it has a heading with its count and a chevron; a tap folds its rows away (the height eases, the rows cascade back in on opening), and what is folded is remembered on this phone. A row is an icon tile, the title with its date on the right, and a second line: the night shift's summary, else how many messages. Imported old chats (`kind = 'imported'`) land by their own day like any thread, tagged gold "Old Chats" with a clock icon, and open read-only like any past thread. The list is read newest first, 30 a page, again on opening the menu after 30 s or when the feed reports a thread change; the first pages are kept on this phone (IndexedDB) for offline, with the line "Offline: showing what this phone has." Not built yet: the long-press actions (decisions.md) and the per-app icons (every older row uses `chat-circle` in `--ink-3`).
+Built: the groups, titles with their fallback, the row metas and the taps below (`frontend/th/convos/`, loaded when the menu first opens; `tests/convos-browser.test.mjs`, `tests/convos-logic.test.mjs`). Now is a slim flat-glass row with a live dot, today's date and message count. Each group under it has a heading with its count and a chevron; a tap folds its rows away (the height eases, the rows cascade back in on opening), and what is folded is remembered on this phone. A row is text only and compact (owner, 2026-10-30: "smaller, more compact"; 44 px, no icon tile): the title with its date on the right, and a second line: the night shift's summary, else how many messages. Imported old chats (`kind = 'imported'`) land by their own day like any thread, tagged gold "Old Chats" with a clock icon, and open read-only like any past thread. The list is read newest first, 30 a page, again on opening the menu after 30 s or when the feed reports a thread change; the first pages are kept on this phone (IndexedDB) for offline, with the line "Offline: showing what this phone has." Not built yet: the long-press actions (decisions.md) and the per-app icons (every older row uses `chat-circle` in `--ink-3`).
 
 ### 3.1 Grouping
 
@@ -81,7 +81,7 @@ One thread per day (decisions.md). The prototype showed two "Today" rows (topics
 1. At the day roll the Worker gives the old thread a **provisional title**: the first owner message trimmed to 40 characters at a word boundary ([MEMORY](../mind/MEMORY.md) §11; Workers AI titles are deferred).
 2. The night shift rewrites it as the **final title**, unless the owner renamed it.
 3. Titles are ≤ **40** characters, sentence case, no date, no quotes ("A calm playlist for the evening", "Bars 9 to 12, slow then up to tempo").
-4. The row's icon and colour are those of the app the thread was mostly about (from its action chips and senses); a general thread uses `chat-circle` in `--ink-3` [proposal; built: every older row uses `chat-circle`].
+4. Rows carry no icon (owner, 2026-10-30); the app a thread was mostly about may come back as a small coloured word in its second line [proposal].
 6. Until a thread has a title, its row shows its date ("Monday 26 October") (built).
 5. An empty day (no messages) has no thread and no row.
 

@@ -16,6 +16,9 @@
   --glass:light-dark(rgba(255,255,255,.55),rgba(255,255,255,.07)); --glass-line:light-dark(rgba(21,34,49,.07),rgba(255,255,255,.08));
   --bar:light-dark(rgba(255,255,255,.5),rgba(255,255,255,.07)); --bar-line:light-dark(rgba(255,255,255,.65),rgba(255,255,255,.12));
   --sheet:light-dark(rgba(247,249,253,.84),rgba(18,20,24,.86));
+  /* The menu panel: frosted by day, near-black by night so it sits with the black field rather than
+     greying it (owner, 2026-10-30). */
+  --panel:light-dark(rgba(248,250,253,.9),rgba(5,6,8,.94));
   --disc:light-dark(rgba(255,255,255,.82),rgba(22,26,32,.92)); --disc-line:light-dark(rgba(21,34,49,.10),rgba(255,255,255,.12));
   --dim:rgba(10,14,22,.30); --scrim:light-dark(rgba(238,241,247,.35),rgba(0,0,0,.35));
   /* Flat glass (§6 G0): the glass fill without a backdrop blur, 2% lighter to make up for it. */

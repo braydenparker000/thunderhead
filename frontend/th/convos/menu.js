@@ -142,15 +142,13 @@ export async function openThread(id, focus = null) {
   }
 }
 
-/** A row for one thread: title and date, then its summary or count, an imported one tagged.
+/** A row for one thread, text only: title and date, then its summary or count, an imported one tagged.
  * @param {Thread} t @param {Group} g @param {number} i its place, for the cascade as a group opens */
 function row(t, g, i) {
   const b = el('button', `row thr${t.kind === 'imported' ? ' old' : ''}`);
   b.type = 'button';
   b.dataset.id = t.id;
   b.style.setProperty('--i', String(Math.min(i, 12)));
-  const av = el('span', 'av');
-  av.innerHTML = svg(t.kind === 'imported' ? 'clock' : 'chat-circle');
   const l1 = el('span', 'l1');
   l1.append(el('span', 'tl', titleOf(t)), el('small', 'when', metaOf(t, g)));
   const l2 = el('span', 'l2');
@@ -158,7 +156,7 @@ function row(t, g, i) {
   l2.append(el('span', 'sum', subOf(t)));
   const tx = el('span', 'tx');
   tx.append(l1, l2);
-  b.append(av, tx);
+  b.append(tx);
   return b;
 }
 
@@ -213,11 +211,9 @@ async function draw(error) {
       const b = el('button', 'row all');
       b.type = 'button';
       b.dataset.all = '';
-      const av = el('span', 'av');
-      av.innerHTML = svg('clock');
       const tx = el('span', 'tx');
       tx.append(el('span', 'tl', 'All conversations'), el('span', 'l2', data.list.done ? `${others} ${others === 1 ? 'conversation' : 'conversations'}, by month` : 'By month, newest first'));
-      b.append(av, tx);
+      b.append(tx);
       b.insertAdjacentHTML('beforeend', svg('caret-right', ' go'));
       out.push(b);
     } else if (!error) out.push(el('p', 'cline', 'Each day files itself here once it is over.'));
