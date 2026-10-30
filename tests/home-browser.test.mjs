@@ -31,9 +31,14 @@ async function open(theme = 'light', path = '/') {
 const drag = async (page, x0, x1, y = 300) => {
   await page.mouse.move(x0, y); await page.mouse.down();
   await page.mouse.move(x0 + (x1 - x0) * 0.3, y, { steps: 4 }); await page.mouse.move(x1, y, { steps: 8 });
-  await page.mouse.up(); await page.waitForTimeout(550);
+  await page.mouse.up();
+  // The page settles with a transition whose length follows the flick: wait for it to end rather
+  // than a fixed time, which a busy machine outruns.
+  await page.waitForTimeout(50);
+  await page.waitForFunction(() => !document.getAnimations().some(a => a instanceof CSSTransition && a.playState === 'running'), null, { timeout: 3000 });
 };
-const left = (page, sel) => page.$eval(sel, el => Math.round(el.getBoundingClientRect().left));
+// `+ 0` turns -0 into 0.
+const left = (page, sel) => page.$eval(sel, el => Math.round(el.getBoundingClientRect().left) + 0);
 
 test('loads clean in day and night', async () => {
   for (const theme of ['light', 'dark']) {

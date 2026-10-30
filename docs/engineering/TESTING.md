@@ -6,7 +6,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 
 ## Rules at a glance
 
-1. **One command:** `npm test` at the repo root runs every offline layer. CI runs the same command. Nobody needs to remember a second one.
+1. **One command:** `npm test` at the repo root runs every offline layer. CI runs the same checks, split into four parallel jobs (§2). Nobody needs to remember a second one.
 2. **Tests run on real runtimes:** the backend in real workerd with real SQLite Durable Objects (Vitest + `@cloudflare/vitest-plugin`), and the frontend in real Chromium (Playwright) against a local server that behaves like Azure. No hand-rolled fake storage.
 3. **Phone size is the default size.** Browser tests run at the Galaxy A15's size, plus 390×844 and 360×740.
 4. **Every endpoint has a cost test** that pins rows read, rows written and DO calls.
@@ -54,7 +54,9 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 | 13 Evals | — | synthetic, deterministic parts only | — | — | ✓ (Sundays, `mind-night`) | — |
 | 14 Device | — | — | — | — | — | ✓ per §12.2 |
 
-Time budget: `npm test` ≤ 3 min on a 4-vCPU runner **[proposal]**. A layer that grows past its share (browser ≤ 90 s, backend ≤ 60 s) gets split or trimmed. CI's job timeout is 10 minutes.
+**How CI runs them (built 2026-10-30, owner: "go faster without losing quality").** `ci.yml` (every branch but `main`) and `deploy.yml` (job `test`, before anything goes live) both call `checks.yml`: four jobs at once, the site and mind suites in three parts and the Worker's suite. `scripts/test-part.mjs <k> <n>` deals the test files into parts by size, largest first, each to the part with the fewest bytes so far, so the parts take about as long with no timing table to maintain; `tests/test-part.test.mjs` proves every file runs in exactly one part. Each commit is checked once (the deploy's `api` and `site` jobs no longer re-run the suite), in about two minutes where one job took four and a half (measured 2026-10-30: site and mind 165 s, Worker 95 s, on a 4-vCPU runner).
+
+Time budget: `npm test` ≤ 5 min on a 4-vCPU runner; each CI part ≤ 2 min. A part that grows past it gets another part (raise `n` in `checks.yml`) or its slowest file split. CI's job timeout is 10 minutes.
 
 ---
 

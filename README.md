@@ -21,6 +21,7 @@ npx playwright install chromium         # once, if Chromium isn't installed
 npm run serve                           # the site: http://127.0.0.1:8080
 npm run dev                             # the Worker, local workerd: http://127.0.0.1:8787
 npm test                                # everything (site, contract, backend on workerd)
+node scripts/test-part.mjs 1 3          # one of CI's three site-and-mind parts (checks.yml)
 SITE_URL=https://<site> node --test tests/home-browser.test.mjs   # check the live site
 ```
 
@@ -30,7 +31,7 @@ The Worker deploys from the same workflow (job `api`, before `site`; off until
 `WORKER_DEPLOY_ENABLED=true`), with a smoke check and `wrangler rollback` on failure; see
 [backend/README.md](backend/README.md). The site:
 
-- **Release:** push to `main`. The Deploy workflow tests, publishes `frontend/` to the
+- **Release:** push to `main`. The Deploy workflow tests (once, in four parallel jobs), publishes `frontend/` to the
   storage account's `$web` container, waits until the live `release.json` names the
   commit, and runs the browser checks against the live site.
 - **Automatic rollback:** if the live check fails, the workflow puts the previous live

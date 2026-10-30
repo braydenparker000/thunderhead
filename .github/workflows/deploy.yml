@@ -1,8 +1,9 @@
-# Every push to main: job `api` deploys the Worker thunderhead-api when backend/, shared/ or the
-# lockfile changed since the live tag (off until WORKER_DEPLOY_ENABLED=true), smoke-checks it and
-# runs `wrangler rollback` on failure. Then job `site` tests, publishes the site to the Azure
-# Storage static website and checks it live. If anything fails or is cancelled after publishing
-# starts, the previous live commit goes back up and the run is marked failed. `site` starts
+# Every push to main: job `test` runs every check once, in four parallel parts (checks.yml). Then
+# job `api` deploys the Worker thunderhead-api when backend/, shared/ or the lockfile changed since
+# the live tag (off until WORKER_DEPLOY_ENABLED=true), smoke-checks it and runs `wrangler rollback`
+# on failure. Then job `site` publishes the site to the Azure Storage static website and checks it
+# live. If anything fails or is cancelled after publishing starts, the previous live commit goes
+# back up and the run is marked failed. Nothing deploys unless `test` passed, and `site` starts
 # only after `api` succeeded or was skipped, so a new site never meets an old API.
 # Manual deploy or rollback: Actions > Deploy > Run workflow (from main), with the commit to put
 # live and the target (OPERATIONS.md §3.2, §5.2).
@@ -38,12 +39,22 @@ defaults:
   run:
     shell: bash
 jobs:
+  # The same commit `api` and `site` put live. Skipped only for an api-rollback, which puts back a
+  # version that already passed.
+  test:
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.target != 'api-rollback') }}
+    permissions:
+      contents: read
+    uses: ./.github/workflows/checks.yml
+    with:
+      ref: ${{ inputs.ref || github.sha }}
   # The Worker (OPERATIONS.md §5.1). Environment `worker` (deployable from main only) holds the
   # secrets CLOUDFLARE_API_TOKEN and TH_CI_TOKEN and the variables CLOUDFLARE_ACCOUNT_ID,
   # SITE_ORIGINS and, for the very first deploy only, WORKER_BOOTSTRAP=true. WORKER_URL is a
   # repository variable, shared with the site job.
   api:
-    if: ${{ github.ref == 'refs/heads/main' && vars.WORKER_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target != 'site') }}
+    needs: test
+    if: ${{ !cancelled() && (needs.test.result == 'success' || (needs.test.result == 'skipped' && inputs.target == 'api-rollback')) && github.ref == 'refs/heads/main' && vars.WORKER_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target != 'site') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: worker
@@ -76,11 +87,7 @@ jobs:
           [[ ${#origins[@]} -gt 0 ]] || { echo "::error::Variable SITE_ORIGINS is missing"; bad=1; }
           for o in "${origins[@]}"; do [[ "$o" =~ ^https://[A-Za-z0-9.-]+$ ]] || { echo "::error::SITE_ORIGINS entry \"$o\" must be https://host with no path, slash or spaces"; bad=1; }; done
           exit "$bad"
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 24
-          package-manager-cache: false
-      - run: npm ci --ignore-scripts
+      # Before installing anything: a push that leaves the Worker as it is ends here in seconds.
       - name: Decide what to do
         id: plan
         env:
@@ -97,15 +104,13 @@ jobs:
           echo "live_tag=$live_tag" >> "$GITHUB_OUTPUT"
           echo "tag=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
           echo "plan: $mode (live tag: ${live_tag:-none})"
-      - if: ${{ steps.plan.outputs.mode == 'deploy' }}
-        run: npx playwright install --with-deps --only-shell chromium
-      - name: Test before deploying
-        if: ${{ steps.plan.outputs.mode == 'deploy' }}
-        # Local tests only: the live API checks run in the smoke check, after the deploy.
-        env:
-          SITE_URL: ''
-          WORKER_URL: ''
-        run: npm test
+      - if: ${{ steps.plan.outputs.mode != 'skip' }}
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - if: ${{ steps.plan.outputs.mode != 'skip' }}
+        run: npm ci --ignore-scripts
       - name: Note the live version (empty on the very first deploy)
         id: before
         if: ${{ steps.plan.outputs.mode != 'skip' }}
@@ -226,8 +231,8 @@ jobs:
           npx wrangler rollback "$VERSION" --config "$CONFIG" --message "manual rollback" --yes
           node --test tests/live-api.test.mjs
   site:
-    needs: api
-    if: ${{ !cancelled() && (needs.api.result == 'success' || needs.api.result == 'skipped') && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target == 'site' || inputs.target == 'both') }}
+    needs: [test, api]
+    if: ${{ !cancelled() && needs.test.result == 'success' && (needs.api.result == 'success' || needs.api.result == 'skipped') && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target == 'site' || inputs.target == 'both') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     permissions:
@@ -255,13 +260,8 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - run: npm ci --ignore-scripts
+      # For the live check's browser test.
       - run: npx playwright install --with-deps --only-shell chromium
-      - name: Test before publishing
-        env:
-          SITE_URL: ''
-          WORKER_URL: ''
-          DRIVE_CONFIG_JSON: ''
-        run: npm test
       - name: Note what is live now
         id: before
         run: |

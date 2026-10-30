@@ -120,7 +120,7 @@ thunderhead/
   AGENTS.md  CLAUDE.md  README.md      rules, entry point, commands
   package.json  package-lock.json      npm workspaces: ".", "backend", "mind"; one `npm test`
   biome.json  tsconfig.json            one lint/format config; tsc checks backend, shared, frontend JSDoc, mind
-  .github/workflows/                   ci.yml (non-main pushes), deploy.yml (test → api → site), jobs-audio.yml (P5)
+  .github/workflows/                   checks.yml (the tests, in 4 parallel jobs), called by ci.yml (non-main pushes) and deploy.yml (test → api → site); jobs-audio.yml (P5)
   .github/dependabot.yml               monthly, grouped
   .claude/settings.json                mind hooks: SessionStart, Stop (bounded), PreToolUse per TH_ROLE
   shared/contract/                     TYPES ONLY: api.ts events.ts refs.ts errors.ts (no runtime code)

@@ -72,10 +72,10 @@ Acceptance: a CI test parses `backend/src` for `env.<NAME>` and fails if a name 
 
 ### 3.1 Automatic deploy (every push to `main`)
 
-What `deploy.yml` job `site` does today (`th/.github/workflows/deploy.yml`):
+What `deploy.yml` does today (`th/.github/workflows/deploy.yml`). First, job `test` runs every check once (`checks.yml`): four jobs at once, the site and mind suites in three parts dealt by file size (`scripts/test-part.mjs`) and the Worker's suite, each with Node 24, `npm ci --ignore-scripts` and, for the site parts, Playwright's Chromium headless shell, with `SITE_URL`, `WORKER_URL` and the Drive settings empty. They are exactly what `npm test` runs, in about two minutes instead of five, and no secret reaches them. Nothing deploys unless all four pass. Then job `site`:
 
-1. Runs only on `main` with `AZURE_DEPLOY_ENABLED=true`. Checks out the commit (dispatch `ref` or the pushed SHA) and refuses one that is not an ancestor of `origin/main`.
-2. Node 24, `npm ci --ignore-scripts`, Playwright Chromium headless shell, `npm test` with `SITE_URL` empty.
+1. Runs only on `main` with `AZURE_DEPLOY_ENABLED=true`, after `test` passed and `api` succeeded or was skipped. Checks out the commit (dispatch `ref` or the pushed SHA) and refuses one that is not an ancestor of `origin/main`.
+2. Node 24, `npm ci --ignore-scripts`, Playwright Chromium headless shell (for the live check's browser test).
 3. Records the live commit from `<site>/release.json`.
 4. `node scripts/stage.mjs <sha>` copies `frontend/` to `.deploy/site/`, writes `release.json`, and fails on any budget ([PERFORMANCE.md §2](PERFORMANCE.md#2-site-budgets)).
 5. `azure/login` with OIDC. If sign-in fails, the next step prints only the token's `sub` claim.
@@ -171,8 +171,8 @@ Undo: the same steps with the recorded pre-restore bookmark.
 
 The `api` job runs when `backend/**`, `shared/**` or `package-lock.json` changed since the deployed tag, or on dispatch with `target: api|both`.
 
-1. Gate: `vars.WORKER_DEPLOY_ENABLED == 'true'`, ref `main`, the commit is an ancestor of `main`.
-2. `npm ci --ignore-scripts` (measured in the P1 spike: workerd and esbuild ship as optional platform packages, so their install scripts aren't needed; settles Q4), then `npm test`.
+1. Gate: `test` passed (§3.1; only a dispatched `api-rollback` skips it, since it puts back a version that already passed), `vars.WORKER_DEPLOY_ENABLED == 'true'`, ref `main`, the commit is an ancestor of `main`. It then decides, before installing anything, whether the Worker changed since the live tag; a push that leaves it as it is ends here in seconds.
+2. `npm ci --ignore-scripts` (measured in the P1 spike: workerd and esbuild ship as optional platform packages, so their install scripts aren't needed; settles Q4). The tests ran once, in `test`.
 3. **Class-change check [proposal]:** `node scripts/api-guard.mjs <deployed-tag> HEAD` compares the `migrations` array.
    - Unchanged: a normal deploy with auto-rollback.
    - Changed: the commit range may touch only `backend/wrangler.jsonc`, the new `objects/<class>.ts`, its export in `src/index.ts`, and tests. Anything else fails the job before deploying. Auto-rollback is off for this run.
