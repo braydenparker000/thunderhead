@@ -16,6 +16,17 @@ import { from as launchFrom, launch } from '/ui/launch.js';
   const setTheme=t=>{ applyTheme(t); try{localStorage.setItem('th-theme',t)}catch(e){} };
   seg.addEventListener('click',e=>{const b=e.target.closest('button'); if(b) setTheme(b.dataset.th)});
   document.addEventListener('th:theme',e=>{ if(['auto','light','dark'].includes(e.detail)) setTheme(e.detail) }); // the shell.appearance verb
+  // Text size, accent and a still background, kept on this phone; ui/theme.js applies them before
+  // the first paint (HOME.md §8).
+  function pick(sel,key,attr,def){ const box=$(sel); let v=def; try{v=localStorage.getItem(key)||def}catch(e){}
+    const show=x=>box.querySelectorAll('button').forEach(b=>{ const on=b.dataset.v===x; b.classList.toggle('on',on); b.setAttribute('aria-pressed',String(on)) });
+    show(v);
+    box.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; const x=b.dataset.v; if(x===def) delete root.dataset[attr]; else root.dataset[attr]=x;
+      try{ x===def?localStorage.removeItem(key):localStorage.setItem(key,x) }catch(e){} show(x) }) }
+  pick('#tsize','th-text','text','m'); pick('#accent','th-accent','accent','blue');
+  const still=$('#still'), showStill=()=>still.setAttribute('aria-checked',String(root.dataset.still!==undefined));
+  showStill();
+  still.addEventListener('click',()=>{ const on=root.dataset.still===undefined; if(on) root.dataset.still=''; else delete root.dataset.still; try{ on?localStorage.setItem('th-still','1'):localStorage.removeItem('th-still') }catch(e){} showStill() });
   try{$('#bdate').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}catch(e){}
 
   document.querySelectorAll('[data-toast]').forEach(b=>b.addEventListener('click',()=>toast(b.dataset.toast)));
@@ -99,7 +110,7 @@ import { from as launchFrom, launch } from '/ui/launch.js';
   document.addEventListener('th:go',e=>go(e.detail)); // settings pages return to the open menu
   app.addEventListener('click',e=>{ if(swiped){ e.stopPropagation(); e.preventDefault() } },true);
   app.addEventListener('pointerdown',e=>{ if(!e.isPrimary||e.target.closest('input,textarea')) return;
-    start={x:e.clientX,y:e.clientY,id:e.pointerId,t:performance.now()}; swipe=null;
+    start={x:e.clientX,y:e.clientY,id:e.pointerId,t:performance.now(),el:e.target}; swipe=null;
     if(view!=='home'||blocked(e.target)||opts.classList.contains('show')) return;
     const r=app.getBoundingClientRect(); press.style.left=(e.clientX-r.left)+'px'; press.style.top=(e.clientY-r.top)+'px'; press.classList.remove('on'); void press.offsetWidth; press.classList.add('on');
     holdT=setTimeout(()=>{ press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); ring.classList.remove('closing'); ring.classList.add('show'); scrim.classList.add('show'); requestAnimationFrame(()=>fan(true)); buzz(6) },220) });
@@ -107,6 +118,8 @@ import { from as launchFrom, launch } from '/ui/launch.js';
     if(!open){ const mx=e.clientX-start.x, my=e.clientY-start.y, d=Math.hypot(mx,my);
       // Sideways is ours from 6 px, before Chrome's own slop (8 dp) can hand the touch to a scroller;
       // anything else is the scroller's once it passes the 10 px hold slop.
+      // A leftward drag that starts on a conversation row is the row's own (its Pin and Summary).
+      if(!swipe&&view==='side'&&mx<0&&d>=6&&start.el.closest&&start.el.closest('#convos .row.thr')){ start=null; return }
       if(!swipe){ if(d>=6&&Math.abs(mx)>Math.abs(my)){ clearTimeout(holdT); press.classList.remove('on'); swipe={from:view,b:view==='brief'?1:0,s:view==='side'?1:0,v:[]} }
         else { if(d>10){ clearTimeout(holdT); press.classList.remove('on'); start=null } return } }
       e.preventDefault(); swipe.v.push([e.timeStamp,e.clientX]); if(swipe.v.length>8) swipe.v.shift();

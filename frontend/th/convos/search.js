@@ -145,17 +145,46 @@ function changed() {
   }, DEBOUNCE_MS);
 }
 
-/** App and settings names; exact, then prefix, then the rest. @param {string} q @returns {Row[]} */
+/** Other words for a setting, so "password" finds Account and "dark" finds Appearance. */
+const ALSO = /** @type {Record<string, string>} */ ({
+  'Quiet hours': 'do not disturb silence mute',
+  Notifications: 'push alerts notify',
+  'What I remember': 'memory facts forget',
+  'Connected apps': 'integrations',
+  Devices: 'sign out sessions phone logout',
+  Agents: 'keys api tokens',
+  Account: 'password recovery code username',
+  Export: 'download backup data',
+  'Check for update': 'version',
+  'Still background': 'motion animation moving',
+});
+/** The Appearance controls, which are not rows: each scrolls into view and flashes. */
+const LOOKS = /** @type {[string, string, string, string][]} */ ([
+  ['Appearance', 'theme dark light night day mode', '#seg', 'moon-stars'],
+  ['Text size', 'font bigger smaller larger', '#tsize', 'pencil-simple'],
+  ['Accent', 'colour color', '#accent', 'moon-stars'],
+]);
+const flash = (/** @type {string} */ sel) => {
+  const n = /** @type {HTMLElement | null} */ (document.querySelector(sel));
+  n?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  n?.classList.add('flash');
+  setTimeout(() => n?.classList.remove('flash'), 1600);
+};
+
+/** App and settings names (and their other words); exact, then prefix, then the rest. @param {string} q @returns {Row[]} */
 function goto(q) {
-  /** @type {{ name: string, icon: string, color?: string, act: () => void }[]} */
+  /** @type {{ name: string, also?: string, icon: string, color?: string, act: () => void }[]} */
   const named = apps.map((a) => ({ name: a.name, icon: a.icon, color: a.color, act: () => (a.built ? location.assign(a.path) : toast(`${a.name} comes later`)) }));
   for (const r of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('#side > .row:not(#now)'))) {
     const name = r.querySelector('.t')?.textContent ?? '';
     const icon = r.querySelector('use')?.getAttribute('href')?.split('#')[1] ?? 'caret-right';
-    if (name) named.push({ name, icon, act: () => r.click() });
+    if (name) named.push({ name, also: ALSO[name], icon, act: () => (r.getAttribute('role') === 'switch' ? flash(`#${r.id}`) : r.click()) });
   }
+  for (const [name, also, sel, icon] of LOOKS) named.push({ name, also, icon, act: () => flash(sel) });
+  /** The best rank of the name or any other word for it. @param {{ name: string, also?: string }} n */
+  const best = (n) => Math.min(...[n.name, ...(n.also ?? '').split(' ').filter(Boolean)].map((w) => rank(w, q)).map((r) => (r < 0 ? 99 : r)));
   return named
-    .map((n) => /** @type {const} */ ([rank(n.name, q), n]))
+    .map((n) => /** @type {const} */ ([best(n) === 99 ? -1 : best(n), n]))
     .filter(([r]) => r >= 0)
     .sort((a, b) => a[0] - b[0])
     .map(([, n]) => ({ ref: `go:${n.name}`, icon: n.icon, color: n.color, title: n.name, act: () => leave(n.act) }));

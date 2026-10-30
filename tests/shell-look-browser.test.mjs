@@ -244,3 +244,49 @@ test('past the end a page stretches a little and springs back', opts, async () =
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('Appearance: text size, accent and a still background, kept across a reload', opts, async () => {
+  const { page, context, errors } = await open();
+  await go(page, 'side');
+  await page.waitForTimeout(500);
+  await page.click('#tsize [data-v="l"]');
+  await page.click('#accent [data-v="violet"]');
+  await page.click('#still');
+  assert.equal(await page.$eval('#still', (b) => b.getAttribute('aria-checked')), 'true');
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('#talk .reply');
+  const got = await page.evaluate(() => {
+    const d = document.documentElement;
+    return [d.dataset.text, d.dataset.accent, d.dataset.still, getComputedStyle(document.querySelector('#talk .reply')).fontSize, getComputedStyle(d).getPropertyValue('--accent-text').includes('5a35c2'), getComputedStyle(document.querySelector('.field'), '::before').animationName];
+  });
+  assert.deepEqual(got, ['l', 'violet', '', '19.5px', true, 'none']);
+  assert.ok(await page.$eval('#tsize [data-v="l"]', (b) => b.classList.contains('on')));
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('the menu: a conversation swiped left offers Pin; pinned ones come first; search knows other words for settings', opts, async () => {
+  const { page, context, errors } = await open({ touch: true });
+  await go(page, 'side');
+  await page.waitForSelector('#convos .row.thr[data-id]');
+  await page.waitForTimeout(800); // the menu slides in and its list settles before the row is touched
+  const cdp = await context.newCDPSession(page);
+  const row = await page.$eval('#convos .row.thr[data-id]', (r) => { const b = r.getBoundingClientRect(); return { id: r.dataset.id, x: b.right - 30, y: b.top + b.height / 2 }; });
+  await touchDrag(page, cdp, line(row.x, row.y, row.x - 100, row.y + 3, 10));
+  await page.waitForSelector('#convos .rowacts');
+  assert.ok(await page.$eval('#side', (s) => s.getBoundingClientRect().left < innerWidth - 1), 'the menu stayed open');
+  await page.tap('#convos .rowacts button:text("Pin")');
+  await page.waitForSelector('#convos .cg[data-g="pinned"]');
+  assert.equal(await page.$eval('#convos .cg', (g) => g.dataset.g), 'pinned', 'Pinned comes first');
+  assert.equal(await page.$eval('#convos .cg[data-g="pinned"] .row.thr', (r) => r.dataset.id), row.id);
+  await page.tap('#search');
+  await page.waitForSelector('.sbox input');
+  await page.fill('.sbox input', 'password');
+  await page.waitForSelector('.sres .srow');
+  assert.ok((await page.$$eval('.sres .srow', (r) => r.map((x) => x.textContent))).some((t) => t.includes('Account')), 'password finds Account');
+  await page.fill('.sbox input', 'dark');
+  await page.waitForFunction(() => [...document.querySelectorAll('.sres .srow')].some((r) => r.textContent.includes('Appearance')));
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+

@@ -22,3 +22,7 @@ html{-webkit-tap-highlight-color:transparent}
   .row,.tile,.sbtn,.uundo,.sback,.seg button,.past button,.iconBtn,.srole{transition:none}
   .row:active,.tile:active,.sbtn:active,.uundo:active,.sback:active,.seg button:active,.past button:active,.iconBtn:active,.srole:active{transform:none}
 }
+/* Appearance: text size for the conversation, and a still background */
+:root[data-text="s"] .reply{font-size:16px}:root[data-text="s"] .you{font-size:14px}
+:root[data-text="l"] .reply{font-size:19.5px}:root[data-text="l"] .you{font-size:17px}
+:root[data-still] .field::before,:root[data-still] .field::after{animation:none}

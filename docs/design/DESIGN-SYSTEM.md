@@ -166,7 +166,9 @@ Budget: at most **2 live-glass surfaces visible at once** (ask bar + one of: car
 - Only `transform` animates. No animated `filter: blur()` (the prototype's `blur(90px)` blobs were replaced by radial gradients in the first build).
 - **Night:** the gradient is pure black; the blobs at 22% give the "faint accent light".
 - **Grain:** an SVG `feTurbulence` (fractalNoise, baseFrequency 0.85, 2 octaves, desaturated) tile of **160 px**, `opacity: .09`, `mix-blend-mode: overlay`, over the whole field. Built. It also stops gradient banding.
-- **Still background** setting [proposal]: Settings → Appearance → "Still background" stops the drift (WCAG 2.2.2 asks for a way to stop motion that runs longer than 5 s). Reduced motion also stops it.
+- **Still background** setting (built 2026-10-30): Settings → Appearance → "Still background" stops the drift (WCAG 2.2.2 asks for a way to stop motion that runs longer than 5 s). Reduced motion also stops it.
+- **The app icon** (built 2026-10-30): the night field (black to deep navy, a blue glow top-left, a gold warmth bottom-right), the presence light rising from the bottom, and the Thunderhead's italic T from Fraunces (wght 420, opsz 72) drawn as a path, so it needs no font; `icon.svg`, 192 and 512 PNGs, and a maskable 512 with the T inside the safe circle. The splash and its status bar are the icon's black (`#03050a`), so opening at night never flashes white.
+- **Accents** (built 2026-10-30): `:root[data-accent]` swaps `--accent-text`, `--accent-fill` and `--glow` (tokens.css) for Green, Violet or Rose; Blue is the default.
 - The field and grain pause when the document is hidden (`animation-play-state: paused` on `visibilitychange`).
 
 ## 8. Motion

@@ -81,6 +81,8 @@ One thread per day (decisions.md). The prototype showed two "Today" rows (topics
 1. At the day roll the Worker gives the old thread a **provisional title**: the first owner message trimmed to 40 characters at a word boundary ([MEMORY](../mind/MEMORY.md) §11; Workers AI titles are deferred).
 2. The night shift rewrites it as the **final title**, unless the owner renamed it.
 3. Titles are ≤ **40** characters, sentence case, no date, no quotes ("A calm playlist for the evening", "Bars 9 to 12, slow then up to tempo").
+5. **Swiped left** (built 2026-10-30), a row offers **Pin** (or Unpin) and, when the night wrote one, its whole **Summary** in place; pinned rows come first in a "Pinned" group, kept on this phone (`th.p.pins`, at most 20). The drag is the row's: the menu's own swipe ignores a leftward drag that starts on a row. Skeleton rows stand in while the list first loads.
+6. **Search finds settings by other words** (built 2026-10-30): "password" finds Account, "sign out" Devices, "backup" Export, "push" Notifications, "dark" Appearance, "font" Text size, "colour" Accent; a found Appearance control scrolls into view and flashes once.
 4. Rows carry no icon (owner, 2026-10-30); the app a thread was mostly about may come back as a small coloured word in its second line [proposal].
 6. Until a thread has a title, its row shows its date ("Monday 26 October") (built).
 5. An empty day (no messages) has no thread and no row.

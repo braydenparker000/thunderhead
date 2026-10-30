@@ -16,7 +16,7 @@
 /* rich text (th/chat/rich.js): paragraphs, headings, lists, quotes, code and tables; data in Inter */
 .talk .reply>*{margin:0}
 .talk .reply>*+*{margin-top:.6em}
-.talk .reply h3{font:600 18.5px/1.35 var(--voice);letter-spacing:-.008em}
+.talk .reply h3{font:600 1.06em/1.35 var(--voice);letter-spacing:-.008em}
 .talk .reply>*+h3{margin-top:.95em}
 .talk .reply b{font-weight:600}
 .talk .reply ul,.talk .reply ol{padding-left:1.25em}

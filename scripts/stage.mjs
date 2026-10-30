@@ -92,7 +92,8 @@ const budgets = [
   // The menu's conversations and search, loaded when the menu first opens.
   ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 56_000],
   // The Briefing page and the Board reader, loaded after the first paint.
-  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 30_000],
+  // + skeletons, pull to refresh and the owner's arrangement of the tiles (2026-10-30).
+  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 34_000],
   ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 60_000],
   // Styles home loads just after its first paint (th/reply/tools.css).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 16_000],

@@ -16,7 +16,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .edge.gold::before{opacity:1}
 .edge.gold::after{opacity:.3}
 .edge.listen::after{opacity:1}
-.edge.think::after{animation:think 3.2s ease-in-out infinite}
+.edge.think::after,.edge.busy::after{animation:think 3.2s ease-in-out infinite}
 @keyframes think{0%,100%{opacity:.45}50%{opacity:1}}
 /* top */
 .top{position:absolute;z-index:5;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:14px max(14px,env(safe-area-inset-right,0px)) 0 max(24px,env(safe-area-inset-left,0px));font:600 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
@@ -109,7 +109,9 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .toast.show{opacity:1;transform:translate(-50%,0)}
 
 /* three places: briefing (swipe right) <- home -> menu (swipe left) */
-.app{touch-action:pan-y}
+/* Chrome lets a scroller pan sideways again inside a pan-y parent, so each scroller says pan-y too:
+   every sideways drag stays the page's (swipes, a row's actions) and Chrome only ever scrolls. */
+.app,.convo,.brief,.side{touch-action:pan-y}
 .page{position:absolute;inset:0;transition:transform var(--d-page) var(--settle);will-change:transform}
 .home{z-index:2}
 .brief{z-index:2;transform:translateX(-100%);overflow-y:auto;scrollbar-width:none;padding:calc(18px + env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) 40px max(18px,env(safe-area-inset-left,0px))}

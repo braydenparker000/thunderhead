@@ -24,8 +24,8 @@ before(async () => {
 });
 after(async () => { await browser?.close(); server?.close(); });
 
-async function open({ theme = 'light', briefing } = {}) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block', timezoneId: 'UTC' });
+async function open({ theme = 'light', briefing, touch = false } = {}) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block', timezoneId: 'UTC', ...(touch ? { hasTouch: true, isMobile: true } : {}) });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -105,3 +105,55 @@ test('with nothing to show, the page is quiet and says what comes later', opts, 
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+const keys = (page) => page.$$eval('#brief .grid .tile', (t) => t.map((x) => x.dataset.key));
+test('a long press arranges a tile: earlier, later, hidden and shown again, kept on this phone', opts, async () => {
+  const { page, context, errors } = await open();
+  await page.waitForSelector('#brief .tile[data-key="board"]');
+  const first = await keys(page);
+  assert.deepEqual(first.slice(-2), ['waiting:Waiting on you', 'board']);
+  const press = async (key) => {
+    const b = await page.$eval(`#brief .tile[data-key="${key}"]`, (t) => { const r = t.getBoundingClientRect(); return { x: r.left + 20, y: r.top + 20 }; });
+    await page.mouse.move(b.x, b.y); await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up();
+    await page.waitForSelector('#brief .tilearr');
+  };
+  await press('board');
+  assert.equal(await page.$('#reader, .boardr'), null, 'the press did not open the Board');
+  await page.click('#brief .tilearr button:text("Move earlier")');
+  assert.deepEqual((await keys(page)).slice(-2), ['board', 'waiting:Waiting on you']);
+  await page.reload({ waitUntil: 'load' });
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'brief' })));
+  await page.waitForSelector('#brief .tile[data-key="board"]');
+  await page.waitForTimeout(700); // the page slides in before it is pressed
+  assert.deepEqual((await keys(page)).slice(-2), ['board', 'waiting:Waiting on you'], 'kept after a reload');
+  await press('board');
+  await page.click('#brief .tilearr button:text("Hide")');
+  assert.equal((await keys(page)).includes('board'), false);
+  assert.equal(await page.textContent('#brief .bhidden'), 'One tile hidden · Show');
+  await page.click('#brief .bhidden');
+  assert.equal((await keys(page)).includes('board'), true);
+  await press('waiting:Waiting on you');
+  assert.deepEqual(await page.$$eval('#brief .tilearr button', (b) => b.map((x) => x.textContent)), ['Move earlier', 'Move later', 'Done'], 'Waiting on you cannot hide');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('pulled down at the top, the Briefing refreshes with the bottom light breathing', opts, async () => {
+  const { page, context, errors, api } = await open({ touch: true });
+  await page.waitForSelector('#brief .tile[data-key="board"]');
+  const reads = () => api.calls.filter((c) => c.call === 'GET /v1/briefing').length;
+  const before = reads();
+  const cdp = await context.newCDPSession(page);
+  const t0 = Date.now() / 1000;
+  const pt = (y) => [{ x: 200, y }];
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(300), timestamp: t0 });
+  for (let i = 1; i <= 10; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(300 + i * 10), timestamp: t0 + i * 0.02 });
+  assert.equal(await page.$eval('#brief .pullfind', (h) => h.textContent), 'Release to refresh');
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: t0 + 0.3 });
+  await page.waitForFunction((n) => true, before);
+  for (let i = 0; i < 50 && reads() === before; i++) await page.waitForTimeout(40);
+  assert.equal(reads(), before + 1, 'read again');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+

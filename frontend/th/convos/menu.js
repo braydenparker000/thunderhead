@@ -6,8 +6,10 @@
 // full-screen list of every thread by month, the months folding the same way, 30 rows at a time.
 // A row is the title, the date on the right ("21:40" yesterday, else "Sat 24"), and the night
 // shift's summary or the message count under it, with an "Old Chats" tag on an imported one. A tap
-// on a row shows it read-only on home (past.js); a tap on Now returns there. Long-press actions
-// (Continue this, Rename, Delete) are not built yet (decisions.md). Text is set with textContent.
+// on a row shows it read-only on home (past.js); a tap on Now returns there. Swiped left, a row
+// offers Pin (pinned rows come first, kept on this phone) and its whole summary. Skeleton rows
+// stand in while the list first loads. Long-press actions (Continue this, Rename, Delete) are not
+// built yet (decisions.md). Text is set with textContent.
 import { lineFor } from '../copy.js';
 import { failure } from '../flow.js';
 import { toast } from '../ui.js';
@@ -20,6 +22,8 @@ import * as past from './past.js';
 
 /** The list is read again on opening the menu once it is this old, or when the feed says so. */
 const STALE_MS = 30_000;
+/** Pinned threads' ids, on this phone (cleared at sign-out with the rest of th.p.*). */
+const PINS = 'th.p.pins';
 
 const $ = (/** @type {string} */ s) => /** @type {HTMLElement} */ (document.querySelector(s));
 const svg = (/** @type {string} */ icon, cls = '') => `<svg class="i${cls}" aria-hidden="true"><use href="/ui/icons.svg#${icon}"/></svg>`;
@@ -108,7 +112,92 @@ export function startMenu() {
     go('home');
   }, true);
   $('#convos').addEventListener('click', (e) => tapIn(e));
+  rowSwipe($('#convos'));
+  if (!$('#convos').children.length) $('#convos').replaceChildren(...[0, 1, 2].map(() => el('div', 'row thr skelrow')));
   load();
+}
+
+/** @returns {string[]} */
+function pinned() {
+  try {
+    const v = JSON.parse(localStorage.getItem(PINS) || '[]');
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+/** A row swiped left 56 px: its actions under it; the tap the swipe ends in is swallowed. @param {HTMLElement} host */
+function rowSwipe(host) {
+  /** @type {{ row: HTMLElement, x: number, y: number, on: boolean } | null} */
+  let s = null;
+  let swallow = false;
+  host.addEventListener('pointerdown', (e) => {
+    const row = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest('.row.thr[data-id]'));
+    s = row && e.isPrimary ? { row, x: e.clientX, y: e.clientY, on: false } : null;
+  });
+  addEventListener('pointermove', (e) => {
+    if (!s) return;
+    const dx = e.clientX - s.x;
+    const dy = e.clientY - s.y;
+    if (!s.on) {
+      if (Math.hypot(dx, dy) < 8) return;
+      if (dx >= 0 || Math.abs(dx) <= Math.abs(dy)) return void (s = null);
+      s.on = true;
+    }
+    s.row.style.transition = 'none';
+    s.row.style.transform = `translateX(${Math.max(dx, -96)}px)`;
+  });
+  const end = (/** @type {PointerEvent} */ e) => {
+    if (!s) return;
+    const { row, on, x } = s;
+    s = null;
+    row.style.transition = '';
+    row.style.transform = '';
+    if (!on) return;
+    swallow = true;
+    setTimeout(() => (swallow = false), 60);
+    if (e.type === 'pointerup' && e.clientX - x <= -56) actions(row);
+  };
+  addEventListener('pointerup', end);
+  addEventListener('pointercancel', end);
+  host.addEventListener('click', (e) => {
+    if (!swallow) return;
+    e.stopPropagation();
+    e.preventDefault();
+  }, true);
+}
+
+/** Pin or Unpin, and Summary (when the night wrote one), under the row. @param {HTMLElement} row */
+function actions(row) {
+  const had = row.nextElementSibling?.classList.contains('rowacts');
+  for (const r of document.querySelectorAll('#convos .rowacts')) r.remove();
+  if (had) return;
+  const id = row.dataset.id ?? '';
+  const t = data.list.threads.get(id);
+  const box = el('div', 'rowacts');
+  box.setAttribute('role', 'toolbar');
+  box.dataset.id = id;
+  /** @param {string} label @param {() => void} fn */
+  const add = (label, fn) => {
+    const b = el('button', '', label);
+    b.type = 'button';
+    b.addEventListener('click', () => {
+      box.remove();
+      fn();
+    });
+    box.append(b);
+  };
+  const pins = pinned();
+  add(pins.includes(id) ? 'Unpin' : 'Pin', () => {
+    const next = pins.includes(id) ? pins.filter((p) => p !== id) : [id, ...pins].slice(0, 20);
+    try {
+      localStorage.setItem(PINS, JSON.stringify(next));
+    } catch {}
+    draw();
+  });
+  if (t?.summary) add(row.classList.contains('full') ? 'Less' : 'Summary', () => row.classList.toggle('full'));
+  row.after(box);
 }
 
 /** Reads the list (from this phone first, so there is something at once) and draws it. */
@@ -195,18 +284,24 @@ function drawNow() {
 
 /** The groups under Now, and the line when the list couldn't load. @param {unknown} [error] */
 async function draw(error) {
+  // A row's actions open across a redraw open again under it.
+  const acting = /** @type {HTMLElement | null} */ (document.querySelector('#convos .rowacts'))?.dataset.id;
   const host = $('#convos');
   today = await data.today().catch(() => today);
   drawNow();
   /** @type {Node[]} */
   const out = [];
   if (today.day) {
-    const all = [...data.list.threads.values()];
+    const every = [...data.list.threads.values()];
+    const pins = pinned();
+    const top = pins.map((id) => data.list.threads.get(id)).filter((t) => t && !isNow(t, today.day, today.id));
+    const all = every.filter((t) => !top.includes(t));
     const g = grouped(all, today.day, today.id);
     const closed = closedSet();
+    if (top.length) out.push(group('pinned', 'Pinned', /** @type {Thread[]} */ (top).map((t, i) => row(t, 'week', i)), closed));
     out.push(...g.today.map((t, i) => row(t, 'today', i)));
     for (const [key, name] of GROUPS) if (g[key].length) out.push(group(key, name, g[key].map((t, i) => row(t, key, i)), closed));
-    const others = all.filter((t) => !isNow(t, today.day, today.id)).length;
+    const others = every.filter((t) => !isNow(t, today.day, today.id)).length;
     if (others || !data.list.done) {
       const b = el('button', 'row all');
       b.type = 'button';
@@ -220,6 +315,8 @@ async function draw(error) {
   }
   if (error) out.push(el('p', 'cline', listLine(error, data.list.threads.size > 0)));
   host.replaceChildren(...out);
+  const again = acting ? /** @type {HTMLElement | null} */ (host.querySelector(`.row.thr[data-id="${CSS.escape(acting)}"]`)) : null;
+  if (again) actions(again);
 }
 
 /** What the list says when the Worker didn't answer: over what this phone has, or alone.

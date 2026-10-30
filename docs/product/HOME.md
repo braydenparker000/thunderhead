@@ -361,6 +361,7 @@ Acceptance: the state classes on `#edge` per state (mocked, `tests/chat-browser.
 - Settings → Appearance: **Auto · Day · Night** (owner ruling: a day theme and a pure-black night theme).
 - **Auto** follows the clock: night from **19:00 to 07:00** local (`ui/theme.js`, built). It is set before first paint, so night never flashes white.
 - Auto re-checks every minute while visible and on `visibilitychange`; a change crossfades the field over 600 ms [proposal: built only checks at load].
+- **More of Appearance** (built 2026-10-30, Settings → Appearance in the menu, kept on this phone and applied by `ui/theme.js` before the first paint): **Text size** Smaller · Default · Larger (replies 16 / 17.5 / 19.5 px, bubbles 14 / 15 / 17), **Accent** Blue · Green · Violet · Rose (each passes 4.5:1 as text on the lightest field and on black, and under white text as a fill; gold is not offered, it means "needs you"), and **Still background** (a switch that stops the field's drift).
 - Day or Night stick until changed. The choice is kept in `localStorage` (`th-theme`) on this device [proposal: also sync it to the account so a new device starts with it].
 - `theme-color` follows the theme (`#eef1f7` / `#000000`).
 - [proposal] Auto by sunrise and sunset at the weather location, once the briefing knows it.

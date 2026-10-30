@@ -79,3 +79,5 @@ button.tile:active{transform:scale(.98)}
 .bsn{color:var(--ink-3)}
 .bask{margin-top:14px;border:0;border-radius:999px;padding:8px 14px;font:600 13px var(--ui);color:var(--accent-text);background:color-mix(in srgb,var(--accent-text) 12%,transparent);cursor:pointer}
 @media (prefers-reduced-motion: reduce){#decision .card.pulse{animation:none}button.tile{transition:none}}
+#brief{overscroll-behavior-y:contain}
+

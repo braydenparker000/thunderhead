@@ -43,3 +43,8 @@
 }
 
 :root[data-theme="dark"]{--blob-opacity:.22}
+/* The owner's accent (Settings → Appearance); each text colour passes 4.5:1 on the lightest field
+   and on black, and white passes 4.5:1 on each fill. Gold is not offered: it means "needs you". */
+:root[data-accent="green"]{--accent-text:light-dark(#17663f,#5fd39a);--accent-fill:#1d7a4b;--glow:light-dark(#3fae7a,#3fc488)}
+:root[data-accent="violet"]{--accent-text:light-dark(#5a35c2,#b8a2ff);--accent-fill:#6a45d8;--glow:light-dark(#8c6cf5,#8a6cff)}
+:root[data-accent="rose"]{--accent-text:light-dark(#a8244a,#ff92b0);--accent-fill:#c0305a;--glow:light-dark(#e2607f,#ff6f91)}
