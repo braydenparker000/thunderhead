@@ -42,7 +42,7 @@ export const APPS = {
   podcasts: { path: '/podcasts/', name: 'Podcasts', phase: 'P1b' },
   astra: { path: '/astra/', name: 'Astra', phase: 'P1b' },
   media: { path: '/media/', name: 'My Media', phase: 'P1b' },
-  study: { path: '/study/', name: 'Study', phase: 'P7', deferred: 'P7 step 2: the library screen and reader' },
+  study: { path: '/study/', name: 'Study', phase: 'P7' },
 } as const;
 export type AppId = keyof typeof APPS;
 export const APP_IDS = Object.keys(APPS) as AppId[];

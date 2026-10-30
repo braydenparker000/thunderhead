@@ -34,7 +34,8 @@ test('installs, precaches the release and opens the shell and sign-in pages offl
   for (const p of ['/index.html', '/signin/index.html', '/ui/icons.svg', '/apps/home/home.js']) assert.ok(cached.includes(p), p);
   assert.ok(!cached.some((p) => p.startsWith('/music/') || p === '/sw.js'), 'ported folders and sw.js stay out');
   await context.setOffline(true);
-  for (const [path, marker] of [['/', '#ask'], ['/study/', '#ask'], ['/signin/', 'form']]) {
+  // Study has its own page (P7), precached like the shell and sign-in.
+  for (const [path, marker] of [['/', '#ask'], ['/study/', '#study'], ['/signin/', 'form']]) {
     await page.goto(`${base}${path}`, { waitUntil: 'load' });
     assert.ok(await page.$(marker), `${path} offline`);
   }

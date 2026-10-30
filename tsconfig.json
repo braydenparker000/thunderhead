@@ -12,9 +12,11 @@
     "moduleResolution": "bundler",
     "lib": ["es2024", "dom", "dom.iterable"],
     "types": [],
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    // The site's own root-absolute imports (Study's modules import /th/… as the browser does).
+    "paths": { "/th/*": ["./frontend/th/*"], "/config.js": ["./frontend/config.js"] }
   },
-  "include": ["frontend/th/**/*.js", "shared/**/*.ts"],
+  "include": ["frontend/th/**/*.js", "frontend/apps/study/**/*.js", "shared/**/*.ts"],
   // The music player's worker script runs in a classic service worker (worker globals, no DOM) and
   // is no API client; tests/music-bridge*.test.mjs check it.
   "exclude": ["frontend/th/music/**"]

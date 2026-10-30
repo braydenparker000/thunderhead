@@ -145,6 +145,14 @@ connect-src https://thunderhead-api.<sub>.workers.dev; manifest-src 'self'; fram
 object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests
 ```
 
+Study (`/study/`, P7: its own page, not a shell stub; built):
+```
+default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:;
+font-src 'self'; connect-src 'self' https://thunderhead-api.<sub>.workers.dev https://*.r2.cloudflarestorage.com;
+manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests
+```
+The reader fetches a book's ranges straight from the private bucket through a signed link held in memory (STUDY.md §2.2); pdf.js runs without WebAssembly and its worker is this site's own file. The R2 host is a wildcard so the account id isn't written into a public page; a signed link is only good for the account that signed it. The built shell has no R2 host: nothing in it reads the bucket yet.
+
 Rules:
 - `<acct>` and `<sub>` are filled at stage time from `config` (not secret). Presigned URLs use **path style** (`https://<acct>.r2.cloudflarestorage.com/<bucket>/<key>`) so one host covers every bucket.
 - `'wasm-unsafe-eval'` is added only on pages that compile WebAssembly (pdf.js if it needs it; the client-side KDF mode of §6.4), never site-wide.

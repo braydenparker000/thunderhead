@@ -43,3 +43,8 @@ clock
 play
 stop
 check
+# Study (P7)
+dots-three
+arrow-clockwise
+cloud-arrow-up
+book-open-text

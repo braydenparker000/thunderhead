@@ -235,8 +235,8 @@ Check: fixture PDFs with (a) real `/PageLabels`, (b) printed numbers only with r
 | **Search** | §6. |
 | **Book menu** | Keep on this phone / Remove from this phone, Go to page, Highlights and notes, Edit title and author, Details, Delete book… |
 
-Route: `/study/` (library), `/study/book/<book_id>?p=<pdf_page>`, `/study/verse/<book_code>/<ch>/<v>`,
-`/study/search?q=`. The `p` query is the only position in the address; nothing else (never a URL).
+Route: `/study/` (library), `/study/?book=<book_id>&p=<pdf_page>`, `/study/?verse=<book_code>/<ch>/<v>`,
+`/study/?q=` (built as queries: the storage website has no rewrites; decisions 2026-10-30). The `p` query is the only position in the address; nothing else (never a URL).
 
 ### 5.2 Opening at a page
 
@@ -559,7 +559,18 @@ a day crossing the 04:00 roll).
    the run's holder only) instead of a signed link, so ingestion needs neither the signing token nor
    the bucket's S3 host from the session. Measured: one 300-word page with two refs is 9 rows written
    (row, index, FTS, refs, the run's cursor).
-2. Library screen, upload, reader over presigned ranges, positions.
+2. Library screen, upload, reader over presigned ranges, positions. **Built:** Study has its own page
+   (`frontend/study/index.html`, code in `frontend/apps/study/`, its CSP in SECURITY.md §4.1). The storage
+   website has no rewrites, so its places are queries on `/study/`: `?book=<id>&p=<pdf_page>`, `?q=` (and
+   `&in=<id>` for one book); the page number is still the only position in the address. A picked PDF is
+   read on the phone first (pdf.js over the file itself) for its title, author and a cover drawn from its
+   first page, so covers need no network; then sent in parts with byte progress and Resume. The reader
+   draws five pages at most, at the screen's pixel ratio (at most 2), each with its text layer; page
+   labels come from the PDF's own `/PageLabels` until ingestion stores them. pdf.js 6.4.299 is vendored
+   with its `LICENSE.txt` and `SHA256SUMS.txt` (checked by `tests/study-logic.test.mjs`). Reading needs
+   SETUP.md N1 and O1; until then the reader says "Books can't open yet". Not yet: keeping a book on the
+   phone, highlights and notes (step 5), the verse card (step 4), Study's senses (with the phone's
+   senses batcher), Delete book (a proposal).
 3. Ingestion script in the mind's session; search.
 4. Parser + private book table + verse page + scripture-app links.
 5. Highlights and notes, offline copies.

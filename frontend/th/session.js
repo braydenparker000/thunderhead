@@ -74,7 +74,8 @@ export async function wipe() {
     await sub?.unsubscribe();
   } catch {}
   // 3. IndexedDB.
-  await Promise.all([auth.drop(), kv('th-data').drop()]);
+  // `th-study`: Study's covers, places and uploads (STUDY.md §2.1).
+  await Promise.all([auth.drop(), kv('th-data').drop(), kv('th-study').drop()]);
   // 4. Cache Storage, except code caches.
   try {
     for (const name of await caches.keys()) if (!CODE_CACHE.test(name)) await caches.delete(name);

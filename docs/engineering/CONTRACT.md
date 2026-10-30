@@ -186,7 +186,7 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `podcasts` | `/podcasts/` | Podcasts | P1b |
 | `astra` | `/astra/` | Astra | P1b |
 | `media` | `/media/` | My Media | P1b |
-| `study` | `/study/` | Study | P7 (page: P7 step 2: the library screen and reader) |
+| `study` | `/study/` | Study | P7 |
 
 ## Search sources
 
