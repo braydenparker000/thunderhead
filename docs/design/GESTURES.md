@@ -135,7 +135,7 @@ There are three positions. Only one is "at rest" at any time.
 
 - **Velocity** is measured over the last **80 ms** of moves before release (at least 2 samples). A fling against the drag direction cancels even past 28%.
 - **One hop per gesture.** A single drag from the briefing can never pass home and open the menu.
-- **Settle animation:** `transform .42s cubic-bezier(.2,.8,.2,1)` (first build). [proposal] Replace with the `--spring-slow` token (`linear()` spring, damping 0.8, stiffness 200, ~400 ms) and start it from the release velocity so a fast flick does not slow down at release.
+- **Settle animation:** the `--settle` spring (`linear()`, damping 0.8) over `--d-page` (460 ms). Built (2026-10-30): a flick finishes at the finger's speed: the distance left over the release speed, times 1.8 for the spring's tail, between 180 and 460 ms, so a fast flick doesn't slow down at release; a commit ticks 5 ms.
 - Built (2026-10-30): the velocity is the finger's over its last 100 ms of moves, and 0 if it rested more than 60 ms before lifting. Acceptance: `tests/shell-look-browser.test.mjs` drives a real touchscreen with timed events: an arc start, a 90 px flick each way, a slow 80 px drag that springs back, and a vertical drag that still scrolls.
 
 ### 4.3 Closing without a swipe

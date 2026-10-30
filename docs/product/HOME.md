@@ -320,8 +320,8 @@ Limits and rules:
 
 ### 6.5 Keyboard on Android
 
-- The viewport meta includes `interactive-widget=resizes-content`, so the layout shrinks above the keyboard and the ask bar stays visible, 24 px above the keyboard (to verify on the A15).
-- When the keyboard opens, the conversation keeps its bottom anchored (the latest turn stays visible).
+- The viewport meta includes `interactive-widget=resizes-content`, so the layout shrinks above the keyboard and the ask bar stays visible, 24 px above the keyboard (built 2026-10-30; to verify on the A15).
+- When the keyboard opens or the ask box grows, the conversation keeps its bottom anchored if it was at the newest turn (built 2026-10-30: a resize observer on the bar and the conversation).
 - Tapping empty space closes the keyboard (blurs the input). The ring does not open while the keyboard is up.
 - System Back closes the keyboard first.
 - The input never auto-focuses on load (the keyboard would cover the voice line). It focuses after "Ask about this" and after picking Remind me.

@@ -159,6 +159,9 @@ test('swipes start easily on a touchscreen: arcs, flicks, and scrolling still sc
   // under the finger now, which is fine: swipes start anywhere.
   await touchDrag(page, cdp, line(330, 500, 240, 500, 3));
   assert.equal((await where()).brief, false, 'flick → home');
+  // …and finishes at the finger's speed, quicker than a settle from a slow drag.
+  const ms = await page.$eval('#home', (h) => parseFloat(h.style.transitionDuration));
+  assert.ok(ms >= 180 && ms < 460, `flick settle ${ms} ms`);
   await touchDrag(page, cdp, line(mine.r, mine.y, mine.r - 90, mine.y, 3));
   assert.equal((await where()).side, true, 'flick left → menu');
   await page.click('#dim', { position: { x: 20, y: 300 } });

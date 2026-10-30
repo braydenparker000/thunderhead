@@ -33,8 +33,11 @@ import { apps } from '/th/registry/apps.js';
   let newLine=false;
   q.addEventListener('keydown',e=>{ newLine=e.key==='Enter'&&e.shiftKey });
   q.addEventListener('beforeinput',e=>{ if((e.inputType==='insertLineBreak'||e.inputType==='insertParagraph')&&!newLine){ e.preventDefault(); ask.requestSubmit() } });
-  // The conversation ends above the bar, however tall it has grown, and stays at its newest turn.
-  new ResizeObserver(()=>{ const end=convo.scrollHeight-convo.scrollTop-convo.clientHeight<24; document.documentElement.style.setProperty('--ask-h',ask.offsetHeight+'px'); if(end) convo.scrollTop=convo.scrollHeight }).observe(ask);
+  // The conversation ends above the bar, however tall it has grown, and stays at its newest turn
+  // while the bar grows or the keyboard opens (the page resizes to the keyboard: interactive-widget).
+  let atEnd=true; convo.addEventListener('scroll',()=>{ atEnd=convo.scrollHeight-convo.scrollTop-convo.clientHeight<24 },{passive:true});
+  const keep=new ResizeObserver(()=>{ document.documentElement.style.setProperty('--ask-h',ask.offsetHeight+'px'); if(atEnd) convo.scrollTop=convo.scrollHeight });
+  keep.observe(ask); keep.observe(convo);
   let listening=false;
   $('#mic').addEventListener('click',()=>{ listening=!listening; ask.classList.toggle('listening',listening); edge.classList.toggle('listen',listening);
     q.placeholder=listening?'Listening…':''; toast(listening?'Listening. Tap again to stop':'Stopped. Nothing is kept unless you send it'); buzz(8) });
@@ -71,11 +74,11 @@ import { apps } from '/th/registry/apps.js';
     return n }
   const home=$('#home'), brief=$('#brief'), side=$('#side'), dim=$('#dim');
   let view='home', swipe=null, swiped=false;
-  function setPos(b,s,anim){ const W=app.clientWidth, S=side.offsetWidth;
-    [home,brief,side,dim].forEach(el=>el.style.transition=anim?'':'none');
+  function setPos(b,s,anim,ms){ const W=app.clientWidth, S=side.offsetWidth;
+    [home,brief,side,dim].forEach(el=>{ el.style.transition=anim?'':'none'; el.style.transitionDuration=anim&&ms?ms+'ms':'' });
     brief.style.transform=`translateX(${(b-1)*W}px)`; home.style.transform=`translateX(${b*W-s*S*.2}px)`;
     side.style.transform=`translateX(${(1-s)*100}%)`; dim.style.opacity=s; side.classList.toggle('open',s>0); dim.style.pointerEvents=s>.5?'auto':'none' }
-  function go(v){ view=v; setPos(v==='brief'?1:0,v==='side'?1:0,true); if(v!=='home') menu(false) }
+  function go(v,ms){ view=v; setPos(v==='brief'?1:0,v==='side'?1:0,true,ms); if(v!=='home') menu(false) }
   dim.addEventListener('click',()=>go('home'));
   document.addEventListener('th:go',e=>go(e.detail)); // settings pages return to the open menu
   app.addEventListener('click',e=>{ if(swiped){ e.stopPropagation(); e.preventDefault() } },true);
@@ -101,10 +104,14 @@ import { apps } from '/th/registry/apps.js';
   // The finger's speed over its last 100 ms (px/ms, + is rightward); 0 if it stopped before lifting.
   function flick(v,at){ const last=v[v.length-1]; if(!last||at-last[0]>60) return 0; const first=v.find(p=>last[0]-p[0]<=100)||last; return last[0]>first[0]?(last[1]-first[1])/(last[0]-first[0]):0 }
   // A swipe commits at 28% of its travel or a flick of 0.45 px/ms its way (GESTURES.md §4).
+  // A flick finishes at the finger's speed (the spring's settle is about 1.8 times the straight run),
+  // between 180 and 460 ms; a commit ticks once.
   function endSwipe(at){ const {from,b,s}=swipe, v=at===undefined?0:flick(swipe.v,at), F=.45; swipe=null; swiped=true; setTimeout(()=>swiped=false,60);
-    if(from==='home') go(b>0&&(v>F||b>.28&&v>=-F)?'brief':s>0&&(v<-F||s>.28&&v<=F)?'side':'home');
-    else if(from==='brief') go(v<-F||b<.72&&v<=F?'home':'brief');
-    else go(v>F||s<.72&&v>=-F?'home':'side') }
+    const to=from==='home'?(b>0&&(v>F||b>.28&&v>=-F)?'brief':s>0&&(v<-F||s>.28&&v<=F)?'side':'home')
+      :from==='brief'?(v<-F||b<.72&&v<=F?'home':'brief'):(v>F||s<.72&&v>=-F?'home':'side');
+    const left=to==='brief'||from==='brief'?Math.abs((to==='brief'?1:0)-b)*app.clientWidth:Math.abs((to==='side'?1:0)-s)*side.offsetWidth;
+    go(to,Math.abs(v)>F?Math.round(Math.min(460,Math.max(180,left/Math.abs(v)*1.8))):undefined);
+    if(to!==from) buzz(5) }
   function close(commit){ clearTimeout(holdT); press.classList.remove('on');
     if(open){ const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
       if(chosen>=0){ const p=pets[chosen], a=chosen*SEC; p.classList.add('go'); p.style.transform=`translate(${R*1.25*Math.sin(a)}px,${-R*1.25*Math.cos(a)}px) scale(1.7)`; buzz([12,40,12]); const to=APPS[chosen][3]; if(to) setTimeout(()=>location.assign(to),230); else toast(APPS[chosen][0]+' comes later') }
