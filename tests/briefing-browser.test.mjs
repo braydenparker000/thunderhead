@@ -129,6 +129,11 @@ test('a long press arranges a tile: earlier, later, hidden and shown again, kept
   await press('board');
   await page.click('#brief .tilearr button:text("Hide")');
   assert.equal((await keys(page)).includes('board'), false);
+  await page.click('.toast.show .tact');
+  assert.equal((await keys(page)).includes('board'), true, 'Undo brings it back');
+  await page.waitForTimeout(400); // the toast fades before the next press
+  await press('board');
+  await page.click('#brief .tilearr button:text("Hide")');
   assert.equal(await page.textContent('#brief .bhidden'), 'One tile hidden · Show');
   await page.click('#brief .bhidden');
   assert.equal((await keys(page)).includes('board'), true);

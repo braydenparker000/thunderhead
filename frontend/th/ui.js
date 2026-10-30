@@ -49,18 +49,28 @@ export function wireShowButtons(root = document) {
 
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let toastTimer;
-/** A short line at the top. Never the Memory page's undo toast (`.utoast`), whose Undo it would wipe.
- * @param {string} text */
-export function toast(text) {
+/** A short line at the top (two lines at most), with an action such as Undo when given; it then
+ * stays 3 s. Never the Memory page's undo toast (`.utoast`), whose Undo it would wipe.
+ * @param {string} text @param {{ label: string, run: () => void }} [act] */
+export function toast(text, act) {
   let t = document.querySelector('.toast:not(.utoast)');
   if (!t) {
     t = el('div', { class: 'toast', role: 'status', 'aria-live': 'polite' });
     document.body.append(t);
   }
-  t.textContent = text;
-  t.classList.add('show');
+  const shown = t;
+  shown.textContent = text;
+  if (act) {
+    const b = el('button', { type: 'button', class: 'tact', text: act.label });
+    b.addEventListener('click', () => {
+      shown.classList.remove('show');
+      act.run();
+    });
+    shown.append(b);
+  }
+  shown.classList.add('show');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => t?.classList.remove('show'), 1700);
+  toastTimer = setTimeout(() => shown.classList.remove('show'), act ? 3000 : 1700);
 }
 
 /**

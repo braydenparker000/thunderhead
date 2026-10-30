@@ -11,7 +11,7 @@ import { from as launchFrom, launch } from '/ui/launch.js';
 
   // day/night: Auto follows the clock; Day or Night sticks
   const seg=$('#seg'); let pref='auto'; try{pref=localStorage.getItem('th-theme')||'auto'}catch(e){}
-  function applyTheme(p){ pref=p; const hr=new Date().getHours(); root.dataset.theme=p==='auto'?((hr>=19||hr<7)?'dark':'light'):p; seg.querySelectorAll('button').forEach(b=>b.classList.toggle('on',b.dataset.th===p)) }
+  function applyTheme(p){ pref=p; const hr=new Date().getHours(); root.dataset.theme=p==='auto'?((hr>=19||hr<7)?'dark':'light'):p; seg.querySelectorAll('button').forEach(b=>{ b.classList.toggle('on',b.dataset.th===p); b.setAttribute('aria-checked',String(b.dataset.th===p)); b.tabIndex=b.dataset.th===p?0:-1 }) }
   applyTheme(pref);
   const setTheme=t=>{ applyTheme(t); try{localStorage.setItem('th-theme',t)}catch(e){} };
   seg.addEventListener('click',e=>{const b=e.target.closest('button'); if(b) setTheme(b.dataset.th)});
@@ -19,11 +19,17 @@ import { from as launchFrom, launch } from '/ui/launch.js';
   // Text size, accent and a still background, kept on this phone; ui/theme.js applies them before
   // the first paint (HOME.md §8).
   function pick(sel,key,attr,def){ const box=$(sel); let v=def; try{v=localStorage.getItem(key)||def}catch(e){}
-    const show=x=>box.querySelectorAll('button').forEach(b=>{ const on=b.dataset.v===x; b.classList.toggle('on',on); b.setAttribute('aria-pressed',String(on)) });
+    const show=x=>box.querySelectorAll('button').forEach(b=>{ const on=b.dataset.v===x; b.classList.toggle('on',on); b.setAttribute('aria-checked',String(on)); b.tabIndex=on?0:-1 });
     show(v);
     box.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; const x=b.dataset.v; if(x===def) delete root.dataset[attr]; else root.dataset[attr]=x;
       try{ x===def?localStorage.removeItem(key):localStorage.setItem(key,x) }catch(e){} show(x) }) }
   pick('#tsize','th-text','text','m'); pick('#accent','th-accent','accent','blue');
+  // A choice group moves with the arrow keys, as a radio group does.
+  for(const g of document.querySelectorAll('#side [role=radiogroup]')) g.addEventListener('keydown',e=>{ const d=e.key==='ArrowRight'||e.key==='ArrowDown'?1:e.key==='ArrowLeft'||e.key==='ArrowUp'?-1:0; if(!d) return; e.preventDefault();
+    const bs=[...g.querySelectorAll('[role=radio]')], i=bs.indexOf(document.activeElement), n=bs[(i+d+bs.length)%bs.length]; n.click(); n.focus() });
+  // Offline: one slim pill at the top, gone once back (the messages keep their own notes).
+  const off=document.createElement('div'); off.className='offpill'; off.setAttribute('role','status'); off.textContent="Offline · messages send when you're back"; $('#home').append(off);
+  const net=()=>off.classList.toggle('show',!navigator.onLine); addEventListener('online',net); addEventListener('offline',net); net();
   const still=$('#still'), showStill=()=>still.setAttribute('aria-checked',String(root.dataset.still!==undefined));
   showStill();
   still.addEventListener('click',()=>{ const on=root.dataset.still===undefined; if(on) root.dataset.still=''; else delete root.dataset.still; try{ on?localStorage.setItem('th-still','1'):localStorage.removeItem('th-still') }catch(e){} showStill() });

@@ -12,7 +12,7 @@
 // textContent only.
 import { api, signedIn } from '../client.js';
 import { kv } from '../idb.js';
-import { el } from '../ui.js';
+import { el, toast } from '../ui.js';
 
 /** @typedef {import('../../../shared/contract/briefing.ts').BriefingResponse} BriefingResponse */
 
@@ -326,6 +326,13 @@ function arrange(key) {
       const a = arrangement();
       keepArrangement({ ...a, hidden: [...new Set([...a.hidden, key])] });
       if (shown) draw(shown);
+      toast('Tile hidden', {
+        label: 'Undo',
+        run: () => {
+          keepArrangement(a);
+          if (shown) draw(shown);
+        },
+      });
     });
   add('Done', () => row.remove());
   t.after(row);

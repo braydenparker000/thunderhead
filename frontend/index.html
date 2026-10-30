@@ -32,7 +32,7 @@
   <div class="field"></div>
   <div class="grain"></div>
 
-  <div class="page home" id="home">
+  <main class="page home" id="home">
   <div class="top"><span id="date">Today</span></div>
 
   <div class="convo" id="convo">
@@ -42,8 +42,8 @@
     <div class="hint" id="hint"><i></i>Hold for apps · swipe for more</div>
   </div>
 
-  <div class="opts" id="opts" role="menu">
-    <button type="button" style="--i:1;--c:#8b5cf6" data-toast="Camera comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#camera"/></svg></span>Camera</button><button type="button" style="--i:2;--c:#2f7df6" data-toast="Photos comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#image"/></svg></span>Photos</button><button type="button" style="--i:3;--c:#14a39a" data-toast="Files comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#file-text"/></svg></span>Files</button><button type="button" style="--i:4;--c:#e0457b" data-toast="Voice memo comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#waveform"/></svg></span>Voice memo</button><button type="button" style="--i:5;--c:#e08a1e" data-toast="Remind me comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#alarm"/></svg></span>Remind me</button>
+  <div class="opts" id="opts" role="menu" aria-label="Add">
+    <button type="button" role="menuitem" style="--i:1;--c:#8b5cf6" data-toast="Camera comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#camera"/></svg></span>Camera</button><button type="button" role="menuitem" style="--i:2;--c:#2f7df6" data-toast="Photos comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#image"/></svg></span>Photos</button><button type="button" role="menuitem" style="--i:3;--c:#14a39a" data-toast="Files comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#file-text"/></svg></span>Files</button><button type="button" role="menuitem" style="--i:4;--c:#e0457b" data-toast="Voice memo comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#waveform"/></svg></span>Voice memo</button><button type="button" role="menuitem" style="--i:5;--c:#e08a1e" data-toast="Remind me comes with sign-in"><span class="oi"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#alarm"/></svg></span>Remind me</button>
   </div>
   <form class="ask" id="ask" autocomplete="off">
     <button class="plusBtn" id="plus" type="button" aria-label="Add" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#plus"/></svg></button>
@@ -53,9 +53,9 @@
       <button class="send" type="submit" aria-label="Send"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#arrow-up"/></svg></button>
     </div>
   </form>
-  </div>
+  </main>
 
-  <div class="page brief" id="brief" aria-label="Briefing">
+  <section class="page brief" id="brief" aria-label="Briefing">
     <div class="bhead" id="bdate">Briefing</div>
     <div class="voice btitle"><span class="ln">Here's your day.</span></div>
     <div class="grid">
@@ -66,7 +66,7 @@
       </div>
     </div>
     <div class="bnote">Swipe left to go back</div>
-  </div>
+  </section>
 
   <div class="dim" id="dim"></div>
   <nav class="side" id="side" aria-label="Menu">
@@ -77,11 +77,11 @@
     <div id="convos"></div>
     <div class="sh">Settings</div>
     <div class="grp">Appearance</div>
-    <div class="seg" id="seg"><button type="button" data-th="auto">Auto</button><button type="button" data-th="light">Day</button><button type="button" data-th="dark">Night</button></div>
+    <div class="seg" id="seg" role="radiogroup" aria-label="Appearance"><button type="button" role="radio" data-th="auto">Auto</button><button type="button" role="radio" data-th="light">Day</button><button type="button" role="radio" data-th="dark">Night</button></div>
     <div class="grp">Text size</div>
-    <div class="seg" id="tsize"><button type="button" data-v="s">Smaller</button><button type="button" data-v="m">Default</button><button type="button" data-v="l">Larger</button></div>
+    <div class="seg" id="tsize" role="radiogroup" aria-label="Text size"><button type="button" role="radio" data-v="s">Smaller</button><button type="button" role="radio" data-v="m">Default</button><button type="button" role="radio" data-v="l">Larger</button></div>
     <div class="grp">Accent</div>
-    <div class="accents" id="accent"><button type="button" data-v="blue" aria-label="Blue"></button><button type="button" data-v="green" aria-label="Green"></button><button type="button" data-v="violet" aria-label="Violet"></button><button type="button" data-v="rose" aria-label="Rose"></button></div>
+    <div class="accents" id="accent" role="radiogroup" aria-label="Accent"><button type="button" role="radio" data-v="blue" aria-label="Blue"></button><button type="button" role="radio" data-v="green" aria-label="Green"></button><button type="button" role="radio" data-v="violet" aria-label="Violet"></button><button type="button" role="radio" data-v="rose" aria-label="Rose"></button></div>
     <button class="row" type="button" id="still" role="switch" aria-checked="false"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#moon-stars"/></svg><span class="t">Still background</span><span class="sw" aria-hidden="true"></span></button>
     <button class="row" type="button" data-toast="Quiet hours comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#bell"/></svg><span class="t">Quiet hours</span><small>soon</small><svg class="i go" aria-hidden="true"><use href="/ui/icons.svg#caret-right"/></svg></button>
     <button class="row" type="button" data-open="notifications" data-toast="Notifications comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#bell"/></svg><span class="t">Notifications</span><small>soon</small><svg class="i go" aria-hidden="true"><use href="/ui/icons.svg#caret-right"/></svg></button>

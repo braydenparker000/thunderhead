@@ -290,3 +290,24 @@ test('the menu: a conversation swiped left offers Pin; pinned ones come first; s
   await context.close();
 });
 
+test('offline shows one pill at the top; the choice groups are radio groups that move with the arrow keys', opts, async () => {
+  const { page, context, errors } = await open();
+  assert.equal(await page.$eval('.offpill', (p) => p.classList.contains('show')), false);
+  await context.setOffline(true);
+  await page.waitForSelector('.offpill.show');
+  assert.equal(await page.textContent('.offpill'), "Offline · messages send when you're back");
+  await context.setOffline(false);
+  await page.waitForSelector('.offpill:not(.show)', { state: 'attached' });
+  await go(page, 'side');
+  await page.waitForTimeout(600);
+  const checked = () => page.$$eval('#tsize [role=radio]', (b) => b.map((x) => x.getAttribute('aria-checked')));
+  assert.deepEqual(await checked(), ['false', 'true', 'false']);
+  await page.focus('#tsize [data-v="m"]');
+  await page.keyboard.press('ArrowRight');
+  assert.deepEqual(await checked(), ['false', 'false', 'true']);
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.v), 'l');
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.text), 'l');
+  assert.deepEqual(errors.filter((e) => !/ERR_INTERNET_DISCONNECTED|Failed to fetch/.test(e)), []);
+  await context.close();
+});
+

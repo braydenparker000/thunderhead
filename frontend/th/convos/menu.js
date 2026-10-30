@@ -189,12 +189,15 @@ function actions(row) {
     box.append(b);
   };
   const pins = pinned();
-  add(pins.includes(id) ? 'Unpin' : 'Pin', () => {
-    const next = pins.includes(id) ? pins.filter((p) => p !== id) : [id, ...pins].slice(0, 20);
+  const keepPins = (/** @type {string[]} */ p) => {
     try {
-      localStorage.setItem(PINS, JSON.stringify(next));
+      localStorage.setItem(PINS, JSON.stringify(p));
     } catch {}
     draw();
+  };
+  add(pins.includes(id) ? 'Unpin' : 'Pin', () => {
+    keepPins(pins.includes(id) ? pins.filter((p) => p !== id) : [id, ...pins].slice(0, 20));
+    toast(pins.includes(id) ? 'Unpinned' : 'Pinned', { label: 'Undo', run: () => keepPins(pins) });
   });
   if (t?.summary) add(row.classList.contains('full') ? 'Less' : 'Summary', () => row.classList.toggle('full'));
   row.after(box);
