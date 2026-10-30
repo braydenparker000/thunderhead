@@ -892,9 +892,21 @@
      "adjustments": []
     },
     "podcasts/sw.js": {
-     "sha256": "1e9883ec271179ada2cd370a0cb6161585003a9b73666f7064cbfead0a70fcd1",
+     "sha256": "8bf999770c00f36fccd0b79272e10f4078a062eaa3843f90468d036a409222a6",
      "old_sha256": "1e9883ec271179ada2cd370a0cb6161585003a9b73666f7064cbfead0a70fcd1",
-     "adjustments": []
+     "adjustments": [
+      "data-move"
+     ],
+     "edits": [
+      [
+       "// P8 data move (MIGRATION.md §7 step 5): the app's requests to the old Worker are answered from the new Worker, the old one while it can't.\nimport {podcastsBridge} from '/th/podcasts/bridge.js';\npodcastsBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');\nconst SHELL = 'jarvis-podcast-shell-v6';",
+       "const SHELL = 'jarvis-podcast-shell-v6';"
+      ],
+      [
+       "  const req = event.request, url = new URL(req.url);\n  if (podcastsBridge.handles(url)) { event.respondWith(podcastsBridge.answer(req, event)); return; }\n",
+       "  const req = event.request, url = new URL(req.url);\n"
+      ]
+     ]
     }
    },
    "assets": [
@@ -906,6 +918,7 @@
    "hosts": [
     "github.com",
     "itunes.apple.com",
+    "jarvis-hub-api.braydenparker999.workers.dev",
     "scripts.sil.org",
     "www.w3.org"
    ],

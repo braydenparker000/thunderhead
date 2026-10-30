@@ -16,7 +16,7 @@ const P = JSON.parse(await readFile(join(SITE, 'ported.json'), 'utf8'));
 const KINDS = ['paths', 'route-folder', 'api-address', 'csp', 'data-move', 'improvement'];
 /** Apps whose data has moved to the new Worker (SECURITY.md §4.4 rule 4), and the one new-site file
  * each may load: Music in P5, through its own worker; Guitar in P6, its sources with the session. */
-const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/th/ported/session.js'] };
+const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/th/ported/session.js'], 'podcasts/sw.js': ['/th/podcasts/bridge.js'] };
 /** Improvements the owner agreed to that load a new-site file of the player's own (never the session). */
 const IMPROVED = {
   'music/src/app.js': ['/th/music/dj.js'],

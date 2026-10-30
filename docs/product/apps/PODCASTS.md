@@ -47,6 +47,14 @@ rules describe the later steps.
 3. The owner's follows, queue, progress and settings are restored unchanged on the new origin
    **[proposal: through the export page, §10]**.
 4. Done when the owner listens on the phone and nothing has changed.
+5. **Data move (P8, built):** the app is still unchanged and still addresses the old Worker; its own
+   worker (`podcasts/sw.js`, one recorded edit) answers those requests from the new Worker's
+   `/v1/podcasts/directory`, `/feed` and `/audio` with the owner's session
+   (`frontend/th/podcasts/bridge.js`). Feeds are parsed there, on the phone, by
+   `frontend/th/podcasts/feed.js`, the old Worker's parser, which the new Worker also uses to find
+   an episode's audio, reading a feed in growing pieces (a recent episode costs it well under 1 ms;
+   a whole 4 MB feed would cost about 10). Signed out, or while the new Worker can't answer, the
+   old Worker answers as before.
 
 Everything after this section describes later steps. Each is proposed after the port and built only
 if the owner agrees.

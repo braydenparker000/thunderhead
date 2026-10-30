@@ -5,7 +5,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**The anime pick** (P10, going live with this push): "an anime I'd like, 20 min, under 200 MB" → the mind suggests a title and its reply's Open in Astra finds it in the owner's add-ons and opens its Details, with Streams limited to the size asked (removable); the owner picks the stream. With it, all six day-1 features are built.
+**P8 · Podcasts' data move** (going live with this push): the ported app, unchanged, is answered by its own worker from the new Worker's `/v1/podcasts/*` with the owner's session (browse, search, feeds read on the phone, episode audio with byte ranges and downloads); signed out, the old Worker answers as before. No owner step. Checked in Chromium both ways (the app browses, searches, opens a show, pages, and plays an episode through range requests; the old Worker is never reached while signed in). Next in P8: the ported apps' error reports, My Media's and Astra's moves, then push, AI routing, share target.
+
+**The anime pick** (P10, live since 04:20 UTC, `a68a928`, run #60; the live files match): "an anime I'd like, 20 min, under 200 MB" → the mind suggests a title and its reply's Open in Astra finds it in the owner's add-ons and opens its Details, with Streams limited to the size asked (removable); the owner picks the stream. With it, all six day-1 features are built.
 
 **Guitar tips per section** (P10, `e49396e`): tap a section's label in the Guitar reader for up to three tips from the tab itself (fast runs, reaches, shifts, barres, slurs, bends, strums, chord changes…), each with whose approach it follows and "Show me" for the step.
 

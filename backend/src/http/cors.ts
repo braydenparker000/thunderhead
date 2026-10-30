@@ -15,8 +15,19 @@ export const ALLOW_HEADERS = [
   'TH-File-Name',
   'TH-Sha256',
   'If-None-Match',
+  'Range',
+  'If-Range',
 ];
-export const EXPOSE_HEADERS = ['TH-Request-Id', 'TH-Server', 'TH-Min-Client', 'Retry-After', 'ETag'];
+export const EXPOSE_HEADERS = [
+  'TH-Request-Id',
+  'TH-Server',
+  'TH-Min-Client',
+  'Retry-After',
+  'ETag',
+  // A podcast episode streamed in byte ranges (PODCASTS.md §4.4).
+  'Content-Range',
+  'Accept-Ranges',
+];
 
 const parsed = new Map<string, Set<string>>();
 

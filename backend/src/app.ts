@@ -22,6 +22,7 @@ import { mindRoutes } from './areas/mind/routes';
 import { musicRoutes } from './areas/music/routes';
 import { BIG_OPS, UPLOAD_LIMITS, uploadRoutes } from './areas/music/upload';
 import { opsRoutes } from './areas/ops/routes';
+import { podcastsRoutes } from './areas/podcasts/routes';
 import { proposalsRoutes } from './areas/proposals/routes';
 import { searchRoutes } from './areas/search/routes';
 import { sensesRoutes } from './areas/senses/routes';
@@ -121,6 +122,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', uploadRoutes)
   .route('/v1', sensesRoutes)
   .route('/v1', guitarRoutes)
+  .route('/v1', podcastsRoutes)
   .route('/v1', libraryRoutes)
   .route('/v1', ingestRoutes)
   .route('/v1', scriptureRoutes)

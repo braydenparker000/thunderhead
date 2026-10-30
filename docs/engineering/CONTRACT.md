@@ -4,7 +4,7 @@
 
 The runtime contract as data, generated from [`shared/contract`](../../shared/contract). [API.md](API.md) describes each route; this appendix lists what the code enforces. How to add to it: [EXTENDING.md](EXTENDING.md).
 
-Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2, P3, P4, P5, P6, P7.
+Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2, P3, P4, P5, P6, P7, P8.
 
 ## Routes
 
@@ -163,7 +163,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/library/scripture/text/:code` | C N | P7 | built | one book's text, checked by the table |
 | `GET /v1/library/cite` | C N | P7 | built | ?q=: the blocks a cited answer may use, at most 20 |
 | `GET /v1/library/verses/:code/:chapter` | D C N | P7 | built | ?v=12[-14]&all=1: cited in your books |
-| `PUT /v1/pushes/:id` | C | P8 | later (P8) |  |
+| `GET /v1/podcasts/directory` | D | P8 | built | ?q=\|?category=, &country= |
+| `GET /v1/podcasts/feed` | D | P8 | built | ?url=; the feed as sent, at most 4 MB |
+| `GET /v1/podcasts/audio` | D | P8 | built | ?feed=&id=; byte ranges |
+| `PUT /v1/pushes/:id` | C | P8 | deferred: P8: Web Push |  |
 
 ## Verbs
 

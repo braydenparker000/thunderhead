@@ -26,7 +26,7 @@ describe('CORS', () => {
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe(SITE);
     expect(res.headers.get('Access-Control-Allow-Methods')).toBe('GET,POST,PUT,PATCH,DELETE');
     expect(res.headers.get('Access-Control-Allow-Headers')).toBe(
-      'Authorization,Content-Type,TH-Client,TH-File-Name,TH-Sha256,If-None-Match',
+      'Authorization,Content-Type,TH-Client,TH-File-Name,TH-Sha256,If-None-Match,Range,If-Range',
     );
     expect(res.headers.get('Access-Control-Max-Age')).toBe('7200');
     expect(res.headers.get('Access-Control-Allow-Credentials')).toBeNull();
@@ -60,7 +60,7 @@ describe('CORS', () => {
     expect(res.status).toBe(401);
     expect(res.headers.get('Access-Control-Allow-Origin')).toBe(SITE);
     expect(res.headers.get('Access-Control-Expose-Headers')).toBe(
-      'TH-Request-Id,TH-Server,TH-Min-Client,Retry-After,ETag',
+      'TH-Request-Id,TH-Server,TH-Min-Client,Retry-After,ETag,Content-Range,Accept-Ranges',
     );
   });
 });

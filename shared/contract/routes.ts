@@ -233,13 +233,17 @@ export const ROUTES = {
   'PUT /v1/library/scripture/text/:code': { who: ['C', 'N'], phase: 'P7', note: "one book's text, checked by the table" },
   'GET /v1/library/cite': { who: ['C', 'N'], phase: 'P7', note: '?q=: the blocks a cited answer may use, at most 20' },
   'GET /v1/library/verses/:code/:chapter': { who: ['D', 'C', 'N'], phase: 'P7', note: '?v=12[-14]&all=1: cited in your books' },
-  'PUT /v1/pushes/:id': { who: ['C'], phase: 'P8' },
+  // P8: Podcasts' directory, feeds and episode audio, as the old Worker served them, for the owner's device only.
+  'GET /v1/podcasts/directory': { who: D, phase: 'P8', note: '?q=|?category=, &country=' },
+  'GET /v1/podcasts/feed': { who: D, phase: 'P8', note: '?url=; the feed as sent, at most 4 MB' },
+  'GET /v1/podcasts/audio': { who: D, phase: 'P8', note: '?feed=&id=; byte ranges' },
+  'PUT /v1/pushes/:id': { who: ['C'], phase: 'P8', deferred: 'P8: Web Push' },
 } as const satisfies Record<string, RouteSpec>;
 
 export type RouteKey = keyof typeof ROUTES;
 
 /** The phases whose routes are live in this build (the scope test registers exactly these). */
-export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'];
+export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8'];
 
 /** The rows this build must register: built phases, minus deferred rows. */
 export function builtRoutes(): [RouteKey, RouteSpec][] {

@@ -86,6 +86,15 @@ export const EDITS = {
       ["  ensureOrder() {\n    const n = this.queue.length;\n    // DJ (th/music/dj.js): DJ_AHEAD songs are planned at a time; near their end, plan again.\n    const djDue = this.shuffle === SHUFFLE_DJ && (this.order?.indexOf(this.index) ?? 0) >= DJ_AHEAD - 5;\n    if (!djDue && this.order?.length === n && this.orderShuffle === this.shuffle && this.orderQueueMode === this.queueMode) return;\n    let order = [...Array(n).keys()];\n    // queue_no_shuffle: the Queue always plays in order.\n    if (this.songsShuffled && !(this.queueMode && this.ctx.pref?.('queue_no_shuffle'))) {\n      order = this.shuffle === SHUFFLE_DJ ? djOrder(this.queue, this.index) : shuffleOrder(this.queue, +(this.ctx.pref?.('shuffle_random_factor') ?? 0.5));", "  ensureOrder() {\n    const n = this.queue.length;\n    if (this.order?.length === n && this.orderShuffle === this.shuffle && this.orderQueueMode === this.queueMode) return;\n    let order = [...Array(n).keys()];\n    // queue_no_shuffle: the Queue always plays in order.\n    if (this.songsShuffled && !(this.queueMode && this.ctx.pref?.('queue_no_shuffle'))) {\n      order = shuffleOrder(this.queue, +(this.ctx.pref?.('shuffle_random_factor') ?? 0.5));"],
     ],
   },
+  // P8 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the Podcasts worker answers the app's
+  // requests to the old Worker from the new one (th/podcasts/bridge.js), the old one while the new one can't.
+  'podcasts/sw.js': {
+    adjustments: ['data-move'],
+    edits: [
+      ["// P8 data move (MIGRATION.md \u00a77 step 5): the app's requests to the old Worker are answered from the new Worker, the old one while it can't.\nimport {podcastsBridge} from '/th/podcasts/bridge.js';\npodcastsBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');\nconst SHELL = 'jarvis-podcast-shell-v6';", "const SHELL = 'jarvis-podcast-shell-v6';"],
+      ["  const req = event.request, url = new URL(req.url);\n  if (podcastsBridge.handles(url)) { event.respondWith(podcastsBridge.answer(req, event)); return; }\n", "  const req = event.request, url = new URL(req.url);\n"],
+    ],
+  },
   // P5 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the player's worker answers its library
   // requests from the new Worker (th/music/bridge.js), the old one while the new one can't.
   'music/sw.js': {

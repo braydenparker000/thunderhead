@@ -1,3 +1,6 @@
+// P8 data move (MIGRATION.md §7 step 5): the app's requests to the old Worker are answered from the new Worker, the old one while it can't.
+import {podcastsBridge} from '/th/podcasts/bridge.js';
+podcastsBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');
 const SHELL = 'jarvis-podcast-shell-v6';
 const AUDIO = 'jarvis-podcast-audio-v1';
 const ART = 'jarvis-podcast-art-v1';
@@ -19,6 +22,7 @@ export async function ranged(response, range) {
 }
 self.addEventListener('fetch', event => {
   const req = event.request, url = new URL(req.url);
+  if (podcastsBridge.handles(url)) { event.respondWith(podcastsBridge.answer(req, event)); return; }
   if (req.method === 'GET' && req.destination === 'image' && url.protocol === 'https:') {
     event.respondWith(caches.open(ART).then(async cache => {
       const saved = await cache.match(req); if (saved) return saved;

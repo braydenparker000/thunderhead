@@ -1312,12 +1312,36 @@
       "status": "built",
       "note": "?v=12[-14]&all=1: cited in your books"
     },
+    "GET /v1/podcasts/directory": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?q=|?category=, &country="
+    },
+    "GET /v1/podcasts/feed": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?url=; the feed as sent, at most 4 MB"
+    },
+    "GET /v1/podcasts/audio": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?feed=&id=; byte ranges"
+    },
     "PUT /v1/pushes/:id": {
       "who": [
         "C"
       ],
       "phase": "P8",
-      "status": "later (P8)"
+      "status": "deferred: P8: Web Push"
     }
   },
   "verbs": {
@@ -2017,7 +2041,8 @@
       "P4",
       "P5",
       "P6",
-      "P7"
+      "P7",
+      "P8"
     ],
     "last_step": 10,
     "budget_min": {
