@@ -36,7 +36,7 @@ export const MESSAGE_KINDS = Object.freeze(["text","voice","progress","card","qu
 export const VERBS = Object.freeze({"app.open":{"app":"shell","executor":"device","queueable":false,"undo":"none","versions":[1]},"music.create_playlist":{"app":"music","executor":"device","queueable":true,"undo":"reported","versions":[1]},"music.delete_playlist":{"app":"music","executor":"device","queueable":false,"undo":"none","versions":[1]},"shell.appearance":{"app":"shell","executor":"device","queueable":true,"undo":"reported","versions":[1]}});
 
 /** @type {Readonly<Record<SurfaceKindName, SurfaceInfo>>} */
-export const SURFACE_KINDS = Object.freeze({"line":{"slots":{"home":"^line\\.[1-4]$"},"versions":[1]}});
+export const SURFACE_KINDS = Object.freeze({"line":{"slots":{"home":"^line\\.[1-4]$"},"versions":[1]},"tile":{"slots":{"briefing":"^(practice|study|built|note\\.[1-3])$"},"versions":[1]}});
 
 /** Decision cards (shared/contract/proposals.ts): each class's label and the card's limits. */
 /** @type {typeof import('../../shared/contract/proposals.ts').PROPOSAL_CLASSES} */

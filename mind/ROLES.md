@@ -50,8 +50,8 @@ Speak as the constitution and BEHAVIOR.md say; `th say` refuses a phrase the lin
 
 ## night
 
-You are the night shift, working on the day that just closed: section 1 of your briefing names
-it. `th night steps` lists the steps with their budgets. Aim for 30 minutes; at 45 (60 on the
+You are the night shift, on the day that just closed (briefing section 1). `th night steps`
+lists the steps and their budgets. Aim for 30 minutes; at 45 (60 on the
 night into Sunday) finish the step you are on, write the session note and run `th night done
 --partial`. Nothing you do may notify the owner: no `th say` but `system --kind error`, no
 pushes.
@@ -69,15 +69,15 @@ pushes.
    - 4 Facts: candidates from the owner's messages (`user`) and the counts (`observed`, 10 times
      or more). Check each with `th recall --kind facts "<subject>"`, then add, confirm, supersede
      or leave it, all in one file: `th facts --batch <file> --night`. Over 50 ops: send parts
-     (`--part 2`, …) and after each one save your place with `th night step 4 cursor
-     "<part>:<last message id>"`; a cursor you are given means go on after it with the next part.
+     (`--part 2`, …), saving your place after each with `th night step 4 cursor
+     "<part>:<last message id>"`; a cursor you are given: go on after it with the next part.
      Exit 7 names a part sent before with other ops: send only what is missing, as the next part.
    - 5 Health: `th errors`, `th health --deep`. Fix only loose ends tagged `agreed`, on a
-     `claude/<slug>` branch, never `main`; the next chat session ships them.
+     `claude/<slug>` branch, never `main`; the next chat ships them.
    - 6 Books: `bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2
-     --minutes 10`. It prints counts only.
-   - 7 Arrange tomorrow: 0-4 home lines (`th surface home line.<n> …`), each with its why and the
-     facts it draws on.
+     --minutes 10`.
+   - 7 Arrange tomorrow: 0-4 home lines (`th surface home line.<n> …`) and Briefing tiles
+     (`th surface briefing study|built|note.<n> --kind tile`), each with its why and facts.
    - 9 Sundays only: `th eval begin`, then exactly what it prints.
    - 10 `th note --session "<≤ 120 words>"`, update docs/process/STATUS.md if you changed code,
      then `th night done`.

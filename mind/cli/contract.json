@@ -1584,6 +1584,53 @@
           ]
         }
       }
+    },
+    "tile": {
+      "slots": {
+        "briefing": "^(practice|study|built|note\\.[1-3])$"
+      },
+      "doc": "A Briefing tile (BRIEFING.md §2), app `briefing`: `study` (today's reading), `practice`, `built` (what you made overnight), `note.1`–`note.3`. {label ≤24, value ≤32, detail? ≤60, big? ≤5, wide?, app?+path? (opens it)}; set --expires, else it goes after a day.",
+      "versions": {
+        "1": {
+          "type": "object",
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 24
+            },
+            "value": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 32
+            },
+            "detail": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 60
+            },
+            "big": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 5
+            },
+            "wide": {
+              "type": "boolean"
+            },
+            "app": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "required": [
+            "label",
+            "value"
+          ]
+        }
+      }
     }
   },
   "codes": {

@@ -8,6 +8,8 @@ Sibling docs: [HOME](HOME.md), [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM
 
 **Weather built in P8** (`backend/src/areas/briefing/weather.ts`, `frontend/th/briefing/weather.js`): Open-Meteo, the place set by typing a town's name in the tile's sheet (not a Settings page), kept only in Core's settings; the forecast asked again on open when the kept one is over 30 minutes old; the sentence covers the next 12 hours (the first wet spell and its kind, else "Dry for the rest of the day." / "Dry tonight."); freshness as §6. Tests: `backend/tests/unit/weather.test.ts`, `backend/tests/integration/weather.test.ts`, `tests/briefing-weather-browser.test.mjs`.
 
+**The night shift's tiles built in P8**: a `tile` surface in app `briefing` (slots `practice`, `study`, `built`, `note.1`–`note.3`; §2's limits checked by the Worker; a tap opens its `path` inside its `app`), placed by night step 7 and shown after "Waiting on you" in that slot order, at most 8 tiles; one without an expiry leaves after a day. "Built overnight" is one tile for now (its sheet with Undo per item waits); Practice waits on Guitar's senses; My Media and Podcasts tiles wait on those apps reporting. With nothing but the weather the page says "I'll arrange this page each night. Tomorrow it fills in." Tests: `backend/tests/integration/briefing-tiles.test.ts`, `tests/briefing-tiles-browser.test.mjs`.
+
 ## Rules at a glance
 
 1. **Open it:** swipe right on home, or the hidden "Briefing" button. **Close it:** swipe left, Back, or a tile that goes home ([GESTURES](../design/GESTURES.md) §4, §7).

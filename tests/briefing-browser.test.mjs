@@ -101,7 +101,7 @@ test('with nothing to show, the page is quiet and says what comes later', opts, 
   const { page, context, errors } = await open({ briefing: quiet });
   await page.waitForFunction(() => document.querySelector('#brief .btitle .ln')?.textContent === 'A quiet day.');
   assert.equal(await page.$$eval('#brief .grid > *', (t) => t.length), 0);
-  assert.equal(await page.textContent('#brief .bmuse'), 'Practice, study and what I built overnight come with a later update.');
+  assert.equal(await page.textContent('#brief .bmuse'), 'I’ll arrange this page each night. Tomorrow it fills in.');
   assert.deepEqual(errors, []);
   await context.close();
 });

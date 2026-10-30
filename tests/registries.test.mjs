@@ -55,6 +55,7 @@ test('every surface kind and version is drawn, and anything else becomes the gen
   assert.equal(place(surface('line', 7, { text: 'x' })).place, 'card', 'an unknown version falls back');
   const lines = [surface('line', 1, { text: 'Third.' }, 'home', 'line.3'), surface('line', 1, { text: 'First.' }, 'home', 'line.1')];
   assert.deepEqual(homeLine(lines), { place: 'voice', order: 1, text: 'First.', lang: null });
+  assert.equal(place(surface('tile', 1, { label: 'Study', value: 'p. 212' }, 'briefing', 'study')), null, 'a Briefing tile is not drawn on home');
 });
 
 test('every fact kind and source in the contract has its place on the Memory page; anything else still renders', () => {

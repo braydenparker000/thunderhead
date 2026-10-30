@@ -15,6 +15,10 @@ export const RENDERERS = {
         ? { place: 'voice', order: Number(s.slot.split('.')[1]) || 9, text: String(s.payload.text ?? ''), lang: typeof s.payload.lang === 'string' ? s.payload.lang : null }
         : null,
   },
+  // A Briefing tile is drawn by the Briefing page from GET /v1/briefing (th/briefing/page.js), never on home.
+  tile: {
+    1: () => null,
+  },
 };
 
 /** @param {string} kind @param {number} schema */

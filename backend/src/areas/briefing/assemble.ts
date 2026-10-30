@@ -4,6 +4,7 @@
 import {
   type BoardTile,
   type BriefingResponse,
+  type NightTile,
   titleLine,
   type WaitingTile,
   type WeatherTile,
@@ -12,6 +13,7 @@ import { WORK_LIMITS } from '../../../../shared/contract/work.ts';
 import { DAY, HOUR, wallMinute } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import * as pstore from '../proposals/store';
+import * as surfaces from '../surfaces/store';
 import * as work from '../work/ops';
 
 const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
@@ -57,6 +59,38 @@ function waitingTile(db: Db, now: number): WaitingTile | null {
   };
 }
 
+const SLOTS = ['practice', 'study', 'built', 'note.1', 'note.2', 'note.3'];
+
+/** The night shift's tiles (`tile` surfaces in app `briefing`) by slot; one without an expiry goes after a day. */
+function nightTiles(db: Db, now: number): NightTile[] {
+  return surfaces
+    .list(db, 0, now)
+    .filter(
+      (s) =>
+        s.app === 'briefing' &&
+        s.kind === 'tile' &&
+        s.schema === 1 &&
+        (s.expires_at !== null || now - s.written_at < DAY),
+    )
+    .sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot))
+    .map((s) => {
+      const p = s.payload as Record<string, unknown>;
+      const text = (k: string) => (typeof p[k] === 'string' ? (p[k] as string) : null);
+      return {
+        kind: 'night',
+        slot: s.slot,
+        label: text('label') ?? '',
+        value: text('value') ?? '',
+        detail: text('detail'),
+        big: text('big'),
+        wide: p.wide === true,
+        app: text('app'),
+        path: text('path'),
+        why: s.why,
+      };
+    });
+}
+
 function boardTile(db: Db, day: string, yesterday: string): BoardTile | null {
   const e = work.edition(db, day, yesterday);
   if (!e?.row.result_json) return null;
@@ -85,7 +119,9 @@ export function briefing(
   db: Db,
   c: { now: number; tz: string; day: string; yesterday: string; weather: WeatherTile },
 ): BriefingResponse {
-  const tiles = [waitingTile(db, c.now)].filter((t): t is WaitingTile => t !== null);
+  const waiting = waitingTile(db, c.now);
+  // BRIEFING.md §4: at most 8 tiles before the Board.
+  const tiles = [...(waiting ? [waiting] : []), ...nightTiles(db, c.now)].slice(0, 8);
   const board = boardTile(db, c.day, c.yesterday);
   return {
     day: c.day,
