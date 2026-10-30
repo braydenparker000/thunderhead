@@ -11,7 +11,7 @@ export const API = 'https://api.th.test';
 
 const CORS = {
   'access-control-allow-origin': '*',
-  'access-control-allow-headers': 'Authorization, Content-Type, TH-Client',
+  'access-control-allow-headers': 'Authorization, Content-Type, TH-Client, TH-File-Name, TH-Sha256, TH-Seconds',
   'access-control-allow-methods': 'GET, POST, PUT, PATCH, DELETE',
   'access-control-max-age': '600',
 };
@@ -66,6 +66,21 @@ export async function mockApi(page, overrides = {}) {
       c.fail[url.pathname]--;
       return route.fulfill({ status: 503, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify({ error: { code: 'unavailable', message: 'down', request_id: 't' } }) });
     }
+    // Chat files (the + sheet): bytes in, bytes out, kept by id like the Worker's.
+    const fileId = /^\/v1\/files\/([^/]+)$/.exec(url.pathname)?.[1];
+    if (fileId && req.method() === 'PUT') {
+      const h = req.headers();
+      const bytes = req.postDataBuffer() ?? Buffer.alloc(0);
+      const f = { ref: `file:${fileId}`, name: decodeURIComponent(h['th-file-name'] ?? 'file'), type: h['content-type'], bytes: bytes.length, ...(h['th-seconds'] ? { seconds: Number(h['th-seconds']) } : {}) };
+      c.files[fileId] = { ...f, body: bytes, sha256: h['th-sha256'] };
+      calls.at(-1).file = c.files[fileId];
+      return route.fulfill({ status: 201, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify(f) });
+    }
+    if (fileId && req.method() === 'GET') {
+      const f = c.files[fileId];
+      if (!f) return route.fulfill({ status: 404, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify({ error: { code: 'not_found', message: 'no', request_id: 't' } }) });
+      return route.fulfill({ status: 200, headers: { ...CORS, 'content-type': f.type }, body: f.body });
+    }
     if (req.method() === 'GET' && url.pathname === `/v1/export/${EXPORT_ID}/zip` && state.export?.started)
       return route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'application/zip' }, body: Buffer.from(ZIP_BYTES) });
     const [status, json] = answer(state, req.method(), url, body);
@@ -105,6 +120,11 @@ function chatState(o = {}) {
     /** Per path: answer this many ms late, or with a 503 this many times. */
     slow: {},
     fail: { ...o.fail },
+    /** Chat files by id: `{ ref, name, type, bytes, seconds?, body, sha256 }`. */
+    files: { ...o.files },
+    /** Reminders by id; `shiftTo` moves every new one's delivery there (quiet hours). */
+    reminders: {},
+    shiftTo: o.shiftTo ?? 0,
   };
 }
 
@@ -143,7 +163,11 @@ function chatAnswer(c, method, p, url, body) {
     const found = c.messages.find((m) => m.id === id);
     if (found) return [200, found];
     if (c.failSay > 0) { c.failSay--; return [503, { error: { code: 'unavailable', message: 'down', request_id: 't' } }]; }
-    const m = message(c, { id, author: 'owner', body: body.body });
+    const attachments = (body.attachments ?? []).map((ref) => {
+      const { body: _b, sha256: _s, ...a } = c.files[ref.replace(/^file:/, '')];
+      return a;
+    });
+    const m = message(c, { id, author: 'owner', body: body.body, attachments });
     if (c.reply) setTimeout(() => { m.answered_at = Date.now(); message(c, { id: crypto.randomUUID(), author: 'mind', body: c.reply.text, meta: c.reply.meta ?? null, reply_to: id }); }, c.reply.after);
     return [201, m];
   }
@@ -152,6 +176,17 @@ function chatAnswer(c, method, p, url, body) {
     if (after > c.seq) return [410, { error: { code: 'resync_required', message: 'resync', request_id: 't' } }];
     const items = c.changes.filter((x) => x.seq > after);
     return [200, { items, next_after: items.at(-1)?.seq ?? after, more: false }];
+  }
+  if (method === 'PUT' && p.startsWith('/v1/reminders/')) {
+    const id = p.split('/').pop();
+    const r = (c.reminders[id] ??= { id, text: body.text, at: body.at, fire_at: c.shiftTo || body.at, state: 'set', origin: 'owner_device', created_at: Date.now(), fired_at: null, message_id: null });
+    return [201, { reminder: r }];
+  }
+  if (method === 'DELETE' && p.startsWith('/v1/reminders/')) {
+    const r = c.reminders[p.split('/').pop()];
+    if (!r) return [404, { error: { code: 'not_found', message: 'no', request_id: 't' } }];
+    r.state = 'cancelled';
+    return [200, { reminder: r }];
   }
   if (k === 'POST /v1/live/ticket') return [200, { ticket: `thw_${'0'.repeat(22)}`, expires_at: Date.now() + 30_000 }];
   const settings = () => ({ 'owner.tz': 'UTC', min_client: 0, 'mind.status': c.presence, ...(c.stop ? { 'mind.stop': c.stop } : {}), ...(c.quietUntil ? { 'quiet.until': c.quietUntil } : {}) });

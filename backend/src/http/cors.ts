@@ -14,6 +14,8 @@ export const ALLOW_HEADERS = [
   'TH-Client',
   'TH-File-Name',
   'TH-Sha256',
+  // A voice memo's length, with its upload (HOME.md §4.6).
+  'TH-Seconds',
   'If-None-Match',
   'Range',
   'If-Range',

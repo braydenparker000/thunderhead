@@ -12,6 +12,24 @@ import { citeHref, meta, revealMs } from './model.js';
 import { rich } from './rich.js';
 import { from } from '../../ui/launch.js';
 
+/** A message's photos, files and voice memos, drawn by th/attach/show.js once it loads.
+ * @param {(import('../../../shared/contract/api.ts').Attachment | import('../attach/state.js').LocalFile)[]} list */
+function attachments(list) {
+  const host = document.createElement('div');
+  host.className = 'atts';
+  import('../attach/show.js').then(
+    (s) => {
+      // Filled after the turn was drawn: a conversation at its newest turn stays there.
+      const convo = host.closest('.convo');
+      const atEnd = convo && convo.scrollHeight - convo.scrollTop - convo.clientHeight < 80;
+      s.fill(host, list);
+      if (convo && atEnd) convo.scrollTop = convo.scrollHeight;
+    },
+    () => host.remove(),
+  );
+  return host;
+}
+
 /** @typedef {import('./model.js').Shown} Shown */
 /** @typedef {{ shown: Shown[], slot: string, words?: string, stop: 'none' | 'button' | 'stopping', cards: { text: string, kind: string }[], fresh: Set<string>, now: number }} ViewState */
 
@@ -62,7 +80,7 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
   talk.addEventListener('click', (e) => {
     const t = /** @type {HTMLElement} */ (e.target);
     const node = /** @type {HTMLElement | null} */ (t.closest('.reply')?.closest('[data-id]') ?? null);
-    if (!node || t.closest('a,button,.blocks,.study') || String(getSelection() ?? '')) return;
+    if (!node || t.closest('a,button,.blocks,.study,.atts') || String(getSelection() ?? '')) return;
     const m = nodes.get(node.dataset.id ?? '')?.m;
     if (m && m.author === 'mind' && !m.local) onTap(m, node);
   });
@@ -92,10 +110,20 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
 
   /** @param {Shown} m @param {ViewState} s */
   function draw(m, s) {
+    // A reminder the owner set, at its time (HOME.md §6.2).
+    if (m.author === 'system' && !m.local && /** @type {any} */ (m.meta)?.reminder) {
+      const line = el('div', 'sys reminder');
+      line.innerHTML = '<svg class="i" aria-hidden="true"><use href="/ui/icons.svg#alarm"/></svg>';
+      line.append(el('span', '', m.body));
+      line.setAttribute('aria-label', `Reminder: ${m.body}`);
+      return line;
+    }
     if (m.author === 'system' || (m.author === 'mind' && m.kind === 'error')) return el('div', 'sys', m.body);
     if (m.author === 'owner') {
       const wrap = el('div', 'mine');
-      wrap.append(el('div', 'you', m.body));
+      const files = m.local ? m.files ?? [] : m.attachments ?? [];
+      if (files.length) wrap.append(attachments(files));
+      if (m.body) wrap.append(el('div', 'you', m.body));
       const line = meta(m, s.now);
       if (line) {
         const mt = el('div', `meta${m.local && m.state === 'failed' ? ' bad' : ''}`, line);
@@ -111,6 +139,7 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
     }
     const wrap = el('div', `reply${m.kind === 'progress' ? ' progress' : ''}`);
     wrap.append(rich(m.body));
+    if (!m.local && m.attachments?.length) wrap.append(attachments(m.attachments));
     if (s.fresh.has(m.id)) {
       wrap.classList.add('reveal');
       wrap.style.setProperty('--reveal-ms', `${revealMs(m.body)}ms`);

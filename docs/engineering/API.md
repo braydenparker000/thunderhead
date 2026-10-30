@@ -123,7 +123,7 @@ Acceptance: `backend/tests/integration/route-scopes.test.ts` walks §13. For eve
 |---|---|
 | Allowed origins | Exact strings from the var `SITE_ORIGINS`: the new storage website origin only. The old site's origin is never allowed (the phone export travels as a file, [MIGRATION.md §5](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)) |
 | Methods | `GET, POST, PUT, PATCH, DELETE` |
-| Allowed headers | `Authorization, Content-Type, TH-Client, TH-File-Name, TH-Sha256, If-None-Match, Range, If-Range` (browsers never send `TH-Session`; `If-None-Match` revalidates the music catalog, P5; `Range` and `If-Range` ask for part of a podcast episode, P8) |
+| Allowed headers | `Authorization, Content-Type, TH-Client, TH-File-Name, TH-Sha256, TH-Seconds, If-None-Match, Range, If-Range` (browsers never send `TH-Session`; `If-None-Match` revalidates the music catalog, P5; `Range` and `If-Range` ask for part of a podcast episode, P8) |
 | Exposed headers | `TH-Request-Id, TH-Server, TH-Min-Client, Retry-After, ETag, Content-Range, Accept-Ranges` |
 | `Access-Control-Max-Age` | `7200` (Chrome's cap) |
 | Credentials | never (`Access-Control-Allow-Credentials` is not sent) |

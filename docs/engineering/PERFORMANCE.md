@@ -36,7 +36,7 @@ Lab stand-in: Playwright Chromium at the `a15` project size ([TESTING.md §10.1]
 
 ## 2. Site budgets
 
-Enforced by `scripts/stage.mjs` on every deploy (the deploy fails before publishing). Current values from the first build are shown for scale.
+Enforced by `scripts/stage.mjs` on every deploy (the deploy fails before publishing). "Today" is the build of 2026-10-30 unless a row says otherwise.
 
 | Budget | Limit | Today | Check |
 |---|---|---|---|
@@ -44,12 +44,16 @@ Enforced by `scripts/stage.mjs` on every deploy (the deploy fails before publish
 | Total bytes | ≤ 25,000,000 today; ≤ 40,000,000 from P1b **[proposal]** (the ported apps add ~23 MB) | ~0.15 MB | `stage.mjs` (exists) |
 | Ported folders (P1b) + `/assets/` | Recorded per folder in `ported.json` at the port (measured in the old repo 2026-10-28: Music ~3.4 MB/107 files, Guitar ~2.6 MB/24, Podcasts ~0.3 MB/14, Astra ~4.2 MB/66, My Media ~0.2 MB/11, shared `/assets/` files ~12.5 MB, almost all libmedia); fails if a folder grows without a recorded adjustment | — | `stage.mjs` + `tests/ported.test.mjs` |
 | Home + `ui/` JS (critical path) | ≤ 120,000 | ~13.3 KB | `stage.mjs` (exists) |
-| Home + `ui/` CSS | ≤ 60,000 | ~21.3 KB | `stage.mjs` (exists) |
-| Fonts (`.woff2`) | ≤ 130,000 | ~103 KB | `stage.mjs` (exists) |
-| Icon sprite `ui/icons.svg` | ≤ 30,000 | — | add with the sprite (P1) |
-| `th/` JS loaded by the shell at boot (`th/*.js`) | ≤ 64,000, counted inside the 120 KB (60,000 until 2026-10-30: the contract's verb list grows with each app feature) | ~60 KB | `stage.mjs` (P2) |
-| The conversation, loaded after the first paint (`th/chat/**`, `th/registry/**`) | ≤ 64,000 (60,000 until 2026-10-30: "go quiet" joined it) | ~61 KB | `stage.mjs` (P2) |
-| The menu's conversations and search, loaded when the menu first opens (`th/convos/**`) | ≤ 50,000 | ~43 KB | `stage.mjs` (built) |
+| Home + `ui/` CSS | ≤ 60,000 | ~58.5 KB | `stage.mjs` (exists) |
+| Styles loaded just after the first paint (`th/**/*.css`: a reply's tools, the + sheet's work) | ≤ 20,000 (16,000 until the + sheet, 2026-10-30) | ~16.0 KB | `stage.mjs` (built) |
+| Fonts (`.woff2`) | ≤ 140,000 (130,000 until the upright Fraunces for replies, 2026-10-30) | ~134 KB | `stage.mjs` (exists) |
+| Icon sprite `ui/icons.svg` | ≤ 30,000 | ~18.8 KB | `stage.mjs` (built) |
+| `th/` JS loaded by the shell at boot (`th/*.js`) | ≤ 64,000, counted inside the 120 KB (60,000 until 2026-10-30: the contract's verb list grows with each app feature) | ~63 KB | `stage.mjs` (P2) |
+| The conversation, loaded after the first paint (`th/chat/**`, `th/registry/**`) | ≤ 77,000 (60,000 → 64,000 for "go quiet", → 68,000 for rich replies, → 74,000 for follow-ups, folding and reply taps, → 77,000 for sending and drawing attachments, all 2026-10-30) | ~75.7 KB | `stage.mjs` (P2) |
+| A reply's actions and Find in today, loaded on the first tap or pull (`th/reply/**`) | ≤ 12,000 | ~7.0 KB | `stage.mjs` (built) |
+| The + sheet, loaded when it opens or a message has files (`th/attach/**`) | ≤ 36,000 | ~33.4 KB | `stage.mjs` (built 2026-10-30) |
+| The Briefing page and the Board reader, after the first paint (`th/briefing/**`) | ≤ 34,000 | ~32.2 KB | `stage.mjs` (built) |
+| The menu's conversations and search, loaded when the menu first opens (`th/convos/**`) | ≤ 56,000 | ~54.7 KB | `stage.mjs` (built) |
 | Each app's own code on open (`apps/<id>/**`) | ≤ 300,000 | — | add in P5 |
 | Precache total (everything except `vendor/`, stubs, ported folders and `/assets/`) | ≤ 3,000,000 **[proposal]** | — | add with the SW (P1) |
 | Any single non-vendor file | ≤ 400 lines of JS (soft) / 200,000 bytes (hard) **[proposal]** | — | Biome rule + `stage.mjs` |

@@ -85,18 +85,22 @@ const budgets = [
   // th/ modules the shell loads at boot, and the conversation it loads after the first paint.
   ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 64_000],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
-  // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 74_000],
+  // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
+  // then (2026-10-30) sending a message's files and drawing a message's attachments.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 77_000],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
+  // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads
+  // and attachments in the conversation, loaded when the sheet opens or a message has files.
+  ['attach JS bytes', sum(/^th\/attach\/.*\.js$/), 36_000],
   // The menu's conversations and search, loaded when the menu first opens.
   ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 56_000],
   // The Briefing page and the Board reader, loaded after the first paint.
   // + skeletons, pull to refresh and the owner's arrangement of the tiles (2026-10-30).
   ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 34_000],
   ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 60_000],
-  // Styles home loads just after its first paint (th/reply/tools.css).
-  ['later CSS bytes', sum(/^th\/.*\.css$/), 16_000],
+  // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
+  ['later CSS bytes', sum(/^th\/.*\.css$/), 20_000],
   // The upright Fraunces for replies (30.6 KB, 2026-10-30) on top of the italic and Inter.
   ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 140_000],
   ['precache bytes', list.filter((f) => precached(f.path)).reduce((n, f) => n + f.size, 0), 3_000_000],

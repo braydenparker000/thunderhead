@@ -12,6 +12,8 @@ import { kv } from '../idb.js';
 const db = kv('th-data');
 const KEY = 'chat.outbox.';
 export const OUTBOX_MAX = 200;
+/** Attachments waiting to send, at most (HOME.md §4.7). */
+export const OUTBOX_BYTES = 20 * 1024 * 1024;
 
 export const cache = {
   /** @returns {Promise<Cached | null>} */

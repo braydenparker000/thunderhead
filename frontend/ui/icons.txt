@@ -42,6 +42,7 @@ newspaper
 clock
 play
 stop
+pause
 check
 # Study (P7)
 dots-three

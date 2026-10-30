@@ -6,7 +6,8 @@
 
 /** @typedef {import('../../../shared/contract/api.ts').Message} Message */
 /** @typedef {import('../../../shared/contract/api.ts').MindPresence} MindPresence */
-/** @typedef {{ id: string, body: string, created_at: number, state: 'sending' | 'queued' | 'failed' | 'toolong', tries: number, failed_at?: number, reply_to?: string }} Local */
+/** @typedef {{ id: string, body: string, created_at: number, state: 'sending' | 'queued' | 'failed' | 'toolong', tries: number, failed_at?: number, reply_to?: string,
+ *   files?: import('../attach/state.js').LocalFile[] }} Local */
 /** @typedef {(Message & { local?: false }) | (Local & { author: 'owner', kind: 'text', local: true })} Shown */
 
 export const THINK_AFTER_MS = 1200;

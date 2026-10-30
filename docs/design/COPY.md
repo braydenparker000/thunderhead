@@ -191,17 +191,28 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `plus.memo` | Voice memo | (built) |
 | `plus.remind` | Remind me | (built) |
 | `toast.plus.signin` | <Item> comes with sign-in | Any `+` item before sign-in (built) |
-| `remind.what` | What | Remind me sheet field label (proposal) |
-| `remind.hour` | In 1 hour | (proposal) |
-| `remind.evening` | This evening | 19:00; hidden after 18:30 (proposal) |
-| `remind.morning` | Tomorrow morning | 08:00 (proposal) |
-| `remind.pick` | Pick a time | (proposal) |
-| `toast.remind.set` | I'll remind you at 19:00. | Reminder saved (proposal) |
-| `toast.remind.quiet` | That's in quiet hours. I'll remind you at 06:30. | Time inside quiet hours (proposal, 2 lines) |
-| `memo.stop` | Stop | Voice memo recording (proposal) |
-| `memo.cancel` | Cancel recording | `aria-label` of × while recording (proposal) |
-| `toast.file.big` | That file is over 25 MB. | File too large (proposal) |
-| `toast.attach.max` | Up to 4 at a time. | 5th attachment (proposal) |
+| `remind.title` | Remind me | The sheet's heading (built) |
+| `remind.what` | What | Remind me sheet field label (built) |
+| `remind.hour` | In 1 hour | (built) |
+| `remind.evening` | This evening | 19:00; hidden from 18:30 (built) |
+| `remind.morning` | Tomorrow morning | 08:00 (built) |
+| `remind.pick` | Pick a time | Then a day-and-time field and **Set** (built) |
+| `toast.remind.set` | I'll remind you at 19:00. | Reminder saved; "tomorrow at 08:00", "on Monday at 09:00", "on 13 Nov at 09:00" further out; with Undo (built) |
+| `toast.remind.quiet` | That's in quiet hours. I'll remind you at 06:30. | Time inside quiet hours, with Undo (built, 2 lines) |
+| `toast.remind.undone` | Reminder cancelled. | After Undo (built) |
+| `toast.remind.empty` | Say what to remind you of. | A time picked with no words (built) |
+| `toast.remind.past` | Pick a time that is still to come. | Pick a time in the past (built) |
+| `toast.remind.failed` | Couldn't set the reminder. Try again. | Saving failed (built) |
+| `toast.remind.undofailed` | Couldn't cancel it. Try again. | Undo failed (built) |
+| `memo.stop` | Stop and keep the memo | `aria-label` of the strip's Stop (built) |
+| `memo.cancel` | Throw the memo away | `aria-label` of × while recording (built) |
+| `toast.memo.mic` | Allow the microphone to record a memo. | Microphone refused (built) |
+| `toast.memo.short` | Too short to keep. | Under a second (built) |
+| `toast.file.big` | <name> is over 25 MB. | File too large (built) |
+| `toast.attach.max` | Up to 4 at a time. | 5th attachment (built) |
+| `toast.attach.load` | That didn't load. Try again. | The sheet's code couldn't load (built) |
+| `attach.memo.play` / `.pause` | Play the voice memo / Pause the voice memo | `aria-label`s (built) |
+| `toast.attach.file` / `.photo` / `.memo` | Couldn't fetch that file. Try again. / Couldn't fetch that photo. / Couldn't play that memo. | A file the Worker didn't give (built) |
 
 ### 3.5 Home: hint, ring, apps, toasts
 

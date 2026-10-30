@@ -16,7 +16,8 @@ import { toast } from '../ui.js';
 import { BACKOFF_S, createLive } from './live.js';
 import * as model from './model.js';
 import { fromWorker, quietLine, quietOrder, quietUntil, sendQuiet, setQuiet } from './quiet.js';
-import { cache, OUTBOX_MAX, outbox } from './store.js';
+import { cache, OUTBOX_BYTES, OUTBOX_MAX, outbox } from './store.js';
+import { picked, take } from '../attach/state.js';
 import { createView, voice } from './view.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').TodayResponse} TodayResponse */
@@ -278,7 +279,19 @@ export async function startChat() {
   /** @param {Local} m @returns {Promise<boolean>} whether it went */
   async function send(m) {
     try {
-      const out = await signedIn((tok) => api.say(tok, m.id, m.body, m.reply_to));
+      // Its files go first, each under the id it was given when picked, so a retry repeats none.
+      const out = await signedIn(async (tok) => {
+        if (m.files?.some((f) => !f.sent)) {
+          const { upload } = await import('../attach/upload.js');
+          for (const f of m.files) {
+            if (f.sent) continue;
+            await upload(tok, f);
+            f.sent = true;
+            keep(m);
+          }
+        }
+        return api.say(tok, m.id, m.body, m.reply_to, m.files?.map((f) => `file:${f.id}`));
+      });
       state.local = state.local.filter((x) => x.id !== m.id);
       if (state.today && !state.today.messages.some((x) => x.id === out.id)) state.today.messages.push(out);
       drop(m.id);
@@ -336,12 +349,14 @@ export async function startChat() {
   ask.addEventListener('submit', (e) => {
     e.preventDefault();
     const body = q.value.trim();
-    if (!body) return;
+    if (!body && !picked.length) return;
     if (body.length > model.MAX_CHARS) return toast('Too long to send. Try sending it as a file.');
-    if (state.local.length >= OUTBOX_MAX) return toast('Too much waiting to send. Connect to send the rest.');
+    const bytes = (/** @type {{ bytes: number }[] | undefined} */ fs) => (fs ?? []).reduce((n, f) => n + f.bytes, 0);
+    const waitingBytes = state.local.reduce((n, x) => n + bytes(x.files), 0) + bytes(picked);
+    if (state.local.length >= OUTBOX_MAX || waitingBytes > OUTBOX_BYTES) return toast('Too much waiting to send. Connect to send the rest.');
     const now = Date.now();
     // "Go quiet" is done here, mind or no mind (BEHAVIOR.md §8.1); "I'm back" only ends a quiet.
-    const order = quietOrder(body, now);
+    const order = picked.length ? null : quietOrder(body, now);
     if (order && ('until' in order || quietUntil(now))) {
       q.value = '';
       ask.classList.remove('typing');
@@ -351,7 +366,7 @@ export async function startChat() {
     }
     // "Ask about this" left a quote over the bar: this message answers that reply.
     const about = $('#about');
-    const m = enqueue(body, about?.dataset.id);
+    const m = enqueue(body, about?.dataset.id, take());
     about?.remove();
     paint();
     // Painted first: the words are never only in the bar, or only in IndexedDB.
@@ -361,11 +376,20 @@ export async function startChat() {
     keep(m);
     flush();
   });
-  /** A message from the phone, answering `replyTo` if given. @param {string} body @param {string} [replyTo] */
-  function enqueue(body, replyTo) {
+  /** A message from the phone, answering `replyTo` if given, with the files picked for it.
+   * @param {string} body @param {string} [replyTo] @param {import('../attach/state.js').LocalFile[]} [files] */
+  function enqueue(body, replyTo, files) {
     const now = Date.now();
     /** @type {Local} */
-    const m = { id: model.uuidv7(now), body, created_at: now, state: navigator.onLine ? 'sending' : 'queued', tries: 0, ...(replyTo ? { reply_to: replyTo } : {}) };
+    const m = {
+      id: model.uuidv7(now),
+      body,
+      created_at: now,
+      state: navigator.onLine ? 'sending' : 'queued',
+      tries: 0,
+      ...(replyTo ? { reply_to: replyTo } : {}),
+      ...(files?.length ? { files } : {}),
+    };
     state.local.push(m);
     return m;
   }
@@ -375,6 +399,15 @@ export async function startChat() {
     paint();
     keep(m);
     flush();
+  }
+
+  // The + sheet's items (HOME.md §6.2), now that sign-in is done: their code loads while the sheet
+  // opens, so a picker opens straight from the tap, and their "comes with sign-in" toasts go.
+  const sheet = () => import('../attach/sheet.js');
+  $('#plus').addEventListener('click', () => void sheet().catch(() => {}));
+  for (const b of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('#opts [data-act]'))) {
+    delete b.dataset.toast;
+    b.addEventListener('click', () => sheet().then((s) => s.act(b.dataset.act), () => toast("That didn't load. Try again.")));
   }
 
   // What a command will do, shown before it goes: only where this phone knows exactly (the quiet

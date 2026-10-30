@@ -214,7 +214,9 @@ The wake timings come from the mind's loop: the page fires a pre-warm on the fir
 | Uploading | A 2 px progress ring on the thumbnail / row icon |
 | Failed upload | The bubble's meta: "Didn't send · Retry" |
 
-Attachments go to private storage behind sign-in (R2 `thunderhead-private`), never to the public repo, and are shown through short-lived signed links (decisions.md). Photos are resized on the phone to **2,048 px** on the long edge, JPEG quality 0.85, with location data stripped [proposal].
+Attachments go to private storage behind sign-in (R2 `thunderhead-private`), never to the public repo, and only the Worker hands their bytes out, to a signed-in caller (decisions.md 2026-10-30; this replaced the short-lived signed links first planned). Photos are resized on the phone to **2,048 px** on the long edge, JPEG quality 0.85, with location data stripped.
+
+**Built (2026-10-30, `th/attach/`).** What is picked waits in the bar (§6.2) and leaves with the next message; a message may be only its files. When it goes, each file is uploaded first under the id it got when picked (`PUT /v1/files/:id` with its SHA-256; XHR, so a 2 px ring fills on the photo or row as it uploads), then the message names them (`attachments: ['file:<id>', …]`), so a retry repeats nothing. Photos are redrawn on the phone to at most 2,048 px on the long edge as JPEG 0.85, which drops their location and all other EXIF data; a GIF, or an image the phone can't decode, goes as it is. In the conversation: photos above the owner's words (or under a reply's), two to a row at 132×120 px, one alone 220×165 px, radius 14; a tap opens it full screen (× or Escape closes). A file is a row (icon, name, size); a tap saves it to the phone. A voice memo is a row (play, its real waveform, drawn as soon as the row is in view, and its length), with its words under it when the Worker could write them down (two lines, a tap shows all); play and pause go through Web Audio. Bytes come from the Worker with this phone's token (`GET /v1/files/:id`), or from the phone itself while its message is on its way, and are shown as `data:` images, so the page's CSP is unchanged. Not built: the "Uploading" progress on a server copy after a reload (the outbox shows "Sending…" instead).
 
 ### 4.7 Offline outbox
 
@@ -222,7 +224,7 @@ Attachments go to private storage behind sign-in (R2 `thunderhead-private`), nev
 2. On `online`, on `visibilitychange → visible`, and through Background Sync where Chrome allows, the outbox sends in order, one message at a time; a message waiting on a retry holds the ones after it, and a failed one waits for Retry without holding them. Each has a client id, so a retry never duplicates. A queued or failed message shows only its meta line: no reply slot under it.
 3. On acknowledgement the meta disappears.
 4. If the day rolled while a message waited, it is filed into the thread whose day matches the message's own time if that thread is still open, otherwise into today's thread with the meta "Written yesterday, 23:40" [proposal].
-5. Limits: 200 queued messages or 20 MB of attachments; beyond that, the send button shows the toast "Too much waiting to send. Connect to send the rest." [proposal]
+5. Limits: 200 queued messages or 20 MB of attachments; beyond that, the send button shows the toast "Too much waiting to send. Connect to send the rest." (built 2026-10-30). A message's files wait with it in the outbox, bytes and all (IndexedDB keeps Blobs), so a photo sent offline survives the app being closed and goes when the phone is back.
 
 ### 4.8 Scrolling
 
@@ -295,6 +297,8 @@ Folds up out of the bar like iMessage (owner ruling): scales from 0.5 at its bot
 | **Remind me** | `#e08a1e` | Opens a small sheet: "What" (prefilled with the bar's text), then **In 1 hour** · **This evening** (19:00; hidden after 18:30) · **Tomorrow morning** (08:00) · **Pick a time**. Saving creates a reminder (a reversible action with undo). Toast: "I'll remind you at 19:00." At that time: a push (not counted against the push budget) and a line in the conversation. A time inside quiet hours moves to 06:30, and the toast says so. |
 
 Closing: tap `+` again, tap anywhere outside, pick an item, Back, or Escape. Before sign-in, every item shows its "comes with sign-in" toast (first build).
+
+**Built (2026-10-30, `th/attach/`, loaded while the sheet opens so a picker opens straight from the tap).** Camera, Photos and Files use a file input each (`capture="environment"` for Camera; Photos and Files take several); what is picked shows inside the bar, above the words, as 40 px thumbnails, file chips (icon and name) and memo chips (length), each with × (a 44 px target); the send button shows while anything is there. A fifth file gets "Up to 4 at a time."; a file over 25 MB gets "<name> is over 25 MB." Voice memo: the strip described above, with the level as 28 bars on a decibel scale (−60 to −10 dB, so soft speech moves them), the edge light's listening glow while the microphone is open, Escape as ×; leaving the page stops it and keeps what was recorded; under a second it is not kept ("Too short to keep."); a denied microphone gets "Allow the microphone to record a memo." Remind me: a sheet over the bar (What, then the quick times, Pick a time with a day-and-time field and Set); a time is saved with `PUT /v1/reminders/:id`, the toast says when ("I'll remind you at 19:00.", "tomorrow at 08:00", "on Monday at 09:00", or "That's in quiet hours. I'll remind you tomorrow at 06:30.") with Undo (`DELETE`, "Reminder cancelled."), and words taken from the bar leave it. At its time the reminder is a line in the conversation: an amber alarm icon and the owner's words, on a soft amber pill.
 
 ### 6.3 Sending
 

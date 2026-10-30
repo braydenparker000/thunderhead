@@ -46,6 +46,8 @@
 /** @typedef {import('../../shared/contract/api.ts').OpenThread} OpenThread */
 /** @typedef {import('../../shared/contract/api.ts').PutOpenThreadRequest} PutOpenThreadRequest */
 /** @typedef {import('../../shared/contract/api.ts').PatchOpenThreadRequest} PatchOpenThreadRequest */
+/** @typedef {import('../../shared/contract/reminders.ts').PutReminderRequest} PutReminderRequest */
+/** @typedef {import('../../shared/contract/reminders.ts').ReminderResponse} ReminderResponse */
 
 export const TIMEOUT_MS = 15_000;
 /** A download may take this long (a large export on a slow line). */
@@ -171,8 +173,10 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
     // --- the conversation and the live channel (P2) --------------------------------------------
     /** @param {string} token @returns {Promise<TodayResponse>} */
     today: (token) => call('/v1/threads/today', { token }),
-    /** @param {string} token @param {string} id @param {string} body @param {string} [replyTo] the reply it answers @returns {Promise<Message>} */
-    say: (token, id, body, replyTo) => call(`/v1/messages/${encodeURIComponent(id)}`, { method: 'PUT', token, body: { body, ...(replyTo ? { reply_to: replyTo } : {}) } }),
+    /** @param {string} token @param {string} id @param {string} body @param {string} [replyTo] the reply it answers
+     * @param {string[]} [attachments] `file:<id>` refs, uploaded first @returns {Promise<Message>} */
+    say: (token, id, body, replyTo, attachments) =>
+      call(`/v1/messages/${encodeURIComponent(id)}`, { method: 'PUT', token, body: { body, ...(replyTo ? { reply_to: replyTo } : {}), ...(attachments?.length ? { attachments } : {}) } }),
     /** @param {string} token @param {number} after @returns {Promise<ChangesResponse>} */
     changes: (token, after) => call(`/v1/changes?after=${after}&limit=500`, { token }),
     /** @param {string} token @returns {Promise<LiveTicket>} */
@@ -216,5 +220,27 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
     proposals: (token) => call('/v1/proposals?status=waiting&limit=50', { token }),
     /** @param {string} token @param {string} id @param {DecideProposalRequest} body @returns {Promise<DecideProposalResponse>} */
     decide: (token, id, body) => call(`/v1/proposals/${encodeURIComponent(id)}/decide`, { method: 'POST', token, body }),
+
+    // --- the + sheet: files and reminders ------------------------------------------------------
+    /** Where uploads go and what they say they are (th/attach/upload.js sends with progress). */
+    base,
+    client,
+    /** A chat file's bytes. The Worker marks them private and immutable, so the browser's own cache
+     * keeps them. @param {string} token @param {string} id @returns {Promise<Blob>} */
+    file: async (token, id) => {
+      const res = await fetch(`${base}/v1/files/${encodeURIComponent(id)}`, {
+        headers: { 'TH-Client': client, Authorization: `Bearer ${token}` },
+        credentials: 'omit',
+        signal: AbortSignal.timeout(DOWNLOAD_MS),
+      });
+      if (res.ok) return res.blob();
+      /** @type {any} */
+      const data = await res.json().catch(() => null);
+      throw new ApiError(res.status, data?.error ?? { code: /** @type {ErrorCode} */ ('unavailable'), message: `HTTP ${res.status}`, request_id: '' });
+    },
+    /** @param {string} token @param {string} id @param {PutReminderRequest} body @returns {Promise<ReminderResponse>} */
+    remind: (token, id, body) => call(`/v1/reminders/${encodeURIComponent(id)}`, { method: 'PUT', token, body }),
+    /** @param {string} token @param {string} id @returns {Promise<ReminderResponse>} */
+    unremind: (token, id) => call(`/v1/reminders/${encodeURIComponent(id)}`, { method: 'DELETE', token }),
   };
 }

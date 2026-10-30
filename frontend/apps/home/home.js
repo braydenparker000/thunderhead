@@ -35,7 +35,8 @@ import { from as launchFrom, launch } from '/ui/launch.js';
   still.addEventListener('click',()=>{ const on=root.dataset.still===undefined; if(on) root.dataset.still=''; else delete root.dataset.still; try{ on?localStorage.setItem('th-still','1'):localStorage.removeItem('th-still') }catch(e){} showStill() });
   try{$('#bdate').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}catch(e){}
 
-  document.querySelectorAll('[data-toast]').forEach(b=>b.addEventListener('click',()=>toast(b.dataset.toast)));
+  // Signed in, a row or item that does something itself drops its data-toast.
+  document.querySelectorAll('[data-toast]').forEach(b=>b.addEventListener('click',()=>b.dataset.toast&&toast(b.dataset.toast)));
 
   // + folds the options sheet up out of the ask bar
   const ask=$('#ask'), q=$('#q'), convo=$('#convo'), hint=$('#hint'), opts=$('#opts'), plus=$('#plus');
@@ -45,7 +46,7 @@ import { from as launchFrom, launch } from '/ui/launch.js';
   document.addEventListener('pointerdown',e=>{ if(opts.classList.contains('show')&&!e.target.closest('#opts,#plus')) menu(false) });
 
   // asking (scripted examples only); the mic is on only while it's lit
-  q.addEventListener('input',()=>ask.classList.toggle('typing',q.value.trim()!==''));
+  q.addEventListener('input',()=>ask.classList.toggle('typing',q.value.trim()!==''||ask.classList.contains('hasfiles')));
   // What you were writing survives closing the app: kept on this phone as you type, gone once sent
   // (and with everything else of yours at sign-out: th.p.*).
   const DRAFT='th.p.draft';
@@ -63,7 +64,7 @@ import { from as launchFrom, launch } from '/ui/launch.js';
   const keep=new ResizeObserver(()=>{ document.documentElement.style.setProperty('--ask-h',ask.offsetHeight+'px'); if(atEnd) convo.scrollTop=convo.scrollHeight });
   keep.observe(ask); keep.observe(convo);
   // The styles for what only shows after a tap or a pull, once the first paint is done.
-  requestAnimationFrame(()=>setTimeout(()=>{ const l=document.createElement('link'); l.rel='stylesheet'; l.href='/th/reply/tools.css'; document.head.append(l) }));
+  requestAnimationFrame(()=>setTimeout(()=>{ for(const href of ['/th/reply/tools.css','/th/attach/attach.css']){ const l=document.createElement('link'); l.rel='stylesheet'; l.href=href; document.head.append(l) } }));
   // Find in today (HOME.md §4.10): at the top of the conversation, pull down 64 px and let go.
   const pullEl=document.createElement('div'); pullEl.className='pullfind'; pullEl.setAttribute('aria-hidden','true'); pullEl.textContent='Find in today'; convo.parentElement.append(pullEl);
   let pull=null;
