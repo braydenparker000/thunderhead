@@ -85,13 +85,15 @@ const COUNT = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight
 /** "One thing needs you." … "Nine things need you.", then "Many things need you." @param {number} n */
 export const needsYou = (n) => (n === 1 ? 'One thing needs you.' : n <= 9 ? `${COUNT[n]} things need you.` : 'Many things need you.');
 
-/** The two voice lines (HOME.md §2.1 rows 2–8 and 10). Row 3 gives way to the Worker's system line
+/** The two voice lines (HOME.md §2.1 rows 2–8, 10 and 11). Row 3 gives way to the Worker's system line
  * when that is in the thread (`noWake`). `decisions`: the cards that may show now (rows 4–6);
- * `answered`: the last one was just answered, with a yes or otherwise (row 8, for the session).
- * @param {{ presence: MindPresence | null, firstRun: boolean, homeLine: string | null, noWake?: boolean, decisions?: number, answered?: 'yes' | 'other' | null }} s
+ * `answered`: the last one was just answered, with a yes or otherwise (row 8, for the session);
+ * `quiet`: the owner's "go quiet" line (BEHAVIOR.md §8.2), which holds the rest.
+ * @param {{ presence: MindPresence | null, firstRun: boolean, homeLine: string | null, noWake?: boolean, decisions?: number, answered?: 'yes' | 'other' | null, quiet?: string | null }} s
  * @returns {[string, string | null]} */
-export function voiceLine({ presence, firstRun, homeLine, noWake = false, decisions = 0, answered = null }) {
+export function voiceLine({ presence, firstRun, homeLine, noWake = false, decisions = 0, answered = null, quiet = null }) {
   if ((presence?.state === 'failed' || presence?.state === 'limited') && !noWake) return ["I can't wake just now.", "I'll answer when I'm back."];
+  if (quiet) return [quiet, "I'll hold everything until then."];
   if (firstRun) return ["I'm here.", 'Ask me anything, any time.'];
   if (decisions > 0) return [needsYou(decisions), homeLine ?? 'The rest is handled.'];
   if (answered) return ['Nothing needs you now.', answered === 'yes' ? 'Everything is handled.' : homeLine];

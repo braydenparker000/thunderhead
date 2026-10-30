@@ -16,6 +16,7 @@ import * as facts from '../memory/store';
 import * as ops from '../ops/store';
 import { lawsLine } from '../proposals/laws';
 import * as proposals from '../proposals/store';
+import { quietUntil } from '../settings/quiet';
 import * as watchdogs from '../watchdogs/ops';
 import { buildBrief } from './brief';
 import { nightDayOf, nightDone, nightLine } from './night';
@@ -64,6 +65,7 @@ export function assemble(
     wakesToday: store.wakesToday(db, now - 24 * HOUR),
     prewarmsLeft: Math.max(0, 8 - store.fireCount(db, 'chat', now - 24 * HOUR, 'prewarm')),
     backoffUntil: backoff(db).until,
+    quietUntil: quietUntil(db, now),
     threadId: thread?.id ?? null,
     waiting: role === 'chat' ? convo.unanswered(db, 30) : [],
     todayTail: tail,

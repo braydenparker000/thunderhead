@@ -207,6 +207,35 @@ test('offline: the message waits with its meta, then goes once when the phone is
   await context.close();
 });
 
+test('"go quiet" with the network off: the quiet line at once, nothing sent; the Worker gets it once back; "I\'m back" ends it (LAW-9)', opts, async () => {
+  const { page, context, errors, api } = await open();
+  await context.setOffline(true);
+  await page.evaluate(() => dispatchEvent(new Event('offline')));
+  await send(page, 'go quiet');
+  const quietShown = async () => {
+    const [a, b] = await say(page);
+    return [/^Quiet until \d\d:\d\d\.$/.test(a ?? ''), b];
+  };
+  await eventually(quietShown, [true, "I'll hold everything until then."]);
+  assert.equal(await page.inputValue('#q'), '');
+  assert.equal(await page.$('#talk .you'), null, 'the command is not a message');
+  await context.setOffline(false);
+  await page.evaluate(() => dispatchEvent(new Event('online')));
+  await eventually(() => api.state.chat.quietUntil > Date.now(), true, 'the Worker has it once back online');
+  // A reload keeps it, from this phone and from the Worker.
+  await page.reload({ waitUntil: 'load' });
+  await eventually(quietShown, [true, "I'll hold everything until then."]);
+  await send(page, "I'm back");
+  await eventually(() => api.state.chat.quietUntil, 0);
+  await eventually(() => say(page), ["I'm here.", 'Ask me anything, any time.']);
+  // Not quiet, "I'm back" is only words for the mind.
+  await send(page, "I'm back");
+  await page.waitForSelector('#talk .you');
+  assert.deepEqual(api.calls.filter((c) => c.call === 'PATCH /v1/settings').map((c) => typeof c.body['quiet.until']), ['number', 'number']);
+  assert.deepEqual(errors.filter((e) => !/ERR_INTERNET_DISCONNECTED|Failed to load resource/.test(e)), []);
+  await context.close();
+});
+
 test('a failed send says so and Retry sends it', opts, async () => {
   const { page, context, errors, api } = await open({ clock: true, chat: { failSay: 9 } });
   const puts = () => api.calls.filter((c) => c.call.startsWith('PUT /v1/messages/')).length;

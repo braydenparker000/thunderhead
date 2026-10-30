@@ -180,6 +180,7 @@ function input(over: Partial<BriefInput> = {}): BriefInput {
     wakesToday: 1,
     prewarmsLeft: 8,
     backoffUntil: 0,
+    quietUntil: 0,
     threadId: 'today',
     waiting: [],
     todayTail: [],

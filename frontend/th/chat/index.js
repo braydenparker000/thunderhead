@@ -15,6 +15,7 @@ import { run as runVerb } from '../registry/verbs.js';
 import { toast } from '../ui.js';
 import { BACKOFF_S, createLive } from './live.js';
 import * as model from './model.js';
+import { fromWorker, quietLine, quietOrder, quietUntil, sendQuiet, setQuiet } from './quiet.js';
 import { cache, OUTBOX_MAX, outbox } from './store.js';
 import { createView, voice } from './view.js';
 
@@ -63,6 +64,7 @@ export async function startChat() {
   const setVoice = voice($('#say'));
   let pendingVoice = /** @type {[string, string | null] | null} */ (null);
   let wasFirstRun = false;
+  let quietOwn = false;
 
   // --- paint ----------------------------------------------------------------------------------
   function paint() {
@@ -79,11 +81,14 @@ export async function startChat() {
       sent = localStorage.getItem('th.p.sent') === '1';
     } catch {}
     const firstRun = !sent && shown.length === 0;
-    const line = model.voiceLine({ presence: state.presence, firstRun, homeLine: homeLine(state.surfaces)?.text ?? null, noWake: model.noWakeShown(shown), decisions: decisions.waiting, answered: decisions.answered });
+    const quiet = quietUntil(now);
+    const line = model.voiceLine({ presence: state.presence, firstRun, homeLine: homeLine(state.surfaces)?.text ?? null, noWake: model.noWakeShown(shown), decisions: decisions.waiting, answered: decisions.answered, quiet: quiet ? quietLine(quiet, now) : null });
     // Never while typing (HOME.md §2.3): a change waits until the bar is empty and blurred, except
-    // one the owner's own action caused (the first message ends the first-run line at once).
-    const own = wasFirstRun && !firstRun;
+    // one the owner's own action caused (the first message ends the first-run line, "go quiet" or
+    // its end shows at once).
+    const own = (wasFirstRun && !firstRun) || quietOwn;
     wasFirstRun = firstRun;
+    quietOwn = false;
     if (!own && (document.activeElement === q || q.value.trim())) pendingVoice = line;
     else {
       pendingVoice = null;
@@ -104,6 +109,7 @@ export async function startChat() {
     const ends = [failedAt + model.FAILED_EDGE_MS, state.typingUntil].filter((t) => t > now);
     if (waiting || state.local.some((m) => m.state === 'sending')) ticker = setTimeout(paint, 1000);
     else if (ends.length) ticker = setTimeout(paint, Math.min(...ends) - now + 50);
+    else if (quiet && quiet - now < 86_400_000) ticker = setTimeout(paint, quiet - now + 50);
   }
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let ticker;
@@ -131,6 +137,7 @@ export async function startChat() {
     state.presence = presenceOf(s);
     state.stop = /** @type {any} */ (s['mind.stop']) ?? null;
     if (state.stop?.cleared_at) state.stopping = false;
+    fromWorker(s['quiet.until']);
   }
   async function loadSurfaces() {
     state.surfaces = (await signedIn((tok) => api.surfaces(tok))).items;
@@ -324,6 +331,15 @@ export async function startChat() {
     if (body.length > model.MAX_CHARS) return toast('Too long to send. Try sending it as a file.');
     if (state.local.length >= OUTBOX_MAX) return toast('Too much waiting to send. Connect to send the rest.');
     const now = Date.now();
+    // "Go quiet" is done here, mind or no mind (BEHAVIOR.md §8.1); "I'm back" only ends a quiet.
+    const order = quietOrder(body, now);
+    if (order && ('until' in order || quietUntil(now))) {
+      q.value = '';
+      ask.classList.remove('typing');
+      quietOwn = true;
+      setQuiet('until' in order ? order.until : 0);
+      return;
+    }
     /** @type {Local} */
     const m = { id: model.uuidv7(now), body, created_at: now, state: navigator.onLine ? 'sending' : 'queued', tries: 0 };
     state.local.push(m);
@@ -386,6 +402,7 @@ export async function startChat() {
     state.offline = false;
     live.wake();
     flush();
+    sendQuiet();
     paint();
   });
   addEventListener('offline', () => {
@@ -393,6 +410,7 @@ export async function startChat() {
     paint();
   });
   document.addEventListener('th:decisions', () => paint());
+  document.addEventListener('th:quiet', () => paint());
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
     live.wake();

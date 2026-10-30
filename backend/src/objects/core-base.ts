@@ -13,7 +13,7 @@ import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
 import * as ops from '../areas/ops/store';
 import type { PushContext } from '../areas/push/rules';
-import { quietWindow } from '../areas/settings/quiet';
+import { quietUntil, quietWindow } from '../areas/settings/quiet';
 import * as settings from '../areas/settings/store';
 import { attempt, Fail, type Out } from '../lib/result';
 import { HOUR } from '../lib/time';
@@ -171,6 +171,7 @@ export abstract class CoreBase extends OwnerObject {
       now,
       tz: this.tz(),
       quiet: quietWindow(this.db),
+      quiet_until: quietUntil(this.db, now),
       looking: this.hub.looking(now),
       owner_at: last?.at ?? null,
     };

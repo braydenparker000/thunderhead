@@ -590,7 +590,7 @@ Order states, leases, validation and the Board approval are owned by [MUSE.md §
 | Route | Who | Request | Response | Phase |
 |---|---|---|---|---|
 | `GET /v1/settings` | device, agents | — | `200 Record<string, unknown>` (no secrets exist here) | P1 |
-| `PATCH /v1/settings` | device | `{ [key]: value }` (keys from [MENU-AND-SETTINGS.md](../product/MENU-AND-SETTINGS.md)) | `200` the changed keys | P1 |
+| `PATCH /v1/settings` | device | `{ [key]: value }` (keys from [MENU-AND-SETTINGS.md](../product/MENU-AND-SETTINGS.md); `quiet.until`, "go quiet"'s end in ms, 0 ends it, [BEHAVIOR.md §8](../mind/BEHAVIOR.md#8-go-quiet)) | `200` the changed keys | P1 |
 | `PUT /v1/push/subscription` | device | `{ endpoint, keys: { p256dh, auth } }` | `204`; `422` unless the endpoint is a known push service (FCM, Mozilla, Apple, Windows) and the keys are a P-256 point and 16 bytes | P8 · built |
 | `DELETE /v1/push/subscription` | device | — | `204` | P8 · built |
 | `POST /v1/push/test` | device | — | `200 { sent: 0\|1 }`: one test push to this phone now ("This is a test. Nothing needs you."), outside every budget | P8 · built |

@@ -92,6 +92,8 @@ function chatState(o = {}) {
     changes: [],
     presence: o.presence ?? { state: 'asleep', note: null, since: null },
     stop: null,
+    /** The owner's "go quiet" end (the setting `quiet.until`), or 0. */
+    quietUntil: o.quietUntil ?? 0,
     surfaces: o.surfaces ?? [],
     verbs: o.verbs ?? [],
     results: [],
@@ -152,7 +154,9 @@ function chatAnswer(c, method, p, url, body) {
     return [200, { items, next_after: items.at(-1)?.seq ?? after, more: false }];
   }
   if (k === 'POST /v1/live/ticket') return [200, { ticket: `thw_${'0'.repeat(22)}`, expires_at: Date.now() + 30_000 }];
-  if (k === 'GET /v1/settings') return [200, { 'owner.tz': 'UTC', min_client: 0, 'mind.status': c.presence, ...(c.stop ? { 'mind.stop': c.stop } : {}) }];
+  const settings = () => ({ 'owner.tz': 'UTC', min_client: 0, 'mind.status': c.presence, ...(c.stop ? { 'mind.stop': c.stop } : {}), ...(c.quietUntil ? { 'quiet.until': c.quietUntil } : {}) });
+  if (k === 'GET /v1/settings') return [200, settings()];
+  if (k === 'PATCH /v1/settings' && body && 'quiet.until' in body) { c.quietUntil = body['quiet.until']; changed(c, 'setting'); return [200, settings()]; }
   if (k === 'GET /v1/surfaces') return [200, { items: c.surfaces, seq: c.seq }];
   if (k === 'POST /v1/mind/typing') { c.typing++; return [204, null]; }
   if (k === 'POST /v1/mind/stop') { c.stop = { at: Date.now(), seq: c.seq + 1, cleared_at: null }; changed(c, 'mind_status'); return [204, null]; }

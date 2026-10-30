@@ -1,7 +1,8 @@
 // Quiet hours (MENU-AND-SETTINGS.md §4.2, owner ruling: nothing that needs the owner before 06:30
 // local). The window runs from `quiet.start` (default 22:00) to `quiet.end` (default 06:30, never
 // earlier), both `HH:MM` in the owner's zone. A decision card made inside it is held until it
-// ends; a "Not yet" brings a card back at the next end. Pushes and the voice line follow later.
+// ends; a "Not yet" brings a card back at the next end. "Go quiet" (BEHAVIOR.md §8) is the owner's
+// order from the phone, `quiet.until` (ms): no nudges until then, and the mind is told.
 
 import { dayBefore, ownerDay, wallMinute, zonedMinute } from '../../lib/time';
 import type { Db } from '../../objects/base';
@@ -26,6 +27,12 @@ export function quietWindow(db: Db): QuietWindow {
     start: minutes(getSetting(db, 'quiet.start'), QUIET_DEFAULT.start),
     end: Math.max(EARLIEST_END, minutes(getSetting(db, 'quiet.end'), QUIET_DEFAULT.end)),
   };
+}
+
+/** When the owner's "go quiet" ends, or 0 when it is off. */
+export function quietUntil(db: Db, now: number): number {
+  const v = getSetting(db, 'quiet.until');
+  return typeof v === 'number' && v > now ? v : 0;
 }
 
 export function inQuiet(at: number, tz: string, q: QuietWindow): boolean {

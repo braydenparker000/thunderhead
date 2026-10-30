@@ -31,6 +31,8 @@ export interface BriefInput {
   wakesToday: number;
   prewarmsLeft: number;
   backoffUntil: number;
+  /** When the owner's "go quiet" ends (0: off). */
+  quietUntil: number;
   threadId: string | null;
   waiting: Message[];
   todayTail: Message[];
@@ -118,6 +120,12 @@ const frame = (n: number) => render(n, '').length + 2;
 const watchdogLine = (ws: BriefInput['watchdogs'], tz: string) =>
   `watchdogs tripped: ${ws.map((w) => `${w.name} since ${clock(w.since, tz)}${w.handled ? ` (${w.handled})` : ''}`).join(', ')} · th reflex`;
 
+/** "off", or "until 06:30" ("until Monday 06:30" over a day away): no nudges, cards or home lines show. */
+const quietLine = (i: BriefInput) =>
+  i.quietUntil <= i.now
+    ? 'off'
+    : `until ${i.quietUntil - i.now > 24 * 3_600_000 ? `${weekday(i.quietUntil, i.tz)} ` : ''}${clock(i.quietUntil, i.tz)} (the owner said go quiet: no nudges; cards and home lines wait)`;
+
 export function buildBrief(i: BriefInput): { core: string; full: string } {
   const night = i.role === 'night';
   const reflex = i.role === 'reflex';
@@ -125,7 +133,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     `${weekday(i.now, i.tz)} ${clock(i.now, i.tz)} (${i.tz}) · day ${i.day} · role ${i.role}`,
     `wake: ${i.wakeReason ?? 'manual'} · wakes today ${i.wakesToday} · pre-warms left ${i.prewarmsLeft}`,
     i.backoffUntil > i.now ? `usage backoff until ${clock(i.backoffUntil, i.tz)}` : 'no usage backoff',
-    `${i.laws} · open decisions ${i.decisions.length} · quiet: off`,
+    `${i.laws} · open decisions ${i.decisions.length} · quiet: ${quietLine(i)}`,
     ...(i.watchdogs.length ? [watchdogLine(i.watchdogs, i.tz)] : []),
     ...(i.tainted
       ? [

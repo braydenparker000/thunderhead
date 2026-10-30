@@ -2,8 +2,9 @@
 // is refused in quiet hours, past 2 a day (the owner's day), within 2 h of another, and on a topic
 // pushed in the last 14 days; once queued it waits for a natural pause (no phone showing
 // Thunderhead in the last 60 s, no message from the owner in the last 5 minutes) until its
-// deadline, then is dropped. Sign-in notices wait only for quiet hours to end; the owner's own
-// test goes at once. Pure: the context comes from Core, the rows from Auth.
+// deadline, then is dropped. While the owner has said "go quiet" (BEHAVIOR.md §8) no nudge is taken
+// or sent. Sign-in notices wait only for quiet hours to end; the owner's own test goes at once.
+// Pure: the context comes from Core, the rows from Auth.
 import type { ErrorCode } from '../../../../shared/contract/errors';
 import { DAY, HOUR, MINUTE, ownerDay, zonedMinute } from '../../lib/time';
 import { inQuiet, type QuietWindow } from '../settings/quiet';
@@ -18,6 +19,8 @@ export interface PushContext {
   now: number;
   tz: string;
   quiet: QuietWindow;
+  /** When the owner's "go quiet" ends (0: off). */
+  quiet_until: number;
   /** A phone showed Thunderhead in the last 60 s. */
   looking: boolean;
   /** When the owner last wrote, or null. */
@@ -38,6 +41,7 @@ export const dayStart = (ctx: PushContext) => zonedMinute(ownerDay(ctx.now, ctx.
 
 /** Why a new nudge is refused now, or null. */
 export function refusal(ctx: PushContext, h: NudgeHistory): ErrorCode | null {
+  if (ctx.quiet_until > ctx.now) return 'quiet';
   if (inQuiet(ctx.now, ctx.tz, ctx.quiet)) return 'quiet_hours';
   if (h.today >= PER_DAY) return 'push_budget';
   if (h.last_at !== null && ctx.now - h.last_at < GAP_MS) return 'push_gap';
@@ -50,5 +54,7 @@ export function mayGo(kind: string, ctx: PushContext): boolean {
   if (kind === 'test') return true;
   if (inQuiet(ctx.now, ctx.tz, ctx.quiet)) return false;
   if (kind !== 'nudge') return true;
-  return !ctx.looking && (ctx.owner_at === null || ctx.now - ctx.owner_at >= OWNER_PAUSE_MS);
+  return (
+    ctx.quiet_until <= ctx.now && !ctx.looking && (ctx.owner_at === null || ctx.now - ctx.owner_at >= OWNER_PAUSE_MS)
+  );
 }

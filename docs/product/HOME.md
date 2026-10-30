@@ -54,6 +54,7 @@ The client chooses the line from state, top row first. Fixed lines are written i
 | 8 | Just answered the last decision (shown for the rest of the session) | *Nothing needs you now.* | the `home.line`, else none. After "yes": *Everything is handled.* |
 | 9 | Quiet hours, nothing waiting [proposal] | *Nothing needs you.* | *It can all wait until morning.* |
 | 10 | Default | *Nothing needs you.* | none |
+| 11 | The owner said "go quiet" ([BEHAVIOR.md §8](../mind/BEHAVIOR.md#8-go-quiet)); ahead of every row but 3 | *Quiet until 06:30.* (*Quiet until Monday 06:30.* over a day away) | *I'll hold everything until then.* |
 
 States that **do not** change the voice line:
 

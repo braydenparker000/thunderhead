@@ -251,3 +251,19 @@ test('a card pulsed by "· 1 waiting" during its rise still arms (each failed on
   await eventually(() => api.proposals.state.decided.length, 1);
   await context.close();
 });
+
+test('while the owner has said "go quiet" (on another phone too) no card shows and the edge stays off; it comes back after', opts, async () => {
+  const a = proposal({ expires_at: Date.now() + 3_600_000 });
+  const { page, context, errors, api } = await open({ proposals: [a], chat: { quietUntil: Date.now() + 3_600_000 } });
+  await eventually(() => card(page), []);
+  assert.equal(await gold(page), false);
+  assert.match((await say(page))[0], /^Quiet until \d\d:\d\d\.$/);
+  await page.fill('#q', 'you can talk now');
+  await page.press('#q', 'Enter');
+  await eventually(async () => (await card(page)).map((c) => c.q), [a.question]);
+  assert.equal(await gold(page), true);
+  await eventually(() => say(page), ['One thing needs you.', 'The rest is handled.']);
+  assert.equal(api.state.chat.quietUntil, 0);
+  assert.deepEqual(errors, []);
+  await context.close();
+});

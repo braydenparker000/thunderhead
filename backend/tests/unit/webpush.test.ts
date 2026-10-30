@@ -75,6 +75,7 @@ describe('push rules (VL-3)', () => {
     now,
     tz: 'UTC',
     quiet: QUIET_DEFAULT,
+    quiet_until: 0,
     looking: false,
     owner_at: null,
     ...more,
@@ -99,5 +100,15 @@ describe('push rules (VL-3)', () => {
     expect(mayGo('security', ctx(at(5, 0)))).toBe(false);
     expect(mayGo('security', ctx(at(12, 0), { looking: true }))).toBe(true);
     expect(mayGo('test', ctx(at(3, 0), { looking: true }))).toBe(true);
+  });
+
+  it('while the owner has said "go quiet" no nudge is taken or sent; notices and tests are not held', () => {
+    const quiet = { quiet_until: at(14, 0) };
+    expect(refusal(ctx(at(12, 0), quiet), none)).toBe('quiet');
+    expect(mayGo('nudge', ctx(at(12, 0), quiet))).toBe(false);
+    expect(mayGo('security', ctx(at(12, 0), quiet))).toBe(true);
+    expect(mayGo('test', ctx(at(12, 0), quiet))).toBe(true);
+    expect(refusal(ctx(at(14, 0), quiet), none)).toBeNull();
+    expect(mayGo('nudge', ctx(at(14, 0), quiet))).toBe(true);
   });
 });

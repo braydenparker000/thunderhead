@@ -167,6 +167,7 @@ describe('the renders build each date formatter once (briefing CPU)', () => {
         wakesToday: 0,
         prewarmsLeft: 8,
         backoffUntil: 0,
+        quietUntil: 0,
         threadId: null,
         waiting: [],
         todayTail: [],

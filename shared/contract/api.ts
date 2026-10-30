@@ -290,10 +290,10 @@ export interface MeterResponse {
   items: { day: Day; class: string; rows_written: number; rows_read: number; bulk_rows_written: number }[];
 }
 
-/** Settings: `owner.tz` (IANA, set from the phone, only in Core); quiet hours `HH:MM`, ending ≥ 06:30. */
+/** Settings: `owner.tz` (IANA, from the phone, only in Core); quiet hours `HH:MM` (end ≥ 06:30); `quiet.until` (ms). */
 export interface Settings {
   'owner.tz': string;
   min_client: number;
   [key: string]: unknown;
 }
-export type SettingsPatch = Partial<Pick<Settings, 'owner.tz' | 'min_client'> & Record<'quiet.start' | 'quiet.end', string>>;
+export type SettingsPatch = Partial<Pick<Settings, 'owner.tz' | 'min_client'> & Record<'quiet.start' | 'quiet.end', string> & { 'quiet.until': number }>;

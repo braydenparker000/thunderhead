@@ -7,7 +7,8 @@
 // of the page appearing is ignored too (SECURITY.md §4.3, a framed overlay can't time a tap onto it)
 // and nothing is sent offline. The bottom edge is gold while a card shows; while it is scrolled out
 // of view the date line says "· 1 waiting", and a tap there brings it back. The card follows the
-// change feed (`th:changed`).
+// change feed (`th:changed`). While the owner has said "go quiet" no card shows (BEHAVIOR.md §8.2).
+import { quietUntil } from '../chat/quiet.js';
 import { api, signedIn } from '../client.js';
 import { failure } from '../flow.js';
 import { el, toast, tooSoon } from '../ui.js';
@@ -67,10 +68,11 @@ export function startDecisions() {
 
   function render() {
     const now = Date.now();
-    const show = m.showing(items, now);
+    const quiet = quietUntil(now);
+    const show = quiet ? [] : m.showing(items, now);
     setDecisions({ waiting: show.length });
     clearTimeout(timer);
-    const next = m.nextChange(items, now);
+    const next = quiet || m.nextChange(items, now);
     if (next !== null && next - now < 86_400_000) timer = setTimeout(render, next - now + 50);
     if (busy) return;
     const first = show[0] ?? null;
@@ -231,5 +233,6 @@ export function startDecisions() {
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) render();
   });
+  document.addEventListener('th:quiet', () => render());
   void load();
 }

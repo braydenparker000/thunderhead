@@ -65,4 +65,6 @@ export const settingsPatch = z.strictObject({
   // Quiet hours (MENU-AND-SETTINGS.md §4.2): nothing that needs the owner before 06:30.
   'quiet.start': z.optional(hhmm),
   'quiet.end': z.optional(hhmm.check(z.refine((v) => v >= '06:30', 'not earlier than 06:30'))),
+  // "Go quiet" (BEHAVIOR.md §8): when it ends (ms), 0 to end it now.
+  'quiet.until': z.optional(int(0, 8.64e15)),
 }) satisfies z.ZodMiniType<SettingsPatch>;
