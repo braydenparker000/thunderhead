@@ -252,6 +252,9 @@ test('surface, push (quiet hours exit 7), pending, health, errors', withFake({},
   const s = await th(['surface', 'home', 'line.1', '--kind', 'line', '--payload', '{"text":"Rain at 3"}', '--why', 'Owner walks at 3 pm', '--topic', 'weather-walk'], e);
   assert.equal(s.code, 0, s.stderr);
   assert.ok(s.json.ledger_id);
+  const named = await th(['surface', 'home', 'line.2', '--kind', 'line', '--payload', '{"text":"Your playlist is in Music."}', '--why', 'Built last night', '--topic', 'built-night', '--ref', 'app:music'], e);
+  assert.equal(named.code, 0, named.stderr);
+  assert.equal(fake.state.surfaces.get('home/line.2').ref, 'app:music', 'the app it is about');
   const pu = await th(['push', '--title', 'Rain soon', '--body', 'Rain at 3', '--ref', 'app:music', '--why', 'Owner walks at 3 pm', '--topic', 'weather'], e);
   assert.equal(pu.code, 0, pu.stderr);
   fake.options.quietHours = true;

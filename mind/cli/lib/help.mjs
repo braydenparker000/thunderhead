@@ -18,7 +18,7 @@ export const USAGE = {
   search: ['<query> [--sources messages,facts,…] [--since] [--until] [--thread <id>] [--limit 20]', 'federated search (recall is the same)'],
   recall: ['<query> [--sources …] [--kind …]', 'same as search'],
   verb: ['<app.action> [<args json>] --why <8–200 chars> [--schema <n>] [--device <id>] [--ref <ref>]', 'ask a phone to do something (undoable)'],
-  surface: ['<app> <slot> --kind <k> --payload <json> --why <t> --topic <key> [--expires <iso>] · ls · rm <app> <slot>', 'place, list or clear a surface'],
+  surface: ['<app> <slot> --kind <k> --payload <json> --why <t> --topic <key> [--ref app:<id>] [--expires <iso>] · ls · rm <app> <slot>', 'place, list or clear a surface; --ref names the app it is about, so opening that app counts as using it'],
   undo: ['<ledger id>', 'undo one of your actions'],
   ledger: ['[--since <iso>] [--kind <k>] [--limit 50]', 'what was done and why'],
   get: ['<path> [key=value …]', 'GET any route this role may call (see the list below)'],

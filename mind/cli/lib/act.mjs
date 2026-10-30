@@ -174,6 +174,8 @@ export async function surface(argv) {
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(topic)) throw invalid('--topic is a slug: lowercase letters, digits, . _ -');
   const {data} = await request('PUT', `/v1/surfaces/${seg(app)}/${seg(slot)}`, {body: {
     kind, schema, payload, why: why(flags), topic_key: topic, expires_at: toMs(flags.expires, 'expires'),
+    // The app it is about (`app:music`): its opening counts as the owner acting on it (EVALS.md M-16).
+    ref: typeof flags.ref === 'string' ? flags.ref : undefined,
   }});
   out({ledger_id: data.ledger_id ?? null});
 }
