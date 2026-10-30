@@ -6,7 +6,7 @@
 
 /** D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci (API.md §13). */
 export type Who = 'D' | 'C' | 'N' | 'R' | 'M' | 'I';
-export type Phase = 'P1' | 'P1b' | 'P2' | 'P3' | 'P4' | 'P5' | 'P8';
+export type Phase = 'P1' | 'P1b' | 'P2' | 'P3' | 'P4' | 'P5' | 'P6' | 'P7' | 'P8' | 'P9';
 
 export interface RouteSpec {
   /** Who may call it; 'P' = public (no token). */
@@ -201,13 +201,20 @@ export const ROUTES = {
   'POST /v1/jobs/:id/collect': { who: ['N', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
   'GET /v1/jobs/:id': { who: ['C', 'N', 'R', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
   'GET /v1/jobs/:id/spec': { who: ['I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
+  // P6: Guitar's tab sources, as the old Worker served them, for the owner's device only.
+  'GET /v1/guitar/search': { who: D, phase: 'P6', note: 'Songsterr search, ?q=' },
+  'GET /v1/guitar/songs/:id': { who: D, phase: 'P6' },
+  'GET /v1/guitar/songs/:id/score': { who: D, phase: 'P6', note: '?revision=&parts=' },
+  'GET /v1/guitar/gprotab/search': { who: D, phase: 'P6', note: '?q=' },
+  'GET /v1/guitar/gprotab/file': { who: D, phase: 'P6', note: '?path=; a Guitar Pro file, bytes' },
+  'GET /v1/guitar/sounds/:instrument/:file': { who: D, phase: 'P6', note: 'a guitar sample, audio/mpeg' },
   'PUT /v1/pushes/:id': { who: ['C'], phase: 'P8' },
 } as const satisfies Record<string, RouteSpec>;
 
 export type RouteKey = keyof typeof ROUTES;
 
 /** The phases whose routes are live in this build (the scope test registers exactly these). */
-export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P5'];
+export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P5', 'P6'];
 
 /** The rows this build must register: built phases, minus deferred rows. */
 export function builtRoutes(): [RouteKey, RouteSpec][] {

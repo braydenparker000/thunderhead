@@ -5,6 +5,8 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
+**P6 · Evolve Guitar**, data move built, going live with this push: `/v1/guitar/*` (Songsterr, GProTab, samples, the old routes ported), and the ported app's sources module asks the new Worker with the owner's session when signed in on this site (else the old Worker). No owner step: it switches as soon as the page loads signed in. Checked in Chromium both ways. The improvements (practice senses, tempo ladder, tips, calibration, ears) wait for the owner's yes.
+
 **P5 · Evolve Music**, data move first (ROADMAP P5; owner steps in SETUP.md N).
 - Step 1, live since 22:32 UTC (`c369d05`, run #38): the `Music` object alone (migration tag `v2`; a class change can't be rolled back).
 - Step 2, going live with this push: the music catalog import (I7: datasets `music` then `music_log`, run by the owner as SETUP.md N3), `GET /v1/music/catalog` (the ported player's own format, ETag and 304), `GET /v1/music/waveforms/:id`, and `POST /v1/media/sign` for `music:` refs (signed links straight from `jarvis-music`, 503 until SETUP.md N1). Music is in deep health and the meter.

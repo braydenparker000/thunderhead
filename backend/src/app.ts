@@ -10,6 +10,7 @@ import { briefingRoutes } from './areas/briefing/routes';
 import { conversationRoutes } from './areas/conversation/routes';
 import { evalsRoutes } from './areas/evals/routes';
 import { feedRoutes } from './areas/feed/routes';
+import { guitarRoutes } from './areas/guitar/routes';
 import { importRoutes } from './areas/import/routes';
 import { ledgerRoutes } from './areas/ledger/routes';
 import { memoryRoutes } from './areas/memory/routes';
@@ -102,5 +103,6 @@ export const app = new Hono<AppEnv>()
   .route('/v1', musicRoutes)
   .route('/v1', uploadRoutes)
   .route('/v1', sensesRoutes)
+  .route('/v1', guitarRoutes)
   .notFound(notFound)
   .onError(onError);

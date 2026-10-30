@@ -14,8 +14,8 @@ const SITE = fileURLToPath(new URL('../frontend/', import.meta.url));
 const P = JSON.parse(await readFile(join(SITE, 'ported.json'), 'utf8'));
 const KINDS = ['paths', 'route-folder', 'api-address', 'csp', 'data-move'];
 /** Apps whose data has moved to the new Worker (SECURITY.md §4.4 rule 4), and the one new-site file
- * each may load: Music in P5, through its own worker. */
-const MOVED = { 'music/sw.js': ['/th/music/bridge.js'] };
+ * each may load: Music in P5, through its own worker; Guitar in P6, its sources with the session. */
+const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/th/ported/session.js'] };
 const sha = b => createHash('sha256').update(b).digest('hex');
 const listed = async dir => (await filesUnder(join(SITE, dir))).map(f => relative(SITE, f));
 

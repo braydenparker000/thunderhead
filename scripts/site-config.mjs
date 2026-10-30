@@ -37,11 +37,19 @@ export function configJs({ api = '', build = 0, commit = 'dev', repo_url = '' } 
   return `// Written by scripts/stage.mjs at deploy. Public values only.\nexport const CONFIG = ${JSON.stringify(value)};\n`;
 }
 
-/** Adds the API host to the CSP of the shell and sign-in pages; other pages are left alone. */
-export function withApi(html, api) {
+/** Ported pages whose data has moved to the new Worker and that call it themselves (SECURITY.md
+ * §4.4 rule 4): their CSP's connect-src gains the API host at stage time. Music moved through its
+ * own service worker, so its page needs none. */
+export const MOVED_PAGES = ['guitar/index.html'];
+
+/** Adds the API host to the CSP of the shell and sign-in pages, and of a moved ported page (by its
+ * path); other pages are left alone. */
+export function withApi(html, api, path = '') {
   const origin = apiOrigin(api);
   if (!origin) return html;
   return html.replace(/(<meta http-equiv="Content-Security-Policy" content=")([^"]*)(")/, (m, a, csp, b) => {
+    if (MOVED_PAGES.includes(path) && csp.includes("connect-src 'self' "))
+      return a + csp.replace("connect-src 'self' ", `connect-src 'self' ${origin} `) + b;
     // The shell also opens the live socket (wss://, API.md §12) to the same host.
     if (csp === SHELL)
       return a + csp.replace("connect-src 'self'", `connect-src 'self' ${origin} ${origin.replace(/^https:/, 'wss:')}`) + b;

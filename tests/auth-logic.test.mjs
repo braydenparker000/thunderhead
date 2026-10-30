@@ -138,7 +138,7 @@ test('device list and notice words', () => {
   assert.deepEqual(fromUserAgent('Mozilla/5.0 (Linux; Android 15) AppleWebKit/537.36 Chrome/141.0 Mobile Safari/537.36'), { platform: 'Android', browser: 'Chrome' });
 });
 
-test('staging fills the API host into config.js and the CSP of the shell and sign-in pages only', async () => {
+test('staging fills the API host into config.js and the CSP of the shell, sign-in and moved ported pages only', async () => {
   assert.throws(() => apiOrigin('http://api.example'), /https/);
   assert.match(configJs({ api: 'https://api.example/', build: 7, commit: 'abc' }), /"api":"https:\/\/api.example","build":7/);
   const shell = await readFile(new URL('../frontend/index.html', import.meta.url), 'utf8');
@@ -148,4 +148,9 @@ test('staging fills the API host into config.js and the CSP of the shell and sig
   const other = '<meta http-equiv="Content-Security-Policy" content="default-src \'self\'; connect-src \'self\'">';
   assert.equal(withApi(other, 'https://api.example'), other, 'a ported page keeps its own CSP');
   assert.equal(withApi(shell, ''), shell);
+  // Guitar's data moved in P6: its page calls the new Worker itself; its old host stays until it retires.
+  const guitar = await readFile(new URL('../frontend/guitar/index.html', import.meta.url), 'utf8');
+  assert.match(withApi(guitar, 'https://api.example', 'guitar/index.html'),
+    /connect-src 'self' https:\/\/api\.example https:\/\/jarvis-hub-api\.braydenparker999\.workers\.dev /);
+  assert.equal(withApi(guitar, 'https://api.example', 'guitar/credits.html'), guitar);
 });

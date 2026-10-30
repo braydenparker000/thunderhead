@@ -4,7 +4,7 @@
 
 The runtime contract as data, generated from [`shared/contract`](../../shared/contract). [API.md](API.md) describes each route; this appendix lists what the code enforces. How to add to it: [EXTENDING.md](EXTENDING.md).
 
-Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2, P3, P4, P5.
+Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2, P3, P4, P5, P6.
 
 ## Routes
 
@@ -133,6 +133,12 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/jobs/:id/collect` | N I | P5 | deferred: P5: the indexing jobs |  |
 | `GET /v1/jobs/:id` | C N R I | P5 | deferred: P5: the indexing jobs |  |
 | `GET /v1/jobs/:id/spec` | I | P5 | deferred: P5: the indexing jobs |  |
+| `GET /v1/guitar/search` | D | P6 | built | Songsterr search, ?q= |
+| `GET /v1/guitar/songs/:id` | D | P6 | built |  |
+| `GET /v1/guitar/songs/:id/score` | D | P6 | built | ?revision=&parts= |
+| `GET /v1/guitar/gprotab/search` | D | P6 | built | ?q= |
+| `GET /v1/guitar/gprotab/file` | D | P6 | built | ?path=; a Guitar Pro file, bytes |
+| `GET /v1/guitar/sounds/:instrument/:file` | D | P6 | built | a guitar sample, audio/mpeg |
 | `PUT /v1/pushes/:id` | C | P8 | later (P8) |  |
 
 ## Verbs

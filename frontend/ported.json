@@ -674,9 +674,33 @@
      "adjustments": []
     },
     "guitar/sources.js": {
-     "sha256": "e5214662a7d70e7b68273d46766d29ed3bb9fa486384cdd0f502a95626d71cf0",
+     "sha256": "ac9d556cd50262bb98ac9c8e381c57e17d08bd2e360ab54468ab08f2760d2925",
      "old_sha256": "e5214662a7d70e7b68273d46766d29ed3bb9fa486384cdd0f502a95626d71cf0",
-     "adjustments": []
+     "adjustments": [
+      "data-move"
+     ],
+     "edits": [
+      [
+       "import { API_ORIGIN } from '/assets/config.js';\nimport { CONFIG } from '/config.js';\nimport { sessionToken } from '/th/ported/session.js';\n",
+       "import { API_ORIGIN } from '/assets/config.js';\n"
+      ],
+      [
+       "// P6 data move (MIGRATION.md §7 step 5): the new Worker with the owner's session on this site; the old one while it can't answer.\nasync function viaNew(path, signal) {\n  const token = await sessionToken();\n  if (!token || !CONFIG.api) return null;\n  try {\n    const r = await fetch(CONFIG.api + '/v1/guitar/' + path, { signal, cache: 'no-store', headers: { Authorization: 'Bearer ' + token } });\n    return [401, 403, 503].includes(r.status) ? null : r;\n  } catch (e) { if (signal?.aborted) throw e; return null; }\n}\n\nasync function request(path, { signal, timeout = 25000, as = 'json' } = {}) {",
+       "async function request(path, { signal, timeout = 25000, as = 'json' } = {}) {"
+      ],
+      [
+       "    const r = (await viaNew(path, controller.signal)) ?? await fetch(BASE + path, { signal: controller.signal, cache: 'no-store' });",
+       "    const r = await fetch(BASE + path, { signal: controller.signal, cache: 'no-store' });"
+      ],
+      [
+       "      try { const e = (await r.json()).error; message = typeof e === 'string' ? e : e?.details?.reason ?? ''; } catch {}",
+       "      try { message = (await r.json()).error; } catch {}"
+      ],
+      [
+       "    const r = (await viaNew(`sounds/${instrument}/${note}.mp3`)) ?? await fetch(url);",
+       "    const r = await fetch(url);"
+      ]
+     ]
     },
     "guitar/store.js": {
      "sha256": "9359642112aad5d9d8b5a4bce5743a319425906dd6ba9e96b0aca78703c30c79",

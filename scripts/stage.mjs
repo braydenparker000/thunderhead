@@ -57,7 +57,7 @@ const list = await files(out);
 for (const f of list.filter(f => f.path.endsWith('.html'))) {
   const p = join(out, f.path);
   const html = await readFile(p, 'utf8');
-  const next = withApi(html, api);
+  const next = withApi(html, api, f.path);
   if (next !== html) { await writeFile(p, next); f.size = Buffer.byteLength(next); }
 }
 // The service worker's list, written last so it holds the final sizes (after the CSP edit).

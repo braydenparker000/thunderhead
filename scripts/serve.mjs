@@ -16,7 +16,7 @@ async function staged(path, api, build) {
   if (path === 'config.js') return Buffer.from(configJs({ api, build }));
   const body = await readFile(join(ROOT, path));
   if (path === 'sw.js') return Buffer.from(swJs(body.toString('utf8'), build));
-  return api && path.endsWith('.html') ? Buffer.from(withApi(body.toString('utf8'), api)) : body;
+  return api && path.endsWith('.html') ? Buffer.from(withApi(body.toString('utf8'), api, path)) : body;
 }
 
 async function precacheList(api, build) {

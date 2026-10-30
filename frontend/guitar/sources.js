@@ -1,6 +1,8 @@
 // Tabs, covers and samples through the Jarvis Worker. Saved songs keep a copy
 // of their tab in Cache Storage so they still open when a source is down.
 import { API_ORIGIN } from '/assets/config.js';
+import { CONFIG } from '/config.js';
+import { sessionToken } from '/th/ported/session.js';
 import { allGuitarValue } from './track-selection.js';
 import { coverSearchURL, pickArtwork } from './covers.js';
 
@@ -10,16 +12,26 @@ const OFFLINE = location.origin + '/guitar/__saved/';
 
 export class SourceError extends Error {}
 
+// P6 data move (MIGRATION.md §7 step 5): the new Worker with the owner's session on this site; the old one while it can't answer.
+async function viaNew(path, signal) {
+  const token = await sessionToken();
+  if (!token || !CONFIG.api) return null;
+  try {
+    const r = await fetch(CONFIG.api + '/v1/guitar/' + path, { signal, cache: 'no-store', headers: { Authorization: 'Bearer ' + token } });
+    return [401, 403, 503].includes(r.status) ? null : r;
+  } catch (e) { if (signal?.aborted) throw e; return null; }
+}
+
 async function request(path, { signal, timeout = 25000, as = 'json' } = {}) {
   const controller = new AbortController();
   const abort = () => controller.abort();
   signal?.addEventListener('abort', abort, { once: true });
   const timer = setTimeout(abort, timeout);
   try {
-    const r = await fetch(BASE + path, { signal: controller.signal, cache: 'no-store' });
+    const r = (await viaNew(path, controller.signal)) ?? await fetch(BASE + path, { signal: controller.signal, cache: 'no-store' });
     if (!r.ok) {
       let message = '';
-      try { message = (await r.json()).error; } catch {}
+      try { const e = (await r.json()).error; message = typeof e === 'string' ? e : e?.details?.reason ?? ''; } catch {}
       throw new SourceError(message || (r.status === 404 ? 'Not found.' : 'The tab source is unavailable. Please try again.'));
     }
     return as === 'json' ? await r.json() : as === 'bytes' ? await r.arrayBuffer() : r;
@@ -221,7 +233,7 @@ export async function sample(instrument, note) {
   const store = await cache();
   let hit = await store?.match(url).catch(() => null);
   if (!hit) {
-    const r = await fetch(url);
+    const r = (await viaNew(`sounds/${instrument}/${note}.mp3`)) ?? await fetch(url);
     if (!r.ok) throw new SourceError('Sample unavailable');
     hit = r.clone();
     store?.put(url, r).catch(() => {});

@@ -1053,6 +1053,53 @@
       "phase": "P5",
       "status": "deferred: P5: the indexing jobs"
     },
+    "GET /v1/guitar/search": {
+      "who": [
+        "D"
+      ],
+      "phase": "P6",
+      "status": "built",
+      "note": "Songsterr search, ?q="
+    },
+    "GET /v1/guitar/songs/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P6",
+      "status": "built"
+    },
+    "GET /v1/guitar/songs/:id/score": {
+      "who": [
+        "D"
+      ],
+      "phase": "P6",
+      "status": "built",
+      "note": "?revision=&parts="
+    },
+    "GET /v1/guitar/gprotab/search": {
+      "who": [
+        "D"
+      ],
+      "phase": "P6",
+      "status": "built",
+      "note": "?q="
+    },
+    "GET /v1/guitar/gprotab/file": {
+      "who": [
+        "D"
+      ],
+      "phase": "P6",
+      "status": "built",
+      "note": "?path=; a Guitar Pro file, bytes"
+    },
+    "GET /v1/guitar/sounds/:instrument/:file": {
+      "who": [
+        "D"
+      ],
+      "phase": "P6",
+      "status": "built",
+      "note": "a guitar sample, audio/mpeg"
+    },
     "PUT /v1/pushes/:id": {
       "who": [
         "C"

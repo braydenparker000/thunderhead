@@ -45,6 +45,12 @@ owner's yes.
 3. The owner's songs, loops, speeds, practice log and prefs are restored unchanged on the new origin
    **[proposal: through the export page, §12]**.
 4. Done when the owner practises on the phone and nothing has changed.
+5. **The data move (P6, built).** Guitar's tab sources (Songsterr search, songs and tracks, GProTab
+   search and downloads, the samples) come through the new Worker for the owner's device
+   (`/v1/guitar/*`, the old routes ported). The app is unchanged but for its sources module: when
+   the owner is signed in on this site it asks the new Worker with that session
+   (`frontend/th/ported/session.js`, a top-level page only), else the old Worker as before. Its
+   page's CSP gains the API host at deploy; the old host leaves it when the old Worker retires.
 
 Everything after this section describes later steps. Each is proposed after the port and built only
 if the owner agrees.

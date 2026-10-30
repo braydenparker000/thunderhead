@@ -23,6 +23,18 @@ export const EDITS = {
   'media/index.html': { adjustments: ['paths'], edits: [['href="/media/mymedia.css', 'href="/mymedia/mymedia.css'], ['src="/media/app.js', 'src="/mymedia/app.js']] },
   // The reporter only reports on its own live site; its site is now this one.
   'assets/error-report.js': { adjustments: ['api-address'], edits: [["const SITE = 'https://thunderhead.z13.web.core.windows.net';", "const SITE = 'https://missionarytube.z13.web.core.windows.net';"]] },
+  // P6 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the new Worker with the owner's session, the old
+  // one while it can't answer.
+  'guitar/sources.js': {
+    adjustments: ['data-move'],
+    edits: [
+      ["import { API_ORIGIN } from '/assets/config.js';\nimport { CONFIG } from '/config.js';\nimport { sessionToken } from '/th/ported/session.js';\n", "import { API_ORIGIN } from '/assets/config.js';\n"],
+      ["// P6 data move (MIGRATION.md \u00a77 step 5): the new Worker with the owner's session on this site; the old one while it can't answer.\nasync function viaNew(path, signal) {\n  const token = await sessionToken();\n  if (!token || !CONFIG.api) return null;\n  try {\n    const r = await fetch(CONFIG.api + '/v1/guitar/' + path, { signal, cache: 'no-store', headers: { Authorization: 'Bearer ' + token } });\n    return [401, 403, 503].includes(r.status) ? null : r;\n  } catch (e) { if (signal?.aborted) throw e; return null; }\n}\n\nasync function request(path, { signal, timeout = 25000, as = 'json' } = {}) {", "async function request(path, { signal, timeout = 25000, as = 'json' } = {}) {"],
+      ["    const r = (await viaNew(path, controller.signal)) ?? await fetch(BASE + path, { signal: controller.signal, cache: 'no-store' });", "    const r = await fetch(BASE + path, { signal: controller.signal, cache: 'no-store' });"],
+      ["      try { const e = (await r.json()).error; message = typeof e === 'string' ? e : e?.details?.reason ?? ''; } catch {}", "      try { message = (await r.json()).error; } catch {}"],
+      ["    const r = (await viaNew(`sounds/${instrument}/${note}.mp3`)) ?? await fetch(url);", "    const r = await fetch(url);"],
+    ],
+  },
   // P5 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the player's worker answers its library
   // requests from the new Worker (th/music/bridge.js), the old one while the new one can't.
   'music/sw.js': {
