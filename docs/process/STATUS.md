@@ -36,8 +36,8 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Next three tasks
 
-1. P7 step 5: highlights and notes in the reader, keeping a book on the phone (OPFS), the block's wash.
-2. P7 step 6: cited answers ("Ask about this verse") with the Worker's validator, and their evals; then P8.
+1. P7 step 5: books read through the Worker and kept on the phone (no signed link or bucket rule for Study), highlights and notes in the reader, the block's wash.
+2. P7 step 6: cited answers ("Ask about this verse") with the Worker's validator, and their evals; then P8, P9, then **P10, the day-1 features** (the owner's order, 2026-10-30).
 3. Owner: SETUP.md N1–N4 (music), M2 (the reflex routine and its drill), M3 (Muse moves over), M4 from 2026-11-05. Sunday's first backup and drill are P4's "a restore drill passed"; the Music object's first backup runs with it.
 
 ## Blocked / waiting on the owner
