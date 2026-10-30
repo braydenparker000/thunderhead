@@ -103,19 +103,24 @@ test('signed out, a page reports to the old inbox as before, without a session',
 
 test('signed in, a ported page’s opening is one sense event in a sealed batch; signed out, none', opts, async () => {
   const { context, page } = await opened(true);
+  // Only this test's batches count: an earlier test's Music page may still send its own opening
+  // (`player.open`) after that test moved on, which a busy machine makes late.
+  const of = (type) => senses.filter((b) => b.body.events.some((e) => e.type === type));
   await page.goto(`${SITE}/guitar/`, { waitUntil: 'load' });
-  await waitFor(page, () => senses.length);
-  assert.equal(senses.length, 1);
-  assert.match(senses[0].path, /^\/v1\/senses\/batches\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-  assert.equal(senses[0].auth, `Bearer ${TOKEN}`);
-  const [e] = senses[0].body.events;
+  await waitFor(page, () => of('guitar.open').length);
+  const mine = of('guitar.open');
+  assert.equal(mine.length, 1);
+  assert.match(mine[0].path, /^\/v1\/senses\/batches\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(mine[0].auth, `Bearer ${TOKEN}`);
+  const [e] = mine[0].body.events;
   assert.deepEqual([e.type, Object.keys(e).sort()], ['guitar.open', ['at', 'id', 'type']]);
+  assert.equal(mine[0].body.events.length, 1, 'one sense event');
   assert.deepEqual(await page.evaluate(() => [localStorage.getItem('th.p.senses'), localStorage.getItem('th.p.senses.batch')]), [null, null], 'taken, so nothing waits');
   await context.close();
   const out = await opened(false);
   await out.page.goto(`${SITE}/podcasts/`, { waitUntil: 'load' });
   await out.page.waitForTimeout(3500);
-  assert.equal(senses.length, 1, 'signed out: nothing kept or sent');
+  assert.deepEqual([of('guitar.open').length, of('podcasts.open').length], [1, 0], 'signed out: nothing kept or sent');
   assert.equal(await out.page.evaluate(() => localStorage.getItem('th.p.senses')), null);
   await out.context.close();
 });
