@@ -1,7 +1,9 @@
 // A playlist the mind makes (MUSIC.md §10.2), in Chromium: the phone's `music.create_playlist`
 // executor writes it into the player's own storage; "Open in Music" (`/music/#pl=<id>`) opens the
 // player on that playlist with its tracks; its undo removes it, but not once the owner has changed
-// it. The player's library comes from a stubbed index (the old Worker's URL, never reached).
+// it. And the DJ shuffle (MUSIC.md §9): a sixth mode in the real player whose plan follows the
+// tags and which learns a skip. The player's library comes from a stubbed index (the old Worker's
+// URL, never reached).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -111,6 +113,57 @@ test('made from home, opened in Music at that playlist, and undone only while un
   assert.deepEqual(result.removed, { ok: true, result: {} });
   assert.equal(result.refused.error.code, 'owner_edited');
   assert.deepEqual(result.left, [`pl:${second.result.list_id}`]);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('the DJ shuffle: a sixth mode, a plan that follows the tags, a skip learned', opts, async () => {
+  const genres = ['Classical', 'Jazz', 'Rock'];
+  const many = {
+    ...INDEX,
+    count: 60,
+    tracks: Array.from({ length: 60 }, (_, i) => ({
+      id: `r2_native_${String(i).padStart(2, '0').repeat(32)}`,
+      path: `Cloudflare R2/Lib/${i}.opus`,
+      size: 4_000_000,
+      mimeType: 'audio/ogg',
+      metadata: { title: `Song ${i}`, artist: `Artist ${i % 20}`, genre: genres[i % 3], dur: 240 },
+    })),
+  };
+  const context = await browser.newContext({ viewport: { width: 390, height: 780 } });
+  await context.route(`${OLD}/**`, (route) =>
+    route.request().url().endsWith('/music/library.json')
+      ? route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(many) })
+      : route.fulfill({ status: 404 }),
+  );
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/music/`);
+  await page.waitForFunction(() => window.__cp?.player?.queue?.length === 60);
+  const modes = await page.evaluate(() => window.__cp.res.stringArray?.('shuffle_modes') ?? null);
+  if (modes) assert.equal(modes[5], 'DJ');
+  const plan = await page.evaluate(() => {
+    const { player, ctx } = window.__cp;
+    ctx.bus.post('bus_player_cmd', 'cmd_player_set_shuffle', null, { arg1: 5 });
+    player.ensureOrder();
+    return { shuffle: player.shuffle, genres: player.order.slice(0, 20).map((i) => player.queue[i].genre), first: player.order[0] === player.index };
+  });
+  assert.equal(plan.shuffle, 5);
+  assert.equal(plan.first, true);
+  const follows = plan.genres.slice(1).filter((g, k) => g === plan.genres[k]).length;
+  assert.ok(follows >= 15, `${follows} of 19 follow in their genre: ${plan.genres.join(',')}`);
+  await page.waitForFunction(() => document.body.innerText.includes('DJ'), null, { timeout: 5000 });
+  // A song left at once is a skip: it scores lower on this phone.
+  const learned = await page.evaluate(async () => {
+    const { player, ctx } = window.__cp;
+    const first = player.track.id;
+    ctx.bus.post('bus_player_cmd', 'cmd_player_play_next_track', null, {});
+    await new Promise((r) => setTimeout(r, 300));
+    return { first, now: player.track.id, stored: JSON.parse(localStorage.getItem('th.music.dj') ?? '{}') };
+  });
+  assert.notEqual(learned.now, learned.first);
+  assert.equal(learned.stored.tracks?.[learned.first]?.[0], -1);
   assert.deepEqual(errors, []);
   await context.close();
 });

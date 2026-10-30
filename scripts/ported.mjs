@@ -40,14 +40,26 @@ export const EDITS = {
   'music/src/app.js': {
     adjustments: ['improvement'],
     edits: [
+      ["import './view/seekbar.js';\nimport {installDj, installDjMode} from '/th/music/dj.js';", "import './view/seekbar.js';"],
+      ["  const [model] = await Promise.all([loadModel(new URL('../model/reference.json.gz', import.meta.url)), loadFonts()]);\n  installDjMode(model);", "  const [model] = await Promise.all([loadModel(new URL('../model/reference.json.gz', import.meta.url)), loadFonts()]);"],
+      ["  const player = new Player(ctx);\n  installDj(ctx, player);\n  new DSP(ctx);", "  const player = new Player(ctx);\n  new DSP(ctx);"],
       ["  // The Thunderhead's \"Open in Music\" for a playlist (#pl=<id>, MUSIC.md \u00a710.2): that playlist's tracks.\n  const pl = /^#pl=([a-z0-9]{6,24})$/.exec(location.hash)?.[1];\n  if (pl && ctx.playlists?.get(pl)) {\n    history.replaceState(null, '', location.pathname + location.search);\n    ctx.bus.post('bus_gui', 'cmd_nav_to_playlist', null, {playlist: ctx.playlists.get(pl)});\n  }\n  // A library that arrives later (R2 index refresh) fills an empty player.", "  // A library that arrives later (R2 index refresh) fills an empty player."],
+    ],
+  },
+  // The DJ shuffle the owner asked for (decisions 2026-10-30): a sixth shuffle mode planned by th/music/dj.js.
+  'music/src/player/player.js': {
+    adjustments: ['improvement'],
+    edits: [
+      ["import {StreamGuard} from './stream-guard.js';\nimport {djOrder, DJ_AHEAD, SHUFFLE_DJ} from '/th/music/dj.js';", "import {StreamGuard} from './stream-guard.js';"],
+      ["  ensureOrder() {\n    const n = this.queue.length;\n    // DJ (th/music/dj.js): DJ_AHEAD songs are planned at a time; near their end, plan again.\n    const djDue = this.shuffle === SHUFFLE_DJ && (this.order?.indexOf(this.index) ?? 0) >= DJ_AHEAD - 5;\n    if (!djDue && this.order?.length === n && this.orderShuffle === this.shuffle && this.orderQueueMode === this.queueMode) return;\n    let order = [...Array(n).keys()];\n    // queue_no_shuffle: the Queue always plays in order.\n    if (this.songsShuffled && !(this.queueMode && this.ctx.pref?.('queue_no_shuffle'))) {\n      order = this.shuffle === SHUFFLE_DJ ? djOrder(this.queue, this.index) : shuffleOrder(this.queue, +(this.ctx.pref?.('shuffle_random_factor') ?? 0.5));", "  ensureOrder() {\n    const n = this.queue.length;\n    if (this.order?.length === n && this.orderShuffle === this.shuffle && this.orderQueueMode === this.queueMode) return;\n    let order = [...Array(n).keys()];\n    // queue_no_shuffle: the Queue always plays in order.\n    if (this.songsShuffled && !(this.queueMode && this.ctx.pref?.('queue_no_shuffle'))) {\n      order = shuffleOrder(this.queue, +(this.ctx.pref?.('shuffle_random_factor') ?? 0.5));"],
     ],
   },
   // P5 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the player's worker answers its library
   // requests from the new Worker (th/music/bridge.js), the old one while the new one can't.
   'music/sw.js': {
-    adjustments: ['data-move'],
+    adjustments: ['data-move', 'improvement'],
     edits: [
+      ["  // The DJ shuffle's planner (th/music/dj.js) is part of the app, offline too.\n  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && url.pathname !== '/th/music/dj.js') return;", "  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname)) return;"],
       ["// P5 data move (MIGRATION.md \u00a77 step 5): the library's requests are answered from the new Worker, the old one while it can't.\nimportScripts('/th/music/bridge.js');\nself.thMusicBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');\nconst net = (req, e) => self.thMusicBridge.handles(new URL(req.url)) ? self.thMusicBridge.answer(req, e) : fetch(req);\nconst CACHE = 'claude-player-v1';", "const CACHE = 'claude-player-v1';"],
       ["async function fromHead(req, h, a, b, e) {", "async function fromHead(req, h, a, b) {"],
       ["heads.delete(url); return net(req, e); }", "heads.delete(url); return fetch(req); }"],

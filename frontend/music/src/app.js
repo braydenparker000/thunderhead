@@ -18,6 +18,7 @@ import {AudioHeads} from './library/heads.js';
 import {installEqPresets} from './widgets/eq-preset-ui.js';
 import './widgets/basic.js';
 import './view/seekbar.js';
+import {installDj, installDjMode} from '/th/music/dj.js';
 import './view/html-text.js';
 import './widgets/topnav.js';
 import './widgets/time.js';
@@ -122,6 +123,7 @@ export async function boot() {
   const stored = loadStoredSettings();
   const settings = runtimeSettings(stored);
   const [model] = await Promise.all([loadModel(new URL('../model/reference.json.gz', import.meta.url)), loadFonts()]);
+  installDjMode(model);
   const {dpr, config} = deviceConfig();
   const res = new Resources(model, config, {density: dpr, scaledDensity: dpr, xdpi: 160 * dpr});
   const skins = parseSkins(res);
@@ -153,6 +155,7 @@ export async function boot() {
   ctx.audioHeads = new AudioHeads();
   retireDefaultCopies(ctx.audioCache);
   const player = new Player(ctx);
+  installDj(ctx, player);
   new DSP(ctx);
   new PlaybackLog(ctx);
   installEqPresets(ctx);

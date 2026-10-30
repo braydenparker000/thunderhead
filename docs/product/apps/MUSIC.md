@@ -621,6 +621,16 @@ reordered words, articles) with expected top results, run in `node --test`.
 
 ## 9. DJ shuffle
 
+**Built (2026-10-30, the owner's day-1 request), without the audio features yet:** DJ is the
+player's sixth shuffle mode (`frontend/th/music/dj.js`, added to the as-is player by recorded
+`improvement` edits). Until §9.1's data exists, "close" is the tags: the same composer (0.6), artist
+(0.4, else album artist 0.2), shared genres (up to 0.5), a near year (up to 0.2). §9.2's rules hold:
+nothing from the last 50 songs or 2 hours, no "not for me", no artist within 10 songs (unless
+nothing else is left), −0.3 for an album within 20, the learner and the move scores, the top five by
+`softmax(score / 0.15)`, seeded. §9.3's learning is on the phone (`th.music.dj` in localStorage,
+not yet mirrored as senses). The player plans 60 songs at a time and plans again after a skip or
+near their end. The analysis job (tempo, key, energy, embedding) plugs into `closeness` later.
+
 ### 9.1 Data
 
 Per track, computed offline by an Actions job (see [JOBS](../../engineering/JOBS.md)):

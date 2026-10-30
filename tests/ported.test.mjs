@@ -17,6 +17,8 @@ const KINDS = ['paths', 'route-folder', 'api-address', 'csp', 'data-move', 'impr
 /** Apps whose data has moved to the new Worker (SECURITY.md §4.4 rule 4), and the one new-site file
  * each may load: Music in P5, through its own worker; Guitar in P6, its sources with the session. */
 const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/th/ported/session.js'] };
+/** Improvements the owner agreed to that load a new-site file of the player's own (never the session). */
+const IMPROVED = { 'music/src/app.js': ['/th/music/dj.js'], 'music/src/player/player.js': ['/th/music/dj.js'], 'music/sw.js': ['/th/music/dj.js'] };
 const sha = b => createHash('sha256').update(b).digest('hex');
 const listed = async dir => (await filesUnder(join(SITE, dir))).map(f => relative(SITE, f));
 
@@ -79,7 +81,7 @@ test('no ported page touches the new sign-in (SECURITY.md §4.4 rule 3)', async 
   for (const rel of all) {
     const text = await readFile(join(SITE, rel), 'utf8');
     const fromTh = [...text.matchAll(/['"]((?:\/|\.\.\/)+th\/[a-z/-]+\.js)['"]/g)].map((m) => m[1]);
-    assert.deepEqual(fromTh, MOVED[rel] ?? [], `${rel} loads from th/`);
+    assert.deepEqual(fromTh, [...(MOVED[rel] ?? []), ...(IMPROVED[rel] ?? [])], `${rel} loads from th/`);
     assert.doesNotMatch(text, /thunderhead-api\./, `${rel} names the new API`);
   }
 });

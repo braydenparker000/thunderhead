@@ -7,6 +7,7 @@ import {listKeyOf, categoryKey, KEEP_TRACK} from '../library/list-memory.js';
 import {offlinePlan, offlineAhead} from '../library/audio-cache.js';
 import {headOf, HEAD_S} from '../library/heads.js';
 import {StreamGuard} from './stream-guard.js';
+import {djOrder, DJ_AHEAD, SHUFFLE_DJ} from '/th/music/dj.js';
 
 // Reference mode enums (integers SHUFFLE_* / REPEAT_*).
 export const SHUFFLE_NONE = 0, SHUFFLE_ALL = 1, SHUFFLE_SONGS = 2, SHUFFLE_CATS = 3, SHUFFLE_SONGS_AND_CATS = 4;
@@ -343,11 +344,13 @@ export class Player {
   /** Play order: the queue order, or a permutation when shuffling (current track first). */
   ensureOrder() {
     const n = this.queue.length;
-    if (this.order?.length === n && this.orderShuffle === this.shuffle && this.orderQueueMode === this.queueMode) return;
+    // DJ (th/music/dj.js): DJ_AHEAD songs are planned at a time; near their end, plan again.
+    const djDue = this.shuffle === SHUFFLE_DJ && (this.order?.indexOf(this.index) ?? 0) >= DJ_AHEAD - 5;
+    if (!djDue && this.order?.length === n && this.orderShuffle === this.shuffle && this.orderQueueMode === this.queueMode) return;
     let order = [...Array(n).keys()];
     // queue_no_shuffle: the Queue always plays in order.
     if (this.songsShuffled && !(this.queueMode && this.ctx.pref?.('queue_no_shuffle'))) {
-      order = shuffleOrder(this.queue, +(this.ctx.pref?.('shuffle_random_factor') ?? 0.5));
+      order = this.shuffle === SHUFFLE_DJ ? djOrder(this.queue, this.index) : shuffleOrder(this.queue, +(this.ctx.pref?.('shuffle_random_factor') ?? 0.5));
       const at = order.indexOf(this.index);
       if (at > 0) [order[0], order[at]] = [order[at], order[0]];
     }

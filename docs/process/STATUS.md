@@ -5,7 +5,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**The playlist from plain words** (P10, going live with this push): "make me a playlist with dramatic classical music and open Music" → the mind finds songs by their tags, a phone makes the playlist in the player's own storage, and the reply's Open in Music opens the player on it; undoable while unchanged. Works once SETUP.md N1–N4 put the catalog on the new Worker.
+**The DJ shuffle** (P10, going live with this push): a sixth shuffle mode in the player; each song follows the last by its tags (composer, artist, genre, year), no artist twice within 10 songs, nothing played in the last 2 hours, and it learns from skips on the phone. The audio analysis comes later into the same planner.
+
+**The playlist from plain words** (P10, `b96bbb3`): "make me a playlist with dramatic classical music and open Music" → the mind finds songs by their tags, a phone makes the playlist in the player's own storage, and the reply's Open in Music opens the player on it; undoable while unchanged. Works once SETUP.md N1–N4 put the catalog on the new Worker.
 
 **P7 · Study**, built. Step 6, going live with this push: ask the chat what your books say about anything (a verse or a topic); the mind answers only from your books' blocks, each sentence with a numbered source that opens Study at that page, and "Where to study" under it; the Worker drops any sentence the blocks don't back before it is stored. Step 5 (`030b060`): books are downloaded once through the Worker and kept on the phone (instant, offline; no owner step). P7's done-when waits on one real book on the owner's phone.
 Step 4 (`ac998ec`): verses. The scripture parser runs on the phone, in the Worker and in the mind; the owner's book table and verse text live only in the private bucket (stored by the mind, SETUP.md O2; a repo test fails on any real table, link template or verse text); the Worker stores no verse ref the table doesn't hold; the night's reading records each block's verse refs with their weights; the verse page (`/study/?verse=`: the reference, the owner's copy, Open in the scripture app, Cited in your books, the owner's highlights) and the search's verse card. Checked in Chromium, and end to end against the real Worker (table imported, a book read, its verse cited). Until O2 is done, Study works without verses.
@@ -39,7 +41,7 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Next three tasks
 
-1. Music's other day-1 features: the smart DJ shuffle and better search in the player; then Guitar's tips per section.
+1. Music's better search (never worse than plain); then Guitar's tips per section.
 2. P8 with each app's day-1 feature (Astra's anime pick first), then P9.
 3. Owner: SETUP.md N1–N4 (music on the new Worker: the playlist from plain words works once they're done), M2, M3, M4 from 2026-11-05; one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
 
@@ -53,7 +55,8 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Last deploy
 
-- 2026-10-30: this push, the playlist from plain words (no schema change).
+- 2026-10-30: this push, the DJ shuffle (site only).
+- 2026-10-30: `b96bbb3` and `e55c2a5`, the playlist from plain words, and the backups test's wait (deploy #54 had stopped at it).
 - 2026-10-30: `24edbb0` (run #54), P7 step 6 ("ask about your books": `th library cite`, the Worker's check of cited answers, numbered sources and "Where to study" on the phone; no schema change).
 - 2026-10-30: `030b060` (run #53), P7 step 5 (books read through the Worker and kept on the phone).
 - 2026-10-30: `ac998ec` (run #51), P7 step 4 (verses: the parser, the private table and text, the verse page).
