@@ -134,6 +134,16 @@ event and no string containing `http`.
 
 ### 4.1 `astra.open`
 
+**Built as a link (2026-10-30, the owner's day-1 request):** the mind's reply carries a chip to
+`/astra/?find=<title>[&type=series|movie][&max_mb=<n>]` (or `?open=<type>:<id>`). Astra reads it
+once (`frontend/th/astra/open.js`, loaded only for such a link), searches the owner's own add-ons on
+the phone (no add-on address leaves it), opens the best match's Details (the same name, else one that
+starts so, else the first), and sets a removable "Under N MB" chip on Streams that hides results of a
+known larger size (in `streams.js` itself, so Astra still starts offline). Never Streams, never the
+player; the owner picks the stream. Recorded `improvement` edits to `src/main.js` and
+`src/screens/streams.js`. The verb below, the senses (§3) and "For you" (§4.3) come with Astra's data
+move.
+
 | Field | Rule |
 |---|---|
 | Args | `{ref: "astra:<type>:<id>", season?: int, episode?: int, max_mb?: int}` (`max_mb` only pre-sets the Streams size filter, F48) — validated with a strict schema (unknown keys rejected by the Worker *and* by `verbs.js`). There is no argument for a stream, URL, add-on or quality, so a stream cannot be named. |

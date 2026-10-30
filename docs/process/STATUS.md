@@ -5,7 +5,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**Guitar tips per section** (P10, going live with this push): tap a section's label in the Guitar reader for up to three tips from the tab itself (fast runs, reaches, shifts, barres, slurs, bends, strums, chord changes…), each with whose approach it follows and "Show me" for the step.
+**The anime pick** (P10, going live with this push): "an anime I'd like, 20 min, under 200 MB" → the mind suggests a title and its reply's Open in Astra finds it in the owner's add-ons and opens its Details, with Streams limited to the size asked (removable); the owner picks the stream. With it, all six day-1 features are built.
+
+**Guitar tips per section** (P10, `e49396e`): tap a section's label in the Guitar reader for up to three tips from the tab itself (fast runs, reaches, shifts, barres, slurs, bends, strums, chord changes…), each with whose approach it follows and "Show me" for the step.
 
 **Better search in Music** (P10, `8ca9675`): the player's song search keeps every hit it had, forgives accents, punctuation, word order and one typo, and puts the best first.
 
@@ -45,7 +47,7 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Next three tasks
 
-1. P8: Astra, Podcasts and My Media move to the new Worker, each with its day-1 feature (Astra's anime pick first); then web push, Workers AI, share target.
+1. P8: Podcasts' calls move to the new Worker (search, feeds, audio); the ported apps' error reports to the new Worker; then web push, Workers AI, share target.
 2. P9: predictions and the meter, the weekly improvement PR.
 3. Owner: SETUP.md N1–N4 (music on the new Worker: the playlist from plain words works once they're done), M2, M3, M4 from 2026-11-05; one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
 
@@ -59,7 +61,8 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Last deploy
 
-- 2026-10-30: this push, guitar tips per section (site only).
+- 2026-10-30: this push, the anime pick in Astra (site only).
+- 2026-10-30: `e49396e`, guitar tips per section (site only).
 - 2026-10-30: `8ca9675`, better search in Music (site only).
 - 2026-10-30: `b2bf05d`, the DJ shuffle (site only).
 - 2026-10-30: `b96bbb3` and `e55c2a5`, the playlist from plain words, and the backups test's wait (deploy #54 had stopped at it).

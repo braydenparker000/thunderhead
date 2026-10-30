@@ -20,6 +20,8 @@ try {
   });
   window.astra = app;
   app.start();
+  // A title from the Thunderhead's chat (?find= or ?open=, /th/astra/open.js): its Details, never Streams or the player.
+  if (/[?&](find|open)=/.test(location.search)) import('/th/astra/open.js').then(m => m.openFromLink(app)).catch(() => {});
 } catch (error) {
   // Never leave the launch screen spinning: offer to export or reset what is saved.
   console.error(error);

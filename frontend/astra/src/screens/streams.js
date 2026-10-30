@@ -23,6 +23,9 @@ export function sizeFrom(stream) {
   return m ? `${m[1].replace(',', '.')} ${m[2].toUpperCase().replace('I', '')}` : '';
 }
 
+/** The Thunderhead's size limit (?max_mb=, /th/astra/open.js): a stream whose known size is larger is hidden. */
+const overLimit = (s, mb) => { const m = mb && /^([\d.]+) (GB|MB)$/.exec(sizeFrom(s)); return !!m && Number(m[1]) * (m[2] === 'GB' ? 1000 : 1) > mb; };
+
 export class StreamsScreen {
   constructor(app, meta, video = null, {startTime = 0, headless = false} = {}) {
     this.app = app;
@@ -207,12 +210,13 @@ export class StreamsScreen {
 
   /** The chips, rebuilt only when what they show changes (so their scroll stays put). */
   renderChips(listed) {
-    const signature = [this.filter, this.loading, ...listed.map(g => g.addon.url + (g.error ? '!' : ''))].join('|');
+    const signature = [this.filter, this.loading, this.app.maxMb || 0, ...listed.map(g => g.addon.url + (g.error ? '!' : ''))].join('|');
     if (signature === this.chipSignature) return;
     this.chipSignature = signature;
     const chip = (id, label, failed = false) => h('button', {class: 'chip' + (failed ? ' failed' : ''), role: 'tab', type: 'button', 'aria-selected': String(this.filter === id), 'aria-pressed': String(this.filter === id),
       'aria-label': failed ? `${label}, didn't answer` : null, onclick: () => { this.filter = id; this.app.store.set('lastAddon', id); this.render(); }}, label);
-    this.chips.replaceChildren(this.refreshChip(), chip('all', 'All'), ...listed.map(g => chip(g.addon.url, g.addon.name, !!g.error)));
+    const limit = this.app.maxMb ? h('button', {class: 'chip', type: 'button', 'aria-pressed': 'true', 'aria-label': `Under ${this.app.maxMb} MB, tap to show all sizes`, onclick: () => { this.app.maxMb = 0; this.render(); }}, `Under ${this.app.maxMb} MB ✕`) : null;
+    this.chips.replaceChildren(this.refreshChip(), ...(limit ? [limit] : []), chip('all', 'All'), ...listed.map(g => chip(g.addon.url, g.addon.name, !!g.error)));
   }
 
   /** One add-on's section, updated in place: its title, then placeholders, its cards, or its error row. */
@@ -229,11 +233,12 @@ export class StreamsScreen {
     sec.fetching.hidden = g.streams !== null;
     // What the body shows: placeholders, an error, or this exact list of streams.
     const shows = g.error ? g.error : g.streams === null ? 'asking' : g.streams;
-    if (sec.shows !== shows) {
+    if (sec.shows !== shows || sec.limit !== (this.app.maxMb || 0)) {
       sec.shows = shows;
+      sec.limit = this.app.maxMb || 0;
       sec.body.replaceChildren(...(g.error ? [this.failedRow(g)]
         : g.streams === null ? [skeletonStream(), skeletonStream()]
-        : g.streams.map((s, i) => this.card(g, s, i))));
+        : g.streams.map((s, i) => [s, i]).filter(([s]) => !overLimit(s, this.app.maxMb)).map(([s, i]) => this.card(g, s, i))));
     }
     return sec;
   }

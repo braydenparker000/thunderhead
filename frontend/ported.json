@@ -1112,9 +1112,17 @@
      "adjustments": []
     },
     "astra/src/main.js": {
-     "sha256": "43f0b1a8b1ca933f5949b7c2c7721e6c6717495e1770b61621ee027b770122a9",
+     "sha256": "24e1741ee0b3f4f105a77ea953f65486491ddea7ac008f6f8abb4ba208012017",
      "old_sha256": "43f0b1a8b1ca933f5949b7c2c7721e6c6717495e1770b61621ee027b770122a9",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "  window.astra = app;\n  app.start();\n  // A title from the Thunderhead's chat (?find= or ?open=, /th/astra/open.js): its Details, never Streams or the player.\n  if (/[?&](find|open)=/.test(location.search)) import('/th/astra/open.js').then(m => m.openFromLink(app)).catch(() => {});",
+       "  window.astra = app;\n  app.start();"
+      ]
+     ]
     },
     "astra/src/player/external.js": {
      "sha256": "9d65d11cc515ca60181f3169089fcd6eb7ebd0b359c8f9bd2a90a5db8db9a3e7",
@@ -1172,9 +1180,29 @@
      "adjustments": []
     },
     "astra/src/screens/streams.js": {
-     "sha256": "4ed918b641589d998d8a59a372c766eff01faebb0509ce1a30836597896ac41e",
+     "sha256": "2bfb11529e75e93bc670a348eefbf2456337b740632472179b6c090f34f47d36",
      "old_sha256": "4ed918b641589d998d8a59a372c766eff01faebb0509ce1a30836597896ac41e",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "/** The Thunderhead's size limit (?max_mb=, /th/astra/open.js): a stream whose known size is larger is hidden. */\nconst overLimit = (s, mb) => { const m = mb && /^([\\d.]+) (GB|MB)$/.exec(sizeFrom(s)); return !!m && Number(m[1]) * (m[2] === 'GB' ? 1000 : 1) > mb; };\n\nexport class StreamsScreen {",
+       "export class StreamsScreen {"
+      ],
+      [
+       "    if (sec.shows !== shows || sec.limit !== (this.app.maxMb || 0)) {\n      sec.shows = shows;\n      sec.limit = this.app.maxMb || 0;\n      sec.body.replaceChildren(...(g.error ? [this.failedRow(g)]\n        : g.streams === null ? [skeletonStream(), skeletonStream()]\n        : g.streams.map((s, i) => [s, i]).filter(([s]) => !overLimit(s, this.app.maxMb)).map(([s, i]) => this.card(g, s, i))));",
+       "    if (sec.shows !== shows) {\n      sec.shows = shows;\n      sec.body.replaceChildren(...(g.error ? [this.failedRow(g)]\n        : g.streams === null ? [skeletonStream(), skeletonStream()]\n        : g.streams.map((s, i) => this.card(g, s, i))));"
+      ],
+      [
+       "    const signature = [this.filter, this.loading, this.app.maxMb || 0, ...listed.map(g => g.addon.url + (g.error ? '!' : ''))].join('|');",
+       "    const signature = [this.filter, this.loading, ...listed.map(g => g.addon.url + (g.error ? '!' : ''))].join('|');"
+      ],
+      [
+       "    const limit = this.app.maxMb ? h('button', {class: 'chip', type: 'button', 'aria-pressed': 'true', 'aria-label': `Under ${this.app.maxMb} MB, tap to show all sizes`, onclick: () => { this.app.maxMb = 0; this.render(); }}, `Under ${this.app.maxMb} MB ✕`) : null;\n    this.chips.replaceChildren(this.refreshChip(), ...(limit ? [limit] : []), chip('all', 'All'), ...listed.map(g => chip(g.addon.url, g.addon.name, !!g.error)));",
+       "    this.chips.replaceChildren(this.refreshChip(), chip('all', 'All'), ...listed.map(g => chip(g.addon.url, g.addon.name, !!g.error)));"
+      ]
+     ]
     },
     "astra/src/styles/app.css": {
      "sha256": "822166c041e639aa9b68a88faf8a18a65e95ad61b8eedef850d6251a8e6dc838",

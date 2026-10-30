@@ -18,6 +18,7 @@
   },
   "include": ["frontend/th/**/*.js", "frontend/apps/study/**/*.js", "shared/**/*.ts"],
   // The music player's worker script runs in a classic service worker (worker globals, no DOM) and
-  // is no API client; tests/music-bridge*.test.mjs check it.
-  "exclude": ["frontend/th/music/**"]
+  // is no API client; tests/music-bridge*.test.mjs check it. th/astra/ imports Astra's own untyped
+  // modules; tests/astra-open*.test.mjs check it.
+  "exclude": ["frontend/th/music/**", "frontend/th/astra/**"]
 }

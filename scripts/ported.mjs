@@ -46,6 +46,22 @@ export const EDITS = {
       ["  // The Thunderhead's \"Open in Music\" for a playlist (#pl=<id>, MUSIC.md \u00a710.2): that playlist's tracks.\n  const pl = /^#pl=([a-z0-9]{6,24})$/.exec(location.hash)?.[1];\n  if (pl && ctx.playlists?.get(pl)) {\n    history.replaceState(null, '', location.pathname + location.search);\n    ctx.bus.post('bus_gui', 'cmd_nav_to_playlist', null, {playlist: ctx.playlists.get(pl)});\n  }\n  // A library that arrives later (R2 index refresh) fills an empty player.", "  // A library that arrives later (R2 index refresh) fills an empty player."],
     ],
   },
+  // The anime pick the owner asked for (decisions 2026-10-30): a link opens a title's Details; a size limit on Streams.
+  'astra/src/main.js': {
+    adjustments: ['improvement'],
+    edits: [
+      ["  window.astra = app;\n  app.start();\n  // A title from the Thunderhead's chat (?find= or ?open=, /th/astra/open.js): its Details, never Streams or the player.\n  if (/[?&](find|open)=/.test(location.search)) import('/th/astra/open.js').then(m => m.openFromLink(app)).catch(() => {});", "  window.astra = app;\n  app.start();"],
+    ],
+  },
+  'astra/src/screens/streams.js': {
+    adjustments: ['improvement'],
+    edits: [
+      ["/** The Thunderhead's size limit (?max_mb=, /th/astra/open.js): a stream whose known size is larger is hidden. */\nconst overLimit = (s, mb) => { const m = mb && /^([\\d.]+) (GB|MB)$/.exec(sizeFrom(s)); return !!m && Number(m[1]) * (m[2] === 'GB' ? 1000 : 1) > mb; };\n\nexport class StreamsScreen {", "export class StreamsScreen {"],
+      ["    if (sec.shows !== shows || sec.limit !== (this.app.maxMb || 0)) {\n      sec.shows = shows;\n      sec.limit = this.app.maxMb || 0;\n      sec.body.replaceChildren(...(g.error ? [this.failedRow(g)]\n        : g.streams === null ? [skeletonStream(), skeletonStream()]\n        : g.streams.map((s, i) => [s, i]).filter(([s]) => !overLimit(s, this.app.maxMb)).map(([s, i]) => this.card(g, s, i))));", "    if (sec.shows !== shows) {\n      sec.shows = shows;\n      sec.body.replaceChildren(...(g.error ? [this.failedRow(g)]\n        : g.streams === null ? [skeletonStream(), skeletonStream()]\n        : g.streams.map((s, i) => this.card(g, s, i))));"],
+      ["    const signature = [this.filter, this.loading, this.app.maxMb || 0, ...listed.map(g => g.addon.url + (g.error ? '!' : ''))].join('|');", "    const signature = [this.filter, this.loading, ...listed.map(g => g.addon.url + (g.error ? '!' : ''))].join('|');"],
+      ["    const limit = this.app.maxMb ? h('button', {class: 'chip', type: 'button', 'aria-pressed': 'true', 'aria-label': `Under ${this.app.maxMb} MB, tap to show all sizes`, onclick: () => { this.app.maxMb = 0; this.render(); }}, `Under ${this.app.maxMb} MB \u2715`) : null;\n    this.chips.replaceChildren(this.refreshChip(), ...(limit ? [limit] : []), chip('all', 'All'), ...listed.map(g => chip(g.addon.url, g.addon.name, !!g.error)));", "    this.chips.replaceChildren(this.refreshChip(), chip('all', 'All'), ...listed.map(g => chip(g.addon.url, g.addon.name, !!g.error)));"],
+    ],
+  },
   // Guitar tips per section the owner asked for (decisions 2026-10-30): a section's label opens its tips.
   'guitar/reader.js': {
     adjustments: ['improvement'],
