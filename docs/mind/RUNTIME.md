@@ -480,7 +480,7 @@ Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its cl
 | 6 | Indexing. From P7: read Study's waiting books (`bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2 --minutes 10`; a book not finished goes on the next night; it prints counts only, so no book text reaches the session). Later also: dispatch the P5 indexing jobs through the Worker's job endpoint | 10 min | Pages, FTS, refs in `Library`; jobs queued |
 | 7 | Arrange tomorrow (P3+): 0–4 home lines, surfaces, practice set (in-app surfaces only in apps whose agreed evolution added them; the as-is ports have none) | 4 min | `surfaces` |
 | 8 | "Built overnight" items for the Briefing page; arrange the Briefing page, including where today's Daily Board (produced by Muse, owner ruling) sits when it arrives | 1 min | Briefing items |
-| 9 | Sunday only: weekly review and evals ([EVALS.md](EVALS.md)); built in P4 stage C as the injection suite (`th eval begin`, then what it prints) | +15 min | `eval_runs`, one PR at most |
+| 9 | Sunday only: weekly review and evals ([EVALS.md](EVALS.md)); built in P4 stage C as the injection suite (`th eval begin`, then what it prints), and in P9 the weekly improvement after it (`th eval week`, EVALS.md §7) | +15 min | `eval_runs`, one PR at most |
 | 10 | Session note; update `docs/process/STATUS.md` if code changed; `th night done` | 2 min | — |
 
 - **Budget:** target ≤ 30 min, hard stop 45 min (Sunday 60). At the hard stop, finish the current step, mark the rest skipped, `th night done --partial`.

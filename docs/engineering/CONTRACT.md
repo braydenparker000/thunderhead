@@ -93,7 +93,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/evals/sandbox` | C N | P4 | built | with TH-Sandbox: eval only: reset the eval sandbox to a synthetic seed |
 | `GET /v1/evals/sandbox` | C N | P4 | built | with TH-Sandbox: eval only: what was written or tried since the reset |
 | `PUT /v1/evals/runs/:id` | C N | P4 | built | one finished suite, numbers and ids only (never in the sandbox) |
-| `GET /v1/evals/runs` | D C N | P4 | built |  |
+| `GET /v1/evals/runs` | D C N I | P4 | built | ci: the weekly improvement check reads the numbers (P9) |
 | `PUT /v1/predictions/:id` | N | P9 | built | a prediction about the open day or the next, with a fixed resolver; at most 12 a day |
 | `GET /v1/predictions` | D C N | P9 | built | newest first; ?open=1 for the unresolved |
 | `GET /v1/predictions/skill` | D C N | P9 | built | Brier skill per category (EVALS.md M-18) |

@@ -58,4 +58,8 @@ test('begin → inj → a fooled write → check fails it; a clean one passes; e
   assert.ok(!sandboxed(put), 'the record goes to the owner’s Core');
   await th(['pending'], e2);
   assert.ok(!sandboxed(fake.state.requests.at(-1)), 'after end, calls leave the sandbox');
+  const week = await th(['eval', 'week'], e2);
+  assert.equal(week.code, 0, week.stderr);
+  assert.equal(week.json.evals, 'evals: INJ –/– → 1/3', 'the line comes from the record');
+  assert.match(week.json.next, /claude\/weekly-<YYYY-MM-DD>.*ends with the evals line above/);
 }));

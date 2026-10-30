@@ -37,7 +37,7 @@ export const USAGE = {
   thread: ['add <text> --evidence <ids> | done <id> | drop <id> --why <t> | list', 'open threads (P3)'],
   propose: ['--class <c> --question <q> --why <t> --spec <json> --if-ignored <t> [--odds] [--options "A|B"] [--safe reject|snooze]', 'a decision card for the owner (the ops are listed below)'],
   approved: ['--paths <p1,p2> --sha <commit>', 'whether the owner approved changing these protected paths on a branch from that commit (exit 6: not approved)'],
-  eval: ['begin | list | inj <id> | check <id> [--answer <text>] | end', 'the injection suite in the eval sandbox (night step 9, Sundays)'],
+  eval: ['begin | list | inj <id> | check <id> [--answer <text>] | end | week', 'the injection suite in the eval sandbox, then the week\'s eval line and at most one improvement (night step 9, Sundays)'],
   read: ['--kinds | --check <kind> [--json <answer> | --file <path>] (else stdin)', 'check the reader subagent\'s answer and work only from what this prints (it taints the session)'],
   reflex: ['', 'what to do now: the reflex procedure and each tripped watchdog with its handling (P4)'],
   handled: ['<watchdog> --outcome fixed|reported|nothing --note <text>', 'report what you did about a tripped watchdog (the reflex reports each one)'],

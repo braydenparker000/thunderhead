@@ -19,6 +19,8 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # A weekly improvement branch is compared with main (eval-diff below).
+          fetch-depth: ${{ startsWith(github.ref_name, 'claude/weekly-') && '0' || '1' }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24
@@ -26,3 +28,11 @@ jobs:
       - run: npm ci --ignore-scripts
       - run: npx playwright install --with-deps --only-shell chromium
       - run: npm test
+      # The mind's weekly improvement (EVALS.md §7, RA-P9-02): its evals line must match the Worker's
+      # record, no suite may drop, and it may not change an eval and the mind together.
+      - name: Eval diff of a weekly improvement
+        if: ${{ startsWith(github.ref_name, 'claude/weekly-') }}
+        env:
+          TH_CI_TOKEN: ${{ secrets.TH_CI_TOKEN }}
+          WORKER_URL: ${{ vars.WORKER_URL }}
+        run: node scripts/eval-diff.mjs --base origin/main

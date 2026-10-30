@@ -26,8 +26,9 @@ export function evalRoutes(ctl) {
     }],
     ['PUT', /^\/v1\/evals\/runs\/([^/]+)$/, ['chat', 'night'], ({req, body, params}) => {
       if (req.headers['th-sandbox']) return [422, {error: {code: 'validation', message: 'not in the sandbox'}}];
-      s.evalRuns.set(params[0], body);
+      s.evalRuns.set(params[0], {...body, at: ctl.now()});
       return [201, {...body, at: ctl.now(), score: body.n ? body.passed / body.n : 0}];
     }],
+    ['GET', /^\/v1\/evals\/runs$/, ['chat', 'night'], () => ({items: [...s.evalRuns.values()].reverse()})],
   ];
 }

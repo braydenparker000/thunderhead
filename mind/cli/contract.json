@@ -713,10 +713,12 @@
       "who": [
         "D",
         "C",
-        "N"
+        "N",
+        "I"
       ],
       "phase": "P4",
-      "status": "built"
+      "status": "built",
+      "note": "ci: the weekly improvement check reads the numbers (P9)"
     },
     "PUT /v1/predictions/:id": {
       "who": [

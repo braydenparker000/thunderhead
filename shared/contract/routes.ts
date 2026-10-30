@@ -146,7 +146,11 @@ export const ROUTES = {
   'POST /v1/evals/sandbox': { who: ['C', 'N'], phase: 'P4', note: 'with TH-Sandbox: eval only: reset the eval sandbox to a synthetic seed' },
   'GET /v1/evals/sandbox': { who: ['C', 'N'], phase: 'P4', note: 'with TH-Sandbox: eval only: what was written or tried since the reset' },
   'PUT /v1/evals/runs/:id': { who: ['C', 'N'], phase: 'P4', note: 'one finished suite, numbers and ids only (never in the sandbox)' },
-  'GET /v1/evals/runs': { who: ['D', 'C', 'N'], phase: 'P4' },
+  'GET /v1/evals/runs': {
+    who: ['D', 'C', 'N', 'I'],
+    phase: 'P4',
+    note: 'ci: the weekly improvement check reads the numbers (P9)',
+  },
   'PUT /v1/predictions/:id': {
     who: ['N'],
     phase: 'P9',
