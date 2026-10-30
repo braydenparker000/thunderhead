@@ -58,7 +58,9 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 /* the conversation */
 .turn{margin-top:22px;display:flex;flex-direction:column;gap:8px;animation:rise .5s cubic-bezier(.2,.7,.2,1) both}
 .you{align-self:flex-end;max-width:80%;font:400 15px/1.4 var(--ui);color:var(--ink);background:var(--glass-flat);border:1px solid var(--glass-line);padding:9px 14px;border-radius:19px 19px 6px 19px}
-.reply{font-size:20px;line-height:1.4}
+/* a reply: the Thunderhead's words in upright Fraunces (owner, 2026-10-30: not always italic); italic
+   stays for his short lines (.voice) and for emphasis and quotes inside a reply */
+.reply{font:400 17.5px/1.5 var(--voice);letter-spacing:-.003em;text-wrap:pretty}
 .turn .chip{align-self:flex-start;opacity:0;transition:opacity .4s}
 .turn .chip.in{opacity:1}
 /* ask bar: liquid glass pill; the mic turns into send when you type */

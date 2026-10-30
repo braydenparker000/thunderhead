@@ -84,13 +84,15 @@ const budgets = [
   ['home JS bytes', sum(/^(apps\/home|ui)\/.*\.js$/), 120_000],
   // th/ modules the shell loads at boot, and the conversation it loads after the first paint.
   ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 64_000],
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 64_000],
+  // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 68_000],
   // The menu's conversations and search, loaded when the menu first opens.
-  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 60_000],
+  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 56_000],
   // The Briefing page and the Board reader, loaded after the first paint.
   ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 30_000],
   ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 60_000],
-  ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 130_000],
+  // The upright Fraunces for replies (30.6 KB, 2026-10-30) on top of the italic and Inter.
+  ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 140_000],
   ['precache bytes', list.filter((f) => precached(f.path)).reduce((n, f) => n + f.size, 0), 3_000_000],
   ['icon sprite bytes', sum(/^ui\/icons\.svg$/), 30_000],
 ];

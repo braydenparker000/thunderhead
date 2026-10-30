@@ -7,7 +7,7 @@ Sibling docs: [HOME](../product/HOME.md), [GESTURES](GESTURES.md), [COPY](COPY.m
 
 ## Rules at a glance
 
-1. **Two typefaces.** Fraunces italic is only ever the Thunderhead's own voice. Inter is everything else. If it is serif, the Thunderhead said it (owner ruling).
+1. **Two typefaces.** Fraunces is only ever the Thunderhead's own voice: italic for his short lines (the voice line, page titles), upright for his replies (owner, 2026-10-30). Inter is everything else, including the data inside a reply (tables, charts). If it is serif, the Thunderhead said it (owner ruling).
 2. **Two themes, same accents.** Day: a soft drifting colour field with grain. Night: pure black with faint accent light (owner ruling). Every colour token is defined once with `light-dark()`.
 3. **One primary action per screen.** On home it is the ask bar. At most **one gold element** is visible at a time.
 4. **Contrast is tested, not eyeballed.** Text ≥ 4.5:1, large text (≥ 24 px, or ≥ 18.66 px bold) and icons/UI parts ≥ 3:1, measured against the **worst** background each token can sit on. A node test fails the build otherwise.
@@ -76,13 +76,13 @@ This replaces the first build's three copies of every dark token (media query, `
 
 ## 2. Type
 
-Fonts are self-hosted (decisions.md): `ui/fonts/Fraunces-Italic.woff2` (variable, wght 300–500, SOFT 50, WONK 0) and `ui/fonts/Inter.woff2` (roman, wght 400–600). Both `font-display: swap`, preloaded.
+Fonts are self-hosted (decisions.md): `ui/fonts/Fraunces-Italic.woff2` (variable, wght 300–500, SOFT 50, WONK 0), `ui/fonts/Fraunces.woff2` (upright for replies: wght 400–600, optical size fixed at 18, SOFT 50, WONK 0, the italic's 222 Latin characters, 30.6 KB; cut from `@fontsource-variable/fraunces` 5.3.0's full Latin file with fontTools' instancer and subsetter) and `ui/fonts/Inter.woff2` (roman, wght 400–600). All `font-display: swap`, preloaded.
 
 | Token | Font | Size / line height | Weight | Use | Status |
 |---|---|---|---|---|---|
 | `--t-voice-hero` | Fraunces italic | `clamp(32px, 9vw, 40px)` / 1.12 | 340 | The home voice line | built |
 | `--t-voice-title` | Fraunces italic | 34 / 1.12 | 340 | Briefing title ("Here's your day.") | built |
-| `--t-voice-reply` | Fraunces italic | 20 / 1.4 | 340 | The mind's replies | built |
+| `--t-voice-reply` | Fraunces upright | 17.5 / 1.5 | 400 (bold 600) | The mind's replies, as rich text (HOME.md §4.3) | built 2026-10-30 (was italic 340 at 20 / 1.4) |
 | `--t-big` | Inter | 30 / 1.05, −0.02em | 500 | One big number in a tile (temperature) | built |
 | `--t-body` | Inter | 15 / 1.4 | 400 | Owner bubbles, tile values | built |
 | `--t-input` | Inter | 16 / 1.375 | 400 | Ask bar (16 px avoids zoom-on-focus) | built |
@@ -300,7 +300,7 @@ Each component lives in `ui/components.css` (and a tiny JS helper where needed).
 | Component | Anatomy and exact values | States |
 |---|---|---|
 | **Owner bubble** | Right-aligned, max-width 80%, padding 9/14, radius 19 19 6 19, flat glass, `--t-body`, `--ink` | sending (opacity .7), sent, queued offline (meta line "Sends when you're back online"), failed (meta "Didn't send · Retry" in `--alarm`) |
-| **Mind reply** | Left, no bubble, `--t-voice-reply`, `--ink`, `text-wrap: pretty` | waiting (italic "…" pulse), revealing, done, collapsed long reply ("Show all") |
+| **Mind reply** | Left, no bubble, `--t-voice-reply`, `--ink`, `text-wrap: pretty`, rich text and up to four Board blocks (HOME.md §4.3) | waiting (thinking words, HOME.md §4.4), revealing, done, collapsed long reply ("Show all") |
 | **Decision card** | Live glass, radius 22, padding 14/16, E2. "Why" line: 7 px gold dot with 3 px 28% gold halo + `--t-label` `--ink-3`. Question: Inter 500 16/1.42. Buttons row gap 8, margin-top 13 | rising, waiting, deciding (spinner in the pressed button), folded (opacity 0, scale .97, height 0 over 450 ms, +120 ms delay), error (inline line under buttons) |
 | **Decision buttons** | Pills, padding 10/17 (≥ 44 px tall hit area), Inter 600 14. Yes: gold fill, `--gold-ink`, inner highlight, gold shadow. Secondary: `--tint` fill, `--ink-2` | rest, pressed (scale .96, 150 ms), busy, disabled (opacity .5) |
 | **Action chip** | Inline-flex, padding 8/12/8/10, radius 14, flat glass, `--t-chip`, 17 px app-coloured icon, gap 7 | rest, pressed (scale .97), opening |

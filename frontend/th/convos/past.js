@@ -2,15 +2,14 @@
 // An older conversation on home, read-only (HOME.md §4.9): the voice line, the decision card and
 // today's thread step aside; a glass card at the top of the column holds the title, when it was
 // and how many messages (an imported one tagged "Old Chats") with Back to now; the filed thread
-// shows scrolled to the bottom, or to a search hit, highlighted for 2 s. A long or imported reply
-// reads as text (prose.js) rather than in the voice. Back, the pill's button, the menu's Now row, or sending a message returns to today (the
+// shows scrolled to the bottom, or to a search hit, highlighted for 2 s. Replies read as on home
+// (th/chat/rich.js). Back, the pill's button, the menu's Now row, or sending a message returns to today (the
 // message then sends as usual). Text is set with textContent only.
-import { replyBody } from '../chat/view.js';
+import { rich } from '../chat/rich.js';
 import { lineFor } from '../copy.js';
 import { failure } from '../flow.js';
 import * as data from './data.js';
 import { count, OLD_CHATS, titleOf, whenOf } from './model.js';
-import { isProse, prose } from './prose.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').Thread} Thread */
 /** @typedef {import('../../../shared/contract/api.ts').Message} Message */
@@ -149,19 +148,16 @@ async function earlier(o, btn) {
   }
 }
 
-/** One message, as home draws it, without its actions (read-only). @param {Message} m @param {boolean} imported */
-function message(m, imported) {
+/** One message, as home draws it, without its actions (read-only). @param {Message} m */
+function message(m) {
   /** @type {HTMLElement} */
   let node;
   if (m.author === 'owner') {
     node = el('div', 'mine');
     node.append(el('div', 'you', m.body));
-  } else if (m.author === 'mind' && m.kind !== 'error' && isProse(m.body, imported)) {
-    node = el('div', 'reply prose');
-    node.append(prose(m.body));
   } else if (m.author === 'mind' && m.kind !== 'error') {
-    node = el('div', `voice reply${m.kind === 'progress' ? ' progress' : ''}`);
-    node.append(replyBody(m.body));
+    node = el('div', `reply${m.kind === 'progress' ? ' progress' : ''}`);
+    node.append(rich(m.body));
   } else node = el('div', 'sys', m.body);
   node.dataset.id = m.id;
   return node;
@@ -188,7 +184,7 @@ function draw(o) {
       alone = lone;
       out.push(turn);
     }
-    turn.append(message(m, o.imported));
+    turn.append(message(m));
   }
   if (!o.items.length) out.push(el('div', 'sys', 'No messages in this one yet.'));
   log.replaceChildren(...out);

@@ -6,7 +6,8 @@
 // changes only when what it says does (a screen reader hears each change once; focus stays on
 // Stop). Text is always set with textContent, never parsed as markup.
 import { appFor } from '../registry/apps.js';
-import { citeHref, lines, meta, revealMs } from './model.js';
+import { citeHref, meta, revealMs } from './model.js';
+import { rich } from './rich.js';
 
 /** @typedef {import('./model.js').Shown} Shown */
 /** @typedef {{ shown: Shown[], slot: string, words?: string, stop: 'none' | 'button' | 'stopping', cards: { text: string, kind: string }[], fresh: Set<string>, now: number }} ViewState */
@@ -24,31 +25,6 @@ function el(tag, cls, text) {
   if (cls) n.className = cls;
   if (text !== undefined) n.textContent = text;
   return n;
-}
-
-/** A reply's text: lines, a hanging list for "– " lines, https links (HOME.md §4.3). @param {string} text */
-export function replyBody(text) {
-  const frag = document.createDocumentFragment();
-  for (const line of lines(text)) {
-    const p = el('span', line.list ? 'li' : 'p');
-    for (const part of line.parts) {
-      if ('cite' in part) {
-        // A cited block opens Study at its page, in this tab (STUDY.md §8.1).
-        const a = el('a', 'cite', part.label);
-        a.href = part.href;
-        a.setAttribute('aria-label', `Source ${part.label}`);
-        p.append(a);
-      } else if ('href' in part) {
-        const a = el('a', '', part.label);
-        a.href = part.href;
-        a.target = '_blank';
-        a.rel = 'noopener noreferrer';
-        p.append(a);
-      } else p.append(part.text);
-    }
-    frag.append(p);
-  }
-  return frag;
 }
 
 /** "Where to study": a cited answer's first five pages, each opening Study there (STUDY.md §8.1).
@@ -115,11 +91,18 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
       }
       return wrap;
     }
-    const wrap = el('div', `voice reply${m.kind === 'progress' ? ' progress' : ''}`);
-    wrap.append(replyBody(m.body));
+    const wrap = el('div', `reply${m.kind === 'progress' ? ' progress' : ''}`);
+    wrap.append(rich(m.body));
     if (s.fresh.has(m.id)) {
       wrap.classList.add('reveal');
       wrap.style.setProperty('--reveal-ms', `${revealMs(m.body)}ms`);
+    }
+    // Up to four of the Board's blocks under the words (HOME.md §4.3), drawn by the Board's own code.
+    const blocks = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).blocks : null;
+    if (Array.isArray(blocks) && blocks.length) {
+      const host = el('div', 'blocks');
+      wrap.append(host);
+      import('../briefing/board.js').then((b) => host.append(...blocks.slice(0, 4).map((x) => b.block(x, []))), () => host.remove());
     }
     const cites = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).cite?.citations : null;
     if (Array.isArray(cites) && cites.length) wrap.append(whereToStudy(cites));

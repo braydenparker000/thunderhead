@@ -13,9 +13,27 @@
 .talk .replybox{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
 .talk .chip{min-height:44px}
 .talk .reply{color:var(--ink);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
-.talk .reply .p,.talk .reply .li{display:block}
-.talk .reply .li{padding-left:1.1em;text-indent:-1.1em}
-.talk .reply .li::before{content:"– "}
+/* rich text (th/chat/rich.js): paragraphs, headings, lists, quotes, code and tables; data in Inter */
+.talk .reply>*{margin:0}
+.talk .reply>*+*{margin-top:.6em}
+.talk .reply h3{font:600 18.5px/1.35 var(--voice);letter-spacing:-.008em}
+.talk .reply>*+h3{margin-top:.95em}
+.talk .reply b{font-weight:600}
+.talk .reply ul,.talk .reply ol{padding-left:1.25em}
+.talk .reply ul{list-style-type:"–\2002"}
+.talk .reply li+li{margin-top:.25em}
+.talk .reply li::marker{color:var(--ink-3)}
+.talk .reply ol>li::marker{font:500 .88em var(--ui)}
+.talk .reply blockquote{padding-left:12px;border-left:2px solid color-mix(in srgb,var(--accent-text) 45%,transparent);font-style:italic;color:var(--ink-2)}
+.talk .reply code{font:500 .84em ui-monospace,SFMono-Regular,Menlo,monospace;padding:.08em .35em;border-radius:6px;background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.talk .reply pre{padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--ink) 6%,transparent);overflow-x:auto;font:400 13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
+.talk .reply .tbl{overflow-x:auto}
+.talk .reply table{border-collapse:collapse;font:400 14px/1.4 var(--ui)}
+.talk .reply th,.talk .reply td{padding:6px 12px 6px 0;border-bottom:1px solid var(--glass-line);text-align:left;vertical-align:top}
+.talk .reply th{font-weight:600;color:var(--ink-2)}
+.talk .reply hr{border:0;border-top:1px solid var(--glass-line)}
+/* what is better shown than told: the Board's own blocks under the words, in Inter */
+.talk .reply .blocks{display:grid;gap:12px;margin-top:14px;font:400 15px/1.45 var(--ui);letter-spacing:0;--bt:var(--accent-text)}
 .talk .reply a{color:var(--accent-text);text-decoration:underline;text-underline-offset:2px}
 /* A cited block of the owner's books: a small number that opens Study there; "Where to study" lists
    the first five, in the owner's books' own face (Inter, not the voice). */
@@ -24,7 +42,7 @@
 .talk .reply .study{display:flex;flex-direction:column;margin-top:12px;font:400 14px/1.35 var(--ui);font-style:normal}
 .talk .reply .sthead{font:600 11px/1.3 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);margin-bottom:2px}
 .talk .reply .study a{display:flex;align-items:center;min-height:36px;color:var(--ink);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--ink) 8%,transparent)}
-.talk .reply.progress{color:var(--ink-2);font-size:17px}
+.talk .reply.progress{color:var(--ink-2);font-size:15.5px}
 /* The reply reveals top to bottom behind a moving mask; its text is all there for a screen reader. */
 @property --reveal{syntax:"<percentage>";inherits:false;initial-value:100%}
 .talk .reply.reveal{-webkit-mask-image:linear-gradient(to bottom,#000 var(--reveal),transparent calc(var(--reveal) + 1.6em));mask-image:linear-gradient(to bottom,#000 var(--reveal),transparent calc(var(--reveal) + 1.6em));animation:reveal var(--reveal-ms,600ms) linear both}

@@ -162,7 +162,7 @@ test('an older conversation shows read-only with Back to now; Back, the pill, No
     assert.equal(await pastMeta(page), 'Yesterday · 3 messages');
     assert.deepEqual(await page.$$eval('#past .you, #past .reply, #past .sys', (n) => n.map((x) => x.textContent)),
       ['Put on something calm for the evening', 'It is in Music, under Evening.', 'Yesterday is filed in the menu.']);
-    assert.equal(await page.$eval('#past .reply', (r) => getComputedStyle(r).fontStyle), 'italic');
+    assert.equal(await page.$eval('#past .reply', (r) => getComputedStyle(r).fontStyle), 'normal', 'read as home reads it');
     for (const sel of ['#say', '#talk']) assert.ok(await hidden(page, sel), `${sel} steps aside`);
     assert.equal(await page.$('#past button.retry, #past .chip'), null, 'nothing to act on');
     await page.waitForTimeout(300);
@@ -201,15 +201,15 @@ test('an older conversation shows read-only with Back to now; Back, the pill, No
   }
 });
 
-test('a Markdown reply reads as text: a heading, lists, bold, code, a table and a link, tags kept as text', opts, async () => {
+test('a Markdown reply reads as rich text in the voice: a heading, lists, bold, code, a table and a link, tags kept as text', opts, async () => {
   for (const theme of ['light', 'dark']) {
     const { page, context, errors } = await open({ theme });
     await menu(page);
     await page.click(`#convos [data-id="${T.saturday}"]`);
-    await page.waitForSelector('#past .reply.prose');
-    const p = '#past .reply.prose';
-    assert.equal(await page.$eval(p, (r) => getComputedStyle(r).fontStyle), 'normal');
-    assert.equal(await page.textContent(`${p} .h`), 'Practice plan for the weekend');
+    await page.waitForSelector('#past .reply h3');
+    const p = '#past .reply:has(h3)';
+    assert.deepEqual(await page.$eval(p, (r) => [getComputedStyle(r).fontStyle, getComputedStyle(r).fontFamily.split(',')[0]]), ['normal', 'Fraunces']);
+    assert.equal(await page.textContent(`${p} h3`), 'Practice plan for the weekend');
     assert.deepEqual(await page.$$eval(`${p} ul > li`, (l) => l.map((x) => x.textContent)), ['Scales first, ten minutes', 'Bars 9 to 12 at 84 bpm, then up']);
     assert.equal(await page.textContent(`${p} li b`), 'Scales');
     assert.equal(await page.textContent(`${p} li code`), '84 bpm');
@@ -234,7 +234,7 @@ test('a long imported old chat shows its newest 200, then earlier ones above', o
   assert.equal(await page.textContent('.past .ptl'), 'Bars 9 to 12, slow then up to tempo');
   assert.equal(await page.textContent('.past .tag'), 'Old Chats');
   assert.equal(await pastMeta(page), 'Tuesday 27 October · 230 messages');
-  assert.equal(await page.$$eval('#past .reply', (r) => r.every((x) => x.matches('.prose') && getComputedStyle(x).fontStyle === 'normal')), true, 'an old chat reads as text');
+  assert.equal(await page.$$eval('#past .reply', (r) => r.every((x) => getComputedStyle(x).fontStyle === 'normal')), true, 'an old chat reads upright, as every reply does');
   const count = () => page.$$eval('#past [data-id]', (n) => n.length);
   assert.equal(await count(), 200);
   assert.ok(await page.$eval('#convo', (c) => c.scrollHeight - c.scrollTop - c.clientHeight < 4), 'scrolled to the bottom');

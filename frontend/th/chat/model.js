@@ -94,9 +94,8 @@ const TOPICS = /** @type {[RegExp, string][]} */ ([
 ]);
 export const WORD_MS = 3000;
 
-/** The words in the reply slot while the mind works (owner, 2026-10-30): its own note when it sets one
- * (`th status working --note`), else words from what the owner asked, then two that move it along,
- * each for 3 s, the last staying. @param {{ body: string, sentAt: number, now: number, presence: MindPresence | null }} s */
+/** The reply slot's words while the mind works (HOME.md §4.4): its own note (`th status working
+ * --note`), else words from the message, then two more, 3 s each. @param {{ body: string, sentAt: number, now: number, presence: MindPresence | null }} s */
 export function thinking({ body, sentAt, now, presence }) {
   const note = presence?.state === 'working' ? (presence.note ?? '').trim() : '';
   if (note) return /[….!?]$/.test(note) ? note : `${note}…`;
@@ -150,13 +149,6 @@ export function meta(m, now) {
 /** How long a reply's reveal takes: 160 characters a second, at most 1.2 s. @param {string} text */
 export const revealMs = (text) => Math.min(REVEAL_MAX_MS, Math.round((text.length / REVEAL_CPS) * 1000));
 
-const LIST_AFTER = /(?<=[.!?:])\s+(?=– )/;
-const LINK = /https:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]]/g;
-// A cited block of the owner's books (STUDY.md §8): `[[book:<id>#p<n>.b<k>]]`, a numbered tap that
-// opens Study at that page and block.
-const CITE = /\[\[book:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})#p(\d{1,5})\.b(\d{1,4})\]\]/g;
-const PIECE = new RegExp(`${LINK.source}|${CITE.source}`, 'g');
-
 /** Study's address for a cited block. @param {string} ref `book:<id>#p<n>.b<k>` */
 export function citeHref(ref) {
   const m = /^book:([0-9a-f-]{36})#p(\d+)\.b(\d+)$/.exec(ref);
@@ -171,33 +163,6 @@ export function label(href) {
   } catch {
     return `${href.slice(8, 36)}…`;
   }
-}
-
-/** A reply's text as lines: line breaks kept, lines starting "– " as a hanging list (a "– " straight
- * after a full stop, question mark or colon starts a list line too), https links, and cited blocks
- * numbered in the order they first appear (the same block keeps its number).
- * @param {string} text @returns {{ list: boolean, parts: ({ text: string } | { href: string, label: string, cite?: true })[] }[]} */
-export function lines(text) {
-  /** @type {string[]} */
-  const cited = [];
-  return text.split('\n').flatMap((l) => l.split(LIST_AFTER)).map((raw) => {
-    const list = raw.startsWith('– ');
-    const line = list ? raw.slice(2) : raw;
-    /** @type {({ text: string } | { href: string, label: string, cite?: true })[]} */
-    const parts = [];
-    let at = 0;
-    for (const m of line.matchAll(PIECE)) {
-      if (m.index > at) parts.push({ text: line.slice(at, m.index).replace(/[ \t]+$/, m[1] ? '' : '$&') });
-      if (m[1]) {
-        const ref = `book:${m[1]}#p${m[2]}.b${m[3]}`;
-        if (!cited.includes(ref)) cited.push(ref);
-        parts.push({ href: /** @type {string} */ (citeHref(ref)), label: String(cited.indexOf(ref) + 1), cite: true });
-      } else parts.push({ href: m[0], label: label(m[0]) });
-      at = m.index + m[0].length;
-    }
-    if (at < line.length || !parts.length) parts.push({ text: line.slice(at) });
-    return { list, parts };
-  });
 }
 
 /** Whether a keystroke should tell the Worker the owner is typing (RUNTIME.md §3): the first one

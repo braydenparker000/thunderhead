@@ -9,7 +9,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 1. **The Galaxy A15 is the reference device.** Lab tests stand in for it at its size with a 4× CPU throttle. The real phone has the final word.
 2. **Warm start ≤ 1.0 s** from tap to the voice line. Cold first visit on 4G ≤ 3.0 s.
 3. **INP p75 ≤ 100 ms.** Gesture feedback lands within one frame (11.1 ms at 90 Hz). No long animation frame over 50 ms during a gesture.
-4. **Shell bytes on the critical path:** JS ≤ 120 KB, CSS ≤ 60 KB, fonts ≤ 130 KB, icon sprite ≤ 30 KB (raw, uncompressed). `stage.mjs` fails the deploy above them.
+4. **Shell bytes on the critical path:** JS ≤ 120 KB, CSS ≤ 60 KB, fonts ≤ 140 KB (130 until the upright Fraunces for replies, 2026-10-30), icon sprite ≤ 30 KB (raw, uncompressed). `stage.mjs` fails the deploy above them.
 5. **Animate only `transform` and `opacity`.** No animated `filter: blur()`. At most 2 `backdrop-filter` surfaces visible at once.
 6. **Worker CPU p99 ≤ 5 ms per request** (Free allows 10 ms). DO CPU p99 ≤ 20 ms per RPC, except sign-in.
 7. **Rows per endpoint are pinned by cost tests.** Daily totals stay inside the targets in [DATA.md §8](DATA.md#8-row-write-budget-free-plan).

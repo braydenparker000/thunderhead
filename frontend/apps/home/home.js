@@ -42,7 +42,7 @@ import { apps } from '/th/registry/apps.js';
     e.preventDefault(); if(root.dataset.signedIn!==undefined){ if(root.dataset.chat==='failed') toast("Couldn't load the conversation. Reload to try again."); return; } // signed in: th/chat/index.js sends it
     const text=q.value.trim(); if(!text) return; q.value=''; ask.classList.remove('typing'); hint.classList.add('gone');
     const t=document.createElement('div'); t.className='turn';
-    t.innerHTML='<div class="you"></div><div class="voice reply"></div>'; t.firstChild.textContent=text; $('#turns').appendChild(t);
+    t.innerHTML='<div class="you"></div><div class="reply"></div>'; t.firstChild.textContent=text; $('#turns').appendChild(t);
     convo.scrollTop=convo.scrollHeight;
     edge.classList.add('think'); edge.classList.remove('breathe');
     const a="I'm not connected yet. Sign-in and my memory come next.";

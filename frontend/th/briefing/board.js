@@ -126,8 +126,8 @@ function marks(cites, sources) {
   return [el('sup', { class: 'bcite', text: ns.map((n) => `[${n + 1}]`).join('') })];
 }
 
-/** @param {any} b @param {any[]} sources */
-function block(b, sources) {
+/** One block of the v2 format; also a reply's `meta.blocks` (th/chat/view.js). @param {any} b @param {any[]} sources */
+export function block(b, sources) {
   const t = txt(b?.type);
   const wrap = el('div', { class: `bb b-${t}` });
   const head = txt(b.title) || (t !== 'prose' && t !== 'quote' && t !== 'callout' ? txt(b.text) : '');

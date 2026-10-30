@@ -1,7 +1,7 @@
-// The menu's conversations and search without a browser (frontend/th/convos/model.js and
-// prose.js): grouping by the calendar against the Worker's today (MENU-AND-SETTINGS.md M3),
-// titles and their fallback, row metas and second lines, the past view's "when", which replies
-// read as text, and search's folding, snippets, ranking and appending.
+// The menu's conversations and search without a browser (frontend/th/convos/model.js): grouping
+// by the calendar against the Worker's today (MENU-AND-SETTINGS.md M3), titles and their
+// fallback, row metas and second lines, the past view's "when", and search's folding, snippets,
+// ranking and appending.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as m from '../frontend/th/convos/model.js';
@@ -84,11 +84,3 @@ test('ranking puts exact, then prefix, then word prefix, then inside; rows only 
   assert.equal(m.refId('msg:0192-x'), '0192-x');
 });
 
-test('a reply reads as text when imported, long, or written in Markdown; short ones keep the voice', async () => {
-  const { isProse, LONG } = await import('../frontend/th/convos/prose.js');
-  assert.equal(isProse('It is in Music, under Evening.', false), false);
-  assert.equal(isProse('It is in Music, under Evening.', true), true);
-  assert.equal(isProse('x'.repeat(LONG), false), true);
-  assert.deepEqual(['## Plan', '- one\n- two', '1. first', 'a **bold** word', 'run `npm test`', '| a | b |', '```\ncode\n```'].map((b) => isProse(b, false)), [true, true, true, true, true, true, true]);
-  assert.equal(isProse('A dash - in the middle, and 3.5 bars', false), false);
-});

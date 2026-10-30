@@ -98,25 +98,35 @@ test('meta lines under unsent messages', () => {
   assert.equal(m.meta(msg({}), 99_999), null);
 });
 
-test("a reply's lines: breaks kept, hanging list lines, only https links, long links shortened", () => {
-  const out = m.lines('Here:\n– one\n– two https://example.com/a\nhttp://not.a.link and https://example.com/a/very/long/path/that/keeps/going/on.');
-  assert.equal(out.length, 4);
-  assert.deepEqual(out.map((l) => l.list), [false, true, true, false]);
-  assert.deepEqual(out[2].parts[1], { href: 'https://example.com/a', label: 'example.com/a' });
-  assert.equal(out[3].parts.filter((p) => 'href' in p).length, 1);
-  assert.equal(out[3].parts[1].label, 'example.com…');
-  assert.equal(out[3].parts[2].text, '.', 'trailing punctuation stays out of the link');
-  // A "– " straight after a full stop, question mark or colon starts a list line; a dash in prose doesn't.
-  assert.deepEqual(m.lines('It is in Music, under Evening. – first track\n– then the rest').map((l) => l.list), [false, true, true]);
-  assert.deepEqual(m.lines('Two options: – one – two').map((l) => [l.list, l.parts[0].text]), [[false, 'Two options:'], [true, 'one – two']]);
-  assert.equal(m.lines('Wait – what? Fine.').length, 1);
+test("a reply's rich text: paragraphs with their breaks, lists, only https links, long links shortened", async () => {
+  const { parse } = await import('../frontend/th/chat/rich.js');
+  const out = parse('Here:\n– one\n– two https://example.com/a\nhttp://not.a.link and https://example.com/a/very/long/path/that/keeps/going/on.');
+  assert.deepEqual(out.map((b) => b.t), ['p', 'ul', 'p']);
+  assert.deepEqual(out[1].items[1][1], { href: 'https://example.com/a', label: 'example.com/a' });
+  const last = out[2].lines[0];
+  assert.equal(last.filter((p) => 'href' in p).length, 1);
+  assert.equal(last[1].label, 'example.com…');
+  assert.equal(last[2].text, '.', 'trailing punctuation stays out of the link');
+  // Lines without a blank line between them are one paragraph, broken where they were.
+  assert.deepEqual(parse('Done: 24 songs.\nIt starts with Mars.\n\nEnjoy.').map((b) => [b.t, b.lines.length]), [['p', 2], ['p', 1]]);
+  // A "– " straight after a full stop, question mark or colon starts a list item; a dash in prose doesn't.
+  assert.deepEqual(parse('It is in Music, under Evening. – first track\n– then the rest').map((b) => b.t), ['p', 'ul']);
+  assert.deepEqual(parse('Two options: – one – two')[1].items[0], [{ text: 'one – two' }]);
+  assert.deepEqual(parse('Wait – what? Fine.').map((b) => b.t), ['p']);
+  // Markdown's everyday marks; a lone asterisk or underscore in prose is text.
+  assert.deepEqual(parse('## Plan\n1. first\n2. **then** *this*\n> said _once_\n---\n| a | b |\n|---|---|\n| 1 | 2 |\n```\nnpm test\n```').map((b) => b.t), ['h', 'ol', 'q', 'hr', 'table', 'pre']);
+  const marks = parse('a **bold** and *soft* and _also_ and `code`')[0].lines[0];
+  assert.deepEqual(marks.filter((p) => !('text' in p)), [{ b: 'bold' }, { i: 'soft' }, { i: 'also' }, { code: 'code' }]);
+  assert.deepEqual(parse('3 * 4 = 12, snake_case_name, a*b*c')[0].lines[0], [{ text: '3 * 4 = 12, snake_case_name, a*b*c' }]);
+  assert.deepEqual(parse('| a | b |\n|---|---|\n| 1 | 2 |')[0].rows.map((r) => r.map((c) => c[0].text)), [['a', 'b'], ['1', '2']]);
+  assert.equal(parse('3. third\n4. fourth')[0].start, 3);
   // A cited block is a numbered tap into Study; the same block keeps its number; a broken marker is text.
-  const cited = m.lines('Patience [[book:0190c8a2-7d1e-7abc-8def-0123456789ab#p12.b3]]. Later [[book:0190c8a2-7d1e-7abc-8def-0123456789ab#p40.b1]][[book:0190c8a2-7d1e-7abc-8def-0123456789ab#p12.b3]]. [[book:nope]]');
-  assert.deepEqual(cited[0].parts.filter((p) => p.cite).map((p) => [p.label, p.href]), [
+  const cited = parse('Patience [[book:0190c8a2-7d1e-7abc-8def-0123456789ab#p12.b3]]. Later [[book:0190c8a2-7d1e-7abc-8def-0123456789ab#p40.b1]][[book:0190c8a2-7d1e-7abc-8def-0123456789ab#p12.b3]]. [[book:nope]]')[0].lines[0];
+  assert.deepEqual(cited.filter((p) => p.cite).map((p) => [p.label, p.href]), [
     ['1', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=12&b=3'], ['2', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=40&b=1'], ['1', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=12&b=3'],
   ]);
-  assert.equal(cited[0].parts[0].text, 'Patience');
-  assert.equal(cited[0].parts.at(-1).text, '. [[book:nope]]');
+  assert.equal(cited[0].text, 'Patience');
+  assert.equal(cited.at(-1).text, '. [[book:nope]]');
   assert.equal(m.revealMs('x'.repeat(80)), 500);
   assert.equal(m.revealMs('x'.repeat(5000)), 1200);
 });

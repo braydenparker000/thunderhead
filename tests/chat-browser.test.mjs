@@ -104,7 +104,7 @@ test('a message goes out at once; the reply arrives over the socket, reveals, an
     await page.waitForSelector('#talk .you');
     assert.equal(await page.inputValue('#q'), '');
     await page.waitForSelector('#talk .reply');
-    assert.equal(await page.$eval('#talk .reply', (r) => getComputedStyle(r).fontStyle), 'italic');
+    assert.deepEqual(await page.$eval('#talk .reply', (r) => [getComputedStyle(r).fontStyle, getComputedStyle(r).fontFamily.split(',')[0]]), ['normal', 'Fraunces']);
     assert.match(await page.textContent('#talk .reply'), /It is in Music, under Evening\./);
     await page.waitForSelector('#talk .chip.in');
     assert.equal(await page.textContent('#talk .chip'), 'Open in Music');
@@ -116,6 +116,33 @@ test('a message goes out at once; the reply arrives over the socket, reveals, an
       await page.click('#talk .chip');
       await page.waitForURL(`${base}/music/`);
     }
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+});
+
+test('a rich reply: upright, with a heading, a list, bold and a quote, and the Board\'s blocks under it', opts, async () => {
+  for (const theme of ['light', 'dark']) {
+    const text = '### Your week\nYou practised on **four** days.\n- Monday, 30 minutes\n- Thursday, 45 minutes\n> Slow is smooth.';
+    const blocks = [
+      { type: 'stats', items: [{ label: 'Minutes', value: '135' }, { label: 'Days', value: '4' }] },
+      { type: 'chart', kind: 'column', text: 'Minutes a day', labels: ['Mon', 'Tue', 'Wed', 'Thu'], series: [{ name: 'Minutes', values: [30, 20, 40, 45] }], unit: 'min' },
+    ];
+    const reply = { after: 300, text, meta: { blocks } };
+    const { page, context, errors } = await open({ theme, chat: { reply, presence: { state: 'listening', note: null, since: Date.now() } } });
+    await send(page, 'How was my practice this week?');
+    await page.waitForSelector('#talk .reply .blocks .bchart svg rect');
+    const r = '#talk .reply';
+    assert.deepEqual(await page.$eval(r, (n) => [getComputedStyle(n).fontStyle, getComputedStyle(n).fontFamily.split(',')[0]]), ['normal', 'Fraunces']);
+    assert.equal(await page.textContent(`${r} h3`), 'Your week');
+    assert.equal(await page.textContent(`${r} p b`), 'four');
+    assert.deepEqual(await page.$$eval(`${r} ul li`, (l) => l.map((x) => x.textContent)), ['Monday, 30 minutes', 'Thursday, 45 minutes']);
+    assert.equal(await page.$eval(`${r} blockquote`, (q) => getComputedStyle(q).fontStyle), 'italic');
+    assert.equal(await page.$$eval(`${r} .blocks .bstat`, (s) => s.length), 2);
+    assert.equal(await page.$$eval(`${r} .blocks .bchart rect`, (s) => s.length), 4);
+    assert.ok(await page.$eval('#convo', (c) => c.scrollWidth <= c.clientWidth), 'nothing scrolls sideways');
+    await page.waitForTimeout(1500);
+    await shot(page, 'rich', theme);
     assert.deepEqual(errors, []);
     await context.close();
   }
