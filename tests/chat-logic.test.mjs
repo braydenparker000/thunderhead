@@ -50,6 +50,20 @@ test('the reply slot: nothing, then …, Waking up… at 8 s, Still waking at 60
   assert.equal(at(5000, presence('failed')), 'none');
 });
 
+test('the thinking words: the mind\'s own note, else words from the message, then two that move it along', () => {
+  const t = (body, now, p = presence('listening')) => m.thinking({ body, sentAt: 0, now, presence: p });
+  assert.equal(t('Make me a playlist with dramatic classical music', 1300), 'Thinking about your music…');
+  assert.equal(t('What should I practise on guitar?', 1300), 'Thinking about guitar…');
+  assert.equal(t('¿Qué tengo hoy?', 1300), 'Thinking about your day…');
+  assert.equal(t('Are you there?', 1300), 'Thinking…');
+  assert.equal(t('Are you there?', 1200 + 3000), 'Working it out…');
+  assert.equal(t('Are you there?', 1200 + 6000), 'Putting it together…');
+  assert.equal(t('Are you there?', 1200 + 60_000), 'Putting it together…', 'the last one stays');
+  assert.equal(t('Play something', 1300, { ...presence('working'), note: 'Looking through your music' }), 'Looking through your music…');
+  assert.equal(t('Play something', 1300, { ...presence('working'), note: 'Found 24 songs.' }), 'Found 24 songs.');
+  assert.equal(t('Play some music', 1300, { ...presence('listening'), note: 'old note' }), 'Thinking about your music…', 'only a working note');
+});
+
 test('the voice line: first run, the mind not waking, a home line, the default', () => {
   assert.deepEqual(m.voiceLine({ presence: null, firstRun: true, homeLine: null }), ["I'm here.", 'Ask me anything, any time.']);
   assert.deepEqual(m.voiceLine({ presence: presence('failed'), firstRun: true, homeLine: 'x' }), ["I can't wake just now.", "I'll answer when I'm back."]);

@@ -147,15 +147,19 @@ test('a cited answer: numbered sources in the text, Where to study under it, eac
   await context.close();
 });
 
-test('waking: … after 1.2 s, then "Waking up…" at 8 s, with the edge thinking', opts, async () => {
+test('waking: thinking words after 1.2 s, then "Waking up…" at 8 s, with the edge thinking', opts, async () => {
   for (const theme of ['light', 'dark']) {
     const { page, context, errors } = await open({ theme, clock: true });
     await send(page, 'Are you there?');
     await page.waitForSelector('#talk .you');
     await page.clock.runFor(1500);
     await page.waitForSelector('#talk .wait.dots');
+    assert.equal(await page.textContent('#talk .wait'), 'Thinking…');
     assert.ok(await page.$eval('#edge', (e) => e.classList.contains('think')));
-    await page.clock.runFor(7000);
+    // The mock Worker stamps the message with real time, a little after this fake clock: margins.
+    await page.clock.runFor(4000);
+    assert.equal(await page.textContent('#talk .wait'), 'Working it out…');
+    await page.clock.runFor(3500);
     await page.waitForSelector('#talk .wait.waking');
     assert.equal(await page.textContent('#talk .wait'), 'Waking up…');
     await shot(page, 'waking', theme);

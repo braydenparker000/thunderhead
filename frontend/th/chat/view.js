@@ -9,7 +9,7 @@ import { appFor } from '../registry/apps.js';
 import { citeHref, lines, meta, revealMs } from './model.js';
 
 /** @typedef {import('./model.js').Shown} Shown */
-/** @typedef {{ shown: Shown[], slot: string, stop: 'none' | 'button' | 'stopping', cards: { text: string, kind: string }[], fresh: Set<string>, now: number }} ViewState */
+/** @typedef {{ shown: Shown[], slot: string, words?: string, stop: 'none' | 'button' | 'stopping', cards: { text: string, kind: string }[], fresh: Set<string>, now: number }} ViewState */
 
 const SLOT_TEXT = {
   dots: '…',
@@ -203,12 +203,12 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
       }
     }
     // The reply slot sits under the newest turn while a reply is on its way.
-    const key = `${s.slot}|${s.stop}`;
+    const key = `${s.slot}|${s.stop}|${s.slot === 'dots' ? s.words : ''}`;
     if (s.slot === 'none' && s.stop === 'none') slot.remove();
     else {
       if (key !== drawn) {
         wait.className = `wait ${s.slot}`;
-        wait.textContent = SLOT_TEXT[/** @type {keyof typeof SLOT_TEXT} */ (s.slot)] ?? '';
+        wait.textContent = (s.slot === 'dots' && s.words) || (SLOT_TEXT[/** @type {keyof typeof SLOT_TEXT} */ (s.slot)] ?? '');
         wait.hidden = s.slot === 'none';
         stop.hidden = s.stop === 'none';
         stop.textContent = s.stop === 'stopping' ? 'Stopping…' : 'Stop';

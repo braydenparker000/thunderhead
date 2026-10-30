@@ -81,6 +81,29 @@ export function slot({ sentAt, now, presence, progress }) {
   return 'dots';
 }
 
+/** What a message is about, for the words the slot shows until the mind says what it is doing. */
+const TOPICS = /** @type {[RegExp, string][]} */ ([
+  [/\b(music|songs?|playlists?|albums?|tracks?|listen|m[uú]sica|canci[oó]n)/i, 'Thinking about your music…'],
+  [/\b(guitar|chords?|riffs?|tabs?|scales?|practi[cs]e|guitarra)/i, 'Thinking about guitar…'],
+  [/\b(podcasts?|episodes?)/i, 'Thinking about podcasts…'],
+  [/\b(watch|movies?|films?|shows?|anime|series|pel[ií]culas?)/i, 'Thinking about what to watch…'],
+  [/\b(study|books?|chapters?|verses?|scriptures?|read|estudi|libros?)/i, 'Thinking about your books…'],
+  [/\b(weather|rain|snow|temperature|forecast|clima|lluvia)/i, 'Thinking about the weather…'],
+  [/\b(today|tomorrow|tonight|schedule|plan|agenda|remind|week|hoy|ma[nñ]ana)/i, 'Thinking about your day…'],
+  [/\b(remember|forgot|last time|did i|recuerdas)/i, 'Thinking back…'],
+]);
+export const WORD_MS = 3000;
+
+/** The words in the reply slot while the mind works (owner, 2026-10-30): its own note when it sets one
+ * (`th status working --note`), else words from what the owner asked, then two that move it along,
+ * each for 3 s, the last staying. @param {{ body: string, sentAt: number, now: number, presence: MindPresence | null }} s */
+export function thinking({ body, sentAt, now, presence }) {
+  const note = presence?.state === 'working' ? (presence.note ?? '').trim() : '';
+  if (note) return /[….!?]$/.test(note) ? note : `${note}…`;
+  const lines = [TOPICS.find(([re]) => re.test(body))?.[1] ?? 'Thinking…', 'Working it out…', 'Putting it together…'];
+  return lines[Math.min(lines.length - 1, Math.floor(Math.max(0, now - sentAt - THINK_AFTER_MS) / WORD_MS))];
+}
+
 const COUNT = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
 /** "One thing needs you." … "Nine things need you.", then "Many things need you." @param {number} n */
 export const needsYou = (n) => (n === 1 ? 'One thing needs you.' : n <= 9 ? `${COUNT[n]} things need you.` : 'Many things need you.');

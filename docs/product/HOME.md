@@ -177,7 +177,7 @@ Acceptance: with two mocked proposals, the first card shows "1 of 2"; tapping Ye
 |---|---|---|
 | 0 | The owner bubble rises (500 ms). Hint fades out for the session. | starts `think` pulse |
 | 0–1.2 s | Nothing yet (most instant-tier answers land here) | think |
-| ≥ 1.2 s | Italic "…" in `--ink-3`, opacity pulsing 0.4 ↔ 1 every 1.2 s | think |
+| ≥ 1.2 s | **Thinking words** (owner, 2026-10-30), Inter 500 14 in `--ink-3` with a light passing across them every 2.6 s, each new line fading in: the mind's own note while it works (`th status working --note "<3-6 words>"`, ROLES.md chat step 1), else words from what the owner asked ("Thinking about your music…", "…guitar…", "…your books…", "…your day…", "Thinking back…", or "Thinking…"), then "Working it out…" and "Putting it together…", 3 s each, the last staying. Reduced motion: no light, no fade (`model.thinking`) | think |
 | ≥ 8 s and the session has not claimed the wake | "Waking up…" (Inter 13, `--ink-3`) | think |
 | ≥ 60 s, still unclaimed | "Still waking. This can take a minute." | think |
 | 240 s, still unclaimed | The Worker posts a system line: "The mind isn't waking (likely a usage limit or an outage). I'll answer when it's back." While that line stands in the thread with no reply after it, the voice line keeps its usual row: it never says the same thing twice. Row 3 shows when the mind can't wake and the thread doesn't say so (opening home during the back-off). | error (§7) |

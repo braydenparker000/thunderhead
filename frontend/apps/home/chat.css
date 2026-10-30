@@ -31,8 +31,10 @@
 @keyframes reveal{from{--reveal:-1.6em}to{--reveal:100%}}
 .talk .slot{display:flex;align-items:center;gap:6px;min-height:28px}
 .talk .wait{font:400 13px var(--ui);color:var(--ink-3)}
-.talk .wait.dots{font:italic 340 20px/1 var(--voice);animation:dots 1.2s ease-in-out infinite}
-@keyframes dots{0%,100%{opacity:.4}50%{opacity:1}}
+/* the thinking words: a light passes across them while the mind works; each new line fades in */
+.talk .wait.dots{font:500 14px/1.4 var(--ui);letter-spacing:.005em;color:transparent;background:linear-gradient(100deg,var(--ink-3) 30%,var(--ink) 50%,var(--ink-3) 70%) 0 0/250% 100%;-webkit-background-clip:text;background-clip:text;animation:shimmer 2.6s linear infinite,wordin .4s var(--ease-out)}
+@keyframes shimmer{from{background-position:100% 0}to{background-position:-150% 0}}
+@keyframes wordin{from{opacity:0;transform:translateY(3px)}}
 .talk .stop.stopping{color:var(--ink-3);cursor:default}
 .fallbacks .card{animation:none}
 .fallbacks .card .q{margin-top:0}
@@ -42,7 +44,7 @@
 .edge.err::after{--edge-c:#ff6b5e;opacity:.8}
 .edge.off::after{opacity:.2}
 .top #date[data-offline]::after{content:" · Offline"}
-@media (prefers-reduced-motion: reduce){.talk .reply.reveal{animation:none;-webkit-mask-image:none;mask-image:none}.talk .wait.dots{animation:none}.newpill{transition:none}}
+@media (prefers-reduced-motion: reduce){.talk .reply.reveal{animation:none;-webkit-mask-image:none;mask-image:none}.talk .wait.dots{animation:none;color:var(--ink-3);background:none}.newpill{transition:none}}
 /* Decision cards (HOME.md §3): the why line carries "1 of 3" at its end; smaller lines for the why,
    the odds and what happens if ignored; a spinner on the pressed button; the error line. */
 #decision .card{margin-top:18px}

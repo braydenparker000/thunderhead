@@ -75,7 +75,8 @@ export async function startChat() {
     const working = state.presence?.state === 'working';
     const standing = state.stop !== null && state.stop.cleared_at === null;
     const stop = waiting && (working || standing) && !waiting.local ? (standing || state.stopping ? 'stopping' : 'button') : 'none';
-    view.render({ shown, slot, stop, cards: fallbackCards(state.surfaces).map((c) => ({ text: c.text, kind: 'kind' in c ? c.kind : '' })), fresh: state.fresh, now });
+    const words = waiting && slot === 'dots' ? model.thinking({ body: waiting.body, sentAt: waiting.created_at, now, presence: state.presence }) : '';
+    view.render({ shown, slot, words, stop, cards: fallbackCards(state.surfaces).map((c) => ({ text: c.text, kind: 'kind' in c ? c.kind : '' })), fresh: state.fresh, now });
     let sent = false;
     try {
       sent = localStorage.getItem('th.p.sent') === '1';
