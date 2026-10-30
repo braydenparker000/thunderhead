@@ -90,11 +90,11 @@ test('the player’s library, audio and Web Audio come from the new Worker and t
   const context = await browser.newContext({ serviceWorkers: 'allow' });
   const oldCalls = [];
   await context.route(`${OLD}/**`, (route) => { oldCalls.push(route.request().url()); return route.abort(); });
-  const page = await context.newPage();
+  const first = await context.newPage();
   const errors = [];
-  page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto(`${base}/no-such-page`);
-  await page.evaluate((token) => new Promise((resolve, reject) => {
+  first.on('pageerror', (e) => errors.push(e.message));
+  await first.goto(`${base}/no-such-page`);
+  await first.evaluate((token) => new Promise((resolve, reject) => {
     const req = indexedDB.open('th-auth', 1);
     req.onupgradeneeded = () => req.result.createObjectStore('kv');
     req.onsuccess = () => {
@@ -104,12 +104,16 @@ test('the player’s library, audio and Web Audio come from the new Worker and t
       tx.onerror = () => reject(tx.error);
     };
   }), TOKEN);
-  await page.goto(`${base}/music/`, { waitUntil: 'load' });
-  // The player registers its worker only on https; here the test does, then reloads under it.
-  await page.evaluate(async () => { await navigator.serviceWorker.register('/music/sw.js', { scope: '/music/' }); await navigator.serviceWorker.ready; });
-  // Before its worker existed, the player asked the old Worker (blocked here); from now on it must not.
+  await first.goto(`${base}/music/`, { waitUntil: 'load' });
+  // The player registers its worker only on https; here the test does, then opens it again under it.
+  await first.evaluate(async () => { await navigator.serviceWorker.register('/music/sw.js', { scope: '/music/' }); await navigator.serviceWorker.ready; });
+  // Before its worker existed, the player asked the old Worker (blocked here); from now on it must
+  // not. That page is closed first, so none of its late asks (a retry) can count against the new one.
+  await first.close();
   oldCalls.length = 0;
-  await page.reload({ waitUntil: 'load' });
+  const page = await context.newPage();
+  page.on('pageerror', (e) => errors.push(e.message));
+  await page.goto(`${base}/music/`, { waitUntil: 'load' });
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
 
   const catalog = await page.evaluate(async (old) => (await (await fetch(`${old}/music/library.json`, { cache: 'no-cache', credentials: 'omit' })).json()), OLD);
