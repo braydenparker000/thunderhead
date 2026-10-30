@@ -14,6 +14,9 @@ const VAPID = JSON.stringify(generateKeyPairSync('ec', { namedCurve: 'P-256' }).
 export default defineConfig({
   plugins: [
     cloudflareTest({
+      // Never a remote session (Workers AI, when bound, is remote-only): tests stay on this machine,
+      // also in the deploy job, whose environment holds the Cloudflare token. Tests fake the AI.
+      remoteBindings: false,
       wrangler: { configPath: './wrangler.jsonc' },
       miniflare: {
         // Synthetic test secrets. The breach check is off: tests never call Have I Been Pwned.

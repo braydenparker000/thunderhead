@@ -151,6 +151,7 @@ describe('GET /v1/files/:id', () => {
     expect(h['content-length']).toBe(String(photo.length));
     expect(h.etag).toBe(`"${await shaOf(photo)}"`);
     expect(h['x-content-type-options']).toBe('nosniff');
+    expect(h['cache-control']).toBe('private, max-age=31536000, immutable');
     expect(h['content-security-policy']).toBe("sandbox; default-src 'none'");
     expect(h['content-disposition']).toBe(
       `inline; filename="_n_code _quoted_ (1).jpg"; filename*=UTF-8''%C3%9Cn%C3%AFcode%20%22quoted%22%20%281%29.jpg`,

@@ -95,8 +95,9 @@ export const app = new Hono<AppEnv>()
     const id = c.req.header('CF-Ray') ?? uuidv7();
     c.set('requestId', id);
     await next();
-    // Private JSON: never cached, sniffed, indexed or embedded; no referrer (SECURITY.md §8).
-    c.header('Cache-Control', 'no-store');
+    // Private JSON: never cached, sniffed, indexed or embedded; no referrer (SECURITY.md §8). A
+    // route that set its own Cache-Control keeps it (a chat file's bytes: private, immutable).
+    if (!c.res.headers.has('Cache-Control')) c.header('Cache-Control', 'no-store');
     c.header('X-Content-Type-Options', 'nosniff');
     c.header('Referrer-Policy', 'no-referrer');
     c.header('X-Robots-Tag', 'noindex, nofollow');

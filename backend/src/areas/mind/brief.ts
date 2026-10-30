@@ -68,10 +68,23 @@ function format(tz: string, kind: 'clock' | 'weekday'): Intl.DateTimeFormat {
 const clock = (at: number, tz: string) => format(tz, 'clock').format(at);
 const weekday = (at: number, tz: string) => format(tz, 'weekday').format(at);
 
+/** A message's files after its words: ref, type, a memo's length, name and words (cut to 600
+ * characters in full, 120 otherwise; `th file <ref>` prints them whole). */
+function files(m: Message, full: boolean): string {
+  const cut = full ? 600 : 120;
+  return (m.attachments ?? [])
+    .map((a) => {
+      const words = a.text ? a.text.replace(/\s+/g, ' ') : '';
+      const said = words ? `: ${words.length > cut ? `${words.slice(0, cut)}…` : words}` : '';
+      return ` [${a.ref} ${a.type}${a.seconds ? ` ${Math.round(a.seconds)} s` : ''} "${a.name}"${said}]`;
+    })
+    .join('');
+}
+
 function line(m: Message, tz: string, full = true): string {
   const who = m.author === 'owner' ? 'owner' : m.author;
   const body = full ? m.body : m.body.replace(/\s+/g, ' ').slice(0, 120);
-  return `[${m.id}] ${clock(m.created_at, tz)} ${who}${m.kind === 'text' ? '' : ` (${m.kind})`}: ${body}`;
+  return `[${m.id}] ${clock(m.created_at, tz)} ${who}${m.kind === 'text' ? '' : ` (${m.kind})`}: ${body}${files(m, full)}`;
 }
 
 /** Fits `lines` under `budget` characters, keeping the newest (or oldest) and marking the cut. */

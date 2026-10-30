@@ -3,12 +3,18 @@
 // 16,000 characters) stay on the row and come back with it; a failure, a refusal, no binding or the
 // deadline leave no words and the upload still succeeds. The owner's message then reaches the mind
 // with every attachment and the memo's words: GET /v1/live/wait (`th wait`), the thread reads
-// (`th history`) and the pending ids (the Stop hook). The AI binding is a fake; words synthetic.
+// (`th history`), the briefing and the pending ids (the Stop hook). The AI binding is a fake; words synthetic.
 
 import { env } from 'cloudflare:workers';
 import { Buffer } from 'node:buffer';
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { Attachment, LiveWaitResponse, Message, PendingResponse } from '../../../shared/contract/api';
+import type {
+  Attachment,
+  BriefResponse,
+  LiveWaitResponse,
+  Message,
+  PendingResponse,
+} from '../../../shared/contract/api';
 import { TEXT_MAX, type Transcriber, transcribe, WHISPER } from '../../src/areas/files/transcribe';
 import { uuidv7 } from '../../src/lib/ids';
 import { bytesOf, upload, uploaded } from '../files-helpers';
@@ -132,6 +138,14 @@ describe('what the mind is handed', () => {
       as(C, CHAT_SESSION),
     );
     expect(page.body.items.find((m) => m.id === sent.body.id)?.attachments).toEqual(expected);
+    // The briefing's line names each file, with the memo's length and words.
+    const brief = await apiJson<BriefResponse>('POST', '/v1/mind/brief', {
+      ...as(C, CHAT_SESSION),
+      body: { claim: false, session_id: CHAT_SESSION, role: 'chat', constitution_sha256: 'none', th_version: '0.2.0' },
+    });
+    expect(brief.body.full).toContain(
+      `[${voice.body.ref} audio/webm 42 s "Memo.webm": ${WORDS}] [${photo} image/jpeg "synthetic photo.jpg"]`,
+    );
     // The Stop hook's view is ids only: the mind reads the message itself through wait or history.
     const pending = await apiJson<PendingResponse>('GET', '/v1/mind/pending', as(C, CHAT_SESSION));
     expect(pending.body.unanswered).toContain(sent.body.id);
