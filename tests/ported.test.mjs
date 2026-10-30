@@ -18,7 +18,12 @@ const KINDS = ['paths', 'route-folder', 'api-address', 'csp', 'data-move', 'impr
  * each may load: Music in P5, through its own worker; Guitar in P6, its sources with the session. */
 const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/th/ported/session.js'] };
 /** Improvements the owner agreed to that load a new-site file of the player's own (never the session). */
-const IMPROVED = { 'music/src/app.js': ['/th/music/dj.js'], 'music/src/player/player.js': ['/th/music/dj.js'], 'music/sw.js': ['/th/music/dj.js'] };
+const IMPROVED = {
+  'music/src/app.js': ['/th/music/dj.js'],
+  'music/src/player/player.js': ['/th/music/dj.js'],
+  'music/src/list/sources.js': ['/th/music/search.js'],
+  'music/sw.js': [],
+};
 const sha = b => createHash('sha256').update(b).digest('hex');
 const listed = async dir => (await filesUnder(join(SITE, dir))).map(f => relative(SITE, f));
 

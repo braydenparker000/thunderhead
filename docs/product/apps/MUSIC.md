@@ -578,6 +578,14 @@ plays all 5 tracks; search returns results; a non-kept song shows the "Not on th
 
 ## 8. Search
 
+**Built in the as-is player (2026-10-30, the owner's day-1 request: "better than normal search,
+never worse"):** its Songs results (`frontend/th/music/search.js`, one recorded `improvement` edit to
+`list/sources.js`) keep every song the player's own search finds, add §8.2's normalisation and a
+one-typo match for words of 4+ letters (any order), and come best first by §8.3's tier 0 ranks, then
+inside-word matches, then typo matches, A–Z within a tier. A test checks no plain hit is ever lost
+over 300 random queries. The rest of this section (the new app's grouped results, recent searches,
+"similar vibe", filters) waits for the app's rebuild.
+
 ### 8.1 Placement and behaviour
 
 - A search field at the top of Mixes, Playlists and Library. Focus → recent searches (last 8, with

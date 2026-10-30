@@ -317,9 +317,21 @@
      "adjustments": []
     },
     "music/src/list/sources.js": {
-     "sha256": "052923f0a0c9ce359a12ce5a890f6289d7b4b408adb79e880e8945b5fd271ece",
+     "sha256": "fdbeeab1805a624c8aaef3959f6b4875e2865d492abd5d1e5f1fa93fdb74d270",
      "old_sha256": "052923f0a0c9ce359a12ce5a890f6289d7b4b408adb79e880e8945b5fd271ece",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "import {listKeyOf, categoryKey, KEEP_LIST, KEEP_TRACK} from '../library/list-memory.js';\nimport {smartSongs} from '/th/music/search.js';",
+       "import {listKeyOf, categoryKey, KEEP_LIST, KEEP_TRACK} from '../library/list-memory.js';"
+      ],
+      [
+       "      // Better search (th/music/search.js): every hit kept, typos and accents forgiven, best first.\n      case 'songs': return smartSongs(pool, q, byKey(narrow(kind, pool, trackText), line1), line1, titlesOnly);",
+       "      case 'songs': return byKey(narrow(kind, pool, trackText), line1);"
+      ]
+     ]
     },
     "music/src/player/fades.js": {
      "sha256": "f955ec8f480aa5b05f92fa863ee72632a266aff61f26d7a01554935ba1cc884a",
@@ -569,7 +581,7 @@
      "adjustments": []
     },
     "music/sw.js": {
-     "sha256": "ed67c56b2dfc95b0f017e12acce5ff8ae922480c398b2fac613a1cd213f5be90",
+     "sha256": "71cb17e9e108fd3b2ec1294eaf7d7a78d29cd470c16462d3050ab65ddcabe9ab",
      "old_sha256": "02b90a263176db03e6e1f882ed977dedc4b68a6457ebfaa74e50de2568d757fa",
      "adjustments": [
       "data-move",
@@ -577,7 +589,7 @@
      ],
      "edits": [
       [
-       "  // The DJ shuffle's planner (th/music/dj.js) is part of the app, offline too.\n  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && url.pathname !== '/th/music/dj.js') return;",
+       "  // The DJ shuffle's planner and the better search (th/music/dj.js, search.js) are part of the app, offline too.\n  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && !/^\\/th\\/music\\/(dj|search)\\.js$/.test(url.pathname)) return;",
        "  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname)) return;"
       ],
       [

@@ -46,6 +46,14 @@ export const EDITS = {
       ["  // The Thunderhead's \"Open in Music\" for a playlist (#pl=<id>, MUSIC.md \u00a710.2): that playlist's tracks.\n  const pl = /^#pl=([a-z0-9]{6,24})$/.exec(location.hash)?.[1];\n  if (pl && ctx.playlists?.get(pl)) {\n    history.replaceState(null, '', location.pathname + location.search);\n    ctx.bus.post('bus_gui', 'cmd_nav_to_playlist', null, {playlist: ctx.playlists.get(pl)});\n  }\n  // A library that arrives later (R2 index refresh) fills an empty player.", "  // A library that arrives later (R2 index refresh) fills an empty player."],
     ],
   },
+  // Better song search the owner asked for (decisions 2026-10-30): every hit kept, ranked, typos forgiven.
+  'music/src/list/sources.js': {
+    adjustments: ['improvement'],
+    edits: [
+      ["import {listKeyOf, categoryKey, KEEP_LIST, KEEP_TRACK} from '../library/list-memory.js';\nimport {smartSongs} from '/th/music/search.js';", "import {listKeyOf, categoryKey, KEEP_LIST, KEEP_TRACK} from '../library/list-memory.js';"],
+      ["      // Better search (th/music/search.js): every hit kept, typos and accents forgiven, best first.\n      case 'songs': return smartSongs(pool, q, byKey(narrow(kind, pool, trackText), line1), line1, titlesOnly);", "      case 'songs': return byKey(narrow(kind, pool, trackText), line1);"],
+    ],
+  },
   // The DJ shuffle the owner asked for (decisions 2026-10-30): a sixth shuffle mode planned by th/music/dj.js.
   'music/src/player/player.js': {
     adjustments: ['improvement'],
@@ -59,7 +67,7 @@ export const EDITS = {
   'music/sw.js': {
     adjustments: ['data-move', 'improvement'],
     edits: [
-      ["  // The DJ shuffle's planner (th/music/dj.js) is part of the app, offline too.\n  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && url.pathname !== '/th/music/dj.js') return;", "  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname)) return;"],
+      ["  // The DJ shuffle's planner and the better search (th/music/dj.js, search.js) are part of the app, offline too.\n  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && !/^\\/th\\/music\\/(dj|search)\\.js$/.test(url.pathname)) return;", "  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname)) return;"],
       ["// P5 data move (MIGRATION.md \u00a77 step 5): the library's requests are answered from the new Worker, the old one while it can't.\nimportScripts('/th/music/bridge.js');\nself.thMusicBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');\nconst net = (req, e) => self.thMusicBridge.handles(new URL(req.url)) ? self.thMusicBridge.answer(req, e) : fetch(req);\nconst CACHE = 'claude-player-v1';", "const CACHE = 'claude-player-v1';"],
       ["async function fromHead(req, h, a, b, e) {", "async function fromHead(req, h, a, b) {"],
       ["heads.delete(url); return net(req, e); }", "heads.delete(url); return fetch(req); }"],

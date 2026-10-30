@@ -80,8 +80,8 @@ self.addEventListener('fetch', e => {
   if (self.thMusicBridge.handles(url)) { e.respondWith(self.thMusicBridge.answer(req, e)); return; }
   // Only same-origin GETs of the app itself; never media or range requests.
   if (req.method !== 'GET' || url.origin !== self.location.origin || req.headers.has('range')) return;
-  // The DJ shuffle's planner (th/music/dj.js) is part of the app, offline too.
-  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && url.pathname !== '/th/music/dj.js') return;
+  // The DJ shuffle's planner and the better search (th/music/dj.js, search.js) are part of the app, offline too.
+  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && !/^\/th\/music\/(dj|search)\.js$/.test(url.pathname)) return;
   e.respondWith(caches.open(CACHE).then(async cache => {
     if (Date.now() < badUntil) {
       const copy = await cache.match(req);

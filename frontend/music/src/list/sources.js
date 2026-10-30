@@ -40,6 +40,7 @@ import {GONE} from '../res/values.js';
 import {STATE_PLAYING} from '../player/player.js';
 import {searchHistory, removeSearch, clearSearchHistory} from '../library/search-history.js';
 import {listKeyOf, categoryKey, KEEP_LIST, KEEP_TRACK} from '../library/list-memory.js';
+import {smartSongs} from '/th/music/search.js';
 
 // The search categories after "All" (jj1.v1 order).
 const SEARCH_KINDS = SEARCH_CATS.slice(1);
@@ -687,7 +688,8 @@ export function searchSource(ctx, list, nav, query, mask = -1, target = null) {
   };
   const found = kind => {
     switch (kind) {
-      case 'songs': return byKey(narrow(kind, pool, trackText), line1);
+      // Better search (th/music/search.js): every hit kept, typos and accents forgiven, best first.
+      case 'songs': return smartSongs(pool, q, byKey(narrow(kind, pool, trackText), line1), line1, titlesOnly);
       case 'albums': return byKey(narrow(kind, groupsFor(lib, 'albums') ?? [], g => groupText(g, true)), g => g.title);
       case 'playlists': return byKey((ctx.playlists?.sorted() ?? []).map(pl => ({kind: 'playlist', title: pl.name, tracks: ctx.playlists.tracksOf(pl), pl})).filter(g => has(g.title)), g => g.title);
       case 'streams': return [];

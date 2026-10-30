@@ -5,7 +5,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**The DJ shuffle** (P10, going live with this push): a sixth shuffle mode in the player; each song follows the last by its tags (composer, artist, genre, year), no artist twice within 10 songs, nothing played in the last 2 hours, and it learns from skips on the phone. The audio analysis comes later into the same planner.
+**Better search in Music** (P10, going live with this push): the player's song search keeps every hit it had, forgives accents, punctuation, word order and one typo, and puts the best first.
+
+**The DJ shuffle** (P10, `b2bf05d`): a sixth shuffle mode in the player; each song follows the last by its tags (composer, artist, genre, year), no artist twice within 10 songs, nothing played in the last 2 hours, and it learns from skips on the phone. The audio analysis comes later into the same planner.
 
 **The playlist from plain words** (P10, `b96bbb3`): "make me a playlist with dramatic classical music and open Music" → the mind finds songs by their tags, a phone makes the playlist in the player's own storage, and the reply's Open in Music opens the player on it; undoable while unchanged. Works once SETUP.md N1–N4 put the catalog on the new Worker.
 
@@ -41,7 +43,7 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Next three tasks
 
-1. Music's better search (never worse than plain); then Guitar's tips per section.
+1. Guitar's tips per section, like a real teacher; then P8 with Astra's anime pick.
 2. P8 with each app's day-1 feature (Astra's anime pick first), then P9.
 3. Owner: SETUP.md N1–N4 (music on the new Worker: the playlist from plain words works once they're done), M2, M3, M4 from 2026-11-05; one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
 
@@ -55,7 +57,8 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Last deploy
 
-- 2026-10-30: this push, the DJ shuffle (site only).
+- 2026-10-30: this push, better search in Music (site only).
+- 2026-10-30: `b2bf05d`, the DJ shuffle (site only).
 - 2026-10-30: `b96bbb3` and `e55c2a5`, the playlist from plain words, and the backups test's wait (deploy #54 had stopped at it).
 - 2026-10-30: `24edbb0` (run #54), P7 step 6 ("ask about your books": `th library cite`, the Worker's check of cited answers, numbered sources and "Where to study" on the phone; no schema change).
 - 2026-10-30: `030b060` (run #53), P7 step 5 (books read through the Worker and kept on the phone).
