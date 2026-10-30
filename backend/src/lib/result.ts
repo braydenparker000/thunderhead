@@ -33,3 +33,13 @@ export function value<T>(out: Out<T>): T {
 
 /** A 422 with one field issue. */
 export const invalid = (path: string, issue: string) => new Fail('validation', [{ path, issue }]);
+
+/** `attempt` for an async body (an object method that also reads or writes R2). */
+export async function attemptAsync<T>(fn: () => Promise<T>): Promise<Out<T>> {
+  try {
+    return { ok: true, value: await fn() };
+  } catch (e) {
+    if (e instanceof Fail) return { ok: false, code: e.code, ...(e.details ? { details: e.details } : {}) };
+    throw e;
+  }
+}

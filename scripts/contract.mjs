@@ -254,7 +254,8 @@ function docs() {
     '',
   );
   L.push('## Apps', '', '| App | Folder | Name | Phase |', '|---|---|---|---|');
-  for (const [id, a] of Object.entries(c.APPS)) L.push(`| \`${id}\` | \`${a.path}\` | ${a.name} | ${a.phase} |`);
+  for (const [id, a] of Object.entries(c.APPS))
+    L.push(`| \`${id}\` | \`${a.path}\` | ${a.name} | ${a.phase}${a.deferred ? ` (page: ${a.deferred})` : ''} |`);
   L.push('', '## Search sources', '', '| Source | Phase | Ref kind |', '|---|---|---|');
   for (const [id, s] of Object.entries(c.SEARCH_SOURCES)) L.push(`| \`${id}\` | ${s.phase} | \`${s.ref}\` |`);
   L.push('', '## Memory', '', '| Fact kind | Half-life (days) | Profile cap |', '|---|---|---|');

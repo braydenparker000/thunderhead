@@ -243,7 +243,7 @@
     "rows_read_max": 50,
     "rows_written_max": 21
   },
-  "POST /v1/proposals/:id/decide (the owner\u2019s words; the forget runs) (Core)": {
+  "POST /v1/proposals/:id/decide (the owner’s words; the forget runs) (Core)": {
     "rows_read_max": 59,
     "rows_written_max": 22
   },
@@ -254,5 +254,29 @@
   "cron: approvals whose Auth step never reported (none) (Core)": {
     "rows_read_max": 1,
     "rows_written_max": 0
+  },
+  "PUT /v1/library/books/:id/pages (one page, 300 words, 2 refs)": {
+    "rows_read_max": 4,
+    "rows_written_max": 9
+  },
+  "GET /v1/library/books (1 book)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
+  },
+  "GET /v1/library/search (1 hit of 3 pages)": {
+    "rows_read_max": 6,
+    "rows_written_max": 0
+  },
+  "PUT /v1/library/positions/:book_id (first)": {
+    "rows_read_max": 1,
+    "rows_written_max": 1
+  },
+  "PUT /v1/library/positions/:book_id (moved)": {
+    "rows_read_max": 2,
+    "rows_written_max": 1
+  },
+  "PUT /v1/library/highlights/:id (new)": {
+    "rows_read_max": 2,
+    "rows_written_max": 2
   }
 }

@@ -171,7 +171,8 @@ Check: a Library store test walks a fixture book through every state, including 
   leaving a cursor so the next run resumes **[proposal]**.
 
 Steps, per book:
-1. `th library claim` → the Worker marks the job `claimed` (lease 60 min) and returns a presigned URL.
+1. `th library claim` → the Worker marks the job `claimed` (lease 60 min, renewed by each call) and the session
+   downloads the PDF through the Worker (`GET /v1/library/ingest/:job_id/file`, the holder only; decisions 2026-10-30).
 2. Download to a temp directory in the session; compute sha256; if it matches another book, set
    `duplicate` and stop.
 3. **Text:** `pypdf` (BSD-3-Clause) per page; `pdfplumber` (MIT) for block layout when pypdf's text has
@@ -551,7 +552,13 @@ a day crossing the 04:00 roll).
 ## 11. Phase plan inside P7
 
 1. `Library` class deploy (own deploy), tables, `/v1/library/*`, sign routes for `books/`, bucket CORS
-   (ask first).
+   (ask first). **Built:** the class alone (migration tag `v4`), then the routes (API.md §11.21), `book:`
+   signing, the daily pass (uploads left a day aborted, lapsed runs freed, deleted highlights purged
+   after 30 days) and the Library in the weekly backup and the export. The bucket CORS is SETUP.md O1
+   (ask-first). The mind downloads a claimed book through the Worker (`GET /v1/library/ingest/:job_id/file`,
+   the run's holder only) instead of a signed link, so ingestion needs neither the signing token nor
+   the bucket's S3 host from the session. Measured: one 300-word page with two refs is 9 rows written
+   (row, index, FTS, refs, the run's cursor).
 2. Library screen, upload, reader over presigned ranges, positions.
 3. Ingestion script in the mind's session; search.
 4. Parser + private book table + verse page + scripture-app links.

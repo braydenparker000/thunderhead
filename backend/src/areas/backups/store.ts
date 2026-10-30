@@ -62,7 +62,7 @@ export const lastComplete = (db: Db, cls: BackupClass = 'core') =>
 export const runningBackup = (db: Db) =>
   db.one<BackupRow>("SELECT * FROM backups WHERE state = 'running' ORDER BY started_at DESC LIMIT 1");
 
-/** Every running backup (Core's and Music's start together), oldest first. */
+/** Every running backup (Core's and the other objects' start together), oldest first. */
 export const runningBackups = (db: Db) =>
   db.all<BackupRow>("SELECT * FROM backups WHERE state = 'running' ORDER BY started_at, class");
 

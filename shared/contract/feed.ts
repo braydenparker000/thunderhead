@@ -34,21 +34,24 @@ export type FrameType = (typeof FRAME_TYPES)[number];
 export const CLOSE_CODES = { revoked: 4401, outdated: 4426, restart: 1012 } as const;
 
 /** Apps a reply chip or `app.open` may open: route folder, name and the phase that ships it. A
- * chip may name only an app whose phase is built (a test checks its folder exists). */
+ * chip may name only an app whose phase is built (a test checks its folder exists); `deferred`
+ * says which step of that phase ships its page, while the phase's routes are already built. */
 export const APPS = {
   music: { path: '/music/', name: 'Music', phase: 'P1b' },
   guitar: { path: '/guitar/', name: 'Guitar', phase: 'P1b' },
   podcasts: { path: '/podcasts/', name: 'Podcasts', phase: 'P1b' },
   astra: { path: '/astra/', name: 'Astra', phase: 'P1b' },
   media: { path: '/media/', name: 'My Media', phase: 'P1b' },
-  study: { path: '/study/', name: 'Study', phase: 'P7' },
+  study: { path: '/study/', name: 'Study', phase: 'P7', deferred: 'P7 step 2: the library screen and reader' },
 } as const;
 export type AppId = keyof typeof APPS;
 export const APP_IDS = Object.keys(APPS) as AppId[];
 
 /** Whether an app has shipped in this build, so a chip may open it. */
 export function appBuilt(id: string): id is AppId {
-  return Object.hasOwn(APPS, id) && (BUILT_PHASES as readonly string[]).includes(APPS[id as AppId].phase);
+  if (!Object.hasOwn(APPS, id)) return false;
+  const app: { phase: string; deferred?: string } = APPS[id as AppId];
+  return (BUILT_PHASES as readonly string[]).includes(app.phase) && !app.deferred;
 }
 
 /** Federated search: every source `GET /v1/search?sources=` can name, and its phase. A source is

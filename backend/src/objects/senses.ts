@@ -10,7 +10,8 @@ import {
   type SenseBatchResponse,
   type SenseEvent,
 } from '../../../shared/contract/senses.ts';
-import { gzip } from '../areas/backups/rows';
+import type { BackupOf } from '../areas/backups/ops';
+import { gzip, page, type Row } from '../areas/backups/rows';
 import { logicalDay } from '../areas/conversation/day';
 import { sha256 } from '../areas/import/vault';
 import * as queries from '../areas/senses/queries';
@@ -68,6 +69,10 @@ export const SENSES_MIGRATIONS: Migration[] = [
 
 /** The one instance: the owner's. */
 export const SENSES_INSTANCE = 'owner';
+
+/** In the weekly backup and "download everything" (DATA.md §10); events go to the daily archive. */
+export const SENSES_BACKUP = ['rollups', 'exports'] as const;
+export const SENSES_EXPORT = ['rollups'] as const;
 
 export function sensesObject(env: Env): DurableObjectStub<Senses> {
   return env.SENSES.getByName(SENSES_INSTANCE);
@@ -165,5 +170,17 @@ export class Senses extends OwnerObject {
       pruned += store.pruneBatches(this.db, now - SENSE_LIMITS.batch_days * DAY, PRUNE_STEP);
     });
     return { archived, pruned };
+  }
+
+  /** What the weekly backup of this object needs when it starts (areas/backups). */
+  async backupOf(): Promise<BackupOf> {
+    const bookmark = await this.ctx.storage.getCurrentBookmark().catch(() => null);
+    return { tables: [...SENSES_BACKUP], schema_version: this.migration, bookmark };
+  }
+
+  /** One page of a table in key order, for the backup and the export. */
+  page(table: string, after: unknown[] | null, limit: number): { rows: Row[]; last: unknown[] | null } {
+    if (!(SENSES_BACKUP as readonly string[]).includes(table)) throw new Error('not a Senses table it backs up');
+    return page(this.db, table, after, limit);
   }
 }

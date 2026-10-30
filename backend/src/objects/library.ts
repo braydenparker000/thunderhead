@@ -1,110 +1,30 @@
 // The Library object (STUDY.md §1.1, DATA.md §6.3): Study's books, their pages with each page's text,
 // blocks and full-text index, the verse references found in them, the owner's highlights and notes,
 // the last reading place per book, and the ingestion runs. The PDFs themselves live in the private
-// bucket (`books/<id>.pdf`). The class ships alone in its own deploy (a Durable Object class change
-// cannot be rolled back); its routes come in the next one.
-import { type Migration, OwnerObject } from './base';
-
-export const LIBRARY_MIGRATIONS: Migration[] = [
-  {
-    version: 1,
-    name: 'library',
-    kind: 'expand',
-    sql: [
-      // `sha256` is the stored file's, set when the mind first reads it; `upload_id` and `parts_json`
-      // hold an R2 multipart upload while its parts arrive.
-      `CREATE TABLE books (
-        id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        author TEXT,
-        kind TEXT NOT NULL,
-        language TEXT NOT NULL,
-        bytes INTEGER NOT NULL,
-        pdf_pages INTEGER,
-        sha256 TEXT,
-        r2_key TEXT NOT NULL,
-        state TEXT NOT NULL,
-        state_reason TEXT,
-        added_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        ingested_at INTEGER,
-        duplicate_of TEXT,
-        kept_hint INTEGER NOT NULL DEFAULT 0,
-        upload_id TEXT,
-        parts_json TEXT
-      ) WITHOUT ROWID`,
-      // `blocks_json`: [[start, end], …] character offsets into `text`.
-      `CREATE TABLE pages (
-        seq INTEGER PRIMARY KEY,
-        book_id TEXT NOT NULL,
-        pdf_page INTEGER NOT NULL,
-        page_label TEXT,
-        text TEXT NOT NULL,
-        blocks_json TEXT NOT NULL,
-        ocr INTEGER NOT NULL DEFAULT 0,
-        ocr_conf REAL,
-        chars INTEGER NOT NULL,
-        UNIQUE (book_id, pdf_page)
-      )`,
-      // Kept in step by the writer in the same transaction (no triggers), as Core's messages_fts.
-      `CREATE VIRTUAL TABLE pages_fts USING fts5 (text, content = 'pages', content_rowid = 'seq', tokenize = 'unicode61 remove_diacritics 2')`,
-      // One row per reference found in a block (`i` numbers them within it); a chapter reference has
-      // no verses. Keyed by its page so a page read again replaces its references.
-      `CREATE TABLE verse_refs (
-        book_id TEXT NOT NULL,
-        pdf_page INTEGER NOT NULL,
-        block INTEGER NOT NULL,
-        i INTEGER NOT NULL,
-        book_code TEXT NOT NULL,
-        chapter INTEGER NOT NULL,
-        v_start INTEGER,
-        v_end INTEGER,
-        weight INTEGER NOT NULL,
-        in_heading INTEGER NOT NULL DEFAULT 0,
-        PRIMARY KEY (book_id, pdf_page, block, i)
-      ) WITHOUT ROWID`,
-      'CREATE INDEX verse_refs_chapter ON verse_refs (book_code, chapter)',
-      // A page note is a highlight with an empty quote and no rects.
-      `CREATE TABLE highlights (
-        id TEXT PRIMARY KEY,
-        book_id TEXT NOT NULL,
-        pdf_page INTEGER NOT NULL,
-        quote TEXT NOT NULL,
-        prefix TEXT NOT NULL,
-        suffix TEXT NOT NULL,
-        rects_json TEXT,
-        color TEXT NOT NULL,
-        note TEXT,
-        ref TEXT,
-        created_at INTEGER NOT NULL,
-        updated_at INTEGER NOT NULL,
-        deleted_at INTEGER
-      ) WITHOUT ROWID`,
-      'CREATE INDEX highlights_book ON highlights (book_id, pdf_page)',
-      'CREATE INDEX highlights_ref ON highlights (ref) WHERE ref IS NOT NULL',
-      'CREATE INDEX highlights_deleted ON highlights (deleted_at) WHERE deleted_at IS NOT NULL',
-      `CREATE TABLE positions (
-        book_id TEXT PRIMARY KEY,
-        pdf_page INTEGER NOT NULL,
-        scroll_frac REAL NOT NULL,
-        at INTEGER NOT NULL,
-        device TEXT NOT NULL
-      ) WITHOUT ROWID`,
-      `CREATE TABLE ingest_jobs (
-        id TEXT PRIMARY KEY,
-        book_id TEXT NOT NULL,
-        state TEXT NOT NULL,
-        cursor INTEGER NOT NULL DEFAULT 0,
-        attempts INTEGER NOT NULL DEFAULT 0,
-        last_error TEXT,
-        claimed_by TEXT,
-        claimed_at INTEGER,
-        updated_at INTEGER NOT NULL
-      ) WITHOUT ROWID`,
-      'CREATE INDEX ingest_jobs_state ON ingest_jobs (state, updated_at)',
-    ],
-  },
-];
+// bucket (`books/<id>.pdf`), uploaded as R2 multipart uploads in parts the Worker streams straight
+// to the bucket. The class shipped alone (migration tag v4); P7 step 1b gives it its routes, its
+// daily pass and its place in the weekly backup and the export.
+import type {
+  Book,
+  BookCreateRequest,
+  Highlight,
+  IngestClaim,
+  IngestUpdate,
+  LibrarySearchResponse,
+  PageIn,
+  Position,
+} from '../../../shared/contract/library.ts';
+import { LIBRARY_LIMITS as L } from '../../../shared/contract/library.ts';
+import type { BackupOf } from '../areas/backups/ops';
+import { page, type Row } from '../areas/backups/rows';
+import * as ops from '../areas/library/ops';
+import { search } from '../areas/library/search';
+import * as store from '../areas/library/store';
+import { uuidv7 } from '../lib/ids';
+import { attempt, attemptAsync, Fail, type Out } from '../lib/result';
+import { DAY, utcDay } from '../lib/time';
+import { OwnerObject } from './base';
+import { LIBRARY_MIGRATIONS } from './library.migrations';
 
 /** The one instance: the owner's (STUDY.md §1; shardable as `library:<shelf>` later). */
 export const LIBRARY_INSTANCE = 'owner';
@@ -113,8 +33,196 @@ export function libraryObject(env: Env): DurableObjectStub<Library> {
   return env.LIBRARY.getByName(LIBRARY_INSTANCE);
 }
 
+/** In the weekly backup and "download everything" (DATA.md §10); the FTS index is rebuilt instead. */
+export const LIBRARY_BACKUP = ['books', 'pages', 'verse_refs', 'highlights', 'positions', 'ingest_jobs'] as const;
+export const LIBRARY_EXPORT = ['books', 'pages', 'verse_refs', 'highlights', 'positions'] as const;
+
+const STEP = 2_000;
+
 export class Library extends OwnerObject {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env, LIBRARY_MIGRATIONS);
+  }
+
+  private tx<T>(fn: () => T): Out<T> {
+    return attempt(() => this.ctx.storage.transactionSync(fn));
+  }
+
+  private get vault(): R2Bucket {
+    return this.env.VAULT;
+  }
+
+  books(): Book[] {
+    return store.books(this.db).map((b) => ops.toBook(this.db, b));
+  }
+
+  /** The files of whole books (their upload finished), for signed links. */
+  files(ids: string[]): { id: string; key: string }[] {
+    return ids.flatMap((id) => {
+      const b = store.book(this.db, id);
+      return b && b.state !== 'uploading' ? [{ id, key: b.r2_key }] : [];
+    });
+  }
+
+  book(id: string): Book | null {
+    const b = store.book(this.db, id);
+    return b ? ops.toBook(this.db, b) : null;
+  }
+
+  /** A new book and its multipart upload; the same request again is the same book. */
+  createBook(r: BookCreateRequest, now = Date.now()): Promise<Out<{ book: Book; created: boolean }>> {
+    return attemptAsync(async () => {
+      const had = store.book(this.db, r.id);
+      if (had) {
+        if (!ops.sameRequest(had, r)) throw new Fail('conflict');
+        return { book: ops.toBook(this.db, had), created: false };
+      }
+      const up = await this.vault.createMultipartUpload(store.bookKey(r.id), {
+        httpMetadata: { contentType: 'application/pdf' },
+      });
+      // Another request may have made it while the bucket answered.
+      const now2 = store.book(this.db, r.id);
+      if (now2) {
+        await up.abort().catch(() => undefined);
+        if (!ops.sameRequest(now2, r)) throw new Fail('conflict');
+        return { book: ops.toBook(this.db, now2), created: false };
+      }
+      ops.newBook(this.db, r, up.uploadId, now);
+      return { book: this.book(r.id) as Book, created: true };
+    });
+  }
+
+  uploadTarget(id: string, n: number): Out<{ key: string; upload_id: string; size: number }> {
+    return attempt(() => ops.uploadTarget(this.db, id, n));
+  }
+
+  partDone(id: string, n: number, etag: string, now = Date.now()): Out<number[]> {
+    return this.tx(() => ops.partDone(this.db, id, n, etag, now));
+  }
+
+  /** All parts in: the multipart upload completes into `books/<id>.pdf`, and the book waits for the
+   * mind. Again after that, the book as it is. */
+  complete(id: string, now = Date.now()): Promise<Out<Book>> {
+    return attemptAsync(async () => {
+      const b0 = ops.bookOrFail(this.db, id);
+      if (b0.state !== 'uploading') return ops.toBook(this.db, b0);
+      const { b, parts } = ops.readyParts(this.db, id);
+      const up = this.vault.resumeMultipartUpload(b.r2_key, b.upload_id as string);
+      const obj = await up.complete(parts.map((p) => ({ partNumber: p.n, etag: p.etag })));
+      if (obj.size !== b.bytes) throw new Fail('conflict', { reason: 'the file is not the size given' });
+      const out = this.tx(() => {
+        if (ops.bookOrFail(this.db, id).state === 'uploading') ops.stored(this.db, id, uuidv7(now), now);
+      });
+      if (!out.ok) throw new Fail(out.code, out.details);
+      return this.book(id) as Book;
+    });
+  }
+
+  edit(
+    id: string,
+    f: { title?: string; author?: string | null; kind?: Book['kind']; language?: string },
+    now = Date.now(),
+  ): Out<Book> {
+    return this.tx(() => {
+      ops.bookOrFail(this.db, id);
+      store.editBook(this.db, id, f, now);
+      return ops.toBook(this.db, ops.bookOrFail(this.db, id));
+    });
+  }
+
+  retry(id: string, now = Date.now()): Out<Book> {
+    return this.tx(() => {
+      ops.retry(this.db, id, uuidv7(now), now);
+      return ops.toBook(this.db, ops.bookOrFail(this.db, id));
+    });
+  }
+
+  putPosition(bookId: string, p: Position): Out<Position> {
+    return this.tx(() => ops.putPosition(this.db, bookId, p));
+  }
+
+  putHighlight(h: Highlight): Out<{ highlight: Highlight; applied: boolean }> {
+    return this.tx(() => ops.putHighlight(this.db, h));
+  }
+
+  highlights(bookId: string): Highlight[] {
+    return store.highlightsOf(this.db, bookId);
+  }
+
+  search(match: string, bookId: string | null, limit: number, offset: number): LibrarySearchResponse {
+    const items = search(this.db, match, bookId, limit + 1, offset);
+    const more = items.length > limit;
+    return {
+      items: items.slice(0, limit),
+      next: more ? `o${offset + limit}` : null,
+      not_ready: store.notReady(this.db),
+    };
+  }
+
+  // --- the mind's ingestion runs (STUDY.md §3.3) ------------------------------------------------
+
+  claim(by: string, now = Date.now()): Out<IngestClaim | null> {
+    return this.tx(() => {
+      ops.release(this.db, now, Date.parse(`${utcDay(now)}T00:00:00Z`));
+      return ops.claim(this.db, by, null, now);
+    });
+  }
+
+  /** The file's key, for the run's holder only. */
+  jobFile(jobId: string, by: string, now = Date.now()): Out<string> {
+    return attempt(() => ops.bookOrFail(this.db, ops.held(this.db, jobId, by, now).book_id).r2_key);
+  }
+
+  putPages(bookId: string, jobId: string, by: string, pages: PageIn[], now = Date.now()) {
+    return this.tx(() => {
+      const before = this.meter.rowsWritten;
+      const r = ops.putPages(this.db, bookId, ops.held(this.db, jobId, by, now), pages, now);
+      return { ...r, rows: this.meter.rowsWritten - before };
+    });
+  }
+
+  updateJob(jobId: string, by: string, u: IngestUpdate, now = Date.now()): Out<Book> {
+    return this.tx(() => {
+      const j = ops.held(this.db, jobId, by, now);
+      ops.update(this.db, j, u, now);
+      return ops.toBook(this.db, ops.bookOrFail(this.db, j.book_id));
+    });
+  }
+
+  /** Core's tick: uploads unfinished after a day are aborted and their record removed (it never
+   * held a file), lapsed claims and paused runs wait again, deleted highlights go after 30 days,
+   * finished runs after 90. */
+  async daily(now = Date.now()): Promise<{ aborted: number; released: number; purged: number }> {
+    let aborted = 0;
+    for (const b of store.staleUploads(this.db, now - L.upload_ms)) {
+      if (b.upload_id)
+        await this.vault
+          .resumeMultipartUpload(b.r2_key, b.upload_id)
+          .abort()
+          .catch(() => undefined);
+      this.ctx.storage.transactionSync(() => store.deleteUpload(this.db, b.id));
+      aborted++;
+    }
+    const out = this.tx(() => {
+      const released = ops.release(this.db, now, Date.parse(`${utcDay(now)}T00:00:00Z`));
+      const purged =
+        store.purgeHighlights(this.db, now - L.deleted_highlight_days * DAY, STEP) +
+        store.pruneJobs(this.db, now - L.ingest_days * DAY, STEP);
+      return { released, purged };
+    });
+    if (!out.ok) throw new Error(out.code);
+    return { aborted, ...out.value };
+  }
+
+  /** What the weekly backup of this object needs when it starts (areas/backups). */
+  async backupOf(): Promise<BackupOf> {
+    const bookmark = await this.ctx.storage.getCurrentBookmark().catch(() => null);
+    return { tables: [...LIBRARY_BACKUP], schema_version: this.migration, bookmark };
+  }
+
+  /** One page of a table in key order, for the backup and the export. */
+  page(table: string, after: unknown[] | null, limit: number): { rows: Row[]; last: unknown[] | null } {
+    if (!(LIBRARY_BACKUP as readonly string[]).includes(table)) throw new Error('not a Library table');
+    return page(this.db, table, after, limit);
   }
 }

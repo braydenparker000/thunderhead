@@ -3,6 +3,7 @@
 // backup), and what an export's owner may see of it. One of each runs at a time.
 import {
   BACKUP_LIMITS,
+  type BackupClass,
   type BackupManifest,
   type BackupRunResponse,
   type ExportStatus,
@@ -45,15 +46,22 @@ export interface BackupOf {
   bookmark: string | null;
 }
 
-/** Core's backup, and the Music object's with it (each its own job and manifest). */
-export function startBackup(w: Writer, r: { date: string; core: BackupOf; music?: BackupOf }): BackupRunResponse {
+/** Core's backup, and the other objects' with it (each its own job and manifest). */
+export function startBackup(
+  w: Writer,
+  r: { date: string; core: BackupOf; others: Partial<Record<Exclude<BackupClass, 'core'>, BackupOf>> },
+): BackupRunResponse {
   const running = store.runningBackups(w.db);
   if (running.length) return { job_ids: running.map((b) => b.job_id) };
   const job_ids: string[] = [];
-  for (const [cls, of] of [
+  // In the order the running ones are listed (by class), so asking again answers the same.
+  const classes: [BackupClass, BackupOf | undefined][] = [
     ['core', r.core],
-    ['music', r.music],
-  ] as const) {
+    ['library', r.others.library],
+    ['music', r.others.music],
+    ['senses', r.others.senses],
+  ];
+  for (const [cls, of] of classes) {
     if (!of) continue;
     const id = store.backupId(r.date, cls);
     if (store.backup(w.db, id)) continue;

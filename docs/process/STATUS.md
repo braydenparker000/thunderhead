@@ -5,7 +5,7 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**P7 · Study**, step 1 (STUDY.md §11): the `Library` object, going live alone with this push (migration tag `v4`; its tables and health only). Its routes (`/v1/library/*`, book uploads in parts, positions, highlights, ingestion claims, and `book:` signing) come in the next deploy. Owner step later: the private bucket's CORS rule for the reader's range requests (ask-first).
+**P7 · Study**, step 1 (STUDY.md §11). The `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, migration tag `v4`). Going live with this push: its routes (API.md §11.21: books uploaded in 50 MiB parts straight into the private bucket, reading places, highlights, search, the mind's claimed reading runs with pages under the bulk lane), `book:` signing, the Library's daily pass, and the Library and the senses' rollups in the weekly backup and the export. Owner step: SETUP.md O1 (the private bucket's CORS rule for the reader, ask-first), needed once the reader ships.
 
 **P6 · Evolve Guitar**, data move, live since 00:19 UTC (`ce29c20`, run #45): `/v1/guitar/*` (Songsterr, GProTab, samples, the old routes ported), and the ported app's sources module asks the new Worker with the owner's session when signed in on this site (else the old Worker). No owner step: it switches as soon as the page loads signed in. Checked in Chromium both ways, and live: the page's CSP carries the API host, the routes answer 401 without a key, the live files match the commit, and signed out the live page searches through the old Worker with no errors. The improvements (practice senses, tempo ladder, tips, calibration, ears) wait for the owner's yes.
 
@@ -46,7 +46,8 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Last deploy
 
-- 2026-10-30: this push, the `Library` object alone (migration tag `v4`).
+- 2026-10-30: this push, P7 step 1b (the Library's routes, `book:` signing, its daily pass; the Library and the senses' rollups in the backup and the export; no schema change).
+- 2026-10-30 00:31 UTC: `75aa1da` (run #46), the `Library` object alone (migration tag `v4`). The deploy's smoke check passed.
 - 2026-10-30 00:19 UTC: `ce29c20` (run #45), P6 Guitar's data move. Checked live.
 - 2026-10-30 00:08 UTC: `4262780` (run #44), the senses' routes, rollups, archive and pruning. Checked live: the routes answer 401 without a key.
 - 2026-10-29 23:55 UTC: `5b14d09` (run #43), the `Senses` object alone (migration tag `v3`).

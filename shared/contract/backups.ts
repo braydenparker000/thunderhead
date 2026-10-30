@@ -17,8 +17,9 @@ export const BACKUP_LIMITS = {
   export_ttl_min: 60,
 } as const;
 
-/** Core, and from P5 the Music object's catalog (backed up with it, by its own manifest). */
-export type BackupClass = 'core' | 'music';
+/** Core, and beside it (each by its own manifest) the Music object's catalog and the Senses' rollups
+ * (P5), and Study's library (P7). */
+export type BackupClass = 'core' | 'music' | 'senses' | 'library';
 
 export interface BackupPart {
   key: string;

@@ -55,7 +55,8 @@ test('every route names a method, a /v1 path, its principals and a phase', () =>
 
 test('every shipped app has its folder; chips may open only those', () => {
   for (const [id, a] of Object.entries(c.APPS)) {
-    const built = c.BUILT_PHASES.includes(a.phase);
+    // An app whose phase's routes are built but whose page ships in a later step is not shipped.
+    const built = c.BUILT_PHASES.includes(a.phase) && !a.deferred;
     assert.equal(c.appBuilt(id), built, id);
     if (built) assert.ok(existsSync(`${REPO}frontend${a.path}index.html`), `${id}: frontend${a.path}index.html`);
   }

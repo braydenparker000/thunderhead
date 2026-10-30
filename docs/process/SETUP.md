@@ -514,3 +514,32 @@ upload music from (it never leaves that computer):
 
 N5 (music private: the old Worker's public read off, ask-first) comes after the player has used
 only the new Worker for 3 days.
+
+## O. Study (P7)
+
+Study keeps your books (PDFs) in the private bucket `thunderhead-private`, never anywhere public.
+The reader on your phone reads a book's pages straight from the bucket through a link signed for
+your device alone (N1's token already covers this bucket), a few pages at a time.
+
+### O1. Let the reader read your books (about 3 minutes, any time; ask-first: it changes the private bucket's settings)
+
+1. dash.cloudflare.com → **R2 Object Storage** → `thunderhead-private` → **Settings** → **CORS
+   Policy** → **Add CORS policy**:
+
+   ```json
+   [
+     {
+       "AllowedOrigins": ["https://thunderhead.z13.web.core.windows.net"],
+       "AllowedMethods": ["GET", "HEAD"],
+       "AllowedHeaders": ["Range"],
+       "ExposeHeaders": ["Content-Length", "Content-Range", "Accept-Ranges", "ETag"],
+       "MaxAgeSeconds": 7200
+     }
+   ]
+   ```
+
+   → **Save**. It lets only the new site read bytes through a signed link; nothing in the bucket
+   changes, and the bucket stays private (no public access, no r2.dev).
+2. Tell the agent "O1 done". The check is the reader itself: a book you add opens at its pages
+   on your phone.
+

@@ -12,9 +12,9 @@ import {
 } from '../../../../shared/contract/backups.ts';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
-import { musicObject } from '../../objects/music';
 import { sha256 } from '../import/vault';
 import { JobError, type JobHandler } from '../jobs/runner';
+import { pageOf } from './objects';
 import { gzip, line, page } from './rows';
 import * as store from './store';
 
@@ -82,11 +82,11 @@ export const backupJob: JobHandler = {
       return { manifest: key, at };
     }
     const table = p.tables[c.t];
-    // The Music object's rows come by RPC (its own key order); Core's are read here.
+    // The other objects' rows come by RPC (their own key order); Core's are read here.
     const { rows, last } =
-      p.class === 'music'
-        ? ((await musicObject(env).page(table, c.after, BACKUP_LIMITS.part_rows)) as unknown as ReturnType<typeof page>)
-        : page(db, table, c.after, BACKUP_LIMITS.part_rows);
+      p.class === 'core'
+        ? page(db, table, c.after, BACKUP_LIMITS.part_rows)
+        : await pageOf(env, p.class, table, c.after, BACKUP_LIMITS.part_rows);
     if (!rows.length) return { part: null, full: false, last: null };
     const bytes = await gzip(`${rows.map(line).join('\n')}\n`);
     const sha = await sha256(bytes);
@@ -113,7 +113,7 @@ export const backupJob: JobHandler = {
       w.ledger({
         kind: 'note',
         actor: 'worker',
-        what: `weekly ${p.class === 'music' ? 'music ' : ''}backup ${p.date} done: ${t.rows} rows of ${c.done.length} tables in ${t.parts} parts`,
+        what: `weekly ${p.class === 'core' ? '' : `${p.class} `}backup ${p.date} done: ${t.rows} rows of ${c.done.length} tables in ${t.parts} parts`,
         why: 'the weekly backup (DATA.md §11)',
         ref: `backup:${p.backup_id}`,
         undoable: false,

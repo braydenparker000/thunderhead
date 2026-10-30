@@ -256,7 +256,7 @@ Built (P5 step 1, `backend/src/objects/music.ts`): `tracks(ord INTEGER PK, id TE
 
 ### 6.3 `Library` (P7, its own deploy; shardable as `library:<shelf>`)
 
-Built (P7 step 1, `backend/src/objects/library.ts`; the class shipped alone with migration tag `v4`) with the fields of [STUDY.md §1.1](../product/apps/STUDY.md), which owns them: `pages` keys its rows by `seq` (the FTS rowid, as Core's `messages`) and names the page `pdf_page`; `verse_refs` is keyed by `(book_id, pdf_page, block, i)` so a page read again replaces its references, with the index `(book_code, chapter)`; `books` also holds the upload's R2 multipart id and parts while they arrive. Its routes come with the next deploy.
+Built (P7 step 1, `backend/src/objects/library.ts`, schema in `library.migrations.ts`; the class shipped alone with migration tag `v4`; its routes, daily pass, backup and export with step 1b) with the fields of [STUDY.md §1.1](../product/apps/STUDY.md), which owns them: `pages` keys its rows by `seq` (the FTS rowid, as Core's `messages`) and names the page `pdf_page`; `verse_refs` is keyed by `(book_id, pdf_page, block, i)` so a page read again replaces its references, with the index `(book_code, chapter)`; `books` also holds the upload's R2 multipart id and parts while they arrive. Its routes come with the next deploy.
 
 `books(id PK, title, author, kind, pages, r2_key, sha256, added_at, ingested_at)`. Books include the owner's own licensed copies of the canon scriptures (owner ruling 2026-10-27), stored like any book: privately, behind sign-in, never in the repo. Talks and other published source material are not stored; they are cited by paragraph with a link. `pages(rowid PK, book_id, page_index, page_label, text)` with UNIQUE `(book_id, page_index)`. `pages_fts` FTS5 with `content='pages'`. `verse_refs(book_code, chapter, v_start, v_end, book_id, page_index, weight, in_heading)` with index `(book_code, chapter)`. `highlights(id PK, book_id, page_index, ref, text, note, created_at, updated_at)`. `positions(book_id PK, page_index, at)` (one row per book, written at most once per page turn and at most every 10 s). Product fields are in [STUDY.md](../product/apps/STUDY.md).
 
@@ -451,7 +451,7 @@ Pruning runs once a logical day: Core's 15-minute tick runs every table's prune 
 | Layer | What | When | Restores |
 |---|---|---|---|
 | PITR | Cloudflare's 30-day point-in-time recovery for SQLite DOs | Always on. Bookmarks recorded before every migration, import and restore. Availability on Free is test X4. | A whole object to any time in the last 30 days |
-| Weekly export | Per-table JSONL.gz in `thunderhead-private/backups/<date>/<class>/<table>.<nnnn>.jsonl.gz` | Sundays 02:30 local, a job per class (`export.weekly`), ≤ 5,000 rows per part file in key order (built for Core, P4 stage E: every table marked `backup` in §10; the Music object's three tables from P5, by RPC, with its own manifest; the drill and `backup.stale` read Core's) | One table, or a whole object into a fresh instance |
+| Weekly export | Per-table JSONL.gz in `thunderhead-private/backups/<date>/<class>/<table>.<nnnn>.jsonl.gz` | Sundays 02:30 local, a job per class (`export.weekly`), ≤ 5,000 rows per part file in key order (built for Core, P4 stage E: every table marked `backup` in §10; by RPC, each with its own manifest, the Music object's three tables from P5, and from P7 the Senses' `rollups` and `exports` and the Library's tables but `pages_fts`; the drill and `backup.stale` read Core's) | One table, or a whole object into a fresh instance |
 | Events archive | Daily JSONL.gz | Day D exported at D+1 06:00 local; re-exported if late events arrive | Events beyond 90 days |
 | Old Worker | The `jarvis-hub-api` (its data untouched; only its origin list gains the new site in P1b) | Until it retires after P8 | Pre-import history |
 
@@ -520,7 +520,7 @@ Acceptance: the owner sees "Imported N conversations, M messages. 20 of 20 spot 
 |---|---|---|
 | D1 | Is PITR available on Free? (X4) | Preview Worker: call `getCurrentBookmark()` and `getBookmarkForTime(now − 1 h)`; restore a scratch object |
 | D2 | Does local workerd `rowsWritten` match production billing? | Compare the meter with the dashboard after one week |
-| D3 | Rows written per FTS5 insert (per message, per 300-word page) | Cost test in local workerd; update §8.2 |
+| D3 | Rows written per FTS5 insert (per message, per 300-word page) | Measured for a page (local workerd, `tests/cost/library-calls.ts`): one 300-word page with two verse refs is 9 rows written in all (the row, its unique index, the FTS entry, two refs with their index, the run's cursor). Check against the dashboard after the first real book |
 | D4 | Does `deleteAll()` count every row as a write? Is `DROP TABLE` cheap? | Local workerd measurement; if `DROP` is cheap, switch `Senses.events` to monthly tables |
 | D5 | Is the 1 GB per-object limit enforced on Free as the FAQ says? | Watch `db_bytes` in deep health; alert at 700 MB |
 | D6 | DO CPU per job step on Free (10 ms or 30 s), which sets the step size | Test X3; until then steps are ≤ 2,000 rows |

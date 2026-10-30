@@ -117,7 +117,7 @@ describe('source rules', () => {
     const owner = new Map<string, string>();
     const shared = new Set(['settings', 'changes', 'sqlite_schema']);
     // Areas whose tables live in an object of their own (its own database): named by that object.
-    const ownObject = new Set(['music', 'senses']);
+    const ownObject = new Set(['music', 'senses', 'library']);
     for (const [area, tables] of Object.entries(own))
       for (const name of new Set(tables)) {
         const t = ownObject.has(area) ? `${area}.${name}` : name;

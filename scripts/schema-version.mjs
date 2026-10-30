@@ -21,7 +21,7 @@ export function files(cls) {
   if (cls === 'auth') return [`${SRC}objects/auth.migrations.ts`];
   if (cls === 'music') return [`${SRC}objects/music.ts`];
   if (cls === 'senses') return [`${SRC}objects/senses.ts`];
-  if (cls === 'library') return [`${SRC}objects/library.ts`];
+  if (cls === 'library') return [`${SRC}objects/library.migrations.ts`];
   const areas = readdirSync(`${SRC}areas`, { withFileTypes: true })
     .filter((d) => d.isDirectory())
     .map((d) => `${SRC}areas/${d.name}/migrations.ts`)

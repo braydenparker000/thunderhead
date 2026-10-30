@@ -4,6 +4,7 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { IMPORT_PART_BYTES } from '../../shared/contract/imports.ts';
+import { LIBRARY_LIMITS } from '../../shared/contract/library.ts';
 import { authRoutes } from './areas/auth/routes';
 import { backupsRoutes } from './areas/backups/routes';
 import { briefingRoutes } from './areas/briefing/routes';
@@ -13,6 +14,8 @@ import { feedRoutes } from './areas/feed/routes';
 import { guitarRoutes } from './areas/guitar/routes';
 import { importRoutes } from './areas/import/routes';
 import { ledgerRoutes } from './areas/ledger/routes';
+import { ingestRoutes } from './areas/library/ingest';
+import { libraryRoutes } from './areas/library/routes';
 import { memoryRoutes } from './areas/memory/routes';
 import { mindRoutes } from './areas/mind/routes';
 import { musicRoutes } from './areas/music/routes';
@@ -47,6 +50,11 @@ const [audio, art, batch] = [UPLOAD_LIMITS.audio, UPLOAD_LIMITS.art, UPLOAD_LIMI
 const UPLOADS = '/v1/music/uploads/';
 // A batch of sense events (API.md §8).
 const batchOfEvents = bodyLimit({ maxSize: 256 * 1024, onError: tooLarge });
+// A book's upload part (streamed, its exact size checked in the route) and a batch of 50 pages.
+const bookPart = bodyLimit({ maxSize: LIBRARY_LIMITS.part_bytes, onError: tooLarge });
+const pages = bodyLimit({ maxSize: 16 * 1024 * 1024, onError: tooLarge });
+const BOOK_PART = /^\/v1\/library\/books\/[^/]+\/parts\/[^/]+$/;
+const BOOK_PAGES = /^\/v1\/library\/books\/[^/]+\/pages$/;
 const limitFor = (path: string) =>
   path === '/v1/ops/import/parts'
     ? part
@@ -60,7 +68,11 @@ const limitFor = (path: string) =>
             ? batch
             : path.startsWith('/v1/senses/batches/')
               ? batchOfEvents
-              : small;
+              : BOOK_PART.test(path)
+                ? bookPart
+                : BOOK_PAGES.test(path)
+                  ? pages
+                  : small;
 
 export const app = new Hono<AppEnv>()
   .use(async (c, next) => {
@@ -104,5 +116,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', uploadRoutes)
   .route('/v1', sensesRoutes)
   .route('/v1', guitarRoutes)
+  .route('/v1', libraryRoutes)
+  .route('/v1', ingestRoutes)
   .notFound(notFound)
   .onError(onError);

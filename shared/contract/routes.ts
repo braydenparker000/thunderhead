@@ -98,7 +98,7 @@ export const ROUTES = {
   'POST /v1/media/sign': {
     who: ['D', 'C', 'N'],
     phase: 'P2',
-    note: 'built with P5: music: refs, the device only; book: and file: refs are not signable yet; 503 not_configured until the signing key is set',
+    note: 'music: refs (device only, P5), book: refs (P7); file: refs are not signable yet; 503 not_configured until the signing key is set',
   },
 
   // --- P3: memory and the night shift -----------------------------------------------------------
@@ -208,13 +208,29 @@ export const ROUTES = {
   'GET /v1/guitar/gprotab/search': { who: D, phase: 'P6', note: '?q=' },
   'GET /v1/guitar/gprotab/file': { who: D, phase: 'P6', note: '?path=; a Guitar Pro file, bytes' },
   'GET /v1/guitar/sounds/:instrument/:file': { who: D, phase: 'P6', note: 'a guitar sample, audio/mpeg' },
+  // P7: Study's library (STUDY.md): the owner's books and reading, and the mind's ingestion runs.
+  'GET /v1/library/books': { who: ['D', 'C', 'N'], phase: 'P7', note: 'every book, its place, how far it is read' },
+  'POST /v1/library/books': { who: D, phase: 'P7', note: "a book under the client's id: its record and upload" },
+  'GET /v1/library/books/:id': { who: ['D', 'C', 'N'], phase: 'P7' },
+  'PATCH /v1/library/books/:id': { who: D, phase: 'P7', note: 'title, author, kind, language' },
+  'PUT /v1/library/books/:id/parts/:n': { who: D, phase: 'P7', note: 'one part, bytes: 50 MiB but the last' },
+  'POST /v1/library/books/:id/complete': { who: D, phase: 'P7', note: 'all parts in: the book waits for the mind' },
+  'POST /v1/library/books/:id/retry': { who: D, phase: 'P7', note: 'a book that could not be read, again' },
+  'PUT /v1/library/positions/:book_id': { who: D, phase: 'P7', note: 'the newest place wins' },
+  'GET /v1/library/highlights': { who: D, phase: 'P7', note: '?book_id=' },
+  'PUT /v1/library/highlights/:id': { who: D, phase: 'P7', note: 'the newest version wins' },
+  'GET /v1/library/search': { who: ['D', 'C', 'N'], phase: 'P7', note: '?q=&book_id=&limit=&cursor=; ready books' },
+  'POST /v1/library/ingest/claim': { who: ['C', 'N'], phase: 'P7', note: 'the oldest waiting book, an hour; 204 if none' },
+  'GET /v1/library/ingest/:job_id/file': { who: ['C', 'N'], phase: 'P7', note: "the claimed book's PDF, its holder only" },
+  'PUT /v1/library/books/:id/pages': { who: ['C', 'N'], phase: 'P7', note: '1–50 pages of a held run; bulk lane' },
+  'PATCH /v1/library/ingest/:job_id': { who: ['C', 'N'], phase: 'P7', note: 'the run: a state, then ready or failed' },
   'PUT /v1/pushes/:id': { who: ['C'], phase: 'P8' },
 } as const satisfies Record<string, RouteSpec>;
 
 export type RouteKey = keyof typeof ROUTES;
 
 /** The phases whose routes are live in this build (the scope test registers exactly these). */
-export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P5', 'P6'];
+export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7'];
 
 /** The rows this build must register: built phases, minus deferred rows. */
 export function builtRoutes(): [RouteKey, RouteSpec][] {

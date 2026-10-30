@@ -501,7 +501,7 @@
       ],
       "phase": "P2",
       "status": "built",
-      "note": "built with P5: music: refs, the device only; book: and file: refs are not signable yet; 503 not_configured until the signing key is set"
+      "note": "music: refs (device only, P5), book: refs (P7); file: refs are not signable yet; 503 not_configured until the signing key is set"
     },
     "POST /v1/mind/night": {
       "who": [
@@ -1100,6 +1100,135 @@
       "status": "built",
       "note": "a guitar sample, audio/mpeg"
     },
+    "GET /v1/library/books": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "every book, its place, how far it is read"
+    },
+    "POST /v1/library/books": {
+      "who": [
+        "D"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "a book under the client's id: its record and upload"
+    },
+    "GET /v1/library/books/:id": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P7",
+      "status": "built"
+    },
+    "PATCH /v1/library/books/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "title, author, kind, language"
+    },
+    "PUT /v1/library/books/:id/parts/:n": {
+      "who": [
+        "D"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "one part, bytes: 50 MiB but the last"
+    },
+    "POST /v1/library/books/:id/complete": {
+      "who": [
+        "D"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "all parts in: the book waits for the mind"
+    },
+    "POST /v1/library/books/:id/retry": {
+      "who": [
+        "D"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "a book that could not be read, again"
+    },
+    "PUT /v1/library/positions/:book_id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "the newest place wins"
+    },
+    "GET /v1/library/highlights": {
+      "who": [
+        "D"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "?book_id="
+    },
+    "PUT /v1/library/highlights/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "the newest version wins"
+    },
+    "GET /v1/library/search": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "?q=&book_id=&limit=&cursor=; ready books"
+    },
+    "POST /v1/library/ingest/claim": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "the oldest waiting book, an hour; 204 if none"
+    },
+    "GET /v1/library/ingest/:job_id/file": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "the claimed book's PDF, its holder only"
+    },
+    "PUT /v1/library/books/:id/pages": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "1–50 pages of a held run; bulk lane"
+    },
+    "PATCH /v1/library/ingest/:job_id": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "the run: a state, then ready or failed"
+    },
     "PUT /v1/pushes/:id": {
       "who": [
         "C"
@@ -1521,7 +1650,8 @@
     "study": {
       "path": "/study/",
       "name": "Study",
-      "phase": "P7"
+      "phase": "P7",
+      "deferred": "P7 step 2: the library screen and reader"
     }
   },
   "search_sources": {

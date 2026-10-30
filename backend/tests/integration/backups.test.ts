@@ -75,8 +75,8 @@ describe('the weekly backup', () => {
     expect((await api('POST', '/v1/ops/backups/run', { token: p.C, body: {} })).status).toBe(403);
     const r = await apiJson<BackupRunResponse>('POST', '/v1/ops/backups/run', { token: p.N, body: {} });
     expect(r.status).toBe(202);
-    // Core's backup and the Music object's, each its own job.
-    expect(r.body.job_ids).toHaveLength(2);
+    // Core's backup and the other objects' (Music, the senses, the library), each its own job.
+    expect(r.body.job_ids).toHaveLength(4);
     // Asked again while it runs: the same job.
     expect((await apiJson<BackupRunResponse>('POST', '/v1/ops/backups/run', { token: I, body: {} })).body).toEqual(
       r.body,
@@ -106,8 +106,10 @@ describe('the weekly backup', () => {
     expect(m.tables.map((t) => t.name)).toEqual(BACKED);
     const ledger = m.tables.find((t) => t.name === 'ledger');
     const [{ n: ledgerRows }] = await coreSql<{ n: number }>('SELECT count(*) AS n FROM ledger');
-    // The backup's own closing note came after it read the ledger.
-    expect(ledgerRows - (ledger?.rows ?? 0)).toBe(1);
+    // The backup's own closing note came after it read the ledger (and so may the other objects'
+    // notes, one each, as their jobs finish in either order).
+    expect(ledgerRows - (ledger?.rows ?? 0)).toBeGreaterThanOrEqual(1);
+    expect(ledgerRows - (ledger?.rows ?? 0)).toBeLessThanOrEqual(4);
     expect(ledger?.parts.map((x) => x.rows)).toEqual([5_000, 5_000, (ledger?.rows ?? 0) - 10_000]);
     expect(done.rows).toBe(m.tables.reduce((a, t) => a + t.rows, 0));
     for (const t of m.tables)
@@ -122,9 +124,19 @@ describe('the weekly backup', () => {
     const music = (await (await env.VAULT.get(`backups/${date}/music/manifest.json`))?.json()) as BackupManifest;
     expect(music).toMatchObject({ v: 1, date, class: 'music', schema_version: 1 });
     expect(music.tables.map((t) => t.name)).toEqual(['tracks', 'catalog_log', 'music_state']);
-    expect((await backups()).map((b) => [b.class, b.complete])).toEqual([
+    // The senses' rollups and archive records (the events are in the daily archive), and Study's
+    // library without its full-text index (rebuilt from the pages).
+    const other = async (cls: string) => {
+      const m = (await (await env.VAULT.get(`backups/${date}/${cls}/manifest.json`))?.json()) as BackupManifest;
+      return m.tables.map((t) => t.name);
+    };
+    expect(await other('senses')).toEqual(['rollups', 'exports']);
+    expect(await other('library')).toEqual(['books', 'pages', 'verse_refs', 'highlights', 'positions', 'ingest_jobs']);
+    expect((await backups()).map((b) => [b.class, b.complete]).sort()).toEqual([
       ['core', true],
+      ['library', true],
       ['music', true],
+      ['senses', true],
     ]);
   });
 
@@ -192,12 +204,12 @@ describe('the weekly backup', () => {
     expect((await backups()).some((b) => b.date === '2026-11-01')).toBe(false);
     await watch(sunday + 15 * MINUTE);
     const started = (await backups()).filter((b) => b.date === '2026-11-01');
-    expect(started.map((b) => b.class)).toEqual(['core', 'music']);
+    expect(started.map((b) => b.class).sort()).toEqual(['core', 'library', 'music', 'senses']);
     for (let i = 0; i < 40 && !(await backups()).find((x) => x.date === '2026-11-01')?.complete; i++)
       await runJobsWith(REAL, sunday + 20 * MINUTE);
     expect((await backups()).find((x) => x.date === '2026-11-01')?.complete).toBe(true);
     await watch(sunday + 30 * MINUTE);
-    expect((await backups()).filter((b) => b.date === '2026-11-01')).toHaveLength(2);
+    expect((await backups()).filter((b) => b.date === '2026-11-01')).toHaveLength(4);
   });
 });
 

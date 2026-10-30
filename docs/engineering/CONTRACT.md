@@ -4,7 +4,7 @@
 
 The runtime contract as data, generated from [`shared/contract`](../../shared/contract). [API.md](API.md) describes each route; this appendix lists what the code enforces. How to add to it: [EXTENDING.md](EXTENDING.md).
 
-Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2, P3, P4, P5, P6.
+Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci. Built phases: P1, P1b, P2, P3, P4, P5, P6, P7.
 
 ## Routes
 
@@ -70,7 +70,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/surfaces` | D C N R | P2 | built |  |
 | `PUT /v1/surfaces/:app/:slot` | C N | P2 | built |  |
 | `DELETE /v1/surfaces/:app/:slot` | D C N | P2 | built |  |
-| `POST /v1/media/sign` | D C N | P2 | built | built with P5: music: refs, the device only; book: and file: refs are not signable yet; 503 not_configured until the signing key is set |
+| `POST /v1/media/sign` | D C N | P2 | built | music: refs (device only, P5), book: refs (P7); file: refs are not signable yet; 503 not_configured until the signing key is set |
 | `POST /v1/mind/night` | N | P3 | built | the night run: start, step done, cursor, done |
 | `GET /v1/mind/day/:day` | N | P3 | built | a closed day's stats, messages, ledger and notes |
 | `GET /v1/memory/facts` | D C N | P3 | built |  |
@@ -139,6 +139,21 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/guitar/gprotab/search` | D | P6 | built | ?q= |
 | `GET /v1/guitar/gprotab/file` | D | P6 | built | ?path=; a Guitar Pro file, bytes |
 | `GET /v1/guitar/sounds/:instrument/:file` | D | P6 | built | a guitar sample, audio/mpeg |
+| `GET /v1/library/books` | D C N | P7 | built | every book, its place, how far it is read |
+| `POST /v1/library/books` | D | P7 | built | a book under the client's id: its record and upload |
+| `GET /v1/library/books/:id` | D C N | P7 | built |  |
+| `PATCH /v1/library/books/:id` | D | P7 | built | title, author, kind, language |
+| `PUT /v1/library/books/:id/parts/:n` | D | P7 | built | one part, bytes: 50 MiB but the last |
+| `POST /v1/library/books/:id/complete` | D | P7 | built | all parts in: the book waits for the mind |
+| `POST /v1/library/books/:id/retry` | D | P7 | built | a book that could not be read, again |
+| `PUT /v1/library/positions/:book_id` | D | P7 | built | the newest place wins |
+| `GET /v1/library/highlights` | D | P7 | built | ?book_id= |
+| `PUT /v1/library/highlights/:id` | D | P7 | built | the newest version wins |
+| `GET /v1/library/search` | D C N | P7 | built | ?q=&book_id=&limit=&cursor=; ready books |
+| `POST /v1/library/ingest/claim` | C N | P7 | built | the oldest waiting book, an hour; 204 if none |
+| `GET /v1/library/ingest/:job_id/file` | C N | P7 | built | the claimed book's PDF, its holder only |
+| `PUT /v1/library/books/:id/pages` | C N | P7 | built | 1–50 pages of a held run; bulk lane |
+| `PATCH /v1/library/ingest/:job_id` | C N | P7 | built | the run: a state, then ready or failed |
 | `PUT /v1/pushes/:id` | C | P8 | later (P8) |  |
 
 ## Verbs
@@ -171,7 +186,7 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `podcasts` | `/podcasts/` | Podcasts | P1b |
 | `astra` | `/astra/` | Astra | P1b |
 | `media` | `/media/` | My Media | P1b |
-| `study` | `/study/` | Study | P7 |
+| `study` | `/study/` | Study | P7 (page: P7 step 2: the library screen and reader) |
 
 ## Search sources
 

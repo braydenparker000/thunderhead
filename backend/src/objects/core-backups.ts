@@ -11,6 +11,7 @@ import type {
 } from '../../../shared/contract/backups.ts';
 import { exportPrefix } from '../areas/backups/export-job';
 import { manifestKey } from '../areas/backups/job';
+import { backupsOf, OTHER_EXPORT } from '../areas/backups/objects';
 import * as backups from '../areas/backups/ops';
 import { count, putRows, type Row } from '../areas/backups/rows';
 import * as bstore from '../areas/backups/store';
@@ -22,7 +23,7 @@ import { applyMigrations } from './base';
 import type { Caller } from './caller';
 import { CORE_MIGRATIONS, CORE_TABLES } from './core.migrations';
 import { CoreWatchdogs } from './core-watchdogs';
-import { MUSIC_TABLES, musicObject } from './music';
+import { libraryObject } from './library';
 import { sensesObject } from './senses';
 
 const BACKUP_TABLES = () =>
@@ -33,7 +34,7 @@ const EXPORT_TABLES = () => [
   ...Object.entries(CORE_TABLES)
     .filter(([, t]) => t.export)
     .map(([n]) => n),
-  ...MUSIC_TABLES.map((t) => `music.${t}`),
+  ...OTHER_EXPORT(),
 ];
 
 export abstract class CoreBackups extends CoreWatchdogs {
@@ -58,6 +59,10 @@ export abstract class CoreBackups extends CoreWatchdogs {
     await sensesObject(this.env)
       .daily(now, logicalDay(now, tz))
       .catch(() => undefined);
+    // Study's unfinished uploads, lapsed reading runs, deleted highlights (the Library object).
+    await libraryObject(this.env)
+      .daily(now)
+      .catch(() => undefined);
     for (const e of bstore.expiredExports(this.db, now)) {
       const listed = await this.vault.list({ prefix: exportPrefix(e.id) });
       if (listed.objects.length) await this.vault.delete(listed.objects.map((o) => o.key));
@@ -68,11 +73,9 @@ export abstract class CoreBackups extends CoreWatchdogs {
   private async startBackup(day: string, now = Date.now()): Promise<BackupRunResponse> {
     const bookmark = await this.ctx.storage.getCurrentBookmark().catch(() => null);
     const core = { tables: BACKUP_TABLES(), schema_version: this.migration, bookmark };
-    // The Music object's catalog goes with it; if that object can't answer, Core's still runs.
-    const music = await musicObject(this.env)
-      .backupOf()
-      .catch(() => undefined);
-    const out = this.write((w) => backups.startBackup(w, { date: day, core, music }), now);
+    // The other objects' tables go with it; one that can't answer is left out, and Core's still runs.
+    const others = await backupsOf(this.env);
+    const out = this.write((w) => backups.startBackup(w, { date: day, core, others }), now);
     this.schedule();
     return out;
   }

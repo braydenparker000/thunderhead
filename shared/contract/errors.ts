@@ -96,6 +96,8 @@ export type ErrorDetails =
       usable_after?: number;
       /** A night step out of order (409): the step the run is at. */
       resume_from?: number;
+      /** A book upload not yet whole (409): the parts received so far. */
+      parts?: number[];
     };
 
 export interface ErrorBody {

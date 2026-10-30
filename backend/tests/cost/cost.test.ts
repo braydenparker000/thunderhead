@@ -30,6 +30,7 @@ import {
 } from '../helpers';
 import budgets from './budgets.json';
 import { importCalls } from './import-calls';
+import { libraryCalls } from './library-calls';
 import { memoryCalls } from './memory-calls';
 import { proposalCalls } from './proposal-calls';
 
@@ -269,6 +270,9 @@ describe('rows per endpoint', () => {
 
   // P4 stage A: decision cards (proposal-calls.ts).
   it('measures the decision cards against their budget', () => proposalCalls(cost, grant));
+
+  // P7: Study's library (library-calls.ts).
+  it('measures the library against its budget', () => libraryCalls(cost as never, grant));
 
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);

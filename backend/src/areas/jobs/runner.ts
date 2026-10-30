@@ -58,7 +58,16 @@ const lane = (db: Db, now: number): Lane => {
   return l && l.day === utcDay(now) ? l : { day: utcDay(now), rows: 0 };
 };
 /** 00:05 UTC of the next day, when the lane opens again. */
-const nextLaneDay = (now: number) => Date.parse(`${utcDay(now + DAY)}T00:05:00Z`);
+export const nextLaneDay = (now: number) => Date.parse(`${utcDay(now + DAY)}T00:05:00Z`);
+
+/** Rows the bulk lane has written today (UTC), for writers in other objects (library ingestion). */
+export const laneRows = (db: Db, now: number): number => lane(db, now).rows;
+
+/** Adds rows another object wrote under the lane to today's count. */
+export function useLane(w: Writer, rows: number, now: number): void {
+  const l = lane(w.db, now);
+  settings.putSetting(w.db, 'bulk.day', { day: l.day, rows: l.rows + rows }, 'worker', now);
+}
 
 /** Runs due jobs; returns how many steps ran. */
 export async function runJobs(host: JobHost, handlers: Record<string, JobHandler>, now = Date.now()): Promise<number> {
@@ -107,10 +116,7 @@ export async function runJobs(host: JobHost, handlers: Record<string, JobHandler
           rows,
           at: now,
         });
-        if (h.lane) {
-          const l = lane(w.db, now);
-          settings.putSetting(w.db, 'bulk.day', { day: l.day, rows: l.rows + rows }, 'worker', now);
-        }
+        if (h.lane) useLane(w, rows, now);
       }, now);
     } catch (e) {
       host.write((w) => retry(w, job, h, codeOf(e, 'step_failed'), now));

@@ -23,7 +23,11 @@ export const RING = Object.freeze(['music', 'guitar', 'podcasts', 'astra', 'medi
 
 /** @type {readonly AppEntry[]} */
 export const apps = Object.freeze(
-  RING.map((id) => ({ id, ...APPS[id], ...LOOK[id], built: BUILT_PHASES.includes(/** @type {any} */ (APPS[id].phase)) })),
+  RING.map((id) => {
+    /** @type {{ path: string, name: string, phase: string, deferred?: string }} */
+    const app = APPS[id];
+    return { id, ...app, ...LOOK[id], built: BUILT_PHASES.includes(/** @type {any} */ (app.phase)) && !app.deferred };
+  }),
 );
 
 /** @param {string} id @returns {AppEntry | null} */
