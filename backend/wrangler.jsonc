@@ -49,6 +49,11 @@
     { "binding": "VAULT", "bucket_name": "thunderhead-private" },
     { "binding": "MEDIA", "bucket_name": "jarvis-music" }
   ],
+  // Workers AI (SECURITY.md §9.1): a voice memo's words, from @cf/openai/whisper-large-v3-turbo
+  // (areas/files/transcribe.ts). It is always remote, so local runs never reach it: the tests set
+  // remoteBindings false (vitest.config.ts) and `wrangler dev --local` starts no remote session;
+  // there, as without the binding, a memo simply has no words.
+  "ai": { "binding": "AI" },
   // Secret names only; values never live in files. Listing them makes a deploy refuse to ship
   // without them, and is also what lets local dev load them from .dev.vars. A secret that is not
   // configured yet holds the literal `none` (the deploy writes it); nothing ever runs

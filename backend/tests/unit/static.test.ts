@@ -52,7 +52,7 @@ const SECRETS = [
   'VAPID_PRIVATE_JWK',
 ];
 const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP', 'LIVE_WAIT', 'R2_ACCOUNT_ID'];
-const BINDINGS = ['VERSION', 'CORE', 'AUTH', 'MUSIC', 'SENSES', 'LIBRARY', 'VAULT', 'MEDIA'];
+const BINDINGS = ['VERSION', 'CORE', 'AUTH', 'MUSIC', 'SENSES', 'LIBRARY', 'VAULT', 'MEDIA', 'AI'];
 
 describe('source rules', () => {
   it('found the files it checks', () => {
