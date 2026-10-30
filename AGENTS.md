@@ -32,6 +32,30 @@ arranging things, and speaks only when something needs the owner. Its laws are i
 - Build every system as well as it can be built. Existing code elsewhere is not the standard; research
   and design the best approach, then build that.
 
+## Helpers (parallel agents)
+
+The lead session may hand separate pieces of work to helper agents (owner, 2026-10-30), only this way:
+
+1. **At most two helpers at once**, and the lead keeps working alongside them.
+2. **Helpers build the plumbing; the lead builds everything the owner sees or touches.** Worker routes,
+   storage, the mind's commands and their tests may go to helpers. Layout, motion, wording and anything
+   on screen stay with the lead.
+3. **No shared files.** Before a helper starts, the lead commits the shared pieces (the contract rows
+   in `shared/`, schema version numbers, the Core class chain, route mounting, budgets) and gives each
+   helper the folders and files it may change. Status, decisions and the budgets stay with the lead.
+4. **A written brief** for each task: the goal, the files it may touch, the must-haves, the specs to
+   read and the tests that must pass. A task is a few hours of work at most and comes back as one
+   finished branch with its docs, not a stream of work in progress.
+5. **Helpers never push to `main` and never deploy.** The lead reads the whole diff, runs `npm test`,
+   checks the screens at phone size, ships it in one batch and confirms it live.
+6. **No long-running jobs in helpers** (imports, migrations, anything over a few minutes): those run in
+   the lead's session, where they are watched.
+7. **A second reader for risky changes:** for security or data changes, a fresh helper reviews the
+   diff without the author's reasoning.
+
+If a helper's work takes more fixing than it saved, the lead stops using helpers for that kind of
+work and tells the owner.
+
 ## Privacy (this repository is public)
 
 - Never commit secrets, tokens, keys, private URLs, the username, or personal content: names of
