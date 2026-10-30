@@ -153,8 +153,8 @@ test('staging fills the API host into config.js and the CSP of the shell, sign-i
   assert.match(withApi(guitar, 'https://api.example', 'guitar/index.html'),
     /connect-src 'self' https:\/\/api\.example https:\/\/jarvis-hub-api\.braydenparker999\.workers\.dev /);
   assert.equal(withApi(guitar, 'https://api.example', 'guitar/credits.html'), guitar);
-  // Study (P7) has its own page: the API host, then the private bucket's signed links.
+  // Study (P7) has its own page: the API host only (books come through the Worker).
   const study = await readFile(new URL('../frontend/study/index.html', import.meta.url), 'utf8');
   assert.match(withApi(study, 'https://api.example', 'study/index.html'),
-    /connect-src 'self' https:\/\/api\.example https:\/\/\*\.r2\.cloudflarestorage\.com;/);
+    /connect-src 'self' https:\/\/api\.example;/);
 });

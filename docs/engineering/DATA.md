@@ -299,7 +299,7 @@ The FTS cost per page is unknown (open question D3). Ingestion is a bulk job und
 |---|---|---|---|
 | `music:<id>` | `jarvis-music` | `tracks.audio_key` | 1 row in `Music` |
 | `music:<id>#art` | `jarvis-music` | `tracks.cover_key` | 1 row in `Music` |
-| `book:<id>` | `thunderhead-private` | `books.r2_key` | 1 row in `Library` |
+| `book:<id>` | `thunderhead-private` | `books.r2_key` | 1 row in `Library` (read through `GET /v1/library/books/:id/file`, never signed) |
 | `file:<id>` | `thunderhead-private` | `chat/files/…` from the message attachment | 1 row in `Core` |
 | `index:<kind>` | `thunderhead-private` | `indexes/<kind>/latest.json` → named build | none |
 | `backup:<date>` | `thunderhead-private` | `backups/<date>/…` | device session only (P4) |

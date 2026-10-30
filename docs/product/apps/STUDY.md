@@ -79,7 +79,7 @@ Check: a unit test in `backend/` round-trips every ref form through the shared r
 |---|---|---|
 | Bucket | `thunderhead-private`, Worker binding only | `wrangler.jsonc` test: the bucket appears only under the Worker; no workflow file mentions it. |
 | Key | `books/<book_id>.pdf` | Store test. |
-| Read path for the phone | `POST /v1/media/sign {refs:["book:<id>"]}` → presigned GET on the R2 S3 endpoint | API test: unsigned request returns 401; a signed URL for another prefix is refused. |
+| Read path for the phone | `GET /v1/library/books/:id/file` (D) through the Worker with the owner's session; the phone keeps the whole file (§2.3) and reads it from there. No signed link, signing key or bucket CORS rule (decisions 2026-10-30) | API test: the device gets the file byte for byte; nothing while it uploads; `book:` refs are never signed. |
 | URL lifetime | `X-Amz-Date` floored to the hour, expiry 3 h, re-sign on 403 (decisions) | Unit test of the signer with a fixed clock. |
 | Where a URL may appear | Only in memory, passed to `fetch()`. Never in the address bar, history, a link, a pdf.js `?file=` parameter, a log line or a sense | Grep test over `frontend/apps/study/` for `?file=` and for presigned hosts in `href`. |
 | Bucket CORS (one-time, ask first: access change) | Allowed origin: the new site origin only; methods GET, HEAD; allowed header `Range`; exposed `Content-Range, Content-Length, Accept-Ranges, ETag` | Live check: a `Range: bytes=0-1023` fetch from the site returns 206 and pdf.js can read `Content-Range`. |
@@ -593,7 +593,13 @@ a day crossing the 04:00 roll).
    heading is a block's short first line, at most 80 characters with no closing stop). The verse page
    (§7.6, without step 6's Ask) and the search's verse card are built; `tests/study-private.test.mjs`
    fails on any real table, link template or verse text in the checkout. Owner step: SETUP.md O2.
-5. Highlights and notes, offline copies.
+5. Highlights and notes, offline copies. **Built:** the reader reads only this phone's copy: the
+   first open downloads the whole PDF through the Worker (with its progress) into OPFS `study/`, and
+   every open after is instant and works offline; **Remove from this phone** in the book menu; signing
+   out deletes the folder. The 256 KB signed ranges are gone (with SETUP.md O1 and Study's need for
+   N1). Parked in [IDEAS](../../process/IDEAS.md), not built: the highlight and note editor in the
+   reader (§5.4; the Worker's highlight routes are built) and the wash on the cited block itself (the
+   whole page washes).
 6. Cited answers with the Worker validator; evals.
 
 **Done when** (ROADMAP): asking about a verse returns an answer with page citations and opens the book at

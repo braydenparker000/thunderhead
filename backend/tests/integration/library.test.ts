@@ -3,7 +3,8 @@
 // streamed into the private bucket; a part cut short is refused and sent again; complete before
 // every part is in names the parts received; once whole, the stored file equals the source byte for
 // byte and the book waits for the mind. The newest reading place wins; a highlight keeps its newest
-// version. `book:` refs sign to the private bucket, for whole books only.
+// version. A whole book's PDF comes back through the Worker, for the device only; `book:` refs are
+// never signed.
 import { createExecutionContext } from 'cloudflare:test';
 import { env, exports } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
@@ -177,44 +178,48 @@ describe('reading', () => {
   });
 });
 
-describe('signed links to a book', () => {
-  const KEYED = {
-    ...env,
-    R2_ACCOUNT_ID: 'f'.repeat(32),
-    R2_SIGN_ACCESS_KEY_ID: 'test-access-key-id',
-    R2_SIGN_SECRET: 'test-secret-not-real',
-  } as Env;
-  const sign = async (token: string, refs: string[]) =>
-    (await (
+describe("a book's file, for the phone to keep", () => {
+  it('serves a whole book’s PDF to the device, byte for byte; nothing while it uploads; never a signed link', async () => {
+    const res = await exports.default.fetch(
+      new Request(`https://api.example.test/v1/library/books/${ID}/file`, {
+        headers: { Authorization: `Bearer ${p.D}`, 'CF-Connecting-IP': '192.0.2.10' },
+      }),
+    );
+    expect([res.status, res.headers.get('Content-Type'), res.headers.get('Content-Length')]).toEqual([
+      200,
+      'application/pdf',
+      String(BYTES),
+    ]);
+    const hex = async (b: ArrayBuffer | Uint8Array) =>
+      [...new Uint8Array(await crypto.subtle.digest('SHA-256', b))]
+        .map((x) => x.toString(16).padStart(2, '0'))
+        .join('');
+    expect(await hex(await res.arrayBuffer())).toBe(await hex(file));
+    const uploading = uuidv7();
+    await apiJson('POST', '/v1/library/books', { token: p.D, body: { id: uploading, title: 'Half', bytes: 10 } });
+    expect((await apiJson('GET', `/v1/library/books/${uploading}/file`, { token: p.D })).status).toBe(404);
+    expect((await apiJson('GET', `/v1/library/books/${ID}/file`, { token: p.N })).status).toBe(403);
+    const KEYED = {
+      ...env,
+      R2_ACCOUNT_ID: 'f'.repeat(32),
+      R2_SIGN_ACCESS_KEY_ID: 'test-access-key-id',
+      R2_SIGN_SECRET: 'test-secret-not-real',
+    } as Env;
+    const signed = (await (
       await app.fetch(
         new Request('https://api.example.test/v1/media/sign', {
           method: 'POST',
           headers: {
-            Authorization: `Bearer ${token}`,
+            Authorization: `Bearer ${p.D}`,
             'Content-Type': 'application/json',
             'CF-Connecting-IP': '192.0.2.10',
           },
-          body: JSON.stringify({ refs }),
+          body: JSON.stringify({ refs: [`book:${ID}`] }),
         }),
         KEYED,
         createExecutionContext(),
       )
     ).json()) as MediaSignResponse;
-
-  it('signs a whole book’s PDF in the private bucket, for the device and the mind', async () => {
-    const uploading = uuidv7();
-    await apiJson('POST', '/v1/library/books', { token: p.D, body: { id: uploading, title: 'Half', bytes: 10 } });
-    for (const token of [p.D, p.N]) {
-      const r = await sign(token, [`book:${ID}`, `book:${uploading}`, `book:${uuidv7()}`, 'book:nope']);
-      expect(r.items.map((i) => i.ref)).toEqual([`book:${ID}`]);
-      const url = new URL(r.items[0].url);
-      expect(url.pathname).toBe(`/thunderhead-private/books/${ID}.pdf`);
-      expect(url.host).toBe(`${'f'.repeat(32)}.r2.cloudflarestorage.com`);
-      expect(r.errors.map((e) => [e.ref, e.code])).toEqual([
-        ['book:nope', 'not_signable'],
-        [`book:${uploading}`, 'not_found'],
-        [expect.stringMatching(/^book:/), 'not_found'],
-      ]);
-    }
+    expect(signed).toEqual({ items: [], errors: [{ ref: `book:${ID}`, code: 'not_signable' }] });
   });
 });

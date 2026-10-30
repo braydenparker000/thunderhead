@@ -44,7 +44,7 @@ export function configJs({ api = '', build = 0, commit = 'dev', repo_url = '' } 
 export const MOVED_PAGES = ['guitar/index.html'];
 
 /** New apps with a page of their own (Study, P7): their CSP's connect-src names the API host too,
- * after 'self' and before the hosts it adds itself (the private bucket's signed links). */
+ * after 'self' (no live socket). */
 export const OWN_PAGES = ['study/index.html'];
 
 /** Adds the API host to the CSP of the shell and sign-in pages, and of a moved ported page or a new
@@ -53,7 +53,8 @@ export function withApi(html, api, path = '') {
   const origin = apiOrigin(api);
   if (!origin) return html;
   return html.replace(/(<meta http-equiv="Content-Security-Policy" content=")([^"]*)(")/, (m, a, csp, b) => {
-    if ((MOVED_PAGES.includes(path) || OWN_PAGES.includes(path)) && csp.includes("connect-src 'self' "))
+    if (OWN_PAGES.includes(path)) return a + csp.replace("connect-src 'self'", `connect-src 'self' ${origin}`) + b;
+    if (MOVED_PAGES.includes(path) && csp.includes("connect-src 'self' "))
       return a + csp.replace("connect-src 'self' ", `connect-src 'self' ${origin} `) + b;
     // The shell also opens the live socket (wss://, API.md §12) to the same host.
     if (csp === SHELL)

@@ -521,7 +521,13 @@ Study keeps your books (PDFs) in the private bucket `thunderhead-private`, never
 The reader on your phone reads a book's pages straight from the bucket through a link signed for
 your device alone (N1's token already covers this bucket), a few pages at a time.
 
-### O1. Let the reader read your books (about 3 minutes, any time; approved 2026-10-30)
+### O1. Not needed any more (2026-10-30)
+
+Study now reads your books through the Worker with your sign-in and keeps them on your phone, so
+the private bucket needs no CORS rule. Skip this step; if you already added the rule, it does no harm
+(the agent can tell you how to remove it). The old step, for the record:
+
+#### Was: Let the reader read your books
 
 1. dash.cloudflare.com → **R2 Object Storage** → `thunderhead-private` → **Settings** → **CORS
    Policy** → **Add CORS policy**:

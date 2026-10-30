@@ -150,6 +150,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/library/highlights` | D | P7 | built | ?book_id= |
 | `PUT /v1/library/highlights/:id` | D | P7 | built | the newest version wins |
 | `GET /v1/library/search` | D C N | P7 | built | ?q=&book_id=&limit=&cursor=; ready books |
+| `GET /v1/library/books/:id/file` | D | P7 | built | the whole PDF, once its upload is whole; the phone keeps it |
 | `GET /v1/library/books/:id/pages` | C N | P7 | built | ?from=&limit=: a book's stored page text, for the mind |
 | `POST /v1/library/ingest/claim` | C N | P7 | built | the oldest waiting book, an hour; 204 if none |
 | `GET /v1/library/ingest/:job_id/file` | C N | P7 | built | the claimed book's PDF, its holder only |

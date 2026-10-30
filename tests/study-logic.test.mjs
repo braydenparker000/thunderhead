@@ -5,7 +5,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { partsOf, refuse, sendParts, titleFor, WAITS } from '../frontend/apps/study/parts.js';
-import { fetchRange, RETRY_MS } from '../frontend/apps/study/transport.js';
 import { continueRow, goTo, pageDetail, pageName, snippetParts, stateLine } from '../frontend/apps/study/words.js';
 
 const MB = 1024 * 1024;
@@ -60,48 +59,6 @@ test('only the missing parts are sent, each retried three times, with byte progr
     /down/,
   );
   assert.equal(tries, 4);
-});
-
-/** A fake bucket: answers in order from `script`. */
-const bucket = (script) => {
-  const asked = [];
-  const fetcher = async (url, init) => {
-    asked.push([url, init.headers.Range]);
-    const next = script.shift();
-    if (next === 'down') throw new TypeError('Failed to fetch');
-    return new Response(new Uint8Array([1, 2, 3]), { status: next });
-  };
-  return { asked, fetcher };
-};
-
-test('ranges: 206 is the range, 200 the whole file, one re-sign on 403, retries after 1 s and 3 s', async () => {
-  let signs = 0;
-  const url = async () => 'https://acct.r2.cloudflarestorage.com/thunderhead-private/books/b.pdf?sig=1';
-  const resign = async () => `https://acct.r2.cloudflarestorage.com/thunderhead-private/books/b.pdf?sig=${2 + signs++}`;
-  const waits = [];
-  const wait = async (ms) => waits.push(ms);
-
-  let b = bucket([206]);
-  assert.deepEqual(await fetchRange({ url, resign, begin: 0, end: 262_144, fetcher: b.fetcher, wait }), { bytes: new Uint8Array([1, 2, 3]), whole: false });
-  assert.equal(b.asked[0][1], 'bytes=0-262143');
-
-  b = bucket([200]);
-  assert.equal((await fetchRange({ url, resign, begin: 10, end: 20, fetcher: b.fetcher, wait })).whole, true);
-
-  b = bucket([403, 206]);
-  await fetchRange({ url, resign, begin: 0, end: 10, fetcher: b.fetcher, wait });
-  assert.match(b.asked[1][0], /sig=2$/, 'signed again, same range');
-  assert.equal(b.asked[1][1], 'bytes=0-9');
-
-  b = bucket([403, 403]);
-  await assert.rejects(fetchRange({ url, resign, begin: 0, end: 10, fetcher: b.fetcher, wait }), (e) => e.kind === 'denied');
-
-  b = bucket(['down', 503, 206]);
-  await fetchRange({ url, resign, begin: 0, end: 10, fetcher: b.fetcher, wait });
-  assert.deepEqual(waits, RETRY_MS);
-
-  b = bucket(['down', 'down', 'down']);
-  await assert.rejects(fetchRange({ url, resign, begin: 0, end: 10, fetcher: b.fetcher, wait }), (e) => e.kind === 'offline');
 });
 
 const book = (over = {}) => ({

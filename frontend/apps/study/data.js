@@ -1,8 +1,7 @@
 // @ts-check
-// Study's data (STUDY.md §1, §2): the library routes through the shared client, a book's signed
-// link (in memory only, never in the address bar, a link, a log or a sense; re-signed on a 403 or
-// once it is near its end), and what this phone keeps in IndexedDB `th-study` (covers, the last
-// place per book, an upload's progress). Signing out drops `th-study` with the rest (th/session.js).
+// Study's data (STUDY.md §1, §2): the library routes through the shared client, and what this
+// phone keeps in IndexedDB `th-study` (covers, the last place per book, an upload's progress, the
+// scripture table); the books themselves are kept in OPFS (copies.js). Signing out drops `th-study` with the rest (th/session.js).
 import { api, signedIn } from '/th/client.js';
 import { kv } from '/th/idb.js';
 import { CONFIG } from '/config.js';
@@ -13,7 +12,6 @@ import { ApiError } from '/th/api.js';
 /** @typedef {import('../../../shared/contract/library.ts').BookCreateResponse} BookCreateResponse */
 /** @typedef {import('../../../shared/contract/library.ts').Position} Position */
 /** @typedef {import('../../../shared/contract/library.ts').LibrarySearchResponse} LibrarySearchResponse */
-/** @typedef {import('../../../shared/contract/music.ts').MediaSignResponse} MediaSignResponse */
 
 export const local = kv('th-study');
 const id = encodeURIComponent;
@@ -46,22 +44,6 @@ export const search = (q, bookId, cursor) => {
  * @returns {Promise<Position>} */
 export const putPosition = async (bookId, body, keepalive = false) =>
   (await signedIn((t) => api.call(`/v1/library/positions/${id(bookId)}`, { method: 'PUT', token: t, body, keepalive }))).position;
-
-/** @type {Map<string, { url: string, until: number }>} */
-const signed = new Map();
-
-/** A book's signed link, kept in memory until 10 minutes before it ends; `fresh` signs again.
- * @param {string} bookId @param {boolean} [fresh] @returns {Promise<string>} */
-export async function signedUrl(bookId, fresh = false) {
-  const had = signed.get(bookId);
-  if (had && !fresh && had.until - Date.now() > 10 * 60_000) return had.url;
-  /** @type {MediaSignResponse} */
-  const r = await signedIn((t) => api.call('/v1/media/sign', { method: 'POST', token: t, body: { refs: [`book:${bookId}`] } }));
-  const item = r.items[0];
-  if (!item) throw Object.assign(new Error('not signable'), { code: r.errors[0]?.code ?? 'not_found' });
-  signed.set(bookId, { url: item.url, until: item.expires_at });
-  return item.url;
-}
 
 /** This phone's last place in a book (saved 2 s after the page settles). @param {string} bookId
  * @returns {Promise<{ pdf_page: number, scroll_frac: number, at: number } | undefined>} */

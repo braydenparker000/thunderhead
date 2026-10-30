@@ -1,8 +1,9 @@
-// Study's page in Chromium (STUDY.md §3.1, §5, §6), against a mock API and a mock private bucket
-// that answers only signed range requests: the empty shelf; adding a PDF (its title and cover read
-// on the phone, the part sent, the upload completed, "Waiting to be read"); the reader drawing its
-// pages from 256 KB ranges, the printed page numbers in the pill, "Go to page", the place saved,
-// a 403 signed again once; the search, its snippets as text with marks; and a verse (the invented
+// Study's page in Chromium (STUDY.md §3.1, §5, §6), against a mock API: the empty shelf; adding a
+// PDF (its title and cover read on the phone, the part sent, the upload completed, "Waiting to be
+// read"); the reader downloading the book once through the Worker and keeping it on the phone
+// (OPFS), the printed page numbers in the pill, "Go to page", the place saved, the book opened
+// again with the API unreachable, and removed from the phone; the search, its snippets as text
+// with marks; and a verse (the invented
 // table of tests/study/table.json): its card in the search, its page with the owner's copy, the
 // link out with no opener or referrer, "Cited in your books" and a highlight. No CSP or page errors.
 import { test, before, after } from 'node:test';
@@ -18,11 +19,10 @@ import { makePdf } from './fixtures/make-pdf.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
-const BUCKET = 'https://f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0.r2.cloudflarestorage.com';
 const TOKEN = `th1_${'C'.repeat(43)}abcdef`;
 const PDF = makePdf({ pages: 6, filler: 600_000 });
 let site, mock, browser, base, api;
-const state = { books: [], files: new Map(), signs: 0, positions: [], parts: [], deny: 0, ranges: [], tables: [] };
+const state = { books: [], files: new Map(), downloads: 0, positions: [], parts: [], tables: [], down: false };
 const TABLE = readFileSync(new URL('./study/table.json', import.meta.url), 'utf8');
 
 const book = (over) => ({
@@ -40,6 +40,7 @@ before(async () => {
       'Access-Control-Expose-Headers': 'ETag',
       Vary: 'Origin',
     };
+    if (state.down) return res.destroy();
     if (req.method === 'OPTIONS') return res.writeHead(204, cors).end();
     const chunks = [];
     for await (const c of req) chunks.push(c);
@@ -69,6 +70,12 @@ before(async () => {
       Object.assign(b, { state: 'queued', read_pages: 0 });
       return json(200, { book: b });
     }
+    if ((m = /^\/v1\/library\/books\/([^/]+)\/file$/.exec(path))) {
+      const f = state.files.get(m[1]);
+      state.downloads++;
+      if (!f) return json(404, { error: { code: 'not_found', message: 'x', request_id: '' } });
+      return res.writeHead(200, { ...cors, 'Content-Type': 'application/pdf', 'Content-Length': String(f.length) }).end(Buffer.from(f));
+    }
     if ((m = /^\/v1\/library\/books\/([^/]+)$/.exec(path))) {
       const b = state.books.find((x) => x.id === m[1]);
       return b ? json(200, { book: b }) : json(404, { error: { code: 'not_found', message: 'x', request_id: '' } });
@@ -79,12 +86,6 @@ before(async () => {
       const b = state.books.find((x) => x.id === m[1]);
       if (b && (!b.position || b.position.at < p.at)) b.position = p;
       return json(200, { position: p });
-    }
-    if (path === '/v1/media/sign') {
-      const { refs } = JSON.parse(body.toString());
-      const id = refs[0].slice(5);
-      state.signs++;
-      return json(200, { items: [{ ref: refs[0], url: `${BUCKET}/thunderhead-private/books/${id}.pdf?X-Amz-Signature=s${state.signs}`, expires_at: Date.now() + 3 * 3600_000 }], errors: [] });
     }
     if (path === '/v1/library/search')
       return json(200, {
@@ -134,29 +135,6 @@ async function open(path) {
     delete Uint8Array.fromBase64;
     delete Uint8Array.prototype.toBase64;
   });
-  // The private bucket: only signed links, ranges answered with 206, one 403 when asked to.
-  await context.route(`${BUCKET}/**`, async (route) => {
-    const r = route.request();
-    const cors = { 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'Content-Range, Content-Length, Accept-Ranges, ETag' };
-    if (r.method() === 'OPTIONS')
-      return route.fulfill({ status: 204, headers: { ...cors, 'Access-Control-Allow-Methods': 'GET, HEAD', 'Access-Control-Allow-Headers': 'Range' } });
-    const url = new URL(r.url());
-    if (!url.searchParams.get('X-Amz-Signature')) return route.fulfill({ status: 403, headers: cors });
-    if (state.deny > 0) {
-      state.deny--;
-      return route.fulfill({ status: 403, headers: cors });
-    }
-    const id = /books\/([^/]+)\.pdf$/.exec(url.pathname)[1];
-    const file = state.files.get(id);
-    const [, a, b] = /bytes=(\d+)-(\d+)/.exec(r.headers().range ?? '') ?? [];
-    state.ranges.push([Number(a), Number(b)]);
-    const slice = file.subarray(Number(a), Number(b) + 1);
-    return route.fulfill({
-      status: 206,
-      headers: { ...cors, 'Content-Range': `bytes ${a}-${Number(a) + slice.length - 1}/${file.length}`, 'Content-Type': 'application/pdf' },
-      body: Buffer.from(slice),
-    });
-  });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -197,21 +175,19 @@ test('the empty shelf, then a PDF added: title and cover from the file, the part
   await context.close();
 });
 
-test('the reader: ranges from the signed link, printed page numbers, Go to page, the place saved, a 403 signed again', opts, async () => {
+test('the reader: the book downloaded once and kept on the phone, printed page numbers, Go to page, the place saved, offline, removed', opts, async () => {
   const b = state.books[0];
   Object.assign(b, { state: 'ready', pdf_pages: 6, read_pages: undefined });
-  state.deny = 1;
-  const signsBefore = state.signs;
+  const before = state.downloads;
   const { page, context, errors } = await open('/study/');
   await page.getByText('A Synthetic Commentary').first().click();
   await page.waitForURL(/\/study\/\?book=/);
   await page.waitForFunction(() => document.querySelectorAll('.pg canvas').length >= 3 && [...document.querySelectorAll('.pg canvas')].every((c) => c.width > 0));
   assert.equal(await page.locator('.pg').count(), 6);
   assert.equal(await page.locator('.pill').textContent(), 'p. i');
-  // More than one range: the filler pushes the pages past the first 256 KB.
-  assert.ok(state.ranges.length >= 2, JSON.stringify(state.ranges));
-  assert.ok(state.ranges.every(([a, z]) => z - a + 1 <= 262_144));
-  assert.ok(state.signs - signsBefore >= 2, 'a 403 was signed again');
+  assert.equal(state.downloads - before, 1);
+  // Kept on the phone, whole.
+  assert.equal(await page.evaluate(async (id) => (await (await (await (await navigator.storage.getDirectory()).getDirectoryHandle('study')).getFileHandle(`${id}.pdf`)).getFile()).size, b.id), PDF.length);
   // The text layer holds the page's words (selection and screen readers).
   await page.waitForFunction(() => document.querySelector('.pg .textLayer')?.textContent.includes('synthetic book'));
   // The canvas is drawn, not blank.
@@ -229,11 +205,27 @@ test('the reader: ranges from the signed link, printed page numbers, Go to page,
   await page.getByRole('button', { name: 'Go', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('.pill')?.textContent === 'p. 2');
   // The place goes to the Worker (2 s after the page settles).
-  await page.waitForFunction(() => true, null, { timeout: 100 });
   for (let i = 0; i < 40 && !state.positions.some((p) => p.pdf_page === 3); i++) await page.waitForTimeout(100);
   assert.ok(state.positions.some((p) => p.pdf_page === 3), JSON.stringify(state.positions));
-  // The signed link is never in the address.
-  assert.doesNotMatch(page.url(), /r2\.cloudflarestorage|Signature/);
+  // With the API unreachable, the kept book still opens, from the phone, at its place.
+  state.down = true;
+  try {
+    await page.goto(`${base}/study/?book=${b.id}&p=3`);
+    await page.waitForFunction(() => document.querySelector('.pill')?.textContent === 'p. 2');
+    assert.equal(state.downloads - before, 1);
+  } finally {
+    state.down = false;
+  }
+  // Removed from the phone: the book stays in the library; the next open downloads it again.
+  await page.locator('.rtop button[aria-label="Book menu"]').click();
+  await page.getByRole('menuitem', { name: /Remove from this phone/ }).click();
+  await page.waitForURL(/\/study\/$/);
+  const left = await page.evaluate(async () => {
+    const names = [];
+    for await (const k of (await (await navigator.storage.getDirectory()).getDirectoryHandle('study')).keys()) names.push(k);
+    return names;
+  });
+  assert.deepEqual(left, []);
   assert.deepEqual(errors, []);
   await context.close();
 });
@@ -290,13 +282,25 @@ test('a verse: its card first in the search, its page with the owner’s copy, t
   await context.close();
 });
 
-test('signing out drops Study’s covers, places and uploads with the rest', opts, async () => {
+test('signing out drops Study’s covers, places, uploads and kept books with the rest', opts, async () => {
   const { page, context } = await open('/study/');
   await page.locator('.book').first().waitFor();
   const had = await page.evaluate(async () => (await indexedDB.databases()).map((d) => d.name));
   assert.ok(had.includes('th-study'), JSON.stringify(had));
+  await page.evaluate(async () => {
+    const dir = await (await navigator.storage.getDirectory()).getDirectoryHandle('study', { create: true });
+    await (await (await dir.getFileHandle('kept.pdf', { create: true })).createWritable()).close();
+  });
   await page.evaluate(async () => (await import('/th/session.js')).wipe());
   const left = await page.evaluate(async () => (await indexedDB.databases()).map((d) => d.name));
   assert.ok(!left.includes('th-study') && !left.includes('th-auth'), JSON.stringify(left));
+  // Books kept on the phone go too.
+  const kept = await page.evaluate(async () =>
+    (await navigator.storage.getDirectory()).getDirectoryHandle('study').then(
+      () => 'still there',
+      () => 'gone',
+    ),
+  );
+  assert.equal(kept, 'gone');
   await context.close();
 });

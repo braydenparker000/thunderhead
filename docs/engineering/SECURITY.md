@@ -148,10 +148,10 @@ object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-request
 Study (`/study/`, P7: its own page, not a shell stub; built):
 ```
 default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:;
-font-src 'self'; connect-src 'self' https://thunderhead-api.<sub>.workers.dev https://*.r2.cloudflarestorage.com;
+font-src 'self'; connect-src 'self' https://thunderhead-api.<sub>.workers.dev;
 manifest-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'self'; upgrade-insecure-requests
 ```
-The reader fetches a book's ranges straight from the private bucket through a signed link held in memory (STUDY.md §2.2); pdf.js runs without WebAssembly and its worker is this site's own file. The R2 host is a wildcard so the account id isn't written into a public page; a signed link is only good for the account that signed it. The built shell has no R2 host: nothing in it reads the bucket yet.
+The reader reads the phone's own copy of a book, downloaded once through the Worker with the owner's session (STUDY.md §2): the page reaches only the API. pdf.js runs without WebAssembly and its worker is this site's own file. The built shell has no R2 host: nothing in it reads the bucket yet.
 
 Rules:
 - `<acct>` and `<sub>` are filled at stage time from `config` (not secret). Presigned URLs use **path style** (`https://<acct>.r2.cloudflarestorage.com/<bucket>/<key>`) so one host covers every bucket.

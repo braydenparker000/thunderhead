@@ -550,6 +550,12 @@ The phase map for the scored ideas. Top-10 items in bold.
 
 ---
 
+**Parked from the build (not lost; built when a feature needs them):**
+- Study's highlight and note editor in the reader (STUDY.md §5.4: select, Highlight, Note, Ask, Copy; edit and delete with Undo; page notes). The Worker's highlight routes are built (P7 step 1). Parked 2026-10-30.
+- The wash on a cited block itself rather than its whole page (STUDY.md §5.2). Parked 2026-10-30.
+
+---
+
 ## 8. Open questions / tests
 
 Each is tracked with its cheapest test in [RESEARCH-AGENDA.md](RESEARCH-AGENDA.md).

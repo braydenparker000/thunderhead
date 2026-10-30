@@ -1,9 +1,9 @@
 // @ts-check
 // pdf.js for Study (STUDY.md §2.2): vendored 6.4.299 (Apache-2.0), its legacy build (the modern one
 // needs built-ins only the newest Chrome has, unpolyfilled), its worker served from this site, no
-// WebAssembly (the shell's CSP has no 'wasm-unsafe-eval'), ranges of 256 KB asked for only
-// when needed. It also reads a file the owner picks, from the phone itself, for its title, author
-// and a cover drawn from its first page, before anything is uploaded.
+// WebAssembly (the shell's CSP has no 'wasm-unsafe-eval'). A book is always read from the phone
+// itself (a kept copy, or a file the owner picks for its title, author and cover before it is
+// uploaded), in pieces of 256 KB asked for only when needed.
 
 const ROOT = '/vendor/pdfjs-6.4.299/';
 /** @type {Promise<any> | null} */
@@ -20,14 +20,8 @@ export function pdfjs() {
 /** The document options every Study load uses. */
 export const OPTIONS = { rangeChunkSize: 262_144, disableAutoFetch: true, disableStream: true, useWasm: false };
 
-/**
- * Title, author, page count and a cover (a data URL, 160 px wide) from a picked file, read in
- * ranges from the phone's own copy. Nulls when the file can't be read (it is then refused).
- * @param {Blob} file
- * @returns {Promise<{ title: string | null, author: string | null, pages: number, cover: string | null } | null>}
- */
-export async function readLocal(file) {
-  const lib = await pdfjs();
+/** pdf.js reading a file on the phone in pieces. @param {any} lib @param {Blob} file */
+export function fromBlob(lib, file) {
   class FromFile extends lib.PDFDataRangeTransport {
     /** @param {number} length */
     constructor(length) {
@@ -42,7 +36,18 @@ export async function readLocal(file) {
         .then((b) => this.onDataRange(begin, new Uint8Array(b)));
     }
   }
-  const task = lib.getDocument({ ...OPTIONS, range: new FromFile(file.size) });
+  return new FromFile(file.size);
+}
+
+/**
+ * Title, author, page count and a cover (a data URL, 160 px wide) from a picked file, read in
+ * ranges from the phone's own copy. Nulls when the file can't be read (it is then refused).
+ * @param {Blob} file
+ * @returns {Promise<{ title: string | null, author: string | null, pages: number, cover: string | null } | null>}
+ */
+export async function readLocal(file) {
+  const lib = await pdfjs();
+  const task = lib.getDocument({ ...OPTIONS, range: fromBlob(lib, file) });
   try {
     const doc = await task.promise;
     const meta = /** @type {{ info?: { Title?: string, Author?: string } }} */ (await doc.getMetadata().catch(() => ({})));

@@ -46,9 +46,6 @@ test('no outside hosts anywhere in the site', async () => {
     const text = await readFile(f, 'utf8');
     for (const [url] of text.matchAll(/https?:\/\/[^\s"'()<>]+/g)) {
       if (url.startsWith('http://www.w3.org/')) continue;
-      // Study's reader reads the private bucket through signed links (STUDY.md §2.2): its own page's
-      // CSP names the R2 host, and nothing else does.
-      if (relative(SITE, f) === 'study/index.html' && url === 'https://*.r2.cloudflarestorage.com;') continue;
       assert.fail(`${relative(REPO, f)} reaches ${url}`);
     }
   }

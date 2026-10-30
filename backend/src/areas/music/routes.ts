@@ -3,15 +3,13 @@
 // one row read), one track's waveform, and signed links to a track's audio and art in the shared
 // bucket `jarvis-music`, so audio never passes through the Worker. Before the catalog is imported
 // (I7) there is none to give: 409, never an empty library a phone would take as the real one.
-// P7 adds Study's books (`book:<id>`, the PDF in the private bucket once its upload is whole), for
-// the device and the mind.
+// Study's books are not signed: the phone reads them through the Worker (GET /v1/library/books/:id/file).
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import { type MediaSignResponse, MUSIC_LIMITS, type MusicWaveform } from '../../../../shared/contract/music.ts';
 import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { json } from '../../http/validate';
-import { libraryObject } from '../../objects/library';
 import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
 import { ART_KEY, AUDIO_KEY, SONG_ID } from './shapes';
@@ -22,8 +20,6 @@ const signBody = z.strictObject({
   refs: z.array(z.string().check(z.maxLength(300))).check(z.minLength(1), z.maxLength(MUSIC_LIMITS.sign_refs)),
 });
 const MUSIC_REF = /^music:([^#]+)(#art)?$/;
-const BOOK_REF = /^book:([0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/;
-const PRIVATE = 'thunderhead-private';
 
 /** This isolate's copy of the catalog, by ETag: a new isolate asks the object once. */
 let held: { etag: string; text: string } | null = null;
@@ -56,29 +52,18 @@ export const musicRoutes = new Hono<AppEnv>()
     const key = signKey(c.env);
     if (!key) throw new ApiError('not_configured');
     const out: MediaSignResponse = { items: [], errors: [] };
-    // Music is the owner's device's alone; books are the device's and the mind's (`file:` comes later).
+    // Music is the owner's device's alone (`file:` comes later).
     const device = whoOf(principalOf(c)) === 'D';
     const wanted = new Map<string, { id: string; art: boolean }>();
-    const books = new Map<string, string>();
     for (const ref of new Set(refs)) {
       const m = MUSIC_REF.exec(ref);
-      const b = BOOK_REF.exec(ref);
-      if (b) books.set(ref, b[1]);
-      else if (!m || !device) out.errors.push({ ref, code: 'not_signable' });
+      if (!m || !device) out.errors.push({ ref, code: 'not_signable' });
       else if (!SONG_ID.test(m[1])) out.errors.push({ ref, code: 'not_found' });
       else wanted.set(ref, { id: m[1], art: !!m[2] });
     }
     const ids = [...new Set([...wanted.values()].map((w) => w.id))];
     const found = new Map(ids.length ? (await fresh(musicObject(c.env).keys(ids))).map((k) => [k.id, k]) : []);
     const now = Date.now();
-    if (books.size) {
-      const files = new Map((await fresh(libraryObject(c.env).files([...books.values()]))).map((f) => [f.id, f.key]));
-      for (const [ref, id] of books) {
-        const k = files.get(id);
-        if (!k) out.errors.push({ ref, code: 'not_found' });
-        else out.items.push({ ref, ...(await signR2(key, PRIVATE, k, now)) });
-      }
-    }
     for (const [ref, w] of wanted) {
       const t = found.get(w.id);
       const k = w.art ? t?.cover_key : t?.audio_key;

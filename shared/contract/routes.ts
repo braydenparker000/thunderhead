@@ -220,6 +220,7 @@ export const ROUTES = {
   'GET /v1/library/highlights': { who: D, phase: 'P7', note: '?book_id=' },
   'PUT /v1/library/highlights/:id': { who: D, phase: 'P7', note: 'the newest version wins' },
   'GET /v1/library/search': { who: ['D', 'C', 'N'], phase: 'P7', note: '?q=&book_id=&limit=&cursor=; ready books' },
+  'GET /v1/library/books/:id/file': { who: D, phase: 'P7', note: 'the whole PDF, once its upload is whole; the phone keeps it' },
   'GET /v1/library/books/:id/pages': { who: ['C', 'N'], phase: 'P7', note: "?from=&limit=: a book's stored page text, for the mind" },
   'POST /v1/library/ingest/claim': { who: ['C', 'N'], phase: 'P7', note: 'the oldest waiting book, an hour; 204 if none' },
   'GET /v1/library/ingest/:job_id/file': { who: ['C', 'N'], phase: 'P7', note: "the claimed book's PDF, its holder only" },

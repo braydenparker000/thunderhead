@@ -36,21 +36,22 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Next three tasks
 
-1. P7 step 5: books read through the Worker and kept on the phone (no signed link or bucket rule for Study), highlights and notes in the reader, the block's wash.
-2. P7 step 6: cited answers ("Ask about this verse") with the Worker's validator, and their evals; then P8, P9, then **P10, the day-1 features** (the owner's order, 2026-10-30).
+1. P7 step 6: "ask about your books" in the chat (any topic or verse; an answer from the owner's own PDFs that says which pages to study, with open buttons), the Worker's validator, evals. P7's done-when.
+2. Then each app's day-1 feature, finishing its phase (owner, 2026-10-30, "what's actually best"): Music (the playlist from plain words, the smart DJ shuffle, better search), Guitar (tips per section); then P8 with Astra's anime pick and the others' search; then P9.
 3. Owner: SETUP.md N1–N4 (music), M2 (the reflex routine and its drill), M3 (Muse moves over), M4 from 2026-11-05. Sunday's first backup and drill are P4's "a restore drill passed"; the Music object's first backup runs with it.
 
 ## Blocked / waiting on the owner
 
 - SETUP.md M2 (batch D is live) and M3 (G+H is live).
-- SETUP.md O1 (the private bucket's CORS rule; approved 2026-10-30) and N1: Study's reader opens books once both are done.
+- Study needs no owner step to read books any more (O1 dropped).
 - SETUP.md O2 (the owner's scripture volumes added in Study, then the mind builds the table and text): verses need it.
 - SETUP.md N1 (the signing token) and N2 (`jarvis-music` CORS, ask-first) any time; N4 (the tools' key) then N3 (the catalog import) on one day: the player switches by itself after them.
 - The decision card's place at the top of home: the owner wants to talk about its design first; unchanged until then.
 
 ## Last deploy
 
-- 2026-10-30: this push, P7 step 4 (verses: the parser, the private table and text, the verse page; no schema change).
+- 2026-10-30: this push, P7 step 5 (books read through the Worker and kept on the phone; no schema change).
+- 2026-10-30: `ac998ec` (run #51), P7 step 4 (verses: the parser, the private table and text, the verse page).
 - 2026-10-30 01:37 UTC: `8d51a0b` (run #50), P7 step 3 (the mind reads the owner's books, night step 6; no Worker schema change). Checked live: the site's files match.
 - 2026-10-30 01:36 UTC: `ab6d3bd` (run #49), P7 step 2, the Study app, with pdf.js's legacy build (run #48 stopped at its tests before deploying: the modern build needs built-ins CI's Chromium lacks). Checked live.
 - 2026-10-30 00:57 UTC: `8c79055` (run #47), P7 step 1b (the Library's routes, `book:` signing, its daily pass; the Library and the senses' rollups in the backup and the export; no schema change). Checked live.

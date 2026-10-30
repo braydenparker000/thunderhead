@@ -47,6 +47,18 @@ export const libraryRoutes = new Hono<AppEnv>()
     if (!book) throw new ApiError('not_found');
     return c.json({ book });
   })
+  // The whole PDF for the phone, which keeps it and reads it from there (STUDY.md §2): through the
+  // Worker with the owner's session, so no signed link, signing key or bucket rule is needed.
+  .get('/library/books/:id/file', guard('GET /v1/library/books/:id/file'), async (c) => {
+    const [f] = await fresh(libraryObject(c.env).files([idParam(c)]));
+    const obj = f && (await c.env.VAULT.get(f.key));
+    if (!obj) throw new ApiError('not_found');
+    return c.body(obj.body, 200, {
+      'Content-Type': 'application/pdf',
+      'Content-Length': String(obj.size),
+      'Cache-Control': 'private, no-store',
+    });
+  })
   .patch('/library/books/:id', guard('PATCH /v1/library/books/:id'), async (c) => {
     const id = idParam(c);
     return c.json({ book: value(await fresh(libraryObject(c.env).edit(id, await json(c, editBody)))) });

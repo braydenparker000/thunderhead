@@ -1,6 +1,6 @@
 // @ts-check
-// The reader (STUDY.md §5): the book's pages in one continuous column, read in 256 KB ranges
-// straight from the private bucket through a signed link held in memory. At most five pages are
+// The reader (STUDY.md §5): the book's pages in one continuous column, read from this phone's copy
+// (downloaded through the Worker the first time, with its progress; copies.js). At most five pages are
 // drawn at once (the one in view and two either side), each at the screen's pixel ratio (at most
 // 2) with its text layer, so selection and screen readers work. The top bar and the page pill hide
 // after 3 s without a touch and come back on a tap; the pill opens "Go to page". The place is
@@ -12,8 +12,8 @@ import { failure } from '/th/flow.js';
 import { el, toast } from '/th/ui.js';
 import * as data from './data.js';
 import { back, go } from './nav.js';
-import { OPTIONS, pdfjs } from './pdf.js';
-import { rangeTransport } from './transport.js';
+import * as copies from './copies.js';
+import { fromBlob, OPTIONS, pdfjs } from './pdf.js';
 import { goTo, pageDetail, pageName } from './words.js';
 
 /** @typedef {import('../../../shared/contract/library.ts').Book} Book */
@@ -45,9 +45,16 @@ export async function openReader(main, bookId, askedPage, block) {
   try {
     book = await data.book(bookId);
   } catch (e) {
-    toast(lineFor(failure(e)));
-    go('', { replace: true });
-    return () => {};
+    // Offline, a kept book still opens, from what this phone knows of it.
+    /** @type {Book[]} */
+    const known = (await data.local.get('books').catch(() => null)) ?? [];
+    const had = known.find((b) => b.id === bookId);
+    if (!had || !(await copies.kept(had))) {
+      toast(lineFor(failure(e)));
+      go('', { replace: true });
+      return () => {};
+    }
+    book = had;
   }
   title.textContent = book.title;
   document.title = `${book.title} · Study`;
@@ -79,28 +86,27 @@ export async function openReader(main, bookId, askedPage, block) {
     }
     pages.append(errBox);
   };
-  try {
-    await data.signedUrl(bookId);
-  } catch (e) {
-    const f = failure(e);
-    showError(
-      f.kind === 'api' && /** @type {any} */ (f).code === 'not_configured'
-        ? "Books can't open yet: the reading key isn't set up."
-        : "Can't open this book right now.",
-      () => go(`?book=${bookId}`, { replace: true }),
-    );
-    return () => {};
+  /** @type {Blob | null} */
+  let file = await copies.kept(book);
+  if (!file) {
+    const line = el('p', { text: 'Getting your book…' });
+    const status = el('div', { class: 'rerr', role: 'status' }, [line]);
+    pages.append(status);
+    try {
+      file = await copies.keep(book, (f) => {
+        line.textContent = `Getting your book… ${Math.floor(f * 100)}%`;
+      });
+    } catch (e) {
+      status.remove();
+      const why = /** @type {any} */ (e)?.why;
+      if (why === 'space') showError("Not enough space on this phone (it needs twice the book's size).", null);
+      else if (why === 'gone') showError("This book isn't in your library any more.", null);
+      else showError("Can't reach your library. Books you've opened before are kept on this phone.", () => go(`?book=${bookId}`, { replace: true }));
+      return () => {};
+    }
+    status.remove();
   }
-  const transport = rangeTransport(lib, {
-    length: book.bytes,
-    url: () => data.signedUrl(bookId),
-    resign: () => data.signedUrl(bookId, true),
-    onFail: (e) =>
-      e.kind === 'denied'
-        ? showError("Can't open this book right now.", () => transport.retry())
-        : showError("Can't reach your library. Pages you've already opened are still here.", () => transport.retry()),
-  });
-  const task = lib.getDocument({ ...OPTIONS, range: transport });
+  const task = lib.getDocument({ ...OPTIONS, range: fromBlob(lib, file) });
   /** @type {any} */
   let doc;
   try {
@@ -321,6 +327,11 @@ export async function openReader(main, bookId, askedPage, block) {
         book = b;
         title.textContent = b.title;
       },
+      removed: async () => {
+        await copies.remove(bookId);
+        toast('Removed from this phone. It opens again from your library.');
+        back();
+      },
     }),
   );
 
@@ -407,7 +418,7 @@ function goToSheet(labels, total, to) {
 
 /**
  * @param {Book} book @param {number} current @param {(string | null)[]} labels @param {number} total
- * @param {{ goTo: () => void, colours: () => void, renamed: (b: Book) => void }} on
+ * @param {{ goTo: () => void, colours: () => void, renamed: (b: Book) => void, removed: () => void }} on
  */
 function bookMenu(book, current, labels, total, on) {
   const dim = el('div', { class: 'mdim' });
@@ -430,6 +441,7 @@ function bookMenu(book, current, labels, total, on) {
   if (document.documentElement.dataset.theme === 'dark')
     item('Original page colours', on.colours, document.querySelector('.reader.orig') ? 'On' : 'Off');
   item('Edit title and author', () => editSheet(book, on.renamed));
+  item('Remove from this phone', on.removed, 'Stays in your library');
   item('Details', () =>
     sheet('Details', (box, close) => {
       const facts = el('dl', { class: 'facts' });

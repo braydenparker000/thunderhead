@@ -58,7 +58,7 @@ export class Library extends OwnerObject {
     return store.books(this.db).map((b) => ops.toBook(this.db, b));
   }
 
-  /** The files of whole books (their upload finished), for signed links. */
+  /** The files of whole books (their upload finished), for the phone to read and keep. */
   files(ids: string[]): { id: string; key: string }[] {
     return ids.flatMap((id) => {
       const b = store.book(this.db, id);
