@@ -713,9 +713,21 @@
      "adjustments": []
     },
     "guitar/reader.js": {
-     "sha256": "7d9af8e885a08e06f056a0e8888d47d678d2a2365e53beab60cee8d23936129f",
+     "sha256": "e9070e3e3808131a2efe12e9fb6dbeed5619b30035718dbb801202c9af1a3e12",
      "old_sha256": "7d9af8e885a08e06f056a0e8888d47d678d2a2365e53beab60cee8d23936129f",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "import { filename, createDownload, nativeSaveMode, saveToDevice, triggerDownload, withDeadline } from './runtime.js';\nimport { attachTips } from '/th/guitar/teacher.js';",
+       "import { filename, createDownload, nativeSaveMode, saveToDevice, triggerDownload, withDeadline } from './runtime.js';"
+      ],
+      [
+       "        if (section) { const label = el('span.rd-section', {}, section); label.style.left = bar.x + 'px'; node.append(label); attachTips(label, bar.index, () => this.timeline, openSheet); }",
+       "        if (section) { const label = el('span.rd-section', {}, section); label.style.left = bar.x + 'px'; node.append(label); }"
+      ]
+     ]
     },
     "guitar/runtime.js": {
      "sha256": "996edc9b0d702be93e4df9c0dddbe0b31416507a3b9cfedbda241b2168f3af95",

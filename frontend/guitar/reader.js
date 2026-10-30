@@ -10,6 +10,7 @@ import { lastAtOrBefore, occurrence, formatTime } from './timeline.js';
 import { STATUSES, TAB_SCALES } from './store.js';
 import { readerTrack } from './track-selection.js';
 import { filename, createDownload, nativeSaveMode, saveToDevice, triggerDownload, withDeadline } from './runtime.js';
+import { attachTips } from '/th/guitar/teacher.js';
 
 const player = new Player();
 let open = null;
@@ -205,7 +206,7 @@ class Reader {
       for (const bar of sys.bars) {
         this.geo.set(bar.index, { ...bar, node, system: index });
         const section = sections.get(bar.index);
-        if (section) { const label = el('span.rd-section', {}, section); label.style.left = bar.x + 'px'; node.append(label); }
+        if (section) { const label = el('span.rd-section', {}, section); label.style.left = bar.x + 'px'; node.append(label); attachTips(label, bar.index, () => this.timeline, openSheet); }
       }
       return { ...sys, node };
     });

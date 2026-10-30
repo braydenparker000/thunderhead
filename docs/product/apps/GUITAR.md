@@ -278,6 +278,16 @@ click within ±1 ms of the expected sample; compound 6/8 produces 2 clicks per b
 
 ## 6. The teacher
 
+**Built first on the phone (2026-10-30, the owner's day-1 request: "guitar tips per section like a
+real teacher"):** `frontend/th/guitar/teacher.js` reads the reader's own tab timeline section by
+section (the tab's sections, else 8 bars) for what makes it hard (fast runs, wide reaches, big
+shifts, barres, slurs, bends, slides, vibrato, palm mutes, harmonics, strummed chords, quick chord
+changes, length) and gives at most three tips a section from 14 attributed templates, each a hint
+with "Show me" for the concrete step and whose approach it follows (in our words, no quotations).
+A section's label in the reader opens them (one recorded `improvement` edit to `reader.js`). The
+mind's tips from practice data (§6.2's margin, §6.3's plan, §6.4's metrics) come with the practice
+senses and the ears, beside these.
+
 The teacher is the mind's `guitar-teacher` skill (`mind/skills/guitar-teacher/`), working from the
 owner's practice senses. It writes surfaces at night (`mind-night`) and, when the owner asks, in
 chat. It never writes into the score itself. See [BEHAVIOR](../../mind/BEHAVIOR.md).

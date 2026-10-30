@@ -22,6 +22,7 @@ const IMPROVED = {
   'music/src/app.js': ['/th/music/dj.js'],
   'music/src/player/player.js': ['/th/music/dj.js'],
   'music/src/list/sources.js': ['/th/music/search.js'],
+  'guitar/reader.js': ['/th/guitar/teacher.js'],
   'music/sw.js': [],
 };
 const sha = b => createHash('sha256').update(b).digest('hex');

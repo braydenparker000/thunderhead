@@ -46,6 +46,14 @@ export const EDITS = {
       ["  // The Thunderhead's \"Open in Music\" for a playlist (#pl=<id>, MUSIC.md \u00a710.2): that playlist's tracks.\n  const pl = /^#pl=([a-z0-9]{6,24})$/.exec(location.hash)?.[1];\n  if (pl && ctx.playlists?.get(pl)) {\n    history.replaceState(null, '', location.pathname + location.search);\n    ctx.bus.post('bus_gui', 'cmd_nav_to_playlist', null, {playlist: ctx.playlists.get(pl)});\n  }\n  // A library that arrives later (R2 index refresh) fills an empty player.", "  // A library that arrives later (R2 index refresh) fills an empty player."],
     ],
   },
+  // Guitar tips per section the owner asked for (decisions 2026-10-30): a section's label opens its tips.
+  'guitar/reader.js': {
+    adjustments: ['improvement'],
+    edits: [
+      ["import { filename, createDownload, nativeSaveMode, saveToDevice, triggerDownload, withDeadline } from './runtime.js';\nimport { attachTips } from '/th/guitar/teacher.js';", "import { filename, createDownload, nativeSaveMode, saveToDevice, triggerDownload, withDeadline } from './runtime.js';"],
+      ["        if (section) { const label = el('span.rd-section', {}, section); label.style.left = bar.x + 'px'; node.append(label); attachTips(label, bar.index, () => this.timeline, openSheet); }", "        if (section) { const label = el('span.rd-section', {}, section); label.style.left = bar.x + 'px'; node.append(label); }"],
+    ],
+  },
   // Better song search the owner asked for (decisions 2026-10-30): every hit kept, ranked, typos forgiven.
   'music/src/list/sources.js': {
     adjustments: ['improvement'],
