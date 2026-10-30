@@ -1,6 +1,6 @@
 // Settings pages that need sign-in: Devices (SIGN-IN.md §11.1, §7.2), Agents (§17), Account
-// (§9.1), What I remember (MEMORY.md §12), Notifications (MENU-AND-SETTINGS.md §4.3) and Export (§4.9). Each opens full screen over the shell and slides in from the right, with a back row
-// "‹ Settings" to the open menu (MENU-AND-SETTINGS.md §1). Signing out never asks for the password;
+// (§9.1), What I remember (MEMORY.md §12), Notifications (MENU-AND-SETTINGS.md §4.3) and Export (§4.9). Each opens full screen over the shell on home's own field and slides in from the right, with a
+// round back button to the open menu (MENU-AND-SETTINGS.md §1). Signing out never asks for the password;
 // handing out a credential (recovery code, agent key) checks it inline (§15).
 import { api, signedIn, signOutHere } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
@@ -52,12 +52,21 @@ export async function openPage(name, opts = {}) {
   current?.remove();
   /** @type {(() => void) | null} what the page must do as it closes (Memory sends a pending Forget) */
   let cleanup = null;
-  const back = el('button', { type: 'button', class: 'sback', text: '‹ Settings' });
+  // A round glass back button over the same field as home, the title under it (DESIGN-SYSTEM.md §12).
+  const back = el('button', { type: 'button', class: 'sback', 'aria-label': 'Back to Settings' });
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  icon.setAttribute('class', 'i');
+  icon.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
+  use.setAttribute('href', '/ui/icons.svg#arrow-left');
+  icon.append(use);
+  back.append(icon);
+  const title = el('h1', { text: TITLES[name], tabindex: '-1' });
   const body = el('div', { class: 'sbody' });
   const page = el('section', { class: 'spage', role: 'dialog', 'aria-modal': 'true', 'aria-label': TITLES[name] }, [
-    back,
-    el('h1', { text: TITLES[name] }),
-    body,
+    el('div', { class: 'field', 'aria-hidden': 'true' }),
+    el('div', { class: 'grain', 'aria-hidden': 'true' }),
+    el('div', { class: 'sscroll' }, [back, title, body]),
   ]);
   document.querySelector('#app').append(page);
   current = page;
@@ -66,14 +75,15 @@ export async function openPage(name, opts = {}) {
     cleanup?.();
     cleanup = null;
     page.classList.remove('in');
-    setTimeout(() => page.remove(), 320);
+    setTimeout(() => page.remove(), 480);
     if (current === page) current = null;
     if (location.pathname !== '/') history.replaceState(null, '', '/');
     document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' }));
   };
   back.addEventListener('click', close);
   page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-  back.focus({ preventScroll: true });
+  // The page's title takes focus (a screen reader names the page), never a ring on the back button.
+  title.focus({ preventScroll: true });
   if (name === 'devices') await devices(body);
   else if (name === 'agents') (await import('./agents.js')).agents(body, opts);
   else if (name === 'memory') cleanup = await (await import('./memory.js')).memory(body);

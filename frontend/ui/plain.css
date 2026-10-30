@@ -1,5 +1,10 @@
-/* Minimal styling for plain pages such as 404. */
-:root{color-scheme:light dark}
-body{margin:0;min-height:100vh;display:grid;place-items:center;background:#eef1f7;color:#152231;font:16px/1.5 system-ui,sans-serif}
-@media (prefers-color-scheme:dark){body{background:#000;color:#eceff4}}
-a{color:inherit}
+/* Plain pages such as the 404: the shell's field and one line in the Thunderhead's voice, with a
+   glass pill back home (tokens.css and shell.css). */
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-smoothing:antialiased}
+.bg{position:fixed;inset:0;overflow:hidden;pointer-events:none}
+main{position:relative;display:flex;flex-direction:column;align-items:center;gap:22px;padding:24px}
+.voice{margin:0;font:italic 340 clamp(32px,9vw,40px)/1.12 var(--voice);letter-spacing:-.01em}
+.home{display:inline-flex;align-items:center;min-height:44px;padding:0 20px;border-radius:var(--r-full);background:var(--glass-flat);border:1px solid var(--glass-line);box-shadow:var(--e1);color:var(--ink);font:500 15px var(--ui);text-decoration:none;transition:transform var(--d-fast) var(--pop)}
+.home:active{transform:scale(.97)}

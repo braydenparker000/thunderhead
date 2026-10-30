@@ -1,7 +1,7 @@
 # Design system
 
 The tokens, components and rules every Thunderhead screen is built from: colour, type, space, shape, glass, grain, motion, layers, icons and the six app colours, with the contrast checks that keep them readable.
-Values marked "built" are in the first build (`frontend/apps/home/home.css`); everything else is new and marked **[proposal]** until the owner accepts it.
+Values marked "built" are in the build: every shell page takes its tokens from `frontend/ui/tokens.css` and its shared rules (field, grain, focus ring, press, page cross-fade) from `frontend/ui/shell.css`, loaded last; everything else is marked **[proposal]** until the owner accepts it.
 Scope: the shell (home, Briefing, menu, settings, sign-in) and new apps (Study). The ported apps (Music, Guitar, Podcasts, Astra, My Media) come over **as they are** with their own look, fonts and icons (owner ruling 2026-10-28); the rules and lint tests here apply to one of them only after the owner agrees to bring it into the system.
 Sibling docs: [HOME](../product/HOME.md), [GESTURES](GESTURES.md), [COPY](COPY.md), [BRIEFING](../product/BRIEFING.md), [MENU-AND-SETTINGS](../product/MENU-AND-SETTINGS.md), [PERFORMANCE](../engineering/PERFORMANCE.md), [decisions](../process/decisions.md).
 
@@ -128,6 +128,7 @@ Layout constants (built): conversation `top: 56px; bottom: 98px`; ask bar `heigh
 | `--r-s` | 10 | Ring label pill, segmented item (built 9) | built |
 | `--r-m` | 12 | Rows, toast, segmented track | built |
 | `--r-chip` | 14 | Action chips, attachment thumbnails | built |
+| `--r-row` | 16 | Rows inside a group (Settings lists and actions, sheet items) | built |
 | `--r-bubble` | 19 | Owner bubble | built |
 | `--r-l` | 22 | Decision card, briefing tiles | built |
 | `--r-xl` | 26 | `+` sheet, action menu, bottom sheets | built |
@@ -147,15 +148,17 @@ There is no elevation scale of grey shadows. Depth comes from glass, a 1 px top 
 | E2 raised | E1 + `0 10px 28px -16px rgba(20,30,60,.25)` | E1 + `0 10px 28px -16px #000` | Decision card, ask bar (`0 12px 30px -16px`) |
 | E3 floating | `0 24px 50px -22px rgba(10,20,40,.4)` | same with `#000` | `+` sheet, action menus, menu panel (`-24px 0 50px -24px` sideways) |
 
+Built as `--e1`, `--e2` and `--e3`. Settings groups (lists, actions, the memory fold) are flat glass at E1, so Settings reads as the same material as home's tiles.
+
 ## 6. Glass
 
 | Kind | Recipe | Where |
 |---|---|---|
 | **Live glass** (G1) | Fill token + `backdrop-filter: blur(16–28px) saturate(1.5–1.8)` + 1 px line + E1/E2 | Ask bar (18 px), menu panel (28), `+` sheet (24), decision card (16), ring bubbles (14, only while the ring is open) |
-| **Flat glass** (G0) [proposal] | Same fill and line, **no** `backdrop-filter`; a 2% lighter fill to compensate | Owner bubbles, action chips, briefing tiles, `.past` pill |
+| **Flat glass** (G0) | `--glass-flat` (the fill 2% lighter) and the same line, **no** `backdrop-filter`. Built | Owner bubbles, action chips, briefing tiles, `.past` pill, Settings groups and buttons, the 404's link |
 | **Liquid glass bubble** | Ring only: radial highlight at 30% 15%, a wash of the app colour from below (22% day, 30% night), 1 px white line (65% day, 18% night), inner top highlight, inner bottom app-colour glow. Selected: app colour at 88%, white icon, 6 px app-colour halo | Compass ring |
 
-Budget: at most **2 live-glass surfaces visible at once** (ask bar + one of: card, sheet, menu, ring). The first build gives every owner bubble, chip and tile its own `backdrop-filter`; that breaks the budget once a conversation has a few turns. Acceptance: a test counts elements with a computed `backdrop-filter` other than `none` that intersect the viewport, in each view: ≤ 2 (ring open: the six bubbles count as one layer, ≤ 3 total).
+Budget: at most **2 live-glass surfaces visible at once** (ask bar + one of: card, sheet, menu, ring). The first build gave every owner bubble, chip and tile its own `backdrop-filter`, which broke the budget once a conversation had a few turns; they are flat glass now, and Settings opens on an opaque page with no blur at all. Acceptance (built, `tests/shell-look-browser.test.mjs`): a test counts elements with a computed `backdrop-filter` other than `none` that intersect the viewport, in each view: ≤ 2 (ring open: the six bubbles count as one layer, ≤ 3 total).
 
 ## 7. Field and grain
 
@@ -173,11 +176,11 @@ Budget: at most **2 live-glass surfaces visible at once** (ask bar + one of: car
 | Token | Value | Use | Status |
 |---|---|---|---|
 | `--d-instant` | 90 ms | Label crossfade, hub follow | built (90–100) |
-| `--d-fast` | 140 ms | Ring collapse, pressed scale | built |
-| `--d-quick` | 220 ms | Press ring, chosen-bubble fly-out, icon swaps (mic ↔ send) | built |
+| `--d-fast` | 160 ms | Ring collapse, pressed scale | built |
+| `--d-quick` | 240 ms | Press ring, chosen-bubble fly-out, icon swaps (mic ↔ send) | built |
 | `--d-base` | 300 ms | Fades of the conversation (blur behind `+`), card fold start | built |
-| `--d-sheet` | 340 ms | `+` sheet unfold | built |
-| `--d-page` | 420 ms | Briefing / menu settle | built |
+| `--d-sheet` | 380 ms | `+` sheet unfold | built |
+| `--d-page` | 460 ms | Briefing, menu and Settings settle (on `--settle`, whose tail is near-still, so it reads quicker than it is) | built |
 | `--d-rise` | 900 ms | Voice line rise (500 ms for a conversation turn) | built |
 | `--d-edge` | 1,400 ms | Edge light state crossfade | built |
 | `--ease-out` | `cubic-bezier(.2,.8,.2,1)` | Page settles | built |
@@ -186,7 +189,7 @@ Budget: at most **2 live-glass surfaces visible at once** (ask bar + one of: car
 | `--ease-pop` | `cubic-bezier(.34,1.45,.64,1)` | Buttons, bubbles, `+` rotate (overshoot ~10%) | built |
 | `--ease-sheet` | `cubic-bezier(.34,1.3,.64,1)` | Sheet unfold | built |
 
-### 8.2 Springs [proposal]
+### 8.2 Springs
 
 Generated once as CSS `linear()` easings (Chrome 113+) from Material 3's spring tokens, so the motion is physically consistent:
 
@@ -196,6 +199,8 @@ Generated once as CSS `linear()` easings (Chrome 113+) from Material 3's spring 
 | `--spring` | 0.8 / 380 | 300 ms, ~1.5% overshoot | Cards, rows, chips |
 | `--spring-slow` | 0.8 / 200 | 400 ms | Pages, sheets |
 | `--spring-fx` | 1.0 / 1600 | 150 ms | Opacity and colour |
+
+Built as two, which is all the shell needs: `--settle` (damping 0.8, ~1.5% overshoot) moves pages, the menu and Settings; `--pop` (damping 0.6, ~9%) is the press on rows, tiles, chips and buttons (scale .97 while held, `--d-fast`).
 
 ### 8.3 Named animations
 
@@ -218,11 +223,13 @@ Under `prefers-reduced-motion: reduce`:
 | Rise, breathe, think, drift, press | Off. Elements appear in their final state. |
 | Edge light | Static at the state's resting value; thinking shows a steady brighter glow instead of a pulse. |
 | Page and sheet moves | 150 ms opacity crossfade; swipes still track the finger. |
+| Moving between shell pages (sign-in → home, the 404 → home) | Built: a 150 ms cross-fade instead of the default. Toward an app's page there is none (apps don't take part). |
+| Press scale | Off. |
 | Ring | Bubbles appear in place with a 120 ms fade. |
 | Reply reveal | Whole text at once. |
 | Haptics | Unchanged. |
 
-Acceptance: with `reducedMotion: 'reduce'`, `document.getAnimations().filter(a => a.playState === 'running')` is empty 1 s after load on home.
+Acceptance (built): with `reducedMotion: 'reduce'`, `document.getAnimations().filter(a => a.playState === 'running')` is empty 1 s after load on home.
 
 ## 9. Contrast requirements and checks
 
@@ -307,6 +314,8 @@ Each component lives in `ui/components.css` (and a tiny JS helper where needed).
 | **Tile** | Flat glass, radius 22, padding 14/15, E1; key line (16 px icon + Inter 600 12 in app text colour), value `--t-body` 500, detail `--t-small` `--ink-3`, optional `--t-big`. `.wide` spans both columns | rest, pressed, gold (1 px inset gold ring at 50%), stale (detail shows "as of 14:10"), empty (hidden) |
 | **Buttons** | Primary filled: `--accent-fill`, white, pill, 44 px min. Gold: decision only. Secondary: `--tint`. Text button: `--accent-text`, no fill, 44 px hit area. Icon button: 44 px circle, 20 px icon | rest, pressed scale .96, focus-visible 2 px `--accent-fill` outline offset 2, disabled .5 |
 | **Toggle** [proposal] | `<input type="checkbox" role="switch">`, 51×31 track, `--accent-fill` when on | on, off, disabled |
+| **Settings page** | Built. Slides in over home on `--settle`, opaque `--bg` with the field still behind it (no drift, no blur). 44 px round flat-glass back button (arrow-left, "Back to Settings"), title Inter 600 30/1.15 that takes focus on open. Section labels small caps 11 px `--ink-3`. Lists and actions are flat-glass groups (radius 22, E1) of 48 px rows; a destructive row in `--alarm` | open, closing (480 ms, then removed) |
+| **404** | Built. The field and grain, the voice line "Nothing here." in Fraunces italic, one flat-glass pill "Back home" | — |
 | **Visually hidden skip buttons** | "Apps", "Briefing", "Menu": clipped until focused; then a 44 px glass pill at top-left | hidden, focused |
 
 ## 13. Icons

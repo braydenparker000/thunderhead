@@ -1,22 +1,35 @@
-/* Settings pages: full screen over the shell, sliding in from the right (MENU-AND-SETTINGS.md §1),
-   on the sheet glass. Rows follow DESIGN-SYSTEM.md §12. Needs ui/tokens.css and ui/forms.css. */
-.spage{position:absolute;inset:0;z-index:30;overflow-y:auto;overscroll-behavior:contain;padding:calc(12px + env(safe-area-inset-top,0px)) 16px calc(32px + env(safe-area-inset-bottom,0px));background:var(--sheet);backdrop-filter:blur(28px) saturate(1.6);-webkit-backdrop-filter:blur(28px) saturate(1.6);transform:translateX(100%);transition:transform .34s var(--spring);user-select:text;-webkit-user-select:text;font-family:var(--ui);color:var(--ink)}
+/* Settings pages: full screen over the shell on home's own field (still, so it reads calmly), sliding
+   in from the right on the shell's spring (MENU-AND-SETTINGS.md §1): a round glass back button, a
+   large title, the menu's small section labels, and lists and actions in flat-glass groups
+   (DESIGN-SYSTEM.md §6, §12). No blur behind it, so the slide stays smooth. Needs ui/tokens.css,
+   ui/forms.css and ui/shell.css. */
+.spage{position:absolute;inset:0;z-index:30;overflow:hidden;background:var(--bg);transform:translateX(100%);transition:transform var(--d-page) var(--settle);font-family:var(--ui);color:var(--ink);box-shadow:-24px 0 50px -24px rgba(10,20,40,.35)}
 .spage.in{transform:none}
-.sback{min-height:44px;margin-left:-6px;padding:0 8px;border:0;border-radius:12px;background:none;color:var(--accent-text);font:500 15px var(--ui);cursor:pointer}
-.spage h1{margin:6px 2px 4px;font:600 24px/1.25 var(--ui);letter-spacing:-.015em}
-.spage h2{margin:18px 0 0;font:600 16px/1.35 var(--ui)}
-.slist{margin-top:10px;display:flex;flex-direction:column;gap:2px}
-.srow{display:flex;align-items:center;gap:10px;padding:10px 8px;border-radius:12px}
-.srow:hover{background:var(--tint)}
+.spage .field::before,.spage .field::after{animation:none}
+.sscroll{position:absolute;inset:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;padding:calc(12px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(40px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));user-select:text;-webkit-user-select:text}
+.sscroll::-webkit-scrollbar{display:none}
+.sback{width:44px;height:44px;margin:0 0 0 -2px;padding:0;display:grid;place-items:center;border:1px solid var(--glass-line);border-radius:var(--r-full);background:var(--glass-flat);box-shadow:var(--e1);color:var(--ink);cursor:pointer}
+.sback svg{width:20px;height:20px;fill:currentColor}
+.spage h1{margin:18px 4px 4px;font:600 30px/1.15 var(--ui);letter-spacing:-.022em;outline:none}
+.spage h2{margin:28px 8px 8px;font:600 11px/1.3 var(--ui);letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3)}
+.slist,.spage .sactions{display:flex;flex-direction:column;gap:2px;margin-top:14px;padding:6px;border-radius:var(--r-l);background:var(--glass-flat);border:1px solid var(--glass-line);box-shadow:var(--e1)}
+.srow{display:flex;align-items:center;gap:10px;padding:10px;border-radius:var(--r-row)}
+.srow:hover{background:var(--press)}
+/* An action list reads as rows in its group, not a stack of pills; a destructive one in alarm red. */
+.spage .btn.soft{background:var(--glass-flat);border:1px solid var(--glass-line);box-shadow:var(--e1);color:var(--ink)}
+.spage .sactions .btn{margin:0;min-height:48px;justify-content:flex-start;padding:0 12px;border:0;border-radius:var(--r-row);background:none;box-shadow:none;color:var(--ink);font:500 15px var(--ui)}
+.spage .sactions .btn:hover{background:var(--press)}
+.spage .sactions .btn.danger{color:var(--alarm)}
 .stext{flex:1;min-width:0}
 .st1{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .sname{max-width:100%;min-height:32px;padding:0;border:0;background:none;font:500 15px/1.3 var(--ui);color:var(--ink);text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:text}
 .sname.static{cursor:default}
-.sedit{width:100%;min-height:36px;border-radius:10px;border:1px solid var(--accent-fill);background:var(--glass);color:var(--ink);font:500 15px var(--ui);padding:6px 10px;outline:none}
+.sedit{width:100%;min-height:36px;border-radius:var(--r-m);border:1px solid var(--glass-line);background:var(--glass-flat);color:var(--ink);font:500 15px var(--ui);padding:6px 10px;outline:none;transition:border-color var(--d-fast) ease,box-shadow var(--d-fast) ease}
+.sedit:focus{border-color:var(--accent-fill);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-fill) 22%,transparent)}
 .st2{margin-top:2px;font:400 12px/1.45 var(--ui);color:var(--ink-3)}
 .st2.gold{color:var(--gold-text);font-weight:500}
 .badge{padding:2px 8px;border-radius:999px;background:var(--tint);font:600 11px/1.6 var(--ui);color:var(--ink-2);white-space:nowrap}
-.sbtn{flex:none;min-height:44px;padding:0 14px;border:0;border-radius:999px;background:var(--tint);color:var(--ink);font:600 13px var(--ui);cursor:pointer}
+.sbtn{flex:none;min-height:40px;padding:0 14px;border:1px solid var(--glass-line);border-radius:var(--r-full);background:var(--glass-flat);color:var(--ink);font:600 13px var(--ui);cursor:pointer}
 .sactions{margin-top:8px}
 .sactions .btn{margin-top:10px}
 .swarn{margin:12px 0 0;padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--gold) 16%,transparent);font:500 13px/1.45 var(--ui);color:var(--gold-text)}
@@ -33,10 +46,10 @@
 .shelp.strong{font-weight:600;color:var(--ink)}
 .shelp code,.sform code{font:500 12px var(--mono);background:var(--tint);padding:1px 5px;border-radius:6px}
 .notice .q{white-space:normal}
-@media (prefers-reduced-motion: reduce){.spage{transition:none}}
+@media (prefers-reduced-motion: reduce){.spage,.sedit{transition:none}}
 /* What I remember (MEMORY.md §12): rows open in place; private text stays blurred until tapped. */
-.msearch{margin-top:10px;min-height:44px}
-.mfold{margin-top:12px;padding:8px 10px;border-radius:12px;background:var(--glass);border:1px solid var(--glass-line)}
+.msearch{margin-top:14px;min-height:44px;padding:0 16px;border-radius:var(--r-full);border-color:transparent;background:var(--press);font-weight:400}
+.mfold{margin-top:14px;padding:6px 14px;border-radius:var(--r-l);background:var(--glass-flat);border:1px solid var(--glass-line);box-shadow:var(--e1)}
 .mfold summary{min-height:44px;display:flex;align-items:center;font:500 14px var(--ui);color:var(--ink-2);cursor:pointer}
 .mprofile{margin-top:6px;font:400 12px/1.5 var(--mono);color:var(--ink-2);overflow-wrap:anywhere}
 .pline{display:block;width:100%;margin:0;padding:2px 0;border:0;background:none;font:inherit;color:inherit;text-align:left;white-space:pre-wrap}
@@ -44,9 +57,9 @@ button.pline{min-height:44px;cursor:pointer}
 .pline.blur{filter:blur(5px);user-select:none;-webkit-user-select:none}
 .mmore{margin-top:8px}
 .msec{margin-top:18px}
-.msec>.st2{margin:2px 2px 6px}
-.mrow{padding:10px 8px;border-radius:12px}
-.mrow+.mrow{border-top:1px solid var(--glass-line)}
+.msec>.st2{margin:-4px 8px 10px}
+.mrow{padding:10px 14px;border-radius:var(--r-l);background:var(--glass-flat);border:1px solid var(--glass-line);box-shadow:var(--e1)}
+.mrow+.mrow{margin-top:8px}
 .mtext{display:block;width:100%;min-height:44px;padding:0;border:0;background:none;font:500 15px/1.4 var(--ui);color:var(--ink);text-align:left;cursor:pointer;overflow-wrap:anywhere}
 .mtext.static{cursor:default}
 .mtext.blur{filter:blur(6px);user-select:none;-webkit-user-select:none}

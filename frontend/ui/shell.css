@@ -1,0 +1,24 @@
+/* What every shell page shares (Home with the Briefing, menu and Settings; sign-in, setup,
+   recovery, import and the 404), never the apps: no grey tap flash, one focus ring, one press
+   feel, and a crossfade between shell pages (cross-document view transitions). Needs tokens.css. */
+@view-transition{navigation:auto}
+html{-webkit-tap-highlight-color:transparent}
+:focus-visible{outline:2px solid color-mix(in srgb,var(--accent-fill) 75%,transparent);outline-offset:2px}
+/* The field (§7): the soft drifting colour by day, black with faint accent light by night, and the
+   grain over it. Home sets it inside the app column; the other pages behind everything (.bg). */
+.field{position:absolute;inset:0;overflow:hidden;background:linear-gradient(160deg,var(--field-1) 0%,var(--field-2) 48%,var(--field-3) 100%)}
+.field::before,.field::after{content:"";position:absolute;width:130%;aspect-ratio:1;opacity:var(--blob-opacity);will-change:transform;animation:drift 38s ease-in-out infinite alternate}
+.field::before{background:radial-gradient(closest-side,var(--blob-1),color-mix(in srgb,var(--blob-1) 50%,transparent) 35%,transparent 70%);left:-50%;top:-4%}
+.field::after{background:radial-gradient(closest-side,var(--blob-2),color-mix(in srgb,var(--blob-2) 50%,transparent) 35%,transparent 70%);right:-54%;bottom:6%;animation-duration:47s;animation-direction:alternate-reverse}
+@keyframes drift{from{transform:translate(0,0) scale(1)}to{transform:translate(16%,9%) scale(1.15)}}
+.grain{position:absolute;inset:0;pointer-events:none;opacity:.09;mix-blend-mode:overlay;background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>")}
+/* The press: everything tappable gives under the finger the same way (what has its own motion, the
+   chips, buttons, the + sheet, the decision buttons and the ring, keeps it). */
+.row,.tile,.sbtn,.uundo,.sback,.seg button,.past button,.iconBtn,.srole{transition:transform var(--d-fast) var(--pop),background-color var(--d-fast) ease,color var(--d-fast) ease,opacity var(--d-fast) ease}
+.row:active,.tile:active,.sbtn:active,.uundo:active,.sback:active,.seg button:active,.past button:active,.iconBtn:active,.srole:active{transform:scale(.97)}
+@media (prefers-reduced-motion: reduce){
+  .field::before,.field::after{animation:none}
+  ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation-duration:.15s}
+  .row,.tile,.sbtn,.uundo,.sback,.seg button,.past button,.iconBtn,.srole{transition:none}
+  .row:active,.tile:active,.sbtn:active,.uundo:active,.sback:active,.seg button:active,.past button:active,.iconBtn:active,.srole:active{transform:none}
+}

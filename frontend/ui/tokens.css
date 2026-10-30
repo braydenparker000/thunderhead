@@ -1,6 +1,7 @@
-/* Colour and type tokens (DESIGN-SYSTEM.md §1–2), one definition for day and night through
-   light-dark(). theme.js sets data-theme before the first paint. Home still carries its own copy
-   in apps/home/home.css until it moves onto these. */
+/* The one set of tokens for every shell page (DESIGN-SYSTEM.md §1–8): colour and type, one
+   definition for day and night through light-dark() (theme.js sets data-theme before the first
+   paint), then shape, elevation, glass and motion. Home, the Briefing, the menu, Settings and
+   sign-in all draw from these (their shared rules are ui/shell.css); the ported apps keep their own. */
 :root{color-scheme:light}
 :root[data-theme="dark"]{color-scheme:dark}
 :root{
@@ -16,11 +17,26 @@
   --bar:light-dark(rgba(255,255,255,.5),rgba(255,255,255,.07)); --bar-line:light-dark(rgba(255,255,255,.65),rgba(255,255,255,.12));
   --sheet:light-dark(rgba(247,249,253,.84),rgba(18,20,24,.86));
   --disc:light-dark(rgba(255,255,255,.82),rgba(22,26,32,.92)); --disc-line:light-dark(rgba(21,34,49,.10),rgba(255,255,255,.12));
-  --dim:rgba(10,14,22,.30);
+  --dim:rgba(10,14,22,.30); --scrim:light-dark(rgba(238,241,247,.35),rgba(0,0,0,.35));
+  /* Flat glass (§6 G0): the glass fill without a backdrop blur, 2% lighter to make up for it. */
+  --glass-flat:light-dark(rgba(255,255,255,.62),rgba(255,255,255,.085));
+  --press:color-mix(in srgb,var(--ink) 7%,transparent);
   --tint:color-mix(in srgb,var(--ink) 6%,transparent);
   --voice:"Fraunces",Georgia,"Times New Roman",serif;
   --ui:"Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,monospace;
   --spring:cubic-bezier(.2,.8,.2,1.05);
+  /* Shape (§4) */
+  --r-xs:6px; --r-s:10px; --r-m:12px; --r-chip:14px; --r-row:16px; --r-bubble:19px; --r-l:22px; --r-xl:26px; --r-full:999px;
+  /* Elevation (§5): a 1 px top highlight and one ink-tinted shadow, never a grey scale */
+  --e1:inset 0 1px 0 light-dark(rgba(255,255,255,.7),rgba(255,255,255,.07));
+  --e2:var(--e1),0 10px 28px -16px light-dark(rgba(20,30,60,.25),#000);
+  --e3:0 24px 50px -22px light-dark(rgba(10,20,40,.4),#000);
+  /* Motion (§8): springs as linear() curves (damping .8 settles, .6 pops ~9%), and their times */
+  --settle:linear(0, .047, .156, .292, .433, .563, .678, .772, .847, .904, .946, .975, .994, 1.006, 1.012, 1.015, 1.015, 1.014, 1.012, 1.01, 1.008, 1.006, 1.004, 1.003, 1);
+  --pop:linear(0, .071, .235, .436, .632, .801, .93, 1.018, 1.069, 1.092, 1.094, 1.082, 1.065, 1.046, 1.028, 1.013, 1.003, .996, .992, .991, .991, .993, .995, .996, 1);
+  --ease-out:cubic-bezier(.2,.8,.2,1); --ease-in:cubic-bezier(.4,0,1,1);
+  --d-instant:90ms; --d-fast:160ms; --d-quick:240ms; --d-base:300ms; --d-sheet:380ms; --d-page:460ms;
 }
+
 :root[data-theme="dark"]{--blob-opacity:.22}
