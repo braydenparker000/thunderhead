@@ -220,10 +220,16 @@ export const ROUTES = {
   'GET /v1/library/highlights': { who: D, phase: 'P7', note: '?book_id=' },
   'PUT /v1/library/highlights/:id': { who: D, phase: 'P7', note: 'the newest version wins' },
   'GET /v1/library/search': { who: ['D', 'C', 'N'], phase: 'P7', note: '?q=&book_id=&limit=&cursor=; ready books' },
+  'GET /v1/library/books/:id/pages': { who: ['C', 'N'], phase: 'P7', note: "?from=&limit=: a book's stored page text, for the mind" },
   'POST /v1/library/ingest/claim': { who: ['C', 'N'], phase: 'P7', note: 'the oldest waiting book, an hour; 204 if none' },
   'GET /v1/library/ingest/:job_id/file': { who: ['C', 'N'], phase: 'P7', note: "the claimed book's PDF, its holder only" },
   'PUT /v1/library/books/:id/pages': { who: ['C', 'N'], phase: 'P7', note: '1–50 pages of a held run; bulk lane' },
   'PATCH /v1/library/ingest/:job_id': { who: ['C', 'N'], phase: 'P7', note: 'the run: a state, then ready or failed' },
+  'GET /v1/library/scripture': { who: ['D', 'C', 'N'], phase: 'P7', note: "the owner's private book table; ETag" },
+  'PUT /v1/library/scripture': { who: ['C', 'N'], phase: 'P7', note: 'the table, checked by the parser' },
+  'GET /v1/library/scripture/text/:code/:chapter': { who: ['D', 'C', 'N'], phase: 'P7', note: "a chapter of the owner's copy" },
+  'PUT /v1/library/scripture/text/:code': { who: ['C', 'N'], phase: 'P7', note: "one book's text, checked by the table" },
+  'GET /v1/library/verses/:code/:chapter': { who: ['D', 'C', 'N'], phase: 'P7', note: '?v=12[-14]&all=1: cited in your books' },
   'PUT /v1/pushes/:id': { who: ['C'], phase: 'P8' },
 } as const satisfies Record<string, RouteSpec>;
 

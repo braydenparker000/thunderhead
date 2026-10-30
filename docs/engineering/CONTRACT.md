@@ -150,10 +150,16 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/library/highlights` | D | P7 | built | ?book_id= |
 | `PUT /v1/library/highlights/:id` | D | P7 | built | the newest version wins |
 | `GET /v1/library/search` | D C N | P7 | built | ?q=&book_id=&limit=&cursor=; ready books |
+| `GET /v1/library/books/:id/pages` | C N | P7 | built | ?from=&limit=: a book's stored page text, for the mind |
 | `POST /v1/library/ingest/claim` | C N | P7 | built | the oldest waiting book, an hour; 204 if none |
 | `GET /v1/library/ingest/:job_id/file` | C N | P7 | built | the claimed book's PDF, its holder only |
 | `PUT /v1/library/books/:id/pages` | C N | P7 | built | 1–50 pages of a held run; bulk lane |
 | `PATCH /v1/library/ingest/:job_id` | C N | P7 | built | the run: a state, then ready or failed |
+| `GET /v1/library/scripture` | D C N | P7 | built | the owner's private book table; ETag |
+| `PUT /v1/library/scripture` | C N | P7 | built | the table, checked by the parser |
+| `GET /v1/library/scripture/text/:code/:chapter` | D C N | P7 | built | a chapter of the owner's copy |
+| `PUT /v1/library/scripture/text/:code` | C N | P7 | built | one book's text, checked by the table |
+| `GET /v1/library/verses/:code/:chapter` | D C N | P7 | built | ?v=12[-14]&all=1: cited in your books |
 | `PUT /v1/pushes/:id` | C | P8 | later (P8) |  |
 
 ## Verbs

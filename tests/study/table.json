@@ -1,0 +1,140 @@
+{
+ "v": 1,
+ "source": "invented for the tests; no real book is named",
+ "checked_at": "2026-10-30",
+ "books": [
+  {
+   "code": "a",
+   "volume": "alpha",
+   "name": "Book A",
+   "abbr": "BkA",
+   "chapters": 5,
+   "verses": [
+    20,
+    22,
+    24,
+    18,
+    30
+   ],
+   "link_volume": "alpha",
+   "link_book": "book-a"
+  },
+  {
+   "code": "1-beta",
+   "volume": "alpha",
+   "name": "1 Beta",
+   "abbr": "1 Bet.",
+   "chapters": 4,
+   "verses": [
+    15,
+    15,
+    15,
+    15
+   ],
+   "link_volume": "alpha",
+   "link_book": "1-beta"
+  },
+  {
+   "code": "2-beta",
+   "volume": "alpha",
+   "name": "2 Beta",
+   "abbr": "2 Bet.",
+   "chapters": 5,
+   "verses": [
+    10,
+    12,
+    14,
+    9,
+    8
+   ],
+   "link_volume": "alpha",
+   "link_book": "2-beta"
+  },
+  {
+   "code": "gamma",
+   "volume": "alpha",
+   "name": "Gamma",
+   "abbr": "Gam.",
+   "name_collision": true,
+   "chapters": 12,
+   "verses": [
+    25,
+    25,
+    25,
+    25,
+    25,
+    25,
+    25,
+    25,
+    25,
+    25,
+    25,
+    25
+   ],
+   "link_volume": "alpha",
+   "link_book": "gamma"
+  },
+  {
+   "code": "delta",
+   "volume": "omega",
+   "name": "Delta",
+   "abbr": "Del.",
+   "single_chapter": true,
+   "name_collision": true,
+   "chapters": 1,
+   "verses": [
+    25
+   ],
+   "link_volume": "omega",
+   "link_book": "delta"
+  },
+  {
+   "code": "epsilon",
+   "volume": "omega",
+   "name": "Epsilon",
+   "abbr": "Eps.",
+   "chapters": 3,
+   "verses": [
+    5,
+    6,
+    7
+   ],
+   "link_volume": "omega",
+   "link_book": "epsilon"
+  },
+  {
+   "code": "sn",
+   "volume": "omega",
+   "name": "Sayings and Notes",
+   "abbr": "S&N",
+   "aliases": [
+    "SN",
+    "Sayings & Notes"
+   ],
+   "chapters": 10,
+   "verses": [
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30,
+    30
+   ],
+   "link_volume": "omega",
+   "link_book": "sn"
+  }
+ ],
+ "links": {
+  "chapter": "https://scripture.example/{volume}/{book}/{chapter}",
+  "verse": "https://scripture.example/{volume}/{book}/{chapter}?id=p{v1}#p{v1}",
+  "range": "https://scripture.example/{volume}/{book}/{chapter}?id=p{v1}-p{v2}#p{v1}"
+ },
+ "totals": {
+  "alpha": 527,
+  "omega": 343
+ }
+}

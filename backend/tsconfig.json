@@ -12,6 +12,8 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": false,
     "skipLibCheck": true,
+    // The scripture parser is one JS module shared with the phone (frontend/apps/study/scripture).
+    "allowJs": true,
     "noEmit": true,
     "types": ["./worker-configuration.d.ts", "@types/node", "@cloudflare/vitest-plugin/types", "vite/client"]
   },

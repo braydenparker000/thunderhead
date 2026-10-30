@@ -7,6 +7,7 @@ import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
 import type { IngestClaim } from '../../../shared/contract/library.ts';
 import { uuidv7 } from '../../src/lib/ids';
 import { api, apiJson, PASSWORD } from '../helpers';
+import { storeScripture } from '../scripture-helpers';
 
 type Cost = (name: string, fn: () => Promise<Response>, status: number, stub?: never) => Promise<void>;
 
@@ -22,6 +23,7 @@ export async function libraryCalls(cost: Cost, grant: (ip: string, password?: st
     })
   ).body.token;
   const stub = env.LIBRARY.get(env.LIBRARY.idFromName('owner')) as unknown as never;
+  await storeScripture();
   const id = uuidv7();
   const pdf = new TextEncoder().encode('%PDF-1.4\n% a synthetic book for the cost suite\n%%EOF\n');
   await api('POST', '/v1/library/books', { token: d.token, body: { id, title: 'Cost book', bytes: pdf.byteLength } });

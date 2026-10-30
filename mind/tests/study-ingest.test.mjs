@@ -1,13 +1,14 @@
 // Reading the owner's books (STUDY.md §3.3, §4). The block rules on their own; then the whole run
 // against the real Worker under wrangler dev: a book of text (its printed page labels kept, its
-// words searchable, a canary phrase never printed), a scanned page read by OCR when Tesseract is
-// here, the same file again a duplicate, and a password-protected file failed with the sentence
-// the owner reads. Runs where python3 has pypdf and wrangler is installed (PYTHON names another
+// words searchable, a canary phrase never printed, its verse ref cited once the invented scripture
+// table is stored by the import script), a scanned page read by OCR when Tesseract is here, the
+// same file again a duplicate, and a password-protected file failed with the sentence the owner
+// reads. Runs where python3 has pypdf and wrangler is installed (PYTHON names another
 // interpreter); skipped otherwise.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {mkdtempSync, rmSync} from 'node:fs';
+import {copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -19,6 +20,10 @@ import {available, setupOwner, startWorker} from './worker-dev.mjs';
 
 const PYTHON = process.env.PYTHON || 'python3';
 const JOB = fileURLToPath(new URL('../jobs/study-ingest.mjs', import.meta.url));
+const IMPORT = fileURLToPath(new URL('../jobs/scripture-import.mjs', import.meta.url));
+const PAGES = fileURLToPath(new URL('../jobs/study-pages.mjs', import.meta.url));
+const TABLE = fileURLToPath(new URL('../../tests/study/table.json', import.meta.url));
+const VERSE = 'An invented verse that is never printed.';
 const has = (cmd, args) => spawnSync(cmd, args, {stdio: 'ignore'}).status === 0;
 const ready = available() && has(PYTHON, ['-c', 'import pypdf']);
 const ocrHere = ready && has(PYTHON, ['-c', 'import pypdfium2, pytesseract; pytesseract.get_tesseract_version()']);
@@ -65,7 +70,8 @@ test('a waiting book is read: pages, printed labels, search, a duplicate, a lock
       assert.equal((await w.call('POST', `/v1/library/books/${id7}/complete`, {token: device})).status, 200);
       return id7;
     };
-    const text = makePdf({pages: 7, title: 'Secret Title Of A Book', text: (n) => (n === 5 ? `On this page the ${CANARY} plays at dawn.` : `Page ${n} of a synthetic commentary.`)});
+    const said = (n) => (n === 5 ? `On this page the ${CANARY} plays at dawn.` : n === 6 ? 'Book A 3:12 is the heart of it.' : `Page ${n} of a synthetic commentary.`);
+    const text = makePdf({pages: 7, title: 'Secret Title Of A Book', text: said});
     const book = await add('Secret Title Of A Book', text);
     const twin = await add('A second copy', text);
     let scanned = null;
@@ -84,11 +90,16 @@ img.save(${JSON.stringify(pdf)}, "PDF", resolution=150)
       scanned = await add('A scan', new Uint8Array((await import('node:fs')).readFileSync(pdf)));
     }
     const locked = await add('A locked file', new TextEncoder().encode('%PDF-1.7\nnot really a pdf at all\n%%EOF\n'));
-    const run = spawnSync(process.execPath, [JOB, '--books', '5'], {
-      env: {...process.env, TH_API: w.url, TH_TOKEN: keys['mind:night'], TH_ROLE: 'night', PYTHON},
-      encoding: 'utf8',
-      timeout: 240_000,
-    });
+    const env = {...process.env, TH_API: w.url, TH_TOKEN: keys['mind:night'], TH_ROLE: 'night', PYTHON};
+    // The owner's scripture files, outside the repository (here the invented table and one verse).
+    mkdirSync(join(dir, 'text'));
+    copyFileSync(TABLE, join(dir, 'table.json'));
+    writeFileSync(join(dir, 'text', 'a.json'), JSON.stringify({chapters: {3: {12: VERSE}}}));
+    const imp = spawnSync(process.execPath, [IMPORT, '--table', join(dir, 'table.json'), '--text', join(dir, 'text')], {env, encoding: 'utf8', timeout: 60_000});
+    assert.equal(imp.status, 0, `${imp.stdout}\n${imp.stderr}`);
+    for (const secret of [VERSE, 'Book A', 'scripture.example']) assert.ok(!(imp.stdout + imp.stderr).includes(secret), secret);
+    assert.deepEqual(imp.stdout.trim().split('\n').map((l) => JSON.parse(l)), [{table: true, books: 7}, {done: true, text_books: 1, verses: 1}]);
+    const run = spawnSync(process.execPath, [JOB, '--books', '5'], {env, encoding: 'utf8', timeout: 240_000});
     assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`);
     const out = run.stdout + run.stderr;
     // Counts only: no page text, no title, no file name.
@@ -98,6 +109,7 @@ img.save(${JSON.stringify(pdf)}, "PDF", resolution=150)
     const state = async (id) => (await w.call('GET', `/v1/library/books/${id}`, {token: device})).body.book;
     assert.equal(lines[0].pages, 7);
     assert.equal(lines[0].written, 7);
+    assert.equal(lines[0].refs, 1);
     assert.match((await state(book)).state, /^ready$/);
     assert.equal((await state(book)).pdf_pages, 7);
     assert.equal((await state(twin)).state, 'duplicate');
@@ -107,6 +119,17 @@ img.save(${JSON.stringify(pdf)}, "PDF", resolution=150)
     // Searchable, with the page's printed number (the first page is "i", so PDF page 5 is "4").
     const hit = await w.call('GET', `/v1/library/search?q=${encodeURIComponent('marmalade orchestra')}`, {token: device});
     assert.deepEqual(hit.body.items.map((h) => [h.book_id, h.pdf_page, h.page_label]), [[book, 5, '4']]);
+    // Its verse ref, found with the stored table: "Cited in your books" on that verse.
+    const v = await w.call('GET', '/v1/library/verses/a/3?v=12', {token: device});
+    assert.deepEqual(v.body.cited.map((c) => [c.book_id, c.pdf_page, c.weight, c.line]), [[book, 6, 3, 'Book A 3:12 is the heart of it.']]);
+    assert.equal((await w.call('GET', '/v1/library/scripture/text/a/3', {token: device})).body.verses['12'], VERSE);
+    // The mind saves a read book's text outside the repository (SETUP.md O2), printing counts only.
+    const saved = spawnSync(process.execPath, [PAGES, '--book', book, '--out', join(dir, 'pages.jsonl')], {env, encoding: 'utf8', timeout: 60_000});
+    assert.equal(saved.status, 0, saved.stderr);
+    assert.ok(!(saved.stdout + saved.stderr).includes('Zephyrine'));
+    assert.equal(JSON.parse(saved.stdout).pages, 7);
+    const rows = readFileSync(join(dir, 'pages.jsonl'), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+    assert.deepEqual([rows.length, rows[4].pdf_page, rows[4].text.includes(CANARY)], [7, 5, true]);
     if (scanned) {
       assert.equal((await state(scanned)).state, 'ready');
       const s = await w.call('GET', '/v1/library/search?q=patience', {token: device});

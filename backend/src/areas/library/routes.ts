@@ -20,6 +20,7 @@ import { value } from '../../lib/result';
 import { libraryObject } from '../../objects/library';
 import { fresh } from '../../objects/rpc';
 import { partsFor } from './ops';
+import { checkRefs } from './scripture';
 import { ftsQuery } from './search';
 import { createBody, editBody, highlightBody, positionBody, searchQuery, UUID7 } from './validate';
 
@@ -90,6 +91,7 @@ export const libraryRoutes = new Hono<AppEnv>()
     const h: Highlight = { id, ...(await json(c, highlightBody)) };
     if (h.updated_at < h.created_at)
       throw new ApiError('validation', [{ path: 'updated_at', issue: 'not before created_at' }]);
+    if (h.ref) await checkRefs(c.env, [{ path: 'ref', ref: h.ref }]);
     return c.json(value(await fresh(libraryObject(c.env).putHighlight(h))));
   })
   .get('/library/search', guard('GET /v1/library/search'), async (c) => {

@@ -14,6 +14,7 @@ import { utcDay } from '../../src/lib/time';
 import type { Library } from '../../src/objects/library';
 import { api, apiJson, coreSql, makeAgent } from '../helpers';
 import { type Principals, principals } from '../memory-helpers';
+import { storeScripture } from '../scripture-helpers';
 
 let p: Principals;
 const lib = () => env.LIBRARY.get(env.LIBRARY.idFromName('owner')) as unknown as DurableObjectStub<Library>;
@@ -69,6 +70,7 @@ let R = '';
 beforeAll(async () => {
   p = await principals();
   R = await makeAgent(p.D, 'mind:reflex');
+  await storeScripture();
   book = await addBook('Commentary on Book A');
 });
 

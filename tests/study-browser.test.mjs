@@ -2,13 +2,16 @@
 // that answers only signed range requests: the empty shelf; adding a PDF (its title and cover read
 // on the phone, the part sent, the upload completed, "Waiting to be read"); the reader drawing its
 // pages from 256 KB ranges, the printed page numbers in the pill, "Go to page", the place saved,
-// a 403 signed again once; and the search, its snippets as text with marks. No CSP or page errors.
+// a 403 signed again once; the search, its snippets as text with marks; and a verse (the invented
+// table of tests/study/table.json): its card in the search, its page with the owner's copy, the
+// link out with no opener or referrer, "Cited in your books" and a highlight. No CSP or page errors.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { makePdf } from './fixtures/make-pdf.mjs';
@@ -19,7 +22,8 @@ const BUCKET = 'https://f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0.r2.cloudflarestorage.co
 const TOKEN = `th1_${'C'.repeat(43)}abcdef`;
 const PDF = makePdf({ pages: 6, filler: 600_000 });
 let site, mock, browser, base, api;
-const state = { books: [], files: new Map(), signs: 0, positions: [], parts: [], deny: 0, ranges: [] };
+const state = { books: [], files: new Map(), signs: 0, positions: [], parts: [], deny: 0, ranges: [], tables: [] };
+const TABLE = readFileSync(new URL('./study/table.json', import.meta.url), 'utf8');
 
 const book = (over) => ({
   author: null, kind: 'book', language: 'eng', pdf_pages: null, sha256: null, state_reason: null, added_at: Date.now(),
@@ -32,7 +36,8 @@ before(async () => {
     const cors = {
       'Access-Control-Allow-Origin': req.headers.origin ?? '',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type, TH-Client',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type, TH-Client, If-None-Match',
+      'Access-Control-Expose-Headers': 'ETag',
       Vary: 'Origin',
     };
     if (req.method === 'OPTIONS') return res.writeHead(204, cors).end();
@@ -89,6 +94,22 @@ before(async () => {
         next: null,
         not_ready: 1,
       });
+    if (path === '/v1/library/scripture') {
+      state.tables.push(req.headers['if-none-match'] ?? null);
+      if (req.headers['if-none-match'] === '"t1"') return res.writeHead(304, { ...cors, ETag: '"t1"' }).end();
+      return res.writeHead(200, { ...cors, 'Content-Type': 'application/json', ETag: '"t1"' }).end(TABLE);
+    }
+    if (path === '/v1/library/scripture/text/a/3') return json(200, { code: 'a', chapter: 3, verses: { 11: 'Not this one.', 12: 'An invented verse twelve.' } });
+    if (path === '/v1/library/verses/a/3') {
+      const all = url.searchParams.get('all') === '1';
+      const id = state.books[0]?.id;
+      const cited = Array.from({ length: all ? 12 : 10 }, (_, i) => ({
+        book_id: id, title: 'A Synthetic Commentary', pdf_page: i + 1, page_label: String(i + 1), block: 2, line: `Block ${i + 1} on the verse.`, weight: 3,
+      }));
+      const now = Date.now();
+      const h = { id: 'h1', book_id: id, pdf_page: 4, quote: 'the heart of it', prefix: '', suffix: '', rects: null, color: 'gold', note: 'A note of mine.', ref: 'verse:a/3/12', created_at: now, updated_at: now, deleted_at: null };
+      return json(200, { ref: `verse:a/3/${url.searchParams.get('v')}`, cited, total: 12, highlights: [h] });
+    }
     json(404, { error: { code: 'not_found', message: 'x', request_id: '' } });
   });
   await new Promise((r) => mock.listen(0, '127.0.0.1', r));
@@ -230,6 +251,41 @@ test('opening again starts at the saved place; search shows snippets as text, gr
   await page.locator('.hit').first().click();
   await page.waitForURL(/book=.*&p=3/);
   await page.waitForFunction(() => document.querySelector('.pill')?.textContent === 'p. 2');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('a verse: its card first in the search, its page with the owner’s copy, the link out, cited blocks, a highlight', opts, async () => {
+  const { page, context, errors } = await open(`/study/?q=${encodeURIComponent('Book A 3:12 light')}`);
+  await page.locator('.vcard').waitFor();
+  assert.equal(await page.locator('.vcard b').textContent(), 'Book A 3:12');
+  // The text search still runs under it.
+  await page.locator('.hit').first().waitFor();
+  await page.locator('.vcard').click();
+  await page.waitForURL(/\/study\/\?verse=a\/3\/12$/);
+  await page.getByText('Cited in your books (12)').waitFor();
+  assert.equal(await page.locator('.verse h1').textContent(), 'Book A 3:12');
+  assert.equal(await page.locator('.vtext').textContent(), 'An invented verse twelve.');
+  const out = page.getByRole('link', { name: 'Open in the scripture app' });
+  assert.equal(await out.getAttribute('href'), 'https://scripture.example/alpha/book-a/3?id=p12#p12');
+  assert.equal(await out.getAttribute('target'), '_blank');
+  assert.equal(await out.getAttribute('rel'), 'noopener noreferrer');
+  const rows = page.locator('.verse .cited').first().locator('.hit');
+  assert.equal(await rows.count(), 10);
+  await page.getByRole('button', { name: 'Show all 12' }).click();
+  await page.waitForFunction(() => document.querySelectorAll('.verse .cited')[0].querySelectorAll('.hit').length === 12);
+  assert.equal(await rows.first().locator('b').textContent(), 'A Synthetic Commentary · p. 1');
+  await page.getByText('Your highlights and notes').waitFor();
+  assert.equal(await page.locator('.hit.mark.gold .hnote').textContent(), 'A note of mine.');
+  // A cited block opens the reader at its page and block.
+  await rows.nth(2).click();
+  await page.waitForURL(/book=.*&p=3&b=2$/);
+  // The table came once, then by its ETag.
+  assert.equal(state.tables[0], null);
+  await page.goBack();
+  await page.waitForURL(/verse=a\/3\/12$/);
+  await page.getByText('Cited in your books (12)').waitFor();
+  assert.ok(state.tables.includes('"t1"'), JSON.stringify(state.tables));
   assert.deepEqual(errors, []);
   await context.close();
 });

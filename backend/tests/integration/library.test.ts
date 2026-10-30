@@ -19,6 +19,7 @@ import { app } from '../../src/app';
 import { uuidv7 } from '../../src/lib/ids';
 import { apiJson } from '../helpers';
 import { type Principals, principals } from '../memory-helpers';
+import { storeScripture } from '../scripture-helpers';
 
 let p: Principals;
 const ID = uuidv7();
@@ -43,6 +44,7 @@ const book = async (id = ID) =>
 
 beforeAll(async () => {
   p = await principals();
+  await storeScripture();
   file.set(new TextEncoder().encode('%PDF-1.7\n'));
   for (let i = 9; i < BYTES; i += 4_093) file[i] = i % 251;
 });

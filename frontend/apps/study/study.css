@@ -79,6 +79,26 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-sm
 .hit mark{background:color-mix(in srgb,var(--study) 26%,transparent);color:var(--ink);border-radius:3px;padding:0 1px}
 .hit small{display:block;margin-top:4px;font:500 12px var(--ui);color:var(--study-text);font-variant-numeric:tabular-nums}
 
+/* --- a verse (STUDY.md §7.6) ------------------------------------------------------------- */
+.vcards{display:flex;flex-direction:column;gap:8px;margin-top:20px}
+.vcard{display:flex;flex-direction:column;align-items:flex-start;gap:2px;width:100%;padding:12px 14px;border:1px solid color-mix(in srgb,var(--study) 40%,var(--glass-line));border-radius:16px;background:color-mix(in srgb,var(--study) 10%,var(--glass));color:inherit;text-align:left;font:inherit;cursor:pointer;transition:transform .15s}
+.vcard:active{transform:scale(.98)}
+.vcard small{font:600 11px/1.3 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--study-text)}
+.vcard b{font:600 17px/1.3 var(--ui);color:var(--ink)}
+.verse h1{margin:6px 0 0;font:600 28px/1.15 var(--ui);letter-spacing:-.02em}
+.vtext{margin-top:14px;user-select:text;-webkit-user-select:text}
+.vtext p{margin:0 0 8px;font:400 17px/1.55 var(--ui);color:var(--ink)}
+.vtext sup{margin-right:4px;font:600 11px var(--ui);color:var(--study-text);font-variant-numeric:tabular-nums}
+.link.out{margin-top:2px}
+.cited{display:flex;flex-direction:column;gap:2px}
+.cited .hit b{display:block;font:600 13.5px/1.35 var(--ui);color:var(--ink)}
+.cited .hit b+p{margin-top:3px}
+.hit.mark{border-left:3px solid var(--hl,var(--study));border-radius:4px 14px 14px 4px}
+.hit.mark.gold{--hl:#d4a017}
+.hit.mark.blue{--hl:#3b7dd8}
+.hit.mark.rose{--hl:#d65a7c}
+.hit .hnote{margin-top:4px;color:var(--ink);font-style:italic}
+
 /* --- the reader -------------------------------------------------------------------------- */
 .reader{position:fixed;inset:0;z-index:20;background:var(--bg);overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
 .pages{display:flex;flex-direction:column;align-items:center;gap:12px;padding:calc(64px + env(safe-area-inset-top,0px)) 0 calc(96px + env(safe-area-inset-bottom,0px))}
@@ -113,5 +133,5 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-sm
 @media (min-width:700px){.pages{padding-left:16px;padding-right:16px}}
 @media (prefers-reduced-motion: reduce){
   .field::before,.field::after,.pg.wash::after,.menu{animation:none}
-  .rtop,.pill,.toast,.cover,.crow,.add{transition:none}
+  .rtop,.pill,.toast,.cover,.crow,.add,.vcard{transition:none}
 }

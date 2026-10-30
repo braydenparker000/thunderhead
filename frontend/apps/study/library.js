@@ -10,6 +10,7 @@ import * as data from './data.js';
 import { back as goBack, go } from './nav.js';
 import { readLocal } from './pdf.js';
 import { partsOf, refuse, sendParts, titleFor } from './upload.js';
+import { scriptureIndex, verseCards } from './verse.js';
 import { continueRow, pageName, progress, shelfOrder, snippetParts, stateLine } from './words.js';
 
 /** @typedef {import('../../../shared/contract/library.ts').Book} Book */
@@ -326,17 +327,24 @@ export async function searchScreen(main, q, inBook) {
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let typing;
   let asked = 0;
+  // A reference in the query puts a Verse card first; the text search still runs (STUDY.md §6).
+  const ix = scriptureIndex().catch(() => null);
   const run = async (/** @type {string} */ text) => {
     const n = ++asked;
     const t = text.trim();
     if (t.length < 2) return out.replaceChildren();
-    try {
-      const r = await data.search(t, inBook, null);
-      if (n !== asked) return;
-      showHits(out, t, r, known);
-    } catch (e) {
-      if (n === asked) out.replaceChildren(el('p', { class: 'note', text: lineFor(failure(e)) }));
-    }
+    const hits = data.search(t, inBook, null).then(
+      (r) => ({ r }),
+      (e) => ({ e }),
+    );
+    const cards = verseCards(t, await ix);
+    const first = cards.length ? [el('div', { class: 'vcards' }, cards)] : [];
+    if (n !== asked) return;
+    if (first.length) out.replaceChildren(...first);
+    const got = await hits;
+    if (n !== asked) return;
+    if ('r' in got) showHits(out, t, got.r, known, first);
+    else out.replaceChildren(...first, el('p', { class: 'note', text: lineFor(failure(got.e)) }));
   };
   input.addEventListener('input', () => {
     clearTimeout(typing);
@@ -352,13 +360,14 @@ export async function searchScreen(main, q, inBook) {
   run(q);
 }
 
-/** @param {HTMLElement} out @param {string} q @param {import('../../../shared/contract/library.ts').LibrarySearchResponse} r @param {Book[]} books */
-function showHits(out, q, r, books) {
+/** @param {HTMLElement} out @param {string} q @param {import('../../../shared/contract/library.ts').LibrarySearchResponse} r
+ * @param {Book[]} books @param {HTMLElement[]} first the verse cards */
+function showHits(out, q, r, books, first) {
   const title = new Map(books.map((b) => [b.id, b.title]));
   /** @type {Map<string, typeof r.items>} */
   const by = new Map();
   for (const h of r.items) by.set(h.book_id, [...(by.get(h.book_id) ?? []), h]);
-  const kids = [];
+  const kids = [...first];
   if (!r.items.length) kids.push(el('p', { class: 'note', text: `Nothing found in your books for “${q}”.` }));
   const groups = el('div', { class: 'hits' });
   for (const [bookId, hits] of by) {

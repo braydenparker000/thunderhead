@@ -543,3 +543,23 @@ your device alone (N1's token already covers this bucket), a few pages at a time
 2. Tell the agent "O1 done". It reads the rule back with its read-only access to check it; then a
    book you add opens at its pages on your phone.
 
+### O2. Your scripture books in Study (about 15 minutes, once, when you're ready)
+
+Verse references, the verse page and "Cited in your books" need your scripture book table and your
+copy's verse text. Both stay private: in `thunderhead-private`, never in the repository, a log or
+Actions (your rulings of 2026-10-27 and 2026-10-28). Until they're stored, Study works without verses.
+
+1. In Study, **Add a book** for each scripture volume you own as a PDF (your licensed copies), and
+   let the night read them (or ask the mind to read them now).
+2. In a chat session, tell the mind: "Build my scripture table and text (SETUP O2)." In its own
+   session, in a temporary folder outside the repository, it builds the table from the publisher's
+   official abbreviations and structure (checking each volume's verse total) and each book's text
+   from your read copies (`node mind/jobs/study-pages.mjs --book <id> --out <file>`); then it stores
+   both with `node mind/jobs/scripture-import.mjs --table <file> --text <folder>` and deletes the
+   folder. Both scripts print counts only.
+3. For the links out: in the scripture app, share one verse from each volume and paste the links into
+   that chat, so the mind can check the link template it stored (STUDY.md §7.6).
+4. Check on your phone: search Study for one verse ("<book> 3:12"); its card opens the verse with your
+   copy's text and **Open in the scripture app**. Add your other books after this step: a book's
+   verses are found as it is read.
+

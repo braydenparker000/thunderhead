@@ -5,6 +5,8 @@
 // place per book, an upload's progress). Signing out drops `th-study` with the rest (th/session.js).
 import { api, signedIn } from '/th/client.js';
 import { kv } from '/th/idb.js';
+import { CONFIG } from '/config.js';
+import { ApiError } from '/th/api.js';
 
 /** @typedef {import('../../../shared/contract/library.ts').Book} Book */
 /** @typedef {import('../../../shared/contract/library.ts').BookCreateRequest} BookCreateRequest */
@@ -70,3 +72,61 @@ export const saveLocalPlace = (bookId, p) => local.set(`place:${bookId}`, p);
 export const cover = (bookId) => local.get(`cover:${bookId}`);
 /** @param {string} bookId @param {string} dataUrl */
 export const saveCover = (bookId, dataUrl) => local.set(`cover:${bookId}`, dataUrl);
+
+/** @typedef {import('./scripture/parse.js').ScriptureTable} ScriptureTable */
+/** @typedef {import('../../../shared/contract/library.ts').VerseResponse} VerseResponse */
+/** @typedef {import('../../../shared/contract/library.ts').VerseTextResponse} VerseTextResponse */
+
+/** This visit's copy of the table, so an unchanged one is the same object. @type {{ etag: string, table: ScriptureTable } | undefined} */
+let kept;
+
+/** The owner's private scripture table: this phone's copy (offline too), checked by its ETag; null
+ * before the mind has stored one. @returns {Promise<ScriptureTable | null>} */
+export async function scripture() {
+  /** @type {{ etag: string, table: ScriptureTable } | undefined} */
+  const had = kept ?? (await local.get('scripture').catch(() => undefined));
+  try {
+    // Fetched here, not through api.call, for its ETag and 304; a refused sign-in still signs out.
+    const res = await signedIn(async (token) => {
+      const r = await fetch(`${CONFIG.api.replace(/\/+$/, '')}/v1/library/scripture`, {
+        headers: { Authorization: `Bearer ${token}`, ...(had ? { 'If-None-Match': had.etag } : {}) },
+        credentials: 'omit',
+        cache: 'no-store',
+      });
+      if (r.status === 401) throw new ApiError(401, (await r.json().catch(() => null))?.error ?? { code: 'unauthorized', message: 'HTTP 401', request_id: '' });
+      return r;
+    });
+    if (res.status === 304 && had) return (kept = had).table;
+    if (res.status === 404) {
+      kept = undefined;
+      await local.del('scripture').catch(() => {});
+      return null;
+    }
+    if (!res.ok) return had?.table ?? null;
+    const table = /** @type {ScriptureTable} */ (await res.json());
+    kept = { etag: res.headers.get('ETag') ?? '', table };
+    await local.set('scripture', kept).catch(() => {});
+    return table;
+  } catch {
+    return had?.table ?? null;
+  }
+}
+
+/** "Cited in your books" and the owner's highlights on a verse. @param {string} code @param {number} ch
+ * @param {number | null} v1 @param {number | null} v2 @param {boolean} all @returns {Promise<VerseResponse>} */
+export const verse = (code, ch, v1, v2, all) =>
+  signedIn((t) =>
+    api.call(`/v1/library/verses/${id(code)}/${ch}${v1 ? `?v=${v1}${v2 && v2 !== v1 ? `-${v2}` : ''}${all ? '&all=1' : ''}` : all ? '?all=1' : ''}`, { token: t }),
+  );
+
+/** A chapter of the owner's own copy, or null when it isn't there. @param {string} code @param {number} ch
+ * @returns {Promise<Record<string, string> | null>} */
+export async function verseText(code, ch) {
+  try {
+    /** @type {VerseTextResponse} */
+    const r = await signedIn((t) => api.call(`/v1/library/scripture/text/${id(code)}/${ch}`, { token: t }));
+    return r.verses;
+  } catch {
+    return null;
+  }
+}

@@ -7,7 +7,8 @@
 //  2. reports the file's SHA-256 and page count (a file another book has is a duplicate: the
 //     Worker says so, and the run moves on);
 //  3. reads its pages with study_extract.py (text, printed page numbers, OCR where needed);
-//  4. splits each page into blocks and posts pages in batches of 50 from where the last run
+//  4. splits each page into blocks, finds each block's verse refs with the owner's private table
+//     (none before the table is stored), and posts pages in batches of 50 from where the last run
 //     stopped; when the day's bulk rows are used up (429) the run pauses until tomorrow;
 //  5. reports ready, or failed with a plain sentence for the owner.
 // It prints counts and timings only: never page text, a title or a file name.
@@ -28,6 +29,8 @@ import {fileURLToPath} from 'node:url';
 import {request, settings} from '../cli/lib/http.mjs';
 import {VERSION} from '../cli/lib/io.mjs';
 import {blocksOf} from './study-blocks.mjs';
+import {refsOf} from './study-refs.mjs';
+import {makeIndex} from '../../frontend/apps/study/scripture/parse.js';
 
 const EXTRACT = fileURLToPath(new URL('./study_extract.py', import.meta.url));
 const BATCH = 50;
@@ -76,22 +79,33 @@ const REASONS = {
   4: "This file isn't a readable PDF.",
 };
 
-/** One page as the Worker takes it. Refs come with the scripture parser (P7 step 4). */
-export function pageIn(line) {
+/** One page as the Worker takes it, with its verse refs when the table is stored (`ix`). */
+export function pageIn(line, ix = null) {
   const text = String(line.text ?? '');
+  const blocks = blocksOf(text);
   return {
     pdf_page: line.pdf_page,
     page_label: line.page_label ? String(line.page_label).slice(0, LABEL_CHARS) : null,
     text,
-    blocks: blocksOf(text),
+    blocks,
     ocr: Boolean(line.ocr),
     ocr_conf: typeof line.ocr_conf === 'number' ? line.ocr_conf : null,
-    refs: [],
+    refs: refsOf(text, blocks, ix),
   };
 }
 
+/** The owner's scripture table from the private bucket, ready for the parser; null before it is stored. */
+async function scriptureIndex() {
+  try {
+    return makeIndex((await request('GET', '/v1/library/scripture')).data);
+  } catch (e) {
+    if (e.code === 'not_found') return null;
+    throw e;
+  }
+}
+
 /** Reads one claimed book; returns its counts. */
-async function readBook(claim, o, until) {
+async function readBook(claim, o, until, ix) {
   const {job, book} = claim;
   const started = Date.now();
   const dir = mkdtempSync(join(tmpdir(), 'study-'));
@@ -123,7 +137,7 @@ async function readBook(claim, o, until) {
     counts.ocr = read.out.ocr ?? 0;
     counts.ocr_missing = read.out.ocr_missing ?? 0;
     await report({state: counts.ocr ? 'ocr' : 'indexing', cursor: job.cursor});
-    const pages = readFileSync(lines, 'utf8').split('\n').filter(Boolean).map((l) => pageIn(JSON.parse(l)));
+    const pages = readFileSync(lines, 'utf8').split('\n').filter(Boolean).map((l) => pageIn(JSON.parse(l), ix));
     let cursor = job.cursor;
     for (let i = 0; i < pages.length; i += BATCH) {
       if (Date.now() > until) {
@@ -159,15 +173,16 @@ export async function main(argv) {
     say({done: true, books: 0, skipped: 'pypdf is not installed here (bash mind/jobs/study-setup.sh)'});
     return 0;
   }
+  const ix = await scriptureIndex();
   let n = 0;
   for (; n < o.books; n++) {
     const r = await request('POST', '/v1/library/ingest/claim', {body: {}});
     if (r.status === 204 || !r.data?.job) break;
-    const counts = await readBook(r.data, o, Date.now() + o.minutes * 60_000);
+    const counts = await readBook(r.data, o, Date.now() + o.minutes * 60_000, ix);
     say({book: n + 1, ...counts});
     if (counts.lane) break;
   }
-  say({done: true, books: n});
+  say({done: true, books: n, ...(ix ? {} : {refs: 'none: the scripture table is not stored yet'})});
   return 0;
 }
 

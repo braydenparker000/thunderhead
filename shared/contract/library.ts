@@ -30,6 +30,13 @@ export const LIBRARY_LIMITS = {
   deleted_highlight_days: 30,
   /** Finished ingestion runs are kept this long. */
   ingest_days: 90,
+  /** The private book table and one book's verse text (P7 step 4). */
+  table_bytes: 1024 * 1024,
+  text_bytes: 8 * 1024 * 1024,
+  verse_chars: 4_000,
+  /** "Cited in your books": rows shown, and at most with "Show all". */
+  cited: 10,
+  cited_all: 200,
 } as const;
 
 export type BookKind = 'book' | 'manual' | 'other';
@@ -177,6 +184,12 @@ export interface PagesResponse {
   written: number;
   refs: number;
 }
+/** GET /v1/library/books/:id/pages?from=&limit= (the mind: SETUP.md O2, cited answers). */
+export interface PageTextResponse {
+  items: { pdf_page: number; page_label: string | null; text: string }[];
+  /** The next `from`, or null at the end. */
+  next: number | null;
+}
 
 /** PATCH /v1/library/ingest/:job_id */
 export interface IngestUpdate {
@@ -186,4 +199,34 @@ export interface IngestUpdate {
   sha256?: string;
   /** A plain sentence the owner reads when it failed. */
   reason?: string;
+}
+
+/** One block that cites a verse (STUDY.md §7.6 "Cited in your books"). */
+export interface CitedBlock {
+  book_id: Id;
+  title: string;
+  pdf_page: number;
+  page_label: string | null;
+  block: number;
+  /** The block's first line, at most 140 characters, cut at a word. */
+  line: string;
+  weight: number;
+}
+/** GET /v1/library/verses/:code/:chapter?v=12[-14]&all=1 */
+export interface VerseResponse {
+  ref: string;
+  cited: CitedBlock[];
+  total: number;
+  /** The owner's highlights and notes whose verse is this one or overlaps it. */
+  highlights: Highlight[];
+}
+/** GET /v1/library/scripture/text/:code/:chapter: the owner's own licensed copy, private. */
+export interface VerseTextResponse {
+  code: string;
+  chapter: number;
+  verses: Record<string, string>;
+}
+/** PUT /v1/library/scripture/text/:code */
+export interface ScriptureTextRequest {
+  chapters: Record<string, Record<string, string>>;
 }

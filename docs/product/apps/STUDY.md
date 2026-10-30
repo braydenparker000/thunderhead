@@ -394,7 +394,7 @@ list. Ties sort by book (most opened first) then page.
 
 ### 7.6 The verse page and the link out
 
-Route `/study/verse/<code>/<ch>/<v>`. Contents, top to bottom:
+Route `/study/?verse=<code>/<ch>[/<v>[-<v>]]` (a query: the storage website has no rewrites). Contents, top to bottom:
 
 1. The reference, normalised: "Book A 3:12" (Fraunces is not used here: it is the owner's content, so
    Inter; [DESIGN-SYSTEM](../../design/DESIGN-SYSTEM.md)).
@@ -581,7 +581,18 @@ a day crossing the 04:00 roll).
    asks. Tested end to end against the real Worker: a canary phrase, the title and the file name never
    appear in its output. Tesseract 5.3.4 installed with apt in a cloud session (open question 5). The
    search screen shipped with step 2. Verse refs come with step 4's parser.
-4. Parser + private book table + verse page + scripture-app links.
+4. Parser + private book table + verse page + scripture-app links. **Built:** the parser
+   (`frontend/apps/study/scripture/parse.js`, checked by `tests/study-parse.test.mjs` on the invented
+   table and the 330 lines of `tests/study/refs.txt`) runs on the phone, in the Worker (`allowJs`) and in
+   the mind. The table and each book's text are in the private bucket (`study/scripture.json`,
+   `study/text/<code>.json`; API.md §11.21), stored by the mind with `mind/jobs/scripture-import.mjs`
+   (files inside the checkout are refused; counts only; the text built from the owner's read volumes,
+   saved outside the checkout by `mind/jobs/study-pages.mjs`), read by the phone after sign-in (the table
+   kept for offline use by its ETag). The Worker refuses any verse ref until the table is stored, then
+   every ref not in it. Ingestion finds each block's refs in book context and weighs them (§7.5: a
+   heading is a block's short first line, at most 80 characters with no closing stop). The verse page
+   (§7.6, without step 6's Ask) and the search's verse card are built; `tests/study-private.test.mjs`
+   fails on any real table, link template or verse text in the checkout. Owner step: SETUP.md O2.
 5. Highlights and notes, offline copies.
 6. Cited answers with the Worker validator; evals.
 

@@ -12,6 +12,7 @@ import type {
   IngestUpdate,
   LibrarySearchResponse,
   PageIn,
+  PageTextResponse,
   Position,
 } from '../../../shared/contract/library.ts';
 import { LIBRARY_LIMITS as L } from '../../../shared/contract/library.ts';
@@ -20,6 +21,7 @@ import { page, type Row } from '../areas/backups/rows';
 import * as ops from '../areas/library/ops';
 import { search } from '../areas/library/search';
 import * as store from '../areas/library/store';
+import * as verses from '../areas/library/verses';
 import { uuidv7 } from '../lib/ids';
 import { attempt, attemptAsync, Fail, type Out } from '../lib/result';
 import { DAY, utcDay } from '../lib/time';
@@ -156,6 +158,26 @@ export class Library extends OwnerObject {
       items: items.slice(0, limit),
       next: more ? `o${offset + limit}` : null,
       not_ready: store.notReady(this.db),
+    };
+  }
+
+  /** A book's stored page text from `from` on, for the mind; null when there's no such book. */
+  pageTexts(bookId: string, from: number, limit: number): PageTextResponse | null {
+    if (!store.book(this.db, bookId)) return null;
+    const rows = this.db.all<PageTextResponse['items'][number]>(
+      'SELECT pdf_page, page_label, text FROM pages WHERE book_id = ? AND pdf_page >= ? ORDER BY pdf_page LIMIT ?',
+      bookId,
+      from,
+      limit + 1,
+    );
+    return { items: rows.slice(0, limit), next: rows.length > limit ? rows[limit].pdf_page : null };
+  }
+
+  /** "Cited in your books" for a verse (or a chapter), and the owner's highlights on it. */
+  cited(code: string, chapter: number, v1: number | null, v2: number | null, limit: number) {
+    return {
+      ...verses.cited(this.db, code, chapter, v1, v2, limit),
+      highlights: verses.highlightsOn(this.db, code, chapter, v1, v2),
     };
   }
 

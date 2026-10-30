@@ -273,6 +273,7 @@ The FTS cost per page is unknown (open question D3). Ingestion is a bulk job und
 | `backups/` | `backups/<YYYY-MM-DD>/<class>/<table>.<part:0000>.jsonl.gz`, `backups/<date>/manifest.json` | Weekly per-table export | `export.weekly` job | 8 weekly + 12 monthly |
 | `events/` | `events/<YYYY>/<MM>/<DD>.jsonl.gz` | Daily events archive | `events.export` job (P5) | forever |
 | `books/` | `books/<book_id>.pdf` ([STUDY.md](../product/apps/STUDY.md) §2.1) | Study PDFs, including the owner's licensed scripture copies (owner ruling) | upload route (P7) | until the owner deletes (proposal) |
+| `study/` | `study/scripture.json`, `study/text/<code>.json` ([STUDY.md](../product/apps/STUDY.md) §7.1, §7.6) | The owner's scripture book table with its link template, and each book's verse text from the owner's licensed copies; never in the repo | `PUT /v1/library/scripture[/text/:code]` (the mind, SETUP.md O2) | until replaced |
 | `chat/files/` | `chat/files/<YYYY>/<MM>/<uuidv7>.<ext>` (imported files keep their old keys under this prefix) | Chat attachments, photos, voice memos | upload route; import I6 | forever unless deleted |
 | `muse/files/` | `muse/files/<id>` | Muse files (imported, then new) | import I4; work orders | forever unless deleted |
 | `takes/` | `takes/<uuidv7>.<ext>` | Guitar recordings the owner sends | P6 | owner-controlled |

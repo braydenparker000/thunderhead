@@ -16,6 +16,7 @@ import { importRoutes } from './areas/import/routes';
 import { ledgerRoutes } from './areas/ledger/routes';
 import { ingestRoutes } from './areas/library/ingest';
 import { libraryRoutes } from './areas/library/routes';
+import { scriptureRoutes } from './areas/library/scripture';
 import { memoryRoutes } from './areas/memory/routes';
 import { mindRoutes } from './areas/mind/routes';
 import { musicRoutes } from './areas/music/routes';
@@ -55,6 +56,8 @@ const bookPart = bodyLimit({ maxSize: LIBRARY_LIMITS.part_bytes, onError: tooLar
 const pages = bodyLimit({ maxSize: 16 * 1024 * 1024, onError: tooLarge });
 const BOOK_PART = /^\/v1\/library\/books\/[^/]+\/parts\/[^/]+$/;
 const BOOK_PAGES = /^\/v1\/library\/books\/[^/]+\/pages$/;
+// The private scripture table and one book's verse text (checked again in the route).
+const scripture = bodyLimit({ maxSize: LIBRARY_LIMITS.text_bytes, onError: tooLarge });
 const limitFor = (path: string) =>
   path === '/v1/ops/import/parts'
     ? part
@@ -72,7 +75,9 @@ const limitFor = (path: string) =>
                 ? bookPart
                 : BOOK_PAGES.test(path)
                   ? pages
-                  : small;
+                  : path.startsWith('/v1/library/scripture')
+                    ? scripture
+                    : small;
 
 export const app = new Hono<AppEnv>()
   .use(async (c, next) => {
@@ -118,5 +123,6 @@ export const app = new Hono<AppEnv>()
   .route('/v1', guitarRoutes)
   .route('/v1', libraryRoutes)
   .route('/v1', ingestRoutes)
+  .route('/v1', scriptureRoutes)
   .notFound(notFound)
   .onError(onError);
