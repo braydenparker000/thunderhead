@@ -25,7 +25,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .themeBtn .sun,:root[data-theme="dark"] .themeBtn .moon{display:none}
 :root[data-theme="dark"] .themeBtn .sun{display:block}
 /* conversation */
-.convo{position:absolute;z-index:2;left:0;right:0;top:56px;bottom:calc(44px + var(--ask-h,54px));overflow-y:auto;scrollbar-width:none;display:flex;flex-direction:column;padding:0 max(24px,env(safe-area-inset-right,0px)) 14px max(24px,env(safe-area-inset-left,0px))}
+.convo{position:absolute;z-index:2;left:0;right:0;top:56px;bottom:calc(44px + var(--ask-h,54px));overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:none;display:flex;flex-direction:column;padding:0 max(24px,env(safe-area-inset-right,0px)) 14px max(24px,env(safe-area-inset-left,0px))}
 .convo::-webkit-scrollbar{display:none}
 .spacer{flex:1 1 auto;min-height:40px}
 .voice{font-family:var(--voice);font-style:italic;font-weight:340;letter-spacing:-.01em}

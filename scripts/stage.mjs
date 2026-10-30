@@ -84,8 +84,11 @@ const budgets = [
   ['home JS bytes', sum(/^(apps\/home|ui)\/.*\.js$/), 120_000],
   // th/ modules the shell loads at boot, and the conversation it loads after the first paint.
   ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 64_000],
-  // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 68_000],
+  // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
+  // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 74_000],
+  // A reply's actions and Find in today, loaded on the first tap or pull.
+  ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The menu's conversations and search, loaded when the menu first opens.
   ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 56_000],
   // The Briefing page and the Board reader, loaded after the first paint.

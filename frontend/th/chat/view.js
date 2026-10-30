@@ -1,7 +1,9 @@
 // @ts-check
 // The conversation on home, drawn (HOME.md §4): owner bubbles on the right, the mind's replies in
-// Fraunces italic with no bubble, system lines small and centred, one action chip under a reply,
-// the reply slot while a reply is on its way, and the "New reply ↓" pill. Messages are keyed by
+// upright Fraunces with no bubble, system lines small and centred, one action chip and up to two
+// follow-ups under a reply, the time over a turn after an hour's gap, older long replies folded,
+// a tap on a reply for its actions, the reply slot while a reply is on its way, and the "New
+// reply ↓" pill. Messages are keyed by
 // id, so a re-render only adds, changes or removes what changed, and the slot is one element that
 // changes only when what it says does (a screen reader hears each change once; focus stays on
 // Stop). Text is always set with textContent, never parsed as markup.
@@ -42,12 +44,27 @@ function whereToStudy(cites) {
   return box;
 }
 
+const HOUR = 3_600_000;
+const clock = (/** @type {number} */ at) => {
+  const d = new Date(at);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
 /**
- * @param {{ talk: HTMLElement, convo: HTMLElement, onRetry: (id: string) => void, onChip: (chip: { app: string, path: string, label: string }) => void, onStop: () => void }} o
+ * @param {{ talk: HTMLElement, convo: HTMLElement, onRetry: (id: string) => void, onChip: (chip: { app: string, path: string, label: string }) => void, onStop: () => void, onFollow: (text: string, replyTo: string) => void, onTap: (m: Shown, node: HTMLElement) => void }} o
  */
-export function createView({ talk, convo, onRetry, onChip, onStop }) {
-  /** @type {Map<string, { node: HTMLElement, sig: string }>} */
+export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onTap }) {
+  /** @type {Map<string, { node: HTMLElement, sig: string, m: Shown }>} */
   const nodes = new Map();
+  /** Older long replies the owner unfolded. */
+  const unfolded = new Set();
+  talk.addEventListener('click', (e) => {
+    const t = /** @type {HTMLElement} */ (e.target);
+    const node = /** @type {HTMLElement | null} */ (t.closest('.reply')?.closest('[data-id]') ?? null);
+    if (!node || t.closest('a,button,.blocks,.study') || String(getSelection() ?? '')) return;
+    const m = nodes.get(node.dataset.id ?? '')?.m;
+    if (m && m.author === 'mind' && !m.local) onTap(m, node);
+  });
   const slot = el('div', 'slot');
   const wait = el('span', 'wait');
   const stop = el('button', 'stop', 'Stop');
@@ -108,17 +125,35 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
     if (Array.isArray(cites) && cites.length) wrap.append(whereToStudy(cites));
     const chip = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).chip : null;
     const app = chip ? appFor(chip.app) : null;
-    if (!chip || !app) return wrap;
+    /** @type {HTMLElement[]} */
+    const under = [];
+    if (chip && app) {
+      const b = el('button', 'chip');
+      b.type = 'button';
+      b.style.setProperty('--c', app.color);
+      b.innerHTML = `<svg class="ic" aria-hidden="true"><use href="/ui/icons.svg#${app.icon}"/></svg>`;
+      b.append(String(chip.label));
+      b.addEventListener('click', () => onChip(chip));
+      under.push(b);
+    }
+    // Up to two follow-ups the mind suggests (`meta.followups`); a tap sends one, answering this reply.
+    const follow = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).followups : null;
+    const asks = Array.isArray(follow) ? follow.filter((f) => typeof f === 'string' && f.trim()).slice(0, 2) : [];
+    if (asks.length) {
+      const row = el('div', 'follows');
+      for (const f of asks) {
+        const b = el('button', 'follow', f.trim().slice(0, 60));
+        b.type = 'button';
+        b.addEventListener('click', () => onFollow(f.trim().slice(0, 200), m.id));
+        row.append(b);
+      }
+      under.push(row);
+    }
+    if (!under.length) return wrap;
     const box = el('div', 'replybox');
-    const b = el('button', 'chip');
-    b.type = 'button';
-    b.style.setProperty('--c', app.color);
-    b.innerHTML = `<svg class="ic" aria-hidden="true"><use href="/ui/icons.svg#${app.icon}"/></svg>`;
-    b.append(String(chip.label));
-    b.addEventListener('click', () => onChip(chip));
-    box.append(wrap, b);
-    // The chip fades in once the reply has revealed (HOME.md §4.5).
-    setTimeout(() => b.classList.add('in'), s.fresh.has(m.id) ? revealMs(m.body) + 50 : 0);
+    box.append(wrap, ...under);
+    // What sits under a reply fades in once the reply has revealed (HOME.md §4.5).
+    setTimeout(() => under.forEach((u) => u.classList.add('in')), s.fresh.has(m.id) ? revealMs(m.body) + 50 : 0);
     return box;
   }
 
@@ -157,12 +192,20 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
       }
     /** @type {HTMLElement | null} */
     let prevTurn = null;
+    let lastAt = 0;
+    /** @type {HTMLElement[]} */
+    const drawnNow = [];
     for (const g of groups) {
       let t = turns.get(g[0].id);
       if (!t) {
         t = el('div', g[0].author === 'system' ? 'turn sysline' : 'turn');
         turns.set(g[0].id, t);
       }
+      // The time over a turn that starts the day or follows an hour's quiet.
+      const at = g[0].created_at;
+      if (!lastAt || at - lastAt >= HOUR) t.dataset.time = clock(at);
+      else delete t.dataset.time;
+      lastAt = g.at(-1)?.created_at ?? at;
       if (prevTurn ? prevTurn.nextElementSibling !== t : talk.firstElementChild !== t) prevTurn ? prevTurn.after(t) : talk.prepend(t);
       prevTurn = t;
       /** @type {HTMLElement | null} */
@@ -177,13 +220,22 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
           else if (m.author === 'owner') newOwner = true;
           else if (m.author === 'mind') newReply = true; // live, or loaded on the way back from an app
           else newLine = true;
-          rec = { node, sig };
+          rec = { node, sig, m };
           nodes.set(m.id, rec);
-        }
+          drawnNow.push(node);
+        } else rec.m = m;
         const node = rec.node;
         if (prev ? prev.nextElementSibling !== node : t.firstElementChild !== node) prev ? prev.after(node) : t.prepend(node);
         prev = node;
       }
+    }
+    // An older reply taller than 14 lines folds to 10 with "Show all"; the newest never does.
+    const replies = talk.querySelectorAll('.reply:not(.progress)');
+    const newest = replies[replies.length - 1];
+    for (const node of drawnNow) {
+      const r = node.matches('.reply') ? node : node.querySelector('.reply');
+      const id = node.dataset.id ?? '';
+      if (r && r !== newest && !r.matches('.progress') && !unfolded.has(id)) requestAnimationFrame(() => fold(/** @type {HTMLElement} */ (r), id));
     }
     // The reply slot sits under the newest turn while a reply is on its way.
     const key = `${s.slot}|${s.stop}|${s.slot === 'dots' ? s.words : ''}`;
@@ -211,6 +263,21 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
     );
     if (newOwner || ((newReply || newLine) && wasNear)) convo.scrollTop = convo.scrollHeight;
     else if (newReply) pill.classList.add('show');
+  }
+
+  /** @param {HTMLElement} r @param {string} id */
+  function fold(r, id) {
+    const line = parseFloat(getComputedStyle(r).lineHeight) || 26;
+    if (r.scrollHeight <= line * 14 || r.classList.contains('folded')) return;
+    r.classList.add('folded');
+    const more = el('button', 'more', 'Show all');
+    more.type = 'button';
+    more.addEventListener('click', () => {
+      r.classList.remove('folded');
+      more.remove();
+      unfolded.add(id);
+    });
+    r.after(more);
   }
 
   return { render };

@@ -171,8 +171,8 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
     // --- the conversation and the live channel (P2) --------------------------------------------
     /** @param {string} token @returns {Promise<TodayResponse>} */
     today: (token) => call('/v1/threads/today', { token }),
-    /** @param {string} token @param {string} id @param {string} body @returns {Promise<Message>} */
-    say: (token, id, body) => call(`/v1/messages/${encodeURIComponent(id)}`, { method: 'PUT', token, body: { body } }),
+    /** @param {string} token @param {string} id @param {string} body @param {string} [replyTo] the reply it answers @returns {Promise<Message>} */
+    say: (token, id, body, replyTo) => call(`/v1/messages/${encodeURIComponent(id)}`, { method: 'PUT', token, body: { body, ...(replyTo ? { reply_to: replyTo } : {}) } }),
     /** @param {string} token @param {number} after @returns {Promise<ChangesResponse>} */
     changes: (token, after) => call(`/v1/changes?after=${after}&limit=500`, { token }),
     /** @param {string} token @returns {Promise<LiveTicket>} */

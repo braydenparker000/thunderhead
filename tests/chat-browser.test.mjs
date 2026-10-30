@@ -487,3 +487,92 @@ test("if the chat can't load, the ask bar says so instead of doing nothing", opt
   assert.equal(await page.inputValue('#q'), 'Hello?', 'the words stay in the bar');
   await context.close();
 });
+
+const MSG_THREAD = '0192f0c4-0000-7000-8000-0000000000aa';
+/** A message already in today's thread, `ago` ms before now. */
+const past = (n, author, body, ago, meta = null) => ({ seq: n, id: `0192f0c4-0000-7000-8000-${String(900 + n).padStart(12, '0')}`, thread_id: MSG_THREAD, author, origin: author === 'owner' ? 'owner_device' : 'mind', kind: 'text', body, meta, attachments: [], reply_to: null, created_at: Date.now() - ago, delivered_at: null, acked_at: null, answered_at: author === 'owner' ? Date.now() - ago + 60_000 : null });
+const sent = (api) => api.calls.filter((c) => c.call.startsWith('PUT /v1/messages/')).map((c) => c.body);
+
+test('follow-ups: two taps under the newest reply; one sends its words answering that reply; they hide once the talk moves on', opts, async () => {
+  const reply = { after: 200, text: 'Your evening playlist is ready.', meta: { followups: ['Play it now', 'Make it longer', 'A third is never shown'] } };
+  const { page, context, errors, api } = await open({ chat: { reply, presence: { state: 'listening', note: null, since: Date.now() } } });
+  await send(page, 'Make me an evening playlist');
+  await page.waitForSelector('#talk .follows.in');
+  assert.deepEqual(await page.$$eval('#talk .follow', (b) => b.map((x) => x.textContent)), ['Play it now', 'Make it longer']);
+  const replyId = await page.$eval('#talk .replybox', (b) => b.dataset.id);
+  await page.click('#talk .follow');
+  await eventually(() => sent(api).at(-1), { body: 'Play it now', reply_to: replyId }, 'the follow-up answers the reply');
+  await page.waitForFunction(() => document.querySelectorAll('#talk .turn').length === 2);
+  assert.equal(await page.$eval('#talk .follows', (f) => getComputedStyle(f).display), 'none', 'an older turn shows none');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('a tapped reply: Copy, Shorter, Say more and Ask about this', opts, async () => {
+  const reply = { after: 200, text: 'Bars 9 to 12 at 84, then up to tempo.' };
+  const { page, context, errors, api } = await open({ chat: { reply, presence: { state: 'listening', note: null, since: Date.now() } } });
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await send(page, 'What should I practise?');
+  await page.waitForSelector('#talk .reply');
+  await page.waitForTimeout(700);
+  const replyId = await page.$eval('#talk .reply', (r) => r.dataset.id);
+  // The actions load on the first tap, so each row is waited for.
+  const tap = async () => { await page.click(`#talk [data-id="${replyId}"]`); await page.waitForSelector('#talk .ractions'); };
+  await tap();
+  assert.deepEqual(await page.$$eval('#talk .ractions button', (b) => b.map((x) => x.textContent)), ['Copy', 'Shorter', 'Say more', 'Ask about this']);
+  await page.click(`#talk [data-id="${replyId}"]`);
+  await page.waitForSelector('#talk .ractions', { state: 'detached' });
+  await tap();
+  await page.click('#talk .ractions button:text("Copy")');
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), 'Bars 9 to 12 at 84, then up to tempo.');
+  await tap();
+  await page.click('#talk .ractions button:text("Shorter")');
+  await eventually(() => sent(api).at(-1), { body: 'Shorter, please.', reply_to: replyId });
+  await tap();
+  await page.click('#talk .ractions button:text("Ask about this")');
+  assert.equal(await page.textContent('#about span'), 'About: Bars 9 to 12 at 84, then up to tempo.');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'q');
+  await page.keyboard.type('Why 84?');
+  await page.keyboard.press('Enter');
+  await eventually(() => sent(api).at(-1), { body: 'Why 84?', reply_to: replyId });
+  assert.equal(await page.$('#about'), null, 'the quote goes with the message');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('an older long reply folds to 10 lines with Show all; the newest never folds; the time shows after an hour of quiet', opts, async () => {
+  const long = Array.from({ length: 24 }, (_, i) => `Line ${i + 1} of a long answer about the week.`).join('\n');
+  const messages = [past(1, 'owner', 'Plan my week', 3 * 3600_000), past(2, 'mind', long, 3 * 3600_000 - 60_000), past(3, 'owner', 'Thanks', 3600_000 + 120_000), past(4, 'mind', long, 3600_000 + 60_000), past(5, 'owner', 'One more thing', 20 * 60_000), past(6, 'mind', 'Sure.', 19 * 60_000)];
+  const { page, context, errors } = await open({ chat: { messages } });
+  await page.waitForSelector('#talk .reply.folded');
+  assert.deepEqual(await page.$$eval('#talk .reply', (r) => r.map((x) => x.classList.contains('folded'))), [true, true, false]);
+  assert.equal(await page.$$eval('#talk .more', (b) => b.length), 2);
+  const h = await page.$eval('#talk .reply.folded', (r) => r.getBoundingClientRect().height);
+  await page.click('#talk .more');
+  assert.ok((await page.$eval(`#talk [data-id="${messages[1].id}"]`, (r) => r.getBoundingClientRect().height)) > h * 2, 'Show all unfolds it');
+  // Turn 1 starts the day; turn 2 comes 1 h 57 min after it; turn 3 only 41 min after turn 2's end.
+  assert.deepEqual(await page.$$eval('#talk .turn', (t) => t.map((x) => Boolean(x.dataset.time))), [true, true, false]);
+  assert.match(await page.$eval('#talk .turn', (t) => t.dataset.time), /^\d\d:\d\d$/);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('Find in today: every match marked, "3 of 3" newest first, Enter steps back, Escape closes', opts, async () => {
+  const messages = [past(1, 'owner', 'Something calm for the evening', 40 * 60_000), past(2, 'mind', 'Calm piano, under Evening.', 39 * 60_000), past(3, 'owner', 'Calm again tomorrow', 10 * 60_000), past(4, 'mind', 'Noted.', 9 * 60_000)];
+  const { page, context, errors } = await open({ chat: { messages } });
+  await page.waitForSelector('#talk .reply');
+  await page.evaluate(() => import('/th/reply/find.js').then((f) => f.openFind()));
+  await page.waitForSelector('.findbar.in');
+  await page.keyboard.type('calm');
+  assert.equal(await page.textContent('.findbar .fcount'), '3 of 3');
+  assert.equal(await page.evaluate(() => CSS.highlights.get('find').size), 3);
+  await page.keyboard.press('Enter');
+  assert.equal(await page.textContent('.findbar .fcount'), '2 of 3');
+  await page.keyboard.type('zzz');
+  assert.equal(await page.textContent('.findbar .fcount'), 'No match');
+  await page.keyboard.press('Escape');
+  assert.equal(await page.$('.findbar'), null);
+  assert.equal(await page.evaluate(() => CSS.highlights.has('find')), false);
+  assert.deepEqual(errors, []);
+  await context.close();
+});

@@ -169,8 +169,10 @@ Acceptance: with two mocked proposals, the first card shows "1 of 2"; tapping Ye
 - **Rich text** (`th/chat/rich.js`, the same on home and in an older conversation): `###` headings (600, 18.5), "- " "• " "* " "– " bullets shown with an en dash, "1. " numbered lists, "> " quotes (italic, a thin accent rule), **bold** (600), *italic*, `code` and fenced code (monospace), `| tables |` (Inter 14: data reads in Inter), `---` rules, `https://` links and cited blocks of the owner's books. Lines without a blank line between them stay one paragraph, broken where they were; a "– " straight after a full stop, question mark or colon starts a list item, so a list never runs into the sentence before it. Text is set as text, never markup.
 - **Shown, not only told:** a reply may carry up to four of the Board's blocks in `meta.blocks` (stats, chart, timeline, comparison, agenda, explanation, callout; [BRIEFING](BRIEFING.md) §5), drawn under the words by the Board's own code, in Inter, loaded only when a reply has them. The mind finds the format in `th help say`. It does not choose fonts: one set of type styles keeps the voice consistent.
 - **Links:** underlined, `--accent-text`, open in a new tab with `rel="noopener noreferrer"`. Only `https:` URLs become links. Long URLs show the host plus "…".
-- **Length:** the mind's default is ≤ 3 sentences ([COPY](../design/COPY.md)). The **latest** reply is always shown in full. Older replies taller than **14 lines** collapse to 10 lines with a fade and a "Show all" text button [proposal].
-- Copy: long-press → "Copy" ([GESTURES](../design/GESTURES.md) §5).
+- **Length:** the mind's default is ≤ 3 sentences ([COPY](../design/COPY.md)). The **latest** reply is always shown in full. Older replies taller than **14 lines** collapse to 10 lines with a fade and a "Show all" text button (built 2026-10-30; a reply is measured when drawn, so the one being read never folds under the owner, and one unfolded stays open).
+- **Tap a reply** (not a link, a chip or a block) and a row slides out under it: **Copy**, **Shorter**, **Say more**, **Ask about this** (built 2026-10-30, `th/reply/actions.js`, loaded on the first tap; a second tap closes it). Shorter and Say more go at once as the owner's message ("Shorter, please.", "Say more about that.") answering that reply (`reply_to`); Ask about this puts "About: …" over the ask bar with ✕, and the next message answers it.
+- **Follow-ups:** a reply may offer up to two short next asks in `meta.followups` (≤ 40 characters), drawn as outline pills under it in the newest turn only; a tap sends the words as the owner's message answering that reply.
+- **The time over a turn:** a turn that starts the day or comes an hour or more after the one before carries its time (`09:40`, Inter 11.5, `--ink-3`), centred above it.
 
 ### 4.4 A reply's life
 
@@ -186,7 +188,7 @@ Acceptance: with two mocked proposals, the first card shows "1 of 2"; tapping Ye
 
 The wake timings come from the mind's loop: the page fires a pre-warm on the first keystroke, the Worker retries an unclaimed fire once at 120 s and gives up at 240 s ([RUNTIME](../mind/RUNTIME.md)). Cold replies are expected to take 20–60 s and are not yet measured.
 
-**Reveal.** The reply is delivered whole (the mind posts complete messages; there is no token streaming). The client reveals it at **160 characters per second**, capped at **1.2 s** total (longer replies reveal faster), then shows it all. The first build reveals 2 characters per animation frame, which is 180 per second on the A15's 90 Hz screen and frame-rate dependent. [proposal: time-based]. Reduced motion: no reveal. A screen reader gets the whole reply at once (`aria-live="polite"` on the turns list, text set in one go, the visual reveal done with a clip mask, not by changing the text).
+**Reveal.** The reply is delivered whole (the mind posts complete messages; there is no token streaming). The client reveals it at **160 characters per second**, capped at **1.2 s** total (longer replies reveal faster), then shows it all. Built time-based (a CSS animation of `--reveal-ms`), on an ease-out curve (2026-10-30) so the first lines come quickly and the end settles. Reduced motion: no reveal. A screen reader gets the whole reply at once (`aria-live="polite"` on the turns list, text set in one go, the visual reveal done with a clip mask, not by changing the text).
 
 **Stop (built, P2).** While the mind works on an answer (presence `working`), the reply slot carries a quiet **Stop** text button (Inter 13, accent, 44 px hit area) beside the "…". A tap sends `POST /v1/mind/stop`; the slot reads "Stopping…" until the mind's reply ("Stopped. Done: … Not done: …", [BEHAVIOR.md](../mind/BEHAVIOR.md)). Stop ends the work, not the session. The ask bar does not change.
 
@@ -239,7 +241,11 @@ Opened from the menu (prototype v11; built, `frontend/th/convos/past.js`). The t
 - Typing and sending returns to now first, then sends.
 - Back, the pill's button, or a menu tap on "Now" returns to today.
 
-### 4.10 The daily split
+### 4.10 Find in today
+
+Built 2026-10-30 (`th/reply/find.js`, loaded on first use). At the top of the conversation, pull down: a "Find in today" hint follows the finger and turns accent at **64 px**; letting go there opens a search pill at the top (a shorter pull does nothing). Every match in today's turns is marked with the CSS Custom Highlight API (the text itself never changes), the current one in gold, scrolled to a third of the way down; the count says "2 of 5"; Enter or ↑ steps to the earlier match, Shift+Enter or ↓ to the later, newest first; ✕ or Escape closes it. The menu's Search everything still searches every conversation.
+
+### 4.11 The daily split
 
 Decided: the day rolls at **04:00 local**, but only after **60 quiet minutes** (no message from either side). A new conversation starts; the old one is filed and titled automatically.
 
@@ -419,7 +425,7 @@ Acceptance: the state classes on `#edge` per state (mocked, `tests/chat-browser.
 | H3 | Decision: yes / not yet / no / error / offline / expiry flows as §3.2 |
 | H4 | Reply lifecycle: "…" at 1.2 s, "Waking up…" at 8 s, the honest line at 240 s (mocked clock) |
 | H5 | Offline send → meta → reconnect → sent once (no duplicate) |
-| H6 | Day roll timing with a mocked clock (§4.10) |
+| H6 | Day roll timing with a mocked clock (§4.11) |
 | H7 | `+` sheet opens/closes by each route in §6.2; conversation blurs while open |
 | H8 | Mic: listening state, 120 s auto-stop, < 0.6 s discard, stops on `visibilitychange` |
 | H9 | Edge light values per state; paused when hidden; static under reduced motion |

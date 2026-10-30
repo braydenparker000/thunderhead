@@ -60,7 +60,15 @@ export async function startChat() {
     fresh: new Set(),
     loaded: false,
   };
-  const view = createView({ talk, convo, onRetry: retry, onChip: openChip, onStop: stopMind });
+  const view = createView({
+    talk,
+    convo,
+    onRetry: retry,
+    onChip: openChip,
+    onStop: stopMind,
+    onFollow: (text, id) => sendNow(text, id),
+    onTap: (m, node) => void import('../reply/actions.js').then((a) => a.toggle(node, m, { send: sendNow })),
+  });
   const setVoice = voice($('#say'));
   let pendingVoice = /** @type {[string, string | null] | null} */ (null);
   let wasFirstRun = false;
@@ -270,7 +278,7 @@ export async function startChat() {
   /** @param {Local} m @returns {Promise<boolean>} whether it went */
   async function send(m) {
     try {
-      const out = await signedIn((tok) => api.say(tok, m.id, m.body));
+      const out = await signedIn((tok) => api.say(tok, m.id, m.body, m.reply_to));
       state.local = state.local.filter((x) => x.id !== m.id);
       if (state.today && !state.today.messages.some((x) => x.id === out.id)) state.today.messages.push(out);
       drop(m.id);
@@ -341,9 +349,10 @@ export async function startChat() {
       setQuiet('until' in order ? order.until : 0);
       return;
     }
-    /** @type {Local} */
-    const m = { id: model.uuidv7(now), body, created_at: now, state: navigator.onLine ? 'sending' : 'queued', tries: 0 };
-    state.local.push(m);
+    // "Ask about this" left a quote over the bar: this message answers that reply.
+    const about = $('#about');
+    const m = enqueue(body, about?.dataset.id);
+    about?.remove();
     paint();
     // Painted first: the words are never only in the bar, or only in IndexedDB.
     q.value = '';
@@ -352,6 +361,21 @@ export async function startChat() {
     keep(m);
     flush();
   });
+  /** A message from the phone, answering `replyTo` if given. @param {string} body @param {string} [replyTo] */
+  function enqueue(body, replyTo) {
+    const now = Date.now();
+    /** @type {Local} */
+    const m = { id: model.uuidv7(now), body, created_at: now, state: navigator.onLine ? 'sending' : 'queued', tries: 0, ...(replyTo ? { reply_to: replyTo } : {}) };
+    state.local.push(m);
+    return m;
+  }
+  /** A follow-up or a reply action, sent as it is. @param {string} body @param {string} replyTo */
+  function sendNow(body, replyTo) {
+    const m = enqueue(body, replyTo);
+    paint();
+    keep(m);
+    flush();
+  }
 
   // The pre-warm: the first keystroke after a quiet spell tells the Worker, so the mind wakes.
   let lastKey = 0;

@@ -211,3 +211,18 @@ test('the ask box: a text area that grows, Enter sends, Shift+Enter a new line',
   assert.deepEqual(errors, []);
   await context.close();
 });
+
+test('at the top of the conversation, pulling down 64 px opens Find in today; a short pull does not', opts, async () => {
+  const { page, context, errors } = await open({ touch: true });
+  const cdp = await context.newCDPSession(page);
+  await page.$eval('.convo', (c) => { c.scrollTop = 0; });
+  const top = await page.$$eval('#talk .reply', (els) => { const r = els.map((e) => e.getBoundingClientRect()).find((b) => b.top > 70); return { x: r.left + 30, y: r.top + 10 }; });
+  await touchDrag(page, cdp, line(top.x, top.y, top.x + 2, top.y + 40, 8));
+  assert.equal(await page.$('.findbar'), null, 'a 40 px pull is not enough');
+  await touchDrag(page, cdp, line(top.x, top.y, top.x + 2, top.y + 110, 12));
+  await page.waitForSelector('.findbar.in');
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Find in today');
+  assert.equal(await page.$eval('.pullfind', (p) => getComputedStyle(p).opacity), '0', 'the hint goes once it has opened');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
