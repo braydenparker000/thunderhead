@@ -207,8 +207,7 @@ Built as two, which is all the shell needs: `--settle` (damping 0.8, ~1.5% overs
 | Name | Keyframes | Duration | Where |
 |---|---|---|---|
 | `rise` | from `opacity 0; translateY(10px); blur(4px)` to none | 900 ms (voice), 800 ms (card, +300 ms delay), 500 ms (turn) | Voice line spans (2nd span +160 ms), card, turns, hint (+600 ms) |
-| `breathe` | opacity 0.7 → 1 → 0.7 | 9 s (0.11 Hz) | Calm edge light |
-| `think` | edge inset glow 50 px → 110 px → 50 px | 1.5 s | Thinking edge light |
+| `think` | the bottom glow's opacity .45 → 1 → .45 (HOME.md §7) | 3.2 s | Thinking edge light. (`breathe`, the calm edge's 9 s pulse, is gone: calm is steady, owner 2026-10-30) |
 | `drift` | §7 | 38 s / 47 s | Field |
 | `press` | scale 0.4 → 2.2, opacity 0 → 0.55 | 220 ms | Hold feedback |
 

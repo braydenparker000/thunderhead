@@ -329,23 +329,23 @@ Acceptance: in Playwright with a mobile Chrome emulation, typing "hello" swaps m
 
 ## 7. Edge light
 
-The Thunderhead's presence (owner ruling). One full-screen layer with inset shadows, `pointer-events: none`, above the conversation (z 6). [proposal] Split into two layers, **glow** and **gold**, so the gold can stay under a thinking pulse.
+The Thunderhead's presence (owner ruling): light rising from the **bottom** of the screen, behind the ask bar (owner, 2026-10-30: "the pulsing is too much. It should only be at bottom"; it was an inset glow on all four edges with a 1.5 s pulse). One layer `#edge`, the bottom 40% of the screen, `pointer-events: none`, above the conversation (z 6), with two bands: the **glow** (`::after`, its colour by state) and the **gold** (`::before`) under it while a card waits, so the gold stays under a thinking pulse. Each band is a radial gradient from the bottom centre; only their opacity animates, so the compositor moves them and nothing is repainted (the old box-shadow pulse repainted the whole screen every frame).
 
-| State | Exact value (day) | Night difference | Motion |
+| State | Glow | Gold | Motion |
 |---|---|---|---|
-| **Calm** | `box-shadow: inset 0 0 70px -42px var(--glow)` | `--glow: #4d84ff` | `breathe`: opacity .7 ↔ 1 over **9 s** |
-| **Gold** (decision waiting) | `inset 0 -80px 80px -50px var(--gold), inset 0 0 60px -42px var(--glow)` | `inset 0 -64px 70px -52px var(--gold), inset 0 0 60px -44px var(--glow)` | breathes like calm |
-| **Thinking** | Pulse between `inset 0 0 50px -36px glow` and `inset 0 0 110px -30px glow` | same | `think`: **1.5 s** loop, ease-in-out |
-| **Listening** | `inset 0 0 90px -34px var(--glow)` | same | steady [proposal: follow mic level, ±10%] |
-| **Error** [proposal] | `inset 0 0 70px -40px var(--alarm-glow)` | `--alarm-glow: #ff6b5e` | one 1.5 s pulse, then steady |
-| **Offline** [proposal] | Calm at opacity .5 | same | no breathe |
+| **Calm** | `--glow` at 30%, opacity .6 | off | steady |
+| **Gold** (a card waits) | opacity .3 | `--gold` at 38%, opacity 1 | steady |
+| **Thinking** | `--glow` | as it was | `think`: opacity .45 ↔ 1 over **3.2 s**, ease-in-out |
+| **Listening** | `--glow`, opacity 1 | as it was | steady |
+| **Error** | `#ff6b5e`, opacity .8 | as it was | steady |
+| **Offline** | opacity .2 | as it was | steady |
 
-- Changes between states crossfade over **1.4 s** (`transition: box-shadow 1.4s ease`).
+- Changes between states crossfade over **1.4 s** (opacity, and the glow's colour through the registered `--edge-c`).
 - **Priority** when several apply: listening > thinking > error > calm; **gold** is drawn under all of them whenever a decision is shown.
 - Error is shown while: the mind can't wake, the session is signed out, or a message failed to send (until retried or 60 s pass).
-- Animations pause while the page is hidden. Reduced motion: no breathe or pulse; thinking shows the brighter steady value.
+- Reduced motion: no pulse; thinking shows a steady .85.
 
-Acceptance: computed `box-shadow` of `#edge` matches each row's value per state (mocked); `getAnimations()` is empty when `document.hidden`.
+Acceptance: the state classes on `#edge` per state (mocked, `tests/chat-browser.test.mjs`); with reduced motion nothing on home animates (`tests/shell-look-browser.test.mjs`).
 
 ## 8. Day and night
 

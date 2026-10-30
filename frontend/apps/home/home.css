@@ -5,16 +5,19 @@
 html,body{height:100%;margin:0}
 body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden;-webkit-font-smoothing:antialiased}
 .app{position:relative;height:100%;max-width:460px;margin:0 auto;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
-/* edge light */
-.edge{position:absolute;inset:0;pointer-events:none;z-index:6;transition:box-shadow 1.4s ease}
-.edge.calm{box-shadow:inset 0 0 70px -42px var(--glow)}
-.edge.gold{box-shadow:inset 0 -80px 80px -50px var(--gold),inset 0 0 60px -42px var(--glow)}
-:root[data-theme="dark"] .edge.gold{box-shadow:inset 0 -64px 70px -52px var(--gold),inset 0 0 60px -44px var(--glow)}
-.edge.listen{box-shadow:inset 0 0 90px -34px var(--glow)}
-.edge.breathe{animation:breathe 9s ease-in-out infinite}
-.edge.think{animation:think 1.5s ease-in-out infinite}
-@keyframes breathe{0%,100%{opacity:.7}50%{opacity:1}}
-@keyframes think{0%,100%{box-shadow:inset 0 0 50px -36px var(--glow)}50%{box-shadow:inset 0 0 110px -30px var(--glow)}}
+/* edge light: the Thunderhead's presence as light rising from the bottom (owner, 2026-10-30: only at
+   the bottom, and calmer). Two layers: the glow (its colour by state) and the gold under it while
+   a card waits. Only their opacity moves, so the compositor does it and nothing is repainted. */
+@property --edge-c{syntax:'<color>';inherits:false;initial-value:transparent}
+.edge{position:absolute;left:0;right:0;bottom:0;height:40%;pointer-events:none;z-index:6}
+.edge::before,.edge::after{content:"";position:absolute;inset:0;transition:opacity 1.4s ease,--edge-c 1.4s ease}
+.edge::before{background:radial-gradient(120% 50% at 50% 100%,color-mix(in srgb,var(--gold) 38%,transparent),transparent 72%);opacity:0}
+.edge::after{--edge-c:var(--glow);background:radial-gradient(130% 62% at 50% 100%,color-mix(in srgb,var(--edge-c) 30%,transparent),transparent 74%);opacity:.6;will-change:opacity}
+.edge.gold::before{opacity:1}
+.edge.gold::after{opacity:.3}
+.edge.listen::after{opacity:1}
+.edge.think::after{animation:think 3.2s ease-in-out infinite}
+@keyframes think{0%,100%{opacity:.45}50%{opacity:1}}
 /* top */
 .top{position:absolute;z-index:5;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:14px max(14px,env(safe-area-inset-right,0px)) 0 max(24px,env(safe-area-inset-left,0px));font:600 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3)}
 .iconBtn{width:44px;height:44px;border-radius:50%;border:0;background:none;color:var(--ink-3);display:grid;place-items:center;cursor:pointer}
@@ -161,4 +164,4 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .past{max-width:100%}
 .past button{white-space:nowrap;flex:none;border:0;background:var(--accent-text);color:#fff;border-radius:999px;padding:6px 12px;font:600 12px var(--ui);cursor:pointer}
 .turns .turn:first-child{margin-top:8px}
-@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.field::before,.field::after,.say .ln,.card,.chips,.hint,.turn{animation:none}.edge.breathe,.edge.think{animation:none}.ring .pet,.scrim,.toast{transition:none}}
+@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.field::before,.field::after,.say .ln,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet,.scrim,.toast{transition:none}}
