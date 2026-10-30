@@ -104,7 +104,7 @@ describe('the weekly backup', () => {
     const [done] = await backups();
     expect(done.complete).toBe(true);
     const m = (await manifestOf(date)) as BackupManifest;
-    expect(m).toMatchObject({ v: 1, date, class: 'core', schema_version: 19 });
+    expect(m).toMatchObject({ v: 1, date, class: 'core', schema_version: 20 });
     expect(m.tables.map((t) => t.name)).toEqual(BACKED);
     const ledger = m.tables.find((t) => t.name === 'ledger');
     const [{ n: ledgerRows }] = await coreSql<{ n: number }>('SELECT count(*) AS n FROM ledger');

@@ -59,7 +59,7 @@ Windows are rolling 7 days unless stated. "Owner message" means `author=owner`, 
 | M-15 | Law suite scores | per LAW set: passed ÷ size (§5) | `eval_runs` | P4 | see §5 |
 | M-16 | Kept / undone / ignored | for arrangements, margin notes and home lines (28 d): **kept** = acted on (opened, played, practised) within 48 h and not undone; **undone** = undone within 48 h; **ignored** = neither. Each ÷ total | `ledger`, `events` | P9 | undone < 10%, kept rising month over month |
 | M-17 | Caught first | incidents where the watchdog's `created_at` precedes any owner message about it, and that were fixed ÷ incidents | `incidents`, `messages` | P4 | ≥ 80% |
-| M-18 | Prediction skill | per category: Brier score `BS = mean((p − o)²)`; skill `BSS = 1 − BS/BS_ref`, `BS_ref` from a 28-day base rate; shown only after ≥ 30 resolved; reliability in 5 bins | `predictions` | P9 | BSS > 0 and rising |
+| M-18 | Prediction skill | per category: Brier score `BS = mean((p − o)²)`; skill `BSS = 1 − BS/BS_ref`, `BS_ref` from a 28-day base rate; shown only after ≥ 30 resolved; reliability in 5 bins. Built (P9): `GET /v1/predictions/skill`; the base rate is each prediction's own, the smoothed share (k + 1) / (n + 2) of the 28 days before its day, counted from the first daily thread | `predictions` | P9 | BSS > 0 and rising |
 | M-19 | Growth | app-specific: guitar clean-take bpm per section, study days per week, language words reviewed | `events` | P9+ | the owner's own goals |
 | M-20 | Router accuracy | correct labels ÷ 100 on RT-100; also accuracy on the `go_quiet` label alone | RT-100 | P2 (browser), P8 (Workers AI) | ≥ 95% overall; 100% on `go_quiet` |
 

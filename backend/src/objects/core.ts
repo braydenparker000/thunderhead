@@ -5,9 +5,9 @@
 // data, the feed and the sockets are in core-base.ts; memory (P3) is in core-memory.ts, the
 // night shift's run and input in core-night.ts, the import in core-import.ts and proposals (P4) in
 // core-proposals.ts, the evals in core-evals.ts, the watchdogs (each tick) in core-watchdogs.ts and
-// backups, the drill and exports in core-backups.ts, and Muse's work orders and the Briefing in
-// core-work.ts.
-// The alarm also runs the chunked jobs (areas/jobs), a step at a time.
+// backups, the drill and exports in core-backups.ts, Muse's work orders and the Briefing in
+// core-work.ts, and the predictions (P9) in core-predictions.ts. The alarm also runs the chunked
+// jobs (areas/jobs), a step at a time.
 import type {
   BriefRequest,
   JsonObject,
@@ -49,7 +49,7 @@ import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
-import { CoreWork } from './core-work';
+import { CorePredictions } from './core-predictions';
 
 const PRUNE_STEP = 2_000;
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
@@ -60,7 +60,7 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [exportJob.kind]: exportJob,
 };
 
-export class Core extends CoreWork {
+export class Core extends CorePredictions {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
@@ -196,9 +196,8 @@ export class Core extends CoreWork {
     this.schedule();
   }
 
-  /** The 15-minute cron: the day roll after 60 quiet minutes (which fires the night shift for the
-   * day it closed, once the mind-night task is connected), expiring verbs, and once a logical day
-   * the prune pass (DATA.md §10, JOBS.md §4.4). The fire runs after the roll's commit. */
+  /** The 15-minute cron: the day roll after 60 quiet minutes (firing the night shift for the day it
+   * closed, after the roll's commit), verbs, the daily prune (DATA.md §10) and each area's pass. */
   async tick(
     now = Date.now(),
     fetchImpl: typeof fetch = fetch,
@@ -228,6 +227,7 @@ export class Core extends CoreWork {
     const reflex = await this.watchdogTick(now, fetchImpl);
     await this.backupsTick(now);
     this.workTick(now);
+    this.predictionsTick(now, tz, due ?? d);
     return { rolled: due, pruned, night: wakeNight?.id ?? null, reflex };
   }
 

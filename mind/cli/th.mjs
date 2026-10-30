@@ -37,7 +37,7 @@ export const COMMANDS = {
   supersede: memory.supersede, forget: memory.forget, thread: memory.thread, day: memory.day,
   daynote: memory.daynote, facts: memory.facts,
   propose: act.propose, decide: act.decide, approved: act.approved, verb: act.verb, order: act.order, board: act.board, surface: act.surface,
-  library, push: act.push, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
+  library, push: act.push, predict: act.predict, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
   help: async argv => { out(helpText(argv[0])); },
 };
 

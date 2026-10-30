@@ -718,6 +718,34 @@
       "phase": "P4",
       "status": "built"
     },
+    "PUT /v1/predictions/:id": {
+      "who": [
+        "N"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "a prediction about the open day or the next, with a fixed resolver; at most 12 a day"
+    },
+    "GET /v1/predictions": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "newest first; ?open=1 for the unresolved"
+    },
+    "GET /v1/predictions/skill": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "Brier skill per category (EVALS.md M-18)"
+    },
     "GET /v1/ops/watchdogs": {
       "who": [
         "D",
@@ -2137,7 +2165,8 @@
       "P5",
       "P6",
       "P7",
-      "P8"
+      "P8",
+      "P9"
     ],
     "last_step": 10,
     "budget_min": {

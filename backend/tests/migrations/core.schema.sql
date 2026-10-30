@@ -339,6 +339,27 @@ CREATE TABLE perf_days (
   PRIMARY KEY (day, metric)
   ) WITHOUT ROWID;
 
+CREATE TABLE predictions (
+  id TEXT PRIMARY KEY,
+  made_at INTEGER NOT NULL,
+  made_by TEXT NOT NULL,
+  category TEXT NOT NULL,
+  args_json TEXT NOT NULL,
+  day TEXT NOT NULL,
+  p REAL NOT NULL,
+  why TEXT NOT NULL,
+  outcome INTEGER,
+  base REAL,
+  resolved_at INTEGER,
+  req_sha256 TEXT NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE INDEX predictions_category ON predictions (category, resolved_at);
+
+CREATE INDEX predictions_made ON predictions (made_at);
+
+CREATE INDEX predictions_open ON predictions (day) WHERE resolved_at IS NULL;
+
 CREATE TABLE proposals (
   id TEXT PRIMARY KEY,
   created_at INTEGER NOT NULL,

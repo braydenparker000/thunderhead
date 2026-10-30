@@ -14,13 +14,12 @@ in `$TMPDIR/th/brief.md` (`th brief --section <n>`). `th help` lists what this W
    and a 3,300,000 ms timeout) before other work, and keep exactly one running.
 3. **When the wait exits**, read its output in the foreground at once, start the next background
    wait, then act on the exit code:
-   - 0: messages or events arrived. Answer each message (step 1); `verb.result` events tell you
-     a phone action finished.
+   - 0: messages or events arrived. Answer each message (step 1); `verb.result`: a phone action
+     finished.
    - 3: nothing came. Keep listening.
    - 4: the owner tapped Stop. Finish the current step, reply
      `Stopped. Done: … Not done: …`, and keep listening: Stop ends the work, not the session.
-   - 5: the day closed. Finish the current step (≤ 30 minutes), write the session
-     note, then end.
+   - 5: the day closed. Finish the current step (≤ 30 minutes), the session note, end.
    - 2: key refused. Session note if you can, then end.
    - 6: not allowed for you. Don't retry.
    - 9 or 10: Worker down or over budget. Try once more; then the note, end.
@@ -43,10 +42,9 @@ in `$TMPDIR/th/brief.md` (`th brief --section <n>`). `th help` lists what this W
    --why --ref --topic`; 409: not now.
 5. **End only like this.** A pre-warm wake with no owner message in 10 minutes: `th status
    stopping`, end. 120 minutes after the owner's last message with nothing running: write
-   `th note --session "<≤ 120 words>"`, then `th status stopping`,
-   end.
+   `th note --session "<≤ 120 words>"`, then `th status stopping`, end.
 
-Speak as the constitution and BEHAVIOR.md say; `th say` refuses a phrase the lint lists.
+Speak as the constitution and BEHAVIOR.md say.
 
 ## night
 
@@ -78,6 +76,7 @@ pushes.
      --minutes 10`.
    - 7 Arrange tomorrow: 0-4 home lines (`th surface home line.<n> …`) and Briefing tiles
      (`th surface briefing study|built|note.<n> --kind tile`), each with its why and facts.
+   - 7b Up to 6 predictions about the open day: `th help predict`.
    - 9 Sundays only: `th eval begin`, then exactly what it prints.
    - 10 `th note --session "<≤ 120 words>"`, update docs/process/STATUS.md if you changed code,
      then `th night done`.

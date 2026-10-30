@@ -624,6 +624,16 @@ Every one of them follows this page's rules (scopes in §13, errors in §6, cost
 | `PUT /v1/evals/runs/:id` | C N, never in the sandbox | `{ id, suite: 'INJ', git_sha, n, passed, failures: string[], skipped?: string[], judged? }`: numbers and fixture ids only | `201 EvalRun` (`score` = passed / n), `200` for the same body again | 409 another body under this id; 422 in the sandbox, or `passed > n` |
 | `GET /v1/evals/runs?suite&limit` | D C N | — | `200 { items: EvalRun[] }`, newest first | |
 
+### 11.23 Predictions (P9)
+
+The night shift's predictions about the owner's day ([EVALS.md](../mind/EVALS.md) M-18; types in `shared/contract/predictions.ts`). Each names a fixed resolver, which Core's tick runs once the predicted logical day is over: `chat.any` (the owner writes that day), `chat.count { n: 2–50 }` (at least n owner messages), `chat.before { time: 'HH:MM' 05:00–23:59 }` (their first message before then, local), `decision.answered { id }` (they answer that waiting card before the day ends). The tick also stores the base rate: the share of the 28 days before (from the first daily thread) on which it came true, smoothed as (k + 1) / (n + 2).
+
+| Route | Who | Request | Response | Errors |
+|---|---|---|---|---|
+| `PUT /v1/predictions/:id` | N | `{ category, args, day, p /* 0.01–0.99, two decimals */, why /* ≤ 200 */ }`: `day` the open day or the next | `200 Prediction`, the same for the same body again | 409 another body under this id; 422 an unknown category or arguments, another day, a chat prediction about the open day after the owner's first message of it, a card not waiting, or the 13th in 24 hours |
+| `GET /v1/predictions?open&limit` | D C N | — | `200 { items: Prediction[] }`, newest first; `open=1` only the unresolved | |
+| `GET /v1/predictions/skill` | D C N | — | `200 { categories: CategorySkill[] }`: per category the open and resolved counts, the Brier score, the base rate's Brier score, the skill (1 − the two's ratio, only from 30 resolved) and 5 reliability bins | |
+
 ---
 
 ## 12. WebSocket protocol (`/v1/live`)
@@ -700,6 +710,8 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `POST /v1/evals/sandbox`, `GET /v1/evals/sandbox` | C N (with `TH-Sandbox: eval` only) | P4 |
 | `PUT /v1/evals/runs/:id` | C N | P4 |
 | `GET /v1/evals/runs` | D C N | P4 |
+| `PUT /v1/predictions/:id` | N | P9 |
+| `GET /v1/predictions`, `GET /v1/predictions/skill` | D C N | P9 |
 | `GET /v1/ops/watchdogs` | D C N R I | P4 |
 | `POST /v1/ops/watchdogs/:name/handled` | C N R | P4 |
 | `POST /v1/ops/watchdogs/:name/drill` | D C | P4 |

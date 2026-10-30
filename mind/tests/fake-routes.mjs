@@ -235,6 +235,10 @@ export function extraRoutes(ctl) {
       if (ctl.options.quietHours) throw new HttpError(409, 'quiet_hours');
       return idem(s.pushes, params[0], body, () => ({queued_until: ctl.now() + 60_000}));
     }],
+    ['PUT', /^\/v1\/predictions\/([^/]+)$/, ['night'], ({params, body}) =>
+      idem(s.predictions, params[0], body, () => ({id: params[0], ...body, outcome: null, base: null, resolved_at: null}))],
+    ['GET', /^\/v1\/predictions$/, ALL, () => ({items: [...s.predictions.values()].map(p => p.value)})],
+    ['GET', /^\/v1\/predictions\/skill$/, ALL, () => ({categories: []})],
     ['PUT', /^\/v1\/work\/orders\/([^/]+)$/, CN, ({params, body}) => {
       const extra = Object.keys(body).filter(k => !['kind', 'title', 'spec', 'deadline_at'].includes(k));
       if (extra.length || !['board.edition', 'research.brief', 'media.check'].includes(body.kind) || !body.title || body.title.length > 80 ||

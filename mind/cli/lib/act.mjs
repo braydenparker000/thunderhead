@@ -1,4 +1,4 @@
-// Acting commands: propose, decide, approved, verb, order, surface, push, night
+// Acting commands: propose, decide, approved, verb, order, surface, push, predict, night
 // (RUNTIME.md §5.3, BEHAVIOR.md §4, API.md §11.10–11.12, §11.19–11.20).
 import {parseArgs} from './args.mjs';
 import {EXIT, invalid, jsonFlag, need, out, textArg, toMs} from './io.mjs';
@@ -186,6 +186,29 @@ export async function push(argv) {
     topic_key: need(flags, 'topic'), deadline: toMs(flags.deadline, 'deadline'),
   }});
   out({queued_until: data.queued_until ?? null});
+}
+
+const PREDICT_USAGE = 'usage: th predict <category> --p <0.01-0.99> --why <text> [--n <n> | --time <HH:MM> | --card <id>] [--day <day>] | list [--open] | skill';
+const nextDay = day => new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+
+/** `th predict` (P9, EVALS.md M-18): a prediction about the open day (the day after the briefing's),
+ * which the Worker resolves from what the owner does once the day is over; `list` and `skill`. */
+export async function predict(argv) {
+  const {flags, rest} = parseArgs(argv, {bool: ['open']});
+  if (rest[0] === 'list' && rest.length === 1) return out((await request('GET', '/v1/predictions', {query: flags.open ? {open: 1} : {}})).data);
+  if (rest[0] === 'skill' && rest.length === 1) return out((await request('GET', '/v1/predictions/skill')).data);
+  if (rest.length !== 1) throw invalid(PREDICT_USAGE);
+  const args = {};
+  if (flags.n !== undefined) args.n = Number(flags.n);
+  if (flags.time !== undefined) args.time = String(flags.time);
+  if (flags.card !== undefined) args.id = String(flags.card);
+  const briefed = getState('day');
+  const day = typeof flags.day === 'string' ? flags.day : briefed ? nextDay(briefed) : null;
+  if (!day) throw invalid('--day is required (no briefing day recorded)');
+  const {data} = await request('PUT', `/v1/predictions/${seg(uuidv7())}`, {body: {
+    category: rest[0], args, day, p: Number(need(flags, 'p')), why: need(flags, 'why'),
+  }});
+  out({id: data.id, day: data.day});
 }
 
 const NIGHT_USAGE = 'usage: th night start | step <n> done | step <n> cursor <c> | done [--partial] | steps  [--day <YYYY-MM-DD>]';

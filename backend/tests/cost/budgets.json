@@ -140,11 +140,11 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 104,
+    "rows_read_max": 105,
     "rows_written_max": 11
   },
   "cron tick, nothing due (Core)": {
-    "rows_read_max": 38,
+    "rows_read_max": 39,
     "rows_written_max": 2
   },
   "POST /v1/memory/ops (1 add) (Core)": {
@@ -278,5 +278,21 @@
   "PUT /v1/library/highlights/:id (new)": {
     "rows_read_max": 2,
     "rows_written_max": 2
+  },
+  "PUT /v1/predictions/:id (Core)": {
+    "rows_read_max": 4,
+    "rows_written_max": 5
+  },
+  "GET /v1/predictions (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
+  },
+  "GET /v1/predictions/skill (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
+  },
+  "cron tick, resolving a prediction (Core)": {
+    "rows_read_max": 56,
+    "rows_written_max": 5
   }
 }

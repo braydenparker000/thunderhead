@@ -32,6 +32,7 @@ import budgets from './budgets.json';
 import { importCalls } from './import-calls';
 import { libraryCalls } from './library-calls';
 import { memoryCalls } from './memory-calls';
+import { predictionCalls } from './prediction-calls';
 import { proposalCalls } from './proposal-calls';
 
 type Budget = { rows_read_max: number; rows_written_max: number };
@@ -273,6 +274,9 @@ describe('rows per endpoint', () => {
 
   // P7: Study's library (library-calls.ts).
   it('measures the library against its budget', () => libraryCalls(cost as never, grant));
+
+  // P9: predictions (prediction-calls.ts).
+  it('measures the predictions against their budget', () => predictionCalls(cost, grant));
 
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);

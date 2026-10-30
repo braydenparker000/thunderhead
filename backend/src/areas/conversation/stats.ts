@@ -72,3 +72,18 @@ export function mindMessages(db: Db, threadId: string | null, limit: number): { 
     )?.n ?? 0;
   return { replies: inThread.map((m) => m.body).reverse(), outside };
 }
+
+/** The owner's messages (text or voice) per daily thread of the days `from`…`to` (exclusive): how
+ * many and the first one's time; and the first day there is a daily thread at all. For the
+ * predictions' resolvers (areas/predictions). */
+export function ownerDays(db: Db, from: string, to: string): { day: string; n: number; first: number | null }[] {
+  return db.all(
+    `SELECT t.day AS day, count(m.seq) AS n, min(m.created_at) AS first FROM threads t
+       LEFT JOIN messages m ON m.thread_id = t.id AND m.author = 'owner' AND m.kind IN ('text', 'voice')
+      WHERE t.kind = 'daily' AND t.day >= ? AND t.day < ? GROUP BY t.day`,
+    from,
+    to,
+  );
+}
+export const firstDay = (db: Db): string | null =>
+  db.one<{ day: string | null }>(`SELECT min(day) AS day FROM threads WHERE kind = 'daily'`)?.day ?? null;

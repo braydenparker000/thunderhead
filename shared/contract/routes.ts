@@ -147,6 +147,13 @@ export const ROUTES = {
   'GET /v1/evals/sandbox': { who: ['C', 'N'], phase: 'P4', note: 'with TH-Sandbox: eval only: what was written or tried since the reset' },
   'PUT /v1/evals/runs/:id': { who: ['C', 'N'], phase: 'P4', note: 'one finished suite, numbers and ids only (never in the sandbox)' },
   'GET /v1/evals/runs': { who: ['D', 'C', 'N'], phase: 'P4' },
+  'PUT /v1/predictions/:id': {
+    who: ['N'],
+    phase: 'P9',
+    note: 'a prediction about the open day or the next, with a fixed resolver; at most 12 a day',
+  },
+  'GET /v1/predictions': { who: ['D', 'C', 'N'], phase: 'P9', note: 'newest first; ?open=1 for the unresolved' },
+  'GET /v1/predictions/skill': { who: ['D', 'C', 'N'], phase: 'P9', note: 'Brier skill per category (EVALS.md M-18)' },
   'GET /v1/ops/watchdogs': { who: ['D', 'C', 'N', 'R', 'I'], phase: 'P4', note: 'every watchdog, its state and the SLO it guards' },
   'POST /v1/ops/watchdogs/:name/handled': {
     who: ['C', 'N', 'R'],
@@ -250,7 +257,7 @@ export const ROUTES = {
 export type RouteKey = keyof typeof ROUTES;
 
 /** The phases whose routes are live in this build (the scope test registers exactly these). */
-export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8'];
+export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9'];
 
 /** The rows this build must register: built phases, minus deferred rows. */
 export function builtRoutes(): [RouteKey, RouteSpec][] {

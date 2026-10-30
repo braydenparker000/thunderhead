@@ -7,7 +7,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 **P8 · Podcasts' data move** (live since 04:51 UTC, `48e17d5`, run #61; checked live: the files match, the routes answer 401 without a key, the preflight allows `Range`, and the page's new worker installs and, signed out, hands its requests to the old Worker with no errors): the ported app, unchanged, is answered by its own worker from the new Worker's `/v1/podcasts/*` with the owner's session (browse, search, feeds read on the phone, episode audio with byte ranges and downloads); signed out, the old Worker answers as before. No owner step. Checked in Chromium both ways (the app browses, searches, opens a show, pages, and plays an episode through range requests; the old Worker is never reached while signed in). The ported pages' error reports (live since 05:02 UTC, `bd3218b`, run #63; the live file matches and Music's and My Media's pages carry the API host): signed in, every ported page reports to the new Worker's inbox (`GET /v1/ops/errors`, which the mind reads), addresses cut to their host; signed out, the old inbox. Astra and My Media call the old Worker for nothing else, so with this all five apps call only the new Worker when signed in (P8's first done-when, counted from here: 7 days, then the old pages retire). Next in P8: Web Push, AI routing, share target.
 
-**"Go quiet"** (P8, Law 9, going live with this push): say "go quiet" in the chat (or "quiet until 6", "go quiet for 2 hours", "quiet until Monday", "silencio por dos horas") and the voice line says "Quiet until 06:30." at once, even offline or with the mind asleep; no decision card shows and no nudge is pushed until then; "I'm back" ends it. The phone keeps it and gives it to the Worker (setting `quiet.until`), which refuses the mind's nudges (`409 quiet`) and tells the mind in its briefing. Push rule 4 is built with it.
+**P9 · Predictions** (going live with this push; Core schema step 20): each night the night shift may make up to 6 predictions about the open day with honest odds (`th predict`): whether the owner writes, at least n messages, their first message before a time, or that they answer a waiting decision card. Once the day is over, the Worker's fixed resolvers say what happened, with the base rate of the 28 days before, and `GET /v1/predictions/skill` gives the Brier skill per category from 30 resolved (EVALS.md M-18). P9's done-when clock starts with the first night: 30 resolved in one category. Next in P9: the phone's app-use events (for app resolvers and kept/undone), the meter on the Memory page, the weekly improvement PR's eval diff.
+
+**"Go quiet"** (P8, Law 9, live since 06:44 UTC, `47ad7b2`, run #69; the live files match and the Worker reports that tag): say "go quiet" in the chat (or "quiet until 6", "go quiet for 2 hours", "quiet until Monday", "silencio por dos horas") and the voice line says "Quiet until 06:30." at once, even offline or with the mind asleep; no decision card shows and no nudge is pushed until then; "I'm back" ends it. The phone keeps it and gives it to the Worker (setting `quiet.until`), which refuses the mind's nudges (`409 quiet`) and tells the mind in its briefing. Push rule 4 is built with it.
 
 **The Briefing's weather** (P8 Briefing data, live since 06:03 UTC, `e4065ca`, run #66; the live files match, the place route answers 401 without a key): the weather tile first on the Briefing page: the place, the temperature, one sentence for the next hours, and a sheet with the next 12 hours and tomorrow's high and low; the place is set by typing a town's name there (Open-Meteo, no key; only the town's rounded coordinates leave the Worker). Owner step: Briefing → the weather tile → type your town. The night shift's tiles (live since 06:17 UTC, `234d540`, run #67; the live files match): night step 7 can place Study, Built overnight and note tiles on the Briefing, after "Waiting on you", each opening its place in its app. The share target (live since 06:23 UTC, `6a98343`, run #68; the live files match, `/share/` answers and the live manifest offers it): share a link or text from any app to Thunderhead and it waits in the ask bar as "Shared: …" for your words ("watch later", "study this"). Owner check (RESEARCH-AGENDA RA-P8-04): share a YouTube link to Thunderhead from the phone; the installed app picks up the share target when Chrome next updates it (reinstalling from the menu makes it immediate). Next: the Workers AI router's eval (RA-P8-03) before it routes anything, then P9.
 
@@ -55,8 +57,8 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Next three tasks
 
-1. P8: the Workers AI router (needs the RT-100 eval set and RA-P8-03 first); P8's done-when is its 7-day clocks, then the old Worker's retirement proposal.
-2. P9: predictions and the meter, the weekly improvement PR.
+1. P9: the phone's app-use events (app resolvers, kept/undone M-16), the meter on the Memory page (M-8, M-10, M-16, M-18), the weekly improvement PR's eval diff (RA-P9-02).
+2. P8: its done-when is its 7-day clocks, then the old Worker's retirement proposal; the Workers AI router waits for its eval set (RT-100, RA-P8-03).
 3. Owner: SETUP.md N1–N4 (music on the new Worker: the playlist from plain words works once they're done), M2, M3, M4 from 2026-11-05; one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
 
 ## Blocked / waiting on the owner
@@ -69,7 +71,8 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Last deploy
 
-- 2026-10-30: this push, "go quiet" (site and Worker; no schema change).
+- 2026-10-30: this push, P9 predictions (Worker, Core schema step 20, and the mind's `th predict`).
+- 2026-10-30 06:44 UTC: `47ad7b2` (run #69), "go quiet" (site and Worker; no schema change). Checked live.
 - 2026-10-30 06:23 UTC: `6a98343` (run #68), the share target (site only). Checked live.
 - 2026-10-30 06:17 UTC: `234d540` (run #67), the night shift's Briefing tiles. Checked live.
 - 2026-10-30 06:03 UTC: `e4065ca` (run #66), the Briefing's weather. Checked live.

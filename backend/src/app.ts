@@ -23,6 +23,7 @@ import { musicRoutes } from './areas/music/routes';
 import { BIG_OPS, UPLOAD_LIMITS, uploadRoutes } from './areas/music/upload';
 import { opsRoutes } from './areas/ops/routes';
 import { podcastsRoutes } from './areas/podcasts/routes';
+import { predictionsRoutes } from './areas/predictions/routes';
 import { proposalsRoutes } from './areas/proposals/routes';
 import { pushRoutes } from './areas/push/routes';
 import { searchRoutes } from './areas/search/routes';
@@ -115,6 +116,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', importRoutes)
   .route('/v1', proposalsRoutes)
   .route('/v1', evalsRoutes)
+  .route('/v1', predictionsRoutes)
   .route('/v1', watchdogsRoutes)
   .route('/v1', backupsRoutes)
   .route('/v1', workRoutes)

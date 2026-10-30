@@ -187,6 +187,8 @@ P4 stage A (decision cards) measured on the same Core: `PUT /v1/proposals/:id` w
 
 P4 stage D (the watchdogs) measured on the same Core: each tick runs the six built watchdogs, which read their own rows (one per watchdog), the server and client error counts, `day.current`, the jobs that could be stuck and the reflex wakes of the last 24 hours, so a tick with nothing due is 24 / 2: only the two error watchdogs write, their last hour of totals, and a watchdog whose state, detail and counts didn't change writes nothing. That is about 2,300 rows read and 190 written a day. The first tick writes each watchdog's row once, so the daily prune pass on that tick is 83 / 7. A trip adds one ledger note and, when it wakes mind-reflex, one wake; a claim reads the watchdogs for the briefing's line, so the brief is 131 / 50. `GET /v1/ops/watchdogs` reads at most 14 rows.
 
+P9 (predictions) measured the same way: `PUT /v1/predictions/:id` 3 / 4 (its id, the open day, the last 24 hours' count on `predictions_made`; the row and its indexes); `GET /v1/predictions` and `GET /v1/predictions/skill` read the predictions they return (the skill reads every one, at most 12 a day, so about 4,400 rows a year at most); the tick probes `predictions_open` once (one more row read: nothing due 39 / 2, the prune pass 105 / 11), and a tick that resolves one reads its day and the 28 days before through `threads_daily_day` and `messages_thread_seq` (45 / 4).
+
 ### 4.4 Daily totals
 
 The Free-plan math (writes, reads, requests, duration, storage) and the bulk lane are in [DATA.md §8](DATA.md#8-row-write-budget-free-plan). Watchdog thresholds are in [OPERATIONS.md §8.2](OPERATIONS.md#82-watchdogs-coretick-every-15-min).

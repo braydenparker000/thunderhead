@@ -264,6 +264,22 @@ test('surface, push (quiet hours exit 7), pending, health, errors', withFake({},
   assert.deepEqual((await th(['errors', '--hours', '1'], e)).json, {items: []});
 }));
 
+test('predict: the night shift, about the day after its briefing day, with the resolver\'s arguments', withFake({}, async fake => {
+  const e = env(fake, {TH_ROLE: 'night'});
+  const b = await th(['brief', '--claim'], e);
+  assert.equal(b.code, 0, b.stderr);
+  const day = JSON.parse(readFileSync(join(e.TMPDIR, 'th', 'state', 'day.json'), 'utf8'));
+  const next = new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+  const r = await th(['predict', 'chat.before', '--time', '08:30', '--p', '0.7', '--why', 'Writes before work most days'], e);
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(r.json.day, next);
+  const sent = [...fake.state.predictions.values()][0].value;
+  assert.deepEqual([sent.category, sent.args, sent.p], ['chat.before', {time: '08:30'}, 0.7]);
+  assert.equal((await th(['predict', 'list', '--open'], e)).json.items.length, 1);
+  assert.equal((await th(['predict', 'chat.any', '--day', next, '--p', '0.7', '--why', 'x'], env(fake))).code, 6, 'the chat role may not');
+  assert.equal((await th(['predict', 'chat.any', 'extra', '--p', '0.7', '--why', 'x'], e)).code, 8);
+}));
+
 test('night role: day, daynote, facts, night progress', withFake({}, async fake => {
   const e = env(fake, {TH_ROLE: 'night'});
   const said = fake.addOwnerMessage('I like slow jazz in the evening');

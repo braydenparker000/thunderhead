@@ -135,6 +135,20 @@ export function waitingFor(db: Db, ref: string): ProposalRow | null {
 }
 
 /** A page, newest first: waiting cards only, or every proposal by its time-ordered id. */
+/** When a card was answered by the owner (a tap or their words), and when it showed, for the
+ * predictions' resolvers (areas/predictions): one card, or those that showed from `from` to `to`. */
+export function answered(db: Db, id: string): { show_from: number; decided_at: number | null } | null {
+  return db.one('SELECT show_from, decided_at FROM proposals WHERE id = ? AND decided_via IS NOT NULL', id);
+}
+export function shownBetween(db: Db, from: number, to: number): { show_from: number; answered_at: number | null }[] {
+  return db.all(
+    `SELECT show_from, CASE WHEN decided_via IS NULL THEN NULL ELSE decided_at END AS answered_at FROM proposals
+      WHERE show_from >= ? AND show_from < ?`,
+    from,
+    to,
+  );
+}
+
 export function page(db: Db, status: 'waiting' | 'all', before: string | null, limit: number): ProposalRow[] {
   if (status === 'waiting')
     return waiting(db)

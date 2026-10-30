@@ -486,7 +486,7 @@ Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its cl
 - **Budget:** target ≤ 30 min, hard stop 45 min (Sunday 60). At the hard stop, finish the current step, mark the rest skipped, `th night done --partial`.
 - **Writes:** a few dozen rows per night, well under the Durable Object daily write budget.
 - **Quiet hours:** the night shift posts nothing that notifies the owner. Home lines and decision cards it creates become visible at 06:30 **[not built: surfaces show when placed; a `visible_from` arrives with decision cards, P4]**.
-- **Predictions** (P9) are added as step 7b later, with SQL resolvers only.
+- **Predictions** (P9, built): step 7b, up to 6 a night about the open day with `th predict` (`th help predict` lists the resolvers), resolved by the Worker's fixed SQL resolvers once the day is over ([API.md §11.23](../engineering/API.md)).
 
 **Acceptance (P3 done-when):** the night shift ran 3 nights clean; killing a session after step 3 and refiring resumes at step 4 with no duplicate day note (`version` stays 1).
 
