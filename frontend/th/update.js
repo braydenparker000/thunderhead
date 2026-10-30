@@ -14,7 +14,7 @@ let retry = null;
 /** What the shell is doing right now, read from the page. */
 function state() {
   const media = /** @type {HTMLMediaElement[]} */ ([...document.querySelectorAll('audio, video')]);
-  const q = /** @type {HTMLInputElement | null} */ (document.querySelector('#q'));
+  const q = /** @type {HTMLTextAreaElement | null} */ (document.querySelector('#q'));
   const active = document.activeElement;
   return {
     visible: document.visibilityState === 'visible',

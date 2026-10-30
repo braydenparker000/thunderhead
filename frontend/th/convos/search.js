@@ -228,7 +228,7 @@ function askInstead() {
   const q = run.q;
   exit();
   go('home');
-  const bar = /** @type {HTMLInputElement} */ ($('#q'));
+  const bar = /** @type {HTMLTextAreaElement} */ ($('#q'));
   bar.value = q;
   bar.dispatchEvent(new Event('input', { bubbles: true }));
   bar.focus();

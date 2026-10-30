@@ -28,6 +28,13 @@ import { apps } from '/th/registry/apps.js';
 
   // asking (scripted examples only); the mic is on only while it's lit
   q.addEventListener('input',()=>ask.classList.toggle('typing',q.value.trim()!==''));
+  // Enter sends (the line break a phone's keyboard asks for, whatever its key code); Shift+Enter on a
+  // keyboard starts a new line, and pasted lines stay.
+  let newLine=false;
+  q.addEventListener('keydown',e=>{ newLine=e.key==='Enter'&&e.shiftKey });
+  q.addEventListener('beforeinput',e=>{ if((e.inputType==='insertLineBreak'||e.inputType==='insertParagraph')&&!newLine){ e.preventDefault(); ask.requestSubmit() } });
+  // The conversation ends above the bar, however tall it has grown, and stays at its newest turn.
+  new ResizeObserver(()=>{ const end=convo.scrollHeight-convo.scrollTop-convo.clientHeight<24; document.documentElement.style.setProperty('--ask-h',ask.offsetHeight+'px'); if(end) convo.scrollTop=convo.scrollHeight }).observe(ask);
   let listening=false;
   $('#mic').addEventListener('click',()=>{ listening=!listening; ask.classList.toggle('listening',listening); edge.classList.toggle('listen',listening);
     q.placeholder=listening?'Listening…':''; toast(listening?'Listening. Tap again to stop':'Stopped. Nothing is kept unless you send it'); buzz(8) });
@@ -51,7 +58,7 @@ import { apps } from '/th/registry/apps.js';
   const ring=$('#ring'), scrim=$('#scrim'), lbl=$('#lbl'), hub=$('#hub'), press=$('#press'), app=$('#app'), R=62;
   const pets=APPS.map(([n,svg,c],i)=>{const p=document.createElement('div');p.className='pet';p.innerHTML=svg;p.title=n;p.style.setProperty('--c',c);p.style.setProperty('--i',i);ring.appendChild(p);return p});
   let start=null, open=false, dir=-1, holdT=null;
-  const blocked=el=>el.closest('button,input,form,.chip,.card,.say,.you,.reply,.opts');
+  const blocked=el=>el.closest('button,input,textarea,form,.chip,.card,.say,.you,.reply,.opts');
   function place(x,y){ const r=app.getBoundingClientRect(); const m=R+30;
     const cx=Math.min(Math.max(x-r.left,m),r.width-m), cy=Math.min(Math.max(y-r.top,m+30),r.height-m-40);
     ring.style.left=cx+'px'; ring.style.top=cy+'px';
@@ -72,7 +79,7 @@ import { apps } from '/th/registry/apps.js';
   dim.addEventListener('click',()=>go('home'));
   document.addEventListener('th:go',e=>go(e.detail)); // settings pages return to the open menu
   app.addEventListener('click',e=>{ if(swiped){ e.stopPropagation(); e.preventDefault() } },true);
-  app.addEventListener('pointerdown',e=>{ if(!e.isPrimary||e.target.closest('input')) return;
+  app.addEventListener('pointerdown',e=>{ if(!e.isPrimary||e.target.closest('input,textarea')) return;
     start={x:e.clientX,y:e.clientY,id:e.pointerId,t:performance.now()}; swipe=null;
     if(view!=='home'||blocked(e.target)||opts.classList.contains('show')) return;
     const r=app.getBoundingClientRect(); press.style.left=(e.clientX-r.left)+'px'; press.style.top=(e.clientY-r.top)+'px'; press.classList.remove('on'); void press.offsetWidth; press.classList.add('on');

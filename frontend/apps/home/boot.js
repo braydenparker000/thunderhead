@@ -76,7 +76,7 @@ function shared() {
   const url = (p.get('url') || said.match(/https?:\/\/\S+/)?.[0] || '').slice(0, 1000);
   const words = [(p.get('title') ?? '').trim(), said.replace(url, '').trim()].filter(Boolean).join(' · ').slice(0, 300);
   history.replaceState(null, '', '/');
-  const q = /** @type {HTMLInputElement | null} */ (document.querySelector('#q'));
+  const q = /** @type {HTMLTextAreaElement | null} */ (document.querySelector('#q'));
   if (!q || !(words || url)) return;
   q.value = `Shared: ${[words, url].filter(Boolean).join(' ')} `;
   q.dispatchEvent(new Event('input'));

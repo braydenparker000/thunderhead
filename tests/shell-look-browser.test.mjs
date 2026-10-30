@@ -6,7 +6,9 @@
 // shell's pages cross-fade, and neither opening an app from home nor home handing a signed-out
 // owner on to sign-in throws anything, even on a slow phone; with a real touchscreen a sideways
 // drag is a swipe even when it starts on the conversation with a little arc, a quick flick
-// commits, a slow short drag springs back, and an upward drag still scrolls.
+// commits, a slow short drag springs back, and an upward drag still scrolls; the ask box is a
+// text area (no autofill bar over the keyboard) that grows to five lines and keeps the
+// conversation clear of it, Enter sends and Shift+Enter starts a new line.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -171,6 +173,34 @@ test('swipes start easily on a touchscreen: arcs, flicks, and scrolling still sc
   const after = await where();
   assert.ok(after.top < before, `scrolled: ${before} → ${after.top}`);
   assert.equal(after.brief || after.side, false);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('the ask box: a text area that grows, Enter sends, Shift+Enter a new line', opts, async () => {
+  const { page, context, errors } = await open();
+  assert.deepEqual(await page.$eval('#q', (q) => [q.tagName, q.getAttribute('autocomplete'), q.getAttribute('enterkeyhint')]), ['TEXTAREA', 'off', 'send']);
+  const size = () => page.evaluate(() => ({ bar: document.querySelector('#ask').offsetHeight, gap: Math.round(document.querySelector('#ask').getBoundingClientRect().top - document.querySelector('.convo').getBoundingClientRect().bottom) }));
+  const one = await size();
+  assert.equal(one.bar, 54);
+  await page.click('#q');
+  await page.keyboard.type('First line');
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.type('second line');
+  assert.equal(await page.inputValue('#q'), 'First line\nsecond line');
+  await page.keyboard.press('Shift+Enter');
+  await page.keyboard.type('third');
+  const three = await size();
+  assert.ok(three.bar > 54 + 40, `grew: ${three.bar}`);
+  assert.equal(three.gap, one.gap, 'the conversation keeps clear of it');
+  for (let i = 0; i < 6; i++) { await page.keyboard.press('Shift+Enter'); await page.keyboard.type('more'); }
+  assert.ok((await size()).bar <= 54 + 130 - 42, 'at most five lines');
+  const before = (await page.$$('#talk .you')).length;
+  await page.keyboard.press('Enter');
+  await page.waitForFunction((n) => document.querySelectorAll('#talk .you').length > n, before);
+  assert.equal(await page.inputValue('#q'), '');
+  assert.equal((await size()).bar, 54, 'back to one line once sent');
+  assert.match(await page.$$eval('#talk .you', (els) => els[els.length - 1].textContent), /^First line\nsecond line\nthird/);
   assert.deepEqual(errors, []);
   await context.close();
 });

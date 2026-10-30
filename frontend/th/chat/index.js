@@ -34,7 +34,7 @@ export const current = { today: null };
 export async function startChat() {
   const convo = $('#convo');
   const edgeEl = $('#edge');
-  const q = /** @type {HTMLInputElement} */ ($('#q'));
+  const q = /** @type {HTMLTextAreaElement} */ ($('#q'));
   const ask = /** @type {HTMLFormElement} */ ($('#ask'));
   const talk = document.createElement('div');
   talk.id = 'talk';

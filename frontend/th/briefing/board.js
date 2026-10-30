@@ -107,7 +107,7 @@ function story(s, i, close) {
   ]);
   const ask = el('button', { type: 'button', class: 'bask', text: 'Ask about this' });
   ask.addEventListener('click', () => {
-    const q = /** @type {HTMLInputElement | null} */ (document.querySelector('#q'));
+    const q = /** @type {HTMLTextAreaElement | null} */ (document.querySelector('#q'));
     close();
     document.dispatchEvent(new CustomEvent('th:go', { detail: 'home' }));
     if (q) {
