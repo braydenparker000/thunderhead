@@ -78,20 +78,26 @@ import { apps } from '/th/registry/apps.js';
     const r=app.getBoundingClientRect(); press.style.left=(e.clientX-r.left)+'px'; press.style.top=(e.clientY-r.top)+'px'; press.classList.remove('on'); void press.offsetWidth; press.classList.add('on');
     holdT=setTimeout(()=>{ press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); ring.classList.remove('closing'); ring.classList.add('show'); scrim.classList.add('show'); requestAnimationFrame(()=>fan(true)); buzz(6) },220) });
   window.addEventListener('pointermove',e=>{ if(!start||e.pointerId!==start.id) return;
-    if(!open){ const mx=e.clientX-start.x, my=e.clientY-start.y;
-      if(!swipe){ if(Math.hypot(mx,my)<=10) return; clearTimeout(holdT); press.classList.remove('on');
-        if(Math.abs(mx)>Math.abs(my)*1.2) swipe={from:view,b:view==='brief'?1:0,s:view==='side'?1:0}; else { start=null; return } }
-      e.preventDefault(); const W=app.clientWidth, S=side.offsetWidth, cl=v=>Math.max(0,Math.min(1,v));
+    if(!open){ const mx=e.clientX-start.x, my=e.clientY-start.y, d=Math.hypot(mx,my);
+      // Sideways is ours from 6 px, before Chrome's own slop (8 dp) can hand the touch to a scroller;
+      // anything else is the scroller's once it passes the 10 px hold slop.
+      if(!swipe){ if(d>=6&&Math.abs(mx)>Math.abs(my)){ clearTimeout(holdT); press.classList.remove('on'); swipe={from:view,b:view==='brief'?1:0,s:view==='side'?1:0,v:[]} }
+        else { if(d>10){ clearTimeout(holdT); press.classList.remove('on'); start=null } return } }
+      e.preventDefault(); swipe.v.push([e.timeStamp,e.clientX]); if(swipe.v.length>8) swipe.v.shift();
+      const W=app.clientWidth, S=side.offsetWidth, cl=v=>Math.max(0,Math.min(1,v));
       if(swipe.from==='home'){ swipe.b=mx>0?cl(mx/W):0; swipe.s=mx<0?cl(-mx/S):0 }
       else if(swipe.from==='brief') swipe.b=cl(1+mx/W);
       else swipe.s=cl(1-mx/S);
       setPos(swipe.b,swipe.s,false); return }
     e.preventDefault(); const dx=e.clientX-start.cx, dy=e.clientY-start.cy, d=Math.hypot(dx,dy), k=Math.min(1,R*.55/(d||1));
     hub.style.transform=`translate(${dx*k}px,${dy*k}px)`; setDir(dirOf(dx,dy)) },{passive:false});
-  function endSwipe(){ const {from,b,s}=swipe; swipe=null; swiped=true; setTimeout(()=>swiped=false,60);
-    if(from==='home') go(b>.28?'brief':s>.28?'side':'home');
-    else if(from==='brief') go(b<.72?'home':'brief');
-    else go(s<.72?'home':'side') }
+  // The finger's speed over its last 100 ms (px/ms, + is rightward); 0 if it stopped before lifting.
+  function flick(v,at){ const last=v[v.length-1]; if(!last||at-last[0]>60) return 0; const first=v.find(p=>last[0]-p[0]<=100)||last; return last[0]>first[0]?(last[1]-first[1])/(last[0]-first[0]):0 }
+  // A swipe commits at 28% of its travel or a flick of 0.45 px/ms its way (GESTURES.md §4).
+  function endSwipe(at){ const {from,b,s}=swipe, v=at===undefined?0:flick(swipe.v,at), F=.45; swipe=null; swiped=true; setTimeout(()=>swiped=false,60);
+    if(from==='home') go(b>0&&(v>F||b>.28&&v>=-F)?'brief':s>0&&(v<-F||s>.28&&v<=F)?'side':'home');
+    else if(from==='brief') go(v<-F||b<.72&&v<=F?'home':'brief');
+    else go(v>F||s<.72&&v>=-F?'home':'side') }
   function close(commit){ clearTimeout(holdT); press.classList.remove('on');
     if(open){ const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
       if(chosen>=0){ const p=pets[chosen], a=chosen*SEC; p.classList.add('go'); p.style.transform=`translate(${R*1.25*Math.sin(a)}px,${-R*1.25*Math.cos(a)}px) scale(1.7)`; buzz([12,40,12]); const to=APPS[chosen][3]; if(to) setTimeout(()=>location.assign(to),230); else toast(APPS[chosen][0]+' comes later') }
@@ -99,7 +105,7 @@ import { apps } from '/th/registry/apps.js';
       setTimeout(()=>{ ring.classList.remove('show','closing','active'); pets.forEach(p=>{p.classList.remove('go','on')}); fan(false) },230);
       dir=-1; lbl.classList.remove('show') }
     open=false; start=null }
-  window.addEventListener('pointerup',e=>{ if(start&&e.pointerId===start.id){ if(swipe) endSwipe(); close(true) } });
+  window.addEventListener('pointerup',e=>{ if(start&&e.pointerId===start.id){ if(swipe) endSwipe(e.timeStamp); close(true) } });
   window.addEventListener('pointercancel',()=>{ if(swipe) endSwipe(); close(false) });
   app.addEventListener('contextmenu',e=>e.preventDefault());
   app.addEventListener('touchmove',e=>{ if(open||swipe) e.preventDefault() },{passive:false});

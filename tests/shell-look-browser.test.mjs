@@ -4,7 +4,9 @@
 // Settings sits on home's own field with a round back button and focuses its title, not a ring;
 // the 404 wears the shell's field and voice; with reduced motion nothing keeps moving on home; the
 // shell's pages cross-fade, and neither opening an app from home nor home handing a signed-out
-// owner on to sign-in throws anything, even on a slow phone.
+// owner on to sign-in throws anything, even on a slow phone; with a real touchscreen a sideways
+// drag is a swipe even when it starts on the conversation with a little arc, a quick flick
+// commits, a slow short drag springs back, and an upward drag still scrolls.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -25,8 +27,8 @@ after(async () => { await browser?.close(); server?.close(); });
 
 const msg = (i, author, body) => ({ seq: i, id: `0192f0c4-0000-7000-8000-${String(i).padStart(12, '0')}`, thread_id: '0192f0c4-0000-7000-8000-0000000000aa', author, origin: author === 'owner' ? 'owner_device' : 'mind', kind: 'text', body, meta: author === 'mind' ? { chip: { label: 'Open in Music', app: 'music', path: '/music/' } } : null, attachments: [], reply_to: null, created_at: Date.now() - (40 - i) * 60_000, delivered_at: null, acked_at: null, answered_at: Date.now() });
 
-async function open({ reducedMotion = 'no-preference', path = '/', signedIn = true } = {}) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', reducedMotion });
+async function open({ reducedMotion = 'no-preference', path = '/', signedIn = true, touch = false } = {}) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', reducedMotion, ...(touch ? { hasTouch: true, isMobile: true } : {}) });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
@@ -125,4 +127,50 @@ test('signed out, the 404’s Back home goes on to sign-in without a cross-fade 
     assert.deepEqual(errors, [], `run ${i + 1}`);
     await context.close();
   }
+});
+
+/** A touch drag through `pts` ({ x, y }), one touch event every `ms` by the events' own clock, so
+ * a flick's speed doesn't depend on how fast the runner delivers them. */
+async function touchDrag(page, cdp, pts, ms = 12) {
+  const t0 = Date.now() / 1000;
+  const send = (type, touchPoints, i) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints, timestamp: t0 + (i * ms) / 1000 });
+  await send('touchStart', [pts[0]], 0);
+  for (const [i, p] of pts.slice(1).entries()) await send('touchMove', [p], i + 1);
+  await send('touchEnd', [], pts.length);
+  await page.waitForTimeout(700);
+}
+const line = (x0, y0, x1, y1, n) => Array.from({ length: n + 1 }, (_, i) => ({ x: x0 + ((x1 - x0) * i) / n, y: y0 + ((y1 - y0) * i) / n }));
+
+test('swipes start easily on a touchscreen: arcs, flicks, and scrolling still scrolls', opts, async () => {
+  const { page, context, errors } = await open({ touch: true });
+  const cdp = await context.newCDPSession(page);
+  const where = () => page.evaluate(() => ({ brief: Math.round(document.querySelector('#brief').getBoundingClientRect().left) === 0, side: document.querySelector('#side').getBoundingClientRect().left < innerWidth - 1, top: Math.round(document.querySelector('.convo').scrollTop) }));
+  // Every drag starts on a bubble, where a hold never opens the ring, so a slow runner can't turn
+  // a drag into a pick: the newest reply (left) and the owner's newest bubble (right).
+  const at = (sel) => page.$$eval(sel, (els) => { const r = els[els.length - 1].getBoundingClientRect(); return { l: r.left + 12, r: r.right - 12, y: r.top + r.height / 2 }; });
+  const reply = await at('#talk .reply');
+  const mine = await at('#talk .you');
+  // A thumb that first moves 9 px across and 8 down, on the conversation: a swipe, not a dead touch.
+  await touchDrag(page, cdp, [...line(reply.l, reply.y, reply.l + 9, reply.y + 8, 2), ...line(reply.l + 9, reply.y + 8, reply.l + 270, reply.y + 20, 30)]);
+  assert.equal((await where()).brief, true, 'arc → Briefing');
+  // A quick 90 px flick back (well under 28% of the width) commits; the Briefing's own content is
+  // under the finger now, which is fine: swipes start anywhere.
+  await touchDrag(page, cdp, line(330, 500, 240, 500, 3));
+  assert.equal((await where()).brief, false, 'flick → home');
+  await touchDrag(page, cdp, line(mine.r, mine.y, mine.r - 90, mine.y, 3));
+  assert.equal((await where()).side, true, 'flick left → menu');
+  await page.click('#dim', { position: { x: 20, y: 300 } });
+  await page.waitForTimeout(700);
+  // A slow 80 px drag springs back.
+  await touchDrag(page, cdp, line(reply.l, reply.y, reply.l + 80, reply.y, 40), 40);
+  assert.equal((await where()).brief, false, 'slow short drag springs back');
+  // Dragging down the conversation scrolls it up.
+  const before = (await where()).top;
+  const high = await page.$$eval('#talk .reply', (els) => { const r = els.map((e) => e.getBoundingClientRect()).find((b) => b.top > 120); return { x: r.left + 40, y: r.top + r.height / 2 }; });
+  await touchDrag(page, cdp, [...line(high.x, high.y, high.x + 3, high.y + 10, 2), ...line(high.x + 3, high.y + 10, high.x + 10, high.y + 300, 20)]);
+  const after = await where();
+  assert.ok(after.top < before, `scrolled: ${before} → ${after.top}`);
+  assert.equal(after.brief || after.side, false);
+  assert.deepEqual(errors, []);
+  await context.close();
 });

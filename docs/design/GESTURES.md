@@ -9,7 +9,7 @@ Sibling docs: [HOME](../product/HOME.md), [BRIEFING](../product/BRIEFING.md), [M
 1. Six gestures, no more: **tap**, **hold** (Compass ring), **horizontal swipe** (briefing / menu), **vertical scroll**, **long-press on an item** ("Ask about this"), and **system Back**.
 2. One pointer at a time. A second finger cancels whatever the first finger started, silently.
 3. **Hold 220 ms** without moving more than **10 px** opens the ring. Moving more than 10 px first makes it a swipe or a scroll.
-4. A move past the slop is **horizontal** when `|dx| > 1.2·|dy|` (within ~39.8° of horizontal). Otherwise the page scrolls.
+4. A move is **horizontal**, a swipe, once it is **6 px** from the start with `|dx| > |dy|` (within 45° of horizontal): the same split Chrome makes under `touch-action: pan-y`, and before Chrome's own slop (8 dp), so a thumb that arcs a little as it starts is still a swipe and no touch is left to neither. Otherwise, past the 10 px slop, the page scrolls. (The first build used `|dx| > 1.2·|dy|` at 10 px, which left a dead band between it and Chrome's split and lost arcs to the scroller; owner, 2026-10-30: "too hard to initiate sometimes".)
 5. A swipe **commits** at **28%** of the travel distance **or** a release velocity of **0.45 px/ms** in the swipe's direction. Otherwise it springs back.
 6. The ring picks by **direction**, not by touching a bubble: dead zone **14 px** (always), **22 px** before the first pick, **~7°** hysteresis at sector boundaries, lift-off direction taken from **≥ 40 ms** before release.
 7. **Edge guard:** a touch that starts within **24 px** of the left or right edge, or within **32 px + safe-area inset** of the bottom, never starts a ring or a swipe. Android owns those zones.
@@ -46,7 +46,7 @@ States: `idle → pressed → (holding | swiping | scrolling | longpress) → id
 | Press feedback | On empty home space a 16 px ring (`.press`) grows from scale 0.4 to 2.2 and opacity 0 → 0.55 over **220 ms**, `cubic-bezier(.2,0,0,1)`. It tells the owner "keep still". |
 | Slop | **10 px** (Euclidean). Android's own touch slop is 8 dp; 10 CSS px leaves room for a resting thumb on the A15. |
 | Hold | A timer of **220 ms** starts at `pointerdown`. If the pointer is still within the slop when it fires, the ring opens at the press point (§3). |
-| Leaving the slop before 220 ms | Cancels the hold timer and the press feedback. If `|dx| > 1.2·|dy|` it becomes a swipe (§4); otherwise the pointer is released to the scroller (no `preventDefault`). |
+| Leaving the slop before 220 ms | From 6 px with `|dx| > |dy|`: cancels the hold timer and the press feedback and becomes a swipe (§4). Past 10 px otherwise: cancels them and the pointer is released to the scroller (no `preventDefault`). |
 | Second pointer | Any `pointerdown` with a different `pointerId` while a gesture is live cancels it (ring closes without opening anything; a swipe springs back). |
 | `pointercancel` / `lostpointercapture` | Cancels silently. A swipe springs back to where it started; the ring closes without a pick. |
 | Click after a swipe | The `click` that follows a committed or abandoned swipe is swallowed for **60 ms** so a swipe that ends on a tile does not also tap it. |
@@ -136,7 +136,7 @@ There are three positions. Only one is "at rest" at any time.
 - **Velocity** is measured over the last **80 ms** of moves before release (at least 2 samples). A fling against the drag direction cancels even past 28%.
 - **One hop per gesture.** A single drag from the briefing can never pass home and open the menu.
 - **Settle animation:** `transform .42s cubic-bezier(.2,.8,.2,1)` (first build). [proposal] Replace with the `--spring-slow` token (`linear()` spring, damping 0.8, stiffness 200, ~400 ms) and start it from the release velocity so a fast flick does not slow down at release.
-- The first build commits on distance only (28%); **the velocity rule is not built yet.**
+- Built (2026-10-30): the velocity is the finger's over its last 100 ms of moves, and 0 if it rested more than 60 ms before lifting. Acceptance: `tests/shell-look-browser.test.mjs` drives a real touchscreen with timed events: an arc start, a 90 px flick each way, a slow 80 px drag that springs back, and a vertical drag that still scrolls.
 
 ### 4.3 Closing without a swipe
 
