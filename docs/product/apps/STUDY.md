@@ -600,7 +600,15 @@ a day crossing the 04:00 roll).
    N1). Parked in [IDEAS](../../process/IDEAS.md), not built: the highlight and note editor in the
    reader (§5.4; the Worker's highlight routes are built) and the wash on the cited block itself (the
    whole page washes).
-6. Cited answers with the Worker validator; evals.
+6. Cited answers with the Worker validator; evals. **Built:** for any question, not only a verse.
+   `th library cite "<question>"` (`GET /v1/library/cite`, C N) gives up to 20 blocks: those of the
+   verses the question names, then the best-matching pages' blocks. The mind answers with
+   `[[book:<id>#p<n>.b<k>]]` markers and `meta.cite.q`; the Worker finds the candidates again and
+   applies §8.2 before the message is stored (`areas/library/cited.ts`), keeping `meta.cite`
+   `{q, citations, dropped}`. The phone shows each marker as a numbered tap into Study at that page
+   and block, and "Where to study" with the first five pages. The validator's rules are unit-tested;
+   the mind-behaviour evals of §8.3 and the 30-day answer cache (§8.4) and **Ask about this verse**
+   on the verse page are parked in IDEAS.md (not needed for the done-when).
 
 **Done when** (ROADMAP): asking about a verse returns an answer with page citations and opens the book at
 the page — checked on the owner's phone with one real book.

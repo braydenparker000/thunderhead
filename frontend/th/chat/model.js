@@ -127,6 +127,16 @@ export const revealMs = (text) => Math.min(REVEAL_MAX_MS, Math.round((text.lengt
 
 const LIST_AFTER = /(?<=[.!?:])\s+(?=– )/;
 const LINK = /https:\/\/[^\s<>"'`]+[^\s<>"'`.,;:!?)\]]/g;
+// A cited block of the owner's books (STUDY.md §8): `[[book:<id>#p<n>.b<k>]]`, a numbered tap that
+// opens Study at that page and block.
+const CITE = /\[\[book:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})#p(\d{1,5})\.b(\d{1,4})\]\]/g;
+const PIECE = new RegExp(`${LINK.source}|${CITE.source}`, 'g');
+
+/** Study's address for a cited block. @param {string} ref `book:<id>#p<n>.b<k>` */
+export function citeHref(ref) {
+  const m = /^book:([0-9a-f-]{36})#p(\d+)\.b(\d+)$/.exec(ref);
+  return m ? `/study/?book=${m[1]}&p=${m[2]}&b=${m[3]}` : null;
+}
 
 /** A long URL shows as its host plus "…". @param {string} href */
 export function label(href) {
@@ -139,18 +149,25 @@ export function label(href) {
 }
 
 /** A reply's text as lines: line breaks kept, lines starting "– " as a hanging list (a "– " straight
- * after a full stop, question mark or colon starts a list line too), https links.
- * @param {string} text @returns {{ list: boolean, parts: ({ text: string } | { href: string, label: string })[] }[]} */
+ * after a full stop, question mark or colon starts a list line too), https links, and cited blocks
+ * numbered in the order they first appear (the same block keeps its number).
+ * @param {string} text @returns {{ list: boolean, parts: ({ text: string } | { href: string, label: string, cite?: true })[] }[]} */
 export function lines(text) {
+  /** @type {string[]} */
+  const cited = [];
   return text.split('\n').flatMap((l) => l.split(LIST_AFTER)).map((raw) => {
     const list = raw.startsWith('– ');
     const line = list ? raw.slice(2) : raw;
-    /** @type {({ text: string } | { href: string, label: string })[]} */
+    /** @type {({ text: string } | { href: string, label: string, cite?: true })[]} */
     const parts = [];
     let at = 0;
-    for (const m of line.matchAll(LINK)) {
-      if (m.index > at) parts.push({ text: line.slice(at, m.index) });
-      parts.push({ href: m[0], label: label(m[0]) });
+    for (const m of line.matchAll(PIECE)) {
+      if (m.index > at) parts.push({ text: line.slice(at, m.index).replace(/[ \t]+$/, m[1] ? '' : '$&') });
+      if (m[1]) {
+        const ref = `book:${m[1]}#p${m[2]}.b${m[3]}`;
+        if (!cited.includes(ref)) cited.push(ref);
+        parts.push({ href: /** @type {string} */ (citeHref(ref)), label: String(cited.indexOf(ref) + 1), cite: true });
+      } else parts.push({ href: m[0], label: label(m[0]) });
       at = m.index + m[0].length;
     }
     if (at < line.length || !parts.length) parts.push({ text: line.slice(at) });

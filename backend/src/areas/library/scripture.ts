@@ -7,6 +7,7 @@
 import { Hono } from 'hono';
 import {
   checkTable,
+  findRefs,
   type Index,
   makeIndex,
   type ScriptureTable,
@@ -14,6 +15,8 @@ import {
   validRef,
 } from '../../../../frontend/apps/study/scripture/parse.js';
 import {
+  type CiteCandidate,
+  type CiteResponse,
   LIBRARY_LIMITS as L,
   type ScriptureTextRequest,
   type VerseResponse,
@@ -23,6 +26,7 @@ import { type AppEnv, guard } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { libraryObject } from '../../objects/library';
 import { fresh } from '../../objects/rpc';
+import { citeQuery } from './cite';
 
 export const TABLE_KEY = 'study/scripture.json';
 const textKey = (code: string) => `study/text/${code}.json`;
@@ -63,6 +67,17 @@ export async function checkRefs(env: Env, refs: { path: string; ref: string }[])
         .slice(0, 20)
         .map((r) => ({ path: r.path, issue: ix ? 'not a verse in the table' : 'no scripture table yet' })),
     );
+}
+
+/** The blocks an answer to `q` may cite: those of the verses it names (with the table), then the
+ * pages that best match its other words. */
+export async function candidatesFor(env: Env, q: string): Promise<CiteCandidate[]> {
+  const ix = await scriptureIndex(env);
+  const found = ix ? findRefs(q, ix).slice(0, 3) : [];
+  let rest = q;
+  for (const f of [...found].reverse()) rest = rest.slice(0, f.start) + rest.slice(f.end);
+  const v = found.map((f) => ({ code: f.code, chapter: f.chapter, v1: f.v_start, v2: f.v_end }));
+  return (await fresh(libraryObject(env).candidates(v, citeQuery(rest)))) as CiteCandidate[];
 }
 
 async function bodyOf(c: { req: { text(): Promise<string> } }, max: number): Promise<unknown> {
@@ -133,6 +148,12 @@ export const scriptureRoutes = new Hono<AppEnv>()
       httpMetadata: { contentType: 'application/json' },
     });
     return c.json({ code, chapters: Object.keys(body.chapters).length });
+  })
+  .get('/library/cite', guard('GET /v1/library/cite'), async (c) => {
+    const q = (c.req.query('q') ?? '').trim();
+    if (!q || q.length > 500)
+      throw new ApiError('validation', [{ path: 'q', issue: 'a question of 1–500 characters' }]);
+    return c.json({ q, candidates: await candidatesFor(c.env, q) } satisfies CiteResponse);
   })
   .get('/library/verses/:code/:chapter', guard('GET /v1/library/verses/:code/:chapter'), async (c) => {
     const ix = await scriptureIndex(c.env);

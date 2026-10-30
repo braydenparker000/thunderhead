@@ -220,6 +220,23 @@ export interface VerseResponse {
   /** The owner's highlights and notes whose verse is this one or overlaps it. */
   highlights: Highlight[];
 }
+/** One block the mind may cite (STUDY.md §8.1): `book:<id>#p<n>.b<k>`, "Title, p. 212", its text. */
+export interface CiteCandidate {
+  ref: string;
+  label: string;
+  text: string;
+}
+/** GET /v1/library/cite?q= (the mind). */
+export interface CiteResponse {
+  q: string;
+  candidates: CiteCandidate[];
+}
+/** `meta.cite` of a cited answer: the mind sends `{ q }`; the Worker stores what it kept. */
+export interface CiteMeta {
+  q: string;
+  citations: { ref: string; label: string }[];
+  dropped: number;
+}
 /** GET /v1/library/scripture/text/:code/:chapter: the owner's own licensed copy, private. */
 export interface VerseTextResponse {
   code: string;

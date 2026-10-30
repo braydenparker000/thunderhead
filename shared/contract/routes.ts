@@ -230,6 +230,7 @@ export const ROUTES = {
   'PUT /v1/library/scripture': { who: ['C', 'N'], phase: 'P7', note: 'the table, checked by the parser' },
   'GET /v1/library/scripture/text/:code/:chapter': { who: ['D', 'C', 'N'], phase: 'P7', note: "a chapter of the owner's copy" },
   'PUT /v1/library/scripture/text/:code': { who: ['C', 'N'], phase: 'P7', note: "one book's text, checked by the table" },
+  'GET /v1/library/cite': { who: ['C', 'N'], phase: 'P7', note: '?q=: the blocks a cited answer may use, at most 20' },
   'GET /v1/library/verses/:code/:chapter': { who: ['D', 'C', 'N'], phase: 'P7', note: '?v=12[-14]&all=1: cited in your books' },
   'PUT /v1/pushes/:id': { who: ['C'], phase: 'P8' },
 } as const satisfies Record<string, RouteSpec>;

@@ -1,5 +1,6 @@
 // /v1/threads and /v1/messages (API.md §11.7). Handlers validate the shape and call one Core RPC;
 // the rules live in ops.ts. An owner message that needs the mind fires a wake after the response.
+// A mind message that cites the owner's books is checked first (library/cited.ts).
 import { Hono } from 'hono';
 import type { Message, MessagesPage, Page, Thread, TodayResponse } from '../../../../shared/contract/api';
 import { type AppEnv, guard } from '../../http/auth';
@@ -9,6 +10,7 @@ import { json, parse } from '../../http/validate';
 import { decodeCursor, encodeCursor } from '../../lib/cursor';
 import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
+import { cited } from '../library/cited';
 import { fireWake } from '../mind/wakeup';
 import * as s from './schema';
 
@@ -51,13 +53,15 @@ export const conversationRoutes = new Hono<AppEnv>()
   .put('/messages/:id', guard('PUT /v1/messages/:id'), async (c) => {
     const id = idParam(c);
     const body = await json(c, s.putMessage);
-    const out = value(await coreObject(c.env).putMessage(callerOf(c), { ...body, id, req_sha256: reqHash(body) }));
+    const checked = { ...body, ...(await cited(c, body.body, body.meta)) };
+    const out = value(await coreObject(c.env).putMessage(callerOf(c), { ...checked, id, req_sha256: reqHash(body) }));
     if (out.wake) c.executionCtx.waitUntil(fireWake(c.env, out.wake));
     if (out.stop) c.header('TH-Stop', '1');
     return c.json(out.message satisfies Message, out.created ? 201 : 200);
   })
   .patch('/messages/:id', guard('PATCH /v1/messages/:id'), async (c) => {
     const id = idParam(c);
-    const { body, meta } = await json(c, s.patchMessage);
+    const p = await json(c, s.patchMessage);
+    const { body, meta } = p.body === undefined ? p : await cited(c, p.body, p.meta);
     return c.json(value(await coreObject(c.env).patchMessage(id, body, meta)) satisfies Message);
   });

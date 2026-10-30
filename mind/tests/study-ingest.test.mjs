@@ -22,6 +22,7 @@ const PYTHON = process.env.PYTHON || 'python3';
 const JOB = fileURLToPath(new URL('../jobs/study-ingest.mjs', import.meta.url));
 const IMPORT = fileURLToPath(new URL('../jobs/scripture-import.mjs', import.meta.url));
 const PAGES = fileURLToPath(new URL('../jobs/study-pages.mjs', import.meta.url));
+const TH = fileURLToPath(new URL('../cli/th.mjs', import.meta.url));
 const TABLE = fileURLToPath(new URL('../../tests/study/table.json', import.meta.url));
 const VERSE = 'An invented verse that is never printed.';
 const has = (cmd, args) => spawnSync(cmd, args, {stdio: 'ignore'}).status === 0;
@@ -123,6 +124,10 @@ img.save(${JSON.stringify(pdf)}, "PDF", resolution=150)
     const v = await w.call('GET', '/v1/library/verses/a/3?v=12', {token: device});
     assert.deepEqual(v.body.cited.map((c) => [c.book_id, c.pdf_page, c.weight, c.line]), [[book, 6, 3, 'Book A 3:12 is the heart of it.']]);
     assert.equal((await w.call('GET', '/v1/library/scripture/text/a/3', {token: device})).body.verses['12'], VERSE);
+    // Asked what the books say, the mind gets the verse's cited block first (STUDY.md §8.1).
+    const asked = spawnSync(process.execPath, [TH, 'library', 'cite', 'What do my books say about Book A 3:12?'], {env, encoding: 'utf8', timeout: 60_000});
+    assert.equal(asked.status, 0, asked.stderr);
+    assert.deepEqual(JSON.parse(asked.stdout).candidates[0], {ref: `book:${book}#p6.b1`, label: 'Secret Title Of A Book, p. 5', text: 'Book A 3:12 is the heart of it.'});
     // The mind saves a read book's text outside the repository (SETUP.md O2), printing counts only.
     const saved = spawnSync(process.execPath, [PAGES, '--book', book, '--out', join(dir, 'pages.jsonl')], {env, encoding: 'utf8', timeout: 60_000});
     assert.equal(saved.status, 0, saved.stderr);

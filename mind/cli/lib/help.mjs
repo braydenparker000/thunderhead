@@ -22,6 +22,7 @@ export const USAGE = {
   undo: ['<ledger id>', 'undo one of your actions'],
   ledger: ['[--since <iso>] [--kind <k>] [--limit 50]', 'what was done and why'],
   get: ['<path> [key=value …]', 'GET any route this role may call (see the list below)'],
+  library: ['cite <question>', 'the blocks of the owner\'s books an answer may cite (then say with --meta cite.q)'],
   taint: ['--source <tool> --ref <url or id>', 'mark this session tainted (irreversible)'],
   health: ['[--deep]', 'Worker health'],
   errors: ['[--hours 24]', 'open errors'],

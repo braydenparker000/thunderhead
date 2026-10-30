@@ -121,6 +121,32 @@ test('a message goes out at once; the reply arrives over the socket, reveals, an
   }
 });
 
+test('a cited answer: numbered sources in the text, Where to study under it, each opening Study at that page', opts, async () => {
+  const a = 'book:0190c8a2-7d1e-7abc-8def-0123456789ab#p12.b3';
+  const b = 'book:0190c8a2-7d1e-7abc-8def-0123456789ab#p40.b1';
+  const text = `The commentary ties the verse to patience [[${a}]]. It comes back to it later [[${b}]][[${a}]].`;
+  const meta = { cite: { q: 'What do my books say about patience?', citations: [{ ref: a, label: 'A Commentary, p. 11' }, { ref: b, label: 'A Commentary, p. 39' }], dropped: 0 } };
+  const { page, context, errors } = await open({ chat: { reply: { after: 200, text, meta }, presence: { state: 'listening', note: null, since: Date.now() } } });
+  await send(page, 'What do my books say about patience?');
+  await page.waitForSelector('#talk .reply a.cite');
+  assert.deepEqual(await page.$$eval('#talk .reply a.cite', (l) => l.map((x) => [x.textContent, x.getAttribute('href'), x.target])), [
+    ['1', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=12&b=3', ''],
+    ['2', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=40&b=1', ''],
+    ['1', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=12&b=3', ''],
+  ]);
+  assert.doesNotMatch(await page.textContent('#talk .reply'), /\[\[book:/);
+  assert.deepEqual(await page.$$eval('#talk .reply .study a', (l) => l.map((x) => [x.textContent, x.getAttribute('href')])), [
+    ['A Commentary, p. 11', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=12&b=3'],
+    ['A Commentary, p. 39', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=40&b=1'],
+  ]);
+  await page.waitForTimeout(500);
+  await shot(page, 'cited-answer', 'light');
+  await page.click('#talk .reply .study a >> nth=1');
+  await page.waitForURL(`${base}/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=40&b=1`);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 test('waking: … after 1.2 s, then "Waking up…" at 8 s, with the edge thinking', opts, async () => {
   for (const theme of ['light', 'dark']) {
     const { page, context, errors } = await open({ theme, clock: true });

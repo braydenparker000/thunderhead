@@ -6,7 +6,7 @@
 // changes only when what it says does (a screen reader hears each change once; focus stays on
 // Stop). Text is always set with textContent, never parsed as markup.
 import { appFor } from '../registry/apps.js';
-import { lines, meta, revealMs } from './model.js';
+import { citeHref, lines, meta, revealMs } from './model.js';
 
 /** @typedef {import('./model.js').Shown} Shown */
 /** @typedef {{ shown: Shown[], slot: string, stop: 'none' | 'button' | 'stopping', cards: { text: string, kind: string }[], fresh: Set<string>, now: number }} ViewState */
@@ -32,7 +32,13 @@ export function replyBody(text) {
   for (const line of lines(text)) {
     const p = el('span', line.list ? 'li' : 'p');
     for (const part of line.parts) {
-      if ('href' in part) {
+      if ('cite' in part) {
+        // A cited block opens Study at its page, in this tab (STUDY.md §8.1).
+        const a = el('a', 'cite', part.label);
+        a.href = part.href;
+        a.setAttribute('aria-label', `Source ${part.label}`);
+        p.append(a);
+      } else if ('href' in part) {
         const a = el('a', '', part.label);
         a.href = part.href;
         a.target = '_blank';
@@ -43,6 +49,21 @@ export function replyBody(text) {
     frag.append(p);
   }
   return frag;
+}
+
+/** "Where to study": a cited answer's first five pages, each opening Study there (STUDY.md §8.1).
+ * @param {{ ref: string, label: string }[]} cites */
+function whereToStudy(cites) {
+  const box = el('span', 'study');
+  box.append(el('span', 'sthead', 'Where to study'));
+  for (const c of cites.slice(0, 5)) {
+    const href = citeHref(String(c.ref));
+    if (!href) continue;
+    const a = el('a', '', String(c.label));
+    a.href = href;
+    box.append(a);
+  }
+  return box;
 }
 
 /**
@@ -100,6 +121,8 @@ export function createView({ talk, convo, onRetry, onChip, onStop }) {
       wrap.classList.add('reveal');
       wrap.style.setProperty('--reveal-ms', `${revealMs(m.body)}ms`);
     }
+    const cites = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).cite?.citations : null;
+    if (Array.isArray(cites) && cites.length) wrap.append(whereToStudy(cites));
     const chip = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).chip : null;
     const app = chip ? appFor(chip.app) : null;
     if (!chip || !app) return wrap;

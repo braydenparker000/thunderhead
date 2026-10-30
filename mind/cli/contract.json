@@ -1284,6 +1284,15 @@
       "status": "built",
       "note": "one book's text, checked by the table"
     },
+    "GET /v1/library/cite": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "?q=: the blocks a cited answer may use, at most 20"
+    },
     "GET /v1/library/verses/:code/:chapter": {
       "who": [
         "D",

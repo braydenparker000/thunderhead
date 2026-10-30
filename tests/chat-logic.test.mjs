@@ -96,6 +96,13 @@ test("a reply's lines: breaks kept, hanging list lines, only https links, long l
   assert.deepEqual(m.lines('It is in Music, under Evening. – first track\n– then the rest').map((l) => l.list), [false, true, true]);
   assert.deepEqual(m.lines('Two options: – one – two').map((l) => [l.list, l.parts[0].text]), [[false, 'Two options:'], [true, 'one – two']]);
   assert.equal(m.lines('Wait – what? Fine.').length, 1);
+  // A cited block is a numbered tap into Study; the same block keeps its number; a broken marker is text.
+  const cited = m.lines('Patience [[book:0190c8a2-7d1e-7abc-8def-0123456789ab#p12.b3]]. Later [[book:0190c8a2-7d1e-7abc-8def-0123456789ab#p40.b1]][[book:0190c8a2-7d1e-7abc-8def-0123456789ab#p12.b3]]. [[book:nope]]');
+  assert.deepEqual(cited[0].parts.filter((p) => p.cite).map((p) => [p.label, p.href]), [
+    ['1', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=12&b=3'], ['2', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=40&b=1'], ['1', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=12&b=3'],
+  ]);
+  assert.equal(cited[0].parts[0].text, 'Patience');
+  assert.equal(cited[0].parts.at(-1).text, '. [[book:nope]]');
   assert.equal(m.revealMs('x'.repeat(80)), 500);
   assert.equal(m.revealMs('x'.repeat(5000)), 1200);
 });

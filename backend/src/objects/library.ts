@@ -18,6 +18,7 @@ import type {
 import { LIBRARY_LIMITS as L } from '../../../shared/contract/library.ts';
 import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
+import { candidatesOf } from '../areas/library/cite';
 import * as ops from '../areas/library/ops';
 import { search } from '../areas/library/search';
 import * as store from '../areas/library/store';
@@ -171,6 +172,11 @@ export class Library extends OwnerObject {
       limit + 1,
     );
     return { items: rows.slice(0, limit), next: rows.length > limit ? rows[limit].pdf_page : null };
+  }
+
+  /** The blocks a cited answer may use (STUDY.md §8.1). */
+  candidates(v: { code: string; chapter: number; v1: number | null; v2: number | null }[], match: string | null) {
+    return candidatesOf(this.db, v, match);
   }
 
   /** "Cited in your books" for a verse (or a chapter), and the owner's highlights on it. */
