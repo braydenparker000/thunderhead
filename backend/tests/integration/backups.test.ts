@@ -98,7 +98,9 @@ describe('the weekly backup', () => {
     };
     await runJobsWith(flaky);
     expect(await manifestOf(date)).toBeUndefined();
-    for (let i = 0; i < 40 && !(await backups())[0].complete; i++) await runJobsWith(REAL, Date.now() + 10 * MINUTE);
+    // Core's and the other objects' jobs finish in any order: wait for all four, not only Core's.
+    for (let i = 0; i < 40 && !(await backups()).every((b) => b.complete); i++)
+      await runJobsWith(REAL, Date.now() + 10 * MINUTE);
     const [done] = await backups();
     expect(done.complete).toBe(true);
     const m = (await manifestOf(date)) as BackupManifest;
