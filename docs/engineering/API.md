@@ -595,10 +595,10 @@ Order states, leases, validation and the Board approval are owned by [MUSE.md §
 | `DELETE /v1/push/subscription` | device | — | `204` | P8 · built |
 | `POST /v1/push/test` | device | — | `200 { sent: 0\|1 }`: one test push to this phone now ("This is a test. Nothing needs you."), outside every budget | P8 · built |
 | `GET /v1/push/key` | device | — | `200 { vapid_public_key }`; `503 not_configured` until the key exists (the deploy makes it) | P8 · built |
-| `GET /v1/push/items/:id` | device (from the service worker) | — | `200 { title, body, url }` (the text a push only points at) | P8 · built |
+| `GET /v1/push/items/:id` | device (from the service worker) | — | `200 { title, body, url }` (the text a push only points at; a reminder's is always `"Thunderhead"`, `"Your reminder."`, `/`, [PRIVACY.md §8](PRIVACY.md)) | P8 · built |
 | `PUT /v1/pushes/:id` | `mind:chat` | `{ title /* ≤ 40 */, body /* ≤ 100, no ! */, ref?, why /* ≥ 8 */, topic_key, deadline? /* default 3 h */ }` | `202 { queued_until }` (the same id and body again: the same answer) | P8 · built; 409 `push_budget`, `push_gap`, `quiet_hours`, `nudge_repeat`, `conflict` (`quiet` once "go quiet" exists). From the eval sandbox: `202` and nothing sent |
 
-Push payloads carry only `{"k": kind, "id": id}`, encrypted. Details: [SECURITY.md](SECURITY.md).
+Push payloads carry only `{"k": kind, "id": id}`, encrypted: `nudge`, `security`, `test`, or `reminder` (§11.24; its id is the reminder's). Details: [SECURITY.md](SECURITY.md).
 
 ### 11.21 App routes (later phases)
 
@@ -634,6 +634,21 @@ The night shift's predictions about the owner's day ([EVALS.md](../mind/EVALS.md
 | `GET /v1/predictions?open&limit` | D C N | — | `200 { items: Prediction[] }`, newest first; `open=1` only the unresolved | |
 | `GET /v1/insight` | D C N | — | `200 InsightResponse`, the meter on the Memory page ([EVALS.md §9](../mind/EVALS.md)), counts only: M-8 by week (the owner's fixes and forgets of facts, and the facts the mind wrote), the newest 4 memory checks (MP), M-16 over the 28 days up to 48 hours ago (an arrangement undone within 48 h; kept when its tile was tapped or the app its `ref: app:<id>` names was opened on its day or the next; else ignored; newer ones waiting), and M-18 per category | |
 | `GET /v1/predictions/skill` | D C N | — | `200 { categories: CategorySkill[] }`: per category the open and resolved counts, the Brier score, the base rate's Brier score, the skill (1 − the two's ratio, only from 30 resolved) and 5 reliability bins | |
+
+### 11.24 Reminders (P8)
+
+The reminders the owner sets ([HOME.md §6.2](../product/HOME.md) "Remind me"; [BEHAVIOR.md §3.4](../mind/BEHAVIOR.md#34-rung-3-push) "Owner-set reminders"; types and `REMINDER_LIMITS` in `shared/contract/reminders.ts`): from the phone's `+` sheet, or by the chat mind when the owner asks in words. Each is delivered once at its time by Core's alarm: a line in today's conversation and a push.
+
+| Route | Who | Request | Response | Errors |
+|---|---|---|---|---|
+| `PUT /v1/reminders/:id` | D C | `{ text, at /* ms */, source_message_id? }`, nothing else; `source_message_id` is the chat mind's and required from it, never the phone's | `201 { reminder }`; the same id and body again `200` with the stored reminder | 409 another body under this id; 422 the words empty, over 200 characters once trimmed, or with a control character (a newline included); `at` more than a minute past or more than 400 days ahead; a 51st set at once (`details` says so); from the phone, a `source_message_id`; from the chat mind, none, or one that is not an owner-device message of the last 48 hours, or a 4th reminder from that message. 403 `session_required` / `session_tainted` for a chat mind without its claimed session or with a tainted one (as memory writes) |
+| `GET /v1/reminders` | D C N | — | `200 { items: Reminder[] }`: the set ones soonest first, then those delivered or taken back in the last 24 hours, newest first | |
+| `DELETE /v1/reminders/:id` | D C | — | `200 { reminder }`: a set one becomes `cancelled` (the row stays); one already cancelled answers the same | 404 none; 410 `expired` once delivered; 403 for a chat mind as on `PUT` |
+
+- `Reminder` is `{ id, text, at, fire_at, state: set|done|cancelled, origin: owner_device|mind, created_at, fired_at, message_id }`. The text is stored trimmed.
+- `fire_at` is `at`, unless `at` falls inside the owner's quiet hours (the settings `quiet.start`/`quiet.end` in `owner.tz`, as the push rules read them; the end is never before 06:30): then the end of that window. `fire_at != at` is how the phone and `th remind` say "moved".
+- At `fire_at` (Core's alarm; the 15-minute tick delivers one it missed) the reminder becomes `done` in the same commit as a system message in today's daily thread (made if needed): `author` and `origin` `system`, `kind` `text`, the reminder's words as `body`, `meta: { reminder: { id, at } }`, its id kept as `message_id`. The change feed carries it as `message`, so open phones hear about it.
+- Then a push of kind `reminder` to every subscribed phone, payload `{"k":"reminder","id":<reminder id>}`, words `"Your reminder."`. It is not one of the mind's 2 a day, doesn't open or wait out the 2-hour gap, takes no topic, waits for no natural pause and goes through "go quiet"; it is never sent inside quiet hours, so one delivered there (a late alarm) posts its line and pushes nothing. Core offers the push to the outbox for an hour after delivery, under the reminder's id, so a hand-off that failed is made by the next delivery run and none is sent twice. From the eval sandbox no reminder pushes.
 
 ---
 
@@ -741,6 +756,8 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `GET /v1/jobs/:id/spec` | I | P5 |
 | `/v1/push/*` | D | P8 |
 | `PUT /v1/pushes/:id` | C | P8 |
+| `PUT /v1/reminders/:id`, `DELETE /v1/reminders/:id` | D C | P8 |
+| `GET /v1/reminders` | D C N | P8 |
 
 ---
 

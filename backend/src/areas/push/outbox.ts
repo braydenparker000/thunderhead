@@ -1,9 +1,9 @@
 // The push outbox inside the Auth object (SECURITY.md §10, BEHAVIOR.md §3.4): the mind's nudges,
-// the sign-in notices' generic words (SIGN-IN.md §11.3, PRIVACY.md §8) and the owner's tests wait
-// here, and `deliver` sends what may go now to every signed-in phone (a test to its own phone), the
-// payload only a kind and an id. An item is claimed before it is sent, so two runs never send it
-// twice; one no push service took goes back to waiting until its deadline. A gone subscription
-// (404, 410) is deleted.
+// the sign-in notices' generic words (SIGN-IN.md §11.3, PRIVACY.md §8), the owner's tests and the
+// reminders the owner set wait here, and `deliver` sends what may go now to every signed-in phone
+// (a test to its own phone), the payload only a kind and an id. An item is claimed before it is
+// sent, so two runs never send it twice; one no push service took goes back to waiting until its
+// deadline. A gone subscription (404, 410) is deleted.
 
 import type { ErrorCode } from '../../../../shared/contract/errors';
 import type { PushItem, PushKind, PutPushRequest, PutPushResponse } from '../../../../shared/contract/push.ts';
@@ -11,7 +11,7 @@ import { uuidv7 } from '../../lib/ids';
 import { DAY, MINUTE } from '../../lib/time';
 import { sendPush, type Vapid } from '../../lib/webpush';
 import type { Db } from '../../objects/base';
-import { DEFAULT_DEADLINE_MS, dayStart, mayGo, type PushContext, refusal } from './rules';
+import { DEFAULT_DEADLINE_MS, dayStart, mayGo, type PushContext, type ReminderPush, refusal } from './rules';
 import * as store from './store';
 
 /** The words of each sign-in notice that pushes, and where a tap opens. */
@@ -65,6 +65,14 @@ export function queueTest(db: Db, sessionId: string, now: number): string {
   );
 }
 
+/** A reminder's push, under the reminder's id, once: its words never carry the reminder's text
+ * (PRIVACY.md §8: the details toggle does not exist yet). */
+export const REMINDER: PushItem = { title: 'Thunderhead', body: 'Your reminder.', url: '/' };
+
+export function queueReminder(db: Db, r: ReminderPush): void {
+  if (!store.getPush(db, r.id)) queue(db, 'reminder', REMINDER, r.at, r.until, { id: r.id });
+}
+
 /** The mind's nudge under its own id: the same request again is the same answer; a refusal is its code. */
 export function queueNudge(
   db: Db,
@@ -108,6 +116,7 @@ export function useFetch(f: typeof fetch): void {
 export async function deliver(db: Db, ctx: PushContext, s: Sender, live: string[]) {
   const out = { sent: [] as string[], dropped: 0, gone: 0 };
   if (!s.vapid) return out;
+  for (const r of ctx.reminders ?? []) queueReminder(db, r);
   for (const p of store.waiting(db)) {
     if (ctx.now > p.deadline) {
       store.markDropped(db, p.id, ctx.now);
@@ -125,7 +134,11 @@ export async function deliver(db: Db, ctx: PushContext, s: Sender, live: string[
     if (!db.all('UPDATE pushes SET sent_at = ? WHERE id = ? AND sent_at IS NULL RETURNING id', ctx.now, p.id).length)
       continue;
     const ttl =
-      p.kind === 'nudge' ? Math.max(60, Math.round((p.deadline - ctx.now) / 1000)) : p.kind === 'test' ? 600 : 86_400;
+      p.kind === 'nudge' || p.kind === 'reminder'
+        ? Math.max(60, Math.round((p.deadline - ctx.now) / 1000))
+        : p.kind === 'test'
+          ? 600
+          : 86_400;
     let took = 0;
     for (const to of subs) {
       let status = 0;

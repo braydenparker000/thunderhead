@@ -3,8 +3,10 @@
 // pushed in the last 14 days; once queued it waits for a natural pause (no phone showing
 // Thunderhead in the last 60 s, no message from the owner in the last 5 minutes) until its
 // deadline, then is dropped. While the owner has said "go quiet" (BEHAVIOR.md §8) no nudge is taken
-// or sent. Sign-in notices wait only for quiet hours to end; the owner's own test goes at once.
-// Pure: the context comes from Core, the rows from Auth.
+// or sent. Sign-in notices wait only for quiet hours to end; the owner's own test goes at once. A
+// reminder the owner set goes at its time: outside the 2 a day and the 2 h gap, with no natural
+// pause and through "go quiet", but never inside quiet hours. Pure: the context comes from Core,
+// the rows from Auth.
 import type { ErrorCode } from '../../../../shared/contract/errors';
 import { DAY, HOUR, MINUTE, ownerDay, zonedMinute } from '../../lib/time';
 import { inQuiet, type QuietWindow } from '../settings/quiet';
@@ -25,6 +27,16 @@ export interface PushContext {
   looking: boolean;
   /** When the owner last wrote, or null. */
   owner_at: number | null;
+  /** The reminders Core delivered whose push the outbox should hold (by the reminder's id; the
+   * same one offered again is already there). Absent from a Core before reminders. */
+  reminders?: ReminderPush[];
+}
+
+/** A delivered reminder's push: when it was delivered and until when it may still go. */
+export interface ReminderPush {
+  id: string;
+  at: number;
+  until: number;
 }
 
 /** The nudges counted against today: sent or still waiting, not dropped. */

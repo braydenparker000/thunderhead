@@ -269,19 +269,9 @@ export const ROUTES = {
   'GET /v1/push/items/:id': { who: D, phase: 'P8', note: "a push's words, for the service worker" },
   'PUT /v1/pushes/:id': { who: ['C'], phase: 'P8', note: 'a nudge: at most 2 a day, 2 h apart, never in quiet hours' },
   // The + sheet's Remind me (HOME.md §6.2): the owner's own reminders, delivered once.
-  'PUT /v1/reminders/:id': {
-    who: ['D', 'C'],
-    phase: 'P8',
-    deferred: 'being built: the + sheet (2026-10-30)',
-    note: "mind:chat: names the owner's message that asked",
-  },
-  'GET /v1/reminders': { who: ['D', 'C', 'N'], phase: 'P8', deferred: 'being built: the + sheet (2026-10-30)' },
-  'DELETE /v1/reminders/:id': {
-    who: ['D', 'C'],
-    phase: 'P8',
-    deferred: 'being built: the + sheet (2026-10-30)',
-    note: 'takes back one not yet delivered; the row stays',
-  },
+  'PUT /v1/reminders/:id': { who: ['D', 'C'], phase: 'P8', note: "mind:chat: names the owner's message that asked" },
+  'GET /v1/reminders': { who: ['D', 'C', 'N'], phase: 'P8' },
+  'DELETE /v1/reminders/:id': { who: ['D', 'C'], phase: 'P8', note: 'takes back one not yet delivered; the row stays' },
 } as const satisfies Record<string, RouteSpec>;
 
 export type RouteKey = keyof typeof ROUTES;

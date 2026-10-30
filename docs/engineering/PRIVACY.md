@@ -49,6 +49,7 @@ Retention marked **[proposal]** is new; the rest comes from decisions, the plan 
 | Memory: session notes | `Core` | mind | 180 days **[proposal]** | yes | yes |
 | Ledger (actions with why and undo) | `Core` | Worker | Forever; content removed from rows that point at deleted items (tombstone) | yes | yes |
 | Proposals | `Core` | mind, Worker | 1 year after decided **[proposal]** | yes | yes |
+| Reminders the owner set (the words, the time, and the owner's message the mind set it from) | `Core` | owner devices, mind (only from the owner's own message) | Until deleted, like the conversation line each becomes | yes | yes |
 | Surfaces (what apps show) | `Core` | mind | Until `expires`, deleted within 24 h after | no | yes |
 | Wakes (why the mind was woken) | `Core` | Worker | 30 days **[proposal]** | no | yes |
 | Errors (client and server, fingerprinted) | `Core` | devices, Worker | 30 days **[proposal]** | no | yes |
