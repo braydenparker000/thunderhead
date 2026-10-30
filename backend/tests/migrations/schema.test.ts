@@ -7,6 +7,7 @@ import { latestOf } from '../../../scripts/schema-version.mjs';
 import type { Auth } from '../../src/objects/auth';
 import { AUTH_MIGRATIONS } from '../../src/objects/auth.migrations';
 import { CORE_MIGRATIONS } from '../../src/objects/core.migrations';
+import { LIBRARY_MIGRATIONS } from '../../src/objects/library';
 import { MUSIC_MIGRATIONS } from '../../src/objects/music';
 import { SENSES_MIGRATIONS } from '../../src/objects/senses';
 import { auth, core } from '../helpers';
@@ -63,5 +64,7 @@ describe('the deploy check knows the newest step', () => {
     expect(latestOf(raw(music))).toBe(Math.max(...MUSIC_MIGRATIONS.map((m) => m.version)));
     const senses = import.meta.glob('../../src/objects/senses.ts', { query: '?raw', import: 'default', eager: true });
     expect(latestOf(raw(senses))).toBe(Math.max(...SENSES_MIGRATIONS.map((m) => m.version)));
+    const library = import.meta.glob('../../src/objects/library.ts', { query: '?raw', import: 'default', eager: true });
+    expect(latestOf(raw(library))).toBe(Math.max(...LIBRARY_MIGRATIONS.map((m) => m.version)));
   });
 });

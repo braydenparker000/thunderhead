@@ -23,7 +23,8 @@
       { "name": "CORE", "class_name": "Core" },
       { "name": "AUTH", "class_name": "Auth" },
       { "name": "MUSIC", "class_name": "Music" },
-      { "name": "SENSES", "class_name": "Senses" }
+      { "name": "SENSES", "class_name": "Senses" },
+      { "name": "LIBRARY", "class_name": "Library" }
     ]
   },
   // Classic migrations array (decision: not the newer `exports` field, which cannot be undone).
@@ -33,7 +34,9 @@
     // P5: the Music object, shipped alone (its own deploy, no rollback across it).
     { "tag": "v2", "new_sqlite_classes": ["Music"] },
     // P5: the Senses object, shipped alone too.
-    { "tag": "v3", "new_sqlite_classes": ["Senses"] }
+    { "tag": "v3", "new_sqlite_classes": ["Senses"] },
+    // P7: the Library object, shipped alone too.
+    { "tag": "v4", "new_sqlite_classes": ["Library"] }
   ],
   // The private bucket (DATA.md §7.1, SETUP.md J2): never public, no r2.dev, no custom domain.
   // P3 keeps the old Worker's export parts and manifest in it (imports/old/). A rollback stays

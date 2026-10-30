@@ -5,6 +5,7 @@ import { runCron } from './areas/ops/cron';
 
 export { Auth } from './objects/auth';
 export { Core } from './objects/core';
+export { Library } from './objects/library';
 export { Music } from './objects/music';
 export { Senses } from './objects/senses';
 

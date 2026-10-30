@@ -256,6 +256,8 @@ Built (P5 step 1, `backend/src/objects/music.ts`): `tracks(ord INTEGER PK, id TE
 
 ### 6.3 `Library` (P7, its own deploy; shardable as `library:<shelf>`)
 
+Built (P7 step 1, `backend/src/objects/library.ts`; the class shipped alone with migration tag `v4`) with the fields of [STUDY.md §1.1](../product/apps/STUDY.md), which owns them: `pages` keys its rows by `seq` (the FTS rowid, as Core's `messages`) and names the page `pdf_page`; `verse_refs` is keyed by `(book_id, pdf_page, block, i)` so a page read again replaces its references, with the index `(book_code, chapter)`; `books` also holds the upload's R2 multipart id and parts while they arrive. Its routes come with the next deploy.
+
 `books(id PK, title, author, kind, pages, r2_key, sha256, added_at, ingested_at)`. Books include the owner's own licensed copies of the canon scriptures (owner ruling 2026-10-27), stored like any book: privately, behind sign-in, never in the repo. Talks and other published source material are not stored; they are cited by paragraph with a link. `pages(rowid PK, book_id, page_index, page_label, text)` with UNIQUE `(book_id, page_index)`. `pages_fts` FTS5 with `content='pages'`. `verse_refs(book_code, chapter, v_start, v_end, book_id, page_index, weight, in_heading)` with index `(book_code, chapter)`. `highlights(id PK, book_id, page_index, ref, text, note, created_at, updated_at)`. `positions(book_id PK, page_index, at)` (one row per book, written at most once per page turn and at most every 10 s). Product fields are in [STUDY.md](../product/apps/STUDY.md).
 
 The FTS cost per page is unknown (open question D3). Ingestion is a bulk job under the lane cap.
@@ -370,8 +372,8 @@ Acceptance: a vitest test with a fake meter at 39,990 runs one job step of 2,000
    ```jsonc
    "migrations": [
      { "tag": "v1", "new_sqlite_classes": ["Core", "Auth"] },    // P1
-     { "tag": "v2", "new_sqlite_classes": ["Senses"] },          // P5, deploy alone
-     { "tag": "v3", "new_sqlite_classes": ["Music"] },           // P5, deploy alone
+     { "tag": "v2", "new_sqlite_classes": ["Music"] },           // P5, deploy alone
+     { "tag": "v3", "new_sqlite_classes": ["Senses"] },          // P5, deploy alone
      { "tag": "v4", "new_sqlite_classes": ["Library"] }          // P7, deploy alone
    ]
    ```
@@ -433,7 +435,10 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Senses.rollups | forever | yes | yes |
 | Senses.exports | forever (one row a day: the day's archive key, count and hash) | yes | no |
 | Music.* | forever | yes | yes |
-| Library.* except `pages_fts` | forever | yes | yes (PDFs by signed URL) |
+| Library.books, pages, verse_refs, positions | forever (a book until the owner approves deleting it) | yes | yes (PDFs by signed URL) |
+| Library.pages_fts | derived | no (rebuilt) | no |
+| Library.highlights | forever; a deleted one 30 days after `deleted_at` | yes | yes |
+| Library.ingest_jobs | finished runs 90 days | yes | no |
 
 Pruning runs once a logical day: Core's 15-minute tick runs every table's prune (`TableInfo.prune` in the area's `migrations.ts`), each in steps of ≤ 2,000 deletes, and marks the day done only when no prune was cut short. A test fails if a table kept for less than forever has no prune.
 

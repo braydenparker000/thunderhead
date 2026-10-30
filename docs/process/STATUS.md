@@ -5,7 +5,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Current phase
 
-**P6 · Evolve Guitar**, data move built, going live with this push: `/v1/guitar/*` (Songsterr, GProTab, samples, the old routes ported), and the ported app's sources module asks the new Worker with the owner's session when signed in on this site (else the old Worker). No owner step: it switches as soon as the page loads signed in. Checked in Chromium both ways. The improvements (practice senses, tempo ladder, tips, calibration, ears) wait for the owner's yes.
+**P7 · Study**, step 1 (STUDY.md §11): the `Library` object, going live alone with this push (migration tag `v4`; its tables and health only). Its routes (`/v1/library/*`, book uploads in parts, positions, highlights, ingestion claims, and `book:` signing) come in the next deploy. Owner step later: the private bucket's CORS rule for the reader's range requests (ask-first).
+
+**P6 · Evolve Guitar**, data move, live since 00:19 UTC (`ce29c20`, run #45): `/v1/guitar/*` (Songsterr, GProTab, samples, the old routes ported), and the ported app's sources module asks the new Worker with the owner's session when signed in on this site (else the old Worker). No owner step: it switches as soon as the page loads signed in. Checked in Chromium both ways, and live: the page's CSP carries the API host, the routes answer 401 without a key, the live files match the commit, and signed out the live page searches through the old Worker with no errors. The improvements (practice senses, tempo ladder, tips, calibration, ears) wait for the owner's yes.
 
 **P5 · Evolve Music**, data move first (ROADMAP P5; owner steps in SETUP.md N).
 - Step 1, live since 22:32 UTC (`c369d05`, run #38): the `Music` object alone (migration tag `v2`; a class change can't be rolled back).
@@ -32,8 +34,8 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Next three tasks
 
-1. Deploy P5 step 4 and check the live files; point the upload tool at the new Worker for N4.
-2. P5's later parts that need no owner yes: the `Senses` object (its own deploy) and the indexing jobs. Player changes beyond the data move wait for the owner's yes.
+1. P7 step 1b: the Library routes, book uploads, `book:` signing, Library in the backup and the export.
+2. P7 steps 2–6: the Study app (library, reader, search, parser, verse page, highlights, offline copies, cited answers).
 3. Owner: SETUP.md N1–N4 (music), M2 (the reflex routine and its drill), M3 (Muse moves over), M4 from 2026-11-05. Sunday's first backup and drill are P4's "a restore drill passed"; the Music object's first backup runs with it.
 
 ## Blocked / waiting on the owner
@@ -44,7 +46,10 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Last deploy
 
-- 2026-10-29: this push, the `Senses` object alone (migration tag `v3`).
+- 2026-10-30: this push, the `Library` object alone (migration tag `v4`).
+- 2026-10-30 00:19 UTC: `ce29c20` (run #45), P6 Guitar's data move. Checked live.
+- 2026-10-30 00:08 UTC: `4262780` (run #44), the senses' routes, rollups, archive and pruning. Checked live: the routes answer 401 without a key.
+- 2026-10-29 23:55 UTC: `5b14d09` (run #43), the `Senses` object alone (migration tag `v3`).
 - 2026-10-29 23:4x UTC: `63a9989` (run #42), P5 step 4b (the upload tool; new uploads' places).
 - 2026-10-29 23:34 UTC: `39baf5c` (run #41), P5 step 4 (the player's switch through its own worker; site only). Checked live.
 - 2026-10-29 23:20 UTC: `5389195` (run #40), P5 step 3 (the upload tools' routes, the `MEDIA` binding to `jarvis-music`, Music in the backup and the export; no schema change). Checked live.
