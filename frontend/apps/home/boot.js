@@ -56,6 +56,9 @@ async function start() {
   // Decision cards (HOME.md §3) load after the first paint too.
   requestAnimationFrame(() => setTimeout(() => import('/th/decide/card.js').then((m) => m.startDecisions()).catch(() => {}), 0));
   menuCode();
+  // Push (SECURITY.md §10): when it is on, the subscription follows a replaced key and a new sign-in.
+  if ('Notification' in window && Notification.permission === 'granted')
+    requestAnimationFrame(() => setTimeout(() => import('/th/push/phone.js').then((m) => m.recheck()).catch(() => {}), 0));
   try {
     const me = await signedIn((t) => api.me(t));
     notices(me.notices ?? [], open);

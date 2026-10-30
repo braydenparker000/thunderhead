@@ -2,7 +2,7 @@
 // number into BUILD; each release is precached whole into the cache th-<BUILD> from
 // /precache.json, and a new worker waits until the shell says it is a safe moment (§8.3).
 // Never touched: the API and every other host, the ported app folders and /assets/ (they keep
-// their own service workers), and anything that is not a GET.
+// their own service workers), and anything that is not a GET. It also shows Web Push notifications.
 const BUILD = 0;
 const CACHE = `th-${BUILD}`;
 const VENDOR = 'th-vendor';
@@ -92,4 +92,77 @@ async function vendor(req) {
   const res = await fetch(req);
   if (res.ok) await cache.put(req, res.clone());
   return res;
+}
+
+// Web Push (SECURITY.md §10): a push carries only a kind and an id; its words come from the API
+// with this phone's own session, else a line that says nothing. Every push shows a notification;
+// a tap opens its place on this site (Home, the device list) in an open window if there is one.
+const PUSH_ID = /^[A-Za-z0-9_-]{8,64}$/;
+
+self.addEventListener('push', (event) => {
+  event.waitUntil((async () => {
+    let msg = null;
+    try {
+      msg = event.data?.json() ?? null;
+    } catch {}
+    let words = { title: 'Thunderhead', body: 'Thunderhead has something for you.', url: '/' };
+    try {
+      const [token, api] = await Promise.all([session(), apiOrigin()]);
+      if (token && api && PUSH_ID.test(msg?.id ?? '')) {
+        const r = await fetch(`${api}/v1/push/items/${msg.id}`, { headers: { Authorization: `Bearer ${token}` }, cache: 'no-store' });
+        if (r.ok) words = await r.json();
+      }
+    } catch {}
+    await self.registration.showNotification(words.title, {
+      body: words.body,
+      tag: msg?.id,
+      icon: '/ui/app-icon-192.png',
+      data: { url: words.url },
+    });
+  })());
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const asked = new URL(event.notification.data?.url || '/', self.location.origin);
+  const url = asked.origin === self.location.origin ? asked.href : `${self.location.origin}/`;
+  event.waitUntil((async () => {
+    const open = (await self.clients.matchAll({ type: 'window' })).find((c) => new URL(c.url).origin === self.location.origin);
+    if (!open) return self.clients.openWindow(url);
+    await open.focus();
+    if (open.url !== url) await open.navigate(url).catch(() => {});
+  })());
+});
+
+/** The session's token from IndexedDB `th-auth`, as the shell keeps it; null when signed out. */
+function session() {
+  return new Promise((resolve) => {
+    let req;
+    try {
+      req = indexedDB.open('th-auth');
+    } catch {
+      return resolve(null);
+    }
+    req.onupgradeneeded = () => req.transaction.abort();
+    req.onerror = () => resolve(null);
+    req.onsuccess = () => {
+      const db = req.result;
+      try {
+        const get = db.transaction('kv', 'readonly').objectStore('kv').get('session');
+        get.onsuccess = () => resolve(typeof get.result?.token === 'string' ? get.result.token : null);
+        get.onerror = () => resolve(null);
+      } catch {
+        resolve(null);
+      } finally {
+        db.close();
+      }
+    };
+  });
+}
+
+/** The API's address from this site's config.js (written at deploy), or ''. */
+async function apiOrigin() {
+  const text = await (await fetch('/config.js', { cache: 'no-cache' })).text();
+  const m = /CONFIG = (\{.*\});/.exec(text);
+  return m ? String(JSON.parse(m[1]).api || '') : '';
 }

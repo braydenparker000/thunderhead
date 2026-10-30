@@ -170,6 +170,8 @@ Acceptance: with the clock at 05:00 and a waiting decision created at 23:00, hom
 
 Every push shows a visible notification (no silent pushes). Tapping a notification opens the app at the relevant place (the decision card, the reminder line, the device list). Delivery itself is specified in [API](../engineering/API.md) and [SECURITY](../engineering/SECURITY.md).
 
+Built (P8: `apps/settings/notifications.js`, `th/push/phone.js`, the shell's `sw.js`): the row, the state line, the budget line, "Let me reach you", "Send a test" and "Turn off on this phone". At start, a phone with push on makes its subscription again under a replaced key and sends it after a new sign-in. The per-kind toggles wait (IDEAS.md, parked): every kind that exists today is on.
+
 ### 4.4 What I remember
 
 The owner's window into the mind's memory ([MEMORY](../mind/MEMORY.md)). "You can open, fix or delete anything" (plan §3).
