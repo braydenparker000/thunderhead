@@ -50,7 +50,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/threads/:id/continue` | D | P2 | built |  |
 | `PUT /v1/messages/:id` | D C N R | P2 | built | N and R: kind 'error' with thread_id 'system' only |
 | `PATCH /v1/messages/:id` | C | P2 | built | own posts only |
-| `PUT /v1/files/:id` | D C | P2 | deferred: the private bucket (SETUP.md J2) |  |
+| `PUT /v1/files/:id` | D C | P2 | deferred: being built: the + sheet (2026-10-30) | raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos) |
+| `GET /v1/files/:id` | D C N | P2 | deferred: being built: the + sheet (2026-10-30) | the bytes, through the Worker; private and immutable |
 | `GET /v1/search` | D C N | P2 | built |  |
 | `POST /v1/mind/typing` | D | P2 | built |  |
 | `POST /v1/mind/stop` | D | P2 | built | the owner taps Stop: the work ends, not the session |
@@ -177,6 +178,9 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/push/test` | D | P8 | built | one test push to this phone, now |
 | `GET /v1/push/items/:id` | D | P8 | built | a push's words, for the service worker |
 | `PUT /v1/pushes/:id` | C | P8 | built | a nudge: at most 2 a day, 2 h apart, never in quiet hours |
+| `PUT /v1/reminders/:id` | D C | P8 | deferred: being built: the + sheet (2026-10-30) | mind:chat: names the owner's message that asked |
+| `GET /v1/reminders` | D C N | P8 | deferred: being built: the + sheet (2026-10-30) |  |
+| `DELETE /v1/reminders/:id` | D C | P8 | deferred: being built: the + sheet (2026-10-30) | takes back one not yet delivered; the row stays |
 
 ## Verbs
 

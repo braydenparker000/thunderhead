@@ -7,6 +7,7 @@ import { BACKUPS_MIGRATIONS, BACKUPS_TABLES } from '../areas/backups/migrations'
 import { CONVERSATION_MIGRATIONS, CONVERSATION_TABLES } from '../areas/conversation/migrations';
 import { EVALS_MIGRATIONS, EVALS_TABLES } from '../areas/evals/migrations';
 import { FEED_MIGRATIONS, FEED_TABLES } from '../areas/feed/migrations';
+import { FILES_MIGRATIONS, FILES_TABLES } from '../areas/files/migrations';
 import { IMPORT_MIGRATIONS, IMPORT_TABLES } from '../areas/import/migrations';
 import { JOBS_MIGRATIONS, JOBS_TABLES } from '../areas/jobs/migrations';
 import { LEDGER_MIGRATIONS, LEDGER_TABLES } from '../areas/ledger/migrations';
@@ -15,6 +16,7 @@ import { MIND_MIGRATIONS, MIND_TABLES } from '../areas/mind/migrations';
 import { OPS_TABLES } from '../areas/ops/tables';
 import { PREDICTIONS_MIGRATIONS, PREDICTIONS_TABLES } from '../areas/predictions/migrations';
 import { PROPOSALS_MIGRATIONS, PROPOSALS_TABLES } from '../areas/proposals/migrations';
+import { REMINDERS_MIGRATIONS, REMINDERS_TABLES } from '../areas/reminders/migrations';
 import { SETTINGS_TABLES } from '../areas/settings/tables';
 import { SURFACES_MIGRATIONS, SURFACES_TABLES } from '../areas/surfaces/migrations';
 import { VERBS_MIGRATIONS, VERBS_TABLES } from '../areas/verbs/migrations';
@@ -78,6 +80,8 @@ export const CORE_MIGRATIONS: Migration[] = [
   ...BACKUPS_MIGRATIONS,
   ...WORK_MIGRATIONS,
   ...PREDICTIONS_MIGRATIONS,
+  ...FILES_MIGRATIONS,
+  ...REMINDERS_MIGRATIONS,
 ].sort((a, b) => a.version - b.version);
 
 /** Every Core table with its retention and export inclusion (DATA.md §10); a test fails if a
@@ -100,4 +104,6 @@ export const CORE_TABLES: Record<string, TableInfo> = {
   ...BACKUPS_TABLES,
   ...WORK_TABLES,
   ...PREDICTIONS_TABLES,
+  ...FILES_TABLES,
+  ...REMINDERS_TABLES,
 };

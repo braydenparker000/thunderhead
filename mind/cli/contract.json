@@ -328,7 +328,18 @@
         "C"
       ],
       "phase": "P2",
-      "status": "deferred: the private bucket (SETUP.md J2)"
+      "status": "deferred: being built: the + sheet (2026-10-30)",
+      "note": "raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos)"
+    },
+    "GET /v1/files/:id": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P2",
+      "status": "deferred: being built: the + sheet (2026-10-30)",
+      "note": "the bytes, through the Worker; private and immutable"
     },
     "GET /v1/search": {
       "who": [
@@ -1430,6 +1441,33 @@
       "phase": "P8",
       "status": "built",
       "note": "a nudge: at most 2 a day, 2 h apart, never in quiet hours"
+    },
+    "PUT /v1/reminders/:id": {
+      "who": [
+        "D",
+        "C"
+      ],
+      "phase": "P8",
+      "status": "deferred: being built: the + sheet (2026-10-30)",
+      "note": "mind:chat: names the owner's message that asked"
+    },
+    "GET /v1/reminders": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P8",
+      "status": "deferred: being built: the + sheet (2026-10-30)"
+    },
+    "DELETE /v1/reminders/:id": {
+      "who": [
+        "D",
+        "C"
+      ],
+      "phase": "P8",
+      "status": "deferred: being built: the + sheet (2026-10-30)",
+      "note": "takes back one not yet delivered; the row stays"
     }
   },
   "verbs": {

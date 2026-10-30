@@ -49,7 +49,7 @@ import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
-import { CorePredictions } from './core-predictions';
+import { CoreReminders } from './core-reminders';
 
 const PRUNE_STEP = 2_000;
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
@@ -60,7 +60,7 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [exportJob.kind]: exportJob,
 };
 
-export class Core extends CorePredictions {
+export class Core extends CoreReminders {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {

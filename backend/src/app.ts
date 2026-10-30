@@ -3,6 +3,7 @@
 // onError. Unknown routes fall through to 404 before any token check.
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { FILE_LIMITS } from '../../shared/contract/files.ts';
 import { IMPORT_PART_BYTES } from '../../shared/contract/imports.ts';
 import { LIBRARY_LIMITS } from '../../shared/contract/library.ts';
 import { authRoutes } from './areas/auth/routes';
@@ -11,6 +12,7 @@ import { briefingRoutes } from './areas/briefing/routes';
 import { conversationRoutes } from './areas/conversation/routes';
 import { evalsRoutes } from './areas/evals/routes';
 import { feedRoutes } from './areas/feed/routes';
+import { filesRoutes } from './areas/files/routes';
 import { guitarRoutes } from './areas/guitar/routes';
 import { importRoutes } from './areas/import/routes';
 import { insightRoutes } from './areas/insight/routes';
@@ -27,6 +29,7 @@ import { podcastsRoutes } from './areas/podcasts/routes';
 import { predictionsRoutes } from './areas/predictions/routes';
 import { proposalsRoutes } from './areas/proposals/routes';
 import { pushRoutes } from './areas/push/routes';
+import { remindersRoutes } from './areas/reminders/routes';
 import { searchRoutes } from './areas/search/routes';
 import { sensesRoutes } from './areas/senses/routes';
 import { surfacesRoutes } from './areas/surfaces/routes';
@@ -62,26 +65,30 @@ const BOOK_PART = /^\/v1\/library\/books\/[^/]+\/parts\/[^/]+$/;
 const BOOK_PAGES = /^\/v1\/library\/books\/[^/]+\/pages$/;
 // The private scripture table and one book's verse text (checked again in the route).
 const scripture = bodyLimit({ maxSize: LIBRARY_LIMITS.text_bytes, onError: tooLarge });
+// A chat file (HOME.md §4.6), one upload; GET has no body.
+const chatFile = bodyLimit({ maxSize: FILE_LIMITS.bytes, onError: tooLarge });
 const limitFor = (path: string) =>
-  path === '/v1/ops/import/parts'
-    ? part
-    : path.startsWith('/v1/ops/import/manifest/')
-      ? manifest
-      : path.startsWith(`${UPLOADS}audio/`)
-        ? audio
-        : path.startsWith(`${UPLOADS}art/`)
-          ? art
-          : path.startsWith(UPLOADS) && BIG_OPS.has(path.slice(UPLOADS.length))
-            ? batch
-            : path.startsWith('/v1/senses/batches/')
-              ? batchOfEvents
-              : BOOK_PART.test(path)
-                ? bookPart
-                : BOOK_PAGES.test(path)
-                  ? pages
-                  : path.startsWith('/v1/library/scripture')
-                    ? scripture
-                    : small;
+  path.startsWith('/v1/files/')
+    ? chatFile
+    : path === '/v1/ops/import/parts'
+      ? part
+      : path.startsWith('/v1/ops/import/manifest/')
+        ? manifest
+        : path.startsWith(`${UPLOADS}audio/`)
+          ? audio
+          : path.startsWith(`${UPLOADS}art/`)
+            ? art
+            : path.startsWith(UPLOADS) && BIG_OPS.has(path.slice(UPLOADS.length))
+              ? batch
+              : path.startsWith('/v1/senses/batches/')
+                ? batchOfEvents
+                : BOOK_PART.test(path)
+                  ? bookPart
+                  : BOOK_PAGES.test(path)
+                    ? pages
+                    : path.startsWith('/v1/library/scripture')
+                      ? scripture
+                      : small;
 
 export const app = new Hono<AppEnv>()
   .use(async (c, next) => {
@@ -129,6 +136,8 @@ export const app = new Hono<AppEnv>()
   .route('/v1', guitarRoutes)
   .route('/v1', podcastsRoutes)
   .route('/v1', pushRoutes)
+  .route('/v1', remindersRoutes)
+  .route('/v1', filesRoutes)
   .route('/v1', libraryRoutes)
   .route('/v1', ingestRoutes)
   .route('/v1', scriptureRoutes)

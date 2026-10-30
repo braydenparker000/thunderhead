@@ -72,6 +72,12 @@ export const APPS = Object.freeze(${j(c.APPS)});
 /** @type {readonly import('../../shared/contract/api.ts').MessageKind[]} */
 export const MESSAGE_KINDS = Object.freeze(${j(c.MESSAGE_KINDS)});
 
+/** @type {Readonly<typeof import('../../shared/contract/files.ts').FILE_LIMITS>} */
+export const FILE_LIMITS = Object.freeze(${j(c.FILE_LIMITS)});
+
+/** @type {Readonly<typeof import('../../shared/contract/reminders.ts').REMINDER_LIMITS>} */
+export const REMINDER_LIMITS = Object.freeze(${j(c.REMINDER_LIMITS)});
+
 /** @type {Readonly<Record<VerbName, VerbInfo>>} */
 export const VERBS = Object.freeze(${j(verbs)});
 

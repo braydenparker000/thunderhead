@@ -75,7 +75,18 @@ export const ROUTES = {
   'POST /v1/threads/:id/continue': { who: D, phase: 'P2' },
   'PUT /v1/messages/:id': { who: AGENTS_READ, phase: 'P2', note: "N and R: kind 'error' with thread_id 'system' only" },
   'PATCH /v1/messages/:id': { who: ['C'], phase: 'P2', note: 'own posts only' },
-  'PUT /v1/files/:id': { who: ['D', 'C'], phase: 'P2', deferred: 'the private bucket (SETUP.md J2)' },
+  'PUT /v1/files/:id': {
+    who: ['D', 'C'],
+    phase: 'P2',
+    deferred: 'being built: the + sheet (2026-10-30)',
+    note: 'raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos)',
+  },
+  'GET /v1/files/:id': {
+    who: ['D', 'C', 'N'],
+    phase: 'P2',
+    deferred: 'being built: the + sheet (2026-10-30)',
+    note: 'the bytes, through the Worker; private and immutable',
+  },
   'GET /v1/search': { who: ['D', 'C', 'N'], phase: 'P2' },
   'POST /v1/mind/typing': { who: D, phase: 'P2' },
   'POST /v1/mind/stop': { who: D, phase: 'P2', note: 'the owner taps Stop: the work ends, not the session' },
@@ -257,6 +268,20 @@ export const ROUTES = {
   'POST /v1/push/test': { who: D, phase: 'P8', note: 'one test push to this phone, now' },
   'GET /v1/push/items/:id': { who: D, phase: 'P8', note: "a push's words, for the service worker" },
   'PUT /v1/pushes/:id': { who: ['C'], phase: 'P8', note: 'a nudge: at most 2 a day, 2 h apart, never in quiet hours' },
+  // The + sheet's Remind me (HOME.md §6.2): the owner's own reminders, delivered once.
+  'PUT /v1/reminders/:id': {
+    who: ['D', 'C'],
+    phase: 'P8',
+    deferred: 'being built: the + sheet (2026-10-30)',
+    note: "mind:chat: names the owner's message that asked",
+  },
+  'GET /v1/reminders': { who: ['D', 'C', 'N'], phase: 'P8', deferred: 'being built: the + sheet (2026-10-30)' },
+  'DELETE /v1/reminders/:id': {
+    who: ['D', 'C'],
+    phase: 'P8',
+    deferred: 'being built: the + sheet (2026-10-30)',
+    note: 'takes back one not yet delivered; the row stays',
+  },
 } as const satisfies Record<string, RouteSpec>;
 
 export type RouteKey = keyof typeof ROUTES;

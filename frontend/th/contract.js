@@ -32,6 +32,12 @@ export const APPS = Object.freeze({"music":{"path":"/music/","name":"Music","pha
 /** @type {readonly import('../../shared/contract/api.ts').MessageKind[]} */
 export const MESSAGE_KINDS = Object.freeze(["text","voice","progress","card","question","error"]);
 
+/** @type {Readonly<typeof import('../../shared/contract/files.ts').FILE_LIMITS>} */
+export const FILE_LIMITS = Object.freeze({"bytes":26214400,"owner_per_message":4,"mind_per_message":10,"name":120,"memo_seconds":600});
+
+/** @type {Readonly<typeof import('../../shared/contract/reminders.ts').REMINDER_LIMITS>} */
+export const REMINDER_LIMITS = Object.freeze({"text":200,"open":50,"days_ahead":400});
+
 /** @type {Readonly<Record<VerbName, VerbInfo>>} */
 export const VERBS = Object.freeze({"app.open":{"app":"shell","executor":"device","queueable":false,"undo":"none","versions":[1]},"music.create_playlist":{"app":"music","executor":"device","queueable":true,"undo":"reported","versions":[1]},"music.delete_playlist":{"app":"music","executor":"device","queueable":false,"undo":"none","versions":[1]},"shell.appearance":{"app":"shell","executor":"device","queueable":true,"undo":"reported","versions":[1]}});
 

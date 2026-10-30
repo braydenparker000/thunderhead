@@ -6,6 +6,7 @@ export { BACKUP_LIMITS } from './backups.ts';
 export { CODES } from './codes.ts';
 export { WORK_KINDS, WORK_LIMITS } from './work.ts';
 export * from './feed.ts';
+export { FILE_LIMITS } from './files.ts';
 export * from './imports.ts';
 export * from './memory.ts';
 export { MUSIC_LIMITS } from './music.ts';
@@ -20,6 +21,7 @@ export {
   type ProposalOpName,
   proposalOp,
 } from './proposals.ts';
+export { REMINDER_LIMITS } from './reminders.ts';
 export { READER_KINDS, READER_LIMITS, type ReaderKind } from './reader.ts';
 export { BUILT_PHASES, builtRoutes, type Phase, ROUTES, type RouteKey, type RouteSpec, type Who } from './routes.ts';
 export { SURFACE_KINDS, type SurfaceKind, type SurfaceKindName, surfaceKind } from './surfaces.ts';

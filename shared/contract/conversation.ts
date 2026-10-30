@@ -35,11 +35,18 @@ export interface Chip {
   path: string;
 }
 
+/** A file on a message (HOME.md §4.6; limits in files.ts). */
 export interface Attachment {
+  /** `file:<id>`; the bytes are `GET /v1/files/<id>`. */
   ref: string;
   name: string;
+  /** Its media type, as uploaded. */
   type: string;
   bytes: number;
+  /** A voice memo's length in seconds, as the phone recorded it. */
+  seconds?: number;
+  /** A voice memo's words, transcribed by the Worker, when it could. */
+  text?: string;
 }
 
 export interface Message {
