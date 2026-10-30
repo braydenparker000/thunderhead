@@ -10,7 +10,7 @@ const SIGNIN = readFileSync(`${UI}csp-signin.txt`, 'utf8').trim();
 
 /** App routes without a page of their own: each gets a copy of the shell (storage hosting has no
  * SPA fallback). An existing page (e.g. astra/) is never overwritten. */
-export const APP_ROUTES = ['music', 'guitar', 'podcasts', 'media', 'settings', 'settings/password', 'settings/agents', 'settings/devices', 'settings/memory'];
+export const APP_ROUTES = ['music', 'guitar', 'podcasts', 'media', 'settings', 'settings/password', 'settings/agents', 'settings/devices', 'settings/memory', 'share'];
 
 /** The content type of every file kind the site may hold. stage.mjs refuses any other kind, and
  * deploy.sh uploads each kind with exactly this type, so nothing depends on the uploader guessing

@@ -9,7 +9,7 @@ const VENDOR = 'th-vendor';
 /** Ported apps (P1b) and the old shared files: their own documents, never intercepted. */
 const PORTED = ['/music/', '/guitar/', '/podcasts/', '/astra/', '/media/', '/assets/'];
 /** Shell routes: a navigation to one of them gets the cached shell (their stubs equal index.html). */
-const SHELL = ['/', '/settings/', '/settings/password/', '/settings/agents/', '/settings/devices/', '/settings/memory/'];
+const SHELL = ['/', '/settings/', '/settings/password/', '/settings/agents/', '/settings/devices/', '/settings/memory/', '/share/'];
 /** Read from the network first (3 s), the cache only when offline. */
 const FRESH = ['/release.json', '/config.js'];
 

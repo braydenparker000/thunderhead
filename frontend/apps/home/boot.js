@@ -2,8 +2,8 @@
 // Otherwise: no session → /signin/?next=<this path>; a session → the menu's Devices, Agents and
 // Account rows open their pages, /settings/<page>/ opens one directly, security notices show on
 // Home as cards with the gold bottom edge until answered (SIGN-IN.md §3.3, §11.4), and so do
-// decision cards (th/decide/card.js, HOME.md §3). Always: the service worker (th/update.js) and the
-// menu's About row.
+// decision cards (th/decide/card.js, HOME.md §3), and /share/ (the share sheet) puts what was shared
+// in the ask bar. Always: the service worker (th/update.js) and the menu's About row.
 import { api, configured, flushPendingSignout, signedIn, toSignin } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
@@ -42,6 +42,7 @@ async function start() {
   }, true);
   const path = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`;
   if (ROUTES[path]) open(ROUTES[path], { role: new URLSearchParams(location.search).get('new') ?? undefined, fromRoute: true });
+  if (path === '/share/') shared();
   // A Forget that never reached the Worker (the Memory page closed first) goes now; that page
   // sends its own when it is the one opening.
   try {
@@ -65,6 +66,21 @@ async function start() {
   } catch (e) {
     if (failure(e).kind === 'api') toast(lineFor(failure(e)));
   }
+}
+
+/** Something shared from another app (the manifest's share target, IDEAS.md HM3): it waits in the ask
+ * bar as "Shared: …" for the owner's words; nothing reaches the mind until they send it. */
+function shared() {
+  const p = new URLSearchParams(location.search);
+  const said = p.get('text') ?? '';
+  const url = (p.get('url') || said.match(/https?:\/\/\S+/)?.[0] || '').slice(0, 1000);
+  const words = [(p.get('title') ?? '').trim(), said.replace(url, '').trim()].filter(Boolean).join(' · ').slice(0, 300);
+  history.replaceState(null, '', '/');
+  const q = /** @type {HTMLInputElement | null} */ (document.querySelector('#q'));
+  if (!q || !(words || url)) return;
+  q.value = `Shared: ${[words, url].filter(Boolean).join(' ')} `;
+  q.dispatchEvent(new Event('input'));
+  setTimeout(() => q.focus(), 300);
 }
 
 /** The menu's conversations and search (th/convos) load once the menu starts to open, so the shell

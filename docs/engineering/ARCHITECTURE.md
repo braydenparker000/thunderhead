@@ -289,7 +289,7 @@ Acceptance: a Playwright test mounts and unmounts each app 20 times. The DOM nod
 | `/release.json`, `/config.js` | Network-first with a 3 s timeout, then cache. |
 | Worker API, WebSocket | **Not intercepted.** |
 | R2 presigned URLs | Not intercepted by the shell's worker. The ported player's own worker (`music/sw.js` with `th/music/bridge.js`, P5) fetches them for the player's library requests and passes the bytes through unchanged ([MUSIC.md](../product/apps/MUSIC.md), [SECURITY.md §4.4](SECURITY.md)). |
-| `POST /share` | Arrives with the share target in P8. |
+| `GET /share/?title=&text=&url=` | The share target (P8, built): the shell, which puts "Shared: …" in the ask bar for the owner's words and sets the address back to `/`. Images (a `POST` the worker would take) wait. |
 
 ### 8.2 Install and activate
 
