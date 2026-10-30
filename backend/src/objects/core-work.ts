@@ -2,6 +2,7 @@
 // orders, Muse's calls, the owner's Board brief and its standing approval (one card the Worker
 // raises when a brief or Muse first appears), the tick's leases, deadlines and daily Board order,
 // and what the Briefing page shows. A code layer of the one Core class.
+
 import type { BriefingResponse } from '../../../shared/contract/briefing.ts';
 import type {
   BoardBrief,
@@ -12,10 +13,11 @@ import type {
   WorkStatus,
 } from '../../../shared/contract/work.ts';
 import { briefing } from '../areas/briefing/assemble';
+import { type Forecast, type Place, weatherTile } from '../areas/briefing/weather';
 import { logicalDay } from '../areas/conversation/day';
 import { raise } from '../areas/proposals/ops';
 import * as pstore from '../areas/proposals/store';
-import { putSetting } from '../areas/settings/store';
+import { getSetting, putSetting } from '../areas/settings/store';
 import * as work from '../areas/work/ops';
 import * as wstore from '../areas/work/store';
 import { uuidv7 } from '../lib/ids';
@@ -160,7 +162,31 @@ export abstract class CoreWork extends CoreBackups {
     const now = Date.now();
     const tz = this.tz();
     const day = logicalDay(now, tz);
-    return briefing(this.db, { now, tz, day, yesterday: dayBefore(day) });
+    const { place, forecast } = this.weather();
+    return briefing(this.db, {
+      now,
+      tz,
+      day,
+      yesterday: dayBefore(day),
+      weather: weatherTile(place, forecast, now, tz),
+    });
+  }
+
+  /** The weather's place and the forecast kept for it (BRIEFING.md §2): Core settings only. */
+  weather(): { place: Place | null; forecast: Forecast | null } {
+    return {
+      place: (getSetting(this.db, 'weather.place') as Place | undefined) ?? null,
+      forecast: (getSetting(this.db, 'weather.forecast') as Forecast | undefined) ?? null,
+    };
+  }
+
+  /** A new forecast for the place it was asked for (a place changed meanwhile keeps its own). */
+  putForecast(place: Place, f: Forecast): void {
+    this.ctx.storage.transactionSync(() => {
+      const now = this.weather().place;
+      if (now && now.lat === place.lat && now.lon === place.lon)
+        putSetting(this.db, 'weather.forecast', f, 'worker', f.at);
+    });
   }
 
   /** The Board edition of a day, for the reader. */

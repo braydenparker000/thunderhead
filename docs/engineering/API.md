@@ -581,7 +581,8 @@ Order states, leases, validation and the Board approval are owned by [MUSE.md §
 | `POST /v1/work/thread/messages` | `muse`, device, `mind:chat`, `mind:night` | `{ id: Id, body /* ≤ 2,000 */ }` | `201 { id }` (the author is the caller's: muse, owner or mind) |
 | `GET /v1/board/brief`, `PUT /v1/board/brief` | device, `mind:chat`, `mind:night` | PUT: `{ version, brief: BoardBrief }` (the old relay's board profile, unchanged) | `200 { version, brief, allowed }` / `200 { version }`; `409` when the version moved. The first brief raises the Worker's standing card `board.allow` (`reach_people`) once |
 | `DELETE /v1/board/approval` | device | — | `200 { allowed: false }`: Muse can't read the brief from then on |
-| `GET /v1/briefing` | device | — | `200 BriefingResponse` (`shared/contract/briefing.ts`): the title line, "Waiting on you", the Board tile, Muse's line |
+| `GET /v1/briefing` | device | — | `200 BriefingResponse` (`shared/contract/briefing.ts`): the title line, the weather tile (P8; Open-Meteo asked again when the kept forecast is over 30 minutes old), "Waiting on you", the Board tile, Muse's line |
+| `PUT /v1/briefing/place` | device | `{ name /* 2–80 */ }` | `200 { place }`: the town looked up with Open-Meteo's geocoder and kept (coordinates to 0.1°), its forecast fetched; `422` "No place by that name." | P8 |
 | `GET /v1/board/editions/:day` | device, `mind:chat`, `mind:night` | — | `200 { day, edition, finished_at, origin: 'muse' }` (the v2 edition Muse returned, checked); `404` |
 
 ### 11.20 Settings and push
@@ -710,6 +711,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `/v1/work/thread*` | M D C N | P4 |
 | `GET /v1/board/brief`, `PUT /v1/board/brief`, `GET /v1/board/editions/:day` | D C N | P4 |
 | `DELETE /v1/board/approval`, `GET /v1/briefing` | D | P4 |
+| `PUT /v1/briefing/place` | D | P8 |
 | `PUT /v1/senses/batches/:id` | D | P5 |
 | `POST /v1/senses/query` | C N R | P5 |
 | `POST /v1/media/sign` | D (C N for `file:`) | P5 (P2 for `file:` refs) · built: `music:` refs for D (`book:` refs are not signed: Study reads books through `GET /v1/library/books/:id/file`); `file:` refs answer `not_signable` until their home exists |

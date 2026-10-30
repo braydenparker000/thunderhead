@@ -182,6 +182,7 @@ export const ROUTES = {
   'PUT /v1/board/brief': { who: ['D', 'C', 'N'], phase: 'P4', note: 'the owner\'s Board choices; the mind writes it from the owner\'s words' },
   'DELETE /v1/board/approval': { who: D, phase: 'P4', note: 'withdraws Muse\'s reading of the brief' },
   'GET /v1/briefing': { who: D, phase: 'P4' },
+  'PUT /v1/briefing/place': { who: D, phase: 'P8', note: "the weather's place, by a town's name" },
   'GET /v1/board/editions/:day': { who: ['D', 'C', 'N'], phase: 'P4', note: 'outside text from Muse, checked against the v2 schema' },
 
   // --- P5 and later ---------------------------------------------------------------------------

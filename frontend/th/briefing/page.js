@@ -1,11 +1,12 @@
 // @ts-check
 // The Briefing page (BRIEFING.md), one swipe right of home: the date, the Thunderhead's line, and
-// the tiles the Worker says have something to say (GET /v1/briefing): "Waiting on you" (gold; a
-// tap goes home to the card), then the Board last (a tap opens the reader, board.js). It paints
-// from this phone first (IndexedDB `th-data`, wiped on sign-out), then from the Worker when the
-// page comes into view, and again when a card, a work order or a setting changes. Weather,
-// practice, study and what was built overnight come with P8's Briefing data; until then a quiet
-// line says so instead of a placeholder tile. Text is set with textContent only.
+// the tiles the Worker says have something to say (GET /v1/briefing): the weather first (a tap
+// opens its next hours and the place, weather.js), "Waiting on you" (gold; a tap goes home to the
+// card), then the Board last (a tap opens the reader, board.js). It paints from this phone first
+// (IndexedDB `th-data`, wiped on sign-out), then from the Worker when the page comes into view, and
+// again when a card, a work order or a setting changes. Practice, study and what was built
+// overnight come with the night shift's tiles; until then a quiet line says so instead of a
+// placeholder tile. Text is set with textContent only.
 import { api, signedIn } from '../client.js';
 import { kv } from '../idb.js';
 import { el } from '../ui.js';
@@ -27,6 +28,8 @@ const icon = (/** @type {string} */ name) => {
 };
 
 let at = 0;
+/** @type {BriefingResponse | null} */
+let shown = null;
 /** @type {Promise<void> | null} */
 let loading = null;
 
@@ -48,6 +51,10 @@ export async function startBriefing() {
     if (!t) return;
     if (t.dataset.go === 'waiting') toCard();
     else if (t.dataset.go === 'board') import('./board.js').then((m) => m.openBoard(/** @type {string} */ (t.dataset.day)));
+    else if (t.dataset.go === 'weather' && shown?.weather) {
+      const w = shown.weather;
+      import('./weather.js').then((m) => m.openWeather(w, () => { at = 0; refresh(); }));
+    }
   });
   refresh();
 }
@@ -81,10 +88,23 @@ function tile(t) {
   return node;
 }
 
+/** The weather tile: the place (or "Weather"), the temperature big, the sentence. @param {NonNullable<BriefingResponse['weather']>} w */
+function weatherTile(w) {
+  const node = tile({ icon: 'cloud-sun', label: w.place ?? 'Weather', value: w.temp ?? '', detail: w.detail, cls: 'wide weather', go: 'weather' });
+  const v = /** @type {HTMLElement} */ (node.querySelector('.v'));
+  if (w.temp) v.className = 'big';
+  else v.remove();
+  node.setAttribute('aria-label', [w.place ?? 'Weather', w.temp, w.detail].filter(Boolean).join(', '));
+  return node;
+}
+
 /** @param {BriefingResponse} b */
 function draw(b) {
+  shown = b;
   /** @type {HTMLElement[]} */
   const tiles = [];
+  // An answer kept on this phone from before P8 has no weather.
+  if (b.weather) tiles.push(weatherTile(b.weather));
   for (const w of b.tiles) tiles.push(tile({ icon: 'bell', label: w.label, value: w.value, detail: w.detail, cls: 'gold half', go: 'waiting' }));
   if (b.board) tiles.push(tile({ icon: 'newspaper', label: 'The Board', value: b.board.title, detail: b.board.detail, cls: 'wide board', go: 'board', day: b.board.day }));
   // Packing (BRIEFING.md §1): a half tile left without a partner becomes wide.
@@ -96,7 +116,7 @@ function draw(b) {
   /** @type {HTMLElement[]} */
   const notes = [];
   if (b.muse) notes.push(el('p', { class: 'bmuse', text: b.muse }));
-  if (!b.board && !b.tiles.length) notes.push(el('p', { class: 'bmuse', text: 'Weather, practice, study and what I built overnight come with a later update.' }));
+  if (!b.board && !b.tiles.length) notes.push(el('p', { class: 'bmuse', text: 'Practice, study and what I built overnight come with a later update.' }));
   for (const old of document.querySelectorAll('#brief .bmuse')) old.remove();
   grid.after(...notes);
 }

@@ -145,6 +145,9 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .tile .big{font:500 30px/1.05 var(--ui);letter-spacing:-.02em;color:var(--ink);margin-top:2px}
 .tile .v{font:500 15px/1.35 var(--ui);color:var(--ink)}
 .tile .s{font:400 13px/1.4 var(--ui);color:var(--ink3)}
+.whours{list-style:none;margin:6px 0 10px;padding:0;display:grid;gap:2px;max-height:46vh;overflow:auto}
+.whours li{display:grid;grid-template-columns:1fr 1fr 1fr;font:400 15px/2 var(--ui);color:var(--ink)}
+.whours .wrain{color:var(--ink3);text-align:right}
 .tile.gold,:root[data-theme="dark"] .tile.gold{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 50%,transparent)}
 .bnote{font:500 12px var(--ui);color:var(--ink3);margin-top:18px;text-align:center}
 .dim{position:absolute;inset:0;z-index:11;background:rgba(10,14,22,.3);opacity:0;pointer-events:none;transition:opacity .42s}

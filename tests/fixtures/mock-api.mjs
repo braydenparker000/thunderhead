@@ -205,7 +205,7 @@ function answer(state, method, url, body) {
     proposalsAnswer(state.proposals, method, p, url, body, (kind) => changed(state.chat, kind)) ??
     memoryAnswer(state.memory, method, p, url, body) ??
     exportAnswer(state.export, method, p, body) ??
-    briefingAnswer(state.briefing, method, p) ??
+    briefingAnswer(state.briefing, method, p, body) ??
     chatAnswer(state.chat, method, p, url, body) ??
     threadsAnswer(state.threads, method, p, url, state.chat.thread, state.memory?.facts) ??
     err(404, 'not_found')

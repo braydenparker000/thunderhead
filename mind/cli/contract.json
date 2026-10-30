@@ -959,6 +959,14 @@
       "phase": "P4",
       "status": "built"
     },
+    "PUT /v1/briefing/place": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "the weather's place, by a town's name"
+    },
     "GET /v1/board/editions/:day": {
       "who": [
         "D",

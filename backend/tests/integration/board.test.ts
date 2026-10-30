@@ -11,6 +11,7 @@ import type { Proposal } from '../../../shared/contract/proposals.ts';
 import type { WatchdogsResponse } from '../../../shared/contract/watchdogs.ts';
 import type { WorkOrder } from '../../../shared/contract/work.ts';
 import { briefing } from '../../src/areas/briefing/assemble';
+import { weatherTile } from '../../src/areas/briefing/weather';
 import { uuidv7 } from '../../src/lib/ids';
 import { HOUR } from '../../src/lib/time';
 import type { Core } from '../../src/objects/core';
@@ -139,6 +140,7 @@ describe('the Board', () => {
         tz: 'UTC',
         day: tomorrow,
         yesterday: '2000-01-01',
+        weather: weatherTile(null, null, 0, 'UTC'),
       }),
     );
     expect(page.board).toMatchObject({
@@ -155,6 +157,7 @@ describe('the Board', () => {
         tz: 'UTC',
         day: '2099-01-02',
         yesterday: tomorrow,
+        weather: weatherTile(null, null, 0, 'UTC'),
       }),
     );
     expect(later.board).toMatchObject({ stale: true });

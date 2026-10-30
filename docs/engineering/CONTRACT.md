@@ -121,6 +121,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/board/brief` | D C N | P4 | built | the owner's Board choices; the mind writes it from the owner's words |
 | `DELETE /v1/board/approval` | D | P4 | built | withdraws Muse's reading of the brief |
 | `GET /v1/briefing` | D | P4 | built |  |
+| `PUT /v1/briefing/place` | D | P8 | built | the weather's place, by a town's name |
 | `GET /v1/board/editions/:day` | D C N | P4 | built | outside text from Muse, checked against the v2 schema |
 | `GET /v1/music/catalog` | D | P5 | built | the ported player's format; ETag, 304; 409 before the import |
 | `GET /v1/music/waveforms/:id` | D | P5 | built |  |

@@ -6,6 +6,8 @@ Sibling docs: [HOME](HOME.md), [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM
 
 **Built in P4 stage H** (`frontend/th/briefing/`, `tests/briefing-browser.test.mjs`; the Worker side `GET /v1/briefing`, `GET /v1/board/editions/:day`): the date, the title line by the hour (and *A quiet day.* with nothing to show), "Waiting on you" (gold; a tap goes home and pulses the card), the Board tile last with today's edition or yesterday's marked, the Board reader (cover, "In 30 seconds", every v2 block type, numbered sources, "Ask about this" filling the ask bar), Muse's line, and the page painted from this phone first. Weather, the night shift's tiles, media and podcasts come with P8's Briefing data; until then the page says so in one quiet line instead of a placeholder tile.
 
+**Weather built in P8** (`backend/src/areas/briefing/weather.ts`, `frontend/th/briefing/weather.js`): Open-Meteo, the place set by typing a town's name in the tile's sheet (not a Settings page), kept only in Core's settings; the forecast asked again on open when the kept one is over 30 minutes old; the sentence covers the next 12 hours (the first wet spell and its kind, else "Dry for the rest of the day." / "Dry tonight."); freshness as §6. Tests: `backend/tests/unit/weather.test.ts`, `backend/tests/integration/weather.test.ts`, `tests/briefing-weather-browser.test.mjs`.
+
 ## Rules at a glance
 
 1. **Open it:** swipe right on home, or the hidden "Briefing" button. **Close it:** swipe left, Back, or a tile that goes home ([GESTURES](../design/GESTURES.md) §4, §7).
