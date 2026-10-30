@@ -30,11 +30,11 @@ test('night tiles: in order, halves paired, a big number, a wide note, a tap ope
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
   const state = briefingState();
   state.page.tiles.push(
-    night('study', { label: 'Study', value: 'Book A, chapter 3', detail: 'p. 212 · 20 min', app: 'study', path: '/study/?book=b1&p=212' }),
+    night('study', { label: 'Study', value: 'Book A, chapter 3', detail: 'p. 212 · 20 min', app: 'study', path: '/study/?book=b1&p=212', ledger_id: '0192f0c4-0000-7000-8000-00000000c0de' }),
     night('built', { label: 'Built overnight', value: 'A calm playlist', big: '31', detail: 'songs, ready in Music', app: 'music', path: '/music/#pl=calm123456' }),
     night('note.1', { label: 'Note', value: 'Bring the umbrella', wide: true }),
   );
-  await mockApi(page, { briefing: state });
+  const api = await mockApi(page, { briefing: state });
   await page.goto(`${base}/no-such-page`);
   await page.evaluate((token) => new Promise((resolve, reject) => {
     const req = indexedDB.open('th-auth', 1);
@@ -62,5 +62,10 @@ test('night tiles: in order, halves paired, a big number, a wide note, a tap ope
   await page.locator('#brief .tile.night', { hasText: 'Study' }).click();
   await page.waitForURL(/\/study\/\?book=b1&p=212$/);
   assert.deepEqual(errors.filter((e) => !/study|pdf/i.test(e)), []);
+  // The tap acted on the night's arrangement (M-16): its ledger row, sent from Study with its own
+  // opening (Study's own data isn't mocked here).
+  const sent = () => api.calls.filter((c) => c.call.startsWith('PUT /v1/senses/batches/')).flatMap((c) => c.body.events);
+  for (let i = 0; i < 50 && sent().length < 2; i++) await page.waitForTimeout(100);
+  assert.deepEqual(sent().map((e) => [e.type, e.ref ?? null]).sort(), [['briefing.tile', 'ledger:0192f0c4-0000-7000-8000-00000000c0de'], ['study.open', null]]);
   await context.close();
 });

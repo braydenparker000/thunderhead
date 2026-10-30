@@ -1,7 +1,7 @@
 // The fixed resolvers (P9, EVALS.md M-18): SQL over what the owner did, never the mind's word. Each
 // says whether a prediction came true on its logical day (04:00 to 04:00 local), and on how many of
 // the days before it did, for the base rate, through the conversation's and the proposals' stores.
-import type { PredictionCategory } from '../../../../shared/contract/predictions.ts';
+import { PREDICTION_APPS, type PredictionCategory } from '../../../../shared/contract/predictions.ts';
 import { DAY, dayBefore, zonedMinute } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import { DAY_STARTS_HOUR, logicalDay } from '../conversation/day';
@@ -17,10 +17,26 @@ interface DayChat {
 export interface Resolver {
   /** The arguments as stored, or the issue with them. */
   args(a: Record<string, unknown>): Args | string;
-  /** Whether it came true on `day` (a closed day). */
-  outcome(db: Db, day: string, a: Args, tz: string): 0 | 1;
+  /** Whether it came true on `day` (a closed day); none for one the Senses object answers. */
+  outcome?(db: Db, day: string, a: Args, tz: string): 0 | 1;
   /** On how many of the days `from`…`to` (exclusive) it came true, of how many counted. */
-  history(db: Db, from: string, to: string, a: Args, tz: string): { k: number; n: number };
+  history?(db: Db, from: string, to: string, a: Args, tz: string): { k: number; n: number };
+}
+
+/** What the Senses object says about one app's opening (its `typeDays`). */
+export interface Sensed {
+  days: { day: string; n: number }[];
+  first: string | null;
+}
+/** `app.open` from the Senses object: that day, and the days before it from the first it ever saw. */
+export function appOpen(day: string, base: string, s: Sensed): { outcome: 0 | 1; k: number; n: number } {
+  const opened = new Set(s.days.filter((d) => d.n > 0).map((d) => d.day));
+  const since = s.first && s.first > base ? s.first : base;
+  return {
+    outcome: opened.has(day) ? 1 : 0,
+    k: [...opened].filter((d) => d >= base && d < day).length,
+    n: s.first && s.first < day ? daysBetween(since, day) : 0,
+  };
 }
 
 const start = (day: string, tz: string) => zonedMinute(day, DAY_STARTS_HOUR * 60, tz);
@@ -63,6 +79,12 @@ export const RESOLVERS: Record<PredictionCategory, Resolver> = {
         ? { time: a.time }
         : '{ time }, HH:MM from 05:00 to 23:59',
   ),
+  'app.open': {
+    args: (a) =>
+      Object.keys(a).length === 1 && typeof a.app === 'string' && Object.hasOwn(PREDICTION_APPS, a.app)
+        ? { app: a.app }
+        : `{ app }, one of ${Object.keys(PREDICTION_APPS).join(', ')}`,
+  },
   'decision.answered': {
     args: (a) =>
       Object.keys(a).length === 1 && typeof a.id === 'string' && /^[0-9a-f-]{36}$/.test(a.id)

@@ -83,6 +83,8 @@ Acceptance: [DATA.md](DATA.md) has a row for every table, and a test fails if a 
 | Session token | IndexedDB `th-auth` | Until sign-out or revocation | yes |
 | Recent conversation, last briefing, surfaces | IndexedDB `th-data` | Last 7 days **[proposal]** | yes |
 | Outbox (messages and events not sent yet) | IndexedDB `th-data` | Until sent | yes |
+| App openings and tile taps not sent yet (P9; names and times only) | `localStorage` `th.p.senses`, `th.p.senses.batch` (at most 200) | Until the Worker takes them | yes |
+| "Go quiet"'s end (P8) | `localStorage` `th.p.quiet.until`, `th.p.quiet.pending` | Until it ends | yes |
 | Unsent text in the ask bar | memory, then IndexedDB `th-data` draft | Until sent or cleared | yes |
 | Offline songs, podcast downloads, Study PDFs | OPFS | Until removed or evicted (song budget 512 MB, LRU) | yes |
 | Covers, music index, song heads | Cache Storage (named caches) | Until replaced | yes |

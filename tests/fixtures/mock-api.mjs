@@ -205,6 +205,7 @@ function answer(state, method, url, body) {
   if (method === 'PATCH' && p.startsWith('/v1/auth/sessions/')) return [200, { ...state.sessions[0], label: body.label }];
   if (method === 'POST' && /^\/v1\/auth\/notices\/[^/]+\/ack$/.test(p)) return [204, null];
   if (k === 'POST /v1/auth/breakglass/cancel') return [204, null];
+  if (method === 'PUT' && p.startsWith('/v1/senses/batches/')) return [200, { accepted: body.events.length, rejected: [] }];
   return (
     proposalsAnswer(state.proposals, method, p, url, body, (kind) => changed(state.chat, kind)) ??
     memoryAnswer(state.memory, method, p, url, body) ??

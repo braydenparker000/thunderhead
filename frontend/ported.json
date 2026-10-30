@@ -1409,11 +1409,12 @@
    "adjustments": []
   },
   "assets/error-report.js": {
-   "sha256": "7e6048644284acf0c9941059a4ff2cda8e5f45c152e45fb982df00da25a013e4",
+   "sha256": "e89a6eebc6c0f6699f6d781581ccc072c16037d5d79d52300649e8337d7070b3",
    "old_sha256": "b2a4592c32d082d05fe6cc9222bacf56db172603b39eb6b46d541dae6b3e960e",
    "adjustments": [
     "api-address",
-    "data-move"
+    "data-move",
+    "improvement"
    ],
    "edits": [
     [
@@ -1425,7 +1426,7 @@
      "import {API_ORIGIN} from './config.js';\n"
     ],
     [
-     "const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';\n// Data moves (MIGRATION.md §2.5): signed in, a page reports to the new Worker's inbox with the owner's session (a top-level page only); signed out, as before.\nlet session = null;\nimport('/th/ported/session.js').then(m => m.sessionToken()).then(t => { session = t; }, () => {});\n// The new inbox's shape (API.md §11.16): a code and a message, with where in this site's code it came from instead of a\n// stack; an address in the message keeps only its host (add-on and stream addresses are secrets, ASTRA.md §5.2).\nconst where = stack => stack.split(location.origin + '/')[1]?.match(/^[^\\s()]+:\\d+:\\d+/)?.[0];\nconst bare = text => text.replace(/\\bhttps?:\\/\\/([^/\\s?#]+)\\S*/g, '$1/…');\nconst item = r => ({source: 'client', code: `${r.app}.${r.kind}`, route: r.path, message: (where(r.stack) ? `${bare(r.message)} @ /${where(r.stack)}` : bare(r.message)).slice(0, 300), build: 0, at: r.at});\n",
+     "const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';\n// Data moves (MIGRATION.md §2.5): signed in, a page reports to the new Worker's inbox with the owner's session (a top-level page only); signed out, as before.\nlet session = null;\nimport('/th/ported/session.js').then(m => m.sessionToken()).then(t => { session = t; }, () => {});\n// What the owner uses (P9, EVALS.md M-16, M-18): this app opening, signed in, is one event (th/senses/send.js).\nif (location.origin === SITE) import('/th/senses/send.js').then(m => m.sense(`${app}.open`)).catch(() => {});\n// The new inbox's shape (API.md §11.16): a code and a message, with where in this site's code it came from instead of a\n// stack; an address in the message keeps only its host (add-on and stream addresses are secrets, ASTRA.md §5.2).\nconst where = stack => stack.split(location.origin + '/')[1]?.match(/^[^\\s()]+:\\d+:\\d+/)?.[0];\nconst bare = text => text.replace(/\\bhttps?:\\/\\/([^/\\s?#]+)\\S*/g, '$1/…');\nconst item = r => ({source: 'client', code: `${r.app}.${r.kind}`, route: r.path, message: (where(r.stack) ? `${bare(r.message)} @ /${where(r.stack)}` : bare(r.message)).slice(0, 300), build: 0, at: r.at});\n",
      "const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';\n"
     ],
     [

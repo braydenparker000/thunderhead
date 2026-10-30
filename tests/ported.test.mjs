@@ -17,8 +17,10 @@ const KINDS = ['paths', 'route-folder', 'api-address', 'csp', 'data-move', 'impr
 /** Apps whose data has moved to the new Worker (SECURITY.md §4.4 rule 4), and the one new-site file
  * each may load: Music in P5, through its own worker; Guitar in P6, its sources with the session. */
 const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/th/ported/session.js'], 'podcasts/sw.js': ['/th/podcasts/bridge.js'], 'assets/error-report.js': ['/th/ported/session.js'] };
-/** Improvements the owner agreed to that load a new-site file of the player's own (never the session). */
+/** Improvements the owner agreed to that load a new-site file of their own (never the session directly;
+ * th/senses/send.js reads it to send the owner's app openings, as the reporter's own data move does). */
 const IMPROVED = {
+  'assets/error-report.js': ['/th/senses/send.js'],
   'music/src/app.js': ['/th/music/dj.js'],
   'music/src/player/player.js': ['/th/music/dj.js'],
   'music/src/list/sources.js': ['/th/music/search.js'],

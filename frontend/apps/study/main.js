@@ -48,5 +48,7 @@ if (window.top === window.self) {
     onSignedOut(() => location.replace('/signin/'));
     onPlace(render);
     render();
+    // What the owner uses (P9): Study opening is one sense event.
+    import('/th/senses/send.js').then((m) => m.sense('study.open')).catch(() => {});
   }
 }

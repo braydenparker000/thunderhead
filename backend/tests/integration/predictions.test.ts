@@ -7,6 +7,7 @@ import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { CategorySkill, Prediction } from '../../../shared/contract/predictions.ts';
 import { logicalDay } from '../../src/areas/conversation/day';
+import { uuidv7 } from '../../src/lib/ids';
 import { DAY, dayBefore, HOUR } from '../../src/lib/time';
 import type { Core } from '../../src/objects/core';
 import { api, apiJson, core, coreSql } from '../helpers';
@@ -176,6 +177,37 @@ describe('predictions', () => {
       ID(43),
     );
     expect(got.map((r) => r.outcome)).toEqual([1, 0]);
+  });
+
+  it('an app opening comes from the phone’s senses: not once opened today; resolved from the days before', async () => {
+    const opened = (at: number, type = 'guitar.open') =>
+      api('PUT', `/v1/senses/batches/${uuidv7()}`, { token: D, body: { events: [{ id: uuidv7(at), at, type }] } });
+    const app = (more: object = {}) => guess({ category: 'app.open', args: { app: 'guitar' }, ...more });
+    expect((await put(N, 50, app({ args: { app: 'nowhere' } }))).status).toBe(422);
+    await coreSql('DELETE FROM predictions WHERE made_at > ?', Date.now() - DAY);
+    expect((await put(N, 51, app())).status).toBe(200);
+    expect((await opened(Date.now())).status).toBe(200);
+    const late = await apiJson<{ error: { details: { issue: string }[] } }>('PUT', `/v1/predictions/${ID(52)}`, {
+      token: N,
+      body: app({ p: 0.6 }),
+    });
+    expect([late.status, late.body.error.details[0].issue]).toEqual([422, 'the owner has already opened it that day']);
+    expect((await put(N, 52, app({ day: dayBefore(today, -1) }))).status).toBe(200);
+    // Guitar opened on d4 and d2 (noon UTC); a prediction about d2 is true, with d4 and d3 before it.
+    const [d2, d4] = [2, 4].map((n) => dayBefore(today, n));
+    for (const d of [d4, d2]) expect((await opened(Date.parse(`${d}T12:00:00Z`))).status).toBe(200);
+    await made(53, 'app.open', { app: 'guitar' }, d2, 0.7);
+    await made(54, 'app.open', { app: 'study' }, d2, 0.3);
+    await tick();
+    const got = await coreSql<{ outcome: number; base: number }>(
+      'SELECT outcome, base FROM predictions WHERE id IN (?, ?) ORDER BY id',
+      ID(53),
+      ID(54),
+    );
+    expect(got).toEqual([
+      { outcome: 1, base: (1 + 1) / (2 + 2) },
+      { outcome: 0, base: 0.5 },
+    ]);
   });
 
   it('the skill shows from 30 resolved: 1 − Brier ÷ the base rate’s Brier', async () => {

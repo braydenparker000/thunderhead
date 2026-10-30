@@ -227,7 +227,7 @@ export class Core extends CorePredictions {
     const reflex = await this.watchdogTick(now, fetchImpl);
     await this.backupsTick(now);
     this.workTick(now);
-    this.predictionsTick(now, tz, due ?? d);
+    await this.predictionsTick(now, tz, due ?? d);
     return { rolled: due, pruned, night: wakeNight?.id ?? null, reflex };
   }
 

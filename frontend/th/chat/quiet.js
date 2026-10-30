@@ -5,9 +5,9 @@
 // mind. The end is kept on this phone at once and given to the Worker as `quiet.until`.
 import { api, signedIn } from '../client.js';
 
-const KEY = 'th.quiet.until';
+const KEY = 'th.p.quiet.until';
 /** Set here and not yet taken by the Worker. */
-const PENDING = 'th.quiet.pending';
+const PENDING = 'th.p.quiet.pending';
 const HOUR = 3_600_000;
 const WEEK = 168 * HOUR;
 const NUMBERS = 'zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve'.split('|');

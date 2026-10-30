@@ -129,6 +129,11 @@ export class Senses extends OwnerObject {
     return { rows, rows_read: this.meter.rowsRead - before };
   }
 
+  /** A type's days for the predictions' resolvers (P9): counts only. */
+  typeDays(type: string, from: string, to: string): { days: { day: string; n: number }[]; first: string | null } {
+    return store.typeDays(this.db, type, from, to);
+  }
+
   /** One day's events for the night's input: counts by type, never content. */
   summary(day: string): EventsSummary {
     const by_type = store.summary(this.db, day);

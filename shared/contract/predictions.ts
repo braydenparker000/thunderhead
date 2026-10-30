@@ -14,6 +14,17 @@ export const PREDICTION_CATEGORIES = {
   'chat.before': 'chat.before',
   /** The owner answers this waiting decision card before the day ends. `{ id }` */
   'decision.answered': 'decision.answered',
+  /** The owner opens this app that day (its page, signed in): `{ app }`, one of `PREDICTION_APPS`. */
+  'app.open': 'app.open',
+} as const;
+/** The apps whose opening the phone reports, by the sense type it sends (the ported pages' own names). */
+export const PREDICTION_APPS = {
+  music: 'player.open',
+  guitar: 'guitar.open',
+  podcasts: 'podcasts.open',
+  astra: 'astra.open',
+  media: 'mymedia.open',
+  study: 'study.open',
 } as const;
 export type PredictionCategory = keyof typeof PREDICTION_CATEGORIES;
 

@@ -188,7 +188,7 @@ export async function push(argv) {
   out({queued_until: data.queued_until ?? null});
 }
 
-const PREDICT_USAGE = 'usage: th predict <category> --p <0.01-0.99> --why <text> [--n <n> | --time <HH:MM> | --card <id>] [--day <day>] | list [--open] | skill';
+const PREDICT_USAGE = 'usage: th predict <category> --p <0.01-0.99> --why <text> [--n <n> | --time <HH:MM> | --card <id> | --app <app>] [--day <day>] | list [--open] | skill';
 const nextDay = day => new Date(Date.parse(`${day}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
 
 /** `th predict` (P9, EVALS.md M-18): a prediction about the open day (the day after the briefing's),
@@ -202,6 +202,7 @@ export async function predict(argv) {
   if (flags.n !== undefined) args.n = Number(flags.n);
   if (flags.time !== undefined) args.time = String(flags.time);
   if (flags.card !== undefined) args.id = String(flags.card);
+  if (flags.app !== undefined) args.app = String(flags.app);
   const briefed = getState('day');
   const day = typeof flags.day === 'string' ? flags.day : briefed ? nextDay(briefed) : null;
   if (!day) throw invalid('--day is required (no briefing day recorded)');

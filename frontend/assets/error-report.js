@@ -22,6 +22,8 @@ const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';
 // Data moves (MIGRATION.md §2.5): signed in, a page reports to the new Worker's inbox with the owner's session (a top-level page only); signed out, as before.
 let session = null;
 import('/th/ported/session.js').then(m => m.sessionToken()).then(t => { session = t; }, () => {});
+// What the owner uses (P9, EVALS.md M-16, M-18): this app opening, signed in, is one event (th/senses/send.js).
+if (location.origin === SITE) import('/th/senses/send.js').then(m => m.sense(`${app}.open`)).catch(() => {});
 // The new inbox's shape (API.md §11.16): a code and a message, with where in this site's code it came from instead of a
 // stack; an address in the message keeps only its host (add-on and stream addresses are secrets, ASTRA.md §5.2).
 const where = stack => stack.split(location.origin + '/')[1]?.match(/^[^\s()]+:\d+:\d+/)?.[0];

@@ -52,7 +52,15 @@ export async function startBriefing() {
     if (!t) return;
     if (t.dataset.go === 'waiting') toCard();
     else if (t.dataset.go === 'board') import('./board.js').then((m) => m.openBoard(/** @type {string} */ (t.dataset.day)));
-    else if (t.dataset.go === 'open' && t.dataset.path?.startsWith('/')) location.assign(t.dataset.path);
+    else if (t.dataset.go === 'open' && t.dataset.path?.startsWith('/')) {
+      // A tap acts on the night's arrangement (EVALS.md M-16): one sense, kept before the page leaves
+      // (the next page sends it if this one can't).
+      const path = t.dataset.path;
+      const ledger = t.dataset.ledger;
+      (ledger ? import('../senses/send.js').then((m) => m.sense('briefing.tile', `ledger:${ledger}`)) : Promise.resolve())
+        .catch(() => {})
+        .finally(() => location.assign(path));
+    }
     else if (t.dataset.go === 'weather' && shown?.weather) {
       const w = shown.weather;
       import('./weather.js').then((m) => m.openWeather(w, () => { at = 0; refresh(); }));
@@ -112,6 +120,7 @@ function nightTile(t) {
   }
   if (!t.detail) node.querySelector('.s')?.remove();
   if (t.path) node.dataset.path = t.path;
+  if (t.ledger_id) node.dataset.ledger = t.ledger_id;
   node.setAttribute('aria-label', [t.label, t.big, t.value, t.detail].filter(Boolean).join(', '));
   return node;
 }

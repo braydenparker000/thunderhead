@@ -3,7 +3,8 @@
 // (Music, as staged with the API host in its CSP; Astra) sends an uncaught error to the new Worker's
 // inbox (mocked) with the session, in the inbox's shape, an address in it cut to its host (Astra's
 // add-on addresses are secrets); signed out, to the old Worker's inbox without a session as before.
-// Local only; no network.
+// P9: signed in, a ported page's opening is one sense event (`<app>.open`) in a sealed batch; signed
+// out, none. Local only; no network.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -17,6 +18,7 @@ const TOKEN = `th1_${'A'.repeat(43)}abcdef`;
 const API = 'https://api.example.test';
 let site, browser, base;
 const inbox = [];
+const senses = [];
 
 before(async () => {
   if (live) return;
@@ -38,8 +40,9 @@ async function opened(signedIn) {
   // The new Worker's inbox.
   await context.route(`${API}/**`, (route) => {
     const r = route.request();
-    const cors = { 'Access-Control-Allow-Origin': SITE, 'Access-Control-Allow-Methods': 'POST', 'Access-Control-Allow-Headers': 'Authorization, Content-Type' };
-    if (r.method() !== 'OPTIONS') inbox.push({ path: new URL(r.url()).pathname, auth: r.headers().authorization ?? '', body: r.postDataJSON() });
+    const cors = { 'Access-Control-Allow-Origin': SITE, 'Access-Control-Allow-Methods': 'POST, PUT', 'Access-Control-Allow-Headers': 'Authorization, Content-Type' };
+    const sent = { path: new URL(r.url()).pathname, auth: r.headers().authorization ?? '', body: r.postDataJSON() };
+    if (r.method() !== 'OPTIONS') (sent.path.startsWith('/v1/senses/') ? senses : inbox).push(sent);
     return route.fulfill({ status: 204, headers: cors });
   });
   await context.route(/^https:\/\/(?!thunderhead\.z13|jarvis-hub-api|api\.example\.test)/, (route) => route.abort());
@@ -97,3 +100,23 @@ test('signed out, a page reports to the old inbox as before, without a session',
   assert.equal(inbox.length, before, 'nothing to the new inbox');
   await context.close();
 });
+
+test('signed in, a ported page’s opening is one sense event in a sealed batch; signed out, none', opts, async () => {
+  const { context, page } = await opened(true);
+  await page.goto(`${SITE}/guitar/`, { waitUntil: 'load' });
+  await waitFor(page, () => senses.length);
+  assert.equal(senses.length, 1);
+  assert.match(senses[0].path, /^\/v1\/senses\/batches\/[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+  assert.equal(senses[0].auth, `Bearer ${TOKEN}`);
+  const [e] = senses[0].body.events;
+  assert.deepEqual([e.type, Object.keys(e).sort()], ['guitar.open', ['at', 'id', 'type']]);
+  assert.deepEqual(await page.evaluate(() => [localStorage.getItem('th.p.senses'), localStorage.getItem('th.p.senses.batch')]), [null, null], 'taken, so nothing waits');
+  await context.close();
+  const out = await opened(false);
+  await out.page.goto(`${SITE}/podcasts/`, { waitUntil: 'load' });
+  await out.page.waitForTimeout(3500);
+  assert.equal(senses.length, 1, 'signed out: nothing kept or sent');
+  assert.equal(await out.page.evaluate(() => localStorage.getItem('th.p.senses')), null);
+  await out.context.close();
+});
+

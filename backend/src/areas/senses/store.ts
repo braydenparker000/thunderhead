@@ -149,3 +149,12 @@ export const hasEvents = (db: Db, day: string) => !!db.one('SELECT 1 AS x FROM e
 export function unmarkExport(db: Db, day: string): void {
   db.run('DELETE FROM exports WHERE day = ?', day);
 }
+
+/** A type's events a day from `from` to `to` (inclusive), and the first day it was ever seen: for the
+ * predictions' resolvers (P9), counts only. */
+export function typeDays(db: Db, type: string, from: string, to: string) {
+  return {
+    days: countsByDay(db, from, to, type).map((r) => ({ day: r.day, n: r.n })),
+    first: db.one<{ day: string | null }>('SELECT min(day) AS day FROM rollups WHERE type = ?', type)?.day ?? null,
+  };
+}

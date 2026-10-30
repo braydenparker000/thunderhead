@@ -26,6 +26,8 @@ export interface NightTile {
   app: string | null;
   path: string | null;
   why: string;
+  /** The ledger row that placed it: a tap is a `briefing.tile` sense with this ref (P9, M-16). */
+  ledger_id: string | null;
 }
 
 export interface BoardTile {

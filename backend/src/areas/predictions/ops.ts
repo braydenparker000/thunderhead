@@ -16,7 +16,7 @@ import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { currentDay } from '../conversation/day';
 import * as pstore from '../proposals/store';
-import { RESOLVERS } from './resolvers';
+import { appOpen, RESOLVERS, type Sensed } from './resolvers';
 
 interface Row {
   id: string;
@@ -36,7 +36,16 @@ interface Row {
 const COLS = 'id, made_at, made_by, category, args_json, day, p, why, outcome, base, resolved_at, req_sha256';
 const shown = ({ args_json, req_sha256: _h, ...r }: Row): Prediction => ({ ...r, args: JSON.parse(args_json) });
 
-export function put(w: Writer, c: Caller, id: string, r: PutPredictionRequest, hash: string, tz: string): Prediction {
+/** `opened`: the app of an `app.open` prediction was already opened on the open day (Senses). */
+export function put(
+  w: Writer,
+  c: Caller,
+  id: string,
+  r: PutPredictionRequest,
+  hash: string,
+  tz: string,
+  opened = false,
+): Prediction {
   const had = w.db.one<Row>(`SELECT ${COLS} FROM predictions WHERE id = ?`, id);
   if (had) {
     if (had.req_sha256 !== hash) throw new Fail('conflict');
@@ -48,8 +57,9 @@ export function put(w: Writer, c: Caller, id: string, r: PutPredictionRequest, h
   const open = currentDay(w.db, tz, w.at);
   if (r.day !== open && r.day !== dayBefore(open, -1)) throw invalid('day', 'the open day or the next');
   // Said before the owner's day shows it: a chat prediction only before their first message of it.
-  if (r.category.startsWith('chat.') && r.day === open && RESOLVERS['chat.any'].outcome(w.db, open, {}, tz))
+  if (r.category.startsWith('chat.') && r.day === open && RESOLVERS['chat.any'].outcome?.(w.db, open, {}, tz))
     throw invalid('day', 'the owner has already written that day');
+  if (opened && r.day === open) throw invalid('day', 'the owner has already opened it that day');
   if (r.category === 'decision.answered' && pstore.byId(w.db, String(args.id))?.status !== 'waiting')
     throw invalid('args.id', 'not a waiting card');
   const today = w.db.one<{ n: number }>('SELECT count(*) AS n FROM predictions WHERE made_at > ?', w.at - DAY)?.n ?? 0;
@@ -76,25 +86,40 @@ export function put(w: Writer, c: Caller, id: string, r: PutPredictionRequest, h
 export const anyDue = (db: Db, open: string) =>
   db.one('SELECT 1 AS x FROM predictions WHERE resolved_at IS NULL AND day < ? LIMIT 1', open) !== null;
 
-/** The tick's pass: predictions whose day is over get their outcome and base rate (≤ 50 a tick). */
-export function resolve(w: Writer, open: string, tz: string): number {
-  const due = w.db.all<Row>(
-    `SELECT ${COLS} FROM predictions WHERE resolved_at IS NULL AND day < ? ORDER BY day LIMIT 50`,
-    open,
-  );
-  for (const r of due) {
+const DUE = `SELECT ${COLS} FROM predictions WHERE resolved_at IS NULL AND day < ? ORDER BY day LIMIT 50`;
+
+/** The due `app.open` predictions, for the Senses object's answers before the write. */
+export const dueApps = (db: Db, open: string) =>
+  db
+    .all<Row>(DUE, open)
+    .filter((r) => r.category === 'app.open')
+    .map((r) => ({ id: r.id, day: r.day, app: String(JSON.parse(r.args_json).app) }));
+
+/** The tick's pass: predictions whose day is over get their outcome and base rate (≤ 50 a tick); an
+ * `app.open` one only once the Senses object has answered for it (`sensed`, by id). */
+export function resolve(w: Writer, open: string, tz: string, sensed: Map<string, Sensed> = new Map()): number {
+  let n = 0;
+  for (const r of w.db.all<Row>(DUE, open)) {
     const resolver = RESOLVERS[r.category];
     const args = JSON.parse(r.args_json);
-    const { k, n } = resolver.history(w.db, dayBefore(r.day, PREDICTION_LIMITS.base_days), r.day, args, tz);
+    const base = dayBefore(r.day, PREDICTION_LIMITS.base_days);
+    const s = sensed.get(r.id);
+    const got = s
+      ? appOpen(r.day, base, s)
+      : resolver.outcome && resolver.history
+        ? { outcome: resolver.outcome(w.db, r.day, args, tz), ...resolver.history(w.db, base, r.day, args, tz) }
+        : null;
+    if (!got) continue;
     w.db.run(
       'UPDATE predictions SET outcome = ?, base = ?, resolved_at = ? WHERE id = ?',
-      resolver.outcome(w.db, r.day, args, tz),
-      (k + 1) / (n + 2),
+      got.outcome,
+      (got.k + 1) / (got.n + 2),
       w.at,
       r.id,
     );
+    n++;
   }
-  return due.length;
+  return n;
 }
 
 export function list(db: Db, open: boolean, limit: number): Prediction[] {
