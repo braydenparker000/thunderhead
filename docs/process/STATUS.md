@@ -76,6 +76,7 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Last deploy
 
+- 2026-10-30 ~14:50 UTC: `dc96e6a`, home's feel (swipes, the ask box and keyboard, the bottom light, thinking words, the menu, upright rich replies with the Board's blocks). Runs #78-#85 failed on two tests, neither a product bug: the weather fixture stamped days at the current hour (red on main from 12:00 UTC; fixed `5728bb4`) and the ask box test read layout before its resize observer ran (fixed `dc96e6a`). Checked live: the 14 changed files match, the pages differ only by the CSP's API origin, the upright font serves as font/woff2, the home tests pass against the live site, and a touchscreen run there opens the Briefing from an arc and returns on a flick, with no errors.
 - 2026-10-30 09:57 UTC: `a845401` (run #76), the shell's one look. Checked live: the 11 CSS and JS files match, the 3 pages differ only by the API origin in their CSP, and the 404 page (at `/404.html`) and sign-in render with the field, the voice and the 30 px title. The cross-fade into a page that leaves before it shows threw live; fixed in the next commit.
 - 2026-10-30: `1402a13` (run #74), `th surface --ref` (the mind's CLI and ROLES only).
 - 2026-10-30 08:03 UTC: `d1b0298` (run #73), P9 the meter on the Memory page. Checked live: the Worker's tag, the page's files, `/v1/insight` 401 without a key.
