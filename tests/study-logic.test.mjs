@@ -149,7 +149,7 @@ test('a search snippet becomes text and marks, never HTML', () => {
   assert.deepEqual(snippetParts('&lt;img src=x onerror=alert(1)&gt;'), [{ text: '<img src=x onerror=alert(1)>', mark: false }]);
 });
 
-test('the vendored pdf.js is the recorded 6.4.299, file for file (STUDY.md §2.2)', async () => {
+test('the vendored pdf.js is the recorded 6.4.299 legacy build, file for file (STUDY.md §2.2)', async () => {
   const { readFileSync } = await import('node:fs');
   const { createHash } = await import('node:crypto');
   const dir = new URL('../frontend/vendor/pdfjs-6.4.299/', import.meta.url);
@@ -160,4 +160,7 @@ test('the vendored pdf.js is the recorded 6.4.299, file for file (STUDY.md §2.2
     assert.equal(createHash('sha256').update(readFileSync(new URL(name, dir))).digest('hex'), sum, name);
   }
   assert.match(readFileSync(new URL('LICENSE.txt', dir), 'utf8'), /Apache License\s+Version 2\.0/);
+  // The legacy build carries its own polyfills for built-ins older Chrome lacks.
+  assert.match(readFileSync(new URL('pdf.min.mjs', dir), 'utf8'), /getOrInsertComputed/);
+  assert.ok(readFileSync(new URL('pdf.min.mjs', dir)).length > 500_000, 'the legacy build');
 });

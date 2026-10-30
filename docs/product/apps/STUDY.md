@@ -567,7 +567,8 @@ a day crossing the 04:00 roll).
    first page, so covers need no network; then sent in parts with byte progress and Resume. The reader
    draws five pages at most, at the screen's pixel ratio (at most 2), each with its text layer; page
    labels come from the PDF's own `/PageLabels` until ingestion stores them. pdf.js 6.4.299 is vendored
-   with its `LICENSE.txt` and `SHA256SUMS.txt` (checked by `tests/study-logic.test.mjs`). Reading needs
+   (its legacy build: the modern one uses built-ins only the newest Chrome has, unpolyfilled, which
+   failed in CI's Chromium) with its `LICENSE.txt` and `SHA256SUMS.txt` (checked by `tests/study-logic.test.mjs`). Reading needs
    SETUP.md N1 and O1; until then the reader says "Books can't open yet". Not yet: keeping a book on the
    phone, highlights and notes (step 5), the verse card (step 4), Study's senses (with the phone's
    senses batcher), Delete book (a proposal).

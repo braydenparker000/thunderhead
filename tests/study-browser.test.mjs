@@ -105,6 +105,14 @@ after(async () => {
 
 async function open(path) {
   const context = await browser.newContext({ viewport: { width: 390, height: 780 }, deviceScaleFactor: 2 });
+  // A Chrome without the newest built-ins (CI's, or an older phone's): pdf.js must bring its own.
+  await context.addInitScript(() => {
+    delete Map.prototype.getOrInsertComputed;
+    delete Map.prototype.getOrInsert;
+    delete Math.sumPrecise;
+    delete Uint8Array.fromBase64;
+    delete Uint8Array.prototype.toBase64;
+  });
   // The private bucket: only signed links, ranges answered with 206, one 403 when asked to.
   await context.route(`${BUCKET}/**`, async (route) => {
     const r = route.request();

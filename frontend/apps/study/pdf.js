@@ -1,6 +1,7 @@
 // @ts-check
-// pdf.js for Study (STUDY.md §2.2): vendored 6.4.299 (Apache-2.0), its worker served from this
-// site, no WebAssembly (the shell's CSP has no 'wasm-unsafe-eval'), ranges of 256 KB asked for only
+// pdf.js for Study (STUDY.md §2.2): vendored 6.4.299 (Apache-2.0), its legacy build (the modern one
+// needs built-ins only the newest Chrome has, unpolyfilled), its worker served from this site, no
+// WebAssembly (the shell's CSP has no 'wasm-unsafe-eval'), ranges of 256 KB asked for only
 // when needed. It also reads a file the owner picks, from the phone itself, for its title, author
 // and a cover drawn from its first page, before anything is uploaded.
 

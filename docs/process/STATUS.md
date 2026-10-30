@@ -6,7 +6,7 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 ## Current phase
 
 **P7 · Study**. Step 2, going live with this push: the Study app on its own page (`/study/`: the library with Continue and covers drawn on the phone, adding a book in parts with Resume, search grouped by book, and the reader over signed 256 KB ranges with printed page numbers, Go to page, the place kept across devices, night pages). Checked in Chromium against a mock API and bucket. Reading needs SETUP.md N1 and O1 (ask-first).
-Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, migration tag `v4`), and its routes since 00:57 UTC (`8c79055`, run #47; checked live: every route answers 401 without a key, the parts preflight is allowed): (API.md §11.21: books uploaded in 50 MiB parts straight into the private bucket, reading places, highlights, search, the mind's claimed reading runs with pages under the bulk lane), `book:` signing, the Library's daily pass, and the Library and the senses' rollups in the weekly backup and the export. Owner step: SETUP.md O1 (the private bucket's CORS rule for the reader, ask-first), needed once the reader ships.
+Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, migration tag `v4`), and its routes since 00:57 UTC (`8c79055`, run #47; checked live: every route answers 401 without a key, the parts preflight is allowed): (API.md §11.21: books uploaded in 50 MiB parts straight into the private bucket, reading places, highlights, search, the mind's claimed reading runs with pages under the bulk lane), `book:` signing, the Library's daily pass, and the Library and the senses' rollups in the weekly backup and the export. Owner step: SETUP.md O1 (the private bucket's CORS rule for the reader; approved 2026-10-30, the owner applies it).
 
 **P6 · Evolve Guitar**, data move, live since 00:19 UTC (`ce29c20`, run #45): `/v1/guitar/*` (Songsterr, GProTab, samples, the old routes ported), and the ported app's sources module asks the new Worker with the owner's session when signed in on this site (else the old Worker). No owner step: it switches as soon as the page loads signed in. Checked in Chromium both ways, and live: the page's CSP carries the API host, the routes answer 401 without a key, the live files match the commit, and signed out the live page searches through the old Worker with no errors. The improvements (practice senses, tempo ladder, tips, calibration, ears) wait for the owner's yes.
 
@@ -42,13 +42,13 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 ## Blocked / waiting on the owner
 
 - SETUP.md M2 (batch D is live) and M3 (G+H is live).
-- SETUP.md O1 (the private bucket's CORS rule, ask-first) and N1: Study's reader opens books once both are done.
+- SETUP.md O1 (the private bucket's CORS rule; approved 2026-10-30) and N1: Study's reader opens books once both are done.
 - SETUP.md N1 (the signing token) and N2 (`jarvis-music` CORS, ask-first) any time; N4 (the tools' key) then N3 (the catalog import) on one day: the player switches by itself after them.
 - The decision card's place at the top of home: the owner wants to talk about its design first; unchanged until then.
 
 ## Last deploy
 
-- 2026-10-30: this push, P7 step 2 (the Study app, its own page; site only, but the Worker's chips may now open Study).
+- 2026-10-30: this push, P7 step 2 again with pdf.js's legacy build (run #48 stopped at its tests before deploying: the modern build needs built-ins CI's Chromium lacks). Site, and the Worker's chips may now open Study.
 - 2026-10-30 00:57 UTC: `8c79055` (run #47), P7 step 1b (the Library's routes, `book:` signing, its daily pass; the Library and the senses' rollups in the backup and the export; no schema change). Checked live.
 - 2026-10-30 00:31 UTC: `75aa1da` (run #46), the `Library` object alone (migration tag `v4`). The deploy's smoke check passed.
 - 2026-10-30 00:19 UTC: `ce29c20` (run #45), P6 Guitar's data move. Checked live.

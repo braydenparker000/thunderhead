@@ -439,7 +439,7 @@ so music never stops. The tools and the player switch the same day, so no new so
 To revoke every link at once later: delete the token in the dashboard and make a new one
 ([SECURITY.md §14](../engineering/SECURITY.md)).
 
-### N2. Let the site read `jarvis-music` (about 3 minutes, any time; ask-first: it changes the shared bucket's settings)
+### N2. Let the site read `jarvis-music` (about 3 minutes, any time; approved 2026-10-30)
 
 1. dash.cloudflare.com → **R2 Object Storage** → `jarvis-music` → **Settings** → **CORS Policy** →
    **Add CORS policy** (if one is there already, add this rule to it and keep the others):
@@ -521,7 +521,7 @@ Study keeps your books (PDFs) in the private bucket `thunderhead-private`, never
 The reader on your phone reads a book's pages straight from the bucket through a link signed for
 your device alone (N1's token already covers this bucket), a few pages at a time.
 
-### O1. Let the reader read your books (about 3 minutes, any time; ask-first: it changes the private bucket's settings)
+### O1. Let the reader read your books (about 3 minutes, any time; approved 2026-10-30)
 
 1. dash.cloudflare.com → **R2 Object Storage** → `thunderhead-private` → **Settings** → **CORS
    Policy** → **Add CORS policy**:
@@ -540,6 +540,6 @@ your device alone (N1's token already covers this bucket), a few pages at a time
 
    → **Save**. It lets only the new site read bytes through a signed link; nothing in the bucket
    changes, and the bucket stays private (no public access, no r2.dev).
-2. Tell the agent "O1 done". The check is the reader itself: a book you add opens at its pages
-   on your phone.
+2. Tell the agent "O1 done". It reads the rule back with its read-only access to check it; then a
+   book you add opens at its pages on your phone.
 
