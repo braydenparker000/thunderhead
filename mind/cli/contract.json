@@ -1336,12 +1336,52 @@
       "status": "built",
       "note": "?feed=&id=; byte ranges"
     },
+    "GET /v1/push/key": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "the VAPID public key; 503 until the key is set"
+    },
+    "PUT /v1/push/subscription": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "this session's subscription"
+    },
+    "DELETE /v1/push/subscription": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built"
+    },
+    "POST /v1/push/test": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "one test push to this phone, now"
+    },
+    "GET /v1/push/items/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "a push's words, for the service worker"
+    },
     "PUT /v1/pushes/:id": {
       "who": [
         "C"
       ],
       "phase": "P8",
-      "status": "deferred: P8: Web Push"
+      "status": "built",
+      "note": "a nudge: at most 2 a day, 2 h apart, never in quiet hours"
     }
   },
   "verbs": {

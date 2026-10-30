@@ -237,7 +237,13 @@ export const ROUTES = {
   'GET /v1/podcasts/directory': { who: D, phase: 'P8', note: '?q=|?category=, &country=' },
   'GET /v1/podcasts/feed': { who: D, phase: 'P8', note: '?url=; the feed as sent, at most 4 MB' },
   'GET /v1/podcasts/audio': { who: D, phase: 'P8', note: '?feed=&id=; byte ranges' },
-  'PUT /v1/pushes/:id': { who: ['C'], phase: 'P8', deferred: 'P8: Web Push' },
+  // P8: Web Push (SECURITY.md §10): this phone's subscription, the words a push points at, a test.
+  'GET /v1/push/key': { who: D, phase: 'P8', note: 'the VAPID public key; 503 until the key is set' },
+  'PUT /v1/push/subscription': { who: D, phase: 'P8', note: "this session's subscription" },
+  'DELETE /v1/push/subscription': { who: D, phase: 'P8' },
+  'POST /v1/push/test': { who: D, phase: 'P8', note: 'one test push to this phone, now' },
+  'GET /v1/push/items/:id': { who: D, phase: 'P8', note: "a push's words, for the service worker" },
+  'PUT /v1/pushes/:id': { who: ['C'], phase: 'P8', note: 'a nudge: at most 2 a day, 2 h apart, never in quiet hours' },
 } as const satisfies Record<string, RouteSpec>;
 
 export type RouteKey = keyof typeof ROUTES;

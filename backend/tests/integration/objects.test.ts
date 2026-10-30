@@ -17,12 +17,12 @@ describe('objects', () => {
   it('runs each migration once, even after the object restarts', async () => {
     await setupOwner();
     await evictDurableObject(auth());
-    expect(await authSql('SELECT version FROM _migrations')).toEqual([{ version: 1 }]);
+    expect(await authSql('SELECT version FROM _migrations')).toEqual([{ version: 1 }, { version: 2 }]);
     expect(await authSql('SELECT count(*) AS n FROM credential')).toEqual([{ n: 1 }]);
     const { body } = await apiJson<DeepHealthResponse>('GET', '/v1/ops/health/deep', {
       token: (await loginOk()).token,
     });
-    expect(body.schema).toEqual({ core: 19, auth: 1, music: 1, senses: 1, library: 1 });
+    expect(body.schema).toEqual({ core: 19, auth: 2, music: 1, senses: 1, library: 1 });
     expect(body.ok).toBe(true);
   });
 

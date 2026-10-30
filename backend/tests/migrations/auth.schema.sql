@@ -41,6 +41,31 @@ CREATE TABLE notices (
   expires_at INTEGER
   ) WITHOUT ROWID;
 
+CREATE TABLE push_subscriptions (
+  session_id TEXT PRIMARY KEY,
+  endpoint TEXT NOT NULL,
+  p256dh TEXT NOT NULL,
+  auth TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE TABLE pushes (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  title TEXT NOT NULL,
+  body TEXT NOT NULL,
+  url TEXT NOT NULL,
+  topic_key TEXT,
+  ref TEXT,
+  why TEXT,
+  hash TEXT,
+  session_id TEXT,
+  created_at INTEGER NOT NULL,
+  deadline INTEGER NOT NULL,
+  sent_at INTEGER,
+  dropped_at INTEGER
+  ) WITHOUT ROWID;
+
 CREATE TABLE recovery (
   id INTEGER PRIMARY KEY CHECK (id = 1),
   code_hash BLOB NOT NULL,

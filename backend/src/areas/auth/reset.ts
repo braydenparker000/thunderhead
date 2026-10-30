@@ -1,8 +1,10 @@
 // Setup state and the reset ticket (SIGN-IN.md §4, §10): GET /v1/auth/state, the mind's
 // break-glass request, the GitHub path through AUTH_RESET_FP, and cancel from any device.
+
 import type { AuthStateResponse, BreakglassResponse } from '../../../../shared/contract/api';
 import { uuidv7 } from '../../lib/ids';
 import { DAY, HOUR } from '../../lib/time';
+import { pruneOld } from '../push/store';
 import { type AuthDeps, type Failure, fail, notice, type Result, reserve, throttled } from './flows';
 import * as store from './store';
 import * as keys from './store-keys';
@@ -105,12 +107,13 @@ export function cancel(d: AuthDeps, ticketId: string, label: string, sessionId: 
 }
 
 /** Housekeeping for the cron: pick up AUTH_RESET_FP; forget rows that can no longer matter. */
-export function prune(d: AuthDeps): { sessions: number; counters: number; notices: number } {
+export function prune(d: AuthDeps): { sessions: number; counters: number; notices: number; pushes: number } {
   const now = Date.now();
   syncResetFp(d, now);
   return d.storage.transactionSync(() => ({
     sessions: store.deleteOldSessions(d.db, now - 30 * DAY),
     counters: store.deleteStaleCounters(d.db, now - 2 * DAY),
     notices: keys.deleteOldNotices(d.db, now - 30 * DAY),
+    pushes: pruneOld(d.db, now - 30 * DAY),
   }));
 }

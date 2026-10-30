@@ -58,7 +58,8 @@
   // task is never fired. R2_SIGN_ACCESS_KEY_ID/SECRET are the read-only R2 token that signs media
   // links (SECURITY.md §9, SETUP.md N1); while either is `none`, POST /v1/media/sign answers 503.
   // MUSIC_UPLOAD_PUBLIC_KEYS is the upload tools' public keys, a JSON list (SETUP.md N4); while it
-  // is `none`, /v1/music/uploads/* answers 503.
+  // is `none`, /v1/music/uploads/* answers 503. VAPID_PRIVATE_JWK is Web Push's P-256 private key
+  // (SECURITY.md §10): the deploy makes it once when the live Worker lacks it, so nobody sees it.
   "secrets": {
     "required": [
       "AUTH_PEPPER",
@@ -73,7 +74,8 @@
       "ROUTINE_REFLEX_TOKEN",
       "R2_SIGN_ACCESS_KEY_ID",
       "R2_SIGN_SECRET",
-      "MUSIC_UPLOAD_PUBLIC_KEYS"
+      "MUSIC_UPLOAD_PUBLIC_KEYS",
+      "VAPID_PRIVATE_JWK"
     ]
   },
   "vars": {

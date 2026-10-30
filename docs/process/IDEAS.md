@@ -553,6 +553,7 @@ The phase map for the scored ideas. Top-10 items in bold.
 **Parked from the build (not lost; built when a feature needs them):**
 - Study's highlight and note editor in the reader (STUDY.md §5.4: select, Highlight, Note, Ask, Copy; edit and delete with Undo; page notes). The Worker's highlight routes are built (P7 step 1). Parked 2026-10-30.
 - The wash on a cited block itself rather than its whole page (STUDY.md §5.2). Parked 2026-10-30.
+- Web Push extras (P8): the `signout` push that wipes a revoked phone (SIGN-IN.md §11.3, [proposal]); the audio part of the natural pause (the ported player sends no signal); a dropped nudge becoming a home line; owner-set reminders ("Remind me at 15:00"); the per-kind toggles of MENU-AND-SETTINGS.md §4.3. Parked 2026-10-30.
 - Cited answers: the mind-behaviour evals of STUDY.md §8.3 (the Worker's validator already enforces §8.2 whatever the mind writes), the 30-day answer cache (§8.4), and **Ask about this verse** on the verse page. Parked 2026-10-30.
 
 ---

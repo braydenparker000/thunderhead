@@ -12,6 +12,8 @@ import { fireConfig } from '../areas/mind/fire';
 import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
 import * as ops from '../areas/ops/store';
+import type { PushContext } from '../areas/push/rules';
+import { quietWindow } from '../areas/settings/quiet';
 import * as settings from '../areas/settings/store';
 import { attempt, Fail, type Out } from '../lib/result';
 import { HOUR } from '../lib/time';
@@ -156,6 +158,22 @@ export abstract class CoreBase extends OwnerObject {
 
   liveRevoke(sessionIds: string[]): number {
     return this.hub.revoke(sessionIds);
+  }
+
+  /** What a push waits on (BEHAVIOR.md §3.4): the owner's zone and quiet hours, whether a phone shows
+   * Thunderhead, and when the owner last wrote. */
+  pushContext(): PushContext {
+    const now = Date.now();
+    const last = this.db.one<{ at: number }>(
+      `SELECT created_at AS at FROM messages WHERE author = 'owner' ORDER BY seq DESC LIMIT 1`,
+    );
+    return {
+      now,
+      tz: this.tz(),
+      quiet: quietWindow(this.db),
+      looking: this.hub.looking(now),
+      owner_at: last?.at ?? null,
+    };
   }
 
   /** WebSocket upgrades from the Worker only: `/live` for a phone whose ticket the Worker already

@@ -5,10 +5,15 @@
 //   node scripts/worker-secrets.mjs <out.json> --live <wrangler secret list --format json output file>
 //       `none` for each required name the live Worker lacks; fails if AUTH_PEPPER or IP_HASH_KEY
 //       is missing (only the bootstrap run may make them). Writes nothing when nothing is missing.
-import { randomBytes } from 'node:crypto';
+// VAPID_PRIVATE_JWK (Web Push, SECURITY.md §10) is made here, a new P-256 key, whenever the live Worker
+// lacks it: on the first deploy that needs it, so nobody ever sees it. Replacing it later (every phone
+// subscribes again) is the owner's call.
+import { generateKeyPairSync, randomBytes } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const GENERATED = ['AUTH_PEPPER', 'IP_HASH_KEY'];
+const MADE_WHEN_MISSING = { VAPID_PRIVATE_JWK: () => JSON.stringify(generateKeyPairSync('ec', { namedCurve: 'P-256' }).privateKey.export({ format: 'jwk' })) };
+const missing = (n) => (MADE_WHEN_MISSING[n] ? MADE_WHEN_MISSING[n]() : 'none');
 
 /** `secrets.required` from wrangler.jsonc (whole-line comments only). */
 export function requiredSecrets(jsonc) {
@@ -18,11 +23,11 @@ export function requiredSecrets(jsonc) {
 /** The name → value map to upload, or an error message. */
 export function plan(required, { bootstrap, live }) {
   if (bootstrap)
-    return Object.fromEntries(required.map((n) => [n, GENERATED.includes(n) ? randomBytes(32).toString('base64url') : 'none']));
+    return Object.fromEntries(required.map((n) => [n, GENERATED.includes(n) ? randomBytes(32).toString('base64url') : missing(n)]));
   const have = new Set(live.map((s) => s.name));
   const lost = GENERATED.filter((n) => required.includes(n) && !have.has(n));
   if (lost.length) throw new Error(`The live Worker lacks ${lost.join(', ')}; only a bootstrap run may make them.`);
-  return Object.fromEntries(required.filter((n) => !have.has(n)).map((n) => [n, 'none']));
+  return Object.fromEntries(required.filter((n) => !have.has(n)).map((n) => [n, missing(n)]));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

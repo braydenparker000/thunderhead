@@ -155,7 +155,7 @@ Starting budgets for `backend/tests/cost/budgets.json`, at the year-2 scale fixt
 |---|---|---|---|
 | `GET /v1/health` | 0 | 0 | 0 |
 | Auth check on a cache miss | 1 (`Auth`) | 2 | 0 (1 at most once an hour for `last_seen_at`) |
-| `POST /v1/auth/login` | 1 | 10 | 6 |
+| `POST /v1/auth/login` | 1 | 10 | 7 (a new device's notice also queues its push, P8) |
 | `POST /v1/live/ticket` | 1 (`Core`) | 0 | 1 (and 1 more when the upgrade marks it used) |
 | `GET /v1/live/wait` (one take) | 1 | 5 | 1 at most every 5 min (lease) |
 | `GET /v1/changes` (limit 200) | 1 | 210 | 0 |

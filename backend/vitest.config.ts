@@ -1,6 +1,6 @@
 // Tests run inside workerd (the real Workers runtime) with real SQLite Durable Objects, built
 // from wrangler.jsonc, so bindings, migrations and compatibility settings match production.
-import { createHash } from 'node:crypto';
+import { createHash, generateKeyPairSync } from 'node:crypto';
 import { cloudflareTest } from '@cloudflare/vitest-plugin';
 import { defineConfig } from 'vitest/config';
 import { SETUP_CODE } from './tests/fixtures.ts';
@@ -8,6 +8,8 @@ import { SETUP_CODE } from './tests/fixtures.ts';
 // The setup fingerprint of the synthetic fixture code, computed here so no fingerprint-shaped
 // literal sits in the repo (the credential scan in tests/site.test.mjs would flag it).
 const SETUP_FP = `thfp_${createHash('sha256').update(SETUP_CODE).digest('base64url')}`;
+// A throwaway Web Push key for this run (the push tests answer as the push service).
+const VAPID = JSON.stringify(generateKeyPairSync('ec', { namedCurve: 'P-256' }).privateKey.export({ format: 'jwk' }));
 
 export default defineConfig({
   plugins: [
@@ -33,6 +35,7 @@ export default defineConfig({
           R2_SIGN_SECRET: 'none',
           // No upload tool keys in tests; the upload tests pass their own env.
           MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
+          VAPID_PRIVATE_JWK: VAPID,
           SITE_ORIGINS: 'https://site.example.test',
         },
       },

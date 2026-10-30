@@ -1,9 +1,11 @@
 // Shared machinery of the Auth flows: dependencies, results, back-off bookkeeping, sessions,
 // notices and recovery codes. Runs inside the Auth object.
+
 import type { DeviceHints, ErrorCode, ErrorDetails, SignedIn } from '../../../../shared/contract/api';
 import { uuidv7 } from '../../lib/ids';
 import { DAY, floorHour, utcDay } from '../../lib/time';
 import type { Db } from '../../objects/base';
+import { queueSecurity } from '../push/outbox';
 import { last5Hash, newRecoveryCode, normalizeCode, recoveryHash, sourceKey, tokenHash } from './crypto';
 import type { BreachCheck } from './passwords';
 import * as store from './store';
@@ -138,6 +140,8 @@ export function notice(
     created_at: now,
     expires_at,
   });
+  // A sign-in notice also pushes its generic words, when quiet hours allow (SIGN-IN.md §11.3).
+  queueSecurity(d.db, kind, now);
 }
 
 /** A new recovery code: stored as two keyed hashes, shown once. */

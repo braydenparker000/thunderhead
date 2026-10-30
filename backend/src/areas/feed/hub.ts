@@ -17,6 +17,7 @@ export class Hub {
   accept(ws: WebSocket, who: { session_id: string } | 'wait', seq: number, minClient: number): void {
     const tags = who === 'wait' ? [TAG_WAIT] : [TAG_DEVICE, sessionTag(who.session_id)];
     this.ctx.acceptWebSocket(ws, tags);
+    ws.serializeAttachment({ at: Date.now() });
     send(ws, { t: 'hello', v: LIVE_PROTOCOL, seq, min_client: minClient });
   }
 
@@ -45,6 +46,16 @@ export class Hub {
         n++;
       }
     return n;
+  }
+
+  /** Whether a phone shows Thunderhead now (BEHAVIOR.md §3.4 rule 6): a page connected or pinged in
+   * the last 60 s. Pings run every 30 s only while the page is visible, answered by the runtime. */
+  looking(now: number): boolean {
+    return this.ctx.getWebSockets(TAG_DEVICE).some((ws) => {
+      const pinged = this.ctx.getWebSocketAutoResponseTimestamp(ws)?.getTime() ?? 0;
+      const at = (ws.deserializeAttachment() as { at?: number } | null)?.at ?? 0;
+      return Math.max(pinged, at) >= now - 60_000;
+    });
   }
 
   counts(): { devices: number; waiting: number } {

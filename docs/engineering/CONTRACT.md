@@ -166,7 +166,12 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/podcasts/directory` | D | P8 | built | ?q=\|?category=, &country= |
 | `GET /v1/podcasts/feed` | D | P8 | built | ?url=; the feed as sent, at most 4 MB |
 | `GET /v1/podcasts/audio` | D | P8 | built | ?feed=&id=; byte ranges |
-| `PUT /v1/pushes/:id` | C | P8 | deferred: P8: Web Push |  |
+| `GET /v1/push/key` | D | P8 | built | the VAPID public key; 503 until the key is set |
+| `PUT /v1/push/subscription` | D | P8 | built | this session's subscription |
+| `DELETE /v1/push/subscription` | D | P8 | built |  |
+| `POST /v1/push/test` | D | P8 | built | one test push to this phone, now |
+| `GET /v1/push/items/:id` | D | P8 | built | a push's words, for the service worker |
+| `PUT /v1/pushes/:id` | C | P8 | built | a nudge: at most 2 a day, 2 h apart, never in quiet hours |
 
 ## Verbs
 

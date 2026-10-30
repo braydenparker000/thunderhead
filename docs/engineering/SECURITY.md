@@ -366,7 +366,8 @@ Fixed by decisions: `POST /v1/media/sign {refs}`, signing time floored to the ho
 
 ## 10. Web Push
 
-- VAPID key pair (P-256). The private key is the Worker secret `VAPID_PRIVATE_JWK`; the public key is served by `GET /v1/push/key`. `sub` is the site URL, never an email.
+- VAPID key pair (P-256). The private key is the Worker secret `VAPID_PRIVATE_JWK`, made once by the deploy when the live Worker lacks it (`scripts/worker-secrets.mjs`; nobody sees it); the public key is served by `GET /v1/push/key`. `sub` is the site URL, never an email.
+- A subscription is accepted only for a known push service (FCM, Mozilla, Apple, Windows; `pushService` in `backend/src/lib/webpush.ts`), so the Worker never posts anywhere else.
 - Subscriptions live in `Auth`, one per session, and are deleted in the same transaction as the session's revocation (after a sign-out push is queued) or on `404`/`410` from the push service. Endpoint URLs are capability URLs: never logged.
 - **Payload:** RFC 8291 `aes128gcm`, and only `{"k":"<kind>","id":"<id>"}`. Kinds: `nudge`, `reminder`, `security`, `signout`. No titles, names, verses, songs or message text, ever.
 - The service worker fetches the text with the device's own token, then shows it under [PRIVACY.md §8](PRIVACY.md). If the fetch fails: "Thunderhead has something for you." Chrome requires a visible notification for every push.
@@ -386,7 +387,7 @@ Names only. "Rotate" says who does it and how; runbooks are in §14. A test chec
 | `IP_HASH_KEY` | Worker secret | Source keys for back-off; the daily key is `HMAC(IP_HASH_KEY, UTC date)` | First value generated inside the bootstrap deploy run, like `AUTH_PEPPER` ([OPERATIONS.md §5.1](OPERATIONS.md)). Yearly or on suspicion; rotation only resets back-off counters |
 | `ASTRA_SEAL_KEY` (P1b) | Worker secret | AES-256-GCM key sealing Astra's add-on list and backups ([ASTRA.md §5.3](../product/apps/ASTRA.md)) | Made once by `rotate-secret.yml` with `generate: ASTRA_SEAL_KEY` (32 random bytes, never printed) before the first `/import/` run; while it is `none`, `POST /v1/import/phone` answers `503 unavailable` with `details.reason = "seal_key_missing"` and stores nothing. Rotation re-seals lazily (open with the old key, seal with the new), like the pepper (§14.6) |
 | `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` | Worker secrets | Presigning (read-only, two buckets) | Owner: new R2 API token in the Cloudflare dashboard, paste both, delete the old token |
-| `VAPID_PRIVATE_JWK` | Worker secret | Web Push | Agent proposes; owner approves; devices re-subscribe automatically |
+| `VAPID_PRIVATE_JWK` | Worker secret | Web Push; made by the first deploy that lacks it | Agent proposes; owner approves; devices re-subscribe automatically |
 | `ROUTINE_CHAT_URL` + `ROUTINE_CHAT_TOKEN`, `ROUTINE_NIGHT_URL` + `ROUTINE_NIGHT_TOKEN` (+ `ROUTINE_REFLEX_URL` + `ROUTINE_REFLEX_TOKEN` in P4); names as in [RUNTIME.md §2](../mind/RUNTIME.md) | Worker secrets | Firing the Claude scheduled tasks (wake text `wake` only) | Owner regenerates the trigger token in the task's settings in Claude, pastes into the Cloudflare dashboard |
 | `CLOUDFLARE_API_TOKEN` | GitHub environment `worker` (only `main`) | `wrangler deploy`, secret puts, X3 | Owner in the Cloudflare dashboard: account-scoped, Workers Scripts Edit only, no zones, no expiry (review §1 #24), yearly rotation note in [OPERATIONS.md](OPERATIONS.md) |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | GitHub repo secrets | OIDC sign-in for site deploys (identifiers, not credentials) | Not secret in practice; no rotation. The trust is the federated credential (subject `…:ref:refs/heads/main`). |

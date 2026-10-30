@@ -88,4 +88,36 @@ export const AUTH_MIGRATIONS: Migration[] = [
       ) WITHOUT ROWID`,
     ],
   },
+  {
+    version: 2,
+    name: 'push subscriptions and outbox',
+    kind: 'expand',
+    sql: [
+      // One per session (SECURITY.md §10); the endpoint is a capability URL.
+      `CREATE TABLE push_subscriptions (
+        session_id TEXT PRIMARY KEY,
+        endpoint TEXT NOT NULL,
+        p256dh TEXT NOT NULL,
+        auth TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      ) WITHOUT ROWID`,
+      // The outbox and each push's words (the payload is only a kind and an id); kept 30 days.
+      `CREATE TABLE pushes (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        url TEXT NOT NULL,
+        topic_key TEXT,
+        ref TEXT,
+        why TEXT,
+        hash TEXT,
+        session_id TEXT,
+        created_at INTEGER NOT NULL,
+        deadline INTEGER NOT NULL,
+        sent_at INTEGER,
+        dropped_at INTEGER
+      ) WITHOUT ROWID`,
+    ],
+  },
 ];

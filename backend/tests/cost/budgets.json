@@ -9,7 +9,7 @@
   },
   "POST /v1/auth/login (ok, 1 other session)": {
     "rows_read_max": 6,
-    "rows_written_max": 6
+    "rows_written_max": 7
   },
   "POST /v1/auth/login (wrong)": {
     "rows_read_max": 2,
@@ -32,27 +32,27 @@
     "rows_written_max": 0
   },
   "POST /v1/auth/signout this (not cached, renewal due)": {
-    "rows_read_max": 8,
+    "rows_read_max": 9,
     "rows_written_max": 2
   },
   "POST /v1/auth/signout this (not cached)": {
-    "rows_read_max": 8,
+    "rows_read_max": 9,
     "rows_written_max": 1
   },
   "POST /v1/auth/agents": {
     "rows_read_max": 9,
-    "rows_written_max": 5
+    "rows_written_max": 6
   },
   "GET /v1/auth/me (agent, not cached)": {
     "rows_read_max": 2,
     "rows_written_max": 1
   },
   "DELETE /v1/auth/sessions/:id (cached)": {
-    "rows_read_max": 8,
+    "rows_read_max": 9,
     "rows_written_max": 1
   },
   "POST /v1/auth/signout others (cached)": {
-    "rows_read_max": 10,
+    "rows_read_max": 12,
     "rows_written_max": 2
   },
   "POST /v1/auth/recover (wrong)": {
@@ -60,7 +60,7 @@
     "rows_written_max": 2
   },
   "POST /v1/auth/recover (ok, 1 session)": {
-    "rows_read_max": 24,
+    "rows_read_max": 25,
     "rows_written_max": 9
   },
   "GET /v1/health": {

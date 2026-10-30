@@ -1,6 +1,8 @@
 // SQL for the credential, the recovery code, sessions and back-off counters, run inside the
 // Auth object (DATA.md §5). Notices, tickets and agent keys are in store-keys.ts.
+
 import type { Db } from '../../objects/base';
+import { deleteSubscriptions } from '../push/store';
 import type { KdfParams } from './crypto';
 import type { Counter } from './throttle';
 
@@ -174,7 +176,7 @@ export function revokeSessions(
   target: { only?: string; except?: string; selfId?: string },
 ): string[] {
   const here = reason === 'signed_out_elsewhere' ? (target.selfId ?? '') : '';
-  return db
+  const ids = db
     .all<{ id: string }>(
       `UPDATE sessions SET revoked_at = ?, revoked_reason = CASE WHEN id = ? THEN 'signed_out_here' ELSE ? END
        WHERE revoked_at IS NULL AND idle_expires_at > ? AND (? IS NULL OR id = ?) AND (? IS NULL OR id <> ?)
@@ -189,6 +191,9 @@ export function revokeSessions(
       target.except ?? null,
     )
     .map((r) => r.id);
+  // A signed-out session's push subscription goes with it, in the same transaction (SECURITY.md §10).
+  deleteSubscriptions(db, ids);
+  return ids;
 }
 
 /** Rows revoked or expired more than `before` ago are forgotten (SIGN-IN.md §3.2: 30 days). */

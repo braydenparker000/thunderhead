@@ -590,11 +590,12 @@ Order states, leases, validation and the Board approval are owned by [MUSE.md §
 |---|---|---|---|---|
 | `GET /v1/settings` | device, agents | — | `200 Record<string, unknown>` (no secrets exist here) | P1 |
 | `PATCH /v1/settings` | device | `{ [key]: value }` (keys from [MENU-AND-SETTINGS.md](../product/MENU-AND-SETTINGS.md)) | `200` the changed keys | P1 |
-| `PUT /v1/push/subscription` | device | `{ endpoint, keys: { p256dh, auth } }` | `204` | P8 |
-| `DELETE /v1/push/subscription` | device | — | `204` | P8 |
-| `GET /v1/push/key` | device | — | `200 { vapid_public_key }` | P8 |
-| `GET /v1/push/items/:id` | device (from the service worker) | — | `200 { title, body, url }` (the text a push only points at) | P8 |
-| `PUT /v1/pushes/:id` | `mind:chat` | `{ title, body, ref, why /* ≥ 8 */, topic_key, deadline? }` | `202 { queued_until }` | P8; 409 `push_budget`, `push_gap`, `quiet_hours`, `quiet`, `nudge_repeat` |
+| `PUT /v1/push/subscription` | device | `{ endpoint, keys: { p256dh, auth } }` | `204`; `422` unless the endpoint is a known push service (FCM, Mozilla, Apple, Windows) and the keys are a P-256 point and 16 bytes | P8 · built |
+| `DELETE /v1/push/subscription` | device | — | `204` | P8 · built |
+| `POST /v1/push/test` | device | — | `200 { sent: 0\|1 }`: one test push to this phone now ("This is a test. Nothing needs you."), outside every budget | P8 · built |
+| `GET /v1/push/key` | device | — | `200 { vapid_public_key }`; `503 not_configured` until the key exists (the deploy makes it) | P8 · built |
+| `GET /v1/push/items/:id` | device (from the service worker) | — | `200 { title, body, url }` (the text a push only points at) | P8 · built |
+| `PUT /v1/pushes/:id` | `mind:chat` | `{ title /* ≤ 40 */, body /* ≤ 100, no ! */, ref?, why /* ≥ 8 */, topic_key, deadline? /* default 3 h */ }` | `202 { queued_until }` (the same id and body again: the same answer) | P8 · built; 409 `push_budget`, `push_gap`, `quiet_hours`, `nudge_repeat`, `conflict` (`quiet` once "go quiet" exists). From the eval sandbox: `202` and nothing sent |
 
 Push payloads carry only `{"k": kind, "id": id}`, encrypted. Details: [SECURITY.md](SECURITY.md).
 

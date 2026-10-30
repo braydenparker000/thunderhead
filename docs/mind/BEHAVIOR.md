@@ -142,6 +142,8 @@ Rules for the push itself:
 
 **Check (VL-3):** Worker tests: a third push in a day → `409 push_budget`; a push at 06:29 → `409 quiet_hours`; a push 90 min after another → `409 push_gap`; a push while `quiet_until > now` → `409 quiet`. Weekly metric "push budget breaches" = 0 ([EVALS.md](EVALS.md)).
 
+**Built (P8, `backend/src/areas/push/`):** rules 1–3 and 6 in the Worker, with the owner's quiet hours as the window (default 22:00–06:30, never ending before 06:30) instead of the proposed 21:30 end; a topic pushed in the last 14 days is `409 nudge_repeat` whether or not it was opened; the natural pause is "no phone has shown Thunderhead in the last 60 s (its live socket's pings) and the owner hasn't written in 5 minutes". Waiting for: rule 4 (`quiet`) until "go quiet" exists; the audio part of rule 6 (the ported player sends no signal yet); a dropped push becoming a home line; owner-set reminders. Tests: `backend/tests/unit/webpush.test.ts` (VL-3 on a fixed clock), `backend/tests/integration/push.test.ts`.
+
 ### 3.5 Rung 4: direct question (decision card)
 
 See §4 for exactly how it is asked. Budget rules:

@@ -1,4 +1,4 @@
-// The Auth object: password, recovery code, sessions, notices, tickets and agent keys, in one
+// The Auth object: password, recovery code, sessions, notices, tickets, agent keys and pushes, in one
 // instance named 'owner'. A thin RPC facade over areas/auth. It is its own class so the ~250 ms
 // password hash never stalls Core, and so sign-in data stays out of Core's exports and backups.
 import type {
@@ -11,13 +11,20 @@ import type {
   SignedIn,
   SignedInWithCode,
 } from '../../../shared/contract/api';
+import type { ErrorCode } from '../../../shared/contract/errors';
+import type { PushItem, PutPushRequest, PutPushResponse } from '../../../shared/contract/push.ts';
 import * as account from '../areas/auth/account';
 import * as agents from '../areas/auth/agents';
 import type { Revoked } from '../areas/auth/common';
 import * as flows from '../areas/auth/flows';
 import { hibpCheck, noBreachCheck } from '../areas/auth/passwords';
 import * as reset from '../areas/auth/reset';
+import { activeSessions } from '../areas/auth/store';
+import * as outbox from '../areas/push/outbox';
+import type { PushContext } from '../areas/push/rules';
+import * as pushes from '../areas/push/store';
 import { present } from '../lib/secrets';
+import { type Subscription, vapid } from '../lib/webpush';
 import { AUTH_MIGRATIONS } from './auth.migrations';
 import { OwnerObject } from './base';
 
@@ -111,8 +118,32 @@ export class Auth extends OwnerObject {
   cancelReset(sessionId: string, label: string, ticketId: string): R<object> {
     return reset.cancel(this.deps, ticketId, label, sessionId);
   }
-  prune(): { sessions: number; counters: number; notices: number } {
+  prune(): { sessions: number; counters: number; notices: number; pushes: number } {
     return reset.prune(this.deps);
+  }
+
+  // --- Web Push (areas/push; SECURITY.md §10) ---
+  putPushSubscription(sessionId: string, s: Subscription): void {
+    this.ctx.storage.transactionSync(() => pushes.putSubscription(this.db, sessionId, s, Date.now()));
+  }
+  deletePushSubscription(sessionId: string): void {
+    pushes.deleteSubscriptions(this.db, [sessionId]);
+  }
+  pushItem(id: string): PushItem | null {
+    return outbox.item(this.db, id);
+  }
+  queueNudge(id: string, r: PutPushRequest, hash: string, ctx: PushContext): PutPushResponse | { code: ErrorCode } {
+    const out = this.ctx.storage.transactionSync(() => outbox.queueNudge(this.db, id, r, hash, ctx));
+    return typeof out === 'string' ? { code: out } : out;
+  }
+  queuePushTest(sessionId: string): string {
+    return outbox.queueTest(this.db, sessionId, Date.now());
+  }
+  /** Sends what may go now; `ctx` comes from Core. */
+  async deliverPushes(ctx: PushContext): Promise<{ sent: string[]; dropped: number; gone: number }> {
+    const sub = this.env.SITE_ORIGINS.split(',')[0]?.trim() || 'https://thunderhead.invalid';
+    const live = activeSessions(this.db, ctx.now).map((s) => s.id);
+    return outbox.deliver(this.db, ctx, { vapid: await vapid(this.env.VAPID_PRIVATE_JWK), sub }, live);
   }
 }
 
