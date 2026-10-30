@@ -193,6 +193,9 @@ test('the ask box: a text area that grows, Enter sends, Shift+Enter a new line',
   assert.equal(await page.inputValue('#q'), 'First line\nsecond line');
   await page.keyboard.press('Shift+Enter');
   await page.keyboard.type('third');
+  // The bar's height reaches the conversation through a resize observer, which runs before the
+  // next paint: wait a frame or two for it rather than reading in the same task.
+  await page.waitForFunction((g) => Math.round(document.querySelector('#ask').getBoundingClientRect().top - document.querySelector('.convo').getBoundingClientRect().bottom) === g, one.gap, { timeout: 2000 });
   const three = await size();
   assert.ok(three.bar > 54 + 40, `grew: ${three.bar}`);
   assert.equal(three.gap, one.gap, 'the conversation keeps clear of it');
@@ -202,6 +205,7 @@ test('the ask box: a text area that grows, Enter sends, Shift+Enter a new line',
   await page.keyboard.press('Enter');
   await page.waitForFunction((n) => document.querySelectorAll('#talk .you').length > n, before);
   assert.equal(await page.inputValue('#q'), '');
+  await page.waitForFunction(() => document.querySelector('#ask').offsetHeight === 54, null, { timeout: 2000 }).catch(() => {});
   assert.equal((await size()).bar, 54, 'back to one line once sent');
   assert.match(await page.$$eval('#talk .you', (els) => els[els.length - 1].textContent), /^First line\nsecond line\nthird/);
   assert.deepEqual(errors, []);
