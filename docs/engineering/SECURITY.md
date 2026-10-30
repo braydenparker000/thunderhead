@@ -348,7 +348,7 @@ Not fallbacks:
 
 Every response, errors and preflights included:
 - `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`, `X-Robots-Tag: noindex, nofollow`, `Cross-Origin-Resource-Policy: same-origin` (CORP doesn't affect CORS fetches; it stops no-cors embedding of our JSON). **[proposal: CORP]**
-- `Content-Type: application/json; charset=utf-8`; JSON only, except the WebSocket upgrade.
+- `Content-Type: application/json; charset=utf-8`; JSON only, except the WebSocket upgrade and a private file's bytes (a chat file, §9.1; a book's PDF).
 - `TH-Request-Id` = the `cf-ray` value; the same id is in the error body and the log line.
 - Bodies: 64 KB by default; 4 KB on `/v1/auth/*`; 256 KB for event batches. Over the limit → `413 too_large` before parsing.
 - Errors never echo the request body or a token.
@@ -356,13 +356,20 @@ Every response, errors and preflights included:
 ## 9. Presigned media URLs
 
 Fixed by decisions: `POST /v1/media/sign {refs}`, signing time floored to the hour, 3 h expiry, re-sign on 403.
-- Up to 50 refs per call. Refs (`music:<id>`, `book:<id>`, `file:<id>`) are resolved to keys on the server, so the client never sees the bucket layout. A ref the principal may not read is refused.
+- Up to 50 refs per call. Refs (`music:<id>`, `book:<id>`) are resolved to keys on the server, so the client never sees the bucket layout. A ref the principal may not read is refused. `file:<id>` is never signed (`not_signable`): a chat file's bytes are read through the Worker (§9.1).
 - Signed with a **read-only R2 API token scoped to the buckets the site reads** (`jarvis-music`, `thunderhead-private`), held as `R2_SIGN_ACCESS_KEY_ID` / `R2_SIGN_SECRET`. Signing is SigV4 on WebCrypto (aws4fetch), ~0.1 ms per URL.
 - Flooring `X-Amz-Date` to the hour makes the same object sign to the same URL for that hour, so the HTTP cache works. With a 3 h expiry, every URL is valid for at least 2 h after it's handed out.
-- Files that aren't audio, images or PDFs are signed with `response-content-disposition=attachment` so the browser downloads them rather than rendering. **[proposal]**
 - Never put a presigned URL in the address bar, a link, `history`, a pdf.js `?file=` parameter, a log line or an event.
 - Revoking every outstanding URL at once: roll the signing token (§14.5).
 - Acceptance: a test signs the same ref twice within an hour and gets identical URLs; a URL at 3 h + 1 s returns 403 from R2 (preview check, T16).
+
+### 9.1 Private files through the Worker
+
+Chat files (HOME.md §4.6) live in `thunderhead-private` under `chat/files/` and leave it only through `GET /v1/files/:id`, to a device, `mind:chat` or `mind:night` with its bearer token: no signed link, no signing key, no bucket rule, no public host. The phone fetches with its token from the site's origin and shows the bytes from a blob URL; `th file` saves them through the same route, so a mind environment needs no bucket host.
+- **Upload.** `PUT /v1/files/:id` (device, `mind:chat`) takes the raw bytes (≤ 25 MiB) with their SHA-256, checks it before anything is stored (R2 checks it again), writes the object once under a key made by the Worker (`chat/files/<YYYY>/<MM>/<id>.<ext>`, the extension from a fixed list, else `bin`), and only then the row. The name comes URL-encoded and is made safe before it is stored: no `/` or `\`, no control or format characters (bidi overrides included), no leading dots. Nothing in the key comes from the sender's name or type string. The eval sandbox may not upload.
+- **Who reads.** The row must exist (404 otherwise); Muse, reflex and CI are 403 by the route table. A file is read by its id, which only its message or its uploader knows.
+- **Response headers.** Its stored `Content-Type` and `Content-Length`; `X-Content-Type-Options: nosniff`; `Content-Security-Policy: sandbox; default-src 'none'`, so a file opened on its own (an HTML page, an SVG) runs no script and loads nothing; `Content-Disposition` `inline` only for `image/*`, `audio/*`, `video/*` and `application/pdf`, `attachment` for every other type, with the name as an ASCII `filename` and an RFC 5987 `filename*`; `ETag: "<sha256>"`, and `304` on a matching `If-None-Match`. The route sets `Cache-Control: private, max-age=31536000, immutable` (an id never names other bytes, and `private` keeps it out of shared caches); `backend/src/app.ts`'s common response headers still replace it with `no-store` until they keep a route's own. CORS as §7: the site reads `Content-Type` and `Content-Length` (safelisted) and `ETag` (exposed).
+- **Voice memos.** An audio upload with its length (`TH-Seconds`, ≤ 600 s) is sent to Workers AI Whisper from the Worker (once the `AI` binding is declared), on the same platform as the rest of the owner's data (IDEAS.md privacy B); its words are kept on the file's row and shown to the mind with the message. Nothing else leaves the Worker, and no name, type or word is logged.
 
 ## 10. Web Push
 

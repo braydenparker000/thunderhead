@@ -1,34 +1,79 @@
 // Conversation and session commands: say, amend, history, file, status, title, note, pending,
 // taint, health, errors, ledger, undo (RUNTIME.md §5.3, API.md §11.7–11.9, §11.16).
 import {mkdirSync, readFileSync, statSync, writeFileSync} from 'node:fs';
-import {basename, extname, join} from 'node:path';
+import {basename, dirname, extname, join} from 'node:path';
 import {parseArgs} from './args.mjs';
-import {EXIT, ThError, invalid, jsonFlag, need, out, textArg, toMs} from './io.mjs';
-import {CONTRACT, routeOf} from './contract.mjs';
-import {request, stopNotice} from './http.mjs';
-import {setState, thDir} from './state.mjs';
+import {EXIT, ThError, VERSION, exitFor, invalid, jsonFlag, need, out, textArg, toMs} from './io.mjs';
+import {CONTRACT, checkRoute, routeOf} from './contract.mjs';
+import {request, settings, sleep, stopNotice} from './http.mjs';
+import {getState, setState, thDir} from './state.mjs';
 import {sha256, uuidv7} from './ids.mjs';
 
 export const KINDS = ['text', 'progress', 'card', 'question', 'error'];
 export const STATES = ['working', 'listening', 'stopping', 'limited'];
 const MAX_BODY = 16_000;
-const MAX_FILE = 15 * 1024 * 1024;
+/** What the Worker takes (shared/contract/files.ts): bytes per file, files per mind message, name length. */
+const FILES = CONTRACT.files.limits;
+/** Extension → type for uploads; the first extension of a type names a download. */
 const TYPES = {png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp',
-  pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', csv: 'text/csv', json: 'application/json',
-  mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav', mp4: 'video/mp4', zip: 'application/zip'};
+  heic: 'image/heic', pdf: 'application/pdf', txt: 'text/plain', md: 'text/markdown', csv: 'text/csv',
+  json: 'application/json', html: 'text/html', mp3: 'audio/mpeg', ogg: 'audio/ogg', wav: 'audio/wav', m4a: 'audio/mp4',
+  webm: 'audio/webm', mp4: 'video/mp4', mov: 'video/quicktime', zip: 'application/zip'};
+const EXT = {};
+for (const [ext, type] of Object.entries(TYPES)) EXT[type] ??= ext;
+const UUID7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const seg = value => encodeURIComponent(String(value));
+const mib = n => `${Math.round(n / 1024 / 1024)} MiB`;
+
+/** The file's own name, cut to the Worker's limit with its extension kept. */
+export function fileName(path) {
+  const name = basename(path);
+  if ([...name].length <= FILES.name) return name;
+  const ext = extname(name);
+  return [...name.slice(0, name.length - ext.length)].slice(0, FILES.name - [...ext].length).join('') + ext;
+}
 
 async function upload(path) {
   let size;
   try { size = statSync(path).size; } catch { throw invalid(`cannot read ${path}`); }
-  if (size > MAX_FILE) throw invalid(`${basename(path)} is over 15 MB`);
+  if (size > FILES.bytes) throw invalid(`${basename(path)} is over ${mib(FILES.bytes)}`);
+  if (!size) throw invalid(`${basename(path)} is empty`);
   const bytes = readFileSync(path);
+  // The id is made once, so a retry after a lost answer is the same file (the Worker answers 200).
   const {data} = await request('PUT', `/v1/files/${uuidv7()}`, {
     raw: bytes, timeoutMs: 120_000,
     headers: {'Content-Type': TYPES[extname(path).slice(1).toLowerCase()] || 'application/octet-stream',
-      'TH-File-Name': encodeURIComponent(basename(path)).slice(0, 120), 'TH-Sha256': sha256(bytes)},
+      'TH-File-Name': encodeURIComponent(fileName(path)), 'TH-Sha256': sha256(bytes)},
   });
   return data.ref;
+}
+
+/** A file's bytes from GET /v1/files/:id. `request` reads JSON, so the bytes come through this one
+ * call: the same headers (in a session the network secret adds Authorization), the same retries. */
+async function fileBytes(path) {
+  checkRoute('GET', path);
+  const s = settings();
+  if (!s.api) throw new ThError(EXIT.unreachable, 'no_api', 'TH_API is not set');
+  const headers = {'TH-Client': `th/${VERSION}`};
+  if (s.role) headers['TH-Role'] = s.role;
+  if (s.session) headers['TH-Session'] = s.session;
+  if (process.env.TH_SANDBOX === 'eval' || getState('sandbox') === 'eval') headers['TH-Sandbox'] = 'eval';
+  if (s.token) headers.Authorization = `Bearer ${s.token}`;
+  let last = new ThError(EXIT.unreachable, 'unreachable', 'no attempt made');
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt) await sleep(s.retryBaseMs * 2 ** (attempt - 1));
+    let res;
+    try { res = await fetch(s.api + path, {headers, signal: AbortSignal.timeout(120_000)}); } catch (error) {
+      last = new ThError(EXIT.unreachable, error?.name === 'TimeoutError' ? 'timeout' : 'unreachable', `GET ${path}: no answer`);
+      continue;
+    }
+    if (res.ok) return Buffer.from(await res.arrayBuffer());
+    const e = (await res.json().catch(() => null))?.error;
+    const code = e?.code || `http_${res.status}`;
+    last = new ThError(exitFor(res.status, code), code, e?.message || `HTTP ${res.status}`, e?.request_id || res.headers.get('th-request-id'));
+    if (last.exit !== EXIT.unreachable) throw last;
+  }
+  throw last;
 }
 
 /** The Worker's phrase lint (shared/contract/lint.ts, via contract.json): code fences are exempt. */
@@ -52,7 +97,7 @@ export async function say(argv) {
   if (text.length > MAX_BODY) throw invalid(`the message is over ${MAX_BODY} characters`);
   const lint = kind === 'text' || kind === 'question' ? lintText(text) : null;
   if (lint) throw invalid(`the phrase lint refuses it (${lint})`);
-  if (flags.attach.length > 10) throw invalid('at most 10 attachments');
+  if (flags.attach.length > FILES.mind_per_message) throw invalid(`at most ${FILES.mind_per_message} attachments`);
   const meta = jsonFlag(flags.meta, 'meta');
   const attachments = [];
   for (const path of flags.attach) attachments.push(await upload(path));
@@ -86,23 +131,19 @@ export async function history(argv) {
   out({items: data.items || [], next: data.next ?? null});
 }
 
-/** Downloads an attachment: signs its `file:` ref, then fetches the signed URL (no Authorization on it). */
+/** Downloads an attachment through the Worker (GET /v1/files/:id): its record first (name, type,
+ * a memo's words), then its bytes, saved as `$TMPDIR/th/files/<id>.<ext>` unless --out names a path. */
 export async function file(argv) {
   const {flags, rest} = parseArgs(argv);
-  if (!rest[0]) throw invalid('usage: th file <attachment id> [--out <path>]');
-  const ref = rest[0].includes(':') ? rest[0] : `file:${rest[0]}`;
-  const {data} = await request('POST', '/v1/media/sign', {body: {refs: [ref]}});
-  const item = (data.items || [])[0];
-  if (!item?.url) throw new ThError(EXIT.validation, data.errors?.[0]?.code || 'not_found', `cannot sign ${ref}`);
-  let res;
-  try { res = await fetch(item.url, {signal: AbortSignal.timeout(120_000)}); }
-  catch { throw new ThError(EXIT.unreachable, 'unreachable', 'the file host did not answer'); }
-  if (!res.ok) throw new ThError(EXIT.unreachable, `http_${res.status}`, 'the file download failed');
-  const safe = ref.split(':').pop().replace(/[^A-Za-z0-9._-]/g, '_');
-  const path = typeof flags.out === 'string' ? flags.out : join(thDir(), 'files', safe);
-  mkdirSync(join(path, '..'), {recursive: true});
-  writeFileSync(path, Buffer.from(await res.arrayBuffer()));
-  out({path});
+  if (!rest[0]) throw invalid('usage: th file <id|file:id> [--out <path>]');
+  const id = rest[0].startsWith('file:') ? rest[0].slice(5) : rest[0];
+  if (!UUID7.test(id)) throw invalid('th file takes an attachment id or its file:<id> ref');
+  const {data: meta} = await request('GET', `/v1/files/${seg(id)}`, {query: {meta: 1}});
+  const bytes = await fileBytes(`/v1/files/${seg(id)}`);
+  const path = typeof flags.out === 'string' ? flags.out : join(thDir(), 'files', `${id}.${EXT[meta.type] || 'bin'}`);
+  mkdirSync(dirname(path), {recursive: true});
+  writeFileSync(path, bytes);
+  out({path, type: meta.type, name: meta.name, ...(meta.text ? {text: meta.text} : {})});
 }
 
 export async function status(argv) {

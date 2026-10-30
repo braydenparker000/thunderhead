@@ -29,7 +29,7 @@ export const USAGE = {
   help: ['[command]', 'this text'],
   // Later phases: the commands exist so the procedure never changes; the Worker answers when its
   // phase is built, and until then th exits 8 not_built.
-  file: ['<attachment id> [--out <path>]', 'download an attachment (private bucket)'],
+  file: ['<id|file:id> [--out <path>]', 'save an attachment from the Worker to $TMPDIR/th/files/<id>.<ext>; prints path, type, name and a voice memo\'s words (text)'],
   remind: ['<when> <text> --from <owner message id> | list | cancel <id>', "a reminder the owner asked for: delivered once at that time"],
   remember: ['--kind <k> --text <t> --evidence <ids> [--subject] [--sensitivity 0|1] [--source]', 'add a fact (P3)'],
   confirm: ['<fact id> --evidence <ids>', 'confirm a fact (P3)'],

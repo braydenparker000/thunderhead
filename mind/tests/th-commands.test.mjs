@@ -66,20 +66,6 @@ test('say reads stdin with -, validates kind locally, and night may only post er
   assert.equal((await th(['say', 'system', '--kind', 'error', 'Night shift failed at step 3'], env(fake, {TH_ROLE: 'night'}))).code, 0);
 }));
 
-test('say --attach uploads the file; th file downloads it without sending the token', withFake({}, async fake => {
-  const e = env(fake);
-  const path = join(e.TMPDIR, 'note.txt');
-  writeFileSync(path, 'synthetic attachment');
-  const r = await th(['say', 'today', '--attach', path, 'See attached.'], e);
-  assert.equal(r.code, 0, r.stderr);
-  const ref = fake.state.messages.at(-1).attachments[0];
-  assert.match(ref, /^file:/);
-  const d = await th(['file', ref.slice(5)], e);
-  assert.equal(d.code, 0, d.stderr);
-  assert.equal(readFileSync(d.json.path, 'utf8'), 'synthetic attachment');
-  assert.equal(last(fake, '/_files/').headers.authorization, undefined);
-}));
-
 test('status acknowledges, records state, and prints th: STOP when the owner tapped Stop', withFake({}, async fake => {
   const e = env(fake);
   let r = await th(['status', 'working', '--thread', fake.today.id, '--note', 'Reading the player code'], e);

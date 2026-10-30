@@ -1,6 +1,7 @@
 // The conversation's behaviour (API.md §11.7, MEMORY.md §11), on top of its store, inside a
 // commit. The rules of PUT /v1/messages/:id live here: the thread comes from `day.current`,
-// author and origin from the caller, the mind's reply settles earlier owner messages.
+// author and origin from the caller, the mind's reply settles earlier owner messages, and the
+// files a message names become its attachments (areas/files/ops.ts).
 import type { JsonObject, Message, MessageKind, Thread } from '../../../../shared/contract/api';
 import { APPS, type AppId, appBuilt } from '../../../../shared/contract/feed.ts';
 import { lintMindText } from '../../../../shared/contract/lint.ts';
@@ -8,6 +9,7 @@ import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
+import { attach } from '../files/ops';
 import * as settings from '../settings/store';
 import { currentDay, provisionalTitle } from './day';
 import * as store from './store';
@@ -51,7 +53,9 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
   if ((c.who === 'N' || c.who === 'R') && (kind !== 'error' || p.thread_id !== 'system'))
     throw new Fail('forbidden', { reason: 'night and reflex post only kind error to the system thread' });
   if (p.thread_id === 'system' && c.who !== 'N' && c.who !== 'R') throw invalid('thread_id', 'only night and reflex');
-  if (p.attachments?.length) throw invalid('attachments', 'attachments arrive with private file storage (SETUP.md J2)');
+  const files = p.attachments ?? [];
+  if (files.length && c.who !== 'D' && c.who !== 'C') throw invalid('attachments', 'only the owner and the chat mind');
+  if (!p.body && (c.who !== 'D' || !files.length)) throw invalid('body', 'empty: only an owner message with files');
   if (c.who !== 'D') {
     const lint = kind === 'text' || kind === 'question' ? lintMindText(p.body) : null;
     if (lint) throw new Fail('validation', [{ path: 'body', issue: lint }]);
@@ -67,6 +71,8 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
       throw invalid('reply_to', 'not a message in this thread or an unanswered owner message');
   }
   const [author, origin] = AUTHOR[c.who];
+  // The files go to this message in its own commit: a refusal leaves both as they were.
+  const attachments = files.length ? attach(w.db, files, c.who === 'D' ? 'owner' : 'mind', p.id) : [];
   const message = store.insertMessage(w.db, {
     id: p.id,
     thread_id: thread.id,
@@ -80,6 +86,7 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
     device_id: c.who === 'D' ? c.device_id : null,
     session_id: c.who === 'D' ? null : c.session_id,
     req_sha256: p.req_sha256,
+    attachments,
   });
   if (c.who === 'C') {
     // Any chat post acknowledges what was handed out; a reply settles it and everything before it.

@@ -168,8 +168,11 @@ The columns match [MEMORY.md §2](../mind/MEMORY.md), which owns their meaning. 
 | `threads` | `id TEXT PK, day TEXT, kind TEXT ('daily'\|'muse'\|'imported'), title TEXT, title_source TEXT ('auto'\|'mind'\|'owner'), summary TEXT (≤ 400 chars), status TEXT ('open'\|'filed'), continues TEXT, started_at INTEGER, filed_at INTEGER`; *eng:* `message_count INTEGER, updated_at INTEGER` | unique partial `(day) WHERE kind='daily'`; `(status, updated_at)` | P2 |
 | `messages` | `seq INTEGER PK, id TEXT UNIQUE, thread_id TEXT, created_at INTEGER, author TEXT ('owner'\|'mind'\|'system'\|'muse'), origin TEXT ('owner_device'\|'mind'\|'system'\|'muse'\|'import'), kind TEXT ('text'\|'voice'\|'progress'\|'card'\|'question'\|'error'), body TEXT (≤ 16,000 chars), reply_to TEXT, meta_json TEXT, attachments_json TEXT, device_id TEXT, session_id TEXT, delivered_at INTEGER, acked_at INTEGER, answered_at INTEGER`; *eng:* `req_sha256 TEXT` | `(thread_id, seq)` | P2 |
 | `messages_fts` | FTS5 `(body)`, `content='messages'`, `content_rowid='seq'`, tokenizer `unicode61 remove_diacritics 2` | — | P2 |
+| `files` (step 21) | `id TEXT PK` (the client's UUIDv7; the ref is `file:<id>`), `key TEXT` (`chat/files/<YYYY>/<MM>/<id>.<ext>` in `thunderhead-private`, §7.1; never sent to a client), `name TEXT` (≤ 120 chars, made safe), `type TEXT` (the media type's essence), `bytes INTEGER` (≤ 25 MiB), `sha256 TEXT` (hex; the ETag), `seconds REAL` (a voice memo's length, else NULL), `text TEXT` (a voice memo's words from Workers AI Whisper, ≤ 16,000 chars, else NULL), `uploaded_by TEXT ('owner'\|'mind')`, `created_at INTEGER`, `message_id TEXT` (NULL until a message takes the file, then never changed) WITHOUT ROWID | — (read by `id` only) | P2 (the + sheet) |
 
 - `seq` is the rowid (`INTEGER PRIMARY KEY`) so that FTS5's external content can use it; `id` is the UUID the clients use. MEMORY.md shows the same two columns the other way round; the columns and their meaning are identical.
+- `messages.attachments_json` holds the message's attachments as a JSON array of `Attachment` (`{ref, name, type, bytes, seconds?, text?}`, API.md §2), in the order the sender gave, copied from `files` when the message is written (NULL: none). The same commit sets each file's `message_id`; a file goes on one message only, and only on a message of the kind of author that uploaded it ([API.md §11.7](API.md) rule 9).
+- A file's bytes go to the bucket before its row is written, so a row never names missing bytes; a file uploaded and never sent keeps its row and bytes (nothing prunes them yet).
 - The owner never creates a thread. The Worker creates the `daily` thread for `day.current` on the first message of a logical day, and files it at the roll.
 - A message is handed to a waiting mind session by `/v1/live/wait` (`delivered_at`), acknowledged by `th status working` or any post in the thread (`acked_at`), and answered when a mind message names it in `reply_to` (`answered_at`; every earlier unanswered owner message is marked too, across the roll, [API.md §11.7](API.md) rule 3). A claimed briefing counts as a hand-out. Unacknowledged after 120 s → requeued ([RUNTIME.md §4.5](../mind/RUNTIME.md)).
 
@@ -277,7 +280,7 @@ The FTS cost per page is unknown (open question D3). Ingestion is a bulk job und
 | `events/` | `events/<YYYY>/<MM>/<DD>.jsonl.gz` | Daily events archive | `events.export` job (P5) | forever |
 | `books/` | `books/<book_id>.pdf` ([STUDY.md](../product/apps/STUDY.md) §2.1) | Study PDFs, including the owner's licensed scripture copies (owner ruling) | upload route (P7) | until the owner deletes (proposal) |
 | `study/` | `study/scripture.json`, `study/text/<code>.json` ([STUDY.md](../product/apps/STUDY.md) §7.1, §7.6) | The owner's scripture book table with its link template, and each book's verse text from the owner's licensed copies; never in the repo | `PUT /v1/library/scripture[/text/:code]` (the mind, SETUP.md O2) | until replaced |
-| `chat/files/` | `chat/files/<YYYY>/<MM>/<uuidv7>.<ext>` (imported files keep their old keys under this prefix) | Chat attachments, photos, voice memos | upload route; import I6 | forever unless deleted |
+| `chat/files/` | `chat/files/<YYYY>/<MM>/<uuidv7>.<ext>` (the month in UTC from the UUIDv7's own time; the extension from a fixed list of types, else `bin`; imported files keep their old keys under this prefix) | Chat attachments, photos, voice memos, stored once with their `Content-Type` and SHA-256 | `PUT /v1/files/:id`; import I6 | forever unless deleted (the `Core.files` row with them) |
 | `muse/files/` | `muse/files/<id>` | Muse files (imported, then new) | import I4; work orders | forever unless deleted |
 | `takes/` | `takes/<uuidv7>.<ext>` | Guitar recordings the owner sends | P6 | owner-controlled |
 | `indexes/` | `indexes/<kind>/<build>.json.gz`, `indexes/<kind>/latest.json` | Phone-loaded indexes (music search, study) | jobs | latest 3 builds |
@@ -303,7 +306,7 @@ The FTS cost per page is unknown (open question D3). Ingestion is a bulk job und
 | `music:<id>` | `jarvis-music` | `tracks.audio_key` | 1 row in `Music` |
 | `music:<id>#art` | `jarvis-music` | `tracks.cover_key` | 1 row in `Music` |
 | `book:<id>` | `thunderhead-private` | `books.r2_key` | 1 row in `Library` (read through `GET /v1/library/books/:id/file`, never signed) |
-| `file:<id>` | `thunderhead-private` | `chat/files/…` from the message attachment | 1 row in `Core` |
+| `file:<id>` | `thunderhead-private` | `files.key` | never signed: read through `GET /v1/files/:id` (1 row in `Core`) |
 | `index:<kind>` | `thunderhead-private` | `indexes/<kind>/latest.json` → named build | none |
 | `backup:<date>` | `thunderhead-private` | `backups/<date>/…` | device session only (P4) |
 
@@ -409,6 +412,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.work_orders | finished rows 180 days | yes | yes |
 | Core.eval_runs | forever (one row per suite a week; numbers and ids only) | yes | no |
 | Core.predictions | forever (at most 12 rows a day: the night shift's prediction, its resolver and arguments, the outcome and base rate; the meter reads them all) | yes | yes |
+| Core.files | forever, as long as its bytes in `chat/files/` (one row per chat file: its name, type, size, SHA-256, a voice memo's seconds and words, who uploaded it and the message that took it; never the bytes) | yes | yes (the bytes stay in the bucket, read through `GET /v1/files/:id`) |
 | Core.watchdogs | forever (one row per watchdog: its state, the last check's counts, the reflex's report) | yes | yes |
 | Core.backups | forever (one row a week: its date, state, counts and the manifest's key) | yes | no |
 | Core.drills | forever (one row a month: the backup it restored, passed or failed, the report's key) | yes | no |

@@ -150,6 +150,20 @@ CREATE TABLE 'facts_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOU
 
 CREATE INDEX facts_lineage ON facts (lineage_id);
 
+CREATE TABLE files (
+  id TEXT PRIMARY KEY,
+  key TEXT NOT NULL,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  bytes INTEGER NOT NULL,
+  sha256 TEXT NOT NULL,
+  seconds REAL,
+  text TEXT,
+  uploaded_by TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  message_id TEXT
+  ) WITHOUT ROWID;
+
 CREATE TABLE import_items (
   id TEXT PRIMARY KEY,
   run_id TEXT NOT NULL,

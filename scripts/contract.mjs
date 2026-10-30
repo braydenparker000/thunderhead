@@ -161,6 +161,8 @@ function mind() {
     apps: c.APPS,
     search_sources: c.SEARCH_SOURCES,
     message_kinds: c.MESSAGE_KINDS,
+    // Chat files (`th say --attach`, `th file`): what the Worker takes, checked before the upload.
+    files: { limits: c.FILE_LIMITS },
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
     night: {
       steps: c.NIGHT_STEPS,

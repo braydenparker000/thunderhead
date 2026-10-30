@@ -201,11 +201,6 @@ export function createFake(options = {}) {
       if (ctl.clearStopAfterReply) { ctl.clearStopAfterReply = false; s.stop.cleared = true; }
     };
     try {
-      if (url.pathname.startsWith('/_files/')) {
-        const f = s.files.get(url.pathname.slice(8));
-        if (!f) return send(404, {error: {code: 'not_found'}});
-        res.writeHead(200, {'Content-Type': f.type}); return res.end(f.bytes);
-      }
       const failure = s.failures.find(f => f.times > 0 && f.method === req.method && url.pathname.startsWith(f.prefix));
       if (failure && !failure.after && failure.status === 200) { failure.times--; res.writeHead(200, {'Content-Type': 'text/plain'}); return res.end('not json'); }
       if (failure && !failure.after) { failure.times--; return send(failure.status, {error: {code: failure.code, message: 'injected', request_id: 'inj'}}); }
@@ -223,6 +218,8 @@ export function createFake(options = {}) {
       log.body = body;
       const result = await handler({req, role, session, body, raw, params: re.exec(url.pathname).slice(1), query: url.searchParams, base: `http://127.0.0.1:${server.address().port}`});
       if (failure && failure.after) { failure.times--; return send(failure.status, {error: {code: failure.code, message: 'injected after handling'}}); }
+      // A file's bytes (GET /v1/files/:id): not JSON.
+      if (result?.raw) { res.writeHead(200, {'TH-Request-Id': `req-${s.requests.length}`, ...result.headers}); return res.end(result.raw); }
       const [status, data] = Array.isArray(result) ? result : [result === null ? 204 : 200, result];
       if (req.headers['th-sandbox'] === 'eval') ctl.noteSandbox?.(req.method, url.pathname, status);
       send(status, data);
