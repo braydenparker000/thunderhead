@@ -1409,7 +1409,7 @@
    "adjustments": []
   },
   "assets/error-report.js": {
-   "sha256": "a12a20369438e1a43ef2f94ecdd8f2bef2d0b174a6132982972ee9a3c06c9e8a",
+   "sha256": "7e6048644284acf0c9941059a4ff2cda8e5f45c152e45fb982df00da25a013e4",
    "old_sha256": "b2a4592c32d082d05fe6cc9222bacf56db172603b39eb6b46d541dae6b3e960e",
    "adjustments": [
     "api-address",
@@ -1425,7 +1425,7 @@
      "import {API_ORIGIN} from './config.js';\n"
     ],
     [
-     "const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';\n// Data moves (MIGRATION.md §2.5): a moved app's page reports to the new Worker's inbox with the owner's session (a top-level page only); the others, and a page signed out, as before.\nconst MOVED = ['player', 'guitar', 'podcasts'];\nlet session = null;\nif (MOVED.includes(app)) import('/th/ported/session.js').then(m => m.sessionToken()).then(t => { session = t; }, () => {});\n// The new inbox's shape (API.md §11.16): a code and a message, where in the code the error came from instead of a stack.\nconst where = stack => /\\/[^\\s()]+:\\d+:\\d+/.exec(stack.replaceAll(location.origin, ''))?.[0];\nconst item = r => ({source: 'client', code: `${r.app}.${r.kind}`, route: r.path, message: (where(r.stack) ? `${r.message} @ ${where(r.stack)}` : r.message).slice(0, 300), build: 0, at: r.at});\n",
+     "const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';\n// Data moves (MIGRATION.md §2.5): signed in, a page reports to the new Worker's inbox with the owner's session (a top-level page only); signed out, as before.\nlet session = null;\nimport('/th/ported/session.js').then(m => m.sessionToken()).then(t => { session = t; }, () => {});\n// The new inbox's shape (API.md §11.16): a code and a message, with where in this site's code it came from instead of a\n// stack; an address in the message keeps only its host (add-on and stream addresses are secrets, ASTRA.md §5.2).\nconst where = stack => stack.split(location.origin + '/')[1]?.match(/^[^\\s()]+:\\d+:\\d+/)?.[0];\nconst bare = text => text.replace(/\\bhttps?:\\/\\/([^/\\s?#]+)\\S*/g, '$1/…');\nconst item = r => ({source: 'client', code: `${r.app}.${r.kind}`, route: r.path, message: (where(r.stack) ? `${bare(r.message)} @ /${where(r.stack)}` : bare(r.message)).slice(0, 300), build: 0, at: r.at});\n",
      "const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';\n"
     ],
     [

@@ -1,8 +1,9 @@
 // The ported pages' error reports (frontend/assets/error-report.js; MIGRATION.md §2.5) in Chromium,
-// served at the live site's address (the reporter sends only from there): signed in, a moved app's
-// page (Music, as staged, with the API host in its CSP) sends an uncaught error to the new
-// Worker's inbox (mocked) with the session, in the inbox's shape; a page whose app hasn't moved (Astra) still
-// sends to the old Worker's inbox, without the session. Local only; no network.
+// served at the live site's address (the reporter sends only from there): signed in, a ported page
+// (Music, as staged with the API host in its CSP; Astra) sends an uncaught error to the new Worker's
+// inbox (mocked) with the session, in the inbox's shape, an address in it cut to its host (Astra's
+// add-on addresses are secrets); signed out, to the old Worker's inbox without a session as before.
+// Local only; no network.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -25,7 +26,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); site?.close(); });
 
-async function signedIn() {
+async function opened(signedIn) {
   const context = await browser.newContext({ serviceWorkers: 'block' });
   // The live site's address, answered by the local build.
   await context.route(`${SITE}/**`, async (route) => route.fulfill({ response: await route.fetch({ url: base + new URL(route.request().url()).pathname }) }));
@@ -44,7 +45,7 @@ async function signedIn() {
   await context.route(/^https:\/\/(?!thunderhead\.z13|jarvis-hub-api|api\.example\.test)/, (route) => route.abort());
   const page = await context.newPage();
   await page.goto(`${SITE}/no-such-page`);
-  await page.evaluate((token) => new Promise((resolve, reject) => {
+  if (signedIn) await page.evaluate((token) => new Promise((resolve, reject) => {
     const req = indexedDB.open('th-auth', 1);
     req.onupgradeneeded = () => req.result.createObjectStore('kv');
     req.onsuccess = () => {
@@ -58,25 +59,41 @@ async function signedIn() {
 }
 const boom = (page, words) => page.evaluate((w) => setTimeout(() => { throw new Error(w); }), words);
 
-test('a moved app reports to the new inbox with the session; one not yet moved, to the old inbox', opts, async () => {
-  const { context, page, old } = await signedIn();
+const waitFor = async (page, f) => { for (let i = 0; i < 40 && !f(); i++) await page.waitForTimeout(100); };
+
+test('signed in, a ported page reports to the new inbox with the session, an address cut to its host', opts, async () => {
+  const { context, page, old } = await opened(true);
   await page.goto(`${SITE}/music/`, { waitUntil: 'load' });
   await page.waitForTimeout(300);
   await boom(page, 'test boom in music');
-  for (let i = 0; i < 40 && !inbox.length; i++) await page.waitForTimeout(100);
+  await waitFor(page, () => inbox.length);
   assert.equal(inbox.length, 1, 'one batch reached the new inbox');
-  assert.equal(inbox[0].path, '/v1/ops/errors');
-  assert.equal(inbox[0].auth, `Bearer ${TOKEN}`);
+  assert.deepEqual([inbox[0].path, inbox[0].auth], ['/v1/ops/errors', `Bearer ${TOKEN}`]);
   const [item] = inbox[0].body.items.filter((i) => i.message.includes('test boom'));
   assert.deepEqual({ ...item, at: 0 }, { source: 'client', code: 'player.error', route: '/music/', message: 'Error: test boom in music', build: 0, at: 0 });
 
   await page.goto(`${SITE}/astra/`, { waitUntil: 'load' });
+  await page.waitForTimeout(300);
+  await boom(page, 'no answer from https://addon.example/s3cret-t0ken/manifest.json?key=abc');
+  await waitFor(page, () => inbox.length > 1);
+  const [astra] = inbox[1].body.items.filter((i) => i.code === 'astra.error');
+  assert.equal(astra.message, 'Error: no answer from addon.example/…');
+  assert.doesNotMatch(JSON.stringify(inbox[1].body), /s3cret|t0ken|key=/);
+  assert.deepEqual(old.filter((o) => o.path === '/claude-chat/errors'), [], 'nothing to the old inbox');
+  await context.close();
+});
+
+test('signed out, a page reports to the old inbox as before, without a session', opts, async () => {
+  const { context, page, old } = await opened(false);
+  const before = inbox.length;
+  await page.goto(`${SITE}/astra/`, { waitUntil: 'load' });
+  await page.waitForTimeout(300);
   await boom(page, 'test boom in astra');
-  for (let i = 0; i < 40 && !old.some((o) => o.path === '/claude-chat/errors'); i++) await page.waitForTimeout(100);
+  await waitFor(page, () => old.some((o) => o.path === '/claude-chat/errors'));
   const sent = old.filter((o) => o.path === '/claude-chat/errors');
   assert.equal(sent.length, 1);
-  assert.equal(sent[0].auth, '', 'never the session');
+  assert.equal(sent[0].auth, '');
   assert.ok(sent[0].body.reports.some((r) => r.app === 'astra' && r.message === 'Error: test boom in astra'));
-  assert.equal(inbox.length, 1, 'nothing more reached the new inbox');
+  assert.equal(inbox.length, before, 'nothing to the new inbox');
   await context.close();
 });

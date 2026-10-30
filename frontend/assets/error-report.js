@@ -19,13 +19,14 @@ const PER_ERROR = 3, PER_PAGE = 20, BATCH_MS = 2000;
 
 const script = document.currentScript || document.querySelector('script[src*="/assets/error-report.js"]');
 const app = script?.dataset.app || location.pathname.split('/')[1] || 'home';
-// Data moves (MIGRATION.md §2.5): a moved app's page reports to the new Worker's inbox with the owner's session (a top-level page only); the others, and a page signed out, as before.
-const MOVED = ['player', 'guitar', 'podcasts'];
+// Data moves (MIGRATION.md §2.5): signed in, a page reports to the new Worker's inbox with the owner's session (a top-level page only); signed out, as before.
 let session = null;
-if (MOVED.includes(app)) import('/th/ported/session.js').then(m => m.sessionToken()).then(t => { session = t; }, () => {});
-// The new inbox's shape (API.md §11.16): a code and a message, where in the code the error came from instead of a stack.
-const where = stack => /\/[^\s()]+:\d+:\d+/.exec(stack.replaceAll(location.origin, ''))?.[0];
-const item = r => ({source: 'client', code: `${r.app}.${r.kind}`, route: r.path, message: (where(r.stack) ? `${r.message} @ ${where(r.stack)}` : r.message).slice(0, 300), build: 0, at: r.at});
+import('/th/ported/session.js').then(m => m.sessionToken()).then(t => { session = t; }, () => {});
+// The new inbox's shape (API.md §11.16): a code and a message, with where in this site's code it came from instead of a
+// stack; an address in the message keeps only its host (add-on and stream addresses are secrets, ASTRA.md §5.2).
+const where = stack => stack.split(location.origin + '/')[1]?.match(/^[^\s()]+:\d+:\d+/)?.[0];
+const bare = text => text.replace(/\bhttps?:\/\/([^/\s?#]+)\S*/g, '$1/…');
+const item = r => ({source: 'client', code: `${r.app}.${r.kind}`, route: r.path, message: (where(r.stack) ? `${bare(r.message)} @ /${where(r.stack)}` : bare(r.message)).slice(0, 300), build: 0, at: r.at});
 const seen = new Map();
 let queue = [], sent = 0, timer = 0;
 
