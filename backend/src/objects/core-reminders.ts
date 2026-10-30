@@ -45,8 +45,8 @@ export abstract class CoreReminders extends CoreFiles {
     return reminders.list(this.db, Date.now());
   }
 
-  cancelReminder(c: Caller, id: string): Out<Reminder> {
-    const out = this.run((w) => reminders.cancel(w, c, id));
+  cancelReminder(c: Caller, id: string, source?: string): Out<Reminder> {
+    const out = this.run((w) => reminders.cancel(w, c, id, source));
     if (out.ok) this.changed();
     return out;
   }

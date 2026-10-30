@@ -5,6 +5,7 @@ import * as z from 'zod/mini';
 import type { PutReminderRequest, ReminderResponse, RemindersResponse } from '../../../../shared/contract/reminders.ts';
 import { type AppEnv, guard } from '../../http/auth';
 import { callerOf, idParam, reqHash } from '../../http/caller';
+import { ApiError } from '../../http/errors';
 import { json } from '../../http/validate';
 import { UUIDV7 } from '../../lib/ids';
 import { value } from '../../lib/result';
@@ -30,6 +31,9 @@ export const remindersRoutes = new Hono<AppEnv>()
   )
   .delete('/reminders/:id', guard('DELETE /v1/reminders/:id'), async (c) => {
     const id = idParam(c);
-    const reminder = value(await fresh(coreObject(c.env).cancelReminder(callerOf(c), id)));
+    const source = c.req.query('source_message_id');
+    if (source !== undefined && !UUIDV7.test(source))
+      throw new ApiError('validation', [{ path: 'source_message_id', issue: 'a message id' }]);
+    const reminder = value(await fresh(coreObject(c.env).cancelReminder(callerOf(c), id, source)));
     return c.json({ reminder } satisfies ReminderResponse);
   });

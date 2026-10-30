@@ -4,6 +4,8 @@
 // one, never from a tainted session), because a reminder's push skips the mind's push budget. A
 // time inside quiet hours moves to their end (never before 06:30). At its time the alarm delivers
 // it once: a system line in today's thread and, outside quiet hours, a push.
+
+import { lintMindText } from '../../../../shared/contract/lint.ts';
 import {
   type PutReminderRequest,
   REMINDER_LIMITS,
@@ -27,13 +29,17 @@ export const PAST_MS = MINUTE;
 /** The owner's message a mind names: this recent, and at most this many reminders from one. */
 export const SOURCE_MS = 48 * HOUR;
 export const PER_MESSAGE = 3;
+/** Reminders the mind may set in any 24 hours: each one pushes outside the budget, so even an
+ * owner who asks for many gets them through the mind at this pace. */
+export const MIND_PER_DAY = 5;
 /** How long a delivered reminder's push may still go (the outbox drops it after). */
 export const PUSH_MS = HOUR;
 /** Reminders one pass delivers. */
 const PER_RUN = 20;
-// C0 and C1 controls (newlines and tabs included): a reminder is one plain line.
+// C0 and C1 controls (newlines and tabs included), bidirectional overrides and line or paragraph
+// separators: a reminder is one plain line that shows as written.
 // biome-ignore lint/suspicious/noControlCharactersInRegex: matching them is the point
-const CONTROL = /[\u0000-\u001f\u007f-\u009f]/;
+const CONTROL = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/;
 
 /** When a reminder asked for `at` is delivered: then, or the end of the quiet hours it falls in. */
 export const fireAt = (at: number, tz: string, quiet: QuietWindow) => heldUntil(at, tz, quiet);
@@ -72,6 +78,10 @@ export function put(
   if (mind) {
     cleanSession(w, c);
     checkSource(w, r.source_message_id as string);
+    const lint = lintMindText(text);
+    if (lint) throw invalid('text', lint);
+    if (store.mindSince(w.db, w.at - DAY) >= MIND_PER_DAY)
+      throw invalid('source_message_id', `at most ${MIND_PER_DAY} reminders from the mind in 24 hours`);
   }
   if (store.openCount(w.db) >= REMINDER_LIMITS.open)
     throw invalid('id', `at most ${REMINDER_LIMITS.open} reminders set at once`);
@@ -89,13 +99,14 @@ export function put(
   return { reminder: store.shown(store.byId(w.db, id) as store.ReminderRow), created: true };
 }
 
-/** The owner's own words: an owner-device message of the last 48 hours, not yet used 3 times. */
-function checkSource(w: Writer, id: string): void {
+/** The owner's own words: an owner-device message of the last 48 hours (for a new reminder, not
+ * yet used 3 times). */
+function checkSource(w: Writer, id: string, counted = true): void {
   const m = convo.messageOrigin(w.db, id);
   if (m?.author !== 'owner' || m.origin !== 'owner_device')
     throw invalid('source_message_id', "not one of the owner's messages");
   if (m.created_at < w.at - SOURCE_MS) throw invalid('source_message_id', 'older than 48 hours');
-  if (store.fromMessage(w.db, id) >= PER_MESSAGE)
+  if (counted && store.fromMessage(w.db, id) >= PER_MESSAGE)
     throw invalid('source_message_id', `at most ${PER_MESSAGE} reminders from one message`);
 }
 
@@ -105,12 +116,18 @@ export function list(db: Db, now: number): RemindersResponse {
 }
 
 /** DELETE /v1/reminders/:id: a set reminder is taken back (the row stays); again is the same
- * answer; one already delivered is gone (410). */
-export function cancel(w: Writer, c: Caller, id: string): Reminder {
+ * answer; one already delivered is gone (410). The mind takes back one the owner set on the phone
+ * only when the owner asked, naming that message (`source_message_id`), as it must to set one. */
+export function cancel(w: Writer, c: Caller, id: string, source?: string): Reminder {
   const had = store.byId(w.db, id);
   if (!had) throw new Fail('not_found');
-  if (c.who === 'C') cleanSession(w, c);
-  else if (c.who !== 'D') throw new Fail('forbidden');
+  if (c.who === 'C') {
+    cleanSession(w, c);
+    if (had.origin !== 'mind') {
+      if (!source) throw invalid('source_message_id', "the owner's message that asked to take it back");
+      checkSource(w, source, false);
+    }
+  } else if (c.who !== 'D') throw new Fail('forbidden');
   if (had.state === 'done') throw new Fail('expired');
   if (had.state === 'set') store.markCancelled(w.db, id, w.at);
   return store.shown(store.byId(w.db, id) as store.ReminderRow);

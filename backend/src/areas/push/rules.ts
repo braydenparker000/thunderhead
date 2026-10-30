@@ -27,8 +27,8 @@ export interface PushContext {
   looking: boolean;
   /** When the owner last wrote, or null. */
   owner_at: number | null;
-  /** The reminders Core delivered whose push the outbox should hold (by the reminder's id; the
-   * same one offered again is already there). Absent from a Core before reminders. */
+  /** The reminders Core delivered whose push the outbox should hold (by the id of the line each
+   * became; the same one offered again is already there). Absent from a Core before reminders. */
   reminders?: ReminderPush[];
 }
 

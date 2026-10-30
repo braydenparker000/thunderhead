@@ -105,7 +105,10 @@ function file(i) {
   b.addEventListener('click', () =>
     bytesOf(i.id).then(
       (blob) => {
-        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(blob), download: i.name });
+        // Saved as plain bytes: a blob keeping its type (an HTML file, an SVG) could run as this
+        // page's origin if it were ever opened in place.
+        const bytes = new Blob([blob], { type: 'application/octet-stream' });
+        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(bytes), download: i.name });
         a.click();
         setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
       },

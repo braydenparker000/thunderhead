@@ -60,6 +60,7 @@ test('th remind refuses before the network: a bad time, no words, too many, no o
     ['remind', '+1h', 'Not an id', '--from', 'msg-1'],
     ['remind', '+1h'],
     ['remind', 'cancel', 'not-an-id'],
+    ['remind', 'cancel', uuidv7(), '--from', 'msg-1'],
   ];
   for (const args of runs) {
     const r = await th(args, e);
@@ -98,4 +99,21 @@ test('th remind list and cancel', withFake(async fake => {
   const none = await th(['remind', 'cancel', uuidv7()], e);
   assert.equal(none.code, 8);
   assert.equal(errCode(none), 'not_found');
+}));
+
+test('th remind cancel --from: one the owner set goes only when the owner asked', withFake(async fake => {
+  const asked = fake.addOwnerMessage('never mind the plants', {id: uuidv7()});
+  const e = env(fake);
+  const id = uuidv7();
+  const at = Date.now() + 3_600_000;
+  const value = {id, text: 'Water the plants', at, fire_at: at, state: 'set', origin: 'owner_device', created_at: Date.now(), fired_at: null, message_id: null};
+  fake.state.reminders.set(id, {hash: '', source: null, value});
+  const bare = await th(['remind', 'cancel', id], e);
+  assert.equal(bare.code, 8);
+  assert.match(bare.stderr, /the owner's message that asked/);
+  const ok = await th(['remind', 'cancel', id, '--from', asked.id], e);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.deepEqual(ok.json, {id, state: 'cancelled'});
+  const sent = fake.state.requests.filter(r => r.method === 'DELETE').at(-1);
+  assert.deepEqual(sent.query, {source_message_id: asked.id});
 }));

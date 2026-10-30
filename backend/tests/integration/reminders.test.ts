@@ -60,7 +60,7 @@ describe('set from the phone', () => {
 
   it('refuses words that are empty, too long or not one plain line, and fields it does not know', async () => {
     const at = local(2, 15);
-    for (const text of ['', '   ', 'x'.repeat(201), 'two\nlines', 'a\ttab', 'bell\u0007'])
+    for (const text of ['', '   ', 'x'.repeat(201), 'two\nlines', 'a\ttab', 'bell\u0007', 'pay \u202ebad', 'a\u2028b'])
       expect((await put({ text, at })).status, JSON.stringify(text)).toBe(422);
     expect((await put({ text: `  ${'x'.repeat(200)}  `, at })).status).toBe(201);
     expect((await put({ text: 'Water the plants', at, why: 'extra' })).status).toBe(422);
@@ -175,6 +175,23 @@ describe('set by the chat mind', () => {
     expect((await put(body, N, uuidv7(), chat(clean))).status).toBe(403);
     expect((await apiJson('GET', '/v1/reminders', { token: N })).status).toBe(200);
   });
+
+  it('its words pass the phrase lint, and it sets at most 5 in any 24 hours', async () => {
+    const session = chat('cse_reminders_clean_2');
+    const asked = await ownerSays(D, 'remind me about the car');
+    const at = local(1, 17);
+    const say = (text: string, source = asked) => put({ text, at, source_message_id: source }, C, uuidv7(), session);
+    const banned = await say('Great question: the car');
+    expect([banned.status, issue(banned)?.path]).toEqual([422, 'text']);
+    expect((await say('The car \u{1F697}')).status).toBe(422);
+    const set = Number((await coreSql("SELECT count(*) AS n FROM reminders WHERE origin = 'mind'"))[0]?.n);
+    expect(set).toBe(4); // 3 for the bank and one stretch
+    expect((await say('The car')).status).toBe(201);
+    const sixth = await say('The car again', await ownerSays(D, 'and the tyres'));
+    expect([sixth.status, issue(sixth)?.issue]).toEqual([422, 'at most 5 reminders from the mind in 24 hours']);
+    await coreSql("UPDATE reminders SET created_at = ? WHERE origin = 'mind' AND text LIKE 'Call%'", Date.now() - DAY);
+    expect((await say('The tyres', await ownerSays(D, 'and the tyres'))).status).toBe(201);
+  });
 });
 
 describe('listed and taken back', () => {
@@ -220,8 +237,31 @@ describe('listed and taken back', () => {
     expect([tainted.status, tainted.body.error.code]).toEqual([403, 'session_tainted']);
     await apiJson('POST', '/v1/mind/status', { ...as(C, session), body: { state: 'stopping' } });
     const clean = await freshSession(C, 'chat', 'cse_reminders_clean_3');
-    const del = await apiJson<Out>('DELETE', `/v1/reminders/${r.id}`, { token: C, headers: chat(clean) });
+    const asked = await ownerSays(D, 'never mind the table');
+    const del = await apiJson<Out>('DELETE', `/v1/reminders/${r.id}?source_message_id=${asked}`, {
+      token: C,
+      headers: chat(clean),
+    });
     expect([del.status, del.body.reminder.state]).toEqual([200, 'cancelled']);
+  });
+
+  it("the mind takes back the owner's own only when the owner asked; its own freely", async () => {
+    const session = chat('cse_reminders_clean_3');
+    const owners = (await put({ text: 'Water the plants', at: local(1, 13) })).body.reminder;
+    const take = (q = '') => apiJson<Out>('DELETE', `/v1/reminders/${owners.id}${q}`, { token: C, headers: session });
+    const bare = await take();
+    expect([bare.status, issue(bare)?.path]).toEqual([422, 'source_message_id']);
+    const mine = await mindSays(C, 'I can take that back.');
+    expect((await take(`?source_message_id=${mine}`)).status).toBe(422);
+    expect((await take('?source_message_id=not-an-id')).status).toBe(422);
+    const old = await ownerSays(D, 'forget the plants');
+    await coreSql('UPDATE messages SET created_at = ? WHERE id = ?', Date.now() - 49 * HOUR, old);
+    expect((await take(`?source_message_id=${old}`)).status).toBe(422);
+    expect(await coreSql('SELECT state FROM reminders WHERE id = ?', owners.id)).toEqual([{ state: 'set' }]);
+    const asked = await ownerSays(D, 'forget the plants');
+    const ok = await put({ text: 'Plants later', at: local(1, 14), source_message_id: asked }, C, uuidv7(), session);
+    const own = await apiJson<Out>('DELETE', `/v1/reminders/${ok.body.reminder.id}`, { token: C, headers: session });
+    expect([own.status, own.body.reminder.state]).toEqual([200, 'cancelled']);
   });
 
   it('reads do not grow with the table: old reminders cost the list nothing', async () => {

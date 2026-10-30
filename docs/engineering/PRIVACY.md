@@ -83,7 +83,7 @@ Acceptance: [DATA.md](DATA.md) has a row for every table, and a test fails if a 
 |---|---|---|---|
 | Session token | IndexedDB `th-auth` | Until sign-out or revocation | yes |
 | Recent conversation, last briefing, surfaces | IndexedDB `th-data` | Last 7 days **[proposal]** | yes |
-| Outbox (messages and events not sent yet; a message's photos, files and voice memos with it, bytes and all, at most 20 MB) | IndexedDB `th-data` | Until sent | yes |
+| Outbox (messages and events not sent yet; a message's photos, files and voice memos with it, bytes and all, at most 20 MB, or one file up to 25 MB alone) | IndexedDB `th-data` | Until sent | yes |
 | App openings and tile taps not sent yet (P9; names and times only) | `localStorage` `th.p.senses`, `th.p.senses.batch` (at most 200) | Until the Worker takes them | yes |
 | "Go quiet"'s end (P8) | `localStorage` `th.p.quiet.until`, `th.p.quiet.pending` | Until it ends | yes |
 | Unsent text in the ask bar | memory, then IndexedDB `th-data` draft | Until sent or cleared | yes |
@@ -178,7 +178,7 @@ Acceptance: a CI test greps workflow files for `upload-artifact`, `set -x`, `pri
 7. Dictation with the ask bar's mic uses on-device speech recognition only (`processLocally: true` where the browser supports it). If the phone can't recognise on-device, the mic records a voice memo instead and says so; it never silently falls back to a cloud recogniser. **[proposal; test T24]**
 8. The mind cannot turn on the camera or mic, and no verb exists for it.
 
-Built for the `+` sheet (2026-10-30): Camera is the phone's own camera app through a file input, so this page never holds a camera track. Voice memo opens the microphone on the tap, shows its strip and the edge's listening glow while open, and stops every track when it is kept, thrown away, reaches 10 minutes, or the page is hidden (what was recorded until then is kept). Photos are redrawn on the phone before upload, which drops their location and other EXIF data. A browser test covers the hidden page with Chrome's fake microphone.
+Built for the `+` sheet (2026-10-30): Camera is the phone's own camera app through a file input, so this page never holds a camera track. Voice memo opens the microphone on the tap, shows its strip and the edge's listening glow while open, and stops every track when it is kept, thrown away, reaches 10 minutes, or the page is hidden (what was recorded until then is kept). Photos are redrawn on the phone before upload, which drops their location and other EXIF data; an image the phone can't decode goes as it is, and a toast says it keeps any location data in it. A chat file the Worker serves is never stored in the browser's cache (`Cache-Control: private, no-store`); the page keeps what it showed in memory until it closes. A browser test covers the hidden page with Chrome's fake microphone.
 
 Acceptance: Playwright with a fake media device opens Camera, then switches the page to hidden; every track's `readyState` is `ended` within 500 ms.
 

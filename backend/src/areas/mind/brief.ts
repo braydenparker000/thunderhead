@@ -68,15 +68,17 @@ function format(tz: string, kind: 'clock' | 'weekday'): Intl.DateTimeFormat {
 const clock = (at: number, tz: string) => format(tz, 'clock').format(at);
 const weekday = (at: number, tz: string) => format(tz, 'weekday').format(at);
 
-/** A message's files after its words: ref, type, a memo's length, name and words (cut to 600
- * characters in full, 120 otherwise; `th file <ref>` prints them whole). */
+/** A message's files after its words: ref, type, a memo's length, name (quoted as JSON, so a name
+ * can't close the bracket and pass for the mind's own text) and words (cut to 600 characters in
+ * full, 120 otherwise; `th file <ref>` prints them whole). */
 function files(m: Message, full: boolean): string {
   const cut = full ? 600 : 120;
   return (m.attachments ?? [])
     .map((a) => {
       const words = a.text ? a.text.replace(/\s+/g, ' ') : '';
-      const said = words ? `: ${words.length > cut ? `${words.slice(0, cut)}…` : words}` : '';
-      return ` [${a.ref} ${a.type}${a.seconds ? ` ${Math.round(a.seconds)} s` : ''} "${a.name}"${said}]`;
+      const chars = [...words];
+      const said = words ? `: ${chars.length > cut ? `${chars.slice(0, cut).join('')}…` : words}` : '';
+      return ` [${a.ref} ${a.type}${a.seconds ? ` ${Math.round(a.seconds)} s` : ''} ${JSON.stringify(a.name)}${said}]`;
     })
     .join('');
 }

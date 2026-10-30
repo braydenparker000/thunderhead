@@ -51,7 +51,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/messages/:id` | D C N R | P2 | built | N and R: kind 'error' with thread_id 'system' only |
 | `PATCH /v1/messages/:id` | C | P2 | built | own posts only |
 | `PUT /v1/files/:id` | D C | P2 | built | raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos, transcribed) |
-| `GET /v1/files/:id` | D C N | P2 | built | the bytes, through the Worker; private and immutable; ?meta=1 the record |
+| `GET /v1/files/:id` | D C N | P2 | built | the bytes, through the Worker; private, no-store; ?meta=1 the record |
 | `GET /v1/search` | D C N | P2 | built |  |
 | `POST /v1/mind/typing` | D | P2 | built |  |
 | `POST /v1/mind/stop` | D | P2 | built | the owner taps Stop: the work ends, not the session |

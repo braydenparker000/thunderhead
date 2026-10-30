@@ -339,7 +339,7 @@
       ],
       "phase": "P2",
       "status": "built",
-      "note": "the bytes, through the Worker; private and immutable; ?meta=1 the record"
+      "note": "the bytes, through the Worker; private, no-store; ?meta=1 the record"
     },
     "GET /v1/search": {
       "who": [

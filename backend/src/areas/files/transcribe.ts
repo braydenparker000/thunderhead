@@ -9,6 +9,9 @@ import { Buffer } from 'node:buffer';
 export const WHISPER = '@cf/openai/whisper-large-v3-turbo';
 /** The longest the upload waits for the words. */
 export const TRANSCRIBE_MS = 25_000;
+/** The largest memo sent for words: a 10-minute memo at the phone's 32 kbit/s is about 2.4 MB, and
+ * the base64 retry of a bigger one would cost the Worker too much memory. */
+export const TRANSCRIBE_BYTES = 10 * 1024 * 1024;
 /** Words kept, in characters (a message body's limit). */
 export const TEXT_MAX = 16_000;
 
@@ -37,7 +40,7 @@ export async function transcribe(
   type: string,
   ms = TRANSCRIBE_MS,
 ): Promise<string | null> {
-  if (!ai) return null;
+  if (!ai || bytes.byteLength > TRANSCRIBE_BYTES) return null;
   const deadline = AbortSignal.timeout(ms);
   const late = new Promise<never>((_, reject) => {
     deadline.addEventListener('abort', () => reject(new Error('timeout')), { once: true });

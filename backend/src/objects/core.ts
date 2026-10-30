@@ -184,13 +184,13 @@ export class Core extends CoreReminders {
     this.schedule();
   }
 
-  /** The reminders that are due, wake retries, give-ups and requeues (RUNTIME.md §4.4–4.5), then the jobs. */
+  /** Wake retries, give-ups, requeues (RUNTIME.md §4.4–4.5), then due reminders (after any wake), then jobs. */
   override async alarm(): Promise<void> {
     this.alarmAt = null;
-    await this.deliverReminders(Date.now());
     const fires = this.write((w) => wake.onAlarm(w, this.configured(), this.tz()));
     const cfg = this.sandboxed ? null : fireConfig(this.env, 'chat');
     if (cfg) for (const f of fires) this.recordFire(f.id, await fire(cfg));
+    await this.deliverReminders(Date.now());
     await runJobs({ env: this.env, db: this.db, write: (fn, at) => this.write(fn, at) }, JOB_HANDLERS);
     this.schedule();
   }

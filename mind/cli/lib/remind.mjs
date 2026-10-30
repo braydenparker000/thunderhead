@@ -1,11 +1,13 @@
 // th remind: the reminders the owner asks for in words (HOME.md §6.2, BEHAVIOR.md §3.4). The
 // Worker delivers each once at its time, as a line in today's conversation and a push, and moves a
 // time inside the owner's quiet hours to their end. Only the owner's own words make one: `--from`
-// names the owner's message that asked (sent in the last 48 hours, at most 3 reminders from it).
+// names the owner's message that asked (sent in the last 48 hours, at most 3 reminders from it; at
+// most 5 from the mind in any 24 hours). One the owner set on the phone is taken back only with
+// `--from` naming the owner's message that asked; the mind's own need none.
 //
 //   th remind <when> <text|-> --from <owner message id>   → {"id","fire_at","shifted"}
 //   th remind list                                        → {"items":[…]}
-//   th remind cancel <id>                                 → {"id","state"}
+//   th remind cancel <id> [--from <owner message id>]     → {"id","state"}
 //
 // <when> is an ISO 8601 time with its offset (2026-10-31T19:00:00+02:00) or a relative +90m, +2h, +1d.
 import {parseArgs} from './args.mjs';
@@ -13,7 +15,7 @@ import {request} from './http.mjs';
 import {uuidv7} from './ids.mjs';
 import {invalid, need, out, textArg} from './io.mjs';
 
-const USAGE = 'usage: th remind <when: ISO time with offset | +90m | +2h | +1d> <text|-> --from <owner message id> | list | cancel <id>';
+const USAGE = 'usage: th remind <when: ISO time with offset | +90m | +2h | +1d> <text|-> --from <owner message id> | list | cancel <id> [--from <owner message id>]';
 /** REMINDER_LIMITS.text in shared/contract/reminders.ts; the Worker checks it again. */
 const MAX_TEXT = 200;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/;
@@ -37,7 +39,11 @@ export async function remind(argv) {
   if (rest[0] === 'list' && rest.length === 1) return out((await request('GET', '/v1/reminders')).data);
   if (rest[0] === 'cancel' && rest.length === 2) {
     if (!UUID.test(rest[1])) throw invalid(`not a reminder id: ${rest[1]}`);
-    const {data} = await request('DELETE', `/v1/reminders/${seg(rest[1])}`);
+    const from = flags.from;
+    if (from !== undefined && (typeof from !== 'string' || !UUID.test(from)))
+      throw invalid(`--from must be the owner's message id; got ${from}`);
+    const query = from ? `?source_message_id=${seg(from)}` : '';
+    const {data} = await request('DELETE', `/v1/reminders/${seg(rest[1])}${query}`);
     return out({id: data.reminder.id, state: data.reminder.state});
   }
   if (rest.length < 2) throw invalid(USAGE);

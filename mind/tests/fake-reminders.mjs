@@ -1,6 +1,7 @@
 // The fake Worker's reminder routes (API.md §11.24), close enough to drive `th remind`: a strict
-// body, the owner's message as the source (at most 3 from one), idempotent PUTs, and a time inside
-// fake quiet hours (22:00–06:30 UTC) moved to their end. The real rules are the Worker's own tests.
+// body, the owner's message as the source (at most 3 from one), idempotent PUTs, a time inside fake
+// quiet hours (22:00–06:30 UTC) moved to their end, and one the owner set taken back only with the
+// owner's message that asked. The real rules are the Worker's own tests.
 import {HttpError, hash} from './fake-worker.mjs';
 
 const QUIET_END_MIN = 6 * 60 + 30;
@@ -36,9 +37,14 @@ export function reminderRoutes(ctl) {
     }],
     ['GET', /^\/v1\/reminders$/, ['chat', 'night'], () =>
       ({items: [...s.reminders.values()].map(r => r.value).sort((a, b) => a.fire_at - b.fire_at)})],
-    ['DELETE', /^\/v1\/reminders\/([^/]+)$/, ['chat'], ({params}) => {
+    ['DELETE', /^\/v1\/reminders\/([^/]+)$/, ['chat'], ({params, query}) => {
       const r = s.reminders.get(params[0])?.value;
       if (!r) throw new HttpError(404, 'not_found');
+      if (r.origin !== 'mind') {
+        const source = s.messages.find(m => m.id === query.get('source_message_id'));
+        if (source?.origin !== 'owner_device')
+          throw new HttpError(422, 'validation', 'source_message_id', [{path: 'source_message_id', issue: "the owner's message that asked to take it back"}]);
+      }
       if (r.state === 'done') throw new HttpError(410, 'expired');
       r.state = 'cancelled';
       return {reminder: r};

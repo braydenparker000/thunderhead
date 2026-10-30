@@ -353,7 +353,10 @@ export async function startChat() {
     if (body.length > model.MAX_CHARS) return toast('Too long to send. Try sending it as a file.');
     const bytes = (/** @type {{ bytes: number }[] | undefined} */ fs) => (fs ?? []).reduce((n, f) => n + f.bytes, 0);
     const waitingBytes = state.local.reduce((n, x) => n + bytes(x.files), 0) + bytes(picked);
-    if (state.local.length >= OUTBOX_MAX || waitingBytes > OUTBOX_BYTES) return toast('Too much waiting to send. Connect to send the rest.');
+    // The byte cap holds back a second file, never a lone one (a single file may be up to 25 MB).
+    const waitingFiles = state.local.reduce((n, x) => n + (x.files?.length ?? 0), 0) + picked.length;
+    const tooMuch = waitingBytes > OUTBOX_BYTES && waitingFiles > 1;
+    if (state.local.length >= OUTBOX_MAX || tooMuch) return toast('Too much waiting to send. Connect to send the rest.');
     const now = Date.now();
     // "Go quiet" is done here, mind or no mind (BEHAVIOR.md §8.1); "I'm back" only ends a quiet.
     const order = picked.length ? null : quietOrder(body, now);

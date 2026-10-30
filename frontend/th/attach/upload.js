@@ -28,7 +28,7 @@ export async function upload(token, f) {
     x.setRequestHeader('Authorization', `Bearer ${token}`);
     x.setRequestHeader('TH-Client', api.client);
     x.setRequestHeader('Content-Type', f.type);
-    x.setRequestHeader('TH-File-Name', encodeURIComponent(f.name.slice(0, 120)));
+    x.setRequestHeader('TH-File-Name', encodeURIComponent([...f.name].slice(0, 120).join('')));
     x.setRequestHeader('TH-Sha256', sum);
     if (f.seconds) x.setRequestHeader('TH-Seconds', String(Math.max(1, Math.round(f.seconds))));
     x.upload.addEventListener('progress', (e) => e.lengthComputable && progress(f.id, e.loaded / e.total));

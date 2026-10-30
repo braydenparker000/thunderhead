@@ -97,10 +97,15 @@ export function markCancelled(db: Db, id: string, at: number): void {
   db.run("UPDATE reminders SET state = 'cancelled', cancelled_at = ? WHERE id = ? AND state = 'set'", at, id);
 }
 
-/** Delivered reminders whose push is still offered to the outbox at `now`. */
+/** Reminders the mind set since `since` (its pace limit). */
+export const mindSince = (db: Db, since: number) =>
+  db.one<{ n: number }>("SELECT count(*) AS n FROM reminders WHERE origin = 'mind' AND created_at >= ?", since)?.n ?? 0;
+
+/** Delivered reminders whose push is still offered to the outbox at `now`, by the id of the line
+ * each became: made by the Worker at delivery, so no nudge can have taken it first. */
 export const pushesOwed = (db: Db, now: number, windowMs: number) =>
   db.all<{ id: string; fired_at: number; push_until: number }>(
-    `SELECT id, fired_at, push_until FROM reminders
+    `SELECT message_id AS id, fired_at, push_until FROM reminders
      WHERE state != 'set' AND ${CLOSED} >= ? AND push_until > ? ORDER BY ${CLOSED}, id`,
     now - windowMs,
     now,

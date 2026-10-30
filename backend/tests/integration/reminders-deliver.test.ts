@@ -54,7 +54,12 @@ const lines = (id: string) =>
   );
 const pushed = async () =>
   Promise.all(got.map(async (b) => JSON.parse(await received(mine, b)) as { k: string; id: string }));
-const pushesOf = async (id: string) => (await pushed()).filter((p) => p.id === id).length;
+/** A reminder's push goes under the id of the line it became (made by the Worker at delivery). */
+const pushId = async (reminderId: string) => String((await row(reminderId))?.message_id ?? '');
+const pushesOf = async (reminderId: string) => {
+  const id = await pushId(reminderId);
+  return (await pushed()).filter((p) => id && p.id === id).length;
+};
 
 async function live() {
   const { body } = await apiJson<LiveTicket>('POST', '/v1/live/ticket', { token: D });
@@ -136,10 +141,10 @@ describe('the alarm', () => {
     });
     await phoneOpen.close();
 
-    expect(await pushed()).toEqual([{ k: 'reminder', id: r.id }]);
-    const words = await apiJson('GET', `/v1/push/items/${r.id}`, { token: D });
+    expect(await pushed()).toEqual([{ k: 'reminder', id: line.id }]);
+    const words = await apiJson('GET', `/v1/push/items/${line.id}`, { token: D });
     expect(words.body).toEqual({ title: 'Thunderhead', body: 'Your reminder.', url: '/' });
-    expect(await authSql('SELECT kind, created_at, deadline FROM pushes WHERE id = ?', r.id)).toEqual([
+    expect(await authSql('SELECT kind, created_at, deadline FROM pushes WHERE id = ?', line.id)).toEqual([
       { kind: 'reminder', created_at: stored.fired_at, deadline: stored.push_until },
     ]);
     const listed = await apiJson<{ items: { id: string; state: string; message_id: string }[] }>(
@@ -181,7 +186,7 @@ describe('its push', () => {
     // A reminder pushed just now (above) is no nudge: the mind's next one is taken.
     expect((await putNudge('nudge-rem-1', 'trip.leave')).status).toBe(202);
     await deliver(env);
-    expect(await pushesOf('nudge-rem-1')).toBe(1);
+    expect((await pushed()).filter((p) => p.id === 'nudge-rem-1').length).toBe(1);
     expect((await putNudge('nudge-rem-2', 'trip.other')).body.error?.code).toBe('push_gap');
     const now = Date.now();
     await authSql(
@@ -216,7 +221,7 @@ describe('its push', () => {
     expect((await row(r.id)).push_until).toBeNull();
     await deliver(env);
     expect(await pushesOf(r.id)).toBe(0);
-    expect(await authSql('SELECT id FROM pushes WHERE id = ?', r.id)).toEqual([]);
+    expect(await authSql('SELECT id FROM pushes WHERE id = ?', await pushId(r.id))).toEqual([]);
     await settings(QUIET_OFF);
   });
 
@@ -250,8 +255,8 @@ describe('its push', () => {
     await insert(stale, now - 2 * HOUR);
     const ctx = await runInDurableObject(stub(), (o: Core) => o.pushContext());
     const offered = ctx.reminders?.map((x) => x.id) ?? [];
-    expect(offered).toContain(lost);
-    expect(offered).not.toContain(stale);
+    expect(offered).toContain(await pushId(lost));
+    expect(offered).not.toContain(await pushId(stale));
     await deliver(env);
     await deliver(env);
     expect(await pushesOf(lost)).toBe(1);

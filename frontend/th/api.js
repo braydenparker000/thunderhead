@@ -225,8 +225,9 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
     /** Where uploads go and what they say they are (th/attach/upload.js sends with progress). */
     base,
     client,
-    /** A chat file's bytes. The Worker marks them private and immutable, so the browser's own cache
-     * keeps them. @param {string} token @param {string} id @returns {Promise<Blob>} */
+    /** A chat file's bytes. The Worker marks them `private, no-store`, so nothing outlives a
+     * sign-out on disk; th/attach/show.js keeps them in memory while the page is open.
+     * @param {string} token @param {string} id @returns {Promise<Blob>} */
     file: async (token, id) => {
       const res = await fetch(`${base}/v1/files/${encodeURIComponent(id)}`, {
         headers: { 'TH-Client': client, Authorization: `Bearer ${token}` },

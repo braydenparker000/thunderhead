@@ -104,13 +104,14 @@ export function unchanged(header: string | undefined, etag: string): boolean {
   });
 }
 
-/** Every header a file's bytes (or its 304) carry, besides the length: private and immutable (the
- * id never names other bytes), never sniffed, and inert if opened on its own. */
+/** Every header a file's bytes (or its 304) carry, besides the length: never stored by the browser
+ * (a private file must not outlive a sign-out in its HTTP cache; the phone keeps what it showed in
+ * memory, as Study keeps its books in IndexedDB), never sniffed, and inert if opened on its own. */
 export function servingHeaders(f: { name: string; type: string; sha256: string }): Record<string, string> {
   return {
     'Content-Type': f.type,
     ETag: `"${f.sha256}"`,
-    'Cache-Control': 'private, max-age=31536000, immutable',
+    'Cache-Control': 'private, no-store',
     'X-Content-Type-Options': 'nosniff',
     'Content-Security-Policy': "sandbox; default-src 'none'",
     'Content-Disposition': disposition(f.name, f.type),

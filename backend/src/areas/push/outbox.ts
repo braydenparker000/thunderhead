@@ -65,7 +65,7 @@ export function queueTest(db: Db, sessionId: string, now: number): string {
   );
 }
 
-/** A reminder's push, under the reminder's id, once: its words never carry the reminder's text
+/** A reminder's push, under the id of the line it became, once: its words never carry the reminder's text
  * (PRIVACY.md §8: the details toggle does not exist yet). */
 export const REMINDER: PushItem = { title: 'Thunderhead', body: 'Your reminder.', url: '/' };
 

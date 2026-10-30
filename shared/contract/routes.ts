@@ -83,7 +83,7 @@ export const ROUTES = {
   'GET /v1/files/:id': {
     who: ['D', 'C', 'N'],
     phase: 'P2',
-    note: 'the bytes, through the Worker; private and immutable; ?meta=1 the record',
+    note: 'the bytes, through the Worker; private, no-store; ?meta=1 the record',
   },
   'GET /v1/search': { who: ['D', 'C', 'N'], phase: 'P2' },
   'POST /v1/mind/typing': { who: D, phase: 'P2' },

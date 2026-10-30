@@ -24,7 +24,12 @@ export function openRemind() {
   document.querySelector('.remind')?.remove();
   const q = /** @type {HTMLTextAreaElement} */ (document.querySelector('#q'));
   const ask = /** @type {HTMLElement} */ (document.querySelector('#ask'));
-  const fromBar = q.value.trim().slice(0, REMINDER_LIMITS.text);
+  // Cut by characters, never inside one (an emoji is two UTF-16 units; the Worker counts units).
+  let fromBar = '';
+  for (const ch of q.value.trim()) {
+    if (fromBar.length + ch.length > REMINDER_LIMITS.text) break;
+    fromBar += ch;
+  }
   const sheet = document.createElement('div');
   sheet.className = 'remind';
   sheet.setAttribute('role', 'dialog');
@@ -59,6 +64,9 @@ export function openRemind() {
     save(t);
   });
   let saving = false;
+  /** One id per reminder asked in this sheet: a retry after a lost answer is the same request, so
+   * the Worker answers the one it kept instead of setting a second. @type {Map<string, string>} */
+  const ids = new Map();
   /** @param {number} at */
   async function save(at) {
     const text = what.value.trim();
@@ -68,7 +76,9 @@ export function openRemind() {
     }
     if (saving) return;
     saving = true;
-    const id = uuidv7();
+    const key = `${at} ${text}`;
+    const id = ids.get(key) ?? uuidv7();
+    ids.set(key, id);
     try {
       const { reminder } = await signedIn((tok) => api.remind(tok, id, { text, at }));
       close();

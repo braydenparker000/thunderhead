@@ -15,7 +15,7 @@ import type {
   Message,
   PendingResponse,
 } from '../../../shared/contract/api';
-import { TEXT_MAX, type Transcriber, transcribe, WHISPER } from '../../src/areas/files/transcribe';
+import { TEXT_MAX, TRANSCRIBE_BYTES, type Transcriber, transcribe, WHISPER } from '../../src/areas/files/transcribe';
 import { uuidv7 } from '../../src/lib/ids';
 import { bytesOf, upload, uploaded } from '../files-helpers';
 import { apiJson, coreSql } from '../helpers';
@@ -108,6 +108,14 @@ describe('transcription', () => {
     expect(signal?.aborted).toBe(true);
     expect(await transcribe(null, memo.buffer as ArrayBuffer, 'audio/webm')).toBeNull();
   });
+
+  it('a memo over 10 MB is kept without words, never sent', async () => {
+    let calls = 0;
+    const counting: Transcriber = { run: async () => ({ text: String(++calls) }) };
+    expect(await transcribe(counting, new ArrayBuffer(TRANSCRIBE_BYTES + 1), 'audio/webm')).toBeNull();
+    expect(await transcribe(counting, new ArrayBuffer(TRANSCRIBE_BYTES), 'audio/webm')).toBe('1');
+    expect(calls).toBe(1);
+  });
 });
 
 describe('what the mind is handed', () => {
@@ -146,6 +154,18 @@ describe('what the mind is handed', () => {
     expect(brief.body.full).toContain(
       `[${voice.body.ref} audio/webm 42 s "Memo.webm": ${WORDS}] [${photo} image/jpeg "synthetic photo.jpg"]`,
     );
+    // A name can't close its bracket: it is quoted as JSON.
+    const odd = await uploaded({ token: D, bytes: bytesOf(`odd ${uuidv7()}`), type: 'text/plain', name: 'a"] note' });
+    const named = await apiJson<Message>('PUT', `/v1/messages/${uuidv7()}`, {
+      token: D,
+      body: { body: 'odd one', attachments: [odd] },
+    });
+    expect(named.status).toBe(201);
+    const again = await apiJson<BriefResponse>('POST', '/v1/mind/brief', {
+      ...as(C, CHAT_SESSION),
+      body: { claim: false, session_id: CHAT_SESSION, role: 'chat', constitution_sha256: 'none', th_version: '0.2.0' },
+    });
+    expect(again.body.full).toContain(`text/plain "a\\"] note"]`);
     // The Stop hook's view is ids only: the mind reads the message itself through wait or history.
     const pending = await apiJson<PendingResponse>('GET', '/v1/mind/pending', as(C, CHAT_SESSION));
     expect(pending.body.unanswered).toContain(sent.body.id);

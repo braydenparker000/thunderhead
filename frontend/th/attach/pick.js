@@ -51,7 +51,8 @@ export async function prepare(file) {
       const name = `${(file.name || 'photo').replace(/\.[^.]*$/, '') || 'photo'}.jpg`;
       return { id, name, type: 'image/jpeg', bytes: blob.size, blob, thumb };
     } catch {
-      // An image this phone can't decode goes as it is.
+      // An image this phone can't decode goes as it is, so its EXIF goes too: say so.
+      toast("Couldn't resize that photo, so it goes as it is, with any location data in it.");
     }
   }
   return { id, name: file.name || 'file', type: file.type || 'application/octet-stream', bytes: file.size, blob: file };
