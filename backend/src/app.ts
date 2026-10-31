@@ -30,6 +30,7 @@ import { predictionsRoutes } from './areas/predictions/routes';
 import { proposalsRoutes } from './areas/proposals/routes';
 import { pushRoutes } from './areas/push/routes';
 import { remindersRoutes } from './areas/reminders/routes';
+import { reportsRoutes } from './areas/reports/routes';
 import { searchRoutes } from './areas/search/routes';
 import { sensesRoutes } from './areas/senses/routes';
 import { surfacesRoutes } from './areas/surfaces/routes';
@@ -138,6 +139,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', podcastsRoutes)
   .route('/v1', pushRoutes)
   .route('/v1', remindersRoutes)
+  .route('/v1', reportsRoutes)
   .route('/v1', filesRoutes)
   .route('/v1', libraryRoutes)
   .route('/v1', ingestRoutes)

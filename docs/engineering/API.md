@@ -231,6 +231,7 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | `/v1/auth/*` body | 4 KB | 413 |
 | Event batch | 500 events and 256 KB | 413 |
 | `POST /v1/ops/errors` | 50 items, 32 KB | 413 |
+| `POST /v1/ops/reports` | the batch's `body` 32 KB as JSON once cleaned (`REPORT_LIMITS.body_bytes`); the request 33 KB; 6 from one device in any 5 minutes | 413; 429 `rate_limited` |
 | `POST /v1/import/phone` | 5 MB per chunk | 413 |
 | `POST /v1/ops/import/parts` | 25 MiB per part (`IMPORT_PART_BYTES`) | 413 |
 | Chat file (`PUT /v1/files/:id`) | 25 MiB (`FILE_LIMITS.bytes`, `shared/contract/files.ts`); the body is read whole, so a sender without `Content-Length` is cut off there too | 413 |
@@ -543,6 +544,8 @@ type MemoryOp =
 | `GET /v1/ops/errors?status=open\|resolved&since&limit` | device, agents, `ci` | — | `200 Page<ErrorRow>` (`since`: only errors last seen at or after it, ms) |
 | `POST /v1/ops/errors/:fingerprint/resolve` | device, `mind:chat`, `mind:reflex` | `{}` | `204` |
 | `POST /v1/ops/perf` **[proposal]** | device | `{ day: Day, build: number, metrics: Record<'inp'\|'loaf_gesture'\|'start_warm'\|'start_cold'\|'api_ms'\|'heap_mb', {p50, p75, p95, n}> }` (one call per day) | `204` |
+| `POST /v1/ops/reports` | device | `{ kind: 'playback', body: JsonObject /* ≤ 32 KB */ }` (`ReportRequest`, `shared/contract/reports.ts`) | `201 { id, at }`; `413 too_large`; `429 rate_limited` after 6 from this device in 5 minutes |
+| `GET /v1/ops/reports?kind&since&limit&cursor` | device, `mind:chat`, `mind:night`, `mind:reflex`, `ci` | — | `200 Page<{ id, kind, device_id, at, body }>`, newest first (`kind`: one kind, else all; `since`: taken at or after it, ms; `limit` 1–200, default 50) |
 | `GET /v1/ops/meter?days=1-30` | device, agents, `ci` | — | `200 { items: { day, class, rows_written, rows_read, bulk_rows_written }[] }` |
 | `POST /v1/ops/backups/run` | `mind:night`, `ci` | `{ class?: 'core' }` | `202 { job_ids: Id[] }` (built P4 stage E; the one running is answered again; the Worker's tick also starts one each Sunday at 02:30 local) |
 | `GET /v1/ops/backups?limit` | device, agents, `ci` | — | `200 Page<{date, class, rows, bytes, complete, started_at, finished_at}>` (counts only; `BackupItem` in `shared/contract/backups.ts`) |
@@ -556,6 +559,8 @@ type MemoryOp =
 | `GET /v1/export/:id/zip` | the device that asked | — | `200 application/zip`, streamed from the bucket, for an hour after it was ready; `404` after |
 
 `message` fields are scrubbed by the server too (URLs with query strings and token-shaped strings are removed).
+
+**Reports** (NEXT-BATCH.md part 1). The phone sends a small batch about how an app ran, and each batch is one row in Core's `reports` table ([DATA.md §4.1](DATA.md#41-settings-ops-the-feed-and-the-minds-bookkeeping)), kept 30 days. Today's one kind is `playback`: Music's playback log since the batch before (`frontend/th/music/report.js`; the body is described in [MUSIC.md §5.10](../product/apps/MUSIC.md)), sent once a minute while music plays and once when the page is hidden, only by a signed-in top-level page. Timings, counts and track ids only, never titles, artists, file names or words. The Worker cleans each batch once more before it keeps it: every address keeps only its host, a session or key token is removed, each text is cut to 300 characters, objects nest at most 8 deep. A batch costs one row written and none read; a list reads the rows it returns. Why a new route and not `POST /v1/ops/perf`: perf keeps one summary per metric per day (p50, p75, p95), which can't hold what happened when; a report keeps the events themselves, for a later look at one bad minute.
 
 ### 11.17 Import
 
@@ -703,6 +708,8 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `GET /v1/ops/errors`, `GET /v1/ops/meter` | D C N R I | P1 |
 | `POST /v1/ops/errors/:fp/resolve` | D C R | P1 |
 | `POST /v1/ops/perf` | D | P1 |
+| `POST /v1/ops/reports` | D | P8 |
+| `GET /v1/ops/reports` | D C N R I | P8 |
 | `POST /v1/live/ticket`, `GET /v1/live` | D | P2 |
 | `GET /v1/live/wait` | C N R | P2 |
 | `GET /v1/changes` | D C N R | P2 |

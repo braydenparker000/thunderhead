@@ -174,6 +174,8 @@ Starting budgets for `backend/tests/cost/budgets.json`, at the year-2 scale fixt
 | `PUT /v1/senses/batches/:id` (500 events) | 1 | 2 | 1,002 |
 | `POST /v1/media/sign` (50 refs) | 1 | 50 | 0 |
 | `POST /v1/ops/errors` (50 items) | 1 | 50 | 100 |
+| `POST /v1/ops/reports` (one batch) | 1 | 0 | 1 |
+| `GET /v1/ops/reports` (limit 50) | 1 | 51 | 0 |
 | `GET /v1/ops/health/deep` | 1 per class | 50 | 0 |
 | `Core.tick` (cron) | ≤ 5 | 200 | 10 |
 
@@ -192,6 +194,8 @@ P4 stage A (decision cards) measured on the same Core: `PUT /v1/proposals/:id` w
 P4 stage D (the watchdogs) measured on the same Core: each tick runs the six built watchdogs, which read their own rows (one per watchdog), the server and client error counts, `day.current`, the jobs that could be stuck and the reflex wakes of the last 24 hours, so a tick with nothing due is 24 / 2: only the two error watchdogs write, their last hour of totals, and a watchdog whose state, detail and counts didn't change writes nothing. That is about 2,300 rows read and 190 written a day. The first tick writes each watchdog's row once, so the daily prune pass on that tick is 83 / 7. A trip adds one ledger note and, when it wakes mind-reflex, one wake; a claim reads the watchdogs for the briefing's line, so the brief is 131 / 50. `GET /v1/ops/watchdogs` reads at most 14 rows.
 
 P9 (predictions) measured the same way: `PUT /v1/predictions/:id` 3 / 4 (its id, the open day, the last 24 hours' count on `predictions_made`; the row and its indexes); `GET /v1/predictions` and `GET /v1/predictions/skill` read the predictions they return (the skill reads every one, at most 12 a day, so about 4,400 rows a year at most); the tick probes `predictions_open` once (one more row read: nothing due 39 / 2, the prune pass 105 / 11), and a tick that resolves one reads its day and the 28 days before through `threads_daily_day` and `messages_thread_seq` (45 / 4). `GET /v1/insight` reads the last 28 days of the ledger (on `ledger_at`) and of facts the mind wrote, the last 4 memory checks and every prediction (49 / 0 on the fixture), plus the Senses object's rollups of 30 days for 7 types.
+
+The phone's reports (NEXT-BATCH.md part 1) measured the same way: `POST /v1/ops/reports` 0 / 1 (the row itself: its key is the table's only index, and a report writes no change row); `GET /v1/ops/reports` with 50 of 250 rows 50 / 0, and every later page reads its own 50 too (the cursor is a range on the key, not a skip); the daily prune pass reads one more row (106 / 11: the reports' cut, found on the key, when nothing is old). A day of 10 hours of music is about 600 batches, so 600 rows written and, 30 days later, about 1,200 rows read and 600 written by the prune.
 
 ### 4.4 Daily totals
 

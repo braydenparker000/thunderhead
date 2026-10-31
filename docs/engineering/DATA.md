@@ -143,6 +143,7 @@ All of these live in instance `Core/owner`. "Phase" is when the table first appe
 | `changes` | `seq INTEGER PK, kind TEXT, ref TEXT, at INTEGER` | — | P1 |
 | `errors` | `fingerprint TEXT PK, source TEXT ('client'\|'worker'\|'do'\|'job'\|'csp'), route TEXT, code TEXT, message TEXT (≤ 300 chars, scrubbed), count INTEGER, first_at INTEGER, last_at INTEGER, last_build INTEGER, resolved_at INTEGER` | — | P1 |
 | `perf_days` **[proposal]** | `(day TEXT, metric TEXT) PK, p50 REAL, p75 REAL, p95 REAL, n INTEGER` WITHOUT ROWID | — | P1 |
+| `reports` (step 23) | `(kind TEXT, at INTEGER, id TEXT) PK` (`kind` from `REPORT_KINDS` in `shared/contract/reports.ts`, today only `playback`; `at` when the Worker took it; `id` a UUIDv7 the Worker makes), `device_id TEXT` (the device session that sent it), `body_json TEXT` (the batch, ≤ 32 KB, every address cut to its host and every token removed by the Worker) WITHOUT ROWID | — (the key is the list's and the prune's index) | P8. One row per batch the phone sends ([API.md §11.16](API.md#1116-ops)); never a row per event |
 | `live_tickets` | `hash TEXT PK, session_id TEXT, expires_at INTEGER, used_at INTEGER` WITHOUT ROWID | — | P2 |
 | `wakes` | `id TEXT PK, at INTEGER, task TEXT ('chat'\|'night'\|'reflex'), reason TEXT ('prewarm'\|'message'\|'requeue'\|'roll'\|'schedule'\|'watchdog:<name>'\|'manual'), status TEXT ('fired'\|'claimed'\|'ended'\|'unclaimed'\|'failed'), fired_at INTEGER, fire_status INTEGER, fire_error TEXT, session_id TEXT, claimed_at INTEGER, claim_match TEXT ('exact'\|'loose'\|'manual'), retry_of TEXT, first_reply_at INTEGER, ended_at INTEGER, end_reason TEXT` | partial `(at) WHERE status IN ('fired','unclaimed')` | P2 |
 | `leases` | `task TEXT PK, session_id TEXT, acquired_at INTEGER, renewed_at INTEGER` WITHOUT ROWID | — | P2 |
@@ -157,6 +158,7 @@ All of these live in instance `Core/owner`. "Phase" is when the table first appe
 - `mind_sessions` holds per-session state the Worker enforces: taint ([MEMORY.md §7](../mind/MEMORY.md)) and the constitution pin. A taint holds for 24 hours for its role, by `tainted_at` (not `day`, which stays the claim's): a claim copies it (`taint_source = inherited:<source>`, the original `tainted_at`) unless the Worker fired that session after the taint. Agent requests name their session with the header `TH-Session` ([API.md §1](API.md#1-request-basics)). `taint_source` keeps the tool name only, never the URL.
 - `topics` backs the voice-ladder repeat rule (a dismissed `topic_key` stays quiet for 14 days, [BEHAVIOR.md §3](../mind/BEHAVIOR.md)).
 - `errors.message` is scrubbed before storage: no URLs with query strings, no token-like strings, nothing longer than 300 characters.
+- `reports` costs one row written per batch and no row read: no change-feed row (nothing on a phone or in the mind's view changes when one arrives), no second index. A list reads the rows it returns on the key (kind, at, id), newest first; the prune reads only the rows it deletes, kind by kind. A device may send 6 batches in any 5 minutes (counted in the Core object's memory, so the count costs no row); Music sends one a minute while it plays and one when its page is hidden.
 
 ### 4.2 Conversation
 
@@ -354,7 +356,8 @@ Rules from the platform that drive the numbers: every index entry touched is one
 | Senses.batches (+prune), rollups | 150 batches; 300 rollups | ~2 | 900 |
 | Music.track_stats nightly | ≤ 200 tracks | 2 | 400 |
 | Library.positions, highlights | ~200 | 1–3 | 300 |
-| **Total steady (P5+)** | | | **~22,300 (22%)** |
+| Core.reports (one a minute while Music plays, one per page hide; pruned 30 days later) | ~600 (10 h of music) | 1 + 1 | 1,200 |
+| **Total steady (P5+)** | | | **~23,500 (24%)** |
 
 ### 8.3 The bulk lane
 
@@ -414,6 +417,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.predictions | forever (at most 12 rows a day: the night shift's prediction, its resolver and arguments, the outcome and base rate; the meter reads them all) | yes | yes |
 | Core.files | forever, as long as its bytes in `chat/files/` (one row per chat file: its name, type, size, SHA-256, a voice memo's seconds and words, who uploaded it and the message that took it; never the bytes) | yes | yes (the bytes stay in the bucket, read through `GET /v1/files/:id`) |
 | Core.reminders | forever (the owner's own words, as the conversation line each becomes; at most 50 set at once) | yes | yes |
+| Core.reports | 30 days after `at` (one row per batch from the phone: timings, counts and track ids, never titles or words) | no (diagnostics: a backup would read every row each week for nothing) | no |
 | Core.watchdogs | forever (one row per watchdog: its state, the last check's counts, the reflex's report) | yes | yes |
 | Core.backups | forever (one row a week: its date, state, counts and the manifest's key) | yes | no |
 | Core.drills | forever (one row a month: the backup it restored, passed or failed, the report's key) | yes | no |

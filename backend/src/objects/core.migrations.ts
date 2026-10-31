@@ -17,6 +17,7 @@ import { OPS_TABLES } from '../areas/ops/tables';
 import { PREDICTIONS_MIGRATIONS, PREDICTIONS_TABLES } from '../areas/predictions/migrations';
 import { PROPOSALS_MIGRATIONS, PROPOSALS_TABLES } from '../areas/proposals/migrations';
 import { REMINDERS_MIGRATIONS, REMINDERS_TABLES } from '../areas/reminders/migrations';
+import { REPORTS_MIGRATIONS, REPORTS_TABLES } from '../areas/reports/migrations';
 import { SETTINGS_TABLES } from '../areas/settings/tables';
 import { SURFACES_MIGRATIONS, SURFACES_TABLES } from '../areas/surfaces/migrations';
 import { VERBS_MIGRATIONS, VERBS_TABLES } from '../areas/verbs/migrations';
@@ -82,6 +83,7 @@ export const CORE_MIGRATIONS: Migration[] = [
   ...PREDICTIONS_MIGRATIONS,
   ...FILES_MIGRATIONS,
   ...REMINDERS_MIGRATIONS,
+  ...REPORTS_MIGRATIONS,
 ].sort((a, b) => a.version - b.version);
 
 /** Every Core table with its retention and export inclusion (DATA.md §10); a test fails if a
@@ -106,4 +108,5 @@ export const CORE_TABLES: Record<string, TableInfo> = {
   ...PREDICTIONS_TABLES,
   ...FILES_TABLES,
   ...REMINDERS_TABLES,
+  ...REPORTS_TABLES,
 };

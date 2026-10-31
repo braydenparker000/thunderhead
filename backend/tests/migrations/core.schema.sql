@@ -435,6 +435,15 @@ CREATE INDEX reminders_due ON reminders (fire_at) WHERE state = 'set';
 
 CREATE INDEX reminders_source ON reminders (source_message_id) WHERE source_message_id IS NOT NULL;
 
+CREATE TABLE reports (
+  kind TEXT NOT NULL,
+  at INTEGER NOT NULL,
+  id TEXT NOT NULL,
+  device_id TEXT NOT NULL,
+  body_json TEXT NOT NULL,
+  PRIMARY KEY (kind, at, id)
+  ) WITHOUT ROWID;
+
 CREATE TABLE session_notes (
   id TEXT PRIMARY KEY,
   session_id TEXT,

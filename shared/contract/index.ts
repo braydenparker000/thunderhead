@@ -22,6 +22,7 @@ export {
   proposalOp,
 } from './proposals.ts';
 export { REMINDER_LIMITS } from './reminders.ts';
+export { REPORT_KINDS, REPORT_LIMITS, type ReportKind } from './reports.ts';
 export { READER_KINDS, READER_LIMITS, type ReaderKind } from './reader.ts';
 export { BUILT_PHASES, builtRoutes, type Phase, ROUTES, type RouteKey, type RouteSpec, type Who } from './routes.ts';
 export { SURFACE_KINDS, type SurfaceKind, type SurfaceKindName, surfaceKind } from './surfaces.ts';

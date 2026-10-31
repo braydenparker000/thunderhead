@@ -166,6 +166,8 @@ function mind() {
     message_kinds: c.MESSAGE_KINDS,
     // Chat files (`th say --attach`, `th file`): what the Worker takes, checked before the upload.
     files: { limits: c.FILE_LIMITS },
+    // The phone's reports (`th reports`): the kinds and the page size, checked before the call.
+    reports: { kinds: c.REPORT_KINDS, limits: c.REPORT_LIMITS },
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
     night: {
       steps: c.NIGHT_STEPS,

@@ -178,6 +178,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/reminders/:id` | D C | P8 | built | mind:chat: names the owner's message that asked |
 | `GET /v1/reminders` | D C N | P8 | built |  |
 | `DELETE /v1/reminders/:id` | D C | P8 | built | takes back one not yet delivered; the row stays |
+| `POST /v1/ops/reports` | D | P8 | built | {kind, body ≤ 32 KB}; at most 6 in any 5 minutes |
+| `GET /v1/ops/reports` | D C N R I | P8 | built | ?kind=&since=&limit=&cursor=, newest first |
 
 ## Verbs
 

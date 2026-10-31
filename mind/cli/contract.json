@@ -1439,6 +1439,26 @@
       "phase": "P8",
       "status": "built",
       "note": "takes back one not yet delivered; the row stays"
+    },
+    "POST /v1/ops/reports": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "{kind, body ≤ 32 KB}; at most 6 in any 5 minutes"
+    },
+    "GET /v1/ops/reports": {
+      "who": [
+        "D",
+        "C",
+        "N",
+        "R",
+        "I"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?kind=&since=&limit=&cursor=, newest first"
     }
   },
   "verbs": {
@@ -2023,6 +2043,17 @@
       "mind_per_message": 10,
       "name": 120,
       "memo_seconds": 600
+    }
+  },
+  "reports": {
+    "kinds": [
+      "playback"
+    ],
+    "limits": {
+      "body_bytes": 32768,
+      "keep_days": 30,
+      "per_5_min": 6,
+      "page_max": 200
     }
   },
   "memory": {
