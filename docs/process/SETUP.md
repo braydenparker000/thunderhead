@@ -512,6 +512,11 @@ upload music from (it never leaves that computer):
    canary and tell the agent "N4 done" with that line; it checks the song is in the new catalog.
    The old tool and the old key stay as they are until the old Worker retires.
 
+**If Muse does your uploads** (2026-10-31): Muse makes the key instead of you, on its side, and
+sends you only the public key (64 characters); you do step 2 with it, then tell Muse it's
+registered, and Muse uploads one test song and sends you the `register` answer for the agent. The
+message for Muse, ready to paste, is [MUSE-UPLOADS.md](MUSE-UPLOADS.md).
+
 N5 (music private: the old Worker's public read off, ask-first) comes after the player has used
 only the new Worker for 3 days.
 

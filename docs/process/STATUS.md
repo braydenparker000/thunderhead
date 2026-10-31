@@ -78,7 +78,7 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 - SETUP.md M2 (batch D is live) and M3 (G+H is live).
 - Study needs no owner step to read books any more (O1 dropped).
 - SETUP.md O2 (the owner's scripture volumes added in Study, then the mind builds the table and text): verses need it.
-- SETUP.md N1 and N2 are done (owner, 2026-10-30; N2's CORS rule checked through the read-only token, exactly as written; r2.dev access is "Not allowed", RA-P5-02). N4 (the tools' key) then N3 (the catalog import) on one day: the player switches by itself after them, which is also N1's real check.
+- SETUP.md N1 and N2 are done (owner, 2026-10-30; N2's CORS rule checked through the read-only token, exactly as written; r2.dev access is "Not allowed", RA-P5-02). N3 is done (the owner, by 2026-10-31; the new catalog answers with 11,939 tracks); nothing was uploaded since, so no second import is needed. Its clean-up is open: the `import-once` key still answers and must be revoked, and its network secret removed (SETUP.md L3.3). N4 goes through Muse, which does the owner's uploads: the message for Muse is MUSE-UPLOADS.md (Muse makes the key, the owner pastes its public key). The owner playing a song in Music is N1's real check.
 - The decision card: options A (quiet card), B (in his voice) and C (docked above the bar) sent 2026-10-30, drawn in the real home page; unchanged until the owner picks.
 - Azure's error document (SETUP.md step 7): the live site answers a missing page with Azure's own "WebContentNotFound" page, not ours. Storage account → Data management → Static website → Error document path: `404.html` → Save.
 
