@@ -90,7 +90,9 @@ export async function startChat() {
     try {
       sent = localStorage.getItem('th.p.sent') === '1';
     } catch {}
-    const firstRun = !sent && shown.length === 0;
+    // The first-run line only once today has loaded and is truly empty: a today that failed to load
+    // is not a first run (audit fix 2).
+    const firstRun = !sent && shown.length === 0 && state.today !== null;
     const quiet = quietUntil(now);
     const line = model.voiceLine({ presence: state.presence, firstRun, homeLine: homeLine(state.surfaces)?.text ?? null, noWake: model.noWakeShown(shown), decisions: decisions.waiting, answered: decisions.answered, quiet: quiet ? quietLine(quiet, now) : null });
     // Never while typing (HOME.md §2.3): a change waits until the bar is empty and blurred, except
@@ -292,8 +294,11 @@ export async function startChat() {
         }
         return api.say(tok, m.id, m.body, m.reply_to, m.files?.map((f) => `file:${f.id}`));
       });
+      // Sent: the Worker's copy replaces this phone's. With today not loaded yet (it failed), it is
+      // kept as today's first message rather than dropped from the screen (audit fix 2).
+      if (!state.today) state.today = current.today = /** @type {TodayResponse} */ ({ thread: null, messages: [], seq: 0, day: '' });
+      if (!state.today.messages.some((x) => x.id === out.id)) state.today.messages.push(out);
       state.local = state.local.filter((x) => x.id !== m.id);
-      if (state.today && !state.today.messages.some((x) => x.id === out.id)) state.today.messages.push(out);
       drop(m.id);
       try {
         localStorage.setItem('th.p.sent', '1');
@@ -418,6 +423,12 @@ export async function startChat() {
     delete b.dataset.toast;
     b.addEventListener('click', () => sheet().then((s) => s.act(b.dataset.act), () => toast("That didn't load. Try again.")));
   }
+  // The mic records a voice memo (audit fix 3: it only pretended to listen; spoken input itself is
+  // not built, owner's choice). Capture phase, so home.js's signed-out toast never runs.
+  $('#mic').addEventListener('click', (e) => {
+    e.stopImmediatePropagation();
+    sheet().then((s) => s.act('memo'), () => toast("That didn't load. Try again."));
+  }, true);
 
   // What a command will do, shown before it goes: only where this phone knows exactly (the quiet
   // orders it carries out itself, HOME.md §6).

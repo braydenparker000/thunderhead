@@ -54,7 +54,7 @@ export interface BriefingResponse {
   weather: WeatherTile;
   /** At most 8, in order: "Waiting on you", then the night's tiles by slot. */
   tiles: (WaitingTile | NightTile)[];
-  /** "Muse is connected to the new Worker." / "Muse hasn't checked in since yesterday." / null */
+  /** "Muse hasn't checked in since yesterday." / null */
   muse: string | null;
 }
 

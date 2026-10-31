@@ -25,6 +25,12 @@ import { startPinned } from './pinned.js';
   // + folds the options sheet up out of the ask bar
   const ask=$('#ask'), q=$('#q'), convo=$('#convo'), hint=$('#hint'), opts=$('#opts'), plus=$('#plus');
   startPinned();
+  // The gesture hint retires once the ring has opened 3 times and the Briefing and the menu were each
+  // swiped open once (HOME.md §10; audit fix 11), counted on this phone.
+  const HINT='th-hint'; let learnt={ring:0,brief:0,side:0}; try{ learnt={...learnt,...JSON.parse(localStorage.getItem(HINT)||'{}')} }catch(e){}
+  const known=()=>learnt.ring>=3&&learnt.brief>=1&&learnt.side>=1;
+  const learn=k=>{ learnt[k]=(learnt[k]||0)+1; try{ localStorage.setItem(HINT,JSON.stringify(learnt)) }catch(e){} if(known()) hint.classList.add('gone') };
+  if(known()) hint.classList.add('gone');
   function menu(on){ opts.classList.toggle('show',on); $('#home').classList.toggle('menuOpen',on); ask.classList.toggle('menu',on); plus.setAttribute('aria-expanded',on) }
   plus.addEventListener('click',()=>{ menu(!opts.classList.contains('show')); buzz(6) });
   opts.addEventListener('click',e=>{ if(e.target.closest('button')) menu(false) });
@@ -57,9 +63,8 @@ import { startPinned } from './pinned.js';
   convo.addEventListener('touchstart',e=>{ pull=convo.scrollTop<=0&&e.touches.length===1&&!e.target.closest('input,textarea')?{y:e.touches[0].clientY,d:0}:null },{passive:true});
   convo.addEventListener('touchmove',e=>{ if(!pull) return; pull.d=e.touches[0].clientY-pull.y; if(pull.d<0||convo.scrollTop>0){ pull=null; pullShow(0); return } pullShow(pull.d) },{passive:true});
   convo.addEventListener('touchend',()=>{ if(pull&&pull.d>=64) import('/th/reply/find.js').then(f=>f.openFind()); pull=null; pullShow(0) },{passive:true});
-  let listening=false;
-  $('#mic').addEventListener('click',()=>{ listening=!listening; ask.classList.toggle('listening',listening); edge.classList.toggle('listen',listening);
-    q.placeholder=listening?'Listening…':''; toast(listening?'Listening. Tap again to stop':'Stopped. Nothing is kept unless you send it'); buzz(8) });
+  // Signed out the mic only says so; signed in it records a voice memo (th/chat/index.js).
+  $('#mic').addEventListener('click',()=>toast('Voice memos come with sign-in'));
   ask.addEventListener('submit',e=>{
     e.preventDefault(); if(root.dataset.signedIn!==undefined){ if(root.dataset.chat==='failed') toast("Couldn't load the conversation. Reload to try again."); return; } // signed in: th/chat/index.js sends it
     const text=q.value.trim(); if(!text) return; q.value=''; ask.classList.remove('typing'); hint.classList.add('gone');
@@ -105,7 +110,16 @@ import { startPinned } from './pinned.js';
     side.style.transform=`translateX(${(1-s)*100}%)`; dim.style.opacity=Math.min(1,s); side.classList.toggle('open',s>0); dim.style.pointerEvents=s>.5?'auto':'none' }
   // The menu's rows ripple in each time it opens; the Briefing's tiles cascade (DESIGN-SYSTEM.md §8).
   function enter(el){ [...el.querySelectorAll(':scope .sidescroll>:not(#convos), :scope #convos>*, :scope .grid>*')].forEach((c,i)=>c.style.setProperty('--k',String(Math.min(i,10)))); el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); clearTimeout(el._enter); el._enter=setTimeout(()=>el.classList.remove('enter'),900) }
-  function go(v,ms){ const was=view; view=v; setPos(v==='brief'?1:0,v==='side'?1:0,true,ms); if(v!=='home') menu(false); if(v!==was&&v==='side') enter(side); if(v!==was&&v==='brief') enter(brief) }
+  // Only the place in view takes focus or taps; the others are inert (audit fix 5).
+  function inertAll(){ home.inert=view!=='home'; brief.inert=view!=='brief'; side.inert=view!=='side' }
+  function go(v,ms){ const was=view; view=v; setPos(v==='brief'?1:0,v==='side'?1:0,true,ms); inertAll(); if(v!=='home') menu(false); if(v!==was&&v==='side') enter(side); if(v!==was&&v==='brief') enter(brief) }
+  inertAll();
+  // Every gesture has a button (GESTURES.md §9): Apps, Briefing and Menu, first in the focus order and
+  // shown only when focused; the Briefing's Back home; Escape returns home. The ring by keyboard:
+  // it opens in the middle, the arrows move round it, Enter opens the app, Escape closes it.
+  $('.skips').addEventListener('click',e=>{ const b=e.target.closest('[data-skip]'); if(!b) return; const k=b.dataset.skip; if(k==='apps') keyRing(); else go(k) });
+  $('#bback').addEventListener('click',()=>go('home'));
+  document.addEventListener('keydown',e=>{ if(e.key!=='Escape'||open) return; if(view!=='home'&&!document.querySelector('.spage, .csheet')) go('home') });
   dim.addEventListener('click',()=>go('home'));
   document.addEventListener('th:go',e=>go(e.detail)); // settings pages return to the open menu
   app.addEventListener('click',e=>{ if(swiped){ e.stopPropagation(); e.preventDefault() } },true);
@@ -113,7 +127,7 @@ import { startPinned } from './pinned.js';
     start={x:e.clientX,y:e.clientY,id:e.pointerId,t:performance.now(),el:e.target}; swipe=null;
     if(view!=='home'||blocked(e.target)||opts.classList.contains('show')) return;
     const r=app.getBoundingClientRect(); press.style.left=(e.clientX-r.left)+'px'; press.style.top=(e.clientY-r.top)+'px'; press.classList.remove('on'); void press.offsetWidth; press.classList.add('on');
-    holdT=setTimeout(()=>{ press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); ring.classList.remove('closing'); ring.classList.add('show'); scrim.classList.add('show'); requestAnimationFrame(()=>fan(true)); buzz(6) },220) });
+    holdT=setTimeout(()=>{ press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); learn('ring'); ring.classList.remove('closing'); ring.classList.add('show'); scrim.classList.add('show'); requestAnimationFrame(()=>fan(true)); buzz(6) },220) });
   window.addEventListener('pointermove',e=>{ if(!start||e.pointerId!==start.id) return;
     if(!open){ const mx=e.clientX-start.x, my=e.clientY-start.y, d=Math.hypot(mx,my);
       // Sideways is ours from 6 px, before Chrome's own slop (8 dp) can hand the touch to a scroller;
@@ -142,7 +156,7 @@ import { startPinned } from './pinned.js';
       :from==='brief'?(v<-F||b<.72&&v<=F?'home':'brief'):(v>F||s<.72&&v>=-F?'home':'side');
     const left=to==='brief'||from==='brief'?Math.abs((to==='brief'?1:0)-b)*app.clientWidth:Math.abs((to==='side'?1:0)-s)*side.offsetWidth;
     go(to,Math.abs(v)>F?Math.round(Math.min(460,Math.max(180,left/Math.abs(v)*1.8))):undefined);
-    if(to!==from) buzz(5) }
+    if(to!==from){ buzz(5); if(to==='brief'||to==='side') learn(to) } }
   function close(commit){ clearTimeout(holdT); press.classList.remove('on');
     if(open){ const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
       if(chosen>=0){ const p=pets[chosen], a=chosen*SEC; p.classList.add('go'); p.style.transform=`translate(${R*1.25*Math.sin(a)}px,${-R*1.25*Math.cos(a)}px) scale(1.7)`; buzz([12,40,12]); const to=APPS[chosen][3]; if(to){ const r=p.getBoundingClientRect(); launchFrom(r.left+r.width/2,r.top+r.height/2); launch(APPS[chosen][2]).then(()=>location.assign(to)) } else toast(APPS[chosen][0]+' comes later') }
@@ -151,6 +165,11 @@ import { startPinned } from './pinned.js';
       dir=-1; lbl.classList.remove('show') }
     open=false; start=null }
   window.addEventListener('pointerup',e=>{ if(start&&e.pointerId===start.id){ if(swipe) endSwipe(e.timeStamp); close(true) } });
+  function keyRing(){ if(open) return; const r=app.getBoundingClientRect(); place(r.left+r.width/2,r.top+r.height/2); open=true; hint.classList.add('gone'); ring.classList.remove('closing'); ring.classList.add('show'); scrim.classList.add('show'); requestAnimationFrame(()=>{ fan(true); setDir(0) });
+    const keys=e=>{ if(e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); setDir((dir+1)%N) } else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){ e.preventDefault(); setDir((dir-1+N)%N) }
+      else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); done(true) } else if(e.key==='Escape'||e.key==='Tab'){ e.preventDefault(); done(false) } };
+    const done=c=>{ document.removeEventListener('keydown',keys,true); close(c) };
+    document.addEventListener('keydown',keys,true) }
   window.addEventListener('pointercancel',()=>{ if(swipe) endSwipe(); close(false) });
   app.addEventListener('contextmenu',e=>e.preventDefault());
   app.addEventListener('touchmove',e=>{ if(open||swipe) e.preventDefault() },{passive:false});

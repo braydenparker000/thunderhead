@@ -58,7 +58,7 @@ test('the Briefing shows what waits and Muse\'s line, day and night, with nothin
     assert.deepEqual(await page.$$eval('#brief .grid > .tile', (t) => t.map((x) => [x.className, x.querySelector('.v').textContent])), [
       ['tile gold half wide', 'Forget the old address?'],
     ]);
-    assert.equal(await page.textContent('#brief .bmuse'), 'Muse is connected to the new Worker.');
+    assert.equal(await page.textContent('#brief .bmuse'), "Muse hasn't checked in since yesterday.");
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0, 'no sideways scroll');
     assert.equal(await page.title(), 'Thunderhead');
     await shot(page, 'briefing', theme);

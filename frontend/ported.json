@@ -57,9 +57,17 @@
      "adjustments": []
     },
     "music/index.html": {
-     "sha256": "82bd2497188ef28f14f5c9220818f8595bf4109eae269312d342097c909416e1",
+     "sha256": "ab55f27a7f6b6a97720e0b4914116ce9029c3992417c91352ecd0d6efc69f177",
      "old_sha256": "82bd2497188ef28f14f5c9220818f8595bf4109eae269312d342097c909416e1",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "<title>Music</title>",
+       "<title>Claude Player</title>"
+      ]
+     ]
     },
     "music/manifest.webmanifest": {
      "sha256": "47dc195c886e913c0a766fd2796c6532b2bb5304a7808f5afb437762e7fface2",
@@ -683,9 +691,17 @@
      "adjustments": []
     },
     "guitar/index.html": {
-     "sha256": "81bb9653bf5050c338626f0b96e9a44189194e02357005619fd61829d842eda3",
+     "sha256": "de30add375a50ddc3aa6476e81f695f53a318f9a2bbbd1ff1f077e9a4838e9ee",
      "old_sha256": "81bb9653bf5050c338626f0b96e9a44189194e02357005619fd61829d842eda3",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "<title>Guitar</title>",
+       "<title>Guitar · Jarvis</title>"
+      ]
+     ]
     },
     "guitar/licenses/alphatab.txt": {
      "sha256": "de981130586154b6ce2cf91528b9291789192d62234d0d7e6e41d085b8e1d351",
@@ -867,9 +883,17 @@
      "adjustments": []
     },
     "podcasts/index.html": {
-     "sha256": "e009bf91dd50bb6252329662f23a5186562664929e6078d8406d756f41f12c2c",
+     "sha256": "f7300e6a04af6924550b66349832b42db832360137e9c68d6545d59319ed6fde",
      "old_sha256": "e009bf91dd50bb6252329662f23a5186562664929e6078d8406d756f41f12c2c",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "<title>Podcasts</title>",
+       "<title>Podcasts · Jarvis</title>"
+      ]
+     ]
     },
     "podcasts/motion.js": {
      "sha256": "5560ad6c26432d188159ead0d2dae9c3fe6d221f063b56bb5352d5022194bcfb",
@@ -1317,9 +1341,17 @@
    "from": "frontend/mymedia/",
    "files": {
     "media/app.js": {
-     "sha256": "83cf34477f56f7fa147b677e61672579fef3a2a5bdc7b9d0d5739bfd73b18253",
+     "sha256": "6abb97b2d5bac197320bfad81ac98cc9c3583577d15b7654776c8509130b68c1",
      "old_sha256": "83cf34477f56f7fa147b677e61672579fef3a2a5bdc7b9d0d5739bfd73b18253",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "    if (!response.ok) throw Error(\"My Media isn't set up on this site yet.\");\n    const config = await response.json().catch(() => { throw Error(\"My Media's settings couldn't be read.\"); });\n",
+       "    const config = await response.json();\n"
+      ]
+     ]
     },
     "media/discovery.js": {
      "sha256": "5ac8a94b1e4e6aae09b0f05fe2c62cf3094769c2316897bc7346c906f5c7c8e2",
@@ -1332,10 +1364,11 @@
      "adjustments": []
     },
     "media/index.html": {
-     "sha256": "6814d977cb3282cae80fca9361ef43d1bab618c9cb52ace13a942416f01b4156",
+     "sha256": "ac9b48046f2ebe343aa4ab3a2e13e38ec712990516a56e6c52d886d402c184c4",
      "old_sha256": "282325a4cdc88a9b4cc3fedf194969712ca1df22472e663829ed0c90b8fc252b",
      "adjustments": [
-      "paths"
+      "paths",
+      "improvement"
      ],
      "edits": [
       [
@@ -1345,6 +1378,10 @@
       [
        "src=\"/media/app.js",
        "src=\"/mymedia/app.js"
+      ],
+      [
+       "<title>My Media</title>",
+       "<title>My Media · Jarvis</title>"
       ]
      ]
     },

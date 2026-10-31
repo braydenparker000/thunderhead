@@ -67,7 +67,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-sm
 .acts .link{min-height:36px;font-size:12.5px}
 .empty{margin:56px 8px 0;text-align:center}
 .empty p{margin:0 auto 18px;max-width:260px;font:500 16px/1.45 var(--ui);color:var(--ink-2)}
-.empty .i{width:40px;height:40px;color:var(--study);margin-bottom:12px}
+.empty>.i{width:40px;height:40px;color:var(--study);margin-bottom:12px}
 .note{margin:14px 2px 0;font:500 13px/1.45 var(--ui);color:var(--ink-3)}
 
 /* --- search ------------------------------------------------------------------------------ */

@@ -20,7 +20,18 @@ export const PORT = {
 export const SHARED = ['assets/', 'drawercast/drive-api.js'];
 /** Each edit as [new text, old text], with its kind. Nothing else may differ from the old bytes. */
 export const EDITS = {
-  'media/index.html': { adjustments: ['paths'], edits: [['href="/media/mymedia.css', 'href="/mymedia/mymedia.css'], ['src="/media/app.js', 'src="/mymedia/app.js']] },
+  // The owner's yes (2026-10-31, the audit's fix list): the pages are titled by their app's name, not the
+  // old project's ("Claude Player", "· Jarvis").
+  'media/index.html': { adjustments: ['paths', 'improvement'], edits: [['href="/media/mymedia.css', 'href="/mymedia/mymedia.css'], ['src="/media/app.js', 'src="/mymedia/app.js'], ['<title>My Media</title>', '<title>My Media · Jarvis</title>']] },
+  'music/index.html': { adjustments: ['improvement'], edits: [['<title>Music</title>', '<title>Claude Player</title>']] },
+  'guitar/index.html': { adjustments: ['improvement'], edits: [['<title>Guitar</title>', '<title>Guitar · Jarvis</title>']] },
+  'podcasts/index.html': { adjustments: ['improvement'], edits: [['<title>Podcasts</title>', '<title>Podcasts · Jarvis</title>']] },
+  // The same list: when the page's Drive settings can't be read, it says so in words instead of showing
+  // the JSON parser's message.
+  'media/app.js': {
+    adjustments: ['improvement'],
+    edits: [["    if (!response.ok) throw Error(\"My Media isn't set up on this site yet.\");\n    const config = await response.json().catch(() => { throw Error(\"My Media's settings couldn't be read.\"); });\n", '    const config = await response.json();\n']],
+  },
   // The reporter only reports on its own live site; its site is now this one.
   // Data moves (MIGRATION.md §2.5): signed in, every ported page reports its errors to the new Worker's inbox with
   // the owner's session (th/ported/session.js), addresses cut to their host; signed out, to the old one as before.

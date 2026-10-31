@@ -65,9 +65,9 @@ function nightTiles(db: Db, now: number): NightTile[] {
 function museLine(db: Db, now: number): string | null {
   const s = work.seen(db);
   if (!s) return null;
-  if (now - s.last > WORK_LIMITS.silent_h * HOUR) return "Muse hasn't checked in since yesterday.";
-  if (now - s.first < DAY) return 'Muse is connected to the new Worker.';
-  return null;
+  // Only when it needs the owner's eye: a quiet Muse. ("Muse is connected to the new Worker." was
+  // plumbing talk, audit fix 6.)
+  return now - s.last > WORK_LIMITS.silent_h * HOUR ? "Muse hasn't checked in since yesterday." : null;
 }
 
 export function briefing(db: Db, c: { now: number; tz: string; day: string; weather: WeatherTile }): BriefingResponse {

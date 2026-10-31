@@ -269,7 +269,14 @@ function rowEl(r) {
   if (r.color) b.style.setProperty('--c', r.color);
   b.innerHTML = svg(r.icon);
   const t = el('span', 't');
-  if (r.title) t.append(el('span', 'tl', r.title));
+  if (r.title) {
+    // A long title is cut, never the date after it (audit fix 11).
+    const at = r.title.lastIndexOf(' · ');
+    const line = el('span', 'tl');
+    if (at > 0) line.append(el('span', 'tt', r.title.slice(0, at)), el('span', 'td', r.title.slice(at)));
+    else line.textContent = r.title;
+    t.append(line);
+  }
   if (r.parts) t.append(marked(r.parts));
   if (r.sub) t.append(el('span', 'src', r.sub));
   b.append(t);

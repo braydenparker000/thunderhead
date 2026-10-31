@@ -7,7 +7,7 @@ export function briefingState() {
     page: {
       day: DAY, title: "Here's your day.",
       tiles: [{ kind: 'waiting', label: 'Waiting on you', value: 'Forget the old address?', detail: 'One tap on home', count: 1 }],
-      muse: 'Muse is connected to the new Worker.',
+      muse: "Muse hasn't checked in since yesterday.",
     },
   };
 }

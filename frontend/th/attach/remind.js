@@ -50,7 +50,17 @@ export function openRemind() {
       if (!t) {
         pick.hidden = false;
         dt.min = localValue(Date.now() + MIN);
-        dt.value ||= localValue(Math.ceil((Date.now() + 2 * 60 * MIN) / (15 * MIN)) * 15 * MIN);
+        // Two hours on, but never inside the night's quiet (22:00 to 06:30 unless changed): then 08:00
+        // the next morning instead (audit fix 11).
+        let start = Math.ceil((Date.now() + 2 * 60 * MIN) / (15 * MIN)) * 15 * MIN;
+        const h = new Date(start).getHours();
+        if (h >= 22 || h < 7) {
+          const d = new Date(start);
+          if (h >= 22) d.setDate(d.getDate() + 1);
+          d.setHours(8, 0, 0, 0);
+          start = d.getTime();
+        }
+        dt.value ||= localValue(start);
         dt.focus();
         return;
       }

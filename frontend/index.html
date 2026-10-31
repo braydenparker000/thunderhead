@@ -27,6 +27,7 @@
 </head>
 <body>
 <div class="app" id="app">
+  <div class="skips"><button type="button" data-skip="apps">Apps</button><button type="button" data-skip="brief">Briefing</button><button type="button" data-skip="side">Menu</button></div>
   <div class="field"></div>
   <div class="grain"></div>
 
@@ -47,7 +48,7 @@
     <button class="plusBtn" id="plus" type="button" aria-label="Add" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#plus"/></svg></button>
     <textarea id="q" rows="1" aria-label="Message the Thunderhead" enterkeyhint="send" autocomplete="off"></textarea>
     <div class="btns">
-      <button class="mic" id="mic" type="button" aria-label="Talk"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#microphone"/></svg></button>
+      <button class="mic" id="mic" type="button" aria-label="Record a voice memo"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#microphone"/></svg></button>
       <button class="send" type="submit" aria-label="Send"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#arrow-up"/></svg></button>
     </div>
   </form>
@@ -63,7 +64,7 @@
         <span class="s">The weather, what waits on you, and what the night arranged.</span>
       </div>
     </div>
-    <div class="bnote">Swipe left to go back</div>
+    <button class="bnote" type="button" id="bback">Back home</button>
   </section>
 
   <div class="dim" id="dim"></div>

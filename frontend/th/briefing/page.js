@@ -183,13 +183,13 @@ function draw(b) {
   if (arranging) arrange(arranging);
 }
 
-/** "Waiting on you": home, with the decision card in view, its border pulsed once. */
+/** "Waiting on you": home, where the decision card waits docked above the bar, its border pulsed once. */
 function toCard() {
   document.dispatchEvent(new CustomEvent('th:go', { detail: 'home' }));
   setTimeout(() => {
     const card = document.querySelector('#decision .card:not(.gone)');
     if (!card) return;
-    card.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    // Docked above the bar, it is already in view (owner, 2026-10-31): it only pulses once.
     card.classList.add('pulse');
     setTimeout(() => card.classList.remove('pulse'), 1_400);
   }, 420);
@@ -294,6 +294,8 @@ function arrangeByPress(page) {
 /** The arrange row under the tile `key`. @param {string} key */
 function arrange(key) {
   document.querySelector('#brief .tilearr')?.remove();
+  // The tile being arranged is marked while its row is open (audit fix 11).
+  for (const n of document.querySelectorAll('#brief .tile.arranging')) n.classList.remove('arranging');
   const grid = $('#brief .grid');
   const t = /** @type {HTMLElement | null} */ (grid.querySelector(`.tile[data-key="${CSS.escape(key)}"]`));
   if (!t) return;
@@ -330,7 +332,11 @@ function arrange(key) {
         },
       });
     });
-  add('Done', () => row.remove());
+  add('Done', () => {
+    row.remove();
+    t.classList.remove('arranging');
+  });
+  t.classList.add('arranging');
   t.after(row);
 }
 

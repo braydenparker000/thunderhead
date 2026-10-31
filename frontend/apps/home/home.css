@@ -159,7 +159,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .whours li{display:grid;grid-template-columns:1fr 1fr 1fr;font:500 15px/2 var(--ui);color:var(--ink)}
 .whours .wrain{color:var(--ink-3);text-align:right}
 .tile.gold,:root[data-theme="dark"] .tile.gold{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 50%,transparent)}
-.bnote{font:600 12px var(--ui);color:var(--ink-3);margin-top:18px;text-align:center}
+.bnote{display:block;margin-inline:auto;min-height:44px;padding:0 18px;border:0;border-radius:var(--r-full);background:none;cursor:pointer;font:600 12px var(--ui);color:var(--ink-3);margin-top:18px;text-align:center}
 .dim{position:absolute;inset:0;z-index:11;background:var(--dim);opacity:0;pointer-events:none;transition:opacity var(--d-page) var(--ease-out)}
 /* the menu (MENU-AND-SETTINGS.md §1): a page on home's own field that leaves home's edge in sight,
    sunk back (home.js); the conversations scroll, and search and Settings sit in a bar at the
@@ -212,3 +212,27 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .past button{white-space:nowrap;flex:none;border:0;background:var(--accent-text);color:#fff;border-radius:999px;padding:6px 12px;font:700 12px var(--ui);cursor:pointer}
 .turns .turn:first-child{margin-top:8px}
 @media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.side.enter .sidescroll>*,.side.enter #convos>*,.brief.enter .grid>*{animation:none}.field::before,.field::after,.say .ln,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet,.ring .pet svg,.ring .pet .fill,.scrim,.toast{transition:none}.ring .lbl.swap{animation:none}}
+/* the gestures' buttons (GESTURES.md §9): clipped until focused, then a glass pill at the top left */
+.skips{position:absolute;z-index:15;top:calc(8px + env(safe-area-inset-top,0px));left:12px;display:flex;gap:6px}
+.skips button{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;padding:0}
+.skips button:focus-visible{position:static;width:auto;height:44px;clip-path:none;padding:0 16px;border-radius:var(--r-full);background:var(--disc);border:1px solid var(--disc-line);box-shadow:var(--e2);font:700 14px var(--ui);color:var(--ink)}
+/* hit areas of at least 44 px where the drawn shape is smaller (DESIGN-SYSTEM.md §14; audit fix 9) */
+.seg button{min-height:44px}
+.decide button{min-height:44px}
+.plusBtn,.btns button{position:relative}
+.plusBtn::before{content:"";position:absolute;inset:-2px;border-radius:50%}
+.btns button::before{content:"";position:absolute;inset:-1px;border-radius:50%}
+.pinline{min-height:44px}
+.tile.arranging{box-shadow:0 0 0 2px color-mix(in srgb,var(--accent-text) 55%,transparent),var(--e1)}
+/* The Briefing laid out anew (owner, 2026-10-31): his headline large and light, the weather as the
+   page's hero (a big light temperature, the place and the next hours under it), then what waits on
+   the owner and what the night arranged, on roomier tiles that cascade in as the page opens. */
+.brief{padding-top:calc(26px + env(safe-area-inset-top,0px))}
+.btitle{font-size:clamp(38px,11vw,46px);line-height:1.06;margin:14px 6px 22px}
+.grid{gap:12px}
+.tile{border-radius:24px;padding:16px 17px;gap:6px}
+.tile.weather{padding:20px 20px 18px;background:linear-gradient(160deg,color-mix(in srgb,var(--glow) 16%,var(--glass-flat)),var(--glass-flat) 60%);border-color:color-mix(in srgb,var(--glow) 22%,var(--glass-line))}
+.tile.weather .big{font:300 64px/1 var(--ui);letter-spacing:-.04em;margin:6px 0 2px}
+.tile.weather .s{font:600 15px/1.45 var(--ui);color:var(--ink-2)}
+.tile.weather .k{font-size:14px}
+.tile .big{font-size:36px}

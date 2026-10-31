@@ -12,7 +12,7 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 .srow{align-items:flex-start;min-height:44px}
 .srow>svg{margin-top:1px}
 .srow .t{white-space:normal}
-.srow .tl{white-space:nowrap;font:600 14px/1.35 var(--ui)}
+.srow .tl{display:flex;min-width:0;white-space:nowrap;font:600 14px/1.35 var(--ui)}
 .srow .sn{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font:500 13px/1.4 var(--ui);color:var(--ink-2)}
 .srow .tl+.sn{margin-top:2px}
 .srow .sn b{font-weight:700;color:var(--ink)}
@@ -87,3 +87,5 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 .csname:focus{border-color:var(--accent-fill)}
 .csacts .cssave{margin-top:6px;text-align:center;background:var(--accent-fill);color:#fff}
 @media (prefers-reduced-motion: reduce){.csheet{transition:opacity var(--d-fast) ease;transform:none}}
+.srow .tt{min-width:0;overflow:hidden;text-overflow:ellipsis}
+.srow .td{flex:none}

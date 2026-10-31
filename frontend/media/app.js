@@ -923,7 +923,8 @@ async function start() {
   route();
   try {
     const response = await fetch('/assets/drive-config.json', {cache:'no-store', signal:AbortSignal.timeout(15000)});
-    const config = await response.json();
+    if (!response.ok) throw Error("My Media isn't set up on this site yet.");
+    const config = await response.json().catch(() => { throw Error("My Media's settings couldn't be read."); });
     key = String(config.apiKey || '').trim();
     if (!config.videoFolderId) throw Error('No video folder is configured.');
     folder = folderId(config.videoFolderId);
