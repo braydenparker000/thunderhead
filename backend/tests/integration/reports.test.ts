@@ -50,7 +50,7 @@ beforeAll(async () => {
 });
 
 describe('a batch from the phone', () => {
-  it('is one row from a device, given back to the devices, the mind and CI, never to Muse', async () => {
+  it('is one row from a device, given back to the devices and the mind, never to CI or Muse', async () => {
     expect((await post(undefined, batch())).status).toBe(401);
     for (const t of [agents.chat, agents.ci]) expect((await post(t, batch())).status).toBe(403);
     const d = await device();
@@ -63,7 +63,7 @@ describe('a batch from the phone', () => {
       r.body.id,
     );
     expect(rows).toHaveLength(1);
-    for (const t of [d, agents.chat, agents.night, agents.reflex, agents.ci]) {
+    for (const t of [d, agents.chat, agents.night, agents.reflex]) {
       const got = await list(t, `?since=${before}`);
       expect(got.status).toBe(200);
       expect(got.body.items.map((i) => i.id)).toContain(r.body.id);
@@ -77,6 +77,7 @@ describe('a batch from the phone', () => {
       body: batch().body,
     });
     expect((await list(agents.muse)).status).toBe(403);
+    expect((await list(agents.ci)).status).toBe(403);
     expect((await api('GET', '/v1/ops/reports')).status).toBe(401);
   });
 
