@@ -25,6 +25,7 @@ import {library} from './lib/library.mjs';
 import {remind} from './lib/remind.mjs';
 import * as reflexCmds from './lib/reflex.mjs';
 import {ci} from './lib/ci.mjs';
+import {reports} from './lib/reports.mjs';
 
 const withFlags = (fn, spec) => argv => fn(parseArgs(argv, spec).flags);
 
@@ -34,7 +35,7 @@ export const COMMANDS = {
   wait: withFlags(wait),
   say: conv.say, amend: conv.amend, history: conv.history, file: conv.file, status: conv.status,
   title: conv.title, note: conv.note, pending: conv.pending, taint: conv.taint, health: conv.health,
-  errors: conv.errors, ledger: conv.ledger, undo: conv.undo, get: conv.get,
+  errors: conv.errors, reports, ledger: conv.ledger, undo: conv.undo, get: conv.get,
   search: memory.recall, recall: memory.recall, remember: memory.remember, confirm: memory.confirm,
   supersede: memory.supersede, forget: memory.forget, thread: memory.thread, day: memory.day,
   daynote: memory.daynote, facts: memory.facts,
