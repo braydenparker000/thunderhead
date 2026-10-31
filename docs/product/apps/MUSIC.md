@@ -60,8 +60,11 @@ for the owner's yes.
    with its ETag), audio and art by signed links straight from `jarvis-music`, waveforms from
    `GET /v1/music/waveforms/:id` (`frontend/th/music/bridge.js`). It uses the owner's session on
    this site; until the new Worker can answer (signed out, no catalog imported, no signing key, the
-   bucket not open to the site) it asks the old Worker as before and tries the new one again 5
-   minutes later, so music never stops during the move (SETUP.md N).
+   bucket refusing a fresh link) it asks the old Worker as before and tries the new one again 5
+   minutes later, so music never stops during the move (SETUP.md N). A network failure, or a
+   signature or the bucket not answering within 4 s, sends only that one request to the old Worker.
+   The page names the current song and the next 3, and the worker signs their links together in one
+   request before their turn.
 
 Everything after this section describes later steps. Each is proposed after the port and built only
 if the owner agrees.
@@ -637,7 +640,9 @@ nothing from the last 50 songs or 2 hours, no "not for me", no artist within 10 
 nothing else is left), −0.3 for an album within 20, the learner and the move scores, the top five by
 `softmax(score / 0.15)`, seeded. §9.3's learning is on the phone (`th.music.dj` in localStorage,
 not yet mirrored as senses). The player plans 60 songs at a time and plans again after a skip or
-near their end. The analysis job (tempo, key, energy, embedding) plugs into `closeness` later.
+near their end. A new plan after a skip keeps the 3 songs already planned next (their heads may be
+on the phone), unless one was just played or skipped. The analysis job (tempo, key, energy,
+embedding) plugs into `closeness` later.
 
 ### 9.1 Data
 

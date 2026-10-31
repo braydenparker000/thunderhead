@@ -1,10 +1,11 @@
 // The DJ shuffle's planner (frontend/th/music/dj.js; MUSIC.md §9), on synthetic libraries: songs
 // close in the tags follow each other; no artist twice within 10 picks; a song skipped early five
 // times isn't picked again; nothing played in the last 50; seeded runs replay; a 7,000-song order
-// is planned fast; and the player's model gets its sixth shuffle mode.
+// is planned fast; a new plan after a skip keeps the next 3 songs; and the player's model gets its
+// sixth shuffle mode.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { closeness, djOrder, DJ_AHEAD, installDjMode, learn, lesson, pick, seeded, SHUFFLE_DJ } from '../frontend/th/music/dj.js';
+import { closeness, djOrder, DJ_AHEAD, installDjMode, KEEP_AHEAD, learn, lesson, pick, replan, seeded, SHUFFLE_DJ } from '../frontend/th/music/dj.js';
 
 const GENRES = ['Classical', 'Jazz', 'Rock', 'Folk', 'Ambient'];
 const library = (n) =>
@@ -75,6 +76,24 @@ test('a 7,000-song library is planned fast', () => {
     ms = Math.min(ms, performance.now() - at);
   }
   assert.ok(ms < 400, `${Math.round(ms)} ms`);
+});
+
+test('a new plan after a skip keeps the next 3 songs already planned (their heads stay useful), then plans on', () => {
+  const t = library(500);
+  const order = djOrder(t, 10, { learned: empty(), seed: 7, now: NOW });
+  // Next, early in the song: the song left is learned (and recent); the plan starts again from the new one.
+  const l = empty();
+  learn(l, null, t[order[0]].id, 5_000, 200_000, NOW);
+  const again = replan(t, order, order[1], { learned: l, seed: 8, now: NOW });
+  assert.equal(KEEP_AHEAD, 3);
+  assert.deepEqual(again.slice(0, 4), order.slice(1, 5));
+  assert.deepEqual([...again].sort((a, b) => a - b), [...t.keys()], 'every song once');
+  assert.notDeepEqual(again.slice(4, 20), order.slice(5, 21), 'planned again after them');
+  // A song already played or skipped is not kept, even if the old plan had it next (Previous).
+  l.recent.push(t[order[3]].id);
+  assert.deepEqual(replan(t, order, order[2], { learned: l, seed: 8, now: NOW }).slice(0, 3), [order[2], order[4], order[5]]);
+  // An order of another queue keeps only the song playing.
+  assert.equal(replan(t, order.slice(1), 42, { learned: empty(), seed: 8, now: NOW })[0], 42);
 });
 
 test("the player's model gets a sixth shuffle mode, DJ, once", () => {

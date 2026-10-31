@@ -7,11 +7,17 @@
 // learns from this phone's skips (§9.3): a song skipped early scores lower, one played through
 // higher, and so does the move from the song before it, fading with a 60-day half-life. The pick
 // among the best five is random with weights softmax(score / 0.15), seeded so a test can replay it.
-// The player plans DJ_AHEAD songs at a time (its play order) and plans again after a skip.
-// Nothing here touches the session: it is the player's own, on this phone.
+// The player plans DJ_AHEAD songs at a time (its play order) and plans again after a skip, keeping
+// the KEEP_AHEAD songs already planned next (their first seconds may be on the phone already).
+// installDj also names the next songs to the player's worker, which signs their links ahead
+// (th/music/bridge.js). Nothing here touches the session: it is the player's own, on this phone.
 
 export const SHUFFLE_DJ = 5;
 export const DJ_AHEAD = 60;
+/** Songs already planned that a new plan keeps next (the player keeps the next 3 songs' heads). */
+export const KEEP_AHEAD = 3;
+/** Songs after the playing one whose links the worker signs ahead. */
+const SIGN_AHEAD = 3;
 const RECENT = 50;
 const RECENT_MS = 2 * 3_600_000;
 const HALF_LIFE_MS = 60 * 86_400_000;
@@ -96,9 +102,10 @@ function byId(tracks, id) {
 }
 
 /**
- * The DJ's play order for a queue: the current song first, then DJ_AHEAD songs each picked after the
- * one before (from the songs close in the tags plus 100 at random), then the rest shuffled.
- * @param {Track[]} tracks @param {number} index @param {{ learned?: Learned, seed?: number, now?: number }} [o]
+ * The DJ's play order for a queue: the current song first (or `o.keep`, songs already chosen, the
+ * current one first), then DJ_AHEAD songs each picked after the one before (from the songs close in
+ * the tags plus 100 at random), then the rest shuffled.
+ * @param {Track[]} tracks @param {number} index @param {{ learned?: Learned, seed?: number, now?: number, keep?: number[] }} [o]
  */
 export function djOrder(tracks, index, o = {}) {
   const n = tracks.length;
@@ -106,6 +113,7 @@ export function djOrder(tracks, index, o = {}) {
   const now = o.now ?? Date.now();
   const learned = o.learned ?? load();
   const start = index >= 0 && index < n ? index : Math.floor(rand() * n);
+  const keep = o.keep?.[0] === start ? o.keep : [start];
   /** @type {Map<string, number[]>} */
   const by = new Map();
   tracks.forEach((t, i) => {
@@ -117,9 +125,9 @@ export function djOrder(tracks, index, o = {}) {
     }
   });
   const left = new Set(tracks.keys());
-  left.delete(start);
-  const order = [start];
-  const history = [...learned.recent, tracks[start].id];
+  for (const i of keep) left.delete(i);
+  const order = [...keep];
+  const history = [...learned.recent, ...keep.map((i) => tracks[i].id)];
   while (order.length < Math.min(n, DJ_AHEAD + 1)) {
     const c = /** @type {number} */ (order.at(-1));
     const t = tracks[c];
@@ -138,6 +146,20 @@ export function djOrder(tracks, index, o = {}) {
     [rest[i], rest[j]] = [rest[j], rest[i]];
   }
   return [...order, ...rest];
+}
+
+/**
+ * A new plan after a skip: from the song now playing, keeping the KEEP_AHEAD songs the old plan had
+ * next, except any just played or skipped (learned.recent), so their heads on the phone serve.
+ * @param {Track[]} tracks @param {number[] | null} order @param {number} index
+ * @param {{ learned?: Learned, seed?: number, now?: number }} [o]
+ */
+export function replan(tracks, order, index, o = {}) {
+  const learned = o.learned ?? load();
+  const recent = new Set(learned.recent);
+  const at = order?.length === tracks.length ? order.indexOf(index) : -1;
+  const next = at < 0 ? [] : order.slice(at + 1, at + 1 + KEEP_AHEAD).filter((i) => !recent.has(tracks[i].id));
+  return djOrder(tracks, index, { ...o, learned, keep: [index, ...next] });
 }
 
 /** This phone's learning. @returns {Learned} */
@@ -200,7 +222,8 @@ export function installDjMode(model) {
 }
 
 /**
- * Learns from each song the player leaves, and plans again after a skip in DJ mode.
+ * Learns from each song the player leaves, and plans again after a skip in DJ mode. Names the next
+ * songs to the player's worker whenever they may have changed.
  * @param {any} ctx @param {any} player
  */
 export function installDj(ctx, player) {
@@ -221,8 +244,24 @@ export function installDj(ctx, player) {
       const skipped = learn(learned, before, now.id, now.pos, now.dur, Date.now());
       save(learned);
       before = now.id;
-      if (skipped && player.shuffle === SHUFFLE_DJ) player.order = null;
+      // A plan the player made in DJ mode is planned again from here (ensureOrder keeps it); any other, from scratch.
+      const dj = player.orderShuffle === SHUFFLE_DJ && player.orderQueueMode === player.queueMode && !(player.queueMode && ctx.pref?.('queue_no_shuffle'));
+      if (skipped && player.shuffle === SHUFFLE_DJ) player.order = dj ? replan(player.queue, player.order, player.index, { learned }) : null;
     }
     now = { id: t.id, pos: 0, dur: t.durationMs || 0 };
+  });
+  // The next songs' links, signed by the worker before their turn (one request for all of them).
+  let soon = 0;
+  ctx.bus.subscribe('bus_player', (/** @type {string} */ msg, /** @type {unknown} */ _src, /** @type {any} */ d) => {
+    if (!/^msg_player_(track_changed|queue_changed|category_changed|shuffle_mode_changed|repeat_mode_changed|playing_state_changed)$/.test(msg) || d?.meta) return;
+    clearTimeout(soon);
+    soon = setTimeout(() => {
+      const urls = [];
+      for (let k = 0; k <= SIGN_AHEAD; k++) {
+        const src = player.trackAt?.(k)?.src;
+        if (typeof src === 'string' && !urls.includes(src)) urls.push(src);
+      }
+      if (urls.length) globalThis.navigator?.serviceWorker?.controller?.postMessage({ type: 'th-music-ahead', urls });
+    }, 300);
   });
 }
