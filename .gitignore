@@ -8,3 +8,6 @@ test-results/
 !.dev.vars.example
 .wrangler/
 __pycache__/
+
+# Switzer: fetched from Fontshare at build (scripts/fonts.mjs); its licence forbids a public repository
+frontend/ui/fonts/Switzer.woff2

@@ -17,6 +17,7 @@ apps (Music, Guitar, Podcasts, Astra, My Media, Study) one hold away.
 
 ```sh
 npm ci                                  # install (workspaces: root + backend)
+node scripts/fonts.mjs                  # fetch Switzer from Fontshare (not kept here: its licence forbids a public repository)
 npx playwright install chromium         # once, if Chromium isn't installed
 npm run serve                           # the site: http://127.0.0.1:8080
 npm run dev                             # the Worker, local workerd: http://127.0.0.1:8787

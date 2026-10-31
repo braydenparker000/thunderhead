@@ -65,7 +65,8 @@ work and tells the owner.
   private bucket.
 - Example content in code, tests and docs stays generic.
 - No GPL, AGPL, or non-commercial dependencies, except named exceptions in docs/process/decisions.md
-  (libmedia in Astra, owner has permission). Icons: Phosphor (MIT). Font: Quicksand (OFL).
+  (libmedia in Astra, owner has permission). Icons: Phosphor (MIT). Font: Switzer (ITF Free Font License: self-hosted on the
+  site, never committed here; `scripts/fonts.mjs` fetches and checks it).
 
 ## Layout
 
@@ -135,7 +136,8 @@ The full system is [docs/design/DESIGN-SYSTEM.md](docs/design/DESIGN-SYSTEM.md).
 - **Conversations:** a new one starts on its own each day; old ones are filed and titled automatically.
 - **Presence:** light along the edges. Gold at the bottom means a decision is waiting; a pulse means
   thinking.
-- **Type:** Quicksand only: Light for large text, a step heavier for small text (owner, 2026-10-31).
+- **Type:** Switzer only: text 400, controls 500, titles and big numbers 600 (owner, 2026-10-31). Its
+  file is fetched at build, never committed (licence; run `node scripts/fonts.mjs` once locally).
 - **Colour:** day uses soft drifting colour fields with grain; night is pure black with faint accent
   light. Accent `#1a56bb` for day text and fills, `#2f7df6` icons only; gold `#f2b632` fills / `#734a00` text on light (owner, 2026-10-28).
 - **Motion:** quick and springy, never slow; everything respects reduced motion.

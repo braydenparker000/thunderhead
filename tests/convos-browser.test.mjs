@@ -208,7 +208,7 @@ test('a Markdown reply reads as rich text in the voice: a heading, lists, bold, 
     await page.click(`#convos [data-id="${T.saturday}"]`);
     await page.waitForSelector('#past .reply h3');
     const p = '#past .reply:has(h3)';
-    assert.deepEqual(await page.$eval(p, (r) => [getComputedStyle(r).fontStyle, getComputedStyle(r).fontFamily.split(',')[0]]), ['normal', 'Quicksand']);
+    assert.deepEqual(await page.$eval(p, (r) => [getComputedStyle(r).fontStyle, getComputedStyle(r).fontFamily.split(',')[0]]), ['normal', 'Switzer']);
     assert.equal(await page.textContent(`${p} h3`), 'Practice plan for the weekend');
     assert.deepEqual(await page.$$eval(`${p} ul > li`, (l) => l.map((x) => x.textContent)), ['Scales first, ten minutes', 'Bars 9 to 12 at 84 bpm, then up']);
     assert.equal(await page.textContent(`${p} li b`), 'Scales');

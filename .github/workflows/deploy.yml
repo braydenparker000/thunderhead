@@ -268,7 +268,13 @@ jobs:
           prev="$(curl -fsS --max-time 20 --retry 2 "${SITE_URL%/}/release.json" | sed -n 's/.*"commit":"\([0-9a-f]\{40\}\)".*/\1/p' || true)"
           echo "commit=$prev" >> "$GITHUB_OUTPUT"
           echo "live before: ${prev:-nothing}"
+      # Switzer is fetched from Fontshare and checked byte for byte (its licence keeps it out of this
+      # public repository; scripts/fonts.mjs); stage refuses to publish without it.
+      - name: Fetch the face
+        run: node scripts/fonts.mjs
       - name: Stage
+        env:
+          TH_FONTS: required
         run: node scripts/stage.mjs "$(git rev-parse HEAD)"
       - uses: azure/login@a641126d1b8aa4d1fa005f4f92df94a3a4c4c906 # v3.1.0
         id: login
@@ -302,5 +308,6 @@ jobs:
         run: |
           rm -rf frontend
           git checkout "$PREV" -- frontend
+          node scripts/fonts.mjs
           node scripts/stage.mjs "$PREV"
           scripts/deploy.sh "$PREV"

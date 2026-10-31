@@ -36,6 +36,9 @@ jobs:
       - run: npm ci --ignore-scripts
       - if: ${{ matrix.part != 'worker' }}
         run: npx playwright install --with-deps --only-shell chromium
+      # Switzer is fetched, not kept here (its licence forbids a public repository; scripts/fonts.mjs).
+      - if: ${{ matrix.part != 'worker' }}
+        run: node scripts/fonts.mjs
       # Local checks only: the live checks run after a deploy, against what went live.
       - name: Test
         env:

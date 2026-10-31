@@ -25,8 +25,8 @@
   --glass-flat:light-dark(rgba(255,255,255,.62),rgba(255,255,255,.085));
   --press:color-mix(in srgb,var(--ink) 7%,transparent);
   --tint:color-mix(in srgb,var(--ink) 6%,transparent);
-  --voice:"Quicksand",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --ui:"Quicksand",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --voice:"Switzer",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --ui:"Switzer",system-ui,-apple-system,"Segoe UI",sans-serif;
   --mono:ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,monospace;
   --spring:cubic-bezier(.2,.8,.2,1.05);
   /* Shape (§4) */

@@ -1,4 +1,4 @@
-/* Thunderhead home. Icons: Phosphor Icons (MIT). Font: Quicksand (OFL), self-hosted in ui/fonts.
+/* Thunderhead home. Icons: Phosphor Icons (MIT). Font: Switzer (ITF FFL), self-hosted in ui/fonts, fetched at build (scripts/fonts.mjs).
    Layout: one screen. A calm gradient field with grain; the Thunderhead is light along the edges; the conversation sits low on the page above a quiet ask bar. Holding on empty space opens a tight Compass ring around the finger. */
 *,*::before,*::after{box-sizing:border-box}
 [hidden]{display:none!important}
@@ -19,7 +19,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .edge.think::after,.edge.busy::after{animation:think 3.2s ease-in-out infinite}
 @keyframes think{0%,100%{opacity:.45}50%{opacity:1}}
 /* top */
-.top{position:absolute;z-index:5;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:14px max(14px,env(safe-area-inset-right,0px)) 0 max(24px,env(safe-area-inset-left,0px));font:600 13px var(--ui);letter-spacing:.01em;color:var(--ink-3)}
+.top{position:absolute;z-index:5;left:0;right:0;top:0;display:flex;justify-content:space-between;align-items:center;padding:14px max(14px,env(safe-area-inset-right,0px)) 0 max(24px,env(safe-area-inset-left,0px));font:500 13px var(--ui);letter-spacing:.01em;color:var(--ink-3)}
 .iconBtn{width:44px;height:44px;border-radius:50%;border:0;background:none;color:var(--ink-3);display:grid;place-items:center;cursor:pointer}
 .iconBtn svg{width:20px;height:20px;fill:currentColor}
 .themeBtn .sun,:root[data-theme="dark"] .themeBtn .moon{display:none}
@@ -28,36 +28,36 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .convo{position:absolute;z-index:2;left:0;right:0;top:56px;bottom:calc(44px + var(--ask-h,54px) + var(--dock-h,0px) + var(--past-h,0px) + var(--about-h,0px));overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:none;display:flex;flex-direction:column;padding:0 max(24px,env(safe-area-inset-right,0px)) 14px max(24px,env(safe-area-inset-left,0px))}
 .convo::-webkit-scrollbar{display:none}
 .spacer{flex:1 1 auto;min-height:40px}
-.voice{font-family:var(--voice);font-style:normal;font-weight:300;letter-spacing:-.015em}
+.voice{font-family:var(--voice);font-style:normal;font-weight:600;letter-spacing:-.02em}
 @keyframes rise{from{opacity:0;transform:translateY(10px);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
 /* a decision waiting on you: the one glass card on the page */
 .card{margin-top:18px;padding:14px 16px 14px;border-radius:22px;background:var(--glass);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border:1px solid var(--glass-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 10px 28px -16px rgba(20,30,60,.25);max-height:280px;overflow:hidden;animation:rise .8s .3s var(--settle) both;transition:opacity .3s,transform .3s,max-height .45s .12s var(--settle),margin .45s .12s,padding .45s .12s}
 :root[data-theme="dark"] .card{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 10px 28px -16px #000}
 .card.gone{opacity:0;transform:scale(.97);max-height:0;margin-top:0;padding-top:0;padding-bottom:0;border-color:transparent;pointer-events:none}
 .card.decision:not(.armed) .decide button{pointer-events:none}
-.why{display:flex;align-items:center;gap:8px;font:600 12px var(--ui);color:var(--ink-3)}
+.why{display:flex;align-items:center;gap:8px;font:500 12px var(--ui);color:var(--ink-3)}
 .why .d{width:7px;height:7px;border-radius:50%;background:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 28%,transparent)}
-.card .q{margin-top:7px;font:600 16px/1.42 var(--ui);color:var(--ink)}
+.card .q{margin-top:7px;font:500 16px/1.42 var(--ui);color:var(--ink)}
 .decide{display:flex;gap:8px;margin-top:13px}
-.decide button{border:0;border-radius:999px;padding:10px 17px;font:700 14px var(--ui);cursor:pointer;color:var(--ink-2);background:color-mix(in srgb,var(--ink) 7%,transparent);transition:transform .15s}
+.decide button{border:0;border-radius:999px;padding:10px 17px;font:600 14px var(--ui);cursor:pointer;color:var(--ink-2);background:color-mix(in srgb,var(--ink) 7%,transparent);transition:transform .15s}
 .decide button:active{transform:scale(.96)}
 .decide .yes{background:var(--gold);color:#2b1d00;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 8px 18px -10px var(--gold)}
 /* today, as small flat-glass chips that carry their app's icon (DESIGN-SYSTEM.md §6: only the ask bar
    and one overlay blur what is behind them, so a long conversation scrolls smoothly) */
 .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;animation:rise .8s .42s var(--settle) both}
-.chip{--c:var(--ink-3);border:1px solid var(--glass-line);background:var(--glass-flat);border-radius:14px;padding:8px 12px 8px 10px;font:600 14px var(--ui);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:7px;text-align:left;transition:transform .15s}
+.chip{--c:var(--ink-3);border:1px solid var(--glass-line);background:var(--glass-flat);border-radius:14px;padding:8px 12px 8px 10px;font:500 14px var(--ui);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:7px;text-align:left;transition:transform .15s}
 .chip:active{transform:scale(.97)}
 .chip .ic{width:17px;height:17px;fill:var(--c);flex:none}
-.chip small{color:var(--ink-3);font-weight:500}
-.hint{margin-top:22px;display:flex;align-items:center;gap:8px;font:600 12px var(--ui);color:var(--ink-3);transition:opacity .6s;animation:rise .8s .6s both}
+.chip small{color:var(--ink-3);font-weight:400}
+.hint{margin-top:22px;display:flex;align-items:center;gap:8px;font:500 12px var(--ui);color:var(--ink-3);transition:opacity .6s;animation:rise .8s .6s both}
 .hint i{width:14px;height:14px;border-radius:50%;border:1.5px solid currentColor;opacity:.7}
 .hint.gone{animation:none;opacity:0}
 /* the conversation */
 .turn{margin-top:22px;display:flex;flex-direction:column;gap:8px;animation:rise .5s var(--settle) both}
-.you{align-self:flex-end;max-width:80%;font:500 15px/1.4 var(--ui);color:var(--ink);background:var(--glass-flat);border:1px solid var(--glass-line);padding:9px 14px;border-radius:19px 19px 6px 19px}
+.you{align-self:flex-end;max-width:80%;font:400 16px/1.45 var(--ui);color:var(--ink);background:var(--glass-flat);border:1px solid var(--glass-line);padding:9px 14px;border-radius:19px 19px 6px 19px}
 /* a reply: the Thunderhead's words, with no bubble (yours have one); italic is kept for emphasis and
    quotes inside a reply */
-.reply{font:500 17.5px/1.55 var(--voice);letter-spacing:0;text-wrap:pretty}
+.reply{font:400 16.5px/1.55 var(--voice);letter-spacing:-.006em;text-wrap:pretty}
 .turn .chip{align-self:flex-start;opacity:0;transition:opacity .4s}
 .turn .chip.in{opacity:1}
 /* ask bar: liquid glass pill; the mic turns into send when you type */
@@ -65,7 +65,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 :root[data-theme="dark"] .ask{border-color:rgba(255,255,255,.12);box-shadow:inset 0 1px 1px rgba(255,255,255,.1),0 12px 30px -16px #000}
 /* a text area, not a form field, so Chrome offers no autofill bar over the keyboard; it grows with
    what is written up to five lines, and the conversation keeps clear of it (--ask-h, home.js) */
-.ask textarea{flex:1;min-width:0;max-height:130px;margin:0;padding:10px 0;border:0;background:none;outline:none;resize:none;field-sizing:content;overflow-y:auto;scrollbar-width:none;font:500 16px/22px var(--ui);color:var(--ink)}
+.ask textarea{flex:1;min-width:0;max-height:130px;margin:0;padding:10px 0;border:0;background:none;outline:none;resize:none;field-sizing:content;overflow-y:auto;scrollbar-width:none;font:400 16px/22px var(--ui);color:var(--ink)}
 .ask textarea::placeholder{color:var(--ink-3)}
 .btns{position:relative;width:42px;height:42px;flex:none}
 .btns button{position:absolute;inset:0;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;transition:transform .22s var(--pop),opacity .15s,background .2s,color .2s}
@@ -109,7 +109,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .ring .pet.go{transition:transform .22s cubic-bezier(.2,0,0,1),opacity .22s;opacity:0!important}
 .ring .hub{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--ink);opacity:0;transform:translate(0,0);will-change:transform;transition:opacity .12s,transform .12s var(--settle)}
 .ring.show .hub{opacity:.28}
-.ring .lbl{--c:var(--accent-text);position:absolute;left:0;top:0;transform:translate(-50%,0);white-space:nowrap;font:700 13px var(--ui);color:var(--ink);opacity:0;transition:opacity .14s ease;padding:6px 12px;border-radius:12px;background:var(--disc);border:1px solid color-mix(in srgb,var(--c) 30%,var(--disc-line));box-shadow:0 8px 22px -12px color-mix(in srgb,var(--c) 60%,transparent)}
+.ring .lbl{--c:var(--accent-text);position:absolute;left:0;top:0;transform:translate(-50%,0);white-space:nowrap;font:600 13px var(--ui);color:var(--ink);opacity:0;transition:opacity .14s ease;padding:6px 12px;border-radius:12px;background:var(--disc);border:1px solid color-mix(in srgb,var(--c) 30%,var(--disc-line));box-shadow:0 8px 22px -12px color-mix(in srgb,var(--c) 60%,transparent)}
 .ring .lbl.show{opacity:1}
 .ring .lbl.swap{animation:lblswap .26s var(--settle)}
 @keyframes lblswap{from{transform:translate(-50%,5px);opacity:.35}}
@@ -118,20 +118,20 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 @keyframes press{from{opacity:.0;transform:scale(.4)}to{opacity:.55;transform:scale(2.2)}}
 /* toasts sit just above the ask bar (or a docked card), under the thumb with their Undo, never at the
    top of the thread (owner, 2026-10-31) */
-.toast{position:absolute;z-index:40;left:50%;bottom:calc(36px + var(--ask-h,54px) + var(--dock-h,0px) + var(--past-h,0px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;transition:opacity .2s ease,transform var(--d-quick) var(--settle);padding:9px 14px;border-radius:12px;font:600 14px/1.35 var(--ui);color:var(--ink);background:var(--disc);border:1px solid var(--disc-line);width:max-content;max-width:min(340px,calc(100% - 32px));text-align:center;display:flex;align-items:center;gap:14px;pointer-events:none}
+.toast{position:absolute;z-index:40;left:50%;bottom:calc(36px + var(--ask-h,54px) + var(--dock-h,0px) + var(--past-h,0px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;transition:opacity .2s ease,transform var(--d-quick) var(--settle);padding:9px 14px;border-radius:12px;font:500 14px/1.35 var(--ui);color:var(--ink);background:var(--disc);border:1px solid var(--disc-line);width:max-content;max-width:min(340px,calc(100% - 32px));text-align:center;display:flex;align-items:center;gap:14px;pointer-events:none}
 .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
-.toast .tact{flex:none;border:0;background:none;min-height:32px;padding:0;font:700 14px var(--ui);color:var(--accent-text);cursor:pointer;position:relative}
+.toast .tact{flex:none;border:0;background:none;min-height:32px;padding:0;font:600 14px var(--ui);color:var(--accent-text);cursor:pointer;position:relative}
 .toast .tact::after{content:"";position:absolute;inset:-6px -8px}
 /* home is a chat (owner, 2026-10-31): while scrolling back, a chip says when the topmost turn was
    said (apps/home/pinned.js); it only fades and slides. The status chip sits at the top right only
    while something is off (offline, the mind can't wake, quiet), never to say all is well. */
-.status{position:relative;display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px 0 9px;border-radius:var(--r-full);border:1px solid var(--disc-line);background:var(--disc);box-shadow:var(--e1);font:600 12.5px var(--ui);letter-spacing:0;color:var(--ink-2);cursor:pointer;animation:dockin .4s var(--settle) both}
+.status{position:relative;display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:0 12px 0 9px;border-radius:var(--r-full);border:1px solid var(--disc-line);background:var(--disc);box-shadow:var(--e1);font:500 12.5px var(--ui);letter-spacing:0;color:var(--ink-2);cursor:pointer;animation:dockin .4s var(--settle) both}
 .status::before{content:"";position:absolute;inset:-7px -4px}
 .status svg{width:15px;height:15px;fill:currentColor;flex:none}
 .status[hidden]{display:none}
 .status[data-kind="wake"]{color:var(--alarm,#b42318)}
 .status[data-kind="quiet"]{color:var(--accent-text)}
-.timechip{position:absolute;z-index:5;top:calc(50px + env(safe-area-inset-top,0px));left:50%;padding:4px 11px;border-radius:var(--r-full);border:1px solid var(--disc-line);background:var(--disc);font:700 12px var(--ui);color:var(--ink-2);font-variant-numeric:tabular-nums;opacity:0;pointer-events:none;transform:translate(-50%,-4px);transition:opacity .2s ease,transform .2s var(--settle)}
+.timechip{position:absolute;z-index:5;top:calc(50px + env(safe-area-inset-top,0px));left:50%;padding:4px 11px;border-radius:var(--r-full);border:1px solid var(--disc-line);background:var(--disc);font:600 12px var(--ui);color:var(--ink-2);font-variant-numeric:tabular-nums;opacity:0;pointer-events:none;transform:translate(-50%,-4px);transition:opacity .2s ease,transform .2s var(--settle)}
 .timechip.show{opacity:1;transform:translate(-50%,0)}
 .pastview .timechip,.pastview .status{display:none}
 /* the conversation fades out at its top edge */
@@ -146,22 +146,22 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .home{z-index:2}
 .brief{z-index:2;transform:translateX(-100%);overflow-y:auto;scrollbar-width:none;padding:calc(18px + env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) 40px max(18px,env(safe-area-inset-left,0px))}
 .brief::-webkit-scrollbar,.side::-webkit-scrollbar{display:none}
-.bhead{font:600 13px var(--ui);color:var(--ink-3);padding:0 6px}
+.bhead{font:500 13px var(--ui);color:var(--ink-3);padding:0 6px}
 .btitle{font-size:34px;line-height:1.12;margin:16px 6px 20px}
 .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .tile{--c:var(--ink-3);border-radius:22px;padding:14px 15px;background:var(--glass-flat);border:1px solid var(--glass-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.7);display:flex;flex-direction:column;gap:5px;text-align:left;font:inherit;color:inherit;cursor:pointer}
 :root[data-theme="dark"] .tile{box-shadow:inset 0 1px 0 rgba(255,255,255,.07)}
 .tile.wide{grid-column:1/-1}
-.tile .k{display:flex;align-items:center;gap:7px;font:700 12px var(--ui);color:var(--c)}
+.tile .k{display:flex;align-items:center;gap:7px;font:600 12px var(--ui);color:var(--c)}
 .tile .k svg{width:16px;height:16px;fill:currentColor}
-.tile .big{font:300 30px/1.05 var(--ui);letter-spacing:-.02em;color:var(--ink);margin-top:2px}
-.tile .v{font:600 15px/1.35 var(--ui);color:var(--ink)}
-.tile .s{font:500 13px/1.4 var(--ui);color:var(--ink-3)}
+.tile .big{font:600 30px/1.05 var(--ui);letter-spacing:-.02em;color:var(--ink);margin-top:2px}
+.tile .v{font:500 15px/1.35 var(--ui);color:var(--ink)}
+.tile .s{font:400 13px/1.4 var(--ui);color:var(--ink-3)}
 .whours{list-style:none;margin:6px 0 10px;padding:0;display:grid;gap:2px;max-height:46vh;overflow:auto}
-.whours li{display:grid;grid-template-columns:1fr 1fr 1fr;font:500 15px/2 var(--ui);color:var(--ink)}
+.whours li{display:grid;grid-template-columns:1fr 1fr 1fr;font:400 15px/2 var(--ui);color:var(--ink)}
 .whours .wrain{color:var(--ink-3);text-align:right}
 .tile.gold,:root[data-theme="dark"] .tile.gold{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 50%,transparent)}
-.bnote{display:block;margin-inline:auto;min-height:44px;padding:0 18px;border:0;border-radius:var(--r-full);background:none;cursor:pointer;font:600 12px var(--ui);color:var(--ink-3);margin-top:18px;text-align:center}
+.bnote{display:block;margin-inline:auto;min-height:44px;padding:0 18px;border:0;border-radius:var(--r-full);background:none;cursor:pointer;font:500 12px var(--ui);color:var(--ink-3);margin-top:18px;text-align:center}
 .dim{position:absolute;inset:0;z-index:11;background:var(--dim);opacity:0;pointer-events:none;transition:opacity var(--d-page) var(--ease-out)}
 /* the menu (MENU-AND-SETTINGS.md §1): a page on home's own field that leaves home's edge in sight,
    sunk back (home.js); the conversations scroll, and search and Settings sit in a bar at the
@@ -171,10 +171,10 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .side>.field,.side>.grain{border-radius:inherit}
 .sidescroll{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;touch-action:pan-y;padding:calc(22px + env(safe-area-inset-top,0px)) 18px 20px 20px}
 .sidescroll::-webkit-scrollbar{display:none}
-.sidetitle{margin:4px 2px 4px;font:300 36px/1.1 var(--ui);letter-spacing:-.02em;color:var(--ink)}
-.sidelead{margin:0 2px 18px;font:500 13px/1.45 var(--ui);color:var(--ink-3)}
+.sidetitle{margin:4px 2px 4px;font:600 30px/1.1 var(--ui);letter-spacing:-.02em;color:var(--ink)}
+.sidelead{margin:0 2px 18px;font:400 13px/1.45 var(--ui);color:var(--ink-3)}
 .sidebar{position:relative;flex:none;display:flex;align-items:center;gap:8px;margin:0 14px calc(18px + env(safe-area-inset-bottom,0px));padding:6px;min-height:54px;border-radius:27px;background:var(--bar);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);border:1px solid var(--bar-line);box-shadow:var(--e2)}
-.search{flex:1;min-width:0;display:flex;align-items:center;gap:9px;height:42px;border-radius:21px;padding:0 14px;background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink-3);font:600 15px var(--ui)}
+.search{flex:1;min-width:0;display:flex;align-items:center;gap:9px;height:42px;border-radius:21px;padding:0 14px;background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink-3);font:500 15px var(--ui)}
 .search svg{width:18px;height:18px;fill:currentColor;flex:none}
 .setbtn{flex:none;width:44px;height:44px;border-radius:50%;border:0;display:grid;place-items:center;background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink-2);cursor:pointer;transition:transform var(--d-fast) var(--pop)}
 .setbtn:active{transform:scale(.94)}
@@ -182,17 +182,17 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 /* The rows ripple in each time the menu opens, and the Briefing's tiles cascade (home.js enter()) */
 @keyframes ripple{from{opacity:0;transform:translateY(14px)}}
 .side.enter .sidescroll>:not(#convos),.side.enter #convos>*,.brief.enter .grid>*{animation:ripple .55s var(--settle) both;animation-delay:calc(var(--k,0)*38ms + 60ms)}
-.sh{font:600 13px var(--ui);color:var(--ink-3);margin:24px 8px 2px}
-.sh small{display:block;font-weight:500;font-size:12px;margin-top:4px;line-height:1.4}
-.grp{font:600 13px var(--ui);color:var(--ink-3);margin:14px 8px 2px}
-.row{--c:var(--ink-3);display:flex;align-items:center;gap:11px;width:100%;min-height:44px;border:0;background:none;padding:8px 10px;border-radius:var(--r-m);font:600 14.5px var(--ui);color:var(--ink);text-align:left;cursor:pointer}
+.sh{font:500 13px var(--ui);color:var(--ink-3);margin:24px 8px 2px}
+.sh small{display:block;font-weight:400;font-size:12px;margin-top:4px;line-height:1.4}
+.grp{font:500 13px var(--ui);color:var(--ink-3);margin:14px 8px 2px}
+.row{--c:var(--ink-3);display:flex;align-items:center;gap:11px;width:100%;min-height:44px;border:0;background:none;padding:8px 10px;border-radius:var(--r-m);font:500 14.5px var(--ui);color:var(--ink);text-align:left;cursor:pointer}
 .row:hover,.row.cur{background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .row>svg{width:17px;height:17px;fill:var(--c);flex:none}
 .row .t{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.row small{color:var(--ink-3);font-weight:500;font-size:12px;white-space:nowrap}
+.row small{color:var(--ink-3);font-weight:400;font-size:12px;white-space:nowrap}
 .row .go{width:14px;height:14px;fill:var(--ink-3)}
 .seg{display:flex;padding:3px;border-radius:12px;background:color-mix(in srgb,var(--ink) 6%,transparent);margin:6px 8px 4px}
-.seg button{flex:1;border:0;background:none;padding:8px 0;border-radius:9px;font:600 13px var(--ui);color:var(--ink-2);cursor:pointer}
+.seg button{flex:1;border:0;background:none;padding:8px 0;border-radius:9px;font:500 13px var(--ui);color:var(--ink-2);cursor:pointer}
 .seg button.on{background:var(--disc);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
 /* + : the options sheet folds up from the ask bar */
 .plusBtn{flex:none;width:40px;height:40px;margin-bottom:1px;border-radius:50%;border:0;background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink-2);display:grid;place-items:center;cursor:pointer;transition:transform .32s var(--pop)}
@@ -202,22 +202,22 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .opts.show{transform:none;opacity:1;pointer-events:auto}
 .convo{transition:filter .3s,opacity .3s}
 .home.menuOpen .convo{filter:blur(8px);opacity:.3}
-.opts button{--c:var(--accent-text);display:flex;align-items:center;gap:12px;border:0;background:none;padding:8px 14px 8px 8px;border-radius:16px;font:600 16px var(--ui);color:var(--ink);cursor:pointer;text-align:left;opacity:0;transform:translateY(10px);transition:opacity .2s,transform .32s var(--settle)}
+.opts button{--c:var(--accent-text);display:flex;align-items:center;gap:12px;border:0;background:none;padding:8px 14px 8px 8px;border-radius:16px;font:500 16px var(--ui);color:var(--ink);cursor:pointer;text-align:left;opacity:0;transform:translateY(10px);transition:opacity .2s,transform .32s var(--settle)}
 .opts.show button{opacity:1;transform:none;transition-delay:calc((6 - var(--i))*28ms)}
 .opts button:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .opts .oi{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c)}
 .opts .oi svg{width:19px;height:19px;fill:currentColor}
 /* an older conversation reopened from the menu */
-.past{align-self:flex-start;display:flex;align-items:center;gap:10px;margin:0 0 4px;padding:5px 5px 5px 12px;border-radius:999px;background:var(--glass-flat);border:1px solid var(--glass-line);font:600 13px var(--ui);color:var(--ink-2)}
+.past{align-self:flex-start;display:flex;align-items:center;gap:10px;margin:0 0 4px;padding:5px 5px 5px 12px;border-radius:999px;background:var(--glass-flat);border:1px solid var(--glass-line);font:500 13px var(--ui);color:var(--ink-2)}
 .past span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .past{max-width:100%}
-.past button{white-space:nowrap;flex:none;border:0;background:var(--accent-text);color:#fff;border-radius:999px;padding:6px 12px;font:700 12px var(--ui);cursor:pointer}
+.past button{white-space:nowrap;flex:none;border:0;background:var(--accent-text);color:#fff;border-radius:999px;padding:6px 12px;font:600 12px var(--ui);cursor:pointer}
 .turns .turn:first-child{margin-top:8px}
 @media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.side.enter .sidescroll>*,.side.enter #convos>*,.brief.enter .grid>*{animation:none}.field::before,.field::after,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet,.ring .pet svg,.ring .pet .fill,.scrim,.toast{transition:none}.ring .lbl.swap{animation:none}}
 /* the gestures' buttons (GESTURES.md §9): clipped until focused, then a glass pill at the top left */
 .skips{position:absolute;z-index:15;top:calc(8px + env(safe-area-inset-top,0px));left:12px;display:flex;gap:6px}
 .skips button{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;padding:0}
-.skips button:focus-visible{position:static;width:auto;height:44px;clip-path:none;padding:0 16px;border-radius:var(--r-full);background:var(--disc);border:1px solid var(--disc-line);box-shadow:var(--e2);font:700 14px var(--ui);color:var(--ink)}
+.skips button:focus-visible{position:static;width:auto;height:44px;clip-path:none;padding:0 16px;border-radius:var(--r-full);background:var(--disc);border:1px solid var(--disc-line);box-shadow:var(--e2);font:600 14px var(--ui);color:var(--ink)}
 /* hit areas of at least 44 px where the drawn shape is smaller (DESIGN-SYSTEM.md §14; audit fix 9) */
 .seg button{min-height:44px}
 .decide button{min-height:44px}
@@ -233,7 +233,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .grid{gap:12px}
 .tile{border-radius:24px;padding:16px 17px;gap:6px}
 .tile.weather{padding:20px 20px 18px;background:linear-gradient(160deg,color-mix(in srgb,var(--glow) 16%,var(--glass-flat)),var(--glass-flat) 60%);border-color:color-mix(in srgb,var(--glow) 22%,var(--glass-line))}
-.tile.weather .big{font:300 64px/1 var(--ui);letter-spacing:-.04em;margin:6px 0 2px}
-.tile.weather .s{font:600 15px/1.45 var(--ui);color:var(--ink-2)}
+.tile.weather .big{font:500 64px/1 var(--ui);letter-spacing:-.04em;margin:6px 0 2px}
+.tile.weather .s{font:500 15px/1.45 var(--ui);color:var(--ink-2)}
 .tile.weather .k{font-size:14px}
 .tile .big{font-size:36px}

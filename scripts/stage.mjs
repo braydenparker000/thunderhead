@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { cp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FONTS, needed, present } from './fonts.mjs';
 import { APP_ROUTES, CONTENT_TYPES, configJs, precacheJson, precached, swJs, withApi } from './site-config.mjs';
 
 const sha = process.argv[2] ?? '';
@@ -15,6 +16,14 @@ if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`not a full commit sha: "${sha}
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
 const out = join(repo, '.deploy/site');
+// The face fetched at build (scripts/fonts.mjs: its licence keeps it out of this public repository).
+// A wrong file never ships; a missing one only where it is required (the deploy sets TH_FONTS).
+for (const f of FONTS) {
+  if (!(await needed(f))) continue;
+  const state = await present(f);
+  if (state === 'wrong' || (state === 'missing' && process.env.TH_FONTS === 'required')) throw new Error(`${f.file} is ${state}: run node scripts/fonts.mjs`);
+  if (state === 'missing') console.warn(`${f.file} is missing (node scripts/fonts.mjs); staging on the fallback face`);
+}
 await rm(join(repo, '.deploy'), { recursive: true, force: true });
 await cp(join(repo, 'frontend'), out, { recursive: true });
 // The storage website has no SPA fallback, so each app route gets a real copy of the shell
@@ -108,8 +117,9 @@ const budgets = [
   ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 68_000],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 20_000],
-  // One face since 2026-10-31: Quicksand, variable 300–700, Latin (28.2 KB; Fraunces and Inter were 133 KB).
-  ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 40_000],
+  // One face since 2026-10-31: Switzer, variable 100–900 (43.2 KB, the official file, never subset:
+  // its licence forbids changing it; Quicksand was 28.2 KB, Fraunces and Inter 133 KB).
+  ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 48_000],
   ['precache bytes', list.filter((f) => precached(f.path)).reduce((n, f) => n + f.size, 0), 3_000_000],
   ['icon sprite bytes', sum(/^ui\/icons\.svg$/), 30_000],
 ];

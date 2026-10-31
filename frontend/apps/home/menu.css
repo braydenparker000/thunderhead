@@ -3,7 +3,7 @@
    --accent-fill, where white text passes in day and night. */
 button.search{width:100%;border:0;cursor:pointer;text-align:left}
 .sbox{color:var(--ink-3)}
-.sbox input{flex:1;min-width:0;height:100%;border:0;background:none;outline:none;font:500 16px var(--ui);color:var(--ink)}
+.sbox input{flex:1;min-width:0;height:100%;border:0;background:none;outline:none;font:400 16px var(--ui);color:var(--ink)}
 .sbox input::-webkit-search-cancel-button{-webkit-appearance:none;appearance:none}
 .sclear{flex:none;width:44px;height:42px;margin-right:-14px;border:0;background:none;color:var(--ink-3);display:grid;place-items:center;cursor:pointer}
 .sclear svg{width:16px;height:16px}
@@ -12,24 +12,24 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 .srow{align-items:flex-start;min-height:44px}
 .srow>svg{margin-top:1px}
 .srow .t{white-space:normal}
-.srow .tl{display:flex;min-width:0;white-space:nowrap;font:600 14px/1.35 var(--ui)}
-.srow .sn{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font:500 13px/1.4 var(--ui);color:var(--ink-2)}
+.srow .tl{display:flex;min-width:0;white-space:nowrap;font:500 14px/1.35 var(--ui)}
+.srow .sn{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font:400 13px/1.4 var(--ui);color:var(--ink-2)}
 .srow .tl+.sn{margin-top:2px}
-.srow .sn b{font-weight:700;color:var(--ink)}
-.showall{border:0;background:none;min-height:44px;padding:0 8px;font:700 13px var(--ui);color:var(--accent-text);cursor:pointer}
-.cline{margin:14px 8px 6px;font:500 13px/1.4 var(--ui);color:var(--ink-3);overflow-wrap:anywhere}
+.srow .sn b{font-weight:600;color:var(--ink)}
+.showall{border:0;background:none;min-height:44px;padding:0 8px;font:600 13px var(--ui);color:var(--accent-text);cursor:pointer}
+.cline{margin:14px 8px 6px;font:400 13px/1.4 var(--ui);color:var(--ink-3);overflow-wrap:anywhere}
 .askme{margin:4px 8px 0;width:auto}
 /* an older conversation: the pill stays at the top of the column while it scrolls */
 .pastview #decision,.pastview #turns,.pastview #talk,.pastview .fallbacks,.pastview #hint,.pastview .newpill{display:none}
 #home>.past{position:absolute;z-index:7;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(34px + var(--ask-h,54px) + env(safe-area-inset-bottom,0px));margin:0;border-radius:20px;padding:10px 8px 10px 14px;box-shadow:var(--e2);animation:dockin .45s var(--settle) both}
 .past .ptl{white-space:normal}
 .pinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
-.ptl{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font:700 15px/1.3 var(--ui);color:var(--ink)}
-.pmeta{display:flex;align-items:center;gap:6px;min-width:0;font:500 12.5px/1.35 var(--ui);color:var(--ink-3)}
+.ptl{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;font:600 15px/1.3 var(--ui);color:var(--ink)}
+.pmeta{display:flex;align-items:center;gap:6px;min-width:0;font:400 12.5px/1.35 var(--ui);color:var(--ink-3)}
 .past button{position:relative;min-height:32px;background:var(--accent-fill,#2468d8)}
 .past button::before{content:"";position:absolute;inset:-6px -4px}
 .pastlog .turn{animation:none}
-.pastlog .earlier{align-self:center;margin-top:12px;border:0;background:none;min-height:44px;padding:0 12px;font:700 13px var(--ui);color:var(--accent-text);cursor:pointer}
+.pastlog .earlier{align-self:center;margin-top:12px;border:0;background:none;min-height:44px;padding:0 12px;font:600 13px var(--ui);color:var(--accent-text);cursor:pointer}
 .talk .hit,.mrow.hit{border-radius:14px;background:color-mix(in srgb,var(--accent-text) 14%,transparent);box-shadow:0 0 0 6px color-mix(in srgb,var(--accent-text) 14%,transparent);transition:background .4s,box-shadow .4s}
 @media (prefers-reduced-motion: reduce){.talk .hit,.mrow.hit{transition:none}}
 /* Conversations as days (owner, 2026-10-31: the menu "feels very normal"): Now is a glowing card
@@ -42,8 +42,8 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 #now .live{flex:none;width:9px;height:9px;margin:0 2px;border-radius:50%;background:var(--accent-text);box-shadow:0 0 0 5px color-mix(in srgb,var(--accent-text) 16%,transparent);animation:live 3.2s ease-in-out infinite}
 @keyframes live{50%{box-shadow:0 0 0 9px color-mix(in srgb,var(--accent-text) 4%,transparent)}}
 #now .t{display:flex;flex-direction:column;gap:2px;min-width:0;flex:1}
-#now .tl{font:700 17px/1.25 var(--ui);color:var(--ink)}
-#now .sub{font:500 13px/1.35 var(--ui);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#now .tl{font:600 17px/1.25 var(--ui);color:var(--ink)}
+#now .sub{font:400 13px/1.35 var(--ui);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #now>small{align-self:flex-start;margin-top:3px}
 .row.thr{gap:10px;min-height:56px;margin:0 0 8px;padding:12px 14px;border-radius:18px;background:var(--glass-flat);border:1px solid var(--glass-line);box-shadow:var(--e1);transition:background .15s,transform var(--d-fast) var(--pop)}
 .row.all{gap:10px;min-height:52px;padding:10px 14px;border-radius:18px;transition:background .15s,transform var(--d-fast) var(--pop)}
@@ -51,16 +51,16 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 .row.all:active,.ghead:active{background:color-mix(in srgb,var(--ink) 7%,transparent)}
 .tx{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px}
 .l1{display:flex;align-items:baseline;gap:10px;min-width:0}
-.tx .tl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:700 15px/1.3 var(--ui);color:var(--ink)}
+.tx .tl{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:600 15px/1.3 var(--ui);color:var(--ink)}
 .row .when{flex:none;font-size:12px;font-variant-numeric:tabular-nums}
-.l2{display:flex;align-items:flex-start;gap:6px;min-width:0;font:500 13px/1.4 var(--ui);color:var(--ink-3)}
+.l2{display:flex;align-items:flex-start;gap:6px;min-width:0;font:400 13px/1.4 var(--ui);color:var(--ink-3)}
 .sum{min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal}
-.tag{flex:none;margin-top:1px;padding:0 7px;border-radius:999px;font:700 11px/1.6 var(--ui);color:var(--gold-text);background:color-mix(in srgb,var(--gold) 18%,transparent)}
+.tag{flex:none;margin-top:1px;padding:0 7px;border-radius:999px;font:600 11px/1.6 var(--ui);color:var(--gold-text);background:color-mix(in srgb,var(--gold) 18%,transparent)}
 .cg{margin-top:18px}
 .ghead{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;margin:0 0 6px;padding:4px 4px;border:0;border-radius:var(--r-m);background:none;color:var(--ink-3);text-align:left;cursor:pointer;transition:background .15s,transform .14s}
 @media (hover:hover){.ghead:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}}
-.gl{flex:1;min-width:0;font:300 26px/1.15 var(--ui);letter-spacing:-.015em;color:var(--ink)}
-.gn{min-width:22px;height:20px;padding:0 7px;border-radius:10px;display:grid;place-items:center;font:700 10.5px var(--ui);font-variant-numeric:tabular-nums;color:var(--ink-3);background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.gl{flex:1;min-width:0;font:600 22px/1.15 var(--ui);letter-spacing:-.02em;color:var(--ink)}
+.gn{min-width:22px;height:20px;padding:0 7px;border-radius:10px;display:grid;place-items:center;font:600 10.5px var(--ui);font-variant-numeric:tabular-nums;color:var(--ink-3);background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .chev{width:13px;height:13px;fill:var(--ink-3);transform:rotate(90deg);transition:transform .34s var(--settle)}
 .cg.closed .chev{transform:none}
 .gbody{display:grid;grid-template-rows:1fr;transition:grid-template-rows .36s var(--settle)}
@@ -70,7 +70,7 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 .gin>.row{transition:background .15s,transform .34s var(--settle) calc(var(--i,0) * 26ms),opacity .26s calc(var(--i,0) * 26ms)}
 .cg.closed .gin>.row{opacity:0;transform:translateY(-8px);transition-delay:0s}
 .row.all{margin-top:6px}
-.allconvos .alllead{margin:0 2px 8px;font:500 14px/1.4 var(--ui);color:var(--ink-3)}
+.allconvos .alllead{margin:0 2px 8px;font:400 14px/1.4 var(--ui);color:var(--ink-3)}
 .allconvos .cg{margin-top:12px}
 .allconvos .gl{font-size:24px}
 .allconvos .btn{margin-top:16px}
@@ -78,12 +78,12 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 /* A held card's sheet (th/convos/actions.js): over the menu's bar, near the thumb */
 .holdsheet{position:absolute;z-index:3;left:14px;right:14px;bottom:calc(84px + env(safe-area-inset-bottom,0px));padding:10px;border-radius:var(--r-xl);background:var(--sheet);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);border:1px solid var(--glass-line);box-shadow:var(--e3);opacity:0;transform:translateY(16px) scale(.96);transform-origin:50% 100%;transition:opacity var(--d-fast) ease,transform var(--d-sheet) var(--settle)}
 .holdsheet.in{opacity:1;transform:none}
-.cstitle{padding:6px 10px 8px;font:700 14px/1.3 var(--ui);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cstitle{padding:6px 10px 8px;font:600 14px/1.3 var(--ui);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .csacts{display:flex;flex-direction:column;gap:2px}
-.csacts button,.cscancel{min-height:48px;padding:0 12px;border:0;border-radius:var(--r-row);background:none;color:var(--ink);font:600 16px var(--ui);text-align:left;cursor:pointer}
+.csacts button,.cscancel{min-height:48px;padding:0 12px;border:0;border-radius:var(--r-row);background:none;color:var(--ink);font:500 16px var(--ui);text-align:left;cursor:pointer}
 .csacts button:active,.cscancel:active{background:var(--press)}
 .cscancel{width:100%;margin-top:4px;color:var(--ink-2);text-align:center;background:var(--tint)}
-.csname{min-height:48px;padding:0 12px;border-radius:var(--r-m);border:1px solid var(--glass-line);background:var(--glass-flat);color:var(--ink);font:600 16px var(--ui);outline:none}
+.csname{min-height:48px;padding:0 12px;border-radius:var(--r-m);border:1px solid var(--glass-line);background:var(--glass-flat);color:var(--ink);font:500 16px var(--ui);outline:none}
 .csname:focus{border-color:var(--accent-fill)}
 .csacts .cssave{margin-top:6px;text-align:center;background:var(--accent-fill);color:#fff}
 @media (prefers-reduced-motion: reduce){.holdsheet{transition:opacity var(--d-fast) ease;transform:none}}

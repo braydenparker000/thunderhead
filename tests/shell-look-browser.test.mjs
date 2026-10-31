@@ -89,7 +89,7 @@ test('Settings sits on home’s field with a round back button and focuses its t
 
 test('the 404 wears the shell: the field, and the voice line in the shell\'s face, light', opts, async () => {
   const { page, context } = await open({ path: '/nowhere-at-all/', signedIn: false });
-  assert.deepEqual(await page.evaluate(() => [Boolean(document.querySelector('.bg .field')), getComputedStyle(document.querySelector('.voice')).fontStyle, getComputedStyle(document.querySelector('.voice')).fontFamily.split(',')[0], getComputedStyle(document.querySelector('.voice')).fontWeight]), [true, 'normal', 'Quicksand', '300']);
+  assert.deepEqual(await page.evaluate(() => [Boolean(document.querySelector('.bg .field')), getComputedStyle(document.querySelector('.voice')).fontStyle, getComputedStyle(document.querySelector('.voice')).fontFamily.split(',')[0], getComputedStyle(document.querySelector('.voice')).fontWeight]), [true, 'normal', 'Switzer', '600']);
   await context.close();
 });
 
@@ -262,7 +262,7 @@ test('Appearance (in Settings): text size and a still background, kept across a 
     const d = document.documentElement;
     return [d.dataset.text, d.dataset.accent ?? null, d.dataset.still, getComputedStyle(document.querySelector('#talk .reply')).fontSize, localStorage.getItem('th-accent'), getComputedStyle(document.querySelector('.field'), '::before').animationName];
   });
-  assert.deepEqual(got, ['l', null, '', '19.5px', null, 'none']);
+  assert.deepEqual(got, ['l', null, '', '18.5px', null, 'none']);
   assert.deepEqual(errors, []);
   await context.close();
 });

@@ -61,7 +61,7 @@ A `line` surface in app `home` (slots `line.1`–`line.4`, ≤ 44 characters, en
 - **The night's lines** (placed after the day began at 04:00 and before the quiet hours end) are **one card** headed **Overnight** (moon icon), its lines in slot order with a hairline between them, held until the quiet hours end (06:30, or the owner's later `quiet.end`, never earlier; Law 13) and placed in the chat as of then.
 - **A line placed later in the day** (by a chat session) is its own card, at its time, with no heading.
 - Lines from before today's 04:00 are not shown: each day starts clean.
-- Look: tinted as the mind's (accent 7% fill, accent 16% border, radius 16), never a bubble like the owner's; heading Quicksand 600 12 in the accent; lines 500 15.5/1.45 `--ink`. Not tappable; not a reply.
+- Look: tinted as the mind's (accent 7% fill, accent 16% border, radius 16), never a bubble like the owner's; heading 500 12 in the accent; lines 400 15.5/1.45 `--ink`. Not tappable; not a reply.
 - A surface kind or version this phone can't draw still shows as the generic card with its `why` (EXTENDING.md rule 3).
 
 ### 2.3 Empty and first run
