@@ -10,6 +10,8 @@ Sibling docs: [HOME](HOME.md), [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM
 
 **The night shift's tiles built in P8**: a `tile` surface in app `briefing` (slots `practice`, `study`, `built`, `note.1`–`note.3`; §2's limits checked by the Worker; a tap opens its `path` inside its `app`), placed by night step 7 and shown after "Waiting on you" in that slot order, at most 8 tiles; one without an expiry leaves after a day. "Built overnight" is one tile for now (its sheet with Undo per item waits); Practice waits on Guitar's senses; My Media and Podcasts tiles wait on those apps reporting. With nothing but the weather the page says "I'll arrange this page each night. Tomorrow it fills in." Tests: `backend/tests/integration/briefing-tiles.test.ts`, `tests/briefing-tiles-browser.test.mjs`.
 
+
+**Built 2026-10-31 (the look round):** his headline large and light, the weather as the page's hero (a big light temperature, the place and the next hours), then what waits on the owner and what the night arranged, on roomier tiles that cascade in as the page opens; Back home at the foot. The line about Muse shows only when Muse has gone quiet ("Muse hasn't checked in since yesterday."); "Muse is connected to the new Worker." was plumbing talk. "Waiting on you" returns home, where the card is docked in view, and pulses it.
 ## Rules at a glance
 
 1. **Open it:** swipe right on home, or the hidden "Briefing" button. **Close it:** swipe left, Back, or a tile that goes home ([GESTURES](../design/GESTURES.md) §4, §7).

@@ -208,7 +208,7 @@ test('a Markdown reply reads as rich text in the voice: a heading, lists, bold, 
     await page.click(`#convos [data-id="${T.saturday}"]`);
     await page.waitForSelector('#past .reply h3');
     const p = '#past .reply:has(h3)';
-    assert.deepEqual(await page.$eval(p, (r) => [getComputedStyle(r).fontStyle, getComputedStyle(r).fontFamily.split(',')[0]]), ['normal', 'Fraunces']);
+    assert.deepEqual(await page.$eval(p, (r) => [getComputedStyle(r).fontStyle, getComputedStyle(r).fontFamily.split(',')[0]]), ['normal', 'Quicksand']);
     assert.equal(await page.textContent(`${p} h3`), 'Practice plan for the weekend');
     assert.deepEqual(await page.$$eval(`${p} ul > li`, (l) => l.map((x) => x.textContent)), ['Scales first, ten minutes', 'Bars 9 to 12 at 84 bpm, then up']);
     assert.equal(await page.textContent(`${p} li b`), 'Scales');
@@ -280,7 +280,7 @@ test('search: this phone first, the Worker appended, accent-folded, Show all, a 
     await shot(page, 'search', theme);
     // Go to: app and settings names.
     await page.fill('.sbox input', 'devi');
-    await eventually(() => rows('Go to'), ['Devices']);
+    await eventually(() => rows('Go to'), ['Sign-in & devices']);
     // Show all N.
     await page.fill('.sbox input', 'number');
     await eventually(() => page.$$eval('.sres .showall', (b) => b.map((x) => x.textContent)), ['Show all 50']);

@@ -59,9 +59,9 @@ export function holdCards(host, pins, redraw) {
 
 /** The sheet over the menu, near the thumb. @param {string} id @param {{ get: () => string[], set: (ids: string[]) => void }} pins @param {() => void} redraw */
 function sheet(id, pins, redraw) {
-  document.querySelector('.csheet')?.remove();
+  document.querySelector('.holdsheet')?.remove();
   const t = data.list.threads.get(id);
-  const box = el('div', 'csheet');
+  const box = el('div', 'holdsheet');
   box.setAttribute('role', 'dialog');
   box.setAttribute('aria-label', 'Conversation');
   const title = el('div', 'cstitle', t?.title || 'This conversation');

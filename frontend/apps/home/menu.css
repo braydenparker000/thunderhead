@@ -76,8 +76,8 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 .allconvos .btn{margin-top:16px}
 @media (prefers-reduced-motion: reduce){#now .live{animation:none}.gbody,.gin>.row,.chev,.row.thr,.row.all,#now.cur,.ghead{transition:none}.row.thr:active,.row.all:active,#now:active,.ghead:active{transform:none}}
 /* A held card's sheet (th/convos/actions.js): over the menu's bar, near the thumb */
-.csheet{position:absolute;z-index:3;left:14px;right:14px;bottom:calc(84px + env(safe-area-inset-bottom,0px));padding:10px;border-radius:var(--r-xl);background:var(--sheet);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);border:1px solid var(--glass-line);box-shadow:var(--e3);opacity:0;transform:translateY(16px) scale(.96);transform-origin:50% 100%;transition:opacity var(--d-fast) ease,transform var(--d-sheet) var(--settle)}
-.csheet.in{opacity:1;transform:none}
+.holdsheet{position:absolute;z-index:3;left:14px;right:14px;bottom:calc(84px + env(safe-area-inset-bottom,0px));padding:10px;border-radius:var(--r-xl);background:var(--sheet);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);border:1px solid var(--glass-line);box-shadow:var(--e3);opacity:0;transform:translateY(16px) scale(.96);transform-origin:50% 100%;transition:opacity var(--d-fast) ease,transform var(--d-sheet) var(--settle)}
+.holdsheet.in{opacity:1;transform:none}
 .cstitle{padding:6px 10px 8px;font:700 14px/1.3 var(--ui);color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .csacts{display:flex;flex-direction:column;gap:2px}
 .csacts button,.cscancel{min-height:48px;padding:0 12px;border:0;border-radius:var(--r-row);background:none;color:var(--ink);font:600 16px var(--ui);text-align:left;cursor:pointer}
@@ -86,6 +86,6 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 .csname{min-height:48px;padding:0 12px;border-radius:var(--r-m);border:1px solid var(--glass-line);background:var(--glass-flat);color:var(--ink);font:600 16px var(--ui);outline:none}
 .csname:focus{border-color:var(--accent-fill)}
 .csacts .cssave{margin-top:6px;text-align:center;background:var(--accent-fill);color:#fff}
-@media (prefers-reduced-motion: reduce){.csheet{transition:opacity var(--d-fast) ease;transform:none}}
+@media (prefers-reduced-motion: reduce){.holdsheet{transition:opacity var(--d-fast) ease;transform:none}}
 .srow .tt{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .srow .td{flex:none}

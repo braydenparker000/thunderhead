@@ -18,6 +18,8 @@ Sibling docs: [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM](../design/DESIG
 
 ## 1. Layout
 
+**Built 2026-10-31 (the owner's look round; home is a chat, so what the owner acts on sits by the ask bar, never at the top of the thread):** the decision card docks just above the ask bar while one waits (§3, option C), and an older conversation's card with Back to now docks there too (§4.9); the conversation ends above whichever is shown (`--dock-h`, `--past-h`, and `--about-h` for the Ask about quote). Toasts sit just above the bar. Once the voice line scrolls away a small copy of it pins at the top (a tap goes back up), and while scrolling a chip says when the topmost turn was said (`apps/home/pinned.js`); the conversation fades out at its top edge. The date line's "· 1 waiting" is gone (the card is always in view), and offline is said on the date line and each waiting message, not also in a pill. One face, Quicksand (DESIGN-SYSTEM.md rule 1): the voice line is Light at `clamp(34px, 10vw, 42px)`.
+
 Measured in Chromium at 390×844 (the A15's CSS viewport is likely ~384×832, unverified).
 
 | Element | Position and size | Scrolls? |
@@ -188,7 +190,7 @@ Acceptance: with two mocked proposals, the first card shows "1 of 2"; tapping Ye
 
 The wake timings come from the mind's loop: the page fires a pre-warm on the first keystroke, the Worker retries an unclaimed fire once at 120 s and gives up at 240 s ([RUNTIME](../mind/RUNTIME.md)). Cold replies are expected to take 20–60 s and are not yet measured.
 
-**Reveal.** The reply is delivered whole (the mind posts complete messages; there is no token streaming). The client reveals it at **160 characters per second**, capped at **1.2 s** total (longer replies reveal faster), then shows it all. Built time-based (a CSS animation of `--reveal-ms`), on an ease-out curve (2026-10-30) so the first lines come quickly and the end settles. Reduced motion: no reveal. A screen reader gets the whole reply at once (`aria-live="polite"` on the turns list, text set in one go, the visual reveal done with a clip mask, not by changing the text).
+**Reveal (built 2026-10-31):** a new reply's words fade up one after another, at most 1.2 s in all, the text whole for a screen reader (`th/chat/view.js` `words()`); a message just sent rises out of the ask bar into its place. Before: the reply is delivered whole (the mind posts complete messages; there is no token streaming). The client reveals it at **160 characters per second**, capped at **1.2 s** total (longer replies reveal faster), then shows it all. Built time-based (a CSS animation of `--reveal-ms`), on an ease-out curve (2026-10-30) so the first lines come quickly and the end settles. Reduced motion: no reveal. A screen reader gets the whole reply at once (`aria-live="polite"` on the turns list, text set in one go, the visual reveal done with a clip mask, not by changing the text).
 
 **Stop (built, P2).** While the mind works on an answer (presence `working`), the reply slot carries a quiet **Stop** text button (Inter 13, accent, 44 px hit area) beside the "…". A tap sends `POST /v1/mind/stop`; the slot reads "Stopping…" until the mind's reply ("Stopped. Done: … Not done: …", [BEHAVIOR.md](../mind/BEHAVIOR.md)). Stop ends the work, not the session. The ask bar does not change.
 
@@ -312,6 +314,8 @@ Closing: tap `+` again, tap anywhere outside, pick an item, Back, or Escape. Bef
 
 ### 6.4 The mic (dictation)
 
+**Built 2026-10-31 (audit fix 3):** the mic records a voice memo (the + sheet's Voice memo); it no longer pretends to listen. Spoken input itself stays unbuilt (the owner ruled it out for now); the table below is the later design.
+
 Decided: ears work only when the owner switches them on.
 
 | State | Looks like | Notes |
@@ -379,6 +383,8 @@ Acceptance: the state classes on `#edge` per state (mocked, `tests/chat-browser.
 - It is a calendar date. The conversation's day rolls at 04:00, so between midnight and the roll the date reads tomorrow's date while yesterday's thread is still open; this is accepted.
 
 ## 10. The hint
+
+Built 2026-10-31: the counters below are kept on this phone (`th-hint`); the hint retires once they are met.
 
 - "Hold for apps · swipe for more", with a 14 px ring icon, Inter 500 12, `--ink-3`, 22 px under the last item, rises 600 ms after load.
 - Shown until the owner has opened the ring **3** times and opened both the briefing and the menu once by swiping [proposal]. Counters are kept per device.

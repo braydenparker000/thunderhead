@@ -81,15 +81,15 @@ test('Settings sits on home’s field with a round back button and focuses its t
       focused: document.activeElement?.tagName,
     };
   });
-  assert.deepEqual(look, { blur: 'none', field: true, back: ['Back to Settings', '/ui/icons.svg#arrow-left'], focused: 'H1' });
+  assert.deepEqual(look, { blur: 'none', field: true, back: ['Back to the menu', '/ui/icons.svg#arrow-left'], focused: 'H1' });
   assert.ok((await blurs(page)).length <= 2);
   assert.deepEqual(errors, []);
   await context.close();
 });
 
-test('the 404 wears the shell: the field, and the voice line in Fraunces', opts, async () => {
+test('the 404 wears the shell: the field, and the voice line in the shell\'s face, light', opts, async () => {
   const { page, context } = await open({ path: '/nowhere-at-all/', signedIn: false });
-  assert.deepEqual(await page.evaluate(() => [Boolean(document.querySelector('.bg .field')), getComputedStyle(document.querySelector('.voice')).fontStyle, getComputedStyle(document.querySelector('.voice')).fontFamily.split(',')[0]]), [true, 'italic', 'Fraunces']);
+  assert.deepEqual(await page.evaluate(() => [Boolean(document.querySelector('.bg .field')), getComputedStyle(document.querySelector('.voice')).fontStyle, getComputedStyle(document.querySelector('.voice')).fontFamily.split(',')[0], getComputedStyle(document.querySelector('.voice')).fontWeight]), [true, 'normal', 'Quicksand', '300']);
   await context.close();
 });
 
@@ -245,22 +245,24 @@ test('past the end a page stretches a little and springs back', opts, async () =
   await context.close();
 });
 
-test('Appearance: text size, accent and a still background, kept across a reload', opts, async () => {
+test('Appearance (in Settings): text size and a still background, kept across a reload; no accent', opts, async () => {
   const { page, context, errors } = await open();
   await go(page, 'side');
   await page.waitForTimeout(500);
-  await page.click('#tsize [data-v="l"]');
-  await page.click('#accent [data-v="violet"]');
-  await page.click('#still');
-  assert.equal(await page.$eval('#still', (b) => b.getAttribute('aria-checked')), 'true');
+  assert.equal(await page.$('#accent'), null, 'no accent picker (owner, 2026-10-31)');
+  await page.click('#settings');
+  await page.waitForSelector('.spage.in #set-text');
+  await page.click('#set-text [data-v="l"]');
+  await page.click('#set-still');
+  assert.equal(await page.$eval('#set-still', (b) => b.getAttribute('aria-checked')), 'true');
+  await page.evaluate(() => localStorage.setItem('th-accent', 'violet')); // an old choice is dropped
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('#talk .reply');
   const got = await page.evaluate(() => {
     const d = document.documentElement;
-    return [d.dataset.text, d.dataset.accent, d.dataset.still, getComputedStyle(document.querySelector('#talk .reply')).fontSize, getComputedStyle(d).getPropertyValue('--accent-text').includes('5a35c2'), getComputedStyle(document.querySelector('.field'), '::before').animationName];
+    return [d.dataset.text, d.dataset.accent ?? null, d.dataset.still, getComputedStyle(document.querySelector('#talk .reply')).fontSize, localStorage.getItem('th-accent'), getComputedStyle(document.querySelector('.field'), '::before').animationName];
   });
-  assert.deepEqual(got, ['l', 'violet', '', '19.5px', true, 'none']);
-  assert.ok(await page.$eval('#tsize [data-v="l"]', (b) => b.classList.contains('on')));
+  assert.deepEqual(got, ['l', null, '', '19.5px', null, 'none']);
   assert.deepEqual(errors, []);
   await context.close();
 });
@@ -285,24 +287,25 @@ test('the menu: a conversation swiped left offers Pin; pinned ones come first; s
   await page.waitForSelector('.sres .srow');
   assert.ok((await page.$$eval('.sres .srow', (r) => r.map((x) => x.textContent))).some((t) => t.includes('Account')), 'password finds Account');
   await page.fill('.sbox input', 'dark');
-  await page.waitForFunction(() => [...document.querySelectorAll('.sres .srow')].some((r) => r.textContent.includes('Appearance')));
+  await page.waitForFunction(() => [...document.querySelectorAll('.sres .srow')].some((r) => r.textContent.includes('Theme')));
   assert.deepEqual(errors, []);
   await context.close();
 });
 
-test('offline shows one pill at the top; the choice groups are radio groups that move with the arrow keys', opts, async () => {
+test('offline is said on the date line, not in a pill; the choice groups are radio groups that move with the arrow keys', opts, async () => {
   const { page, context, errors } = await open();
-  assert.equal(await page.$eval('.offpill', (p) => p.classList.contains('show')), false);
+  assert.equal(await page.$('.offpill'), null, 'no offline pill (audit fix 10)');
   await context.setOffline(true);
-  await page.waitForSelector('.offpill.show');
-  assert.equal(await page.textContent('.offpill'), "Offline · messages send when you're back");
+  await page.waitForFunction(() => document.querySelector('#date')?.hasAttribute('data-offline'));
   await context.setOffline(false);
-  await page.waitForSelector('.offpill:not(.show)', { state: 'attached' });
+  await page.waitForFunction(() => !document.querySelector('#date')?.hasAttribute('data-offline'));
   await go(page, 'side');
   await page.waitForTimeout(600);
-  const checked = () => page.$$eval('#tsize [role=radio]', (b) => b.map((x) => x.getAttribute('aria-checked')));
+  await page.click('#settings');
+  await page.waitForSelector('.spage.in #set-text');
+  const checked = () => page.$$eval('#set-text [role=radio]', (b) => b.map((x) => x.getAttribute('aria-checked')));
   assert.deepEqual(await checked(), ['false', 'true', 'false']);
-  await page.focus('#tsize [data-v="m"]');
+  await page.focus('#set-text [data-v="m"]');
   await page.keyboard.press('ArrowRight');
   assert.deepEqual(await checked(), ['false', 'false', 'true']);
   assert.equal(await page.evaluate(() => document.activeElement?.dataset.v), 'l');

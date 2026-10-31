@@ -65,7 +65,7 @@ work and tells the owner.
   private bucket.
 - Example content in code, tests and docs stays generic.
 - No GPL, AGPL, or non-commercial dependencies, except named exceptions in docs/process/decisions.md
-  (libmedia in Astra, owner has permission). Icons: Phosphor (MIT). Fonts: Fraunces and Inter (OFL).
+  (libmedia in Astra, owner has permission). Icons: Phosphor (MIT). Font: Quicksand (OFL).
 
 ## Layout
 
@@ -118,18 +118,22 @@ previous commit. A failed live check rolls back on its own.
 
 The full system is [docs/design/DESIGN-SYSTEM.md](docs/design/DESIGN-SYSTEM.md). Essentials:
 
-- **Home:** one screen. The voice line (Fraunces italic) says what matters; the conversation sits low,
+- **Home:** one screen. The voice line (Quicksand Light, large) says what matters; the conversation sits low,
   above a liquid-glass ask bar with `+` (options sheet) and a mic that becomes send while typing. No
   placeholder text, no chips on home.
-- **Ring:** hold still on an empty spot (220 ms): six apps around the finger; slide toward one and let
-  go. Clockwise from the top: Music `#2f7df6`, Guitar `#e08a1e`, Podcasts `#e0457b`, Astra `#8b5cf6`,
-  My Media `#14a39a`, Study `#2e9e5b`. Icons (Phosphor regular): music-notes-simple, guitar,
-  microphone, monitor-play, youtube-logo, book-bookmark.
-- **Swipe right:** the Briefing page. **Swipe left:** the menu on the right.
+- **Ring:** hold still on an empty spot (220 ms): seven apps around the finger, each its own glass disc;
+  slide toward one and let go. Clockwise from the top: Music `#2f7df6`, Guitar `#e08a1e`, Podcasts
+  `#e0457b`, Astra `#8b5cf6`, My Media `#14a39a`, Study `#2e9e5b`, Photos `#0891b2` (comes later).
+  Icons (Phosphor regular): music-notes-simple, guitar, microphone, monitor-play, youtube-logo,
+  book-bookmark, aperture.
+- **Swipe right:** the Briefing page. **Swipe left:** the menu: the conversations on home's field,
+  search and Settings in a bar at the bottom.
+- **A chat:** what the owner acts on sits by the ask bar (the decision card docks there, toasts too),
+  never at the top of the thread (owner, 2026-10-31).
 - **Conversations:** a new one starts on its own each day; old ones are filed and titled automatically.
 - **Presence:** light along the edges. Gold at the bottom means a decision is waiting; a pulse means
   thinking.
-- **Type:** Fraunces italic only for the Thunderhead's voice; Inter for everything else.
+- **Type:** Quicksand only: Light for large text, a step heavier for small text (owner, 2026-10-31).
 - **Colour:** day uses soft drifting colour fields with grain; night is pure black with faint accent
   light. Accent `#1a56bb` for day text and fills, `#2f7df6` icons only; gold `#f2b632` fills / `#734a00` text on light (owner, 2026-10-28).
 - **Motion:** quick and springy, never slow; everything respects reduced motion.

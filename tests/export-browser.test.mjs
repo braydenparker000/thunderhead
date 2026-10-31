@@ -47,6 +47,9 @@ async function open({ theme = 'light', exportState } = {}) {
   await page.goto(`${base}/`, { waitUntil: 'load' });
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' })));
   await page.waitForTimeout(450);
+  // Settings opens from the menu's bar (2026-10-31); Export is one of its rows.
+  await page.click('#settings');
+  await page.waitForSelector('.spage.in .slink[data-page="export"]');
   return { page, context, errors, api };
 }
 const shot = async (page, name, theme) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-${theme === 'light' ? 'day' : 'night'}.png` }); };
@@ -54,8 +57,8 @@ const shot = async (page, name, theme) => { if (SHOTS) await page.screenshot({ p
 test('Export: the password again, the bar, then one tap saves the ZIP; the last backup is shown', opts, async () => {
   for (const theme of ['light', 'dark']) {
     const { page, context, errors, api } = await open({ theme });
-    assert.equal(await page.textContent('[data-open="export"] .t'), 'Export');
-    await page.click('[data-open="export"]');
+    assert.equal(await page.textContent('.slink[data-page="export"] .t'), 'Export');
+    await page.click('.slink[data-page="export"]');
     await page.waitForSelector('.spage[aria-label="Export"] .xport .btn');
     assert.equal(await page.textContent('.xport .btn'), 'Download everything');
     await page.waitForFunction(() => /^Last automatic backup: Sunday 03:20/.test(document.querySelector('.spage .sbody > .shelp:last-child')?.textContent ?? ''));
@@ -90,7 +93,7 @@ test('Export: the password again, the bar, then one tap saves the ZIP; the last 
 test('Export: leaving and coming back finds the export still building; a failed one offers it again', opts, async () => {
   const state = { started: false, polls: 0, readyAfter: 1_000, failed: false, backups: [] };
   const { page, context, errors } = await open({ exportState: state });
-  await page.click('[data-open="export"]');
+  await page.click('.slink[data-page="export"]');
   await page.waitForSelector('.xport .btn');
   // The backups line fills in once its own request answers.
   await page.waitForFunction(() => /\S/.test(document.querySelector('.spage .sbody > .shelp:last-child')?.textContent ?? ''));
@@ -99,10 +102,10 @@ test('Export: leaving and coming back finds the export still building; a failed 
   await page.fill('#current-password', 'right password here');
   await page.click('.xport button[type="submit"]');
   await page.waitForSelector('.xport .xbar');
-  // Back to the menu and in again: still building, without asking for the password.
-  await page.click('.spage .sback');
-  await page.waitForTimeout(400);
-  await page.click('[data-open="export"]');
+  // Back to Settings and in again: still building, without asking for the password.
+  await page.click('.spage[aria-label="Export"] .sback');
+  await page.waitForTimeout(500);
+  await page.click('.slink[data-page="export"]');
   await page.waitForSelector('.spage[aria-label="Export"] .xport .xbar');
   state.failed = true;
   await page.waitForFunction(() => document.querySelector('.xport .line')?.textContent === "Couldn't gather everything. Try again.", null, { timeout: 10_000 });

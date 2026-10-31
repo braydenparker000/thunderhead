@@ -104,7 +104,7 @@ test('a message goes out at once; the reply arrives over the socket, reveals, an
     await page.waitForSelector('#talk .you');
     assert.equal(await page.inputValue('#q'), '');
     await page.waitForSelector('#talk .reply');
-    assert.deepEqual(await page.$eval('#talk .reply', (r) => [getComputedStyle(r).fontStyle, getComputedStyle(r).fontFamily.split(',')[0]]), ['normal', 'Fraunces']);
+    assert.deepEqual(await page.$eval('#talk .reply', (r) => [getComputedStyle(r).fontStyle, getComputedStyle(r).fontFamily.split(',')[0]]), ['normal', 'Quicksand']);
     assert.match(await page.textContent('#talk .reply'), /It is in Music, under Evening\./);
     await page.waitForSelector('#talk .chip.in');
     assert.equal(await page.textContent('#talk .chip'), 'Open in Music');
@@ -174,7 +174,7 @@ test('a rich reply: upright, with a heading, a list, bold and a quote, and block
     await send(page, 'How was my practice this week?');
     await page.waitForSelector('#talk .reply .blocks .bchart svg rect');
     const r = '#talk .reply';
-    assert.deepEqual(await page.$eval(r, (n) => [getComputedStyle(n).fontStyle, getComputedStyle(n).fontFamily.split(',')[0]]), ['normal', 'Fraunces']);
+    assert.deepEqual(await page.$eval(r, (n) => [getComputedStyle(n).fontStyle, getComputedStyle(n).fontFamily.split(',')[0]]), ['normal', 'Quicksand']);
     assert.equal(await page.textContent(`${r} h3`), 'Your week');
     assert.equal(await page.textContent(`${r} p b`), 'four');
     assert.deepEqual(await page.$$eval(`${r} ul li`, (l) => l.map((x) => x.textContent)), ['Monday, 30 minutes', 'Thursday, 45 minutes']);

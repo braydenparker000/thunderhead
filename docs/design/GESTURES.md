@@ -62,6 +62,8 @@ States: `idle → pressed → (holding | swiping | scrolling | longpress) → id
 
 ## 3. The Compass ring (hold)
 
+**Built 2026-10-31:** seven apps (Photos, the photo editor that comes later, between Study and Music), radius **70 px** so the 56 px discs don't touch, each its own live-glass disc (owner: "what makes it so good"). The hold before a neighbour takes over stays ~7° past the sector's edge for any number of apps (`HOLD = 0.5 + 7·N/360` sectors). Only transform and opacity move: the discs spring out on `--pop`, the chosen one swells to 1.12 while the others ease to 0.94, and its colour and white icon fade in on layers inside it instead of repainting the disc under its blur; the label keeps its place and crossfades up, tinted by the app. By keyboard (the focused "Apps" button): the ring opens in the middle, the arrows move round it, Enter opens, Escape closes. The geometry table below is the six-app original.
+
 Owner ruling: hold still on an empty spot for 220 ms → a tight ring of six apps opens around the finger; slide toward one and let go to open it; letting go in the centre cancels. Radius 62 px, 56 px liquid-glass bubbles, 28 px icons. Order clockwise from the top: Music, Guitar, Podcasts, Astra, My Media, Study.
 
 ### 3.1 Geometry

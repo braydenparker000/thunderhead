@@ -80,7 +80,7 @@ const card = (page) =>
 const gold = (page) => page.$eval('#edge', (e) => e.classList.contains('gold'));
 const decided = (api) => api.proposals.state.decided.map(({ id, decision, spec_hash }) => ({ id, decision, spec_hash }));
 
-test('one card under the voice line, with the gold edge; Yes folds it and the next rises', opts, async () => {
+test('one card docked above the ask bar, with the gold edge; Yes folds it and the next rises', opts, async () => {
   for (const theme of ['light', 'dark']) {
     const a = proposal({ expires_at: Date.now() + 3_600_000, odds: 0.9, target: 'preference: Likes calm music in the evening' });
     const b = proposal({ created_by: 'mind:chat', class: 'access', question: 'Revoke the old night key?', options: ['Revoke it', 'Approve'], safe: 'snooze', target: 'key ci-deploy (CI)' });
@@ -88,8 +88,13 @@ test('one card under the voice line, with the gold edge; Yes folds it and the ne
     await eventually(() => card(page), [{ why: "Night shift · Can't be undone1 of 2", q: a.question, target: a.target, buttons: ['Delete', 'No'] }]);
     assert.equal(await gold(page), true);
     await eventually(() => say(page), ['Two things need you.', 'The rest is handled.']);
-    // The card sits right under the voice line, above the conversation.
-    assert.equal(await page.$eval('#say', (s) => s.nextElementSibling?.id), 'decision');
+    // Docked just above the ask bar (owner, 2026-10-31), and the conversation ends above it.
+    assert.equal(await page.$eval('#decision', (d) => d.parentElement?.id), 'home');
+    const dock = await page.evaluate(() => {
+      const c = document.querySelector('#decision .card').getBoundingClientRect();
+      return { gap: Math.round(document.querySelector('#ask').getBoundingClientRect().top - c.bottom), above: document.querySelector('#convo').getBoundingClientRect().bottom <= c.top + 1 };
+    });
+    assert.ok(dock.gap >= 0 && dock.gap <= 24 && dock.above, JSON.stringify(dock));
     const details = await page.$$eval('#decision .dx', (ds) => ds.map((d) => d.textContent));
     assert.deepEqual(details, [a.why, 'About 90% sure.', a.if_ignored]);
     if (SHOTS) await page.screenshot({ path: `${SHOTS}/decision-${theme === 'light' ? 'day' : 'night'}.png` });
@@ -161,7 +166,7 @@ test('a tap right after the page comes back into view is ignored', opts, async (
   await context.close();
 });
 
-test('the date line says "· 1 waiting" while the card is out of view, and a tap brings it back', opts, async () => {
+test('scrolled anywhere in a long day, the docked card stays in view above the bar; no "waiting" note is needed', opts, async () => {
   const thread = '0192f0c4-0000-7000-8000-0000000000aa';
   const messages = Array.from({ length: 30 }, (_, i) => ({
     seq: i + 1, id: `0192f0c4-0000-7000-8000-${String(900 + i).padStart(12, '0')}`, thread_id: thread,
@@ -170,11 +175,12 @@ test('the date line says "· 1 waiting" while the card is out of view, and a tap
   }));
   const { page, context, errors } = await open({ proposals: [proposal()], chat: { messages } });
   await page.waitForSelector('#decision .card');
-  await page.$eval('#convo', (c) => { c.scrollTop = c.scrollHeight; });
-  await page.waitForSelector('#waiting:not([hidden])');
-  assert.equal(await page.textContent('#waiting'), '· 1 waiting');
-  await page.click('#waiting');
-  await page.waitForSelector('#waiting[hidden]', { state: 'attached' });
+  for (const to of ['top', 'end']) {
+    await page.$eval('#convo', (c, t) => { c.scrollTop = t === 'end' ? c.scrollHeight : 0; }, to);
+    await page.waitForTimeout(150);
+    assert.ok(await page.$eval('#decision .card', (c) => { const r = c.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }), `in view at the ${to}`);
+  }
+  assert.equal(await page.$('#waiting'), null);
   assert.deepEqual(errors, []);
   await context.close();
 });
@@ -232,20 +238,11 @@ test('after a Yes the next card rises only once the first has gone', opts, async
   await context.close();
 });
 
-test('a card pulsed by "· 1 waiting" during its rise still arms (each failed on d08cbdc)', opts, async () => {
-  const thread = '0192f0c4-0000-7000-8000-0000000000ab';
-  const messages = Array.from({ length: 30 }, (_, i) => ({
-    seq: i + 1, id: `0192f0c4-0000-7000-8000-${String(950 + i).padStart(12, '0')}`, thread_id: thread,
-    author: i % 2 ? 'mind' : 'owner', origin: i % 2 ? 'mind' : 'owner_device', kind: 'text', body: `Line ${i} of a long day.`,
-    meta: null, attachments: [], reply_to: null, created_at: Date.now() - (60 - i) * 60_000, delivered_at: null, acked_at: null, answered_at: Date.now(),
-  }));
-  const { page, context, api } = await open({ chat: { messages } });
-  await page.$eval('#convo', (c) => { c.scrollTop = c.scrollHeight; });
+test('a card pulsed (the Briefing\'s Waiting on you) during its rise still arms (each failed on d08cbdc)', opts, async () => {
+  const { page, context, api } = await open();
   api.proposals.add(proposal());
   await page.waitForSelector('#decision .card', { state: 'attached' });
-  await page.$eval('#convo', (c) => { c.scrollTop = c.scrollHeight; });
-  await page.waitForSelector('#waiting:not([hidden])', { timeout: 3000 });
-  await page.click('#waiting'); // within the card's 1.1 s rise: the pulse replaces it
+  await page.$eval('#decision .card', (c) => c.classList.add('pulse')); // within the rise: the pulse replaces it
   await page.waitForSelector('#decision .card.armed', { timeout: 3000 });
   await page.click('#decision .yes');
   await eventually(() => api.proposals.state.decided.length, 1);

@@ -16,6 +16,8 @@ Sibling docs: [HOME](HOME.md), [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM
 
 ## 1. The panel
 
+**Built 2026-10-31 (owner: chats and settings together, and an accent picker, were "dumb"; the menu "feels very normal"):** the menu holds only the conversations. It is a page on home's own field, `calc(100% - 52px)` wide with rounded leading corners, leaving home's edge in sight, sunk back (scale 0.93, rounded, dimmed). Its title "Conversations" is large and light; Now is a glowing card; each day is a flat-glass card (title and date, then the night's summary or the message count, two lines); group names are large and light and still fold. Search and a Settings button sit in a bar at the bottom like the ask bar on home; search's field takes the pill's place there and the results fill the list above it. The cards ripple in each time it opens. Held, a card offers Continue this, Rename (the owner's name wins: `PUT /v1/threads/:id/title`, device only; empty gives naming back) and Pin. Delete waits for its own step. The table below is the first build.
+
 | Part | Values (built) |
 |---|---|
 | Panel | Right side, `width: min(84%, 360px)`, full height, `--panel` (frosted by day; near-black, 94%, by night, so it sits with the black field: the old `--sheet` grey with saturate 1.6 read greyish brown over the warm glow, owner 2026-10-30) with blur 24 px, 1 px left border `--glass-line`, sideways E3 shadow when open |
@@ -111,6 +113,8 @@ One thread per day (decisions.md). The prototype showed two "Today" rows (topics
 Acceptance: deleting needs two taps (row action, then Delete); the thread is gone from search immediately; Undo within 8 s restores it with all messages; a mind token calling the delete route directly gets 403.
 
 ## 4. Settings
+
+**Built 2026-10-31:** Settings is its own page, opened from the menu's bar (`apps/settings/home.js`): Appearance (Theme Auto · Day · Night, Text size, Still background; no accent), then a row for each page (Quiet hours, Notifications, What I remember, Sign-in & devices, Agents, Account, Export), then About (Check for update and the release). A page opened from it returns to it. Quiet hours is a real page: Starts and Ends (never before 06:30, saved through `PATCH /v1/settings`) and Go quiet now (1 hour, until tomorrow, until I turn it off; End now). Connected apps is not listed until it has something true to show. Search's Go to opens these (Theme, Text size and Still background open Settings at that control).
 
 The list, in order [proposal]. Before sign-in, rows show the meta "soon" and tap to the toast "<Name> comes with sign-in" (built).
 

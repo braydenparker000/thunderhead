@@ -372,6 +372,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | `GET /v1/threads/:id/messages?before_seq\|after_seq&limit` | device, agents | — | `200 Page<Message>` | |
 | `PATCH /v1/threads/:id` | `mind:chat`, `mind:night` | `{ title?: string /* ≤ 80 */, summary?: string /* ≤ 400 */ }` | `200 Thread` | Sets `title_source:'mind'`; refused (`409 conflict`) when `title_source='owner'` |
 | `POST /v1/threads/:id/continue` | device | — | `200 { today_thread_id }` | Links a filed thread to today (`continues`) |
+| `PUT /v1/threads/:id/title` | device | `{ title }` (≤ 60, trimmed; empty clears) | `200 Thread` | The owner names a thread (`title_source` `owner`), which the mind's `PATCH` then refuses (409); empty gives naming back (2026-10-31) |
 | `PUT /v1/messages/:id` | device, `mind:chat`, `muse` (own thread); `mind:night`/`mind:reflex` only `kind:'error'` to the system thread | `{ body: string /* '' only on an owner message with attachments */, kind?: Message['kind'] /* default 'text' */, meta?: object /* ≤ 8 KB */, attachments?: Ref[] /* file:<id>, owner ≤ 4, mind ≤ 10 */, reply_to?: Id }` | `201 Message` (200 on a same-body retry) | See below |
 | `PATCH /v1/messages/:id` | `mind:chat` (own posts) | `{ body?: string, meta?: object }` | `200 Message` | Keeps progress cards current (`th amend`) |
 | `GET /v1/search?q=&sources=messages,facts,day_notes,library&since&until&thread&limit` | device, `mind:chat`, `mind:night` | — | `200 { items: { source, ref, snippet /* ≤ 200 chars, match in «» */, at, thread_id?, score }[] }` | Federated: each source (`shared/contract/feed.ts` `SEARCH_SOURCES`) answers with FTS5 bm25 and the Worker fuses them by reciprocal rank (k = 60); default all built sources (P2: `messages`); an unknown source is 422; `kind=` is kept as an alias of `sources=`; `q` 1–200 chars |
@@ -705,7 +706,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `GET /v1/changes` | D C N R | P2 |
 | `GET /v1/threads*`, `GET /v1/mind/wakes` | D C N R | P2 |
 | `PATCH /v1/threads/:id` | C N | P2 |
-| `POST /v1/threads/:id/continue`, `POST /v1/mind/typing` | D | P2 |
+| `POST /v1/threads/:id/continue`, `PUT /v1/threads/:id/title`, `POST /v1/mind/typing` | D | P2 |
 | `PUT /v1/messages/:id` | D C (N R: `error` kind to the system thread) | P2 |
 | `PATCH /v1/messages/:id` | C | P2 |
 | `PUT /v1/files/:id` | D C | P2 |

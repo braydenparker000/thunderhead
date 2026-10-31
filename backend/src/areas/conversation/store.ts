@@ -63,11 +63,7 @@ export function patchThread(db: Db, id: string, title: string | undefined, summa
   db.run(
     `UPDATE threads SET title = coalesce(?, title), title_source = CASE WHEN ? IS NULL THEN title_source ELSE 'mind' END,
        summary = coalesce(?, summary), updated_at = ? WHERE id = ?`,
-    title ?? null,
-    title ?? null,
-    summary ?? null,
-    at,
-    id,
+    ...[title ?? null, title ?? null, summary ?? null, at, id],
   );
 }
 

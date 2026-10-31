@@ -86,6 +86,7 @@
 #decision .card{margin-top:0;max-height:none;box-shadow:var(--e2),0 18px 40px -22px color-mix(in srgb,var(--gold) 55%,transparent);animation:dockin .5s var(--settle) both}
 @keyframes dockin{from{opacity:0;transform:translateY(18px) scale(.98)}}
 #decision .card.gone{max-height:0}
+#decision .card.pulse{animation:pulse .3s ease-out}
 .card .why .of{margin-left:auto}
 .card .tg{margin-top:4px;font:600 13px/1.4 var(--ui);color:var(--ink-2);overflow-wrap:anywhere}
 .card .dx{margin-top:6px;font:500 13px/1.4 var(--ui);color:var(--ink-3)}

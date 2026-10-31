@@ -119,7 +119,8 @@ import { startPinned } from './pinned.js';
   // it opens in the middle, the arrows move round it, Enter opens the app, Escape closes it.
   $('.skips').addEventListener('click',e=>{ const b=e.target.closest('[data-skip]'); if(!b) return; const k=b.dataset.skip; if(k==='apps') keyRing(); else go(k) });
   $('#bback').addEventListener('click',()=>go('home'));
-  document.addEventListener('keydown',e=>{ if(e.key!=='Escape'||open) return; if(view!=='home'&&!document.querySelector('.spage, .csheet')) go('home') });
+  // Escape inside a field, a sheet or a page is theirs (search leaves search, a page closes itself).
+  document.addEventListener('keydown',e=>{ if(e.key!=='Escape'||open||e.defaultPrevented) return; if(e.target.closest?.('input,textarea')||side.classList.contains('searching')||document.querySelector('.spage, .csheet, .holdsheet, .remind')) return; if(view!=='home') go('home') });
   dim.addEventListener('click',()=>go('home'));
   document.addEventListener('th:go',e=>go(e.detail)); // settings pages return to the open menu
   app.addEventListener('click',e=>{ if(swiped){ e.stopPropagation(); e.preventDefault() } },true);

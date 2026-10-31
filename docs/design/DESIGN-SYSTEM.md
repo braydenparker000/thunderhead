@@ -7,7 +7,7 @@ Sibling docs: [HOME](../product/HOME.md), [GESTURES](GESTURES.md), [COPY](COPY.m
 
 ## Rules at a glance
 
-1. **Two typefaces.** Fraunces is only ever the Thunderhead's own voice: italic for his short lines (the voice line, page titles), upright for his replies (owner, 2026-10-30). Inter is everything else, including the data inside a reply (tables, charts). If it is serif, the Thunderhead said it (owner ruling).
+1. **One typeface.** Quicksand (OFL), Light for large text (his voice line, page titles, big numbers) and a step heavier for small text so it reads on the phone (owner, 2026-10-31, replacing Fraunces and Inter). His words are told apart by having no bubble (the owner's have one) and by his large line, not by a face.
 2. **Two themes, same accents.** Day: a soft drifting colour field with grain. Night: pure black with faint accent light (owner ruling). Every colour token is defined once with `light-dark()`.
 3. **One primary action per screen.** On home it is the ask bar. At most **one gold element** is visible at a time.
 4. **Contrast is tested, not eyeballed.** Text ≥ 4.5:1, large text (≥ 24 px, or ≥ 18.66 px bold) and icons/UI parts ≥ 3:1, measured against the **worst** background each token can sit on. A node test fails the build otherwise.
@@ -76,7 +76,7 @@ This replaces the first build's three copies of every dark token (media query, `
 
 ## 2. Type
 
-Fonts are self-hosted (decisions.md): `ui/fonts/Fraunces-Italic.woff2` (variable, wght 300–500, SOFT 50, WONK 0), `ui/fonts/Fraunces.woff2` (upright for replies: wght 400–600, optical size fixed at 18, SOFT 50, WONK 0, the italic's 222 Latin characters, 30.6 KB; cut from `@fontsource-variable/fraunces` 5.3.0's full Latin file with fontTools' instancer and subsetter) and `ui/fonts/Inter.woff2` (roman, wght 400–600). All `font-display: swap`, preloaded.
+**Built 2026-10-31:** one self-hosted face, `ui/fonts/Quicksand.woff2` (variable, wght 300–700, Latin, 28.2 KB; `ui/fonts.css`), for every token below: Light (300) where the size is 24 px or more, and every smaller weight one step heavier than the Inter it replaced (400→500, 500→600, 600→700), since Quicksand draws lighter. Small spaced capitals are gone: labels are sentence case at 13 px. The table below keeps its sizes; read its fonts as Quicksand. Before (kept for history): fonts were self-hosted (decisions.md): `ui/fonts/Fraunces-Italic.woff2` (variable, wght 300–500, SOFT 50, WONK 0), `ui/fonts/Fraunces.woff2` (upright for replies: wght 400–600, optical size fixed at 18, SOFT 50, WONK 0, the italic's 222 Latin characters, 30.6 KB; cut from `@fontsource-variable/fraunces` 5.3.0's full Latin file with fontTools' instancer and subsetter) and `ui/fonts/Inter.woff2` (roman, wght 400–600). All `font-display: swap`, preloaded.
 
 | Token | Font | Size / line height | Weight | Use | Status |
 |---|---|---|---|---|---|
@@ -168,7 +168,7 @@ Budget: at most **2 live-glass surfaces visible at once** (ask bar + one of: car
 - **Grain:** an SVG `feTurbulence` (fractalNoise, baseFrequency 0.85, 2 octaves, desaturated) tile of **160 px**, `opacity: .09`, `mix-blend-mode: overlay`, over the whole field. Built. It also stops gradient banding.
 - **Still background** setting (built 2026-10-30): Settings → Appearance → "Still background" stops the drift (WCAG 2.2.2 asks for a way to stop motion that runs longer than 5 s). Reduced motion also stops it.
 - **The app icon** (built 2026-10-30): the night field (black to deep navy, a blue glow top-left, a gold warmth bottom-right), the presence light rising from the bottom, and the Thunderhead's italic T from Fraunces (wght 420, opsz 72) drawn as a path, so it needs no font; `icon.svg`, 192 and 512 PNGs, and a maskable 512 with the T inside the safe circle. The splash and its status bar are the icon's black (`#03050a`), so opening at night never flashes white.
-- **Accents** (built 2026-10-30): `:root[data-accent]` swaps `--accent-text`, `--accent-fill` and `--glow` (tokens.css) for Green, Violet or Rose; Blue is the default.
+- **Accents**: removed 2026-10-31 (owner: "an accent color picker is dumb"); blue is the only accent, gold keeps meaning "needs you". `ui/theme.js` drops an old stored choice.
 - The field and grain pause when the document is hidden (`animation-play-state: paused` on `visibilitychange`).
 
 ## 8. Motion
@@ -260,7 +260,7 @@ The node test `tests/tokens-contrast.test.mjs` [proposal] parses `ui/tokens.css`
 
 ## 10. The six app colours
 
-Owner ruling: the ring, clockwise from the top, with Phosphor regular icons.
+Owner ruling: the ring, clockwise from the top, with Phosphor regular icons; seven since 2026-10-31 (Photos, between Study and Music).
 
 | App | Colour (fill, icon) | Icon | On day bg | On `#000` | White icon on it | Text variant, day [proposal] |
 |---|---|---|---|---|---|---|
@@ -270,6 +270,7 @@ Owner ruling: the ring, clockwise from the top, with Phosphor regular icons.
 | Astra | `#8b5cf6` | `monitor-play` | 3.74 | 4.96 | 4.23 | `#6d3fe0` (5.40) |
 | My Media | `#14a39a` | `youtube-logo` | 2.76 | 6.74 | **3.12** | `#0a6f69` (5.32) |
 | Study | `#2e9e5b` | `book-bookmark` | 3.01 | 6.16 | 3.41 | `#1c703e` (5.40) |
+| Photos (2026-10-31; the photo editor comes later, so it says so when chosen) | `#0891b2` | `aperture` | 3.25 | 5.70 | 3.68 | [proposal] `#0e6f8a` |
 
 Rules:
 
@@ -303,13 +304,13 @@ Each component lives in `ui/components.css` (and a tiny JS helper where needed).
 |---|---|---|
 | **Owner bubble** | Right-aligned, max-width 80%, padding 9/14, radius 19 19 6 19, flat glass, `--t-body`, `--ink` | sending (opacity .7), sent, queued offline (meta line "Sends when you're back online"), failed (meta "Didn't send · Retry" in `--alarm`) |
 | **Mind reply** | Left, no bubble, `--t-voice-reply`, `--ink`, `text-wrap: pretty`, rich text and up to four blocks (HOME.md §4.3) | waiting (thinking words, HOME.md §4.4), revealing, done, collapsed long reply ("Show all") |
-| **Decision card** | Live glass, radius 22, padding 14/16, E2. "Why" line: 7 px gold dot with 3 px 28% gold halo + `--t-label` `--ink-3`. Question: Inter 500 16/1.42. Buttons row gap 8, margin-top 13 | rising, waiting, deciding (spinner in the pressed button), folded (opacity 0, scale .97, height 0 over 450 ms, +120 ms delay), error (inline line under buttons) |
+| **Decision card** | Docked just above the ask bar while one waits (owner, 2026-10-31, option C; th/decide/card.js), the conversation ending above it. Live glass, radius 22, padding 14/16, E2. "Why" line: 7 px gold dot with 3 px 28% gold halo + `--t-label` `--ink-3`. Question: Inter 500 16/1.42. Buttons row gap 8, margin-top 13 | rising, waiting, deciding (spinner in the pressed button), folded (opacity 0, scale .97, height 0 over 450 ms, +120 ms delay), error (inline line under buttons) |
 | **Decision buttons** | Pills, padding 10/17 (≥ 44 px tall hit area), Inter 600 14. Yes: gold fill, `--gold-ink`, inner highlight, gold shadow. Secondary: `--tint` fill, `--ink-2` | rest, pressed (scale .96, 150 ms), busy, disabled (opacity .5) |
 | **Action chip** | Inline-flex, padding 8/12/8/10, radius 14, flat glass, `--t-chip`, 17 px app-coloured icon, gap 7 | rest, pressed (scale .97), opening |
 | **Ask bar** | See [HOME](../product/HOME.md) §6. 54 px pill, live glass, `+` 40 px disc left, input, 42 px mic/send slot right | idle, focused, typing (send shown), listening, recording-memo, offline, disabled (signed out) |
 | **Sheet (`+` and action menu)** | Live glass `--sheet`, radius 26, padding 8, E3, min-width 220, items: 36 px tinted icon disc + Inter 500 16, padding 8/14/8/8, radius 16 | closed (`translateY(16px) scale(.5)`, opacity 0, origin bottom-left), open (spring), items stagger 28 ms bottom-up |
 | **Bottom confirm sheet** [proposal] | Full width minus 16 px, radius 26, live glass, title Inter 600 16, body `--t-small`, two full-width 48 px buttons: destructive action in `--alarm` text, "Keep" in `--ink` | open, busy, closed |
-| **Toast** | Top centre, `top: 58px + safe-area`, padding 9/14, radius 12, `--disc` + `--disc-line`, `--t-chip`, centred text, max width `calc(100% - 32px)`, **at most 2 lines** (built 2026-10-30, with an optional action such as Undo, which keeps it 3 s: hiding a Briefing tile, pinning a conversation), `role="status"`, `aria-live="polite"`. Copy limits in [COPY](COPY.md) §3 | in (opacity + 8 px slide, 250 ms), shown 1,700 ms (built) / 3,000 ms when it carries an action [proposal], out. One at a time; a new toast replaces the old |
+| **Toast** | Built 2026-10-31: just above the ask bar (or a docked card), under the thumb with its Undo, z above Settings pages. Was top centre, `top: 58px + safe-area`, padding 9/14, radius 12, `--disc` + `--disc-line`, `--t-chip`, centred text, max width `calc(100% - 32px)`, **at most 2 lines** (built 2026-10-30, with an optional action such as Undo, which keeps it 3 s: hiding a Briefing tile, pinning a conversation), `role="status"`, `aria-live="polite"`. Copy limits in [COPY](COPY.md) §3 | in (opacity + 8 px slide, 250 ms), shown 1,700 ms (built) / 3,000 ms when it carries an action [proposal], out. One at a time; a new toast replaces the old |
 | **Row** | Full width, padding 10/8, radius 12, 18 px icon (`--c`), title Inter 500 15 ellipsis, optional meta `--t-label` `--ink-3`, optional 14 px chevron | rest, hover/pressed (`--tint`), current (`--tint`), disabled ("soon" meta) |
 | **Segmented control** | Track `--tint`, padding 3, radius 12; items flex 1, padding 8/0, radius 9, Inter 500 13 `--ink-2`; selected: `--disc` fill, `--ink`, `0 1px 3px rgba(0,0,0,.14)` | as `role="radiogroup"` with `aria-checked` [proposal: built uses plain buttons] |
 | **Tile** | Flat glass, radius 22, padding 14/15, E1; key line (16 px icon + Inter 600 12 in app text colour), value `--t-body` 500, detail `--t-small` `--ink-3`, optional `--t-big`. `.wide` spans both columns | rest, pressed, gold (1 px inset gold ring at 50%), stale (detail shows "as of 14:10"), empty (hidden) |

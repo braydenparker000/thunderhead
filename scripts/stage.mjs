@@ -89,18 +89,23 @@ const budgets = [
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
   // (2026-10-31) + the reply blocks (th/chat/blocks.js), which were the Board reader's: the
   // Briefing's budget fell by more when the Board was cut.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 85_000],
+  // (2026-10-31, the look round) + words that fade up, the sent message's lift, the mic's memo and
+  // keeping a message sent while today failed to load; the fonts fell by 105 KB the same day.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 90_000],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads
   // and attachments in the conversation, loaded when the sheet opens or a message has files.
   ['attach JS bytes', sum(/^th\/attach\/.*\.js$/), 36_000],
   // The menu's conversations and search, loaded when the menu first opens.
-  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 56_000],
+  // (2026-10-31) + a held card's Continue, Rename and Pin (actions.js), Settings by name in search.
+  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 64_000],
   // The Briefing page, loaded after the first paint.
   // + skeletons, pull to refresh and the owner's arrangement of the tiles (2026-10-30).
   ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 20_000],
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 60_000],
+  // (2026-10-31) + the menu as a page with day cards, the ring's layers, the docked card, the pinned
+  // line and time chip, the Briefing's hero and the 44 px hit areas.
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 68_000],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 20_000],
   // One face since 2026-10-31: Quicksand, variable 300–700, Latin (28.2 KB; Fraunces and Inter were 133 KB).

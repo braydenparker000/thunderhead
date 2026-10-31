@@ -78,7 +78,7 @@ test('Notifications: on, a test, off; a push shows its words, or a line that say
   await page.evaluate(() => navigator.serviceWorker.ready);
   await page.waitForTimeout(600);
 
-  await page.evaluate(() => document.querySelector('[data-open="notifications"]').click());
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'notifications' } })));
   const status = page.locator('.spage .shelp[role="status"]');
   await page.locator('.spage button', { hasText: 'Let me reach you' }).waitFor();
   assert.equal(await status.textContent(), 'Not set up');
