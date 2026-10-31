@@ -1,12 +1,12 @@
-// The decision card on home (HOME.md §3): one card at a time, 18 px under the voice line, the
-// waiting decision that expires soonest first. Yes approves with this device's session; the second
+// The decision card on home (HOME.md §3): one card at a time, docked just above the ask bar where
+// the thumb is (owner, 2026-10-31: home is a chat, so what needs the owner never sits at the top of
+// the thread), the conversation ending above it; the waiting decision that expires soonest first. Yes approves with this device's session; the second
 // button ("No" or "Not yet") turns the card down or puts it off until the morning, as the card says.
 // The Worker checks and runs everything; the card only asks, and shows the Worker's target line. A
 // card takes no tap until 500 ms after its rise ends, and the next card rises only 300 ms after the
 // last one folded, so a second tap never lands on a card the owner hasn't seen. A tap within 500 ms
 // of the page appearing is ignored too (SECURITY.md §4.3, a framed overlay can't time a tap onto it)
-// and nothing is sent offline. The bottom edge is gold while a card shows; while it is scrolled out
-// of view the date line says "· 1 waiting", and a tap there brings it back. The card follows the
+// and nothing is sent offline. The bottom edge is gold while a card shows. The card follows the
 // change feed (`th:changed`). While the owner has said "go quiet" no card shows (BEHAVIOR.md §8.2).
 import { quietUntil } from '../chat/quiet.js';
 import { api, signedIn } from '../client.js';
@@ -36,13 +36,13 @@ export function glow() {
 }
 
 export function startDecisions() {
-  const say = document.querySelector('#say');
-  const convo = document.querySelector('#convo');
-  if (!say || !convo) return;
-  const slot = el('div', { id: 'decision' });
-  say.after(slot);
-  const waitingBtn = el('button', { type: 'button', class: 'waiting', id: 'waiting', hidden: '' });
-  document.querySelector('#date')?.after(waitingBtn);
+  const home = document.querySelector('#home');
+  const ask = document.querySelector('#ask');
+  if (!home || !ask) return;
+  const slot = el('div', { id: 'decision', class: 'dock' });
+  ask.before(slot);
+  // The conversation ends above the docked card, however tall it is (home.css --dock-h).
+  new ResizeObserver(() => document.documentElement.style.setProperty('--dock-h', `${slot.offsetHeight ? slot.offsetHeight + 10 : 0}px`)).observe(slot);
 
   /** @type {Proposal[]} */
   let items = [];
@@ -120,7 +120,6 @@ export function startDecisions() {
     slot.append(card);
     shown = s;
     arm(s);
-    watch(card);
     glow();
   }
 
@@ -130,7 +129,7 @@ export function startDecisions() {
     const risen = rise.length
       ? Promise.allSettled(rise.map((a) => a.finished))
       : new Promise((r) => setTimeout(r, RISE_MS));
-    // Settled, not fulfilled: a rise cut short (the "· 1 waiting" pulse replaces it) still arms.
+    // Settled, not fulfilled: a rise cut short still arms.
     risen.then(() =>
       setTimeout(() => {
         s.armed = true;
@@ -196,35 +195,11 @@ export function startDecisions() {
   /** @param {HTMLElement} card */
   function fold(card) {
     card.classList.add('gone');
-    seen.unobserve(card);
-    waitingBtn.hidden = true;
     setTimeout(() => {
       card.remove();
       glow();
     }, FOLD_MS);
   }
-
-  // The date line's "· 1 waiting" while the card is out of view (HOME.md §3.5).
-  const seen = new IntersectionObserver(
-    (entries) => {
-      for (const e of entries) {
-        const n = m.showing(items, Date.now()).length;
-        waitingBtn.textContent = `· ${m.waitingSuffix(Math.max(1, n))}`;
-        waitingBtn.hidden = e.isIntersecting;
-      }
-    },
-    { root: convo },
-  );
-  /** @param {HTMLElement} card */
-  const watch = (card) => seen.observe(card);
-  waitingBtn.addEventListener('click', () => {
-    const card = shown?.el;
-    if (!card) return;
-    const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-    card.scrollIntoView({ block: 'center', behavior: still ? 'auto' : 'smooth' });
-    card.classList.remove('pulse');
-    requestAnimationFrame(() => card.classList.add('pulse'));
-  });
 
   document.addEventListener('th:changed', (e) => {
     const kinds = /** @type {CustomEvent<string[]>} */ (e).detail ?? [];

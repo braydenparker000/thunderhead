@@ -239,6 +239,8 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
       const at = g[0].created_at;
       if (!lastAt || at - lastAt >= HOUR) t.dataset.time = clock(at);
       else delete t.dataset.time;
+      // Every turn's time, for the chip that floats at the top while the conversation scrolls (home/pinned.js).
+      t.dataset.at = clock(at);
       lastAt = g.at(-1)?.created_at ?? at;
       if (prevTurn ? prevTurn.nextElementSibling !== t : talk.firstElementChild !== t) prevTurn ? prevTurn.after(t) : talk.prepend(t);
       prevTurn = t;

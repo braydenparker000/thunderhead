@@ -25,7 +25,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .themeBtn .sun,:root[data-theme="dark"] .themeBtn .moon{display:none}
 :root[data-theme="dark"] .themeBtn .sun{display:block}
 /* conversation */
-.convo{position:absolute;z-index:2;left:0;right:0;top:56px;bottom:calc(44px + var(--ask-h,54px));overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:none;display:flex;flex-direction:column;padding:0 max(24px,env(safe-area-inset-right,0px)) 14px max(24px,env(safe-area-inset-left,0px))}
+.convo{position:absolute;z-index:2;left:0;right:0;top:56px;bottom:calc(44px + var(--ask-h,54px) + var(--dock-h,0px) + var(--past-h,0px) + var(--about-h,0px));overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:none;display:flex;flex-direction:column;padding:0 max(24px,env(safe-area-inset-right,0px)) 14px max(24px,env(safe-area-inset-left,0px))}
 .convo::-webkit-scrollbar{display:none}
 .spacer{flex:1 1 auto;min-height:40px}
 .voice{font-family:var(--voice);font-style:normal;font-weight:300;letter-spacing:-.015em}
@@ -117,13 +117,24 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .press{position:absolute;z-index:9;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:1.5px solid var(--ink-3);opacity:0;pointer-events:none}
 .press.on{animation:press .22s cubic-bezier(.2,0,0,1) forwards}
 @keyframes press{from{opacity:.0;transform:scale(.4)}to{opacity:.55;transform:scale(2.2)}}
-.toast{position:absolute;z-index:14;left:50%;top:calc(58px + env(safe-area-inset-top,0px));transform:translate(-50%,-8px);opacity:0;transition:.25s;padding:9px 14px;border-radius:12px;font:600 14px/1.35 var(--ui);color:var(--ink);background:var(--disc);border:1px solid var(--disc-line);width:max-content;max-width:min(340px,calc(100% - 32px));text-align:center;display:flex;align-items:center;gap:14px;pointer-events:none}
+/* toasts sit just above the ask bar (or a docked card), under the thumb with their Undo, never at the
+   top of the thread (owner, 2026-10-31) */
+.toast{position:absolute;z-index:40;left:50%;bottom:calc(36px + var(--ask-h,54px) + var(--dock-h,0px) + var(--past-h,0px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;transition:.25s;padding:9px 14px;border-radius:12px;font:600 14px/1.35 var(--ui);color:var(--ink);background:var(--disc);border:1px solid var(--disc-line);width:max-content;max-width:min(340px,calc(100% - 32px));text-align:center;display:flex;align-items:center;gap:14px;pointer-events:none}
 .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .toast .tact{flex:none;border:0;background:none;min-height:32px;padding:0;font:700 14px var(--ui);color:var(--accent-text);cursor:pointer;position:relative}
 .toast .tact::after{content:"";position:absolute;inset:-6px -8px}
-/* offline: one slim pill at the top */
-.offpill{position:absolute;z-index:8;top:calc(40px + env(safe-area-inset-top,0px));left:50%;transform:translate(-50%,-6px);opacity:0;pointer-events:none;padding:5px 12px;border-radius:var(--r-full);background:var(--glass-flat);border:1px solid var(--glass-line);font:600 12px var(--ui);color:var(--ink-2);white-space:nowrap;transition:opacity .25s,transform .25s var(--settle)}
-.offpill.show{opacity:1;transform:translate(-50%,0)}
+/* home is a chat (owner, 2026-10-31): once the voice line scrolls away, a small copy of it stays at
+   the top (a tap goes back up), and while scrolling a chip says when the topmost turn was said
+   (apps/home/pinned.js); both only fade and slide */
+.pinline{position:absolute;z-index:5;top:calc(36px + env(safe-area-inset-top,0px));left:50%;max-width:calc(100% - 48px);min-height:36px;padding:7px 15px;border-radius:var(--r-full);border:1px solid var(--disc-line);background:var(--disc);box-shadow:var(--e2);font:500 15px/1.3 var(--voice);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;opacity:0;pointer-events:none;transform:translate(-50%,-8px) scale(.96);transition:opacity var(--d-quick) ease,transform var(--d-quick) var(--settle)}
+.pinline.show{opacity:1;pointer-events:auto;transform:translate(-50%,0)}
+.timechip{position:absolute;z-index:5;top:calc(80px + env(safe-area-inset-top,0px));left:50%;padding:4px 11px;border-radius:var(--r-full);border:1px solid var(--disc-line);background:var(--disc);font:700 12px var(--ui);color:var(--ink-2);font-variant-numeric:tabular-nums;opacity:0;pointer-events:none;transform:translate(-50%,-4px);transition:opacity .2s ease,transform .2s var(--settle)}
+.timechip.show{opacity:1;transform:translate(-50%,0)}
+.pastview .pinline,.pastview .timechip{display:none}
+/* the conversation fades out at its top edge, more while the line is pinned there */
+.convo{-webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 22px);mask-image:linear-gradient(to bottom,transparent 0,#000 22px)}
+.home.pinned .convo{-webkit-mask-image:linear-gradient(to bottom,transparent 0,transparent 26px,#000 62px);mask-image:linear-gradient(to bottom,transparent 0,transparent 26px,#000 62px)}
+@media (prefers-reduced-motion: reduce){.pinline,.timechip{transition:none}}
 
 /* three places: briefing (swipe right) <- home -> menu (swipe left) */
 /* Chrome lets a scroller pan sideways again inside a pan-y parent, so each scroller says pan-y too:

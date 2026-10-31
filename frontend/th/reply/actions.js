@@ -73,5 +73,14 @@ export function about(m) {
   x.innerHTML = '<svg class="i" aria-hidden="true"><use href="/ui/icons.svg#x"/></svg>';
   chip.append(text, x);
   document.querySelector('#ask')?.before(chip);
+  // The conversation's end, a docked card and the toasts keep above the quote while it shows (audit
+  // fix 8: it covered the newest turn), and come back down once it goes (sent or ✕).
+  const lift = () => document.documentElement.style.setProperty('--about-h', chip.isConnected ? `${chip.offsetHeight + 8}px` : '0px');
+  if (chip.parentElement) new MutationObserver((_, o) => {
+    if (chip.isConnected) return;
+    lift();
+    o.disconnect();
+  }).observe(chip.parentElement, { childList: true });
+  lift();
   /** @type {HTMLTextAreaElement | null} */ (document.querySelector('#q'))?.focus();
 }

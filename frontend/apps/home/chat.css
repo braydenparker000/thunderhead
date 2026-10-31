@@ -56,7 +56,7 @@
 .talk .stop.stopping{color:var(--ink-3);cursor:default}
 .fallbacks .card{animation:none}
 .fallbacks .card .q{margin-top:0}
-.newpill{position:absolute;z-index:7;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;pointer-events:none;transition:.25s;min-height:44px;padding:8px 14px;border-radius:14px;border:1px solid var(--glass-line);background:var(--disc);font:600 13px var(--ui);color:var(--ink)}
+.newpill{position:absolute;z-index:7;left:50%;bottom:calc(86px + var(--dock-h,0px) + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;pointer-events:none;transition:.25s;min-height:44px;padding:8px 14px;border-radius:14px;border:1px solid var(--glass-line);background:var(--disc);font:600 13px var(--ui);color:var(--ink)}
 .newpill.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .say .ln.still{animation:none}
 .edge.err::after{--edge-c:#ff6b5e;opacity:.8}
@@ -80,7 +80,12 @@
 @media (prefers-reduced-motion: reduce){.talk .reply.reveal{animation:none;-webkit-mask-image:none;mask-image:none}.talk .wait.dots{animation:none;color:var(--ink-3);background:none}.newpill{transition:none}}
 /* Decision cards (HOME.md §3): the why line carries "1 of 3" at its end; smaller lines for the why,
    the odds and what happens if ignored; a spinner on the pressed button; the error line. */
-#decision .card{margin-top:18px}
+/* docked above the ask bar while a card waits (owner, 2026-10-31); the conversation, the "New reply"
+   pill and the toasts all keep above it (--dock-h, th/decide/card.js) */
+#decision.dock{position:absolute;z-index:7;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(34px + var(--ask-h,54px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px))}
+#decision .card{margin-top:0;max-height:none;box-shadow:var(--e2),0 18px 40px -22px color-mix(in srgb,var(--gold) 55%,transparent);animation:dockin .5s var(--settle) both}
+@keyframes dockin{from{opacity:0;transform:translateY(18px) scale(.98)}}
+#decision .card.gone{max-height:0}
 .card .why .of{margin-left:auto}
 .card .tg{margin-top:4px;font:600 13px/1.4 var(--ui);color:var(--ink-2);overflow-wrap:anywhere}
 .card .dx{margin-top:6px;font:500 13px/1.4 var(--ui);color:var(--ink-3)}
@@ -92,5 +97,4 @@
 .card.pulse{animation:pulse .3s ease-out}
 @keyframes pulse{50%{border-color:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 35%,transparent)}}
 /* The date line's "· 1 waiting" (HOME.md §3.5): gold text, a 44 px tap target. */
-.top .waiting{margin-right:auto;border:0;background:none;padding:0 0 0 6px;min-height:44px;margin-top:-15px;margin-bottom:-15px;font:700 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--gold-text);cursor:pointer}
 @media (prefers-reduced-motion: reduce){.decide button.busy::after,.card.pulse{animation:none}}

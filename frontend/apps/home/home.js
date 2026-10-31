@@ -2,6 +2,7 @@
 // The ring's apps come from the app registry (th/registry/apps.js, EXTENDING.md rule 3).
 import { apps } from '/th/registry/apps.js';
 import { from as launchFrom, launch } from '/ui/launch.js';
+import { startPinned } from './pinned.js';
 (function(){
   const $=s=>document.querySelector(s), root=document.documentElement;
   const edge=$('#edge'), toastEl=$('#toast'); let tt;
@@ -14,9 +15,8 @@ import { from as launchFrom, launch } from '/ui/launch.js';
   // change it through th:theme; text size and a still background live there too.
   function setTheme(p){ const hr=new Date().getHours(); root.dataset.theme=p==='auto'?((hr>=19||hr<7)?'dark':'light'):p; try{localStorage.setItem('th-theme',p)}catch(e){} }
   document.addEventListener('th:theme',e=>{ if(['auto','light','dark'].includes(e.detail)) setTheme(e.detail) });
-  // Offline: one slim pill at the top, gone once back (the messages keep their own notes).
-  const off=document.createElement('div'); off.className='offpill'; off.setAttribute('role','status'); off.textContent="Offline · messages send when you're back"; $('#home').append(off);
-  const net=()=>off.classList.toggle('show',!navigator.onLine); addEventListener('online',net); addEventListener('offline',net); net();
+  // Offline is said once, on the date line ("· Offline", th/chat), and each waiting message says it
+  // will send when back (audit fix 10: the pill made it three).
   try{$('#bdate').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}catch(e){}
 
   // Signed in, a row or item that does something itself drops its data-toast.
@@ -24,6 +24,7 @@ import { from as launchFrom, launch } from '/ui/launch.js';
 
   // + folds the options sheet up out of the ask bar
   const ask=$('#ask'), q=$('#q'), convo=$('#convo'), hint=$('#hint'), opts=$('#opts'), plus=$('#plus');
+  startPinned();
   function menu(on){ opts.classList.toggle('show',on); $('#home').classList.toggle('menuOpen',on); ask.classList.toggle('menu',on); plus.setAttribute('aria-expanded',on) }
   plus.addEventListener('click',()=>{ menu(!opts.classList.contains('show')); buzz(6) });
   opts.addEventListener('click',e=>{ if(e.target.closest('button')) menu(false) });

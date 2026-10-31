@@ -1,7 +1,8 @@
 // @ts-check
 // An older conversation on home, read-only (HOME.md §4.9): the voice line, the decision card and
-// today's thread step aside; a glass card at the top of the column holds the title, when it was
-// and how many messages (an imported one tagged "Old Chats") with Back to now; the filed thread
+// today's thread step aside; a glass card docked above the ask bar, under the thumb (owner,
+// 2026-10-31), holds the title, when it was and how many messages (an imported one tagged
+// "Old Chats") with Back to now; the conversation ends above it (--past-h); the filed thread
 // shows scrolled to the bottom, or to a search hit, highlighted for 2 s. Replies read as on home
 // (th/chat/rich.js). Back, the pill's button, the menu's Now row, or sending a message returns to today (the
 // message then sends as usual). Text is set with textContent only.
@@ -29,6 +30,10 @@ function el(tag, cls, text) {
 }
 
 const pill = el('div', 'past');
+/** The card's height lifts the conversation's end above it. */
+const dock = new ResizeObserver(() => {
+  if (pill.isConnected) document.documentElement.style.setProperty('--past-h', `${pill.offsetHeight + 10}px`);
+});
 const info = el('div', 'pinfo');
 const label = el('span', 'ptl');
 const when = el('span', 'pmeta');
@@ -79,7 +84,8 @@ export async function show(t, focus = null) {
   const home = $('#home');
   const convo = $('#convo');
   home.classList.add('pastview');
-  if (!pill.isConnected) convo.prepend(pill);
+  if (!pill.isConnected) $('#ask').before(pill);
+  dock.observe(pill);
   if (!log.isConnected) convo.append(log);
   // One history entry for the past view: Back returns to now. A search's entry becomes this one.
   if (was || history.state?.th) history.replaceState({ th: 'past' }, '');
@@ -202,7 +208,9 @@ export function close(fromPop = false) {
   if (!open) return;
   open = null;
   $('#home').classList.remove('pastview');
+  dock.unobserve(pill);
   pill.remove();
+  document.documentElement.style.setProperty('--past-h', '0px');
   log.replaceChildren();
   log.remove();
   const convo = $('#convo');
