@@ -187,14 +187,24 @@ test('scrolled anywhere in a long day, the docked card stays in view above the b
 
 test('a card that arrives while home is open takes no tap until it has risen and settled', opts, async () => {
   const { page, context, api } = await open();
+  // A finger already on its way as the card slides in under it: the tap lands in the same task the
+  // card is attached in (watched from inside the page, so a slow runner can't let it settle first).
+  const tap = page.evaluate(() => new Promise((resolve) => {
+    new MutationObserver((_, watch) => {
+      const card = document.querySelector('#decision .card');
+      if (!card) return;
+      watch.disconnect();
+      const at = { armed: card.classList.contains('armed'), opacity: Number(getComputedStyle(card).opacity) };
+      card.querySelector('.yes').click();
+      resolve(at);
+    }).observe(document.body, { subtree: true, childList: true });
+  }));
+  await page.waitForTimeout(50);
   api.proposals.add(proposal({ question: 'Forget this fact for good?' }));
-  await page.waitForSelector('#decision .card', { state: 'attached' });
-  // A finger already on its way as the card slides in under it: a real tap doesn't wait for "stable".
-  const opacity = Number(await page.$eval('#decision .card', (c) => getComputedStyle(c).opacity));
-  await page.click('#decision .yes', { force: true });
+  const at = await tap;
   await page.waitForTimeout(300);
-  assert.equal(api.proposals.state.decided.length, 0, `a tap at opacity ${opacity} was sent`);
-  assert.ok(opacity < 1);
+  assert.equal(api.proposals.state.decided.length, 0, `a tap at opacity ${at.opacity} was sent`);
+  assert.equal(at.armed, false, 'tapped while it was still rising');
   await page.waitForSelector('#decision .card.armed');
   await page.click('#decision .yes');
   await eventually(() => api.proposals.state.decided.length, 1);
