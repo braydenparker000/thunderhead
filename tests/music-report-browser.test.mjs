@@ -12,7 +12,6 @@ import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)', timeout: 90_000 };
-const OLD = 'https://jarvis-hub-api.braydenparker999.workers.dev';
 /** The demo queue's words (frontend/music/src/dev/demo.js): none may leave the phone. */
 const WORDS = ['Northern Lights', 'Glass Harbor', 'Low Tide', 'Paper Satellites', 'The Quiet Hours', 'Orbit Songs'];
 let site, browser, base;
@@ -30,7 +29,8 @@ after(async () => { await browser?.close(); site?.close(); });
 
 async function musicPage(signedIn) {
   const context = await browser.newContext({ serviceWorkers: 'block', viewport: { width: 390, height: 844 } });
-  await context.route(`${OLD}/**`, (route) => route.abort());
+  // Nothing outside this machine: the old Worker the player still names is never reached.
+  await context.route(/^https:\/\/(?!api\.th\.test\/)/, (route) => route.abort());
   const page = await context.newPage();
   const api = await mockApi(page);
   await page.goto(`${base}/no-such-page`);
