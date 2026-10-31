@@ -108,7 +108,7 @@ export function practiceLoop(reader, player, ui) {
       'div.th-judge',
       { role: 'group', 'aria-label': `How was that pass at ${bpm(pct)} BPM?`, style: 'position:fixed;left:12px;right:12px;bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:30;display:flex;gap:10px' },
       ui.el('button.th-clean', { type: 'button', style: BTN + 'background:#2f9e6b;color:#fff', onclick: () => mark(true, pct) }, 'Clean'),
-      ui.el('button.th-not', { type: 'button', style: BTN + 'background:rgba(255,255,255,.14);color:inherit', onclick: () => mark(false, pct) }, 'Not yet'),
+      ui.el('button.th-not', { type: 'button', style: BTN + 'background:#30333a;color:#f4f4f5', onclick: () => mark(false, pct) }, 'Not yet'),
     );
     reader.root.append(strip);
     keys = (e) => {
@@ -193,4 +193,5 @@ export function practiceLoop(reader, player, ui) {
   return { passed, section, ready, controls, end };
 }
 
-const BTN = 'flex:1;min-height:56px;border:0;border-radius:16px;font:inherit;font-size:17px;font-weight:600;';
+// Solid, with a shadow: the strip sits over the fretboard for 3 s and must read at a glance.
+const BTN = 'flex:1;min-height:56px;border:0;border-radius:16px;font:inherit;font-size:17px;font-weight:600;box-shadow:0 10px 28px rgba(0,0,0,.5);';
