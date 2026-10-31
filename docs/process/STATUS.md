@@ -71,7 +71,7 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Next three tasks
 
-1. The next batch, agreed with the owner (docs/process/NEXT-BATCH.md): playback reporting first, then Music's streaming (play at once, at most 15 s ahead, the next 3 songs' first 15 s), then apps inside the Thunderhead with the island (swipe down on Music's mini player to return to the chat). The menu waits for the owner (none of the directions shown on 2026-10-31 yet). Waiting from the look round: Delete for a conversation (its own step, a second reader, AGENTS.md rule 7).
+1. The next batch, agreed with the owner (docs/process/NEXT-BATCH.md, nine parts in order): playback reporting and the rows-read guard; Music's streaming (play at once, at most 15 s ahead, the next 3 songs' first 15 s); apps inside the Thunderhead with the island (swipe down on Music's mini player to return to the chat); instant phone commands; music the mind knows; Podcasts in the island; dictation, the catch-up line, "Off the record"; Guitar's practice loop. The menu waits for the owner (none of the directions shown on 2026-10-31 yet). Waiting from the look round: Delete for a conversation (its own step, a second reader, AGENTS.md rule 7).
 2. P9's clocks: predictions from the next night; Sunday 2026-11-01 is the first weekly improvement. Then IDEAS.md's next agreed items.
 3. P8: its done-when is its 7-day clocks, then the old Worker's retirement proposal; the Workers AI router waits for its eval set (RT-100, RA-P8-03). Owner: M2, M4 from 2026-11-05 (M3 cut); one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
 

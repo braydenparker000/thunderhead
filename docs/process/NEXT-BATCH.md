@@ -1,8 +1,13 @@
 # The next batch (agreed with the owner, 2026-10-31)
 
-Three parts, in this order: playback reporting first (so every change after it is measured before
-and after), then Music's streaming, then apps inside the Thunderhead with the island. Each part
-ships on its own through the usual process (AGENTS.md). Open owner decisions are at the end.
+Nine parts, built in this order: playback reporting and the rows-read guard first (so every change
+after them is measured, and nothing can quietly run into the free plan's daily cap again), then
+Music's streaming, then apps inside the Thunderhead with the island, then the features that ride on
+it (phone commands, music the mind knows, Podcasts), then dictation and the small home features,
+then Guitar's practice loop. Each part ships on its own through the usual process (AGENTS.md), with
+its tests and a live check. Open owner decisions are at the end. Next round, not this one: Study's
+highlights and notes and "Ask about this verse", My Media's catalog on the Worker, nightly music
+mixes, the menu.
 
 ## 1. Playback reporting
 
@@ -64,9 +69,64 @@ action to Music.
 **Security.** The frame guard lets only our own top page host an app, never another site; the
 ported pages read the session only when their top page is ours.
 
+## 4. The rows-read guard
+
+- A watchdog on the Worker's own per-day meter (rows read and written, every object): at 60 % of the
+  free plan's daily 5M rows read a line in the briefing and on the Briefing page; at 80 % a push to
+  the owner; past 80 % the heavy jobs wait for 00:00 UTC (the backup and drill, the upload tools'
+  audit, the senses archive), and the Worker answers the upload tools 429 until then.
+- `quota.rows_read` and `quota.rows_written` stop being "later" in the watchdog registry.
+
+## 5. Instant phone commands
+
+- Caught on the phone before anything is sent, as "go quiet" is today (`th/chat/quiet.js`), in plain
+  words with a small grammar: "pause", "play", "skip" / "next", "previous", "play Evening" (a
+  playlist by name), "open guitar" (any app), "remind me at 5 to call the bank".
+- They act at once, through the island's channel to the playing app; the bar shows what was done
+  in one line with Undo where it can be undone. Anything the grammar doesn't catch goes to the mind
+  as words, unchanged.
+
+## 6. Music the mind knows
+
+- Music sends what plays and what is skipped as senses events (`music.play`, `music.skip`; ids and
+  times only), so the mind can answer "who is this?" and "more like this", and learns
+  "never play this again" as a rule fact with its evidence (Fix and Forget on What I remember).
+- "Play until I fall asleep": a sleep timer with a slow fade, set from the chat.
+
+## 7. Podcasts in the island
+
+- Progress is kept on the Worker (`PUT /v1/podcasts/progress`), so an episode resumes on any phone.
+- The night checks the owner's shows (no more than once a day, small budget) and puts
+  "2 new episodes" in the Overnight card, with the shows' names.
+- The island shows the time left; swipe sideways skips 30 s forward or 15 s back.
+
+## 8. Dictation and the small home features
+
+- **Dictation:** hold the mic and the words appear in the bar as you speak (short chunks to the
+  Worker's own speech-to-text, the Whisper that writes up voice memos, never Google's); let go to
+  edit, then send. A tap still records a voice memo.
+- **The catch-up line:** when quiet ends, one line in the chat: "While you were quiet: 2 reminders,
+  1 card".
+- **"Off the record":** a conversation the mind answers but never remembers; deleted after 7 days.
+  Its own data step (a second reader, AGENTS.md rule 7).
+
+## 9. Guitar's practice loop (the owner's yes, STATUS)
+
+- Practice senses (sessions, sections, speeds, minutes), so the mind's tips and weekly plan come
+  from how the owner actually plays, not only from the tab.
+- The tempo ladder: each section climbs in small steps the owner marks Clean or Not yet, aiming at
+  about 70–80 % clean; tomorrow's session opens on the weakest bar.
+
+## Alongside
+
+- Watch Sunday's first backup and restore drill (rows read, time, the drill's counts), and report.
+- Fix the reflex procedure's reference to `th ci`, which does not exist, before SETUP M2.
+
 ## Open owner decisions
 
 - The buffer cap: 15 s always, or 15 s growing to 60 s for the rest of the session after a stall.
 - Workers Paid ($5 a month): 25 billion rows read a month instead of 5 million a day.
 - The menu: none of the directions shown on 2026-10-31 yet (Yours, Find, and A to F).
 - The app icon's T, drawn in Quicksand: redraw it in Switzer?
+- Retiring the old Worker (SETUP N5, M4) and switching off the old site's hourly Drive job: the old
+  Worker still reads about 180,000 rows a day on the same account.
