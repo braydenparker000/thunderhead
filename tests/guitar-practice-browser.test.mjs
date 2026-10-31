@@ -87,10 +87,11 @@ test('the ladder: opens on the worst bars, asks after each pass, steps up after 
   await strip.waitFor({ timeout: 15_000 });
   await page.keyboard.press('c');
   await page.waitForFunction(() => document.querySelector('.tp-btn[aria-label="Speed"] .tp-value')?.textContent === '74%');
-  // A pass nobody marks is not counted: the strip goes after 3 s.
+  // A pass nobody marks is not counted: the strip goes after 3 s. Paused first, so the next pass
+  // (3.4 s at 74 %) can't bring the next strip before this one has gone.
   await strip.waitFor({ timeout: 15_000 });
-  await strip.waitFor({ state: 'detached', timeout: 5_000 });
   await page.click('.tp-play');
+  await strip.waitFor({ state: 'detached', timeout: 5_000 });
 
   const kept = await page.evaluate((song) => JSON.parse(localStorage.getItem('th.p.guitar.ladder')).songs[song]['4-4'], SONG);
   assert.equal(kept.passes, 2);
