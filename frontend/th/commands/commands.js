@@ -85,7 +85,7 @@ export function commandOf(text, now = Date.now()) {
 export function whenWords(at, now = Date.now()) {
   const d = new Date(at);
   const hm = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-  const day = (x) => new Date(x).toDateString();
+  const day = (/** @type {number} */ x) => new Date(x).toDateString();
   if (day(at) === day(now)) return hm;
   if (day(at) === day(now + 86_400_000)) return `tomorrow ${hm}`;
   return `${d.toLocaleDateString('en', { weekday: 'long' })} ${hm}`;
@@ -102,7 +102,7 @@ export function preview(c) {
 export async function run(c, newId) {
   const { toast } = await import('../ui.js');
   if (c.kind === 'open') {
-    const { from: launchFrom, launch } = await import('/ui/launch.js');
+    const { from: launchFrom, launch } = await import('../../ui/launch.js');
     const app = appFor(c.app);
     if (!app?.built) return toast(`${app?.name ?? 'That app'} comes later.`);
     launchFrom(innerWidth / 2, innerHeight - 60);
