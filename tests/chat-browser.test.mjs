@@ -375,6 +375,21 @@ test('a verb queued for this phone runs once and reports its undo; one it lacks 
   await context.close();
 });
 
+test('when quiet ends, one line says what came while it held; it stays for the day', opts, async () => {
+  const { page, context, errors, api } = await open({ chat: { quietUntil: Date.now() + 3_600_000 } });
+  await eventually(async () => (await status(page))?.[0] ?? null, 'quiet');
+  api.chat.system('Water the seedlings', { reminder: { id: 'r1', at: Date.now() } });
+  await page.waitForFunction(() => [...document.querySelectorAll('#talk .sys')].some((s) => /Water the seedlings/.test(s.textContent ?? '')));
+  await send(page, "I'm back");
+  await eventually(() => status(page), null);
+  const line = () => page.$$eval('#talk .sys', (ss) => ss.map((s) => s.textContent).filter((t) => /^While you were quiet/.test(t ?? '')));
+  await eventually(line, ['While you were quiet: 1 reminder.']);
+  await page.reload({ waitUntil: 'load' });
+  await eventually(line, ['While you were quiet: 1 reminder.']);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 test("home lines are cards in the chat (the night's as one Overnight card); a kind this phone can't draw shows its why", opts, async () => {
   const surface = (kind, slot, payload, why, at = Date.now(), seq = 1) => ({ app: 'home', slot, kind, schema: 1, payload, why, topic_key: 't', ref: null, expires_at: null, written_at: at, seq, ledger_id: null });
   // The mock's day is 2026-10-29: two lines from that night, one placed during the day just now.

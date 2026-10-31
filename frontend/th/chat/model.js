@@ -116,6 +116,17 @@ export function status({ presence, noWake = false, quiet = null, offline = false
   return null;
 }
 
+/** The line once quiet ends (BEHAVIOR.md §8.3): what came while it held, or null when nothing did
+ * (home says something only when there is something). @param {Shown[]} shown @param {number} from
+ * @param {number} to @param {number} cards the decision cards waiting now */
+export function catchUp(shown, from, to, cards) {
+  const reminders = shown.filter((m) => m.author === 'system' && /** @type {any} */ (m.meta)?.reminder && m.created_at >= from && m.created_at <= to).length;
+  const parts = [];
+  if (reminders) parts.push(`${reminders} reminder${reminders === 1 ? '' : 's'}`);
+  if (cards) parts.push(`${cards} card${cards === 1 ? '' : 's'} waiting`);
+  return parts.length ? `While you were quiet: ${parts.join(', ')}.` : null;
+}
+
 /** Today's messages with the mind's home lines among them in time order: a line is a card in the
  * chat, where it was placed (HOME.md §2.1), never a standing line at the top.
  * @param {Shown[]} shown @param {{ id: string, lines: { text: string, lang: string | null }[], at: number, night: boolean }[]} cardsIn

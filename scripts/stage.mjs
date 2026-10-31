@@ -100,7 +100,9 @@ const budgets = [
   // Briefing's budget fell by more when the Board was cut.
   // (2026-10-31, the look round) + words that fade up, the sent message's lift, the mic's memo and
   // keeping a message sent while today failed to load; the fonts fell by 105 KB the same day.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 90_000],
+  // (2026-10-31, later) + the status chip, the mind's lines as cards and the catch-up line after
+  // quiet, in place of the voice line (HOME.md §2).
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 96_000],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads

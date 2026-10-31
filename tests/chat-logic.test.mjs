@@ -76,6 +76,15 @@ test('the status chip says something only when something is off: quiet, then off
   for (const st of [m.status({ presence: presence('failed') }), m.status({ presence: null, offline: true })]) assert.ok(st && st.text.length <= 24 && !/[!.]$/.test(st.text), 'short, no full stop');
 });
 
+test('the catch-up line after quiet counts what came while it held, and says nothing when nothing did', () => {
+  const reminder = (id, at) => msg({ id, seq: 9, author: 'system', created_at: at, meta: { reminder: { id, at } } });
+  const shown = [reminder('r0', 50), reminder('r1', 150), reminder('r2', 250), msg({ id: 'm', seq: 10, author: 'mind', created_at: 200 })];
+  assert.equal(m.catchUp(shown, 100, 300, 0), 'While you were quiet: 2 reminders.');
+  assert.equal(m.catchUp(shown, 100, 200, 1), 'While you were quiet: 1 reminder, 1 card waiting.');
+  assert.equal(m.catchUp(shown, 100, 140, 3), 'While you were quiet: 3 cards waiting.');
+  assert.equal(m.catchUp(shown, 300, 400, 0), null);
+});
+
 test("home lines join today's chat in time order as cards", () => {
   const a = msg({ id: 'a', seq: 1, created_at: 100 });
   const b = msg({ id: 'b', seq: 2, created_at: 300 });

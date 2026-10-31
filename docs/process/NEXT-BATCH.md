@@ -105,8 +105,8 @@ ported pages read the session only when their top page is ours.
 - **Dictation:** hold the mic and the words appear in the bar as you speak (short chunks to the
   Worker's own speech-to-text, the Whisper that writes up voice memos, never Google's); let go to
   edit, then send. A tap still records a voice memo.
-- **The catch-up line:** when quiet ends, one line in the chat: "While you were quiet: 2 reminders,
-  1 card".
+- **The catch-up line** (built 2026-10-31): when quiet ends, one line in the chat: "While you were
+  quiet: 2 reminders, 1 card waiting."; nothing when nothing came.
 - **"Off the record":** a conversation the mind answers but never remembers; deleted after 7 days.
   Its own data step (a second reader, AGENTS.md rule 7).
 

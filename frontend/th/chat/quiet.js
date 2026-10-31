@@ -8,6 +8,10 @@ import { api, signedIn } from '../client.js';
 const KEY = 'th.p.quiet.until';
 /** Set here and not yet taken by the Worker. */
 const PENDING = 'th.p.quiet.pending';
+/** When the quiet now on (or just ended) began, for the catch-up line once it ends. */
+const FROM = 'th.p.quiet.from';
+/** The day's catch-up line, kept until the day rolls: { day, at, body }. */
+const CATCHUP = 'th.p.quiet.catchup';
 const HOUR = 3_600_000;
 const WEEK = 168 * HOUR;
 const NUMBERS = 'zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve'.split('|');
@@ -85,6 +89,7 @@ export function quietUntil(now = Date.now()) {
 /** @param {number} until 0 ends quiet */
 function keepHere(until) {
   try {
+    if (until && !quietUntil()) localStorage.setItem(FROM, String(Date.now()));
     if (until) localStorage.setItem(KEY, String(until));
     else localStorage.removeItem(KEY);
   } catch {}
@@ -127,4 +132,35 @@ export function fromWorker(until) {
   } catch {}
   const v = typeof until === 'number' && until > Date.now() ? until : 0;
   if (v !== quietUntil()) keepHere(v);
+}
+
+/** A quiet that has ended (its time ran out, "I'm back", End now, or another phone) and has had no
+ * catch-up line yet: when it began and ended, or null. */
+export function endedQuiet(now = Date.now()) {
+  try {
+    const from = Number(localStorage.getItem(FROM));
+    const until = Number(localStorage.getItem(KEY));
+    if (!from || until > now) return null;
+    return { from, to: until && until <= now ? until : now };
+  } catch {
+    return null;
+  }
+}
+
+/** The catch-up line is written (or there was nothing to say): this quiet is done with. */
+export function caughtUp(line = /** @type {{ day: string, at: number, body: string } | null} */ (null)) {
+  try {
+    localStorage.removeItem(FROM);
+    if (line) localStorage.setItem(CATCHUP, JSON.stringify(line));
+  } catch {}
+}
+
+/** The catch-up line kept for `day`, if any. @param {string | undefined} day */
+export function catchUpFor(day) {
+  try {
+    const l = JSON.parse(localStorage.getItem(CATCHUP) || 'null');
+    return l && l.day === day ? /** @type {{ day: string, at: number, body: string }} */ (l) : null;
+  } catch {
+    return null;
+  }
 }

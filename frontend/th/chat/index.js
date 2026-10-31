@@ -15,7 +15,8 @@ import { run as runVerb } from '../registry/verbs.js';
 import { toast } from '../ui.js';
 import { BACKOFF_S, createLive } from './live.js';
 import * as model from './model.js';
-import { fromWorker, quietLine, quietOrder, quietUntil, sendQuiet, setQuiet } from './quiet.js';
+import { catchUpFor, caughtUp, endedQuiet, fromWorker, quietLine, quietOrder, quietUntil, sendQuiet, setQuiet } from './quiet.js';
+import { decisions } from '../decide/state.js';
 import { cache, OUTBOX_BYTES, OUTBOX_MAX, outbox } from './store.js';
 import { picked, take } from '../attach/state.js';
 import { createView } from './view.js';
@@ -104,7 +105,24 @@ export async function startChat() {
     // The mind's home lines join today's chat as cards, at the time they were placed (the night's at
     // the end of the quiet hours).
     const lines = state.today ? homeLines(state.surfaces, { day: state.today.day, now, quietEnd: state.quietEnd }) : [];
-    view.render({ shown: model.withLines(shown, lines), slot, words, stop, cards: fallbackCards(state.surfaces).map((c) => ({ text: c.text, kind: 'kind' in c ? c.kind : '' })), fresh: state.fresh, now });
+    // Once quiet ends, one line says what came while it held (the cards it held show a moment later).
+    const ended = state.today && !catchingUp ? endedQuiet(now) : null;
+    if (ended && state.today) {
+      const day = state.today.day;
+      catchingUp = setTimeout(() => {
+        const body = model.catchUp(model.merge(state.today?.messages ?? [], state.local), ended.from, ended.to, decisions.waiting);
+        caughtUp(body ? { day, at: ended.to, body } : null);
+        catchingUp = undefined;
+        paint();
+      }, 1500);
+    }
+    const cu = catchUpFor(state.today?.day);
+    const all = model.withLines(shown, lines);
+    if (cu) {
+      all.push(/** @type {any} */ ({ seq: 0, id: `catchup:${cu.at}`, thread_id: '', author: 'system', origin: 'system', kind: 'text', body: cu.body, meta: { line: 'catchup' }, attachments: [], reply_to: null, created_at: cu.at, delivered_at: null, acked_at: null, answered_at: null }));
+      all.sort((a, b) => a.created_at - b.created_at);
+    }
+    view.render({ shown: all, slot, words, stop, cards: fallbackCards(state.surfaces).map((c) => ({ text: c.text, kind: 'kind' in c ? c.kind : '' })), fresh: state.fresh, now });
     const quiet = quietUntil(now);
     setStatus(model.status({ presence: state.presence, noWake: model.noWakeShown(shown), quiet: quiet ? quietLine(quiet, now) : null, offline: state.offline }));
     const failedAt = Math.max(0, ...state.local.map((m) => (m.state === 'failed' ? m.failed_at ?? 0 : 0)));
@@ -131,6 +149,8 @@ export async function startChat() {
   }
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let ticker;
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let catchingUp;
 
   // --- data -----------------------------------------------------------------------------------
   const presenceOf = (/** @type {Record<string, unknown>} */ s) => /** @type {MindPresence | null} */ (s['mind.status'] ?? null);

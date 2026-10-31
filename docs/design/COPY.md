@@ -104,6 +104,7 @@ Home has no standing voice line (owner, 2026-10-31: "something always telling me
 | `status.nowake` | Can't wake just now | The chip while the mind can't wake and the thread doesn't say so (built); a tap: *I'll answer when I'm back.* |
 | `card.night` | Overnight | Heading of the card holding the night's home lines (built) |
 | `ask.placeholder` | Ask anything | The ask bar, empty (built) |
+| `quiet.catchup` | While you were quiet: 2 reminders, 1 card waiting. | One line in the chat when quiet ends, only if something came (built) |
 | `voice.brief.day` | *Here's your day.* | Briefing title, 04:00–14:59 (built) |
 | `voice.brief.rest` | *Here's the rest of today.* | Briefing title, 15:00–18:59 (proposal) |
 | `voice.brief.night` | *Here's tonight.* | Briefing title, 19:00–03:59 (proposal) |

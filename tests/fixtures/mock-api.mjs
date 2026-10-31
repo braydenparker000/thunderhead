@@ -147,7 +147,7 @@ function message(c, fields) {
 function chatControls(c) {
   return {
     reply: (text, extra = {}) => message(c, { id: crypto.randomUUID(), author: 'mind', body: text, ...extra }),
-    system: (text) => message(c, { id: crypto.randomUUID(), author: 'system', origin: 'system', body: text }),
+    system: (text, meta = null) => message(c, { id: crypto.randomUUID(), author: 'system', origin: 'system', body: text, meta }),
     presence: (s) => { c.presence = { state: s, note: null, since: Date.now() }; changed(c, 'mind_status'); },
     surface: (s) => { c.surfaces = [s]; changed(c, 'surface'); },
     verb: (v) => { c.verbs.push(v); changed(c, 'verb'); },
