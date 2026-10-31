@@ -47,7 +47,7 @@ function tone(freq) {
 const files = Array.from({ length: N }, (_, i) => tone(220 + 20 * i));
 
 let site, mock, browser, base, api;
-const state = { signDelay: 0, signs: [] };
+const state = { signDelay: 0, signs: [], senses: [] };
 
 before(async () => {
   if (live) return;
@@ -55,7 +55,7 @@ before(async () => {
     const cors = { 'Access-Control-Allow-Origin': req.headers.origin ?? '*', Vary: 'Origin' };
     const url = new URL(req.url, 'http://x');
     if (req.method === 'OPTIONS') {
-      res.writeHead(204, { ...cors, 'Access-Control-Allow-Methods': 'GET, POST', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, If-None-Match, Range, If-Range', 'Access-Control-Max-Age': '60' });
+      res.writeHead(204, { ...cors, 'Access-Control-Allow-Methods': 'GET, POST, PUT', 'Access-Control-Allow-Headers': 'Authorization, Content-Type, If-None-Match, Range, If-Range', 'Access-Control-Max-Age': '60' });
       return res.end();
     }
     if (url.pathname === '/v1/music/catalog') {
@@ -79,6 +79,17 @@ before(async () => {
           res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
           res.end(JSON.stringify({ items, errors: [] }));
         }, refs.every((ref) => ref.endsWith('#art')) ? 0 : state.signDelay);
+      });
+      return;
+    }
+    // The senses the page sends (MUSIC.md §10.1), kept for the test.
+    if (req.method === 'PUT' && url.pathname.startsWith('/v1/senses/batches/')) {
+      let body = '';
+      req.on('data', (d) => (body += d)).on('end', () => {
+        const { events } = JSON.parse(body);
+        state.senses.push(...events);
+        res.writeHead(200, { ...cors, 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ accepted: events.length, rejected: [] }));
       });
       return;
     }
@@ -304,6 +315,37 @@ test('the same through the audio engine, and with Next pressed twice', opts, asy
     assert.deepEqual(errors, []);
   } finally {
     state.signDelay = 0;
+    await context.close();
+  }
+});
+
+test('the mind hears it: a sense for each song started, and one skip at the moment it was left (MUSIC.md §10.1)', opts, async () => {
+  const { context, page, errors } = await boot();
+  state.senses.length = 0;
+  try {
+    await playFrom(page, 2);
+    await page.waitForFunction(() => __cp.player.audio.currentTime >= 12, null, { timeout: 30_000 });
+    const [first, leftAt] = await page.evaluate(() => {
+      const p = __cp.player, id = p.track.id, t = p.positionMs();
+      p.step(1);
+      return [id, t];
+    });
+    await page.waitForFunction(() => { const a = __cp.player.audio; return !a.paused && a.currentTime > 0.5; }, null, { timeout: 30_000 });
+    const second = await page.evaluate(() => __cp.player.track.id);
+    const deadline = Date.now() + 15_000;
+    const has = (ref) => state.senses.some((e) => e.type === 'music.play' && e.ref === ref);
+    while (Date.now() < deadline && !(has(`music:${second}`) && state.senses.some((e) => e.type === 'music.skip'))) await new Promise((r) => setTimeout(r, 200));
+    const music = state.senses.filter((e) => e.type.startsWith('music.'));
+    assert.deepEqual(music.filter((e) => e.type === 'music.play').map((e) => e.ref), [`music:${first}`, `music:${second}`]);
+    const skips = music.filter((e) => e.type === 'music.skip');
+    assert.equal(skips.length, 1);
+    assert.equal(skips[0].ref, `music:${first}`);
+    assert.ok(Math.abs(skips[0].data.at_ms - leftAt) <= 260, `skipped at ${skips[0].data.at_ms} ms, left at ${Math.round(leftAt)} ms`);
+    assert.equal(skips[0].data.duration_ms, SECONDS * 1000);
+    assert.equal(skips[0].data.next_ref, `music:${second}`);
+    assert.ok(!JSON.stringify(music).includes('Tone'), 'ids and times only, never a title');
+    assert.deepEqual(errors, []);
+  } finally {
     await context.close();
   }
 });

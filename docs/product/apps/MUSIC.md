@@ -723,6 +723,13 @@ DJ pick takes ≤ 5 ms on the A15.
 All senses follow `{id: uuidv7, at, type, ref, data, sensitivity}` and go through `th.sense()`
 (outbox, batched). See [DATA](../../engineering/DATA.md).
 
+**Built 2026-10-31 (NEXT-BATCH.md part 6; `th/music/dj.js`, signed in, top-level page):**
+`music.play` when the deck playing a new song first plays (a song loaded and not played, or passed
+over in a skip, sends none; `data` is `{offline}` only so far), `music.skip` with `{at_ms,
+duration_ms, next_ref}` when a song that sounded is left before its last 3 s (`at_ms` from the
+position read every 250 ms, so within a quarter second), and `music.finish` with `{listened_ms}`
+otherwise. Ids and times only, never a title. The rest of the table waits on its features.
+
 | Type | When | `ref` | `data` |
 |---|---|---|---|
 | `music.play` | A track starts sounding | `music:<id>` | `{context_ref, source: 'list'|'search'|'mix'|'dj'|'shuffle'|'queue'|'verb', offline: bool}` |

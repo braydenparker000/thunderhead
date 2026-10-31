@@ -5,7 +5,7 @@
 // sixth shuffle mode.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { closeness, djOrder, DJ_AHEAD, installDjMode, KEEP_AHEAD, learn, lesson, pick, replan, seeded, SHUFFLE_DJ } from '../frontend/th/music/dj.js';
+import { closeness, djOrder, DJ_AHEAD, installDjMode, KEEP_AHEAD, learn, lesson, pick, replan, seeded, SHUFFLE_DJ, left } from '../frontend/th/music/dj.js';
 
 const GENRES = ['Classical', 'Jazz', 'Rock', 'Folk', 'Ambient'];
 const library = (n) =>
@@ -117,4 +117,10 @@ test("the player's model gets a sixth shuffle mode, DJ, once", () => {
   assert.equal(model.values.array.shuffle_modes[0][0][SHUFFLE_DJ], '@string/shuffle_dj');
   assert.deepEqual(model.values.string.shuffle_dj, [['DJ']]);
   assert.deepEqual(model.values.integer.SHUFFLE_DJ, [['5']]);
+});
+
+test('how a song was left, for the mind (MUSIC.md §10.1): played to its last 3 s is a finish, earlier a skip', () => {
+  assert.deepEqual(left({ id: 'r2_native_a', pos: 12_004.6, dur: 60_000 }, 'r2_native_b'), ['music.skip', 'r2_native_a', { at_ms: 12_005, duration_ms: 60_000, next_ref: 'music:r2_native_b' }]);
+  assert.deepEqual(left({ id: 'r2_native_a', pos: 57_500, dur: 60_000 }, 'r2_native_b'), ['music.finish', 'r2_native_a', { listened_ms: 57_500 }]);
+  assert.deepEqual(left({ id: 'r2_native_a', pos: 3_000, dur: 0 }, 'bad id!'), ['music.skip', 'r2_native_a', { at_ms: 3_000, duration_ms: 0 }], 'an id outside the ref grammar is not named');
 });

@@ -11,8 +11,10 @@
 // the KEEP_AHEAD songs already planned next (their first seconds may be on the phone already).
 // installDj also names the next songs to the player's worker, which signs their links ahead
 // (th/music/bridge.js), and starts the playback batches (th/music/report.js, loaded once the player
-// runs; it reads the session itself). Nothing in this file touches the session: it is the player's
-// own, on this phone.
+// runs; it reads the session itself). Each song started, skipped or played to its end is a sense
+// for the mind (MUSIC.md §10.1, NEXT-BATCH.md part 6: ids and times only; th/senses/send.js, which
+// reads the session, sends them signed in). Nothing in this file touches the session: it is the
+// player's own, on this phone.
 
 export const SHUFFLE_DJ = 5;
 export const DJ_AHEAD = 60;
@@ -190,6 +192,24 @@ export function lesson(pos, dur) {
   return [0.5, 0.5];
 }
 
+/** A song's ref for a sense, when its id fits the ref grammar (DATA.md §2.3). @param {string} id */
+const refOf = (id) => (/^[A-Za-z0-9._:/-]{1,154}$/.test(id) ? `music:${id}` : null);
+/** One sense, sent soon (signed in, top-level page only; send.js checks). @param {string} type
+ * @param {string} id @param {Record<string, unknown>} data */
+function sense(type, id, data) {
+  const ref = refOf(id);
+  if (ref) import('/th/senses/send.js').then((m) => m.sense(type, ref, data)).catch(() => {});
+}
+/** How a song was left: played to its end (within its last 3 s) or skipped at a moment.
+ * @param {{ id: string, pos: number, dur: number }} was @param {string} next
+ * @returns {[string, string, Record<string, unknown>]} */
+export function left(was, next) {
+  const pos = Math.round(was.pos);
+  if (was.dur > 0 && pos >= was.dur - 3000) return ['music.finish', was.id, { listened_ms: pos }];
+  const nextRef = refOf(next);
+  return ['music.skip', was.id, { at_ms: pos, duration_ms: Math.round(was.dur), ...(nextRef ? { next_ref: nextRef } : {}) }];
+}
+
 /** Adds a play's lesson. @param {Learned} l @param {string | null} before @param {string} id @param {number} pos @param {number} dur @param {number} now */
 export function learn(l, before, id, pos, dur, now) {
   const [song, move] = lesson(pos, dur);
@@ -237,15 +257,17 @@ export function installDj(ctx, player) {
   let now = null;
   /** @type {string | null} */
   let before = null;
+  // Four times a second, so a skip's moment is right to a quarter second (§10.1's acceptance).
   setInterval(() => {
     const t = player.track;
     if (t?.id && now?.id === t.id) now.pos = Math.max(now.pos, player.positionMs?.() ?? 0);
-  }, 1000);
+  }, 250);
   ctx.bus.subscribe('bus_player', (/** @type {string} */ msg, /** @type {unknown} */ _src, /** @type {any} */ d) => {
     if (msg !== 'msg_player_track_changed' || d?.meta) return;
     const t = player.track;
     if (!t?.id || now?.id === t.id) return;
     if (now) {
+      if (now.id === sounded) sense(...left(now, t.id));
       const skipped = learn(learned, before, now.id, now.pos, now.dur, Date.now());
       save(learned);
       before = now.id;
@@ -255,6 +277,17 @@ export function installDj(ctx, player) {
     }
     now = { id: t.id, pos: 0, dur: t.durationMs || 0 };
   });
+  // A song starts when it sounds (the deck playing it plays), not when the player loads it: the
+  // page loads one at start without playing, and a skip may pass over a song that never sounded.
+  /** @type {string | null} */
+  let sounded = null;
+  for (const el of player.decks ?? [])
+    el.addEventListener('playing', () => {
+      const id = player.track?.id;
+      if (el !== player.audio || !id || id === sounded) return;
+      sounded = id;
+      sense('music.play', id, { offline: !navigator.onLine });
+    });
   // The next songs' links, signed by the worker before their turn (one request for all of them).
   let soon = 0;
   ctx.bus.subscribe('bus_player', (/** @type {string} */ msg, /** @type {unknown} */ _src, /** @type {any} */ d) => {

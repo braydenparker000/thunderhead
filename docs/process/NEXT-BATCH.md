@@ -91,6 +91,11 @@ island's channel to the playing app (part 3).
 
 ## 6. Music the mind knows
 
+Started 2026-10-31: `music.play`, `music.skip` and `music.finish` are sent (MUSIC.md §10.1), so
+the mind can read what plays and what is skipped (`th senses`). Still to build: "never play this
+again" as a rule fact the DJ honours, and the sleep timer, which needs the chat to reach the
+playing Music (the island, part 3).
+
 - Music sends what plays and what is skipped as senses events (`music.play`, `music.skip`; ids and
   times only), so the mind can answer "who is this?" and "more like this", and learns
   "never play this again" as a rule fact with its evidence (Fix and Forget on What I remember).
