@@ -192,8 +192,22 @@ restores bar, loop and speed.
 
 ### 4.3 Tempo ladder
 
-The old speed trainer (+5 % each pass up to 100 %) becomes a ladder gated on clean passes
-**[proposal]**.
+The old speed trainer (+5 % each pass up to 100 %) becomes a ladder gated on clean passes.
+
+**Built 2026-10-31 (NEXT-BATCH.md part 9; `th/guitar/ladder.js` the rules, `th/guitar/practice.js`
+the reader's side, loaded by a recorded improvement in the ported `guitar/reader.js`).** The ladder's
+switch and its Start, Step and Up to settings sit in the Speed sheet where the speed trainer was
+(someone who had the trainer on gets the ladder on, to the same target). With a loop set, each pass
+that ends shows **Clean** · **Not yet** for 3 s above the transport (keys `C` and `N`); no answer is
+not counted. Two clean in a row step up, two misses in a row step down 8 % (never below where the climb
+started), and the step doubles once after 10 of 10 clean. "Up to 74 BPM." / "Back to 67 BPM." say so
+in the reader's hint line. Each section (its first and last bar) keeps on the phone, in
+`th.p.guitar.ladder` (cleared on sign-out with the rest of `th.p.*`): today's passes, clean passes and
+ceiling (the fastest clean pass), the best clean speed ever, and the last day played before. A new
+day's climb starts 8 % under the last ceiling (never under Start, never over Up to), and the session
+opens on the section that went worst on the last day played (lowest clean share, at least 3 passes
+marked): "Starting on bars 12–16, the hardest last time (4 of 10 clean)." with Undo. Ears-on judging
+(§7) and the tension stop (§4.4) are not built yet.
 
 | Setting | Range | Default |
 |---|---|---|
@@ -424,6 +438,10 @@ Not yet measured on the owner's phone; this is the first test of P6 (§16).
 ## 8. Senses, verbs, surfaces
 
 ### 8.1 Senses
+
+Built 2026-10-31: `guitar.pass` (by `owner` only, until the ears), `guitar.bpm` and `guitar.session`
+(`sections` are the section keys marked that session), from `th/guitar/practice.js`, signed in only;
+`guitar.open` since P9. The rest of the table waits on its features.
 
 | Type | When | `ref` | `data` |
 |---|---|---|---|

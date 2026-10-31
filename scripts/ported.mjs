@@ -85,9 +85,22 @@ export const EDITS = {
     ],
   },
   // Guitar tips per section the owner asked for (decisions 2026-10-30): a section's label opens its tips.
+  // Guitar's practice loop, the owner's yes (NEXT-BATCH.md part 9, 2026-10-31): the tempo ladder replaces
+  // the speed trainer in the Speed sheet, a loop's pass asks Clean or Not yet, a new day opens on the bars
+  // that went worst, and practice senses go to the Worker (th/guitar/practice.js). The first pair comes
+  // first because undo runs in order and it sits on the tips' import line.
   'guitar/reader.js': {
     adjustments: ['improvement'],
     edits: [
+      ["import { attachTips } from '/th/guitar/teacher.js';\nimport { practiceLoop } from '/th/guitar/practice.js';", "import { attachTips } from '/th/guitar/teacher.js';"],
+      ["    this.build();\n    this.practice = practiceLoop(this, player, { el, slider, toast });\n    this.dismiss = pushLayer(", "    this.build();\n    this.dismiss = pushLayer("],
+      ["        player.setSpeed(this.song.speed / 100);\n        this.updateSpeedLabel();\n        this.practice.ready();\n      } else this.clearLoop(false);", "        player.setSpeed(this.song.speed / 100);\n        this.updateSpeedLabel();\n      } else this.clearLoop(false);"],
+      ["    player.trainer = null;\n", "    player.trainer = this.prefs.trainer;\n"],
+      ["    player.onloop = speed => { this.recordBest(); this.updateSpeedLabel(speed * 100); this.practice.passed(speed); };", "    player.onloop = speed => { this.recordBest(); this.updateSpeedLabel(speed * 100); };"],
+      ["presets, this.practice.controls()] });", "presets, trainer] });"],
+      ["    this.store.update(this.song.key, { loop: [a, b] });\n    this.practice.section(a, b, announce);\n    this.drawLoopMarks();", "    this.store.update(this.song.key, { loop: [a, b] });\n    this.drawLoopMarks();"],
+      ["    this.loopBand.hidden = true;\n    this.store.update(this.song.key, { loop: null });\n    this.practice.section(null);", "    this.loopBand.hidden = true;\n    this.store.update(this.song.key, { loop: null });"],
+      ["    clearInterval(this.practiceTimer);\n    this.practice.end();\n    this.resizeObserver.disconnect();", "    clearInterval(this.practiceTimer);\n    this.resizeObserver.disconnect();"],
       ["import { filename, createDownload, nativeSaveMode, saveToDevice, triggerDownload, withDeadline } from './runtime.js';\nimport { attachTips } from '/th/guitar/teacher.js';", "import { filename, createDownload, nativeSaveMode, saveToDevice, triggerDownload, withDeadline } from './runtime.js';"],
       ["        if (section) { const label = el('span.rd-section', {}, section); label.style.left = bar.x + 'px'; node.append(label); attachTips(label, bar.index, () => this.timeline, openSheet); }", "        if (section) { const label = el('span.rd-section', {}, section); label.style.left = bar.x + 'px'; node.append(label); }"],
     ],

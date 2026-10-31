@@ -11,6 +11,7 @@ import { STATUSES, TAB_SCALES } from './store.js';
 import { readerTrack } from './track-selection.js';
 import { filename, createDownload, nativeSaveMode, saveToDevice, triggerDownload, withDeadline } from './runtime.js';
 import { attachTips } from '/th/guitar/teacher.js';
+import { practiceLoop } from '/th/guitar/practice.js';
 
 const player = new Player();
 let open = null;
@@ -30,6 +31,7 @@ class Reader {
     this.urls = []; this.geo = new Map(); this.manualScroll = 0; this.lastSystem = null; this.loopPick = null;
     this.lastInteraction = performance.now();
     this.build();
+    this.practice = practiceLoop(this, player, { el, slider, toast });
     this.dismiss = pushLayer(() => this.close(false), '#play=' + encodeURIComponent(song.key));
     this.load();
   }
@@ -167,6 +169,7 @@ class Reader {
         if (this.song.bar > 0 && this.song.bar < bars.length) player.seek(bars[this.song.bar].s);
         player.setSpeed(this.song.speed / 100);
         this.updateSpeedLabel();
+        this.practice.ready();
       } else this.clearLoop(false);
       this.timeEnd.textContent = formatTime(player.duration);
       this.showLoading(false);
@@ -466,9 +469,9 @@ class Reader {
     if (!player.events) return;
     this.lastInteraction = performance.now();
     player.metronome = this.prefs.metronome; player.countIn = this.prefs.countIn; player.latency = this.prefs.latency;
-    player.trainer = this.prefs.trainer;
+    player.trainer = null;
     player.onend = () => { this.recordBest(); this.setPlaying(false); this.frame(true); };
-    player.onloop = speed => { this.recordBest(); this.updateSpeedLabel(speed * 100); };
+    player.onloop = speed => { this.recordBest(); this.updateSpeedLabel(speed * 100); this.practice.passed(speed); };
     try { await player.play(); } catch { toast('Audio could not start. Tap play again.', { error: true }); return; }
     this.setPlaying(true);
     this.lock();
@@ -524,7 +527,7 @@ class Reader {
       slider({ label: 'Step', min: 1, max: 10, value: t.step, format: v => '+' + v + '%', oninput: v => { this.store.setPrefs({ trainer: { ...this.prefs.trainer, step: v } }); this.prefs = this.store.prefs; player.trainer = this.prefs.trainer; } }),
       slider({ label: 'Up to', min: 50, max: 150, step: 5, value: t.target, format: v => v + '%', oninput: v => { this.store.setPrefs({ trainer: { ...this.prefs.trainer, target: v } }); this.prefs = this.store.prefs; player.trainer = this.prefs.trainer; } }));
     const sheet = openSheet({ title: 'Speed', subtitle: Math.round((this.timeline?.tempos[0][1] || 120) * player.speed) + ' BPM at ' + Math.round(player.speed * 100) + '%',
-      content: [slider({ label: 'Playback speed', min: 25, max: 150, step: 5, value: Math.round(player.speed * 100), format: v => v + '%', oninput: v => this.setSpeed(v) }), presets, trainer] });
+      content: [slider({ label: 'Playback speed', min: 25, max: 150, step: 5, value: Math.round(player.speed * 100), format: v => v + '%', oninput: v => this.setSpeed(v) }), presets, this.practice.controls()] });
   }
 
   voiceSheet() {
@@ -583,6 +586,7 @@ class Reader {
     this.loopButton.classList.add('on');
     this.loopButton.querySelector('small').textContent = `${bars[a].mb + 1}–${bars[b].mb + 1}`;
     this.store.update(this.song.key, { loop: [a, b] });
+    this.practice.section(a, b, announce);
     this.drawLoopMarks();
     if (announce) { this.say(''); toast(`Looping bars ${bars[a].mb + 1}–${bars[b].mb + 1}`); if (!player.playing) { player.seek(bars[a].s); this.frame(true); } }
   }
@@ -593,6 +597,7 @@ class Reader {
     this.sheet.querySelectorAll('.rd-loopmark').forEach(n => n.remove());
     this.loopBand.hidden = true;
     this.store.update(this.song.key, { loop: null });
+    this.practice.section(null);
     if (announce) toast('Loop off');
   }
   drawLoopMarks() {
@@ -715,6 +720,7 @@ class Reader {
     this.setPlaying(false);
     cancelAnimationFrame(this.raf);
     clearInterval(this.practiceTimer);
+    this.practice.end();
     this.resizeObserver.disconnect();
     removeEventListener('keydown', this.keys);
     document.removeEventListener('visibilitychange', this.visibility);

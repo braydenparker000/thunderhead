@@ -115,6 +115,9 @@ island's channel to the playing app (part 3).
 
 ## 9. Guitar's practice loop (the owner's yes, STATUS)
 
+Built 2026-10-31 (GUITAR.md §4.3, §8.1): the tempo ladder with Clean · Not yet, practice senses,
+and the next session opening on the section that went worst.
+
 - Practice senses (sessions, sections, speeds, minutes), so the mind's tips and weekly plan come
   from how the owner actually plays, not only from the tab.
 - The tempo ladder: each section climbs in small steps the owner marks Clean or Not yet, aiming at

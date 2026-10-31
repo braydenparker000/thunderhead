@@ -821,12 +821,48 @@
      "adjustments": []
     },
     "guitar/reader.js": {
-     "sha256": "e9070e3e3808131a2efe12e9fb6dbeed5619b30035718dbb801202c9af1a3e12",
+     "sha256": "261f6e85fbf69e68cb7c16213b58cf093ee9b67a3103eb26366b473ab0ad0765",
      "old_sha256": "7d9af8e885a08e06f056a0e8888d47d678d2a2365e53beab60cee8d23936129f",
      "adjustments": [
       "improvement"
      ],
      "edits": [
+      [
+       "import { attachTips } from '/th/guitar/teacher.js';\nimport { practiceLoop } from '/th/guitar/practice.js';",
+       "import { attachTips } from '/th/guitar/teacher.js';"
+      ],
+      [
+       "    this.build();\n    this.practice = practiceLoop(this, player, { el, slider, toast });\n    this.dismiss = pushLayer(",
+       "    this.build();\n    this.dismiss = pushLayer("
+      ],
+      [
+       "        player.setSpeed(this.song.speed / 100);\n        this.updateSpeedLabel();\n        this.practice.ready();\n      } else this.clearLoop(false);",
+       "        player.setSpeed(this.song.speed / 100);\n        this.updateSpeedLabel();\n      } else this.clearLoop(false);"
+      ],
+      [
+       "    player.trainer = null;\n",
+       "    player.trainer = this.prefs.trainer;\n"
+      ],
+      [
+       "    player.onloop = speed => { this.recordBest(); this.updateSpeedLabel(speed * 100); this.practice.passed(speed); };",
+       "    player.onloop = speed => { this.recordBest(); this.updateSpeedLabel(speed * 100); };"
+      ],
+      [
+       "presets, this.practice.controls()] });",
+       "presets, trainer] });"
+      ],
+      [
+       "    this.store.update(this.song.key, { loop: [a, b] });\n    this.practice.section(a, b, announce);\n    this.drawLoopMarks();",
+       "    this.store.update(this.song.key, { loop: [a, b] });\n    this.drawLoopMarks();"
+      ],
+      [
+       "    this.loopBand.hidden = true;\n    this.store.update(this.song.key, { loop: null });\n    this.practice.section(null);",
+       "    this.loopBand.hidden = true;\n    this.store.update(this.song.key, { loop: null });"
+      ],
+      [
+       "    clearInterval(this.practiceTimer);\n    this.practice.end();\n    this.resizeObserver.disconnect();",
+       "    clearInterval(this.practiceTimer);\n    this.resizeObserver.disconnect();"
+      ],
       [
        "import { filename, createDownload, nativeSaveMode, saveToDevice, triggerDownload, withDeadline } from './runtime.js';\nimport { attachTips } from '/th/guitar/teacher.js';",
        "import { filename, createDownload, nativeSaveMode, saveToDevice, triggerDownload, withDeadline } from './runtime.js';"

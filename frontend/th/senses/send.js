@@ -1,7 +1,8 @@
 // @ts-check
 // What the owner does, as events for the Senses object (API.md §11.14; P9, EVALS.md M-16 and M-18):
 // `<app>.open` when an app's page opens, `briefing.tile` when a night tile is tapped (its ref the
-// tile's ledger row). Only signed in and in a top-level page; kept on this phone (at most 200)
+// tile's ledger row), Guitar's practice (th/guitar/practice.js: a marked pass, a new best, a session,
+// numbers and bar ranges only). Only signed in and in a top-level page; kept on this phone (at most 200)
 // until the Worker takes them. A few seconds after the last one, or when the page hides, the waiting
 // events are sealed into one batch, which is sent again with the same bytes until it is taken (API.md
 // §11.14); one tab sends at a time. Names and times only: nothing the owner typed or saved.
@@ -17,7 +18,7 @@ let timer;
 /** @type {Promise<void> | null} */
 let sending = null;
 
-/** @typedef {{ id: string, at: number, type: string, ref?: string }} Sense */
+/** @typedef {{ id: string, at: number, type: string, ref?: string, data?: Record<string, unknown> }} Sense */
 
 /** UUIDv7 (RFC 9562): the Senses object takes no other id. */
 function uuidv7(now = Date.now()) {
@@ -51,11 +52,12 @@ function keep(q) {
   } catch {}
 }
 
-/** One event, sent soon. @param {string} type e.g. `guitar.open` @param {string | null} [ref] */
-export async function sense(type, ref = null) {
+/** One event, sent soon. @param {string} type e.g. `guitar.open` @param {string | null} [ref]
+ * @param {Record<string, unknown> | null} [data] numbers and names of things, never what the owner wrote (≤ 2 KB) */
+export async function sense(type, ref = null, data = null) {
   if (window.top !== window.self || !(await sessionToken())) return;
   const now = Date.now();
-  keep([...waiting(), { id: uuidv7(now), at: now, type, ...(ref ? { ref } : {}) }]);
+  keep([...waiting(), { id: uuidv7(now), at: now, type, ...(ref ? { ref } : {}), ...(data ? { data } : {}) }]);
   clearTimeout(timer);
   timer = setTimeout(flush, 3000);
 }
