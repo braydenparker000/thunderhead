@@ -303,6 +303,12 @@ Acceptance: each watchdog has a vitest case that sets the condition with fixture
 
 **mind-reflex** (RUNTIME.md §3; SETUP.md M2 connects it): a trip of a watchdog that wakes it fires the task after the tick's commit, at most one open wake and 4 wakes in any 24 hours. The session runs `th reflex`, which prints the procedure and each tripped watchdog's handling: look first, the one change it may make is a revert of the commit behind an errors spike, everything else is reported, never fixed. It reports each trip with `th handled <name> --outcome fixed|reported|nothing --note …` (a ledger note), and the Stop hook keeps it going until each one has its report. **A drill** checks that path on the live Worker: when the owner asks, the chat session runs `th drill <name>` (or the owner's device calls `POST /v1/ops/watchdogs/:name/drill`); the watchdog trips with the detail "a drill: tripped by hand, nothing is wrong", wakes the reflex the same way, and holds until the reflex has reported it, or for an hour.
 
+### 8.3 What the phone reports
+
+- **Errors** go to Core's `errors` inbox (`POST /v1/ops/errors`, API.md §11.16), one row per fingerprint, read with `th errors` and counted by `client.errors`. Signed in and top-level only, from every page: the five ported pages through `assets/error-report.js`, and the shell's own pages (home with its route copies, and Study) through `ui/errors.js`, built 2026-10-31 (NEXT-BATCH.md part 1). Both cut every address in a message to its host and say where in the site's code it came from instead of a stack; the shell's gives each distinct error its own fingerprint (its kind, words and place), so they don't fold into one row, counts a repeat in the same batch, and sends 2 s after the last error or when the page is hidden: at most 3 of one error and 20 in all a page load.
+- **Playback** goes to Core's `reports` table (`POST /v1/ops/reports`), one row per batch, kept 30 days and read with `th reports`: Music's playback log, what is new since the last batch, once a minute while music plays and once when the page is hidden ([MUSIC.md §5.10](../product/apps/MUSIC.md)). Timings, counts and track ids only. One batch is one row written and none read; a list reads the rows it returns; a device may send 6 in any 5 minutes.
+- **`perf_days`** (`POST /v1/ops/perf`) is built, but no page sends it yet: its daily summaries wait for the phone's performance senses (PERFORMANCE.md §5).
+
 ---
 
 ## 9. Routine checks
