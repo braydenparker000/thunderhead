@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; frame-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#eef1f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Island lab · Thunderhead</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script src="/ui/theme.js"></script>
+<link rel="preload" href="/ui/fonts/Switzer.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="/ui/fonts.css">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/lab/island/lab.css">
+<script type="module" src="/lab/island/lab.js"></script>
+</head>
+<body>
+<!-- A prototype, not the product (docs/process/NEXT-BATCH.md part 3): Music runs inside this page
+     the way it will run inside home, so the owner can check on the phone that the lock screen and
+     AirPods still control it while it plays behind the chat. Nothing here is sent anywhere. -->
+<main class="chat" aria-label="A stand-in for the chat">
+  <p class="date">Island lab</p>
+  <div class="you">Put on something calm for the evening</div>
+  <p class="reply">Swipe down on Music's mini player to come back here. Music keeps playing; the island at the top leads back to it.</p>
+  <ol class="steps">
+    <li>In Music, play a song.</li>
+    <li>Swipe down on the mini player at the bottom (or press Back).</li>
+    <li>Lock the phone. Try the lock screen and the AirPods: next, previous, pause.</li>
+    <li>Unlock and open the log below.</li>
+  </ol>
+  <button type="button" class="logbtn" id="logbtn">Show the log</button>
+  <pre class="log" id="log" hidden></pre>
+</main>
+<button type="button" class="island" id="island" aria-label="Back to Music" hidden>
+  <span class="dot"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#music-notes-simple-bold"/></svg></span>
+  <span class="bars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+</button>
+<iframe class="app" id="app" src="/music/" title="Music" allow="autoplay; fullscreen; picture-in-picture; encrypted-media"></iframe>
+</body>
+</html>
