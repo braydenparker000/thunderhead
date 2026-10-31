@@ -49,3 +49,5 @@ dots-three
 arrow-clockwise
 cloud-arrow-up
 book-open-text
+gear-six
+aperture

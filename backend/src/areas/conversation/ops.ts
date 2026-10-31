@@ -164,6 +164,16 @@ export function patchThread(w: Writer, id: string, title: string | undefined, su
   return store.thread(w.db, id) as Thread;
 }
 
+/** PUT /v1/threads/:id/title: the owner's name for a thread, which the mind never changes after
+ * (patchThread refuses); an empty one clears it, so the night shift may name it again. */
+export function nameThread(w: Writer, id: string, title: string): Thread {
+  if (!store.thread(w.db, id)) throw new Fail('not_found');
+  const named = title.trim().replace(/\s+/g, ' ');
+  store.ownerTitle(w.db, id, named || null, w.at);
+  w.change('thread', `thread:${id}`);
+  return store.thread(w.db, id) as Thread;
+}
+
 /** POST /v1/threads/:id/continue: links a filed thread to today's. */
 export function continueThread(w: Writer, id: string, tz: string): { today_thread_id: string } {
   const filed = store.thread(w.db, id);

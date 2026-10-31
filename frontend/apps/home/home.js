@@ -9,30 +9,14 @@ import { from as launchFrom, launch } from '/ui/launch.js';
   const buzz=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
   try{$('#date').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}catch(e){}
 
-  // day/night: Auto follows the clock; Day or Night sticks
-  const seg=$('#seg'); let pref='auto'; try{pref=localStorage.getItem('th-theme')||'auto'}catch(e){}
-  function applyTheme(p){ pref=p; const hr=new Date().getHours(); root.dataset.theme=p==='auto'?((hr>=19||hr<7)?'dark':'light'):p; seg.querySelectorAll('button').forEach(b=>{ b.classList.toggle('on',b.dataset.th===p); b.setAttribute('aria-checked',String(b.dataset.th===p)); b.tabIndex=b.dataset.th===p?0:-1 }) }
-  applyTheme(pref);
-  const setTheme=t=>{ applyTheme(t); try{localStorage.setItem('th-theme',t)}catch(e){} };
-  seg.addEventListener('click',e=>{const b=e.target.closest('button'); if(b) setTheme(b.dataset.th)});
-  document.addEventListener('th:theme',e=>{ if(['auto','light','dark'].includes(e.detail)) setTheme(e.detail) }); // the shell.appearance verb
-  // Text size, accent and a still background, kept on this phone; ui/theme.js applies them before
-  // the first paint (HOME.md §8).
-  function pick(sel,key,attr,def){ const box=$(sel); let v=def; try{v=localStorage.getItem(key)||def}catch(e){}
-    const show=x=>box.querySelectorAll('button').forEach(b=>{ const on=b.dataset.v===x; b.classList.toggle('on',on); b.setAttribute('aria-checked',String(on)); b.tabIndex=on?0:-1 });
-    show(v);
-    box.addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b) return; const x=b.dataset.v; if(x===def) delete root.dataset[attr]; else root.dataset[attr]=x;
-      try{ x===def?localStorage.removeItem(key):localStorage.setItem(key,x) }catch(e){} show(x) }) }
-  pick('#tsize','th-text','text','m'); pick('#accent','th-accent','accent','blue');
-  // A choice group moves with the arrow keys, as a radio group does.
-  for(const g of document.querySelectorAll('#side [role=radiogroup]')) g.addEventListener('keydown',e=>{ const d=e.key==='ArrowRight'||e.key==='ArrowDown'?1:e.key==='ArrowLeft'||e.key==='ArrowUp'?-1:0; if(!d) return; e.preventDefault();
-    const bs=[...g.querySelectorAll('[role=radio]')], i=bs.indexOf(document.activeElement), n=bs[(i+d+bs.length)%bs.length]; n.click(); n.focus() });
+  // Day or night: Auto follows the clock, Day or Night sticks (theme.js applied it before the first
+  // paint). Settings → Appearance (apps/settings/appearance.js) and the shell.appearance verb both
+  // change it through th:theme; text size and a still background live there too.
+  function setTheme(p){ const hr=new Date().getHours(); root.dataset.theme=p==='auto'?((hr>=19||hr<7)?'dark':'light'):p; try{localStorage.setItem('th-theme',p)}catch(e){} }
+  document.addEventListener('th:theme',e=>{ if(['auto','light','dark'].includes(e.detail)) setTheme(e.detail) });
   // Offline: one slim pill at the top, gone once back (the messages keep their own notes).
   const off=document.createElement('div'); off.className='offpill'; off.setAttribute('role','status'); off.textContent="Offline · messages send when you're back"; $('#home').append(off);
   const net=()=>off.classList.toggle('show',!navigator.onLine); addEventListener('online',net); addEventListener('offline',net); net();
-  const still=$('#still'), showStill=()=>still.setAttribute('aria-checked',String(root.dataset.still!==undefined));
-  showStill();
-  still.addEventListener('click',()=>{ const on=root.dataset.still===undefined; if(on) root.dataset.still=''; else delete root.dataset.still; try{ on?localStorage.setItem('th-still','1'):localStorage.removeItem('th-still') }catch(e){} showStill() });
   try{$('#bdate').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}catch(e){}
 
   // Signed in, a row or item that does something itself drops its data-toast.
@@ -110,9 +94,11 @@ import { from as launchFrom, launch } from '/ui/launch.js';
   let view='home', swipe=null, swiped=false;
   function setPos(b,s,anim,ms){ const W=app.clientWidth, S=side.offsetWidth;
     [home,brief,side,dim].forEach(el=>{ el.style.transition=anim?'':'none'; el.style.transitionDuration=anim&&ms?ms+'ms':'' });
-    brief.style.transform=`translateX(${(b-1)*W}px)`; home.style.transform=`translateX(${b*W-s*S*.2}px)`;
+    brief.style.transform=`translateX(${(b-1)*W}px)`; home.style.transform=s>0?`translateX(${-s*S*.12}px) scale(${1-.07*Math.min(1,s)})`:`translateX(${b*W}px)`; home.style.borderRadius=s>0?`${Math.round(30*Math.min(1,s))}px`:'';
     side.style.transform=`translateX(${(1-s)*100}%)`; dim.style.opacity=Math.min(1,s); side.classList.toggle('open',s>0); dim.style.pointerEvents=s>.5?'auto':'none' }
-  function go(v,ms){ view=v; setPos(v==='brief'?1:0,v==='side'?1:0,true,ms); if(v!=='home') menu(false) }
+  // The menu's rows ripple in each time it opens; the Briefing's tiles cascade (DESIGN-SYSTEM.md §8).
+  function enter(el){ [...el.querySelectorAll(':scope .sidescroll>:not(#convos), :scope #convos>*, :scope .grid>*')].forEach((c,i)=>c.style.setProperty('--k',String(Math.min(i,10)))); el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); clearTimeout(el._enter); el._enter=setTimeout(()=>el.classList.remove('enter'),900) }
+  function go(v,ms){ const was=view; view=v; setPos(v==='brief'?1:0,v==='side'?1:0,true,ms); if(v!=='home') menu(false); if(v!==was&&v==='side') enter(side); if(v!==was&&v==='brief') enter(brief) }
   dim.addEventListener('click',()=>go('home'));
   document.addEventListener('th:go',e=>go(e.detail)); // settings pages return to the open menu
   app.addEventListener('click',e=>{ if(swiped){ e.stopPropagation(); e.preventDefault() } },true);

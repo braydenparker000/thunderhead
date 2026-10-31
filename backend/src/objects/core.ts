@@ -107,6 +107,9 @@ export class Core extends CoreReminders {
     return this.run((w) => convo.patchThread(w, id, title, summary));
   }
 
+  nameThread(id: string, title: string) {
+    return this.run((w) => convo.nameThread(w, id, title));
+  }
   continueThread(id: string) {
     return this.run((w) => convo.continueThread(w, id, this.tz()));
   }

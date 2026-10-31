@@ -61,7 +61,10 @@ export function enter() {
   const results = el('div', 'sres');
   const pill = $('#search');
   pill.hidden = true;
-  pill.after(box, results);
+  // The field takes the pill's place in the bar at the bottom; the results fill the list above it.
+  pill.after(box);
+  $('#sidescroll').prepend(results);
+  $('#sidescroll').scrollTop = 0;
   $('#side').classList.add('searching');
   ui = { box, input, results };
   history.pushState({ th: 'search' }, '');
@@ -145,42 +148,30 @@ function changed() {
   }, DEBOUNCE_MS);
 }
 
-/** Other words for a setting, so "password" finds Account and "dark" finds Appearance. */
-const ALSO = /** @type {Record<string, string>} */ ({
-  'Quiet hours': 'do not disturb silence mute',
-  Notifications: 'push alerts notify',
-  'What I remember': 'memory facts forget',
-  'Connected apps': 'integrations',
-  Devices: 'sign out sessions phone logout',
-  Agents: 'keys api tokens',
-  Account: 'password recovery code username',
-  Export: 'download backup data',
-  'Check for update': 'version',
-  'Still background': 'motion animation moving',
-});
-/** The Appearance controls, which are not rows: each scrolls into view and flashes. */
-const LOOKS = /** @type {[string, string, string, string][]} */ ([
-  ['Appearance', 'theme dark light night day mode', '#seg', 'moon-stars'],
-  ['Text size', 'font bigger smaller larger', '#tsize', 'pencil-simple'],
-  ['Accent', 'colour color', '#accent', 'moon-stars'],
+/** Settings by name and other words, so "password" finds Account and "dark" finds the theme: each
+ * opens Settings (apps/settings/home.js) at its control, or the page itself. [name, page or
+ * Settings' control, icon, other words] */
+const SETTINGS = /** @type {[string, { name: string, focus?: string }, string, string][]} */ ([
+  ['Settings', { name: 'settings' }, 'gear-six', 'preferences options'],
+  ['Theme', { name: 'settings', focus: 'theme' }, 'moon-stars', 'appearance dark light night day mode'],
+  ['Text size', { name: 'settings', focus: 'text' }, 'pencil-simple', 'font bigger smaller larger'],
+  ['Still background', { name: 'settings', focus: 'still' }, 'moon-stars', 'motion animation moving'],
+  ['Quiet hours', { name: 'quiet' }, 'moon-stars', 'do not disturb silence mute go quiet'],
+  ['Notifications', { name: 'notifications' }, 'bell', 'push alerts notify'],
+  ['What I remember', { name: 'memory' }, 'brain', 'memory facts forget'],
+  ['Sign-in & devices', { name: 'devices' }, 'devices', 'sign out sessions phone logout devices'],
+  ['Agents', { name: 'agents' }, 'key', 'keys api tokens'],
+  ['Account', { name: 'account' }, 'user-circle', 'password recovery code username'],
+  ['Export', { name: 'export' }, 'download-simple', 'download backup data'],
+  ['Check for update', { name: 'settings', focus: 'update' }, 'info', 'version about'],
 ]);
-const flash = (/** @type {string} */ sel) => {
-  const n = /** @type {HTMLElement | null} */ (document.querySelector(sel));
-  n?.scrollIntoView({ block: 'center', behavior: 'smooth' });
-  n?.classList.add('flash');
-  setTimeout(() => n?.classList.remove('flash'), 1600);
-};
+const openPage = (/** @type {{ name: string, focus?: string }} */ to) => document.dispatchEvent(new CustomEvent('th:open', { detail: to }));
 
 /** App and settings names (and their other words); exact, then prefix, then the rest. @param {string} q @returns {Row[]} */
 function goto(q) {
   /** @type {{ name: string, also?: string, icon: string, color?: string, act: () => void }[]} */
   const named = apps.map((a) => ({ name: a.name, icon: a.icon, color: a.color, act: () => (a.built ? location.assign(a.path) : toast(`${a.name} comes later`)) }));
-  for (const r of /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('#side > .row:not(#now)'))) {
-    const name = r.querySelector('.t')?.textContent ?? '';
-    const icon = r.querySelector('use')?.getAttribute('href')?.split('#')[1] ?? 'caret-right';
-    if (name) named.push({ name, also: ALSO[name], icon, act: () => (r.getAttribute('role') === 'switch' ? flash(`#${r.id}`) : r.click()) });
-  }
-  for (const [name, also, sel, icon] of LOOKS) named.push({ name, also, icon, act: () => flash(sel) });
+  for (const [name, to, icon, also] of SETTINGS) named.push({ name, also, icon, act: () => openPage(to) });
   /** The best rank of the name or any other word for it. @param {{ name: string, also?: string }} n */
   const best = (n) => Math.min(...[n.name, ...(n.also ?? '').split(' ').filter(Boolean)].map((w) => rank(w, q)).map((r) => (r < 0 ? 99 : r)));
   return named
@@ -236,7 +227,7 @@ function leave(act, pop = true) {
 /** What I remember, at the fact (filtered by the query when it isn't among the rows drawn). @param {string | null} id */
 function remembered(id) {
   const q = run.q;
-  /** @type {HTMLElement | null} */ (document.querySelector('#side [data-open="memory"]'))?.click();
+  openPage({ name: 'memory' });
   const until = Date.now() + 5000;
   const seek = (/** @type {boolean} */ filtered) => {
     const sections = document.querySelector('.spage .msections');

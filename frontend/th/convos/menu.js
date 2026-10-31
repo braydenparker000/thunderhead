@@ -8,11 +8,12 @@
 // shift's summary or the message count under it, with an "Old Chats" tag on an imported one. A tap
 // on a row shows it read-only on home (past.js); a tap on Now returns there. Swiped left, a row
 // offers Pin (pinned rows come first, kept on this phone) and its whole summary. Skeleton rows
-// stand in while the list first loads. Long-press actions (Continue this, Rename, Delete) are not
-// built yet (decisions.md). Text is set with textContent.
+// stand in while the list first loads. Held, a row offers Continue this and Rename (actions.js);
+// Delete waits for its own step (decisions.md). Text is set with textContent.
 import { lineFor } from '../copy.js';
 import { failure } from '../flow.js';
 import { toast } from '../ui.js';
+import { holdCards } from './actions.js';
 import * as data from './data.js';
 import { byMonth, count, GROUPS, grouped, isNow, longDate, metaOf, OLD_CHATS, PAGE, partOfDay, subOf, titleOf } from './model.js';
 import * as past from './past.js';
@@ -113,6 +114,15 @@ export function startMenu() {
   }, true);
   $('#convos').addEventListener('click', (e) => tapIn(e));
   rowSwipe($('#convos'));
+  holdCards($('#convos'), {
+    get: pinned,
+    set: (ids) => {
+      try {
+        localStorage.setItem(PINS, JSON.stringify(ids));
+      } catch {}
+      draw();
+    },
+  }, () => draw());
   if (!$('#convos').children.length) $('#convos').replaceChildren(...[0, 1, 2].map(() => el('div', 'row thr skelrow')));
   load();
 }
@@ -332,8 +342,11 @@ function listLine(e, kept) {
 /** "All conversations": every thread but Now, by month, newest first, 30 at a time, full screen
  * over the menu like a settings page. */
 async function allPage() {
-  const back = el('button', 'sback', '‹ Menu');
+  // The same frame as a settings page: the field, a round back button, a list that scrolls.
+  const back = el('button', 'sback');
   back.type = 'button';
+  back.setAttribute('aria-label', 'Back to the menu');
+  back.innerHTML = svg('arrow-left');
   const lead = el('p', 'alllead');
   const list = el('div', 'alllist');
   const more = el('button', 'btn soft', 'Show more');
@@ -344,7 +357,13 @@ async function allPage() {
   page.setAttribute('role', 'dialog');
   page.setAttribute('aria-modal', 'true');
   page.setAttribute('aria-label', 'All conversations');
-  page.append(back, el('h1', '', 'All conversations'), lead, list, more, line);
+  const field = el('div', 'field');
+  const grain = el('div', 'grain');
+  field.setAttribute('aria-hidden', 'true');
+  grain.setAttribute('aria-hidden', 'true');
+  const scroll = el('div', 'sscroll');
+  scroll.append(back, el('h1', '', 'All conversations'), lead, list, more, line);
+  page.append(field, grain, scroll);
   $('#app').append(page);
   requestAnimationFrame(() => page.classList.add('in'));
   back.focus({ preventScroll: true });

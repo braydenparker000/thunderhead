@@ -80,6 +80,10 @@ export interface PatchMessageRequest {
   meta?: JsonObject;
 }
 
+/** `PUT /v1/threads/:id/title`: the owner's name, up to 60 characters; empty gives naming back. */
+export interface ThreadTitleRequest {
+  title: string;
+}
 export interface PatchThreadRequest {
   title?: string;
   summary?: string;

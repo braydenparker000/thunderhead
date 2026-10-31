@@ -73,6 +73,7 @@ export const ROUTES = {
   'GET /v1/threads/:id/messages': { who: AGENTS_READ, phase: 'P2' },
   'PATCH /v1/threads/:id': { who: ['C', 'N'], phase: 'P2' },
   'POST /v1/threads/:id/continue': { who: D, phase: 'P2' },
+  'PUT /v1/threads/:id/title': { who: D, phase: 'P2', note: 'the owner names a thread (the mind never renames it after); empty gives naming back' },
   'PUT /v1/messages/:id': { who: AGENTS_READ, phase: 'P2', note: "N and R: kind 'error' with thread_id 'system' only" },
   'PATCH /v1/messages/:id': { who: ['C'], phase: 'P2', note: 'own posts only' },
   'PUT /v1/files/:id': {

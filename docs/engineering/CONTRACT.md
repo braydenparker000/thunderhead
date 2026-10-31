@@ -48,6 +48,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/threads/:id/messages` | D C N R | P2 | built |  |
 | `PATCH /v1/threads/:id` | C N | P2 | built |  |
 | `POST /v1/threads/:id/continue` | D | P2 | built |  |
+| `PUT /v1/threads/:id/title` | D | P2 | built | the owner names a thread (the mind never renames it after); empty gives naming back |
 | `PUT /v1/messages/:id` | D C N R | P2 | built | N and R: kind 'error' with thread_id 'system' only |
 | `PATCH /v1/messages/:id` | C | P2 | built | own posts only |
 | `PUT /v1/files/:id` | D C | P2 | built | raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos, transcribed) |

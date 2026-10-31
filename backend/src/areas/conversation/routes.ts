@@ -47,6 +47,10 @@ export const conversationRoutes = new Hono<AppEnv>()
     const { title, summary } = await json(c, s.patchThread);
     return c.json(value(await coreObject(c.env).patchThread(id, title, summary)) satisfies Thread);
   })
+  .put('/threads/:id/title', guard('PUT /v1/threads/:id/title'), async (c) => {
+    const { title } = await json(c, s.threadTitle);
+    return c.json(value(await coreObject(c.env).nameThread(idParam(c), title)) satisfies Thread);
+  })
   .post('/threads/:id/continue', guard('POST /v1/threads/:id/continue'), async (c) => {
     return c.json(value(await coreObject(c.env).continueThread(idParam(c))));
   })

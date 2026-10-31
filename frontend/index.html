@@ -68,29 +68,18 @@
 
   <div class="dim" id="dim"></div>
   <nav class="side" id="side" aria-label="Menu">
-    <button class="search" id="search" type="button" data-toast="Search comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#magnifying-glass"/></svg>Search everything</button>
-    <div class="sh">Conversations<small>A fresh one starts on its own each morning. Nothing to start or name.</small></div>
-    <div class="grp today">Today</div>
-    <button class="row cur" id="now" type="button" data-toast="This is the current conversation"><span class="live" aria-hidden="true"></span><span class="t">Now</span><small></small></button>
-    <div id="convos"></div>
-    <div class="sh">Settings</div>
-    <div class="grp">Appearance</div>
-    <div class="seg" id="seg" role="radiogroup" aria-label="Appearance"><button type="button" role="radio" data-th="auto">Auto</button><button type="button" role="radio" data-th="light">Day</button><button type="button" role="radio" data-th="dark">Night</button></div>
-    <div class="grp">Text size</div>
-    <div class="seg" id="tsize" role="radiogroup" aria-label="Text size"><button type="button" role="radio" data-v="s">Smaller</button><button type="button" role="radio" data-v="m">Default</button><button type="button" role="radio" data-v="l">Larger</button></div>
-    <div class="grp">Accent</div>
-    <div class="accents" id="accent" role="radiogroup" aria-label="Accent"><button type="button" role="radio" data-v="blue" aria-label="Blue"></button><button type="button" role="radio" data-v="green" aria-label="Green"></button><button type="button" role="radio" data-v="violet" aria-label="Violet"></button><button type="button" role="radio" data-v="rose" aria-label="Rose"></button></div>
-    <button class="row" type="button" id="still" role="switch" aria-checked="false"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#moon-stars"/></svg><span class="t">Still background</span><span class="sw" aria-hidden="true"></span></button>
-    <button class="row" type="button" data-toast="Quiet hours comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#bell"/></svg><span class="t">Quiet hours</span><small>soon</small><svg class="i go" aria-hidden="true"><use href="/ui/icons.svg#caret-right"/></svg></button>
-    <button class="row" type="button" data-open="notifications" data-toast="Notifications comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#bell"/></svg><span class="t">Notifications</span><small>soon</small><svg class="i go" aria-hidden="true"><use href="/ui/icons.svg#caret-right"/></svg></button>
-    <button class="row" type="button" data-open="memory" data-toast="What I remember comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#brain"/></svg><span class="t">What I remember</span><small>soon</small><svg class="i go" aria-hidden="true"><use href="/ui/icons.svg#caret-right"/></svg></button>
-    <button class="row" type="button" data-toast="Connected apps comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#plugs-connected"/></svg><span class="t">Connected apps</span><small>soon</small><svg class="i go" aria-hidden="true"><use href="/ui/icons.svg#caret-right"/></svg></button>
-    <button class="row" type="button" data-open="devices" data-toast="Devices comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#devices"/></svg><span class="t">Devices</span><small>soon</small><svg class="i go" aria-hidden="true"><use href="/ui/icons.svg#caret-right"/></svg></button>
-    <button class="row" type="button" data-open="agents" data-toast="Agents comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#key"/></svg><span class="t">Agents</span><small>soon</small><svg class="i go" aria-hidden="true"><use href="/ui/icons.svg#caret-right"/></svg></button>
-    <button class="row" type="button" data-open="account" data-toast="Account comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#user-circle"/></svg><span class="t">Account</span><small>soon</small><svg class="i go" aria-hidden="true"><use href="/ui/icons.svg#caret-right"/></svg></button>
-    <button class="row" type="button" data-open="export" data-toast="Export comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#download-simple"/></svg><span class="t">Export</span><small>soon</small><svg class="i go" aria-hidden="true"><use href="/ui/icons.svg#caret-right"/></svg></button>
-    <div class="grp">About</div>
-    <button class="row" type="button" id="update"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#info"/></svg><span class="t">Check for update</span><small id="version"></small></button>
+    <div class="field" aria-hidden="true"></div>
+    <div class="grain" aria-hidden="true"></div>
+    <div class="sidescroll" id="sidescroll">
+      <h2 class="sidetitle">Conversations</h2>
+      <p class="sidelead">A fresh one starts on its own each morning. Nothing to start or name.</p>
+      <button class="row cur" id="now" type="button" data-toast="This is the current conversation"><span class="live" aria-hidden="true"></span><span class="t">Now</span><small></small></button>
+      <div id="convos"></div>
+    </div>
+    <div class="sidebar">
+      <button class="search" id="search" type="button" data-toast="Search comes with sign-in"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#magnifying-glass"/></svg>Search everything</button>
+      <button class="setbtn" id="settings" type="button" data-open="settings" data-toast="Settings comes with sign-in" aria-label="Settings"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#gear-six"/></svg></button>
+    </div>
   </nav>
 
   <div class="edge calm breathe" id="edge"></div>

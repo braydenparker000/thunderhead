@@ -1,24 +1,21 @@
 // Sign-in for the shell. With no API address configured, it does nothing and Home stays as in P0.
-// Otherwise: no session → /signin/?next=<this path>; a session → the menu's Devices, Agents and
-// Account rows open their pages, /settings/<page>/ opens one directly, security notices show on
+// Otherwise: no session → /signin/?next=<this path>; a session → the menu's Settings button opens
+// Settings (its rows open the other pages), /settings/<page>/ opens one directly, security notices show on
 // Home as cards with the gold bottom edge until answered (SIGN-IN.md §3.3, §11.4), and so do
 // decision cards (th/decide/card.js, HOME.md §3), and /share/ (the share sheet) puts what was shared
-// in the ask bar. Always: the service worker (th/update.js) and the menu's About row.
+// in the ask bar. Always: the service worker (th/update.js).
 import { api, configured, flushPendingSignout, signedIn, toSignin } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { noticeCard } from '/th/format.js';
 import { onSignedOut, store } from '/th/session.js';
 import { el, toast, tooSoon } from '/th/ui.js';
-import { updateLine } from '/th/update-rules.js';
-import { checkForUpdate, startUpdates, waiting } from '/th/update.js';
-import { CONFIG } from '/config.js';
+import { startUpdates } from '/th/update.js';
 
 const ROUTES = { '/settings/password/': 'account', '/settings/agents/': 'agents', '/settings/devices/': 'devices', '/settings/memory/': 'memory' };
 
-// The service worker and "Check for update" work with or without sign-in.
+// The service worker works with or without sign-in.
 startUpdates();
-aboutRow();
 
 // A framed copy does nothing at all (frame guard, SECURITY.md §4.3).
 if (configured && window.top === window.self) {
@@ -38,8 +35,10 @@ async function start() {
     const row = e.target.closest?.('[data-open]');
     if (!row) return;
     e.stopImmediatePropagation();
-    open(row.dataset.open);
+    open(row.dataset.open, { over: Boolean(row.closest('.spage')) });
   }, true);
+  // Search's "Go to" (th/convos/search.js) opens a page, or Settings at one of its controls.
+  document.addEventListener('th:open', (e) => open(e.detail.name, { focus: e.detail.focus }));
   const path = location.pathname.endsWith('/') ? location.pathname : `${location.pathname}/`;
   if (ROUTES[path]) open(ROUTES[path], { role: new URLSearchParams(location.search).get('new') ?? undefined, fromRoute: true });
   if (path === '/share/') shared();
@@ -145,15 +144,4 @@ function notices(items, open) {
       toast(lineFor(failure(e)));
     }
   }
-}
-
-/** Menu → About: the running release ("a1b2c3d") and "Check for update" (MENU-AND-SETTINGS.md §4.11). */
-function aboutRow() {
-  const version = document.querySelector('#version');
-  if (version && CONFIG.commit !== 'dev') version.textContent = CONFIG.commit.slice(0, 7);
-  document.querySelector('#update')?.addEventListener('click', async () => {
-    if (!navigator.serviceWorker) return toast(updateLine('unsupported'));
-    toast(updateLine('checking'));
-    toast(updateLine((await checkForUpdate()) || waiting() ? 'waiting' : 'current'));
-  });
 }

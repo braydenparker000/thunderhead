@@ -125,3 +125,16 @@ export async function fact(id) {
   const d = await get(`/v1/memory/facts/${encodeURIComponent(id)}`);
   return d.fact;
 }
+
+/** The owner's name for a thread (MENU-AND-SETTINGS.md §3.3, PUT /v1/threads/:id/title); an empty
+ * one gives naming back to the mind. @param {string} id @param {string} title @returns {Promise<Thread>} */
+export async function rename(id, title) {
+  /** @type {Thread} */
+  const t = await signedIn((tk) => api.call(`/v1/threads/${encodeURIComponent(id)}/title`, { method: 'PUT', token: tk, body: { title } }));
+  list.threads.set(id, t);
+  return t;
+}
+
+/** "Continue this": links a filed thread to today's, so the mind reads it in its next briefing.
+ * @param {string} id */
+export const carryOn = (id) => signedIn((tk) => api.call(`/v1/threads/${encodeURIComponent(id)}/continue`, { method: 'POST', token: tk }));

@@ -1,6 +1,9 @@
-// Settings pages that need sign-in: Devices (SIGN-IN.md §11.1, §7.2), Agents (§17), Account
-// (§9.1), What I remember (MEMORY.md §12), Notifications (MENU-AND-SETTINGS.md §4.3) and Export (§4.9). Each opens full screen over the shell on home's own field and slides in from the right, with a
-// round back button to the open menu (MENU-AND-SETTINGS.md §1). Signing out never asks for the password;
+// Settings (MENU-AND-SETTINGS.md §4), its own page from the menu's bar (home.js: Appearance, then a
+// row for each page, then About), and the pages that need sign-in: Quiet hours (§4.2), Devices
+// (SIGN-IN.md §11.1, §7.2), Agents (§17), Account (§9.1), What I remember (MEMORY.md §12),
+// Notifications (MENU-AND-SETTINGS.md §4.3) and Export (§4.9). Each opens full screen over the shell
+// on home's own field and slides in from the right, with a round back button: a page opened from
+// Settings returns there, Settings and a page opened by its address return to the open menu. Signing out never asks for the password;
 // handing out a credential (recovery code, agent key) checks it inline (§15).
 import { api, signedIn, signOutHere } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
@@ -10,7 +13,7 @@ import { wipe } from '/th/session.js';
 import { confirmSheet, el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
 import { outbox } from '/th/chat/store.js';
 
-const TITLES = { devices: 'Sign-in & devices', agents: 'Agents', account: 'Account', memory: 'What I remember', notifications: 'Notifications', export: 'Export' };
+const TITLES = { settings: 'Settings', quiet: 'Quiet hours', devices: 'Sign-in & devices', agents: 'Agents', account: 'Account', memory: 'What I remember', notifications: 'Notifications', export: 'Export' };
 
 /** Signs this device out, asking first while messages are still waiting to send (SIGN-IN.md §11.3)
  * or a Forget hasn't reached the Worker (MEMORY.md §12): signing out wipes the phone, and with it
@@ -45,15 +48,19 @@ function forgetsBody(forgets, lead) {
   const count = forgets === 1 ? "1 Forget hasn't" : `${forgets} Forgets haven't`;
   return `${lead ? `${count} gone through ${lead}. ` : ''}If you sign out now, I'll keep remembering ${forgets === 1 ? 'that fact' : 'those facts'}.`;
 }
-let current = null;
+/** The pages open, bottom first: a page opened from Settings stays over it. @type {HTMLElement[]} */
+const stack = [];
 
-/** Opens a settings page. @param {'devices' | 'agents' | 'account' | 'memory' | 'notifications' | 'export'} name @param {{ fromRoute?: boolean, role?: string }} [opts] */
+/** Opens a settings page: over Settings when opened from it (`over`), else in place of what was open.
+ * @param {'settings' | 'quiet' | 'devices' | 'agents' | 'account' | 'memory' | 'notifications' | 'export'} name
+ * @param {{ fromRoute?: boolean, role?: string, over?: boolean, focus?: string }} [opts] */
 export async function openPage(name, opts = {}) {
-  current?.remove();
+  if (!opts.over) for (const p of stack.splice(0)) p.remove();
+  const under = stack[stack.length - 1] ?? null;
   /** @type {(() => void) | null} what the page must do as it closes (Memory sends a pending Forget) */
   let cleanup = null;
   // A round glass back button over the same field as home, the title under it (DESIGN-SYSTEM.md §12).
-  const back = el('button', { type: 'button', class: 'sback', 'aria-label': 'Back to Settings' });
+  const back = el('button', { type: 'button', class: 'sback', 'aria-label': under ? 'Back to Settings' : 'Back to the menu' });
   const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   icon.setAttribute('class', 'i');
   icon.setAttribute('aria-hidden', 'true');
@@ -69,22 +76,27 @@ export async function openPage(name, opts = {}) {
     el('div', { class: 'sscroll' }, [back, title, body]),
   ]);
   document.querySelector('#app').append(page);
-  current = page;
+  stack.push(page);
   requestAnimationFrame(() => page.classList.add('in'));
   const close = () => {
     cleanup?.();
     cleanup = null;
     page.classList.remove('in');
     setTimeout(() => page.remove(), 480);
-    if (current === page) current = null;
+    const i = stack.indexOf(page);
+    if (i >= 0) stack.splice(i, 1);
     if (location.pathname !== '/') history.replaceState(null, '', '/');
-    document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' }));
+    const below = stack[stack.length - 1];
+    if (below) /** @type {HTMLElement | null} */ (below.querySelector('h1'))?.focus({ preventScroll: true });
+    else document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' }));
   };
   back.addEventListener('click', close);
   page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   // The page's title takes focus (a screen reader names the page), never a ring on the back button.
   title.focus({ preventScroll: true });
-  if (name === 'devices') await devices(body);
+  if (name === 'settings') (await import('./home.js')).settingsHome(body, (p) => openPage(/** @type {any} */ (p), { over: true }), opts.focus);
+  else if (name === 'quiet') cleanup = await (await import('./home.js')).quietPage(body);
+  else if (name === 'devices') await devices(body);
   else if (name === 'agents') (await import('./agents.js')).agents(body, opts);
   else if (name === 'memory') cleanup = await (await import('./memory.js')).memory(body);
   else if (name === 'export') await (await import('./export.js')).exportPage(body);

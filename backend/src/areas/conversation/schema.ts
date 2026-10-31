@@ -1,6 +1,6 @@
 // Request shapes for the conversation routes (zod/mini), checked against the shared contract.
 import * as z from 'zod/mini';
-import type { PatchMessageRequest, PatchThreadRequest, PutMessageRequest } from '../../../../shared/contract/api';
+import type { PatchMessageRequest, PatchThreadRequest, PutMessageRequest, ThreadTitleRequest } from '../../../../shared/contract/api';
 import { MESSAGE_KINDS } from '../../../../shared/contract/feed.ts';
 
 export const UUID7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -33,6 +33,9 @@ export const patchMessage = z
   .check(
     z.refine((p) => p.body !== undefined || p.meta !== undefined, 'body or meta'),
   ) satisfies z.ZodMiniType<PatchMessageRequest>;
+
+/** The owner's name for a thread, up to 60 characters; empty gives naming back to the mind. */
+export const threadTitle = z.strictObject({ title: z.string().check(z.maxLength(60)) }) satisfies z.ZodMiniType<ThreadTitleRequest>;
 
 export const patchThread = z
   .strictObject({

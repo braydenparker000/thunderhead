@@ -138,13 +138,28 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .tile.gold,:root[data-theme="dark"] .tile.gold{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 50%,transparent)}
 .bnote{font:600 12px var(--ui);color:var(--ink-3);margin-top:18px;text-align:center}
 .dim{position:absolute;inset:0;z-index:11;background:var(--dim);opacity:0;pointer-events:none;transition:opacity var(--d-page) var(--ease-out)}
-.side{position:absolute;z-index:12;top:0;bottom:0;right:0;width:min(84%,360px);transform:translateX(100%);transition:transform var(--d-page) var(--settle);background:var(--panel);backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);border-left:1px solid var(--glass-line);overflow-y:auto;scrollbar-width:none;padding:calc(16px + env(safe-area-inset-top,0px)) 14px calc(24px + env(safe-area-inset-bottom,0px))}
-.side.open{box-shadow:-24px 0 50px -24px rgba(10,20,40,.35)}
-.search{display:flex;align-items:center;gap:9px;height:42px;border-radius:21px;padding:0 14px;background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink-3);font:500 15px var(--ui)}
-.search svg{width:18px;height:18px;fill:currentColor}
+/* the menu (MENU-AND-SETTINGS.md §1): a page on home's own field that leaves home's edge in sight,
+   sunk back (home.js); the conversations scroll, and search and Settings sit in a bar at the
+   bottom, where the thumb is, like the ask bar on home (owner, 2026-10-31) */
+.side{position:absolute;z-index:12;top:0;bottom:0;right:0;width:calc(100% - 52px);transform:translateX(100%);transition:transform var(--d-page) var(--settle);overflow:hidden;border-radius:30px 0 0 30px;background:var(--bg);box-shadow:none;display:flex;flex-direction:column}
+.side.open{box-shadow:-30px 0 60px -30px rgba(5,10,25,.55)}
+.side>.field,.side>.grain{border-radius:inherit}
+.sidescroll{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;touch-action:pan-y;padding:calc(22px + env(safe-area-inset-top,0px)) 18px 20px 20px}
+.sidescroll::-webkit-scrollbar{display:none}
+.sidetitle{margin:4px 2px 4px;font:300 36px/1.1 var(--ui);letter-spacing:-.02em;color:var(--ink)}
+.sidelead{margin:0 2px 18px;font:500 13px/1.45 var(--ui);color:var(--ink-3)}
+.sidebar{position:relative;flex:none;display:flex;align-items:center;gap:8px;margin:0 14px calc(18px + env(safe-area-inset-bottom,0px));padding:6px;min-height:54px;border-radius:27px;background:var(--bar);backdrop-filter:blur(18px) saturate(1.6);-webkit-backdrop-filter:blur(18px) saturate(1.6);border:1px solid var(--bar-line);box-shadow:var(--e2)}
+.search{flex:1;min-width:0;display:flex;align-items:center;gap:9px;height:42px;border-radius:21px;padding:0 14px;background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink-3);font:600 15px var(--ui)}
+.search svg{width:18px;height:18px;fill:currentColor;flex:none}
+.setbtn{flex:none;width:44px;height:44px;border-radius:50%;border:0;display:grid;place-items:center;background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink-2);cursor:pointer;transition:transform var(--d-fast) var(--pop)}
+.setbtn:active{transform:scale(.94)}
+.setbtn svg{width:21px;height:21px;fill:currentColor}
+/* The rows ripple in each time the menu opens, and the Briefing's tiles cascade (home.js enter()) */
+@keyframes ripple{from{opacity:0;transform:translateY(14px)}}
+.side.enter .sidescroll>:not(#convos),.side.enter #convos>*,.brief.enter .grid>*{animation:ripple .55s var(--settle) both;animation-delay:calc(var(--k,0)*38ms + 60ms)}
 .sh{font:600 13px var(--ui);color:var(--ink-3);margin:24px 8px 2px}
-.sh small{display:block;text-transform:none;letter-spacing:0;font-weight:500;font-size:12px;margin-top:4px;line-height:1.4}
-.grp{font:600 12px var(--ui);color:var(--ink-3);margin:14px 8px 2px}
+.sh small{display:block;font-weight:500;font-size:12px;margin-top:4px;line-height:1.4}
+.grp{font:600 13px var(--ui);color:var(--ink-3);margin:14px 8px 2px}
 .row{--c:var(--ink-3);display:flex;align-items:center;gap:11px;width:100%;min-height:44px;border:0;background:none;padding:8px 10px;border-radius:var(--r-m);font:600 14.5px var(--ui);color:var(--ink);text-align:left;cursor:pointer}
 .row:hover,.row.cur{background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .row>svg{width:17px;height:17px;fill:var(--c);flex:none}
@@ -173,4 +188,4 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .past{max-width:100%}
 .past button{white-space:nowrap;flex:none;border:0;background:var(--accent-text);color:#fff;border-radius:999px;padding:6px 12px;font:700 12px var(--ui);cursor:pointer}
 .turns .turn:first-child{margin-top:8px}
-@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.field::before,.field::after,.say .ln,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet,.scrim,.toast{transition:none}}
+@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.side.enter .sidescroll>*,.side.enter #convos>*,.brief.enter .grid>*{animation:none}.field::before,.field::after,.say .ln,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet,.scrim,.toast{transition:none}}

@@ -71,6 +71,11 @@ export function patchThread(db: Db, id: string, title: string | undefined, summa
   );
 }
 
+/** The owner's name for a thread (`title_source` 'owner'), or none (null clears it for the mind). */
+export function ownerTitle(db: Db, id: string, title: string | null, at: number): void {
+  db.run('UPDATE threads SET title = ?, title_source = ?, updated_at = ? WHERE id = ?', title, title ? 'owner' : null, at, id);
+}
+
 /** The roll's provisional title, only where none exists. */
 export function autoTitle(db: Db, id: string, title: string): void {
   db.run(`UPDATE threads SET title = ?, title_source = 'auto' WHERE id = ? AND title IS NULL`, title, id);

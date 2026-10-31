@@ -132,6 +132,20 @@ describe('threads, search and the feed', () => {
     expect(list.body.items.map((x) => x.id)).toContain(t.id);
   });
 
+  it('the owner names a thread; the mind may not rename it after, and an empty name gives it back', async () => {
+    const t = (await apiJson<TodayResponse>('GET', '/v1/threads/today', { token: D })).body.thread as Thread;
+    const named = await apiJson<Thread>('PUT', `/v1/threads/${t.id}/title`, { token: D, body: { title: '  Evening   plans ' } });
+    expect(named.status).toBe(200);
+    expect(named.body).toMatchObject({ title: 'Evening plans', title_source: 'owner' });
+    expect((await apiJson('PATCH', `/v1/threads/${t.id}`, { token: C, body: { title: 'Something else' } })).status).toBe(409);
+    expect((await apiJson('PUT', `/v1/threads/${t.id}/title`, { token: C, body: { title: 'x' } })).status).toBe(403);
+    expect((await apiJson('PUT', `/v1/threads/${t.id}/title`, { token: D, body: { title: 'x'.repeat(61) } })).status).toBe(422);
+    const cleared = await apiJson<Thread>('PUT', `/v1/threads/${t.id}/title`, { token: D, body: { title: ' ' } });
+    expect(cleared.body).toMatchObject({ title: null, title_source: null });
+    const again = await apiJson<Thread>('PATCH', `/v1/threads/${t.id}`, { token: C, body: { title: 'Getting started' } });
+    expect(again.body).toMatchObject({ title: 'Getting started', title_source: 'mind' });
+  });
+
   it('finds messages by word, accent-folded, with the match marked', async () => {
     await say(D, { body: 'The café on Thursday was quiet' });
     const r = await apiJson<SearchResponse>('GET', `/v1/search?q=${encodeURIComponent('cafe thursday')}`, { token: C });

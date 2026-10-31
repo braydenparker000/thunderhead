@@ -303,6 +303,14 @@
       "phase": "P2",
       "status": "built"
     },
+    "PUT /v1/threads/:id/title": {
+      "who": [
+        "D"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "the owner names a thread (the mind never renames it after); empty gives naming back"
+    },
     "PUT /v1/messages/:id": {
       "who": [
         "D",
