@@ -264,6 +264,9 @@ function answer(state, method, url, body) {
   if (method === 'POST' && /^\/v1\/auth\/notices\/[^/]+\/ack$/.test(p)) return [204, null];
   if (k === 'POST /v1/auth/breakglass/cancel') return [204, null];
   if (method === 'PUT' && p.startsWith('/v1/senses/batches/')) return [200, { accepted: body.events.length, rejected: [] }];
+  // The phone's reports and error inbox (API.md §11.16): taken as sent; `calls` keeps each body.
+  if (k === 'POST /v1/ops/reports') return [201, { id: crypto.randomUUID(), at: Date.now() }];
+  if (k === 'POST /v1/ops/errors') return [204, null];
   if (k === 'GET /v1/insight') return [200, state.insight ?? INSIGHT];
   return (
     proposalsAnswer(state.proposals, method, p, url, body, (kind) => changed(state.chat, kind)) ??

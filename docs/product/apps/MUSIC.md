@@ -493,6 +493,30 @@ Settings › Music › Playback log (or `?diag`): output rate and latency, dropo
 recent errors, offline copies, heads. **Copy report** puts it on the clipboard as JSON. The report
 holds no titles **[proposal]**: tracks appear as ids, so a report can be pasted into a public issue.
 
+**Sent to the Worker** (NEXT-BATCH.md part 1; `frontend/th/music/report.js`, loaded by `th/music/dj.js`
+`installDj`, which the player runs at start, so no ported file changes). Signed in on this site and in
+a top-level page only, what the log gained since the last batch goes to `POST /v1/ops/reports`
+([API.md §11.16](../../engineering/API.md#1116-ops)) as one batch: once a minute while music plays,
+once when the page is hidden, nothing when nothing is new. A batch the Worker didn't take for now
+(offline, busy) goes again with the next. The Worker keeps each batch as one row for 30 days, and the
+mind reads them with `th reports`. A batch (`frontend/th/music/report-batch.js`, at most 30 KB):
+
+| Field | What |
+|---|---|
+| `v`, `page`, `seq`, `why` | Version 1; a random id for this page load; the batch's number in it; `minute` or `hidden` |
+| `build`, `t0` | The site build; when the log began (ms), so an event's `t` (ms since then) is a time |
+| `lost`, `dropped` | Whether the log (300 events) let some go before a batch took them; how many old ones were left out to stay under 30 KB |
+| `events` | The log's events since the last batch, oldest first: deck events (`loadstart` with where it played from, `playing`, `waiting` and `stalled` with the position, `error` with its kind and code), `first sound`, the recoveries (`stall`, `reload`, `recovered`, `skip`), `underrun`, `clipped`, `long task`, `hidden`/`visible`, `track` (id, format, bitrate, rate, channels, source), `play`/`pause` |
+| `state` | The log's counters (the snapshot that **Copy report** copies), without its events and the browser's name: output, dropouts, level and limiter, each deck's waits, stalls, errors and start times, recovery, offline copies, heads, long tasks, time hidden |
+
+**Time to first sound** is its own event, `first sound` with the track id and `ms`: from the play asked
+for (a new song while playing, or Play) to the first `playing` of the deck that plays it. Not timed: a
+song the engine joins gaplessly to the one before (it is already sounding).
+
+Never sent: titles, artists, albums, composers, genres, file names or paths, any address beyond its
+host (a field with one of those names is dropped, and every address left in a text keeps only its
+host, on the phone and again on the Worker), the browser's name.
+
 ---
 
 ## 6. Media URLs and failures

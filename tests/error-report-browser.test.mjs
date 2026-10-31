@@ -42,7 +42,9 @@ async function opened(signedIn) {
     const r = route.request();
     const cors = { 'Access-Control-Allow-Origin': SITE, 'Access-Control-Allow-Methods': 'POST, PUT', 'Access-Control-Allow-Headers': 'Authorization, Content-Type' };
     const sent = { path: new URL(r.url()).pathname, auth: r.headers().authorization ?? '', body: r.postDataJSON() };
-    if (r.method() !== 'OPTIONS') (sent.path.startsWith('/v1/senses/') ? senses : inbox).push(sent);
+    // Only the error inbox and the senses count here: Music's page also sends its playback log
+    // (POST /v1/ops/reports, music-report-browser.test.mjs) when it is left.
+    if (r.method() !== 'OPTIONS') (sent.path.startsWith('/v1/senses/') ? senses : sent.path === '/v1/ops/errors' ? inbox : []).push(sent);
     return route.fulfill({ status: 204, headers: cors });
   });
   await context.route(/^https:\/\/(?!thunderhead\.z13|jarvis-hub-api|api\.example\.test)/, (route) => route.abort());

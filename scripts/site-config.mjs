@@ -40,7 +40,8 @@ export function configJs({ api = '', build = 0, commit = 'dev', repo_url = '' } 
 
 /** Ported pages whose data has moved to the new Worker and that call it themselves (SECURITY.md
  * §4.4 rule 4): their CSP's connect-src gains the API host at stage time. Music's library moved
- * through its own service worker; its page, like My Media's, calls the API only to report an error.
+ * through its own service worker; its page calls the API only to report an error and to send its
+ * playback log (th/music/report.js), and My Media's only to report an error.
  * Podcasts' and Astra's pages already allow any https: host. */
 export const MOVED_PAGES = ['guitar/index.html', 'music/index.html', 'media/index.html'];
 

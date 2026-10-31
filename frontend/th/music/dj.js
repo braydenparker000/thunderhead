@@ -10,7 +10,9 @@
 // The player plans DJ_AHEAD songs at a time (its play order) and plans again after a skip, keeping
 // the KEEP_AHEAD songs already planned next (their first seconds may be on the phone already).
 // installDj also names the next songs to the player's worker, which signs their links ahead
-// (th/music/bridge.js). Nothing here touches the session: it is the player's own, on this phone.
+// (th/music/bridge.js), and starts the playback batches (th/music/report.js, loaded once the player
+// runs; it reads the session itself). Nothing in this file touches the session: it is the player's
+// own, on this phone.
 
 export const SHUFFLE_DJ = 5;
 export const DJ_AHEAD = 60;
@@ -227,6 +229,9 @@ export function installDjMode(model) {
  * @param {any} ctx @param {any} player
  */
 export function installDj(ctx, player) {
+  // The playback log to the Worker, and each play's time to first sound into it. Offline at start it
+  // isn't loaded (the player's worker keeps only this file and search.js), and nothing waits on it.
+  import('/th/music/report.js').then((m) => m.installReport(ctx)).catch(() => {});
   const learned = load();
   /** @type {{ id: string, pos: number, dur: number } | null} */
   let now = null;
