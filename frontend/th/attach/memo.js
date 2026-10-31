@@ -38,7 +38,9 @@ export async function recordMemo() {
   const ctx = new AudioContext();
   ctx.resume().catch(() => {});
   const meter = ctx.createAnalyser();
-  meter.fftSize = 512;
+  // About 90 ms at 44.1–48 kHz, the time between bars, so each bar hears everything since the last
+  // one: a narrower window heard a sliver of each gap and could miss a short sound every time.
+  meter.fftSize = 4096;
   ctx.createMediaStreamSource(stream).connect(meter);
   const samples = new Float32Array(meter.fftSize);
 

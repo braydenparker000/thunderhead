@@ -150,8 +150,10 @@ test('at most four on a message', opts, async () => {
   await context.close();
 });
 
-test('a voice memo: the strip shows the level, × throws it away, Stop keeps it; it uploads with its length and plays', opts, async () => {
+test('a voice memo: the strip shows the level, × throws it away, Stop keeps it; it uploads with its length and plays', opts, async (t) => {
   const fake = await launch(['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']);
+  // Closed even when an assertion fails: an open browser keeps the run alive until CI's timeout.
+  t.after(() => fake.close());
   const context = await fake.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block', permissions: ['microphone'] });
   const { page, errors, api } = await open({ b: fake, context });
   const record = async () => {
@@ -197,7 +199,6 @@ test('a voice memo: the strip shows the level, × throws it away, Stop keeps it;
   await page.waitForFunction(() => document.querySelectorAll('#talk .vwave i.on').length > 0);
   assert.deepEqual(errors, []);
   await context.close();
-  await fake.close();
 });
 
 test("what the Worker sends: a reply's photo opens full screen, files are rows, a memo shows its words, a reminder its line", opts, async () => {

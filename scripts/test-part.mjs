@@ -47,6 +47,7 @@ if (isMain) {
   const files = testFiles().map((file) => ({ file, bytes: statSync(join(ROOT, file)).size }));
   const mine = deal(files, n)[k - 1];
   console.log(`part ${k} of ${n}: ${mine.length} of ${files.length} test files`);
-  const run = spawnSync(process.execPath, ['--test', ...mine], { cwd: ROOT, stdio: 'inherit' });
+  // --test-force-exit: a browser a failed test left open ends with the run, not at CI's timeout.
+  const run = spawnSync(process.execPath, ['--test', '--test-force-exit', ...mine], { cwd: ROOT, stdio: 'inherit' });
   process.exit(run.status ?? 1);
 }
