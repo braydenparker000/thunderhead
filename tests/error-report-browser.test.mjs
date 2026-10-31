@@ -115,6 +115,9 @@ test('signed in, a ported page’s opening is one sense event in a sealed batch;
   const [e] = mine[0].body.events;
   assert.deepEqual([e.type, Object.keys(e).sort()], ['guitar.open', ['at', 'id', 'type']]);
   assert.equal(mine[0].body.events.length, 1, 'one sense event');
+  // The batch is cleared once the Worker's answer is read, a moment after the request arrives here
+  // (asserting at once was a CI flake, run #142).
+  await page.waitForFunction(() => localStorage.getItem('th.p.senses') === null && localStorage.getItem('th.p.senses.batch') === null, null, { timeout: 5000 }).catch(() => {});
   assert.deepEqual(await page.evaluate(() => [localStorage.getItem('th.p.senses'), localStorage.getItem('th.p.senses.batch')]), [null, null], 'taken, so nothing waits');
   await context.close();
   const out = await opened(false);
