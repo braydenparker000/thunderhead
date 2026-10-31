@@ -11,13 +11,13 @@ try {
   const pref = localStorage.getItem('th-theme') || 'auto';
   const hour = new Date().getHours();
   document.documentElement.dataset.theme = pref === 'auto' ? (hour >= 19 || hour < 7 ? 'dark' : 'light') : pref;
-  // The owner's text size, accent and still background (Settings → Appearance).
+  // The owner's text size and still background (Settings → Appearance). The accent picker is gone
+  // (owner, 2026-10-31): blue only, so an old choice is dropped.
   const d = document.documentElement.dataset;
   const text = localStorage.getItem('th-text');
-  const accent = localStorage.getItem('th-accent');
   if (text === 's' || text === 'l') d.text = text;
-  if (accent === 'green' || accent === 'violet' || accent === 'rose') d.accent = accent;
   if (localStorage.getItem('th-still')) d.still = '';
+  localStorage.removeItem('th-accent');
 } catch {}
 const expected = (fade) => fade?.ready.catch(() => {});
 expected(document.activeViewTransition);

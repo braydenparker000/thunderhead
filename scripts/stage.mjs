@@ -103,8 +103,8 @@ const budgets = [
   ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 60_000],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 20_000],
-  // The upright Fraunces for replies (30.6 KB, 2026-10-30) on top of the italic and Inter.
-  ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 140_000],
+  // One face since 2026-10-31: Quicksand, variable 300–700, Latin (28.2 KB; Fraunces and Inter were 133 KB).
+  ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 40_000],
   ['precache bytes', list.filter((f) => precached(f.path)).reduce((n, f) => n + f.size, 0), 3_000_000],
   ['icon sprite bytes', sum(/^ui\/icons\.svg$/), 30_000],
 ];

@@ -1,8 +1,7 @@
-/* Self-hosted variable fonts (OFL, see fonts/*-OFL.txt). Fraunces is the Thunderhead's voice: italic for his short
-   lines, upright (optical size 18, SOFT 50, WONK 0) for his replies; Inter is everything else. */
-@font-face{font-family:"Fraunces";font-style:italic;font-weight:300 500;font-display:swap;src:url("fonts/Fraunces-Italic.woff2") format("woff2")}
-@font-face{font-family:"Fraunces";font-style:normal;font-weight:400 600;font-display:swap;src:url("fonts/Fraunces.woff2") format("woff2")}
-@font-face{font-family:"Inter";font-style:normal;font-weight:400 600;font-display:swap;src:url("fonts/Inter.woff2") format("woff2")}
+/* The shell's one face, self-hosted (OFL, see fonts/Quicksand-OFL.txt): Quicksand, variable from
+   300 to 700. Light for large text (the Thunderhead's line, titles), heavier for small text so it
+   stays readable on the phone (owner, 2026-10-31). The ported apps keep their own fonts. */
+@font-face{font-family:"Quicksand";font-style:normal;font-weight:300 700;font-display:swap;src:url("fonts/Quicksand.woff2") format("woff2")}
 
 /* Frame guard (see ui/theme.js): nothing shows until the page proves it is not framed. */
 html:not([data-unframed]) body{visibility:hidden}

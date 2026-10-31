@@ -25,7 +25,7 @@ test('the home page arrives with its CSP and the right type', opts, async () => 
   assert.equal(res.status, 200);
   assert.match(res.headers.get('content-type') ?? '', /text\/html/);
   assert.match(await res.text(), /http-equiv="Content-Security-Policy"/);
-  for (const [path, type] of [['/apps/home/home.js', /javascript/], ['/apps/home/home.css', /text\/css/], ['/ui/fonts/Inter.woff2', /font\/woff2/]]) {
+  for (const [path, type] of [['/apps/home/home.js', /javascript/], ['/apps/home/home.css', /text\/css/], ['/ui/fonts/Quicksand.woff2', /font\/woff2/]]) {
     const r = await get(path);
     assert.equal(r.status, 200, path);
     assert.match(r.headers.get('content-type') ?? '', type, `${path} content type`);

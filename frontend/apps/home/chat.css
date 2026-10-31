@@ -3,44 +3,44 @@
    the error and offline edge. Uses home.css's tokens. */
 .talk .mine{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .talk .you{white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
-.talk .meta{font:400 12px/1.3 var(--ui);color:var(--ink-3);display:flex;align-items:center;gap:4px}
+.talk .meta{font:500 12px/1.3 var(--ui);color:var(--ink-3);display:flex;align-items:center;gap:4px}
 .talk .meta.bad{color:#b42318}
 :root[data-theme="dark"] .talk .meta.bad{color:#ff6b5e}
-.talk .retry,.talk .stop{border:0;background:none;padding:0 6px;min-height:44px;margin:-14px 0;font:600 12px var(--ui);color:var(--accent-text);cursor:pointer}
+.talk .retry,.talk .stop{border:0;background:none;padding:0 6px;min-height:44px;margin:-14px 0;font:700 12px var(--ui);color:var(--accent-text);cursor:pointer}
 .talk .stop{font-size:13px;margin:-12px 0 -12px 4px}
-.talk .sys{align-self:center;max-width:88%;text-align:center;font:400 13px/1.4 var(--ui);color:var(--ink-3);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
+.talk .sys{align-self:center;max-width:88%;text-align:center;font:500 13px/1.4 var(--ui);color:var(--ink-3);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
 .talk .turn.sysline{align-items:center}
 .talk .replybox{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
 .talk .chip{min-height:44px}
 .talk .reply{color:var(--ink);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
-/* rich text (th/chat/rich.js): paragraphs, headings, lists, quotes, code and tables; data in Inter */
+/* rich text (th/chat/rich.js): paragraphs, headings, lists, quotes, code and tables */
 .talk .reply>*{margin:0}
 .talk .reply>*+*{margin-top:.6em}
 .talk .reply h3{font:600 1.06em/1.35 var(--voice);letter-spacing:-.008em}
 .talk .reply>*+h3{margin-top:.95em}
-.talk .reply b{font-weight:600}
+.talk .reply b{font-weight:700}
 .talk .reply ul,.talk .reply ol{padding-left:1.25em}
 .talk .reply ul{list-style-type:"–\2002"}
 .talk .reply li+li{margin-top:.25em}
 .talk .reply li::marker{color:var(--ink-3)}
-.talk .reply ol>li::marker{font:500 .88em var(--ui)}
+.talk .reply ol>li::marker{font:600 .88em var(--ui)}
 .talk .reply blockquote{padding-left:12px;border-left:2px solid color-mix(in srgb,var(--accent-text) 45%,transparent);font-style:italic;color:var(--ink-2)}
-.talk .reply code{font:500 .84em ui-monospace,SFMono-Regular,Menlo,monospace;padding:.08em .35em;border-radius:6px;background:color-mix(in srgb,var(--ink) 8%,transparent)}
-.talk .reply pre{padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--ink) 6%,transparent);overflow-x:auto;font:400 13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
+.talk .reply code{font:600 .84em ui-monospace,SFMono-Regular,Menlo,monospace;padding:.08em .35em;border-radius:6px;background:color-mix(in srgb,var(--ink) 8%,transparent)}
+.talk .reply pre{padding:10px 12px;border-radius:12px;background:color-mix(in srgb,var(--ink) 6%,transparent);overflow-x:auto;font:500 13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace;white-space:pre}
 .talk .reply .tbl{overflow-x:auto}
-.talk .reply table{border-collapse:collapse;font:400 14px/1.4 var(--ui)}
+.talk .reply table{border-collapse:collapse;font:500 14px/1.4 var(--ui)}
 .talk .reply th,.talk .reply td{padding:6px 12px 6px 0;border-bottom:1px solid var(--glass-line);text-align:left;vertical-align:top}
-.talk .reply th{font-weight:600;color:var(--ink-2)}
+.talk .reply th{font-weight:700;color:var(--ink-2)}
 .talk .reply hr{border:0;border-top:1px solid var(--glass-line)}
-/* what is better shown than told: blocks under the words (th/chat/blocks.js), in Inter */
-.talk .reply .blocks{display:grid;gap:12px;margin-top:14px;font:400 15px/1.45 var(--ui);letter-spacing:0;--bt:var(--accent-text)}
+/* what is better shown than told: blocks under the words (th/chat/blocks.js) */
+.talk .reply .blocks{display:grid;gap:12px;margin-top:14px;font:500 15px/1.45 var(--ui);letter-spacing:0;--bt:var(--accent-text)}
 .talk .reply a{color:var(--accent-text);text-decoration:underline;text-underline-offset:2px}
 /* A cited block of the owner's books: a small number that opens Study there; "Where to study" lists
-   the first five, in the owner's books' own face (Inter, not the voice). */
-.talk .reply a.cite{display:inline-grid;place-items:center;min-width:20px;height:20px;margin:0 1px 0 3px;padding:0 5px;border-radius:999px;background:color-mix(in srgb,#2e9e5b 16%,transparent);color:var(--ink);font:600 11px/1 var(--ui);font-style:normal;text-decoration:none;vertical-align:.25em;position:relative}
+   the first five, upright, not as a quote. */
+.talk .reply a.cite{display:inline-grid;place-items:center;min-width:20px;height:20px;margin:0 1px 0 3px;padding:0 5px;border-radius:999px;background:color-mix(in srgb,#2e9e5b 16%,transparent);color:var(--ink);font:700 11px/1 var(--ui);font-style:normal;text-decoration:none;vertical-align:.25em;position:relative}
 .talk .reply a.cite::after{content:"";position:absolute;inset:-12px -6px}
-.talk .reply .study{display:flex;flex-direction:column;margin-top:12px;font:400 14px/1.35 var(--ui);font-style:normal}
-.talk .reply .sthead{font:600 11px/1.3 var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-2);margin-bottom:2px}
+.talk .reply .study{display:flex;flex-direction:column;margin-top:12px;font:500 14px/1.35 var(--ui);font-style:normal}
+.talk .reply .sthead{font:600 13px/1.3 var(--ui);color:var(--ink-2);margin-bottom:2px}
 .talk .reply .study a{display:flex;align-items:center;min-height:36px;color:var(--ink);text-decoration:none;border-bottom:1px solid color-mix(in srgb,var(--ink) 8%,transparent)}
 .talk .reply.progress{color:var(--ink-2);font-size:15.5px}
 /* The reply reveals top to bottom behind a moving mask; its text is all there for a screen reader. */
@@ -48,49 +48,49 @@
 .talk .reply.reveal{-webkit-mask-image:linear-gradient(to bottom,#000 var(--reveal),transparent calc(var(--reveal) + 1.6em));mask-image:linear-gradient(to bottom,#000 var(--reveal),transparent calc(var(--reveal) + 1.6em));animation:reveal var(--reveal-ms,600ms) cubic-bezier(.25,.6,.35,1) both}
 @keyframes reveal{from{--reveal:-1.6em}to{--reveal:100%}}
 .talk .slot{display:flex;align-items:center;gap:6px;min-height:28px}
-.talk .wait{font:400 13px var(--ui);color:var(--ink-3)}
+.talk .wait{font:500 13px var(--ui);color:var(--ink-3)}
 /* the thinking words: a light passes across them while the mind works; each new line fades in */
-.talk .wait.dots{font:500 14px/1.4 var(--ui);letter-spacing:.005em;color:transparent;background:linear-gradient(100deg,var(--ink-3) 30%,var(--ink) 50%,var(--ink-3) 70%) 0 0/250% 100%;-webkit-background-clip:text;background-clip:text;animation:shimmer 2.6s linear infinite,wordin .4s var(--ease-out)}
+.talk .wait.dots{font:600 14px/1.4 var(--ui);letter-spacing:.005em;color:transparent;background:linear-gradient(100deg,var(--ink-3) 30%,var(--ink) 50%,var(--ink-3) 70%) 0 0/250% 100%;-webkit-background-clip:text;background-clip:text;animation:shimmer 2.6s linear infinite,wordin .4s var(--ease-out)}
 @keyframes shimmer{from{background-position:100% 0}to{background-position:-150% 0}}
 @keyframes wordin{from{opacity:0;transform:translateY(3px)}}
 .talk .stop.stopping{color:var(--ink-3);cursor:default}
 .fallbacks .card{animation:none}
 .fallbacks .card .q{margin-top:0}
-.newpill{position:absolute;z-index:7;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;pointer-events:none;transition:.25s;min-height:44px;padding:8px 14px;border-radius:14px;border:1px solid var(--glass-line);background:var(--disc);font:500 13px var(--ui);color:var(--ink)}
+.newpill{position:absolute;z-index:7;left:50%;bottom:calc(86px + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;pointer-events:none;transition:.25s;min-height:44px;padding:8px 14px;border-radius:14px;border:1px solid var(--glass-line);background:var(--disc);font:600 13px var(--ui);color:var(--ink)}
 .newpill.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .say .ln.still{animation:none}
 .edge.err::after{--edge-c:#ff6b5e;opacity:.8}
 .edge.off::after{opacity:.2}
 .top #date[data-offline]::after{content:" · Offline"}
 /* the time over a turn that starts the day or follows an hour's quiet */
-.talk .turn[data-time]::before{content:attr(data-time);align-self:center;margin:6px 0 4px;font:500 11.5px/1 var(--ui);letter-spacing:.04em;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.talk .turn[data-time]::before{content:attr(data-time);align-self:center;margin:6px 0 4px;font:600 11.5px/1 var(--ui);letter-spacing:.04em;color:var(--ink-3);font-variant-numeric:tabular-nums}
 /* follow-ups the mind suggests: quiet outline pills, only under the newest turn */
 .talk .follows{display:flex;flex-wrap:wrap;gap:8px;opacity:0;transition:opacity .4s}
 .talk .follows.in{opacity:1}
 .talk .turn:not(:last-child) .follows{display:none}
-.talk .follow{min-height:36px;padding:7px 13px;border-radius:var(--r-full);border:1px solid color-mix(in srgb,var(--accent-text) 35%,transparent);background:none;font:500 13.5px var(--ui);color:var(--accent-text);cursor:pointer}
+.talk .follow{min-height:36px;padding:7px 13px;border-radius:var(--r-full);border:1px solid color-mix(in srgb,var(--accent-text) 35%,transparent);background:none;font:600 13.5px var(--ui);color:var(--accent-text);cursor:pointer}
 .talk .follow::after{content:"";position:absolute;inset:-4px 0}
 .talk .follow{position:relative}
 /* an older long reply, folded to 10 lines */
 .talk .reply.folded{max-height:calc(10lh);overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,#000 65%,transparent);mask-image:linear-gradient(to bottom,#000 65%,transparent)}
-.talk .more{align-self:flex-start;min-height:44px;margin-top:-8px;padding:0;border:0;background:none;font:600 13px var(--ui);color:var(--accent-text);cursor:pointer}
+.talk .more{align-self:flex-start;min-height:44px;margin-top:-8px;padding:0;border:0;background:none;font:700 13px var(--ui);color:var(--accent-text);cursor:pointer}
 /* the pull that opens it */
-.pullfind{position:absolute;z-index:8;top:calc(14px + env(safe-area-inset-top,0px));left:50%;padding:6px 12px;border-radius:var(--r-full);background:var(--glass-flat);border:1px solid var(--glass-line);font:500 12px var(--ui);color:var(--ink-2);pointer-events:none;opacity:0;transform:translate(-50%,-12px)}
+.pullfind{position:absolute;z-index:8;top:calc(14px + env(safe-area-inset-top,0px));left:50%;padding:6px 12px;border-radius:var(--r-full);background:var(--glass-flat);border:1px solid var(--glass-line);font:600 12px var(--ui);color:var(--ink-2);pointer-events:none;opacity:0;transform:translate(-50%,-12px)}
 .pullfind.ready{color:var(--accent-text)}
 @media (prefers-reduced-motion: reduce){.talk .reply.reveal{animation:none;-webkit-mask-image:none;mask-image:none}.talk .wait.dots{animation:none;color:var(--ink-3);background:none}.newpill{transition:none}}
 /* Decision cards (HOME.md §3): the why line carries "1 of 3" at its end; smaller lines for the why,
    the odds and what happens if ignored; a spinner on the pressed button; the error line. */
 #decision .card{margin-top:18px}
 .card .why .of{margin-left:auto}
-.card .tg{margin-top:4px;font:500 13px/1.4 var(--ui);color:var(--ink-2);overflow-wrap:anywhere}
-.card .dx{margin-top:6px;font:400 13px/1.4 var(--ui);color:var(--ink-3)}
+.card .tg{margin-top:4px;font:600 13px/1.4 var(--ui);color:var(--ink-2);overflow-wrap:anywhere}
+.card .dx{margin-top:6px;font:500 13px/1.4 var(--ui);color:var(--ink-3)}
 .card .dx+.dx{margin-top:2px}
-.card .err{margin-top:10px;font:500 13px/1.4 var(--ui);color:var(--alarm,#b42318)}
+.card .err{margin-top:10px;font:600 13px/1.4 var(--ui);color:var(--alarm,#b42318)}
 .decide button:disabled{opacity:.7;cursor:default}
 .decide button.busy::after{content:"";display:inline-block;width:12px;height:12px;margin-left:8px;vertical-align:-2px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .8s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 .card.pulse{animation:pulse .3s ease-out}
 @keyframes pulse{50%{border-color:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 35%,transparent)}}
 /* The date line's "· 1 waiting" (HOME.md §3.5): gold text, a 44 px tap target. */
-.top .waiting{margin-right:auto;border:0;background:none;padding:0 0 0 6px;min-height:44px;margin-top:-15px;margin-bottom:-15px;font:600 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--gold-text);cursor:pointer}
+.top .waiting{margin-right:auto;border:0;background:none;padding:0 0 0 6px;min-height:44px;margin-top:-15px;margin-bottom:-15px;font:700 11px var(--ui);letter-spacing:.14em;text-transform:uppercase;color:var(--gold-text);cursor:pointer}
 @media (prefers-reduced-motion: reduce){.decide button.busy::after,.card.pulse{animation:none}}

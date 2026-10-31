@@ -1,39 +1,39 @@
 /* The Briefing's tiles as buttons and Muse's line (BRIEFING.md §1), and the blocks a reply may carry
-   under its words (HOME.md §4.3, th/chat/blocks.js): Inter only, as they are not the Thunderhead's voice. */
+   under its words (HOME.md §4.3, th/chat/blocks.js): in the shell's one face. */
 button.tile{font:inherit;color:inherit;text-align:left;cursor:pointer;transition:transform .14s}
 button.tile:active{transform:scale(.98)}
 .tile .k .i{width:16px;height:16px;fill:currentColor}
 .tile.gold{--c:var(--gold-text)}
-.bmuse{margin:14px 6px 0;font:400 13px/1.45 var(--ui);color:var(--ink-3)}
+.bmuse{margin:14px 6px 0;font:500 13px/1.45 var(--ui);color:var(--ink-3)}
 #decision .card.pulse{animation:cardpulse 1.4s ease-out}
 @keyframes cardpulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--gold) 60%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
 .bb{margin-top:14px}
-.bb h3{margin:0 0 8px;font:650 15px/1.35 var(--ui)}
+.bb h3{margin:0 0 8px;font:700 15px/1.35 var(--ui)}
 .bb p{margin:0}
-.bcite{margin-left:3px;font:600 11px var(--ui);color:var(--accent-text)}
-.b-quote blockquote{margin:0;padding-left:14px;border-left:3px solid var(--accent-text);font:500 17px/1.45 var(--ui)}
+.bcite{margin-left:3px;font:700 11px var(--ui);color:var(--accent-text)}
+.b-quote blockquote{margin:0;padding-left:14px;border-left:3px solid var(--accent-text);font:600 17px/1.45 var(--ui)}
 .bwho{margin-top:6px!important;color:var(--ink-3);font-size:13px}
 .b-callout{padding:12px 14px;border-radius:14px;border:1px solid var(--glass-line)}
-.b-callout strong{display:block;font:650 13px var(--ui);margin-bottom:4px}
+.b-callout strong{display:block;font:700 13px var(--ui);margin-bottom:4px}
 .bstats{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px}
 .bstat{display:flex;flex-direction:column;gap:2px;padding:12px;border-radius:14px;background:color-mix(in srgb,var(--ink) 5%,transparent)}
-.bsv{font:600 24px/1.1 var(--ui);letter-spacing:-.02em}
-.bsl{font:500 13px var(--ui);color:var(--ink-2)}
-.bsc{font:600 12px var(--ui)}
+.bsv{font:300 24px/1.1 var(--ui);letter-spacing:-.02em}
+.bsl{font:600 13px var(--ui);color:var(--ink-2)}
+.bsc{font:700 12px var(--ui)}
 .bstat.good .bsc{color:#1f8a4c}.bstat.bad .bsc{color:#c0392b}
-.bsa{font:400 11.5px var(--ui);color:var(--ink-3)}
+.bsa{font:500 11.5px var(--ui);color:var(--ink-3)}
 .bcmp{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
 .bcmp>div{padding:12px;border-radius:14px;border:1px solid var(--glass-line)}
-.bcmp strong{display:block;font:650 14px var(--ui);margin-bottom:4px}
+.bcmp strong{display:block;font:700 14px var(--ui);margin-bottom:4px}
 .btime,.bagenda,.bsteps{margin:0;padding-left:0;list-style:none}
 .btime li,.bagenda li{display:grid;grid-template-columns:86px 1fr;gap:10px;padding:8px 0;border-bottom:1px solid var(--glass-line)}
 .btime li.now .btd,.btime li.next .btd{color:var(--accent-text)}
-.btd{font:600 13px var(--ui);color:var(--ink-2)}
+.btd{font:700 13px var(--ui);color:var(--ink-2)}
 .bsteps{counter-reset:s}
 .bsteps li{counter-increment:s;position:relative;padding:8px 0 8px 34px}
-.bsteps li::before{content:counter(s);position:absolute;left:0;top:8px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:650 12px var(--ui);color:#fff;background:var(--accent-fill)}
+.bsteps li::before{content:counter(s);position:absolute;left:0;top:8px;width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:700 12px var(--ui);color:#fff;background:var(--accent-fill)}
 .btabs{display:flex;gap:6px;overflow-x:auto;margin-bottom:8px}
-.btabs button{border:0;border-radius:999px;padding:7px 12px;font:600 13px var(--ui);color:var(--ink-2);background:color-mix(in srgb,var(--ink) 6%,transparent);cursor:pointer;white-space:nowrap}
+.btabs button{border:0;border-radius:999px;padding:7px 12px;font:700 13px var(--ui);color:var(--ink-2);background:color-mix(in srgb,var(--ink) 6%,transparent);cursor:pointer;white-space:nowrap}
 .btabs button[aria-selected="true"]{color:#fff;background:var(--accent-fill)}
 .bchart{margin:0}
 .bchart svg{width:100%;height:auto;display:block}
@@ -45,10 +45,10 @@ button.tile:active{transform:scale(.98)}
 .bchart rect,.bchart circle{transition:opacity var(--d-fast)}
 .bchart svg.picked rect:not(.on),.bchart svg.picked circle:not(.on){opacity:.35}
 .bchart circle.on{r:5.5px}
-.bread{margin:6px 0 0;min-height:1.4em;font:600 13px/1.4 var(--ui);color:var(--ink);font-variant-numeric:tabular-nums}
+.bread{margin:6px 0 0;min-height:1.4em;font:700 13px/1.4 var(--ui);color:var(--ink);font-variant-numeric:tabular-nums}
 .btime li.now{border-left:3px solid var(--accent-text);padding-left:9px;margin-left:-12px}
-.btime li.now p{font-weight:600;color:var(--ink)}
-.bchart figcaption{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font:400 12px var(--ui);color:var(--ink-3)}
+.btime li.now p{font-weight:700;color:var(--ink)}
+.bchart figcaption{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font:500 12px var(--ui);color:var(--ink-3)}
 .bnote2{margin-top:6px!important;font-size:12.5px;color:var(--ink-3)}
 @media (prefers-reduced-motion: reduce){#decision .card.pulse{animation:none}button.tile{transition:none}}
 #brief{overscroll-behavior-y:contain}

@@ -1,6 +1,6 @@
 // @ts-check
 // The conversation on home, drawn (HOME.md §4): owner bubbles on the right, the mind's replies in
-// upright Fraunces with no bubble, system lines small and centred, one action chip and up to two
+// in the shell's face with no bubble, system lines small and centred, one action chip and up to two
 // follow-ups under a reply, the time over a turn after an hour's gap, older long replies folded,
 // a tap on a reply for its actions, the reply slot while a reply is on its way, and the "New
 // reply ↓" pill. Messages are keyed by
