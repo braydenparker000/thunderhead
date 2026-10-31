@@ -1,8 +1,11 @@
 // The base every Durable Object class extends: ordered expand-only migrations applied once at
-// start-up, a `Db` wrapper that meters rows read and written, and a health report.
+// start-up, a `Db` wrapper that meters rows read and written (meter.ts, kept per UTC day in the
+// object's own `meter_days` row), and a health report.
 // Rules for objects (enforced by tests): no setTimeout/setInterval, no long polls. A timer keeps
 // an object awake and billed for duration; the free plan allows ~3.6 object-hours a day.
 import { DurableObject } from 'cloudflare:workers';
+import { METER_DAYS_SQL } from '../areas/meter/migrations';
+import { Meter, type MeterDay } from './meter';
 
 /** One schema step. Expand only: add tables, columns or indexes; drops wait for a later deploy
  * so `wrangler rollback` to the previous version still finds everything it reads. */
@@ -24,7 +27,7 @@ export interface TableInfo {
   prune?: (db: Db, now: number, max: number) => number;
 }
 
-/** What one object reports to deep health: counts only, never content. */
+/** What one object reports to deep health: counts only, never content. `rows_*`: today's (UTC). */
 export interface ClassHealth {
   schema: number;
   expected: number;
@@ -35,17 +38,7 @@ export interface ClassHealth {
 
 type Bindings = unknown[];
 
-/** Sums `rowsRead`/`rowsWritten` from every cursor. These are the numbers the free plan bills
- * (5M rows read, 100k rows written per day), so cost tests assert on them. In memory only:
- * persisting the meter would itself cost a write per request. */
-export class Meter {
-  rowsRead = 0;
-  rowsWritten = 0;
-  add(cursor: SqlStorageCursor<Record<string, SqlStorageValue>>): void {
-    this.rowsRead += cursor.rowsRead;
-    this.rowsWritten += cursor.rowsWritten;
-  }
-}
+export { Meter };
 
 /** Thin SQL helper. Every query is fully consumed before it is metered, because a cursor's
  * row counts are final only after its last row. All SQL text lives in the areas' store.ts. */
@@ -118,7 +111,13 @@ export abstract class OwnerObject extends DurableObject<Env> {
   protected migration = 0;
   private readonly expected: number;
 
-  constructor(ctx: DurableObjectState, env: Env, migrations: Migration[]) {
+  /** `cls`: the class's name in the meter (`core`, `auth`, `music`, `senses`, `library`). */
+  constructor(
+    ctx: DurableObjectState,
+    env: Env,
+    migrations: Migration[],
+    private readonly cls: string,
+  ) {
     super(ctx, env);
     this.expected = Math.max(0, ...migrations.map((m) => m.version));
     this.db = new Db(ctx.storage.sql, this.meter);
@@ -129,16 +128,26 @@ export abstract class OwnerObject extends DurableObject<Env> {
 
   private async migrate(migrations: Migration[]): Promise<void> {
     this.migration = await applyMigrations(this.ctx.storage, this.db, migrations);
+    // The meter keeps its day once the schema has its table.
+    if (migrations.some((m) => m.sql.includes(METER_DAYS_SQL))) this.meter.attach(this.db, this.cls);
   }
 
-  /** Schema version (applied and expected), database size, metered rows since start. RPC. */
+  /** Schema version (applied and expected), database size, and today's rows (UTC day), stored and
+   * not yet stored. RPC. */
   health(): ClassHealth {
+    const today = this.meter.today();
     return {
       schema: this.migration,
       expected: this.expected,
       db_bytes: this.db.size,
-      rows_read: this.meter.rowsRead,
-      rows_written: this.meter.rowsWritten,
+      rows_read: today.rows_read,
+      rows_written: today.rows_written,
     };
+  }
+
+  /** Core's tick (and GET /v1/ops/meter) asks each object for its meter: today's totals and the day
+   * before's, the day's row written first if it grew and a minute has passed. RPC. */
+  meterFlush(): MeterDay[] {
+    return this.meter.report();
   }
 }

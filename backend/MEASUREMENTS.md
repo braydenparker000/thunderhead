@@ -328,8 +328,8 @@ OPERATIONS.md, decisions.md) and REVIEW-BUILD (b) C1–C16.
   timed-out check is simply accepted.
 - "That was me" on `reset_pending` is a no-op on the server (the doc hides it on that device
   only; the client keeps that).
-- `GET /v1/ops/meter` returns today's in-memory counts per class; there is no `meter` table in
-  P1 (DATA.md §3 flush is not built). The cost suite does not count `do_calls` yet.
+- `GET /v1/ops/meter` reads the stored per-day meter (`meter_days`, built 2026-10-31, DATA.md §3).
+  Object calls (`do_calls`) are not counted: an RPC reaches its method directly.
 - No per-request log line (only `onError` logs, by name); the 600 req/min per-token limit
   [proposal], the 10-minute post-deploy watch [proposal] and `scripts/api-guard.mjs`
   [proposal] are not built. Server errors are not yet written to the inbox as `worker`/`do`.

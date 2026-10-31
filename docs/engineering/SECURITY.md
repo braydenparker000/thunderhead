@@ -377,7 +377,7 @@ Chat files (HOME.md §4.6) live in `thunderhead-private` under `chat/files/` and
 - VAPID key pair (P-256). The private key is the Worker secret `VAPID_PRIVATE_JWK`, made once by the deploy when the live Worker lacks it (`scripts/worker-secrets.mjs`; nobody sees it); the public key is served by `GET /v1/push/key`. `sub` is the site URL, never an email.
 - A subscription is accepted only for a known push service (FCM, Mozilla, Apple, Windows; `pushService` in `backend/src/lib/webpush.ts`), so the Worker never posts anywhere else.
 - Subscriptions live in `Auth`, one per session, and are deleted in the same transaction as the session's revocation (after a sign-out push is queued) or on `404`/`410` from the push service. Endpoint URLs are capability URLs: never logged.
-- **Payload:** RFC 8291 `aes128gcm`, and only `{"k":"<kind>","id":"<id>"}`. Kinds: `nudge`, `reminder`, `security`, `signout`. No titles, names, verses, songs or message text, ever.
+- **Payload:** RFC 8291 `aes128gcm`, and only `{"k":"<kind>","id":"<id>"}`. Kinds: `nudge`, `reminder`, `security`, `signout`, `quota` (the day's database use past 80%). No titles, names, verses, songs or message text, ever.
 - The service worker fetches the text with the device's own token, then shows it under [PRIVACY.md §8](PRIVACY.md). If the fetch fails: "Thunderhead has something for you." Chrome requires a visible notification for every push.
 - At most 2 non-security pushes a day; none before 06:30 local (owner ruling), security pushes included; they wait until 06:30.
 - Rotating VAPID invalidates every subscription. The shell compares the server key with its subscription's key at start and re-subscribes if they differ.

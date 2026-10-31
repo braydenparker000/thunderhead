@@ -44,6 +44,8 @@ export interface BriefInput {
   errorsOpen: number;
   /** The tripped watchdogs (OPERATIONS.md §8.2): one briefing line while any is. */
   watchdogs: { name: string; since: number; handled: string | null }[];
+  /** The day's database use, only from 60% of a Free-plan daily limit (areas/meter/quota.ts). */
+  quota?: string | null;
   rules: FactRow[];
   threads: OpenThreadRow[];
   /** The rendered profile (MEMORY.md §8, ≤ 6,000 characters). */
@@ -155,6 +157,8 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
           'taint: this session is tainted (it, or one of its role in the last 24 hours, read outside content); memory writes are refused',
         ]
       : []),
+    // After the taint line, so a long section 1 never cuts that one.
+    ...(i.quota ? [i.quota] : []),
   ].join('\n');
   const waiting = i.waiting.map((m) => line(m, i.tz));
   const tail = [

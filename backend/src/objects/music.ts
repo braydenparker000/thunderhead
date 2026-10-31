@@ -8,6 +8,7 @@
 import type { MusicTrackRow, MusicTracksResponse } from '../../../shared/contract/music.ts';
 import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
+import { METER_DAYS_SQL } from '../areas/meter/migrations';
 import * as store from '../areas/music/store';
 import { type Ctx, MusicError, OPS, type Op } from '../areas/music/writer';
 import { EDIT_OPS } from '../areas/music/writer-edit';
@@ -44,9 +45,16 @@ export const MUSIC_MIGRATIONS: Migration[] = [
       ) WITHOUT ROWID`,
     ],
   },
+  {
+    version: 2,
+    name: 'meter_days',
+    kind: 'expand',
+    sql: [METER_DAYS_SQL],
+  },
 ];
 
-/** Every table, all kept forever and all in the weekly backup and the export (DATA.md §10). */
+/** Every catalog table, all kept forever and in the weekly backup and the export (DATA.md §10); the
+ * meter's `meter_days` (counts only) stays out of both. */
 export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state'] as const;
 
 /** The one instance: the owner's library. */
@@ -92,7 +100,7 @@ export class Music extends OwnerObject {
   }
 
   constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env, MUSIC_MIGRATIONS);
+    super(ctx, env, MUSIC_MIGRATIONS, 'music');
   }
 
   /** Puts imported tracks in one transaction; the catalog's version moves only if one changed. */

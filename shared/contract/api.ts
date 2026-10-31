@@ -7,6 +7,7 @@ export type * from './memory';
 export type * from './proposals';
 export type { ErrorBody, ErrorCode, ErrorDetails, Issue, RevokeReason } from './errors';
 export type { AppId, ChangeKind, FrameType, SearchSource } from './feed';
+export type { MeterItem, MeterResponse, QuotaToday } from './meter';
 export type { Ref, RefKind } from './refs';
 
 export type Id = string;
@@ -284,10 +285,6 @@ export interface PerfRequest {
       { p50: number; p75: number; p95: number; n: number }
     >
   >;
-}
-
-export interface MeterResponse {
-  items: { day: Day; class: string; rows_written: number; rows_read: number; bulk_rows_written: number }[];
 }
 
 /** Settings: `owner.tz` (IANA, from the phone, only in Core); quiet hours `HH:MM` (end ≥ 06:30); `quiet.until` (ms). */

@@ -262,6 +262,9 @@ describe('rows per endpoint', () => {
     };
     await cost('cron tick, the daily prune pass (Core)', tick, 204, k);
     await cost('cron tick, nothing due (Core)', tick, 204, k);
+    // The stored meter (DATA.md §3): Core gathers the others' days, then reads a row per class and day.
+    await cost('GET /v1/ops/meter (Core)', () => api('GET', '/v1/ops/meter', d), 200, k);
+    await cost('GET /v1/ops/meter?days=30 (Core)', () => api('GET', '/v1/ops/meter?days=30', d), 200, k);
   });
 
   // P3: memory on a Core that already holds the P2 rows above (memory-calls.ts).

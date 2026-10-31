@@ -11,7 +11,7 @@ const library = () => env.LIBRARY.get(env.LIBRARY.idFromName('owner')) as unknow
 
 describe('the Library object', () => {
   it('migrates once to its schema and reports its health', async () => {
-    expect(await library().health()).toMatchObject({ schema: 1, expected: 1 });
+    expect(await library().health()).toMatchObject({ schema: 2, expected: 2 });
     const names = (type: string) =>
       runInDurableObject(library(), (_o, state) =>
         state.storage.sql
@@ -26,6 +26,7 @@ describe('the Library object', () => {
       'books',
       'highlights',
       'ingest_jobs',
+      'meter_days',
       'pages',
       'pages_fts',
       'positions',

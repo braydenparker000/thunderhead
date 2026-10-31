@@ -1,6 +1,7 @@
 // What GET /v1/briefing answers (BRIEFING.md): the page's title line, the weather (P8), its tiles
-// in order ("Waiting on you", then the night shift's tiles, P8), and one line about Muse when there
-// is something to say. Counts and titles only.
+// in order ("Waiting on you", then the night shift's tiles, P8), one line about Muse when there is
+// something to say, and one about the day's database use from 60% of the Free plan's limit. Counts
+// and titles only.
 
 export interface WaitingTile {
   kind: 'waiting';
@@ -56,6 +57,9 @@ export interface BriefingResponse {
   tiles: (WaitingTile | NightTile)[];
   /** "Muse hasn't checked in since yesterday." / null */
   muse: string | null;
+  /** From 60% of a Free-plan daily limit: "Today's database use is at 62% of the free plan's daily
+   * limit." (from 80% with when backups and uploads run again); otherwise null. */
+  quota: string | null;
 }
 
 /** BRIEFING.md §3: the title line by local hour. */

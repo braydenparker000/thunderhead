@@ -24,7 +24,7 @@ export const USAGE = {
   get: ['<path> [key=value …]', 'GET any route this role may call (see the list below)'],
   library: ['cite <question>', 'the blocks of the owner\'s books an answer may cite (then say with --meta cite.q)'],
   taint: ['--source <tool> --ref <url or id>', 'mark this session tainted (irreversible)'],
-  health: ['[--deep]', 'Worker health'],
+  health: ['[--deep]', "Worker health, and the day's database use (meter: % of the day's budget)"],
   errors: ['[--hours 24]', 'open errors'],
   reports: ['[--kind playback] [--since <ms|iso>] [--limit 50] [--cursor <c>]', 'what the owner\'s phone reported about playback (kept 30 days), newest first: totals (events by type, time to first sound, waits, stalls, the last errors), then one line per batch; track ids and timings only'],
   help: ['[command]', 'this text'],

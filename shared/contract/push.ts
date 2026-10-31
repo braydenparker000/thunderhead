@@ -3,9 +3,10 @@
 import type { Ms } from './api.ts';
 
 
-/** What a push is: the mind's nudge, a sign-in notice, the owner's own test, or a reminder the
- * owner set (its id is the reminder's). */
-export type PushKind = 'nudge' | 'security' | 'test' | 'reminder';
+/** What a push is: the mind's nudge, a sign-in notice, the owner's own test, a reminder the owner
+ * set (its id is the reminder's), or the day's database use past 80% of the Free plan's limit (one a
+ * UTC day, id `quota-<day>`). */
+export type PushKind = 'nudge' | 'security' | 'test' | 'reminder' | 'quota';
 export interface PushKeyResponse {
   /** The VAPID public key, base64url (the uncompressed P-256 point). */
   vapid_public_key: string;

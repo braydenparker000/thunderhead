@@ -1,7 +1,9 @@
 // The backups' half of the Core object (P4 stage E–F, areas/backups): the weekly backup and the
-// monthly drill when they are due (each tick) or asked for, the list, "download everything", and
-// the four methods the drill calls on its scratch instance `drill-<YYYYMM>`, which refuse on any
-// other instance. The work is chunked jobs the alarm runs. The sandbox has none of it.
+// monthly drill when they are due (each tick) or asked for (from 80% of the day's database budget
+// their jobs wait for 00:00 UTC in the runner, and the senses archive waits with them), the list,
+// "download everything", and the four methods the drill calls on its scratch instance
+// `drill-<YYYYMM>`, which refuse on any other instance. The work is chunked jobs the alarm runs.
+// The sandbox has none of it.
 import type {
   BackupItem,
   BackupManifest,
@@ -16,6 +18,7 @@ import * as backups from '../areas/backups/ops';
 import { count, putRows, type Row } from '../areas/backups/rows';
 import * as bstore from '../areas/backups/store';
 import { logicalDay } from '../areas/conversation/day';
+import { quotaHold } from '../areas/meter/quota';
 import type { Out } from '../lib/result';
 import { Fail } from '../lib/result';
 import { ownerDay, wallMinute } from '../lib/time';
@@ -55,10 +58,12 @@ export abstract class CoreBackups extends CoreWatchdogs {
     if (backups.weeklyDue(this.db, day, wallMinute(now, tz))) await this.startBackup(day, now);
     const due = backups.drillDue(this.db, day);
     if (due) await this.startDrill(due.month, now).catch(() => undefined);
-    // Each finished day's events archived, and events past 90 days pruned (the Senses object).
-    await sensesObject(this.env)
-      .daily(now, logicalDay(now, tz))
-      .catch(() => undefined);
+    // Each finished day's events archived, and events past 90 days pruned (the Senses object); from
+    // 80% of the day's budget it waits, and the first tick after 00:00 UTC archives every day owed.
+    if (quotaHold(this.db, now) === null)
+      await sensesObject(this.env)
+        .daily(now, logicalDay(now, tz))
+        .catch(() => undefined);
     // Study's unfinished uploads, lapsed reading runs, deleted highlights (the Library object).
     await libraryObject(this.env)
       .daily(now)

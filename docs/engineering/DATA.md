@@ -122,12 +122,15 @@ fragment = [A-Za-z0-9._:-]{1,64}
 |---|---|---|
 | `_migrations` | `version INTEGER PK, name TEXT, kind TEXT ('expand'\|'contract'), applied_at INTEGER, bookmark TEXT` | Schema version, plus the PITR bookmark taken just before each step |
 | `jobs` | `id TEXT PK, kind TEXT, state TEXT ('queued'\|'running'\|'paused'\|'done'\|'failed'), due_at INTEGER, payload_json TEXT, cursor_json TEXT, attempts INTEGER, last_error TEXT, rows_written INTEGER, created_at INTEGER, updated_at INTEGER` · index partial `(due_at) WHERE state IN ('queued','paused','running')` | Chunked alarm jobs ([JOBS.md §4](JOBS.md#4-chunked-durable-object-jobs)) |
-| `meter` | `day TEXT PK, rows_written INTEGER, rows_read INTEGER, bulk_rows_written INTEGER, rpc_calls INTEGER, updated_at INTEGER` | Row accounting from `cursor.rowsWritten/rowsRead` |
+| `meter_days` | `(day TEXT, class TEXT) PK, rows_read INTEGER, rows_written INTEGER, updated_at INTEGER` WITHOUT ROWID | The row meter: rows read and written per UTC day (the units the Free plan bills), from every query's `cursor.rowsRead/rowsWritten` (`backend/src/objects/meter.ts`) |
 
-- **Meter flush.** Counts build up in memory and are written at most once per 60 s, inside a write transaction that is happening anyway. A count lost when the object is evicted is accepted (the meter is a guide, not billing).
+- **The row meter (built 2026-10-31, the rows-read guard).** Every query's rows add up in memory, and each object keeps its own class's row for the UTC day in its `meter_days` (Core step 24, Auth step 3, Music, Senses and Library step 2). The row is written on the first query a minute or more after the last write, and on the first query of a new UTC day for the day that closed, so the meter costs at most one row written a minute per object, and only in minutes the object is used. A write stores the day's whole totals and only raises them, so a write lost with a rolled-back transaction is made good by the next. What an object counted after its last write is lost if Cloudflare evicts it first: at most about the last minute of its use. The meter's own queries count toward the day but not toward the cost tests' numbers.
+- **Core gathers it.** Each 15-minute tick (and every `GET /v1/ops/meter`) Core asks Auth, Music, Senses and Library (`meterFlush()`, an RPC): each answers today's totals and the day before's, and Core keeps them, with its own row (written whole at its tick), in its `meter_days`, where they grew. So the day's use is a few rows of Core's, read by the quota watchdogs, the Briefing, the mind's briefing, the push at 80% and the hold (§8.1). The meter counts the five objects, and what a drill writes into its scratch copy (the job runner adds the rows each step wrote, class `scratch`); not the eval sandbox, nor the old Worker on the same account, whose share is kept back from the budget instead (§8.1). The other objects' rows in Core are up to 15 minutes old between ticks; Core's own and the scratch copy's are current.
+- **What it costs.** At rest about 7 rows written a tick (the row of each object the tick wakes, Core, Auth, Senses and Library, and Core's copies of the three that grew), about 700 a day; then one more a minute for each object in use. About 1,000 to 1,500 rows written on a usual day (1.5 to 2% of the 68,000 budget of §8.1) and about 2,000 rows read. At most, all five objects busy every minute of the day, about 7,700 rows written.
+- **Object calls** (the third Free-plan count, 100,000 a day) are not metered: an RPC reaches its method directly, so an object has no one place to count them. `quota.do_calls` waits for that.
 - **Alarm.** After any change to `jobs`, `setAlarm(min(due_at))` runs, but only when that time differs from the current alarm (each call is 1 row written).
 - **Export hooks.** `exportTable(name, cursor, limit)` and `importRows(table, rows, mode)` are used by backups, restores and tests.
-- **Deep health.** `health()` returns `{schema_version, db_bytes: sql.databaseSize, jobs_backlog, last_alarm_at, meter_today}`.
+- **Deep health.** `health()` returns `{schema, expected, db_bytes: sql.databaseSize, rows_read, rows_written}`, the rows being the object's UTC day from its meter (stored, and not yet stored); deep health sums the five into `meter_today`.
 
 ---
 
@@ -330,6 +333,8 @@ Anything else returns `422 validation` with `details: [{ref, reason:'not_signabl
 
 Rules from the platform that drive the numbers: every index entry touched is one more row written; deletes count; `setAlarm()` is 1 write; FTS5 virtual-table writes count.
 
+**The rows-read guard** (built 2026-10-31, after the Music object read 4.42M of a day's 4.63M rows): the row meter (§3) counts each day's rows read and written by this Worker's five objects. The limits are the account's, and the old Worker (`jarvis-hub-api`, not in this repository) uses about 180,000 rows read and 32,000 written a day on the same account, which the meter can't see; so the guard counts against the day's budget, the limits less `OLD_WORKER_RESERVE` (200,000 read, 32,000 written, `shared/contract/meter.ts`; both drop to 0 once the old Worker retires, SETUP.md N5, M4): 4,800,000 rows read and 68,000 written. From 60% of either side (2,880,000 read, 40,800 written) the watchdogs `quota.rows_read` and `quota.rows_written` trip and the Briefing page and the mind's briefing say so in one line (the owner's words still say "of the free plan's daily limit"). From 80% (3,840,000 read, 54,400 written) the owner gets one push that day, and the heavy work waits for 00:00 UTC: the weekly backup and the monthly drill, and every bulk-lane job, pause before their next step (a drill stops between two parts; the rows it wrote into its scratch copy are added to the day's meter as they are written, class `scratch`), the senses daily archive skips its ticks, and the upload tools' operations (`POST /v1/music/uploads/:op`) answer `429` with `Retry-After`. The phone and the mind's chat are never held, nor "download everything" (the owner's own request). A job that waited runs when its pause ends at 00:00 UTC; the archive runs on the first tick after.
+
 ### 8.2 Steady-state budget per table (a heavy day)
 
 "Per op" is an estimate. The cost tests ([TESTING.md §6](TESTING.md#6-cost-tests)) pin the real number per endpoint, and this table is updated from them.
@@ -349,21 +354,21 @@ Rules from the platform that drive the numbers: every index entry touched is one
 | Core.night_runs (one row, rewritten per step) | ~12 | 1 (measured) | 12 |
 | Core.errors | ≤ 200 upserts (capped) | 1 | 200 |
 | Core.perf_days, settings | ~25 | 1 | 25 |
-| meter + jobs + alarms (all classes) | — | — | ~1,000 |
+| meter_days + jobs + alarms (all classes) | — | — | ~2,000 (the meter 1,000–1,500, §3) |
 | Auth (last_seen hourly, agents last_used hourly, notices) | — | — | ~200 |
-| **Subtotal P1–P4** | | | **~8,750** |
+| **Subtotal P1–P4** | | | **~9,750** |
 | Senses.events (3,000 events × row + 1 index; same again pruned 90 days later) | — | 2 + 2 | 12,000 |
 | Senses.batches (+prune), rollups | 150 batches; 300 rollups | ~2 | 900 |
 | Music.track_stats nightly | ≤ 200 tracks | 2 | 400 |
 | Library.positions, highlights | ~200 | 1–3 | 300 |
 | Core.reports (one a minute while Music plays, one per page hide; pruned 30 days later) | ~600 (10 h of music) | 1 + 1 | 1,200 |
-| **Total steady (P5+)** | | | **~23,500 (24%)** |
+| **Total steady (P5+)** | | | **~24,500 (25%)** |
 
 ### 8.3 The bulk lane
 
 - One bulk job runs at a time, account-wide. `Core.settings['bulk.lane']` names the holder `{class, job_id, day}`. A job asks for the lane through the `ensureAlarm` RPC that `Core.tick` already makes every 15 minutes. **[proposal]**
 - The lane holder may write 40,000 rows per day (`meter.bulk_rows_written`). At the cap the job sets `state='paused'` with `due_at` = next 00:05 UTC.
-- If the account-wide total (the sum of every object's `meter.rows_written` today, gathered by `tick`) reaches 60,000, `tick` revokes the lane at once, even below the job's own cap.
+- Built as the rows-read guard (§8.1, 2026-10-31): once the day's rows written by the five objects and the drill's scratch copy (Core's `meter_days`, gathered by `tick`) pass 80% of the day's budget (54,400 of 68,000), every lane job pauses before its next step until 00:00 UTC, even below the lane's own cap.
 - Lane users: imports, FTS reindex, music catalog import (on its own day), library ingestion, table restores, the monthly drill.
 
 Acceptance: a vitest test with a fake meter at 39,990 runs one job step of 2,000 rows and sees the job pause at the step boundary, with `due_at` next 00:05 UTC.
@@ -442,7 +447,8 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.perf_days | 400 days | yes | no |
 | Core.changes | newest 10,000 rows | no | no |
 | `jobs`, `_migrations` (all classes) | jobs done 30 days | manifest only (schema version) | no |
-| `meter` (all classes) | 400 days | yes | yes |
+| Core.meter_days | 400 days (one row per UTC day and object class, Core's own and the others' from its tick; counts only) | no | no |
+| `meter_days` (Auth, Music, Senses, Library: each its own class's row) | 400 days (pruned by the meter itself when a day begins) | no | no |
 | Auth.* | sessions deleted 30 days after revoke or expiry; throttle 24 h; notices 14 days; pushes 30 days | **never** | **never** |
 | Senses.events | 90 days | archive in R2 daily instead | yes (the archive) |
 | Senses.batches | 30 days | no | no |

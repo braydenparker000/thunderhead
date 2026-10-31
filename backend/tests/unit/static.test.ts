@@ -27,6 +27,10 @@ const wrangler = Object.values(
   raw(import.meta.glob('../../wrangler.jsonc', { query: '?raw', import: 'default', eager: true })),
 )[0];
 
+/** Steps another branch holds while this one is built may be skipped in the numbering (none now:
+ * step 23, the reports, and step 24, the row meter, met on 2026-10-31). */
+const PENDING: number[] = [];
+
 const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 // wrangler.jsonc has whole-line comments only, so dropping them leaves plain JSON.
 const config = JSON.parse(wrangler.replace(/^\s*\/\/.*$/gm, '')) as { vars: Record<string, string>; secrets: unknown };
@@ -67,7 +71,11 @@ describe('source rules', () => {
 
   it('migrations are expand-only, numbered 1…n, never DROP, RENAME, DELETE or UPDATE', () => {
     for (const list of [AUTH_MIGRATIONS, CORE_MIGRATIONS]) {
-      expect(list.map((m) => m.version)).toEqual(list.map((_, i) => i + 1));
+      const versions = list.map((m) => m.version);
+      const top = Math.max(...versions);
+      expect(versions).toEqual(
+        Array.from({ length: top }, (_, i) => i + 1).filter((v) => versions.includes(v) || !PENDING.includes(v)),
+      );
       for (const m of list) {
         expect(m.kind).toBe('expand');
         for (const sql of m.sql) expect(sql, `migration ${m.version}`).not.toMatch(/\b(DROP|RENAME|DELETE|UPDATE)\b/i);

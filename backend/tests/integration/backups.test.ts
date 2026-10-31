@@ -104,7 +104,7 @@ describe('the weekly backup', () => {
     const [done] = await backups();
     expect(done.complete).toBe(true);
     const m = (await manifestOf(date)) as BackupManifest;
-    expect(m).toMatchObject({ v: 1, date, class: 'core', schema_version: 23 });
+    expect(m).toMatchObject({ v: 1, date, class: 'core', schema_version: 24 });
     expect(m.tables.map((t) => t.name)).toEqual(BACKED);
     const ledger = m.tables.find((t) => t.name === 'ledger');
     const [{ n: ledgerRows }] = await coreSql<{ n: number }>('SELECT count(*) AS n FROM ledger');
@@ -124,7 +124,7 @@ describe('the weekly backup', () => {
     expect(m.tables.some((t) => t.name === 'jobs' || t.name.endsWith('_fts'))).toBe(false);
     // The Music object's catalog, by its own manifest.
     const music = (await (await env.VAULT.get(`backups/${date}/music/manifest.json`))?.json()) as BackupManifest;
-    expect(music).toMatchObject({ v: 1, date, class: 'music', schema_version: 1 });
+    expect(music).toMatchObject({ v: 1, date, class: 'music', schema_version: 2 });
     expect(music.tables.map((t) => t.name)).toEqual(['tracks', 'catalog_log', 'music_state']);
     // The senses' rollups and archive records (the events are in the daily archive), and Study's
     // library without its full-text index (rebuilt from the pages).
@@ -219,9 +219,13 @@ describe('the monthly drill', () => {
   type DrillRow = { state: string; month: string; report_key: string | null };
   const drillRow = (job: string) => async () =>
     (await coreSql<DrillRow>('SELECT * FROM drills WHERE job_id = ?', job))[0];
-  // Each drill writes its rows into the scratch instance against the day's bulk lane (40,000):
-  // these fixtures' 12,000 ledger rows and their indexes would pause the second until tomorrow.
-  const freshLane = () => coreSql("DELETE FROM settings WHERE key = 'bulk.day'");
+  // Each drill writes its rows into the scratch instance against the day's bulk lane (40,000) and
+  // the day's meter (from 80% of 68,000 the drill waits for 00:00 UTC): these fixtures' 12,000
+  // ledger rows and their indexes would pause the second until tomorrow.
+  const freshLane = async () => {
+    await coreSql("DELETE FROM settings WHERE key = 'bulk.day'");
+    await coreSql("DELETE FROM meter_days WHERE class = 'scratch'");
+  };
   it('restores the newest backup into its own instance, checks it, reports, and empties it', async () => {
     expect((await api('POST', '/v1/ops/drill/run', { token: p.D, body: {} })).status).toBe(403);
     await freshLane();

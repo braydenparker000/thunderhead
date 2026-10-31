@@ -10,13 +10,15 @@
 //   never deletes from it (DATA.md §7.2).
 // - POST …/<op>: the catalog writer's operations (areas/music/writer*.ts) in the Music object;
 //   `export` (the catalog with its waveforms) and `links` (signed links to tracks' audio, for the
-//   waveform backfill) read only.
+//   waveform backfill) read only. Past 80% of a day's Free-plan rows they answer 429 with
+//   Retry-After until 00:00 UTC (areas/meter/hold.ts): their reads put the day near the cap once.
 import { Hono } from 'hono';
 import type { AppEnv } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { musicObject, type WriteResult } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
 import { sha256 } from '../import/vault';
+import { refuseWhileHeld } from '../meter/hold';
 import { SONG_ID } from './shapes';
 import { signKey, signR2 } from './sign';
 import { HEX, signatureMessage } from './validate';
@@ -159,6 +161,7 @@ export const uploadRoutes = new Hono<AppEnv>()
     const op = c.req.param('op');
     if (!/^[a-z-]{1,40}$/.test(op)) throw new ApiError('not_found');
     const s = await signed(c);
+    await refuseWhileHeld(c.env);
     if (s.size > (BIG_OPS.has(op) ? UPLOAD_LIMITS.batch : UPLOAD_LIMITS.op)) throw new ApiError('too_large');
     if (s.type !== 'application/json') throw new ApiError('unsupported_media_type');
     let input: unknown;

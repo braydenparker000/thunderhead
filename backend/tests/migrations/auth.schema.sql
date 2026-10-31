@@ -30,6 +30,15 @@ CREATE TABLE credential (
   changed_at INTEGER NOT NULL
   );
 
+CREATE TABLE meter_days (
+  day TEXT NOT NULL,
+  class TEXT NOT NULL,
+  rows_read INTEGER NOT NULL,
+  rows_written INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (day, class)
+  ) WITHOUT ROWID;
+
 CREATE TABLE notices (
   id TEXT PRIMARY KEY,
   kind TEXT NOT NULL,

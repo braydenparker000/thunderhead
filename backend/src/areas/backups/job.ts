@@ -3,7 +3,8 @@
 // bucket with its SHA-256, then the manifest, written last: until it exists the backup doesn't
 // count. A step's load reads the rows and writes the part (outside any transaction; a retry
 // writes the same key again), and its commit records the part in the cursor. Reads only, so it
-// stays off the bulk lane.
+// stays off the bulk lane; it reads every row, so it is heavy: past 80% of a day's Free-plan rows
+// it waits for 00:00 UTC (jobs/runner.ts).
 import {
   BACKUP_LIMITS,
   type BackupClass,
@@ -61,6 +62,7 @@ const totals = (done: BackupTable[]) =>
 export const backupJob: JobHandler = {
   kind: 'export.weekly',
   lane: false,
+  heavy: true,
   async load(env: Env, db: Db, payload: unknown, cursor: unknown): Promise<Input> {
     const p = payload as BackupPayload;
     const c = (cursor as Cursor | null) ?? START;

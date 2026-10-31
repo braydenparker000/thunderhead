@@ -194,6 +194,7 @@ Web notifications can't tell whether the phone is locked, so **every notificatio
    | `reminder` | "Your reminder." |
    | `security` | "New sign-in to Thunderhead." / "Your Thunderhead password was changed." / "A password reset was requested for Thunderhead." |
    | `signout` | "You were signed out of Thunderhead." |
+   | `quota` | "Today's database use is at 82% of the free plan's daily limit. Backups and uploads wait until 01:00." (a percentage and a time, nothing of the owner's; once a UTC day from 80%) |
    | fallback (fetch failed) | "Thunderhead has something for you." |
 3. **Details toggle** (Settings → Notifications, default **off**) **[proposal]**: when on, a `nudge` or `reminder` about sensitivity-0 data may show up to 60 characters of its own text (for example the reminder the owner wrote). Sensitivity-1 items and security notices stay generic regardless.
 4. No images, no sender names, no action buttons that complete an ask-first action from the notification.

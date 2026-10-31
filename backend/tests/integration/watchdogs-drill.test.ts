@@ -38,12 +38,15 @@ describe('the routes', () => {
       'night.late',
       'jobs.stuck',
       'db.size',
+      'quota.rows_written',
+      'quota.rows_read',
       'backup.stale',
       'drill.failed',
       'drill.overdue',
       'muse.silent',
     ]);
     expect(items.find((i) => i.name === 'events.export.late')).toMatchObject({ state: 'later', waits: 'phase P5' });
+    expect(items.find((i) => i.name === 'quota.do_calls')).toMatchObject({ state: 'later' });
     const body = { outcome: 'nothing', note: 'Nothing changed; it cleared.' };
     const report = (token: string, name: string, b: object = body) =>
       api('POST', `/v1/ops/watchdogs/${name}/handled`, { token, body: b });

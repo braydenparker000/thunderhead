@@ -323,9 +323,9 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `night.late` | no day note for the night's day by 09:00 local (the night shift is connected) | S3 | Night shift: done by 09:00 local on ≥ 6 nights of 7 | yes | P4 | built |
 | `jobs.stuck` | a job running for more than 2 hours, or one tried 5 times | S3 | Jobs: every job finishes or fails within its runs | yes | P4 | built |
 | `db.size` | the Core object holds more than 700 MB | S3 | Budgets: storage stays inside the Free plan | yes | P4 | built |
-| `quota.rows_written` | the account's rows written today ≥ 70,000 | S3 | Budgets: no Free-plan quota above 70% before 18:00 UTC | yes | P4 | waits for a stored per-day meter (DATA.md §3): today the counts live in each isolate only |
-| `quota.rows_read` | rows read today ≥ 3,500,000 | S3 | Budgets: no Free-plan quota above 70% before 18:00 UTC | yes | P4 | waits for a stored per-day meter (DATA.md §3) |
-| `quota.do_calls` | object calls today ≥ 70,000 | S3 | Budgets: no Free-plan quota above 70% before 18:00 UTC | yes | P4 | waits for a stored per-day meter (DATA.md §3) |
+| `quota.rows_written` | rows written today by the five objects and a drill's scratch copy ≥ 40,800 (60% of the 68,000 a day the Free plan leaves after the old Worker's share) | S3 | Budgets: no day's Free-plan budget above 60% | yes | P4 | built |
+| `quota.rows_read` | rows read today across the five objects ≥ 2,880,000 (60% of the 4,800,000 a day the Free plan leaves after the old Worker's share) | S3 | Budgets: no day's Free-plan budget above 60% | yes | P4 | built |
+| `quota.do_calls` | object calls today ≥ 60,000 (60% of the Free plan's 100,000 a day, the old Worker's share aside) | S3 | Budgets: no day's Free-plan budget above 60% | yes | P4 | waits for a count of object calls: an RPC reaches its method directly, so an object has no one place to count them |
 | `backup.stale` | the newest complete backup is more than 8 days old (once one exists) | S3 | Backups: newest complete backup < 8 days old | yes | P4 | built |
 | `drill.failed` | the last restore drill failed | S3 | Backups: the monthly drill passes | yes | P4 | built |
 | `drill.overdue` | no restore drill for 35 days since the first complete backup | S3 | Backups: the monthly drill passes | yes | P4 | built |

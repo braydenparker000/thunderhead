@@ -140,12 +140,20 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 106,
-    "rows_written_max": 11
+    "rows_read_max": 119,
+    "rows_written_max": 17
   },
   "cron tick, nothing due (Core)": {
-    "rows_read_max": 39,
-    "rows_written_max": 2
+    "rows_read_max": 50,
+    "rows_written_max": 4
+  },
+  "GET /v1/ops/meter (Core)": {
+    "rows_read_max": 15,
+    "rows_written_max": 5
+  },
+  "GET /v1/ops/meter?days=30 (Core)": {
+    "rows_read_max": 160,
+    "rows_written_max": 5
   },
   "POST /v1/memory/ops (1 add) (Core)": {
     "rows_read_max": 4,
@@ -228,7 +236,7 @@
     "rows_written_max": 0
   },
   "POST /v1/import/runs and its job: the same part again, no row changed (Core)": {
-    "rows_read_max": 70,
+    "rows_read_max": 90,
     "rows_written_max": 15
   },
   "PUT /v1/proposals/:id (a forget card) (Core)": {
@@ -292,8 +300,8 @@
     "rows_written_max": 0
   },
   "cron tick, resolving a prediction (Core)": {
-    "rows_read_max": 56,
-    "rows_written_max": 5
+    "rows_read_max": 58,
+    "rows_written_max": 7
   },
   "GET /v1/insight (Core)": {
     "rows_read_max": 62,

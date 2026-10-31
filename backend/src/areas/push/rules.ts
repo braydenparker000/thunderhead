@@ -5,8 +5,10 @@
 // deadline, then is dropped. While the owner has said "go quiet" (BEHAVIOR.md §8) no nudge is taken
 // or sent. Sign-in notices wait only for quiet hours to end; the owner's own test goes at once. A
 // reminder the owner set goes at its time: outside the 2 a day and the 2 h gap, with no natural
-// pause and through "go quiet", but never inside quiet hours. Pure: the context comes from Core,
-// the rows from Auth.
+// pause and through "go quiet", but never inside quiet hours. The day's quota push (database use
+// past 80% of the day's budget, areas/meter) is a system alarm and goes as a sign-in notice does:
+// outside the budget, through "go quiet", held only by quiet hours, and dropped at 00:00 UTC when
+// the quota starts again. Pure: the context comes from Core, the rows from Auth.
 import type { ErrorCode } from '../../../../shared/contract/errors';
 import { DAY, HOUR, MINUTE, ownerDay, zonedMinute } from '../../lib/time';
 import { inQuiet, type QuietWindow } from '../settings/quiet';
@@ -30,6 +32,17 @@ export interface PushContext {
   /** The reminders Core delivered whose push the outbox should hold (by the id of the line each
    * became; the same one offered again is already there). Absent from a Core before reminders. */
   reminders?: ReminderPush[];
+  /** The day's quota push, from 80% (its id is `quota-<UTC day>`, so it is held once a day). Absent
+   * below 80%, and from a Core before the meter. */
+  quota?: QuotaPush;
+}
+
+/** The day's quota push: its words, when Core offered it, and its deadline (00:00 UTC). */
+export interface QuotaPush {
+  id: string;
+  at: number;
+  until: number;
+  body: string;
 }
 
 /** A delivered reminder's push: when it was delivered and until when it may still go. */

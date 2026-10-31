@@ -4,10 +4,17 @@
 // cursor, so a step is all or nothing and a crash resumes from the stored cursor. A failure
 // retries after 1 min, 5 min, 30 min, 2 h, 12 h (or the handler's own limit), then fails the job.
 // Lane jobs share the bulk lane's 40,000 rows a day (DATA.md §8.3) and pause until 00:05 UTC past
-// it. `last_error` keeps a code and the error's name only, never a message that could hold data.
+// it. Lane jobs and heavy ones (the weekly backup) also pause until 00:00 UTC while the day's
+// database use is past 80% of its budget (areas/meter/quota.ts), checked between steps, so a drill
+// or a backup stops between two parts and goes on after midnight. Rows a step wrote in an object
+// no meter counts (the drill's scratch copy) are added to the day's meter, and the next step
+// checks again, so the drill's own writes stop it. `last_error` keeps a code and the error's name
+// only, never a message that could hold data.
 import { DAY, MINUTE, utcDay } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
+import { quotaHold } from '../meter/quota';
+import { addWritten } from '../meter/store';
 import * as settings from '../settings/store';
 import * as store from './store';
 
@@ -22,12 +29,16 @@ export interface JobHandler {
   kind: string;
   /** Uses the bulk lane and its cap. */
   lane: boolean;
+  /** Reads much (the weekly backup reads every row): waits, as lane jobs do, while the day's database
+   * use is past 80% of its budget. */
+  heavy?: boolean;
   /** Failures in a row before the job fails (default 6: five retries). */
   maxAttempts?: number;
   /** What the step needs from outside the object (R2), read before its transaction. */
   load(env: Env, db: Db, payload: unknown, cursor: unknown): Promise<unknown>;
   /** One all-or-nothing step: its writes, then the next cursor or done. `rows`: rows its load wrote
-   * elsewhere (another object), which the bulk lane counts too. */
+   * in an object no meter counts (the drill's scratch copy), which the bulk lane and the day's meter
+   * count too. */
   step(
     w: Writer,
     payload: unknown,
@@ -73,6 +84,9 @@ export function useLane(w: Writer, rows: number, now: number): void {
 export async function runJobs(host: JobHost, handlers: Record<string, JobHandler>, now = Date.now()): Promise<number> {
   const started = Date.now();
   let steps = 0;
+  // Today's hold, read once an alarm (at a lane or heavy job's first step) and again after a step
+  // that wrote where no meter counts, since those rows may be what passes 80%.
+  let hold: number | null | undefined;
   while (steps < STEPS_PER_ALARM && Date.now() - started < WALL_MS) {
     const job = store.firstDue(host.db, now);
     if (!job) break;
@@ -84,6 +98,14 @@ export async function runJobs(host: JobHost, handlers: Record<string, JobHandler
     if (h.lane && lane(host.db, now).rows >= LANE_ROWS_PER_DAY) {
       host.write((w) =>
         store.updateJob(w.db, job.id, { ...same(job), state: 'paused', due_at: nextLaneDay(now), rows: 0, at: now }),
+      );
+      continue;
+    }
+    if (h.lane || h.heavy) hold ??= quotaHold(host.db, now);
+    const until = h.lane || h.heavy ? hold : null;
+    if (until) {
+      host.write((w) =>
+        store.updateJob(w.db, job.id, { ...same(job), state: 'paused', due_at: until, rows: 0, at: now }),
       );
       continue;
     }
@@ -117,6 +139,10 @@ export async function runJobs(host: JobHost, handlers: Record<string, JobHandler
           at: now,
         });
         if (h.lane) useLane(w, rows, now);
+        if (r.rows) {
+          addWritten(w.db, utcDay(now), 'scratch', r.rows, now);
+          hold = undefined;
+        }
       }, now);
     } catch (e) {
       host.write((w) => retry(w, job, h, codeOf(e, 'step_failed'), now));

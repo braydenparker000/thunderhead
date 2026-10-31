@@ -248,7 +248,9 @@ test('surface, push (quiet hours exit 7), pending, health, errors', withFake({},
   fake.addOwnerMessage('are you there?');
   const p = await th(['pending'], e);
   assert.equal(p.json.unanswered.length, 1);
-  assert.equal((await th(['health'], e)).json.ok, true);
+  const h = (await th(['health'], e)).json;
+  assert.equal(h.ok, true);
+  assert.deepEqual([h.meter.read_pct, h.meter.written_pct, h.meter.pct, h.meter.hold_until], [25, 13, 25, null], 'the day\'s meter');
   assert.equal((await th(['health', '--deep'], e)).json.ok, true);
   assert.deepEqual((await th(['errors', '--hours', '1'], e)).json, {items: []});
 }));

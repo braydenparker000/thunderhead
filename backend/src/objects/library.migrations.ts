@@ -1,5 +1,6 @@
 // The Library object's schema (STUDY.md §1.1, DATA.md §6.3), apart so the deploy's readiness check
 // reads its newest step from one file (scripts/schema-version.mjs).
+import { METER_DAYS_SQL } from '../areas/meter/migrations';
 import type { Migration } from './base';
 
 export const LIBRARY_MIGRATIONS: Migration[] = [
@@ -100,5 +101,11 @@ export const LIBRARY_MIGRATIONS: Migration[] = [
       ) WITHOUT ROWID`,
       'CREATE INDEX ingest_jobs_state ON ingest_jobs (state, updated_at)',
     ],
+  },
+  {
+    version: 2,
+    name: 'meter_days',
+    kind: 'expand',
+    sql: [METER_DAYS_SQL],
   },
 ];

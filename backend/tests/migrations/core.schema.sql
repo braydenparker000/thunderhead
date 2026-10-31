@@ -284,6 +284,15 @@ CREATE INDEX messages_thread_seq ON messages (thread_id, seq);
 
 CREATE INDEX messages_waiting ON messages (seq) WHERE author = 'owner' AND answered_at IS NULL;
 
+CREATE TABLE meter_days (
+  day TEXT NOT NULL,
+  class TEXT NOT NULL,
+  rows_read INTEGER NOT NULL,
+  rows_written INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (day, class)
+  ) WITHOUT ROWID;
+
 CREATE TABLE mind_sessions (
   session_id TEXT PRIMARY KEY,
   role TEXT NOT NULL,

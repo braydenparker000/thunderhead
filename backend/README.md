@@ -16,7 +16,7 @@ Measurements, what matches the contract and the open findings are in
 | `src/app.ts` | API.md §10 order: request id + response headers → CORS → client version → body limits → per-route guard → route → onError. |
 | `src/http/` | `errors` + `codes` (API.md §6 envelope and statuses), `cors` (exact origins, 403 otherwise), `client-version` (`TH-Client`, 426), `auth` (token check, 60 s cache, `allow(...)` guards), `validate` (zod/mini, 422). |
 | `src/lib/` | `ids` (UUIDv7), `time`, `secrets` (`none` = absent), `cursor` (opaque page cursors). |
-| `src/objects/` | `base` (migrations, row meter, health), `auth`, `core` (thin RPC facades), `<class>.migrations.ts` (expand-only steps). |
+| `src/objects/` | `base` (migrations, health), `meter` (the row meter, kept per UTC day in each object's `meter_days`), `auth`, `core` (thin RPC facades), `<class>.migrations.ts` (expand-only steps). |
 | `src/areas/auth/` | `routes`, `schema`, `flows` (setup, login, recover), `common`, `account` (token checks, `/me`, notices, sessions, password), `agents`, `reset` (state, break-glass, tickets, cron), `tokens`, `crypto`, `passwords` (rules + HIBP), `throttle`, `store` + `store-keys` (all SQL). |
 | `src/areas/ops/`, `src/areas/settings/` | Health, deep health, error inbox, perf, meter; Core settings (`owner.tz`, `min_client`). |
 | `tests/unit/` | Pure rules: tokens and checksums, codes, back-off numbers, password rules, the HIBP client against a fake, source rules (no timers, env inventory, expand-only, ≤ 300 lines). |
@@ -72,7 +72,7 @@ npm 11 or later.
 | `POST /auth/breakglass/cancel` | device | void a reset ticket for good |
 | `GET /ops/health/deep` | device, agents, ci | schema, per-object ok, counts only |
 | `POST /ops/errors`, `GET /ops/errors`, `POST /ops/errors/:fp/resolve` | see API.md §13 | error inbox (≤ 50 items, 32 KB, scrubbed) |
-| `POST /ops/perf`, `GET /ops/meter` | device; device, agents, ci | daily perf summary; today's row counts |
+| `POST /ops/perf`, `GET /ops/meter` | device; device, agents, ci | daily perf summary; the stored per-day meter (a row per class and UTC day) and today's use against the day's budget |
 | `GET`/`PATCH /settings` | read: device + agents; write: device | `owner.tz` (private, set from the phone), `min_client` |
 
 Tokens: `th1_` (device), `thm_` (mind roles), `ths_` (Muse), `thc_` (CI), each followed by 43

@@ -14,6 +14,7 @@ import type { BackupOf } from '../areas/backups/ops';
 import { gzip, page, type Row } from '../areas/backups/rows';
 import { logicalDay } from '../areas/conversation/day';
 import { sha256 } from '../areas/import/vault';
+import { METER_DAYS_SQL } from '../areas/meter/migrations';
 import * as queries from '../areas/senses/queries';
 import * as store from '../areas/senses/store';
 import { checkEvent, msOf } from '../areas/senses/validate';
@@ -65,6 +66,12 @@ export const SENSES_MIGRATIONS: Migration[] = [
       ) WITHOUT ROWID`,
     ],
   },
+  {
+    version: 2,
+    name: 'meter_days',
+    kind: 'expand',
+    sql: [METER_DAYS_SQL],
+  },
 ];
 
 /** The one instance: the owner's. */
@@ -84,7 +91,7 @@ export const archiveKey = (day: string) => `senses/${day}.jsonl.gz`;
 
 export class Senses extends OwnerObject {
   constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env, SENSES_MIGRATIONS);
+    super(ctx, env, SENSES_MIGRATIONS, 'senses');
   }
 
   /** One sealed batch: its events stored with their day's rollups, in one transaction. The same

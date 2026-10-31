@@ -1,5 +1,6 @@
 // P5: the Senses object exists on its own (DATA.md §6.1): it migrates to its schema once, reports
-// its health like the other objects, and holds its four tables, empty, with the one events index.
+// its health like the other objects, and holds its four tables, empty, with the one events index,
+// beside the row meter's `meter_days`.
 
 import { runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
@@ -10,7 +11,7 @@ const senses = () => env.SENSES.get(env.SENSES.idFromName('owner')) as unknown a
 
 describe('the Senses object', () => {
   it('migrates once to its schema and reports its health', async () => {
-    expect(await senses().health()).toMatchObject({ schema: 1, expected: 1 });
+    expect(await senses().health()).toMatchObject({ schema: 2, expected: 2 });
     const names = (type: string) =>
       runInDurableObject(senses(), (_o, state) =>
         state.storage.sql
@@ -21,7 +22,7 @@ describe('the Senses object', () => {
           .toArray()
           .map((r) => r.name),
       );
-    expect(await names('table')).toEqual(['batches', 'events', 'exports', 'rollups']);
+    expect(await names('table')).toEqual(['batches', 'events', 'exports', 'meter_days', 'rollups']);
     expect(await names('index')).toEqual(['events_day_type']);
   });
 });

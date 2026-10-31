@@ -270,6 +270,8 @@ export function extraRoutes(ctl) {
       o.status = 'cancelled';
       return {status: 'cancelled'};
     }],
+    ['GET', /^\/v1\/ops\/meter$/, ALL, () => ({items: [], today: {day: '2026-10-31', rows_read: 1_200_000, rows_written: 9_000,
+      read_pct: 25, written_pct: 13, pct: 25, hold_until: null}})],
     ['GET', /^\/v1\/ops\/health\/deep$/, ALL, () => ({ok: true, version: {id: 'fake', tag: null}, errors_open: s.errors.length, wakes_today: s.wakes.length})],
     ['GET', /^\/v1\/ops\/errors$/, ALL, ({query}) => ({items: s.errors.filter(e => (e.last_at ?? e.at) >= (Number(query.get('since')) || 0)), next: null})],
   ];

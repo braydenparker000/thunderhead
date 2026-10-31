@@ -32,7 +32,7 @@ type R<T> = flows.Result<T>;
 
 export class Auth extends OwnerObject {
   constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env, AUTH_MIGRATIONS);
+    super(ctx, env, AUTH_MIGRATIONS, 'auth');
   }
 
   private get deps(): flows.AuthDeps {

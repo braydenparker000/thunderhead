@@ -28,7 +28,7 @@ export abstract class CoreBase extends OwnerObject {
   protected alarmAt: number | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env, CORE_MIGRATIONS);
+    super(ctx, env, CORE_MIGRATIONS, 'core');
     this.hub = new Hub(ctx);
     // Pings are answered by the runtime without waking the object (API.md §12).
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair('ping', 'pong'));

@@ -168,6 +168,8 @@ function draw(b) {
     }
   /** @type {HTMLElement[]} */
   const notes = [];
+  // The day's database use, from 60% of the free plan's daily limit (an answer from before has none).
+  if (b.quota) notes.push(el('p', { class: 'bmuse', text: b.quota }));
   if (b.muse) notes.push(el('p', { class: 'bmuse', text: b.muse }));
   if (!b.tiles.length) notes.push(el('p', { class: 'bmuse', text: 'I’ll arrange this page each night. Tomorrow it fills in.' }));
   if (hidden.length) {

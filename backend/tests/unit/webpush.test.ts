@@ -4,7 +4,7 @@
 // site as `sub`; only known push services are accepted. And the push rules (BEHAVIOR.md §3.4, VL-3)
 // on a fixed clock: 06:29 is quiet hours, a third nudge is over budget, 90 minutes is too soon, a
 // topic pushed in 14 days is a repeat; a nudge waits while a phone shows Thunderhead or the owner
-// just wrote; a sign-in notice waits only for quiet hours; a test always goes.
+// just wrote; a sign-in notice and the day's quota push wait only for quiet hours; a test always goes.
 import { describe, expect, it } from 'vitest';
 import { mayGo, type PushContext, refusal } from '../../src/areas/push/rules';
 import { QUIET_DEFAULT } from '../../src/areas/settings/quiet';
@@ -110,5 +110,11 @@ describe('push rules (VL-3)', () => {
     expect(mayGo('test', ctx(at(12, 0), quiet))).toBe(true);
     expect(refusal(ctx(at(14, 0), quiet), none)).toBeNull();
     expect(mayGo('nudge', ctx(at(14, 0), quiet))).toBe(true);
+  });
+
+  it('the day’s quota push is a system alarm: as a sign-in notice, it waits only for quiet hours', () => {
+    expect(mayGo('quota', ctx(at(5, 0)))).toBe(false);
+    expect(mayGo('quota', ctx(at(12, 0), { looking: true, owner_at: at(11, 59) }))).toBe(true);
+    expect(mayGo('quota', ctx(at(12, 0), { quiet_until: at(14, 0) }))).toBe(true);
   });
 });

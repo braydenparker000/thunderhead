@@ -3,6 +3,7 @@
 // (at most 4 times a day); for `th reflex`, which prints what to do about each tripped one; and for
 // CONTRACT.md. Each names the SLO it guards (OPERATIONS.md §8.1). A watchdog whose data arrives in
 // a later stage or phase says so in `deferred` and never runs until then.
+import { budgetAt, DAY_BUDGET, QUOTA_LEVELS } from './meter.ts';
 
 export type WatchdogSeverity = 'S2' | 'S3' | 'S4';
 
@@ -38,6 +39,9 @@ export const WATCHDOG_LIMITS = {
 
 const REPORT =
   'Report it: th say system --kind error "<what tripped, since when, what you checked, what you left>"';
+
+const n = (x: number) => x.toLocaleString('en-US');
+const QUOTA_HANDLE = `Read th health (the day's meter) and th get /v1/ops/meter days=2: which object reads or writes most, and since when. Change nothing: from 80% the backup, the drill, the bulk lane, the senses archive and the upload tools wait for 00:00 UTC on their own, and the owner gets one push. ${REPORT}.`;
 
 /** What a mind-reflex session does, in order; `th reflex` prints it with each tripped watchdog's
  * `handle` (mind/ROLES.md stays under 6,000 characters, so the procedure lives here). */
@@ -101,31 +105,29 @@ export const WATCHDOGS = {
     phase: 'P4',
   },
   'quota.rows_written': {
-    trips: "the account's rows written today ≥ 70,000",
+    trips: `rows written today by the five objects and a drill's scratch copy ≥ ${n(budgetAt(QUOTA_LEVELS.note, 'rows_written'))} (${QUOTA_LEVELS.note}% of the ${n(DAY_BUDGET.rows_written)} a day the Free plan leaves after the old Worker's share)`,
     severity: 'S3',
-    slo: 'Budgets: no Free-plan quota above 70% before 18:00 UTC',
+    slo: "Budgets: no day's Free-plan budget above 60%",
     wakes: true,
-    handle: REPORT,
+    handle: QUOTA_HANDLE,
     phase: 'P4',
-    deferred: 'a stored per-day meter (DATA.md §3): today the counts live in each isolate only',
   },
   'quota.rows_read': {
-    trips: 'rows read today ≥ 3,500,000',
+    trips: `rows read today across the five objects ≥ ${n(budgetAt(QUOTA_LEVELS.note, 'rows_read'))} (${QUOTA_LEVELS.note}% of the ${n(DAY_BUDGET.rows_read)} a day the Free plan leaves after the old Worker's share)`,
     severity: 'S3',
-    slo: 'Budgets: no Free-plan quota above 70% before 18:00 UTC',
+    slo: "Budgets: no day's Free-plan budget above 60%",
     wakes: true,
-    handle: REPORT,
+    handle: QUOTA_HANDLE,
     phase: 'P4',
-    deferred: 'a stored per-day meter (DATA.md §3)',
   },
   'quota.do_calls': {
-    trips: 'object calls today ≥ 70,000',
+    trips: "object calls today ≥ 60,000 (60% of the Free plan's 100,000 a day, the old Worker's share aside)",
     severity: 'S3',
-    slo: 'Budgets: no Free-plan quota above 70% before 18:00 UTC',
+    slo: "Budgets: no day's Free-plan budget above 60%",
     wakes: true,
     handle: REPORT,
     phase: 'P4',
-    deferred: 'a stored per-day meter (DATA.md §3)',
+    deferred: 'a count of object calls: an RPC reaches its method directly, so an object has no one place to count them',
   },
   'backup.stale': {
     trips: 'the newest complete backup is more than 8 days old (once one exists)',

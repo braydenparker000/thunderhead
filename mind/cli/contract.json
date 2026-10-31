@@ -2508,31 +2508,29 @@
         "phase": "P4"
       },
       "quota.rows_written": {
-        "trips": "the account's rows written today ≥ 70,000",
+        "trips": "rows written today by the five objects and a drill's scratch copy ≥ 40,800 (60% of the 68,000 a day the Free plan leaves after the old Worker's share)",
         "severity": "S3",
-        "slo": "Budgets: no Free-plan quota above 70% before 18:00 UTC",
+        "slo": "Budgets: no day's Free-plan budget above 60%",
         "wakes": true,
-        "handle": "Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\"",
-        "phase": "P4",
-        "deferred": "a stored per-day meter (DATA.md §3): today the counts live in each isolate only"
+        "handle": "Read th health (the day's meter) and th get /v1/ops/meter days=2: which object reads or writes most, and since when. Change nothing: from 80% the backup, the drill, the bulk lane, the senses archive and the upload tools wait for 00:00 UTC on their own, and the owner gets one push. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
+        "phase": "P4"
       },
       "quota.rows_read": {
-        "trips": "rows read today ≥ 3,500,000",
+        "trips": "rows read today across the five objects ≥ 2,880,000 (60% of the 4,800,000 a day the Free plan leaves after the old Worker's share)",
         "severity": "S3",
-        "slo": "Budgets: no Free-plan quota above 70% before 18:00 UTC",
+        "slo": "Budgets: no day's Free-plan budget above 60%",
         "wakes": true,
-        "handle": "Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\"",
-        "phase": "P4",
-        "deferred": "a stored per-day meter (DATA.md §3)"
+        "handle": "Read th health (the day's meter) and th get /v1/ops/meter days=2: which object reads or writes most, and since when. Change nothing: from 80% the backup, the drill, the bulk lane, the senses archive and the upload tools wait for 00:00 UTC on their own, and the owner gets one push. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
+        "phase": "P4"
       },
       "quota.do_calls": {
-        "trips": "object calls today ≥ 70,000",
+        "trips": "object calls today ≥ 60,000 (60% of the Free plan's 100,000 a day, the old Worker's share aside)",
         "severity": "S3",
-        "slo": "Budgets: no Free-plan quota above 70% before 18:00 UTC",
+        "slo": "Budgets: no day's Free-plan budget above 60%",
         "wakes": true,
         "handle": "Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\"",
         "phase": "P4",
-        "deferred": "a stored per-day meter (DATA.md §3)"
+        "deferred": "a count of object calls: an RPC reaches its method directly, so an object has no one place to count them"
       },
       "backup.stale": {
         "trips": "the newest complete backup is more than 8 days old (once one exists)",

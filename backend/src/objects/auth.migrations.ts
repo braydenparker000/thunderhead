@@ -1,6 +1,7 @@
 // Schema steps for the Auth object (DATA.md §5, §9). Expand-only; an entry never changes after
 // it ships. Tables are WITHOUT ROWID with the lookup key as primary key wherever that saves an
 // index: on the free plan every index entry is one more billed row write.
+import { METER_DAYS_SQL } from '../areas/meter/migrations';
 import type { Migration } from './base';
 
 export const AUTH_MIGRATIONS: Migration[] = [
@@ -119,5 +120,11 @@ export const AUTH_MIGRATIONS: Migration[] = [
         dropped_at INTEGER
       ) WITHOUT ROWID`,
     ],
+  },
+  {
+    version: 3,
+    name: 'meter_days',
+    kind: 'expand',
+    sql: [METER_DAYS_SQL],
   },
 ];

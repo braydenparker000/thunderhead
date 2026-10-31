@@ -206,10 +206,19 @@ export async function taint(argv) {
   out({tainted: data?.tainted ?? true});
 }
 
+/** `th health [--deep]`: the Worker's health and, as `meter`, today's database use against the day's
+ * budget (the Free plan's limits less the old Worker's share): `read_pct`, `written_pct`, `pct` and
+ * `hold_until` (00:00 UTC while the heavy work waits, from 80%). `meter` is null when it can't be read. */
 export async function health(argv) {
   const {flags} = parseArgs(argv, {bool: ['deep']});
   const {data} = await request('GET', flags.deep ? '/v1/ops/health/deep' : '/v1/health');
-  out(data);
+  let meter = null;
+  try {
+    meter = (await request('GET', '/v1/ops/meter', {query: {days: 1}, retry: false})).data?.today ?? null;
+  } catch {
+    // A key without the ops scope, or a Worker before the stored meter: the health stands alone.
+  }
+  out({...data, meter});
 }
 
 export async function errors(argv) {

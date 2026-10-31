@@ -44,7 +44,7 @@ const STEP = 2_000;
 
 export class Library extends OwnerObject {
   constructor(ctx: DurableObjectState, env: Env) {
-    super(ctx, env, LIBRARY_MIGRATIONS);
+    super(ctx, env, LIBRARY_MIGRATIONS, 'library');
   }
 
   private tx<T>(fn: () => T): Out<T> {

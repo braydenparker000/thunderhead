@@ -13,6 +13,7 @@ import * as ledger from '../ledger/store';
 import * as notes from '../memory/notes';
 import { renderProfile } from '../memory/profile';
 import * as facts from '../memory/store';
+import { quota, quotaBriefLine } from '../meter/quota';
 import * as ops from '../ops/store';
 import { lawsLine } from '../proposals/laws';
 import * as proposals from '../proposals/store';
@@ -83,6 +84,7 @@ export function assemble(
       .list(db)
       .filter((w) => w.state === 'tripped')
       .map((w) => ({ name: w.name, since: w.since ?? now, handled: w.handled?.outcome ?? null })),
+    quota: quotaBriefLine(quota(db, now)),
     rules: memory ? facts.currentFacts(db, ['rule'], RULES_READ) : [],
     threads: memory ? notes.openThreads(db, 'open', 60) : [],
     profile: memory ? renderProfile(current, now, tz).text : '',

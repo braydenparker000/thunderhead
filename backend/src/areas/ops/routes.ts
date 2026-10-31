@@ -15,11 +15,11 @@ import { cachedMinClient, rememberMinClient } from '../../http/client-version';
 import { ApiError } from '../../http/errors';
 import { json, parse } from '../../http/validate';
 import { decodeCursor, encodeCursor } from '../../lib/cursor';
-import { utcDay } from '../../lib/time';
 import { authObject } from '../../objects/auth';
 import { coreObject } from '../../objects/core';
 import { libraryObject } from '../../objects/library';
 import { musicObject } from '../../objects/music';
+import { fresh } from '../../objects/rpc';
 import { sensesObject } from '../../objects/senses';
 import { errorsBody, errorsQuery, meterQuery, perfBody, settingsPatch } from './schema';
 
@@ -91,6 +91,7 @@ export const opsRoutes = new Hono<AppEnv>()
         library: library.schema,
       },
       objects,
+      // Each object's day (UTC) as its meter keeps it: stored, plus what it hasn't written yet.
       meter_today: {
         rows_written:
           core.rows_written + auth.rows_written + music.rows_written + senses.rows_written + library.rows_written,
@@ -135,25 +136,11 @@ export const opsRoutes = new Hono<AppEnv>()
     await coreObject(c.env).putPerf(await json(c, perfBody));
     return c.body(null, 204);
   })
-  // P1 has no meter table yet: today's in-memory counts per class (DATA.md §3).
+  // The stored per-day meter (DATA.md §3): Core gathers every object's day first, then reads its
+  // meter_days, a row per class and day (API.md §11.16).
   .get('/ops/meter', guard('GET /v1/ops/meter'), async (c) => {
-    parse(meterQuery, c.req.query());
-    const [core, auth, music, senses, library] = await Promise.all([
-      coreObject(c.env).health(),
-      authObject(c.env).health(),
-      musicObject(c.env).health(),
-      sensesObject(c.env).health(),
-      libraryObject(c.env).health(),
-    ]);
-    const day = utcDay(Date.now());
-    const items = Object.entries({ core, auth, music, senses, library }).map(([cls, h]) => ({
-      day,
-      class: cls,
-      rows_written: h.rows_written,
-      rows_read: h.rows_read,
-      bulk_rows_written: 0,
-    }));
-    return c.json({ items } satisfies MeterResponse);
+    const q = parse(meterQuery, c.req.query());
+    return c.json((await fresh(coreObject(c.env).meterDays(q.days ?? 1))) satisfies MeterResponse);
   })
   .get('/settings', guard('GET /v1/settings'), async (c) => {
     return c.json((await coreObject(c.env).settings()) satisfies Settings);

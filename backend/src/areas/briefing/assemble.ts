@@ -1,6 +1,7 @@
 // The Briefing page's data (BRIEFING.md §2–§4, MUSE.md §9): the weather tile (weather.ts), "Waiting on you" from the decision
-// cards the owner can see now (a card held for quiet hours stays off it), the night shift's tiles
-// and Muse's line. Pure in `db`.
+// cards the owner can see now (a card held for quiet hours stays off it), the night shift's tiles,
+// Muse's line and, from 60% of a Free-plan daily limit, the day's database use (areas/meter). Pure
+// in `db`.
 import {
   type BriefingResponse,
   type NightTile,
@@ -11,6 +12,7 @@ import {
 import { WORK_LIMITS } from '../../../../shared/contract/work.ts';
 import { DAY, HOUR, wallMinute } from '../../lib/time';
 import type { Db } from '../../objects/base';
+import { quota, quotaLine } from '../meter/quota';
 import * as pstore from '../proposals/store';
 import * as surfaces from '../surfaces/store';
 import * as work from '../work/ops';
@@ -80,5 +82,6 @@ export function briefing(db: Db, c: { now: number; tz: string; day: string; weat
     weather: c.weather,
     tiles,
     muse: museLine(db, c.now),
+    quota: quotaLine(quota(db, c.now), c.tz),
   };
 }

@@ -10,7 +10,7 @@ import {
 } from '../../../../shared/contract/backups.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail } from '../../lib/result';
-import { DAY } from '../../lib/time';
+import { DAY, dayBefore } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
@@ -31,11 +31,13 @@ export const weeklyDue = (db: Db, day: string, minute: number) =>
   !store.backup(db, store.backupId(day, 'core')) &&
   !store.runningBackup(db);
 
-/** The month whose drill is due: the first Sunday's backup is complete and no drill ran yet. */
+/** The month whose drill is due: the first Sunday's backup is complete and no drill ran yet. On the
+ * Monday after too, for a backup that waited past midnight (a quota hold, jobs/runner.ts). */
 export function drillDue(db: Db, day: string): { month: string; backup: store.BackupRow } | null {
-  if (weekday(day) !== 0 || Number(day.slice(8)) > 7) return null;
-  const b = store.backup(db, store.backupId(day, 'core'));
-  const month = day.slice(0, 7);
+  const sunday = weekday(day) === 1 ? dayBefore(day) : day;
+  if (weekday(sunday) !== 0 || Number(sunday.slice(8)) > 7) return null;
+  const b = store.backup(db, store.backupId(sunday, 'core'));
+  const month = sunday.slice(0, 7);
   return b?.state === 'complete' && !store.drill(db, month) ? { month, backup: b } : null;
 }
 
