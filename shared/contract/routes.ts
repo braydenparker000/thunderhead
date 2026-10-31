@@ -81,6 +81,11 @@ export const ROUTES = {
     phase: 'P2',
     note: 'raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos, transcribed)',
   },
+  'POST /v1/dictate': {
+    who: D,
+    phase: 'P2',
+    note: 'a few seconds of voice (audio/*, ≤ 1 MiB) to Whisper; answers the words, keeps nothing',
+  },
   'GET /v1/files/:id': {
     who: ['D', 'C', 'N'],
     phase: 'P2',

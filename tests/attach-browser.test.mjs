@@ -201,6 +201,66 @@ test('a voice memo: the strip shows the level, × throws it away, Stop keeps it;
   await context.close();
 });
 
+test('dictation: hold the mic and the words fill the bar as you speak; let go to edit; a slip or a tap does not dictate', opts, async (t) => {
+  const fake = await launch(['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream']);
+  t.after(() => fake.close());
+  const context = await fake.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block', permissions: ['microphone'] });
+  const { page, errors, api } = await open({ b: fake, context });
+  const mic = await page.$('#mic');
+  const box = await mic.boundingBox();
+  const press = () => page.mouse.move(box.x + box.width / 2, box.y + box.height / 2).then(() => page.mouse.down());
+  const dictated = () => api.calls.filter((c) => c.call === 'POST /v1/dictate');
+
+  // The mic shows only on an empty bar (once there are words it is send), so a take starts empty.
+  await press();
+  await page.waitForSelector('#ask.listening #mic[aria-pressed="true"]');
+  assert.ok(await page.$eval('#edge', (e) => e.classList.contains('listen')), 'the edge shows the microphone is open');
+  // While the finger is down, the piece so far goes every 2 s and its words show at once.
+  await page.waitForFunction(() => /^words \d+$/.test(document.querySelector('#q').value), null, { timeout: 5000 });
+  assert.ok(await page.isVisible('#mic'), 'the mic stays under the finger while words arrive');
+  await page.mouse.up();
+  await page.waitForSelector('#ask:not(.listening):not(.finishing)');
+  // The last answer is the whole piece, sent once more when the finger lifts.
+  const n = dictated().length;
+  assert.ok(n >= 2, `${n} pieces sent`);
+  assert.equal(await page.inputValue('#q'), `words ${n}`);
+  assert.match(dictated()[0].body.type, /^audio\/(webm|ogg)/);
+  assert.ok(dictated().every((c) => c.body.bytes > 0));
+  assert.equal(await page.$('#edge.listen'), null, 'the microphone is closed');
+  assert.equal(await page.$('#ask.recording'), null, 'a hold is not a voice memo');
+  assert.equal(await page.getAttribute('#q', 'placeholder'), 'Ask anything');
+  assert.equal(await page.evaluate(() => document.activeElement?.id), 'q', 'ready to edit');
+  assert.ok(await page.isVisible('#ask .send'), 'send is back once the words are in');
+
+  // A slip of the finger (under 0.6 s of listening) keeps nothing and sends nothing.
+  await page.fill('#q', '');
+  await press();
+  await page.waitForSelector('#ask.listening');
+  await page.mouse.up();
+  await page.waitForSelector('.toast.show');
+  assert.match(await page.textContent('.toast'), /Too short\. Nothing was kept\./);
+  assert.equal(dictated().length, n);
+  assert.equal(await page.inputValue('#q'), '');
+
+  // When the Worker can't hear, the owner is told, and nothing lands in the bar.
+  api.state.chat.deaf = true;
+  await press();
+  await page.waitForTimeout(1200);
+  await page.mouse.up();
+  await page.waitForFunction(() => /Couldn.t hear that/.test(document.querySelector('.toast')?.textContent ?? ''));
+  assert.equal(await page.inputValue('#q'), '');
+  api.state.chat.deaf = false;
+
+  // A tap is still a voice memo.
+  await page.click('#mic');
+  await page.waitForSelector('#ask.recording .rec');
+  await page.click('.rec .rx');
+  await page.waitForSelector('#ask:not(.recording)');
+  // The one console line allowed: the 502 the deaf Worker answered on purpose.
+  assert.deepEqual(errors.filter((e) => !/status of 502/.test(e)), []);
+  await context.close();
+});
+
 test("what the Worker sends: a reply's photo opens full screen, files are rows, a memo shows its words, a reminder its line", opts, async () => {
   const ctx = await browser.newContext();
   const scratch = await ctx.newPage();

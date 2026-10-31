@@ -105,7 +105,7 @@ island's channel to the playing app (part 3).
 
 ## 8. Dictation and the small home features
 
-- **Dictation:** hold the mic and the words appear in the bar as you speak (short chunks to the
+- **Dictation** (built 2026-10-31, HOME.md §6.4): hold the mic and the words appear in the bar as you speak (short chunks to the
   Worker's own speech-to-text, the Whisper that writes up voice memos, never Google's); let go to
   edit, then send. A tap still records a voice memo.
 - **The catch-up line** (built 2026-10-31): when quiet ends, one line in the chat: "While you were

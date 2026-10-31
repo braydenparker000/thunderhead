@@ -1,10 +1,11 @@
 // /v1/files (HOME.md §4.6, API.md §11.7): a chat file's upload and its bytes. The bytes go into
 // the private bucket first and the row after, so a row never names missing bytes; they come back
 // only through this Worker, to a signed-in caller, never by a link. A voice memo gets its words
-// from Workers AI on the way in (transcribe.ts). Nothing here logs a name, a type or a word.
+// from Workers AI on the way in (transcribe.ts), and dictation's pieces get theirs back without
+// being kept (POST /v1/dictate). Nothing here logs a name, a type or a word.
 import { Hono } from 'hono';
-import type { FileResponse } from '../../../../shared/contract/files.ts';
-import { FILE_LIMITS } from '../../../../shared/contract/files.ts';
+import type { DictateResponse, FileResponse } from '../../../../shared/contract/files.ts';
+import { DICTATE_LIMITS, FILE_LIMITS } from '../../../../shared/contract/files.ts';
 import { type AppEnv, guard } from '../../http/auth';
 import { callerOf, idParam } from '../../http/caller';
 import { ApiError } from '../../http/errors';
@@ -15,7 +16,7 @@ import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 import { putOnce, sha256 } from '../import/vault';
 import { toAttachment } from './store';
-import { aiOf, transcribe } from './transcribe';
+import { aiOf, hear, transcribe } from './transcribe';
 import { fileKey, mediaType, memoSeconds, safeName, servingHeaders, unchanged } from './wire';
 
 const vaultOf = (env: Env): R2Bucket => {
@@ -24,6 +25,17 @@ const vaultOf = (env: Env): R2Bucket => {
   return v;
 };
 const SHA = /^[0-9a-f]{64}$/;
+/** How long a dictation piece waits for its words: the owner is watching the bar. */
+export const DICTATE_MS = 10_000;
+/** Pieces one isolate takes a minute: the phone sends about one every 2 s while the mic is held,
+ * so this only stops a runaway loop from spending the day's free Whisper on one isolate. */
+export const DICTATE_PER_MINUTE = 60;
+let minute = { start: 0, n: 0 };
+/** Seconds until this isolate takes another piece; 0 when it takes this one now. */
+const waitFor = (now = Date.now()): number => {
+  if (now - minute.start >= 60_000) minute = { start: now, n: 0 };
+  return ++minute.n <= DICTATE_PER_MINUTE ? 0 : Math.max(1, Math.ceil((minute.start + 60_000 - now) / 1000));
+};
 
 export const filesRoutes = new Hono<AppEnv>()
   .put('/files/:id', guard('PUT /v1/files/:id'), async (c) => {
@@ -60,6 +72,28 @@ export const filesRoutes = new Hono<AppEnv>()
     const f = { id, key, name, type, bytes: bytes.byteLength, sha256: sha, seconds, text };
     const out = value(await fresh(core.putFile(callerOf(c), f)));
     return c.json(out.file satisfies FileResponse, out.created ? 201 : 200);
+  })
+  // A piece of what the owner is saying, for its words now (HOME.md §6.4). Nothing is stored:
+  // not the audio, not the words, not a row. A failed hearing is 502, so the phone can tell it
+  // from silence ('').
+  .post('/dictate', guard('POST /v1/dictate'), async (c) => {
+    const type = mediaType(c.req.header('Content-Type'));
+    if (!type.startsWith('audio/')) throw new ApiError('validation', [{ path: 'Content-Type', issue: 'audio only' }]);
+    if (Number(c.req.header('Content-Length') ?? 0) > DICTATE_LIMITS.bytes) throw new ApiError('too_large');
+    const ai = aiOf(c.env);
+    if (!ai) throw new ApiError('not_configured');
+    const bytes = await c.req.arrayBuffer();
+    if (bytes.byteLength > DICTATE_LIMITS.bytes) throw new ApiError('too_large');
+    if (bytes.byteLength === 0) throw new ApiError('validation', [{ path: 'body', issue: 'nothing to hear' }]);
+    const wait = waitFor();
+    if (wait) throw new ApiError('rate_limited', undefined, { retry_after: wait, scope: 'account' });
+    let text: string;
+    try {
+      text = await hear(ai, bytes, type, DICTATE_MS);
+    } catch {
+      throw new ApiError('upstream');
+    }
+    return c.json({ text } satisfies DictateResponse);
   })
   .get('/files/:id', guard('GET /v1/files/:id'), async (c) => {
     const id = c.req.param('id') ?? '';

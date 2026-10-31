@@ -74,8 +74,17 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .send{background:var(--accent-text);color:#fff;opacity:0;transform:scale(.5);pointer-events:none}
 .ask.typing .send{opacity:1;transform:scale(1);pointer-events:auto}
 .ask.typing .mic{opacity:0;transform:scale(.5);pointer-events:none}
-.ask.listening .mic{background:var(--accent-text);color:#fff}
-.ask.listening textarea::placeholder{color:var(--accent-text)}
+/* dictation (HOME.md §6.4): held, the mic fills and breathes, and stays while the words arrive
+   (the bar is "typing" by then, which would swap it for send); let go, it pulses until the last
+   words land. The mic takes no touch gestures of its own, so a hold is never a scroll or a menu. */
+.mic{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.ask.listening .mic,.ask.finishing .mic{opacity:1;transform:scale(1);pointer-events:auto;background:var(--accent-text);color:#fff}
+.ask.listening .send,.ask.finishing .send{opacity:0;transform:scale(.5);pointer-events:none}
+.ask.listening .mic{animation:breathe 1.6s ease-in-out infinite}
+.ask.finishing .mic{animation:breathe .7s ease-in-out infinite;opacity:.7}
+@keyframes breathe{50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--accent-text) 22%,transparent)}}
+.ask.listening textarea::placeholder,.ask.finishing textarea::placeholder{color:var(--accent-text)}
+@media (prefers-reduced-motion:reduce){.ask.listening .mic,.ask.finishing .mic{animation:none}}
 /* compass: tight ring around the finger */
 .scrim{position:absolute;inset:0;z-index:8;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity .16s}
 .scrim.show{opacity:1}

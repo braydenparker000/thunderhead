@@ -35,6 +35,9 @@ export const MESSAGE_KINDS = Object.freeze(["text","voice","progress","card","qu
 /** @type {Readonly<typeof import('../../shared/contract/files.ts').FILE_LIMITS>} */
 export const FILE_LIMITS = Object.freeze({"bytes":26214400,"owner_per_message":4,"mind_per_message":10,"name":120,"memo_seconds":600});
 
+/** @type {Readonly<typeof import('../../shared/contract/files.ts').DICTATE_LIMITS>} */
+export const DICTATE_LIMITS = Object.freeze({"bytes":1048576,"piece_seconds":15,"take_seconds":120});
+
 /** @type {Readonly<typeof import('../../shared/contract/reminders.ts').REMINDER_LIMITS>} */
 export const REMINDER_LIMITS = Object.freeze({"text":200,"open":50,"days_ahead":400});
 

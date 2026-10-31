@@ -76,6 +76,16 @@ export async function mockApi(page, overrides = {}) {
       calls.at(-1).file = c.files[fileId];
       return route.fulfill({ status: 201, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify(f) });
     }
+    // Dictation: each piece answers "words <n>" (the n-th piece sent, so the newest is the
+    // highest), or `c.hear(n, bytes)`'s words; `c.deaf` makes it fail like a broken model. Nothing kept.
+    if (url.pathname === '/v1/dictate' && req.method() === 'POST') {
+      const bytes = (req.postDataBuffer() ?? Buffer.alloc(0)).length;
+      c.dictated.push({ type: req.headers()['content-type'], bytes });
+      calls.at(-1).body = { type: req.headers()['content-type'], bytes };
+      if (c.deaf) return route.fulfill({ status: 502, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify({ error: { code: 'upstream', message: 'no', request_id: 't' } }) });
+      const text = c.hear ? c.hear(c.dictated.length, bytes) : `words ${c.dictated.length}`;
+      return route.fulfill({ status: 200, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify({ text }) });
+    }
     if (fileId && req.method() === 'GET') {
       const f = c.files[fileId];
       if (!f) return route.fulfill({ status: 404, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify({ error: { code: 'not_found', message: 'no', request_id: 't' } }) });
@@ -125,6 +135,10 @@ function chatState(o = {}) {
     /** Reminders by id; `shiftTo` moves every new one's delivery there (quiet hours). */
     reminders: {},
     shiftTo: o.shiftTo ?? 0,
+    /** Dictation pieces sent (`{ type, bytes }`); `hear(n, bytes)` gives a piece's words; `deaf` fails them. */
+    dictated: [],
+    hear: o.hear ?? null,
+    deaf: false,
   };
 }
 

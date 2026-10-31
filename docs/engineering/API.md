@@ -379,6 +379,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | `POST /v1/mind/typing` | device | `{}` | `204` | May fire a pre-warm wake ([RUNTIME.md](../mind/RUNTIME.md)) |
 | `POST /v1/mind/stop` | device | `{}` | `204` | The owner taps Stop: setting `mind.stop`, the `stop` signal to a waiting chat mind (once), `TH-Stop: 1` on its say/status replies and `stop: true` in `GET /v1/mind/pending` until its next text reply or a new claim. Stop ends the work, not the session ([BEHAVIOR.md](../mind/BEHAVIOR.md)) |
 | `PUT /v1/files/:id` | device, `mind:chat` | raw bytes (`:id` a client UUIDv7); headers `Content-Type` (default `application/octet-stream`), `TH-File-Name` (URL-encoded, required), `TH-Sha256` (hex, required), `TH-Seconds` (audio only, optional) | `201 Attachment` (`{ref: 'file:<id>', name, type, bytes, seconds?, text?}`); `200` the same `Attachment` when the id is sent again with the same SHA-256 | Rules below. `409 conflict`: the id holds other bytes. `413`: over 25 MiB. `415`: a form body (`multipart/*`, `application/x-www-form-urlencoded`). `422`: a bad name, digest, memo length or id, an empty body, or the eval sandbox. `503 not_configured`: no `VAULT` binding |
+| `POST /v1/dictate` | device | raw audio (`Content-Type: audio/*`, ≤ 1 MiB, never empty): one piece of what the owner is saying (HOME.md §6.4) | `200 { text }`, the words heard, `''` for silence | Rule 8 below. `413`: over 1 MiB. `422`: not audio, or empty. `429 rate_limited`: over 60 pieces a minute on one isolate. `502 upstream`: Whisper failed or took over 10 s. `503 not_configured`: no `AI` binding |
 | `GET /v1/files/:id` | device, `mind:chat`, `mind:night` | — (`If-None-Match` optional; `?meta=1` for the record) | `200` the bytes, or with `?meta=1` the `Attachment` as JSON; `304` when `If-None-Match` names its ETag | `404` unless the file's row exists. Headers: its `Content-Type` and `Content-Length`, `ETag: "<sha256>"`, `Cache-Control: private, no-store` (a private file never outlives a sign-out in the browser's cache), `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, `Content-Disposition` (`inline` for `image/*`, `audio/*`, `video/*`, `application/pdf`, else `attachment`; `filename` in ASCII and `filename*` in UTF-8, RFC 5987). The bytes come only from here, never by a link ([SECURITY.md §9](SECURITY.md#9-presigned-media-urls)) |
 
 `PUT /v1/messages/:id` rules:
@@ -400,6 +401,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 5. **Voice memo words.** An `audio/*` upload with `TH-Seconds` (more than 0, at most 600) is sent to Workers AI Whisper (`@cf/openai/whisper-large-v3-turbo`, binding `AI`, as a stream with its type; once more as base64 if the stream form is refused) after it is stored, for at most 25 s, when it is at most 10 MiB (a 10-minute memo at the phone's 32 kbit/s is about 2.4 MB; a bigger one is kept without words); its words, trimmed and cut at 16,000 characters, are kept on the row and returned as `text`. No binding (`backend/wrangler.jsonc` declares `AI`; local runs and tests never reach it, `remoteBindings: false`), a failure, an empty answer or the deadline means no `text`; the upload still succeeds. `TH-Seconds` on another type is `422`.
 6. **The site's preflight.** §4 allows `TH-File-Name`, `TH-Sha256` and `TH-Seconds`.
 7. **Sandbox.** In the eval sandbox (`TH-Sandbox: eval`) the route answers `422`: the bucket is the owner's.
+8. **Dictation** (`POST /v1/dictate`, built 2026-10-31). The piece goes to the same Whisper as a voice memo (as a stream with its type, once more as base64 if refused) for at most 10 s, and its words come back trimmed and cut at 16,000 characters. Nothing is kept: no object, no row, no log of a word. A failure is `502` rather than `''`, so the phone can tell "couldn't hear" from silence. Limits are `DICTATE_LIMITS` (`shared/contract/files.ts`): a piece ≤ 1 MiB (the phone sends ≤ 15 s of 32 kbit/s Opus, about 60 KB), a take ≤ 120 s (the phone stops there). Each isolate takes at most 60 pieces a minute, so a runaway loop can't spend the day's free Whisper.
 
 ### 11.8 Mind
 
@@ -710,6 +712,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `PUT /v1/messages/:id` | D C (N R: `error` kind to the system thread) | P2 |
 | `PATCH /v1/messages/:id` | C | P2 |
 | `PUT /v1/files/:id` | D C | P2 |
+| `POST /v1/dictate` | D | P2 |
 | `GET /v1/files/:id` | D C N | P2 |
 | `GET /v1/search` | D C N | P2 |
 | `POST /v1/mind/brief`, `/status`, `/notes`, `/taint`; `GET /v1/mind/pending` | C N R | P2 |

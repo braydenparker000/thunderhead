@@ -175,7 +175,7 @@ Acceptance: a CI test greps workflow files for `upload-artifact`, `set -x`, `pri
 4. All tracks stop (`track.stop()`) when the feature closes, the capture ends, the page becomes hidden, or after 10 minutes without a tap (Guitar: 75 minutes, the practice block length) **[proposal: timeouts]**.
 5. No background recording, no wake word, no always-on listening, ever.
 6. Captures stay in memory until the owner sends them; discarding drops them. Sent captures go to `thunderhead-private/chat/files/` as sensitivity 1.
-7. Dictation with the ask bar's mic uses on-device speech recognition only (`processLocally: true` where the browser supports it). If the phone can't recognise on-device, the mic records a voice memo instead and says so; it never silently falls back to a cloud recogniser. **[proposal; test T24]**
+7. Dictation (holding the ask bar's mic, built 2026-10-31; the owner chose this in the agreed batch, NEXT-BATCH.md part 8) uses the Worker's own speech-to-text: short pieces go to `POST /v1/dictate`, which hands them to Workers AI Whisper, the same as voice memos, and answers the words. Nothing is kept on the Worker: no audio, no words, no row. Never the browser's own recogniser (Chrome's Web Speech API sends audio to Google). The microphone is open only while the finger is down: letting go, the page hidden or two minutes stop it; a take under 0.6 s is thrown away unsent. The words land in the bar, and go anywhere only if the owner sends them.
 8. The mind cannot turn on the camera or mic, and no verb exists for it.
 
 Built for the `+` sheet (2026-10-30): Camera is the phone's own camera app through a file input, so this page never holds a camera track. Voice memo opens the microphone on the tap, shows its strip and the edge's listening glow while open, and stops every track when it is kept, thrown away, reaches 10 minutes, or the page is hidden (what was recorded until then is kept). Photos are redrawn on the phone before upload, which drops their location and other EXIF data; an image the phone can't decode goes as it is, and a toast says it keeps any location data in it. A chat file the Worker serves is never stored in the browser's cache (`Cache-Control: private, no-store`); the page keeps what it showed in memory until it closes. A browser test covers the hidden page with Chrome's fake microphone.
@@ -244,7 +244,7 @@ Acceptance: delete a message on fixtures, take a backup, restore an older backup
 
 | # | Question | How to settle |
 |---|---|---|
-| T24 | Does the owner's Chrome support on-device speech recognition for the languages the owner uses? | Feature-detect on the phone at P2; if not, the mic records voice memos |
+| T24 | ~~On-device speech recognition~~ Settled 2026-10-31: dictation uses the Worker's Whisper (rule 7.7), not the browser's | Check the owner's second language with Whisper on the phone |
 | T25 | Can the service worker always fetch notification text before showing it (time limit on Android)? | Push test at P8; fallback text is already generic |
 | T26 | Is Azure Storage analytics logging off by default on the new account? | Owner checks Monitoring → Diagnostic settings on the account |
 | T27 | Which weather provider, and does its terms allow personal use at $0? | Writer of BRIEFING.md decides; record in decisions.md |

@@ -20,6 +20,7 @@ import { decisions } from '../decide/state.js';
 import { cache, OUTBOX_BYTES, OUTBOX_MAX, outbox } from './store.js';
 import { picked, take } from '../attach/state.js';
 import { createView } from './view.js';
+import { wireMic } from '../dictate/mic.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').TodayResponse} TodayResponse */
 /** @typedef {import('../../../shared/contract/api.ts').MindPresence} MindPresence */
@@ -452,12 +453,8 @@ export async function startChat() {
     delete b.dataset.toast;
     b.addEventListener('click', () => sheet().then((s) => s.act(b.dataset.act), () => toast("That didn't load. Try again.")));
   }
-  // The mic records a voice memo (audit fix 3: it only pretended to listen; spoken input itself is
-  // not built, owner's choice). Capture phase, so home.js's signed-out toast never runs.
-  $('#mic').addEventListener('click', (e) => {
-    e.stopImmediatePropagation();
-    sheet().then((s) => s.act('memo'), () => toast("That didn't load. Try again."));
-  }, true);
+  // The mic: a tap records a voice memo; a hold dictates into the bar (th/dictate, HOME.md §6.4).
+  wireMic({ mic: $('#mic'), ask, q, memo: () => sheet().then((s) => s.act('memo'), () => toast("That didn't load. Try again.")) });
 
   // What a command will do, shown before it goes: only where this phone knows exactly (the quiet
   // orders and th/commands, which it carries out itself, HOME.md §6).

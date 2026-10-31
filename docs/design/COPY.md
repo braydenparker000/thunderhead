@@ -206,6 +206,11 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `memo.cancel` | Throw the memo away | `aria-label` of × while recording (built) |
 | `toast.memo.mic` | Allow the microphone to record a memo. | Microphone refused (built) |
 | `toast.memo.short` | Too short to keep. | Under a second (built) |
+| `mic.label` | Voice memo, or hold to dictate | `aria-label` of the ask bar's mic (built 2026-10-31) |
+| `dictate.listening` | Listening… | The bar's placeholder while the mic is held (built) |
+| `toast.dictate.short` | Too short. Nothing was kept. | Let go under 0.6 s after listening began (built) |
+| `toast.dictate.mic` | Allow the microphone to dictate. | Microphone refused on a hold (built) |
+| `toast.dictate.deaf` | Couldn't hear that. Try again, or tap the mic for a voice memo. | No piece came back with words (built) |
 | `toast.file.big` | <name> is over 25 MB. | File too large (built) |
 | `toast.attach.max` | Up to 4 at a time. | 5th attachment (built) |
 | `toast.attach.load` | That didn't load. Try again. | The sheet's code couldn't load (built) |

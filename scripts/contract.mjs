@@ -75,6 +75,9 @@ export const MESSAGE_KINDS = Object.freeze(${j(c.MESSAGE_KINDS)});
 /** @type {Readonly<typeof import('../../shared/contract/files.ts').FILE_LIMITS>} */
 export const FILE_LIMITS = Object.freeze(${j(c.FILE_LIMITS)});
 
+/** @type {Readonly<typeof import('../../shared/contract/files.ts').DICTATE_LIMITS>} */
+export const DICTATE_LIMITS = Object.freeze(${j(c.DICTATE_LIMITS)});
+
 /** @type {Readonly<typeof import('../../shared/contract/reminders.ts').REMINDER_LIMITS>} */
 export const REMINDER_LIMITS = Object.freeze(${j(c.REMINDER_LIMITS)});
 

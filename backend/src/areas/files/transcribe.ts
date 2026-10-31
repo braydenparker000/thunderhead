@@ -29,9 +29,29 @@ export const aiOf = (env: unknown): Transcriber | null => {
 const words = (out: unknown): string | null => {
   const text = (out as { text?: unknown } | null)?.text;
   if (typeof text !== 'string') return null;
-  const kept = [...text.trim()].slice(0, TEXT_MAX).join('').trim();
-  return kept || null;
+  return [...text.trim()].slice(0, TEXT_MAX).join('').trim();
 };
+
+/** The words in `bytes`, `''` when none were heard. Throws when the model fails, answers no
+ * words field or the deadline passes: dictation tells "nothing heard" from "couldn't hear". */
+export async function hear(ai: Transcriber, bytes: ArrayBuffer, type: string, ms: number): Promise<string> {
+  const deadline = AbortSignal.timeout(ms);
+  const late = new Promise<never>((_, reject) => {
+    deadline.addEventListener('abort', () => reject(new Error('timeout')), { once: true });
+  });
+  late.catch(() => undefined); // the deadline may pass after the words came: nobody waits then
+  const run = async (audio: unknown) => {
+    const text = words(await Promise.race([ai.run(WHISPER, { audio }, { signal: deadline }), late]));
+    if (text === null) throw new Error('no words field');
+    return text;
+  };
+  try {
+    return await run({ body: new Blob([bytes]).stream(), contentType: type });
+  } catch (e) {
+    if (deadline.aborted) throw e;
+  }
+  return run(Buffer.from(bytes).toString('base64'));
+}
 
 /** The memo's words, or null. Never throws. */
 export async function transcribe(
@@ -41,19 +61,8 @@ export async function transcribe(
   ms = TRANSCRIBE_MS,
 ): Promise<string | null> {
   if (!ai || bytes.byteLength > TRANSCRIBE_BYTES) return null;
-  const deadline = AbortSignal.timeout(ms);
-  const late = new Promise<never>((_, reject) => {
-    deadline.addEventListener('abort', () => reject(new Error('timeout')), { once: true });
-  });
-  late.catch(() => undefined); // the deadline may pass after the words came: nobody waits then
-  const run = (audio: unknown) => Promise.race([ai.run(WHISPER, { audio }, { signal: deadline }), late]);
   try {
-    return words(await run({ body: new Blob([bytes]).stream(), contentType: type }));
-  } catch {
-    if (deadline.aborted) return null;
-  }
-  try {
-    return words(await run(Buffer.from(bytes).toString('base64')));
+    return (await hear(ai, bytes, type, ms)) || null;
   } catch {
     return null;
   }

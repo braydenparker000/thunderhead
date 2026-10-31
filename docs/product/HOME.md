@@ -294,25 +294,24 @@ Closing: tap `+` again, tap anywhere outside, pick an item, Back, or Escape. Bef
 
 ### 6.4 The mic (dictation)
 
-**Built 2026-10-31 (audit fix 3):** the mic records a voice memo (the + sheet's Voice memo); it no longer pretends to listen. Spoken input itself stays unbuilt (the owner ruled it out for now); the table below is the later design.
-
-Decided: ears work only when the owner switches them on.
+**Built 2026-10-31 (NEXT-BATCH.md part 8; `th/dictate/dictate.js`, `POST /v1/dictate`).** A **tap** on the mic records a voice memo (the + sheet's Voice memo, §6.2). A **hold** (longer than 280 ms) dictates: the words appear in the bar as they are said; let go and they stay there to edit, then send. The mic shows only on an empty bar (once there are words it is send), so a take starts empty.
 
 | State | Looks like | Notes |
 |---|---|---|
-| Off | Mic icon, `--ink-2` | |
-| Listening | Mic button filled `--accent-fill`, white icon; input shows the placeholder "Listening…" in accent (the one placeholder the bar ever shows); edge light **listening**; haptic 18 ms | Toast: "Listening. Tap again to stop" |
-| Transcribing [proposal] | Spinner in the mic slot; "…" in the input | On-device speech recognition only ([PRIVACY](../engineering/PRIVACY.md) §7.7); if the phone can't, the mic records a voice memo instead and says so |
-| Done | The text lands in the input for the owner to check and send | Toast on stop: "Stopped. Nothing is kept unless you send it" |
+| Off | Mic icon, `--ink-2` | `aria-label` "Voice memo, or hold to dictate" |
+| Listening (finger down) | The mic filled `--accent-text`, white icon, breathing (a soft ring every 1.6 s; still under reduced motion); placeholder "Listening…" in accent; edge light **listening**; haptic 18 ms; send stays hidden while the words arrive | The words so far replace the bar's text every ~2 s |
+| Finishing (finger up) | The mic pulses faster at 70 %; placeholder "…" | The last piece goes once more, whole; its words are the ones kept |
+| Done | The words in the bar, the caret in it; send shows | Nothing is sent until the owner sends it |
+
+How it hears: the voice goes in pieces of at most **15 s**, each its own recording (so each is a whole file). While a piece grows, it goes to the Worker every 2 s for the words so far; when it ends (at 15 s, or on letting go) it goes once more, whole. The Worker hands it to the same Whisper that writes up voice memos and answers the words, keeping nothing (API.md §11.7 rule 8; PRIVACY.md §7.7). An answer that comes back after a newer one for the same piece is ignored.
 
 Limits and rules:
 
 - Max **120 s** per take; at 120 s it stops by itself (haptic 8 ms).
-- A take under **0.6 s** is discarded with the toast "Too short. Nothing was kept."
-- Leaving the page, locking the phone or opening another app **stops** listening immediately.
-- Permission denied: toast "The mic is blocked. Allow it in Chrome's site settings." The mic stays visible.
-- Offline: tap shows "Voice needs a connection. Voice memos work offline." Nothing records.
-- Phase: speech-to-text is a later phase (Workers AI voice was deferred for v1); until it ships, tapping the mic does not listen; it shows the toast "Voice comes later. Type for now." [proposal] (The first build lights the listening state as a demo; that goes once sign-in ships.)
+- Let go under **0.6 s** after listening began: nothing is sent, "Too short. Nothing was kept."
+- A refused microphone: "Allow the microphone to dictate." No piece came back with words (the Worker couldn't hear): "Couldn't hear that. Try again, or tap the mic for a voice memo."; the bar keeps what it had.
+- Leaving the page, locking the phone or opening another app **stops** listening immediately; the words heard so far stay.
+- Offline: the pieces fail, so the take ends with "Couldn't hear that…"; a tap's voice memo still works offline (it waits in the outbox).
 
 ### 6.5 Keyboard on Android
 
@@ -435,4 +434,4 @@ Built 2026-10-31: the counters below are kept on this phone (`th-hint`); the hin
 | Cold-reply latency (estimated 20–60 s) and the "Waking up…" timings | Measure 10+ cold wakes (mind research test 1) and tune 8 s / 60 s. |
 | Does `interactive-widget=resizes-content` keep the bar above the keyboard in the installed app on the A15? | Device test. |
 | Should the night shift's home line rotate during the day (several lines) or stay one line? This doc allows one per day. | Owner preference after a week. |
-| Speech-to-text: Workers AI Whisper (free tier) vs Chrome's on-device recognition | Test both on the A15 for English and second-language accuracy; on-device keeps audio on the phone. |
+| Speech-to-text: Workers AI Whisper (free tier) vs Chrome's on-device recognition | Settled 2026-10-31 (owner, NEXT-BATCH.md part 8): the Worker's Whisper, never Google's. Still to check: the second language on the A15. |

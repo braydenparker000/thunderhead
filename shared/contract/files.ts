@@ -16,6 +16,22 @@ export const FILE_LIMITS = {
   memo_seconds: 600,
 } as const;
 
+/** Dictation (HOME.md §6.4, `POST /v1/dictate`): the owner holds the mic and a few seconds of
+ * voice at a time go to the Worker's Whisper for the words, which are answered and never kept. */
+export const DICTATE_LIMITS = {
+  /** One piece, in bytes: 15 s of the phone's 32 kbit/s Opus is about 60 KB. */
+  bytes: 1024 * 1024,
+  /** A piece, in seconds: the phone starts the next piece here, so each one is sent whole. */
+  piece_seconds: 15,
+  /** One take, in seconds: the phone stops listening here. */
+  take_seconds: 120,
+} as const;
+
+/** `POST /v1/dictate` answers the words heard, `''` when there were none. */
+export interface DictateResponse {
+  text: string;
+}
+
 /** Who uploaded a file: a device is the owner, `mind:chat` the mind. A message takes only files
  * its own kind of author uploaded. */
 export type FileUploader = 'owner' | 'mind';
