@@ -71,16 +71,34 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 1. P9's clocks: predictions from the next night; Sunday 2026-11-01 is the first weekly improvement. Then IDEAS.md's next agreed items.
 2. P8: its done-when is its 7-day clocks, then the old Worker's retirement proposal; the Workers AI router waits for its eval set (RT-100, RA-P8-03).
-3. Owner: Muse's test song for N4 (the key is accepted, 2026-10-31), M2, M4 from 2026-11-05 (M3 cut); one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
+3. The open fix list below, in its order. Owner: M2, M4 from 2026-11-05 (M3 cut); one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
 
 ## Blocked / waiting on the owner
 
 - SETUP.md M2 (batch D is live). M3 is cut (owner, 2026-10-31: no Muse Daily Board).
 - Study needs no owner step to read books any more (O1 dropped).
 - SETUP.md O2 (the owner's scripture volumes added in Study, then the mind builds the table and text): verses need it.
-- SETUP.md N1 and N2 are done (owner, 2026-10-30; N2's CORS rule checked through the read-only token, exactly as written; r2.dev access is "Not allowed", RA-P5-02). N3 is done (the owner, by 2026-10-31; the new catalog answers with 11,939 tracks); nothing was uploaded since, so no second import is needed. Its clean-up is open: the `import-once` key still answers and must be revoked, and its network secret removed (SETUP.md L3.3). N4 goes through Muse, which does the owner's uploads: the message for Muse is MUSE-UPLOADS.md (Muse makes the key, the owner pastes its public key). The owner playing a song in Music is N1's real check.
+- SETUP.md N1 and N2 are done (owner, 2026-10-30; N2's CORS rule checked through the read-only token, exactly as written; r2.dev access is "Not allowed", RA-P5-02). N3 is done (the owner, by 2026-10-31; the new catalog answers with 11,939 tracks); nothing was uploaded since, so no second import is needed. Its clean-up: the owner is revoking the `import-once` key (2026-10-31); its network secret goes too (SETUP.md L3.3). N4 is done (2026-10-31): Muse made its key, the Worker accepts it, and Muse's signed test upload registered (`duplicate: true`, the song was already there; the catalog stays 11,939). The owner played a song in Music (N1's real check).
 - The decision card: options A (quiet card), B (in his voice) and C (docked above the bar) sent 2026-10-30, drawn in the real home page; unchanged until the owner picks.
 - Azure's error document (SETUP.md step 7): the live site answers a missing page with Azure's own "WebContentNotFound" page, not ours. Storage account → Data management → Static website → Error document path: `404.html` → Save.
+
+## Open fix list (fresh-eyes audit, 2026-10-31)
+
+In order; file and line are where each starts. Verify each live after its deploy.
+
+1. All conversations can't scroll: the old page build, no `.sscroll`, a text back button (th/convos/menu.js, `allPage`).
+2. When today fails to load, the first-run greeting shows and a sent message vanishes (th/chat/index.js:93, 295-296).
+3. The microphone pretends to listen (apps/home/home.js:75-77): HOME.md §6.4's toast "Voice comes later. Type for now." or start a memo.
+4. Quiet hours and Connected apps say "comes with sign-in" and "soon" (index.html:86, 89; boot.js:38).
+5. Focus reaches hidden controls; no button path to the ring, the Briefing or the menu (inert, GESTURES §9's hidden buttons, the Briefing's back).
+6. "Muse is connected to the new Worker." is jargon (briefing/assemble.ts, `museLine`).
+7. Study's empty-state plus icon draws at 40 px (study.css:70, `.empty > .i`).
+8. The Ask-about quote covers the conversation's end (reply/tools.css:12).
+9. Tap targets under 44 px.
+10. Offline is announced three times (drop the pill's or the date's).
+11. Polish: the arrange row doesn't mark its tile; search rows cut the title instead of the date; ported apps' titles ("Claude Player", "· Jarvis") need the owner's yes; the gesture hint never retires; My Media shows raw JSON on an error (media/app.js:925); Remind's picker uses the locale's format and can default into quiet hours.
+
+Half-built, after the list: long-press Continue/Rename/Delete (Delete as a proposal); per-app icons in the conversation list; upload progress after a reload; Download everything with file bytes; a monthly tidy-up of unsent files (ask before deleting); restore as proposals after Sunday's drill; a docs drift pass; speed measured on the A15.
 
 ## Last deploy
 
@@ -145,6 +163,9 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 - 2026-10-29: the mind key (`mind-chat`, role Mind · chat) reaches `/v1/ops/health/deep` from a `th-chat` session (HTTP 200).
 
 ## Notes for the next session
+
+- Owner choices from 2026-10-30/31 (the research pack and picks page): don't act on any pick until the owner says so. Ruled out for now: real voice input, haptics everywhere, a smooth theme change, a sunrise/sunset theme, the voice and sound ideas, "your actual sky" and sky events. The mind still never picks Astra streams by itself (the owner marked that limit "lift": discuss before any change). The owner has no home computer, so home-server ideas don't apply. $0 beyond Max; password-only sign-in stays.
+- The 2026-10-31 deploy of the Board cut (33d96fe, run #98) was cancelled by a voice memo test that failed and hung; 4067f73 fixed the cause (the meter's window) and the hang, and carries the Board cut with it.
 
 - Setup instructions for the owner: ready-to-paste values only, one exact place per step (page, tab, secret or variable, repository or environment), a screenshot first for screens the agent cannot see, and verify each step before the next.
 
