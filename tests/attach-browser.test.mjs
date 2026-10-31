@@ -243,6 +243,9 @@ test("what the Worker sends: a reply's photo opens full screen, files are rows, 
 test('Remind me: the words in the bar, a quick time, the toast and its Undo; a time in quiet hours says so', opts, async () => {
   const { page, context, errors, api } = await open();
   await page.fill('#q', 'Call the bank');
+  // Taken before the sheet opens: it works out "In 1 hour" as it opens (to the minute), so a moment
+  // taken after could land a few ms past a minute's turn and the time look early (a CI flake).
+  const before = Date.now();
   await page.click('#plus');
   await page.click('#opts [data-act="remind"]');
   await page.waitForSelector('.remind.in');
@@ -250,7 +253,6 @@ test('Remind me: the words in the bar, a quick time, the toast and its Undo; a t
   const labels = await page.$$eval('.remind .rwhen button', (b) => b.map((x) => x.textContent));
   assert.equal(labels[0], 'In 1 hour');
   assert.equal(labels.at(-1), 'Pick a time');
-  const before = Date.now();
   await page.click('.remind .rwhen button:first-child');
   await eventually(() => api.calls.filter((c) => c.call.startsWith('PUT /v1/reminders/')).length, 1);
   const put = api.calls.find((c) => c.call.startsWith('PUT /v1/reminders/'));
