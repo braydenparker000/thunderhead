@@ -40,12 +40,31 @@ export async function present(f) {
   return bytes ? (sha(bytes) === f.sha256 ? 'ok' : 'wrong') : 'missing';
 }
 
+/** A fetch that tries again after 2, 4 and 8 seconds when the network drops it (a reset connection,
+ * a timeout, a 5xx), so one hiccup at Fontshare doesn't fail a check or a deploy. A 4xx is final.
+ * @param {string} url @param {number} ms @param {number} [tries] @returns {Promise<Response>} */
+export async function patient(url, ms, tries = 4, wait = (/** @type {number} */ n) => new Promise((r) => setTimeout(r, n)), get = fetch) {
+  for (let i = 1; ; i++) {
+    try {
+      const res = await get(url, { signal: AbortSignal.timeout(ms) });
+      if (res.status < 500 || i >= tries) return res;
+      console.warn(`${url}: Fontshare answered ${res.status}, trying again`);
+    } catch (e) {
+      if (i >= tries) throw e;
+      console.warn(`${url}: ${/** @type {Error} */ (e).cause ?? e}, trying again`);
+    }
+    await wait(2000 * 2 ** (i - 1));
+  }
+}
+
 /** Gets one face from Fontshare and writes it if it is the pinned file. @param {(typeof FONTS)[number]} f */
 async function fetchFont(f) {
-  const css = await (await fetch(f.css, { signal: AbortSignal.timeout(20_000) })).text();
+  const sheet = await patient(f.css, 20_000);
+  if (!sheet.ok) throw new Error(`${f.file}: Fontshare's CSS answered ${sheet.status}`);
+  const css = await sheet.text();
   const url = /url\('(\/\/cdn\.fontshare\.com\/[^']+\.woff2)'\)/.exec(css)?.[1];
   if (!url) throw new Error(`${f.file}: Fontshare's CSS names no woff2`);
-  const res = await fetch(`https:${url}`, { signal: AbortSignal.timeout(30_000) });
+  const res = await patient(`https:${url}`, 30_000);
   if (!res.ok) throw new Error(`${f.file}: Fontshare answered ${res.status}`);
   const bytes = new Uint8Array(await res.arrayBuffer());
   if (sha(bytes) !== f.sha256) throw new Error(`${f.file}: Fontshare's file changed (sha256 ${sha(bytes)}); check it, then pin the new one in scripts/fonts.mjs`);
