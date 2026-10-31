@@ -61,13 +61,13 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 @media (hover:hover){.ghead:hover{background:color-mix(in srgb,var(--ink) 5%,transparent)}}
 .gl{flex:1;min-width:0;font:300 26px/1.15 var(--ui);letter-spacing:-.015em;color:var(--ink)}
 .gn{min-width:22px;height:20px;padding:0 7px;border-radius:10px;display:grid;place-items:center;font:700 10.5px var(--ui);font-variant-numeric:tabular-nums;color:var(--ink-3);background:color-mix(in srgb,var(--ink) 6%,transparent)}
-.chev{width:13px;height:13px;fill:var(--ink-3);transform:rotate(90deg);transition:transform .34s var(--spring)}
+.chev{width:13px;height:13px;fill:var(--ink-3);transform:rotate(90deg);transition:transform .34s var(--settle)}
 .cg.closed .chev{transform:none}
-.gbody{display:grid;grid-template-rows:1fr;transition:grid-template-rows .36s cubic-bezier(.2,.8,.2,1)}
+.gbody{display:grid;grid-template-rows:1fr;transition:grid-template-rows .36s var(--settle)}
 .cg.closed .gbody{grid-template-rows:0fr}
 .gin{min-height:0;overflow:hidden;visibility:visible;transition:visibility 0s}
 .cg.closed .gin{visibility:hidden;transition:visibility 0s .36s}
-.gin>.row{transition:background .15s,transform .34s cubic-bezier(.2,.8,.2,1) calc(var(--i,0) * 26ms),opacity .26s calc(var(--i,0) * 26ms)}
+.gin>.row{transition:background .15s,transform .34s var(--settle) calc(var(--i,0) * 26ms),opacity .26s calc(var(--i,0) * 26ms)}
 .cg.closed .gin>.row{opacity:0;transform:translateY(-8px);transition-delay:0s}
 .row.all{margin-top:6px}
 .allconvos .alllead{margin:0 2px 8px;font:500 14px/1.4 var(--ui);color:var(--ink-3)}

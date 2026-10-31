@@ -30,7 +30,7 @@
 .rstop{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:#e0457b;color:#fff;display:grid;place-items:center;cursor:pointer}
 
 /* Remind me: a small sheet over the bar */
-.remind{position:absolute;z-index:8;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));padding:14px 14px 16px;border-radius:var(--r-xl);background:var(--sheet);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);border:1px solid var(--glass-line);box-shadow:0 24px 50px -22px rgba(10,20,40,.4);transform:translateY(14px) scale(.96);transform-origin:24px 100%;opacity:0;transition:transform .3s cubic-bezier(.34,1.3,.64,1),opacity .18s}
+.remind{position:absolute;z-index:8;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));padding:14px 14px 16px;border-radius:var(--r-xl);background:var(--sheet);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);border:1px solid var(--glass-line);box-shadow:0 24px 50px -22px rgba(10,20,40,.4);transform:translateY(14px) scale(.96);transform-origin:24px 100%;opacity:0;transition:transform .3s var(--settle),opacity .18s}
 .remind.in{transform:none;opacity:1}
 .rhead{display:flex;align-items:center;justify-content:space-between;font:700 16px var(--ui);color:var(--ink)}
 .rhead span::before{content:'';display:inline-block;width:8px;height:8px;margin-right:8px;border-radius:50%;background:#e08a1e;vertical-align:2px}

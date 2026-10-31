@@ -85,7 +85,7 @@ select.sedit{appearance:auto}
 /* Export: the bar while everything is gathered (MENU-AND-SETTINGS.md §4.9) */
 .xbar{height:6px;margin-top:18px;border-radius:3px;overflow:hidden;background:color-mix(in srgb,var(--ink) 9%,transparent)}
 .xstat{margin-top:10px}
-.xbar span{display:block;height:100%;width:var(--p,0%);border-radius:3px;background:var(--accent-fill);transition:width .5s var(--spring)}
+.xbar span{display:block;height:100%;width:var(--p,0%);border-radius:3px;background:var(--accent-fill);transition:width .5s var(--settle)}
 @media (prefers-reduced-motion: reduce){.xbar span{transition:none}}
 /* Settings' own page (apps/settings/home.js): Appearance as a group of choices and a switch, the
    pages as rows with a chevron, About with the running release; a control search found flashes once. */

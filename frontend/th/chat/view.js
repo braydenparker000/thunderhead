@@ -143,6 +143,7 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
     if (s.fresh.has(m.id)) {
       wrap.classList.add('reveal');
       wrap.style.setProperty('--reveal-ms', `${revealMs(m.body)}ms`);
+      words(wrap, revealMs(m.body));
     }
     // Up to four blocks under the words (HOME.md §4.3), drawn by th/chat/blocks.js.
     const blocks = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).blocks : null;
@@ -229,6 +230,8 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
     let lastAt = 0;
     /** @type {HTMLElement[]} */
     const drawnNow = [];
+    /** The owner's messages just sent from this phone: each lifts out of the ask bar into its place. @type {HTMLElement[]} */
+    const lifts = [];
     for (const g of groups) {
       let t = turns.get(g[0].id);
       if (!t) {
@@ -253,7 +256,10 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
           const node = draw(m, s);
           node.dataset.id = m.id; // a search hit scrolls to it (th/convos)
           if (rec) rec.node.replaceWith(node);
-          else if (m.author === 'owner') newOwner = true;
+          else if (m.author === 'owner') {
+            newOwner = true;
+            if (m.local && m.state !== 'failed') lifts.push(node);
+          }
           else if (m.author === 'mind') newReply = true; // live, or loaded on the way back from an app
           else newLine = true;
           rec = { node, sig, m };
@@ -265,6 +271,7 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
         prev = node;
       }
     }
+    for (const node of lifts) requestAnimationFrame(() => lift(node));
     // An older reply taller than 14 lines folds to 10 with "Show all"; the newest never does.
     const replies = talk.querySelectorAll('.reply:not(.progress)');
     const newest = replies[replies.length - 1];
@@ -330,4 +337,50 @@ export function voice(say) {
     const spans = l.filter(Boolean).map((t) => el('span', `ln${animate ? '' : ' still'}`, String(t)));
     say.replaceChildren(...spans);
   };
+}
+
+/** A reply's words fade up one after another over `ms` (HOME.md §4.4: at most 1.2 s), the text
+ * itself unchanged (a screen reader reads it whole). Only text in the words is wrapped, never in the
+ * blocks under them. @param {HTMLElement} wrap @param {number} ms */
+function words(wrap, ms) {
+  /** @type {Text[]} */
+  const texts = [];
+  const walk = document.createTreeWalker(wrap, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (n.parentElement?.closest('pre, code, table, .blocks') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) texts.push(/** @type {Text} */ (n));
+  let i = 0;
+  const total = texts.reduce((k, t) => k + (t.data.match(/\S+/g)?.length ?? 0), 0);
+  const step = Math.max(8, Math.min(60, ms / Math.max(1, total)));
+  wrap.style.setProperty('--wstep', `${step.toFixed(1)}ms`);
+  for (const t of texts) {
+    const parts = t.data.split(/(\s+)/);
+    if (parts.length < 2 && !t.data.trim()) continue;
+    const frag = document.createDocumentFragment();
+    for (const part of parts) {
+      if (!part) continue;
+      if (/^\s+$/.test(part)) frag.append(part);
+      else {
+        const w = el('span', 'w', part);
+        w.style.setProperty('--w', String(Math.min(i++, 160)));
+        frag.append(w);
+      }
+    }
+    t.replaceWith(frag);
+  }
+}
+
+/** The bubble just sent rises out of the ask bar into its place (owner, 2026-10-31: "more
+ * fluid"); transform only. @param {HTMLElement} node */
+function lift(node) {
+  const bubble = /** @type {HTMLElement | null} */ (node.querySelector('.you')) ?? node;
+  const bar = document.querySelector('#ask')?.getBoundingClientRect();
+  if (!bar || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const r = bubble.getBoundingClientRect();
+  const dy = bar.top + bar.height / 2 - (r.top + r.height / 2);
+  if (dy < 8) return;
+  bubble.animate(
+    [{ transform: `translate(${Math.round(bar.left + 56 - r.left)}px, ${Math.round(dy)}px) scale(.94)`, opacity: 0.4 }, { transform: 'none', opacity: 1 }],
+    { duration: 420, easing: getComputedStyle(document.documentElement).getPropertyValue('--settle').trim() || 'ease-out' },
+  );
 }

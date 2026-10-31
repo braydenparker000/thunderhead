@@ -30,11 +30,11 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .spacer{flex:1 1 auto;min-height:40px}
 .voice{font-family:var(--voice);font-style:normal;font-weight:300;letter-spacing:-.015em}
 .say{font-size:clamp(34px,10vw,42px);line-height:1.1;text-wrap:balance;transition:opacity .4s}
-.say .ln{display:block;animation:rise .9s cubic-bezier(.2,.7,.2,1) both}
+.say .ln{display:block;animation:rise .9s var(--settle) both}
 .say .ln+.ln{animation-delay:.16s}
 @keyframes rise{from{opacity:0;transform:translateY(10px);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
 /* a decision waiting on you: the one glass card on the page */
-.card{margin-top:18px;padding:14px 16px 14px;border-radius:22px;background:var(--glass);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border:1px solid var(--glass-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 10px 28px -16px rgba(20,30,60,.25);max-height:280px;overflow:hidden;animation:rise .8s .3s cubic-bezier(.2,.7,.2,1) both;transition:opacity .3s,transform .3s,max-height .45s .12s cubic-bezier(.2,.7,.2,1),margin .45s .12s,padding .45s .12s}
+.card{margin-top:18px;padding:14px 16px 14px;border-radius:22px;background:var(--glass);backdrop-filter:blur(16px) saturate(1.5);-webkit-backdrop-filter:blur(16px) saturate(1.5);border:1px solid var(--glass-line);box-shadow:inset 0 1px 0 rgba(255,255,255,.7),0 10px 28px -16px rgba(20,30,60,.25);max-height:280px;overflow:hidden;animation:rise .8s .3s var(--settle) both;transition:opacity .3s,transform .3s,max-height .45s .12s var(--settle),margin .45s .12s,padding .45s .12s}
 :root[data-theme="dark"] .card{box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 10px 28px -16px #000}
 .card.gone{opacity:0;transform:scale(.97);max-height:0;margin-top:0;padding-top:0;padding-bottom:0;border-color:transparent;pointer-events:none}
 .card.decision:not(.armed) .decide button{pointer-events:none}
@@ -47,7 +47,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .decide .yes{background:var(--gold);color:#2b1d00;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 8px 18px -10px var(--gold)}
 /* today, as small flat-glass chips that carry their app's icon (DESIGN-SYSTEM.md §6: only the ask bar
    and one overlay blur what is behind them, so a long conversation scrolls smoothly) */
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;animation:rise .8s .42s cubic-bezier(.2,.7,.2,1) both}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;animation:rise .8s .42s var(--settle) both}
 .chip{--c:var(--ink-3);border:1px solid var(--glass-line);background:var(--glass-flat);border-radius:14px;padding:8px 12px 8px 10px;font:600 14px var(--ui);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:7px;text-align:left;transition:transform .15s}
 .chip:active{transform:scale(.97)}
 .chip .ic{width:17px;height:17px;fill:var(--c);flex:none}
@@ -56,7 +56,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .hint i{width:14px;height:14px;border-radius:50%;border:1.5px solid currentColor;opacity:.7}
 .hint.gone{animation:none;opacity:0}
 /* the conversation */
-.turn{margin-top:22px;display:flex;flex-direction:column;gap:8px;animation:rise .5s cubic-bezier(.2,.7,.2,1) both}
+.turn{margin-top:22px;display:flex;flex-direction:column;gap:8px;animation:rise .5s var(--settle) both}
 .you{align-self:flex-end;max-width:80%;font:500 15px/1.4 var(--ui);color:var(--ink);background:var(--glass-flat);border:1px solid var(--glass-line);padding:9px 14px;border-radius:19px 19px 6px 19px}
 /* a reply: the Thunderhead's words, with no bubble (yours have one); italic is kept for emphasis and
    quotes inside a reply */
@@ -71,7 +71,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .ask textarea{flex:1;min-width:0;max-height:130px;margin:0;padding:10px 0;border:0;background:none;outline:none;resize:none;field-sizing:content;overflow-y:auto;scrollbar-width:none;font:500 16px/22px var(--ui);color:var(--ink)}
 .ask textarea::placeholder{color:var(--ink-3)}
 .btns{position:relative;width:42px;height:42px;flex:none}
-.btns button{position:absolute;inset:0;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;transition:transform .22s cubic-bezier(.34,1.45,.64,1),opacity .15s,background .2s,color .2s}
+.btns button{position:absolute;inset:0;border-radius:50%;border:0;display:grid;place-items:center;cursor:pointer;transition:transform .22s var(--pop),opacity .15s,background .2s,color .2s}
 .btns svg{width:20px;height:20px;fill:currentColor}
 .mic{background:none;color:var(--ink-2)}
 .send{background:var(--accent-text);color:#fff;opacity:0;transform:scale(.5);pointer-events:none}
@@ -119,7 +119,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 @keyframes press{from{opacity:.0;transform:scale(.4)}to{opacity:.55;transform:scale(2.2)}}
 /* toasts sit just above the ask bar (or a docked card), under the thumb with their Undo, never at the
    top of the thread (owner, 2026-10-31) */
-.toast{position:absolute;z-index:40;left:50%;bottom:calc(36px + var(--ask-h,54px) + var(--dock-h,0px) + var(--past-h,0px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;transition:.25s;padding:9px 14px;border-radius:12px;font:600 14px/1.35 var(--ui);color:var(--ink);background:var(--disc);border:1px solid var(--disc-line);width:max-content;max-width:min(340px,calc(100% - 32px));text-align:center;display:flex;align-items:center;gap:14px;pointer-events:none}
+.toast{position:absolute;z-index:40;left:50%;bottom:calc(36px + var(--ask-h,54px) + var(--dock-h,0px) + var(--past-h,0px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;transition:opacity .2s ease,transform var(--d-quick) var(--settle);padding:9px 14px;border-radius:12px;font:600 14px/1.35 var(--ui);color:var(--ink);background:var(--disc);border:1px solid var(--disc-line);width:max-content;max-width:min(340px,calc(100% - 32px));text-align:center;display:flex;align-items:center;gap:14px;pointer-events:none}
 .toast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 .toast .tact{flex:none;border:0;background:none;min-height:32px;padding:0;font:700 14px var(--ui);color:var(--accent-text);cursor:pointer;position:relative}
 .toast .tact::after{content:"";position:absolute;inset:-6px -8px}
@@ -193,14 +193,14 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .seg button{flex:1;border:0;background:none;padding:8px 0;border-radius:9px;font:600 13px var(--ui);color:var(--ink-2);cursor:pointer}
 .seg button.on{background:var(--disc);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.14)}
 /* + : the options sheet folds up from the ask bar */
-.plusBtn{flex:none;width:40px;height:40px;margin-bottom:1px;border-radius:50%;border:0;background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink-2);display:grid;place-items:center;cursor:pointer;transition:transform .32s cubic-bezier(.34,1.45,.64,1)}
+.plusBtn{flex:none;width:40px;height:40px;margin-bottom:1px;border-radius:50%;border:0;background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink-2);display:grid;place-items:center;cursor:pointer;transition:transform .32s var(--pop)}
 .plusBtn svg{width:20px;height:20px;fill:currentColor}
 .ask.menu .plusBtn{transform:rotate(45deg)}
-.opts{position:absolute;z-index:8;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));min-width:220px;display:flex;flex-direction:column;gap:2px;padding:8px;border-radius:26px;background:var(--sheet);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);border:1px solid var(--glass-line);box-shadow:0 24px 50px -22px rgba(10,20,40,.4);transform-origin:24px 100%;transform:translateY(16px) scale(.5);opacity:0;pointer-events:none;transition:transform .34s cubic-bezier(.34,1.3,.64,1),opacity .18s}
+.opts{position:absolute;z-index:8;left:max(16px,env(safe-area-inset-left,0px));bottom:calc(90px + env(safe-area-inset-bottom,0px));min-width:220px;display:flex;flex-direction:column;gap:2px;padding:8px;border-radius:26px;background:var(--sheet);backdrop-filter:blur(24px) saturate(1.6);-webkit-backdrop-filter:blur(24px) saturate(1.6);border:1px solid var(--glass-line);box-shadow:0 24px 50px -22px rgba(10,20,40,.4);transform-origin:24px 100%;transform:translateY(16px) scale(.5);opacity:0;pointer-events:none;transition:transform .34s var(--settle),opacity .18s}
 .opts.show{transform:none;opacity:1;pointer-events:auto}
 .convo{transition:filter .3s,opacity .3s}
 .home.menuOpen .convo{filter:blur(8px);opacity:.3}
-.opts button{--c:var(--accent-text);display:flex;align-items:center;gap:12px;border:0;background:none;padding:8px 14px 8px 8px;border-radius:16px;font:600 16px var(--ui);color:var(--ink);cursor:pointer;text-align:left;opacity:0;transform:translateY(10px);transition:opacity .2s,transform .32s cubic-bezier(.2,.8,.2,1)}
+.opts button{--c:var(--accent-text);display:flex;align-items:center;gap:12px;border:0;background:none;padding:8px 14px 8px 8px;border-radius:16px;font:600 16px var(--ui);color:var(--ink);cursor:pointer;text-align:left;opacity:0;transform:translateY(10px);transition:opacity .2s,transform .32s var(--settle)}
 .opts.show button{opacity:1;transform:none;transition-delay:calc((6 - var(--i))*28ms)}
 .opts button:hover{background:color-mix(in srgb,var(--ink) 6%,transparent)}
 .opts .oi{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c)}
