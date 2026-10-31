@@ -64,7 +64,7 @@ Waveforms follow the same rule as before: send `"waveformKind": "rms"` with wave
 
 **What's different on the new server:**
 - **It never deletes anything from the bucket.** `delete` removes catalog entries only, so `deletedObjects` is always empty. `replace-audio` keeps the old audio object, so `deleteOld` does nothing.
-- **There is no catalog file.** `publish` and `reimport` are gone, and so is `/music/health`. To check consistency after a batch, call `POST /v1/music/uploads/audit`. It lists any track whose audio is missing or the wrong size, and any object no track uses.
+- **There is no catalog file.** `publish` and `reimport` are gone, and so is `/music/health`. To check consistency, call `POST /v1/music/uploads/audit` once when you finish a session of uploads, not after every batch: it reads the whole catalog. It lists any track whose audio is missing or the wrong size, and any object no track uses.
 - **Errors use a new format:** `{"error": {"code", "message", "details"?, "request_id"}}`.
   - `401 unauthorized`: the signature, the key or the time is wrong.
   - `403`: the request had an `Origin` header.
