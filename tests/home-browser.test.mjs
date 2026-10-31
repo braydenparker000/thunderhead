@@ -85,8 +85,8 @@ test('the ring keeps its pick until the finger is clearly past the boundary (~7 
   const { page, errors } = await open();
   const cx = 200, cy = 420;
   await page.mouse.move(cx, cy); await page.mouse.down(); await page.waitForTimeout(320);
-  // the ring centre is clamped to the screen; read it back so angles are measured from the real centre
-  const [rx, ry] = await page.$eval('#ring', el => { const r = el.getBoundingClientRect(); return [r.left, r.top]; });
+  // angles are measured from where the thumb went down (here the ring's centre too: nothing is clamped)
+  const [rx, ry] = [cx, cy];
   const from = deg => [rx + 60 * Math.sin(deg * Math.PI / 180), ry - 60 * Math.cos(deg * Math.PI / 180)];
   // Seven apps: sectors of 360/7 ≈ 51.4°, Music's edge at 25.7°, held until ~7° past it (32.7°) and back (18.7°).
   for (const [deg, want] of [[0, 'Music'], [24, 'Music'], [31, 'Music'], [36, 'Guitar'], [22, 'Guitar'], [15, 'Music'], [-31, 'Music'], [-36, 'Photos']]) {
@@ -94,6 +94,20 @@ test('the ring keeps its pick until the finger is clearly past the boundary (~7 
     assert.equal(await page.textContent('#lbl'), want, `at ${deg} degrees`);
   }
   await page.mouse.move(rx, ry); await page.mouse.up();
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('near an edge the ring moves in, but a straight swipe up still picks Music', async () => {
+  // Owner, 2026-10-31: quick swipes missed. The ring is pulled in from the edge to fit; direction is
+  // measured from where the thumb went down, so the thumb's own line counts, not the ring's centre.
+  const { page, errors } = await open();
+  await page.mouse.move(355, 520); await page.mouse.down(); await page.waitForTimeout(320);
+  const rx = await page.$eval('#ring', el => el.getBoundingClientRect().left);
+  assert.ok(rx < 330, `the ring is pulled in from the edge (centre at ${rx})`);
+  await page.mouse.move(355, 480, { steps: 4 }); await page.waitForTimeout(80);
+  assert.equal(await page.textContent('#lbl'), 'Music');
+  await page.mouse.move(355, 520, { steps: 2 }); await page.mouse.up();
   assert.deepEqual(errors, []);
   await page.close();
 });
@@ -119,6 +133,11 @@ test('+ opens the options sheet; typing swaps the mic for send', async () => {
   await page.click('#plus');
   await page.fill('#q', 'hello');
   assert.ok(await page.$eval('#ask', el => el.classList.contains('typing')));
+  // The mic and send share one spot, centred in the bar (a hit-area rule once stacked them, so the
+  // mic rode high and send fell under the bar).
+  const boxes = await page.evaluate(() => ['#mic', '#ask .send', '#ask'].map(s => { const r = document.querySelector(s).getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }));
+  assert.ok(Math.abs(boxes[0][0] - boxes[1][0]) <= 1, 'mic and send at the same x');
+  assert.ok(Math.abs(boxes[1][1] - boxes[2][1]) <= 2, 'send centred in the bar');
   if (!process.env.SITE_URL) {
     await page.press('#q', 'Enter'); await page.waitForTimeout(2200);
     assert.equal(await page.textContent('.you'), 'hello');

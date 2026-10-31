@@ -11,7 +11,7 @@ Sibling docs: [HOME](../product/HOME.md), [BRIEFING](../product/BRIEFING.md), [M
 3. **Hold 220 ms** without moving more than **10 px** opens the ring. Moving more than 10 px first makes it a swipe or a scroll.
 4. Every scroller on home (the conversation, the Briefing, the menu) is `touch-action: pan-y` as well as `.app`: Chrome lets a scroller pan sideways again inside a pan-y parent, which handed sideways drags to Chrome (a `pointercancel`) and cost swipes and row actions (found 2026-10-30). A move is **horizontal**, a swipe, once it is **6 px** from the start with `|dx| > |dy|` (within 45° of horizontal): the same split Chrome makes under `touch-action: pan-y`, and before Chrome's own slop (8 dp), so a thumb that arcs a little as it starts is still a swipe and no touch is left to neither. Otherwise, past the 10 px slop, the page scrolls. (The first build used `|dx| > 1.2·|dy|` at 10 px, which left a dead band between it and Chrome's split and lost arcs to the scroller; owner, 2026-10-30: "too hard to initiate sometimes".)
 5. A swipe **commits** at **28%** of the travel distance **or** a release velocity of **0.45 px/ms** in the swipe's direction. Otherwise it springs back.
-6. The ring picks by **direction**, not by touching a bubble: dead zone **14 px** (always), **22 px** before the first pick, **~7°** hysteresis at sector boundaries, lift-off direction taken from **≥ 40 ms** before release.
+6. The ring picks by **direction**, not by touching a bubble: dead zone **12 px** (always), **18 px** before the first pick, measured from where the thumb went down, **~7°** hysteresis at sector boundaries, lift-off direction taken from **≥ 40 ms** before release.
 7. **Edge guard:** a touch that starts within **24 px** of the left or right edge, or within **32 px + safe-area inset** of the bottom, never starts a ring or a swipe. Android owns those zones.
 8. Long-press "Ask about this" fires at **450 ms**, and only on elements marked `[data-ask]`. The ring starts only on empty space. The two never compete.
 9. System Back closes the topmost layer. At the home root it leaves the app. **Back is never trapped.**
@@ -62,7 +62,7 @@ States: `idle → pressed → (holding | swiping | scrolling | longpress) → id
 
 ## 3. The Compass ring (hold)
 
-**Built 2026-10-31:** seven apps (Photos, the photo editor that comes later, between Study and Music), radius **70 px** so the 56 px discs don't touch, each its own live-glass disc (owner: "what makes it so good"). The hold before a neighbour takes over stays ~7° past the sector's edge for any number of apps (`HOLD = 0.5 + 7·N/360` sectors). Only transform and opacity move: the discs spring out on `--pop`, the chosen one swells to 1.12 while the others ease to 0.94, and its colour and white icon fade in on layers inside it instead of repainting the disc under its blur; the label keeps its place and crossfades up, tinted by the app. By keyboard (the focused "Apps" button): the ring opens in the middle, the arrows move round it, Enter opens, Escape closes. The geometry table below is the six-app original.
+**Built 2026-10-31:** seven apps (Photos, the photo editor that comes later, between Study and Music), radius **62 px** with **50 px** discs and **24 px** bold icons, about 4 px apart (owner, 2026-10-31: tighter, sharper, a shorter swipe), each its own live-glass disc (owner: "what makes it so good"). The hold before a neighbour takes over stays ~7° past the sector's edge for any number of apps (`HOLD = 0.5 + 7·N/360` sectors). Only transform and opacity move, and nothing is held in a layer by `will-change` (Chrome keeps such a layer at the 0.2 scale it rests at and stretches it, which blurred the icons): the discs spring out on `--pop`, the chosen one swells to 1.12 while the others ease to 0.94, and its colour and white icon fade in on layers inside it instead of repainting the disc under its blur; the label keeps its place and crossfades up, tinted by the app. By keyboard (the focused "Apps" button): the ring opens in the middle, the arrows move round it, Enter opens, Escape closes. The geometry table below is the six-app original.
 
 Owner ruling: hold still on an empty spot for 220 ms → a tight ring of six apps opens around the finger; slide toward one and let go to open it; letting go in the centre cancels. Radius 62 px, 56 px liquid-glass bubbles, 28 px icons. Order clockwise from the top: Music, Guitar, Podcasts, Astra, My Media, Study.
 
@@ -71,17 +71,17 @@ Owner ruling: hold still on an empty spot for 220 ms → a tight ring of six app
 | Quantity | Value | Source |
 |---|---|---|
 | Ring radius (centre to bubble centre) | **62 px** | decisions.md |
-| Bubble | **56 px** circle, icon **28 px** | decisions.md |
+| Bubble | **50 px** circle, icon **24 px** in Phosphor bold (2026-10-31; was 56 and 28 regular) | decisions.md |
 | Sectors | 6 × 60°, sector `i` centred at `i·60°` clockwise from straight up | `home.js` |
 | Centre clamp | The ring centre is clamped to **≥ 92 px** from the left and right edges (`R + 30`), **≥ 122 px** from the top (`R + 60`) and **≥ 132 px** from the bottom (`R + 70`), so no bubble or label is ever cut off | `home.js place()` |
 | Label | App name pill, Inter 600 13 px, **92 px** below the centre (`R + 30`), shown only for the selected sector | `home.js` |
 | Hub | 12 px dot at 28% ink opacity. It follows the finger, capped at **34 px** from the centre (`0.55·R`), so the thumb can see which way it leans | `home.js` |
-| Measured from | The press point (after clamping), not the screen centre. A ring that was moved by the clamp still measures direction from its drawn centre. | `home.js` |
+| Measured from | Where the thumb went down, never the ring's drawn centre. Near an edge the clamp moves the ring inward; measuring from its centre made a straight swipe up from a thumb at the right edge pick Guitar (owner, 2026-10-31: quick swipes missed). The hub still sits at the drawn centre and leans the way the thumb moves. | `home.js` |
 
 ### 3.2 Choosing a direction
 
-1. Distance `d` from the ring centre. If `d < 14 px` → no selection (the "centre": letting go here cancels).
-2. Before anything has been selected, `d < 22 px` → still no selection. This stops a resting thumb from selecting by accident.
+1. Distance `d` from where the thumb went down. If `d < 12 px` → no selection (the "centre": letting go here cancels).
+2. Before anything has been selected, `d < 18 px` → still no selection. This stops a resting thumb from selecting by accident.
 3. Otherwise the sector is `round(angle / 60°) mod 6`.
 4. **Hysteresis:** once a sector is selected, it stays selected until the finger is more than **37°** from that sector's centre (30° boundary + **7°**). Only then does the neighbour take over.
 5. **Lift-off filter:** on `pointerup`, use the selection that was current at the last move event **≥ 40 ms** before the lift, not the lift event's own position. A thumb rolls a few pixels as it lifts.
@@ -264,7 +264,7 @@ Automated tests run in `@playwright/test` at 390×844 and 360×740, day and nigh
 
 | # | Test | Pass when |
 |---|---|---|
-| G1 | Hold 300 ms on the spacer | `#ring.show` at ≥ 220 ms and not before 200 ms; label empty until a move ≥ 22 px |
+| G1 | Hold 300 ms on the spacer | `#ring.show` at ≥ 220 ms and not before 200 ms; label empty until a move ≥ 18 px |
 | G2 | Hold then move 70 px up, release | Music opens; `aria-live` says "Opening Music"; haptic called with `[12,40,12]` (stubbed `navigator.vibrate`) |
 | G3 | Hold, move 70 px at each of 0°, 60°…300° | Opens Music, Guitar, Podcasts, Astra, My Media, Study in that order |
 | G4 | Hysteresis sweep (unit) | `dirOf` switches at ±37° from the current centre, never sticks past it |

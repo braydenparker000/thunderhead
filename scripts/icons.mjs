@@ -1,17 +1,18 @@
 // Builds frontend/ui/icons.svg, one <symbol id="<name>"> per name in frontend/ui/icons.txt, from
-// @phosphor-icons/core (MIT, regular weight). The sprite is committed; run this after editing the
-// list: node scripts/icons.mjs (DESIGN-SYSTEM.md §13). `--check` fails if the committed sprite is stale.
+// @phosphor-icons/core (MIT, regular weight; a name ending in "-bold" is the bold weight, which the
+// ring's discs use). The sprite is committed; run this after editing the list: node scripts/icons.mjs
+// (DESIGN-SYSTEM.md §13). `--check` fails if the committed sprite is stale.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const repo = fileURLToPath(new URL('../', import.meta.url));
-const source = `${repo}node_modules/@phosphor-icons/core/assets/regular/`;
+const assets = `${repo}node_modules/@phosphor-icons/core/assets/`;
 const target = `${repo}frontend/ui/icons.svg`;
 
 export function buildSprite() {
   const names = readFileSync(`${repo}frontend/ui/icons.txt`, 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
   const symbols = names.map((name) => {
-    const svg = readFileSync(`${source}${name}.svg`, 'utf8');
+    const svg = readFileSync(`${assets}${name.endsWith('-bold') ? 'bold' : 'regular'}/${name}.svg`, 'utf8');
     const body = svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '').replace(/<rect width="256" height="256" fill="none"\/>/g, '').trim();
     return `<symbol id="${name}" viewBox="0 0 256 256">${body}</symbol>`;
   });

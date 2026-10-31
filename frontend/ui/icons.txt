@@ -1,4 +1,4 @@
-# Phosphor Icons (regular weight) in ui/icons.svg, one name per line (DESIGN-SYSTEM.md §13).
+# Phosphor Icons (regular weight; "-bold" names are the bold weight) in ui/icons.svg, one name per line (DESIGN-SYSTEM.md §13).
 # Rebuild after editing: node scripts/icons.mjs
 # The six app icons
 music-notes-simple
@@ -51,3 +51,11 @@ cloud-arrow-up
 book-open-text
 gear-six
 aperture
+# The ring's discs: the app icons in the bold weight, crisp on glass at 24 px (owner, 2026-10-31)
+music-notes-simple-bold
+guitar-bold
+microphone-bold
+monitor-play-bold
+youtube-logo-bold
+book-bookmark-bold
+aperture-bold

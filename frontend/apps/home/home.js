@@ -81,10 +81,12 @@ import { startPinned } from './pinned.js';
   // Compass: hold an empty spot ~220 ms, a tight ring of apps springs out around the finger; slide toward one, let go to open.
   // Seven directions, clockwise from the top; an app not shipped yet (Photos) says it comes later. Each app keeps its own
   // glass disc (owner, 2026-10-31); the chosen one is drawn by fading layers in it (home.css), never by repainting under its blur.
-  const APPS=apps.map(a=>[a.name,`<span class="fill" aria-hidden="true"></span><svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}"/></svg><svg class="i ph on" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}"/></svg>`,a.color,a.built?a.path:'']);
+  const APPS=apps.map(a=>[a.name,`<span class="fill" aria-hidden="true"></span><svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}-bold"/></svg><svg class="i ph on" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}-bold"/></svg>`,a.color,a.built?a.path:'']);
   // A choice holds until the finger is ~7 degrees past its sector's edge, whatever the number of apps (GESTURES.md §3.2).
+  // Direction is measured from where the thumb went down, not from the ring's drawn centre: near an edge the ring
+  // moves inward to fit, and measuring from there made a straight swipe up pick the wrong app (owner, 2026-10-31).
   const N=APPS.length, SEC=Math.PI*2/N, HOLD=.5+7*N/360;
-  const ring=$('#ring'), scrim=$('#scrim'), lbl=$('#lbl'), hub=$('#hub'), press=$('#press'), app=$('#app'), R=70;
+  const ring=$('#ring'), scrim=$('#scrim'), lbl=$('#lbl'), hub=$('#hub'), press=$('#press'), app=$('#app'), R=62;
   const pets=APPS.map(([n,svg,c],i)=>{const p=document.createElement('div');p.className='pet';p.innerHTML=svg;p.title=n;p.style.setProperty('--c',c);p.style.setProperty('--i',i);ring.appendChild(p);return p});
   let start=null, open=false, dir=-1, holdT=null;
   const blocked=el=>el.closest('button,input,textarea,form,.chip,.card,.say,.you,.reply,.opts');
@@ -98,7 +100,7 @@ import { startPinned } from './pinned.js';
   function setDir(d){ if(d===dir) return; dir=d; pets.forEach((p,i)=>{ p.classList.toggle('on',i===d); p.style.transform=at(i,d<0?1:i===d?1.12:.94) }); ring.classList.toggle('active',d>=0);
     // The name glides in rather than popping: the label keeps its place and its text crossfades up.
     if(d>=0){ lbl.textContent=APPS[d][0]; lbl.style.setProperty('--c',APPS[d][2]); lbl.classList.remove('swap'); void lbl.offsetWidth; lbl.classList.add('swap') } lbl.classList.toggle('show',d>=0); if(d>=0) buzz(8) }
-  function dirOf(dx,dy){ const dist=Math.hypot(dx,dy); if(dist<14) return -1; if(dir<0&&dist<22) return -1;
+  function dirOf(dx,dy){ const dist=Math.hypot(dx,dy); if(dist<12) return -1; if(dir<0&&dist<18) return -1;
     const a=(Math.atan2(dx,-dy)/SEC+N)%N, n=Math.round(a)%N;
     if(dir>=0&&n!==dir){ const off=Math.abs(((a-dir+N*1.5)%N)-N/2); if(off<HOLD) return dir } // stays put until ~7 degrees past the boundary
     return n }
@@ -145,7 +147,7 @@ import { startPinned } from './pinned.js';
       else if(swipe.from==='brief') swipe.b=band(1+mx/W);
       else swipe.s=band(1-mx/S);
       setPos(swipe.b,swipe.s,false); return }
-    e.preventDefault(); const dx=e.clientX-start.cx, dy=e.clientY-start.cy, d=Math.hypot(dx,dy), k=Math.min(1,R*.55/(d||1));
+    e.preventDefault(); const dx=e.clientX-start.x, dy=e.clientY-start.y, d=Math.hypot(dx,dy), k=Math.min(1,R*.55/(d||1));
     hub.style.transform=`translate(${dx*k}px,${dy*k}px)`; setDir(dirOf(dx,dy)) },{passive:false});
   // The finger's speed over its last 100 ms (px/ms, + is rightward); 0 if it stopped before lifting.
   function flick(v,at){ const last=v[v.length-1]; if(!last||at-last[0]>60) return 0; const first=v.find(p=>last[0]-p[0]<=100)||last; return last[0]>first[0]?(last[1]-first[1])/(last[0]-first[0]):0 }
