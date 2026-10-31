@@ -82,7 +82,7 @@ export function toastFor(decision, r) {
   return r.status === 'failed' ? LINES.failed : LINES.done;
 }
 
-/** What the voice line should know after an answer: a yes, or another answer (HOME.md §2.1 row 8).
+/** How the last card was answered: a yes, or another answer.
  * @param {'approve' | 'reject' | 'snooze'} decision @param {DecideProposalResponse} r */
 export const answered = (decision, r) => (decision === 'approve' && r.status !== 'failed' ? 'yes' : 'other');
 

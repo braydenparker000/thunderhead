@@ -43,7 +43,7 @@ export const SURFACE_KINDS = {
   line: {
     slots: { home: /^line\.[1-4]$/ },
     versions: { 1: z.object({ text: lineText, lang: z.optional(z.string().check(z.regex(/^[a-z]{2,3}(-[A-Z]{2})?$/))) }) },
-    doc: 'A home line under the voice line (HOME.md §2): app `home`, slots `line.1`–`line.4`; `lang` for a second-language line.',
+    doc: "A home line, shown as a card in today's chat at its time; the night's lines are one Overnight card shown when quiet hours end (HOME.md §2.2): app `home`, slots `line.1`–`line.4`; `lang` for a second-language line.",
   },
   tile: {
     slots: { briefing: /^(practice|study|built|note\.[1-3])$/ },

@@ -80,7 +80,7 @@ This replaces the first build's three copies of every dark token (media query, `
 
 | Token | Font | Size / line height | Weight | Use | Status |
 |---|---|---|---|---|---|
-| `--t-voice-hero` | Fraunces italic | `clamp(32px, 9vw, 40px)` / 1.12 | 340 | The home voice line | built |
+| `--t-voice-hero` | Fraunces italic | `clamp(32px, 9vw, 40px)` / 1.12 | 340 | The 404's line (home's voice line is gone, HOME.md §2) | built |
 | `--t-voice-title` | Fraunces italic | 34 / 1.12 | 340 | Briefing title ("Here's your day.") | built |
 | `--t-voice-reply` | Fraunces upright | 17.5 / 1.5 | 400 (bold 600) | The mind's replies, as rich text (HOME.md §4.3) | built 2026-10-30 (was italic 340 at 20 / 1.4) |
 | `--t-big` | Inter | 30 / 1.05, −0.02em | 500 | One big number in a tile (temperature) | built |
@@ -115,7 +115,7 @@ The 4/8 scale [proposal: the first build uses many in-between values; map them t
 | `--s-5` | 20 | Space under the date line |
 | `--s-6` | 24 | Page side gutter (built 24 on home, 18 on briefing), ask bar above safe area |
 | `--s-7` | 32 | Between sections |
-| `--s-8` | 40 | Minimum spacer above the voice line |
+| `--s-8` | 40 | Minimum spacer at the top of the conversation |
 | `--s-9` | 56 | Conversation top inset (built `top: 56px`) |
 
 Layout constants (built): conversation `top: 56px; bottom: 98px`; ask bar `height: 54px`, `left/right: max(16px, safe-area)`, `bottom: 24px + safe-area`; app max width **460 px**, centred.

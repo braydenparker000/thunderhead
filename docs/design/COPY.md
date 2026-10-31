@@ -62,8 +62,8 @@ Use one of these phrases with its number. Never decimals, never percentages over
 
 ### 1.3 Form
 
-- Sentence case. Full stops at the end of voice lines and replies.
-- Numbers as digits ("2 new videos", "bars 9 to 12"), except the voice line's counts, which are words (*Three things need you.*).
+- Sentence case. Full stops at the end of home lines and replies; none on chips and labels.
+- Numbers as digits ("2 new videos", "bars 9 to 12").
 - Times and dates in the phone's locale format (examples here use 24-hour: "19:00").
 - Second language (set privately in Settings): when the owner writes in it, the mind answers in it. Fixed strings are English in v1 [proposal: a second-language set later, chosen in Appearance].
 - Quotes: curly (’ “ ”) in fixed strings.
@@ -93,20 +93,17 @@ Acceptance: the mind's evals ([EVALS](../mind/EVALS.md)) include a style check o
 
 Status: **built** = in the first build or prototype; **proposal** = new. Voice strings are in *italics* (Fraunces); the rest are Inter.
 
-### 3.1 Home: voice line
+### 3.1 Home: the status chip, the cards, the bar
+
+Home has no standing voice line (owner, 2026-10-31: "something always telling me that things are okay isn't useful"); the lines that said all was well ("Nothing needs you.", "The rest is handled.", "Everything is handled.", the counts of waiting cards) are gone. HOME.md §2.
 
 | ID | Text | When |
 |---|---|---|
-| `voice.none` | *Nothing needs you.* | Default (built) |
-| `voice.none.now` | *Nothing needs you now.* | Right after the last decision is answered (prototype) |
-| `voice.handled` | *Everything is handled.* | Line 2 after answering "yes" to the last decision (prototype) |
-| `voice.one` | *One thing needs you.* | 1 decision waiting (prototype) |
-| `voice.n` | *Two things need you.* … *Nine things need you.* | 2–9 decisions waiting (proposal) |
-| `voice.many` | *Many things need you.* | 10 or more (proposal) |
-| `voice.rest` | *The rest is handled.* | Line 2 with a decision, when there is no night line (prototype) |
-| `voice.first` | *I'm here.* / *Ask me anything, any time.* | First run (proposal) |
-| `voice.quiet` | *It can all wait until morning.* | Line 2 in quiet hours (proposal) |
-| `voice.nowake` | *I can't wake just now.* / *I'll answer when I'm back.* | The mind isn't waking (proposal) |
+| `status.quiet` | Quiet until 06:30 (Quiet until Monday 06:30) | The chip while "go quiet" is on (built); a tap: *I'll hold everything until then.* with **End now** |
+| `status.offline` | Offline | The chip while offline (built); a tap: *Messages send when you're back online.* |
+| `status.nowake` | Can't wake just now | The chip while the mind can't wake and the thread doesn't say so (built); a tap: *I'll answer when I'm back.* |
+| `card.night` | Overnight | Heading of the card holding the night's home lines (built) |
+| `ask.placeholder` | Ask anything | The ask bar, empty (built) |
 | `voice.brief.day` | *Here's your day.* | Briefing title, 04:00–14:59 (built) |
 | `voice.brief.rest` | *Here's the rest of today.* | Briefing title, 15:00–18:59 (proposal) |
 | `voice.brief.night` | *Here's tonight.* | Briefing title, 19:00–03:59 (proposal) |

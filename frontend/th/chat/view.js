@@ -118,6 +118,23 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
       line.setAttribute('aria-label', `Reminder: ${m.body}`);
       return line;
     }
+    // A home line the mind placed: a card in the chat, the night's marked as such (HOME.md §2.1).
+    if (m.kind === /** @type {any} */ ('card')) {
+      const card = el('div', 'note');
+      const mt = /** @type {any} */ (m.meta) ?? {};
+      if (mt.night) {
+        const head = el('div', 'nh');
+        head.innerHTML = '<svg class="i" aria-hidden="true"><use href="/ui/icons.svg#moon-stars"/></svg>';
+        head.append('Overnight');
+        card.append(head);
+      }
+      for (const l of Array.isArray(mt.lines) ? mt.lines : [{ text: m.body, lang: null }]) {
+        const text = el('div', 'nt', String(l.text));
+        if (typeof l.lang === 'string') text.lang = l.lang;
+        card.append(text);
+      }
+      return card;
+    }
     if (m.author === 'system' || (m.author === 'mind' && m.kind === 'error')) return el('div', 'sys', m.body);
     if (m.author === 'owner') {
       const wrap = el('div', 'mine');
@@ -324,19 +341,6 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
   }
 
   return { render };
-}
-
-/** The voice line (HOME.md §2): two spans that rise when they change. @param {HTMLElement} say */
-export function voice(say) {
-  let current = '';
-  /** @param {[string, string | null]} l @param {boolean} animate */
-  return (l, animate = true) => {
-    const key = l.join('\n');
-    if (key === current) return;
-    current = key;
-    const spans = l.filter(Boolean).map((t) => el('span', `ln${animate ? '' : ' still'}`, String(t)));
-    say.replaceChildren(...spans);
-  };
 }
 
 /** A reply's words fade up one after another over `ms` (HOME.md §4.4: at most 1.2 s), the text

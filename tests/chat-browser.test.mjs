@@ -69,7 +69,8 @@ async function open({ theme = 'light', chat = {}, clock = false, outbox = [], in
   await page.waitForTimeout(300);
   return { page, context, errors, api };
 }
-const say = (page) => page.$$eval('#say .ln', (ls) => ls.map((l) => l.textContent));
+/** The status chip at the top: null while all is well, else [kind, words] (no standing voice line). */
+const status = (page) => page.$eval('#status', (s) => (s.hidden ? null : [s.dataset.kind, s.textContent]));
 /** Reads until the value is `want` (5 s at most), then asserts it: a step waits on what the page
  * shows or the mock saw, never on a guessed delay. */
 async function eventually(read, want, message) {
@@ -84,10 +85,13 @@ async function eventually(read, want, message) {
 const shot = async (page, name, theme) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-${theme === 'light' ? 'day' : 'night'}.png` }); };
 const send = async (page, text) => { await page.fill('#q', text); await page.press('#q', 'Enter'); };
 
-test('first run: the voice line welcomes; nothing else on the page', opts, async () => {
+test('first run: nothing stands on the page saying all is well; the bar asks', opts, async () => {
   for (const theme of ['light', 'dark']) {
     const { page, context, errors } = await open({ theme });
-    await eventually(() => say(page), ["I'm here.", 'Ask me anything, any time.']);
+    await page.waitForSelector('#talk', { state: 'attached' });
+    assert.equal(await status(page), null, 'no status while all is well');
+    assert.equal(await page.$('#say'), null, 'no voice line');
+    assert.equal(await page.getAttribute('#q', 'placeholder'), 'Ask anything');
     assert.equal(await page.$$eval('#talk .turn', (t) => t.length), 0);
     await page.waitForTimeout(900);
     await shot(page, 'empty', theme);
@@ -236,13 +240,13 @@ test('waking: thinking words after 1.2 s, then "Waking up…" at 8 s, with the e
   }
 });
 
-test("the mind not waking: the honest line and the error edge; the voice line's row 3 only without the line", opts, async () => {
+test("the mind not waking: the honest line and the error edge; the status chip only without the line", opts, async () => {
   for (const theme of ['light', 'dark']) {
     const messages = [owner('m1', 'Can you check the weather tomorrow'), { ...owner('m2', NOT_WAKING), seq: 2, author: 'system', origin: 'system', meta: { line: 'not_waking' }, created_at: Date.now() - 60_000 }];
     const { page, context, errors } = await open({ theme, chat: { messages, presence: { state: 'failed', note: null, since: Date.now() } } });
     await page.waitForSelector('#talk .sys');
     assert.equal(await page.textContent('#talk .sys'), NOT_WAKING);
-    await eventually(() => say(page), ['Nothing needs you.'], 'said once, in the thread');
+    await eventually(() => status(page), null, 'said once, in the thread');
     assert.ok(await page.$eval('#edge', (e) => e.classList.contains('err')));
     assert.equal(await page.$('#talk .wait'), null, 'no waking line under the honest one');
     await page.waitForTimeout(900);
@@ -251,7 +255,7 @@ test("the mind not waking: the honest line and the error edge; the voice line's 
     await context.close();
   }
   const { page, context } = await open({ chat: { presence: { state: 'failed', note: null, since: Date.now() } } });
-  await eventually(() => say(page), ["I can't wake just now.", "I'll answer when I'm back."]);
+  await eventually(() => status(page), ['wake', 'Can\u2019t wake just now']);
   await context.close();
 });
 
@@ -262,7 +266,7 @@ test('offline: the message waits with its meta, then goes once when the phone is
   await send(page, 'Remind me about the call');
   await page.waitForSelector('#talk .meta');
   assert.equal(await page.textContent('#talk .meta'), "Sends when you're back online");
-  assert.match(await page.$eval('#date', (d) => getComputedStyle(d, '::after').content), /Offline/);
+  await eventually(() => status(page), ['offline', 'Offline']);
   assert.equal(await page.$('#talk .slot'), null, 'a queued message waits for nothing');
   assert.deepEqual(await page.$eval('#edge', (e) => [e.dataset.state, e.classList.contains('breathe')]), ['offline', false]);
   await context.setOffline(false);
@@ -279,16 +283,17 @@ test('offline: the message waits with its meta, then goes once when the phone is
   await context.close();
 });
 
-test('"go quiet" with the network off: the quiet line at once, nothing sent; the Worker gets it once back; "I\'m back" ends it (LAW-9)', opts, async () => {
+test('"go quiet" with the network off: the quiet chip at once, nothing sent; the Worker gets it once back; "I\'m back" ends it (LAW-9)', opts, async () => {
   const { page, context, errors, api } = await open();
   await context.setOffline(true);
   await page.evaluate(() => dispatchEvent(new Event('offline')));
   await send(page, 'go quiet');
+  // The owner's own order shows at once, offline too (it outranks "Offline" on the chip).
   const quietShown = async () => {
-    const [a, b] = await say(page);
-    return [/^Quiet until \d\d:\d\d\.$/.test(a ?? ''), b];
+    const st = await status(page);
+    return st ? [st[0], /^Quiet until \d\d:\d\d$/.test(st[1])] : null;
   };
-  await eventually(quietShown, [true, "I'll hold everything until then."]);
+  await eventually(quietShown, ['quiet', true]);
   assert.equal(await page.inputValue('#q'), '');
   assert.equal(await page.$('#talk .you'), null, 'the command is not a message');
   await context.setOffline(false);
@@ -296,10 +301,10 @@ test('"go quiet" with the network off: the quiet line at once, nothing sent; the
   await eventually(() => api.state.chat.quietUntil > Date.now(), true, 'the Worker has it once back online');
   // A reload keeps it, from this phone and from the Worker.
   await page.reload({ waitUntil: 'load' });
-  await eventually(quietShown, [true, "I'll hold everything until then."]);
+  await eventually(quietShown, ['quiet', true]);
   await send(page, "I'm back");
   await eventually(() => api.state.chat.quietUntil, 0);
-  await eventually(() => say(page), ["I'm here.", 'Ask me anything, any time.']);
+  await eventually(() => status(page), null);
   // Not quiet, "I'm back" is only words for the mind.
   await send(page, "I'm back");
   await page.waitForSelector('#talk .you');
@@ -370,12 +375,18 @@ test('a verb queued for this phone runs once and reports its undo; one it lacks 
   await context.close();
 });
 
-test("a home line is the voice line's second line; a kind this phone can't draw shows its why", opts, async () => {
-  const surface = (kind, slot, payload, why) => ({ app: 'home', slot, kind, schema: 1, payload, why, topic_key: 't', ref: null, expires_at: null, written_at: Date.now(), seq: 1, ledger_id: null });
-  const surfaces = [surface('line', 'line.1', { text: 'Your new playlist is in Music.' }, 'a playlist was made tonight'), surface('banner', 'top', { x: 1 }, 'A newer kind of card, shown plainly.')];
-  const { page, context, errors } = await open({ chat: { surfaces, messages: [owner('m1', 'hi', { answered_at: Date.now() })] } });
-  await page.waitForFunction(() => document.querySelectorAll('#say .ln').length === 2);
-  assert.deepEqual(await say(page), ['Nothing needs you.', 'Your new playlist is in Music.']);
+test("home lines are cards in the chat (the night's as one Overnight card); a kind this phone can't draw shows its why", opts, async () => {
+  const surface = (kind, slot, payload, why, at = Date.now(), seq = 1) => ({ app: 'home', slot, kind, schema: 1, payload, why, topic_key: 't', ref: null, expires_at: null, written_at: at, seq, ledger_id: null });
+  // The mock's day is 2026-10-29: two lines from that night, one placed during the day just now.
+  const night = new Date('2026-10-29T05:10').getTime();
+  const surfaces = [surface('line', 'line.2', { text: 'Rain from 4, so practice before then.' }, 'the forecast', night + 60_000, 2), surface('line', 'line.1', { text: 'Your new book is ready in Study.' }, 'a book was read tonight', night, 3), surface('line', 'line.3', { text: 'Your new playlist is in Music.' }, 'a playlist was made', Date.now() - 120_000, 4), surface('banner', 'top', { x: 1 }, 'A newer kind of card, shown plainly.')];
+  const { page, context, errors } = await open({ chat: { surfaces, messages: [owner('m1', 'hi', { answered_at: Date.now(), created_at: Date.now() - 60_000 })] } });
+  await page.waitForSelector('#talk .note');
+  const notes = await page.$$eval('#talk .note', (ns) => ns.map((n) => [n.querySelector('.nh')?.textContent ?? null, [...n.querySelectorAll('.nt')].map((t) => t.textContent)]));
+  assert.deepEqual(notes, [['Overnight', ['Your new book is ready in Study.', 'Rain from 4, so practice before then.']], [null, ['Your new playlist is in Music.']]]);
+  // In time order among the messages: the day's line came before the owner's "hi".
+  assert.deepEqual(await page.$$eval('#talk .note, #talk .you', (ns) => ns.map((n) => n.className)), ['note', 'note', 'you']);
+  assert.equal(await status(page), null);
   assert.equal(await page.textContent('.fallbacks .card .q'), 'A newer kind of card, shown plainly.');
   assert.deepEqual(errors, []);
   await context.close();

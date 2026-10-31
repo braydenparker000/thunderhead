@@ -148,7 +148,7 @@ Owner ruling: nothing before 06:30 local, no pushes, no sounds, nothing that nee
 
 | Control | Values | Behaviour |
 |---|---|---|
-| Starts | time, default **22:00** [proposal] | From this time: no pushes, no sounds, new decisions held, the voice line's quiet variant. |
+| Starts | time, default **22:00** [proposal] | From this time: no pushes, no sounds, new decisions held, the night's home lines held until it ends. |
 | Ends | time, **06:30 or later** | The picker does not offer anything earlier than 06:30. Shown as "06:30 (the earliest)". |
 | Go quiet now (plan law 9) | **1 hour** · **Until tomorrow** · **Until I turn it off** | Same as quiet hours, starting now, for that long. A line at the top of the page says "Quiet until 14:20" with **End now**. No penalty: the mind keeps working; it just holds anything that would need the owner. |
 

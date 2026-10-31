@@ -1,5 +1,5 @@
 // Home's decision card in Chromium at 390×844 against the mocked Worker (HOME.md §3, §2.1 rows 4–8,
-// §3.5; SECURITY.md §4.3): one card under the voice line with the gold edge, the Worker's target
+// §3.5; SECURITY.md §4.3): one card docked above the ask bar with the gold edge, the Worker's target
 // line and "1 of 2"; Yes sends the card's spec hash, folds, and the next card rises; "Not yet" and
 // "No", whatever the card's second option says; a card held for quiet hours stays away; a failed
 // decision says so and can be tried again; offline sends nothing; a tap right after the page comes
@@ -67,7 +67,8 @@ async function eventually(read, want, message) {
   }
   assert.deepEqual(got, want, message);
 }
-const say = (page) => page.$$eval('#say .ln', (ls) => ls.map((l) => l.textContent));
+/** The status chip: null while all is well (no standing voice line counting cards; the docked card says it). */
+const status = (page) => page.$eval('#status', (s) => (s.hidden ? null : [s.dataset.kind, s.textContent]));
 const card = (page) =>
   page.$$eval('#decision .card:not(.gone)', (cs) =>
     cs.map((c) => ({
@@ -87,7 +88,7 @@ test('one card docked above the ask bar, with the gold edge; Yes folds it and th
     const { page, context, errors, api } = await open({ theme, proposals: [a, b] });
     await eventually(() => card(page), [{ why: "Night shift · Can't be undone1 of 2", q: a.question, target: a.target, buttons: ['Delete', 'No'] }]);
     assert.equal(await gold(page), true);
-    await eventually(() => say(page), ['Two things need you.', 'The rest is handled.']);
+    assert.equal(await status(page), null, 'the card speaks for itself; nothing else counts it');
     // Docked just above the ask bar (owner, 2026-10-31), and the conversation ends above it.
     assert.equal(await page.$eval('#decision', (d) => d.parentElement?.id), 'home');
     const dock = await page.evaluate(() => {
@@ -101,13 +102,12 @@ test('one card docked above the ask bar, with the gold edge; Yes folds it and th
     await page.click('#decision .yes');
     await eventually(() => decided(api), [{ id: a.id, decision: 'approve', spec_hash: a.spec_hash }]);
     await eventually(() => card(page), [{ why: 'From our chat · Changes access', q: b.question, target: b.target, buttons: ['Revoke it', 'Not yet'] }]);
-    await eventually(() => say(page), ['One thing needs you.', 'The rest is handled.']);
-    // "Not yet" puts the last one off: no card, no gold, and the voice line says so.
+    // "Not yet" puts the last one off: no card, no gold, and nothing says all is well.
     await page.click('#decision .decide button:not(.yes)');
     await eventually(() => decided(api).at(-1), { id: b.id, decision: 'snooze', spec_hash: b.spec_hash });
     await eventually(() => card(page), []);
     await eventually(() => gold(page), false);
-    await eventually(() => say(page), ['Nothing needs you now.']);
+    assert.equal(await status(page), null);
     assert.deepEqual(errors, [], `${theme}: ${errors.join('; ')}`);
     await context.close();
   }
@@ -118,13 +118,13 @@ test('a card held for quiet hours stays away; one that arrives while open rises'
   const { page, context, errors, api } = await open({ proposals: [held] });
   assert.deepEqual(await card(page), []);
   assert.equal(await gold(page), false);
-  assert.deepEqual(await say(page), ['Nothing needs you.']);
+  assert.equal(await status(page), null);
   const now = proposal({ question: 'Forget this fact for good?', options: ['Forget it', 'Keep it'] });
   api.proposals.add(now);
   await eventually(async () => (await card(page)).map((c) => c.q), ['Forget this fact for good?']);
   await page.click('#decision .decide button:not(.yes)');
   await eventually(() => decided(api), [{ id: now.id, decision: 'reject', spec_hash: now.spec_hash }]);
-  await eventually(() => say(page), ['Nothing needs you now.']);
+  assert.equal(await status(page), null);
   assert.deepEqual(errors, []);
   await context.close();
 });
@@ -254,12 +254,14 @@ test('while the owner has said "go quiet" (on another phone too) no card shows a
   const { page, context, errors, api } = await open({ proposals: [a], chat: { quietUntil: Date.now() + 3_600_000 } });
   await eventually(() => card(page), []);
   assert.equal(await gold(page), false);
-  assert.match((await say(page))[0], /^Quiet until \d\d:\d\d\.$/);
+  const st = await status(page);
+  assert.equal(st?.[0], 'quiet');
+  assert.match(st?.[1] ?? '', /^Quiet until \d\d:\d\d$/);
   await page.fill('#q', 'you can talk now');
   await page.press('#q', 'Enter');
   await eventually(async () => (await card(page)).map((c) => c.q), [a.question]);
   assert.equal(await gold(page), true);
-  await eventually(() => say(page), ['One thing needs you.', 'The rest is handled.']);
+  await eventually(() => status(page), null);
   assert.equal(api.state.chat.quietUntil, 0);
   assert.deepEqual(errors, []);
   await context.close();

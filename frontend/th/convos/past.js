@@ -1,5 +1,5 @@
 // @ts-check
-// An older conversation on home, read-only (HOME.md §4.9): the voice line, the decision card and
+// An older conversation on home, read-only (HOME.md §4.9): the status chip, the decision card and
 // today's thread step aside; a glass card docked above the ask bar, under the thumb (owner,
 // 2026-10-31), holds the title, when it was and how many messages (an imported one tagged
 // "Old Chats") with Back to now; the conversation ends above it (--past-h); the filed thread

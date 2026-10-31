@@ -58,10 +58,15 @@
 .fallbacks .card .q{margin-top:0}
 .newpill{position:absolute;z-index:7;left:50%;bottom:calc(86px + var(--dock-h,0px) + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;pointer-events:none;transition:.25s;min-height:44px;padding:8px 14px;border-radius:14px;border:1px solid var(--glass-line);background:var(--disc);font:600 13px var(--ui);color:var(--ink)}
 .newpill.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
-.say .ln.still{animation:none}
 .edge.err::after{--edge-c:#ff6b5e;opacity:.8}
 .edge.off::after{opacity:.2}
-.top #date[data-offline]::after{content:" · Offline"}
+/* a home line the mind placed: a card in the chat at its time, tinted as the mind's (never a bubble
+   like the owner's); the night's lines are one card headed "Overnight", shown when quiet ends */
+.talk .note{align-self:stretch;margin:2px 0;padding:11px 15px 12px;border-radius:var(--r-row);background:color-mix(in srgb,var(--accent-text) 7%,transparent);border:1px solid color-mix(in srgb,var(--accent-text) 16%,transparent)}
+.talk .note .nh{display:flex;align-items:center;gap:6px;margin-bottom:4px;font:600 12px var(--ui);letter-spacing:.01em;color:var(--accent-text)}
+.talk .note .nh svg{width:14px;height:14px;fill:currentColor}
+.talk .note .nt{font:500 15.5px/1.45 var(--ui);color:var(--ink);overflow-wrap:anywhere}
+.talk .note .nt+.nt{margin-top:6px;padding-top:6px;border-top:1px solid color-mix(in srgb,var(--accent-text) 12%,transparent)}
 /* the time over a turn that starts the day or follows an hour's quiet */
 .talk .turn[data-time]::before{content:attr(data-time);align-self:center;margin:6px 0 4px;font:600 11.5px/1 var(--ui);letter-spacing:.04em;color:var(--ink-3);font-variant-numeric:tabular-nums}
 /* follow-ups the mind suggests: quiet outline pills, only under the newest turn */

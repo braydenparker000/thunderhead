@@ -163,7 +163,7 @@ test('an older conversation shows read-only with Back to now; Back, the pill, No
     assert.deepEqual(await page.$$eval('#past .you, #past .reply, #past .sys', (n) => n.map((x) => x.textContent)),
       ['Put on something calm for the evening', 'It is in Music, under Evening.', 'Yesterday is filed in the menu.']);
     assert.equal(await page.$eval('#past .reply', (r) => getComputedStyle(r).fontStyle), 'normal', 'read as home reads it');
-    for (const sel of ['#say', '#talk']) assert.ok(await hidden(page, sel), `${sel} steps aside`);
+    for (const sel of ['#talk']) assert.ok(await hidden(page, sel), `${sel} steps aside`);
     assert.equal(await page.$('#past button.retry, #past .chip'), null, 'nothing to act on');
     await page.waitForTimeout(300);
     await shot(page, 'past', theme);

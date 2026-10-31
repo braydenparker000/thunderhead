@@ -11,7 +11,7 @@ The project's words, used the same way in every document, in code and in convers
 | **Wake** | The Worker starting a session through a scheduled-task API fire. The fire text is always the constant `wake`. |
 | **Briefing (mind)** | The context a session loads at start: rules, waiting messages, open threads, today so far, yesterday, profile. Injected by a hook. |
 | **Briefing (page)** | The swipe-right page on the phone: today at a glance. Distinct from the mind's briefing; say "the Briefing page" when it could be ambiguous. |
-| **Home** | The single main screen: voice line, conversation, ask bar. |
+| **Home** | The single main screen: the conversation (with the mind's cards), a status chip when something is off, the ask bar. |
 | **Voice line** | The large italic line on Home in the Thunderhead's voice ("Nothing needs you."). |
 | **Ring** | The circle of six app bubbles that opens when the owner holds still on an empty spot. Earlier documents call it the Compass. |
 | **Ask bar** | The glass pill at the bottom of Home: `+`, text field, mic/send. |

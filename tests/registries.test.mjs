@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { APPS, MEMORY, SURFACE_KINDS, VERBS } from '../frontend/th/contract.js';
 import { GROUPS, groupOf, odds, SOURCES, sourceLabel, shelfOf } from '../frontend/th/registry/memory.js';
 import { RING, apps, appFor, deepLink } from '../frontend/th/registry/apps.js';
-import { hasRenderer, homeLine, place } from '../frontend/th/registry/surfaces.js';
+import { hasRenderer, homeLines, place } from '../frontend/th/registry/surfaces.js';
 import { EXECUTORS, canRun, run } from '../frontend/th/registry/verbs.js';
 
 test('every app in the contract is on the ring, with a colour and an icon in the sprite', () => {
@@ -53,8 +53,21 @@ test('every surface kind and version is drawn, and anything else becomes the gen
   for (const [kind, k] of Object.entries(SURFACE_KINDS)) for (const v of k.versions) assert.ok(hasRenderer(kind, v), `${kind} v${v} has no renderer`);
   assert.deepEqual(place(surface('banner', 1, {})), { place: 'card', order: 0, text: 'a test surface for the phone', kind: 'banner' });
   assert.equal(place(surface('line', 7, { text: 'x' })).place, 'card', 'an unknown version falls back');
-  const lines = [surface('line', 1, { text: 'Third.' }, 'home', 'line.3'), surface('line', 1, { text: 'First.' }, 'home', 'line.1')];
-  assert.deepEqual(homeLine(lines), { place: 'voice', order: 1, text: 'First.', lang: null });
+  // Home lines: cards in today's chat (day 2026-10-29 starts 04:00). The night's are one card,
+  // in slot order, held until the quiet hours end (06:30, or the owner's later end) and shown as of
+  // then; a line from the day is its own card at its time; yesterday's lines are gone.
+  const t = (hm) => new Date(`2026-10-29T${hm}`).getTime();
+  const line = (slot, text, hm, extra = {}) => ({ ...surface('line', 1, { text, ...extra }, 'home', slot), written_at: t(hm), seq: Number(slot.slice(-1)) });
+  const items = [line('line.3', 'Third.', '05:20'), line('line.1', 'First.', '05:30'), line('line.2', 'Later.', '14:00', { lang: 'es' }), { ...line('line.4', 'Old.', '05:00'), written_at: t('03:00') }];
+  assert.deepEqual(homeLines(items.slice(0, 2), { day: '2026-10-29', now: t('06:10') }), [], 'the night held before 06:30');
+  assert.deepEqual(homeLines(items, { day: '2026-10-29', now: t('15:00') }), [
+    { id: 'night:2026-10-29', lines: [{ text: 'First.', lang: null }, { text: 'Third.', lang: null }], at: t('06:30'), night: true },
+    { id: 'line.2@2', lines: [{ text: 'Later.', lang: 'es' }], at: t('14:00'), night: false },
+  ]);
+  const night = (o) => homeLines(items.slice(0, 2), { day: '2026-10-29', ...o }).filter((c) => c.night).length;
+  assert.equal(night({ now: t('07:00'), quietEnd: '07:30' }), 0, "the owner's later end holds them");
+  assert.equal(night({ now: t('06:20'), quietEnd: '05:00' }), 0, 'never before 06:30, whatever the setting says');
+  assert.equal(night({ now: t('06:31'), quietEnd: '05:00' }), 1);
   assert.equal(place(surface('tile', 1, { label: 'Study', value: 'p. 212' }, 'briefing', 'study')), null, 'a Briefing tile is not drawn on home');
 });
 

@@ -292,13 +292,13 @@ test('the menu: a conversation swiped left offers Pin; pinned ones come first; s
   await context.close();
 });
 
-test('offline is said on the date line, not in a pill; the choice groups are radio groups that move with the arrow keys', opts, async () => {
+test('offline is said by the status chip at the top, the one place for what is off; the choice groups are radio groups that move with the arrow keys', opts, async () => {
   const { page, context, errors } = await open();
   assert.equal(await page.$('.offpill'), null, 'no offline pill (audit fix 10)');
   await context.setOffline(true);
-  await page.waitForFunction(() => document.querySelector('#date')?.hasAttribute('data-offline'));
+  await page.waitForFunction(() => { const st = document.querySelector('#status'); return st && !st.hidden && st.dataset.kind === 'offline'; });
   await context.setOffline(false);
-  await page.waitForFunction(() => !document.querySelector('#date')?.hasAttribute('data-offline'));
+  await page.waitForFunction(() => document.querySelector('#status')?.hidden);
   await go(page, 'side');
   await page.waitForTimeout(600);
   await page.click('#settings');

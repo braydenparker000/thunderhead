@@ -191,7 +191,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 
 | Kind | Slots | Versions | Payload (newest) | What it is |
 |---|---|---|---|---|
-| `line` | home `^line\.[1-4]$` | 1 | `{ text: string, lang?: string }` | A home line under the voice line (HOME.md §2): app `home`, slots `line.1`–`line.4`; `lang` for a second-language line. |
+| `line` | home `^line\.[1-4]$` | 1 | `{ text: string, lang?: string }` | A home line, shown as a card in today's chat at its time; the night's lines are one Overnight card shown when quiet hours end (HOME.md §2.2): app `home`, slots `line.1`–`line.4`; `lang` for a second-language line. |
 | `tile` | briefing `^(practice\|study\|built\|note\.[1-3])$` | 1 | `{ label: string, value: string, detail?: string, big?: string, wide?: boolean, app?: string, path?: string }` | A Briefing tile (BRIEFING.md §2), app `briefing`: `study` (today's reading), `practice`, `built` (what you made overnight), `note.1`–`note.3`. {label ≤24, value ≤32, detail? ≤60, big? ≤5, wide?, app?+path? (opens it)}; set --expires, else it goes after a day. |
 
 ## Change kinds

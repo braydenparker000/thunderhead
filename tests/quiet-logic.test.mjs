@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { quietLine, quietOrder } from '../frontend/th/chat/quiet.js';
-import { voiceLine } from '../frontend/th/chat/model.js';
+import { status } from '../frontend/th/chat/model.js';
 
 const at = (d, h, m = 0) => new Date(2026, 9, d, h, m).getTime(); // 30 October 2026 is a Friday
 const NOW = at(30, 14);
@@ -46,10 +46,10 @@ test('"I\'m back" ends it; anything that is not only the command is for the mind
     assert.equal(quietOrder(t, NOW), null, t);
 });
 
-test('the voice line: "Quiet until 06:30." (with the day when over a day away) holds the rest', () => {
+test('the status chip: "Quiet until 06:30" (with the day when over a day away) comes before the rest', () => {
   assert.equal(quietLine(at(31, 6, 30), NOW), 'Quiet until 06:30.');
   assert.equal(quietLine(at(33, 6, 30), NOW), 'Quiet until Monday 06:30.');
-  const base = { presence: null, firstRun: true, homeLine: 'Rain at 4.', decisions: 2 };
-  assert.deepEqual(voiceLine({ ...base, quiet: 'Quiet until 06:30.' }), ['Quiet until 06:30.', "I'll hold everything until then."]);
-  assert.deepEqual(voiceLine({ ...base, presence: { state: 'failed', note: null, since: 0 }, quiet: 'Quiet until 06:30.' }), ["I can't wake just now.", "I'll answer when I'm back."]);
+  assert.deepEqual(status({ presence: null, quiet: 'Quiet until 06:30.' }), { kind: 'quiet', text: 'Quiet until 06:30' });
+  // Quiet holds everything, so a mind that can't wake doesn't need saying until it ends.
+  assert.deepEqual(status({ presence: { state: 'failed', note: null, since: 0 }, quiet: 'Quiet until Monday 06:30.' }), { kind: 'quiet', text: 'Quiet until Monday 06:30' });
 });

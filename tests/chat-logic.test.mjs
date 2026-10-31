@@ -30,12 +30,12 @@ test('waiting: the newest owner message with no reply after it; progress and sys
   assert.equal(m.waitingFor([owner, local('f', 'failed')])?.id, 'q', 'an unanswered one before it still waits');
 });
 
-test("the Worker's not-waking line, once in the thread, stands in for the voice line's row 3", () => {
+test("the Worker's not-waking line, once in the thread, stands in for the status chip", () => {
   const line = msg({ id: 's', seq: 2, author: 'system', meta: { line: 'not_waking' } });
   assert.equal(m.noWakeShown([msg({}), line]), true);
   assert.equal(m.noWakeShown([msg({}), line, msg({ id: 'r', seq: 3, author: 'mind' })]), false);
   assert.equal(m.noWakeShown([msg({}), msg({ id: 's2', seq: 2, author: 'system', meta: { line: 'other' } })]), false);
-  assert.deepEqual(m.voiceLine({ presence: presence('failed'), firstRun: false, homeLine: null, noWake: true }), ['Nothing needs you.', null]);
+  assert.equal(m.status({ presence: presence('failed'), noWake: true }), null);
 });
 
 test('the reply slot: nothing, then …, Waking up… at 8 s, Still waking at 60 s; live sessions show …', () => {
@@ -64,13 +64,27 @@ test('the thinking words: the mind\'s own note, else words from the message, the
   assert.equal(t('Play some music', 1300, { ...presence('listening'), note: 'old note' }), 'Thinking about your music…', 'only a working note');
 });
 
-test('the voice line: first run, the mind not waking, a home line, the default', () => {
-  assert.deepEqual(m.voiceLine({ presence: null, firstRun: true, homeLine: null }), ["I'm here.", 'Ask me anything, any time.']);
-  assert.deepEqual(m.voiceLine({ presence: presence('failed'), firstRun: true, homeLine: 'x' }), ["I can't wake just now.", "I'll answer when I'm back."]);
-  assert.deepEqual(m.voiceLine({ presence: presence('asleep'), firstRun: false, homeLine: 'Your playlist is in Music.' }), ['Nothing needs you.', 'Your playlist is in Music.']);
-  assert.deepEqual(m.voiceLine({ presence: null, firstRun: false, homeLine: null }), ['Nothing needs you.', null]);
-  for (const [l1, l2] of [["I'm here.", 'Ask me anything, any time.'], ["I can't wake just now.", "I'll answer when I'm back."], ['Nothing needs you.', '']])
-    assert.ok(l1.length <= 22 && l2.length <= 44 && !/!/.test(l1 + l2), 'HOME.md §2.2 limits');
+test('the status chip says something only when something is off: quiet, then offline, then not waking', () => {
+  // Owner, 2026-10-31: no standing line saying all is well.
+  assert.equal(m.status({ presence: null }), null);
+  assert.equal(m.status({ presence: presence('asleep') }), null);
+  assert.equal(m.status({ presence: presence('listening') }), null);
+  assert.deepEqual(m.status({ presence: presence('failed') }), { kind: 'wake', text: 'Can’t wake just now' });
+  assert.deepEqual(m.status({ presence: presence('limited') }), { kind: 'wake', text: 'Can’t wake just now' });
+  assert.deepEqual(m.status({ presence: presence('failed'), offline: true }), { kind: 'offline', text: 'Offline' });
+  assert.deepEqual(m.status({ presence: presence('failed'), offline: true, quiet: 'Quiet until 06:30.' }), { kind: 'quiet', text: 'Quiet until 06:30' });
+  for (const st of [m.status({ presence: presence('failed') }), m.status({ presence: null, offline: true })]) assert.ok(st && st.text.length <= 24 && !/[!.]$/.test(st.text), 'short, no full stop');
+});
+
+test("home lines join today's chat in time order as cards", () => {
+  const a = msg({ id: 'a', seq: 1, created_at: 100 });
+  const b = msg({ id: 'b', seq: 2, created_at: 300 });
+  const cards = [{ id: 'night:d', lines: [{ text: 'One.', lang: null }], at: 50, night: true }, { id: 'x', lines: [{ text: 'Two.', lang: null }], at: 200, night: false }, { id: 'y', lines: [{ text: 'Three.', lang: 'es' }], at: 400, night: false }];
+  const out = m.withLines([a, b], cards);
+  assert.deepEqual(out.map((x) => x.id), ['line:night:d', 'a', 'line:x', 'b', 'line:y']);
+  assert.deepEqual(out.map((x) => x.kind), ['card', 'text', 'card', 'text', 'card']);
+  assert.deepEqual(out[0].meta, { line: 'home', night: true, lines: [{ text: 'One.', lang: null }] });
+  assert.equal(m.withLines([a], []).length, 1);
 });
 
 test('the edge: thinking while waiting or working, error when the mind cannot wake, offline, calm', () => {

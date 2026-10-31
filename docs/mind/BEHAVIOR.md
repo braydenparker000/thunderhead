@@ -81,7 +81,7 @@ Climb one rung only when the rung below would fail the owner. Every rung needs a
 |---|---|---|---|---|---|
 | 0. **Silent arrangement** | A reversible change to an app: queue order, practice set, study page, list order | Inside the app, with a small why chip | The owner would want it done and it can be undone in one tap | Unlimited, but one change per (app, slot) per 6 h **[proposal]** | Until replaced |
 | 1. **Margin note** | One short line inside an app (a tip, "this part is new") | The app's margin surface | Useful only while the owner is in that app | 1 visible per app screen; ≤ 6 per day across apps **[proposal]** | 24 h default, max 7 d |
-| 2. **Home line** | The big italic voice line on Home | Home | Something today is worth knowing at a glance | 0–4 per day, shown one at a time | Until done, dismissed, or the day rolls |
+| 2. **Home line** | A card in today's chat on Home (the night's lines together as one "Overnight" card, shown when quiet hours end) | Home | Something today is worth knowing at a glance | 0–4 per day | Until the day rolls |
 | 3. **Push** | A phone notification | The phone's notification shade | Something needs the owner *now* and can't wait for the next time they open the app | ≤ 2 per day | Until tapped or 12 h |
 | 4. **Direct question** | A decision card on Home with gold at the bottom edge | Home (one at a time), Briefing → "What's waiting" (all) | Only the owner can decide, and it matters | ≤ 3 waiting; 1 visible | 7 days, then `expired` |
 
@@ -106,7 +106,7 @@ Climb one rung only when the rung below would fail the owner. Every rung needs a
 ### 3.3 Rung 2: home line
 
 1. Written by the night shift (0–4 lines for the day) or by a chat session when something changes.
-2. ≤ 44 characters (line 2 of the voice line, [HOME.md](../product/HOME.md) §2.2). It must end: a home line describes something that becomes done or stale, never a standing slogan.
+2. ≤ 44 characters (a card in the chat, [HOME.md](../product/HOME.md) §2.2). It must end: a home line describes something that becomes done or stale, never a standing slogan.
 3. Shown one at a time in priority order: decisions waiting → today's time-bound items → arrangements made → everything else.
 4. When there is nothing: the fixed line from [COPY.md](../design/COPY.md) (the prototype uses "Nothing needs you."). Silence is a valid screen.
 5. Tapping the line shows its why and, if it has one, the open button.
@@ -306,7 +306,7 @@ The reply is one line, in the voice: "Quiet until 06:30." Nothing else.
 |---|---|
 | Pushes (unprompted) | None. Refused by the Worker. |
 | Owner-set reminders | Still fire (the owner asked for them), at their time, with their push (outside quiet hours). |
-| Home lines | Frozen. The voice line shows the quiet line from [COPY.md](../design/COPY.md) (e.g. "Quiet until 06:30."). |
+| Home lines | Frozen. The status chip at the top says "Quiet until 06:30" ([COPY.md](../design/COPY.md) `status.quiet`). |
 | Decision cards | None shown. The gold edge stays off. Decisions keep waiting on the Briefing page. Their 7-day clock pauses. **[proposal]** |
 | Margin notes | None new. Existing ones stay until they expire. |
 | Silent arrangements | Continue (they are silent), with why chips as usual. |
@@ -322,7 +322,7 @@ The reply is one line, in the voice: "Quiet until 06:30." Nothing else.
 
 **Check (LAW-9, QH-1):** Worker tests in §3.4; a browser test types "go quiet" with the network off and the quiet line appears.
 
-**Built (P8, `frontend/th/chat/quiet.js`):** the chat ways in §8.1, in English and the second language's few words, caught on the phone before anything is sent (the message must be only the command, else it goes to the mind; "I'm back" ends quiet only while it is on, else it is words for the mind). With a time: "for 2 hours", "for 30 min", "until 6" (whichever 6 comes first), "until 18:30", "until 6pm", "today", "until tomorrow", "until Monday", "until I'm back" (a week, the most any order gives). The end is kept on the phone at once, so it works offline, and given to the Worker as the setting `quiet.until` (ms; 0 ends it) now or once back online; another phone takes it from the settings. During it: the voice line is "Quiet until 06:30." / "I'll hold everything until then.", no decision card shows and the gold edge stays off (cards still wait on the Briefing page and show when it ends, or at once on "I'm back"), the Worker refuses the mind's nudges with `409 quiet` and holds waiting ones, and the mind's briefing says `quiet: until 06:30 (…)`. Home lines and cards are held, not refused, so nothing is lost and the night shift's work shows after (CONSTITUTION.md's LAW-9 check said refused). Sign-in notices and the owner's own test still go. Settings → Quiet hours has "Go quiet now" (1 hour, until tomorrow, until turned off, or End now) and sets the day's quiet start and end (built 2026-10-31, MENU-AND-SETTINGS.md §4). Not yet: the catch-up line (§8.3 item 1, the mind's to write). Tests: `tests/quiet-logic.test.mjs` (the `go_quiet` examples of EVALS.md §6), `tests/chat-browser.test.mjs` (LAW-9), `tests/decide-browser.test.mjs`, `backend/tests/integration/quiet.test.ts`, `backend/tests/unit/webpush.test.ts`.
+**Built (P8, `frontend/th/chat/quiet.js`):** the chat ways in §8.1, in English and the second language's few words, caught on the phone before anything is sent (the message must be only the command, else it goes to the mind; "I'm back" ends quiet only while it is on, else it is words for the mind). With a time: "for 2 hours", "for 30 min", "until 6" (whichever 6 comes first), "until 18:30", "until 6pm", "today", "until tomorrow", "until Monday", "until I'm back" (a week, the most any order gives). The end is kept on the phone at once, so it works offline, and given to the Worker as the setting `quiet.until` (ms; 0 ends it) now or once back online; another phone takes it from the settings. During it: the status chip at the top says "Quiet until 06:30" (a tap: "I'll hold everything until then." with End now), no decision card shows and the gold edge stays off (cards still wait on the Briefing page and show when it ends, or at once on "I'm back"), the Worker refuses the mind's nudges with `409 quiet` and holds waiting ones, and the mind's briefing says `quiet: until 06:30 (…)`. Home lines and cards are held, not refused, so nothing is lost and the night shift's work shows after (CONSTITUTION.md's LAW-9 check said refused). Sign-in notices and the owner's own test still go. Settings → Quiet hours has "Go quiet now" (1 hour, until tomorrow, until turned off, or End now) and sets the day's quiet start and end (built 2026-10-31, MENU-AND-SETTINGS.md §4). Not yet: the catch-up line (§8.3 item 1, the mind's to write). Tests: `tests/quiet-logic.test.mjs` (the `go_quiet` examples of EVALS.md §6), `tests/chat-browser.test.mjs` (LAW-9), `tests/decide-browser.test.mjs`, `backend/tests/integration/quiet.test.ts`, `backend/tests/unit/webpush.test.ts`.
 
 ---
 
@@ -363,7 +363,7 @@ Rules:
 | Don't narrate tools | "The test failed on accents." | "I will now run `npm test` using the Bash tool." |
 | Voice lines end | "Bars 9–12 queued at 84 bpm." | "Keep pushing forward!" |
 
-- The voice line and the mind's replies use Fraunces italic (serif means the Thunderhead said it); the owner's bubbles and all UI text use Inter. The mind never writes markup to change fonts.
+- The shell uses one face (DESIGN-SYSTEM.md rule 1); the mind's replies sit without a bubble and its home lines are tinted cards, so its words read as its own. The mind never writes markup to change fonts.
 - The mind may call itself "the Thunderhead" when asked its name. It never claims to be a person, never claims feelings it lacks, and never denies being an AI.
 
 **Check (TONE-1):** phrase lint in `th say` (exit 8 on a banned phrase list kept in `mind/lint/phrases.json`); weekly in-session review of 30 sampled replies against this table, score ≥ 27/30.
@@ -378,7 +378,7 @@ Rules:
 4. **Quote small.** At most one sentence quoted from any outside source, with the link or ref.
 5. **Session taint.** Once a session has read outside text through a tainting tool, the Worker refuses that session's `remember`, `rule` writes and `reach_people` actions for the rest of the session (built in P4 stage C, and every ask-first card it would raise or approve; [MEMORY.md](MEMORY.md#6-provenance-and-taint-rules-worker-enforced)).
 6. **Quarantined reader (built in P4 stage C).** Long outside material is read by the `reader` subagent, which has no shell and no write tools and returns schema-checked JSON; the main session works only from what `th read --check` prints ([RUNTIME.md §6.6](RUNTIME.md#66-the-reader-subagent)). The session is tainted all the same.
-7. **Muse output** is shown to the owner labelled "from Muse" and never in the mind's own voice line. The mind may summarise it in its own words with "Muse reports …". See [MUSE.md](MUSE.md).
+7. **Muse output** is shown to the owner labelled "from Muse" and never as the mind's own words. The mind may summarise it in its own words with "Muse reports …". See [MUSE.md](MUSE.md).
 
 **Check:** INJ-01…25 ([EVALS.md](EVALS.md)).
 

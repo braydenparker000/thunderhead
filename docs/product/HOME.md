@@ -1,13 +1,13 @@
 # Home
 
-Home is the one screen the Thunderhead lives on: a quiet chat with a big italic voice line, a decision card when something needs the owner, the day's conversation sitting low, and a quiet ask bar.
+Home is the one screen the Thunderhead lives on: a quiet chat, the mind's cards in it when it has something, a decision card docked by the bar when something needs the owner, a status chip only when something is off, and a quiet ask bar.
 This file specifies every element and state on it, with exact values and an acceptance check for each behaviour. Numbers come from the locked prototype (`proto/thunderhead-prototype.html`, v11) and the first build (`frontend/apps/home/`), unless marked **[proposal]**.
 Sibling docs: [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM](../design/DESIGN-SYSTEM.md), [COPY](../design/COPY.md), [BRIEFING](BRIEFING.md), [MENU-AND-SETTINGS](MENU-AND-SETTINGS.md), [SIGN-IN](SIGN-IN.md), [mind BEHAVIOR](../mind/BEHAVIOR.md), [API](../engineering/API.md), [decisions](../process/decisions.md).
 
 ## Rules at a glance
 
-1. **One screen** (owner ruling). Top to bottom: date line, voice line, decision card (only when one waits), today's conversation, hint (only while learning), ask bar. Nothing else. **No chips on home** except the action chip under a reply (§4.5).
-2. The **voice line** says what matters in ≤ 2 short lines of Fraunces italic. "Nothing needs you." is the normal state, not an empty state.
+1. **One screen** (owner ruling). Top to bottom: date line (with the status chip only when something is off), today's conversation with the mind's cards in it, hint (only while learning), decision card (docked, only when one waits), ask bar. Nothing else. **No chips on home** except the action chip under a reply (§4.5).
+2. **Nothing stands on screen to say all is well** (owner, 2026-10-31). The status chip shows only while something is off (§2.1); the mind's lines are cards in the chat (§2.2).
 3. A **decision** is one gold card with at most two buttons. Only one is shown at a time; the rest queue behind it.
 4. The **conversation** is today's thread. It starts on its own each day (04:00, after 60 quiet minutes). The owner never starts, names or clears one (owner ruling).
 5. The **ask bar** has no placeholder. `+` on the left folds up the options sheet; the mic on the right turns into send while typing (owner ruling).
@@ -18,7 +18,7 @@ Sibling docs: [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM](../design/DESIG
 
 ## 1. Layout
 
-**Built 2026-10-31 (the owner's look round; home is a chat, so what the owner acts on sits by the ask bar, never at the top of the thread):** the decision card docks just above the ask bar while one waits (§3, option C), and an older conversation's card with Back to now docks there too (§4.9); the conversation ends above whichever is shown (`--dock-h`, `--past-h`, and `--about-h` for the Ask about quote). Toasts sit just above the bar. Once the voice line scrolls away a small copy of it pins at the top (a tap goes back up), and while scrolling a chip says when the topmost turn was said (`apps/home/pinned.js`); the conversation fades out at its top edge. The date line's "· 1 waiting" is gone (the card is always in view), and offline is said on the date line and each waiting message, not also in a pill. One face, Quicksand (DESIGN-SYSTEM.md rule 1): the voice line is Light at `clamp(34px, 10vw, 42px)`.
+**Built 2026-10-31 (the owner's look round; home is a chat, so what the owner acts on sits by the ask bar, never at the top of the thread):** the decision card docks just above the ask bar while one waits (§3, option C), and an older conversation's card with Back to now docks there too (§4.9); the conversation ends above whichever is shown (`--dock-h`, `--past-h`, and `--about-h` for the Ask about quote). Toasts sit just above the bar. While scrolling back, a chip says when the topmost turn was said (`apps/home/pinned.js`); the conversation fades out at its top edge. The date line's "· 1 waiting" is gone (the card is always in view). The voice line went the same day (§2): offline is said by the status chip and on each waiting message.
 
 Measured in Chromium at 390×844 (the A15's CSS viewport is likely ~384×832, unverified).
 
@@ -28,7 +28,7 @@ Measured in Chromium at 390×844 (the A15's CSS viewport is likely ~384×832, un
 | Date line | `top: 14px`, left inset `max(24px, safe-area)`, Inter 600 11 px caps | No |
 | Conversation column (`.convo`) | `top: 56px`, `bottom: 98px`, side padding 24 px, `flex-direction: column` with a growing spacer on top (min 40 px), so content sits **low** | Yes (vertical) |
 | ↳ Voice line | First item after the spacer | With the column |
-| ↳ Decision card | 18 px under the voice line | With the column |
+| ↳ Decision card | Docked just above the ask bar (§3) | Fixed |
 | ↳ Turns | 22 px between turns (8 px before the first) | With the column |
 | ↳ Hint | 22 px under the last item | With the column |
 | Ask bar | `bottom: 24px + safe-area`, `left/right: max(16px, safe-area)`, 54 px tall | No |
@@ -38,58 +38,37 @@ Measured in Chromium at 390×844 (the A15's CSS viewport is likely ~384×832, un
 
 The app is at most **460 px** wide and centred on wider screens.
 
-## 2. The voice line
+## 2. The status chip and the mind's cards
 
-### 2.1 What it says
+**Built 2026-10-31 (owner: "the voice line itself is dumb … something always telling me that things are okay isn't useful. It's pretty easy to just assume things are okay if he hasn't told me anything").** There is no standing voice line. Home says something only when something is off, and the mind's own lines arrive as cards in the chat when it has one. (Until then the voice line said "Nothing needs you." most of the time, at the top of the thread where a long day scrolled it out of sight; its rows are in git history.)
 
-The client chooses the line from state, top row first. Fixed lines are written in [COPY](../design/COPY.md); the mind can supply only the **second** line, through a `home.line` surface written by the night shift or a chat session.
+### 2.1 The status chip
 
-| # | Situation | Line 1 | Line 2 |
+A small chip at the top right, beside the date (`#status`, `th/chat/model.js` `status()`), hidden while all is well. One at a time, in this order:
+
+| # | Situation | Chip (icon, words) | A tap |
 |---|---|---|---|
-| 1 | Signed out | (Home is replaced by sign-in, see [SIGN-IN](SIGN-IN.md)) | |
-| 2 | First run: signed in, no message ever sent [proposal] | *I'm here.* | *Ask me anything, any time.* |
-| 3 | The mind can't wake (Worker flag `mind_unavailable`, §4.4), and the Worker's "isn't waking" line isn't already in the thread | *I can't wake just now.* | *I'll answer when I'm back.* |
-| 4 | 1 decision waiting, outside quiet hours | *One thing needs you.* | the `home.line` if any, else *The rest is handled.* |
-| 5 | 2–9 decisions waiting | *Two things need you.* … *Nine things need you.* | same as row 4 |
-| 6 | 10 or more decisions waiting | *Many things need you.* | same as row 4 |
-| 7 | A `home.line` exists for today, nothing waiting | *Nothing needs you.* | the `home.line` (e.g. *Your new playlist is in Music.*) |
-| 8 | Just answered the last decision (shown for the rest of the session) | *Nothing needs you now.* | the `home.line`, else none. After "yes": *Everything is handled.* |
-| 9 | Quiet hours, nothing waiting [proposal] | *Nothing needs you.* | *It can all wait until morning.* |
-| 10 | Default | *Nothing needs you.* | none |
-| 11 | The owner said "go quiet" ([BEHAVIOR.md §8](../mind/BEHAVIOR.md#8-go-quiet)); ahead of every row but 3 | *Quiet until 06:30.* (*Quiet until Monday 06:30.* over a day away) | *I'll hold everything until then.* |
+| 1 | The owner said "go quiet" ([BEHAVIOR.md §8](../mind/BEHAVIOR.md#8-go-quiet)) | moon, *Quiet until 06:30* (*Quiet until Monday 06:30* over a day away), accent | Toast "I'll hold everything until then." with **End now** |
+| 2 | Offline | wifi off, *Offline* | Toast "Messages send when you're back online." |
+| 3 | The mind can't wake (presence `failed` or `limited`), and the Worker's "isn't waking" line isn't already in the thread (§4.4) | warning, *Can't wake just now*, alarm red | Toast "I'll answer when I'm back." |
 
-States that **do not** change the voice line:
+The owner's own order comes first (it shows at once, even offline); offline outranks the mind because nothing reaches it then. Waiting decisions are never counted here: the docked card says so itself (§3). Words: short, no full stop, no exclamation mark. Not shown: thinking (the edge and the reply slot), asleep (the normal state), waking ("Waking up…" in the reply slot).
 
-| State | Shown instead |
-|---|---|
-| Thinking (a reply is on its way) | The edge pulse and the reply placeholder (§4.4) |
-| Mind asleep (no session running) | Nothing. This is the normal state; the Worker and the instant tier answer what they can. |
-| Mind waking (fire sent, not claimed yet) | "Waking up…" in the reply slot (§4.4) |
-| Offline | "· Offline" after the date (§9); the line keeps its last value |
-| Typing in the ask bar | Nothing; a pending line change waits (§2.3) |
+### 2.2 The mind's lines as cards
 
-### 2.2 Length limits
+A `line` surface in app `home` (slots `line.1`–`line.4`, ≤ 44 characters, ending in a full stop, `lang` for a second-language line) is a card in today's chat, among the messages in time order (`th/registry/surfaces.js` `homeLines()`, `th/chat/model.js` `withLines()`):
 
-Measured: the voice line fits **22 characters per visual line** at every phone width (360–412 px), because its size scales with width (`clamp(32px, 9vw, 40px)`).
+- **The night's lines** (placed after the day began at 04:00 and before the quiet hours end) are **one card** headed **Overnight** (moon icon), its lines in slot order with a hairline between them, held until the quiet hours end (06:30, or the owner's later `quiet.end`, never earlier; Law 13) and placed in the chat as of then.
+- **A line placed later in the day** (by a chat session) is its own card, at its time, with no heading.
+- Lines from before today's 04:00 are not shown: each day starts clean.
+- Look: tinted as the mind's (accent 7% fill, accent 16% border, radius 16), never a bubble like the owner's; heading Quicksand 600 12 in the accent; lines 500 15.5/1.45 `--ink`. Not tappable; not a reply.
+- A surface kind or version this phone can't draw still shows as the generic card with its `why` (EXTENDING.md rule 3).
 
-| Part | Limit | Enforced by |
-|---|---|---|
-| Line 1 | ≤ **22** characters (one visual line). All fixed line-1 strings fit. | COPY table test |
-| Line 2 | ≤ **44** characters (≤ 2 visual lines) | The Worker rejects a longer `home.line` (422) |
-| Whole line | ≤ **3** visual lines at 360 px | Browser test: `#say` height ≤ 3 × line-height |
-| Words | No exclamation marks, no emoji, no counts of other people, ends with a full stop | Worker validation + mind evals |
-| Language | The owner's language of the day; second-language lines get `lang` set to that language's code (a private setting) | Surface field `lang` |
+### 2.3 Empty and first run
 
-### 2.3 When and how it changes
+An empty day is an empty column: the date, the hint while learning (§10), and the ask bar, whose placeholder is **Ask anything**. Nothing welcomes or reassures; the first run is the same.
 
-1. It is computed on load, on every live update (WebSocket), on `visibilitychange → visible`, and on a decision being answered.
-2. **Debounce:** at most one change every **10 s**, except row 4–8 transitions caused by the owner's own tap, which change at once, and the end of the first-run line when the owner sends the first message (built). [proposal]
-3. **Never while typing:** if the ask bar has text or focus, a pending change waits until the input is empty and blurred for 2 s. [proposal]
-4. **Change animation:** the old line fades to opacity 0 over **400 ms**; at **320 ms** the new spans replace it and play `rise`: from `opacity 0; translateY(10px); blur(4px)` to rest over **900 ms** `cubic-bezier(.2,.7,.2,1)`, line 2 delayed **160 ms**. Haptic: none.
-5. **On cold start and the first open of the day** the line plays `rise` once. Returning to the app within the same day shows it instantly (no animation).
-6. Reduced motion: instant swap, no rise.
-
-Acceptance: a test sets 0, 1, 3 and 12 pending decisions through a mocked live channel and asserts the exact text of `#say` for each, that a `home.line` of 45 characters is rejected by the Worker, and that `#say` height ≤ 3 lines at 360 px for every fixed string.
+Acceptance (tests/chat-browser, chat-logic, registries): the chip is hidden while all is well and shows each row's words; the night's two lines show as one Overnight card in slot order, held before 06:30 and before a later `quiet.end`, never before 06:30 whatever the setting; a day line is its own card in time order among the messages; nothing remains of `#say`.
 
 ## 3. The decision card
 
@@ -109,7 +88,7 @@ A decision is a proposal or question from the mind that needs the owner's answer
 
 | State | Looks like | Happens when |
 |---|---|---|
-| Rising | `rise` 800 ms after a 300 ms delay (it follows the voice line); its buttons take a tap only 500 ms after the rise ends, so a tap never lands on a card the owner hasn't seen | First render of a waiting decision |
+| Rising | `rise` 800 ms after a 300 ms delay; its buttons take a tap only 500 ms after the rise ends, so a tap never lands on a card the owner hasn't seen | First render of a waiting decision |
 | Waiting | Card visible; bottom edge turns gold (§7) | Proposal `status=waiting` and not inside quiet hours |
 | Deciding | Pressed button shows a 16 px spinner; both buttons disabled | Tap sent, waiting for the Worker (timeout 15 s) |
 | Folded | Opacity 0, scale .97, height and padding → 0 over **450 ms** (+120 ms delay); removed at 650 ms | Worker confirmed |
@@ -117,7 +96,7 @@ A decision is a proposal or question from the mind that needs the owner's answer
 | Offline | Buttons look normal; a tap shows the toast "Needs a connection. Nothing was decided." and nothing else | No network |
 | Expired | Folds as above; toast "That one expired. Nothing was done." | `expires` passes while visible |
 
-**Yes:** sends the approval with the device's session. On success: the card folds; the gold edge fades over 1.4 s (unless another decision waits); the voice line moves to row 8; a toast shows the proposal's confirmation line in the mind's words (e.g. "I'll run that job tonight.", ≤ 40 characters); haptic `[12,40,12]`. The action itself runs on the server (ledger entry with its undo where one exists).
+**Yes:** sends the approval with the device's session. On success: the card folds; the gold edge fades over 1.4 s (unless another decision waits); a toast shows the proposal's confirmation line in the mind's words (e.g. "I'll run that job tonight.", ≤ 40 characters); haptic `[12,40,12]`. The action itself runs on the server (ledger entry with its undo where one exists).
 
 **Not yet:** snoozes. The proposal comes back the next day at the first open after 06:30, at most **3** times, then it expires. Toast: "I'll ask again tomorrow."
 
@@ -130,7 +109,7 @@ Answering in chat ("no, don't") can **reject** or snooze a decision (the mind ca
 1. Only **one card** is visible (one gold element at a time).
 2. Order: soonest `expires` first, then oldest `at`.
 3. After one is answered, the next rises **300 ms** after the fold finishes, never sooner (not even when the feed brings the list back first), so a second tap of the same finger lands on nothing.
-4. The voice line counts all waiting decisions (rows 4–6).
+4. The card's "1 of N" counts the waiting decisions; nothing else does (no standing line, §2).
 
 ### 3.4 Expiry and quiet hours
 
@@ -185,7 +164,7 @@ Acceptance: with two mocked proposals, the first card shows "1 of 2"; tapping Ye
 | ≥ 1.2 s | **Thinking words** (owner, 2026-10-30), Inter 500 14 in `--ink-3` with a light passing across them every 2.6 s, each new line fading in: the mind's own note while it works (`th status working --note "<3-6 words>"`, ROLES.md chat step 1), else words from what the owner asked ("Thinking about your music…", "…guitar…", "…your books…", "…your day…", "Thinking back…", or "Thinking…"), then "Working it out…" and "Putting it together…", 3 s each, the last staying. Reduced motion: no light, no fade (`model.thinking`) | think |
 | ≥ 8 s and the session has not claimed the wake | "Waking up…" (Inter 13, `--ink-3`) | think |
 | ≥ 60 s, still unclaimed | "Still waking. This can take a minute." | think |
-| 240 s, still unclaimed | The Worker posts a system line: "The mind isn't waking (likely a usage limit or an outage). I'll answer when it's back." While that line stands in the thread with no reply after it, the voice line keeps its usual row: it never says the same thing twice. Row 3 shows when the mind can't wake and the thread doesn't say so (opening home during the back-off). | error (§7) |
+| 240 s, still unclaimed | The Worker posts a system line: "The mind isn't waking (likely a usage limit or an outage). I'll answer when it's back." While that line stands in the thread with no reply after it, the status chip stays hidden: home never says the same thing twice. The chip's *Can't wake just now* shows when the mind can't wake and the thread doesn't say so (opening home during the back-off, §2.1). | error (§7) |
 | Reply arrives | Text reveals (§4.4.1); then any action chip fades in (400 ms) | back to calm |
 
 The wake timings come from the mind's loop: the page fires a pre-warm on the first keystroke, the Worker retries an unclaimed fire once at 120 s and gives up at 240 s ([RUNTIME](../mind/RUNTIME.md)). Cold replies are expected to take 20–60 s and are not yet measured.
@@ -239,7 +218,7 @@ Attachments go to private storage behind sign-in (R2 `thunderhead-private`), nev
 
 Opened from the menu (prototype v11; built, `frontend/th/convos/past.js`). The thread loads its newest 200 messages, with "Show earlier" above for the rest; a search hit further back is found by reading back up to 1,000. Messages show as on home, without chips, Retry or Stop. If it can't load, a line says why with **Retry** ("You're offline. This conversation shows once you're back." offline).
 
-- The voice line and the decision card hide. A glass card at the top of the column holds the title (two lines at most), "<when> · <N> messages" under it (the day left out when the title is the day; an imported one tagged gold "Old Chats"), and a **Back to now** button (accent fill, Inter 600 12).
+- The status chip and the decision card hide. A glass card at the top of the column holds the title (two lines at most), "<when> · <N> messages" under it (the day left out when the title is the day; an imported one tagged gold "Old Chats"), and a **Back to now** button (accent fill, Inter 600 12).
 - The mind's short replies keep the voice. A reply of an imported old chat, one of 280 characters or more, or one written in Markdown reads as text instead (Inter 16, `frontend/th/convos/prose.js`): headings, bullet and numbered lists, bold, `code`, fenced code, tables and https links, built as elements with text only.
 - The filed thread shows read-only, scrolled to the bottom (or to the search hit, highlighted for 2 s).
 - Typing and sending returns to now first, then sends.
@@ -255,10 +234,10 @@ Decided: the day rolls at **04:00 local**, but only after **60 quiet minutes** (
 
 | Owner's view | What they see |
 |---|---|
-| App closed through the roll | Next open: an empty column with the voice line (the night shift's line if ready). Yesterday is the top row under "Yesterday" in the menu, with a provisional title. |
-| App open and idle at the roll | The turns fade out over 300 ms, the voice line re-rises, the date updates. No toast. |
+| App closed through the roll | Next open: an empty column (the night's Overnight card once the quiet hours end, §2.2). Yesterday is the top row under "Yesterday" in the menu, with a provisional title. |
+| App open and idle at the roll | The turns fade out over 300 ms, the date updates. No toast. |
 | Mid-conversation at 04:00 | Nothing: the roll waits until 60 quiet minutes have passed. |
-| First three days after first run | Once, under the voice line on the first open after a roll: "Yesterday is filed in the menu." (Inter 12, `--ink-3`) [proposal] |
+| First three days after first run | Once, at the top of the empty column on the first open after a roll: "Yesterday is filed in the menu." (Inter 12, `--ink-3`) [proposal] |
 
 Memory carries context across days ([MEMORY](../mind/MEMORY.md)); the owner never has to repeat themselves.
 
@@ -340,7 +319,7 @@ Limits and rules:
 - When the keyboard opens or the ask box grows, the conversation keeps its bottom anchored if it was at the newest turn (built 2026-10-30: a resize observer on the bar and the conversation).
 - Tapping empty space closes the keyboard (blurs the input). The ring does not open while the keyboard is up.
 - System Back closes the keyboard first.
-- The input never auto-focuses on load (the keyboard would cover the voice line). It focuses after "Ask about this" and after picking Remind me.
+- The input never auto-focuses on load (the keyboard would cover the conversation). It focuses after "Ask about this" and after picking Remind me.
 
 Acceptance: in Playwright with a mobile Chrome emulation, typing "hello" swaps mic → send within 250 ms; Enter sends; the input is empty afterwards; `#q` has no `placeholder` attribute except while listening.
 
@@ -396,7 +375,7 @@ Built 2026-10-31: the counters below are kept on this phone (`th-hint`); the hin
 | State | What home shows |
 |---|---|
 | **Cold start, cache present** | Paints from IndexedDB within 1 s on the A15 (warm start budget). Voice line rises; edge calm. Live data reconciles silently: changes under 400 ms after paint are applied without animation. |
-| **Cold start, no cache** (first visit after sign-in) | Field, date, voice line row 2, hint, ask bar. No skeletons; the voice line never shows a skeleton. |
+| **Cold start, no cache** (first visit after sign-in) | Field, date, hint, ask bar ("Ask anything"). No skeletons. |
 | **Loading older turns** | Nothing visible; they appear above. |
 | **Offline** | Last state; "· Offline" on the date line; edge offline; messages queue (§4.7); decisions can't be answered (§3.2); the briefing shows its cached tiles with "as of" times. |
 | **Server error** (5xx, timeout) | Same as offline for sending (auto-retry); a toast only when the owner's own action failed. |
@@ -424,7 +403,7 @@ Built 2026-10-31: the counters below are kept on this phone (`th-hint`); the hin
 | New replies announced | Turns list is `aria-live="polite"`; each reply is announced once, whole |
 | Voice line changes announced | `#say` is `role="status"` [proposal]; announced only on change, not on load |
 | Decision card | `role="group"` with `aria-labelledby` the question; buttons are real `<button>`s |
-| Edge light meaning | Never the only signal: gold ↔ the card and voice line; thinking ↔ the reply placeholder; listening ↔ the mic state; error ↔ text |
+| Edge light meaning | Never the only signal: gold ↔ the docked card; thinking ↔ the reply placeholder; listening ↔ the mic state; error ↔ text |
 | Targets | All ≥ 44 px hit areas |
 | Focus | `:focus-visible` 2 px `--accent-fill` outline, offset 2 px; focus returns to the opener when a sheet closes |
 | Text size | rem-based type follows Android's font size; layout tested at 200% |
@@ -434,7 +413,7 @@ Built 2026-10-31: the counters below are kept on this phone (`th-hint`); the hin
 
 | # | Check |
 |---|---|
-| H1 | Every fixed voice line in [COPY](../design/COPY.md) fits ≤ 3 visual lines at 360 px and line 1 ≤ 22 characters |
+| H1 | The status chip's words fit one line at 360 px beside the date; a 44-character home line fits its card in ≤ 2 lines |
 | H2 | Voice line text matches §2.1 for each mocked state |
 | H3 | Decision: yes / not yet / no / error / offline / expiry flows as §3.2 |
 | H4 | Reply lifecycle: "…" at 1.2 s, "Waking up…" at 8 s, the honest line at 240 s (mocked clock) |

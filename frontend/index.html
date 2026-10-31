@@ -32,11 +32,10 @@
   <div class="grain"></div>
 
   <main class="page home" id="home">
-  <div class="top"><span id="date">Today</span></div>
+  <div class="top"><span id="date">Today</span><button type="button" class="status" id="status" role="status" hidden></button></div>
 
   <div class="convo" id="convo">
     <div class="spacer"></div>
-    <div class="voice say" id="say"><span class="ln">Nothing needs you.</span></div>
     <div id="turns" class="turns"></div>
     <div class="hint" id="hint"><i></i>Hold for apps · swipe for more</div>
   </div>
@@ -46,7 +45,7 @@
   </div>
   <form class="ask" id="ask" autocomplete="off">
     <button class="plusBtn" id="plus" type="button" aria-label="Add" aria-expanded="false"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#plus"/></svg></button>
-    <textarea id="q" rows="1" aria-label="Message the Thunderhead" enterkeyhint="send" autocomplete="off"></textarea>
+    <textarea id="q" rows="1" placeholder="Ask anything" aria-label="Message the Thunderhead" enterkeyhint="send" autocomplete="off"></textarea>
     <div class="btns">
       <button class="mic" id="mic" type="button" aria-label="Record a voice memo"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#microphone"/></svg></button>
       <button class="send" type="submit" aria-label="Send"><svg class="i" aria-hidden="true"><use href="/ui/icons.svg#arrow-up"/></svg></button>

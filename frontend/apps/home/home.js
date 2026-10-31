@@ -89,7 +89,7 @@ import { startPinned } from './pinned.js';
   const ring=$('#ring'), scrim=$('#scrim'), lbl=$('#lbl'), hub=$('#hub'), press=$('#press'), app=$('#app'), R=62;
   const pets=APPS.map(([n,svg,c],i)=>{const p=document.createElement('div');p.className='pet';p.innerHTML=svg;p.title=n;p.style.setProperty('--c',c);p.style.setProperty('--i',i);ring.appendChild(p);return p});
   let start=null, open=false, dir=-1, holdT=null;
-  const blocked=el=>el.closest('button,input,textarea,form,.chip,.card,.say,.you,.reply,.opts');
+  const blocked=el=>el.closest('button,input,textarea,form,.chip,.card,.note,.you,.reply,.opts');
   function place(x,y){ const r=app.getBoundingClientRect(); const m=R+30;
     const cx=Math.min(Math.max(x-r.left,m),r.width-m), cy=Math.min(Math.max(y-r.top,m+30),r.height-m-40);
     ring.style.left=cx+'px'; ring.style.top=cy+'px';

@@ -20,7 +20,7 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 .cline{margin:14px 8px 6px;font:500 13px/1.4 var(--ui);color:var(--ink-3);overflow-wrap:anywhere}
 .askme{margin:4px 8px 0;width:auto}
 /* an older conversation: the pill stays at the top of the column while it scrolls */
-.pastview #say,.pastview #decision,.pastview #turns,.pastview #talk,.pastview .fallbacks,.pastview #hint,.pastview .newpill{display:none}
+.pastview #decision,.pastview #turns,.pastview #talk,.pastview .fallbacks,.pastview #hint,.pastview .newpill{display:none}
 #home>.past{position:absolute;z-index:7;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(34px + var(--ask-h,54px) + env(safe-area-inset-bottom,0px));margin:0;border-radius:20px;padding:10px 8px 10px 14px;box-shadow:var(--e2);animation:dockin .45s var(--settle) both}
 .past .ptl{white-space:normal}
 .pinfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}

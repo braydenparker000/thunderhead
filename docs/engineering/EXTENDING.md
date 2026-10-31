@@ -64,7 +64,7 @@ The registries are plain data with zod/mini schemas, so Node imports them withou
 |---|---|---|---|
 | `frontend/th/registry/apps.js` | `APPS` ids | Colour and icon per app; the ring, chips and deep links derive from it | An app whose phase isn't built says it comes later |
 | `frontend/th/registry/verbs.js` | verb name and schema version | The executor: runs it, returns its result and (for `undo: 'reported'`) its inverse | `unsupported_verb` |
-| `frontend/th/registry/surfaces.js` | surface kind and schema version | The renderer: where the surface shows (the voice line's second line for `line`) | The generic card with the surface's `why` |
+| `frontend/th/registry/surfaces.js` | surface kind and schema version | The renderer: where the surface shows (a card in today's chat for `line`) | The generic card with the surface's `why` |
 
 `tests/registries.test.mjs` checks them against `frontend/th/contract.js`: every app has a ring entry and an icon in the sprite, every device verb the Worker can queue has an executor, and every surface kind and version has a renderer (anything else falls back). `frontend/th/registry/memory.js` does the same for the Memory page: every fact kind and source in the contract has its group and label, and a kind, source or evidence ref it doesn't know renders under "Other" by its own name.
 

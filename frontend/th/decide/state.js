@@ -1,6 +1,6 @@
-// What home's voice line needs from the decision cards (HOME.md §2.1 rows 4–6 and 8): how many wait
-// to be seen now, and whether the last one was just answered (and with a yes). The card sets it;
-// the conversation repaints its voice line on the `th:decisions` event.
+// What home knows of the decision cards: how many wait to be seen now, and whether the last one was
+// just answered (and with a yes). The card sets it and fires `th:decisions`. (The voice line that
+// counted them is gone, HOME.md §2: the docked card says it itself.)
 
 export const decisions = {
   waiting: 0,

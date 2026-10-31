@@ -118,9 +118,11 @@ previous commit. A failed live check rolls back on its own.
 
 The full system is [docs/design/DESIGN-SYSTEM.md](docs/design/DESIGN-SYSTEM.md). Essentials:
 
-- **Home:** one screen. The voice line (Quicksand Light, large) says what matters; the conversation sits low,
-  above a liquid-glass ask bar with `+` (options sheet) and a mic that becomes send while typing. No
-  placeholder text, no chips on home.
+- **Home:** one screen, a chat. Nothing stands on it to say all is well: a status chip shows at the top
+  only while something is off (quiet, offline, the mind can't wake), and the mind's home lines are
+  cards in the chat (the night's as one "Overnight" card after 06:30). The conversation sits low,
+  above a liquid-glass ask bar ("Ask anything") with `+` (options sheet) and a mic that becomes send
+  while typing. No chips on home but a reply's own.
 - **Ring:** hold still on an empty spot (220 ms): seven apps around the finger, each its own glass disc;
   slide toward one and let go. Clockwise from the top: Music `#2f7df6`, Guitar `#e08a1e`, Podcasts
   `#e0457b`, Astra `#8b5cf6`, My Media `#14a39a`, Study `#2e9e5b`, Photos `#0891b2` (comes later).

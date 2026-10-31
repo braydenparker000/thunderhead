@@ -4,7 +4,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import * as m from '../frontend/th/decide/model.js';
-import { needsYou, voiceLine } from '../frontend/th/chat/model.js';
 import { proposal } from './fixtures/mock-proposals.mjs';
 
 const NOW = Date.parse('2026-10-29T10:00:00Z');
@@ -55,17 +54,3 @@ test('the small lines, the buttons and what each answer says', () => {
   assert.equal(m.waitingSuffix(1), '1 waiting');
 });
 
-test('the voice line counts waiting decisions and says when the last was answered (rows 4–6, 8)', () => {
-  const base = { presence: null, firstRun: false, homeLine: null };
-  assert.deepEqual(voiceLine({ ...base, decisions: 1 }), ['One thing needs you.', 'The rest is handled.']);
-  assert.deepEqual(voiceLine({ ...base, decisions: 2, homeLine: 'Your new playlist is in Music.' }), ['Two things need you.', 'Your new playlist is in Music.']);
-  assert.deepEqual(voiceLine({ ...base, decisions: 12 }), ['Many things need you.', 'The rest is handled.']);
-  assert.deepEqual(voiceLine({ ...base, answered: 'yes' }), ['Nothing needs you now.', 'Everything is handled.']);
-  assert.deepEqual(voiceLine({ ...base, answered: 'other' }), ['Nothing needs you now.', null]);
-  assert.deepEqual(voiceLine({ ...base, answered: 'other', homeLine: 'A line.' }), ['Nothing needs you now.', 'A line.']);
-  assert.deepEqual(voiceLine(base), ['Nothing needs you.', null]);
-  // The mind not waking and the first run still come first.
-  assert.deepEqual(voiceLine({ ...base, decisions: 3, presence: { state: 'failed', note: null, since: 0 } }), ["I can't wake just now.", "I'll answer when I'm back."]);
-  // HOME.md §2.2: line 1 is at most 22 characters.
-  for (let n = 1; n <= 12; n++) assert.ok(needsYou(n).length <= 22, needsYou(n));
-});

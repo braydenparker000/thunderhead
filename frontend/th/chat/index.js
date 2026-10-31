@@ -2,15 +2,15 @@
 // Home's conversation once signed in (HOME.md §2, §4, §6.3, §7): paints from cache at once, then
 // today's thread from the Worker; one live socket brings every change (API.md §12) and the
 // phone pulls what changed; messages go out through an outbox that survives being offline; the
-// reply slot, the voice line and the edge light follow the mind's presence; the Worker's verbs
+// reply slot, the status chip and the edge light follow the mind's presence; the mind's home
+// lines are cards in the chat; the Worker's verbs
 // for this phone run through the verb registry. Nothing repaints on a timer while the page is
 // hidden. Loaded lazily by boot.js after the first paint.
 import { CONFIG } from '../../config.js';
 import { api, signedIn } from '../client.js';
 import { failure } from '../flow.js';
-import { homeLine, fallbackCards } from '../registry/surfaces.js';
+import { homeLines, fallbackCards } from '../registry/surfaces.js';
 import { appFor } from '../registry/apps.js';
-import { decisions } from '../decide/state.js';
 import { run as runVerb } from '../registry/verbs.js';
 import { toast } from '../ui.js';
 import { BACKOFF_S, createLive } from './live.js';
@@ -18,7 +18,7 @@ import * as model from './model.js';
 import { fromWorker, quietLine, quietOrder, quietUntil, sendQuiet, setQuiet } from './quiet.js';
 import { cache, OUTBOX_BYTES, OUTBOX_MAX, outbox } from './store.js';
 import { picked, take } from '../attach/state.js';
-import { createView, voice } from './view.js';
+import { createView } from './view.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').TodayResponse} TodayResponse */
 /** @typedef {import('../../../shared/contract/api.ts').MindPresence} MindPresence */
@@ -42,8 +42,6 @@ export async function startChat() {
   talk.className = 'turns talk';
   talk.setAttribute('aria-live', 'polite');
   $('#turns').after(talk);
-  $('#say').setAttribute('role', 'status');
-  $('#say').setAttribute('lang', 'en');
 
   const state = {
     /** @type {TodayResponse | null} */ today: null,
@@ -56,6 +54,8 @@ export async function startChat() {
      * loads a change needs have succeeded (API.md §12). */
     applied: 0,
     typingUntil: 0,
+    /** When the owner's quiet hours end (the setting `quiet.end`): the night's home lines wait for it. */
+    quietEnd: '06:30',
     offline: !navigator.onLine,
     /** Replies that arrived while open reveal; ones painted from cache or on load don't. */
     fresh: new Set(),
@@ -70,10 +70,26 @@ export async function startChat() {
     onFollow: (text, id) => sendNow(text, id),
     onTap: (m, node) => void import('../reply/actions.js').then((a) => a.toggle(node, m, { send: sendNow })),
   });
-  const setVoice = voice($('#say'));
-  let pendingVoice = /** @type {[string, string | null] | null} */ (null);
-  let wasFirstRun = false;
-  let quietOwn = false;
+  const statusEl = /** @type {HTMLButtonElement} */ ($('#status'));
+  /** @type {ReturnType<typeof model.status>} */
+  let shownStatus = null;
+  /** The status chip: shown only while something is off, its kind and words; a tap says more. */
+  function setStatus(/** @type {ReturnType<typeof model.status>} */ st) {
+    if (st?.kind === shownStatus?.kind && st?.text === shownStatus?.text) return;
+    shownStatus = st;
+    statusEl.hidden = !st;
+    if (!st) return;
+    statusEl.dataset.kind = st.kind;
+    const icon = st.kind === 'offline' ? 'wifi-slash' : st.kind === 'quiet' ? 'moon-stars' : 'warning-circle';
+    statusEl.innerHTML = `<svg class="i" aria-hidden="true"><use href="/ui/icons.svg#${icon}"/></svg>`;
+    statusEl.append(st.text);
+  }
+  statusEl.addEventListener('click', () => {
+    const kind = shownStatus?.kind;
+    if (kind === 'offline') toast('Messages send when you\u2019re back online.');
+    else if (kind === 'wake') toast('I\u2019ll answer when I\u2019m back.');
+    else if (kind === 'quiet') toast('I\u2019ll hold everything until then.', { label: 'End now', run: () => setQuiet(0) });
+  });
 
   // --- paint ----------------------------------------------------------------------------------
   function paint() {
@@ -85,27 +101,12 @@ export async function startChat() {
     const standing = state.stop !== null && state.stop.cleared_at === null;
     const stop = waiting && (working || standing) && !waiting.local ? (standing || state.stopping ? 'stopping' : 'button') : 'none';
     const words = waiting && slot === 'dots' ? model.thinking({ body: waiting.body, sentAt: waiting.created_at, now, presence: state.presence }) : '';
-    view.render({ shown, slot, words, stop, cards: fallbackCards(state.surfaces).map((c) => ({ text: c.text, kind: 'kind' in c ? c.kind : '' })), fresh: state.fresh, now });
-    let sent = false;
-    try {
-      sent = localStorage.getItem('th.p.sent') === '1';
-    } catch {}
-    // The first-run line only once today has loaded and is truly empty: a today that failed to load
-    // is not a first run (audit fix 2).
-    const firstRun = !sent && shown.length === 0 && state.today !== null;
+    // The mind's home lines join today's chat as cards, at the time they were placed (the night's at
+    // the end of the quiet hours).
+    const lines = state.today ? homeLines(state.surfaces, { day: state.today.day, now, quietEnd: state.quietEnd }) : [];
+    view.render({ shown: model.withLines(shown, lines), slot, words, stop, cards: fallbackCards(state.surfaces).map((c) => ({ text: c.text, kind: 'kind' in c ? c.kind : '' })), fresh: state.fresh, now });
     const quiet = quietUntil(now);
-    const line = model.voiceLine({ presence: state.presence, firstRun, homeLine: homeLine(state.surfaces)?.text ?? null, noWake: model.noWakeShown(shown), decisions: decisions.waiting, answered: decisions.answered, quiet: quiet ? quietLine(quiet, now) : null });
-    // Never while typing (HOME.md §2.3): a change waits until the bar is empty and blurred, except
-    // one the owner's own action caused (the first message ends the first-run line, "go quiet" or
-    // its end shows at once).
-    const own = (wasFirstRun && !firstRun) || quietOwn;
-    wasFirstRun = firstRun;
-    quietOwn = false;
-    if (!own && (document.activeElement === q || q.value.trim())) pendingVoice = line;
-    else {
-      pendingVoice = null;
-      setVoice(line, state.loaded);
-    }
+    setStatus(model.status({ presence: state.presence, noWake: model.noWakeShown(shown), quiet: quiet ? quietLine(quiet, now) : null, offline: state.offline }));
     const failedAt = Math.max(0, ...state.local.map((m) => (m.state === 'failed' ? m.failed_at ?? 0 : 0)));
     const e = model.edge({ presence: state.presence, waiting: waiting !== null, typingUntil: state.typingUntil, offline: state.offline, now, failedAt });
     edgeEl.dataset.state = e;
@@ -113,7 +114,6 @@ export async function startChat() {
     edgeEl.classList.toggle('breathe', e === 'calm');
     edgeEl.classList.toggle('err', e === 'error');
     edgeEl.classList.toggle('off', e === 'offline');
-    $('#date').toggleAttribute('data-offline', state.offline);
     // A ticking clock only while something on screen changes with time, and only while it's seen:
     // each second while a reply is on its way, else once when an error or a typing pulse ends.
     clearTimeout(ticker);
@@ -121,18 +121,16 @@ export async function startChat() {
     const ends = [failedAt + model.FAILED_EDGE_MS, state.typingUntil].filter((t) => t > now);
     if (waiting || state.local.some((m) => m.state === 'sending')) ticker = setTimeout(paint, 1000);
     else if (ends.length) ticker = setTimeout(paint, Math.min(...ends) - now + 50);
-    else if (quiet && quiet - now < 86_400_000) ticker = setTimeout(paint, quiet - now + 50);
+    else {
+      // The next moment the screen changes on its own: a "go quiet" ending, or the quiet hours'
+      // end, when the night's home lines show.
+      const held = state.today ? new Date(`${state.today.day}T${state.quietEnd}`).getTime() : 0;
+      const next = [quiet, held].filter((t) => t > now && t - now < 86_400_000);
+      if (next.length) ticker = setTimeout(paint, Math.min(...next) - now + 50);
+    }
   }
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let ticker;
-  q.addEventListener('blur', () =>
-    setTimeout(() => {
-      if (pendingVoice && document.activeElement !== q && !q.value.trim()) {
-        setVoice(pendingVoice);
-        pendingVoice = null;
-      }
-    }, 2000),
-  );
 
   // --- data -----------------------------------------------------------------------------------
   const presenceOf = (/** @type {Record<string, unknown>} */ s) => /** @type {MindPresence | null} */ (s['mind.status'] ?? null);
@@ -150,6 +148,7 @@ export async function startChat() {
     state.stop = /** @type {any} */ (s['mind.stop']) ?? null;
     if (state.stop?.cleared_at) state.stopping = false;
     fromWorker(s['quiet.until']);
+    if (typeof s['quiet.end'] === 'string') state.quietEnd = s['quiet.end'];
   }
   async function loadSurfaces() {
     state.surfaces = (await signedIn((tok) => api.surfaces(tok))).items;
@@ -374,7 +373,6 @@ export async function startChat() {
     if (order && ('until' in order || quietUntil(now))) {
       clearBar();
       ask.classList.remove('typing');
-      quietOwn = true;
       setQuiet('until' in order ? order.until : 0);
       return;
     }
@@ -500,7 +498,6 @@ export async function startChat() {
     state.offline = true;
     paint();
   });
-  document.addEventListener('th:decisions', () => paint());
   document.addEventListener('th:quiet', () => paint());
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;

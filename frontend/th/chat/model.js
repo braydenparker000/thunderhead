@@ -1,7 +1,7 @@
 // @ts-check
 // The conversation's logic without the DOM (HOME.md §2, §4, §7), so node tests cover it: merging
 // the server's messages with the outbox, what the reply slot shows while a reply is on its way,
-// the voice line, the edge light, a local message's meta line, and how a reply's text becomes
+// the status chip, the mind's home lines among the messages, the edge light, a local message's meta line, and how a reply's text becomes
 // lines and links. Times are ms; `now` is always passed in.
 
 /** @typedef {import('../../../shared/contract/api.ts').Message} Message */
@@ -104,23 +104,38 @@ export function thinking({ body, sentAt, now, presence }) {
   return lines[Math.min(lines.length - 1, Math.floor(Math.max(0, now - sentAt - THINK_AFTER_MS) / WORD_MS))];
 }
 
-const COUNT = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine'];
-/** "One thing needs you." … "Nine things need you.", then "Many things need you." @param {number} n */
-export const needsYou = (n) => (n === 1 ? 'One thing needs you.' : n <= 9 ? `${COUNT[n]} things need you.` : 'Many things need you.');
+/** The status chip at the top of home, or null while all is well (owner, 2026-10-31: no standing
+ * voice line). The owner's own "go quiet" first (it shows at once, even offline), then offline,
+ * then a mind that can't wake unless the Worker's line says so in the thread (`noWake`).
+ * @param {{ presence: MindPresence | null, noWake?: boolean, quiet?: string | null, offline?: boolean }} s
+ * @returns {{ kind: 'offline' | 'wake' | 'quiet', text: string } | null} */
+export function status({ presence, noWake = false, quiet = null, offline = false }) {
+  if (quiet) return { kind: 'quiet', text: quiet.replace(/\.$/, '') };
+  if (offline) return { kind: 'offline', text: 'Offline' };
+  if ((presence?.state === 'failed' || presence?.state === 'limited') && !noWake) return { kind: 'wake', text: 'Can’t wake just now' };
+  return null;
+}
 
-/** The two voice lines (HOME.md §2.1 rows 2–8, 10 and 11). Row 3 gives way to the Worker's system line
- * when that is in the thread (`noWake`). `decisions`: the cards that may show now (rows 4–6);
- * `answered`: the last one was just answered, with a yes or otherwise (row 8, for the session);
- * `quiet`: the owner's "go quiet" line (BEHAVIOR.md §8.2), which holds the rest.
- * @param {{ presence: MindPresence | null, firstRun: boolean, homeLine: string | null, noWake?: boolean, decisions?: number, answered?: 'yes' | 'other' | null, quiet?: string | null }} s
- * @returns {[string, string | null]} */
-export function voiceLine({ presence, firstRun, homeLine, noWake = false, decisions = 0, answered = null, quiet = null }) {
-  if ((presence?.state === 'failed' || presence?.state === 'limited') && !noWake) return ["I can't wake just now.", "I'll answer when I'm back."];
-  if (quiet) return [quiet, "I'll hold everything until then."];
-  if (firstRun) return ["I'm here.", 'Ask me anything, any time.'];
-  if (decisions > 0) return [needsYou(decisions), homeLine ?? 'The rest is handled.'];
-  if (answered) return ['Nothing needs you now.', answered === 'yes' ? 'Everything is handled.' : homeLine];
-  return ['Nothing needs you.', homeLine];
+/** Today's messages with the mind's home lines among them in time order: a line is a card in the
+ * chat, where it was placed (HOME.md §2.1), never a standing line at the top.
+ * @param {Shown[]} shown @param {{ id: string, lines: { text: string, lang: string | null }[], at: number, night: boolean }[]} cardsIn
+ * @returns {Shown[]} */
+export function withLines(shown, cardsIn) {
+  if (!cardsIn.length) return shown;
+  const cards = cardsIn.map((l) => /** @type {Shown} */ (/** @type {any} */ ({
+    seq: 0, id: `line:${l.id}`, thread_id: '', author: 'system', origin: 'system', kind: 'card', body: l.lines.map((x) => x.text).join('\n'),
+    meta: { line: 'home', night: l.night, lines: l.lines }, attachments: [], reply_to: null, created_at: l.at,
+    delivered_at: null, acked_at: null, answered_at: null,
+  })));
+  cards.sort((a, b) => a.created_at - b.created_at);
+  /** @type {Shown[]} */
+  const out = [];
+  let i = 0;
+  for (const m of shown) {
+    while (i < cards.length && cards[i].created_at <= m.created_at) out.push(cards[i++]);
+    out.push(m);
+  }
+  return out.concat(cards.slice(i));
 }
 
 /** The edge light's state (HOME.md §7): thinking > error > offline > calm; listening is home.js's.
