@@ -47,7 +47,7 @@ import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
-import { CoreReminders } from './core-reminders';
+import { CoreThreads } from './core-threads';
 
 const PRUNE_STEP = 2_000;
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
@@ -58,7 +58,7 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [exportJob.kind]: exportJob,
 };
 
-export class Core extends CoreReminders {
+export class Core extends CoreThreads {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
@@ -101,13 +101,6 @@ export class Core extends CoreReminders {
 
   patchMessage(id: string, body: string | undefined, meta: JsonObject | undefined) {
     return this.run((w) => convo.patchMessage(w, id, body, meta));
-  }
-
-  patchThread(id: string, title: string | undefined, summary: string | undefined) { return this.run((w) => convo.patchThread(w, id, title, summary)); }
-
-  nameThread(id: string, title: string) { return this.run((w) => convo.nameThread(w, id, title)); }
-  continueThread(id: string) {
-    return this.run((w) => convo.continueThread(w, id, this.tz()));
   }
 
   searchMessages(match: string, since: number | null, until: number | null, thread: string | null, limit: number) {

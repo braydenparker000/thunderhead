@@ -13,6 +13,7 @@ import { attach } from '../files/ops';
 import * as settings from '../settings/store';
 import { currentDay, provisionalTitle } from './day';
 import * as store from './store';
+import * as titles from './store-threads';
 
 export interface PutMessage {
   id: string;
@@ -159,7 +160,7 @@ export function patchThread(w: Writer, id: string, title: string | undefined, su
   if (!t) throw new Fail('not_found');
   if (title !== undefined && t.title_source === 'owner')
     throw new Fail('conflict', { reason: 'the owner named this thread' });
-  store.patchThread(w.db, id, title, summary, w.at);
+  titles.patchThread(w.db, id, title, summary, w.at);
   w.change('thread', `thread:${id}`);
   return store.thread(w.db, id) as Thread;
 }
@@ -169,7 +170,7 @@ export function patchThread(w: Writer, id: string, title: string | undefined, su
 export function nameThread(w: Writer, id: string, title: string): Thread {
   if (!store.thread(w.db, id)) throw new Fail('not_found');
   const named = title.trim().replace(/\s+/g, ' ');
-  store.ownerTitle(w.db, id, named || null, w.at);
+  titles.ownerTitle(w.db, id, named || null, w.at);
   w.change('thread', `thread:${id}`);
   return store.thread(w.db, id) as Thread;
 }
@@ -180,7 +181,7 @@ export function continueThread(w: Writer, id: string, tz: string): { today_threa
   if (!filed) throw new Fail('not_found');
   if (filed.status !== 'filed') throw invalid('id', 'only a filed thread can be continued');
   const t = today(w, tz);
-  store.linkContinues(w.db, t.id, id, w.at);
+  titles.linkContinues(w.db, t.id, id, w.at);
   w.change('thread', `thread:${t.id}`);
   return { today_thread_id: t.id };
 }
@@ -193,7 +194,7 @@ export function roll(w: Writer, newDay: string): string[] {
     if (!t.title) {
       const first = store.messagesPage(w.db, t.id, null, 0, 20).find((m) => m.author === 'owner');
       const title = provisionalTitle(first?.body ?? null);
-      if (title) store.autoTitle(w.db, t.id, title);
+      if (title) titles.autoTitle(w.db, t.id, title);
     }
     w.change('thread', `thread:${t.id}`);
   }
