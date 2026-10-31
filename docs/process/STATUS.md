@@ -69,9 +69,15 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 ## Next three tasks
 
-1. P9's clocks: predictions from the next night; Sunday 2026-11-01 is the first weekly improvement. Then IDEAS.md's next agreed items.
-2. P8: its done-when is its 7-day clocks, then the old Worker's retirement proposal; the Workers AI router waits for its eval set (RT-100, RA-P8-03).
-3. The open fix list below, in its order. Owner: M2, M4 from 2026-11-05 (M3 cut); one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
+1. **The look round** (owner, 2026-10-31; agreed, the owner has more to add before building starts). Home is a chat: whatever the owner acts on sits by the ask bar, never at the top of the thread.
+   - Type: Quicksand for the whole shell and Study (Light for large text, heavier weights for small); the app icon's T redrawn in Quicksand; the ported apps keep theirs.
+   - Menu: search and conversations only; Settings its own page from a row at the menu's foot, with theme, text size and Still background; the accent picker goes (blue stays). Draw the menu's new look first (full page on the field, days as cards, pinned tiles) for the owner's pick.
+   - Decision card: option C, docked above the ask bar while one waits (the date line's "1 waiting" goes).
+   - The ring: each app keeps its own live-glass disc; smoother by drawing the chosen state as a compositor-only layer (no repaint of colour or shadow), springs for the fly-out, a gliding label; a seventh app, Photos (the photo editor comes later): Phosphor `aperture`, cyan, between Study and Music.
+   - Motion: the sent message lifts from the bar into its bubble; replies fade in word by word; the voice line shrinks into the top while scrolling; the menu opens with home sinking back and its rows rippling in; the Briefing's tiles cascade; one set of springs everywhere.
+   - Polish: sentence case for the small caps labels; brighter unchosen ring apps at night; the ported apps' old titles renamed (owner yes); the open fix list below; the Briefing laid out anew (and its "Muse is connected" line gone); long-press Continue, Rename, Delete (ask first); Settings, sign-in and the 404 in the new type.
+2. P9's clocks: predictions from the next night; Sunday 2026-11-01 is the first weekly improvement. Then IDEAS.md's next agreed items.
+3. P8: its done-when is its 7-day clocks, then the old Worker's retirement proposal; the Workers AI router waits for its eval set (RT-100, RA-P8-03). Owner: M2, M4 from 2026-11-05 (M3 cut); one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
 
 ## Blocked / waiting on the owner
 
@@ -79,7 +85,8 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 - Study needs no owner step to read books any more (O1 dropped).
 - SETUP.md O2 (the owner's scripture volumes added in Study, then the mind builds the table and text): verses need it.
 - SETUP.md N1 and N2 are done (owner, 2026-10-30; N2's CORS rule checked through the read-only token, exactly as written; r2.dev access is "Not allowed", RA-P5-02). N3 is done (the owner, by 2026-10-31; the new catalog answers with 11,939 tracks); nothing was uploaded since, so no second import is needed. Its clean-up: the owner is revoking the `import-once` key (2026-10-31); its network secret goes too (SETUP.md L3.3). N4 is done (2026-10-31): Muse made its key, the Worker accepts it, and Muse's signed test upload registered (`duplicate: true`, the song was already there; the catalog stays 11,939). The owner played a song in Music (N1's real check).
-- The decision card: options A (quiet card), B (in his voice) and C (docked above the bar) sent 2026-10-30, drawn in the real home page; unchanged until the owner picks.
+- The decision card: the owner picked C, docked above the bar (2026-10-31); built in the look round.
+- The look round's remaining changes: the owner has more to add (2026-10-31).
 - Azure's error document (SETUP.md step 7): the live site answers a missing page with Azure's own "WebContentNotFound" page, not ours. Storage account → Data management → Static website → Error document path: `404.html` → Save.
 
 ## Open fix list (fresh-eyes audit, 2026-10-31)
