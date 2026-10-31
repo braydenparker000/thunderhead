@@ -28,23 +28,65 @@ async function send(method: string, path: string, bytes: Uint8Array, type: strin
   const time = String(Math.floor(Date.now() / 1000));
   const hash = await sha(bytes);
   const url = `https://api.example.test/v1/music/uploads/${path}`;
-  const message = signatureMessage({ method, origin: 'https://api.example.test', path: new URL(url).pathname, type, hash, size: bytes.length, time, key });
+  const message = signatureMessage({
+    method,
+    origin: 'https://api.example.test',
+    path: new URL(url).pathname,
+    type,
+    hash,
+    size: bytes.length,
+    time,
+    key,
+  });
   const sig = hex(await crypto.subtle.sign({ name: 'Ed25519' }, keys.privateKey, enc.encode(message)));
-  const headers = { 'Content-Type': type, 'X-Music-Public-Key': key, 'X-Music-Signature': sig, 'X-Music-Timestamp': time, 'X-Music-Size': String(bytes.length), 'X-Music-Sha256': hash };
+  const headers = {
+    'Content-Type': type,
+    'X-Music-Public-Key': key,
+    'X-Music-Signature': sig,
+    'X-Music-Timestamp': time,
+    'X-Music-Size': String(bytes.length),
+    'X-Music-Sha256': hash,
+  };
   return app.fetch(new Request(url, { method, headers, body: bytes }), E, createExecutionContext());
 }
-const op = async (name: string, body: object) => (await (await send('POST', name, enc.encode(JSON.stringify(body)), 'application/json')).json()) as Record<string, unknown>;
+const op = async (name: string, body: object) =>
+  (await (await send('POST', name, enc.encode(JSON.stringify(body)), 'application/json')).json()) as Record<
+    string,
+    unknown
+  >;
 const rowsRead = async () => (await musicObject(E).health()).rows_read;
 
 const SEEDED = 2_000;
 beforeAll(async () => {
   keys = (await crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as CryptoKeyPair;
-  E = { ...env, MUSIC_UPLOAD_PUBLIC_KEYS: JSON.stringify([hex((await crypto.subtle.exportKey('raw', keys.publicKey)) as ArrayBuffer)]) } as Env;
+  E = {
+    ...env,
+    MUSIC_UPLOAD_PUBLIC_KEYS: JSON.stringify([
+      hex((await crypto.subtle.exportKey('raw', keys.publicKey)) as ArrayBuffer),
+    ]),
+  } as Env;
   // A catalog that already holds many tracks (imported directly, as the move from the old Worker did).
   const rows = Array.from({ length: SEEDED }, (_, i) => {
     const h = i.toString(16).padStart(64, '0');
     const id = `r2_native_${h}`;
-    return { ord: i + 1, id, sha256: h, size: 1000 + i, audio_key: `native/audio/${h}.opus`, cover_key: null, record_json: JSON.stringify({ id, sha256: h, size: 1000 + i, audioKey: `native/audio/${h}.opus`, path: `Song ${i}.opus`, metadata: { title: `Song ${i}`, artist: i % 2 ? 'Evening Trio' : 'Morning Band' } }), waveform: null, updated_at: 0 };
+    return {
+      ord: i + 1,
+      id,
+      sha256: h,
+      size: 1000 + i,
+      audio_key: `native/audio/${h}.opus`,
+      cover_key: null,
+      record_json: JSON.stringify({
+        id,
+        sha256: h,
+        size: 1000 + i,
+        audioKey: `native/audio/${h}.opus`,
+        path: `Song ${i}.opus`,
+        metadata: { title: `Song ${i}`, artist: i % 2 ? 'Evening Trio' : 'Morning Band' },
+      }),
+      waveform: null,
+      updated_at: 0,
+    };
   });
   for (let i = 0; i < rows.length; i += 500) await musicObject(E).importTracks(rows.slice(i, i + 500), 1);
 });
@@ -56,7 +98,12 @@ describe('the catalog is read once, not per song', () => {
       const bytes = ogg(i);
       const h = await sha(bytes);
       expect((await send('PUT', `audio/${h}.opus`, bytes, 'audio/ogg')).status).toBe(200);
-      tracks.push({ sha256: h, size: bytes.length, name: `New ${i}.opus`, metadata: { title: `New ${i}`, artist: 'Someone', dur: 180 + i } });
+      tracks.push({
+        sha256: h,
+        size: bytes.length,
+        name: `New ${i}.opus`,
+        metadata: { title: `New ${i}`, artist: 'Someone', dur: 180 + i },
+      });
     }
     const before = await rowsRead();
     const done = await op('register-batch', { tracks });
