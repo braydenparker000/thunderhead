@@ -72,11 +72,13 @@ import { from as launchFrom, launch } from '/ui/launch.js';
         if(i<a.length) return requestAnimationFrame(step);      })() },1100);
   });
 
-  // Compass: hold an empty spot ~220 ms, a tight ring of six apps springs out around the finger; slide toward one, let go to open
-  // six directions, 60 degrees apart, clockwise from the top; an app not shipped yet says it comes later
-  const APPS=apps.map(a=>[a.name,`<svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}"/></svg>`,a.color,a.built?a.path:'']);
-  const N=APPS.length, SEC=Math.PI*2/N;
-  const ring=$('#ring'), scrim=$('#scrim'), lbl=$('#lbl'), hub=$('#hub'), press=$('#press'), app=$('#app'), R=62;
+  // Compass: hold an empty spot ~220 ms, a tight ring of apps springs out around the finger; slide toward one, let go to open.
+  // Seven directions, clockwise from the top; an app not shipped yet (Photos) says it comes later. Each app keeps its own
+  // glass disc (owner, 2026-10-31); the chosen one is drawn by fading layers in it (home.css), never by repainting under its blur.
+  const APPS=apps.map(a=>[a.name,`<span class="fill" aria-hidden="true"></span><svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}"/></svg><svg class="i ph on" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}"/></svg>`,a.color,a.built?a.path:'']);
+  // A choice holds until the finger is ~7 degrees past its sector's edge, whatever the number of apps (GESTURES.md §3.2).
+  const N=APPS.length, SEC=Math.PI*2/N, HOLD=.5+7*N/360;
+  const ring=$('#ring'), scrim=$('#scrim'), lbl=$('#lbl'), hub=$('#hub'), press=$('#press'), app=$('#app'), R=70;
   const pets=APPS.map(([n,svg,c],i)=>{const p=document.createElement('div');p.className='pet';p.innerHTML=svg;p.title=n;p.style.setProperty('--c',c);p.style.setProperty('--i',i);ring.appendChild(p);return p});
   let start=null, open=false, dir=-1, holdT=null;
   const blocked=el=>el.closest('button,input,textarea,form,.chip,.card,.say,.you,.reply,.opts');
@@ -84,11 +86,15 @@ import { from as launchFrom, launch } from '/ui/launch.js';
     const cx=Math.min(Math.max(x-r.left,m),r.width-m), cy=Math.min(Math.max(y-r.top,m+30),r.height-m-40);
     ring.style.left=cx+'px'; ring.style.top=cy+'px';
     lbl.style.top=(R+30)+'px'; return {cx:cx+r.left,cy:cy+r.top} }
-  function fan(on){ pets.forEach((p,i)=>{const a=i*SEC; p.style.transform=on?`translate(${R*Math.sin(a)}px,${-R*Math.cos(a)}px) scale(1)`:'translate(0,0) scale(.2)'}) }
-  function setDir(d){ if(d===dir) return; dir=d; pets.forEach((p,i)=>p.classList.toggle('on',i===d)); ring.classList.toggle('active',d>=0); lbl.textContent=d>=0?APPS[d][0]:''; lbl.classList.toggle('show',d>=0); if(d>=0) buzz(8) }
+  // Out on the spring; the chosen disc swells a little and the others ease back (transform only: the compositor's).
+  const at=(i,k)=>`translate(${R*Math.sin(i*SEC)}px,${-R*Math.cos(i*SEC)}px) scale(${k})`;
+  function fan(on){ pets.forEach((p,i)=>{ p.style.transform=on?at(i,1):'translate(0,0) scale(.2)' }) }
+  function setDir(d){ if(d===dir) return; dir=d; pets.forEach((p,i)=>{ p.classList.toggle('on',i===d); p.style.transform=at(i,d<0?1:i===d?1.12:.94) }); ring.classList.toggle('active',d>=0);
+    // The name glides in rather than popping: the label keeps its place and its text crossfades up.
+    if(d>=0){ lbl.textContent=APPS[d][0]; lbl.style.setProperty('--c',APPS[d][2]); lbl.classList.remove('swap'); void lbl.offsetWidth; lbl.classList.add('swap') } lbl.classList.toggle('show',d>=0); if(d>=0) buzz(8) }
   function dirOf(dx,dy){ const dist=Math.hypot(dx,dy); if(dist<14) return -1; if(dir<0&&dist<22) return -1;
     const a=(Math.atan2(dx,-dy)/SEC+N)%N, n=Math.round(a)%N;
-    if(dir>=0&&n!==dir){ const off=Math.abs(((a-dir+N*1.5)%N)-N/2); if(off<.62) return dir } // stays put until ~7 degrees past the boundary
+    if(dir>=0&&n!==dir){ const off=Math.abs(((a-dir+N*1.5)%N)-N/2); if(off<HOLD) return dir } // stays put until ~7 degrees past the boundary
     return n }
   const home=$('#home'), brief=$('#brief'), side=$('#side'), dim=$('#dim');
   let view='home', swipe=null, swiped=false;

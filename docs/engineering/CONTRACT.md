@@ -182,7 +182,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 
 | Verb | App | Class | Runs on | Queueable | Undo | Versions | Args (newest) | What it does |
 |---|---|---|---|---|---|---|---|---|
-| `app.open` | shell | reversible | device | no (owner tap) | none | 1 | `{ app: 'music' \| 'guitar' \| 'podcasts' \| 'astra' \| 'media' \| 'study', path: string }` | Opens an app at a place. Runs only when the owner taps a reply's action chip; the mind never opens an app by itself (BEHAVIOR.md §2.2). |
+| `app.open` | shell | reversible | device | no (owner tap) | none | 1 | `{ app: 'music' \| 'guitar' \| 'podcasts' \| 'astra' \| 'media' \| 'study' \| 'photos', path: string }` | Opens an app at a place. Runs only when the owner taps a reply's action chip; the mind never opens an app by itself (BEHAVIOR.md §2.2). |
 | `music.create_playlist` | music | reversible | device | yes | reported | 1 | `{ name: string, refs: array }` | Makes a playlist in the Music player from tracks (`music:<id>`), on this phone. Open it with a reply chip to `/music/#pl=<list_id>`. Its undo removes it while the owner hasn't changed it. |
 | `music.delete_playlist` | music | reversible | device | no (owner tap) | none | 1 | `{ list_id: string }` | Only the undo of music.create_playlist: removes a playlist the Thunderhead made, while the owner hasn't changed it (else `owner_edited`). Deleting the owner's own playlists is ask-first and no verb. |
 | `shell.appearance` | shell | reversible | device | yes | reported | 1 | `{ mode: 'auto' \| 'day' \| 'night' }` | Sets the phone's appearance (auto, day or night). The phone reports the previous mode as the undo. |
@@ -212,6 +212,7 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `astra` | `/astra/` | Astra | P1b |
 | `media` | `/media/` | My Media | P1b |
 | `study` | `/study/` | Study | P7 |
+| `photos` | `/photos/` | Photos | P9 (page: the photo editor comes later) |
 
 ## Search sources
 

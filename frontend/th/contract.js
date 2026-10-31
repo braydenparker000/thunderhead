@@ -27,7 +27,7 @@ export const CLOSE_CODES = Object.freeze({"revoked":4401,"outdated":4426,"restar
 export const BUILT_PHASES = Object.freeze(["P1","P1b","P2","P3","P4","P5","P6","P7","P8","P9"]);
 
 /** @type {Readonly<Record<AppId, { path: string, name: string, phase: string }>>} */
-export const APPS = Object.freeze({"music":{"path":"/music/","name":"Music","phase":"P1b"},"guitar":{"path":"/guitar/","name":"Guitar","phase":"P1b"},"podcasts":{"path":"/podcasts/","name":"Podcasts","phase":"P1b"},"astra":{"path":"/astra/","name":"Astra","phase":"P1b"},"media":{"path":"/media/","name":"My Media","phase":"P1b"},"study":{"path":"/study/","name":"Study","phase":"P7"}});
+export const APPS = Object.freeze({"music":{"path":"/music/","name":"Music","phase":"P1b"},"guitar":{"path":"/guitar/","name":"Guitar","phase":"P1b"},"podcasts":{"path":"/podcasts/","name":"Podcasts","phase":"P1b"},"astra":{"path":"/astra/","name":"Astra","phase":"P1b"},"media":{"path":"/media/","name":"My Media","phase":"P1b"},"study":{"path":"/study/","name":"Study","phase":"P7"},"photos":{"path":"/photos/","name":"Photos","phase":"P9","deferred":"the photo editor comes later"}});
 
 /** @type {readonly import('../../shared/contract/api.ts').MessageKind[]} */
 export const MESSAGE_KINDS = Object.freeze(["text","voice","progress","card","question","error"]);

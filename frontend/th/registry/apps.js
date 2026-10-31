@@ -16,10 +16,12 @@ const LOOK = {
   astra: { color: '#8b5cf6', icon: 'monitor-play' },
   media: { color: '#14a39a', icon: 'youtube-logo' },
   study: { color: '#2e9e5b', icon: 'book-bookmark' },
+  // Cyan, between Study's green and Music's blue round the ring; white on it is 3.68:1 (owner, 2026-10-31).
+  photos: { color: '#0891b2', icon: 'aperture' },
 };
 
 /** The ring, clockwise from the top. @type {readonly AppId[]} */
-export const RING = Object.freeze(['music', 'guitar', 'podcasts', 'astra', 'media', 'study']);
+export const RING = Object.freeze(['music', 'guitar', 'podcasts', 'astra', 'media', 'study', 'photos']);
 
 /** @type {readonly AppEntry[]} */
 export const apps = Object.freeze(

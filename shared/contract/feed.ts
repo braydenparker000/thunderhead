@@ -43,6 +43,8 @@ export const APPS = {
   astra: { path: '/astra/', name: 'Astra', phase: 'P1b' },
   media: { path: '/media/', name: 'My Media', phase: 'P1b' },
   study: { path: '/study/', name: 'Study', phase: 'P7' },
+  // The ring's seventh place, for the photo editor that comes later (owner, 2026-10-31); not openable yet.
+  photos: { path: '/photos/', name: 'Photos', phase: 'P9', deferred: 'the photo editor comes later' },
 } as const;
 export type AppId = keyof typeof APPS;
 export const APP_IDS = Object.keys(APPS) as AppId[];

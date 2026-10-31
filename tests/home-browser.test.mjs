@@ -88,7 +88,8 @@ test('the ring keeps its pick until the finger is clearly past the boundary (~7 
   // the ring centre is clamped to the screen; read it back so angles are measured from the real centre
   const [rx, ry] = await page.$eval('#ring', el => { const r = el.getBoundingClientRect(); return [r.left, r.top]; });
   const from = deg => [rx + 60 * Math.sin(deg * Math.PI / 180), ry - 60 * Math.cos(deg * Math.PI / 180)];
-  for (const [deg, want] of [[0, 'Music'], [26, 'Music'], [34, 'Music'], [41, 'Guitar'], [26, 'Guitar'], [19, 'Music']]) {
+  // Seven apps: sectors of 360/7 ≈ 51.4°, Music's edge at 25.7°, held until ~7° past it (32.7°) and back (18.7°).
+  for (const [deg, want] of [[0, 'Music'], [24, 'Music'], [31, 'Music'], [36, 'Guitar'], [22, 'Guitar'], [15, 'Music'], [-31, 'Music'], [-36, 'Photos']]) {
     await page.mouse.move(...from(deg), { steps: 4 }); await page.waitForTimeout(80);
     assert.equal(await page.textContent('#lbl'), want, `at ${deg} degrees`);
   }

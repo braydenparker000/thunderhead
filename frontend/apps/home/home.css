@@ -83,25 +83,37 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .scrim{position:absolute;inset:0;z-index:8;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity .16s}
 .scrim.show{opacity:1}
 .ring{position:absolute;z-index:9;width:0;height:0;pointer-events:none}
+/* Each app is its own disc of liquid glass (owner, 2026-10-31: "what makes it so good"). Only
+   transform and opacity ever move, so the compositor does all of it: the discs are layers from the
+   start (no hitch as the ring opens), they spring out, and the chosen one is drawn by fading in a
+   colour layer and a white icon inside it rather than repainting the disc under its blur. */
 .ring .pet{--c:var(--accent-text);position:absolute;width:56px;height:56px;margin:-28px 0 0 -28px;border-radius:50%;display:grid;place-items:center;color:var(--c);
   background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.75),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 22%,transparent),transparent 70%),color-mix(in srgb,var(--disc) 45%,transparent);
   backdrop-filter:blur(14px) saturate(1.8);-webkit-backdrop-filter:blur(14px) saturate(1.8);
   border:1px solid rgba(255,255,255,.65);
   box-shadow:inset 0 1.5px 1px rgba(255,255,255,.95),inset 0 -6px 12px color-mix(in srgb,var(--c) 18%,transparent),inset 0 0 0 .5px color-mix(in srgb,var(--c) 25%,transparent),0 10px 26px rgba(20,30,60,.18);
-  opacity:0;transform:translate(0,0) scale(.2);transition:transform .28s cubic-bezier(.34,1.45,.64,1),opacity .12s,background .14s,color .14s,box-shadow .14s;transition-delay:calc(var(--i)*14ms)}
+  opacity:0;transform:translate(0,0) scale(.2);will-change:transform,opacity;transition:transform .34s var(--pop),opacity .14s ease;transition-delay:calc(var(--i)*16ms)}
 :root[data-theme="dark"] .ring .pet{border-color:rgba(255,255,255,.18);background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.22),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 30%,transparent),transparent 70%),rgba(255,255,255,.05);box-shadow:inset 0 1.5px 1px rgba(255,255,255,.35),inset 0 -6px 12px color-mix(in srgb,var(--c) 25%,transparent),0 10px 26px rgba(0,0,0,.5)}
 .ring .pet svg.ph{fill:currentColor;stroke:none}
-.ring .pet svg{width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 0 rgba(255,255,255,.5))}
+.ring .pet svg{grid-area:1/1;width:28px;height:28px;stroke:currentColor;fill:none;stroke-width:1.75;stroke-linecap:round;stroke-linejoin:round;filter:drop-shadow(0 1px 0 rgba(255,255,255,.5));transition:opacity .16s ease}
+.ring .pet svg.on{color:#fff;filter:none;opacity:0}
+.ring .pet .fill{grid-area:1/1;place-self:stretch;margin:-1px;border-radius:50%;opacity:0;transition:opacity .16s ease;
+  background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.55),rgba(255,255,255,0) 50%),color-mix(in srgb,var(--c) 92%,transparent);
+  box-shadow:inset 0 1.5px 1px rgba(255,255,255,.8),inset 0 -8px 14px rgba(0,0,0,.12),0 0 0 6px color-mix(in srgb,var(--c) 20%,transparent),0 12px 28px color-mix(in srgb,var(--c) 40%,transparent)}
 .ring.show .pet{opacity:1}
+.ring.show.active .pet{transition-delay:0ms;transition-duration:.26s,.16s}
 .ring.closing .pet{transition:transform .14s cubic-bezier(.4,0,1,1),opacity .14s;transition-delay:0ms}
-.ring.active .pet:not(.on){opacity:.4}
-.ring .pet.on{color:#fff;border-color:rgba(255,255,255,.5);background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.55),rgba(255,255,255,0) 50%),color-mix(in srgb,var(--c) 88%,transparent);box-shadow:inset 0 1.5px 1px rgba(255,255,255,.8),inset 0 -8px 14px rgba(0,0,0,.12),0 0 0 6px color-mix(in srgb,var(--c) 20%,transparent),0 12px 28px color-mix(in srgb,var(--c) 40%,transparent)}
-.ring .pet.on svg{filter:none}
+.ring.active .pet:not(.on){opacity:.5}
+:root[data-theme="dark"] .ring.active .pet:not(.on){opacity:.68}
+.ring .pet.on .fill,.ring .pet.on svg.on{opacity:1}
+.ring .pet.on svg:not(.on){opacity:0}
 .ring .pet.go{transition:transform .22s cubic-bezier(.2,0,0,1),opacity .22s;opacity:0!important}
-.ring .hub{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--ink);opacity:0;transform:translate(0,0);transition:opacity .12s,transform .09s ease-out}
+.ring .hub{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--ink);opacity:0;transform:translate(0,0);will-change:transform;transition:opacity .12s,transform .12s var(--settle)}
 .ring.show .hub{opacity:.28}
-.ring .lbl{position:absolute;left:0;top:0;transform:translate(-50%,0);white-space:nowrap;font:700 13px var(--ui);color:var(--ink);opacity:0;transition:opacity .1s;padding:5px 10px;border-radius:10px;background:var(--disc);border:1px solid var(--disc-line)}
+.ring .lbl{--c:var(--accent-text);position:absolute;left:0;top:0;transform:translate(-50%,0);white-space:nowrap;font:700 13px var(--ui);color:var(--ink);opacity:0;transition:opacity .14s ease;padding:6px 12px;border-radius:12px;background:var(--disc);border:1px solid color-mix(in srgb,var(--c) 30%,var(--disc-line));box-shadow:0 8px 22px -12px color-mix(in srgb,var(--c) 60%,transparent)}
 .ring .lbl.show{opacity:1}
+.ring .lbl.swap{animation:lblswap .26s var(--settle)}
+@keyframes lblswap{from{transform:translate(-50%,5px);opacity:.35}}
 .press{position:absolute;z-index:9;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:1.5px solid var(--ink-3);opacity:0;pointer-events:none}
 .press.on{animation:press .22s cubic-bezier(.2,0,0,1) forwards}
 @keyframes press{from{opacity:.0;transform:scale(.4)}to{opacity:.55;transform:scale(2.2)}}
@@ -188,4 +200,4 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .past{max-width:100%}
 .past button{white-space:nowrap;flex:none;border:0;background:var(--accent-text);color:#fff;border-radius:999px;padding:6px 12px;font:700 12px var(--ui);cursor:pointer}
 .turns .turn:first-child{margin-top:8px}
-@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.side.enter .sidescroll>*,.side.enter #convos>*,.brief.enter .grid>*{animation:none}.field::before,.field::after,.say .ln,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet,.scrim,.toast{transition:none}}
+@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.side.enter .sidescroll>*,.side.enter #convos>*,.brief.enter .grid>*{animation:none}.field::before,.field::after,.say .ln,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet,.ring .pet svg,.ring .pet .fill,.scrim,.toast{transition:none}.ring .lbl.swap{animation:none}}

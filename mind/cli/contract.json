@@ -1454,7 +1454,8 @@
                   "podcasts",
                   "astra",
                   "media",
-                  "study"
+                  "study",
+                  "photos"
                 ]
               },
               "path": {
@@ -1973,6 +1974,12 @@
       "path": "/study/",
       "name": "Study",
       "phase": "P7"
+    },
+    "photos": {
+      "path": "/photos/",
+      "name": "Photos",
+      "phase": "P9",
+      "deferred": "the photo editor comes later"
     }
   },
   "search_sources": {
