@@ -53,7 +53,7 @@ Retention marked **[proposal]** is new; the rest comes from decisions, the plan 
 | Surfaces (what apps show) | `Core` | mind | Until `expires`, deleted within 24 h after | no | yes |
 | Wakes (why the mind was woken) | `Core` | Worker | 30 days **[proposal]** | no | yes |
 | Errors (client and server, fingerprinted) | `Core` | devices, Worker | 30 days **[proposal]** | no | yes |
-| Playback reports (Music's playback log in batches: timings, counts and track ids; never titles, artists, file names or words; addresses cut to their host on the phone and again by the Worker) | `Core` | owner devices | 30 days | no | yes |
+| Playback reports (Music's playback log in batches: timings, counts and track ids; only known fields, on the phone and again by the Worker; never titles, artists, file names or words; addresses cut to their host; never readable by CI) | `Core` | owner devices | 30 days | no | yes |
 | Meter (daily request and row counts) | `Core` | Worker | 400 days **[proposal]** | yes | yes |
 | Events (senses) | `Senses` DO (P5) | owner devices | 90 days in SQLite, then daily JSONL in `thunderhead-private/events/` forever | yes | yes |
 | Music catalog, play stats, ratings, playlists | `Music` DO (P5) | owner devices, mind (reversible fixes) | Until deleted | yes | yes |

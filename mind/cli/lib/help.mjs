@@ -26,7 +26,7 @@ export const USAGE = {
   taint: ['--source <tool> --ref <url or id>', 'mark this session tainted (irreversible)'],
   health: ['[--deep]', "Worker health, and the day's database use (meter: % of the day's budget)"],
   errors: ['[--hours 24]', 'open errors'],
-  reports: ['[--kind playback] [--since <ms|iso>] [--limit 50] [--cursor <c>]', 'what the owner\'s phone reported about playback (kept 30 days), newest first: totals (events by type, time to first sound, waits, stalls, the last errors), then one line per batch; track ids and timings only'],
+  reports: ['[--kind playback] [--since <ms|iso>] [--limit 50] [--cursor <c>]', 'what the owner\'s phone reported about playback (kept 30 days), newest first: totals (events by type, an event sent twice counted once, time to first sound, waits, the player\'s stalls, the newest 5 errors), then one line per batch; track ids and timings only'],
   help: ['[command]', 'this text'],
   file: ['<id|file:id> [--out <path>]', 'save an attachment from the Worker to $TMPDIR/th/files/<id>.<ext>; prints path, type, name and a voice memo\'s words (text)'],
   remind: ['<when> <text|-> --from <owner message id> | list | cancel <id> [--from <owner message id>]', 'a reminder the owner asked for in that message (sent in the last 48 h, at most 3 from one, 5 from you a day): <when> is an ISO time with its offset or +90m, +2h, +1d; delivered once at that time as a line and a push, a time in quiet hours moved to their end (shifted: true says so in the reply). Cancel one the owner set on the phone only with --from naming the message that asked'],

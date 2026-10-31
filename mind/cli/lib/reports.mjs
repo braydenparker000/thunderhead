@@ -1,10 +1,14 @@
 // `th reports [--kind playback] [--since <ms|iso>] [--limit 50] [--cursor <c>]` (RUNTIME.md §5.3): the
 // batches the owner's phone sent about how the apps ran (GET /v1/ops/reports, kept 30 days), read
 // back as one compact summary: the totals over the batches read, then one line per batch, newest
-// first. Music's playback batches carry timings, counts and track ids only (MUSIC.md §5.10); for a
-// batch's every event, `th get /v1/ops/reports kind=playback limit=1`.
+// first. An event the phone sent twice (a batch the Worker kept whose answer was lost, sent again)
+// has the same page and number (`n`), and counts once in the totals (`repeats` says how many were
+// left out). `stalls` are the player's own (`stall`: no sound for a while), not the browser's
+// `stalled`, which both show under `events`. `errors` are the newest 5. Music's playback batches
+// carry timings, counts and track ids only (MUSIC.md §5.10); for a batch's every event, `th get
+// /v1/ops/reports kind=playback limit=1`.
 //
-//   → {"kind","batches","from","to","devices","pages","events":{type: n},"first_sound_ms":{n,p50,p90,max},
+//   → {"kind","batches","from","to","devices","pages","events":{type: n},"repeats","first_sound_ms":{n,p50,p90,max},
 //      "waits":{count,seconds},"stalls","errors":[…],"items":[{id,at,device,page,seq,why,events,types}],"next"}
 import {CONTRACT} from './contract.mjs';
 import {request} from './http.mjs';
@@ -27,13 +31,18 @@ export function summarize(items, kind = null, next = null) {
   const types = {};
   const firstSound = [];
   const errors = [];
-  let waits = 0, waitSeconds = 0, stalls = 0;
+  const seen = new Set();
+  let waits = 0, waitSeconds = 0, stalls = 0, repeats = 0;
+  // Newest first, each batch's events too, so the errors kept are the newest.
   for (const r of items) {
-    for (const e of events(r)) {
+    for (const e of [...events(r)].reverse()) {
       if (typeof e?.type !== 'string') continue;
+      const key = r.body?.page && Number.isInteger(e.n) ? `${r.body.page}:${e.n}` : null;
+      if (key && seen.has(key)) { repeats++; continue; }
+      if (key) seen.add(key);
       count(types, e.type);
       if (e.type === 'first sound' && Number.isFinite(e.ms)) firstSound.push(e.ms);
-      if (e.type === 'stall' || e.type === 'stalled') stalls++;
+      if (e.type === 'stall') stalls++;
       if (ERROR_TYPES.has(e.type) && errors.length < ERRORS_SHOWN)
         errors.push({at: r.at, type: e.type, ...(e.kind ? {kind: e.kind} : {}), ...(e.code !== undefined ? {code: e.code} : {}), ...(e.track ? {track: e.track} : {})});
     }
@@ -55,6 +64,7 @@ export function summarize(items, kind = null, next = null) {
     devices: new Set(items.map(r => r.device_id)).size,
     pages: new Set(items.map(r => r.body?.page).filter(Boolean)).size,
     events: types,
+    repeats,
     first_sound_ms: firstSound.length
       ? {n: firstSound.length, p50: rank(firstSound, 0.5), p90: rank(firstSound, 0.9), max: firstSound.at(-1)}
       : null,

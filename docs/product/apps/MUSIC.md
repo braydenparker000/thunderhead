@@ -495,27 +495,32 @@ holds no titles **[proposal]**: tracks appear as ids, so a report can be pasted 
 
 **Sent to the Worker** (NEXT-BATCH.md part 1; `frontend/th/music/report.js`, loaded by `th/music/dj.js`
 `installDj`, which the player runs at start, so no ported file changes). Signed in on this site and in
-a top-level page only, what the log gained since the last batch goes to `POST /v1/ops/reports`
+a top-level page only, what the Worker hasn't taken from the log yet goes to `POST /v1/ops/reports`
 ([API.md §11.16](../../engineering/API.md#1116-ops)) as one batch: once a minute while music plays,
-once when the page is hidden, nothing when nothing is new. A batch the Worker didn't take for now
-(offline, busy) goes again with the next. The Worker keeps each batch as one row for 30 days, and the
-mind reads them with `th reports`. A batch (`frontend/th/music/report-batch.js`, at most 30 KB):
+once when the page is hidden, nothing when nothing is new, and never while a batch is on its way.
+After no answer in 15 s, a 408, 429 or 5xx the same events go again later (a minute, then 2, 4 … 30,
+or the Worker's Retry-After); after a 401 or 403 nothing goes until the session changes. The Worker
+keeps each batch as one row for 30 days, and the mind reads them with `th reports`, which counts an
+event sent twice once. A batch (`frontend/th/music/report-batch.js`, at most 30 KB):
 
 | Field | What |
 |---|---|
-| `v`, `page`, `seq`, `why` | Version 1; a random id for this page load; the batch's number in it; `minute` or `hidden` |
+| `v`, `page`, `seq`, `why` | Version 1; a random id for this page load (16 hex digits); the batch's number in it; `minute` or `hidden` |
 | `build`, `t0` | The site build; when the log began (ms), so an event's `t` (ms since then) is a time |
 | `lost`, `dropped` | Whether the log (300 events) let some go before a batch took them; how many old ones were left out to stay under 30 KB |
-| `events` | The log's events since the last batch, oldest first: deck events (`loadstart` with where it played from, `playing`, `waiting` and `stalled` with the position, `error` with its kind and code), `first sound`, the recoveries (`stall`, `reload`, `recovered`, `skip`), `underrun`, `clipped`, `long task`, `hidden`/`visible`, `track` (id, format, bitrate, rate, channels, source), `play`/`pause` |
-| `state` | The log's counters (the snapshot that **Copy report** copies), without its events and the browser's name: output, dropouts, level and limiter, each deck's waits, stalls, errors and start times, recovery, offline copies, heads, long tasks, time hidden |
+| `events` | The log's events the Worker hasn't taken, oldest first, each with its number in this page load (`n`), its time (`t`) and its type's own fields only: deck events (`loadstart` with where it played from, `playing`, `waiting` and `stalled` with the position, `error` with its kind and code), `first sound`, the recoveries (`stall`, `reload`, `recovered`, `skip`), `underrun`, `clipped`, `long task`, `hidden`/`visible`, `track` (id, format, bitrate, rate, channels, source), `play`/`pause` |
+| `state` | The log's counters (the snapshot that **Copy report** copies), without its events and the browser's name: output, dropouts, level and limiter, each deck's waits, stalls, errors and start times, recovery, offline copies, long tasks, time hidden |
 
 **Time to first sound** is its own event, `first sound` with the track id and `ms`: from the play asked
 for (a new song while playing, or Play) to the first `playing` of the deck that plays it. Not timed: a
 song the engine joins gaplessly to the one before (it is already sounding).
 
-Never sent: titles, artists, albums, composers, genres, file names or paths, any address beyond its
-host (a field with one of those names is dropped, and every address left in a text keeps only its
-host, on the phone and again on the Worker), the browser's name.
+Only known fields go: each event type's own (`PLAYBACK_EVENTS` in `shared/contract/reports.ts`; the
+phone's copy is `th/music/report-fields.js`) and the counters' (`PLAYBACK_STATE`); any other field is
+dropped, on the phone and again on the Worker, and an event of a type not listed goes as `other`. So
+never: titles, artists, albums, composers, genres, file names or paths, searches, the browser's name.
+A text (a browser's or the engine's own message) keeps of an address only its host, loses quoted
+text, and is at most 160 characters.
 
 ---
 

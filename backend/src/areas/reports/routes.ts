@@ -1,14 +1,13 @@
 // /v1/ops/reports (API.md §11.16): batches the phone sends about how the apps run (NEXT-BATCH.md
-// part 1; Music's playback log first), and the list the owner's devices, the mind and CI read
-// back, newest first. A batch is one row, kept 30 days.
+// part 1; Music's playback log first), and the list the owner's devices and the mind read back,
+// newest first (never CI: a batch is listening history, and CI's logs are public). A batch is one
+// row, kept 30 days. The list passes each batch's stored JSON on as it is, never parsed again.
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import * as z from 'zod/mini';
-import type { Page } from '../../../../shared/contract/api';
 import {
   REPORT_KINDS,
   REPORT_LIMITS,
-  type Report,
   type ReportCreated,
   type ReportRequest,
 } from '../../../../shared/contract/reports.ts';
@@ -25,7 +24,8 @@ const tooLarge = (): never => {
   throw new ApiError('too_large');
 };
 
-// The body's own size (32 KB as JSON) is checked once it is cleaned (ops.ts); this bounds the read.
+// The body's own size (32 KB as JSON) is checked once it is kept to its known fields (ops.ts); this
+// bounds the read.
 const postBody = z.strictObject({
   kind: z.enum(REPORT_KINDS),
   body: z.record(z.string(), z.json()),
@@ -55,15 +55,24 @@ export const reportsRoutes = new Hono<AppEnv>()
     bodyLimit({ maxSize: REPORT_LIMITS.body_bytes + 1024, onError: tooLarge }),
     async (c) => {
       const r = await json(c, postBody);
-      const out = value(await fresh(coreObject(c.env).putReport(callerOf(c), r)));
-      return c.json(out satisfies ReportCreated, 201);
+      const out = await fresh(coreObject(c.env).putReport(callerOf(c), r));
+      if (!out.ok && 'retry_after' in out)
+        throw new ApiError('rate_limited', undefined, { retry_after: out.retry_after });
+      return c.json(value(out) satisfies ReportCreated, 201);
     },
   )
   .get('/ops/reports', guard('GET /v1/ops/reports'), async (c) => {
     const q = parse(listQuery, c.req.query());
     const limit = q.limit ?? 50;
-    const items = await fresh(coreObject(c.env).reports(q.kind ?? null, q.since ?? 0, limit, cursorOf(q.cursor)));
-    const last = items.at(-1);
-    const next = items.length === limit && last ? encodeCursor(ROUTE, [last.at, last.id]) : null;
-    return c.json({ items, next } satisfies Page<Report>);
+    const page = await fresh(coreObject(c.env).reports(q.kind ?? null, q.since ?? 0, limit, cursorOf(q.cursor)));
+    const last = page.rows.at(-1);
+    const next = page.more && last ? encodeCursor(ROUTE, [last.at, last.id]) : null;
+    // `Page<Report>`, written here so each batch's JSON goes out as it was kept.
+    const items = page.rows.map(
+      (r) =>
+        `{"id":${JSON.stringify(r.id)},"kind":${JSON.stringify(r.kind)},"device_id":${JSON.stringify(r.device_id)},"at":${r.at},"body":${r.body_json}}`,
+    );
+    return c.body(`{"items":[${items.join(',')}],"next":${JSON.stringify(next)}}`, 200, {
+      'Content-Type': 'application/json',
+    });
   });

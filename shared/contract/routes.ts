@@ -273,8 +273,8 @@ export const ROUTES = {
   'DELETE /v1/reminders/:id': { who: ['D', 'C'], phase: 'P8', note: 'takes back one not yet delivered; the row stays' },
   // The phone's reports (NEXT-BATCH.md part 1): Music's playback log in batches, one row each, kept 30 days.
   'POST /v1/ops/reports': { who: D, phase: 'P8', note: '{kind, body ≤ 32 KB}; at most 6 in any 5 minutes' },
-  // Not CI: the batches are listening history by track id, and CI's logs are public (second reader).
-  'GET /v1/ops/reports': { who: ['D', 'C', 'N', 'R'], phase: 'P8', note: '?kind=&since=&limit=&cursor=, newest first' },
+  // Not CI: a batch is listening history by track id, and CI's logs are public.
+  'GET /v1/ops/reports': { who: AGENTS_READ, phase: 'P8', note: '?kind=&since=&limit=&cursor=, newest first, ≤ 512 KB' },
 } as const satisfies Record<string, RouteSpec>;
 
 export type RouteKey = keyof typeof ROUTES;

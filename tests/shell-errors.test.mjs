@@ -1,6 +1,7 @@
 // The shell's error reporter (frontend/ui/error-items.js, ui/errors.js; NEXT-BATCH.md part 1): node
-// checks of the items (the inbox's shape, addresses cut to their host, where in the site's code, a
-// fingerprint per distinct error, "Script error." dropped) and of the batching (2 s after the last,
+// checks of the items (the inbox's shape, addresses cut to their host, quoted text and patterns cut
+// since browsers quote what was typed, a value that isn't an Error by its kind only, where in the
+// site's code, a fingerprint per distinct error, "Script error." dropped) and of the batching (2 s after the last,
 // at once on flush, repeats as a count, 3 a fingerprint and 20 a page), then Chromium at phone size
 // against the mock Worker: signed in, an error thrown on home reaches POST /v1/ops/errors once, with
 // the session; signed out, nothing goes. Local only; no network.
@@ -8,7 +9,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
-import { bare, collector, hash, itemOf, PER_PAGE } from '../frontend/ui/error-items.js';
+import { collector, hash, itemOf, PER_PAGE } from '../frontend/ui/error-items.js';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
 
 const ORIGIN = 'https://site.example';
@@ -29,8 +30,25 @@ test('an item: the error\'s words, an address only its host, where in the site\'
   assert.notEqual(other.fingerprint, item.fingerprint);
   assert.equal(itemOf({ ...base0, error: null, message: 'Script error.' }), null, 'cross-origin noise');
   assert.equal(itemOf({ ...base0, error: undefined, message: '' }), null);
-  assert.equal(itemOf({ ...base0, error: 'x'.repeat(400) }).message.length, 300);
-  assert.equal(bare('see http://h.example:8080/p?q=1 now'), 'see h.example:8080/… now');
+  assert.equal(itemOf({ ...base0, error: new Error('x'.repeat(400)) }).message.length, 300);
+  assert.equal(itemOf({ ...base0, error: new Error('see HTTP://me:pw@h.example:8080/My Song?q=1') }).message, 'Error: see h.example:8080/…');
+});
+
+test('an item never carries what was typed: quoted text and patterns cut, another value by its kind only', () => {
+  const words = (error, kind = 'error', message) => itemOf({ ...base0, kind, error, message }).message;
+  assert.equal(words(new TypeError('Failed to construct \'URL\': Invalid URL "my typed words"')), 'TypeError: Failed to construct …: Invalid URL …');
+  assert.equal(words(new TypeError('"what I typed" cannot be parsed as a URL.')), 'TypeError: … cannot be parsed as a URL.');
+  assert.equal(words(new SyntaxError('Unexpected identifier "secret"')), 'SyntaxError: Unexpected identifier …');
+  assert.equal(words(new SyntaxError('Invalid regular expression: /my (search/: Unterminated group')), 'SyntaxError: Invalid regular expression: …: Unterminated group');
+  assert.equal(words('my typed words', 'rejection'), 'Rejected: not an Error (string)');
+  assert.equal(words({ password: 'x' }, 'rejection'), 'Rejected: not an Error (object)');
+  assert.equal(words(undefined, 'rejection'), 'Rejected: not an Error (undefined)');
+  assert.equal(words('my typed words', 'error', 'Uncaught my typed words'), 'Thrown: not an Error (string)');
+  // An "error" event with no value at all: the browser's own words, cleaned the same way.
+  assert.equal(words(null, 'error', 'ResizeObserver loop completed with undelivered notifications.'), 'ResizeObserver loop completed with undelivered notifications.');
+  const a = itemOf({ ...base0, error: new SyntaxError('Unexpected identifier "one"') });
+  const b = itemOf({ ...base0, error: new SyntaxError('Unexpected identifier "two"') });
+  assert.equal(a.fingerprint, b.fingerprint, 'the same error whatever was typed');
 });
 
 test('batches: 2 s after the last, at once on flush, a repeat as a count, 3 a fingerprint and 20 a page', (t) => {

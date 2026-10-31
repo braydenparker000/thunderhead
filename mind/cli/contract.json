@@ -1457,7 +1457,7 @@
       ],
       "phase": "P8",
       "status": "built",
-      "note": "?kind=&since=&limit=&cursor=, newest first"
+      "note": "?kind=&since=&limit=&cursor=, newest first, ≤ 512 KB"
     }
   },
   "verbs": {
@@ -2050,9 +2050,11 @@
     ],
     "limits": {
       "body_bytes": 32768,
+      "text_max": 160,
       "keep_days": 30,
       "per_5_min": 6,
-      "page_max": 200
+      "page_max": 200,
+      "page_bytes": 524288
     }
   },
   "memory": {

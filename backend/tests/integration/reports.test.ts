@@ -1,7 +1,9 @@
 // /v1/ops/reports (API.md §11.16, NEXT-BATCH.md part 1): a batch from the phone is one row, taken
-// only from a device, at most 32 KB as JSON, its addresses cut to their host and its tokens
-// removed, at most 6 from one device in any 5 minutes; the list is newest first and reads the rows
-// it returns, not the table; the daily prune drops rows older than 30 days, at most 2,000 a step.
+// only from a device, kept to its known fields (any other dropped, every text with its addresses cut
+// to their host, quoted text cut, at most 160 characters), at most 32 KB as JSON, at most 6 from one
+// device in any 5 minutes (then 429 with Retry-After); the list goes to the devices and the mind,
+// never CI or Muse, newest first, reads the rows it returns, not the table, and ends a page before
+// 512 KB; the daily prune drops rows older than 30 days, at most 2,000 a step.
 import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ErrorBody, Page } from '../../../shared/contract/api';
@@ -20,9 +22,10 @@ const batch = (body: Record<string, unknown> = {}) => ({
   kind: 'playback',
   body: {
     v: 1,
-    page: 'p1',
+    page: '0123456789abcdef',
     seq: 1,
-    events: [{ t: 1200, type: 'first sound', track: 'r2_native_abc', ms: 840 }],
+    why: 'minute',
+    events: [{ n: 0, t: 1200, type: 'first sound', track: 'r2_native_abc', ms: 840 }],
     ...body,
   },
 });
@@ -31,12 +34,16 @@ const post = (token: string | undefined, body: unknown) =>
 const list = (token: string, query = '') => apiJson<Page<Report>>('GET', `/v1/ops/reports${query}`, { token });
 
 /** `n` rows straight into the table, one a millisecond back from `newest`. */
-const seed = (n: number, newest: number, prefix: string) =>
+const seed = (n: number, newest: number, prefix: string, pad = 0) =>
   coreSql(
     `INSERT INTO reports (kind, at, id, device_id, body_json)
-     SELECT 'playback', ? - value, ? || printf('%05d', value), 'seeded', '{"v":1}' FROM json_each(?)`,
+     SELECT 'playback', ? - value, ? || printf('%05d', value), 'seeded',
+       CASE WHEN ? > 0 THEN '{"v":1,"pad":"' || replace(hex(zeroblob(?)), '0', 'x') || '"}' ELSE '{"v":1}' END
+     FROM json_each(?)`,
     newest,
     prefix,
+    pad,
+    pad / 2,
     JSON.stringify([...Array(n).keys()]),
   );
 
@@ -76,57 +83,122 @@ describe('a batch from the phone', () => {
       at: r.body.at,
       body: batch().body,
     });
-    expect((await list(agents.muse)).status).toBe(403);
-    expect((await list(agents.ci)).status).toBe(403);
+    // Listening history by track id: never to CI, whose logs are public, nor to Muse.
+    for (const t of [agents.ci, agents.muse]) {
+      const no = await list(t);
+      expect([no.status, (no.body as unknown as ErrorBody).error.code]).toEqual([403, 'forbidden']);
+    }
     expect((await api('GET', '/v1/ops/reports')).status).toBe(401);
   });
 
-  it('keeps an address only as its host, drops tokens and cuts long text', async () => {
+  it('keeps only the known fields, and of a text only what is safe', async () => {
     const token = `th1_${'A'.repeat(43)}abcdef`;
     const r = await post(
       await device(),
       batch({
+        trackTitle: 'A Song',
+        q: 'what I searched',
         events: [
           {
+            n: 1,
             t: 5,
-            type: 'error',
-            message: `MEDIA_ERR from https://bucket.example/audio/a.opus?X-Amz-Signature=s3cr3t with ${token}`,
+            type: 'track',
+            id: 'r2_native_abc',
+            format: 'OPUS',
+            source: 'stream',
+            trackTitle: 'A Song',
+            songName: 'A Song',
+            key: 'audio/Artist/Song.opus',
+            q: 'what I searched',
+            meta: { tags: { TIT2: 'A Song' } },
           },
+          {
+            n: 2,
+            t: 6,
+            type: 'error',
+            deck: 0,
+            code: 2,
+            kind: 'network',
+            message: `MEDIA_ERR HTTPS://Bucket.Example/audio/A.opus?sig=s3cr3t with ${token}`,
+          },
+          { n: 3, t: 7, type: 'stream_error', code: 4, message: 'open file:///storage/Music/My Song.opus (gone)' },
+          { n: 4, t: 8, type: 'stream_error', code: 4, message: 'at content://media/external/audio/My Song' },
+          {
+            n: 5,
+            t: 9,
+            type: 'stream_error',
+            code: 4,
+            message: 'fetch https%3A%2F%2Fh.example%2FMy%20Song.opus%3Fsig%3Dx',
+          },
+          { n: 6, t: 10, type: 'stream_error', code: 2, message: 'GET http://user:secret@host.example/My Song.mp3' },
+          { n: 7, t: 11, type: 'stream_error', code: 3, message: `"My Song" is not ${'x'.repeat(300)}` },
+          { n: 8, t: 12, type: 'my own type', title: 'A Song' },
+          { n: 9, t: 13, type: 'track', id: 'Artist - My Song.opus' },
         ],
-        note: 'x'.repeat(400),
+        state: {
+          track: { id: 'r2_native_abc', title: 'A Song' },
+          decks: [{ index: 0, waits: 1, path: '/My Song' }],
+          browser: 'x',
+        },
       }),
     );
     expect(r.status).toBe(201);
     const [row] = await coreSql<{ body_json: string }>('SELECT body_json FROM reports WHERE id = ?', r.body.id);
     const body = JSON.parse(row.body_json);
-    expect(body.events[0].message).toBe('MEDIA_ERR from bucket.example/… with [token]');
-    expect(body.note).toHaveLength(300);
-    expect(row.body_json).not.toMatch(/s3cr3t|X-Amz|AAAAAAAA/);
+    expect(body).toEqual({
+      v: 1,
+      page: '0123456789abcdef',
+      seq: 1,
+      why: 'minute',
+      events: [
+        { n: 1, t: 5, type: 'track', id: 'r2_native_abc', format: 'OPUS', source: 'stream' },
+        { n: 2, t: 6, type: 'error', deck: 0, code: 2, kind: 'network', message: 'MEDIA_ERR Bucket.Example/…' },
+        { n: 3, t: 7, type: 'stream_error', code: 4, message: 'open file:… (gone)' },
+        { n: 4, t: 8, type: 'stream_error', code: 4, message: 'at media/…' },
+        { n: 5, t: 9, type: 'stream_error', code: 4, message: 'fetch h.example/…' },
+        { n: 6, t: 10, type: 'stream_error', code: 2, message: 'GET host.example/…' },
+        { n: 7, t: 11, type: 'stream_error', code: 3, message: `… is not ${'x'.repeat(300)}`.slice(0, 160) },
+        { n: 8, t: 12, type: 'other' },
+        { n: 9, t: 13, type: 'track' },
+      ],
+      state: { track: { id: 'r2_native_abc' }, decks: [{ index: 0, waits: 1 }] },
+    });
+    expect(row.body_json).not.toMatch(/Song|Artist|search|TIT2|s3cr3t|secret|sig|storage|AAAAAAAA/);
   });
 
-  it('refuses a batch over 32 KB, a kind it does not know, extra fields and deep nesting', async () => {
+  it('refuses a batch over 32 KB, a kind it does not know and extra fields; drops what nests too deep', async () => {
     const d = await device();
     const before = await coreSql('SELECT count(*) AS n FROM reports');
-    // Under the request limit, over 32 KB as JSON once cleaned (each text stays under 300).
-    const big = await post(d, { kind: 'playback', body: { a: Array.from({ length: 112 }, () => 'x'.repeat(290)) } });
-    expect([big.status, big.body.error.code]).toEqual([413, 'too_large']);
+    // Under the request limit, over 32 KB as JSON once kept (every field known, each text 150).
+    const events: Record<string, unknown>[] = [];
+    const big = { kind: 'playback', body: { v: 1, events } };
+    for (let n = 0; JSON.stringify(big.body).length <= 32_800; n++)
+      events.push({ n, t: n, type: 'stream_error', code: 1, message: 'x'.repeat(150), atMs: 1 });
+    const over = await post(d, big);
+    expect([over.status, over.body.error.code]).toEqual([413, 'too_large']);
     // Over the request limit, refused before it is read.
     expect((await post(d, batch({ pad: 'x'.repeat(40_000) }))).status).toBe(413);
     expect((await post(d, { kind: 'diary', body: {} })).status).toBe(422);
     expect((await post(d, { ...batch(), extra: 1 })).status).toBe(422);
     expect((await post(d, { kind: 'playback', body: [1, 2] })).status).toBe(422);
+    expect(await coreSql('SELECT count(*) AS n FROM reports')).toEqual(before);
     let deep: Record<string, unknown> = { v: 1 };
     for (let i = 0; i < 10; i++) deep = { deep };
-    const r = await post(d, { kind: 'playback', body: deep });
-    expect([r.status, r.body.error.code]).toEqual([422, 'validation']);
-    expect(await coreSql('SELECT count(*) AS n FROM reports')).toEqual(before);
+    const kept = await post(d, { kind: 'playback', body: { ...deep, v: 1 } });
+    expect(kept.status).toBe(201);
+    const [row] = await coreSql<{ body_json: string }>('SELECT body_json FROM reports WHERE id = ?', kept.body.id);
+    expect(row.body_json).toBe('{"v":1}');
   });
 
   it('takes at most 6 from one device in any 5 minutes; another device is counted on its own', async () => {
     const d = await device();
     for (let i = 0; i < 6; i++) expect((await post(d, batch({ seq: i }))).status).toBe(201);
-    const over = await post(d, batch({ seq: 7 }));
-    expect([over.status, over.body.error.code]).toEqual([429, 'rate_limited']);
+    const res = await api('POST', '/v1/ops/reports', { token: d, body: batch({ seq: 7 }) });
+    const over = (await res.json()) as ErrorBody & { error: { retry_after: number } };
+    expect([res.status, over.error.code]).toEqual([429, 'rate_limited']);
+    expect(over.error.retry_after).toBeGreaterThan(0);
+    expect(over.error.retry_after).toBeLessThanOrEqual(300);
+    expect(res.headers.get('Retry-After')).toBe(String(over.error.retry_after));
     expect((await post(await device(), batch())).status).toBe(201);
   });
 
@@ -170,6 +242,25 @@ describe('the list', () => {
     expect(since.body.items.filter((i) => i.id.startsWith('list-'))).toHaveLength(10);
     expect((await list(owner, '?cursor=not-ours')).status).toBe(400);
     expect((await list(owner, '?limit=201')).status).toBe(422);
+  });
+
+  it('ends a page before it passes 512 KB, and the next page goes on from there', async () => {
+    const now = Date.now();
+    // 20 batches of 30 KB, newer than every other row but the ones posted above.
+    await seed(20, now - 30_000, 'big-', 30_000);
+    const query = `?kind=playback&since=${now - 40_000}&limit=200`;
+    const res = await api('GET', `/v1/ops/reports${query}`, { token: owner });
+    expect(res.headers.get('Content-Type')).toMatch(/^application\/json/);
+    const first = (await res.json()) as Page<Report>;
+    const size = first.items.reduce((n, i) => n + JSON.stringify(i.body).length, 0);
+    expect(size).toBeLessThanOrEqual(512 * 1024);
+    const bigs = (p: Page<Report>) => p.items.filter((i) => i.id.startsWith('big-')).length;
+    expect(bigs(first)).toBeGreaterThan(10);
+    expect(bigs(first)).toBeLessThan(20);
+    expect(first.next).not.toBeNull();
+    const second = (await list(owner, `${query}&cursor=${first.next}`)).body;
+    expect(bigs(first) + bigs(second)).toBe(20);
+    expect(second.next).toBeNull();
   });
 });
 

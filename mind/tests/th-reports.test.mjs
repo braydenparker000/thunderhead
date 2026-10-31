@@ -1,6 +1,7 @@
 // th reports against the fake Worker: the phone's playback batches read back as one compact summary
-// (events by type, time to first sound, waits from each page's newest batch, the last errors, one
-// line per batch), the query from the flags, and local refusals (exit 8) before the network.
+// (events by type, an event sent twice counted once by its page and number, time to first sound,
+// waits from each page's newest batch, the player's own stalls, the newest errors, one line per
+// batch), the query from the flags, and local refusals (exit 8) before the network.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {summarize} from '../cli/lib/reports.mjs';
@@ -14,37 +15,56 @@ const gets = fake => fake.state.requests.filter(r => r.method === 'GET' && r.pat
 
 /** A playback batch as the phone sends it (frontend/th/music/report.js). */
 const batch = (page, seq, events, decks = [{index: 0, waits: 0, waitSeconds: 0}]) =>
-  ({v: 1, page, seq, why: 'minute', build: 80, t0: 1_793_000_000_000, skipped: 0, events, state: {decks}});
+  ({v: 1, page, seq, why: 'minute', build: 80, t0: 1_793_000_000_000, lost: false, dropped: 0, events, state: {decks}});
 
-test('summarize: totals over the batches, waits from each page\'s newest batch, one line per batch', () => {
+test('summarize: totals over the batches, a repeat once, waits from each page\'s newest batch, the newest errors', () => {
   const items = [
-    {id: 'r3', at: 3000, kind: 'playback', device_id: 'session-aaaaaaaaaaaa', body: batch('p1', 2, [
-      {t: 70_000, type: 'first sound', track: 'r2_native_b', ms: 2400},
-      {t: 71_000, type: 'waiting', deck: 0, at: 12.5},
-      {t: 72_000, type: 'error', deck: 1, code: 2, kind: 'network', message: 'host.example/…'},
+    // p1's batch 2 went again as batch 3 after its answer was lost: events 3 to 5 come twice.
+    {id: 'r4', at: 4000, kind: 'playback', device_id: 'session-aaaaaaaaaaaa', body: batch('p1', 3, [
+      {n: 3, t: 70_000, type: 'first sound', track: 'r2_native_b', ms: 2400},
+      {n: 4, t: 71_000, type: 'waiting', deck: 0, at: 12.5},
+      {n: 5, t: 72_000, type: 'error', deck: 1, code: 2, kind: 'network', message: 'host.example/…'},
+      {n: 6, t: 73_000, type: 'stream_error', code: 4},
+      {n: 7, t: 73_500, type: 'stalled', deck: 0},
     ], [{index: 0, waits: 3, waitSeconds: 4.25}, {index: 1, waits: 1, waitSeconds: 0.5}])},
+    {id: 'r3', at: 3000, kind: 'playback', device_id: 'session-aaaaaaaaaaaa', body: batch('p1', 2, [
+      {n: 3, t: 70_000, type: 'first sound', track: 'r2_native_b', ms: 2400},
+      {n: 4, t: 71_000, type: 'waiting', deck: 0, at: 12.5},
+      {n: 5, t: 72_000, type: 'error', deck: 1, code: 2, kind: 'network', message: 'host.example/…'},
+    ], [{index: 0, waits: 3, waitSeconds: 4.25}])},
     {id: 'r2', at: 2000, kind: 'playback', device_id: 'session-aaaaaaaaaaaa', body: batch('p1', 1, [
-      {t: 1000, type: 'track', id: 'r2_native_a', format: 'opus', source: 'stream'},
-      {t: 1100, type: 'first sound', track: 'r2_native_a', ms: 380},
+      {n: 0, t: 1000, type: 'track', id: 'r2_native_a', format: 'OPUS', source: 'stream'},
+      {n: 1, t: 1100, type: 'first sound', track: 'r2_native_a', ms: 380},
+      {n: 2, t: 1200, type: 'error', deck: 0, code: 3, kind: 'decode'},
     ], [{index: 0, waits: 1, waitSeconds: 1}])},
     {id: 'r1', at: 1000, kind: 'playback', device_id: 'session-bbbbbbbbbbbb', body: batch('p0', 1, [
-      {t: 500, type: 'first sound', track: 'r2_native_c', ms: 900},
-      {t: 600, type: 'stall', atMs: 3000, readyState: 2},
+      {n: 0, t: 500, type: 'first sound', track: 'r2_native_c', ms: 900},
+      {n: 1, t: 600, type: 'stall', atMs: 3000, readyState: 2},
+      {n: 2, t: 610, type: 'stalled', deck: 0},
     ])},
   ];
   const s = summarize(items, 'playback', 'cursor-1');
   assert.deepEqual({...s, items: undefined}, {
-    kind: 'playback', batches: 3, from: 1000, to: 3000, devices: 2, pages: 2,
-    events: {'first sound': 3, waiting: 1, error: 1, track: 1, stall: 1},
+    kind: 'playback', batches: 4, from: 1000, to: 4000, devices: 2, pages: 2,
+    events: {'first sound': 3, waiting: 1, error: 2, stream_error: 1, stalled: 2, track: 1, stall: 1},
+    repeats: 3,
     first_sound_ms: {n: 3, p50: 900, p90: 2400, max: 2400},
     waits: {count: 4, seconds: 4.8}, stalls: 1,
-    errors: [{at: 3000, type: 'error', kind: 'network', code: 2}],
+    errors: [
+      {at: 4000, type: 'stream_error', code: 4},
+      {at: 4000, type: 'error', kind: 'network', code: 2},
+      {at: 2000, type: 'error', kind: 'decode', code: 3},
+    ],
     items: undefined, next: 'cursor-1',
   });
-  assert.deepEqual(s.items[0], {id: 'r3', at: 3000, device: 'session-', page: 'p1', seq: 2, why: 'minute', events: 3,
-    types: {'first sound': 1, waiting: 1, error: 1}});
-  assert.equal(s.items.length, 3);
-  assert.deepEqual(summarize([]), {kind: 'all', batches: 0, from: null, to: null, devices: 0, pages: 0, events: {},
+  assert.deepEqual(s.items[0], {id: 'r4', at: 4000, device: 'session-', page: 'p1', seq: 3, why: 'minute', events: 5,
+    types: {'first sound': 1, waiting: 1, error: 1, stream_error: 1, stalled: 1}});
+  assert.equal(s.items.length, 4);
+  // The newest 5 errors, newest first, when there are more.
+  const many = [{id: 'm', at: 9, kind: 'playback', device_id: 'd', body: batch('p9', 1,
+    Array.from({length: 8}, (_, n) => ({n, t: n, type: 'error', code: n})))}];
+  assert.deepEqual(summarize(many).errors.map(e => e.code), [7, 6, 5, 4, 3]);
+  assert.deepEqual(summarize([]), {kind: 'all', batches: 0, from: null, to: null, devices: 0, pages: 0, events: {}, repeats: 0,
     first_sound_ms: null, waits: {count: 0, seconds: 0}, stalls: 0, errors: [], items: [], next: null});
 });
 

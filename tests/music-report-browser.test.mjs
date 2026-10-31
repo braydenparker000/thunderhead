@@ -97,7 +97,8 @@ test('signed in, Music sends one batch when hidden: track ids and timings, no ti
     assert.equal(sent.body.kind, 'playback');
     const b = sent.body.body;
     assert.deepEqual([b.v, b.seq, b.why, b.lost, b.dropped], [1, 1, 'hidden', false, 0]);
-    assert.match(b.page, /^[0-9a-f]{8}$/);
+    assert.match(b.page, /^[0-9a-f]{16}$/);
+    assert.deepEqual(b.events.map((e) => e.n), b.events.map((_, i) => i), 'each event numbered in this page load');
     assert.ok(Math.abs(b.t0 - Date.now()) < 120_000, 'the log began this page load');
     const first = b.events.filter((e) => e.type === 'first sound');
     assert.deepEqual(first.map((e) => [e.track, e.ms]), logged.map((e) => [e.track, e.ms]));
@@ -115,7 +116,8 @@ test('signed in, Music sends one batch when hidden: track ids and timings, no ti
     const lastT = b.events.at(-1).t;
     for (const later of reports(api).slice(1)) {
       assert.equal(later.body.body.seq, 2);
-      assert.ok(later.body.body.events.every((e) => e.t >= lastT), 'only events after the first batch');
+      assert.ok(later.body.body.events.every((e) => e.t >= lastT && e.n >= b.events.length), 'only events after the first batch');
+      assert.equal(later.body.body.page, b.page);
     }
     assert.ok(reports(api).length <= 2);
     assert.deepEqual(errors, []);

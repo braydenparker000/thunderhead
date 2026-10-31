@@ -3,8 +3,8 @@
 // rejections go to the Worker's inbox (`POST /v1/ops/errors`, API.md §11.16), where the mind reads
 // them with `th errors`, so a bug on the owner's phone is seen without anyone reporting it. Only signed
 // in, and only from a top-level page (the session store gives a framed page nothing). What goes: the
-// error's words with every address cut to its host, where in this site's code it came from, the page's
-// path and the build (ui/error-items.js); nothing the owner typed or saved. A batch goes 2 s after the
+// error's words with every address cut to its host and quoted text cut, where in this site's code it
+// came from, the page's path and the build (ui/error-items.js); nothing the owner typed or saved. A batch goes 2 s after the
 // last error, or at once when the page is hidden. Load it as a page's first module:
 //   <script type="module" src="/ui/errors.js" data-app="home"></script>
 import { CONFIG } from '/config.js';
@@ -44,7 +44,7 @@ if (ready) {
     if (e.target && e.target !== window) return;
     add('error', e.error, e.message);
   });
-  addEventListener('unhandledrejection', (e) => add('rejection', e.reason, e.reason?.message));
+  addEventListener('unhandledrejection', (e) => add('rejection', e.reason));
   addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'hidden') inbox.flush();
   });

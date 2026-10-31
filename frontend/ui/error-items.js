@@ -1,19 +1,22 @@
 // @ts-check
 // The shell's error reports without the page (NEXT-BATCH.md part 1; API.md §11.16 `POST /v1/ops/errors`):
-// one inbox item per uncaught error or rejection, scrubbed as the ported pages' reporter scrubs
-// (assets/error-report.js): the error's own words with every address cut to its host, where in this
-// site's code it came from instead of a stack, at most 300 characters. Each distinct error has a
-// fingerprint of its own (its kind, words and place), so the inbox keeps them apart; one error is
-// counted at most 3 times a page load (repeats in one batch as one item with its count), and 20
-// items go at most in all, in batches of up to 10. ui/errors.js runs it on the page;
-// tests/shell-errors.test.mjs checks it.
+// one inbox item per uncaught error or rejection: the error's own words, cleaned (ui/scrub.js: every
+// address only its host, and quoted text and a `/pattern/` cut, since browsers quote what was typed
+// in their own errors), where in this site's code it came from instead of a stack, at most 300
+// characters. A thrown or rejected value that isn't an Error goes as its type only (its words may be
+// anything). Each distinct error has a fingerprint of its own (its kind, words and place), so the
+// inbox keeps them apart; one error is counted at most 3 times a page load (repeats in one batch as
+// one item with its count), and 20 items go at most in all, in batches of up to 10. ui/errors.js runs
+// it on the page; tests/shell-errors.test.mjs checks it.
+import { cleanText } from './scrub.js';
 
 export const PER_ERROR = 3;
 export const PER_PAGE = 20;
 const PER_BATCH = 10;
 
-/** Each address keeps only its host. @param {string} text */
-export const bare = (text) => text.replace(/\bhttps?:\/\/([^/\s?#]+)\S*/g, '$1/…');
+const MESSAGE_MAX = 300;
+/** A value's kind, for one that isn't an Error. @param {unknown} v */
+const kindOf = (v) => (v === null ? 'null' : Array.isArray(v) ? 'array' : typeof v);
 
 /** The first place in this site's own code a stack names (`th/chat/view.js:12:5`). @param {string} stack @param {string} origin */
 const where = (stack, origin) => stack.split(`${origin}/`)[1]?.match(/^[^\s()]+:\d+:\d+/)?.[0];
@@ -32,17 +35,23 @@ export function hash(s) {
  */
 export function itemOf(e) {
   const err = /** @type {any} */ (e.error);
-  // The Error itself says it best ("TypeError: x is undefined"); an event's message adds "Uncaught ".
-  const text = String(err instanceof Error ? `${err.name}: ${err.message}` : e.message || err || '').slice(0, 300);
-  if (!text || /^Script error\.?$/i.test(text)) return null;
+  // The Error itself says it best ("TypeError: x is undefined"). With no value at all, the browser's
+  // own message (an "error" event's); any other value only by its kind.
+  const text =
+    err instanceof Error
+      ? `${err.name}: ${err.message}`
+      : err == null && e.kind === 'error'
+        ? String(e.message ?? '')
+        : `${e.kind === 'error' ? 'Thrown' : 'Rejected'}: not an Error (${kindOf(err)})`;
+  if (!text || /^(Uncaught )?Script error\.?$/i.test(text)) return null;
   const at = where(String(err?.stack ?? ''), e.origin);
-  const words = bare(text);
+  const words = cleanText(text, MESSAGE_MAX);
   return {
     fingerprint: `${e.app}:${hash(`${e.kind}|${words}|${at ?? ''}`)}`,
     source: /** @type {const} */ ('client'),
     code: `${e.app}.${e.kind}`,
     route: e.path.slice(0, 200),
-    message: (at ? `${words} @ /${at}` : words).slice(0, 300),
+    message: (at ? `${words} @ /${at}` : words).slice(0, MESSAGE_MAX),
     build: e.build,
     at: e.at,
   };
