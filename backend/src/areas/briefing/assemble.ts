@@ -12,7 +12,7 @@ import {
 import { WORK_LIMITS } from '../../../../shared/contract/work.ts';
 import { DAY, HOUR, wallMinute } from '../../lib/time';
 import type { Db } from '../../objects/base';
-import { quota, quotaLine } from '../meter/quota';
+import { quotaLine, safeQuota } from '../meter/quota';
 import * as pstore from '../proposals/store';
 import * as surfaces from '../surfaces/store';
 import * as work from '../work/ops';
@@ -82,6 +82,7 @@ export function briefing(db: Db, c: { now: number; tz: string; day: string; weat
     weather: c.weather,
     tiles,
     muse: museLine(db, c.now),
-    quota: quotaLine(quota(db, c.now), c.tz),
+    // A meter that can't be read leaves the line out; the page is served all the same.
+    quota: quotaLine(safeQuota(db, c.now), c.tz),
   };
 }

@@ -22,8 +22,9 @@ export interface CheckCtx {
   nightConfigured: boolean;
   /** What each watchdog's GATHER entry read before the tick's write (absent when it failed). */
   gathered?: Partial<Record<WatchdogName, unknown>>;
-  /** Today's use against the day's budget, read once for both quota checks (areas/meter). */
-  quota?: QuotaToday;
+  /** Today's use against the day's budget, read once for both quota checks (areas/meter); null
+   * when it couldn't be read. */
+  quota?: QuotaToday | null;
 }
 
 /** The error checks' memory: totals by check time, and the last check's counts per fingerprint. */

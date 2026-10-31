@@ -27,23 +27,32 @@ export function putDay(db: Db, r: DayRow, at: number): void {
   );
 }
 
-/** Adds rows written where no meter counts them (the drill's scratch copy, class `scratch`) to a
- * day's row: 1 row written. */
-export function addWritten(db: Db, day: string, cls: string, rows: number, at: number): void {
-  db.run(
-    `INSERT INTO meter_days (day, class, rows_read, rows_written, updated_at) VALUES (?, ?, 0, ?, ?)
-     ON CONFLICT (day, class) DO UPDATE SET rows_written = rows_written + excluded.rows_written,
-       updated_at = excluded.updated_at`,
-    day,
-    cls,
-    rows,
-    at,
-  );
+/** Adds rows to a class's day as they happen: written where no meter counts them (the drill's
+ * scratch copy, class `scratch`), or read in another object by a heavy step (a backup part, the
+ * senses archive), ahead of that object's own answer at the next tick, which `putDay` then folds in
+ * (it only raises). 1 row written; dropped, never thrown, if the meter can't be written. */
+export function addRows(db: Db, day: string, cls: string, read: number, written: number, at: number): void {
+  try {
+    db.run(
+      `INSERT INTO meter_days (day, class, rows_read, rows_written, updated_at) VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT (day, class) DO UPDATE SET rows_read = rows_read + excluded.rows_read,
+         rows_written = rows_written + excluded.rows_written, updated_at = excluded.updated_at`,
+      day,
+      cls,
+      read,
+      written,
+      at,
+    );
+  } catch {
+    // A meter that can't be written drops these rows; it never fails the step or the tick that read
+    // them (the object's own answer at the next tick still brings its reads).
+  }
 }
 
-export function dayOf(db: Db, day: string, cls: string): DayRow | null {
-  return db.one<DayRow>(
-    'SELECT day, class, rows_read, rows_written FROM meter_days WHERE day = ? AND class = ?',
+/** A class's stored day, and when it was last written. */
+export function dayOf(db: Db, day: string, cls: string): (DayRow & { updated_at: number }) | null {
+  return db.one<DayRow & { updated_at: number }>(
+    'SELECT day, class, rows_read, rows_written, updated_at FROM meter_days WHERE day = ? AND class = ?',
     day,
     cls,
   );
@@ -57,13 +66,11 @@ export function daysFrom(db: Db, from: string): DayRow[] {
   );
 }
 
-/** A day's totals across every class Core heard from. */
-export function dayTotals(db: Db, day: string): { rows_read: number; rows_written: number } {
-  return (
-    db.one<{ rows_read: number; rows_written: number }>(
-      'SELECT coalesce(sum(rows_read), 0) AS rows_read, coalesce(sum(rows_written), 0) AS rows_written FROM meter_days WHERE day = ?',
-      day,
-    ) ?? { rows_read: 0, rows_written: 0 }
+/** One day's rows, a row per class Core heard from (six at most). */
+export function dayRows(db: Db, day: string): DayRow[] {
+  return db.all<DayRow>(
+    'SELECT day, class, rows_read, rows_written FROM meter_days WHERE day = ? ORDER BY class LIMIT 20',
+    day,
   );
 }
 

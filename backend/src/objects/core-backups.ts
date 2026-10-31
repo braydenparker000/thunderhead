@@ -19,9 +19,10 @@ import { count, putRows, type Row } from '../areas/backups/rows';
 import * as bstore from '../areas/backups/store';
 import { logicalDay } from '../areas/conversation/day';
 import { quotaHold } from '../areas/meter/quota';
+import { addRows } from '../areas/meter/store';
 import type { Out } from '../lib/result';
 import { Fail } from '../lib/result';
-import { ownerDay, wallMinute } from '../lib/time';
+import { ownerDay, utcDay, wallMinute } from '../lib/time';
 import { applyMigrations } from './base';
 import type { Caller } from './caller';
 import { CORE_MIGRATIONS, CORE_TABLES } from './core.migrations';
@@ -60,10 +61,14 @@ export abstract class CoreBackups extends CoreWatchdogs {
     if (due) await this.startDrill(due.month, now).catch(() => undefined);
     // Each finished day's events archived, and events past 90 days pruned (the Senses object); from
     // 80% of the day's budget it waits, and the first tick after 00:00 UTC archives every day owed.
-    if (quotaHold(this.db, now) === null)
-      await sensesObject(this.env)
+    if (quotaHold(this.db, now) === null) {
+      const d = await sensesObject(this.env)
         .daily(now, logicalDay(now, tz))
-        .catch(() => undefined);
+        .catch(() => null);
+      // Its reads join the day's meter now, not at the next tick (a Senses before this answers none).
+      const read = d?.rows_read ?? 0;
+      if (read) this.ctx.storage.transactionSync(() => addRows(this.db, utcDay(now), 'senses', read, 0, now));
+    }
     // Study's unfinished uploads, lapsed reading runs, deleted highlights (the Library object).
     await libraryObject(this.env)
       .daily(now)

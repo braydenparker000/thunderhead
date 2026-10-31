@@ -14,7 +14,7 @@ import { DAY, MINUTE, utcDay } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
 import { quotaHold } from '../meter/quota';
-import { addWritten } from '../meter/store';
+import { addRows } from '../meter/store';
 import * as settings from '../settings/store';
 import * as store from './store';
 
@@ -38,13 +38,14 @@ export interface JobHandler {
   load(env: Env, db: Db, payload: unknown, cursor: unknown): Promise<unknown>;
   /** One all-or-nothing step: its writes, then the next cursor or done. `rows`: rows its load wrote
    * in an object no meter counts (the drill's scratch copy), which the bulk lane and the day's meter
-   * count too. */
+   * count too. `read`: rows its load read in another object (a backup part of Music, the Senses or
+   * the Library), added to that class's day at once rather than at the next tick. */
   step(
     w: Writer,
     payload: unknown,
     cursor: unknown,
     input: unknown,
-  ): ({ next: unknown } | { done: true }) & { rows?: number };
+  ): ({ next: unknown } | { done: true }) & { rows?: number; read?: { class: string; rows: number } };
   /** The job failed for good: what the area records about it. */
   failed?(w: Writer, payload: unknown, code: string): void;
 }
@@ -85,7 +86,9 @@ export async function runJobs(host: JobHost, handlers: Record<string, JobHandler
   const started = Date.now();
   let steps = 0;
   // Today's hold, read once an alarm (at a lane or heavy job's first step) and again after a step
-  // that wrote where no meter counts, since those rows may be what passes 80%.
+  // that added rows to the day (the scratch copy's writes, another object's reads), since those may
+  // be what passes 80%. Core's own rows since are in it live. A meter that can't be read holds
+  // nothing (quotaHold), so the alarm always runs and reschedules.
   let hold: number | null | undefined;
   while (steps < STEPS_PER_ALARM && Date.now() - started < WALL_MS) {
     const job = store.firstDue(host.db, now);
@@ -139,10 +142,9 @@ export async function runJobs(host: JobHost, handlers: Record<string, JobHandler
           at: now,
         });
         if (h.lane) useLane(w, rows, now);
-        if (r.rows) {
-          addWritten(w.db, utcDay(now), 'scratch', r.rows, now);
-          hold = undefined;
-        }
+        if (r.rows) addRows(w.db, utcDay(now), 'scratch', 0, r.rows, now);
+        if (r.read?.rows) addRows(w.db, utcDay(now), r.read.class, r.read.rows, 0, now);
+        if (r.rows || r.read?.rows) hold = undefined;
       }, now);
     } catch (e) {
       host.write((w) => retry(w, job, h, codeOf(e, 'step_failed'), now));

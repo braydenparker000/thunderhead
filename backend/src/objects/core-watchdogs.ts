@@ -12,14 +12,15 @@ import type {
   WatchdogName,
 } from '../../../shared/contract/watchdogs.ts';
 import { gather } from '../areas/meter/gather';
-import { meterResponse, quota, quotaHold, quotaLine } from '../areas/meter/quota';
-import { putDay } from '../areas/meter/store';
+import { meterResponse, quotaHold, quotaLine, safeQuota } from '../areas/meter/quota';
+import { type DayRow, putDay } from '../areas/meter/store';
 import { fire, fireConfig } from '../areas/mind/fire';
 import * as mstore from '../areas/mind/store';
 import type { PushContext } from '../areas/push/rules';
 import { GATHER, type Gather } from '../areas/watchdogs/checks';
 import * as watchdogs from '../areas/watchdogs/ops';
 import type { Out } from '../lib/result';
+import { MINUTE } from '../lib/time';
 import type { Caller } from './caller';
 import { CoreEvals } from './core-evals';
 
@@ -43,7 +44,7 @@ export abstract class CoreWatchdogs extends CoreEvals {
       dbBytes: this.db.size,
       nightConfigured: this.nightConfigured(),
       gathered,
-      quota: quota(this.db, now),
+      quota: safeQuota(this.db, now),
     };
     const f = this.write((w) => watchdogs.watch(w, ctx, cfg !== null), now);
     if (f && cfg) {
@@ -53,26 +54,33 @@ export abstract class CoreWatchdogs extends CoreEvals {
     return f?.id ?? null;
   }
 
-  /** The meter's pass (DATA.md §3): the other objects' days, and Core's own row written whole, kept
-   * in meter_days where they grew (five rows written a tick at most, none for a class that didn't). */
+  /** When the meter last asked the other objects (in memory: a fresh instance asks at once). */
+  private gatheredAt = 0;
+
+  /** The meter's pass (DATA.md §3): the other objects' days, kept in meter_days where they grew (four
+   * rows written at most, none for a class that didn't); Core's own row follows its own rules, and
+   * the quota reads it live. */
   private async meterTick(now: number): Promise<void> {
+    this.gatheredAt = now;
     const rows = await gather(this.env);
-    this.meter.report(Date.now(), true);
+    this.meter.report();
     if (rows.length)
       this.ctx.storage.transactionSync(() => {
         for (const r of rows) putDay(this.db, r, now);
       });
   }
 
-  /** GET /v1/ops/meter: the meter gathered now, then each class's days and today's use. */
+  /** GET /v1/ops/meter: the other objects asked at most once a minute (so a run of calls doesn't
+   * wake and write them all each time), then each class's days and today's use. */
   async meterDays(days: number, now = Date.now()): Promise<MeterResponse> {
-    if (!this.sandboxed) await this.meterTick(now);
+    if (!this.sandboxed && Math.abs(now - this.gatheredAt) >= MINUTE) await this.meterTick(now).catch(() => undefined);
     return meterResponse(this.db, days, now);
   }
 
-  /** While today is past 80% of the day's budget, when the heavy work may run again (00:00 UTC). */
-  quotaHold(now = Date.now()): number | null {
-    return quotaHold(this.db, now);
+  /** While today is past 80% of the day's budget, when the heavy work may run again (00:00 UTC);
+   * `live`: a class's day fresher than Core's row for it (the upload tools' check brings Music's). */
+  quotaHold(now = Date.now(), live: DayRow[] = []): number | null {
+    return quotaHold(this.db, now, live);
   }
 
   /** From 80%, the day's one quota push rides along with every delivery run: Auth's outbox keeps it
@@ -80,9 +88,9 @@ export abstract class CoreWatchdogs extends CoreEvals {
   override pushContext(): PushContext {
     const ctx = super.pushContext();
     if (this.sandboxed) return ctx;
-    const q = quota(this.db, ctx.now);
+    const q = safeQuota(this.db, ctx.now);
     const body = quotaLine(q, ctx.tz);
-    return q.hold_until && body
+    return q?.hold_until && body
       ? { ...ctx, quota: { id: `quota-${q.day}`, at: ctx.now, until: q.hold_until, body } }
       : ctx;
   }

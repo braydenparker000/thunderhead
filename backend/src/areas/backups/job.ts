@@ -34,7 +34,7 @@ type Cursor =
   | { phase: 'rows'; t: number; after: unknown[] | null; part: number; done: BackupTable[] }
   | { phase: 'manifest'; done: BackupTable[] };
 type Input =
-  | { part: BackupTable['parts'][number] | null; full: boolean; last: unknown[] | null }
+  | { part: BackupTable['parts'][number] | null; full: boolean; last: unknown[] | null; read?: number }
   | { manifest: string; at: number };
 
 export const backupPrefix = (date: string, cls: BackupClass) => `backups/${date}/${cls}/`;
@@ -102,6 +102,9 @@ export const backupJob: JobHandler = {
       part: { key, rows: rows.length, bytes: bytes.byteLength, sha256: sha },
       full: rows.length === BACKUP_LIMITS.part_rows,
       last,
+      // Another object's rows read for this part (a page in key order reads about the rows it
+      // returns): the day's meter has them at once, ahead of that object's answer at the tick.
+      read: p.class === 'core' ? 0 : rows.length,
     };
   },
   step(w: Writer, payload: unknown, cursor: unknown, input: unknown) {
@@ -130,10 +133,12 @@ export const backupJob: JobHandler = {
     done.push(table);
     const t = totals(done);
     store.progressBackup(w.db, p.backup_id, t.rows, t.bytes, t.parts);
-    if (i.full) return { next: { phase: 'rows', t: c.t, after: i.last, part: c.part + 1, done } satisfies Cursor };
+    const read = i.read ? { class: p.class, rows: i.read } : undefined;
+    if (i.full)
+      return { next: { phase: 'rows', t: c.t, after: i.last, part: c.part + 1, done } satisfies Cursor, read };
     if (c.t + 1 < p.tables.length)
-      return { next: { phase: 'rows', t: c.t + 1, after: null, part: 0, done } satisfies Cursor };
-    return { next: { phase: 'manifest', done } satisfies Cursor };
+      return { next: { phase: 'rows', t: c.t + 1, after: null, part: 0, done } satisfies Cursor, read };
+    return { next: { phase: 'manifest', done } satisfies Cursor, read };
   },
   failed(w: Writer, payload: unknown) {
     store.failBackup(w.db, (payload as BackupPayload).backup_id, w.at);

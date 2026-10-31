@@ -6,7 +6,7 @@
 import { DAY_BUDGET, QUOTA_LEVELS } from '../../../../shared/contract/meter.ts';
 import type { WatchdogName } from '../../../../shared/contract/watchdogs.ts';
 import type { Check } from '../watchdogs/checks';
-import { quota } from './quota';
+import { safeQuota } from './quota';
 
 const level = (pct: number) =>
   pct >= QUOTA_LEVELS.hold ? QUOTA_LEVELS.hold : pct >= QUOTA_LEVELS.note ? QUOTA_LEVELS.note : null;
@@ -14,7 +14,9 @@ const level = (pct: number) =>
 const check =
   (key: 'rows_read' | 'rows_written'): Check =>
   (db, c) => {
-    const q = c.quota ?? quota(db, c.at);
+    // Read once for both checks by the tick; a meter that can't be read trips nothing.
+    const q = c.quota === undefined ? safeQuota(db, c.at) : c.quota;
+    if (!q) return { detail: null };
     const l = level(key === 'rows_read' ? q.read_pct : q.written_pct);
     if (l === null) return { detail: null };
     const what = `${key.replace('_', ' ')} today passed ${l}% of the day's budget of ${DAY_BUDGET[key].toLocaleString('en-US')}`;

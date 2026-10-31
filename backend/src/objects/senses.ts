@@ -154,7 +154,8 @@ export class Senses extends OwnerObject {
 
   /** The tick's daily pass: each finished day's archive in the private bucket (gzip JSONL, its
    * SHA-256 recorded), then events past 90 days whose day is archived, and old batch records. */
-  async daily(now: number, today: string): Promise<{ archived: string[]; pruned: number }> {
+  async daily(now: number, today: string): Promise<{ archived: string[]; pruned: number; rows_read: number }> {
+    const before = this.meter.rowsRead;
     const vault = this.env.VAULT;
     const archived: string[] = [];
     // The last 31 days (events may arrive up to 30 days late): two index seeks a day.
@@ -186,7 +187,8 @@ export class Senses extends OwnerObject {
       for (const day of store.prunableDays(this.db, cutoff)) pruned += store.pruneEvents(this.db, day, PRUNE_STEP);
       pruned += store.pruneBatches(this.db, now - SENSE_LIMITS.batch_days * DAY, PRUNE_STEP);
     });
-    return { archived, pruned };
+    // The rows read, so Core's meter has the archive's reads at once (core-backups.ts).
+    return { archived, pruned, rows_read: this.meter.rowsRead - before };
   }
 
   /** What the weekly backup of this object needs when it starts (areas/backups). */

@@ -28,6 +28,13 @@ export const METER_TABLES: Record<string, TableInfo> = {
     retention: '400 days (one row per UTC day and object class; counts only)',
     backup: false,
     export: false,
-    prune: pruneDays,
+    // A meter that can't be read never stops the daily pass; its old rows wait for the next one.
+    prune: (db, now, max) => {
+      try {
+        return pruneDays(db, now, max);
+      } catch {
+        return 0;
+      }
+    },
   },
 };

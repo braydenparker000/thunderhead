@@ -2,22 +2,28 @@
 // operations answer 429 with Retry-After until 00:00 UTC and work again after it; the weekly
 // backup's jobs pause until 00:00 UTC and finish after; the monthly drill, whose writes into its
 // scratch copy the runner adds to the day's meter, stops between two parts once they put the day
-// past 80%, and finishes the next day. The phone's own calls are never held. The meter's rows are
+// past 80%, and finishes the next day. The hold reads Core's own rows live, Music's own day for the
+// tools, and a heavy step's reads in another object as the step ends; a meter that can't be read
+// holds nothing and breaks nothing. The phone's own calls are never held. The meter's rows are
 // synthetic fixtures in Core's meter_days; the clock is each call's `now`, or a fake Date.
-import { createExecutionContext } from 'cloudflare:test';
+import { createExecutionContext, evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { BackupRunResponse, DrillRunResponse } from '../../../shared/contract/backups.ts';
+import type { BriefingResponse } from '../../../shared/contract/briefing.ts';
 import { budgetAt } from '../../../shared/contract/meter.ts';
 import { app } from '../../src/app';
 import { drillJob } from '../../src/areas/backups/drill';
 import { exportJob } from '../../src/areas/backups/export-job';
 import { backupJob } from '../../src/areas/backups/job';
 import { forgetHold } from '../../src/areas/meter/hold';
-import { nextUtcDay } from '../../src/areas/meter/quota';
+import { nextUtcDay, quota } from '../../src/areas/meter/quota';
 import { signatureMessage } from '../../src/areas/music/validate';
 import { MINUTE, SECOND, utcDay } from '../../src/lib/time';
-import { api, apiJson, coreSql, makeAgent } from '../helpers';
+import type { Db } from '../../src/objects/base';
+import type { Core } from '../../src/objects/core';
+import { type Music, musicObject } from '../../src/objects/music';
+import { api, apiJson, core, coreSql, makeAgent } from '../helpers';
 import { runJobsWith } from '../import-helpers';
 import { ownerSays, type Principals, principals } from '../memory-helpers';
 
@@ -107,6 +113,29 @@ describe('the upload tools', () => {
     vi.setSystemTime(nextUtcDay(now) + 30 * SECOND);
     expect((await op('audit')).status).toBe(200);
   });
+
+  it("see Music's own day, fresher than Core's row for it (the tools read in Music)", async () => {
+    const music = musicObject(env) as unknown as DurableObjectStub<Music>;
+    const day = utcDay(Date.now());
+    await seed(day, 'music', 0, 0);
+    forgetHold();
+    expect((await op('audit')).status).toBe(200);
+    // Music's own row says it read past 80% today; Core has not heard yet.
+    await runInDurableObject(music, (_o, s) =>
+      s.storage.sql.exec(
+        "INSERT OR REPLACE INTO meter_days (day, class, rows_read, rows_written, updated_at) VALUES (?, 'music', ?, 0, ?)",
+        day,
+        budgetAt(80, 'rows_read') + 1,
+        Date.now(),
+      ),
+    );
+    await evictDurableObject(music);
+    forgetHold();
+    expect((await op('audit')).status).toBe(429);
+    await runInDurableObject(music, (_o, s) => s.storage.sql.exec('DELETE FROM meter_days'));
+    await evictDurableObject(music);
+    forgetHold();
+  });
 });
 
 describe('the heavy jobs', () => {
@@ -180,5 +209,75 @@ describe('the heavy jobs', () => {
       utcDay(nextUtcDay(now) + MINUTE),
     );
     expect(after.rows_written).toBeGreaterThan(0);
+  });
+
+  it("counts Core's own rows at once, written or not", async () => {
+    const grew = await runInDurableObject(core() as unknown as DurableObjectStub<Core>, (o: Core) => {
+      const db = (o as unknown as { db: Db }).db;
+      const now = Date.now();
+      const before = quota(db, now).rows_read;
+      db.all('SELECT id FROM ledger');
+      return quota(db, now).rows_read - before;
+    });
+    expect(grew).toBeGreaterThanOrEqual(6_000);
+  });
+
+  it("adds a heavy step's reads in another object at once, so the next step can wait", async () => {
+    const now = Date.now();
+    const day = utcDay(now);
+    await coreSql('DELETE FROM meter_days WHERE day = ? AND class != ?', day, 'core');
+    await seed(day, 'music', budgetAt(80, 'rows_read') - 900_000, 0);
+    const heavy = {
+      kind: 'test.heavy',
+      lane: false,
+      heavy: true,
+      load: async () => null,
+      step: (_w: unknown, _p: unknown, c: unknown) => ({
+        next: ((c as number | null) ?? 0) + 1,
+        read: { class: 'library', rows: 500_000 },
+      }),
+    };
+    await coreSql(
+      `INSERT INTO jobs (id, kind, state, due_at, payload_json, attempts, created_at, updated_at)
+       VALUES ('job-q-heavy', 'test.heavy', 'queued', 0, '{}', 0, 0, 0)`,
+    );
+    await runJobsWith({ [heavy.kind]: heavy as never }, now);
+    const [j] = await coreSql<{ state: string; due_at: number; cursor_json: string }>(
+      "SELECT state, due_at, cursor_json FROM jobs WHERE id = 'job-q-heavy'",
+    );
+    // Two steps ran (900,000 left below 80%, 500,000 each); the third waits for 00:00 UTC.
+    expect(j).toMatchObject({ state: 'paused', due_at: nextUtcDay(now), cursor_json: '2' });
+    const [lib] = await coreSql<{ rows_read: number }>(
+      "SELECT rows_read FROM meter_days WHERE day = ? AND class = 'library'",
+      day,
+    );
+    expect(lib.rows_read).toBe(1_000_000);
+    await coreSql("DELETE FROM jobs WHERE id = 'job-q-heavy'");
+    await coreSql('DELETE FROM meter_days WHERE day = ? AND class != ?', day, 'core');
+  });
+});
+
+describe('when the meter cannot be read', () => {
+  it('the Briefing is served without its line, and the tick and the alarm still run', async () => {
+    await coreSql('ALTER TABLE meter_days RENAME TO meter_days_gone');
+    try {
+      const page = await apiJson<BriefingResponse>('GET', '/v1/briefing', { token: p.D });
+      expect(page.status).toBe(200);
+      expect(page.body.quota).toBeNull();
+      const stub = core() as unknown as DurableObjectStub<Core>;
+      await runInDurableObject(stub, (o: Core) => o.tick());
+      await runInDurableObject(stub, (o: Core) => o.alarm());
+      // A lane job runs: a meter that can't be read holds nothing.
+      await coreSql(
+        `INSERT INTO jobs (id, kind, state, due_at, payload_json, attempts, created_at, updated_at)
+         VALUES ('job-q-lane', 'test.lane', 'queued', 0, '{}', 0, 0, 0)`,
+      );
+      const lane = { kind: 'test.lane', lane: true, load: async () => null, step: () => ({ done: true as const }) };
+      await runJobsWith({ [lane.kind]: lane as never });
+      const [j] = await coreSql<{ state: string }>("SELECT state FROM jobs WHERE id = 'job-q-lane'");
+      expect(j.state).toBe('done');
+    } finally {
+      await coreSql('ALTER TABLE meter_days_gone RENAME TO meter_days');
+    }
   });
 });
