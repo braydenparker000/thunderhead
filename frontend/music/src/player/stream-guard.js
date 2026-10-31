@@ -11,7 +11,8 @@
 //   coming track has a copy; otherwise the player waits for the network;
 // - a file that will not decode: a bad offline copy is dropped and the
 //   stream tried, a stored file is skipped; a track that keeps failing while
-//   its file answers is skipped ("Failed to play"), at most SKIP_RUN in a row.
+//   its file answers is skipped ("Failed to play"), at most SKIP_RUN in a row;
+// - online, after GIVE_UP failed tries the player pauses and says so; Play tries again.
 // The playback log shows the counts and events.
 export const STALL_MS = 10000;
 const RETRY_MS = [1000, 2000, 4000, 8000, 15000, 30000];
@@ -21,14 +22,19 @@ const HEALTHY_MS = 15000;
 const PROBE_AFTER = 3;
 // Tracks skipped in a row before the player pauses instead.
 const SKIP_RUN = 8;
+// Failed tries in a row, the network up, before the player pauses ("Lost the connection").
+const GIVE_UP = 6;
 // How far ahead an offline copy is looked for.
 const AHEAD = 16;
 
-/** Whether a remote file answers ('gone' for 404 / 410), without downloading it. */
-export async function probeFile(url) {
+/**
+ * Whether a remote file answers ('gone' for 404 / 410), without downloading it. Asked at byte `from`:
+ * past the song's head kept on the phone, which the service worker would answer even offline.
+ */
+export async function probeFile(url, from = 0) {
   if (!/^https?:/.test(url || '')) return 'local';
   try {
-    const r = await fetch(url, {headers: {Range: 'bytes=0-1'}, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'});
+    const r = await fetch(url, {headers: {Range: `bytes=${from}-${from + 1}`}, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'});
     r.body?.cancel?.().catch(() => {});
     return r.status === 404 || r.status === 410 ? 'gone' : r.ok ? 'answers' : 'error';
   } catch { return 'unreachable'; }
@@ -141,6 +147,8 @@ export class StreamGuard {
       this.note('offline_wait');
       return;
     }
+    // Online and failing again and again: the player stops trying and says so (Play tries again).
+    if (this.attempts >= GIVE_UP && !copy) { this.giveUp(); return; }
     const n = this.attempts++;
     const delay = copy || (n === 0 && reason === 'stall') ? 0 : RETRY_MS[Math.min(n, RETRY_MS.length - 1)];
     this.timer = setTimeout(() => { this.timer = 0; this.recover(el, reason); }, delay);
@@ -179,7 +187,7 @@ export class StreamGuard {
     }
     // Failing again and again with the network up (sooner for a file that will not decode): does the file itself answer?
     if (!copy && (this.attempts > PROBE_AFTER || (undecodable && this.attempts > 1))) {
-      const answer = await this.probe(t.src);
+      const answer = await this.probe(t.src, p.ctx.audioHeads?.kept?.get(t.src)?.head ?? 0);
       if (el !== p.audio || t !== p.track) return;
       if (answer === 'gone' || (answer === 'answers' && el.error && el.error.code !== 2)) { this.skip(t); return; }
     }
@@ -197,6 +205,17 @@ export class StreamGuard {
     p.ctx.bus.post('bus_gui', 'cmd_gui_show_toast', p, {title: str('failed_to_play'), line2: t?.title ?? ''});
     if (++this.skipRun > SKIP_RUN) { this.skipRun = 0; p.pause(); return; }
     p.skipTrack();
+  }
+
+  /** The stream keeps failing with the network up: the player pauses with a toast, and Play reloads the track where it was. */
+  giveUp() {
+    const p = this.p;
+    this.counts.gaveUp = (this.counts.gaveUp ?? 0) + 1;
+    this.note('gave_up', {after: this.attempts, atMs: Math.round(this.pos * 1000)});
+    this.attempts = 0;
+    p.pause();
+    this.pending = true;
+    p.ctx.bus.post('bus_gui', 'cmd_gui_show_toast', p, {title: 'Lost the connection', line2: 'Tap play to try again'});
   }
 
   /** Back online: a deck that failed or waits tries again now. */

@@ -52,8 +52,12 @@ const PRELOAD_S = 30, LISTENED_S = 30;
 const HEADS_AHEAD = 3, HEADS_AFTER_BUFFERED_S = 10;
 // A manual track change: the outgoing track waits at most this long for the incoming one to sound
 // before it fades out (ms). A start on the phone (a head) or a usual network sounds within it, and
-// the two cross-fade exactly; a slower one does not leave the old track playing meanwhile.
+// the two cross-fade exactly; a slower one does not leave the old track heard meanwhile.
 const MANUAL_WAIT_MS = 500;
+// A deck that makes way (a skip, a reload) before the deck taking over has sounded plays on, silent,
+// until that one sounds, at most this long (ms): Android keeps a page's media session, and with it the
+// lock screen and the headset's buttons, only while one of its elements plays.
+const HOLD_MS = 12000;
 // Gapless: the preloaded next track starts this long before the playing one ends, held in the engine (s).
 const SPLICE_LEAD = 0.5;
 // Half the length of Chrome's resampler kernel (SincResampler, 64 taps for Web Audio's requests), in input frames.
@@ -120,7 +124,7 @@ export class Player {
         if (el === this.audio) this.endHeard(el);
       });
       // Whether the deck's current source has started playing (a change before that replaces it).
-      el.addEventListener('playing', () => { el._heard = true; });
+      el.addEventListener('playing', () => { el._heard = true; if (el === this.audio) this.releaseHeld(); });
       el.addEventListener('emptied', () => { el._heard = false; });
       el.addEventListener('loadstart', () => { el._heard = false; });
       el.addEventListener('timeupdate', () => { if (el === this.audio) { this.checkRangeEnd(); this.checkPlayed(); this.checkCrossfade(); this.checkPreload(); this.checkGapless(); } });
@@ -131,7 +135,7 @@ export class Player {
         if (this.state !== STATE_PLAYING || !el.getAttribute('src')) return;
         // The playing deck, or the next one held in the engine (the only one still playing in the last tail);
         // not one that reached its end (which pauses it).
-        if ((el === this.audio || this.splicing?.el === el) && !el.ended) this.systemPaused();
+        if ((el === this.audio || this.splicing?.el === el || this.held?.el === el) && !el.ended) this.systemPaused();
       });
       // A stall near the end would look like the track's end to the engine: no join then.
       // The next songs' heads wait meanwhile: the playing song's stream comes first.
@@ -526,10 +530,11 @@ export class Player {
           if (!freed) this.fader.set(next, 0);
           // Equal power, and the outgoing track starts fading when the incoming one starts sounding;
           // after a manual change only briefly (MANUAL_WAIT_MS): a skip to a track that is slow to
-          // start (its stream not on the phone yet) does not leave the old one playing meanwhile.
+          // start (its stream not on the phone yet) does not leave the old one heard meanwhile; it plays on,
+          // silent, until the new one sounds (holdSilent).
           const outMs = auto ? fadeMs : Math.max(DECLICK_MS, Math.min(fadeMs, oldLeft)), onTime = auto || oldLeft < fadeMs;
           this.fader.ramp(old, 0, outMs, () => {
-            if (old === this.audio) return;
+            if (old === this.audio || this.holdSilent(old)) return;
             this.unload(old);
             this.fader.set(old, 1);
           }, {curve: 'equal', after: next, ...(onTime ? {keepEnd: true, timeoutMs: Math.max(0, outMs - Math.min(300, outMs / 2))} : {timeoutMs: MANUAL_WAIT_MS})});
@@ -541,8 +546,10 @@ export class Player {
         this.audio = pre.el;
         this.fader.set(pre.el, 1);
       } else {
+        // A deck held for the track before (holdSilent) plays on until this one sounds: the track loads on the other.
+        if (this.held && this.held.el !== this.audio) this.unload(this.audio);
         // A pause's fade-out still running: that deck fades out quickly and the track loads on the other one.
-        if (!this.audio.paused && this.decks.length > 1) {
+        else if (!this.audio.paused && this.decks.length > 1) {
           const other = this.decks.find(d => d !== this.audio);
           this.retire(this.audio);
           this.unload(other);
@@ -614,6 +621,7 @@ export class Player {
   /** Stops a deck and lets its source go (a blob URL is released, the stream closes); at its track's end, the rest is heard first. */
   unload(el, end = el.ended) {
     if (this.splicing?.el === el) this.cancelSplice();
+    if (this.held?.el === el) { clearTimeout(this.held.timer); this.held = null; }
     this.ctx.dsp?.flush?.(el, end);
     this.fader.stop(el);
     this.halt(el);
@@ -628,10 +636,39 @@ export class Player {
     if (this.preloaded?.el === el) this.preloaded = null;
   }
 
-  /** Lets a deck go: one still sounding (a pause's fade-out) fades out over 32 ms first. */
+  /** Lets a deck go: one still sounding (a pause's fade-out) fades out over 32 ms first (playing, it may wait silent: holdSilent). */
   retire(el) {
     if (el.paused) { this.unload(el); return; }
-    this.fader.ramp(el, 0, DECLICK_MS * 4, () => { if (el !== this.audio) this.unload(el); }, {curve: 'smooth'});
+    this.fader.ramp(el, 0, DECLICK_MS * 4, () => { if (el !== this.audio && !this.holdSilent(el)) this.unload(el); }, {curve: 'smooth'});
+  }
+
+  /**
+   * A deck that made way while playing, before the deck now playing has sounded (a skip to a song
+   * the network is slow to start, a reload): it plays on silent until that one sounds (releaseHeld),
+   * HOLD_MS at most, then pauses with its source kept. Returns whether it is held.
+   */
+  holdSilent(el) {
+    if (el === this.audio || this.state !== STATE_PLAYING || this.audio._heard || el.paused || el.ended || el.error) return false;
+    if (this.held && this.held.el !== el) this.releaseHeld();
+    clearTimeout(this.held?.timer);
+    this.fader.set(el, 0);
+    const held = this.held = {el, timer: setTimeout(() => {
+      if (this.held !== held) return;
+      this.held = null;
+      if (el !== this.audio) this.halt(el);
+    }, HOLD_MS)};
+    return true;
+  }
+
+  /** The playing deck sounds: a deck held for it lets go. */
+  releaseHeld() {
+    const h = this.held;
+    if (!h) return;
+    this.held = null;
+    clearTimeout(h.timer);
+    if (h.el === this.audio) return;
+    this.unload(h.el);
+    this.fader.set(h.el, 1);
   }
 
   /** Points a deck at url (setting the same URL again reloads it); what the deck had not played yet is dropped. */
@@ -643,6 +680,8 @@ export class Player {
     this.deckUrl.set(el, url);
     el.preload = this.state === STATE_PLAYING ? 'auto' : url === this.startHeadUrl ? 'metadata' : 'none';
     el.src = url;
+    // (Not heard yet: its 'loadstart' comes later.)
+    el._heard = false;
     // The new load drops the pause event halt() queued.
     el._selfPause = false;
   }
@@ -725,7 +764,8 @@ export class Player {
    * when it returns.
    */
   async reloadAt(sec) {
-    const el = this.audio, t = this.track, token = this.loadToken;
+    let el = this.audio;
+    const t = this.track, token = this.loadToken;
     if (!el || !t) return;
     const url = await this.sourceFor(t);
     if (token !== this.loadToken || el !== this.audio || !url) { this.ctx.audioCache?.release(url); return; }
@@ -734,7 +774,17 @@ export class Player {
     sec = Math.max(0, sec - this.lagOf(el));
     this.ctx.dsp?.flush?.(el);
     this.fader.set(el, 0);
-    this.assign(el, url);
+    // A stuck deck that still plays waits silent (holdSilent) while the track reloads on the idle deck.
+    const idle = this.state === STATE_PLAYING && !el.paused && !el.error && this.decks.find(d => d !== el && d.paused && !this.fader.pending.has(d));
+    if (idle) {
+      this.unload(idle);
+      this.audio = idle;
+      this.fader.set(idle, 0);
+      this.ctx.dsp?.setReplayGain?.(idle, replayGainOf(this.ctx, t));
+      this.assign(idle, url);
+      if (!this.holdSilent(el)) this.unload(el);
+      el = idle;
+    } else this.assign(el, url);
     if (sec > 0) el.currentTime = sec;
     if (this.state !== STATE_PLAYING) return;
     this.ctx.dsp?.attach(el);
@@ -1611,7 +1661,10 @@ export class Player {
       play: () => this.play(), pause: () => this.pause(),
       nexttrack: () => this.step(1), previoustrack: () => this.command('cmd_player_play_prev_track', {}),
       seekto: d => this.seek((d.seekTime ?? 0) * 1000),
-      seekforward: () => this.seek(this.positionMs() + 10000), seekbackward: () => this.seek(this.positionMs() - 10000),
+      // Stop (MUSIC.md §5.7): paused where it is and both decks let go (the track waits on one, loading nothing).
+      stop: () => { if (!this.track) return; const at = this.positionMs(); this.pause(); this.pendingSeek = at; this.load(this.index, false); },
+      // Not set for Music (MUSIC.md §5.7): on some headsets and phones they take the place of next and previous.
+      seekforward: null, seekbackward: null,
     };
     for (const [k, fn] of Object.entries(handlers)) {
       try { ms.setActionHandler(k, fn); } catch { /* unsupported action */ }
@@ -1624,14 +1677,28 @@ export class Player {
         else ms.setPositionState?.();
       } catch { /* not supported */ }
     };
-    this.ctx.bus.subscribe('bus_player', (msg) => {
+    // The state says what is heard: playing with nothing sounding for HOLD_MS (a stall, a song the network is
+    // slow to start), it reads paused until the sound returns.
+    let quiet = 0, since = 0;
+    const sounding = () => !this.isMedia(this.track) || (!this.audio.paused && this.audio.readyState >= 3);
+    const state = () => {
+      clearTimeout(quiet);
+      const playing = this.state === STATE_PLAYING;
+      if (!playing || sounding()) since = 0;
+      else since ||= performance.now();
+      const left = since ? since + HOLD_MS - performance.now() : 0;
+      ms.playbackState = playing && (!since || left > 0) ? 'playing' : 'paused';
+      if (left > 0) quiet = setTimeout(state, left);
+    };
+    this.ctx.bus.subscribe('bus_player', (msg, src, d) => {
       const t = this.track;
+      if (msg === 'msg_player_track_changed' && !d?.meta) state();
       if (msg === 'msg_player_track_changed' && t && typeof MediaMetadata === 'function') {
         // The reference's media API labels (g30: m3733, m3740, y).
         ms.metadata = new MediaMetadata({title: trackTitle(this.ctx, t), artist: artistLabel(this.ctx, t), album: albumLabel(this.ctx, t), artwork: t.art ? [{src: t.art.url, sizes: `${t.art.width}x${t.art.height}`}] : []});
         position();
       } else if (msg === 'msg_player_playing_state_changed') {
-        ms.playbackState = this.state === STATE_PLAYING ? 'playing' : 'paused';
+        state();
         position();
       } else if (msg === 'msg_player_track_seek') position();
     });
@@ -1639,7 +1706,8 @@ export class Player {
     for (const el of this.decks) {
       el.addEventListener('seeked', () => { if (el === this.audio) position(); });
       el.addEventListener('ratechange', () => { if (el === this.audio) position(); });
-      el.addEventListener('playing', () => { if (el === this.audio) position(); });
+      el.addEventListener('playing', () => { if (el === this.audio) { state(); position(); } });
+      el.addEventListener('waiting', () => { if (el === this.audio) state(); });
     }
   }
 }

@@ -378,7 +378,7 @@ All values are the old engine's measured defaults unless marked.
 |---|---|---|
 | Gapless join | Ring buffer per deck, mix point 320 frames behind the newest frame. The next track starts 0.5 s early, held silent. Join on the frame after the outgoing track's last frame (128 frames of true silence = end). Leading silence under 150 ms is start jitter; trailing silence plays out except the last 120 ms. Give up if the end does not arrive within 2.5 s | Lab: two halves of a continuous tone join with 0 ms gap, click ≤ −80 dBFS. Chrome: 48 kHz WAV fixtures join with no gap |
 | Resampled joins (44.1 kHz files) | Overlap the ringing edges by their modelled length; search ±6 frames for the least bend | Chrome: audible error at the join ≤ −29 dBFS |
-| Manual skip | 400 ms equal-power crossfade. The old track waits at most 500 ms for the new one's first sound, then fades out regardless | Lab: no click above −80 dBFS; outgoing still at about −3 dB at the midpoint with a 300 ms network |
+| Manual skip | 400 ms equal-power crossfade. The old track waits at most 500 ms for the new one's first sound, then fades out regardless, and plays on silent until the new one sounds (at most 12 s), so Android keeps the media session and the headset buttons. The same holds for a stream reloaded after a stall (it reloads on the idle deck) | Lab: no click above −80 dBFS; outgoing still at about −3 dB at the midpoint with a 300 ms network |
 | Next pressed twice quickly | The second pick takes the idle deck; the first old track plays on until the newest sounds | Lab: two presses 150 ms apart, no click above −80 dBFS |
 | Play/pause fades | 400 ms S-curve; fades under 50 ms use an S-curve; with fades off, 8 ms de-click fades | Lab: pause, play 5 ms later, no click above −80 dBFS |
 | Seek fade | 100 ms; the fade-in starts when the sound returns | Lab: seek on a 250 ms stream, no click above −80 dBFS |
@@ -459,7 +459,8 @@ mode; nothing exceeds −1 dBTP in any scenario (hot master + More bass + preamp
 - Action handlers for Music: `play`, `pause`, `previoustrack` (same 3 s rule as §3.1), `nexttrack`,
   `seekto`, `stop` (pause and release the decks). `seekbackward`/`seekforward` are not set for
   Music so Android shows previous/next buttons.
-- `playbackState` mirrors the engine.
+- `playbackState` mirrors the engine: playing with nothing sounding for 12 s (a stall, a slow
+  start), it reads paused until the sound returns.
 - Hidden page: playback, track changes and heads go on; visual timers (clock, seek bar, marquee,
   edge light) stop; on return they catch up at once. The seek bar redraws only when progress moves
   a CSS pixel.
@@ -513,8 +514,9 @@ A media element cannot read the HTTP status, so the engine infers:
 1. The playing deck errors or stalls (no data for 10 s while online).
 2. If its URL has under 20 minutes left, or the error is a network error, the engine re-signs
    that one ref (one call), swaps `src` at the current position, and fades back in.
-3. If the fresh URL fails too, the stream-guard backoff takes over: retries 1, 2, 4, 8, 15, then
-   every 30 s, each from the current position.
+3. If the fresh URL fails too, the stream-guard backoff takes over: retries 1, 2, 4, 8, 15 and
+   30 s, each from the current position. After 6 failed tries with the network up the player
+   pauses with "Lost the connection · Tap play to try again"; Play reloads where it was.
 4. A head served by the service worker that gets a 403 for its network remainder triggers the same
    re-sign.
 5. A track that keeps failing while the network answers is skipped with the toast

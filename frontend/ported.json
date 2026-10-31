@@ -342,9 +342,21 @@
      ]
     },
     "music/src/player/fades.js": {
-     "sha256": "f955ec8f480aa5b05f92fa863ee72632a266aff61f26d7a01554935ba1cc884a",
+     "sha256": "c982325db081fc9e149e594b6d7a1bcc473d92b8b26a15406f9dbed2556ae2bc",
      "old_sha256": "f955ec8f480aa5b05f92fa863ee72632a266aff61f26d7a01554935ba1cc884a",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "      clearTimeout(entry.timer);\n      entry.cancel?.();\n",
+       "      clearTimeout(entry.timer);\n"
+      ],
+      [
+       "    const from = el.volume, t0 = performance.now();\n    const step = now => {\n      const k = Math.min(1, Math.max(0, now - t0) / Math.max(1, ms));\n      el.volume = Math.max(0, Math.min(1, from + (to - from) * k));\n      return k < 1;\n    };\n    // A hidden page gets no frames: a timer steps the fade then.\n    const off = this.ctx.onFrame?.(step), tick = setInterval(() => { if (globalThis.document?.hidden) step(performance.now()); }, 25);\n    entry.cancel = () => { off?.(); clearInterval(tick); };\n    // At its end the fade's level is set, however few steps it took.\n    entry.timer = setTimeout(() => { if (this.pending.get(el) === entry) el.volume = Math.max(0, Math.min(1, to)); finish(); }, ms);\n",
+       "    const from = el.volume;\n    let t0 = null;\n    entry.cancel = this.ctx.onFrame?.(now => {\n      t0 ??= now;\n      const k = Math.min(1, (now - t0) / Math.max(1, ms));\n      el.volume = Math.max(0, Math.min(1, from + (to - from) * k));\n      return k < 1;\n    });\n    entry.timer = setTimeout(finish, ms);\n"
+      ]
+     ]
     },
     "music/src/player/playback-log.js": {
      "sha256": "04d362811edbe7fdbd090c8f4d75f8acf62a501660fc9b9accc86ccf3daeb882",
@@ -352,7 +364,7 @@
      "adjustments": []
     },
     "music/src/player/player.js": {
-     "sha256": "ae87b9749985540fb57d089efd92a9eda6dac9ecf6da1b248b61a02cd819a745",
+     "sha256": "d2c86354a71c9696cbb4c82a32052ee4feea751f4f093d8144e84c3c2bcd03f5",
      "old_sha256": "677a9517f23927a26947d2694dca500bda6f3bfdf0624130e99c36e384e26f96",
      "adjustments": [
       "improvement"
@@ -365,13 +377,93 @@
       [
        "  ensureOrder() {\n    const n = this.queue.length;\n    // DJ (th/music/dj.js): DJ_AHEAD songs are planned at a time; near their end, plan again.\n    const djDue = this.shuffle === SHUFFLE_DJ && (this.order?.indexOf(this.index) ?? 0) >= DJ_AHEAD - 5;\n    if (!djDue && this.order?.length === n && this.orderShuffle === this.shuffle && this.orderQueueMode === this.queueMode) return;\n    let order = [...Array(n).keys()];\n    // queue_no_shuffle: the Queue always plays in order.\n    if (this.songsShuffled && !(this.queueMode && this.ctx.pref?.('queue_no_shuffle'))) {\n      order = this.shuffle === SHUFFLE_DJ ? djOrder(this.queue, this.index) : shuffleOrder(this.queue, +(this.ctx.pref?.('shuffle_random_factor') ?? 0.5));",
        "  ensureOrder() {\n    const n = this.queue.length;\n    if (this.order?.length === n && this.orderShuffle === this.shuffle && this.orderQueueMode === this.queueMode) return;\n    let order = [...Array(n).keys()];\n    // queue_no_shuffle: the Queue always plays in order.\n    if (this.songsShuffled && !(this.queueMode && this.ctx.pref?.('queue_no_shuffle'))) {\n      order = shuffleOrder(this.queue, +(this.ctx.pref?.('shuffle_random_factor') ?? 0.5));"
+      ],
+      [
+       "// the two cross-fade exactly; a slower one does not leave the old track heard meanwhile.\nconst MANUAL_WAIT_MS = 500;\n// A deck that makes way (a skip, a reload) before the deck taking over has sounded plays on, silent,\n// until that one sounds, at most this long (ms): Android keeps a page's media session, and with it the\n// lock screen and the headset's buttons, only while one of its elements plays.\nconst HOLD_MS = 12000;\n",
+       "// the two cross-fade exactly; a slower one does not leave the old track playing meanwhile.\nconst MANUAL_WAIT_MS = 500;\n"
+      ],
+      [
+       "      el.addEventListener('playing', () => { el._heard = true; if (el === this.audio) this.releaseHeld(); });\n",
+       "      el.addEventListener('playing', () => { el._heard = true; });\n"
+      ],
+      [
+       "        if ((el === this.audio || this.splicing?.el === el || this.held?.el === el) && !el.ended) this.systemPaused();\n",
+       "        if ((el === this.audio || this.splicing?.el === el) && !el.ended) this.systemPaused();\n"
+      ],
+      [
+       "          // start (its stream not on the phone yet) does not leave the old one heard meanwhile; it plays on,\n          // silent, until the new one sounds (holdSilent).\n          const outMs = auto ? fadeMs : Math.max(DECLICK_MS, Math.min(fadeMs, oldLeft)), onTime = auto || oldLeft < fadeMs;\n          this.fader.ramp(old, 0, outMs, () => {\n            if (old === this.audio || this.holdSilent(old)) return;\n",
+       "          // start (its stream not on the phone yet) does not leave the old one playing meanwhile.\n          const outMs = auto ? fadeMs : Math.max(DECLICK_MS, Math.min(fadeMs, oldLeft)), onTime = auto || oldLeft < fadeMs;\n          this.fader.ramp(old, 0, outMs, () => {\n            if (old === this.audio) return;\n"
+      ],
+      [
+       "        // A deck held for the track before (holdSilent) plays on until this one sounds: the track loads on the other.\n        if (this.held && this.held.el !== this.audio) this.unload(this.audio);\n        // A pause's fade-out still running: that deck fades out quickly and the track loads on the other one.\n        else if (!this.audio.paused && this.decks.length > 1) {\n",
+       "        // A pause's fade-out still running: that deck fades out quickly and the track loads on the other one.\n        if (!this.audio.paused && this.decks.length > 1) {\n"
+      ],
+      [
+       "    if (this.splicing?.el === el) this.cancelSplice();\n    if (this.held?.el === el) { clearTimeout(this.held.timer); this.held = null; }\n",
+       "    if (this.splicing?.el === el) this.cancelSplice();\n"
+      ],
+      [
+       "  /** Lets a deck go: one still sounding (a pause's fade-out) fades out over 32 ms first (playing, it may wait silent: holdSilent). */\n  retire(el) {\n    if (el.paused) { this.unload(el); return; }\n    this.fader.ramp(el, 0, DECLICK_MS * 4, () => { if (el !== this.audio && !this.holdSilent(el)) this.unload(el); }, {curve: 'smooth'});\n  }\n\n  /**\n   * A deck that made way while playing, before the deck now playing has sounded (a skip to a song\n   * the network is slow to start, a reload): it plays on silent until that one sounds (releaseHeld),\n   * HOLD_MS at most, then pauses with its source kept. Returns whether it is held.\n   */\n  holdSilent(el) {\n    if (el === this.audio || this.state !== STATE_PLAYING || this.audio._heard || el.paused || el.ended || el.error) return false;\n    if (this.held && this.held.el !== el) this.releaseHeld();\n    clearTimeout(this.held?.timer);\n    this.fader.set(el, 0);\n    const held = this.held = {el, timer: setTimeout(() => {\n      if (this.held !== held) return;\n      this.held = null;\n      if (el !== this.audio) this.halt(el);\n    }, HOLD_MS)};\n    return true;\n  }\n\n  /** The playing deck sounds: a deck held for it lets go. */\n  releaseHeld() {\n    const h = this.held;\n    if (!h) return;\n    this.held = null;\n    clearTimeout(h.timer);\n    if (h.el === this.audio) return;\n    this.unload(h.el);\n    this.fader.set(h.el, 1);\n",
+       "  /** Lets a deck go: one still sounding (a pause's fade-out) fades out over 32 ms first. */\n  retire(el) {\n    if (el.paused) { this.unload(el); return; }\n    this.fader.ramp(el, 0, DECLICK_MS * 4, () => { if (el !== this.audio) this.unload(el); }, {curve: 'smooth'});\n"
+      ],
+      [
+       "    el.src = url;\n    // (Not heard yet: its 'loadstart' comes later.)\n    el._heard = false;\n",
+       "    el.src = url;\n"
+      ],
+      [
+       "    let el = this.audio;\n    const t = this.track, token = this.loadToken;\n",
+       "    const el = this.audio, t = this.track, token = this.loadToken;\n"
+      ],
+      [
+       "    // A stuck deck that still plays waits silent (holdSilent) while the track reloads on the idle deck.\n    const idle = this.state === STATE_PLAYING && !el.paused && !el.error && this.decks.find(d => d !== el && d.paused && !this.fader.pending.has(d));\n    if (idle) {\n      this.unload(idle);\n      this.audio = idle;\n      this.fader.set(idle, 0);\n      this.ctx.dsp?.setReplayGain?.(idle, replayGainOf(this.ctx, t));\n      this.assign(idle, url);\n      if (!this.holdSilent(el)) this.unload(el);\n      el = idle;\n    } else this.assign(el, url);\n",
+       "    this.assign(el, url);\n"
+      ],
+      [
+       "      // Stop (MUSIC.md §5.7): paused where it is and both decks let go (the track waits on one, loading nothing).\n      stop: () => { if (!this.track) return; const at = this.positionMs(); this.pause(); this.pendingSeek = at; this.load(this.index, false); },\n      // Not set for Music (MUSIC.md §5.7): on some headsets and phones they take the place of next and previous.\n      seekforward: null, seekbackward: null,\n",
+       "      seekforward: () => this.seek(this.positionMs() + 10000), seekbackward: () => this.seek(this.positionMs() - 10000),\n"
+      ],
+      [
+       "    // The state says what is heard: playing with nothing sounding for HOLD_MS (a stall, a song the network is\n    // slow to start), it reads paused until the sound returns.\n    let quiet = 0, since = 0;\n    const sounding = () => !this.isMedia(this.track) || (!this.audio.paused && this.audio.readyState >= 3);\n    const state = () => {\n      clearTimeout(quiet);\n      const playing = this.state === STATE_PLAYING;\n      if (!playing || sounding()) since = 0;\n      else since ||= performance.now();\n      const left = since ? since + HOLD_MS - performance.now() : 0;\n      ms.playbackState = playing && (!since || left > 0) ? 'playing' : 'paused';\n      if (left > 0) quiet = setTimeout(state, left);\n    };\n    this.ctx.bus.subscribe('bus_player', (msg, src, d) => {\n      const t = this.track;\n      if (msg === 'msg_player_track_changed' && !d?.meta) state();\n",
+       "    this.ctx.bus.subscribe('bus_player', (msg) => {\n      const t = this.track;\n"
+      ],
+      [
+       "        state();\n",
+       "        ms.playbackState = this.state === STATE_PLAYING ? 'playing' : 'paused';\n"
+      ],
+      [
+       "      el.addEventListener('playing', () => { if (el === this.audio) { state(); position(); } });\n      el.addEventListener('waiting', () => { if (el === this.audio) state(); });\n",
+       "      el.addEventListener('playing', () => { if (el === this.audio) position(); });\n"
       ]
      ]
     },
     "music/src/player/stream-guard.js": {
-     "sha256": "a28731b69f3afef306cea2e8838d07b91cfc45cffa246d24d1edde37f2d47f37",
+     "sha256": "31ecb663aa551f6b7dbb82e113fb479ef506185327086e5b4e60cb5e74239900",
      "old_sha256": "a28731b69f3afef306cea2e8838d07b91cfc45cffa246d24d1edde37f2d47f37",
-     "adjustments": []
+     "adjustments": [
+      "improvement"
+     ],
+     "edits": [
+      [
+       "//   its file answers is skipped (\"Failed to play\"), at most SKIP_RUN in a row;\n// - online, after GIVE_UP failed tries the player pauses and says so; Play tries again.\n",
+       "//   its file answers is skipped (\"Failed to play\"), at most SKIP_RUN in a row.\n"
+      ],
+      [
+       "// Failed tries in a row, the network up, before the player pauses (\"Lost the connection\").\nconst GIVE_UP = 6;\n// How far ahead an offline copy is looked for.\nconst AHEAD = 16;\n\n/**\n * Whether a remote file answers ('gone' for 404 / 410), without downloading it. Asked at byte `from`:\n * past the song's head kept on the phone, which the service worker would answer even offline.\n */\nexport async function probeFile(url, from = 0) {\n  if (!/^https?:/.test(url || '')) return 'local';\n  try {\n    const r = await fetch(url, {headers: {Range: `bytes=${from}-${from + 1}`}, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'});\n",
+       "// How far ahead an offline copy is looked for.\nconst AHEAD = 16;\n\n/** Whether a remote file answers ('gone' for 404 / 410), without downloading it. */\nexport async function probeFile(url) {\n  if (!/^https?:/.test(url || '')) return 'local';\n  try {\n    const r = await fetch(url, {headers: {Range: 'bytes=0-1'}, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer'});\n"
+      ],
+      [
+       "    }\n    // Online and failing again and again: the player stops trying and says so (Play tries again).\n    if (this.attempts >= GIVE_UP && !copy) { this.giveUp(); return; }\n",
+       "    }\n"
+      ],
+      [
+       "      const answer = await this.probe(t.src, p.ctx.audioHeads?.kept?.get(t.src)?.head ?? 0);\n",
+       "      const answer = await this.probe(t.src);\n"
+      ],
+      [
+       "    p.skipTrack();\n  }\n\n  /** The stream keeps failing with the network up: the player pauses with a toast, and Play reloads the track where it was. */\n  giveUp() {\n    const p = this.p;\n    this.counts.gaveUp = (this.counts.gaveUp ?? 0) + 1;\n    this.note('gave_up', {after: this.attempts, atMs: Math.round(this.pos * 1000)});\n    this.attempts = 0;\n    p.pause();\n    this.pending = true;\n    p.ctx.bus.post('bus_gui', 'cmd_gui_show_toast', p, {title: 'Lost the connection', line2: 'Tap play to try again'});\n",
+       "    p.skipTrack();\n"
+      ]
+     ]
     },
     "music/src/res/qualifiers.js": {
      "sha256": "6b45a4e11901d9b96e41fc7a6b66fa67c59736bd9397e9f0268857b69210b8fd",

@@ -94,6 +94,7 @@ export class DeckFader {
       if (this.pending.get(el) !== entry) return;
       this.pending.delete(el);
       clearTimeout(entry.timer);
+      entry.cancel?.();
       done?.();
     };
     const dsp = this.graph(el);
@@ -112,15 +113,17 @@ export class DeckFader {
       } else send();
       return;
     }
-    const from = el.volume;
-    let t0 = null;
-    entry.cancel = this.ctx.onFrame?.(now => {
-      t0 ??= now;
-      const k = Math.min(1, (now - t0) / Math.max(1, ms));
+    const from = el.volume, t0 = performance.now();
+    const step = now => {
+      const k = Math.min(1, Math.max(0, now - t0) / Math.max(1, ms));
       el.volume = Math.max(0, Math.min(1, from + (to - from) * k));
       return k < 1;
-    });
-    entry.timer = setTimeout(finish, ms);
+    };
+    // A hidden page gets no frames: a timer steps the fade then.
+    const off = this.ctx.onFrame?.(step), tick = setInterval(() => { if (globalThis.document?.hidden) step(performance.now()); }, 25);
+    entry.cancel = () => { off?.(); clearInterval(tick); };
+    // At its end the fade's level is set, however few steps it took.
+    entry.timer = setTimeout(() => { if (this.pending.get(el) === entry) el.volume = Math.max(0, Math.min(1, to)); finish(); }, ms);
   }
 }
 
