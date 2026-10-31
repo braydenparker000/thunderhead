@@ -78,6 +78,18 @@ export class Music extends OwnerObject {
   private built: { etag: string; text: string } | null = null;
   /** The records' total length, read once per start and grown by each new track. */
   private recordBytes: number | null = null;
+  /** How many tracks, counted once per start and kept as tracks come and go: a count reads every
+   * row, and the free plan meters rows read (2026-10-31: per-song counts read 4.4M in a day). */
+  private trackTotal: number | null = null;
+  /** The mind's track search reads the catalog once per start, then searches it in memory. */
+  private finder: (MusicTrackRow & { hay: string })[] | null = null;
+
+  /** What a write or an import may have changed: read again when next needed. */
+  private forget(): void {
+    this.recordBytes = null;
+    this.trackTotal = null;
+    this.finder = null;
+  }
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env, MUSIC_MIGRATIONS);
@@ -95,7 +107,10 @@ export class Music extends OwnerObject {
         else written += n;
         if (n > 0) changed++;
       }
-      if (changed) store.bump(this.db, at);
+      if (changed) {
+        store.bump(this.db, at);
+        this.forget();
+      }
       return { written, changed, clashes };
     });
   }
@@ -149,6 +164,18 @@ export class Music extends OwnerObject {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     const items: MusicTrackRow[] = [];
     let total = 0;
+    for (const { hay, ...row } of this.index()) {
+      if (!words.every((w) => hay.includes(w))) continue;
+      total++;
+      if (items.length < limit) items.push(row);
+    }
+    return { items, total };
+  }
+
+  /** Every track's searchable tags, read once per start (or after a change). */
+  private index(): (MusicTrackRow & { hay: string })[] {
+    if (this.finder) return this.finder;
+    const out: (MusicTrackRow & { hay: string })[] = [];
     for (const r of this.db.all<{ id: string; record_json: string }>(
       'SELECT id, record_json FROM tracks ORDER BY ord',
     )) {
@@ -171,12 +198,10 @@ export class Music extends OwnerObject {
         year: Number(m.year) || 0,
         dur: Math.round(Number(m.dur) || 0),
       };
-      const hay = `${row.title} ${row.artist} ${row.album} ${row.genre} ${row.composer}`.toLowerCase();
-      if (!words.every((w) => hay.includes(w))) continue;
-      total++;
-      if (items.length < limit) items.push(row);
+      out.push({ ...row, hay: `${row.title} ${row.artist} ${row.album} ${row.genre} ${row.composer}`.toLowerCase() });
     }
-    return { items, total };
+    this.finder = out;
+    return out;
   }
 
   waveform(id: string): string | null {
@@ -209,10 +234,21 @@ export class Music extends OwnerObject {
       grow: (n) => {
         if (this.recordBytes !== null) this.recordBytes += n;
       },
+      tracks: () => {
+        this.trackTotal ??= store.trackCount(this.db);
+        return this.trackTotal;
+      },
+      counted: (n) => {
+        if (this.trackTotal !== null) this.trackTotal += n;
+      },
     };
     try {
-      return { status: 200, body: await fn(c, body) };
+      const out = { status: 200, body: await fn(c, body) };
+      this.finder = null;
+      return out;
     } catch (e) {
+      // A failed operation's transaction rolled back: what was kept in memory may not match.
+      this.forget();
       if (e instanceof MusicError) return { status: e.status, body: { error: e.message, ...e.extra } };
       throw e;
     }

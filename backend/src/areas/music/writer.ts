@@ -40,6 +40,11 @@ export interface Ctx {
   /** The records' total length now (kept by the object), and a new record's share of it. */
   bytes(): number;
   grow(n: number): void;
+  /** How many tracks there are now, counted once per start and kept by the object (a count reads
+   * every row, so it is never taken per song: 2026-10-31, a batch of 100 read 1.2M rows), and a
+   * change to it as tracks are added or removed. */
+  tracks(): number;
+  counted(n: number): void;
 }
 
 export const proof = (o: R2Object) => ({ etag: o.etag, size: o.size, lastModified: o.uploaded.toISOString() });
@@ -162,10 +167,10 @@ function insert(c: Ctx, { track, waveform }: { track: Obj; waveform: string | nu
   if (store.trackRow(c.db, track.id as string)) fail(409, 'A track with this id holds other audio');
   check(track);
   const size = JSON.stringify(track).length;
-  if (store.trackCount(c.db) >= MAX_TRACKS || c.bytes() + size > MAX_CATALOG_BYTES)
-    fail(413, 'Music library limit reached');
+  if (c.tracks() >= MAX_TRACKS || c.bytes() + size > MAX_CATALOG_BYTES) fail(413, 'Music library limit reached');
   put(c, track, waveform);
   c.grow(size);
+  c.counted(1);
   store.logOp(c.db, c.now, 'register', track.id as string, null);
   changed(c);
   return { registered: true, duplicate: false, id: track.id };
@@ -179,7 +184,7 @@ export type Op = (c: Ctx, body: Obj) => Promise<Obj>;
 export const OPS: Record<string, Op> = {
   async register(c, body) {
     const prepared = await prepare(c, body);
-    return { ...c.tx(() => insert(c, prepared)), count: store.trackCount(c.db) };
+    return { ...c.tx(() => insert(c, prepared)), count: c.tracks() };
   },
   async 'register-batch'(c, body) {
     const items = body?.tracks;
@@ -198,7 +203,7 @@ export const OPS: Record<string, Op> = {
     return {
       results,
       registered: results.filter((r) => r.registered && !r.duplicate).length,
-      count: store.trackCount(c.db),
+      count: c.tracks(),
     };
   },
   async analysis(c, body) {
@@ -239,7 +244,7 @@ export const OPS: Record<string, Op> = {
     const old = existing.metadata.audioAnalysis;
     const revision = old ? await hashOf(old) : null;
     if (JSON.stringify(old) === JSON.stringify(analysis))
-      return { registered: true, analysisUpdated: false, id: existing.id, count: store.trackCount(c.db) };
+      return { registered: true, analysisUpdated: false, id: existing.id, count: c.tracks() };
     const expected = prev === undefined ? (body.previousAnalysis ? await hashOf(body.previousAnalysis) : null) : prev;
     if (revision !== expected) fail(409, 'Analysis changed concurrently; review before retry');
     return c.tx(() => {
@@ -252,7 +257,7 @@ export const OPS: Record<string, Op> = {
       put(c, next, (current as store.TrackRow).waveform);
       store.logOp(c.db, c.now, 'analysis', next.id as string, record(current as store.TrackRow));
       changed(c);
-      return { registered: true, analysisUpdated: true, id: next.id, count: store.trackCount(c.db) };
+      return { registered: true, analysisUpdated: true, id: next.id, count: c.tracks() };
     });
   },
 };

@@ -71,7 +71,7 @@ export const EDIT_OPS: Record<string, Op> = {
       put(c, next, waveform === undefined ? current.waveform : waveform);
       store.logOp(c.db, c.now, 'patch', next.id as string, before);
       changed(c);
-      return { patched: true, id: next.id, count: store.trackCount(c.db) };
+      return { patched: true, id: next.id, count: c.tracks() };
     });
   },
   /** New audio for a track, keeping its id. The old audio stays in the bucket. */
@@ -103,7 +103,7 @@ export const EDIT_OPS: Record<string, Op> = {
         id: next.id,
         oldAudioKey: before.audioKey,
         deletedObjects: [],
-        count: store.trackCount(c.db),
+        count: c.tracks(),
       };
     });
   },
@@ -132,7 +132,7 @@ export const EDIT_OPS: Record<string, Op> = {
         updated++;
       }
       if (updated) changed(c);
-      return { updated, notFound, count: store.trackCount(c.db) };
+      return { updated, notFound, count: c.tracks() };
     });
   },
   /** Tracks out of the catalog (logged, with their waveform, for undo). Their objects stay. */
@@ -146,6 +146,7 @@ export const EDIT_OPS: Record<string, Op> = {
         const row = store.trackRow(c.db, id);
         if (!row) continue;
         store.deleteTrack(c.db, id);
+        c.counted(-1);
         store.logOp(c.db, c.now, 'delete', id, { ...record(row), waveform: row.waveform });
         deleted.push(id);
       }
@@ -154,14 +155,17 @@ export const EDIT_OPS: Record<string, Op> = {
         deleted,
         notFound: (ids as string[]).filter((id) => !deleted.includes(id)),
         deletedObjects: [],
-        count: store.trackCount(c.db),
+        count: c.tracks(),
       };
     });
   },
   /** The bucket against the catalog: keys whose objects are missing, objects no track uses. */
   async audit(c) {
     const referenced = new Map<string, { id: string; size?: number }>();
+    // One pass over the tracks (2026-10-31: the audit counted them five times, 112k rows a call).
+    let withoutWaveform = 0;
     for (const r of store.referencedKeys(c.db)) {
+      if (!r.w) withoutWaveform++;
       referenced.set(r.audio_key, { id: r.id, size: r.size });
       if (r.cover_key) referenced.set(r.cover_key, { id: r.id });
     }
@@ -184,12 +188,12 @@ export const EDIT_OPS: Record<string, Op> = {
     for (const key of seen.keys()) if (!referenced.has(key)) orphans.push(key);
     const summary = {
       at: new Date(c.now).toISOString(),
-      tracks: store.trackCount(c.db),
+      tracks: c.tracks(),
       objects: seen.size,
       missing: missing.length,
       wrongSize: wrongSize.length,
       orphans: orphans.length,
-      withoutWaveform: store.counts(c.db).tracks - store.counts(c.db).waveforms,
+      withoutWaveform,
     };
     return {
       ...summary,

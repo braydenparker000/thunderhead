@@ -96,11 +96,12 @@ export function keys(db: Db, ids: string[]): { id: string; audio_key: string; co
     : [];
 }
 
+/** One pass over the tracks for both counts; the log's length from its ends (it is kept
+ * contiguous, LOG_KEEP), two rows instead of all of them. */
 export function counts(db: Db): { tracks: number; waveforms: number; log: number } {
-  return db.one<{ tracks: number; waveforms: number; log: number }>(
-    `SELECT (SELECT count(*) FROM tracks) AS tracks, (SELECT count(waveform) FROM tracks) AS waveforms,
-       (SELECT count(*) FROM catalog_log) AS log`,
-  ) as { tracks: number; waveforms: number; log: number };
+  const t = db.one<{ tracks: number; waveforms: number }>('SELECT count(*) AS tracks, count(waveform) AS waveforms FROM tracks');
+  const l = db.one<{ lo: number | null; hi: number | null }>('SELECT min(seq) AS lo, max(seq) AS hi FROM catalog_log');
+  return { tracks: t?.tracks ?? 0, waveforms: t?.waveforms ?? 0, log: l?.hi == null || l.lo == null ? 0 : l.hi - l.lo + 1 };
 }
 
 export function version(db: Db): CatalogVersion {
@@ -179,8 +180,8 @@ export function trackCount(db: Db): number {
 }
 
 /** Every content key the catalog uses, with its track and size (the audit). */
-export function referencedKeys(db: Db): { id: string; audio_key: string; cover_key: string | null; size: number }[] {
-  return db.all('SELECT id, audio_key, cover_key, size FROM tracks');
+export function referencedKeys(db: Db): { id: string; audio_key: string; cover_key: string | null; size: number; w: number }[] {
+  return db.all('SELECT id, audio_key, cover_key, size, waveform IS NOT NULL AS w FROM tracks');
 }
 
 /** The catalog's records with their waveforms, in order (the tools' export). */
