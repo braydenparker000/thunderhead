@@ -51,11 +51,10 @@ test('night tiles: in order, halves paired, a big number, a wide note, a tap ope
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'brief' })));
   await page.waitForSelector('#brief .tile.night');
   assert.deepEqual(await page.$$eval('#brief .grid > .tile', (ts) => ts.map((t) => [t.className, t.querySelector('.k').textContent, t.querySelector('.big')?.textContent ?? null, t.querySelector('.v')?.textContent])), [
-    ['tile gold half', 'Waiting on you', null, 'Let Muse read your Board brief?'],
+    ['tile gold half', 'Waiting on you', null, 'Forget the old address?'],
     ['tile half night', 'Study', null, 'Book A, chapter 3'],
     ['tile half night wide', 'Built overnight', '31', 'A calm playlist'],
     ['tile wide night', 'Note', null, 'Bring the umbrella'],
-    ['tile wide board', 'The Board', null, 'Rain moves in, the market steadies'],
   ]);
   assert.equal(await page.locator('#brief .tile.night', { hasText: 'Note' }).evaluate((t) => t.tagName), 'DIV');
   await page.waitForTimeout(600);

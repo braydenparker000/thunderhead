@@ -32,7 +32,7 @@
 .talk .reply th,.talk .reply td{padding:6px 12px 6px 0;border-bottom:1px solid var(--glass-line);text-align:left;vertical-align:top}
 .talk .reply th{font-weight:600;color:var(--ink-2)}
 .talk .reply hr{border:0;border-top:1px solid var(--glass-line)}
-/* what is better shown than told: the Board's own blocks under the words, in Inter */
+/* what is better shown than told: blocks under the words (th/chat/blocks.js), in Inter */
 .talk .reply .blocks{display:grid;gap:12px;margin-top:14px;font:400 15px/1.45 var(--ui);letter-spacing:0;--bt:var(--accent-text)}
 .talk .reply a{color:var(--accent-text);text-decoration:underline;text-underline-offset:2px}
 /* A cited block of the owner's books: a small number that opens Study there; "Where to study" lists

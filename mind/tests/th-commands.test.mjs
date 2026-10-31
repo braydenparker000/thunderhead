@@ -214,7 +214,7 @@ test('verb (checked against the contract), undo, ledger', withFake({}, async fak
   assert.equal(fake.state.requests.length, before);
 }));
 
-test('order new, list, get, cancel; no personal order kinds; the Board brief and Muse\'s thread', withFake({}, async fake => {
+test('order new, list, get, cancel; no personal order kinds; Muse\'s thread', withFake({}, async fake => {
   const e = env(fake);
   const spec = '{"v":1,"goal":"Check the weather feed.","inputs":{},"constraints":[],"done_when":"Each URL checked."}';
   const n = await th(['order', 'new', '--kind', 'media.check', '--title', 'Weather feeds', '--spec', spec, '--deadline', '2026-10-29T06:00:00Z'], e);
@@ -230,7 +230,7 @@ test('order new, list, get, cancel; no personal order kinds; the Board brief and
   const personal = await th(['order', 'new', '--kind', 'research.brief', '--personal', '--spec', spec, '--deadline', '2026-10-29T06:00:00Z'], e);
   assert.equal(personal.code, 8, 'refused before anything is sent');
   assert.equal(fake.state.requests.length, before);
-  assert.equal((await th(['board', 'nonsense'], e)).code, 8);
+  assert.equal((await th(['muse', 'nonsense'], e)).code, 8);
 }));
 
 test('surface, push (quiet hours exit 7), pending, health, errors', withFake({}, async fake => {

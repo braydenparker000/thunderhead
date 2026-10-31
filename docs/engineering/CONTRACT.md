@@ -119,15 +119,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/work/orders/:id/result` | M | P4 | built | checked against the kind's schema; 422 names each problem |
 | `POST /v1/work/orders/:id/fail` | M | P4 | built |  |
 | `POST /v1/work/orders/:id/files` | M | P4 | deferred: an order kind with files (music.ingest, P5) |  |
-| `GET /v1/work/board/brief` | M | P4 | built | only with the owner's standing approval |
 | `GET /v1/work/thread` | M D C N | P4 | built | Muse's own thread, never the owner's conversation |
 | `POST /v1/work/thread/messages` | M D C N | P4 | built |  |
-| `GET /v1/board/brief` | D C N | P4 | built |  |
-| `PUT /v1/board/brief` | D C N | P4 | built | the owner's Board choices; the mind writes it from the owner's words |
-| `DELETE /v1/board/approval` | D | P4 | built | withdraws Muse's reading of the brief |
 | `GET /v1/briefing` | D | P4 | built |  |
 | `PUT /v1/briefing/place` | D | P8 | built | the weather's place, by a town's name |
-| `GET /v1/board/editions/:day` | D C N | P4 | built | outside text from Muse, checked against the v2 schema |
 | `GET /v1/music/catalog` | D | P5 | built | the ported player's format; ETag, 304; 409 before the import |
 | `GET /v1/music/waveforms/:id` | D | P5 | built |  |
 | `GET /v1/music/tracks` | C N | P5 | built | ?q=&limit=: tracks by their tags, for a playlist the mind makes |
@@ -299,7 +294,6 @@ Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80,
 | `agents.revoke` | access | C N R | auth | `agent:<agent_id>` | `{ agent_id: string }` | Revoke one agent key; it stops working within 60 s (SECURITY.md §14.2). |
 | `repo.change` | access | C | core | `repo:<base>` | `{ paths: array, base: string }` | Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push. Decided by a tap on a signed-in device only. |
 | `laws.pin` | access | worker | core | `laws:<sha256>` | `{ sha256: string, previous: string \| null }` | Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only. |
-| `board.allow` | reach_people | C worker | core | `board:<kind>` | `{ kind: 'board.edition' }` | Let Muse read the owner's Board brief (the topics, depth and length the owner chose, nothing else) to write the daily Board, until the owner withdraws it (MUSE.md §6, the standing approval). |
 
 ## Reader kinds
 

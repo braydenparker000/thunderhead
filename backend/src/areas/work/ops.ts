@@ -1,9 +1,8 @@
 // Work orders at work (MUSE.md §3–§5, §9): the mind makes and cancels them; Muse claims one at a
 // time, heartbeats it and returns a result the Worker checks against the kind's schema before
-// anyone sees it (or a failure); each tick lapses a lease with no heartbeat for 30 min, expires an
-// order past its deadline, and, once the owner allowed Muse to read the Board brief, makes the
-// day's `board.edition` order, due 09:00 local. Every change writes the feed (`work`), so the
-// chat mind's `th wait` and the Briefing page see it; finishing writes one ledger row.
+// anyone sees it (or a failure); each tick lapses a lease with no heartbeat for 30 min and expires
+// an order past its deadline. Every change writes the feed (`work`), so the chat mind's `th wait`
+// and the Briefing page see it; finishing writes one ledger row.
 
 import { neverStored } from '../../../../shared/contract/never-stored.ts';
 import {
@@ -13,9 +12,8 @@ import {
   type WorkKind,
   type WorkOrderPut,
 } from '../../../../shared/contract/work.ts';
-import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
-import { HOUR, MINUTE, zonedMinute } from '../../lib/time';
+import { HOUR, MINUTE } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
@@ -25,7 +23,6 @@ import * as store from './store';
 import { validate } from './validate';
 
 const LEASE = WORK_LIMITS.lease_min * MINUTE;
-const [dueH, dueM] = WORK_LIMITS.board_due_local.split(':').map(Number);
 const SEEN_EVERY = 10 * MINUTE;
 
 export interface Seen {
@@ -33,9 +30,6 @@ export interface Seen {
   last: number;
 }
 export const seen = (db: Db) => (getSetting(db, 'muse.seen') as Seen | undefined) ?? null;
-export const boardAllowed = (db: Db) => Boolean(getSetting(db, 'board.allowed'));
-export const brief = (db: Db) =>
-  (getSetting(db, 'board.brief') as { version: number; brief: unknown; updated_at: number } | undefined) ?? null;
 
 const changed = (w: Writer, id: string) => w.change('work', `work:${id}`);
 const ledger = (w: Writer, what: string, id: string) =>
@@ -116,9 +110,8 @@ export function hello(w: Writer): WorkHello {
   touch(w);
   return {
     agent: 'muse',
-    scopes: ['work.claim', 'work.result', 'work.thread', ...(boardAllowed(w.db) ? ['board.brief'] : [])],
+    scopes: ['work.claim', 'work.result', 'work.thread'],
     server_time: w.at,
-    board_brief_allowed: boardAllowed(w.db),
   };
 }
 
@@ -153,8 +146,6 @@ export function result(w: Writer, id: string, raw: unknown) {
   touch(w);
   const o = held(w, id);
   const { problems, value } = validate(raw, WORK_KINDS[o.kind].schema);
-  if (!problems.length && o.kind === 'board.edition' && o.day && (value as { date?: string }).date !== o.day)
-    problems.push(`date: must be ${o.day}, the day this edition is for`);
   if (problems.length) {
     store.setStatus(w.db, id, {
       status: 'rejected',
@@ -194,8 +185,8 @@ export function fail(w: Writer, id: string, reason: string) {
   return { status };
 }
 
-/** The tick: lapsed leases, deadlines, and the day's Board order. `day` is the logical day. */
-export function tick(w: Writer, day: string, tz: string): void {
+/** The tick: lapsed leases and deadlines. */
+export function tick(w: Writer): void {
   for (const o of store.open(w.db)) {
     if (o.deadline_at <= w.at) {
       store.setStatus(w.db, o.id, { status: 'expired', finished_at: w.at });
@@ -212,41 +203,6 @@ export function tick(w: Writer, day: string, tz: string): void {
       changed(w, o.id);
     }
   }
-  if (!boardAllowed(w.db) || !brief(w.db) || store.forDay(w.db, 'board.edition', day).length) return;
-  const due = zonedMinute(day, dueH * 60 + dueM, tz);
-  if (due <= w.at + 30 * MINUTE) return;
-  const id = uuidv7(w.at);
-  store.insertOrder(w.db, {
-    id,
-    kind: 'board.edition',
-    title: `The Board for ${day}`,
-    spec: {
-      v: 1,
-      goal: `Write the Board for ${day} from the owner's Board brief.`,
-      inputs: { day, brief: 'GET /v1/work/board/brief' },
-      constraints: [
-        'The Daily Board v2 edition format, exactly (the order schema).',
-        `date is ${day}.`,
-        'Primary sources first.',
-      ],
-      done_when: `A valid edition for ${day} is returned before ${WORK_LIMITS.board_due_local} local.`,
-    },
-    day,
-    recurrence: `daily@${WORK_LIMITS.board_due_local}`,
-    deadline_at: due,
-    created_by: 'worker',
-    at: w.at,
-  });
-  changed(w, id);
-}
-
-/** The Board edition for the Briefing page (BRIEFING.md §5): today's, else yesterday's marked
- * as such; none older. */
-export function edition(db: Db, today: string, yesterday: string) {
-  const t = store.latestDone(db, 'board.edition', [today]);
-  if (t) return { row: t, stale: false };
-  const y = store.latestDone(db, 'board.edition', [yesterday]);
-  return y ? { row: y, stale: true } : null;
 }
 
 export const kindOf = (k: string): WorkKind | null => (Object.hasOwn(WORK_KINDS, k) ? (k as WorkKind) : null);

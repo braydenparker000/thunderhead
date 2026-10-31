@@ -36,7 +36,7 @@ export function reminderRoutes(ctl) {
       return [201, {reminder: value}];
     }],
     ['GET', /^\/v1\/reminders$/, ['chat', 'night'], () =>
-      ({items: [...s.reminders.values()].map(r => r.value).sort((a, b) => a.fire_at - b.fire_at)})],
+      ({items: [...s.reminders.values()].map(r => r.value).sort((a, b) => a.fire_at - b.fire_at || (a.id < b.id ? -1 : 1))})],
     ['DELETE', /^\/v1\/reminders\/([^/]+)$/, ['chat'], ({params, query}) => {
       const r = s.reminders.get(params[0])?.value;
       if (!r) throw new HttpError(404, 'not_found');

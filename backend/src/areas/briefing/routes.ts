@@ -1,7 +1,6 @@
-// /v1/briefing and the Board's editions (BRIEFING.md §2–§6): what the Briefing page shows now (the
-// weather asked of Open-Meteo again when the kept forecast is over 30 minutes old: at once when
-// there is none, else while the page shows the kept one), the weather's place by a town's name,
-// and one day's Board for the reader, which the page renders as outside content labelled "from Muse".
+// /v1/briefing (BRIEFING.md §2–§6): what the Briefing page shows now (the weather asked of
+// Open-Meteo again when the kept forecast is over 30 minutes old: at once when there is none, else
+// while the page shows the kept one) and the weather's place by a town's name.
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import type { BriefingResponse } from '../../../../shared/contract/briefing.ts';
@@ -13,7 +12,6 @@ import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 import { findPlace, forecastFor } from './weather';
 
-const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const STALE_MS = 30 * 60_000;
 const placeBody = z.object({ name: z.string().check(z.minLength(2), z.maxLength(80)) });
 
@@ -43,15 +41,4 @@ export const briefingRoutes = new Hono<AppEnv>()
       .then((f) => core.putForecast(place, f))
       .catch(() => {});
     return c.json({ place: place.name });
-  })
-  .get('/board/editions/:day', guard('GET /v1/board/editions/:day'), async (c) => {
-    const day = c.req.param('day');
-    if (!DAY.test(day)) throw new ApiError('not_found');
-    const e = (await fresh(coreObject(c.env).boardEdition(day))) as {
-      day: string;
-      edition: unknown;
-      finished_at: number;
-    } | null;
-    if (!e) throw new ApiError('not_found');
-    return c.json({ ...e, origin: 'muse' });
   });

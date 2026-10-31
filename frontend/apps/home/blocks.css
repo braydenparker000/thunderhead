@@ -1,34 +1,12 @@
-/* The Briefing's tiles as buttons, Muse's line, and the Board reader (BRIEFING.md §1, §5): Inter
-   only (the Board is not the Thunderhead's voice), the edition's theme as one accent. */
+/* The Briefing's tiles as buttons and Muse's line (BRIEFING.md §1), and the blocks a reply may carry
+   under its words (HOME.md §4.3, th/chat/blocks.js): Inter only, as they are not the Thunderhead's voice. */
 button.tile{font:inherit;color:inherit;text-align:left;cursor:pointer;transition:transform .14s}
 button.tile:active{transform:scale(.98)}
 .tile .k .i{width:16px;height:16px;fill:currentColor}
 .tile.gold{--c:var(--gold-text)}
-.tile.board{--c:var(--accent-text)}
-.tile.board .v{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .bmuse{margin:14px 6px 0;font:400 13px/1.45 var(--ui);color:var(--ink-3)}
 #decision .card.pulse{animation:cardpulse 1.4s ease-out}
 @keyframes cardpulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--gold) 60%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
-.boardr{--bt:#3b4a5e}
-.brd{max-width:680px;margin:0 auto;font-family:var(--ui)}
-.bcover{margin:8px 0 22px;padding:22px 18px 20px;border-radius:22px;color:#fff;background:linear-gradient(150deg,var(--bt),color-mix(in srgb,var(--bt) 55%,#000))}
-.bcover.t-ink{--bt:#2c3a4f}.bcover.t-ember{--bt:#b4502c}.bcover.t-tide{--bt:#1f6f8b}.bcover.t-moss{--bt:#3f6b3a}.bcover.t-dusk{--bt:#5b4a8a}.bcover.t-gold{--bt:#a77a12}
-.bcover .bfrom{margin:0;font:600 11px var(--ui);letter-spacing:.12em;text-transform:uppercase;opacity:.82}
-.bcover h1{margin:10px 0 0;font:650 26px/1.2 var(--ui);letter-spacing:-.015em}
-.bcover .bsum{margin:12px 0 0;font:400 15px/1.5 var(--ui);opacity:.92}
-.bcover .bthesis{margin:10px 0 0;font:500 14px/1.45 var(--ui);opacity:.85}
-.bquick h2,.bstory h2{font:650 19px/1.3 var(--ui);letter-spacing:-.01em;margin:0}
-.bquick{padding:4px 2px 8px}
-.bquick ol{margin:10px 0 0;padding-left:1.3em;font:400 15px/1.5 var(--ui)}
-.bquick li+li{margin-top:6px}
-.bquick a{color:var(--ink);text-decoration:none}
-.bstory{margin-top:22px;padding-top:20px;border-top:1px solid var(--glass-line);font:400 15.5px/1.55 var(--ui);color:var(--ink)}
-.bstory.c-lead h2{font-size:23px}
-.blabel{margin:0 0 6px;font:600 11px var(--ui);letter-spacing:.08em;text-transform:uppercase;color:var(--accent-text)}
-.bdek{margin:8px 0 0;color:var(--ink-2);font-size:16px}
-.bwhy,.bnext,.bdis{margin-top:14px;padding:12px 14px;border-radius:14px;background:color-mix(in srgb,var(--ink) 5%,transparent)}
-.bwhy strong,.bnext strong,.bdis strong{display:block;font:650 12px var(--ui);letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
-.bwhy p,.bnext p,.bdis p{margin:4px 0 0}
 .bb{margin-top:14px}
 .bb h3{margin:0 0 8px;font:650 15px/1.35 var(--ui)}
 .bb p{margin:0}
@@ -72,12 +50,6 @@ button.tile:active{transform:scale(.98)}
 .btime li.now p{font-weight:600;color:var(--ink)}
 .bchart figcaption{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:6px;font:400 12px var(--ui);color:var(--ink-3)}
 .bnote2{margin-top:6px!important;font-size:12.5px;color:var(--ink-3)}
-.bsrc{margin-top:14px;font:400 13px/1.5 var(--ui);color:var(--ink-2)}
-.bsrc summary{cursor:pointer;font-weight:600;min-height:32px;display:flex;align-items:center}
-.bsrc ol{margin:6px 0 0;padding-left:1.4em}
-.bsrc a{color:var(--accent-text);overflow-wrap:anywhere}
-.bsn{color:var(--ink-3)}
-.bask{margin-top:14px;border:0;border-radius:999px;padding:8px 14px;font:600 13px var(--ui);color:var(--accent-text);background:color-mix(in srgb,var(--accent-text) 12%,transparent);cursor:pointer}
 @media (prefers-reduced-motion: reduce){#decision .card.pulse{animation:none}button.tile{transition:none}}
 #brief{overscroll-behavior-y:contain}
 

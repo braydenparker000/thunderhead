@@ -27,7 +27,7 @@ test('the weather tile asks for a place, keeps one, and shows the next hours', o
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/status of 422/.test(m.text())) errors.push(m.text()); });
   const noPlace = { place: null, temp: null, detail: 'Set a place for the weather', as_of: null, hours: [], tomorrow: null };
-  await mockApi(page, { briefing: { page: { day: '2026-10-30', title: 'A quiet day.', weather: noPlace, tiles: [], board: null, muse: null } } });
+  await mockApi(page, { briefing: { page: { day: '2026-10-30', title: 'A quiet day.', weather: noPlace, tiles: [], muse: null } } });
   await page.goto(`${base}/no-such-page`);
   await page.evaluate((token) => new Promise((resolve, reject) => {
     const req = indexedDB.open('th-auth', 1);

@@ -947,14 +947,6 @@
       "phase": "P4",
       "status": "deferred: an order kind with files (music.ingest, P5)"
     },
-    "GET /v1/work/board/brief": {
-      "who": [
-        "M"
-      ],
-      "phase": "P4",
-      "status": "built",
-      "note": "only with the owner's standing approval"
-    },
     "GET /v1/work/thread": {
       "who": [
         "M",
@@ -976,33 +968,6 @@
       "phase": "P4",
       "status": "built"
     },
-    "GET /v1/board/brief": {
-      "who": [
-        "D",
-        "C",
-        "N"
-      ],
-      "phase": "P4",
-      "status": "built"
-    },
-    "PUT /v1/board/brief": {
-      "who": [
-        "D",
-        "C",
-        "N"
-      ],
-      "phase": "P4",
-      "status": "built",
-      "note": "the owner's Board choices; the mind writes it from the owner's words"
-    },
-    "DELETE /v1/board/approval": {
-      "who": [
-        "D"
-      ],
-      "phase": "P4",
-      "status": "built",
-      "note": "withdraws Muse's reading of the brief"
-    },
     "GET /v1/briefing": {
       "who": [
         "D"
@@ -1017,16 +982,6 @@
       "phase": "P8",
       "status": "built",
       "note": "the weather's place, by a town's name"
-    },
-    "GET /v1/board/editions/:day": {
-      "who": [
-        "D",
-        "C",
-        "N"
-      ],
-      "phase": "P4",
-      "status": "built",
-      "note": "outside text from Muse, checked against the v2 schema"
     },
     "GET /v1/music/catalog": {
       "who": [
@@ -2405,34 +2360,6 @@
           "required": [
             "sha256",
             "previous"
-          ],
-          "additionalProperties": false
-        }
-      },
-      "board.allow": {
-        "classes": [
-          "reach_people"
-        ],
-        "by": [
-          "C",
-          "worker"
-        ],
-        "runs": "core",
-        "ref": [
-          "board",
-          "kind"
-        ],
-        "doc": "Let Muse read the owner's Board brief (the topics, depth and length the owner chose, nothing else) to write the daily Board, until the owner withdraws it (MUSE.md §6, the standing approval).",
-        "args": {
-          "type": "object",
-          "properties": {
-            "kind": {
-              "type": "string",
-              "const": "board.edition"
-            }
-          },
-          "required": [
-            "kind"
           ],
           "additionalProperties": false
         }

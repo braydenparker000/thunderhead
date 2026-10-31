@@ -267,7 +267,6 @@ bucket `thunderhead-private` (J2) and the deploy that carries the import.
    "from the old Chats"; the rest are under **All conversations ›**, by month, with their titles
    (one without a title shows its date). Open the 3 most recent: each shows on home, read-only,
    with **Back to now** at the top, and reads as it did. Search everything finds their words too.
-   (The Board history waits for P4.)
 3. **Clean up.** Settings → Agents → `import-once` → **Revoke**. In the environment from L2.2:
    delete the network secret for `thunderhead-api.braydenparker999.workers.dev` and remove that
    line from the allowed hosts → **Save**. Check: Settings → Agents no longer lists `import-once`.
@@ -370,32 +369,11 @@ ledger note and the briefing line.
    of it) and `GET /v1/mind/wakes` (the reflex wake, claimed).
 6. Tell the agent "M2 done". From now on a trip wakes the reflex, at most 4 times a day.
 
-### M3. Muse moves to the new Worker (about 10 minutes, after batch G+H is live)
+### M3. Cut (owner, 2026-10-31)
 
-Muse keeps writing the Board; from now on it gets it as a work order from the new Worker and the
-Briefing page shows it. The old relay keeps working through a 7-day overlap.
-
-1. **The brief.** On home, tell the Thunderhead what you want in the Board, for example: "Set up my
-   Board: focus on what matters this week; high priority AI and developer tools, normal priority
-   the economy; avoid celebrity gossip; standard depth; 4 to 7 stories; look back 36 hours." It
-   saves it with `th board set`. Check: a card "Let Muse read your Board brief?" appears.
-2. **The approval.** Tap **Let Muse read it** on that card. Only the brief you wrote goes to Muse,
-   nothing else of yours.
-3. **Muse's key.** Menu → Settings → Agents → **New agent key**, role **Muse**, name `muse` →
-   **Create**. It is shown once.
-4. **Tell Muse.** In Muse's own app, send it this, with the key in place of KEY:
-
-   ```text
-   The backend you work with has moved. From now on:
-   - Base URL: https://thunderhead-api.braydenparker999.workers.dev. Send Authorization: Bearer KEY on every call, no Origin header.
-   - Start with GET /v1/work/hello. Then every 5 minutes, POST /v1/work/claim with {}. When you get an order, follow its spec, send POST /v1/work/orders/{id}/heartbeat at least every 10 minutes, and finish with PUT /v1/work/orders/{id}/result with {"result": ...}. Your result must match the order's schema exactly; a 422 names each problem.
-   - Your daily Board is now an order of kind board.edition, due 09:00 the owner's time. Read the brief from GET /v1/work/board/brief. The result is the Daily Board v2 edition, with date set to the order's day.
-   - Short notes or questions go in your thread: POST /v1/work/thread/messages with {"id": "<new UUIDv7>", "body": "..."}.
-   - The old relay keeps working for 7 days, then it will be switched off.
-   ```
-
-5. Check: the Briefing page (swipe right on home) says "Muse is connected to the new Worker.", and
-   the next morning shows the Board tile. Tell the agent "M3 done".
+There is no Muse Daily Board any more, so Muse doesn't move onto the work orders and nothing here
+is needed. Muse's music uploads moved on their own (N4, [MUSE-UPLOADS.md](MUSE-UPLOADS.md)). Tell
+Muse to stop producing the Daily Board, on the old relay too.
 
 ### M4. Retire `jc` (about 2 minutes, from 2026-11-05)
 

@@ -248,8 +248,6 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `brief.weather.place` | Set a place for the weather | No place set (proposal) |
 | `brief.firstday` | I'll arrange this page each night. Tomorrow it fills in. | First day (proposal; voice, but shown in a tile: Inter, see Open questions) |
 | `brief.nonight` | The night shift hasn't run yet. I'll catch up. | Fallback briefing (proposal) |
-| `brief.board.k` | The Board | Board tile (proposal) |
-| `brief.board.old` | Yesterday's edition | No edition by 09:00 (proposal) |
 | `brief.hide` | Hide for today | Long-press (proposal) |
 | `brief.less` | Show less of this | Long-press (proposal) |
 

@@ -35,8 +35,8 @@ The project's words, used the same way in every document, in code and in convers
 | **Profile** | A deterministic rendering of the strongest current facts, loaded every session. |
 | **Taint** | The rule that text from outside the owner (web pages, song tags, other agents) can never become a fact or a rule. |
 | **Night shift** | The nightly session: day note, titles, facts, open threads, tomorrow's arrangement. |
-| **Muse** | A separate AI agent the owner already has. It takes routine **work orders** and produces the Daily Board; it writes no memory and no code. |
-| **Daily Board / the Board** | The daily news edition Muse produces to the owner's brief. Merged into the chat and shown on the Briefing page; no longer a separate app. |
+| **Muse** | A separate AI agent the owner already has. It uploads the owner's music and can take routine **work orders**; it writes no memory and no code. |
+| **Daily Board / the Board** | Cut (owner, 2026-10-31). It was a daily news edition Muse wrote to the owner's brief, shown on the Briefing page. |
 | **As-is port** | The first move for each existing app (Music, Guitar, Podcasts, Astra, My Media): copied unchanged, adjusted only so it runs on the new site. Later changes need the owner's yes. |
 | **Work order** | A job for Muse or an edge model with a spec and a result schema the Worker validates. |
 | **Worker** | The Cloudflare Worker `thunderhead-api`: the backend. |

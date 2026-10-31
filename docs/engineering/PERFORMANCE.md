@@ -49,10 +49,10 @@ Enforced by `scripts/stage.mjs` on every deploy (the deploy fails before publish
 | Fonts (`.woff2`) | ≤ 140,000 (130,000 until the upright Fraunces for replies, 2026-10-30) | ~134 KB | `stage.mjs` (exists) |
 | Icon sprite `ui/icons.svg` | ≤ 30,000 | ~18.8 KB | `stage.mjs` (built) |
 | `th/` JS loaded by the shell at boot (`th/*.js`) | ≤ 64,000, counted inside the 120 KB (60,000 until 2026-10-30: the contract's verb list grows with each app feature) | ~63 KB | `stage.mjs` (P2) |
-| The conversation, loaded after the first paint (`th/chat/**`, `th/registry/**`) | ≤ 77,000 (60,000 → 64,000 for "go quiet", → 68,000 for rich replies, → 74,000 for follow-ups, folding and reply taps, → 77,000 for sending and drawing attachments, all 2026-10-30) | ~75.7 KB | `stage.mjs` (P2) |
+| The conversation, loaded after the first paint (`th/chat/**`, `th/registry/**`) | ≤ 77,000 (60,000 → 64,000 for "go quiet", → 68,000 for rich replies, → 74,000 for follow-ups, folding and reply taps, → 77,000 for sending and drawing attachments, all 2026-10-30; → 85,000 for the reply blocks, which moved here from the Board reader when the Board was cut, 2026-10-31) | ~84.0 KB | `stage.mjs` (P2) |
 | A reply's actions and Find in today, loaded on the first tap or pull (`th/reply/**`) | ≤ 12,000 | ~7.0 KB | `stage.mjs` (built) |
 | The + sheet, loaded when it opens or a message has files (`th/attach/**`) | ≤ 36,000 | ~33.4 KB | `stage.mjs` (built 2026-10-30) |
-| The Briefing page and the Board reader, after the first paint (`th/briefing/**`) | ≤ 34,000 | ~32.2 KB | `stage.mjs` (built) |
+| The Briefing page, after the first paint (`th/briefing/**`) | ≤ 20,000 (34,000 until the Board was cut, 2026-10-31) | ~18.7 KB | `stage.mjs` (built) |
 | The menu's conversations and search, loaded when the menu first opens (`th/convos/**`) | ≤ 56,000 | ~54.7 KB | `stage.mjs` (built) |
 | Each app's own code on open (`apps/<id>/**`) | ≤ 300,000 | — | add in P5 |
 | Precache total (everything except `vendor/`, stubs, ported folders and `/assets/`) | ≤ 3,000,000 **[proposal]** | — | add with the SW (P1) |

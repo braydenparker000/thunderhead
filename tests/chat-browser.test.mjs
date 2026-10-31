@@ -121,7 +121,48 @@ test('a message goes out at once; the reply arrives over the socket, reveals, an
   }
 });
 
-test('a rich reply: upright, with a heading, a list, bold and a quote, and the Board\'s blocks under it', opts, async () => {
+test('every block type draws under a reply, its tags as text; perspectives switch on a tap', opts, async () => {
+  const blocks = [
+    { type: 'prose', text: 'A front arrives from the west. <img src=x onerror="document.title=1">' },
+    { type: 'stats', items: [{ label: 'Rain', value: '42 mm', change: '+30 mm', direction: 'up', tone: 'bad', asOf: 'today' }, { label: 'Days', value: '3' }] },
+    { type: 'chart', text: 'Rain by day', kind: 'column', unit: 'mm', labels: ['Thu', 'Fri', 'Sat'], series: [{ name: 'Rain', values: [12, 20, 10] }] },
+    { type: 'chart', text: 'Monthly change', kind: 'line', unit: '%', labels: ['Jul', 'Aug', 'Sep', 'Oct'], series: [{ name: 'Prices', values: [0.4, 0.2, 0.1, 0.1] }] },
+    { type: 'timeline', text: 'The week', items: [{ label: 'Wednesday', text: 'Dry', state: 'past' }, { label: 'Thursday', text: 'Rain starts', state: 'next' }] },
+    { type: 'quote', text: 'Bring an umbrella.', speaker: 'A forecaster', role: 'Example Weather' },
+    { type: 'callout', kind: 'unknown', text: 'How long the front stalls.' },
+    { type: 'comparison', text: 'Two readings', items: [{ label: 'Calm', text: 'It has settled.' }, { label: 'Cautious', text: 'One month is not a trend.' }] },
+    { type: 'perspectives', text: 'What it means', tabs: [{ label: 'Shoppers', text: 'Bills stay the same.' }, { label: 'Savers', text: 'Rates may stay put.' }] },
+    { type: 'explanation', text: 'How the figure is made', steps: ['Prices are collected.', 'They are weighted.', 'The change is published.'] },
+    { type: 'agenda', text: 'Next', items: [{ at: '2026-11-12T09:00:00+00:00', label: 'Next figure' }] },
+  ];
+  const reply = { after: 300, text: 'Here is the week.', meta: { blocks } };
+  const { page, context, errors } = await open({ chat: { reply, presence: { state: 'listening', note: null, since: Date.now() } } });
+  await send(page, 'Show me everything.');
+  await page.waitForSelector('#talk .reply .blocks .bb');
+  // A reply shows at most four blocks; the rest wait for a page of their own.
+  assert.deepEqual(await page.$$eval('#talk .reply .blocks .bb', (b) => b.map((x) => x.className.replace('bb b-', ''))), ['prose', 'stats', 'chart', 'chart']);
+  assert.equal(await page.$$eval('#talk .reply .bchart svg rect', (r) => r.length), 3);
+  assert.equal(await page.$$eval('#talk .reply .bchart svg polyline', (r) => r.length), 1);
+  assert.equal(await page.$('#talk img'), null, 'a tag in a block is text');
+  assert.notEqual(await page.title(), '1');
+  await context.close();
+  // The other seven, four and three at a time.
+  for (const part of [blocks.slice(4, 8), blocks.slice(8)]) {
+    const next = await open({ chat: { reply: { after: 300, text: 'More.', meta: { blocks: part } }, presence: { state: 'listening', note: null, since: Date.now() } } });
+    await send(next.page, 'And the rest?');
+    await next.page.waitForSelector('#talk .reply .blocks .bb');
+    assert.deepEqual(await next.page.$$eval('#talk .reply .blocks .bb', (b) => b.map((x) => x.className.replace('bb b-', ''))), part.map((b) => b.type));
+    if (part.some((b) => b.type === 'perspectives')) {
+      await next.page.click('#talk .reply .btabs button:nth-child(2)');
+      assert.equal(await next.page.textContent('#talk .reply .btabp'), 'Rates may stay put.');
+    }
+    assert.deepEqual(next.errors, []);
+    await next.context.close();
+  }
+  assert.deepEqual(errors, []);
+});
+
+test('a rich reply: upright, with a heading, a list, bold and a quote, and blocks under it', opts, async () => {
   for (const theme of ['light', 'dark']) {
     const text = '### Your week\nYou practised on **four** days.\n- Monday, 30 minutes\n- Thursday, 45 minutes\n> Slow is smooth.';
     const blocks = [

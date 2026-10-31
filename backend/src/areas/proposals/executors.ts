@@ -10,7 +10,6 @@ import { uuidv7 } from '../../lib/ids';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { forget } from '../memory/owner-ops';
-import { putSetting } from '../settings/store';
 import { pin } from './laws';
 import type { ProposalRow } from './store';
 
@@ -30,11 +29,6 @@ export const CORE_RUNS: Partial<Record<ProposalOpName, CoreRun>> = {
   },
   // The approval is the record: the hook asks for it (th approved) before an edit or a push.
   'repo.change': (_w, a) => ({ result: { paths: Array.isArray(a.paths) ? a.paths.length : 0 }, ledger_id: null }),
-  'board.allow': (w, _a, p) => {
-    putSetting(w.db, 'board.allowed', { at: w.at, proposal_id: p.id }, 'owner', w.at);
-    w.change('setting', 'setting:board.allowed');
-    return { result: { allowed: true }, ledger_id: null };
-  },
   'laws.pin': (w, a, p) => {
     const sha = String(a.sha256);
     return { result: { pinned: sha }, ledger_id: pin(w, sha, p.id) };

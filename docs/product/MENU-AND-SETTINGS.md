@@ -197,7 +197,7 @@ Read-only status in v1 [proposal]; one row per connection, with a status dot (gr
 | Row | Status means |
 |---|---|
 | The mind | Last wake, today's wakes, and whether it is awake now |
-| Muse (the Board, routine jobs) | Last work order delivered |
+| Muse (music uploads, routine jobs) | Last work order delivered |
 | Weather | Place and last update |
 | Site deploys | Last release and whether its live check passed |
 | Old system (during migration) | Whether anything still calls it |

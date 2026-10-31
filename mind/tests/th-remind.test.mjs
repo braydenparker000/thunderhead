@@ -86,8 +86,12 @@ test('the Worker’s refusals: not the owner’s message, a 4th from one (exit 8
 test('th remind list and cancel', withFake(async fake => {
   const asked = fake.addOwnerMessage('remind me', {id: uuidv7()});
   const e = env(fake);
-  const later = (await th(['remind', '+2h', 'Later', '--from', asked.id], e)).json;
-  const sooner = (await th(['remind', '+1h', 'Sooner', '--from', asked.id], e)).json;
+  // Midday tomorrow, outside the fake's quiet hours whatever the time now (inside them both would
+  // move to 06:30 and tie).
+  const noon = Date.parse(`${new Date(Date.now() + 86_400_000).toISOString().slice(0, 10)}T12:00:00Z`);
+  const iso = ms => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const later = (await th(['remind', iso(noon + 3_600_000), 'Later', '--from', asked.id], e)).json;
+  const sooner = (await th(['remind', iso(noon), 'Sooner', '--from', asked.id], e)).json;
   const list = await th(['remind', 'list'], e);
   assert.equal(list.code, 0, list.stderr);
   assert.deepEqual(list.json.items.map(i => i.id), [sooner.id, later.id]);

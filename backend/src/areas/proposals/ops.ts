@@ -45,7 +45,6 @@ function targetOf(w: Writer, op: string, args: Record<string, Json>, given: stri
     return given;
   }
   if (op === 'laws.pin') return `mind/CONSTITUTION.md, sha256 ${String(args.sha256).slice(0, 12)}`;
-  if (op === 'board.allow') return 'Muse reads your Board brief (topics, depth, length) for the daily Board';
   if (op === 'repo.change')
     return `${short((args.paths as string[]).join(', '), 160)} (from ${String(args.base).slice(0, 7)})`;
   throw invalid('spec.op', 'no target line for this op');

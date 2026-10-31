@@ -239,7 +239,7 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th undo` | `<ledger id>` | `{"ledger_id"}` | C | |
 | `th ledger` | `[--since <iso>] [--kind <k>] [--limit 50]` | `{"items","next"}` | C N R | Filtered by the Worker. |
 | `th order` | `new --kind <k> --spec <json> --deadline <iso> [--title <t>]` · `list` · `get <id>` · `cancel <id> --why <t>` | `{"id"}` | C N | Work orders for Muse ([MUSE.md](MUSE.md)); the result schema is the kind's (built P4 stage G). No kind carries the owner's data yet, so `--personal` is refused before anything is sent. |
-| `th board` | `brief` · `set --version <n> <json\|->` · `notes [--after <seq>]` · `note <text>` | the brief, `{version}`, notes, `{"id"}` | C N | The owner's Board brief, written only from the owner's own words, and Muse's thread (built P4 stage G). |
+| `th muse` | `notes [--after <seq>]` · `note <text>` | notes, `{"id"}` | C N | Muse's own thread (built P4 stage G; `th board` and the Board brief went with the Board, 2026-10-31). |
 | `th taint` | `--source <tool> --ref <url or id>` | `{"tainted":true}` | C N R | Called by the PostToolUse hook; irreversible for the session. |
 | `th pending` | — | `{"unanswered":[ids],"stop":bool,"day_closed":bool,"limited":bool,"idle_min":n,"idle_cutoff_min":n}` | C N R | Used by the Stop hook. |
 | `th ci` | `<sha> [--card <message id>] [--workflow ci\|deploy]` | `{"state":"passed\|failed","url"}` | C N | Polls the public GitHub API for check runs on that SHA every 20 s (≤ 45 polls per hour, under the 60/h unauthenticated limit) and keeps the card current. Exit 0 passed, 1 failed. **[proposal; unverified: api.github.com reachable from the environment]** |
@@ -480,7 +480,7 @@ Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its cl
 | 5 | Health: `th errors`, `th health --deep`; small agreed fixes on a branch (only `agreed` work, pushed to a branch; never to `main`) | ≤ 8 min | Branch, maybe a release |
 | 6 | Indexing. From P7: read Study's waiting books (`bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2 --minutes 10`; a book not finished goes on the next night; it prints counts only, so no book text reaches the session). Later also: dispatch the P5 indexing jobs through the Worker's job endpoint | 10 min | Pages, FTS, refs in `Library`; jobs queued |
 | 7 | Arrange tomorrow (P3+): 0–4 home lines, surfaces, practice set (in-app surfaces only in apps whose agreed evolution added them; the as-is ports have none) | 4 min | `surfaces` |
-| 8 | "Built overnight" items for the Briefing page; arrange the Briefing page, including where today's Daily Board (produced by Muse, owner ruling) sits when it arrives | 1 min | Briefing items |
+| 8 | "Built overnight" items for the Briefing page; arrange the Briefing page | 1 min | Briefing items |
 | 9 | Sunday only: weekly review and evals ([EVALS.md](EVALS.md)); built in P4 stage C as the injection suite (`th eval begin`, then what it prints), and in P9 the weekly improvement after it (`th eval week`, EVALS.md §7) | +15 min | `eval_runs`, one PR at most |
 | 10 | Session note; update `docs/process/STATUS.md` if code changed; `th night done` | 2 min | — |
 

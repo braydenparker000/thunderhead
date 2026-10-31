@@ -87,7 +87,9 @@ const budgets = [
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 77_000],
+  // (2026-10-31) + the reply blocks (th/chat/blocks.js), which were the Board reader's: the
+  // Briefing's budget fell by more when the Board was cut.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 85_000],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads
@@ -95,9 +97,9 @@ const budgets = [
   ['attach JS bytes', sum(/^th\/attach\/.*\.js$/), 36_000],
   // The menu's conversations and search, loaded when the menu first opens.
   ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 56_000],
-  // The Briefing page and the Board reader, loaded after the first paint.
+  // The Briefing page, loaded after the first paint.
   // + skeletons, pull to refresh and the owner's arrangement of the tiles (2026-10-30).
-  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 34_000],
+  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 20_000],
   ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 60_000],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 20_000],

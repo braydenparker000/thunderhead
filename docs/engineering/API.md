@@ -560,7 +560,7 @@ type MemoryOp =
 |---|---|---|---|
 | `POST /v1/ops/import/parts` | the `mind:chat` key named `import-once` only | raw gzip JSONL part, sent as the old export answered it; headers `TH-Import: <run_id>/<instance>/<table>/<nnnn>` (from `0001`), `TH-Sha256`, `TH-Rows` (≤ 2,000 rows, ≤ 25 MiB; the route holds the part in memory once and reads only its first row's names, from 64 KiB slices) | `201 { key }` (idempotent by the header path; 409 if the bytes differ; 422 on a wrong digest; 415 if not gzip JSONL; 403 for a never-exported table, by its name or a credential column in its first row, `IMPORT_NEVER_EXPORT` and `IMPORT_SECRET_COLUMN` in `shared/contract/imports.ts`) |
 | `PUT /v1/ops/import/manifest/:run_id` | the `import-once` key only | the manifest JSON ([MIGRATION.md §3](MIGRATION.md); `ImportManifest` in `shared/contract/imports.ts`) | `201` (the same again is fine; another one 409). Written last: every part it names must be stored with its SHA-256 (422 naming the first that is not), one SHA-256 per part, and a never-exported table has counts only (403 with parts) |
-| `POST /v1/import/runs` | device, or the `import-once` key | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board'\|'chat_files'\|'music'\|'music_log' }` | `202 { import_id }` (422: a dataset not built yet, a run without a manifest or that table, messages before threads or the music log before the music are done; 409: the id names another run, or the dataset is already running) |
+| `POST /v1/import/runs` | device, or the `import-once` key | `{ id: Id, run_id: string, dataset: 'threads'\|'messages'\|'notebook'\|'muse'\|'board' (never built: the Board was cut)\|'chat_files'\|'music'\|'music_log' }` | `202 { import_id }` (422: a dataset not built yet, a run without a manifest or that table, messages before threads or the music log before the music are done; 409: the id names another run, or the dataset is already running) |
 | `GET /v1/import/runs/:id` | device, agents | — | `200 ImportStatus { id, run_id, dataset, state, counts: { expected, imported, skipped, skip_reasons, files_waiting }, report: { spot_checks: {seed, checked, passed, failed}, thread_shapes: {checked, failed} \| null, rows_changed, rerun_delta } \| null, last_error, started_at, finished_at }` |
 | `POST /v1/import/phone` | device, from the new site's `/import/` page only (P1b) | `{ id: Id, chunk: number, chunks: number, exported_at: Ms, data: Record<string, unknown> }` (`data` = the `th-phone-export/2` file), gzip, ≤ 5 MB per chunk ([MIGRATION.md §5.3](MIGRATION.md#53-the-two-pages)) | `201 { import_id, counts: Record<string, number> }` (after the last chunk) |
 
@@ -579,27 +579,23 @@ Validation rules: [JOBS.md §3](JOBS.md#3-actions-jobs-audio-analysis).
 
 ### 11.19 Work orders (P4)
 
-Order states, leases, validation and the Board approval are owned by [MUSE.md §3–§6](../mind/MUSE.md); these are the routes.
+Order states, leases and validation are owned by [MUSE.md §3–§6](../mind/MUSE.md); these are the routes. (The Daily Board's routes, `/v1/board/*` and `GET /v1/work/board/brief`, were removed on 2026-10-31: the owner cut the Board.)
 
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `PUT /v1/work/orders/:id` | `mind:chat`, `mind:night` | `{ kind: 'board.edition'\|'research.brief'\|'media.check', title /* ≤ 80 */, spec: { v: 1, goal, inputs, constraints, done_when, sources_policy? } /* ≤ 16 KB */, deadline_at: Ms /* 5 min to 7 days ahead */ }` | `201` the order (`200` the same again); the result schema is the kind's own (`WORK_KINDS` in `shared/contract/work.ts`), never the mind's. No kind is personal yet: one that is will need an approved `reach_people` proposal (`403 needs_approval`). Built P4 stage G |
+| `PUT /v1/work/orders/:id` | `mind:chat`, `mind:night` | `{ kind: 'research.brief'\|'media.check', title /* ≤ 80 */, spec: { v: 1, goal, inputs, constraints, done_when, sources_policy? } /* ≤ 16 KB */, deadline_at: Ms /* 5 min to 7 days ahead */ }` | `201` the order (`200` the same again); the result schema is the kind's own (`WORK_KINDS` in `shared/contract/work.ts`), never the mind's. No kind is personal yet: one that is will need an approved `reach_people` proposal (`403 needs_approval`). Built P4 stage G |
 | `POST /v1/work/orders/:id/cancel` | `mind:chat`, `mind:night`, device | `{ why /* ≥ 8 */ }` | `200 { status: 'cancelled' }` |
 | `GET /v1/work/orders?status=…\|all`, `GET /v1/work/orders/:id` | device, `mind:chat`, `mind:night`, `mind:reflex` | — | `200 Page<WorkOrder>` / `200 WorkOrder` (results marked `origin: 'muse'`) |
-| `GET /v1/work/hello` | `muse` | — | `200 { agent: 'muse', scopes, server_time, board_brief_allowed }` |
+| `GET /v1/work/hello` | `muse` | — | `200 { agent: 'muse', scopes, server_time }` |
 | `POST /v1/work/claim` | `muse` | `{}` | `200 { order }` (oldest `queued` order whose deadline hasn't passed) or `204` |
 | `POST /v1/work/orders/:id/heartbeat` | `muse` | `{ note? /* ≤ 120 */ }` | `200 { lease_until }` (30 min lease) |
 | `PUT /v1/work/orders/:id/result` | `muse` | `{ result /* ≤ 256 KB */, files?: Ref[] }` | `200 { status: 'done' }` or `422 invalid_result` with `details` (the order becomes `rejected`) |
 | `POST /v1/work/orders/:id/fail` | `muse` | `{ reason /* ≤ 280 */ }` | `200 { status }` |
 | `POST /v1/work/orders/:id/files` | `muse` | raw bytes, header `TH-File-Name` (≤ 15 MB, ≤ 10 per order) | `201 { ref, sha256 }` [not built: no P4 kind has files; `music.ingest` in P5] |
-| `GET /v1/work/board/brief` | `muse` | — | `200 { version, brief }`, or `409` (with the reason) until the owner approved the standing Board card and wrote a brief (409, not 403: Muse may call the route) |
 | `GET /v1/work/thread?after=<seq>` | `muse`, device, `mind:chat`, `mind:night` | — | `200 Page<MuseNote>` (Muse's own thread, never the owner's conversation; newest 500 kept) |
 | `POST /v1/work/thread/messages` | `muse`, device, `mind:chat`, `mind:night` | `{ id: Id, body /* ≤ 2,000 */ }` | `201 { id }` (the author is the caller's: muse, owner or mind) |
-| `GET /v1/board/brief`, `PUT /v1/board/brief` | device, `mind:chat`, `mind:night` | PUT: `{ version, brief: BoardBrief }` (the old relay's board profile, unchanged) | `200 { version, brief, allowed }` / `200 { version }`; `409` when the version moved. The first brief raises the Worker's standing card `board.allow` (`reach_people`) once |
-| `DELETE /v1/board/approval` | device | — | `200 { allowed: false }`: Muse can't read the brief from then on |
-| `GET /v1/briefing` | device | — | `200 BriefingResponse` (`shared/contract/briefing.ts`): the title line, the weather tile (P8; Open-Meteo asked again when the kept forecast is over 30 minutes old), "Waiting on you", the Board tile, Muse's line |
+| `GET /v1/briefing` | device | — | `200 BriefingResponse` (`shared/contract/briefing.ts`): the title line, the weather tile (P8; Open-Meteo asked again when the kept forecast is over 30 minutes old), "Waiting on you", the night shift's tiles, Muse's line |
 | `PUT /v1/briefing/place` | device | `{ name /* 2–80 */ }` | `200 { place }`: the town looked up with Open-Meteo's geocoder and kept (coordinates to 0.1°), its forecast fetched; `422` "No place by that name." | P8 |
-| `GET /v1/board/editions/:day` | device, `mind:chat`, `mind:night` | — | `200 { day, edition, finished_at, origin: 'muse' }` (the v2 edition Muse returned, checked); `404` |
 
 ### 11.20 Settings and push
 
@@ -752,10 +748,9 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `POST /v1/export`, `GET /v1/export/:id`, `GET /v1/export/:id/zip` | D | P4 |
 | `PUT /v1/work/orders/:id`, `POST /v1/work/orders/:id/cancel` | C N (cancel also D) | P4 |
 | `GET /v1/work/orders` | D C N R | P4 |
-| `GET /v1/work/hello`, `POST /v1/work/claim`, `/v1/work/orders/:id/{heartbeat,result,fail,files}`, `GET /v1/work/board/brief` | M | P4 |
+| `GET /v1/work/hello`, `POST /v1/work/claim`, `/v1/work/orders/:id/{heartbeat,result,fail,files}` | M | P4 |
 | `/v1/work/thread*` | M D C N | P4 |
-| `GET /v1/board/brief`, `PUT /v1/board/brief`, `GET /v1/board/editions/:day` | D C N | P4 |
-| `DELETE /v1/board/approval`, `GET /v1/briefing` | D | P4 |
+| `GET /v1/briefing` | D | P4 |
 | `PUT /v1/briefing/place` | D | P8 |
 | `PUT /v1/senses/batches/:id` | D | P5 |
 | `POST /v1/senses/query` | C N R | P5 |

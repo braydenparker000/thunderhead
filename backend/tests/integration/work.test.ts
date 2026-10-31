@@ -2,7 +2,7 @@
 // claims it, heartbeats and returns a result the Worker checks against the kind's schema (a field
 // too many, a javascript: link or a token-shaped string is named and refused); a lease with no
 // heartbeat lapses and the third lapse fails it; a deadline expires it; the owner can cancel one.
-// The Board, Muse's thread and `muse.silent` are in board.test.ts.
+// Muse's thread and `muse.silent` are in muse.test.ts.
 import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { WorkHello, WorkOrder } from '../../../shared/contract/work.ts';
@@ -54,7 +54,7 @@ describe('work orders', () => {
       (await apiJson<WorkOrder>('PUT', `/v1/work/orders/${id}`, { ...as(p.C, CHAT_SESSION), body: research() })).status,
     ).toBe(200);
     const hello = await apiJson<WorkHello>('GET', '/v1/work/hello', { token: M });
-    expect(hello.body).toMatchObject({ agent: 'muse', board_brief_allowed: false });
+    expect(hello.body).toMatchObject({ agent: 'muse', scopes: ['work.claim', 'work.result', 'work.thread'] });
     const first = await coreSql<{ what: string }>("SELECT what FROM ledger WHERE ref = 'work:hello'");
     expect(first).toEqual([{ what: 'Muse called the new Worker for the first time' }]);
     const c = await apiJson<{ order: WorkOrder }>('POST', '/v1/work/claim', { token: M, body: {} });
@@ -134,16 +134,9 @@ describe('work orders', () => {
 
 describe('what reaches Muse', () => {
   it('nothing never stored, and nothing at all from a session that read outside content', async () => {
-    const brief = {
-      focus: 'The week, briefly.',
-      interests: [{ topic: 'Weather', priority: 'high' }],
-      depth: 'headlines',
-      stories: { min: 1, max: 3 },
-      lookbackHours: 24,
-    };
-    const pw = await apiJson<{ error: { details: { issue: string }[] } }>('PUT', '/v1/board/brief', {
+    const pw = await apiJson<{ error: { details: { issue: string }[] } }>('PUT', `/v1/work/orders/${uuidv7()}`, {
       ...as(p.C, CHAT_SESSION),
-      body: { version: 0, brief: { ...brief, notes: 'My password is hunter2' } },
+      body: { ...research(), spec: { ...research().spec, goal: 'Check this. My password is hunter2' } },
     });
     expect(pw.status).toBe(422);
     expect(pw.body.error.details[0].issue).toBe('never_stored');
@@ -163,10 +156,5 @@ describe('what reaches Muse', () => {
       body: research(),
     });
     expect([tainted.status, tainted.body.error.code]).toEqual([403, 'session_tainted']);
-    expect(
-      (await api('PUT', '/v1/board/brief', { ...as(p.C, CHAT_SESSION), body: { version: 0, brief } })).status,
-    ).toBe(403);
-    // The owner's own device may always.
-    expect((await api('PUT', '/v1/board/brief', { token: p.D, body: { version: 0, brief } })).status).toBe(200);
   });
 });

@@ -2,8 +2,7 @@
 // The Briefing page (BRIEFING.md), one swipe right of home: the date, the Thunderhead's line, and
 // the tiles the Worker says have something to say (GET /v1/briefing): the weather first (a tap
 // opens its next hours and the place, weather.js), "Waiting on you" (gold; a tap goes home to the
-// card), the night shift's tiles (a tap opens their place in their app), then the Board last (a
-// tap opens the reader, board.js). It paints from this phone first
+// card), then the night shift's tiles (a tap opens their place in their app). It paints from this phone first
 // (IndexedDB `th-data`, wiped on sign-out), then from the Worker when the page comes into view, and
 // again when a card, a work order or a setting changes. With nothing but the weather, a quiet line
 // says the night arranges it (BRIEFING.md §7) instead of a placeholder tile. While nothing is on
@@ -58,7 +57,6 @@ export async function startBriefing() {
     const t = /** @type {HTMLElement | null} */ (/** @type {HTMLElement} */ (e.target).closest('[data-go]'));
     if (!t) return;
     if (t.dataset.go === 'waiting') toCard();
-    else if (t.dataset.go === 'board') import('./board.js').then((m) => m.openBoard(/** @type {string} */ (t.dataset.day)));
     else if (t.dataset.go === 'open' && t.dataset.path?.startsWith('/')) {
       // A tap acts on the night's arrangement (EVALS.md M-16): one sense, kept before the page leaves
       // (the next page sends it if this one can't).
@@ -96,10 +94,9 @@ function refresh() {
 }
 
 /** A tile: key line (icon and label), value, detail; a button when it goes somewhere.
- * @param {{ icon: string, label: string, value: string, detail: string, cls?: string, go?: string, day?: string }} t */
+ * @param {{ icon: string, label: string, value: string, detail: string, cls?: string, go?: string }} t */
 function tile(t) {
   const node = el(t.go ? 'button' : 'div', { class: `tile ${t.cls ?? ''}`.trim(), ...(t.go ? { type: 'button', 'data-go': t.go } : {}) });
-  if (t.day) node.dataset.day = t.day;
   const k = el('span', { class: 'k' });
   k.append(icon(t.icon), t.label);
   node.append(k, el('span', { class: 'v', text: t.value }), el('span', { class: 's', text: t.detail }));
@@ -147,7 +144,6 @@ function draw(b) {
     if (t.kind === 'night') tiles.push(keyed(nightTile(t), `night:${t.label}`));
     else tiles.push(keyed(tile({ icon: 'bell', label: t.label, value: t.value, detail: t.detail, cls: 'gold half', go: 'waiting' }), `waiting:${t.label}`));
   }
-  if (b.board) tiles.push(keyed(tile({ icon: 'newspaper', label: 'The Board', value: b.board.title, detail: b.board.detail, cls: 'wide board', go: 'board', day: b.board.day }), 'board'));
   // The owner's arrangement: their order first, the rest as the Worker gave them; hidden ones out.
   const arr = arrangement();
   const place = (/** @type {HTMLElement} */ t) => {
@@ -173,7 +169,7 @@ function draw(b) {
   /** @type {HTMLElement[]} */
   const notes = [];
   if (b.muse) notes.push(el('p', { class: 'bmuse', text: b.muse }));
-  if (!b.board && !b.tiles.length) notes.push(el('p', { class: 'bmuse', text: 'I’ll arrange this page each night. Tomorrow it fills in.' }));
+  if (!b.tiles.length) notes.push(el('p', { class: 'bmuse', text: 'I’ll arrange this page each night. Tomorrow it fills in.' }));
   if (hidden.length) {
     const show = el('button', { type: 'button', class: 'bmuse bhidden', text: `${hidden.length === 1 ? 'One tile' : `${hidden.length} tiles`} hidden · Show` });
     show.addEventListener('click', () => {

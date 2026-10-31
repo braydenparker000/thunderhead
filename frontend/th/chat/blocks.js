@@ -1,18 +1,11 @@
 // @ts-check
-// The Board reader (BRIEFING.md §5): one day's edition, full screen over the Briefing, one history
-// entry (Back returns). The cover (date, title, summary, thesis), "In 30 seconds" (each story's
-// dek), then the stories in order: label, title, dek, why it matters, the blocks of the v2 format
-// (prose, stats, chart, comparison, timeline, perspectives, agenda, quote, callout, explanation),
-// what's next, the competing reading, and numbered sources. It is Muse's work, labelled so, in
-// Inter only. Every string is set with textContent and every link must be https: the Worker
-// checked the edition against its schema, and the page checks links again.
-import { api, signedIn } from '../client.js';
-import { lineFor } from '../copy.js';
-import { failure } from '../flow.js';
+// What is better shown than told (HOME.md §4.3): the blocks a reply may carry under its words
+// (`meta.blocks`): prose, stats, chart, comparison, timeline, perspectives, agenda, quote, callout
+// and explanation, in Inter (they are not the Thunderhead's voice). Every string is set with
+// textContent. Loaded only when a reply has blocks (th/chat/view.js).
 import { el } from '../ui.js';
 
 const SVG = 'http://www.w3.org/2000/svg';
-const THEMES = new Set(['ink', 'ember', 'tide', 'moss', 'dusk', 'gold']);
 
 /** @param {string} tag @param {Record<string, string | number>} attrs */
 const svg = (tag, attrs = {}) => {
@@ -22,102 +15,6 @@ const svg = (tag, attrs = {}) => {
 };
 const txt = (/** @type {unknown} */ v) => (typeof v === 'string' ? v : '');
 const list = (/** @type {unknown} */ v) => (Array.isArray(v) ? v : []);
-const https = (/** @type {unknown} */ u) => {
-  try {
-    return typeof u === 'string' && new URL(u).protocol === 'https:' ? u : null;
-  } catch {
-    return null;
-  }
-};
-
-let open = /** @type {HTMLElement | null} */ (null);
-
-/** Opens the edition of `day`. @param {string} day */
-export async function openBoard(day) {
-  open?.remove();
-  const back = el('button', { type: 'button', class: 'sback', text: '‹ Briefing' });
-  const body = el('div', { class: 'brd' }, [el('p', { class: 'shelp', text: 'Loading the Board…' })]);
-  const page = el('section', { class: 'spage boardr', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'The Board' }, [back, body]);
-  document.querySelector('#app')?.append(page);
-  open = page;
-  requestAnimationFrame(() => page.classList.add('in'));
-  history.pushState({ th: 'board' }, '');
-  const close = (fromPop = false) => {
-    page.classList.remove('in');
-    setTimeout(() => page.remove(), 320);
-    if (open === page) open = null;
-    removeEventListener('popstate', onPop);
-    if (!fromPop && history.state?.th === 'board') history.back();
-  };
-  const onPop = () => close(true);
-  addEventListener('popstate', onPop);
-  back.addEventListener('click', () => close());
-  page.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') close();
-  });
-  back.focus({ preventScroll: true });
-  try {
-    /** @type {{ day: string, edition: any }} */
-    const r = await signedIn((t) => api.call(`/v1/board/editions/${encodeURIComponent(day)}`, { token: t }));
-    body.replaceChildren(...edition(r.edition, r.day, close));
-  } catch (e) {
-    body.replaceChildren(el('p', { class: 'line', role: 'status', text: navigator.onLine ? lineFor(failure(e)) : "You're offline. The Board shows once you're back." }));
-  }
-}
-
-/** @param {any} e @param {string} day @param {() => void} close @returns {HTMLElement[]} */
-function edition(e, day, close) {
-  const theme = THEMES.has(e?.edition?.theme) ? e.edition.theme : 'ink';
-  const when = new Date(`${day}T12:00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
-  const cover = el('header', { class: `bcover t-${theme}` }, [
-    el('p', { class: 'bfrom', text: `${when} · from Muse` }),
-    el('h1', { text: txt(e.title) }),
-    ...(txt(e.summary) ? [el('p', { class: 'bsum', text: e.summary })] : []),
-    ...(txt(e?.edition?.thesis) ? [el('p', { class: 'bthesis', text: e.edition.thesis })] : []),
-  ]);
-  const stories = list(e.stories);
-  const quick = el('section', { class: 'bquick', 'aria-label': 'In 30 seconds' }, [
-    el('h2', { text: 'In 30 seconds' }),
-    el('ol', {}, stories.map((s, i) => {
-      const a = el('a', { href: `#story-${i}`, text: txt(s.dek) || txt(s.title) });
-      a.addEventListener('click', (ev) => {
-        ev.preventDefault();
-        document.getElementById(`story-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      });
-      return el('li', {}, [a]);
-    })),
-  ]);
-  return [cover, quick, ...stories.map((s, i) => story(s, i, close))];
-}
-
-/** @param {any} s @param {number} i @param {() => void} close */
-function story(s, i, close) {
-  const sources = list(s.sources);
-  const node = el('article', { class: `bstory c-${txt(s.composition) || 'feature'}`, id: `story-${i}` }, [
-    ...(txt(s.label) ? [el('p', { class: 'blabel', text: s.label })] : []),
-    el('h2', { text: txt(s.title) }),
-    el('p', { class: 'bdek', text: txt(s.dek) }),
-    ...(txt(s.whyItMatters) ? [el('div', { class: 'bwhy' }, [el('strong', { text: 'Why it matters' }), el('p', { text: s.whyItMatters })])] : []),
-    ...list(s.blocks).map((b) => block(b, sources)),
-    ...(txt(s.whatsNext) ? [el('div', { class: 'bnext' }, [el('strong', { text: "What's next" }), el('p', { text: s.whatsNext })])] : []),
-    ...(txt(s?.disagreement?.text)
-      ? [el('div', { class: 'bdis' }, [el('strong', { text: txt(s.disagreement.label) || 'Another reading' }), el('p', { text: s.disagreement.text })])]
-      : []),
-    sourceList(sources),
-  ]);
-  const ask = el('button', { type: 'button', class: 'bask', text: 'Ask about this' });
-  ask.addEventListener('click', () => {
-    const q = /** @type {HTMLTextAreaElement | null} */ (document.querySelector('#q'));
-    close();
-    document.dispatchEvent(new CustomEvent('th:go', { detail: 'home' }));
-    if (q) {
-      q.value = `About the Board story “${txt(s.title)}”: `;
-      setTimeout(() => q.focus(), 400);
-    }
-  });
-  node.append(ask);
-  return node;
-}
 
 /** Numbered marks for the sources a block cites. @param {unknown} cites @param {any[]} sources */
 function marks(cites, sources) {
@@ -126,7 +23,7 @@ function marks(cites, sources) {
   return [el('sup', { class: 'bcite', text: ns.map((n) => `[${n + 1}]`).join('') })];
 }
 
-/** One block of the v2 format; also a reply's `meta.blocks` (th/chat/view.js). @param {any} b @param {any[]} sources */
+/** One block of a reply's `meta.blocks`. @param {any} b @param {any[]} sources */
 export function block(b, sources) {
   const t = txt(b?.type);
   const wrap = el('div', { class: `bb b-${t}` });
@@ -219,17 +116,4 @@ function chart(b) {
   });
   fig.append(g, read, legend);
   return fig;
-}
-
-/** The story's sources, numbered as the marks are. @param {any[]} sources */
-function sourceList(sources) {
-  return el('details', { class: 'bsrc' }, [
-    el('summary', { text: `Sources (${sources.length})` }),
-    el('ol', {}, sources.map((s) => {
-      const href = https(s.url);
-      const name = [txt(s.publisher), txt(s.title)].filter(Boolean).join(': ');
-      const link = href ? el('a', { href, target: '_blank', rel: 'noopener noreferrer', text: name }) : el('span', { text: name });
-      return el('li', {}, [link, ...(txt(s.note) ? [el('span', { class: 'bsn', text: ` ${s.note}` })] : [])]);
-    })),
-  ]);
 }

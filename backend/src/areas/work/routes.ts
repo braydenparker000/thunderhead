@@ -1,19 +1,12 @@
-// /v1/work (API.md §11.21, MUSE.md §4) and /v1/board (BRIEFING.md §5): the mind makes and cancels
-// work orders; Muse, server to server with its own key, says hello, claims one order at a time,
-// heartbeats it, returns its result (checked against the kind's schema; 422 names each problem)
-// or a failure, reads the owner's Board brief once the owner allowed it, and keeps notes in its
-// own thread. The owner and the mind read and change the brief. The sandbox has none of it.
+// /v1/work (API.md §11.21, MUSE.md §4): the mind makes and cancels work orders; Muse, server to
+// server with its own key, says hello, claims one order at a time, heartbeats it, returns its
+// result (checked against the kind's schema; 422 names each problem) or a failure, and keeps notes
+// in its own thread. The sandbox has none of it.
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import * as z from 'zod/mini';
 import type { Page } from '../../../../shared/contract/api';
-import {
-  type BoardBrief,
-  type MuseNote,
-  WORK_KIND_NAMES,
-  WORK_LIMITS,
-  type WorkOrder,
-} from '../../../../shared/contract/work.ts';
+import { type MuseNote, WORK_KIND_NAMES, WORK_LIMITS, type WorkOrder } from '../../../../shared/contract/work.ts';
 import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { callerOf } from '../../http/caller';
 import { ApiError } from '../../http/errors';
@@ -38,32 +31,6 @@ const putBody = z.strictObject({
   }),
   deadline_at: z.number().check(z.int()),
 });
-const briefBody = z.strictObject({
-  version: z.number().check(z.int(), z.minimum(0)),
-  brief: z.strictObject({
-    focus: line(1_000),
-    interests: z
-      .array(
-        z.strictObject({ topic: line(120), priority: z.enum(['high', 'normal', 'low']), notes: z.optional(line(500)) }),
-      )
-      .check(z.minLength(1), z.maxLength(30)),
-    avoid: z.optional(z.array(line(120)).check(z.maxLength(30))),
-    regions: z.optional(z.array(line(80)).check(z.maxLength(20))),
-    depth: z.enum(['headlines', 'standard', 'deep']),
-    stories: z.strictObject({
-      min: z.number().check(z.int(), z.minimum(1), z.maximum(12)),
-      max: z.number().check(z.int(), z.minimum(1), z.maximum(12)),
-    }),
-    lookbackHours: z.number().check(z.int(), z.minimum(6), z.maximum(168)),
-    sources: z.optional(
-      z.strictObject({
-        prefer: z.optional(z.array(line(200)).check(z.maxLength(20))),
-        avoid: z.optional(z.array(line(200)).check(z.maxLength(20))),
-      }),
-    ),
-    notes: z.optional(line(2_000)),
-  }),
-}) satisfies z.ZodMiniType<{ version: number; brief: BoardBrief }>;
 const listQuery = z.object({
   status: z.optional(z.enum(['queued', 'claimed', 'done', 'rejected', 'failed', 'expired', 'cancelled', 'all'])),
   limit: z.optional(z.coerce.number().check(z.int(), z.minimum(1), z.maximum(100))),
@@ -114,24 +81,6 @@ export const workRoutes = new Hono<AppEnv>()
     if (!o) throw new ApiError('not_found');
     return c.json(o);
   })
-  .get('/board/brief', guard('GET /v1/board/brief'), async (c) => {
-    noSandbox();
-    const b = await fresh(coreObject(c.env).boardBrief());
-    return c.json(b ?? { version: 0, brief: null, allowed: false });
-  })
-  .put('/board/brief', guard('PUT /v1/board/brief'), async (c) => {
-    noSandbox();
-    const body = await json(c, briefBody);
-    if (body.brief.stories.min > body.brief.stories.max)
-      throw new ApiError('validation', [{ path: 'brief.stories', issue: 'min is above max' }]);
-    return c.json(
-      value(await fresh(coreObject(c.env).boardBriefPut(callerOf(c), body.version, body.brief as BoardBrief))),
-    );
-  })
-  .delete('/board/approval', guard('DELETE /v1/board/approval'), async (c) => {
-    noSandbox();
-    return c.json(await fresh(coreObject(c.env).boardDisallow(callerOf(c))));
-  })
   // --- Muse ---------------------------------------------------------------------------------
   .get('/work/hello', guard('GET /v1/work/hello'), async (c) => c.json(await fresh(coreObject(c.env).workHello())))
   .post('/work/claim', guard('POST /v1/work/claim'), async (c) => {
@@ -166,15 +115,6 @@ export const workRoutes = new Hono<AppEnv>()
   .post('/work/orders/:id/fail', guard('POST /v1/work/orders/:id/fail'), async (c) => {
     const { reason } = await json(c, z.strictObject({ reason: line(WORK_LIMITS.fail_reason) }));
     return c.json(value(await fresh(coreObject(c.env).workFail(idOf(c.req.param('id')), reason))));
-  })
-  .get('/work/board/brief', guard('GET /v1/work/board/brief'), async (c) => {
-    const b = (await fresh(coreObject(c.env).workBoardBrief())) as { version: number; brief: BoardBrief } | null;
-    // 409, not 403: Muse may call this route; the owner hasn't allowed it yet (or written no brief).
-    if (!b)
-      throw new ApiError('conflict', {
-        reason: "the owner hasn't allowed Muse to read the Board brief, or hasn't written one",
-      });
-    return c.json(b);
   })
   .get('/work/thread', guard('GET /v1/work/thread'), async (c) => {
     const after = Number(c.req.query('after') ?? 0);

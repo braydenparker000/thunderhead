@@ -1,7 +1,6 @@
 // What GET /v1/briefing answers (BRIEFING.md): the page's title line, the weather (P8), its tiles
-// in order ("Waiting on you", then the night shift's tiles, P8), the Board tile last,
-// and one line about Muse when there is something to say. Counts and titles only; the Board itself
-// is read from GET /v1/board/editions/:day.
+// in order ("Waiting on you", then the night shift's tiles, P8), and one line about Muse when there
+// is something to say. Counts and titles only.
 
 export interface WaitingTile {
   kind: 'waiting';
@@ -30,16 +29,6 @@ export interface NightTile {
   ledger_id: string | null;
 }
 
-export interface BoardTile {
-  day: string;
-  title: string;
-  detail: string;
-  stories: number;
-  minutes: number;
-  /** Yesterday's edition, shown because today's hasn't come. */
-  stale: boolean;
-}
-
 /** BRIEFING.md §2, §6: the weather tile, always first; with no place, the one that asks for it. */
 export interface WeatherTile {
   /** The place's name, or null when none is set. */
@@ -65,7 +54,6 @@ export interface BriefingResponse {
   weather: WeatherTile;
   /** At most 8, in order: "Waiting on you", then the night's tiles by slot. */
   tiles: (WaitingTile | NightTile)[];
-  board: BoardTile | null;
   /** "Muse is connected to the new Worker." / "Muse hasn't checked in since yesterday." / null */
   muse: string | null;
 }

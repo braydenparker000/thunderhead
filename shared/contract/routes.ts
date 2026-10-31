@@ -196,15 +196,10 @@ export const ROUTES = {
   'PUT /v1/work/orders/:id/result': { who: ['M'], phase: 'P4', note: 'checked against the kind\'s schema; 422 names each problem' },
   'POST /v1/work/orders/:id/fail': { who: ['M'], phase: 'P4' },
   'POST /v1/work/orders/:id/files': { who: ['M'], phase: 'P4', deferred: 'an order kind with files (music.ingest, P5)' },
-  'GET /v1/work/board/brief': { who: ['M'], phase: 'P4', note: 'only with the owner\'s standing approval' },
   'GET /v1/work/thread': { who: ['M', 'D', 'C', 'N'], phase: 'P4', note: 'Muse\'s own thread, never the owner\'s conversation' },
   'POST /v1/work/thread/messages': { who: ['M', 'D', 'C', 'N'], phase: 'P4' },
-  'GET /v1/board/brief': { who: ['D', 'C', 'N'], phase: 'P4' },
-  'PUT /v1/board/brief': { who: ['D', 'C', 'N'], phase: 'P4', note: 'the owner\'s Board choices; the mind writes it from the owner\'s words' },
-  'DELETE /v1/board/approval': { who: D, phase: 'P4', note: 'withdraws Muse\'s reading of the brief' },
   'GET /v1/briefing': { who: D, phase: 'P4' },
   'PUT /v1/briefing/place': { who: D, phase: 'P8', note: "the weather's place, by a town's name" },
-  'GET /v1/board/editions/:day': { who: ['D', 'C', 'N'], phase: 'P4', note: 'outside text from Muse, checked against the v2 schema' },
 
   // --- P5 and later ---------------------------------------------------------------------------
   'GET /v1/music/catalog': { who: D, phase: 'P5', note: "the ported player's format; ETag, 304; 409 before the import" },

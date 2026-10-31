@@ -339,11 +339,11 @@ Acceptance (Playwright, local server): serve build A, then B. While a fake `audi
 | P1b | The five ported app pages, copied as they are (§11); per-page CSPs; the old Worker's origin list gains the new site (ask first); phone-local data restored on the new origin |
 | P2 | Threads, messages, FTS5, live WebSocket, `/v1/live/wait`, mind wakes, `th` CLI, `mind-chat` |
 | P3 | Import from the old Worker, memory v1, ledger undo for memory, `mind-night` |
-| P4 | Proposals approved by a device tap or the owner's own words, role enforcement, `mind-reflex`, watchdogs, weekly backups, restore drill, export, Muse work orders (the Board in the Briefing) |
+| P4 | Proposals approved by a device tap or the owner's own words, role enforcement, `mind-reflex`, watchdogs, weekly backups, restore drill, export, Muse work orders |
 | P5 | `Senses` and `Music` (two deploys), presigned media, R2 CORS, `jobs-audio.yml`; the ported player switches to the new Worker. Router + view transitions only if the owner agrees |
 | P6 | Guitar's data moves to the new Worker (Songsterr stays the tab source) |
 | P7 | `Library` + Study |
-| P8 | Briefing data (weather and app tiles; the Board, still produced by Muse, is in the Briefing from P4); Astra, Podcasts and My Media data moves; push. Then the old Worker can retire (zero callers for 7 days, then an owner-approved proposal) |
+| P8 | Briefing data (weather and app tiles); Astra, Podcasts and My Media data moves; push. Then the old Worker can retire (zero callers for 7 days, then an owner-approved proposal) |
 | P9 | The meter |
 
 ---

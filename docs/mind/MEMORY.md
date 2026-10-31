@@ -225,7 +225,7 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 | M15 | The mind only makes a fact more protected: it never lowers `sensitivity` (a sensitive tag or `about=person` makes it 1), never sets `may_raise=1` on its own (faith never), never drops a sensitive, `faith` or `imported` tag ([PRIVACY.md §4](../engineering/PRIVACY.md)); only the owner can | (applied as the protected value) |
 | M16 | §13's never-stored text (keys and tokens, passwords, card and bank numbers) is refused in facts, loose ends and day notes | `422` `never_stored` |
 
-**Taint sources:** web pages, search results, song tags and tab files, PDFs and other files not written by the owner, emails, Board sources, PR or issue comments not by the owner, Muse output, the wake text. Outside content is stored, if at all, as `origin=external` (Board items, imported web text) and can only be cited in answers.
+**Taint sources:** web pages, search results, song tags and tab files, PDFs and other files not written by the owner, emails, PR or issue comments not by the owner, Muse output, the wake text. Outside content is stored, if at all, as `origin=external` (Board items, imported web text) and can only be cited in answers.
 
 **Acceptance:** injection fixtures INJ-01…25 ([EVALS.md](EVALS.md)) create zero facts; a backend test per rule.
 

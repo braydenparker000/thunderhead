@@ -132,24 +132,17 @@ export async function order(argv) {
   throw invalid('usage: th order new --kind <k> --spec <json> --deadline <iso> [--title <t>] | list | get <id> | cancel <id> --why <t>');
 }
 
-/** `th board brief | set --version <n> <json|-> | notes [--after <seq>] | note <text>`: the owner's
- * Board brief (written from the owner's own words), and Muse's thread. */
-export async function board(argv) {
+/** `th muse notes [--after <seq>] | note <text>`: Muse's own thread (MUSE.md §4). */
+export async function muse(argv) {
   const {flags, rest} = parseArgs(argv);
   const [sub, ...words] = rest;
-  if (sub === 'brief') return out((await request('GET', '/v1/board/brief')).data);
-  if (sub === 'set') {
-    const version = Number(need(flags, 'version'));
-    const text = textArg(words.length ? words : ['-']);
-    return out((await request('PUT', '/v1/board/brief', {body: {version, brief: jsonFlag(text, 'brief')}})).data);
-  }
   if (sub === 'notes') return out((await request('GET', '/v1/work/thread', {query: {after: flags.after ?? 0}})).data);
   if (sub === 'note' && words.length) {
     const noteId = uuidv7();
     await request('POST', '/v1/work/thread/messages', {body: {id: noteId, body: words.join(' ')}});
     return out({id: noteId});
   }
-  throw invalid('usage: th board brief | set --version <n> <json|-> | notes [--after <seq>] | note <text>');
+  throw invalid('usage: th muse notes [--after <seq>] | note <text>');
 }
 
 /** `th surface <app> <slot> --kind … | ls | rm <app> <slot>`: any surface kind in the contract. */

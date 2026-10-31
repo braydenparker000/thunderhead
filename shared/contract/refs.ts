@@ -22,7 +22,6 @@ export type RefKind =
   | 'verse'
   | 'podcast'
   | 'astra'
-  | 'media'
-  | 'board';
+  | 'media';
 
 export type Ref = `${RefKind}:${string}`;

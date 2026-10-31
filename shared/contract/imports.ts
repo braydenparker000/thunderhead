@@ -78,7 +78,7 @@ export const IMPORT_DATASETS: Readonly<Record<ImportDataset, ImportDatasetSpec>>
     instance: 'jarvis-shared-v2',
     table: 'shared_entries',
     built: false,
-    waits: 'the Board on the Briefing page (P4)',
+    waits: 'never: the owner cut the Daily Board (2026-10-31), so its old editions stay in the archive',
   },
   chat_files: {
     item: 'I6',

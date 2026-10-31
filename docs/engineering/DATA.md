@@ -99,7 +99,6 @@ fragment = [A-Za-z0-9._:-]{1,64}
 | `podcast` | `podcast:feed-9/ep-41` | a feed or episode |
 | `astra` | `astra:movie:tt0000001` | an Astra title |
 | `media` | `media:vid-88` | a My Media item |
-| `board` | `board:2026-10-28#s3` | a Board story |
 
 - A new kind is added in `refs.ts` with an app doc that defines it. An unknown kind is rejected with `422 validation`.
 - Refs are opaque to the client except for `kind`. The Worker maps media refs to R2 keys, so the bucket layout never leaks into the client.
@@ -216,7 +215,7 @@ The columns match [MEMORY.md §2](../mind/MEMORY.md), which also owns the rules 
 
 ### 4.5 Later `Core` tables
 
-`board(date TEXT PK, r2_key TEXT, top_line TEXT, read_at INTEGER)` arrives with the Board import in P3 ([MIGRATION.md §4](MIGRATION.md), [BRIEFING.md](../product/BRIEFING.md)). `lists` and `list_items` (playlists and watchlists, P5) are specified in [MUSIC.md](../product/apps/MUSIC.md). They follow this page's conventions.
+`board(…)` was planned for the Board import and is not coming: the owner cut the Daily Board (2026-10-31). `lists` and `list_items` (playlists and watchlists, P5) are specified in [MUSIC.md](../product/apps/MUSIC.md). They follow this page's conventions.
 
 ---
 
@@ -509,7 +508,7 @@ The full plan, with the order of datasets and the switch-over, is in [MIGRATION.
    | I2 chat messages | `Core.messages`, `origin='import'` | Body byte-equal; each message's FTS entry written with it; a reply to a message not imported keeps no link |
    | I3 notebook | `Core.import_items` | The mind converts it once into facts citing `import:<id>` (P3) |
    | I4 Muse chat, work, files | a `muse` thread + closed `work_orders`; files to `muse/files/` | |
-   | I5 Board editions and profile | `board/<date>.json` + `Core.board` + `settings` | |
+   | I5 Board editions and profile | not imported: the Board was cut (2026-10-31); they stay in the archive | |
    | I6 chat files | `chat/files/…` (R2 to R2 inside the Worker, size and ETag checked) | Originals stay in `jarvis-music` |
    | I7 music catalog | `Music.tracks`, `Music.catalog_log` | P5, on its own day (≈ 2 writes per track) |
    | sign-in tables | **not imported** | The owner signs in fresh |

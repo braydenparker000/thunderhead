@@ -106,7 +106,7 @@ Worker requests, 100,000 Durable Object rows written, 5M rows read. Imports are 
 | Caller | Routes it uses | Switches when |
 |---|---|---|
 | Old site pages: Chats | `/claude-chat/*`, `/relay/owner/*` (sign-in, Muse line) | The owner uses the new Home daily (P2–P3) |
-| Old site: Daily Board reader | `/shared/state`, `/shared/board-draft` | The Board (still produced by Muse) shows in the Briefing (P4, when Muse moves to work orders; [MUSE](../mind/MUSE.md) §8) |
+| Old site: Daily Board reader | `/shared/state`, `/shared/board-draft` | None: the owner cut the Daily Board (2026-10-31); the old reader retires with the old site |
 | Old site **and the ported page on the new site** (P1b): Music player | `/music/*` (library, audio, partial reads) | P5 |
 | Old site and ported page: Podcasts | `/podcasts/search`, `/browse`, `/feed`, `/audio` (proxy) | P8 |
 | Old site and ported page: Guitar | `/guitar/*` (tab sources, Songsterr and search proxy) | P6 |
@@ -159,7 +159,7 @@ All imports are chunked, resumable, idempotent upsert jobs on the target Durable
 | I2 | Messages | `cc_messages` → `messages` (role `owner`/`mind`; old Claude replies → `mind`), body unchanged, attachments rewritten to `thunderhead-private/chat/files/…` refs | body byte-equal |
 | I3 | Notebook | `cc_state['notebook']` → `import_items(dataset='notebook', key, body_json)` raw ([DATA.md §4.4](DATA.md#44-memory)); the mind converts it once into facts as [MEMORY](../mind/MEMORY.md) §14 says (`source=user` only when an imported owner message supports the line; otherwise `inferred`, tag `imported`, citing `import:<id>`, for the owner to review) ([MEMORY](../mind/MEMORY.md)) | body byte-equal |
 | I4 | Muse | `relay_mast_entries` → one `muse` thread's messages; `relay_mast_work` + `_events` → `work_orders` with `status` `done`/`expired`, `result_valid` NULL; `relay_mast_files` → file refs, bytes copied | ids, bodies |
-| I5 | Board | each edition (v1 and v2 JSON) → `thunderhead-private/board/<date>.json` + `Core.board(date, r2_key, top_line)`; profile and draft → `settings` | edition JSON deep-equal |
+| I5 | Board | not imported: the Board was cut (owner, 2026-10-31); its editions stay in the export archive | — |
 | I6 | Chat files | copy job `jarvis-music/chat/files/*` → `thunderhead-private/chat/files/*` (R2 to R2 inside the Worker), verifying size and ETag | size + ETag |
 | I7 | Music catalog (P5) | `music_tracks` → `Music.tracks` keeping track IDs, order and `native/audio/<sha256>.opus` keys, each record byte-equal; `music_log` → `catalog_log` by its old `seq`. Built in P5 step 2 as two datasets, `music` then `music_log` (`backend/src/areas/import/music.ts`; the rows are written in the Music object by the step's load) | ids, sha256, size, keys, record and waveform byte-equal |
 
@@ -171,7 +171,7 @@ All imports are chunked, resumable, idempotent upsert jobs on the target Durable
    rows after normalisation.
 3. Running the import again changes 0 rows (the cost meter shows 0 rows written for that job).
 4. Owner check on the phone: the menu shows the old chats filed by date with their titles; the 3 most
-   recent old conversations open and read correctly; the Board history shows the last 7 editions.
+   recent old conversations open and read correctly.
 
 Order and budget: I1–I6 run on day 1 of P3 (estimate well under 40,000 rows); I7 on its own day in P5.
 P3 builds I1–I3 and P5 builds I7; I4–I6 wait for their homes (`IMPORT_DATASETS` in `shared/contract/imports.ts` says for
@@ -324,8 +324,8 @@ for 3 consecutive days.
 | Step | Built | Owner | Done when |
 |---|---|---|---|
 | `jc` → `th` | `th` since P2 (SETUP.md K, 2026-10-29); the agent stopped using `jc` the same day | SETUP.md M4: remove the old host's network secret from the Claude environment, from 2026-11-05 | No `/claude-chat/*` agent call for 7 days, then the secret is gone |
-| Muse → work orders | `/v1/work/*`, the Board brief and its card, the daily `board.edition` order, the Briefing page (P4 G–H) | SETUP.md M3: the brief, the card, Muse's key, the message to Muse | 7 consecutive valid editions on the new Worker; then the `access` card "Muse has moved. Retire its old relay token?" and the owner removes the old secret |
-| The old Board reader | The Board in the Briefing page (P4 H) | — | Retired 7 days after the first edition shows in the Briefing |
+| Muse → work orders (not done: SETUP.md M3 cut, 2026-10-31) | `/v1/work/*` (P4 G–H; the Board's parts removed) | SETUP.md M3: the brief, the card, Muse's key, the message to Muse | 7 consecutive valid editions on the new Worker; then the `access` card "Muse has moved. Retire its old relay token?" and the owner removes the old secret |
+| The old Board reader | None (the Board was cut, 2026-10-31) | — | Retires with the old site |
 
 Settled (decisions 2026-10-28, ROADMAP P4): P4 switches only `jc` and Muse ("the chat CLI and Muse
 use only the new Worker"). The ported apps and the old pages call the old Worker until P5–P8, so the

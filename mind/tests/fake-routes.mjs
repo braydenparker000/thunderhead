@@ -253,7 +253,7 @@ export function extraRoutes(ctl) {
     ['GET', /^\/v1\/predictions\/skill$/, ALL, () => ({categories: []})],
     ['PUT', /^\/v1\/work\/orders\/([^/]+)$/, CN, ({params, body}) => {
       const extra = Object.keys(body).filter(k => !['kind', 'title', 'spec', 'deadline_at'].includes(k));
-      if (extra.length || !['board.edition', 'research.brief', 'media.check'].includes(body.kind) || !body.title || body.title.length > 80 ||
+      if (extra.length || !['research.brief', 'media.check'].includes(body.kind) || !body.title || body.title.length > 80 ||
         !body.spec || !Number.isFinite(body.deadline_at)) throw new HttpError(422, 'validation');
       return idem(s.orders, params[0], body, () => ({id: params[0], ...body, assignee: 'muse', status: 'queued', origin: 'muse'}));
     }],

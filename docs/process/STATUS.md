@@ -59,7 +59,7 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 - Live: A+B (owner-approved proposals, the decision card, the constitution pin, pinned by the owner; quiet hours) and C with C.5 (session taint, protected paths, the role matrix, the injection fixtures, the eval sandbox, the reader). SETUP.md M1 done.
 - Batch D, live since 21:12 UTC (`a02b5f7`): the watchdogs (six built of fourteen, Core v17, `GET /v1/ops/watchdogs`, a briefing line), `mind-reflex` woken by a trip (one open wake, 4 a day, `th reflex`, `th handled`, the Stop hook), and the drill (`th drill`). Inert until SETUP.md M2. The Agents page now says where a mind key goes (a network secret, `Bearer ` and the key).
 - Batch E+F, live since 21:45 UTC (`e0afe43`, Core v18): the weekly backup (Sundays 02:30 local), the monthly restore drill (first Sunday, after the backup), the backup watchdogs, and Settings → Export ("download everything"). The first backup and drill run on their own this Sunday; that drill is P4's "a restore drill passed".
-- Batch G+H, live since 22:26 UTC (`f82d706`, run #37; Core v19): work orders for Muse (`/v1/work/*`, the validator, leases, deadlines, Muse's thread), the Board brief with its standing approval card, the daily Board order, `muse.silent`, and the Briefing page with the Board reader. Owner step: SETUP.md M3 (the brief, the approval, Muse's key, the message to Muse).
+- Batch G+H, live since 22:26 UTC (`f82d706`, run #37; Core v19): work orders for Muse (`/v1/work/*`, the validator, leases, deadlines, Muse's thread), the Board brief with its standing approval card and the daily Board order (all three removed 2026-10-31: the owner cut the Daily Board), `muse.silent`, and the Briefing page with the Board reader. Owner step: SETUP.md M3 (the brief, the approval, Muse's key, the message to Muse).
 - Stage I (the switch-over docs) is written: MIGRATION.md §7 has P4's switch-over checklist; SETUP.md M4 retires `jc` from 2026-11-05.
 - P4's "done when": injection fixtures create nothing (built, C); one real watchdog handled end to end (SETUP.md M2's drill); a restore drill passed (the first runs on its own on Sunday 2026-11-01); the chat CLI and Muse use only the new Worker (`th` since 2026-10-29; Muse after SETUP.md M3, then 7 days of editions).
 
@@ -71,11 +71,11 @@ Step 1: the `Library` object is live alone since 00:31 UTC (`75aa1da`, run #46, 
 
 1. P9's clocks: predictions from the next night; Sunday 2026-11-01 is the first weekly improvement. Then IDEAS.md's next agreed items.
 2. P8: its done-when is its 7-day clocks, then the old Worker's retirement proposal; the Workers AI router waits for its eval set (RT-100, RA-P8-03).
-3. Owner: SETUP.md N1–N4 (music on the new Worker: the playlist from plain words works once they're done), M2, M3, M4 from 2026-11-05; one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
+3. Owner: Muse's test song for N4 (the key is accepted, 2026-10-31), M2, M4 from 2026-11-05 (M3 cut); one real book in Study for P7's done-when. Sunday's first backup and drill are P4's "a restore drill passed".
 
 ## Blocked / waiting on the owner
 
-- SETUP.md M2 (batch D is live) and M3 (G+H is live).
+- SETUP.md M2 (batch D is live). M3 is cut (owner, 2026-10-31: no Muse Daily Board).
 - Study needs no owner step to read books any more (O1 dropped).
 - SETUP.md O2 (the owner's scripture volumes added in Study, then the mind builds the table and text): verses need it.
 - SETUP.md N1 and N2 are done (owner, 2026-10-30; N2's CORS rule checked through the read-only token, exactly as written; r2.dev access is "Not allowed", RA-P5-02). N3 is done (the owner, by 2026-10-31; the new catalog answers with 11,939 tracks); nothing was uploaded since, so no second import is needed. Its clean-up is open: the `import-once` key still answers and must be revoked, and its network secret removed (SETUP.md L3.3). N4 goes through Muse, which does the owner's uploads: the message for Muse is MUSE-UPLOADS.md (Muse makes the key, the owner pastes its public key). The owner playing a song in Music is N1's real check.

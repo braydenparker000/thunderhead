@@ -144,12 +144,12 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
       wrap.classList.add('reveal');
       wrap.style.setProperty('--reveal-ms', `${revealMs(m.body)}ms`);
     }
-    // Up to four of the Board's blocks under the words (HOME.md §4.3), drawn by the Board's own code.
+    // Up to four blocks under the words (HOME.md §4.3), drawn by th/chat/blocks.js.
     const blocks = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).blocks : null;
     if (Array.isArray(blocks) && blocks.length) {
       const host = el('div', 'blocks');
       wrap.append(host);
-      import('../briefing/board.js').then((b) => host.append(...blocks.slice(0, 4).map((x) => b.block(x, []))), () => host.remove());
+      import('./blocks.js').then((b) => host.append(...blocks.slice(0, 4).map((x) => b.block(x, []))), () => host.remove());
     }
     const cites = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).cite?.citations : null;
     if (Array.isArray(cites) && cites.length) wrap.append(whereToStudy(cites));

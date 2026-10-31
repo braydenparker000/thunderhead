@@ -54,7 +54,7 @@ The full, testable text lives in [mind/CONSTITUTION.md](../mind/CONSTITUTION.md)
 |---|---|---|
 | Home | One quiet chat screen with the voice line, the conversation and the ask bar | [HOME.md](HOME.md) |
 | The ring | Hold still anywhere empty: six apps around the finger | [GESTURES.md](../design/GESTURES.md) |
-| Briefing | Swipe right: today at a glance, including the Daily Board (merged into the chat, still produced by Muse) | [BRIEFING.md](BRIEFING.md) |
+| Briefing | Swipe right: today at a glance (weather, what waits, what the night arranged) | [BRIEFING.md](BRIEFING.md) |
 | Menu | Swipe left: search, conversations, settings | [MENU-AND-SETTINGS.md](MENU-AND-SETTINGS.md) |
 | Apps | Music (the Poweramp-style player), Guitar, Podcasts, Astra, My Media, all ported as they are first; Study is new | [apps/](apps/) |
 | Sign-in | Username and password, built right | [SIGN-IN.md](SIGN-IN.md) |
