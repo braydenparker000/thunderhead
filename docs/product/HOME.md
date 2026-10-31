@@ -283,6 +283,7 @@ Closing: tap `+` again, tap anywhere outside, pick an item, Back, or Escape. Bef
 
 ### 6.3 Sending
 
+- **The phone's own commands** (built 2026-10-31, `th/commands/commands.js`; NEXT-BATCH.md part 5): a few plain orders are carried out on the phone at once, with no mind and no wait, as "go quiet" is: "open guitar" (any app, by the name the owner calls it) and "remind me at 5 to call the bank", "remind me to stretch in 20 minutes", "remind me tomorrow at 8 to …", "remind me tonight to …". Under the bar, while typing, one line says exactly what it will do ("A reminder at 17:00: Call the bank", "Opens Guitar."); the reminder's toast has Undo. Only the plain order counts: a question, or a time it can't read, goes to the mind as words, unchanged. Playback orders ("pause", "skip", "play Evening") come with the island (part 3).
 - Send by the send button, the keyboard's Send/Enter key, or Ctrl/Cmd+Enter on a hardware keyboard (Shift+Enter is a new line).
 - Whitespace-only input never sends.
 - Limit: **8,000 characters** [proposal]. From 7,500 a counter "500 left" shows at the bar's top-right; over the limit send is disabled and the toast reads "Too long to send. Try sending it as a file."

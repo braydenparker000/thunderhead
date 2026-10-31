@@ -151,6 +151,9 @@ export async function startChat() {
   let ticker;
   /** @type {ReturnType<typeof setTimeout> | undefined} */
   let catchingUp;
+  /** The phone's own commands (th/commands), loaded once the chat starts. @type {typeof import('../commands/commands.js') | null} */
+  let commands = null;
+  import('../commands/commands.js').then((m) => { commands = m; }, () => {});
 
   // --- data -----------------------------------------------------------------------------------
   const presenceOf = (/** @type {Record<string, unknown>} */ s) => /** @type {MindPresence | null} */ (s['mind.status'] ?? null);
@@ -396,6 +399,14 @@ export async function startChat() {
       setQuiet('until' in order ? order.until : 0);
       return;
     }
+    // "Open guitar", "remind me at 5 to …": done here at once (th/commands); else words for the mind.
+    const command = picked.length || !commands ? null : commands.commandOf(body, now);
+    if (command && commands) {
+      clearBar();
+      ask.classList.remove('typing');
+      void commands.run(command, () => model.uuidv7(Date.now()));
+      return;
+    }
     // "Ask about this" left a quote over the bar: this message answers that reply.
     const about = $('#about');
     const m = enqueue(body, about?.dataset.id, take());
@@ -449,14 +460,15 @@ export async function startChat() {
   }, true);
 
   // What a command will do, shown before it goes: only where this phone knows exactly (the quiet
-  // orders it carries out itself, HOME.md §6).
+  // orders and th/commands, which it carries out itself, HOME.md §6).
   const cmd = document.createElement('div');
   cmd.id = 'cmdhint';
   cmd.setAttribute('aria-live', 'polite');
   ask.before(cmd);
   const hintCmd = () => {
     const o = quietOrder(q.value.trim());
-    cmd.textContent = !o ? '' : 'until' in o ? `${quietLine(o.until)} No notifications until then.` : quietUntil() ? 'Ends quiet now.' : '';
+    const c = o || !commands ? null : commands.commandOf(q.value.trim());
+    cmd.textContent = c && commands ? commands.preview(c) : !o ? '' : 'until' in o ? `${quietLine(o.until)} No notifications until then.` : quietUntil() ? 'Ends quiet now.' : '';
   };
   q.addEventListener('input', hintCmd);
   ask.addEventListener('submit', () => setTimeout(hintCmd));

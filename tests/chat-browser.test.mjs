@@ -375,6 +375,27 @@ test('a verb queued for this phone runs once and reports its undo; one it lacks 
   await context.close();
 });
 
+test("the phone's own commands: a reminder set at once with Undo, an app opened; nothing goes to the mind", opts, async () => {
+  const { page, context, errors, api } = await open();
+  await page.waitForFunction(() => document.querySelector('#cmdhint') !== null);
+  await page.fill('#q', 'remind me in 20 minutes to Call the bank');
+  await page.dispatchEvent('#q', 'input');
+  await eventually(() => page.textContent('#cmdhint'), `A reminder at ${new Date(Date.now() + 20 * 60_000).toTimeString().slice(0, 5)}: Call the bank`);
+  await page.press('#q', 'Enter');
+  await eventually(() => api.calls.filter((c) => c.call.startsWith('PUT /v1/reminders/')).length, 1);
+  const put = api.calls.find((c) => c.call.startsWith('PUT /v1/reminders/'));
+  assert.equal(put.body.text, 'Call the bank');
+  assert.ok(Math.abs(put.body.at - (Date.now() + 20 * 60_000)) < 10_000);
+  await page.waitForSelector('.toast.show .tact');
+  assert.equal(await page.inputValue('#q'), '');
+  assert.equal(api.calls.filter((c) => c.call.startsWith('PUT /v1/messages/')).length, 0, 'nothing went to the mind');
+  await page.route('**/guitar/', (r) => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Guitar</title>' }));
+  await page.fill('#q', 'open guitar');
+  await Promise.all([page.waitForURL(/\/guitar\/$/, { timeout: 5000 }), page.press('#q', 'Enter')]);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 test('when quiet ends, one line says what came while it held; it stays for the day', opts, async () => {
   const { page, context, errors, api } = await open({ chat: { quietUntil: Date.now() + 3_600_000 } });
   await eventually(async () => (await status(page))?.[0] ?? null, 'quiet');

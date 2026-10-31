@@ -79,6 +79,9 @@ ported pages read the session only when their top page is ours.
 
 ## 5. Instant phone commands
 
+Built 2026-10-31 for apps and reminders (`th/commands/commands.js`); the playback orders wait for the
+island's channel to the playing app (part 3).
+
 - Caught on the phone before anything is sent, as "go quiet" is today (`th/chat/quiet.js`), in plain
   words with a small grammar: "pause", "play", "skip" / "next", "previous", "play Evening" (a
   playlist by name), "open guitar" (any app), "remind me at 5 to call the bank".
