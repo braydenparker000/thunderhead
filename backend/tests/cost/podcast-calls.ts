@@ -3,7 +3,9 @@
 // sync of 100, the reads on open with 1,000 positions kept (nothing new, then 3 new: each reads the
 // rows it returns), a follow, the night's check of 20 shows, its feed admission (counted in a
 // stored row), and the daily prune over 1,003.
+
 import { runInDurableObject } from 'cloudflare:test';
+import { episodeID } from '../../../frontend/th/podcasts/feed.js';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
 import type { Core } from '../../src/objects/core';
 import { api, apiJson, core, coreSql, PASSWORD } from '../helpers';
@@ -106,7 +108,11 @@ export async function podcastCalls(cost: Cost, grant: (ip: string, password?: st
     200,
     core(),
   );
-  const checked = Array.from({ length: 20 }, (_, i) => ({ feed_url: show(i).feed_url, latest_at: at, new_n: 1 }));
+  const checked = Array.from({ length: 20 }, (_, i) => ({
+    show_id: episodeID(show(i).feed_url),
+    latest_at: at,
+    new_n: 1,
+  }));
   await cost(
     'POST /v1/podcasts/follows/checked (20) (Core)',
     () => api('POST', '/v1/podcasts/follows/checked', { ...night, body: { items: checked } }),
@@ -114,10 +120,10 @@ export async function podcastCalls(cost: Cost, grant: (ip: string, password?: st
     core(),
   );
   // The night's feed reads (GET /v1/podcasts/feed as mind:night): Core admits a followed show's and
-  // counts it in a stored row; another address costs one row read and no count.
+  // counts it in a stored row, by its show id; another id costs one row read and no count.
   const admit = (url: string) => async () => {
     const ok = await runInDurableObject(core() as unknown as DurableObjectStub<Core>, (o: Core) =>
-      o.admitNightFeed(url),
+      o.admitNightFeed(episodeID(url)),
     );
     return new Response(null, { status: ok.ok ? 204 : 403 });
   };

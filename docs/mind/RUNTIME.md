@@ -501,13 +501,16 @@ Built 2026-11-01 (NEXT-BATCH.md part 7). The phone sends the shows the owner fol
 positions (`PUT /v1/podcasts/follows`, frontend/th/podcasts/progress.js), so the night knows them.
 
 1. In step 7, first: `th podcasts new`. The night's own home lines take `line.1`–`line.3`; this one is `line.4`.
-2. It reads `GET /v1/podcasts/follows` (for a mind: no title, author or artwork) and picks the followed shows due a check: never checked, or not in the
+2. It reads `GET /v1/podcasts/follows` (for a mind: each show by its opaque `show_id` only, no address, title, author or artwork, one page) and picks the followed shows due a check: never checked, or not in the
    last 20 hours (a show whose feed failed waits 20 h × 2 per failure in a row: 40, 80, then 160 h at most), the
    longest unchecked first, **at most 20 a night** (`PODCAST_LIMITS.night_feeds`); the rest wait for the next
    night, so each show is read at most once a day.
-3. For each, the feed's numbers through the Worker (`GET /v1/podcasts/feed?url=&since=&count=1`, counts mode,
-   one try, no retries): the Worker reads the feed (RSS items, Atom entries; at most 512 KB and 8 s,
-   `backend/src/areas/podcasts/counts.ts`) and answers `{new_n, latest_at}`, numbers only, or 502 with a fixed
+3. For each, the feed's numbers through the Worker (`GET /v1/podcasts/feed?show=&since=&count=1`, counts mode,
+   by the show's id, one try, no retries; no new show is started after 3 minutes): the Worker looks up the
+   address and reads the feed (RSS items, Atom entries; at most 256 KB and 8 s in all, headers included,
+   linear in the bytes whatever they hold, `backend/src/areas/podcasts/counts.ts`) and answers
+   `{new_n, latest_at}`, numbers only and clamped (at most 200; a time at or before 1970 or past the clock
+   and an hour is null), or 502 with a fixed
    reason (`not_a_feed`, `too_slow`, `unreachable`). Counts mode is the night's only mode (a raw feed: 403
    `counts_only`); it takes only a show the owner follows (any other address: 403 `not_followed`, nothing
    fetched) and at most 40 reads a UTC day, counted in a stored row (then 429, which stops the run). An episode

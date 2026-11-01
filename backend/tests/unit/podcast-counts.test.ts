@@ -1,7 +1,9 @@
 // Counts mode's reader (areas/podcasts/counts.ts): new episodes after a time, from RSS and Atom, with
 // the phone's own ids (so started ones can be left out), dates missing or ahead skipped, CDATA and
 // comments never ending an item, and bounded: a 5 MB feed is read only as far as it must, a slow one
-// gives up in time, garbage and DTDs are no feed. Synthetic feeds only.
+// gives up in time, garbage and DTDs are no feed; a feed built to be slow to read (unclosed comments,
+// CDATA or tags by the thousand, a byte at a time) is still read in linear time; a time at or before
+// 1970 is no time. Synthetic feeds only.
 import { describe, expect, it } from 'vitest';
 import { parseFeed } from '../../../frontend/th/podcasts/feed.js';
 import { CountError, countFeed, episodeOf } from '../../src/areas/podcasts/counts';
@@ -144,5 +146,20 @@ describe('counting new episodes', () => {
     const some = await countFeed(hang(`<rss><channel>${item(1, 1)}`), NOW - H * 24, NOW, { bytes: 1e6, ms: 200 });
     expect(some.newer.length).toBe(1);
     expect(Date.now() - t0).toBeLessThan(3000);
+  });
+
+  it('a feed built to be slow is read in linear time; a time at or before 1970 is no time', async () => {
+    const quick = async (text: string, chunk = 1000) => {
+      const t0 = performance.now();
+      await reason(countFeed(stream(text, chunk), 0, NOW));
+      return performance.now() - t0;
+    };
+    const head = '<?xml version="1.0"?><rss><channel>';
+    for (const junk of ['<!--', '<![CDATA[', '<item', '<item><pubDate', '<item><enclosure url="'])
+      expect(await quick(head + junk.repeat(Math.floor(250_000 / junk.length)))).toBeLessThan(250);
+    // A host sending a byte at a time doesn't make it scan again for each byte.
+    expect(await quick(head + '<!--'.repeat(5000), 1)).toBeLessThan(2000);
+    const old = rss(item(1, (NOW - Date.parse('1970-01-01T00:00:00Z')) / H) + item(2, (NOW + 5 * H) / H));
+    expect(await count(old, 0)).toEqual({ newer: [], latest_at: null });
   });
 });

@@ -140,7 +140,7 @@ const CAPABILITIES: { name: string; may: Role[]; call: (r: Role) => Promise<numb
     may: ['N'],
     call: (r) =>
       status(r, 'POST', '/v1/podcasts/follows/checked', {
-        items: [{ feed_url: 'https://feeds.example.org/matrix.xml', latest_at: null, new_n: 0 }],
+        items: [{ show_id: '0123456789abcdef', latest_at: null, new_n: 0 }],
       }),
   },
 ];

@@ -35,8 +35,7 @@ async function readBody(res) {
  * @param {string} method
  * @param {string} path  starts with /v1/
  * @param {{query?: Record<string, any>, body?: any, raw?: Buffer, headers?: Record<string,string>,
- *          retry?: boolean, timeoutMs?: number, text?: boolean}} [opts]  `text`: a success's body as
- *          text, not JSON (a podcast feed, GET /v1/podcasts/feed)
+ *          retry?: boolean, timeoutMs?: number}} [opts]
  * @returns {Promise<{status: number, data: any, headers: Headers}>}
  */
 export async function request(method, path, opts = {}) {
@@ -80,7 +79,6 @@ export async function request(method, path, opts = {}) {
         `${method} ${url.pathname}: ${timedOut ? 'timed out' : error?.cause?.code || error?.cause?.errors?.[0]?.code || error?.message || 'network error'}`);
       continue;
     }
-    if (res.ok && opts.text) return {status: res.status, data: await res.text(), headers: res.headers};
     const data = await readBody(res);
     if (res.ok) return {status: res.status, data, headers: res.headers};
     const code = data?.error?.code || `http_${res.status}`;

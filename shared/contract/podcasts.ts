@@ -23,6 +23,8 @@ export const PODCAST_LIMITS = {
   /** How far an `updated_at` may run ahead of the Worker's clock (a phone's clock that is off by
    * more would win every merge for as long). */
   ahead_ms: 3_600_000,
+  /** At most this many new episodes counted for one show in one check. */
+  new_max: 200,
   /** A show's title and author, in characters (the feed reader's caps). */
   title_chars: 300,
   author_chars: 200,
@@ -76,13 +78,18 @@ export interface PodcastFollowRow extends PodcastFollow {
   new_n: number;
   /** Checks in a row whose feed failed (0 after one that worked): the show waits longer each time. */
   fails: number;
+  /** The show's opaque id (16 hex digits): the night's only name for it. */
+  show_id: string;
 }
 
-/** A follow as the night reads it: no title, author or artwork (their publishers' words), only
- * what the new-episode check needs. */
-export type PodcastNightFollowRow = Omit<PodcastFollowRow, 'title' | 'author' | 'artwork'>;
+/** A follow as the night reads it: no address, title, author or artwork (their publishers' words),
+ * only the show's opaque id and what the new-episode check needs. */
+export type PodcastNightFollowRow = Pick<
+  PodcastFollowRow,
+  'show_id' | 'followed' | 'updated_at' | 'checked_at' | 'latest_at' | 'new_n' | 'fails'
+>;
 
-/** Counts mode (`GET /v1/podcasts/feed?url=&since=&count=1`, the night's only mode): numbers only.
+/** Counts mode (`GET /v1/podcasts/feed?show=&since=&count=1`, the night's only mode): numbers only.
  * `new_n`: episodes published after `since` that no phone has started; `latest_at`: the newest
  * publication time seen (not ahead of the Worker's clock and an hour), or null. */
 export interface PodcastFeedCounts {
@@ -119,8 +126,9 @@ export interface PodcastPage<T> {
 
 /** One show the night read (POST /v1/podcasts/follows/checked). `failed`: its feed could not be
  * read (latest_at null, new_n 0); the show waits longer before its next check. */
+/** One show the night checked, by its id; the Worker clamps the numbers (sync.ts checked). */
 export interface PodcastChecked {
-  feed_url: string;
+  show_id: string;
   latest_at: Ms | null;
   new_n: number;
   failed?: boolean;

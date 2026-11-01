@@ -3,6 +3,8 @@
 // 4); an older or equal one reads its row and writes nothing. A page walks the `synced_at` index from
 // the caller's cursor, so it reads the rows it returns. Stores never write the change feed, and these
 // write none: nothing home or the mind shows changes when a phone syncs, and the phones ask by time.
+
+import { episodeID } from '../../../../frontend/th/podcasts/feed.js';
 import { PODCAST_LIMITS, type PodcastFollow, type PodcastProgress } from '../../../../shared/contract/podcasts.ts';
 import { DAY } from '../../lib/time';
 import type { Db } from '../../objects/base';
@@ -28,7 +30,11 @@ export interface FollowRow {
   latest_at: number | null;
   new_n: number;
   fails: number;
+  show_id: string;
 }
+
+/** A show's opaque id, the night's only name for it (16 hex digits, the phone's own hash). */
+export const showId = (feedUrl: string): string => episodeID(feedUrl);
 
 /** One position, kept if newer. Returns whether it was. */
 export function putProgress(db: Db, p: PodcastProgress, at: number): boolean {
@@ -62,7 +68,7 @@ export const progressPage = (db: Db, after: [number, string], limit: number) =>
 export function putFollow(db: Db, f: PodcastFollow, at: number): boolean {
   return (
     db.run(
-      `INSERT INTO podcast_follows (feed_url, title, author, artwork, followed, updated_at, synced_at) VALUES (?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO podcast_follows (feed_url, title, author, artwork, followed, updated_at, synced_at, show_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT (feed_url) DO UPDATE SET title = excluded.title, author = excluded.author, artwork = excluded.artwork,
          followed = excluded.followed, updated_at = excluded.updated_at, synced_at = excluded.synced_at
        WHERE excluded.updated_at > podcast_follows.updated_at`,
@@ -73,6 +79,7 @@ export function putFollow(db: Db, f: PodcastFollow, at: number): boolean {
       f.followed ? 1 : 0,
       f.updated_at,
       at,
+      showId(f.feed_url),
     ) > 0
   );
 }
@@ -80,7 +87,7 @@ export function putFollow(db: Db, f: PodcastFollow, at: number): boolean {
 /** Follows taken after the `[synced_at, feed_url]` cursor, oldest first. */
 export const followsPage = (db: Db, after: [number, string], limit: number) =>
   db.all<FollowRow>(
-    `SELECT feed_url, title, author, artwork, followed, updated_at, synced_at, checked_at, latest_at, new_n, fails
+    `SELECT feed_url, title, author, artwork, followed, updated_at, synced_at, checked_at, latest_at, new_n, fails, show_id
      FROM podcast_follows WHERE (synced_at, feed_url) > (?, ?) ORDER BY synced_at, feed_url LIMIT ?`,
     after[0],
     after[1],
@@ -92,27 +99,27 @@ export const followsPage = (db: Db, after: [number, string], limit: number) =>
  * stays, so the phones are not sent the row again. */
 export function markChecked(
   db: Db,
-  c: { feed_url: string; latest_at: number | null; new_n: number; failed: boolean },
+  c: { show_id: string; latest_at: number | null; new_n: number; failed: boolean },
   at: number,
 ): boolean {
   if (c.failed)
     return (
       db.run(
-        'UPDATE podcast_follows SET checked_at = ?, new_n = 0, fails = fails + 1 WHERE feed_url = ? AND followed = 1',
+        'UPDATE podcast_follows SET checked_at = ?, new_n = 0, fails = fails + 1 WHERE show_id = ? AND followed = 1',
         at,
-        c.feed_url,
+        c.show_id,
       ) > 0
     );
   return (
     db.run(
       `UPDATE podcast_follows SET checked_at = ?, new_n = ?, fails = 0,
          latest_at = CASE WHEN ? IS NULL THEN latest_at ELSE max(coalesce(latest_at, 0), ?) END
-       WHERE feed_url = ? AND followed = 1`,
+       WHERE show_id = ? AND followed = 1`,
       at,
       c.new_n,
       c.latest_at,
       c.latest_at,
-      c.feed_url,
+      c.show_id,
     ) > 0
   );
 }
@@ -128,9 +135,10 @@ export function started(db: Db, keys: string[]): string[] {
   });
 }
 
-/** Whether the owner follows this feed (the night may read only those). One row read. */
-export const followed = (db: Db, feedUrl: string) =>
-  db.one<{ f: number }>('SELECT followed AS f FROM podcast_follows WHERE feed_url = ?', feedUrl)?.f === 1;
+/** The address of a show the owner follows, by its id (the night may read only those), or null. One
+ * row read (the index on show_id). */
+export const followedURL = (db: Db, id: string) =>
+  db.one<{ u: string }>('SELECT feed_url AS u FROM podcast_follows WHERE show_id = ? AND followed = 1', id)?.u ?? null;
 
 /** The newest 1,000 positions by `updated_at` stay; the rest go, at most `max` a call (DATA.md §10).
  * It reads the table once a day (about twice its rows: the sort; a busy day may hold a few more

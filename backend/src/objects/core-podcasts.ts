@@ -82,8 +82,9 @@ export abstract class CorePodcasts extends CoreReports {
     return store.started(this.db, keys).map((k) => k.slice(feedUrl.length + 1));
   }
 
-  /** Whether the night may read this feed now (a followed show's, within the day's count). */
-  admitNightFeed(feedUrl: string): ReturnType<typeof sync.admitNightFeed> {
-    return this.ctx.storage.transactionSync(() => sync.admitNightFeed(this.db, feedUrl, Date.now()));
+  /** Whether the night may read this show's feed now, and its address (a followed show's, by its id,
+   * within the day's count). The address stays in the Worker. */
+  admitNightFeed(showId: string): ReturnType<typeof sync.admitNightFeed> {
+    return this.ctx.storage.transactionSync(() => sync.admitNightFeed(this.db, showId, Date.now()));
   }
 }

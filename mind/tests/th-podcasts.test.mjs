@@ -83,7 +83,9 @@ test('th podcasts new: the due shows read, the checks sent, the line placed on h
   assert.equal(placed(fake).topic_key, 'podcasts-new');
   assert.equal(placed(fake).ref, 'app:podcasts');
   assert.deepEqual(fake.state.podcasts.reads, [feed(2), feed(1), feed(3)]);
-  assert.deepEqual(fake.state.podcasts.checks[0].map(c => [c.feed_url, c.new_n]), [[feed(2), 0], [feed(1), 2], [feed(3), 0]]);
+  assert.deepEqual(fake.state.podcasts.checks[0].map(c => [c.show_id, c.new_n]), [[episodeID(feed(2)), 0], [episodeID(feed(1)), 2], [episodeID(feed(3)), 0]]);
+  // The night named the shows by id only: no address in what it sent.
+  assert.ok(!JSON.stringify(fake.state.podcasts.checks).includes('example.org'));
   // A refire the same night: nothing is due, nothing read, and the line is placed again, the same.
   fake.state.surfaces.delete('home/line.4');
   const again = await th(['podcasts', 'new'], night(fake));
@@ -122,22 +124,26 @@ test('th podcasts new: at most 20 shows a night; a failing feed is recorded and 
     fake.addFollow({feed_url: feed(i), title: `Show ${i}`});
     fake.setFeed(feed(i), rss(i, [1]));
   }
-  fake.setFeed(feed(0), {status: 502, code: 'upstream'});
+  // The show the night reads first fails (shows are ordered by their ids, not their addresses).
+  const bad = due(fake.state.podcasts.follows, Date.now())[0].feed_url;
+  fake.setFeed(bad, {status: 502, code: 'upstream'});
   const r = await th(['podcasts', 'new'], night(fake));
   assert.equal(r.code, 0, r.stderr);
   assert.equal(fake.state.podcasts.reads.length, 20);
   assert.deepEqual([r.json.checked, r.json.failed, r.json.waiting, r.json.new_episodes], [19, 1, 3, 19]);
   assert.deepEqual(placed(fake).payload, {text: '19 new episodes in Podcasts.'});
-  const zero = fake.state.podcasts.follows.find(f => f.feed_url === feed(0));
+  const zero = fake.state.podcasts.follows.find(f => f.feed_url === bad);
   assert.equal(zero.fails, 1);
   assert.ok(zero.checked_at > 0);
-  assert.deepEqual(fake.state.podcasts.checks[0].find(c => c.feed_url === feed(0)), {feed_url: feed(0), latest_at: null, new_n: 0, failed: true});
+  assert.deepEqual(fake.state.podcasts.checks[0].find(c => c.show_id === episodeID(bad)), {show_id: episodeID(bad), latest_at: null, new_n: 0, failed: true});
   // The next run: the 3 not read are due; the failed one waits (20 h × 2); the Worker refuses the third read.
   const left = fake.state.podcasts.follows.filter(f => f.checked_at === null).map(f => f.feed_url).sort();
   assert.equal(left.length, 3);
-  assert.ok(!left.includes(feed(0)));
+  assert.ok(!left.includes(bad));
   fake.state.podcasts.reads = [];
-  left.forEach((url, i) => fake.setFeed(url, i === 2 ? {status: 429, code: 'rate_limited'} : rss(9, [1])));
+  // The last of them in the night's order (by show id) gets the Worker's refusal.
+  const order = due(fake.state.podcasts.follows.filter(f => left.includes(f.feed_url)), Date.now()).map(f => f.feed_url);
+  order.forEach((url, i) => fake.setFeed(url, i === 2 ? {status: 429, code: 'rate_limited'} : rss(9, [1])));
   const next = await th(['podcasts', 'new'], night(fake));
   assert.equal(next.code, 0, next.stderr);
   assert.equal(fake.state.podcasts.reads.length, 3);

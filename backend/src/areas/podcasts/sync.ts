@@ -32,21 +32,32 @@ export function putFollows(w: Writer, items: PodcastFollow[], refused: Refused):
   return { applied, stale: items.length - applied, refused, at: w.at };
 }
 
+/** The night's checks, by show id. The numbers are clamped here, never refused: a feed's odd dates or
+ * a re-dated back catalogue can't make the night's whole report bounce (then nothing would be
+ * recorded and the same shows would take every slot again). A time at or before 1970, or past the
+ * Worker's clock and an hour, is no time; at most `new_max` new. */
 export function checked(w: Writer, items: PodcastChecked[]): { updated: number; at: number } {
-  const latest = w.at + PODCAST_LIMITS.ahead_ms;
   let updated = 0;
   for (const c of items) {
     const failed = c.failed === true;
     const row = {
-      feed_url: c.feed_url,
-      latest_at: failed || c.latest_at === null ? null : Math.min(c.latest_at, latest),
-      new_n: failed ? 0 : c.new_n,
+      show_id: c.show_id,
+      latest_at: failed ? null : timeOf(c.latest_at, w.at),
+      new_n: failed ? 0 : countOf(c.new_n),
       failed,
     };
     if (store.markChecked(w.db, row, w.at)) updated++;
   }
   return { updated, at: w.at };
 }
+
+/** A publication time worth keeping, or null. @param now the Worker's clock */
+export const timeOf = (t: number | null, now: number): number | null =>
+  t !== null && Number.isFinite(t) && t > 0 && t <= now + PODCAST_LIMITS.ahead_ms ? Math.floor(t) : null;
+
+/** A count of new episodes, whole and at most `new_max`. */
+export const countOf = (n: number): number =>
+  Math.min(PODCAST_LIMITS.new_max, Math.max(0, Math.floor(Number.isFinite(n) ? n : 0)));
 
 export const toProgress = (r: store.ProgressRow): PodcastProgress => ({
   key: r.key,
@@ -77,16 +88,20 @@ export function page<R extends { synced_at: number }>(
 /** The settings row that counts the night's feed reads: `{day, n}` for the UTC day. */
 export const NIGHT_READS = 'podcasts.night_reads';
 
-/** May the night read this feed now? Only a show the owner follows (one row read: the night can't
- * make the Worker fetch any other address), and at most `night_feed_reads` a UTC day, counted in a
- * stored row (one row read and one written per read; a restart or a deploy doesn't reset it).
- * A refused address costs no count. */
+/** May the night read this show's feed now, and at which address? Only a show the owner follows, named
+ * by its id (one row read: the night never sees an address, and can't make the Worker fetch any
+ * other), and at most `night_feed_reads` a UTC day, counted in a stored row (one row read and one
+ * written per read; a restart or a deploy doesn't reset it). A refused show costs no count. */
 export function admitNightFeed(
   db: Db,
-  feedUrl: string,
+  showId: string,
   now: number,
-): { ok: true } | { ok: false; code: 'forbidden' } | { ok: false; code: 'rate_limited'; retry_after: number } {
-  if (!store.followed(db, feedUrl)) return { ok: false, code: 'forbidden' };
+):
+  | { ok: true; url: string }
+  | { ok: false; code: 'forbidden' }
+  | { ok: false; code: 'rate_limited'; retry_after: number } {
+  const url = store.followedURL(db, showId);
+  if (url === null) return { ok: false, code: 'forbidden' };
   const today = utcDay(now);
   const had = getSetting(db, NIGHT_READS) as { day?: unknown; n?: unknown } | undefined;
   const n = had?.day === today && typeof had.n === 'number' ? had.n : 0;
@@ -95,5 +110,5 @@ export function admitNightFeed(
     return { ok: false, code: 'rate_limited', retry_after: Math.max(1, Math.ceil((midnight - now) / SECOND)) };
   }
   putSetting(db, NIGHT_READS, { day: today, n: n + 1 }, 'mind:night', now);
-  return { ok: true };
+  return { ok: true, url };
 }

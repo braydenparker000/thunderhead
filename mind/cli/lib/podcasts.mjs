@@ -28,6 +28,8 @@ const L = CONTRACT.podcasts?.limits ?? {night_feeds: 20, check_gap_ms: 72_000_00
 export const SLOT = 'line.4';
 const DAY = 86_400_000;
 const PAGES = 10;
+/** Step 7 has 4 minutes: no new show is started after 3. */
+const STOP_MS = 180_000;
 
 /** Every row a paged podcasts route has since `since`. @param {string} path @param {number} since */
 async function rows(path, since) {
@@ -51,7 +53,7 @@ export const gapOf = f => L.check_gap_ms * 2 ** Math.min(Math.max(0, f.fails ?? 
 export function due(follows, now) {
   return follows
     .filter(f => f.followed && (f.checked_at === null || f.checked_at === undefined || f.checked_at <= now - gapOf(f)))
-    .sort((a, b) => (a.checked_at ?? 0) - (b.checked_at ?? 0) || (a.feed_url < b.feed_url ? -1 : 1));
+    .sort((a, b) => (a.checked_at ?? 0) - (b.checked_at ?? 0) || (a.show_id < b.show_id ? -1 : 1));
 }
 
 /** Since when a show's episodes are new: after the newest one its last check saw; the first time,
@@ -84,31 +86,36 @@ export async function podcasts(argv) {
   const {rest} = parseArgs(argv);
   if (rest[0] !== 'new' || rest.length !== 1) throw invalid('usage: th podcasts new');
   const now = Date.now();
+  // The shows by their ids only: the night never sees a feed's address (sync-routes.ts).
   const follows = await rows('/v1/podcasts/follows', 0);
   const todo = due(follows, now);
   const checked = [];
   let failed = 0;
   for (const f of todo.slice(0, L.night_feeds)) {
+    // Within step 7's budget: no new show is started after STOP_MS.
+    if (Date.now() - now > STOP_MS) break;
     try {
       const {data} = await request('GET', '/v1/podcasts/feed', {
-        query: {url: f.feed_url, since: sinceOf(f, now), count: 1}, retry: false, timeoutMs: 25_000,
+        query: {show: f.show_id, since: sinceOf(f, now), count: 1}, retry: false, timeoutMs: 12_000,
       });
-      const latest = Number.isFinite(data.latest_at) ? Math.max(data.latest_at, f.latest_at ?? 0) : f.latest_at ?? null;
-      checked.push({feed_url: f.feed_url, latest_at: latest, new_n: Math.max(0, Math.floor(Number(data.new_n) || 0))});
+      const at = Number(data.latest_at);
+      const latest = Number.isFinite(at) && at > 0 ? Math.max(at, f.latest_at ?? 0) : f.latest_at ?? null;
+      const n = Math.min(L.new_max, Math.max(0, Math.floor(Number(data.new_n) || 0)));
+      checked.push({show_id: f.show_id, latest_at: latest, new_n: n});
     } catch (e) {
       // The night's reads are over for the day, or this key may not: the rest wait. Any other
       // failure is recorded, so the show waits longer instead of taking a slot every night.
       if (e instanceof ThError && (e.exit === EXIT.budget || e.exit === EXIT.unauthorized)) break;
       if (e instanceof ThError && e.exit === EXIT.forbidden && e.details?.reason !== 'not_followed') break;
-      checked.push({feed_url: f.feed_url, latest_at: null, new_n: 0, failed: true});
+      checked.push({show_id: f.show_id, latest_at: null, new_n: 0, failed: true});
       failed++;
     }
   }
   if (checked.length) await request('POST', '/v1/podcasts/follows/checked', {body: {items: checked}});
-  const found = new Map(checked.map(c => [c.feed_url, c.new_n]));
+  const found = new Map(checked.map(c => [c.show_id, c.new_n]));
   const counts = follows
     .filter(f => f.followed)
-    .map(f => (found.has(f.feed_url) ? found.get(f.feed_url) : f.checked_at > now - L.check_gap_ms ? f.new_n : 0))
+    .map(f => (found.has(f.show_id) ? found.get(f.show_id) : f.checked_at > now - L.check_gap_ms ? f.new_n : 0))
     .filter(n => n > 0);
   const total = counts.reduce((a, n) => a + n, 0);
   const line = lineFor(total);

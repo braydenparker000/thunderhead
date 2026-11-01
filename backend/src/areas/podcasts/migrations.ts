@@ -4,7 +4,8 @@
 // Worker took the row, so a phone asks only for what changed since it last asked (the index on
 // `synced_at`; in a WITHOUT ROWID table it carries the key too, which is the page cursor). The
 // night's last check of a show (and how many in a row failed) sits on its follow row and never
-// moves `synced_at`.
+// moves `synced_at`. `show_id` is the show's opaque id (store.ts showId): the night knows a show only
+// by it, never by its address, which its publisher chose.
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneFollows, pruneProgress } from './store';
 
@@ -34,9 +35,11 @@ export const PODCASTS_MIGRATIONS: Migration[] = [
         checked_at INTEGER,
         latest_at INTEGER,
         new_n INTEGER NOT NULL DEFAULT 0,
-        fails INTEGER NOT NULL DEFAULT 0
+        fails INTEGER NOT NULL DEFAULT 0,
+        show_id TEXT NOT NULL DEFAULT ''
       ) WITHOUT ROWID`,
       'CREATE INDEX podcast_follows_synced ON podcast_follows (synced_at)',
+      'CREATE INDEX podcast_follows_show ON podcast_follows (show_id)',
     ],
   },
 ];

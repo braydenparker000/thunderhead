@@ -1399,7 +1399,7 @@
       ],
       "phase": "P8",
       "status": "built",
-      "note": "?url=; the feed as sent, ≤ 4 MB; night: counts"
+      "note": "device ?url=: the feed, ≤ 4 MB; night ?show=: counts only"
     },
     "GET /v1/podcasts/audio": {
       "who": [
@@ -2191,6 +2191,7 @@
       "id_chars": 64,
       "seconds_max": 604800,
       "ahead_ms": 3600000,
+      "new_max": 200,
       "title_chars": 300,
       "author_chars": 200,
       "unfollowed_keep_days": 30,

@@ -6,6 +6,7 @@
 // route is the route-scope and role-matrix tests' (and a few refusals here). Synthetic shows only.
 import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
+import { episodeID } from '../../../frontend/th/podcasts/feed.js';
 import type {
   PodcastFollow,
   PodcastFollowRow,
@@ -195,47 +196,44 @@ describe('follows and the night’s check', () => {
     expect(bad.body).toMatchObject({ applied: 0, refused: [{ index: 0 }] });
   });
 
-  it('the night records the shows it read, followed ones only, without the phones seeing the rows again', async () => {
+  it('the night records the shows it read by their ids, followed ones only, the numbers clamped, without the phones seeing the rows again', async () => {
     const since = (await follows()).body.next_since;
+    const id = (url: string) => episodeID(url);
+    const rowOf = async () => (await follows('since=0', N)).body.items.find((f) => f.show_id === id(FEED));
     const r = await apiJson<{ updated: number }>('POST', '/v1/podcasts/follows/checked', {
       token: N,
       body: {
         items: [
-          { feed_url: FEED, latest_at: T0 + 100, new_n: 2 },
-          { feed_url: OTHER, latest_at: T0 + 100, new_n: 1 },
+          { show_id: id(FEED), latest_at: T0 + 100, new_n: 2 },
+          { show_id: id(OTHER), latest_at: T0 + 100, new_n: 1 },
         ],
       },
     });
     expect(r).toMatchObject({ status: 200, body: { updated: 1 } });
     // An earlier newest episode never moves latest_at back; null keeps it.
-    await apiJson('POST', '/v1/podcasts/follows/checked', {
-      token: N,
-      body: { items: [{ feed_url: FEED, latest_at: T0 + 50, new_n: 0 }] },
-    });
-    await apiJson('POST', '/v1/podcasts/follows/checked', {
-      token: N,
-      body: { items: [{ feed_url: FEED, latest_at: null, new_n: 0 }] },
-    });
-    const row = (await follows('since=0', N)).body.items.find((f) => f.feed_url === FEED);
-    expect(row).toMatchObject({ latest_at: T0 + 100, new_n: 0, checked_at: expect.any(Number) });
-    expect((await follows(`since=${since}`)).body.items).toEqual([]);
-    // A feed that failed: one more failure in a row, nothing new, latest_at kept; a good check resets it.
     const check = (item: object) =>
       apiJson('POST', '/v1/podcasts/follows/checked', { token: N, body: { items: [item] } });
-    await check({ feed_url: FEED, latest_at: null, new_n: 3, failed: true });
-    await check({ feed_url: FEED, latest_at: null, new_n: 0, failed: true });
-    const failing = (await follows('since=0', N)).body.items.find((f) => f.feed_url === FEED);
-    expect(failing).toMatchObject({ fails: 2, new_n: 0, latest_at: T0 + 100 });
-    // A newest episode far ahead is put at the Worker's clock and an hour, no later.
-    await check({ feed_url: FEED, latest_at: Date.now() + 30 * 86_400_000, new_n: 1 });
-    const fixed = (await follows('since=0', N)).body.items.find((f) => f.feed_url === FEED);
-    expect(fixed?.fails).toBe(0);
-    expect(fixed?.latest_at).toBeLessThanOrEqual(Date.now() + 3_600_000);
+    await check({ show_id: id(FEED), latest_at: T0 + 50, new_n: 0 });
+    await check({ show_id: id(FEED), latest_at: null, new_n: 0 });
+    expect(await rowOf()).toMatchObject({ latest_at: T0 + 100, new_n: 0, checked_at: expect.any(Number) });
+    expect((await follows(`since=${since}`)).body.items).toEqual([]);
+    // A feed that failed: one more failure in a row, nothing new, latest_at kept; a good check resets it.
+    await check({ show_id: id(FEED), latest_at: null, new_n: 3, failed: true });
+    await check({ show_id: id(FEED), latest_at: null, new_n: 0, failed: true });
+    expect(await rowOf()).toMatchObject({ fails: 2, new_n: 0, latest_at: T0 + 100 });
+    // Odd numbers from a feed are clamped, never refused: a time at 1970 or far ahead is no time
+    // (latest_at kept), a re-dated back catalogue counts at most 200.
+    expect((await check({ show_id: id(FEED), latest_at: 0, new_n: 300 })).status).toBe(200);
+    expect(await rowOf()).toMatchObject({ fails: 0, new_n: 200, latest_at: T0 + 100 });
+    expect((await check({ show_id: id(FEED), latest_at: Date.now() + 30 * 86_400_000, new_n: -4 })).status).toBe(200);
+    expect(await rowOf()).toMatchObject({ new_n: 0, latest_at: T0 + 100 });
+    // Only by a show's id, and only the night.
+    expect((await check({ feed_url: FEED, latest_at: null, new_n: 0 })).status).toBe(422);
     expect(
       (
         await apiJson('POST', '/v1/podcasts/follows/checked', {
           token: D,
-          body: { items: [{ feed_url: FEED, latest_at: null, new_n: 0 }] },
+          body: { items: [{ show_id: id(FEED), latest_at: null, new_n: 0 }] },
         })
       ).status,
     ).toBe(403);

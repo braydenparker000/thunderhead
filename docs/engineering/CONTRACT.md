@@ -171,7 +171,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/library/cite` | C N | P7 | built | ?q=: the blocks a cited answer may use, at most 20 |
 | `GET /v1/library/verses/:code/:chapter` | D C N | P7 | built | ?v=12[-14]&all=1: cited in your books |
 | `GET /v1/podcasts/directory` | D | P8 | built | ?q=\|?category=, &country= |
-| `GET /v1/podcasts/feed` | D N | P8 | built | ?url=; the feed as sent, ≤ 4 MB; night: counts |
+| `GET /v1/podcasts/feed` | D N | P8 | built | device ?url=: the feed, ≤ 4 MB; night ?show=: counts only |
 | `GET /v1/podcasts/audio` | D | P8 | built | ?feed=&id=; byte ranges |
 | `PUT /v1/podcasts/progress` | D | P8 | built | 1–100 positions; the newer updated_at wins |
 | `GET /v1/podcasts/progress` | D N | P8 | built | ?since=&cursor=: what changed since, oldest first |

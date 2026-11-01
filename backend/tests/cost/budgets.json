@@ -393,10 +393,10 @@
   },
   "PUT /v1/podcasts/follows (1) (Core)": {
     "rows_read_max": 0,
-    "rows_written_max": 2
+    "rows_written_max": 3
   },
   "POST /v1/podcasts/follows/checked (20) (Core)": {
-    "rows_read_max": 20,
+    "rows_read_max": 40,
     "rows_written_max": 20
   },
   "cron tick, the daily prune pass with 1,003 positions (Core)": {

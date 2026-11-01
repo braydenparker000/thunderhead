@@ -3,10 +3,11 @@
 // asks what changed since it last asked (`?since=`, then `cursor` while there is more), oldest
 // first. A PUT's items are checked one by one: one that can't be taken (malformed, or its
 // `updated_at` more than an hour ahead of the Worker's clock) is reported by its place in
-// `refused` and the rest are kept. The night reads both (the follows with its last check of each
-// show, without titles: publishers' words) and records the shows it read; a mind session that reads
-// the positions (feed addresses of any show listened to) is marked tainted first (taint.ts). Nothing
-// here writes the change feed: the phones ask by time when Podcasts opens.
+// `refused` and the rest are kept. The night reads the follows as show ids with its last check of each
+// (no address, title, author or artwork: publishers' words; one page, no cursor, which would carry an
+// address) and records the shows it read by id, the numbers clamped (sync.ts checked); a mind
+// session that reads the positions (feed addresses of any show listened to) is marked tainted first
+// (taint.ts). Nothing here writes the change feed: the phones ask by time when Podcasts opens.
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import {
@@ -81,13 +82,14 @@ function sorted<T extends { updated_at: number }>(
   return { ok, refused };
 }
 
+// Any numbers: the Worker clamps them (sync.ts checked); only the show's id must be one.
 const checkedBody = z.strictObject({
   items: z
     .array(
       z.strictObject({
-        feed_url: feedUrl,
-        latest_at: z.nullable(ms),
-        new_n: z.number().check(z.int(), z.gte(0), z.lte(200)),
+        show_id: z.string().check(z.regex(/^[0-9a-f]{16}$/)),
+        latest_at: z.nullable(z.number()),
+        new_n: z.number(),
         failed: z.optional(z.boolean()),
       }),
     )
@@ -134,12 +136,23 @@ export const podcastSyncRoutes = new Hono<AppEnv>()
     return c.json(value(await fresh(coreObject(c.env).putPodcastFollows(ok, refused))));
   })
   .get('/podcasts/follows', guard('GET /v1/podcasts/follows'), async (c) => {
-    const { after, limit } = startOf('podcasts/follows', c.req.query());
-    const page = pageOut('podcasts/follows', await fresh(coreObject(c.env).podcastFollows(after, limit)));
-    if (whoOf(principalOf(c)) === 'D') return c.json(page);
-    // A mind gets no title, author or artwork (their publishers' words), so this read taints nothing.
-    const items: PodcastNightFollowRow[] = page.items.map(({ title: _t, author: _a, artwork: _w, ...f }) => f);
-    return c.json({ ...page, items });
+    if (whoOf(principalOf(c)) === 'D') {
+      const { after, limit } = startOf('podcasts/follows', c.req.query());
+      return c.json(pageOut('podcasts/follows', await fresh(coreObject(c.env).podcastFollows(after, limit))));
+    }
+    // A mind gets every follow (at most 300) on one page, each by its show id only, so this read
+    // taints nothing: no address, title, author or artwork, and no cursor (it would carry an address).
+    const p = await fresh(coreObject(c.env).podcastFollows([0, ''], L.follows_keep));
+    const items: PodcastNightFollowRow[] = p.rows.map((f) => ({
+      show_id: f.show_id,
+      followed: f.followed,
+      updated_at: f.updated_at,
+      checked_at: f.checked_at,
+      latest_at: f.latest_at,
+      new_n: f.new_n,
+      fails: f.fails,
+    }));
+    return c.json({ items, next_since: p.at, next: null } satisfies PodcastPage<PodcastNightFollowRow>);
   })
   .post('/podcasts/follows/checked', guard('POST /v1/podcasts/follows/checked'), async (c) => {
     const r = await json(c, checkedBody);

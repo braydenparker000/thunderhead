@@ -6,16 +6,24 @@
 // is the phone's (th/podcasts/feed.js: the guid, else the enclosure's address; Atom: its `<id>`), so
 // the Worker can leave out what a phone has started. Bounded: at most `COUNT_BYTES` of the body and
 // `COUNT_MS` of reading; it stops once it has seen `OLDER_ENOUGH` episodes from before the time
-// (feeds list the newest first). CDATA and comments never end an item. Plain TypeScript (no
-// parameter properties or enums), so mind/tests can load it as the fake Worker's counter.
+// (feeds list the newest first). CDATA and comments never end an item. Linear in the bytes read,
+// whatever they hold (walk): no regex scans past an unclosed tag, comment or CDATA. Plain TypeScript
+// (no parameter properties or enums), so mind/tests can load it as the fake Worker's counter.
 import { decodeXML, episodeID, optionalURL } from '../../../../frontend/th/podcasts/feed.js';
 
-export const COUNT_BYTES = 512 * 1024;
+export const COUNT_BYTES = 256 * 1024;
 export const COUNT_MS = 8_000;
 /** Episodes from before the time, after which the rest of the feed is older still. */
 const OLDER_ENOUGH = 5;
 /** A date past now and this is a scheduled one: it doesn't count yet. */
 const AHEAD_MS = 3_600_000;
+/** An item, a tag or a value longer than these is no episode's (real ones are a few KB at most). */
+const ITEM_MAX = 64 * 1024;
+const TAG_MAX = 4096;
+const VALUE_MAX = 2048;
+/** The buffer is scanned again only once this much more has arrived (or at its end), so a host
+ * that sends a byte at a time can't make the scan quadratic. */
+const SCAN_STEP = 16 * 1024;
 
 /** Why a feed couldn't be counted: a fixed word, never anything the host sent. */
 export type CountReason = 'not_a_feed' | 'too_slow' | 'unreachable';
@@ -30,38 +38,98 @@ export class CountError extends Error {
 export interface FeedCounts {
   /** The episodes published after the time (and not ahead of now), newest first as listed. */
   newer: { id: string; at: number }[];
-  /** The newest publication time seen (not ahead of now), or null. */
+  /** The newest publication time seen (after 1970, not ahead of now), or null. */
   latest_at: number | null;
 }
 
-const TOKENS = /<!\[CDATA\[[\s\S]*?\]\]>|<!--[\s\S]*?-->|<\/?(item|entry)\b[^>]*>/gi;
-const inner = (xml: string, name: string) =>
-  new RegExp(`<${name}\\b[^>]*>([\\s\\S]*?)<\\/${name}\\s*>`, 'i').exec(xml)?.[1] ?? '';
-const cdata = (s: string) => s.replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1');
-const value = (xml: string, name: string) => decodeXML(cdata(inner(xml, name))).trim();
-const attrOf = (tag: string, name: string) =>
-  decodeXML(new RegExp(`\\b${name}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, 'i').exec(tag)?.[2] ?? '');
+interface Tag {
+  name: string;
+  closing: boolean;
+  start: number;
+  end: number;
+}
 
-/** One item's or entry's time and id, or null when it is no episode (no enclosure). */
-export function episodeOf(block: string, atom: boolean): { id: string; at: number } | null {
-  // Notes can hold anything: tags are looked for outside CDATA and comments only.
-  const xml = block.replace(/<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>/g, (m) => (m.startsWith('<!--') ? '' : m));
-  const bare = xml.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
-  if (atom) {
-    const link = [...bare.matchAll(/<link\b[^>]*>/gi)]
-      .map((m) => m[0])
-      .find((t) => /rel\s*=\s*["']enclosure["']/i.test(t));
-    const audio = link ? optionalURL(attrOf(link, 'href')) : '';
-    if (!audio) return null;
-    const at = Date.parse(value(xml, 'published') || value(xml, 'updated'));
-    return { id: episodeID(value(xml, 'id') || audio), at };
+const NAME = /^<\/?([A-Za-z][\w:.-]*)/;
+
+/** Calls `fn` for each tag of `s` from `at`, in order, with comments and CDATA skipped whole; stops
+ * when `fn` returns false. Linear: every step jumps past the `>` it found, and an unclosed tag,
+ * comment or CDATA section ends the walk (no rescans to the end). Returns where it stopped: the start
+ * of what is still open, else the end. */
+function walk(s: string, at: number, fn: (t: Tag) => boolean | undefined): number {
+  let i = at;
+  for (;;) {
+    const lt = s.indexOf('<', i);
+    if (lt < 0) return s.length;
+    if (s.startsWith('<![CDATA[', lt) || s.startsWith('<!--', lt)) {
+      const cdata = s[lt + 2] === '[';
+      const close = s.indexOf(cdata ? ']]>' : '-->', lt + (cdata ? 9 : 4));
+      if (close < 0) return lt;
+      i = close + 3;
+      continue;
+    }
+    const gt = s.indexOf('>', lt + 1);
+    if (gt < 0) return lt;
+    const m = NAME.exec(s.slice(lt, Math.min(gt + 1, lt + 80)));
+    if (m && fn({ name: m[1].toLowerCase(), closing: s[lt + 1] === '/', start: lt, end: gt + 1 }) === false)
+      return gt + 1;
+    i = gt + 1;
   }
-  const enclosure = /<enclosure\b[^>]*>/i.exec(bare)?.[0] ?? '';
+}
+
+/** The text of a value, CDATA unwrapped and entities decoded; '' when too long. Linear. */
+function text(raw: string): string {
+  if (raw.length > VALUE_MAX) return '';
+  let out = '';
+  let i = 0;
+  for (;;) {
+    const a = raw.indexOf('<![CDATA[', i);
+    if (a < 0) return decodeXML(out + raw.slice(i)).trim();
+    const b = raw.indexOf(']]>', a + 9);
+    if (b < 0) return decodeXML(out + raw.slice(i, a) + raw.slice(a + 9)).trim();
+    out += raw.slice(i, a) + raw.slice(a + 9, b);
+    i = b + 3;
+  }
+}
+
+/** An attribute's value in a tag of at most TAG_MAX characters (no lazy matching: linear). */
+const attrOf = (tag: string, name: string) => {
+  const m = new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`, 'i').exec(tag);
+  return decodeXML(m?.[1] ?? m?.[2] ?? '');
+};
+
+/** One item's or entry's time and id, or null when it is no episode (no enclosure). One linear walk
+ * over the item: the first of each value and of the enclosure, tags inside CDATA and comments
+ * never counted. */
+export function episodeOf(block: string, atom: boolean): { id: string; at: number } | null {
+  if (block.length > ITEM_MAX) return null;
+  const want = atom ? ['id', 'published', 'updated'] : ['guid', 'pubdate'];
+  const open = new Map<string, number>();
+  const val = new Map<string, string>();
+  let enclosure = '';
+  walk(block, 0, (t) => {
+    const tag = block.slice(t.start, t.end);
+    if (!t.closing) {
+      if (!enclosure && tag.length <= TAG_MAX) {
+        if (!atom && t.name === 'enclosure') enclosure = tag;
+        else if (atom && t.name === 'link' && /\brel\s*=\s*["']enclosure["']/i.test(tag)) enclosure = tag;
+      }
+      if (want.includes(t.name) && !val.has(t.name) && !tag.endsWith('/>')) open.set(t.name, t.end);
+    } else if (open.has(t.name) && !val.has(t.name)) {
+      val.set(t.name, text(block.slice(open.get(t.name), t.start)));
+    }
+    return undefined;
+  });
+  if (atom) {
+    const audio = enclosure ? optionalURL(attrOf(enclosure, 'href')) : '';
+    if (!audio) return null;
+    const at = Date.parse(val.get('published') || val.get('updated') || '');
+    return { id: episodeID(val.get('id') || audio), at };
+  }
   const audio = optionalURL(attrOf(enclosure, 'url'));
   const type = attrOf(enclosure, 'type').toLowerCase();
   if (!audio || (type && !type.startsWith('audio/') && !['application/octet-stream', 'application/ogg'].includes(type)))
     return null;
-  return { id: episodeID(value(xml, 'guid') || audio), at: Date.parse(value(xml, 'pubDate')) };
+  return { id: episodeID(val.get('guid') || audio), at: Date.parse(val.get('pubdate') || '') };
 }
 
 /** Reads the body as far as it must (within the bounds) and counts. Throws CountError. */
@@ -82,6 +150,7 @@ export async function countFeed(
   let kind = '';
   let older = 0;
   let marked = false;
+  let scanned = 0;
   let done = false;
   let timedOut = false;
   try {
@@ -95,48 +164,45 @@ export async function countFeed(
         }),
       ]);
       clearTimeout(timer);
+      // Out of time: what has come is scanned once more, then that is all.
       if (next === 'late') {
         timedOut = true;
-        break;
-      }
-      if (next.done) done = true;
+        done = true;
+      } else if (next.done) done = true;
       else {
         read += next.value.byteLength;
         buf += decoder.decode(next.value, { stream: true });
         if (read >= bounds.bytes) done = true;
       }
+      // Scan once enough more has come (or at the end): each scan is linear (walk).
+      if (!done && buf.length - scanned < SCAN_STEP) continue;
+      scanned = buf.length;
       if (!marked) {
         if (/<!DOCTYPE|<!ENTITY/i.test(buf)) throw new CountError('not_a_feed');
         marked = /<rss\b|<feed\b/i.test(buf);
       }
-      // Only up to a CDATA section still open at the end: a `</item>` inside it is no end.
-      const unclosed = buf.lastIndexOf('<![CDATA[');
-      const end = unclosed >= pos && buf.indexOf(']]>', unclosed) < 0 ? unclosed : buf.length;
-      TOKENS.lastIndex = pos;
-      for (let m = TOKENS.exec(buf); m && m.index < end; m = TOKENS.exec(buf)) {
-        if (m.index + m[0].length > end) break;
-        pos = m.index + m[0].length;
-        if (!m[1]) continue;
-        const closing = m[0].startsWith('</');
-        if (!closing && open < 0) {
-          open = pos;
-          kind = m[1].toLowerCase();
-        } else if (closing && open >= 0 && m[1].toLowerCase() === kind) {
-          const e = episodeOf(buf.slice(open, m.index), kind === 'entry');
+      pos = walk(buf, pos, (t) => {
+        if (t.name !== 'item' && t.name !== 'entry') return undefined;
+        if (!t.closing && open < 0) {
+          open = t.end;
+          kind = t.name;
+        } else if (t.closing && open >= 0 && t.name === kind) {
+          const e = episodeOf(buf.slice(open, t.start), kind === 'entry');
           open = -1;
-          if (!e) continue;
-          if (!Number.isFinite(e.at) || e.at > now + AHEAD_MS) continue;
+          if (!e || !Number.isFinite(e.at) || e.at <= 0 || e.at > now + AHEAD_MS) return undefined;
           out.latest_at = Math.max(out.latest_at ?? 0, e.at);
           if (e.at > since) out.newer.push(e);
-          else older++;
+          else if (++older >= OLDER_ENOUGH) return false;
         }
-      }
+        return undefined;
+      });
       // What was scanned is not kept, except an item still open.
       const keep = open >= 0 ? open : pos;
       if (keep > 64 * 1024) {
         buf = buf.slice(keep);
         if (open >= 0) open -= keep;
         pos -= keep;
+        scanned -= keep;
       }
     }
   } finally {
