@@ -26,8 +26,11 @@ import { framedByOther, sessionToken } from '../ported/session.js';
 export const APP_KEY = 'jarvis.podcasts.v1';
 export const SYNC_KEY = 'th.p.podcasts.sync';
 const EVERY_MS = 60_000;
-/** One request's body: under a keepalive request's 64 KB and the Worker's limit. */
+/** One request's body: under the Worker's 64 KB limit. */
 const BODY_BYTES = 60_000;
+/** A body this small goes as keepalive, so it outlives a page that is closing (the browser allows
+ * 64 KB of those in flight for all the page's requests; a sync while playing is one or two items). */
+const KEEPALIVE_BYTES = 8_000;
 /** Pages read on open, at most (3,000 rows; the Worker keeps 1,000 positions). */
 const PAGES = 6;
 const UNFOLLOW_MEMORY_MS = L.unfollowed_keep_days * 86_400_000;
@@ -196,7 +199,7 @@ async function call(method, path, t, o = {}) {
       headers: { Authorization: `Bearer ${t}`, ...(body ? { 'Content-Type': 'application/json' } : {}) },
       body,
       signal: o.signal,
-      keepalive: Boolean(body && body.length < BODY_BYTES),
+      keepalive: Boolean(body && body.length < KEEPALIVE_BYTES),
       credentials: 'omit',
       mode: 'cors',
       cache: 'no-store',

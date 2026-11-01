@@ -160,7 +160,7 @@ test('push: what the Worker doesn’t have, ≤ 100 a request, cleaned; nothing 
   await sync.push();
   const puts = worker.requests.filter((r) => r.method === 'PUT' && r.path.endsWith('/progress'));
   assert.deepEqual(puts.map((r) => r.body.items.length), [100, 51]);
-  assert.ok(puts.every((r) => r.keepalive === true));
+  assert.equal(puts[0].keepalive, false, 'a big request goes without keepalive (its 64 KB are shared)');
   assert.deepEqual(worker.rows.get(key(1)), { key: key(1), position_s: 0, duration_s: 0, played: true, updated_at: NOW - 1, synced_at: worker.rows.get(key(1)).synced_at });
   assert.equal(worker.rows.get(key(100)).position_s, 0.1);
   assert.equal(worker.rows.has('not a key'), false);
@@ -171,6 +171,7 @@ test('push: what the Worker doesn’t have, ≤ 100 a request, cleaned; nothing 
   setApp({ ...app(), progress: { ...app().progress, [key(100)]: entry(99, NOW) } });
   await sync.push();
   assert.deepEqual(worker.requests.map((r) => r.body.items.map((p) => p.key)), [[key(100)]]);
+  assert.equal(worker.requests[0].keepalive, true, 'a sync while playing outlives a closing page');
 });
 
 test('an outage is sent again later; a refusal no retry fixes is not', async () => {

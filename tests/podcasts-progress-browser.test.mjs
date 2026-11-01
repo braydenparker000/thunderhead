@@ -14,7 +14,8 @@ import { serve } from '../scripts/serve.mjs';
 process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = '1';
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
-const OLD = 'https://jarvis-hub-api.braydenparker999.workers.dev';
+/** The old Worker the unchanged app addresses (podcasts/sw.js names it). */
+const OLD = 'https://*.workers.dev';
 const FEED = 'https://feeds.example.org/history.xml';
 const OTHER = 'https://feeds.example.org/other.xml';
 const TONE = readFileSync(new URL('./fixtures/tone.opus', import.meta.url));
