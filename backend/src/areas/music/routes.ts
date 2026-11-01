@@ -17,6 +17,7 @@ import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { inSandbox } from '../../http/sandbox';
 import { json } from '../../http/validate';
+import { coreObject } from '../../objects/core';
 import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
 import { ART_KEY, AUDIO_KEY, SONG_ID } from './shapes';
@@ -48,7 +49,7 @@ export const musicRoutes = new Hono<AppEnv>()
     return c.body(held.text, 200, { 'Content-Type': 'application/json; charset=utf-8' });
   })
   // The mind picks a playlist's tracks by their tags (MUSIC.md §10.2), then asks a phone to make it
-  // (songs rated 1 left out); `untagged=1` is the night's next page of songs to write notes for
+  // (songs rated 1 or ruled out by a never-play rule left out); `untagged=1` is the night's next page of songs to write notes for
   // (§10.5), at most 200, which moves the night's place (so never from the eval sandbox).
   .get('/music/tracks', guard('GET /v1/music/tracks'), async (c) => {
     const limit = Math.min(1000, Math.max(1, Math.floor(Number(c.req.query('limit') ?? 200)) || 200));
@@ -58,7 +59,9 @@ export const musicRoutes = new Hono<AppEnv>()
       return c.json((await fresh(musicObject(c.env).untaggedPage(page))) satisfies MusicTracksResponse);
     }
     const q = (c.req.query('q') ?? '').trim().slice(0, 200);
-    return c.json((await fresh(musicObject(c.env).findTracks(q, limit))) satisfies MusicTracksResponse);
+    // Songs the owner told the mind never to play again stay out of a mix by its tags too.
+    const never = await fresh(coreObject(c.env).musicNever(Date.now()));
+    return c.json((await fresh(musicObject(c.env).findTracks(q, limit, never))) satisfies MusicTracksResponse);
   })
   .get('/music/waveforms/:id', guard('GET /v1/music/waveforms/:id'), async (c) => {
     const id = c.req.param('id');

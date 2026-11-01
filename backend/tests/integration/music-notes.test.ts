@@ -177,13 +177,18 @@ describe('notes kept and read back', () => {
     const b = note(ids[1], { known: false, moods: { energetic: 0.5 }, energy: 0.8, conf: { energy: 0.4 } });
     expect((await putNotes(P.N, [a, b])).body).toEqual({ written: 2, unchanged: 0, kept: 0 });
     expect((await putNotes(P.N, [a, b])).body).toEqual({ written: 0, unchanged: 2, kept: 0 });
-    expect((await putNotes(P.C, [{ ...a, themes: ['night'], conf: { ...a.conf, themes: 0.5 } }, b])).body).toEqual({
+    expect((await putNotes(P.C, [{ ...a, themes: ['night'], conf: { ...a.conf, themes: 0.5 } }])).body).toEqual({
       written: 1,
-      unchanged: 1,
+      unchanged: 0,
       kept: 0,
     });
     // The owner's correction through the chat stands: the night's note for that song is kept out.
     expect((await putNotes(P.N, [a])).body).toEqual({ written: 0, unchanged: 0, kept: 1 });
+    // The owner confirming the night's note as it is, through the chat, makes it theirs.
+    expect((await putNotes(P.C, [note(songId(100))])).body).toEqual({ written: 1, unchanged: 0, kept: 0 });
+    expect((await putNotes(P.C, [note(songId(100))])).body).toEqual({ written: 0, unchanged: 1, kept: 0 });
+    expect(await notesSql('SELECT by FROM track_notes WHERE track_id = ?', songId(100))).toEqual([{ by: 'mind:chat' }]);
+    expect((await putNotes(P.N, [note(songId(100), { moods: { calm: 0.5 } })])).body).toMatchObject({ kept: 1 });
     const rows = await notesSql(
       'SELECT track_id, known, note_json, by, v FROM track_notes WHERE track_id IN (?, ?) ORDER BY track_id',
       ids[0],

@@ -189,3 +189,13 @@ test('a title goes on stdin, never in a quoted argument: th verb - and th surfac
 test('th\'s songs taint is the contract\'s (the Worker holds it for its own session only)', () => {
   assert.equal(SONG_TAINT, CONTRACT.music.taint_source);
 });
+
+test('th get takes a value from stdin (key=-), so the owner\'s words never sit in a shell argument', withFake(async fake => {
+  fake.addTracks(SONGS);
+  const words = "Don't Stop \"Now\"; $(id)";
+  const r = await th(['get', '/v1/music/tracks', 'q=-', 'limit=5'], env(fake), words);
+  assert.equal(r.code, 0, r.stderr);
+  const asked = fake.state.requests.filter(x => x.path === '/v1/music/tracks').at(-1);
+  assert.deepEqual(asked.query, {q: words, limit: '5'});
+  assert.equal((await th(['get', '/v1/music/tracks', 'q=-', 'limit=-'], env(fake), 'x')).code, 8, 'one key=- at most');
+}));

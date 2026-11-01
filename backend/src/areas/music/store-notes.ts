@@ -75,7 +75,7 @@ export function putNote(db: Db, n: NoteRow): number {
      ON CONFLICT (track_id) DO UPDATE SET known = excluded.known, note_json = excluded.note_json, by = excluded.by,
        v = excluded.v, at = excluded.at, pack = excluded.pack
      WHERE track_notes.known IS NOT excluded.known OR track_notes.note_json IS NOT excluded.note_json
-       OR track_notes.v IS NOT excluded.v OR track_notes.pack IS NOT excluded.pack`,
+       OR track_notes.v IS NOT excluded.v OR track_notes.pack IS NOT excluded.pack OR track_notes.by IS NOT excluded.by`,
     n.track_id,
     n.known,
     n.note_json,

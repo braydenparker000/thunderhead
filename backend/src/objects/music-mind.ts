@@ -36,10 +36,11 @@ export abstract class MusicMind extends MusicPacks {
   }
 
   /** Tracks whose tags hold every word of `q`, in catalog order, at most `limit`, with how many
-   * match in all; songs rated 1 are left out. What the mind picks a playlist from by its tags. */
-  findTracks(q: string, limit: number): MusicTracksResponse {
+   * match in all; songs rated 1 and songs the owner's rules rule out (`never`) are left out. What
+   * the mind picks a playlist from by its tags. */
+  findTracks(q: string, limit: number, never: string[] = []): MusicTracksResponse {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    const out = this.rated();
+    const out = new Set([...this.rated(), ...never]);
     const items: MusicTrackRow[] = [];
     let total = 0;
     for (const { hay, ...row } of this.index()) {
@@ -87,7 +88,10 @@ export abstract class MusicMind extends MusicPacks {
         }
         const json = noteJson(n);
         const known = n.known ? 1 : 0;
-        if (old && old.known === known && old.note_json === json && old.v === MUSIC_NOTE_VERSION) {
+        // The same note again writes nothing, unless the owner confirms the night's note through the
+        // chat: then it is theirs (`by: mind:chat`), and no night note replaces it.
+        const confirms = by === 'mind:chat' && old?.by !== 'mind:chat';
+        if (old && old.known === known && old.note_json === json && old.v === MUSIC_NOTE_VERSION && !confirms) {
           out.unchanged++;
           continue;
         }

@@ -242,10 +242,18 @@ export async function get(argv) {
   if (!path || !path.startsWith('/v1/')) throw invalid('usage: th get /v1/<path> [key=value …] (th help lists the routes)');
   if (!routeOf('GET', plainPath(path))) throw invalid(`GET ${path} is not in the contract (th help lists the routes)`);
   const query = {};
+  let stdin = false;
   for (const pair of pairs) {
     const eq = pair.indexOf('=');
     if (eq < 1) throw invalid(`${pair}: query parameters are key=value`);
-    query[pair.slice(0, eq)] = pair.slice(eq + 1);
+    let value = pair.slice(eq + 1);
+    // `key=-`: the value from stdin (the owner's words, a song's title), never inside a shell argument.
+    if (value === '-') {
+      if (stdin) throw invalid('only one key=- reads stdin');
+      stdin = true;
+      value = readFileSync(0, 'utf8').trim();
+    }
+    query[pair.slice(0, eq)] = value;
   }
   const {data} = await request('GET', path, {query});
   out(data);

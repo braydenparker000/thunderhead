@@ -155,6 +155,9 @@ describe('how the owner listens', () => {
     expect(order(r)).toEqual([4, 2, 5]);
     expect(r.body.left_out).toEqual({ never: 1, rated: 0, skipped: 1 });
     expect(order(await find(`like=${S[4]}`))).not.toContain(0);
+    // The word search (a mix by artist or genre) leaves it out too.
+    const tagged = await apiJson<{ items: { id: string }[] }>('GET', '/v1/music/tracks?q=ambient', { token: P.C });
+    expect(tagged.body.items.map((t) => S.indexOf(t.id))).toEqual([4, 5, 6, 7]);
   });
 
   it('a song rated 1 on the phone ("not for me", or "never play this again" said to it) is left out for good, until undone', async () => {
@@ -176,7 +179,7 @@ describe('how the owner listens', () => {
     expect(order(await find(`like=${S[0]}`))).not.toContain(4);
     // The word search (a mix by artist or genre) leaves it out too.
     const tagged = await apiJson<{ items: { id: string }[] }>('GET', '/v1/music/tracks?q=ambient', { token: P.C });
-    expect(tagged.body.items.map((t) => S.indexOf(t.id))).toEqual([0, 5, 6, 7]);
+    expect(tagged.body.items.map((t) => S.indexOf(t.id))).toEqual([5, 6, 7]);
     // The undo sends the old rating: the newest one is what counts.
     await rate(0, 1, 30_000);
     expect(order(await find('moods=calm'))).toEqual([4, 2, 5]);
