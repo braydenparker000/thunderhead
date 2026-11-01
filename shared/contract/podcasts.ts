@@ -1,0 +1,167 @@
+// Podcasts on the Worker (NEXT-BATCH.md part 7, PODCASTS.md §5.4): where each episode was left, so
+// it resumes on any phone, and the shows the owner follows, so the night can look for new episodes.
+// The ported app keeps both in its own storage; frontend/th/podcasts/progress.js syncs them, the
+// newer `updated_at` winning on both sides. An episode's key is the app's own `<feed address>#<id>`
+// (the id is the feed reader's 16-hex hash of its guid): kept as it is, so a phone that never saw
+// the episode can still resume it, and the night can match a position to a show. It travels only
+// in JSON bodies (never a path, a query or a log line). The phone's copy of the limits it needs is
+// `L` in frontend/th/podcasts/progress.js, and its key check is the same rule
+// (tests/podcasts-progress.test.mjs checks both agree).
+import type { Ms } from './api.ts';
+
+export const PODCAST_LIMITS = {
+  /** Positions kept: the newest by `updated_at` (the daily prune deletes the rest). */
+  progress_keep: 1000,
+  /** Items in one PUT (the phone sends more as several, each under 60 KB). */
+  batch_items: 100,
+  /** A feed address, in characters (PODCASTS.md §3.2). */
+  url_chars: 2000,
+  /** An episode id, after the key's last `#`: letters, digits, `_` and `-`. */
+  id_chars: 64,
+  /** A position or a length, in seconds (a week: the feed reader's own cap). */
+  seconds_max: 604_800,
+  /** How far an `updated_at` may run ahead of the Worker's clock (a phone's clock that is off by
+   * more would win every merge for as long). */
+  ahead_ms: 3_600_000,
+  /** At most this many new episodes counted for one show in one check. */
+  new_max: 200,
+  /** A show's title and author, in characters (the feed reader's caps). */
+  title_chars: 300,
+  author_chars: 200,
+  /** Follow rows kept: an unfollow stays this many days, so the other phones learn it; at most
+   * `follows_keep` rows in all (the app follows at most 100). */
+  unfollowed_keep_days: 30,
+  follows_keep: 300,
+  /** Rows in one page of a GET. */
+  page_max: 500,
+  /** The night's check (RUNTIME.md §12.1): shows a night, and how long before a show is due again. */
+  night_feeds: 20,
+  check_gap_ms: 20 * 3_600_000,
+  /** A show whose feed failed is due again after `check_gap_ms` × 2^fails, fails counted up to this
+   * (20 h, 40 h, 80 h, then 160 h, about a week). */
+  fail_backoff_max: 3,
+  /** Feeds the night may read through GET /v1/podcasts/feed in a UTC day (its 20, and a try more
+   * each), each a followed show's; counted in a stored row, so a restart doesn't reset it. */
+  night_feed_reads: 40,
+} as const;
+
+/** Where one episode was left. `played`: finished (PODCASTS.md §5.4 rule 3); it starts again from 0. */
+export interface PodcastProgress {
+  /** `<feed address>#<episode id>`, as the app keys it. */
+  key: string;
+  position_s: number;
+  /** 0 when unknown. */
+  duration_s: number;
+  played: boolean;
+  /** When the phone saved it (its clock). The newer wins. */
+  updated_at: Ms;
+}
+
+/** A show followed (or unfollowed: `followed: false`, kept a while so the other phones learn it). */
+export interface PodcastFollow {
+  feed_url: string;
+  title: string;
+  author: string;
+  /** An http(s) address, or ''. */
+  artwork: string;
+  followed: boolean;
+  updated_at: Ms;
+}
+
+/** A follow as the Worker keeps it, with the night's last check of the show. */
+export interface PodcastFollowRow extends PodcastFollow {
+  /** When the night last read the show's feed. */
+  checked_at: Ms | null;
+  /** The newest episode's publication time it saw then: later ones are new. */
+  latest_at: Ms | null;
+  /** New episodes it found then (not yet started on any phone). */
+  new_n: number;
+  /** Checks in a row whose feed failed (0 after one that worked): the show waits longer each time. */
+  fails: number;
+  /** The show's opaque id (16 hex digits): the night's only name for it. */
+  show_id: string;
+}
+
+/** A follow as the night reads it: no address, title, author or artwork (their publishers' words),
+ * only the show's opaque id and what the new-episode check needs. */
+export type PodcastNightFollowRow = Pick<
+  PodcastFollowRow,
+  'show_id' | 'followed' | 'updated_at' | 'checked_at' | 'latest_at' | 'new_n' | 'fails'
+>;
+
+/** Counts mode (`GET /v1/podcasts/feed?show=&since=&count=1`, the night's only mode): numbers only.
+ * `new_n`: episodes published after `since` that no phone has started; `latest_at`: the newest
+ * publication time seen (not ahead of the Worker's clock and an hour), or null. */
+export interface PodcastFeedCounts {
+  new_n: number;
+  latest_at: Ms | null;
+}
+
+export interface PodcastProgressRequest {
+  items: PodcastProgress[];
+}
+
+export interface PodcastFollowsRequest {
+  items: PodcastFollow[];
+}
+
+/** `applied`: items newer than what the Worker had; `stale`: valid ones it left as they were;
+ * `refused`: the items it could not take, by their place in the request, with why (the rest of the
+ * batch is kept). `at` is the Worker's clock, which the phone uses to put its own times on the
+ * Worker's (PODCASTS.md §5.4). */
+export interface PodcastSyncResponse {
+  applied: number;
+  stale: number;
+  refused: { index: number; issue: string }[];
+  at: Ms;
+}
+
+/** What changed since `since` (when the Worker took it), oldest first. With `next`, ask again with
+ * `cursor=next`; once it is null, keep `next_since` for the next time. */
+export interface PodcastPage<T> {
+  items: T[];
+  next_since: Ms;
+  next: string | null;
+}
+
+/** One show the night read (POST /v1/podcasts/follows/checked). `failed`: its feed could not be
+ * read (latest_at null, new_n 0); the show waits longer before its next check. */
+/** One show the night checked, by its id; the Worker clamps the numbers (sync.ts checked). */
+export interface PodcastChecked {
+  show_id: string;
+  latest_at: Ms | null;
+  new_n: number;
+  failed?: boolean;
+}
+
+export interface PodcastCheckedRequest {
+  items: PodcastChecked[];
+}
+
+export interface PodcastCheckedResponse {
+  updated: number;
+  at: Ms;
+}
+
+/** Why a progress key is refused, or null: `<http(s) address of at most url_chars>#<id>`. */
+export function progressKeyProblem(key: string): string | null {
+  const cut = key.lastIndexOf('#');
+  if (cut < 1) return 'not <feed address>#<episode id>';
+  const feed = key.slice(0, cut);
+  const id = key.slice(cut + 1);
+  if (!new RegExp(`^[A-Za-z0-9_-]{1,${PODCAST_LIMITS.id_chars}}$`).test(id)) return 'an episode id of letters and digits';
+  return feedProblem(feed);
+}
+
+/** Why a feed address is refused, or null: http(s), at most url_chars, no credentials. */
+export function feedProblem(url: string): string | null {
+  if (url.length > PODCAST_LIMITS.url_chars) return `a feed address of at most ${PODCAST_LIMITS.url_chars} characters`;
+  let u: URL;
+  try {
+    u = new URL(url);
+  } catch {
+    return 'an http(s) address';
+  }
+  if (!['http:', 'https:'].includes(u.protocol) || u.username || u.password) return 'an http(s) address';
+  return null;
+}

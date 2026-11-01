@@ -4,6 +4,8 @@ import {clientDirectory} from './directory.js';
 import {surfaceMotion,episodeHolds} from './motion.js';
 import {queueReorder} from './queue-motion.js';
 import {coverNavigation} from './navigation-motion.js';
+// NEXT-BATCH.md part 7: where episodes were left on the owner's other phones, written into this app's storage before it is read (th/podcasts/progress.js); at most 1.5 s.
+const thWaitUntil=performance.now()+1500;await Promise.race([import('/th/podcasts/progress.js').then(m=>m.opened(thWaitUntil)),new Promise(r=>setTimeout(r,1500))]).catch(()=>{});
 
 const $ = id => document.getElementById(id);
 const esc = s => String(s || '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

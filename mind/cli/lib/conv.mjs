@@ -4,7 +4,7 @@ import {mkdirSync, readFileSync, statSync, writeFileSync} from 'node:fs';
 import {basename, dirname, extname, join} from 'node:path';
 import {parseArgs} from './args.mjs';
 import {EXIT, ThError, VERSION, exitFor, invalid, jsonFlag, need, out, textArg, toMs} from './io.mjs';
-import {CONTRACT, checkRoute, routeOf} from './contract.mjs';
+import {CONTRACT, checkRoute, plainPath, routeOf} from './contract.mjs';
 import {request, settings, sleep, stopNotice} from './http.mjs';
 import {getState, setState, thDir} from './state.mjs';
 import {sha256, uuidv7} from './ids.mjs';
@@ -240,7 +240,7 @@ export async function get(argv) {
   const {rest} = parseArgs(argv);
   const [path, ...pairs] = rest;
   if (!path || !path.startsWith('/v1/')) throw invalid('usage: th get /v1/<path> [key=value …] (th help lists the routes)');
-  if (!routeOf('GET', path)) throw invalid(`GET ${path} is not in the contract (th help lists the routes)`);
+  if (!routeOf('GET', plainPath(path))) throw invalid(`GET ${path} is not in the contract (th help lists the routes)`);
   const query = {};
   for (const pair of pairs) {
     const eq = pair.indexOf('=');

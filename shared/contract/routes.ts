@@ -85,16 +85,8 @@ export const ROUTES = {
     phase: 'P2',
     note: 'raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos, transcribed)',
   },
-  'POST /v1/dictate': {
-    who: D,
-    phase: 'P2',
-    note: 'a few seconds of voice (audio/*, ≤ 1 MiB) to Whisper; answers the words, keeps nothing',
-  },
-  'GET /v1/files/:id': {
-    who: ['D', 'C', 'N'],
-    phase: 'P2',
-    note: 'the bytes, through the Worker; private, no-store; ?meta=1 the record',
-  },
+  'POST /v1/dictate': { who: D, phase: 'P2', note: 'a few seconds of voice (audio/*, ≤ 1 MiB) to Whisper; answers the words, keeps nothing' },
+  'GET /v1/files/:id': { who: ['D', 'C', 'N'], phase: 'P2', note: 'the bytes, through the Worker; private, no-store; ?meta=1 the record' },
   'GET /v1/search': { who: ['D', 'C', 'N'], phase: 'P2' },
   'POST /v1/mind/typing': { who: D, phase: 'P2' },
   'POST /v1/mind/stop': { who: D, phase: 'P2', note: 'the owner taps Stop: the work ends, not the session' },
@@ -267,8 +259,14 @@ export const ROUTES = {
   'GET /v1/library/verses/:code/:chapter': { who: ['D', 'C', 'N'], phase: 'P7', note: '?v=12[-14]&all=1: cited in your books' },
   // P8: Podcasts' directory, feeds and episode audio, as the old Worker served them, for the owner's device only.
   'GET /v1/podcasts/directory': { who: D, phase: 'P8', note: '?q=|?category=, &country=' },
-  'GET /v1/podcasts/feed': { who: D, phase: 'P8', note: '?url=; the feed as sent, at most 4 MB' },
+  'GET /v1/podcasts/feed': { who: ['D', 'N'], phase: 'P8', note: 'device ?url=: the feed, ≤ 4 MB; night ?show=: counts only' },
   'GET /v1/podcasts/audio': { who: D, phase: 'P8', note: '?feed=&id=; byte ranges' },
+  // NEXT-BATCH.md part 7 (API.md §11.25): positions and follows; the night: counts mode, no titles, its checks.
+  'PUT /v1/podcasts/progress': { who: D, phase: 'P8', note: '1–100 positions; the newer updated_at wins' },
+  'GET /v1/podcasts/progress': { who: ['D', 'N'], phase: 'P8', note: '?since=&cursor=: what changed since, oldest first' },
+  'PUT /v1/podcasts/follows': { who: D, phase: 'P8', note: '1–100 shows followed or unfollowed; the newer wins' },
+  'GET /v1/podcasts/follows': { who: ['D', 'N'], phase: 'P8', note: "?since=&cursor=; night: no titles, its last check" },
+  'POST /v1/podcasts/follows/checked': { who: ['N'], phase: 'P8', note: 'the shows the night read: ≤ 20, their newest episode' },
   // P8: Web Push (SECURITY.md §10): this phone's subscription, the words a push points at, a test.
   'GET /v1/push/key': { who: D, phase: 'P8', note: 'the VAPID public key; 503 until the key is set' },
   'PUT /v1/push/subscription': { who: D, phase: 'P8', note: "this session's subscription" },

@@ -108,6 +108,41 @@ const CAPABILITIES: { name: string; may: Role[]; call: (r: Role) => Promise<numb
   },
   { name: 'issue agent keys (auth admin)', may: ['D'], call: (r) => status(r, 'GET', '/v1/auth/agents') },
   { name: 'change settings', may: ['D'], call: (r) => status(r, 'PATCH', '/v1/settings', { 'quiet.start': '22:00' }) },
+  // NEXT-BATCH.md part 7: Podcasts' positions and follows. The phone writes them; the night reads
+  // them (new episodes, leaving out those started) and records the shows it read.
+  {
+    name: 'sync Podcasts positions and follows',
+    may: ['D'],
+    call: (r) =>
+      status(r, 'PUT', '/v1/podcasts/progress', {
+        items: [
+          {
+            key: 'https://feeds.example.org/matrix.xml#0123456789abcdef',
+            position_s: 12,
+            duration_s: 60,
+            played: false,
+            updated_at: Date.now() - 1000,
+          },
+        ],
+      }),
+  },
+  {
+    name: 'read Podcasts positions and follows',
+    may: ['D', 'N'],
+    call: async (r) =>
+      Math.max(
+        await status(r, 'GET', '/v1/podcasts/progress?since=0'),
+        await status(r, 'GET', '/v1/podcasts/follows?since=0'),
+      ),
+  },
+  {
+    name: "record the night's check of a followed show",
+    may: ['N'],
+    call: (r) =>
+      status(r, 'POST', '/v1/podcasts/follows/checked', {
+        items: [{ show_id: '0123456789abcdef', latest_at: null, new_n: 0 }],
+      }),
+  },
 ];
 
 describe('RUNTIME.md §7.1, capability by role', () => {

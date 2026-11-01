@@ -172,6 +172,8 @@ function mind() {
     reports: { kinds: c.REPORT_KINDS, limits: c.REPORT_LIMITS },
     // The listening pass (`th music`): the job kinds, the mood list and the limits.
     listen: { kinds: c.LISTEN_KINDS, moods: c.MOODS, limits: c.LISTEN_LIMITS },
+    // Podcasts (`th podcasts new`): the night's budget of shows and how long before one is due again.
+    podcasts: { limits: c.PODCAST_LIMITS },
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
     night: {
       steps: c.NIGHT_STEPS,

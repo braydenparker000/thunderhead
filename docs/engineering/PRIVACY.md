@@ -54,6 +54,8 @@ Retention marked **[proposal]** is new; the rest comes from decisions, the plan 
 | Wakes (why the mind was woken) | `Core` | Worker | 30 days **[proposal]** | no | yes |
 | Errors (client and server, fingerprinted) | `Core` | devices, Worker | 30 days **[proposal]** | no | yes |
 | Playback reports (Music's playback log in batches: timings, counts and track ids; only known fields, on the phone and again by the Worker; never titles, artists, file names or words; addresses cut to their host; never readable by CI) | `Core` | owner devices | 30 days | no | yes |
+| Podcast positions (NEXT-BATCH.md part 7: per episode, its feed address and episode id, where it was left, its length, finished or not, and when; never a title) | `Core` | owner devices (Podcasts, signed in) | The newest 1,000 | yes | the night only, to leave out of "new episodes" those already started |
+| Podcast follows (each show's feed address, title, author and artwork; an unfollow kept 30 days so the other phones learn it; the night's last check of the show) | `Core` | owner devices (Podcasts, signed in); the night (its checks) | While followed; at most 300 rows | yes | the night only, for the new-episode check |
 | Meter (daily request and row counts) | `Core` | Worker | 400 days **[proposal]** | yes | yes |
 | Events (senses) | `Senses` DO (P5) | owner devices | 90 days in SQLite, then daily JSONL in `thunderhead-private/events/` forever | yes | yes |
 | Music catalog, play stats, ratings, playlists | `Music` DO (P5) | owner devices, mind (reversible fixes) | Until deleted | yes | yes |
@@ -87,6 +89,7 @@ Acceptance: [DATA.md](DATA.md) has a row for every table, and a test fails if a 
 | Recent conversation, last briefing, surfaces | IndexedDB `th-data` | Last 7 days **[proposal]** | yes |
 | Outbox (messages and events not sent yet; a message's photos, files and voice memos with it, bytes and all, at most 20 MB, or one file up to 25 MB alone) | IndexedDB `th-data` | Until sent | yes |
 | App openings and tile taps not sent yet (P9; names and times only) | `localStorage` `th.p.senses`, `th.p.senses.batch` (at most 200) | Until the Worker takes them | yes |
+| Podcasts' sync (NEXT-BATCH.md part 7): when it last asked the Worker, which positions the Worker has (their keys and times), the follows it sent | `localStorage` `th.p.podcasts.sync` | Until sign-out | yes |
 | "Go quiet"'s end (P8) | `localStorage` `th.p.quiet.until`, `th.p.quiet.pending` | Until it ends | yes |
 | Unsent text in the ask bar | memory, then IndexedDB `th-data` draft | Until sent or cleared | yes |
 | Offline songs, podcast downloads, Study PDFs | OPFS | Until removed or evicted (song budget 512 MB, LRU) | yes |
@@ -95,7 +98,7 @@ Acceptance: [DATA.md](DATA.md) has a row for every table, and a test fails if a 
 | Theme and other UI choices | `localStorage` `th.ui.*` | Always | no |
 | Shuffle learner weights, EQ settings | `localStorage` `th.p.*` / `th-data` | Always | yes |
 | Forgets not yet sent (Memory page) | `localStorage` `th.p.forget`: fact ids only, never their text | Until the Worker has each one (sent again when the Memory page or Home opens, and before a sign-out, which asks while any can't go) | yes |
-| The ported apps' own stores (P1b): `claude-player`, `jarvis.guitar.v2`, `jarvis.podcasts.v1`, `jarvis-podcasts`, `mymedia.*`, `astra.v2.*` and their caches | localStorage, IndexedDB, Cache Storage | As the unchanged apps keep them | **no** at P1b (the unchanged apps don't know the new sign-in); yes once an app moves and joins the wipe list **[proposal]** |
+| The ported apps' own stores (P1b): `claude-player`, `jarvis.guitar.v2`, `jarvis.podcasts.v1`, `jarvis-podcasts`, `mymedia.*`, `astra.v2.*` and their caches | localStorage, IndexedDB, Cache Storage | As the unchanged apps keep them (Podcasts' positions from the owner's other phones are merged into `jarvis.podcasts.v1` when it opens signed in) | **no** at P1b (the unchanged apps don't know the new sign-in); yes once an app moves and joins the wipe list **[proposal]** |
 
 ### 3.2 What never leaves the phone
 1. Live mic audio and camera frames, unless the owner sends a capture or a take (§7).

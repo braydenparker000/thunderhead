@@ -140,7 +140,7 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 122,
+    "rows_read_max": 127,
     "rows_written_max": 18
   },
   "cron tick, nothing due (Core)": {
@@ -365,6 +365,66 @@
   },
   "GET /v1/jobs/next audio.analysis, nothing due, nothing changed (Music)": {
     "rows_read_max": 25,
+    "rows_written_max": 0
+  },
+  "PUT /v1/podcasts/progress (1 new) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 2
+  },
+  "PUT /v1/podcasts/progress (1 newer) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 2
+  },
+  "PUT /v1/podcasts/progress (1 stale) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "PUT /v1/podcasts/progress (100 new, a first sync) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 200
+  },
+  "GET /v1/podcasts/progress (nothing new of 1,000) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "GET /v1/podcasts/progress (3 new of 1,003) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 0
+  },
+  "PUT /v1/podcasts/follows (1) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 3
+  },
+  "POST /v1/podcasts/follows/checked (20) (Core)": {
+    "rows_read_max": 40,
+    "rows_written_max": 20
+  },
+  "cron tick, the daily prune pass with 1,003 positions (Core)": {
+    "rows_read_max": 2400,
+    "rows_written_max": 12
+  },
+  "GET /v1/podcasts/feed, the night admitted (a followed show) (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 1
+  },
+  "GET /v1/podcasts/feed, the night refused (not followed) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "GET /v1/podcasts/follows (20 shows, the night: no titles, nothing marked) (Core)": {
+    "rows_read_max": 20,
+    "rows_written_max": 0
+  },
+  "GET /v1/podcasts/progress (the night, marking its session) (Core)": {
+    "rows_read_max": 6,
+    "rows_written_max": 2
+  },
+  "GET /v1/podcasts/progress (the night, already marked) (Core)": {
+    "rows_read_max": 4,
+    "rows_written_max": 0
+  },
+  "GET /v1/podcasts/feed, counts: started episodes looked up (3) (Core)": {
+    "rows_read_max": 3,
     "rows_written_max": 0
   }
 }

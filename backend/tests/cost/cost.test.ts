@@ -33,7 +33,7 @@ import { listenCalls } from './listen-calls';
 import { memoryCalls } from './memory-calls';
 import { predictionCalls } from './prediction-calls';
 import { proposalCalls } from './proposal-calls';
-import { reportCalls } from './report-calls';
+import { phoneCalls } from './report-calls';
 import { ticks } from './ticks';
 
 type Budget = { rows_read_max: number; rows_written_max: number };
@@ -281,8 +281,9 @@ describe('rows per endpoint', () => {
   // P9: predictions (prediction-calls.ts).
   it('measures the predictions against their budget', () => predictionCalls(cost, grant));
 
-  // The phone's reports (report-calls.ts).
-  it('measures reports and the listening pass', () => reportCalls(cost, grant).then(() => listenCalls(cost, grant)));
+  // The phone's reports and Podcasts' sync (report-calls.ts, podcast-calls.ts), then the listening pass.
+  it('measures the phone’s reports and sync, and the listening pass', () =>
+    phoneCalls(cost, grant).then(() => listenCalls(cost, grant)));
 
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);

@@ -21,9 +21,22 @@ export function routeOf(method, path) {
   return hits.find(r => r.path === path) ?? hits[0] ?? null;
 }
 
+/** A path as it will reach the Worker (its route part), or a refusal: no backslash, no `..`, no encoded dot, slash or
+ * backslash, and nothing a URL parser would change (so `/v1/threads/..\\podcasts\\follows` can't match
+ * `/v1/threads/:id` here and arrive as `/v1/podcasts/follows`). The contract is matched on this. */
+export function plainPath(path) {
+  // A query a command adds itself (`th remind cancel`'s) is not part of the route.
+  const [p] = String(path).split('?');
+  if (/\\|\.\.|%2e|%2f|%5c/i.test(p)) throw invalid(`${p}: not a plain route path (no \\, .. or encoded . / \\)`);
+  let normal;
+  try { normal = new URL(p, 'https://worker.invalid').pathname; } catch { normal = null; }
+  if (normal !== p) throw invalid(`${p}: not a plain route path (it changes as a URL)`);
+  return normal;
+}
+
 /** Throws unless the call is a built route. `TH_ALLOW_UNBUILT=1` lifts the build check (tests of later phases). */
 export function checkRoute(method, path, env = process.env) {
-  const r = routeOf(method, path);
+  const r = routeOf(method, plainPath(path));
   if (!r) throw new ThError(EXIT.validation, 'unknown_route', `${method} ${path} is not in the contract`);
   if (r.status !== 'built' && env.TH_ALLOW_UNBUILT !== '1')
     throw new ThError(EXIT.validation, 'not_built', `${r.key} is ${r.status}; this Worker build does not have it yet`);

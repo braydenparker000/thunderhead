@@ -5,7 +5,9 @@
 // - Edit, Write and the session's own bookkeeping tools;
 // - Read, Grep and Glob of own files: the project (not node_modules, not the drop folder
 //   $TMPDIR/th/ext/) and th's own briefing and state;
-// - th, except `th file` (attachments are outside text, INJ-08);
+// - th, except `th file` (attachments are outside text, INJ-08) and a `th get` naming podcasts (show
+//   titles and feeds, which their publishers wrote; the Worker marks the session itself too);
+// - curl/wget to the Worker's podcast routes taint (the Worker refuses one without a session anyway);
 // - git on this repository and its origin (origin holds the project's own commits, whose files the
 //   rule already trusts); another remote, a URL, a clone or `-c` taints;
 // - `gh pr create|merge|checks` and `gh run`; every other gh call reads issues, PRs or the API;
@@ -71,6 +73,13 @@ function gitTaints(args, ctx) {
   return false;
 }
 
+/** A th call that prints what podcast publishers wrote (show titles, feeds): any word of a `th get`
+ * naming podcasts, wherever it stands (a flag's value can come first) and however it is spelled.
+ * A soft first layer: the Worker marks the session itself when it serves them (API.md §11.25). */
+const podcastText = ({sub, rest}) => sub === 'get' && rest.some(a => /podcasts/i.test(a));
+/** curl or wget to a Worker's podcast routes (by a literal URL; the Worker refuses one with no session). */
+const podcastFetch = args => args.some(a => /\/v1\/podcasts/i.test(a));
+
 /** @returns {Taint | null} */
 function bashTaint(command, ctx) {
   for (const seg of parseShell(command)) {
@@ -86,9 +95,11 @@ function bashTaint(command, ctx) {
     const th = thSub({cmd, args});
     if (th) {
       if (th.sub === 'file') return {source: 'th file', ref: 'file'};
+      if (podcastText(th)) return {source: 'th podcasts', ref: 'file'};
       continue;
     }
     if (cmd === 'curl' || cmd === 'wget') {
+      if (podcastFetch(args)) return {source: cmd, ref: 'url'};
       const hosts = fetchHosts(cmd, args);
       if (!hosts) return {source: cmd, ref: 'url'}; // the host can't be read
       const outside = hosts.find(h => !hostAllowed(h, ctx.ownHosts));

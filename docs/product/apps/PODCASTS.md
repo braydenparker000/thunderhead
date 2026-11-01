@@ -55,6 +55,10 @@ rules describe the later steps.
    an episode's audio, reading a feed in growing pieces (a recent episode costs it well under 1 ms;
    a whole 4 MB feed would cost about 10). Signed out, or while the new Worker can't answer, the
    old Worker answers as before.
+6. **Progress on the Worker and new episodes at night (built 2026-11-01, NEXT-BATCH.md part 7):**
+   one line in the app (`podcasts/app.js`) loads `frontend/th/podcasts/progress.js`,
+   which syncs where each episode was left with the Worker, so an episode resumes on any phone, and
+   sends the shows followed, so the night can say "2 new episodes" in the Overnight card (§5.4).
 
 Everything after this section describes later steps. Each is proposed after the port and built only
 if the owner agrees.
@@ -72,12 +76,12 @@ states · 13. New feature ideas · 14. Open questions / tests
 
 | Data | Home | On the phone |
 |---|---|---|
-| Subscriptions `{show_id, feed_url, title, author, artwork_url, added_at, settings}` | `Core` lists (`podcasts.subscriptions`), max 200 | IndexedDB `th-podcasts/subs` |
+| Subscriptions `{show_id, feed_url, title, author, artwork_url, added_at, settings}` | **Built (follows only):** `Core` `podcast_follows` (step 25): each show's address, title, author, artwork, followed or not, the night's last check; the phone sends follows and unfollows, the night reads them (§5.4). Later: settings | The ported app's own `jarvis.podcasts.v1` (`follows`); later IndexedDB `th-podcasts/subs` |
 | Feed state `{show_id, etag, last_modified, next_check_at, interval_s, fail_count, known_guids[≤ 50], latest_at}` | `Core` table (Worker only) | — |
 | New-episode records `{show_id, episode_id, title, published_at, duration_s, enclosure_url, bytes}` | `Core` list `podcasts.new` (last 30 days) | IndexedDB `th-podcasts/new` |
 | Parsed feeds (episodes) | — | IndexedDB `th-podcasts/feeds` (per show, newest 300 episodes) |
 | Up next (queue) | `Core` lists (`podcasts.queue`), max 100 | IndexedDB `th-podcasts/queue` |
-| Progress `{position_s, duration_s, played, updated_at}` per episode | `Core` (`podcasts.progress`), newest 1,000 | IndexedDB `th-podcasts/progress` |
+| Progress `{position_s, duration_s, played, updated_at}` per episode | **Built:** `Core` `podcast_progress` (step 25), keyed by the app's own `<feed address>#<episode id>`, newest 1,000 | The ported app's own `jarvis.podcasts.v1` (`progress`, its newest 300); later IndexedDB `th-podcasts/progress` |
 | Downloads | — | OPFS `podcasts/<show_id>/<episode_id>.<ext>`; index in IndexedDB |
 | Prefs (speed per show, skip lengths, autoplay, region) | `Core` settings | IndexedDB `th-podcasts/prefs` |
 
@@ -196,6 +200,18 @@ the show appears in Shows; Unfollow → gone, Undo → back with its settings.
 
 ### 4.2 The background check
 
+**Built instead, 2026-11-01 (NEXT-BATCH.md part 7):** the night's check ([RUNTIME.md §12.1](../../mind/RUNTIME.md)).
+In step 7 the night reads the followed shows due a check (each at most once a day, at most 20 a night,
+the longest unchecked first) and gets from the Worker, as numbers only (`GET /v1/podcasts/feed` in
+counts mode, by the show's opaque id: the night never receives a feed's address or words, or a
+title), the episodes published since the
+show's last check that no phone has started; it places "2 new
+episodes in Podcasts." as one of its home lines, which home shows in the Overnight card; a tap
+opens Podcasts. The line is counts only, never a show's name: titles are their publishers' words,
+and a surface is read back by any of the mind's sessions.
+The Worker lets the night read only followed shows' feeds, counts its reads (at most 40 a UTC day, in a stored row) and keeps each show's last check (and failed checks in a row, which make it wait longer) on
+its follow row. The cron check below stays a proposal.
+
 Runs inside the Worker's single cron dispatcher (every 15 minutes; the free plan allows 5 cron
 triggers per account and the design uses one).
 
@@ -299,6 +315,41 @@ stays under 10 ms (measured in the test).
 **Acceptance:** browser test with a fixture MP3: play, skip forward twice, pause → position =
 60 s ± 0.5; reload → resumes at 60 s; play to 96 % → marked played; at 1.5× the Media Session
 position state reports `playbackRate: 1.5`.
+
+**Built 2026-11-01 for the ported app (NEXT-BATCH.md part 7):** the app keeps saving where it is in
+its own storage (`jarvis.podcasts.v1`, every 10 s while playing and on pause, seek and hide, as it
+always did), and `frontend/th/podcasts/progress.js` keeps that in step with the Worker
+([API.md §11.25](../../engineering/API.md)):
+
+- **On open,** before the app reads its storage: what the Worker took since this phone last asked
+  (`GET /v1/podcasts/progress?since=`) is merged in, the newer `updated_at` winning each episode;
+  the app's own details of an episode stay, and an episode this phone never saw is added, so it
+  resumes when opened. The app's edit waits for this at most 1.5 s; a pull that comes back later is
+  not applied (the app holds its state in memory and writes all of it back on every save, so a
+  later write would be lost), and `since` stays, so the next open brings it. Merging before the read
+  was chosen over a reload after it: no flash, and no reload while something plays.
+- **Up:** the positions the Worker doesn't have go on open, on pause and end, when the page hides
+  (keepalive), every 60 s while an episode plays and when the network returns (≤ 100 and under
+  60 KB a request). Follows and unfollows since the last look go too, stamped when noticed (the app
+  keeps no time for them), for the night. Follows never come down: a second copy of the app open on
+  the phone can write its older list over the storage, and a show missing from it is an unfollow
+  only for this phone's own app.
+- **Conflicts:** the newer `updated_at` wins, on the Worker and on the phone; a tie keeps what is
+  there. **Clocks:** the app stamps its saves with the phone's clock, which may be off. Every answer
+  from the Worker carries its clock (`at`, `next_since`), so the module keeps the difference (the
+  Worker's minus the phone's, from the middle of each request, always taken from the latest answer),
+  sends its times on the Worker's clock and reads the Worker's back onto the phone's. Both phones'
+  saves are then compared on one clock, to within half a request's time. Chosen over ordering by
+  when the Worker took a save, which would let a phone that was offline for a day overwrite newer
+  places with old ones when it reconnects. A save more than an hour ahead of the Worker's clock
+  (before any answer set the offset) is refused.
+- Only signed in, in a top-level page or one of home's own frames. The Worker checks each item on
+  its own and reports by place the ones it refused; those stay unsent and go again next time (one
+  ahead of the Worker's clock is taken once it is due), and the rest of the request is kept. An
+  outage, a refused session or a whole request refused leaves everything unsent, for next time.
+- Keys: the app's own `feedUrl#episodeId`, not a hash: a hash would leave a phone unable to resume
+  an episode it never saw, and the night matches positions to shows by the address. They travel
+  only in JSON bodies, never a path, a query or a log.
 
 ---
 

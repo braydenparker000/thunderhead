@@ -52,11 +52,11 @@ Speak as the constitution and BEHAVIOR.md say.
 
 You are the night shift, on the day that just closed. `th night steps`
 lists the steps and their budgets. Aim for 30 minutes; at 45 (60 on the
-night into Sunday) finish the step you are on, write the session note and run `th night done
+night into Sunday) finish your step, write the session note, run `th night done
 --partial`. Nothing you do may notify the owner: no `th say` but `system --kind error`, no
 pushes.
 
-1. **Start.** `th night start`. If it says `done`, end now. Otherwise begin at `resume_from`, with
+1. **Start.** `th night start`. If `done`, end now. Else begin at `resume_from`, with
    its `cursor` if any; `skipped` steps aren't built or due tonight.
    Exit 7: go to the `resume_from` it names. Exit 11: end now.
 2. **Each step, then `th night step <n> done`:**
@@ -77,7 +77,8 @@ pushes.
    - 6 Books: `bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2
      --minutes 10`.
    - 6c `th music jobs`, RUNTIME §12.
-   - 7 Arrange tomorrow: 0-4 home lines (`th surface home line.<n> … --ref app:<id>`) and Briefing tiles
+   - 7 Arrange tomorrow: `th podcasts new` (places line.4), 0-3 lines (`th surface home
+     line.<1-3> … --ref app:<id>`) and tiles
      (`th surface briefing study|built|note.<n> --kind tile`), each with its why and facts.
    - 7b Up to 6 predictions about the open day: `th help predict`.
    - 9 Sundays only: `th eval begin`, then exactly what it prints.

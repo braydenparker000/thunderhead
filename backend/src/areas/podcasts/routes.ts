@@ -4,12 +4,19 @@
 // phone reads it, §4.1); an episode's audio, found in its feed by id (never an address the caller
 // names) and streamed with byte ranges. Where an episode was found, and where its host's redirects
 // led, are kept 10 minutes in memory, so a seek costs one request. A host's own trouble travels in
-// `details.reason`, which the app shows as before. Nothing is logged or stored.
-import { Hono } from 'hono';
+// `details.reason`, which the app shows as before. Nothing is logged or stored. mind:night gets a
+// followed show's new episodes as numbers only (counts mode, `nightCounts`; RUNTIME.md §12.1), at
+// most 40 a UTC day, counted by Core in a stored row; never a feed's words.
+import { type Context, Hono } from 'hono';
 import { parseFeed, publicURL } from '../../../../frontend/th/podcasts/feed.js';
 import type { ErrorCode } from '../../../../shared/contract/errors';
-import { type AppEnv, guard } from '../../http/auth';
+import type { PodcastFeedCounts } from '../../../../shared/contract/podcasts.ts';
+import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { ApiError } from '../../http/errors';
+import { coreObject } from '../../objects/core';
+import { fresh } from '../../objects/rpc';
+import { COUNT_BYTES, COUNT_MS, CountError, countFeed, type FeedCounts } from './counts';
+import { countOf, timeOf } from './sync';
 import { CATEGORIES, directory, FeedError, feedBody, upstream } from './upstream';
 
 const CODE: Record<number, ErrorCode> = {
@@ -77,6 +84,49 @@ async function enclosure(feed: string, id: string, signal: AbortSignal) {
   }
 }
 
+/** The night's only mode (counts.ts, RUNTIME.md §12.1): a followed show's new episodes as numbers,
+ * never the feed's words or its address, so nothing it reads taints it. The show is named by its id
+ * (`?show=`, from the night's follows); an address (`?url=`) or anything but counts mode is 403
+ * counts_only; a show the owner doesn't follow is 403 not_followed, and past 40 reads a UTC day 429,
+ * both before anything is fetched. One deadline (COUNT_MS) for the whole read, headers included. A
+ * feed that can't be counted is 502 `upstream` with a fixed reason, never the host's words. The
+ * numbers are clamped (sync.ts), and episodes a phone has started are left out. */
+async function nightCounts(c: Context<AppEnv>): Promise<PodcastFeedCounts> {
+  const show = c.req.query('show') ?? '';
+  const byUrl = c.req.query('url') !== undefined;
+  if (!byUrl && !/^[0-9a-f]{16}$/.test(show)) throw new ApiError('validation', [{ path: 'show', issue: '16 hex' }]);
+  if (byUrl || c.req.query('count') !== '1') throw new ApiError('forbidden', { reason: 'counts_only' });
+  const since = Number(c.req.query('since'));
+  if (!Number.isSafeInteger(since) || since < 0) throw new ApiError('validation', [{ path: 'since', issue: 'ms' }]);
+  const ok = await fresh(coreObject(c.env).admitNightFeed(show));
+  if (!ok.ok && ok.code === 'forbidden') throw new ApiError('forbidden', { reason: 'not_followed' });
+  if (!ok.ok) throw new ApiError('rate_limited', { reason: 'night_feed_reads' }, { retry_after: ok.retry_after });
+  const url = ok.url;
+  const start = Date.now();
+  let counts: FeedCounts;
+  try {
+    const signal = AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(COUNT_MS)]);
+    const body = await feedBody(url, signal);
+    counts = await countFeed(body, since, Date.now(), { bytes: COUNT_BYTES, ms: COUNT_MS - (Date.now() - start) });
+  } catch (e) {
+    throw new ApiError('upstream', { reason: e instanceof CountError ? e.reason : 'unreachable' });
+  }
+  const started = new Set(
+    counts.newer.length
+      ? await fresh(
+          coreObject(c.env).podcastsStarted(
+            url,
+            counts.newer.map((e) => e.id),
+          ),
+        )
+      : [],
+  );
+  return {
+    new_n: countOf(counts.newer.filter((e) => !started.has(e.id)).length),
+    latest_at: timeOf(counts.latest_at, Date.now()),
+  };
+}
+
 const AUDIO = ['application/octet-stream', 'application/ogg', 'video/mp4'];
 const time = (c: { req: { raw: Request } }) => AbortSignal.any([c.req.raw.signal, AbortSignal.timeout(20_000)]);
 
@@ -89,6 +139,7 @@ export const podcastsRoutes = new Hono<AppEnv>()
     return c.json(await answer(() => directory(q, c.req.query('country'), time(c))));
   })
   .get('/podcasts/feed', guard('GET /v1/podcasts/feed'), async (c) => {
+    if (whoOf(principalOf(c)) === 'N') return c.json(await nightCounts(c));
     const body = await answer(() => feedBody(c.req.query('url') ?? '', time(c)));
     return c.body(body, 200, { 'Content-Type': 'application/xml' });
   })
