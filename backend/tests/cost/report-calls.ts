@@ -1,7 +1,9 @@
 // The phone's report calls of the cost suite (cost.test.ts checks every budget): one batch, and a
-// page of 50 from a table of 250, which reads its own rows and not the table.
+// page of 50 from a table of 250, which reads its own rows and not the table. Then Podcasts' sync
+// (podcast-calls.ts), from the same `it` (cost.test.ts stays under 300 lines).
 import type { SignedIn } from '../../../shared/contract/api';
 import { api, core, coreSql, PASSWORD } from '../helpers';
+import { podcastCalls } from './podcast-calls';
 
 type Cost = (
   name: string,
@@ -30,4 +32,9 @@ export async function reportCalls(cost: Cost, grant: (ip: string, password?: str
     200,
     core(),
   );
+}
+
+export async function phoneCalls(cost: Cost, grant: (ip: string, password?: string) => Promise<SignedIn>) {
+  await reportCalls(cost, grant);
+  await podcastCalls(cost, grant);
 }

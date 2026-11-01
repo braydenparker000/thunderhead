@@ -81,6 +81,9 @@ export const DICTATE_LIMITS = Object.freeze(${j(c.DICTATE_LIMITS)});
 /** @type {Readonly<typeof import('../../shared/contract/reminders.ts').REMINDER_LIMITS>} */
 export const REMINDER_LIMITS = Object.freeze(${j(c.REMINDER_LIMITS)});
 
+/** @type {Readonly<typeof import('../../shared/contract/podcasts.ts').PODCAST_LIMITS>} */
+export const PODCAST_LIMITS = Object.freeze(${j(c.PODCAST_LIMITS)});
+
 /** @type {Readonly<Record<VerbName, VerbInfo>>} */
 export const VERBS = Object.freeze(${j(verbs)});
 
@@ -172,6 +175,8 @@ function mind() {
     reports: { kinds: c.REPORT_KINDS, limits: c.REPORT_LIMITS },
     // The listening pass (`th music`): the job kinds, the mood list and the limits.
     listen: { kinds: c.LISTEN_KINDS, moods: c.MOODS, limits: c.LISTEN_LIMITS },
+    // Podcasts (`th podcasts new`): the night's budget of shows and how long before one is due again.
+    podcasts: { limits: c.PODCAST_LIMITS },
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
     night: {
       steps: c.NIGHT_STEPS,

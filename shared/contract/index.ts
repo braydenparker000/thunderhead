@@ -12,6 +12,7 @@ export * from './memory.ts';
 export { LISTEN_KINDS, LISTEN_LIMITS, MOODS } from './listen.ts';
 export { MUSIC_LIMITS } from './music.ts';
 export * from './night.ts';
+export { PODCAST_LIMITS } from './podcasts.ts';
 export {
   PROPOSAL_CLASS_NAMES,
   PROPOSAL_CLASSES,

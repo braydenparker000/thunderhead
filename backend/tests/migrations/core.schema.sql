@@ -362,6 +362,32 @@ CREATE TABLE perf_days (
   PRIMARY KEY (day, metric)
   ) WITHOUT ROWID;
 
+CREATE TABLE podcast_follows (
+  feed_url TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  author TEXT NOT NULL,
+  artwork TEXT NOT NULL,
+  followed INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  synced_at INTEGER NOT NULL,
+  checked_at INTEGER,
+  latest_at INTEGER,
+  new_n INTEGER NOT NULL DEFAULT 0
+  ) WITHOUT ROWID;
+
+CREATE INDEX podcast_follows_synced ON podcast_follows (synced_at);
+
+CREATE TABLE podcast_progress (
+  key TEXT PRIMARY KEY,
+  position_s REAL NOT NULL,
+  duration_s REAL NOT NULL,
+  played INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  synced_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE INDEX podcast_progress_synced ON podcast_progress (synced_at);
+
 CREATE TABLE predictions (
   id TEXT PRIMARY KEY,
   made_at INTEGER NOT NULL,

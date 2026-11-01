@@ -48,7 +48,8 @@ it('counts rows the way the schema design assumes', async () => {
     lookup_missing_row: '0r/0w',
     insert_100_rows: '100r/100w',
     count_star_101_rows: '101r/0w', // count(*) is a billed full scan
-    // Dropping writes nothing (it reads a few schema rows); deleting 101 rows would be 101 writes.
-    drop_table_101_rows: expect.stringMatching(/^\d{1,2}r\/0w$/),
+    // Dropping writes nothing (it reads the schema's rows: about 100 in Core, more as it grows);
+    // deleting 101 rows would be 101 writes.
+    drop_table_101_rows: expect.stringMatching(/^\d{1,3}r\/0w$/),
   });
 });

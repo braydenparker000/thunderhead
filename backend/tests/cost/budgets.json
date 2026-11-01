@@ -140,7 +140,7 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 122,
+    "rows_read_max": 127,
     "rows_written_max": 18
   },
   "cron tick, nothing due (Core)": {
@@ -366,5 +366,45 @@
   "GET /v1/jobs/next audio.analysis, nothing due, nothing changed (Music)": {
     "rows_read_max": 25,
     "rows_written_max": 0
+  },
+  "PUT /v1/podcasts/progress (1 new) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 2
+  },
+  "PUT /v1/podcasts/progress (1 newer) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 2
+  },
+  "PUT /v1/podcasts/progress (1 stale) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "PUT /v1/podcasts/progress (100 new, a first sync) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 200
+  },
+  "GET /v1/podcasts/progress (nothing new of 1,000) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "GET /v1/podcasts/progress (3 new of 1,003) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 0
+  },
+  "PUT /v1/podcasts/follows (1) (Core)": {
+    "rows_read_max": 0,
+    "rows_written_max": 2
+  },
+  "GET /v1/podcasts/follows (20 shows, the night) (Core)": {
+    "rows_read_max": 20,
+    "rows_written_max": 0
+  },
+  "POST /v1/podcasts/follows/checked (20) (Core)": {
+    "rows_read_max": 20,
+    "rows_written_max": 20
+  },
+  "cron tick, the daily prune pass with 1,003 positions (Core)": {
+    "rows_read_max": 2400,
+    "rows_written_max": 12
   }
 }

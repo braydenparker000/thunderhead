@@ -1394,7 +1394,8 @@
     },
     "GET /v1/podcasts/feed": {
       "who": [
-        "D"
+        "D",
+        "N"
       ],
       "phase": "P8",
       "status": "built",
@@ -1407,6 +1408,48 @@
       "phase": "P8",
       "status": "built",
       "note": "?feed=&id=; byte ranges"
+    },
+    "PUT /v1/podcasts/progress": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "1–100 positions; the newer updated_at wins"
+    },
+    "GET /v1/podcasts/progress": {
+      "who": [
+        "D",
+        "N"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?since=&cursor=: what changed since, oldest first"
+    },
+    "PUT /v1/podcasts/follows": {
+      "who": [
+        "D"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "1–100 shows followed or unfollowed; the newer wins"
+    },
+    "GET /v1/podcasts/follows": {
+      "who": [
+        "D",
+        "N"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?since=&cursor=; with the night's last check"
+    },
+    "POST /v1/podcasts/follows/checked": {
+      "who": [
+        "N"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "the shows the night read: ≤ 20, their newest episode"
     },
     "GET /v1/push/key": {
       "who": [
@@ -2138,6 +2181,24 @@
       "failures_max": 3,
       "keep_ms": 7776000000,
       "like_max": 50
+    }
+  },
+  "podcasts": {
+    "limits": {
+      "progress_keep": 1000,
+      "batch_items": 100,
+      "url_chars": 2000,
+      "id_chars": 64,
+      "seconds_max": 604800,
+      "ahead_ms": 3600000,
+      "title_chars": 300,
+      "author_chars": 200,
+      "unfollowed_keep_days": 30,
+      "follows_keep": 300,
+      "page_max": 500,
+      "night_feeds": 20,
+      "check_gap_ms": 72000000,
+      "night_feed_reads": 40
     }
   },
   "memory": {

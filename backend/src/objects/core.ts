@@ -5,8 +5,8 @@
 // the night shift's run and input in core-night.ts, the import in core-import.ts and proposals (P4) in
 // core-proposals.ts, the evals in core-evals.ts, the watchdogs (each tick) in core-watchdogs.ts and backups, the drill
 // and exports in core-backups.ts, Muse's work orders and the Briefing in core-work.ts, the predictions (P9) in
-// core-predictions.ts, the reminders in core-reminders.ts and the phone's reports in core-reports.ts. The alarm also
-// runs the chunked jobs (areas/jobs).
+// core-predictions.ts, the reminders in core-reminders.ts, the phone's reports in core-reports.ts and Podcasts'
+// positions and follows in core-podcasts.ts. The alarm also runs the chunked jobs (areas/jobs).
 import type {
   BriefRequest,
   JsonObject,
@@ -49,7 +49,7 @@ import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
-import { CoreReports } from './core-reports';
+import { CorePodcasts } from './core-podcasts';
 
 const PRUNE_STEP = 2_000;
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
@@ -63,7 +63,7 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [listenRejectJob.kind]: listenRejectJob,
 };
 
-export class Core extends CoreReports {
+export class Core extends CorePodcasts {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
