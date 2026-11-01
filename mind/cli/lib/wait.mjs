@@ -6,9 +6,14 @@
 // means handed-out messages are requeued, so it pays to keep trying gently.
 //
 // Exit 0 messages/events · 3 timeout · 4 Stop · 5 day closed · 2/6/11 at once on 401/403/already_live.
+// Messages off the record come named (`off_record`), with the rule beside them.
 import {EXIT, ThError, invalid, out, redact} from './io.mjs';
 import {request, sleep} from './http.mjs';
 import {getState, setState} from './state.mjs';
+
+/** What the session is told beside messages off the record (the Worker refuses the writes anyway). */
+export const OFF_RECORD_NOTE = 'Off the record: answer each with --reply-to, so the answer stays in its conversation. ' +
+  'Remember nothing from it: no fact, rule, loose end, title or session note (the Worker refuses: off_record).';
 
 /** The Worker holds a take for at most this many seconds (the proxy cuts at 30 s). */
 export const TAKE_S = 25;
@@ -64,7 +69,8 @@ export async function wait(flags) {
     const events = Array.isArray(data?.events) ? data.events : [];
     const signals = Array.isArray(data?.signals) ? data.signals : [];
     if (messages.length) noteOwnerMessages(messages);
-    const extra = {...(messages.length ? {messages} : {}), ...(events.length ? {events} : {})};
+    const held = Array.isArray(data?.off_record) && data.off_record.length ? {off_record: {threads: data.off_record, note: OFF_RECORD_NOTE}} : {};
+    const extra = {...(messages.length ? {messages} : {}), ...(events.length ? {events} : {}), ...held};
     if (signals.includes('day_closed')) {
       out({day_closed: {day: getState('day'), seq: after}, ...extra});
       return EXIT.day_closed;
@@ -74,7 +80,7 @@ export async function wait(flags) {
       return EXIT.stop;
     }
     if (messages.length || events.length) {
-      out({messages, events});
+      out({messages, events, ...held});
       return EXIT.ok;
     }
   }

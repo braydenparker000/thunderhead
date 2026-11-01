@@ -23,6 +23,22 @@ test('wait returns an owner message (exit 0) and remembers the sequence', withFa
   assert.ok(fake.state.takes.at(-1).after >= r.json.messages[0].seq);
 }));
 
+test('messages off the record come named, with the rule beside them; others come as before', withFake({}, async fake => {
+  const e = env(fake);
+  await th(['brief', '--claim'], e);
+  fake.offRecord('0192f0c4-0000-7000-8000-0000000000aa');
+  later(100, () => fake.addOwnerMessage('between us, please', {thread_id: '0192f0c4-0000-7000-8000-0000000000aa'}));
+  const r = await th(['wait', '--minutes', '0.2'], e);
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(r.json.off_record.threads, ['0192f0c4-0000-7000-8000-0000000000aa']);
+  assert.match(r.json.off_record.note, /--reply-to/);
+  assert.match(r.json.off_record.note, /Remember nothing/);
+  later(100, () => fake.addOwnerMessage('an ordinary question'));
+  const plain = await th(['wait', '--minutes', '0.2'], e);
+  assert.equal(plain.code, 0, plain.stderr);
+  assert.equal(plain.json.off_record, undefined);
+}));
+
 test('every take asks for min(25 s, time left); the loop runs takes until the deadline, then exits 3', withFake({}, async fake => {
   const e = env(fake);
   later(1200, () => fake.addOwnerMessage('hello'));
