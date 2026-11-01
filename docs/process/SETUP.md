@@ -552,3 +552,27 @@ Actions (your rulings of 2026-10-27 and 2026-10-28). Until they're stored, Study
    copy's text and **Open in the scripture app**. Add your other books after this step: a book's
    verses are found as it is read.
 
+
+## P. Previews: try a change on your phone before merging it
+
+### P1. The preview address (about 10 minutes, once)
+
+Each pull request can be put on one fixed preview address to try on your phone. It uses your real
+Thunderhead (the live Worker), so you sign in there once, like a new phone.
+
+1. Cloudflare dashboard → **My Profile → API Tokens → Create Token → Create Custom Token**.
+   Name it `thunderhead-preview`. Permissions: **Account → Cloudflare Pages → Edit**. Account
+   resources: your account. Nothing else. Create it and copy it.
+2. GitHub → this repository → **Settings → Secrets and variables → Actions → New repository secret**:
+   name `CLOUDFLARE_PAGES_TOKEN`, value the token.
+3. **Actions → Preview → Run workflow**, branch: any open pull request's branch (for example
+   `claude/owner-time-zone`). When it finishes, its summary shows the address, something like
+   `https://preview.thunderhead-preview.pages.dev`.
+4. Let the Worker accept that address: **Settings → Secrets and variables → Actions → Variables →
+   `SITE_ORIGINS`**, add `,https://preview.thunderhead-preview.pages.dev` (the address from step 3)
+   at the end. It takes effect with the next deploy.
+5. Open the address on your phone and sign in. A small gold "Preview" label at the bottom says it
+   isn't the live app.
+
+From then on the lead runs step 3 for whatever it asks you to try. Worker changes can't be previewed
+this way; a pull request says when that is the case.

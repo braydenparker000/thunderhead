@@ -32,9 +32,16 @@ export function apiOrigin(raw) {
   return u.origin;
 }
 
-/** @param {{ api?: string, build?: number, commit?: string, repo_url?: string }} c */
-export function configJs({ api = '', build = 0, commit = 'dev', repo_url = '' } = {}) {
-  const value = { api: apiOrigin(api), build, commit, repo_url };
+/** A preview build's branch name, as shown on its label: letters, digits and `._/-`, at most 80. */
+export function previewName(raw) {
+  if (!raw) return '';
+  if (!/^[A-Za-z0-9._/-]{1,80}$/.test(raw)) throw new Error(`not a branch name: ${JSON.stringify(raw)}`);
+  return raw;
+}
+
+/** @param {{ api?: string, build?: number, commit?: string, repo_url?: string, preview?: string }} c */
+export function configJs({ api = '', build = 0, commit = 'dev', repo_url = '', preview = '' } = {}) {
+  const value = { api: apiOrigin(api), build, commit, repo_url, ...(preview ? { preview: previewName(preview) } : {}) };
   return `// Written by scripts/stage.mjs at deploy. Public values only.\nexport const CONFIG = ${JSON.stringify(value)};\n`;
 }
 

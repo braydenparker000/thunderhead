@@ -11,6 +11,9 @@ import { CONFIG } from '/config.js';
 import { store } from '/th/session.js';
 import { collector, itemOf } from './error-items.js';
 
+// A preview build (not the live app) says so, small, on every shell page.
+if (CONFIG.preview) import('/ui/preview.js').catch(() => {});
+
 const app = /** @type {HTMLScriptElement | null} */ (document.querySelector('script[src="/ui/errors.js"]'))?.dataset.app || 'home';
 /** @type {string | null} */
 let token = null;
