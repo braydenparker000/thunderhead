@@ -9,7 +9,7 @@ Sibling docs: [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM](../design/DESIG
 1. **One screen** (owner ruling). Top to bottom: date line (with the status chip only when something is off), today's conversation with the mind's cards in it, hint (only while learning), decision card (docked, only when one waits), ask bar. Nothing else. **No chips on home** except the action chip under a reply (§4.5).
 2. **Nothing stands on screen to say all is well** (owner, 2026-10-31). The status chip shows only while something is off (§2.1); the mind's lines are cards in the chat (§2.2).
 3. A **decision** is one gold card with at most two buttons. Only one is shown at a time; the rest queue behind it.
-4. The **conversation** is today's thread. It starts on its own each day (04:00, after 60 quiet minutes). The owner never starts, names or clears one (owner ruling).
+4. The **conversation** is today's thread. It starts on its own each day (04:00, after 60 quiet minutes). The owner never starts or clears a daily one (owner ruling); a conversation **off the record** is the one they start (§4.12), and a conversation's Delete is in the menu.
 5. The **ask bar** has no placeholder. `+` on the left folds up the options sheet; the mic on the right turns into send while typing (owner ruling).
 6. **Presence is edge light** (owner ruling): calm glow, gold at the bottom when a decision waits, a pulse while thinking, brighter while listening.
 7. **Everything works offline** that can: the last state paints from IndexedDB in < 1 s, messages queue with "Sends when you're back online".
@@ -251,6 +251,15 @@ Memory carries context across days ([MEMORY](../mind/MEMORY.md)); the owner neve
 
 Acceptance: with a mocked clock, a thread with its last message at 03:30 rolls at 04:30, not 04:00; a message at 04:20 pushes the roll to 05:20; after the roll, home shows no turns and the menu lists the old thread under "Yesterday".
 
+### 4.12 Off the record
+
+Built 2026-11-01 (NEXT-BATCH.md part 8; `th/record/record.js`; the Worker's rules in [MEMORY.md §6.1](../mind/MEMORY.md)). A conversation the mind answers but never remembers, gone 7 days after its last message. The owner starts one from the + sheet's **Off the record**, or by saying "off the record" (also "go off the record"; "Off the record: <words>" starts it and leaves the words in the bar to send there, so they never go on the record), a phone command (§6.3).
+
+- Home shows that conversation in place of today's: a quiet line at its top, an `eye-slash` and **Off the record · gone in 7 days** (Inter 12.5, `--ink-3`) with **End** (accent, 44 px); the bar reads *Off the record*. Messages go to it by its id; the mind's answer lands in it; Stop, the reply slot and the thinking words work as on today's.
+- **End**, "back on the record" (or "on the record") returns to today; so does the conversation's own end (deleted, or its time up), with "That conversation off the record is gone."
+- This phone keeps only which conversation it is in (`th.p.otr`, wiped at sign-out); it never caches its messages, and the mind's home lines and the catch-up line stay with today's.
+- In the menu it is a row under Now tagged **Off the record** (the date as its title); opened, its card reads "Off the record" and "2 messages · gone in 7 days". The menu's search never finds it.
+
 ## 5. Edge cases in the conversation
 
 | Case | Behaviour |
@@ -284,6 +293,7 @@ Folds up out of the bar like iMessage (owner ruling): scales from 0.5 at its bot
 | **Files** | `#14a39a` | Opens the file picker (any type), up to 4 files, ≤ **25 MB** each [proposal]. |
 | **Voice memo** | `#e0457b` | Turns the bar into a recording strip: pink dot, timer, live level bars, **Stop** (send-slot) and **×** (cancel, in the `+` slot). Stop attaches the audio (Opus in WebM) to the next message; the owner can add text and send. Max **10 min**; at 9:30 the timer turns `--alarm`. The Worker transcribes it so the mind can read it; the audio is kept with the message. |
 | **Remind me** | `#e08a1e` | Opens a small sheet: "What" (prefilled with the bar's text), then **In 1 hour** · **This evening** (19:00; hidden after 18:30) · **Tomorrow morning** (08:00) · **Pick a time**. Saving creates a reminder (a reversible action with undo). Toast: "I'll remind you at 19:00." At that time: a push (not counted against the push budget) and a line in the conversation. A time inside quiet hours moves to their end (06:30 unless the owner set a later one, never earlier), and the toast says so. |
+| **Off the record** (2026-11-01) | `#64748b` | Starts a conversation off the record (§4.12): `eye-slash`, the sixth item. |
 
 Closing: tap `+` again, tap anywhere outside, pick an item, Back, or Escape. Before sign-in, every item shows its "comes with sign-in" toast (first build).
 
@@ -291,6 +301,7 @@ Closing: tap `+` again, tap anywhere outside, pick an item, Back, or Escape. Bef
 
 ### 6.3 Sending
 
+- **Off the record** (2026-11-01): "off the record" starts a conversation off the record (§4.12) and "back on the record" ends it, with a line under the bar saying so first.
 - **The phone's own commands** (built 2026-10-31, `th/commands/commands.js`; NEXT-BATCH.md part 5): a few plain orders are carried out on the phone at once, with no mind and no wait, as "go quiet" is: "open guitar" (any app, by the name the owner calls it) and "remind me at 5 to call the bank", "remind me to stretch in 20 minutes", "remind me tomorrow at 8 to …", "remind me tonight to …". Under the bar, while typing, one line says exactly what it will do ("A reminder at 17:00: Call the bank", "Opens Guitar."); the reminder's toast has Undo. Only the plain order counts: a question, or a time it can't read, goes to the mind as words, unchanged. Playback orders ("pause", "skip", "play Evening") come with the island (part 3).
 - Send by the send button, the keyboard's Send/Enter key, or Ctrl/Cmd+Enter on a hardware keyboard (Shift+Enter is a new line).
 - Whitespace-only input never sends.

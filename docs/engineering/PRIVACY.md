@@ -41,7 +41,7 @@ Retention marked **[proposal]** is new; the rest comes from decisions, the plan 
 
 | Data | Where | Written by | Kept | In export | Mind can read |
 |---|---|---|---|---|---|
-| Conversation messages | `Core` DO (+ FTS index) | owner devices, mind | Until deleted | yes | yes |
+| Conversation messages | `Core` DO (+ FTS index) | owner devices, mind | Until deleted (purged 30 days after a Delete); off the record 7 days after the last message, never indexed | yes, never one off the record or deleted | yes; off the record only the chat answering it; deleted, no |
 | Threads (daily conversations, titles) | `Core` | Worker, mind | Until deleted | yes | yes |
 | Memory: facts (bi-temporal; superseded rows kept as history) | `Core` | mind (taint rules), owner | Until forgotten | yes | yes |
 | Memory: day notes | `Core` | night shift | Until deleted | yes | yes |
@@ -226,7 +226,8 @@ Acceptance: a unit test of the notification builder over every kind, with detail
 |---|---|
 | Delete a message | Removed from `Core` and the FTS index at once; any file it carried is deleted from R2; ledger keeps "message deleted" without content. |
 | Forget a fact (Memory page) | Hard delete of the fact and every version of it (even one an undo unlinked), its FTS entries rewritten away; surfaces citing it cleared, and the ledger rows of every surface that drew on it lose their words; the ledger rows about it keep only time and kind; one tombstone without content, and the ids kept so they are never reused. Durable Object point-in-time recovery still holds the deleted pages for up to 30 days (the Memory page says so). |
-| Delete a day's conversation | Messages, thread, day note and session notes of that day. |
+| Delete a conversation (built 2026-11-01) | Hidden at once from the menu, search, the briefing and the mind; Settings › Recently deleted keeps it 30 days with Restore; then its messages (and their search entries), its files' bytes and rows, the mind's session notes about it and its evidence links are purged. What the mind learned stays in What I remember (facts keep their text; day notes stay), where the owner fixes or forgets it ([MEMORY.md §6.1](../mind/MEMORY.md)). |
+| Off the record (built 2026-11-01) | A conversation the mind answers and never remembers: nothing from it becomes memory (the Worker refuses), nothing indexes it, the night never reads it; purged 7 days after its last message like a deleted one. No backup or export ever holds it. |
 | Delete a file or book | R2 object and its extracted text and index rows. |
 | Delete events | By app and date range in Settings → Privacy; SQLite rows and the matching lines in the daily archives are rewritten. |
 
@@ -239,7 +240,7 @@ Deletes are `delete`-class proposals when the **mind** asks for them; when the *
 - Timing: 7 days during which everything is hidden and "Cancel erase" is offered on every device; then a chunked job deletes, and the ledger keeps one line: "Everything was erased on {date}."
 
 ### 10.3 Backups and deleted data
-Backups keep 8 weekly and 12 monthly sets, so a single deleted item can survive in a backup for up to 12 months. Restoring a backup re-applies the ledger's delete tombstones made since that backup, so deleted items don't come back. **[proposal]** Erase everything deletes the backups too.
+Backups keep 8 weekly and 12 monthly sets, so a single deleted item can survive in a backup for up to 12 months. Conversations off the record never enter a backup or an export, so none outlives its 7 days there; a deleted conversation leaves every backup and export made after its Delete, though one made before keeps it until that backup ages out. Restoring a backup re-applies the ledger's delete tombstones made since that backup, so deleted items don't come back. **[proposal]** Erase everything deletes the backups too.
 
 Acceptance: delete a message on fixtures, take a backup, restore an older backup that contains it; the restored store doesn't contain it.
 
