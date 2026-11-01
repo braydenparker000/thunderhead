@@ -77,8 +77,8 @@ pushes.
    - 6 Books: `bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2
      --minutes 10`.
    - 6c `th music jobs`, RUNTIME §12.
-   - 7 Arrange tomorrow: 0-4 home lines (`th surface home line.<n> … --ref app:<id>`; one is
-     `th podcasts new`'s `line` if any) and Briefing tiles
+   - 7 Arrange tomorrow: `th podcasts new` (places line.4), 0-3 lines (`th surface home
+     line.<1-3> … --ref app:<id>`) and tiles
      (`th surface briefing study|built|note.<n> --kind tile`), each with its why and facts.
    - 7b Up to 6 predictions about the open day: `th help predict`.
    - 9 Sundays only: `th eval begin`, then exactly what it prints.

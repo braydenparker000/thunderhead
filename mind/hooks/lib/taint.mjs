@@ -5,7 +5,8 @@
 // - Edit, Write and the session's own bookkeeping tools;
 // - Read, Grep and Glob of own files: the project (not node_modules, not the drop folder
 //   $TMPDIR/th/ext/) and th's own briefing and state;
-// - th, except `th file` (attachments are outside text, INJ-08);
+// - th, except `th file` (attachments are outside text, INJ-08) and `th get /v1/podcasts/…` (show
+//   titles and feeds, which their publishers wrote; `th podcasts new` prints counts only);
 // - git on this repository and its origin (origin holds the project's own commits, whose files the
 //   rule already trusts); another remote, a URL, a clone or `-c` taints;
 // - `gh pr create|merge|checks` and `gh run`; every other gh call reads issues, PRs or the API;
@@ -71,6 +72,9 @@ function gitTaints(args, ctx) {
   return false;
 }
 
+/** A th call that prints what podcast publishers wrote (show titles, feeds). */
+const podcastText = ({sub, rest}) => sub === 'get' && /^\/v1\/podcasts\//.test(positionals(rest)[0] ?? '');
+
 /** @returns {Taint | null} */
 function bashTaint(command, ctx) {
   for (const seg of parseShell(command)) {
@@ -86,6 +90,7 @@ function bashTaint(command, ctx) {
     const th = thSub({cmd, args});
     if (th) {
       if (th.sub === 'file') return {source: 'th file', ref: 'file'};
+      if (podcastText(th)) return {source: 'th podcasts', ref: 'file'};
       continue;
     }
     if (cmd === 'curl' || cmd === 'wget') {

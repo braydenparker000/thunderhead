@@ -9,7 +9,7 @@ export function podcastRoutes(ctl) {
   const s = ctl.state;
   s.podcasts = {follows: [], progress: [], feeds: new Map(), reads: [], checks: []};
   const p = s.podcasts;
-  ctl.addFollow = (f) => { p.follows.push({title: 'A show', author: '', artwork: '', followed: true, updated_at: Date.now() - 30 * 86_400_000, checked_at: null, latest_at: null, new_n: 0, ...f}); };
+  ctl.addFollow = (f) => { p.follows.push({title: 'A show', author: '', artwork: '', followed: true, updated_at: Date.now() - 30 * 86_400_000, checked_at: null, latest_at: null, new_n: 0, fails: 0, ...f}); };
   ctl.addPosition = (row) => p.progress.push({duration_s: 1800, played: false, updated_at: Date.now(), ...row});
   /** A feed's answer: XML, or `{status, code}` for a refusal. */
   ctl.setFeed = (url, answer) => p.feeds.set(url, answer);
@@ -32,7 +32,8 @@ export function podcastRoutes(ctl) {
       for (const c of body.items) {
         const f = p.follows.find(x => x.feed_url === c.feed_url && x.followed);
         if (!f) continue;
-        Object.assign(f, {checked_at: Date.now(), new_n: c.new_n, latest_at: c.latest_at === null ? f.latest_at : Math.max(f.latest_at ?? 0, c.latest_at)});
+        if (c.failed) Object.assign(f, {checked_at: Date.now(), new_n: 0, fails: (f.fails ?? 0) + 1});
+        else Object.assign(f, {checked_at: Date.now(), new_n: c.new_n, fails: 0, latest_at: c.latest_at === null ? f.latest_at : Math.max(f.latest_at ?? 0, c.latest_at)});
         updated++;
       }
       return {updated, at: Date.now()};
