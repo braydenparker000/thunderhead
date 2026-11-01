@@ -80,7 +80,12 @@ describe('source rules', () => {
       );
       for (const m of list) {
         expect(m.kind).toBe('expand');
-        for (const sql of m.sql) expect(sql, `migration ${m.version}`).not.toMatch(/\b(DROP|RENAME|DELETE|UPDATE)\b/i);
+        // A trigger's event names a write without making one; its body is checked like the rest.
+        for (const sql of m.sql)
+          expect(
+            sql.replace(/^CREATE TRIGGER \w+ AFTER (INSERT|UPDATE|DELETE) ON\b/i, ''),
+            `migration ${m.version}`,
+          ).not.toMatch(/\b(DROP|RENAME|DELETE|UPDATE)\b/i);
       }
     }
   });

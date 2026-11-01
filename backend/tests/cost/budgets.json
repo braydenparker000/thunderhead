@@ -444,20 +444,20 @@
     "rows_written_max": 0
   },
   "GET /v1/music/find, packs missing: built again once (Music, 12000 tracks, 11600 notes)": {
-    "rows_read_max": 23718,
-    "rows_written_max": 25
+    "rows_read_max": 23723,
+    "rows_written_max": 26
   },
   "GET /v1/music/find (Music, cold: 12000 tracks, 11600 notes)": {
-    "rows_read_max": 118,
+    "rows_read_max": 121,
     "rows_written_max": 0
   },
   "GET /v1/music/find?like= (Music, cold: 12000 tracks)": {
-    "rows_read_max": 119,
+    "rows_read_max": 122,
     "rows_written_max": 0
   },
   "PUT /v1/music/notes, 200 notes replacing 200 (Music, cold: 12000 tracks)": {
-    "rows_read_max": 826,
-    "rows_written_max": 201
+    "rows_read_max": 1226,
+    "rows_written_max": 203
   },
   "GET /v1/music/notes?ids= 50 (Music, cold)": {
     "rows_read_max": 200,

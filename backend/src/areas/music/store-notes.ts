@@ -115,6 +115,38 @@ export function putCursor(db: Db, v: number, ord: number): void {
   );
 }
 
+/** A song added at or below the night's place (a new track takes the catalog's last place, which a
+ * deleted one may have held; an import keeps old places): the place moves to just before it, so the
+ * song is offered. */
+export function lowerCursor(db: Db, ord: number): void {
+  db.run(
+    `UPDATE music_state SET value_json = json_set(value_json, '$.ord', ?)
+     WHERE key = 'notes.cursor' AND json_extract(value_json, '$.ord') >= ?`,
+    ord - 1,
+    ord,
+  );
+}
+
+/** The same for the catalog's last place, as a new track takes it. */
+export function lowerCursorToLast(db: Db): void {
+  db.run(
+    `UPDATE music_state SET value_json = json_set(value_json, '$.ord', (SELECT max(ord) FROM tracks) - 1)
+     WHERE key = 'notes.cursor' AND json_extract(value_json, '$.ord') >= (SELECT max(ord) FROM tracks)`,
+  );
+}
+
+export function dropCursor(db: Db): void {
+  db.run("DELETE FROM music_state WHERE key = 'notes.cursor'");
+}
+
+/** Whether the notes changed under the packs: the triggers on `track_notes` leave this mark for any
+ * write that isn't a batch's own (a table restore, a hand edit); a batch clears it as it ends. */
+export const notesStale = (db: Db) => db.one("SELECT 1 AS x FROM music_state WHERE key = 'notes.stale'") !== null;
+
+export function clearStale(db: Db): void {
+  db.run("DELETE FROM music_state WHERE key = 'notes.stale'");
+}
+
 /** The catalog's last place (its key's end: one row). */
 export const lastOrd = (db: Db) => db.one<{ m: number | null }>('SELECT max(ord) AS m FROM tracks')?.m ?? 0;
 

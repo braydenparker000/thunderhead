@@ -12,6 +12,7 @@ import { page, type Row } from '../areas/backups/rows';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
 import { LISTEN_SQL, LISTEN_TABLES } from '../areas/music/listen-store';
 import * as store from '../areas/music/store';
+import { lowerCursor } from '../areas/music/store-notes';
 import { type Ctx, MusicError, OPS, type Op } from '../areas/music/writer';
 import { EDIT_OPS } from '../areas/music/writer-edit';
 import type { Migration } from './base';
@@ -79,6 +80,17 @@ export const MUSIC_MIGRATIONS: Migration[] = [
         at INTEGER NOT NULL
       ) WITHOUT ROWID`,
       'CREATE INDEX track_ratings_out ON track_ratings (track_id) WHERE rating = 1',
+      // Any write to the notes that isn't a batch's own (a table restore, a hand edit) leaves a mark,
+      // so find's packs are built again and the night's place starts over (music-packs.ts). A batch
+      // clears the mark as it ends; only the first row of a write costs a row written. (Not INSERT OR
+      // IGNORE: an upsert's own conflict clause would override it inside the trigger.)
+      ...['INSERT', 'UPDATE', 'DELETE'].map(
+        (e) =>
+          `CREATE TRIGGER track_notes_${e.toLowerCase()} AFTER ${e} ON track_notes BEGIN
+            INSERT INTO music_state (key, value_json) SELECT 'notes.stale', '1'
+              WHERE NOT EXISTS (SELECT 1 FROM music_state WHERE key = 'notes.stale');
+          END`,
+      ),
       `CREATE TABLE find_packs (
         kind TEXT NOT NULL,
         pack INTEGER NOT NULL,
@@ -144,15 +156,21 @@ export class Music extends MusicMind {
     return this.ctx.storage.transactionSync(() => {
       let written = 0;
       let changed = 0;
+      let low = Number.POSITIVE_INFINITY;
       const clashes: string[] = [];
       for (const r of rows) {
         const n = store.putTrack(this.db, r);
         if (n < 0) clashes.push(r.id);
         else written += n;
-        if (n > 0) changed++;
+        if (n > 0) {
+          changed++;
+          low = Math.min(low, r.ord);
+        }
       }
       if (changed) {
         store.bump(this.db, at);
+        // An imported song keeps its old place, maybe below the night's: the night offers it.
+        lowerCursor(this.db, low);
         this.forget();
       }
       return { written, changed, clashes };

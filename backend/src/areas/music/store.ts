@@ -4,6 +4,7 @@
 // (the catalog's version, which is its ETag). A put that changes nothing writes nothing, so an
 // import run again costs 0 rows.
 import type { Db } from '../../objects/base';
+import { lowerCursorToLast } from './store-notes';
 
 export interface TrackRow {
   ord: number;
@@ -145,7 +146,8 @@ export function byContent(db: Db, sha256: string, size: number, except = ''): st
   );
 }
 
-/** Writes a track's record; a new track goes last in the catalog's order, at NEW_ORD_BASE or after. */
+/** Writes a track's record; a new track goes last in the catalog's order, at NEW_ORD_BASE or after
+ * (a place a deleted track held may come again, so the night's untagged place steps back before it). */
 export function writeTrack(db: Db, record: Record<string, unknown>, waveform: string | null, at: number): void {
   db.run(
     `INSERT INTO tracks (ord, id, sha256, size, audio_key, cover_key, record_json, waveform, updated_at)
@@ -163,6 +165,7 @@ export function writeTrack(db: Db, record: Record<string, unknown>, waveform: st
     waveform,
     at,
   );
+  lowerCursorToLast(db);
 }
 
 export function deleteTrack(db: Db, id: string): void {

@@ -54,6 +54,7 @@ export abstract class MusicMind extends MusicPacks {
    * the owner corrected through the chat), in catalog order. Its place moves to just before the
    * first of them, so the next page starts there; `total` counts this page only. */
   untaggedPage(limit: number): MusicTracksResponse {
+    this.refreshIfStale();
     const kept = notes.cursor(this.db);
     const after = kept?.v === MUSIC_NOTE_VERSION ? kept.ord : 0;
     const rows = notes.untagged(this.db, after, MUSIC_NOTE_VERSION, limit + 1);
@@ -110,6 +111,8 @@ export abstract class MusicMind extends MusicPacks {
       }
       if (place.open !== this.place?.open || place.fill !== this.place?.fill)
         notes.putPack(this.db, 'meta', 0, JSON.stringify(place), at);
+      // This batch's own writes left the triggers' mark; its packs are current, so it goes.
+      if (out.written) notes.clearStale(this.db);
     });
     // Only once the transaction has committed: memory never runs ahead of the table.
     this.place = place;

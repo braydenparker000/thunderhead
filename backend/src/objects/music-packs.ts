@@ -1,8 +1,10 @@
 // The packs and lists find reads in the Music object (MUSIC.md §10.5; music-mind.ts uses them): the
 // mind's notes packed 500 to a row with the tags likeness weighs, the listening pass's moods and
 // energy packed the same way, and the songs rated 1. A code layer of the one Music class. The packs
-// are derived (`find_packs`, out of the backup): the notes' are built again from the notes when they
-// are missing, as after a restore; the listening pass's when they are a day old.
+// are derived (`find_packs`, out of the backup). The notes' are built again from the notes when they
+// are missing (a fresh instance) or stale: the triggers on `track_notes` mark any write that isn't a
+// batch's own (a table restore, a hand edit), and then the night's place starts over too. The
+// listening pass's are built again when a day old.
 import {
   MUSIC_NOTE_LIMITS as L,
   type MusicNote,
@@ -80,6 +82,7 @@ export abstract class MusicPacks extends MusicListen {
   /** The packed notes, read once per start (tens of rows); built again from the notes when the
    * packs are missing (a restore brings back the notes, not the derived packs). */
   protected packedNotes(): Map<string, NoteEntry> {
+    this.refreshIfStale();
     if (this.packed) return this.packed;
     const meta = notes.pack(this.db, 'meta', 0);
     if (meta === null && notes.anyNote(this.db)) this.repack(Date.now());
@@ -89,6 +92,14 @@ export abstract class MusicPacks extends MusicListen {
       for (const [id, e] of Object.entries(JSON.parse(p.entries_json) as Record<string, NoteEntry>)) map.set(id, e);
     this.packed = map;
     return map;
+  }
+
+  /** One row a call: when the notes changed under the packs (a restore, a hand edit), the packs are
+   * built again and the night's place starts over. */
+  protected refreshIfStale(): void {
+    if (!notes.notesStale(this.db)) return;
+    this.packed = null;
+    this.repack(Date.now());
   }
 
   /** The notes' packs again, each note in the pack it names (a rebuild reads every note and tag once). */
@@ -107,6 +118,9 @@ export abstract class MusicPacks extends MusicListen {
       notes.dropPacks(this.db, 'notes');
       for (const [n, p] of by) notes.putPack(this.db, 'notes', n, JSON.stringify(p), at);
       notes.putPack(this.db, 'meta', 0, JSON.stringify(this.place), at);
+      // The night's place no longer says which songs have a note: it starts over.
+      notes.dropCursor(this.db);
+      notes.clearStale(this.db);
     });
   }
 
