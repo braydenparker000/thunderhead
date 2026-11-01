@@ -71,9 +71,8 @@ export abstract class MusicPacks extends MusicListen {
   /** The packed notes by track id, and where the next new note goes. */
   protected packed: Map<string, NoteEntry> | null = null;
   protected place: { open: number; fill: number } | null = null;
-  /** The listening pass's packed measurements (null: no table), and when they were packed. */
-  private audio: { at: number; map: Map<string, AudioEntry> | null } | null = null;
-  private listenTable: boolean | null = null;
+  /** The listening pass's packed measurements, when they were packed, and at which of its epochs. */
+  private audio: { at: number; epoch: number; map: Map<string, AudioEntry> } | null = null;
   /** The songs whose newest rating is 1. */
   protected ruledOut: Set<string> | null = null;
 
@@ -142,20 +141,21 @@ export abstract class MusicPacks extends MusicListen {
     });
   }
 
-  /** The listening pass's moods and energy (step 3), packed: null until its table exists. Packed
-   * again from its table when the packs are older than a day (its writer needs no change here). */
+  /** The listening pass's moods and energy (step 3), packed: null while it has measured no song.
+   * Packed again from its table once a job of it applied songs (its epoch moved; one row read a call),
+   * and when the packs are older than a day (its writer needs no change here). */
   protected measured(now: number): Map<string, AudioEntry> | null {
-    this.listenTable ??= notes.hasListening(this.db);
-    if (!this.listenTable) return null;
-    if (this.audio && now - this.audio.at < L.pack_ms && now >= this.audio.at) return this.audio.map;
+    const epoch = notes.listenEpoch(this.db);
+    const fresh = (a: { at: number; epoch?: number }) => a.epoch === epoch && now - a.at < L.pack_ms && now >= a.at;
+    if (this.audio && fresh(this.audio)) return this.audio.map.size ? this.audio.map : null;
     const meta = notes.pack(this.db, 'meta', 1);
-    const at = meta ? (JSON.parse(meta) as { at: number }).at : 0;
+    const m = meta ? (JSON.parse(meta) as { at: number; epoch?: number }) : { at: 0 };
     const map = new Map<string, AudioEntry>();
-    if (now - at < L.pack_ms && now >= at) {
+    if (fresh(m)) {
       for (const p of notes.packs(this.db, 'audio'))
         for (const [id, e] of Object.entries(JSON.parse(p.entries_json) as Record<string, AudioEntry>)) map.set(id, e);
-      this.audio = { at, map };
-      return map;
+      this.audio = { at: m.at, epoch, map };
+      return map.size ? map : null;
     }
     const rows = [...listeningMap(notes.listeningRows(this.db))];
     this.ctx.storage.transactionSync(() => {
@@ -170,10 +170,10 @@ export abstract class MusicPacks extends MusicListen {
           now,
         );
       }
-      notes.putPack(this.db, 'meta', 1, JSON.stringify({ at: now }), now);
+      notes.putPack(this.db, 'meta', 1, JSON.stringify({ at: now, epoch }), now);
     });
     for (const [id, a] of rows) map.set(id, { e: a.e, m: a.m });
-    this.audio = { at: now, map };
-    return map;
+    this.audio = { at: now, epoch, map };
+    return map.size ? map : null;
   }
 }

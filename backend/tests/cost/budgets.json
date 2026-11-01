@@ -432,7 +432,7 @@
     "rows_written_max": 0
   },
   "GET /v1/music/find (Music, warm)": {
-    "rows_read_max": 80,
+    "rows_read_max": 81,
     "rows_written_max": 0
   },
   "GET /v1/music/find (Senses, warm)": {
@@ -443,16 +443,16 @@
     "rows_read_max": 3,
     "rows_written_max": 0
   },
-  "GET /v1/music/find, packs missing: built again once (Music, 12000 tracks, 11600 notes)": {
-    "rows_read_max": 23723,
-    "rows_written_max": 26
+  "GET /v1/music/find, packs missing: built again once (Music, 12000 tracks, 11600 notes, 12000 measured)": {
+    "rows_read_max": 36409,
+    "rows_written_max": 52
   },
-  "GET /v1/music/find (Music, cold: 12000 tracks, 11600 notes)": {
-    "rows_read_max": 121,
+  "GET /v1/music/find (Music, cold: 12000 tracks, 11600 notes, 12000 measured)": {
+    "rows_read_max": 134,
     "rows_written_max": 0
   },
-  "GET /v1/music/find?like= (Music, cold: 12000 tracks)": {
-    "rows_read_max": 122,
+  "GET /v1/music/find?like= (Music, cold: 12000 tracks, 11600 notes, 12000 measured, the seed's 50 neighbours)": {
+    "rows_read_max": 136,
     "rows_written_max": 0
   },
   "PUT /v1/music/notes, 200 notes replacing 200 (Music, cold: 12000 tracks)": {

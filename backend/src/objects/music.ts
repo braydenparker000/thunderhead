@@ -11,6 +11,7 @@ import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
 import { LISTEN_SQL, LISTEN_TABLES } from '../areas/music/listen-store';
+import { NOTES_SQL, NOTES_TABLES } from '../areas/music/notes-sql';
 import * as store from '../areas/music/store';
 import { lowerCursor } from '../areas/music/store-notes';
 import { type Ctx, MusicError, OPS, type Op } from '../areas/music/writer';
@@ -57,57 +58,13 @@ export const MUSIC_MIGRATIONS: Migration[] = [
   },
   // The listening pass (JOBS.md §3): Actions specs, one analysis row per audio hash, one per track.
   { version: 3, name: 'listen', kind: 'expand', sql: LISTEN_SQL },
-  {
-    version: 4,
-    name: 'track_notes',
-    kind: 'expand',
-    // What the mind knows of each song (MUSIC.md §10.5): its note, one row a track (`pack`: the
-    // find pack it is in); the owner's newest rating of each song, kept for good; and find's packs
-    // (derived: the notes 500 to a row, and the listening pass's measurements).
-    sql: [
-      `CREATE TABLE track_notes (
-        track_id TEXT PRIMARY KEY,
-        known INTEGER NOT NULL,
-        note_json TEXT NOT NULL,
-        by TEXT NOT NULL,
-        v INTEGER NOT NULL,
-        at INTEGER NOT NULL,
-        pack INTEGER NOT NULL
-      ) WITHOUT ROWID`,
-      `CREATE TABLE track_ratings (
-        track_id TEXT PRIMARY KEY,
-        rating INTEGER NOT NULL,
-        at INTEGER NOT NULL
-      ) WITHOUT ROWID`,
-      'CREATE INDEX track_ratings_out ON track_ratings (track_id) WHERE rating = 1',
-      // Any write to the notes that isn't a batch's own (a table restore, a hand edit) leaves a mark,
-      // so find's packs are built again and the night's place starts over (music-packs.ts). A batch
-      // clears the mark as it ends; only the first row of a write costs a row written. (Not INSERT OR
-      // IGNORE: an upsert's own conflict clause would override it inside the trigger.)
-      ...['INSERT', 'UPDATE', 'DELETE'].map(
-        (e) =>
-          `CREATE TRIGGER track_notes_${e.toLowerCase()} AFTER ${e} ON track_notes BEGIN
-            INSERT INTO music_state (key, value_json) SELECT 'notes.stale', '1'
-              WHERE NOT EXISTS (SELECT 1 FROM music_state WHERE key = 'notes.stale');
-          END`,
-      ),
-      // Night sessions that read songs' tags, kept a week (the PreToolUse hook closes the web to them).
-      'CREATE TABLE song_readers (session_id TEXT PRIMARY KEY, at INTEGER NOT NULL) WITHOUT ROWID',
-      `CREATE TABLE find_packs (
-        kind TEXT NOT NULL,
-        pack INTEGER NOT NULL,
-        entries_json TEXT NOT NULL,
-        at INTEGER NOT NULL,
-        PRIMARY KEY (kind, pack)
-      ) WITHOUT ROWID`,
-    ],
-  },
+  // What the mind knows of each song (MUSIC.md §10.5): areas/music/notes-sql.ts.
+  { version: 4, name: 'track_notes', kind: 'expand', sql: NOTES_SQL },
 ];
 
-/** Every catalog table, the listening pass's, the mind's notes and the owner's ratings, in the weekly
- * backup and the export (DATA.md §10); the meter's `meter_days` (counts only) and find's derived
- * `find_packs` (built again from the notes) stay out of both. */
-export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state', ...LISTEN_TABLES, 'track_notes', 'track_ratings'] as const;
+/** Every catalog table, the listening pass's, the mind's notes and ratings, in the backup and the export
+ * (DATA.md §10); `meter_days` (counts), the derived `find_packs` and `song_readers` stay out of both. */
+export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state', ...LISTEN_TABLES, ...NOTES_TABLES] as const;
 
 /** The one instance: the owner's library. */
 export const MUSIC_INSTANCE = 'library';

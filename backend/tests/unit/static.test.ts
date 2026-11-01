@@ -28,10 +28,8 @@ const wrangler = Object.values(
   raw(import.meta.glob('../../wrangler.jsonc', { query: '?raw', import: 'default', eager: true })),
 )[0];
 
-/** Steps another branch holds while this one is built may be skipped in the numbering: Music's
- * step 3, the listening pass, while its step 4 (the mind's notes) is built beside it. Both must ship
- * together (a step numbered below the applied one never runs). */
-const PENDING: number[] = [3];
+/** Migration steps a branch built beside another may skip in the numbering (none). */
+const PENDING: number[] = [];
 
 const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 // wrangler.jsonc has whole-line comments only, so dropping them leaves plain JSON.

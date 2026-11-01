@@ -5,6 +5,7 @@
 // catalog or the notes whole, except a pack's rebuild (after a restore, or the listening pass's
 // once a day).
 import type { Db } from '../../objects/base';
+import { getState } from './listen-store';
 
 export interface NoteRow {
   track_id: string;
@@ -228,21 +229,22 @@ export function dropPacks(db: Db, kind: string): void {
   db.run('DELETE FROM find_packs WHERE kind = ?', kind);
 }
 
-// --- the listening pass (Music schema step 3, its own branch) -----------------------------------
+// --- the listening pass (Music schema step 3, areas/music/listen-store.ts) -----------------------
 
-/** The listening pass's table: the one place its shape is named. One row a track: `energy` 0–1,
- * `moods_json` {mood: score} over MUSIC_MOODS, `neighbours_json` [{id, score}] nearest first. */
-export const LISTENING_TABLE = 'track_analysis';
-export const hasListening = (db: Db) =>
-  db.one("SELECT 1 AS x FROM sqlite_schema WHERE type = 'table' AND name = ?", LISTENING_TABLE) !== null;
+/** Its epoch: it moves each time a job applies songs (listen.ts), so packs made before it are stale. */
+export const listenEpoch = (db: Db) => getState<number>(db, 'listen.epoch') ?? 0;
 
-/** Its rows: with `id`, that song's alone with its neighbours (by key); without, every song's
- * energy and moods (for packing, at most once a day). */
+/** Its per-track view, `track_analysis`: `energy` 0–1, `moods_json` {mood: score} over MUSIC_MOODS,
+ * `neighbours_json` the nearest tracks' ids, nearest first. With `id`, that song's row alone with its
+ * neighbours (by key); without, every measured song's energy and moods (packing, once a day). */
 export function listeningRows(
   db: Db,
   id?: string,
 ): { track_id: string; energy: number | null; moods_json: string | null; neighbours_json: string | null }[] {
   return id === undefined
-    ? db.all(`SELECT track_id, energy, moods_json, NULL AS neighbours_json FROM ${LISTENING_TABLE}`)
-    : db.all(`SELECT track_id, energy, moods_json, neighbours_json FROM ${LISTENING_TABLE} WHERE track_id = ?`, id);
+    ? db.all(
+        `SELECT track_id, energy, moods_json, NULL AS neighbours_json FROM track_analysis
+         WHERE energy IS NOT NULL OR moods_json IS NOT NULL`,
+      )
+    : db.all('SELECT track_id, energy, moods_json, neighbours_json FROM track_analysis WHERE track_id = ?', id);
 }

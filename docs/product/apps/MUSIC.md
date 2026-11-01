@@ -732,11 +732,11 @@ A track that shares its audio with another gets the same numbers; the neighbours
 
 **The mind's read:** `th music analysis <id> [--n 10]`: one song's numbers, its three strongest moods and its `n` nearest songs by sound, with titles and how close each is (`GET /v1/music/analysis/:id`). The mind's own `th music like` and `find` (what it knows of each song, Music step 4) blend the same `track_analysis` rows with its notes.
 
-**Not built yet (the lead's, on screen):** the DJ planner reading the file (`frontend/th/music/dj.js` still uses tag closeness), and "ask by feeling" in the chat.
+**Not built yet (the lead's, on screen):** the DJ planner reading the file (`frontend/th/music/dj.js` still uses tag closeness).
 
 The listening pass (Music schema step 3, NEXT-BATCH.md part 6) also scores each song's moods, in the
 same fixed list the mind's notes use (`MUSIC_MOODS`, §10.5), so the Worker's find can blend the
-two; its energy and neighbours feed find and "more like this" once its table exists.
+two; its energy and neighbours feed find and "more like this" (§10.5: `th music find`, `like`).
 
 ### 9.2 Choosing the next track
 
@@ -927,8 +927,9 @@ rating for good in `track_ratings`, so it never fades with the senses' 90 days, 
 `/v1/music/tracks?q=` leaves them out too), songs the owner told the mind never to play again in
 other words (`never`: a rule fact from their own words, subject `music.never`, its text naming the
 song as `music:<id>` and nothing else of it; MEMORY.md §6 M4), and songs skipped before 30 s three
-times in 30 days (`skipped`, §4.2). Until the listening pass's table exists, find ranks by the notes
-alone and says so (`analysis: false`). Find waits from 80% of the day's database budget, as the
+times in 30 days (`skipped`, §4.2). Until the listening pass has measured songs, find ranks by the notes
+alone and says so (`analysis: false`); its measurements are packed again once a job of it applies
+songs. Find waits from 80% of the day's database budget, as the
 night's batches do.
 
 **In the chat** ([RUNTIME.md §4.7](../../mind/RUNTIME.md)): "who is this?" (`th music now`: the

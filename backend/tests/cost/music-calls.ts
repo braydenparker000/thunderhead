@@ -14,7 +14,7 @@ import { uuidv7 } from '../../src/lib/ids';
 import type { Music } from '../../src/objects/music';
 import { sensesObject } from '../../src/objects/senses';
 import { api, apiJson, coreSql, core as coreStub, PASSWORD } from '../helpers';
-import { music, note, seedCatalog, songId } from '../music-helpers';
+import { music, note, seedCatalog } from '../music-helpers';
 
 type Cost = (name: string, fn: () => Promise<Response>, status: number, stub?: never) => Promise<void>;
 
@@ -44,8 +44,10 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
     })
   ).body.token;
   const m = music() as unknown as never;
+  // After the listening pass's own 600 (listen-calls.ts), so no place is taken twice.
   const ids = await seedCatalog(
     Array.from({ length: TRACKS }, (_, i) => ({ title: `Cost song ${i}`, artist: `Artist ${i % 40}`, genre: 'Pop' })),
+    1_001,
   );
   // The notes the nights wrote, put straight in (each in its pack, 500 to a pack), without the packs.
   for (let from = 0; from < NOTED; from += 2_000) {
@@ -59,6 +61,24 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
       JSON.stringify(part),
     );
   }
+  // What the listening pass measured, as its jobs leave step 3's table: every song's energy, moods
+  // and 50 nearest songs; a job applied them, so its epoch moved and find packs the audio once.
+  const near = JSON.stringify(ids.slice(100, 150));
+  for (let from = 0; from < TRACKS; from += 2_000) {
+    const part = ids.slice(from, Math.min(from + 2_000, TRACKS)).map((id, k) => ({ id, e: ((from + k) % 10) / 10 }));
+    await sql(
+      `INSERT INTO track_analysis (track_id, energy, moods_json, neighbours_json)
+       SELECT json_extract(value, '$.id'), json_extract(value, '$.e'),
+         json_object('calm', json_extract(value, '$.e'), 'dreamy', 0.4, 'hopeful', 0.3), ?
+       FROM json_each(?)`,
+      near,
+      JSON.stringify(part),
+    );
+  }
+  await sql(
+    `INSERT INTO music_state (key, value_json) VALUES ('listen.epoch', '1')
+     ON CONFLICT (key) DO UPDATE SET value_json = CAST(value_json AS INTEGER) + 1`,
+  );
   const find =
     (q = 'moods=calm&occasion=wind-down&limit=30') =>
     () =>
@@ -67,10 +87,14 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
     await evictDurableObject(music());
     await cost(name, fn, 200, m);
   };
-  await cold(`GET /v1/music/find, packs missing: built again once (Music, ${TRACKS} tracks, ${NOTED} notes)`, find());
-  await cold(`GET /v1/music/find (Music, cold: ${TRACKS} tracks, ${NOTED} notes)`, find());
+  const all = `${TRACKS} tracks, ${NOTED} notes, ${TRACKS} measured`;
+  await cold(`GET /v1/music/find, packs missing: built again once (Music, ${all})`, find());
+  await cold(`GET /v1/music/find (Music, cold: ${all})`, find());
   await cost('GET /v1/music/find (Music, warm)', find(), 200, m);
-  await cold(`GET /v1/music/find?like= (Music, cold: ${TRACKS} tracks)`, find(`like=${ids[10]}&limit=30`));
+  await cold(
+    `GET /v1/music/find?like= (Music, cold: ${all}, the seed's 50 neighbours)`,
+    find(`like=${ids[10]}&limit=30`),
+  );
 
   const batch = ids
     .slice(0, 200)
@@ -88,7 +112,7 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
   // The night's place: every song before the untagged ones has its note.
   await sql(
     "INSERT INTO music_state (key, value_json) VALUES ('notes.cursor', ?)",
-    JSON.stringify({ v: 1, ord: NOTED }),
+    JSON.stringify({ v: 1, ord: 1_000 + NOTED }),
   );
   await cold('GET /v1/music/tracks?untagged=1, 200 (Music, cold, its place kept)', () =>
     api('GET', '/v1/music/tracks?untagged=1&limit=200', { token: night }),
@@ -102,8 +126,8 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
     body: {
       events: Array.from({ length: 200 }, (_, i) =>
         i % 5
-          ? sense('music.play', songId(1 + (i % 50)), { offline: false })
-          : sense('music.skip', songId(1 + (i % 50)), { at_ms: 3_000 }),
+          ? sense('music.play', ids[i % 50], { offline: false })
+          : sense('music.skip', ids[i % 50], { at_ms: 3_000 }),
       ),
     },
   });

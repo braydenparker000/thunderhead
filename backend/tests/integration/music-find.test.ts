@@ -256,15 +256,12 @@ describe('what find reads', () => {
 
 describe('find with the listening pass (Music schema step 3)', () => {
   it('blends its moods, prefers its energy, and takes its neighbours for like', async () => {
-    // The shape listeningRows reads (areas/music/store-notes.ts). Not IF NOT EXISTS on purpose: once step
-    // 3's own table is here, this fails if the two disagree, and the seam is fixed in one place.
-    await runInDurableObject(music(), (o: Music, s) => {
-      s.storage.sql.exec(
-        'CREATE TABLE track_analysis (track_id TEXT PRIMARY KEY, energy REAL, moods_json TEXT, neighbours_json TEXT)',
-      );
-      const put = (id: string, energy: number, moods: object, neighbours: object[] = []) =>
+    // Step 3's own table (areas/music/listen-store-tracks.ts writes it): energy, moods over
+    // MUSIC_MOODS, and the nearest tracks' ids, nearest first.
+    await runInDurableObject(music(), (_o: Music, s) => {
+      const put = (id: string, energy: number, moods: object, neighbours: string[] = []) =>
         s.storage.sql.exec(
-          'INSERT INTO track_analysis VALUES (?, ?, ?, ?)',
+          'INSERT INTO track_analysis (track_id, energy, moods_json, neighbours_json) VALUES (?, ?, ?, ?)',
           id,
           energy,
           JSON.stringify(moods),
@@ -272,11 +269,9 @@ describe('find with the listening pass (Music schema step 3)', () => {
         );
       put(S[6], 0.1, { calm: 0.9 });
       put(S[2], 0.6, { calm: 0.1, hopeful: 0.7 });
-      put(S[4], 0.2, { calm: 0.7 }, [
-        { id: S[3], score: 0.9 },
-        { id: S[1], score: 0.5 },
-      ]);
-      Object.assign(o as unknown as object, { listenTable: null, audio: null });
+      put(S[4], 0.2, { calm: 0.7 }, [S[3], S[1]]);
+      // As a job's apply does (listen.ts): the epoch moves, so find packs the audio again.
+      s.storage.sql.exec("INSERT INTO music_state (key, value_json) VALUES ('listen.epoch', '1')");
     });
     const r = await find('moods=calm');
     expect(r.body.analysis).toBe(true);
@@ -294,6 +289,7 @@ describe('find with the listening pass (Music schema step 3)', () => {
     // Like a measured song: its neighbours, in their order.
     const like = await find(`like=${S[4]}`);
     expect(order(like)).toEqual([3, 1]);
-    expect(like.body.items.map((i) => i.why.like)).toEqual([0.9, 0.5]);
+    // Its neighbours' closeness by their place, nearest 1.
+    expect(like.body.items.map((i) => i.why.like)).toEqual([1, 0.5]);
   });
 });

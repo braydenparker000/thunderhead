@@ -214,11 +214,7 @@ export const ROUTES = {
   // The upload tools, server to server: no bearer token, each request signed (Ed25519) by a tool's key.
   'PUT /v1/music/uploads/audio/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; Ogg Opus, ≤ 32 MiB' },
   'PUT /v1/music/uploads/art/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; JPEG or PNG, ≤ 2 MiB' },
-  'POST /v1/music/uploads/:op': {
-    who: 'P',
-    phase: 'P5',
-    note: "signed by an upload tool key; the catalog writer's operations, export and links",
-  },
+  'POST /v1/music/uploads/:op': { who: 'P', phase: 'P5', note: "signed by an upload tool key; the catalog writer's operations, export and links" },
   'PUT /v1/senses/batches/:id': { who: D, phase: 'P5', note: 'a sealed batch of 1–500 events, ≤ 256 KB' },
   'POST /v1/senses/query': { who: MIND, phase: 'P5', note: 'a fixed, named query; never SQL' },
   // The listening pass (JOBS.md §3): Actions analyses songs by sha256; results come back through the Worker.
