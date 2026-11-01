@@ -3,6 +3,11 @@
 Where the project is right now. Every agent session reads this first and updates it before ending.
 Keep it short: current phase, the next three tasks, what is blocked, what waits on the owner, the last deploy.
 
+## Now (2026-11-01)
+
+The owner enjoys the product; the agent leads and sends pull requests the owner merges (AGENTS.md).
+The plan is [PLAN.md](PLAN.md). Open pull requests are the queue; nothing goes live until merged.
+
 ## Current phase
 
 **The look round** (owner, 2026-10-31; built `fd7cdba` to `e7a2f82` and the test updates): home is a chat, so whatever the owner acts on sits by the ask bar, never at the top of the thread. One face, Quicksand (Light for large text, a step heavier for small; Fraunces and Inter gone, 133 KB of fonts became 28 KB); the icon's T redrawn in it. The menu is a page on home's field holding only the conversations (Now glows, days are cards under large light headings, held cards offer Continue, Rename and Pin; the owner's rename is a new device route, `PUT /v1/threads/:id/title`), with search and Settings in a bar at the bottom; Settings is its own page (Appearance, the pages, About; Quiet hours is real now; no accent). The decision card docks above the bar (option C); toasts, an older conversation's Back to now and the Ask about quote sit by the bar too; the voice line pins small at the top once scrolled away, with a time chip while scrolling. The ring keeps a glass disc per app, seven now (Photos, cyan, the editor comes later), smoother (compositor-only choice, springs, a gliding label). Words fade up in replies; a sent message lifts from the bar; the menu and Briefing cascade in. The Briefing is laid out anew (the weather as its hero). The audit's eleven fixes are in. Owner check on the phone: the ring's feel, the menu, the docked card, the type at small sizes.
