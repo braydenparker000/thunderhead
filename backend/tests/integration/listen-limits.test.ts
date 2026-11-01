@@ -101,12 +101,17 @@ describe('files left behind', () => {
 });
 
 describe('an apply that fails for good', () => {
-  it('rejects the Actions job and deletes its uploads', async () => {
+  it('rejects the Actions job, deletes its uploads, and still registers the parts it applied', async () => {
     await aged();
     const j = await next(tokens.N, 'kind=audio.analysis&max=1');
     const id = j.body.job_id;
     await put(tokens.I, id, 'part-001.jsonl', '{}');
-    const counts = { expected: 1, valid: 0, invalid: 0, failed: 0, missing: 0 };
+    // One part was applied before the last one failed six times.
+    const counts = { expected: 1, valid: 1, invalid: 0, failed: 0, missing: 0, parts: [1] };
+    const epoch = await musicSql<{ value_json: string }>(
+      "SELECT value_json FROM music_state WHERE key = 'listen.epoch'",
+    );
+    const pack = await coreSql<{ updated_at: number }>("SELECT updated_at FROM jobs WHERE id = 'listen.pack'");
     await musicSql(
       "UPDATE external_jobs SET state = 'validating', counts_json = ? WHERE id = ?",
       JSON.stringify(counts),
@@ -121,6 +126,16 @@ describe('an apply that fails for good', () => {
     await drain();
     expect((await status(id)).body).toMatchObject({ state: 'rejected', counts: { reasons: { apply_failed: 1 } } });
     expect((await env.VAULT.list({ prefix: `jobs/incoming/${id}/` })).objects).toHaveLength(0);
+    // As finish would: the neighbours see a change, and the phone file is rebuilt.
+    const after = await musicSql<{ value_json: string }>(
+      "SELECT value_json FROM music_state WHERE key = 'listen.epoch'",
+    );
+    expect(Number(after[0].value_json)).toBe(Number(epoch[0]?.value_json ?? 0) + 1);
+    const rebuilt = await coreSql<{ state: string; updated_at: number }>(
+      "SELECT state, updated_at FROM jobs WHERE id = 'listen.pack'",
+    );
+    expect(rebuilt[0].state).toBe('done');
+    expect(rebuilt[0].updated_at).toBeGreaterThan(pack[0]?.updated_at ?? 0);
   });
 });
 

@@ -182,3 +182,15 @@ describe('the mind’s read of one song', () => {
     expect((await apiJson('GET', '/v1/music/analysis/r2_native_nope', { token: tokens.C })).status).toBe(404);
   });
 });
+
+describe('a night with nothing due', () => {
+  it('skips the catalog scan until the catalog changes, then finds the new song', async () => {
+    expect((await next('kind=audio.analysis')).status).toBe(204);
+    const idle = await musicSql<{ value_json: string }>("SELECT value_json FROM music_state WHERE key = 'listen.idle'");
+    expect(JSON.parse(idle[0].value_json)).toMatchObject({ analyzer: '2.0.0' });
+    const [added] = await seedTracks(1, 200);
+    const j = await next('kind=audio.analysis');
+    expect(j.status).toBe(200);
+    expect(j.body.shas).toEqual([added]);
+  });
+});

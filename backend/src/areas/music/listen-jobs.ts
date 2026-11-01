@@ -143,11 +143,14 @@ export const listenRejectJob: JobHandler = {
     const vault = env.VAULT;
     if (!vault) throw new JobError('not_configured');
     const jobId = (payload as { job_id: string }).job_id;
-    await musicObject(env).listenReject(jobId);
+    const r = await musicObject(env).listenReject(jobId);
     await dropJobFiles(vault, jobId);
-    return null;
+    return r;
   },
-  step() {
+  step(w, _payload, _cursor, input) {
+    // Parts it applied before failing are in the catalog's numbers: the phone file follows them.
+    if ((input as { valid: number }).valid > 0)
+      requeueJob(w.db, { id: PACK_JOB_ID, kind: LISTEN_PACK, payload: {}, at: w.at });
     return { done: true };
   },
 };

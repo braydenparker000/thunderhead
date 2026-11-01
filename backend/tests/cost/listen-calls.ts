@@ -5,9 +5,10 @@
 // run's cost from these: about one row written per song, a few per job.
 import { env } from 'cloudflare:workers';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
+import { ANALYZER } from '../../../shared/contract/listen.ts';
 import { JOBS_KEY } from '../../../shared/contract/routes.ts';
 import { api, apiJson, core, PASSWORD } from '../helpers';
-import { drain, manifest, music, pack, put, result, seedTracks } from '../listen-helpers';
+import { drain, manifest, music, musicSql, pack, put, result, seedTracks } from '../listen-helpers';
 
 type Stub = ReturnType<typeof core>;
 type Cost = (name: string, fn: () => Promise<Response>, status: number, stub?: Stub) => Promise<void>;
@@ -83,4 +84,14 @@ export async function listenCalls(cost: Cost, grant: (ip: string, password?: str
   );
   await cost('alarm: one part of 50 results applied, the job ended, the phone file built (Core)', applied, 204, core());
   if ((await env.VAULT.list({ prefix: 'jobs/incoming/' })).objects.length) throw new Error('uploads left behind');
+  // Every song analysed (the rest marked so here): the first empty answer scans the catalog and remembers
+  // it; the nights after read a few rows until the catalog or the analyzer changes.
+  await musicSql(
+    `INSERT OR IGNORE INTO analysis (sha256, analyzer, v, job_id, applied_at, result_json, pack, failed, attempts)
+     SELECT sha256, ?, 2, 'cost', 0, '{}', NULL, NULL, 0 FROM tracks`,
+    ANALYZER.version,
+  );
+  const empty = () => api('GET', '/v1/jobs/next?kind=audio.analysis&max=50', { token: night });
+  await cost('GET /v1/jobs/next audio.analysis, nothing due, first night (Music)', empty, 204, m);
+  await cost('GET /v1/jobs/next audio.analysis, nothing due, nothing changed (Music)', empty, 204, m);
 }

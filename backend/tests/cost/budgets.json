@@ -358,5 +358,13 @@
   "alarm: one part of 50 results applied, the job ended, the phone file built (Core)": {
     "rows_read_max": 50,
     "rows_written_max": 12
+  },
+  "GET /v1/jobs/next audio.analysis, nothing due, first night (Music)": {
+    "rows_read_max": 1250,
+    "rows_written_max": 1
+  },
+  "GET /v1/jobs/next audio.analysis, nothing due, nothing changed (Music)": {
+    "rows_read_max": 25,
+    "rows_written_max": 0
   }
 }

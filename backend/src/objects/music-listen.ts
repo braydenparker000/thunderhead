@@ -11,7 +11,7 @@ import {
   type TrackAnalysis,
 } from '../../../shared/contract/listen.ts';
 import * as listen from '../areas/music/listen';
-import { dropJobFiles, specKey, sweep } from '../areas/music/listen-files';
+import { dropJobFiles, specKey, tidy } from '../areas/music/listen-files';
 import { buildPack, NEIGHBOURS_KEY, type Neighbours, PACK_KEY, readNeighbours } from '../areas/music/listen-pack';
 import { analysisView, likeList, nearest, stateOf, trackRow } from '../areas/music/listen-read';
 import * as store from '../areas/music/listen-store';
@@ -39,12 +39,12 @@ export abstract class MusicListen extends OwnerObject {
    * left behind (once a night, from GET /v1/jobs/next). */
   private async expire(now: number, sweepToo = false): Promise<void> {
     const ids = this.tx(() => store.expire(this.db, now));
-    for (const id of ids) await dropJobFiles(this.vault(), id);
-    if (sweepToo)
-      await sweep(this.vault(), (id) => {
-        const s = store.job(this.db, id)?.state;
-        return s === 'issued' || s === 'validating';
-      });
+    const open = (id: string) => {
+      const s = store.job(this.db, id)?.state;
+      return s === 'issued' || s === 'validating';
+    };
+    // Deleting is housekeeping: a bucket error is logged as a count and tried again on the next call.
+    await tidy(this.vault(), ids, sweepToo ? open : null);
   }
 
   /** GET /v1/jobs/next: a new job of the kind, or null when nothing is due. */
@@ -90,8 +90,8 @@ export abstract class MusicListen extends OwnerObject {
     return this.tx(() => listen.apply(this.db, id, part, rows, invalid, now));
   }
 
-  /** An Actions job whose apply failed for good: rejected (what was applied stays). */
-  listenReject(id: string): number {
+  /** An Actions job whose apply failed for good: rejected (what was applied stays, and counts). */
+  listenReject(id: string): { written: number; valid: number } {
     return this.tx(() => listen.reject(this.db, id));
   }
 

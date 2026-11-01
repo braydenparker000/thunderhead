@@ -33,6 +33,31 @@ export async function dropJobFiles(vault: R2Bucket, id: string): Promise<void> {
     }
 }
 
+/** Housekeeping that must never stop the job it runs beside (issuing the next job): a failure is
+ * logged as a count only, and what stays is tried again on the next call; the failures. With `open`,
+ * the files of closed jobs are swept too. */
+export async function tidy(
+  vault: R2Bucket,
+  expired: string[],
+  open: ((id: string) => boolean) | null,
+): Promise<number> {
+  let failed = 0;
+  for (const id of expired)
+    try {
+      await dropJobFiles(vault, id);
+    } catch {
+      failed++;
+    }
+  if (open)
+    try {
+      await sweep(vault, open);
+    } catch {
+      failed++;
+    }
+  if (failed) console.log(JSON.stringify({ evt: 'listen_tidy_failed', count: failed }));
+  return failed;
+}
+
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /** The files of jobs no longer open (applied, rejected, expired, pruned), at most `max` jobs a call:

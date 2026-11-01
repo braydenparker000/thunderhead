@@ -23,6 +23,7 @@ import { type AnalysisManifest, checkManifest, embOf, type NeighboursManifest } 
 import { neighboursSpec } from './listen-pack';
 import * as store from './listen-store';
 import * as tracks from './listen-store-tracks';
+import { version as catalogVersion } from './store';
 
 export interface Spec {
   shas?: string[];
@@ -75,14 +76,32 @@ function inFlight(db: Db): Set<string> {
   return new Set(store.jobs(db, 'audio.analysis', true, L.open_jobs).flatMap((r) => specOfRow(r).shas ?? []));
 }
 
+/** Whether the last scan found nothing due, with no job open, and neither the catalog nor the analyzer
+ * changed since (a few rows instead of a pass over the catalog). Once nothing is due and no job is open,
+ * only a catalog change or a new analyzer version can make a song due again: results only arrive for
+ * jobs, and a job is issued only when something is due. */
+function idle(db: Db): boolean {
+  const s = store.getState<{ catalog: number; analyzer: string }>(db, 'listen.idle');
+  return s?.catalog === catalogVersion(db).version && s.analyzer === ANALYZER.version;
+}
+
+/** Nothing is due: remembered (one row, written only when it changes) when no analysis job is open. */
+function rememberIdle(db: Db, open: boolean): void {
+  if (!open) store.putState(db, 'listen.idle', { catalog: catalogVersion(db).version, analyzer: ANALYZER.version });
+}
+
 export function issueAnalysis(db: Db, max: number, now: number): JobIssued | null {
   admit(db, 'audio.analysis', now);
   const busy = inFlight(db);
+  if (!busy.size && idle(db)) return null;
   const shas = store
     .due(db, ANALYZER.version, L.failures_max, max + busy.size)
     .filter((s) => !busy.has(s))
     .slice(0, max);
-  if (!shas.length) return null;
+  if (!shas.length) {
+    rememberIdle(db, busy.size > 0);
+    return null;
+  }
   const id = uuidv7(now);
   const expires_at = now + L.spec_ttl_ms;
   store.insertJob(db, {
@@ -109,7 +128,10 @@ export function issueNeighbours(
   // Two rows first: nothing changed since the last neighbours, so no scan of the catalog.
   const epoch = store.getState<number>(db, 'listen.epoch') ?? 0;
   if (store.getState<{ epoch: number }>(db, 'listen.neighbours')?.epoch === epoch) return null;
-  if (store.due(db, ANALYZER.version, L.failures_max, 1).length) return null;
+  if (!idle(db)) {
+    if (store.due(db, ANALYZER.version, L.failures_max, 1).length) return null;
+    rememberIdle(db, false);
+  }
   const rows = store
     .embeddings(db)
     .map((r) => ({ sha256: r.sha256, pack: new Uint8Array(r.pack) }))
@@ -242,13 +264,17 @@ export function finish(
   return { written, valid: c.valid };
 }
 
-/** A job whose apply failed for good (Core's job tried six times): rejected, the reason counted. */
-export function reject(db: Db, id: string): number {
+/** A job whose apply failed for good (Core's job tried six times): rejected, the reason counted. The
+ * parts it did apply stay, so, as `finish` would, they move the epoch (the neighbours see them) and the
+ * caller rebuilds the phone file when any were valid. */
+export function reject(db: Db, id: string): { written: number; valid: number } {
   const r = store.job(db, id);
-  if (r?.state !== 'validating') return 0;
+  if (r?.state !== 'validating') return { written: 0, valid: 0 };
   const c = countsOf(r) as Counted;
   const counts: Counted = { ...c, reasons: merge(c.reasons, { apply_failed: 1 }) };
-  return store.setJob(db, id, { state: 'rejected', counts });
+  let written = store.setJob(db, id, { state: 'rejected', counts });
+  if (c.valid > 0) written += store.putState(db, 'listen.epoch', (store.getState<number>(db, 'listen.epoch') ?? 0) + 1);
+  return { written, valid: c.valid };
 }
 
 /** A neighbours job's end: its file stored (ok) or refused (why). */
