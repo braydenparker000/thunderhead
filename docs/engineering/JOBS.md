@@ -11,9 +11,9 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
    - Personal text (PDF extraction) runs in the **mind's cloud session**.
    - Row-heavy database work runs as **chunked DO alarm jobs**.
    - Reasoning runs only in **mind sessions**.
-2. **Actions never touch private data.** Its keys can read `jarvis-music` and write `thunderhead-jobs`, nothing else (GitHub environment `jobs`). It never holds a Worker key other than the `ci` one.
+2. **Actions never touch private data.** Its one R2 key reads `jarvis-music`, nothing else (GitHub environment `jobs`); it writes nowhere but through the Worker's job routes, with the `ci` key, the only Worker key it holds.
 3. **Public logs show counts and timings only.** No titles, names, hashes, keys, refs, URLs or content.
-4. **Results are untrusted input.** The Worker validates every result file against a strict schema with no free text, then copies the valid ones into `thunderhead-private` and deletes the raw files.
+4. **Results are untrusted input.** They arrive through the Worker, which keeps them aside until collected, validates every result against a strict schema with no free text, applies the valid ones to the `Music` object and deletes the raw files.
 5. **Every DO job is chunked, resumable and capped:** ≤ 2,000 rows per step, a cursor in the row, and one shared bulk lane of 40,000 rows written per day.
 6. **No timers in DOs.** A job advances only through `alarm()`.
 7. **A job never runs twice at once** and never loses its place. A crash mid-step repeats that step, and every step is idempotent.
@@ -34,7 +34,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 
 ## 2. Public-log rules (Actions)
 
-Every workflow that touches data follows these rules. `tests/repo.test.mjs` greps workflow files for the forbidden patterns **[proposal]**.
+Every workflow that touches data follows these rules. `tests/jobs-audio.test.mjs` checks `jobs-audio.yml` against them (built), and the Python job's log calls too.
 
 1. Print only: job ids, counts, durations, byte totals, exit reasons from a fixed list, and commit SHAs.
 2. Never print: sha256 keys, R2 keys, file names, titles, artists, any text from inside a file, presigned URLs, tokens, environment dumps.
@@ -44,97 +44,138 @@ Every workflow that touches data follows these rules. `tests/repo.test.mjs` grep
 6. A tool that fails prints its own error. The step wraps it so only `fail: <reason from list>` reaches the log, and the full text is dropped.
 7. Workflows that touch R2 run only on `workflow_dispatch` from `main`, never on `pull_request`. `permissions: {}` at the top, `contents: read` on the job, and no `id-token`.
 
-Acceptance: a test run of `jobs-audio.yml` on 3 synthetic tones (generated in the job, not real audio) shows a log with none of the 3 hashes and none of the R2 keys.
+Acceptance: every run of `jobs-audio.yml` starts with its self-test on synthetic tones (generated in the job, not real audio); the first real run's log shows counts only, none of its hashes and none of the R2 keys (checked by the lead on that run).
 
 ---
 
-## 3. Actions jobs: audio analysis
+## 3. Actions jobs: the listening pass
 
-### 3.1 What it measures (result schema v1)
+**Built 2026-11-01** (owner: "build everything"): every song in the library analysed once, so the DJ, the mind and "ask by feeling" know how each one sounds. Two job kinds: `audio.analysis` (≤ 500 songs a job, one result each) and `audio.neighbours` (once every song is analysed: each song's 50 nearest). The contract is `shared/contract/listen.ts`; the Worker's half is `backend/src/areas/music/listen*.ts` and `objects/music-listen.ts`; the Actions half is `.github/workflows/jobs-audio.yml` and `jobs/audio/` (Python); the mind's half is `th music jobs` (night step 6, [RUNTIME.md §12](../mind/RUNTIME.md)).
+
+**Where results go (decided here, replacing decisions.md 2026-10-28's `thunderhead-jobs` bucket for this pass):** through the Worker, into the private bucket it already binds (`VAULT`, under `jobs/incoming/<job_id>/`), by `PUT /v1/jobs/:id/files/:name` with the `ci` key. An R2 token can't be limited to a prefix, so a write key on `thunderhead-private` would also read every private object, and one on `jarvis-music` could overwrite songs; a new bucket would need a new binding (a deploy that fails until the owner makes the bucket) and a lifecycle rule. Going through the Worker, Actions holds **one** R2 key, read-only on `jarvis-music`, and no write key anywhere; the Worker checks the job, the file's name and size before it stores a byte, and deletes the uploads once the job is applied, rejected or expired. `thunderhead-jobs` is not needed.
+
+### 3.1 What it measures (result schema v2)
+
+v1's fields are kept as they were; v2 adds energy and the CLAP fields (null when a run goes without the model). Every field is required; `additionalProperties: false` at every level.
 
 ```ts
-type AudioAnalysisV1 = {
-  v: 1;
+type AudioAnalysisV2 = {
+  v: 2;
   sha256: string;                 // 64 lowercase hex, equals the key's hash
-  analyzer: { name: 'th-audio'; version: string /* semver of mind/tools or jobs/ */ };
+  analyzer: { name: 'th-audio'; version: string /* semver, jobs/audio/__init__.py = ANALYZER */ };
   duration_ms: number;            // 1,000 – 14,400,000
-  sample_rate: 8000 | 16000 | 24000 | 44100 | 48000;
+  sample_rate: 8000 | 16000 | 24000 | 44100 | 48000;   // 48000 for Opus
   channels: 1 | 2;
   lufs_i: number;                 // integrated loudness, −70 … 0
   true_peak_db: number;           // −60 … +3
   lra: number;                    // loudness range, 0 … 40
   bpm: number | null;             // 30 … 300
   bpm_conf: number;               // 0 … 1
-  key: KeyName | null;            // 24 values: 'C', 'Cm', 'C#', 'C#m' … 'B', 'Bm'
+  key: KeyName | null;            // 24 values: 'C', 'C#' … 'B', 'Cm', 'C#m' … 'Bm' (sharps)
   key_conf: number;               // 0 … 1
-  start_silence_ms: number;       // ≥ 0, ≤ duration_ms
-  end_silence_ms: number;         // ≥ 0, ≤ duration_ms
+  start_silence_ms: number;       // ≥ 0; start + end ≤ duration_ms
+  end_silence_ms: number;
+  energy: number;                 // 0 … 1
+  valence: number | null;         // 0 … 1
+  arousal: number | null;         // 0 … 1
+  vocals: number | null;          // 0 … 1 (1: sung)
+  moods: Record<Mood, number> | null;   // exactly the 16 moods below, each 0 … 1
+  emb: number[] | null;           // 32 numbers, −1 … 1, a unit vector
+  emb_v: 1 | null;                // which fixed projection made `emb`
 };
 ```
 
-There is no free-text field, by design: an Actions run (a public, injectable place) can never put words into the owner's data. Product use of these numbers (gapless trims, loudness matching, the DJ) is in [MUSIC.md](../product/apps/MUSIC.md).
+There is no free-text field, by design: an Actions run (a public, injectable place) can never put words into the owner's data. The Camelot place is derived from `key` by the Worker (`camelotOf`), never sent. A result is ≤ 8 KB (about 1 KB in practice). Product use of these numbers is in [MUSIC.md §9](../product/apps/MUSIC.md).
 
-### 3.2 Tools **[proposal]**
+**How each number is made** (`jobs/audio/dsp.py`, `clap.py`, `moods.py`; the docstrings hold the details):
 
-The licence rule is no GPL, AGPL or non-commercial dependencies, which rules out typical ffmpeg builds, aubio and Essentia. (The one named exception, libmedia, is for Astra's player only, by owner ruling; it does not extend to jobs.)
+| Field | Method |
+|---|---|
+| `lufs_i`, `lra` | ITU-R BS.1770-4 (K-weighting by libebur128's filter design, 400 ms blocks, gates at −70 LUFS and −10 LU) and EBU Tech 3342 (3 s windows, gates −70 LUFS and −20 LU, 95th − 10th percentile) |
+| `true_peak_db` | each channel oversampled 4× (polyphase FIR), the largest value |
+| silences | 10 ms frames of the mono mix under −60 dBFS at each end |
+| `bpm`, `bpm_conf` | onset envelope (spectral flux of a 64-band log-mel spectrogram, 16 kHz, 8 ms hop), its autocorrelation weighted by a log-normal prior around 120 BPM, refined by a parabola; confidence = the normalised autocorrelation there; null for a steady tone or silence |
+| `key`, `key_conf` | chromagram (55 Hz – 2 kHz folded to pitch classes) correlated with the Krumhansl–Kessler profiles in 24 keys; confidence = the winner's lead over the runner-up (0.15 or more = certain) × its correlation |
+| `energy` | 0.6 loudness (−36 … −6 LUFS) + 0.2 onset strength + 0.2 brightness (spectral centroid 0.5 … 4 kHz), a stated heuristic |
+| CLAP embedding | up to three exactly-10-second windows (25 %, 50 %, 75 %) through the audio tower, each normalised, averaged, normalised: 512-d |
+| `moods` | 16 fixed moods, each `sigmoid(scale × (cos(audio, its prompt) − the song's mean cos over the 16))`, `scale` the model's own audio-text logit scale (≈ 18.7): 0.5 = this song's average, so the scores say which feelings stand out. A plain "a piece of music" baseline was measured and set aside (it beats every mood and pushed every score to 0) |
+| `valence`, `arousal`, `vocals` | prompt pairs, the first against the second the same way; arousal is then averaged with `energy` |
+| `emb` | the 512-d vector through a fixed 512 × 32 projection, normalised, rounded to 4 places |
+
+**The moods and their prompts** (`jobs/audio/moods.py`; the keys are Music's own `MUSIC_MOODS` in `shared/contract/music.ts`, the same list what the mind knows of each song uses, Music step 4; a test keeps them equal): calm "calm, relaxed, gentle music" · peaceful "peaceful, serene, tranquil music" · melancholy "melancholic, wistful, bittersweet music" · sad "sad, sorrowful, mournful music" · hopeful "hopeful, uplifting, optimistic music" · joyful "joyful, happy, cheerful music" · romantic "romantic, tender, loving music" · nostalgic "nostalgic, sentimental music that recalls the past" · dark "dark, ominous, brooding music" · tense "tense, suspenseful, anxious music" · energetic "energetic, driving, high-energy music" · triumphant "triumphant, heroic, epic music" · playful "playful, whimsical, light-hearted music" · dreamy "dreamy, ethereal, atmospheric music" · reverent "reverent, sacred, worshipful music" · focused "steady, unobtrusive music for focus and concentration". Pairs: valence "happy, positive, bright, pleasant music" / "sad, negative, gloomy, unpleasant music"; arousal "energetic, intense, exciting, loud music" / "calm, quiet, soft, sleepy music"; vocals "music with a singing voice and vocals" / "instrumental music with no vocals". A changed prompt changes every score, so it comes with a new analyzer version.
+
+**The fixed projection** (`jobs/audio/projection.py`, `emb_v` 1): a seeded random orthogonal projection, fitted to no audio at all (no owner song, no outside collection): ±1 entries from a splitmix64 stream (seed `thaudio1`), columns made orthonormal by modified Gram–Schmidt in float64 using only + − × ÷ and √ (correctly rounded in IEEE 754, so the same bits on every machine), kept as float32 and checked against a committed SHA-256 before use. A random projection keeps cosine roughly (about ±0.18 at 32 dimensions); PCA on public, non-owner music would keep more and would be `emb_v` 2, with every song analysed again.
+
+### 3.2 Tools and licences
+
+The licence rule is no GPL, AGPL or non-commercial dependencies, which rules out typical ffmpeg builds, aubio and Essentia. (The one named exception, libmedia, is for Astra's player only, by owner ruling; it does not extend to jobs.) librosa and pyloudnorm, named here before, are not used: librosa pulls in libsndfile and libsoxr (LGPL) and numba; the measures above are about 300 lines of numpy and scipy, checked against known answers.
 
 | Step | Tool | Licence |
 |---|---|---|
-| Decode Opus → PCM | `opusdec` (opus-tools) | BSD |
-| Loudness, true peak, LRA | `pyloudnorm` + numpy | MIT, BSD |
-| Tempo and key | `librosa` (beat tracker; chroma + key profiles) | ISC |
-| Fetch from R2 | a small Node script using `aws4fetch` | MIT |
+| Decode Opus → 16-bit PCM at 48 kHz | `opusdec` (opus-tools, from the runner's apt) | BSD |
+| Loudness, true peak, LRA, tempo, key, silences, energy | numpy + scipy | BSD |
+| CLAP | LAION `clap-htsat-unfused`, revision `8fa0f1c6…`, weights SHA-256 checked | **Apache-2.0** (model card, checked 2026-11-01) |
+| Running CLAP | Hugging Face transformers 5.22.1 on PyTorch 2.15.0 (CPU build), and their dependencies | Apache-2.0; BSD-3; the rest MIT, BSD, ISC, PSF, MPL-2.0 (tqdm) |
+| Fetch from R2, talk to the Worker | Python's standard library (S3 signature v4 by hand) | PSF |
 
-Versions are pinned with hashes in `jobs/audio/requirements.txt`. The analyzer version bumps whenever a tool or parameter changes, so old and new results can be told apart.
+LAION's music checkpoint `larger_clap_music` (also Apache-2.0) was tried first: under transformers 5.22.1 its text tower gives every prompt the same embedding (cosine 0.999 between "calm music" and "a dog barking"), so no mood can be told from another; `clap-htsat-unfused` gives distinct prompts (0.19–0.69) and a sane logit scale. Microsoft's CLAP is MS-PL (a reciprocal licence for source), not used. The model's training data (LAION-Audio-630K and others) carries mixed licences; the weights are released under Apache-2.0, which is what the rule asks of a dependency.
+
+Every Python package is pinned to one version with the hash of the one wheel a CPython 3.12 manylinux x86_64 runner installs (`jobs/audio/requirements.txt`, `requirements-clap.txt`; installed with `pip install --require-hashes --no-deps --only-binary=:all:`, tested on 3.12.16 with `pip check` clean). The analyzer version (`2.0.0`) bumps whenever a tool, a prompt or a parameter changes, so old and new results can be told apart; a song analysed by another version is offered again.
+
+**Runtime** (measured 2026-11-01 on a loaded 4-core machine, CPU time of one process, one thread): a 4-minute stereo song costs about 5.6 s of signal measures and 1.1 s of CLAP; with decoding and the download, about 8 s. Four processes on a standard 4-vCPU runner: about 2 s a song, **a 500-song job in about 20 minutes** plus 2 minutes of setup (the hash-pinned install, the 615 MB model, the self-test). **12,000 songs: about 27 CPU-hours, 24 nightly jobs of about 20 minutes each** (or 12 at `max=1000` once J2 confirms it). The neighbours step for 12,000 songs takes seconds. Free: Actions minutes on a public repository cost nothing.
 
 ### 3.3 The spec
 
-1. `mind-night` calls `GET /v1/jobs/next?kind=audio.analysis&max=500`. The `Music` DO picks tracks with no `analysis` row at the current analyzer version (oldest `added_at` first) and records a row in `Music.external_jobs` (`id, kind, v, spec_json, state, issued_at, expires_at = +72 h, collected_at, counts_json`).
-2. The response: `{ job_id, kind: 'audio.analysis', v: 1, shas: [...] }` with ≤ 500 hashes.
-3. `mind-night` dispatches `jobs-audio.yml` with the single input `job_id` **[proposal]**. Dispatch inputs are visible on a public run page, so the hashes never travel there. The workflow fetches the spec itself with `GET /v1/jobs/:id/spec` and `TH_CI_TOKEN`.
-4. A spec not collected within 72 h becomes `expired`. Its tracks become eligible again.
+1. `mind-night` runs `th music jobs`, which calls `GET /v1/jobs/next?kind=audio.analysis&max=500`. The `Music` DO picks audio hashes due at the current analyzer version (no result, a result from another version, or a failure tried fewer than 3 times), native Opus only (`audio_key` = `native/audio/<sha256>.opus`), one per hash, oldest catalog place first, none already in an open spec, and records a row in `Music.external_jobs` (`id, kind, v, spec_json, state, issued_at, expires_at = +72 h, collected_at, counts_json`). At most two jobs of a kind are open at once (`409 open_jobs`).
+2. The response: `{ job_id, kind: 'audio.analysis', v: 2, shas: [...], expires_at }`. `th` prints the count, never the hashes.
+3. `th` dispatches `jobs-audio.yml` with the single input `job_id`, through the GitHub CLI and the session's own GitHub access ([RUNTIME.md](../mind/RUNTIME.md) R-12). Dispatch inputs are visible on a public run page, so the hashes never travel there; the workflow fetches the spec itself with `GET /v1/jobs/:id/spec` and the `ci` key.
+4. A spec not collected within 72 h becomes `expired` (when the next job is asked for or the jobs are listed), its uploads are deleted and its songs are due again.
+5. **The neighbours step:** when nothing is due for analysis and no analysis job is open, and results changed since the last neighbours job (the `listen.epoch` counter), `?kind=audio.neighbours` issues one: the Worker writes the hashes in order and their int8 embeddings to `jobs/specs/<id>.order|.emb`, and the spec carries only `{n, k: 50, dim: 32, emb}` (base64), no hash. Up to 20,000 songs (indexes are uint16).
 
-### 3.4 The workflow (`.github/workflows/jobs-audio.yml`, P5)
+### 3.4 The workflow (`.github/workflows/jobs-audio.yml`)
 
-1. Trigger: `workflow_dispatch` with input `job_id` (a UUIDv7, checked against `^[0-9a-f-]{36}$`). Job `if: github.ref == 'refs/heads/main'`. `timeout-minutes: 300`. Concurrency group `jobs-audio`, `cancel-in-progress: false`.
-2. Fetch and validate the spec in a Node step (`GET /v1/jobs/:id/spec`, never printed): valid JSON, `kind` known, `v` known, 1–500 entries, each `^[0-9a-f]{64}$`, no duplicates. On failure: `fail: bad_spec`, exit 1.
-3. For each hash, with at most 4 in parallel and a 10-minute limit per item:
-   1. GET `jarvis-music/native/audio/<sha>.opus` with the read-only key into `$RUNNER_TEMP`.
-   2. Check sha256(bytes) equals the hash. If not: record `failed: hash_mismatch`.
-   3. Decode, analyse, write `<sha>.json` (schema §3.1), delete the audio file.
-4. Upload every result to `thunderhead-jobs/results/audio.analysis/<job_id>/<sha>.json`.
-5. Upload the manifest **last**, to `…/<job_id>/manifest.json`:
+1. Trigger: `workflow_dispatch` with input `job_id`, checked against the UUID pattern before anything else and passed to steps only through `env`. Job `if: github.ref == 'refs/heads/main'`, environment `jobs`, `timeout-minutes: 300`, concurrency group `jobs-audio` (`cancel-in-progress: false`), `permissions: {}` and `contents: read` on the job; checkout without persisted credentials; every action pinned by its commit.
+2. Install `opus-tools` and the hash-pinned Python packages; run the self-test (`python -m jobs.audio --selftest --clap`: synthetic tones with known loudness, tempo, key and silences, and the model's output shape) before any real song is touched.
+3. Fetch and check the spec (`GET /v1/jobs/:id/spec`, never printed): the kind and `v` known, 1–500 hashes, each `^[0-9a-f]{64}$`, no duplicates. On failure: `fail: bad_spec`, exit 1.
+4. For each hash, 4 processes at once and 10 minutes each at most: GET `jarvis-music/native/audio/<sha>.opus` with the read-only key into `$RUNNER_TEMP`, hashing it on the way (≤ 64 MB); if sha256(bytes) differs: `failed: hash_mismatch`; decode, analyse, build the result, check it locally against the schema, delete the audio and the WAV.
+5. Upload the results **through the Worker**, 50 to a part in the manifest's `files` order, one result a line (`PUT /v1/jobs/<id>/files/part-001.jsonl`, …), then the manifest **last** (`…/manifest.json`):
    ```ts
    { v: 1; job_id: string; kind: 'audio.analysis'; analyzer: {name, version};
      started_at: Ms; finished_at: Ms;
-     files: { sha256: string; bytes: number; result_sha256: string }[];
+     files: { sha256: string; bytes: number; result_sha256: string }[];   // part p holds files[50(p−1) … 50p−1]
      failed: { sha256: string; reason: 'download'|'hash_mismatch'|'decode'|'analyze'|'timeout' }[] }
    ```
-6. Final log line: `done: <ok> ok, <failed> failed, <seconds> s`.
-7. A last step calls `POST /v1/jobs/<job_id>/collect` with `TH_CI_TOKEN`. If that fails, `mind-night` calls it next night.
+   A neighbours job uploads `neighbours.bin` (n × 50 little-endian uint16: row i is song i's nearest, nearest first, ties by index, never i, 0xFFFF after the last when fewer than 50 others exist) and `{ v: 1, job_id, kind: 'audio.neighbours', analyzer, started_at, finished_at, n, k: 50, bytes, sha256 }`.
+6. Log lines: `spec: N songs`, `model: ready in N s`, `analysed: N of M, N s` every 50, `done: N ok, N failed, N s; uploaded N parts and the manifest`, `collect: validating`. Any failure prints `fail: <reason>` from a fixed list (`bad_job_id`, `bad_spec`, `spec_fetch`, `model`, `upload`, `collect`, `not_configured`, `selftest`, `internal`) and nothing a library or server said.
+7. A last call `POST /v1/jobs/<job_id>/collect` with the `ci` key. If the run fails before it, `th music jobs` collects the next night (any job issued over 6 hours ago).
 
-### 3.5 Validation on collect (in the Worker, then a `Music` job)
+Local mode for testing on synthetic or the owner's own files, on the owner's own machine: `python -m jobs.audio --local <folder> [--clap]` prints one result a line for each `.wav` (16-bit) or `.opus` file.
+
+### 3.5 Validation on collect (in the Worker, then Core's apply job)
 
 The job moves `issued → validating → applied`, or `→ rejected` if the manifest itself is bad.
 
-| # | Check | On failure |
-|---|---|---|
-| 1 | The manifest exists, is ≤ 1 MB, parses, and matches its schema | `rejected`; nothing applied |
-| 2 | `job_id` names an `issued` spec that hasn't expired, of the same `kind` and `v` | `rejected` |
-| 3 | Every hash in `files` and `failed` is in the spec; no duplicates | `rejected` |
-| 4 | Each result file is ≤ 8 KB; sha256 of its bytes equals `result_sha256` | That file is invalid |
-| 5 | The file parses and passes the schema with `additionalProperties: false`, every range and enum, and `sha256` equal to its key | That file is invalid |
-| 6 | Spec hashes missing from both lists | Counted as `missing`; they become eligible again |
+| # | Check | Where | On failure |
+|---|---|---|---|
+| 1 | The manifest exists, is ≤ 1 MB, parses, and matches its schema (`additionalProperties: false`, every range and enum) | collect | `rejected`; nothing applied; uploads deleted |
+| 2 | `job_id` names an `issued` spec that hasn't expired, of the same `kind` and `v` (a neighbours manifest's `n` equals the spec's, `k` = 50, `bytes` = n × k × 2) | collect | `rejected` (`410` if expired) |
+| 3 | Every hash in `files` and `failed` is in the spec; no duplicates within or across the two lists | collect | `rejected` |
+| 4 | Each result line's byte count and sha256 equal its manifest entry, ≤ 8 KB (a neighbours file: its size and sha256) | apply job | That result is invalid (`size`, `hash`; a missing part: `part`) |
+| 5 | The line is UTF-8 JSON and passes schema v2 with `additionalProperties: false`, every range and enum, start + end silence ≤ duration, and `sha256` equal to its manifest entry (a neighbours file: every row in range, never itself, no repeat, padding only at the end) | apply job | That result is invalid (`json`, `schema`, `key`); a bad neighbours file rejects that job |
+| 6 | Spec hashes missing from both lists | collect | Counted as `missing`; they stay due |
 
-Then:
-1. Valid files are copied to `thunderhead-private/jobs/audio.analysis/<sha>.v1.json`.
-2. A `Music` bulk-lane job upserts `Music.analysis` rows in steps of ≤ 2,000.
-3. All raw objects under `thunderhead-jobs/results/audio.analysis/<job_id>/` are deleted. The bucket's 14-day lifecycle rule is the backstop.
-4. `external_jobs.counts_json = {expected, valid, invalid, missing}`. If `invalid > 0`, a ledger note records the counts and reasons (never hashes in any user-visible text).
+Then (`music.listen.apply`, a Core job on the bulk lane, one part of 50 a step):
+1. The valid results are re-written from their known fields only and upserted into `Music.analysis` with a 56-byte pack of the phone's numbers, and every track holding that audio gets its row of `Music.track_analysis` (`energy`, `moods_json` by `MUSIC_MOODS`; what Music step 4 reads); the job's counts move in the same Music transaction, which skips a part already taken (a step repeated after a crash writes nothing twice; the same result again writes 0 rows). Music's rows written count on the lane in the step's commit, so the lane's 40,000 a day and the 80 % quota hold apply.
+2. A last step records the job's own failures (`attempts` +1 at this analyzer version), marks it `applied`, moves `listen.epoch` if anything was valid, deletes everything under `jobs/incoming/<job_id>/` and queues `music.listen.pack`.
+3. A neighbours job's first step checks the file, stores `music/neighbours.v1.bin` (header, the order, the rows) in place of the last, records `listen.neighbours` (the job reads `applied` from here) and deletes its uploads and spec files; then each analysed track's row of `track_analysis` gets its `neighbours_json` (the near songs as track ids, each audio's first track in catalog order, nearest first, never itself), 2,000 tracks a step, an unchanged row writing nothing; then the pack is queued. A bad file rejects the job and leaves the last neighbours as they were.
+4. `music.listen.pack` (reads only; waits like heavy work from 80 % of the day's budget) has the Music object build the phone's file `music/pack.v1.bin` ([MUSIC.md §9.1](../product/apps/MUSIC.md)).
+5. `external_jobs.counts_json = {expected, valid, invalid, failed, missing, reasons}` (reasons by fixed name, never a hash).
 
-The schema check is a small JSON-Schema-subset validator in `backend/src/areas/work/validate.ts` (types, required, enum, min/max, maxLength, `additionalProperties: false`). It is shared with Muse work orders, so no extra dependency is needed.
+The schema checks are the JSON-Schema-subset validator in `backend/src/areas/work/validate.ts` (shared with Muse's work orders, no extra dependency) on the schemas in `shared/contract/listen.ts`; the rest is `backend/src/areas/music/listen-check.ts`.
 
-Acceptance: vitest cases for each row of the table, using synthetic manifests and files in local R2: a bad manifest applies nothing; one bad file among 10 applies 9; a file whose `sha256` field differs from its key is rejected.
+**Rows** (cost suite, local workerd): issuing a job reads about 2 rows per catalog track (about 24,000 at 12,000 songs) and writes 1; an upload or a status reads 1; collect writes 1 in Music and 2 in Core; applying 50 results writes 105 rows in Music (each result's `analysis` row and its track's `track_analysis` row, the counts, the end) and about 10 in Core (the job's row, its steps, the lane's count); building the phone file reads one row per track and per analysis (about 24,000) and writes 1; the neighbours job writes one `track_analysis` row per track whose neighbours changed (12,000 the first time, few after). **A 500-song job writes about 1,060 rows; the whole library of 12,000 about 25,000 rows over about 24 nights (about 2.1 per song, about 1.6 % of a day's 68,000 budget each night), then about 12,000 for the first neighbours (6 steps of 2,000, one night, under the lane's 40,000), and reads about 50,000 a night.** A new analyzer version costs the same again.
+
+Acceptance (built, `backend/tests/integration/listen*.test.ts`): every row of the table with synthetic manifests and files in local R2: a bad manifest applies nothing; one bad file among many applies the rest; a result whose `sha256` differs from its key is refused; duplicates, unknown keys, another job, another kind, a bad reason, broken JSON and an oversized manifest each reject; expiry; the lane pausing at its cap; neighbours staying in their cluster and a self-neighbour refused.
 
 ---
 
@@ -201,7 +242,8 @@ Import jobs stop after 3 failures in a row and show the Home line from [MIGRATIO
 | `events.export` | Senses | no | daily 06:00 local for day D−1 | one day | Re-runs if late events arrive |
 | `rollups.daily` | Senses | no | after `events.export` | one day | |
 | `music.stats` | Music | no | nightly | 2,000 tracks | From `Senses.rollups` over RPC |
-| `actions.apply` | Music | yes | after a collect | 2,000 results | §3.5 |
+| `music.listen.apply` | Core (writes in Music) | yes | after a collect | one part (≤ 50 results), then the job's end | §3.5; a neighbours job is one step (built) |
+| `music.listen.pack` | Core (built in Music) | no (reads; waits from 80 %) | after an apply | the whole phone file | §3.5 (built) |
 | `library.ingest` | Library | yes | after pages arrive (§5) | 200 pages (FTS cost unknown, D3) | |
 
 Acceptance: each kind has a vitest test that runs it to completion across at least 3 steps, kills it mid-way once (throw inside a step), and checks the final state equals an uninterrupted run.
@@ -228,9 +270,9 @@ Acceptance: a mind test runs `pdf-extract.mjs` on a synthetic 3-page PDF generat
 
 | # | Question | How to settle it |
 |---|---|---|
-| J1 | Do the BSD/MIT/ISC tools (opusdec, pyloudnorm, librosa) give tempo and key good enough for the Music features? | Run on 20 synthetic and 20 owner-approved tracks inside a session (not in Actions), compare with the old player's numbers |
-| J2 | Actions time per track (a 4-minute Opus file) on a standard runner | First run on synthetic tones, then a 50-track job; size `max` from it |
-| J3 | Does the R2 lifecycle rule cost nothing on this account? | Owner checks the bucket settings |
+| J1 | Do the numpy/scipy measures and CLAP give tempo, key and moods good enough for the Music features? Synthetic tones pass (tempo within 0.3 %, key, loudness within 0.01 LU); real songs unchecked | `--local` on 20 owner-approved tracks on the owner's machine, compared with the old player's numbers; tune with a new analyzer version |
+| J2 | Actions time per track on a standard runner (estimate: about 2 s with 4 processes, §3.2) | The first jobs' `done:` lines; raise `max` toward 1,000 if a 500-song job ends well under an hour |
+| J3 | (Settled 2026-11-01: results come through the Worker into `thunderhead-private`, so no `thunderhead-jobs` bucket and no lifecycle rule are needed.) | — |
 | J4 | DO CPU per invocation on Free (X3), which fixes the step sizes | Preview bench |
 | J5 | FTS5 rows written per 300-word page (D3) | Local workerd measurement |
 | J6 | Earlier plans allowed sha256 keys in public logs; this page, PRIVACY.md §6 and ARCHITECTURE.md agree on the stricter rule (no hashes at all; the spec travels by `GET /v1/jobs/:id/spec`). | Settled: decisions.md 2026-10-28 |

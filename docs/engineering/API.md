@@ -576,16 +576,22 @@ type MemoryOp =
 
 Data mechanics and proof rules: [DATA.md §12](DATA.md#12-importing-the-old-data). The plan: [MIGRATION.md](MIGRATION.md). Without the private bucket's binding (`VAULT`) the parts, the manifest and a new run answer `503 not_configured`; a run's status still reads.
 
-### 11.18 Jobs (P5)
+### 11.18 Jobs: the listening pass (P5)
+
+Built 2026-11-01 ([JOBS.md §3](JOBS.md#3-actions-jobs-the-listening-pass)). Kinds: `audio.analysis` (result schema v2, ≤ 500 songs a job) and `audio.neighbours` (once every song is analysed). Types and schemas: `shared/contract/listen.ts`.
 
 | Route | Who | Request | Response |
 |---|---|---|---|
-| `GET /v1/jobs/next?kind=audio.analysis&max=1-1000` | `mind:night`, `ci` | — | `200 { job_id, kind, v, shas: string[] }` or `204` when nothing is due |
-| `GET /v1/jobs/:id/spec` | `ci` | — | `200 { job_id, kind, v, shas: string[] }` (for the Actions run, which receives only `job_id`) |
-| `POST /v1/jobs/:id/collect` | `mind:night`, `ci` | `{}` | `202 { state: 'validating' }` |
-| `GET /v1/jobs/:id` | agents, `ci` | — | `200 { state: 'issued'\|'validating'\|'applied'\|'rejected'\|'expired', counts: {expected, valid, invalid, missing} }` |
+| `GET /v1/jobs/next?kind=audio.analysis&max=1-500` · `?kind=audio.neighbours` | `mind:night`, `ci` | — | `200 { job_id, kind: 'audio.analysis', v: 2, shas: string[], expires_at }` or `{ job_id, kind: 'audio.neighbours', v: 1, n, expires_at }` (no hashes); `204` when nothing is due; `409 {reason: 'open_jobs'}` with two jobs of the kind open. Songs in catalog order, one per audio hash, native Opus only, never one already in an open spec; a song failed 3 times at this analyzer version is left out. Issuing prunes jobs finished over 90 days ago and expires specs past 72 h |
+| `GET /v1/jobs/:id/spec` | `ci` | — | `200 { job_id, kind, v: 2, shas, analyzer }` or `{ job_id, kind, v: 1, n, k: 50, dim: 32, emb }` (`emb`: base64 of n × 32 int8, in the job's order); `410 expired`, `409 {reason: <state>}` once collected |
+| `PUT /v1/jobs/:id/files/:name` | `ci` | raw bytes, exact `Content-Length`: `part-NNN.jsonl` (results 50 a part in the manifest's `files` order, one a line, ≤ 8 KB each; `NNN` up to the job's last part), `neighbours.bin` (n × 50 uint16, ≤ 2 MB), `manifest.json` (≤ 1 MB, last) | `201 { name, bytes }`; `404` a name the job doesn't take; `413` over its size; `409 {reason: 'manifest_sent'}` for a part after the manifest; `410`/`409` once the job is no longer issued. Stored as sent in the private bucket under `jobs/incoming/<id>/`, read by nothing until collected |
+| `POST /v1/jobs/:id/collect` | `mind:night`, `ci` | `{}` | `202 { state: 'validating' }` (checks 1–3 and 6 passed; Core's apply job queued); `200 { state }` when already applied (or validating: its apply job is queued again if it had failed); `422 invalid_result {reason: 'bad_manifest'}` (the job is rejected, nothing applied, its uploads deleted); `409 {reason: 'no_manifest'}` while issued with no manifest; `410 expired` |
+| `GET /v1/jobs` | agents, `ci` | `?kind=&open=1` | `200 { items: JobStatus[] }` newest first, 20 at most |
+| `GET /v1/jobs/:id` | agents, `ci` | — | `200 JobStatus { job_id, kind, v, state: 'issued'\|'validating'\|'applied'\|'rejected'\|'expired', issued_at, expires_at, collected_at, count, counts: {expected, valid, invalid, failed, missing, reasons?} \| null }` (never a hash) |
+| `GET /v1/music/pack` | device | `If-None-Match` | `200` the phone's file (`application/octet-stream`, about 2.8 MB at 12,000 songs; its layout in `backend/src/areas/music/listen-pack.ts` and [MUSIC.md §9.1](../product/apps/MUSIC.md)) with R2's `ETag`; `304` unchanged; `404` before the first one |
+| `GET /v1/music/analysis/:id` | `mind:chat`, `mind:night` | `?like=0-50` (10) | `200 TrackAnalysis { id, state: 'done'\|'due'\|'failed'\|'unsupported', analysis: {analyzer, duration_ms, lufs_i, true_peak_db, lra, bpm, bpm_conf, key, key_conf, camelot, start_silence_ms, end_silence_ms, energy, valence, arousal, vocals, moods, top_moods} \| null, like: [{id, title, artist, sim}], like_at }`; `404` no such track |
 
-Validation rules: [JOBS.md §3](JOBS.md#3-actions-jobs-audio-analysis).
+Without the private bucket's binding (`VAULT`) every route that reads or writes a file answers `503 not_configured`.
 
 ### 11.19 Work orders (P4)
 
@@ -777,8 +783,10 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `POST /v1/library/ingest/claim`, `GET /v1/library/ingest/:job_id/file`, `PATCH /v1/library/ingest/:job_id`, `PUT /v1/library/books/:id/pages` | C N | P7 |
 | `POST /v1/import/phone` | D | P1b |
 | `GET /v1/jobs/next`, `POST /v1/jobs/:id/collect` | N I | P5 |
-| `GET /v1/jobs/:id` | C N R I | P5 |
-| `GET /v1/jobs/:id/spec` | I | P5 |
+| `GET /v1/jobs`, `GET /v1/jobs/:id` | C N R I | P5 |
+| `GET /v1/jobs/:id/spec`, `PUT /v1/jobs/:id/files/:name` | I | P5 |
+| `GET /v1/music/pack` | D | P5 |
+| `GET /v1/music/analysis/:id` | C N | P5 |
 | `/v1/push/*` | D | P8 |
 | `PUT /v1/pushes/:id` | C | P8 |
 | `PUT /v1/reminders/:id`, `DELETE /v1/reminders/:id` | D C | P8 |

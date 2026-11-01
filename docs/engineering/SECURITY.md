@@ -54,7 +54,7 @@ Out of scope: a compromised phone OS, provider insiders, nation-state attackers,
    ▼                                                   ▼                                ▼
  Azure Storage static website ($web)            R2 S3 endpoint (presigned GET)     R2 buckets
  Mind sessions (Claude) ──HTTPS + agent key──▶ Worker          GitHub Actions ──CF API token──▶ deploy
- Muse ──HTTPS + muse key──▶ Worker              Actions ──R2 job keys──▶ thunderhead-jobs (write) / jarvis-music (read)
+ Muse ──HTTPS + muse key──▶ Worker              Actions ──read-only R2 key──▶ jarvis-music; results ──ci key──▶ Worker
 ```
 
 Each arrow is authenticated separately. Nothing trusts the network position of a caller.
@@ -90,7 +90,7 @@ Phase tags follow [ARCHITECTURE.md](ARCHITECTURE.md). Each line is testable; the
 - [ ] Agent keys: role scopes hard-coded; `last_used_at` hourly. [tests]
 
 **Data and storage (P1, P5)**
-- [ ] Three buckets; Actions never hold `thunderhead-private` credentials. [secrets inventory review]
+- [ ] Two buckets in use; Actions never hold `thunderhead-private` credentials, only a read-only `jarvis-music` key; their results reach the private bucket only through the Worker's job routes (§12.4). [secrets inventory review; tests/jobs-audio.test.mjs]
 - [ ] No public access on any bucket; r2.dev URL off on all buckets; the old `MUSIC_PUBLIC_READ` path never exists in the new Worker. [T14 owner check; grep test]
 - [ ] No code path deletes or overwrites `jarvis-music` objects outside one reviewed upload module. [static test]
 - [ ] Presigned GETs as §9; never logged. [tests]
@@ -401,7 +401,8 @@ Names only. "Rotate" says who does it and how; runbooks are in §14. A test chec
 | `CLOUDFLARE_API_TOKEN` | GitHub environment `worker` (only `main`) | `wrangler deploy`, secret puts, X3 | Owner in the Cloudflare dashboard: account-scoped, Workers Scripts Edit only, no zones, no expiry (review §1 #24), yearly rotation note in [OPERATIONS.md](OPERATIONS.md) |
 | `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` | GitHub repo secrets | OIDC sign-in for site deploys (identifiers, not credentials) | Not secret in practice; no rotation. The trust is the federated credential (subject `…:ref:refs/heads/main`). |
 | `TH_CI_TOKEN` | GitHub environment `worker` | `thc_` key for deep health checks and job results | Owner in Settings → Agents |
-| `R2_JOBS_ACCESS_KEY_ID`/`_SECRET`, `R2_MUSIC_RO_ACCESS_KEY_ID`/`_SECRET` (P5) | GitHub environment `jobs` **[proposal]** | Actions: write `thunderhead-jobs`; read `jarvis-music` | Owner: new bucket-scoped R2 tokens in the dashboard |
+| `R2_JOBS_ACCESS_KEY_ID`/`_SECRET`, `R2_ACCOUNT_ID` (P5, built 2026-11-01) | GitHub environment `jobs` | Actions (`jobs-audio.yml`): **read** `jarvis-music` only (an R2 token with Object Read only, scoped to that bucket) | Owner: SETUP.md N6 |
+| `TH_CI_TOKEN` in environment `jobs` (and the repository variable `WORKER_URL`) | GitHub environment `jobs` | Actions: the listening pass's spec, uploads and collect (a `ci` key of its own, named `jobs-audio`, so it can be revoked alone) | Owner: SETUP.md N6 |
 | `TH_SETUP_FINGERPRINT`, `TH_RESET_FINGERPRINT` | GitHub repo secrets (temporary) | Inputs to the setup/reset workflows | Owner deletes after use |
 | `TH_TOKEN` | Claude environments `th-chat`, `th-night` (`th-reflex` in P4), network secret | Mind keys (`thm_`) | Owner: new key in Settings → Agents, paste, revoke the old |
 | Muse key | Muse's own settings | `ths_` key | Owner in Settings → Agents |
@@ -431,6 +432,15 @@ Never: Cloudflare, Azure or R2 credentials in any Claude environment; any secret
 - `::add-mask::` for any derived value that could be sensitive.
 - Scheduled workflows are avoided (GitHub disables them after 60 days of repo inactivity); the Worker or the agent dispatches jobs.
 - `zizmor` (workflow linter) in CI **[optional]**.
+
+### 12.4 The listening pass's trust boundary (JOBS.md §3)
+
+An Actions run is public and anyone who can push a workflow to `main` controls it, so everything it sends back is treated as hostile input:
+
+- **What Actions holds:** a read-only R2 key on `jarvis-music` (it can read audio by hash; it can't list other buckets, write, overwrite or delete) and the `jobs-audio` `ci` key. No Cloudflare API token, no key to `thunderhead-private`, no other Worker key. The environment `jobs` is limited to the `main` branch (SETUP.md N6), and the workflow runs only on `workflow_dispatch` from `main`.
+- **What the `ci` key may do here:** read a spec (`GET /v1/jobs/:id/spec`, CI only: the only route that returns song hashes outside the owner's device and the night mind), upload a job's files and collect. An upload must name an issued, unexpired job, one of that job's own file names, and stay within that name's size; it is stored as bytes under `jobs/incoming/<job_id>/`, where nothing reads it until collect, and is deleted once the job ends (at most 72 h after issue if never collected).
+- **What reaches the owner's data:** only results that pass the manifest's checks and schema v2 with `additionalProperties: false` (numbers, and keys from fixed lists: no free text anywhere), re-written from their known fields before storing, for songs in that job's spec only. The worst a hostile run can do is wrong numbers for up to 500 songs a job (fixed by the next analyzer version) and at most one job's rows (about 1,060). Counts in a job's status are by fixed reason, never echoing what was sent.
+- **What the public log shows:** counts, timings and fixed failure words (`tests/jobs-audio.test.mjs` checks the workflow and the Python job's log calls). The job id is public (a dispatch input) and names nothing.
 
 ### 12.3 Supply chain
 - Exact versions in `package.json`, lockfile committed, `npm ci --ignore-scripts` everywhere.
@@ -482,7 +492,8 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 |---|---|
 | `CLOUDFLARE_API_TOKEN` | **Treat as full compromise** (it can deploy code that reads everything). Owner: roll it in the Cloudflare dashboard at once; update the GitHub environment secret. Check Workers → thunderhead-api → Deployments for unknown versions; roll back. Then rotate `AUTH_PEPPER` (§14.6), `R2_SIGN_*`, `VAPID_PRIVATE_JWK`, the fire tokens; sign out everywhere; revoke and re-make agent keys. |
 | `R2_SIGN_*` | Owner: delete the R2 API token in the dashboard (kills every outstanding URL), make a new read-only token, update the Worker secrets. |
-| R2 job keys | Delete and re-make the bucket-scoped tokens; audit `thunderhead-jobs` (the Worker validates everything from it anyway). |
+| R2 job key (`R2_JOBS_*`) | Delete the R2 API token in the dashboard and make a new one (Object Read only, `jarvis-music`); update the `jobs` environment. Impact: someone can read the owner's audio files by hash (no writes, no deletes, no other bucket). |
+| The `jobs` environment's `TH_CI_TOKEN` | Revoke the `jobs-audio` key in Settings → Agents; make a new `ci` key for the environment. Impact: someone could fetch specs (song hashes) and upload junk results, which the Worker refuses or which cost at most one job's rows; nothing else a `ci` key can't already do. |
 | `VAPID_PRIVATE_JWK` | New key pair; devices re-subscribe at next start. An attacker with it alone can't reach devices without their endpoints. |
 | `ROUTINE_*_TOKEN` / `ROUTINE_*_URL` | Regenerate in the task's settings in Claude. Impact: someone can wake the mind with the text `wake` (burns usage, capped at 30/h). |
 | Any secret pushed to the repo | Rotate first, then remove from history isn't enough on a public repo: assume it's copied. |
