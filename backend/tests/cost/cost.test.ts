@@ -278,15 +278,11 @@ describe('rows per endpoint', () => {
 
   // P7: Study's library (library-calls.ts).
   it('measures the library against its budget', () => libraryCalls(cost as never, grant));
-
   // P9: predictions (prediction-calls.ts).
   it('measures the predictions against their budget', () => predictionCalls(cost, grant));
-
-  // The phone's reports and Podcasts' sync (report-calls.ts, podcast-calls.ts), then the listening pass.
+  // Reports and Podcasts' sync, the listening pass, what the mind knows (report-, podcast-, listen-, music-calls.ts).
   it('measures the phone’s reports and sync, and the listening pass', () =>
     phoneCalls(cost, grant).then(() => listenCalls(cost, grant)));
-
-  // What the mind knows of each song (music-calls.ts).
   it('measures the music notes and find against their budget', () => musicCalls(cost as never, grant));
 
   it('every endpoint has a budget and stays within it', () => {
