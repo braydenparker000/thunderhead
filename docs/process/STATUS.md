@@ -5,8 +5,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Now (2026-11-01)
 
-The owner enjoys the product; the agent leads and sends pull requests the owner merges (AGENTS.md).
-The plan is [PLAN.md](PLAN.md). Open pull requests are the queue; nothing goes live until merged.
+The owner enjoys the product; the agent leads (AGENTS.md). The plan is [PLAN.md](PLAN.md). Owner,
+2026-11-01: "go ahead with everything", "ship everything as ready": the lead merges a pull request
+once its tests and any second read pass, confirms it live, and says what changed in `whats-new.json`.
 
 ## Current phase
 
@@ -97,6 +98,7 @@ Half-built, after the list: per-app icons in the conversation list; upload progr
 
 ## Last deploy
 
+- 2026-11-01 12:35 UTC: `0a7383c`, the owner's go-ahead ("ship everything as ready"): PRs #7 (Worker tests pass on Sundays), #2 (the plan and one-page rules), #1 (the owner's own time zone), #3 (preview builds, waiting for the owner's Pages token), #5 (the sleep timer on the island), #4 (Music streams, 60 s ahead by the owner's choice, after an independent review), #6 (never means never), #8 (the listening pass, Music schema step 3; it runs only once the owner gives the read-only music key). Checked live: `release.json` names `0a7383c`, the stream's plan serves `CAP_S = 60`.
 - 2026-11-01 02:24 UTC: `523b1b8` (site + Worker tag `523b1b870c72`) apps inside the Thunderhead and the island (HOME.md §12.1): Music and Podcasts open as a layer in home, the swipe down or Back into the island, its live bars and Podcasts' ring, hold for the card, the playback orders, the sleep timer and "never play this again" from the chat; the frame trust (SECURITY.md §4.4 rule 5) after a second reader, whose findings (the canonical CSP, offline, reloads, updates, never as a sense) were fixed before it shipped. Checked live: the release and tag, the island's files serve, home's CSP has `frame-src 'self'` and the API host in `connect-src`. The owner's phone test of the lock screen and AirPods in the layer is still to come.
 - 2026-10-31 21:40 UTC: `12e549f` (Worker + site; tag `12e549f38373`) reporting's second-reader fixes: known fields only on both sides (an allowlist per event type, addresses cut to their host, quoted text and patterns dropped), numbered events so a retried batch is never counted twice or lost, nothing sent after a 401 until the session changes, back-off on errors, typed text kept out of error reports, pages at most 512 KB, the text cap 160. Checked live: the release, the tag, `/v1/ops/reports` 401 without a key, the new files serve.
 - 2026-10-31 21:30 UTC: `3552c64` (Worker + site; Worker tag `3552c6470602`) the next batch's first parts: playback reporting (Core step 23, `POST/GET /v1/ops/reports`, `th reports`; Home and Study report their errors), the rows-read guard (Core step 24, Auth 3, Music, Senses, Library 2; `/v1/ops/meter`, quota watchdogs, the 80 % push and hold), Guitar's practice loop (the tempo ladder, practice senses, the worst section first), Music's `music.play`/`skip`/`finish` senses. Both data steps went through a second reader; the guard's findings were fixed before it shipped, reporting's High one too (CI may not read the reports), its others at `12e549f`. Checked live: the release and the Worker's tag, the new routes answer 401 without a key, the new files serve. Before it: `191eabe` (Worker + site) hold the mic to dictate (`POST /v1/dictate`, Whisper, nothing kept); `563017b` (site) the catch-up line after quiet, the phone's own commands, the font fetch retried.

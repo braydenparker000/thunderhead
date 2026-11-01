@@ -1,0 +1,10 @@
+{
+  "id": "2026-11-01-music",
+  "date": "2026-11-01",
+  "lines": [
+    { "text": "Music starts at once and keeps a minute ahead, so tunnels play through.", "open": "music", "label": "Open Music" },
+    { "text": "A sleep timer shows on the island: say “sleep timer 20 minutes”, or hold the island." },
+    { "text": "“Never play this again” now means never, in every list and shuffle." },
+    { "text": "Days, quiet hours and the night now follow your own clock." }
+  ]
+}

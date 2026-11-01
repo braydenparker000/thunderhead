@@ -115,6 +115,8 @@ const budgets = [
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads
   // and attachments in the conversation, loaded when the sheet opens or a message has files.
   ['attach JS bytes', sum(/^th\/attach\/.*\.js$/), 36_000],
+  // What's new after an update (th/news, loaded after the first paint), 2026-11-01.
+  ['news JS bytes', sum(/^th\/news\/.*\.js$/), 6_000],
   // The menu's conversations and search, loaded when the menu first opens.
   // (2026-10-31) + a held card's Continue, Rename and Pin (actions.js), Settings by name in search.
   ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 64_000],
