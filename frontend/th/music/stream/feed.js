@@ -99,10 +99,12 @@ export class StreamFeed extends EventTarget {
     this.listen(ms, 'sourceclose', () => this.stop());
   }
 
-  /** Plays `tracks` from `index`, `ms` into it. @param {StreamTrack[]} tracks @param {{ index?: number, ms?: number }} [o] */
-  load(tracks, { index = 0, ms = 0 } = {}) {
+  /** Plays `tracks` from `index`, `ms` into it. The song starts on the element's timeline at `at`
+   * seconds (default: where the element is now; a deck that plays one song passes 0, so the element's
+   * time is the song's). @param {StreamTrack[]} tracks @param {{ index?: number, ms?: number, at?: number }} [o] */
+  load(tracks, { index = 0, ms = 0, at } = {}) {
     this.queue = tracks.slice();
-    this.restart(index, ms, Math.round((this.audio.currentTime || 0) * RATE));
+    this.restart(index, ms, Math.round((at ?? (this.audio.currentTime || 0)) * RATE));
   }
 
   /** Replaces what follows the song playing now; a song already joined that is no longer next is dropped. @param {StreamTrack[]} tracks */

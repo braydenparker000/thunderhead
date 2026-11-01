@@ -7,18 +7,25 @@
 // heads wanted now are kept; a few hundred KB each instead of whole songs.
 // The player asks for them once the playing song has its stream ahead, and
 // holds them while it rebuffers; on opening, the song left off gets its own.
+// A song that will play through the stream feed (th/music/stream) needs no
+// tail: its length comes from the catalog. When a song starts streaming, its
+// own head is not fetched again: one under way finishes first (settle), so
+// the feed reads those bytes from the phone instead of a second time.
 export const HEADS = 'claude-player-heads';
 export const HEAD_S = 15;
 const TAG_ROOM = 64 * 1024, TAIL_BYTES = 128 * 1024;
 const OGG = /ogg|opus|vorbis/i;
 
-/** What to keep of a track: {url, head, tail, total, type}, or null (not a remote song of known size). */
-export function headOf(t) {
+/**
+ * What to keep of a track: {url, head, tail, total, type}, or null (not a remote song of known size).
+ * `tail: false`: no Ogg tail (a song the stream feed plays knows its length without one).
+ */
+export function headOf(t, {tail: withTail = true} = {}) {
   const url = t?.src, total = t?.size || 0;
   if (!url || !/^https?:/.test(url) || !total || !(t.durationMs > 0)) return null;
   const head = Math.min(total, Math.ceil(HEAD_S * total / (t.durationMs / 1000)) + TAG_ROOM);
   const ogg = OGG.test(t.mime || '') || OGG.test(t.format || '');
-  const tail = ogg && total - head > TAIL_BYTES ? TAIL_BYTES : 0;
+  const tail = withTail && ogg && total - head > TAIL_BYTES ? TAIL_BYTES : 0;
   return {url, head, tail, total, type: t.mime || ''};
 }
 
@@ -62,7 +69,7 @@ export class AudioHeads {
    * or a seek back) stay if there, but do not download.
    */
   async want(list, keep = null) {
-    await this.ready;
+    // At once, so a download starting meanwhile (hold let go) takes the new list, not the last one.
     this.wanted = list.filter(Boolean);
     this.keep = new Set(keep === null ? [] : [].concat(keep));
     // The songs ahead changed: ones that failed before are tried again.
@@ -70,6 +77,7 @@ export class AudioHeads {
     // (By what is wanted now, at each step: a later call may change it meanwhile.)
     const wanted = url => this.keep.has(url) || this.wanted.some(w => w.url === url);
     if (this.busy && !wanted(this.busy.url)) this.busy.abort.abort();
+    await this.ready;
     let changed = false;
     const cache = await this.caches.open(HEADS).catch(() => null);
     for (const url of [...this.kept.keys()]) {
@@ -84,19 +92,37 @@ export class AudioHeads {
 
   /**
    * Held (the playing song is short of its stream): the download under way
-   * stops (it starts again later) and none starts until let go.
+   * stops (it starts again later) and none starts until let go; one of the
+   * playing song (`playing`, its URL: its stream reads it, settle) finishes.
    */
-  hold(on) {
+  hold(on, playing = null) {
     if (this.held === on) return;
     this.held = on;
-    if (on) this.busy?.abort.abort();
+    if (on) { if (this.busy && this.busy.url !== playing && !this.keep.has(this.busy.url)) this.busy.abort.abort(); }
     else this.pump();
+  }
+
+  /**
+   * The song at url starts streaming: its head is no longer fetched, but kept
+   * if there. One downloading now finishes first, up to ms (its bytes serve
+   * the stream from the phone; the stream would otherwise fetch them again);
+   * past that it stops and the stream reads the network.
+   */
+  async settle(url, ms) {
+    this.keep.add(url);
+    this.wanted = this.wanted.filter(w => w.url !== url);
+    const b = this.busy;
+    if (b?.url !== url) return;
+    let timer;
+    const done = await Promise.race([b.done.then(() => true), new Promise(r => { timer = setTimeout(r, ms, false); })]);
+    clearTimeout(timer);
+    if (!done && this.busy === b) b.abort.abort();
   }
 
   pump() {
     if (this.pumping || this.held) return this.pumping;
     const run = (async () => {
-      await null;
+      await this.ready;
       try {
         for (let w; !this.held && (w = this.wanted.find(x => !this.kept.has(x.url) && !this.failed.has(x.url)));) await this.download(w);
       } finally {
@@ -131,8 +157,8 @@ export class AudioHeads {
 
   async download(w) {
     const abort = new AbortController();
-    let cache = null;
-    this.busy = {url: w.url, abort};
+    let cache = null, finished;
+    this.busy = {url: w.url, abort, done: new Promise(r => { finished = r; })};
     try {
       const head = await this.range(w.url, 0, w.head - 1, w.total, abort.signal);
       const tail = w.tail ? await this.range(w.url, w.total - w.tail, w.total - 1, w.total, abort.signal) : null;
@@ -152,6 +178,7 @@ export class AudioHeads {
       if (!abort.signal.aborted && e?.message !== 'not wanted') { this.counts.failures++; this.failed.add(w.url); }
     } finally {
       if (this.busy?.abort === abort) this.busy = null;
+      finished();
     }
   }
 
