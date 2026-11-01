@@ -21,7 +21,9 @@ function memoryStorage() {
   return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k), m };
 }
 
-/** The Worker's two routes as the phone sees them: newer wins, pages by when it took each row. */
+/** The Worker's two routes as the phone sees them: newer wins item by item, an item more than an
+ * hour ahead of its clock refused by place, pages by when it took each row. `clock` is the Worker's
+ * time (the phone's is NOW): every answer carries it. */
 function fakeWorker() {
   const w = { rows: new Map(), follows: new Map(), requests: [], fail: null, clock: NOW, pageSize: 500 };
   w.fetch = async (url, init = {}) => {
@@ -32,13 +34,15 @@ function fakeWorker() {
     const json = (b) => new Response(JSON.stringify(b), { headers: { 'Content-Type': 'application/json' } });
     if (u.pathname === '/v1/podcasts/progress' && init.method === 'PUT') {
       let applied = 0;
-      for (const p of body.items) {
+      const refused = [];
+      body.items.forEach((p, index) => {
+        if (p.updated_at > w.clock + 3_600_000) return refused.push({ index, issue: 'updated_at: ahead' });
         const had = w.rows.get(p.key);
-        if (had && had.updated_at >= p.updated_at) continue;
-        w.rows.set(p.key, { ...p, synced_at: ++w.clock });
+        if (had && had.updated_at >= p.updated_at) return;
+        w.rows.set(p.key, { ...p, synced_at: w.clock });
         applied++;
-      }
-      return json({ applied, stale: body.items.length - applied, at: w.clock });
+      });
+      return json({ applied, stale: body.items.length - applied - refused.length, refused, at: w.clock });
     }
     if (u.pathname === '/v1/podcasts/progress') {
       const cursor = u.searchParams.get('cursor');
@@ -55,7 +59,7 @@ function fakeWorker() {
     }
     if (u.pathname === '/v1/podcasts/follows' && init.method === 'PUT') {
       for (const f of body.items) if (!(w.follows.get(f.feed_url)?.updated_at >= f.updated_at)) w.follows.set(f.feed_url, f);
-      return json({ applied: body.items.length, stale: 0, at: w.clock });
+      return json({ applied: body.items.length, stale: 0, refused: [], at: w.clock });
     }
     return new Response('{}', { status: 404 });
   };
@@ -174,20 +178,49 @@ test('push: what the Worker doesn’t have, ≤ 100 a request, cleaned; nothing 
   assert.equal(worker.requests[0].keepalive, true, 'a sync while playing outlives a closing page');
 });
 
-test('an outage is sent again later; a refusal no retry fixes is not', async () => {
+test('an outage, or a whole request refused, is sent again later', async () => {
   setApp({ progress: { [key(1)]: entry(5, NOW - 3) } });
-  worker.fail = 503;
+  for (const status of [503, 422]) {
+    worker.fail = status;
+    await sync.push();
+    worker.fail = null;
+    await sync.push();
+    assert.equal(worker.rows.get(key(1))?.position_s, 5, String(status));
+    worker.rows.clear();
+    setApp({ ...app(), progress: { [key(1)]: entry(5, NOW - 1) } });
+  }
+});
+
+test('one item the Worker refuses stays unsent, and the rest of its request is kept', async () => {
+  // This phone's clock runs two hours ahead of the Worker's for one save (before any answer set the offset).
+  setApp({ progress: { [key(1)]: entry(5, NOW - 3), [key(2)]: entry(6, NOW + 2 * 3_600_000), [key(3)]: entry(7, NOW - 2) } });
   await sync.push();
-  worker.fail = null;
-  await sync.push();
-  assert.equal(worker.rows.get(key(1)).position_s, 5);
-  setApp({ ...app(), progress: { ...app().progress, [key(2)]: entry(6, NOW - 2) } });
-  worker.fail = 422;
-  await sync.push();
-  worker.fail = null;
+  assert.deepEqual([...worker.rows.keys()].sort(), [key(1), key(3)]);
+  assert.deepEqual(Object.keys(memory().sent).sort(), [key(1), key(3)]);
   worker.requests = [];
   await sync.push();
-  assert.deepEqual(worker.requests, []);
+  assert.deepEqual(worker.requests.map((r) => r.body.items.map((p) => p.key)), [[key(2)]], 'the refused one is tried again');
+  // Once it is due on the Worker's clock, it is taken.
+  worker.clock = NOW + 2 * 3_600_000;
+  await sync.push();
+  assert.equal(worker.rows.get(key(2)).position_s, 6);
+});
+
+test('times go on the Worker’s clock: a phone 5 minutes behind sends and reads them right', async () => {
+  worker.clock = NOW + 5 * 60_000;
+  // Another phone saved key(1) on the Worker 2 minutes ago (Worker time); this phone saved it 4
+  // minutes ago by its own clock, which is 1 minute ago in real time: this phone's is newer.
+  worker.rows.set(key(1), { key: key(1), position_s: 100, duration_s: 1800, played: false, updated_at: worker.clock - 2 * 60_000, synced_at: worker.clock });
+  // key(2): the other phone's is newer (1 minute ago against this phone's 10 minutes ago, real time).
+  worker.rows.set(key(2), { key: key(2), position_s: 200, duration_s: 1800, played: false, updated_at: worker.clock - 60_000, synced_at: worker.clock });
+  setApp({ progress: { [key(1)]: entry(40, NOW - 4 * 60_000 + 3 * 60_000), [key(2)]: entry(20, NOW - 10 * 60_000) } });
+  await sync.open(BY);
+  assert.equal(memory().offset, 5 * 60_000);
+  assert.equal(app().progress[key(1)].position, 40, 'this phone’s newer one stays');
+  assert.deepEqual([app().progress[key(2)].position, app().progress[key(2)].updatedAt], [200, NOW - 60_000], 'read onto the phone’s clock');
+  await sync.push();
+  assert.deepEqual([worker.rows.get(key(1)).position_s, worker.rows.get(key(1)).updated_at], [40, NOW - 60_000 + 5 * 60_000]);
+  assert.equal(worker.rows.get(key(2)).position_s, 200, 'not sent back');
 });
 
 test('a refused session is asked for again', async () => {

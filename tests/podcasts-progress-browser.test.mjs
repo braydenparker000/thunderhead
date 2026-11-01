@@ -40,7 +40,7 @@ before(async () => {
     const json = (status, body) => res.writeHead(status, { ...cors, 'Content-Type': 'application/json' }).end(JSON.stringify(body));
     if (url.pathname === '/v1/podcasts/progress' && req.method === 'GET') {
       seen.gets.push(url.search);
-      return json(200, { items: remote, next_since: 1_900_000_000_000, next: null });
+      return json(200, { items: remote, next_since: Date.now(), next: null });
     }
     if (req.method === 'PUT' && url.pathname.startsWith('/v1/podcasts/')) {
       const body = JSON.parse(raw);
@@ -134,16 +134,32 @@ test('signed in: another phone’s newer position is there before the app reads;
   const sent = seen.puts.filter((p) => p.path.endsWith('/progress')).flatMap((p) => p.items);
   assert.deepEqual(sent.map((p) => [p.key, p.position_s]), [[`${FEED}#${ids[2]}`, 9]]);
   assert.deepEqual(seen.puts.find((p) => p.path.endsWith('/follows')).items.map((f) => [f.feed_url, f.followed]), [[FEED, true], [OTHER, true]]);
-  // The app's worker takes over on the next load; then play episode two and pause it.
+  // The app's worker takes over on the next load; then play episode two from its start and pause it.
+  // (From its start: the fixture is a few seconds long, so a resume at 0:09 would play to its end.)
   await page.evaluate(() => navigator.serviceWorker.ready);
-  seen.puts.length = 0;
+  await page.evaluate((key) => {
+    const s = JSON.parse(localStorage.getItem('jarvis.podcasts.v1'));
+    s.progress[key] = { ...s.progress[key], position: 0 };
+    localStorage.setItem('jarvis.podcasts.v1', JSON.stringify(s));
+  }, `${FEED}#${ids[2]}`);
   remote = [];
   await page.reload({ waitUntil: 'load' });
   await page.waitForFunction(() => !!navigator.serviceWorker.controller);
   await page.locator(`[data-feed="${FEED}"]`).first().click();
   await page.locator('.show-actions [data-play]').click();
-  await page.waitForFunction(() => document.querySelector('#audio').currentTime > 0.3, null, { timeout: 15_000 });
-  await page.click('#mini-play');
+  // Playing for real, with nothing loading (the status line gone), and well after the sync's
+  // listeners are on (they follow the app's, at most 1.5 s after it starts).
+  await page.waitForFunction(
+    () => {
+      const a = /** @type {HTMLAudioElement} */ (document.querySelector('#audio'));
+      return !a.paused && a.currentTime > 0.3 && Number.isFinite(a.duration) && a.duration > 1
+        && /** @type {HTMLElement} */ (document.querySelector('#playback-status')).hidden && performance.now() > 2500;
+    },
+    null,
+    { timeout: 15_000 },
+  );
+  seen.puts.length = 0;
+  await page.evaluate(() => /** @type {HTMLAudioElement} */ (document.querySelector('#audio')).pause());
   await until(() => seen.puts.some((p) => p.path.endsWith('/progress')));
   const paused = seen.puts.filter((p) => p.path.endsWith('/progress')).flatMap((p) => p.items).find((p) => p.key === `${FEED}#${ids[2]}`);
   assert.ok(paused && paused.position_s > 0 && paused.updated_at > now, JSON.stringify(seen.puts));

@@ -15,6 +15,12 @@
 //   knows the shows. Follows go up only: a second copy of the app open on this phone (another tab)
 //   can write its older list over the storage, and taking a show missing from it as an unfollow is
 //   right only for what this phone's app shows, never for what came from another phone.
+// Times: the app stamps its saves with the phone's clock, which may be off. Every answer from the
+// Worker carries its own clock (`at`, `next_since`), so this module keeps the difference (`offset`,
+// Worker minus phone, from the middle of each request) and sends times on the Worker's clock, and
+// reads the Worker's times back onto the phone's; "the newer wins" then compares one clock's times.
+// One bad item never costs the rest: the Worker reports what it refused by place, and those stay
+// unsent (tried again next time: a time ahead of the Worker's clock comes good once it is due).
 // Only signed in, and in a top-level page or one of home's own frames (th/ported/session.js). What
 // this module remembers (what the Worker has, and since when it last asked) is `th.p.podcasts.sync`,
 // cleared on sign-out with the rest of `th.p.*` (th/session.js).
@@ -34,11 +40,14 @@ const KEEPALIVE_BYTES = 8_000;
 /** Pages read on open, at most (3,000 rows; the Worker keeps 1,000 positions). */
 const PAGES = 6;
 const UNFOLLOW_MEMORY_MS = L.unfollowed_keep_days * 86_400_000;
+const OFFSET_MAX_MS = 7 * 86_400_000;
 
 /** @typedef {{ position?: number, duration?: number, played?: boolean, updatedAt?: number, episode?: unknown }} Entry */
 /** @typedef {{ progress: Record<string, Entry>, follows: { feedUrl: string, title?: string, author?: string, artwork?: string }[], [k: string]: unknown }} App */
 /** @typedef {{ followed: boolean, at: number, sent: boolean, title: string, author: string, artwork: string }} Known */
-/** @typedef {{ v: 1, since: { progress: number }, sent: Record<string, number>, follows: Record<string, Known> }} Memory */
+/** `sent`: per key, the app's own `updatedAt` (phone clock) of the version the Worker has. `offset`:
+ * the Worker's clock minus the phone's, ms.
+ * @typedef {{ v: 1, since: { progress: number }, sent: Record<string, number>, follows: Record<string, Known>, offset?: number }} Memory */
 /** @typedef {import('../../../shared/contract/podcasts.ts').PodcastProgress} Progress */
 /** @typedef {import('../../../shared/contract/podcasts.ts').PodcastFollow} Follow */
 
@@ -110,28 +119,44 @@ function save(storage, key, value) {
   }
 }
 
-/** Remote positions into the app's state where they are newer than its own; the episode's details
- * the app keeps stay. Returns how many changed. @param {App} app @param {Memory} mem @param {Progress[]} items */
+/** The Worker's clock minus the phone's, from an answer that left at `t0` and came back at `t1`
+ * (phone times) with the Worker's `at`. @param {Memory} mem @param {unknown} at @param {number} t0 @param {number} t1 */
+export function setOffset(mem, at, t0, t1) {
+  const offset = Math.round(Number(at) - (t0 + t1) / 2);
+  // A week off is no phone's clock: such an answer is ignored.
+  if (Number(at) > 0 && Math.abs(offset) <= OFFSET_MAX_MS) mem.offset = offset;
+}
+
+/** Remote positions into the app's state where they are newer than its own (on the Worker's clock);
+ * the episode's details the app keeps stay, and its time goes back onto the phone's clock. Returns
+ * how many changed. @param {App} app @param {Memory} mem @param {Progress[]} items */
 export function applyProgress(app, mem, items) {
+  const offset = mem.offset ?? 0;
   let n = 0;
   for (const p of items) {
     const here = app.progress[p.key];
-    mem.sent[p.key] = Math.max(mem.sent[p.key] ?? 0, p.updated_at);
-    if ((Number(here?.updatedAt) || 0) >= p.updated_at) continue;
-    app.progress[p.key] = { ...here, position: p.position_s, duration: p.duration_s, played: p.played, updatedAt: p.updated_at };
+    const local = Math.round(p.updated_at - offset);
+    if ((Number(here?.updatedAt) || 0) + offset >= p.updated_at) {
+      mem.sent[p.key] = Math.max(mem.sent[p.key] ?? 0, Math.min(local, Number(here?.updatedAt) || 0));
+      continue;
+    }
+    app.progress[p.key] = { ...here, position: p.position_s, duration: p.duration_s, played: p.played, updatedAt: local };
+    mem.sent[p.key] = local;
     n++;
   }
   return n;
 }
 
-/** The app's positions the Worker doesn't have yet. @param {App} app @param {Memory} mem @returns {Progress[]} */
+/** The app's positions the Worker doesn't have yet, their times on the Worker's clock.
+ * @param {App} app @param {Memory} mem @returns {Progress[]} */
 export function progressToSend(app, mem) {
+  const offset = mem.offset ?? 0;
   /** @type {Progress[]} */
   const out = [];
   for (const [key, p] of Object.entries(app.progress)) {
     const at = Math.round(Number(p?.updatedAt) || 0);
     if (at <= 0 || (mem.sent[key] ?? 0) >= at || keyProblem(key)) continue;
-    out.push({ key, position_s: seconds(p.position), duration_s: seconds(p.duration), played: Boolean(p.played), updated_at: at });
+    out.push({ key, position_s: seconds(p.position), duration_s: seconds(p.duration), played: Boolean(p.played), updated_at: at + offset });
   }
   return out;
 }
@@ -153,11 +178,11 @@ export function noteFollows(app, mem, now) {
   }
   return n;
 }
-/** @param {Memory} mem @returns {Follow[]} */
+/** The follows not sent yet, their times on the Worker's clock. @param {Memory} mem @returns {Follow[]} */
 export const followsToSend = (mem) =>
   Object.entries(mem.follows)
     .filter(([, k]) => !k.sent)
-    .map(([feed_url, k]) => ({ feed_url, title: k.title, author: k.author, artwork: k.artwork, followed: k.followed, updated_at: k.at }));
+    .map(([feed_url, k]) => ({ feed_url, title: k.title, author: k.author, artwork: k.artwork, followed: k.followed, updated_at: k.at + (mem.offset ?? 0) }));
 
 /** Requests of at most `batch_items` items and BODY_BYTES. @template T @param {T[]} items @returns {T[][]} */
 export function chunks(items) {
@@ -209,18 +234,21 @@ async function call(method, path, t, o = {}) {
   }
 }
 
-/** Every page of what changed since `since`, or null. @param {number} since @param {string} t @param {AbortSignal} signal */
-async function pull(since, t, signal) {
+/** Every page of what changed since `since`, or null; the clock's offset kept from the answers.
+ * @param {Memory} mem @param {string} t @param {AbortSignal} signal */
+async function pull(mem, t, signal) {
   /** @type {Progress[]} */
   const items = [];
-  let q = `since=${since}`;
+  let q = `since=${mem.since.progress}`;
   for (let page = 0; page < PAGES; page++) {
+    const t0 = deps.now();
     const r = await call('GET', `progress?${q}`, t, { signal });
     if (!r?.ok) {
       if (r && [401, 403].includes(r.status)) token = null;
       return null;
     }
     const b = await r.json();
+    setOffset(mem, b.next_since, t0, deps.now());
     items.push(...b.items);
     if (!b.next) return { items, next_since: Number(b.next_since) };
     q = `cursor=${encodeURIComponent(b.next)}`;
@@ -241,7 +269,7 @@ export async function open(by) {
   try {
     const storage = deps.storage();
     const mem = loadMemory(storage);
-    const got = await pull(mem.since.progress, t, stop.signal);
+    const got = await pull(mem, t, stop.signal);
     if (!got || deps.sincePage() >= by) return;
     const app = loadApp(storage) ?? { version: 1, progress: {}, follows: [] };
     if (applyProgress(app, mem, got.items) && !save(storage, APP_KEY, app)) return;
@@ -254,13 +282,23 @@ export async function open(by) {
   }
 }
 
-/** One request's items: 'ok', 'refused' (a 4xx no retry fixes: never sent again), or 'stop'.
- * @param {string} path @param {unknown[]} items @param {string} t */
-async function send(path, items, t) {
+/** One request's items: the places the Worker refused (those stay unsent), or null to stop (no
+ * answer, a refused session, or the whole request refused: all stay unsent, for next time).
+ * @param {string} path @param {unknown[]} items @param {string} t @param {Memory} mem */
+async function send(path, items, t, mem) {
+  const t0 = deps.now();
   const r = await call('PUT', path, t, { body: { items } });
-  if (r?.ok) return 'ok';
-  if (r && [401, 403].includes(r.status)) token = null;
-  return r && [400, 413, 422].includes(r.status) ? 'refused' : 'stop';
+  if (!r?.ok) {
+    if (r && [401, 403].includes(r.status)) token = null;
+    return null;
+  }
+  try {
+    const b = await r.json();
+    setOffset(mem, b.at, t0, deps.now());
+    return new Set((Array.isArray(b.refused) ? b.refused : []).map((/** @type {{ index: number }} */ x) => x.index));
+  } catch {
+    return null;
+  }
 }
 
 async function pushNow() {
@@ -274,18 +312,30 @@ async function pushNow() {
   if (noteFollows(app, mem, deps.now())) save(storage, SYNC_KEY, mem);
   let ok = true;
   for (const batch of chunks(progressToSend(app, mem))) {
-    if ((await send('progress', batch, t)) === 'stop') ok = false;
-    else for (const p of batch) mem.sent[p.key] = Math.max(mem.sent[p.key] ?? 0, p.updated_at);
-    if (!ok) break;
+    const refused = await send('progress', batch, t, mem);
+    if (!refused) {
+      ok = false;
+      break;
+    }
+    batch.forEach((p, i) => {
+      // What the Worker has is the app's own save (its phone time), unless it refused this one.
+      if (!refused.has(i)) mem.sent[p.key] = Math.max(mem.sent[p.key] ?? 0, Math.round(Number(app.progress[p.key]?.updatedAt) || 0));
+    });
   }
   for (const batch of ok ? chunks(followsToSend(mem)) : []) {
-    if ((await send('follows', batch, t)) === 'stop') break;
-    for (const f of batch) if (mem.follows[f.feed_url]?.at === f.updated_at) mem.follows[f.feed_url].sent = true;
+    const offset = mem.offset ?? 0;
+    const refused = await send('follows', batch, t, mem);
+    if (!refused) break;
+    batch.forEach((f, i) => {
+      const k = mem.follows[f.feed_url];
+      if (!refused.has(i) && k && k.at + offset === f.updated_at) k.sent = true;
+    });
   }
   // Read again: another tab may have written since (the stamps above are this one's).
   const latest = loadMemory(storage);
   for (const [k, at] of Object.entries(latest.sent)) mem.sent[k] = Math.max(mem.sent[k] ?? 0, at);
   mem.since = latest.since;
+  mem.offset ??= latest.offset;
   trim(app, mem, deps.now());
   save(storage, SYNC_KEY, mem);
 }

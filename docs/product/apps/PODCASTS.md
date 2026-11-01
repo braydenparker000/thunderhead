@@ -205,7 +205,7 @@ In step 7 the night reads the followed shows due a check (each at most once a da
 the longest unchecked first) through `GET /v1/podcasts/feed`, with the phone's own reader, and counts
 the episodes published since the show's last check that no phone has started; it places "2 new
 episodes: …" with the shows' names as one of its home lines, which home shows in the Overnight card.
-The Worker counts the night's feed reads (at most 40 a UTC day) and keeps each show's last check on
+The Worker lets the night read only followed shows' feeds, counts its reads (at most 40 a UTC day, in a stored row) and keeps each show's last check (and failed checks in a row, which make it wait longer) on
 its follow row. The cron check below stays a proposal.
 
 Runs inside the Worker's single cron dispatcher (every 15 minutes; the free plan allows 5 cron
@@ -331,10 +331,18 @@ always did), and `frontend/th/podcasts/progress.js` keeps that in step with the 
   the phone can write its older list over the storage, and a show missing from it is an unfollow
   only for this phone's own app.
 - **Conflicts:** the newer `updated_at` wins, on the Worker and on the phone; a tie keeps what is
-  there. Clocks: an `updated_at` more than an hour ahead of the Worker's is refused (that phone's
-  positions don't sync until its clock is right).
-- Only signed in, in a top-level page or one of home's own frames. A refusal no retry fixes (400,
-  413, 422) is not sent again; an outage or a refused session is.
+  there. **Clocks:** the app stamps its saves with the phone's clock, which may be off. Every answer
+  from the Worker carries its clock (`at`, `next_since`), so the module keeps the difference (the
+  Worker's minus the phone's, from the middle of each request; an answer a week off is ignored),
+  sends its times on the Worker's clock and reads the Worker's back onto the phone's. Both phones'
+  saves are then compared on one clock, to within half a request's time. Chosen over ordering by
+  when the Worker took a save, which would let a phone that was offline for a day overwrite newer
+  places with old ones when it reconnects. A save more than an hour ahead of the Worker's clock
+  (before any answer set the offset) is refused.
+- Only signed in, in a top-level page or one of home's own frames. The Worker checks each item on
+  its own and reports by place the ones it refused; those stay unsent and go again next time (one
+  ahead of the Worker's clock is taken once it is due), and the rest of the request is kept. An
+  outage, a refused session or a whole request refused leaves everything unsent, for next time.
 - Keys: the app's own `feedUrl#episodeId`, not a hash: a hash would leave a phone unable to resume
   an episode it never saw, and the night matches positions to shows by the address. They travel
   only in JSON bodies, never a path, a query or a log.
