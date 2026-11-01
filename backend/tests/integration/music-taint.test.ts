@@ -1,18 +1,22 @@
-// Reading songs' tags taints the session that read them, and only that one (MUSIC.md §10.5,
-// RUNTIME.md §4.7, §12.1): the night's step 11 leaves the next night free to write its day note and
-// facts, one "who is this?" in the chat leaves the next chat session free to remember; but a full
-// taint in the same session still carries over (without the songs), and while a session's taint
-// names songs, `GET /v1/mind/pending` says so (`songs`) for the hook that closes the web.
-import { beforeAll, describe, expect, it } from 'vitest';
+// Songs' tags are outside text (MUSIC.md §10.5, MEMORY.md §7, RUNTIME.md §4.3): the Worker itself
+// taints the mind session it serves them to, whatever the hooks did, and records a night session
+// that read them (`songs` in GET /v1/mind/pending), whose web the PreToolUse hook closes. The taint
+// carries like any other, except that a night claim on a wake the Worker fired on a later day starts
+// clean once every tainted night session has ended: step 11's songs (or step 9's evals) don't take
+// the next night's day note. A live tainted session, a same-day claim or a manual one inherits.
+// The suite's cases run in order on one store.
+import { runInDurableObject } from 'cloudflare:test';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { PendingResponse, TodayResponse } from '../../../shared/contract/api';
-import { dayBefore } from '../../src/lib/time';
+import { MUSIC_TAINT_SOURCE } from '../../../shared/contract/music.ts';
+import { forgetMarked } from '../../src/areas/music/tags-read';
+import { dayBefore, HOUR } from '../../src/lib/time';
 import { apiJson, coreSql } from '../helpers';
-import { addOp, as, brief, ownerSays, type Principals, principals, reason } from '../memory-helpers';
+import { addOp, as, brief, firedWake, ownerSays, type Principals, principals, reason } from '../memory-helpers';
+import { music } from '../music-helpers';
 
 let P = {} as Principals;
 let yday = '';
-const taint = (token: string, session: string, source: string) =>
-  apiJson('POST', '/v1/mind/taint', { ...as(token, session), body: { source, ref_kind: 'file' } });
 const dayNote = (session: string, summary: string) =>
   apiJson<{ error?: { code: string } }>('PUT', `/v1/memory/day-notes/${yday}`, {
     ...as(P.N, session),
@@ -20,63 +24,133 @@ const dayNote = (session: string, summary: string) =>
   });
 const pending = async (token: string, session: string) =>
   (await apiJson<PendingResponse>('GET', '/v1/mind/pending', as(token, session))).body;
-const source = async (session: string) =>
+const row = async (session: string) =>
   (
-    await coreSql<{ taint_source: string | null }>(
-      'SELECT taint_source FROM mind_sessions WHERE session_id = ?',
+    await coreSql<{ tainted_at: number | null; taint_source: string | null; ended_at: number | null }>(
+      'SELECT tainted_at, taint_source, ended_at FROM mind_sessions WHERE session_id = ?',
       session,
     )
-  )[0]?.taint_source ?? null;
+  )[0];
+const readers = () =>
+  runInDurableObject(music(), (_o, st) =>
+    st.storage.sql
+      .exec('SELECT session_id FROM song_readers ORDER BY session_id')
+      .toArray()
+      .map((r) => r.session_id),
+  );
+/** A night session's work is over (`th night start` on a done run answers done and ends it). */
+const endNight = async (session: string) => {
+  const r = await apiJson('POST', '/v1/mind/night', { ...as(P.N, session), body: { day: yday, action: 'start' } });
+  expect(r.status).toBe(200);
+  expect((await row(session)).ended_at).not.toBeNull();
+};
+/** The night's taints moved to yesterday evening (still within the 24 hours a taint holds). */
+const toYesterday = (session: string, hours = 23) =>
+  coreSql('UPDATE mind_sessions SET tainted_at = ? WHERE session_id = ?', Date.now() - hours * HOUR, session);
+/** The next night's wake, fired for another session (a loose claim: R-6 unverified): 26 hours after
+ * a taint moved to yesterday, so on a later logical day whatever the hour or a DST change. */
+const nextWake = () => firedWake('night', `session_someone_${Math.random().toString(36).slice(2)}`, 3 * HOUR);
 
 beforeAll(async () => {
   P = await principals();
   yday = dayBefore((await apiJson<TodayResponse>('GET', '/v1/threads/today', { token: P.D })).body.day);
 });
+beforeEach(() => forgetMarked());
 
-describe('the songs taint holds for its own session only', () => {
-  it('night N reads songs (step 11); night N+1 still writes its day note', async () => {
-    await brief(P.N, 'cse_songs_night_1', 'night');
-    expect((await dayNote('cse_songs_night_1', 'A day with music.')).status).toBe(200);
-    expect((await taint(P.N, 'cse_songs_night_1', 'th music')).status).toBe(200);
-    expect(await pending(P.N, 'cse_songs_night_1')).toMatchObject({ songs: true });
-    // Within the session the taint stands: no memory writes after the songs.
-    const same = await dayNote('cse_songs_night_1', 'Changed after the songs.');
-    expect([same.status, same.body.error?.code]).toEqual([403, 'session_tainted']);
-    // The next night's claim inherits nothing from it.
-    const next = await brief(P.N, 'cse_songs_night_2', 'night');
-    expect(next.body.tainted).toBe(false);
-    expect((await dayNote('cse_songs_night_2', 'The next night writes again.')).status).toBe(200);
-    expect(await pending(P.N, 'cse_songs_night_2')).toMatchObject({ songs: false });
+describe("the Worker taints the mind session it serves songs' tags to", () => {
+  it('night N reads songs (step 11): tainted, recorded as a reader, no day note after that', async () => {
+    await brief(P.N, 'cse_mt_n1', 'night');
+    expect((await dayNote('cse_mt_n1', 'A day with music.')).status).toBe(200);
+    expect(await pending(P.N, 'cse_mt_n1')).toMatchObject({ songs: false });
+    // A call without a session leaves no record (the hooks taint a raw call's output as a URL's).
+    expect((await apiJson('GET', '/v1/music/tracks?untagged=1&limit=5', { token: P.N })).status).toBe(200);
+    expect(await readers()).toEqual([]);
+    expect((await apiJson('GET', '/v1/music/tracks?untagged=1&limit=5', as(P.N, 'cse_mt_n1'))).status).toBe(200);
+    expect(await row('cse_mt_n1')).toMatchObject({ taint_source: MUSIC_TAINT_SOURCE, ended_at: null });
+    expect(await readers()).toEqual(['cse_mt_n1']);
+    expect(await pending(P.N, 'cse_mt_n1')).toMatchObject({ songs: true });
+    const after = await dayNote('cse_mt_n1', 'Changed after the songs.');
+    expect([after.status, after.body.error?.code]).toEqual([403, 'session_tainted']);
+    // Marking it again writes nothing: the first taint stands.
+    const first = (await row('cse_mt_n1')).tainted_at;
+    forgetMarked();
+    await apiJson('GET', '/v1/music/notes?ids=x', as(P.N, 'cse_mt_n1'));
+    expect((await row('cse_mt_n1')).tainted_at).toBe(first);
+    await apiJson('POST', '/v1/mind/night', { ...as(P.N, 'cse_mt_n1'), body: { day: yday, action: 'start' } });
+    expect(
+      (
+        await apiJson('POST', '/v1/mind/night', {
+          ...as(P.N, 'cse_mt_n1'),
+          body: { day: yday, action: 'done', partial: true },
+        })
+      ).status,
+    ).toBe(200);
+    expect((await row('cse_mt_n1')).ended_at).not.toBeNull();
   });
 
-  it('a "who is this?" in the chat; the next chat session still remembers', async () => {
+  it('the chat: tainted like any outside text, carried to its next claim, and its web stays open', async () => {
     const said = await ownerSays(P.D, 'I like the quiet songs in the evening.');
     // The suite's own chat session holds the lease: let it lapse, as an idle session's does.
     const lapse = () => coreSql("UPDATE leases SET renewed_at = 0 WHERE task = 'chat'");
     await lapse();
-    await brief(P.C, 'cse_songs_chat_1', 'chat');
-    await taint(P.C, 'cse_songs_chat_1', 'th music');
-    expect(await reason(as(P.C, 'cse_songs_chat_1'), addOp([`msg:${said}`]))).toBe('session_tainted');
+    await brief(P.C, 'cse_mt_c1', 'chat');
+    expect((await apiJson('GET', '/v1/music/find?moods=calm', as(P.C, 'cse_mt_c1'))).status).toBe(200);
+    expect(await row('cse_mt_c1')).toMatchObject({ taint_source: MUSIC_TAINT_SOURCE });
+    expect(await reason(as(P.C, 'cse_mt_c1'), addOp([`msg:${said}`]))).toBe('session_tainted');
+    expect(await pending(P.C, 'cse_mt_c1')).toMatchObject({ songs: false });
+    expect(await readers()).toEqual(['cse_mt_n1']);
     await lapse();
-    const next = await brief(P.C, 'cse_songs_chat_2', 'chat');
-    expect(next.body.tainted).toBe(false);
-    expect(await reason(as(P.C, 'cse_songs_chat_2'), addOp([`msg:${said}`]))).toBeNull();
+    expect((await brief(P.C, 'cse_mt_c2', 'chat')).body.tainted).toBe(true);
+    expect(await row('cse_mt_c2')).toMatchObject({ taint_source: `inherited:${MUSIC_TAINT_SOURCE}` });
+  });
+});
+
+describe("the night after: a later day's fired wake starts clean once the tainted night has ended", () => {
+  it('night N tainted by step 11 ended; night N+1 claims clean and writes its day note', async () => {
+    await toYesterday('cse_mt_n1');
+    await nextWake();
+    const next = await brief(P.N, 'cse_mt_n2', 'night');
+    expect([next.body.wake?.claim_match, next.body.tainted]).toEqual(['loose', false]);
+    expect((await row('cse_mt_n2')).tainted_at).toBeNull();
+    expect((await dayNote('cse_mt_n2', 'The next night writes again.')).status).toBe(200);
+    expect(await pending(P.N, 'cse_mt_n2')).toMatchObject({ songs: false });
   });
 
-  it('a full taint after the songs carries over, without the songs; songs after a full taint keep it full', async () => {
-    await brief(P.N, 'cse_songs_night_3', 'night');
-    await taint(P.N, 'cse_songs_night_3', 'th music');
-    await taint(P.N, 'cse_songs_night_3', 'WebFetch');
-    expect(await source('cse_songs_night_3')).toBe('WebFetch+songs');
-    expect(await pending(P.N, 'cse_songs_night_3')).toMatchObject({ songs: true });
-    const next = await brief(P.N, 'cse_songs_night_4', 'night');
-    expect(next.body.tainted).toBe(true);
-    expect(await source('cse_songs_night_4')).toBe('inherited:WebFetch');
-    expect(await pending(P.N, 'cse_songs_night_4')).toMatchObject({ songs: false });
-    expect((await dayNote('cse_songs_night_4', 'Refused: inherited.')).status).toBe(403);
-    // Songs read after that full taint: still full (it carries), and now it names songs.
-    await taint(P.N, 'cse_songs_night_4', 'th music');
-    expect(await source('cse_songs_night_4')).toBe('inherited:WebFetch+songs');
-    expect(await pending(P.N, 'cse_songs_night_4')).toMatchObject({ songs: true });
+  it('night N tainted by step 9 (the evals) ended; night N+1 claims clean too', async () => {
+    await apiJson('POST', '/v1/mind/taint', { ...as(P.N, 'cse_mt_n2'), body: { source: 'th eval', ref_kind: 'file' } });
+    expect((await dayNote('cse_mt_n2', 'Refused: tainted.')).status).toBe(403);
+    await endNight('cse_mt_n2');
+    await toYesterday('cse_mt_n2', 22);
+    await nextWake();
+    expect((await brief(P.N, 'cse_mt_n3', 'night')).body.tainted).toBe(false);
+    expect((await dayNote('cse_mt_n3', 'Clean after the evals.')).status).toBe(200);
+  });
+
+  it('a live tainted night session, and a made-up id on the next wake: it inherits', async () => {
+    await apiJson('GET', '/v1/music/tracks?untagged=1&limit=5', as(P.N, 'cse_mt_n3'));
+    await toYesterday('cse_mt_n3', 21);
+    await nextWake();
+    // cse_mt_n3 is still live: the claim could be it under a new id.
+    const madeUp = await brief(P.N, 'cse_mt_madeup', 'night');
+    expect([madeUp.body.wake?.claim_match, madeUp.body.tainted]).toEqual(['loose', true]);
+    expect(await row('cse_mt_madeup')).toMatchObject({ taint_source: `inherited:${MUSIC_TAINT_SOURCE}` });
+    expect((await dayNote('cse_mt_madeup', 'Refused: inherited.')).status).toBe(403);
+    // The songs' reader record is the reading session's own: the inheritor didn't read them.
+    expect(await pending(P.N, 'cse_mt_madeup')).toMatchObject({ songs: false });
+  });
+
+  it('a same-day claim inherits, a manual one or one on a wake fired that day', async () => {
+    await endNight('cse_mt_n3');
+    await endNight('cse_mt_madeup');
+    // A taint from today (an ended session), then a manual claim (the 06:07 schedule's, or by hand).
+    await coreSql('UPDATE mind_sessions SET tainted_at = ? WHERE session_id = ?', Date.now() - 60_000, 'cse_mt_n3');
+    const manual = await brief(P.N, 'cse_mt_n4', 'night');
+    expect([manual.body.wake?.claim_match, manual.body.tainted]).toEqual(['manual', true]);
+    await endNight('cse_mt_n4');
+    // A wake fired the same day, once every tainted session ended: still inherits.
+    await firedWake('night', 'session_someone_today');
+    const sameDay = await brief(P.N, 'cse_mt_n5', 'night');
+    expect([sameDay.body.wake?.claim_match, sameDay.body.tainted]).toEqual(['loose', true]);
+    expect((await dayNote('cse_mt_n5', 'Refused: same day.')).status).toBe(403);
   });
 });

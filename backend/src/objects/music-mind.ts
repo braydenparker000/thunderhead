@@ -74,6 +74,8 @@ export abstract class MusicMind extends MusicPacks {
     const unknown = ids.filter((id) => !tracks.has(id));
     if (unknown.length) return { unknown };
     this.packedNotes();
+    // A mark still standing after that is a failed rebuild's: this batch leaves it for the next try.
+    const markedBefore = notes.staleMark(this.db) !== null;
     const place = { ...(this.place ?? { open: 0, fill: 0 }) };
     const had = new Map(notes.notesByIds(this.db, ids).map((r) => [r.track_id, r]));
     const out = { written: 0, unchanged: 0, kept: 0 };
@@ -116,7 +118,7 @@ export abstract class MusicMind extends MusicPacks {
       if (place.open !== this.place?.open || place.fill !== this.place?.fill)
         notes.putPack(this.db, 'meta', 0, JSON.stringify(place), at);
       // This batch's own writes left the triggers' mark; its packs are current, so it goes.
-      if (out.written) notes.clearStale(this.db);
+      if (out.written && !markedBefore) notes.clearStale(this.db);
     });
     // Only once the transaction has committed: memory never runs ahead of the table.
     this.place = place;
@@ -156,6 +158,15 @@ export abstract class MusicMind extends MusicPacks {
       return t ? [{ ...tagsOf(t), note: rowOf(r) }] : [];
     });
     return { items, missing: [], next: rows.length > limit ? (page.at(-1)?.track_id ?? null) : null };
+  }
+
+  /** A night session read songs' tags (areas/music/tags-read.ts): the web closes to it. */
+  markReader(session: string, at = Date.now()): void {
+    notes.markReader(this.db, session, at);
+  }
+
+  songsRead(session: string): boolean {
+    return notes.songsRead(this.db, session);
   }
 
   /** The owner's ratings from the phone's `music.rate` senses (the senses route): the newest of each

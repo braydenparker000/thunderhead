@@ -6,7 +6,7 @@ import {parseArgs} from './args.mjs';
 import {EXIT, ThError, VERSION, exitFor, invalid, jsonFlag, need, out, textArg, toMs} from './io.mjs';
 import {CONTRACT, checkRoute, plainPath, routeOf} from './contract.mjs';
 import {request, settings, sleep, stopNotice} from './http.mjs';
-import {getState, markTainted, setState, thDir} from './state.mjs';
+import {getState, setState, thDir} from './state.mjs';
 import {sha256, uuidv7} from './ids.mjs';
 
 export const KINDS = ['text', 'progress', 'card', 'question', 'error'];
@@ -201,7 +201,7 @@ export async function taint(argv) {
   // The URL itself is never sent (API.md §11.8), only its kind.
   const refKind = /^https?:\/\//.test(ref) ? 'url' : /comment/i.test(source + ref) ? 'comment' : ref ? 'file' : undefined;
   const {data} = await request('POST', '/v1/mind/taint', {body: {source, ref_kind: refKind}});
-  markTainted(source);
+  setState('tainted', true);
   setState('taint_pending', null); // the hooks' mark (RUNTIME.md §6.5): sent now
   out({tainted: data?.tainted ?? true});
 }

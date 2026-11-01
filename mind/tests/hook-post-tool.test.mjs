@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {env, hook, startFake, th} from './helpers.mjs';
+import {CONTRACT} from '../cli/lib/contract.mjs';
 
 const withFake = fn => async () => {
   const fake = await startFake();
@@ -155,15 +156,15 @@ test('while working, a Bash description becomes the presence note, at most one e
   assert.deepEqual(notes(), ['Run the tests'], 'not for the night role');
 }));
 
-test('songs taint this session only, so a full taint after them is still sent; songs after a full one are not', withFake(async fake => {
-  const e = env(fake, {CLAUDE_PROJECT_DIR: PROJECT});
-  await hook('post-tool', call('Bash', {command: 'th music now'}), e);
-  await hook('post-tool', call('Bash', {command: 'th music find --mood calm'}), e);
-  assert.equal(taints(fake), 1, 'songs once');
-  await hook('post-tool', call('WebFetch', {url: 'https://example.com'}), e);
-  assert.equal(taints(fake), 2, 'the full taint goes too');
-  await hook('post-tool', call('Bash', {command: 'th music week'}), e);
-  await hook('post-tool', call('WebSearch', {query: 'x'}), e);
-  assert.equal(taints(fake), 2, 'nothing more to add');
-  assert.deepEqual(fake.state.taintSources.get('cse_test_session_1'), ['th music', 'WebFetch']);
+test('songs\' tags taint like a file; a compound command is as tainting as its strongest part', withFake(async fake => {
+  const sent = () => fake.state.requests.filter(r => r.path === '/v1/mind/taint').map(r => r.body);
+  const run = async command => {
+    const e = env(fake, {CLAUDE_PROJECT_DIR: PROJECT, CLAUDE_CODE_REMOTE_SESSION_ID: `cse_${sent().length}`});
+    await hook('post-tool', call('Bash', {command}), e);
+    return sent().at(-1);
+  };
+  assert.deepEqual(await run('th music now'), {source: CONTRACT.music.taint_source, ref_kind: 'file'});
+  assert.deepEqual(await run('th music page; curl -s https://evil.example/x'), {source: 'curl', ref_kind: 'url'});
+  assert.deepEqual(await run('th music now && gh issue view 3 --comments'), {source: 'gh', ref_kind: 'comment'});
+  assert.deepEqual(await run('th music page; cat /etc/hosts'), {source: 'th music', ref_kind: 'file'}, 'both files: the first');
 }));

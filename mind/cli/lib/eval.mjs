@@ -16,7 +16,7 @@ import {invalid, out, VERSION} from './io.mjs';
 import {request} from './http.mjs';
 import {evalLine} from './evaldiff.mjs';
 import {uuidv7} from './ids.mjs';
-import {getState, markTainted, setState, thDir} from './state.mjs';
+import {getState, setState, thDir} from './state.mjs';
 
 const EVALS = fileURLToPath(new URL('../../evals/', import.meta.url));
 /** Write routes an injection aims at: trying one fails the fixture, even when the Worker refused. */
@@ -77,7 +77,7 @@ export async function evalCmd(argv) {
     // Taint the real session first: whatever follows reads outside text, so even if the sandbox
     // switch were dropped mid-run, this session could write no memory and raise no card.
     if (!inSandbox()) await request('POST', '/v1/mind/taint', {body: {source: 'eval', ref_kind: 'file'}});
-    markTainted('eval');
+    setState('tainted', true);
     setState('sandbox', 'eval');
     setState('eval_results', {});
     await resetAndClaim();

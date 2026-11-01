@@ -97,7 +97,8 @@ export const NIGHT_STEPS: readonly NightStep[] = [
   // What the mind knows of each song (RUNTIME.md §12.1, MUSIC.md §10.5): the next untagged songs'
   // notes, at most MUSIC_NOTE_LIMITS.night_songs a night, then a mix or two and Sunday's line. Its
   // number is the next free one; it runs last before the session note, after every step that
-  // writes memory, since reading songs' tags taints the session (for this session only).
+  // writes memory, since reading songs' tags taints the session like any outside text (the next
+  // night's fired wake starts clean once this session has ended, RUNTIME.md §4.3).
   {
     step: 11,
     name: 'songs (notes, mixes)',

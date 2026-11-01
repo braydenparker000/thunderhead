@@ -14,11 +14,11 @@ import {realpathSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {ownHosts, readInput, runTh} from './lib/hook-io.mjs';
 import {taintOf} from './lib/taint.mjs';
-import {getState, markPending, setState, taintAdds} from '../cli/lib/state.mjs';
+import {getState, setState} from '../cli/lib/state.mjs';
 
 const PROGRESS_EVERY_MS = 3_000;
 const real = path => { try { return realpathSync(path); } catch { return path; } };
-const pending = taint => markPending(taint);
+const pending = taint => { if (!getState('taint_pending')) setState('taint_pending', {...taint, at: Date.now()}); };
 
 const role = process.env.TH_ROLE || '';
 const input = role ? readInput() : null;
@@ -27,15 +27,13 @@ if (role) {
     if (input === null) pending({source: 'hook', ref: ''});
     else run(input);
   } catch {
-    if (taintAdds({source: 'hook'})) pending({source: 'hook', ref: ''});
+    if (!getState('tainted')) pending({source: 'hook', ref: ''});
   }
 }
 
 function run(input) {
   const cwd = input.cwd || process.cwd();
-  // Songs' tags taint this session only, so a full taint after them is still sent (state.mjs).
-  const seen = taintOf(input, {cwd, projectDir: process.env.CLAUDE_PROJECT_DIR || cwd, tmpDir: real(tmpdir()), ownHosts: ownHosts()});
-  const taint = seen && taintAdds(seen) ? seen : null;
+  const taint = getState('tainted') ? null : taintOf(input, {cwd, projectDir: process.env.CLAUDE_PROJECT_DIR || cwd, tmpDir: real(tmpdir()), ownHosts: ownHosts()});
   if (taint) {
     pending(taint);
     // The ref's kind is all the Worker hears (never the URL itself); th records the taint locally too.

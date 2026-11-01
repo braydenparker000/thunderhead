@@ -140,8 +140,23 @@ export function dropCursor(db: Db): void {
 }
 
 /** Whether the notes changed under the packs: the triggers on `track_notes` leave this mark for any
- * write that isn't a batch's own (a table restore, a hand edit); a batch clears it as it ends. */
-export const notesStale = (db: Db) => db.one("SELECT 1 AS x FROM music_state WHERE key = 'notes.stale'") !== null;
+ * write that isn't a batch's own (a table restore, a hand edit); a batch clears it as it ends. Its
+ * value is `1`, or `{"failed_at": ms}` once a rebuild failed (the next waits an hour). Null: none. */
+export function staleMark(db: Db): { failed_at: number } | null {
+  const r = db.one<{ value_json: string }>("SELECT value_json FROM music_state WHERE key = 'notes.stale'");
+  if (!r) return null;
+  const v = JSON.parse(r.value_json) as unknown;
+  return { failed_at: typeof v === 'object' && v && 'failed_at' in v ? Number(v.failed_at) || 0 : 0 };
+}
+
+/** A rebuild failed at `at`: the mark stays (or is made, for packs that were missing) with the time. */
+export function rebuildFailed(db: Db, at: number): void {
+  db.run(
+    `INSERT INTO music_state (key, value_json) VALUES ('notes.stale', ?)
+     ON CONFLICT (key) DO UPDATE SET value_json = excluded.value_json`,
+    JSON.stringify({ failed_at: at }),
+  );
+}
 
 export function clearStale(db: Db): void {
   db.run("DELETE FROM music_state WHERE key = 'notes.stale'");
@@ -149,6 +164,20 @@ export function clearStale(db: Db): void {
 
 /** The catalog's last place (its key's end: one row). */
 export const lastOrd = (db: Db) => db.one<{ m: number | null }>('SELECT max(ord) AS m FROM tracks')?.m ?? 0;
+
+// --- night sessions that read songs' tags (the web closes to them) -------------------------------
+
+/** Days a reader's record is kept: a night session lasts an hour at most. */
+const READERS_DAYS = 7;
+
+/** Records that a night session read songs' tags (once a session), and drops the records past a week. */
+export function markReader(db: Db, session: string, at: number): void {
+  db.run('INSERT INTO song_readers (session_id, at) VALUES (?, ?) ON CONFLICT (session_id) DO NOTHING', session, at);
+  db.run('DELETE FROM song_readers WHERE at < ?', at - READERS_DAYS * 86_400_000);
+}
+
+export const songsRead = (db: Db, session: string) =>
+  db.one('SELECT 1 AS x FROM song_readers WHERE session_id = ?', session) !== null;
 
 // --- ratings -------------------------------------------------------------------------------------
 

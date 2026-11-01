@@ -15,7 +15,7 @@ import { Fail } from '../../lib/result';
 import { HOUR, MINUTE } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
-import { currentDay } from '../conversation/day';
+import { currentDay, logicalDay } from '../conversation/day';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
 import * as verbs from '../verbs/store';
@@ -41,7 +41,8 @@ export interface Claimed {
  * hours for its role (MEMORY.md §7): the Worker can't tell a session id the mind made up from a
  * new cloud session, so a claim takes over the taint of the role's latest session tainted in the
  * last 24 hours, unless it is the very session the Worker fired after that taint (an exact id
- * match on a wake still open). A loose match can't prove that, so it inherits too. */
+ * match on a wake still open), or, for the night, a claim on a later day's fired wake once every
+ * session holding the taint has ended. A loose match can't prove more, so it inherits too. */
 export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
   const { db, at } = w;
   if (r.role === 'chat') {
@@ -74,6 +75,17 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
   const prior = store.taintedSince(db, r.role, at - TAINT_HOLDS_MS);
   const firedAfter =
     open !== null && wake.claim_match === 'exact' && prior !== null && (open.fired_at ?? open.at) > prior.tainted_at;
+  // The night (MEMORY.md §7, RUNTIME.md §4.3): a claim that binds to a night wake the Worker fired on
+  // a later logical day than the taint's starts clean, once every night session holding a taint of
+  // the last 24 hours has ended (`th night done`, or the fallback's `th night start`): last night's
+  // evals or songs don't hold tonight's memory. A manual claim (the 06:07 schedule's too), a
+  // same-day one, or one while a tainted session still lives (it could claim under a new id) inherits.
+  const nextNight =
+    r.role === 'night' &&
+    open !== null &&
+    prior !== null &&
+    logicalDay(open.fired_at ?? open.at, tz) > logicalDay(prior.tainted_at, tz) &&
+    !store.taintLive(db, r.role, at - TAINT_HOLDS_MS);
   store.putSession(db, {
     session_id: r.session_id,
     role: r.role,
@@ -85,13 +97,12 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
   });
   // The taint keeps its own time, so a wake fired after it still starts clean however many
   // claims inherited it in between.
-  // What it inherits carries no songs: their taint was the reading session's own.
-  if (prior && !firedAfter)
+  if (prior && !firedAfter && !nextNight)
     store.taintSession(db, {
       id: r.session_id,
       role: r.role,
       day,
-      source: `inherited:${(prior.taint_source ?? '').replace(/\+songs$/, '')}`,
+      source: `inherited:${prior.taint_source}`,
       at: prior.tainted_at,
     });
   if (r.role === 'chat') {
@@ -181,7 +192,8 @@ export function pending(db: Db, sessionId: string | null, role: MindRole, now: n
     limited: backoff(db).until > now,
     idle_min: Math.floor((now - since) / MINUTE),
     idle_cutoff_min: prewarmOnly ? 10 : 120,
-    songs: store.songsRead(s?.taint_source ?? null),
+    // A night session's songs are the Music object's record: the route asks it.
+    songs: false,
   };
 }
 

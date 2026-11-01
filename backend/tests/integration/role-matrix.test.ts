@@ -43,6 +43,9 @@ const as = (r: Role): { token: string; headers: Record<string, string> } => {
 };
 const status = async (r: Role, method: string, path: string, body?: unknown) =>
   (await apiJson(method, path, { ...as(r), body })).status;
+/** Without the session: serving songs' tags taints the session that reads them (MUSIC.md §10.5),
+ * and the cards below need the chat's clean. */
+const bare = async (r: Role, path: string) => (await apiJson('GET', path, { token: tokens[r] })).status;
 const revokeCard = () => ({
   class: 'access',
   question: 'Revoke the CI key?',
@@ -115,8 +118,8 @@ const CAPABILITIES: { name: string; may: Role[]; call: (r: Role) => Promise<numb
     may: ['C', 'N'],
     call: (r) => status(r, 'PUT', '/v1/music/notes', { items: [note(song, { moods: { calm: 0.8 } })] }),
   },
-  { name: 'read the music notes', may: ['D', 'C', 'N'], call: (r) => status(r, 'GET', `/v1/music/notes?ids=${song}`) },
-  { name: 'find songs by feeling', may: ['C', 'N'], call: (r) => status(r, 'GET', '/v1/music/find?moods=calm') },
+  { name: 'read the music notes', may: ['D', 'C', 'N'], call: (r) => bare(r, `/v1/music/notes?ids=${song}`) },
+  { name: 'find songs by feeling', may: ['C', 'N'], call: (r) => bare(r, '/v1/music/find?moods=calm') },
   { name: 'issue agent keys (auth admin)', may: ['D'], call: (r) => status(r, 'GET', '/v1/auth/agents') },
   { name: 'change settings', may: ['D'], call: (r) => status(r, 'PATCH', '/v1/settings', { 'quiet.start': '22:00' }) },
   // NEXT-BATCH.md part 7: Podcasts' positions and follows. The phone writes them; the night reads

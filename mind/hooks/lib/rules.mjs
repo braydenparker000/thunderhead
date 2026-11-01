@@ -7,9 +7,23 @@ import {isAbsolute, relative, resolve, sep} from 'node:path';
 import {parseShell, unwrap} from './shell.mjs';
 
 export const ROLES = ['chat', 'night', 'reflex'];
-/** Tools that reach the web: the two built in, and an MCP tool whose name says it fetches or searches. */
-export const webLike = tool =>
-  tool === 'WebSearch' || tool === 'WebFetch' || (tool.startsWith('mcp__') && /fetch|search|browse|web|http|url|scrape|crawl/i.test(tool));
+
+/** The night's songs (RUNTIME.md §6.4, §12.1): once a night session has read songs' tags (the
+ * Worker's record), nothing that could look them up elsewhere. Bulk reading of the library is the
+ * risk; the chat may search about the one song the owner asked about. */
+const SONGS_WEB = 'This night session has read the owner\'s songs (their tags): no web lookups or searches after that, so no title leaves the Worker. A song you don\'t know gets known: false.';
+/** A tool that could reach the web: the two built in, and every MCP tool (one can fetch, browse or
+ * search whatever its name says; when unsure, the night refuses). */
+export const webTool = tool => tool === 'WebSearch' || tool === 'WebFetch' || tool.startsWith('mcp__');
+/** A search of GitHub: `gh search …`, `gh api` on a search path or GraphQL (a query can search;
+ * unsure, the night refuses), curl or wget to api.github.com's search or GraphQL. */
+export function searchesGitHub({cmd, args}) {
+  if (cmd === 'gh')
+    return args[0] === 'search' || (args[0] === 'api' && args.some(a => /(^|\/)search(\/|\?|$)|^\/?graphql$/.test(a)));
+  if (cmd === 'curl' || cmd === 'wget')
+    return args.some(a => /^(https?:\/\/)?api\.github\.com(:\d+)?\/(search(\/|\?|$)|graphql)/i.test(a));
+  return false;
+}
 const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 const READ_TOOLS = ['Read', 'Grep', 'Glob', 'NotebookRead'];
 const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
@@ -18,8 +32,8 @@ const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
  * @typedef {{role: string, cwd: string, projectDir: string, tmpDir: string, allowedHosts: string[],
  *   headSubject?: () => string, approved?: (paths: string[], base?: string) => boolean,
  *   pushProtected?: (push: Push) => {base: string, paths: string[]}[], songsRead?: () => boolean}} Context
- * `songsRead`: whether this session read songs' tags, from the Worker's record (asked only for a web
- * tool; it throws, and so denies, when the Worker can't say).
+ * `songsRead`: whether this night session read songs' tags, from the Worker's own record (asked only
+ * for a call that could reach the web; it throws, and so denies, when the Worker can't say).
  * `approved`: the owner approved changing these repository-relative protected paths on a branch
  * from `base` (default: the current branch's; `th approved`); missing means never. `pushProtected`:
  * for each source the push sends (HEAD when it names none), its base on the remote's real main and
@@ -199,6 +213,7 @@ function checkSegment(seg, ctx) {
   if (prot) return protectedReason(prot);
 
   const th = thSub({cmd, args});
+  if (ctx.role === 'night' && searchesGitHub({cmd, args}) && ctx.songsRead?.()) return SONGS_WEB;
   if (ctx.role === 'night') {
     if (th?.sub === 'say' && !kindIsError(th.rest)) return 'The night role may not post chat messages (only --kind error).';
     if (th?.sub === 'push') return 'The night role may not send pushes.';
@@ -254,10 +269,6 @@ export function decide(input, ctx) {
   // The reader subagent (when Claude Code names it) has its five tools and nothing else.
   if (input.agent_type === 'reader' && !READ_TOOLS.includes(tool) && tool !== 'WebFetch' && tool !== 'WebSearch')
     return `The reader has only WebFetch, WebSearch, Read, Grep and Glob (not ${tool}).`;
-  // Songs (RUNTIME.md §4.7, §12.1): once a session has read their tags, no web lookup in any role,
-  // which could carry a title out. Asked of the Worker's record (ctx.songsRead), only for these.
-  if (webLike(tool) && ctx.songsRead?.())
-    return 'This session has read the owner\'s songs (their tags): no web lookups after that, so no title leaves the Worker. A song you don\'t know gets known: false.';
   if (tool === 'Bash') {
     for (const seg of parseShell(String(ti.command ?? ''))) {
       const reason = checkSegment(seg, ctx);
@@ -280,6 +291,9 @@ export function decide(input, ctx) {
     if (!where.length || where.some(p => !inside(p, `${ctx.tmpDir}${sep}th${sep}ext`, ctx)))
       return 'The reader reads only the drop folder $TMPDIR/th/ext/ and the web.';
   }
+  // The night's songs (RUNTIME.md §6.4, §12.1): once it has read songs' tags (the Worker's record),
+  // no web lookup or MCP tool, which could carry their titles out (the notes are what it knows).
+  if (ctx.role === 'night' && webTool(tool) && ctx.songsRead?.()) return SONGS_WEB;
   if (tool === 'WebFetch' && typeof ti.url === 'string') {
     const host = hostOf(ti.url);
     if (ctx.role === 'reflex' && host && !hostAllowed(host, ctx.allowedHosts)) return `The reflex role may not fetch ${host}.`;

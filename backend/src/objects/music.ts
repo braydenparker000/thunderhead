@@ -91,6 +91,8 @@ export const MUSIC_MIGRATIONS: Migration[] = [
               WHERE NOT EXISTS (SELECT 1 FROM music_state WHERE key = 'notes.stale');
           END`,
       ),
+      // Night sessions that read songs' tags, kept a week (the PreToolUse hook closes the web to them).
+      'CREATE TABLE song_readers (session_id TEXT PRIMARY KEY, at INTEGER NOT NULL) WITHOUT ROWID',
       `CREATE TABLE find_packs (
         kind TEXT NOT NULL,
         pack INTEGER NOT NULL,

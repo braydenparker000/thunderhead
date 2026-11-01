@@ -64,6 +64,9 @@ export const rowOf = (r: notes.NoteRow): MusicNoteRow => ({
   at: r.at,
 });
 
+/** A rebuild that failed is tried again after this long. */
+const REBUILD_BACKOFF_MS = 60 * 60 * 1000;
+
 export abstract class MusicPacks extends MusicListen {
   /** The packed notes by track id, and where the next new note goes. */
   protected packed: Map<string, NoteEntry> | null = null;
@@ -85,8 +88,9 @@ export abstract class MusicPacks extends MusicListen {
     this.refreshIfStale();
     if (this.packed) return this.packed;
     const meta = notes.pack(this.db, 'meta', 0);
-    if (meta === null && notes.anyNote(this.db)) this.repack(Date.now());
+    if (meta === null && notes.anyNote(this.db)) this.rebuild(Date.now(), null);
     else this.place = meta ? (JSON.parse(meta) as { open: number; fill: number }) : { open: 0, fill: 0 };
+    this.place ??= { open: 0, fill: 0 };
     const map = new Map<string, NoteEntry>();
     for (const p of notes.packs(this.db, 'notes'))
       for (const [id, e] of Object.entries(JSON.parse(p.entries_json) as Record<string, NoteEntry>)) map.set(id, e);
@@ -97,9 +101,23 @@ export abstract class MusicPacks extends MusicListen {
   /** One row a call: when the notes changed under the packs (a restore, a hand edit), the packs are
    * built again and the night's place starts over. */
   protected refreshIfStale(): void {
-    if (!notes.notesStale(this.db)) return;
+    const mark = notes.staleMark(this.db);
+    if (mark === null) return;
     this.packed = null;
-    this.repack(Date.now());
+    this.rebuild(Date.now(), mark);
+  }
+
+  /** The packs built again, at most once an hour while it keeps failing (each failure logged by name
+   * and marked); until it works, find reads the packs as they are. */
+  private rebuild(now: number, mark: { failed_at: number } | null): void {
+    const failed = (mark ?? notes.staleMark(this.db))?.failed_at ?? 0;
+    if (failed && now - failed < REBUILD_BACKOFF_MS && now >= failed) return;
+    try {
+      this.repack(now);
+    } catch (e) {
+      console.error(JSON.stringify({ evt: 'music_packs_rebuild_failed', name: (e as Error)?.name ?? 'Error' }));
+      notes.rebuildFailed(this.db, now);
+    }
   }
 
   /** The notes' packs again, each note in the pack it names (a rebuild reads every note and tag once). */

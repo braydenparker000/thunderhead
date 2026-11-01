@@ -23,7 +23,7 @@ import {resolve} from 'node:path';
 import {decide, protectedRel} from './lib/rules.mjs';
 import {allowedHosts, ownHosts, readInput, runTh} from './lib/hook-io.mjs';
 import {taintOf} from './lib/taint.mjs';
-import {getState, markPending, SONG_TAINT, taintAdds} from '../cli/lib/state.mjs';
+import {getState, setState} from '../cli/lib/state.mjs';
 
 const DEADLINE = Date.now() + 20_000;
 const left = ms => {
@@ -89,22 +89,25 @@ if (role) {
         // A `repo.change` card the owner approved for these paths and that base (this branch's by default).
         approved: (paths, b) => runTh(['approved', '--paths', paths.join(','), '--sha', b ?? base(cwd)], {timeoutMs: left(8_000)}).code === 0,
         pushProtected: push => pushProtected(cwd, push),
-        // Asked only for a web tool: whether this session read songs' tags, from the Worker's record
-        // (which the session can't edit or move), or th's own mark of a songs taint still to send.
+        // Asked only for a night call that could reach the web: whether the session read songs' tags,
+        // from the Worker's own record (which the session can't edit or move). Fails closed: an
+        // error, a timeout, or anything but a boolean denies.
         songsRead: () => {
-          if (getState('taint_scope') === 'songs' || getState('taint_pending')?.source === SONG_TAINT) return true;
           const r = runTh(['pending'], {timeoutMs: left(8_000)});
-          if (r.code !== 0) throw new Error("the Worker could not say whether this session read songs");
-          return JSON.parse(r.stdout.trim().split('\n').pop() || '{}').songs === true;
+          if (r.code !== 0) throw new Error('the Worker could not say whether this session read songs');
+          let songs;
+          try { songs = JSON.parse(r.stdout.trim().split('\n').pop() || 'null')?.songs; } catch { songs = undefined; }
+          if (typeof songs !== 'boolean') throw new Error('the Worker did not say whether this session read songs');
+          return songs;
         },
       });
     } catch (error) {
       reason = `The pre-tool hook failed (${error?.message || error}), so the call is denied.`;
     }
-    if (!reason) {
+    if (!reason && !getState('tainted') && !getState('taint_pending')) {
       let taint;
       try { taint = taintOf(input, {cwd, projectDir, tmpDir, ownHosts: ownHosts()}); } catch { taint = {source: 'hook', ref: ''}; }
-      if (taint && taintAdds(taint)) markPending(taint);
+      if (taint) setState('taint_pending', {...taint, at: Date.now()});
     }
   }
 }

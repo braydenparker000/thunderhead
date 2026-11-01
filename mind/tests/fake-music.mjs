@@ -39,8 +39,17 @@ export function musicRoutes(ctl) {
     return null;
   };
   const tags = t => t;
+  /** The Worker records songs' tags it serves to a mind session itself (areas/music/tags-read.ts):
+   * the session's taint, and for a night session that it read them. */
+  const heard = (role, session) => {
+    if (!session) return;
+    s.tainted.add(session);
+    (s.taintSources ??= new Map()).set(session, [...(s.taintSources.get(session) ?? []), 'th music']);
+    if (role === 'night') (s.songReaders ??= new Set()).add(session);
+  };
   return [
-    ['GET', /^\/v1\/music\/tracks$/, CN, ({query}) => {
+    ['GET', /^\/v1\/music\/tracks$/, CN, ({query, role, session}) => {
+      heard(role, session);
       const limit = Number(query.get('limit') || 200);
       const untagged = query.get('untagged') === '1';
       const q = (query.get('q') || '').toLowerCase();
@@ -64,7 +73,8 @@ export function musicRoutes(ctl) {
       }
       return {written, unchanged: items.length - written, kept: 0};
     }],
-    ['GET', /^\/v1\/music\/notes$/, CN, ({query}) => {
+    ['GET', /^\/v1\/music\/notes$/, CN, ({query, role, session}) => {
+      heard(role, session);
       const ids = (query.get('ids') || '').split(',').filter(Boolean);
       if (!ids.length || ids.length > 200) throw new HttpError(422, 'validation', 'ids');
       const items = [];
@@ -79,7 +89,8 @@ export function musicRoutes(ctl) {
       }
       return {items, missing, next: null};
     }],
-    ['GET', /^\/v1\/music\/find$/, CN, ({query}) => {
+    ['GET', /^\/v1\/music\/find$/, CN, ({query, role, session}) => {
+      heard(role, session);
       const moods = (query.get('moods') || '').split(',').filter(Boolean);
       const like = query.get('like');
       const limit = Number(query.get('limit') || 30);

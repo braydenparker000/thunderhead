@@ -155,13 +155,12 @@ export const MUSIC_NOTE_LIMITS = {
  * and nothing else of it (no title: a title in a shell argument could break out of its quotes).
  * Find leaves every song named in a current one out, and so do the mixes built from it. */
 export const MUSIC_NEVER_SUBJECT = 'music.never';
-/** The taint reading songs' tags leaves (`th music page|now|find|like|week`, `th get /v1/music/…`:
- * the tags come from the files, outside text). It holds for the session that read them only: a
- * later claim never inherits it, so the next night still writes its day note and facts. A full
- * taint after it in the same session is recorded as `<source>+songs`, and that one carries over
- * (without the songs). While a session's taint names songs, the web is closed to it. */
+/** The taint source for songs' tags (`th music page|now|find|like|week`, `th get /v1/music/…`): the
+ * tags come from the files, which someone else wrote, so they are outside text like a file's, with
+ * the same taint and carry-over (MEMORY.md §7). The Worker records it itself when it serves tags to a
+ * mind session, whatever the hooks did, and for a night session also that it read them: from then
+ * on the web is closed to that session (RUNTIME.md §6.4). */
 export const MUSIC_TAINT_SOURCE = 'th music';
-export const SONGS_MARK = '+songs';
 
 /** The songs a rule's text names. */
 export const MUSIC_REF_IN_TEXT = /\bmusic:(r2_[A-Za-z0-9_-]{10,200})/g;

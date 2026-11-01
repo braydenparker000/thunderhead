@@ -25,6 +25,7 @@ import { json, parse } from '../../http/validate';
 import { decodeCursor, encodeCursor } from '../../lib/cursor';
 import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
+import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
 import { fireWake } from './wakeup';
 
@@ -125,7 +126,11 @@ export const mindRoutes = new Hono<AppEnv>()
     return c.json({ tainted: true });
   })
   .get('/mind/pending', guard('GET /v1/mind/pending'), async (c) => {
-    return c.json((await coreObject(c.env).mindPending(callerOf(c))) satisfies PendingResponse);
+    const caller = callerOf(c);
+    const r = await coreObject(c.env).mindPending(caller);
+    // A night session that read songs' tags (MUSIC.md §10.5): the PreToolUse hook closes the web.
+    if (caller.who === 'N' && caller.session_id) r.songs = await fresh(musicObject(c.env).songsRead(caller.session_id));
+    return c.json(r satisfies PendingResponse);
   })
   .post('/mind/night', guard('POST /v1/mind/night'), async (c) => {
     const body = await json(c, nightBody);

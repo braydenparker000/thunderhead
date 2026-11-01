@@ -22,6 +22,7 @@ import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
 import { ART_KEY, AUDIO_KEY, SONG_ID } from './shapes';
 import { signKey, signR2 } from './sign';
+import { tagsRead } from './tags-read';
 
 const BUCKET = 'jarvis-music';
 const signBody = z.strictObject({
@@ -52,6 +53,7 @@ export const musicRoutes = new Hono<AppEnv>()
   // (songs rated 1 or ruled out by a never-play rule left out); `untagged=1` is the night's next page of songs to write notes for
   // (§10.5), at most 200, which moves the night's place (so never from the eval sandbox).
   .get('/music/tracks', guard('GET /v1/music/tracks'), async (c) => {
+    await tagsRead(c);
     const limit = Math.min(1000, Math.max(1, Math.floor(Number(c.req.query('limit') ?? 200)) || 200));
     if (c.req.query('untagged') === '1') {
       if (inSandbox()) throw new ApiError('validation', [{ path: 'TH-Sandbox', issue: 'the sandbox has no music' }]);

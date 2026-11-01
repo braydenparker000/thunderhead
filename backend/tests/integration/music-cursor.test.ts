@@ -1,9 +1,11 @@
 // The night's untagged place and find's packs stay true when the catalog or the notes change under
 // them (MUSIC.md §10.5, DATA.md §6.2): a new track that takes a place a deleted one held is still
 // offered, and so is an imported song below the place; a table restore of the notes (or any write
-// that isn't a batch's own) rebuilds the packs and starts the place over. A synthetic catalog only.
+// that isn't a batch's own) rebuilds the packs and starts the place over; a rebuild that fails is
+// logged, marked and tried again an hour later, find reading the packs as they are meanwhile. A
+// synthetic catalog only.
 import { runInDurableObject } from 'cloudflare:test';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import type { MusicFindResponse, MusicTracksResponse } from '../../../shared/contract/music.ts';
 import { writeTrack } from '../../src/areas/music/store';
 import type { Db } from '../../src/objects/base';
@@ -88,5 +90,51 @@ describe('a restore under the packs', () => {
     // A batch's own writes leave no mark.
     await putNotes(P.N, [note(ids[1], { moods: { calm: 0.5 } })]);
     expect(await sql("SELECT key FROM music_state WHERE key = 'notes.stale'")).toEqual([]);
+  });
+
+  it('a rebuild that fails is logged and marked, and tried again after an hour, not on every call', async () => {
+    const mark = async () =>
+      ((await sql("SELECT value_json FROM music_state WHERE key = 'notes.stale'")) as { value_json: string }[]).map(
+        (r) => JSON.parse(r.value_json) as unknown,
+      );
+    type Packs = { repack(at: number): void };
+    let tries = 0;
+    const real = await runInDurableObject(music(), (o: Music) => {
+      const p = o as unknown as Packs;
+      const keep = p.repack;
+      p.repack = () => {
+        tries++;
+        throw new TypeError('synthetic');
+      };
+      return keep;
+    });
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const [id] = (await sql('SELECT track_id FROM track_notes LIMIT 1')) as { track_id: string }[];
+      await sql("UPDATE track_notes SET by = 'chat' WHERE track_id = ?", id.track_id);
+      // Find still answers, from the packs as they are.
+      expect((await find('moods=calm')).items.length).toBeGreaterThan(0);
+      const [{ failed_at }] = (await mark()) as { failed_at: number }[];
+      expect([tries, failed_at > 0]).toEqual([1, true]);
+      await find('moods=calm');
+      await page();
+      expect(tries).toBe(1);
+      if (logged.mock.calls.length) expect(String(logged.mock.calls[0][0])).toContain('music_packs_rebuild_failed');
+      // An hour on: tried again, and this time it works.
+      await sql(
+        "UPDATE music_state SET value_json = ? WHERE key = 'notes.stale'",
+        JSON.stringify({ failed_at: failed_at - 3_700_000 }),
+      );
+      await runInDurableObject(music(), (o: Music) => {
+        (o as unknown as Packs).repack = real;
+      });
+      await find('moods=calm');
+      expect(await mark()).toEqual([]);
+    } finally {
+      logged.mockRestore();
+      await runInDurableObject(music(), (o: Music) => {
+        (o as unknown as Packs).repack = real;
+      });
+    }
   });
 });

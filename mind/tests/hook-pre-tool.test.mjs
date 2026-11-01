@@ -7,7 +7,7 @@ import {existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:f
 import {dirname, join} from 'node:path';
 import {decide} from '../hooks/lib/rules.mjs';
 import {parseShell, unwrap} from '../hooks/lib/shell.mjs';
-import {ROOT, env, freshTmp, hook, startFake, th} from './helpers.mjs';
+import {ROOT, TOKENS, env, freshTmp, hook, startFake, th} from './helpers.mjs';
 
 const ctx = (role, extra = {}) => ({role, cwd: '/work/repo', projectDir: '/work/repo', tmpDir: '/tmp/sess',
   allowedHosts: ['api.github.com', 'worker.example.test', 'site.example.test'], headSubject: () => 'Fix the player', ...extra});
@@ -217,25 +217,28 @@ test('night: no chat posts except --kind error, no pushes, no push to main', () 
   assert.equal(denied('chat', bash('th say today hello')), null);
 });
 
-test('every role: once the session has read songs\' tags, no web lookups, from the Worker\'s record', () => {
-  const search = tool('WebSearch', {query: 'a song title'});
-  const fetch = tool('WebFetch', {url: 'https://lyrics.example/song', prompt: 'mood?'});
-  const mcp = tool('mcp__fetch__fetch', {url: 'https://lyrics.example/song'});
+test('night: once the Worker says it read songs\' tags, no web, no MCP tool, no GitHub search; the chat keeps them', () => {
   const read = {songsRead: () => true};
-  for (const role of ['night', 'chat', 'reflex'])
-    for (const t of [search, fetch, mcp]) assert.match(denied(role, t, read), /no web lookups/, `${role} ${t.tool_name}`);
-  assert.match(denied('night', {...search, agent_type: 'reader'}, read), /no web lookups/, 'the reader neither');
-  // Not asked for anything else; a session that read no songs keeps the web.
+  const reach = [tool('WebSearch', {query: 'a title'}), tool('WebFetch', {url: 'https://lyrics.example/x', prompt: 'mood?'}),
+    tool('mcp__fetch__fetch', {url: 'https://x.example'}), tool('mcp__puppeteer__puppeteer_navigate', {url: 'https://x.example'}),
+    tool('mcp__tavily__tavily-search', {query: 'x'}), tool('mcp__github__issue_read', {}), bash('gh search code "a title"'),
+    bash('gh api search/repositories?q=x'), bash('curl -s https://api.github.com/search/code?q=x'), bash('wget -qO- api.github.com/search/users?q=x'),
+    bash('gh api graphql -f query=@q.graphql'), bash('curl -s -d @q.json https://api.github.com/graphql')];
+  for (const t of reach) assert.match(denied('night', t, read), /no web lookups/, JSON.stringify(t.tool_input));
+  assert.match(denied('night', {...reach[0], agent_type: 'reader'}, read), /no web lookups/, 'the reader neither');
+  // The chat may look up the one song the owner asked about; a night that read no songs keeps the web.
+  for (const t of reach.slice(0, 3)) assert.equal(denied('chat', t, read), null);
+  assert.equal(denied('night', reach[0], {songsRead: () => false}), null);
+  assert.equal(denied('night', bash('gh api repos/o/r/pulls'), read), null, 'not a search');
+  // Asked only for a call that could reach the web.
   let asked = 0;
   assert.equal(denied('night', bash('ls'), {songsRead: () => { asked++; return true; }}), null);
   assert.equal(asked, 0);
-  assert.equal(denied('night', search, {songsRead: () => false}), null);
-  assert.equal(denied('chat', tool('mcp__github__issue_read', {}), read), null, 'an MCP tool that fetches nothing');
-  // The Worker can't say: denied (the hook fails closed).
-  assert.throws(() => denied('night', search, {songsRead: () => { throw new Error('unreachable'); }}));
+  // The Worker can't say: denied (the hook turns the throw into a deny).
+  assert.throws(() => denied('night', reach[0], {songsRead: () => { throw new Error('unreachable'); }}));
 });
 
-test('the web refusal can\'t be stepped around: deleted or moved state, any songs command, MCP fetch tools', async () => {
+test('the night\'s web refusal rests on the Worker\'s record: deleted or moved state changes nothing, and it fails closed', async () => {
   const fake = await startFake();
   try {
     const e = env(fake, {TH_ROLE: 'night'});
@@ -245,25 +248,26 @@ test('the web refusal can\'t be stepped around: deleted or moved state, any song
     };
     const search = {tool_name: 'WebSearch', tool_input: {query: 'x'}};
     assert.equal(await deny(search), null, 'nothing read yet');
-    // Every songs command, not only th music page: the PostToolUse hook records its taint with the
-    // Worker, and the web closes for that session.
-    const commands = ['th music find --mood calm', 'th music like r2_native_abcdefghijkl', 'th music week', 'th music now',
-      'th get /v1/music/tracks untagged=1', 'th music page'];
-    for (const [k, command] of commands.entries()) {
+    // Any command that brings songs' tags: the Worker records it as it serves them.
+    for (const [k, args] of [['music', 'find', '--mood', 'calm'], ['music', 'page'], ['get', '/v1/music/tracks', 'q=x']].entries()) {
       const sess = {CLAUDE_CODE_REMOTE_SESSION_ID: `cse_songs_${k}`, TMPDIR: freshTmp()};
-      await hook('post-tool', {hook_event_name: 'PostToolUse', session_id: 's', cwd: '/work/repo', tool_name: 'Bash', tool_input: {command}, tool_response: {}}, {...e, ...sess});
-      assert.match(await deny(search, sess), /no web lookups/, command);
+      assert.equal((await th(args, {...e, ...sess})).code, 0);
+      assert.match(await deny(search, sess), /no web lookups/, args.join(' '));
+      // th's own state deleted, or another TMPDIR: the Worker's record still says so.
+      rmSync(join(sess.TMPDIR, 'th'), {recursive: true, force: true});
+      assert.match(await deny(search, {...sess, TMPDIR: freshTmp()}), /no web lookups/);
     }
-    await th(['taint', '--source', 'th music', '--ref', 'file'], e);
-    assert.match(await deny(search), /no web lookups/);
-    // th's own state deleted, or another TMPDIR: the Worker's record still says so.
-    rmSync(join(e.TMPDIR, 'th'), {recursive: true, force: true});
-    assert.match(await deny(search), /no web lookups/);
-    assert.match(await deny(search, {TMPDIR: freshTmp()}), /no web lookups/);
-    assert.match(await deny({tool_name: 'mcp__fetch__fetch', tool_input: {url: 'https://x.example'}}), /no web lookups/);
-    // Another session that read no songs keeps the web; a Worker that can't answer closes it.
-    assert.equal(await deny(search, {CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_other_session'}), null);
+    assert.match(await deny({tool_name: 'mcp__browser__navigate', tool_input: {}}, {CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_songs_0'}), /no web lookups/);
+    // The chat that read the same songs keeps the web.
+    const chat = {TH_ROLE: 'chat', TH_TOKEN: TOKENS.chat, CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_chat_songs'};
+    await th(['music', 'now'], {...e, ...chat});
+    assert.equal(await deny(search, chat), null);
+    // Fails closed: a Worker that can't answer, or an answer without a boolean `songs`.
     assert.match(await deny(search, {TH_API: 'http://127.0.0.1:9', TH_RETRY_BASE_MS: '1'}), /denied/);
+    fake.options.pendingExtra = {songs: 'yes'};
+    assert.match(await deny(search, {CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_other'}), /denied/);
+    fake.options.pendingExtra = {songs: undefined};
+    assert.match(await deny(search, {CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_other'}), /denied/);
   } finally { await fake.stop(); }
 });
 

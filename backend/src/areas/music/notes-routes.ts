@@ -26,6 +26,7 @@ import { refuseWhileHeld } from '../meter/hold';
 import { parseFind } from './find';
 import { checkNotes } from './notes';
 import { SONG_ID } from './shapes';
+import { tagsRead } from './tags-read';
 
 /** A batch's body, at most: 200 full notes are about 100 KB. */
 const BODY_MAX = 256 * 1024;
@@ -91,6 +92,7 @@ export const notesRoutes = new Hono<AppEnv>()
   })
   .get('/music/notes', guard('GET /v1/music/notes'), async (c) => {
     noSandbox();
+    await tagsRead(c);
     const ids = c.req.query('ids');
     const music = musicObject(c.env);
     if (ids !== undefined) {
@@ -115,6 +117,7 @@ export const notesRoutes = new Hono<AppEnv>()
     if ('issues' in q) throw new ApiError('validation', q.issues);
     // A cold find reads tens of rows, but it is the mind's to wait with: held past 80% like a batch.
     await refuseWhileHeld(c.env);
+    await tagsRead(c);
     const now = Date.now();
     const [skips, never] = await Promise.all([
       fresh(sensesObject(c.env).earlySkips(now)),

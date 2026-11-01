@@ -257,8 +257,8 @@ export interface PendingResponse {
   limited: boolean;
   idle_min: number;
   idle_cutoff_min: number;
-  /** The session read songs' tags (its taint names them, MUSIC.md §10.5): the PreToolUse hook
-   * closes the web to it, from the Worker's record, which the session can't edit. */
+  /** A night session that read songs' tags (the Worker's own record, MUSIC.md §10.5): the
+   * PreToolUse hook closes the web to it. Always false for chat and reflex. */
   songs: boolean;
 }
 

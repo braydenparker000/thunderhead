@@ -5,7 +5,8 @@
 // measured too. Notes, tags and the untagged page are read by key, so their rows follow the call's
 // size, not the catalog's. In the Senses object, find reads the early skips by the (day, type)
 // index; in Core, the current rules. The phone's ratings go to Music as one row each (two for a 1,
-// with its index), and its one-time catch-up of the songs rated 1 goes 100 a batch.
+// with its index), and its one-time catch-up of the songs rated 1 goes 100 a batch. Songs' tags
+// served to a mind session taint it in Core and record a night reader in Music, once a session.
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
@@ -133,8 +134,26 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
       `cost-rule-${i}`,
     );
   const senses = sensesObject(env) as unknown as never;
+  const core = coreStub() as unknown as never;
   await evictDurableObject(sensesObject(env));
   await cost('GET /v1/music/find (Senses, cold: 40 early skips among 200 events)', find(), 200, senses);
   await cost('GET /v1/music/find (Senses, warm)', find(), 200, senses);
-  await cost('GET /v1/music/find (Core, 3 never-play rules)', find(), 200, coreStub() as unknown as never);
+  await cost('GET /v1/music/find (Core, 3 never-play rules)', find(), 200, core);
+  // Songs' tags served to a mind session: the Worker taints it (Core) and records a night session as
+  // a reader (Music), once a session in each isolate.
+  const tags = (s: string) => () =>
+    api('GET', `/v1/music/notes?ids=${ids[0]}`, { token: night, headers: { 'TH-Session': s } });
+  await cost(
+    "GET /v1/music/notes, songs' tags to a night session, its first call (Core)",
+    tags('cse_cost_1'),
+    200,
+    core,
+  );
+  await cost("GET /v1/music/notes, songs' tags to a night session, its first call (Music)", tags('cse_cost_2'), 200, m);
+  await cost(
+    "GET /v1/music/notes, songs' tags to a night session, its next call (Core)",
+    tags('cse_cost_2'),
+    200,
+    core,
+  );
 }
