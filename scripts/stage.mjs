@@ -38,7 +38,8 @@ const api = process.env.WORKER_URL ?? '';
 let build = 0;
 try { build = Number(execFileSync('git', ['rev-list', '--count', sha], { cwd: repo, encoding: 'utf8' }).trim()) || 0; } catch {}
 const repoUrl = process.env.GITHUB_REPOSITORY ? `${process.env.GITHUB_SERVER_URL ?? 'https://github.com'}/${process.env.GITHUB_REPOSITORY}` : '';
-await writeFile(join(out, 'config.js'), configJs({ api, build, commit: sha, repo_url: repoUrl }));
+// A preview build (.github/workflows/preview.yml) names its branch, shown on the pages' label.
+await writeFile(join(out, 'config.js'), configJs({ api, build, commit: sha, repo_url: repoUrl, preview: process.env.TH_PREVIEW ?? '' }));
 await writeFile(join(out, 'sw.js'), swJs(await readFile(join(out, 'sw.js'), 'utf8'), build));
 
 // My Media's Drive settings come from the DRIVE_CONFIG_JSON secret (owner ruling 2026-10-28); without

@@ -10,4 +10,6 @@ export const CONFIG = {
   commit: 'dev',
   /** The repository's web address, for the setup page's links. */
   repo_url: '',
+  /** A preview build's branch (.github/workflows/preview.yml): the pages show a small label. */
+  preview: '',
 };

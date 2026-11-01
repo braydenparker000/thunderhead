@@ -1,0 +1,63 @@
+# A branch's site at the preview address, for the owner to try a change on the phone before merging
+# it (AGENTS.md: the owner tries and merges; nothing goes live otherwise). The site is the branch's
+# own; the Worker it talks to is the live one (Worker changes can't be previewed this way, and a
+# preview reads and writes the owner's real data). One fixed address for every preview, so the owner
+# signs in once: the latest run wins, and each page carries a small "Preview · <branch>" label.
+# Cloudflare Pages, on the Free plan: a token that can only edit Pages (SETUP.md P1), never the
+# Worker's. Run by hand (Actions → Preview → Run workflow) or by the lead for the branch it presents.
+name: Preview
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to preview (e.g. claude/streaming)
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: preview
+  cancel-in-progress: true
+jobs:
+  preview:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      # Set by the owner (SETUP.md P1). Pages only: it can't touch the Worker or the buckets.
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_PAGES_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+      WORKER_URL: ${{ vars.WORKER_URL }}
+      PROJECT: ${{ vars.PREVIEW_PROJECT || 'thunderhead-preview' }}
+      REF: ${{ inputs.ref }}
+    steps:
+      - name: Check the setup and the branch name
+        run: |
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::No CLOUDFLARE_PAGES_TOKEN secret yet (docs/process/SETUP.md P1)"; exit 1; }
+          [[ -n "$CLOUDFLARE_ACCOUNT_ID" ]] || { echo "::error::No CLOUDFLARE_ACCOUNT_ID variable"; exit 1; }
+          [[ "$REF" =~ ^[A-Za-z0-9._/-]{1,80}$ && "$REF" != main ]] || { echo "::error::Not a branch to preview: $REF"; exit 1; }
+          [[ "$PROJECT" =~ ^[a-z0-9-]{1,58}$ ]] || { echo "::error::PREVIEW_PROJECT must be lowercase letters, digits and dashes"; exit 1; }
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts
+      - name: Fetch the face
+        run: node scripts/fonts.mjs
+      - name: Stage
+        env:
+          TH_FONTS: required
+          TH_PREVIEW: ${{ inputs.ref }}
+        run: node scripts/stage.mjs "$(git rev-parse HEAD)"
+      - name: Publish to the preview address
+        run: |
+          # The project is made on the first run (an existing one answers an error, which is fine).
+          npx wrangler pages project create "$PROJECT" --production-branch main >/dev/null 2>&1 || true
+          out="$(npx wrangler pages deploy .deploy/site --project-name "$PROJECT" --branch preview \
+            --commit-hash "$(git rev-parse HEAD)" --commit-message "preview" --commit-dirty=true 2>&1)" || { echo "$out" | tail -20; exit 1; }
+          url="$(echo "$out" | grep -oE 'https://preview\.[a-z0-9.-]+\.pages\.dev' | head -1)"
+          echo "Preview of $REF: ${url:-see the Pages project}" | tee -a "$GITHUB_STEP_SUMMARY"
