@@ -102,6 +102,21 @@ the mind can read what plays and what is skipped (`th senses`). Still to build: 
 again" as a rule fact the DJ honours, and the sleep timer, which needs the chat to reach the
 playing Music (the island, part 3).
 
+Built 2026-11-01 on branch `knows` (owner: "build everything"), the knowledge pass (MUSIC.md §10.5):
+Music schema step 4, `track_notes` (one row a track: moods, occasions, themes, language, era and
+energy with confidences, `known`, the writer and the format version), with `PUT /v1/music/notes`
+(C N; batches of ≤ 200, every word checked against fixed vocabularies, held from 80% of the day's
+budget), `GET /v1/music/notes` (D C N), `GET /v1/music/tracks?untagged=1` and `GET /v1/music/find`
+(C N; by moods, occasion, energy or like a song, minus early skips and never-play rules, and with
+the listening pass's moods, energy and neighbours once its table exists). `MUSIC_MOODS` is the one
+mood list both passes use. The mind: `th music page|note|find|like|now|week`; the night tags about
+1,000 songs (RUNTIME.md §12.1), makes up to 2 mixes when there is reason, and on the night into
+Sunday puts what the owner has been into in the Overnight card; the chat answers "who is this?",
+"more like this", "play something calm" and records "never play this again" as a rule fact
+(RUNTIME.md §4.7). Still to come: the listening pass (step 3, its own branch, which ships with or
+before step 4), the DJ on the phone honouring the never-play rules and the notes, the phone's own
+"never play" (rating 1), and the sleep timer.
+
 - Music sends what plays and what is skipped as senses events (`music.play`, `music.skip`; ids and
   times only), so the mind can answer "who is this?" and "more like this", and learns
   "never play this again" as a rule fact with its evidence (Fix and Forget on What I remember).

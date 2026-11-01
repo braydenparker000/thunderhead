@@ -73,7 +73,7 @@ if the owner agrees.
 
 1. Library and data · 2. Screens · 3. Queue, shuffle and repeat · 4. Playlists and mixes ·
 5. The engine · 6. Media URLs and failures · 7. Offline · 8. Search · 9. DJ shuffle ·
-10. The mind's part (senses, verbs, surfaces) · 11. Import from the old site · 12. Settings ·
+10. The mind's part (senses, verbs, surfaces, what it knows) · 11. Import from the old site · 12. Settings ·
 13. Accessibility · 14. Empty, error and offline states · 15. Performance budgets ·
 16. New feature ideas · 17. Open questions / tests
 
@@ -734,6 +734,10 @@ A track that shares its audio with another gets the same numbers; the neighbours
 
 **Not built yet (the lead's, on screen):** the DJ planner reading the file (`frontend/th/music/dj.js` still uses tag closeness), and "ask by feeling" in the chat.
 
+The listening pass (Music schema step 3, NEXT-BATCH.md part 6) also scores each song's moods, in the
+same fixed list the mind's notes use (`MUSIC_MOODS`, §10.5), so the Worker's find can blend the
+two; its energy and neighbours feed find and "more like this" once its table exists.
+
 ### 9.2 Choosing the next track
 
 For the current track `c`, candidates are its 50 neighbours plus 20 random tracks from the context
@@ -786,6 +790,9 @@ over in a skip, sends none; `data` is `{offline}` only so far), `music.skip` wit
 duration_ms, next_ref}` when a song that sounded is left before its last 3 s (`at_ms` from the
 position read every 250 ms, so within a quarter second), and `music.finish` with `{listened_ms}`
 otherwise. Ids and times only, never a title. The rest of the table waits on its features.
+**Used (2026-11-01, §10.5):** a skip before 30 s counts against a song in the Worker's find (three in
+30 days leave it out, as §4.2 does for mixes); the newest `music.play` answers "who is this?"
+(`th music now`); a week's plays, finishes and skips make the Sunday line (`th music week`).
 
 | Type | When | `ref` | `data` |
 |---|---|---|---|
@@ -836,7 +843,8 @@ the playlist into the player's own storage (`claude-player`, `state`, `pl:<id>`,
 player on it (a recorded `improvement` edit to `music/src/app.js`). The mind picks songs with
 `GET /v1/music/tracks?q=&limit=` (C N: each track's title, artist, album, genre, composer, year,
 seconds). The other verbs of this table wait for their features. It needs the catalog on the new
-Worker (SETUP.md N1–N4).
+Worker (SETUP.md N1–N4). From 2026-11-01 the mind picks a mix's songs by feeling or by likeness
+(`th music find`, `th music like`, §10.5) and passes the mix's one-line why as the verb's `--why`.
 
 ### 10.3 When a verb may start sound
 
@@ -861,6 +869,53 @@ sound.
 
 Why text must be true and checkable ("Played most on rainy evenings" only if that's in the
 evidence). Rules for why text live in [BEHAVIOR](../../mind/BEHAVIOR.md).
+
+### 10.5 What the mind knows of each song
+
+**Built 2026-11-01 (NEXT-BATCH.md part 6; owner: "build everything"):** each night the mind reads a
+page of the catalog's tags (title, artist, album, genre, year) and writes a note per song from what
+it knows of it (Music schema step 4, `track_notes`, one row a track; [DATA.md §6.2](../../engineering/DATA.md)).
+The vocabularies are fixed, in `shared/contract/music.ts`, and the Worker refuses any other word:
+
+| Field | Words | At most |
+|---|---|---|
+| `moods` | calm, peaceful, melancholy, sad, hopeful, joyful, romantic, nostalgic, dark, tense, energetic, triumphant, playful, dreamy, reverent, focused (`MUSIC_MOODS`, shared with the listening pass, §9.1) | 5, each with a confidence 0.05–1 |
+| `occasions` | focus, wind-down, morning, workout, drive, study, worship, party, rainy-day, sunday, sleep | 4, each with a confidence |
+| `themes` | love, heartbreak, longing, faith, gratitude, family, friendship, home, loss, freedom, journey, nature, night, celebration, struggle, growing-up (what its words are about; none for a song without words) | 3 |
+| `language` | an ISO 639-1 code, or null (no words, or not known) | 1 |
+| `era` | the decade it comes from (1990), from 1000 to the present one, or null | 1 |
+| `energy` | 0 (still) to 1 (driving), or null | 1 |
+
+`conf` holds one confidence for each of themes, language, era and energy that is set, and none for
+one left empty. `known: false` is the mind saying it doesn't know the song: such a note says only
+what the tags imply, and none of its confidences may pass 0.5. Each note records its writer (`by`:
+`mind:night` or `mind:chat`) and its format version; a note of an older version comes up again in
+the night's page. The night writes about 1,000 songs a night until the library is covered, then only
+new ones ([RUNTIME.md §12.1](../../mind/RUNTIME.md)).
+
+**Find by feeling** (`GET /v1/music/find?moods=&occasion=&energy=&like=&limit=`, `th music find`):
+
+```
+score = 1.0 · mood fit (each asked mood's confidence, the note's and the audio's averaged where
+              both have it, the mean over the asked moods)
+      + 0.8 · occasion fit + 0.5 · (1 − |energy − target|)   (the audio's energy before the note's)
+      + 1.0 · likeness to `like` (the listening pass's neighbours when it has them for that song,
+              else moods, occasions, tags as the DJ weighs them, era, language and energy)
+      − 0.25 per skip before 30 s in the last 30 days
+```
+
+A song must show the asked feeling (mood and occasion fit together over 0.15). Left out: songs the
+owner said never to play again (a rule fact from their own words, subject `music.never`, naming
+`music:<id>`; MEMORY.md §6 M4) and songs skipped before 30 s three times in 30 days (§4.2). Until
+the listening pass's table exists, find ranks by the notes alone and says so (`analysis: false`).
+The phone's own "never play" (rating 1) is a later step of its own.
+
+**In the chat** ([RUNTIME.md §4.7](../../mind/RUNTIME.md)): "who is this?" (`th music now`: the
+newest `music.play` with its tags and note), "more like this" (`th music like`, then a mix) and
+"play something calm" (`th music find`, then a mix, opened by a chip). **Overnight**: up to 2 mixes
+a night when the evidence gives a reason, and on the night into Sunday one home line of what the
+owner has been into, in the morning's Overnight card. Notes and find never leave the Worker
+([PRIVACY.md §2](../../engineering/PRIVACY.md)); the mind never looks a song up on the web.
 
 ---
 

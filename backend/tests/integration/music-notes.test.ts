@@ -28,7 +28,7 @@ beforeAll(async () => {
   ids = await seedCatalog([
     { title: 'Slow Water', artist: 'The Example Trio', genre: 'Ambient', year: 1994 },
     { title: 'Bright Road', artist: 'Sample Band', genre: 'Rock', year: 2011 },
-    { title: 'Evening Hymn', artist: 'Test Choir', genre: 'Choral', composer: 'A. Composer', year: 1890 },
+    { title: 'Choir Sample Piece', artist: 'Test Choir', genre: 'Choral', composer: 'A. Composer', year: 1890 },
   ]);
   // Filler, so a full batch of 200 has tracks to name.
   await seedCatalog(
@@ -189,7 +189,7 @@ describe('notes kept and read back', () => {
     expect(r.body.missing).toEqual([songId(9_999)]);
     expect(r.body.items.map((i) => [i.id, i.title, i.artist, i.year])).toEqual([
       [ids[0], 'Slow Water', 'The Example Trio', 1994],
-      [ids[2], 'Evening Hymn', 'Test Choir', 1890],
+      [ids[2], 'Choir Sample Piece', 'Test Choir', 1890],
     ]);
     expect(r.body.items[0].note).toMatchObject({ known: true, moods: { calm: 0.9 }, by: 'mind:chat', v: 1 });
     expect(r.body.items[1].note).toBeNull();
@@ -215,7 +215,7 @@ describe('notes kept and read back', () => {
     const first = await page();
     expect(first.body.items.map((t) => t.id)).toEqual([ids[2], songId(100)]);
     expect(first.body.total).toBe(221);
-    expect((await page('&q=hymn')).body.items.map((t) => t.id)).toEqual([ids[2]]);
+    expect((await page('&q=choir')).body.items.map((t) => t.id)).toEqual([ids[2]]);
     // A note of an older format is as good as none: the night writes it again.
     await notesSql('UPDATE track_notes SET v = 0 WHERE track_id = ?', ids[1]);
     await runInDurableObject(music(), (o: Music) => {

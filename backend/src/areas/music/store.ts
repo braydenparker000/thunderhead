@@ -231,6 +231,11 @@ export function putNote(db: Db, n: NoteRow): number {
   );
 }
 
+/** Every track's record in catalog order, for the tags the mind searches (read once per start). */
+export function tagRows(db: Db): { id: string; record_json: string }[] {
+  return db.all('SELECT id, record_json FROM tracks ORDER BY ord');
+}
+
 /** Every note, read once per object start into memory (as the tags are). */
 export function allNotes(db: Db): NoteRow[] {
   return db.all('SELECT track_id, known, note_json, by, v, at FROM track_notes');

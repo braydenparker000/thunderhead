@@ -4,10 +4,12 @@
 // song the owner said never to play again (a rule fact from their own words) is left out; `like`
 // ranks by closeness to one song. A synthetic catalog, notes and senses only.
 import { runInDurableObject } from 'cloudflare:test';
+import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { MusicFindResponse } from '../../../shared/contract/music.ts';
 import type { Music } from '../../src/objects/music';
-import { apiJson } from '../helpers';
+import { sensesObject } from '../../src/objects/senses';
+import { apiJson, coreSql } from '../helpers';
 import { addOp, as, CHAT_SESSION, ownerSays, type Principals, principals, reason } from '../memory-helpers';
 import { music, note, putNotes, seedCatalog, sendSenses, songId } from '../music-helpers';
 
@@ -25,7 +27,7 @@ beforeAll(async () => {
     { title: 'Quiet Lake', artist: 'Artist A', genre: 'Ambient' },
     { title: 'Night Drive', artist: 'Artist B', genre: 'Synthwave' },
     { title: 'Morning Light', artist: 'Artist C', genre: 'Folk' },
-    { title: 'Storm Front', artist: 'Artist D', genre: 'Metal' },
+    { title: 'Heavy Sample', artist: 'Artist D', genre: 'Metal' },
     { title: 'Still Water', artist: 'Artist A', genre: 'Ambient' },
     { title: 'Unknown Tune', artist: 'Artist E', genre: 'Ambient' },
     { title: 'Untagged Song', artist: 'Artist A', genre: 'Ambient' },
@@ -153,6 +155,28 @@ describe('how the owner listens', () => {
     expect(order(r)).toEqual([4, 2, 5]);
     expect(r.body.left_out).toEqual({ never: 1, skipped: 1 });
     expect(order(await find(`like=${S[4]}`))).not.toContain(0);
+  });
+});
+
+describe('what find reads', () => {
+  it('the early skips by the (day, type) index and the rules by the current-facts index, never a scan', async () => {
+    const skips = await runInDurableObject(sensesObject(env), (_o, st) =>
+      st.storage.sql
+        .exec(
+          `EXPLAIN QUERY PLAN SELECT ref, count(*) AS n FROM events
+           WHERE day IN ('2026-10-01', '2026-10-02') AND type = 'music.skip' AND at >= 0 AND ref IS NOT NULL
+             AND sensitivity = 0 AND json_extract(data_json, '$.at_ms') < 30000 GROUP BY ref`,
+        )
+        .toArray()
+        .map((r) => String(r.detail))
+        .join(' '),
+    );
+    expect(skips).toMatch(/SEARCH events USING INDEX events_day_type \(day=\? AND type=\?\)/);
+    const rules = await coreSql<{ detail: string }>(
+      `EXPLAIN QUERY PLAN SELECT text FROM facts WHERE superseded_at IS NULL AND kind = 'rule' AND subject = 'music.never'
+         AND (valid_to IS NULL OR valid_to > 0)`,
+    );
+    expect(rules.map((r) => r.detail).join(' ')).toMatch(/SEARCH facts USING INDEX facts_current \(kind=\?\)/);
   });
 });
 

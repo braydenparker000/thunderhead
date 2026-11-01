@@ -133,9 +133,7 @@ export abstract class MusicMind extends MusicListen {
   protected index(): Tagged[] {
     if (this.finder) return this.finder;
     const out: Tagged[] = [];
-    for (const r of this.db.all<{ id: string; record_json: string }>(
-      'SELECT id, record_json FROM tracks ORDER BY ord',
-    )) {
+    for (const r of store.tagRows(this.db)) {
       const t = JSON.parse(r.record_json) as { path?: string; metadata?: Record<string, unknown> };
       const m = t.metadata ?? {};
       const s = (k: string) => (typeof m[k] === 'string' ? (m[k] as string) : '');
