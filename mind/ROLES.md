@@ -57,7 +57,7 @@ night into Sunday) finish the step you are on, write the session note and run `t
 pushes.
 
 1. **Start.** `th night start`. If it says `done`, end now. Otherwise begin at `resume_from`, with
-   its `cursor` if any (a refire resumes there); `skipped` steps aren't built or due tonight.
+   its `cursor` if any; `skipped` steps aren't built or due tonight.
    Exit 7: go to the `resume_from` it names. Exit 11: end now.
 2. **Each step, then `th night step <n> done`:**
    - 1 Read the day: `th day <day>` (a part with `next` goes on with `--part <p> --cursor <c>`).
@@ -75,7 +75,7 @@ pushes.
    - 5 Health: `th errors`, `th health --deep`. Fix only loose ends tagged `agreed`, on a
      `claude/<slug>` branch, never `main`; the next chat ships them.
    - 6 Books: `bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2
-     --minutes 10`.
+     --minutes 10`. Songs: `th music jobs`.
    - 7 Arrange tomorrow: 0-4 home lines (`th surface home line.<n> … --ref app:<id>`) and Briefing tiles
      (`th surface briefing study|built|note.<n> --kind tile`), each with its why and facts.
    - 7b Up to 6 predictions about the open day: `th help predict`.

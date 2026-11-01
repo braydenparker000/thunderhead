@@ -31,6 +31,7 @@ import {
 import budgets from './budgets.json';
 import { importCalls } from './import-calls';
 import { libraryCalls } from './library-calls';
+import { listenCalls } from './listen-calls';
 import { memoryCalls } from './memory-calls';
 import { predictionCalls } from './prediction-calls';
 import { proposalCalls } from './proposal-calls';
@@ -284,6 +285,9 @@ describe('rows per endpoint', () => {
 
   // The phone's reports (report-calls.ts).
   it('measures the reports against their budget', () => reportCalls(cost, grant));
+
+  // The listening pass (listen-calls.ts).
+  it('measures the listening pass against its budget', () => listenCalls(cost, grant));
 
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);

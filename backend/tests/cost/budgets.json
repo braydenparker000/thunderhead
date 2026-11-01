@@ -314,5 +314,49 @@
   "GET /v1/ops/reports (50 of 250) (Core)": {
     "rows_read_max": 51,
     "rows_written_max": 0
+  },
+  "GET /v1/jobs/next audio.analysis, 50 of 600 (Music)": {
+    "rows_read_max": 1240,
+    "rows_written_max": 1
+  },
+  "GET /v1/jobs/:id/spec (Music)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "PUT /v1/jobs/:id/files/:name (Music)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "POST /v1/jobs/:id/collect (Music)": {
+    "rows_read_max": 2,
+    "rows_written_max": 1
+  },
+  "alarm: one part of 50 results applied, the job ended, the phone file built (Music)": {
+    "rows_read_max": 1340,
+    "rows_written_max": 55
+  },
+  "GET /v1/jobs/:id (Music)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "music.listen.pack, the phone file again (Music)": {
+    "rows_read_max": 670,
+    "rows_written_max": 1
+  },
+  "GET /v1/music/pack (Music)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/analysis/:id (Music)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
+  },
+  "POST /v1/jobs/:id/collect (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 2
+  },
+  "alarm: one part of 50 results applied, the job ended, the phone file built (Core)": {
+    "rows_read_max": 50,
+    "rows_written_max": 12
   }
 }

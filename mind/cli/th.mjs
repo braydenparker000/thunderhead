@@ -26,6 +26,7 @@ import {remind} from './lib/remind.mjs';
 import * as reflexCmds from './lib/reflex.mjs';
 import {ci} from './lib/ci.mjs';
 import {reports} from './lib/reports.mjs';
+import {music} from './lib/music.mjs';
 
 const withFlags = (fn, spec) => argv => fn(parseArgs(argv, spec).flags);
 
@@ -42,6 +43,7 @@ export const COMMANDS = {
   propose: act.propose, decide: act.decide, approved: act.approved, verb: act.verb, order: act.order, muse: act.muse, surface: act.surface,
   library, remind, push: act.push, predict: act.predict, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
   ci: argv => ci(argv),
+  music: argv => music(argv),
   help: async argv => { out(helpText(argv[0])); },
 };
 
