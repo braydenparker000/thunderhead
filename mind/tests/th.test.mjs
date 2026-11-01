@@ -42,7 +42,7 @@ test('th against the real Worker', {timeout: 300_000, skip: available() ? false 
     assert.equal((await th(['say', 'today', 'Great question. A walk.'], chat)).code, 8, 'the phrase lint');
   });
 
-  await t.test('search, get and help reach the built routes; later phases exit 8 not_built', async () => {
+  await t.test('search, get and help reach the built routes; an unknown job is 404 (exit 8)', async () => {
     const s = await th(['search', 'evening plan'], chat);
     ok(s, 'search');
     assert.equal(s.json.items[0].source, 'messages');
@@ -52,7 +52,7 @@ test('th against the real Worker', {timeout: 300_000, skip: available() ? false 
     assert.match((await th(['help'], chat)).stdout, /shell\.appearance/);
     const later = await th(['get', '/v1/jobs/x'], chat);
     assert.equal(later.code, 8);
-    assert.match(later.stderr, /not_built/);
+    assert.match(later.stderr, /not_found/);
   });
 
   await t.test("memory (P3): remember from the owner's words, recall it, refuse a mind message as owner evidence (6)", async () => {

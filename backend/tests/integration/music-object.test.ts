@@ -12,14 +12,22 @@ const music = () => env.MUSIC.get(env.MUSIC.idFromName('library')) as unknown as
 describe('the Music object', () => {
   it('migrates once to its schema and reports its health', async () => {
     const h = await music().health();
-    expect(h).toMatchObject({ schema: 2, expected: 2 });
+    expect(h).toMatchObject({ schema: 3, expected: 3 });
     const tables = await runInDurableObject(music(), (_o, state) =>
       state.storage.sql
         .exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_%' ESCAPE '\\' ORDER BY name")
         .toArray()
         .map((r) => r.name),
     );
-    expect(tables).toEqual(['catalog_log', 'meter_days', 'music_state', 'tracks']);
+    expect(tables).toEqual([
+      'analysis',
+      'catalog_log',
+      'external_jobs',
+      'meter_days',
+      'music_state',
+      'track_analysis',
+      'tracks',
+    ]);
     expect(
       await runInDurableObject(music(), (_o, state) =>
         state.storage.sql.exec('SELECT count(*) AS n FROM tracks').one(),

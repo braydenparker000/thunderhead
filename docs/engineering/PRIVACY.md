@@ -64,7 +64,8 @@ Retention marked **[proposal]** is new; the rest comes from decisions, the plan 
 | Scripture texts (the owner's licensed copies of the canon scriptures) | `thunderhead-private/books/` + `Library` (P7) | owner | Until deleted | yes | yes |
 | The ported apps' own phone data (P1b until each app's data move) | localStorage and IndexedDB on the new origin, under the apps' old names | the ported apps | As on the old site, until the app's data moves | via the raw import copy | via the raw import copy |
 | Backups (weekly, per table) | `thunderhead-private/backups/` | Worker jobs | 8 weekly + 12 monthly | — | no |
-| Job results from Actions | `thunderhead-jobs` | Actions | 30 days after the Worker copies them **[proposal]** | no | yes |
+| Audio analysis (the listening pass: loudness, tempo, key, energy, moods, a 32-number sound fingerprint, nearest songs; numbers only, no words) | `Music.analysis`, `Music.external_jobs`; `thunderhead-private/music/` (the phone's file, the neighbours) | Actions, through the Worker's checks (JOBS.md §3) | Forever (replaced when the analyzer changes); the jobs 90 days | yes | yes |
+| Raw uploads of an Actions run (before they are checked) | `thunderhead-private/jobs/` | the Worker, from Actions | Until the job is applied, rejected or expired (at most 72 h uncollected) | no | no |
 | **Sign-in:** credential (verifier only), recovery hash | `Auth` DO | Auth | Current only; old verifiers overwritten | **never** | **never** |
 | **Sign-in:** sessions (label, platform, browser, region, country, times) | `Auth` | Auth | Active; then 30 days after revoke or expiry | **never** | **never** |
 | **Sign-in:** back-off counters (hashed source keys) | `Auth` | Auth | 24 h after the last failure | **never** | **never** |
@@ -160,11 +161,12 @@ Repo and Actions content is readable by anyone. Rules (enforced by tests where p
 2. Example content in code, tests and docs is invented and neutral.
 3. Actions jobs address audio only by `sha256` key, received through the job spec and never printed: logs show counts and durations only, never hashes, titles or tags ([JOBS.md §2](JOBS.md#2-public-log-rules-actions)).
 4. No artifacts. No job summaries with data. No `set -x`, `env` or `printenv`. Masked derived values.
-5. Actions never hold credentials for `thunderhead-private` (they write `thunderhead-jobs` and read `jarvis-music` only).
+5. Actions never hold credentials for `thunderhead-private`. Their one bucket key reads `jarvis-music` only; what they produce comes back through the Worker with the `ci` key, which checks it before anything is kept.
 6. Evals with personal data run inside mind sessions, never in Actions; Actions use synthetic fixtures only.
 7. PDFs and personal text are processed in the mind's private session, never in Actions.
 8. Commit messages, PR titles and bodies written by the agent describe code, never personal content ("Add playlist sort" not the playlist's name).
 9. Failing tests print fixture ids, not personal values.
+10. **The listening pass (2026-11-01, owner: "build everything"):** each song's audio is downloaded onto a GitHub-hosted runner (a fresh machine that is destroyed after the run), checked against its hash, measured, and deleted at once, song by song, in the job's temporary folder; no artifact, cache or log holds it. Only numbers return: a result has no free text by design (JOBS.md §3.1). GitHub's runner is a place the owner's audio passes through; GitHub's terms apply to it there, as they do to the code. The bucket key the run holds can list and read everything in `jarvis-music`, the old catalog's titles and artists included, so making it is the owner's choice (SETUP.md N6); the job reads songs by hash only, and its worker processes start with clean environments (which keeps the keys out of what they print, though code on the runner could still reach them: the key's own scope is the boundary, SECURITY.md §12.4). The public run page shows the job's id and counts only, never a hash, a title or a tag ([JOBS.md §2](JOBS.md#2-public-log-rules-actions), `tests/jobs-audio.test.mjs`). Turning it off: delete the `jobs` environment (SETUP.md N6).
 
 Acceptance: a CI test greps workflow files for `upload-artifact`, `set -x`, `printenv`, unmasked `${{ secrets.* }}` in `run:`; a pre-push check in [TESTING.md](TESTING.md) greps the diff for the patterns in [SECURITY.md §5.2](SECURITY.md).
 
@@ -227,7 +229,7 @@ Deletes are `delete`-class proposals when the **mind** asks for them; when the *
 
 ### 10.2 Erase everything **[proposal]**
 - Settings → Privacy → "Erase everything". The sheet asks for the password and the typed word `ERASE`.
-- What goes: every `Core`, `Senses`, `Music` and `Library` table; everything in `thunderhead-private` (including backups and the events archive); `thunderhead-jobs`; all sessions except this one; all agent keys; all push subscriptions.
+- What goes: every `Core`, `Senses`, `Music` and `Library` table; everything in `thunderhead-private` (including backups, the events archive and the listening pass's files); all sessions except this one; all agent keys; all push subscriptions.
 - What stays, said plainly on the sheet: the account itself (so the owner can still sign in); the music audio in `jarvis-music` (the system never deletes from it, by decision); Cloudflare's own logs (expire in 3–7 days); the owner's Claude session history (delete it in Claude); the old Worker until it is retired; the ported apps' own phone storage until their data moves (cleared from the phone's site settings).
 - Timing: 7 days during which everything is hidden and "Cancel erase" is offered on every device; then a chunked job deletes, and the ledger keeps one line: "Everything was erased on {date}."
 

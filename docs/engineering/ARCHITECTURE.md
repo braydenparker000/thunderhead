@@ -76,7 +76,7 @@ Acceptance: an agent can name, for any box above, which folder holds its code (�
 | DO `Library` | Same (shardable by name) | `objects/library.ts` | Books, pages + FTS5, verse refs, highlights | Worker | P7 |
 | R2 `jarvis-music` | Cloudflare | — | Existing audio and art. **Never deleted from.** | Read by presigned GET, Actions (read-only token) | exists |
 | R2 `thunderhead-private` | Cloudflare | — | Backups, events archive, books, files, imports, indexes, validated job results | Worker binding only; phone by presigned GET | P1 |
-| R2 `thunderhead-jobs` | Cloudflare | — | Raw results from Actions jobs (14-day life) | Actions writes; Worker reads, validates, copies, deletes | P5 |
+| R2 `thunderhead-jobs` | — | — | Not made: Actions results come through the Worker into `thunderhead-private/jobs/incoming/` ([JOBS.md §3](JOBS.md)) | — | — |
 | GitHub Actions | GitHub-hosted runners (public logs) | `.github/workflows/` | Deploy secrets only | Azure (OIDC), Cloudflare (API token), R2 jobs | P0 |
 | Mind | Claude Code cloud sessions | `mind/` | One agent token per task environment | Worker (HTTPS), GitHub (git proxy) | P2 |
 | Muse | The existing external helper | — | A `muse`-scoped agent token | `/v1/work/*` only | P4 |
@@ -93,7 +93,7 @@ Acceptance: an agent can name, for any box above, which folder holds its code (�
 | Azure OIDC (the old site's app registration, Storage Blob Data Contributor on the `thunderhead*` account) | Federated trust; IDs as GitHub secrets | Write `$web` | Claude sessions |
 | `CLOUDFLARE_API_TOKEN` (Workers Scripts: Edit, one account) | GitHub secret | Deploy, roll back, set Worker secrets | Claude sessions |
 | R2 sign key (Object Read on `jarvis-music` + `thunderhead-private`) | Worker secrets `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` | Presign GETs | Actions, sessions |
-| R2 Actions keys (read `jarvis-music`; read/write `thunderhead-jobs`) | GitHub secrets | Read audio bytes by sha256, write job results | The Worker, sessions |
+| R2 Actions key (read `jarvis-music` only) and the `jobs-audio` `ci` key | GitHub environment `jobs` | Read audio bytes by sha256; send job results through the Worker | The Worker, sessions |
 | Mind fire secrets `ROUTINE_CHAT_URL` + `ROUTINE_CHAT_TOKEN`, `ROUTINE_NIGHT_URL` + `ROUTINE_NIGHT_TOKEN`, `ROUTINE_REFLEX_URL` + `ROUTINE_REFLEX_TOKEN` (P4) (names as in [RUNTIME.md §2](../mind/RUNTIME.md)) | Worker secrets | Fire `mind-chat`, `mind-night`, `mind-reflex` with text `wake` | Everywhere else |
 
 The full inventory, with rotation steps, is in [SECURITY.md](SECURITY.md) and [OPERATIONS.md §6](OPERATIONS.md#6-secret-rotation).
@@ -211,8 +211,8 @@ mind-chat session starts ─► SessionStart hook: `th brief --claim` ─► POS
 
 1. `mind-night` asks `GET /v1/jobs/next?kind=audio.analysis`. It receives a spec `{job_id, kind, v, shas[]}` with sha256 keys only.
 2. It dispatches `jobs-audio.yml` with the single `workflow_dispatch` input `job_id`. The workflow fetches the spec with `TH_CI_TOKEN`, so no hash ever shows on the public run page.
-3. Actions reads `jarvis-music/native/audio/<sha256>.opus` with a read-only key. It writes `thunderhead-jobs/results/<kind>/<job_id>/…`. Logs print counts and durations only.
-4. `POST /v1/jobs/:id/collect` (scope `mind:night` or `ci`) makes the Worker validate every result file, copy it to `thunderhead-private/jobs/…`, apply it through a chunked DO job, and delete the raw files.
+3. Actions reads `jarvis-music/native/audio/<sha256>.opus` with a read-only key. It uploads its results through the Worker (`PUT /v1/jobs/:id/files/:name`, the `ci` key), which keeps them under `thunderhead-private/jobs/incoming/<job_id>/` until collected. Logs print counts and durations only.
+4. `POST /v1/jobs/:id/collect` (scope `mind:night` or `ci`) makes the Worker check the manifest and queue a chunked DO job that validates every result, applies the valid ones to `Music.analysis` under the bulk lane, deletes the raw files and rebuilds the phone's file.
 
 Details and validation rules are in [JOBS.md](JOBS.md).
 

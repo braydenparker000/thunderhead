@@ -103,7 +103,8 @@ Audio and art stay in `jarvis-music` under their content-addressed keys
 | Track stats (plays, skips, last played, rating) | `Music.track_stats`, rebuilt nightly from senses | IndexedDB `th-music/stats` plus a local overlay of unsent changes | The phone applies its own changes at once |
 | Playlists and mixes | `Core` lists | IndexedDB `th-music/lists` | One list per playlist, with ordered refs |
 | Queue and position | Phone only, mirrored to `Core` device state at most every 60 s **[proposal]** | IndexedDB `th-music/session` | So "keep playing on the other device" is possible later |
-| Search index and DJ features | `thunderhead-private/indexes/music/` (built by Actions jobs) | Cache Storage `th-music-index` | About 1 MB at 12k tracks; about 1.7 MB at 20k |
+| Search index | `thunderhead-private/indexes/music/` | Cache Storage `th-music-index` | **[proposal]** |
+| Audio analysis and DJ features | `Music.analysis` (numbers per audio file, from the Actions listening pass) and `thunderhead-private/music/pack.v1.bin` (the phone's file, §9.1) | the phone's file, revalidated by its ETag | About 2.8 MB at 12k tracks; built |
 | Waveforms | `Music` DO, one per track | Cache Storage `th-music-wave` | One byte per bar, 16–1000 bars |
 | Offline copies | — | OPFS `music/<sha256>.<ext>` | LRU, 512 MB default (§7) |
 | Song heads (first seconds) | — | Cache Storage `th-music-heads` | About 0.4 MB per song |
@@ -709,14 +710,29 @@ nothing else is left), −0.3 for an album within 20, the learner and the move s
 not yet mirrored as senses). The player plans 60 songs at a time and plans again after a skip or
 near their end. A new plan after a skip keeps the 3 songs already planned next (their heads may be
 on the phone), unless one was just played or skipped. The analysis job (tempo, key, energy,
-embedding) plugs into `closeness` later.
+embedding) is built (§9.1, the listening pass) and plugs into `closeness` next.
 
 ### 9.1 Data
 
-Per track, computed offline by an Actions job (see [JOBS](../../engineering/JOBS.md)):
-tempo (BPM), key and mode (as a Camelot number), energy (0–1), loudness, and a CLAP embedding
-reduced to 32 dimensions. The job also writes each track's 50 nearest neighbours. Total on the
-phone: about 1 MB at 12k tracks. Licence rule: librosa, pyloudnorm, CLAP (Apache-2.0); no GPL tools.
+**Built 2026-11-01 (the listening pass, [JOBS.md §3](../../engineering/JOBS.md#3-actions-jobs-the-listening-pass)):** every song is analysed once in Actions, by its sha256 only, and the numbers come back through the Worker. Per audio file, stored in `Music.analysis` (schema v2): loudness (integrated LUFS, true peak, loudness range), tempo (BPM and confidence), key (and confidence; its Camelot place derived from it: `8A` is A minor, `8B` C major), silence at the start and the end, energy (0–1), valence and arousal (0–1), vocals vs instrumental (0–1), **16 mood scores** (0–1: calm, peaceful, melancholy, sad, hopeful, joyful, romantic, nostalgic, dark, tense, energetic, triumphant, playful, dreamy, reverent, focused: Music's own `MUSIC_MOODS`, the same list the mind's notes on each song use; each says how much that feeling stands out in the song against its own average, 0.5 being average, from CLAP's zero-shot similarity to a fixed text prompt per mood), and a **32-d CLAP embedding** made by a fixed projection, so songs from different runs compare. Once every song is analysed, a neighbours step works out each song's **50 nearest** by cosine on the embeddings. Per track, `Music.track_analysis` keeps the energy, the moods and the nearest tracks' ids (what the mind's knowledge of each song, Music step 4, reads and blends). Licences: numpy, scipy, opus-tools (BSD), LAION CLAP `clap-htsat-unfused` (Apache-2.0) through transformers (Apache-2.0) on PyTorch (BSD); no GPL tools. A song not stored as native Opus is not analysed (`unsupported`); one that fails three times is left out until the analyzer changes.
+
+**The phone's one file** (`GET /v1/music/pack`, device only, with an `ETag`; built in the private bucket by a Music job after each applied job, about 2.8 MB at 12,000 songs): `THA1`, a JSON header naming each section's offset and size (every section on a 4-byte boundary, so each is read as a typed-array view), then one entry per analysed track in catalog order:
+
+| Section | Type, per track | Meaning |
+|---|---|---|
+| `ids` | UTF-8, `\n`-joined | the track ids (`music:<id>`) |
+| `bpm` | uint16 | BPM × 10; 0 unknown |
+| `camelot` | uint8 | 1A = 1, 1B = 2 … 12B = 24; 0 unknown |
+| `energy`, `valence`, `arousal`, `vocals` | uint8 each | 0–250 for 0–1; 255 unknown |
+| `moods` | uint8 × 16 | the moods in the header's order, 0–250 |
+| `emb` | int8 × 32 | the embedding scaled by its own largest value (cosine needs no scale) |
+| `nbr` | uint16 × 50 | the nearest tracks as indexes into this file, nearest first; 0xFFFF none |
+
+A track that shares its audio with another gets the same numbers; the neighbours list names each near song once (its first track in catalog order). The phone keeps the file and revalidates it with `If-None-Match` (304 when unchanged).
+
+**The mind's read:** `th music analysis <id> [--n 10]`: one song's numbers, its three strongest moods and its `n` nearest songs by sound, with titles and how close each is (`GET /v1/music/analysis/:id`). The mind's own `th music like` and `find` (what it knows of each song, Music step 4) blend the same `track_analysis` rows with its notes.
+
+**Not built yet (the lead's, on screen):** the DJ planner reading the file (`frontend/th/music/dj.js` still uses tag closeness), and "ask by feeling" in the chat.
 
 ### 9.2 Choosing the next track
 

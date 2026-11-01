@@ -498,6 +498,57 @@ message for Muse, ready to paste, is [MUSE-UPLOADS.md](MUSE-UPLOADS.md).
 N5 (music private: the old Worker's public read off, ask-first) comes after the player has used
 only the new Worker for 3 days.
 
+### N6. The listening pass (about 10 minutes, any time after the catalog import)
+
+Every song gets analysed once in GitHub Actions (tempo, key, loudness, energy, moods, a sound
+fingerprint and its nearest songs), about 500 a night, so the DJ and the mind know how each one
+sounds ([JOBS.md §3](../engineering/JOBS.md)). Your audio passes through GitHub's machines only to be
+measured and is deleted there at once; only numbers come back, through the Worker
+([PRIVACY.md §6](../engineering/PRIVACY.md)).
+
+**This step is your choice; nothing else depends on it.** Step 1 makes a key that GitHub Actions holds.
+It can't change or delete anything, but it can **list and read everything in `jarvis-music`**: every
+song, its cover, and the old site's catalog files, which hold every song's title, artist and album.
+Anyone who can change this repository's workflows on `main` could use it to copy your library and
+its titles (today that is you and the mind's sessions). Without it, the songs aren't analysed and the
+DJ keeps choosing by tags. If you'd rather not, skip N6; if you go ahead, step 2's CI key is confined
+to the analysis routes and can't reach anything else on the Worker
+([SECURITY.md §12.4](../engineering/SECURITY.md)).
+
+1. **A read-only key to the music bucket (only if you choose to).** dash.cloudflare.com → **R2 Object Storage** → **Manage
+   API tokens** → **Create API token**: name `thunderhead-jobs-read`, permission **Object Read
+   only**, **Apply to specific buckets only**: `jarvis-music` alone (not `thunderhead-private`),
+   TTL **Forever** → **Create**. The page shows an **Access Key ID** and a **Secret Access Key**
+   once, and the bucket address `https://<account id>.r2.cloudflarestorage.com`: keep the three
+   only for step 3 (the account id is the part before `.r2`).
+2. **A CI key of its own.** On the phone: **Settings** → **Agents** → **New agent key**, role
+   **CI**, name exactly `jobs-audio` → copy it (shown once). That name confines it: it may only
+   fetch a job's list of songs, send back the numbers and finish the job; the Worker refuses it
+   everywhere else, and it can be revoked alone.
+3. **The GitHub environment `jobs`.** github.com → the `thunderhead` repository → **Settings** →
+   **Environments** → **New environment** → name `jobs` → **Configure environment**:
+   - **Deployment branches and tags** → **Selected branches and tags** → **Add deployment branch
+     or tag rule** → `main` → **Add rule**.
+   - **Environment secrets** → **Add environment secret**, four times: `TH_CI_TOKEN` (the key from
+     step 2), `R2_JOBS_ACCESS_KEY_ID` (the Access Key ID), `R2_JOBS_SECRET` (the Secret Access
+     Key), `R2_ACCOUNT_ID` (the account id).
+   (The Worker's address comes from the repository variable `WORKER_URL`, already set.)
+   Never put any of them in a file, a chat or a commit.
+4. **The first job.** Tell the agent "N6 done". It runs `th music jobs --max 50` from a night
+   session: the night shift asks the Worker for 50 songs and starts **Actions → Jobs · audio** with
+   the job's id only. If its answer says `dispatch_refused` (the session may not start workflows,
+   RUNTIME.md R-12), start it yourself: github.com → the repository → **Actions** → **Jobs · audio**
+   → **Run workflow** → Branch **main**, job id: the one the agent gives you → **Run workflow**.
+   The run's log shows `selftest: 12 of 12 passed`, `spec: 50 songs`, `done: … ok, … failed`,
+   `collect: validating`, and nothing else about your songs. The agent checks the job reached
+   `applied` and reports how long a song took; from then on the night shift sends up to 500 a
+   night by itself until every song is done (about 24 nights for 12,000), then the neighbours
+   step.
+
+To stop it: delete the `jobs` environment (or just the R2 token); nothing else depends on it. To
+revoke: delete the R2 token in the dashboard and the `jobs-audio` key in Settings → Agents
+([SECURITY.md §14.5](../engineering/SECURITY.md)).
+
 ## O. Study (P7)
 
 Study keeps your books (PDFs) in the private bucket `thunderhead-private`, never anywhere public.

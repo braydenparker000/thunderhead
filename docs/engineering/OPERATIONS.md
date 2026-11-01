@@ -47,7 +47,7 @@ Values never appear in the repo or in logs. Rotation steps are in §6. The secur
 | `WORKER_URL` (the API address; the site's stage step writes it into `config.js` and the pages' CSP) | variable | GitHub repository (both deploy jobs read it) | P1 |
 | `WORKER_DEPLOY_ENABLED` | variable | GitHub repo | P1 |
 | `TH_SETUP_FINGERPRINT`, `TH_RESET_FINGERPRINT` | secret, temporary | GitHub repo; inputs to `auth-setup.yml` / `auth-reset.yml` | P1 |
-| `R2_MUSIC_RO_ACCESS_KEY_ID`/`_SECRET` (Object Read, `jarvis-music`), `R2_JOBS_ACCESS_KEY_ID`/`_SECRET` (Object Read & Write, `thunderhead-jobs`) | secret | GitHub environment `jobs` | P5 |
+| `R2_JOBS_ACCESS_KEY_ID`/`_SECRET` (Object Read only, `jarvis-music` only), `R2_ACCOUNT_ID`, `TH_CI_TOKEN` (the `jobs-audio` `ci` key) | secret | GitHub environment `jobs` (only `main`; SETUP.md N6). `jobs-audio.yml` also reads the repository variable `WORKER_URL` | P5, built 2026-11-01 |
 | `SITE_ORIGINS` (a placeholder; the real value comes from the environment variable above), `OWNER_TZ` (fallback `UTC`; the real zone is the `Core` setting `owner.tz`), `R2_ACCOUNT_ID`, `CORE_INSTANCE` (default `owner`) **[proposal]**, `AUTH_HIBP` (`on`\|`off`, the breach check; off in tests), `VAPID_PUBLIC_KEY` (P8) | var | `backend/wrangler.jsonc` | P1+ |
 | `AUTH_PEPPER`, `IP_HASH_KEY` | Worker secret | Cloudflare | P1 |
 | `AUTH_SETUP_FP` (one-time), `AUTH_RESET_FP` (only during a reset) | Worker secret | Cloudflare, via `auth-setup.yml` / `auth-reset.yml` or the dashboard | P1 |
@@ -309,6 +309,14 @@ Acceptance: each watchdog has a vitest case that sets the condition with fixture
 - **Playback** goes to Core's `reports` table (`POST /v1/ops/reports`), one row per batch, kept 30 days and read with `th reports`: Music's playback log, what the Worker hasn't taken yet, once a minute while music plays and once when the page is hidden, one batch at a time ([MUSIC.md §5.10](../product/apps/MUSIC.md)). Only the known fields of a batch (timings, counts and track ids), on the phone and again on the Worker; never readable by CI. A batch with no answer, 408, 429 or 5xx goes again after a growing wait (an event sent twice keeps its page and number, and `th reports` counts it once); after 401 or 403 nothing goes until the session changes. One batch is one row written and none read; a list reads the rows it returns, at most 512 KB a page; a device may send 6 in any 5 minutes (then 429 with Retry-After).
 - **`perf_days`** (`POST /v1/ops/perf`) is built, but no page sends it yet: its daily summaries wait for the phone's performance senses (PERFORMANCE.md §5).
 
+### 8.4 The listening pass (JOBS.md §3)
+
+- **Each night** `th music jobs` (night step 6) collects any job issued over 6 hours ago, asks for the next (≤ 500 songs, then the neighbours step) and starts **Actions → Jobs · audio** with the job's id. Its output says how many it collected by state, what it issued and whether GitHub took the dispatch.
+- **Watching it:** the run page (counts and timings only: `spec:`, `analysed: N of M`, `done: N ok, N failed, N s`, `collect:`); `th get /v1/jobs open=1` or `th get /v1/jobs/<id>` (state and counts by reason, never a hash); the job's rows show in the meter as Music's day and on the bulk lane (`GET /v1/ops/meter`); Core's apply job in deep health's `jobs_backlog`, and `jobs.stuck` if it keeps failing.
+- **Re-running:** a run that failed before collecting: nothing to do, the next night collects it or (no manifest) it expires 72 h after issue and its songs are offered again. To run one again at once: Actions → Jobs · audio → **Run workflow** (branch `main`) with the same job id while it is still `issued`; if the first run got as far as its manifest, collect instead (`POST /v1/jobs/<id>/collect`), since parts are refused once a manifest is there. A job whose apply failed for good is rejected by `music.listen.reject` (reason `apply_failed`), its files deleted; one still `validating` 6 hours after its collect is collected again by the night, which queues its apply again (idempotent). Files a failed delete left are swept when the next job is asked for. The night may issue at most three jobs of a kind in 24 hours. A job `rejected`: its songs stay due and go in a later job; look at the run's log for the `fail:` line.
+- **Stopping it:** delete the `jobs` environment or the R2 token (SETUP.md N6); the Worker side stays idle with no runs.
+- **Analysing everything again** (a new analyzer version): it happens by itself (every song is due when its stored version differs), at the same cost as the first pass (≈ 25,000 rows over ≈ 24 nights, then the neighbours).
+
 ---
 
 ## 9. Routine checks
@@ -336,5 +344,5 @@ Acceptance: each watchdog has a vitest case that sets the condition with fixture
 | Q2 | Does `wrangler deployments status --json` give the active version id directly? | Run it in the first `api` deploy; adjust step 4 |
 | Q3 | Does `wrangler secret bulk` from stdin work in Actions without a TTY? | First `rotate-secret.yml` run with a dummy secret |
 | Q4 | Is `npm ci --ignore-scripts` safe once wrangler, workerd and esbuild are installed? | Try it in CI; if `wrangler --version` works, use it everywhere |
-| Q5 | Can the R2 lifecycle rule (14-day delete on `thunderhead-jobs`) be set on the Free plan at $0? | Owner checks the bucket's settings page |
+| Q5 | (Settled 2026-11-01: no `thunderhead-jobs` bucket; the listening pass's uploads go through the Worker and it deletes them, JOBS.md §3.) | — |
 | Q6 | Are R2 bucket locks free, so `native/audio/` could be locked against deletes? | Owner checks; if free, propose it (`access`) |

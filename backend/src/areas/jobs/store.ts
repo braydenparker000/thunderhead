@@ -39,6 +39,24 @@ export function insertJob(db: Db, j: { id: string; kind: string; payload: unknow
   );
 }
 
+/** A job by a fixed id, queued now: a new row, or the same row again once it finished or failed (a
+ * queued or running one is left as it is, so asking twice runs it once). Rows written. */
+export function requeueJob(db: Db, j: { id: string; kind: string; payload: unknown; at: number }): number {
+  return db.run(
+    `INSERT INTO jobs (id, kind, state, due_at, payload_json, cursor_json, attempts, rows_written, created_at, updated_at)
+     VALUES (?, ?, 'queued', ?, ?, NULL, 0, 0, ?, ?)
+     ON CONFLICT (id) DO UPDATE SET state = 'queued', due_at = excluded.due_at, payload_json = excluded.payload_json,
+       cursor_json = NULL, attempts = 0, last_error = NULL, updated_at = excluded.updated_at
+     WHERE jobs.state IN ('done', 'failed')`,
+    j.id,
+    j.kind,
+    j.at,
+    JSON.stringify(j.payload),
+    j.at,
+    j.at,
+  );
+}
+
 /** The job due first, on the partial index `jobs_due`. */
 export function firstDue(db: Db, now: number): JobRow | null {
   return db.one<JobRow>(`SELECT ${COLS} FROM jobs WHERE ${RUNNABLE} AND due_at <= ? ORDER BY due_at LIMIT 1`, now);

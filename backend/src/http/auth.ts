@@ -6,7 +6,7 @@
 // answer 404 before any token check.
 import type { Context } from 'hono';
 import { createMiddleware } from 'hono/factory';
-import { ROUTES, type RouteKey, type RouteSpec, type Who } from '../../../shared/contract/routes.ts';
+import { CONFINED_KEYS, ROUTES, type RouteKey, type RouteSpec, type Who } from '../../../shared/contract/routes.ts';
 import type { Principal } from '../areas/auth/account';
 import { tokenHash } from '../areas/auth/crypto';
 import { checkToken } from '../areas/auth/tokens';
@@ -79,11 +79,14 @@ async function authenticate(c: Context<AppEnv>): Promise<Principal & { token_has
  * key whose TH-Role header names another role is refused too (the key's role is what counts).
  * With `name` (RouteSpec.key), an agent must also be the key of exactly that name; a device is
  * the owner and needs no name. */
-export function allow(who: readonly Who[], name?: string, key?: string) {
+export function allow(who: readonly Who[], name?: string, key?: string, keyRole?: Who) {
   const mw = createMiddleware<AppEnv>(async (c, next) => {
     const p = await authenticate(c);
     if (!who.includes(whoOf(p))) throw new ApiError('forbidden');
-    if (name !== undefined && p.kind === 'agent' && p.name !== name) throw new ApiError('forbidden');
+    if (name !== undefined && p.kind === 'agent' && (!keyRole || whoOf(p) === keyRole) && p.name !== name)
+      throw new ApiError('forbidden');
+    // A confined key (the listening pass's CI key) reaches only the routes that name it.
+    if (p.kind === 'agent' && CONFINED_KEYS.includes(p.name) && name !== p.name) throw new ApiError('forbidden');
     const role = c.req.header('TH-Role');
     if (role && p.kind === 'agent' && p.role.startsWith('mind:') && `mind:${role}` !== p.role)
       throw new ApiError('forbidden');
@@ -124,7 +127,7 @@ export function allow(who: readonly Who[], name?: string, key?: string) {
 export function guard(key: RouteKey) {
   const spec: RouteSpec = ROUTES[key];
   if (spec.who === 'P' || spec.auth) throw new Error(`${key} has no bearer guard`);
-  return Object.assign(allow(spec.who, spec.key, key), { key });
+  return Object.assign(allow(spec.who, spec.key, key, spec.keyRole), { key, keyRole: spec.keyRole });
 }
 
 /** The principal of a guarded route. */

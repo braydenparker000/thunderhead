@@ -6,6 +6,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { FILE_LIMITS } from '../../shared/contract/files.ts';
 import { IMPORT_PART_BYTES } from '../../shared/contract/imports.ts';
 import { LIBRARY_LIMITS } from '../../shared/contract/library.ts';
+import { LISTEN_LIMITS } from '../../shared/contract/listen.ts';
 import { authRoutes } from './areas/auth/routes';
 import { backupsRoutes } from './areas/backups/routes';
 import { briefingRoutes } from './areas/briefing/routes';
@@ -22,6 +23,7 @@ import { libraryRoutes } from './areas/library/routes';
 import { scriptureRoutes } from './areas/library/scripture';
 import { memoryRoutes } from './areas/memory/routes';
 import { mindRoutes } from './areas/mind/routes';
+import { listenRoutes } from './areas/music/listen-routes';
 import { musicRoutes } from './areas/music/routes';
 import { BIG_OPS, UPLOAD_LIMITS, uploadRoutes } from './areas/music/upload';
 import { opsRoutes } from './areas/ops/routes';
@@ -68,28 +70,33 @@ const BOOK_PAGES = /^\/v1\/library\/books\/[^/]+\/pages$/;
 const scripture = bodyLimit({ maxSize: LIBRARY_LIMITS.text_bytes, onError: tooLarge });
 // A chat file (HOME.md §4.6), one upload; GET has no body.
 const chatFile = bodyLimit({ maxSize: FILE_LIMITS.bytes, onError: tooLarge });
+// An Actions run's file for the listening pass (each name's own limit is checked in the route).
+const jobFile = bodyLimit({ maxSize: LISTEN_LIMITS.neighbours_bytes, onError: tooLarge });
+const JOB_FILE = /^\/v1\/jobs\/[^/]+\/files\/[^/]+$/;
 const limitFor = (path: string) =>
   path.startsWith('/v1/files/')
     ? chatFile
-    : path === '/v1/ops/import/parts'
-      ? part
-      : path.startsWith('/v1/ops/import/manifest/')
-        ? manifest
-        : path.startsWith(`${UPLOADS}audio/`)
-          ? audio
-          : path.startsWith(`${UPLOADS}art/`)
-            ? art
-            : path.startsWith(UPLOADS) && BIG_OPS.has(path.slice(UPLOADS.length))
-              ? batch
-              : path.startsWith('/v1/senses/batches/')
-                ? batchOfEvents
-                : BOOK_PART.test(path)
-                  ? bookPart
-                  : BOOK_PAGES.test(path)
-                    ? pages
-                    : path.startsWith('/v1/library/scripture')
-                      ? scripture
-                      : small;
+    : JOB_FILE.test(path)
+      ? jobFile
+      : path === '/v1/ops/import/parts'
+        ? part
+        : path.startsWith('/v1/ops/import/manifest/')
+          ? manifest
+          : path.startsWith(`${UPLOADS}audio/`)
+            ? audio
+            : path.startsWith(`${UPLOADS}art/`)
+              ? art
+              : path.startsWith(UPLOADS) && BIG_OPS.has(path.slice(UPLOADS.length))
+                ? batch
+                : path.startsWith('/v1/senses/batches/')
+                  ? batchOfEvents
+                  : BOOK_PART.test(path)
+                    ? bookPart
+                    : BOOK_PAGES.test(path)
+                      ? pages
+                      : path.startsWith('/v1/library/scripture')
+                        ? scripture
+                        : small;
 
 export const app = new Hono<AppEnv>()
   .use(async (c, next) => {
@@ -133,6 +140,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', workRoutes)
   .route('/v1', briefingRoutes)
   .route('/v1', musicRoutes)
+  .route('/v1', listenRoutes)
   .route('/v1', uploadRoutes)
   .route('/v1', sensesRoutes)
   .route('/v1', guitarRoutes)

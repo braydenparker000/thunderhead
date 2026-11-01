@@ -14,7 +14,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 6. **Every index costs one extra row written per insert, update or delete.** Add one only when a query needs it, and record the reason in the schema comment.
 7. **Steady writes stay ≤ 25,000 rows/day (25% of Free).** Bulk jobs take one shared lane capped at 40,000 rows/day. A watchdog fires at 70,000.
 8. **Auth tables never leave `Auth`:** not in exports, not in backups, not in "download everything".
-9. **`jarvis-music` is never deleted from.** `thunderhead-private` is Worker-only. `thunderhead-jobs` is written only by Actions.
+9. **`jarvis-music` is never deleted from.** `thunderhead-private` is Worker-only: Actions' results reach it only through the Worker's job routes (JOBS.md §3).
 10. **A backup counts only once it has been restored.** CI round-trips fixtures on every push. A monthly drill restores a real backup.
 11. **Imports are idempotent.** A re-run changes 0 rows. Each import proves itself with counts plus 20 spot checks.
 
@@ -34,7 +34,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 | Books, pages, verse refs, highlights | DO SQLite | `Library` | ingestion jobs, owner | P7 |
 | Backups, events archive, books, files, imports, indexes, job results | R2 | `thunderhead-private` | Worker only | P1+ |
 | Audio and art | R2 | `jarvis-music` | the reviewed upload path only | exists |
-| Raw Actions results | R2 | `thunderhead-jobs` | Actions only | P5 |
+| Raw Actions results (until collected) | R2 | `thunderhead-private`, `jobs/incoming/` | the Worker, from `PUT /v1/jobs/:id/files/:name` (the `ci` key) | P5, built |
 | Offline songs, PDFs, podcast downloads | OPFS on the phone | — | the phone | P5+ |
 | Auth token, outbox, surfaces cache | IndexedDB on the phone | `th-auth`, `th-data` | the phone | P1+ |
 | The ported apps' own data (plays, ratings, playlists, prefs, songs, follows, progress, add-ons) | localStorage and IndexedDB on the phone, new origin, under the apps' old names (`claude-player`, `jarvis.guitar.v2`, `jarvis.podcasts.v1`, `jarvis-podcasts`, `mymedia.*`, `astra.v2.*`) | — | the ported apps, unchanged; seeded once by the `/import/` page | P1b, until each app's data move |
@@ -263,7 +263,7 @@ Built as specified (P5, `backend/src/objects/senses.ts`; the class shipped alone
 
 ### 6.2 `Music` (P5, its own deploy)
 
-Built (P5 step 1, `backend/src/objects/music.ts`): `tracks(ord INTEGER PK, id TEXT UNIQUE, sha256 TEXT, size INTEGER, audio_key TEXT, cover_key TEXT, record_json TEXT, waveform TEXT, updated_at INTEGER)` with index `(sha256, size)`: the old catalog's `music_tracks` as it is (its order, ids, content keys and each track's record, where title, artist, album, year and duration live), so the ported player reads the same records; `catalog_log(seq INTEGER PK, at, op, track_id, before_json)` for undo, keeping the old log's sequence numbers; `music_state(key PK, value_json)` (the catalog's version, its ETag). Planned with the player's later steps: `track_stats(track_id TEXT PK, plays, skips, last_played_at, rating)`, rebuilt nightly from `Senses.rollups`; `analysis(sha256 TEXT PK, v INTEGER, result_json TEXT, applied_at)` from validated jobs, and `external_jobs(id TEXT PK, kind, v, spec_json, state ('issued'|'validating'|'applied'|'rejected'|'expired'), issued_at, expires_at, collected_at, counts_json)` for the Actions specs ([JOBS.md §3](JOBS.md#3-actions-jobs-audio-analysis)). Product fields are in [MUSIC.md](../product/apps/MUSIC.md).
+Built (P5 step 1, `backend/src/objects/music.ts`): `tracks(ord INTEGER PK, id TEXT UNIQUE, sha256 TEXT, size INTEGER, audio_key TEXT, cover_key TEXT, record_json TEXT, waveform TEXT, updated_at INTEGER)` with index `(sha256, size)`: the old catalog's `music_tracks` as it is (its order, ids, content keys and each track's record, where title, artist, album, year and duration live), so the ported player reads the same records; `catalog_log(seq INTEGER PK, at, op, track_id, before_json)` for undo, keeping the old log's sequence numbers; `music_state(key PK, value_json)` (the catalog's version, its ETag). Built (Music schema step 3, `listen`, 2026-11-01; SQL in `areas/music/listen-store.ts`): `external_jobs(id TEXT PK, kind, v, spec_json, state ('issued'|'validating'|'applied'|'rejected'|'expired'), issued_at, expires_at, collected_at, counts_json)` for the Actions specs (`spec_json`: an analysis job's hashes, ≤ 500; a neighbours job's count and epoch), and `analysis(sha256 TEXT PK, analyzer TEXT, v INTEGER, job_id TEXT, applied_at INTEGER, result_json TEXT, pack BLOB, failed TEXT, attempts INTEGER)`, one row per audio hash: the last good result re-written from its known fields (schema v2), its 56-byte `pack` (the phone's numbers and the int8 embedding), and the last attempt's analyzer version, failure and failures in a row ([JOBS.md §3](JOBS.md#3-actions-jobs-the-listening-pass)). All three are WITHOUT ROWID with no secondary index: they are read by key or whole, once a night, so each written row costs one row. `track_analysis(track_id TEXT PK, energy REAL, moods_json TEXT, neighbours_json TEXT)`, one row per track: the per-track view other areas read (Music step 4's `listeningRows`): energy, the moods by `MUSIC_MOODS`, and the nearest tracks' ids, nearest first; filled when results are applied and by the neighbours job, 2,000 tracks a step. The pass keeps three `music_state` rows (`listen.epoch`, `listen.neighbours`, `listen.pack`). The analysis rows were chosen over results kept in R2 with a slim index row: the rows written are the same (one per song either way), and the phone file and the neighbours spec would otherwise read 12,000 objects. Planned with the player's later steps: `track_stats(track_id TEXT PK, plays, skips, last_played_at, rating)`, rebuilt nightly from `Senses.rollups`. Product fields are in [MUSIC.md](../product/apps/MUSIC.md).
 
 ### 6.3 `Library` (P7, its own deploy; shardable as `library:<shelf>`)
 
@@ -290,7 +290,8 @@ The FTS cost per page is unknown (open question D3). Ingestion is a bulk job und
 | `takes/` | `takes/<uuidv7>.<ext>` | Guitar recordings the owner sends | P6 | owner-controlled |
 | `indexes/` | `indexes/<kind>/<build>.json.gz`, `indexes/<kind>/latest.json` | Phone-loaded indexes (music search, study) | jobs | latest 3 builds |
 | `imports/` | `imports/old/<run_id>/<instance>/<table>/part-<nnnn>.jsonl.gz` + `imports/old/<run_id>/manifest.json`; `imports/phone/<import_id>.json.gz` | Raw imports | `POST /v1/ops/import/parts`; `/v1/import/phone` (P1b) | until the owner approves deleting them, after the last app's data move (P8) and the old Worker's retirement ([PRIVACY.md §2](PRIVACY.md)) |
-| `jobs/` | `jobs/<kind>/<sha256>.v<n>.json` | Validated Actions results | `/v1/jobs/:id/collect` | forever (small) |
+| `jobs/` | `jobs/incoming/<job_id>/part-<nnn>.jsonl`, `…/neighbours.bin`, `…/manifest.json`; `jobs/specs/<job_id>.order`, `.emb` | An Actions run's raw uploads, unchecked until collected; a neighbours spec's hash order and int8 embeddings | `PUT /v1/jobs/:id/files/:name`; `GET /v1/jobs/next` (JOBS.md §3) | until the job is applied, rejected or expired (≤ 72 h unless collected) |
+| `music/` | `music/pack.v1.bin`, `music/neighbours.v1.bin` | The phone's listening-pass file (MUSIC.md §9.1) and the last neighbours (derived; rebuilt from `Music.analysis` and the next neighbours job) | `music.listen.pack`, `music.listen.apply` | the current one, replaced |
 | `profile/` | `profile/<YYYY-MM-DD>.json` | Weekly snapshot of the rendered profile | night shift | 104 weeks |
 | `drills/` | `drills/<YYYY-MM>/report.json` | Restore drill reports | drill job | forever |
 | `exports/` | `exports/<uuidv7>/manifest.json` | "Download everything" manifests (they point at backup keys) | P4 | 7 days |
@@ -300,9 +301,9 @@ The FTS cost per page is unknown (open question D3). Ingestion is a bulk job und
 
 `native/audio/<sha256>.opus`, `native/art/<sha256>.<ext>`, plus the existing catalog files. The new Worker reads by presigned GET and writes only through `backend/src/areas/music/upload.ts`. It never deletes (rule 9 at the top; the `no-music-delete` test). Uploads use `Cache-Control: private, max-age=31536000, immutable`.
 
-### 7.3 `thunderhead-jobs` (Worker binding `JOBS`, read + delete; Actions has write)
+### 7.3 `thunderhead-jobs` (not made)
 
-`results/<kind>/<job_id>/<sha256>.json` and `results/<kind>/<job_id>/manifest.json`. An R2 lifecycle rule deletes objects 14 days after upload **[proposal]**. Keys and bodies hold no titles or names, only hashes and numbers.
+Planned for raw Actions results; not needed since the listening pass sends its results through the Worker into `thunderhead-private` (`jobs/incoming/`, §7.1, JOBS.md §3): no bucket, no binding, no lifecycle rule, and no write key in Actions.
 
 ### 7.4 Media ref → key map (used by `POST /v1/media/sign`)
 
@@ -333,7 +334,7 @@ Anything else returns `422 validation` with `details: [{ref, reason:'not_signabl
 
 Rules from the platform that drive the numbers: every index entry touched is one more row written; deletes count; `setAlarm()` is 1 write; FTS5 virtual-table writes count.
 
-**The rows-read guard** (built 2026-10-31, after the Music object read 4.42M of a day's 4.63M rows): the row meter (§3) counts each day's rows read and written by this Worker's five objects. The limits are the account's, and the old Worker (`jarvis-hub-api`, not in this repository) uses about 180,000 rows read and 32,000 written a day on the same account, which the meter can't see; so the guard counts against the day's budget, the limits less `OLD_WORKER_RESERVE` (200,000 read, 32,000 written, `shared/contract/meter.ts`; both drop to 0 once the old Worker retires, SETUP.md N5, M4): 4,800,000 rows read and 68,000 written. From 60% of either side (2,880,000 read, 40,800 written) the watchdogs `quota.rows_read` and `quota.rows_written` trip and the Briefing page and the mind's briefing say so in one line (the owner's words still say "of the free plan's daily limit"). From 80% (3,840,000 read, 54,400 written) the owner gets one push that day, and the heavy work waits for 00:00 UTC: the weekly backup and the monthly drill, and every bulk-lane job, pause before their next step (a drill stops between two parts; the rows it wrote into its scratch copy are added to the day's meter as they are written, class `scratch`), the senses daily archive skips its ticks, and the upload tools' operations (`POST /v1/music/uploads/:op`) answer `429` with `Retry-After`. The phone and the mind's chat are never held, nor "download everything" (the owner's own request). A job that waited runs when its pause ends at 00:00 UTC; the archive runs on the first tick after.
+**The rows-read guard** (built 2026-10-31, after the Music object read 4.42M of a day's 4.63M rows): the row meter (§3) counts each day's rows read and written by this Worker's five objects. The limits are the account's, and the old Worker (`jarvis-hub-api`, not in this repository) uses about 180,000 rows read and 32,000 written a day on the same account, which the meter can't see; so the guard counts against the day's budget, the limits less `OLD_WORKER_RESERVE` (200,000 read, 32,000 written, `shared/contract/meter.ts`; both drop to 0 once the old Worker retires, SETUP.md N5, M4): 4,800,000 rows read and 68,000 written. From 60% of either side (2,880,000 read, 40,800 written) the watchdogs `quota.rows_read` and `quota.rows_written` trip and the Briefing page and the mind's briefing say so in one line (the owner's words still say "of the free plan's daily limit"). From 80% (3,840,000 read, 54,400 written) the owner gets one push that day, and the heavy work waits for 00:00 UTC: the weekly backup and the monthly drill, and every bulk-lane job, pause before their next step (a drill stops between two parts; the rows it wrote into its scratch copy are added to the day's meter as they are written, class `scratch`), the senses daily archive skips its ticks, and the upload tools' operations (`POST /v1/music/uploads/:op`) and the listening pass's `GET /v1/jobs/next` (the night mind's one held call) answer `429` with `Retry-After`. The phone and the mind's chat are never held, nor "download everything" (the owner's own request). A job that waited runs when its pause ends at 00:00 UTC; the archive runs on the first tick after.
 
 ### 8.2 Steady-state budget per table (a heavy day)
 
@@ -360,6 +361,7 @@ Rules from the platform that drive the numbers: every index entry touched is one
 | Senses.events (3,000 events × row + 1 index; same again pruned 90 days later) | — | 2 + 2 | 12,000 |
 | Senses.batches (+prune), rollups | 150 batches; 300 rollups | ~2 | 900 |
 | Music.track_stats nightly | ≤ 200 tracks | 2 | 400 |
+| The listening pass (Music.analysis, external_jobs; Core's apply job; JOBS.md §3.5), until the library is done | one job of ≤ 500 songs a night | ~2.1 a song (105 per part of 50 in Music: `analysis` and `track_analysis`; ~10 a job in Core) | ~1,060 (≈ 25,000 for the whole library over ≈ 24 nights, then ≈ 12,000 once for the first neighbours on the lane; again only when the analyzer changes) |
 | Library.positions, highlights | ~200 | 1–3 | 300 |
 | Core.reports (one a minute while Music plays, one per page hide; pruned 30 days later) | ~600 (10 h of music) | 1 + 1 | 1,200 |
 | **Total steady (P5+)** | | | **~24,500 (25%)** |
@@ -369,7 +371,7 @@ Rules from the platform that drive the numbers: every index entry touched is one
 - One bulk job runs at a time, account-wide. `Core.settings['bulk.lane']` names the holder `{class, job_id, day}`. A job asks for the lane through the `ensureAlarm` RPC that `Core.tick` already makes every 15 minutes. **[proposal]**
 - The lane holder may write 40,000 rows per day (`meter.bulk_rows_written`). At the cap the job sets `state='paused'` with `due_at` = next 00:05 UTC.
 - Built as the rows-read guard (§8.1, 2026-10-31): once the day's rows written by the five objects and the drill's scratch copy (Core's `meter_days`, gathered by `tick`) pass 80% of the day's budget (54,400 of 68,000), every lane job pauses before its next step until 00:00 UTC, even below the lane's own cap.
-- Lane users: imports, FTS reindex, music catalog import (on its own day), library ingestion, table restores, the monthly drill.
+- Lane users: imports, FTS reindex, music catalog import (on its own day), library ingestion, table restores, the monthly drill, the listening pass's apply job (`music.listen.apply`: Music's rows counted in Core's step commit).
 
 Acceptance: a vitest test with a fake meter at 39,990 runs one job step of 2,000 rows and sees the job pause at the step boundary, with `due_at` next 00:05 UTC.
 
@@ -454,7 +456,10 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Senses.batches | 30 days | no | no |
 | Senses.rollups | forever | yes | yes |
 | Senses.exports | forever (one row a day: the day's archive key, count and hash) | yes | no |
-| Music.* | forever | yes | yes |
+| Music.tracks, catalog_log, music_state | forever | yes | yes |
+| Music.analysis | forever (one row per audio hash: numbers only, replaced by a newer analyzer's) | yes | yes |
+| Music.track_analysis | forever (derived: one row per analysed track, its energy, moods and neighbours' ids; rebuilt by the next neighbours job) | yes | yes |
+| Music.external_jobs | 90 days after issue once finished (pruned, 20 a call, when the next job is issued); the spec's hashes only, never a title | yes | yes |
 | Library.books, pages, verse_refs, positions | forever (a book until the owner approves deleting it) | yes | yes (PDFs by signed URL) |
 | Library.pages_fts | derived | no (rebuilt) | no |
 | Library.highlights | forever; a deleted one 30 days after `deleted_at` | yes | yes |

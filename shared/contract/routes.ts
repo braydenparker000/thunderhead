@@ -14,9 +14,10 @@ export interface RouteSpec {
   phase: Phase;
   /** How the caller proves itself, when it is not the bearer token: `ticket` = a live ticket. */
   auth?: 'ticket';
-  /** An agent of a listed role must be the one key with exactly this name (a device is not
-   * affected): the one-time import's `import-once`, so no routine's key can write old rows. */
+  /** An agent of a listed role (with `keyRole`, of that role only) must be the one key with exactly this
+   * name (a device is not affected): the import's `import-once`, so no routine's key writes old rows. */
   key?: string;
+  keyRole?: Who;
   /** Built in a later step of its phase; the text says what it waits on. */
   deferred?: string;
   note?: string;
@@ -25,6 +26,9 @@ export interface RouteSpec {
 const D: Who[] = ['D'];
 /** The one key that may write the import (SETUP.md L2): a Mind · chat key with this name. */
 export const IMPORT_KEY = 'import-once';
+/** The listening pass's own CI key (SETUP.md N6), confined: it may call only the routes naming it. */
+export const JOBS_KEY = 'jobs-audio';
+export const CONFINED_KEYS: readonly string[] = [JOBS_KEY];
 const AGENTS_READ: Who[] = ['D', 'C', 'N', 'R'];
 const MIND: Who[] = ['C', 'N', 'R'];
 /** Memory is read by the owner, chat and night only: reflex handles breakage and reads no
@@ -221,10 +225,15 @@ export const ROUTES = {
   },
   'PUT /v1/senses/batches/:id': { who: D, phase: 'P5', note: 'a sealed batch of 1–500 events, ≤ 256 KB' },
   'POST /v1/senses/query': { who: MIND, phase: 'P5', note: 'a fixed, named query; never SQL' },
-  'GET /v1/jobs/next': { who: ['N', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
-  'POST /v1/jobs/:id/collect': { who: ['N', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
-  'GET /v1/jobs/:id': { who: ['C', 'N', 'R', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
-  'GET /v1/jobs/:id/spec': { who: ['I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
+  // The listening pass (JOBS.md §3): Actions analyses songs by sha256; results come back through the Worker.
+  'GET /v1/jobs/next': { who: ['N'], phase: 'P5', note: '?kind=audio.analysis&max=1-500|audio.neighbours; 204: none due' },
+  'POST /v1/jobs/:id/collect': { who: ['N', 'I'], phase: 'P5', key: JOBS_KEY, keyRole: 'I', note: 'checks the manifest' },
+  'GET /v1/jobs': { who: ['C', 'N', 'R', 'I'], phase: 'P5', note: '?kind=&open=1: states and counts, never hashes' },
+  'GET /v1/jobs/:id': { who: ['C', 'N', 'R', 'I'], phase: 'P5' },
+  'GET /v1/jobs/:id/spec': { who: ['I'], phase: 'P5', key: JOBS_KEY, note: 'what the Actions run works from' },
+  'PUT /v1/jobs/:id/files/:name': { who: ['I'], phase: 'P5', key: JOBS_KEY, note: 'part-NNN.jsonl, neighbours.bin, manifest last' },
+  'GET /v1/music/pack': { who: D, phase: 'P5', note: "every song's numbers, moods, embedding and neighbours; ETag, 304" },
+  'GET /v1/music/analysis/:id': { who: ['C', 'N'], phase: 'P5', note: "?like=0-50: one song's numbers and nearest songs" },
   // P6: Guitar's tab sources, as the old Worker served them, for the owner's device only.
   'GET /v1/guitar/search': { who: D, phase: 'P6', note: 'Songsterr search, ?q=' },
   'GET /v1/guitar/songs/:id': { who: D, phase: 'P6' },

@@ -41,6 +41,31 @@ export interface MusicTracksResponse {
   total: number;
 }
 
+// --- What the mind knows of each song (MUSIC.md §10.5; Music schema step 4, `track_notes`) ------
+// The night reads a page of the catalog's tags and writes a note per song from what it knows; the
+// listening pass (step 3) measures the audio and scores the SAME moods, so the two can be blended.
+
+/** The moods both passes use, one fixed list. */
+export const MUSIC_MOODS = [
+  'calm',
+  'peaceful',
+  'melancholy',
+  'sad',
+  'hopeful',
+  'joyful',
+  'romantic',
+  'nostalgic',
+  'dark',
+  'tense',
+  'energetic',
+  'triumphant',
+  'playful',
+  'dreamy',
+  'reverent',
+  'focused',
+] as const;
+export type MusicMood = (typeof MUSIC_MOODS)[number];
+
 /** GET /v1/music/waveforms/:id: base64 of one byte a bar (16–1000 bars). */
 export interface MusicWaveform {
   id: string;
