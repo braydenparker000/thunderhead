@@ -112,6 +112,21 @@ test('Music opens as a layer that its worker trusts; Back makes it the island; a
   const r = await page.evaluate(() => import('/th/island/island.js').then((m) => m.control('sleep', 20)));
   assert.deepEqual([r.ok, r.text], [true, 'Music stops in 20 minutes.']);
   assert.equal(await page.evaluate(() => document.querySelector('iframe.th-app').contentWindow.__cp.player.sleep?.seconds), 1200);
+  // On the island: a moon and the minutes left (waiting at its full time while nothing plays).
+  await page.goBack();
+  await page.waitForSelector('.th-island.sleep:not([hidden])');
+  assert.equal(await page.locator('.th-island .zz b').textContent(), '20');
+  assert.match(await page.locator('.th-island').getAttribute('aria-label'), /stops in 20 min/);
+  // Held open, the card turns it off; the island's moon goes.
+  const box = await page.locator('.th-island').boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForSelector('.th-wide');
+  await page.mouse.up();
+  await page.locator('.th-wide button', { hasText: 'Sleep off (20 min)' }).click();
+  await page.waitForFunction(() => !document.querySelector('iframe.th-app').contentWindow.__cp.player.sleep);
+  await page.waitForSelector('.th-island:not(.sleep)');
+  await page.waitForFunction(() => document.querySelector('.toast:not(.utoast)')?.textContent.includes('Sleep timer off.'));
   await page.evaluate(() => import('/th/island/island.js').then((m) => m.close()));
   assert.equal(await page.locator('iframe.th-app').count(), 0);
   const none = await page.evaluate(() => import('/th/island/island.js').then((m) => m.control('pause')));

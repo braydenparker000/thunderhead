@@ -6,7 +6,8 @@
 // island is a door, not a player: a small dark shape at the top, Music's live level bars (from its
 // own audio engine) or Podcasts' ring of the time left. Tap it and the app grows back out of it; hold
 // it and it opens wide for a moment (the song, pause and skip, Who is this?, More like this, Close);
-// swipe it sideways for next or previous. The phone's commands reach the playing app through here
+// swipe it sideways for next or previous. A sleep timer shows on it as a moon and the minutes left
+// (set by voice, "sleep timer 20 minutes", or from the wide card). The phone's commands reach the playing app through here
 // (control()). The frame gets the owner's session only because home opened it (th/ported/frames.js:
 // a one-time token for the app's worker, given before the frame opens). Only transform, opacity and
 // clip-path animate; with reduced motion, a crossfade.
@@ -30,6 +31,9 @@ let island = null;
 let raf = 0;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let slow;
+/** Podcasts' sleep timer (Music keeps its own): when it ends, in ms since the epoch. */
+/** @type {{ end: number, timer: ReturnType<typeof setTimeout> } | null} */
+let podSleep = null;
 
 /** Home's side of th/ported/claim.js: a fresh token, only for its own layer's frame. */
 /** @type {any} */ (window).thIsland = {
@@ -70,6 +74,25 @@ export function playing() {
   if (!m) return false;
   const el = m.kind === 'music' ? m.p.audio : m.a;
   return Boolean(el && !el.paused && !el.ended);
+}
+
+/** Seconds until the sleep timer stops the app behind the chat (0: none). Music's counts on its own
+ * clock (its frame's), and waits at its full time while nothing plays. */
+export function sleepLeft() {
+  const m = media();
+  if (m?.kind === 'podcasts') return podSleep ? Math.max(0, (podSleep.end - Date.now()) / 1000) : 0;
+  try {
+    const s = m?.p.sleep;
+    if (!s) return 0;
+    return s.end === null ? s.seconds : Math.max(0, (s.end - m.w.performance.now()) / 1000);
+  } catch {
+    return 0;
+  }
+}
+
+/** Says what a command from the card did, as the phone's commands do. @param {{ text: string, undo?: () => void }} r */
+function toastOf(r) {
+  void import('../ui.js').then(({ toast }) => toast(r.text, r.undo ? { label: 'Undo', run: r.undo } : undefined), () => {});
 }
 
 /** One-time token for the app's worker, so it trusts this frame (th/ported/frames.js). Waits up to
@@ -236,7 +259,10 @@ function ensureIsland() {
   for (let i = 0; i < BARS; i++) bars.append(document.createElement('i'));
   const left = document.createElement('span');
   left.className = 'left';
-  b.append(dot, bars, left);
+  const zz = document.createElement('span');
+  zz.className = 'zz';
+  zz.innerHTML = '<svg class="i" aria-hidden="true"><use href="/ui/icons.svg#moon-stars"/></svg><b></b>';
+  b.append(dot, bars, left, zz);
   document.body.append(b);
   gestures(b);
   island = b;
@@ -298,7 +324,10 @@ function tick() {
   is.dataset.app = layer.id;
   const on = playing();
   is.classList.toggle('playing', on);
-  is.setAttribute('aria-label', `${appFor(layer.id)?.name ?? 'The app'} ${on ? 'playing' : 'paused'}: tap to open, hold for more`);
+  const zz = Math.ceil(sleepLeft() / 60);
+  is.classList.toggle('sleep', zz > 0);
+  /** @type {HTMLElement} */ (is.querySelector('.zz b')).textContent = zz ? String(zz) : '';
+  is.setAttribute('aria-label', `${appFor(layer.id)?.name ?? 'The app'} ${on ? 'playing' : 'paused'}${zz ? `, stops in ${zz} min` : ''}: tap to open, hold for more`);
   if (m?.kind === 'music') {
     let an = null;
     try {
@@ -364,6 +393,8 @@ function wide() {
     btn('Who is this?', () => ask('Who is this?'));
     btn('More like this', () => ask('More like this'));
   }
+  const zz = Math.ceil(sleepLeft() / 60);
+  btn(zz ? `Sleep off (${zz} min)` : 'Sleep in 30 min', () => toastOf(control('sleep', zz ? 0 : 30)));
   btn(`Open ${appFor(layer.id)?.name ?? ''}`.trim(), () => void expand('open from the card'));
   btn('Close', close);
   card.append(title, by, row);
@@ -404,8 +435,18 @@ export function control(cmd, minutes = 30) {
     else if (cmd === 'next') a.currentTime = Math.min(a.duration || Infinity, a.currentTime + 30);
     else if (cmd === 'previous') a.currentTime = Math.max(0, a.currentTime - 15);
     else if (cmd === 'sleep') {
-      setTimeout(() => a.pause(), minutes * 60_000);
-      return { ok: true, text: `Podcasts stops in ${minutes} minutes.` };
+      const before = podSleep ? Math.ceil((podSleep.end - Date.now()) / 60_000) : 0;
+      if (podSleep) clearTimeout(podSleep.timer);
+      podSleep = null;
+      if (minutes > 0) {
+        const timer = setTimeout(() => {
+          podSleep = null;
+          a.pause();
+        }, minutes * 60_000);
+        podSleep = { end: Date.now() + minutes * 60_000, timer };
+      }
+      tick();
+      return { ok: true, text: minutes > 0 ? `Podcasts stops in ${minutes} minutes.` : 'Sleep timer off.', undo: () => control('sleep', before) };
     } else return { ok: false, text: 'That works in Music.' };
     tick();
     return { ok: true, text: { pause: 'Paused.', play: 'Playing.', next: '30 seconds on.', previous: '15 seconds back.' }[cmd] ?? '' };
@@ -416,9 +457,11 @@ export function control(cmd, minutes = 30) {
   else if (cmd === 'next') p.step(1);
   else if (cmd === 'previous') p.step(-1);
   else if (cmd === 'sleep') {
-    // Music's own sleep timer: it fades out and stops (MUSIC.md's sleep timer).
-    p.setSleepTimer(minutes * 60, false);
-    return { ok: true, text: `Music stops in ${minutes} minutes.`, undo: () => p.setSleepTimer(0, false) };
+    // Music's own sleep timer: it fades out and stops (MUSIC.md's sleep timer). 0 turns it off.
+    const before = Math.ceil(sleepLeft());
+    p.setSleepTimer(Math.max(0, minutes) * 60, false);
+    tick();
+    return { ok: true, text: minutes > 0 ? `Music stops in ${minutes} minutes.` : 'Sleep timer off.', undo: () => p.setSleepTimer(before, false) };
   } else if (cmd === 'never') {
     const t = p.track;
     const lib = m.w.__cp?.library;
