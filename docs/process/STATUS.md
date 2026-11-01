@@ -5,8 +5,9 @@ Keep it short: current phase, the next three tasks, what is blocked, what waits 
 
 ## Now (2026-11-01)
 
-The owner enjoys the product; the agent leads and sends pull requests the owner merges (AGENTS.md).
-The plan is [PLAN.md](PLAN.md). Open pull requests are the queue; nothing goes live until merged.
+The owner enjoys the product; the agent leads (AGENTS.md). The plan is [PLAN.md](PLAN.md). Owner,
+2026-11-01: "go ahead with everything", "ship everything as ready": the lead merges a pull request
+once its tests and any second read pass, confirms it live, and says what changed in `whats-new.json`.
 
 ## Current phase
 
