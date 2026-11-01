@@ -27,6 +27,7 @@ const IMPROVED = {
   'music/src/list/sources.js': ['/th/music/search.js'],
   'guitar/reader.js': ['/th/guitar/teacher.js', '/th/guitar/practice.js'],
   'astra/src/main.js': ['/th/astra/open.js'],
+  'podcasts/app.js': ['/th/podcasts/progress.js'],
   'music/sw.js': [],
 };
 const sha = b => createHash('sha256').update(b).digest('hex');

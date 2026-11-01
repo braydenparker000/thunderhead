@@ -170,6 +170,15 @@ export const EDITS = {
       ["  const req = event.request, url = new URL(req.url);\n  if (podcastsBridge.handles(url)) { event.respondWith(podcastsBridge.answer(req, event)); return; }\n", "  const req = event.request, url = new URL(req.url);\n"],
     ],
   },
+  // Podcasts in the island (NEXT-BATCH.md part 7, owner's yes 2026-11-01): before the app reads its storage,
+  // th/podcasts/progress.js writes in the newer positions from the owner's other phones (at most 1.5 s), then
+  // sends this phone's positions and follows to the Worker on pause, on hide, each minute while playing.
+  'podcasts/app.js': {
+    adjustments: ['improvement'],
+    edits: [
+      ["import {coverNavigation} from './navigation-motion.js';\n// NEXT-BATCH.md part 7: where episodes were left on the owner's other phones, written into this app's storage before it is read (th/podcasts/progress.js); at most 1.5 s.\nconst thWaitUntil=performance.now()+1500;await Promise.race([import('/th/podcasts/progress.js').then(m=>m.opened(thWaitUntil)),new Promise(r=>setTimeout(r,1500))]).catch(()=>{});\n", "import {coverNavigation} from './navigation-motion.js';\n"],
+    ],
+  },
   // P5 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the player's worker answers its library
   // requests from the new Worker (th/music/bridge.js), the old one while the new one can't.
   'music/sw.js': {
