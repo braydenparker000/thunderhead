@@ -30,7 +30,8 @@ const add = (token: string, session: string, text: string) =>
 /** Moves every tainted session of `role` to a taint `hours` old. */
 const age = (role: string, hours: number) =>
   coreSql(
-    'UPDATE mind_sessions SET tainted_at = ? WHERE role = ? AND tainted_at IS NOT NULL',
+    // Its first taint and its last taint event (a claim inherits both).
+    'UPDATE mind_sessions SET tainted_at = ?1, taint_event_at = iif(taint_event_at IS NULL, NULL, ?1) WHERE role = ?2 AND tainted_at IS NOT NULL',
     Date.now() - hours * HOUR,
     role,
   );

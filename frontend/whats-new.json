@@ -1,8 +1,17 @@
 {
-  "id": "2026-11-01-podcasts",
+  "id": "2026-11-01-music-knows",
   "date": "2026-11-01",
   "lines": [
-    { "text": "Podcasts remember where you stopped, on any phone.", "open": "podcasts", "label": "Open Podcasts" },
-    { "text": "Each night the Thunderhead checks the shows you follow; a line on home says how many new episodes came." }
+    {
+      "text": "The Thunderhead knows your music now: ask what's playing, for songs that fit a mood, or for songs like one you love."
+    },
+    {
+      "text": "Each night it gets to know a few hundred more of your songs, from their titles, artists and albums."
+    },
+    {
+      "text": "Songs you mark \"not for me\" stay out of its picks too, from Music or the island.",
+      "open": "music",
+      "label": "Open Music"
+    }
   ]
 }

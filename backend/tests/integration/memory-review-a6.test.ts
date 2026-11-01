@@ -168,7 +168,10 @@ describe('a taint holds for its role: a new claim takes it over (24 hours since 
   });
 
   it("a taint more than 24 hours old doesn't carry over", async () => {
-    await coreSql('UPDATE mind_sessions SET tainted_at = ? WHERE tainted_at IS NOT NULL', Date.now() - 25 * HOUR);
+    await coreSql(
+      'UPDATE mind_sessions SET tainted_at = ?1, taint_event_at = iif(taint_event_at IS NULL, NULL, ?1) WHERE tainted_at IS NOT NULL',
+      Date.now() - 25 * HOUR,
+    );
     const b = await brief(P.N, 'cse_a6_next_day', 'night');
     expect(b.body.tainted).toBe(false);
   });

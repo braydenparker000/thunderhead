@@ -167,8 +167,9 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
   await cost('GET /v1/music/find (Senses, cold: 40 early skips among 200 events)', find(), 200, senses);
   await cost('GET /v1/music/find (Senses, warm)', find(), 200, senses);
   await cost('GET /v1/music/find (Core, 3 never-play rules)', find(), 200, core);
-  // Songs' tags served to a mind session: the Worker taints it (Core) and records a night session as
-  // a reader (Music), once a session in each isolate.
+  // Songs' tags served to a mind session: the Worker checks the claimed session and dates a taint
+  // event in Core on every call (a night session's songs mark too), and records a night session as a
+  // reader (Music).
   const tags = (s: string) => () =>
     api('GET', `/v1/music/notes?ids=${ids[0]}`, { token: night, headers: { 'TH-Session': s } });
   await cost(
