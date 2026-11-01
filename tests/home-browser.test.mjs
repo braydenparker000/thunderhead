@@ -74,9 +74,12 @@ test('holding still opens the Compass ring; sliding picks an app', async () => {
   assert.ok(await page.$eval('#ring', el => el.classList.contains('show')), 'ring opens');
   await page.mouse.move(200, 230, { steps: 5 }); await page.waitForTimeout(150);
   assert.equal(await page.textContent('#lbl'), 'Music');
-  // The app itself is checked in tests/ported-browser.test.mjs; here only the hand-off counts.
-  await page.route('**/music/', r => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Music</title>' }));
-  await Promise.all([page.waitForURL(/\/music\/$/, { timeout: 5000 }), page.mouse.up()]);
+  // The app itself is checked in tests/ported-browser.test.mjs; here only the hand-off counts. Music
+  // opens as a layer inside home (th/island, HOME.md §12.1): home stays, the app is in its frame.
+  await page.route('**/music/**', r => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Music</title>' }));
+  await page.mouse.up();
+  await page.waitForFunction(() => /^\/music\/(\?th-frame=[0-9a-f]{32})?$/.test(document.querySelector('iframe.th-app')?.getAttribute('src') ?? ''), null, { timeout: 8000 });
+  assert.equal(new URL(page.url()).pathname, '/');
   assert.deepEqual(errors, []);
   await page.close();
 });

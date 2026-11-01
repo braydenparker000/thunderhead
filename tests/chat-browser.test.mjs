@@ -118,7 +118,8 @@ test('a message goes out at once; the reply arrives over the socket, reveals, an
     await shot(page, 'conversation', theme);
     if (theme === 'dark') {
       await page.click('#talk .chip');
-      await page.waitForURL(`${base}/music/`);
+      // Music opens as a layer inside home (HOME.md §12.1).
+      await page.waitForFunction(() => /^\/music\/(\?th-frame=[0-9a-f]{32})?$/.test(document.querySelector('iframe.th-app')?.getAttribute('src') ?? ''));
     }
     assert.deepEqual(errors, []);
     await context.close();
@@ -702,7 +703,8 @@ test('an app opens growing from its chip; a chart reads out the column tapped', 
   await page.waitForSelector('#talk .chip.in');
   await page.click('#talk .chip');
   await page.waitForSelector('.launch');
-  await page.waitForURL(`${base}/music/`);
+  // Music opens as a layer inside home, under the chip's reveal (HOME.md §12.1).
+  await page.waitForFunction(() => /^\/music\/(\?th-frame=[0-9a-f]{32})?$/.test(document.querySelector('iframe.th-app')?.getAttribute('src') ?? ''));
   assert.deepEqual(errors, []);
   await context.close();
 });
