@@ -13,8 +13,8 @@
 // (th/music/bridge.js), and starts the playback batches (th/music/report.js, loaded once the player
 // runs; it reads the session itself). Each song started, skipped or played to its end is a sense
 // for the mind (MUSIC.md §10.1, NEXT-BATCH.md part 6: ids and times only; th/senses/send.js, which
-// reads the session, sends them signed in). Nothing in this file touches the session: it is the
-// player's own, on this phone.
+// reads the session, sends them signed in), and so is each rating (th/music/ratings.js). Nothing in
+// this file touches the session: it is the player's own, on this phone.
 
 export const SHUFFLE_DJ = 5;
 export const DJ_AHEAD = 60;
@@ -280,6 +280,8 @@ export function installDj(ctx, player) {
   // The playback log to the Worker, and each play's time to first sound into it. Offline at start it
   // isn't loaded (the player's worker keeps only this file and search.js), and nothing waits on it.
   import('/th/music/report.js').then((m) => m.installReport(ctx)).catch(() => {});
+  // The owner's ratings, as senses for the mind's find and mixes (MUSIC.md §10.5).
+  import('/th/music/ratings.js').then((m) => m.installRatings(ctx)).catch(() => {});
   // In home's layer after Music reloaded itself: its frame's trust back from its worker (no-op on top).
   import('/th/ported/claim.js').catch(() => {});
   const learned = load();

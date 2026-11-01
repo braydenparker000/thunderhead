@@ -21,6 +21,7 @@ import { sensesObject } from '../../objects/senses';
 import { sha256 } from '../import/vault';
 import { SONG_ID } from '../music/shapes';
 import { check } from './queries';
+import { checkEvent } from './validate';
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const queryBody = z.strictObject({
@@ -33,23 +34,20 @@ const noSandbox = () => {
 };
 let zone: { tz: string; until: number } | null = null;
 
-/** The batch's accepted song ratings (`music.rate`, ref `music:<id>`, `data.rating` 0–5). */
-function ratingsOf(
-  events: SenseEvent[],
-  rejected: SenseBatchResponse['rejected'],
-): { id: string; rating: number; at: number }[] {
-  const out = new Set(rejected.map((x) => x.i));
-  return events.flatMap((e, i) => {
-    const id = typeof e?.ref === 'string' && e.ref.startsWith('music:') ? e.ref.slice(6) : '';
-    const rating = (e?.data as { rating?: unknown } | undefined)?.rating;
-    return !out.has(i) &&
-      e.type === 'music.rate' &&
-      e.sensitivity !== 1 &&
-      SONG_ID.test(id) &&
-      Number.isInteger(rating) &&
-      (rating as number) >= 0 &&
-      (rating as number) <= 5
-      ? [{ id, rating: rating as number, at: e.at }]
+/** The batch's song ratings (`music.rate`, ref `music:<id>`, `data.rating` 0–5) that pass the same
+ * check the Senses object makes (a uuidv7, a time within the window, sensitivity 0), checked again
+ * on every pass: the same batch sent again is answered from its record without its rejections, so
+ * an event refused the first time (a time out of the window) must not slip in on a retry. A
+ * rating's time is never later than now, so a phone's clock ahead can't pin it. */
+function ratingsOf(events: unknown[], now: number): { id: string; rating: number; at: number }[] {
+  return events.flatMap((e) => {
+    const c = checkEvent(e as SenseEvent, now);
+    if (typeof c === 'string' || c.type !== 'music.rate' || c.sensitivity !== 0 || !c.ref?.startsWith('music:'))
+      return [];
+    const id = c.ref.slice(6);
+    const rating = (JSON.parse(c.data_json ?? '{}') as { rating?: unknown }).rating;
+    return SONG_ID.test(id) && Number.isInteger(rating) && (rating as number) >= 0 && (rating as number) <= 5
+      ? [{ id, rating: rating as number, at: Math.min(c.at, now) }]
       : [];
   });
 }
@@ -92,7 +90,7 @@ export const sensesRoutes = new Hono<AppEnv>()
     // find after the senses' 90 days. The same batch again hands them over again, which changes
     // nothing (the newest rating of each song wins); a failure here answers 5xx, and the phone's
     // retry of the sealed batch hands them over then.
-    const rated = ratingsOf(events as SenseEvent[], r.rejected);
+    const rated = ratingsOf(events, Date.now());
     if (rated.length) await fresh(musicObject(c.env).putRatings(rated));
     return c.json(r satisfies SenseBatchResponse);
   })

@@ -55,14 +55,17 @@ function keep(q) {
   } catch {}
 }
 
-/** One event, sent soon. @param {string} type e.g. `guitar.open` @param {string | null} [ref]
- * @param {Record<string, unknown> | null} [data] numbers and names of things, never what the owner wrote (≤ 2 KB) */
+/** One event, sent soon; whether it was kept to send (not when signed out, or in another's frame).
+ * @param {string} type e.g. `guitar.open` @param {string | null} [ref]
+ * @param {Record<string, unknown> | null} [data] numbers and names of things, never what the owner wrote (≤ 2 KB)
+ * @returns {Promise<boolean>} */
 export async function sense(type, ref = null, data = null) {
-  if (framedByOther() || !(await sessionToken())) return;
+  if (framedByOther() || !(await sessionToken())) return false;
   const now = Date.now();
   keep([...waiting(), { id: uuidv7(now), at: now, type, ...(ref ? { ref } : {}), ...(data ? { data } : {}) }]);
   clearTimeout(timer);
   timer = setTimeout(flush, 3000);
+  return true;
 }
 
 /** Sends what waits, one batch at a time. */

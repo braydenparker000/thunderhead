@@ -4,7 +4,8 @@
 // packed 500 to a row; the packs' one-off rebuild (after a restore, when they are missing) is
 // measured too. Notes, tags and the untagged page are read by key, so their rows follow the call's
 // size, not the catalog's. In the Senses object, find reads the early skips by the (day, type)
-// index; in Core, the current rules. The phone's ratings go to Music as one row each.
+// index; in Core, the current rules. The phone's ratings go to Music as one row each (two for a 1,
+// with its index), and its one-time catch-up of the songs rated 1 goes 100 a batch.
 import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
@@ -105,12 +106,20 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
       ),
     },
   });
-  const ratings = Array.from({ length: 5 }, (_, i) => sense('music.rate', ids[60 + i], { rating: 1, from: 0 }));
+  // The phone's one-time catch-up of the songs already rated 1 goes 100 a page load (ratings.js).
+  const ratings = (from: number) =>
+    Array.from({ length: 100 }, (_, i) => sense('music.rate', ids[from + i], { rating: 1 }));
   await cost(
-    'PUT /v1/senses/batches/:id, 5 ratings (Music)',
-    () => api('PUT', `/v1/senses/batches/${uuidv7()}`, { token: d.token, body: { events: ratings } }),
+    'PUT /v1/senses/batches/:id, the catch-up: 100 ratings of 1 (Music)',
+    () => api('PUT', `/v1/senses/batches/${uuidv7()}`, { token: d.token, body: { events: ratings(1_000) } }),
     200,
     m,
+  );
+  await cost(
+    'PUT /v1/senses/batches/:id, the catch-up: 100 ratings of 1 (Senses)',
+    () => api('PUT', `/v1/senses/batches/${uuidv7()}`, { token: d.token, body: { events: ratings(2_000) } }),
+    200,
+    sensesObject(env) as unknown as never,
   );
   for (let i = 0; i < 3; i++)
     await coreSql(

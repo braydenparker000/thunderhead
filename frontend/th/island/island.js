@@ -467,27 +467,18 @@ export function control(cmd, minutes = 30) {
     const lib = m.w.__cp?.library;
     if (!t || !lib?.setRating) return { ok: false, text: "Couldn't reach the song." };
     const before = t.rating ?? 0;
+    // The library tells Music's page, which sends the rating as a sense (th/music/ratings.js).
     lib.setRating(t, 1);
-    rated(t.id, 1, before);
     p.step(1);
     return {
       ok: true,
       text: 'Skipped. Rated "not for me": it won\'t come up again.',
-      undo: () => {
-        lib.setRating(t, before);
-        rated(t.id, before, 1);
-      },
+      // The bus sends the old rating back as a sense too.
+      undo: () => lib.setRating(t, before),
     };
   }
   tick();
   return { ok: true, text: { pause: 'Paused.', play: 'Playing.', next: 'Next song.', previous: 'Previous song.' }[cmd] ?? '' };
-}
-
-/** A rating the owner set from home, as a sense with the song's id (MUSIC.md §10.1 `music.rate`), so
- * the mind keeps a "never" out of its mixes too. @param {string} id @param {number} rating @param {number} from */
-function rated(id, rating, from) {
-  if (!/^[A-Za-z0-9._:/-]{1,154}$/.test(id)) return;
-  import('../senses/send.js').then((s) => s.sense('music.rate', `music:${id}`, { rating, from, by: 'command' }), () => {});
 }
 
 /** The island's styles, loaded the first time an app opens as a layer. */
