@@ -3,7 +3,8 @@
 // mind session taints that session as a file would (source `th music`), and for a night session also
 // records that it read them, which closes the web to it (RUNTIME.md §6.4). Recorded before the tags
 // are served, whatever the hooks did, so deleting th's own state on the mind's side skips nothing.
-// This isolate remembers the sessions it marked, so a run of calls asks the objects once.
+// The routes: GET /v1/music/tracks, /notes, /find, and /analysis/:id (its neighbours' tags). This
+// isolate remembers the sessions it marked, so a run of calls asks the objects once.
 import type { Context } from 'hono';
 import { MUSIC_TAINT_SOURCE } from '../../../../shared/contract/music.ts';
 import type { AppEnv } from '../../http/auth';

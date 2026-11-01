@@ -85,7 +85,8 @@ const podcastFetch = args => args.some(a => /\/v1\/podcasts/i.test(a));
 /** A th call that prints songs' tags (from the files, outside text). */
 function songTags({sub, rest}) {
   const pos = positionals(rest);
-  if (sub === 'music') return pos[0] !== 'note' && !(pos[0] === 'now' && rest.includes('--id'));
+  // `note` and `now --id` print no tags, nor does `jobs` (the listening pass's counts, kind and id).
+  if (sub === 'music') return !['note', 'jobs'].includes(pos[0]) && !(pos[0] === 'now' && rest.includes('--id'));
   // Any word of a `th get` naming music (a flag's value can come first); the Worker marks it too.
   return sub === 'get' && rest.some(a => /music/i.test(a));
 }

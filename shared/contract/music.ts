@@ -155,7 +155,7 @@ export const MUSIC_NOTE_LIMITS = {
  * and nothing else of it (no title: a title in a shell argument could break out of its quotes).
  * Find leaves every song named in a current one out, and so do the mixes built from it. */
 export const MUSIC_NEVER_SUBJECT = 'music.never';
-/** The taint source for songs' tags (`th music page|now|find|like|week`, `th get /v1/music/…`): the
+/** The taint source for songs' tags (`th music page|now|find|like|week|analysis`, `th get /v1/music/…`): the
  * tags come from the files, which someone else wrote, so they are outside text like a file's, with
  * the same taint and carry-over (MEMORY.md §7). The Worker records it itself when it serves tags to a
  * mind session, whatever the hooks did, and for a night session also that it read them: from then

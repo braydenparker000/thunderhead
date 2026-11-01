@@ -71,6 +71,11 @@ describe("the Worker taints the mind session it serves songs' tags to", () => {
     expect(await pending(P.N, 'cse_mt_n1')).toMatchObject({ songs: true });
     const after = await dayNote('cse_mt_n1', 'Changed after the songs.');
     expect([after.status, after.body.error?.code]).toEqual([403, 'session_tainted']);
+    // The listening pass's read of one song names its neighbours: it marks too.
+    await apiJson('GET', `/v1/music/analysis/r2_native_${'0'.repeat(64)}`, as(P.N, 'cse_mt_an'));
+    expect(await row('cse_mt_an')).toMatchObject({ taint_source: MUSIC_TAINT_SOURCE });
+    expect(await readers()).toEqual(['cse_mt_an', 'cse_mt_n1']);
+    await coreSql('UPDATE mind_sessions SET tainted_at = ? WHERE session_id = ?', Date.now() - 25 * HOUR, 'cse_mt_an');
     // Marking it again writes nothing: the first taint stands.
     const first = (await row('cse_mt_n1')).tainted_at;
     forgetMarked();
@@ -98,7 +103,7 @@ describe("the Worker taints the mind session it serves songs' tags to", () => {
     expect(await row('cse_mt_c1')).toMatchObject({ taint_source: MUSIC_TAINT_SOURCE });
     expect(await reason(as(P.C, 'cse_mt_c1'), addOp([`msg:${said}`]))).toBe('session_tainted');
     expect(await pending(P.C, 'cse_mt_c1')).toMatchObject({ songs: false });
-    expect(await readers()).toEqual(['cse_mt_n1']);
+    expect(await readers()).toEqual(['cse_mt_an', 'cse_mt_n1']);
     await lapse();
     expect((await brief(P.C, 'cse_mt_c2', 'chat')).body.tainted).toBe(true);
     expect(await row('cse_mt_c2')).toMatchObject({ taint_source: `inherited:${MUSIC_TAINT_SOURCE}` });
