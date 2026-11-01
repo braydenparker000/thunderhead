@@ -6,9 +6,9 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readdirSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
-import {CONTRACT, routeOf} from '../cli/lib/contract.mjs';
+import {CONTRACT, checkRoute, routeOf} from '../cli/lib/contract.mjs';
 import {check} from '../cli/lib/schema.mjs';
-import {ROOT, env, errCode, startFake, th} from './helpers.mjs';
+import {ROOT, env, startFake, th} from './helpers.mjs';
 
 const withFake = fn => async () => {
   const fake = await startFake({holdUnitMs: 20});
@@ -30,12 +30,11 @@ test('every route th calls is in the contract', () => {
 test('a route this build lacks exits 8 not_built before the network', withFake(async fake => {
   const e = {...env(fake), TH_ALLOW_UNBUILT: undefined};
   delete e.TH_ALLOW_UNBUILT;
-  const before = fake.state.requests.length;
-  const r = await th(['get', '/v1/jobs/x'], {...e, TH_ROLE: 'night'});
-  assert.equal(r.code, 8);
-  assert.equal(errCode(r), 'not_built');
-  assert.match(r.stderr, /GET \/v1\/jobs\/:id is deferred/);
-  assert.equal(fake.state.requests.length, before);
+  // No GET route is deferred any more (the jobs routes were the last, built with the listening pass),
+  // so the check itself is called with a deferred POST.
+  assert.throws(() => checkRoute('POST', '/v1/ops/restore', {}), (err) =>
+    err.exit === 8 && err.code === 'not_built' && /POST \/v1\/ops\/restore is deferred/.test(err.message));
+  assert.doesNotThrow(() => checkRoute('POST', '/v1/ops/restore', {TH_ALLOW_UNBUILT: '1'}));
   assert.equal((await th(['pending'], e)).code, 0, 'built routes still work');
 }));
 
@@ -72,7 +71,7 @@ test('th get reads any built GET route; th help comes from the contract', withFa
     assert.ok(help.stdout.includes(name), name);
   assert.ok(help.stdout.includes('POST /v1/memory/ops'), 'built P3 routes are offered');
   assert.ok(help.stdout.includes('GET /v1/work/orders'), 'built P4 routes are offered');
-  assert.ok(!help.stdout.includes('GET /v1/jobs/next'), 'routes not built yet are not offered');
+  assert.ok(!help.stdout.includes('POST /v1/ops/restore'), 'routes not built yet are not offered');
   assert.match((await th(['help', 'verb'], e)).stdout, /^th verb <app\.action>/);
 }));
 
