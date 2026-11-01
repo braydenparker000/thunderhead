@@ -42,22 +42,22 @@ test('when a card is due: a new id, fresh lines', () => {
   assert.equal(due(null, null, now), false);
 });
 
-/** Home signed in at phone size, with `news` as /whats-new.json (date: today). */
-async function home(context, news) {
+/** Home signed in (`at`: when) at phone size, with `news` as /whats-new.json. */
+async function home(context, news, at = Date.now() - 30 * 86_400_000) {
   const page = await context.newPage();
   await mockApi(page, {});
   await page.route('**/whats-new.json', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(news) }));
   await page.goto(`${base}/no-such-page`);
-  await page.evaluate((token) => new Promise((resolve, reject) => {
+  await page.evaluate(({ token, at }) => new Promise((resolve, reject) => {
     const req = indexedDB.open('th-auth', 1);
     req.onupgradeneeded = () => req.result.createObjectStore('kv');
     req.onsuccess = () => {
       const tx = req.result.transaction('kv', 'readwrite');
-      tx.objectStore('kv').put({ session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' }, 'session');
+      tx.objectStore('kv').put({ session_id: 's1', token, signed_in_at: at, username: 'example-owner' }, 'session');
       tx.oncomplete = () => { req.result.close(); resolve(); };
       tx.onerror = () => reject(tx.error);
     };
-  }), TOKEN);
+  }), { token: TOKEN, at });
   await page.goto(`${base}/`);
   await page.waitForFunction(() => document.querySelector('#ask'));
   return page;
@@ -85,5 +85,14 @@ test('once per release: the card shows its lines by the bar, Got it folds it for
   await page.close();
   page = await home(context, { ...news, id: `${news.id}-2` });
   await page.locator('#turns .card.news').waitFor({ timeout: 10_000 });
+  await context.close();
+});
+
+test('a phone signed in since the release has it all already: no card', opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
+  const news = { ...NEWS, date: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10) };
+  const page = await home(context, news, Date.now());
+  await page.waitForTimeout(2500);
+  assert.equal(await page.locator('#turns .card.news').count(), 0);
   await context.close();
 });

@@ -2,7 +2,8 @@
 // What's new (HOME.md §2): after an update, one calm card by the ask bar says in a few plain lines what
 // changed and how to try it, once per release, so the owner never has to read a pull request to enjoy
 // it. The lines ship with the site (`/whats-new.json`: an id, the date and at most four lines, each
-// with an optional app to open); "Got it" folds the card and remembers the id on this phone. Nothing
+// with an optional app to open); "Got it" folds the card and remembers the id on this phone. Only a
+// phone signed in before the release's date gets it (one signed in since has it all already); nothing
 // shows when the lines are older than 14 days (a phone that wasn't opened in between), and nothing
 // leaves the phone. Loaded by apps/home/boot.js after the first paint.
 
@@ -33,16 +34,23 @@ export async function startNews() {
     if (r.ok) n = await r.json();
   } catch {}
   if (!n || !due(n, seen)) return;
-  const { el } = await import('../ui.js');
-  const turns = document.querySelector('#turns');
-  if (!turns) return;
-  // Never while a finger is down: the card would move the conversation under it mid-swipe.
-  await untouched();
   const remember = () => {
     try {
       localStorage.setItem(SEEN, /** @type {News} */ (n).id);
     } catch {}
   };
+  // (Only when this phone was signed in before the release: the session's own time says so.)
+  const { store } = await import('../session.js');
+  const since = (await store.read())?.signed_in_at;
+  if (!(typeof since === 'number' && since < Date.parse(n.date))) {
+    remember();
+    return;
+  }
+  const { el } = await import('../ui.js');
+  const turns = document.querySelector('#turns');
+  if (!turns) return;
+  // Never while a finger is down: the card would move the conversation under it mid-swipe.
+  await untouched();
   const fold = () => {
     remember();
     card.classList.add('gone');

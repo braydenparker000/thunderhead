@@ -74,7 +74,9 @@ Acceptance (tests/chat-browser, chat-logic, registries): the chip is hidden whil
 **What's new** (built 2026-11-01, `th/news/news.js`): after an update, one card by the ask bar, "New in
 this update", with the release's few plain lines from `/whats-new.json` (an `id`, the date, at most four
 lines, each with an optional button that opens its app) and Got it. Once per release on each phone (the
-id is kept in `localStorage`), never for lines over 14 days old; nothing leaves the phone.
+id is kept in `localStorage`), only on a phone signed in before the release's date (one signed in since
+has it all already), never for lines over 14 days old, and never while a finger is down (it would move
+the conversation mid-swipe); nothing leaves the phone.
 
 ## 3. The decision card
 
