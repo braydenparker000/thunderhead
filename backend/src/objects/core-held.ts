@@ -9,13 +9,13 @@ import { HELD_LIMITS } from '../../../shared/contract/held.ts';
 import type { Who } from '../../../shared/contract/routes.ts';
 import { currentDay } from '../areas/conversation/day';
 import * as held from '../areas/conversation/held';
-import * as hs from '../areas/conversation/held-store';
 import * as purge from '../areas/conversation/purge';
 import { lastMessageAt } from '../areas/conversation/stats';
 import * as cstore from '../areas/conversation/store';
 import type * as fstore from '../areas/files/store';
 import { byId as fileById } from '../areas/files/store';
 import { quotaHold } from '../areas/meter/quota';
+import { markOffRecord } from '../areas/mind/guards';
 import { getSetting, putSetting } from '../areas/settings/store';
 import type { Caller } from './caller';
 import { CORE_TABLES } from './core.migrations';
@@ -60,9 +60,7 @@ export abstract class CoreHeld extends CorePodcasts {
    * a file): from now on it writes no memory, whatever it cites (guards.ts `offRecord`). */
   protected markOffRecord(sessionId: string | null, role: MindRole = 'chat'): void {
     if (!sessionId || role !== 'chat') return;
-    this.write((w) =>
-      hs.markOffRecord(w.db, { id: sessionId, role, day: currentDay(w.db, this.tz(), w.at), at: w.at }),
-    );
+    this.write((w) => markOffRecord(w.db, { id: sessionId, role, day: currentDay(w.db, this.tz(), w.at), at: w.at }));
   }
 
   // --- off the record, Delete, Restore (device only) ---------------------------------------------

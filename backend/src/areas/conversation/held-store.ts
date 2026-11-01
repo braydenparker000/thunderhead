@@ -3,7 +3,6 @@
 // lists only held threads: every query that leaves them out reads those few rows, never the table.
 // Stores never write the change feed or the ledger; the caller's commit does (objects/commit.ts).
 
-import type { MindRole } from '../../../../shared/contract/api';
 import type { DeletedThread } from '../../../../shared/contract/held.ts';
 import type { Db } from '../../objects/base';
 
@@ -210,20 +209,4 @@ export function deleteThread(db: Db, id: string): number {
  * segments too (as memory's forget does, MEMORY.md §3). Once per purged indexed thread. */
 export function optimizeFts(db: Db): number {
   return db.run(`INSERT INTO messages_fts (messages_fts) VALUES ('optimize')`);
-}
-
-/** The Worker handed this chat session a message off the record (conversation/held.ts): from then
- * on it writes no memory, whatever evidence it names (mind/guards.ts). Makes the row if the session never
- * claimed, so a later claim keeps the mark; the first time stands. */
-export function markOffRecord(db: Db, s: { id: string; role: MindRole; day: string; at: number }): void {
-  db.run(
-    `INSERT INTO mind_sessions (session_id, role, claimed_at, day, off_record_at) VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT (session_id) DO UPDATE SET off_record_at = coalesce(off_record_at, excluded.off_record_at)
-     WHERE mind_sessions.off_record_at IS NULL`,
-    s.id,
-    s.role,
-    s.at,
-    s.day,
-    s.at,
-  );
 }
