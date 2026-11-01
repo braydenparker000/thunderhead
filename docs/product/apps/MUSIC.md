@@ -338,6 +338,26 @@ Later step (after the as-is port, only if the owner agrees): the engine is the o
 core, moved into `frontend/lib/audio/` with a plain API. It serves Music and Podcasts ([PODCASTS](PODCASTS.md)). Guitar uses its own
 low-latency context ([GUITAR](GUITAR.md)).
 
+**[building] The streaming path** ([NEXT-BATCH](../../process/NEXT-BATCH.md) part 2; `frontend/th/music/stream/`,
+not wired into the player yet). One audio element plays the whole queue through Media Source
+Extensions. Each song's Ogg Opus file is read in Range requests of 32–128 KB on its signed link
+(`track.js`). Its pages are demuxed as they arrive (`ogg.js`: the capture pattern and CRC of every
+page are checked) and the same Opus packets are written as WebM (`webm.js`). Nothing is re-encoded and
+nothing changes in the bucket. At most 15 s is appended ahead of the play position: fetching stops at
+the cap and starts again under 10 s, and what lies more than 10 s behind is removed (`plan.js`). The
+next song joins at the exact sample where the last one ended. Its pre-skip is trimmed by
+`appendWindowStart`, the last song's end padding by `appendWindowEnd`, and the init segment's OpusHead
+says pre-skip 0. Chromium's decoder drops a head's pre-skip itself only when the head changes, so a
+join would otherwise lose 6.5 ms whenever the next song's head differs. Measured in Chromium: the
+fixture played twice sounds 0.1 ms short of back to back, with no phase step at the join. A seek past
+the buffer bisects the file on granule positions (a few Range requests); a seek inside the buffer is
+instant. `skip()` jumps straight to a next song already joined, else starts it from its first byte.
+**Fallback:** anything the path can't get past (no MSE or Opus in WebM, a corrupt page, a refused or
+missing file after one fresh link, the network failing after four tries, a decode error) raises
+`fallback` with a reason code, where playback is and which song failed, and the player plays on from
+there on today's plain element path. Its events and methods are listed at the top of `feed.js`; the
+lab page `/lab/stream/` (not linked) shows the buffer, the cap and the gap at each join.
+
 ### 5.1 API
 
 ```js
