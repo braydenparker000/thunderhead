@@ -109,6 +109,13 @@ playing Music (the island, part 3).
 
 ## 7. Podcasts in the island
 
+Built 2026-11-01 (PODCASTS.md §5.4, API.md §11.25, RUNTIME.md §12.1): positions and follows on the
+Worker (Core step 25), merged into the ported app's storage before it reads it on open and sent on
+pause, hide and every minute while playing (`th/podcasts/progress.js`); the night's
+`th podcasts new` (≤ 20 shows a night, each once a day) and its home line in the Overnight card.
+The island's look was built with part 3. Not yet: follows syncing down to a second phone; the
+episode's details for "Continue listening" on a phone that never opened its show.
+
 - Progress is kept on the Worker (`PUT /v1/podcasts/progress`), so an episode resumes on any phone.
 - The night checks the owner's shows (no more than once a day, small budget) and puts
   "2 new episodes" in the Overnight card, with the shows' names.

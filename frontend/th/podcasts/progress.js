@@ -16,14 +16,15 @@
 //   can write its older list over the storage, and taking a show missing from it as an unfollow is
 //   right only for what this phone's app shows, never for what came from another phone.
 // Only signed in, and in a top-level page or one of home's own frames (th/ported/session.js). What
-// this module remembers (what the Worker has, and since when it last asked) is `th.podcasts.sync`.
+// this module remembers (what the Worker has, and since when it last asked) is `th.p.podcasts.sync`,
+// cleared on sign-out with the rest of `th.p.*` (th/session.js).
 import { CONFIG } from '../../config.js';
 import { PODCAST_LIMITS as L } from '../contract.js';
 import { framedByOther, sessionToken } from '../ported/session.js';
 
 /** The app's storage (podcasts/core.js `STORAGE_KEY`) and this module's. */
 export const APP_KEY = 'jarvis.podcasts.v1';
-export const SYNC_KEY = 'th.podcasts.sync';
+export const SYNC_KEY = 'th.p.podcasts.sync';
 const EVERY_MS = 60_000;
 /** One request's body: under a keepalive request's 64 KB and the Worker's limit. */
 const BODY_BYTES = 60_000;
