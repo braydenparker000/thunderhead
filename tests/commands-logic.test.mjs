@@ -44,8 +44,8 @@ test('playback orders for the app playing in home (th/island): plain words only;
   const c = (t) => commandOf(t, NOW);
   for (const [t, cmd] of [['pause', 'pause'], ['Pause the music.', 'pause'], ['stop the music', 'pause'], ['play', 'play'], ['resume', 'play'], ['skip', 'next'], ['Skip this song', 'next'], ['next song', 'next'], ['previous', 'previous'], ['go back a song', 'previous'], ['siguiente', 'next']])
     assert.deepEqual(c(t), { kind: 'control', cmd }, t);
-  assert.deepEqual(c('never play this again'), { kind: 'control', cmd: 'never', alsoSay: true }, 'also said to the mind, which keeps it out of its mixes');
-  assert.deepEqual(c("Don't play that song again!"), { kind: 'control', cmd: 'never', alsoSay: true });
+  assert.deepEqual(c('never play this again'), { kind: 'control', cmd: 'never' }, 'the mind hears it as a music.rate sense with the id');
+  assert.deepEqual(c("Don't play that song again!"), { kind: 'control', cmd: 'never' });
   assert.equal(c('stop'), null, 'may mean the mind\'s work');
   assert.equal(c('play Evening'), null, 'a playlist by name is the mind\'s for now');
   assert.equal(c('can you skip this?'), null);

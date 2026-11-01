@@ -8,6 +8,9 @@
 // §11.14); one tab sends at a time. Names and times only: nothing the owner typed or saved.
 import { CONFIG } from '/config.js';
 import { framedByOther, sessionToken } from '/th/ported/session.js';
+// Every ported page loads this module (assets/error-report.js): in home's layer, a page that loaded
+// again by itself claims its frame's trust back from its worker (th/ported/claim.js).
+import '/th/ported/claim.js';
 
 const KEY = 'th.p.senses';
 /** The sealed batch on its way: `{ id, body, tries }`. */

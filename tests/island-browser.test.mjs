@@ -71,8 +71,7 @@ test('Music opens as a layer that its worker trusts; Back makes it the island; a
   const page = await signedIn(context);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  // Home's own fetches to the mock Worker are outside this unstaged page's CSP; a frame refused is not.
-  page.on('console', (m) => { if (m.type() === 'error' && /frame-src|Refused to frame|Refused to display/i.test(m.text())) errors.push(m.text()); });
+  page.on('console', (m) => { if (m.type() === 'error' && /Content Security Policy|Refused/i.test(m.text())) errors.push(m.text()); });
   await page.goto(`${base}/`);
   seen.length = 0;
   assert.equal(await page.evaluate(() => import('/th/island/island.js').then((m) => m.openApp('music'))), true);
@@ -83,6 +82,20 @@ test('Music opens as a layer that its worker trusts; Back makes it the island; a
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline && !seen.some((s) => s.auth === `Bearer ${TOKEN}`)) await new Promise((r) => setTimeout(r, 200));
   assert.ok(seen.some((s) => s.auth === `Bearer ${TOKEN}`), `the framed player was given the session (${JSON.stringify(seen)})`);
+
+  // Music reloads itself in the frame (a day/night switch does): its page claims the trust back.
+  await page.evaluate(() => document.querySelector('iframe.th-app').contentWindow.location.reload());
+  await page.waitForFunction(() => document.querySelector('iframe.th-app').contentWindow.__cp?.player, null, { timeout: 20_000 });
+  await page.waitForTimeout(1500);
+  seen.length = 0;
+  // The player's next library request, after the page has claimed its trust back.
+  await page.evaluate((old) => document.querySelector('iframe.th-app').contentWindow.fetch(`${old}/music/library.json`).catch(() => {}), OLD);
+  const again = Date.now() + 10_000;
+  while (Date.now() < again && !seen.some((s) => s.auth === `Bearer ${TOKEN}`)) await new Promise((r) => setTimeout(r, 200));
+  assert.ok(seen.some((s) => s.auth === `Bearer ${TOKEN}`), 'trusted again after it reloaded itself');
+  // No token's address is ever stored: the page came from Music's own address.
+  const stored = await page.evaluate(async () => (await Promise.all((await caches.keys()).map(async (k) => (await (await caches.open(k)).keys()).map((r) => r.url)))).flat());
+  assert.ok(!stored.some((u) => u.includes('th-frame=')), stored.filter((u) => u.includes('th-frame=')).join(' '));
 
   // Back: into the island; the frame stays loaded behind the chat.
   await page.goBack();
@@ -113,6 +126,9 @@ test("the same player framed by another site's page gets no session", opts, asyn
   // The worker is installed, as it would be after the owner used Music.
   await page.goto(`${base}/music/`);
   await page.evaluate(async () => { await navigator.serviceWorker.register('/music/sw.js', { scope: '/music/' }); await navigator.serviceWorker.ready; });
+  // That top-level page's own requests (trusted, rightly) finish before the count starts.
+  await page.goto(`${base}/no-such-page`);
+  await page.waitForTimeout(2000);
   seen.length = 0;
   await page.goto(`${otherBase}/`);
   const f = page.frameLocator('#f');

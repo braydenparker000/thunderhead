@@ -16,6 +16,15 @@ function state() {
   const media = /** @type {HTMLMediaElement[]} */ ([...document.querySelectorAll('audio, video')]);
   const q = /** @type {HTMLTextAreaElement | null} */ (document.querySelector('#q'));
   const active = document.activeElement;
+  // An app in home's layer (th/island) plays inside its frame: its decks count too.
+  for (const f of /** @type {NodeListOf<HTMLIFrameElement>} */ (document.querySelectorAll('iframe.th-app'))) {
+    try {
+      const w = /** @type {any} */ (f.contentWindow);
+      const deck = w?.__cp?.player?.audio;
+      if (deck) media.push(deck);
+      media.push(...w.document.querySelectorAll('audio, video'));
+    } catch {}
+  }
   return {
     visible: document.visibilityState === 'visible',
     playing: media.some((m) => !m.paused && !m.ended),

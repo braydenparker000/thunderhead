@@ -10,6 +10,8 @@
  * reading the top's origin throws across sites). */
 export function framedByOther() {
   if (typeof window === 'undefined' || window.top === window.self) return false;
+  // Home's layer is one level down; anything deeper is not ours to trust.
+  if (window.parent !== window.top) return true;
   try {
     return window.top?.location.origin !== location.origin;
   } catch {

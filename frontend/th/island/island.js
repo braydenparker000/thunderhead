@@ -31,6 +31,12 @@ let raf = 0;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let slow;
 
+/** Home's side of th/ported/claim.js: a fresh token, only for its own layer's frame. */
+/** @type {any} */ (window).thIsland = {
+  /** @param {Window} w the asking page */
+  token: async (w) => (layer && w === layer.frame.contentWindow ? frameToken(appFor(layer.id)?.path ?? '') : ''),
+};
+
 /** Whether `id` opens as a layer here. @param {string} id */
 export const layered = (id) => LAYERED.includes(id);
 
@@ -43,7 +49,8 @@ function win() {
   }
 }
 
-/** Music's player, or Podcasts' audio element, in the frame. */
+/** Music's player, or Podcasts' audio element, in the frame.
+ * @returns {{ kind: 'music', p: any, w: any } | { kind: 'podcasts', a: HTMLAudioElement, w: any } | null} */
 function media() {
   const w = win();
   if (!w || !layer) return null;
@@ -418,11 +425,26 @@ export function control(cmd, minutes = 30) {
     if (!t || !lib?.setRating) return { ok: false, text: "Couldn't reach the song." };
     const before = t.rating ?? 0;
     lib.setRating(t, 1);
+    rated(t.id, 1, before);
     p.step(1);
-    return { ok: true, text: 'Skipped. Rated "not for me": the DJ and mixes leave it out.', undo: () => lib.setRating(t, before) };
+    return {
+      ok: true,
+      text: 'Skipped. Rated "not for me": the DJ and mixes leave it out.',
+      undo: () => {
+        lib.setRating(t, before);
+        rated(t.id, before, 1);
+      },
+    };
   }
   tick();
   return { ok: true, text: { pause: 'Paused.', play: 'Playing.', next: 'Next song.', previous: 'Previous song.' }[cmd] ?? '' };
+}
+
+/** A rating the owner set from home, as a sense with the song's id (MUSIC.md §10.1 `music.rate`), so
+ * the mind keeps a "never" out of its mixes too. @param {string} id @param {number} rating @param {number} from */
+function rated(id, rating, from) {
+  if (!/^[A-Za-z0-9._:/-]{1,154}$/.test(id)) return;
+  import('../senses/send.js').then((s) => s.sense('music.rate', `music:${id}`, { rating, from, by: 'command' }), () => {});
 }
 
 /** The island's styles, loaded the first time an app opens as a layer. */

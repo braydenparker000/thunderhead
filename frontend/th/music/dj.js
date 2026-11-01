@@ -252,6 +252,8 @@ export function installDj(ctx, player) {
   // The playback log to the Worker, and each play's time to first sound into it. Offline at start it
   // isn't loaded (the player's worker keeps only this file and search.js), and nothing waits on it.
   import('/th/music/report.js').then((m) => m.installReport(ctx)).catch(() => {});
+  // In home's layer after Music reloaded itself: its frame's trust back from its worker (no-op on top).
+  import('/th/ported/claim.js').catch(() => {});
   const learned = load();
   /** @type {{ id: string, pos: number, dur: number } | null} */
   let now = null;

@@ -4,8 +4,8 @@
 // "remind me at 5 to call the bank". Anything the grammar doesn't read exactly goes to the mind as
 // words, unchanged. Playback orders ("pause", "skip", "previous", "sleep timer 20 minutes", "never
 // play this again") act on the app playing in home's layer or island (th/island, part 3). "Stop" alone
-// stays words for the mind (it may mean its work); "never play this again" also goes to the mind,
-// so it can keep the song out of its mixes.
+// stays words for the mind (it may mean its work); "never play this again" reaches the mind as a
+// `music.rate` sense with the song's id, so it keeps the song out of its mixes too.
 import { appFor } from '../registry/apps.js';
 
 /** The names the owner calls each app, to the app's id. */
@@ -62,7 +62,7 @@ export function whenOf(w, now) {
 
 /** @typedef {'pause' | 'play' | 'next' | 'previous' | 'sleep' | 'never'} Control */
 /** @typedef {{ kind: 'open', app: string } | { kind: 'remind', at: number, text: string }
- *   | { kind: 'control', cmd: Control, minutes?: number, alsoSay?: boolean }} Command */
+ *   | { kind: 'control', cmd: Control, minutes?: number }} Command */
 
 const CONTROLS = /** @type {[RegExp, Control][]} */ ([
   [/^(?:pause|pausa|pause (?:the )?(?:music|song|podcast|it)|stop (?:the )?(?:music|song|podcast)|stop playing)$/, 'pause'],
@@ -82,7 +82,7 @@ function minutesOf(n, unit) {
  * @param {string} text @param {number} [now] @returns {Command | null} */
 export function commandOf(text, now = Date.now()) {
   const t = norm(text);
-  for (const [re, cmd] of CONTROLS) if (re.test(t)) return { kind: 'control', cmd, ...(cmd === 'never' ? { alsoSay: true } : {}) };
+  for (const [re, cmd] of CONTROLS) if (re.test(t)) return { kind: 'control', cmd };
   // The sleep timer: "play until I fall asleep" (30 minutes), "sleep timer 20 minutes", "stop the music in an hour".
   if (/^(?:play until i fall asleep|sleep timer|set a sleep timer)$/.test(t)) return { kind: 'control', cmd: 'sleep', minutes: 30 };
   let s = /^(?:(?:set a )?sleep timer(?: for)?|sleep in|stop (?:the )?music in|turn (?:the )?music off in|turn off the music in|stop playing in) (\d+|an?|half an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve) ?(minutes?|mins?|hours?|hrs?|h)$/.exec(t);
@@ -127,7 +127,7 @@ export function preview(c) {
       next: 'Next song (Podcasts: 30 seconds on).',
       previous: 'Previous song (Podcasts: 15 seconds back).',
       sleep: `Stops the music in ${c.minutes ?? 30} minutes.`,
-      never: 'Skips it and rates it "not for me"; the mind hears it too.',
+      never: 'Skips it and rates it "not for me", here and for the mind\'s mixes.',
     }[c.cmd];
   return `A reminder at ${whenWords(c.at)}: ${c.text}`;
 }
