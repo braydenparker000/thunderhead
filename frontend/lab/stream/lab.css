@@ -1,0 +1,16 @@
+/* The stream lab (docs/process/NEXT-BATCH.md part 2): plain readouts of Music's streaming path. */
+html,body{margin:0;min-height:100%;background:linear-gradient(160deg,var(--field-1),var(--field-2) 55%,var(--field-3));color:var(--ink);font-family:var(--ui)}
+.lab{max-width:560px;margin:0 auto;padding:calc(40px + env(safe-area-inset-top,0px)) 20px 40px;display:flex;flex-direction:column;gap:14px}
+h1{margin:0;font:600 26px var(--ui);letter-spacing:-.01em}
+.note,.state,.now{margin:0;font:400 15px/1.5 var(--ui);color:var(--ink-2)}
+.controls{display:flex;flex-wrap:wrap;gap:8px}
+.controls button{min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--glass-line);background:var(--glass-flat);color:var(--ink);font:500 14px var(--ui)}
+.controls button:disabled{opacity:.45}
+/* Buffered ahead on a 20 s scale; the line marks the 15 s cap. */
+.meter{position:relative;height:14px;border-radius:7px;background:rgba(0,0,0,.08);overflow:hidden}
+.meter .fill{position:absolute;inset:0 auto 0 0;width:100%;background:var(--accent-fill);transform-origin:0 50%;transform:scaleX(0);transition:transform .2s}
+.meter .cap{position:absolute;top:0;bottom:0;left:75%;width:2px;background:var(--ink)}
+.nums{margin:0;font:500 15px var(--ui);font-variant-numeric:tabular-nums}
+.log{margin:0;padding:12px 12px 12px 32px;border-radius:14px;background:rgba(0,0,0,.06);font:400 12.5px/1.6 ui-monospace,Menlo,monospace;color:var(--ink-2)}
+.log:empty{display:none}
+@media (prefers-reduced-motion: reduce){.meter .fill{transition:none}}

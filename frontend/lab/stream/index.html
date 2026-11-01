@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https:; media-src 'self' blob: mediastream:; manifest-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; upgrade-insecure-requests">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#eef1f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<title>Stream lab · Thunderhead</title>
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<script src="/ui/theme.js"></script>
+<link rel="stylesheet" href="/ui/fonts.css">
+<link rel="stylesheet" href="/ui/tokens.css">
+<link rel="stylesheet" href="/lab/stream/lab.css">
+<script type="module" src="/lab/stream/lab.js"></script>
+</head>
+<body>
+<!-- A lab, not the product (docs/process/NEXT-BATCH.md part 2): a short queue played through Music's
+     new streaming path (th/music/stream/feed.js) in one audio element, with what it buffers and how
+     the songs join. Signed in, it plays three of the owner's songs; locally, the files named in
+     ?src= (same-site paths). It shows song ids only and sends nothing anywhere. -->
+<main class="lab">
+  <h1>Stream lab</h1>
+  <p class="note">Each song streams in small pieces and joins the one before it in the same audio element. At most 15 s is fetched ahead.</p>
+  <p class="state" id="state">Getting ready…</p>
+  <div class="controls">
+    <button type="button" id="play" disabled>Play</button>
+    <button type="button" id="pause" disabled>Pause</button>
+    <button type="button" id="back" disabled>−10 s</button>
+    <button type="button" id="fwd" disabled>+30 s</button>
+    <button type="button" id="next" disabled>Next song</button>
+  </div>
+  <div class="meter" aria-hidden="true"><div class="fill" id="fill"></div><div class="cap"></div></div>
+  <p class="nums" id="nums">0.0 s buffered ahead · cap 15 s</p>
+  <p class="now" id="now"></p>
+  <ol class="log" id="log" aria-live="polite"></ol>
+  <audio id="audio"></audio>
+</main>
+</body>
+</html>
