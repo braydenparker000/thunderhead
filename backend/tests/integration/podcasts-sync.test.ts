@@ -2,11 +2,10 @@
 // `updated_at` wins item by item (equal keeps what is there); a page is what the Worker took since,
 // oldest first, with a cursor while there is more; the daily prune keeps the newest 1,000 positions
 // and an unfollow 30 days; the night reads the follows and records its check without the phones
-// being sent the rows again, and reads at most 40 feeds a UTC day. Who may call each route is the
-// route-scope and role-matrix tests' (and a few refusals here). Synthetic shows and episodes only.
-import { createExecutionContext, runInDurableObject } from 'cloudflare:test';
-import { env } from 'cloudflare:workers';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+// being sent the rows again (its reads and their taint: podcasts-night.test.ts). Who may call each
+// route is the route-scope and role-matrix tests' (and a few refusals here). Synthetic shows only.
+import { runInDurableObject } from 'cloudflare:test';
+import { beforeAll, describe, expect, it } from 'vitest';
 import type {
   PodcastFollow,
   PodcastFollowRow,
@@ -14,8 +13,6 @@ import type {
   PodcastProgress,
   PodcastSyncResponse,
 } from '../../../shared/contract/podcasts.ts';
-import { app } from '../../src/app';
-import { useFetch } from '../../src/areas/podcasts/upstream';
 import type { Core } from '../../src/objects/core';
 import { apiJson, core, coreSql, makeAgent, setupOwner } from '../helpers';
 
@@ -44,10 +41,13 @@ const follow = (feed_url: string, followed: boolean, updated_at: number): Podcas
 });
 const put = (path: string, items: unknown[], token = D) =>
   apiJson<PodcastSyncResponse>('PUT', `/v1/podcasts/${path}`, { token, body: { items } });
+/** The night's claimed session: a mind reads these routes only from one (and is marked tainted). */
+const NIGHT_SESSION = 'cse_podcasts_night';
+const sessionOf = (token: string): Record<string, string> => (token === N ? { 'TH-Session': NIGHT_SESSION } : {});
 const progress = (q = 'since=0', token = D) =>
-  apiJson<PodcastPage<PodcastProgress>>('GET', `/v1/podcasts/progress?${q}`, { token });
+  apiJson<PodcastPage<PodcastProgress>>('GET', `/v1/podcasts/progress?${q}`, { token, headers: sessionOf(token) });
 const follows = (q = 'since=0', token = D) =>
-  apiJson<PodcastPage<PodcastFollowRow>>('GET', `/v1/podcasts/follows?${q}`, { token });
+  apiJson<PodcastPage<PodcastFollowRow>>('GET', `/v1/podcasts/follows?${q}`, { token, headers: sessionOf(token) });
 const tick = (now = Date.now()) =>
   runInDurableObject(core() as unknown as DurableObjectStub<Core>, (o: Core) => o.tick(now));
 
@@ -55,6 +55,18 @@ beforeAll(async () => {
   D = (await setupOwner()).token;
   N = await makeAgent(D, 'mind:night');
   C = await makeAgent(D, 'mind:chat');
+  const claim = await apiJson('POST', '/v1/mind/brief', {
+    token: N,
+    headers: { 'TH-Session': NIGHT_SESSION },
+    body: {
+      claim: true,
+      session_id: NIGHT_SESSION,
+      role: 'night',
+      constitution_sha256: 'a'.repeat(64),
+      th_version: '0.1.0',
+    },
+  });
+  expect(claim.status).toBe(200);
 });
 
 describe('positions', () => {
@@ -237,58 +249,5 @@ describe('follows and the night’s check', () => {
     expect(
       (await coreSql<{ feed_url: string }>('SELECT feed_url FROM podcast_follows')).map((r) => r.feed_url),
     ).toEqual([FEED]);
-  });
-});
-
-describe('the night’s feed reads', () => {
-  const RSS = '<?xml version="1.0"?><rss><channel><title>Show</title></channel></rss>';
-  const asked: string[] = [];
-  beforeAll(() =>
-    useFetch(async (input) => {
-      asked.push(String(input instanceof Request ? input.url : input));
-      return new Response(RSS, { headers: { 'Content-Type': 'application/rss+xml' } });
-    }),
-  );
-  afterAll(() => useFetch((...a) => fetch(...a)));
-  const feed = (token: string, url = FEED) =>
-    app.fetch(
-      new Request(`https://api.example.test/v1/podcasts/feed?url=${encodeURIComponent(url)}`, {
-        headers: { Authorization: `Bearer ${token}`, 'CF-Connecting-IP': '192.0.2.10' },
-      }),
-      env,
-      createExecutionContext(),
-    );
-
-  it('mind:night reads only a followed show’s feed; the owner’s device any public one', async () => {
-    asked.length = 0;
-    const elsewhere = 'https://elsewhere.example.org/anything.xml';
-    const r = await feed(N, elsewhere);
-    expect(r.status).toBe(403);
-    expect(((await r.json()) as { error: { details: { reason: string } } }).error.details.reason).toBe('not_followed');
-    expect((await feed(N, OTHER)).status).toBe(403); // unfollowed, then pruned
-    expect(asked).toEqual([]);
-    expect((await feed(D, elsewhere)).status).toBe(200);
-    expect(asked).toEqual([elsewhere]);
-  });
-
-  it('at most 40 a UTC day for mind:night, counted in a stored row; the owner’s device is never counted', async () => {
-    await coreSql("DELETE FROM settings WHERE key = 'podcasts.night_reads'");
-    for (let i = 0; i < 40; i++) expect((await feed(N)).status).toBe(200);
-    const day = new Date().toISOString().slice(0, 10);
-    const [row] = await coreSql<{ value_json: string }>(
-      "SELECT value_json FROM settings WHERE key = 'podcasts.night_reads'",
-    );
-    expect(JSON.parse(row.value_json)).toEqual({ day, n: 40 });
-    const r = await feed(N);
-    expect(r.status).toBe(429);
-    expect(Number(r.headers.get('Retry-After'))).toBeGreaterThan(0);
-    expect((await feed(D)).status).toBe(200);
-    expect((await feed(C)).status).toBe(403);
-    // The count is the row's (a restart reads it back), and a new UTC day starts it over.
-    await coreSql(
-      "UPDATE settings SET value_json = ? WHERE key = 'podcasts.night_reads'",
-      JSON.stringify({ day: '2026-01-01', n: 40 }),
-    );
-    expect((await feed(N)).status).toBe(200);
   });
 });

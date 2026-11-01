@@ -17,7 +17,7 @@
 //   right only for what this phone's app shows, never for what came from another phone.
 // Times: the app stamps its saves with the phone's clock, which may be off. Every answer from the
 // Worker carries its own clock (`at`, `next_since`), so this module keeps the difference (`offset`,
-// Worker minus phone, from the middle of each request) and sends times on the Worker's clock, and
+// Worker minus phone, from the middle of each request, always taken) and sends times on the Worker's clock, and
 // reads the Worker's times back onto the phone's; "the newer wins" then compares one clock's times.
 // One bad item never costs the rest: the Worker reports what it refused by place, and those stay
 // unsent (tried again next time: a time ahead of the Worker's clock comes good once it is due).
@@ -40,7 +40,6 @@ const KEEPALIVE_BYTES = 8_000;
 /** Pages read on open, at most (3,000 rows; the Worker keeps 1,000 positions). */
 const PAGES = 6;
 const UNFOLLOW_MEMORY_MS = L.unfollowed_keep_days * 86_400_000;
-const OFFSET_MAX_MS = 7 * 86_400_000;
 
 /** @typedef {{ position?: number, duration?: number, played?: boolean, updatedAt?: number, episode?: unknown }} Entry */
 /** @typedef {{ progress: Record<string, Entry>, follows: { feedUrl: string, title?: string, author?: string, artwork?: string }[], [k: string]: unknown }} App */
@@ -122,9 +121,8 @@ function save(storage, key, value) {
 /** The Worker's clock minus the phone's, from an answer that left at `t0` and came back at `t1`
  * (phone times) with the Worker's `at`. @param {Memory} mem @param {unknown} at @param {number} t0 @param {number} t1 */
 export function setOffset(mem, at, t0, t1) {
-  const offset = Math.round(Number(at) - (t0 + t1) / 2);
-  // A week off is no phone's clock: such an answer is ignored.
-  if (Number(at) > 0 && Math.abs(offset) <= OFFSET_MAX_MS) mem.offset = offset;
+  // Always from the Worker's answer: the worse the phone's clock, the more the offset matters.
+  if (Number.isFinite(Number(at)) && Number(at) > 0) mem.offset = Math.round(Number(at) - (t0 + t1) / 2);
 }
 
 /** Remote positions into the app's state where they are newer than its own (on the Worker's clock);
@@ -322,13 +320,15 @@ async function pushNow() {
       if (!refused.has(i)) mem.sent[p.key] = Math.max(mem.sent[p.key] ?? 0, Math.round(Number(app.progress[p.key]?.updatedAt) || 0));
     });
   }
-  for (const batch of ok ? chunks(followsToSend(mem)) : []) {
-    const offset = mem.offset ?? 0;
+  // Each follow's own stamp as sent: a reply moves the offset, so the times sent can't be recomputed.
+  const follows = ok ? followsToSend(mem) : [];
+  const stamped = new Map(follows.map((f) => [f.feed_url, mem.follows[f.feed_url]?.at]));
+  for (const batch of chunks(follows)) {
     const refused = await send('follows', batch, t, mem);
     if (!refused) break;
     batch.forEach((f, i) => {
       const k = mem.follows[f.feed_url];
-      if (!refused.has(i) && k && k.at + offset === f.updated_at) k.sent = true;
+      if (!refused.has(i) && k && k.at === stamped.get(f.feed_url)) k.sent = true;
     });
   }
   // Read again: another tab may have written since (the stamps above are this one's).

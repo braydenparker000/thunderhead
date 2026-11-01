@@ -8,10 +8,16 @@ import type {
   PodcastProgress,
   PodcastSyncResponse,
 } from '../../../shared/contract/podcasts.ts';
+import { claimedSession, taintedAt } from '../areas/mind/guards';
+import { taint } from '../areas/mind/ops';
 import * as store from '../areas/podcasts/store';
 import * as sync from '../areas/podcasts/sync';
-import type { Out } from '../lib/result';
+import { attempt, invalid, type Out } from '../lib/result';
+import type { Caller } from './caller';
 import { CoreReports } from './core-reports';
+
+/** The taint source a Podcasts read records (the hooks' and th's are theirs). */
+export const PODCASTS_TAINT = 'podcasts';
 
 type Page<R> = { rows: R[]; more: boolean; last: [number, string] | null; at: number };
 type Refused = PodcastSyncResponse['refused'];
@@ -49,6 +55,24 @@ export abstract class CorePodcasts extends CoreReports {
 
   podcastsChecked(items: PodcastChecked[]): Out<{ updated: number; at: number }> {
     return this.run((w) => sync.checked(w, items));
+  }
+
+  /** A mind session is about to be served what podcast publishers wrote (show titles, feed
+   * addresses, a feed): the Worker marks it tainted itself, whatever prints it, before it is served
+   * (M-1 of the second read). The session must be named (422 without TH-Session: raw curl sends none)
+   * and be a claimed, live session of its role (403 session_required: a made-up id can't take the
+   * mark instead). Once a session is tainted this reads two or three rows and writes none. */
+  podcastsRead(c: Caller): Out<null> {
+    return attempt(() =>
+      this.ctx.storage.transactionSync(() => {
+        if (!c.session_id) throw invalid('TH-Session', 'required: reading this marks the session tainted');
+        const role = c.who === 'N' ? 'night' : c.who === 'R' ? 'reflex' : 'chat';
+        claimedSession(this.db, c.session_id, role);
+        if (taintedAt(this.db, c.session_id) === null)
+          taint(this.db, c.session_id, role, PODCASTS_TAINT, Date.now(), this.tz());
+        return null;
+      }),
+    );
   }
 
   /** Whether the night may read this feed now (a followed show's, within the day's count). */

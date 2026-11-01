@@ -4,8 +4,9 @@
 // first. A PUT's items are checked one by one: one that can't be taken (malformed, or its
 // `updated_at` more than an hour ahead of the Worker's clock) is reported by its place in
 // `refused` and the rest are kept. The night reads both (the follows with its last check of each
-// show) and records the shows it read. Nothing here writes the change feed: the phones ask by time
-// when Podcasts opens.
+// show) and records the shows it read; a mind session that reads them is marked tainted first
+// (taint.ts: feed addresses and show titles are their publishers' words). Nothing here writes the
+// change feed: the phones ask by time when Podcasts opens.
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import {
@@ -25,6 +26,7 @@ import { decodeCursor, encodeCursor } from '../../lib/cursor';
 import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
+import { taintMindReader } from './taint';
 
 const seconds = z.number().check(z.gte(0), z.lte(L.seconds_max));
 const ms = z.number().check(z.int(), z.gte(1), z.lte(Number.MAX_SAFE_INTEGER));
@@ -123,6 +125,7 @@ export const podcastSyncRoutes = new Hono<AppEnv>()
   })
   .get('/podcasts/progress', guard('GET /v1/podcasts/progress'), async (c) => {
     const { after, limit } = startOf('podcasts/progress', c.req.query());
+    await taintMindReader(c);
     return c.json(pageOut('podcasts/progress', await fresh(coreObject(c.env).podcastProgress(after, limit))));
   })
   .put('/podcasts/follows', guard('PUT /v1/podcasts/follows'), async (c) => {
@@ -131,6 +134,7 @@ export const podcastSyncRoutes = new Hono<AppEnv>()
   })
   .get('/podcasts/follows', guard('GET /v1/podcasts/follows'), async (c) => {
     const { after, limit } = startOf('podcasts/follows', c.req.query());
+    await taintMindReader(c);
     return c.json(pageOut('podcasts/follows', await fresh(coreObject(c.env).podcastFollows(after, limit))));
   })
   .post('/podcasts/follows/checked', guard('POST /v1/podcasts/follows/checked'), async (c) => {

@@ -65,8 +65,8 @@ const placed = fake => fake.state.surfaces.get('home/line.4');
 
 test('th podcasts new: the due shows read, the checks sent, the line placed on home; counts only, never a title', withFake(async fake => {
   const now = Date.now();
-  fake.addFollow({feed_url: feed(1), title: 'History Hour', latest_at: now - 48 * H, checked_at: now - 24 * H});
-  fake.addFollow({feed_url: feed(2), title: 'Science Talk', latest_at: now - 48 * H, checked_at: now - 25 * H});
+  fake.addFollow({feed_url: feed(1), title: 'Invented Show', latest_at: now - 48 * H, checked_at: now - 24 * H});
+  fake.addFollow({feed_url: feed(2), title: 'Made Up Talk', latest_at: now - 48 * H, checked_at: now - 25 * H});
   fake.addFollow({feed_url: feed(3), title: 'Quiet Show', latest_at: now - 2 * H, checked_at: now - 22 * H});
   fake.addFollow({feed_url: feed(4), title: 'Gone Show', followed: false});
   fake.addFollow({feed_url: feed(5), title: 'Checked Today', checked_at: now - 3 * H, new_n: 0});
@@ -78,11 +78,11 @@ test('th podcasts new: the due shows read, the checks sent, the line placed on h
   const r = await th(['podcasts', 'new'], night(fake));
   assert.equal(r.code, 0, r.stderr);
   assert.deepEqual(r.json, {checked: 3, failed: 0, waiting: 0, shows_with_new: 1, new_episodes: 2, placed: true, slot: 'line.4', reason: null});
-  for (const title of ['History', 'Science', 'Quiet', 'Gone', 'Checked', 'Show', 'Episode', 'feeds.example'])
+  for (const title of ['Invented', 'Made Up', 'Quiet', 'Gone', 'Checked', 'Show', 'Episode', 'feeds.example'])
     assert.ok(!r.stdout.includes(title) && !r.stderr.includes(title), `${title} reached the session`);
   // The line went to home through the Worker, as a JSON body, counts only.
   assert.deepEqual(placed(fake).payload, {text: '2 new episodes in Podcasts.'});
-  for (const w of parts(['History Hour', 'Science Talk', 'Quiet Show', 'Gone Show', 'Checked Today']))
+  for (const w of parts(['Invented Show', 'Made Up Talk', 'Quiet Show', 'Gone Show', 'Checked Today']))
     assert.ok(!JSON.stringify(placed(fake)).includes(w), `${w} is on the surface`);
   assert.equal(placed(fake).kind, 'line');
   assert.equal(placed(fake).topic_key, 'podcasts-new');
@@ -159,15 +159,44 @@ test('due and gapOf: a failing show waits 20 h, then 40, 80 and 160 at most', ()
   assert.deepEqual(due(rows, now).map(f => f.feed_url), ['b']);
 });
 
-test('reading the podcast routes by hand taints the session; th podcasts new does not', () => {
-  const ctx = {cwd: ROOT, tmpDir: '/tmp', ownHosts: []};
+test('the hook (a soft first layer) marks every spelling of a podcast read by hand, and curl to them', () => {
+  const ctx = {cwd: ROOT, tmpDir: '/tmp', ownHosts: ['api.example.test']};
   const of = command => taintOf({tool_name: 'Bash', tool_input: {command}}, ctx);
   for (const c of ['th get /v1/podcasts/follows since=0', 'th get /v1/podcasts/feed url=https://feeds.example.org/a.xml',
-    'th get /v1/podcasts/progress', 'node mind/cli/th.mjs get /v1/podcasts/follows'])
+    'th get /v1/podcasts/progress', 'node mind/cli/th.mjs get /v1/podcasts/follows',
+    'th get --x y /v1/podcasts/follows', "th get '/v1/threads/..\\podcasts\\follows'"])
     assert.deepEqual(of(c), {source: 'th podcasts', ref: 'file'}, c);
+  assert.deepEqual(of('curl -s https://api.example.test/v1/podcasts/follows'), {source: 'curl', ref: 'url'});
+  assert.equal(of('curl -s https://api.example.test/v1/health'), null);
   assert.equal(of('th podcasts new'), null);
   assert.equal(of('th get /v1/threads/today'), null);
 });
+
+test('the Worker marks the session itself, whatever the spelling; a path that changes as a URL is refused', withFake(async fake => {
+  fake.addFollow({feed_url: feed(1), title: 'Invented Show'});
+  const e = night(fake);
+  const session = e.CLAUDE_CODE_REMOTE_SESSION_ID;
+  // Plain, and a flag's value first: both reach the follows, and the Worker marks the session.
+  for (const args of [['get', '/v1/podcasts/follows'], ['get', '--x', 'y', '/v1/podcasts/follows']]) {
+    fake.state.tainted.clear();
+    const r = await th(args, e);
+    assert.equal(r.code, 0, `${args.join(' ')}: ${r.stderr}`);
+    assert.ok(fake.state.tainted.has(session), args.join(' '));
+  }
+  // `..\` would match /v1/threads/:id here and arrive as /v1/podcasts/follows: th refuses it first.
+  const before = fake.state.requests.length;
+  for (const path of ['/v1/threads/..\\podcasts\\follows', '/v1/threads/%2e%2e/podcasts/follows', '/v1/threads/./x']) {
+    const r = await th(['get', path], e);
+    assert.equal(r.code, 8, path);
+    assert.match(r.stderr, /not a plain route path/);
+  }
+  assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
+  // th podcasts new prints counts only, and still the Worker marks the session that read the follows.
+  fake.state.tainted.clear();
+  fake.setFeed(feed(1), rss(1, [1]));
+  assert.equal((await th(['podcasts', 'new'], e)).code, 0);
+  assert.ok(fake.state.tainted.has(session));
+}));
 
 test('th podcasts new: usage, and only the night may', withFake(async fake => {
   assert.equal((await th(['podcasts'], night(fake))).code, 8);

@@ -31,7 +31,13 @@ export async function podcastCalls(cost: Cost, grant: (ip: string, password?: st
     token: d.token,
     body: { name: 'night-cost-podcasts', role: 'mind:night', current_password: `${PASSWORD} new` },
   });
-  const night = { token: agent.body.token };
+  // The night reads from its claimed session, which the Worker marks tainted (the first read writes it).
+  const session = 'cse_cost_podcasts_night';
+  const night = { token: agent.body.token, headers: { 'TH-Session': session } };
+  await api('POST', '/v1/mind/brief', {
+    ...night,
+    body: { claim: true, session_id: session, role: 'night', constitution_sha256: 'a'.repeat(64), th_version: '0.1.0' },
+  });
   const at = Date.now() - 60_000;
   const put = (items: unknown[]) => () => api('PUT', '/v1/podcasts/progress', { ...d, body: { items } });
   await cost('PUT /v1/podcasts/progress (1 new) (Core)', put([item(1, 30, at)]), 200, core());
@@ -82,7 +88,13 @@ export async function podcastCalls(cost: Cost, grant: (ip: string, password?: st
     core(),
   );
   await cost(
-    'GET /v1/podcasts/follows (20 shows, the night) (Core)',
+    'GET /v1/podcasts/follows (20 shows, the night, marking its session) (Core)',
+    () => api('GET', '/v1/podcasts/follows?since=0', night),
+    200,
+    core(),
+  );
+  await cost(
+    'GET /v1/podcasts/follows (20 shows, the night, already marked) (Core)',
     () => api('GET', '/v1/podcasts/follows?since=0', night),
     200,
     core(),

@@ -395,10 +395,6 @@
     "rows_read_max": 0,
     "rows_written_max": 2
   },
-  "GET /v1/podcasts/follows (20 shows, the night) (Core)": {
-    "rows_read_max": 20,
-    "rows_written_max": 0
-  },
   "POST /v1/podcasts/follows/checked (20) (Core)": {
     "rows_read_max": 20,
     "rows_written_max": 20
@@ -413,6 +409,14 @@
   },
   "GET /v1/podcasts/feed, the night refused (not followed) (Core)": {
     "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "GET /v1/podcasts/follows (20 shows, the night, marking its session) (Core)": {
+    "rows_read_max": 25,
+    "rows_written_max": 2
+  },
+  "GET /v1/podcasts/follows (20 shows, the night, already marked) (Core)": {
+    "rows_read_max": 23,
     "rows_written_max": 0
   }
 }

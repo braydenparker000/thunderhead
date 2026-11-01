@@ -183,7 +183,7 @@ The 120-min cutoff is a starting value. Test R-3 measures the usage cost of idle
 - **Retries:** network errors and 5xx retry 3 times (1 s, 2 s, 4 s), except `say`, which is idempotent by its client-generated message id and is safe to retry.
 - **Idempotency:** every create sends a UUIDv7 made by `th`. Re-sending returns the stored result.
 - **Stop notice:** when the owner has tapped Stop (`POST /v1/mind/stop`), every `say`/`status` reply carries the header `TH-Stop: 1` and `th` prints `th: STOP` on stderr, until the chat mind's next text reply.
-- **The contract:** `th` checks every call against `mind/cli/contract.json` (generated from `shared/contract`) before the network. A route the Worker build does not have yet exits 8 with `not_built` and its phase; verb args, surface payloads and the phrase lint are checked locally (exit 8). `th help` prints the commands and, from the contract, the routes, verbs and surface kinds the role can use, so new features reach the mind through `th get`, `th verb`, `th surface` and `th search` without a CLI change ([EXTENDING.md](../engineering/EXTENDING.md) rule 8).
+- **The contract:** `th` checks every call against `mind/cli/contract.json` (generated from `shared/contract`) before the network. A route the Worker build does not have yet exits 8 with `not_built` and its phase; verb args, surface payloads and the phrase lint are checked locally (exit 8). `th help` prints the commands and, from the contract, the routes, verbs and surface kinds the role can use, so new features reach the mind through `th get`, `th verb`, `th surface` and `th search` without a CLI change ([EXTENDING.md](../engineering/EXTENDING.md) rule 8). A path is matched as it will reach the Worker: one with a backslash, `..`, an encoded `.`, `/` or `\`, or anything a URL parser would change is refused (exit 8; `plainPath` in `mind/cli/lib/contract.mjs`), so no spelling can match one route here and reach another there.
 - **Role:** `th` sends `TH-Role: <TH_ROLE>`; the Worker trusts only the token's role, and a mismatch is a `403`.
 - **Version:** `th` sends `TH-Client: th/<version>`.
 
@@ -340,7 +340,7 @@ Runs instead of Stop when a turn ends on an API error (`error`: `rate_limit`, `o
 
 ### 6.5 PostToolUse
 
-1. **Taint:** the first tool call that may take in text the owner did not write calls `th taint --source <tool> --ref <url>` once (the Worker hears the ref's kind, never the URL). From then on the Worker refuses that session's memory writes and every ask-first card it would raise or approve. The rule is an allowlist (P4 stage C.5; `mind/hooks/lib/taint.mjs`): every call taints except plainly local ones, so a channel nobody listed (an MCP tool, a gh command, a URL in a variable) taints. Local: `Edit`, `Write` and the session's bookkeeping tools; `Read`, `Grep`, `Glob` of the project (not `node_modules`, not the drop folder `$TMPDIR/th/ext/`) and of th's briefing and state; `th` except `th file` and `th get /v1/podcasts/…` (show titles and feed addresses, which their publishers wrote); git on this repository and its origin (another remote, a URL, a clone or `-c` taints); `gh pr create|merge|checks` and `gh run`; `curl`/`wget` to the Worker or the site by a literal URL; `npm test|run|ci`, a plain `npm install`, `tsc`, `biome`, `vitest`, `playwright`, `wrangler types|dev`, `node` running a project script; and a short list of commands on own files. Everything else taints, the reader subagent's answer and every other subagent's included.
+1. **Taint:** the first tool call that may take in text the owner did not write calls `th taint --source <tool> --ref <url>` once (the Worker hears the ref's kind, never the URL). From then on the Worker refuses that session's memory writes and every ask-first card it would raise or approve. The rule is an allowlist (P4 stage C.5; `mind/hooks/lib/taint.mjs`): every call taints except plainly local ones, so a channel nobody listed (an MCP tool, a gh command, a URL in a variable) taints. Local: `Edit`, `Write` and the session's bookkeeping tools; `Read`, `Grep`, `Glob` of the project (not `node_modules`, not the drop folder `$TMPDIR/th/ext/`) and of th's briefing and state; `th` except `th file` and a `th get` naming podcasts (show titles and feed addresses, which their publishers wrote; the Worker also marks the session itself when it serves them, §12.1); git on this repository and its origin (another remote, a URL, a clone or `-c` taints); `gh pr create|merge|checks` and `gh run`; `curl`/`wget` to the Worker or the site by a literal URL (but not to `/v1/podcasts`); `npm test|run|ci`, a plain `npm install`, `tsc`, `biome`, `vitest`, `playwright`, `wrangler types|dev`, `node` running a project script; and a short list of commands on own files. Everything else taints, the reader subagent's answer and every other subagent's included.
 
    The taint fails closed. The PreToolUse hook marks `taint_pending` in th's state before such a call runs (a call that fails gets no PostToolUse); only a `th taint` that reached the Worker clears it; and while it is set, th sends the taint before any write, so the write fails if the taint can't be sent. If the PostToolUse hook can't run at all, the settings command writes the mark itself.
 2. **Live progress:** for `Bash` calls while the recorded state is `working`, post the call's `description` as a progress note, at most one every 3 s (the current system's `live.mjs` idea). Descriptions are written for the owner to read.
@@ -526,9 +526,16 @@ positions (`PUT /v1/podcasts/follows`, frontend/th/podcasts/progress.js), so the
    (`reason`: `nothing_new`, or the Worker's code when the line was refused, such as `nudge_repeat` after the
    owner dismissed it). Nothing more to do with it.
 
-Reading the podcast routes by hand (`th get /v1/podcasts/…`) taints the session (§6.5): they carry show titles
-and feed addresses. A night reads at most 20 feeds, and writes at most 20 rows for its checks and 20 for its
-count of reads.
+**The taint is the Worker's.** The follows, the positions and a feed carry what publishers wrote (show titles,
+feed addresses, the feed itself), so when the Worker serves one of them to a mind principal it marks that
+request's session tainted first (source `podcasts`, `backend/src/areas/podcasts/taint.ts`), whatever the client
+and however the path was spelled. A mind must name a claimed, live session of its role (`TH-Session`): none is
+422 (so raw `curl`, which sends none, gets nothing), a made-up one 403 `session_required`. `th podcasts new`
+therefore leaves the night tainted, which is why it runs in step 7, after every step that writes memory (a taint
+blocks day notes, facts, reminders, work orders and cards; not surfaces, predictions or the session note). The
+hook's rule (`th get` naming podcasts anywhere, `curl`/`wget` to `/v1/podcasts`) is a soft first layer, and th
+refuses a path that isn't plain (§5.1). A night reads at most 20 feeds, and writes at most 20 rows for its
+checks, 20 for its count of reads and 2 for the mark.
 
 ---
 

@@ -14,6 +14,7 @@ import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
+import { taintMindReader } from './taint';
 import { CATEGORIES, directory, FeedError, feedBody, upstream } from './upstream';
 
 const CODE: Record<number, ErrorCode> = {
@@ -101,6 +102,8 @@ export const podcastsRoutes = new Hono<AppEnv>()
       const ok = await fresh(coreObject(c.env).admitNightFeed(url));
       if (!ok.ok && ok.code === 'forbidden') throw new ApiError('forbidden', { reason: 'not_followed' });
       if (!ok.ok) throw new ApiError('rate_limited', { reason: 'night_feed_reads' }, { retry_after: ok.retry_after });
+      // A feed is its publisher's words: the session is marked tainted before it is served.
+      await taintMindReader(c);
     }
     const body = await answer(() => feedBody(c.req.query('url') ?? '', time(c)));
     return c.body(body, 200, { 'Content-Type': 'application/xml' });

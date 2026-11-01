@@ -1,7 +1,8 @@
 // The fake Worker's Podcasts routes (API.md §11.25), close enough to drive `th podcasts new`: the
 // follows and positions the test put in (one page each), a feed per address (XML, or a status), and
-// the night's checks, kept as the Worker would (latest_at never back; only followed shows). The
-// real rules (newer wins, the 40 reads a day, the prune) are the Worker's own tests.
+// the night's checks, kept as the Worker would (latest_at never back; only followed shows). Like the
+// Worker, the three reads mark the asking session tainted, and refuse a request with no session (422).
+// The real rules (newer wins, the 40 reads a day, the prune) are the Worker's own tests.
 import {HttpError} from './fake-worker.mjs';
 
 /** @param {any} ctl the fake's control object */
@@ -14,10 +15,16 @@ export function podcastRoutes(ctl) {
   /** A feed's answer: XML, or `{status, code}` for a refusal. */
   ctl.setFeed = (url, answer) => p.feeds.set(url, answer);
   const page = items => ({items, next_since: Date.now(), next: null});
+  /** What publishers wrote is served only to a named session, which is marked tainted first. */
+  const mark = session => {
+    if (!session) throw new HttpError(422, 'validation', 'TH-Session required');
+    s.tainted.add(session);
+  };
   return [
-    ['GET', /^\/v1\/podcasts\/follows$/, ['night'], () => page(p.follows)],
-    ['GET', /^\/v1\/podcasts\/progress$/, ['night'], ({query}) => page(p.progress.filter(r => r.updated_at >= Number(query.get('since') || 0)))],
-    ['GET', /^\/v1\/podcasts\/feed$/, ['night'], ({query}) => {
+    ['GET', /^\/v1\/podcasts\/follows$/, ['night'], ({session}) => { mark(session); return page(p.follows); }],
+    ['GET', /^\/v1\/podcasts\/progress$/, ['night'], ({query, session}) => { mark(session); return page(p.progress.filter(r => r.updated_at >= Number(query.get('since') || 0))); }],
+    ['GET', /^\/v1\/podcasts\/feed$/, ['night'], ({query, session}) => {
+      mark(session);
       const url = query.get('url');
       p.reads.push(url);
       const a = p.feeds.get(url);

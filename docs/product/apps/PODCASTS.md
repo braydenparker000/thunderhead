@@ -335,7 +335,7 @@ always did), and `frontend/th/podcasts/progress.js` keeps that in step with the 
 - **Conflicts:** the newer `updated_at` wins, on the Worker and on the phone; a tie keeps what is
   there. **Clocks:** the app stamps its saves with the phone's clock, which may be off. Every answer
   from the Worker carries its clock (`at`, `next_since`), so the module keeps the difference (the
-  Worker's minus the phone's, from the middle of each request; an answer a week off is ignored),
+  Worker's minus the phone's, from the middle of each request, always taken from the latest answer),
   sends its times on the Worker's clock and reads the Worker's back onto the phone's. Both phones'
   saves are then compared on one clock, to within half a request's time. Chosen over ordering by
   when the Worker took a save, which would let a phone that was offline for a day overwrite newer

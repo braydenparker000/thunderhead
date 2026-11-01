@@ -20,7 +20,7 @@ const FEED = 'https://feeds.example.org/history.xml';
 const OTHER = 'https://feeds.example.org/other.xml';
 const TONE = readFileSync(new URL('./fixtures/tone.opus', import.meta.url));
 const TOKEN = `th1_${'B'.repeat(43)}abcdef`;
-const RSS = `<?xml version="1.0"?><rss><channel><title>History &amp; Sound</title><item><title>Episode two</title><guid>ep-2</guid><itunes:duration>30</itunes:duration><enclosure url="https://media.example.org/2.opus" type="audio/ogg"/></item><item><title>Episode one</title><guid>ep-1</guid><itunes:duration>30</itunes:duration><enclosure url="https://media.example.org/1.opus" type="audio/ogg"/></item></channel></rss>`;
+const RSS = `<?xml version="1.0"?><rss><channel><title>Invented Show</title><item><title>Episode two</title><guid>ep-2</guid><itunes:duration>30</itunes:duration><enclosure url="https://media.example.org/2.opus" type="audio/ogg"/></item><item><title>Episode one</title><guid>ep-1</guid><itunes:duration>30</itunes:duration><enclosure url="https://media.example.org/1.opus" type="audio/ogg"/></item></channel></rss>`;
 let site, mock, browser, base, api;
 const seen = { gets: [], puts: [], auth: new Set() };
 let remote = [];
@@ -48,7 +48,7 @@ before(async () => {
       return json(200, { applied: body.items.length, stale: 0, at: Date.now() });
     }
     if (url.pathname === '/v1/podcasts/directory')
-      return json(200, { shows: [{ id: '1', title: 'History & Sound', feedUrl: FEED, author: 'Host', artwork: '', genres: [] }] });
+      return json(200, { shows: [{ id: '1', title: 'Invented Show', feedUrl: FEED, author: 'Host', artwork: '', genres: [] }] });
     if (url.pathname === '/v1/podcasts/feed') return res.writeHead(200, { ...cors, 'Content-Type': 'application/xml' }).end(RSS);
     if (url.pathname === '/v1/podcasts/audio') {
       const range = /^bytes=(\d+)-(\d*)$/.exec(req.headers.range ?? '');
@@ -80,7 +80,7 @@ async function opened(signedIn, appState) {
   const context = await browser.newContext({ serviceWorkers: 'allow', bypassCSP: true });
   // Before the app's worker takes over, the app asks the old Worker itself (its directory, here).
   await context.route(`${OLD}/**`, (route) =>
-    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ shows: [{ id: '1', title: 'History & Sound', feedUrl: FEED, author: 'Host' }] }) }));
+    route.fulfill({ status: 200, contentType: 'application/json', headers: { 'Access-Control-Allow-Origin': '*' }, body: JSON.stringify({ shows: [{ id: '1', title: 'Invented Show', feedUrl: FEED, author: 'Host' }] }) }));
   await context.route('https://itunes.apple.com/**', (route) => route.abort());
   const page = await context.newPage();
   const errors = [];
@@ -102,7 +102,7 @@ async function opened(signedIn, appState) {
   return { context, page, ids, errors };
 }
 
-const show = { feedUrl: FEED, title: 'History & Sound', author: 'Host', artwork: '' };
+const show = { feedUrl: FEED, title: 'Invented Show', author: 'Host', artwork: '' };
 const episode = (id, title) => ({ id, title, description: '', audioUrl: 'https://media.example.org/x.opus', type: 'audio/ogg', publishedAt: '', duration: 30, bytes: 0, artwork: '', show });
 
 test('signed in: another phone’s newer position is there before the app reads; this phone’s go up; a pause sends at once', opts, async () => {

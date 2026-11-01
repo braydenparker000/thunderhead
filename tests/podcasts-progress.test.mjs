@@ -253,6 +253,19 @@ test('follows go up once each, an unfollow too, stamped when noticed', async () 
   assert.equal(worker.follows.get('https://feeds.example.org/b.xml').title, 'Show b');
 });
 
+test('follows sent in several requests are all marked sent, though the first reply moved the clock offset', async () => {
+  worker.clock = NOW + 5 * 60_000;
+  const shows = Array.from({ length: 150 }, (_, i) => ({ feedUrl: `https://feeds.example.org/s${i}.xml`, title: `Invented ${i}` }));
+  setApp({ follows: shows });
+  await sync.push();
+  const puts = worker.requests.filter((r) => r.path.endsWith('/follows'));
+  assert.deepEqual(puts.map((r) => r.body.items.length), [100, 50]);
+  assert.ok(Object.values(memory().follows).every((k) => k.sent), 'every follow marked sent');
+  worker.requests = [];
+  await sync.push();
+  assert.deepEqual(worker.requests, [], 'nothing sent again');
+});
+
 test('what it remembers stays small: positions the app no longer keeps are forgotten', async () => {
   setApp({ progress: { [key(1)]: entry(5, NOW - 3), [key(2)]: entry(5, NOW - 3) } });
   await sync.push();
