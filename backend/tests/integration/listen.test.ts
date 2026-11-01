@@ -275,6 +275,22 @@ describe('applying under the bulk lane', () => {
   });
 });
 
+describe('files left behind', () => {
+  it("a closed job's files are swept when the next job is asked for; an open job's stay", async () => {
+    await aged();
+    const open = await next(tokens.N, 'kind=audio.analysis&max=1');
+    await put(tokens.I, open.body.job_id, 'part-001.jsonl', '{}');
+    // As if a delete had failed: files of a rejected job, and of a job long pruned.
+    await env.VAULT.put(`jobs/incoming/${second}/part-001.jsonl`, 'left');
+    await env.VAULT.put('jobs/specs/0190a0a0-0000-7000-8000-00000000abcd.order', 'left');
+    await aged();
+    await next(tokens.N, 'kind=audio.neighbours');
+    const left = (await env.VAULT.list({ prefix: 'jobs/' })).objects.map((o) => o.key);
+    expect(left).toEqual([`jobs/incoming/${open.body.job_id}/part-001.jsonl`]);
+    await musicSql("UPDATE external_jobs SET state = 'rejected' WHERE id = ?", open.body.job_id);
+  });
+});
+
 describe('an apply that fails for good', () => {
   it('rejects the job and deletes its uploads', async () => {
     await aged();

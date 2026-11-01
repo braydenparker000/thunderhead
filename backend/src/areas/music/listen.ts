@@ -106,9 +106,10 @@ export function issueNeighbours(
   admit(db, 'audio.neighbours', now);
   if (store.jobs(db, 'audio.neighbours', true, 1).length || store.jobs(db, 'audio.analysis', true, 1).length)
     return null;
-  if (store.due(db, ANALYZER.version, L.failures_max, 1).length) return null;
+  // Two rows first: nothing changed since the last neighbours, so no scan of the catalog.
   const epoch = store.getState<number>(db, 'listen.epoch') ?? 0;
   if (store.getState<{ epoch: number }>(db, 'listen.neighbours')?.epoch === epoch) return null;
+  if (store.due(db, ANALYZER.version, L.failures_max, 1).length) return null;
   const rows = store
     .embeddings(db)
     .map((r) => ({ sha256: r.sha256, pack: new Uint8Array(r.pack) }))

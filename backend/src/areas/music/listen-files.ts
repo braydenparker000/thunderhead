@@ -20,10 +20,37 @@ export function uploadLimit(kind: ListenKind, name: string, songs: number): numb
   return p >= 1 && p <= partsFor(songs) ? L.part_bytes : 0;
 }
 
-/** Deletes everything a job left in the bucket (its uploads and its spec files). */
+/** Deletes everything a job left in the bucket (its uploads and its spec files), trying once more on a
+ * failure; what still stays is swept later (`sweep`). */
 export async function dropJobFiles(vault: R2Bucket, id: string): Promise<void> {
-  const listed = await vault.list({ prefix: incoming(id), limit: 100 });
-  await vault.delete([...listed.objects.map((o) => o.key), specKey(id, 'order'), specKey(id, 'emb')]);
+  for (let attempt = 0; ; attempt++)
+    try {
+      const listed = await vault.list({ prefix: incoming(id), limit: 100 });
+      await vault.delete([...listed.objects.map((o) => o.key), specKey(id, 'order'), specKey(id, 'emb')]);
+      return;
+    } catch (e) {
+      if (attempt >= 1) throw e;
+    }
+}
+
+const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** The files of jobs no longer open (applied, rejected, expired, pruned), at most `max` jobs a call:
+ * what a delete that failed for good left behind. Ids found under `jobs/incoming/` and `jobs/specs/`. */
+export async function sweep(vault: R2Bucket, open: (id: string) => boolean, max = 8): Promise<number> {
+  const ids = new Set<string>();
+  const up = await vault.list({ prefix: 'jobs/incoming/', delimiter: '/', limit: 100 });
+  for (const p of up.delimitedPrefixes) ids.add(p.slice('jobs/incoming/'.length, -1));
+  const specs = await vault.list({ prefix: 'jobs/specs/', limit: 100 });
+  for (const o of specs.objects) ids.add(o.key.slice('jobs/specs/'.length).replace(/\.(order|emb)$/, ''));
+  let n = 0;
+  for (const id of ids) {
+    if (n >= max) break;
+    if (!ID.test(id) || open(id)) continue;
+    await dropJobFiles(vault, id);
+    n++;
+  }
+  return n;
 }
 
 /** Base64 of bytes, in slices (a spread of 400 KB would overflow the call stack). */

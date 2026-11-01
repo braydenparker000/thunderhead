@@ -11,7 +11,7 @@ import {
   type TrackAnalysis,
 } from '../../../shared/contract/listen.ts';
 import * as listen from '../areas/music/listen';
-import { dropJobFiles, specKey } from '../areas/music/listen-files';
+import { dropJobFiles, specKey, sweep } from '../areas/music/listen-files';
 import { buildPack, NEIGHBOURS_KEY, type Neighbours, PACK_KEY, readNeighbours } from '../areas/music/listen-pack';
 import { analysisView, likeList, nearest, stateOf, trackRow } from '../areas/music/listen-read';
 import * as store from '../areas/music/listen-store';
@@ -35,16 +35,22 @@ export abstract class MusicListen extends OwnerObject {
     return this.env.VAULT;
   }
 
-  /** Issued specs past their time expire, and their files go. */
-  private async expire(now: number): Promise<void> {
+  /** Issued specs past their time expire, and their files go; with `sweep`, also files any closed job
+   * left behind (once a night, from GET /v1/jobs/next). */
+  private async expire(now: number, sweepToo = false): Promise<void> {
     const ids = this.tx(() => store.expire(this.db, now));
     for (const id of ids) await dropJobFiles(this.vault(), id);
+    if (sweepToo)
+      await sweep(this.vault(), (id) => {
+        const s = store.job(this.db, id)?.state;
+        return s === 'issued' || s === 'validating';
+      });
   }
 
   /** GET /v1/jobs/next: a new job of the kind, or null when nothing is due. */
   listenNext(kind: ListenKind, max: number, now = Date.now()): Promise<Out<JobIssued | null>> {
     return attemptAsync(async () => {
-      await this.expire(now);
+      await this.expire(now, true);
       if (kind === 'audio.analysis') return this.tx(() => listen.issueAnalysis(this.db, max, now));
       const vault = this.vault();
       const job = this.tx(() => listen.issueNeighbours(this.db, now));
