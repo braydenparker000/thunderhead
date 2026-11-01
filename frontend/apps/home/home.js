@@ -3,6 +3,14 @@
 import { apps } from '/th/registry/apps.js';
 import { from as launchFrom, launch } from '/ui/launch.js';
 import { startPinned } from './pinned.js';
+
+// Music and Podcasts open as a layer inside home and keep playing behind the chat (th/island); the
+// others load in their place. The reveal starts at once; the layer's code loads while it grows.
+function openFromRing(id,color,to){
+  const cover=launch(color);
+  const away=()=>cover.then(()=>location.assign(to));
+  import('/th/island/island.js').then(m=>m.openApp(id,{cover:()=>cover})).then(ok=>ok||away(),away);
+}
 (function(){
   const $=s=>document.querySelector(s), root=document.documentElement;
   const edge=$('#edge'), toastEl=$('#toast'); let tt;
@@ -162,7 +170,7 @@ import { startPinned } from './pinned.js';
     if(to!==from){ buzz(5); if(to==='brief'||to==='side') learn(to) } }
   function close(commit){ clearTimeout(holdT); press.classList.remove('on');
     if(open){ const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
-      if(chosen>=0){ const p=pets[chosen], a=chosen*SEC; p.classList.add('go'); p.style.transform=`translate(${R*1.25*Math.sin(a)}px,${-R*1.25*Math.cos(a)}px) scale(1.7)`; buzz([12,40,12]); const to=APPS[chosen][3]; if(to){ const r=p.getBoundingClientRect(); launchFrom(r.left+r.width/2,r.top+r.height/2); launch(APPS[chosen][2]).then(()=>location.assign(to)) } else toast(APPS[chosen][0]+' comes later') }
+      if(chosen>=0){ const p=pets[chosen], a=chosen*SEC; p.classList.add('go'); p.style.transform=`translate(${R*1.25*Math.sin(a)}px,${-R*1.25*Math.cos(a)}px) scale(1.7)`; buzz([12,40,12]); const to=APPS[chosen][3]; if(to){ const r=p.getBoundingClientRect(); launchFrom(r.left+r.width/2,r.top+r.height/2); openFromRing(apps[chosen].id,APPS[chosen][2],to) } else toast(APPS[chosen][0]+' comes later') }
       ring.classList.add('closing'); pets.forEach((p,i)=>{ if(i!==chosen) p.style.transform='translate(0,0) scale(.2)' });
       setTimeout(()=>{ ring.classList.remove('show','closing','active'); pets.forEach(p=>{p.classList.remove('go','on')}); fan(false) },230);
       dir=-1; lbl.classList.remove('show') }

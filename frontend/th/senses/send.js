@@ -2,12 +2,12 @@
 // What the owner does, as events for the Senses object (API.md §11.14; P9, EVALS.md M-16 and M-18):
 // `<app>.open` when an app's page opens, `briefing.tile` when a night tile is tapped (its ref the
 // tile's ledger row), Guitar's practice (th/guitar/practice.js: a marked pass, a new best, a session,
-// numbers and bar ranges only). Only signed in and in a top-level page; kept on this phone (at most 200)
+// numbers and bar ranges only). Only signed in, and in a top-level page or one of home's own frames; kept on this phone (at most 200)
 // until the Worker takes them. A few seconds after the last one, or when the page hides, the waiting
 // events are sealed into one batch, which is sent again with the same bytes until it is taken (API.md
 // §11.14); one tab sends at a time. Names and times only: nothing the owner typed or saved.
 import { CONFIG } from '/config.js';
-import { sessionToken } from '/th/ported/session.js';
+import { framedByOther, sessionToken } from '/th/ported/session.js';
 
 const KEY = 'th.p.senses';
 /** The sealed batch on its way: `{ id, body, tries }`. */
@@ -55,7 +55,7 @@ function keep(q) {
 /** One event, sent soon. @param {string} type e.g. `guitar.open` @param {string | null} [ref]
  * @param {Record<string, unknown> | null} [data] numbers and names of things, never what the owner wrote (≤ 2 KB) */
 export async function sense(type, ref = null, data = null) {
-  if (window.top !== window.self || !(await sessionToken())) return;
+  if (framedByOther() || !(await sessionToken())) return;
   const now = Date.now();
   keep([...waiting(), { id: uuidv7(now), at: now, type, ...(ref ? { ref } : {}), ...(data ? { data } : {}) }]);
   clearTimeout(timer);

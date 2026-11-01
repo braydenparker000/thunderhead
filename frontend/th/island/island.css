@@ -1,0 +1,35 @@
+/* Apps inside the Thunderhead and the island (th/island/island.js; HOME.md §13). The app: full screen
+   in a frame, clipped to its own rectangle, shrinking into the island by its clip. The island: a door
+   back, never a player; dark glass, the app's colour, Music's live bars, Podcasts' ring of time left.
+   Only transform, opacity and clip-path animate. */
+.th-app{position:fixed;inset:0;z-index:40;width:100%;height:100%;border:0;background:#000;clip-path:inset(0 0 0 0 round 0px)}
+.th-app.away{opacity:0;pointer-events:none}
+.th-island{--c:#2f7df6;--done:0deg;position:fixed;z-index:41;top:calc(10px + env(safe-area-inset-top,0px));left:50%;height:38px;min-width:104px;translate:-50% 0;padding:0 14px 0 5px;display:flex;align-items:center;gap:10px;border:0;border-radius:999px;background:#0b1020;color:#fff;box-shadow:0 14px 34px -14px rgba(8,14,40,.65),0 0 0 1px rgba(255,255,255,.07),inset 0 1px 0 rgba(255,255,255,.08);cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;transform-origin:50% 50%}
+.th-island[hidden]{display:none}
+.th-island .dot{width:28px;height:28px;border-radius:50%;background:radial-gradient(120% 120% at 30% 20%,color-mix(in srgb,var(--c) 70%,#fff),var(--c) 60%);box-shadow:0 0 14px -2px color-mix(in srgb,var(--c) 80%,transparent)}
+.th-island .bars{display:flex;align-items:center;gap:3px;height:16px}
+.th-island .bars i{display:block;width:3px;height:100%;border-radius:2px;background:color-mix(in srgb,var(--c) 75%,#fff);transform:scaleY(.25);transition:transform .3s}
+/* Live: the engine's level drives each bar (no transition, 60 frames a second). Without a meter: a breath. */
+.th-island.live .bars i{transition:none}
+.th-island.playing:not(.live) .bars i{animation:th-level 900ms ease-in-out infinite alternate}
+.th-island.playing:not(.live) .bars i:nth-child(2){animation-duration:620ms;animation-delay:-200ms}
+.th-island.playing:not(.live) .bars i:nth-child(3){animation-duration:780ms;animation-delay:-450ms}
+.th-island.playing:not(.live) .bars i:nth-child(4){animation-duration:540ms;animation-delay:-120ms}
+.th-island.playing:not(.live) .bars i:nth-child(5){animation-duration:700ms;animation-delay:-330ms}
+@keyframes th-level{0%{transform:scaleY(.25)}100%{transform:scaleY(1)}}
+.th-island:not(.playing){opacity:.78}
+.th-island .left{display:none;font:600 13px/1 var(--ui);font-variant-numeric:tabular-nums}
+/* Podcasts: a ring of the time gone round the dot, and the minutes left. */
+.th-island[data-app="podcasts"] .bars{display:none}
+.th-island[data-app="podcasts"] .left{display:block}
+.th-island[data-app="podcasts"] .dot{background:radial-gradient(circle,var(--c) 56%,transparent 57%),conic-gradient(#fff var(--done),rgba(255,255,255,.18) 0)}
+.th-island:active{scale:.96}
+/* The wide card, held open from the island for a moment. */
+.th-wide{position:fixed;z-index:42;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);width:min(360px,calc(100vw - 24px));padding:16px 16px 14px;border-radius:26px;background:#0b1020;color:#fff;box-shadow:0 24px 60px -20px rgba(8,14,40,.75),0 0 0 1px rgba(255,255,255,.08);transform-origin:50% 0}
+.th-wide .tt{margin:0 4px;font:600 16px/1.3 var(--ui);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.th-wide .by{margin:2px 4px 12px;font:400 14px/1.3 var(--ui);color:rgba(255,255,255,.65);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.th-wide .by:empty{display:none}
+.th-wide .row{display:flex;flex-wrap:wrap;gap:8px}
+.th-wide .row button{min-height:44px;padding:0 14px;border:0;border-radius:999px;background:rgba(255,255,255,.12);color:#fff;font:500 14px var(--ui)}
+.th-wide .row button:first-child{background:#fff;color:#0b1020}
+@media (prefers-reduced-motion:reduce){.th-island.playing:not(.live) .bars i{animation:none;transform:scaleY(.6)}}

@@ -27,8 +27,13 @@ export const EXECUTORS = {
     1: async ({ app, path }) => {
       const to = deepLink(app, path);
       if (!to) return { ok: false, error: { code: 'app_missing' } };
-      await launch(/** @type {{ color: string }} */ (appFor(app)).color);
-      location.assign(to);
+      const cover = launch(/** @type {{ color: string }} */ (appFor(app)).color);
+      // Music and Podcasts open as a layer inside home when it's the app's own front page (th/island).
+      const layer = to === appFor(app)?.path ? await import('../island/island.js').then((m) => m.openApp(app, { cover: () => cover }), () => false) : false;
+      if (!layer) {
+        await cover;
+        location.assign(to);
+      }
       return { ok: true, result: {} };
     },
   },

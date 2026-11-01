@@ -10,8 +10,10 @@
 // The new Worker's refusals come back in the shape the app reads, `{error: words}`. Until it can
 // answer (signed out, an old session, the new Worker down), the request goes to the old Worker as
 // before, and the new one is asked again 5 minutes later. A framed copy of the app never gets the
-// owner's session. Nothing here names an outside host; podcasts/sw.js names the old Worker (`use`).
+// owner's session, unless home opened that frame itself (the island, th/ported/frames.js). Nothing here names an outside host; podcasts/sw.js names the old Worker (`use`).
 import { FeedError, parseFeed, publicURL } from '/th/podcasts/feed.js';
+// Home's own frames (the island) may have the session too (th/ported/frames.js sets self.thFrames).
+import '/th/ported/frames.js';
 import { sessionToken } from '/th/ported/session.js';
 
 const ROUTES = new Set(['/podcasts/search', '/podcasts/browse', '/podcasts/feed', '/podcasts/audio']);
@@ -35,6 +37,8 @@ const deps = {
   /** @param {any} event */
   topLevel: async (event) => {
     if (!event?.clientId) return true;
+    const frames = /** @type {any} */ (self).thFrames;
+    if (frames) return frames.trusted(event.clientId);
     const c = await /** @type {any} */ (self).clients.get(event.clientId);
     return !c || c.frameType === 'top-level';
   },

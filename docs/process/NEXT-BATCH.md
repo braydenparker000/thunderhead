@@ -35,6 +35,11 @@ mixes, the menu.
 
 ## 3. Apps inside the Thunderhead, and the island
 
+Built 2026-11-01 (HOME.md §12.1): Music and Podcasts as layers in home, the morph into the island
+and back, the swipe down and Back, the live level bars and Podcasts' ring, hold for the wide card,
+swipe for next/previous, the frame trust (SECURITY.md §4.4 rule 5). Not yet: Music's menu item,
+Guitar's island, picture-in-picture for Astra and My Media.
+
 **The model.** Home stays loaded. An app opens as a layer over it, with the ring's circle reveal
 unchanged (owner: "I like the way the apps open from the wheel"). Apps that play keep playing when
 you leave them; the others unload.
@@ -79,8 +84,9 @@ ported pages read the session only when their top page is ours.
 
 ## 5. Instant phone commands
 
-Built 2026-10-31 for apps and reminders (`th/commands/commands.js`); the playback orders wait for the
-island's channel to the playing app (part 3).
+Built 2026-10-31 for apps and reminders (`th/commands/commands.js`); the playback orders, the sleep
+timer and "never play this again" on 2026-11-01, through the island (part 3). "Play Evening" (a
+playlist by name) goes to the mind as words for now.
 
 - Caught on the phone before anything is sent, as "go quiet" is today (`th/chat/quiet.js`), in plain
   words with a small grammar: "pause", "play", "skip" / "next", "previous", "play Evening" (a

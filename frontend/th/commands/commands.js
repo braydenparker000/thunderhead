@@ -2,8 +2,10 @@
 // Instant phone commands (docs/process/NEXT-BATCH.md part 5): a few plain orders the phone carries
 // out at once, as it does "go quiet" (th/chat/quiet.js), with no mind and no wait: "open guitar",
 // "remind me at 5 to call the bank". Anything the grammar doesn't read exactly goes to the mind as
-// words, unchanged. Playback orders ("pause", "skip", "play Evening") come with the island, which
-// reaches the playing app (part 3).
+// words, unchanged. Playback orders ("pause", "skip", "previous", "sleep timer 20 minutes", "never
+// play this again") act on the app playing in home's layer or island (th/island, part 3). "Stop" alone
+// stays words for the mind (it may mean its work); "never play this again" also goes to the mind,
+// so it can keep the song out of its mixes.
 import { appFor } from '../registry/apps.js';
 
 /** The names the owner calls each app, to the app's id. */
@@ -58,12 +60,36 @@ export function whenOf(w, now) {
   return null;
 }
 
-/** @typedef {{ kind: 'open', app: string } | { kind: 'remind', at: number, text: string }} Command */
+/** @typedef {'pause' | 'play' | 'next' | 'previous' | 'sleep' | 'never'} Control */
+/** @typedef {{ kind: 'open', app: string } | { kind: 'remind', at: number, text: string }
+ *   | { kind: 'control', cmd: Control, minutes?: number, alsoSay?: boolean }} Command */
+
+const CONTROLS = /** @type {[RegExp, Control][]} */ ([
+  [/^(?:pause|pausa|pause (?:the )?(?:music|song|podcast|it)|stop (?:the )?(?:music|song|podcast)|stop playing)$/, 'pause'],
+  [/^(?:play|resume|unpause|keep playing|play (?:the )?music|carry on playing)$/, 'play'],
+  [/^(?:skip|next|siguiente|salta|skip (?:this|it|this song|the song)|next song|play the next song)$/, 'next'],
+  [/^(?:previous|anterior|previous song|last song|go back a song|back a song|play the last song)$/, 'previous'],
+  [/^(?:never play (?:this|that|it)(?: song)? again|don'?t play (?:this|that)(?: song)? again|not this song again)$/, 'never'],
+]);
+/** Minutes in "20 minutes", "an hour", "half an hour". @param {string} n @param {string} unit */
+function minutesOf(n, unit) {
+  const k = n === 'half an' ? 0.5 : /^an?$/.test(n) ? 1 : WORDS.includes(n) ? WORDS.indexOf(n) : +n;
+  const m = Math.round(k * (unit.startsWith('h') ? 60 : 1));
+  return m >= 1 && m <= 240 ? m : null;
+}
 
 /** The order in `text`, if the phone reads it exactly; else null (the words go to the mind).
  * @param {string} text @param {number} [now] @returns {Command | null} */
 export function commandOf(text, now = Date.now()) {
   const t = norm(text);
+  for (const [re, cmd] of CONTROLS) if (re.test(t)) return { kind: 'control', cmd, ...(cmd === 'never' ? { alsoSay: true } : {}) };
+  // The sleep timer: "play until I fall asleep" (30 minutes), "sleep timer 20 minutes", "stop the music in an hour".
+  if (/^(?:play until i fall asleep|sleep timer|set a sleep timer)$/.test(t)) return { kind: 'control', cmd: 'sleep', minutes: 30 };
+  let s = /^(?:(?:set a )?sleep timer(?: for)?|sleep in|stop (?:the )?music in|turn (?:the )?music off in|turn off the music in|stop playing in) (\d+|an?|half an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve) ?(minutes?|mins?|hours?|hrs?|h)$/.exec(t);
+  if (s) {
+    const minutes = minutesOf(s[1], s[2]);
+    if (minutes) return { kind: 'control', cmd: 'sleep', minutes };
+  }
   let m = /^(?:open|launch|go to|abre|abrir|ir a)(?: the)? (.+?)(?: app)?$/.exec(t);
   if (m && APP_NAMES[m[1]]) return { kind: 'open', app: APP_NAMES[m[1]] };
   // "remind me <when> to <what>" or "remind me to <what> <when>"; the words keep their own case.
@@ -94,6 +120,15 @@ export function whenWords(at, now = Date.now()) {
 /** What it will do, shown under the bar before it goes. @param {Command} c */
 export function preview(c) {
   if (c.kind === 'open') return `Opens ${appFor(c.app)?.name ?? c.app}.`;
+  if (c.kind === 'control')
+    return {
+      pause: 'Pauses what is playing.',
+      play: 'Plays again.',
+      next: 'Next song (Podcasts: 30 seconds on).',
+      previous: 'Previous song (Podcasts: 15 seconds back).',
+      sleep: `Stops the music in ${c.minutes ?? 30} minutes.`,
+      never: 'Skips it and rates it "not for me"; the mind hears it too.',
+    }[c.cmd];
   return `A reminder at ${whenWords(c.at)}: ${c.text}`;
 }
 
@@ -101,13 +136,23 @@ export function preview(c) {
  * @param {Command} c @param {() => string} newId */
 export async function run(c, newId) {
   const { toast } = await import('../ui.js');
+  if (c.kind === 'control') {
+    const { control } = await import('../island/island.js');
+    const r = control(c.cmd, c.minutes);
+    toast(r.text, r.undo ? { label: 'Undo', run: r.undo } : undefined);
+    return;
+  }
   if (c.kind === 'open') {
     const { from: launchFrom, launch } = await import('../../ui/launch.js');
     const app = appFor(c.app);
     if (!app?.built) return toast(`${app?.name ?? 'That app'} comes later.`);
     launchFrom(innerWidth / 2, innerHeight - 60);
-    await launch(app.color);
-    location.assign(app.path);
+    const cover = launch(app.color);
+    const { openApp } = await import('../island/island.js');
+    if (!(await openApp(app.id, { cover: () => cover }))) {
+      await cover;
+      location.assign(app.path);
+    }
     return;
   }
   const { api, signedIn } = await import('../client.js');

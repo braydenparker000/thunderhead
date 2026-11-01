@@ -403,10 +403,13 @@ export async function startChat() {
     // "Open guitar", "remind me at 5 to …": done here at once (th/commands); else words for the mind.
     const command = picked.length || !commands ? null : commands.commandOf(body, now);
     if (command && commands) {
-      clearBar();
-      ask.classList.remove('typing');
       void commands.run(command, () => model.uuidv7(Date.now()));
-      return;
+      // "Never play this again" is done here and also said to the mind, which keeps it out of its mixes.
+      if (!('alsoSay' in command && command.alsoSay)) {
+        clearBar();
+        ask.classList.remove('typing');
+        return;
+      }
     }
     // "Ask about this" left a quote over the bar: this message answers that reply.
     const about = $('#about');

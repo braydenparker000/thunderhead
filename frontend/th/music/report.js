@@ -5,14 +5,14 @@
 // taken yet, once a minute while music plays and once when the page is hidden, one batch at a time,
 // each at most 30 KB with known fields only (report-batch.js, report-fields.js: timings, counts and
 // track ids, never titles, artists, file names or more of an address than its host). Only signed in
-// on this site, and only from a top-level page (a framed copy never gets the session,
+// on this site, and only from a top-level page or home's own frame (a copy another site frames never gets the session,
 // th/ported/session.js). A batch with no answer in 15 s, or a 408, 429 or 5xx, goes again later; after
 // a 401 or 403 nothing goes until the session changes. It also adds to the log the time to first
 // sound of each play: from the play asked for (a new song while playing, or Play) to its deck's first
 // `playing`, as a `first sound` event with the track id and the milliseconds.
 // Loaded by th/music/dj.js `installDj`, which the player already runs at start.
 import { CONFIG } from '/config.js';
-import { sessionToken } from '/th/ported/session.js';
+import { framedByOther, sessionToken } from '/th/ported/session.js';
 import { batches } from './report-batch.js';
 
 const EVERY_MS = 60_000;
@@ -38,7 +38,7 @@ export function installReport(ctx, o = {}) {
       return;
     }
     firstSound(ctx, log);
-    if (window.top === window.self && CONFIG.api) run(ctx, log, o.everyMs ?? EVERY_MS);
+    if (!framedByOther() && CONFIG.api) run(ctx, log, o.everyMs ?? EVERY_MS);
   };
   start();
 }

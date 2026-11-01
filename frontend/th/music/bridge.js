@@ -14,10 +14,17 @@
 // refusing a fresh link), the request goes to the old Worker as before, and the new one is asked
 // again 5 minutes later. A network failure, or a signature or the bucket not answering within
 // UPSTREAM_MS, sends that one request to the old Worker and nothing else. A framed copy of the
-// player never gets the owner's session.
-// Classic script, no imports: it runs in a classic worker. The player's worker names the old
+// player never gets the owner's session, unless home opened that frame itself (the island,
+// th/ported/frames.js: a one-time token home gives this worker before it opens the frame).
+// Classic script: it runs in a classic worker, and loads frames.js the classic way. The player's worker names the old
 // Worker's origin (`use`); this file names no outside host. Text never reaches a log.
 (() => {
+  // In the worker only (the tests evaluate this file without one).
+  if (typeof importScripts === 'function') {
+    try {
+      importScripts('/th/ported/frames.js');
+    } catch {}
+  }
   let OLD = '';
   const PATH = /^\/music\/library(?:\.json|\/(audio|art|waveform)\/(r2_[A-Za-z0-9_-]{10,200}))$/;
   const CATALOG_CACHE = 'th-music-catalog';
@@ -76,8 +83,10 @@
       const m = /CONFIG = (\{.*\});/.exec(text);
       return m ? String(JSON.parse(m[1]).api || '') : '';
     },
+    /** Whether the request's page may have the session: top-level, or a frame home opened. */
     topLevel: async (event) => {
       if (!event?.clientId) return true;
+      if (self.thFrames) return self.thFrames.trusted(event.clientId);
       const c = await self.clients.get(event.clientId);
       return !c || c.frameType === 'top-level';
     },
@@ -257,7 +266,8 @@
 
   /** The next songs' links, signed in one request ahead of their turn (urls: the player's song addresses). */
   async function ahead(urls, source) {
-    if (!OLD || deps.now() < offUntil || source?.frameType !== 'top-level') return;
+    const ours = source?.frameType === 'top-level' || (!!self.thFrames && !!source?.id && (await self.thFrames.trusted(source.id)));
+    if (!OLD || deps.now() < offUntil || !ours) return;
     const refs = [];
     for (const u of urls) {
       let url = null;

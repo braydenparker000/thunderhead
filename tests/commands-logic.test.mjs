@@ -2,7 +2,7 @@
 // exactly, the times it understands, and that anything else stays words for the mind.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { commandOf, whenOf, whenWords } from '../frontend/th/commands/commands.js';
+import { commandOf, preview, whenOf, whenWords } from '../frontend/th/commands/commands.js';
 
 // Saturday 2026-10-31 14:20 local.
 const NOW = new Date(2026, 9, 31, 14, 20).getTime();
@@ -38,4 +38,26 @@ test('times: the next one the clock will read, with or without am and pm', () =>
   assert.equal(whenOf('in 9999 hours', NOW), null);
   assert.equal(whenWords(at(31, 17), NOW), '17:00');
   assert.equal(whenWords(at(32, 8), NOW), 'tomorrow 08:00');
+});
+
+test('playback orders for the app playing in home (th/island): plain words only; "stop" alone stays the mind\'s', () => {
+  const c = (t) => commandOf(t, NOW);
+  for (const [t, cmd] of [['pause', 'pause'], ['Pause the music.', 'pause'], ['stop the music', 'pause'], ['play', 'play'], ['resume', 'play'], ['skip', 'next'], ['Skip this song', 'next'], ['next song', 'next'], ['previous', 'previous'], ['go back a song', 'previous'], ['siguiente', 'next']])
+    assert.deepEqual(c(t), { kind: 'control', cmd }, t);
+  assert.deepEqual(c('never play this again'), { kind: 'control', cmd: 'never', alsoSay: true }, 'also said to the mind, which keeps it out of its mixes');
+  assert.deepEqual(c("Don't play that song again!"), { kind: 'control', cmd: 'never', alsoSay: true });
+  assert.equal(c('stop'), null, 'may mean the mind\'s work');
+  assert.equal(c('play Evening'), null, 'a playlist by name is the mind\'s for now');
+  assert.equal(c('can you skip this?'), null);
+});
+
+test('the sleep timer: until I fall asleep is 30 minutes; a time from 1 minute to 4 hours', () => {
+  const c = (t) => commandOf(t, NOW);
+  assert.deepEqual(c('play until I fall asleep'), { kind: 'control', cmd: 'sleep', minutes: 30 });
+  assert.deepEqual(c('sleep timer'), { kind: 'control', cmd: 'sleep', minutes: 30 });
+  assert.deepEqual(c('sleep timer 20 minutes'), { kind: 'control', cmd: 'sleep', minutes: 20 });
+  assert.deepEqual(c('Stop the music in an hour.'), { kind: 'control', cmd: 'sleep', minutes: 60 });
+  assert.deepEqual(c('turn off the music in half an hour'), { kind: 'control', cmd: 'sleep', minutes: 30 });
+  assert.equal(c('sleep timer 500 hours'), null);
+  assert.match(preview(c('sleep timer 20 minutes')), /in 20 minutes/);
 });

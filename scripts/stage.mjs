@@ -108,6 +108,8 @@ const budgets = [
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
   // the mic's wiring with the chat, the recorder on the first press of the mic), 2026-10-31.
   ['commands and dictation JS bytes', sum(/^th\/(commands|dictate)\/.*\.js$/), 20_000],
+  // Apps as layers inside home and the island (th/island, loaded when Music or Podcasts opens), 2026-11-01.
+  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 20_000],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads
   // and attachments in the conversation, loaded when the sheet opens or a message has files.
   ['attach JS bytes', sum(/^th\/attach\/.*\.js$/), 36_000],

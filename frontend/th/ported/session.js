@@ -1,13 +1,25 @@
 // @ts-check
 // The owner's session for a ported app whose data has moved to the new Worker (SECURITY.md §4.4
 // rule 4; Guitar in P6, Podcasts' worker in P8): read from this site's IndexedDB `th-auth` as the
-// shell keeps it, only by a top-level page (a framed copy never gets it; a service worker checks
-// whose request it answers), never written anywhere else. Null when signed out: the app then asks
-// the old Worker as before.
+// shell keeps it, only by a top-level page or a frame whose top page is this site's own (home's
+// island, NEXT-BATCH.md part 3; a copy another site frames never gets it, and a service worker checks
+// whose request it answers, th/ported/frames.js), never written anywhere else. Null when signed out:
+// the app then asks the old Worker as before.
+
+/** Whether this page is in a frame of another site's page (a frame whose top is this site is ours:
+ * reading the top's origin throws across sites). */
+export function framedByOther() {
+  if (typeof window === 'undefined' || window.top === window.self) return false;
+  try {
+    return window.top?.location.origin !== location.origin;
+  } catch {
+    return true;
+  }
+}
 
 /** @returns {Promise<string | null>} */
 export function sessionToken() {
-  if (typeof window !== 'undefined' && window.top !== window.self) return Promise.resolve(null);
+  if (framedByOther()) return Promise.resolve(null);
   return new Promise((resolve) => {
     /** @type {IDBOpenDBRequest} */
     let req;
