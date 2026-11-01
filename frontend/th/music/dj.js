@@ -31,6 +31,34 @@ const KEEP = 4000;
 /** @typedef {{ id: string, artist?: string, album?: string, albumArtist?: string, genre?: string, composer?: string, year?: number, rating?: number, lastPlayed?: number }} Track */
 /** @typedef {{ tracks: Record<string, [number, number]>, moves: Record<string, [number, number]>, recent: string[] }} Learned */
 
+/**
+ * Never means never (the owner's "never play this again", rated 1): the player's next and previous,
+ * and its own advance, pass over such songs in any order (shuffled or not); a tap on one still plays
+ * it, and a list of nothing else plays as it is. The index `rel` steps from position `pos` in
+ * `order`, or null past an end (`wrap`: round, as repeat does).
+ * @param {number[]} order @param {number} pos @param {number} rel @param {boolean} wrap @param {(i: number) => boolean} skip
+ */
+export function stepOver(order, pos, rel, wrap, skip) {
+  const n = order.length;
+  const plain = () => {
+    const p = pos + rel;
+    if (p >= 0 && p < n) return order[p];
+    return wrap && n > 1 ? order[((p % n) + n) % n] : null;
+  };
+  // (A list of nothing else, played on purpose, plays as it is.)
+  if (!rel || !n || !order.some((i) => !skip(i))) return plain();
+  const dir = Math.sign(rel);
+  let found = 0;
+  for (let k = 1; ; k++) {
+    const p = pos + dir * k;
+    if ((p < 0 || p >= n) && !(wrap && n > 1)) return null;
+    const i = order[((p % n) + n) % n];
+    if (!skip(i)) {
+      if (++found === Math.abs(rel)) return i;
+    } else if (k >= n && !found) return plain();
+  }
+}
+
 /** A seeded random number generator (mulberry32). @param {number} seed */
 export function seeded(seed) {
   let a = seed >>> 0;
