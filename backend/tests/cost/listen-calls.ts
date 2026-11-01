@@ -82,6 +82,9 @@ export async function listenCalls(cost: Cost, grant: (ip: string, password?: str
     202,
     core(),
   );
+  // (Measured 50 to 63 rows read: whether the phone file's job, queued as the apply ends, is due within
+  // the same drain depends on the clock, and each extra pass of Core's alarm reads about 13. The budget
+  // allows two such passes.)
   await cost('alarm: one part of 50 results applied, the job ended, the phone file built (Core)', applied, 204, core());
   if ((await env.VAULT.list({ prefix: 'jobs/incoming/' })).objects.length) throw new Error('uploads left behind');
   // Every song analysed (the rest marked so here): the first empty answer scans the catalog and remembers
