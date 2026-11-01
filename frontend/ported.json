@@ -971,17 +971,9 @@
    "from": "frontend/podcasts/",
    "files": {
     "podcasts/app.js": {
-     "sha256": "a3e687f042f7af902070497fc29eb6e1a955fdda794d111d207b6a69c800657b",
+     "sha256": "eed3176669ba49c22ea97c7ae55428bcb70b6704a9b85f60cc42eaed6246d828",
      "old_sha256": "eed3176669ba49c22ea97c7ae55428bcb70b6704a9b85f60cc42eaed6246d828",
-     "adjustments": [
-      "improvement"
-     ],
-     "edits": [
-      [
-       "import {coverNavigation} from './navigation-motion.js';\n// NEXT-BATCH.md part 7: where episodes were left on the owner's other phones, written into this app's storage before it is read (th/podcasts/progress.js); at most 1.5 s.\nconst thWaitUntil=performance.now()+1500;await Promise.race([import('/th/podcasts/progress.js').then(m=>m.opened(thWaitUntil)),new Promise(r=>setTimeout(r,1500))]).catch(()=>{});\n",
-       "import {coverNavigation} from './navigation-motion.js';\n"
-      ]
-     ]
+     "adjustments": []
     },
     "podcasts/core.js": {
      "sha256": "3a740267a715ae42f312431be0f5fe0be04272ae6a13cc0a2e331405ebe20099",

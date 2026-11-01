@@ -56,7 +56,7 @@ rules describe the later steps.
    a whole 4 MB feed would cost about 10). Signed out, or while the new Worker can't answer, the
    old Worker answers as before.
 6. **Progress on the Worker and new episodes at night (built 2026-11-01, NEXT-BATCH.md part 7):**
-   the app's one more recorded edit (`podcasts/app.js`) loads `frontend/th/podcasts/progress.js`,
+   one line in the app (`podcasts/app.js`) loads `frontend/th/podcasts/progress.js`,
    which syncs where each episode was left with the Worker, so an episode resumes on any phone, and
    sends the shows followed, so the night can say "2 new episodes" in the Overnight card (§5.4).
 

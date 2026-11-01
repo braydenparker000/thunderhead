@@ -1,7 +1,7 @@
 // @ts-check
 // Podcasts' progress on the Worker (NEXT-BATCH.md part 7, PODCASTS.md §5.4), for the ported app,
 // which keeps where each episode was left and the shows it follows in its own storage
-// (`jarvis.podcasts.v1`, podcasts/core.js) and is otherwise unchanged. Its one recorded edit loads
+// (`jarvis.podcasts.v1`, podcasts/core.js) and is otherwise unchanged. Its one edit for this loads
 // this module and waits for `opened(by)` before it reads that storage, at most 1.5 s (`by` is when
 // it stops waiting, in the page's time):
 // - on open, what the Worker took since the last time (GET /v1/podcasts/progress?since=) is merged
