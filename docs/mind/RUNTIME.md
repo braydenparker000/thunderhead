@@ -247,6 +247,7 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th errors` | `[--hours 24]` | `{"items":[…]}` | C N R | The Core errors table (`since` on the Worker). |
 | `th reports` | `[--kind playback] [--since <ms\|iso>] [--limit 50] [--cursor <c>]` | `{"kind","batches","from","to","devices","pages","events","repeats","first_sound_ms","waits","stalls","errors","items","next"}` | C N R | Built 2026-10-31 (`mind/cli/lib/reports.mjs`). The batches the owner's phone sent about playback (`GET /v1/ops/reports`, kept 30 days), newest first, as one summary: events by type (an event sent twice, same page and `n`, counted once; `repeats` says how many), time to first sound (n, p50, p90, max), the decks' waits from each page's newest batch, the player's own stalls (`stall`, not the browser's `stalled`), the newest 5 errors, then one line per batch. Track ids and timings only. A batch's every event: `th get /v1/ops/reports kind=playback limit=1`. |
 | `th music analysis`, `th music jobs` | `analysis <track id> [--n 10]` · `jobs [--max 500]` | analysis: `{"id","state","analysis":{bpm,key,camelot,energy,valence,arousal,vocals,moods,top_moods,…},"neighbours":[{id,title,artist,sim}],"neighbours_at"}`; jobs: `{"collected":{state: n},"issued":{kind,job_id,count}\|null,"dispatched","reason"?}` | C N (jobs: N) | Built 2026-11-01 (`mind/cli/lib/listen.mjs`; the listening pass, [JOBS.md §3](../engineering/JOBS.md)): the listening pass's two subcommands of `th music` (whose other subcommands, `like` among them, are what the mind knows of each song, Music step 4). `analysis` reads `GET /v1/music/analysis/:id` (`state`: done, due, failed, unsupported; `--n 0` for no neighbours). `jobs` is night step 6's second part: it collects every job issued over 6 hours ago, or still validating 6 hours after its collect (`POST /v1/jobs/:id/collect`; `waiting` = no manifest yet, it expires on its own after 72 h), asks for the next job (`GET /v1/jobs/next`, analysis first, the neighbours step once nothing waits) and dispatches `.github/workflows/jobs-audio.yml` with the job's id only, by `gh workflow run jobs-audio.yml --ref main -f job_id=<id>` (the GitHub CLI and the session's own GitHub access, R-12; `TH_GH` names another binary in tests). It prints counts, the kind and the id, never a hash. `dispatch_refused`: the job expires and its songs are offered again; `open_jobs`: two jobs still open; exit 10 (429): three jobs today already, or the day's database budget past 80 %. Once a night, after the books. |
+| `th podcasts` | `new` | `{"checked","failed","waiting","new":[{"title","new"}],"total","line"}` | N | Built 2026-11-01 (`mind/cli/lib/podcasts.mjs`, NEXT-BATCH.md part 7). The night's look for new episodes of the shows the owner follows (§12.1): at most 20 shows a night, each at most once in 20 hours, read through `GET /v1/podcasts/feed` with the phone's own feed reader; `line` is a home line of at most 44 characters with the count and the shows' names, or null. Prints counts and the names of shows the owner follows, never an episode's text. |
 | `th night` | `start` · `step <n> done` · `step <n> cursor <c>` · `done [--partial]` · `steps` (`--day <day>`: another closed day of the last week) | `{"resume_from":n,"done":bool,"cursor","skipped":[n]}`; `steps`: the registry | N | Idempotent night progress (§12). A step out of order exits 7 with `resume_from` in the error's details. |
 | `th approved` | `--paths <p1,p2> --sha <40-hex commit>` | `{"approved":bool,"proposal_id"}` | C N R | Whether an executed `repo.change` card covers these protected paths on a branch from that commit; exit 6 when not. The PreToolUse hook asks it before an edit to or a push of a protected path (§6.4). |
 | `th eval` | `begin` · `list` · `inj <id>` · `check <id> [--answer <text>]` · `end` | `begin`: `{"sandbox","fixtures","next"}` (`next`: the procedure); `inj`: `{"id","run","file","task"}`; `check`: `{"id","pass","why"}`; `end`: the run's numbers | C N | The injection suite in the eval sandbox ([EVALS.md §1.1, §4](EVALS.md)); night step 9 on Sundays. `begin` taints the real session first, then sends every call with `TH-Sandbox: eval`; `end` leaves the sandbox and records the suite in the owner's Core. |
@@ -392,6 +393,7 @@ Rules:
 | Watchdog drill, when the owner asks (`th drill`) | ✓ | — | — | — |
 | Work orders: create / cancel | ✓ | ✓ | — | — |
 | Work orders: claim / result | — | — | — | ✓ |
+| Podcasts: read the follows and positions; record a show's check; read a followed show's feed (≤ 40 a UTC day) | — | ✓ | — | — |
 | Auth admin, tokens, devices, export-everything | — | — | — | — |
 
 **Acceptance:** route-scope test lists every route × role and checks the expected `200`/`403`.
@@ -481,7 +483,7 @@ Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its cl
 | 4 | Facts: candidates from owner messages (`user`) and stats (`observed`, n ≥ 10); for each, `th recall --kind facts` and choose ADD / CONFIRM / SUPERSEDE / NOOP; submit them with `th facts --batch <file> --night`, in parts of ≤ 50 ops (`--part 2`, …, each part sent once, its place saved as the step's cursor) | 6 min | `facts`, ledger, proposals for risky changes (P4) |
 | 5 | Health: `th errors`, `th health --deep`; small agreed fixes on a branch (only `agreed` work, pushed to a branch; never to `main`) | ≤ 8 min | Branch, maybe a release |
 | 6 | Indexing. From P7: read Study's waiting books (`bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2 --minutes 10`; a book not finished goes on the next night; it prints counts only, so no book text reaches the session). Then the listening pass: `th music jobs` (collects last night's job, sends the next ≤ 500 songs, or the neighbours step, to Actions by the job's id; built 2026-11-01, JOBS.md §3) | 10 min | Pages, FTS, refs in `Library`; one Actions job dispatched |
-| 7 | Arrange tomorrow (P3+): 0–4 home lines, surfaces, practice set (in-app surfaces only in apps whose agreed evolution added them; the as-is ports have none) | 4 min | `surfaces` |
+| 7 | Arrange tomorrow (P3+): 0–4 home lines, surfaces, practice set (in-app surfaces only in apps whose agreed evolution added them; the as-is ports have none); one of the lines may be the new podcast episodes (§12.1) | 4 min | `surfaces` |
 | 8 | "Built overnight" items for the Briefing page; arrange the Briefing page | 1 min | Briefing items |
 | 9 | Sunday only: weekly review and evals ([EVALS.md](EVALS.md)); built in P4 stage C as the injection suite (`th eval begin`, then what it prints), and in P9 the weekly improvement after it (`th eval week`, EVALS.md §7) | +15 min | `eval_runs`, one PR at most |
 | 10 | Session note; update `docs/process/STATUS.md` if code changed; `th night done` | 2 min | — |
@@ -492,6 +494,34 @@ Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its cl
 - **Predictions** (P9, built): step 7b, up to 6 a night about the open day with `th predict` (`th help predict` lists the resolvers), resolved by the Worker's fixed SQL resolvers once the day is over ([API.md §11.23](../engineering/API.md)).
 
 **Acceptance (P3 done-when):** the night shift ran 3 nights clean; killing a session after step 3 and refiring resumes at step 4 with no duplicate day note (`version` stays 1).
+
+### 12.1 New podcast episodes (step 7)
+
+Built 2026-11-01 (NEXT-BATCH.md part 7). The phone sends the shows the owner follows to the Worker with the
+positions (`PUT /v1/podcasts/follows`, frontend/th/podcasts/progress.js), so the night knows them.
+
+1. In step 7, before placing the home lines: `th podcasts new`.
+2. It reads `GET /v1/podcasts/follows` and picks the followed shows due a check: never checked, or not in the
+   last 20 hours, the longest unchecked first, **at most 20 a night** (`PODCAST_LIMITS.night_feeds`); the rest
+   wait for the next night, so each show is read at most once a day.
+3. For each, the feed through the Worker (`GET /v1/podcasts/feed`, one try, no retries; the Worker allows the
+   night 40 reads a UTC day and answers 429 after, which stops the run), read with the phone's own reader
+   (th/podcasts/feed.js). An episode is **new** when it was published after the newest one seen at the show's
+   last check (the first time: in the last day, and after the follow), not more than an hour ahead, and no
+   phone has started or finished it (`GET /v1/podcasts/progress?since=` a week back).
+4. The checks go back in one call (`POST /v1/podcasts/follows/checked`: each show's newest episode time, never
+   moved back, and how many were new). A feed that fails is counted in `failed` and stays due.
+5. It prints the shows with new episodes, most first, and `line`: one home line of at most 44 characters with
+   the count and the names ("2 new episodes: History Hour.", "4 new episodes: Science Talk and 2 more."), the
+   first name cut at a space when even one does not fit; null when nothing is new. The line counts every show
+   checked in the last 20 hours, so a refired night that already read the feeds still gets it.
+6. When `line` is not null, place it as one of the night's home lines, as it is: `th surface home line.<n>
+   --kind line --payload '{"text":"<line>"}' --why "new episodes from the shows you follow" --topic
+   podcasts-new --ref app:podcasts`. Home shows the night's lines as the one Overnight card when quiet hours end
+   (frontend/th/registry/surfaces.js `homeLines`). Nothing is pushed: new episodes never are (PODCASTS.md rule 6).
+
+It prints no episode titles or descriptions, only counts and the names of shows the owner chose, so the session
+reads no outside text from the feeds. A night reads at most 20 feeds and writes at most 20 rows for it.
 
 ---
 
