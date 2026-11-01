@@ -30,7 +30,8 @@ function* files(dir = ROOT) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const path = join(dir, e.name);
     if (e.isDirectory()) {
-      if (!SKIP.has(e.name)) yield* files(path);
+      // .claude/worktrees holds helpers' own checkouts (each scanned in its own run), not this one's files.
+      if (!SKIP.has(e.name) && relative(ROOT, path).split('\\').join('/') !== '.claude/worktrees') yield* files(path);
     } else if (e.isFile() && !BINARY.has(extname(e.name).toLowerCase()) && statSync(path).size < 8 * 1024 * 1024)
       yield [relative(ROOT, path).split('\\').join('/'), readFileSync(path, 'utf8')];
   }
