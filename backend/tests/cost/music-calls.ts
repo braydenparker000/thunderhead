@@ -1,21 +1,37 @@
-// The mind's music calls of the cost suite (cost.test.ts checks every budget; MUSIC.md §10.5): a
-// night's batch of 200 notes into a catalog of 300 tracks (cold: the tags are read once, then each
-// note is one row checked and one written), the same batch again (nothing written), notes by id
-// and a page (from memory), the next untagged page, and find in each object it reads: Music (cold:
-// the tags and every note once; warm: nothing), Senses (the early skips by the (day, type) index,
-// and the ratings of the 90 days kept, by the (day, type) index, not the other events; warm: from
-// memory) and Core (the current rules only).
-import { evictDurableObject } from 'cloudflare:test';
+// The mind's music calls of the cost suite (cost.test.ts checks every budget; MUSIC.md §10.5), at
+// full size: a catalog of 12,000 tracks, 11,600 of them with a note, each call measured cold (the
+// Music object just started, as after a minute or two idle) unless named warm. Find reads the notes
+// packed 500 to a row; the packs' one-off rebuild (after a restore, when they are missing) is
+// measured too. Notes, tags and the untagged page are read by key, so their rows follow the call's
+// size, not the catalog's. In the Senses object, find reads the early skips by the (day, type)
+// index; in Core, the current rules. The phone's ratings go to Music as one row each.
+import { evictDurableObject, runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
+import { uuidv7 } from '../../src/lib/ids';
+import type { Music } from '../../src/objects/music';
 import { sensesObject } from '../../src/objects/senses';
 import { api, apiJson, coreSql, core as coreStub, PASSWORD } from '../helpers';
-import { music, note, seedCatalog, sendSenses, songId } from '../music-helpers';
+import { music, note, seedCatalog, songId } from '../music-helpers';
 
 type Cost = (name: string, fn: () => Promise<Response>, status: number, stub?: never) => Promise<void>;
 
-const TRACKS = 300;
-const NOTES = 200;
+const TRACKS = 12_000;
+const NOTED = 11_600;
+const sql = (q: string, ...b: unknown[]) =>
+  runInDurableObject(music(), (_o: Music, st) => st.storage.sql.exec(q, ...b).toArray());
+
+/** A synthetic night's note for song `i`, as the Worker keeps it. */
+const noteJson = (i: number) =>
+  JSON.stringify({
+    moods: { calm: (i % 10) / 10 + 0.05, dreamy: 0.5 },
+    occasions: { 'wind-down': 0.7 },
+    themes: [],
+    language: 'en',
+    era: 1990,
+    energy: (i % 10) / 10,
+    conf: { language: 0.9, era: 0.6, energy: 0.6 },
+  });
 
 export async function musicCalls(cost: Cost, grant: (ip: string, password?: string) => Promise<SignedIn>) {
   const d = await grant('192.0.2.251', `${PASSWORD} new`);
@@ -26,73 +42,90 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
     })
   ).body.token;
   const m = music() as unknown as never;
-  const senses = sensesObject(env) as unknown as never;
-  const core = coreStub() as unknown as never;
   const ids = await seedCatalog(
-    Array.from({ length: TRACKS }, (_, i) => ({ title: `Cost song ${i}`, artist: `Artist ${i % 20}`, genre: 'Pop' })),
+    Array.from({ length: TRACKS }, (_, i) => ({ title: `Cost song ${i}`, artist: `Artist ${i % 40}`, genre: 'Pop' })),
   );
-  const batch = ids.slice(0, NOTES).map((id, i) =>
-    note(id, {
-      moods: { calm: 0.8, dreamy: 0.5, nostalgic: 0.3 },
-      occasions: { 'wind-down': 0.7, study: 0.4 },
-      themes: ['night'],
-      language: 'en',
-      era: 1990 + (i % 3) * 10,
-      energy: (i % 10) / 10,
-      conf: { themes: 0.5, language: 0.9, era: 0.6, energy: 0.6 },
-    }),
-  );
+  // The notes the nights wrote, put straight in (each in its pack, 500 to a pack), without the packs.
+  for (let from = 0; from < NOTED; from += 2_000) {
+    const part = ids
+      .slice(from, Math.min(from + 2_000, NOTED))
+      .map((id, k) => ({ id, j: noteJson(from + k), p: Math.floor((from + k) / 500) }));
+    await sql(
+      `INSERT INTO track_notes (track_id, known, note_json, by, v, at, pack)
+       SELECT json_extract(value, '$.id'), 1, json_extract(value, '$.j'), 'mind:night', 1, 0, json_extract(value, '$.p')
+       FROM json_each(?)`,
+      JSON.stringify(part),
+    );
+  }
+  const find =
+    (q = 'moods=calm&occasion=wind-down&limit=30') =>
+    () =>
+      api('GET', `/v1/music/find?${q}`, { token: night });
+  const cold = async (name: string, fn: () => Promise<Response>) => {
+    await evictDurableObject(music());
+    await cost(name, fn, 200, m);
+  };
+  await cold(`GET /v1/music/find, packs missing: built again once (Music, ${TRACKS} tracks, ${NOTED} notes)`, find());
+  await cold(`GET /v1/music/find (Music, cold: ${TRACKS} tracks, ${NOTED} notes)`, find());
+  await cost('GET /v1/music/find (Music, warm)', find(), 200, m);
+  await cold(`GET /v1/music/find?like= (Music, cold: ${TRACKS} tracks)`, find(`like=${ids[10]}&limit=30`));
+
+  const batch = ids
+    .slice(0, 200)
+    .map((id) =>
+      note(id, { moods: { calm: 0.8, nostalgic: 0.4 }, occasions: { study: 0.6 }, energy: 0.3, conf: { energy: 0.6 } }),
+    );
   const put = () => api('PUT', '/v1/music/notes', { token: night, body: { items: batch } });
-  await evictDurableObject(music());
-  await cost(`PUT /v1/music/notes, ${NOTES} notes (Music, cold: ${TRACKS} tracks)`, put, 200, m);
-  await cost(`PUT /v1/music/notes, ${NOTES} notes again, unchanged (Music)`, put, 200, m);
+  await cold(`PUT /v1/music/notes, 200 notes replacing 200 (Music, cold: ${TRACKS} tracks)`, put);
+  await cost('PUT /v1/music/notes, 200 notes again, unchanged (Music)', put, 200, m);
   const fifty = ids.slice(0, 50).join(',');
-  await cost(
-    'GET /v1/music/notes?ids= 50 (Music)',
-    () => api('GET', `/v1/music/notes?ids=${fifty}`, { token: night }),
-    200,
-    m,
+  await cold('GET /v1/music/notes?ids= 50 (Music, cold)', () =>
+    api('GET', `/v1/music/notes?ids=${fifty}`, { token: night }),
   );
-  await cost(
-    'GET /v1/music/notes, a page of 200 (Music)',
-    () => api('GET', '/v1/music/notes', { token: night }),
-    200,
-    m,
+  await cold('GET /v1/music/notes, a page of 200 (Music, cold)', () => api('GET', '/v1/music/notes', { token: night }));
+  // The night's place: every song before the untagged ones has its note.
+  await sql(
+    "INSERT INTO music_state (key, value_json) VALUES ('notes.cursor', ?)",
+    JSON.stringify({ v: 1, ord: NOTED }),
   );
-  await cost(
-    'GET /v1/music/tracks?untagged=1, 200 (Music)',
-    () => api('GET', '/v1/music/tracks?untagged=1&limit=200', { token: night }),
-    200,
-    m,
+  await cold('GET /v1/music/tracks?untagged=1, 200 (Music, cold, its place kept)', () =>
+    api('GET', '/v1/music/tracks?untagged=1&limit=200', { token: night }),
   );
 
-  // Find: a day of the phone's senses (40 early skips and 5 ratings among 205 events) and three never-play rules.
-  const events = Array.from({ length: 200 }, (_, i) => ({
-    type: i % 5 ? 'music.play' : 'music.skip',
-    id: songId(1 + (i % 50)),
-    at_ms: 3_000,
-  }));
-  await sendSenses(d.token, [
-    ...events,
-    ...Array.from({ length: 5 }, (_, i) => ({ type: 'music.rate', id: songId(60 + i), data: { rating: 1, from: 0 } })),
-  ]);
+  // The phone's senses: 40 early skips among 200 events, then 5 ratings (one row each in Music).
+  const at = Date.now() - 60_000;
+  const sense = (type: string, id: string, data: object) => ({ id: uuidv7(), at, type, ref: `music:${id}`, data });
+  await api('PUT', `/v1/senses/batches/${uuidv7()}`, {
+    token: d.token,
+    body: {
+      events: Array.from({ length: 200 }, (_, i) =>
+        i % 5
+          ? sense('music.play', songId(1 + (i % 50)), { offline: false })
+          : sense('music.skip', songId(1 + (i % 50)), { at_ms: 3_000 }),
+      ),
+    },
+  });
+  const ratings = Array.from({ length: 5 }, (_, i) => sense('music.rate', ids[60 + i], { rating: 1, from: 0 }));
+  await cost(
+    'PUT /v1/senses/batches/:id, 5 ratings (Music)',
+    () => api('PUT', `/v1/senses/batches/${uuidv7()}`, { token: d.token, body: { events: ratings } }),
+    200,
+    m,
+  );
   for (let i = 0; i < 3; i++)
     await coreSql(
       `INSERT INTO facts (id, kind, about, subject, text, source, confidence, evidence_json, recorded_at, last_confirmed,
          sensitivity, written_by, lineage_id)
        VALUES (?, 'rule', 'owner', 'music.never', ?, 'user', 1, '[]', ?, ?, 0, 'owner', ?)`,
       `cost-rule-${i}`,
-      `Never play this again (music:${ids[i]}).`,
+      `Never play music:${ids[i]} again.`,
       Date.now(),
       Date.now(),
       `cost-rule-${i}`,
     );
-  const find = () => api('GET', '/v1/music/find?moods=calm&occasion=wind-down&limit=30', { token: night });
-  await evictDurableObject(music());
-  await cost(`GET /v1/music/find (Music, cold: ${TRACKS} tracks, ${NOTES} notes)`, find, 200, m);
-  await cost('GET /v1/music/find (Music, warm)', find, 200, m);
+  const senses = sensesObject(env) as unknown as never;
   await evictDurableObject(sensesObject(env));
-  await cost('GET /v1/music/find (Senses, cold: 40 early skips and 5 ratings among 205 events)', find, 200, senses);
-  await cost('GET /v1/music/find (Senses, warm)', find, 200, senses);
-  await cost('GET /v1/music/find (Core, 3 never-play rules)', find, 200, core);
+  await cost('GET /v1/music/find (Senses, cold: 40 early skips among 200 events)', find(), 200, senses);
+  await cost('GET /v1/music/find (Senses, warm)', find(), 200, senses);
+  await cost('GET /v1/music/find (Core, 3 never-play rules)', find(), 200, coreStub() as unknown as never);
 }

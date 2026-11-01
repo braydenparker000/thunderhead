@@ -3,11 +3,11 @@
 // of them: songs by feeling, or like one. Notes and find stay inside the Worker (PRIVACY.md §2);
 // the eval sandbox has no music (its Core is a scratch one, and the owner's notes are real).
 //
-// Writes stay under the rows-read guard: from 80% of the day's database budget a batch answers 429
+// Under the rows-read guard: from 80% of the day's database budget a batch and a find answer 429
 // with Retry-After until 00:00 UTC (DATA.md §8.1), and the night's tagging waits for the next one.
-// Find asks the Senses object for the early skips and the songs rated 1 (each kept in its memory
-// until a new event of its kind arrives) and Core for the songs the owner told the mind never to
-// play again, then ranks in the Music object.
+// Find asks the Senses object for the early skips (kept in its memory until a new skip arrives) and
+// Core for the songs the owner told the mind never to play again, then ranks in the Music object,
+// which keeps the owner's ratings itself (the senses route hands it each `music.rate`).
 import { Hono } from 'hono';
 import {
   MUSIC_NOTE_LIMITS as L,
@@ -30,6 +30,32 @@ import { SONG_ID } from './shapes';
 /** A batch's body, at most: 200 full notes are about 100 KB. */
 const BODY_MAX = 256 * 1024;
 
+/** The body as text, read as it streams and refused (413) as soon as it passes `max` bytes, with or
+ * without a Content-Length. */
+async function capped(req: Request, max: number): Promise<string> {
+  if (!req.body) return '';
+  const reader = req.body.getReader();
+  const parts: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > max) {
+      await reader.cancel().catch(() => {});
+      throw new ApiError('too_large');
+    }
+    parts.push(value);
+  }
+  const all = new Uint8Array(size);
+  let at = 0;
+  for (const p of parts) {
+    all.set(p, at);
+    at += p.byteLength;
+  }
+  return new TextDecoder().decode(all);
+}
+
 const noSandbox = () => {
   if (inSandbox()) throw new ApiError('validation', [{ path: 'TH-Sandbox', issue: 'the sandbox has no music' }]);
 };
@@ -38,8 +64,7 @@ export const notesRoutes = new Hono<AppEnv>()
   .put('/music/notes', guard('PUT /v1/music/notes'), async (c) => {
     noSandbox();
     if (Number(c.req.header('Content-Length') ?? 0) > BODY_MAX) throw new ApiError('too_large');
-    const text = await c.req.text();
-    if (text.length > BODY_MAX) throw new ApiError('too_large');
+    const text = await capped(c.req.raw, BODY_MAX);
     let body: unknown;
     try {
       body = JSON.parse(text);
@@ -88,12 +113,14 @@ export const notesRoutes = new Hono<AppEnv>()
     noSandbox();
     const q = parseFind(c.req.query());
     if ('issues' in q) throw new ApiError('validation', q.issues);
+    // A cold find reads tens of rows, but it is the mind's to wait with: held past 80% like a batch.
+    await refuseWhileHeld(c.env);
     const now = Date.now();
-    const [heard, never] = await Promise.all([
-      fresh(sensesObject(c.env).musicSignals(now)),
+    const [skips, never] = await Promise.all([
+      fresh(sensesObject(c.env).earlySkips(now)),
       fresh(coreObject(c.env).musicNever(now)),
     ]);
-    const r = await fresh(musicObject(c.env).find(q, heard.skips, never, heard.rated_out));
+    const r = await fresh(musicObject(c.env).find(q, skips, never, now));
     if (!r) throw new ApiError('not_found', { reason: 'like names a song the catalog does not hold' });
     return c.json(r satisfies MusicFindResponse);
   });

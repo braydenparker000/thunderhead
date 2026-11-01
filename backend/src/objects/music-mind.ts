@@ -1,185 +1,210 @@
 // What the mind reads and writes in the Music object (MUSIC.md §10.2, §10.5): the catalog's tags,
-// searched in memory; its notes about each song (Music schema step 4, `track_notes`); and songs by
-// feeling. A code layer of the one Music class (music.ts), no Durable Object class of its own.
+// its notes about each song (Music schema step 4), the owner's ratings, and songs by feeling. A code
+// layer of the one Music class (music.ts), no Durable Object class of its own.
 //
-// Rows (the free plan meters every row read and written, DATA.md §8): the tags are read once per
-// start (one row a track) and searched in memory; the notes likewise (one row a note), and kept
-// current by the writes, which come only through here; the listening pass's table, when there is
-// one, once per start and again after 10 minutes. A note costs 1 row read (the upsert's check)
-// and 1 written, none when it is the same as the one kept. Find, notes by id and pages read nothing
-// more once those are in memory.
+// Rows (the free plan meters every row read and written; DATA.md §8.4: no request-path read of a
+// growing table): notes, tags and ratings are read by key; the night's untagged page walks the
+// catalog's key from where its last page began; find reads the notes packed 500 to a row
+// (`find_packs`, kept current by each batch: a cold find reads tens of rows, not one a song), the
+// listening pass's moods and energy packed the same way (packed again at most once a day), the
+// ratings of 1 (a partial index), the seed's neighbours and the winners' tags by key. The packs
+// are derived: after a restore they are built again from the notes, once. The word search
+// (`findTracks`) still reads the tags once per start, as it did before the notes.
 import {
+  MUSIC_NOTE_LIMITS as L,
   MUSIC_NOTE_VERSION,
   type MusicFindResponse,
   type MusicNote,
-  type MusicNoteRow,
   type MusicNotesResponse,
   type MusicNotesWritten,
   type MusicTrackRow,
   type MusicTracksResponse,
 } from '../../../shared/contract/music.ts';
-import { type FindQuery, type Listening, listeningMap, rank } from '../areas/music/find';
+import { type FindQuery, listeningMap, type NoteEntry, rank } from '../areas/music/find';
 import { noteJson } from '../areas/music/notes';
-import * as store from '../areas/music/store';
-import { MINUTE } from '../lib/time';
-import { MusicListen } from './music-listen';
+import * as notes from '../areas/music/store-notes';
+import { entryOf, MusicPacks, rowOf, tagsOf } from './music-packs';
 
 type Tagged = MusicTrackRow & { hay: string };
-
-/** How long the listening pass's data is kept in memory before it is read again. */
-const LISTENING_MS = 10 * MINUTE;
-
-export abstract class MusicMind extends MusicListen {
-  /** Every track's tags, in catalog order, read once per start (or after a change). */
+export abstract class MusicMind extends MusicPacks {
+  /** The word search's tags, read once per start (or after a change). */
   private finder: Tagged[] | null = null;
-  private byId: Map<string, Tagged> | null = null;
-  /** Every note by track id, read once per start; the writes keep it current. */
-  private kept: Map<string, MusicNoteRow> | null = null;
-  private listened: { at: number; map: Map<string, Listening> | null } | null = null;
 
-  /** The catalog changed (a write or an import): the tags are read again when next needed. */
+  /** The catalog changed (a write or an import): the word search's tags are read again. */
   protected dropIndex(): void {
     this.finder = null;
-    this.byId = null;
   }
 
-  /** Tracks whose tags hold every word of `q` (title, artist, album, genre, composer), in catalog
-   * order, at most `limit`, with how many match in all: what the mind picks a playlist from. With
-   * `untagged`, only songs with no note of the current version: the night's next page. */
-  findTracks(q: string, limit: number, untagged = false): MusicTracksResponse {
+  /** Tracks whose tags hold every word of `q`, in catalog order, at most `limit`, with how many
+   * match in all; songs rated 1 are left out. What the mind picks a playlist from by its tags. */
+  findTracks(q: string, limit: number): MusicTracksResponse {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    const notes = untagged ? this.notesKept() : null;
+    const out = this.rated();
     const items: MusicTrackRow[] = [];
     let total = 0;
     for (const { hay, ...row } of this.index()) {
-      if (notes && (notes.get(row.id)?.v ?? 0) >= MUSIC_NOTE_VERSION) continue;
-      if (!words.every((w) => hay.includes(w))) continue;
+      if (out.has(row.id) || !words.every((w) => hay.includes(w))) continue;
       total++;
       if (items.length < limit) items.push(row);
     }
     return { items, total };
   }
 
-  /** Whether the catalog holds a track. */
-  hasTrack(id: string): boolean {
-    this.index();
-    return this.byId?.has(id) ?? false;
+  /** The night's next page: the songs after its place with no note of the current version (or one
+   * the owner corrected through the chat), in catalog order. Its place moves to just before the
+   * first of them, so the next page starts there; `total` counts this page only. */
+  untaggedPage(limit: number): MusicTracksResponse {
+    const kept = notes.cursor(this.db);
+    const after = kept?.v === MUSIC_NOTE_VERSION ? kept.ord : 0;
+    const rows = notes.untagged(this.db, after, MUSIC_NOTE_VERSION, limit + 1);
+    const items = rows.slice(0, limit);
+    const ord = items.length ? items[0].ord - 1 : notes.lastOrd(this.db);
+    if (ord !== after || kept?.v !== MUSIC_NOTE_VERSION) notes.putCursor(this.db, MUSIC_NOTE_VERSION, ord);
+    return { items: items.map(tagsOf), total: items.length, more: rows.length > limit };
   }
 
-  /** A batch of notes checked whole by the route (areas/music/notes.ts), written in one
-   * transaction; ids the catalog doesn't hold come back and nothing is written. */
-  putNotes(notes: MusicNote[], by: string, at = Date.now()): MusicNotesWritten | { unknown: string[] } {
-    const unknown = notes.filter((n) => !this.hasTrack(n.id)).map((n) => n.id);
+  /** A batch of notes checked whole by the route (areas/music/notes.ts), written with their packs in
+   * one transaction; ids the catalog doesn't hold come back and nothing is written. A night note
+   * never replaces one the owner corrected through the chat. */
+  putNotes(batch: MusicNote[], by: string, at = Date.now()): MusicNotesWritten | { unknown: string[] } {
+    const ids = batch.map((n) => n.id);
+    const tracks = new Map(notes.tracksByIds(this.db, ids).map((t) => [t.id, t]));
+    const unknown = ids.filter((id) => !tracks.has(id));
     if (unknown.length) return { unknown };
-    const kept = this.notesKept();
-    const changed = this.ctx.storage.transactionSync(() =>
-      notes.filter(
-        (n) =>
-          store.putNote(this.db, {
-            track_id: n.id,
-            known: n.known ? 1 : 0,
-            note_json: noteJson(n),
-            by,
-            v: MUSIC_NOTE_VERSION,
-            at,
-          }) > 0,
-      ),
-    );
+    this.packedNotes();
+    const place = { ...(this.place ?? { open: 0, fill: 0 }) };
+    const had = new Map(notes.notesByIds(this.db, ids).map((r) => [r.track_id, r]));
+    const out = { written: 0, unchanged: 0, kept: 0 };
+    const entries = new Map<string, NoteEntry>();
+    this.ctx.storage.transactionSync(() => {
+      const touched = new Map<number, string[]>();
+      for (const n of batch) {
+        const old = had.get(n.id);
+        if (old?.by === 'mind:chat' && by === 'mind:night') {
+          out.kept++;
+          continue;
+        }
+        const json = noteJson(n);
+        const known = n.known ? 1 : 0;
+        if (old && old.known === known && old.note_json === json && old.v === MUSIC_NOTE_VERSION) {
+          out.unchanged++;
+          continue;
+        }
+        let pack = old?.pack;
+        if (pack === undefined) {
+          if (place.fill >= L.pack_size) Object.assign(place, { open: place.open + 1, fill: 0 });
+          place.fill++;
+          pack = place.open;
+        }
+        notes.putNote(this.db, { track_id: n.id, known, note_json: json, by, v: MUSIC_NOTE_VERSION, at, pack });
+        const t = tracks.get(n.id) as notes.TagRow;
+        entries.set(n.id, entryOf(n, tagsOf(t), t.ord));
+        touched.set(pack, [...(touched.get(pack) ?? []), n.id]);
+        out.written++;
+      }
+      for (const [pack, list] of touched) {
+        const json = notes.pack(this.db, 'notes', pack);
+        const p = json ? (JSON.parse(json) as Record<string, NoteEntry>) : {};
+        for (const id of list) p[id] = entries.get(id) as NoteEntry;
+        notes.putPack(this.db, 'notes', pack, JSON.stringify(p), at);
+      }
+      if (place.open !== this.place?.open || place.fill !== this.place?.fill)
+        notes.putPack(this.db, 'meta', 0, JSON.stringify(place), at);
+    });
     // Only once the transaction has committed: memory never runs ahead of the table.
-    for (const n of changed) kept.set(n.id, { ...n, by, v: MUSIC_NOTE_VERSION, at });
-    return { written: changed.length, unchanged: notes.length - changed.length };
+    this.place = place;
+    for (const [id, e] of entries) this.packed?.set(id, e);
+    return out;
   }
 
   /** Each track asked for with its tags and note (null when it has none); ids not held, `missing`. */
   notes(ids: string[]): MusicNotesResponse {
-    const kept = this.notesKept();
-    this.index();
+    const list = [...new Set(ids)];
+    const tracks = new Map(notes.tracksByIds(this.db, list).map((t) => [t.id, t]));
+    const kept = new Map(notes.notesByIds(this.db, list).map((r) => [r.track_id, rowOf(r)]));
     const out: MusicNotesResponse = { items: [], missing: [], next: null };
-    for (const id of new Set(ids)) {
-      const t = this.byId?.get(id);
+    for (const id of list) {
+      const t = tracks.get(id);
       if (!t) out.missing.push(id);
-      else out.items.push({ ...tags(t), note: kept.get(id) ?? null });
+      else out.items.push({ ...tagsOf(t), note: kept.get(id) ?? null });
     }
     return out;
   }
 
   /** Every note in track id order, `limit` at a time after `cursor` (a track id); a note whose track
-   * has left the catalog is not read. */
+   * has left the catalog is not shown. */
   notesPage(cursor: string, limit: number): MusicNotesResponse {
-    const kept = this.notesKept();
-    this.index();
-    const ids = [...kept.keys()].filter((id) => id > cursor).sort();
-    const page = ids.slice(0, limit);
-    const items = page.flatMap((id) => {
-      const t = this.byId?.get(id);
-      return t ? [{ ...tags(t), note: kept.get(id) as MusicNoteRow }] : [];
+    const rows = notes.notesAfter(this.db, cursor, limit + 1);
+    const page = rows.slice(0, limit);
+    const tracks = new Map(
+      notes
+        .tracksByIds(
+          this.db,
+          page.map((r) => r.track_id),
+        )
+        .map((t) => [t.id, t]),
+    );
+    const items = page.flatMap((r) => {
+      const t = tracks.get(r.track_id);
+      return t ? [{ ...tagsOf(t), note: rowOf(r) }] : [];
     });
-    return { items, missing: [], next: ids.length > limit ? (page.at(-1) ?? null) : null };
+    return { items, missing: [], next: rows.length > limit ? (page.at(-1)?.track_id ?? null) : null };
   }
 
-  /** Songs by feeling or like one (areas/music/find.ts), with the owner's early skips by track id,
-   * the songs their rules rule out and the songs rated 1; null when `like` names a song the
-   * catalog doesn't hold. */
-  find(q: FindQuery, skips: Record<string, number>, never: string[], rated: string[] = []): MusicFindResponse | null {
-    const tracks = this.index().map(tags);
-    return rank(
-      { tracks, notes: this.notesKept(), listening: this.listening() },
+  /** The owner's ratings from the phone's `music.rate` senses (the senses route): the newest of each
+   * song is kept for good, so "not for me" doesn't fade with the senses' 90 days. */
+  putRatings(list: { id: string; rating: number; at: number }[]): number {
+    const n = this.ctx.storage.transactionSync(() =>
+      list.reduce((w, r) => w + notes.putRating(this.db, r.id, r.rating, r.at), 0),
+    );
+    if (n) this.ruledOut = null;
+    return n;
+  }
+
+  /** Songs by feeling or like one (areas/music/find.ts), with the owner's early skips by track id and
+   * the songs their rules rule out; songs rated 1 are left out too. Null when `like` names a song
+   * the catalog doesn't hold. */
+  find(q: FindQuery, skips: Record<string, number>, never: string[], now = Date.now()): MusicFindResponse | null {
+    const packed = this.packedNotes();
+    const audio = this.measured(now);
+    let seed: { id: string; entry: NoteEntry; neighbours: { id: string; score: number }[] } | null = null;
+    if (q.like) {
+      const [t] = notes.tracksByIds(this.db, [q.like]);
+      if (!t) return null;
+      const near = audio ? listeningMap(notes.listeningRows(this.db, q.like)).get(q.like)?.neighbours : undefined;
+      seed = { id: t.id, entry: packed.get(t.id) ?? entryOf(null, tagsOf(t), t.ord), neighbours: near ?? [] };
+    }
+    const r = rank(
+      { notes: packed, audio, seed },
       q,
       new Map(Object.entries(skips)),
       new Set(never),
-      new Set(rated),
+      this.rated(),
+      q.limit + 10,
     );
+    // The winners' tags by key; a song that has left the catalog drops out.
+    const tags = new Map(
+      notes
+        .tracksByIds(
+          this.db,
+          r.items.map((i) => i.id),
+        )
+        .map((t) => [t.id, tagsOf(t)]),
+    );
+    const items = r.items.flatMap((i) => {
+      const t = tags.get(i.id);
+      return t ? [{ ...t, score: i.score, known: i.known, why: i.why }] : [];
+    });
+    return { items: items.slice(0, q.limit), total: r.total, analysis: audio !== null, left_out: r.left_out };
   }
 
-  /** Every track's searchable tags, read once per start (or after a change). */
+  /** The word search's tags, read once per start (or after a change). */
   protected index(): Tagged[] {
     if (this.finder) return this.finder;
-    const out: Tagged[] = [];
-    for (const r of store.tagRows(this.db)) {
-      const t = JSON.parse(r.record_json) as { path?: string; metadata?: Record<string, unknown> };
-      const m = t.metadata ?? {};
-      const s = (k: string) => (typeof m[k] === 'string' ? (m[k] as string) : '');
-      const row: MusicTrackRow = {
-        id: r.id,
-        title:
-          s('title') ||
-          (t.path ?? '')
-            .split('/')
-            .pop()
-            ?.replace(/\.[^.]+$/, '') ||
-          '',
-        artist: s('artist'),
-        album: s('album'),
-        genre: s('genre'),
-        composer: s('composer'),
-        year: Number(m.year) || 0,
-        dur: Math.round(Number(m.dur) || 0),
-      };
-      out.push({ ...row, hay: `${row.title} ${row.artist} ${row.album} ${row.genre} ${row.composer}`.toLowerCase() });
-    }
-    this.finder = out;
-    this.byId = new Map(out.map((t) => [t.id, t]));
-    return out;
-  }
-
-  private notesKept(): Map<string, MusicNoteRow> {
-    if (this.kept) return this.kept;
-    const kept = new Map<string, MusicNoteRow>();
-    for (const r of store.allNotes(this.db)) {
-      const n = JSON.parse(r.note_json) as Omit<MusicNote, 'id' | 'known'>;
-      kept.set(r.track_id, { id: r.track_id, known: r.known === 1, ...n, by: r.by, v: r.v, at: r.at });
-    }
-    this.kept = kept;
-    return kept;
-  }
-
-  /** The listening pass's data (step 3) when its table exists, else null. */
-  private listening(now = Date.now()): Map<string, Listening> | null {
-    if (this.listened && now - this.listened.at < LISTENING_MS && now >= this.listened.at) return this.listened.map;
-    const rows = store.listeningRows(this.db);
-    this.listened = { at: now, map: rows ? listeningMap(rows) : null };
-    return this.listened.map;
+    this.finder = notes.allTags(this.db).map((r) => {
+      const row = tagsOf(r);
+      return { ...row, hay: `${row.title} ${row.artist} ${row.album} ${row.genre} ${row.composer}`.toLowerCase() };
+    });
+    return this.finder;
   }
 }
-
-const tags = ({ hay: _, ...row }: Tagged): MusicTrackRow => row;

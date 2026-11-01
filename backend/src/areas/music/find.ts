@@ -1,5 +1,7 @@
-// Songs by feeling (GET /v1/music/find, MUSIC.md §10.5): a pure ranking over the catalog's tags, the
-// mind's notes and, where the listening pass (Music schema step 3) has measured a song, its audio.
+// Songs by feeling (GET /v1/music/find, MUSIC.md §10.5): a pure ranking over the mind's notes (with
+// the tags likeness weighs) and, where the listening pass (Music schema step 3) has measured a song,
+// its audio, as the Music object keeps them packed (music-mind.ts). Songs with neither a note nor a
+// measurement aren't ranked; the caller reads the winners' tags by key.
 //
 //   score = 1.0 · mood fit      (each asked mood's confidence, the note's and the audio's averaged
 //                                where both have it, then the mean over the asked moods)
@@ -21,19 +23,10 @@ import {
   type MusicFindItem,
   type MusicFindResponse,
   type MusicMood,
-  type MusicNoteRow,
   type MusicOccasion,
-  type MusicTrackRow,
 } from '../../../../shared/contract/music.ts';
 import type { Issue } from './notes';
 import { SONG_ID } from './shapes';
-
-/** What the listening pass knows of a song. */
-export interface Listening {
-  energy: number | null;
-  moods: Partial<Record<MusicMood, number>>;
-  neighbours: { id: string; score: number }[];
-}
 
 export interface FindQuery {
   moods: MusicMood[];
@@ -78,14 +71,53 @@ export function parseFind(q: Record<string, string | undefined>): FindQuery | { 
     : { moods: moods as MusicMood[], occasion: occasion as MusicOccasion, energy, like, limit };
 }
 
+/** A song as find reads it from the packs (`find_packs`, music-mind.ts): its note's words and the
+ * tags likeness weighs (`k` known, `m` moods, `o` occasions, `e` energy, `r` era, `l` language,
+ * `a` artist, `c` composer, `g` genre, `y` year, `n` its place in the catalog). */
+export interface NoteEntry {
+  k: 0 | 1;
+  m: Partial<Record<MusicMood, number>>;
+  o: Partial<Record<MusicOccasion, number>>;
+  e: number | null;
+  r: number | null;
+  l: string | null;
+  a: string;
+  c: string;
+  g: string;
+  y: number;
+  n: number;
+}
+/** What the listening pass measured of a song, packed: `e` energy, `m` mood scores. */
+export interface AudioEntry {
+  e: number | null;
+  m: Partial<Record<MusicMood, number>>;
+}
+
+export interface Known {
+  notes: Map<string, NoteEntry>;
+  /** Null until the listening pass's table exists. */
+  audio: Map<string, AudioEntry> | null;
+  /** `like`: the song, its entry (or one from its tags alone), and its neighbours when the
+   * listening pass measured it. */
+  seed: { id: string; entry: NoteEntry; neighbours: { id: string; score: number }[] } | null;
+}
+
+/** One ranked song, before its tags are read. */
+export interface Ranked {
+  id: string;
+  score: number;
+  known: boolean | null;
+  why: MusicFindItem['why'];
+}
+
 /** A song's moods: the note's and the audio's averaged where both score one. */
-function moodsOf(n: MusicNoteRow | undefined, a: Listening | undefined): Partial<Record<MusicMood, number>> {
-  if (!a) return n?.moods ?? {};
-  if (!n) return a.moods;
+function moodsOf(n: NoteEntry | undefined, a: AudioEntry | undefined): Partial<Record<MusicMood, number>> {
+  if (!a) return n?.m ?? {};
+  if (!n) return a.m;
   const out: Partial<Record<MusicMood, number>> = {};
   for (const m of MUSIC_MOODS) {
-    const x = n.moods[m];
-    const y = a.moods[m];
+    const x = n.m[m];
+    const y = a.m[m];
     if (x !== undefined || y !== undefined) out[m] = x !== undefined && y !== undefined ? (x + y) / 2 : (x ?? y);
   }
   return out;
@@ -113,64 +145,56 @@ const words = (s: string) =>
     .filter(Boolean);
 
 /** How close two songs' tags are (the DJ's own measure, MUSIC.md §9), 0 to 1. */
-function tagCloseness(a: MusicTrackRow, b: MusicTrackRow): number {
+function tagCloseness(a: NoteEntry, b: NoteEntry): number {
   let s = 0;
-  if (a.composer && a.composer === b.composer) s += 0.6;
-  if (a.artist && a.artist === b.artist) s += 0.4;
-  const g = new Set(words(a.genre));
-  s += Math.min(0.5, words(b.genre).filter((w) => g.has(w)).length * 0.25);
-  const dy = a.year && b.year ? Math.abs(a.year - b.year) : 99;
+  if (a.c && a.c === b.c) s += 0.6;
+  if (a.a && a.a === b.a) s += 0.4;
+  const g = new Set(words(a.g));
+  s += Math.min(0.5, words(b.g).filter((w) => g.has(w)).length * 0.25);
+  const dy = a.y && b.y ? Math.abs(a.y - b.y) : 99;
   s += dy <= 2 ? 0.2 : dy <= 5 ? 0.1 : 0;
   return Math.min(1, s);
 }
 
-export interface Known {
-  tracks: MusicTrackRow[];
-  notes: Map<string, MusicNoteRow>;
-  listening: Map<string, Listening> | null;
-}
-
-/** How alike `x` is to the seed, 0 and up: the neighbours' score when the listening pass gave the
- * seed some, else from the notes and tags. */
-function likeness(k: Known, seed: MusicTrackRow, x: MusicTrackRow, near: Map<string, number> | null): number {
-  if (near) return near.get(x.id) ?? 0;
-  const ns = k.notes.get(seed.id);
-  const nx = k.notes.get(x.id);
-  const as = k.listening?.get(seed.id);
-  const ax = k.listening?.get(x.id);
-  let s = 0.5 * tagCloseness(seed, x);
-  s += cosine(moodsOf(ns, as), moodsOf(nx, ax), MUSIC_MOODS);
-  if (ns && nx) {
-    s += 0.5 * cosine(ns.occasions, nx.occasions, MUSIC_OCCASIONS);
-    if (ns.language && ns.language === nx.language) s += 0.1;
-    if (ns.era && ns.era === nx.era) s += 0.1;
+/** How alike a song is to the seed, 0 and up, from the notes, tags and audio. */
+function likeness(k: Known, seed: NoteEntry, seedId: string, id: string): number {
+  const nx = k.notes.get(id);
+  const as = k.audio?.get(seedId);
+  const ax = k.audio?.get(id);
+  const seedNoted = k.notes.has(seedId);
+  let s = nx ? 0.5 * tagCloseness(seed, nx) : 0;
+  s += cosine(moodsOf(seedNoted ? seed : undefined, as), moodsOf(nx, ax), MUSIC_MOODS);
+  if (seedNoted && nx) {
+    s += 0.5 * cosine(seed.o, nx.o, MUSIC_OCCASIONS);
+    if (seed.l && seed.l === nx.l) s += 0.1;
+    if (seed.r && seed.r === nx.r) s += 0.1;
   }
-  const es = as?.energy ?? ns?.energy ?? null;
-  const ex = ax?.energy ?? nx?.energy ?? null;
+  const es = as?.e ?? (seedNoted ? seed.e : null);
+  const ex = ax?.e ?? nx?.e ?? null;
   if (es !== null && ex !== null) s += 0.2 * (1 - Math.abs(es - ex));
   return s;
 }
 
-/** The ranking. `skips`: early skips by track id; `never`: ids the owner's rules rule out; `rated`:
- * ids whose newest rating is 1. Null when `like` names a song the catalog doesn't hold. */
+/** The ranking over every song with a note or a measurement. `skips`: early skips by track id;
+ * `never`: ids the owner's rules rule out; `rated`: ids whose newest rating is 1. The top `take`
+ * come back (the caller reads their tags), with how many matched. */
 export function rank(
   k: Known,
   q: FindQuery,
   skips: Map<string, number>,
   never: Set<string>,
-  rated: Set<string> = new Set(),
-): MusicFindResponse | null {
-  const seed = q.like ? k.tracks.find((t) => t.id === q.like) : undefined;
-  if (q.like && !seed) return null;
-  const nb = seed ? k.listening?.get(seed.id)?.neighbours : undefined;
-  const near = nb?.length ? new Map(nb.map((n) => [n.id, n.score])) : null;
+  rated: Set<string>,
+  take: number,
+): { items: Ranked[]; total: number; left_out: MusicFindResponse['left_out'] } {
+  const near = k.seed?.neighbours.length ? new Map(k.seed.neighbours.map((n) => [n.id, n.score])) : null;
   const left_out = { never: 0, rated: 0, skipped: 0 };
-  const scored: { item: MusicFindItem; raw: number; ord: number }[] = [];
-  k.tracks.forEach((t, ord) => {
+  const scored: { item: Ranked; raw: number; ord: number }[] = [];
+  const ids = new Set([...k.notes.keys(), ...(k.audio?.keys() ?? []), ...(near?.keys() ?? [])]);
+  for (const id of ids) {
     // Like a song the listening pass measured: its neighbours are the candidates.
-    if ((seed && t.id === seed.id) || (near && !near.has(t.id))) return;
-    const n = k.notes.get(t.id);
-    const a = k.listening?.get(t.id);
+    if ((k.seed && id === k.seed.id) || (near && !near.has(id))) continue;
+    const n = k.notes.get(id);
+    const a = k.audio?.get(id);
     const why: MusicFindItem['why'] = {};
     let score = 0;
     let feel = 0;
@@ -182,72 +206,71 @@ export function rank(
       feel += fit;
     }
     if (q.occasion) {
-      const fit = n?.occasions[q.occasion] ?? 0;
+      const fit = n?.o[q.occasion] ?? 0;
       if (fit) why.occasion = fit;
       score += W.occasion * fit;
       feel += fit;
     }
-    const energy = a?.energy ?? n?.energy ?? null;
+    const energy = a?.e ?? n?.e ?? null;
     if (q.energy !== null && energy !== null) {
       why.energy = r2(energy);
       score += W.energy * (1 - Math.abs(energy - q.energy));
     }
-    if (seed) {
-      const like = likeness(k, seed, t, near);
+    if (k.seed) {
+      const like = near ? (near.get(id) ?? 0) : likeness(k, k.seed.entry, k.seed.id, id);
       if (like > 0) why.like = r2(like);
       score += W.like * like;
     }
     const asked = q.moods.length || q.occasion;
-    const shows = asked ? feel > 0.15 : seed ? (why.like ?? 0) > 0 : energy !== null;
-    if (!shows) return;
-    if (never.has(t.id)) {
+    const shows = asked ? feel > 0.15 : k.seed ? (why.like ?? 0) > 0 : energy !== null;
+    if (!shows) continue;
+    if (never.has(id)) {
       left_out.never++;
-      return;
+      continue;
     }
-    if (rated.has(t.id)) {
+    if (rated.has(id)) {
       left_out.rated++;
-      return;
+      continue;
     }
-    const s = skips.get(t.id) ?? 0;
+    const s = skips.get(id) ?? 0;
     if (s >= L.skip_exclude) {
       left_out.skipped++;
-      return;
+      continue;
     }
     if (s) {
       why.skips = s;
       score -= W.skip * s;
     }
-    scored.push({ item: { ...t, score: r2(score), known: n ? n.known : null, why }, raw: score, ord });
-  });
-  scored.sort((x, y) => y.raw - x.raw || x.ord - y.ord);
-  return {
-    items: scored.slice(0, q.limit).map((s) => s.item),
-    total: scored.length,
-    analysis: k.listening !== null,
-    left_out,
-  };
+    scored.push({
+      item: { id, score: r2(score), known: n ? n.k === 1 : null, why },
+      raw: score,
+      ord: n?.n ?? Infinity,
+    });
+  }
+  scored.sort((x, y) => y.raw - x.raw || x.ord - y.ord || (x.item.id < y.item.id ? -1 : 1));
+  return { items: scored.slice(0, take).map((s) => s.item), total: scored.length, left_out };
 }
 
 /** The listening pass's rows as find reads them; a row it can't read is left out. */
 export function listeningMap(
   rows: { track_id: string; energy: number | null; moods_json: string | null; neighbours_json: string | null }[],
-): Map<string, Listening> {
-  const out = new Map<string, Listening>();
+): Map<string, AudioEntry & { neighbours: { id: string; score: number }[] }> {
+  const out = new Map<string, AudioEntry & { neighbours: { id: string; score: number }[] }>();
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(1, v)) : null);
   for (const r of rows) {
     try {
-      const moods: Partial<Record<MusicMood, number>> = {};
-      const m = r.moods_json ? (JSON.parse(r.moods_json) as Record<string, unknown>) : {};
+      const m: Partial<Record<MusicMood, number>> = {};
+      const raw = r.moods_json ? (JSON.parse(r.moods_json) as Record<string, unknown>) : {};
       for (const k of MUSIC_MOODS) {
-        const v = num(m[k]);
-        if (v) moods[k] = v;
+        const v = num(raw[k]);
+        if (v) m[k] = v;
       }
       const nb = r.neighbours_json ? (JSON.parse(r.neighbours_json) as unknown[]) : [];
       const neighbours = nb.flatMap((x, i) => {
         const o = (typeof x === 'string' ? { id: x } : x) as { id?: unknown; score?: unknown };
         return typeof o?.id === 'string' ? [{ id: o.id, score: num(o.score) ?? 1 - i / Math.max(1, nb.length) }] : [];
       });
-      out.set(r.track_id, { energy: num(r.energy), moods, neighbours });
+      out.set(r.track_id, { e: num(r.energy), m, neighbours });
     } catch {
       /* a row that isn't JSON: left out */
     }

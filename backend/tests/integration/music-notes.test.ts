@@ -5,12 +5,12 @@
 // note of the current version; the batch waits past 80% of the day's database budget; the eval
 // sandbox has no music. A synthetic catalog only.
 import { runInDurableObject } from 'cloudflare:test';
+import { exports } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { budgetAt } from '../../../shared/contract/meter.ts';
 import type { MusicNotesResponse, MusicTracksResponse } from '../../../shared/contract/music.ts';
 import { forgetHold } from '../../src/areas/meter/hold';
 import { utcDay } from '../../src/lib/time';
-import type { Music } from '../../src/objects/music';
 import { apiJson, coreSql } from '../helpers';
 import { CHAT_SESSION, type Principals, principals } from '../memory-helpers';
 import { music, note, putNotes, seedCatalog, songId } from '../music-helpers';
@@ -135,13 +135,34 @@ describe('PUT /v1/music/notes checks every field', () => {
       body: { items: [full()], pad: 'x'.repeat(300_000) },
     });
     expect(big.status).toBe(413);
+    // Without a Content-Length too: the body is cut off as it streams.
+    const stream = new ReadableStream({
+      start(c) {
+        for (let i = 0; i < 40; i++) c.enqueue(new TextEncoder().encode('x'.repeat(8_192)));
+        c.close();
+      },
+    });
+    const chunked = await exports.default.fetch(
+      new Request('https://api.example.test/v1/music/notes', {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${P.N}`,
+          'Content-Type': 'application/json',
+          'CF-Connecting-IP': '192.0.2.10',
+        },
+        body: stream,
+        duplex: 'half',
+      } as RequestInit),
+    );
+    expect(chunked.status).toBe(413);
     expect(await count()).toBe(0);
     const full200 = await putNotes(P.N, filler.slice(0, 200));
-    expect([full200.status, full200.body]).toEqual([200, { written: 200, unchanged: 0 }]);
-    await notesSql('DELETE FROM track_notes');
-    await runInDurableObject(music(), (o: Music) => {
-      (o as unknown as { kept: null }).kept = null;
-    });
+    expect([full200.status, full200.body]).toEqual([200, { written: 200, unchanged: 0, kept: 0 }]);
+    // Packed for find 500 to a row: one pack row holds the 200.
+    expect(await notesSql('SELECT kind, pack FROM find_packs ORDER BY kind, pack')).toEqual([
+      { kind: 'meta', pack: 0 },
+      { kind: 'notes', pack: 0 },
+    ]);
   });
 });
 
@@ -154,13 +175,20 @@ describe('notes kept and read back', () => {
       conf: { language: 0.9 },
     });
     const b = note(ids[1], { known: false, moods: { energetic: 0.5 }, energy: 0.8, conf: { energy: 0.4 } });
-    expect((await putNotes(P.N, [a, b])).body).toEqual({ written: 2, unchanged: 0 });
-    expect((await putNotes(P.N, [a, b])).body).toEqual({ written: 0, unchanged: 2 });
+    expect((await putNotes(P.N, [a, b])).body).toEqual({ written: 2, unchanged: 0, kept: 0 });
+    expect((await putNotes(P.N, [a, b])).body).toEqual({ written: 0, unchanged: 2, kept: 0 });
     expect((await putNotes(P.C, [{ ...a, themes: ['night'], conf: { ...a.conf, themes: 0.5 } }, b])).body).toEqual({
       written: 1,
       unchanged: 1,
+      kept: 0,
     });
-    const rows = await notesSql('SELECT track_id, known, note_json, by, v FROM track_notes ORDER BY track_id');
+    // The owner's correction through the chat stands: the night's note for that song is kept out.
+    expect((await putNotes(P.N, [a])).body).toEqual({ written: 0, unchanged: 0, kept: 1 });
+    const rows = await notesSql(
+      'SELECT track_id, known, note_json, by, v FROM track_notes WHERE track_id IN (?, ?) ORDER BY track_id',
+      ids[0],
+      ids[1],
+    );
     expect(rows).toEqual([
       {
         track_id: ids[0],
@@ -204,24 +232,29 @@ describe('notes kept and read back', () => {
     const two = await apiJson<MusicNotesResponse>('GET', `/v1/music/notes?limit=1&cursor=${one.body.next}`, {
       token: P.N,
     });
-    expect([two.body.items.map((i) => i.id), two.body.next]).toEqual([[ids[1]], null]);
+    expect([two.body.items.map((i) => i.id), two.body.next]).toEqual([[ids[1]], ids[1]]);
+    const last = await apiJson<MusicNotesResponse>('GET', `/v1/music/notes?limit=200&cursor=${ids[1]}`, { token: P.N });
+    expect([last.body.items.length, last.body.items[0].id, last.body.next]).toEqual([200, songId(100), null]);
     expect((await apiJson('GET', '/v1/music/notes?limit=201', { token: P.N })).status).toBe(422);
     expect((await apiJson('GET', '/v1/music/notes?cursor=nope', { token: P.N })).status).toBe(422);
   });
 
-  it('the next untagged page leaves out songs with a current note, and takes back an older version', async () => {
-    const page = (q = '') =>
-      apiJson<MusicTracksResponse>('GET', `/v1/music/tracks?untagged=1&limit=2${q}`, { token: P.N });
+  it('the next untagged page leaves out songs with a current note, goes on from its place, and takes back an older version', async () => {
+    const page = () => apiJson<MusicTracksResponse>('GET', '/v1/music/tracks?untagged=1&limit=2', { token: P.N });
     const first = await page();
-    expect(first.body.items.map((t) => t.id)).toEqual([ids[2], songId(100)]);
-    expect(first.body.total).toBe(221);
-    expect((await page('&q=choir')).body.items.map((t) => t.id)).toEqual([ids[2]]);
-    // A note of an older format is as good as none: the night writes it again.
-    await notesSql('UPDATE track_notes SET v = 0 WHERE track_id = ?', ids[1]);
-    await runInDurableObject(music(), (o: Music) => {
-      (o as unknown as { kept: null }).kept = null;
-    });
-    expect((await page()).body.items.map((t) => t.id)).toEqual([ids[1], ids[2]]);
+    expect(first.body).toMatchObject({ total: 2, more: true });
+    expect(first.body.items.map((t) => t.id)).toEqual([ids[2], songId(300)]);
+    // Its place moved to just before the first of them.
+    expect(await notesSql("SELECT value_json FROM music_state WHERE key = 'notes.cursor'")).toEqual([
+      { value_json: '{"v":1,"ord":2}' },
+    ]);
+    await putNotes(P.N, [note(ids[2], { moods: { reverent: 0.9 } })]);
+    expect((await page()).body.items.map((t) => t.id)).toEqual([songId(300), songId(301)]);
+    // A note of an older format is as good as none (the night writes it again), unless the owner
+    // corrected it through the chat; a new format starts the night's place over.
+    await notesSql('UPDATE track_notes SET v = 0 WHERE track_id IN (?, ?)', ids[0], ids[1]);
+    await notesSql("DELETE FROM music_state WHERE key = 'notes.cursor'");
+    expect((await page()).body.items.map((t) => t.id)).toEqual([ids[1], songId(300)]);
     // Without the flag, every song as before.
     const all = await apiJson<MusicTracksResponse>('GET', '/v1/music/tracks?limit=2', { token: P.N });
     expect(all.body.total).toBe(223);
@@ -237,13 +270,14 @@ describe('what holds the notes back', () => {
       budgetAt(80, 'rows_read') + 1,
     );
     forgetHold();
-    const held = await putNotes(P.N, [note(ids[2], { moods: { reverent: 0.9 } })]);
+    const held = await putNotes(P.N, [note(ids[2], { moods: { reverent: 0.8 } })]);
     expect([held.status, held.body.error?.code]).toEqual([429, 'rate_limited']);
+    expect((await apiJson('GET', '/v1/music/find?moods=calm', { token: P.N })).status).toBe(429);
     // Reading is never held.
     expect((await apiJson('GET', `/v1/music/notes?ids=${ids[2]}`, { token: P.N })).status).toBe(200);
     await coreSql("DELETE FROM meter_days WHERE class = 'senses'");
     forgetHold();
-    expect((await putNotes(P.N, [note(ids[2], { moods: { reverent: 0.9 } })])).status).toBe(200);
+    expect((await putNotes(P.N, [note(ids[2], { moods: { reverent: 0.8 } })])).status).toBe(200);
   });
 
   it('the eval sandbox has no music', async () => {
@@ -255,5 +289,6 @@ describe('what holds the notes back', () => {
     expect([r.status, r.body.error.details[0].path]).toEqual([422, 'TH-Sandbox']);
     expect((await putNotes(P.C, [note(ids[0])], sandbox)).status).toBe(422);
     expect((await apiJson('GET', '/v1/music/find?moods=calm', { token: P.C, headers: sandbox })).status).toBe(422);
+    expect((await apiJson('GET', '/v1/music/tracks?untagged=1', { token: P.C, headers: sandbox })).status).toBe(422);
   });
 });

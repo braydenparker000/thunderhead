@@ -50,14 +50,14 @@ describe('listeningMap', () => {
       { track_id: id('6'), energy: 0.5, moods_json: '{not json', neighbours_json: null },
     ]);
     expect(map.get(id('1'))).toEqual({
-      energy: 1,
-      moods: { calm: 0.9 },
+      e: 1,
+      m: { calm: 0.9 },
       neighbours: [
         { id: id('2'), score: 1 },
         { id: id('3'), score: 0.5 },
       ],
     });
-    expect(map.get(id('4'))).toEqual({ energy: null, moods: {}, neighbours: [{ id: id('5'), score: 0.4 }] });
+    expect(map.get(id('4'))).toEqual({ e: null, m: {}, neighbours: [{ id: id('5'), score: 0.4 }] });
     expect(map.has(id('6'))).toBe(false);
   });
 });

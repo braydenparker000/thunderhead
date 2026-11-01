@@ -1,0 +1,147 @@
+// The packs and lists find reads in the Music object (MUSIC.md §10.5; music-mind.ts uses them): the
+// mind's notes packed 500 to a row with the tags likeness weighs, the listening pass's moods and
+// energy packed the same way, and the songs rated 1. A code layer of the one Music class. The packs
+// are derived (`find_packs`, out of the backup): the notes' are built again from the notes when they
+// are missing, as after a restore; the listening pass's when they are a day old.
+import {
+  MUSIC_NOTE_LIMITS as L,
+  type MusicNote,
+  type MusicNoteRow,
+  type MusicTrackRow,
+} from '../../../shared/contract/music.ts';
+import { type AudioEntry, listeningMap, type NoteEntry } from '../areas/music/find';
+import * as notes from '../areas/music/store-notes';
+import { MusicListen } from './music-listen';
+
+/** A track's tags from its record as the old catalog kept it. */
+export function tagsOf(r: { id: string; record_json: string }): MusicTrackRow {
+  const t = JSON.parse(r.record_json) as { path?: string; metadata?: Record<string, unknown> };
+  const m = t.metadata ?? {};
+  const s = (k: string) => (typeof m[k] === 'string' ? (m[k] as string) : '');
+  return {
+    id: r.id,
+    title:
+      s('title') ||
+      (t.path ?? '')
+        .split('/')
+        .pop()
+        ?.replace(/\.[^.]+$/, '') ||
+      '',
+    artist: s('artist'),
+    album: s('album'),
+    genre: s('genre'),
+    composer: s('composer'),
+    year: Number(m.year) || 0,
+    dur: Math.round(Number(m.dur) || 0),
+  };
+}
+
+/** A note's packed entry: its words and the tags likeness weighs. */
+export function entryOf(n: Omit<MusicNote, 'id'> | null, t: MusicTrackRow, ord: number): NoteEntry {
+  return {
+    k: n?.known ? 1 : 0,
+    m: n?.moods ?? {},
+    o: n?.occasions ?? {},
+    e: n?.energy ?? null,
+    r: n?.era ?? null,
+    l: n?.language ?? null,
+    a: t.artist,
+    c: t.composer,
+    g: t.genre,
+    y: t.year,
+    n: ord,
+  };
+}
+
+export const rowOf = (r: notes.NoteRow): MusicNoteRow => ({
+  id: r.track_id,
+  known: r.known === 1,
+  ...(JSON.parse(r.note_json) as Omit<MusicNote, 'id' | 'known'>),
+  by: r.by,
+  v: r.v,
+  at: r.at,
+});
+
+export abstract class MusicPacks extends MusicListen {
+  /** The packed notes by track id, and where the next new note goes. */
+  protected packed: Map<string, NoteEntry> | null = null;
+  protected place: { open: number; fill: number } | null = null;
+  /** The listening pass's packed measurements (null: no table), and when they were packed. */
+  private audio: { at: number; map: Map<string, AudioEntry> | null } | null = null;
+  private listenTable: boolean | null = null;
+  /** The songs whose newest rating is 1. */
+  protected ruledOut: Set<string> | null = null;
+
+  protected rated(): Set<string> {
+    this.ruledOut ??= new Set(notes.ratedOut(this.db));
+    return this.ruledOut;
+  }
+
+  /** The packed notes, read once per start (tens of rows); built again from the notes when the
+   * packs are missing (a restore brings back the notes, not the derived packs). */
+  protected packedNotes(): Map<string, NoteEntry> {
+    if (this.packed) return this.packed;
+    const meta = notes.pack(this.db, 'meta', 0);
+    if (meta === null && notes.anyNote(this.db)) this.repack(Date.now());
+    else this.place = meta ? (JSON.parse(meta) as { open: number; fill: number }) : { open: 0, fill: 0 };
+    const map = new Map<string, NoteEntry>();
+    for (const p of notes.packs(this.db, 'notes'))
+      for (const [id, e] of Object.entries(JSON.parse(p.entries_json) as Record<string, NoteEntry>)) map.set(id, e);
+    this.packed = map;
+    return map;
+  }
+
+  /** The notes' packs again, each note in the pack it names (a rebuild reads every note and tag once). */
+  private repack(at: number): void {
+    const tracks = new Map(notes.allTags(this.db).map((t) => [t.id, t]));
+    const by = new Map<number, Record<string, NoteEntry>>();
+    for (const r of notes.allNotes(this.db)) {
+      const t = tracks.get(r.track_id);
+      if (!t) continue;
+      const n = rowOf(r);
+      by.set(r.pack, { ...(by.get(r.pack) ?? {}), [r.track_id]: entryOf(n, tagsOf(t), t.ord) });
+    }
+    const open = Math.max(0, ...by.keys());
+    this.place = { open, fill: Object.keys(by.get(open) ?? {}).length };
+    this.ctx.storage.transactionSync(() => {
+      notes.dropPacks(this.db, 'notes');
+      for (const [n, p] of by) notes.putPack(this.db, 'notes', n, JSON.stringify(p), at);
+      notes.putPack(this.db, 'meta', 0, JSON.stringify(this.place), at);
+    });
+  }
+
+  /** The listening pass's moods and energy (step 3), packed: null until its table exists. Packed
+   * again from its table when the packs are older than a day (its writer needs no change here). */
+  protected measured(now: number): Map<string, AudioEntry> | null {
+    this.listenTable ??= notes.hasListening(this.db);
+    if (!this.listenTable) return null;
+    if (this.audio && now - this.audio.at < L.pack_ms && now >= this.audio.at) return this.audio.map;
+    const meta = notes.pack(this.db, 'meta', 1);
+    const at = meta ? (JSON.parse(meta) as { at: number }).at : 0;
+    const map = new Map<string, AudioEntry>();
+    if (now - at < L.pack_ms && now >= at) {
+      for (const p of notes.packs(this.db, 'audio'))
+        for (const [id, e] of Object.entries(JSON.parse(p.entries_json) as Record<string, AudioEntry>)) map.set(id, e);
+      this.audio = { at, map };
+      return map;
+    }
+    const rows = [...listeningMap(notes.listeningRows(this.db))];
+    this.ctx.storage.transactionSync(() => {
+      notes.dropPacks(this.db, 'audio');
+      for (let i = 0; i * L.pack_size < rows.length; i++) {
+        const part = rows.slice(i * L.pack_size, (i + 1) * L.pack_size);
+        notes.putPack(
+          this.db,
+          'audio',
+          i,
+          JSON.stringify(Object.fromEntries(part.map(([id, a]) => [id, { e: a.e, m: a.m }]))),
+          now,
+        );
+      }
+      notes.putPack(this.db, 'meta', 1, JSON.stringify({ at: now }), now);
+    });
+    for (const [id, a] of rows) map.set(id, { e: a.e, m: a.m });
+    this.audio = { at: now, map };
+    return map;
+  }
+}

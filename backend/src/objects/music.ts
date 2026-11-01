@@ -60,7 +60,9 @@ export const MUSIC_MIGRATIONS: Migration[] = [
     version: 4,
     name: 'track_notes',
     kind: 'expand',
-    // What the mind knows of each song (MUSIC.md §10.5): one row a track, no index.
+    // What the mind knows of each song (MUSIC.md §10.5): its note, one row a track (`pack`: the
+    // find pack it is in); the owner's newest rating of each song, kept for good; and find's packs
+    // (derived: the notes 500 to a row, and the listening pass's measurements).
     sql: [
       `CREATE TABLE track_notes (
         track_id TEXT PRIMARY KEY,
@@ -68,15 +70,30 @@ export const MUSIC_MIGRATIONS: Migration[] = [
         note_json TEXT NOT NULL,
         by TEXT NOT NULL,
         v INTEGER NOT NULL,
+        at INTEGER NOT NULL,
+        pack INTEGER NOT NULL
+      ) WITHOUT ROWID`,
+      `CREATE TABLE track_ratings (
+        track_id TEXT PRIMARY KEY,
+        rating INTEGER NOT NULL,
         at INTEGER NOT NULL
+      ) WITHOUT ROWID`,
+      'CREATE INDEX track_ratings_out ON track_ratings (track_id) WHERE rating = 1',
+      `CREATE TABLE find_packs (
+        kind TEXT NOT NULL,
+        pack INTEGER NOT NULL,
+        entries_json TEXT NOT NULL,
+        at INTEGER NOT NULL,
+        PRIMARY KEY (kind, pack)
       ) WITHOUT ROWID`,
     ],
   },
 ];
 
-/** Every catalog table, the listening pass's and the mind's notes, in the weekly backup and the
- * export (DATA.md §10); the meter's `meter_days` (counts only) stays out of both. */
-export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state', ...LISTEN_TABLES, 'track_notes'] as const;
+/** Every catalog table, the listening pass's, the mind's notes and the owner's ratings, in the weekly
+ * backup and the export (DATA.md §10); the meter's `meter_days` (counts only) and find's derived
+ * `find_packs` (built again from the notes) stay out of both. */
+export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state', ...LISTEN_TABLES, 'track_notes', 'track_ratings'] as const;
 
 /** The one instance: the owner's library. */
 export const MUSIC_INSTANCE = 'library';

@@ -91,11 +91,9 @@ const ARCHIVE_PAGE = 2_000;
 export const archiveKey = (day: string) => `senses/${day}.jsonl.gz`;
 
 export class Senses extends OwnerObject {
-  /** What Music's find holds against songs (MUSIC.md §10.5), each part kept for the UTC day it was
-   * read on until a batch brings a new event of its type: a find costs these rows once, not every
-   * time. The early skips by track id, and the songs whose newest rating is 1 ("not for me"). */
+  /** Early skips by track id (Music's find, MUSIC.md §10.5), kept for the UTC day they were counted
+   * on until a batch brings a new skip: a find costs these rows once, not every time. */
   private skips: { day: string; by: Record<string, number> } | null = null;
-  private rated: { day: string; out: string[] } | null = null;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env, SENSES_MIGRATIONS, 'senses');
@@ -127,7 +125,6 @@ export class Senses extends OwnerObject {
         store.putEvent(this.db, c, day, device, 'device');
         store.roll(this.db, day, c.type, c.ref ?? '', 1, msOf(c.data_json));
         if (c.type === 'music.skip') this.skips = null;
-        if (c.type === 'music.rate') this.rated = null;
         days.add(day);
         accepted++;
       });
@@ -145,31 +142,19 @@ export class Senses extends OwnerObject {
     return { rows, rows_read: this.meter.rowsRead - before };
   }
 
-  /** What Music's find leaves out or holds against a song: each song's skips before 30 s in the last
-   * 30 days (MUSIC_NOTE_LIMITS) by track id, and the songs whose newest `music.rate` is 1 (the
-   * phone's "not for me", also what "never play this again" said to the phone does), read from
-   * the 90 days of events kept (SENSE_LIMITS.hot_days). The days are every date the owner's logical
-   * day can fall on in the window, so the (day, type) index reads only those events. */
-  musicSignals(now = Date.now()): { skips: Record<string, number>; rated_out: string[] } {
+  /** Each song's skips before 30 s in the last 30 days (MUSIC_NOTE_LIMITS), by track id: what Music's
+   * find holds against a song. The days are every date the owner's logical day can fall on in the
+   * window, so the (day, type) index reads only the skips. */
+  earlySkips(now = Date.now()): Record<string, number> {
     const today = new Date(now).toISOString().slice(0, 10);
-    const days = (span: number) =>
-      Array.from({ length: span + 3 }, (_, k) => new Date(now + (1 - k) * DAY).toISOString().slice(0, 10));
-    if (this.skips?.day !== today) {
-      const span = MUSIC_NOTE_LIMITS.skip_days;
-      const by: Record<string, number> = {};
-      for (const r of store.earlySkips(this.db, days(span), now - span * DAY, MUSIC_NOTE_LIMITS.early_skip_ms))
-        if (r.ref.startsWith('music:')) by[r.ref.slice(6)] = (by[r.ref.slice(6)] ?? 0) + r.n;
-      this.skips = { day: today, by };
-    }
-    if (this.rated?.day !== today) {
-      const span = SENSE_LIMITS.hot_days;
-      const newest = new Map<string, number | null>();
-      // In time order, so the last rating seen for a song is its newest.
-      for (const r of store.ratings(this.db, days(span), now - span * DAY))
-        if (r.ref.startsWith('music:')) newest.set(r.ref.slice(6), r.rating);
-      this.rated = { day: today, out: [...newest].filter(([, v]) => v === 1).map(([id]) => id) };
-    }
-    return { skips: this.skips.by, rated_out: this.rated.out };
+    if (this.skips?.day === today) return this.skips.by;
+    const span = MUSIC_NOTE_LIMITS.skip_days;
+    const days = Array.from({ length: span + 3 }, (_, k) => new Date(now + (1 - k) * DAY).toISOString().slice(0, 10));
+    const by: Record<string, number> = {};
+    for (const r of store.earlySkips(this.db, days, now - span * DAY, MUSIC_NOTE_LIMITS.early_skip_ms))
+      if (r.ref.startsWith('music:')) by[r.ref.slice(6)] = (by[r.ref.slice(6)] ?? 0) + r.n;
+    this.skips = { day: today, by };
+    return by;
   }
 
   /** Some types' rollups for the meter (P9): counts by day and ref only. */

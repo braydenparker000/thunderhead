@@ -9,11 +9,13 @@ import * as z from 'zod/mini';
 import {
   type MediaSignResponse,
   MUSIC_LIMITS,
+  MUSIC_NOTE_LIMITS,
   type MusicTracksResponse,
   type MusicWaveform,
 } from '../../../../shared/contract/music.ts';
 import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { ApiError } from '../../http/errors';
+import { inSandbox } from '../../http/sandbox';
 import { json } from '../../http/validate';
 import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
@@ -45,13 +47,18 @@ export const musicRoutes = new Hono<AppEnv>()
     c.header('ETag', held.etag);
     return c.body(held.text, 200, { 'Content-Type': 'application/json; charset=utf-8' });
   })
-  // The mind picks a playlist's tracks by their tags (MUSIC.md §10.2), then asks a phone to make it;
-  // `untagged=1` is the night's next page of songs to write notes for (§10.5).
+  // The mind picks a playlist's tracks by their tags (MUSIC.md §10.2), then asks a phone to make it
+  // (songs rated 1 left out); `untagged=1` is the night's next page of songs to write notes for
+  // (§10.5), at most 200, which moves the night's place (so never from the eval sandbox).
   .get('/music/tracks', guard('GET /v1/music/tracks'), async (c) => {
-    const q = (c.req.query('q') ?? '').trim().slice(0, 200);
     const limit = Math.min(1000, Math.max(1, Math.floor(Number(c.req.query('limit') ?? 200)) || 200));
-    const untagged = c.req.query('untagged') === '1';
-    return c.json((await fresh(musicObject(c.env).findTracks(q, limit, untagged))) satisfies MusicTracksResponse);
+    if (c.req.query('untagged') === '1') {
+      if (inSandbox()) throw new ApiError('validation', [{ path: 'TH-Sandbox', issue: 'the sandbox has no music' }]);
+      const page = Math.min(limit, MUSIC_NOTE_LIMITS.batch);
+      return c.json((await fresh(musicObject(c.env).untaggedPage(page))) satisfies MusicTracksResponse);
+    }
+    const q = (c.req.query('q') ?? '').trim().slice(0, 200);
+    return c.json((await fresh(musicObject(c.env).findTracks(q, limit))) satisfies MusicTracksResponse);
   })
   .get('/music/waveforms/:id', guard('GET /v1/music/waveforms/:id'), async (c) => {
     const id = c.req.param('id');

@@ -15,9 +15,11 @@ import { ApiError } from '../../http/errors';
 import { inSandbox } from '../../http/sandbox';
 import { json } from '../../http/validate';
 import { coreObject } from '../../objects/core';
+import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
 import { sensesObject } from '../../objects/senses';
 import { sha256 } from '../import/vault';
+import { SONG_ID } from '../music/shapes';
 import { check } from './queries';
 
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -30,6 +32,27 @@ const noSandbox = () => {
   if (inSandbox()) throw new ApiError('validation', [{ path: 'TH-Sandbox', issue: 'the sandbox has no senses' }]);
 };
 let zone: { tz: string; until: number } | null = null;
+
+/** The batch's accepted song ratings (`music.rate`, ref `music:<id>`, `data.rating` 0–5). */
+function ratingsOf(
+  events: SenseEvent[],
+  rejected: SenseBatchResponse['rejected'],
+): { id: string; rating: number; at: number }[] {
+  const out = new Set(rejected.map((x) => x.i));
+  return events.flatMap((e, i) => {
+    const id = typeof e?.ref === 'string' && e.ref.startsWith('music:') ? e.ref.slice(6) : '';
+    const rating = (e?.data as { rating?: unknown } | undefined)?.rating;
+    return !out.has(i) &&
+      e.type === 'music.rate' &&
+      e.sensitivity !== 1 &&
+      SONG_ID.test(id) &&
+      Number.isInteger(rating) &&
+      (rating as number) >= 0 &&
+      (rating as number) <= 5
+      ? [{ id, rating: rating as number, at: e.at }]
+      : [];
+  });
+}
 
 /** The owner's zone (Core's private setting), kept 10 minutes in this isolate. */
 async function ownerTz(env: Env): Promise<string> {
@@ -65,6 +88,12 @@ export const sensesRoutes = new Hono<AppEnv>()
       ),
     );
     if ('conflict' in r) throw new ApiError('conflict');
+    // The owner's ratings are kept for good in Music (MUSIC.md §10.5): a song rated 1 stays out of
+    // find after the senses' 90 days. The same batch again hands them over again, which changes
+    // nothing (the newest rating of each song wins); a failure here answers 5xx, and the phone's
+    // retry of the sealed batch hands them over then.
+    const rated = ratingsOf(events as SenseEvent[], r.rejected);
+    if (rated.length) await fresh(musicObject(c.env).putRatings(rated));
     return c.json(r satisfies SenseBatchResponse);
   })
   .post('/senses/query', guard('POST /v1/senses/query'), async (c) => {

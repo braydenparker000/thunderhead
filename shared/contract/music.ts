@@ -39,9 +39,10 @@ export interface MusicTrackRow {
 }
 export interface MusicTracksResponse {
   items: MusicTrackRow[];
-  /** Every track the words match (and, with `untagged=1`, still needs a note), though only `limit`
-   * come back. */
+  /** Every track the words match, though only `limit` come back. With `untagged=1` it counts this
+   * page only (counting them all would read the whole catalog); `more` says whether more follow. */
   total: number;
+  more?: boolean;
 }
 
 // --- What the mind knows of each song (MUSIC.md §10.5; Music schema step 4, `track_notes`) ------
@@ -131,8 +132,13 @@ export const MUSIC_NOTE_LIMITS = {
   unknown_conf_max: 0.5,
   /** A note's era is a decade from this one to the present one. */
   era_min: 1000,
-  /** The night's budget (RUNTIME.md §12.1): about this many songs a night, in pages of `batch`. */
-  night_songs: 1000,
+  /** The night's budget (night step 11, RUNTIME.md §12.1): at most this many songs a night, in
+   * pages of `batch`, within the step's minutes. */
+  night_songs: 400,
+  /** Find reads the notes packed this many to a row (`find_packs`), so a cold find reads tens of
+   * rows, not one a song; the listening pass's moods and energy are packed again after `pack_ms`. */
+  pack_size: 500,
+  pack_ms: 24 * 60 * 60 * 1000,
   /** GET /v1/music/find: results, by default and at most; moods asked at once. */
   find_default: 30,
   find_max: 100,
@@ -144,9 +150,10 @@ export const MUSIC_NOTE_LIMITS = {
   skip_exclude: 3,
 } as const;
 
-/** "Never play this again" (MUSIC.md §10.5): a rule fact from the owner's own words (MEMORY.md §6
- * M4) under this subject, its text naming the song as `music:<id>`. Find leaves every song named in
- * a current one out, and so do the mixes built from it. */
+/** "Never play this again" said to the mind in other words (MUSIC.md §10.5): a rule fact from the
+ * owner's own words (MEMORY.md §6 M4) under this subject, its text naming the song as `music:<id>`
+ * and nothing else of it (no title: a title in a shell argument could break out of its quotes).
+ * Find leaves every song named in a current one out, and so do the mixes built from it. */
 export const MUSIC_NEVER_SUBJECT = 'music.never';
 /** The songs a rule's text names. */
 export const MUSIC_REF_IN_TEXT = /\bmusic:(r2_[A-Za-z0-9_-]{10,200})/g;
@@ -177,10 +184,12 @@ export interface MusicNoteRow extends MusicNote {
 export interface MusicNotesRequest {
   items: MusicNote[];
 }
-/** Notes that changed a row, and notes the same as the one kept (no row written). */
+/** Notes that changed a row, notes the same as the one kept (no row written), and notes the night
+ * sent for a song whose note the owner corrected through the chat (`by: mind:chat`), which stands. */
 export interface MusicNotesWritten {
   written: number;
   unchanged: number;
+  kept: number;
 }
 /** GET /v1/music/notes?ids= (each track asked for, its note or null; ids not in the catalog are
  * `missing`) or ?cursor=&limit= (the notes in track id order, a page at a time). */
@@ -192,9 +201,10 @@ export interface MusicNotesResponse {
 
 /** GET /v1/music/find: songs by feeling (`moods`, `occasion`, `energy`) or like another (`like`),
  * from the notes and, where the listening pass has measured them, the audio. Left out: songs the
- * owner told the mind never to play again (`never`, rule facts), songs whose newest `music.rate`
- * sense is 1 (`rated`: the phone's "not for me", which "never play this again" said to the phone
- * sets) and songs skipped early `skip_exclude` times in `skip_days` (`skipped`). */
+ * owner told the mind never to play again (`never`, rule facts), songs whose newest rating is 1
+ * (`rated`: kept in `track_ratings` from the phone's `music.rate` senses: its "not for me", which
+ * "never play this again" said to the phone sets) and songs skipped early `skip_exclude` times in
+ * `skip_days` (`skipped`). */
 export interface MusicFindItem extends MusicTrackRow {
   score: number;
   known: boolean | null;

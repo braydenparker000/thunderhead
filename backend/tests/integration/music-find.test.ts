@@ -96,9 +96,9 @@ describe('find by the notes alone (no listening pass yet)', () => {
     const o = order(r);
     expect(o.slice(0, 2)).toEqual([7, 0]);
     expect(o).not.toContain(4);
-    // A song with no note is still close by its tags (same artist, same genre).
-    expect(o).toContain(6);
-    expect(o.indexOf(6)).toBeGreaterThan(o.indexOf(0));
+    // A song with neither a note nor a measurement isn't ranked (its tags alone say nothing of it).
+    expect(o).not.toContain(6);
+    expect(o.slice(2)).toEqual([5, 1, 2, 3]);
     expect(r.body.items[0].why.like).toBeGreaterThan(1);
     // Like, with a feeling: only songs that show it.
     expect(order(await find(`like=${S[4]}&moods=energetic`))).toEqual([1, 3]);
@@ -157,14 +157,26 @@ describe('how the owner listens', () => {
     expect(order(await find(`like=${S[4]}`))).not.toContain(0);
   });
 
-  it('a song rated 1 on the phone ("not for me", or "never play this again" said to it) is left out until undone', async () => {
+  it('a song rated 1 on the phone ("not for me", or "never play this again" said to it) is left out for good, until undone', async () => {
     const rate = (rating: number, from: number, ago_ms: number) =>
       sendSenses(P.D, [{ type: 'music.rate', id: S[4], ago_ms, data: { rating, from, by: 'command' } }]);
     await rate(1, 0, 120_000);
+    // Kept in Music itself: gone from the senses (as on day 91), the rating still counts.
+    expect(
+      await runInDurableObject(music(), (_o, st) =>
+        st.storage.sql.exec('SELECT track_id, rating FROM track_ratings').toArray(),
+      ),
+    ).toEqual([{ track_id: S[4], rating: 1 }]);
+    await runInDurableObject(sensesObject(env), (_o, st) =>
+      st.storage.sql.exec("DELETE FROM events WHERE type = 'music.rate'"),
+    );
     const r = await find('moods=calm');
     expect(order(r)).toEqual([2, 5]);
     expect(r.body.left_out).toEqual({ never: 1, rated: 1, skipped: 1 });
     expect(order(await find(`like=${S[0]}`))).not.toContain(4);
+    // The word search (a mix by artist or genre) leaves it out too.
+    const tagged = await apiJson<{ items: { id: string }[] }>('GET', '/v1/music/tracks?q=ambient', { token: P.C });
+    expect(tagged.body.items.map((t) => S.indexOf(t.id))).toEqual([0, 5, 6, 7]);
     // The undo sends the old rating: the newest one is what counts.
     await rate(0, 1, 30_000);
     expect(order(await find('moods=calm'))).toEqual([4, 2, 5]);
@@ -183,7 +195,7 @@ describe('how the owner listens', () => {
 });
 
 describe('what find reads', () => {
-  it('the early skips and ratings by the (day, type) index, the rules by the current-facts index, never a scan', async () => {
+  it('every read by an index or a key range, never a scan of the catalog or the notes', async () => {
     const skips = await runInDurableObject(sensesObject(env), (_o, st) =>
       st.storage.sql
         .exec(
@@ -196,18 +208,44 @@ describe('what find reads', () => {
         .join(' '),
     );
     expect(skips).toMatch(/SEARCH events USING INDEX events_day_type \(day=\? AND type=\?\)/);
-    const ratings = await runInDurableObject(sensesObject(env), (_o, st) =>
-      st.storage.sql
-        .exec(
-          `EXPLAIN QUERY PLAN SELECT ref, json_extract(data_json, '$.rating') AS rating FROM events
-           WHERE day IN ('2026-10-01', '2026-10-02') AND type = 'music.rate' AND at >= 0 AND ref IS NOT NULL
-             AND sensitivity = 0 ORDER BY at, seq`,
-        )
-        .toArray()
-        .map((r) => String(r.detail))
-        .join(' '),
+    const plan = (q: string, ...b: unknown[]) =>
+      runInDurableObject(music(), (_o, st) =>
+        st.storage.sql
+          .exec(`EXPLAIN QUERY PLAN ${q}`, ...b)
+          .toArray()
+          .map((r) => String(r.detail))
+          .join(' | '),
+      );
+    expect(await plan('SELECT track_id FROM track_ratings WHERE rating = 1')).toMatch(
+      /USING COVERING INDEX track_ratings_out/,
     );
-    expect(ratings).toMatch(/SEARCH events USING INDEX events_day_type \(day=\? AND type=\?\)/);
+    expect(await plan('SELECT id, ord, record_json FROM tracks WHERE id IN (?, ?)', 'a', 'b')).toMatch(
+      /SEARCH tracks USING INDEX sqlite_autoindex_tracks_1 \(id=\?\)/,
+    );
+    expect(
+      await plan(
+        'SELECT track_id, known, note_json, by, v, at, pack FROM track_notes WHERE track_id IN (?, ?)',
+        'a',
+        'b',
+      ),
+    ).toMatch(/SEARCH track_notes USING PRIMARY KEY \(track_id=\?\)/);
+    expect(await plan('SELECT track_id FROM track_notes WHERE track_id > ? ORDER BY track_id LIMIT ?', 'a', 5)).toMatch(
+      /SEARCH track_notes USING PRIMARY KEY \(track_id>\?\)/,
+    );
+    const untagged = await plan(
+      `SELECT t.id, t.ord, t.record_json FROM tracks t
+       WHERE t.ord > ? AND NOT EXISTS (
+         SELECT 1 FROM track_notes n WHERE n.track_id = t.id AND (n.v >= ? OR n.by = 'mind:chat'))
+       ORDER BY t.ord LIMIT ?`,
+      0,
+      1,
+      10,
+    );
+    expect(untagged).toMatch(/SEARCH t USING INTEGER PRIMARY KEY \(rowid>\?\)/);
+    expect(untagged).toMatch(/SEARCH n USING PRIMARY KEY \(track_id=\?\)/);
+    expect(await plan("SELECT pack, entries_json FROM find_packs WHERE kind = 'notes' ORDER BY pack")).toMatch(
+      /SEARCH find_packs USING PRIMARY KEY \(kind=\?\)/,
+    );
     const rules = await coreSql<{ detail: string }>(
       `EXPLAIN QUERY PLAN SELECT text FROM facts WHERE superseded_at IS NULL AND kind = 'rule' AND subject = 'music.never'
          AND (valid_to IS NULL OR valid_to > 0)`,
@@ -218,7 +256,7 @@ describe('what find reads', () => {
 
 describe('find with the listening pass (Music schema step 3)', () => {
   it('blends its moods, prefers its energy, and takes its neighbours for like', async () => {
-    // The shape listeningRows reads (areas/music/store.ts). Not IF NOT EXISTS on purpose: once step
+    // The shape listeningRows reads (areas/music/store-notes.ts). Not IF NOT EXISTS on purpose: once step
     // 3's own table is here, this fails if the two disagree, and the seam is fixed in one place.
     await runInDurableObject(music(), (o: Music, s) => {
       s.storage.sql.exec(
@@ -238,7 +276,7 @@ describe('find with the listening pass (Music schema step 3)', () => {
         { id: S[3], score: 0.9 },
         { id: S[1], score: 0.5 },
       ]);
-      (o as unknown as { listened: null }).listened = null;
+      Object.assign(o as unknown as object, { listenTable: null, audio: null });
     });
     const r = await find('moods=calm');
     expect(r.body.analysis).toBe(true);
