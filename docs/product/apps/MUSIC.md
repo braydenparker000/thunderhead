@@ -795,8 +795,10 @@ otherwise. Ids and times only, never a title. The rest of the table waits on its
 (`th music now`); a week's plays, finishes and skips make the Sunday line (`th music week`). A song
 whose newest `music.rate` is 1 is left out of find, like and the mind's mixes: the phone sends one
 when the owner rates a song "not for me", and when they say "never play this again" to it (the phone
-rates the song 1 and skips it, `data: {rating: 1, from, by: 'command'}`; its Undo sends the old
-rating, which brings the song back). The Worker keeps each song's newest rating for good
+rates the song 1 through Music's library and skips it; its Undo sets the old rating, which brings
+the song back). Every rating set in Music (its rating widget, a playlist import, that command) goes
+as a `music.rate` sense (`{rating, from}`, `th/music/ratings.js` on Music's own bus), and once, the
+songs already rated 1, 100 a page load. The Worker keeps each song's newest rating for good
 (`track_ratings`), so "not for me" never fades with the senses' 90 days.
 
 | Type | When | `ref` | `data` |
@@ -895,7 +897,10 @@ The vocabularies are fixed, in `shared/contract/music.ts`, and the Worker refuse
 one left empty. `known: false` is the mind saying it doesn't know the song: such a note says only
 what the tags imply, and none of its confidences may pass 0.5. Each note records its writer (`by`:
 `mind:night` or `mind:chat`) and its format version; a note of an older version comes up again in
-the night's page, except one the owner corrected through the chat, which no night note replaces.
+the night's page, except one the owner corrected (or confirmed as it is) through the chat, which no
+night note replaces. A song added at or below the night's place in the catalog (a deleted track's
+place taken again, an import) is still offered; a write to the notes from outside a batch (a table
+restore) rebuilds the packs and starts the place over.
 The night writes at most 400 songs a night, as night step 11 with its own 6 minutes, until the
 library is covered, then only new ones ([RUNTIME.md §12.1](../../mind/RUNTIME.md)). Every read is by
 key: notes and tags by id, the night's page from the catalog place where its last page began, and
@@ -930,8 +935,9 @@ newest `music.play` with its tags and note), "more like this" (`th music like`, 
 a night when the evidence gives a reason, and on the night into Sunday one home line of what the
 owner has been into, in the morning's Overnight card. Notes and find never leave the Worker
 ([PRIVACY.md §2](../../engineering/PRIVACY.md)); the mind never looks a song up on the web, and a
-night session that has paged the songs may not (the PreToolUse hook). Songs' tags are outside text
-(someone else wrote them), so what prints them taints the session, and a title never goes inside a
+session that has read songs' tags may not use the web after (the PreToolUse hook, from the Worker's
+record). Songs' tags are outside text (someone else wrote them), so what prints them taints the
+session (that session only: the next one starts clean), and a title never goes inside a
 quoted shell argument: it travels on stdin ([RUNTIME.md §4.7](../../mind/RUNTIME.md)).
 
 ---
