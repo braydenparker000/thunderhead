@@ -175,7 +175,7 @@ export const EDITS = {
   'music/sw.js': {
     adjustments: ['data-move', 'improvement'],
     edits: [
-      ["  // The DJ shuffle's planner and the better search (th/music/dj.js, search.js) are part of the app, offline too.\n  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && !/^\\/th\\/music\\/(dj|search)\\.js$/.test(url.pathname)) return;", "  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname)) return;"],
+      ["  // The DJ shuffle's planner, the better search and the ratings (th/music/dj.js, search.js, ratings.js) are part of the app, offline too.\n  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && !/^\\/th\\/music\\/(dj|search|ratings)\\.js$/.test(url.pathname)) return;", "  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname)) return;"],
       ["// P5 data move (MIGRATION.md \u00a77 step 5): the library's requests are answered from the new Worker, the old one while it can't.\nimportScripts('/th/music/bridge.js');\nself.thMusicBridge.use('https://jarvis-hub-api.braydenparker999.workers.dev');\nconst net = (req, e) => self.thMusicBridge.handles(new URL(req.url)) ? self.thMusicBridge.answer(req, e) : fetch(req);\nconst CACHE = 'claude-player-v1';", "const CACHE = 'claude-player-v1';"],
       ["async function fromHead(req, h, a, b, e) {", "async function fromHead(req, h, a, b) {"],
       ["heads.delete(url); return net(req, e); }", "heads.delete(url); return fetch(req); }"],

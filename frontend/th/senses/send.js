@@ -68,6 +68,11 @@ export async function sense(type, ref = null, data = null) {
   return true;
 }
 
+/** How many more events the outbox keeps before it drops its oldest. */
+export const room = () => MAX - waiting().length;
+/** Whether nothing waits on this phone: every event kept was taken (or refused for good). */
+export const drained = () => !waiting().length && !sealed();
+
 /** Sends what waits, one batch at a time. */
 export function flush() {
   // One tab at a time (the Web Locks API), so two never seal the same events.
