@@ -4,9 +4,11 @@
 // cursor, resumes a refired session where the last one stopped (a rerun day note stays version
 // 1), records the steps a hard stop cut, and `done` ends the session and its wake. A closed day's
 // input is in night-input.test.ts.
+
 import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { DayNote, ErrorBody, MindNightResponse, TodayResponse } from '../../../shared/contract/api';
+import { NIGHT_END } from '../../../shared/contract/night.ts';
 import { fireConfig } from '../../src/areas/mind/fire';
 import { nightWake, weekly } from '../../src/areas/mind/night';
 import { dayBefore, HOUR } from '../../src/lib/time';
@@ -193,7 +195,10 @@ describe('the run record', () => {
       cursor: null,
       skipped: [],
     });
-    expect((await night({ day: yday, action: 'step_done', step: 6 }, 'cse_night_c')).body.resume_from).toBe(7); // P7
+    // 11 (the songs) runs between 6 and 7: the run's order is the list's, not the numbers'.
+    expect((await night({ day: yday, action: 'step_done', step: 6 }, 'cse_night_c')).body.resume_from).toBe(11); // P7
+    expect((await night({ day: yday, action: 'step_done', step: 7 }, 'cse_night_c')).status).toBe(409);
+    expect((await night({ day: yday, action: 'step_done', step: 11 }, 'cse_night_c')).body.resume_from).toBe(7); // P5
     // Step 9 (the weekly evals) is due only on the night into Sunday, whatever day this runs on.
     const sunday = weekly(yday);
     expect((await night({ day: yday, action: 'step_done', step: 7 }, 'cse_night_c')).body).toEqual({
@@ -206,7 +211,8 @@ describe('the run record', () => {
     const r = await run(yday);
     expect(r.step).toBe(9);
     const steps = JSON.parse(r.steps_json);
-    expect([steps[6].done, steps[8].skipped, steps[9].skipped]).toEqual([
+    expect([steps[6].done, steps[11].done, steps[8].skipped, steps[9].skipped]).toEqual([
+      true,
       true,
       'later',
       sunday ? undefined : 'not_sunday',
@@ -226,7 +232,7 @@ describe('the run record', () => {
 
   it('done ends the session and its wake; the fallback after it is told at once and ends too', async () => {
     expect((await night({ day: yday, action: 'done' }, 'cse_night_c')).body).toEqual({
-      resume_from: 11,
+      resume_from: NIGHT_END,
       done: true,
       cursor: null,
       skipped: weekly(yday) ? [8] : [8, 9],
@@ -249,7 +255,7 @@ describe('the run record', () => {
     expect(await ended('cse_night_d')).toEqual({ ended: false, wake: { status: 'ended', end_reason: 'night_done' } });
     const before = await run(yday);
     expect((await night({ day: yday, action: 'start' }, 'cse_night_d')).body).toMatchObject({
-      resume_from: 11,
+      resume_from: NIGHT_END,
       done: true,
     });
     expect(await ended('cse_night_d')).toEqual({ ended: true, wake: { status: 'ended', end_reason: 'night_done' } });
@@ -267,13 +273,14 @@ describe('the run record', () => {
     expect(early.body.error.details).toEqual({ resume_from: 2 });
     expect((await night({ day: d2, action: 'step_done', step: 2, partial: true }, 'cse_night_e')).status).toBe(422);
     expect((await night({ day: d2, action: 'done', partial: true }, 'cse_night_e')).body).toEqual({
-      resume_from: 11,
+      resume_from: NIGHT_END,
       done: true,
       cursor: null,
-      skipped: [2, 3, 4, 5, 6, 7, 8, 9],
+      skipped: [2, 3, 4, 5, 6, 7, 8, 9, 11],
     });
     const steps = JSON.parse((await run(d2)).steps_json);
-    expect([2, 3, 4, 5, 6, 7, 8, 9].map((n) => steps[n].skipped)).toEqual([
+    expect([2, 3, 4, 5, 6, 11, 7, 8, 9].map((n) => steps[n].skipped)).toEqual([
+      'hard_stop',
       'hard_stop',
       'hard_stop',
       'hard_stop',

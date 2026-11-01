@@ -75,7 +75,7 @@ pushes.
      `claude/<slug>` branch, never `main`; the next chat ships them.
    - 6 Books: `bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2
      --minutes 10`.
-   - 6b Songs: RUNTIME.md §12.1 (`th music`: ~1,000 notes, ≤ 2 mixes, Sunday's line).
+   - 11 Songs: RUNTIME.md §12.1 (`th music`: ≤ 400 notes, ≤ 2 mixes, Sunday's line).
    - 6c `th music jobs`, RUNTIME §12.
    - 7 Arrange tomorrow: `th podcasts new` (places line.4), 0-3 lines (`th surface home
      line.<1-3> … --ref app:<id>`) and tiles

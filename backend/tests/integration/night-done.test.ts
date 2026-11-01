@@ -2,8 +2,10 @@
 // and is live, or ended with that run (a retried `done`); that session's end is the one write.
 // A made-up session id, one that never claimed, another role's session or a night session that
 // ended before the run is refused (403 session_required), and no session is ended for it.
+
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { ErrorBody, MindNightResponse, TodayResponse } from '../../../shared/contract/api';
+import { NIGHT_END } from '../../../shared/contract/night.ts';
 import { dayBefore } from '../../src/lib/time';
 import { apiJson, coreSql } from '../helpers';
 import { as, brief, CHAT_SESSION, type Principals, principals } from '../memory-helpers';
@@ -48,7 +50,7 @@ describe('a night run already done', () => {
   it('answers the claimed night session done and ends it; its retry gets the same answer', async () => {
     const r = await start('cse_night_live');
     expect(r.status).toBe(200);
-    expect(r.body).toMatchObject({ resume_from: 11, done: true });
+    expect(r.body).toMatchObject({ resume_from: NIGHT_END, done: true });
     const at = await ended('cse_night_live');
     expect(at).not.toBeNull();
     expect((await start('cse_night_live')).body).toMatchObject({ done: true });

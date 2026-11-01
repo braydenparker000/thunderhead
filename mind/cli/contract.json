@@ -2476,7 +2476,9 @@
       "conf_min": 0.05,
       "unknown_conf_max": 0.5,
       "era_min": 1000,
-      "night_songs": 1000,
+      "night_songs": 400,
+      "pack_size": 500,
+      "pack_ms": 86400000,
       "find_default": 30,
       "find_max": 100,
       "find_moods": 4,
@@ -2617,6 +2619,14 @@
         "idempotent": "a book is claimed by one run at a time and goes on from its cursor; a page is put by its number",
         "cursor": false,
         "phase": "P7"
+      },
+      {
+        "step": 11,
+        "name": "songs (notes, mixes)",
+        "budget_min": 6,
+        "idempotent": "a note is put by its track, the same note again writes nothing, and the next page is always the next songs without one",
+        "cursor": false,
+        "phase": "P5"
       },
       {
         "step": 7,

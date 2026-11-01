@@ -213,8 +213,9 @@ export interface MindNightRequest {
 }
 
 export interface MindNightResponse {
-  /** The first step not finished yet (the last step + 1 once the run is done). Steps of a later
-   * phase, and the Sunday step on another day, are skipped on the way. */
+  /** The first step not finished yet, in the run's order (NIGHT_ORDER), or NIGHT_END, past every
+   * step's number, once the run is done. Steps of a later phase, and the Sunday step on another
+   * day, are skipped on the way. */
   resume_from: number;
   done: boolean;
   /** The cursor saved for `resume_from`, if that step keeps one. */
