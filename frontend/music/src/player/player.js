@@ -7,7 +7,7 @@ import {listKeyOf, categoryKey, KEEP_TRACK} from '../library/list-memory.js';
 import {offlinePlan, offlineAhead} from '../library/audio-cache.js';
 import {headOf, HEAD_S} from '../library/heads.js';
 import {StreamGuard} from './stream-guard.js';
-import {djOrder, DJ_AHEAD, SHUFFLE_DJ} from '/th/music/dj.js';
+import {djOrder, DJ_AHEAD, SHUFFLE_DJ, stepOver} from '/th/music/dj.js';
 
 // The streaming path (th/music/stream/deck.js, MUSIC.md §5): loaded on its own, so the player starts
 // and plays as before if it can't load (offline before it was ever fetched).
@@ -381,9 +381,8 @@ export class Player {
     const n = this.queue.length;
     if (!n) return null;
     this.ensureOrder();
-    const pos = this.order.indexOf(this.index) + rel;
-    if (pos < 0 || pos >= n) return wrap && n > 1 ? this.order[(pos % n + n) % n] : null;
-    return this.order[pos];
+    // Songs rated "never" (1) are passed over (th/music/dj.js stepOver).
+    return stepOver(this.order, this.order.indexOf(this.index), rel, wrap, i => this.queue[i]?.rating === 1);
   }
 
   /**

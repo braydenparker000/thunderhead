@@ -1,11 +1,11 @@
 // The DJ shuffle's planner (frontend/th/music/dj.js; MUSIC.md §9), on synthetic libraries: songs
 // close in the tags follow each other; no artist twice within 10 picks; a song skipped early five
 // times isn't picked again; nothing played in the last 50; seeded runs replay; a 7,000-song order
-// is planned fast; a new plan after a skip keeps the next 3 songs; and the player's model gets its
-// sixth shuffle mode.
+// is planned fast; a new plan after a skip keeps the next 3 songs; the player's model gets its
+// sixth shuffle mode; and the player's steps pass over songs rated "never" (stepOver).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { closeness, djOrder, DJ_AHEAD, installDjMode, KEEP_AHEAD, learn, lesson, pick, replan, seeded, SHUFFLE_DJ, left } from '../frontend/th/music/dj.js';
+import { closeness, djOrder, DJ_AHEAD, installDjMode, KEEP_AHEAD, learn, lesson, pick, replan, seeded, SHUFFLE_DJ, left, stepOver } from '../frontend/th/music/dj.js';
 
 const GENRES = ['Classical', 'Jazz', 'Rock', 'Folk', 'Ambient'];
 const library = (n) =>
@@ -123,4 +123,29 @@ test('how a song was left, for the mind (MUSIC.md §10.1): played to its last 3 
   assert.deepEqual(left({ id: 'r2_native_a', pos: 12_004.6, dur: 60_000 }, 'r2_native_b'), ['music.skip', 'r2_native_a', { at_ms: 12_005, duration_ms: 60_000, next_ref: 'music:r2_native_b' }]);
   assert.deepEqual(left({ id: 'r2_native_a', pos: 57_500, dur: 60_000 }, 'r2_native_b'), ['music.finish', 'r2_native_a', { listened_ms: 57_500 }]);
   assert.deepEqual(left({ id: 'r2_native_a', pos: 3_000, dur: 0 }, 'bad id!'), ['music.skip', 'r2_native_a', { at_ms: 3_000, duration_ms: 0 }], 'an id outside the ref grammar is not named');
+});
+
+test('never means never: next, previous and the advance pass over songs rated 1, in any order', () => {
+  const order = [4, 2, 0, 3, 1, 5];
+  const never = new Set([0, 3]);
+  const skip = (i) => never.has(i);
+  // From position 1 (song 2): the next two are "never", so song 1; two on, song 5.
+  assert.equal(stepOver(order, 1, 1, false, skip), 1);
+  assert.equal(stepOver(order, 1, 2, false, skip), 5);
+  assert.equal(stepOver(order, 4, -1, false, skip), 2, 'previous passes over them too');
+  // At the end: nothing (repeat off), or round to the start (repeat on), still passing over.
+  assert.equal(stepOver(order, 5, 1, false, skip), null);
+  assert.equal(stepOver([0, 3, 4], 2, 1, true, skip), 4, 'round past the never songs back to itself');
+  assert.equal(stepOver(order, 0, 0, false, skip), 4, 'where it is, as it is');
+  // Only never songs after it, repeat off: the list ends.
+  assert.equal(stepOver([2, 0, 3], 0, 1, false, skip), null);
+  // A list of nothing else (Low rated, played on purpose): it plays as it is.
+  assert.equal(stepOver([0, 3], 0, 1, true, skip), 3);
+  assert.equal(stepOver([0, 3], 0, 1, false, skip), 3);
+  // Nothing rated: the plain step.
+  for (let rel = -7; rel <= 7; rel++) for (const wrap of [false, true]) {
+    const p = 2 + rel;
+    const plain = p >= 0 && p < 6 ? order[p] : wrap ? order[((p % 6) + 6) % 6] : null;
+    assert.equal(stepOver(order, 2, rel, wrap, () => false), plain, `rel ${rel} wrap ${wrap}`);
+  }
 });

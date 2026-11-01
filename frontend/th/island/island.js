@@ -472,7 +472,7 @@ export function control(cmd, minutes = 30) {
     p.step(1);
     return {
       ok: true,
-      text: 'Skipped. Rated "not for me": the DJ and mixes leave it out.',
+      text: 'Skipped. Rated "not for me": it won\'t come up again.',
       undo: () => {
         lib.setRating(t, before);
         rated(t.id, before, 1);

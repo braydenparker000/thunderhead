@@ -249,7 +249,7 @@ an artist page lists albums (grid) then "All songs".
 | Playing | Title in accent text colour; a 3-bar level icon replaces the duration (static under reduced motion) |
 | Offline copy present | Small filled-circle-check glyph after the duration |
 | Not playable offline (no copy, no network) | Row at 40 % opacity; tap shows "Not on this phone" toast |
-| Rated "not for me" (rating 1) | Normal look; excluded from DJ shuffle and mixes |
+| Rated "not for me" (rating 1) | Normal look; never plays on its own: next, previous and the end of a song pass over it in any order, shuffled or not, and the DJ and mixes leave it out. A tap on it plays it; a list of nothing else plays as it is (`stepOver` in `th/music/dj.js`) |
 
 ---
 
