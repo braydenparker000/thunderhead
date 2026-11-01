@@ -797,8 +797,10 @@ whose newest `music.rate` is 1 is left out of find, like and the mind's mixes: t
 when the owner rates a song "not for me", and when they say "never play this again" to it (the phone
 rates the song 1 through Music's library and skips it; its Undo sets the old rating, which brings
 the song back). Every rating set in Music (its rating widget, a playlist import, that command) goes
-as a `music.rate` sense (`{rating, from}`, `th/music/ratings.js` on Music's own bus), and once, the
-songs already rated 1, 100 a page load. The Worker keeps each song's newest rating for good
+as a `music.rate` sense (`{rating, from}`, `th/music/ratings.js` on Music's own bus, cached for
+offline by Music's worker), and once, the songs already rated 1: 100 a page load at most, never more
+than the senses outbox has room for (less 50, so it never drops the oldest), each counted as sent
+only once the Worker took it (else the next load sends it again). The Worker keeps each song's newest rating for good
 (`track_ratings`), so "not for me" never fades with the senses' 90 days.
 
 | Type | When | `ref` | `data` |
@@ -934,10 +936,12 @@ newest `music.play` with its tags and note), "more like this" (`th music like`, 
 "play something calm" (`th music find`, then a mix, opened by a chip). **Overnight**: up to 2 mixes
 a night when the evidence gives a reason, and on the night into Sunday one home line of what the
 owner has been into, in the morning's Overnight card. Notes and find never leave the Worker
-([PRIVACY.md §2](../../engineering/PRIVACY.md)); the mind never looks a song up on the web, and a
-session that has read songs' tags may not use the web after (the PreToolUse hook, from the Worker's
-record). Songs' tags are outside text (someone else wrote them), so what prints them taints the
-session (that session only: the next one starts clean), and a title never goes inside a
+([PRIVACY.md §2](../../engineering/PRIVACY.md)); the night never looks a song up on the web: a
+night session that has read songs' tags may not use the web, MCP tools or GitHub search after (the
+PreToolUse hook, from the Worker's record, failing closed). Songs' tags are outside text (someone
+else wrote them), so serving them taints the mind session like any outside text (the Worker records
+it itself; the taint carries over as any does, and the next night's fired wake starts clean once the
+tainted night has ended, [RUNTIME.md §4.3](../../mind/RUNTIME.md)), and a title never goes inside a
 quoted shell argument: it travels on stdin ([RUNTIME.md §4.7](../../mind/RUNTIME.md)).
 
 ---
