@@ -68,3 +68,11 @@ export function attach(db: Db, ids: string[], messageId: string): number {
     written += db.run('UPDATE files SET message_id = ? WHERE id = ? AND message_id IS NULL', messageId, id);
   return written;
 }
+
+/** Deletes these files' rows (a held conversation's purge, once their bytes left the bucket).
+ * Returns rows written. */
+export function remove(db: Db, ids: string[]): number {
+  let written = 0;
+  for (const id of ids) written += db.run('DELETE FROM files WHERE id = ?', id);
+  return written;
+}

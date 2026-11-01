@@ -5,8 +5,9 @@
 // the night shift's run and input in core-night.ts, the import in core-import.ts and proposals (P4) in
 // core-proposals.ts, the evals in core-evals.ts, the watchdogs (each tick) in core-watchdogs.ts and backups, the drill
 // and exports in core-backups.ts, Muse's work orders and the Briefing in core-work.ts, the predictions (P9) in
-// core-predictions.ts, the reminders in core-reminders.ts, the phone's reports in core-reports.ts and Podcasts'
-// positions and follows in core-podcasts.ts. The alarm also runs the chunked jobs (areas/jobs).
+// core-predictions.ts, the reminders in core-reminders.ts, the phone's reports in core-reports.ts, Podcasts'
+// positions and follows in core-podcasts.ts, and reading threads, off the record, Delete, Restore and the prune
+// pass in core-held.ts. The alarm also runs the chunked jobs (areas/jobs).
 import type {
   BriefRequest,
   JsonObject,
@@ -26,7 +27,6 @@ import { backupJob } from '../areas/backups/job';
 import * as day from '../areas/conversation/day';
 import * as convo from '../areas/conversation/ops';
 import { searchMessages } from '../areas/conversation/search';
-import { lastMessageAt } from '../areas/conversation/stats';
 import * as cstore from '../areas/conversation/store';
 import { importJob } from '../areas/import/job';
 import { type JobHandler, runJobs } from '../areas/jobs/runner';
@@ -41,17 +41,14 @@ import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
 import { listenApplyJob, listenPackJob, listenRejectJob } from '../areas/music/listen-jobs';
 import { lawsAtClaim, settle as settleProposals } from '../areas/proposals/ops';
-import { getSetting, putSetting } from '../areas/settings/store';
 import * as surfaces from '../areas/surfaces/ops';
 import { list as listSurfaces } from '../areas/surfaces/store';
 import * as verbs from '../areas/verbs/ops';
 import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
-import { CORE_TABLES } from './core.migrations';
-import { CorePodcasts } from './core-podcasts';
+import { CoreHeld } from './core-held';
 
-const PRUNE_STEP = 2_000;
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
 const JOB_HANDLERS: Record<string, JobHandler> = {
   [importJob.kind]: importJob,
@@ -63,25 +60,13 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [listenRejectJob.kind]: listenRejectJob,
 };
 
-export class Core extends CorePodcasts {
+export class Core extends CoreHeld {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
     const d = day.currentDay(this.db, this.tz(), Date.now());
     const thread = cstore.dailyThread(this.db, d);
     return { thread, messages: thread ? cstore.lastMessages(this.db, thread.id, 50) : [], seq: this.lastSeq(), day: d };
-  }
-
-  threads(status: 'open' | 'filed' | null, limit: number, after: [number, string] | null) {
-    return cstore.threadsPage(this.db, status, limit, after);
-  }
-
-  thread(id: string) {
-    return cstore.thread(this.db, id);
-  }
-
-  messages(threadId: string, before: number | null, after: number | null, limit: number) {
-    return cstore.messagesPage(this.db, threadId, before, after, limit);
   }
 
   putMessage(c: Caller, p: convo.PutMessage) {
@@ -132,9 +117,16 @@ export class Core extends CorePodcasts {
         : null;
       // A claim hands out what the briefing shows: the requeue alarm must cover it.
       if (r.claim) this.schedule();
-      return assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256, r.session_id, {
+      let offRecord = false;
+      const out = assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256, r.session_id, {
         nightConfigured: this.nightConfigured(),
+        offRecordSeen: () => {
+          offRecord = true;
+        },
       });
+      // A briefing that hands out a message off the record marks the session: it writes no memory.
+      if (offRecord) this.markOffRecord(r.session_id, r.role);
+      return out;
     });
   }
 
@@ -193,14 +185,15 @@ export class Core extends CorePodcasts {
   }
 
   /** The 15-minute cron: the day roll after 60 quiet minutes (firing the night shift for the day it
-   * closed, after the roll's commit), verbs, the daily prune (DATA.md §10) and each area's pass. */
+   * closed, after the roll's commit), verbs, the prune pass (held conversations each tick, then
+   * DATA.md §10 daily, core-held.ts) and each area's pass. */
   async tick(
     now = Date.now(),
     fetchImpl: typeof fetch = fetch,
   ): Promise<{ rolled: string | null; pruned: number; night: string | null; reflex: string | null }> {
     const tz = this.tz();
     const d = day.currentDay(this.db, tz, now);
-    const due = day.rollDue(d, now, tz, lastMessageAt(this.db, cstore.dailyThread(this.db, d)?.id ?? null));
+    const due = day.rollDue(d, now, tz, this.lastSpokeAt(cstore.dailyThread(this.db, d)?.id ?? null));
     const wakeNight = due
       ? this.write((w) => {
           convo.roll(w, due);
@@ -211,7 +204,7 @@ export class Core extends CorePodcasts {
       verbs.settle(w);
       settleProposals(w);
     }, now);
-    const pruned = this.pruneDaily(now, day.logicalDay(now, tz));
+    const pruned = await this.pruneDaily(now, day.logicalDay(now, tz));
     const cfg = wakeNight && !this.sandboxed ? fireConfig(this.env, 'night') : null;
     // Recorded without the chat back-off (wake.fired): a 429 on the night fire must not hold the
     // owner's chat wakes for an hour; a chat fire that meets the same limit sets it itself.
@@ -226,23 +219,6 @@ export class Core extends CorePodcasts {
     await this.predictionsTick(now, tz, due ?? d);
     await this.deliverReminders(now);
     return { rolled: due, pruned, night: wakeNight?.id ?? null, reflex };
-  }
-
-  /** Every table's prune, ≤ 2,000 rows each a step. The day counts as done only when no prune was
-   * cut short, so a backlog continues on the next tick. */
-  private pruneDaily(now: number, today: string): number {
-    if (getSetting(this.db, 'prune.day') === today) return 0;
-    return this.ctx.storage.transactionSync(() => {
-      let total = 0;
-      let short = true;
-      for (const t of Object.values(CORE_TABLES)) {
-        const n = t.prune?.(this.db, now, PRUNE_STEP) ?? 0;
-        total += n;
-        if (n >= PRUNE_STEP) short = false;
-      }
-      if (short) putSetting(this.db, 'prune.day', today, 'worker', now);
-      return total;
-    });
   }
 
   // --- the ledger, verbs and surfaces ------------------------------------------------------------

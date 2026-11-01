@@ -65,3 +65,19 @@ test('the sleep timer: until I fall asleep is 30 minutes; a time from 1 minute t
     assert.deepEqual(c(t), { kind: 'control', cmd: 'sleep', minutes: 0 }, t);
   assert.equal(preview(c('cancel the sleep timer')), 'Turns the sleep timer off.');
 });
+
+test('off the record: the plain order starts one, "back on the record" ends it; a sentence about it stays words', () => {
+  const c = (t) => commandOf(t, NOW);
+  for (const t of ['off the record', 'Off the record.', 'go off the record', "let's go off the record"])
+    assert.deepEqual(c(t), { kind: 'record', on: true }, t);
+  for (const t of ['back on the record', 'On the record', 'go back on the record', 'end off the record'])
+    assert.deepEqual(c(t), { kind: 'record', on: false }, t);
+  assert.equal(c('can we talk off the record about the move?'), null, 'a question goes to the mind');
+  assert.equal(c('off the record is a phrase I like'), null, 'a sentence that only uses the words goes to the mind');
+  // Words after it never go on the record: it starts first, and they wait in the bar to send there.
+  assert.deepEqual(c('Off the record: I am worried about the exam'), { kind: 'record', on: true, rest: 'I am worried about the exam' });
+  assert.deepEqual(c('off the record, the trip is a surprise'), { kind: 'record', on: true, rest: 'the trip is a surprise' });
+  assert.equal(preview(c('Off the record: I am worried')), 'Goes off the record first; the words wait in the bar to send there.');
+  assert.equal(preview({ kind: 'record', on: true }), 'A conversation off the record: I answer, remember none of it, gone in 7 days.');
+  assert.equal(preview({ kind: 'record', on: false }), 'Back to today, on the record.');
+});

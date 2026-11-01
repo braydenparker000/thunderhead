@@ -99,7 +99,8 @@ export const filesRoutes = new Hono<AppEnv>()
     const id = c.req.param('id') ?? '';
     if (!UUIDV7.test(id)) throw new ApiError('not_found');
     const vault = vaultOf(c.env);
-    const f = await fresh(coreObject(c.env).fileRow(id));
+    // A file of a held conversation the caller may not read (conversation/held.ts) is not there.
+    const f = await fresh(coreObject(c.env).fileFor(callerOf(c), id));
     if (!f) throw new ApiError('not_found');
     // `?meta=1`: the file as a message carries it (name, type, size, a memo's seconds and words).
     if (c.req.query('meta') === '1') return c.json(toAttachment(f) satisfies FileResponse);

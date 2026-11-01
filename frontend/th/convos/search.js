@@ -163,6 +163,7 @@ const SETTINGS = /** @type {[string, { name: string, focus?: string }, string, s
   ['Agents', { name: 'agents' }, 'key', 'keys api tokens'],
   ['Account', { name: 'account' }, 'user-circle', 'password recovery code username'],
   ['Export', { name: 'export' }, 'download-simple', 'download backup data'],
+  ['Recently deleted', { name: 'deleted' }, 'trash', 'trash bin restore undelete'],
   ['Check for update', { name: 'settings', focus: 'update' }, 'info', 'version about'],
 ]);
 const openPage = (/** @type {{ name: string, focus?: string }} */ to) => document.dispatchEvent(new CustomEvent('th:open', { detail: to }));
@@ -187,7 +188,8 @@ function localConvos(q) {
   const rows = [];
   const todayId = current.today?.thread?.id ?? null;
   for (const t of data.list.threads.values()) {
-    if (t.id === todayId) continue;
+    // Off the record is never found (the Worker leaves it out too).
+    if (t.id === todayId || t.kind === 'off_record') continue;
     const title = titleOf(t);
     const at = find(title, q);
     if (!at) continue;

@@ -20,6 +20,7 @@ export type ErrorCode =
   | 'laws_unpinned'
   | 'proposal_required'
   | 'needs_approval'
+  | 'off_record'
   // 404 / 409
   | 'not_found'
   | 'conflict'
@@ -46,6 +47,7 @@ export type ErrorCode =
   | 'reset_expired'
   | 'reset_used'
   | 'resync_required'
+  | 'gone'
   // 413 / 415 / 422
   | 'too_large'
   | 'unsupported_media_type'

@@ -3,7 +3,7 @@
 // A mind message that cites the owner's books is checked first (library/cited.ts).
 import { Hono } from 'hono';
 import type { Message, MessagesPage, Page, Thread, TodayResponse } from '../../../../shared/contract/api';
-import { type AppEnv, guard } from '../../http/auth';
+import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { callerOf, idParam, reqHash } from '../../http/caller';
 import { ApiError } from '../../http/errors';
 import { json, parse } from '../../http/validate';
@@ -19,7 +19,7 @@ export const conversationRoutes = new Hono<AppEnv>()
     const q = parse(s.threadsQuery, c.req.query());
     const limit = q.limit ?? 50;
     const after = decodeCursor('threads', q.cursor) as [number, string] | null;
-    const items = await coreObject(c.env).threads(q.status ?? null, limit, after);
+    const items = await coreObject(c.env).threads(whoOf(principalOf(c)), q.status ?? null, limit, after);
     const last = items.at(-1);
     const next = items.length === limit && last ? encodeCursor('threads', [last.updated_at, last.id]) : null;
     return c.json({ items, next } satisfies Page<Thread>);
@@ -28,7 +28,8 @@ export const conversationRoutes = new Hono<AppEnv>()
     return c.json((await coreObject(c.env).today()) satisfies TodayResponse);
   })
   .get('/threads/:id', guard('GET /v1/threads/:id'), async (c) => {
-    const t = await coreObject(c.env).thread(idParam(c));
+    // A held thread (held.ts) the caller may not read is not there for it.
+    const t = await coreObject(c.env).thread(whoOf(principalOf(c)), idParam(c));
     if (!t) throw new ApiError('not_found');
     return c.json(t satisfies Thread);
   })
@@ -36,7 +37,8 @@ export const conversationRoutes = new Hono<AppEnv>()
     const id = idParam(c);
     const q = parse(s.messagesQuery, c.req.query());
     const limit = q.limit ?? 50;
-    const items = await coreObject(c.env).messages(id, q.before_seq ?? null, q.after_seq ?? null, limit);
+    const items = await coreObject(c.env).messages(callerOf(c), id, q.before_seq ?? null, q.after_seq ?? null, limit);
+    if (!items) throw new ApiError('not_found');
     // `next` is the seq to pass on: as before_seq when paging back, as after_seq going forward.
     const edge = items.at(-1);
     const next = items.length === limit && edge ? String(edge.seq) : null;

@@ -3,6 +3,7 @@
 // are bounded: one lineage (≤ 200 versions) and ≤ 20 evidence lookups, each by key.
 import type { EvidenceItem, FactDetail } from '../../../../shared/contract/memory.ts';
 import type { Db } from '../../objects/base';
+import { messageHeld } from '../conversation/held';
 import { messageById } from '../conversation/store';
 import { byId as ledgerRow } from '../ledger/store';
 import { dayNote } from './notes';
@@ -11,10 +12,11 @@ import * as store from './store';
 const QUOTE = 280;
 const REF = /^([a-z][a-z0-9]{1,15}):([A-Za-z0-9._:/-]{1,160})/;
 
-function item(db: Db, ref: string): EvidenceItem {
+function item(db: Db, ref: string, now: number): EvidenceItem {
   const [, kind = 'unknown', key = ''] = REF.exec(ref) ?? [];
   if (kind === 'msg') {
-    const m = messageById(db, key);
+    // A deleted conversation's words are not quoted while it waits for its purge (held.ts).
+    const m = messageHeld(db, key, now) === null ? messageById(db, key) : null;
     return { ref, kind, at: m?.created_at ?? null, who: m?.author ?? null, text: m ? m.body.slice(0, QUOTE) : null };
   }
   if (kind === 'day') {
@@ -35,7 +37,7 @@ export function detail(db: Db, id: string, now: number): FactDetail | null {
   const evidence = store
     .strings(f.evidence_json)
     .slice(0, 20)
-    .map((r) => item(db, r));
+    .map((r) => item(db, r, now));
   const why = f.ledger_id ? (ledgerRow(db, f.ledger_id)?.why ?? null) : null;
   return {
     fact: store.toFact(f, now),

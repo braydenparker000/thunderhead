@@ -6,6 +6,7 @@ import type { BriefResponse, MindRole } from '../../../../shared/contract/api';
 import { dayBefore, HOUR } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import { currentDay } from '../conversation/day';
+import { offRecordOf } from '../conversation/held';
 import { dayCounts } from '../conversation/stats';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
@@ -37,7 +38,7 @@ export function assemble(
   wake: BriefResponse['wake'],
   constitution: string,
   sessionId: string,
-  opts: { nightConfigured: boolean },
+  opts: { nightConfigured: boolean; offRecordSeen?: () => void },
 ): BriefResponse {
   const day = currentDay(db, tz, now);
   const night = role === 'night' ? nightDayOf(day) : null;
@@ -53,6 +54,13 @@ export function assemble(
   // Reflex reads no memory (RUNTIME.md §7.1): none of it is even read for its briefing.
   const memory = role !== 'reflex';
   const current = memory ? facts.recentCurrent(db, FACTS_READ) : [];
+  // Waiting messages are the only words off the record a briefing shows (the chat must answer
+  // them), each marked, with the role-side note (brief.ts); today's, yesterday's and the full
+  // file's messages are the daily threads' only, and a deleted thread's waiting ones were settled.
+  const waiting = role === 'chat' ? convo.unanswered(db, 30) : [];
+  // Messages off the record it hands out mark the session (the caller writes it): no memory from it.
+  const offRecord = offRecordOf(db, waiting, now);
+  if (offRecord.length) opts.offRecordSeen?.();
   const { core, full } = buildBrief({
     role,
     constitution,
@@ -68,7 +76,8 @@ export function assemble(
     backoffUntil: backoff(db).until,
     quietUntil: quietUntil(db, now),
     threadId: thread?.id ?? null,
-    waiting: role === 'chat' ? convo.unanswered(db, 30) : [],
+    waiting,
+    offRecord,
     todayTail: tail,
     todayEarlier: earlier,
     note: memory ? sessionNotes.latestNote(db) : null,

@@ -41,7 +41,7 @@ export function wireMic({ mic, ask, q, memo }) {
     mic.setAttribute('aria-pressed', String(s === 'listening'));
     // The edge brightens while the microphone is open (PRIVACY.md §7.3), as for a memo.
     document.querySelector('#edge')?.classList.toggle('listen', s === 'listening');
-    q.placeholder = s === 'listening' ? 'Listening…' : s === 'finishing' ? '…' : 'Ask anything';
+    q.placeholder = s === 'listening' ? 'Listening…' : s === 'finishing' ? '…' : q.dataset.ph || 'Ask anything';
   };
   mic.addEventListener('pointerdown', (e) => {
     if (e.button || dictation) return;

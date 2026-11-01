@@ -7,6 +7,7 @@ export { CODES } from './codes.ts';
 export { WORK_KINDS, WORK_LIMITS } from './work.ts';
 export * from './feed.ts';
 export { DICTATE_LIMITS, FILE_LIMITS } from './files.ts';
+export { HELD_LIMITS } from './held.ts';
 export * from './imports.ts';
 export * from './memory.ts';
 export { LISTEN_KINDS, LISTEN_LIMITS, MOODS } from './listen.ts';

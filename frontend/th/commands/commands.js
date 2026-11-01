@@ -5,7 +5,8 @@
 // words, unchanged. Playback orders ("pause", "skip", "previous", "sleep timer 20 minutes", "never
 // play this again") act on the app playing in home's layer or island (th/island, part 3). "Stop" alone
 // stays words for the mind (it may mean its work); "never play this again" reaches the mind as a
-// `music.rate` sense with the song's id, so it keeps the song out of its mixes too.
+// `music.rate` sense with the song's id, so it keeps the song out of its mixes too. "Off the record"
+// starts a conversation the mind answers and never remembers; "back on the record" ends it (th/record).
 import { appFor } from '../registry/apps.js';
 
 /** The names the owner calls each app, to the app's id. */
@@ -62,7 +63,7 @@ export function whenOf(w, now) {
 
 /** @typedef {'pause' | 'play' | 'next' | 'previous' | 'sleep' | 'never'} Control */
 /** @typedef {{ kind: 'open', app: string } | { kind: 'remind', at: number, text: string }
- *   | { kind: 'control', cmd: Control, minutes?: number }} Command */
+ *   | { kind: 'control', cmd: Control, minutes?: number } | { kind: 'record', on: boolean, rest?: string }} Command */
 
 const CONTROLS = /** @type {[RegExp, Control][]} */ ([
   [/^(?:pause|pausa|pause (?:the )?(?:music|song|podcast|it)|stop (?:the )?(?:music|song|podcast)|stop playing)$/, 'pause'],
@@ -83,6 +84,11 @@ function minutesOf(n, unit) {
 export function commandOf(text, now = Date.now()) {
   const t = norm(text);
   for (const [re, cmd] of CONTROLS) if (re.test(t)) return { kind: 'control', cmd };
+  if (/^(?:let'?s )?(?:go )?off the record$/.test(t)) return { kind: 'record', on: true };
+  // "Off the record: <words>": the words wait in the bar, to go once it is off the record, never before.
+  const otr = /^(?:let'?s )?(?:go )?off the record\s*[,:;.!—–-]+\s*(\S[\s\S]*)$/i.exec(text.trim());
+  if (otr) return { kind: 'record', on: true, rest: otr[1] };
+  if (/^(?:go )?(?:back )?on the record$|^end off the record$/.test(t)) return { kind: 'record', on: false };
   // The sleep timer: "play until I fall asleep" (30 minutes), "sleep timer 20 minutes", "stop the music in an hour".
   if (/^(?:play until i fall asleep|sleep timer|set a sleep timer)$/.test(t)) return { kind: 'control', cmd: 'sleep', minutes: 30 };
   if (/^(?:cancel|stop|turn off|clear|remove) (?:the )?sleep timer$|^(?:sleep timer off|no sleep timer)$/.test(t)) return { kind: 'control', cmd: 'sleep', minutes: 0 };
@@ -121,6 +127,8 @@ export function whenWords(at, now = Date.now()) {
 /** What it will do, shown under the bar before it goes. @param {Command} c */
 export function preview(c) {
   if (c.kind === 'open') return `Opens ${appFor(c.app)?.name ?? c.app}.`;
+  if (c.kind === 'record')
+    return c.rest ? 'Goes off the record first; the words wait in the bar to send there.' : c.on ? 'A conversation off the record: I answer, remember none of it, gone in 7 days.' : 'Back to today, on the record.';
   if (c.kind === 'control')
     return {
       pause: 'Pauses what is playing.',
@@ -137,6 +145,17 @@ export function preview(c) {
  * @param {Command} c @param {() => string} newId */
 export async function run(c, newId) {
   const { toast } = await import('../ui.js');
+  if (c.kind === 'record') {
+    const r = await import('../record/record.js');
+    await (c.on ? r.start() : r.end());
+    const q = /** @type {HTMLTextAreaElement | null} */ (document.querySelector('#q'));
+    // Back in the bar either way (a failed start says so), so no word is lost.
+    if (c.rest && q) {
+      q.value = c.rest;
+      q.dispatchEvent(new Event('input'));
+    }
+    return;
+  }
   if (c.kind === 'control') {
     const { control } = await import('../island/island.js');
     const r = control(c.cmd, c.minutes);

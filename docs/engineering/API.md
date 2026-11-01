@@ -168,6 +168,7 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | 403 | `laws_unpinned` | `rule` write from a session whose constitution pin failed | — |
 | 403 | `proposal_required` | An ask-first verb or op without an approved proposal | Create a proposal |
 | 403 | `needs_approval` | A work order with `personal` and no approved `reach_people` proposal ([MUSE.md §6](../mind/MUSE.md)) | Create the proposal first |
+| 403 | `off_record` | A loose end, session note, title or Continue this that names a conversation off the record, or cites one of its messages ([MEMORY.md §6.1](../mind/MEMORY.md)) | Nothing from it is kept; never retry |
 | 404 | `not_found` | No such route or record | — |
 | 409 | `conflict` | Same ID, different body | Never retry with the same ID |
 | 409 | `already_decided`, `already_undone`, `already_claimed` | State has moved on | Refresh |
@@ -184,9 +185,10 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | 410 | `expired` | A proposal, ticket or verb past its time | Refresh |
 | 410 | `reset_cancelled`, `reset_expired`, `reset_used` | A reset code whose ticket is void | [SIGN-IN.md §10.3](../product/SIGN-IN.md) |
 | 410 | `resync_required` | `/v1/changes?after=` is older than the feed keeps | Reload full state (§11.6) |
+| 410 | `gone` | A deleted conversation (or one whose purge is due) written to, answered, cited, deleted again, or restored after its 30 days | Leave it; the phone returns to today |
 | 413 | `too_large` | The body exceeds its limit | Split |
 | 415 | `unsupported_media_type` | Wrong `Content-Type` | — |
-| 422 | `validation` | Schema or rule failure; `details` lists zod issues or rule reasons (memory: `bad_evidence`, `not_owner_evidence`, `rule_needs_owner`, `too_little_evidence`, `tainted_evidence`, `needs_owner_words`, `too_long`, `no_inferred_sensitive`) | Fix; never retry as is (`th` exit 8) |
+| 422 | `validation` | Schema or rule failure; `details` lists zod issues or rule reasons (memory: `bad_evidence`, `not_owner_evidence`, `rule_needs_owner`, `too_little_evidence`, `tainted_evidence`, `needs_owner_words`, `too_long`, `no_inferred_sensitive`, `off_record_evidence`, `deleted_evidence`) | Fix; never retry as is (`th` exit 8) |
 | 422 | `password_too_short`, `password_too_long`, `password_guessable`, `password_breached`, `password_same` | Password rules ([SIGN-IN.md §9.2](../product/SIGN-IN.md)) | Show the line |
 | 422 | `invalid_result` | A Muse result fails its order's schema or hygiene checks; the order becomes `rejected` ([MUSE.md §5](../mind/MUSE.md)) | Muse fixes and the mind re-orders |
 | 422 | `too_sensitive` | A Home surface or push whose `ref` points at sensitivity-1 data ([PRIVACY.md §4](PRIVACY.md#4-what-the-mind-may-raise-unprompted)) | Drop it |
@@ -351,7 +353,8 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
   { seq: number; changed: boolean; kinds: string[];
     messages: Message[];                  // owner messages not yet handed out (or handed out > 120 s ago and never acknowledged), ≤ 20; sets delivered_at; chat lease holder only
     events: { type: 'proposal.decided'|'work.done'|'verb.result'|'deploy.result'; ref: Ref; at: Ms }[];
-    signals: ('day_closed' | 'stop')[] }
+    signals: ('day_closed' | 'stop')[];
+    off_record?: Id[] }                   // the conversations off the record among `messages`: answer, remember nothing
   ```
   `stop` = the owner tapped stop. `day_closed` = the roll happened. The CLI turns these into `th wait`'s output and exit codes ([RUNTIME.md §5](../mind/RUNTIME.md)).
 - A handed-out message (including one shown in a claimed briefing) must be acknowledged within 120 s (`POST /v1/mind/status` with `working`, or any post by the chat mind), or it is requeued.
@@ -369,10 +372,14 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 
 | Route | Who | Request | Response | Notes |
 |---|---|---|---|---|
-| `GET /v1/threads?status=open\|filed&limit&cursor` | device, agents | — | `200 Page<Thread>` newest `updated_at` first | |
+| `GET /v1/threads?status=open\|filed&limit&cursor` | device, agents | — | `200 Page<Thread>` newest `updated_at` first | Never a deleted thread; one off the record (with messages, not yet due) only for the device |
 | `GET /v1/threads/today` | device, agents | — | `200 { thread: Thread\|null, messages: Message[] /* last 50 */, seq: number }` | `thread` is null before the day's first message |
-| `GET /v1/threads/:id` | device, agents | — | `200 Thread` | |
-| `GET /v1/threads/:id/messages?before_seq\|after_seq&limit` | device, agents | — | `200 Page<Message>` | |
+| `GET /v1/threads/:id` | device, agents | — | `200 Thread` (`purge_at` set only off the record) | `404` for a deleted thread or one whose purge is due; for one off the record, to the night and the reflex |
+| `GET /v1/threads/:id/messages?before_seq\|after_seq&limit` | device, agents | — | `200 Page<Message>` | `404` as `GET /v1/threads/:id` |
+| `PUT /v1/threads/:id/off-record` | device | — (`:id` the phone's UUIDv7) | `201 Thread` (`kind:'off_record'`, `purge_at` 7 days on); `200` the same id again | A conversation off the record ([MEMORY.md §6.1](../mind/MEMORY.md)). `409` another thread's id; `410 gone` once deleted or due |
+| `DELETE /v1/threads/:id` | device | — | `200 { id, purge_at }` | Hidden at once from every list, read and search; its waiting messages settled; Recently deleted for 30 days (one off the record keeps its sooner 7). Today's thread too: the next message starts a fresh today. `410 gone` when already deleted |
+| `POST /v1/threads/:id/restore` | device | — | `200 { id, kind, beside }` | Back as it was; a daily thread whose day began a fresh one comes back beside it (`kind:'restored'`, `beside:true`, filed). `404` not deleted; `410 gone` past its 30 days |
+| `GET /v1/threads/deleted` | device | — | `200 { items: DeletedThread[] }` (`{id, day, kind, title, summary, message_count, deleted_at, purge_at}`) newest first, ≤ 200 | Settings › Recently deleted |
 | `PATCH /v1/threads/:id` | `mind:chat`, `mind:night` | `{ title?: string /* ≤ 80 */, summary?: string /* ≤ 400 */ }` | `200 Thread` | Sets `title_source:'mind'`; refused (`409 conflict`) when `title_source='owner'` |
 | `POST /v1/threads/:id/continue` | device | — | `200 { today_thread_id }` | Links a filed thread to today (`continues`) |
 | `PUT /v1/threads/:id/title` | device | `{ title }` (≤ 60, trimmed; empty clears) | `200 Thread` | The owner names a thread (`title_source` `owner`), which the mind's `PATCH` then refuses (409); empty gives naming back (2026-10-31) |
@@ -386,9 +393,9 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 | `GET /v1/files/:id` | device, `mind:chat`, `mind:night` | — (`If-None-Match` optional; `?meta=1` for the record) | `200` the bytes, or with `?meta=1` the `Attachment` as JSON; `304` when `If-None-Match` names its ETag | `404` unless the file's row exists. Headers: its `Content-Type` and `Content-Length`, `ETag: "<sha256>"`, `Cache-Control: private, no-store` (a private file never outlives a sign-out in the browser's cache), `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox; default-src 'none'`, `Content-Disposition` (`inline` for `image/*`, `audio/*`, `video/*`, `application/pdf`, else `attachment`; `filename` in ASCII and `filename*` in UTF-8, RFC 5987). The bytes come only from here, never by a link ([SECURITY.md §9](SECURITY.md#9-presigned-media-urls)) |
 
 `PUT /v1/messages/:id` rules:
-1. The message goes into the open `daily` thread for `day.current`. The Worker creates that thread if needed. The client never names a thread, except `muse` in its own thread.
+1. The message goes into the open `daily` thread for `day.current`. The Worker creates that thread if needed. The client never names a thread, except `muse` in its own thread, and the device or `mind:chat` naming a live conversation off the record (`thread_id: <id>`; another thread's id is `422`, a deleted or due one `410 gone`). A message whose `reply_to` is in a conversation off the record goes there too, named or not, so an answer never lands in today's thread; one answering a message of a deleted thread is `410 gone`. A message off the record has no FTS entry and moves its thread's purge to 7 days after it.
 2. `author` and `origin` come from the principal (`device` → `owner`/`owner_device`, `mind:chat` → `mind`/`mind`, `muse` → `muse`/`muse`), never from the body.
-3. A `mind` message with `reply_to` sets `answered_at` on that owner message and on every earlier unanswered owner message. `reply_to` names a message in the open thread, or an owner message still unanswered from an earlier day, so a reply after the roll still settles it (nothing the owner said is lost across the roll).
+3. A `mind` message with `reply_to` sets `answered_at` on that owner message and on every earlier unanswered owner message (a conversation off the record is its own: a reply in it settles only its messages, and a reply elsewhere never settles one of it). `reply_to` names a message in the open thread, or an owner message still unanswered from an earlier day, so a reply after the roll still settles it (nothing the owner said is lost across the roll).
 4. An owner message with no live chat lease and no unclaimed fire younger than 90 s queues a wake (conditions: [RUNTIME.md §3](../mind/RUNTIME.md)).
 5. Owner messages use `text` or `voice`. Agents may use every kind; `system` messages (author `system`) are written only by the Worker.
 6. Wording limits on mind messages (the phrase lint) are enforced as `422 validation` per [BEHAVIOR.md](../mind/BEHAVIOR.md).
@@ -739,6 +746,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `GET /v1/live/wait` | C N R | P2 |
 | `GET /v1/changes` | D C N R | P2 |
 | `GET /v1/threads*`, `GET /v1/mind/wakes` | D C N R | P2 |
+| `PUT /v1/threads/:id/off-record`, `DELETE /v1/threads/:id`, `POST /v1/threads/:id/restore`, `GET /v1/threads/deleted` | D | P2 |
 | `PATCH /v1/threads/:id` | C N | P2 |
 | `POST /v1/threads/:id/continue`, `PUT /v1/threads/:id/title`, `POST /v1/mind/typing` | D | P2 |
 | `PUT /v1/messages/:id` | D C (N R: `error` kind to the system thread) | P2 |

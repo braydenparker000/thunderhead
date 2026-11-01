@@ -103,23 +103,29 @@ const budgets = [
   // keeping a message sent while today failed to load; the fonts fell by 105 KB the same day.
   // (2026-10-31, later) + the status chip, the mind's lines as cards and the catch-up line after
   // quiet, in place of the voice line (HOME.md §2).
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 96_000],
+  // (2026-11-01) + off the record: its conversation shown in place of today's, its outbox, no cache.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 97_000],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
   // the mic's wiring with the chat, the recorder on the first press of the mic), 2026-10-31.
-  ['commands and dictation JS bytes', sum(/^th\/(commands|dictate)\/.*\.js$/), 20_000],
+  // (2026-11-01) + "off the record" and "back on the record".
+  ['commands and dictation JS bytes', sum(/^th\/(commands|dictate)\/.*\.js$/), 21_000],
   // Apps as layers inside home and the island (th/island, loaded when Music or Podcasts opens), 2026-11-01;
   // 24 KB with the sleep timer on it and room for Guitar's.
   ['island JS bytes', sum(/^th\/island\/.*\.js$/), 24_000],
+  // Off the record (th/record, 2026-11-01): starting and ending one, home's view of it, its marker.
+  ['off the record JS bytes', sum(/^th\/record\/.*\.js$/), 4_500],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads
   // and attachments in the conversation, loaded when the sheet opens or a message has files.
-  ['attach JS bytes', sum(/^th\/attach\/.*\.js$/), 36_000],
+  // (2026-11-01) + Off the record in the sheet.
+  ['attach JS bytes', sum(/^th\/attach\/.*\.js$/), 36_200],
   // What's new after an update (th/news, loaded after the first paint), 2026-11-01.
   ['news JS bytes', sum(/^th\/news\/.*\.js$/), 6_000],
   // The menu's conversations and search, loaded when the menu first opens.
   // (2026-10-31) + a held card's Continue, Rename and Pin (actions.js), Settings by name in search.
-  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 64_000],
+  // (2026-11-01) + Delete with its sheet and Now's hold, the off-the-record tag, Recently deleted by name.
+  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 65_000],
   // The Briefing page, loaded after the first paint.
   // + skeletons, pull to refresh and the owner's arrangement of the tiles (2026-10-30).
   ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 20_000],

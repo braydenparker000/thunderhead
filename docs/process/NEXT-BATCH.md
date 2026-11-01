@@ -129,8 +129,9 @@ episode's details for "Continue listening" on a phone that never opened its show
   edit, then send. A tap still records a voice memo.
 - **The catch-up line** (built 2026-10-31): when quiet ends, one line in the chat: "While you were
   quiet: 2 reminders, 1 card waiting."; nothing when nothing came.
-- **"Off the record":** a conversation the mind answers but never remembers; deleted after 7 days.
-  Its own data step (a second reader, AGENTS.md rule 7).
+- **"Off the record"** (built 2026-11-01, with a conversation's Delete; Core schema step 27; MEMORY.md
+  §6.1): a conversation the mind answers but never remembers; deleted after 7 days. Its own data
+  step (a second reader, AGENTS.md rule 7).
 
 ## 9. Guitar's practice loop (the owner's yes, STATUS)
 

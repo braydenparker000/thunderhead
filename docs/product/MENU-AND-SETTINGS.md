@@ -9,14 +9,14 @@ Sibling docs: [HOME](HOME.md), [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM
 1. **Open:** swipe left on home or the hidden "Menu" button. **Close:** swipe right, tap the dimmed home beside it, Back, Escape, or pick a row that navigates.
 2. Three sections, always in this order: **Search**, **Conversations**, **Settings**.
 3. The owner **never starts or names** a conversation (owner ruling). Titles are automatic; renaming is optional and wins forever.
-4. **Deleting is ask-first** (decisions.md): a confirm sheet, then a 30-day "recently deleted" window [proposal]. Nothing in the menu deletes in one tap.
+4. **Deleting is ask-first** (decisions.md): a confirm sheet, then a 30-day "Recently deleted" window in Settings (built 2026-11-01). Nothing in the menu deletes in one tap.
 5. **Access changes are ask-first too:** signing out other devices, new or revoked agent tokens, and turning off push need a confirm on this signed-in device.
 6. Settings pages change things **immediately**; there is no Save button except where text is typed.
 7. Everything personal shown here comes from behind sign-in; nothing is cached in `localStorage` (only IndexedDB, cleared on sign-out).
 
 ## 1. The panel
 
-**Built 2026-10-31 (owner: chats and settings together, and an accent picker, were "dumb"; the menu "feels very normal"):** the menu holds only the conversations. It is a page on home's own field, `calc(100% - 52px)` wide with rounded leading corners, leaving home's edge in sight, sunk back (scale 0.93, rounded, dimmed). Its title "Conversations" is large and light; Now is a glowing card; each day is a flat-glass card (title and date, then the night's summary or the message count, two lines); group names are large and light and still fold. Search and a Settings button sit in a bar at the bottom like the ask bar on home; search's field takes the pill's place there and the results fill the list above it. The cards ripple in each time it opens. Held, a card offers Continue this, Rename (the owner's name wins: `PUT /v1/threads/:id/title`, device only; empty gives naming back) and Pin. Delete waits for its own step. The table below is the first build.
+**Built 2026-10-31 (owner: chats and settings together, and an accent picker, were "dumb"; the menu "feels very normal"):** the menu holds only the conversations. It is a page on home's own field, `calc(100% - 52px)` wide with rounded leading corners, leaving home's edge in sight, sunk back (scale 0.93, rounded, dimmed). Its title "Conversations" is large and light; Now is a glowing card; each day is a flat-glass card (title and date, then the night's summary or the message count, two lines); group names are large and light and still fold. Search and a Settings button sit in a bar at the bottom like the ask bar on home; search's field takes the pill's place there and the results fill the list above it. The cards ripple in each time it opens. Held, a card offers Continue this, Rename (the owner's name wins: `PUT /v1/threads/:id/title`, device only; empty gives naming back), Pin and Delete (2026-11-01, §3.3); Now offers Delete alone. The table below is the first build.
 
 | Part | Values (built) |
 |---|---|
@@ -95,22 +95,23 @@ One thread per day (decisions.md). The prototype showed two "Today" rows (topics
 |---|---|
 | Tap "Now" | Closes the menu; home shows today (built: toast "This is the current conversation" when already there) |
 | Tap an older row | Closes the menu; home shows that thread read-only with the "Back to now" pill ([HOME](HOME.md) §4.9) (built) |
-| Long-press an older row (450 ms) | Action sheet: **Continue this** · **Rename** · **Delete** [not built yet; Delete waits as a proposal, decisions.md] |
-| Long-press "Now" | Nothing (today cannot be renamed or deleted from here) |
+| Long-press an older row (450 ms) | Action sheet: **Continue this** · **Rename** · **Pin** · **Delete** (built) |
+| Long-press "Now" | **Delete** alone (built 2026-11-01): today's conversation goes, and the next message starts a fresh today |
 
 **Continue this.** Links the old thread to today: the mind's next briefing loads that thread's summary and its last 15 messages ([RUNTIME](../mind/RUNTIME.md)). Today's thread gets a system line "Continuing: <title>". Toast: "I'll keep that in mind today." Reversible (the link can be removed by long-pressing again: "Stop continuing").
 
 **Rename.** The title becomes an inline text field (Inter 15), selected. Enter or tapping outside saves; Escape cancels; an empty title reverts to the automatic one. Max **60** characters. After a rename, the night shift never changes it.
 
-**Delete (ask first).**
+**Delete (ask first; built 2026-11-01, `th/convos/actions.js`, `DELETE /v1/threads/:id`).**
 
-1. A bottom confirm sheet opens: title "Delete this conversation?"; body "<title> · <date>. Its messages are removed now and gone for good after 30 days. What I learned from it stays in What I remember, where you can remove it too." Buttons: **Delete** (`--alarm` text) and **Keep**.
-2. Tapping Delete on this signed-in device is the approval. The thread disappears from the list at once.
-3. A toast "Deleted. Undo" stays **8 s**; Undo restores it fully.
-4. For **30 days** it is listed under Settings → Account → Recently deleted, where it can be restored or removed for good (a second confirm). After 30 days it is purged from storage and from search, including the next weekly backup cycle. [proposal: the 30-day window; decisions.md only requires asking first]
-5. The mind can never delete a conversation itself; it can only propose it (a decision card of class "Can't be undone").
+1. A bottom confirm sheet opens: title **"Delete this conversation?"**; body **"It goes now; you can undo for 30 days in Settings › Recently deleted."** Buttons: **Delete** (`--alarm` text) and **Keep** (focused).
+2. Tapping Delete on this signed-in device is the approval. The Worker hides it at once: from the menu, search, the briefing and the mind (its waiting messages settle); the thread disappears from the list.
+3. A toast "Deleted." with **Undo** (Restore).
+4. For **30 days** it is listed under **Settings › Recently deleted** with **Restore**. Then the cron's prune pass purges it: its messages, its files in the private bucket, the mind's session notes about it and its evidence links. What the mind learned from it stays in What I remember (facts keep their text, losing the citation; day notes stay), where the owner can fix or forget it ([MEMORY.md §6.1](../mind/MEMORY.md)). Backups made after the delete leave it out; one made before keeps it until it ages out.
+5. Deleting today's thread (Now) starts a fresh today; restoring it later brings it back beside the new one.
+6. The mind can never delete or restore a conversation: the routes are the owner's device's only, and no verb or proposal op does it.
 
-Acceptance: deleting needs two taps (row action, then Delete); the thread is gone from search immediately; Undo within 8 s restores it with all messages; a mind token calling the delete route directly gets 403.
+Acceptance (built: `tests/held-browser.test.mjs`, `backend/tests/integration/held-delete.test.ts`, `held-purge.test.ts`): deleting needs two taps (row action, then Delete); the thread is gone from search immediately; Undo restores it with all messages; a mind token calling the delete route directly gets 403; after 30 days it is purged.
 
 ## 4. Settings
 
@@ -129,6 +130,7 @@ The list, in order [proposal]. Before sign-in, rows show the meta "soon" and tap
 | **Agents** | `key` | §4.7 |
 | **Account** | `user-circle` | §4.8 |
 | **Export** | `download-simple` | §4.9 |
+| **Recently deleted** | `trash` | §3.3, §4.8 (built 2026-11-01) |
 | **On this phone** [proposal] | `device-mobile` | §4.10 |
 | **About** | `info` | §4.11 |
 
@@ -235,7 +237,7 @@ Agent tokens let the mind's sessions and helper agents call the Worker (decision
 | Username | Shown |
 | Change password | Current + new + confirm, password-manager friendly ([SIGN-IN](SIGN-IN.md)) |
 | Recovery code | Make a new one (shown once); the old one stops working |
-| Recently deleted [proposal] | Conversations and facts deleted in the last 30 days: Restore, or Delete now (second confirm) |
+| Recently deleted | Built 2026-11-01 as its own Settings row (`apps/settings/deleted.js`, `GET /v1/threads/deleted`): the conversations deleted in the last 30 days, newest first, each "Deleted 1 Nov · gone in 28 days · 14 messages" with **Restore**. Facts are not here (forgetting is the point); "Delete now" is not built |
 | Sign out | Signs out this device only; the outbox and caches on this phone are cleared after a confirm if anything is still unsent ("2 messages haven't sent yet. Sign out anyway?") |
 
 ### 4.9 Export

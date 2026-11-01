@@ -311,6 +311,38 @@
       "status": "built",
       "note": "the owner names a thread (the mind never renames it after); empty gives naming back"
     },
+    "PUT /v1/threads/:id/off-record": {
+      "who": [
+        "D"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "a conversation off the record: never remembered, gone 7 days after its last message"
+    },
+    "DELETE /v1/threads/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "hidden at once; Recently deleted for 30 days, then purged"
+    },
+    "POST /v1/threads/:id/restore": {
+      "who": [
+        "D"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "back from Recently deleted"
+    },
+    "GET /v1/threads/deleted": {
+      "who": [
+        "D"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "Recently deleted, newest first"
+    },
     "PUT /v1/messages/:id": {
       "who": [
         "D",
@@ -337,7 +369,7 @@
       ],
       "phase": "P2",
       "status": "built",
-      "note": "raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos, transcribed)"
+      "note": "raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds"
     },
     "POST /v1/dictate": {
       "who": [
@@ -345,7 +377,7 @@
       ],
       "phase": "P2",
       "status": "built",
-      "note": "a few seconds of voice (audio/*, ≤ 1 MiB) to Whisper; answers the words, keeps nothing"
+      "note": "a few seconds of voice (audio/*, ≤ 1 MiB) to Whisper; keeps nothing"
     },
     "GET /v1/files/:id": {
       "who": [
@@ -355,7 +387,7 @@
       ],
       "phase": "P2",
       "status": "built",
-      "note": "the bytes, through the Worker; private, no-store; ?meta=1 the record"
+      "note": "the bytes, private, no-store; ?meta=1 the record"
     },
     "GET /v1/search": {
       "who": [
@@ -1880,6 +1912,10 @@
       403,
       "This work order needs an approved reach_people proposal."
     ],
+    "off_record": [
+      403,
+      "That conversation is off the record: nothing from it is remembered or read later."
+    ],
     "not_found": [
       404,
       "Not found."
@@ -1975,6 +2011,10 @@
     "resync_required": [
       410,
       "Reload the full state."
+    ],
+    "gone": [
+      410,
+      "That conversation was deleted, or its time is up."
     ],
     "too_large": [
       413,
@@ -2568,7 +2608,9 @@
       "superseded": "This fact was already replaced; work on its newest version.",
       "proposal_required": "This change needs the owner first (decision cards arrive in P4).",
       "never_stored": "Keys, tokens, passwords and card or bank numbers are never stored (MEMORY.md §13).",
-      "session_required": "Memory writes need a mind session that claimed its briefing and has not ended."
+      "session_required": "Memory writes need a mind session that claimed its briefing and has not ended.",
+      "off_record_evidence": "That conversation is off the record: nothing from it becomes memory.",
+      "deleted_evidence": "That conversation was deleted: nothing from it becomes memory."
     }
   },
   "night": {

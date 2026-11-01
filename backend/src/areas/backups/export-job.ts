@@ -9,6 +9,7 @@ import { BACKUP_LIMITS } from '../../../../shared/contract/backups.ts';
 import { MINUTE } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
+import { heldRows } from '../conversation/held-store';
 import type { JobHandler } from '../jobs/runner';
 import { vaultOf } from './job';
 import { pageOf, splitName } from './objects';
@@ -62,7 +63,8 @@ const readme = (p: ExportPayload, counts: Record<string, number>) =>
     'Binary values, if any, are written as {"$bytes": "<base64>"}.',
     '',
     'Not in it: sign-in data (your password hash, sessions and keys), search indexes (rebuilt from the',
-    'rows), and working state (jobs, leases). Attachments are not stored yet, so there are none.',
+    'rows), working state (jobs, leases), conversations off the record (gone 7 days after their last',
+    'message) and conversations you deleted. Attachments stay in your private bucket.',
     '',
     '## Rows',
     '',
@@ -96,7 +98,7 @@ export const exportJob: JobHandler = {
     const other = splitName(table);
     const { rows, last } = other
       ? await pageOf(env, other.cls, other.table, c.after, BACKUP_LIMITS.part_rows)
-      : page(db, table, c.after, BACKUP_LIMITS.part_rows);
+      : page(db, table, c.after, BACKUP_LIMITS.part_rows, heldRows(db, table));
     if (!rows.length && c.n > 0) return { file: null, rows: 0, full: false, last: null };
     const name = `tables/${table}${c.n ? `-${c.n + 1}` : ''}.jsonl`;
     const text = rows.length ? `${rows.map(line).join('\n')}\n` : '';

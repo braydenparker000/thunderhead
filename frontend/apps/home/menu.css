@@ -89,3 +89,5 @@ button.search{width:100%;border:0;cursor:pointer;text-align:left}
 @media (prefers-reduced-motion: reduce){.holdsheet{transition:opacity var(--d-fast) ease;transform:none}}
 .srow .tt{min-width:0;overflow:hidden;text-overflow:ellipsis}
 .srow .td{flex:none}
+.tag.otr{color:var(--ink-2);background:var(--tint)}
+.csacts .del{color:var(--alarm)}

@@ -350,7 +350,9 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.agents.once` | This shows once. Paste it where it's needed, then close this. | (proposal) |
 | `set.agents.revoke` | Revoke | (proposal) |
 | `set.account` | Account | Row (built) |
-| `set.account.deleted` | Recently deleted | (proposal) |
+| `set.deleted` | Recently deleted | Settings row and page (built 2026-11-01): "Conversations you deleted stay here for 30 days, then they are gone for good, with their files."; a row "Deleted 1 Nov · gone in 28 days · 14 messages" with **Restore**; empty: "Nothing deleted in the last 30 days."; toast "Restored. It is back in the menu." |
+| `convo.delete` | Delete this conversation? / It goes now; you can undo for 30 days in Settings › Recently deleted. | The held card's Delete (built 2026-11-01); buttons "Delete" · "Keep"; toast "Deleted." with Undo |
+| `home.otr` | Off the record · gone in 7 days | The quiet line over a conversation off the record, with **End**; the bar reads "Off the record"; toasts "Off the record. I'll answer, remember none of it, and it's gone in 7 days." / "Back on the record." / "That conversation off the record is gone." (built 2026-11-01) |
 | `set.account.unsent` | 2 messages haven't sent yet. Sign out anyway? | Sign-out with a non-empty outbox; "1 message hasn't sent yet." for one; buttons "Sign out" · "Cancel" (built, P2) |
 | `set.account.unforgotten` | 1 Forget hasn't gone through yet. Sign out anyway? / If you sign out now, I'll keep remembering that fact. | Sign-out (this device or everywhere) while a Forget still waits after one more try; "2 Forgets haven't…", "those facts" for more; after the unsent-messages title the line starts "1 Forget hasn't gone through either."; buttons "Sign out" · "Cancel" (built, P3 B.6) |
 | `set.export` | Export | Row (proposal) |

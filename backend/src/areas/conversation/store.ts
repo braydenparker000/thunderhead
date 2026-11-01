@@ -8,7 +8,7 @@ import type { Db } from '../../objects/base';
 type MessageRow = Omit<Message, 'meta' | 'attachments'> & { meta_json: string | null; attachments_json: string | null };
 
 const THREAD_COLS =
-  'id, day, kind, status, title, title_source, summary, continues, message_count, started_at, updated_at, filed_at';
+  'id, day, kind, status, title, title_source, summary, continues, message_count, started_at, updated_at, filed_at, purge_at';
 const MSG_COLS =
   'seq, id, thread_id, author, origin, kind, body, meta_json, attachments_json, reply_to, created_at, delivered_at, acked_at, answered_at';
 
@@ -43,14 +43,25 @@ export function ensureDaily(db: Db, id: string, day: string, at: number): Thread
   return thread(db, id) as Thread;
 }
 
-/** Newest `updated_at` first; `after` is the previous page's last [updated_at, id]. */
-export function threadsPage(db: Db, status: string | null, limit: number, after: [number, string] | null): Thread[] {
+/** Newest `updated_at` first; `after` is the previous page's last [updated_at, id]. Held threads
+ * are left out (held.ts): a deleted one always, one off the record unless `offRecord` (the owner's
+ * menu lists a live one that has messages, `now` the clock its time is up by). */
+export function threadsPage(
+  db: Db,
+  status: string | null,
+  limit: number,
+  after: [number, string] | null,
+  offRecord: { now: number } | null = null,
+): Thread[] {
   return db.all<Thread>(
     `SELECT ${THREAD_COLS} FROM threads WHERE (? IS NULL OR status = ?)
+       AND (purge_at IS NULL OR (? IS NOT NULL AND kind = 'off_record' AND message_count > 0 AND purge_at > ?))
        AND (? IS NULL OR updated_at < ? OR (updated_at = ? AND id < ?))
      ORDER BY updated_at DESC, id DESC LIMIT ?`,
     status,
     status,
+    offRecord?.now ?? null,
+    offRecord?.now ?? null,
     after?.[0] ?? null,
     after?.[0] ?? null,
     after?.[0] ?? null,
@@ -84,6 +95,8 @@ export interface NewMessage {
   req_sha256: string;
   /** Its files in order, as checked by areas/files/ops.ts `attach` (none when left out). */
   attachments?: Attachment[];
+  /** Off the record (held.ts): no FTS entry, so no search can ever find it. */
+  unindexed?: boolean;
 }
 
 export function messageById(
@@ -122,7 +135,7 @@ export function insertMessage(db: Db, m: NewMessage): Message {
   );
   // last_insert_rowid() reads no rows (RETURNING would bill one).
   const row = db.one<{ seq: number }>('SELECT last_insert_rowid() AS seq') as { seq: number };
-  db.run('INSERT INTO messages_fts (rowid, body) VALUES (?, ?)', row.seq, m.body);
+  if (!m.unindexed) db.run('INSERT INTO messages_fts (rowid, body) VALUES (?, ?)', row.seq, m.body);
   db.run(
     'UPDATE threads SET message_count = message_count + 1, updated_at = ? WHERE id = ?',
     m.created_at,
@@ -138,8 +151,9 @@ export function patchMessage(
   body: string | undefined,
   meta: unknown,
   at: number,
+  indexed = true,
 ) {
-  if (body !== undefined && body !== oldBody) {
+  if (indexed && body !== undefined && body !== oldBody) {
     db.run("INSERT INTO messages_fts (messages_fts, rowid, body) VALUES ('delete', ?, ?)", seq, oldBody);
     db.run('INSERT INTO messages_fts (rowid, body) VALUES (?, ?)', seq, body);
   }
@@ -255,14 +269,22 @@ export function ackHandedOut(db: Db, at: number): number {
 }
 
 /** Marks the replied-to owner message and every earlier unanswered one answered: the chat is one
- * conversation, so a reply to a later message has seen the earlier ones (API.md §11.7 rule 3). */
-export function answer(db: Db, replyTo: string, at: number): void {
+ * conversation, so a reply to a later message has seen the earlier ones (API.md §11.7 rule 3). A
+ * conversation off the record is its own: a reply there settles only its own messages, and a reply
+ * elsewhere never settles one of it. */
+export function answer(db: Db, replyTo: string, at: number, offRecord: string | null, held: string[]): void {
+  const only = offRecord
+    ? 'AND thread_id = ?'
+    : held.length
+      ? 'AND thread_id NOT IN (SELECT value FROM json_each(?))'
+      : '';
   db.run(
     `UPDATE messages SET answered_at = ?, acked_at = coalesce(acked_at, ?) WHERE author = 'owner'
-       AND answered_at IS NULL AND seq <= (SELECT seq FROM messages WHERE id = ?)`,
+       AND answered_at IS NULL AND seq <= (SELECT seq FROM messages WHERE id = ?) ${only}`,
     at,
     at,
     replyTo,
+    ...(offRecord ? [offRecord] : held.length ? [JSON.stringify(held)] : []),
   );
 }
 

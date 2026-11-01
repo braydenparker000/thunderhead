@@ -25,7 +25,7 @@ Sibling docs: [RUNTIME.md](RUNTIME.md) (the `th` commands that read and write me
 
 | Layer | Store | Written by | Read by | Kept |
 |---|---|---|---|---|
-| L0 raw | `messages`, `threads` | Worker (owner device, mind, system, Muse posts) | Everyone with scope | Forever |
+| L0 raw | `messages`, `threads` | Worker (owner device, mind, system, Muse posts) | Everyone with scope | Forever, but a conversation off the record (7 days after its last message) or one the owner deleted (30 days); §6.1 |
 | L0 raw | `events` (senses) | Worker from phone batches | Night shift, `th day`, stats | 90 days in SQLite; daily JSONL in R2 forever |
 | Session | `session_notes` | Mind at session end | Briefing ("Today so far") | Forever |
 | L1 episodic | `day_notes` | Night shift; owner edits | Briefing ("Yesterday", last 7) | Forever |
@@ -45,7 +45,7 @@ Exact columns. [DATA.md](../engineering/DATA.md) owns indexes and migrations; it
 ```sql
 -- Conversation (L0)
 threads(
-  id TEXT PRIMARY KEY, day TEXT NOT NULL, kind TEXT NOT NULL,          -- 'daily' | 'muse' | 'imported'
+  id TEXT PRIMARY KEY, day TEXT NOT NULL, kind TEXT NOT NULL,          -- 'daily' | 'muse' | 'imported' | 'off_record' | 'restored' | 'deleted' (§6.1)
   title TEXT, title_source TEXT,                                       -- 'auto' | 'mind' | 'owner'
   summary TEXT,                                                        -- ≤ 400 chars, night shift
   status TEXT NOT NULL,                                                -- 'open' | 'filed'
@@ -224,6 +224,18 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 | M14 | Health, sexuality, politics, religion and similar sensitive traits are never `inferred` **[proposal]** | `422` `no_inferred_sensitive` |
 | M15 | The mind only makes a fact more protected: it never lowers `sensitivity` (a sensitive tag or `about=person` makes it 1), never sets `may_raise=1` on its own (faith never), never drops a sensitive, `faith` or `imported` tag ([PRIVACY.md §4](../engineering/PRIVACY.md)); only the owner can | (applied as the protected value) |
 | M16 | §13's never-stored text (keys and tokens, passwords, card and bank numbers) is refused in facts, loose ends and day notes | `422` `never_stored` |
+| M17 | Nothing from a conversation off the record, or one the owner deleted, becomes memory: no fact, rule, confirm or supersede cites its messages, from the mind or the device; no loose end cites its messages or the thread; no session note or title names it (§6.1); and a chat session the Worker handed a message off the record (its briefing, a wait, the thread or a file of it; `mind_sessions.off_record_at`) writes no memory at all, whatever it cites, so nothing it heard there is laundered through another message | `422` `off_record_evidence` / `deleted_evidence` in a batch; `403 off_record` / `410 gone` elsewhere, and `403 off_record` for every memory write of a session so marked |
+
+### 6.1 Off the record and deleted conversations (built 2026-11-01)
+
+A conversation **off the record** (NEXT-BATCH.md part 8; started from the + sheet or by saying "off the record") is answered by the chat mind and never remembered; one the owner **deleted** (the menu's Delete) is hidden at once. Both are *held* threads (`backend/src/areas/conversation/held.ts`), and the Worker enforces, not the model:
+
+- **M17** above, from every principal, the device included.
+- **The night never reads one** off the record, nor a deleted one: its input is the day's `daily` thread only, `GET /v1/threads/:id` and its messages are `404` to the night and the reflex, and its files too. The day note (§2) is the night's, so it never holds one either; a day note has no evidence refs to refuse.
+- **Search, the briefing and recall leave them out.** Messages off the record have no FTS entry at all; a deleted thread's are left out of every search until the purge removes them. The briefing's sections come from the daily threads only; the one exception is **Waiting** (§9 section 2): an owner message off the record waits there, marked `(off the record)`, under a role-side note ("Off the record (thread …): answer with --reply-to … Remember nothing from it …"), and `th wait` names those threads (`off_record`). A deleted thread's waiting messages are settled as it is deleted.
+- **Purged by the cron's prune pass**, chunked (500 messages a tick) and held by the rows guard: off the record 7 days after its last message, deleted 30 days after the delete. From that moment it is gone from every read and refuses writes; the purge then takes the messages (and their FTS entries, then an FTS `optimize`, as `forget` does), the attachments' bytes and rows, the mind's session notes naming it, the thread, and **the evidence links**: each purged `msg:` ref leaves every fact version's and loose end's evidence, in place. A fact keeps its text, kind, source and confidence: what the mind knows did not change, so rule 3's new version does not apply (and would keep the old version's link anyway); a fact left with no evidence stays until the owner forgets it. Day notes stay too. One ledger row says what was purged, never what was in it.
+- **Backups and "download everything" leave held threads out** (their thread rows, messages and files' rows), so no backup ever holds a conversation off the record, and none made after a delete holds that one. One made before a delete keeps it until that backup ages out (DATA.md §11).
+- **Honest limits**: the chat session reads the messages to answer them, as all chat (Anthropic's own retention, PRIVACY.md §5); what the mind *does* off the record (a reminder it sets, a song it plays) leaves the usual ledger row; the Worker can't read meaning, so a fact written from other evidence but with words from off the record is the session's failure, which the briefing's note forbids.
 
 **Taint sources:** web pages, search results, song tags and tab files, PDFs and other files not written by the owner, emails, PR or issue comments not by the owner, Muse output, the wake text. Outside content is stored, if at all, as `origin=external` (Board items, imported web text) and can only be cited in answers.
 

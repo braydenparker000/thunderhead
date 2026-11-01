@@ -10,6 +10,8 @@ import { taintedSince } from './store';
 
 export interface Guards {
   tainted: boolean;
+  /** It was handed a message off the record (conversation/held.ts): no memory from it. */
+  offRecord: boolean;
   constitution: string;
 }
 
@@ -19,12 +21,13 @@ interface Row {
   claimed_at: number;
   ended_at: number | null;
   tainted_at: number | null;
+  off_record_at: number | null;
   constitution_sha256: string | null;
 }
 
 const read = (db: Db, id: string) =>
   db.one<Row>(
-    'SELECT role, wake_id, claimed_at, ended_at, tainted_at, constitution_sha256 FROM mind_sessions WHERE session_id = ?',
+    'SELECT role, wake_id, claimed_at, ended_at, tainted_at, off_record_at, constitution_sha256 FROM mind_sessions WHERE session_id = ?',
     id,
   );
 
@@ -43,6 +46,7 @@ export function claimedSession(db: Db, sessionId: string | null, role: MindRole)
   const later = taintedSince(db, role, s.claimed_at);
   return {
     tainted: s.tainted_at !== null || (later !== null && later.session_id !== sessionId),
+    offRecord: s.off_record_at !== null,
     constitution: s.constitution_sha256 ?? 'none',
   };
 }
@@ -56,7 +60,27 @@ export function taintedNow(db: Db, sessionId: string | null, role: MindRole): bo
   return s.tainted_at !== null || (later !== null && later.session_id !== sessionId);
 }
 
+/** Whether the Worker handed this session a message off the record (it writes no memory). */
+export const sawOffRecord = (db: Db, sessionId: string | null): boolean =>
+  sessionId !== null && (read(db, sessionId)?.off_record_at ?? null) !== null;
+
 /** When a session was marked tainted (null: never, or no such session). */
 export function taintedAt(db: Db, sessionId: string): number | null {
   return read(db, sessionId)?.tainted_at ?? null;
+}
+
+/** The Worker handed this chat session a message off the record (conversation/held.ts): from then
+ * on it writes no memory, whatever evidence it names (below). Makes the row if the session never
+ * claimed, so a later claim keeps the mark; the first time stands. */
+export function markOffRecord(db: Db, s: { id: string; role: MindRole; day: string; at: number }): void {
+  db.run(
+    `INSERT INTO mind_sessions (session_id, role, claimed_at, day, off_record_at) VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (session_id) DO UPDATE SET off_record_at = coalesce(off_record_at, excluded.off_record_at)
+     WHERE mind_sessions.off_record_at IS NULL`,
+    s.id,
+    s.role,
+    s.at,
+    s.day,
+    s.at,
+  );
 }

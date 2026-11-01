@@ -27,6 +27,8 @@ export function apply(w: Writer, c: Caller, batchId: string, raw: unknown[], has
   // A mind writes only from a claimed, live session of its role; a tainted one writes nothing.
   const guards = device ? null : claimedSession(w.db, c.session_id, c.who === 'N' ? 'night' : 'chat');
   if (guards?.tainted) throw new Fail('session_tainted');
+  // One that was handed a message off the record remembers nothing, whatever it cites (held.ts).
+  if (guards?.offRecord) throw new Fail('off_record');
   const out: MemoryOpsResponse = { applied: [], proposals: [], rejected: [] };
   let supersedes = 0;
   raw.forEach((r, i) => {

@@ -59,6 +59,8 @@ export function createFake(options = {}) {
     },
     addEvent(type, ref) { s.events.push({seq: ++s.seq, type, ref, at: now()}); notify(); },
     tapStop() { s.stop = {seq: ++s.seq, at: now(), cleared: false}; notify(); },
+    /** A conversation off the record: the live wait names it beside its messages, as the Worker does. */
+    offRecord(threadId) { (s.offRecord ??= new Set()).add(threadId); },
     closeDay() { s.dayClosed = {seq: ++s.seq, at: now()}; notify(); },
     fireWake(task = 'chat', reason = 'message') { const w = {id: randomUUID(), task, reason, status: 'fired', fired_at: now()}; s.wakes.push(w); return w; },
     /** The next `times` requests matching method+path prefix fail with status/code; `after` = handle first, then fail (lost response). */
@@ -103,8 +105,10 @@ export function createFake(options = {}) {
       const signals = [...(s.dayClosed ? ['day_closed'] : []), ...(s.stop && !s.stop.cleared && s.stop.seq > after ? ['stop'] : [])];
       if (s.seq > after || msgs.length || signals.length || now() >= deadline || ctl.closed) {
         for (const m of msgs) { m.delivered_at = now(); m.delivered_to = ctx.session; }
+        const held = [...new Set(msgs.slice(0, 20).map(m => m.thread_id).filter(t => s.offRecord?.has(t)))];
         return {seq: s.seq, changed: s.seq > after, kinds: msgs.length ? ['message'] : [], messages: msgs.slice(0, 20),
-          events: s.events.filter(e => e.seq > after).map(({type, ref, at}) => ({type, ref, at})), signals};
+          events: s.events.filter(e => e.seq > after).map(({type, ref, at}) => ({type, ref, at})), signals,
+          ...(held.length ? {off_record: held} : {})};
       }
       await new Promise(resolve => { const t = setTimeout(resolve, Math.max(0, deadline - now())); t.unref(); waiters.push(() => { clearTimeout(t); resolve(); }); });
       renewLease(ctx.role, ctx.session);

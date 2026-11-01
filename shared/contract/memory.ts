@@ -72,6 +72,8 @@ export const MEMORY_REASONS = {
   proposal_required: 'This change needs the owner first (decision cards arrive in P4).',
   never_stored: 'Keys, tokens, passwords and card or bank numbers are never stored (MEMORY.md §13).',
   session_required: 'Memory writes need a mind session that claimed its briefing and has not ended.',
+  off_record_evidence: 'That conversation is off the record: nothing from it becomes memory.',
+  deleted_evidence: 'That conversation was deleted: nothing from it becomes memory.',
 } as const;
 export type MemoryReason = keyof typeof MEMORY_REASONS;
 

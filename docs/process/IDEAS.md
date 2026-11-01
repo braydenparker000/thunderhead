@@ -459,7 +459,7 @@ Before a day away from signal, the owner says "pack for offline" and the phone d
 
 **Acceptance.** Playwright with an offline context after a fixture pack: a packed track plays (stub audio), a packed page opens, 3 reviews complete, a message queues. Back online: the outbox flushes and review state syncs. A mocked `estimate()` proves the cap. A mocked cellular connection makes it ask first.
 
-### 4.10 Off the record (ME2) [proposal]
+### 4.10 Off the record (ME2) (built 2026-11-01: MEMORY.md §6.1, HOME.md §4.12; what follows was the proposal)
 
 The owner says "off the record", and until they say "back on the record" (or 2 hours pass, or the day rolls) the mind still reads and answers, but nothing from those messages becomes memory: no facts, no open threads, no search entries, no day-note content. The messages are deleted 7 days later. The first use explains this plainly, including what it can't promise (the messages still pass through the Claude session, as all chat does), and the owner's approval there (tap or own words) is the standing approval for those deletions. The `+` sheet is unchanged.
 
@@ -518,7 +518,7 @@ Bold ideas that fail a gate. Recorded so they aren't re-proposed without new evi
 | Location history for routines | G6 | Precise location is never logged; the platform has no need for it. |
 | The mind replying to people on the owner's behalf | Ask-first `reach_people` | The mind has no outbound channel; PE3 drafts instead. |
 | Chips or quick-reply suggestions on Home | G8 (owner ruling) | "No chips on home." Suggestions live on the Briefing page and inside apps. |
-| A sixth `+` sheet item (e.g., "Off the record") | G8 (owner ruling) | The sheet's five items are fixed; ME2 is triggered by words or Settings. |
+| ~~A sixth `+` sheet item (e.g., "Off the record")~~ | G8 (owner ruling) | Overtaken 2026-11-01: the owner agreed to Off the record in the sheet (decisions.md). |
 | A standing morning session that listens all day | G7, decisions (mind) | Spends plan usage with nobody talking; cut in decisions.md. |
 | Fetching song lyrics for second-language practice | G6 (copyright, third party) | Lyrics are copyrighted; MU8 uses audio only. |
 | Scoring spiritual habits or study "consistency" as a faith metric | Law 8 | The mind never judges matters of faith; study minutes are shown only as the owner's own study trend. |

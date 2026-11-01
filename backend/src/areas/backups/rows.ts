@@ -24,12 +24,14 @@ export const columnsOf = (db: Db, table: string): string[] =>
   db.all<{ name: string }>('SELECT name FROM pragma_table_info(?)', table).map((c) => c.name);
 
 /** Up to `limit` rows after `after` (the last page's last key, null from the start), and the key
- * to read on from. */
+ * to read on from. `keep`: a condition the rows must meet, from the owning area's code (never a
+ * request): the held conversations' rows are left out of backups and the export (conversation/held-store.ts `heldRows`). */
 export function page(
   db: Db,
   table: string,
   after: unknown[] | null,
   limit: number,
+  keep?: { sql: string; args: unknown[] },
 ): { rows: Row[]; last: unknown[] | null } {
   const key = keyOf(db, table);
   const cols = key.length ? key : ['rowid'];
@@ -37,10 +39,12 @@ export function page(
   const order = cols.map(q).join(', ');
   const tuple = `(${order})`;
   const marks = `(${cols.map(() => '?').join(', ')})`;
-  const where = after ? `WHERE ${tuple} > ${marks}` : '';
+  const conds = [...(after ? [`${tuple} > ${marks}`] : []), ...(keep ? [`(${keep.sql})`] : [])];
+  const where = conds.length ? `WHERE ${conds.join(' AND ')}` : '';
   const rows = db.all<Row>(
     `SELECT ${select} FROM ${q(table)} ${where} ORDER BY ${order} LIMIT ?`,
     ...(after ?? []),
+    ...(keep?.args ?? []),
     limit,
   );
   const tail = rows.at(-1);

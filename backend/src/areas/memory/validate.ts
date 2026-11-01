@@ -1,4 +1,4 @@
-// Memory's provenance and taint rules, enforced by the Worker (MEMORY.md §6, M1–M14), each a
+// Memory's provenance and taint rules, enforced by the Worker (MEMORY.md §6, M1–M17), each a
 // small function with its own test. A broken rule throws `Reject` with its reason; the batch
 // lists it and applies the other ops (API.md §11.13). M1 (origin from the principal) is how
 // messages are written; M8–M10 route to the owner and wait for proposals (P4), so they reject
@@ -15,6 +15,7 @@ import {
 } from '../../../../shared/contract/memory.ts';
 import { neverStored } from '../../../../shared/contract/never-stored.ts';
 import type { Db } from '../../objects/base';
+import { messageHeld } from '../conversation/held';
 import { messageOrigin } from '../conversation/store';
 import { item as importItem } from '../import/store';
 import { byId as ledgerRow } from '../ledger/store';
@@ -131,6 +132,11 @@ function cite(ctx: OpContext, r: string): Cited {
     const msg = messageOrigin(ctx.db, key);
     if (!msg) throw new Reject('bad_evidence');
     if (msg.author === 'muse' || msg.origin === 'muse') throw new Reject('tainted_evidence');
+    // M17: nothing from a conversation off the record, or a deleted one, ever becomes memory
+    // (conversation/held.ts): not a fact, a rule, a confirm or a supersede, from anyone.
+    const held = messageHeld(ctx.db, key, ctx.at);
+    if (held === 'off_record') throw new Reject('off_record_evidence');
+    if (held === 'deleted') throw new Reject('deleted_evidence');
     const owner = msg.author === 'owner' && (msg.origin === 'owner_device' || msg.origin === 'import');
     return { ref: r, at: msg.created_at, owner, words: owner, event: false };
   }

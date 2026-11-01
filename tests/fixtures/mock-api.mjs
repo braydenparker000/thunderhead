@@ -3,6 +3,7 @@
 // socket (page.routeWebSocket), so home's chat can be too. No network; synthetic data only.
 import { briefingAnswer, briefingState } from './mock-briefing.mjs';
 import { EXPORT_ID, exportAnswer, exportState, ZIP_BYTES } from './mock-export.mjs';
+import { heldAnswer } from './mock-held.mjs';
 import { memoryAnswer, memoryState } from './mock-memory.mjs';
 import { proposalsAnswer, proposalsState } from './mock-proposals.mjs';
 import { threadsAnswer, threadsState } from './mock-threads.mjs';
@@ -273,6 +274,7 @@ function answer(state, method, url, body) {
     memoryAnswer(state.memory, method, p, url, body) ??
     exportAnswer(state.export, method, p, body) ??
     briefingAnswer(state.briefing, method, p, body) ??
+    heldAnswer(state, method, p, body, (kind) => changed(state.chat, kind)) ??
     chatAnswer(state.chat, method, p, url, body) ??
     threadsAnswer(state.threads, method, p, url, state.chat.thread, state.memory?.facts) ??
     err(404, 'not_found')
