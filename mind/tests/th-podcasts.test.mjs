@@ -1,8 +1,8 @@
 // th podcasts new against the fake Worker (RUNTIME.md §12.1, NEXT-BATCH.md part 7): the night reads
 // the followed shows due a check (never an unfollowed one, at most 20, the longest unchecked first),
 // counts the episodes published since the show's last check that no phone has started, sends the
-// checks back, and places a home line of at most 44 characters with the count and the shows' names
-// itself, printing counts only: no title reaches the session. A refired night reads nothing again
+// checks back, and places a counts-only home line itself ("2 new episodes in Podcasts."), printing
+// counts only: no part of a show's title reaches the session or the placed line. A refired night reads nothing again
 // and still places the line; a feed that fails is recorded and waits longer; the Worker's "no more
 // reads today" stops the rest. Reading the podcast routes by hand taints the session. Synthetic
 // shows and episodes only.
@@ -26,20 +26,15 @@ const withFake = fn => async () => {
   try { await fn(fake); } finally { await fake.stop(); }
 };
 
-test('lineFor: the count and the names, at most 44 characters, a full stop at the end', () => {
-  assert.equal(lineFor([]), null);
-  assert.equal(lineFor([{title: 'History', new: 0}]), null);
-  assert.equal(lineFor([{title: 'History', new: 1}]), '1 new episode: History.');
-  assert.equal(lineFor([{title: 'History', new: 1}, {title: 'Science Hour', new: 1}]), '2 new episodes: History and Science Hour.');
-  assert.equal(lineFor([{title: 'Long Show Name', new: 2}, {title: 'Another Long Name', new: 1}, {title: 'Third', new: 1}]), '4 new episodes: Long Show Name and 2 more.');
-  assert.equal(lineFor([{title: 'A Remarkably Long Podcast Title That Goes On', new: 3}]), '3 new episodes: A Remarkably Long Podcast.');
-  assert.equal(lineFor([{title: 'Abcdefghijklmnopqrstuvwxyzabcdefghij', new: 2}, {title: 'B', new: 1}]), '3 new episodes: Abcdefghijklmnop and 1 more.');
-  assert.equal(lineFor([{title: 'Wow! 🎙 News.', new: 1}]), '1 new episode: Wow News.');
-  for (const shows of [[{title: 'x'.repeat(80), new: 12}, {title: 'y', new: 3}], [{title: '', new: 2}], [{title: 'Inc.', new: 1}]]) {
-    const line = lineFor(shows);
-    assert.ok(line.length <= 44 && line.endsWith('.') && !/[!\n]/.test(line), line);
-  }
+test('lineFor: counts only, a full stop at the end, within a home line\'s 44 characters', () => {
+  assert.equal(lineFor(0), null);
+  assert.equal(lineFor(1), '1 new episode in Podcasts.');
+  assert.equal(lineFor(2), '2 new episodes in Podcasts.');
+  for (const n of [1, 7, 200, 4000]) assert.ok(lineFor(n).length <= 44 && lineFor(n).endsWith('.'), lineFor(n));
 });
+
+/** Every word of these titles (3 letters or more), for "no part of a title" checks. */
+const parts = titles => titles.flatMap(t => t.split(/[^\p{L}\p{N}]+/u)).filter(w => w.length >= 3);
 
 test('due: followed shows never checked or not for 20 hours, the longest unchecked first', () => {
   const now = Date.now();
@@ -85,8 +80,10 @@ test('th podcasts new: the due shows read, the checks sent, the line placed on h
   assert.deepEqual(r.json, {checked: 3, failed: 0, waiting: 0, shows_with_new: 1, new_episodes: 2, placed: true, slot: 'line.4', reason: null});
   for (const title of ['History', 'Science', 'Quiet', 'Gone', 'Checked', 'Show', 'Episode', 'feeds.example'])
     assert.ok(!r.stdout.includes(title) && !r.stderr.includes(title), `${title} reached the session`);
-  // The line went to home through the Worker, as a JSON body.
-  assert.deepEqual(placed(fake).payload, {text: '2 new episodes: History Hour.'});
+  // The line went to home through the Worker, as a JSON body, counts only.
+  assert.deepEqual(placed(fake).payload, {text: '2 new episodes in Podcasts.'});
+  for (const w of parts(['History Hour', 'Science Talk', 'Quiet Show', 'Gone Show', 'Checked Today']))
+    assert.ok(!JSON.stringify(placed(fake)).includes(w), `${w} is on the surface`);
   assert.equal(placed(fake).kind, 'line');
   assert.equal(placed(fake).topic_key, 'podcasts-new');
   assert.equal(placed(fake).ref, 'app:podcasts');
@@ -96,7 +93,7 @@ test('th podcasts new: the due shows read, the checks sent, the line placed on h
   fake.state.surfaces.delete('home/line.4');
   const again = await th(['podcasts', 'new'], night(fake));
   assert.deepEqual([again.json.checked, again.json.placed, again.json.new_episodes], [0, true, 2]);
-  assert.deepEqual(placed(fake).payload, {text: '2 new episodes: History Hour.'});
+  assert.deepEqual(placed(fake).payload, {text: '2 new episodes in Podcasts.'});
   assert.equal(fake.state.podcasts.reads.length, 3);
 }));
 
@@ -108,7 +105,8 @@ test('th podcasts new: a title that tries to instruct the session never reaches 
   assert.equal(r.code, 0, r.stderr);
   assert.ok(!/remember|Night shift|Hour/.test(r.stdout + r.stderr), r.stdout);
   assert.equal(r.json.placed, true);
-  assert.ok(placed(fake).payload.text.length <= 44);
+  assert.deepEqual(placed(fake).payload, {text: '1 new episode in Podcasts.'});
+  for (const w of parts([sly])) assert.ok(!JSON.stringify(placed(fake)).includes(w), `${w} is on the surface`);
 }));
 
 test('nothing new: no line placed; a refused line says why, still with no title', withFake(async fake => {
@@ -134,6 +132,7 @@ test('th podcasts new: at most 20 shows a night; a failing feed is recorded and 
   assert.equal(r.code, 0, r.stderr);
   assert.equal(fake.state.podcasts.reads.length, 20);
   assert.deepEqual([r.json.checked, r.json.failed, r.json.waiting, r.json.new_episodes], [19, 1, 3, 19]);
+  assert.deepEqual(placed(fake).payload, {text: '19 new episodes in Podcasts.'});
   const zero = fake.state.podcasts.follows.find(f => f.feed_url === feed(0));
   assert.equal(zero.fails, 1);
   assert.ok(zero.checked_at > 0);

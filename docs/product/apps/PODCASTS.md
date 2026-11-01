@@ -204,7 +204,9 @@ the show appears in Shows; Unfollow → gone, Undo → back with its settings.
 In step 7 the night reads the followed shows due a check (each at most once a day, at most 20 a night,
 the longest unchecked first) through `GET /v1/podcasts/feed`, with the phone's own reader, and counts
 the episodes published since the show's last check that no phone has started; it places "2 new
-episodes: …" with the shows' names as one of its home lines, which home shows in the Overnight card.
+episodes in Podcasts." as one of its home lines, which home shows in the Overnight card; a tap
+opens Podcasts. The line is counts only, never a show's name: titles are their publishers' words,
+and a surface is read back by any of the mind's sessions.
 The Worker lets the night read only followed shows' feeds, counts its reads (at most 40 a UTC day, in a stored row) and keeps each show's last check (and failed checks in a row, which make it wait longer) on
 its follow row. The cron check below stays a proposal.
 

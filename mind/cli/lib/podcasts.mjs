@@ -9,11 +9,12 @@
 // /v1/podcasts/progress). The checks go back to the Worker (POST /v1/podcasts/follows/checked), a
 // failed feed's too.
 //
-// The home line ("2 new episodes: History Hour.", at most 44 characters) holds show titles, which
-// their publishers wrote: outside text. So the session never sees it. This command places it itself
-// (PUT /v1/surfaces/home/line.4, a JSON body from this process, never a shell argument) and prints
-// counts only, as mind/jobs/study-ingest.mjs does for books. The line counts every show checked in
-// the last 20 hours, so a refired night still places it.
+// The home line is counts only, "2 new episodes in Podcasts." (one: "1 new episode in Podcasts."),
+// never a show's name: titles are their publishers' words (outside text), and a surface is read
+// back by any session (`th surface ls`). This command places it itself (PUT
+// /v1/surfaces/home/line.4, ref app:podcasts, so a tap opens Podcasts) and prints counts only, as
+// mind/jobs/study-ingest.mjs does for books. The line counts every show checked in the last 20
+// hours, so a refired night still places it.
 //
 //   → {"checked","failed","waiting","shows_with_new","new_episodes","placed","slot","reason"}
 import {parseFeed} from '../../../frontend/th/podcasts/feed.js';
@@ -29,8 +30,6 @@ const DAY = 86_400_000;
 const HOUR = 3_600_000;
 /** How far back a position counts as "started" (a week, and a day for the night itself). */
 const STARTED_MS = 8 * DAY;
-/** Home lines (shared/contract/surfaces.ts): at most 44 characters, a full stop at the end. */
-const LINE_MAX = 44;
 const PAGES = 10;
 
 /** Every row a paged podcasts route has since `since`. @param {string} path @param {number} since */
@@ -74,30 +73,10 @@ export function freshOf(f, feed, started, now) {
   return {feed_url: f.feed_url, latest_at: latest, new_n: n};
 }
 
-/** A show's name as a home line may carry it: no control characters, emoji or exclamation marks,
- * one space at a time, no full stop of its own at the end. @param {unknown} title */
-const nameOf = title => String(title ?? '').replace(/[\p{Cc}\p{Extended_Pictographic}!]/gu, '').replace(/\s+/g, ' ').trim().replace(/\.+$/, '');
-
-/** The home line for these shows (most new first), at most 44 characters, or null when none has
- * anything new. @param {{title: string, new: number}[]} shows */
-export function lineFor(shows) {
-  const total = shows.reduce((n, s) => n + s.new, 0);
-  if (!total) return null;
-  const head = `${total} new episode${total === 1 ? '' : 's'}`;
-  const names = shows.map(s => nameOf(s.title)).filter(Boolean);
-  const list = (shown, more) => (more ? `${shown.join(', ')} and ${more} more` : shown.length > 1 ? `${shown.slice(0, -1).join(', ')} and ${shown.at(-1)}` : shown[0]);
-  for (let k = names.length; k >= 1; k--) {
-    const line = `${head}: ${list(names.slice(0, k), names.length - k)}.`;
-    if (line.length <= LINE_MAX) return line;
-  }
-  // The first name cut to fit (at a space when there is one), or only the counts.
-  const more = names.length > 1 ? ` and ${names.length - 1} more` : '';
-  const room = LINE_MAX - `${head}: `.length - more.length - 1;
-  const cut = names[0]?.slice(0, room + 1);
-  const short = cut && cut.length > room ? (cut.lastIndexOf(' ') > 0 ? cut.slice(0, cut.lastIndexOf(' ')) : cut.slice(0, room)) : cut;
-  if (short && short.trimEnd().length >= 8) return `${head}: ${short.trimEnd()}${more}.`;
-  return `${head} from ${shows.length} show${shows.length === 1 ? '' : 's'}.`;
-}
+/** The home line for this many new episodes, counts only (a home line ends with a full stop), or
+ * null for none. @param {number} total */
+export const lineFor = total =>
+  total > 0 ? `${total} new episode${total === 1 ? '' : 's'} in Podcasts.` : null;
 
 /** Places the line on home (line.4) through the Worker; why it couldn't, as an error code, or null.
  * @param {string} text */
@@ -142,20 +121,20 @@ export async function podcasts(argv) {
   }
   if (checked.length) await request('POST', '/v1/podcasts/follows/checked', {body: {items: checked}});
   const found = new Map(checked.map(c => [c.feed_url, c.new_n]));
-  const shows = follows
+  const counts = follows
     .filter(f => f.followed)
-    .map(f => ({title: f.title, new: found.has(f.feed_url) ? found.get(f.feed_url) : f.checked_at > now - L.check_gap_ms ? f.new_n : 0}))
-    .filter(s => s.new > 0)
-    .sort((a, b) => b.new - a.new || (a.title < b.title ? -1 : 1));
-  const line = lineFor(shows);
+    .map(f => (found.has(f.feed_url) ? found.get(f.feed_url) : f.checked_at > now - L.check_gap_ms ? f.new_n : 0))
+    .filter(n => n > 0);
+  const total = counts.reduce((a, n) => a + n, 0);
+  const line = lineFor(total);
   const reason = line ? await place(line) : 'nothing_new';
-  // Counts only: the shows' titles stay out of the session (outside text).
+  // Counts only: no show's title reaches the session or the surface (outside text).
   out({
     checked: checked.length - failed,
     failed,
     waiting: Math.max(0, todo.length - checked.length),
-    shows_with_new: shows.length,
-    new_episodes: shows.reduce((n, s) => n + s.new, 0),
+    shows_with_new: counts.length,
+    new_episodes: total,
     placed: reason === null,
     slot: reason === null ? SLOT : null,
     reason,
