@@ -1,8 +1,10 @@
 """The job's two connections, with the standard library only: the Worker (the ci key) and the music bucket
 (a read-only R2 key, S3 signature v4).
 
-Secrets come from the environment and go nowhere else: never into a log line, an error, a file or a URL.
-Every failure is raised as Failed(reason) with a reason from a fixed list; the caller prints only that
+Secrets are taken out of the environment once, at the start of the job (take_secrets), so no process
+the job starts (the analysing workers, opusdec) inherits them; they go nowhere else: never into a log
+line, an error, a file or a URL. Redirects are refused, so a bearer token or a signature never follows
+one to another host. Every failure is raised as Failed(reason) with a reason from a fixed list; the caller prints only that
 reason, so no address, key, hash or server message ever reaches the public log.
 """
 
@@ -28,17 +30,30 @@ class Failed(Exception):
         self.status = status
 
 
-def _env(name):
-    v = os.environ.get(name, "")
-    if not v:
+SECRETS = ("TH_CI_TOKEN", "R2_ACCOUNT_ID", "R2_JOBS_ACCESS_KEY_ID", "R2_JOBS_SECRET")
+
+
+def take_secrets():
+    """The job's secrets, removed from this process's environment so that nothing it starts gets them."""
+    out = {k: os.environ.pop(k, "") for k in SECRETS}
+    out["TH_API"] = os.environ.get("TH_API", "")
+    if not all(out.values()):
         raise Failed("not_configured")
-    return v
+    return out
+
+
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 class Worker:
-    def __init__(self):
-        self.base = _env("TH_API").rstrip("/")
-        self.token = _env("TH_CI_TOKEN")
+    def __init__(self, base, token):
+        self.base = base.rstrip("/")
+        self.token = token
 
     def _call(self, method, path, body=None, ctype=None, reason="worker", tries=4):
         headers = {"Authorization": f"Bearer {self.token}", "TH-Client": "ci/jobs-audio", "Accept": "application/json"}
@@ -49,7 +64,7 @@ class Worker:
                 time.sleep(2**attempt)
             req = urllib.request.Request(self.base + path, data=body, method=method, headers=headers)
             try:
-                with urllib.request.urlopen(req, timeout=60) as res:
+                with _OPENER.open(req, timeout=60) as res:
                     raw = res.read()
                     return res.status, (json.loads(raw) if raw else None)
             except urllib.error.HTTPError as e:
@@ -77,10 +92,10 @@ def _sign(key, msg):
 class Bucket:
     """GET only: the key can do nothing else, and this code asks for nothing else."""
 
-    def __init__(self):
-        self.host = f"{_env('R2_ACCOUNT_ID')}.r2.cloudflarestorage.com"
-        self.key_id = _env("R2_JOBS_ACCESS_KEY_ID")
-        self.secret = _env("R2_JOBS_SECRET")
+    def __init__(self, account, key_id, secret):
+        self.host = f"{account}.r2.cloudflarestorage.com"
+        self.key_id = key_id
+        self.secret = secret
 
     def _headers(self, path):
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -107,7 +122,7 @@ class Bucket:
             h, n = hashlib.sha256(), 0
             try:
                 req = urllib.request.Request(f"https://{self.host}{path}", headers=self._headers(path))
-                with urllib.request.urlopen(req, timeout=60) as res, open(dest, "wb") as out:
+                with _OPENER.open(req, timeout=60) as res, open(dest, "wb") as out:
                     for block in iter(lambda: res.read(1 << 16), b""):
                         n += len(block)
                         if n > MAX_AUDIO:

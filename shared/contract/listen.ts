@@ -84,7 +84,7 @@ export const KEYS = [
 ] as const;
 export type KeyName = (typeof KEYS)[number];
 
-export const FAIL_REASONS = ['download', 'hash_mismatch', 'decode', 'analyze', 'timeout'] as const;
+export const FAIL_REASONS = ['download', 'hash_mismatch', 'decode', 'too_long', 'analyze', 'timeout'] as const;
 export type FailReason = (typeof FAIL_REASONS)[number];
 
 /** The CLAP model the embedding and moods come from (Apache-2.0, JOBS.md §3.2), by its pinned revision

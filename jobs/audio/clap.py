@@ -37,7 +37,6 @@ FILES = [
     WEIGHTS,
 ]
 RATE = 48000
-WINDOW = 10 * RATE
 
 
 class ClapError(Exception):
@@ -96,24 +95,18 @@ class Clap:
         out = getattr(out, "pooler_output", out)
         return _unit(out.detach().cpu().numpy().astype(np.float64))
 
-    def windows(self, mono48):
-        n = len(mono48)
-        if n <= 3 * WINDOW:
-            return [mono48[:WINDOW] if n >= WINDOW else mono48]
-        return [mono48[int(c * n) - WINDOW // 2 : int(c * n) + WINDOW // 2] for c in (0.25, 0.5, 0.75)]
-
-    def embed(self, mono48):
-        """The song's 512-d unit vector."""
-        wins = [np.asarray(w, dtype=np.float32) for w in self.windows(mono48)]
+    def embed(self, windows):
+        """The song's 512-d unit vector, from its 10-second windows (48 kHz mono; dsp.Windows)."""
+        wins = [np.asarray(w, dtype=np.float32) for w in windows]
         inputs = self.processor(audio=wins, sampling_rate=RATE, return_tensors="pt")
         return _unit(self._features(inputs, "audio").mean(axis=0))
 
     def _versus(self, a, first, second):
         return _sigmoid(self.scale * (float(a @ self.text[first]) - float(a @ self.text[second])))
 
-    def scores(self, mono48, signal_energy):
+    def scores(self, windows, signal_energy):
         """moods, valence, arousal, vocals, emb and emb_v for a result."""
-        a = self.embed(mono48)
+        a = self.embed(windows)
         sims = {k: float(a @ self.text[p]) for k, p in moods.MOODS.items()}
         mean = sum(sims.values()) / len(sims)
         mood = {k: _sigmoid(self.scale * (s - mean)) for k, s in sims.items()}
