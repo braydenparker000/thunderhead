@@ -13,7 +13,7 @@ import { wipe } from '/th/session.js';
 import { confirmSheet, el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
 import { outbox } from '/th/chat/store.js';
 
-const TITLES = { settings: 'Settings', quiet: 'Quiet hours', devices: 'Sign-in & devices', agents: 'Agents', account: 'Account', memory: 'What I remember', notifications: 'Notifications', export: 'Export' };
+const TITLES = { settings: 'Settings', quiet: 'Quiet hours', devices: 'Sign-in & devices', agents: 'Agents', account: 'Account', memory: 'What I remember', notifications: 'Notifications', export: 'Export', deleted: 'Recently deleted' };
 
 /** Signs this device out, asking first while messages are still waiting to send (SIGN-IN.md §11.3)
  * or a Forget hasn't reached the Worker (MEMORY.md §12): signing out wipes the phone, and with it
@@ -52,7 +52,7 @@ function forgetsBody(forgets, lead) {
 const stack = [];
 
 /** Opens a settings page: over Settings when opened from it (`over`), else in place of what was open.
- * @param {'settings' | 'quiet' | 'devices' | 'agents' | 'account' | 'memory' | 'notifications' | 'export'} name
+ * @param {'settings' | 'quiet' | 'devices' | 'agents' | 'account' | 'memory' | 'notifications' | 'export' | 'deleted'} name
  * @param {{ fromRoute?: boolean, role?: string, over?: boolean, focus?: string }} [opts] */
 export async function openPage(name, opts = {}) {
   if (!opts.over) for (const p of stack.splice(0)) p.remove();
@@ -101,6 +101,7 @@ export async function openPage(name, opts = {}) {
   else if (name === 'memory') cleanup = await (await import('./memory.js')).memory(body);
   else if (name === 'export') await (await import('./export.js')).exportPage(body);
   else if (name === 'notifications') await (await import('./notifications.js')).notifications(body);
+  else if (name === 'deleted') await (await import('./deleted.js')).deletedPage(body);
   else (await import('./account.js')).account(body);
 }
 

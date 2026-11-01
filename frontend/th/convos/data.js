@@ -135,6 +135,17 @@ export async function rename(id, title) {
   return t;
 }
 
+/** Delete (MENU-AND-SETTINGS.md §3.3): the Worker hides it at once and keeps it 30 days in
+ * Settings › Recently deleted, then purges it. @param {string} id */
+export async function remove(id) {
+  await signedIn((tk) => api.call(`/v1/threads/${encodeURIComponent(id)}`, { method: 'DELETE', token: tk }));
+  list.threads.delete(id);
+}
+
+/** Back from Recently deleted. @param {string} id */
+export const restore = (id) =>
+  signedIn((tk) => api.call(`/v1/threads/${encodeURIComponent(id)}/restore`, { method: 'POST', token: tk }));
+
 /** "Continue this": links a filed thread to today's, so the mind reads it in its next briefing.
  * @param {string} id */
 export const carryOn = (id) => signedIn((tk) => api.call(`/v1/threads/${encodeURIComponent(id)}/continue`, { method: 'POST', token: tk }));

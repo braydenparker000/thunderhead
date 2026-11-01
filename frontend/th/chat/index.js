@@ -22,6 +22,7 @@ import { picked, take } from '../attach/state.js';
 import { createView } from './view.js';
 import { keepZone } from './zone.js';
 import { wireMic } from '../dictate/mic.js';
+import * as rec from '../record/record.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').TodayResponse} TodayResponse */
 /** @typedef {import('../../../shared/contract/api.ts').MindPresence} MindPresence */
@@ -94,10 +95,13 @@ export async function startChat() {
     else if (kind === 'quiet') toast('I\u2019ll hold everything until then.', { label: 'End now', run: () => setQuiet(0) });
   });
 
+  // Off the record (th/record): shown in place of today's.
+  let otr = rec.current();
+  rec.mark(!!otr);
   // --- paint ----------------------------------------------------------------------------------
   function paint() {
     const now = Date.now();
-    const shown = model.merge(state.today?.messages ?? [], state.local);
+    const shown = model.merge(state.today?.messages ?? [], state.local.filter((m) => (m.thread_id || null) === otr));
     const waiting = model.waitingFor(shown);
     const slot = waiting ? model.slot({ sentAt: waiting.created_at, now, presence: state.presence, progress: model.hasProgress(shown, waiting) }) : 'none';
     const working = state.presence?.state === 'working';
@@ -106,9 +110,9 @@ export async function startChat() {
     const words = waiting && slot === 'dots' ? model.thinking({ body: waiting.body, sentAt: waiting.created_at, now, presence: state.presence }) : '';
     // The mind's home lines join today's chat as cards, at the time they were placed (the night's at
     // the end of the quiet hours).
-    const lines = state.today ? homeLines(state.surfaces, { day: state.today.day, now, quietEnd: state.quietEnd }) : [];
+    const lines = state.today && !otr ? homeLines(state.surfaces, { day: state.today.day, now, quietEnd: state.quietEnd }) : [];
     // Once quiet ends, one line says what came while it held (the cards it held show a moment later).
-    const ended = state.today && !catchingUp ? endedQuiet(now) : null;
+    const ended = state.today && !catchingUp && !otr ? endedQuiet(now) : null;
     if (ended && state.today) {
       const day = state.today.day;
       catchingUp = setTimeout(() => {
@@ -120,7 +124,7 @@ export async function startChat() {
     }
     const cu = catchUpFor(state.today?.day);
     const all = model.withLines(shown, lines);
-    if (cu) {
+    if (cu && !otr) {
       all.push(/** @type {any} */ ({ seq: 0, id: `catchup:${cu.at}`, thread_id: '', author: 'system', origin: 'system', kind: 'text', body: cu.body, meta: { line: 'catchup' }, attachments: [], reply_to: null, created_at: cu.at, delivered_at: null, acked_at: null, answered_at: null }));
       all.sort((a, b) => a.created_at - b.created_at);
     }
@@ -162,9 +166,12 @@ export async function startChat() {
   /** @returns {Promise<number>} the seq today's read reflects */
   async function loadToday() {
     const t = await signedIn((tok) => api.today(tok));
+    // The menu's Now and search keep today's.
+    const v = (otr && (await signedIn((tok) => rec.view(tok, /** @type {string} */ (otr), t)))) || t;
     const known = new Set((state.today?.messages ?? []).map((m) => m.id));
-    if (state.loaded) for (const m of t.messages) if (!known.has(m.id) && m.author !== 'owner') state.fresh.add(m.id);
-    state.today = current.today = t;
+    if (state.loaded) for (const m of v.messages) if (!known.has(m.id) && m.author !== 'owner') state.fresh.add(m.id);
+    state.today = v;
+    current.today = t;
     return t.seq;
   }
   async function loadSettings() {
@@ -201,7 +208,8 @@ export async function startChat() {
       verbsBusy = false;
     }
   }
-  const save = () => cache.write({ today: state.today, presence: state.presence, surfaces: state.surfaces, seq: state.applied, at: Date.now() });
+  // Never a word off the record in this phone's cache.
+  const save = () => otr || cache.write({ today: state.today, presence: state.presence, surfaces: state.surfaces, seq: state.applied, at: Date.now() });
 
   // --- sync -----------------------------------------------------------------------------------
   // Each pass pulls the feed from `applied` and reloads only what it touches; a frame that comes
@@ -318,12 +326,12 @@ export async function startChat() {
             keep(m);
           }
         }
-        return api.say(tok, m.id, m.body, m.reply_to, m.files?.map((f) => `file:${f.id}`));
+        return api.say(tok, m.id, m.body, m.reply_to, m.files?.map((f) => `file:${f.id}`), m.thread_id);
       });
       // Sent: the Worker's copy replaces this phone's. With today not loaded yet (it failed), it is
       // kept as today's first message rather than dropped from the screen (audit fix 2).
       if (!state.today) state.today = current.today = /** @type {TodayResponse} */ ({ thread: null, messages: [], seq: 0, day: '' });
-      if (!state.today.messages.some((x) => x.id === out.id)) state.today.messages.push(out);
+      if ((m.thread_id || null) === otr && !state.today.messages.some((x) => x.id === out.id)) state.today.messages.push(out);
       state.local = state.local.filter((x) => x.id !== m.id);
       drop(m.id);
       try {
@@ -332,6 +340,12 @@ export async function startChat() {
       return true;
     } catch (e) {
       const f = failure(e);
+      // Its conversation off the record is gone: its words leave this phone.
+      if (f.code === 'gone' && m.thread_id) {
+        state.local = state.local.filter((x) => x.id !== m.id);
+        drop(m.id);
+        return false;
+      }
       const retryable = f.kind !== 'api' || f.status >= 500 || f.status === 429;
       m.tries++;
       m.state = !retryable ? 'failed' : !navigator.onLine ? 'queued' : m.tries > model.RETRY_MS.length ? 'failed' : 'sending';
@@ -436,6 +450,7 @@ export async function startChat() {
       tries: 0,
       ...(replyTo ? { reply_to: replyTo } : {}),
       ...(files?.length ? { files } : {}),
+      ...(otr ? { thread_id: otr } : {}),
     };
     state.local.push(m);
     return m;
@@ -507,7 +522,7 @@ export async function startChat() {
 
   // --- life ---------------------------------------------------------------------------------
   const cached = await cache.read();
-  if (cached) {
+  if (cached && !otr) {
     Object.assign(state, { today: cached.today, presence: cached.presence, surfaces: cached.surfaces ?? [] });
     current.today ??= cached.today;
     paint();
@@ -531,6 +546,11 @@ export async function startChat() {
     paint();
   });
   document.addEventListener('th:quiet', () => paint());
+  document.addEventListener('th:otr', () => {
+    otr = rec.current();
+    rec.mark(!!otr);
+    loadToday().then(paint, () => {});
+  });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) return;
     live.wake();

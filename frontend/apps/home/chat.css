@@ -112,3 +112,7 @@
 @keyframes pulse{50%{border-color:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 35%,transparent)}}
 /* The date line's "· 1 waiting" (HOME.md §3.5): gold text, a 44 px tap target. */
 @media (prefers-reduced-motion: reduce){.decide button.busy::after,.card.pulse{animation:none}}
+/* Off the record (th/record): one quiet line over the conversation, End beside it */
+.otrmark{align-self:center;display:flex;align-items:center;gap:6px;margin:0 0 6px;font:500 12.5px/1.4 var(--ui);color:var(--ink-3)}
+.otrmark .i{width:15px;height:15px;fill:currentColor}
+.otrmark button{min-height:44px;padding:0 6px;border:0;background:none;font:600 12.5px var(--ui);color:var(--accent-text);cursor:pointer}

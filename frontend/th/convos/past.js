@@ -10,7 +10,7 @@ import { rich } from '../chat/rich.js';
 import { lineFor } from '../copy.js';
 import { failure } from '../flow.js';
 import * as data from './data.js';
-import { count, OLD_CHATS, titleOf, whenOf } from './model.js';
+import { count, goneIn, OLD_CHATS, OTR, titleOf, whenOf } from './model.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').Thread} Thread */
 /** @typedef {import('../../../shared/contract/api.ts').Message} Message */
@@ -71,11 +71,13 @@ export async function show(t, focus = null) {
   const was = open;
   open = { id: t.id, before: null, items: [], imported: t.kind === 'imported' };
   const mine = open;
-  label.textContent = titleOf(t);
+  // One off the record says so for a title, and when it goes instead of when it was.
+  const otr = t.kind === 'off_record';
+  label.textContent = otr && !t.title ? OTR : titleOf(t);
   /** "Yesterday · 3 messages", the day left out when the title already is it. @param {string} [day] */
   const meta = (day) => {
-    const w = day ? whenOf(t.day, day) : '';
-    const text = [w !== titleOf(t) && w, t.message_count && count(t.message_count)].filter(Boolean).join(' · ');
+    const w = day && !otr ? whenOf(t.day, day) : '';
+    const text = [w !== titleOf(t) && w, t.message_count && count(t.message_count), otr && goneIn(t)].filter(Boolean).join(' · ');
     when.replaceChildren(...(t.kind === 'imported' ? [el('span', 'tag', OLD_CHATS)] : []), text);
   };
   meta();

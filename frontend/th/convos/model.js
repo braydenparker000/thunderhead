@@ -150,6 +150,14 @@ export function whenOf(day, today) {
 /** The tag on an imported thread's row and in its past view. */
 export const OLD_CHATS = 'Old Chats';
 
+/** The tag on a conversation off the record. */
+export const OTR = 'Off the record';
+/** When it goes: "gone in 3 days". @param {Thread} t */
+export const goneIn = (t, now = Date.now()) => {
+  const n = Math.max(1, Math.ceil(((t.purge_at ?? now) - now) / 86_400_000));
+  return `gone in ${n} day${n === 1 ? '' : 's'}`;
+};
+
 // --- search -----------------------------------------------------------------------------------
 
 /** Lower-cased and accent-folded, with where each folded character came from. @param {string} s */

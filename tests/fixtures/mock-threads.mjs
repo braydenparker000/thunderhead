@@ -114,8 +114,10 @@ export function threadsAnswer(s, method, p, url, open, facts = []) {
       return `${text.slice(0, i)}«${text.slice(i, i + q.length)}»${text.slice(i + q.length)}`;
     };
     const items = [];
-    for (const list of Object.values(s.messages))
-      for (const m of list) if (fold(m.body).includes(q)) items.push({ source: 'messages', ref: `msg:${m.id}`, snippet: mark(m.body), at: m.created_at, thread_id: m.thread_id, score: 0.016 });
+    // As the Worker: a conversation off the record is never found (backend conversation/search.ts).
+    const otr = new Set(s.threads.filter((t) => t.kind === 'off_record').map((t) => t.id));
+    for (const [id, list] of Object.entries(s.messages))
+      if (!otr.has(id)) for (const m of list) if (fold(m.body).includes(q)) items.push({ source: 'messages', ref: `msg:${m.id}`, snippet: mark(m.body), at: m.created_at, thread_id: m.thread_id, score: 0.016 });
     for (const f of facts) if (fold(f.text).includes(q)) items.push({ source: 'facts', ref: `fact:${f.id}`, snippet: mark(f.text), at: f.recorded_at, score: 0.016 });
     return [200, { items: items.slice(0, Number(url.searchParams.get('limit') ?? 20)) }];
   }

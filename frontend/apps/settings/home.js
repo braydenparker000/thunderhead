@@ -39,6 +39,7 @@ export const PAGES = /** @type {const} */ ([
   ['agents', 'Agents', 'key'],
   ['account', 'Account', 'user-circle'],
   ['export', 'Export', 'download-simple'],
+  ['deleted', 'Recently deleted', 'trash'],
 ]);
 
 /** A choice of a few, as a radio group that moves with the arrow keys.

@@ -8,14 +8,14 @@
 // shift's summary or the message count under it, with an "Old Chats" tag on an imported one. A tap
 // on a row shows it read-only on home (past.js); a tap on Now returns there. Swiped left, a row
 // offers Pin (pinned rows come first, kept on this phone) and its whole summary. Skeleton rows
-// stand in while the list first loads. Held, a row offers Continue this and Rename (actions.js);
-// Delete waits for its own step (decisions.md). Text is set with textContent.
+// stand in while the list first loads. Held, a row offers Continue this, Rename, Pin and Delete,
+// and Now offers Delete (actions.js); one off the record is tagged so. Text is set with textContent.
 import { lineFor } from '../copy.js';
 import { failure } from '../flow.js';
 import { toast } from '../ui.js';
 import { holdCards } from './actions.js';
 import * as data from './data.js';
-import { byMonth, count, GROUPS, grouped, isNow, longDate, metaOf, OLD_CHATS, PAGE, partOfDay, subOf, titleOf } from './model.js';
+import { byMonth, count, GROUPS, grouped, isNow, longDate, metaOf, OLD_CHATS, OTR, PAGE, partOfDay, subOf, titleOf } from './model.js';
 import * as past from './past.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').Thread} Thread */
@@ -255,6 +255,7 @@ function row(t, g, i) {
   l1.append(el('span', 'tl', titleOf(t)), el('small', 'when', metaOf(t, g)));
   const l2 = el('span', 'l2');
   if (t.kind === 'imported') l2.append(el('span', 'tag', OLD_CHATS));
+  if (t.kind === 'off_record') l2.append(el('span', 'tag otr', OTR));
   l2.append(el('span', 'sum', subOf(t)));
   const tx = el('span', 'tx');
   tx.append(l1, l2);

@@ -44,6 +44,9 @@ play
 stop
 pause
 check
+# Off the record and Recently deleted (2026-11-01)
+eye-slash
+arrow-counter-clockwise
 # Study (P7)
 dots-three
 arrow-clockwise
