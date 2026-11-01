@@ -4,6 +4,10 @@
 // tainted sessions, which a claim looks up by the taint's time (a taint lasts 24 hours for its
 // role, MEMORY.md §7). v11 is the night shift's run record, one row per closed day (RUNTIME.md
 // §12), and a time index on session notes (the night reads a day's, the briefing the latest).
+// v26 dates every taint event (`taint_event_at`: a later read re-dates an already tainted session,
+// a claim's inherited taint doesn't), records when a night session last read songs' tags
+// (`songs_at`, so a sibling's read closes the web of every night session claimed before it), and
+// marks a session note written by a tainted session (`tainted`, MEMORY.md §7).
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneLeases, pruneNightRuns, pruneNotes, pruneSessions, pruneWakes } from './prune';
 
@@ -92,6 +96,20 @@ export const MIND_MIGRATIONS: Migration[] = [
       ) WITHOUT ROWID`,
       // The night reads a day's notes by time, and the briefing the latest one.
       'CREATE INDEX session_notes_at ON session_notes (created_at)',
+    ],
+  },
+  {
+    version: 26,
+    name: 'taint events, songs, tainted notes',
+    kind: 'expand',
+    sql: [
+      'ALTER TABLE mind_sessions ADD COLUMN taint_event_at INTEGER',
+      'ALTER TABLE mind_sessions ADD COLUMN songs_at INTEGER',
+      // A row from before v26 counts its first taint as its last event.
+      `CREATE INDEX mind_sessions_taint_event ON mind_sessions (role, coalesce(taint_event_at, tainted_at))
+        WHERE tainted_at IS NOT NULL`,
+      'CREATE INDEX mind_sessions_songs ON mind_sessions (role, songs_at) WHERE songs_at IS NOT NULL',
+      'ALTER TABLE session_notes ADD COLUMN tainted INTEGER NOT NULL DEFAULT 0',
     ],
   },
 ];

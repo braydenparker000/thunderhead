@@ -47,6 +47,15 @@ export function claimedSession(db: Db, sessionId: string | null, role: MindRole)
   };
 }
 
+/** Whether text a session writes now carries outside text: its own taint, or a later taint event
+ * of its role (as for memory writes); a session the Worker doesn't know counts as tainted. */
+export function taintedNow(db: Db, sessionId: string | null, role: MindRole): boolean {
+  const s = sessionId ? read(db, sessionId) : null;
+  if (!s) return true;
+  const later = taintedSince(db, role, s.claimed_at);
+  return s.tainted_at !== null || (later !== null && later.session_id !== sessionId);
+}
+
 /** When a session was marked tainted (null: never, or no such session). */
 export function taintedAt(db: Db, sessionId: string): number | null {
   return read(db, sessionId)?.tainted_at ?? null;

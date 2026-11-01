@@ -166,12 +166,14 @@ async function now(argv) {
   if (!id) return out(flags.id ? {playing: false, at: null, id: null} : {playing: false, at: null, track: null, note: null});
   const [skip] = await sense('last_event', {type: 'music.skip'});
   const [finish] = await sense('last_event', {type: 'music.finish'});
-  const t = (await notesOf([id])).get(id);
   const left = [skip, finish].some(e => e && e.ref === play.ref && e.at >= play.at);
-  const playing = !!t && !left && play.at + (t.dur || 0) * 1000 > Date.now();
   const ago_min = Math.round((Date.now() - play.at) / 60_000);
-  // --id: the song's id alone, no tags, so the session takes in no outside text (RUNTIME.md §4.7).
-  if (flags.id) return out({playing, at: play.at, ago_min, id});
+  // --id: the song's id alone, from the senses only: no tag route is called (each one marks the
+  // session tainted on the Worker), so "never play this again" can still write its rule (RUNTIME.md
+  // §4.7). Without the song's length, "playing" means not skipped or finished since it started.
+  if (flags.id) return out({playing: !left, at: play.at, ago_min, id});
+  const t = (await notesOf([id])).get(id);
+  const playing = !!t && !left && play.at + (t.dur || 0) * 1000 > Date.now();
   const {note: n = null, ...track} = t ?? {id};
   out({playing, at: play.at, ago_min, track: lean(track), note: n});
 }

@@ -26,7 +26,6 @@ describe('the Music object', () => {
       'find_packs',
       'meter_days',
       'music_state',
-      'song_readers',
       'track_analysis',
       'track_notes',
       'track_ratings',

@@ -166,20 +166,6 @@ export function clearStale(db: Db): void {
 /** The catalog's last place (its key's end: one row). */
 export const lastOrd = (db: Db) => db.one<{ m: number | null }>('SELECT max(ord) AS m FROM tracks')?.m ?? 0;
 
-// --- night sessions that read songs' tags (the web closes to them) -------------------------------
-
-/** Days a reader's record is kept: a night session lasts an hour at most. */
-const READERS_DAYS = 7;
-
-/** Records that a night session read songs' tags (once a session), and drops the records past a week. */
-export function markReader(db: Db, session: string, at: number): void {
-  db.run('INSERT INTO song_readers (session_id, at) VALUES (?, ?) ON CONFLICT (session_id) DO NOTHING', session, at);
-  db.run('DELETE FROM song_readers WHERE at < ?', at - READERS_DAYS * 86_400_000);
-}
-
-export const songsRead = (db: Db, session: string) =>
-  db.one('SELECT 1 AS x FROM song_readers WHERE session_id = ?', session) !== null;
-
 // --- ratings -------------------------------------------------------------------------------------
 
 /** A song's rating as of `at`: the newest wins, so a late older one changes nothing. 1 row written

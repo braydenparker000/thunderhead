@@ -8,21 +8,25 @@ import {parseShell, unwrap} from './shell.mjs';
 
 export const ROLES = ['chat', 'night', 'reflex'];
 
-/** The night's songs (RUNTIME.md §6.4, §12.1): once a night session has read songs' tags (the
- * Worker's record), nothing that could look them up elsewhere. Bulk reading of the library is the
- * risk; the chat may search about the one song the owner asked about. */
+/** The night's songs (RUNTIME.md §6.4, §12.1): once any night session has read songs' tags since
+ * this one claimed (the Worker's record), nothing that could look them up elsewhere or carry them
+ * out. Bulk reading of the library is the risk; the chat may search about the one song the owner
+ * asked about. */
 const SONGS_WEB = 'This night session has read the owner\'s songs (their tags): no web lookups or searches after that, so no title leaves the Worker. A song you don\'t know gets known: false.';
+const SONGS_SHELL = 'This night session has read the owner\'s songs (their tags): no web lookups after that, and its shell runs only th (and echo, printf, true, cd and ls in the work dir), so no title leaves the Worker. Step 10 needs only th.';
 /** A tool that could reach the web: the two built in, and every MCP tool (one can fetch, browse or
  * search whatever its name says; when unsure, the night refuses). */
 export const webTool = tool => tool === 'WebSearch' || tool === 'WebFetch' || tool.startsWith('mcp__');
-/** A search of GitHub: `gh search …`, `gh api` on a search path or GraphQL (a query can search;
- * unsure, the night refuses), curl or wget to api.github.com's search or GraphQL. */
-export function searchesGitHub({cmd, args}) {
-  if (cmd === 'gh')
-    return args[0] === 'search' || (args[0] === 'api' && args.some(a => /(^|\/)search(\/|\?|$)|^\/?graphql$/.test(a)));
-  if (cmd === 'curl' || cmd === 'wget')
-    return args.some(a => /^(https?:\/\/)?api\.github\.com(:\d+)?\/(search(\/|\?|$)|graphql)/i.test(a));
-  return false;
+/** What the night's shell may still run after songs: th, and a few builtins that reach nothing (cd
+ * and ls only within the work dir or $TMPDIR). Anything else (an interpreter, gh, git, curl, an
+ * assignment) could carry a title out. */
+export function nightSafe({cmd, args}, words, ctx) {
+  if (!words.length) return true;
+  if (cmd === 'th' || cmd === 'echo' || cmd === 'printf' || cmd === 'true' || cmd === ':') return true;
+  if (cmd !== 'cd' && cmd !== 'ls') return false;
+  const dirs = positionals(args);
+  if (!dirs.length) return cmd === 'ls' && (inside(ctx.cwd, ctx.projectDir, ctx) || inside(ctx.cwd, ctx.tmpDir, ctx));
+  return dirs.every(d => !/[$`*?~]/.test(d) && (inside(d, ctx.projectDir, ctx) || inside(d, ctx.tmpDir, ctx)));
 }
 const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 const READ_TOOLS = ['Read', 'Grep', 'Glob', 'NotebookRead'];
@@ -32,8 +36,9 @@ const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
  * @typedef {{role: string, cwd: string, projectDir: string, tmpDir: string, allowedHosts: string[],
  *   headSubject?: () => string, approved?: (paths: string[], base?: string) => boolean,
  *   pushProtected?: (push: Push) => {base: string, paths: string[]}[], songsRead?: () => boolean}} Context
- * `songsRead`: whether this night session read songs' tags, from the Worker's own record (asked only
- * for a call that could reach the web; it throws, and so denies, when the Worker can't say).
+ * `songsRead`: whether any night session read songs' tags since this one claimed, from the Worker's
+ * own record (asked only for a call that could reach the web, and for a night shell command other
+ * than th and a few builtins; it throws, and so denies, when the Worker can't say).
  * `approved`: the owner approved changing these repository-relative protected paths on a branch
  * from `base` (default: the current branch's; `th approved`); missing means never. `pushProtected`:
  * for each source the push sends (HEAD when it names none), its base on the remote's real main and
@@ -213,7 +218,6 @@ function checkSegment(seg, ctx) {
   if (prot) return protectedReason(prot);
 
   const th = thSub({cmd, args});
-  if (ctx.role === 'night' && searchesGitHub({cmd, args}) && ctx.songsRead?.()) return SONGS_WEB;
   if (ctx.role === 'night') {
     if (th?.sub === 'say' && !kindIsError(th.rest)) return 'The night role may not post chat messages (only --kind error).';
     if (th?.sub === 'push') return 'The night role may not send pushes.';
@@ -225,6 +229,9 @@ function checkSegment(seg, ctx) {
     const outside = writes.find(p => !insideTmp(p, ctx));
     if (outside) return `The reflex role may write files only under $TMPDIR (not ${outside}).`;
   }
+  // The night after songs (RUNTIME.md §6.4): its shell runs th and a few harmless builtins only.
+  // Asked last but for git, so a command denied anyway costs the Worker nothing.
+  if (ctx.role === 'night' && !nightSafe({cmd, args}, seg.words, ctx) && ctx.songsRead?.()) return SONGS_SHELL;
   // Last, as it asks git: what the commits being pushed change.
   if (push) {
     for (const c of ctx.pushProtected?.(push) ?? [])

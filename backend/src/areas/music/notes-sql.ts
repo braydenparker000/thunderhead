@@ -1,6 +1,6 @@
 // Music schema step 4 (music.ts), expand only: what the mind knows of each song (MUSIC.md §10.5;
 // DATA.md §6.2). Its note, one row a track (`pack`: the find pack it is in); the owner's newest rating
-// of each song, kept for good; the night sessions that read songs' tags; and find's packs (derived:
+// of each song, kept for good; and find's packs (derived:
 // the notes 500 to a row, and the listening pass's measurements). SQL on them is store-notes.ts.
 
 export const NOTES_SQL = [
@@ -30,8 +30,6 @@ export const NOTES_SQL = [
           WHERE NOT EXISTS (SELECT 1 FROM music_state WHERE key = 'notes.stale');
       END`,
   ),
-  // Night sessions that read songs' tags, kept a week (the PreToolUse hook closes the web to them).
-  'CREATE TABLE song_readers (session_id TEXT PRIMARY KEY, at INTEGER NOT NULL) WITHOUT ROWID',
   `CREATE TABLE find_packs (
     kind TEXT NOT NULL,
     pack INTEGER NOT NULL,
@@ -41,6 +39,6 @@ export const NOTES_SQL = [
   ) WITHOUT ROWID`,
 ];
 
-/** The step's tables in the weekly backup and the export (DATA.md §10); `song_readers` and the derived
- * `find_packs` stay out. */
+/** The step's tables in the weekly backup and the export (DATA.md §10); the derived `find_packs`
+ * stays out. */
 export const NOTES_TABLES = ['track_notes', 'track_ratings'] as const;

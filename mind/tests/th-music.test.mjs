@@ -142,8 +142,11 @@ test('th music now: the song playing, or the last one played, with its note', wi
   assert.equal(r.code, 0, r.stderr);
   assert.deepEqual({...r.json, note: undefined}, {playing: true, at, ago_min: 1, track: {id: id(1), title: 'Quiet Lake', artist: 'Artist A', genre: 'Ambient', dur: 200}, note: undefined});
   assert.deepEqual(r.json.note.moods, {calm: 0.8});
-  // --id: the song's id alone (no tags: the session takes in no outside text).
+  // --id: the song's id alone, from the senses only: no tag route, so the Worker marks nothing and
+  // "never play this again" can still write its rule.
+  fake.state.tainted.clear();
   assert.deepEqual((await th(['music', 'now', '--id'], e)).json, {playing: true, at, ago_min: 1, id: id(1)});
+  assert.equal(fake.state.tainted.size, 0);
   // Skipped since: the last one played, not playing.
   fake.addSense({type: 'music.skip', id: id(1), at: at + 10_000});
   assert.equal((await th(['music', 'now'], e)).json.playing, false);

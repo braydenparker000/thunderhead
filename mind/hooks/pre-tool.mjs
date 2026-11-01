@@ -89,15 +89,21 @@ if (role) {
         // A `repo.change` card the owner approved for these paths and that base (this branch's by default).
         approved: (paths, b) => runTh(['approved', '--paths', paths.join(','), '--sha', b ?? base(cwd)], {timeoutMs: left(8_000)}).code === 0,
         pushProtected: push => pushProtected(cwd, push),
-        // Asked only for a night call that could reach the web: whether the session read songs' tags,
-        // from the Worker's own record (which the session can't edit or move). Fails closed: an
-        // error, a timeout, or anything but a boolean denies.
+        // Asked only for a night call that could reach the web or run more than th: whether any night
+        // session read songs' tags since this one claimed, from the Worker's own record (which the
+        // session can't edit or move), asked with the real session id from this process's
+        // environment (a Bash command can't change it). Fails closed: no id, an error, a timeout, or
+        // anything but a boolean denies. A yes is kept (it never turns back); a no is asked again.
         songsRead: () => {
+          if (getState('songs_closed')) return true;
+          if (!process.env.CLAUDE_CODE_REMOTE_SESSION_ID)
+            throw new Error('no session id in the environment, so the Worker can\'t say whether this night read songs');
           const r = runTh(['pending'], {timeoutMs: left(8_000)});
           if (r.code !== 0) throw new Error('the Worker could not say whether this session read songs');
           let songs;
           try { songs = JSON.parse(r.stdout.trim().split('\n').pop() || 'null')?.songs; } catch { songs = undefined; }
           if (typeof songs !== 'boolean') throw new Error('the Worker did not say whether this session read songs');
+          if (songs) setState('songs_closed', true);
           return songs;
         },
       });

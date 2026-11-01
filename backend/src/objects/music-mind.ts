@@ -160,15 +160,6 @@ export abstract class MusicMind extends MusicPacks {
     return { items, missing: [], next: rows.length > limit ? (page.at(-1)?.track_id ?? null) : null };
   }
 
-  /** A night session read songs' tags (areas/music/tags-read.ts): the web closes to it. */
-  markReader(session: string, at = Date.now()): void {
-    notes.markReader(this.db, session, at);
-  }
-
-  songsRead(session: string): boolean {
-    return notes.songsRead(this.db, session);
-  }
-
   /** The owner's ratings from the phone's `music.rate` senses (the senses route): the newest of each
    * song is kept for good, so "not for me" doesn't fade with the senses' 90 days. */
   putRatings(list: { id: string; rating: number; at: number }[]): number {

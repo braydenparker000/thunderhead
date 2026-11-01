@@ -154,10 +154,10 @@ export class Core extends CorePodcasts {
     return this.run((w) => mind.note(w, c.session_id, roleOf(c), r));
   }
 
-  mindTaint(c: Caller, source: string, claimed = false) {
+  mindTaint(c: Caller, source: string, songs = false) {
     return attempt(() =>
       this.ctx.storage.transactionSync(() =>
-        mind.taint(this.db, c.session_id, roleOf(c), source, Date.now(), this.tz(), claimed),
+        mind.taint(this.db, c.session_id, roleOf(c), source, Date.now(), this.tz(), songs),
       ),
     );
   }

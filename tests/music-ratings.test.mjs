@@ -75,6 +75,13 @@ test('the catch-up fits the outbox and counts a song sent only once the Worker t
   assert.deepEqual(await runCatchUp(tracks, out, s), []);
   assert.equal(out.kept.length, CATCH_UP);
   assert.equal(out.kept[0][1], 'music:t30');
+  // Refused for good by the Worker (the outbox let the batch go, and counts it lost): not
+  // remembered either, so the next load sends them again.
+  out = box(200);
+  let lost = 0;
+  out.lost = () => lost;
+  out.flush = async () => { lost++; };
+  assert.deepEqual(await runCatchUp(tracks, out, s), []);
   out = box(200);
   const next = await runCatchUp(tracks, out, s);
   assert.deepEqual([next.length, next[0]], [CATCH_UP, 't30']);

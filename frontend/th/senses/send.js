@@ -73,6 +73,17 @@ export const room = () => MAX - waiting().length;
 /** Whether nothing waits on this phone: every event kept was taken (or refused for good). */
 export const drained = () => !waiting().length && !sealed();
 
+const LOST = 'th.senses.lost';
+/** How many batches this phone has let go without the Worker taking them (refused for good): a
+ * caller that must know its events arrived compares it before and after (th/music/ratings.js). */
+export function lost() {
+  try {
+    return Number(localStorage.getItem(LOST)) || 0;
+  } catch {
+    return 0;
+  }
+}
+
 /** Sends what waits, one batch at a time. */
 export function flush() {
   // One tab at a time (the Web Locks API), so two never seal the same events.
@@ -135,6 +146,11 @@ async function send() {
       if (r && r.status >= 500) seal({ ...batch, tries: batch.tries + 1 });
       return;
     }
+    // Refused for good (409 is a batch already taken): counted, so a caller learns it was lost.
+    if (!r.ok && r.status !== 409)
+      try {
+        localStorage.setItem(LOST, String(lost() + 1));
+      } catch {}
     seal(null);
   }
 }

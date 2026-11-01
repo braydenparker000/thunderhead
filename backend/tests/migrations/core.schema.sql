@@ -306,9 +306,14 @@ CREATE TABLE mind_sessions (
   ended_at INTEGER,
   day TEXT NOT NULL,
   last_owner_at INTEGER
-  ) WITHOUT ROWID;
+  , taint_event_at INTEGER, songs_at INTEGER) WITHOUT ROWID;
 
 CREATE INDEX mind_sessions_open ON mind_sessions (role) WHERE ended_at IS NULL;
+
+CREATE INDEX mind_sessions_songs ON mind_sessions (role, songs_at) WHERE songs_at IS NOT NULL;
+
+CREATE INDEX mind_sessions_taint_event ON mind_sessions (role, coalesce(taint_event_at, tainted_at))
+  WHERE tainted_at IS NOT NULL;
 
 CREATE INDEX mind_sessions_tainted ON mind_sessions (role, tainted_at) WHERE tainted_at IS NOT NULL;
 
@@ -492,7 +497,7 @@ CREATE TABLE session_notes (
   created_at INTEGER NOT NULL,
   body TEXT NOT NULL,
   open_items_json TEXT NOT NULL
-  ) WITHOUT ROWID;
+  , tainted INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID;
 
 CREATE INDEX session_notes_at ON session_notes (created_at);
 

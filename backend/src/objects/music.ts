@@ -63,7 +63,7 @@ export const MUSIC_MIGRATIONS: Migration[] = [
 ];
 
 /** Every catalog table, the listening pass's, the mind's notes and ratings, in the backup and the export
- * (DATA.md §10); `meter_days` (counts), the derived `find_packs` and `song_readers` stay out of both. */
+ * (DATA.md §10); `meter_days` (counts) and the derived `find_packs` stay out of both. */
 export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state', ...LISTEN_TABLES, ...NOTES_TABLES] as const;
 
 /** The one instance: the owner's library. */

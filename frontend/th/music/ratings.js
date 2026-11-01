@@ -53,7 +53,7 @@ function sentBefore(store) {
 
 /** The senses outbox (th/senses/send.js), or null where it can't load.
  * @typedef {{ sense: (type: string, ref: string, data: Record<string, unknown>) => Promise<boolean>,
- *   room: () => number, flush: () => Promise<void>, drained: () => boolean }} Outbox
+ *   room: () => number, flush: () => Promise<void>, drained: () => boolean, lost?: () => number }} Outbox
  * @returns {Promise<Outbox | null>} */
 const outbox = () => import('/th/senses/send.js').catch(() => null);
 
@@ -65,6 +65,8 @@ const outbox = () => import('/th/senses/send.js').catch(() => null);
 export async function runCatchUp(tracks, out, store) {
   if (!out) return [];
   const sent = sentBefore(store);
+  // A batch the Worker refused for good also leaves the outbox: counted, so it isn't taken as sent.
+  const lostBefore = out.lost?.() ?? 0;
   /** @type {string[]} */
   const queued = [];
   for (const id of catchUp(tracks, sent, Math.min(CATCH_UP, out.room() - ROOM_MARGIN))) {
@@ -75,7 +77,7 @@ export async function runCatchUp(tracks, out, store) {
   }
   if (!queued.length) return [];
   await out.flush();
-  if (!out.drained()) return [];
+  if (!out.drained() || (out.lost?.() ?? 0) !== lostBefore) return [];
   for (const id of queued) sent.add(id);
   try {
     store.setItem(DONE, JSON.stringify([...sent]));
