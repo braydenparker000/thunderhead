@@ -68,7 +68,11 @@ const WORDS = {
 /** A mind writes loose ends and day notes only from a claimed, live session of its role (a
  * tainted one may still note a loose end, MEMORY.md §7.4). */
 function mindSession(w: Writer, c: Caller): { tainted: boolean } | null {
-  return c.who === 'D' ? null : claimedSession(w.db, c.session_id, c.who === 'N' ? 'night' : 'chat');
+  if (c.who === 'D') return null;
+  const s = claimedSession(w.db, c.session_id, c.who === 'N' ? 'night' : 'chat');
+  // One that was handed a message off the record writes neither (conversation/held.ts).
+  if (s.offRecord) throw new Fail('off_record');
+  return s;
 }
 
 /** Text a loose end or a day note keeps: one paragraph, nothing MEMORY.md §13 never stores. */

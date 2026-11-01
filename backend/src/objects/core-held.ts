@@ -4,10 +4,12 @@
 // in held.ts), Recently deleted, and the cron's prune pass: each tick it purges what is due (one
 // index read when nothing is), never while the rows guard holds the heavy work, then once a logical
 // day every table's own prune (DATA.md §10). A code layer of the one Core class.
-import type { DeletedThread, Message, Thread } from '../../../shared/contract/api';
+import type { DeletedThread, Message, MindRole, Thread } from '../../../shared/contract/api';
 import { HELD_LIMITS } from '../../../shared/contract/held.ts';
 import type { Who } from '../../../shared/contract/routes.ts';
+import { currentDay } from '../areas/conversation/day';
 import * as held from '../areas/conversation/held';
+import * as hs from '../areas/conversation/held-store';
 import * as purge from '../areas/conversation/purge';
 import { lastMessageAt } from '../areas/conversation/stats';
 import * as cstore from '../areas/conversation/store';
@@ -34,16 +36,33 @@ export abstract class CoreHeld extends CorePodcasts {
     return held.threadReadable(this.db, who, id, Date.now()) ? cstore.thread(this.db, id) : null;
   }
 
-  /** GET /v1/threads/:id/messages, or null when the thread doesn't exist for this caller. */
-  messages(who: Who, threadId: string, before: number | null, after: number | null, limit: number): Message[] | null {
-    if (!held.threadReadable(this.db, who, threadId, Date.now())) return null;
+  /** GET /v1/threads/:id/messages, or null when the thread doesn't exist for this caller. The chat
+   * reading one off the record is marked: it writes no memory from then on. */
+  messages(c: Caller, threadId: string, before: number | null, after: number | null, limit: number): Message[] | null {
+    const now = Date.now();
+    if (!held.threadReadable(this.db, c.who, threadId, now)) return null;
+    if (c.who === 'C' && held.threadHeld(this.db, threadId, now) === 'off_record') this.markOffRecord(c.session_id);
     return cstore.messagesPage(this.db, threadId, before, after, limit);
   }
 
-  /** GET /v1/files/:id: a file whose message is in a thread this caller may not read is not there. */
-  fileFor(who: Who, id: string): fstore.FileRow | null {
+  /** GET /v1/files/:id: a file whose message is in a thread this caller may not read is not there;
+   * the chat reading one off the record is marked, as above. */
+  fileFor(c: Caller, id: string): fstore.FileRow | null {
+    const now = Date.now();
     const f = fileById(this.db, id);
-    return f && held.fileReadable(this.db, who, f.message_id, Date.now()) ? f : null;
+    if (!f || !held.fileReadable(this.db, c.who, f.message_id, now)) return null;
+    if (c.who === 'C' && f.message_id && held.messageHeld(this.db, f.message_id, now) === 'off_record')
+      this.markOffRecord(c.session_id);
+    return f;
+  }
+
+  /** The Worker handed the chat session words off the record (its briefing, a wait, the thread or
+   * a file): from now on it writes no memory, whatever it cites (guards.ts `offRecord`). */
+  protected markOffRecord(sessionId: string | null, role: MindRole = 'chat'): void {
+    if (!sessionId || role !== 'chat') return;
+    this.write((w) =>
+      hs.markOffRecord(w.db, { id: sessionId, role, day: currentDay(w.db, this.tz(), w.at), at: w.at }),
+    );
   }
 
   // --- off the record, Delete, Restore (device only) ---------------------------------------------

@@ -57,8 +57,10 @@ export const CONVERSATION_MIGRATIONS: Migration[] = [
     // its own kind kept in `kind_was` for Restore). `purge_at` is set exactly while a thread is
     // held, so the partial index lists only them: the prune pass finds what is due on it, and every
     // read that leaves held threads out (search, backups, the export) reads only those rows.
+    // `mind_sessions.off_record_at`: when the Worker first handed a chat session a message off the
+    // record (the briefing, a wait, the thread or a file of it); such a session writes no memory.
     version: 27,
-    name: 'held conversations: threads.purge_at, deleted_at, kind_was',
+    name: 'held conversations: threads.purge_at, deleted_at, kind_was; mind_sessions.off_record_at',
     kind: 'expand',
     sql: [
       'ALTER TABLE threads ADD COLUMN purge_at INTEGER',
@@ -66,6 +68,7 @@ export const CONVERSATION_MIGRATIONS: Migration[] = [
       'ALTER TABLE threads ADD COLUMN kind_was TEXT',
       'CREATE INDEX threads_purge ON threads (purge_at) WHERE purge_at IS NOT NULL',
       'CREATE INDEX threads_deleted ON threads (deleted_at) WHERE deleted_at IS NOT NULL',
+      'ALTER TABLE mind_sessions ADD COLUMN off_record_at INTEGER',
     ],
   },
 ];

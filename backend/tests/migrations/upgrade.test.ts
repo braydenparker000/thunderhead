@@ -106,7 +106,8 @@ describe('upgrade from P2', () => {
       sql.exec('DROP INDEX IF EXISTS session_notes_at');
       sql.exec('DROP INDEX IF EXISTS mind_sessions_taint_event');
       sql.exec('DROP INDEX IF EXISTS mind_sessions_songs');
-      for (const c of ['taint_event_at', 'songs_at']) sql.exec(`ALTER TABLE mind_sessions DROP COLUMN ${c}`);
+      for (const c of ['taint_event_at', 'songs_at', 'off_record_at'])
+        sql.exec(`ALTER TABLE mind_sessions DROP COLUMN ${c}`);
       sql.exec('ALTER TABLE session_notes DROP COLUMN tainted');
       sql.exec('DELETE FROM _migrations WHERE version > 7');
       sql.exec(

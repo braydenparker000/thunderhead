@@ -90,7 +90,7 @@ function files(m: Message, full: boolean): string {
 /** The role-side note over section 2 when any waiting message is off the record: the Worker refuses
  * every memory write citing it anyway; this keeps the session from trying or writing it elsewhere. */
 export const OFF_RECORD_NOTE = (ids: string[]) =>
-  `Off the record (thread ${ids.join(', ')}): answer with --reply-to, so the answer stays in it. Remember nothing from it: no fact, rule, loose end, title or session note (the Worker refuses: off_record).`;
+  `Off the record (thread ${ids.join(', ')}): answer with --reply-to, so the answer stays in it. Remember nothing from it: no fact, rule, loose end, title or session note; this session now writes no memory at all (the Worker refuses: off_record).`;
 
 function line(m: Message, tz: string, full = true, offRecord?: string[]): string {
   const who = `${m.author === 'owner' ? 'owner' : m.author}${offRecord?.includes(m.thread_id) ? ' (off the record)' : ''}`;

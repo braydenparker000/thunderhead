@@ -10,6 +10,8 @@ import { taintedSince } from './store';
 
 export interface Guards {
   tainted: boolean;
+  /** It was handed a message off the record (conversation/held.ts): no memory from it. */
+  offRecord: boolean;
   constitution: string;
 }
 
@@ -19,12 +21,13 @@ interface Row {
   claimed_at: number;
   ended_at: number | null;
   tainted_at: number | null;
+  off_record_at: number | null;
   constitution_sha256: string | null;
 }
 
 const read = (db: Db, id: string) =>
   db.one<Row>(
-    'SELECT role, wake_id, claimed_at, ended_at, tainted_at, constitution_sha256 FROM mind_sessions WHERE session_id = ?',
+    'SELECT role, wake_id, claimed_at, ended_at, tainted_at, off_record_at, constitution_sha256 FROM mind_sessions WHERE session_id = ?',
     id,
   );
 
@@ -43,6 +46,7 @@ export function claimedSession(db: Db, sessionId: string | null, role: MindRole)
   const later = taintedSince(db, role, s.claimed_at);
   return {
     tainted: s.tainted_at !== null || (later !== null && later.session_id !== sessionId),
+    offRecord: s.off_record_at !== null,
     constitution: s.constitution_sha256 ?? 'none',
   };
 }
@@ -55,6 +59,10 @@ export function taintedNow(db: Db, sessionId: string | null, role: MindRole): bo
   const later = taintedSince(db, role, s.claimed_at);
   return s.tainted_at !== null || (later !== null && later.session_id !== sessionId);
 }
+
+/** Whether the Worker handed this session a message off the record (it writes no memory). */
+export const sawOffRecord = (db: Db, sessionId: string | null): boolean =>
+  sessionId !== null && (read(db, sessionId)?.off_record_at ?? null) !== null;
 
 /** When a session was marked tainted (null: never, or no such session). */
 export function taintedAt(db: Db, sessionId: string): number | null {

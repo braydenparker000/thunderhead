@@ -37,13 +37,7 @@ export const conversationRoutes = new Hono<AppEnv>()
     const id = idParam(c);
     const q = parse(s.messagesQuery, c.req.query());
     const limit = q.limit ?? 50;
-    const items = await coreObject(c.env).messages(
-      whoOf(principalOf(c)),
-      id,
-      q.before_seq ?? null,
-      q.after_seq ?? null,
-      limit,
-    );
+    const items = await coreObject(c.env).messages(callerOf(c), id, q.before_seq ?? null, q.after_seq ?? null, limit);
     if (!items) throw new ApiError('not_found');
     // `next` is the seq to pass on: as before_seq when paging back, as after_seq going forward.
     const edge = items.at(-1);

@@ -8,11 +8,12 @@ import type { BriefResponse, LiveWaitResponse, Message, Page, Thread } from '../
 import { HELD_LIMITS } from '../../../shared/contract/held.ts';
 import { uuidv7 } from '../../src/lib/ids';
 import { chat, fileOf, ftsHits, offRecord, say, threadRow } from '../held-helpers';
-import { api, apiJson, makeAgent } from '../helpers';
+import { api, apiJson, coreSql, makeAgent } from '../helpers';
 import {
   addOp,
   brief,
   CHAT_SESSION,
+  firedWake,
   NIGHT_SESSION,
   ops,
   ownerSays,
@@ -28,6 +29,12 @@ let asked: Message;
 /** An owner question in the daily thread, older than everything off the record. */
 let plain = '';
 const night = () => chat(p.N, NIGHT_SESSION);
+/** A new chat session the Worker fired and the lease passes to (`cse_<s>`). */
+async function claim(s: string) {
+  await coreSql("UPDATE leases SET renewed_at = 0 WHERE task = 'chat'");
+  await firedWake('chat', `session_${s}`);
+  await brief(p.C, `cse_${s}`, 'chat');
+}
 
 beforeAll(async () => {
   p = await principals();
@@ -112,17 +119,23 @@ describe('writing in it', () => {
 });
 
 describe('never memory (M17)', () => {
+  // The session the wait handed it to remembers nothing at all (below): these run in a fresh one.
+  beforeAll(async () => {
+    await claim('otr_clean');
+  });
+  const clean = () => chat(p.C, 'cse_otr_clean');
+
   it('no fact, rule, confirm or supersede cites it, from the mind or the device', async () => {
-    expect(await reason(chat(p.C), addOp([`msg:${asked.id}`]))).toBe('off_record_evidence');
-    expect(await reason(chat(p.C), addOp([`msg:${asked.id}`], { kind: 'rule', subject: 'answers.short' }))).toBe(
+    expect(await reason(clean(), addOp([`msg:${asked.id}`]))).toBe('off_record_evidence');
+    expect(await reason(clean(), addOp([`msg:${asked.id}`], { kind: 'rule', subject: 'answers.short' }))).toBe(
       'off_record_evidence',
     );
     expect(await reason({ token: p.D }, addOp([`msg:${asked.id}`]))).toBe('off_record_evidence');
     const said = await ownerSays(p.D, 'I like calm music in the evening');
-    const added = await ops(chat(p.C), [addOp([`msg:${said}`])]);
+    const added = await ops(clean(), [addOp([`msg:${said}`])]);
     const fact = added.body.applied[0]?.fact_id as string;
     expect(fact).toBeTruthy();
-    expect(await reason(chat(p.C), { op: 'confirm', id: fact, evidence: [`msg:${asked.id}`] })).toBe(
+    expect(await reason(clean(), { op: 'confirm', id: fact, evidence: [`msg:${asked.id}`] })).toBe(
       'off_record_evidence',
     );
     const sup = {
@@ -130,30 +143,65 @@ describe('never memory (M17)', () => {
       id: fact,
       new: { id: uuidv7(), text: 'Likes quiet music', evidence: [`msg:${asked.id}`] },
     };
-    expect(await reason(chat(p.C), sup)).toBe('off_record_evidence');
+    expect(await reason(clean(), sup)).toBe('off_record_evidence');
   });
 
   it('no loose end, session note or title: 403 off_record; no Continue this', async () => {
     for (const evidence of [[`msg:${asked.id}`], [`thread:${t.id}`]]) {
       const r = await apiJson<{ error: { code: string } }>('PUT', `/v1/memory/open-threads/${uuidv7()}`, {
-        ...chat(p.C),
+        ...clean(),
         body: { text: 'remember the secret word', owner: 'mind', evidence },
       });
       expect(r.status).toBe(403);
       expect(r.body.error.code).toBe('off_record');
     }
     const note = await apiJson<{ error: { code: string } }>('POST', '/v1/mind/notes', {
-      ...chat(p.C),
+      ...clean(),
       body: { id: uuidv7(), thread_id: t.id, body: 'Talked off the record.', open_items: [] },
     });
     expect([note.status, note.body.error.code]).toEqual([403, 'off_record']);
     const title = await apiJson<{ error: { code: string } }>('PATCH', `/v1/threads/${t.id}`, {
-      ...chat(p.C),
+      ...clean(),
       body: { title: 'The secret word' },
     });
     expect([title.status, title.body.error.code]).toEqual([403, 'off_record']);
     const cont = await apiJson<{ error: { code: string } }>('POST', `/v1/threads/${t.id}/continue`, { token: p.D });
     expect([cont.status, cont.body.error.code]).toEqual([403, 'off_record']);
+  });
+});
+
+describe('the session it was handed to', () => {
+  const memoryWrites = async (session: string, said: string) => {
+    const call = chat(p.C, session);
+    const fact = await ops(call, [addOp([`msg:${said}`])]);
+    const loose = await apiJson<{ error?: { code: string } }>('PUT', `/v1/memory/open-threads/${uuidv7()}`, {
+      ...call,
+      body: { text: 'ask about the trip', owner: 'mind', evidence: [`msg:${said}`] },
+    });
+    const note = await apiJson<{ error?: { code: string } }>('POST', '/v1/mind/notes', {
+      ...call,
+      body: { id: uuidv7(), body: 'A plain session.', open_items: [] },
+    });
+    return [fact.body?.error?.code ?? 'ok', loose.body?.error?.code ?? 'ok', note.body?.error?.code ?? 'ok'];
+  };
+
+  it('writes no memory at all, whatever it cites: the wait, the briefing, a thread read each mark it', async () => {
+    const said = await ownerSays(p.D, 'I am planning a trip to the coast');
+    // The wait hands out a message off the record: that session is marked.
+    await claim('otr_wait');
+    const q = (await say({ token: p.D }, 'the code is 4417', { thread_id: t.id })).body;
+    const w = await apiJson<LiveWaitResponse>('GET', '/v1/live/wait?after=0&timeout=1', chat(p.C, 'cse_otr_wait'));
+    expect(w.body.off_record).toEqual([t.id]);
+    expect(await memoryWrites('cse_otr_wait', said)).toEqual(['off_record', 'off_record', 'off_record']);
+    // A briefing that shows it waiting marks the session it claims.
+    await claim('otr_brief');
+    expect(await memoryWrites('cse_otr_brief', said)).toEqual(['off_record', 'off_record', 'off_record']);
+    // Answered, it waits no more: the next session starts clean, until it reads the thread.
+    expect((await say(chat(p.C, 'cse_otr_brief'), 'Noted, between us.', { reply_to: q.id })).status).toBe(201);
+    await claim('otr_next');
+    expect(await memoryWrites('cse_otr_next', await ownerSays(p.D, 'I like the coast'))).toEqual(['ok', 'ok', 'ok']);
+    expect((await api('GET', `/v1/threads/${t.id}/messages`, chat(p.C, 'cse_otr_next'))).status).toBe(200);
+    expect((await memoryWrites('cse_otr_next', said))[0]).toBe('off_record');
   });
 });
 

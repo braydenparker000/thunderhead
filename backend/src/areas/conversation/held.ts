@@ -8,7 +8,9 @@
 //     answering it); search, the briefing, backups and the export leave held threads out
 //     (search.ts, mind/assemble.ts, held-store.ts `heldRows`);
 //   - memory refuses any evidence in a held thread (`off_record_evidence`, `deleted_evidence`:
-//     memory/validate.ts and notes-ops.ts call `messageHeld` / `threadHeld`);
+//     memory/validate.ts and notes-ops.ts call `messageHeld` / `threadHeld`), and a chat session the
+//     Worker handed a message off the record (briefing, wait, thread or file) writes no memory at
+//     all (`mind_sessions.off_record_at`, mind/guards.ts), so it can't cite another message instead;
 //   - a message only enters a thread off the record when it is named, or when it answers one of its
 //     messages, so an answer never lands in today's remembered thread, and none is FTS-indexed.
 // The purge itself is purge.ts. SQL is in held-store.ts.

@@ -6,7 +6,7 @@
 import { Hono } from 'hono';
 import type { DictateResponse, FileResponse } from '../../../../shared/contract/files.ts';
 import { DICTATE_LIMITS, FILE_LIMITS } from '../../../../shared/contract/files.ts';
-import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
+import { type AppEnv, guard } from '../../http/auth';
 import { callerOf, idParam } from '../../http/caller';
 import { ApiError } from '../../http/errors';
 import { inSandbox } from '../../http/sandbox';
@@ -100,7 +100,7 @@ export const filesRoutes = new Hono<AppEnv>()
     if (!UUIDV7.test(id)) throw new ApiError('not_found');
     const vault = vaultOf(c.env);
     // A file of a held conversation the caller may not read (conversation/held.ts) is not there.
-    const f = await fresh(coreObject(c.env).fileFor(whoOf(principalOf(c)), id));
+    const f = await fresh(coreObject(c.env).fileFor(callerOf(c), id));
     if (!f) throw new ApiError('not_found');
     // `?meta=1`: the file as a message carries it (name, type, size, a memo's seconds and words).
     if (c.req.query('meta') === '1') return c.json(toAttachment(f) satisfies FileResponse);

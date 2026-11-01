@@ -47,7 +47,6 @@ import * as verbs from '../areas/verbs/ops';
 import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
-import { CORE_TABLES } from './core.migrations';
 import { CoreHeld } from './core-held';
 
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
@@ -118,9 +117,16 @@ export class Core extends CoreHeld {
         : null;
       // A claim hands out what the briefing shows: the requeue alarm must cover it.
       if (r.claim) this.schedule();
-      return assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256, r.session_id, {
+      let offRecord = false;
+      const out = assemble(this.db, r.role, this.tz(), Date.now(), claimed, r.constitution_sha256, r.session_id, {
         nightConfigured: this.nightConfigured(),
+        offRecordSeen: () => {
+          offRecord = true;
+        },
       });
+      // A briefing that hands out a message off the record marks the session: it writes no memory.
+      if (offRecord) this.markOffRecord(r.session_id, r.role);
+      return out;
     });
   }
 

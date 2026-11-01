@@ -38,7 +38,7 @@ export function assemble(
   wake: BriefResponse['wake'],
   constitution: string,
   sessionId: string,
-  opts: { nightConfigured: boolean },
+  opts: { nightConfigured: boolean; offRecordSeen?: () => void },
 ): BriefResponse {
   const day = currentDay(db, tz, now);
   const night = role === 'night' ? nightDayOf(day) : null;
@@ -58,6 +58,9 @@ export function assemble(
   // them), each marked, with the role-side note (brief.ts); today's, yesterday's and the full
   // file's messages are the daily threads' only, and a deleted thread's waiting ones were settled.
   const waiting = role === 'chat' ? convo.unanswered(db, 30) : [];
+  // Messages off the record it hands out mark the session (the caller writes it): no memory from it.
+  const offRecord = offRecordOf(db, waiting, now);
+  if (offRecord.length) opts.offRecordSeen?.();
   const { core, full } = buildBrief({
     role,
     constitution,
@@ -74,7 +77,7 @@ export function assemble(
     quietUntil: quietUntil(db, now),
     threadId: thread?.id ?? null,
     waiting,
-    offRecord: offRecordOf(db, waiting, now),
+    offRecord,
     todayTail: tail,
     todayEarlier: earlier,
     note: memory ? sessionNotes.latestNote(db) : null,

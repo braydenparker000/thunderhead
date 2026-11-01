@@ -306,7 +306,7 @@ CREATE TABLE mind_sessions (
   ended_at INTEGER,
   day TEXT NOT NULL,
   last_owner_at INTEGER
-  , taint_event_at INTEGER, songs_at INTEGER) WITHOUT ROWID;
+  , taint_event_at INTEGER, songs_at INTEGER, off_record_at INTEGER) WITHOUT ROWID;
 
 CREATE INDEX mind_sessions_open ON mind_sessions (role) WHERE ended_at IS NULL;
 

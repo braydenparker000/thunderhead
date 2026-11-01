@@ -140,7 +140,7 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 127,
+    "rows_read_max": 129,
     "rows_written_max": 18
   },
   "cron tick, nothing due (Core)": {

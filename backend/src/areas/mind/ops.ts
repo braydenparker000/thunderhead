@@ -17,10 +17,11 @@ import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
 import { currentDay, logicalDay } from '../conversation/day';
 import { offRecordOf, refuseHeld } from '../conversation/held';
+import { markOffRecord } from '../conversation/held-store';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
 import * as verbs from '../verbs/store';
-import { claimedSession, taintedNow } from './guards';
+import { claimedSession, sawOffRecord, taintedNow } from './guards';
 import { nightDayOf, nightDone } from './night';
 import * as sessionNotes from './notes';
 import * as stop from './stop';
@@ -166,6 +167,8 @@ export function note(w: Writer, sessionId: string | null, role: MindRole, r: Min
   // A session note is read by the night: never one about a conversation off the record (403
   // off_record) or a deleted one (410 gone), conversation/held.ts.
   refuseHeld(w.db, r.thread_id, w.at);
+  // Nor from a session that was handed a message off the record, whatever thread it names.
+  if (sawOffRecord(w.db, sessionId)) throw new Fail('off_record');
   const s = sessionId ? store.session(w.db, sessionId) : null;
   // Written after outside text (MEMORY.md §7): a clean session's briefing and the night's day leave
   // its words out.
@@ -261,6 +264,8 @@ export function take(w: Writer, since: number, role: MindRole, sessionId: string
   if (st && st.seq > after) signals.push('stop');
   // Messages off the record are handed out (the chat answers them) and named, so it remembers none.
   const offRecord = messages.length ? offRecordOf(db, messages, at) : [];
+  // The Worker marks the session it hands them to: from now on it writes no memory (guards.ts).
+  if (offRecord.length && sessionId) markOffRecord(db, { id: sessionId, role, day: currentDay(db, tz, at), at });
   return {
     seq: changes.at(-1)?.seq ?? last,
     changed: changes.length > 0 || messages.length > 0,
