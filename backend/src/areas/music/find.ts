@@ -10,8 +10,10 @@
 //         − 0.25 · early skips  (skips before 30 s in the last 30 days)
 //
 // A song must show the asked feeling (mood and occasion fit together over 0.15), a known energy
-// when energy is all that is asked, or some likeness. Songs the owner said never to play again,
-// and songs skipped early three times in 30 days (MUSIC.md §4.2), are left out and counted.
+// when energy is all that is asked, or some likeness. Songs the owner told the mind never to play
+// again (a rule fact), songs whose newest rating is 1 (the phone's "not for me", which "never play
+// this again" said to the phone sets), and songs skipped early three times in 30 days (MUSIC.md
+// §4.2) are left out and counted.
 import {
   MUSIC_NOTE_LIMITS as L,
   MUSIC_MOODS,
@@ -149,14 +151,20 @@ function likeness(k: Known, seed: MusicTrackRow, x: MusicTrackRow, near: Map<str
   return s;
 }
 
-/** The ranking. `skips`: early skips by track id; `never`: ids the owner ruled out. Null when
- * `like` names a song the catalog doesn't hold. */
-export function rank(k: Known, q: FindQuery, skips: Map<string, number>, never: Set<string>): MusicFindResponse | null {
+/** The ranking. `skips`: early skips by track id; `never`: ids the owner's rules rule out; `rated`:
+ * ids whose newest rating is 1. Null when `like` names a song the catalog doesn't hold. */
+export function rank(
+  k: Known,
+  q: FindQuery,
+  skips: Map<string, number>,
+  never: Set<string>,
+  rated: Set<string> = new Set(),
+): MusicFindResponse | null {
   const seed = q.like ? k.tracks.find((t) => t.id === q.like) : undefined;
   if (q.like && !seed) return null;
   const nb = seed ? k.listening?.get(seed.id)?.neighbours : undefined;
   const near = nb?.length ? new Map(nb.map((n) => [n.id, n.score])) : null;
-  const left_out = { never: 0, skipped: 0 };
+  const left_out = { never: 0, rated: 0, skipped: 0 };
   const scored: { item: MusicFindItem; raw: number; ord: number }[] = [];
   k.tracks.forEach((t, ord) => {
     // Like a song the listening pass measured: its neighbours are the candidates.
@@ -194,6 +202,10 @@ export function rank(k: Known, q: FindQuery, skips: Map<string, number>, never: 
     if (!shows) return;
     if (never.has(t.id)) {
       left_out.never++;
+      return;
+    }
+    if (rated.has(t.id)) {
+      left_out.rated++;
       return;
     }
     const s = skips.get(t.id) ?? 0;

@@ -130,7 +130,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/music/tracks` | C N | P5 | built | ?q=&limit=: tracks by their tags, for a playlist the mind makes; &untagged=1: songs still needing a note |
 | `PUT /v1/music/notes` | C N | P5 | built | {items}: 1–200 notes checked against the vocabularies; a bad note or unknown id refuses the batch; 429 from 80% of the day's budget |
 | `GET /v1/music/notes` | D C N | P5 | built | ?ids=a,b (≤ 200, each with its tags) or ?cursor=&limit=: every note, a page at a time |
-| `GET /v1/music/find` | C N | P5 | built | ?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules and early skips left out |
+| `GET /v1/music/find` | C N | P5 | built | ?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out |
 | `PUT /v1/music/uploads/audio/:file` | public | P5 | built | signed by an upload tool key; Ogg Opus, ≤ 32 MiB |
 | `PUT /v1/music/uploads/art/:file` | public | P5 | built | signed by an upload tool key; JPEG or PNG, ≤ 2 MiB |
 | `POST /v1/music/uploads/:op` | public | P5 | built | signed by an upload tool key; the catalog writer's operations, export and links |

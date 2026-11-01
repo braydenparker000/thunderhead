@@ -452,16 +452,16 @@
     "rows_read_max": 0,
     "rows_written_max": 0
   },
-  "GET /v1/music/find (Senses, cold: 40 early skips among 200 events)": {
-    "rows_read_max": 113,
-    "rows_written_max": 0
-  },
   "GET /v1/music/find (Senses, warm)": {
     "rows_read_max": 0,
     "rows_written_max": 0
   },
   "GET /v1/music/find (Core, 3 never-play rules)": {
     "rows_read_max": 3,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/find (Senses, cold: 40 early skips and 5 ratings among 205 events)": {
+    "rows_read_max": 217,
     "rows_written_max": 0
   }
 }

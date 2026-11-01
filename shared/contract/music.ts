@@ -191,8 +191,10 @@ export interface MusicNotesResponse {
 }
 
 /** GET /v1/music/find: songs by feeling (`moods`, `occasion`, `energy`) or like another (`like`),
- * from the notes and, where the listening pass has measured them, the audio. Songs the owner said
- * never to play again and songs skipped early `skip_exclude` times in `skip_days` are left out. */
+ * from the notes and, where the listening pass has measured them, the audio. Left out: songs the
+ * owner told the mind never to play again (`never`, rule facts), songs whose newest `music.rate`
+ * sense is 1 (`rated`: the phone's "not for me", which "never play this again" said to the phone
+ * sets) and songs skipped early `skip_exclude` times in `skip_days` (`skipped`). */
 export interface MusicFindItem extends MusicTrackRow {
   score: number;
   known: boolean | null;
@@ -206,7 +208,7 @@ export interface MusicFindResponse {
   total: number;
   /** Whether the listening pass's data (step 3) was there to use. */
   analysis: boolean;
-  left_out: { never: number; skipped: number };
+  left_out: { never: number; rated: number; skipped: number };
 }
 
 /** GET /v1/music/waveforms/:id: base64 of one byte a bar (16–1000 bars). */

@@ -104,6 +104,19 @@ export function earlySkips(db: Db, days: string[], since: number, underMs: numbe
   );
 }
 
+/** Every song rating since `since` (ms), sensitivity 0 only, oldest first, by the (day, type) index:
+ * `rating` from the event's data, or null when it carries none. */
+export function ratings(db: Db, days: string[], since: number): { ref: string; rating: number | null }[] {
+  return db.all(
+    `SELECT ref, json_extract(data_json, '$.rating') AS rating FROM events
+     WHERE day IN (${days.map(() => '?').join(', ')}) AND type = 'music.rate' AND at >= ? AND ref IS NOT NULL
+       AND sensitivity = 0
+     ORDER BY at, seq`,
+    ...days,
+    since,
+  );
+}
+
 export function lastEvent(db: Db, type: string): EventRow | null {
   return db.one<EventRow>('SELECT * FROM events WHERE type = ? ORDER BY seq DESC LIMIT 1', type);
 }

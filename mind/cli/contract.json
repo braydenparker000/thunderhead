@@ -1049,7 +1049,7 @@
       ],
       "phase": "P5",
       "status": "built",
-      "note": "?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules and early skips left out"
+      "note": "?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out"
     },
     "PUT /v1/music/uploads/audio/:file": {
       "who": "P",

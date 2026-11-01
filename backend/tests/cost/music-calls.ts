@@ -3,7 +3,8 @@
 // note is one row checked and one written), the same batch again (nothing written), notes by id
 // and a page (from memory), the next untagged page, and find in each object it reads: Music (cold:
 // the tags and every note once; warm: nothing), Senses (the early skips by the (day, type) index,
-// not the day's other events; warm: from memory) and Core (the current rules only).
+// and the ratings of the 90 days kept, by the (day, type) index, not the other events; warm: from
+// memory) and Core (the current rules only).
 import { evictDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
@@ -65,13 +66,16 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
     m,
   );
 
-  // Find: a day of the phone's senses (40 early skips among 200 events) and three never-play rules.
+  // Find: a day of the phone's senses (40 early skips and 5 ratings among 205 events) and three never-play rules.
   const events = Array.from({ length: 200 }, (_, i) => ({
     type: i % 5 ? 'music.play' : 'music.skip',
     id: songId(1 + (i % 50)),
     at_ms: 3_000,
   }));
-  await sendSenses(d.token, events);
+  await sendSenses(d.token, [
+    ...events,
+    ...Array.from({ length: 5 }, (_, i) => ({ type: 'music.rate', id: songId(60 + i), data: { rating: 1, from: 0 } })),
+  ]);
   for (let i = 0; i < 3; i++)
     await coreSql(
       `INSERT INTO facts (id, kind, about, subject, text, source, confidence, evidence_json, recorded_at, last_confirmed,
@@ -88,7 +92,7 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
   await cost(`GET /v1/music/find (Music, cold: ${TRACKS} tracks, ${NOTES} notes)`, find, 200, m);
   await cost('GET /v1/music/find (Music, warm)', find, 200, m);
   await evictDurableObject(sensesObject(env));
-  await cost('GET /v1/music/find (Senses, cold: 40 early skips among 200 events)', find, 200, senses);
+  await cost('GET /v1/music/find (Senses, cold: 40 early skips and 5 ratings among 205 events)', find, 200, senses);
   await cost('GET /v1/music/find (Senses, warm)', find, 200, senses);
   await cost('GET /v1/music/find (Core, 3 never-play rules)', find, 200, core);
 }

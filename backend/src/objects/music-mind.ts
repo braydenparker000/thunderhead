@@ -117,15 +117,17 @@ export abstract class MusicMind extends MusicListen {
     return { items, missing: [], next: ids.length > limit ? (page.at(-1) ?? null) : null };
   }
 
-  /** Songs by feeling or like one (areas/music/find.ts), with the owner's early skips by track id
-   * and the songs they ruled out; null when `like` names a song the catalog doesn't hold. */
-  find(q: FindQuery, skips: Record<string, number>, never: string[]): MusicFindResponse | null {
+  /** Songs by feeling or like one (areas/music/find.ts), with the owner's early skips by track id,
+   * the songs their rules rule out and the songs rated 1; null when `like` names a song the
+   * catalog doesn't hold. */
+  find(q: FindQuery, skips: Record<string, number>, never: string[], rated: string[] = []): MusicFindResponse | null {
     const tracks = this.index().map(tags);
     return rank(
       { tracks, notes: this.notesKept(), listening: this.listening() },
       q,
       new Map(Object.entries(skips)),
       new Set(never),
+      new Set(rated),
     );
   }
 

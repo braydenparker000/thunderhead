@@ -83,8 +83,11 @@ export const putNotes = (token: string, items: unknown[], headers: Record<string
     error?: { code: string; details?: { path: string; issue: string }[] };
   }>('PUT', '/v1/music/notes', { token, headers, body: { items } });
 
-/** One sealed batch of the phone's music senses: skips at `at_ms` into each song, and plays. */
-export async function sendSenses(D: string, events: { type: string; id: string; at_ms?: number; ago_ms?: number }[]) {
+/** One sealed batch of the phone's music senses: skips at `at_ms` into each song, plays, ratings. */
+export async function sendSenses(
+  D: string,
+  events: { type: string; id: string; at_ms?: number; ago_ms?: number; data?: object }[],
+) {
   const now = Date.now();
   const r = await apiJson<{ accepted: number }>('PUT', `/v1/senses/batches/${uuidv7()}`, {
     token: D,
@@ -94,7 +97,8 @@ export async function sendSenses(D: string, events: { type: string; id: string; 
         at: now - (e.ago_ms ?? 60_000),
         type: e.type,
         ref: `music:${e.id}`,
-        data: e.type === 'music.skip' ? { at_ms: e.at_ms ?? 5_000, duration_ms: 200_000 } : { offline: false },
+        data:
+          e.data ?? (e.type === 'music.skip' ? { at_ms: e.at_ms ?? 5_000, duration_ms: 200_000 } : { offline: false }),
       })),
     },
   });

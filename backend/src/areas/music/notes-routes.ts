@@ -5,8 +5,9 @@
 //
 // Writes stay under the rows-read guard: from 80% of the day's database budget a batch answers 429
 // with Retry-After until 00:00 UTC (DATA.md §8.1), and the night's tagging waits for the next one.
-// Find asks the Senses object for the early skips (kept in its memory until a new skip arrives)
-// and Core for the songs the owner said never to play again, then ranks in the Music object.
+// Find asks the Senses object for the early skips and the songs rated 1 (each kept in its memory
+// until a new event of its kind arrives) and Core for the songs the owner told the mind never to
+// play again, then ranks in the Music object.
 import { Hono } from 'hono';
 import {
   MUSIC_NOTE_LIMITS as L,
@@ -88,11 +89,11 @@ export const notesRoutes = new Hono<AppEnv>()
     const q = parseFind(c.req.query());
     if ('issues' in q) throw new ApiError('validation', q.issues);
     const now = Date.now();
-    const [skips, never] = await Promise.all([
-      fresh(sensesObject(c.env).earlySkips(now)),
+    const [heard, never] = await Promise.all([
+      fresh(sensesObject(c.env).musicSignals(now)),
       fresh(coreObject(c.env).musicNever(now)),
     ]);
-    const r = await fresh(musicObject(c.env).find(q, skips, never));
+    const r = await fresh(musicObject(c.env).find(q, heard.skips, never, heard.rated_out));
     if (!r) throw new ApiError('not_found', { reason: 'like names a song the catalog does not hold' });
     return c.json(r satisfies MusicFindResponse);
   });

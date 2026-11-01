@@ -83,7 +83,7 @@ export function musicRoutes(ctl) {
       const items = s.tracks
         .filter(t => t.id !== like && (like || moods.some(m => s.trackNotes.get(t.id)?.note.moods?.[m])))
         .map(t => ({...tags(t), score: 1, known: s.trackNotes.get(t.id)?.note.known ?? null, why: {}}));
-      return {items: items.slice(0, limit), total: items.length, analysis: false, left_out: {never: 0, skipped: 0}};
+      return {items: items.slice(0, limit), total: items.length, analysis: false, left_out: {never: 0, rated: 0, skipped: 0}};
     }],
   ];
 }

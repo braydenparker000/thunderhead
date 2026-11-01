@@ -792,7 +792,11 @@ position read every 250 ms, so within a quarter second), and `music.finish` with
 otherwise. Ids and times only, never a title. The rest of the table waits on its features.
 **Used (2026-11-01, §10.5):** a skip before 30 s counts against a song in the Worker's find (three in
 30 days leave it out, as §4.2 does for mixes); the newest `music.play` answers "who is this?"
-(`th music now`); a week's plays, finishes and skips make the Sunday line (`th music week`).
+(`th music now`); a week's plays, finishes and skips make the Sunday line (`th music week`). A song
+whose newest `music.rate` is 1 is left out of find, like and the mind's mixes: the phone sends one
+when the owner rates a song "not for me", and when they say "never play this again" to it (the phone
+rates the song 1 and skips it, `data: {rating: 1, from, by: 'command'}`; its Undo sends the old
+rating, which brings the song back).
 
 | Type | When | `ref` | `data` |
 |---|---|---|---|
@@ -904,11 +908,14 @@ score = 1.0 · mood fit (each asked mood's confidence, the note's and the audio'
       − 0.25 per skip before 30 s in the last 30 days
 ```
 
-A song must show the asked feeling (mood and occasion fit together over 0.15). Left out: songs the
-owner said never to play again (a rule fact from their own words, subject `music.never`, naming
-`music:<id>`; MEMORY.md §6 M4) and songs skipped before 30 s three times in 30 days (§4.2). Until
-the listening pass's table exists, find ranks by the notes alone and says so (`analysis: false`).
-The phone's own "never play" (rating 1) is a later step of its own.
+A song must show the asked feeling (mood and occasion fit together over 0.15). Left out, and
+counted in `left_out`: songs whose newest `music.rate` sense is 1 (`rated`: the phone's "not for
+me", which "never play this again" said to the phone sets; the senses keep 90 days of events, so a
+rating older than that no longer counts here, though the phone's own rating stands), songs the
+owner told the mind never to play again in other words (`never`: a rule fact from their own words,
+subject `music.never`, naming `music:<id>`; MEMORY.md §6 M4), and songs skipped before 30 s three
+times in 30 days (`skipped`, §4.2). Until the listening pass's table exists, find ranks by the notes
+alone and says so (`analysis: false`).
 
 **In the chat** ([RUNTIME.md §4.7](../../mind/RUNTIME.md)): "who is this?" (`th music now`: the
 newest `music.play` with its tags and note), "more like this" (`th music like`, then a mix) and

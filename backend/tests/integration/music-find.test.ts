@@ -70,7 +70,7 @@ describe('find by the notes alone (no listening pass yet)', () => {
     const r = await find('moods=calm');
     expect(r.status).toBe(200);
     expect(order(r)).toEqual([7, 0, 4, 2, 5]);
-    expect(r.body).toMatchObject({ total: 5, analysis: false, left_out: { never: 0, skipped: 0 } });
+    expect(r.body).toMatchObject({ total: 5, analysis: false, left_out: { never: 0, rated: 0, skipped: 0 } });
     expect(r.body.items[0]).toMatchObject({
       title: 'Skipped Calm',
       score: 0.95,
@@ -140,7 +140,7 @@ describe('how the owner listens', () => {
     ]);
     const out = await find('moods=calm');
     expect(order(out)).toEqual([0, 4, 2, 5]);
-    expect(out.body.left_out).toEqual({ never: 0, skipped: 1 });
+    expect(out.body.left_out).toEqual({ never: 0, rated: 0, skipped: 1 });
   });
 
   it('a song the owner said never to play again is left out of find and like', async () => {
@@ -153,13 +153,37 @@ describe('how the owner listens', () => {
     expect(await reason(as(P.C, CHAT_SESSION), rule)).toBeNull();
     const r = await find('moods=calm');
     expect(order(r)).toEqual([4, 2, 5]);
-    expect(r.body.left_out).toEqual({ never: 1, skipped: 1 });
+    expect(r.body.left_out).toEqual({ never: 1, rated: 0, skipped: 1 });
     expect(order(await find(`like=${S[4]}`))).not.toContain(0);
+  });
+
+  it('a song rated 1 on the phone ("not for me", or "never play this again" said to it) is left out until undone', async () => {
+    const rate = (rating: number, from: number, ago_ms: number) =>
+      sendSenses(P.D, [{ type: 'music.rate', id: S[4], ago_ms, data: { rating, from, by: 'command' } }]);
+    await rate(1, 0, 120_000);
+    const r = await find('moods=calm');
+    expect(order(r)).toEqual([2, 5]);
+    expect(r.body.left_out).toEqual({ never: 1, rated: 1, skipped: 1 });
+    expect(order(await find(`like=${S[0]}`))).not.toContain(4);
+    // The undo sends the old rating: the newest one is what counts.
+    await rate(0, 1, 30_000);
+    expect(order(await find('moods=calm'))).toEqual([4, 2, 5]);
+    // Another song's rating of 1 an older day still counts; a later rating of 4 takes it back.
+    await sendSenses(P.D, [
+      { type: 'music.rate', id: S[2], ago_ms: 10 * 86_400_000, data: { rating: 1, from: 0 } },
+      { type: 'music.rate', id: S[5], ago_ms: 9 * 86_400_000, data: { rating: 1, from: 0 } },
+      { type: 'music.rate', id: S[5], ago_ms: 8 * 86_400_000, data: { rating: 4, from: 1 } },
+    ]);
+    const later = await find('moods=calm');
+    expect(order(later)).toEqual([4, 5]);
+    expect(later.body.left_out.rated).toBe(1);
+    await sendSenses(P.D, [{ type: 'music.rate', id: S[2], ago_ms: 5_000, data: { rating: 3, from: 1 } }]);
+    expect(order(await find('moods=calm'))).toEqual([4, 2, 5]);
   });
 });
 
 describe('what find reads', () => {
-  it('the early skips by the (day, type) index and the rules by the current-facts index, never a scan', async () => {
+  it('the early skips and ratings by the (day, type) index, the rules by the current-facts index, never a scan', async () => {
     const skips = await runInDurableObject(sensesObject(env), (_o, st) =>
       st.storage.sql
         .exec(
@@ -172,6 +196,18 @@ describe('what find reads', () => {
         .join(' '),
     );
     expect(skips).toMatch(/SEARCH events USING INDEX events_day_type \(day=\? AND type=\?\)/);
+    const ratings = await runInDurableObject(sensesObject(env), (_o, st) =>
+      st.storage.sql
+        .exec(
+          `EXPLAIN QUERY PLAN SELECT ref, json_extract(data_json, '$.rating') AS rating FROM events
+           WHERE day IN ('2026-10-01', '2026-10-02') AND type = 'music.rate' AND at >= 0 AND ref IS NOT NULL
+             AND sensitivity = 0 ORDER BY at, seq`,
+        )
+        .toArray()
+        .map((r) => String(r.detail))
+        .join(' '),
+    );
+    expect(ratings).toMatch(/SEARCH events USING INDEX events_day_type \(day=\? AND type=\?\)/);
     const rules = await coreSql<{ detail: string }>(
       `EXPLAIN QUERY PLAN SELECT text FROM facts WHERE superseded_at IS NULL AND kind = 'rule' AND subject = 'music.never'
          AND (valid_to IS NULL OR valid_to > 0)`,
