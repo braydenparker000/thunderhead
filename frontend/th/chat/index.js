@@ -20,6 +20,7 @@ import { decisions } from '../decide/state.js';
 import { cache, OUTBOX_BYTES, OUTBOX_MAX, outbox } from './store.js';
 import { picked, take } from '../attach/state.js';
 import { createView } from './view.js';
+import { keepZone } from './zone.js';
 import { wireMic } from '../dictate/mic.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').TodayResponse} TodayResponse */
@@ -173,6 +174,8 @@ export async function startChat() {
     if (state.stop?.cleared_at) state.stopping = false;
     fromWorker(s['quiet.until']);
     if (typeof s['quiet.end'] === 'string') state.quietEnd = s['quiet.end'];
+    // The Worker's days, quiet hours and night run in the owner's zone: this phone's (zone.js).
+    void keepZone(s['owner.tz']);
   }
   async function loadSurfaces() {
     state.surfaces = (await signedIn((tok) => api.surfaces(tok))).items;
