@@ -60,4 +60,8 @@ test('the sleep timer: until I fall asleep is 30 minutes; a time from 1 minute t
   assert.deepEqual(c('turn off the music in half an hour'), { kind: 'control', cmd: 'sleep', minutes: 30 });
   assert.equal(c('sleep timer 500 hours'), null);
   assert.match(preview(c('sleep timer 20 minutes')), /in 20 minutes/);
+  // Off again.
+  for (const t of ['cancel the sleep timer', 'Stop the sleep timer.', 'sleep timer off', 'turn off sleep timer'])
+    assert.deepEqual(c(t), { kind: 'control', cmd: 'sleep', minutes: 0 }, t);
+  assert.equal(preview(c('cancel the sleep timer')), 'Turns the sleep timer off.');
 });

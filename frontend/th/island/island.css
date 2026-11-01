@@ -23,6 +23,10 @@
 .th-island[data-app="podcasts"] .bars{display:none}
 .th-island[data-app="podcasts"] .left{display:block}
 .th-island[data-app="podcasts"] .dot{background:radial-gradient(circle,var(--c) 56%,transparent 57%),conic-gradient(#fff var(--done),rgba(255,255,255,.18) 0)}
+/* A sleep timer: a moon and the minutes left. */
+.th-island .zz{display:none;align-items:center;gap:4px;font:600 13px/1 var(--ui);font-variant-numeric:tabular-nums;color:rgba(255,255,255,.82)}
+.th-island.sleep .zz{display:flex}
+.th-island .zz .i{width:15px;height:15px;fill:currentColor}
 .th-island:active{scale:.96}
 /* The wide card, held open from the island for a moment. */
 .th-wide{position:fixed;z-index:42;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);width:min(360px,calc(100vw - 24px));padding:16px 16px 14px;border-radius:26px;background:#0b1020;color:#fff;box-shadow:0 24px 60px -20px rgba(8,14,40,.75),0 0 0 1px rgba(255,255,255,.08);transform-origin:50% 0}

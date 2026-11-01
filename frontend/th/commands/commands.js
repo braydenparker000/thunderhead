@@ -85,6 +85,7 @@ export function commandOf(text, now = Date.now()) {
   for (const [re, cmd] of CONTROLS) if (re.test(t)) return { kind: 'control', cmd };
   // The sleep timer: "play until I fall asleep" (30 minutes), "sleep timer 20 minutes", "stop the music in an hour".
   if (/^(?:play until i fall asleep|sleep timer|set a sleep timer)$/.test(t)) return { kind: 'control', cmd: 'sleep', minutes: 30 };
+  if (/^(?:cancel|stop|turn off|clear|remove) (?:the )?sleep timer$|^(?:sleep timer off|no sleep timer)$/.test(t)) return { kind: 'control', cmd: 'sleep', minutes: 0 };
   let s = /^(?:(?:set a )?sleep timer(?: for)?|sleep in|stop (?:the )?music in|turn (?:the )?music off in|turn off the music in|stop playing in) (\d+|an?|half an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve) ?(minutes?|mins?|hours?|hrs?|h)$/.exec(t);
   if (s) {
     const minutes = minutesOf(s[1], s[2]);
@@ -126,7 +127,7 @@ export function preview(c) {
       play: 'Plays again.',
       next: 'Next song (Podcasts: 30 seconds on).',
       previous: 'Previous song (Podcasts: 15 seconds back).',
-      sleep: `Stops the music in ${c.minutes ?? 30} minutes.`,
+      sleep: c.minutes === 0 ? 'Turns the sleep timer off.' : `Stops the music in ${c.minutes ?? 30} minutes.`,
       never: 'Skips it and rates it "not for me", here and for the mind\'s mixes.',
     }[c.cmd];
   return `A reminder at ${whenWords(c.at)}: ${c.text}`;
