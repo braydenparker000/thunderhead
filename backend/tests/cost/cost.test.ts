@@ -270,24 +270,20 @@ describe('rows per endpoint', () => {
 
   // P3: memory on a Core that already holds the P2 rows above (memory-calls.ts).
   it('measures every P3 memory endpoint against its budget', () => memoryCalls(cost, grant));
-
   // P3 stage D: the import (import-calls.ts).
   it('measures the import against its budget', () => importCalls(cost, grant));
-
   // P4 stage A: decision cards (proposal-calls.ts).
   it('measures the decision cards against their budget', () => proposalCalls(cost, grant));
-
   // P7: Study's library (library-calls.ts).
   it('measures the library against its budget', () => libraryCalls(cost as never, grant));
   // P9: predictions (prediction-calls.ts).
   it('measures the predictions against their budget', () => predictionCalls(cost, grant));
-  // Reports and Podcasts' sync, the listening pass, what the mind knows (report-, podcast-, listen-, music-calls.ts).
-  it('measures the phone’s reports and sync, and the listening pass', () =>
-    phoneCalls(cost, grant).then(() => listenCalls(cost, grant)));
+  // Reports and Podcasts' sync, the listening pass, held conversations, what the mind knows (*-calls.ts).
+  it('measures the phone’s reports and sync, the listening pass and held conversations', () =>
+    phoneCalls(cost, grant)
+      .then(() => listenCalls(cost, grant))
+      .then(() => heldCalls(cost, grant)));
   it('measures the music notes and find against their budget', () => musicCalls(cost as never, grant));
-
-  // Held conversations: off the record, Delete, Restore and the purge (held-calls.ts).
-  it('measures held conversations against their budget', () => heldCalls(cost, grant));
 
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);

@@ -50,7 +50,8 @@ beforeAll(async () => {
   pastMsg = m.id;
   past = m.thread_id;
   reply = (await say(chat(p.C), 'Saturday it is.', { reply_to: m.id })).body.id;
-  fact = (await ops(chat(p.C), [addOp([`msg:${pastMsg}`], { text: 'Plans the weekend ahead' })])).body.applied[0].fact_id;
+  fact = (await ops(chat(p.C), [addOp([`msg:${pastMsg}`], { text: 'Plans the weekend ahead' })])).body.applied[0]
+    .fact_id;
   await fileAs(past, '2026-10-01');
 });
 
@@ -99,7 +100,7 @@ describe('a deleted conversation', () => {
   it('is in Recently deleted, for the device only, with its kind and count', async () => {
     const r = await apiJson<DeletedThreadsResponse>('GET', '/v1/threads/deleted', { token: p.D });
     expect(r.body.items).toEqual([
-      expect.objectContaining({ id: past, kind: 'daily', day: '2026-10-01', message_count: 1 }),
+      expect.objectContaining({ id: past, kind: 'daily', day: '2026-10-01', message_count: 2 }),
     ]);
   });
 
