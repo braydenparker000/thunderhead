@@ -27,6 +27,7 @@ import {
   USERNAME,
 } from '../helpers';
 import budgets from './budgets.json';
+import { heldCalls } from './held-calls';
 import { importCalls } from './import-calls';
 import { libraryCalls } from './library-calls';
 import { listenCalls } from './listen-calls';
@@ -284,6 +285,9 @@ describe('rows per endpoint', () => {
   it('measures the phone’s reports and sync, and the listening pass', () =>
     phoneCalls(cost, grant).then(() => listenCalls(cost, grant)));
   it('measures the music notes and find against their budget', () => musicCalls(cost as never, grant));
+
+  // Held conversations: off the record, Delete, Restore and the purge (held-calls.ts).
+  it('measures held conversations against their budget', () => heldCalls(cost, grant));
 
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);

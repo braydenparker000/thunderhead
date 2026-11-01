@@ -116,11 +116,11 @@
     "rows_written_max": 20
   },
   "PUT /v1/messages/:id (mind reply) (Core)": {
-    "rows_read_max": 79,
+    "rows_read_max": 81,
     "rows_written_max": 30
   },
   "GET /v1/search (messages) (Core)": {
-    "rows_read_max": 59,
+    "rows_read_max": 60,
     "rows_written_max": 0
   },
   "PUT /v1/verbs/:id (Core)": {
@@ -144,7 +144,7 @@
     "rows_written_max": 18
   },
   "cron tick, nothing due (Core)": {
-    "rows_read_max": 52,
+    "rows_read_max": 54,
     "rows_written_max": 4
   },
   "GET /v1/ops/meter (Core)": {
@@ -156,7 +156,7 @@
     "rows_written_max": 5
   },
   "POST /v1/memory/ops (1 add) (Core)": {
-    "rows_read_max": 4,
+    "rows_read_max": 6,
     "rows_written_max": 11
   },
   "GET /v1/memory/facts (4 facts) (Core)": {
@@ -168,7 +168,7 @@
     "rows_written_max": 0
   },
   "PUT /v1/memory/open-threads/:id (Core)": {
-    "rows_read_max": 4,
+    "rows_read_max": 6,
     "rows_written_max": 7
   },
   "GET /v1/memory/open-threads (Core)": {
@@ -184,11 +184,11 @@
     "rows_written_max": 0
   },
   "GET /v1/search (messages, facts, day notes) (Core)": {
-    "rows_read_max": 9,
+    "rows_read_max": 10,
     "rows_written_max": 0
   },
   "GET /v1/memory/facts/:id (Core)": {
-    "rows_read_max": 5,
+    "rows_read_max": 7,
     "rows_written_max": 0
   },
   "POST /v1/mind/night (start) (Core)": {
@@ -300,7 +300,7 @@
     "rows_written_max": 0
   },
   "cron tick, resolving a prediction (Core)": {
-    "rows_read_max": 60,
+    "rows_read_max": 62,
     "rows_written_max": 8
   },
   "GET /v1/insight (Core)": {
@@ -494,5 +494,33 @@
   "GET /v1/music/notes, songs' tags to a night session, its next call (Core)": {
     "rows_read_max": 5,
     "rows_written_max": 5
+  },
+  "PUT /v1/threads/:id/off-record (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 4
+  },
+  "PUT /v1/messages/:id (owner, off the record) (Core)": {
+    "rows_read_max": 11,
+    "rows_written_max": 9
+  },
+  "DELETE /v1/threads/:id (20 messages) (Core)": {
+    "rows_read_max": 48,
+    "rows_written_max": 32
+  },
+  "GET /v1/threads/deleted (1) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "POST /v1/threads/:id/restore (Core)": {
+    "rows_read_max": 4,
+    "rows_written_max": 8
+  },
+  "cron tick, purging a deleted day of 20 messages (Core)": {
+    "rows_read_max": 163,
+    "rows_written_max": 109
+  },
+  "cron tick, purging 500 messages off the record (Core)": {
+    "rows_read_max": 1066,
+    "rows_written_max": 510
   }
 }

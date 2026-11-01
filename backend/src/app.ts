@@ -10,6 +10,7 @@ import { LISTEN_LIMITS } from '../../shared/contract/listen.ts';
 import { authRoutes } from './areas/auth/routes';
 import { backupsRoutes } from './areas/backups/routes';
 import { briefingRoutes } from './areas/briefing/routes';
+import { heldRoutes } from './areas/conversation/held-routes';
 import { conversationRoutes } from './areas/conversation/routes';
 import { evalsRoutes } from './areas/evals/routes';
 import { feedRoutes } from './areas/feed/routes';
@@ -125,6 +126,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1/auth', authRoutes)
   // Each area mounts its own routes; the contract (shared/contract/routes.ts) names them all.
   .route('/v1', feedRoutes)
+  .route('/v1', heldRoutes)
   .route('/v1', conversationRoutes)
   .route('/v1', searchRoutes)
   .route('/v1', mindRoutes)

@@ -49,11 +49,15 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PATCH /v1/threads/:id` | C N | P2 | built |  |
 | `POST /v1/threads/:id/continue` | D | P2 | built |  |
 | `PUT /v1/threads/:id/title` | D | P2 | built | the owner names a thread (the mind never renames it after); empty gives naming back |
+| `PUT /v1/threads/:id/off-record` | D | P2 | built | a conversation off the record: never remembered, gone 7 days after its last message |
+| `DELETE /v1/threads/:id` | D | P2 | built | hidden at once; Recently deleted for 30 days, then purged |
+| `POST /v1/threads/:id/restore` | D | P2 | built | back from Recently deleted |
+| `GET /v1/threads/deleted` | D | P2 | built | Recently deleted, newest first |
 | `PUT /v1/messages/:id` | D C N R | P2 | built | N and R: kind 'error' with thread_id 'system' only |
 | `PATCH /v1/messages/:id` | C | P2 | built | own posts only |
-| `PUT /v1/files/:id` | D C | P2 | built | raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds (voice memos, transcribed) |
-| `POST /v1/dictate` | D | P2 | built | a few seconds of voice (audio/*, ≤ 1 MiB) to Whisper; answers the words, keeps nothing |
-| `GET /v1/files/:id` | D C N | P2 | built | the bytes, through the Worker; private, no-store; ?meta=1 the record |
+| `PUT /v1/files/:id` | D C | P2 | built | raw bytes ≤ 25 MiB; TH-File-Name, TH-Sha256, TH-Seconds |
+| `POST /v1/dictate` | D | P2 | built | a few seconds of voice (audio/*, ≤ 1 MiB) to Whisper; keeps nothing |
+| `GET /v1/files/:id` | D C N | P2 | built | the bytes, private, no-store; ?meta=1 the record |
 | `GET /v1/search` | D C N | P2 | built |  |
 | `POST /v1/mind/typing` | D | P2 | built |  |
 | `POST /v1/mind/stop` | D | P2 | built | the owner taps Stop: the work ends, not the session |
@@ -275,6 +279,8 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `proposal_required` | This change needs the owner first (decision cards arrive in P4). |
 | `never_stored` | Keys, tokens, passwords and card or bank numbers are never stored (MEMORY.md §13). |
 | `session_required` | Memory writes need a mind session that claimed its briefing and has not ended. |
+| `off_record_evidence` | That conversation is off the record: nothing from it becomes memory. |
+| `deleted_evidence` | That conversation was deleted: nothing from it becomes memory. |
 
 ## Music notes
 
@@ -378,6 +384,7 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `laws_unpinned` | 403 | The constitution pin failed for this session. |
 | `proposal_required` | 403 | This needs an approved proposal. |
 | `needs_approval` | 403 | This work order needs an approved reach_people proposal. |
+| `off_record` | 403 | That conversation is off the record: nothing from it is remembered or read later. |
 | `not_found` | 404 | Not found. |
 | `conflict` | 409 | Same id, different body. |
 | `already_decided` | 409 | Already decided. |
@@ -402,6 +409,7 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `reset_expired` | 410 | This reset expired. |
 | `reset_used` | 410 | This reset was already used. |
 | `resync_required` | 410 | Reload the full state. |
+| `gone` | 410 | That conversation was deleted, or its time is up. |
 | `too_large` | 413 | The request is too large. |
 | `unsupported_media_type` | 415 | Wrong content type. |
 | `validation` | 422 | Some fields are not valid. |

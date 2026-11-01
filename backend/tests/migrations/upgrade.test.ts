@@ -97,6 +97,10 @@ describe('upgrade from P2', () => {
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       sql.exec('ALTER TABLE surfaces DROP COLUMN facts_json');
+      // Step 26 (held conversations) added columns and indexes to the P2 threads table.
+      sql.exec('DROP INDEX IF EXISTS threads_purge');
+      sql.exec('DROP INDEX IF EXISTS threads_deleted');
+      for (const c of ['purge_at', 'deleted_at', 'kind_was']) sql.exec(`ALTER TABLE threads DROP COLUMN ${c}`);
       sql.exec('DROP INDEX IF EXISTS mind_sessions_tainted');
       sql.exec('DROP INDEX IF EXISTS mind_sessions_open');
       sql.exec('DROP INDEX IF EXISTS session_notes_at');
@@ -105,6 +109,9 @@ describe('upgrade from P2', () => {
       for (const c of ['taint_event_at', 'songs_at']) sql.exec(`ALTER TABLE mind_sessions DROP COLUMN ${c}`);
       sql.exec('ALTER TABLE session_notes DROP COLUMN tainted');
       sql.exec('DELETE FROM _migrations WHERE version > 7');
+      sql.exec(
+        `INSERT INTO threads (id, day, kind, status, started_at, updated_at) VALUES ('t-p2', '2026-10-01', 'daily', 'filed', 1, 1)`,
+      );
       sql.exec(
         `INSERT INTO messages (id, thread_id, created_at, author, origin, kind, body) VALUES ('m-p2', 't-p2', 1, 'owner', 'owner_device', 'text', 'kept across the upgrade')`,
       );
@@ -117,6 +124,10 @@ describe('upgrade from P2', () => {
       expect(all("SELECT body FROM messages WHERE id = 'm-p2'")).toEqual([{ body: 'kept across the upgrade' }]);
       expect(all(`SELECT rowid FROM messages_fts WHERE messages_fts MATCH '"upgrade"'`)).toHaveLength(1);
       expect(all("SELECT what FROM ledger WHERE id = 'l-p2'")).toEqual([{ what: 'a P2 row' }]);
+      // A thread from before step 27 is not held: no purge, not deleted, its kind its own.
+      expect(all("SELECT kind, purge_at, deleted_at, kind_was FROM threads WHERE id = 't-p2'")).toEqual([
+        { kind: 'daily', purge_at: null, deleted_at: null, kind_was: null },
+      ]);
       expect(all('SELECT version FROM _migrations WHERE version > 7').map((r) => r.version)).toEqual(
         CORE_MIGRATIONS.map((m) => m.version).filter((v) => v > 7),
       );

@@ -2,6 +2,7 @@
 // actions.ts, P3's in memory.ts and imports.ts, P4's in proposals.ts; the backend `satisfies` them, the frontend reads them in JSDoc.
 export type * from './actions';
 export type * from './conversation';
+export type { DeletedThread, DeletedThreadsResponse, RestoredThread, ThreadDeleted } from './held';
 export type * from './imports';
 export type * from './memory';
 export type * from './proposals';

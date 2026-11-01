@@ -85,3 +85,9 @@ export function countNotes(db: Db, from: number, to: number): number {
 export function latestNote(db: Db): { body: string; created_at: number } | null {
   return db.one(`SELECT ${WORDS}, created_at FROM session_notes ORDER BY created_at DESC LIMIT 1`);
 }
+
+/** A purged conversation's session notes (conversation/purge.ts): the mind's own words about it go
+ * with it. A scan (no index on `thread_id`; a few hundred notes are kept), once per purged thread. */
+export function deleteThreadNotes(db: Db, threadId: string): number {
+  return db.run('DELETE FROM session_notes WHERE thread_id = ?', threadId);
+}

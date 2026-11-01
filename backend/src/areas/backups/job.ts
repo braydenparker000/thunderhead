@@ -13,6 +13,7 @@ import {
 } from '../../../../shared/contract/backups.ts';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
+import { heldRows } from '../conversation/held-store';
 import { sha256 } from '../import/vault';
 import { JobError, type JobHandler } from '../jobs/runner';
 import { pageOf } from './objects';
@@ -87,7 +88,8 @@ export const backupJob: JobHandler = {
     // The other objects' rows come by RPC (their own key order); Core's are read here.
     const { rows, last } =
       p.class === 'core'
-        ? page(db, table, c.after, BACKUP_LIMITS.part_rows)
+        ? // Never a held conversation (off the record, deleted): no backup keeps one past its purge.
+          page(db, table, c.after, BACKUP_LIMITS.part_rows, heldRows(db, table))
         : await pageOf(env, p.class, table, c.after, BACKUP_LIMITS.part_rows);
     if (!rows.length) return { part: null, full: false, last: null };
     const bytes = await gzip(`${rows.map(line).join('\n')}\n`);

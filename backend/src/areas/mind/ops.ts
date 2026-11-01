@@ -16,6 +16,7 @@ import { HOUR, MINUTE } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
 import { currentDay, logicalDay } from '../conversation/day';
+import { offRecordOf, refuseHeld } from '../conversation/held';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
 import * as verbs from '../verbs/store';
@@ -162,6 +163,9 @@ export function note(w: Writer, sessionId: string | null, role: MindRole, r: Min
     if (found.body !== r.body || found.open_items_json !== body) throw new Fail('conflict');
     return;
   }
+  // A session note is read by the night: never one about a conversation off the record (403
+  // off_record) or a deleted one (410 gone), conversation/held.ts.
+  refuseHeld(w.db, r.thread_id, w.at);
   const s = sessionId ? store.session(w.db, sessionId) : null;
   // Written after outside text (MEMORY.md §7): a clean session's briefing and the night's day leave
   // its words out.
@@ -255,6 +259,8 @@ export function take(w: Writer, since: number, role: MindRole, sessionId: string
   const signals: LiveWaitResponse['signals'] = s && s.day < currentDay(db, tz, at) ? ['day_closed'] : [];
   const st = role === 'chat' ? stop.standing(db) : null;
   if (st && st.seq > after) signals.push('stop');
+  // Messages off the record are handed out (the chat answers them) and named, so it remembers none.
+  const offRecord = messages.length ? offRecordOf(db, messages, at) : [];
   return {
     seq: changes.at(-1)?.seq ?? last,
     changed: changes.length > 0 || messages.length > 0,
@@ -262,5 +268,6 @@ export function take(w: Writer, since: number, role: MindRole, sessionId: string
     messages,
     events,
     signals,
+    ...(offRecord.length ? { off_record: offRecord } : {}),
   };
 }

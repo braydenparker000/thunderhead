@@ -15,6 +15,7 @@ import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
+import { messageHeld, threadHeld } from '../conversation/held';
 import { dayCounts } from '../conversation/stats';
 import { messageOrigin, thread } from '../conversation/store';
 import { byId as ledgerRow } from '../ledger/store';
@@ -47,6 +48,11 @@ function cited(w: Writer, c: Caller, refs: string[], self: string): string[] {
                 ? key === self || ledgerRow(w.db, key) !== null
                 : kind === 'thread' && thread(w.db, key) !== null;
     if (!known) throw invalid('evidence', `${r.slice(0, 40)} does not exist`);
+    // M17: a loose end never cites a conversation off the record (403 off_record) or a deleted one
+    // (410 gone), its messages or the thread itself (conversation/held.ts).
+    const held = kind === 'msg' ? messageHeld(w.db, key, w.at) : kind === 'thread' ? threadHeld(w.db, key, w.at) : null;
+    if (held === 'off_record') throw new Fail('off_record');
+    if (held === 'deleted') throw new Fail('gone');
   }
   return list;
 }

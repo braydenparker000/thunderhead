@@ -5,7 +5,10 @@
 import type { Day, Id, JsonObject, Ms, Page } from './api';
 import type { AppId, ChangeKind, SearchSource } from './feed';
 
-export type ThreadKind = 'daily' | 'muse' | 'imported';
+/** `off_record`: answered, never remembered, purged 7 days after its last message; `restored`: a
+ * day's conversation given back from Recently deleted beside the fresh one its day began after the
+ * delete (shared/contract/held.ts). A deleted thread is never sent as a Thread. */
+export type ThreadKind = 'daily' | 'muse' | 'imported' | 'off_record' | 'restored';
 export type ThreadStatus = 'open' | 'filed';
 
 export interface Thread {
@@ -21,6 +24,8 @@ export interface Thread {
   started_at: Ms;
   updated_at: Ms;
   filed_at: Ms | null;
+  /** When the prune pass purges it: set only off the record (7 days after its last message). */
+  purge_at: Ms | null;
 }
 
 export type MessageAuthor = 'owner' | 'mind' | 'muse' | 'system';
@@ -66,13 +71,14 @@ export interface Message {
   answered_at: Ms | null;
 }
 
-/** PUT /v1/messages/:id. `thread_id: 'system'` only for night/reflex error posts (mind Finding 1). */
+/** PUT /v1/messages/:id. `thread_id: 'system'` only for night/reflex error posts (mind Finding 1);
+ * an id only names a conversation off the record (device, mind:chat). */
 export interface PutMessageRequest {
   body: string;
   kind?: MessageKind;
   meta?: JsonObject;
   reply_to?: Id;
-  thread_id?: 'system';
+  thread_id?: 'system' | Id;
 }
 
 export interface PatchMessageRequest {
@@ -155,6 +161,8 @@ export interface LiveWaitResponse {
   messages: Message[];
   events: LiveEvent[];
   signals: LiveSignal[];
+  /** The conversations off the record among `messages`: answer them, remember nothing from them. */
+  off_record?: Id[];
 }
 
 // --- the mind ----------------------------------------------------------------------------------

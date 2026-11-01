@@ -52,10 +52,33 @@ export const CONVERSATION_MIGRATIONS: Migration[] = [
       `CREATE VIRTUAL TABLE messages_fts USING fts5 (body, content = 'messages', content_rowid = 'seq', tokenize = 'unicode61 remove_diacritics 2')`,
     ],
   },
+  {
+    // Held conversations (held.ts): off the record (kind 'off_record') and deleted (kind 'deleted',
+    // its own kind kept in `kind_was` for Restore). `purge_at` is set exactly while a thread is
+    // held, so the partial index lists only them: the prune pass finds what is due on it, and every
+    // read that leaves held threads out (search, backups, the export) reads only those rows.
+    version: 27,
+    name: 'held conversations: threads.purge_at, deleted_at, kind_was',
+    kind: 'expand',
+    sql: [
+      'ALTER TABLE threads ADD COLUMN purge_at INTEGER',
+      'ALTER TABLE threads ADD COLUMN deleted_at INTEGER',
+      'ALTER TABLE threads ADD COLUMN kind_was TEXT',
+      'CREATE INDEX threads_purge ON threads (purge_at) WHERE purge_at IS NOT NULL',
+      'CREATE INDEX threads_deleted ON threads (deleted_at) WHERE deleted_at IS NOT NULL',
+    ],
+  },
 ];
 
+// Held threads and their messages are left out of backups and the export (held-store.ts
+// `heldRows`), and the prune pass purges them when due (purge.ts), not a TableInfo prune: a purge
+// takes the files' bytes too and writes a ledger row.
 export const CONVERSATION_TABLES: Record<string, TableInfo> = {
-  threads: { retention: 'forever', backup: true, export: true },
-  messages: { retention: 'forever', backup: true, export: true },
+  threads: {
+    retention: 'forever; off the record 7 days after its last message, deleted 30 days',
+    backup: true,
+    export: true,
+  },
+  messages: { retention: 'forever; with their thread when it is purged', backup: true, export: true },
   messages_fts: { retention: 'derived (rebuilt)', backup: false, export: false },
 };

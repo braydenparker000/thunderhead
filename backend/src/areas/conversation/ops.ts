@@ -12,6 +12,8 @@ import type { Writer } from '../../objects/commit';
 import { attach } from '../files/ops';
 import * as settings from '../settings/store';
 import { currentDay, provisionalTitle } from './day';
+import * as held from './held';
+import { heldIds } from './held-store';
 import * as store from './store';
 import * as titles from './store-threads';
 
@@ -21,7 +23,8 @@ export interface PutMessage {
   kind?: MessageKind;
   meta?: JsonObject;
   reply_to?: string;
-  thread_id?: 'system';
+  /** 'system' (night and reflex errors), or a conversation off the record (held.ts). */
+  thread_id?: string;
   attachments?: string[];
   req_sha256: string;
 }
@@ -62,15 +65,17 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
     if (lint) throw new Fail('validation', [{ path: 'body', issue: lint }]);
     checkChip(p.meta);
   }
-  const thread = today(w, tz);
-  if (p.reply_to) {
-    // A reply names a message of the open thread, or an owner message still unanswered from an
-    // earlier day, so nothing the owner said is lost across the roll.
-    const target = store.messageById(w.db, p.reply_to);
-    const open = target?.author === 'owner' && target.answered_at === null;
-    if (!target || (target.thread_id !== thread.id && !open))
-      throw invalid('reply_to', 'not a message in this thread or an unanswered owner message');
-  }
+  const target = p.reply_to ? store.messageById(w.db, p.reply_to) : null;
+  if (p.reply_to && !target) throw invalid('reply_to', 'not a message in this thread or an unanswered owner message');
+  // Off the record (held.ts): only into a live one, named or answered; never FTS-indexed. Decided
+  // before today's thread is touched, so a day spoken only off the record makes no daily thread.
+  const named = p.thread_id && p.thread_id !== 'system' ? p.thread_id : null;
+  const offRecord = held.offRecordTarget(w.db, c, named, target, w.at);
+  const thread = offRecord ? (store.thread(w.db, offRecord) as Thread) : today(w, tz);
+  // A reply names a message of its thread, or an owner message still unanswered from an earlier
+  // day, so nothing the owner said is lost across the roll.
+  if (target && target.thread_id !== thread.id && !(target.author === 'owner' && target.answered_at === null))
+    throw invalid('reply_to', 'not a message in this thread or an unanswered owner message');
   const [author, origin] = AUTHOR[c.who];
   // The files go to this message in its own commit: a refusal leaves both as they were.
   const attachments = files.length ? attach(w.db, files, c.who === 'D' ? 'owner' : 'mind', p.id) : [];
@@ -88,11 +93,13 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
     session_id: c.who === 'D' ? null : c.session_id,
     req_sha256: p.req_sha256,
     attachments,
+    unindexed: offRecord !== null,
   });
+  if (offRecord) held.spoke(w, offRecord);
   if (c.who === 'C') {
     // Any chat post acknowledges what was handed out; a reply settles it and everything before it.
     store.ackHandedOut(w.db, w.at);
-    if (p.reply_to) store.answer(w.db, p.reply_to, w.at);
+    if (p.reply_to) store.answer(w.db, p.reply_to, w.at, offRecord, offRecord ? [] : heldIds(w.db));
   }
   w.change('message', `msg:${message.id}`);
   const {
@@ -145,7 +152,10 @@ export function patchMessage(w: Writer, id: string, body: string | undefined, me
     if (lint) throw new Fail('validation', [{ path: 'body', issue: lint }]);
   }
   checkChip(meta);
-  store.patchMessage(w.db, m.seq, m.body, body, meta, w.at);
+  // A deleted conversation takes no more words; one off the record keeps none in the index.
+  const h = held.threadHeld(w.db, m.thread_id, w.at);
+  if (h === 'deleted') throw new Fail('gone');
+  store.patchMessage(w.db, m.seq, m.body, body, meta, w.at, h !== 'off_record');
   w.change('message', `msg:${id}`);
   const {
     req_sha256: _h,
@@ -158,6 +168,8 @@ export function patchMessage(w: Writer, id: string, body: string | undefined, me
 export function patchThread(w: Writer, id: string, title: string | undefined, summary: string | undefined): Thread {
   const t = store.thread(w.db, id);
   if (!t) throw new Fail('not_found');
+  // The mind never titles or sums up a held conversation: a title is memory of its words.
+  held.refuseHeld(w.db, id, w.at);
   if (title !== undefined && t.title_source === 'owner')
     throw new Fail('conflict', { reason: 'the owner named this thread' });
   titles.patchThread(w.db, id, title, summary, w.at);
@@ -168,7 +180,7 @@ export function patchThread(w: Writer, id: string, title: string | undefined, su
 /** PUT /v1/threads/:id/title: the owner's name for a thread, which the mind never changes after
  * (patchThread refuses); an empty one clears it, so the night shift may name it again. */
 export function nameThread(w: Writer, id: string, title: string): Thread {
-  if (!store.thread(w.db, id)) throw new Fail('not_found');
+  if (!store.thread(w.db, id) || held.threadHeld(w.db, id, w.at) === 'deleted') throw new Fail('not_found');
   const named = title.trim().replace(/\s+/g, ' ');
   titles.ownerTitle(w.db, id, named || null, w.at);
   w.change('thread', `thread:${id}`);
@@ -179,6 +191,8 @@ export function nameThread(w: Writer, id: string, title: string): Thread {
 export function continueThread(w: Writer, id: string, tz: string): { today_thread_id: string } {
   const filed = store.thread(w.db, id);
   if (!filed) throw new Fail('not_found');
+  // Continuing puts its words in today's briefing: never one off the record, never a deleted one.
+  held.refuseHeld(w.db, id, w.at);
   if (filed.status !== 'filed') throw invalid('id', 'only a filed thread can be continued');
   const t = today(w, tz);
   titles.linkContinues(w.db, t.id, id, w.at);

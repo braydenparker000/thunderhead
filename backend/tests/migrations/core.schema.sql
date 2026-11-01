@@ -538,9 +538,13 @@ CREATE TABLE threads (
   filed_at INTEGER,
   message_count INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL
-  ) WITHOUT ROWID;
+  , purge_at INTEGER, deleted_at INTEGER, kind_was TEXT) WITHOUT ROWID;
 
 CREATE UNIQUE INDEX threads_daily_day ON threads (day) WHERE kind = 'daily';
+
+CREATE INDEX threads_deleted ON threads (deleted_at) WHERE deleted_at IS NOT NULL;
+
+CREATE INDEX threads_purge ON threads (purge_at) WHERE purge_at IS NOT NULL;
 
 CREATE INDEX threads_status_updated ON threads (status, updated_at);
 

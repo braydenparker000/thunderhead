@@ -23,7 +23,8 @@ export const putMessage = z
     kind: z.optional(z.enum(MESSAGE_KINDS)),
     meta,
     reply_to: z.optional(z.string().check(z.regex(UUID7))),
-    thread_id: z.optional(z.literal('system')),
+    // 'system' (night and reflex errors), or a conversation off the record by its id (held.ts).
+    thread_id: z.optional(z.union([z.literal('system'), z.string().check(z.regex(UUID7))])),
     attachments: z.optional(z.array(z.string().check(z.maxLength(200))).check(z.maxLength(10))),
   })
   .check(

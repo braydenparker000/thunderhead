@@ -35,6 +35,8 @@ export interface BriefInput {
   quietUntil: number;
   threadId: string | null;
   waiting: Message[];
+  /** The conversations off the record among `waiting` (conversation/held.ts): marked, with a note. */
+  offRecord?: string[];
   todayTail: Message[];
   todayEarlier: Message[];
   note: { body: string; created_at: number } | null;
@@ -85,8 +87,13 @@ function files(m: Message, full: boolean): string {
     .join('');
 }
 
-function line(m: Message, tz: string, full = true): string {
-  const who = m.author === 'owner' ? 'owner' : m.author;
+/** The role-side note over section 2 when any waiting message is off the record: the Worker refuses
+ * every memory write citing it anyway; this keeps the session from trying or writing it elsewhere. */
+export const OFF_RECORD_NOTE = (ids: string[]) =>
+  `Off the record (thread ${ids.join(', ')}): answer with --reply-to, so the answer stays in it. Remember nothing from it: no fact, rule, loose end, title or session note (the Worker refuses: off_record).`;
+
+function line(m: Message, tz: string, full = true, offRecord?: string[]): string {
+  const who = `${m.author === 'owner' ? 'owner' : m.author}${offRecord?.includes(m.thread_id) ? ' (off the record)' : ''}`;
   const body = full ? m.body : m.body.replace(/\s+/g, ' ').slice(0, 120);
   return `[${m.id}] ${clock(m.created_at, tz)} ${who}${m.kind === 'text' ? '' : ` (${m.kind})`}: ${body}${files(m, full)}`;
 }
@@ -160,7 +167,11 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     // After the taint line, so a long section 1 never cuts that one.
     ...(i.quota ? [i.quota] : []),
   ].join('\n');
-  const waiting = i.waiting.map((m) => line(m, i.tz));
+  const offRecord = i.offRecord ?? [];
+  const waiting = [
+    ...(offRecord.length ? [OFF_RECORD_NOTE(offRecord)] : []),
+    ...i.waiting.map((m) => line(m, i.tz, true, offRecord)),
+  ];
   const tail = [
     reflex
       ? `Session notes: ${NO_MEMORY}`
