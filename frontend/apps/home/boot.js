@@ -56,7 +56,7 @@ async function start() {
   // Decision cards (HOME.md §3) load after the first paint too.
   requestAnimationFrame(() => setTimeout(() => import('/th/decide/card.js').then((m) => m.startDecisions()).catch(() => {}), 0));
   // What's new after an update (th/news), once per release.
-  requestAnimationFrame(() => setTimeout(() => import('/th/news/news.js').then((m) => m.startNews()).catch(() => {}), 1200));
+  requestAnimationFrame(() => setTimeout(() => import('/th/news/news.js').then((m) => m.startNews()).catch(() => {}), 0));
   menuCode();
   // Push (SECURITY.md §10): when it is on, the subscription follows a replaced key and a new sign-in.
   if ('Notification' in window && Notification.permission === 'granted')

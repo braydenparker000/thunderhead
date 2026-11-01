@@ -36,6 +36,8 @@ export async function startNews() {
   const { el } = await import('../ui.js');
   const turns = document.querySelector('#turns');
   if (!turns) return;
+  // Never while a finger is down: the card would move the conversation under it mid-swipe.
+  await untouched();
   const remember = () => {
     try {
       localStorage.setItem(SEEN, /** @type {News} */ (n).id);
@@ -66,6 +68,30 @@ export async function startNews() {
     el('div', { class: 'decide' }, [got]),
   ]);
   turns.append(card);
+}
+
+/** Resolves once no finger or button is down (at once if none is). */
+function untouched() {
+  return new Promise((resolve) => {
+    let down = 0;
+    const on = () => down++;
+    const off = () => {
+      down = Math.max(0, down - 1);
+      if (!down) setTimeout(done, 300);
+    };
+    const done = () => {
+      if (down) return;
+      removeEventListener('pointerdown', on, true);
+      removeEventListener('pointerup', off, true);
+      removeEventListener('pointercancel', off, true);
+      resolve(undefined);
+    };
+    addEventListener('pointerdown', on, true);
+    addEventListener('pointerup', off, true);
+    addEventListener('pointercancel', off, true);
+    // (A finger already down when this starts is caught by its pointerup.)
+    if (!document.querySelector(':active')) setTimeout(done, 0);
+  });
 }
 
 /** Opens an app by id as the ring does: as a layer where it can be one, else its page. @param {string} id */
