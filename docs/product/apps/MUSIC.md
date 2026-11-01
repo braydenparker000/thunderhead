@@ -338,13 +338,25 @@ Later step (after the as-is port, only if the owner agrees): the engine is the o
 core, moved into `frontend/lib/audio/` with a plain API. It serves Music and Podcasts ([PODCASTS](PODCASTS.md)). Guitar uses its own
 low-latency context ([GUITAR](GUITAR.md)).
 
-**[building] The streaming path** ([NEXT-BATCH](../../process/NEXT-BATCH.md) part 2; `frontend/th/music/stream/`,
-not wired into the player yet). One audio element plays the whole queue through Media Source
-Extensions. Each song's Ogg Opus file is read in Range requests of 32–128 KB on its signed link
+**[built] The streaming path** ([NEXT-BATCH](../../process/NEXT-BATCH.md) part 2; `frontend/th/music/stream/`).
+**In the player** (`deck.js`, called from `player.js` `assign`): each of the player's two decks plays
+its song through its own feed, so cross-fades, gapless joins, the lock screen, AirPods and the playback
+log work as before. A song streams when it is Opus from the network with a catalog length, not a CUE
+part or a video, and the browser has MediaSource with Opus in WebM (Chrome and Android; **not iPhone
+Safari**, which has only ManagedMediaSource: there songs play from the plain element as before). The
+song starts at the element's time 0, so the player's position, seeks and end are the song's; its length
+is the catalog's from the start. A deck not yet played (`preload` none) fetches nothing until its first
+play. A seek outside the buffer goes to the feed. A song whose stream gives up plays on from the plain
+element where it was, and from the element for the rest of the session (`noStream`); a preloaded one
+loads that way when its turn comes. Switched off on one phone with `localStorage['th.music.stream'] =
+'off'`. Tested in `tests/music-stream-player-browser.test.mjs` (also: no byte of the playing song
+fetched twice). The feed itself can play a whole queue on one element (the lab uses that). Each song's Ogg Opus file is read in Range requests of 32–128 KB on its signed link
 (`track.js`). Its pages are demuxed as they arrive (`ogg.js`: the capture pattern and CRC of every
 page are checked) and the same Opus packets are written as WebM (`webm.js`). Nothing is re-encoded and
-nothing changes in the bucket. At most 15 s is appended ahead of the play position: fetching stops at
-the cap and starts again under 10 s, and what lies more than 10 s behind is removed (`plan.js`). The
+nothing changes in the bucket. At most 60 s is appended ahead of the play position (the owner,
+2026-11-01; it was 15 s, which a tunnel or a switch between Wi-Fi and mobile data outlasted): fetching
+stops at the cap and starts again under 30 s, so the refill comes in bursts and the radio rests between
+them, and what lies more than 10 s behind is removed (`plan.js`). The
 next song joins at the exact sample where the last one ended. Its pre-skip is trimmed by
 `appendWindowStart`, the last song's end padding by `appendWindowEnd`, and the init segment's OpusHead
 says pre-skip 0. Chromium's decoder drops a head's pre-skip itself only when the head changes, so a
@@ -413,8 +425,12 @@ All values are the old engine's measured defaults unless marked.
 ### 5.4 Song heads
 
 - When a song starts sounding, the next 3 songs in play order fetch their first 15 s (at the file's
-  average bitrate, plus 64 KB for tags) and, for Ogg/Opus files, their last 128 KB (Chrome reads
-  the end for the length). About 0.4 MB per song.
+  average bitrate, plus 64 KB for tags) and, for Ogg/Opus files the plain element will play, their
+  last 128 KB (Chrome reads the end for the length; a streamed song needs no tail). About 0.3 MB per
+  song.
+- A song that starts streaming while its own head downloads (the one the app opened on) waits up to
+  1.2 s for it, so the feed's first reads come from the phone instead of fetching those bytes twice;
+  a stall or hold never stops that download (`heads.settle`, `hold(on, playing)`).
 - They download one at a time, low priority, starting 1.5 s after the current song sounds and once
   it has 10 s buffered. They pause while the current song is rebuffering.
 - Only the heads of the next 3 songs are kept; others are deleted when the order changes.

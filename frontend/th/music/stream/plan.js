@@ -1,14 +1,16 @@
 // @ts-check
 // The streaming feeder's decisions without the page (feed.js; MUSIC.md §5, NEXT-BATCH.md part 2):
-// how many bytes to ask for next under the 15 s cap (stop at the cap, start again under 10 s), how
+// how many bytes to ask for next under the 60 s cap (stop at the cap, start again under 30 s), how
 // much to append now, and the OpusHead the init segment carries. tests/music-stream-track.test.mjs.
 
 import { RATE } from './ogg.js';
 
-/** At most this much is buffered ahead of the play position (owner, NEXT-BATCH.md part 2). */
-export const CAP_S = 15;
-/** Once at the cap, fetching starts again only when less than this is buffered ahead. */
-export const RESUME_S = 10;
+/** At most this much is buffered ahead of the play position (owner, 2026-11-01: 60 s, was 15 s, so a
+ * tunnel or a switch between Wi-Fi and mobile data plays through; never the whole song at once). */
+export const CAP_S = 60;
+/** Once at the cap, fetching starts again only when less than this is buffered ahead: the refill comes
+ * in one burst of about 30 s, and between bursts the phone's radio rests. */
+export const RESUME_S = 30;
 /** What lies further behind the play position is removed. */
 export const BEHIND_S = 10;
 /** The first request of a song (no byte rate known yet), then 32–128 KB sized to the room left. */

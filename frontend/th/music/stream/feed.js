@@ -63,6 +63,8 @@ export class StreamFeed extends EventTarget {
     this.gen = 0;
     this.ctrl = new AbortController();
     this.dead = false;
+    /** The feed is moving the element itself (place). */
+    this.moving = false;
     /** A restart or a queue change is rearranging the buffer, so the pump waits. */
     this.blocked = false;
     this.full = false;
@@ -99,10 +101,12 @@ export class StreamFeed extends EventTarget {
     this.listen(ms, 'sourceclose', () => this.stop());
   }
 
-  /** Plays `tracks` from `index`, `ms` into it. @param {StreamTrack[]} tracks @param {{ index?: number, ms?: number }} [o] */
-  load(tracks, { index = 0, ms = 0 } = {}) {
+  /** Plays `tracks` from `index`, `ms` into it. The song starts on the element's timeline at `at`
+   * seconds (default: where the element is now; a deck that plays one song passes 0, so the element's
+   * time is the song's). @param {StreamTrack[]} tracks @param {{ index?: number, ms?: number, at?: number }} [o] */
+  load(tracks, { index = 0, ms = 0, at } = {}) {
     this.queue = tracks.slice();
-    this.restart(index, ms, Math.round((this.audio.currentTime || 0) * RATE));
+    this.restart(index, ms, Math.round((at ?? (this.audio.currentTime || 0)) * RATE));
   }
 
   /** Replaces what follows the song playing now; a song already joined that is no longer next is dropped. @param {StreamTrack[]} tracks */
@@ -140,7 +144,7 @@ export class StreamFeed extends EventTarget {
     const len = it.end >= 0 ? it.end - it.start : (it.track.durationMs ?? Infinity) * 48;
     const target = Math.max(0, Math.min(Math.round(ms * 48), len - RATE / 100));
     const t = (it.start + target) / RATE;
-    if (this.seekTo === null && covered(this.sb, t)) this.audio.currentTime = t;
+    if (this.seekTo === null && covered(this.sb, t)) this.place(t);
     else this.restart(it.index, target / 48, it.start);
   }
 
@@ -151,7 +155,7 @@ export class StreamFeed extends EventTarget {
     const next = this.items.find((x) => x.index === it.index + 1 && x.ready);
     if (next && this.seekTo === null && covered(this.sb, next.start / RATE + 0.001)) {
       this.skipped = it;
-      this.audio.currentTime = next.start / RATE;
+      this.place(next.start / RATE);
       return;
     }
     this.restart(it.index + 1, 0, Math.round(this.audio.currentTime * RATE));
@@ -301,7 +305,8 @@ export class StreamFeed extends EventTarget {
         const last = packets[packets.length - 1];
         this.appended = Math.max(this.appended, tl(last.start + last.samples - last.discard));
         if (this.seekTo !== null && this.appended / RATE > this.seekTo + 0.05) {
-          this.audio.currentTime = this.seekTo;
+          // (Already there, as at a song's start: no seek, so no blip.)
+          if (Math.abs(this.audio.currentTime - this.seekTo) > 0.001) this.place(this.seekTo);
           this.seekTo = null;
         }
         this.ahead();
@@ -312,7 +317,8 @@ export class StreamFeed extends EventTarget {
         item.final = true;
         this.appended = Math.max(this.appended, item.end);
         if (this.seekTo !== null) {
-          this.audio.currentTime = Math.min(this.seekTo, item.end / RATE);
+          const to = Math.min(this.seekTo, item.end / RATE);
+          if (Math.abs(this.audio.currentTime - to) > 0.001) this.place(to);
           this.seekTo = null;
         }
         continue;
@@ -334,6 +340,18 @@ export class StreamFeed extends EventTarget {
       () => gen === this.gen && ((this.fetching = null), this.pump()),
       (e) => gen === this.gen && ((this.fetching = null), this.fail(e, gen, item.index)),
     );
+  }
+
+  /** Moves the element itself (marked, so a deck that routes other moves through the feed lets it
+   * through: deck.js); not once destroyed. @param {number} t */
+  place(t) {
+    if (this.dead) return;
+    this.moving = true;
+    try {
+      this.audio.currentTime = t;
+    } finally {
+      this.moving = false;
+    }
   }
 
   /** The play position the cap counts from: where a pending seek is going, else the element's. */

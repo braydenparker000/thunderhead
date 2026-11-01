@@ -9,6 +9,11 @@ import {headOf, HEAD_S} from '../library/heads.js';
 import {StreamGuard} from './stream-guard.js';
 import {djOrder, DJ_AHEAD, SHUFFLE_DJ} from '/th/music/dj.js';
 
+// The streaming path (th/music/stream/deck.js, MUSIC.md §5): loaded on its own, so the player starts
+// and plays as before if it can't load (offline before it was ever fetched).
+let stream = null;
+import('/th/music/stream/deck.js').then(m => { stream = m; }, () => {});
+
 // Reference mode enums (integers SHUFFLE_* / REPEAT_*).
 export const SHUFFLE_NONE = 0, SHUFFLE_ALL = 1, SHUFFLE_SONGS = 2, SHUFFLE_CATS = 3, SHUFFLE_SONGS_AND_CATS = 4;
 export const REPEAT_NONE = 0, REPEAT_ON = 1, REPEAT_ADVANCE = 2, REPEAT_SONG = 3, SINGLE_SONG = 4, REPEAT_ADVANCE_AND_STOP = 5;
@@ -50,6 +55,8 @@ const PRELOAD_S = 30, LISTENED_S = 30;
 // The songs ahead whose first seconds are kept ready (library/heads.js); they download once the
 // playing song has this much of its stream ahead (or all of it), and wait while it rebuffers (s).
 const HEADS_AHEAD = 3, HEADS_AFTER_BUFFERED_S = 10;
+// A streamed song whose head is downloading when it starts waits this long at most for it.
+const START_HEAD_WAIT_MS = 1200;
 // A manual track change: the outgoing track waits at most this long for the incoming one to sound
 // before it fades out (ms). A start on the phone (a head) or a usual network sounds within it, and
 // the two cross-fade exactly; a slower one does not leave the old track heard meanwhile.
@@ -108,6 +115,8 @@ export class Player {
     this.fader = new DeckFader(ctx);
     // The URL each deck plays (a blob URL of an offline copy is released with the deck).
     this.deckUrl = new Map();
+    /** Songs whose stream gave up this session: they play from the plain element. */
+    this.noStream = new Set();
     // The next track, loaded on the idle deck ahead of time: {track, el, ready}.
     this.preloaded = null;
     this.guard = new StreamGuard(this);
@@ -142,7 +151,7 @@ export class Player {
       el.addEventListener('waiting', () => {
         if (el !== this.audio) return;
         if (this.splicing) this.cancelSplice();
-        if (this.state === STATE_PLAYING) this.ctx.audioHeads?.hold?.(true);
+        if (this.state === STATE_PLAYING) this.ctx.audioHeads?.hold?.(true, this.streams(this.track) ? this.track.src : null);
       });
       // The playing song sounds (again): the next songs' heads follow once it has a stream ahead.
       el.addEventListener('playing', () => { if (el === this.audio) this.headsSoon(1500); });
@@ -156,22 +165,7 @@ export class Player {
         this.setState(STATE_PLAYING);
       });
       this.guard.watch(el);
-      el.addEventListener('loadedmetadata', () => {
-        if (el !== this.audio) return;
-        const t = this.track;
-        const ms = Number.isFinite(el.duration) ? Math.round(el.duration * 1000) : 0;
-        // A CUE track's length is its range; the last one ends with the image.
-        if (t?.cueOf) {
-          if (!t.endMs && ms) { t.durationMs = Math.max(0, ms - rangeStart(t)); this.post('msg_player_track_changed', {track: t, meta: true}); }
-          return;
-        }
-        // The decoder's length, as the reference's Duration shows it, whenever the label would differ.
-        if (t && ms && (Math.abs((t.durationMs || 0) - ms) > 1000 || msToLabelSeconds(t.durationMs || 0) !== msToLabelSeconds(ms))) {
-          t.durationMs = ms;
-          this.ctx.library?.rememberDuration(t, ms);
-          this.post('msg_player_track_changed', {track: t, meta: true});
-        }
-      });
+      el.addEventListener('loadedmetadata', () => this.lengthFrom(el));
     }
     ctx.bus.subscribe('bus_player_cmd', (msg, src, data) => this.command(msg, data ?? {}));
     // A picked cover for the playing track shows at once.
@@ -565,7 +559,7 @@ export class Player {
         const ready = pre ? pre.ready : Promise.all([this.sourceFor(t), freed]).then(([url]) => {
           if (!url || token !== this.loadToken) { this.ctx.audioCache?.release(url); return url; }
           if (freed) this.ctx.dsp?.setReplayGain?.(el, replayGainOf(this.ctx, t));
-          this.assign(el, url);
+          this.assign(el, url, t);
           return url;
         });
         ready.then(url => {
@@ -612,14 +606,44 @@ export class Player {
     this.ctx.library?.prefetchWave?.(this.predictNext());
   }
 
+  /** A deck's length as its decoder (or the stream's end) has it: the track's when the label would differ. */
+  lengthFrom(el) {
+    if (el !== this.audio) return;
+    const t = this.track;
+    const ms = Number.isFinite(el.duration) ? Math.round(el.duration * 1000) : 0;
+    // A CUE track's length is its range; the last one ends with the image.
+    if (t?.cueOf) {
+      if (!t.endMs && ms) { t.durationMs = Math.max(0, ms - rangeStart(t)); this.post('msg_player_track_changed', {track: t, meta: true}); }
+      return;
+    }
+    // The decoder's length, as the reference's Duration shows it, whenever the label would differ.
+    if (t && ms && (Math.abs((t.durationMs || 0) - ms) > 1000 || msToLabelSeconds(t.durationMs || 0) !== msToLabelSeconds(ms))) {
+      t.durationMs = ms;
+      this.ctx.library?.rememberDuration(t, ms);
+      this.post('msg_player_track_changed', {track: t, meta: true});
+    }
+  }
+
   /** Pauses a deck for the player's own reasons (the pause listener ignores it). */
   halt(el) {
     if (!el.paused) el._selfPause = true;
     el.pause();
   }
 
+  /** A song's stream gave up: it plays from the plain element from where it was (the playing deck), or
+   * loads that way when its turn comes (a preloaded one). */
+  streamFailed(el, t, ms) {
+    this.noStream.add(t.id);
+    // (The element's own error for it, if any, is not a second failure: this reload answers it.)
+    this.guard.quietUntil = performance.now() + 3000;
+    if (el === this.audio && this.track?.id === t.id) this.reloadAt(ms / 1000);
+    else if (this.preloaded?.el === el) this.dropPreload();
+  }
+
   /** Stops a deck and lets its source go (a blob URL is released, the stream closes); at its track's end, the rest is heard first. */
   unload(el, end = el.ended) {
+    el._stream?.destroy();
+    el._stream = null;
     if (this.splicing?.el === el) this.cancelSplice();
     if (this.held?.el === el) { clearTimeout(this.held.timer); this.held = null; }
     this.ctx.dsp?.flush?.(el, end);
@@ -672,14 +696,28 @@ export class Player {
   }
 
   /** Points a deck at url (setting the same URL again reloads it); what the deck had not played yet is dropped. */
-  assign(el, url) {
+  assign(el, url, t = null) {
     this.halt(el);
     this.ctx.dsp?.flush?.(el);
+    el._stream?.destroy();
+    el._stream = null;
     const old = this.deckUrl.get(el);
     if (old && old !== url) this.ctx.audioCache?.release(old);
     this.deckUrl.set(el, url);
     el.preload = this.state === STATE_PLAYING ? 'auto' : url === this.startHeadUrl ? 'metadata' : 'none';
-    el.src = url;
+    // A song from the network streams (at most 15 s ahead, from its head); anything else, or a song whose
+    // stream gave up, plays from the element as before.
+    if (t && stream?.streamable(t, url) && !this.noStream.has(t.id)) {
+      const heads = this.ctx.audioHeads;
+      el._stream = stream.streamInto(el, url, t, {
+        lazy: el.preload === 'none',
+        // Its head downloading now (the song the app opened on) finishes first, and serves the start.
+        before: heads?.available ? () => heads.settle(url, START_HEAD_WAIT_MS) : null,
+        log: (type, data) => this.ctx.playbackLog?.log?.(type, data),
+        onFallback: ({ms}) => this.streamFailed(el, t, ms),
+        onLength: () => this.lengthFrom(el),
+      });
+    } else el.src = url;
     // (Not heard yet: its 'loadstart' comes later.)
     el._heard = false;
     // The new load drops the pause event halt() queued.
@@ -743,7 +781,7 @@ export class Player {
       }
       idle.preload = 'auto';
       this.ctx.dsp?.setReplayGain?.(idle, replayGainOf(this.ctx, next));
-      this.assign(idle, url);
+      this.assign(idle, url, next);
       pre.url = url;
       if (rangeStart(next)) idle.currentTime = rangeStart(next) / 1000;
       this.ctx.playbackLog?.log?.('preload', {track: next.id, from: url.startsWith('blob:') ? 'offline copy' : 'stream'});
@@ -781,10 +819,10 @@ export class Player {
       this.audio = idle;
       this.fader.set(idle, 0);
       this.ctx.dsp?.setReplayGain?.(idle, replayGainOf(this.ctx, t));
-      this.assign(idle, url);
+      this.assign(idle, url, t);
       if (!this.holdSilent(el)) this.unload(el);
       el = idle;
-    } else this.assign(el, url);
+    } else this.assign(el, url, t);
     if (sec > 0) el.currentTime = sec;
     if (this.state !== STATE_PLAYING) return;
     this.ctx.dsp?.attach(el);
@@ -844,7 +882,7 @@ export class Player {
     // The playing song first: sounding, with its stream ahead; else later.
     const el = this.audio;
     if (el.paused || el.readyState < 3 || !this.streamAhead(el)) {
-      heads.hold(true);
+      heads.hold(true, this.streams(this.track) ? this.track.src : null);
       this.headsSoon(2000);
       return;
     }
@@ -853,9 +891,14 @@ export class Player {
     for (let k = 1; k <= n; k++) {
       const x = this.trackAt(k);
       // (A CUE track further into its file would not start from the file's head.)
-      if (x && x !== this.track && !rangeStart(x) && !this.ctx.audioCache?.has(x.src)) list.push(headOf(x));
+      if (x && x !== this.track && !rangeStart(x) && !this.ctx.audioCache?.has(x.src)) list.push(headOf(x, {tail: !this.streams(x)}));
     }
     heads.want(list, this.track?.src ?? null);
+  }
+
+  /** Whether a song will play through the stream feed (it needs no Ogg tail kept: deck.js). */
+  streams(t) {
+    return !!t?.src && !!stream?.streamable(t, t.src) && !this.noStream.has(t.id);
   }
 
   /** Whether a deck has HEADS_AFTER_BUFFERED_S of its stream ahead of the playing position, or all of it. */
@@ -880,7 +923,7 @@ export class Player {
     if (!t || rangeStart(t) || this.ctx.audioCache?.has(t.src) || (this.pendingSeek || this.positionMs()) > (HEAD_S - 3) * 1000) return;
     const next = [];
     for (let k = 1; k <= HEADS_AHEAD; k++) { const x = this.trackAt(k); if (x?.src) next.push(x.src); }
-    heads.want([headOf(t)], next).then(() => {
+    heads.want([headOf(t, {tail: !this.streams(t)})], next).then(() => {
       // Its head on the phone: the deck reads the song's start (and an Ogg file's end) from it now, with
       // no network, so play starts at once; without, it would wait for one more request (0.4-2.3 s live).
       if (this.track !== t || this.state === STATE_PLAYING || !heads.kept.has(t.src)) return;

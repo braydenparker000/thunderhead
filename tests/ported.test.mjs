@@ -23,7 +23,7 @@ const MOVED = { 'music/sw.js': ['/th/music/bridge.js'], 'guitar/sources.js': ['/
 const IMPROVED = {
   'assets/error-report.js': ['/th/senses/send.js'],
   'music/src/app.js': ['/th/music/dj.js'],
-  'music/src/player/player.js': ['/th/music/dj.js'],
+  'music/src/player/player.js': ['/th/music/dj.js', '/th/music/stream/deck.js'],
   'music/src/list/sources.js': ['/th/music/search.js'],
   'guitar/reader.js': ['/th/guitar/teacher.js', '/th/guitar/practice.js'],
   'astra/src/main.js': ['/th/astra/open.js'],

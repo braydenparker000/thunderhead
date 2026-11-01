@@ -103,8 +103,9 @@ export class StreamGuard {
 
   failed(el) {
     const p = this.p;
-    // A deck let go of its source, or loads one no longer wanted.
-    if (!el.getAttribute('src')) return;
+    // A deck let go of its source, or loads one no longer wanted; or a stream's failure the player has
+    // already answered with a reload (player.js streamFailed).
+    if (!el.getAttribute('src') || this.now() < (this.quietUntil ?? 0)) return;
     if (el !== p.audio) { if (p.preloaded?.el === el) p.dropPreload(); return; }
     this.counts.errors++;
     this.goodSince = 0;
