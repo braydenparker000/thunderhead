@@ -142,7 +142,7 @@ async function send() {
     // Taken, or refused in a way no retry fixes (a malformed batch, or the Worker failing it five
     // times): it leaves the phone. Offline or signed out: it waits as it is.
     const done = r && (r.ok || r.status === 409 || r.status === 422 || (r.status >= 500 && batch.tries >= 4));
-    if (!done) {
+    if (!r || !done) {
       if (r && r.status >= 500) seal({ ...batch, tries: batch.tries + 1 });
       return;
     }
