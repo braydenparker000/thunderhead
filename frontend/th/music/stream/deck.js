@@ -4,10 +4,13 @@
 // deck playing a song from the network gets it through the stream feed instead of `src`: it starts
 // from the first bytes (the song heads the worker keeps, so at once), holds at most 15 s ahead, and
 // never asks for the whole file. The song starts at the element's time 0, so the player's own
-// position, length, seeks and end are the song's. A seek the player makes outside what is buffered
-// is handed to the feed; a deck the player isn't going to play yet ('none') waits for its first play
-// before it fetches anything. On any trouble the feed gives up (`fallback`) and the player goes back to
-// the plain element for that song.
+// position, length, seeks and end are the song's. Every move of the deck's position (the player's
+// seeks, a reload or a restored place, from wherever it sets `currentTime`) goes through here: before
+// the song streams it is where it starts; after, inside the buffer the element moves itself, outside
+// it the feed fetches from there, and a later move wins over one still on its way. A deck the player
+// isn't going to play yet ('none') waits for its first play before it fetches anything. The feed's
+// exact length (at its end of stream) corrects the catalog's (onLength). On any trouble the feed gives
+// up (`fallback`) and the player goes back to the plain element for that song.
 import { covered, supported } from './buffer.js';
 import { StreamFeed } from './feed.js';
 
@@ -33,11 +36,13 @@ export function streamable(t, url) {
   );
 }
 
+const TIME = /** @type {PropertyDescriptor} */ (Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype, 'currentTime'));
+
 /**
  * Streams `url` (the song `t`) into the deck `el`. `before`: waited for before the first read (the
  * song's head finishing its download, so the start comes from the phone).
  * @param {HTMLAudioElement} el @param {string} url @param {any} t
- * @param {{ lazy?: boolean, before?: (() => Promise<unknown>) | null, onFallback: (d: { reason: string, ms: number }) => void, log?: (type: string, data: object) => void }} o
+ * @param {{ lazy?: boolean, before?: (() => Promise<unknown>) | null, onFallback: (d: { reason: string, ms: number }) => void, onLength?: (s: number) => void, log?: (type: string, data: object) => void }} o
  */
 export function streamInto(el, url, t, o) {
   const feed = new StreamFeed(el);
@@ -48,8 +53,20 @@ export function streamInto(el, url, t, o) {
   let dead = false;
   /** Until its first play (a lazy deck), nothing is fetched. */
   let waiting = !!o.lazy;
-  /** Where to start, in ms (the player's position before its first play). */
+  /** Where to start, in ms (the player's position before the song streams). */
   let want = 0;
+  // The deck's position, from here on (deleted again by destroy).
+  Object.defineProperty(el, 'currentTime', {
+    configurable: true,
+    get: () => (loaded || !want ? TIME.get?.call(el) : want / 1000),
+    set: (/** @type {number} */ v) => {
+      const s = Math.max(0, Number(v) || 0);
+      if (feed.moving) TIME.set?.call(el, s);
+      else if (!loaded) want = s * 1000;
+      else if (feed.seekTo === null && feed.sb && covered(feed.sb, s)) TIME.set?.call(el, s);
+      else if (feed.seekTo === null || Math.abs(feed.seekTo - s) > 0.001) feed.seek(s * 1000);
+    },
+  });
   const start = () => {
     if (asked || !open || waiting) return;
     asked = true;
@@ -76,23 +93,15 @@ export function streamInto(el, url, t, o) {
     () => {},
   );
   const onPlay = () => {
-    if (waiting) want = Math.max(0, (el.currentTime || 0) * 1000);
     waiting = false;
     start();
   };
-  // The player's own jumps (a seek, a reload at a position): inside the buffer the element moves
-  // itself; outside it, the feed fetches from there. The feed's own moves (seekTo set) are left alone.
-  const onSeeking = () => {
-    const ms = Math.max(0, (el.currentTime || 0) * 1000);
-    if (!loaded) {
-      want = ms;
-      return;
-    }
-    if (feed.seekTo !== null || !feed.sb) return;
-    if (!covered(feed.sb, el.currentTime)) feed.seek(ms);
+  // The exact length, once the feed has read the song's end (the catalog's is close, not exact).
+  const onLength = () => {
+    if (loaded && Number.isFinite(el.duration) && el.duration > 0) o.onLength?.(el.duration);
   };
   el.addEventListener('play', onPlay);
-  el.addEventListener('seeking', onSeeking);
+  el.addEventListener('durationchange', onLength);
   feed.addEventListener('fallback', (e) => {
     const d = /** @type {CustomEvent} */ (e).detail ?? {};
     o.log?.('stream fallback', { track: track.id, reason: String(d.reason ?? 'unknown') });
@@ -104,7 +113,8 @@ export function streamInto(el, url, t, o) {
     destroy() {
       dead = true;
       el.removeEventListener('play', onPlay);
-      el.removeEventListener('seeking', onSeeking);
+      el.removeEventListener('durationchange', onLength);
+      delete (/** @type {any} */ (el).currentTime);
       feed.destroy();
     },
   };

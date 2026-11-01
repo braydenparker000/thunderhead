@@ -39,7 +39,8 @@ before(async () => {
       const tracks = Array.from({ length: N }, (_, i) => ({
         id: idOf(i), sha256: hex(i), size: SONG.length, coverKey: `native/art/${hex(i)}.jpg`, audioKey: `native/audio/${hex(i)}.opus`, mimeType: 'audio/ogg', path: `Tone ${i}.opus`, folder: 'Cloudflare R2/Test',
         r2Identity: { size: SONG.length, etag: `e${i}`, lastModified: '2026-10-01T00:00:00.000Z' },
-        metadata: { title: `Tone ${i}`, artist: `Artist ${i}`, album: 'Album', dur: SECONDS, codec: 'opus', sr: 48000 },
+        // (Song 2's catalog length is 3 s too long: the stream's own end corrects it.)
+        metadata: { title: `Tone ${i}`, artist: `Artist ${i}`, album: 'Album', dur: i === 2 ? SECONDS + 3 : SECONDS, codec: 'opus', sr: 48000 },
       }));
       res.writeHead(200, { ...cors, 'Content-Type': 'application/json', ETag: '"m1-stream"', 'Access-Control-Expose-Headers': 'ETag' });
       return res.end(JSON.stringify({ version: 1, kind: 'r2-library', complete: true, count: N, generatedAt: '2026-10-29T00:00:00.000Z', tracks }));
@@ -148,6 +149,32 @@ test('a song streams: at most ~15 s ahead, part of the file, its length known, s
     await page.waitForFunction(() => __cp.player.audio.currentTime > 3, null, { timeout: 20_000 });
     await page.evaluate(() => __cp.player.audio._stream.feed.dispatchEvent(new CustomEvent('fallback', { detail: { reason: 'test', index: 0, ms: 3000 } })));
     await page.waitForFunction(() => { const a = __cp.player.audio; return !a._stream && !a.src.startsWith('blob:') && !a.paused && a.currentTime >= 2.5; }, null, { timeout: 20_000 });
+    assert.deepEqual(errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('a reload lands where it was, a second seek wins over the first, and the stream corrects the length', opts, async () => {
+  const { context, page, errors } = await boot();
+  try {
+    const at = await page.evaluate((id) => __cp.player.queue.findIndex((t) => t.id === id), idOf(2));
+    await playFrom(page, at);
+    const place = () => page.evaluate(() => { const a = __cp.player.audio; return { t: a.currentTime, playing: !a.paused && a.readyState >= 3, stream: !!a._stream }; });
+    // The stall guard's reload (and a place restored while playing): the new deck starts there, not at 0.
+    await page.evaluate(() => __cp.player.reloadAt(20));
+    await page.waitForFunction(() => { const a = __cp.player.audio; return !a.paused && a.readyState >= 3 && a.currentTime > 20.2; }, null, { timeout: 20_000 });
+    const r = await place();
+    assert.ok(r.stream && r.t > 20 && r.t < 27, `after the reload at ${r.t.toFixed(2)} s`);
+    // Two seeks past the buffer in a row (a double tap on +10 s, a re-tap on the waveform): the last wins.
+    await page.evaluate(() => { __cp.player.seek(32_000); __cp.player.seek(50_000); });
+    await page.waitForFunction(() => { const a = __cp.player.audio; return !a.paused && a.readyState >= 3 && a.currentTime > 50.2; }, null, { timeout: 20_000 });
+    const s = await place();
+    assert.ok(s.t > 50 && s.t < 57, `after two seeks at ${s.t.toFixed(2)} s`);
+    // The song's real end has been read: its length is the stream's, not the catalog's 63 s.
+    await page.waitForFunction((n) => __cp.player.track.durationMs < (n + 1) * 1000, SECONDS, { timeout: 20_000 });
+    const ms = await page.evaluate(() => __cp.player.track.durationMs);
+    assert.ok(ms > (SECONDS - 1) * 1000 && ms < (SECONDS + 1) * 1000, `length ${ms} ms`);
     assert.deepEqual(errors, []);
   } finally {
     await context.close();
