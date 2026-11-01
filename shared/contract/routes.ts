@@ -206,11 +206,11 @@ export const ROUTES = {
   // --- P5 and later ---------------------------------------------------------------------------
   'GET /v1/music/catalog': { who: D, phase: 'P5', note: "the ported player's format; ETag, 304; 409 before the import" },
   'GET /v1/music/waveforms/:id': { who: D, phase: 'P5' },
-  'GET /v1/music/tracks': { who: ['C', 'N'], phase: 'P5', note: '?q=&limit=: tracks by their tags, for a playlist the mind makes; &untagged=1: songs still needing a note' },
+  'GET /v1/music/tracks': { who: ['C', 'N'], phase: 'P5', note: '?q=&limit=: tracks by their tags (songs rated 1 left out), for a playlist the mind makes; &untagged=1: the night\'s next ≤ 200 songs needing a note, `more`' },
   // What the mind knows of each song (MUSIC.md §10.5, Music schema step 4): its notes, and songs by feeling.
   'PUT /v1/music/notes': { who: ['C', 'N'], phase: 'P5', note: "{items}: 1–200 notes checked against the vocabularies; a bad note or unknown id refuses the batch; 429 from 80% of the day's budget" },
   'GET /v1/music/notes': { who: ['D', 'C', 'N'], phase: 'P5', note: '?ids=a,b (≤ 200, each with its tags) or ?cursor=&limit=: every note, a page at a time' },
-  'GET /v1/music/find': { who: ['C', 'N'], phase: 'P5', note: '?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out' },
+  'GET /v1/music/find': { who: ['C', 'N'], phase: 'P5', note: '?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out; 429 from 80%' },
   // The upload tools, server to server: no bearer token, each request signed (Ed25519) by a tool's key.
   'PUT /v1/music/uploads/audio/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; Ogg Opus, ≤ 32 MiB' },
   'PUT /v1/music/uploads/art/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; JPEG or PNG, ≤ 2 MiB' },

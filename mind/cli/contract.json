@@ -1021,7 +1021,7 @@
       ],
       "phase": "P5",
       "status": "built",
-      "note": "?q=&limit=: tracks by their tags, for a playlist the mind makes; &untagged=1: songs still needing a note"
+      "note": "?q=&limit=: tracks by their tags (songs rated 1 left out), for a playlist the mind makes; &untagged=1: the night's next ≤ 200 songs needing a note, `more`"
     },
     "PUT /v1/music/notes": {
       "who": [
@@ -1049,7 +1049,7 @@
       ],
       "phase": "P5",
       "status": "built",
-      "note": "?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out"
+      "note": "?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out; 429 from 80%"
     },
     "PUT /v1/music/uploads/audio/:file": {
       "who": "P",

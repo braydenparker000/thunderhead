@@ -796,7 +796,8 @@ otherwise. Ids and times only, never a title. The rest of the table waits on its
 whose newest `music.rate` is 1 is left out of find, like and the mind's mixes: the phone sends one
 when the owner rates a song "not for me", and when they say "never play this again" to it (the phone
 rates the song 1 and skips it, `data: {rating: 1, from, by: 'command'}`; its Undo sends the old
-rating, which brings the song back).
+rating, which brings the song back). The Worker keeps each song's newest rating for good
+(`track_ratings`), so "not for me" never fades with the senses' 90 days.
 
 | Type | When | `ref` | `data` |
 |---|---|---|---|
@@ -894,8 +895,11 @@ The vocabularies are fixed, in `shared/contract/music.ts`, and the Worker refuse
 one left empty. `known: false` is the mind saying it doesn't know the song: such a note says only
 what the tags imply, and none of its confidences may pass 0.5. Each note records its writer (`by`:
 `mind:night` or `mind:chat`) and its format version; a note of an older version comes up again in
-the night's page. The night writes about 1,000 songs a night until the library is covered, then only
-new ones ([RUNTIME.md §12.1](../../mind/RUNTIME.md)).
+the night's page, except one the owner corrected through the chat, which no night note replaces.
+The night writes at most 400 songs a night, as night step 11 with its own 6 minutes, until the
+library is covered, then only new ones ([RUNTIME.md §12.1](../../mind/RUNTIME.md)). Every read is by
+key: notes and tags by id, the night's page from the catalog place where its last page began, and
+find from the notes packed 500 to a row ([DATA.md §6.2, §8.4](../../engineering/DATA.md)).
 
 **Find by feeling** (`GET /v1/music/find?moods=&occasion=&energy=&like=&limit=`, `th music find`):
 
@@ -908,21 +912,27 @@ score = 1.0 · mood fit (each asked mood's confidence, the note's and the audio'
       − 0.25 per skip before 30 s in the last 30 days
 ```
 
-A song must show the asked feeling (mood and occasion fit together over 0.15). Left out, and
-counted in `left_out`: songs whose newest `music.rate` sense is 1 (`rated`: the phone's "not for
-me", which "never play this again" said to the phone sets; the senses keep 90 days of events, so a
-rating older than that no longer counts here, though the phone's own rating stands), songs the
-owner told the mind never to play again in other words (`never`: a rule fact from their own words,
-subject `music.never`, naming `music:<id>`; MEMORY.md §6 M4), and songs skipped before 30 s three
+A song must show the asked feeling (mood and occasion fit together over 0.15); a song with neither
+a note nor a measurement isn't ranked. Left out, and counted in `left_out`: songs whose newest
+rating is 1 (`rated`: the phone's "not for me", which "never play this again" said to the phone
+sets; the senses route hands each `music.rate` to the Music object, which keeps each song's newest
+rating for good in `track_ratings`, so it never fades with the senses' 90 days, and the word search
+`/v1/music/tracks?q=` leaves them out too), songs the owner told the mind never to play again in
+other words (`never`: a rule fact from their own words, subject `music.never`, its text naming the
+song as `music:<id>` and nothing else of it; MEMORY.md §6 M4), and songs skipped before 30 s three
 times in 30 days (`skipped`, §4.2). Until the listening pass's table exists, find ranks by the notes
-alone and says so (`analysis: false`).
+alone and says so (`analysis: false`). Find waits from 80% of the day's database budget, as the
+night's batches do.
 
 **In the chat** ([RUNTIME.md §4.7](../../mind/RUNTIME.md)): "who is this?" (`th music now`: the
 newest `music.play` with its tags and note), "more like this" (`th music like`, then a mix) and
 "play something calm" (`th music find`, then a mix, opened by a chip). **Overnight**: up to 2 mixes
 a night when the evidence gives a reason, and on the night into Sunday one home line of what the
 owner has been into, in the morning's Overnight card. Notes and find never leave the Worker
-([PRIVACY.md §2](../../engineering/PRIVACY.md)); the mind never looks a song up on the web.
+([PRIVACY.md §2](../../engineering/PRIVACY.md)); the mind never looks a song up on the web, and a
+night session that has paged the songs may not (the PreToolUse hook). Songs' tags are outside text
+(someone else wrote them), so what prints them taints the session, and a title never goes inside a
+quoted shell argument: it travels on stdin ([RUNTIME.md §4.7](../../mind/RUNTIME.md)).
 
 ---
 
