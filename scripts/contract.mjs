@@ -81,9 +81,6 @@ export const DICTATE_LIMITS = Object.freeze(${j(c.DICTATE_LIMITS)});
 /** @type {Readonly<typeof import('../../shared/contract/reminders.ts').REMINDER_LIMITS>} */
 export const REMINDER_LIMITS = Object.freeze(${j(c.REMINDER_LIMITS)});
 
-/** @type {Readonly<typeof import('../../shared/contract/podcasts.ts').PODCAST_LIMITS>} */
-export const PODCAST_LIMITS = Object.freeze(${j(c.PODCAST_LIMITS)});
-
 /** @type {Readonly<Record<VerbName, VerbInfo>>} */
 export const VERBS = Object.freeze(${j(verbs)});
 

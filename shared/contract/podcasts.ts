@@ -4,9 +4,9 @@
 // newer `updated_at` winning on both sides. An episode's key is the app's own `<feed address>#<id>`
 // (the id is the feed reader's 16-hex hash of its guid): kept as it is, so a phone that never saw
 // the episode can still resume it, and the night can match a position to a show. It travels only
-// in JSON bodies (never a path, a query or a log line). The phone's copy of these limits is
-// frontend/th/contract.js (scripts/contract.mjs); its key check is the same rule
-// (tests/podcasts-progress.test.mjs checks the two agree).
+// in JSON bodies (never a path, a query or a log line). The phone's copy of the limits it needs is
+// `L` in frontend/th/podcasts/progress.js, and its key check is the same rule
+// (tests/podcasts-progress.test.mjs checks both agree).
 import type { Ms } from './api.ts';
 
 export const PODCAST_LIMITS = {

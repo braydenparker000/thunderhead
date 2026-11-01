@@ -7,7 +7,7 @@
 // asked. The key check agrees with the Worker's. Synthetic shows and episodes only.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { progressKeyProblem } from '../shared/contract/podcasts.ts';
+import { PODCAST_LIMITS, progressKeyProblem } from '../shared/contract/podcasts.ts';
 import * as sync from '../frontend/th/podcasts/progress.js';
 
 const FEED = 'https://feeds.example.org/show.xml';
@@ -87,6 +87,10 @@ beforeEach(() => {
     api: () => 'https://api.example.test',
     online: () => true,
   });
+});
+
+test('the limits it keeps to are the Worker’s', () => {
+  for (const [k, v] of Object.entries(sync.L)) assert.equal(v, PODCAST_LIMITS[k], k);
 });
 
 test('the key check agrees with the Worker’s', () => {

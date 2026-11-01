@@ -41,9 +41,6 @@ export const DICTATE_LIMITS = Object.freeze({"bytes":1048576,"piece_seconds":15,
 /** @type {Readonly<typeof import('../../shared/contract/reminders.ts').REMINDER_LIMITS>} */
 export const REMINDER_LIMITS = Object.freeze({"text":200,"open":50,"days_ahead":400});
 
-/** @type {Readonly<typeof import('../../shared/contract/podcasts.ts').PODCAST_LIMITS>} */
-export const PODCAST_LIMITS = Object.freeze({"progress_keep":1000,"batch_items":100,"url_chars":2000,"id_chars":64,"seconds_max":604800,"ahead_ms":3600000,"title_chars":300,"author_chars":200,"unfollowed_keep_days":30,"follows_keep":300,"page_max":500,"night_feeds":20,"check_gap_ms":72000000,"fail_backoff_max":3,"night_feed_reads":40});
-
 /** @type {Readonly<Record<VerbName, VerbInfo>>} */
 export const VERBS = Object.freeze({"app.open":{"app":"shell","executor":"device","queueable":false,"undo":"none","versions":[1]},"music.create_playlist":{"app":"music","executor":"device","queueable":true,"undo":"reported","versions":[1]},"music.delete_playlist":{"app":"music","executor":"device","queueable":false,"undo":"none","versions":[1]},"shell.appearance":{"app":"shell","executor":"device","queueable":true,"undo":"reported","versions":[1]}});
 

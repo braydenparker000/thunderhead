@@ -25,8 +25,20 @@
 // this module remembers (what the Worker has, and since when it last asked) is `th.p.podcasts.sync`,
 // cleared on sign-out with the rest of `th.p.*` (th/session.js).
 import { CONFIG } from '../../config.js';
-import { PODCAST_LIMITS as L } from '../contract.js';
 import { framedByOther, sessionToken } from '../ported/session.js';
+
+/** The Worker's limits this module keeps to (PODCAST_LIMITS in shared/contract/podcasts.ts; kept here,
+ * not in th/contract.js, which counts against the shell's size budget; tests/podcasts-progress.test.mjs
+ * checks they agree). */
+export const L = Object.freeze({
+  batch_items: 100,
+  url_chars: 2000,
+  id_chars: 64,
+  seconds_max: 604_800,
+  title_chars: 300,
+  author_chars: 200,
+  unfollowed_keep_days: 30,
+});
 
 /** The app's storage (podcasts/core.js `STORAGE_KEY`) and this module's. */
 export const APP_KEY = 'jarvis.podcasts.v1';
