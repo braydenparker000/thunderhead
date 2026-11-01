@@ -5,7 +5,8 @@
 // names) and streamed with byte ranges. Where an episode was found, and where its host's redirects
 // led, are kept 10 minutes in memory, so a seek costs one request. A host's own trouble travels in
 // `details.reason`, which the app shows as before. Nothing is logged or stored. mind:night reads
-// feeds too (the new-episode check, RUNTIME.md §12.1), at most 40 a UTC day, counted by Core.
+// feeds too (the new-episode check, RUNTIME.md §12.1): only followed shows' (403 otherwise), at
+// most 40 a UTC day, counted by Core in a stored row.
 import { Hono } from 'hono';
 import { parseFeed, publicURL } from '../../../../frontend/th/podcasts/feed.js';
 import type { ErrorCode } from '../../../../shared/contract/errors';
@@ -92,9 +93,14 @@ export const podcastsRoutes = new Hono<AppEnv>()
     return c.json(await answer(() => directory(q, c.req.query('country'), time(c))));
   })
   .get('/podcasts/feed', guard('GET /v1/podcasts/feed'), async (c) => {
+    // mind:night: only a show the owner follows, at most 40 a UTC day (sync.ts `admitNightFeed`);
+    // an address that isn't a public feed's is refused as for the phone, first.
     if (whoOf(principalOf(c)) === 'N') {
-      const wait = await fresh(coreObject(c.env).admitNightFeed());
-      if (wait) throw new ApiError('rate_limited', { reason: 'night_feed_reads' }, { retry_after: wait });
+      const url = c.req.query('url') ?? '';
+      await answer(async () => publicURL(url));
+      const ok = await fresh(coreObject(c.env).admitNightFeed(url));
+      if (!ok.ok && ok.code === 'forbidden') throw new ApiError('forbidden', { reason: 'not_followed' });
+      if (!ok.ok) throw new ApiError('rate_limited', { reason: 'night_feed_reads' }, { retry_after: ok.retry_after });
     }
     const body = await answer(() => feedBody(c.req.query('url') ?? '', time(c)));
     return c.body(body, 200, { 'Content-Type': 'application/xml' });

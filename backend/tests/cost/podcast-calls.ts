@@ -1,7 +1,8 @@
 // Podcasts' sync calls of the cost suite (cost.test.ts checks every budget; NEXT-BATCH.md part 7):
 // the phone's usual sync while an episode plays (one position, new or newer), a stale one, a first
 // sync of 100, the reads on open with 1,000 positions kept (nothing new, then 3 new: each reads the
-// rows it returns), a follow, the night's check of 20 shows, and the daily prune over 1,005.
+// rows it returns), a follow, the night's check of 20 shows, its feed admission (counted in a
+// stored row), and the daily prune over 1,003.
 import { runInDurableObject } from 'cloudflare:test';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
 import type { Core } from '../../src/objects/core';
@@ -91,6 +92,26 @@ export async function podcastCalls(cost: Cost, grant: (ip: string, password?: st
     'POST /v1/podcasts/follows/checked (20) (Core)',
     () => api('POST', '/v1/podcasts/follows/checked', { ...night, body: { items: checked } }),
     200,
+    core(),
+  );
+  // The night's feed reads (GET /v1/podcasts/feed as mind:night): Core admits a followed show's and
+  // counts it in a stored row; another address costs one row read and no count.
+  const admit = (url: string) => async () => {
+    const ok = await runInDurableObject(core() as unknown as DurableObjectStub<Core>, (o: Core) =>
+      o.admitNightFeed(url),
+    );
+    return new Response(null, { status: ok.ok ? 204 : 403 });
+  };
+  await cost(
+    'GET /v1/podcasts/feed, the night admitted (a followed show) (Core)',
+    admit(show(3).feed_url),
+    204,
+    core(),
+  );
+  await cost(
+    'GET /v1/podcasts/feed, the night refused (not followed) (Core)',
+    admit('https://elsewhere.example.org/x.xml'),
+    403,
     core(),
   );
   await coreSql("DELETE FROM settings WHERE key = 'prune.day'");

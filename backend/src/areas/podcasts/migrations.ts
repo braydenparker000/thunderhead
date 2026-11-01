@@ -3,7 +3,8 @@
 // show; an unfollow kept 30 days so the other phones learn it), each with `synced_at`, when the
 // Worker took the row, so a phone asks only for what changed since it last asked (the index on
 // `synced_at`; in a WITHOUT ROWID table it carries the key too, which is the page cursor). The
-// night's last check of a show sits on its follow row and never moves `synced_at`.
+// night's last check of a show (and how many in a row failed) sits on its follow row and never
+// moves `synced_at`.
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneFollows, pruneProgress } from './store';
 
@@ -32,7 +33,8 @@ export const PODCASTS_MIGRATIONS: Migration[] = [
         synced_at INTEGER NOT NULL,
         checked_at INTEGER,
         latest_at INTEGER,
-        new_n INTEGER NOT NULL DEFAULT 0
+        new_n INTEGER NOT NULL DEFAULT 0,
+        fails INTEGER NOT NULL DEFAULT 0
       ) WITHOUT ROWID`,
       'CREATE INDEX podcast_follows_synced ON podcast_follows (synced_at)',
     ],

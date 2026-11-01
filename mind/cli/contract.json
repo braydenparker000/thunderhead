@@ -2198,6 +2198,7 @@
       "page_max": 500,
       "night_feeds": 20,
       "check_gap_ms": 72000000,
+      "fail_backoff_max": 3,
       "night_feed_reads": 40
     }
   },

@@ -1,7 +1,7 @@
 // Podcasts' half of the Core object (areas/podcasts, NEXT-BATCH.md part 7): where each episode was
 // left and the shows followed, synced by the phone (the newer wins), read by the phones by time and
-// by the night with its last check of each show. A code layer of the one Core class. The night's
-// feed reads through the Worker are counted here in memory, per UTC day (the count costs no row).
+// by the night with its last check of each show. A code layer of the one Core class. The night may
+// read only followed shows' feeds through the Worker, at most 40 a UTC day, counted in a settings row.
 import type {
   PodcastChecked,
   PodcastFollow,
@@ -14,13 +14,11 @@ import type { Out } from '../lib/result';
 import { CoreReports } from './core-reports';
 
 type Page<R> = { rows: R[]; more: boolean; last: [number, string] | null; at: number };
+type Refused = PodcastSyncResponse['refused'];
 
 export abstract class CorePodcasts extends CoreReports {
-  /** The night's feed reads today (UTC). */
-  private readonly nightFeeds = { day: '', n: 0 };
-
-  putPodcastProgress(items: PodcastProgress[]): Out<PodcastSyncResponse> {
-    return this.run((w) => sync.putProgress(w, items));
+  putPodcastProgress(items: PodcastProgress[], refused: Refused): Out<PodcastSyncResponse> {
+    return this.run((w) => sync.putProgress(w, items, refused));
   }
 
   podcastProgress(after: [number, string], limit: number): Page<PodcastProgress> {
@@ -34,8 +32,8 @@ export abstract class CorePodcasts extends CoreReports {
     return { ...p, rows: p.rows.map(sync.toProgress) };
   }
 
-  putPodcastFollows(items: PodcastFollow[]): Out<PodcastSyncResponse> {
-    return this.run((w) => sync.putFollows(w, items));
+  putPodcastFollows(items: PodcastFollow[], refused: Refused): Out<PodcastSyncResponse> {
+    return this.run((w) => sync.putFollows(w, items, refused));
   }
 
   podcastFollows(after: [number, string], limit: number): Page<ReturnType<typeof sync.toFollow>> {
@@ -53,8 +51,8 @@ export abstract class CorePodcasts extends CoreReports {
     return this.run((w) => sync.checked(w, items));
   }
 
-  /** 0 when the night may read one more feed today, else the seconds until 00:00 UTC. */
-  admitNightFeed(): number {
-    return sync.admitFeedRead(this.nightFeeds, Date.now());
+  /** Whether the night may read this feed now (a followed show's, within the day's count). */
+  admitNightFeed(feedUrl: string): ReturnType<typeof sync.admitNightFeed> {
+    return this.ctx.storage.transactionSync(() => sync.admitNightFeed(this.db, feedUrl, Date.now()));
   }
 }

@@ -101,32 +101,40 @@ describe('positions', () => {
     expect((await follows(`cursor=${first.body.next}`)).status).toBe(400);
   });
 
-  it('refuses what it cannot keep, naming the field', async () => {
-    const bad = async (items: unknown[]) => {
-      const r = await apiJson<{ error: { code: string; details: { path: string }[] } }>(
-        'PUT',
-        '/v1/podcasts/progress',
-        {
-          token: D,
-          body: { items },
-        },
-      );
-      return [r.status, r.body.error.details?.[0]?.path];
-    };
-    expect(await bad([{ ...pos('cccc000000000001', 1, T0), key: 'not a key' }])).toEqual([422, 'items.0.key']);
-    expect(await bad([{ ...pos('cccc000000000001', 1, T0), key: `ftp://example.org/x#abc` }])).toEqual([
-      422,
-      'items.0.key',
+  it('an item it cannot keep is refused by its place, and the rest of the batch is kept', async () => {
+    const r = await put('progress', [
+      { ...pos('cccc000000000001', 1, T0), key: 'not a key' },
+      pos('cccc000000000002', 2, T0),
+      { ...pos('cccc000000000003', 1, T0), key: 'ftp://example.org/x#abc' },
+      { ...pos('cccc000000000004', 1, T0), key: `${FEED}#has space` },
+      pos('cccc000000000005', -1, T0),
+      pos('cccc000000000006', 1, Date.now() + 2 * 3_600_000),
+      { ...pos('cccc000000000007', 1, T0), title: 'no' },
+      'not an item',
+      pos('cccc000000000009', 9, T0),
     ]);
-    expect(await bad([{ ...pos('cccc000000000001', 1, T0), key: `${FEED}#has space` }])).toEqual([422, 'items.0.key']);
-    expect(await bad([pos('cccc000000000001', -1, T0)])).toEqual([422, 'items.0.position_s']);
-    expect(await bad([pos('cccc000000000001', 1, Date.now() + 2 * 3_600_000)])).toEqual([422, 'items.0.updated_at']);
-    expect(await bad([{ ...pos('cccc000000000001', 1, T0), title: 'no' }])).toEqual([422, 'items.0']);
-    expect(await bad([])).toEqual([422, 'items']);
-    expect(await bad(Array.from({ length: 101 }, (_, i) => pos(`d${String(i).padStart(15, '0')}`, 1, T0)))).toEqual([
-      422,
-      'items',
+    expect(r.status).toBe(200);
+    expect(r.body).toMatchObject({ applied: 2, stale: 0 });
+    expect(r.body.refused.map((x) => x.index)).toEqual([0, 2, 3, 4, 5, 6, 7]);
+    expect(r.body.refused.map((x) => x.issue.split(':')[0])).toEqual([
+      'key',
+      'key',
+      'key',
+      'position_s',
+      'updated_at',
+      'item',
+      'item',
     ]);
+    const kept = (await progress()).body.items.map((p) => p.key);
+    expect(kept.filter((k) => k.includes('#cccc')).sort()).toEqual([
+      `${FEED}#cccc000000000002`,
+      `${FEED}#cccc000000000009`,
+    ]);
+    // Only the batch's own shape refuses it whole.
+    const whole = async (body: unknown) => (await apiJson('PUT', '/v1/podcasts/progress', { token: D, body })).status;
+    expect(await whole({ items: [] })).toBe(422);
+    expect(await whole({ items: 'x' })).toBe(422);
+    expect(await whole({ items: Array.from({ length: 101 }, (_, i) => pos(`d${i}`, 1, T0)) })).toBe(422);
     expect((await progress('since=-1')).status).toBe(422);
   });
 
@@ -170,12 +178,9 @@ describe('follows and the night’s check', () => {
       [FEED, true],
       [OTHER, false],
     ]);
-    expect(rows[0]).toMatchObject({ title: 'Show -a', checked_at: null, latest_at: null, new_n: 0 });
-    const bad = await apiJson('PUT', '/v1/podcasts/follows', {
-      token: D,
-      body: { items: [{ ...follow(FEED, true, T0 + 2), artwork: 'javascript:alert(1)' }] },
-    });
-    expect(bad.status).toBe(422);
+    expect(rows[0]).toMatchObject({ title: 'Show -a', checked_at: null, latest_at: null, new_n: 0, fails: 0 });
+    const bad = await put('follows', [{ ...follow(FEED, true, T0 + 2), artwork: 'javascript:alert(1)' }]);
+    expect(bad.body).toMatchObject({ applied: 0, refused: [{ index: 0 }] });
   });
 
   it('the night records the shows it read, followed ones only, without the phones seeing the rows again', async () => {
@@ -202,6 +207,18 @@ describe('follows and the night’s check', () => {
     const row = (await follows('since=0', N)).body.items.find((f) => f.feed_url === FEED);
     expect(row).toMatchObject({ latest_at: T0 + 100, new_n: 0, checked_at: expect.any(Number) });
     expect((await follows(`since=${since}`)).body.items).toEqual([]);
+    // A feed that failed: one more failure in a row, nothing new, latest_at kept; a good check resets it.
+    const check = (item: object) =>
+      apiJson('POST', '/v1/podcasts/follows/checked', { token: N, body: { items: [item] } });
+    await check({ feed_url: FEED, latest_at: null, new_n: 3, failed: true });
+    await check({ feed_url: FEED, latest_at: null, new_n: 0, failed: true });
+    const failing = (await follows('since=0', N)).body.items.find((f) => f.feed_url === FEED);
+    expect(failing).toMatchObject({ fails: 2, new_n: 0, latest_at: T0 + 100 });
+    // A newest episode far ahead is put at the Worker's clock and an hour, no later.
+    await check({ feed_url: FEED, latest_at: Date.now() + 30 * 86_400_000, new_n: 1 });
+    const fixed = (await follows('since=0', N)).body.items.find((f) => f.feed_url === FEED);
+    expect(fixed?.fails).toBe(0);
+    expect(fixed?.latest_at).toBeLessThanOrEqual(Date.now() + 3_600_000);
     expect(
       (
         await apiJson('POST', '/v1/podcasts/follows/checked', {
@@ -225,23 +242,53 @@ describe('follows and the night’s check', () => {
 
 describe('the night’s feed reads', () => {
   const RSS = '<?xml version="1.0"?><rss><channel><title>Show</title></channel></rss>';
-  beforeAll(() => useFetch(async () => new Response(RSS, { headers: { 'Content-Type': 'application/rss+xml' } })));
+  const asked: string[] = [];
+  beforeAll(() =>
+    useFetch(async (input) => {
+      asked.push(String(input instanceof Request ? input.url : input));
+      return new Response(RSS, { headers: { 'Content-Type': 'application/rss+xml' } });
+    }),
+  );
   afterAll(() => useFetch((...a) => fetch(...a)));
-  const feed = (token: string) =>
+  const feed = (token: string, url = FEED) =>
     app.fetch(
-      new Request(`https://api.example.test/v1/podcasts/feed?url=${encodeURIComponent(FEED)}`, {
+      new Request(`https://api.example.test/v1/podcasts/feed?url=${encodeURIComponent(url)}`, {
         headers: { Authorization: `Bearer ${token}`, 'CF-Connecting-IP': '192.0.2.10' },
       }),
       env,
       createExecutionContext(),
     );
 
-  it('at most 40 a UTC day for mind:night; the owner’s device is never counted', async () => {
+  it('mind:night reads only a followed show’s feed; the owner’s device any public one', async () => {
+    asked.length = 0;
+    const elsewhere = 'https://elsewhere.example.org/anything.xml';
+    const r = await feed(N, elsewhere);
+    expect(r.status).toBe(403);
+    expect(((await r.json()) as { error: { details: { reason: string } } }).error.details.reason).toBe('not_followed');
+    expect((await feed(N, OTHER)).status).toBe(403); // unfollowed, then pruned
+    expect(asked).toEqual([]);
+    expect((await feed(D, elsewhere)).status).toBe(200);
+    expect(asked).toEqual([elsewhere]);
+  });
+
+  it('at most 40 a UTC day for mind:night, counted in a stored row; the owner’s device is never counted', async () => {
+    await coreSql("DELETE FROM settings WHERE key = 'podcasts.night_reads'");
     for (let i = 0; i < 40; i++) expect((await feed(N)).status).toBe(200);
+    const day = new Date().toISOString().slice(0, 10);
+    const [row] = await coreSql<{ value_json: string }>(
+      "SELECT value_json FROM settings WHERE key = 'podcasts.night_reads'",
+    );
+    expect(JSON.parse(row.value_json)).toEqual({ day, n: 40 });
     const r = await feed(N);
     expect(r.status).toBe(429);
     expect(Number(r.headers.get('Retry-After'))).toBeGreaterThan(0);
     expect((await feed(D)).status).toBe(200);
     expect((await feed(C)).status).toBe(403);
+    // The count is the row's (a restart reads it back), and a new UTC day starts it over.
+    await coreSql(
+      "UPDATE settings SET value_json = ? WHERE key = 'podcasts.night_reads'",
+      JSON.stringify({ day: '2026-01-01', n: 40 }),
+    );
+    expect((await feed(N)).status).toBe(200);
   });
 });

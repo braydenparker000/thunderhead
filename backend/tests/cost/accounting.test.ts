@@ -32,7 +32,13 @@ it('counts rows the way the schema design assumes', async () => {
         JSON.stringify([...Array(100).keys()]),
       ),
       count_star_101_rows: m('SELECT count(*) FROM t_int'),
-      drop_table_101_rows: m('DROP TABLE t_int'),
+      // A drop reads the schema's own rows (counted here, outside the meter's numbers), never the data's.
+      drop_table_101_rows: ((schema: number) => {
+        const [r, w] = m('DROP TABLE t_int')
+          .split('/')
+          .map((x) => Number.parseInt(x, 10));
+        return { reads_beyond_schema: Math.max(0, r - schema), written: w };
+      })(Number(sql.exec('SELECT count(*) AS n FROM sqlite_schema').toArray()[0].n)),
     };
     for (const t of ['t_rowid', 't_norowid', 't_indexed']) m(`DROP TABLE ${t}`);
     return out;
@@ -48,8 +54,8 @@ it('counts rows the way the schema design assumes', async () => {
     lookup_missing_row: '0r/0w',
     insert_100_rows: '100r/100w',
     count_star_101_rows: '101r/0w', // count(*) is a billed full scan
-    // Dropping writes nothing (it reads the schema's rows: about 100 in Core, more as it grows);
-    // deleting 101 rows would be 101 writes.
-    drop_table_101_rows: expect.stringMatching(/^\d{1,3}r\/0w$/),
+    // Dropping writes nothing and reads the schema's rows and one more (about 100 in Core and
+    // growing; never the 101 data rows); deleting 101 rows would be 101 writes.
+    drop_table_101_rows: { reads_beyond_schema: 1, written: 0 },
   });
 });

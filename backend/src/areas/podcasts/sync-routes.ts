@@ -1,17 +1,21 @@
 // /v1/podcasts/progress and /v1/podcasts/follows (NEXT-BATCH.md part 7, API.md §11.25): the phone
 // sends the positions and follows it changed, 1–100 at a time (the newer `updated_at` wins), and
 // asks what changed since it last asked (`?since=`, then `cursor` while there is more), oldest
-// first. The night reads both (the follows with its last check of each show) and records the shows
-// it read. Nothing here writes the change feed: the phones ask by time when Podcasts opens.
+// first. A PUT's items are checked one by one: one that can't be taken (malformed, or its
+// `updated_at` more than an hour ahead of the Worker's clock) is reported by its place in
+// `refused` and the rest are kept. The night reads both (the follows with its last check of each
+// show) and records the shows it read. Nothing here writes the change feed: the phones ask by time
+// when Podcasts opens.
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import {
   feedProblem,
   PODCAST_LIMITS as L,
   type PodcastCheckedRequest,
-  type PodcastFollowsRequest,
+  type PodcastFollow,
   type PodcastPage,
-  type PodcastProgressRequest,
+  type PodcastProgress,
+  type PodcastSyncResponse,
   progressKeyProblem,
 } from '../../../../shared/contract/podcasts.ts';
 import { type AppEnv, guard } from '../../http/auth';
@@ -28,32 +32,51 @@ const feedUrl = z.string().check(
   z.maxLength(L.url_chars),
   z.refine((u) => feedProblem(u) === null, 'an http(s) feed address'),
 );
-const items = <T extends z.ZodMiniType>(item: T) =>
-  z.strictObject({ items: z.array(item).check(z.minLength(1), z.maxLength(L.batch_items)) });
+/** A PUT's body: 1–100 items, each checked on its own (`sorted`). */
+const batchBody = z.strictObject({
+  items: z.array(z.unknown()).check(z.minLength(1), z.maxLength(L.batch_items)),
+});
 
-const progressBody = items(
-  z.strictObject({
-    key: z.string().check(
-      z.maxLength(L.url_chars + 1 + L.id_chars),
-      z.refine((k) => progressKeyProblem(k) === null, 'a <feed address>#<episode id> key'),
-    ),
-    position_s: seconds,
-    duration_s: seconds,
-    played: z.boolean(),
-    updated_at: ms,
-  }),
-) satisfies z.ZodMiniType<PodcastProgressRequest>;
+const progressItem = z.strictObject({
+  key: z.string().check(
+    z.maxLength(L.url_chars + 1 + L.id_chars),
+    z.refine((k) => progressKeyProblem(k) === null, 'a <feed address>#<episode id> key'),
+  ),
+  position_s: seconds,
+  duration_s: seconds,
+  played: z.boolean(),
+  updated_at: ms,
+}) satisfies z.ZodMiniType<PodcastProgress>;
 
-const followsBody = items(
-  z.strictObject({
-    feed_url: feedUrl,
-    title: z.string().check(z.maxLength(L.title_chars)),
-    author: z.string().check(z.maxLength(L.author_chars)),
-    artwork: z.union([z.literal(''), feedUrl]),
-    followed: z.boolean(),
-    updated_at: ms,
-  }),
-) satisfies z.ZodMiniType<PodcastFollowsRequest>;
+const followItem = z.strictObject({
+  feed_url: feedUrl,
+  title: z.string().check(z.maxLength(L.title_chars)),
+  author: z.string().check(z.maxLength(L.author_chars)),
+  artwork: z.union([z.literal(''), feedUrl]),
+  followed: z.boolean(),
+  updated_at: ms,
+}) satisfies z.ZodMiniType<PodcastFollow>;
+
+/** The items the Worker can take, and the rest by their place with why (the first issue only; never
+ * the value). */
+function sorted<T extends { updated_at: number }>(
+  raw: unknown[],
+  item: z.ZodMiniType<T>,
+  now: number,
+): { ok: T[]; refused: PodcastSyncResponse['refused'] } {
+  const ok: T[] = [];
+  const refused: PodcastSyncResponse['refused'] = [];
+  raw.forEach((x, index) => {
+    const r = item.safeParse(x);
+    if (!r.success) {
+      const i = r.error.issues[0];
+      refused.push({ index, issue: `${i?.path.join('.') || 'item'}: ${i?.message ?? 'invalid'}` });
+    } else if (r.data.updated_at > now + L.ahead_ms)
+      refused.push({ index, issue: "updated_at: more than an hour ahead of the Worker's clock" });
+    else ok.push(r.data);
+  });
+  return { ok, refused };
+}
 
 const checkedBody = z.strictObject({
   items: z
@@ -62,6 +85,7 @@ const checkedBody = z.strictObject({
         feed_url: feedUrl,
         latest_at: z.nullable(ms),
         new_n: z.number().check(z.int(), z.gte(0), z.lte(200)),
+        failed: z.optional(z.boolean()),
       }),
     )
     .check(z.minLength(1), z.maxLength(L.night_feeds)),
@@ -94,16 +118,16 @@ function pageOut<T>(route: string, p: { rows: T[]; more: boolean; last: (number 
 
 export const podcastSyncRoutes = new Hono<AppEnv>()
   .put('/podcasts/progress', guard('PUT /v1/podcasts/progress'), async (c) => {
-    const r = await json(c, progressBody);
-    return c.json(value(await fresh(coreObject(c.env).putPodcastProgress(r.items))));
+    const { ok, refused } = sorted((await json(c, batchBody)).items, progressItem, Date.now());
+    return c.json(value(await fresh(coreObject(c.env).putPodcastProgress(ok, refused))));
   })
   .get('/podcasts/progress', guard('GET /v1/podcasts/progress'), async (c) => {
     const { after, limit } = startOf('podcasts/progress', c.req.query());
     return c.json(pageOut('podcasts/progress', await fresh(coreObject(c.env).podcastProgress(after, limit))));
   })
   .put('/podcasts/follows', guard('PUT /v1/podcasts/follows'), async (c) => {
-    const r = await json(c, followsBody);
-    return c.json(value(await fresh(coreObject(c.env).putPodcastFollows(r.items))));
+    const { ok, refused } = sorted((await json(c, batchBody)).items, followItem, Date.now());
+    return c.json(value(await fresh(coreObject(c.env).putPodcastFollows(ok, refused))));
   })
   .get('/podcasts/follows', guard('GET /v1/podcasts/follows'), async (c) => {
     const { after, limit } = startOf('podcasts/follows', c.req.query());

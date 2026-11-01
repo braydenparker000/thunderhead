@@ -406,5 +406,13 @@
   "cron tick, the daily prune pass with 1,003 positions (Core)": {
     "rows_read_max": 2400,
     "rows_written_max": 12
+  },
+  "GET /v1/podcasts/feed, the night admitted (a followed show) (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 1
+  },
+  "GET /v1/podcasts/feed, the night refused (not followed) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
   }
 }

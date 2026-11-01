@@ -372,7 +372,8 @@ CREATE TABLE podcast_follows (
   synced_at INTEGER NOT NULL,
   checked_at INTEGER,
   latest_at INTEGER,
-  new_n INTEGER NOT NULL DEFAULT 0
+  new_n INTEGER NOT NULL DEFAULT 0,
+  fails INTEGER NOT NULL DEFAULT 0
   ) WITHOUT ROWID;
 
 CREATE INDEX podcast_follows_synced ON podcast_follows (synced_at);

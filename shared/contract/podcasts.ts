@@ -35,7 +35,11 @@ export const PODCAST_LIMITS = {
   /** The night's check (RUNTIME.md §12.1): shows a night, and how long before a show is due again. */
   night_feeds: 20,
   check_gap_ms: 20 * 3_600_000,
-  /** Feeds the night may read through GET /v1/podcasts/feed in a UTC day (its 20, and a try more each). */
+  /** A show whose feed failed is due again after `check_gap_ms` × 2^fails, fails counted up to this
+   * (20 h, 40 h, 80 h, then 160 h, about a week). */
+  fail_backoff_max: 3,
+  /** Feeds the night may read through GET /v1/podcasts/feed in a UTC day (its 20, and a try more
+   * each), each a followed show's; counted in a stored row, so a restart doesn't reset it. */
   night_feed_reads: 40,
 } as const;
 
@@ -70,6 +74,8 @@ export interface PodcastFollowRow extends PodcastFollow {
   latest_at: Ms | null;
   /** New episodes it found then (not yet started on any phone). */
   new_n: number;
+  /** Checks in a row whose feed failed (0 after one that worked): the show waits longer each time. */
+  fails: number;
 }
 
 export interface PodcastProgressRequest {
@@ -80,10 +86,14 @@ export interface PodcastFollowsRequest {
   items: PodcastFollow[];
 }
 
-/** `applied`: items newer than what the Worker had; `stale`: the rest, left as they were. */
+/** `applied`: items newer than what the Worker had; `stale`: valid ones it left as they were;
+ * `refused`: the items it could not take, by their place in the request, with why (the rest of the
+ * batch is kept). `at` is the Worker's clock, which the phone uses to put its own times on the
+ * Worker's (PODCASTS.md §5.4). */
 export interface PodcastSyncResponse {
   applied: number;
   stale: number;
+  refused: { index: number; issue: string }[];
   at: Ms;
 }
 
@@ -95,11 +105,13 @@ export interface PodcastPage<T> {
   next: string | null;
 }
 
-/** One show the night read (POST /v1/podcasts/follows/checked). */
+/** One show the night read (POST /v1/podcasts/follows/checked). `failed`: its feed could not be
+ * read (latest_at null, new_n 0); the show waits longer before its next check. */
 export interface PodcastChecked {
   feed_url: string;
   latest_at: Ms | null;
   new_n: number;
+  failed?: boolean;
 }
 
 export interface PodcastCheckedRequest {
