@@ -1,7 +1,7 @@
 // @ts-check
 // The stream lab (docs/process/NEXT-BATCH.md part 2; MUSIC.md §5): a short queue through Music's
 // streaming feeder (th/music/stream/feed.js) in one audio element. It shows what the feeder does:
-// seconds buffered ahead against the 15 s cap, each song's start on the element's timeline and the
+// seconds buffered ahead against the cap, each song's start on the element's timeline and the
 // gap after the song before it, stalls, retries and a fallback, which it follows by playing on in
 // the plain element as the player would. Signed in, it plays three of the owner's Opus songs (or
 // ?ids=a,b,c), each link signed by POST /v1/media/sign as th/music/bridge.js does; locally, the

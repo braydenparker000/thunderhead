@@ -2,7 +2,7 @@
 // One deck of Music's player, streamed (NEXT-BATCH.md part 2; MUSIC.md §5): the player's decks stay as
 // they are (its cross-fades, gapless joins, the lock screen and the AirPods all work as before), but a
 // deck playing a song from the network gets it through the stream feed instead of `src`: it starts
-// from the first bytes (the song heads the worker keeps, so at once), holds at most 15 s ahead, and
+// from the first bytes (the song heads the worker keeps, so at once), holds at most 60 s ahead, and
 // never asks for the whole file. The song starts at the element's time 0, so the player's own
 // position, length, seeks and end are the song's. Every move of the deck's position (the player's
 // seeks, a reload or a restored place, from wherever it sets `currentTime`) goes through here: before

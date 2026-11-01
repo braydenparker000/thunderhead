@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { OggError, OggOpusDemuxer, readPage } from '../frontend/th/music/stream/ogg.js';
 import { PREROLL, StreamError, TrackReader } from '../frontend/th/music/stream/track.js';
-import { APPEND_MIN, CHUNK_FIRST, CHUNK_MAX, CHUNK_MIN, CLUSTER_MAX, appendRoom, nextFetch } from '../frontend/th/music/stream/plan.js';
+import { APPEND_MIN, CAP_S, CHUNK_FIRST, CHUNK_MAX, CHUNK_MIN, CLUSTER_MAX, RESUME_S, appendRoom as appendRoom60, nextFetch as nextFetch60 } from '../frontend/th/music/stream/plan.js';
 import { TONE, longTone } from './fixtures/ogg-make.mjs';
 
 const URL1 = 'https://bucket.example.test/audio/a.opus?sig=1';
@@ -143,7 +143,11 @@ test('what can’t pass is refused with a code: 404, no Range support past the s
   await assert.rejects(readAll(reader), (e) => e.code === 'sign');
 });
 
-test('the cap’s decisions: fetch to 15 s, wait until under 10 s, append in steps under the cap', () => {
+test('the cap’s decisions: fetch to the cap, wait until under the resume mark, append in steps under the cap', () => {
+  // The phone's cap is 60 s, fetching again under 30 s (the owner, 2026-11-01); the steps are checked at 15 and 10.
+  assert.deepEqual([CAP_S, RESUME_S], [60, 30]);
+  const nextFetch = (/** @type {any} */ o) => nextFetch60({ capS: 15, resumeS: 10, ...o });
+  const appendRoom = (/** @type {any} */ o) => appendRoom60({ capS: 15, ...o });
   const bps = 20_000; // 160 kb/s
   // The first request of a song, then requests sized to the room left (32–128 KB).
   assert.deepEqual(nextFetch({ ahead: 0, queued: 0, full: false, bytesPerSecond: bps, head: false }), { bytes: CHUNK_FIRST, full: false });

@@ -1,6 +1,6 @@
 // Music's player streams (th/music/stream/deck.js inside music/src/player/player.js; MUSIC.md §5):
-// the real music page, its worker and bridge, against a mock new Worker and a mock bucket of 60-second
-// Opus tones. A song plays through the stream feed (a MediaSource), never more than about 15 s ahead,
+// the real music page, its worker and bridge, against a mock new Worker and a mock bucket of 150-second
+// Opus tones. A song plays through the stream feed (a MediaSource), never more than about 60 s ahead,
 // without fetching the whole file or any byte of it twice (the head kept for the song the app opened
 // on serves its start), and the next songs' heads come without an Ogg tail; its length is the
 // catalog's before its end; a seek past the buffer
@@ -17,7 +17,7 @@ const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)', timeout: 120_000 };
 const TOKEN = `th1_${'D'.repeat(43)}abcdef`;
 const N = 4;
-const SECONDS = 60;
+const SECONDS = 150;
 const SONG = longTone(SECONDS / 3);
 const hex = (i) => (i + 10).toString(16).repeat(64).slice(0, 64);
 const idOf = (i) => `r2_native_${hex(i)}`;
@@ -115,19 +115,19 @@ async function playFrom(page, from) {
   await page.waitForFunction(() => { const a = __cp.player.audio; return !a.paused && a.readyState >= 3 && a.currentTime > 1; }, null, { timeout: 30_000 });
 }
 
-test('a song streams: at most ~15 s ahead, part of the file, its length known, seek and skip, a give-up plays on', opts, async () => {
+test('a song streams: at most ~60 s ahead, part of the file, its length known, seek and skip, a give-up plays on', opts, async () => {
   const { context, page, errors } = await boot();
   try {
     await playFrom(page, 0);
     const deck = await page.evaluate(() => { const a = __cp.player.audio; return { blob: a.src.startsWith('blob:'), stream: !!a._stream, duration: a.duration }; });
     assert.deepEqual(deck, { blob: true, stream: true, duration: SECONDS }, 'through the feed, the catalog length from the start');
-    // While it plays, never much more than 15 s buffered ahead of where it is.
+    // While it plays, never much more than 60 s buffered ahead of where it is.
     let most = 0;
     for (let i = 0; i < 12; i++) {
       most = Math.max(most, await page.evaluate(() => { const a = __cp.player.audio, b = a.buffered; let e = a.currentTime; for (let k = 0; k < b.length; k++) if (b.start(k) <= a.currentTime + 0.1) e = Math.max(e, b.end(k)); return e - a.currentTime; }));
       await page.waitForTimeout(250);
     }
-    assert.ok(most <= 15.6, `buffered ahead at most ${most.toFixed(2)} s`);
+    assert.ok(most <= 60.6, `buffered ahead at most ${most.toFixed(2)} s`);
     const playing = await page.evaluate(() => __cp.player.track.id);
     const i0 = [...Array(N).keys()].find((i) => idOf(i) === playing);
     // Part of the file, and no byte of it twice: the head the app kept for the song it opened on
@@ -139,8 +139,8 @@ test('a song streams: at most ~15 s ahead, part of the file, its length known, s
     for (let i = 0; i < N; i++) if (i !== i0) for (const [a] of fetched.get(String(i)) ?? []) assert.equal(a, 0, `song ${i}: only its head`);
 
     // A seek past what is buffered: the feed fetches from there.
-    await page.evaluate(() => __cp.player.seek(45_000));
-    await page.waitForFunction(() => { const a = __cp.player.audio; return a.currentTime >= 45 && a.currentTime < 50 && !a.paused && a.readyState >= 3; }, null, { timeout: 20_000 });
+    await page.evaluate(() => __cp.player.seek(110_000));
+    await page.waitForFunction(() => { const a = __cp.player.audio; return a.currentTime >= 110 && a.currentTime < 115 && !a.paused && a.readyState >= 3; }, null, { timeout: 20_000 });
     // A skip: the next song, also streamed.
     await page.evaluate(() => __cp.player.step(1));
     await page.waitForFunction((id) => { const p = __cp.player, a = p.audio; return p.track.id !== id && !a.paused && a.currentTime > 0.5 && a.src.startsWith('blob:'); }, playing, { timeout: 30_000 });
@@ -167,10 +167,10 @@ test('a reload lands where it was, a second seek wins over the first, and the st
     const r = await place();
     assert.ok(r.stream && r.t > 20 && r.t < 27, `after the reload at ${r.t.toFixed(2)} s`);
     // Two seeks past the buffer in a row (a double tap on +10 s, a re-tap on the waveform): the last wins.
-    await page.evaluate(() => { __cp.player.seek(32_000); __cp.player.seek(50_000); });
-    await page.waitForFunction(() => { const a = __cp.player.audio; return !a.paused && a.readyState >= 3 && a.currentTime > 50.2; }, null, { timeout: 20_000 });
+    await page.evaluate(() => { __cp.player.seek(100_000); __cp.player.seek(130_000); });
+    await page.waitForFunction(() => { const a = __cp.player.audio; return !a.paused && a.readyState >= 3 && a.currentTime > 130.2; }, null, { timeout: 20_000 });
     const s = await place();
-    assert.ok(s.t > 50 && s.t < 57, `after two seeks at ${s.t.toFixed(2)} s`);
+    assert.ok(s.t > 130 && s.t < 137, `after two seeks at ${s.t.toFixed(2)} s`);
     // The song's real end has been read: its length is the stream's, not the catalog's 63 s.
     await page.waitForFunction((n) => __cp.player.track.durationMs < (n + 1) * 1000, SECONDS, { timeout: 20_000 });
     const ms = await page.evaluate(() => __cp.player.track.durationMs);
