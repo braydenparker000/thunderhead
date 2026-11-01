@@ -1,8 +1,8 @@
 // `th music analysis <track id> [--n 10]` and `th music jobs [--max 500]` (RUNTIME.md §5.3, §12 step 6):
 // how one song sounds and the songs nearest it by sound, from the listening pass
-// (GET /v1/music/analysis/:id), and the night's part of that pass. `th music` itself (page, note,
-// find, like, now, week) is what the mind knows of each song (Music step 4, its own lib/music.mjs);
-// `analysis` and `jobs` here are the listening pass's subcommands, for its dispatcher to take.
+// (GET /v1/music/analysis/:id), and the night's part of that pass. The rest of `th music` (page,
+// note, find, like, now, week) is what the mind knows of each song (Music step 4, lib/music.mjs),
+// whose dispatcher takes these two as well.
 // `jobs` collects any job an Actions run left uncollected (issued over 6 hours ago), asks for the next
 // one (up to 500 songs; once every song is analysed, the neighbours step) and dispatches
 // .github/workflows/jobs-audio.yml with the job's id only, through the GitHub CLI and the session's own
@@ -20,7 +20,6 @@ import {invalid, out} from './io.mjs';
 
 const seg = (value) => encodeURIComponent(String(value));
 const LIMITS = CONTRACT.listen?.limits ?? {max_tracks: 500, like_max: 50};
-const USAGE = 'usage: th music analysis <track id> [--n 10] | jobs [--max 500]';
 /** A job issued this long ago with no collect yet: its run is over (it takes at most 5 hours). */
 const COLLECT_AFTER_MS = 6 * 60 * 60 * 1000;
 
@@ -94,12 +93,4 @@ export async function jobs(argv, deps = {}) {
   const ok = dispatch(next.job_id, {run: deps.run, repo: deps.repo});
   // Not taken: the job expires in 72 hours and its songs are offered again.
   out({collected, issued: next, dispatched: ok, ...(ok ? {} : {reason: 'dispatch_refused'})});
-}
-
-/** This branch's `th music`, until it joins the knowledge branch's dispatcher (which adds these two). */
-export async function listen(argv) {
-  const [sub, ...rest] = argv;
-  const run = {analysis, jobs}[sub];
-  if (!run) throw invalid(USAGE);
-  return run(rest);
 }

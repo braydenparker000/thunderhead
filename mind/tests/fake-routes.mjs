@@ -43,6 +43,8 @@ export function extraRoutes(ctl) {
   return [
     // The senses' fixed questions (API.md §11.14): a test sets s.senseRows to what one answers.
     ['POST', /^\/v1\/senses\/query$/, ALL, ({body}) => {
+      const other = body?.name !== 'day_summary' ? ctl.senseQuery?.(body) : null;
+      if (other) return [200, other];
       if (body?.name !== 'day_summary') throw new HttpError(422, 'validation');
       return [200, {rows: s.senseRows ?? [], rows_read: 1}];
     }],
