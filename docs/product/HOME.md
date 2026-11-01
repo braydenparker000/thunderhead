@@ -70,6 +70,12 @@ An empty day is an empty column: the date, the hint while learning (§10), and t
 
 Acceptance (tests/chat-browser, chat-logic, registries): the chip is hidden while all is well and shows each row's words; the night's two lines show as one Overnight card in slot order, held before 06:30 and before a later `quiet.end`, never before 06:30 whatever the setting; a day line is its own card in time order among the messages; nothing remains of `#say`.
 
+
+**What's new** (built 2026-11-01, `th/news/news.js`): after an update, one card by the ask bar, "New in
+this update", with the release's few plain lines from `/whats-new.json` (an `id`, the date, at most four
+lines, each with an optional button that opens its app) and Got it. Once per release on each phone (the
+id is kept in `localStorage`), never for lines over 14 days old; nothing leaves the phone.
+
 ## 3. The decision card
 
 A decision is a proposal or question from the mind that needs the owner's answer (data model: [API](../engineering/API.md), `proposals`). Ask-first classes (delete, money, access, reaching other people) are approved by a tap on this card on a signed-in device, or by the owner's own words in the conversation, which the Worker verifies (owner ruling; [BEHAVIOR](../mind/BEHAVIOR.md) §4).

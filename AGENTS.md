@@ -61,7 +61,9 @@ when it helps, update it when you change what it describes, but it is not law.
 ## How it ships (after the owner merges)
 
 Merging to `main` runs Deploy: checks, the Worker, then the site. Confirm the live `release.json` names
-the commit. Rollback: Actions → Deploy → Run workflow with the previous commit.
+the commit. Rollback: Actions → Deploy → Run workflow with the previous commit. A change the owner will
+notice gets a plain line in `frontend/whats-new.json` (a new `id`, at most four lines): home shows them
+once as a card after the update.
 
 ## Design, briefly
 
