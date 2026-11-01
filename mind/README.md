@@ -10,7 +10,7 @@ later night and reflex) uses to talk to the Worker, plus the two files every ses
 | `ROLES.md` | The procedure each role's prompt points at (`## chat` now; night in P3, reflex in P4). |
 | `cli/th.mjs` | Entry point. `th help` lists the commands and what this Worker build offers. Node ≥ 22, no dependencies. |
 | `cli/contract.json` | Generated from `shared/contract` by `scripts/contract.mjs`: routes, verbs and surface kinds with JSON Schemas, error codes, the phrase lint. Never edited by hand. |
-| `cli/lib/*.mjs` | `http` (headers, retries, the contract check), `contract` and `schema` (local validation), `io` (output, exit codes, redaction), `wait`, `brief`, `conv`, `memory`, `act`, `help`, `state` |
+| `cli/lib/*.mjs` | `http` (headers, retries, the contract check), `contract` and `schema` (local validation), `io` (output, exit codes, redaction), `wait`, `brief`, `conv`, `memory`, `act`, `help`, `state`, `music` (what the mind knows of each song: `th music`) |
 | `bin/th` | Shell shim so `th …` works once `mind/bin` is on `PATH` (the SessionStart hook adds it). |
 | `hooks/session-start.mjs` | Briefs the session: `th brief --claim`, core ≤ 9,500 characters on stdout, the full briefing in `$TMPDIR/th/brief.md`. |
 | `hooks/stop.mjs` | Bounded Stop hook: at most 3 blocks per session. |

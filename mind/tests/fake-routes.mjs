@@ -43,6 +43,8 @@ export function extraRoutes(ctl) {
   return [
     // The senses' fixed questions (API.md §11.14): a test sets s.senseRows to what one answers.
     ['POST', /^\/v1\/senses\/query$/, ALL, ({body}) => {
+      const other = body?.name !== 'day_summary' ? ctl.senseQuery?.(body) : null;
+      if (other) return [200, other];
       if (body?.name !== 'day_summary') throw new HttpError(422, 'validation');
       return [200, {rows: s.senseRows ?? [], rows_read: 1}];
     }],
@@ -67,7 +69,11 @@ export function extraRoutes(ctl) {
       if (!s.notes.some(n => n.id === body.id)) s.notes.push({...body, session, at: ctl.now()});
       return [201, {id: body.id}];
     }],
-    ['POST', /^\/v1\/mind\/taint$/, ALL, ({session}) => { s.tainted.add(session); return {tainted: true}; }],
+    ['POST', /^\/v1\/mind\/taint$/, ALL, ({session, body}) => {
+      s.tainted.add(session);
+      (s.taintSources ??= new Map()).set(session, [...(s.taintSources.get(session) ?? []), body?.source]);
+      return {tainted: true};
+    }],
     // Chat files (API.md §11.7): the record answers as a message carries it; the bytes come back
     // only through GET with the caller's token.
     ['PUT', /^\/v1\/files\/([^/]+)$/, ['chat'], ({params, raw, req}) => {
@@ -175,22 +181,28 @@ export function extraRoutes(ctl) {
       const start = query.get('cursor') ? Number(query.get('cursor').slice(1)) : 0;
       return {items: rows.slice(start, start + size), next: start + size < rows.length ? `c${start + size}` : null};
     }],
-    // The run record: steps in order (409 with resume_from), 6, 8 and 9 skipped as not built,
-    // a cursor for step 4, done ending it (with --partial, before the last step).
+    // The run record: steps in the list's order (11, the songs, between 9 and 10; 409 with
+    // resume_from), 6, 8 and 9 skipped as not built, a cursor for step 4, done ending it (with
+    // --partial, before the last step) at 12, past every step's number.
     ['POST', /^\/v1\/mind\/night$/, ['night'], ({body}) => {
+      const ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 10];
+      const pos = n => (ORDER.includes(n) ? ORDER.indexOf(n) : ORDER.length);
       const run = s.night.get(body.day) || {resume: 1, done: false, cursors: {}, skipped: []};
-      const answer = () => ({resume_from: run.resume, done: run.done, cursor: run.cursors[run.resume] ?? null, skipped: run.skipped});
-      const advance = () => { run.resume++; while ([6, 8, 9].includes(run.resume)) { run.skipped.push(run.resume); run.resume++; } };
+      const answer = () => ({resume_from: run.resume, done: run.done, cursor: run.cursors[run.resume] ?? null, skipped: [...run.skipped].sort((a, b) => a - b)});
+      const advance = () => {
+        run.resume = ORDER[pos(run.resume) + 1];
+        while ([6, 8, 9].includes(run.resume)) { run.skipped.push(run.resume); run.resume = ORDER[pos(run.resume) + 1]; }
+      };
       s.night.set(body.day, run);
       if (run.done) return answer();
-      if ((body.action === 'step_done' || body.action === 'cursor') && body.step > run.resume)
+      if ((body.action === 'step_done' || body.action === 'cursor') && pos(body.step) > pos(run.resume))
         throw new HttpError(409, 'conflict', 'a step out of order', {resume_from: run.resume});
       if (body.action === 'step_done' && body.step === run.resume) advance();
       if (body.action === 'cursor' && body.step === run.resume) run.cursors[body.step] = body.cursor;
       if (body.action === 'done') {
-        if (run.resume < 10 && !body.partial) throw new HttpError(409, 'conflict', 'steps left', {resume_from: run.resume});
-        for (let n = run.resume; n < 10; n++) if (!run.skipped.includes(n)) run.skipped.push(n);
-        run.resume = 11;
+        if (pos(run.resume) < pos(10) && !body.partial) throw new HttpError(409, 'conflict', 'steps left', {resume_from: run.resume});
+        for (const n of ORDER.slice(pos(run.resume), pos(10))) if (!run.skipped.includes(n)) run.skipped.push(n);
+        run.resume = 12;
         run.done = true;
       }
       return answer();

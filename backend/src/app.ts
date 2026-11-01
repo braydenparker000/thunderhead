@@ -24,6 +24,7 @@ import { scriptureRoutes } from './areas/library/scripture';
 import { memoryRoutes } from './areas/memory/routes';
 import { mindRoutes } from './areas/mind/routes';
 import { listenRoutes } from './areas/music/listen-routes';
+import { notesRoutes } from './areas/music/notes-routes';
 import { musicRoutes } from './areas/music/routes';
 import { BIG_OPS, UPLOAD_LIMITS, uploadRoutes } from './areas/music/upload';
 import { opsRoutes } from './areas/ops/routes';
@@ -142,6 +143,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', briefingRoutes)
   .route('/v1', musicRoutes)
   .route('/v1', listenRoutes)
+  .route('/v1', notesRoutes)
   .route('/v1', uploadRoutes)
   .route('/v1', sensesRoutes)
   .route('/v1', guitarRoutes)

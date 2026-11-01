@@ -9,9 +9,12 @@
 import type { MindNightRequest, MindNightResponse } from '../../../../shared/contract/api';
 import {
   NIGHT_BACKFILL_DAYS,
+  NIGHT_END,
   NIGHT_LAST_STEP,
+  NIGHT_ORDER,
   NIGHT_STEPS,
   type NightStep,
+  nightPos,
 } from '../../../../shared/contract/night.ts';
 import { BUILT_PHASES } from '../../../../shared/contract/routes.ts';
 import { uuidv7 } from '../../lib/ids';
@@ -104,7 +107,7 @@ function next(steps: Record<string, StepRecord>, day: string, at: number): numbe
     if (!skip) return s.step;
     steps[s.step] = { at, skipped: skip };
   }
-  return NIGHT_LAST_STEP + 1;
+  return NIGHT_END;
 }
 
 function answer(row: { done_at: number | null }, steps: Record<string, StepRecord>, resume: number): MindNightResponse {
@@ -131,7 +134,7 @@ export function night(w: Writer, c: Caller, r: MindNightRequest, today: string):
     // or ended with this run) is answered; its end is the one write.
     doneCaller(db, c.session_id, stored.done_at);
     endNight(db, c.session_id, at);
-    return answer(stored, JSON.parse(stored.steps_json) as Record<string, StepRecord>, NIGHT_LAST_STEP + 1);
+    return answer(stored, JSON.parse(stored.steps_json) as Record<string, StepRecord>, NIGHT_END);
   }
   claimedSession(db, c.session_id, 'night');
   // One session works a run at a time (the 06:07 fallback while the roll's session still works):
@@ -153,19 +156,19 @@ export function night(w: Writer, c: Caller, r: MindNightRequest, today: string):
   if (r.action === 'step_done' || r.action === 'cursor') {
     if (!NIGHT_STEPS.some((s) => s.step === step))
       throw invalid('step', `steps are ${NIGHT_STEPS.map((s) => s.step).join(', ')}`);
-    if (step > resume) throw new Fail('conflict', { resume_from: resume });
+    if (nightPos(step) > nightPos(resume)) throw new Fail('conflict', { resume_from: resume });
   }
   // `done` is the last step's own end (so is that step reported done); with `partial`, the hard
   // stop cut the steps between, and they are recorded as skipped (those not due tonight anyway
   // with their own reason).
   if (r.action === 'done' || (r.action === 'step_done' && step === NIGHT_LAST_STEP && step === resume)) {
-    if (resume < NIGHT_LAST_STEP && !r.partial) throw new Fail('conflict', { resume_from: resume });
+    if (nightPos(resume) < nightPos(NIGHT_LAST_STEP) && !r.partial) throw new Fail('conflict', { resume_from: resume });
     for (const s of NIGHT_STEPS)
-      if (s.step >= resume && s.step < NIGHT_LAST_STEP)
+      if (nightPos(s.step) >= nightPos(resume) && s.step !== NIGHT_LAST_STEP)
         steps[s.step] = { at, skipped: notDue(s, r.day) ?? 'hard_stop' };
     steps[NIGHT_LAST_STEP] = { at, session: c.session_id, done: true };
     row.done_at = at;
-    resume = NIGHT_LAST_STEP + 1;
+    resume = NIGHT_END;
     endNight(db, c.session_id, at);
   } else if (r.action === 'step_done' && step === resume) {
     steps[step] = { at, session: c.session_id, done: true };
@@ -184,7 +187,7 @@ export function night(w: Writer, c: Caller, r: MindNightRequest, today: string):
        done_at = coalesce(night_runs.done_at, excluded.done_at), session_id = excluded.session_id`,
     r.day,
     row.started_at,
-    resume - 1,
+    NIGHT_ORDER[nightPos(resume) - 1] ?? 0,
     json,
     row.done_at,
     c.session_id,

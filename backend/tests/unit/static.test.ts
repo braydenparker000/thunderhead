@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { AUTH_MIGRATIONS } from '../../src/objects/auth.migrations';
 import { CORE_MIGRATIONS } from '../../src/objects/core.migrations';
+import { MUSIC_MIGRATIONS } from '../../src/objects/music';
 
 const raw = (files: Record<string, unknown>) => files as Record<string, string>;
 const objectCode = raw(
@@ -27,8 +28,7 @@ const wrangler = Object.values(
   raw(import.meta.glob('../../wrangler.jsonc', { query: '?raw', import: 'default', eager: true })),
 )[0];
 
-/** Steps another branch holds while this one is built may be skipped in the numbering (none now:
- * step 23, the reports, and step 24, the row meter, met on 2026-10-31). */
+/** Migration steps a branch built beside another may skip in the numbering (none). */
 const PENDING: number[] = [];
 
 const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
@@ -70,7 +70,7 @@ describe('source rules', () => {
   });
 
   it('migrations are expand-only, numbered 1…n, never DROP, RENAME, DELETE or UPDATE', () => {
-    for (const list of [AUTH_MIGRATIONS, CORE_MIGRATIONS]) {
+    for (const list of [AUTH_MIGRATIONS, CORE_MIGRATIONS, MUSIC_MIGRATIONS]) {
       const versions = list.map((m) => m.version);
       const top = Math.max(...versions);
       expect(versions).toEqual(
@@ -78,7 +78,12 @@ describe('source rules', () => {
       );
       for (const m of list) {
         expect(m.kind).toBe('expand');
-        for (const sql of m.sql) expect(sql, `migration ${m.version}`).not.toMatch(/\b(DROP|RENAME|DELETE|UPDATE)\b/i);
+        // A trigger's event names a write without making one; its body is checked like the rest.
+        for (const sql of m.sql)
+          expect(
+            sql.replace(/^CREATE TRIGGER \w+ AFTER (INSERT|UPDATE|DELETE) ON\b/i, ''),
+            `migration ${m.version}`,
+          ).not.toMatch(/\b(DROP|RENAME|DELETE|UPDATE)\b/i);
       }
     }
   });

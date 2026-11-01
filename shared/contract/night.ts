@@ -4,7 +4,8 @@
 // order, its budget, what makes a rerun of it write nothing new, and whether it keeps a cursor
 // (a step that works through its input in parts saves where it got to, so a refire resumes in
 // the middle). A step that starts work in a later phase is marked done at once until then.
-// Numbers never change meaning: a new step takes the next free number in its place.
+// Numbers never change meaning: a new step takes the next free number in its place, so the run's
+// order is the list's (NIGHT_ORDER), and a finished run answers NIGHT_END, past every number.
 
 export interface NightStep {
   step: number;
@@ -93,6 +94,19 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     phase: 'P4',
     sunday: true,
   },
+  // What the mind knows of each song (RUNTIME.md §12.1, MUSIC.md §10.5): the next untagged songs'
+  // notes, at most MUSIC_NOTE_LIMITS.night_songs a night, then a mix or two and Sunday's line. Its
+  // number is the next free one; it runs last before the session note, after every step that
+  // writes memory, since reading songs' tags taints the session like any outside text (the next
+  // night's fired wake starts clean once this session has ended, RUNTIME.md §4.3).
+  {
+    step: 11,
+    name: 'songs (notes, mixes)',
+    budget_min: 6,
+    idempotent: 'a note is put by its track, the same note again writes nothing, and the next page is always the next songs without one',
+    cursor: false,
+    phase: 'P5',
+  },
   {
     step: 10,
     name: 'session note and done',
@@ -104,6 +118,15 @@ export const NIGHT_STEPS: readonly NightStep[] = [
 ];
 
 export const NIGHT_LAST_STEP = NIGHT_STEPS[NIGHT_STEPS.length - 1].step;
+/** The steps run in the list's order, not their numbers' (11 runs between 9 and 10). */
+export const NIGHT_ORDER: readonly number[] = NIGHT_STEPS.map((s) => s.step);
+/** `resume_from` once the run is done: past every step's number. */
+export const NIGHT_END = Math.max(...NIGHT_ORDER) + 1;
+/** A step's place in the run; past the end for NIGHT_END (or any number not a step). */
+export const nightPos = (step: number): number => {
+  const i = NIGHT_ORDER.indexOf(step);
+  return i < 0 ? NIGHT_ORDER.length : i;
+};
 export const NIGHT_BUDGET_MIN = { target: 30, hard: 45, sunday_hard: 60 } as const;
 /** A cursor is opaque to the Worker: at most this many characters. */
 export const NIGHT_CURSOR_MAX = 200;

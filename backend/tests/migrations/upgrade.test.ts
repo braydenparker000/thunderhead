@@ -100,6 +100,10 @@ describe('upgrade from P2', () => {
       sql.exec('DROP INDEX IF EXISTS mind_sessions_tainted');
       sql.exec('DROP INDEX IF EXISTS mind_sessions_open');
       sql.exec('DROP INDEX IF EXISTS session_notes_at');
+      sql.exec('DROP INDEX IF EXISTS mind_sessions_taint_event');
+      sql.exec('DROP INDEX IF EXISTS mind_sessions_songs');
+      for (const c of ['taint_event_at', 'songs_at']) sql.exec(`ALTER TABLE mind_sessions DROP COLUMN ${c}`);
+      sql.exec('ALTER TABLE session_notes DROP COLUMN tainted');
       sql.exec('DELETE FROM _migrations WHERE version > 7');
       sql.exec(
         `INSERT INTO messages (id, thread_id, created_at, author, origin, kind, body) VALUES ('m-p2', 't-p2', 1, 'owner', 'owner_device', 'text', 'kept across the upgrade')`,

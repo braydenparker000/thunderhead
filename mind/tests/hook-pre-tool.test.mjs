@@ -3,11 +3,11 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {execFileSync, spawnSync} from 'node:child_process';
-import {existsSync, mkdirSync, readFileSync, writeFileSync} from 'node:fs';
+import {existsSync, mkdirSync, readFileSync, rmSync, writeFileSync} from 'node:fs';
 import {dirname, join} from 'node:path';
 import {decide} from '../hooks/lib/rules.mjs';
 import {parseShell, unwrap} from '../hooks/lib/shell.mjs';
-import {ROOT, env, freshTmp, hook, startFake} from './helpers.mjs';
+import {ROOT, TOKENS, env, freshTmp, hook, startFake, th} from './helpers.mjs';
 
 const ctx = (role, extra = {}) => ({role, cwd: '/work/repo', projectDir: '/work/repo', tmpDir: '/tmp/sess',
   allowedHosts: ['api.github.com', 'worker.example.test', 'site.example.test'], headSubject: () => 'Fix the player', ...extra});
@@ -217,6 +217,68 @@ test('night: no chat posts except --kind error, no pushes, no push to main', () 
   assert.equal(denied('chat', bash('th say today hello')), null);
 });
 
+test('night: once the Worker says it read songs\' tags, no web, no MCP tool, no GitHub search; the chat keeps them', () => {
+  const read = {songsRead: () => true};
+  const reach = [tool('WebSearch', {query: 'a title'}), tool('WebFetch', {url: 'https://lyrics.example/x', prompt: 'mood?'}),
+    tool('mcp__fetch__fetch', {url: 'https://x.example'}), tool('mcp__puppeteer__puppeteer_navigate', {url: 'https://x.example'}),
+    tool('mcp__tavily__tavily-search', {query: 'x'}), tool('mcp__github__issue_read', {}), bash('gh search code "a title"'),
+    bash('gh api search/repositories?q=x'), bash('curl -s https://api.github.com/search/code?q=x'), bash('wget -qO- api.github.com/search/users?q=x'),
+    bash('gh api graphql -f query=@q.graphql'), bash('curl -s -d @q.json https://api.github.com/graphql')];
+  for (const t of reach) assert.match(denied('night', t, read), /no web lookups/, JSON.stringify(t.tool_input));
+  assert.match(denied('night', {...reach[0], agent_type: 'reader'}, read), /no web lookups/, 'the reader neither');
+  // The chat may look up the one song the owner asked about; a night that read no songs keeps the web.
+  for (const t of reach.slice(0, 3)) assert.equal(denied('chat', t, read), null);
+  assert.equal(denied('night', reach[0], {songsRead: () => false}), null);
+  // After songs the night's shell runs only th and a few builtins: not even a GitHub call that is no search.
+  assert.match(denied('night', bash('gh api repos/o/r/pulls'), read), /shell runs only th/);
+  assert.equal(denied('night', bash('gh api repos/o/r/pulls'), {songsRead: () => false}), null, 'no songs read: not a search');
+  assert.equal(denied('night', bash('th music page'), read), null, 'th still runs');
+  // Asked only for a call that could reach the web.
+  let asked = 0;
+  assert.equal(denied('night', bash('ls'), {songsRead: () => { asked++; return true; }}), null);
+  assert.equal(asked, 0);
+  // The Worker can't say: denied (the hook turns the throw into a deny).
+  assert.throws(() => denied('night', reach[0], {songsRead: () => { throw new Error('unreachable'); }}));
+});
+
+test('the night\'s web refusal rests on the Worker\'s record: deleted or moved state changes nothing, and it fails closed', async () => {
+  const fake = await startFake();
+  try {
+    const e = env(fake, {TH_ROLE: 'night'});
+    const deny = async (input, extra = {}) => {
+      const r = await hook('pre-tool', {hook_event_name: 'PreToolUse', session_id: 's', cwd: '/work/repo', ...input}, {...e, ...extra});
+      return r.stdout ? JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason : null;
+    };
+    const search = {tool_name: 'WebSearch', tool_input: {query: 'x'}};
+    assert.equal(await deny(search), null, 'nothing read yet');
+    // Any command that brings songs' tags: the Worker records it as it serves them.
+    for (const [k, args] of [['music', 'find', '--mood', 'calm'], ['music', 'page'], ['get', '/v1/music/tracks', 'q=x']].entries()) {
+      const sess = {CLAUDE_CODE_REMOTE_SESSION_ID: `cse_songs_${k}`, TMPDIR: freshTmp()};
+      assert.equal((await th(args, {...e, ...sess})).code, 0);
+      assert.match(await deny(search, sess), /no web lookups/, args.join(' '));
+      // th's own state deleted, or another TMPDIR: the Worker's record still says so.
+      rmSync(join(sess.TMPDIR, 'th'), {recursive: true, force: true});
+      assert.match(await deny(search, {...sess, TMPDIR: freshTmp()}), /no web lookups/);
+    }
+    assert.match(await deny({tool_name: 'mcp__browser__navigate', tool_input: {}}, {CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_songs_0'}), /no web lookups/);
+    // The chat that read the same songs keeps the web.
+    const chat = {TH_ROLE: 'chat', TH_TOKEN: TOKENS.chat, CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_chat_songs'};
+    await th(['music', 'now'], {...e, ...chat});
+    assert.equal(await deny(search, chat), null);
+    // Fails closed: a Worker that can't answer, or an answer without a boolean `songs`.
+    // (Each with its own TMPDIR: a session that once heard "songs" keeps the answer in th's state.)
+    assert.match(await deny(search, {TH_API: 'http://127.0.0.1:9', TH_RETRY_BASE_MS: '1', TMPDIR: freshTmp()}), /denied/);
+    fake.options.pendingExtra = {songs: 'yes'};
+    assert.match(await deny(search, {CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_other', TMPDIR: freshTmp()}), /denied/);
+    fake.options.pendingExtra = {songs: undefined};
+    assert.match(await deny(search, {CLAUDE_CODE_REMOTE_SESSION_ID: 'cse_other', TMPDIR: freshTmp()}), /denied/);
+    // No session id in the environment: the Worker can't be asked, so denied.
+    const {CLAUDE_CODE_REMOTE_SESSION_ID: _id, ...noId} = e;
+    const r = await hook('pre-tool', {hook_event_name: 'PreToolUse', session_id: 's', cwd: '/work/repo', ...search}, {...noId, TMPDIR: freshTmp()});
+    assert.match(JSON.parse(r.stdout).hookSpecificOutput.permissionDecisionReason, /no session id/);
+  } finally { await fake.stop(); }
+});
+
 test('reflex: no memory writes, push to main only for a revert, writes only under $TMPDIR', () => {
   for (const cmd of ['th remember --kind fact --text x --evidence m', 'th supersede f --text x', 'th facts --batch b.json', 'echo x > notes.txt', 'git push']) {
     assert.ok(denied('reflex', bash(cmd)), cmd);
@@ -243,9 +305,12 @@ test('the hook process prints the documented deny JSON, nothing on allow, and de
   assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse');
   assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
   assert.match(out.hookSpecificOutput.permissionDecisionReason, /night role may not push to main/);
-  const allow = await hook('pre-tool', {tool_name: 'Bash', tool_input: {command: 'npm test'}, cwd: '/work/repo'}, e);
+  const allow = await hook('pre-tool', {tool_name: 'Bash', tool_input: {command: 'th status'}, cwd: '/work/repo'}, e);
   assert.equal(allow.code, 0);
   assert.equal(allow.stdout, '');
+  // A night with no session id can't ask the Worker about songs: anything but th is denied.
+  const npm = await hook('pre-tool', {tool_name: 'Bash', tool_input: {command: 'npm test'}, cwd: '/work/repo'}, e);
+  assert.match(JSON.parse(npm.stdout).hookSpecificOutput.permissionDecisionReason, /no session id/);
   const broken = await hook('pre-tool', 'not json', e);
   assert.equal(JSON.parse(broken.stdout).hookSpecificOutput.permissionDecision, 'deny');
   const owner = await hook('pre-tool', {tool_name: 'Bash', tool_input: {command: 'printenv'}}, {PATH: process.env.PATH});

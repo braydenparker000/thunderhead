@@ -1,6 +1,6 @@
 // P5 step 1: the Music object exists on its own (MUSIC.md §1.2): it migrates to its schema once,
-// reports its health like the other objects, and holds the catalog's three tables, empty, beside the
-// row meter's `meter_days`.
+// reports its health like the other objects, and holds the catalog's three tables and the mind's
+// notes (step 4), empty, beside the row meter's `meter_days`.
 
 import { runInDurableObject } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
@@ -12,7 +12,7 @@ const music = () => env.MUSIC.get(env.MUSIC.idFromName('library')) as unknown as
 describe('the Music object', () => {
   it('migrates once to its schema and reports its health', async () => {
     const h = await music().health();
-    expect(h).toMatchObject({ schema: 3, expected: 3 });
+    expect(h).toMatchObject({ schema: 4, expected: 4 });
     const tables = await runInDurableObject(music(), (_o, state) =>
       state.storage.sql
         .exec("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_%' ESCAPE '\\' ORDER BY name")
@@ -23,9 +23,12 @@ describe('the Music object', () => {
       'analysis',
       'catalog_log',
       'external_jobs',
+      'find_packs',
       'meter_days',
       'music_state',
       'track_analysis',
+      'track_notes',
+      'track_ratings',
       'tracks',
     ]);
     expect(

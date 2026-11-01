@@ -10,7 +10,17 @@ export { DICTATE_LIMITS, FILE_LIMITS } from './files.ts';
 export * from './imports.ts';
 export * from './memory.ts';
 export { LISTEN_KINDS, LISTEN_LIMITS, MOODS } from './listen.ts';
-export { MUSIC_LIMITS } from './music.ts';
+export {
+  ISO_639_1,
+  MUSIC_LIMITS,
+  MUSIC_MOODS,
+  MUSIC_NEVER_SUBJECT,
+  MUSIC_NOTE_LIMITS,
+  MUSIC_NOTE_VERSION,
+  MUSIC_OCCASIONS,
+  MUSIC_TAINT_SOURCE,
+  MUSIC_THEMES,
+} from './music.ts';
 export * from './night.ts';
 export { PODCAST_LIMITS } from './podcasts.ts';
 export {

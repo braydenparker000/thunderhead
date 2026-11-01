@@ -251,7 +251,7 @@
     "rows_read_max": 50,
     "rows_written_max": 21
   },
-  "POST /v1/proposals/:id/decide (the owner’s words; the forget runs) (Core)": {
+  "POST /v1/proposals/:id/decide (the owner\u2019s words; the forget runs) (Core)": {
     "rows_read_max": 59,
     "rows_written_max": 22
   },
@@ -348,8 +348,8 @@
     "rows_written_max": 0
   },
   "GET /v1/music/analysis/:id (Music)": {
-    "rows_read_max": 2,
-    "rows_written_max": 0
+    "rows_read_max": 3,
+    "rows_written_max": 1
   },
   "POST /v1/jobs/:id/collect (Core)": {
     "rows_read_max": 3,
@@ -417,7 +417,7 @@
   },
   "GET /v1/podcasts/progress (the night, marking its session) (Core)": {
     "rows_read_max": 6,
-    "rows_written_max": 2
+    "rows_written_max": 3
   },
   "GET /v1/podcasts/progress (the night, already marked) (Core)": {
     "rows_read_max": 4,
@@ -426,5 +426,73 @@
   "GET /v1/podcasts/feed, counts: started episodes looked up (3) (Core)": {
     "rows_read_max": 3,
     "rows_written_max": 0
+  },
+  "PUT /v1/music/notes, 200 notes again, unchanged (Music)": {
+    "rows_read_max": 800,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/find (Music, warm)": {
+    "rows_read_max": 81,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/find (Senses, warm)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/find (Core, 3 never-play rules)": {
+    "rows_read_max": 8,
+    "rows_written_max": 5
+  },
+  "GET /v1/music/find, packs missing: built again once (Music, 12000 tracks, 11600 notes, 12000 measured)": {
+    "rows_read_max": 36411,
+    "rows_written_max": 53
+  },
+  "GET /v1/music/find (Music, cold: 12000 tracks, 11600 notes, 12000 measured)": {
+    "rows_read_max": 134,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/find?like= (Music, cold: 12000 tracks, 11600 notes, 12000 measured, the seed's 50 neighbours)": {
+    "rows_read_max": 136,
+    "rows_written_max": 0
+  },
+  "PUT /v1/music/notes, 200 notes replacing 200 (Music, cold: 12000 tracks)": {
+    "rows_read_max": 1226,
+    "rows_written_max": 203
+  },
+  "GET /v1/music/notes?ids= 50 (Music, cold)": {
+    "rows_read_max": 200,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/notes, a page of 200 (Music, cold)": {
+    "rows_read_max": 601,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/tracks?untagged=1, 200 (Music, cold, its place kept)": {
+    "rows_read_max": 202,
+    "rows_written_max": 0
+  },
+  "PUT /v1/senses/batches/:id, the catch-up: 100 ratings of 1 (Music)": {
+    "rows_read_max": 0,
+    "rows_written_max": 200
+  },
+  "PUT /v1/senses/batches/:id, the catch-up: 100 ratings of 1 (Senses)": {
+    "rows_read_max": 0,
+    "rows_written_max": 301
+  },
+  "GET /v1/music/find (Senses, cold: 40 early skips among 200 events)": {
+    "rows_read_max": 113,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/notes, songs' tags to a night session, its first call (Core)": {
+    "rows_read_max": 5,
+    "rows_written_max": 5
+  },
+  "GET /v1/music/notes, songs' tags to a night session, its first call (Music)": {
+    "rows_read_max": 6,
+    "rows_written_max": 1
+  },
+  "GET /v1/music/notes, songs' tags to a night session, its next call (Core)": {
+    "rows_read_max": 5,
+    "rows_written_max": 5
   }
 }

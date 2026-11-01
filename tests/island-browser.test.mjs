@@ -127,6 +127,39 @@ test('Music opens as a layer that its worker trusts; Back makes it the island; a
   await page.waitForFunction(() => !document.querySelector('iframe.th-app').contentWindow.__cp.player.sleep);
   await page.waitForSelector('.th-island:not(.sleep)');
   await page.waitForFunction(() => document.querySelector('.toast:not(.utoast)')?.textContent.includes('Sleep timer off.'));
+  // "Never play this again": Music rates the song 1 and skips it (the player passes over it), and
+  // Music's own bus sends the one music.rate sense (the island sends none of its own); its Undo sets
+  // the old rating back, which the bus sends too.
+  const never = await page.evaluate(async () => {
+    const w = document.querySelector('iframe.th-app').contentWindow;
+    const p = w.__cp.player;
+    const t = { id: 'r2_native_island_never', rating: 3 };
+    p.queue = [t];
+    p.index = 0;
+    const steps = [];
+    p.step = (d) => steps.push(d);
+    const rates = () => {
+      const sealed = JSON.parse(localStorage.getItem('th.p.senses.batch') || 'null');
+      return [...JSON.parse(localStorage.getItem('th.p.senses') || '[]'), ...(sealed ? JSON.parse(sealed.body).events : [])]
+        .filter((e) => e.type === 'music.rate' && e.ref === `music:${t.id}`)
+        .map((e) => e.data.rating);
+    };
+    const settle = async (n) => {
+      for (let i = 0; i < 50 && rates().length < n; i++) await new Promise((r) => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 500));
+      return rates();
+    };
+    const r = (await import('/th/island/island.js')).control('never');
+    const after = { rating: t.rating, steps: [...steps], rates: await settle(1) };
+    r.undo();
+    return { ok: r.ok, text: r.text, after, undone: { rating: t.rating, rates: await settle(2) } };
+  });
+  assert.deepEqual(never, {
+    ok: true,
+    text: 'Skipped. Rated "not for me": it won\'t come up again.',
+    after: { rating: 1, steps: [1], rates: [1] },
+    undone: { rating: 3, rates: [1, 3] },
+  });
   await page.evaluate(() => import('/th/island/island.js').then((m) => m.close()));
   assert.equal(await page.locator('iframe.th-app').count(), 0);
   const none = await page.evaluate(() => import('/th/island/island.js').then((m) => m.control('pause')));

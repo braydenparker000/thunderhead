@@ -681,7 +681,7 @@
      "adjustments": []
     },
     "music/sw.js": {
-     "sha256": "71cb17e9e108fd3b2ec1294eaf7d7a78d29cd470c16462d3050ab65ddcabe9ab",
+     "sha256": "56d05ab85984ce691abe068be50f60c3fb1e3b8384d2dce6e3ebd0a85a2ecb3e",
      "old_sha256": "02b90a263176db03e6e1f882ed977dedc4b68a6457ebfaa74e50de2568d757fa",
      "adjustments": [
       "data-move",
@@ -689,7 +689,7 @@
      ],
      "edits": [
       [
-       "  // The DJ shuffle's planner and the better search (th/music/dj.js, search.js) are part of the app, offline too.\n  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && !/^\\/th\\/music\\/(dj|search)\\.js$/.test(url.pathname)) return;",
+       "  // The DJ shuffle's planner, the better search and the ratings (th/music/dj.js, search.js, ratings.js) are part of the app, offline too.\n  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname) && !/^\\/th\\/music\\/(dj|search|ratings)\\.js$/.test(url.pathname)) return;",
        "  if (!url.pathname.startsWith(new URL('./', self.registration.scope).pathname)) return;"
       ],
       [

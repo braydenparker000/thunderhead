@@ -127,7 +127,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/briefing/place` | D | P8 | built | the weather's place, by a town's name |
 | `GET /v1/music/catalog` | D | P5 | built | the ported player's format; ETag, 304; 409 before the import |
 | `GET /v1/music/waveforms/:id` | D | P5 | built |  |
-| `GET /v1/music/tracks` | C N | P5 | built | ?q=&limit=: tracks by their tags, for a playlist the mind makes |
+| `GET /v1/music/tracks` | C N | P5 | built | ?q=&limit=: tracks by their tags (songs rated 1 left out), for a playlist the mind makes; &untagged=1: the night's next ≤ 200 songs needing a note, `more` |
+| `PUT /v1/music/notes` | C N | P5 | built | {items}: 1–200 notes checked against the vocabularies; a bad note or unknown id refuses the batch; 429 from 80% of the day's budget |
+| `GET /v1/music/notes` | D C N | P5 | built | ?ids=a,b (≤ 200, each with its tags) or ?cursor=&limit=: every note, a page at a time |
+| `GET /v1/music/find` | C N | P5 | built | ?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out; 429 from 80% |
 | `PUT /v1/music/uploads/audio/:file` | public | P5 | built | signed by an upload tool key; Ogg Opus, ≤ 32 MiB |
 | `PUT /v1/music/uploads/art/:file` | public | P5 | built | signed by an upload tool key; JPEG or PNG, ≤ 2 MiB |
 | `POST /v1/music/uploads/:op` | public | P5 | built | signed by an upload tool key; the catalog writer's operations, export and links |
@@ -273,6 +276,19 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `never_stored` | Keys, tokens, passwords and card or bank numbers are never stored (MEMORY.md §13). |
 | `session_required` | Memory writes need a mind session that claimed its briefing and has not ended. |
 
+## Music notes
+
+What the mind knows of each song (`PUT /v1/music/notes`, `th music note`), format version 1. A batch holds 1–200 notes and is refused whole for one bad note. Each mood and occasion carries its own confidence (0.05–1); `conf` has one for each of themes, language, era and energy that is set, none for one left empty; a song the mind doesn't know (`known: false`) keeps every confidence at or under 0.5. The listening pass scores the same moods. "Never play this again" is a rule fact under the subject `music.never` naming `music:<id>`.
+
+| Field | At most | Words |
+|---|---|---|
+| moods | 5 | calm, peaceful, melancholy, sad, hopeful, joyful, romantic, nostalgic, dark, tense, energetic, triumphant, playful, dreamy, reverent, focused |
+| occasions | 4 | focus, wind-down, morning, workout, drive, study, worship, party, rainy-day, sunday, sleep |
+| themes | 3 | love, heartbreak, longing, faith, gratitude, family, friendship, home, loss, freedom, journey, nature, night, celebration, struggle, growing-up |
+| language | 1 | ISO 639-1 (183 codes), or null |
+| era | 1 | a decade from 1000 to the present one, or null |
+| energy | 1 | 0 to 1, or null |
+
 ## Night shift
 
 The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, hard stop 45 (Sunday 60). A step of a phase not built yet, and the Sunday step on another night, is skipped on the way.
@@ -288,6 +304,7 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 | 7 | arrange tomorrow | 4 | P3 | no | surfaces are put by app and slot |
 | 8 | built overnight | 1 | P4 | no | items are put by id |
 | 9 | weekly evals (the injection suite) (Sunday) | 15 | P4 | no | each fixture runs on a fresh sandbox; th eval end records one run |
+| 11 | songs (notes, mixes) | 6 | P5 | no | a note is put by its track, the same note again writes nothing, and the next page is always the next songs without one |
 | 10 | session note and done | 2 | P3 | no | the run is marked done once |
 
 ## Proposals

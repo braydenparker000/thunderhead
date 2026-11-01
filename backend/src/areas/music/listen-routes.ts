@@ -19,6 +19,7 @@ import { refuseWhileHeld } from '../meter/hold';
 import { base64, incoming, MANIFEST, specKey, uploadLimit } from './listen-files';
 import { PACK_KEY } from './listen-pack';
 import { SONG_ID } from './shapes';
+import { tagsRead } from './tags-read';
 
 const JOB_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const nextQuery = z.object({
@@ -125,6 +126,8 @@ export const listenRoutes = new Hono<AppEnv>()
     const id = c.req.param('id');
     if (!SONG_ID.test(id)) throw new ApiError('not_found');
     const q = parse(likeQuery, c.req.query());
+    // Its neighbours come with their titles and artists: songs' tags (MUSIC.md §10.5).
+    await tagsRead(c);
     const r = await fresh(musicObject(c.env).trackAnalysis(id, q.like ?? 10));
     if (!r) throw new ApiError('not_found');
     return c.json(r);

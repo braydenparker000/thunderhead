@@ -10,6 +10,7 @@ import {reminderRoutes} from './fake-reminders.mjs';
 import {reportRoutes} from './fake-reports.mjs';
 import {listenRoutes} from './fake-listen.mjs';
 import {podcastRoutes} from './fake-podcasts.mjs';
+import {musicRoutes} from './fake-music.mjs';
 
 // Deliberately short and fake: the repository's credential scan rejects anything token-length.
 export const TOKENS = {chat: 'thm_fake_chat_token', night: 'thm_fake_night_token', reflex: 'thm_fake_reflex_token'};
@@ -137,13 +138,14 @@ export function createFake(options = {}) {
       if (body.state === 'working') for (const m of s.messages) if (m.author === 'owner' && m.delivered_at && !m.acked_at) m.acked_at = now();
       return null;
     }],
-    ['GET', /^\/v1\/mind\/pending$/, ['chat', 'night', 'reflex'], () => {
+    ['GET', /^\/v1\/mind\/pending$/, ['chat', 'night', 'reflex'], ({session, role}) => {
       const lastOwner = s.messages.filter(m => m.author === 'owner' && m.thread_id === today.id).at(-1);
       const since = lastOwner?.created_at ?? s.claimedAt ?? now();
       const claimed = s.wakes.filter(w => w.status === 'claimed').at(-1);
       const cutoff = o.lean ? 30 : claimed?.reason === 'prewarm' && !lastOwner ? 10 : 120;
       return {unanswered: ctl.unanswered(), stop: !!(s.stop && !s.stop.cleared), day_closed: !!s.dayClosed, limited: !!o.limited,
-        idle_min: Math.floor((now() - since) / 60_000), idle_cutoff_min: cutoff, ...(o.pendingExtra || {})};
+        idle_min: Math.floor((now() - since) / 60_000), idle_cutoff_min: cutoff,
+        songs: role === 'night' && !!s.songReaders?.has(session), ...(o.pendingExtra || {})};
     }],
     ['PUT', /^\/v1\/messages\/([^/]+)$/, ['chat', 'night', 'reflex'], ({role, body, params, session}) => {
       if (role !== 'chat' && body.kind !== 'error') throw new HttpError(403, 'forbidden', 'this role may post only kind error');
@@ -193,6 +195,7 @@ export function createFake(options = {}) {
     ...reportRoutes(ctl),
     ...listenRoutes(ctl),
     ...podcastRoutes(ctl),
+    ...musicRoutes(ctl),
   ];
 
   const server = createServer(async (req, res) => {

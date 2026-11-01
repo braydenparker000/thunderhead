@@ -16,6 +16,8 @@ export const NIGHT_SESSION = 'cse_memory_night_1';
 export const SHA = 'a'.repeat(64);
 
 export const as = (token: string, session: string) => ({ token, headers: { 'TH-Session': session } });
+/** The night's claimed session (principals() claims it). */
+export const asNight = (p: Principals) => as(p.N, NIGHT_SESSION);
 
 export function brief(token: string, session: string, role: 'chat' | 'night', sha = SHA) {
   return apiJson<BriefResponse>('POST', '/v1/mind/brief', {

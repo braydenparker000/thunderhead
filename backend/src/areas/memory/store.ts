@@ -159,6 +159,19 @@ export function currentFacts(db: Db, kinds: readonly string[], limit: number): F
   );
 }
 
+/** The texts of the current, unexpired rules under one subject (the `facts_current` index: only the
+ * current facts of that kind are read), e.g. the songs the owner said never to play again. */
+export function ruleTexts(db: Db, subject: string, now: number): string[] {
+  return db
+    .all<{ text: string }>(
+      `SELECT text FROM facts WHERE superseded_at IS NULL AND kind = 'rule' AND subject = ?
+         AND (valid_to IS NULL OR valid_to > ?)`,
+      subject,
+      now,
+    )
+    .map((r) => r.text);
+}
+
 export interface FactsFilter {
   kind: string | null;
   subject: string | null;

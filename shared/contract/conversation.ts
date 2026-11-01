@@ -213,8 +213,9 @@ export interface MindNightRequest {
 }
 
 export interface MindNightResponse {
-  /** The first step not finished yet (the last step + 1 once the run is done). Steps of a later
-   * phase, and the Sunday step on another day, are skipped on the way. */
+  /** The first step not finished yet, in the run's order (NIGHT_ORDER), or NIGHT_END, past every
+   * step's number, once the run is done. Steps of a later phase, and the Sunday step on another
+   * day, are skipped on the way. */
   resume_from: number;
   done: boolean;
   /** The cursor saved for `resume_from`, if that step keeps one. */
@@ -256,6 +257,9 @@ export interface PendingResponse {
   limited: boolean;
   idle_min: number;
   idle_cutoff_min: number;
+  /** A night session that read songs' tags (the Worker's own record, MUSIC.md §10.5): the
+   * PreToolUse hook closes the web to it. Always false for chat and reflex. */
+  songs: boolean;
 }
 
 /** What the phone shows about the mind (setting `mind.status` + the open wake). `unconfigured`

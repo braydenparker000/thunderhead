@@ -55,14 +55,33 @@ function keep(q) {
   } catch {}
 }
 
-/** One event, sent soon. @param {string} type e.g. `guitar.open` @param {string | null} [ref]
- * @param {Record<string, unknown> | null} [data] numbers and names of things, never what the owner wrote (≤ 2 KB) */
+/** One event, sent soon; whether it was kept to send (not when signed out, or in another's frame).
+ * @param {string} type e.g. `guitar.open` @param {string | null} [ref]
+ * @param {Record<string, unknown> | null} [data] numbers and names of things, never what the owner wrote (≤ 2 KB)
+ * @returns {Promise<boolean>} */
 export async function sense(type, ref = null, data = null) {
-  if (framedByOther() || !(await sessionToken())) return;
+  if (framedByOther() || !(await sessionToken())) return false;
   const now = Date.now();
   keep([...waiting(), { id: uuidv7(now), at: now, type, ...(ref ? { ref } : {}), ...(data ? { data } : {}) }]);
   clearTimeout(timer);
   timer = setTimeout(flush, 3000);
+  return true;
+}
+
+/** How many more events the outbox keeps before it drops its oldest. */
+export const room = () => MAX - waiting().length;
+/** Whether nothing waits on this phone: every event kept was taken (or refused for good). */
+export const drained = () => !waiting().length && !sealed();
+
+const LOST = 'th.senses.lost';
+/** How many batches this phone has let go without the Worker taking them (refused for good): a
+ * caller that must know its events arrived compares it before and after (th/music/ratings.js). */
+export function lost() {
+  try {
+    return Number(localStorage.getItem(LOST)) || 0;
+  } catch {
+    return 0;
+  }
 }
 
 /** Sends what waits, one batch at a time. */
@@ -123,10 +142,15 @@ async function send() {
     // Taken, or refused in a way no retry fixes (a malformed batch, or the Worker failing it five
     // times): it leaves the phone. Offline or signed out: it waits as it is.
     const done = r && (r.ok || r.status === 409 || r.status === 422 || (r.status >= 500 && batch.tries >= 4));
-    if (!done) {
+    if (!r || !done) {
       if (r && r.status >= 500) seal({ ...batch, tries: batch.tries + 1 });
       return;
     }
+    // Refused for good (409 is a batch already taken): counted, so a caller learns it was lost.
+    if (!r.ok && r.status !== 409)
+      try {
+        localStorage.setItem(LOST, String(lost() + 1));
+      } catch {}
     seal(null);
   }
 }

@@ -9,6 +9,7 @@ import { ANALYZER } from '../../../shared/contract/listen.ts';
 import { JOBS_KEY } from '../../../shared/contract/routes.ts';
 import { api, apiJson, core, PASSWORD } from '../helpers';
 import { drain, manifest, music, musicSql, pack, put, result, seedTracks } from '../listen-helpers';
+import { brief } from '../memory-helpers';
 
 type Stub = ReturnType<typeof core>;
 type Cost = (name: string, fn: () => Promise<Response>, status: number, stub?: Stub) => Promise<void>;
@@ -25,6 +26,8 @@ export async function listenCalls(cost: Cost, grant: (ip: string, password?: str
   const night = await agent('mind:night', 'night-cost-listen');
   const ci = await agent('ci', JOBS_KEY);
   const m = music() as unknown as Stub;
+  // The mind reads songs' tags from a claimed session only (its first read records it in Music).
+  await brief(night, 'cse_cost_listen', 'night');
   const shas = await seedTracks(600);
   let jobId = '';
   await cost(
@@ -66,7 +69,11 @@ export async function listenCalls(cost: Cost, grant: (ip: string, password?: str
   await cost('GET /v1/music/pack (Music)', () => api('GET', '/v1/music/pack', { token: d.token }), 200, m);
   await cost(
     'GET /v1/music/analysis/:id (Music)',
-    () => api('GET', `/v1/music/analysis/r2_native_${shas[3]}?like=10`, { token: night }),
+    () =>
+      api('GET', `/v1/music/analysis/r2_native_${shas[3]}?like=10`, {
+        token: night,
+        headers: { 'TH-Session': 'cse_cost_listen' },
+      }),
     200,
     m,
   );

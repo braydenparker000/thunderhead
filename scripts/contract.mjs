@@ -174,6 +174,17 @@ function mind() {
     listen: { kinds: c.LISTEN_KINDS, moods: c.MOODS, limits: c.LISTEN_LIMITS },
     // Podcasts (`th podcasts new`): the night's budget of shows and how long before one is due again.
     podcasts: { limits: c.PODCAST_LIMITS },
+    // What the mind knows of each song (`th music`): a note is checked against these before it is sent.
+    music: {
+      moods: c.MUSIC_MOODS,
+      occasions: c.MUSIC_OCCASIONS,
+      themes: c.MUSIC_THEMES,
+      languages: c.ISO_639_1,
+      note_version: c.MUSIC_NOTE_VERSION,
+      never_subject: c.MUSIC_NEVER_SUBJECT,
+      taint_source: c.MUSIC_TAINT_SOURCE,
+      limits: c.MUSIC_NOTE_LIMITS,
+    },
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
     night: {
       steps: c.NIGHT_STEPS,
@@ -285,6 +296,22 @@ function docs() {
   for (const [k, v] of Object.entries(c.FACT_SOURCES)) L.push(`| \`${k}\` | ${v.base} | ${v.cap} | ${v.letter} |`);
   L.push('', '| Refusal reason | Meaning |', '|---|---|');
   for (const [k, v] of Object.entries(c.MEMORY_REASONS)) L.push(`| \`${k}\` | ${cell(v)} |`);
+  const ml = c.MUSIC_NOTE_LIMITS;
+  L.push(
+    '',
+    '## Music notes',
+    '',
+    `What the mind knows of each song (\`PUT /v1/music/notes\`, \`th music note\`), format version ${c.MUSIC_NOTE_VERSION}. A batch holds 1–${ml.batch} notes and is refused whole for one bad note. Each mood and occasion carries its own confidence (${ml.conf_min}–1); \`conf\` has one for each of themes, language, era and energy that is set, none for one left empty; a song the mind doesn't know (\`known: false\`) keeps every confidence at or under ${ml.unknown_conf_max}. The listening pass scores the same moods. "Never play this again" is a rule fact under the subject \`${c.MUSIC_NEVER_SUBJECT}\` naming \`music:<id>\`.`,
+    '',
+    '| Field | At most | Words |',
+    '|---|---|---|',
+    `| moods | ${ml.moods} | ${c.MUSIC_MOODS.join(', ')} |`,
+    `| occasions | ${ml.occasions} | ${c.MUSIC_OCCASIONS.join(', ')} |`,
+    `| themes | ${ml.themes} | ${c.MUSIC_THEMES.join(', ')} |`,
+    `| language | 1 | ISO 639-1 (${c.ISO_639_1.length} codes), or null |`,
+    `| era | 1 | a decade from ${ml.era_min} to the present one, or null |`,
+    '| energy | 1 | 0 to 1, or null |',
+  );
   const b = c.NIGHT_BUDGET_MIN;
   L.push(
     '',

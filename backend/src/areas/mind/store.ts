@@ -198,36 +198,74 @@ export function sessionSeenOwner(db: Db, id: string, at: number): void {
   db.run('UPDATE mind_sessions SET last_owner_at = max(coalesce(last_owner_at, 0), ?) WHERE session_id = ?', at, id);
 }
 
-/** The latest session of a role tainted at or after `since` (usually none), on the partial index.
- * By the taint's own time, not the claim's day: a session that runs across the day roll keeps
- * the day it was claimed on. */
+/** A taint event's time: the last one a session took itself (`taint_event_at`), else its first
+ * taint (a row from before v26, or a taint a claim inherited, which keeps the original's time). */
+const EVENT = 'coalesce(taint_event_at, tainted_at)';
+
+/** The role's session with the latest taint event at or after `since` (usually none), on the
+ * `mind_sessions_taint_event` index. By the event's own time, not the claim's day: a session that
+ * runs across the day roll keeps the day it was claimed on; and a tainted session that reads
+ * outside text again is re-dated, so a sibling's read after a claim counts against that claim. */
 export function taintedSince(
   db: Db,
   role: MindRole,
   since: number,
-): { session_id: string; tainted_at: number; taint_source: string | null } | null {
+): { session_id: string; event_at: number; taint_source: string | null } | null {
   return db.one(
-    `SELECT session_id, tainted_at, taint_source FROM mind_sessions
-     WHERE role = ? AND tainted_at IS NOT NULL AND tainted_at >= ? ORDER BY tainted_at DESC LIMIT 1`,
+    `SELECT session_id, ${EVENT} AS event_at, taint_source FROM mind_sessions
+     WHERE role = ? AND tainted_at IS NOT NULL AND ${EVENT} >= ? ORDER BY ${EVENT} DESC LIMIT 1`,
     role,
     since,
   );
 }
 
-/** Marks a session tainted, making its row if it never claimed (taint must never be dropped). */
-export function taintSession(db: Db, s: { id: string; role: MindRole; day: string; source: string; at: number }): void {
+/** Whether a session of the role holding a taint of `since` or later (its own, or one it
+ * inherited) is still live: such a session could claim again under a new id. */
+export function taintLive(db: Db, role: MindRole, since: number): boolean {
+  return (
+    db.one(
+      `SELECT 1 AS x FROM mind_sessions WHERE role = ? AND tainted_at IS NOT NULL AND ${EVENT} >= ?
+       AND ended_at IS NULL LIMIT 1`,
+      role,
+      since,
+    ) !== null
+  );
+}
+
+/** Marks a session tainted, making its row if it never claimed (taint must never be dropped). The
+ * first taint's time and source stand. A taint event (`event`: `th taint`, a read the Worker
+ * records itself) also dates the session's latest event, already tainted or not; a taint a claim
+ * inherits (`event: false`) leaves it unset. */
+export function taintSession(
+  db: Db,
+  s: { id: string; role: MindRole; day: string; source: string; at: number; event: boolean },
+): void {
   db.run(
-    `INSERT INTO mind_sessions (session_id, role, claimed_at, day, tainted_at, taint_source) VALUES (?, ?, ?, ?, ?, ?)
+    `INSERT INTO mind_sessions (session_id, role, claimed_at, day, tainted_at, taint_source, taint_event_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (session_id) DO UPDATE SET tainted_at = coalesce(tainted_at, excluded.tainted_at),
-       taint_source = coalesce(taint_source, excluded.taint_source)`,
+       taint_source = coalesce(taint_source, excluded.taint_source),
+       taint_event_at = coalesce(excluded.taint_event_at, taint_event_at)
+     WHERE mind_sessions.tainted_at IS NULL OR excluded.taint_event_at IS NOT NULL`,
     s.id,
     s.role,
     s.at,
     s.day,
     s.at,
     s.source.slice(0, 40),
+    s.event ? s.at : null,
   );
 }
+
+/** A night session read songs' tags at `at` (the Worker records it as it serves them). */
+export function markSongs(db: Db, id: string, at: number): void {
+  db.run('UPDATE mind_sessions SET songs_at = ? WHERE session_id = ?', at, id);
+}
+
+/** Whether any night session read songs' tags at or after `since` (a session's claim): its own read,
+ * or a sibling's under another id, closes the web to it (RUNTIME.md §6.4). One index seek. */
+export const songsSince = (db: Db, since: number) =>
+  db.one("SELECT 1 AS x FROM mind_sessions WHERE role = 'night' AND songs_at >= ? LIMIT 1", since) !== null;
 
 /** Ends every other open session of the role (a new chat claim: only the newest may write). */
 export function endOthers(db: Db, role: MindRole, sessionId: string, at: number): number {

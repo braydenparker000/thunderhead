@@ -7,6 +7,27 @@ import {isAbsolute, relative, resolve, sep} from 'node:path';
 import {parseShell, unwrap} from './shell.mjs';
 
 export const ROLES = ['chat', 'night', 'reflex'];
+
+/** The night's songs (RUNTIME.md §6.4, §12.1): once any night session has read songs' tags since
+ * this one claimed (the Worker's record), nothing that could look them up elsewhere or carry them
+ * out. Bulk reading of the library is the risk; the chat may search about the one song the owner
+ * asked about. */
+const SONGS_WEB = 'This night session has read the owner\'s songs (their tags): no web lookups or searches after that, so no title leaves the Worker. A song you don\'t know gets known: false.';
+const SONGS_SHELL = 'This night session has read the owner\'s songs (their tags): no web lookups after that, and its shell runs only th (and echo, printf, true, cd and ls in the work dir), so no title leaves the Worker. Step 10 needs only th.';
+/** A tool that could reach the web: the two built in, and every MCP tool (one can fetch, browse or
+ * search whatever its name says; when unsure, the night refuses). */
+export const webTool = tool => tool === 'WebSearch' || tool === 'WebFetch' || tool.startsWith('mcp__');
+/** What the night's shell may still run after songs: th, and a few builtins that reach nothing (cd
+ * and ls only within the work dir or $TMPDIR). Anything else (an interpreter, gh, git, curl, an
+ * assignment) could carry a title out. */
+export function nightSafe({cmd, args}, words, ctx) {
+  if (!words.length) return true;
+  if (cmd === 'th' || cmd === 'echo' || cmd === 'printf' || cmd === 'true' || cmd === ':') return true;
+  if (cmd !== 'cd' && cmd !== 'ls') return false;
+  const dirs = positionals(args);
+  if (!dirs.length) return cmd === 'ls' && (inside(ctx.cwd, ctx.projectDir, ctx) || inside(ctx.cwd, ctx.tmpDir, ctx));
+  return dirs.every(d => !/[$`*?~]/.test(d) && (inside(d, ctx.projectDir, ctx) || inside(d, ctx.tmpDir, ctx)));
+}
 const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 const READ_TOOLS = ['Read', 'Grep', 'Glob', 'NotebookRead'];
 const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
@@ -14,7 +35,10 @@ const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
 /**
  * @typedef {{role: string, cwd: string, projectDir: string, tmpDir: string, allowedHosts: string[],
  *   headSubject?: () => string, approved?: (paths: string[], base?: string) => boolean,
- *   pushProtected?: (push: Push) => {base: string, paths: string[]}[]}} Context
+ *   pushProtected?: (push: Push) => {base: string, paths: string[]}[], songsRead?: () => boolean}} Context
+ * `songsRead`: whether any night session read songs' tags since this one claimed, from the Worker's
+ * own record (asked only for a call that could reach the web, and for a night shell command other
+ * than th and a few builtins; it throws, and so denies, when the Worker can't say).
  * `approved`: the owner approved changing these repository-relative protected paths on a branch
  * from `base` (default: the current branch's; `th approved`); missing means never. `pushProtected`:
  * for each source the push sends (HEAD when it names none), its base on the remote's real main and
@@ -205,6 +229,9 @@ function checkSegment(seg, ctx) {
     const outside = writes.find(p => !insideTmp(p, ctx));
     if (outside) return `The reflex role may write files only under $TMPDIR (not ${outside}).`;
   }
+  // The night after songs (RUNTIME.md §6.4): its shell runs th and a few harmless builtins only.
+  // Asked last but for git, so a command denied anyway costs the Worker nothing.
+  if (ctx.role === 'night' && !nightSafe({cmd, args}, seg.words, ctx) && ctx.songsRead?.()) return SONGS_SHELL;
   // Last, as it asks git: what the commits being pushed change.
   if (push) {
     for (const c of ctx.pushProtected?.(push) ?? [])
@@ -271,6 +298,9 @@ export function decide(input, ctx) {
     if (!where.length || where.some(p => !inside(p, `${ctx.tmpDir}${sep}th${sep}ext`, ctx)))
       return 'The reader reads only the drop folder $TMPDIR/th/ext/ and the web.';
   }
+  // The night's songs (RUNTIME.md §6.4, §12.1): once it has read songs' tags (the Worker's record),
+  // no web lookup or MCP tool, which could carry their titles out (the notes are what it knows).
+  if (ctx.role === 'night' && webTool(tool) && ctx.songsRead?.()) return SONGS_WEB;
   if (tool === 'WebFetch' && typeof ti.url === 'string') {
     const host = hostOf(ti.url);
     if (ctx.role === 'reflex' && host && !hostAllowed(host, ctx.allowedHosts)) return `The reflex role may not fetch ${host}.`;

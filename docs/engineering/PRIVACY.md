@@ -59,6 +59,8 @@ Retention marked **[proposal]** is new; the rest comes from decisions, the plan 
 | Meter (daily request and row counts) | `Core` | Worker | 400 days **[proposal]** | yes | yes |
 | Events (senses) | `Senses` DO (P5) | owner devices | 90 days in SQLite, then daily JSONL in `thunderhead-private/events/` forever | yes | yes |
 | Music catalog, play stats, ratings, playlists | `Music` DO (P5) | owner devices, mind (reversible fixes) | Until deleted | yes | yes |
+| What the mind knows of each song (its notes: moods, occasions, themes, language, era and energy with confidences, and whether it knows the song at all; MUSIC.md §10.5), and what it finds from them and from the owner's skips | `Music` DO (`track_notes`, step 4; find's derived `find_packs`, out of the backup and the export) | mind (night, chat), from its own knowledge and the song's tags only, never from the web: a search would send the owner's song titles out, and a night session that has read songs' tags is refused the web, MCP tools and GitHub search (the Worker's record: session ids only, `song_readers`, 7 days, out of the backup) | Forever (one row a track) | yes | yes |
+| The owner's song ratings, newest of each (from the phone's `music.rate` senses; "not for me" leaves a song out of the mind's find and mixes) | `Music` DO (`track_ratings`, step 4) | owner devices | Forever (one row a rated track) | yes | yes |
 | Music audio and art | `jarvis-music` R2 | upload tools | Never deleted by the system (decisions) | links only (optional) | via presigned URL |
 | Library: PDFs and extracted text | `thunderhead-private` + `Library` DO (P7) | owner, mind (extraction in session) | Until deleted | yes | yes |
 | Chat files: photos, files, voice memos | `thunderhead-private/chat/files/` | owner devices | Until the message or file is deleted | yes | yes |
@@ -160,7 +162,7 @@ Copied as they are (owner ruling), the ported apps keep reaching what they reach
 ## 6. The public repo and public logs
 
 Repo and Actions content is readable by anyone. Rules (enforced by tests where possible):
-1. No names of people or places, no faith-specific personal details, no notes, messages, memory, listening or reading history, no titles of the owner's songs, books or files, no username, no secrets.
+1. No names of people or places, no faith-specific personal details, no notes, messages, memory, listening or reading history, no titles of the owner's songs, books or files, no notes the mind writes about those songs, no username, no secrets.
 2. Example content in code, tests and docs is invented and neutral.
 3. Actions jobs address audio only by `sha256` key, received through the job spec and never printed: logs show counts and durations only, never hashes, titles or tags ([JOBS.md §2](JOBS.md#2-public-log-rules-actions)).
 4. No artifacts. No job summaries with data. No `set -x`, `env` or `printenv`. Masked derived values.

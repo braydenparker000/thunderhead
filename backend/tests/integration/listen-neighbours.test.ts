@@ -10,8 +10,11 @@ import { JOBS_KEY } from '../../../shared/contract/routes.ts';
 import { packHeader } from '../../src/areas/music/listen-pack';
 import { api, apiJson, makeAgent, setupOwner } from '../helpers';
 import { drain, manifest, musicSql, pack, put, result, seedTracks, sha } from '../listen-helpers';
+import { brief } from '../memory-helpers';
 
 const tokens = {} as Record<'D' | 'C' | 'N' | 'I', string>;
+const SESSIONS = { C: 'cse_listen_chat', N: 'cse_listen_night' };
+const mind = (r: 'C' | 'N') => ({ token: tokens[r], headers: { 'TH-Session': SESSIONS[r] } });
 let shas: string[] = [];
 const N = 30;
 
@@ -20,6 +23,9 @@ beforeAll(async () => {
   tokens.C = await makeAgent(tokens.D, 'mind:chat');
   tokens.N = await makeAgent(tokens.D, 'mind:night');
   tokens.I = await makeAgent(tokens.D, 'ci', JOBS_KEY);
+  // The mind reads songs' tags only from a claimed session (MUSIC.md §10.5).
+  await brief(tokens.C, SESSIONS.C, 'chat');
+  await brief(tokens.N, SESSIONS.N, 'night');
   shas = await seedTracks(N, 0, 1);
 });
 
@@ -160,7 +166,7 @@ describe('the mind’s read of one song', () => {
       analysis: { bpm: number; key: string; camelot: string; top_moods: string[] };
       like: { id: string; title: string; sim: number }[];
       like_at: number;
-    }>('GET', `/v1/music/analysis/r2_native_${shas[9]}?like=5`, { token: tokens.C });
+    }>('GET', `/v1/music/analysis/r2_native_${shas[9]}?like=5`, mind('C'));
     expect(r.status).toBe(200);
     expect(r.body.state).toBe('done');
     expect(r.body.analysis).toMatchObject({ bpm: 99, key: 'A', camelot: '11B' });
@@ -170,16 +176,18 @@ describe('the mind’s read of one song', () => {
     const sims = r.body.like.map((x) => x.sim);
     expect([...sims].sort((a, b) => b - a)).toEqual(sims);
     expect(r.body.like_at).toBeGreaterThan(0);
-    const night = await apiJson('GET', `/v1/music/analysis/r2_native_${shas[9]}`, { token: tokens.N });
+    const night = await apiJson('GET', `/v1/music/analysis/r2_native_${shas[9]}`, mind('N'));
     expect(night.status).toBe(200);
   });
 
   it('says when a song cannot be analysed, and 404 for no such song', async () => {
-    const old = await apiJson<{ state: string; analysis: null }>('GET', '/v1/music/analysis/r2_oldsong00000030', {
-      token: tokens.C,
-    });
+    const old = await apiJson<{ state: string; analysis: null }>(
+      'GET',
+      '/v1/music/analysis/r2_oldsong00000030',
+      mind('C'),
+    );
     expect(old.body).toMatchObject({ state: 'unsupported', analysis: null, like: [] });
-    expect((await apiJson('GET', '/v1/music/analysis/r2_native_nope', { token: tokens.C })).status).toBe(404);
+    expect((await apiJson('GET', '/v1/music/analysis/r2_native_nope', mind('C'))).status).toBe(404);
   });
 });
 

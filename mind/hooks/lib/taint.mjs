@@ -5,8 +5,11 @@
 // - Edit, Write and the session's own bookkeeping tools;
 // - Read, Grep and Glob of own files: the project (not node_modules, not the drop folder
 //   $TMPDIR/th/ext/) and th's own briefing and state;
-// - th, except `th file` (attachments are outside text, INJ-08) and a `th get` naming podcasts (show
-//   titles and feeds, which their publishers wrote; the Worker marks the session itself too);
+// - th, except `th file` (attachments are outside text, INJ-08), a `th get` naming podcasts (show
+//   titles and feeds, which their publishers wrote; the Worker marks the session itself too), and
+//   what prints the owner's songs' tags (`th music page|now|find|like|week`, a `th get` naming music):
+//   titles, artists and albums come from the files' own tags, which someone else wrote (`th music now
+//   --id` prints the id alone);
 // - curl/wget to the Worker's podcast routes taint (the Worker refuses one without a session anyway);
 // - git on this repository and its origin (origin holds the project's own commits, whose files the
 //   rule already trusts); another remote, a URL, a clone or `-c` taints;
@@ -79,9 +82,30 @@ function gitTaints(args, ctx) {
 const podcastText = ({sub, rest}) => sub === 'get' && rest.some(a => /podcasts/i.test(a));
 /** curl or wget to a Worker's podcast routes (by a literal URL; the Worker refuses one with no session). */
 const podcastFetch = args => args.some(a => /\/v1\/podcasts/i.test(a));
+/** A th call that prints songs' tags (from the files, outside text). */
+function songTags({sub, rest}) {
+  const pos = positionals(rest);
+  // `note` and `now --id` print no tags, nor does `jobs` (the listening pass's counts, kind and id).
+  if (sub === 'music') return !['note', 'jobs'].includes(pos[0]) && !(pos[0] === 'now' && rest.includes('--id'));
+  // Any word of a `th get` naming music (a flag's value can come first); the Worker marks it too.
+  return sub === 'get' && rest.some(a => /music/i.test(a));
+}
 
-/** @returns {Taint | null} */
+/** How much a taint says reached the session: a URL most, then a comment, then a file, then
+ * anything else. A compound command is as tainting as its strongest part. */
+const STRENGTH = ref => (/^https?:|^url$/.test(ref) ? 3 : ref === 'comment' ? 2 : ref === 'file' ? 1 : 0);
+
+/** Every part of a command is read, not only up to the first that taints: the strongest wins.
+ * @returns {Taint | null} */
 function bashTaint(command, ctx) {
+  /** @type {Taint | null} */
+  let strongest = null;
+  for (const t of segmentTaints(command, ctx)) if (!strongest || STRENGTH(t.ref) > STRENGTH(strongest.ref)) strongest = t;
+  return strongest;
+}
+
+/** Each part's taint, in order. @returns {Generator<Taint>} */
+function* segmentTaints(command, ctx) {
   for (const seg of parseShell(command)) {
     const {cmd, args} = unwrap(seg.words);
     if (!cmd) continue;
@@ -91,49 +115,53 @@ function bashTaint(command, ctx) {
       ctx = {...ctx, cwd: (to === undefined ? null : expand(to, ctx)) ?? sep};
       continue;
     }
-    if (seg.inputs.some(p => !ownFile(p, ctx))) return {source: 'Bash', ref: 'file'};
+    if (seg.inputs.some(p => !ownFile(p, ctx))) { yield {source: 'Bash', ref: 'file'}; continue; }
     const th = thSub({cmd, args});
     if (th) {
-      if (th.sub === 'file') return {source: 'th file', ref: 'file'};
-      if (podcastText(th)) return {source: 'th podcasts', ref: 'file'};
+      if (th.sub === 'file') { yield {source: 'th file', ref: 'file'}; continue; }
+      if (podcastText(th)) { yield {source: 'th podcasts', ref: 'file'}; continue; }
+      if (songTags(th)) { yield {source: 'th music', ref: 'file'}; continue; }
       continue;
     }
     if (cmd === 'curl' || cmd === 'wget') {
-      if (podcastFetch(args)) return {source: cmd, ref: 'url'};
+      // The Worker's podcast or music routes by a literal URL (the Worker refuses one with no session).
+      if (podcastFetch(args) || args.some(a => /\/v1\/music/i.test(a))) { yield {source: cmd, ref: 'url'}; continue; }
       const hosts = fetchHosts(cmd, args);
-      if (!hosts) return {source: cmd, ref: 'url'}; // the host can't be read
+      if (!hosts) { yield {source: cmd, ref: 'url'}; continue; } // the host can't be read
       const outside = hosts.find(h => !hostAllowed(h, ctx.ownHosts));
-      if (outside) return {source: cmd, ref: `https://${outside}/`};
+      if (outside) { yield {source: cmd, ref: `https://${outside}/`}; continue; }
       continue;
     }
     if (cmd === 'gh') {
       if ((args[0] === 'pr' && ['create', 'merge', 'checks'].includes(args[1])) || args[0] === 'run') continue;
-      return {source: 'gh', ref: 'comment'};
+      yield {source: 'gh', ref: 'comment'};
+      continue;
     }
     if (cmd === 'git') {
-      if (gitTaints(args, ctx)) return {source: 'git', ref: 'comment'};
+      if (gitTaints(args, ctx)) { yield {source: 'git', ref: 'comment'}; continue; }
       continue;
     }
     if (cmd === 'npm') {
       const [sub, ...more] = positionals(args);
       if (['test', 't', 'run', 'run-script', 'ci'].includes(sub) || ((sub === 'install' || sub === 'i') && !more.length)) continue;
-      return {source: 'npm', ref: ''};
+      yield {source: 'npm', ref: ''};
+      continue;
     }
     if (LOCAL_BINS.has(cmd) || (cmd === 'wrangler' && ['types', 'dev'].includes(positionals(args)[0]))) continue;
     if (cmd === 'node' || cmd === 'nodejs') {
-      if (args.some(a => /^(-e|-p|--eval|--print)$/.test(a) || /^--(eval|print)=/.test(a))) return {source: 'node', ref: ''};
+      if (args.some(a => /^(-e|-p|--eval|--print)$/.test(a) || /^--(eval|print)=/.test(a))) { yield {source: 'node', ref: ''}; continue; }
       const script = positionals(args)[0];
       if (script === undefined || ownFile(script, ctx)) continue;
-      return {source: 'node', ref: 'file'};
+      yield {source: 'node', ref: 'file'};
+      continue;
     }
     if (QUIET_CMDS.has(cmd)) continue;
-    if (!FILE_CMDS.has(cmd)) return {source: cmd, ref: ''};
+    if (!FILE_CMDS.has(cmd)) { yield {source: cmd, ref: ''}; continue; }
     // find can run another command on what it finds; that command isn't parsed here.
-    if (cmd === 'find' && args.some(a => /^-(exec|execdir|ok|okdir)$/.test(a))) return {source: 'find', ref: ''};
+    if (cmd === 'find' && args.some(a => /^-(exec|execdir|ok|okdir)$/.test(a))) { yield {source: 'find', ref: ''}; continue; }
     // Every word that could be a path must be an own file (a pattern or text resolves inside the project).
-    if (positionals(args).some(a => !ownFile(a, ctx))) return {source: cmd, ref: 'file'};
+    if (positionals(args).some(a => !ownFile(a, ctx))) { yield {source: cmd, ref: 'file'}; continue; }
   }
-  return null;
 }
 
 /**
