@@ -1,4 +1,5 @@
-// th music against the fake Worker and a fake GitHub CLI: one song's analysis and its nearest songs;
+// th music analysis and jobs (the listening pass) against the fake Worker and a fake GitHub CLI: one
+// song's analysis with its nearest songs by sound;
 // the night's jobs step collects only jobs whose runs are over, asks for analysis first and the
 // neighbours step after, dispatches the workflow with the job's id alone and never prints a hash; a
 // refused dispatch or a busy pass is said plainly; local refusals (exit 8) come before the network.
@@ -25,7 +26,7 @@ function fakeGh(code = 0) {
 }
 const night = (fake, gh, extra = {}) => env(fake, {TH_ROLE: 'night', TH_GH: gh.gh, TH_REPO: 'owner/repo', ...extra});
 
-test('analysis and like read one song from the listening pass', withFake(async fake => {
+test('analysis reads one song from the listening pass, with its nearest songs by sound', withFake(async fake => {
   fake.state.analysis.r2_native_x = {
     id: 'r2_native_x', state: 'done', like_at: 5,
     analysis: {bpm: 92.5, key: 'Am', camelot: '8A', energy: 0.4, top_moods: ['calm', 'dreamy', 'peaceful']},
@@ -33,14 +34,17 @@ test('analysis and like read one song from the listening pass', withFake(async f
   };
   const a = await th(['music', 'analysis', 'r2_native_x'], env(fake));
   assert.equal(a.code, 0, a.stderr);
-  assert.deepEqual(a.json, {id: 'r2_native_x', state: 'done', analysis: fake.state.analysis.r2_native_x.analysis});
-  const l = await th(['music', 'like', 'r2_native_x', '--n', '3'], env(fake));
-  assert.equal(l.json.like.length, 3);
-  assert.equal(l.json.like_at, 5);
+  assert.equal(a.json.state, 'done');
+  assert.deepEqual(a.json.analysis, fake.state.analysis.r2_native_x.analysis);
+  assert.equal(a.json.neighbours.length, 10);
+  assert.equal(a.json.neighbours_at, 5);
+  const three = await th(['music', 'analysis', 'r2_native_x', '--n', '3'], env(fake));
+  assert.equal(three.json.neighbours.length, 3);
   const asked = fake.state.requests.filter(r => r.path === '/v1/music/analysis/r2_native_x').map(r => r.query.like);
-  assert.deepEqual(asked, ['0', '3']);
-  assert.equal(errCode(await th(['music', 'like', 'r2_native_x', '--n', '99'], env(fake))), 'validation');
+  assert.deepEqual(asked, ['10', '3']);
+  assert.equal(errCode(await th(['music', 'analysis', 'r2_native_x', '--n', '99'], env(fake))), 'validation');
   assert.equal(errCode(await th(['music', 'analysis'], env(fake))), 'validation');
+  assert.equal(errCode(await th(['music', 'like', 'r2_native_x'], env(fake))), 'validation', 'like is the knowledge pass\'s');
   assert.equal((await th(['music', 'analysis', 'r2_nope'], env(fake))).code, 8);
 }));
 

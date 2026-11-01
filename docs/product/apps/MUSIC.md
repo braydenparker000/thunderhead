@@ -714,7 +714,7 @@ embedding) is built (§9.1, the listening pass) and plugs into `closeness` next.
 
 A track that shares its audio with another gets the same numbers; the neighbours list names each near song once (its first track in catalog order). The phone keeps the file and revalidates it with `If-None-Match` (304 when unchanged).
 
-**The mind's read:** `th music analysis <id>` (one song's numbers and its three strongest moods) and `th music like <id> [--n 10]` (its nearest songs, with titles and how close each is), from `GET /v1/music/analysis/:id`.
+**The mind's read:** `th music analysis <id> [--n 10]`: one song's numbers, its three strongest moods and its `n` nearest songs by sound, with titles and how close each is (`GET /v1/music/analysis/:id`). The mind's own `th music like` and `find` (what it knows of each song, Music step 4) blend the same `track_analysis` rows with its notes.
 
 **Not built yet (the lead's, on screen):** the DJ planner reading the file (`frontend/th/music/dj.js` still uses tag closeness), and "ask by feeling" in the chat.
 
