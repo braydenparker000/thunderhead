@@ -2468,6 +2468,7 @@
     ],
     "note_version": 1,
     "never_subject": "music.never",
+    "taint_source": "th music",
     "limits": {
       "batch": 200,
       "moods": 5,
@@ -2621,14 +2622,6 @@
         "phase": "P7"
       },
       {
-        "step": 11,
-        "name": "songs (notes, mixes)",
-        "budget_min": 6,
-        "idempotent": "a note is put by its track, the same note again writes nothing, and the next page is always the next songs without one",
-        "cursor": false,
-        "phase": "P5"
-      },
-      {
         "step": 7,
         "name": "arrange tomorrow",
         "budget_min": 4,
@@ -2653,6 +2646,14 @@
         "cursor": false,
         "phase": "P4",
         "sunday": true
+      },
+      {
+        "step": 11,
+        "name": "songs (notes, mixes)",
+        "budget_min": 6,
+        "idempotent": "a note is put by its track, the same note again writes nothing, and the next page is always the next songs without one",
+        "cursor": false,
+        "phase": "P5"
       },
       {
         "step": 10,

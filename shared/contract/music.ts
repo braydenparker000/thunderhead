@@ -155,6 +155,14 @@ export const MUSIC_NOTE_LIMITS = {
  * and nothing else of it (no title: a title in a shell argument could break out of its quotes).
  * Find leaves every song named in a current one out, and so do the mixes built from it. */
 export const MUSIC_NEVER_SUBJECT = 'music.never';
+/** The taint reading songs' tags leaves (`th music page|now|find|like|week`, `th get /v1/music/…`:
+ * the tags come from the files, outside text). It holds for the session that read them only: a
+ * later claim never inherits it, so the next night still writes its day note and facts. A full
+ * taint after it in the same session is recorded as `<source>+songs`, and that one carries over
+ * (without the songs). While a session's taint names songs, the web is closed to it. */
+export const MUSIC_TAINT_SOURCE = 'th music';
+export const SONGS_MARK = '+songs';
+
 /** The songs a rule's text names. */
 export const MUSIC_REF_IN_TEXT = /\bmusic:(r2_[A-Za-z0-9_-]{10,200})/g;
 

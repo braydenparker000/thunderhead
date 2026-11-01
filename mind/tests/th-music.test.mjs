@@ -7,6 +7,8 @@ import assert from 'node:assert/strict';
 import {writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {checkNote} from '../cli/lib/music.mjs';
+import {CONTRACT} from '../cli/lib/contract.mjs';
+import {SONG_TAINT} from '../cli/lib/state.mjs';
 import {env, errCode, freshTmp, startFake, th} from './helpers.mjs';
 
 const withFake = fn => async () => {
@@ -183,3 +185,7 @@ test('a title goes on stdin, never in a quoted argument: th verb - and th surfac
   assert.equal(fake.state.surfaces.get('home/line.4').payload.text, "This week: Artist A's quiet songs.");
   assert.equal((await th(['verb', 'music.create_playlist', '-', '--why', 'A mix for the evening'], e, 'not json')).code, 8);
 }));
+
+test('th\'s songs taint is the contract\'s (the Worker holds it for its own session only)', () => {
+  assert.equal(SONG_TAINT, CONTRACT.music.taint_source);
+});

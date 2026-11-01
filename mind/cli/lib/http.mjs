@@ -6,7 +6,7 @@
 // The token is never logged, printed or put in a URL.
 import {checkRoute} from './contract.mjs';
 import {EXIT, ThError, VERSION, exitFor} from './io.mjs';
-import {getState, setState} from './state.mjs';
+import {getState, markTainted, setState} from './state.mjs';
 
 const num = (value, fallback) => (Number.isFinite(Number(value)) && value !== '' && value !== undefined ? Number(value) : fallback);
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -46,7 +46,7 @@ export async function request(method, path, opts = {}) {
   if (pending) {
     await request('POST', '/v1/mind/taint', {sandbox: opts.sandbox, body: {source: String(pending.source || 'hook').slice(0, 40),
       ref_kind: /^https?:\/\//.test(String(pending.ref)) ? 'url' : pending.ref === 'comment' ? 'comment' : 'file'}});
-    setState('tainted', true);
+    markTainted(String(pending.source || 'hook').slice(0, 40));
     setState('taint_pending', null);
   }
   const s = settings();

@@ -18,6 +18,7 @@ export {
   MUSIC_NOTE_LIMITS,
   MUSIC_NOTE_VERSION,
   MUSIC_OCCASIONS,
+  MUSIC_TAINT_SOURCE,
   MUSIC_THEMES,
 } from './music.ts';
 export * from './night.ts';

@@ -154,3 +154,16 @@ test('while working, a Bash description becomes the presence note, at most one e
   await hook('post-tool', call('Bash', {command: 'npm test', description: 'Night tests'}), night);
   assert.deepEqual(notes(), ['Run the tests'], 'not for the night role');
 }));
+
+test('songs taint this session only, so a full taint after them is still sent; songs after a full one are not', withFake(async fake => {
+  const e = env(fake, {CLAUDE_PROJECT_DIR: PROJECT});
+  await hook('post-tool', call('Bash', {command: 'th music now'}), e);
+  await hook('post-tool', call('Bash', {command: 'th music find --mood calm'}), e);
+  assert.equal(taints(fake), 1, 'songs once');
+  await hook('post-tool', call('WebFetch', {url: 'https://example.com'}), e);
+  assert.equal(taints(fake), 2, 'the full taint goes too');
+  await hook('post-tool', call('Bash', {command: 'th music week'}), e);
+  await hook('post-tool', call('WebSearch', {query: 'x'}), e);
+  assert.equal(taints(fake), 2, 'nothing more to add');
+  assert.deepEqual(fake.state.taintSources.get('cse_test_session_1'), ['th music', 'WebFetch']);
+}));

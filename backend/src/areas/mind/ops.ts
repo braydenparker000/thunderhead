@@ -85,12 +85,13 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
   });
   // The taint keeps its own time, so a wake fired after it still starts clean however many
   // claims inherited it in between.
+  // What it inherits carries no songs: their taint was the reading session's own.
   if (prior && !firedAfter)
     store.taintSession(db, {
       id: r.session_id,
       role: r.role,
       day,
-      source: `inherited:${prior.taint_source}`,
+      source: `inherited:${(prior.taint_source ?? '').replace(/\+songs$/, '')}`,
       at: prior.tainted_at,
     });
   if (r.role === 'chat') {
@@ -180,6 +181,7 @@ export function pending(db: Db, sessionId: string | null, role: MindRole, now: n
     limited: backoff(db).until > now,
     idle_min: Math.floor((now - since) / MINUTE),
     idle_cutoff_min: prewarmOnly ? 10 : 120,
+    songs: store.songsRead(s?.taint_source ?? null),
   };
 }
 

@@ -7,6 +7,9 @@ import {isAbsolute, relative, resolve, sep} from 'node:path';
 import {parseShell, unwrap} from './shell.mjs';
 
 export const ROLES = ['chat', 'night', 'reflex'];
+/** Tools that reach the web: the two built in, and an MCP tool whose name says it fetches or searches. */
+export const webLike = tool =>
+  tool === 'WebSearch' || tool === 'WebFetch' || (tool.startsWith('mcp__') && /fetch|search|browse|web|http|url|scrape|crawl/i.test(tool));
 const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 const READ_TOOLS = ['Read', 'Grep', 'Glob', 'NotebookRead'];
 const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
@@ -14,8 +17,9 @@ const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
 /**
  * @typedef {{role: string, cwd: string, projectDir: string, tmpDir: string, allowedHosts: string[],
  *   headSubject?: () => string, approved?: (paths: string[], base?: string) => boolean,
- *   pushProtected?: (push: Push) => {base: string, paths: string[]}[], musicPaged?: boolean}} Context
- * `musicPaged`: this session has run `th music page` (th's own state), so it holds song titles.
+ *   pushProtected?: (push: Push) => {base: string, paths: string[]}[], songsRead?: () => boolean}} Context
+ * `songsRead`: whether this session read songs' tags, from the Worker's record (asked only for a web
+ * tool; it throws, and so denies, when the Worker can't say).
  * `approved`: the owner approved changing these repository-relative protected paths on a branch
  * from `base` (default: the current branch's; `th approved`); missing means never. `pushProtected`:
  * for each source the push sends (HEAD when it names none), its base on the remote's real main and
@@ -250,6 +254,10 @@ export function decide(input, ctx) {
   // The reader subagent (when Claude Code names it) has its five tools and nothing else.
   if (input.agent_type === 'reader' && !READ_TOOLS.includes(tool) && tool !== 'WebFetch' && tool !== 'WebSearch')
     return `The reader has only WebFetch, WebSearch, Read, Grep and Glob (not ${tool}).`;
+  // Songs (RUNTIME.md §4.7, §12.1): once a session has read their tags, no web lookup in any role,
+  // which could carry a title out. Asked of the Worker's record (ctx.songsRead), only for these.
+  if (webLike(tool) && ctx.songsRead?.())
+    return 'This session has read the owner\'s songs (their tags): no web lookups after that, so no title leaves the Worker. A song you don\'t know gets known: false.';
   if (tool === 'Bash') {
     for (const seg of parseShell(String(ti.command ?? ''))) {
       const reason = checkSegment(seg, ctx);
@@ -272,10 +280,6 @@ export function decide(input, ctx) {
     if (!where.length || where.some(p => !inside(p, `${ctx.tmpDir}${sep}th${sep}ext`, ctx)))
       return 'The reader reads only the drop folder $TMPDIR/th/ext/ and the web.';
   }
-  // The night's songs (RUNTIME.md §12.1): once it has paged the owner's songs, no web lookup, which
-  // would carry their titles out (the notes are what the mind already knows).
-  if (ctx.role === 'night' && ctx.musicPaged && (tool === 'WebSearch' || tool === 'WebFetch'))
-    return 'This night session has read the owner\'s songs (th music page): no web lookups after that, so no title leaves the Worker. A song you don\'t know gets known: false.';
   if (tool === 'WebFetch' && typeof ti.url === 'string') {
     const host = hostOf(ti.url);
     if (ctx.role === 'reflex' && host && !hostAllowed(host, ctx.allowedHosts)) return `The reflex role may not fetch ${host}.`;

@@ -68,17 +68,6 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     cursor: false,
     phase: 'P7',
   },
-  // What the mind knows of each song (RUNTIME.md §12.1, MUSIC.md §10.5): the next untagged songs'
-  // notes, at most MUSIC_NOTE_LIMITS.night_songs a night, then a mix or two and Sunday's line. Its
-  // number is the next free one; it runs here, between the books and arranging tomorrow.
-  {
-    step: 11,
-    name: 'songs (notes, mixes)',
-    budget_min: 6,
-    idempotent: 'a note is put by its track, the same note again writes nothing, and the next page is always the next songs without one',
-    cursor: false,
-    phase: 'P5',
-  },
   {
     step: 7,
     name: 'arrange tomorrow',
@@ -105,6 +94,18 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     phase: 'P4',
     sunday: true,
   },
+  // What the mind knows of each song (RUNTIME.md §12.1, MUSIC.md §10.5): the next untagged songs'
+  // notes, at most MUSIC_NOTE_LIMITS.night_songs a night, then a mix or two and Sunday's line. Its
+  // number is the next free one; it runs last before the session note, after every step that
+  // writes memory, since reading songs' tags taints the session (for this session only).
+  {
+    step: 11,
+    name: 'songs (notes, mixes)',
+    budget_min: 6,
+    idempotent: 'a note is put by its track, the same note again writes nothing, and the next page is always the next songs without one',
+    cursor: false,
+    phase: 'P5',
+  },
   {
     step: 10,
     name: 'session note and done',
@@ -116,7 +117,7 @@ export const NIGHT_STEPS: readonly NightStep[] = [
 ];
 
 export const NIGHT_LAST_STEP = NIGHT_STEPS[NIGHT_STEPS.length - 1].step;
-/** The steps run in the list's order, not their numbers' (11 runs between 6 and 7). */
+/** The steps run in the list's order, not their numbers' (11 runs between 9 and 10). */
 export const NIGHT_ORDER: readonly number[] = NIGHT_STEPS.map((s) => s.step);
 /** `resume_from` once the run is done: past every step's number. */
 export const NIGHT_END = Math.max(...NIGHT_ORDER) + 1;

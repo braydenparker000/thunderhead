@@ -10,7 +10,7 @@ import {CONTRACT} from './contract.mjs';
 import {request} from './http.mjs';
 import {invalid, out} from './io.mjs';
 import {check} from './schema.mjs';
-import {getState, setState} from './state.mjs';
+import {getState, markTainted, setState, taintAdds} from './state.mjs';
 
 const READER = CONTRACT.reader;
 
@@ -55,9 +55,9 @@ export async function read(argv) {
   if (!kind) throw invalid('usage: th read --kinds | th read --check <kind> [--json <answer> | --file <path>] (else stdin)');
   const text = typeof flags.json === 'string' ? flags.json : readFileSync(typeof flags.file === 'string' ? flags.file : 0, 'utf8');
   // Tainted first: the session has the answer in its context, checked or not (MEMORY.md §7).
-  if (!getState('tainted')) {
+  if (taintAdds({source: 'reader'})) {
     await request('POST', '/v1/mind/taint', {body: {source: 'reader', ref_kind: /"https?:\/\//.test(text) ? 'url' : 'file'}});
-    setState('tainted', true);
+    markTainted('reader');
   }
   const answer = parseAnswer(text);
   const why = problem(kind, answer);

@@ -1,6 +1,8 @@
 // SQL for the mind's bookkeeping inside Core (DATA.md §4.1, RUNTIME.md §4): wakes, the chat
 // lease, per-session state and session notes. Stores never write the change feed.
+
 import type { MindRole, WakeItem } from '../../../../shared/contract/api';
+import { MUSIC_TAINT_SOURCE, SONGS_MARK } from '../../../../shared/contract/music.ts';
 import type { Db } from '../../objects/base';
 
 export interface WakeRow {
@@ -155,6 +157,7 @@ export interface SessionRow {
   wake_id: string | null;
   claimed_at: number;
   tainted_at: number | null;
+  taint_source: string | null;
   ended_at: number | null;
   day: string;
   last_owner_at: number | null;
@@ -162,7 +165,7 @@ export interface SessionRow {
 
 export function session(db: Db, id: string): SessionRow | null {
   return db.one<SessionRow>(
-    'SELECT session_id, role, wake_id, claimed_at, tainted_at, ended_at, day, last_owner_at FROM mind_sessions WHERE session_id = ?',
+    'SELECT session_id, role, wake_id, claimed_at, tainted_at, taint_source, ended_at, day, last_owner_at FROM mind_sessions WHERE session_id = ?',
     id,
   );
 }
@@ -200,7 +203,8 @@ export function sessionSeenOwner(db: Db, id: string, at: number): void {
 
 /** The latest session of a role tainted at or after `since` (usually none), on the partial index.
  * By the taint's own time, not the claim's day: a session that runs across the day roll keeps
- * the day it was claimed on. */
+ * the day it was claimed on. A taint from songs' tags alone holds for its own session only, so it
+ * is never found here (MUSIC.md §10.5). */
 export function taintedSince(
   db: Db,
   role: MindRole,
@@ -208,26 +212,46 @@ export function taintedSince(
 ): { session_id: string; tainted_at: number; taint_source: string | null } | null {
   return db.one(
     `SELECT session_id, tainted_at, taint_source FROM mind_sessions
-     WHERE role = ? AND tainted_at IS NOT NULL AND tainted_at >= ? ORDER BY tainted_at DESC LIMIT 1`,
+     WHERE role = ? AND tainted_at IS NOT NULL AND tainted_at >= ? AND taint_source IS NOT ?
+     ORDER BY tainted_at DESC LIMIT 1`,
     role,
     since,
+    MUSIC_TAINT_SOURCE,
   );
 }
 
-/** Marks a session tainted, making its row if it never claimed (taint must never be dropped). */
+/** Marks a session tainted, making its row if it never claimed (taint must never be dropped). The
+ * first taint stands, except that a full taint after one from songs' tags alone replaces it (its
+ * time and source, marked `+songs`), and songs after a full taint add the mark: so the record
+ * says both whether the taint carries over and whether it names songs. */
 export function taintSession(db: Db, s: { id: string; role: MindRole; day: string; source: string; at: number }): void {
   db.run(
     `INSERT INTO mind_sessions (session_id, role, claimed_at, day, tainted_at, taint_source) VALUES (?, ?, ?, ?, ?, ?)
-     ON CONFLICT (session_id) DO UPDATE SET tainted_at = coalesce(tainted_at, excluded.tainted_at),
-       taint_source = coalesce(taint_source, excluded.taint_source)`,
+     ON CONFLICT (session_id) DO UPDATE SET
+       tainted_at = CASE
+         WHEN mind_sessions.tainted_at IS NULL THEN excluded.tainted_at
+         WHEN mind_sessions.taint_source = ?7 AND excluded.taint_source IS NOT ?7 THEN excluded.tainted_at
+         ELSE mind_sessions.tainted_at END,
+       taint_source = CASE
+         WHEN mind_sessions.tainted_at IS NULL THEN excluded.taint_source
+         WHEN mind_sessions.taint_source = ?7 AND excluded.taint_source IS NOT ?7 THEN excluded.taint_source || ?8
+         WHEN excluded.taint_source = ?7 AND mind_sessions.taint_source IS NOT ?7
+           AND coalesce(mind_sessions.taint_source, '') NOT LIKE '%' || ?8 THEN coalesce(mind_sessions.taint_source, '') || ?8
+         ELSE mind_sessions.taint_source END`,
     s.id,
     s.role,
     s.at,
     s.day,
     s.at,
-    s.source.slice(0, 40),
+    s.source.slice(0, 32),
+    MUSIC_TAINT_SOURCE,
+    SONGS_MARK,
   );
 }
+
+/** Whether a session's taint names songs (it read their tags): the web is closed to it. */
+export const songsRead = (source: string | null) =>
+  source !== null && (source === MUSIC_TAINT_SOURCE || source.endsWith(SONGS_MARK));
 
 /** Ends every other open session of the role (a new chat claim: only the newest may write). */
 export function endOthers(db: Db, role: MindRole, sessionId: string, at: number): number {

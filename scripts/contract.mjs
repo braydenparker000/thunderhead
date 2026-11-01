@@ -182,6 +182,7 @@ function mind() {
       languages: c.ISO_639_1,
       note_version: c.MUSIC_NOTE_VERSION,
       never_subject: c.MUSIC_NEVER_SUBJECT,
+      taint_source: c.MUSIC_TAINT_SOURCE,
       limits: c.MUSIC_NOTE_LIMITS,
     },
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
