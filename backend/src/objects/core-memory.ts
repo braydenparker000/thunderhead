@@ -13,6 +13,7 @@ import type {
   PutDayNoteRequest,
   PutOpenThreadRequest,
 } from '../../../shared/contract/api';
+import { MUSIC_NEVER_SUBJECT, MUSIC_REF_IN_TEXT } from '../../../shared/contract/music.ts';
 import { currentDay } from '../areas/conversation/day';
 import { detail } from '../areas/memory/detail';
 import * as notes from '../areas/memory/notes';
@@ -32,6 +33,15 @@ export abstract class CoreMemory extends CoreBase {
     const now = Date.now();
     const rows = facts.factsPage(this.db, filter, before, limit);
     return { items: rows.map((r) => facts.toFact(r, now)), last: rows.at(-1)?.seq ?? null };
+  }
+
+  /** The songs the owner said never to play again (MUSIC.md §10.5): the track ids their current
+   * `music.never` rules name, which Music's find leaves out. */
+  musicNever(now = Date.now()): string[] {
+    const ids = new Set<string>();
+    for (const text of facts.ruleTexts(this.db, MUSIC_NEVER_SUBJECT, now))
+      for (const m of text.matchAll(MUSIC_REF_IN_TEXT)) ids.add(m[1]);
+    return [...ids];
   }
 
   factDetail(id: string): FactDetail | null {

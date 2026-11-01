@@ -5,8 +5,8 @@
 // serves it: the whole catalog without waveforms under one ETag, one track's waveform, and the
 // content keys a signed link needs. P5 step 3 makes it the catalog's single writer for the upload
 // tools (areas/music/writer.ts), one operation at a time. The listening pass (schema step 3, songs
-// analysed in Actions) is its code layer music-listen.ts.
-import type { MusicTrackRow, MusicTracksResponse } from '../../../shared/contract/music.ts';
+// analysed in Actions) is its code layer music-listen.ts; what the mind reads and writes here (the
+// tags, its notes about each song, songs by feeling) is the layer above it, music-mind.ts.
 import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
@@ -15,7 +15,7 @@ import * as store from '../areas/music/store';
 import { type Ctx, MusicError, OPS, type Op } from '../areas/music/writer';
 import { EDIT_OPS } from '../areas/music/writer-edit';
 import type { Migration } from './base';
-import { MusicListen } from './music-listen';
+import { MusicMind } from './music-mind';
 
 export const MUSIC_MIGRATIONS: Migration[] = [
   {
@@ -56,11 +56,27 @@ export const MUSIC_MIGRATIONS: Migration[] = [
   },
   // The listening pass (JOBS.md §3): Actions specs, one analysis row per audio hash, one per track.
   { version: 3, name: 'listen', kind: 'expand', sql: LISTEN_SQL },
+  {
+    version: 4,
+    name: 'track_notes',
+    kind: 'expand',
+    // What the mind knows of each song (MUSIC.md §10.5): one row a track, no index.
+    sql: [
+      `CREATE TABLE track_notes (
+        track_id TEXT PRIMARY KEY,
+        known INTEGER NOT NULL,
+        note_json TEXT NOT NULL,
+        by TEXT NOT NULL,
+        v INTEGER NOT NULL,
+        at INTEGER NOT NULL
+      ) WITHOUT ROWID`,
+    ],
+  },
 ];
 
-/** Every catalog table and the listening pass's, in the weekly backup and the export (DATA.md §10);
- * the meter's `meter_days` (counts only) stays out of both. */
-export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state', ...LISTEN_TABLES] as const;
+/** Every catalog table, the listening pass's and the mind's notes, in the weekly backup and the
+ * export (DATA.md §10); the meter's `meter_days` (counts only) stays out of both. */
+export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state', ...LISTEN_TABLES, 'track_notes'] as const;
 
 /** The one instance: the owner's library. */
 export const MUSIC_INSTANCE = 'library';
@@ -86,7 +102,7 @@ export interface PutResult {
   clashes?: string[];
 }
 
-export class Music extends MusicListen {
+export class Music extends MusicMind {
   /** The catalog as last built, by its ETag: built once per change, not per phone. */
   private built: { etag: string; text: string } | null = null;
   /** The records' total length, read once per start and grown by each new track. */
@@ -94,14 +110,12 @@ export class Music extends MusicListen {
   /** How many tracks, counted once per start and kept as tracks come and go: a count reads every
    * row, and the free plan meters rows read (2026-10-31: per-song counts read 4.4M in a day). */
   private trackTotal: number | null = null;
-  /** The mind's track search reads the catalog once per start, then searches it in memory. */
-  private finder: (MusicTrackRow & { hay: string })[] | null = null;
 
   /** What a write or an import may have changed: read again when next needed. */
   private forget(): void {
     this.recordBytes = null;
     this.trackTotal = null;
-    this.finder = null;
+    this.dropIndex();
   }
 
   constructor(ctx: DurableObjectState, env: Env) {
@@ -171,52 +185,6 @@ export class Music extends MusicListen {
     return this.built;
   }
 
-  /** Tracks whose tags hold every word of `q` (title, artist, album, genre, composer), in catalog
-   * order, at most `limit`, with how many match in all: what the mind picks a playlist from. */
-  findTracks(q: string, limit: number): MusicTracksResponse {
-    const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-    const items: MusicTrackRow[] = [];
-    let total = 0;
-    for (const { hay, ...row } of this.index()) {
-      if (!words.every((w) => hay.includes(w))) continue;
-      total++;
-      if (items.length < limit) items.push(row);
-    }
-    return { items, total };
-  }
-
-  /** Every track's searchable tags, read once per start (or after a change). */
-  private index(): (MusicTrackRow & { hay: string })[] {
-    if (this.finder) return this.finder;
-    const out: (MusicTrackRow & { hay: string })[] = [];
-    for (const r of this.db.all<{ id: string; record_json: string }>(
-      'SELECT id, record_json FROM tracks ORDER BY ord',
-    )) {
-      const t = JSON.parse(r.record_json) as { path?: string; metadata?: Record<string, unknown> };
-      const m = t.metadata ?? {};
-      const s = (k: string) => (typeof m[k] === 'string' ? (m[k] as string) : '');
-      const row: MusicTrackRow = {
-        id: r.id,
-        title:
-          s('title') ||
-          (t.path ?? '')
-            .split('/')
-            .pop()
-            ?.replace(/\.[^.]+$/, '') ||
-          '',
-        artist: s('artist'),
-        album: s('album'),
-        genre: s('genre'),
-        composer: s('composer'),
-        year: Number(m.year) || 0,
-        dur: Math.round(Number(m.dur) || 0),
-      };
-      out.push({ ...row, hay: `${row.title} ${row.artist} ${row.album} ${row.genre} ${row.composer}`.toLowerCase() });
-    }
-    this.finder = out;
-    return out;
-  }
-
   waveform(id: string): string | null {
     return store.waveform(this.db, id);
   }
@@ -257,7 +225,7 @@ export class Music extends MusicListen {
     };
     try {
       const out = { status: 200, body: await fn(c, body) };
-      this.finder = null;
+      this.dropIndex();
       return out;
     } catch (e) {
       // A failed operation's transaction rolled back: what was kept in memory may not match.

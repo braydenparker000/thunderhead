@@ -423,7 +423,44 @@
     "rows_read_max": 4,
     "rows_written_max": 0
   },
-  "GET /v1/podcasts/feed, counts: started episodes looked up (3) (Core)": {
+  "GET /v1/podcasts/feed, counts: started episodes looked up (3) (Core)": {,
+  "PUT /v1/music/notes, 200 notes (Music, cold: 300 tracks)": {
+    "rows_read_max": 301,
+    "rows_written_max": 200
+  },
+  "PUT /v1/music/notes, 200 notes again, unchanged (Music)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/notes?ids= 50 (Music)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/notes, a page of 200 (Music)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/tracks?untagged=1, 200 (Music)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/find (Music, cold: 300 tracks, 200 notes)": {
+    "rows_read_max": 509,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/find (Music, warm)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/find (Senses, cold: 40 early skips among 200 events)": {
+    "rows_read_max": 113,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/find (Senses, warm)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/find (Core, 3 never-play rules)": {
     "rows_read_max": 3,
     "rows_written_max": 0
   }

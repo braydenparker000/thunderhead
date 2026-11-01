@@ -90,6 +90,20 @@ export function sequence(db: Db, day: string, after: number, prefix: string | nu
   );
 }
 
+/** Each song's skips before `underMs` since `since` (ms), sensitivity 0 only, by the (day, type)
+ * index: one seek a day, then that day's skips and nothing else. */
+export function earlySkips(db: Db, days: string[], since: number, underMs: number): { ref: string; n: number }[] {
+  return db.all(
+    `SELECT ref, count(*) AS n FROM events
+     WHERE day IN (${days.map(() => '?').join(', ')}) AND type = 'music.skip' AND at >= ? AND ref IS NOT NULL
+       AND sensitivity = 0 AND json_extract(data_json, '$.at_ms') < ?
+     GROUP BY ref`,
+    ...days,
+    since,
+    underMs,
+  );
+}
+
 export function lastEvent(db: Db, type: string): EventRow | null {
   return db.one<EventRow>('SELECT * FROM events WHERE type = ? ORDER BY seq DESC LIMIT 1', type);
 }

@@ -6,6 +6,7 @@ import type { BriefResponse } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
 import { apiJson, makeAgent, setupOwner } from '../helpers';
 import { addOp, ownerSays } from '../memory-helpers';
+import { note, seedCatalog } from '../music-helpers';
 
 type Role = 'D' | 'C' | 'N' | 'R' | 'M' | 'I';
 const SESSION: Partial<Record<Role, string>> = { C: 'cse_matrix_chat', N: 'cse_matrix_night', R: 'cse_matrix_reflex' };
@@ -13,6 +14,8 @@ const ROLE = { C: 'chat', N: 'night', R: 'reflex' } as const;
 const tokens = {} as Record<Role, string>;
 /** The CI key's id: a revoke card must name a key that exists. */
 let ciKey = '';
+/** A track in a synthetic catalog, for the music notes. */
+let song = '';
 
 beforeAll(async () => {
   tokens.D = (await setupOwner()).token;
@@ -22,6 +25,7 @@ beforeAll(async () => {
   tokens.M = await makeAgent(tokens.D, 'muse');
   tokens.I = await makeAgent(tokens.D, 'ci');
   ciKey = (await apiJson<{ agent_id: string }>('GET', '/v1/auth/me', { token: tokens.I })).body.agent_id;
+  [song] = await seedCatalog([{ title: 'A Synthetic Song', artist: 'Test Artist' }]);
   for (const r of ['C', 'N', 'R'] as const) {
     const s = SESSION[r] as string;
     const b = await apiJson<BriefResponse>('POST', '/v1/mind/brief', {
@@ -106,6 +110,13 @@ const CAPABILITIES: { name: string; may: Role[]; call: (r: Role) => Promise<numb
     may: ['D', 'C', 'N', 'R'],
     call: (r) => status(r, 'GET', '/v1/ledger'),
   },
+  {
+    name: 'write what it knows of a song (music notes)',
+    may: ['C', 'N'],
+    call: (r) => status(r, 'PUT', '/v1/music/notes', { items: [note(song, { moods: { calm: 0.8 } })] }),
+  },
+  { name: 'read the music notes', may: ['D', 'C', 'N'], call: (r) => status(r, 'GET', `/v1/music/notes?ids=${song}`) },
+  { name: 'find songs by feeling', may: ['C', 'N'], call: (r) => status(r, 'GET', '/v1/music/find?moods=calm') },
   { name: 'issue agent keys (auth admin)', may: ['D'], call: (r) => status(r, 'GET', '/v1/auth/agents') },
   { name: 'change settings', may: ['D'], call: (r) => status(r, 'PATCH', '/v1/settings', { 'quiet.start': '22:00' }) },
   // NEXT-BATCH.md part 7: Podcasts' positions and follows. The phone writes them; the night reads

@@ -4,6 +4,7 @@
 // be rolled back). It takes the phone's sealed batches (one row a batch for the dedupe, each event
 // with its day's rollup), answers the agents' fixed questions, writes each day's archive to the
 // private bucket, and prunes events past 90 days once their day is archived.
+import { MUSIC_NOTE_LIMITS } from '../../../shared/contract/music.ts';
 import {
   type EventsSummary,
   SENSE_LIMITS,
@@ -90,6 +91,10 @@ const ARCHIVE_PAGE = 2_000;
 export const archiveKey = (day: string) => `senses/${day}.jsonl.gz`;
 
 export class Senses extends OwnerObject {
+  /** Early skips by track id (Music's find, MUSIC.md §10.5), kept for the UTC day they were counted
+   * on until a batch brings a new skip: a find costs these rows once, not every time. */
+  private skips: { day: string; by: Record<string, number> } | null = null;
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env, SENSES_MIGRATIONS, 'senses');
   }
@@ -119,6 +124,7 @@ export class Senses extends OwnerObject {
         const day = logicalDay(c.at, tz);
         store.putEvent(this.db, c, day, device, 'device');
         store.roll(this.db, day, c.type, c.ref ?? '', 1, msOf(c.data_json));
+        if (c.type === 'music.skip') this.skips = null;
         days.add(day);
         accepted++;
       });
@@ -134,6 +140,21 @@ export class Senses extends OwnerObject {
     const before = this.meter.rowsRead;
     const rows = queries.run(this.db, name, args);
     return { rows, rows_read: this.meter.rowsRead - before };
+  }
+
+  /** Each song's skips before 30 s in the last 30 days (MUSIC_NOTE_LIMITS), by track id: what Music's
+   * find holds against a song. The days are every date the owner's logical day can fall on in the
+   * window, so the (day, type) index reads only the skips. */
+  earlySkips(now = Date.now()): Record<string, number> {
+    const today = new Date(now).toISOString().slice(0, 10);
+    if (this.skips?.day === today) return this.skips.by;
+    const span = MUSIC_NOTE_LIMITS.skip_days;
+    const days = Array.from({ length: span + 3 }, (_, k) => new Date(now + (1 - k) * DAY).toISOString().slice(0, 10));
+    const by: Record<string, number> = {};
+    for (const r of store.earlySkips(this.db, days, now - span * DAY, MUSIC_NOTE_LIMITS.early_skip_ms))
+      if (r.ref.startsWith('music:')) by[r.ref.slice(6)] = (by[r.ref.slice(6)] ?? 0) + r.n;
+    this.skips = { day: today, by };
+    return by;
   }
 
   /** Some types' rollups for the meter (P9): counts by day and ref only. */

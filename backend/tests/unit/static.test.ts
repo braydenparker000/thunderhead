@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import { AUTH_MIGRATIONS } from '../../src/objects/auth.migrations';
 import { CORE_MIGRATIONS } from '../../src/objects/core.migrations';
+import { MUSIC_MIGRATIONS } from '../../src/objects/music';
 
 const raw = (files: Record<string, unknown>) => files as Record<string, string>;
 const objectCode = raw(
@@ -27,9 +28,10 @@ const wrangler = Object.values(
   raw(import.meta.glob('../../wrangler.jsonc', { query: '?raw', import: 'default', eager: true })),
 )[0];
 
-/** Steps another branch holds while this one is built may be skipped in the numbering (none now:
- * step 23, the reports, and step 24, the row meter, met on 2026-10-31). */
-const PENDING: number[] = [];
+/** Steps another branch holds while this one is built may be skipped in the numbering: Music's
+ * step 3, the listening pass, while its step 4 (the mind's notes) is built beside it. Both must ship
+ * together (a step numbered below the applied one never runs). */
+const PENDING: number[] = [3];
 
 const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 // wrangler.jsonc has whole-line comments only, so dropping them leaves plain JSON.
@@ -70,7 +72,7 @@ describe('source rules', () => {
   });
 
   it('migrations are expand-only, numbered 1…n, never DROP, RENAME, DELETE or UPDATE', () => {
-    for (const list of [AUTH_MIGRATIONS, CORE_MIGRATIONS]) {
+    for (const list of [AUTH_MIGRATIONS, CORE_MIGRATIONS, MUSIC_MIGRATIONS]) {
       const versions = list.map((m) => m.version);
       const top = Math.max(...versions);
       expect(versions).toEqual(

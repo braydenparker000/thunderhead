@@ -124,7 +124,7 @@ describe('the weekly backup', () => {
     expect(m.tables.some((t) => t.name === 'jobs' || t.name.endsWith('_fts'))).toBe(false);
     // The Music object's catalog, by its own manifest.
     const music = (await (await env.VAULT.get(`backups/${date}/music/manifest.json`))?.json()) as BackupManifest;
-    expect(music).toMatchObject({ v: 1, date, class: 'music', schema_version: 3 });
+    expect(music).toMatchObject({ v: 1, date, class: 'music', schema_version: 4 });
     expect(music.tables.map((t) => t.name)).toEqual([
       'tracks',
       'catalog_log',
@@ -132,6 +132,7 @@ describe('the weekly backup', () => {
       'external_jobs',
       'analysis',
       'track_analysis',
+      'track_notes',
     ]);
     // The senses' rollups and archive records (the events are in the daily archive), and Study's
     // library without its full-text index (rebuilt from the pages).
