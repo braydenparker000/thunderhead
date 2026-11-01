@@ -199,7 +199,7 @@ export function sessionSeenOwner(db: Db, id: string, at: number): void {
 }
 
 /** A taint event's time: the last one a session took itself (`taint_event_at`), else its first
- * taint (a row from before v25, or a taint a claim inherited, which keeps the original's time). */
+ * taint (a row from before v26, or a taint a claim inherited, which keeps the original's time). */
 const EVENT = 'coalesce(taint_event_at, tainted_at)';
 
 /** The role's session with the latest taint event at or after `since` (usually none), on the
