@@ -201,17 +201,25 @@ describe('the weekly backup', () => {
   });
 
   it('starts on its own on Sundays from 02:30 local, once', async () => {
-    const sunday = Date.parse('2026-11-01T02:20:00Z'); // the test owner's zone is UTC
+    // A Sunday from the clock that is neither today (the tests above make today's backup) nor a
+    // month's first (its drill would add a note the drill tests below don't expect): the fixed date
+    // this test had was the first Sunday of November 2026, and failed on that very day.
+    const d = new Date();
+    d.setUTCHours(0, 0, 0, 0);
+    do d.setUTCDate(d.getUTCDate() + 1);
+    while (d.getUTCDay() !== 0 || d.getUTCDate() <= 7);
+    const SUNDAY = d.toISOString().slice(0, 10);
+    const sunday = Date.parse(`${SUNDAY}T02:20:00Z`); // the test owner's zone is UTC
     await watch(sunday);
-    expect((await backups()).some((b) => b.date === '2026-11-01')).toBe(false);
+    expect((await backups()).some((b) => b.date === SUNDAY)).toBe(false);
     await watch(sunday + 15 * MINUTE);
-    const started = (await backups()).filter((b) => b.date === '2026-11-01');
+    const started = (await backups()).filter((b) => b.date === SUNDAY);
     expect(started.map((b) => b.class).sort()).toEqual(['core', 'library', 'music', 'senses']);
-    for (let i = 0; i < 40 && !(await backups()).find((x) => x.date === '2026-11-01')?.complete; i++)
+    for (let i = 0; i < 40 && !(await backups()).find((x) => x.date === SUNDAY)?.complete; i++)
       await runJobsWith(REAL, sunday + 20 * MINUTE);
-    expect((await backups()).find((x) => x.date === '2026-11-01')?.complete).toBe(true);
+    expect((await backups()).find((x) => x.date === SUNDAY)?.complete).toBe(true);
     await watch(sunday + 30 * MINUTE);
-    expect((await backups()).filter((b) => b.date === '2026-11-01')).toHaveLength(4);
+    expect((await backups()).filter((b) => b.date === SUNDAY)).toHaveLength(4);
   });
 });
 
@@ -264,7 +272,9 @@ describe('the monthly drill', () => {
     const items = (await apiJson<WatchdogsResponse>('GET', '/v1/ops/watchdogs', { token: p.D })).body.items;
     expect(items.find((i) => i.name === 'drill.failed')).toMatchObject({ state: 'tripped' });
     const notes = await coreSql<{ what: string }>("SELECT what FROM ledger WHERE ref LIKE 'drill:%' ORDER BY at");
-    expect(notes.map((n) => n.what.split(':')[0])).toEqual([
+    // This test's two drills are the newest notes. (On a month's first Sunday, the watchdog ticks
+    // above, on the real clock, also start that month's drill on their own, as they should.)
+    expect(notes.map((n) => n.what.split(':')[0]).slice(-2)).toEqual([
       `restore drill ${row.month} passed`,
       `restore drill ${row.month} failed`,
     ]);
