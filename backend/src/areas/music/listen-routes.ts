@@ -15,6 +15,7 @@ import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
 import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
+import { refuseWhileHeld } from '../meter/hold';
 import { base64, incoming, MANIFEST, specKey, uploadLimit } from './listen-files';
 import { PACK_KEY } from './listen-pack';
 import { SONG_ID } from './shapes';
@@ -41,6 +42,8 @@ const vaultOf = (c: C) => {
 export const listenRoutes = new Hono<AppEnv>()
   .get('/jobs/next', guard('GET /v1/jobs/next'), async (c) => {
     const q = parse(nextQuery, c.req.query());
+    // Heavy work: from 80% of the day's database budget it waits for 00:00 UTC (DATA.md §8.1).
+    await refuseWhileHeld(c.env);
     const out = value(await fresh(musicObject(c.env).listenNext(q.kind, q.max ?? L.max_tracks)));
     return out ? c.json(out) : c.body(null, 204);
   })

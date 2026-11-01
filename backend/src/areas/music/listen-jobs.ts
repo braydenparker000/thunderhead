@@ -115,7 +115,8 @@ export const listenApplyJob: JobHandler = {
     }
     const r = await musicObject(env).listenFinish(p.job_id, p.failed);
     await dropJobFiles(vault, p.job_id);
-    return { written: r.written, done: { pack: true } };
+    // The phone file changes only when something was applied.
+    return { written: r.written, done: { pack: r.valid > 0 } };
   },
   step(w, _payload, _cursor, input) {
     const i = input as Input;

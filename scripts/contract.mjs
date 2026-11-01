@@ -127,6 +127,8 @@ function mind() {
           status: routeStatus(r),
           // `key` names the route in th's own rows, so the one agent key a route takes is `agent_key`.
           ...(r.key ? { agent_key: r.key } : {}),
+          // …and, when only one role's agents must be that key, which (the night mind's collect is not keyed).
+          ...(r.keyRole ? { agent_key_role: r.keyRole } : {}),
           ...(r.note ? { note: r.note } : {}),
         },
       ]),

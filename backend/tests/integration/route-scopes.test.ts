@@ -5,8 +5,8 @@
 // route an agent only as the key of that name: any other key of its role is 403); unknown routes
 // are 404 before any token check; the ticket-only socket refuses anything but a ticket.
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { ErrorBody } from '../../../shared/contract/api';
-import { builtRoutes, type RouteSpec } from '../../../shared/contract/routes.ts';
+import type { AgentRole, ErrorBody } from '../../../shared/contract/api';
+import { builtRoutes, JOBS_KEY, type RouteSpec } from '../../../shared/contract/routes.ts';
 import { app } from '../../src/app';
 import { PUBLIC_ROUTES, type Who } from '../../src/http/auth';
 import { uuidv7 } from '../../src/lib/ids';
@@ -26,8 +26,13 @@ const entries = app.routes as RouteEntry[];
 // Middleware registered with .use() shows up as method ALL; real routes have a verb.
 const routes = [...new Set(entries.filter((r) => r.method !== 'ALL').map((r) => `${r.method} ${r.path}`))];
 const guarded = Object.entries(TABLE).filter(([, who]) => Array.isArray(who)) as [string, Who[]][];
-/** Keyed rows (RouteSpec.key): an agent must be the key of exactly that name. */
+/** Keyed rows (RouteSpec.key): an agent (of `keyRole`, when set) must be the key of exactly that name. */
 const KEYED = Object.fromEntries(BUILT.filter(([, r]) => r.key).map(([k, r]) => [k, r.key as string]));
+const KEY_ROLE = Object.fromEntries(BUILT.filter(([, r]) => r.keyRole).map(([k, r]) => [k, r.keyRole as Who]));
+/** The role each named key is made with: the keyRole of the rows naming it, else Mind · chat. */
+const ROLE_OF: Record<string, AgentRole> = { I: 'ci', N: 'mind:night', C: 'mind:chat', R: 'mind:reflex', M: 'muse' };
+const keyRoleOf = (name: string) =>
+  ROLE_OF[BUILT.find(([, r]) => r.key === name && r.keyRole)?.[1].keyRole ?? (name === JOBS_KEY ? 'I' : 'C')];
 const fill = (path: string) => path.replace(/:[a-z_]+/g, () => uuidv7());
 const call = (route: string, token?: string) => {
   const [method, path] = route.split(' ');
@@ -37,11 +42,12 @@ const call = (route: string, token?: string) => {
 const tokens = {} as Record<Who, string>;
 /** A Mind · chat key with each keyed row's name (all `import-once` today). */
 const named = {} as Record<string, string>;
-const tokenFor = (route: string, p: Who) => (KEYED[route] && p !== 'D' ? named[KEYED[route]] : tokens[p]);
+const tokenFor = (route: string, p: Who) =>
+  KEYED[route] && p !== 'D' && (!KEY_ROLE[route] || KEY_ROLE[route] === p) ? named[KEYED[route]] : tokens[p];
 beforeAll(async () => {
   tokens.D = (await setupOwner()).token;
   tokens.C = await makeAgent(tokens.D, 'mind:chat');
-  for (const name of new Set(Object.values(KEYED))) named[name] = await makeAgent(tokens.D, 'mind:chat', name);
+  for (const name of new Set(Object.values(KEYED))) named[name] = await makeAgent(tokens.D, keyRoleOf(name), name);
   tokens.N = await makeAgent(tokens.D, 'mind:night');
   tokens.R = await makeAgent(tokens.D, 'mind:reflex');
   tokens.M = await makeAgent(tokens.D, 'muse');
@@ -100,16 +106,34 @@ describe('route table (API.md §13)', () => {
     }
   });
 
-  it('a keyed route refuses every other key of its roles (the routine chat key on the import)', async () => {
+  it('a keyed route refuses every other key of its roles (the routine chat key on the import, the deploy CI key on the jobs)', async () => {
     expect(Object.keys(KEYED).sort()).toEqual([
+      'GET /v1/jobs/:id/spec',
       'POST /v1/import/runs',
+      'POST /v1/jobs/:id/collect',
       'POST /v1/ops/import/parts',
+      'PUT /v1/jobs/:id/files/:name',
       'PUT /v1/ops/import/manifest/:run_id',
     ]);
     for (const route of Object.keys(KEYED)) {
-      const { status, body } = await call(route, tokens.C);
+      const { status, body } = await call(route, KEYED[route] === JOBS_KEY ? tokens.I : tokens.C);
       expect([status, body?.error.code], route).toEqual([403, 'forbidden']);
     }
+  });
+
+  it("the listening pass's CI key reaches its own routes only (never a backup, the drill or a status)", async () => {
+    const jobsKey = named[JOBS_KEY];
+    for (const route of [
+      'POST /v1/ops/backups/run',
+      'POST /v1/ops/drill/run',
+      'GET /v1/jobs/:id',
+      'GET /v1/auth/me',
+      'GET /v1/ops/meter',
+    ]) {
+      const { status, body } = await call(route, jobsKey);
+      expect([status, body?.error.code], route).toEqual([403, 'forbidden']);
+    }
+    expect((await call('GET /v1/jobs/:id/spec', jobsKey)).status).toBe(404);
   });
 
   it('answers 404 for unknown routes before any token check', async () => {

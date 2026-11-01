@@ -8,19 +8,25 @@
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { LISTEN_LIMITS as L } from '../../../shared/contract/listen.ts';
+import { JOBS_KEY } from '../../../shared/contract/routes.ts';
 import { MUSIC_MOODS } from '../../../shared/contract/music.ts';
-import { utcDay } from '../../src/lib/time';
+import { DAY, utcDay } from '../../src/lib/time';
+import { DAY_BUDGET } from '../../../shared/contract/meter.ts';
+import { forgetHold } from '../../src/areas/meter/hold';
 import { apiJson, coreSql, makeAgent, setupOwner } from '../helpers';
 import { drain, manifest, music, musicSql, pack, put, result, seedTracks } from '../listen-helpers';
 
-const tokens = {} as Record<'D' | 'C' | 'N' | 'I', string>;
+const tokens = {} as Record<'D' | 'C' | 'N' | 'I' | 'CI', string>;
+/** Jobs issued a day earlier, as far as the daily cap is concerned. */
+const aged = () => musicSql('UPDATE external_jobs SET issued_at = issued_at - ?', DAY);
 let shas: string[] = [];
 
 beforeAll(async () => {
   tokens.D = (await setupOwner()).token;
   tokens.C = await makeAgent(tokens.D, 'mind:chat');
   tokens.N = await makeAgent(tokens.D, 'mind:night');
-  tokens.I = await makeAgent(tokens.D, 'ci');
+  tokens.I = await makeAgent(tokens.D, 'ci', JOBS_KEY);
+  tokens.CI = await makeAgent(tokens.D, 'ci');
   // 120 songs the pass can take, then 3 on old keys it can't; one more track shares song 0's audio.
   shas = await seedTracks(120, 0, 3);
   const dup = { id: 'r2_dup_of_song_zero', sha256: shas[0], metadata: { title: 'Song 0 again' } };
@@ -62,9 +68,17 @@ describe('issuing specs', () => {
     expect(a.body).toMatchObject({ kind: 'audio.analysis', v: 2 });
     expect(a.body.shas).toEqual(shas.slice(0, 50));
     first = a.body.job_id;
-    const b = await next(tokens.I);
+    const b = await next(tokens.N);
     expect(b.body.shas).toEqual(shas.slice(50, 100));
     second = b.body.job_id;
+  });
+
+  it('issues only to the night mind; the deploy CI key reaches no job route', async () => {
+    expect((await next(tokens.I)).status).toBe(403);
+    expect((await next(tokens.CI)).status).toBe(403);
+    expect((await apiJson('GET', `/v1/jobs/${first}/spec`, { token: tokens.CI })).status).toBe(403);
+    expect((await put(tokens.CI, first, 'part-001.jsonl', '{}')).status).toBe(403);
+    expect((await collect(first, tokens.CI)).status).toBe(403);
   });
 
   it('refuses a third open job of the kind', async () => {
@@ -202,6 +216,7 @@ describe('collecting', () => {
       ['too large', (id, f) => JSON.stringify({ ...manifest(id, f), pad: 'x'.repeat(L.manifest_bytes) })],
     ];
     for (const [name, make] of cases) {
+      await aged();
       const j = await next(tokens.N, 'kind=audio.analysis&max=5');
       expect(j.status, name).toBe(200);
       const up = await pack(j.body.shas.map((s, i) => result(s, i)));
@@ -217,12 +232,14 @@ describe('collecting', () => {
 
 describe('expiry', () => {
   it('a spec not collected in 72 hours expires and its songs are due again', async () => {
+    await aged();
     const j = await next(tokens.N, 'kind=audio.analysis&max=3');
     const id = j.body.job_id;
     await put(tokens.I, id, 'part-001.jsonl', '{}');
     await musicSql('UPDATE external_jobs SET expires_at = ? WHERE id = ?', Date.now() - 1, id);
     expect((await apiJson('GET', `/v1/jobs/${id}/spec`, { token: tokens.I })).status).toBe(410);
     expect((await collect(id)).status).toBe(410);
+    await aged();
     const again = await next(tokens.N, 'kind=audio.analysis&max=3');
     expect((await status(id)).body.state).toBe('expired');
     expect(again.body.shas).toEqual(j.body.shas);
@@ -232,6 +249,7 @@ describe('expiry', () => {
 
 describe('applying under the bulk lane', () => {
   it('pauses at the lane’s daily cap, then a repeated part counts once', async () => {
+    await aged();
     const j = await next(tokens.N, 'kind=audio.analysis&max=2');
     const id = j.body.job_id;
     const up = await pack(j.body.shas.map((s, i) => result(s, 200 + i)));
@@ -254,5 +272,50 @@ describe('applying under the bulk lane', () => {
     // The same part handed over again (a step repeated after a crash) writes and counts nothing.
     expect(await music().listenApply(id, 1, [], { size: 5 })).toBe(0);
     expect((await status(id)).body.counts).toMatchObject({ valid: 2, invalid: 0 });
+  });
+});
+
+describe('limits on issuing', () => {
+  it('at most three jobs of a kind in 24 hours, then 429', async () => {
+    await aged();
+    await musicSql("UPDATE external_jobs SET state = 'rejected' WHERE state IN ('issued', 'validating')");
+    for (let i = 0; i < L.jobs_per_day; i++) {
+      const j = await next(tokens.N, 'kind=audio.analysis&max=1');
+      expect(j.status, `job ${i + 1}`).toBe(200);
+      await musicSql("UPDATE external_jobs SET state = 'rejected' WHERE id = ?", j.body.job_id);
+    }
+    const r = await next(tokens.N, 'kind=audio.analysis&max=1');
+    expect(r.status).toBe(429);
+    expect((r.body as unknown as { error: { details: unknown } }).error.details).toEqual({ reason: 'daily_jobs' });
+  });
+
+  it('waits for 00:00 UTC once the day is past 80% of its budget', async () => {
+    await aged();
+    forgetHold();
+    await coreSql(
+      'INSERT OR REPLACE INTO meter_days (day, class, rows_read, rows_written, updated_at) VALUES (?, ?, ?, ?, 0)',
+      utcDay(Date.now()),
+      'senses',
+      0,
+      Math.ceil(DAY_BUDGET.rows_written * 0.81),
+    );
+    const r = await next(tokens.N, 'kind=audio.analysis&max=1');
+    expect(r.status).toBe(429);
+    expect((r.body as unknown as { error: { details: unknown } }).error.details).toEqual({ reason: 'daily_quota' });
+    await coreSql("DELETE FROM meter_days WHERE class = 'senses'");
+    forgetHold();
+  });
+
+  it('a job with nothing valid leaves the phone file as it was', async () => {
+    await aged();
+    const j = await next(tokens.N, 'kind=audio.analysis&max=1');
+    const bad = await pack([result(j.body.shas[0], 0, { bpm: 999 })]);
+    await put(tokens.I, j.body.job_id, 'part-001.jsonl', bad.parts[0]);
+    await put(tokens.I, j.body.job_id, 'manifest.json', JSON.stringify(manifest(j.body.job_id, bad.files)));
+    const before = await coreSql<{ updated_at: number }>("SELECT updated_at FROM jobs WHERE id = 'listen.pack'");
+    expect((await collect(j.body.job_id)).status).toBe(202);
+    await drain();
+    expect((await status(j.body.job_id)).body).toMatchObject({ state: 'applied', counts: { valid: 0, invalid: 1 } });
+    expect(await coreSql("SELECT updated_at FROM jobs WHERE id = 'listen.pack'")).toEqual(before);
   });
 });

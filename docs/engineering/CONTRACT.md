@@ -133,12 +133,12 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/music/uploads/:op` | public | P5 | built | signed by an upload tool key; the catalog writer's operations, export and links |
 | `PUT /v1/senses/batches/:id` | D | P5 | built | a sealed batch of 1–500 events, ≤ 256 KB |
 | `POST /v1/senses/query` | C N R | P5 | built | a fixed, named query; never SQL |
-| `GET /v1/jobs/next` | N I | P5 | built | ?kind=audio.analysis&max=1-500\|audio.neighbours; 204: none due |
-| `POST /v1/jobs/:id/collect` | N I | P5 | built | checks the manifest, then applies under the bulk lane |
+| `GET /v1/jobs/next` | N | P5 | built | ?kind=audio.analysis&max=1-500\|audio.neighbours; 204: none due |
+| `POST /v1/jobs/:id/collect` | N I (agents: the key `jobs-audio` only) | P5 | built | checks the manifest |
 | `GET /v1/jobs` | C N R I | P5 | built | ?kind=&open=1: states and counts, never hashes |
 | `GET /v1/jobs/:id` | C N R I | P5 | built |  |
-| `GET /v1/jobs/:id/spec` | I | P5 | built | what the Actions run works from (it receives only the job id) |
-| `PUT /v1/jobs/:id/files/:name` | I | P5 | built | part-NNN.jsonl, neighbours.bin, manifest.json last |
+| `GET /v1/jobs/:id/spec` | I (agents: the key `jobs-audio` only) | P5 | built | what the Actions run works from |
+| `PUT /v1/jobs/:id/files/:name` | I (agents: the key `jobs-audio` only) | P5 | built | part-NNN.jsonl, neighbours.bin, manifest last |
 | `GET /v1/music/pack` | D | P5 | built | every song's numbers, moods, embedding and neighbours; ETag, 304 |
 | `GET /v1/music/analysis/:id` | C N | P5 | built | ?like=0-50: one song's numbers and nearest songs |
 | `GET /v1/guitar/search` | D | P6 | built | Songsterr search, ?q= |

@@ -6,6 +6,7 @@
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { LISTEN_LIMITS as L } from '../../../shared/contract/listen.ts';
+import { JOBS_KEY } from '../../../shared/contract/routes.ts';
 import { packHeader } from '../../src/areas/music/listen-pack';
 import { api, apiJson, makeAgent, setupOwner } from '../helpers';
 import { drain, manifest, musicSql, pack, put, result, seedTracks, sha } from '../listen-helpers';
@@ -18,7 +19,7 @@ beforeAll(async () => {
   tokens.D = (await setupOwner()).token;
   tokens.C = await makeAgent(tokens.D, 'mind:chat');
   tokens.N = await makeAgent(tokens.D, 'mind:night');
-  tokens.I = await makeAgent(tokens.D, 'ci');
+  tokens.I = await makeAgent(tokens.D, 'ci', JOBS_KEY);
   shas = await seedTracks(N, 0, 1);
 });
 

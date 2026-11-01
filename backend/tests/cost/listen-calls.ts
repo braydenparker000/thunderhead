@@ -5,6 +5,7 @@
 // run's cost from these: about one row written per song, a few per job.
 import { env } from 'cloudflare:workers';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
+import { JOBS_KEY } from '../../../shared/contract/routes.ts';
 import { api, apiJson, core, PASSWORD } from '../helpers';
 import { drain, manifest, music, pack, put, result, seedTracks } from '../listen-helpers';
 
@@ -21,7 +22,7 @@ export async function listenCalls(cost: Cost, grant: (ip: string, password?: str
       })
     ).body.token;
   const night = await agent('mind:night', 'night-cost-listen');
-  const ci = await agent('ci', 'ci-cost-listen');
+  const ci = await agent('ci', JOBS_KEY);
   const m = music() as unknown as Stub;
   const shas = await seedTracks(600);
   let jobId = '';

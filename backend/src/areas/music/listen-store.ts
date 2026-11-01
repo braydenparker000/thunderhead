@@ -103,6 +103,14 @@ export function setJob(
   );
 }
 
+/** Jobs of a kind issued since `since` (the daily cap). */
+export function issuedSince(db: Db, kind: string, since: number): number {
+  return (
+    db.one<{ n: number }>('SELECT count(*) AS n FROM external_jobs WHERE kind = ? AND issued_at >= ?', kind, since)
+      ?.n ?? 0
+  );
+}
+
 /** Issued specs past their time become `expired`; their ids. */
 export function expire(db: Db, now: number): string[] {
   return db

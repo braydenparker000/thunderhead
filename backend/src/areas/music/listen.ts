@@ -17,6 +17,7 @@ import {
 } from '../../../../shared/contract/listen.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail } from '../../lib/result';
+import { DAY } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import { type AnalysisManifest, checkManifest, embOf, type NeighboursManifest } from './listen-check';
 import { neighboursSpec } from './listen-pack';
@@ -60,11 +61,13 @@ export function status(r: store.JobRow): JobStatus {
   };
 }
 
-/** Refuses a third open job of a kind; prunes finished jobs past 90 days. */
+/** Refuses a third open job of a kind, and a fourth in 24 hours; prunes finished jobs past 90 days. */
 function admit(db: Db, kind: ListenKind, now: number): void {
   store.pruneJobs(db, now - L.keep_ms, 20);
   if (store.jobs(db, kind, true, L.open_jobs).length >= L.open_jobs)
     throw new Fail('conflict', { reason: 'open_jobs' });
+  if (store.issuedSince(db, kind, now - DAY) >= L.jobs_per_day)
+    throw new Fail('rate_limited', { reason: 'daily_jobs' });
 }
 
 /** Hashes in open analysis specs: not offered twice. */

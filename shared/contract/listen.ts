@@ -40,6 +40,8 @@ export const LISTEN_LIMITS = {
   spec_ttl_ms: 72 * 60 * 60 * 1000,
   /** Open jobs (issued or being applied) of one kind at once. */
   open_jobs: 2,
+  /** Jobs of one kind issued in any 24 hours (a night needs one; this bounds a mind that loops). */
+  jobs_per_day: 3,
   /** A song that failed this many times in a row at this analyzer version is not offered again. */
   failures_max: 3,
   /** Finished jobs are kept this long (pruned when the next job is issued). */
