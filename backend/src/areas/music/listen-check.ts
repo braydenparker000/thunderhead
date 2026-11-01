@@ -94,7 +94,15 @@ export const sha256Hex = async (b: Uint8Array) => hex(await crypto.subtle.digest
 const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: false });
 
 export type ResultCheck =
-  | { ok: true; result_json: string; pack: Uint8Array; analyzer: string; v: number }
+  | {
+      ok: true;
+      result_json: string;
+      pack: Uint8Array;
+      analyzer: string;
+      v: number;
+      energy: number;
+      moods_json: string | null;
+    }
   | { ok: false; reason: 'size' | 'hash' | 'json' | 'schema' | 'key' };
 
 /** Checks 4–5 on one line: its size and hash against the manifest, then schema v2 and its key. */
@@ -119,6 +127,11 @@ export async function checkResult(line: Uint8Array, f: ManifestFile): Promise<Re
     pack: packOf(clean),
     analyzer: (r.analyzer as { version: string }).version,
     v: r.v as number,
+    energy: r.energy as number,
+    // In MUSIC_MOODS' order, for the per-track view (track_analysis).
+    moods_json: r.moods
+      ? JSON.stringify(Object.fromEntries(MOODS.map((m) => [m, (r.moods as Record<string, number>)[m]])))
+      : null,
   };
 }
 

@@ -6,7 +6,7 @@ audio-text logit scale (about 18.7). So 0.5 is "as much as this song's moods on 
 say which feelings stand out in it; a plain "a piece of music" baseline was tried and set aside, since it
 matches every song better than any mood does and pushed every score towards 0. Valence, arousal and
 vocals are each a pair, scored the first prompt against the second; arousal is then averaged with the
-signal's energy. The keys must equal MOODS in shared/contract/listen.ts, in the same order
+signal's energy. The keys must equal MUSIC_MOODS in shared/contract/music.ts, in the same order
 (tests/jobs-audio.test.mjs). Changing a prompt changes every score: bump the analyzer VERSION with it.
 """
 
@@ -25,7 +25,7 @@ MOODS = {
     "triumphant": "triumphant, heroic, epic music",
     "playful": "playful, whimsical, light-hearted music",
     "dreamy": "dreamy, ethereal, atmospheric music",
-    "sacred": "reverent, sacred, worshipful music",
+    "reverent": "reverent, sacred, worshipful music",
     "focused": "steady, unobtrusive music for focus and concentration",
 }
 

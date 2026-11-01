@@ -13,14 +13,18 @@ import {
 import * as listen from '../areas/music/listen';
 import { dropJobFiles, specKey } from '../areas/music/listen-files';
 import { buildPack, NEIGHBOURS_KEY, type Neighbours, PACK_KEY, readNeighbours } from '../areas/music/listen-pack';
-import { analysisView, likeList, nearest, stateOf } from '../areas/music/listen-read';
+import { analysisView, likeList, nearest, stateOf, trackRow } from '../areas/music/listen-read';
 import * as store from '../areas/music/listen-store';
+import * as tracks from '../areas/music/listen-store-tracks';
+import { version as catalogVersion } from '../areas/music/store';
 import { attempt, attemptAsync, Fail, type Out } from '../lib/result';
 import { OwnerObject } from './base';
 
 export abstract class MusicListen extends OwnerObject {
   /** The last neighbours file, read once per job (it is replaced, never changed). */
   private nb: { job_id: string; nb: Neighbours | null } | null = null;
+  /** Each audio hash's first track, by neighbours job and catalog version. */
+  private first: { version: string; map: Map<string, string> } | null = null;
 
   private tx<T>(fn: () => T): T {
     return this.ctx.storage.transactionSync(fn);
@@ -88,6 +92,21 @@ export abstract class MusicListen extends OwnerObject {
    * it was refused. */
   listenNeighbours(id: string, problem: string | null, now = Date.now()): number {
     return this.tx(() => listen.neighboursDone(this.db, id, problem, now));
+  }
+
+  /** One page of `track_analysis` from the last neighbours (the neighbours job's steps, ≤ `limit` rows
+   * each): rows written, and the catalog place to go on after (null at the end). */
+  async listenTrackRows(afterOrd: number, limit: number): Promise<{ written: number; last: number | null }> {
+    const { nb } = await this.neighbours();
+    const page = tracks.analysedTracks(this.db, afterOrd, limit);
+    if (!page.length) return { written: 0, last: null };
+    const version = `${store.getState<{ job_id: string }>(this.db, 'listen.neighbours')?.job_id}|${catalogVersion(this.db).version}`;
+    if (this.first?.version !== version) this.first = { version, map: tracks.firstTracks(this.db) };
+    const first = this.first.map;
+    const written = this.tx(() =>
+      page.reduce((n, t) => n + tracks.putTrackRow(this.db, trackRow(t, nearest(nb, t.sha256, L.k), first)), 0),
+    );
+    return { written, last: page.length < limit ? null : (page.at(-1)?.ord ?? null) };
   }
 
   listenJob(id: string): JobStatus | null {

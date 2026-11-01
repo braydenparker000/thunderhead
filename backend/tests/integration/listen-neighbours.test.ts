@@ -100,6 +100,19 @@ describe('the neighbours step', () => {
     expect((await status(id)).body.state).toBe('applied');
     // One at a time: no second neighbours job while nothing changed.
     expect((await next('kind=audio.neighbours')).status).toBe(204);
+    // Each track's row of track_analysis names its nearest tracks by id, in its cluster, never itself.
+    const rows = await musicSql<{ track_id: string; neighbours_json: string }>(
+      'SELECT track_id, neighbours_json FROM track_analysis',
+    );
+    expect(rows).toHaveLength(N);
+    const index = new Map(shas.map((s, i) => [`r2_native_${s}`, i]));
+    for (const r of rows) {
+      const ids = JSON.parse(r.neighbours_json) as string[];
+      const i = index.get(r.track_id) as number;
+      expect(ids).toHaveLength(N - 1);
+      expect(ids).not.toContain(r.track_id);
+      expect(ids.slice(0, 6).every((id) => (index.get(id) as number) % 4 === i % 4)).toBe(true);
+    }
     const res = await api('GET', '/v1/music/pack', { token: tokens.D });
     expect(res.status).toBe(200);
     const etag = res.headers.get('ETag') as string;

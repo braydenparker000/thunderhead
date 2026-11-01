@@ -73,14 +73,31 @@ export function analysisView(a: AnalysisRow | null): TrackAnalysis['analysis'] {
 /** The nearest hashes of `sha`, nearest first (at most `n`). */
 export function nearest(nb: Neighbours | null, sha: string, n: number): string[] {
   if (!nb || n <= 0) return [];
-  const row = nb.order.indexOf(sha);
-  if (row < 0) return [];
+  const row = nb.at.get(sha);
+  if (row === undefined) return [];
   const out: string[] = [];
   for (let q = 0; q < nb.k && out.length < n; q++) {
     const x = nb.nbr[row * nb.k + q];
     if (x !== 0xffff && x < nb.n) out.push(nb.order[x]);
   }
   return out;
+}
+
+/** A track's row of `track_analysis` from its stored result and its nearest hashes: each near hash
+ * as its first track (catalog order), never the track itself, nearest first. */
+export function trackRow(
+  t: { id: string; result_json: string },
+  near: string[],
+  first: Map<string, string>,
+): { track_id: string; energy: number; moods_json: string | null; neighbours_json: string } {
+  const r = JSON.parse(t.result_json) as { energy: number; moods: Record<string, number> | null };
+  const ids = [...new Set(near.map((s) => first.get(s)).filter((x): x is string => !!x && x !== t.id))];
+  return {
+    track_id: t.id,
+    energy: r.energy,
+    moods_json: r.moods ? JSON.stringify(Object.fromEntries(MOODS.map((m) => [m, r.moods?.[m]]))) : null,
+    neighbours_json: JSON.stringify(ids),
+  };
 }
 
 /** The like list: each near hash's first track (catalog order), with how close it is. */

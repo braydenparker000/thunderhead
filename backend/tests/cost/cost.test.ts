@@ -284,10 +284,7 @@ describe('rows per endpoint', () => {
   it('measures the predictions against their budget', () => predictionCalls(cost, grant));
 
   // The phone's reports (report-calls.ts).
-  it('measures the reports against their budget', () => reportCalls(cost, grant));
-
-  // The listening pass (listen-calls.ts).
-  it('measures the listening pass against its budget', () => listenCalls(cost, grant));
+  it('measures reports and the listening pass', () => reportCalls(cost, grant).then(() => listenCalls(cost, grant)));
 
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);

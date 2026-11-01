@@ -7,9 +7,10 @@
 // twice). The rows Music wrote count on the bulk lane in the step's commit (the lane pauses the job
 // past 40,000 a day, and the quota hold from 80% of the day's budget). A last step records the
 // job's own failures, marks it applied, deletes its uploads and queues the phone file. A neighbours
-// job is one step: the file checked (size, hash, every row), stored in place of the last, and the
-// phone file queued. Each step stays well under the 50 subrequests an invocation may make (one
-// read, one call to Music; the last step a list and a delete).
+// job's first step checks the file (size, hash, every row) and stores it in place of the last; then
+// each track's row of `track_analysis` (energy, moods, neighbour ids) is written 2,000 tracks a
+// step, unchanged rows costing nothing, and the phone file is queued. Each step stays well under
+// the 50 subrequests an invocation may make (one read, one call to Music; the last a list and a delete).
 //
 // `music.listen.pack` (reads only; waits like heavy work from 80% of the day's budget): the Music
 // object builds the phone file and puts it in the bucket.
@@ -28,7 +29,9 @@ export const LISTEN_PACK = 'music.listen.pack';
 export const applyJobId = (jobId: string) => `listen.apply:${jobId}`;
 export const PACK_JOB_ID = 'listen.pack';
 
-type Cursor = { part: number } | { phase: 'finish' };
+type Cursor = { part: number } | { phase: 'finish' } | { phase: 'rows'; after: number };
+/** Tracks a neighbours step writes into `track_analysis` at most (DATA.md §8: ≤ 2,000 rows a step). */
+const ROWS_PER_STEP = 2_000;
 interface Input {
   /** Rows the Music object wrote. */
   written: number;
@@ -54,14 +57,20 @@ async function part(env: Env, vault: R2Bucket, p: Extract<ApplyPayload, { kind: 
     const got = lines(new Uint8Array(await obj.arrayBuffer()));
     for (const [i, [sha256, bytes, result_sha256]] of files.entries()) {
       const r = got[i] ? await checkResult(got[i], { sha256, bytes, result_sha256 }) : null;
-      if (r?.ok) rows.push({ sha256, analyzer: r.analyzer, v: r.v, result_json: r.result_json, pack: r.pack });
-      else bump(invalid, r ? r.reason : 'size');
+      if (r?.ok) {
+        const { ok: _, ...row } = r;
+        rows.push({ sha256, ...row });
+      } else bump(invalid, r ? r.reason : 'size');
     }
   }
   return musicObject(env).listenApply(p.job_id, n, rows, invalid);
 }
 
-async function neighbours(env: Env, vault: R2Bucket, p: Extract<ApplyPayload, { kind: 'audio.neighbours' }>) {
+async function neighbours(
+  env: Env,
+  vault: R2Bucket,
+  p: Extract<ApplyPayload, { kind: 'audio.neighbours' }>,
+): Promise<Input> {
   const [file, order] = await Promise.all([
     vault.get(incoming(p.job_id) + NEIGHBOURS_FILE),
     vault.get(specKey(p.job_id, 'order')),
@@ -80,7 +89,8 @@ async function neighbours(env: Env, vault: R2Bucket, p: Extract<ApplyPayload, { 
   if (!problem) await vault.put(NEIGHBOURS_KEY, neighboursFile(ord, bytes, p.n, p.k));
   const written = await musicObject(env).listenNeighbours(p.job_id, problem);
   await dropJobFiles(vault, p.job_id);
-  return { written, done: { pack: !problem } } satisfies Input;
+  // Accepted: each track's row of track_analysis follows, a page a step.
+  return problem ? { written, done: { pack: false } } : { written, next: { phase: 'rows', after: 0 } };
 }
 
 export const listenApplyJob: JobHandler = {
@@ -90,8 +100,15 @@ export const listenApplyJob: JobHandler = {
     const p = payload as ApplyPayload;
     const vault = env.VAULT;
     if (!vault) throw new JobError('not_configured');
+    const c0 = cursor as Cursor | null;
+    if (c0 && 'phase' in c0 && c0.phase === 'rows') {
+      const r = await musicObject(env).listenTrackRows(c0.after, ROWS_PER_STEP);
+      return r.last === null
+        ? { written: r.written, done: { pack: true } }
+        : { written: r.written, next: { phase: 'rows', after: r.last } };
+    }
     if (p.kind === 'audio.neighbours') return neighbours(env, vault, p);
-    const c = (cursor as Cursor | null) ?? (p.files.length ? { part: 1 } : { phase: 'finish' });
+    const c = c0 ?? (p.files.length ? { part: 1 } : { phase: 'finish' });
     if ('part' in c) {
       const written = await part(env, vault, p, c.part);
       return { written, next: c.part >= partsFor(p.files.length) ? { phase: 'finish' } : { part: c.part + 1 } };

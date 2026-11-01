@@ -19,7 +19,15 @@ describe('the Music object', () => {
         .toArray()
         .map((r) => r.name),
     );
-    expect(tables).toEqual(['analysis', 'catalog_log', 'external_jobs', 'meter_days', 'music_state', 'tracks']);
+    expect(tables).toEqual([
+      'analysis',
+      'catalog_log',
+      'external_jobs',
+      'meter_days',
+      'music_state',
+      'track_analysis',
+      'tracks',
+    ]);
     expect(
       await runInDurableObject(music(), (_o, state) =>
         state.storage.sql.exec('SELECT count(*) AS n FROM tracks').one(),

@@ -332,8 +332,8 @@
     "rows_written_max": 1
   },
   "alarm: one part of 50 results applied, the job ended, the phone file built (Music)": {
-    "rows_read_max": 1340,
-    "rows_written_max": 55
+    "rows_read_max": 1440,
+    "rows_written_max": 105
   },
   "GET /v1/jobs/:id (Music)": {
     "rows_read_max": 1,

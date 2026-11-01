@@ -6,6 +6,7 @@
 // the Worker checks with `additionalProperties: false`. Plain data with erasable types only, so
 // Node can import it without a build (the Python job's own lists are checked against this file).
 import type { Ms } from './api';
+import { MUSIC_MOODS, type MusicMood } from './music.ts';
 import type { Schema } from './work.ts';
 
 export const LISTEN_KINDS = ['audio.analysis', 'audio.neighbours'] as const;
@@ -47,26 +48,10 @@ export const LISTEN_LIMITS = {
   like_max: 50,
 } as const;
 
-/** The fixed mood list (jobs/audio/moods.py holds each mood's text prompt; MUSIC.md §9.1). */
-export const MOODS = [
-  'calm',
-  'peaceful',
-  'melancholy',
-  'sad',
-  'hopeful',
-  'joyful',
-  'romantic',
-  'nostalgic',
-  'dark',
-  'tense',
-  'energetic',
-  'triumphant',
-  'playful',
-  'dreamy',
-  'sacred',
-  'focused',
-] as const;
-export type Mood = (typeof MOODS)[number];
+/** The fixed mood list: Music's own (`MUSIC_MOODS`, shared with what the mind knows of each song,
+ * Music schema step 4), each scored by the listening pass from a text prompt in jobs/audio/moods.py. */
+export const MOODS = MUSIC_MOODS;
+export type Mood = MusicMood;
 
 /** The 24 keys: pitch classes in sharps, `m` for minor. */
 export const KEYS = [

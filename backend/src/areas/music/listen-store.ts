@@ -3,11 +3,14 @@
 // pruned after 90 days when the next job is issued). `analysis` keeps one row per audio hash: the
 // last good result as the Worker re-wrote it from its known fields, a 56-byte `pack` of the numbers
 // the phone and the neighbours step need, and the last attempt's analyzer version, failure and
-// failures in a row. A put that changes nothing writes nothing, so a repeated step costs 0 rows.
+// failures in a row. `track_analysis` is the per-track view other areas read (what the mind knows of
+// each song, Music step 4, reads `listeningRows` from it): `energy`, `moods_json` (MUSIC_MOODS to 0–1)
+// and `neighbours_json` (track ids, nearest first), filled as results and neighbours are applied. A
+// put that changes nothing writes nothing, so a repeated step costs 0 rows.
 import type { Db } from '../../objects/base';
 
-/** Music schema step 3 (music.ts): expand only. No secondary index: both tables are read by key or
- * whole (the jobs are a few dozen rows; the pass over `analysis` happens once a night). */
+/** Music schema step 3 (music.ts): expand only. No secondary index: the tables are read by key or
+ * whole (the jobs are a few dozen rows; the passes over the others happen once a night). */
 export const LISTEN_SQL = [
   `CREATE TABLE external_jobs (
     id TEXT PRIMARY KEY,
@@ -31,7 +34,16 @@ export const LISTEN_SQL = [
     failed TEXT,
     attempts INTEGER NOT NULL DEFAULT 0
   ) WITHOUT ROWID`,
+  `CREATE TABLE track_analysis (
+    track_id TEXT PRIMARY KEY,
+    energy REAL,
+    moods_json TEXT,
+    neighbours_json TEXT
+  ) WITHOUT ROWID`,
 ];
+
+/** The step's tables, as music.ts lists them for the backup and the export. */
+export const LISTEN_TABLES = ['external_jobs', 'analysis', 'track_analysis'] as const;
 
 export interface JobRow {
   id: string;
@@ -135,6 +147,9 @@ export interface ResultRow {
   v: number;
   result_json: string;
   pack: Uint8Array;
+  energy: number;
+  /** The moods as `track_analysis` keeps them, or null when the job ran without the model. */
+  moods_json: string | null;
 }
 
 /** A good result: replaces the row; the same job's result again writes nothing. */

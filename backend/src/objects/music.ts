@@ -10,7 +10,7 @@ import type { MusicTrackRow, MusicTracksResponse } from '../../../shared/contrac
 import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
-import { LISTEN_SQL } from '../areas/music/listen-store';
+import { LISTEN_SQL, LISTEN_TABLES } from '../areas/music/listen-store';
 import * as store from '../areas/music/store';
 import { type Ctx, MusicError, OPS, type Op } from '../areas/music/writer';
 import { EDIT_OPS } from '../areas/music/writer-edit';
@@ -54,13 +54,13 @@ export const MUSIC_MIGRATIONS: Migration[] = [
     kind: 'expand',
     sql: [METER_DAYS_SQL],
   },
-  // The listening pass (JOBS.md §3): Actions specs and one analysis row per audio hash.
+  // The listening pass (JOBS.md §3): Actions specs, one analysis row per audio hash, one per track.
   { version: 3, name: 'listen', kind: 'expand', sql: LISTEN_SQL },
 ];
 
-/** Every catalog table and the listening pass's two, in the weekly backup and the export (DATA.md §10);
+/** Every catalog table and the listening pass's, in the weekly backup and the export (DATA.md §10);
  * the meter's `meter_days` (counts only) stays out of both. */
-export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state', 'external_jobs', 'analysis'] as const;
+export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state', ...LISTEN_TABLES] as const;
 
 /** The one instance: the owner's library. */
 export const MUSIC_INSTANCE = 'library';

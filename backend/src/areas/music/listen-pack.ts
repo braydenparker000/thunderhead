@@ -25,8 +25,9 @@ const bytesOf = (h: string) => Uint8Array.from(h.match(/../g) ?? [], (x) => Numb
 export interface Neighbours {
   n: number;
   k: number;
-  /** Hex hashes in the file's order. */
+  /** Hex hashes in the file's order, and each one's place. */
   order: string[];
+  at: Map<string, number>;
   nbr: Uint16Array;
 }
 
@@ -51,7 +52,7 @@ export function readNeighbours(b: Uint8Array): Neighbours | null {
   const order: string[] = [];
   for (let i = 0; i < n; i++) order.push(hexOf(b.subarray(16 + i * 32, 48 + i * 32)));
   const copy = b.slice(16 + n * 32);
-  return { n, k, order, nbr: new Uint16Array(copy.buffer, 0, n * k) };
+  return { n, k, order, at: new Map(order.map((h, i) => [h, i])), nbr: new Uint16Array(copy.buffer, 0, n * k) };
 }
 
 /** The spec of a neighbours job: hashes in order (raw bytes) and their int8 embeddings. */
@@ -126,7 +127,6 @@ export function buildPack(
   const at = (name: string) => sections[name][0];
   const first = new Map<string, number>();
   for (const [i, r] of rows.entries()) if (!first.has(r.sha256)) first.set(r.sha256, i);
-  const place = nb ? new Map(nb.order.map((h, i) => [h, i])) : null;
   for (const [i, r] of rows.entries()) {
     const p = r.pack.length === PACK_BYTES ? r.pack : new Uint8Array(PACK_BYTES);
     view.setUint16(at('bpm') + i * 2, p[0] | (p[1] << 8), true);
@@ -138,7 +138,7 @@ export function buildPack(
     out.set(p.subarray(8, 8 + MOODS.length), at('moods') + i * MOODS.length);
     out.set(p.subarray(24, 24 + L.dim), at('emb') + i * L.dim);
     // Nearest first; a neighbour no longer in the catalog is skipped, the row ends in 0xFFFF.
-    const row = place?.get(r.sha256);
+    const row = nb?.at.get(r.sha256);
     let j = 0;
     if (nb && row !== undefined && t < NONE16)
       for (let q = 0; q < nb.k && j < k; q++) {

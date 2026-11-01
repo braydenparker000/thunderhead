@@ -8,6 +8,7 @@
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { LISTEN_LIMITS as L } from '../../../shared/contract/listen.ts';
+import { MUSIC_MOODS } from '../../../shared/contract/music.ts';
 import { utcDay } from '../../src/lib/time';
 import { apiJson, coreSql, makeAgent, setupOwner } from '../helpers';
 import { drain, manifest, music, musicSql, pack, put, result, seedTracks } from '../listen-helpers';
@@ -146,6 +147,18 @@ describe('collecting', () => {
     // A stored result holds the schema's fields only, and the lane counted its rows.
     const kept = await musicSql<{ result_json: string }>('SELECT result_json FROM analysis WHERE sha256 = ?', shas[0]);
     expect(Object.keys(JSON.parse(kept[0].result_json))).not.toContain('note');
+    // The per-track view (what Music step 4 reads): both tracks holding song 0's audio, its energy and
+    // the moods by MUSIC_MOODS, no neighbours yet; a refused result leaves no row.
+    const per = await musicSql<{ track_id: string; energy: number; moods_json: string; neighbours_json: null }>(
+      'SELECT track_id, energy, moods_json, neighbours_json FROM track_analysis WHERE track_id IN (?, ?, ?) ORDER BY track_id',
+      `r2_native_${shas[0]}`,
+      'r2_dup_of_song_zero',
+      `r2_native_${shas[4]}`,
+    );
+    expect(per.map((r) => r.track_id)).toEqual(['r2_dup_of_song_zero', `r2_native_${shas[0]}`]);
+    expect(per[0]).toMatchObject({ energy: 0, neighbours_json: null });
+    expect(Object.keys(JSON.parse(per[0].moods_json))).toEqual([...MUSIC_MOODS]);
+    expect((await musicSql<{ n: number }>('SELECT count(*) AS n FROM track_analysis'))[0].n).toBe(43);
     const lane = await coreSql<{ value_json: string }>("SELECT value_json FROM settings WHERE key = 'bulk.day'");
     expect(JSON.parse(lane[0].value_json).rows).toBeGreaterThanOrEqual(42);
     const left = await env.VAULT.list({ prefix: `jobs/incoming/${first}/` });

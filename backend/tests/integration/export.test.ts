@@ -81,7 +81,7 @@ describe('download everything', () => {
     expect(names).toContain('tables/ledger.jsonl');
     expect(names).toContain('tables/ledger-2.jsonl');
     // The music catalog's tables, from the Music object (empty here: one empty file each).
-    for (const t of ['tracks', 'catalog_log', 'music_state', 'external_jobs', 'analysis'])
+    for (const t of ['tracks', 'catalog_log', 'music_state', 'external_jobs', 'analysis', 'track_analysis'])
       expect(names).toContain(`tables/music.${t}.jsonl`);
     // The senses' daily counts and Study's library (the PDFs stay in the bucket, the index is rebuilt).
     expect(names).toContain('tables/senses.rollups.jsonl');

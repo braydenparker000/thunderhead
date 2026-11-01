@@ -131,6 +131,7 @@ describe('the weekly backup', () => {
       'music_state',
       'external_jobs',
       'analysis',
+      'track_analysis',
     ]);
     // The senses' rollups and archive records (the events are in the daily archive), and Study's
     // library without its full-text index (rebuilt from the pages).

@@ -21,6 +21,7 @@ import type { Db } from '../../objects/base';
 import { type AnalysisManifest, checkManifest, embOf, type NeighboursManifest } from './listen-check';
 import { neighboursSpec } from './listen-pack';
 import * as store from './listen-store';
+import * as tracks from './listen-store-tracks';
 
 export interface Spec {
   shas?: string[];
@@ -211,7 +212,8 @@ export function apply(
   const c = countsOf(r) as Counted;
   if (c.parts?.includes(part)) return 0;
   let written = 0;
-  for (const x of rows) written += store.putResult(db, x, id, now);
+  for (const x of rows)
+    written += store.putResult(db, x, id, now) + tracks.putTrackAnalysis(db, x.sha256, x.energy, x.moods_json);
   const bad = Object.values(invalid).reduce((n, x) => n + x, 0);
   const parts = [...(c.parts ?? []), part];
   const counts: Counted = { ...c, valid: c.valid + rows.length, invalid: c.invalid + bad, parts };
