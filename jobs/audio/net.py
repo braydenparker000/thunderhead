@@ -1,9 +1,12 @@
 """The job's two connections, with the standard library only: the Worker (the ci key) and the music bucket
 (a read-only R2 key, S3 signature v4).
 
-Secrets are taken out of the environment once, at the start of the job (take_secrets), so no process
-the job starts (the analysing workers, opusdec) inherits them; they go nowhere else: never into a log
-line, an error, a file or a URL. Redirects are refused, so a bearer token or a signature never follows
+Secrets are taken out of the environment once, at the start of the job (take_secrets), so the processes
+the job starts (the analysing workers, opusdec) begin with clean environments and can't print or pass
+them on. That is hygiene, not a wall: this process still holds them, its /proc/<pid>/environ shows them
+as it started, and the runner's user (passwordless sudo) can read any of it; the boundary is the keys'
+own scope and the `jobs` environment limited to main (SECURITY.md §12.4). They go nowhere else: never
+into a log line, an error, a file or a URL. Redirects are refused, so a bearer token or a signature never follows
 one to another host. Every failure is raised as Failed(reason) with a reason from a fixed list; the caller prints only that
 reason, so no address, key, hash or server message ever reaches the public log.
 """

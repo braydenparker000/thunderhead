@@ -1,9 +1,10 @@
 """The job (JOBS.md §3.4), the local run and the self-test.
 
-The job: take the secrets out of the environment (nothing the job starts inherits them), fetch the spec
+The job: take the secrets out of the environment (what it starts begins with a clean one; hygiene, not a
+wall, see net.py), fetch the spec
 with the ci key; for each song, 4 at a time: download it in this process with the read-only key into the
-job's temporary folder, checking its SHA-256 on the way, then hand the file to a worker process (no
-secrets, a memory limit, 10 minutes a song) that decodes it with a capped output, analyses it a chunk at
+job's temporary folder, checking its SHA-256 on the way, then hand the file to a worker process (a clean
+environment, a memory limit, 10 minutes a song) that decodes it with a capped output, analyses it a chunk at
 a time and deletes it. A worker that dies costs only the songs it held: the pool is made again and each
 of them is tried once more alone, then counted failed. Whatever was analysed is uploaded, 50 results to
 a part, the manifest last, then collected. A neighbours job works out each song's 50 nearest from the
@@ -161,7 +162,7 @@ class Pools:
 
 
 def _one(bucket, pools, tmp, i, sha256):
-    """One song: downloaded here (the workers hold no key), analysed in a worker, its file deleted."""
+    """One song: downloaded here (the workers are given no key), analysed in a worker, its file deleted."""
     audio = os.path.join(tmp, f"{i}.opus")
     try:
         bucket.fetch(sha256, audio)
