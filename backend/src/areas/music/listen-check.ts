@@ -119,20 +119,30 @@ export async function checkResult(line: Uint8Array, f: ManifestFile): Promise<Re
   if ((r.start_silence_ms as number) + (r.end_silence_ms as number) > (r.duration_ms as number))
     return { ok: false, reason: 'schema' };
   if (r.sha256 !== f.sha256) return { ok: false, reason: 'key' };
-  // Known fields only, in the schema's order.
-  const clean = Object.fromEntries(FIELDS.map((k) => [k, r[k]]));
+  const clean = rebuild(r);
   return {
     ok: true,
     result_json: JSON.stringify(clean),
     pack: packOf(clean),
-    analyzer: (r.analyzer as { version: string }).version,
-    v: r.v as number,
-    energy: r.energy as number,
+    analyzer: (clean.analyzer as { version: string }).version,
+    v: clean.v as number,
+    energy: clean.energy as number,
     // In MUSIC_MOODS' order, for the per-track view (track_analysis).
-    moods_json: r.moods
-      ? JSON.stringify(Object.fromEntries(MOODS.map((m) => [m, (r.moods as Record<string, number>)[m]])))
-      : null,
+    moods_json: clean.moods ? JSON.stringify(clean.moods) : null,
   };
+}
+
+/** A checked result re-written from the schema's own fields only, at every level (the top level in the
+ * schema's order, `analyzer` as its two fields, `moods` by MUSIC_MOODS, `emb` as numbers): nothing
+ * the run sent beyond them can reach a store, whatever the validator let by. */
+export function rebuild(r: Record<string, unknown>): Record<string, unknown> {
+  const own = (o: unknown, k: string) =>
+    o && typeof o === 'object' && Object.hasOwn(o, k) ? (o as Record<string, unknown>)[k] : undefined;
+  const clean: Record<string, unknown> = Object.fromEntries(FIELDS.map((k) => [k, own(r, k) ?? null]));
+  clean.analyzer = { name: own(r.analyzer, 'name'), version: own(r.analyzer, 'version') };
+  clean.moods = r.moods ? Object.fromEntries(MOODS.map((m) => [m, own(r.moods, m)])) : null;
+  clean.emb = Array.isArray(r.emb) ? r.emb.map(Number) : null;
+  return clean;
 }
 
 const unit8 = (x: unknown) => (typeof x === 'number' ? Math.round(Math.min(1, Math.max(0, x)) * 250) : NONE);

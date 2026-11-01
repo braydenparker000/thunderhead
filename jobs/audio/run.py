@@ -149,6 +149,9 @@ def run_analysis(w, job_id, spec):
         raise Failed("bad_spec")
     if len(set(shas)) != len(shas) or spec.get("v") != 2:
         raise Failed("bad_spec")
+    # The Worker refuses results from any other analyzer version: say so before analysing anything.
+    if spec.get("analyzer") != {"name": NAME, "version": VERSION}:
+        raise Failed("analyzer_version")
     log(f"spec: {len(shas)} songs")
     started = now_ms()
     tmp = tempfile.mkdtemp(prefix="jobs-audio-", dir=os.environ.get("RUNNER_TEMP"))

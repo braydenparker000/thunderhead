@@ -69,7 +69,9 @@ export function check(v: unknown, s: Schema, path = '', out: string[] = []): str
     for (const r of s.required ?? []) if (o[r] === undefined) out.push(`${path ? `${path}.` : ''}${r}: required`);
     for (const [k, x] of Object.entries(o)) {
       const p = path ? `${path}.${k}` : k;
-      const sub = s.properties?.[k];
+      // The schema's own fields only: `constructor`, `__proto__` or `toString` are not fields of any
+      // schema, though an object's prototype answers to them.
+      const sub = s.properties && Object.hasOwn(s.properties, k) ? s.properties[k] : undefined;
       if (sub) check(x, sub, p, out);
       else if (s.additionalProperties === false) out.push(`${p}: not a field here`);
     }

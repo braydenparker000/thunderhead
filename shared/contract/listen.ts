@@ -101,7 +101,6 @@ export function camelotOf(key: string | null): string | null {
 
 const HEX64 = '^[0-9a-f]{64}$';
 const JOB_ID = '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$';
-const SEMVER = '^[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}$';
 const unit: Schema = { type: 'number', minimum: 0, maximum: 1 };
 const nullable = (s: Schema): Schema => ({ ...s, type: [s.type as 'number', 'null'] });
 const obj = (properties: Record<string, Schema>): Schema => ({
@@ -111,9 +110,10 @@ const obj = (properties: Record<string, Schema>): Schema => ({
   additionalProperties: false,
 });
 const int = (minimum: number, maximum: number): Schema => ({ type: 'integer', minimum, maximum });
+/** This build's analyzer only: a result or manifest from another version is refused (re-run it). */
 const analyzer = obj({
   name: { type: 'string', enum: [ANALYZER.name] },
-  version: { type: 'string', pattern: SEMVER, maxLength: 11 },
+  version: { type: 'string', enum: [ANALYZER.version] },
 });
 const MS_MAX = 4_102_444_800_000; // 2100-01-01
 
