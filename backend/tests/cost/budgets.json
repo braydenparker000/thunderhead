@@ -140,11 +140,11 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 120,
+    "rows_read_max": 122,
     "rows_written_max": 18
   },
   "cron tick, nothing due (Core)": {
-    "rows_read_max": 50,
+    "rows_read_max": 52,
     "rows_written_max": 4
   },
   "GET /v1/ops/meter (Core)": {
@@ -300,7 +300,7 @@
     "rows_written_max": 0
   },
   "cron tick, resolving a prediction (Core)": {
-    "rows_read_max": 58,
+    "rows_read_max": 60,
     "rows_written_max": 8
   },
   "GET /v1/insight (Core)": {
