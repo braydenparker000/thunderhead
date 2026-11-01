@@ -501,16 +501,19 @@ Built 2026-11-01 (NEXT-BATCH.md part 7). The phone sends the shows the owner fol
 positions (`PUT /v1/podcasts/follows`, frontend/th/podcasts/progress.js), so the night knows them.
 
 1. In step 7, first: `th podcasts new`. The night's own home lines take `line.1`–`line.3`; this one is `line.4`.
-2. It reads `GET /v1/podcasts/follows` and picks the followed shows due a check: never checked, or not in the
+2. It reads `GET /v1/podcasts/follows` (for a mind: no title, author or artwork) and picks the followed shows due a check: never checked, or not in the
    last 20 hours (a show whose feed failed waits 20 h × 2 per failure in a row: 40, 80, then 160 h at most), the
    longest unchecked first, **at most 20 a night** (`PODCAST_LIMITS.night_feeds`); the rest wait for the next
    night, so each show is read at most once a day.
-3. For each, the feed through the Worker (`GET /v1/podcasts/feed`, one try, no retries). For mind:night the
-   Worker takes only a show the owner follows (any other address: 403 `not_followed`, nothing fetched) and at
-   most 40 reads a UTC day, counted in a stored row (then 429, which stops the run). The feed is read with the
-   phone's own reader (th/podcasts/feed.js). An episode is **new** when it was published after the newest one
-   seen at the show's last check (the first time: in the last day, and after the follow), not more than an hour
-   ahead, and no phone has started or finished it (`GET /v1/podcasts/progress?since=` a week back).
+3. For each, the feed's numbers through the Worker (`GET /v1/podcasts/feed?url=&since=&count=1`, counts mode,
+   one try, no retries): the Worker reads the feed (RSS items, Atom entries; at most 512 KB and 8 s,
+   `backend/src/areas/podcasts/counts.ts`) and answers `{new_n, latest_at}`, numbers only, or 502 with a fixed
+   reason (`not_a_feed`, `too_slow`, `unreachable`). Counts mode is the night's only mode (a raw feed: 403
+   `counts_only`); it takes only a show the owner follows (any other address: 403 `not_followed`, nothing
+   fetched) and at most 40 reads a UTC day, counted in a stored row (then 429, which stops the run). An episode
+   is **new** when it was published after `since` (after the newest one seen at the show's last check; the first
+   time, the last day and after the follow), not more than an hour ahead, and no phone has started or finished
+   it (the Worker leaves those out).
 4. The checks go back in one call (`POST /v1/podcasts/follows/checked`: each show's newest episode time, never
    moved back or past the Worker's clock and an hour, and how many were new; a feed that failed as
    `failed: true`, so it waits longer instead of taking a slot every night).
@@ -526,16 +529,15 @@ positions (`PUT /v1/podcasts/follows`, frontend/th/podcasts/progress.js), so the
    (`reason`: `nothing_new`, or the Worker's code when the line was refused, such as `nudge_repeat` after the
    owner dismissed it). Nothing more to do with it.
 
-**The taint is the Worker's.** The follows, the positions and a feed carry what publishers wrote (show titles,
-feed addresses, the feed itself), so when the Worker serves one of them to a mind principal it marks that
-request's session tainted first (source `podcasts`, `backend/src/areas/podcasts/taint.ts`), whatever the client
-and however the path was spelled. A mind must name a claimed, live session of its role (`TH-Session`): none is
-422 (so raw `curl`, which sends none, gets nothing), a made-up one 403 `session_required`. `th podcasts new`
-therefore leaves the night tainted, which is why it runs in step 7, after every step that writes memory (a taint
-blocks day notes, facts, reminders, work orders and cards; not surfaces, predictions or the session note). The
-hook's rule (`th get` naming podcasts anywhere, `curl`/`wget` to `/v1/podcasts`) is a soft first layer, and th
-refuses a path that isn't plain (§5.1). A night reads at most 20 feeds, and writes at most 20 rows for its
-checks, 20 for its count of reads and 2 for the mark.
+**The night never receives podcast text**, so `th podcasts new` leaves it untainted and the next night's
+claim inherits nothing: its follows come without titles, and a feed only as numbers. Whatever still carries
+publishers' words to a mind marks the session first: the positions (feed addresses of any show listened to),
+served to a mind only with `TH-Session` naming a claimed, live session of its role (none: 422, so raw `curl`
+gets nothing; a made-up one: 403 `session_required`), which Core marks tainted (source `podcasts`,
+`backend/src/areas/podcasts/taint.ts`) before the answer goes out. The raw feed is the owner's device's only.
+The hook's rule (`th get` naming podcasts anywhere, `curl`/`wget` to `/v1/podcasts`) is a soft first layer,
+and th refuses a path that isn't plain (§5.1). A night reads at most 20 feeds, and writes at most 20 rows for
+its checks and 20 for its count of reads.
 
 ---
 

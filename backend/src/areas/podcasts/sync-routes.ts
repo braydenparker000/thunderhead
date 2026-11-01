@@ -4,9 +4,9 @@
 // first. A PUT's items are checked one by one: one that can't be taken (malformed, or its
 // `updated_at` more than an hour ahead of the Worker's clock) is reported by its place in
 // `refused` and the rest are kept. The night reads both (the follows with its last check of each
-// show) and records the shows it read; a mind session that reads them is marked tainted first
-// (taint.ts: feed addresses and show titles are their publishers' words). Nothing here writes the
-// change feed: the phones ask by time when Podcasts opens.
+// show, without titles: publishers' words) and records the shows it read; a mind session that reads
+// the positions (feed addresses of any show listened to) is marked tainted first (taint.ts). Nothing
+// here writes the change feed: the phones ask by time when Podcasts opens.
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import {
@@ -14,12 +14,13 @@ import {
   PODCAST_LIMITS as L,
   type PodcastCheckedRequest,
   type PodcastFollow,
+  type PodcastNightFollowRow,
   type PodcastPage,
   type PodcastProgress,
   type PodcastSyncResponse,
   progressKeyProblem,
 } from '../../../../shared/contract/podcasts.ts';
-import { type AppEnv, guard } from '../../http/auth';
+import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { json, parse } from '../../http/validate';
 import { decodeCursor, encodeCursor } from '../../lib/cursor';
@@ -134,8 +135,11 @@ export const podcastSyncRoutes = new Hono<AppEnv>()
   })
   .get('/podcasts/follows', guard('GET /v1/podcasts/follows'), async (c) => {
     const { after, limit } = startOf('podcasts/follows', c.req.query());
-    await taintMindReader(c);
-    return c.json(pageOut('podcasts/follows', await fresh(coreObject(c.env).podcastFollows(after, limit))));
+    const page = pageOut('podcasts/follows', await fresh(coreObject(c.env).podcastFollows(after, limit)));
+    if (whoOf(principalOf(c)) === 'D') return c.json(page);
+    // A mind gets no title, author or artwork (their publishers' words), so this read taints nothing.
+    const items: PodcastNightFollowRow[] = page.items.map(({ title: _t, author: _a, artwork: _w, ...f }) => f);
+    return c.json({ ...page, items });
   })
   .post('/podcasts/follows/checked', guard('POST /v1/podcasts/follows/checked'), async (c) => {
     const r = await json(c, checkedBody);

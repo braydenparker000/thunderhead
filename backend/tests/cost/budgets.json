@@ -411,12 +411,20 @@
     "rows_read_max": 1,
     "rows_written_max": 0
   },
-  "GET /v1/podcasts/follows (20 shows, the night, marking its session) (Core)": {
-    "rows_read_max": 25,
+  "GET /v1/podcasts/follows (20 shows, the night: no titles, nothing marked) (Core)": {
+    "rows_read_max": 20,
+    "rows_written_max": 0
+  },
+  "GET /v1/podcasts/progress (the night, marking its session) (Core)": {
+    "rows_read_max": 6,
     "rows_written_max": 2
   },
-  "GET /v1/podcasts/follows (20 shows, the night, already marked) (Core)": {
-    "rows_read_max": 23,
+  "GET /v1/podcasts/progress (the night, already marked) (Core)": {
+    "rows_read_max": 4,
+    "rows_written_max": 0
+  },
+  "GET /v1/podcasts/feed, counts: started episodes looked up (3) (Core)": {
+    "rows_read_max": 3,
     "rows_written_max": 0
   }
 }

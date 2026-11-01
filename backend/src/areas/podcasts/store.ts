@@ -117,6 +117,17 @@ export function markChecked(
   );
 }
 
+/** Of these positions' keys, the ones a phone has started or finished: one lookup each (a handful). */
+export function started(db: Db, keys: string[]): string[] {
+  return keys.filter((key) => {
+    const r = db.one<{ played: number; position_s: number }>(
+      'SELECT played, position_s FROM podcast_progress WHERE key = ?',
+      key,
+    );
+    return r !== null && (r.played === 1 || r.position_s > 0);
+  });
+}
+
 /** Whether the owner follows this feed (the night may read only those). One row read. */
 export const followed = (db: Db, feedUrl: string) =>
   db.one<{ f: number }>('SELECT followed AS f FROM podcast_follows WHERE feed_url = ?', feedUrl)?.f === 1;

@@ -78,6 +78,18 @@ export interface PodcastFollowRow extends PodcastFollow {
   fails: number;
 }
 
+/** A follow as the night reads it: no title, author or artwork (their publishers' words), only
+ * what the new-episode check needs. */
+export type PodcastNightFollowRow = Omit<PodcastFollowRow, 'title' | 'author' | 'artwork'>;
+
+/** Counts mode (`GET /v1/podcasts/feed?url=&since=&count=1`, the night's only mode): numbers only.
+ * `new_n`: episodes published after `since` that no phone has started; `latest_at`: the newest
+ * publication time seen (not ahead of the Worker's clock and an hour), or null. */
+export interface PodcastFeedCounts {
+  new_n: number;
+  latest_at: Ms | null;
+}
+
 export interface PodcastProgressRequest {
   items: PodcastProgress[];
 }

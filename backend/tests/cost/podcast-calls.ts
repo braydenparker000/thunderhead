@@ -88,14 +88,21 @@ export async function podcastCalls(cost: Cost, grant: (ip: string, password?: st
     core(),
   );
   await cost(
-    'GET /v1/podcasts/follows (20 shows, the night, marking its session) (Core)',
+    'GET /v1/podcasts/follows (20 shows, the night: no titles, nothing marked) (Core)',
     () => api('GET', '/v1/podcasts/follows?since=0', night),
     200,
     core(),
   );
+  // The positions carry feed addresses: a mind's read marks its session (the first time writes it).
   await cost(
-    'GET /v1/podcasts/follows (20 shows, the night, already marked) (Core)',
-    () => api('GET', '/v1/podcasts/follows?since=0', night),
+    'GET /v1/podcasts/progress (the night, marking its session) (Core)',
+    () => api('GET', `/v1/podcasts/progress?since=${Date.now() + 1}`, night),
+    200,
+    core(),
+  );
+  await cost(
+    'GET /v1/podcasts/progress (the night, already marked) (Core)',
+    () => api('GET', `/v1/podcasts/progress?since=${Date.now() + 1}`, night),
     200,
     core(),
   );
@@ -124,6 +131,21 @@ export async function podcastCalls(cost: Cost, grant: (ip: string, password?: st
     'GET /v1/podcasts/feed, the night refused (not followed) (Core)',
     admit('https://elsewhere.example.org/x.xml'),
     403,
+    core(),
+  );
+  // Counts mode leaves out what a phone started: one lookup per new episode.
+  await cost(
+    'GET /v1/podcasts/feed, counts: started episodes looked up (3) (Core)',
+    async () => {
+      await runInDurableObject(core() as unknown as DurableObjectStub<Core>, (o: Core) =>
+        o.podcastsStarted(
+          FEED,
+          [1, 2, 3].map((n) => n.toString(16).padStart(16, '0')),
+        ),
+      );
+      return new Response(null, { status: 204 });
+    },
+    204,
     core(),
   );
   await coreSql("DELETE FROM settings WHERE key = 'prune.day'");

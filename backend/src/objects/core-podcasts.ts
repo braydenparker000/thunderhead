@@ -75,6 +75,13 @@ export abstract class CorePodcasts extends CoreReports {
     );
   }
 
+  /** Of this show's episodes (by the phone's ids), the ones a phone has started or finished: counts
+   * mode leaves them out of "new". At most 50 looked up. */
+  podcastsStarted(feedUrl: string, ids: string[]): string[] {
+    const keys = ids.slice(0, 50).map((id) => `${feedUrl}#${id}`);
+    return store.started(this.db, keys).map((k) => k.slice(feedUrl.length + 1));
+  }
+
   /** Whether the night may read this feed now (a followed show's, within the day's count). */
   admitNightFeed(feedUrl: string): ReturnType<typeof sync.admitNightFeed> {
     return this.ctx.storage.transactionSync(() => sync.admitNightFeed(this.db, feedUrl, Date.now()));

@@ -10,7 +10,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {episodeID} from '../../frontend/th/podcasts/feed.js';
 import {taintOf} from '../hooks/lib/taint.mjs';
-import {due, freshOf, gapOf, lineFor} from '../cli/lib/podcasts.mjs';
+import {due, gapOf, lineFor, sinceOf} from '../cli/lib/podcasts.mjs';
 import {ROOT, env, startFake, th} from './helpers.mjs';
 
 const H = 3_600_000;
@@ -48,16 +48,11 @@ test('due: followed shows never checked or not for 20 hours, the longest uncheck
   assert.deepEqual(due(rows, now).map(f => f.feed_url), ['d', 'b', 'e']);
 });
 
-test('freshOf: published since the last check (the first time: the last day), not started, the newest kept', () => {
+test('sinceOf: after the newest episode the last check saw; the first time, the last day and after the follow', () => {
   const now = Date.now();
-  const id = i => episodeID(`g-1-${i}`);
-  const episodes = [3, 10, 30, -5].map((h, i) => ({id: id(i), publishedAt: new Date(now - h * H).toISOString()}));
-  const started = new Set([`${feed(1)}#${id(0)}`]);
-  // Last check saw an episode 20 hours ago: the 10 h one is new, the 3 h one was started, a future one is left out.
-  assert.deepEqual(freshOf({feed_url: feed(1), latest_at: now - 20 * H, updated_at: 0}, {episodes}, started, now),
-    {feed_url: feed(1), latest_at: now - 3 * H, new_n: 1});
-  // Never checked: the last day only.
-  assert.equal(freshOf({feed_url: feed(1), latest_at: null, updated_at: 0}, {episodes}, new Set(), now).new_n, 2);
+  assert.equal(sinceOf({latest_at: now - 20 * H, updated_at: 0}, now), now - 20 * H);
+  assert.equal(sinceOf({latest_at: null, updated_at: 0}, now), now - 24 * H);
+  assert.equal(sinceOf({latest_at: null, updated_at: now - 2 * H}, now), now - 2 * H);
 });
 
 /** The home line th placed (the fake's surfaces), or undefined. */
@@ -172,17 +167,38 @@ test('the hook (a soft first layer) marks every spelling of a podcast read by ha
   assert.equal(of('th get /v1/threads/today'), null);
 });
 
-test('the Worker marks the session itself, whatever the spelling; a path that changes as a URL is refused', withFake(async fake => {
+test('th podcasts new end to end leaves the night untainted: titleless follows, feeds as numbers', withFake(async fake => {
   fake.addFollow({feed_url: feed(1), title: 'Invented Show'});
+  fake.setFeed(feed(1), rss(1, [1, 30]));
+  const e = night(fake);
+  const r = await th(['podcasts', 'new'], e);
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(r.json.new_episodes, 1);
+  assert.deepEqual([...fake.state.tainted], [], 'no session marked');
+  // It asked only the titleless follows and counts mode, never the positions or a raw feed.
+  const asked = fake.state.requests.filter(q => q.path.startsWith('/v1/podcasts/')).map(q => [q.method, q.path, q.query.count ?? null]);
+  assert.deepEqual(asked, [['GET', '/v1/podcasts/follows', null], ['GET', '/v1/podcasts/feed', '1'], ['POST', '/v1/podcasts/follows/checked', null]]);
+}));
+
+test('by hand: the follows come without titles, a raw feed is refused, the positions mark; odd paths are refused', withFake(async fake => {
+  fake.addFollow({feed_url: feed(1), title: 'Invented Show'});
+  fake.setFeed(feed(1), rss(1, [1]));
   const e = night(fake);
   const session = e.CLAUDE_CODE_REMOTE_SESSION_ID;
-  // Plain, and a flag's value first: both reach the follows, and the Worker marks the session.
+  // Plain, and a flag's value first: the follows, without a title, and nothing marked.
   for (const args of [['get', '/v1/podcasts/follows'], ['get', '--x', 'y', '/v1/podcasts/follows']]) {
-    fake.state.tainted.clear();
     const r = await th(args, e);
     assert.equal(r.code, 0, `${args.join(' ')}: ${r.stderr}`);
-    assert.ok(fake.state.tainted.has(session), args.join(' '));
+    assert.ok(!r.stdout.includes('Invented'), args.join(' '));
   }
+  assert.deepEqual([...fake.state.tainted], []);
+  // The raw feed is the device's: refused to the night.
+  const raw = await th(['get', '/v1/podcasts/feed', `url=${feed(1)}`], e);
+  assert.equal(raw.code, 6);
+  assert.ok(!raw.stdout.includes('Invented'));
+  // The positions carry feed addresses: the Worker marks the session that reads them.
+  assert.equal((await th(['get', '/v1/podcasts/progress', 'since=0'], e)).code, 0);
+  assert.ok(fake.state.tainted.has(session));
   // `..\` would match /v1/threads/:id here and arrive as /v1/podcasts/follows: th refuses it first.
   const before = fake.state.requests.length;
   for (const path of ['/v1/threads/..\\podcasts\\follows', '/v1/threads/%2e%2e/podcasts/follows', '/v1/threads/./x']) {
@@ -191,11 +207,6 @@ test('the Worker marks the session itself, whatever the spelling; a path that ch
     assert.match(r.stderr, /not a plain route path/);
   }
   assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
-  // th podcasts new prints counts only, and still the Worker marks the session that read the follows.
-  fake.state.tainted.clear();
-  fake.setFeed(feed(1), rss(1, [1]));
-  assert.equal((await th(['podcasts', 'new'], e)).code, 0);
-  assert.ok(fake.state.tainted.has(session));
 }));
 
 test('th podcasts new: usage, and only the night may', withFake(async fake => {

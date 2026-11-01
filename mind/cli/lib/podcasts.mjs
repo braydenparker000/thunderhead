@@ -2,12 +2,13 @@
 // the shows the owner follows (the phone syncs the follows to the Worker). At most 20 shows a night
 // (`night_feeds`), each at most once in 20 hours (`check_gap_ms`; a show whose feed failed waits
 // 20 h × 2^fails, up to about a week), the longest unchecked first; the rest wait for the next
-// night. Each feed comes through the Worker (GET /v1/podcasts/feed, which takes only followed shows
-// and counts the night's reads) and is read here with the phone's own reader (th/podcasts/feed.js).
-// An episode is new when it was published after the newest one seen at the show's last check (the
-// first time: in the last day, and after the follow) and no phone has started it (GET
-// /v1/podcasts/progress). The checks go back to the Worker (POST /v1/podcasts/follows/checked), a
-// failed feed's too.
+// night. The night never receives podcast text, so nothing here taints it: its follows come without
+// titles (GET /v1/podcasts/follows), and each feed comes as numbers only (GET /v1/podcasts/feed in
+// counts mode, `&since=&count=1`: the Worker reads the feed, takes only followed shows and counts the
+// night's reads). An episode is new when it was published after the newest one seen at the show's
+// last check (the first time: in the last day, and after the follow) and no phone has started it
+// (the Worker leaves those out). The checks go back to the Worker (POST
+// /v1/podcasts/follows/checked), a failed feed's too.
 //
 // The home line is counts only, "2 new episodes in Podcasts." (one: "1 new episode in Podcasts."),
 // never a show's name: titles are their publishers' words (outside text), and a surface is read
@@ -17,7 +18,6 @@
 // hours, so a refired night still places it.
 //
 //   → {"checked","failed","waiting","shows_with_new","new_episodes","placed","slot","reason"}
-import {parseFeed} from '../../../frontend/th/podcasts/feed.js';
 import {parseArgs} from './args.mjs';
 import {CONTRACT} from './contract.mjs';
 import {request} from './http.mjs';
@@ -27,9 +27,6 @@ const L = CONTRACT.podcasts?.limits ?? {night_feeds: 20, check_gap_ms: 72_000_00
 /** The home line's slot: the night's own lines take line.1–3 (mind/ROLES.md step 7). */
 export const SLOT = 'line.4';
 const DAY = 86_400_000;
-const HOUR = 3_600_000;
-/** How far back a position counts as "started" (a week, and a day for the night itself). */
-const STARTED_MS = 8 * DAY;
 const PAGES = 10;
 
 /** Every row a paged podcasts route has since `since`. @param {string} path @param {number} since */
@@ -57,21 +54,9 @@ export function due(follows, now) {
     .sort((a, b) => (a.checked_at ?? 0) - (b.checked_at ?? 0) || (a.feed_url < b.feed_url ? -1 : 1));
 }
 
-/** One show's feed against its last check: the newest episode's time and how many are new.
- * @param {{feed_url: string, latest_at: number|null, updated_at: number}} f @param {{episodes: any[]}} feed
- * @param {Set<string>} started @param {number} now */
-export function freshOf(f, feed, started, now) {
-  const since = f.latest_at ?? Math.max(f.updated_at, now - DAY);
-  let latest = f.latest_at ?? null;
-  let n = 0;
-  for (const e of feed.episodes) {
-    const t = Date.parse(e.publishedAt);
-    if (!Number.isFinite(t) || t > now + HOUR) continue;
-    latest = Math.max(latest ?? 0, t);
-    if (t > since && !started.has(`${f.feed_url}#${e.id}`)) n++;
-  }
-  return {feed_url: f.feed_url, latest_at: latest, new_n: n};
-}
+/** Since when a show's episodes are new: after the newest one its last check saw; the first time,
+ * the last day (and after the follow). @param {{latest_at: number|null, updated_at: number}} f @param {number} now */
+export const sinceOf = (f, now) => f.latest_at ?? Math.max(f.updated_at ?? 0, now - DAY);
 
 /** The home line for this many new episodes, counts only (a home line ends with a full stop), or
  * null for none. @param {number} total */
@@ -101,15 +86,15 @@ export async function podcasts(argv) {
   const now = Date.now();
   const follows = await rows('/v1/podcasts/follows', 0);
   const todo = due(follows, now);
-  const started = new Set();
-  if (todo.length)
-    for (const p of await rows('/v1/podcasts/progress', now - STARTED_MS)) if (p.played || p.position_s > 0) started.add(p.key);
   const checked = [];
   let failed = 0;
   for (const f of todo.slice(0, L.night_feeds)) {
     try {
-      const {data} = await request('GET', '/v1/podcasts/feed', {query: {url: f.feed_url}, text: true, retry: false, timeoutMs: 25_000});
-      checked.push(freshOf(f, parseFeed(data, f.feed_url, {limit: 50}), started, now));
+      const {data} = await request('GET', '/v1/podcasts/feed', {
+        query: {url: f.feed_url, since: sinceOf(f, now), count: 1}, retry: false, timeoutMs: 25_000,
+      });
+      const latest = Number.isFinite(data.latest_at) ? Math.max(data.latest_at, f.latest_at ?? 0) : f.latest_at ?? null;
+      checked.push({feed_url: f.feed_url, latest_at: latest, new_n: Math.max(0, Math.floor(Number(data.new_n) || 0))});
     } catch (e) {
       // The night's reads are over for the day, or this key may not: the rest wait. Any other
       // failure is recorded, so the show waits longer instead of taking a slot every night.

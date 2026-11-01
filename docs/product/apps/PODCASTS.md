@@ -202,8 +202,9 @@ the show appears in Shows; Unfollow → gone, Undo → back with its settings.
 
 **Built instead, 2026-11-01 (NEXT-BATCH.md part 7):** the night's check ([RUNTIME.md §12.1](../../mind/RUNTIME.md)).
 In step 7 the night reads the followed shows due a check (each at most once a day, at most 20 a night,
-the longest unchecked first) through `GET /v1/podcasts/feed`, with the phone's own reader, and counts
-the episodes published since the show's last check that no phone has started; it places "2 new
+the longest unchecked first) and gets from the Worker, as numbers only (`GET /v1/podcasts/feed` in
+counts mode: the night never receives a feed's or a title's words), the episodes published since the
+show's last check that no phone has started; it places "2 new
 episodes in Podcasts." as one of its home lines, which home shows in the Overnight card; a tap
 opens Podcasts. The line is counts only, never a show's name: titles are their publishers' words,
 and a surface is read back by any of the mind's sessions.

@@ -1399,7 +1399,7 @@
       ],
       "phase": "P8",
       "status": "built",
-      "note": "?url=; the feed as sent, at most 4 MB"
+      "note": "?url=; the feed as sent, ≤ 4 MB; night: counts"
     },
     "GET /v1/podcasts/audio": {
       "who": [
@@ -1441,7 +1441,7 @@
       ],
       "phase": "P8",
       "status": "built",
-      "note": "?since=&cursor=; with the night's last check"
+      "note": "?since=&cursor=; night: no titles, its last check"
     },
     "POST /v1/podcasts/follows/checked": {
       "who": [
