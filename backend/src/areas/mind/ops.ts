@@ -19,6 +19,7 @@ import { currentDay, logicalDay } from '../conversation/day';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
 import * as verbs from '../verbs/store';
+import { claimedSession } from './guards';
 import { nightDayOf, nightDone } from './night';
 import * as sessionNotes from './notes';
 import * as stop from './stop';
@@ -175,8 +176,19 @@ export function note(w: Writer, sessionId: string | null, role: MindRole, r: Min
 
 /** Irreversible for the session; enforced from P4, recorded now (API.md §3). A session that never
  * claimed gets its row here, so the mark is never lost. */
-export function taint(db: Db, sessionId: string | null, role: MindRole, source: string, at: number, tz: string): void {
+export function taint(
+  db: Db,
+  sessionId: string | null,
+  role: MindRole,
+  source: string,
+  at: number,
+  tz: string,
+  claimed = false,
+): void {
   if (!sessionId) throw new Fail('validation', [{ path: 'TH-Session', issue: 'required to mark a session tainted' }]);
+  // Songs' tags (areas/music/tags-read.ts) go only to a claimed, live session of the role (403
+  // session_required otherwise), so a made-up id can't take the taint in its place.
+  if (claimed) claimedSession(db, sessionId, role);
   store.taintSession(db, { id: sessionId, role, day: currentDay(db, tz, at), source, at });
 }
 

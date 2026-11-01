@@ -12,10 +12,12 @@ import type { MusicNotesResponse, MusicTracksResponse } from '../../../shared/co
 import { forgetHold } from '../../src/areas/meter/hold';
 import { utcDay } from '../../src/lib/time';
 import { apiJson, coreSql } from '../helpers';
-import { CHAT_SESSION, type Principals, principals } from '../memory-helpers';
+import { as, CHAT_SESSION, NIGHT_SESSION, type Principals, principals } from '../memory-helpers';
 import { music, note, putNotes, seedCatalog, songId } from '../music-helpers';
 
 let P = {} as Principals;
+const night = () => as(P.N, NIGHT_SESSION);
+const chat = () => as(P.C, CHAT_SESSION);
 let ids: string[] = [];
 const notesSql = (q: string, ...b: unknown[]) =>
   runInDurableObject(music(), (_o, s) => s.storage.sql.exec(q, ...b).toArray());
@@ -227,25 +229,23 @@ describe('notes kept and read back', () => {
     expect(r.body.items[0].note).toMatchObject({ known: true, moods: { calm: 0.9 }, by: 'mind:chat', v: 1 });
     expect(r.body.items[1].note).toBeNull();
     for (const bad of ['', 'not-an-id', Array.from({ length: 201 }, (_, i) => songId(i)).join(',')])
-      expect((await apiJson('GET', `/v1/music/notes?ids=${bad}`, { token: P.C })).status).toBe(422);
+      expect((await apiJson('GET', `/v1/music/notes?ids=${bad}`, chat())).status).toBe(422);
   });
 
   it('pages through every note in track id order', async () => {
-    const one = await apiJson<MusicNotesResponse>('GET', '/v1/music/notes?limit=1', { token: P.N });
+    const one = await apiJson<MusicNotesResponse>('GET', '/v1/music/notes?limit=1', night());
     expect(one.body.items.map((i) => i.id)).toEqual([ids[0]]);
     expect(one.body.next).toBe(ids[0]);
-    const two = await apiJson<MusicNotesResponse>('GET', `/v1/music/notes?limit=1&cursor=${one.body.next}`, {
-      token: P.N,
-    });
+    const two = await apiJson<MusicNotesResponse>('GET', `/v1/music/notes?limit=1&cursor=${one.body.next}`, night());
     expect([two.body.items.map((i) => i.id), two.body.next]).toEqual([[ids[1]], ids[1]]);
-    const last = await apiJson<MusicNotesResponse>('GET', `/v1/music/notes?limit=200&cursor=${ids[1]}`, { token: P.N });
+    const last = await apiJson<MusicNotesResponse>('GET', `/v1/music/notes?limit=200&cursor=${ids[1]}`, night());
     expect([last.body.items.length, last.body.items[0].id, last.body.next]).toEqual([200, songId(100), null]);
-    expect((await apiJson('GET', '/v1/music/notes?limit=201', { token: P.N })).status).toBe(422);
-    expect((await apiJson('GET', '/v1/music/notes?cursor=nope', { token: P.N })).status).toBe(422);
+    expect((await apiJson('GET', '/v1/music/notes?limit=201', night())).status).toBe(422);
+    expect((await apiJson('GET', '/v1/music/notes?cursor=nope', night())).status).toBe(422);
   });
 
   it('the next untagged page leaves out songs with a current note, goes on from its place, and takes back an older version', async () => {
-    const page = () => apiJson<MusicTracksResponse>('GET', '/v1/music/tracks?untagged=1&limit=2', { token: P.N });
+    const page = () => apiJson<MusicTracksResponse>('GET', '/v1/music/tracks?untagged=1&limit=2', night());
     const first = await page();
     expect(first.body).toMatchObject({ total: 2, more: true });
     expect(first.body.items.map((t) => t.id)).toEqual([ids[2], songId(300)]);
@@ -261,7 +261,7 @@ describe('notes kept and read back', () => {
     await notesSql("DELETE FROM music_state WHERE key = 'notes.cursor'");
     expect((await page()).body.items.map((t) => t.id)).toEqual([ids[1], songId(300)]);
     // Without the flag, every song as before.
-    const all = await apiJson<MusicTracksResponse>('GET', '/v1/music/tracks?limit=2', { token: P.N });
+    const all = await apiJson<MusicTracksResponse>('GET', '/v1/music/tracks?limit=2', night());
     expect(all.body.total).toBe(223);
   });
 });
@@ -277,9 +277,9 @@ describe('what holds the notes back', () => {
     forgetHold();
     const held = await putNotes(P.N, [note(ids[2], { moods: { reverent: 0.8 } })]);
     expect([held.status, held.body.error?.code]).toEqual([429, 'rate_limited']);
-    expect((await apiJson('GET', '/v1/music/find?moods=calm', { token: P.N })).status).toBe(429);
+    expect((await apiJson('GET', '/v1/music/find?moods=calm', night())).status).toBe(429);
     // Reading is never held.
-    expect((await apiJson('GET', `/v1/music/notes?ids=${ids[2]}`, { token: P.N })).status).toBe(200);
+    expect((await apiJson('GET', `/v1/music/notes?ids=${ids[2]}`, night())).status).toBe(200);
     await coreSql("DELETE FROM meter_days WHERE class = 'senses'");
     forgetHold();
     expect((await putNotes(P.N, [note(ids[2], { moods: { reverent: 0.8 } })])).status).toBe(200);

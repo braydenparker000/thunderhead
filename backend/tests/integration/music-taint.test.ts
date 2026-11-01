@@ -4,6 +4,8 @@
 // carries like any other, except that a night claim on a wake the Worker fired on a later day starts
 // clean once every tainted night session has ended: step 11's songs (or step 9's evals) don't take
 // the next night's day note. A live tainted session, a same-day claim or a manual one inherits.
+// A mind principal reads songs' tags only from a claimed, live session (422 without one, 403 for a
+// made-up one).
 // The suite's cases run in order on one store.
 import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
@@ -60,10 +62,25 @@ beforeEach(() => forgetMarked());
 describe("the Worker taints the mind session it serves songs' tags to", () => {
   it('night N reads songs (step 11): tainted, recorded as a reader, no day note after that', async () => {
     await brief(P.N, 'cse_mt_n1', 'night');
+    await brief(P.N, 'cse_mt_an', 'night');
     expect((await dayNote('cse_mt_n1', 'A day with music.')).status).toBe(200);
     expect(await pending(P.N, 'cse_mt_n1')).toMatchObject({ songs: false });
-    // A call without a session leaves no record (the hooks taint a raw call's output as a URL's).
-    expect((await apiJson('GET', '/v1/music/tracks?untagged=1&limit=5', { token: P.N })).status).toBe(200);
+    // A mind principal names its session, a claimed and live one, or gets no tags (a raw call can't
+    // read them unrecorded); the device needs none.
+    const song = `r2_native_${'0'.repeat(64)}`;
+    for (const path of [
+      '/v1/music/tracks?untagged=1&limit=5',
+      `/v1/music/notes?ids=${song}`,
+      '/v1/music/find?moods=calm',
+      `/v1/music/analysis/${song}`,
+    ]) {
+      const bare = await apiJson<{ error: { code: string; details: { path: string }[] } }>('GET', path, { token: P.N });
+      expect([bare.status, bare.body.error.details[0].path], path).toEqual([422, 'TH-Session']);
+      const madeUp = await apiJson<{ error: { code: string } }>('GET', path, as(P.N, 'cse_mt_made_up'));
+      expect([madeUp.status, madeUp.body.error.code], path).toEqual([403, 'session_required']);
+    }
+    expect(await row('cse_mt_made_up')).toBeUndefined();
+    expect((await apiJson('GET', `/v1/music/notes?ids=${song}`, { token: P.D })).status).toBe(200);
     expect(await readers()).toEqual([]);
     expect((await apiJson('GET', '/v1/music/tracks?untagged=1&limit=5', as(P.N, 'cse_mt_n1'))).status).toBe(200);
     expect(await row('cse_mt_n1')).toMatchObject({ taint_source: MUSIC_TAINT_SOURCE, ended_at: null });
@@ -72,7 +89,7 @@ describe("the Worker taints the mind session it serves songs' tags to", () => {
     const after = await dayNote('cse_mt_n1', 'Changed after the songs.');
     expect([after.status, after.body.error?.code]).toEqual([403, 'session_tainted']);
     // The listening pass's read of one song names its neighbours: it marks too.
-    await apiJson('GET', `/v1/music/analysis/r2_native_${'0'.repeat(64)}`, as(P.N, 'cse_mt_an'));
+    await apiJson('GET', `/v1/music/analysis/${song}`, as(P.N, 'cse_mt_an'));
     expect(await row('cse_mt_an')).toMatchObject({ taint_source: MUSIC_TAINT_SOURCE });
     expect(await readers()).toEqual(['cse_mt_an', 'cse_mt_n1']);
     await coreSql('UPDATE mind_sessions SET tainted_at = ? WHERE session_id = ?', Date.now() - 25 * HOUR, 'cse_mt_an');

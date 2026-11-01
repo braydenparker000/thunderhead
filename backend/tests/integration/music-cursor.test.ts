@@ -11,15 +11,16 @@ import { writeTrack } from '../../src/areas/music/store';
 import type { Db } from '../../src/objects/base';
 import type { Music } from '../../src/objects/music';
 import { apiJson } from '../helpers';
-import { type Principals, principals } from '../memory-helpers';
+import { as, NIGHT_SESSION, type Principals, principals } from '../memory-helpers';
 import { music, note, putNotes, seedCatalog, songId } from '../music-helpers';
 
 let P = {} as Principals;
 const sql = (q: string, ...b: unknown[]) =>
   runInDurableObject(music(), (_o: Music, st) => st.storage.sql.exec(q, ...b).toArray());
 const page = async () =>
-  (await apiJson<MusicTracksResponse>('GET', '/v1/music/tracks?untagged=1&limit=10', { token: P.N })).body;
-const find = async (q: string) => (await apiJson<MusicFindResponse>('GET', `/v1/music/find?${q}`, { token: P.N })).body;
+  (await apiJson<MusicTracksResponse>('GET', '/v1/music/tracks?untagged=1&limit=10', as(P.N, NIGHT_SESSION))).body;
+const find = async (q: string) =>
+  (await apiJson<MusicFindResponse>('GET', `/v1/music/find?${q}`, as(P.N, NIGHT_SESSION))).body;
 /** A track as the upload tools' writer puts it: the catalog's last place. */
 const upload = (n: number) =>
   runInDurableObject(music(), (o: Music) => {

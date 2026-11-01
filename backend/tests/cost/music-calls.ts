@@ -14,6 +14,7 @@ import { uuidv7 } from '../../src/lib/ids';
 import type { Music } from '../../src/objects/music';
 import { sensesObject } from '../../src/objects/senses';
 import { api, apiJson, coreSql, core as coreStub, PASSWORD } from '../helpers';
+import { brief } from '../memory-helpers';
 import { music, note, seedCatalog } from '../music-helpers';
 
 type Cost = (name: string, fn: () => Promise<Response>, status: number, stub?: never) => Promise<void>;
@@ -44,6 +45,11 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
     })
   ).body.token;
   const m = music() as unknown as never;
+  // Songs' tags go to a claimed session only: these are claimed clean (the listening pass's read
+  // above is a day old here) before any of them reads one.
+  await coreSql('UPDATE mind_sessions SET tainted_at = ? WHERE tainted_at IS NOT NULL', Date.now() - 25 * 3_600_000);
+  for (const s of ['cse_cost_music', 'cse_cost_1', 'cse_cost_2']) await brief(night, s, 'night');
+  const mind = { token: night, headers: { 'TH-Session': 'cse_cost_music' } };
   // After the listening pass's own 600 (listen-calls.ts), so no place is taken twice.
   const ids = await seedCatalog(
     Array.from({ length: TRACKS }, (_, i) => ({ title: `Cost song ${i}`, artist: `Artist ${i % 40}`, genre: 'Pop' })),
@@ -82,7 +88,7 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
   const find =
     (q = 'moods=calm&occasion=wind-down&limit=30') =>
     () =>
-      api('GET', `/v1/music/find?${q}`, { token: night });
+      api('GET', `/v1/music/find?${q}`, mind);
   const cold = async (name: string, fn: () => Promise<Response>) => {
     await evictDurableObject(music());
     await cost(name, fn, 200, m);
@@ -105,17 +111,15 @@ export async function musicCalls(cost: Cost, grant: (ip: string, password?: stri
   await cold(`PUT /v1/music/notes, 200 notes replacing 200 (Music, cold: ${TRACKS} tracks)`, put);
   await cost('PUT /v1/music/notes, 200 notes again, unchanged (Music)', put, 200, m);
   const fifty = ids.slice(0, 50).join(',');
-  await cold('GET /v1/music/notes?ids= 50 (Music, cold)', () =>
-    api('GET', `/v1/music/notes?ids=${fifty}`, { token: night }),
-  );
-  await cold('GET /v1/music/notes, a page of 200 (Music, cold)', () => api('GET', '/v1/music/notes', { token: night }));
+  await cold('GET /v1/music/notes?ids= 50 (Music, cold)', () => api('GET', `/v1/music/notes?ids=${fifty}`, mind));
+  await cold('GET /v1/music/notes, a page of 200 (Music, cold)', () => api('GET', '/v1/music/notes', mind));
   // The night's place: every song before the untagged ones has its note.
   await sql(
     "INSERT INTO music_state (key, value_json) VALUES ('notes.cursor', ?)",
     JSON.stringify({ v: 1, ord: 1_000 + NOTED }),
   );
   await cold('GET /v1/music/tracks?untagged=1, 200 (Music, cold, its place kept)', () =>
-    api('GET', '/v1/music/tracks?untagged=1&limit=200', { token: night }),
+    api('GET', '/v1/music/tracks?untagged=1&limit=200', mind),
   );
 
   // The phone's senses: 40 early skips among 200 events, then 5 ratings (one row each in Music).

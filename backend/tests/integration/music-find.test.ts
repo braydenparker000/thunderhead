@@ -10,16 +10,17 @@ import type { MusicFindResponse } from '../../../shared/contract/music.ts';
 import type { Music } from '../../src/objects/music';
 import { sensesObject } from '../../src/objects/senses';
 import { apiJson, coreSql } from '../helpers';
-import { addOp, as, CHAT_SESSION, ownerSays, type Principals, principals, reason } from '../memory-helpers';
+import { addOp, as, asNight, CHAT_SESSION, ownerSays, type Principals, principals, reason } from '../memory-helpers';
 import { music, note, putNotes, seedCatalog, sendSenses, songId } from '../music-helpers';
 
 let P = {} as Principals;
 let S: string[] = [];
 type Found = MusicFindResponse & { error?: { code: string } };
-const find = (q: string, token = P.C) => apiJson<Found>('GET', `/v1/music/find?${q}`, { token });
+// Read by the night's session: songs' tags taint it, and the chat's stays clean for the rule it records.
+const find = (q: string) => apiJson<Found>('GET', `/v1/music/find?${q}`, asNight(P));
 const order = (r: { body: MusicFindResponse }) => r.body.items.map((i) => S.indexOf(i.id));
 /** The word search's songs (a mix by artist or genre), as places in S. */
-const tagged = async () => order(await apiJson<Found>('GET', '/v1/music/tracks?q=ambient', { token: P.C }));
+const tagged = async () => order(await apiJson<Found>('GET', '/v1/music/tracks?q=ambient', asNight(P)));
 
 beforeAll(async () => {
   P = await principals();

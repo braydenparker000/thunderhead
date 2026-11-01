@@ -348,8 +348,8 @@
     "rows_written_max": 0
   },
   "GET /v1/music/analysis/:id (Music)": {
-    "rows_read_max": 2,
-    "rows_written_max": 0
+    "rows_read_max": 3,
+    "rows_written_max": 1
   },
   "POST /v1/jobs/:id/collect (Core)": {
     "rows_read_max": 3,
@@ -444,8 +444,8 @@
     "rows_written_max": 0
   },
   "GET /v1/music/find, packs missing: built again once (Music, 12000 tracks, 11600 notes, 12000 measured)": {
-    "rows_read_max": 36409,
-    "rows_written_max": 52
+    "rows_read_max": 36411,
+    "rows_written_max": 53
   },
   "GET /v1/music/find (Music, cold: 12000 tracks, 11600 notes, 12000 measured)": {
     "rows_read_max": 134,
@@ -484,11 +484,11 @@
     "rows_written_max": 0
   },
   "GET /v1/music/notes, songs' tags to a night session, its first call (Core)": {
-    "rows_read_max": 2,
-    "rows_written_max": 3
+    "rows_read_max": 4,
+    "rows_written_max": 2
   },
   "GET /v1/music/notes, songs' tags to a night session, its first call (Music)": {
-    "rows_read_max": 4,
+    "rows_read_max": 6,
     "rows_written_max": 1
   },
   "GET /v1/music/notes, songs' tags to a night session, its next call (Core)": {

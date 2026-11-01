@@ -13,7 +13,7 @@ import { presign } from '../../src/areas/music/sign';
 import { uuidv7 } from '../../src/lib/ids';
 import { api, apiJson, coreSql, makeAgent } from '../helpers';
 import { BASE, exportRun, importKey, untilDone } from '../import-helpers';
-import { type Principals, principals } from '../memory-helpers';
+import { as, CHAT_SESSION, NIGHT_SESSION, type Principals, principals } from '../memory-helpers';
 
 let p: Principals;
 let R = '';
@@ -155,7 +155,11 @@ describe('the music catalog, imported (I7)', () => {
 
   it('the mind finds tracks by their tags (every word), at most `limit`, with how many match', async () => {
     const find = (q: string, limit = 200, token = p.C) =>
-      apiJson<MusicTracksResponse>('GET', `/v1/music/tracks?q=${encodeURIComponent(q)}&limit=${limit}`, { token });
+      apiJson<MusicTracksResponse>(
+        'GET',
+        `/v1/music/tracks?q=${encodeURIComponent(q)}&limit=${limit}`,
+        as(token, token === p.N ? NIGHT_SESSION : CHAT_SESSION),
+      );
     const all = await find('an artist');
     expect([all.body.total, all.body.items.map((t) => t.id)]).toEqual([3, [B, C, A]]);
     expect(all.body.items[0]).toEqual({
