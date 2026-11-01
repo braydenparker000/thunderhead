@@ -1065,7 +1065,8 @@
         "I"
       ],
       "phase": "P5",
-      "status": "deferred: P5: the indexing jobs"
+      "status": "built",
+      "note": "?kind=audio.analysis&max=1-500|audio.neighbours; 204: none due"
     },
     "POST /v1/jobs/:id/collect": {
       "who": [
@@ -1073,7 +1074,19 @@
         "I"
       ],
       "phase": "P5",
-      "status": "deferred: P5: the indexing jobs"
+      "status": "built",
+      "note": "checks the manifest, then applies under the bulk lane"
+    },
+    "GET /v1/jobs": {
+      "who": [
+        "C",
+        "N",
+        "R",
+        "I"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "?kind=&open=1: states and counts, never hashes"
     },
     "GET /v1/jobs/:id": {
       "who": [
@@ -1083,14 +1096,40 @@
         "I"
       ],
       "phase": "P5",
-      "status": "deferred: P5: the indexing jobs"
+      "status": "built"
     },
     "GET /v1/jobs/:id/spec": {
       "who": [
         "I"
       ],
       "phase": "P5",
-      "status": "deferred: P5: the indexing jobs"
+      "status": "built",
+      "note": "what the Actions run works from (it receives only the job id)"
+    },
+    "PUT /v1/jobs/:id/files/:name": {
+      "who": [
+        "I"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "part-NNN.jsonl, neighbours.bin, manifest.json last"
+    },
+    "GET /v1/music/pack": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "every song's numbers, moods, embedding and neighbours; ETag, 304"
+    },
+    "GET /v1/music/analysis/:id": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "?like=0-50: one song's numbers and nearest songs"
     },
     "GET /v1/guitar/search": {
       "who": [
@@ -2055,6 +2094,46 @@
       "per_5_min": 6,
       "page_max": 200,
       "page_bytes": 524288
+    }
+  },
+  "listen": {
+    "kinds": [
+      "audio.analysis",
+      "audio.neighbours"
+    ],
+    "moods": [
+      "calm",
+      "peaceful",
+      "melancholy",
+      "sad",
+      "hopeful",
+      "joyful",
+      "romantic",
+      "nostalgic",
+      "dark",
+      "tense",
+      "energetic",
+      "triumphant",
+      "playful",
+      "dreamy",
+      "sacred",
+      "focused"
+    ],
+    "limits": {
+      "max_tracks": 500,
+      "part_results": 50,
+      "result_bytes": 8192,
+      "part_bytes": 409650,
+      "manifest_bytes": 1048576,
+      "neighbours_bytes": 2000000,
+      "neighbours_max": 20000,
+      "k": 50,
+      "dim": 32,
+      "spec_ttl_ms": 259200000,
+      "open_jobs": 2,
+      "failures_max": 3,
+      "keep_ms": 7776000000,
+      "like_max": 50
     }
   },
   "memory": {

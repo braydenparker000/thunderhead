@@ -4,15 +4,18 @@
 // back). P5 step 2 fills it from the old export (areas/import, datasets `music` and `music_log`) and
 // serves it: the whole catalog without waveforms under one ETag, one track's waveform, and the
 // content keys a signed link needs. P5 step 3 makes it the catalog's single writer for the upload
-// tools (areas/music/writer.ts), one operation at a time.
+// tools (areas/music/writer.ts), one operation at a time. The listening pass (schema step 3, songs
+// analysed in Actions) is its code layer music-listen.ts.
 import type { MusicTrackRow, MusicTracksResponse } from '../../../shared/contract/music.ts';
 import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
+import { LISTEN_SQL } from '../areas/music/listen-store';
 import * as store from '../areas/music/store';
 import { type Ctx, MusicError, OPS, type Op } from '../areas/music/writer';
 import { EDIT_OPS } from '../areas/music/writer-edit';
-import { type Migration, OwnerObject } from './base';
+import type { Migration } from './base';
+import { MusicListen } from './music-listen';
 
 export const MUSIC_MIGRATIONS: Migration[] = [
   {
@@ -51,11 +54,13 @@ export const MUSIC_MIGRATIONS: Migration[] = [
     kind: 'expand',
     sql: [METER_DAYS_SQL],
   },
+  // The listening pass (JOBS.md §3): Actions specs and one analysis row per audio hash.
+  { version: 3, name: 'listen', kind: 'expand', sql: LISTEN_SQL },
 ];
 
-/** Every catalog table, all kept forever and in the weekly backup and the export (DATA.md §10); the
- * meter's `meter_days` (counts only) stays out of both. */
-export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state'] as const;
+/** Every catalog table and the listening pass's two, in the weekly backup and the export (DATA.md §10);
+ * the meter's `meter_days` (counts only) stays out of both. */
+export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state', 'external_jobs', 'analysis'] as const;
 
 /** The one instance: the owner's library. */
 export const MUSIC_INSTANCE = 'library';
@@ -81,7 +86,7 @@ export interface PutResult {
   clashes?: string[];
 }
 
-export class Music extends OwnerObject {
+export class Music extends MusicListen {
   /** The catalog as last built, by its ETag: built once per change, not per phone. */
   private built: { etag: string; text: string } | null = null;
   /** The records' total length, read once per start and grown by each new track. */

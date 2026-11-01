@@ -6,6 +6,9 @@ import type { ImportStatus } from '../../../shared/contract/api';
 import { type StartImport, start } from '../areas/import/ops';
 import * as store from '../areas/import/store';
 import { LANE_ROWS_PER_DAY, laneRows, nextLaneDay, useLane } from '../areas/jobs/runner';
+import { requeueJob } from '../areas/jobs/store';
+import type { ApplyPayload } from '../areas/music/listen';
+import { applyJobId, LISTEN_APPLY } from '../areas/music/listen-jobs';
 import type { Out } from '../lib/result';
 import type { Caller } from './caller';
 import { CoreNight } from './core-night';
@@ -31,5 +34,12 @@ export abstract class CoreImport extends CoreNight {
   /** Counts rows another object wrote under the bulk lane. */
   useBulkLane(rows: number, now = Date.now()): void {
     if (rows > 0) this.write((w) => useLane(w, rows, now), now);
+  }
+
+  /** Queues the listening pass's apply job for a collected Actions job (areas/music/listen-jobs.ts);
+   * asking again while it is queued or running changes nothing, after it failed runs it again. */
+  queueListenApply(payload: ApplyPayload, now = Date.now()): void {
+    this.write((w) => requeueJob(w.db, { id: applyJobId(payload.job_id), kind: LISTEN_APPLY, payload, at: now }), now);
+    this.schedule();
   }
 }

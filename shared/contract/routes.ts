@@ -221,10 +221,16 @@ export const ROUTES = {
   },
   'PUT /v1/senses/batches/:id': { who: D, phase: 'P5', note: 'a sealed batch of 1–500 events, ≤ 256 KB' },
   'POST /v1/senses/query': { who: MIND, phase: 'P5', note: 'a fixed, named query; never SQL' },
-  'GET /v1/jobs/next': { who: ['N', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
-  'POST /v1/jobs/:id/collect': { who: ['N', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
-  'GET /v1/jobs/:id': { who: ['C', 'N', 'R', 'I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
-  'GET /v1/jobs/:id/spec': { who: ['I'], phase: 'P5', deferred: 'P5: the indexing jobs' },
+  // The listening pass (JOBS.md §3): Actions analyses songs by sha256 only; results come back
+  // through the Worker into the private bucket, are checked, then applied under the bulk lane.
+  'GET /v1/jobs/next': { who: ['N', 'I'], phase: 'P5', note: '?kind=audio.analysis&max=1-500|audio.neighbours; 204: none due' },
+  'POST /v1/jobs/:id/collect': { who: ['N', 'I'], phase: 'P5', note: 'checks the manifest, then applies under the bulk lane' },
+  'GET /v1/jobs': { who: ['C', 'N', 'R', 'I'], phase: 'P5', note: '?kind=&open=1: states and counts, never hashes' },
+  'GET /v1/jobs/:id': { who: ['C', 'N', 'R', 'I'], phase: 'P5' },
+  'GET /v1/jobs/:id/spec': { who: ['I'], phase: 'P5', note: 'what the Actions run works from (it receives only the job id)' },
+  'PUT /v1/jobs/:id/files/:name': { who: ['I'], phase: 'P5', note: 'part-NNN.jsonl, neighbours.bin, manifest.json last' },
+  'GET /v1/music/pack': { who: D, phase: 'P5', note: "every song's numbers, moods, embedding and neighbours; ETag, 304" },
+  'GET /v1/music/analysis/:id': { who: ['C', 'N'], phase: 'P5', note: "?like=0-50: one song's numbers and nearest songs" },
   // P6: Guitar's tab sources, as the old Worker served them, for the owner's device only.
   'GET /v1/guitar/search': { who: D, phase: 'P6', note: 'Songsterr search, ?q=' },
   'GET /v1/guitar/songs/:id': { who: D, phase: 'P6' },

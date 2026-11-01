@@ -168,6 +168,8 @@ function mind() {
     files: { limits: c.FILE_LIMITS },
     // The phone's reports (`th reports`): the kinds and the page size, checked before the call.
     reports: { kinds: c.REPORT_KINDS, limits: c.REPORT_LIMITS },
+    // The listening pass (`th music`): the job kinds, the mood list and the limits.
+    listen: { kinds: c.LISTEN_KINDS, moods: c.MOODS, limits: c.LISTEN_LIMITS },
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
     night: {
       steps: c.NIGHT_STEPS,
