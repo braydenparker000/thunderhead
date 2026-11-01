@@ -26,6 +26,7 @@ import type { ResultRow } from './listen-store';
 
 export const LISTEN_APPLY = 'music.listen.apply';
 export const LISTEN_PACK = 'music.listen.pack';
+export const LISTEN_REJECT = 'music.listen.reject';
 export const applyJobId = (jobId: string) => `listen.apply:${jobId}`;
 export const PACK_JOB_ID = 'listen.pack';
 
@@ -124,6 +125,29 @@ export const listenApplyJob: JobHandler = {
     useLane(w, i.written, w.at);
     if (!i.done) return { next: i.next };
     if (i.done.pack) requeueJob(w.db, { id: PACK_JOB_ID, kind: LISTEN_PACK, payload: {}, at: w.at });
+    return { done: true };
+  },
+  // Failed for good (six tries): the Actions job is rejected and its files go, by a job of its own,
+  // since this hook runs inside Core's commit and can't reach the Music object or the bucket.
+  failed(w, payload) {
+    const jobId = (payload as ApplyPayload).job_id;
+    requeueJob(w.db, { id: `listen.reject:${jobId}`, kind: LISTEN_REJECT, payload: { job_id: jobId }, at: w.at });
+  },
+};
+
+/** `music.listen.reject`: an Actions job whose apply failed for good is rejected, its uploads deleted. */
+export const listenRejectJob: JobHandler = {
+  kind: LISTEN_REJECT,
+  lane: false,
+  async load(env, _db, payload) {
+    const vault = env.VAULT;
+    if (!vault) throw new JobError('not_configured');
+    const jobId = (payload as { job_id: string }).job_id;
+    await musicObject(env).listenReject(jobId);
+    await dropJobFiles(vault, jobId);
+    return null;
+  },
+  step() {
     return { done: true };
   },
 };

@@ -39,7 +39,7 @@ import * as mind from '../areas/mind/ops';
 import * as stop from '../areas/mind/stop';
 import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
-import { listenApplyJob, listenPackJob } from '../areas/music/listen-jobs';
+import { listenApplyJob, listenPackJob, listenRejectJob } from '../areas/music/listen-jobs';
 import { lawsAtClaim, settle as settleProposals } from '../areas/proposals/ops';
 import { getSetting, putSetting } from '../areas/settings/store';
 import * as surfaces from '../areas/surfaces/ops';
@@ -60,6 +60,7 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [exportJob.kind]: exportJob,
   [listenApplyJob.kind]: listenApplyJob,
   [listenPackJob.kind]: listenPackJob,
+  [listenRejectJob.kind]: listenRejectJob,
 };
 
 export class Core extends CoreReports {

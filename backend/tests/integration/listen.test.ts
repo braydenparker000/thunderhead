@@ -275,6 +275,29 @@ describe('applying under the bulk lane', () => {
   });
 });
 
+describe('an apply that fails for good', () => {
+  it('rejects the job and deletes its uploads', async () => {
+    await aged();
+    const j = await next(tokens.N, 'kind=audio.analysis&max=1');
+    const id = j.body.job_id;
+    const up = await pack([result(j.body.shas[0], 0)]);
+    await put(tokens.I, id, 'part-001.jsonl', up.parts[0]);
+    await put(tokens.I, id, 'manifest.json', JSON.stringify(manifest(id, up.files)));
+    expect((await collect(id)).status).toBe(202);
+    // Its sixth failure in a row: a payload its load can't read, on the last try.
+    await coreSql(
+      'UPDATE jobs SET payload_json = ?, attempts = 5 WHERE id = ?',
+      JSON.stringify({ job_id: id, kind: 'audio.analysis', files: null, failed: [] }),
+      `listen.apply:${id}`,
+    );
+    await drain();
+    const job = await coreSql<{ state: string }>('SELECT state FROM jobs WHERE id = ?', `listen.apply:${id}`);
+    expect(job[0].state).toBe('failed');
+    expect((await status(id)).body).toMatchObject({ state: 'rejected', counts: { reasons: { apply_failed: 1 } } });
+    expect((await env.VAULT.list({ prefix: `jobs/incoming/${id}/` })).objects).toHaveLength(0);
+  });
+});
+
 describe('limits on issuing', () => {
   it('at most three jobs of a kind in 24 hours, then 429', async () => {
     await aged();

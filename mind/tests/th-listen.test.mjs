@@ -55,19 +55,22 @@ test('jobs: collects runs that are over, then sends the next songs by the job id
     {job_id: `${ID}1`, kind: 'audio.analysis', state: 'issued', issued_at: old},
     {job_id: `${ID}2`, kind: 'audio.analysis', state: 'issued', issued_at: old, collect: 'no_manifest'},
     {job_id: `${ID}3`, kind: 'audio.analysis', state: 'issued', issued_at: fake.now() - 60_000},
+    {job_id: `${ID}6`, kind: 'audio.analysis', state: 'validating', issued_at: old, collected_at: old},
+    {job_id: `${ID}7`, kind: 'audio.analysis', state: 'validating', issued_at: old, collected_at: fake.now() - 60_000},
   );
   fake.state.nextJobs['audio.analysis'].push({job_id: `${ID}4`, kind: 'audio.analysis', v: 2, shas: [HASH, 'cd'.repeat(32)]});
   const r = await th(['music', 'jobs'], night(fake, gh));
   assert.equal(r.code, 0, r.stderr);
   assert.deepEqual(r.json, {
-    collected: {validating: 1, waiting: 1},
+    collected: {validating: 2, waiting: 1},
     issued: {kind: 'audio.analysis', job_id: `${ID}4`, count: 2},
     dispatched: true,
   });
   assert.ok(!r.stdout.includes(HASH) && !r.stderr.includes(HASH), 'no hash printed');
   assert.deepEqual(gh.calls(), [`workflow run jobs-audio.yml --ref main -f job_id=${ID}4 -R owner/repo`]);
   const collects = fake.state.requests.filter(x => x.method === 'POST').map(x => x.path);
-  assert.deepEqual(collects, [`/v1/jobs/${ID}1/collect`, `/v1/jobs/${ID}2/collect`], 'a run still within its hours is left alone');
+  assert.deepEqual(collects, [`/v1/jobs/${ID}1/collect`, `/v1/jobs/${ID}2/collect`, `/v1/jobs/${ID}6/collect`],
+    'a run still within its hours, or an apply just begun, is left alone');
   assert.deepEqual(fake.state.requests.find(x => x.path === '/v1/jobs/next').query, {kind: 'audio.analysis', max: '500'});
 }));
 

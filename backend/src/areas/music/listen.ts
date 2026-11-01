@@ -241,6 +241,15 @@ export function finish(
   return { written, valid: c.valid };
 }
 
+/** A job whose apply failed for good (Core's job tried six times): rejected, the reason counted. */
+export function reject(db: Db, id: string): number {
+  const r = store.job(db, id);
+  if (r?.state !== 'validating') return 0;
+  const c = countsOf(r) as Counted;
+  const counts: Counted = { ...c, reasons: merge(c.reasons, { apply_failed: 1 }) };
+  return store.setJob(db, id, { state: 'rejected', counts });
+}
+
 /** A neighbours job's end: its file stored (ok) or refused (why). */
 export function neighboursDone(db: Db, id: string, problem: string | null, now: number): number {
   const r = store.job(db, id);

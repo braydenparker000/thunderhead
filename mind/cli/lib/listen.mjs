@@ -31,12 +31,14 @@ export function dispatch(jobId, {run = spawnSync, gh = process.env.TH_GH || 'gh'
   return r.status === 0;
 }
 
-/** Collects the jobs whose runs are over; how each ended, by state. */
+/** Collects the jobs whose runs are over (issued over 6 hours ago), and those still being applied 6
+ * hours after their collect (it queues their apply again if it had stopped); how each ended, by state. */
 async function collectOpen(now) {
   const {data} = await request('GET', '/v1/jobs', {query: {open: 1}});
   const counts = {};
   for (const j of data.items ?? []) {
-    if (j.state !== 'issued' || now - j.issued_at < COLLECT_AFTER_MS) continue;
+    const since = j.state === 'issued' ? j.issued_at : j.state === 'validating' ? (j.collected_at ?? 0) : now;
+    if (now - since < COLLECT_AFTER_MS) continue;
     let state;
     try {
       state = (await request('POST', `/v1/jobs/${seg(j.job_id)}/collect`, {body: {}})).data.state ?? 'validating';

@@ -84,6 +84,11 @@ export abstract class MusicListen extends OwnerObject {
     return this.tx(() => listen.apply(this.db, id, part, rows, invalid, now));
   }
 
+  /** An Actions job whose apply failed for good: rejected (what was applied stays). */
+  listenReject(id: string): number {
+    return this.tx(() => listen.reject(this.db, id));
+  }
+
   listenFinish(id: string, failed: [string, string][], now = Date.now()): { written: number; valid: number } {
     return this.tx(() => listen.finish(this.db, id, failed, now));
   }
