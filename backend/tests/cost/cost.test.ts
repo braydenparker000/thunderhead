@@ -2,7 +2,6 @@
 // against tests/cost/budgets.json. These are the units the free plan bills (5M read, 100k written
 // a day). An endpoint without a budget fails; a budget rises only with DATA.md §8.2 and
 // PERFORMANCE.md §4. The budgets are the numbers measured in local workerd (MEASUREMENTS.md §2).
-import { runInDurableObject } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import type {
   Message,
@@ -12,7 +11,6 @@ import type {
   TodayResponse,
 } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
-import type { Core } from '../../src/objects/core';
 import {
   api,
   apiJson,
@@ -35,6 +33,7 @@ import { memoryCalls } from './memory-calls';
 import { predictionCalls } from './prediction-calls';
 import { proposalCalls } from './proposal-calls';
 import { reportCalls } from './report-calls';
+import { ticks } from './ticks';
 
 type Budget = { rows_read_max: number; rows_written_max: number };
 const measured: Record<string, Rows> = {};
@@ -256,12 +255,11 @@ describe('rows per endpoint', () => {
       k,
     );
     await cost('GET /v1/surfaces (1 surface) (Core)', () => api('GET', '/v1/surfaces', d), 200, k);
-    const tick = async () => {
-      await runInDurableObject(k as unknown as DurableObjectStub<Core>, (o: Core) => o.tick());
-      return new Response(null, { status: 204 });
-    };
-    await cost('cron tick, the daily prune pass (Core)', tick, 204, k);
-    await cost('cron tick, nothing due (Core)', tick, 204, k);
+    // The cron's tick, measured alone on any day (ticks.ts: on Sundays it also starts the backup).
+    await ticks(k, async (tick) => {
+      await cost('cron tick, the daily prune pass (Core)', tick, 204, k);
+      await cost('cron tick, nothing due (Core)', tick, 204, k);
+    });
     // The stored meter (DATA.md §3): Core gathers the others' days, then reads a row per class and day.
     await cost('GET /v1/ops/meter (Core)', () => api('GET', '/v1/ops/meter', d), 200, k);
     await cost('GET /v1/ops/meter?days=30 (Core)', () => api('GET', '/v1/ops/meter?days=30', d), 200, k);

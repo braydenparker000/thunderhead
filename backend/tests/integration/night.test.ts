@@ -229,7 +229,7 @@ describe('the run record', () => {
       resume_from: 11,
       done: true,
       cursor: null,
-      skipped: [8, 9],
+      skipped: weekly(yday) ? [8] : [8, 9],
     });
     const ended = async (session: string) => {
       const [s] = await coreSql<{ ended_at: number | null; wake_id: string }>(

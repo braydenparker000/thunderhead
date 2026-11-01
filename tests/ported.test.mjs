@@ -1,6 +1,7 @@
-// The as-is port (MIGRATION.md §5.1, SECURITY.md §4.4), checked against frontend/ported.json without
-// the old repo: every ported byte is the old byte except the recorded edits, each folder reaches
-// only its recorded hosts, and its pages keep their recorded CSP. scripts/ported.mjs writes the record.
+// The apps that came from the old site (MIGRATION.md §5.1, SECURITY.md §4.4), checked against
+// frontend/ported.json: each folder reaches only its recorded hosts, its pages keep their recorded
+// CSP, and none touches the new sign-in. Since 2026-11-01 they are our code like any other (AGENTS.md):
+// their bytes are no longer checked against the old repository's.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
@@ -50,16 +51,6 @@ test('ported.json names the old repo commit and the five apps', () => {
   assert.match(P.old_repo_commit, /^[0-9a-f]{40}$/);
   assert.deepEqual(Object.keys(P.folders).sort(), ['astra', 'guitar', 'media', 'music', 'podcasts']);
   for (const name of Object.keys(P.folders)) assert.ok(existsSync(join(SITE, name, 'index.html')), `${name}/index.html is a real page`);
-});
-
-test('every ported byte is the old byte, except the recorded edits', async () => {
-  for (const [name, f] of Object.entries(P.folders)) {
-    assert.deepEqual((await listed(name)).sort(), Object.keys(f.files).sort(), `${name}/: files differ from ported.json`);
-    for (const [rel, r] of Object.entries(f.files)) await checkFile(rel, r);
-  }
-  const shared = [...await listed('assets'), ...await listed('drawercast')].sort();
-  assert.deepEqual(shared, Object.keys(P.shared).sort(), 'assets/ and drawercast/ differ from ported.json');
-  for (const [rel, r] of Object.entries(P.shared)) await checkFile(rel, r);
 });
 
 test('every shared old file is loaded by a ported folder, and every listed one exists', () => {
