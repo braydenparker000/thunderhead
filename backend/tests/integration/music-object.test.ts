@@ -23,10 +23,12 @@ describe('the Music object', () => {
       'analysis',
       'catalog_log',
       'external_jobs',
+      'find_packs',
       'meter_days',
       'music_state',
       'track_analysis',
       'track_notes',
+      'track_ratings',
       'tracks',
     ]);
     expect(

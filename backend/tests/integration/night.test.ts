@@ -195,7 +195,6 @@ describe('the run record', () => {
       cursor: null,
       skipped: [],
     });
-    // 11 (the songs) runs between 6 and 7: the run's order is the list's, not the numbers'.
     expect((await night({ day: yday, action: 'step_done', step: 6 }, 'cse_night_c')).body.resume_from).toBe(11); // P7
     expect((await night({ day: yday, action: 'step_done', step: 7 }, 'cse_night_c')).status).toBe(409);
     expect((await night({ day: yday, action: 'step_done', step: 11 }, 'cse_night_c')).body.resume_from).toBe(7); // P5
@@ -279,17 +278,8 @@ describe('the run record', () => {
       skipped: [2, 3, 4, 5, 6, 7, 8, 9, 11],
     });
     const steps = JSON.parse((await run(d2)).steps_json);
-    expect([2, 3, 4, 5, 6, 11, 7, 8, 9].map((n) => steps[n].skipped)).toEqual([
-      'hard_stop',
-      'hard_stop',
-      'hard_stop',
-      'hard_stop',
-      'hard_stop',
-      'hard_stop',
-      'hard_stop',
-      'later',
-      weekly(d2) ? 'hard_stop' : 'not_sunday',
-    ]);
+    const cut = [...Array(7).fill('hard_stop'), 'later', weekly(d2) ? 'hard_stop' : 'not_sunday'];
+    expect([2, 3, 4, 5, 6, 11, 7, 8, 9].map((n) => steps[n].skipped)).toEqual(cut);
     expect(steps[10]).toMatchObject({ done: true, session: 'cse_night_e' });
   });
 

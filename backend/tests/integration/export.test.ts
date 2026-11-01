@@ -80,7 +80,8 @@ describe('download everything', () => {
     expect(names).toContain('tables/messages.jsonl');
     expect(names).toContain('tables/ledger.jsonl');
     expect(names).toContain('tables/ledger-2.jsonl');
-    // The music catalog's tables, the listening pass's and the mind's notes, from the Music object (empty here: one empty file each).
+    // The music catalog's tables, the listening pass's, the mind's notes and the owner's ratings, from
+    // the Music object (empty here: one empty file each).
     for (const t of [
       'tracks',
       'catalog_log',
@@ -89,6 +90,7 @@ describe('download everything', () => {
       'analysis',
       'track_analysis',
       'track_notes',
+      'track_ratings',
     ])
       expect(names).toContain(`tables/music.${t}.jsonl`);
     // The senses' daily counts and Study's library (the PDFs stay in the bucket, the index is rebuilt).
