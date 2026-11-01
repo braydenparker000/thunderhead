@@ -1,15 +1,18 @@
 {
-  "id": "2026-11-01-music-knows",
+  "id": "2026-11-01-off-the-record",
   "date": "2026-11-01",
   "lines": [
     {
-      "text": "The Thunderhead knows your music now: ask what's playing, for songs that fit a mood, or for songs like one you love."
+      "text": "Off the record: tap + and pick it, or just say it. I answer, remember none of it, and it's gone in 7 days."
     },
     {
-      "text": "Each night it gets to know a few hundred more of your songs, from their titles, artists and albums."
+      "text": "Hold a conversation in the menu to delete it. Settings › Recently deleted keeps it 30 days."
     },
     {
-      "text": "Songs you mark \"not for me\" stay out of its picks too, from Music or the island.",
+      "text": "I know your music now: ask what's playing, for songs that fit a mood, or for songs like one you love."
+    },
+    {
+      "text": "Songs you mark \"not for me\" stay out of my picks too.",
       "open": "music",
       "label": "Open Music"
     }
