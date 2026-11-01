@@ -14,7 +14,8 @@ const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
 /**
  * @typedef {{role: string, cwd: string, projectDir: string, tmpDir: string, allowedHosts: string[],
  *   headSubject?: () => string, approved?: (paths: string[], base?: string) => boolean,
- *   pushProtected?: (push: Push) => {base: string, paths: string[]}[]}} Context
+ *   pushProtected?: (push: Push) => {base: string, paths: string[]}[], musicPaged?: boolean}} Context
+ * `musicPaged`: this session has run `th music page` (th's own state), so it holds song titles.
  * `approved`: the owner approved changing these repository-relative protected paths on a branch
  * from `base` (default: the current branch's; `th approved`); missing means never. `pushProtected`:
  * for each source the push sends (HEAD when it names none), its base on the remote's real main and
@@ -271,6 +272,10 @@ export function decide(input, ctx) {
     if (!where.length || where.some(p => !inside(p, `${ctx.tmpDir}${sep}th${sep}ext`, ctx)))
       return 'The reader reads only the drop folder $TMPDIR/th/ext/ and the web.';
   }
+  // The night's songs (RUNTIME.md §12.1): once it has paged the owner's songs, no web lookup, which
+  // would carry their titles out (the notes are what the mind already knows).
+  if (ctx.role === 'night' && ctx.musicPaged && (tool === 'WebSearch' || tool === 'WebFetch'))
+    return 'This night session has read the owner\'s songs (th music page): no web lookups after that, so no title leaves the Worker. A song you don\'t know gets known: false.';
   if (tool === 'WebFetch' && typeof ti.url === 'string') {
     const host = hostOf(ti.url);
     if (ctx.role === 'reflex' && host && !hostAllowed(host, ctx.allowedHosts)) return `The reflex role may not fetch ${host}.`;

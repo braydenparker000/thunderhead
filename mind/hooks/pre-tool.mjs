@@ -89,6 +89,7 @@ if (role) {
         // A `repo.change` card the owner approved for these paths and that base (this branch's by default).
         approved: (paths, b) => runTh(['approved', '--paths', paths.join(','), '--sha', b ?? base(cwd)], {timeoutMs: left(8_000)}).code === 0,
         pushProtected: push => pushProtected(cwd, push),
+        musicPaged: getState('music_page') !== null,
       });
     } catch (error) {
       reason = `The pre-tool hook failed (${error?.message || error}), so the call is denied.`;

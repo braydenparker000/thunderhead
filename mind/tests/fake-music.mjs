@@ -44,7 +44,11 @@ export function musicRoutes(ctl) {
       const limit = Number(query.get('limit') || 200);
       const untagged = query.get('untagged') === '1';
       const q = (query.get('q') || '').toLowerCase();
-      const rows = s.tracks.filter(t => (!untagged || !s.trackNotes.has(t.id)) && (!q || t.title.toLowerCase().includes(q)));
+      if (untagged) {
+        const rows = s.tracks.filter(t => !s.trackNotes.has(t.id));
+        return {items: rows.slice(0, limit).map(tags), total: Math.min(limit, rows.length), more: rows.length > limit};
+      }
+      const rows = s.tracks.filter(t => !q || t.title.toLowerCase().includes(q));
       return {items: rows.slice(0, limit).map(tags), total: rows.length};
     }],
     ['PUT', /^\/v1\/music\/notes$/, CN, ({body, role}) => {
@@ -58,7 +62,7 @@ export function musicRoutes(ctl) {
         if (before !== JSON.stringify(n)) written++;
         s.trackNotes.set(n.id, {note: n, by: `mind:${role}`});
       }
-      return {written, unchanged: items.length - written};
+      return {written, unchanged: items.length - written, kept: 0};
     }],
     ['GET', /^\/v1\/music\/notes$/, CN, ({query}) => {
       const ids = (query.get('ids') || '').split(',').filter(Boolean);

@@ -1,8 +1,9 @@
 // `th music …` (RUNTIME.md §5.3, §4.7, §12.1; MUSIC.md §10.5): what the mind knows of the owner's
 // songs, and the questions it answers from it.
 //
-//   page [--limit 200] [--q <words>]   the next songs with no note (GET /v1/music/tracks?untagged=1):
-//                                      their tags, each with a short handle `n`, saved for `note`
+//   page [--limit 200]                 the next songs with no note (GET /v1/music/tracks?untagged=1):
+//                                      their tags, each with a short handle `n`, saved for `note`,
+//                                      and whether `more` follow
 //   note [--file <path>]               one batch of notes (≤ 200) from JSON on stdin or a file:
 //                                      `[{n|id, known, moods, occasions, themes, language, era,
 //                                      energy, conf}]` or `{items: […]}`, checked here against the
@@ -10,14 +11,17 @@
 //   find [--mood m]… [--occasion o] [--energy low|mid|high|0-1] [--limit 30]   songs by feeling
 //   like <id> [--mood m]… [--limit 20] songs like one (the listening pass's neighbours when it has
 //                                      them, else the closest by notes and tags)
-//   now                                the song playing now, or last played, with its note
+//   now [--id]                         the song playing now, or last played, with its note (with
+//                                      --id, its id alone: no tags, so no outside text)
 //   week [--days 7]                    what the owner has been into: plays, top songs, artists,
 //                                      moods and genres
 //   analysis <id> [--n 10] · jobs [--max 500]   the listening pass's two (lib/listen.mjs)
 //
 // A handle `n` saves the long track ids in a night's tagging; it means the song of that number in
 // the last `th music page` of this session. Track ids, titles and notes stay between th and the
-// Worker; nothing here is written anywhere else.
+// Worker; nothing here is written anywhere else. Songs' tags come from their files, which someone
+// else wrote: every subcommand that prints them taints the session (mind/hooks/lib/taint.mjs), and
+// a night session that ran `page` may not use the web (mind/hooks/lib/rules.mjs).
 import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
 import {CONTRACT} from './contract.mjs';
@@ -30,7 +34,7 @@ const M = CONTRACT.music;
 const L = M.limits;
 const SONG_ID = /^r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$/;
 const DAY_MS = 86_400_000;
-const USAGE = 'usage: th music page | note [--file <path>] | find --mood <m> [--occasion <o>] [--energy <e>] [--limit <n>] | like <id> | now | week | analysis <id> [--n 10] | jobs [--max 500]';
+const USAGE = 'usage: th music page | note [--file <path>] | find --mood <m> [--occasion <o>] [--energy <e>] [--limit <n>] | like <id> | now [--id] | week | analysis <id> [--n 10] | jobs [--max 500]';
 
 /** A track's tags without the empty ones (fewer tokens for the mind to read). */
 const lean = t => Object.fromEntries(Object.entries(t).filter(([, v]) => v !== '' && v !== 0 && v !== null && v !== undefined));
@@ -44,12 +48,12 @@ const words = v => (Array.isArray(v) ? v : v === undefined ? [] : [v]).flatMap(x
 
 async function page(argv) {
   const {flags, rest} = parseArgs(argv);
-  if (rest.length) throw invalid('usage: th music page [--limit 200] [--q <words>]');
+  if (rest.length) throw invalid('usage: th music page [--limit 200]');
   const limit = intFlag(flags.limit, 'limit', 1, L.batch, L.batch);
-  const {data} = await request('GET', '/v1/music/tracks', {query: {untagged: 1, limit, q: flags.q ? String(flags.q) : undefined}});
+  const {data} = await request('GET', '/v1/music/tracks', {query: {untagged: 1, limit}});
   const items = data.items ?? [];
   setState('music_page', {ids: items.map(t => t.id)});
-  out({left: data.total, items: items.map(({id: _, ...t}, i) => ({n: i + 1, ...lean(t)}))});
+  out({more: !!data.more, items: items.map(({id: _, ...t}, i) => ({n: i + 1, ...lean(t)}))});
 }
 
 /** One note checked against the contract (the Worker checks it all again); a list of problems. */
@@ -155,17 +159,21 @@ async function notesOf(ids) {
 }
 
 async function now(argv) {
-  if (argv.length) throw invalid('usage: th music now');
+  const {flags, rest} = parseArgs(argv, {bool: ['id']});
+  if (rest.length) throw invalid('usage: th music now [--id]');
   const [play] = await sense('last_event', {type: 'music.play'});
   const id = idOf(play?.ref);
-  if (!id) return out({playing: false, at: null, track: null, note: null});
+  if (!id) return out(flags.id ? {playing: false, at: null, id: null} : {playing: false, at: null, track: null, note: null});
   const [skip] = await sense('last_event', {type: 'music.skip'});
   const [finish] = await sense('last_event', {type: 'music.finish'});
   const t = (await notesOf([id])).get(id);
   const left = [skip, finish].some(e => e && e.ref === play.ref && e.at >= play.at);
   const playing = !!t && !left && play.at + (t.dur || 0) * 1000 > Date.now();
+  const ago_min = Math.round((Date.now() - play.at) / 60_000);
+  // --id: the song's id alone, no tags, so the session takes in no outside text (RUNTIME.md §4.7).
+  if (flags.id) return out({playing, at: play.at, ago_min, id});
   const {note: n = null, ...track} = t ?? {id};
-  out({playing, at: play.at, ago_min: Math.round((Date.now() - play.at) / 60_000), track: lean(track), note: n});
+  out({playing, at: play.at, ago_min, track: lean(track), note: n});
 }
 
 async function week(argv) {

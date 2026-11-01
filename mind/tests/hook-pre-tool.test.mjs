@@ -217,6 +217,18 @@ test('night: no chat posts except --kind error, no pushes, no push to main', () 
   assert.equal(denied('chat', bash('th say today hello')), null);
 });
 
+test('night: once it has paged the owner\'s songs, no web lookups (a title would leave the Worker)', () => {
+  const search = tool('WebSearch', {query: 'a song title'});
+  const fetch = tool('WebFetch', {url: 'https://lyrics.example/song', prompt: 'mood?'});
+  assert.match(denied('night', search, {musicPaged: true}), /no web lookups/);
+  assert.match(denied('night', fetch, {musicPaged: true}), /no web lookups/);
+  assert.match(denied('night', {...search, agent_type: 'reader'}, {musicPaged: true}), /no web lookups/, 'the reader neither');
+  // Before th music page, and in the chat, the web stays as it was.
+  assert.equal(denied('night', search), null);
+  assert.equal(denied('night', fetch, {musicPaged: false}), null);
+  assert.equal(denied('chat', search, {musicPaged: true}), null);
+});
+
 test('reflex: no memory writes, push to main only for a revert, writes only under $TMPDIR', () => {
   for (const cmd of ['th remember --kind fact --text x --evidence m', 'th supersede f --text x', 'th facts --batch b.json', 'echo x > notes.txt', 'git push']) {
     assert.ok(denied('reflex', bash(cmd)), cmd);

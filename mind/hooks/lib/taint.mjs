@@ -5,8 +5,11 @@
 // - Edit, Write and the session's own bookkeeping tools;
 // - Read, Grep and Glob of own files: the project (not node_modules, not the drop folder
 //   $TMPDIR/th/ext/) and th's own briefing and state;
-// - th, except `th file` (attachments are outside text, INJ-08) and a `th get` naming podcasts (show
-//   titles and feeds, which their publishers wrote; the Worker marks the session itself too);
+// - th, except `th file` (attachments are outside text, INJ-08), a `th get` naming podcasts (show
+//   titles and feeds, which their publishers wrote; the Worker marks the session itself too), and
+//   what prints the owner's songs' tags (`th music page|now|find|like|week`, a `th get` naming music):
+//   titles, artists and albums come from the files' own tags, which someone else wrote (`th music now
+//   --id` prints the id alone);
 // - curl/wget to the Worker's podcast routes taint (the Worker refuses one without a session anyway);
 // - git on this repository and its origin (origin holds the project's own commits, whose files the
 //   rule already trusts); another remote, a URL, a clone or `-c` taints;
@@ -79,6 +82,13 @@ function gitTaints(args, ctx) {
 const podcastText = ({sub, rest}) => sub === 'get' && rest.some(a => /podcasts/i.test(a));
 /** curl or wget to a Worker's podcast routes (by a literal URL; the Worker refuses one with no session). */
 const podcastFetch = args => args.some(a => /\/v1\/podcasts/i.test(a));
+/** A th call that prints songs' tags (from the files, outside text). */
+function songTags({sub, rest}) {
+  const pos = positionals(rest);
+  if (sub === 'music') return pos[0] !== 'note' && !(pos[0] === 'now' && rest.includes('--id'));
+  // Any word of a `th get` naming music (a flag's value can come first); the Worker marks it too.
+  return sub === 'get' && rest.some(a => /music/i.test(a));
+}
 
 /** @returns {Taint | null} */
 function bashTaint(command, ctx) {
@@ -96,6 +106,7 @@ function bashTaint(command, ctx) {
     if (th) {
       if (th.sub === 'file') return {source: 'th file', ref: 'file'};
       if (podcastText(th)) return {source: 'th podcasts', ref: 'file'};
+      if (songTags(th)) return {source: 'th music', ref: 'file'};
       continue;
     }
     if (cmd === 'curl' || cmd === 'wget') {

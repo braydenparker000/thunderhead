@@ -1,5 +1,6 @@
 // Acting commands: propose, decide, approved, verb, order, surface, push, predict, night
 // (RUNTIME.md §5.3, BEHAVIOR.md §4, API.md §11.10–11.12, §11.19–11.20).
+import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
 import {EXIT, invalid, jsonFlag, need, out, textArg, toMs} from './io.mjs';
 import {CONTRACT, checkProposal, checkSurface, checkVerb} from './contract.mjs';
@@ -91,7 +92,10 @@ export async function verb(argv) {
   const {flags, rest} = parseArgs(argv);
   const [name, argsJson] = rest;
   if (!name || !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*$/.test(name)) throw invalid('usage: th verb <app>.<action> [<args json>] --why <text> [--schema <n>] [--device <id>] [--ref <ref>]');
-  const args = jsonFlag(argsJson ?? flags.args, 'args') ?? {};
+  // `-`: the args JSON on stdin, so text from elsewhere (a song's title in a mix's name) is never
+  // inside a quoted shell argument.
+  const raw = argsJson ?? flags.args;
+  const args = jsonFlag(raw === '-' ? readFileSync(0, 'utf8') : raw, 'args') ?? {};
   const schema = checkVerb(name, flags.schema === undefined ? undefined : Number(flags.schema), args);
   const id = uuidv7();
   const {data} = await request('PUT', `/v1/verbs/${seg(id)}`, {body: {
@@ -161,7 +165,8 @@ export async function surface(argv) {
   const [app, slot] = rest;
   if (!app || !slot) throw invalid('usage: th surface <app> <slot> --kind <k> --payload <json> --why <t> --topic <key> [--expires <iso>] · ls · rm <app> <slot>');
   const kind = need(flags, 'kind');
-  const payload = jsonFlag(need(flags, 'payload'), 'payload');
+  const given = need(flags, 'payload');
+  const payload = jsonFlag(given === '-' ? readFileSync(0, 'utf8') : given, 'payload');
   const schema = checkSurface(app, slot, kind, flags.schema === undefined ? undefined : Number(flags.schema), payload);
   const topic = need(flags, 'topic');
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(topic)) throw invalid('--topic is a slug: lowercase letters, digits, . _ -');
