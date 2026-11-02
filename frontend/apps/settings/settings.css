@@ -1,10 +1,14 @@
 /* Settings owns page layout and informational content; ui/forms.css owns every control. */
-.spage{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);transform:translateX(100%);transition:transform var(--d-page) var(--settle);font-family:var(--ui);color:var(--ink)}
+/* A settings page (.sprung) slides on springs.page (settings.js) and follows a finger from its left
+   edge or header back out: sideways drags there are the page's (pan-y), up and down still scroll.
+   Other pages in this frame (the menu's All conversations) keep the CSS slide. */
+.spage{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;overflow:hidden;background:var(--bg);transform:translateX(100%);transition:transform var(--d-page) var(--settle);font-family:var(--ui);color:var(--ink);touch-action:pan-y}
 .spage.in{transform:none}
+.spage.sprung{transition:none}
 .spage>.field{pointer-events:none;z-index:0}
 .sheader{flex:none;display:flex;align-items:center;gap:12px;padding:calc(16px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) 16px max(16px,env(safe-area-inset-left,0px));background:var(--panel);border-bottom:1px solid transparent;z-index:1}
 .sheader.scrolled{border-bottom-color:var(--glass-line)}
-.sscroll{position:relative;z-index:1;min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(40px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));user-select:text;-webkit-user-select:text}
+.sscroll{position:relative;z-index:1;min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;scrollbar-width:none;padding:12px max(16px,env(safe-area-inset-right,0px)) calc(40px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));user-select:text;-webkit-user-select:text}
 .sscroll::-webkit-scrollbar{display:none}
 .sbody{max-width:520px;margin:auto}
 .sbody>.group-title:first-child{margin-top:0}

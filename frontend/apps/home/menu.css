@@ -1,6 +1,6 @@
 /* Menu layout; shared controls are in ui/forms.css. */
-.side{background:linear-gradient(var(--panel),var(--panel)),var(--bg)}
-.side>.field,.side>.grain{display:none}
+/* The panel's opaque fill and its frosted layer (> .field) are in home.css, shared with Settings. */
+.side>.grain{display:none}
 .side .sidebar{gap:12px;margin:0;padding:12px 16px calc(16px + env(safe-area-inset-bottom,0px));border:0;border-top:1px solid var(--glass-line);border-radius:0;background:var(--glass-flat);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none}
 .sidebar>.field,.sidebar>.field-box{flex:1;min-width:0}
 .side.enter .sidescroll>:not(#convos),.side.enter #convos>*{animation:none}

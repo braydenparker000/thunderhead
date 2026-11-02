@@ -86,7 +86,7 @@ test('holding still opens the Compass ring; sliding picks an app', async () => {
   await page.close();
 });
 
-test('the ring flies out together in 120 ms, overshoots on pop, and uses flat discs until rest', async () => {
+test('the ring flies out together in 120 ms, past the ring and back, its glass fading in as the discs slow; the chosen disc lifts at rest', async () => {
   const { page, errors } = await open();
   // The browser's page clock isolates the trajectory from runner scheduling. Rendering/frame cost
   // is measured separately in the opt-in Frames readout on the device.
@@ -110,22 +110,32 @@ test('the ring flies out together in 120 ms, overshoots on pop, and uses flat di
     assert.equal(p.radius, 0); assert.equal(p.scale, .2);
     assert.equal(p.blur, 'none'); assert.equal(p.shadow, 'none'); assert.equal(p.layer, 'hidden');
   }
-  let reached;
-  for (let ms = 16; ms <= 112; ms += 16) {
+  // The discs fly ~13% past the ring and magnet back, growing from .2 through ~1.06 to 1; the glass
+  // starts to fade in as they pass 85% of the way out and slow, while they still move (GESTURES.md §3).
+  let reached, glass = null, flight = { radius: 0, scale: 0 };
+  for (let ms = 16; ms <= 400; ms += 16) {
     await page.clock.runFor(16);
-    const frame = await page.evaluate(() => ({ time: performance.now(), radii: [...document.querySelectorAll('#ring .pet')].map(p => {
-      const m = new DOMMatrix(getComputedStyle(p).transform); return Math.hypot(m.m41, m.m42);
+    const frame = await page.evaluate(() => ({ time: performance.now(), moving: document.querySelector('#ring').classList.contains('moving'), glass: Number(getComputedStyle(document.querySelector('#ring .pet'), '::before').opacity), pets: [...document.querySelectorAll('#ring .pet')].map(p => {
+      const m = new DOMMatrix(getComputedStyle(p).transform); return { radius: Math.hypot(m.m41, m.m42), scale: m.a };
     }) }));
-    assert.ok(Math.max(...frame.radii) - Math.min(...frame.radii) < .01, 'no stagger');
-    if (frame.radii.every(r => r >= 62 * .9)) { reached = frame.time - start.time; break; }
+    const radii = frame.pets.map(p => p.radius);
+    assert.ok(Math.max(...radii) - Math.min(...radii) < .01, 'no stagger');
+    flight = { radius: Math.max(flight.radius, ...radii), scale: Math.max(flight.scale, ...frame.pets.map(p => p.scale)) };
+    if (reached === undefined && radii.every(r => r >= 62 * .9)) reached = frame.time - start.time;
+    if (glass === null && frame.glass > 0) glass = { radius: radii[0], moving: frame.moving };
   }
   assert.ok(reached > 0 && reached <= 120, `all seven reach 90% radius in ${reached} ms`);
+  assert.ok(flight.radius >= 62 * 1.1 && flight.radius <= 62 * 1.14, `radial overshoot ${(flight.radius / 62 - 1) * 100}%`);
+  assert.ok(flight.scale >= 1.04 && flight.scale <= 1.08, `the discs grow to ${flight.scale} on the way out`);
+  assert.ok(glass && glass.moving && glass.radius >= 62 * .85, `the glass starts before rest, past 85% of the way: ${JSON.stringify(glass)}`);
   await page.clock.runFor(600); await whenResting(page);
   assert.equal(await page.$eval('#ring', r => r.classList.contains('moving')), false);
   await page.$eval('#ring .pet', p => Promise.all(p.getAnimations({ subtree: true }).map(a => a.finished)));
   assert.equal(await page.$eval('#ring .pet', p => getComputedStyle(p, '::before').opacity), '1');
   await page.evaluate(() => window.ringPoint('pointermove', 200, 350));
   assert.equal(await page.$eval('#ring', r => r.classList.contains('moving')), true);
+  assert.equal(await page.$eval('#ring .pet', p => p.classList.contains('lifted')), false, 'no lift while it moves');
+  assert.equal(await page.$eval('#ring .pet', p => getComputedStyle(p, '::before').opacity), '1', 'the glass stays while the discs move to choose');
   let peak = 1;
   for (let i = 0; i < 30; i++) {
     await page.clock.runFor(16);
@@ -134,6 +144,8 @@ test('the ring flies out together in 120 ms, overshoots on pop, and uses flat di
   await whenResting(page);
   // Overshoot is relative to the .12 scale step, just as the engine measures relative travel.
   const overshoot = (peak - 1.12) / .12;
+  assert.equal(await page.textContent('#lbl'), 'Music');
+  assert.deepEqual(await page.$$eval('#ring .pet', pets => pets.map(p => p.classList.contains('lifted'))), [true, false, false, false, false, false, false], 'the chosen disc lifts once it rests');
   assert.ok(overshoot >= .08 && overshoot <= .16, `chosen scale overshoot ${overshoot * 100}%`);
   const scales = await page.$$eval('#ring .pet', pets => pets.map(p => new DOMMatrix(getComputedStyle(p).transform).a));
   assert.ok(Math.abs(scales[0] - 1.12) < .001);
