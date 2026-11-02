@@ -95,4 +95,26 @@ describe('the Briefing’s weather', () => {
     for (let i = 0; i < 20 && !asked.length; i++) await new Promise((r) => setTimeout(r, 25));
     expect(asked).toEqual(['api.open-meteo.com']);
   });
+
+  it('keeps the place’s country for the Holidays tile, and looks it up once for a place kept before', async () => {
+    const country = async () =>
+      (await coreSql<{ value_json: string }>(`SELECT value_json FROM settings WHERE key = 'owner.country'`)).map((r) =>
+        JSON.parse(r.value_json),
+      );
+    // Set with the place (the geocoder's country_code).
+    expect(await country()).toEqual(['XX']);
+    // A place kept before 2026-11-02 has none: the next forecast refresh asks the geocoder once
+    // more by its name and keeps the country when the answer is the same place.
+    await coreSql(`DELETE FROM settings WHERE key = 'owner.country'`);
+    const [row] = await coreSql<{ value_json: string }>(
+      `SELECT value_json FROM settings WHERE key = 'weather.forecast'`,
+    );
+    const old = { ...JSON.parse(row.value_json), at: Date.now() - 40 * 60_000 };
+    await coreSql(`UPDATE settings SET value_json = ? WHERE key = 'weather.forecast'`, JSON.stringify(old));
+    asked = [];
+    await briefing();
+    for (let i = 0; i < 40 && !(await country()).length; i++) await new Promise((r) => setTimeout(r, 25));
+    expect(asked.sort()).toEqual(['api.open-meteo.com', 'geocoding-api.open-meteo.com']);
+    expect(await country()).toEqual(['XX']);
+  });
 });

@@ -1,7 +1,10 @@
-// What GET /v1/briefing answers (BRIEFING.md): the page's title line, the weather (P8), its tiles
-// in order ("Waiting on you", then the night shift's tiles, P8), one line about Muse when there is
-// something to say, and one about the day's database use from 60% of the Free plan's limit. Counts
-// and titles only.
+// What GET /v1/briefing answers (BRIEFING.md): the page's title line, the date and a line of the
+// day's counts, the weather (P8), its tiles in order ("Waiting on you", "Due", then the night
+// shift's tiles, P8, then "Holidays"), one line about Muse when there is something to say, one
+// about the night shift when it didn't arrange the page, and one about the day's database use from
+// 60% of the Free plan's limit. The Worker fills Due, Holidays and the day's line itself every
+// morning, without a mind session. Counts and titles only, except the Due sheet's reminders (the
+// owner's own words, to the owner's device).
 
 export interface WaitingTile {
   kind: 'waiting';
@@ -30,6 +33,49 @@ export interface NightTile {
   ledger_id: string | null;
 }
 
+/** BRIEFING.md §2 "Due": the owner's reminders due today and tomorrow (owner-local days): the
+ * counts and the next one's time on the tile, the list in its sheet. */
+export interface DueTile {
+  kind: 'due';
+  label: 'Due';
+  /** "2 today · 1 tomorrow", "1 today", "3 tomorrow". */
+  value: string;
+  /** "Next at 14:30" or "Next tomorrow at 09:00". */
+  detail: string;
+  today: number;
+  tomorrow: number;
+  /** Soonest first, at most `DUE_LIMITS.items`: its words and when it is delivered (ms). */
+  items: { id: string; text: string; at: number }[];
+}
+
+/** BRIEFING.md §2 "Holidays": the next public holiday within 14 days in the owner's country
+ * (`owner.country`), from the Worker's own list (areas/briefing/holidays.ts). */
+export interface HolidayTile {
+  kind: 'holiday';
+  label: 'Holidays';
+  /** The holiday's name, ≤ 32 characters. */
+  value: string;
+  /** "Thursday 26 November · in 9 days", "… · tomorrow", "Today". */
+  detail: string;
+  /** `YYYY-MM-DD`. */
+  date: string;
+  in_days: number;
+}
+
+/** BRIEFING.md §1 "Today": the owner-local date, and one line made from counts (reminders due
+ * today, new podcast episodes, songs added in the last day), never from message text; null when
+ * every count is zero. */
+export interface TodayLine {
+  /** "Monday 2 November". */
+  date: string;
+  /** "2 reminders due today, 3 new episodes and 12 songs added." ≤ 60 characters, or null. */
+  line: string | null;
+}
+
+export const DUE_LIMITS = { items: 50 } as const;
+export const HOLIDAY_WITHIN_DAYS = 14;
+export const TODAY_LINE_MAX = 60;
+
 /** BRIEFING.md §2, §6: the weather tile, always first; with no place, the one that asks for it. */
 export interface WeatherTile {
   /** The place's name, or null when none is set. */
@@ -49,14 +95,22 @@ export interface PutPlaceRequest {
   name: string;
 }
 
+export type BriefingTile = WaitingTile | DueTile | NightTile | HolidayTile;
+
 export interface BriefingResponse {
   day: string;
   title: string;
+  /** The date and the day's counts (absent in answers from before 2026-11-02). */
+  today?: TodayLine;
   weather: WeatherTile;
-  /** At most 8, in order: "Waiting on you", then the night's tiles by slot. */
-  tiles: (WaitingTile | NightTile)[];
+  /** At most 8, in order: "Waiting on you", "Due", the night's tiles by slot, "Holidays". */
+  tiles: BriefingTile[];
   /** "Muse hasn't checked in since yesterday." / null */
   muse: string | null;
+  /** When the connected night shift didn't arrange the page for today: "The night shift hasn't
+   * run yet." or "The night shift ran out of time before arranging this page."; otherwise null
+   * (also while it isn't connected). Absent in answers from before 2026-11-02. */
+  night?: string | null;
   /** From 60% of a Free-plan daily limit: "Today's database use is at 62% of the free plan's daily
    * limit." (from 80% with when backups and uploads run again); otherwise null. */
   quota: string | null;
