@@ -125,7 +125,7 @@ describe('the settings catalogue', () => {
 describe('a fresh owner', () => {
   it('sees every mind setting at its default', async () => {
     const { mindSettingLines } = await import('../../src/areas/settings/catalog');
-    const lines = mindSettingLines({ all: () => [] } as never);
+    const lines = mindSettingLines({ one: () => null, all: () => [] } as never);
     expect(lines).toContain('mind.voice: plain (default)');
     expect(lines).toContain('mind.idle: 120 min (default)');
     expect(lines.every((l) => l.endsWith('(default)'))).toBe(true);
