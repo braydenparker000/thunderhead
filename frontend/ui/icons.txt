@@ -1,4 +1,4 @@
-# Phosphor Icons (regular weight; "-bold" names are the bold weight) in ui/icons.svg, one name per line (DESIGN-SYSTEM.md §13).
+# Phosphor Icons (regular weight; "-bold" and "-fill" names are those weights) in ui/icons.svg, one name per line (DESIGN-SYSTEM.md §13).
 # Rebuild after editing: node scripts/icons.mjs
 # The six app icons
 music-notes-simple
@@ -54,14 +54,16 @@ cloud-arrow-up
 book-open-text
 gear-six
 aperture
-# The ring's discs: the app icons in the bold weight, crisp on glass at 24 px (owner, 2026-10-31)
-music-notes-simple-bold
-guitar-bold
-microphone-bold
-monitor-play-bold
-youtube-logo-bold
-book-bookmark-bold
-aperture-bold
+# The ring's discs: the app icons in the fill weight, solid on glass at 24 px (2026-11-02: fill
+# keeps 22-52% of the 24 px box in full colour against bold's 25-40%, where the app colours are
+# only 2-3:1 on day glass)
+music-notes-simple-fill
+guitar-fill
+microphone-fill
+monitor-play-fill
+youtube-logo-fill
+book-bookmark-fill
+aperture-fill
 
 # Shared menu and Settings back button
 caret-left

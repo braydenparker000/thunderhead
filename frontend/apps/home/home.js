@@ -89,7 +89,7 @@ function openFromRing(id,color,to){
   // Compass: hold an empty spot ~220 ms, a tight ring of apps springs out around the finger; slide toward one, let go to open.
   // Seven directions, clockwise from the top; an app not shipped yet (Photos) says it comes later. Each app keeps its own
   // glass disc at rest; a moving disc is flat and its glass layer fades back after the engines rest.
-  const APPS=apps.map(a=>[a.name,`<span class="fill" aria-hidden="true"></span><svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}-bold"/></svg><svg class="i ph on" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}-bold"/></svg>`,a.color,a.built?a.path:'']);
+  const APPS=apps.map(a=>[a.name,`<span class="fill" aria-hidden="true"></span><svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}-fill"/></svg><svg class="i ph on" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}-fill"/></svg>`,a.color,a.built?a.path:'']);
   // A choice holds until the finger is ~7 degrees past its sector's edge, whatever the number of apps (GESTURES.md §3.2).
   // Direction is measured from where the thumb went down, not from the ring's drawn centre: near an edge the ring
   // moves inward to fit, and measuring from there made a straight swipe up pick the wrong app (owner, 2026-10-31).
