@@ -142,7 +142,8 @@ function openFromRing(id,color,to){
   function fan(){ opening=true; peak=0;
     if(motionReduced()){ petMotion.forEach(m=>{m.radial.to(1,{spring:springs.pop});m.size.to(1,{spring:springs.lift});m.choice.to(0,{spring:springs.pop});m.face.to(1,{spring:springs.fade})}); settleRing(ringRun); return }
     const run=ringRun, fx=flightFx(); petMotion.forEach(m=>m.face.set(1));
-    const anims=fx.effects.map(e=>{ const a=new Animation(e,document.timeline); a.play(); return a });
+    // Started at the hold's own time, not at the first frame that shows them, so the flight keeps its clock.
+    const t0=document.timeline.currentTime, anims=fx.effects.map(e=>{ const a=new Animation(e,document.timeline); if(t0==null) a.play(); else a.startTime=t0; return a });
     flight={run,anims,glass:setTimeout(()=>{ if(flight?.run===run){ opening=false; ring.classList.add('glassy') } },fx.at85)};
     ringMoving();
     // The flight is over when the discs' paths are (the fades end well before).
