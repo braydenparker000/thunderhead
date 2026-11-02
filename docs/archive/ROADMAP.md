@@ -1,8 +1,10 @@
 # Roadmap
 
+> **Archived 2026-11-02** (was `docs/process/ROADMAP.md`): historical, kept for the record; see [README.md](README.md). The plan is now [PLAN.md](../process/PLAN.md).
+
 The build order. Every phase ends **live and useful**, with a "done when" the owner can check.
 The first phases hold no personal data and touch nothing in the old system; P1b's one old-Worker change is asked first.
-Current position: see [STATUS.md](STATUS.md). Fixed decisions: [decisions.md](decisions.md).
+Current position: see [STATUS.md](../process/STATUS.md). Fixed decisions: [decisions.md](../process/decisions.md).
 
 ## Rules at a glance
 
@@ -10,7 +12,7 @@ Current position: see [STATUS.md](STATUS.md). Fixed decisions: [decisions.md](de
 2. Old systems keep working until the new one has replaced them and the owner has used it for 7 days.
 3. Each Durable Object class arrives in its own deploy (Worker rollback can't cross a class change).
 4. Anything in an ask-first class inside a phase waits for the owner's approval (a device tap or the owner's own words); the rest of the phase continues.
-5. Measurements named in a phase are written to [decisions.md](decisions.md) before the next phase starts.
+5. Measurements named in a phase are written to [decisions.md](../process/decisions.md) before the next phase starts.
 6. The existing apps are ported **as they are** first (owner ruling). Every later change to a ported app is an evolution the owner agrees to first; agreement is the go-ahead.
 
 ## Phases
@@ -32,4 +34,4 @@ Current position: see [STATUS.md](STATUS.md). Fixed decisions: [decisions.md](de
 
 ## Explicitly later or never
 
-See the deferred list in [decisions.md](decisions.md) and the evaluated backlog in [IDEAS.md](IDEAS.md). Open questions that gate phases are in [RESEARCH-AGENDA.md](RESEARCH-AGENDA.md).
+See the deferred list in [decisions.md](../process/decisions.md) and the evaluated backlog in [IDEAS.md](IDEAS.md). Open questions that gate phases are in [RESEARCH-AGENDA.md](RESEARCH-AGENDA.md).

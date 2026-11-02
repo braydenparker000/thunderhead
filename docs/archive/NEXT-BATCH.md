@@ -1,5 +1,8 @@
 # The next batch (agreed with the owner, 2026-10-31)
 
+> **Archived 2026-11-02** (was `docs/process/NEXT-BATCH.md`): historical, kept for the record; see [README.md](README.md).
+> Out of date: `th ci` exists (built 2026-10-31, `mind/cli/lib/ci.mjs`); the line under "Alongside" that says it does not is wrong.
+
 Nine parts, built in this order: playback reporting and the rows-read guard first (so every change
 after them is measured, and nothing can quietly run into the free plan's daily cap again), then
 Music's streaming, then apps inside the Thunderhead with the island, then the features that ride on

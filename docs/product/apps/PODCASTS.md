@@ -532,24 +532,6 @@ random progress entries match.
 
 ---
 
-## 13. New feature ideas (all [proposal])
-
-1. **Catch-up length.** On Listen, "You have 3 h 20 min of new episodes" with a "Fit into 45
-   minutes" button: the phone builds Up next from the owner's most-finished shows to fill the time,
-   at the owner's usual speed.
-2. **Chapter skipping by habit.** If the owner skips the same chapter title pattern ("Sponsor",
-   "Housekeeping") in a show 3 times, the show offers "Skip chapters like this automatically" —
-   one tap to turn on, shown in show settings, never silent.
-3. **Ask about the moment.** Long-press the seek bar or a transcript cue → "Ask about this" sends
-   the episode ref with the timestamp and the surrounding transcript lines (when a transcript
-   exists) to home.
-4. **Morning walk queue.** If the owner tends to listen at a regular time (from senses), the mind
-   pre-downloads that morning's Up next on Wi-Fi the night before and says so in the Briefing tile.
-5. **Show health.** The Shows grid marks shows not opened in 60 days with a soft "Still want
-   this?" so the list stays meaningful; unfollow stays the owner's tap.
-
----
-
 ## 14. Open questions / tests
 
 | # | Question | How to settle |
@@ -562,3 +544,13 @@ random progress entries match.
 | 6 | DOMParser time for a 4 MB feed on the A15 (main thread) | Measure; if over 150 ms, move parsing to a worker with a streaming XML parser |
 | 7 | Whether the owner wants the Podcast Index API (needs a free account and two Worker secrets) | Owner decision |
 | 8 | Refs `podcast:<s>/<e>` agreed in [GLOSSARY](../GLOSSARY.md) | Coordinator |
+
+---
+
+## Not built
+
+Sections once marked as proposals that are not built and not in PLAN.md; their full text is in
+[archive/NOT-BUILT-2026-11-02.md](../../archive/NOT-BUILT-2026-11-02.md).
+
+- **§13 New feature ideas.** Catch-up length, chapter skipping by habit, ask about the moment, a morning walk queue, show health.
+  Not built and not in PLAN.md.

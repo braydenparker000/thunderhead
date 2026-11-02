@@ -1,8 +1,10 @@
 # Muse
 
+> **Archived 2026-11-02** (was `docs/mind/MUSE.md`): historical, kept for the record; see [README.md](README.md).
+
 Muse's place in the Thunderhead: a separate AI agent that does routine jobs through **work orders**, never through conversation with the mind. This page fixes the work-order schema, what Muse may and may not do, its token, how its results are checked, how it moves off the old relay, and what happens when it goes silent.
 
-> **2026-10-31 (owner): no Muse Daily Board, and SETUP.md M3 is cut.** Muse doesn't write a Board, on the old relay or here, and doesn't move to the work orders for one. The `board.edition` kind, the Board brief, its standing approval and the Briefing's Board tile and reader were removed from the code. Today Muse does one thing for the Thunderhead: the music uploads, signed with its own key ([MUSE-UPLOADS.md](../process/MUSE-UPLOADS.md), SETUP.md N4). The work-order machinery below stays, unused, with its two other kinds (`research.brief`, `media.check`), for a later job the owner may give Muse (for example research while the owner sleeps); connecting Muse to it would need a new owner step.
+> **2026-10-31 (owner): no Muse Daily Board, and SETUP.md M3 is cut.** Muse doesn't write a Board, on the old relay or here, and doesn't move to the work orders for one. The `board.edition` kind, the Board brief, its standing approval and the Briefing's Board tile and reader were removed from the code. Today Muse does one thing for the Thunderhead: the music uploads, signed with its own key ([MUSE-UPLOADS.md](MUSE-UPLOADS.md), SETUP.md N4). The work-order machinery below stays, unused, with its two other kinds (`research.brief`, `media.check`), for a later job the owner may give Muse (for example research while the owner sleeps); connecting Muse to it would need a new owner step.
 
 ## Rules at a glance
 
@@ -16,7 +18,7 @@ Muse's place in the Thunderhead: a separate AI agent that does routine jobs thro
 
 **Built in P4 stages G–H** (`backend/src/areas/work/`, `shared/contract/work.ts`; tests `backend/tests/integration/work.test.ts`, `muse.test.ts`): the order kinds `research.brief` and `media.check` with their schemas, the routes of §4 but file uploads, the validator and hygiene of §5, leases and deadlines, Muse's thread, the `muse.silent` watchdog and the Briefing page's line. The Daily Board's kind, brief and approval were built too and removed on 2026-10-31. Not built: importing Muse's history (§8 step 2) and file uploads (no kind has files).
 
-Sibling docs: [BEHAVIOR.md §11](BEHAVIOR.md#11-outside-content-muse-output-web-pages-files) (outside content), [RUNTIME.md §7](RUNTIME.md#7-environments-and-tokens) (token roles), [MEMORY.md §6](MEMORY.md#6-provenance-and-taint-rules-worker-enforced) (taint rules M6), [EVALS.md](EVALS.md) (INJ-10, INJ-11). Engineering: [API.md](../engineering/API.md) (canonical routes), [SECURITY.md](../engineering/SECURITY.md), [MIGRATION.md](../engineering/MIGRATION.md) (importing Muse's history), [JOBS.md](../engineering/JOBS.md).
+Sibling docs: [BEHAVIOR.md §11](../mind/BEHAVIOR.md#11-outside-content-muse-output-web-pages-files) (outside content), [RUNTIME.md §7](../mind/RUNTIME.md#7-environments-and-tokens) (token roles), [MEMORY.md §6](../mind/MEMORY.md#6-provenance-and-taint-rules-worker-enforced) (taint rules M6), [EVALS.md](../mind/EVALS.md) (INJ-10, INJ-11). Engineering: [API.md](../engineering/API.md) (canonical routes), [SECURITY.md](../engineering/SECURITY.md), [MIGRATION.md](../engineering/MIGRATION.md) (importing Muse's history), [JOBS.md](../engineering/JOBS.md).
 
 ---
 

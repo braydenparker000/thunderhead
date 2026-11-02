@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Upload an already prepared Opus file to the Thunderhead's music library.
 
-The old repo's scripts/upload-music-r2.py, pointed at the new Worker (MIGRATION.md §7 step 4,
+The old repo's scripts/upload-music-r2.py, pointed at the new Worker (docs/archive/MIGRATION.md §7 step 4,
 SETUP.md N4): the same signed uploads (Ed25519, the private key stays on this computer) to
 /v1/music/uploads/*, and this API's error envelope. Requires Python 3, mutagen and openssl.
 Does not download, transcode, use Drive, retrieve R2 keys, or follow HTTP redirects. Safe to

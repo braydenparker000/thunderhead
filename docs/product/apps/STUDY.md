@@ -3,7 +3,7 @@
 Study is the owner's private library: their own PDF books, a reader that opens at any page,
 search across every page, a scripture-reference parser, and answers about a verse that cite the
 owner's own books page by page. It is the only app built new (no old code to carry).
-Ring colour `#2e9e5b`, icon Phosphor `book-bookmark`, route `/study/`, phase **P7** ([ROADMAP](../../process/ROADMAP.md)).
+Ring colour `#2e9e5b`, icon Phosphor `book-bookmark`, route `/study/`, phase **P7** ([ROADMAP](../../archive/ROADMAP.md)).
 
 ## Rules at a glance
 
@@ -24,7 +24,7 @@ Ring colour `#2e9e5b`, icon Phosphor `book-bookmark`, route `/study/`, phase **P
    revelation or the owner's leaders' decisions (Law 8, [CONSTITUTION](../../mind/CONSTITUTION.md)).
 7. **Book text is outside content.** It can be cited in an answer but can never become a fact, a rule
    or a memory ([MEMORY](../../mind/MEMORY.md), taint rule).
-8. **Study days are information, never pressure.** No streaks or consecutive-day counters (GROW-1, [IDEAS](../../process/IDEAS.md) A1), no pushes about studying, a missed
+8. **Study days are information, never pressure.** No streaks or consecutive-day counters (GROW-1, [IDEAS](../../archive/IDEAS.md) A1), no pushes about studying, a missed
    day resets silently.
 9. **Offline works for kept books.** A book kept on the phone (OPFS) opens, scrolls, highlights and
    searches its own pages with no network.
@@ -597,7 +597,7 @@ a day crossing the 04:00 roll).
    first open downloads the whole PDF through the Worker (with its progress) into OPFS `study/`, and
    every open after is instant and works offline; **Remove from this phone** in the book menu; signing
    out deletes the folder. The 256 KB signed ranges are gone (with SETUP.md O1 and Study's need for
-   N1). Parked in [IDEAS](../../process/IDEAS.md), not built: the highlight and note editor in the
+   N1). Parked in [IDEAS](../../archive/IDEAS.md), not built: the highlight and note editor in the
    reader (§5.4; the Worker's highlight routes are built) and the wash on the cited block itself (the
    whole page washes).
 6. Cited answers with the Worker validator; evals. **Built:** for any question, not only a verse.

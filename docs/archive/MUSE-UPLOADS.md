@@ -1,5 +1,7 @@
 # For Muse: music uploads move to the new server
 
+> **Archived 2026-11-02** (was `docs/process/MUSE-UPLOADS.md`): historical, kept for the record; see [README.md](README.md).
+
 Paste everything below the line to Muse.
 
 ---
