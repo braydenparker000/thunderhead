@@ -1609,6 +1609,7 @@
     "app.open": {
       "app": "shell",
       "class": "reversible",
+      "permit": "tiles",
       "executor": "device",
       "queueable": false,
       "undo": "none",
@@ -1652,6 +1653,7 @@
     "music.create_playlist": {
       "app": "music",
       "class": "reversible",
+      "permit": "music",
       "executor": "device",
       "queueable": true,
       "undo": "reported",
@@ -1703,6 +1705,7 @@
     "music.delete_playlist": {
       "app": "music",
       "class": "reversible",
+      "permit": "music",
       "executor": "device",
       "queueable": false,
       "undo": "none",
@@ -1731,6 +1734,7 @@
     "shell.appearance": {
       "app": "shell",
       "class": "reversible",
+      "permit": "settings",
       "executor": "device",
       "queueable": true,
       "undo": "reported",
@@ -2752,6 +2756,10 @@
         "ask_first": true,
         "label": "Reaches someone else"
       },
+      "permit": {
+        "ask_first": true,
+        "label": "You said to ask"
+      },
       "memory_big": {
         "ask_first": false,
         "label": "Changes what I remember"
@@ -2899,6 +2907,139 @@
           ],
           "additionalProperties": false
         }
+      },
+      "permit.allow": {
+        "classes": [
+          "permit",
+          "money",
+          "delete",
+          "access",
+          "reach_people"
+        ],
+        "by": [
+          "C",
+          "N"
+        ],
+        "runs": "core",
+        "ref": [
+          "call",
+          "call"
+        ],
+        "doc": "Let the mind take one action its standing permission (Ask) or a floor keeps behind a card: exactly the call its refusal named (`call`, the SHA-256 of the action and its canonical body), once, within 7 days of the yes. The refusal's details carry this spec ready to raise (API.md §11.11).",
+        "args": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9_]*$"
+            },
+            "call": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            }
+          },
+          "required": [
+            "action",
+            "call"
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "permits": {
+    "positions": [
+      "ask",
+      "tell",
+      "quiet"
+    ],
+    "classes": {
+      "music": {
+        "setting": "mind.permit.music",
+        "label": "Music",
+        "default": "quiet"
+      },
+      "podcasts": {
+        "setting": "mind.permit.podcasts",
+        "label": "Podcasts",
+        "default": "quiet"
+      },
+      "reminders": {
+        "setting": "mind.permit.reminders",
+        "label": "Reminders",
+        "default": "tell"
+      },
+      "settings": {
+        "setting": "mind.permit.settings",
+        "label": "Settings",
+        "default": "tell"
+      },
+      "muse": {
+        "setting": "mind.permit.muse",
+        "label": "Muse orders",
+        "default": "ask"
+      },
+      "watch": {
+        "setting": "mind.permit.watch",
+        "label": "Watch lists",
+        "default": "tell"
+      },
+      "practice": {
+        "setting": "mind.permit.practice",
+        "label": "Practice",
+        "default": "tell"
+      },
+      "tiles": {
+        "setting": "mind.permit.tiles",
+        "label": "Lines and tiles",
+        "default": "quiet"
+      },
+      "titles": {
+        "setting": "mind.permit.titles",
+        "label": "Titles",
+        "default": "quiet"
+      },
+      "outside": {
+        "setting": "mind.permit.outside",
+        "label": "Remembering from outside text",
+        "default": "ask"
+      }
+    },
+    "floors": {
+      "money": "money",
+      "delete": "deleting your data",
+      "access": "keys and access",
+      "reach_people": "reaching another person"
+    },
+    "actions": {
+      "surface.put": {
+        "class": "tiles",
+        "doc": "A line on home or a tile on the Briefing (`PUT /v1/surfaces/:app/:slot`)."
+      },
+      "thread.title": {
+        "class": "titles",
+        "doc": "A conversation's title or summary (`PATCH /v1/threads/:id`)."
+      },
+      "reminder.set": {
+        "class": "reminders",
+        "doc": "A reminder the owner asked for (`PUT /v1/reminders/:id`)."
+      },
+      "reminder.cancel": {
+        "class": "reminders",
+        "doc": "Taking a reminder back (`DELETE /v1/reminders/:id`)."
+      },
+      "muse.order": {
+        "class": "muse",
+        "doc": "A work order for Muse (`PUT /v1/work/orders/:id`)."
+      },
+      "muse.order_personal": {
+        "class": "muse",
+        "floor": "reach_people",
+        "doc": "A work order of a kind that carries the owner's data (`personal` in work.ts): Muse runs on another provider (BEHAVIOR.md §7 rule 4). No such kind is built."
+      },
+      "memory.outside": {
+        "class": "outside",
+        "doc": "Keeping a fact learned from outside text. Memory refuses outside text altogether today (MEMORY.md §7), which no position loosens; provenance labels will route it here."
       }
     }
   },

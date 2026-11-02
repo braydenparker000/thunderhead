@@ -38,6 +38,9 @@ const RESULT = {
 beforeAll(async () => {
   p = await principals();
   M = await makeAgent(p.D, 'muse');
+  // Muse orders ask first by default (a standing permission, permits.test.ts); these tests are
+  // about the orders themselves, so the owner lets the mind make them and say so.
+  await api('PATCH', '/v1/settings', { token: p.D, body: { 'mind.permit.muse': 'tell' } });
 });
 
 describe('work orders', () => {

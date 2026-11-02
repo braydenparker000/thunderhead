@@ -1,8 +1,10 @@
 // Verbs (API.md §11.11): the mind queues one, a signed-in phone claims it, runs it and reports
 // the result. Everything is checked against the contract (shared/contract/verbs.ts): the verb
 // must exist and be queueable, its schema version known, its args and result valid. A phone that
-// lacks the verb reports `unsupported_verb`; ask-first verbs need an approved proposal (P4).
+// lacks the verb reports `unsupported_verb`. The mind queues under its standing permissions
+// (mind/permit.ts): an Ask class, or an ask-first verb's floor, needs an approved card.
 import type { Actor, JsonObject, PutVerbRequest, Verb, VerbResultRequest } from '../../../../shared/contract/api';
+import type { Permit } from '../../../../shared/contract/permits.ts';
 import { latestVersion, verbSpec } from '../../../../shared/contract/verbs.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
@@ -11,6 +13,7 @@ import type { Db } from '../../objects/base';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import * as ledger from '../ledger/store';
+import { gate, ledgerPermit } from '../mind/permit';
 import * as store from './store';
 
 export const CLAIM_MS = 120_000;
@@ -28,11 +31,12 @@ export function put(
   id: string,
   r: PutVerbRequest,
   reqHash: string,
-): { verb: Verb; created: boolean } {
+): { verb: Verb; created: boolean; permit?: Permit } {
   const found = store.byId(w.db, id);
   if (found) {
     if (found.req_sha256 !== reqHash) throw new Fail('conflict');
-    return { verb: store.toVerb(found), created: false };
+    // The same call again: the permit it ran under, from its ledger row.
+    return { verb: store.toVerb(found), created: false, ...permitOf(w.db, found) };
   }
   const spec = verbSpec(r.verb);
   if (!spec) throw invalid('verb', 'unknown verb');
@@ -41,9 +45,11 @@ export function put(
   if (!version) throw invalid('schema', `known versions: ${Object.keys(spec.versions).join(', ')}`);
   const args = version.args.safeParse(r.args);
   if (!args.success) throw issues('args', args.error);
-  if (spec.class === 'ask_first') throw new Fail('proposal_required');
   if (r.expires_at !== undefined && (r.expires_at < w.at || r.expires_at > w.at + 7 * 24 * HOUR))
     throw invalid('expires_at', 'within the next 7 days');
+  // The standing permission (an ask-first verb has a floor, so it always needs its card): what a
+  // card approves is the verb, its schema and its args, not where it runs.
+  const g = gate(w, c, r.verb, { schema: r.schema, args: args.data }, `verb:${id}`, r.proposal_id);
   const ledgerId = w.ledger({
     kind: 'verb',
     actor: c.actor,
@@ -53,6 +59,7 @@ export function put(
     ref: r.ref ?? `verb:${id}`,
     verb_id: id,
     undoable: false,
+    ...ledgerPermit(g),
   });
   store.insert(w.db, {
     id,
@@ -69,7 +76,18 @@ export function put(
     req_sha256: reqHash,
   });
   w.change('verb', `verb:${id}`);
-  return { verb: store.toVerb(store.byId(w.db, id) as store.VerbRow), created: true };
+  return {
+    verb: store.toVerb(store.byId(w.db, id) as store.VerbRow),
+    created: true,
+    ...(g ? { permit: g.permit } : {}),
+  };
+}
+
+/** The permit a queued verb ran under, read back from its ledger row (a retry's answer). */
+function permitOf(db: Db, v: store.VerbRow): { permit?: Permit } {
+  const row = v.ledger_id ? ledger.byId(db, v.ledger_id) : null;
+  const spec = verbSpec(v.verb);
+  return row?.permit && spec ? { permit: { action: v.verb, class: spec.permit, position: row.permit } } : {};
 }
 
 /** Stale claims and expired verbs are settled lazily on every read and by the daily tick. */
@@ -126,7 +144,8 @@ export function result(w: Writer, id: string, deviceId: string, r: VerbResultReq
     w.change('ledger', v.ref);
   }
   // The outcome is the action of whoever queued it (the phone only ran it), and its row is the
-  // verb's undo handle from now on.
+  // verb's undo handle from now on: it keeps the permit the queued row ran under.
+  const queued = v.ledger_id ? ledger.byId(w.db, v.ledger_id) : null;
   const outcome = w.ledger({
     kind: 'verb',
     actor: v.actor as Actor,
@@ -137,6 +156,7 @@ export function result(w: Writer, id: string, deviceId: string, r: VerbResultReq
     verb_id: id,
     undo: undo ? { verb: undo.verb, schema: undo.schema ?? 1, args: undo.args } : null,
     status: r.ok ? 'done' : 'failed',
+    permit: queued?.permit ?? null,
   });
   store.setLedger(w.db, id, outcome);
   w.change('verb', `verb:${id}`);

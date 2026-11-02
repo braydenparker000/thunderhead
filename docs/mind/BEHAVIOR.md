@@ -278,6 +278,7 @@ Rules:
 2. **Approval for the four classes comes only from the owner:** a device tap, or the owner's own words in the conversation, checked as in §4 rule 4. A fired wake, a message from Muse, a web page, a PR comment, or any other text the mind read is never approval.
 3. **A go-ahead given in advance** ("merge and deploy when it's ready") covers that change, including the deploy. It never covers an ask-first action.
 4. **Personal data in a work order** to Muse counts as `reach_people` **[proposal]**, because Muse runs on another provider's plan.
+5. **Standing permissions narrow the autonomy above.** The owner sets, per class (music, podcasts, reminders, settings, Muse orders, watch lists, practice, lines and tiles, titles, remembering from outside text), whether the mind asks first (a `permit` card), does it and says so in its reply (`tell`), or does it and mentions it only if asked (`quiet`); the four classes above are floors that always ask. The Worker enforces them and each write's answer names the position ([API.md §11.11](../engineering/API.md#standing-permissions)), so a "Do it" row in the table means "within the owner's standing permission".
 
 **Check (AUT-1, AUT-2):** [EVALS.md](EVALS.md).
 

@@ -2,6 +2,7 @@
 // one from the + sheet; the chat mind sets one when the owner asks in words, naming that message.
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
+import type { Permitted } from '../../../../shared/contract/api';
 import type { PutReminderRequest, ReminderResponse, RemindersResponse } from '../../../../shared/contract/reminders.ts';
 import { type AppEnv, guard } from '../../http/auth';
 import { callerOf, idParam, reqHash } from '../../http/caller';
@@ -24,7 +25,11 @@ export const remindersRoutes = new Hono<AppEnv>()
     const id = idParam(c);
     const body = await json(c, putBody);
     const out = value(await fresh(coreObject(c.env).putReminder(callerOf(c), id, body, reqHash(body))));
-    return c.json({ reminder: out.reminder } satisfies ReminderResponse, out.created ? 201 : 200);
+    const answer: Permitted<ReminderResponse> = {
+      reminder: out.reminder,
+      ...(out.permit ? { permit: out.permit } : {}),
+    };
+    return c.json(answer, out.created ? 201 : 200);
   })
   .get('/reminders', guard('GET /v1/reminders'), async (c) =>
     c.json((await fresh(coreObject(c.env).reminders())) satisfies RemindersResponse),
@@ -34,6 +39,6 @@ export const remindersRoutes = new Hono<AppEnv>()
     const source = c.req.query('source_message_id');
     if (source !== undefined && !UUIDV7.test(source))
       throw new ApiError('validation', [{ path: 'source_message_id', issue: 'a message id' }]);
-    const reminder = value(await fresh(coreObject(c.env).cancelReminder(callerOf(c), id, source)));
-    return c.json({ reminder } satisfies ReminderResponse);
+    const { permit, ...reminder } = value(await fresh(coreObject(c.env).cancelReminder(callerOf(c), id, source)));
+    return c.json({ reminder, ...(permit ? { permit } : {}) } satisfies Permitted<ReminderResponse>);
   });

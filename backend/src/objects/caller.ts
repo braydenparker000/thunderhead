@@ -10,6 +10,9 @@ export interface Caller {
   session_id: string | null;
   /** The signed-in device (its session id), for device-bound rows. */
   device_id: string | null;
+  /** An agent's `TH-Proposal`: the approved card it says allows this write under a standing
+   * permission at Ask (areas/mind/permit.ts checks the card itself). */
+  proposal_id?: string | null;
 }
 
 export const isMind = (c: Caller) => c.who === 'C' || c.who === 'N' || c.who === 'R';

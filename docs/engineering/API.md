@@ -166,7 +166,7 @@ Acceptance: a live read-only check sends `OPTIONS /v1/changes` with the site ori
 | 403 | `session_tainted` | A tainted mind session tried a gated write | The mind reports it; no retry |
 | 403 | `session_required` | A mind memory write without a claimed, live session of the key's role (P3) | Claim with `th brief --claim` first; no retry as is |
 | 403 | `laws_unpinned` | `rule` write from a session whose constitution pin failed | — |
-| 403 | `proposal_required` | An ask-first verb or op without an approved proposal | Create a proposal |
+| 403 | `proposal_required` | An ask-first verb or op without an approved proposal; a write whose standing permission is Ask, or that has a floor, without an approved card for that call (`details.reason` `permit` names the card, §11.11) | Create a proposal, then send the call again naming it |
 | 403 | `needs_approval` | A work order with `personal` and no approved `reach_people` proposal ([MUSE.md §6](../archive/MUSE.md)) | Create the proposal first |
 | 403 | `off_record` | A loose end, session note, title or Continue this that names a conversation off the record, or cites one of its messages ([MEMORY.md §6.1](../mind/MEMORY.md)) | Nothing from it is kept; never retry |
 | 404 | `not_found` | No such route or record | — |
@@ -464,7 +464,7 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 
 | Route | Who | Request | Response | Errors |
 |---|---|---|---|---|
-| `PUT /v1/verbs/:id` | `mind:chat`, `mind:night` | `{ verb, schema, args, why /* 8–200 chars, required */, ref?, device_id?, expires_at? /* default +24 h */, proposal_id? }` | `201 Verb` (200 on a same-body retry) | 403 `proposal_required` for an ask-first verb without an approved proposal; 422 for an unknown verb or version, a verb that is not queueable (owner taps only, e.g. `app.open`), or args that fail its schema |
+| `PUT /v1/verbs/:id` | `mind:chat`, `mind:night` | `{ verb, schema, args, why /* 8–200 chars, required */, ref?, device_id?, expires_at? /* default +24 h */, proposal_id? }` | `201 Verb & { permit }` (200 on a same-body retry, with the permit it ran under) | 403 `proposal_required` (reason `permit`) while the verb's standing permission is Ask or it has a floor, without an approved card for this call (below); 422 for an unknown verb or version, a verb that is not queueable (owner taps only, e.g. `app.open`), or args that fail its schema |
 | `GET /v1/verbs/pending` | device | — | `200 { items: Verb[] }` (for this device or any) | |
 | `POST /v1/verbs/:id/claim` | device | `{}` | `200 Verb` (`claimed`; the claim lasts 120 s) | 409 `already_claimed` |
 | `POST /v1/verbs/:id/result` | device | `{ ok: boolean, result?: unknown, undo?: {verb, schema, args}, error?: {code, message?} }` | `200 Verb` | 410 `expired`; 422 if `result` or `undo` fails the verb's schemas |
@@ -473,6 +473,22 @@ Acceptance: an integration test issues a key, calls `/v1/auth/me` with it, revok
 - A phone that lacks a verb, or its schema version, answers `{ ok: false, error: { code: 'unsupported_verb' } }`: the verb is `failed` and its ledger row says so. New verbs never break an older phone.
 - A verb that reports `undo` gets an undoable ledger row; undoing it queues the inverse verb, and the original row becomes `undone` when that inverse succeeds.
 - A claimed verb that reports nothing within 120 s goes back to `pending` (at most 3 claims, then `failed`).
+
+#### Standing permissions
+
+The owner decides, per class of action, how the mind may act on their things (Settings › The mind, `mind.permit.<class>`); the Worker enforces it at each write the mind makes, inside that write's commit and before it writes (`backend/src/areas/mind/permit.ts`). The classes, their defaults and the actions in each are data in `shared/contract/permits.ts` (a verb names its class in `verbs.ts`; [CONTRACT.md](CONTRACT.md#standing-permissions) lists them all).
+
+| Position | The Worker | The mind |
+|---|---|---|
+| `quiet` | Does it | Mentions it only if asked |
+| `tell` | Does it | Says in its reply what it did |
+| `ask` | Refuses it without an approved card for exactly this call | Raises the card the refusal names, then sends the same call again with the card's id |
+
+- **Gated writes** (from `mind:chat` and `mind:night`; the owner's own are never gated): `PUT /v1/verbs/:id` (the verb's class), `PUT /v1/surfaces/:app/:slot` (`tiles`), `PATCH /v1/threads/:id` (`titles`), `PUT` and `DELETE /v1/reminders/:id` (`reminders`), `PUT /v1/work/orders/:id` (`muse`). Clearing a surface and cancelling a Muse order only take back the mind's own act and are not gated; the mind's bookkeeping (notes, open threads, song notes, predictions, the night's run) is no class.
+- **Floors** no setting lowers, marked by hand on the action (`floor`), never inferred from its name: `money`, `delete` (the owner's data), `access` (keys, access, sessions), `reach_people`. An action with a floor always asks, and its card is filed under that floor's class. Today they are `muse.order_personal` (a kind of order that carries the owner's data) and any `ask_first` verb; the proposal ops are cards already. `POST /v1/auth/breakglass` is left out on purpose: it is the way back in when the owner can reach no device to answer a card, and its own ask is the fingerprint in their words, the 24-hour wait and the notice on every device.
+- **The answer** of a gated write carries `permit: {action, class, position}` beside its record (`Permitted<T>` in `actions.ts`), and the ledger row it writes (verbs, surfaces) carries `permit` (`LedgerEntry.permit`), so what the mind was to tell the owner can be found again. Reminders, titles and orders keep no ledger row; their position is in the answer only.
+- **The refusal** is `403 proposal_required` with `details: { reason: 'permit', action, class, position: 'ask', floor, card: { class, spec: { v: 1, op: 'permit.allow', args: { action, call } } }, given? }`: `call` is the SHA-256 of the action and its canonical call (a verb's schema and args; a surface's slot, kind and payload; a reminder's words and time; an order's kind, title and spec; never an id or a why). `given` says why a named card didn't count: `not_found`, `waiting`, `not_approved`, `used`, `expired`, `other_call`.
+- **The card:** `PUT /v1/proposals/:id` with `card.class` (the floor, else `permit`, "You said to ask") and `card.spec`; the Worker's target line is `<action>, once (<class label or floor>)`. Approving it records the yes (`executed`); the same call sent again within 7 days naming the card (`proposal_id` in a verb's body, the `TH-Proposal` header elsewhere; `th … --proposal <id>`) goes through once and uses the card up (`result.used_by`), in that write's own commit.
 
 ### 11.12 Surfaces
 

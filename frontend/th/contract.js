@@ -49,7 +49,7 @@ export const SURFACE_KINDS = Object.freeze({"line":{"slots":{"home":"^line\\.[1-
 
 /** Decision cards (shared/contract/proposals.ts): each class's label and the card's limits. */
 /** @type {typeof import('../../shared/contract/proposals.ts').PROPOSAL_CLASSES} */
-export const PROPOSAL_CLASSES = Object.freeze({"delete":{"ask_first":true,"label":"Can't be undone"},"money":{"ask_first":true,"label":"Costs money"},"access":{"ask_first":true,"label":"Changes access"},"reach_people":{"ask_first":true,"label":"Reaches someone else"},"memory_big":{"ask_first":false,"label":"Changes what I remember"}});
+export const PROPOSAL_CLASSES = Object.freeze({"delete":{"ask_first":true,"label":"Can't be undone"},"money":{"ask_first":true,"label":"Costs money"},"access":{"ask_first":true,"label":"Changes access"},"reach_people":{"ask_first":true,"label":"Reaches someone else"},"permit":{"ask_first":true,"label":"You said to ask"},"memory_big":{"ask_first":false,"label":"Changes what I remember"}});
 
 /** @type {typeof import('../../shared/contract/proposals.ts').PROPOSAL_LIMITS} */
 export const PROPOSAL_LIMITS = Object.freeze({"question":80,"why":140,"if_ignored":140,"option":20,"waiting":3,"expires_days":7,"snoozes":3,"spec_bytes":8192});

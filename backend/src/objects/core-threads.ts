@@ -2,11 +2,14 @@
 // owner's name, which the mind never changes after) and "Continue this", which links a filed
 // thread to today's. A code layer of the one Core class.
 import * as convo from '../areas/conversation/ops';
+import type { Caller } from './caller';
 import { CoreReminders } from './core-reminders';
 
 export abstract class CoreThreads extends CoreReminders {
-  patchThread(id: string, title: string | undefined, summary: string | undefined) {
-    return this.run((w) => convo.patchThread(w, id, title, summary));
+  /** The caller comes last, so a Worker of the release before (which sends none) still lands on
+   * this method for the moment a deploy takes (objects/rpc.ts). */
+  patchThread(id: string, title: string | undefined, summary: string | undefined, c: Caller) {
+    return this.run((w) => convo.patchThread(w, c, id, title, summary));
   }
 
   nameThread(id: string, title: string) {

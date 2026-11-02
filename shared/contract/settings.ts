@@ -62,7 +62,8 @@ export const SETTING_GROUPS = {
     title: 'The mind',
     icon: 'sparkle',
     lead: 'How I talk, work at night and reach you. I read these every time I wake.',
-    notes: { 'Standing permissions': 'The mind reads these; enforcement comes with the next release.' },
+    // The floors no setting lowers (permits.ts PERMIT_FLOORS, in its order; a contract test holds them equal).
+    notes: { 'Standing permissions': 'Always asks first: money, deleting your data, keys and access, reaching another person.' },
   },
   privacy: { title: 'Privacy and data', icon: 'shield-check', lead: 'What this phone tells your Worker, and what leaves it at all.' },
 } as const satisfies Record<string, { title: string; icon: string; lead: string; notes?: Record<string, string> }>;

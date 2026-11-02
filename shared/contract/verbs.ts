@@ -2,9 +2,11 @@
 // entry per verb, versioned by `schema`, so the Worker validates args and results, the phone
 // looks up its executor, `th help` lists them and CONTRACT.md documents them from the same
 // source. A phone that does not know a verb (or its schema version) reports `unsupported_verb`;
-// nothing breaks while new verbs ship. Ask-first verbs need an approved proposal (P4).
+// nothing breaks while new verbs ship. Each verb names its standing-permission class (`permit`,
+// permits.ts) and, by hand, its floor; a floor's verbs are ask-first and need an approved card.
 import * as z from 'zod/mini';
 import { APP_IDS } from './feed.ts';
+import type { PermitClass, PermitFloor } from './permits.ts';
 
 export interface VerbVersion {
   args: z.ZodMiniType;
@@ -14,8 +16,14 @@ export interface VerbVersion {
 export interface VerbSpec {
   /** The app that owns it; `shell` = the Thunderhead's own home and menu. */
   app: string;
-  /** `reversible`: done at once and undoable; `ask_first`: only with an approved proposal. */
+  /** `reversible`: done under its class's standing permission; `ask_first`: it has a floor, so only
+   * ever with an approved card. */
   class: 'reversible' | 'ask_first';
+  /** The standing permission that decides how the mind may queue it (`mind.permit.<class>`). */
+  permit: PermitClass;
+  /** Money, the owner's data deleted, keys or access, another person reached: always a card first.
+   * Set exactly on the `ask_first` verbs (tests/contract-gen.test.mjs). */
+  floor?: PermitFloor;
   /** Where it runs: on a signed-in `device` (claim → result) or inside the `worker`. */
   executor: 'device' | 'worker';
   /** Whether an agent may queue it with PUT /v1/verbs/:id. `false` = owner taps only (a chip). */
@@ -37,6 +45,9 @@ export const VERBS = {
   'app.open': {
     app: 'shell',
     class: 'reversible',
+    // Owner taps only (never queued), so its class decides nothing; filed with what the mind puts
+    // in front of the owner.
+    permit: 'tiles',
     executor: 'device',
     queueable: false,
     undo: 'none',
@@ -51,6 +62,7 @@ export const VERBS = {
   'music.create_playlist': {
     app: 'music',
     class: 'reversible',
+    permit: 'music',
     executor: 'device',
     queueable: true,
     undo: 'reported',
@@ -68,6 +80,9 @@ export const VERBS = {
   'music.delete_playlist': {
     app: 'music',
     class: 'reversible',
+    // Only the undo of a playlist the Thunderhead made, so no floor: deleting the owner's own
+    // playlists is no verb (it would be `floor: 'delete'`).
+    permit: 'music',
     executor: 'device',
     queueable: false,
     undo: 'none',
@@ -82,6 +97,8 @@ export const VERBS = {
   'shell.appearance': {
     app: 'shell',
     class: 'reversible',
+    // The theme is a setting (the top of Settings), so the mind changes it under `settings`.
+    permit: 'settings',
     executor: 'device',
     queueable: true,
     undo: 'reported',

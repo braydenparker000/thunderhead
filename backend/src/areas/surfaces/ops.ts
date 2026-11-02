@@ -1,20 +1,23 @@
 // Surfaces (API.md §11.12): the mind places a versioned kind in an app's slot, validated against
 // the contract (shared/contract/surfaces.ts); every write and delete is a ledger row whose undo
 // restores what was there. A topic the owner dismissed stays quiet for 14 days (409 nudge_repeat),
-// and a surface may not draw on a fact the owner muted (422 muted_fact).
-import type { PutSurfaceRequest, Surface } from '../../../../shared/contract/api';
+// and a surface may not draw on a fact the owner muted (422 muted_fact). The mind places one under
+// its standing permission for lines and tiles (mind/permit.ts); clearing one only takes back what
+// the mind placed, so it is never gated.
+import type { Permitted, PutSurfaceRequest, Surface } from '../../../../shared/contract/api';
 import { surfaceKind } from '../../../../shared/contract/surfaces.ts';
 import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { scrubArrangements, scrubUndo } from '../ledger/store';
 import { factFlags } from '../memory/store';
+import { gate, ledgerPermit, withPermit } from '../mind/permit';
 import * as store from './store';
 
 const QUIET_MS = 14 * 86_400_000;
 const UNDO_WINDOW_MS = 30 * 86_400_000;
 
-export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfaceRequest): Surface {
+export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfaceRequest): Permitted<Surface> {
   const kind = surfaceKind(r.kind);
   if (!kind) throw invalid('kind', 'unknown surface kind');
   const slots = Object.hasOwn(kind.slots, app) ? (kind.slots as Record<string, RegExp>)[app] : undefined;
@@ -31,6 +34,14 @@ export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfa
   const ignored = store.topicIgnoredAt(w.db, r.topic_key);
   if (ignored !== null && w.at - ignored < QUIET_MS) throw new Fail('nudge_repeat');
   if (r.expires_at !== undefined && r.expires_at <= w.at) throw invalid('expires_at', 'in the future');
+  // Lines and tiles: what a card approves is the slot and what goes in it, not the why.
+  const g = gate(
+    w,
+    c,
+    'surface.put',
+    { app, slot, kind: r.kind, schema: r.schema, payload: payload.data },
+    `app:${app}#${slot}`,
+  );
   const before = store.get(w.db, app, slot);
   const ledgerId = w.ledger({
     kind: 'arrangement',
@@ -45,6 +56,7 @@ export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfa
       : { op: 'surface.delete', args: { app, slot, was: 'put' } },
     // The facts it drew on, so forgetting one can find this row and take its words (never shown).
     op: cites.length ? { op: 'surface.put', facts: cites } : null,
+    ...ledgerPermit(g),
   });
   w.change('surface', `app:${app}#${slot}`);
   store.put(w.db, {
@@ -64,7 +76,7 @@ export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfa
     facts_json: cites.length ? JSON.stringify(cites) : null,
   });
   store.topicShown(w.db, r.topic_key, w.at);
-  return store.toSurface(store.get(w.db, app, slot) as store.SurfaceRow);
+  return withPermit(store.toSurface(store.get(w.db, app, slot) as store.SurfaceRow), g);
 }
 
 /** The facts a surface cites (its `facts`, and a `fact:` ref): each must exist, and none may be

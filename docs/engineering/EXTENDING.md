@@ -107,15 +107,22 @@ area's commit. Phones that do not know it ignore it and resync; nothing else cha
 
 ### A verb
 
-1. Add it to `VERBS` in `verbs.ts`: app, class (`reversible` or `ask_first`), executor (`device`
-   or `worker`), `queueable` (false = owner taps only, e.g. a chip), `undo` (`reported` = the
-   executor returns its inverse), schema version 1 with `args` and `result`, and a doc line.
+1. Add it to `VERBS` in `verbs.ts`: app, class (`reversible` or `ask_first`), its standing
+   permission `permit` (one of `PERMIT_CLASSES` in `permits.ts`) and, by hand, its `floor` when it
+   spends money, deletes the owner's data, touches keys or access, or reaches another person (exactly
+   the `ask_first` verbs), executor (`device` or `worker`), `queueable` (false = owner taps only,
+   e.g. a chip), `undo` (`reported` = the executor returns its inverse), schema version 1 with
+   `args` and `result`, and a doc line. An action Core runs itself for the mind goes in
+   `MIND_ACTIONS` (`permits.ts`) and its write calls `gate()` (`areas/mind/permit.ts`) before it
+   writes.
 2. A device verb gets its executor in `frontend/th/registry/verbs.js`; it returns its result and,
    for `undo: 'reported'`, its inverse. Until a phone has it, that phone answers `unsupported_verb`
    and the ledger shows the attempt failed.
 3. Changing args or result means a new schema version beside the old one. Phones run the newest
    version they know; the Worker keeps validating every listed version.
-4. Ask-first verbs are refused (`403 proposal_required`) until proposals arrive (P4).
+4. While its class is set to Ask, or it has a floor, the mind's call is refused (`403
+   proposal_required`, reason `permit`) with the `permit.allow` card that would allow exactly that
+   call ([API.md §11.11](API.md#standing-permissions)).
 
 ### A surface kind
 

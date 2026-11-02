@@ -5,6 +5,7 @@ export type * from './conversation';
 export type { DeletedThread, DeletedThreadsResponse, RestoredThread, ThreadDeleted } from './held';
 export type * from './imports';
 export type * from './memory';
+export type { Permit, PermitClass, PermitFloor, PermitPosition, PermitRefusal } from './permits';
 export type * from './proposals';
 export type { ErrorBody, ErrorCode, ErrorDetails, Issue, RevokeReason } from './errors';
 export type { AppId, ChangeKind, FrameType, SearchSource } from './feed';

@@ -12,13 +12,13 @@ export const USAGE = {
   amend: ['<message id> [--meta <json>] [--body <text|->]', 'change your own post (keeps a card current)'],
   history: ['today|<thread id> [--limit 40] [--before <seq>]', 'read a thread'],
   status: ['working|listening|stopping|limited [--thread <id>] [--title <text>] [--note <text>] [--using kind:id:label]… [--error <code>]', 'presence; working acknowledges what was handed out. The phone\'s working card shows --title (≤ 60, what you are doing, in your words) with --note (≤ 140) as the live line under it; up to 6 --using chips for what you draw on: fact:<fact id>, song:<path in /music/>, page:<book:… ref or path in /study/>, source:<https URL> (only its host shows), app:<app id>, each :<label ≤ 40, no colon> (the label is all a chip says). Title and chips stand until you give new ones or leave working; one report per 3 s counts (th waits out the gap for a title or chips)'],
-  title: ['<thread id> <title>', 'name a thread'],
+  title: ['<thread id> <title> [--proposal <id>]', 'name a thread'],
   note: ['--session <text|-> [--open <json>]', 'the session note (≤ 120 words)'],
   pending: ['', 'what the Stop hook reads: unanswered, stop, day_closed, limited, idle'],
   search: ['<query> [--sources messages,facts,…] [--since] [--until] [--thread <id>] [--limit 20]', 'federated search (recall is the same)'],
   recall: ['<query> [--sources …] [--kind …]', 'same as search'],
-  verb: ['<app.action> [<args json>|-] --why <8–200 chars> [--schema <n>] [--device <id>] [--ref <ref>]', 'ask a phone to do something (undoable); - reads the args JSON from stdin (text from elsewhere, like a song title, never goes in a quoted argument)'],
-  surface: ['<app> <slot> --kind <k> --payload <json|-> --why <t> --topic <key> [--ref app:<id>] [--expires <iso>] · ls · rm <app> <slot>', 'place, list or clear a surface; --payload - reads it from stdin; --ref names the app it is about, so opening that app counts as using it'],
+  verb: ['<app.action> [<args json>|-] --why <8–200 chars> [--schema <n>] [--device <id>] [--ref <ref>] [--proposal <id>]', 'ask a phone to do something (undoable); - reads the args JSON from stdin (text from elsewhere, like a song title, never goes in a quoted argument)'],
+  surface: ['<app> <slot> --kind <k> --payload <json|-> --why <t> --topic <key> [--ref app:<id>] [--expires <iso>] [--proposal <id>] · ls · rm <app> <slot>', 'place, list or clear a surface; --payload - reads it from stdin; --ref names the app it is about, so opening that app counts as using it'],
   undo: ['<ledger id>', 'undo one of your actions'],
   ledger: ['[--since <iso>] [--kind <k>] [--limit 50]', 'what was done and why'],
   get: ['<path> [key=value …]', 'GET any route this role may call (see the list below)'],
@@ -32,7 +32,7 @@ export const USAGE = {
   podcasts: ['new', 'the night\'s look for new episodes of the shows the owner follows (≤ 20 a night, each once a day): places the home line itself on line.4 and prints counts only, never a title (RUNTIME.md §12.1)'],
   help: ['[command]', 'this text'],
   file: ['<id|file:id> [--out <path>]', 'save an attachment from the Worker to $TMPDIR/th/files/<id>.<ext>; prints path, type, name and a voice memo\'s words (text)'],
-  remind: ['<when> <text|-> --from <owner message id> | list | cancel <id> [--from <owner message id>]', 'a reminder the owner asked for in that message (sent in the last 48 h, at most 3 from one, 5 from you a day): <when> is an ISO time with its offset or +90m, +2h, +1d; delivered once at that time as a line and a push, a time in quiet hours moved to their end (shifted: true says so in the reply). Cancel one the owner set on the phone only with --from naming the message that asked'],
+  remind: ['<when> <text|-> --from <owner message id> [--proposal <id>] | list | cancel <id> [--from <owner message id>]', 'a reminder the owner asked for in that message (sent in the last 48 h, at most 3 from one, 5 from you a day): <when> is an ISO time with its offset or +90m, +2h, +1d; delivered once at that time as a line and a push, a time in quiet hours moved to their end (shifted: true says so in the reply). Cancel one the owner set on the phone only with --from naming the message that asked'],
   // Later phases: the commands exist so the procedure never changes; the Worker answers when its
   // phase is built, and until then th exits 8 not_built.
   remember: ['--kind <k> --text <t> --evidence <ids> [--subject] [--sensitivity 0|1] [--source]', 'add a fact (P3)'],
@@ -49,7 +49,7 @@ export const USAGE = {
   handled: ['<watchdog> --outcome fixed|reported|nothing --note <text>', 'report what you did about a tripped watchdog (the reflex reports each one)'],
   drill: ['<watchdog>', 'only when the owner asks for a watchdog drill: trip it by hand so mind-reflex handles it (db.size is a good one)'],
   decide: ['<proposal id> --by-message <message id> [--spec-hash <h>] [--reject]', 'record the owner\'s words as the decision (P4)'],
-  order: ['new --kind <k> --spec <json> --deadline <iso> [--title <t>] | list | get <id> | cancel <id> --why <t>', 'work orders for Muse; its result schema is the kind\'s (P4)'],
+  order: ['new --kind <k> --spec <json> --deadline <iso> [--title <t>] [--proposal <id>] | list | get <id> | cancel <id> --why <t>', 'work orders for Muse; its result schema is the kind\'s (P4)'],
   muse: ['notes [--after <seq>] | note <text>', 'Muse\'s own thread (P4)'],
   push: ['--title --body --ref --why --topic [--deadline]', 'a push (P8)'],
   predict: ['<category> --p <0.01-0.99> --why <text> [--n <n> | --time <HH:MM> | --card <id> | --app <app>] [--day <day>] | list [--open] | skill',
@@ -71,6 +71,16 @@ export function helpText(command, role = process.env.TH_ROLE || '') {
     const ver = Math.max(...Object.keys(v.versions).map(Number));
     const args = Object.keys(v.versions[ver].args.properties || {}).join(', ');
     lines.push(`  ${name} v${ver} {${args}}${v.queueable ? '' : ' (owner tap only)'}: ${v.doc}`);
+  }
+  const permits = CONTRACT.permits;
+  if (permits) {
+    lines.push('', 'Standing permissions (the owner\'s mind.permit.<class>; a write prints permit {class, position}): tell = say in your reply what you did; quiet = mention it only if asked; ask = 403 proposal_required, whose details carry the card: th propose --class <card.class> --spec \'<card.spec>\', then the same command with --proposal <id> once approved.');
+    lines.push(`  floors, always ask: ${Object.values(permits.floors).join(', ')}`);
+    for (const [name, c] of Object.entries(permits.classes)) {
+      const verbs = Object.entries(CONTRACT.verbs).filter(([, v]) => v.permit === name).map(([n]) => n);
+      const own = Object.entries(permits.actions).filter(([, a]) => a.class === name).map(([n]) => n);
+      lines.push(`  ${name} (default ${c.default}): ${[...verbs, ...own].join(', ') || 'none yet'}`);
+    }
   }
   lines.push('', 'Surface kinds (th surface):');
   for (const [name, k] of Object.entries(CONTRACT.surfaces)) lines.push(`  ${name} in ${Object.entries(k.slots).map(([a, p]) => `${a} ${p}`).join('; ')}: ${k.doc}`);

@@ -2,7 +2,7 @@
 // vocabulary and its schemas are the contract's (shared/contract/verbs.ts).
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
-import type { PutVerbRequest, Verb, VerbResultRequest } from '../../../../shared/contract/api';
+import type { Permitted, PutVerbRequest, Verb, VerbResultRequest } from '../../../../shared/contract/api';
 import { type AppEnv, deviceOf, guard } from '../../http/auth';
 import { callerOf, idParam, reqHash } from '../../http/caller';
 import { json } from '../../http/validate';
@@ -39,7 +39,8 @@ export const verbsRoutes = new Hono<AppEnv>()
     const id = idParam(c);
     const body = await json(c, putBody);
     const out = value(await coreObject(c.env).putVerb(callerOf(c), id, body, reqHash(body)));
-    return c.json(out.verb satisfies Verb, out.created ? 201 : 200);
+    const answer: Permitted<Verb> = out.permit ? { ...out.verb, permit: out.permit } : out.verb;
+    return c.json(answer, out.created ? 201 : 200);
   })
   .get('/verbs/pending', guard('GET /v1/verbs/pending'), async (c) => {
     return c.json({ items: (await coreObject(c.env).pendingVerbs(deviceOf(c).session_id)) satisfies Verb[] });

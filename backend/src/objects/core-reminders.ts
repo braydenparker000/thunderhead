@@ -5,6 +5,8 @@
 // offered to the Auth object's outbox for an hour through the push context (by the reminder's id,
 // so offering it again changes nothing): from here at once, and from every later delivery run, so
 // a push lost on the way still goes.
+import type { Permitted } from '../../../shared/contract/api';
+import type { Permit } from '../../../shared/contract/permits.ts';
 import type { PutReminderRequest, Reminder, RemindersResponse } from '../../../shared/contract/reminders.ts';
 import type { PushContext } from '../areas/push/rules';
 import * as reminders from '../areas/reminders/ops';
@@ -35,7 +37,7 @@ export abstract class CoreReminders extends CoreFiles {
     id: string,
     r: PutReminderRequest,
     hash: string,
-  ): Out<{ reminder: Reminder; created: boolean }> {
+  ): Out<{ reminder: Reminder; created: boolean; permit?: Permit }> {
     const out = this.run((w) => reminders.put(w, c, id, r, hash, this.tz()));
     if (out.ok && out.value.created) this.changed();
     return out;
@@ -45,7 +47,7 @@ export abstract class CoreReminders extends CoreFiles {
     return reminders.list(this.db, Date.now());
   }
 
-  cancelReminder(c: Caller, id: string, source?: string): Out<Reminder> {
+  cancelReminder(c: Caller, id: string, source?: string): Out<Permitted<Reminder>> {
     const out = this.run((w) => reminders.cancel(w, c, id, source));
     if (out.ok) this.changed();
     return out;

@@ -5,19 +5,22 @@
 // and the Briefing page see it; finishing writes one ledger row.
 
 import { neverStored } from '../../../../shared/contract/never-stored.ts';
+import type { Permit } from '../../../../shared/contract/permits.ts';
 import {
   WORK_KINDS,
   WORK_LIMITS,
   type WorkHello,
   type WorkKind,
+  type WorkOrder,
   type WorkOrderPut,
 } from '../../../../shared/contract/work.ts';
 import { Fail, invalid } from '../../lib/result';
 import { HOUR, MINUTE } from '../../lib/time';
 import type { Db } from '../../objects/base';
-import type { Caller } from '../../objects/caller';
+import { type Caller, isMind } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { claimedSession } from '../mind/guards';
+import { gate, positionFor, withPermit } from '../mind/permit';
 import { getSetting, putSetting } from '../settings/store';
 import * as store from './store';
 import { validate } from './validate';
@@ -51,12 +54,24 @@ export function toMuse(w: Writer, c: Caller, path: string, value: unknown): void
   if (neverStored(JSON.stringify(value))) throw invalid(path, 'never_stored');
 }
 
+/** The standing permission an order of `kind` is taken under: Muse orders, or, for a kind that
+ * carries the owner's data, the reach-people floor (marked on the kind, `personal`). */
+const orderAction = (kind: string) => (WORK_KINDS[kind as WorkKind]?.personal ? 'muse.order_personal' : 'muse.order');
+
 /** PUT /v1/work/orders/:id from the mind. The same id with the same order again is fine. */
-export function create(w: Writer, c: Caller, id: string, r: WorkOrderPut) {
+export function create(
+  w: Writer,
+  c: Caller,
+  id: string,
+  r: WorkOrderPut,
+): { order: WorkOrder; created: boolean; permit?: Permit } {
   const had = store.order(w.db, id);
   if (had) {
     if (had.kind !== r.kind || had.title !== r.title) throw new Fail('conflict');
-    return { order: store.toOrder(had), created: false };
+    // No ledger row keeps an order's permit: the position as it stands now.
+    const action = orderAction(had.kind);
+    const permit: Permit | null = isMind(c) ? { action, class: 'muse', position: positionFor(w.db, action) } : null;
+    return { order: store.toOrder(had), created: false, ...(permit ? { permit } : {}) };
   }
   if (!Object.hasOwn(WORK_KINDS, r.kind)) throw invalid('kind', `one of ${Object.keys(WORK_KINDS).join(', ')}`);
   toMuse(w, c, 'spec', [r.title, r.spec]);
@@ -64,6 +79,9 @@ export function create(w: Writer, c: Caller, id: string, r: WorkOrderPut) {
     throw invalid('spec', `at most ${WORK_LIMITS.spec_bytes} bytes`);
   if (r.deadline_at <= w.at + 5 * MINUTE || r.deadline_at > w.at + 7 * 24 * HOUR)
     throw invalid('deadline_at', 'from 5 minutes to 7 days from now');
+  // A card approves the kind, title and spec; the deadline is left out, so an order approved a
+  // day later can still be sent with a deadline that is in the future then.
+  const g = gate(w, c, orderAction(r.kind), { kind: r.kind, title: r.title, spec: r.spec }, `work:${id}`);
   store.insertOrder(w.db, {
     id,
     kind: r.kind,
@@ -76,7 +94,7 @@ export function create(w: Writer, c: Caller, id: string, r: WorkOrderPut) {
     at: w.at,
   });
   changed(w, id);
-  return { order: store.toOrder(store.order(w.db, id) as store.OrderRow), created: true };
+  return withPermit({ order: store.toOrder(store.order(w.db, id) as store.OrderRow), created: true }, g);
 }
 
 export function cancel(w: Writer, id: string) {

@@ -17,6 +17,7 @@ const ACTOR: Record<string, Actor> = {
   I: 'ci',
 };
 const SESSION = /^[A-Za-z0-9_.:-]{1,120}$/;
+const UUID7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
 export function callerOf(c: Context<AppEnv>): Caller {
   const p = principalOf(c);
@@ -24,7 +25,10 @@ export function callerOf(c: Context<AppEnv>): Caller {
   if (p.kind === 'device') return { actor: 'owner', who, session_id: p.session_id, device_id: p.session_id };
   const s = c.req.header('TH-Session') ?? null;
   if (s !== null && !SESSION.test(s)) throw new ApiError('bad_request');
-  return { actor: ACTOR[who], who, session_id: s, device_id: null };
+  // The card that allows this write while its standing permission is Ask (API.md §11.11).
+  const card = c.req.header('TH-Proposal') ?? null;
+  if (card !== null && !UUID7.test(card)) throw new ApiError('bad_request');
+  return { actor: ACTOR[who], who, session_id: s, device_id: null, ...(card ? { proposal_id: card } : {}) };
 }
 
 export function reqHash(body: unknown): string {

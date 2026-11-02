@@ -199,12 +199,39 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 
 ## Verbs
 
-| Verb | App | Class | Runs on | Queueable | Undo | Versions | Args (newest) | What it does |
-|---|---|---|---|---|---|---|---|---|
-| `app.open` | shell | reversible | device | no (owner tap) | none | 1 | `{ app: 'music' \| 'guitar' \| 'podcasts' \| 'astra' \| 'media' \| 'study' \| 'photos', path: string }` | Opens an app at a place. Runs only when the owner taps a reply's action chip; the mind never opens an app by itself (BEHAVIOR.md §2.2). |
-| `music.create_playlist` | music | reversible | device | yes | reported | 1 | `{ name: string, refs: array }` | Makes a playlist in the Music player from tracks (`music:<id>`), on this phone. Open it with a reply chip to `/music/#pl=<list_id>`. Its undo removes it while the owner hasn't changed it. |
-| `music.delete_playlist` | music | reversible | device | no (owner tap) | none | 1 | `{ list_id: string }` | Only the undo of music.create_playlist: removes a playlist the Thunderhead made, while the owner hasn't changed it (else `owner_edited`). Deleting the owner's own playlists is ask-first and no verb. |
-| `shell.appearance` | shell | reversible | device | yes | reported | 1 | `{ mode: 'auto' \| 'day' \| 'night' }` | Sets the phone's appearance (auto, day or night). The phone reports the previous mode as the undo. |
+| Verb | App | Class | Permit | Runs on | Queueable | Undo | Versions | Args (newest) | What it does |
+|---|---|---|---|---|---|---|---|---|---|
+| `app.open` | shell | reversible | tiles | device | no (owner tap) | none | 1 | `{ app: 'music' \| 'guitar' \| 'podcasts' \| 'astra' \| 'media' \| 'study' \| 'photos', path: string }` | Opens an app at a place. Runs only when the owner taps a reply's action chip; the mind never opens an app by itself (BEHAVIOR.md §2.2). |
+| `music.create_playlist` | music | reversible | music | device | yes | reported | 1 | `{ name: string, refs: array }` | Makes a playlist in the Music player from tracks (`music:<id>`), on this phone. Open it with a reply chip to `/music/#pl=<list_id>`. Its undo removes it while the owner hasn't changed it. |
+| `music.delete_playlist` | music | reversible | music | device | no (owner tap) | none | 1 | `{ list_id: string }` | Only the undo of music.create_playlist: removes a playlist the Thunderhead made, while the owner hasn't changed it (else `owner_edited`). Deleting the owner's own playlists is ask-first and no verb. |
+| `shell.appearance` | shell | reversible | settings | device | yes | reported | 1 | `{ mode: 'auto' \| 'day' \| 'night' }` | Sets the phone's appearance (auto, day or night). The phone reports the previous mode as the undo. |
+
+## Standing permissions
+
+How the mind may take each class of action, the owner's `mind.permit.<class>` setting: `ask`, `tell`, `quiet` (a card first; do it and say so; do it, the ledger only). Floors always ask, whatever the setting: `money` (money), `delete` (deleting your data), `access` (keys and access), `reach_people` (reaching another person). A refusal is `403 proposal_required` with reason `permit` and the `permit.allow` card to raise (API.md §11.11).
+
+| Class | Setting | Label | Default | Verbs | Core actions |
+|---|---|---|---|---|---|
+| `music` | `mind.permit.music` | Music | quiet | `music.create_playlist`, `music.delete_playlist` | — |
+| `podcasts` | `mind.permit.podcasts` | Podcasts | quiet | — | — |
+| `reminders` | `mind.permit.reminders` | Reminders | tell | — | `reminder.set`, `reminder.cancel` |
+| `settings` | `mind.permit.settings` | Settings | tell | `shell.appearance` | — |
+| `muse` | `mind.permit.muse` | Muse orders | ask | — | `muse.order`, `muse.order_personal` (floor: reach_people) |
+| `watch` | `mind.permit.watch` | Watch lists | tell | — | — |
+| `practice` | `mind.permit.practice` | Practice | tell | — | — |
+| `tiles` | `mind.permit.tiles` | Lines and tiles | quiet | `app.open` | `surface.put` |
+| `titles` | `mind.permit.titles` | Titles | quiet | — | `thread.title` |
+| `outside` | `mind.permit.outside` | Remembering from outside text | ask | — | `memory.outside` |
+
+| Core action | Class | Floor | What it is |
+|---|---|---|---|
+| `surface.put` | tiles | — | A line on home or a tile on the Briefing (`PUT /v1/surfaces/:app/:slot`). |
+| `thread.title` | titles | — | A conversation's title or summary (`PATCH /v1/threads/:id`). |
+| `reminder.set` | reminders | — | A reminder the owner asked for (`PUT /v1/reminders/:id`). |
+| `reminder.cancel` | reminders | — | Taking a reminder back (`DELETE /v1/reminders/:id`). |
+| `muse.order` | muse | — | A work order for Muse (`PUT /v1/work/orders/:id`). |
+| `muse.order_personal` | muse | reach_people | A work order of a kind that carries the owner's data (`personal` in work.ts): Muse runs on another provider (BEHAVIOR.md §7 rule 4). No such kind is built. |
+| `memory.outside` | outside | — | Keeping a fact learned from outside text. Memory refuses outside text altogether today (MEMORY.md §7), which no position loosens; provenance labels will route it here. |
 
 ## Surface kinds
 
@@ -323,6 +350,7 @@ Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80,
 | `money` | yes | Costs money |
 | `access` | yes | Changes access |
 | `reach_people` | yes | Reaches someone else |
+| `permit` | yes | You said to ask |
 | `memory_big` | no | Changes what I remember |
 
 | Op | Classes | Raised by | Runs in | Acts on | Args | What approving does |
@@ -331,6 +359,7 @@ Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80,
 | `agents.revoke` | access | C N R | auth | `agent:<agent_id>` | `{ agent_id: string }` | Revoke one agent key; it stops working within 60 s (SECURITY.md §14.2). |
 | `repo.change` | access | C | core | `repo:<base>` | `{ paths: array, base: string }` | Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push. Decided by a tap on a signed-in device only. |
 | `laws.pin` | access | worker | core | `laws:<sha256>` | `{ sha256: string, previous: string \| null }` | Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only. |
+| `permit.allow` | permit, money, delete, access, reach_people | C N | core | `call:<call>` | `{ action: string, call: string }` | Let the mind take one action its standing permission (Ask) or a floor keeps behind a card: exactly the call its refusal named (`call`, the SHA-256 of the action and its canonical body), once, within 7 days of the yes. The refusal's details carry this spec ready to raise (API.md §11.11). |
 
 ## Reader kinds
 

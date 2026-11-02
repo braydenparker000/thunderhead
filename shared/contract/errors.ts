@@ -1,5 +1,6 @@
 // The error envelope and every stable error code of API.md §6. Types only. Clients branch on
 // `code`, never on `message`; COPY.md maps codes to the owner's words.
+import type { PermitRefusal } from './permits.ts';
 
 export type ErrorCode =
   // 400 / 401
@@ -88,10 +89,12 @@ export type RevokeReason =
   | 'reset_used'
   | 'device_limit';
 
-/** Field issues (422) or a small reason object. `reason` is a RevokeReason on 401s and a short
- * machine reason elsewhere (e.g. `not_undoable`). */
+/** Field issues (422), a standing permission's refusal (403 `proposal_required`, reason `permit`:
+ * the action, its class and the card to raise), or a small reason object. `reason` is a
+ * RevokeReason on 401s and a short machine reason elsewhere (e.g. `not_undoable`). */
 export type ErrorDetails =
   | Issue[]
+  | PermitRefusal
   | {
       reason?: RevokeReason | (string & {});
       min_client?: number;

@@ -5,6 +5,7 @@
 // ask-first class, and outside text must never start one (SECURITY.md §5.3, EVALS.md INJ-02…22).
 import type { Json, Proposal, PutProposalRequest } from '../../../../shared/contract/api';
 import { lintMindText } from '../../../../shared/contract/lint.ts';
+import { PERMIT_FLOORS, permitOf, permitSetting } from '../../../../shared/contract/permits.ts';
 import { PROPOSAL_CLASSES, PROPOSAL_LIMITS, proposalOp } from '../../../../shared/contract/proposals.ts';
 import { canonicalJson } from '../../lib/canonical';
 import { uuidv7 } from '../../lib/ids';
@@ -47,7 +48,21 @@ function targetOf(w: Writer, op: string, args: Record<string, Json>, given: stri
   if (op === 'laws.pin') return `mind/CONSTITUTION.md, sha256 ${String(args.sha256).slice(0, 12)}`;
   if (op === 'repo.change')
     return `${short((args.paths as string[]).join(', '), 160)} (from ${String(args.base).slice(0, 7)})`;
+  if (op === 'permit.allow') {
+    const action = String(args.action);
+    const p = permitOf(action);
+    if (!p) throw invalid('spec.args.action', 'not an action the standing permissions know');
+    return `${action}, once (${p.floor ? PERMIT_FLOORS[p.floor] : permitSetting(p.class).label})`;
+  }
   throw invalid('spec.op', 'no target line for this op');
+}
+
+/** A `permit.allow` card is filed under its action's floor, else `permit` (permits.ts). */
+function permitClass(cls: string, args: Record<string, unknown>): void {
+  const p = permitOf(String(args.action));
+  if (!p) throw invalid('spec.args.action', 'not an action the standing permissions know');
+  const want = p.floor ?? 'permit';
+  if (cls !== want) throw invalid('class', `this action is filed under ${want}`);
 }
 const short = (text: string, max: number) => (text.length > max ? `${text.slice(0, max - 1)}…` : text);
 
@@ -81,6 +96,7 @@ export function put(
       'validation',
       args.error.issues.map((i) => ({ path: ['spec', 'args', ...i.path.map(String)].join('.'), issue: i.message })),
     );
+  if (r.spec.op === 'permit.allow') permitClass(r.class, args.data as Record<string, unknown>);
   lint('question', r.question);
   lint('why', r.why);
   lint('if_ignored', r.if_ignored);

@@ -113,6 +113,21 @@ function memory() {
   };
 }
 
+/** The standing permissions as the mind's copy and the appendix read them. */
+function permits() {
+  return {
+    positions: c.PERMIT_POSITIONS,
+    classes: Object.fromEntries(
+      c.PERMIT_CLASSES.map((k) => {
+        const s = c.permitSetting(k);
+        return [k, { setting: s.key, label: s.label, default: s.default }];
+      }),
+    ),
+    floors: c.PERMIT_FLOORS,
+    actions: c.MIND_ACTIONS,
+  };
+}
+
 /** The mind's copy: everything `th` validates or prints before it calls the Worker. */
 function mind() {
   const out = {
@@ -140,6 +155,8 @@ function mind() {
         {
           app: v.app,
           class: v.class,
+          permit: v.permit,
+          ...(v.floor ? { floor: v.floor } : {}),
           executor: v.executor,
           queueable: v.queueable,
           undo: v.undo,
@@ -207,6 +224,9 @@ function mind() {
         ]),
       ),
     },
+    // Standing permissions: each class's setting and default, the floors, and the actions Core runs
+    // itself (a verb's class is on the verb above).
+    permits: permits(),
     lint: { banned_phrases: BANNED_PHRASES },
     watchdogs: { limits: c.WATCHDOG_LIMITS, reflex_procedure: c.REFLEX_PROCEDURE, items: c.WATCHDOGS },
     reader: {
@@ -258,14 +278,34 @@ function docs() {
     L.push(
       `| \`${k}\` | ${who(r.who)}${r.auth ? ` (${r.auth})` : ''}${r.key ? ` (agents: the key \`${r.key}\` only)` : ''} | ${r.phase} | ${cell(routeStatus(r))} | ${cell(r.note ?? '')} |`,
     );
-  L.push('', '## Verbs', '', '| Verb | App | Class | Runs on | Queueable | Undo | Versions | Args (newest) | What it does |');
-  L.push('|---|---|---|---|---|---|---|---|---|');
+  L.push('', '## Verbs', '', '| Verb | App | Class | Permit | Runs on | Queueable | Undo | Versions | Args (newest) | What it does |');
+  L.push('|---|---|---|---|---|---|---|---|---|---|');
   for (const [n, v] of Object.entries(c.VERBS)) {
     const vs = versions(v.versions);
     L.push(
-      `| \`${n}\` | ${v.app} | ${v.class} | ${v.executor} | ${v.queueable ? 'yes' : 'no (owner tap)'} | ${v.undo} | ${vs.join(', ')} | ${shape(v.versions[vs.at(-1)].args)} | ${cell(v.doc)} |`,
+      `| \`${n}\` | ${v.app} | ${v.class} | ${v.permit}${v.floor ? ` (floor: ${v.floor})` : ''} | ${v.executor} | ${v.queueable ? 'yes' : 'no (owner tap)'} | ${v.undo} | ${vs.join(', ')} | ${shape(v.versions[vs.at(-1)].args)} | ${cell(v.doc)} |`,
     );
   }
+  const p = permits();
+  L.push(
+    '',
+    '## Standing permissions',
+    '',
+    `How the mind may take each class of action, the owner's \`mind.permit.<class>\` setting: ${p.positions.map((x) => `\`${x}\``).join(', ')} (a card first; do it and say so; do it, the ledger only). Floors always ask, whatever the setting: ${Object.entries(p.floors)
+      .map(([k, words]) => `\`${k}\` (${words})`)
+      .join(', ')}. A refusal is \`403 proposal_required\` with reason \`permit\` and the \`permit.allow\` card to raise (API.md §11.11).`,
+    '',
+    '| Class | Setting | Label | Default | Verbs | Core actions |',
+    '|---|---|---|---|---|---|',
+  );
+  for (const [k, s] of Object.entries(p.classes)) {
+    const verbs = Object.entries(c.VERBS).filter(([, v]) => v.permit === k);
+    const own = Object.entries(p.actions).filter(([, a]) => a.class === k);
+    const names = (xs) => xs.map(([n, a]) => `\`${n}\`${a.floor ? ` (floor: ${a.floor})` : ''}`).join(', ') || '—';
+    L.push(`| \`${k}\` | \`${s.setting}\` | ${cell(s.label)} | ${s.default} | ${names(verbs)} | ${names(own)} |`);
+  }
+  L.push('', '| Core action | Class | Floor | What it is |', '|---|---|---|---|');
+  for (const [n, a] of Object.entries(p.actions)) L.push(`| \`${n}\` | ${a.class} | ${a.floor ?? '—'} | ${cell(a.doc)} |`);
   L.push('', '## Surface kinds', '', '| Kind | Slots | Versions | Payload (newest) | What it is |', '|---|---|---|---|---|');
   for (const [n, k] of Object.entries(c.SURFACE_KINDS)) {
     const vs = versions(k.versions);

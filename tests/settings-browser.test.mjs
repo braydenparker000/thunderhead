@@ -207,7 +207,7 @@ test('a worker setting goes through PATCH /v1/settings and comes back after a re
   await until(() => worker.patches.length === 4);
   assert.deepEqual(worker.patches, [{ 'mind.ask_outside': false }, { 'mind.voice': 'drier' }, { 'mind.night_budget': 15 }, { 'mind.permit.muse': 'quiet' }]);
   assert.deepEqual(worker.refused, []);
-  assert.ok(await page.$('text=The mind reads these; enforcement comes with the next release.'));
+  assert.ok(await page.$('text=Always asks first: money, deleting your data, keys and access, reaching another person.'));
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('html[data-signed-in]');
   await page.evaluate(() => localStorage.removeItem('th.p.settings')); // only the Worker's answer

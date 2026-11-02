@@ -4,11 +4,12 @@ import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
 import {EXIT, invalid, jsonFlag, need, out, textArg, toMs} from './io.mjs';
 import {CONTRACT, checkProposal, checkSurface, checkVerb} from './contract.mjs';
-import {request} from './http.mjs';
+import {permitOut, proposalHeaders, request} from './http.mjs';
 import {getState, setState} from './state.mjs';
 import {uuidv7} from './ids.mjs';
 
-export const CLASSES = ['delete', 'money', 'access', 'reach_people', 'memory_big'];
+/** The card classes (shared/contract/proposals.ts); `permit` is a standing permission set to Ask. */
+export const CLASSES = Object.keys(CONTRACT.proposals.classes);
 const seg = value => encodeURIComponent(String(value));
 
 function bounded(flags, name, max) {
@@ -104,7 +105,7 @@ export async function verb(argv) {
     device_id: typeof flags.device === 'string' ? flags.device : undefined,
     proposal_id: typeof flags.proposal === 'string' ? flags.proposal : undefined,
   }});
-  out({verb_id: data.id || id, status: data.status ?? null, ledger_id: data.ledger_id ?? null});
+  out({verb_id: data.id || id, status: data.status ?? null, ledger_id: data.ledger_id ?? null, ...permitOut(data)});
 }
 
 /** Work orders for Muse (API.md §11.19): new | list | get | cancel. */
@@ -118,9 +119,9 @@ export async function order(argv) {
     // No order kind carries the owner's data yet: one that would needs a reach_people card first (MUSE.md §6).
     if (flags.personal) throw invalid('no personal order kinds are built: the owner\'s data never goes to Muse without a reach_people card');
     const orderId = uuidv7();
-    await request('PUT', `/v1/work/orders/${seg(orderId)}`, {body: {kind, title,
+    const {data} = await request('PUT', `/v1/work/orders/${seg(orderId)}`, {headers: proposalHeaders(flags), body: {kind, title,
       spec: jsonFlag(need(flags, 'spec'), 'spec'), deadline_at: toMs(need(flags, 'deadline'), 'deadline')}});
-    return out({id: orderId});
+    return out({id: orderId, ...permitOut(data)});
   }
   if (sub === 'list') {
     const {data} = await request('GET', '/v1/work/orders', {query: {status: 'all', limit: 200}});
@@ -170,12 +171,12 @@ export async function surface(argv) {
   const schema = checkSurface(app, slot, kind, flags.schema === undefined ? undefined : Number(flags.schema), payload);
   const topic = need(flags, 'topic');
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(topic)) throw invalid('--topic is a slug: lowercase letters, digits, . _ -');
-  const {data} = await request('PUT', `/v1/surfaces/${seg(app)}/${seg(slot)}`, {body: {
+  const {data} = await request('PUT', `/v1/surfaces/${seg(app)}/${seg(slot)}`, {headers: proposalHeaders(flags), body: {
     kind, schema, payload, why: why(flags), topic_key: topic, expires_at: toMs(flags.expires, 'expires'),
     // The app it is about (`app:music`): its opening counts as the owner acting on it (EVALS.md M-16).
     ref: typeof flags.ref === 'string' ? flags.ref : undefined,
   }});
-  out({ledger_id: data.ledger_id ?? null});
+  out({ledger_id: data.ledger_id ?? null, ...permitOut(data)});
 }
 
 export async function push(argv) {
