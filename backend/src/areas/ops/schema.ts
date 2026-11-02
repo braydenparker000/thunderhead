@@ -1,6 +1,7 @@
 // Request shapes for /v1/ops and /v1/settings (zod/mini), checked against the shared contract.
 import * as z from 'zod/mini';
 import type { ErrorReport, ErrorsRequest, PerfRequest, SettingsPatch } from '../../../../shared/contract/api';
+import { CATALOG_PATCH } from '../settings/catalog';
 
 const int = (min: number, max: number) => z.number().check(z.int(), z.gte(min), z.lte(max));
 const MS = int(0, 8.64e15);
@@ -57,7 +58,7 @@ export function knownZone(tz: string): boolean {
   }
 }
 
-/** Only the keys P1 knows; anything else is 422. */
+/** Only the keys P1 knows and the catalogue's worker keys (settings/catalog.ts); anything else is 422. */
 const hhmm = z.string().check(z.regex(/^([01]\d|2[0-3]):[0-5]\d$/));
 export const settingsPatch = z.strictObject({
   'owner.tz': z.optional(z.string().check(z.maxLength(64), z.refine(knownZone, 'unknown time zone'))),
@@ -67,4 +68,5 @@ export const settingsPatch = z.strictObject({
   'quiet.end': z.optional(hhmm.check(z.refine((v) => v >= '06:30', 'not earlier than 06:30'))),
   // "Go quiet" (BEHAVIOR.md §8): when it ends (ms), 0 to end it now.
   'quiet.until': z.optional(int(0, 8.64e15)),
+  ...CATALOG_PATCH,
 }) satisfies z.ZodMiniType<SettingsPatch>;

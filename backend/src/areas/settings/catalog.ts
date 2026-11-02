@@ -1,0 +1,72 @@
+// The settings catalogue in the Worker (shared/contract/settings.ts, MENU-AND-SETTINGS.md §6):
+// PATCH /v1/settings takes every worker key in it, each checked by its kind (ops/schema.ts spreads
+// CATALOG_PATCH into its strict object, so an unknown key is still 422), and the mind's briefing
+// lists the `mind: true` ones (section 13, "Your settings"). A key is stored only once the owner
+// changes it; until then every reader takes the catalogue's default.
+import * as z from 'zod/mini';
+import {
+  SETTINGS,
+  type SettingSpec,
+  type SettingValue,
+  validSetting,
+  type WorkerSettingKey,
+} from '../../../../shared/contract/settings';
+import type { Db } from '../../objects/base';
+
+const specs = SETTINGS as readonly SettingSpec[];
+const values = (s: SettingSpec) => (s.options ?? []).map((o) => o.value);
+
+/** The request schema for one setting: its kind's JSON type, then the catalogue's own check. */
+function schemaFor(s: SettingSpec): z.ZodMiniType<SettingValue, SettingValue> {
+  const check = z.refine<SettingValue>((v) => validSetting(s, v), `not one of ${s.key}'s values`);
+  switch (s.kind) {
+    case 'switch':
+      return z.boolean();
+    case 'choice':
+      return z.string().check(check);
+    case 'range':
+      return z.number().check(check);
+    case 'order':
+      return z.array(z.string()).check(z.maxLength(values(s).length), check);
+    case 'text':
+      return z.string().check(z.maxLength(s.max ?? 200), check);
+  }
+}
+
+/** Every worker key of the catalogue, optional, for PATCH /v1/settings's strict object. */
+export const CATALOG_PATCH = Object.fromEntries(
+  specs.filter((s) => s.scope === 'worker').map((s) => [s.key, z.optional(schemaFor(s))]),
+) as Record<WorkerSettingKey, z.ZodMiniOptional<z.ZodMiniType<SettingValue, SettingValue>>>;
+
+const MIND = specs.filter((s) => s.mind && s.scope === 'worker');
+
+/** The stored values of `keys`, one lookup each by the primary key: a row read for each stored one. */
+export function readSettings(db: Db, keys: readonly string[]): Map<string, unknown> {
+  const out = new Map<string, unknown>();
+  if (!keys.length) return out;
+  for (const key of keys) {
+    const r = db.one<{ value_json: string }>('SELECT value_json FROM settings WHERE key = ?', key);
+    if (r) out.set(key, JSON.parse(r.value_json));
+  }
+  return out;
+}
+
+const shown = (s: SettingSpec, v: SettingValue): string => {
+  if (typeof v === 'boolean') return v ? 'on' : 'off';
+  if (Array.isArray(v)) return v.length ? v.join(', ') : 'none';
+  return s.unit ? `${v} ${s.unit}` : String(v);
+};
+
+/** The briefing's "Your settings" lines: `key: value` for every `mind: true` setting, in catalogue
+ * order, marked `(default)` while the owner hasn't changed it (a stored value that is no longer
+ * allowed counts as unchanged). */
+export function mindSettingLines(db: Db): string[] {
+  const stored = readSettings(
+    db,
+    MIND.map((s) => s.key),
+  );
+  return MIND.map((s) => {
+    const v = stored.get(s.key);
+    return validSetting(s, v) ? `${s.key}: ${shown(s, v)}` : `${s.key}: ${shown(s, s.default)} (default)`;
+  });
+}

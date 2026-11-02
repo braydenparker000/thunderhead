@@ -4,6 +4,7 @@
 //   mind/cli/contract.json        what `th` needs: routes, verbs and surfaces with JSON Schemas,
 //                                 error codes, the phrase lint
 //   docs/engineering/CONTRACT.md  the generated appendix to API.md
+//   frontend/apps/settings/catalog-data.js  the settings catalogue the Settings pages render
 //   node scripts/contract.mjs           rewrites them
 //   node scripts/contract.mjs --check   exits 1 naming any that are stale (tests/contract-gen.test.mjs)
 // Node strips the contract's types on import; nothing is built or bundled.
@@ -15,7 +16,7 @@ import * as c from '../shared/contract/index.ts';
 import { BANNED_PHRASES } from '../shared/contract/lint.ts';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
-export const OUTPUTS = ['frontend/th/contract.js', 'mind/cli/contract.json', 'docs/engineering/CONTRACT.md'];
+export const OUTPUTS = ['frontend/th/contract.js', 'mind/cli/contract.json', 'docs/engineering/CONTRACT.md', 'frontend/apps/settings/catalog-data.js'];
 
 const schema = (s) => {
   const { $schema: _, ...rest } = z.toJSONSchema(s, { io: 'input' });
@@ -371,8 +372,25 @@ function docs() {
   return `${L.join('\n')}`;
 }
 
+/** The settings catalogue for the phone's Settings pages (shared/contract/settings.ts): data only;
+ * the pages check values with their own copy of validSetting. */
+function settings() {
+  const j = (v) => JSON.stringify(v);
+  return `// Generated from shared/contract/settings.ts by scripts/contract.mjs; do not edit (run \`node scripts/contract.mjs\`).
+// The owner's settings catalogue (MENU-AND-SETTINGS.md §6): catalog.js renders a page from it.
+
+/** @type {typeof import('../../../shared/contract/settings.ts').SETTING_GROUPS} */
+export const SETTING_GROUPS = Object.freeze(${j(c.SETTING_GROUPS)});
+
+/** @type {typeof import('../../../shared/contract/settings.ts').SETTINGS} */
+export const SETTINGS = Object.freeze([
+${c.SETTINGS.map((s) => `  ${j(s)},`).join('\n')}
+]);
+`;
+}
+
 export function render() {
-  return { [OUTPUTS[0]]: phone(), [OUTPUTS[1]]: mind(), [OUTPUTS[2]]: docs() };
+  return { [OUTPUTS[0]]: phone(), [OUTPUTS[1]]: mind(), [OUTPUTS[2]]: docs(), [OUTPUTS[3]]: settings() };
 }
 
 /** Files whose committed text differs from what the contract gives. */

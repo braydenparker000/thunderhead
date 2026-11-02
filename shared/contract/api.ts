@@ -10,6 +10,8 @@ export type { ErrorBody, ErrorCode, ErrorDetails, Issue, RevokeReason } from './
 export type { AppId, ChangeKind, FrameType, SearchSource } from './feed';
 export type { MeterItem, MeterResponse, QuotaToday } from './meter';
 export type { Ref, RefKind } from './refs';
+export type { SettingKey, SettingSpec, SettingValue, WorkerSettingKey } from './settings';
+import type { SettingValue, WorkerSettingKey } from './settings';
 
 export type Id = string;
 export type Ms = number;
@@ -288,10 +290,15 @@ export interface PerfRequest {
   >;
 }
 
-/** Settings: `owner.tz` (IANA, from the phone, only in Core); quiet hours `HH:MM` (end ≥ 06:30); `quiet.until` (ms). */
+/** Settings: `owner.tz` (IANA, from the phone, only in Core); quiet hours `HH:MM` (end ≥ 06:30); `quiet.until` (ms);
+ * and the catalogue's worker keys (settings.ts), each stored only once the owner changes it: a reader
+ * takes the catalogue's default for one that is missing. */
 export interface Settings {
   'owner.tz': string;
   min_client: number;
   [key: string]: unknown;
 }
-export type SettingsPatch = Partial<Pick<Settings, 'owner.tz' | 'min_client'> & Record<'quiet.start' | 'quiet.end', string> & { 'quiet.until': number }>;
+export type SettingsPatch = Partial<
+  Pick<Settings, 'owner.tz' | 'min_client'> &
+    Record<'quiet.start' | 'quiet.end', string> & { 'quiet.until': number } & Record<WorkerSettingKey, SettingValue>
+>;

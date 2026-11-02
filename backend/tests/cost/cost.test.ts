@@ -36,6 +36,7 @@ import { musicCalls } from './music-calls';
 import { predictionCalls } from './prediction-calls';
 import { proposalCalls } from './proposal-calls';
 import { phoneCalls } from './report-calls';
+import { settingsCalls } from './settings-calls';
 import { ticks } from './ticks';
 
 type Budget = { rows_read_max: number; rows_written_max: number };
@@ -279,10 +280,11 @@ describe('rows per endpoint', () => {
   // P9: predictions (prediction-calls.ts).
   it('measures the predictions against their budget', () => predictionCalls(cost, grant));
   // Reports and Podcasts' sync, the listening pass, held conversations, what the mind knows (*-calls.ts).
-  it('measures the phone’s reports and sync, the listening pass and held conversations', () =>
+  it('measures the phone’s reports and sync, the listening pass, held conversations and settings', () =>
     phoneCalls(cost, grant)
       .then(() => listenCalls(cost, grant))
-      .then(() => heldCalls(cost, grant)));
+      .then(() => heldCalls(cost, grant))
+      .then(() => settingsCalls(cost, grant)));
   it('measures the music notes and find against their budget', () => musicCalls(cost as never, grant));
 
   it('every endpoint has a budget and stays within it', () => {
