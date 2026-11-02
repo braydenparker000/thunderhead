@@ -14,7 +14,7 @@ import { appFor, deepLink } from '../registry/apps.js';
 import { el, toast } from '../ui.js';
 import { citeHref, plain } from './model.js';
 
-/** @typedef {import('../../../shared/contract/api.ts').MindUse} MindUse */
+/** @typedef {import('../../../shared/contract/feed.ts').MindUse} MindUse */
 /** @typedef {{ title: string, note: string, using: MindUse[], waking: boolean, stop: 'none' | 'button' | 'stopping' }} Work */
 /** @typedef {{ app: string, path: string, label: string }} Open */
 

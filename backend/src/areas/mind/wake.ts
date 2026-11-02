@@ -2,7 +2,8 @@
 // §4.4, §11): the fire conditions, the 120 s retry and 240 s give-up, requeues of handed-out
 // messages nobody acknowledged, the usage backoff, and the presence the phone shows. Everything
 // here runs inside a commit; the HTTP fire itself happens after it (fire.ts).
-import type { MindPresence, MindRole, MindUse } from '../../../../shared/contract/api';
+import type { MindPresence, MindRole } from '../../../../shared/contract/api';
+import type { MindUse } from '../../../../shared/contract/feed.ts';
 import { uuidv7 } from '../../lib/ids';
 import { HOUR, MINUTE, SECOND } from '../../lib/time';
 import type { Db } from '../../objects/base';

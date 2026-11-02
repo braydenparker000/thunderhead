@@ -125,7 +125,7 @@ function runStart(shown, waiting) {
  * minute."). The title is the mind's, else its note, else words from the message; the note is the
  * live line under a title. What the mind said before this run of messages counts for nothing.
  * @param {{ shown: Shown[], waiting: Shown | null, now: number, presence: MindPresence | null }} s
- * @returns {{ title: string, note: string, using: import('../../../shared/contract/api.ts').MindUse[], waking: boolean } | null} */
+ * @returns {{ title: string, note: string, using: import('../../../shared/contract/feed.ts').MindUse[], waking: boolean } | null} */
 export function work({ shown, waiting, now, presence }) {
   if (!waiting || waiting.local) return null;
   const state = presence?.state;
