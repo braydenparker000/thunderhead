@@ -211,6 +211,20 @@ export function openThreads(db: Db, status: 'open' | 'all', limit: number): Open
   );
 }
 
+/** The labels of the day notes and loose ends a mind wrote or changed since `from` (the eval
+ * sandbox's report, EVALS.md §4; the sandbox seeds neither, so every loose end there is the mind's). */
+export function mindNoteLabels(db: Db, from: number): Provenance[] {
+  const days = db.all<{ provenance: Provenance | null }>(
+    `SELECT provenance FROM day_notes WHERE written_at >= ? AND written_by != 'owner' LIMIT 500`,
+    from,
+  );
+  const loose = db.all<{ provenance: Provenance | null }>(
+    'SELECT provenance FROM open_threads WHERE coalesce(last_progress_at, opened_at) >= ? LIMIT 500',
+    from,
+  );
+  return [...days, ...loose].map(notedBy);
+}
+
 // --- the batch idempotency window (API.md §7) ---------------------------------------------------
 
 export interface BatchRow {

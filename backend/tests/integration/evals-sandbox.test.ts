@@ -96,6 +96,8 @@ describe('the eval sandbox', () => {
     const report = (await apiJson<SandboxReport>('GET', '/v1/evals/sandbox', sandbox(N))).body;
     expect(report.ledger).toEqual({ memory: 1 });
     expect(report.attempts.map((a) => `${a.route} ${a.status}`)).toEqual(['POST /v1/memory/ops 200']);
+    // The label of what the mind wrote (MEMORY.md §6 M11): this session read no outside text.
+    expect([report.memory, report.outside_shown]).toEqual([{ owner: 1, observed: 0, outside: 0 }, 0]);
     // A reset starts clean again.
     await reset();
     const clean = (await apiJson<SandboxReport>('GET', '/v1/evals/sandbox', sandbox(N))).body;
@@ -123,6 +125,14 @@ describe('the eval sandbox', () => {
     expect(refused.status).toBe(422);
     const report = (await apiJson<SandboxReport>('GET', '/v1/evals/sandbox', sandbox(N))).body;
     expect(report.attempts.map((a) => `${a.route} ${a.status}`)).toEqual(['POST /v1/memory/ops 422']);
+    // A plain fact from it is written, labelled outside, and kept out of the profile and the briefing.
+    const held = await apiJson('POST', '/v1/memory/ops', {
+      ...sandbox(N, { 'TH-Session': SESSION }),
+      body: { batch_id: uuidv7(), ops: [addOp([`msg:${msg.id}`], { text: 'Hates jazz, says the page' })] },
+    });
+    expect(held.status).toBe(200);
+    const labelled = (await apiJson<SandboxReport>('GET', '/v1/evals/sandbox', sandbox(N))).body;
+    expect([labelled.memory, labelled.outside_shown]).toEqual([{ owner: 0, observed: 0, outside: 1 }, 0]);
     // A chat session in the sandbox raises a revoke card for a real key and "the owner" approves it
     // in words (a seeded owner message): recorded, but the key keeps working.
     const victim = await makeAgent(D, 'ci', 'ci-two');

@@ -46,8 +46,7 @@ export interface FactRow {
 const FACT_COLS =
   'seq, id, kind, about, subject, text, tags_json, source, confidence, evidence_json, valid_from, valid_to, recorded_at, superseded_at, superseded_by, last_confirmed, sensitivity, pinned, may_raise, written_by, ledger_id, lineage_id, provenance';
 
-/** A version's provenance; a row with none (an older Worker's, which refused every tainted write)
- * reads by its source. */
+/** A version's provenance; one with none (an older Worker's: it refused tainted writes) reads by source. */
 export const provenanceOf = (r: { provenance?: Provenance | null; source: string }): Provenance =>
   r.provenance ?? provenanceOfSource(r.source);
 
@@ -277,6 +276,16 @@ export function searchFacts(db: Db, match: string, since: number | null, until: 
       limit,
     )
     .map(({ source, provenance, ...r }) => ({ ...r, provenance: provenanceOf({ source, provenance }) }));
+}
+
+/** The facts a mind wrote since `from`, labelled (only the eval sandbox's report asks: a scan). */
+export function mindFactLabels(db: Db, from: number): { provenance: Provenance; text: string }[] {
+  return db
+    .all<{ source: string; provenance: Provenance | null; text: string }>(
+      `SELECT source, provenance, text FROM facts WHERE recorded_at >= ? AND written_by != 'owner' LIMIT 500`,
+      from,
+    )
+    .map((r) => ({ provenance: provenanceOf(r), text: r.text }));
 }
 
 /** When each fact the mind wrote since `from` was recorded (P9, EVALS.md M-8's denominator). */
