@@ -5,7 +5,9 @@
 // time inside quiet hours moves to their end (never before 06:30). At its time the alarm delivers
 // it once: a system line in today's thread and, outside quiet hours, a push.
 
+import type { Permitted } from '../../../../shared/contract/api';
 import { lintMindText } from '../../../../shared/contract/lint.ts';
+import type { Permit } from '../../../../shared/contract/permits.ts';
 import {
   type PutReminderRequest,
   REMINDER_LIMITS,
@@ -21,6 +23,7 @@ import type { Writer } from '../../objects/commit';
 import { today } from '../conversation/ops';
 import * as convo from '../conversation/store';
 import { claimedSession } from '../mind/guards';
+import { gate, positionFor, withPermit } from '../mind/permit';
 import { heldUntil, inQuiet, type QuietWindow, quietWindow } from '../settings/quiet';
 import * as store from './store';
 
@@ -58,11 +61,16 @@ export function put(
   r: PutReminderRequest,
   hash: string,
   tz: string,
-): { reminder: Reminder; created: boolean } {
+): { reminder: Reminder; created: boolean; permit?: Permit } {
   const had = store.byId(w.db, id);
   if (had) {
     if (had.req_sha256 !== hash) throw new Fail('conflict');
-    return { reminder: store.shown(had), created: false };
+    // The same request again: no ledger row keeps its permit, so the position as it stands now.
+    const again: Permit | null =
+      c.who === 'C'
+        ? { action: 'reminder.set', class: 'reminders', position: positionFor(w.db, 'reminder.set') }
+        : null;
+    return { reminder: store.shown(had), created: false, ...(again ? { permit: again } : {}) };
   }
   const mind = c.who === 'C';
   if (!mind && c.who !== 'D') throw new Fail('forbidden');
@@ -85,6 +93,9 @@ export function put(
   }
   if (store.openCount(w.db) >= REMINDER_LIMITS.open)
     throw invalid('id', `at most ${REMINDER_LIMITS.open} reminders set at once`);
+  // The mind's reminders are a standing permission too (its own words were the owner's ask; the
+  // setting says whether it also asks first, or says it set one). A card approves the words and time.
+  const g = gate(w, c, 'reminder.set', { text, at: r.at }, `reminder:${id}`);
   store.insert(w.db, {
     id,
     text,
@@ -96,7 +107,7 @@ export function put(
     created_at: w.at,
     req_sha256: hash,
   });
-  return { reminder: store.shown(store.byId(w.db, id) as store.ReminderRow), created: true };
+  return withPermit({ reminder: store.shown(store.byId(w.db, id) as store.ReminderRow), created: true }, g);
 }
 
 /** The owner's own words: an owner-device message of the last 48 hours (for a new reminder, not
@@ -118,7 +129,7 @@ export function list(db: Db, now: number): RemindersResponse {
 /** DELETE /v1/reminders/:id: a set reminder is taken back (the row stays); again is the same
  * answer; one already delivered is gone (410). The mind takes back one the owner set on the phone
  * only when the owner asked, naming that message (`source_message_id`), as it must to set one. */
-export function cancel(w: Writer, c: Caller, id: string, source?: string): Reminder {
+export function cancel(w: Writer, c: Caller, id: string, source?: string): Permitted<Reminder> {
   const had = store.byId(w.db, id);
   if (!had) throw new Fail('not_found');
   if (c.who === 'C') {
@@ -129,8 +140,10 @@ export function cancel(w: Writer, c: Caller, id: string, source?: string): Remin
     }
   } else if (c.who !== 'D') throw new Fail('forbidden');
   if (had.state === 'done') throw new Fail('expired');
+  // Only taking back one still set is an act (again is the same answer, never a second card).
+  const g = had.state === 'set' ? gate(w, c, 'reminder.cancel', { id }, `reminder:${id}`) : null;
   if (had.state === 'set') store.markCancelled(w.db, id, w.at);
-  return store.shown(store.byId(w.db, id) as store.ReminderRow);
+  return withPermit(store.shown(store.byId(w.db, id) as store.ReminderRow), g);
 }
 
 /** The alarm's pass: every set reminder due by now becomes its line in today's thread, once (the

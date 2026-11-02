@@ -33,6 +33,9 @@ export const CORE_RUNS: Partial<Record<ProposalOpName, CoreRun>> = {
     const sha = String(a.sha256);
     return { result: { pinned: sha }, ledger_id: pin(w, sha, p.id) };
   },
+  // The approval is the record: the mind's same call, sent again naming this card, uses it up
+  // (approval.ts); `used_by` names that write once it has.
+  'permit.allow': (_w, a) => ({ result: { action: String(a.action), used_by: null }, ledger_id: null }),
 };
 
 /** Every op is run somewhere: in Core (above) or after the commit (after.ts). */

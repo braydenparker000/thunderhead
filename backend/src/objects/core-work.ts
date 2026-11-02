@@ -3,6 +3,7 @@
 // layer of the one Core class. (The Daily Board, its brief and approval were cut on 2026-10-31.)
 
 import type { BriefingResponse } from '../../../shared/contract/briefing.ts';
+import type { Permit } from '../../../shared/contract/permits.ts';
 import type { MuseNote, WorkHello, WorkOrder, WorkOrderPut, WorkStatus } from '../../../shared/contract/work.ts';
 import { briefing } from '../areas/briefing/assemble';
 import { type Forecast, type Place, weatherTile } from '../areas/briefing/weather';
@@ -21,7 +22,7 @@ export abstract class CoreWork extends CoreBackups {
     this.write((w) => work.tick(w), now);
   }
 
-  workCreate(c: Caller, id: string, r: WorkOrderPut): Out<{ order: WorkOrder; created: boolean }> {
+  workCreate(c: Caller, id: string, r: WorkOrderPut): Out<{ order: WorkOrder; created: boolean; permit?: Permit }> {
     return this.run((w) => work.create(w, c, id, r));
   }
   workCancel(_c: Caller, id: string): Out<{ status: 'cancelled' }> {

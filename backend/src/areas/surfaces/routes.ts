@@ -2,7 +2,7 @@
 // their payload schemas are the contract's (shared/contract/surfaces.ts).
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
-import type { PutSurfaceRequest, Surface, SurfacesResponse } from '../../../../shared/contract/api';
+import type { Permitted, PutSurfaceRequest, Surface, SurfacesResponse } from '../../../../shared/contract/api';
 import { type AppEnv, guard } from '../../http/auth';
 import { callerOf } from '../../http/caller';
 import { ApiError } from '../../http/errors';
@@ -41,7 +41,7 @@ export const surfacesRoutes = new Hono<AppEnv>()
   .put('/surfaces/:app/:slot', guard('PUT /v1/surfaces/:app/:slot'), async (c) => {
     const [app, slot] = place(c.req.param('app'), c.req.param('slot'));
     const body = await json(c, putBody);
-    return c.json(value(await coreObject(c.env).putSurface(callerOf(c), app, slot, body)) satisfies Surface);
+    return c.json(value(await coreObject(c.env).putSurface(callerOf(c), app, slot, body)) satisfies Permitted<Surface>);
   })
   .delete('/surfaces/:app/:slot', guard('DELETE /v1/surfaces/:app/:slot'), async (c) => {
     const [app, slot] = place(c.req.param('app'), c.req.param('slot'));

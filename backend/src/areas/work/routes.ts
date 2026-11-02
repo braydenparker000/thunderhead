@@ -5,7 +5,8 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import * as z from 'zod/mini';
-import type { Page } from '../../../../shared/contract/api';
+import type { Page, Permitted } from '../../../../shared/contract/api';
+import type { Permit } from '../../../../shared/contract/permits.ts';
 import { type MuseNote, WORK_KIND_NAMES, WORK_LIMITS, type WorkOrder } from '../../../../shared/contract/work.ts';
 import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { callerOf } from '../../http/caller';
@@ -58,8 +59,10 @@ export const workRoutes = new Hono<AppEnv>()
     const r = value(await fresh(coreObject(c.env).workCreate(callerOf(c), id, body as never))) as {
       order: WorkOrder;
       created: boolean;
+      permit?: Permit;
     };
-    return c.json(r.order satisfies WorkOrder, r.created ? 201 : 200);
+    const answer: Permitted<WorkOrder> = r.permit ? { ...r.order, permit: r.permit } : r.order;
+    return c.json(answer, r.created ? 201 : 200);
   })
   .post('/work/orders/:id/cancel', guard('POST /v1/work/orders/:id/cancel'), async (c) => {
     noSandbox();

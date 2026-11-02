@@ -2,7 +2,7 @@
 // the rules live in ops.ts. An owner message that needs the mind fires a wake after the response.
 // A mind message that cites the owner's books is checked first (library/cited.ts).
 import { Hono } from 'hono';
-import type { Message, MessagesPage, Page, Thread, TodayResponse } from '../../../../shared/contract/api';
+import type { Message, MessagesPage, Page, Permitted, Thread, TodayResponse } from '../../../../shared/contract/api';
 import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { callerOf, idParam, reqHash } from '../../http/caller';
 import { ApiError } from '../../http/errors';
@@ -47,7 +47,9 @@ export const conversationRoutes = new Hono<AppEnv>()
   .patch('/threads/:id', guard('PATCH /v1/threads/:id'), async (c) => {
     const id = idParam(c);
     const { title, summary } = await json(c, s.patchThread);
-    return c.json(value(await coreObject(c.env).patchThread(id, title, summary)) satisfies Thread);
+    return c.json(
+      value(await coreObject(c.env).patchThread(id, title, summary, callerOf(c))) satisfies Permitted<Thread>,
+    );
   })
   .put('/threads/:id/title', guard('PUT /v1/threads/:id/title'), async (c) => {
     const { title } = await json(c, s.threadTitle);

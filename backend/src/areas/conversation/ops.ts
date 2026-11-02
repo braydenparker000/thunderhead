@@ -2,7 +2,7 @@
 // commit. The rules of PUT /v1/messages/:id live here: the thread comes from `day.current`,
 // author and origin from the caller, the mind's reply settles earlier owner messages, and the
 // files a message names become its attachments (areas/files/ops.ts).
-import type { JsonObject, Message, MessageKind, Thread } from '../../../../shared/contract/api';
+import type { JsonObject, Message, MessageKind, Permitted, Thread } from '../../../../shared/contract/api';
 import { APPS, type AppId, appBuilt } from '../../../../shared/contract/feed.ts';
 import { lintMindText } from '../../../../shared/contract/lint.ts';
 import { uuidv7 } from '../../lib/ids';
@@ -10,6 +10,7 @@ import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { attach } from '../files/ops';
+import { gate, withPermit } from '../mind/permit';
 import * as settings from '../settings/store';
 import { currentDay, provisionalTitle } from './day';
 import * as held from './held';
@@ -165,16 +166,25 @@ export function patchMessage(w: Writer, id: string, body: string | undefined, me
   return out as Message;
 }
 
-export function patchThread(w: Writer, id: string, title: string | undefined, summary: string | undefined): Thread {
+export function patchThread(
+  w: Writer,
+  c: Caller,
+  id: string,
+  title: string | undefined,
+  summary: string | undefined,
+): Permitted<Thread> {
   const t = store.thread(w.db, id);
   if (!t) throw new Fail('not_found');
   // The mind never titles or sums up a held conversation: a title is memory of its words.
   held.refuseHeld(w.db, id, w.at);
   if (title !== undefined && t.title_source === 'owner')
     throw new Fail('conflict', { reason: 'the owner named this thread' });
+  // Titling and filing conversations is a standing permission; this write keeps no ledger row, so
+  // the permit is in the answer only.
+  const g = gate(w, c, 'thread.title', { id, title: title ?? null, summary: summary ?? null }, `thread:${id}`);
   titles.patchThread(w.db, id, title, summary, w.at);
   w.change('thread', `thread:${id}`);
-  return store.thread(w.db, id) as Thread;
+  return withPermit(store.thread(w.db, id) as Thread, g);
 }
 
 /** PUT /v1/threads/:id/title: the owner's name for a thread, which the mind never changes after
