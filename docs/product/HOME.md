@@ -522,7 +522,7 @@ picture-in-picture. The old `/lab/island/` prototype does not demonstrate this v
 | H1 | The status chip's words fit one line at 360 px beside the date; a 44-character home line fits its card in ≤ 2 lines |
 | H2 | Voice line text matches §2.1 for each mocked state |
 | H3 | Decision: yes / not yet / no / error / offline / expiry flows as §3.2 |
-| H4 | Reply lifecycle: "…" at 1.2 s, "Waking up…" at 8 s, the honest line at 240 s (mocked clock) |
+| H4 | Reply lifecycle: the working card at once for the mind's title, at 1.5 s for a live mind, "Waking up" at 3 s for one still waking, folded by the reply; the honest line at 240 s |
 | H5 | Offline send → meta → reconnect → sent once (no duplicate) |
 | H6 | Day roll timing with a mocked clock (§4.11) |
 | H7 | `+` sheet opens/closes by each route in §6.2; conversation blurs while open |
