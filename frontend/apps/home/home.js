@@ -135,15 +135,16 @@ function openFromRing(id,color,to){
     const cx=Math.min(Math.max(x-r.left,m),r.width-m), cy=Math.min(Math.max(y-r.top,m+30),r.height-m-40);
     ring.style.left=cx+'px'; ring.style.top=cy+'px';
     lbl.style.top=ghost.style.top=(R+34)+'px'; return {cx:cx+r.left,cy:cy+r.top} }
-  // The motion tokens, read as the ring opens, before anything on the page changes (so no style is forced).
+  // The motion tokens, read off the hold's path (after the first paint, then whenever the ring has closed), so the
+  // hold's own frame forces no style.
   function tokens(){ const css=getComputedStyle(root), ms=n=>parseFloat(css.getPropertyValue(n))||0;
     look={fast:ms('--d-fast'),quick:ms('--d-quick'),ease:css.getPropertyValue('--ease-out').trim()||'ease-out'} }
   function fan(){ opening=true; peak=0;
     if(motionReduced()){ petMotion.forEach(m=>{m.radial.to(1,{spring:springs.pop});m.size.to(1,{spring:springs.lift});m.choice.to(0,{spring:springs.pop});m.face.to(1,{spring:springs.fade})}); settleRing(ringRun); return }
-    // The flight out as compositor animations: both springs sampled every 8 ms from rest, all seven on one clock.
+    // The flight out as compositor animations: both springs sampled every 12 ms from rest, all seven on one clock.
     const run=ringRun, rest={pop:restTime(springs.pop),lift:restTime(springs.lift)}, T=Math.max(rest.pop,rest.lift);
     const at=(n,ms)=>ms>=rest[n]?1:response(springs[n],ms/1000).value, grid=[];
-    for(let ms=0;ms<T;ms+=8) grid.push(ms); grid.push(T);
+    for(let ms=0;ms<T;ms+=12) grid.push(ms); grid.push(T);
     const r=grid.map(ms=>at('pop',ms)), z=grid.map(ms=>.2+.8*at('lift',ms));
     // The glass, as they pass 85% of the way out (they are slowing by then: the spring's speed peaks near 42%). Each
     // disc fades in whole before that, and its fade then ends (no fill): a disc with an opacity animation still on it
@@ -207,7 +208,7 @@ function openFromRing(id,color,to){
     Promise.all([briefMotion.whenResting(),sideMotion.whenResting()]).then(()=>{if(run===pageRun){side.classList.remove('moving');pages.forEach((el,i)=>{el.style.transition=savedTransitions[i]})}});
     inertAll(); if(v!=='home') menu(false); if(v!==was&&v==='brief') enter(brief) }
   function resumePages(){ if(start?.paused){start.paused=false;go(view,undefined,{b:start.bv,s:start.sv})} }
-  inertAll();
+  inertAll(); requestAnimationFrame(()=>setTimeout(tokens));
   // Every gesture has a button (GESTURES.md §9): Apps, Briefing and Menu, first in the focus order and
   // shown only when focused; the Briefing's Back home; Escape returns home. The ring by keyboard:
   // it opens in the middle, the arrows move round it, Enter opens the app, Escape closes it.
@@ -224,7 +225,7 @@ function openFromRing(id,color,to){
     if(view!=='home'||blocked(e.target)||opts.classList.contains('show')) return;
     const r=app.getBoundingClientRect(); press.style.left=(e.clientX-r.left)+'px'; press.style.top=(e.clientY-r.top)+'px'; press.classList.remove('on'); void press.offsetWidth; press.classList.add('on');
     // The hold's own frame does only what the ring needs; counting it for the hint waits until the ring is out.
-    holdT=setTimeout(()=>{ tokens(); resumePages(); press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); showRing(); openFan(); haptic('open'); setTimeout(()=>learn('ring'),600) },220) });
+    holdT=setTimeout(()=>{ resumePages(); press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); showRing(); openFan(); haptic('open'); setTimeout(()=>learn('ring'),600) },220) });
   window.addEventListener('pointermove',e=>{ if(!start||e.pointerId!==start.id) return;
     if(!open){ const mx=e.clientX-start.x, my=e.clientY-start.y, d=Math.hypot(mx,my);
       // Sideways is ours from 6 px, before Chrome's own slop (8 dp) can hand the touch to a scroller;
@@ -264,11 +265,11 @@ function openFromRing(id,color,to){
       ring.classList.remove('glassy');
       pets.forEach((p,i)=>{const m=petMotion[i], c=i===chosen, spring=c?springs.pop:springs.ring; p.classList.remove('lifted'); m.face.to(0,{spring:springs.fade}); m.radial.to(c?1.25:0,{spring}); m.size.to(c?1.15:.2,{spring}); m.choice.to(c?.12:0,{spring})});
       settleRing(run);
-      petsRest().then(()=>{if(run!==ringRun||open)return;ring.classList.remove('show','active','moving');pets.forEach((p,i)=>{p.classList.remove('go','on');const m=petMotion[i];m.radial.set(0);m.size.set(.2);m.choice.set(0);m.face.set(0)}); hush() });
+      petsRest().then(()=>{if(run!==ringRun||open)return;ring.classList.remove('show','active','moving');pets.forEach((p,i)=>{p.classList.remove('go','on');const m=petMotion[i];m.radial.set(0);m.size.set(.2);m.choice.set(0);m.face.set(0)}); hush(); requestAnimationFrame(()=>setTimeout(tokens)) });
       dir=-1; name(-1) }
     resumePages(); open=false; start=null }
   window.addEventListener('pointerup',e=>{ if(start&&e.pointerId===start.id){ if(swipe) endSwipe(e.timeStamp); close(true) } });
-  function keyRing(){ if(open) return; tokens(); const r=app.getBoundingClientRect(); place(r.left+r.width/2,r.top+r.height/2); open=true; hint.classList.add('gone'); showRing(); openFan(true);
+  function keyRing(){ if(open) return; const r=app.getBoundingClientRect(); place(r.left+r.width/2,r.top+r.height/2); open=true; hint.classList.add('gone'); showRing(); openFan(true);
     const keys=e=>{ if(e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); setDir((dir+1)%N) } else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){ e.preventDefault(); setDir((dir-1+N)%N) }
       else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); done(true) } else if(e.key==='Escape'||e.key==='Tab'){ e.preventDefault(); done(false) } };
     const done=c=>{ document.removeEventListener('keydown',keys,true); close(c) };
