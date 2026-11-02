@@ -58,12 +58,14 @@ async function open(settings = null) {
   }), TOKEN);
   await page.goto(`${base}/`, { waitUntil: 'load' });
   await page.waitForSelector('#talk .note[data-ledger]');
-  await page.waitForTimeout(600);
   /** What waits on the phone and what reached the Worker, in order. */
   const senses = async () => [
     ...api.calls.filter((c) => c.call.startsWith('PUT /v1/senses/batches/')).flatMap((c) => c.body.events),
     ...(await page.evaluate(() => JSON.parse(localStorage.getItem('th.p.senses') || '[]')).catch(() => [])),
   ];
+  // The shell's senses load after the first paint; the lines count as seen only once they are
+  // watching, so wait for that before anything covers home (a loaded runner takes a while).
+  for (let i = 0; i < 100 && !(await senses()).some((e) => e.type === 'line.seen'); i++) await page.waitForTimeout(100);
   return { page, context, errors, api, senses };
 }
 
