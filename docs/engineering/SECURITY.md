@@ -28,7 +28,7 @@ Sign-in screens and flows are in [../product/SIGN-IN.md](../product/SIGN-IN.md).
 | A2 | The power to act: verbs on the phone, proposals, deploys, merges, pushes | A hijacked actor could do harm in the owner's name |
 | A3 | Credentials: password, recovery code, session tokens, agent keys, Worker secrets, the Cloudflare deploy token, the Claude account | Keys to A1 and A2 |
 | A4 | Availability: 100k Worker requests a day, 100k DO row writes a day, Claude usage limits | Free tiers can be exhausted by others |
-| A5 | Memory integrity | Outside text must never become a "fact" about the owner (taint rule, [../mind/MEMORY.md](../mind/MEMORY.md)) |
+| A5 | Memory integrity | Outside text must never become a "fact" about the owner: what a session writes after reading it is labelled `outside` and stays out of the profile, the briefing's first sections and the rules until the owner keeps it (provenance rule M11, [../mind/MEMORY.md](../mind/MEMORY.md); until 2026-11-02 the taint rule refused it) |
 | A6 | The music audio in `jarvis-music` | One copy; irreplaceable. Never deleted from (decisions). |
 
 ### 1.2 Who might attack, and what they can do
@@ -248,7 +248,7 @@ Rules:
 | `auth/breakglass` (start) | — | W (owner-asked only) | — | — | — | — |
 | `auth/breakglass/cancel` | W | — | — | — | — | — |
 | Conversation, threads | RW | RW | R + home lines | R (last 24 h) + one system notice | own Muse thread | — |
-| Memory (facts, day notes, open threads) | RW (edit, forget) | R + remember (taint rules) | R + observed/inferred facts, day notes | — | — | — |
+| Memory (facts, day notes, open threads) | RW (edit, forget) | R + remember (provenance rules) | R + observed/inferred facts, day notes | — | — | — |
 | Ledger | R + undo | R + W via actions | R + W via actions | R | — | — |
 | Proposals | approve/reject (device tap) | create; record the owner's own words (`by_message`, Worker-verified) | create | create | — | — |
 | Verbs, surfaces | R | W | W | — | — | — |

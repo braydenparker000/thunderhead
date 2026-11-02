@@ -43,7 +43,7 @@ Retention marked **[proposal]** is new; the rest comes from decisions, the plan 
 |---|---|---|---|---|---|
 | Conversation messages | `Core` DO (+ FTS index) | owner devices, mind | Until deleted (purged 30 days after a Delete); off the record 7 days after the last message, never indexed | yes, never one off the record or deleted | yes; off the record only the chat answering it; deleted, no |
 | Threads (daily conversations, titles) | `Core` | Worker, mind | Until deleted | yes | yes |
-| Memory: facts (bi-temporal; superseded rows kept as history) | `Core` | mind (taint rules), owner | Until forgotten | yes | yes |
+| Memory: facts (bi-temporal; superseded rows kept as history) | `Core` | mind (provenance rules: after outside text, labelled `outside`), owner | Until forgotten | yes | yes |
 | Memory: day notes | `Core` | night shift | Until deleted | yes | yes |
 | Memory: open threads | `Core` | mind, owner | Open: until closed; closed: 1 year **[proposal]** | yes | yes |
 | Memory: session notes | `Core` | mind | 180 days **[proposal]** | yes | yes |
