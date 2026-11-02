@@ -416,7 +416,7 @@ Never: Cloudflare, Azure or R2 credentials in any Claude environment; any secret
 ### 12.1 Repository settings (owner, once, from the phone)
 - Actions → General → Workflow permissions: **Read repository contents**. Each workflow starts `permissions: {}` and each job asks for only what it needs.
 - Fork pull request workflows: **Require approval for all external contributors**.
-- Rules → ruleset on `main`: **Restrict deletions**, **Block force pushes**, empty bypass list. No required status checks in v1 (decisions: the agent fast-forwards `main` after CI passes on the same SHA; `deploy.yml` tests again).
+- Rules → ruleset on `main`: **Restrict deletions**, **Block force pushes**, empty bypass list. No required status checks in v1 (work lands as pull requests the owner merges, AGENTS.md; CI runs on the branch and `deploy.yml` tests again).
 - Environment `worker`: deployment branches = `main` only; holds `CLOUDFLARE_API_TOKEN` and `TH_CI_TOKEN`.
 - The **site deploy job uses no environment.** Azure's federated credential trusts the subject `repo:…/thunderhead@<repo_id>:ref:refs/heads/main`; adding `environment:` would change the subject to `…:environment:<name>` and break the sign-in.
 - Secret scanning and push protection: on. Private vulnerability reporting: on, so a stranger can report privately. **[proposal]**

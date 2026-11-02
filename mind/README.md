@@ -95,8 +95,10 @@ work as written. In this build:
    (RUNTIME.md §4.5, DATA.md §4.2).
 5. Open threads close with `PATCH /v1/memory/open-threads/:id {status, why}` (P3 route).
 6. The small routes: `GET /v1/work/orders/:id` (P4), `since` on `GET /v1/ops/errors`, `since` and
-   `kind` on `GET /v1/ledger`, `ledger_id` in verb and surface replies. `th approved` is dropped:
-   protected paths are always denied in mind sessions until P4.
+   `kind` on `GET /v1/ledger`, `ledger_id` in verb and surface replies. `th approved` was dropped from the spike and came back
+   in P4 stage C (`mind/cli/lib/act.mjs`): `th approved --paths <p1,p2> --sha <commit>` exits 0 when an
+   executed `repo.change` card covers those protected paths on a branch from that commit, else 6; the
+   pre-tool hook asks it before an edit to or a push of a protected path (RUNTIME.md §6.4).
 7. `th decide` has `--reject` and `--spec-hash` (RUNTIME.md §5.3).
 8. `th file`: the presigned download needs the private bucket's host in the network list; it
    arrives with attachments (SETUP.md J2).

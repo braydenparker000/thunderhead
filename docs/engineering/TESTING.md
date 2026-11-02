@@ -100,7 +100,7 @@ To add (P1):
 
 | Test | Acceptance |
 |---|---|
-| `routes.json` stubs | After `stage.mjs`, each shell route has `<route>/index.html` byte-equal to `index.html`; no route in `routes.json` is a ported folder |
+| App route copies | `stage.mjs` gives each route in `APP_ROUTES` (`scripts/site-config.mjs`) a copy of `index.html`, never over a page already there; `tests/site.test.mjs` counts links to those routes as resolved |
 | `precache.json` | Lists every staged file except `vendor/`, stubs, ported folders and `/assets/`; sizes match |
 | Vendored files | Each `vendor/<lib>-<ver>/` has a LICENSE and its files match the sha256 recorded in `vendor/manifest.json` |
 | Licence list | No dependency in `package-lock.json` has a GPL, AGPL or non-commercial licence. Named exception: libmedia under `/assets/libmedia/`, used only by `/astra/` (owner ruling 2026-10-28); the test fails if any other page loads it |
@@ -128,7 +128,7 @@ To add (P1b, `tests/ported.test.mjs`) **[proposal]**:
 
 ### 5.1 Frontend unit
 
-Any logic without DOM lives in its own module and has a `node --test` next to it under `tests/unit/`. Examples: `outbox.js` with a fake clock (back-off 30 s → 15 min; drop `sys.*` first at 5,000 events); the `TH-Client` parser; `logicalDay()`; colour token contrast (WCAG 2.2 AA pairs).
+Any logic without DOM lives in its own module and has a `node --test` in `tests/` (`*-logic.test.mjs`). Examples: the quiet grammar (`tests/quiet-logic.test.mjs`), phone commands (`tests/commands-logic.test.mjs`); the `TH-Client` parser; `logicalDay()`; colour token contrast (WCAG 2.2 AA pairs).
 
 ### 5.2 Backend (Vitest on workerd)
 

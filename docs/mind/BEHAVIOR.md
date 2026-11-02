@@ -257,7 +257,7 @@ Agreement is the go-ahead. Ask-first classes are proposals. Everything else is d
 
 | Situation | Class | What the mind does |
 |---|---|---|
-| Owner: "make search ignore accents" → mind: "Yes, I'll do it" | Autonomy | Branch, build, test, fast-forward `main`, deploy, "Live: …" |
+| Owner: "make search ignore accents" → mind: "Yes, I'll do it" | Autonomy | Branch, build, test, a pull request the owner merges ([RUNTIME.md §13](RUNTIME.md#13-shipping-code)), then "Live: …" |
 | Fixing a bug the mind found itself, small and clearly wanted | Autonomy | Fix and ship, report on the Briefing page. If it changes behaviour the owner sees, one home line. |
 | A new feature nobody asked for | Not agreed | Suggest it once (home line or chat), build only after "yes" |
 | Reordering a queue, rebuilding a practice set, preparing a study page | Autonomy (arrangement) | Do it silently (rung 0) |

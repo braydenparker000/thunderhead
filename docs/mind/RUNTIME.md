@@ -13,7 +13,7 @@ Platform facts come from the Claude Code docs read 2026-10-28 (scheduled tasks, 
 6. **Wake on the first keystroke** (pre-warm), retry an unclaimed wake once at 120 s, and show an honest line at 240 s.
 7. **End a chat session** after 120 min with no owner message (10 min if it was a pre-warm that never got a message), on day close, or on Stop.
 8. **Usage limits are reported, never hidden.** Scheduled runs stop at the limit; the Worker shows "mind not waking" and stops refiring until a backoff passes. Usage credits stay off.
-9. **Code ships as:** branch → CI green on that SHA → fast-forward `main` → watch Deploy → confirm `release.json` and `/v1/health` → report "Live". Never force-push, never merge commits on `main`.
+9. **Code ships as a pull request the owner merges:** branch → CI green on that SHA → pull request → the owner tries it and merges it → watch Deploy → confirm `release.json` and `/v1/health` → report "Live". The mind never pushes to `main` and never merges its own pull request unless the owner says so for that change (AGENTS.md, which wins). Never force-push.
 10. **Every session that changed code or plans updates `docs/process/STATUS.md`** before it ends.
 
 Sibling docs: [CONSTITUTION.md](CONSTITUTION.md), [BEHAVIOR.md](BEHAVIOR.md), [MEMORY.md](MEMORY.md) (what `brief`, `recall`, `remember` read and write), [EVALS.md](EVALS.md), [MUSE.md](../archive/MUSE.md). Engineering: [API.md](../engineering/API.md) (canonical for routes; route names here marked **[proposal]** until API.md fixes them), [SECURITY.md](../engineering/SECURITY.md) (token inventory), [OPERATIONS.md](../engineering/OPERATIONS.md), [JOBS.md](../engineering/JOBS.md).
@@ -31,7 +31,7 @@ Sibling docs: [CONSTITUTION.md](CONSTITUTION.md), [BEHAVIOR.md](BEHAVIOR.md), [M
 | Lifetime | Wake → answer → listen → end at idle cutoff, day close or Stop | One run; target ≤ 30 min, hard stop 45 min (Sunday: 60 min) | One run, ≤ 10 min |
 | Wakes per day (own cap) | ≤ 20 per hour, ≤ 40 per day **[proposal]**; platform cap 30/h per task | 1 (+1 fallback that exits at once if done) | ≤ 4 |
 | Speaks to the owner by | Replies in the thread; home lines; pushes within budget; decision cards | Home lines for tomorrow (0–4); "Built overnight" items; decision cards that appear at 06:30 | One notice line; a decision card if a rollback needs one |
-| May ship code to `main` | Yes, under the autonomy rule | No: it pushes agreed work (an open thread tagged `agreed`) to a `claude/<slug>` branch, and the next chat session ships it **[proposal]** | Rollback only |
+| How its code ships | Agreed work as a pull request the owner merges (§13) | It pushes agreed work (an open thread tagged `agreed`) to a `claude/<slug>` branch, never `main` (the hook denies it), and the next chat session opens the pull request | A revert only, as a pull request the owner merges (§13; the watchdog's handle text in `shared/contract/watchdogs.ts` and the hook still allow a revert pushed to `main`: to change) |
 | May not | Approve proposals on its own (it may only record the owner's own words with `th decide --by-message`, which the Worker verifies); write `rule` facts without owner-message evidence | Post chat replies; push notifications; ask-first verbs | Write memory; ship new code |
 
 **Phases** (from the unified plan in the architecture review): chat arrives in P2 (the daily conversation), night in P3 (memory v1), reflex in P4 (safety rails, ops).
@@ -262,7 +262,7 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th muse` | `notes [--after <seq>]` · `note <text>` | notes, `{"id"}` | C N | Muse's own thread (built P4 stage G; `th board` and the Board brief went with the Board, 2026-10-31). |
 | `th taint` | `--source <tool> --ref <url or id>` | `{"tainted":true}` | C N R | Called by the PostToolUse hook; irreversible for the session. |
 | `th pending` | — | `{"unanswered":[ids],"stop":bool,"day_closed":bool,"limited":bool,"idle_min":n,"idle_cutoff_min":n}` | C N R | Used by the Stop hook. |
-| `th ci` | `<sha> [--workflow ci\|deploy] [--card <message id>] [--minutes 40]` | `{"state":"passed\|failed\|running","url"}` | C N R | Built 2026-10-31 (`mind/cli/lib/ci.mjs`). Reads the workflow's newest run on that SHA from the public GitHub API (the repository is public: no token) every 20 s (≤ 45 calls an hour, under the 60/h unauthenticated limit) and keeps the card current. Exit 0 passed, 1 failed, 3 still running at the time limit, 9 GitHub unreachable, 10 GitHub's hourly limit. It needs `api.github.com` on the role's environment network list (R-7). |
+| `th ci` | `<sha> [--workflow ci\|deploy] [--card <message id>] [--minutes 40]` | `{"state":"passed\|failed\|running","url"}` | C N R | Built 2026-10-31 (`mind/cli/lib/ci.mjs`). Reads the workflow's newest run on that SHA from the public GitHub API (the repository is public: no token) every 20 s (≤ 45 calls an hour, under the 60/h unauthenticated limit) and keeps the card current. Exit 0 passed, 1 failed, 3 still running at the time limit, 9 GitHub unreachable, 10 GitHub's hourly limit. It needs `api.github.com` on the role's environment network list (R-7). It only waits and reports: nothing in it pushes or merges. The "fast-forward `main`" step that once followed it in §13 is gone (2026-11-02, AGENTS.md); `--workflow deploy` waits on the Deploy run after the owner merges. |
 | `th health` | `[--deep]` | Worker health JSON, with `meter`: today's database use against the day's budget (the Free plan's limits less the old Worker's share; `read_pct`, `written_pct`, `pct`, and `hold_until` while the heavy work waits from 80%), or null when it can't be read | C N R | `--deep` needs the role's ops scope. |
 | `th errors` | `[--hours 24]` | `{"items":[…]}` | C N R | The Core errors table (`since` on the Worker). |
 | `th reports` | `[--kind playback] [--since <ms\|iso>] [--limit 50] [--cursor <c>]` | `{"kind","batches","from","to","devices","pages","events","repeats","first_sound_ms","waits","stalls","errors","items","next"}` | C N R | Built 2026-10-31 (`mind/cli/lib/reports.mjs`). The batches the owner's phone sent about playback (`GET /v1/ops/reports`, kept 30 days), newest first, as one summary: events by type (an event sent twice, same page and `n`, counted once; `repeats` says how many), time to first sound (n, p50, p90, max), the decks' waits from each page's newest batch, the player's own stalls (`stall`, not the browser's `stalled`), the newest 5 errors, then one line per batch. Track ids and timings only. A batch's every event: `th get /v1/ops/reports kind=playback limit=1`. |
@@ -454,7 +454,7 @@ These are also the SLOs in the architecture review (warm p90 < 15 s, cold p90 < 
 | F10 | Two chat sessions | Claim returns `already_live` | The second ends silently | Nothing |
 | F11 | Day rolls during long work | `th wait` exit 5 | Finish the step (≤ 30 min), note, end | New messages land in the new day's thread and wake a new session |
 | F12 | CI red on the mind's branch | `th ci` exit 1 | Fix and retry up to 3 times, then report | "Didn't work: …" with the failing test name |
-| F13 | Deploy failed after fast-forward | Deploy workflow fails; its auto-rollback runs | Confirm the rollback is live; open thread | "Didn't work: release 3f2a1c9 failed its live check and was rolled back. Live is still 9b1e0d2." |
+| F13 | Deploy failed after the owner merged | Deploy workflow fails; its auto-rollback runs | Confirm the rollback is live; open thread | "Didn't work: release 3f2a1c9 failed its live check and was rolled back. Live is still 9b1e0d2." |
 | F14 | Night shift didn't run | No `night_runs` row done by 09:00 | Fallback 06:07 already tried; next chat session runs the missing steps 1–4 first | Briefing page: "The night shift didn't run (likely the usage limit). Yesterday's notes will be written later." |
 | F15 | Night shift fails midway | `night_runs.step` stuck | The next night or a chat session resumes from the last finished step | Briefing page: "The night shift stopped at step N." |
 | F16 | Laws file changed without approval | Constitution pin | `rule` writes refused; decision card | Gold edge; card "The laws file changed without your OK." |
@@ -580,25 +580,26 @@ its checks and 20 for its count of reads.
 
 ## 13. Shipping code
 
-The autonomy rule in commands. The agent pushes as the owner's GitHub identity; GitHub can't gate it, so the steps are the gate.
+The autonomy rule in commands. Agreement is the go-ahead to build; the shipping path ends at a pull request the owner merges, because merging to `main` is what makes something live and agents never push to `main` (AGENTS.md, which wins over this page). The agent pushes as the owner's GitHub identity, so GitHub can't tell the two apart: the steps are the gate.
 
 1. `git fetch origin && git switch -c claude/<slug> origin/main`.
 2. Small commits; `git push -u origin claude/<slug>` after each meaningful step (the VM can vanish).
 3. `npm ci && npm test` in the session. Fix until green.
 4. Push; `th ci <sha> --card <card id>` waits for CI on that exact SHA.
-5. Fast-forward only: `git fetch origin main`; if `origin/main` is not an ancestor of `HEAD`, rebase onto it and go back to step 3. Then `git push origin HEAD:main`. Never `--force`, never a merge commit.
-6. `th ci <sha> --workflow deploy` waits for the Deploy workflow.
-7. Confirm live: `<site>/release.json` names the SHA; if `backend/` or `shared/` changed, `GET /v1/health` reports the new version.
-8. Ledger row `kind=deploy` with `undo` = "roll back to <previous sha>"; report `Live: …` (BEHAVIOR §5).
-9. Update `docs/process/STATUS.md` in the same or the next push.
+5. Open the pull request: `gh pr create --base main`, its body in plain words (what changes, how to try it, the preview link when there is one). If `main` moved and the branch conflicts, merge `origin/main` into the branch (never `--force`) and go back to step 3. *(Until 2026-11-02 this step fast-forwarded `main` with `git push origin HEAD:main`; that is gone.)*
+6. The owner tries it and merges it, or says no. The mind does not merge its own pull request unless the owner says so for that change.
+7. After the merge, `th ci <merge sha> --workflow deploy` waits for the Deploy workflow.
+8. Confirm live: `<site>/release.json` names the SHA; if `backend/` or `shared/` changed, `GET /v1/health` reports the new version.
+9. Ledger row `kind=deploy` with `undo` = "roll back to <previous sha>"; report `Live: …` (BEHAVIOR §5).
+10. Update `docs/process/STATUS.md` in the same pull request or the next one.
 
 Rules:
 - Protected paths (`mind/CONSTITUTION.md`, `.claude/**`, `mind/hooks/**`, `.github/**`, auth and token code) need an approved `access` proposal for that SHA (§6.4).
 - Commit messages end with the attribution lines the platform asks for.
 - Nothing personal in commits, branch names, PR text or Actions logs.
-- Rollback on request: Actions → Deploy → run with the previous commit, through the Worker's job endpoint or by asking the owner; the mind never holds Azure or Cloudflare credentials.
+- Rollback when the owner asks: Actions → Deploy → run with the previous commit, through the Worker's job endpoint or by the owner; the mind never holds Azure or Cloudflare credentials.
 
-**Acceptance:** a test change goes from branch to "Live" with a ledger row and a matching `release.json` in one session.
+**Acceptance:** a test change goes from branch to an open pull request with CI green; after the owner merges it, the session reports "Live" with a ledger row and a matching `release.json`.
 
 ---
 

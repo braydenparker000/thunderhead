@@ -9,7 +9,7 @@ apps (Music, Guitar, Podcasts, Astra, My Media, Study) one hold away.
 | --- | --- |
 | `frontend/` | The site. Plain HTML, CSS and JavaScript, no build step. |
 | `backend/` | The Cloudflare Worker `thunderhead-api` (TypeScript). See [backend/README.md](backend/README.md). |
-| `shared/` | Types only: the API contract, checked from the backend and the frontend. |
+| `shared/` | The API contract: its types, checked from the backend and the frontend, and the data and code all sides must agree on (the route table, zod schemas, the phrase lint, the report cleaner), copied for the phone and the mind by `scripts/contract.mjs`. |
 | `scripts/` | Tools: `serve.mjs` (local server, behaves like Azure), `stage.mjs` (release folder + budgets), `deploy.sh` (publish to Azure); `music/upload.py` (the owner's music upload tool, signed with a key that stays on the owner's computer; needs Python 3 with mutagen, openssl, and ffmpeg for `--analyze`; SETUP.md N4). |
 | `tests/` | `node --test` suites: static checks, the contract check, phone-size browser checks. |
 
