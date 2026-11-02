@@ -24,6 +24,7 @@ import { decodeCursor, encodeCursor } from '../../lib/cursor';
 import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
+import { rollupCounts } from './rollups';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -103,7 +104,11 @@ export const memoryRoutes = new Hono<AppEnv>()
   })
   .post('/memory/ops', guard('POST /v1/memory/ops'), async (c) => {
     const body = await json(c, opsBody);
-    const out = value(await fresh(coreObject(c.env).memoryOps(callerOf(c), body.batch_id, body.ops, reqHash(body))));
+    // Rule M5's `rollup:` refs, counted again by the senses before Core's transaction (rollups.ts).
+    const rollups = await rollupCounts(c.env, body.ops);
+    const out = value(
+      await fresh(coreObject(c.env).memoryOps(callerOf(c), body.batch_id, body.ops, reqHash(body), rollups)),
+    );
     return c.json(out satisfies MemoryOpsResponse);
   })
   .get('/memory/day-notes', guard('GET /v1/memory/day-notes'), async (c) => {

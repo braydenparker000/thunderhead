@@ -17,8 +17,16 @@ import { batch, putBatch } from './notes';
 import { flag, forget } from './owner-ops';
 import { type OpContext, type ParsedOp, parseOp, Reject } from './validate';
 
-/** POST /v1/memory/ops. `hash` is the canonical body hash (API.md §7). */
-export function apply(w: Writer, c: Caller, batchId: string, raw: unknown[], hash: string): MemoryOpsResponse {
+/** POST /v1/memory/ops. `hash` is the canonical body hash (API.md §7); `rollups` the counts of the
+ * `rollup:` refs it cites, made by the senses before this transaction (rollups.ts, rule M5). */
+export function apply(
+  w: Writer,
+  c: Caller,
+  batchId: string,
+  raw: unknown[],
+  hash: string,
+  rollups: Record<string, number> = {},
+): MemoryOpsResponse {
   const key = `memory.ops:${batchId}`;
   const seen = batch(w.db, key);
   if (seen) {
@@ -43,6 +51,7 @@ export function apply(w: Writer, c: Caller, batchId: string, raw: unknown[], has
       // owner has not approved, writes no rule.
       lawsBroken: guards !== null && lawsBroken(w.db, guards.constitution),
       selfLedger: uuidv7(w.at),
+      rollups,
     };
     try {
       const op = parseOp(r);

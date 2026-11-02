@@ -44,7 +44,13 @@ export interface OpContext {
   /** M12: the session's constitution file was missing (its pin cannot hold). */
   lawsBroken: boolean;
   selfLedger: string;
+  /** The `rollup:` refs the batch cites, counted again by the senses before the transaction
+   * (rollups.ts): ref → n. A ref not here counts nothing. */
+  rollups?: Record<string, number>;
 }
+
+/** M5: an `observed` fact rests on at least this many of the owner's own events. */
+export const OBSERVED_EVENTS = 10;
 
 const id = z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/));
 const ref = z.string().check(z.maxLength(240));
@@ -125,7 +131,8 @@ interface Cited {
   owner: boolean;
   /** A message (or the device's own ledger row), the kind M3 needs at least one of. */
   words: boolean;
-  event: boolean;
+  /** The owner's events it stands for (M5): a rollup's recount; 0 for anything else. */
+  events: number;
 }
 
 /** M2 and M6: every cited id exists (else `bad_evidence`), is a kind memory may cite, and is not
@@ -144,7 +151,7 @@ function cite(ctx: OpContext, r: string): Cited {
     if (held === 'off_record') throw new Reject('off_record_evidence');
     if (held === 'deleted') throw new Reject('deleted_evidence');
     const owner = msg.author === 'owner' && (msg.origin === 'owner_device' || msg.origin === 'import');
-    return { ref: r, at: msg.created_at, owner, words: owner, event: false };
+    return { ref: r, at: msg.created_at, owner, words: owner, events: 0 };
   }
   if (kind === 'day') {
     const note = dayNote(ctx.db, key);
@@ -155,22 +162,30 @@ function cite(ctx: OpContext, r: string): Cited {
     if (notedBy(note) === 'outside') throw new Reject('tainted_evidence');
     const taint = note.provenance || note.written_by === 'owner' ? null : taintedAt(ctx.db, note.written_by);
     if (taint !== null && taint <= note.written_at) throw new Reject('tainted_evidence');
-    return { ref: r, at: null, owner: false, words: false, event: false };
+    return { ref: r, at: null, owner: false, words: false, events: 0 };
   }
   if (kind === 'ledger') {
     if (!ctx.device) throw new Reject('bad_evidence');
-    if (key === ctx.selfLedger) return { ref: r, at: ctx.at, owner: true, words: true, event: false };
+    if (key === ctx.selfLedger) return { ref: r, at: ctx.at, owner: true, words: true, events: 0 };
     const row = ledgerRow(ctx.db, key);
     if (!row) throw new Reject('bad_evidence');
-    return { ref: r, at: null, owner: row.actor === 'owner', words: row.actor === 'owner', event: false };
+    return { ref: r, at: null, owner: row.actor === 'owner', words: row.actor === 'owner', events: 0 };
   }
   if (kind === 'import') {
     // A raw imported document (the old notebook, MEMORY.md §14): evidence of what the old system
     // held, never the owner's own words, so a fact citing only it is not `user`.
     if (!importItem(ctx.db, key)) throw new Reject('bad_evidence');
-    return { ref: r, at: null, owner: false, words: false, event: false };
+    return { ref: r, at: null, owner: false, words: false, events: 0 };
   }
-  // Events have no table before Senses (P5): they can't be checked yet, so they aren't accepted.
+  if (kind === 'rollup') {
+    // M5 (MEMORY.md §4): a routine of the senses, counted again before the batch (rollups.ts); one
+    // the senses don't know, or that counts fewer than 10 events, is no evidence at all.
+    const n = ctx.rollups?.[r];
+    if (n === undefined || n < OBSERVED_EVENTS) throw new Reject('bad_evidence');
+    return { ref: r, at: null, owner: false, words: false, events: n };
+  }
+  // Single events live in the Senses object and can't be checked inside Core's transaction, so they
+  // aren't accepted; their counts come as `rollup:` refs.
   throw new Reject('bad_evidence');
 }
 
@@ -194,7 +209,8 @@ export function evidence(ctx: OpContext, given: string[] | undefined, source: Fa
   const cited = list.map((r) => cite(ctx, r));
   if (source === 'user' && !(cited.every((c) => c.owner) && cited.some((c) => c.words)))
     throw new Reject('not_owner_evidence');
-  if (source === 'observed' && cited.filter((c) => c.event).length < 10) throw new Reject('too_little_evidence');
+  if (source === 'observed' && cited.reduce((n, c) => n + c.events, 0) < OBSERVED_EVENTS)
+    throw new Reject('too_little_evidence');
   // M2 / MEMORY.md §4: an inferred fact rests on the owner's words, day notes or imports, never
   // on the mind's or the system's own messages.
   if (source === 'inferred' && cited.some((c) => c.ref.startsWith('msg:') && !c.owner))

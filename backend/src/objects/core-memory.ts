@@ -54,8 +54,15 @@ export abstract class CoreMemory extends CoreBase {
     return { ...renderProfile(rows, now, this.tz()), rendered_at: now };
   }
 
-  memoryOps(c: Caller, batchId: string, ops: unknown[], hash: string): Out<MemoryOpsResponse> {
-    return this.run((w) => memory.apply(w, c, batchId, Array.isArray(ops) ? ops : [], hash));
+  /** `rollups`: the `rollup:` refs the batch cites, counted again by the senses (memory/rollups.ts). */
+  memoryOps(
+    c: Caller,
+    batchId: string,
+    ops: unknown[],
+    hash: string,
+    rollups: Record<string, number> = {},
+  ): Out<MemoryOpsResponse> {
+    return this.run((w) => memory.apply(w, c, batchId, Array.isArray(ops) ? ops : [], hash, rollups));
   }
 
   dayNotes(from: string | null, to: string | null): DayNote[] {
