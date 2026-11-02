@@ -455,8 +455,8 @@ These are also the SLOs in the architecture review (warm p90 < 15 s, cold p90 < 
 | F11 | Day rolls during long work | `th wait` exit 5 | Finish the step (≤ 30 min), note, end | New messages land in the new day's thread and wake a new session |
 | F12 | CI red on the mind's branch | `th ci` exit 1 | Fix and retry up to 3 times, then report | "Didn't work: …" with the failing test name |
 | F13 | Deploy failed after fast-forward | Deploy workflow fails; its auto-rollback runs | Confirm the rollback is live; open thread | "Didn't work: release 3f2a1c9 failed its live check and was rolled back. Live is still 9b1e0d2." |
-| F14 | Night shift didn't run | No `night_runs` row done by 09:00 | Fallback 06:07 already tried; next chat session runs the missing steps 1–4 first | Briefing page: "The night shift didn't run (likely the usage limit). Yesterday's notes will be written later." |
-| F15 | Night shift fails midway | `night_runs.step` stuck | The next night or a chat session resumes from the last finished step | Briefing page: "The night shift stopped at step N." |
+| F14 | Night shift didn't run | No `night_runs` row done by 09:00 | Fallback 06:07 already tried; next chat session runs the missing steps 1–4 first | Briefing page, from 07:00 (built 2026-11-02): "The night shift hasn't run yet." |
+| F15 | Night shift fails midway | `night_runs.step` stuck | The next night or a chat session resumes from the last finished step | Briefing page, when step 7 wasn't reached (built 2026-11-02): "The night shift ran out of time before arranging this page."; the mind's night line names the steps a hard stop cut |
 | F16 | Laws file changed without approval | Constitution pin | `rule` writes refused; decision card | Gold edge; card "The laws file changed without your OK." |
 | F17 | GitHub disconnected for the account | F1 pattern on every wake | After 3 consecutive F1s with fire 200, the Worker suspects GitHub **[proposal]** | Settings banner: "Scheduled tasks may be skipping runs. Check the GitHub connection at claude.ai." (runs are skipped up to 72 h, then the task turns off) |
 
