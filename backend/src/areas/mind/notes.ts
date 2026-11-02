@@ -6,8 +6,11 @@
 import type { MindRole } from '../../../../shared/contract/api';
 import type { Db } from '../../objects/base';
 
-export function note(db: Db, id: string): { body: string; open_items_json: string; session_id: string | null } | null {
-  return db.one('SELECT body, open_items_json, session_id FROM session_notes WHERE id = ?', id);
+export function note(
+  db: Db,
+  id: string,
+): { body: string; open_items_json: string; session_id: string | null; tainted: number } | null {
+  return db.one('SELECT body, open_items_json, session_id, tainted FROM session_notes WHERE id = ?', id);
 }
 
 export function putNote(

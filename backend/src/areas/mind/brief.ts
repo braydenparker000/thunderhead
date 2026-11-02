@@ -23,7 +23,8 @@ export interface BriefInput {
   laws: string;
   /** Decision cards waiting for the owner, oldest first. */
   decisions: { id: string; class: string; question: string; expires_at: number; show_from: number }[];
-  /** The session is tainted (MEMORY.md §7): section 1 says so, before anything else is read. */
+  /** The session read outside text, or its claim took over a taint (MEMORY.md §7): what it writes
+   * is labelled `outside`, and section 1 says so, before anything else is read. */
   tainted: boolean;
   now: number;
   tz: string;
@@ -161,6 +162,10 @@ export const SETTINGS_LEGEND =
 const settingsSection = (lines: string[]) =>
   budgeted([SETTINGS_LEGEND, ...lines], 2_000, 'oldest', (k) => `(+${k} more: th get /v1/settings)`);
 
+/** Section 1's line for a session that read outside text (MEMORY.md §6 M11, §7). */
+export const OUTSIDE_LINE =
+  "outside: what you write this session is labelled outside; it waits for the owner's keep in Settings › Memory before it shapes the profile";
+
 export function buildBrief(i: BriefInput): { core: string; full: string } {
   const night = i.role === 'night';
   const reflex = i.role === 'reflex';
@@ -170,11 +175,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     i.backoffUntil > i.now ? `usage backoff until ${clock(i.backoffUntil, i.tz)}` : 'no usage backoff',
     `${i.laws} · open decisions ${i.decisions.length} · quiet: ${quietLine(i)}`,
     ...(i.watchdogs.length ? [watchdogLine(i.watchdogs, i.tz)] : []),
-    ...(i.tainted
-      ? [
-          'taint: this session is tainted (it, or one of its role in the last 24 hours, read outside content); memory writes are refused',
-        ]
-      : []),
+    ...(i.tainted ? [OUTSIDE_LINE] : []),
     // After the taint line, so a long section 1 never cuts that one.
     ...(i.quota ? [i.quota] : []),
   ].join('\n');

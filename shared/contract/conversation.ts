@@ -113,6 +113,7 @@ export interface SearchHit {
   at: Ms;
   score: number;
   thread_id?: Id;
+  provenance?: 'owner' | 'observed' | 'outside'; // MEMORY.md §6 M11: a message is the owner's words or not
 }
 
 export interface SearchResponse {
@@ -185,9 +186,8 @@ export interface BriefResponse {
   core: string;
   full: string;
   night_done: boolean;
-  /** The session is tainted: its own mark, or one its claim took over from a session of its role
-   * tainted in the last 24 hours (MEMORY.md §7). Its memory writes are refused. */
-  tainted: boolean;
+  provenance: 'owner' | 'outside'; // what its memory writes are labelled (MEMORY.md §7, M11)
+  tainted: boolean; // `provenance === 'outside'` by its old name, kept one release (from 2026-11-02)
 }
 
 export interface MindStatusRequest {

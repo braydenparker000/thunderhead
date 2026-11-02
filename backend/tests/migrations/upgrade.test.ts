@@ -4,6 +4,8 @@
 // equals the committed snapshot.
 import { runInDurableObject } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
+import { notedBy } from '../../src/areas/memory/notes';
+import { provenanceOf } from '../../src/areas/memory/store';
 import type { Auth } from '../../src/objects/auth';
 import { applyMigrations, Db, Meter } from '../../src/objects/base';
 import { CORE_MIGRATIONS } from '../../src/objects/core.migrations';
@@ -137,6 +139,50 @@ describe('upgrade from P2', () => {
       );
       expect(all('SELECT count(*) AS n FROM facts')).toEqual([{ n: 0 }]);
       expect(all('SELECT count(*) AS n FROM night_runs')).toEqual([{ n: 0 }]);
+    });
+  });
+});
+
+describe('upgrade to provenance (Core step 29, MEMORY.md §6 M11)', () => {
+  it('adds the label and reads the rows written before it by the rule they were written under', async () => {
+    await runInDurableObject(core() as unknown as DurableObjectStub<Auth>, async (_o, state) => {
+      const sql = state.storage.sql;
+      const all = (q: string, ...b: unknown[]) => sql.exec(q, ...b).toArray() as Row[];
+      // Back to step 28 (test-only SQL; migrations never drop).
+      for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`ALTER TABLE ${t} DROP COLUMN provenance`);
+      sql.exec('DELETE FROM _migrations WHERE version > 28');
+      for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`DELETE FROM ${t}`);
+      for (const source of ['user', 'observed', 'inferred'])
+        sql.exec(
+          `INSERT INTO facts (id, kind, about, text, source, confidence, evidence_json, recorded_at, last_confirmed,
+             sensitivity, written_by, lineage_id) VALUES (?, 'preference', 'owner', ?, ?, 0.5, '[]', 1, 1, 0, 'owner', ?)`,
+          `f-${source}`,
+          `a ${source} fact`,
+          source,
+          `f-${source}`,
+        );
+      sql.exec(
+        `INSERT INTO day_notes (day, summary, importance, written_by, version, written_at) VALUES ('2026-10-31', 'a day', 3, 's1', 1, 1)`,
+      );
+      sql.exec(
+        `INSERT INTO open_threads (id, text, owner, status, evidence_json, opened_at) VALUES ('o1', 'a loose end', 'mind', 'open', '[]', 1)`,
+      );
+      await applyMigrations(state.storage, new Db(sql, new Meter()), CORE_MIGRATIONS);
+      // Steps only add: the old rows keep no label, and read by their source (facts) or as the owner's.
+      const facts = all('SELECT id, source, provenance FROM facts ORDER BY id') as {
+        id: string;
+        source: string;
+        provenance: null;
+      }[];
+      expect(facts.map((f) => [f.id, f.provenance, provenanceOf(f)])).toEqual([
+        ['f-inferred', null, 'outside'],
+        ['f-observed', null, 'observed'],
+        ['f-user', null, 'owner'],
+      ]);
+      expect(all('SELECT provenance FROM day_notes').map((r) => notedBy(r as { provenance: null }))).toEqual(['owner']);
+      expect(all('SELECT provenance FROM open_threads').map((r) => notedBy(r as { provenance: null }))).toEqual([
+        'owner',
+      ]);
     });
   });
 });

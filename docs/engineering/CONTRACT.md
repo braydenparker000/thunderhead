@@ -298,7 +298,8 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `needs_owner_words` | Faith and facts about people come only from the owner's words. |
 | `too_long` | One claim, at most 280 characters. |
 | `no_inferred_sensitive` | Sensitive traits are never inferred. |
-| `session_tainted` | This session read outside text, so it may not write memory. |
+| `outside_rule` | This write is labelled outside: outside text never becomes or replaces a rule. |
+| `outside_supersede` | This write is labelled outside: it can't replace what the owner said or did. Add it as a new fact; it waits for the owner's keep. |
 | `laws_unpinned` | This session's laws file is missing or is not the version the owner approved, so it may not write rules. |
 | `device_only` | Only the owner can do this, from the Memory page. |
 | `duplicate_id` | A fact with this id already exists. |

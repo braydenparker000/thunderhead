@@ -6,6 +6,13 @@
 // `lineage_id` (eng) is the first version's id, shared by every later one, so `forget` finds
 // them all even after an undo unlinked a version. `fact_tombstones` keeps the forgotten ids (no
 // text) so none is used again and a restore can re-apply the forgets.
+// Step 29 (2026-11-02) labels every write with its `provenance` (MEMORY.md §6 M11: `owner`,
+// `observed` or `outside`) in place of refusing a tainted session's writes. Steps only add (no
+// UPDATE), so the rows from before it keep no label and read by the rule they were written under
+// (store.ts `provenanceOf`, notes.ts `notedBy`): a fact by its source (`user` → owner, `observed` →
+// observed, `inferred` → outside); a day note as `owner` (that Worker refused a tainted session's);
+// a loose end as `owner`. A row an older Worker writes after a rollback, or one restored from an
+// older backup, reads the same way.
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneBatches, pruneThreads } from './notes';
 
@@ -81,6 +88,16 @@ export const MEMORY_MIGRATIONS: Migration[] = [
         result_json TEXT NOT NULL,
         at INTEGER NOT NULL
       ) WITHOUT ROWID`,
+    ],
+  },
+  {
+    version: 29,
+    name: 'provenance on facts, day notes and open threads',
+    kind: 'expand',
+    sql: [
+      'ALTER TABLE facts ADD COLUMN provenance TEXT',
+      'ALTER TABLE day_notes ADD COLUMN provenance TEXT',
+      'ALTER TABLE open_threads ADD COLUMN provenance TEXT',
     ],
   },
 ];

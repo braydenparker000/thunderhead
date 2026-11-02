@@ -39,7 +39,8 @@ export function flag(
   w.change('fact', short(f.id));
   // Muted: no surface may keep drawing on it (MEMORY.md §12).
   if (which === 'may_raise' && !on) clearCiting(w, c, [f.id], 'muted');
-  return { fact_id: f.id, ledger_id: ledgerId };
+  // A flag is not a new version: the fact keeps its label (only Keep lifts one, fact-ops.ts).
+  return { fact_id: f.id, ledger_id: ledgerId, provenance: store.provenanceOf(f) };
 }
 
 /** The owner's forget (MEMORY.md §3): every version of the fact's lineage (even one an undo
@@ -84,5 +85,7 @@ export function forget(w: Writer, c: Caller, ctx: OpContext, id: string): Applie
     op: { op: 'memory.forget', fact_id: id, kind, forgotten_at: w.at, versions: versions.length },
   });
   for (const v of versions) w.change('fact', short(v.id));
-  return { fact_id: id, ledger_id: ledgerId };
+  // The label it had (Forget under "Learned from outside" answers `outside`).
+  const newest = versions.reduce((a, b) => (b.recorded_at > a.recorded_at ? b : a));
+  return { fact_id: id, ledger_id: ledgerId, provenance: store.provenanceOf(newest) };
 }

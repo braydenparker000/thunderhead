@@ -1,8 +1,8 @@
 // Memory's runtime vocabulary (MEMORY.md §2–§8): fact kinds with their half-lives and profile
 // caps, sources with their starting confidence and caps, the decay formula, and the reasons a
 // memory op can be refused. The Worker enforces them, the phone renders by them (a kind or source
-// it does not know shows generically), and `th` validates with them. Plain data and one pure
-// function, importable by Node without a build.
+// it does not know shows generically), and `th` validates with them. Plain data and pure
+// functions, importable by Node without a build.
 
 /** Fact kinds in profile order (MEMORY.md §8.3). `half_life_days: null` never decays; `cap` is
  * the profile's per-kind limit (rules have their own briefing section, never the profile). */
@@ -24,6 +24,21 @@ export const FACT_SOURCES = {
   inferred: { base: 0.5, cap: 0.8, letter: 'i' },
 } as const;
 export type FactSource = keyof typeof FACT_SOURCES;
+
+/** Where a memory write's words came from (MEMORY.md §6 M11), set by the Worker, never by the
+ * request: `owner` (the owner's own words or tap, from a session that read no outside text),
+ * `observed` (the owner's own events), `outside` (written by a session that read outside text, or
+ * inferred). An `outside` fact waits for the owner's keep in Settings › Memory: it is in no profile,
+ * no rule and no briefing until then (M11a–e). Day notes, loose ends and session notes are `owner`
+ * or `outside`. */
+export const PROVENANCES = ['owner', 'observed', 'outside'] as const;
+export type Provenance = (typeof PROVENANCES)[number];
+
+/** What a fact's source gives when nothing else says otherwise: what its stored provenance was set
+ * to by Core step 29, and what a row with none (written by an older Worker, which refused every
+ * tainted write) reads as. */
+export const provenanceOfSource = (source: string): Provenance =>
+  source === 'user' ? 'owner' : source === 'observed' ? 'observed' : 'outside';
 
 export const FACT_ABOUT = ['owner', 'world', 'person'] as const;
 export type FactAbout = (typeof FACT_ABOUT)[number];
@@ -64,7 +79,9 @@ export const MEMORY_REASONS = {
   needs_owner_words: "Faith and facts about people come only from the owner's words.",
   too_long: 'One claim, at most 280 characters.',
   no_inferred_sensitive: 'Sensitive traits are never inferred.',
-  session_tainted: 'This session read outside text, so it may not write memory.',
+  outside_rule: 'This write is labelled outside: outside text never becomes or replaces a rule.',
+  outside_supersede:
+    "This write is labelled outside: it can't replace what the owner said or did. Add it as a new fact; it waits for the owner's keep.",
   laws_unpinned: "This session's laws file is missing or is not the version the owner approved, so it may not write rules.",
   device_only: 'Only the owner can do this, from the Memory page.',
   duplicate_id: 'A fact with this id already exists.',
@@ -123,6 +140,8 @@ export interface Fact {
   may_raise: boolean;
   written_by: string;
   ledger_id: Id | null;
+  /** Where its words came from (M11); `outside` waits for the owner's keep. */
+  provenance: Provenance;
 }
 
 /** One piece of evidence as the Memory page shows it: who said it and when, and the start of
@@ -179,7 +198,8 @@ export interface MemoryOpsRequest {
 }
 
 export interface MemoryOpsResponse {
-  applied: { i: number; fact_id: Id; ledger_id: Id }[];
+  /** `provenance`: the label the Worker gave the version it wrote (or confirmed), M11. */
+  applied: { i: number; fact_id: Id; ledger_id: Id; provenance: Provenance }[];
   /** Ops routed to the owner as `memory_big` proposals (empty until proposals arrive, P4). */
   proposals: { i: number; proposal_id: Id }[];
   rejected: { i: number; reason: MemoryReason }[];
@@ -203,8 +223,17 @@ export interface DayNote {
   written_by: string;
   version: number;
   written_at: Ms;
+  /** `outside` when a session that read outside text wrote it: shown, marked, never evidence (M11d). */
+  provenance: Provenance;
   /** On a night write only: the owner had edited this day, so their version stands, unchanged. */
   kept_owner_edit?: true;
+}
+
+/** POST /v1/mind/notes (the session note, conversation.ts): its id and its label, `outside` from a
+ * session that read outside text (its words are then left out of every later reader, MEMORY.md §7). */
+export interface MindNoteResponse {
+  id: Id;
+  provenance: 'owner' | 'outside';
 }
 
 export interface PutDayNoteRequest {
@@ -227,6 +256,8 @@ export interface OpenThread {
   last_progress_at: Ms | null;
   closed_at: Ms | null;
   closed_why: string | null;
+  /** `outside` when a session that read outside text wrote it: still shown and used, marked. */
+  provenance: Provenance;
 }
 
 export interface PutOpenThreadRequest {

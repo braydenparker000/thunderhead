@@ -115,13 +115,14 @@ describe('the eval sandbox', () => {
       body: { source: 'Read', ref_kind: 'file' },
     });
     const [msg] = await evalSql<{ id: string }>("SELECT id FROM messages WHERE author = 'owner' LIMIT 1");
+    // A rule from a session that read outside text (MEMORY.md §6 M11c): refused, and recorded.
     const refused = await apiJson('POST', '/v1/memory/ops', {
       ...sandbox(N, { 'TH-Session': SESSION }),
-      body: { batch_id: uuidv7(), ops: [addOp([`msg:${msg.id}`])] },
+      body: { batch_id: uuidv7(), ops: [addOp([`msg:${msg.id}`], { kind: 'rule', subject: 'answers' })] },
     });
-    expect(refused.status).toBe(403);
+    expect(refused.status).toBe(422);
     const report = (await apiJson<SandboxReport>('GET', '/v1/evals/sandbox', sandbox(N))).body;
-    expect(report.attempts.map((a) => `${a.route} ${a.status}`)).toEqual(['POST /v1/memory/ops 403']);
+    expect(report.attempts.map((a) => `${a.route} ${a.status}`)).toEqual(['POST /v1/memory/ops 422']);
     // A chat session in the sandbox raises a revoke card for a real key and "the owner" approves it
     // in words (a seeded owner message): recorded, but the key keeps working.
     const victim = await makeAgent(D, 'ci', 'ci-two');

@@ -9,6 +9,8 @@ import {
   type FactAbout,
   type FactKind,
   type FactSource,
+  type Provenance,
+  provenanceOfSource,
 } from '../../../../shared/contract/memory.ts';
 import type { Db } from '../../objects/base';
 
@@ -36,10 +38,18 @@ export interface FactRow {
   ledger_id: string | null;
   /** The first version's id, shared by every version (forget deletes by it). */
   lineage_id: string;
+  /** Where its words came from (MEMORY.md §6 M11); null on a row from an older Worker (and left
+   * out by a test's synthetic row): `provenanceOf` reads it. */
+  provenance?: Provenance | null;
 }
 
 const FACT_COLS =
-  'seq, id, kind, about, subject, text, tags_json, source, confidence, evidence_json, valid_from, valid_to, recorded_at, superseded_at, superseded_by, last_confirmed, sensitivity, pinned, may_raise, written_by, ledger_id, lineage_id';
+  'seq, id, kind, about, subject, text, tags_json, source, confidence, evidence_json, valid_from, valid_to, recorded_at, superseded_at, superseded_by, last_confirmed, sensitivity, pinned, may_raise, written_by, ledger_id, lineage_id, provenance';
+
+/** A version's provenance; a row with none (an older Worker's, which refused every tainted write)
+ * reads by its source. */
+export const provenanceOf = (r: { provenance?: Provenance | null; source: string }): Provenance =>
+  r.provenance ?? provenanceOfSource(r.source);
 
 /** A JSON array column, read defensively: anything but an array of strings reads as empty. */
 export function strings(json: string | null): string[] {
@@ -75,6 +85,7 @@ export function toFact(r: FactRow, now: number): Fact {
     may_raise: r.may_raise === 1,
     written_by: r.written_by,
     ledger_id: r.ledger_id,
+    provenance: provenanceOf(r),
   };
 }
 
@@ -82,14 +93,14 @@ export function fact(db: Db, id: string): FactRow | null {
   return db.one<FactRow>(`SELECT ${FACT_COLS} FROM facts WHERE id = ?`, id);
 }
 
-export type NewFact = Omit<FactRow, 'seq'>;
+export type NewFact = Omit<FactRow, 'seq' | 'provenance'> & { provenance: Provenance };
 
 export function insertFact(db: Db, f: NewFact): void {
   db.run(
     `INSERT INTO facts (id, kind, about, subject, text, tags_json, source, confidence, evidence_json, valid_from, valid_to,
        recorded_at, superseded_at, superseded_by, last_confirmed, sensitivity, pinned, may_raise, written_by, ledger_id,
-       lineage_id)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       lineage_id, provenance)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     f.id,
     f.kind,
     f.about,
@@ -111,6 +122,7 @@ export function insertFact(db: Db, f: NewFact): void {
     f.written_by,
     f.ledger_id,
     f.lineage_id,
+    f.provenance,
   );
   db.run('INSERT INTO facts_fts (rowid, text, subject) VALUES (last_insert_rowid(), ?, ?)', f.text, f.subject ?? '');
 }
@@ -239,21 +251,32 @@ export function factFlags(db: Db, ids: string[]): { id: string; may_raise: numbe
   return db.all(`SELECT id, may_raise, sensitivity FROM facts WHERE id IN (${ids.map(() => '?').join(', ')})`, ...ids);
 }
 
-/** The `facts` search source (MEMORY.md §10): current versions only, bm25, a «»-marked snippet. */
+/** The `facts` search source (MEMORY.md §10): current versions only, bm25, a «»-marked snippet,
+ * each with its provenance (`th recall` shows it). */
 export function searchFacts(db: Db, match: string, since: number | null, until: number | null, limit: number) {
-  return db.all<{ id: string; recorded_at: number; snippet: string; score: number }>(
-    `SELECT f.id, f.recorded_at, snippet(facts_fts, -1, '«', '»', '…', 24) AS snippet, bm25(facts_fts) AS score
+  return db
+    .all<{
+      id: string;
+      recorded_at: number;
+      snippet: string;
+      score: number;
+      source: string;
+      provenance: Provenance | null;
+    }>(
+      `SELECT f.id, f.recorded_at, snippet(facts_fts, -1, '«', '»', '…', 24) AS snippet, bm25(facts_fts) AS score,
+       f.source, f.provenance
      FROM facts_fts JOIN facts f ON f.seq = facts_fts.rowid
      WHERE facts_fts MATCH ? AND f.superseded_at IS NULL
        AND (? IS NULL OR f.recorded_at >= ?) AND (? IS NULL OR f.recorded_at < ?)
      ORDER BY score LIMIT ?`,
-    match,
-    since,
-    since,
-    until,
-    until,
-    limit,
-  );
+      match,
+      since,
+      since,
+      until,
+      until,
+      limit,
+    )
+    .map(({ source, provenance, ...r }) => ({ ...r, provenance: provenanceOf({ source, provenance }) }));
 }
 
 /** When each fact the mind wrote since `from` was recorded (P9, EVALS.md M-8's denominator). */

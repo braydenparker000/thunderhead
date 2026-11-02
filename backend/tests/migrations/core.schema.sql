@@ -39,7 +39,7 @@ CREATE TABLE day_notes (
   written_by TEXT NOT NULL,
   version INTEGER NOT NULL,
   written_at INTEGER NOT NULL
-  );
+  , provenance TEXT);
 
 CREATE VIRTUAL TABLE day_notes_fts USING fts5 (summary, content = 'day_notes', content_rowid = 'seq', tokenize = 'unicode61 remove_diacritics 2');
 
@@ -134,7 +134,7 @@ CREATE TABLE facts (
   written_by TEXT NOT NULL,
   ledger_id TEXT,
   lineage_id TEXT NOT NULL
-  );
+  , provenance TEXT);
 
 CREATE INDEX facts_current ON facts (kind) WHERE superseded_at IS NULL;
 
@@ -355,7 +355,7 @@ CREATE TABLE open_threads (
   last_progress_at INTEGER,
   closed_at INTEGER,
   closed_why TEXT
-  ) WITHOUT ROWID;
+  , provenance TEXT) WITHOUT ROWID;
 
 CREATE INDEX open_threads_due ON open_threads (due_at) WHERE status = 'open';
 
