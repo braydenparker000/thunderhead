@@ -4,7 +4,15 @@
 // call itself, and the day roll with its day_closed signal.
 import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { BriefResponse, LiveWaitResponse, Message, PendingResponse, Settings } from '../../../shared/contract/api';
+import type {
+  BriefResponse,
+  LiveWaitResponse,
+  Message,
+  MindPresence,
+  PendingResponse,
+  Settings,
+} from '../../../shared/contract/api';
+import { MIND_STATUS_LIMITS } from '../../../shared/contract/feed.ts';
 import { fire } from '../../src/areas/mind/fire';
 import * as wake from '../../src/areas/mind/wake';
 import { uuidv7 } from '../../src/lib/ids';
@@ -100,6 +108,65 @@ describe('hand-out, acknowledgement and requeue', () => {
     expect(row.delivered_at).toBeNull();
     const pending = await apiJson<PendingResponse>('GET', '/v1/mind/pending', as(C));
     expect(pending.body.unanswered).toContain(m.id);
+  });
+});
+
+describe('the working card: title, note and what the mind draws on (HOME.md §4.13)', () => {
+  const status = (body: Record<string, unknown>) => apiJson('POST', '/v1/mind/status', { ...as(C), body });
+  const presence = async () =>
+    ((await apiJson<Settings>('GET', '/v1/settings', { token: D })).body as Record<string, unknown>)[
+      'mind.status'
+    ] as MindPresence;
+  const using = [
+    { kind: 'fact', id: '0192f0c4-0000-7000-8000-000000000001', label: 'Likes calm music in the evening' },
+    { kind: 'song', id: '/music/#pl=evening01', label: 'Evening' },
+    { kind: 'source', id: 'https://example.org/forecast', label: 'A forecast' },
+  ];
+
+  it('takes a title and chips, keeps them while a note moves on, and drops a repeat inside 3 s', async () => {
+    // A state change always goes through, so the session starts from a known report.
+    expect((await status({ state: 'listening' })).status).toBe(204);
+    const { body: before } = await wait(0);
+    const first = { state: 'working', title: 'Looking through your music', note: 'Last week first', using };
+    expect((await status(first)).status).toBe(204);
+    expect(await presence()).toMatchObject({ state: 'working', title: first.title, note: first.note, using });
+    const stamped = (await presence()).title_at;
+    expect(stamped).toBeGreaterThan(0);
+    // The change goes out as the existing mind_status kind.
+    expect((await wait(before.seq)).body.kinds).toContain('mind_status');
+    // Inside 3 s, the same state again is answered 204 and changes nothing.
+    expect((await status({ state: 'working', title: 'Something else', note: 'Too soon' })).status).toBe(204);
+    expect(await presence()).toMatchObject({ title: first.title, note: first.note });
+    await new Promise((r) => setTimeout(r, MIND_STATUS_LIMITS.every_ms + 100));
+    // After it, a note alone is the new live line under the same title and chips.
+    expect((await status({ state: 'working', note: 'Comparing two albums' })).status).toBe(204);
+    expect(await presence()).toMatchObject({
+      title: first.title,
+      note: 'Comparing two albums',
+      using,
+      title_at: stamped,
+    });
+    // Leaving `working` drops them; the old form (a note alone) still works.
+    expect((await status({ state: 'listening' })).status).toBe(204);
+    const idle = await presence();
+    expect(idle.state).toBe('listening');
+    expect(idle.title ?? null).toBeNull();
+    expect(idle.using ?? []).toEqual([]);
+  }, 15_000);
+
+  it('refuses what is over the limits or of an unknown kind', async () => {
+    const long = (n: number) => 'x'.repeat(n);
+    const bad = [
+      { state: 'working', title: long(61) },
+      { state: 'working', note: long(141) },
+      { state: 'working', using: Array.from({ length: 7 }, (_, i) => ({ kind: 'fact', label: `Fact ${i}` })) },
+      { state: 'working', using: [{ kind: 'fact', label: long(41) }] },
+      { state: 'working', using: [{ kind: 'tool', label: 'Bash' }] },
+      { state: 'working', using: [{ kind: 'source', id: 'javascript:alert(1)', label: 'A page' }] },
+      { state: 'working', using: [{ kind: 'page', id: 'has a space', label: 'A page' }] },
+      { state: 'working', using: [{ kind: 'app', id: 'music', label: 'Music', extra: 1 }] },
+    ];
+    for (const body of bad) expect((await status(body)).status, JSON.stringify(body)).toBe(422);
   });
 });
 

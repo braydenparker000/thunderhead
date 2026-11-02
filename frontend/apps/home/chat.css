@@ -1,13 +1,12 @@
 /* The conversation once signed in (HOME.md §4, §7): meta lines, system lines, the reply's lines,
-   links and reveal, the reply slot with its Stop, the "New reply ↓" pill, the generic card, and
-   the error and offline edge. Uses home.css's tokens. */
+   links and reveal, the reply slot, the working card and the line under the ask bar, the "New
+   reply ↓" pill, the generic card, and the error and offline edge. Uses home.css's tokens. */
 .talk .mine{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 .talk .you{white-space:pre-wrap;overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
 .talk .meta{font:400 var(--fs-label)/var(--lh-tight) var(--ui);color:var(--ink-3);display:flex;align-items:center;gap:4px}
 .talk .meta.bad{color:#b42318}
 :root[data-theme="dark"] .talk .meta.bad{color:#ff6b5e}
-.talk .retry,.talk .stop{border:0;background:none;padding:0 6px;min-height:44px;margin:-14px 0;font:600 var(--fs-label) var(--ui);color:var(--accent-text);cursor:pointer}
-.talk .stop{font-size:var(--fs-small);margin:-12px 0 -12px 4px}
+.talk .retry{border:0;background:none;padding:0 6px;min-height:44px;margin:-14px 0;font:600 var(--fs-label) var(--ui);color:var(--accent-text);cursor:pointer}
 .talk .sys{align-self:center;max-width:88%;text-align:center;font:400 var(--fs-small)/var(--lh-body) var(--ui);color:var(--ink-3);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
 .talk .turn.sysline{align-items:center}
 .talk .replybox{display:flex;flex-direction:column;align-items:flex-start;gap:10px}
@@ -49,11 +48,6 @@
 @keyframes wordup{from{opacity:0;transform:translateY(.32em)}}
 .talk .slot{display:flex;align-items:center;gap:6px;min-height:28px}
 .talk .wait{font:400 var(--fs-small) var(--ui);color:var(--ink-3)}
-/* the thinking words: a light passes across them while the mind works; each new line fades in */
-.talk .wait.dots{font:500 var(--fs-chip)/var(--lh-body) var(--ui);letter-spacing:.005em;color:transparent;background:linear-gradient(100deg,var(--ink-3) 30%,var(--ink) 50%,var(--ink-3) 70%) 0 0/250% 100%;-webkit-background-clip:text;background-clip:text;animation:shimmer 2.6s var(--ease-linear) infinite,wordin calc(var(--d-base) * 4 / 3) var(--ease-out)}
-@keyframes shimmer{from{background-position:100% 0}to{background-position:-150% 0}}
-@keyframes wordin{from{opacity:0;transform:translateY(3px)}}
-.talk .stop.stopping{color:var(--ink-3);cursor:default}
 .fallbacks .card{animation:none}
 .fallbacks .card .q{margin-top:0}
 .newpill{position:absolute;z-index:7;left:50%;bottom:calc(86px + var(--dock-h,0px) + env(safe-area-inset-bottom,0px));transform:translate(-50%,8px);opacity:0;pointer-events:none;transition:calc(var(--d-base) * 5 / 6) var(--ease-default);min-height:44px;padding:8px 14px;border-radius:14px;border:1px solid var(--glass-line);background:var(--disc);font:500 var(--fs-small) var(--ui);color:var(--ink)}
@@ -72,22 +66,52 @@
 /* follow-ups the mind suggests: quiet outline pills, only under the newest turn */
 .talk .follows{display:flex;flex-wrap:wrap;gap:8px;opacity:0;transition:opacity calc(var(--d-base) * 4 / 3) var(--ease-default)}
 .talk .follows.in{opacity:1}
-.talk .turn:not(:last-child) .follows{display:none}
+.talk .follows:not(.now){display:none}
 .talk .follow{min-height:36px;padding:7px 13px;border-radius:var(--r-full);border:1px solid color-mix(in srgb,var(--accent-text) 35%,transparent);background:none;font:500 var(--fs-x-13-5) var(--ui);color:var(--accent-text);cursor:pointer}
 .talk .follow::after{content:"";position:absolute;inset:-4px 0}
 .talk .follow{position:relative}
+/* the mind's choice: its options as filled taps, each sending its words */
+.talk .choices .follow{border-color:transparent;background:color-mix(in srgb,var(--accent-text) 11%,transparent)}
 /* an older long reply, folded to 10 lines */
 .talk .reply.folded{max-height:calc(10lh);overflow:hidden;-webkit-mask-image:linear-gradient(to bottom,#000 65%,transparent);mask-image:linear-gradient(to bottom,#000 65%,transparent)}
 .talk .more{align-self:flex-start;min-height:44px;margin-top:-8px;padding:0;border:0;background:none;font:600 var(--fs-small) var(--ui);color:var(--accent-text);cursor:pointer}
 /* the pull that opens it */
 .pullfind{position:absolute;z-index:8;top:calc(14px + env(safe-area-inset-top,0px));left:50%;padding:6px 12px;border-radius:var(--r-full);background:var(--glass-flat);border:1px solid var(--glass-line);font:500 var(--fs-label) var(--ui);color:var(--ink-2);pointer-events:none;opacity:0;transform:translate(-50%,-12px)}
 .pullfind.ready{color:var(--accent-text)}
-@media (prefers-reduced-motion: reduce){.talk .reply.reveal .w{animation:none}.talk .wait.dots{animation:none;color:var(--ink-3);background:none}.newpill{transition:none}}
+@media (prefers-reduced-motion: reduce){.talk .reply.reveal .w{animation:none}.newpill{transition:none}}
 /* Decision cards (HOME.md §3): the why line carries "1 of 3" at its end; smaller lines for the why,
    the odds and what happens if ignored; a spinner on the pressed button; the error line. */
-/* docked above the ask bar while a card waits (owner, 2026-10-31); the conversation, the "New reply"
-   pill and the toasts all keep above it (--dock-h, th/decide/card.js) */
-#decision.dock{position:absolute;z-index:7;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(34px + var(--ask-h,54px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px))}
+/* docked above the ask bar while a card waits (owner, 2026-10-31), the working card above the
+   decision card; the conversation, the "New reply" pill and the toasts all keep above them
+   (--dock-h and --under, th/decide/dock.js) */
+#home>.dock{position:absolute;z-index:7;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(34px + var(--ask-h,54px) + var(--about-h,0px) + env(safe-area-inset-bottom,0px) + var(--under,0px))}
+.pastview #working{display:none}
+/* The working card (HOME.md §4.13): the decision card's glass with the mind's blue; a title in the
+   mind's words, its live line, chips for what it draws on, and Stop. Folded to its title line while
+   a decision waits; the dot pulses while the mind wakes; it folds up into the reply when it comes. */
+#working .card{margin-top:0;max-height:240px;padding:12px 10px 12px 16px;box-shadow:var(--e2),0 18px 40px -22px color-mix(in srgb,var(--accent-text) 45%,transparent);animation:dockin calc(var(--d-rise) * 5 / 9) var(--settle) both;transform-origin:50% 0;transition:max-height var(--d-base) var(--settle),padding var(--d-base) var(--settle),opacity var(--d-base) var(--settle),transform var(--d-base) var(--settle)}
+#working .card.fold{max-height:0;padding-top:0;padding-bottom:0;opacity:0;transform:translateY(-10px) scaleY(.3);border-color:transparent;pointer-events:none}
+.work .wkhead{display:flex;align-items:center;gap:8px;min-height:32px}
+.work .d{flex:none;width:7px;height:7px;border-radius:50%;background:var(--accent-text);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent-text) 22%,transparent)}
+.work.waking .d{animation:wake var(--d-edge) var(--ease-ambient) infinite}
+@keyframes wake{50%{opacity:.35;box-shadow:0 0 0 6px color-mix(in srgb,var(--accent-text) 8%,transparent)}}
+.work .wkt{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:500 var(--fs-body)/var(--lh-card) var(--ui);color:var(--ink)}
+.work .wkstop{flex:none;min-height:44px;margin:-6px 0;padding:0 10px;border:0;border-radius:var(--r-full);background:none;font:600 var(--fs-small) var(--ui);color:var(--accent-text);cursor:pointer}
+.work .wkstop.stopping{color:var(--ink-3);cursor:default}
+.work .wkn{margin:2px 6px 0 15px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:400 var(--fs-small)/var(--lh-body) var(--ui);color:var(--ink-2)}
+.work .wkuse{display:flex;flex-wrap:wrap;gap:6px;margin:10px 6px 0 15px}
+.work .wkchip{position:relative;display:inline-flex;align-items:center;gap:5px;max-width:100%;min-height:30px;padding:0 10px;border:0;border-radius:var(--r-full);background:var(--tint);font:500 var(--fs-label) var(--ui);color:var(--ink-2);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.work button.wkchip{cursor:pointer}
+.work button.wkchip::after{content:"";position:absolute;inset:-7px -3px}
+.work .wkchip .i{flex:none;width:14px;height:14px;fill:currentColor}
+.work.tight .wkn,.work.tight .wkuse{display:none}
+/* the first moment (HOME.md §6.3): a 2 px line under the ask bar fills as the Worker takes the
+   message, then fades (th/chat/working.js) */
+.ask .sendline{position:absolute;left:26px;right:26px;bottom:-9px;height:2px;border-radius:1px;background:var(--accent-text);opacity:0;transform:scaleX(0);transform-origin:0 50%;pointer-events:none}
+.ask .sendline.go{opacity:.85;transform:scaleX(.7);transition:transform var(--d-rise) var(--settle),opacity var(--d-fast) var(--ease-out)}
+.ask .sendline.go.done{opacity:0;transform:scaleX(1);transition:transform var(--d-quick) var(--settle),opacity var(--d-base) var(--ease-out) var(--d-quick)}
+.ask .sendline.go.off{opacity:0;transition:opacity var(--d-base) var(--ease-out)}
+@media (prefers-reduced-motion: reduce){.work.waking .d{animation:none}}
 #decision .card{margin-top:0;max-height:none;box-shadow:var(--e2),0 18px 40px -22px color-mix(in srgb,var(--gold) 55%,transparent);animation:dockin calc(var(--d-rise) * 5 / 9) var(--settle) both}
 @keyframes dockin{from{opacity:0;transform:translateY(18px) scale(.98)}}
 #decision .card.gone{max-height:0}

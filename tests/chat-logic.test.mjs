@@ -50,18 +50,35 @@ test('the reply slot: nothing, then …, Waking up… at 8 s, Still waking at 60
   assert.equal(at(5000, presence('failed')), 'none');
 });
 
-test('the thinking words: the mind\'s own note, else words from the message, then two that move it along', () => {
-  const t = (body, now, p = presence('listening')) => m.thinking({ body, sentAt: 0, now, presence: p });
-  assert.equal(t('Make me a playlist with dramatic classical music', 1300), 'Thinking about your music…');
-  assert.equal(t('What should I practise on guitar?', 1300), 'Thinking about guitar…');
-  assert.equal(t('¿Qué tengo hoy?', 1300), 'Thinking about your day…');
-  assert.equal(t('Are you there?', 1300), 'Thinking…');
-  assert.equal(t('Are you there?', 1200 + 3000), 'Working it out…');
-  assert.equal(t('Are you there?', 1200 + 6000), 'Putting it together…');
-  assert.equal(t('Are you there?', 1200 + 60_000), 'Putting it together…', 'the last one stays');
-  assert.equal(t('Play something', 1300, { ...presence('working'), note: 'Looking through your music' }), 'Looking through your music…');
-  assert.equal(t('Play something', 1300, { ...presence('working'), note: 'Found 24 songs.' }), 'Found 24 songs.');
-  assert.equal(t('Play some music', 1300, { ...presence('listening'), note: 'old note' }), 'Thinking about your music…', 'only a working note');
+test('the working card: at once for a title, at 1.5 s for a live mind, "Waking up" at 3 s; never stale, never a path', () => {
+  const asked = msg({ id: 'q', created_at: 10_000, body: 'Make me a playlist with dramatic classical music' });
+  const w = (now, p, shown = [asked], waiting = asked) => m.work({ shown, waiting, now, presence: p });
+  const using = [{ kind: 'song', id: '/music/', label: 'Evening' }, { kind: 'tool', label: 'Bash' }];
+  const titled = { ...presence('working'), since: 12_000, title: 'Looking through your music', note: 'Last week first', using, title_at: 12_000 };
+  assert.equal(w(10_500, null), null, 'nothing waits on a message the Worker just took');
+  assert.deepEqual(w(12_100, titled), { title: 'Looking through your music', note: 'Last week first', using: [using[0]], waking: false }, 'a title shows at once; an unknown kind never');
+  assert.equal(w(11_400, presence('listening')), null);
+  assert.deepEqual(w(11_600, presence('listening')), { title: 'Thinking about your music', note: '', using: [], waking: false });
+  assert.deepEqual(w(12_000, { ...presence('working'), since: 11_000, note: 'Checking last week' }), { title: 'Checking last week', note: '', using: [], waking: false }, 'a note alone is the title');
+  assert.equal(w(12_900, presence('asleep')), null, 'a cold mind gets 3 s first');
+  assert.deepEqual(w(13_100, presence('waking')), { title: 'Waking up', note: '', using: [], waking: true });
+  assert.deepEqual(w(70_100, null), { title: 'Waking up', note: 'This can take a minute.', using: [], waking: true });
+  // What the mind said for an earlier message counts for nothing; a second message in the same run keeps it.
+  const stale = { ...titled, since: 9_000, title_at: 9_000 };
+  assert.deepEqual(w(11_600, stale), { title: 'Thinking about your music', note: '', using: [], waking: false });
+  const again = msg({ id: 'q2', seq: 2, created_at: 13_000, body: 'And make it long' });
+  assert.equal(w(13_100, titled, [asked, again], again)?.title, 'Looking through your music');
+  const reply = msg({ id: 'r', seq: 2, author: 'mind', created_at: 12_500 });
+  assert.equal(w(14_600, titled, [asked, reply, again], again)?.title, 'Thinking', 'a reply between ends the run');
+  // A command, flag or file path never shows: the words from the message do.
+  for (const note of ['Run node --test tests/chat.test.mjs', 'Read src/app.js', 'ls /tmp/x', 'Fetch https://example.org/feed', 'Use `th status`'])
+    assert.equal(w(12_000, { ...presence('working'), since: 11_000, note })?.title, 'Thinking about your music', note);
+  assert.equal(m.plain('Comparing two albums'), 'Comparing two albums');
+  assert.equal(w(20_000, presence('failed')), null);
+  assert.equal(w(20_000, presence('unconfigured')), null);
+  const local = { id: 'l', body: 'b', created_at: 10_000, state: 'sending', tries: 0, author: 'owner', kind: 'text', local: true };
+  assert.equal(w(20_000, titled, [local], local), null, 'not before the Worker has the message');
+  assert.equal(m.topic('Are you there?'), 'Thinking');
 });
 
 test('the status chip says something only when something is off: quiet, then offline, then not waking', () => {

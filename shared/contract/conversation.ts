@@ -3,7 +3,7 @@
 // snake_case. The vocabularies these name (change kinds, frames, apps, sources) are runtime data
 // in feed.ts.
 import type { Day, Id, JsonObject, Ms, Page } from './api';
-import type { AppId, ChangeKind, SearchSource } from './feed';
+import type { AppId, ChangeKind, MindUse, SearchSource } from './feed';
 
 /** `off_record`: answered, never remembered, purged 7 days after its last message; `restored`: a
  * day's conversation given back from Recently deleted beside the fresh one its day began after the
@@ -194,6 +194,9 @@ export interface MindStatusRequest {
   state: MindState;
   thread_id?: Id;
   note?: string;
+  /** The working card (HOME.md §4.13): its title and chips (feed.ts); MindPresence.title_at: when given. */
+  title?: string;
+  using?: MindUse[];
   error?: string;
 }
 
@@ -276,6 +279,9 @@ export interface MindPresence {
   state: MindState | 'asleep' | 'waking' | 'failed' | 'unconfigured';
   note: string | null;
   since: Ms | null;
+  title?: string | null;
+  using?: MindUse[];
+  title_at?: Ms | null;
 }
 
 export interface WakeItem {

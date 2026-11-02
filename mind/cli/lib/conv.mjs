@@ -11,6 +11,9 @@ import {sha256, uuidv7} from './ids.mjs';
 
 export const KINDS = ['text', 'progress', 'card', 'question', 'error'];
 export const STATES = ['working', 'listening', 'stopping', 'limited'];
+/** The working card's chips and limits (shared/contract/feed.ts MIND_USE_KINDS, MIND_STATUS_LIMITS). */
+export const USE_KINDS = ['fact', 'song', 'page', 'source', 'app'];
+const STATUS = {title: 60, note: 140, using: 6, label: 40, id: 200, every_ms: 3_000};
 const MAX_BODY = 16_000;
 /** What the Worker takes (shared/contract/files.ts): bytes per file, files per mind message, name length. */
 const FILES = CONTRACT.files.limits;
@@ -146,14 +149,39 @@ export async function file(argv) {
   out({path, type: meta.type, name: meta.name, ...(meta.text ? {text: meta.text} : {})});
 }
 
+/** `--using kind:id:label` (or `kind:label`): one thing the working card shows as a chip. The id may
+ * hold colons (a book ref, a URL); the label is after the last one. */
+export function useOf(spec) {
+  const at = spec.indexOf(':');
+  const kind = at < 0 ? '' : spec.slice(0, at);
+  if (!USE_KINDS.includes(kind)) throw invalid(`--using takes ${USE_KINDS.join('|')}:<id>:<label>, not "${spec}"`);
+  const rest = spec.slice(at + 1);
+  const cut = rest.lastIndexOf(':');
+  const id = cut < 0 ? '' : rest.slice(0, cut);
+  const label = (cut < 0 ? rest : rest.slice(cut + 1)).trim();
+  if (!label || label.length > STATUS.label) throw invalid(`--using needs a label of 1 to ${STATUS.label} characters`);
+  if (id.length > STATUS.id || /\s/.test(id)) throw invalid(`--using: an id has no spaces and at most ${STATUS.id} characters`);
+  if (kind === 'source' && id && !/^https:\/\/[^/\s]+/.test(id)) throw invalid('--using source: the id is its https URL');
+  return id ? {kind, id, label} : {kind, label};
+}
+
 export async function status(argv) {
-  const {flags, rest} = parseArgs(argv);
+  const {flags, rest} = parseArgs(argv, {repeat: ['using']});
   const state = rest[0];
-  if (!STATES.includes(state)) throw invalid(`usage: th status ${STATES.join('|')} [--thread <id>] [--note <text>] [--error <code>]`);
+  if (!STATES.includes(state)) throw invalid(`usage: th status ${STATES.join('|')} [--thread <id>] [--title <text>] [--note <text>] [--using kind:id:label]… [--error <code>]`);
   const note = typeof flags.note === 'string' ? flags.note : undefined;
-  if (note && note.length > 140) throw invalid('--note is over 140 characters');
+  if (note && note.length > STATUS.note) throw invalid(`--note is over ${STATUS.note} characters`);
+  const title = typeof flags.title === 'string' ? flags.title.trim() : undefined;
+  if (title !== undefined && (!title || title.length > STATUS.title)) throw invalid(`--title takes 1 to ${STATUS.title} characters`);
+  if (flags.using.length > STATUS.using) throw invalid(`at most ${STATUS.using} --using`);
+  const using = flags.using.length ? flags.using.map(u => useOf(String(u))) : undefined;
+  // The Worker keeps one report per 3 s from a session; a title or chips wait out the gap after the
+  // last report rather than be dropped (a note alone may be: the next one follows soon).
+  const last = getState('status');
+  const gap = last?.state === state ? STATUS.every_ms - (Date.now() - last.at) : 0;
+  if ((title || using) && gap > 0) await sleep(gap + 50);
   const res = await request('POST', '/v1/mind/status', {
-    body: {state, thread_id: typeof flags.thread === 'string' ? flags.thread : undefined, note,
+    body: {state, thread_id: typeof flags.thread === 'string' ? flags.thread : undefined, note, title, using,
       error: typeof flags.error === 'string' ? flags.error : undefined},
   });
   setState('status', {state, at: Date.now()});

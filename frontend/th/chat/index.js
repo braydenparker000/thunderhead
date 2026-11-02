@@ -2,8 +2,8 @@
 // Home's conversation once signed in (HOME.md §2, §4, §6.3, §7): paints from cache at once, then
 // today's thread from the Worker; one live socket brings every change (API.md §12) and the
 // phone pulls what changed; messages go out through an outbox that survives being offline; the
-// reply slot, the status chip and the edge light follow the mind's presence; the mind's home
-// lines are cards in the chat; the Worker's verbs
+// working card (th/chat/working.js), the status chip and the edge light follow the mind's
+// presence; the mind's home lines are cards in the chat; the Worker's verbs
 // for this phone run through the verb registry. Nothing repaints on a timer while the page is
 // hidden. Loaded lazily by boot.js after the first paint.
 import { CONFIG } from '../../config.js';
@@ -20,6 +20,7 @@ import { decisions } from '../decide/state.js';
 import { cache, OUTBOX_BYTES, OUTBOX_MAX, outbox } from './store.js';
 import { picked, take } from '../attach/state.js';
 import { createView } from './view.js';
+import { createSendLine, createWorking } from './working.js';
 import { keepZone } from './zone.js';
 import { wireMic } from '../dictate/mic.js';
 import * as rec from '../record/record.js';
@@ -70,10 +71,11 @@ export async function startChat() {
     convo,
     onRetry: retry,
     onChip: openChip,
-    onStop: stopMind,
     onFollow: (text, id) => sendNow(text, id),
     onTap: (m, node) => void import('../reply/actions.js').then((a) => a.toggle(node, m, { send: sendNow })),
   });
+  const workCard = createWorking({ ask, onStop: stopMind, onOpen: openChip });
+  const sendLine = createSendLine(ask);
   const statusEl = /** @type {HTMLButtonElement} */ ($('#status'));
   /** @type {ReturnType<typeof model.status>} */
   let shownStatus = null;
@@ -107,7 +109,6 @@ export async function startChat() {
     const working = state.presence?.state === 'working';
     const standing = state.stop !== null && state.stop.cleared_at === null;
     const stop = waiting && (working || standing) && !waiting.local ? (standing || state.stopping ? 'stopping' : 'button') : 'none';
-    const words = waiting && slot === 'dots' ? model.thinking({ body: waiting.body, sentAt: waiting.created_at, now, presence: state.presence }) : '';
     // The mind's home lines join today's chat as cards, at the time they were placed (the night's at
     // the end of the quiet hours).
     const lines = state.today && !otr ? homeLines(state.surfaces, { day: state.today.day, now, quietEnd: state.quietEnd }) : [];
@@ -128,7 +129,11 @@ export async function startChat() {
       all.push(/** @type {any} */ ({ seq: 0, id: `catchup:${cu.at}`, thread_id: '', author: 'system', origin: 'system', kind: 'text', body: cu.body, meta: { line: 'catchup' }, attachments: [], reply_to: null, created_at: cu.at, delivered_at: null, acked_at: null, answered_at: null }));
       all.sort((a, b) => a.created_at - b.created_at);
     }
-    view.render({ shown: all, slot, words, stop, cards: fallbackCards(state.surfaces).map((c) => ({ text: c.text, kind: 'kind' in c ? c.kind : '' })), fresh: state.fresh, now });
+    // While a reply is on its way the working card says so, docked by the bar (HOME.md §4.13); the
+    // slot under the newest turn is left only for a mind that isn't connected yet.
+    const card = model.work({ shown, waiting, now, presence: state.presence });
+    workCard.render(card && { ...card, stop });
+    view.render({ shown: all, slot: slot === 'unconnected' ? slot : 'none', cards: fallbackCards(state.surfaces).map((c) => ({ text: c.text, kind: 'kind' in c ? c.kind : '' })), fresh: state.fresh, now });
     const quiet = quietUntil(now);
     setStatus(model.status({ presence: state.presence, noWake: model.noWakeShown(shown), quiet: quiet ? quietLine(quiet, now) : null, offline: state.offline }));
     const failedAt = Math.max(0, ...state.local.map((m) => (m.state === 'failed' ? m.failed_at ?? 0 : 0)));
@@ -143,7 +148,11 @@ export async function startChat() {
     clearTimeout(ticker);
     if (document.hidden) return;
     const ends = [failedAt + model.FAILED_EDGE_MS, state.typingUntil].filter((t) => t > now);
-    if (waiting || state.local.some((m) => m.state === 'sending')) ticker = setTimeout(paint, 1000);
+    if (waiting || state.local.some((m) => m.state === 'sending')) {
+      // Each second, and on the moment the working card is due (1.5 s, or 3 s while waking).
+      const due = waiting ? [model.CARD_AFTER_MS, model.WAKING_CARD_MS].map((d) => waiting.created_at + d - now).filter((d) => d > 0) : [];
+      ticker = setTimeout(paint, Math.min(1000, ...due.map((d) => d + 30)));
+    }
     else if (ends.length) ticker = setTimeout(paint, Math.min(...ends) - now + 50);
     else {
       // The next moment the screen changes on its own: a "go quiet" ending, or the quiet hours'
@@ -334,6 +343,7 @@ export async function startChat() {
       if ((m.thread_id || null) === otr && !state.today.messages.some((x) => x.id === out.id)) state.today.messages.push(out);
       state.local = state.local.filter((x) => x.id !== m.id);
       drop(m.id);
+      sendLine.end(m.id, true);
       try {
         localStorage.setItem('th.p.sent', '1');
       } catch {}
@@ -344,6 +354,7 @@ export async function startChat() {
       if (f.code === 'gone' && m.thread_id) {
         state.local = state.local.filter((x) => x.id !== m.id);
         drop(m.id);
+        sendLine.end(m.id, false);
         return false;
       }
       const retryable = f.kind !== 'api' || f.status >= 500 || f.status === 429;
@@ -351,6 +362,7 @@ export async function startChat() {
       m.state = !retryable ? 'failed' : !navigator.onLine ? 'queued' : m.tries > model.RETRY_MS.length ? 'failed' : 'sending';
       if (m.state === 'failed') m.failed_at = Date.now();
       if (m.state === 'sending') flushRetry = setTimeout(flush, model.RETRY_MS[m.tries - 1]);
+      else sendLine.end(m.id, false);
       keep(m);
       return false;
     } finally {
@@ -429,6 +441,7 @@ export async function startChat() {
     const about = $('#about');
     const m = enqueue(body, about?.dataset.id, take());
     about?.remove();
+    if (m.state === 'sending') sendLine.start(m.id);
     paint();
     // Painted first: the words are never only in the bar, or only in IndexedDB.
     clearBar();
@@ -458,6 +471,7 @@ export async function startChat() {
   /** A follow-up or a reply action, sent as it is. @param {string} body @param {string} replyTo */
   function sendNow(body, replyTo) {
     const m = enqueue(body, replyTo);
+    if (m.state === 'sending') sendLine.start(m.id);
     paint();
     keep(m);
     flush();

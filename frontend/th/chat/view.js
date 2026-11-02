@@ -1,12 +1,12 @@
 // @ts-check
 // The conversation on home, drawn (HOME.md §4): owner bubbles on the right, the mind's replies in
-// in the shell's face with no bubble, system lines small and centred, one action chip and up to two
-// follow-ups under a reply, the time over a turn after an hour's gap, older long replies folded,
-// a tap on a reply for its actions, the reply slot while a reply is on its way, and the "New
-// reply ↓" pill. Messages are keyed by
-// id, so a re-render only adds, changes or removes what changed, and the slot is one element that
-// changes only when what it says does (a screen reader hears each change once; focus stays on
-// Stop). Text is always set with textContent, never parsed as markup.
+// in the shell's face with no bubble, system lines small and centred, one action chip and, under
+// the newest reply only, its choice or up to two follow-ups; the time over a turn after an hour's
+// gap, older long replies folded, a tap on a reply for its actions, the slot's line while the mind
+// isn't connected (the working card says the rest, th/chat/working.js), and the "New reply ↓"
+// pill. Messages are keyed by id, so a re-render only adds, changes or removes what changed, and
+// the slot is one element that changes only when what it says does (a screen reader hears each
+// change once). Text is always set with textContent, never parsed as markup.
 import { appFor } from '../registry/apps.js';
 import { citeHref, meta, revealMs } from './model.js';
 import { rich } from './rich.js';
@@ -31,14 +31,7 @@ function attachments(list) {
 }
 
 /** @typedef {import('./model.js').Shown} Shown */
-/** @typedef {{ shown: Shown[], slot: string, words?: string, stop: 'none' | 'button' | 'stopping', cards: { text: string, kind: string }[], fresh: Set<string>, now: number }} ViewState */
-
-const SLOT_TEXT = {
-  dots: '…',
-  waking: 'Waking up…',
-  waking_long: 'Still waking. This can take a minute.',
-  unconnected: "Saved. I'll answer once I'm connected.",
-};
+/** @typedef {{ shown: Shown[], slot: 'none' | 'unconnected', cards: { text: string, kind: string }[], fresh: Set<string>, now: number }} ViewState */
 
 /** @template {keyof HTMLElementTagNameMap} K @param {K} tag @param {string} [cls] @param {string} [text] */
 function el(tag, cls, text) {
@@ -70,9 +63,9 @@ const clock = (/** @type {number} */ at) => {
 };
 
 /**
- * @param {{ talk: HTMLElement, convo: HTMLElement, onRetry: (id: string) => void, onChip: (chip: { app: string, path: string, label: string }) => void, onStop: () => void, onFollow: (text: string, replyTo: string) => void, onTap: (m: Shown, node: HTMLElement) => void }} o
+ * @param {{ talk: HTMLElement, convo: HTMLElement, onRetry: (id: string) => void, onChip: (chip: { app: string, path: string, label: string }) => void, onFollow: (text: string, replyTo: string) => void, onTap: (m: Shown, node: HTMLElement) => void }} o
  */
-export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onTap }) {
+export function createView({ talk, convo, onRetry, onChip, onFollow, onTap }) {
   /** @type {Map<string, { node: HTMLElement, sig: string, m: Shown }>} */
   const nodes = new Map();
   /** Older long replies the owner unfolded. */
@@ -85,14 +78,8 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
     if (m && m.author === 'mind' && !m.local) onTap(m, node);
   });
   const slot = el('div', 'slot');
-  const wait = el('span', 'wait');
-  const stop = el('button', 'stop', 'Stop');
-  stop.type = 'button';
-  stop.addEventListener('click', () => {
-    if (stop.getAttribute('aria-disabled') !== 'true') onStop();
-  });
-  slot.append(wait, stop);
-  let drawn = '';
+  const wait = el('span', 'wait', "Saved. I'll answer once I'm connected.");
+  slot.append(wait);
   const pill = el('button', 'newpill', 'New reply ↓');
   pill.type = 'button';
   pill.addEventListener('click', () => {
@@ -162,9 +149,11 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
       wrap.style.setProperty('--reveal-ms', `${revealMs(m.body)}ms`);
       words(wrap, revealMs(m.body));
     }
-    // Up to four blocks under the words (HOME.md §4.3), drawn by th/chat/blocks.js.
-    const blocks = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).blocks : null;
-    if (Array.isArray(blocks) && blocks.length) {
+    // Up to four blocks under the words (HOME.md §4.3), drawn by th/chat/blocks.js; a choice is taps
+    // under the reply instead.
+    const all = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).blocks : null;
+    const blocks = Array.isArray(all) ? all.filter((b) => b?.type !== 'choice') : [];
+    if (blocks.length) {
       const host = el('div', 'blocks');
       wrap.append(host);
       import('./blocks.js').then((b) => host.append(...blocks.slice(0, 4).map((x) => b.block(x, []))), () => host.remove());
@@ -188,15 +177,20 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
       });
       under.push(b);
     }
-    // Up to two follow-ups the mind suggests (`meta.followups`); a tap sends one, answering this reply.
+    // The mind's choice (a `choice` block: 2 to 4 options of ≤ 40 characters), else up to two
+    // follow-ups it suggests (`meta.followups`); a tap sends those words as the owner's own message,
+    // answering this reply. Shown under the newest reply only (render()).
+    const options = Array.isArray(all) ? all.find((b) => b?.type === 'choice')?.options : null;
+    /** @type {string[]} */
+    const picks = Array.isArray(options) ? options.filter((o) => typeof o === 'string' && o.trim()).slice(0, 4).map((o) => o.trim().slice(0, 40)) : [];
     const follow = !m.local && m.meta && typeof m.meta === 'object' ? /** @type {any} */ (m.meta).followups : null;
-    const asks = Array.isArray(follow) ? follow.filter((f) => typeof f === 'string' && f.trim()).slice(0, 2) : [];
+    const asks = picks.length >= 2 ? picks : Array.isArray(follow) ? follow.filter((f) => typeof f === 'string' && f.trim()).slice(0, 2).map((f) => f.trim()) : [];
     if (asks.length) {
-      const row = el('div', 'follows');
+      const row = el('div', picks.length >= 2 ? 'follows choices' : 'follows');
       for (const f of asks) {
-        const b = el('button', 'follow', f.trim().slice(0, 60));
+        const b = el('button', 'follow', f.slice(0, 60));
         b.type = 'button';
-        b.addEventListener('click', () => onFollow(f.trim().slice(0, 200), m.id));
+        b.addEventListener('click', () => onFollow(f.slice(0, 200), m.id));
         row.append(b);
       }
       under.push(row);
@@ -297,23 +291,17 @@ export function createView({ talk, convo, onRetry, onChip, onStop, onFollow, onT
       const id = node.dataset.id ?? '';
       if (r && r !== newest && !r.matches('.progress') && !unfolded.has(id)) requestAnimationFrame(() => fold(/** @type {HTMLElement} */ (r), id));
     }
-    // The reply slot sits under the newest turn while a reply is on its way.
-    const key = `${s.slot}|${s.stop}|${s.slot === 'dots' ? s.words : ''}`;
-    if (s.slot === 'none' && s.stop === 'none') slot.remove();
+    // A choice or follow-ups show under the newest reply while its turn is the last one.
+    const latest = s.shown.findLast((m) => m.author === 'mind' && m.kind !== 'progress' && m.kind !== 'error');
+    const newestNode = latest ? nodes.get(latest.id)?.node : null;
+    const current = newestNode?.closest('.turn') === prevTurn ? newestNode : null;
+    for (const row of talk.querySelectorAll('.follows')) row.classList.toggle('now', row.parentElement === current);
+    // The slot sits under the newest turn while the mind isn't connected yet.
+    if (s.slot === 'none') slot.remove();
     else {
-      if (key !== drawn) {
-        wait.className = `wait ${s.slot}`;
-        wait.textContent = (s.slot === 'dots' && s.words) || (SLOT_TEXT[/** @type {keyof typeof SLOT_TEXT} */ (s.slot)] ?? '');
-        wait.hidden = s.slot === 'none';
-        stop.hidden = s.stop === 'none';
-        stop.textContent = s.stop === 'stopping' ? 'Stopping…' : 'Stop';
-        stop.classList.toggle('stopping', s.stop === 'stopping');
-        stop.setAttribute('aria-disabled', String(s.stop === 'stopping'));
-      }
       const host = prevTurn ?? talk;
       if (host.lastElementChild !== slot) host.append(slot);
     }
-    drawn = key;
     cards.replaceChildren(
       ...s.cards.map((c) => {
         const card = el('div', 'card fallback');
