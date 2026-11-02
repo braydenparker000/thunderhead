@@ -151,7 +151,7 @@ function cite(ctx: OpContext, r: string): Cited {
     if (!note) throw new Reject('bad_evidence');
     // M11d: a note a session that read outside text wrote is shown, marked, but is never evidence
     // (M6). By its own label (the session's record is pruned 90 days after it ends); a note with
-    // none (an older Worker's) by that record, as before Core step 29.
+    // none (an older Worker's) by that record, as before Core step 30.
     if (notedBy(note) === 'outside') throw new Reject('tainted_evidence');
     const taint = note.provenance || note.written_by === 'owner' ? null : taintedAt(ctx.db, note.written_by);
     if (taint !== null && taint <= note.written_at) throw new Reject('tainted_evidence');

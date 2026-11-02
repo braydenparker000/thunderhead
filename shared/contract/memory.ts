@@ -35,7 +35,7 @@ export const PROVENANCES = ['owner', 'observed', 'outside'] as const;
 export type Provenance = (typeof PROVENANCES)[number];
 
 /** What a fact's source gives when nothing else says otherwise: what its stored provenance was set
- * to by Core step 29, and what a row with none (written by an older Worker, which refused every
+ * to by Core step 30, and what a row with none (written by an older Worker, which refused every
  * tainted write) reads as. */
 export const provenanceOfSource = (source: string): Provenance =>
   source === 'user' ? 'owner' : source === 'observed' ? 'observed' : 'outside';

@@ -1,7 +1,7 @@
 // SQL for day notes, open threads and the batch idempotency window inside Core (DATA.md §4.4,
 // API.md §7). Day notes keep an external-content FTS5 index, written in the same transaction as
 // the row. Every read is bounded by a LIMIT or a key; stores never write the feed or the ledger.
-// Both carry a `provenance` (MEMORY.md §6 M11, Core step 29): `outside` when a session that read
+// Both carry a `provenance` (MEMORY.md §6 M11, Core step 30): `outside` when a session that read
 // outside text wrote it. A row with none (an older Worker's) reads as `owner`: that Worker refused
 // a tainted session's day note, and labelled none of its loose ends.
 import type { DayNote, OpenThread, OpenThreadStatus, Provenance } from '../../../../shared/contract/memory.ts';
@@ -21,7 +21,7 @@ export interface DayNoteRow {
   written_by: string;
   version: number;
   written_at: number;
-  /** Null on a row from an older Worker (and in an undo snapshot from before step 29). */
+  /** Null on a row from an older Worker (and in an undo snapshot from before step 30). */
   provenance?: Provenance | null;
 }
 
@@ -90,7 +90,7 @@ export function putDayNote(db: Db, n: Omit<DayNoteRow, 'seq'>, old: DayNoteRow |
     n.written_by,
     n.version,
     n.written_at,
-    // An undo's snapshot from before step 29 has none: an older Worker wrote no tainted day note.
+    // An undo's snapshot from before step 30 has none: an older Worker wrote no tainted day note.
     n.provenance ?? 'owner',
   );
   db.run('INSERT INTO day_notes_fts (rowid, summary) VALUES (last_insert_rowid(), ?)', n.summary);
@@ -145,7 +145,7 @@ export interface OpenThreadRow {
   last_progress_at: number | null;
   closed_at: number | null;
   closed_why: string | null;
-  /** Null on a row from an older Worker (and in an undo snapshot from before step 29). */
+  /** Null on a row from an older Worker (and in an undo snapshot from before step 30). */
   provenance?: Provenance | null;
 }
 
@@ -181,13 +181,13 @@ export function putOpenThread(db: Db, t: OpenThreadRow): void {
     t.last_progress_at,
     t.closed_at,
     t.closed_why,
-    // An undo's snapshot from before step 29 has none: read as an older Worker's row is.
+    // An undo's snapshot from before step 30 has none: read as an older Worker's row is.
     t.provenance ?? 'owner',
   );
 }
 
 /** Whether two loose-end rows hold the same values (a retried write's check and an undo's
- * newest-state check). The label is left out: an undo snapshot from before step 29 has none. */
+ * newest-state check). The label is left out: an undo snapshot from before step 30 has none. */
 export function sameThread(a: OpenThreadRow | null, b: OpenThreadRow | null): boolean {
   if (!a || !b) return a === b;
   return CONTENT_COLS.split(', ').every((k) => a[k as keyof OpenThreadRow] === b[k as keyof OpenThreadRow]);
