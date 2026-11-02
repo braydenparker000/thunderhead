@@ -10,6 +10,23 @@ const FILES = [
   'th/island/island.css', 'th/attach/attach.css', 'th/reply/tools.css',
 ];
 
+const SIZE = String.raw`var\(\s*--fs-[\w-]+\s*\)`;
+const HEIGHT = String.raw`var\(\s*--lh-[\w-]+\s*\)`;
+const SIZE_VALUE = new RegExp(`^${SIZE}$`);
+// Before the size, CSS font shorthands allow style, variant, weight and stretch. Restricting
+// that prefix and requiring a family afterwards prevents a size token in another position
+// (for example, "font:var(--fs-body) 16px serif") from satisfying the rule.
+const FONT_PREFIX = String.raw`(?:normal|italic|oblique|small-caps|bold|bolder|lighter|(?:ultra-|extra-|semi-)?(?:condensed|expanded)|(?:\d+(?:\.\d+)?|\.\d+)(?:%|deg)?)`;
+const FAMILY_WORD = String.raw`(?:[-_a-zA-Z][\w-]*|var\(\s*--(?!fs-|lh-|t-)[\w-]+\s*\))`;
+const FAMILY = `${FAMILY_WORD}(?:\\s+${FAMILY_WORD})*`;
+const FONT_VALUE = new RegExp(`^(?:${FONT_PREFIX}\\s+)*${SIZE}(?:\\s*/\\s*${HEIGHT})?\\s+${FAMILY}(?:\\s*,\\s*${FAMILY})*$`);
+
+function typeValue(value) {
+  // Quoted families remain present for the font grammar; their contents cannot supply tokens.
+  return value.replace(/\/\*[\s\S]*?\*\/|"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'/g,
+    text => text.startsWith('/*') ? ' ' : '_quoted_family').replace(/\s*!important\s*$/i, '').trim();
+}
+
 function inspect(css, tokens = false) {
   const lines = css.split('\n');
   const lineAt = offset => css.slice(0, offset).split('\n').length;
@@ -45,8 +62,11 @@ function inspect(css, tokens = false) {
         }
       }
     }
-    if (!tokens && (property === 'font-size' || (property === 'font' && !/^var\(\s*--t-[\w-]+\s*[,)]/.test(value.trim())))) {
-      flag(propertyAt, 'type');
+    if (!tokens && (property === 'font-size' || property === 'font')) {
+      const type = typeValue(css.slice(valueAt, valueAt + value.length));
+      if (property === 'font-size' ? !SIZE_VALUE.test(type) : type.toLowerCase() !== 'inherit' && !FONT_VALUE.test(type)) {
+        flag(propertyAt, 'type');
+      }
     }
   }
   return { violations: [...found.values()].sort((a, b) => a.line - b.line || a.rule.localeCompare(b.rule)), exemptions: exemptions.size };
@@ -67,7 +87,7 @@ test('shell motion and type use tokens; exceptions stay visible', async t => {
 
 test('feel scanner accepts token references, ambient times, gradients and quoted text', () => {
   assert.deepEqual(inspect(`
-    .example{font:var(--t-body);font-weight:600;transition:opacity var(--d-fast) var(--ease-out) 0ms;
+    .example{font:400 var(--fs-body)/var(--lh-body) var(--ui);font-weight:600;transition:opacity var(--d-fast) var(--ease-out) 0ms;
       animation:drift 2s var(--ease-ambient) infinite;animation-delay:-2s;
       background:linear-gradient(red,blue);content:"font-size:12px; animation:.3s ease"}
     .other{transition-delay:calc(var(--d-rise) * -.2);animation-timing-function:var(--ease-linear);
@@ -100,12 +120,60 @@ test('feel scanner catches curves, easing keywords and non-token type shorthands
     --local-curve:linear(0,1);
     font:500 13px/1.4 var(--ui);
     font-size:var(--size);
-    font:inherit;
+    font:var(--t-body);
   }`);
   assert.deepEqual(result.violations.map(v => [v.line, v.rule]), [
     [2, 'easing keyword'], [3, 'easing keyword'], [4, 'curve'], [5, 'curve'],
     [6, 'type'], [7, 'type'], [8, 'type'],
   ]);
+});
+
+test('feel scanner accepts size and line-height axes, inherited fonts and literal line-height declarations', () => {
+  for (const declaration of [
+    'font-size:var(--fs-body)',
+    'font-size: var( --fs-x-12-5 ) !important',
+    'font:inherit',
+    'font:inherit !important',
+    'font:500 var(--fs-small)/var(--lh-loose) var(--ui)',
+    'font:400 var(--fs-input) var(--voice)',
+    'font:var(--fs-body) sans-serif',
+    'font:italic 600 var(--fs-body) / var(--lh-reading) "Switzer", system-ui, sans-serif',
+    'font:500 var(--fs-rel-code) ui-monospace,SFMono-Regular,Menlo,monospace',
+    'font:400 var(--fs-body) /* family follows */ var(--mono)',
+    'font:400 var(--fs-body) "Family var(--fs-not-a-token)"',
+    'line-height:1.45',
+    'line-height:22px',
+  ]) {
+    assert.deepEqual(inspect(`.example{${declaration}}`).violations, [], declaration);
+  }
+});
+
+test('feel scanner rejects raw sizes, raw shorthand line heights and tokens in the wrong font position', () => {
+  for (const declaration of [
+    'font-size:16px',
+    'font-size:var(--t-body)',
+    'font-size:var(--lh-body)',
+    'font-size:calc(var(--fs-body) * 2)',
+    'font-size:var(--fs-body, 16px)',
+    'font-size:"var(--fs-body)"',
+    'font:500 13px/1.4 var(--ui)',
+    'font:400 1em var(--ui)',
+    'font:400 var(--fs-body)/1.4 var(--ui)',
+    'font:400 var(--fs-body)/22px var(--ui)',
+    'font:400 var(--fs-body)/normal var(--ui)',
+    'font:400 var(--fs-body)/var(--fs-body) var(--ui)',
+    'font:var(--t-body)',
+    'font:var(--fs-body) 16px var(--ui)',
+    'font:400 16px var(--fs-body)',
+    'font:400 var(--fs-body) var(--fs-small)',
+    'font:400 var(--lh-body) var(--ui)',
+    'font:400 var(--fs-body)',
+    'font:400 var(--fs-body)/var(--lh-body)',
+    'font:400 var(--fs-body, 16px) var(--ui)',
+    'font:400 var(--fs-body)/var(--lh-body, 1.4) var(--ui)',
+  ]) {
+    assert.deepEqual(inspect(`.example{${declaration}}`).violations.map(v => v.rule), ['type'], declaration);
+  }
 });
 
 test('feel exemptions apply to their own lines, including multiline declarations', () => {
@@ -125,6 +193,6 @@ test('feel exemptions apply to their own lines, including multiline declarations
 test('the token file is free to define type and curves, without fixed-value assertions', () => {
   assert.deepEqual(inspect(`:root{
     --d-example:127ms;--ease-example:ease;--curve-example:linear(0,1);
-    --t-example:400 17px/1.5 sans-serif;
+    --fs-example:17px;--lh-example:1.5;
   }`, true).violations, []);
 });

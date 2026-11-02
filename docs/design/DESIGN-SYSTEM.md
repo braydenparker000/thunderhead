@@ -13,7 +13,7 @@ Sibling docs: [HOME](../product/HOME.md), [GESTURES](GESTURES.md), [COPY](COPY.m
 4. **Contrast is tested, not eyeballed.** Text ≥ 4.5:1, large text (≥ 24 px, or ≥ 18.66 px bold) and icons/UI parts ≥ 3:1, measured against the **worst** background each token can sit on. A node test fails the build otherwise.
 5. **Targets ≥ 44×44 CSS px** (hit area, not necessarily the drawn shape). WCAG 2.2 AA's floor is 24×24.
 6. **Motion is quick and springy, never slow**, carries meaning, and collapses under `prefers-reduced-motion`.
-7. **Token shape is checked.** `tests/feel.test.mjs` scans its fifteen shell CSS files for nonzero literal times shorter than 2 s in `transition*`/`animation*` declarations. Outside `ui/tokens.css`, it rejects raw `cubic-bezier()` and `linear()` curves, timing keywords (`ease`, `ease-in`, `ease-out`, `ease-in-out`, `linear`), every `font-size` declaration, and `font` shorthands that do not begin with `var(--t-`. A `/* T1: … */` comment exempts only its own line; the test prints the exempt-line count. It checks shape, never token values. Hex colours, radii and z-index are not yet enforced.
+7. **Token shape is checked.** `tests/feel.test.mjs` scans its fifteen shell CSS files for nonzero literal times shorter than 2 s in `transition*`/`animation*` declarations. Outside `ui/tokens.css`, it rejects raw `cubic-bezier()` and `linear()` curves and timing keywords (`ease`, `ease-in`, `ease-out`, `ease-in-out`, `linear`). A `font-size` value must be `var(--fs-…)`; a `font` shorthand must be `inherit` or use `var(--fs-…)` in the size position, with either a `var(--lh-…)` line height or no line height. Standalone `line-height` declarations are not checked. A `/* T1: … */` comment exempts only its own line; the test prints the exempt-line count (currently zero). It checks shape, never token values. Hex colours, radii and z-index are not yet enforced.
 8. **Icons are Phosphor regular** (MIT), from one SVG sprite, `fill: currentColor`, always `aria-hidden` with a text label on the control.
 9. **Glass is expensive on the A15.** At most **2** live `backdrop-filter` surfaces on screen at once; everything else uses "flat glass" (§6).
 10. **No chrome:** no header bar, tab bar, badges, counters of other people, or dividers. Space does the grouping.
@@ -80,112 +80,89 @@ This replaces the first build's three copies of every dark token (media query, `
 
 ### Baseline (2026-11-01), redesigned in T1b
 
-These are provisional definitions in `frontend/ui/tokens.css`, not a redesigned scale. The thirteen core names remain available for T1b. Additional baseline tokens preserve the existing sizes, line heights and families exactly; this migration makes no type-size snaps. Each site keeps its existing weight with `font-weight` after the shorthand when it differs from the token's default. Tracking, emphasis and wrapping stay at their sites.
+Type uses two independent axes in `frontend/ui/tokens.css`: size (`--fs-*`) and line height (`--lh-*`). Sites compose them with their existing weight and family, for example `font:500 var(--fs-small)/var(--lh-loose) var(--ui)`. The values are provisional and preserve the existing appearance exactly, without size, line-height, weight or family changes. Tracking, emphasis, numeric variants and wrapping stay at their sites.
 
-`--ui` and `--voice` both resolve to `"Switzer",system-ui,-apple-system,"Segoe UI",sans-serif`. `--mono` resolves to `ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,monospace`. A shorthand without `/…` retains CSS's `normal` line height; relative `em` values remain relative to their surrounding text.
+`--ui` and `--voice` both resolve to `"Switzer",system-ui,-apple-system,"Segoe UI",sans-serif`. `--mono` resolves to `ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,monospace`. A shorthand that previously omitted line height still omits it and uses CSS's `normal` line height. A size-only rule uses `font-size:var(--fs-…)`, preserving the other font properties it inherits. `font:inherit` remains a valid way to inherit the complete font.
 
-| Token | Exact `font` shorthand | Sites (examples) |
+The thirteen role names are the core ramp:
+
+| Token | Exact value | Sites (examples) |
 |---|---|---|
-| `--t-label` | `500 12px/1.35 var(--ui)` | Defined for the ramp; no current site |
-| `--t-small` | `400 13px/1.4 var(--ui)` | `.tile .s`, `.talk .sys`, `.card .tg` |
-| `--t-chip` | `500 14px/1.3 var(--ui)` | `.cstitle`, `.hgroup h2`, `.th-wide .by` |
-| `--t-body` | `400 15px/1.4 var(--ui)` | `.mtext`, `.snow`, `.talk .sys.reminder` |
-| `--t-input` | `400 16px/1.45 var(--ui)` | `.you` |
-| `--t-reply` | `400 16.5px/1.55 var(--voice)` | `.reply` |
-| `--t-strong` | `600 17px/1.35 var(--ui)` | `.panel h2` |
-| `--t-section` | `600 21px/1.5 var(--ui)` | Defined for the ramp; no current site |
-| `--t-heading` | `400 24px/1.2 var(--ui)` | Defined for the ramp; no current site |
-| `--t-page-title` | `600 30px/1.15 var(--ui)` | `.auth h1` |
-| `--t-title` | `400 34px/1.12 var(--ui)` | `.btitle` base rule; superseded by `--t-hero` |
-| `--t-big` | `500 36px/1.05 var(--ui)` | `.tile .big` |
-| `--t-hero` | `400 clamp(38px,11vw,46px)/1.06 var(--ui)` | `.btitle` |
+| `--fs-label` | `12px` | `.fld .help`, `.foot`, `.why` |
+| `--fs-small` | `13px` | `.fld label`, `.lbl`, `.inp .show` |
+| `--fs-chip` | `14px` | `.check`, `.link`, `.line` |
+| `--fs-body` | `15px` | `.btn`, `.auth .lead`, `.home` |
+| `--fs-input` | `16px` | `.you`; follows Appearance |
+| `--fs-reply` | `16.5px` | `.reply`; follows Appearance |
+| `--fs-strong` | `17px` | `.panel h2`, `#now .tl`, `.b-quote blockquote` |
+| `--fs-section` | `21px` | `.codebox` |
+| `--fs-heading` | `24px` | `.allconvos .gl`, `.bsv` |
+| `--fs-page-title` | `30px` | `.auth h1`, `.tile .big`, `.sidetitle` |
+| `--fs-title` | `34px` | `.btitle` base rule; superseded by `--fs-hero` |
+| `--fs-big` | `36px` | `.tile .big` |
+| `--fs-hero` | `clamp(38px,11vw,46px)` | `.btitle` |
 
-The preservation variants below are built. They keep differences such as form labels at 13 px / 1.3, the menu's 14.5 px rows, the 28 px Study verse title, the 64 px weather number and monospace code boxes. Consolidating these values is a later design decision. The listed selectors are examples; a token may serve several sites.
+There are thirteen `x-` sizes outside that ramp. The large Appearance sizes, 18 px and 18.5 px, are included because the setting uses them. These values remain distinct until a later design decision changes them.
 
-| Token | Exact `font` shorthand | Sites (examples) |
+| Token | Exact value | Sites (examples) |
 |---|---|---|
-| `--t-code-inline` | `500 .84em ui-monospace,SFMono-Regular,Menlo,monospace` | `.talk .reply code` |
-| `--t-list-marker` | `500 .88em var(--ui)` | `.talk .reply ol>li::marker` |
-| `--t-reply-heading` | `600 1.06em/1.35 var(--voice)` | `.talk .reply h3` |
-| `--t-count-normal` | `600 10.5px var(--ui)` | `.gn` |
-| `--t-fine-normal` | `400 11.5px var(--ui)` | `.bsa` |
-| `--t-fine-flat` | `500 11.5px/1 var(--ui)` | `.talk .turn[data-time]::before` |
-| `--t-fine-compact` | `400 11.5px/1.35 var(--ui)` | `.book .bs` |
-| `--t-micro-normal` | `600 11px var(--ui)` | `.bcite`, `.cover .ring span`, `.vtext sup` |
-| `--t-micro-flat` | `600 11px/1 var(--ui)` | `.talk .reply a.cite` |
-| `--t-micro-tight` | `400 11px/1.3 var(--ui)` | `.cover.plain em` |
-| `--t-micro-badge` | `600 11px/1.6 var(--ui)` | `.tag`, `.badge` |
-| `--t-detail-normal` | `500 12.5px var(--ui)` | `.status`, `.otrmark button`, `.acts .link` |
-| `--t-detail-compact` | `400 12.5px/1.35 var(--ui)` | `.pmeta`, `.sdel small`, `#cmdhint` |
-| `--t-detail-body` | `500 12.5px/1.4 var(--ui)` | `.otrmark` |
-| `--t-detail-reading` | `400 12.5px/1.45 var(--ui)` | `.bnote2` |
-| `--t-code-label-normal` | `500 12px var(--mono)` | `.shelp code`, `.sform code` |
-| `--t-label-normal` | `500 12px var(--ui)` | `.why`, `.hint`, `.timechip` |
-| `--t-label-tight` | `400 12px/1.3 var(--ui)` | `.talk .meta` |
-| `--t-label-body` | `400 12px/1.4 var(--ui)` | `.sh small`, `.srole small`, `.crow small` |
-| `--t-label-reading` | `400 12px/1.45 var(--ui)` | `.fld .help`, `.st2` |
-| `--t-code-label-loose` | `400 12px/1.5 var(--mono)` | `.mprofile` |
-| `--t-label-loose` | `400 12px/1.5 var(--ui)` | `.foot` |
-| `--t-follow-normal` | `500 13.5px var(--ui)` | `.talk .follow` |
-| `--t-follow-compact` | `600 13.5px/1.35 var(--ui)` | `.cited .hit b` |
-| `--t-code-small-normal` | `500 13px var(--mono)` | `.panel code` |
-| `--t-small-normal` | `500 13px var(--ui)` | `.inp .show`, `.link.quiet`, `.tabs button` |
-| `--t-small-flat` | `600 13px/1 var(--ui)` | `.th-island .left`, `.th-island .zz` |
-| `--t-small-tight` | `500 13px/1.3 var(--ui)` | `.fld label`, `.lbl`, `.talk .reply .sthead` |
-| `--t-small-compact` | `400 13px/1.35 var(--ui)` | `#now .sub` |
-| `--t-mono-small-reading` | `400 13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace` | `.talk .reply pre` |
-| `--t-small-reading` | `400 13px/1.45 var(--ui)` | `.sidelead`, `.bmuse`, `.bwho` |
-| `--t-small-loose` | `400 13px/1.5 var(--ui)` | `.shelp`, `.mwhy` |
-| `--t-code-detail` | `500 13px/1.55 var(--mono)` | `.codebox.small` |
-| `--t-row-normal` | `500 14.5px var(--ui)` | `.row` |
-| `--t-chip-normal` | `600 14px var(--ui)` | `.check`, `.link`, `.decide button` |
-| `--t-chip-compact` | `500 14px/1.35 var(--ui)` | `.toast`, `.talk .reply .study`, `.srow .tl` |
-| `--t-chip-body` | `400 14px/1.4 var(--ui)` | `.talk .reply table`, `.talk .wait.dots`, `.allconvos .alllead` |
-| `--t-chip-reading` | `500 14px/1.45 var(--ui)` | `.line`, `.csheet p`, `.reason` |
-| `--t-voice-chip-reading` | `400 14px/1.45 var(--voice)` | `.mev q` |
-| `--t-chip-loose` | `400 14px/1.5 var(--ui)` | `.panel p`, `.panel ol` |
-| `--t-chip-badge` | `500 14px/1.6 var(--ui)` | `.counts` |
-| `--t-note-normal` | `500 15.5px var(--ui)` | `.slink`, `.sswitch` |
-| `--t-note-reading` | `400 15.5px/1.45 var(--ui)` | `.talk .note .nt` |
-| `--t-progress` | `400 15.5px/1.55 var(--voice)` | `.talk .reply.progress` |
-| `--t-body-normal` | `500 15px var(--ui)` | `.btn`, `.home`, `.search` |
-| `--t-body-tight` | `600 15px/1.3 var(--ui)` | `.ptl`, `.tx .tl`, `.sname` |
-| `--t-body-compact` | `500 15px/1.35 var(--ui)` | `.tile .v`, `.bb h3` |
-| `--t-body-card` | `500 15px/1.42 var(--ui)` | `.card.news ul.q li` |
-| `--t-body-reading` | `400 15px/1.45 var(--ui)` | `.tile.weather .s`, `.talk .reply .blocks`, `.marea` |
-| `--t-body-loose` | `400 15px/1.5 var(--ui)` | `.auth .lead` |
-| `--t-body-tall` | `400 15px/2 var(--ui)` | `.whours li` |
-| `--t-input-normal` | `400 16px var(--ui)` | `.opts button`, `.sbox input`, `.csacts button` |
-| `--t-input-tight` | `400 16px/1.3 var(--ui)` | `.inp input`, `.fld input:not([type="checkbox"]):not([type="radio"])`, `.fld select` |
-| `--t-input-compact` | `600 16px/1.35 var(--ui)` | `.csheet h2` |
-| `--t-input-card` | `500 16px/1.42 var(--ui)` | `.card .q` |
-| `--t-ask` | `400 16px/22px var(--ui)` | `.ask textarea` |
-| `--t-strong-normal` | `500 17px var(--ui)` | `.squiet input[type=time]` |
-| `--t-strong-snug` | `600 17px/1.25 var(--ui)` | `#now .tl` |
-| `--t-strong-tight` | `600 17px/1.3 var(--ui)` | `.vcard b` |
-| `--t-strong-reading` | `500 17px/1.45 var(--ui)` | `.b-quote blockquote` |
-| `--t-strong-reply` | `400 17px/1.55 var(--ui)` | `.vtext p` |
-| `--t-code-section-loose` | `600 21px/1.5 var(--mono)` | `.codebox` |
-| `--t-group-heading` | `600 22px/1.15 var(--ui)` | `.gl` |
-| `--t-heading-dense` | `600 24px/1.1 var(--ui)` | `.bsv` |
-| `--t-heading-heading` | `600 24px/1.15 var(--ui)` | `.allconvos .gl` |
-| `--t-verse-title-heading` | `600 28px/1.15 var(--ui)` | `.verse h1` |
-| `--t-page-title-number` | `600 30px/1.05 var(--ui)` | `.tile .big` base rule; superseded by `--t-big` |
-| `--t-page-title-dense` | `600 30px/1.1 var(--ui)` | `.sidetitle`, `.spage h1`, `.libhead h1` |
-| `--t-weather-flat` | `500 64px/1 var(--ui)` | `.tile.weather .big` |
-| `--t-not-found` | `600 clamp(32px,9vw,40px)/1.1 var(--voice)` | `.voice` |
-| `--t-text-input` | `400 16px/1.45 var(--ui)` | `.empty p` |
+| `--fs-x-10-5` | `10.5px` | `.gn` |
+| `--fs-x-11` | `11px` | `.talk .reply a.cite`, `.tag`, `.bcite` |
+| `--fs-x-11-5` | `11.5px` | `.talk .turn[data-time]::before`, `.bsa`, `.book .bs` |
+| `--fs-x-12-5` | `12.5px` | `.status`, `.otrmark`, `.otrmark button` |
+| `--fs-x-13-5` | `13.5px` | `.talk .follow`, `.cited .hit b` |
+| `--fs-x-14-5` | `14.5px` | `.row` |
+| `--fs-x-15-5` | `15.5px` | `.talk .reply.progress`, `.talk .note .nt`, `.slink` |
+| `--fs-x-18` | `18px` | Appearance: large owner bubbles |
+| `--fs-x-18-5` | `18.5px` | Appearance: large replies |
+| `--fs-x-22` | `22px` | `.gl` |
+| `--fs-x-28` | `28px` | `.verse h1` |
+| `--fs-x-64` | `64px` | `.tile.weather .big` |
+| `--fs-x-not-found` | `clamp(32px,9vw,40px)` | `.voice` |
 
-The Appearance text-size setting overrides only the conversation tokens:
+The three relative sizes scale with their parent reply. `--fs-ask` supplies all fixed 16 px text: the ask bar, form controls, card questions (`.card .q`), confirm-sheet headings (`.csheet h2`) and the other sites that must not follow the conversation setting. These bring the size-token total to thirty.
 
-| Setting | `--t-reply` | `--t-input` | `--t-progress` |
-|---|---|---|---|
-| Small (`data-text="s"`) | `400 15px/1.55 var(--voice)` | `400 15px/1.45 var(--ui)` | `var(--t-reply)` |
-| Large (`data-text="l"`) | `400 18.5px/1.55 var(--voice)` | `400 18px/1.45 var(--ui)` | `var(--t-reply)` |
+| Token | Exact value | Sites (examples) |
+|---|---|---|
+| `--fs-rel-code` | `.84em` | `.talk .reply code` |
+| `--fs-rel-marker` | `.88em` | `.talk .reply ol>li::marker` |
+| `--fs-rel-heading` | `1.06em` | `.talk .reply h3` |
+| `--fs-ask` | `16px` | Ask textarea, fixed-size form fields and other fixed 16 px text |
 
-`--t-input` belongs to the owner's bubble. The ask bar uses `--t-ask` and stays at 16 px / 22 px for every text setting. Form controls and other non-conversation text use independent variants; `--t-text-input` retains 16 px / 1.45 without following the bubble setting. Sizes are written in px, with `em` and `clamp()` where the existing styles use them; Appearance is the shell's text-size mechanism. **[proposal]** Adopt `<meta name="text-scale" content="scale">` when it is supported by the target browsers.
+The seventeen line-height values below occur in the existing styles. There is no unused 1.2 step. Unitless values scale with the element's font size; `--lh-ask` is the existing fixed 22 px line height.
 
-The old names `--t-voice-hero`, `--t-voice-title`, `--t-voice-reply`, `--t-row`, `--t-sheet-item` and `--t-caps` are **not built**. In particular, there is no uppercase 11 px / +0.14em `--t-caps` style. The old Fraunces and Inter table did not describe the current code.
+| Token | Exact value | Sites (examples) |
+|---|---|---|
+| `--lh-flat` | `1` | `.tile.weather .big`, `.talk .reply a.cite`, `.talk .turn[data-time]::before` |
+| `--lh-dense` | `1.1` | `.voice`, `.sidetitle`, `.bsv` |
+| `--lh-snug` | `1.25` | `#now .tl` |
+| `--lh-tight` | `1.3` | `.fld label`, `.lbl`, `.inp input` |
+| `--lh-compact` | `1.35` | `.csheet h2`, `.panel h2`, `.toast` |
+| `--lh-body` | `1.4` | `.tile .s`, `.sh small`, `.talk .sys` |
+| `--lh-card` | `1.42` | `.card .q`, `.card.news ul.q li` |
+| `--lh-reading` | `1.45` | `.fld .help`, `.line`, `.csheet p` |
+| `--lh-loose` | `1.5` | `.codebox`, `.auth .lead`, `.panel p` |
+| `--lh-reply` | `1.55` | `.codebox.small`, `.reply`, `.vtext p` |
+| `--lh-badge` | `1.6` | `.counts`, `.tag`, `.badge` |
+| `--lh-tall` | `2` | `.whours li` |
+| `--lh-hero` | `1.06` | `.btitle` |
+| `--lh-big` | `1.05` | `.tile .big` |
+| `--lh-title` | `1.12` | `.btitle` |
+| `--lh-page-title` | `1.15` | `.auth h1`, `.gl`, `.verse h1` |
+| `--lh-ask` | `22px` | `.ask textarea` |
+
+Appearance overrides only the conversation size tokens:
+
+| Setting | `--fs-reply` | `--fs-input` |
+|---|---|---|
+| Small (`data-text="s"`) | `var(--fs-body)` = 15 px | `var(--fs-body)` = 15 px |
+| Large (`data-text="l"`) | `var(--fs-x-18-5)` = 18.5 px | `var(--fs-x-18)` = 18 px |
+
+The `.you` bubble uses `--fs-input`; `.reply` uses `--fs-reply`. The existing `:root[data-text] .reply` and `.you` rules in `ui/shell.css` retain their specificity and set `font-size` through those tokens, so progress replies still follow the setting over their default 15.5 px size. The ask bar stays at `var(--fs-ask)/var(--lh-ask)`, 16 px / 22 px, in every setting. Other fixed 16 px sites also use `--fs-ask`, preventing the setting from changing form controls.
+
+The former composite type tokens are no longer defined. The old uppercase 11 px / +0.14em caps style remains **not built**. Sizes are px, with `em` and `clamp()` where the existing styles use them; Appearance is the shell's text-size mechanism. **[proposal]** Adopt `<meta name="text-scale" content="scale">` when it is supported by the target browsers.
+
+`tests/feel.test.mjs` requires size tokens in `font-size` declarations and the size position of `font` shorthands; an explicit shorthand line height must use a `--lh-*` token. `font:inherit` needs no exception. Standalone `line-height` declarations are not checked in this task. The shell currently has zero exempt lines.
 
 Keep `font-variant-numeric: tabular-nums` on times, durations and counts, `text-wrap: balance` on titles and `text-wrap: pretty` on replies. Mark second-language passages with their language's `lang` code for hyphenation and screen readers.
 
