@@ -3,7 +3,8 @@
 // --section` cut between whole sections. The core (1–7) stays ≤ 9,500 characters: sections 1, 2,
 // 3 and 7 always appear (2 cut oldest-first), then 4, 6 and 5 get what is left, in that order.
 // The full briefing (1–12) stays ≤ 48,000 and carries fuller versions of 2–6, so a cut in the
-// core always has more behind `th brief --section <n>`; each section has its own budget.
+// core always has more behind `th brief --section <n>`; each section has its own budget. Section 13
+// lists the owner's settings that the mind reads (settings/catalog.ts); section 7 points at it.
 import type { LedgerEntry, Message, MindRole } from '../../../../shared/contract/api';
 import type { DayNoteRow, OpenThreadRow } from '../memory/notes';
 import { renderDayNote, renderDays, renderRules, renderThreads } from '../memory/profile';
@@ -55,6 +56,8 @@ export interface BriefInput {
   days: DayNoteRow[];
   /** One line about the night shift's run (P3 stage C), or null. */
   night: string | null;
+  /** Section 13: `key: value` for each setting the mind reads (settings/catalog.ts mindSettingLines). */
+  settings?: string[];
 }
 
 /** Formatters made once per zone (one per line cost the briefing tens of ms of CPU). */
@@ -135,6 +138,7 @@ const NAMES: Record<number, string> = {
   10: 'Pending',
   11: 'Health',
   12: 'Today earlier',
+  13: 'Your settings',
 };
 const render = (n: number, body: string) => `## ${n}. ${NAMES[n]}\n${body}`;
 /** What a section costs in the core beyond its body: its heading and the blank line before it. */
@@ -149,6 +153,12 @@ const quietLine = (i: BriefInput) =>
   i.quietUntil <= i.now
     ? 'off'
     : `until ${i.quietUntil - i.now > 24 * 3_600_000 ? `${weekday(i.quietUntil, i.tz)} ` : ''}${clock(i.quietUntil, i.tz)} (the owner said go quiet: no nudges; cards and home lines wait)`;
+
+/** Section 13: what the owner chose in Settings for the mind, one `key: value` line each. */
+export const SETTINGS_LEGEND =
+  "The owner's choices in Settings (The mind, Briefing); (default) where never changed. Standing permissions (mind.permit.*): ask = a decision card first; tell = do it, then say so; quiet = do it, the ledger only. The Worker doesn't enforce them yet.";
+const settingsSection = (lines: string[]) =>
+  budgeted([SETTINGS_LEGEND, ...lines], 2_000, 'oldest', (k) => `(+${k} more: th get /v1/settings)`);
 
 export function buildBrief(i: BriefInput): { core: string; full: string } {
   const night = i.role === 'night';
@@ -210,7 +220,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     1: now.slice(0, 500),
     2: make(2, 2_800, false).slice(0, 2_800),
     3: make(3, 1_400, false),
-    7: 'Full briefing: $TMPDIR/th/brief.md · Search: th recall "<q>"',
+    7: 'Full briefing: $TMPDIR/th/brief.md · Search: th recall "<q>" · Your settings: th brief --section 13',
   };
   let left =
     CORE_MAX - 40 - [1, 2, 3, 7].reduce((n, s) => n + body[s].length + frame(s), 0) - frame(4) - frame(5) - frame(6);
@@ -265,6 +275,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
         (k) => `(+${k} more: th history today)`,
       ) || 'Nothing earlier.',
     ],
+    [13, settingsSection(i.settings ?? [])],
   ];
   const full = sections
     .map(([n, b]) => render(n, b))

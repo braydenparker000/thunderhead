@@ -18,6 +18,7 @@ import { quotaBriefLine, safeQuota } from '../meter/quota';
 import * as ops from '../ops/store';
 import { lawsLine } from '../proposals/laws';
 import * as proposals from '../proposals/store';
+import { mindSettingLines } from '../settings/catalog';
 import { quietUntil } from '../settings/quiet';
 import * as watchdogs from '../watchdogs/ops';
 import { buildBrief } from './brief';
@@ -99,6 +100,7 @@ export function assemble(
     profile: memory ? renderProfile(current, now, tz).text : '',
     days: memory ? notes.dayNotes(db, dayBefore(day, 7), dayBefore(day), 7) : [],
     night: nightLine(db, day, opts.nightConfigured),
+    settings: mindSettingLines(db),
   });
   return {
     wake,

@@ -22,15 +22,24 @@ const stored = (/** @type {string} */ key, /** @type {string} */ def) => {
   }
 };
 
-/** The pages under Appearance, in order: [page, name, icon]. */
+/** The pages under Appearance, in order: [page, name, icon]. The catalogue's pages first
+ * (catalog.js, shared/contract/settings.ts), About and diagnostics last. */
 export const PAGES = /** @type {const} */ ([
+  ['appearance', 'More appearance', 'palette'],
+  ['chat', 'Home and chat', 'chat-circle'],
+  ['gestures', 'Ring and gestures', 'hand-pointing'],
+  ['island', 'Island', 'music-notes-simple'],
+  ['briefing', 'Briefing', 'newspaper'],
+  ['mind', 'The mind', 'sparkle'],
   ['quiet', 'Quiet hours', 'moon-stars'],
   ['notifications', 'Notifications', 'bell'],
   ['memory', 'What I remember', 'brain'],
+  ['privacy', 'Privacy and data', 'shield-check'],
   ['account', 'Password', 'key'],
   ['devices', 'Devices', 'devices'],
   ['export', 'Export', 'download-simple'],
   ['deleted', 'Recently deleted', 'trash'],
+  ['about', 'About and diagnostics', 'info'],
 ]);
 
 /** Appearance: the theme (Auto follows the clock), the text size of the conversation, and a still
