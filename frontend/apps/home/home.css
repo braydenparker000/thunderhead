@@ -86,25 +86,24 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 @keyframes breathe{50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--accent-text) 22%,transparent)}}
 .ask.listening textarea::placeholder,.ask.finishing textarea::placeholder{color:var(--accent-text)}
 @media (prefers-reduced-motion:reduce){.ask.listening .mic,.ask.finishing .mic{animation:none}}
-/* compass (GESTURES.md §3): home.js moves transform and opacity only. A disc is a flat face (::after),
-   its glass (::before, in on --d-fast with .glassy) and its icon; the disc itself never fades, which
-   would cut its glass off from what is behind it. */
+/* compass (GESTURES.md §3): transform and opacity only. A disc: its glass (::before, .glassy) under
+   its face (a flat fill that leaves once the glass is in, and the icon). */
 .scrim{position:absolute;inset:0;z-index:8;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--d-fast) var(--ease-default)}
 .scrim.show{opacity:1}
 .ring{position:absolute;z-index:9;width:0;height:0;pointer-events:none}
-.ring .pet{--c:var(--accent-text);--f:0;position:absolute;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;display:grid;place-items:center;color:var(--c);isolation:isolate;transform:translate(0,0) scale(.2)}
-.ring .pet::after{content:"";position:absolute;inset:0;z-index:-2;border-radius:inherit;pointer-events:none;opacity:var(--f);
-  background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.6),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 16%,transparent),transparent 70%),var(--glass-flat);
-  box-shadow:inset 0 0 0 1px var(--disc-line)}
+.ring .pet{--c:var(--accent-text);--hi:.6;--tn:16%;position:absolute;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;display:grid;place-items:center;color:var(--c);isolation:isolate;transform:translate(0,0) scale(.2)}
 .ring .pet::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
   background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.75),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 22%,transparent),transparent 70%),color-mix(in srgb,var(--disc) 45%,transparent);
   backdrop-filter:blur(14px) saturate(1.8);-webkit-backdrop-filter:blur(14px) saturate(1.8);
   box-shadow:inset 0 1.5px 1px rgba(255,255,255,.95),inset 0 -6px 12px color-mix(in srgb,var(--c) 18%,transparent),inset 0 0 0 .5px color-mix(in srgb,var(--c) 25%,transparent),inset 0 0 0 1px var(--disc-line);
   opacity:0;visibility:hidden;transition:opacity var(--d-fast) var(--ease-out),visibility 0s var(--d-fast)}
 .ring.glassy .pet::before{opacity:1;visibility:visible;transition:opacity var(--d-fast) var(--ease-out)}
-:root[data-theme="dark"] .ring .pet::after{background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.16),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 24%,transparent),transparent 70%),var(--glass-flat)}
 :root[data-theme="dark"] .ring .pet::before{background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.22),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 30%,transparent),transparent 70%),rgba(255,255,255,.05);box-shadow:inset 0 1.5px 1px rgba(255,255,255,.35),inset 0 -6px 12px color-mix(in srgb,var(--c) 25%,transparent),inset 0 0 0 1px var(--disc-line)}
-.ring .pet .face{grid-area:1/1;place-self:stretch;display:grid;place-items:center;border-radius:inherit;opacity:var(--f)}
+.ring .pet .face{grid-area:1/1;place-self:stretch;display:grid;place-items:center;border-radius:inherit;opacity:0;isolation:isolate}
+.ring .pet .face::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;transition:opacity var(--d-fast) var(--ease-out);
+  background:radial-gradient(120% 90% at 30% 15%,rgb(255 255 255/var(--hi)),transparent 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) var(--tn),transparent),transparent 70%),var(--glass-flat);box-shadow:inset 0 0 0 1px var(--disc-line)}
+:root[data-theme="dark"] .ring .pet{--hi:.16;--tn:24%}
+.ring.glassy .pet .face::before{opacity:0;transition-delay:var(--d-fast)}
 .ring .pet svg{grid-area:1/1;width:24px;height:24px;fill:currentColor;stroke:none;transition:opacity var(--d-fast) var(--ease-out)}
 .ring .pet svg.on{color:#fff;opacity:0}
 .ring .pet .fill{grid-area:1/1;place-self:stretch;border-radius:50%;opacity:0;transition:opacity var(--d-fast) var(--ease-out);
@@ -112,9 +111,9 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .ring .pet.on .fill,.ring .pet.on svg.on{opacity:1}
 .ring .pet.on svg:not(.on){opacity:0}
 /* the chosen disc's shadow, once it rests */
-.ring .pet .lift{position:absolute;inset:0;z-index:-3;border-radius:inherit;pointer-events:none;opacity:0;transition:opacity var(--d-fast) var(--ease-out);
+.ring .pet .lift{position:absolute;inset:0;z-index:-2;border-radius:inherit;pointer-events:none;opacity:0;visibility:hidden;transition:opacity var(--d-fast) var(--ease-out),visibility 0s var(--d-fast);
   box-shadow:0 14px 26px -10px color-mix(in srgb,var(--c) 75%,transparent),0 4px 10px -4px rgba(10,20,40,.3)}
-.ring .pet.lifted .lift{opacity:1}
+.ring .pet.lifted .lift{opacity:1;visibility:visible;transition:opacity var(--d-fast) var(--ease-out)}
 .ring .hub{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--ink);opacity:0;transform:translate(0,0);transition:opacity calc(var(--d-quick) / 2) var(--ease-default)}
 .ring.show .hub{opacity:.28}
 .ring .lbl{--c:var(--accent-text);position:absolute;left:0;top:0;transform:translate(-50%,0);white-space:nowrap;font:600 var(--fs-small) var(--ui);color:var(--ink);opacity:0;padding:6px 12px;border-radius:12px;background:var(--disc);border:1px solid color-mix(in srgb,var(--c) 30%,var(--disc-line));box-shadow:0 8px 22px -12px color-mix(in srgb,var(--c) 60%,transparent)}
@@ -219,7 +218,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .past{max-width:100%}
 .past button{white-space:nowrap;flex:none;border:0;background:var(--accent-text);color:#fff;border-radius:999px;padding:6px 12px;font:600 var(--fs-label) var(--ui);cursor:pointer}
 .turns .turn:first-child{margin-top:8px}
-@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.side.enter .sidescroll>*,.side.enter #convos>*,.brief.enter .grid>*{animation:none}.field::before,.field::after,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet::before,.ring .hub,.ring .pet svg,.ring .pet .fill,.ring .pet .lift,.scrim,.toast{transition:none}}
+@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.side.enter .sidescroll>*,.side.enter #convos>*,.brief.enter .grid>*{animation:none}.field::before,.field::after,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet::before,.ring .pet .face::before,.ring .hub,.ring .pet svg,.ring .pet .fill,.ring .pet .lift,.scrim,.toast{transition:none}}
 /* the gestures' buttons (GESTURES.md §9): clipped until focused, then a glass pill at the top left */
 .skips{position:absolute;z-index:15;top:calc(8px + env(safe-area-inset-top,0px));left:12px;display:flex;gap:6px}
 .skips button{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;padding:0}

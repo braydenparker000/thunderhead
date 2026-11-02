@@ -29,7 +29,8 @@ async function open(theme = 'light', path = '/') {
   return { page, errors };
 }
 const whenResting = page => page.evaluate(async () => (await import('/th/motion.js')).whenResting());
-const ringRest = async page => { await page.waitForFunction(() => document.querySelector('#ring').classList.contains('show')); await whenResting(page); };
+// The flight out is a compositor animation (home.js), then the engine's: wait for both.
+const ringRest = async page => { await page.waitForFunction(() => document.querySelector('#ring').classList.contains('show')); await page.waitForFunction(() => !document.querySelector('#ring').classList.contains('moving')); await whenResting(page); };
 const drag = async (page, x0, x1, y = 300) => {
   await page.mouse.move(x0, y); await page.mouse.down();
   await page.mouse.move(x0 + (x1 - x0) * 0.3, y, { steps: 4 }); await page.mouse.move(x1, y, { steps: 8 });
@@ -110,26 +111,35 @@ test('the ring flies out together in 120 ms, past the ring and back, its glass f
     assert.equal(p.radius, 0); assert.equal(p.scale, .2);
     assert.equal(p.blur, 'none'); assert.equal(p.shadow, 'none'); assert.equal(p.layer, 'hidden');
   }
-  // The discs fly ~13% past the ring and magnet back, growing from .2 through ~1.06 to 1; the glass
-  // starts to fade in as they pass 85% of the way out and slow, while they still move (GESTURES.md §3).
-  let reached, glass = null, flight = { radius: 0, scale: 0 };
-  for (let ms = 16; ms <= 400; ms += 16) {
-    await page.clock.runFor(16);
-    const frame = await page.evaluate(() => ({ time: performance.now(), moving: document.querySelector('#ring').classList.contains('moving'), glass: Number(getComputedStyle(document.querySelector('#ring .pet'), '::before').opacity), pets: [...document.querySelectorAll('#ring .pet')].map(p => {
-      const m = new DOMMatrix(getComputedStyle(p).transform); return { radius: Math.hypot(m.m41, m.m42), scale: m.a };
-    }) }));
-    const radii = frame.pets.map(p => p.radius);
-    assert.ok(Math.max(...radii) - Math.min(...radii) < .01, 'no stagger');
-    flight = { radius: Math.max(flight.radius, ...radii), scale: Math.max(flight.scale, ...frame.pets.map(p => p.scale)) };
-    if (reached === undefined && radii.every(r => r >= 62 * .9)) reached = frame.time - start.time;
-    if (glass === null && frame.glass > 0) glass = { radius: radii[0], moving: frame.moving };
-  }
+  // The flight out is the springs' curve played by the compositor: seek it to read its trajectory. The
+  // discs fly ~13% past the ring and magnet back, growing from .2 through ~1.06 to 1 (GESTURES.md §3).
+  const trajectory = await page.evaluate(() => {
+    const pets = [...document.querySelectorAll('#ring .pet')], flights = pets.map(p => p.getAnimations()[0]);
+    flights.forEach(a => a.pause());
+    const frames = [];
+    for (let ms = 0; ms <= flights[0].effect.getComputedTiming().duration; ms += 4) {
+      flights.forEach(a => { a.currentTime = ms; });
+      frames.push({ ms, pets: pets.map(p => { const m = new DOMMatrix(getComputedStyle(p).transform); return { radius: Math.hypot(m.m41, m.m42), scale: m.a }; }) });
+    }
+    flights.forEach(a => { a.currentTime = 0; a.play(); });
+    return frames;
+  });
+  for (const f of trajectory) { const radii = f.pets.map(p => p.radius); assert.ok(Math.max(...radii) - Math.min(...radii) < .01, `no stagger at ${f.ms} ms`); }
+  const reached = trajectory.find(f => f.pets.every(p => p.radius >= 62 * .9))?.ms;
   assert.ok(reached > 0 && reached <= 120, `all seven reach 90% radius in ${reached} ms`);
-  assert.ok(flight.radius >= 62 * 1.1 && flight.radius <= 62 * 1.14, `radial overshoot ${(flight.radius / 62 - 1) * 100}%`);
-  assert.ok(flight.scale >= 1.04 && flight.scale <= 1.08, `the discs grow to ${flight.scale} on the way out`);
-  assert.ok(glass && glass.moving && glass.radius >= 62 * .85, `the glass starts before rest, past 85% of the way: ${JSON.stringify(glass)}`);
-  await page.clock.runFor(600); await whenResting(page);
-  assert.equal(await page.$eval('#ring', r => r.classList.contains('moving')), false);
+  const most = Math.max(...trajectory.map(f => f.pets[0].radius)), biggest = Math.max(...trajectory.map(f => f.pets[0].scale));
+  assert.ok(most >= 62 * 1.1 && most <= 62 * 1.14, `radial overshoot ${(most / 62 - 1) * 100}%`);
+  assert.ok(biggest >= 1.04 && biggest <= 1.08, `the discs grow to ${biggest} on the way out`);
+  const end = trajectory.at(-1).pets[0];
+  assert.ok(Math.abs(end.radius - 62) < .7 && Math.abs(end.scale - 1) < .01, 'and land on the ring');
+  // The glass starts to fade in as they pass 85% of the way out, while they still move.
+  const at85 = trajectory.find(f => f.pets[0].radius >= 62 * .85).ms;
+  await page.clock.runFor(at85 - 4);
+  assert.equal(await page.$eval('#ring', r => r.classList.contains('glassy')), false, 'no glass before 85%');
+  await page.clock.runFor(8);
+  assert.deepEqual(await page.$eval('#ring', r => [r.classList.contains('glassy'), r.classList.contains('moving')]), [true, true], 'the glass starts before rest');
+  await page.waitForFunction(() => !document.querySelector('#ring').classList.contains('moving'));
+  await whenResting(page);
   await page.$eval('#ring .pet', p => Promise.all(p.getAnimations({ subtree: true }).map(a => a.finished)));
   assert.equal(await page.$eval('#ring .pet', p => getComputedStyle(p, '::before').opacity), '1');
   await page.evaluate(() => window.ringPoint('pointermove', 200, 350));

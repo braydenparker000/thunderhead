@@ -3,7 +3,7 @@
 import { apps } from '/th/registry/apps.js';
 import { from as launchFrom, launch } from '/ui/launch.js';
 import { startPinned } from './pinned.js';
-import { animator, springs, haptic } from '/th/motion.js';
+import { animator, springs, haptic, motionReduced, response, restTime } from '/th/motion.js';
 
 // Music and Podcasts open as a layer inside home and keep playing behind the chat (th/island); the
 // others load in their place. The reveal starts at once; the layer's code loads while it grows.
@@ -89,10 +89,12 @@ function openFromRing(id,color,to){
   // Compass: hold an empty spot ~220 ms, a tight ring of apps springs out around the finger; slide toward one, let go to open.
   // Seven directions, clockwise from the top; an app not shipped yet (Photos) says it comes later.
   // Motion (GESTURES.md §3): what moves in space springs past its mark (the discs fly ~13% past the ring and magnet back,
-  // growing .2 → 1.06 → 1); fades never overshoot. Each disc is a flat face while it flies (::after) under its own frosted
-  // glass (::before), which fades in on --d-fast once the discs are 85% of the way out and slowing, so it is in place as
-  // they settle, and fades out with them. The chosen disc lifts on a soft shadow once it rests; the name fades up under
-  // the ring. Only transform and opacity change; the disc itself never fades, so its glass always sees what is behind it.
+  // growing .2 → 1.06 → 1); fades never overshoot. The flight out is the springs' own curve played by the compositor
+  // (nothing for the page to do each frame); a choice or a release mid-flight hands it to the th/motion.js engine at
+  // exactly the position and speed it had. Each disc's frosted glass (::before) fades in on --d-fast once the discs are
+  // 85% of the way out and slowing, so it is in place as they settle, and fades out with them. The chosen disc lifts on a
+  // soft shadow once it rests; the name fades up under the ring. Only transform and opacity change; the disc itself never
+  // fades, so its glass always sees what is behind it.
   const APPS=apps.map(a=>[a.name,`<span class="lift" aria-hidden="true"></span><span class="face" aria-hidden="true"><span class="fill"></span><svg class="i ph"><use href="/ui/icons.svg#${a.icon}-fill"/></svg><svg class="i ph on"><use href="/ui/icons.svg#${a.icon}-fill"/></svg></span>`,a.color,a.built?a.path:'']);
   // A choice holds until the finger is ~7 degrees past its sector's edge, whatever the number of apps (GESTURES.md §3.2).
   // Direction is measured from where the thumb went down, not from the ring's drawn centre: near an edge the ring
@@ -103,7 +105,7 @@ function openFromRing(id,color,to){
   // The name that is leaving fades up and out while the new one fades up into its place.
   const ghost=document.createElement('div'); ghost.className='lbl ghost'; ghost.setAttribute('aria-hidden','true'); ring.appendChild(ghost);
   let start=null, open=false, dir=-1, holdT=null;
-  let ringRun=0, opening=false, peak=0, look={fast:160,quick:240,ease:'ease-out'};
+  let ringRun=0, opening=false, peak=0, look={fast:160,quick:240,ease:'ease-out'}, flight=null;
   const petMotion=pets.map((p,i)=>{
     const x=R*Math.sin(i*SEC), y=-R*Math.cos(i*SEC);
     // Three springs share one transform: it is written once a frame, after they have all stepped.
@@ -111,20 +113,20 @@ function openFromRing(id,color,to){
     const write=()=>{queued=false;const r=radial.value;p.style.transform=`translate(${x*r}px,${y*r}px) scale(${size.value+choice.value})`};
     const draw=()=>{if(!queued){queued=true;queueMicrotask(write)}};
     const radial=animator((v,speed)=>{draw();if(i===0)glassy(v,speed)},{unit:'scalar'}), size=animator(draw,{unit:'scalar'}), choice=animator(draw,{unit:'scalar'});
-    const face=animator(v=>{p.style.setProperty('--f',String(Math.max(0,Math.min(1,v))))},{unit:'opacity'});
+    const faceEl=p.querySelector('.face'), face=animator(v=>{faceEl.style.opacity=String(Math.max(0,Math.min(1,v)))},{unit:'opacity'});
     size.set(.2);
-    return {radial,size,choice,face};
+    return {x,y,faceEl,write,radial,size,choice,face};
   });
   // The glass starts to fade in as the discs pass 85% of the way out with their speed falling (GESTURES.md §3).
   function glassy(v,speed){ if(!opening) return; peak=Math.max(peak,speed); if(v>=.85&&(speed<peak||speed===0)){ opening=false; ring.classList.add('glassy') } }
   const engines=()=>petMotion.flatMap(m=>[m.radial,m.size,m.choice,m.face]);
   const petsRest=()=>Promise.all(engines().map(m=>m.whenResting()));
-  function ringMoving(){ ring.classList.toggle('moving',engines().some(m=>!m.resting)) }
+  function ringMoving(){ ring.classList.toggle('moving',!!flight||engines().some(m=>!m.resting)) }
   function settleRing(run){ ringMoving(); petsRest().then(()=>{if(run===ringRun)ringMoving()}) }
   // Behind the ring and the open menu the field holds still (home.css .hush): nothing under their glass changes,
   // so once they rest no frame is drawn at all.
   function hush(){ app.classList.toggle('hush',ring.classList.contains('show')||view==='side') }
-  function showRing(){ ++ringRun; pets.forEach(p=>p.classList.remove('go','on','lifted')); ring.classList.remove('glassy'); ring.classList.add('show'); scrim.classList.add('show'); hush() }
+  function showRing(){ ++ringRun; ground(); pets.forEach(p=>p.classList.remove('go','on','lifted')); ring.classList.remove('glassy'); ring.classList.add('show'); scrim.classList.add('show'); hush() }
   // Start at the hold deadline: all seven share the same frame, without a CSS stagger.
   function openFan(keyboard=false){ fan();if(keyboard&&dir<0)setDir(0) }
   const blocked=el=>el.closest('button,input,textarea,form,.chip,.card,.note,.you,.reply,.opts');
@@ -136,8 +138,33 @@ function openFromRing(id,color,to){
   // The motion tokens, read as the ring opens, before anything on the page changes (so no style is forced).
   function tokens(){ const css=getComputedStyle(root), ms=n=>parseFloat(css.getPropertyValue(n))||0;
     look={fast:ms('--d-fast'),quick:ms('--d-quick'),ease:css.getPropertyValue('--ease-out').trim()||'ease-out'} }
-  function fan(){ opening=true; peak=0; petMotion.forEach(m=>{m.radial.to(1,{spring:springs.pop});m.size.to(1,{spring:springs.lift});m.choice.to(0,{spring:springs.pop});m.face.to(1,{spring:springs.fade})}); settleRing(ringRun) }
-  function setDir(d){ if(d===dir) return; dir=d; const run=++ringRun; ring.classList.toggle('active',d>=0);
+  function fan(){ opening=true; peak=0;
+    if(motionReduced()){ petMotion.forEach(m=>{m.radial.to(1,{spring:springs.pop});m.size.to(1,{spring:springs.lift});m.choice.to(0,{spring:springs.pop});m.face.to(1,{spring:springs.fade})}); settleRing(ringRun); return }
+    // The flight out as compositor animations: both springs sampled every 8 ms from rest, all seven on one clock.
+    const run=ringRun, rest={pop:restTime(springs.pop),lift:restTime(springs.lift)}, T=Math.max(rest.pop,rest.lift);
+    const at=(n,ms)=>ms>=rest[n]?1:response(springs[n],ms/1000).value, grid=[];
+    for(let ms=0;ms<T;ms+=8) grid.push(ms); grid.push(T);
+    const r=grid.map(ms=>at('pop',ms)), z=grid.map(ms=>.2+.8*at('lift',ms));
+    // The glass, as they pass 85% of the way out (they are slowing by then: the spring's speed peaks near 42%). Each
+    // disc fades in whole before that, and its fade then ends (no fill): a disc with an opacity animation still on it
+    // is drawn on its own surface, and its glass would blur only the disc, not what is behind it.
+    let at85=0; while(at('pop',at85)<.85&&at85<T) at85++;
+    petMotion.forEach(m=>m.face.set(1));
+    const anims=petMotion.flatMap((m,i)=>[pets[i].animate(grid.map((ms,k)=>({offset:ms/T,transform:`translate(${m.x*r[k]}px,${m.y*r[k]}px) scale(${z[k]})`})),{duration:T,fill:'forwards'}),
+      pets[i].animate([{opacity:0},{opacity:1}],{duration:Math.round(at85*.8),easing:look.ease})]);
+    flight={run,anims,glass:setTimeout(()=>{ if(flight?.run===run){ opening=false; ring.classList.add('glassy') } },at85)};
+    ringMoving();
+    // The flight is over when the discs' paths are (the fades end well before).
+    Promise.all(anims.filter((a,k)=>k%2===0).map(a=>a.finished)).then(()=>{ if(flight?.run===run) land(1) },()=>{});
+  }
+  // The flight ends, or a choice or release takes it over: the engine carries on from where the discs are, at their speed.
+  function land(done){ if(!flight) return; const t=done?Infinity:(flight.anims[0].currentTime??0)/1000;
+    const at=n=>t===Infinity?{value:1,velocity:0}:response(springs[n],t), r=at('pop'), z=at('lift'), f=done?1:Number(getComputedStyle(pets[0]).opacity);
+    petMotion.forEach(m=>{ m.radial.set(r.value); m.size.set(.2+.8*z.value); m.face.set(f); m.write();
+      if(!done){ m.radial.to(1,{spring:springs.pop,velocity:r.velocity}); m.size.to(1,{spring:springs.lift,velocity:.8*z.velocity}); m.face.to(1,{spring:springs.fade}) } });
+    ground(); settleRing(ringRun) }
+  function ground(){ if(!flight) return; clearTimeout(flight.glass); flight.anims.forEach(a=>a.cancel()); flight=null }
+  function setDir(d){ if(d===dir) return; land(0); dir=d; const run=++ringRun; ring.classList.toggle('active',d>=0);
     const dimmed=root.dataset.theme==='dark'?.6:.55;
     pets.forEach((p,i)=>{ p.classList.toggle('on',i===d); p.classList.remove('lifted'); petMotion[i].choice.to(d<0?0:i===d?.12:-.06,{spring:springs.pop}); petMotion[i].face.to(d<0||i===d?1:dimmed,{spring:springs.fade}) });
     settleRing(run);
@@ -229,7 +256,7 @@ function openFromRing(id,color,to){
     go(to,Math.abs(v)>F?Math.round(Math.min(460,Math.max(180,left/Math.abs(v)*1.8))):undefined,{b:axis==='brief'?v*1000/app.clientWidth:0,s:axis==='side'?-v*1000/side.offsetWidth:0});
     if(to!==from){ haptic('commit'); if(to==='brief'||to==='side') learn(to) } }
   function close(commit){ clearTimeout(holdT); press.classList.remove('on');
-    if(open){ const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
+    if(open){ land(0); const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
       const run=++ringRun; opening=false;
       if(chosen>=0){ const p=pets[chosen]; p.classList.add('go'); haptic('commit'); const to=APPS[chosen][3]; if(to){ const r=p.getBoundingClientRect(); launchFrom(r.left+r.width/2,r.top+r.height/2); openFromRing(apps[chosen].id,APPS[chosen][2],to) } else toast(APPS[chosen][0]+' comes later') }
       // The chosen disc carries on out and grows as it fades; the others fold back into the finger. Their glass
