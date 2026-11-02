@@ -100,7 +100,7 @@ To add (P1):
 
 | Test | Acceptance |
 |---|---|
-| `routes.json` stubs | After `stage.mjs`, each shell route has `<route>/index.html` byte-equal to `index.html`; no route in `routes.json` is a ported folder |
+| App route copies | `stage.mjs` gives each route in `APP_ROUTES` (`scripts/site-config.mjs`) a copy of `index.html`, never over a page already there; `tests/site.test.mjs` counts links to those routes as resolved |
 | `precache.json` | Lists every staged file except `vendor/`, stubs, ported folders and `/assets/`; sizes match |
 | Vendored files | Each `vendor/<lib>-<ver>/` has a LICENSE and its files match the sha256 recorded in `vendor/manifest.json` |
 | Licence list | No dependency in `package-lock.json` has a GPL, AGPL or non-commercial licence. Named exception: libmedia under `/assets/libmedia/`, used only by `/astra/` (owner ruling 2026-10-28); the test fails if any other page loads it |
@@ -128,7 +128,7 @@ To add (P1b, `tests/ported.test.mjs`) **[proposal]**:
 
 ### 5.1 Frontend unit
 
-Any logic without DOM lives in its own module and has a `node --test` next to it under `tests/unit/`. Examples: `outbox.js` with a fake clock (back-off 30 s → 15 min; drop `sys.*` first at 5,000 events); the `TH-Client` parser; `logicalDay()`; colour token contrast (WCAG 2.2 AA pairs).
+Any logic without DOM lives in its own module and has a `node --test` in `tests/` (`*-logic.test.mjs`). Examples: the quiet grammar (`tests/quiet-logic.test.mjs`), phone commands (`tests/commands-logic.test.mjs`); the `TH-Client` parser; `logicalDay()`; colour token contrast (WCAG 2.2 AA pairs).
 
 ### 5.2 Backend (Vitest on workerd)
 
@@ -220,16 +220,6 @@ PITR can't run locally (it isn't supported in local development). It is covered 
 
 ## 10. Browser tests (layer 10)
 
-### 10.1 Projects **[proposal]**
-
-| Project | Viewport (CSS px) | DPR | Touch | Notes |
-|---|---|---|---|---|
-| `a15` | 384 × 832 **[unverified until measured on the phone]** | 2.8125 | yes | UA `Android 14; SM-A155F` Chrome |
-| `tall` | 390 × 844 | 2 | yes | Today's test size |
-| `small` | 360 × 740 | 3 | yes | Smallest supported |
-
-Each project runs in day, night and reduced motion. Gesture tests drive real touch through CDP `Input.dispatchTouchEvent` (Playwright's `touchscreen` only taps). Today's suite uses the mouse, which still exercises pointer events.
-
 ### 10.2 Required suites
 
 | Suite | Acceptance |
@@ -237,7 +227,7 @@ Each project runs in day, night and reduced motion. Gesture tests drive real tou
 | Clean load | Zero console errors (CSP violations show up as errors); no sideways scroll |
 | Gestures | Hold 220 ms → ring; slide → label; release → open; centre release cancels; swipe right → briefing; swipe left → menu; edge starts (< 24 px) ignored. Values from [GESTURES.md](../design/GESTURES.md) |
 | Overlays and Back | Briefing, menu, `+` sheet and apps are history entries; Back closes the top one; Back at home root leaves |
-| Mount hygiene | Each shell app (Study, and any ported app later folded into the shell) mounts and unmounts 20 times; DOM nodes and counted listeners return to baseline ±5% |
+| Mount hygiene | None: shell apps share no mount interface ([ARCHITECTURE.md §7](ARCHITECTURE.md#7-the-frontend-the-shell-its-apps-and-the-ported-apps)) |
 | Ported pages (P1b) | Each ported page opens from the ring by navigation and loads with no 404 and no CSP violation, against a local stand-in for the old Worker that allows the site origin; its own service worker (if any) registers at its folder scope and the shell's worker still serves `/` |
 | Offline | `context.setOffline(true)`: the shell opens from the SW; a typed message shows the outbox copy; it sends on reconnect |
 | Conversation (P2, `tests/chat-browser.test.mjs`) | Against the mocked Worker and its live socket (`page.routeWebSocket`), day and night at 390×844: first-run line; a reply over the socket reveals in Fraunces italic with its chip, which opens the app; "…" at 1.2 s and "Waking up…" at 8 s with the edge thinking (Playwright clock); the honest line, error edge and voice row 3; offline outbox sends once on reconnect; three failed tries show "Didn't send · Retry"; Stop keeps focus while the clock ticks and works from the keyboard; a verb run on the phone with its undo, and `unsupported_verb`; a home line and the generic card; changes during a slow load and a load that fails once still reach the screen; a failed message left in the outbox shows only its meta; IndexedDB refusing writes loses nothing; concurrent outbox writes all land; sign-out with an unsent message asks first. `SHOTS=<dir>` keeps the screenshots |
@@ -342,3 +332,13 @@ Generated at test start from a fixed seed, never committed as data. Year-2 sizes
 | T3 | Does local workerd `rowsWritten` match production billing? | Compare the meter with the Cloudflare dashboard after one week (DATA.md D2) |
 | T4 | How long does the full `npm test` take on the GitHub runner at P2? | Read CI timings; split layers if over 3 min |
 | T5 | Can CDP `Input.dispatchTouchEvent` reproduce the hold-and-slide gesture faithfully enough? | Compare with a device trace of the same gesture |
+
+---
+
+## Not built
+
+Sections once marked as proposals that are not built and not in PLAN.md; their full text is in
+[archive/NOT-BUILT-2026-11-02.md](../archive/NOT-BUILT-2026-11-02.md).
+
+- **§10.1 Projects.** The browser suites at three phone sizes (`a15` 384 × 832, `tall` 390 × 844, `small` 360 × 740), each in day, night and reduced motion, with real touch.
+  Not built: the suites run at 390 × 844 (AGENTS.md's phone size) with the mouse.

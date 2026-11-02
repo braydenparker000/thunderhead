@@ -68,6 +68,15 @@ export const due = (db: Db, now: number, limit: number) =>
     limit,
   );
 
+/** Set reminders delivered before `until`, soonest first (the Briefing's Due tile): at most
+ * `limit`, on the partial index by delivery time, so the rows read are the rows shown. */
+export const dueBefore = (db: Db, until: number, limit: number) =>
+  db.all<{ id: string; text: string; fire_at: number }>(
+    "SELECT id, text, fire_at FROM reminders WHERE state = 'set' AND fire_at < ? ORDER BY fire_at, id LIMIT ?",
+    until,
+    limit,
+  );
+
 /** Set reminders soonest first, then those delivered or taken back since `since`, newest first. */
 export function list(db: Db, since: number): ReminderRow[] {
   return [

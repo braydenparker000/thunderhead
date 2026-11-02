@@ -132,7 +132,9 @@ const budgets = [
   ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 65_000],
   // The Briefing page, loaded after the first paint.
   // + skeletons, pull to refresh and the owner's arrangement of the tiles (2026-10-30).
-  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 20_000],
+  // (2026-11-02) 20,000 → 24,000: + Due and its sheet (due.js, loaded on tap), Holidays, the day's
+  // line, tomorrow on the weather tile and the night line: 19,199 → 23,588 bytes.
+  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 24_000],
   // (2026-10-31) + the menu as a page with day cards, the ring's layers, the docked card, the pinned
   // line and time chip, the Briefing's hero and the 44 px hit areas.
   // (2026-11-02, T1a) 68,000 → 76,000: every motion and type value now goes through a token
@@ -140,9 +142,10 @@ const budgets = [
   // 1,253 bytes gzipped against 5f7cdd9. The site is served uncompressed (ARCHITECTURE.md §5, the
   // brotli proposal); when compressed uploads land, this budget moves to compressed bytes.
   ['settings CSS bytes', sum(/^apps\/settings\/.*\.css$/), 11_484], // Task B: never exceed the measured pre-redesign CSS.
-  // (2026-11-02, night chat) 76,000 → 76,700: the working card and the line under the ask bar, less
-  // the thinking words' shimmer (chat.css 12,025 → 14,807): measured 76,652 bytes.
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 76_700],
+  // (2026-11-02, night chat) 76,000 → 77,400: the working card and the line under the ask bar, less
+  // the thinking words' shimmer (chat.css 12,025 → 14,807, +2,782 over main's 74,591): measured
+  // 77,373 bytes.
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 77_400],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 20_000],
   // One face since 2026-10-31: Switzer, variable 100–900 (43.2 KB, the official file, never subset:

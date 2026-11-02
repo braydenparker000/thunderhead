@@ -41,13 +41,24 @@ async function getJson(url: URL): Promise<Record<string, unknown>> {
   return (await r.json()) as Record<string, unknown>;
 }
 
-/** The first place by that name, or null, its coordinates rounded to 0.1°. */
-export async function findPlace(name: string): Promise<Place | null> {
+/** The first place by that name, or null, its coordinates rounded to 0.1°, with its country
+ * (ISO 3166-1 alpha-2) when the geocoder gives one: the Holidays tile's `owner.country`. */
+export async function findPlace(name: string): Promise<(Place & { country: string | null }) | null> {
   const u = new URL('https://geocoding-api.open-meteo.com/v1/search');
   for (const [k, v] of Object.entries({ name, count: '1', language: 'en', format: 'json' })) u.searchParams.set(k, v);
-  const p = ((await getJson(u)).results as { name?: string; latitude?: number; longitude?: number }[] | undefined)?.[0];
+  const p = (
+    (await getJson(u)).results as
+      | { name?: string; latitude?: number; longitude?: number; country_code?: unknown }[]
+      | undefined
+  )?.[0];
   if (!p?.name || typeof p.latitude !== 'number' || typeof p.longitude !== 'number') return null;
-  return { name: p.name.slice(0, 24), lat: round1(p.latitude), lon: round1(p.longitude) };
+  const cc = typeof p.country_code === 'string' ? p.country_code.toUpperCase() : '';
+  return {
+    name: p.name.slice(0, 24),
+    lat: round1(p.latitude),
+    lon: round1(p.longitude),
+    country: /^[A-Z]{2}$/.test(cc) ? cc : null,
+  };
 }
 
 export async function forecastFor(p: Place, now: number): Promise<Forecast> {

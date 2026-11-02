@@ -139,7 +139,7 @@ Rules:
 | **GitHub** | Code, workflow logs, PR and commit text, all public | Repo and Actions | Nothing personal, ever (§6) |
 | **Have I Been Pwned** (Pwned Passwords range API, served via Cloudflare) | The first 5 hex characters of the SHA-1 of a new password, with `Add-Padding: true` | Breach check when a password is set | Called from the Worker, so it sees Cloudflare's IP, not the phone's; never at sign-in |
 | **Google push service** (Chrome on Android; Apple's on iOS) | The endpoint, timing and size of each push; the payload is encrypted | Delivering pushes | Payload is only `{k, id}` (§8) |
-| **Weather provider** for the Briefing | The town's name the owner types, once, to its geocoder; then coordinates rounded to 0.1° (about 11 km), never device GPS | Weather card | Open-Meteo (built, P8), called from the Worker; no key, nothing that identifies the owner. The place is kept only in Core's settings |
+| **Weather provider** for the Briefing | The town's name the owner types, once, to its geocoder; then coordinates rounded to 0.1° (about 11 km), never device GPS | Weather card | Open-Meteo (built, P8), called from the Worker; no key, nothing that identifies the owner. The place is kept only in Core's settings, and so is the country its geocoder names (`owner.country`, 2026-11-02, for the Holidays tile; the holiday list is in the repo, nothing about it is fetched) |
 | **Muse** (a separate AI agent on its own plan) | Only the work orders and briefs addressed to it, and its own thread | Routine jobs (none yet; the Daily Board was cut, 2026-10-31) and the music uploads | Its key reaches only `/v1/work/*` and its own thread; never memory, events or files |
 | **Workers AI** (deferred for v1) | When enabled: only the text a task needs | Small fast models | Same processor as the backend (Cloudflare); no sensitivity-1 text in v1 of that feature **[proposal]** |
 | **Scripture source site** (Study) | Nothing, until the owner taps a link | Scripture text comes from the owner's own licensed copies, stored privately in `thunderhead-private` behind sign-in, never in the repo (owner ruling 2026-10-27). Talks and other published source material are cited by paragraph with a link to the source | Link only for talks |
@@ -233,12 +233,6 @@ Acceptance: a unit test of the notification builder over every kind, with detail
 
 Deletes are `delete`-class proposals when the **mind** asks for them; when the **owner** does them from the UI, the tap is the approval. Each owner delete has a 10-second Undo toast, then it's final. **[proposal]**
 
-### 10.2 Erase everything **[proposal]**
-- Settings → Privacy → "Erase everything". The sheet asks for the password and the typed word `ERASE`.
-- What goes: every `Core`, `Senses`, `Music` and `Library` table; everything in `thunderhead-private` (including backups, the events archive and the listening pass's files); all sessions except this one; all agent keys; all push subscriptions.
-- What stays, said plainly on the sheet: the account itself (so the owner can still sign in); the music audio in `jarvis-music` (the system never deletes from it, by decision); Cloudflare's own logs (expire in 3–7 days); the owner's Claude session history (delete it in Claude); the old Worker until it is retired; the ported apps' own phone storage until their data moves (cleared from the phone's site settings).
-- Timing: 7 days during which everything is hidden and "Cancel erase" is offered on every device; then a chunked job deletes, and the ledger keeps one line: "Everything was erased on {date}."
-
 ### 10.3 Backups and deleted data
 Backups keep 8 weekly and 12 monthly sets, so a single deleted item can survive in a backup for up to 12 months. Conversations off the record never enter a backup or an export, so none outlives its 7 days there; a deleted conversation leaves every backup and export made after its Delete, though one made before keeps it until that backup ages out. Restoring a backup re-applies the ledger's delete tombstones made since that backup, so deleted items don't come back. **[proposal]** Erase everything deletes the backups too.
 
@@ -259,3 +253,13 @@ Acceptance: delete a message on fixtures, take a backup, restore an older backup
 | T26 | Is Azure Storage analytics logging off by default on the new account? | Owner checks Monitoring → Diagnostic settings on the account |
 | T27 | Which weather provider, and does its terms allow personal use at $0? | Writer of BRIEFING.md decides; record in decisions.md |
 | T28 | Exact current Anthropic retention for consumer Claude Code sessions with "Help improve Claude" off | Read the live privacy settings and policy page once; record the answer here |
+
+---
+
+## Not built
+
+Sections once marked as proposals that are not built and not in PLAN.md; their full text is in
+[archive/NOT-BUILT-2026-11-02.md](../archive/NOT-BUILT-2026-11-02.md).
+
+- **§10.2 Erase everything.** Settings → Privacy, the password and the word `ERASE`: every table and private file goes after 7 days in which it can be cancelled.
+  Not built and not in PLAN.md; Export and a conversation's Delete are built.
