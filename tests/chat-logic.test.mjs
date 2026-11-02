@@ -71,7 +71,7 @@ test('the working card: at once for a title, at 1.5 s for a live mind, "Waking u
   const reply = msg({ id: 'r', seq: 2, author: 'mind', created_at: 12_500 });
   assert.equal(w(14_600, titled, [asked, reply, again], again)?.title, 'Thinking', 'a reply between ends the run');
   // A command, flag or file path never shows: the words from the message do.
-  for (const note of ['Run node --test tests/chat.test.mjs', 'Read src/app.js', 'ls /tmp/x', 'Use `th status`'])
+  for (const note of ['Run node --test tests/chat.test.mjs', 'Read src/app.js', 'ls /tmp/x', 'Fetch https://example.org/feed', 'Use `th status`'])
     assert.equal(w(12_000, { ...presence('working'), since: 11_000, note })?.title, 'Thinking about your music', note);
   assert.equal(m.plain('Comparing two albums'), 'Comparing two albums');
   assert.equal(w(20_000, presence('failed')), null);

@@ -104,9 +104,9 @@ const budgets = [
   // (2026-10-31, later) + the status chip, the mind's lines as cards and the catch-up line after
   // quiet, in place of the voice line (HOME.md §2).
   // (2026-11-01) + off the record: its conversation shown in place of today's, its outbox, no cache.
-  // (2026-11-02, night chat) 97,000 → 107,500: the working card (th/chat/working.js, 7,134 bytes;
+  // (2026-11-02, night chat) 97,000 → 107,500: the working card (th/chat/working.js, 7,100 bytes;
   // its logic in model.js) and a reply's choice, less the reply slot's thinking words and Stop:
-  // measured 107,418 bytes, 10,537 over main's 96,881.
+  // measured 107,441 bytes, 10,560 over main's 96,881.
   ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 107_500],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
