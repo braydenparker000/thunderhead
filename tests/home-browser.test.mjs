@@ -28,13 +28,15 @@ async function open(theme = 'light', path = '/') {
   await page.waitForTimeout(400);
   return { page, errors };
 }
+const whenResting = page => page.evaluate(async () => (await import('/th/motion.js')).whenResting());
+const ringRest = async page => { await page.waitForFunction(() => document.querySelector('#ring').classList.contains('show')); await whenResting(page); };
 const drag = async (page, x0, x1, y = 300) => {
   await page.mouse.move(x0, y); await page.mouse.down();
   await page.mouse.move(x0 + (x1 - x0) * 0.3, y, { steps: 4 }); await page.mouse.move(x1, y, { steps: 8 });
   await page.mouse.up();
   // The engine restores the page's stylesheet transition once both progress axes rest.
   // Wait for that completion as well as any remaining decorative CSS transitions.
-  await page.waitForTimeout(50);
+  await whenResting(page);
   await page.waitForFunction(() => ['home', 'brief', 'side', 'dim'].every(id => document.getElementById(id).style.transition !== 'none') && !document.getAnimations().some(a => a instanceof CSSTransition && a.playState === 'running'), null, { timeout: 3000 });
 };
 // `+ 0` turns -0 into 0.
@@ -70,9 +72,9 @@ test('the page refuses to show inside a frame', async () => {
 
 test('holding still opens the Compass ring; sliding picks an app', async () => {
   const { page, errors } = await open();
-  await page.mouse.move(200, 300); await page.mouse.down(); await page.waitForTimeout(320);
+  await page.mouse.move(200, 300); await page.mouse.down(); await ringRest(page);
   assert.ok(await page.$eval('#ring', el => el.classList.contains('show')), 'ring opens');
-  await page.mouse.move(200, 230, { steps: 5 }); await page.waitForTimeout(150);
+  await page.mouse.move(200, 230, { steps: 5 }); await whenResting(page);
   assert.equal(await page.textContent('#lbl'), 'Music');
   // The app itself is checked in tests/ported-browser.test.mjs; here only the hand-off counts. Music
   // opens as a layer inside home (th/island, HOME.md §12.1): home stays, the app is in its frame.
@@ -84,16 +86,76 @@ test('holding still opens the Compass ring; sliding picks an app', async () => {
   await page.close();
 });
 
+test('the ring flies out together in 120 ms, overshoots on pop, and uses flat discs until rest', async () => {
+  const { page, errors } = await open();
+  // The browser's page clock isolates the trajectory from runner scheduling. Rendering/frame cost
+  // is measured separately in the opt-in Frames readout on the device.
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await page.evaluate(() => {
+    window.ringPoint = (type, x = 200, y = 420) => document.querySelector('#app').dispatchEvent(new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 19, clientX: x, clientY: y }));
+    window.ringPoint('pointerdown');
+  });
+  await page.clock.runFor(220);
+  const start = await page.evaluate(() => {
+    const pets = [...document.querySelectorAll('#ring .pet')];
+    return { time: performance.now(), moving: document.querySelector('#ring').classList.contains('moving'), pets: pets.map(p => {
+      const css = getComputedStyle(p), m = new DOMMatrix(css.transform);
+      return { radius: Math.hypot(m.m41, m.m42), scale: m.a, blur: css.backdropFilter, shadow: css.boxShadow, layer: getComputedStyle(p, '::before').visibility };
+    }) };
+  });
+  assert.equal(start.moving, true);
+  assert.equal(start.pets.length, 7);
+  for (const p of start.pets) {
+    assert.equal(p.radius, 0); assert.equal(p.scale, .2);
+    assert.equal(p.blur, 'none'); assert.equal(p.shadow, 'none'); assert.equal(p.layer, 'hidden');
+  }
+  let reached;
+  for (let ms = 16; ms <= 112; ms += 16) {
+    await page.clock.runFor(16);
+    const frame = await page.evaluate(() => ({ time: performance.now(), radii: [...document.querySelectorAll('#ring .pet')].map(p => {
+      const m = new DOMMatrix(getComputedStyle(p).transform); return Math.hypot(m.m41, m.m42);
+    }) }));
+    assert.ok(Math.max(...frame.radii) - Math.min(...frame.radii) < .01, 'no stagger');
+    if (frame.radii.every(r => r >= 62 * .9)) { reached = frame.time - start.time; break; }
+  }
+  assert.ok(reached > 0 && reached <= 120, `all seven reach 90% radius in ${reached} ms`);
+  await page.clock.runFor(600); await whenResting(page);
+  assert.equal(await page.$eval('#ring', r => r.classList.contains('moving')), false);
+  await page.$eval('#ring .pet', p => Promise.all(p.getAnimations({ subtree: true }).map(a => a.finished)));
+  assert.equal(await page.$eval('#ring .pet', p => getComputedStyle(p, '::before').opacity), '1');
+  await page.evaluate(() => window.ringPoint('pointermove', 200, 350));
+  assert.equal(await page.$eval('#ring', r => r.classList.contains('moving')), true);
+  let peak = 1;
+  for (let i = 0; i < 30; i++) {
+    await page.clock.runFor(16);
+    peak = Math.max(peak, await page.$eval('#ring .pet', p => new DOMMatrix(getComputedStyle(p).transform).a));
+  }
+  await whenResting(page);
+  // Overshoot is relative to the .12 scale step, just as the engine measures relative travel.
+  const overshoot = (peak - 1.12) / .12;
+  assert.ok(overshoot >= .08 && overshoot <= .16, `chosen scale overshoot ${overshoot * 100}%`);
+  const scales = await page.$$eval('#ring .pet', pets => pets.map(p => new DOMMatrix(getComputedStyle(p).transform).a));
+  assert.ok(Math.abs(scales[0] - 1.12) < .001);
+  assert.ok(scales.slice(1).every(s => Math.abs(s - .94) < .001));
+  assert.equal(await page.$eval('#ring', r => r.classList.contains('moving')), false);
+  await page.evaluate(() => window.ringPoint('pointercancel'));
+  await page.clock.runFor(600); await whenResting(page);
+  assert.equal(await page.$eval('#ring', r => r.classList.contains('show')), false);
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
 test('the ring keeps its pick until the finger is clearly past the boundary (~7 degrees)', async () => {
   const { page, errors } = await open();
   const cx = 200, cy = 420;
-  await page.mouse.move(cx, cy); await page.mouse.down(); await page.waitForTimeout(320);
+  await page.mouse.move(cx, cy); await page.mouse.down(); await ringRest(page);
   // angles are measured from where the thumb went down (here the ring's centre too: nothing is clamped)
   const [rx, ry] = [cx, cy];
   const from = deg => [rx + 60 * Math.sin(deg * Math.PI / 180), ry - 60 * Math.cos(deg * Math.PI / 180)];
   // Seven apps: sectors of 360/7 ≈ 51.4°, Music's edge at 25.7°, held until ~7° past it (32.7°) and back (18.7°).
   for (const [deg, want] of [[0, 'Music'], [24, 'Music'], [31, 'Music'], [36, 'Guitar'], [22, 'Guitar'], [15, 'Music'], [-31, 'Music'], [-36, 'Photos']]) {
-    await page.mouse.move(...from(deg), { steps: 4 }); await page.waitForTimeout(80);
+    await page.mouse.move(...from(deg), { steps: 4 }); await whenResting(page);
     assert.equal(await page.textContent('#lbl'), want, `at ${deg} degrees`);
   }
   await page.mouse.move(rx, ry); await page.mouse.up();
@@ -105,10 +167,10 @@ test('near an edge the ring moves in, but a straight swipe up still picks Music'
   // Owner, 2026-10-31: quick swipes missed. The ring is pulled in from the edge to fit; direction is
   // measured from where the thumb went down, so the thumb's own line counts, not the ring's centre.
   const { page, errors } = await open();
-  await page.mouse.move(355, 520); await page.mouse.down(); await page.waitForTimeout(320);
+  await page.mouse.move(355, 520); await page.mouse.down(); await ringRest(page);
   const rx = await page.$eval('#ring', el => el.getBoundingClientRect().left);
   assert.ok(rx < 330, `the ring is pulled in from the edge (centre at ${rx})`);
-  await page.mouse.move(355, 480, { steps: 4 }); await page.waitForTimeout(80);
+  await page.mouse.move(355, 480, { steps: 4 }); await whenResting(page);
   assert.equal(await page.textContent('#lbl'), 'Music');
   await page.mouse.move(355, 520, { steps: 2 }); await page.mouse.up();
   assert.deepEqual(errors, []);
@@ -174,7 +236,7 @@ test('springs preserve drag reversals, cross-axis navigation, regrabs and a reop
   await page.waitForTimeout(100);
   await page.keyboard.press('Escape');
   await page.evaluate(() => document.querySelector('[data-skip="apps"]').click());
-  await page.waitForTimeout(800);
+  await ringRest(page);
   assert.ok(await page.$eval('#ring', r => r.classList.contains('show')), 'an old close cannot hide a reopened ring');
   assert.ok(await page.$eval('#ring .pet', p => Math.abs(new DOMMatrix(getComputedStyle(p).transform).m42 + 62) < .1));
   assert.deepEqual(errors, []);

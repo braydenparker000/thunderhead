@@ -29,7 +29,7 @@ after(async () => { await browser?.close(); server?.close(); });
 
 const msg = (i, author, body) => ({ seq: i, id: `0192f0c4-0000-7000-8000-${String(i).padStart(12, '0')}`, thread_id: '0192f0c4-0000-7000-8000-0000000000aa', author, origin: author === 'owner' ? 'owner_device' : 'mind', kind: 'text', body, meta: author === 'mind' ? { chip: { label: 'Open in Music', app: 'music', path: '/music/' } } : null, attachments: [], reply_to: null, created_at: Date.now() - (40 - i) * 60_000, delivered_at: null, acked_at: null, answered_at: Date.now() });
 
-async function open({ reducedMotion = 'no-preference', path = '/', signedIn = true, touch = false } = {}) {
+async function open({ reducedMotion = 'no-preference', path = '/', signedIn = true, touch = false, beforeLoad } = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', reducedMotion, ...(touch ? { hasTouch: true, isMobile: true } : {}) });
   const page = await context.newPage();
   const errors = [];
@@ -37,6 +37,7 @@ async function open({ reducedMotion = 'no-preference', path = '/', signedIn = tr
   await page.addInitScript(() => { try { localStorage.setItem('th.p.sent', '1'); } catch {} });
   const messages = Array.from({ length: 16 }, (_, i) => msg(i + 1, i % 2 ? 'mind' : 'owner', i % 2 ? 'Done. It is in Music, under Evening.' : 'Put on something calm'));
   await mockApi(page, { chat: { messages }, briefing: briefingState() });
+  await beforeLoad?.(page);
   if (signedIn) {
     await page.goto(`${base}/no-such-page`);
     await page.evaluate((token) => new Promise((resolve) => { const req = indexedDB.open('th-auth', 1); req.onupgradeneeded = () => req.result.createObjectStore('kv'); req.onsuccess = () => { const tx = req.result.transaction('kv', 'readwrite'); tx.objectStore('kv').put({ session_id: 's1', token, signed_in_at: Date.now(), username: 'example-owner' }, 'session'); tx.oncomplete = () => { req.result.close(); resolve(); }; }; }), TOKEN);
@@ -54,6 +55,65 @@ const blurs = (page) => page.evaluate(() => [...document.querySelectorAll('body 
   return r.width > 0 && r.height > 0 && r.right > 0 && r.left < innerWidth && r.bottom > 0 && r.top < innerHeight && getComputedStyle(e).visibility !== 'hidden' && Number(getComputedStyle(e).opacity) > 0;
 }).map((e) => e.id || e.className));
 const go = (page, view) => page.evaluate((v) => document.dispatchEvent(new CustomEvent('th:go', { detail: v })), view);
+
+test('idle parses menu and Settings; moving surfaces are flat and rows have no entrance delay', opts, async () => {
+  const { page, context, errors } = await open();
+  try {
+    await page.waitForFunction(() => ['/th/convos/menu.js', '/apps/settings/settings.js', '/apps/settings/home.js'].every(path => performance.getEntriesByType('resource').some(r => new URL(r.name).pathname === path)));
+    const moving = await page.evaluate(() => {
+      const side = document.querySelector('#side'), app = document.querySelector('#app');
+      const point = (type, x) => app.dispatchEvent(new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 29, clientX: x, clientY: 300 }));
+      point('pointerdown', 330); point('pointermove', 150);
+      const field = getComputedStyle(side.querySelector('.field')), row = getComputedStyle(side.querySelector('.row'));
+      const state = { moving: side.classList.contains('moving'), blur: getComputedStyle(side).backdropFilter, field: field.visibility, row: row.opacity, rowAnimation: row.animationName, dim: document.querySelector('#dim').style.transition, home: document.querySelector('#home').style.transition };
+      point('pointerup', 150); return state;
+    });
+    assert.deepEqual(moving, { moving: true, blur: 'none', field: 'hidden', row: '1', rowAnimation: 'none', dim: 'none', home: 'none' });
+    await page.evaluate(async () => (await import('/th/motion.js')).whenResting());
+    assert.equal(await page.$eval('#side', s => s.classList.contains('moving')), false);
+    await page.click('#settings');
+    await page.waitForSelector('.spage.in .sfield');
+    await page.waitForFunction(() => !document.querySelector('.spage').classList.contains('moving'));
+    const panel = await page.$eval('.spage > .field', field => ({ visible: getComputedStyle(field).visibility, blur: getComputedStyle(field).backdropFilter, transition: getComputedStyle(field).transitionProperty }));
+    assert.equal(panel.visible, 'visible'); assert.match(panel.blur, /blur/); assert.equal(panel.transition, 'opacity');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('first-open Settings has content on its first visible slide frame, even before idle finishes', opts, async () => {
+  let release, requested;
+  const held = new Promise(resolve => { release = resolve; }), arrived = new Promise(resolve => { requested = resolve; });
+  const { page, context, errors } = await open({ beforeLoad: page => page.route('**/apps/settings/home.js', async route => { requested(); await held; await route.continue(); }) });
+  try {
+    await arrived;
+    await (await context.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: 6 });
+    await go(page, 'side');
+    await page.evaluate(async () => (await import('/th/motion.js')).whenResting());
+    await page.evaluate(() => {
+      window.firstSettingsFrame = null;
+      const watch = new MutationObserver(records => {
+        const page = records.flatMap(r => [...r.addedNodes]).find(n => n instanceof Element && n.matches('.spage'));
+        if (page) {
+          watch.disconnect();
+          // Insertion's first rAF can still be wholly offscreen while a cached import resolves.
+          // Assert the first displayed slide frame, the same start used by the Frames readout.
+          const sample = () => {
+            if (page.getBoundingClientRect().left >= document.querySelector('#app').getBoundingClientRect().right) { requestAnimationFrame(sample); return; }
+            window.firstSettingsFrame = { row: Boolean(page.querySelector('.sbody .sfield')), moving: page.classList.contains('moving') };
+          };
+          requestAnimationFrame(sample);
+        }
+      });
+      watch.observe(document.querySelector('#app'), { childList: true });
+      document.querySelector('#settings').click();
+    });
+    assert.equal(await page.locator('.spage').count(), 0, 'a pending module cannot reveal an empty page');
+    release();
+    await page.waitForFunction(() => window.firstSettingsFrame !== null);
+    assert.deepEqual(await page.evaluate(() => window.firstSettingsFrame), { row: true, moving: true });
+    assert.deepEqual(errors, []);
+  } finally { release(); await context.close(); }
+});
 
 test('at most two surfaces blur what is behind them, in every view', opts, async () => {
   const { page, context, errors } = await open();

@@ -3,7 +3,7 @@
 import { apps } from '/th/registry/apps.js';
 import { from as launchFrom, launch } from '/ui/launch.js';
 import { startPinned } from './pinned.js';
-import { animator, springs, haptic, motionReduced } from '/th/motion.js';
+import { animator, springs, haptic } from '/th/motion.js';
 
 // Music and Podcasts open as a layer inside home and keep playing behind the chat (th/island); the
 // others load in their place. The reveal starts at once; the layer's code loads while it grows.
@@ -88,7 +88,7 @@ function openFromRing(id,color,to){
 
   // Compass: hold an empty spot ~220 ms, a tight ring of apps springs out around the finger; slide toward one, let go to open.
   // Seven directions, clockwise from the top; an app not shipped yet (Photos) says it comes later. Each app keeps its own
-  // glass disc (owner, 2026-10-31); the chosen one is drawn by fading layers in it (home.css), never by repainting under its blur.
+  // glass disc at rest; a moving disc is flat and its glass layer fades back after the engines rest.
   const APPS=apps.map(a=>[a.name,`<span class="fill" aria-hidden="true"></span><svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}-bold"/></svg><svg class="i ph on" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}-bold"/></svg>`,a.color,a.built?a.path:'']);
   // A choice holds until the finger is ~7 degrees past its sector's edge, whatever the number of apps (GESTURES.md §3.2).
   // Direction is measured from where the thumb went down, not from the ring's drawn centre: near an edge the ring
@@ -97,35 +97,30 @@ function openFromRing(id,color,to){
   const ring=$('#ring'), scrim=$('#scrim'), lbl=$('#lbl'), hub=$('#hub'), press=$('#press'), app=$('#app'), R=62;
   const pets=APPS.map(([n,svg,c],i)=>{const p=document.createElement('div');p.className='pet';p.innerHTML=svg;p.title=n;p.style.setProperty('--c',c);p.style.setProperty('--i',i);ring.appendChild(p);return p});
   let start=null, open=false, dir=-1, holdT=null;
-  let ringRun=0, showing=0;
-  // Keep the existing opacity transition; transforms belong to the engine while it moves.
-  function opacityOnly(el){
-    el.style.transition='';
-    const s=getComputedStyle(el), list=v=>v.split(/,(?![^()]*\))/).map(x=>x.trim());
-    const i=list(s.transitionProperty).indexOf('opacity');
-    const part=v=>{const a=list(v);return a[i%a.length]};
-    el.style.transition=i<0?'none':`opacity ${part(s.transitionDuration)} ${part(s.transitionTimingFunction)} ${part(s.transitionDelay)}`;
-  }
+  let ringRun=0;
   const petMotion=pets.map((p,i)=>{
     const draw=()=>{p.style.transform=`translate(${R*Math.sin(i*SEC)*radial.value}px,${-R*Math.cos(i*SEC)*radial.value}px) scale(${.2+.8*radial.value+choice.value})`};
     const radial=animator(draw,{unit:'scalar'}), choice=animator(draw,{unit:'scalar'});
-    return {radial,choice};
+    const opacity=animator(v=>{p.style.opacity=String(Math.max(0,Math.min(1,v)))},{unit:'opacity'});
+    return {radial,choice,opacity};
   });
-  const petsRest=()=>Promise.all(petMotion.flatMap(m=>[m.radial.whenResting(),m.choice.whenResting()]));
-  function releasePetStyles(run){ petsRest().then(()=>{if(run===ringRun)pets.forEach(p=>{void getComputedStyle(p).transform;p.style.transition=''})}) }
-  function showRing(){ ++ringRun; ++showing; pets.forEach(p=>{p.classList.remove('go','on');p.style.opacity=''}); ring.classList.add('show'); scrim.classList.add('show') }
-  // Keep the existing opening frame; a choice made before it arrives must survive it.
-  function openFan(keyboard=false){ const run=showing, begin=()=>{if(open&&run===showing){fan();if(keyboard&&dir<0)setDir(0)}}; if(motionReduced())begin();else requestAnimationFrame(begin) }
+  const engines=()=>petMotion.flatMap(m=>[m.radial,m.choice,m.opacity]);
+  const petsRest=()=>Promise.all(engines().map(m=>m.whenResting()));
+  function ringMoving(){ ring.classList.toggle('moving',engines().some(m=>!m.resting)) }
+  function settleRing(run){ ringMoving(); petsRest().then(()=>{if(run===ringRun)ringMoving()}) }
+  function showRing(){ ++ringRun; pets.forEach(p=>p.classList.remove('go','on')); ring.classList.add('show'); scrim.classList.add('show') }
+  // Start at the hold deadline: all seven share the same frame, without a CSS stagger.
+  function openFan(keyboard=false){ fan();if(keyboard&&dir<0)setDir(0) }
   const blocked=el=>el.closest('button,input,textarea,form,.chip,.card,.note,.you,.reply,.opts');
   function place(x,y){ const r=app.getBoundingClientRect(); const m=R+30;
     const cx=Math.min(Math.max(x-r.left,m),r.width-m), cy=Math.min(Math.max(y-r.top,m+30),r.height-m-40);
     ring.style.left=cx+'px'; ring.style.top=cy+'px';
     lbl.style.top=(R+30)+'px'; return {cx:cx+r.left,cy:cy+r.top} }
   // Out on the spring; the chosen disc swells a little and the others ease back (transform only: the compositor's).
-  function fan(){ pets.forEach((p,i)=>{opacityOnly(p);petMotion[i].radial.to(1,{spring:springs.ring});petMotion[i].choice.to(dir<0?0:i===dir?.12:-.06,{spring:springs.pop})}); releasePetStyles(ringRun) }
-  function setDir(d){ if(d===dir) return; dir=d; const run=++ringRun; ring.classList.toggle('active',d>=0); pets.forEach((p,i)=>{ p.classList.toggle('on',i===d); opacityOnly(p); petMotion[i].choice.to(d<0?0:i===d?.12:-.06,{spring:springs.pop}) }); releasePetStyles(run);
-    // The name glides in rather than popping: the label keeps its place and its text crossfades up.
-    if(d>=0){ lbl.textContent=APPS[d][0]; lbl.style.setProperty('--c',APPS[d][2]); lbl.classList.remove('swap'); void lbl.offsetWidth; lbl.classList.add('swap') } lbl.classList.toggle('show',d>=0); if(d>=0) haptic('choose') }
+  function fan(){ petMotion.forEach(m=>{m.radial.to(1,{spring:springs.pop});m.choice.to(0,{spring:springs.pop});m.opacity.to(1,{spring:springs.pop})}); settleRing(ringRun) }
+  function setDir(d){ if(d===dir) return; dir=d; const run=++ringRun; ring.classList.toggle('active',d>=0); pets.forEach((p,i)=>{ p.classList.toggle('on',i===d); petMotion[i].choice.to(d<0?0:i===d?.12:-.06,{spring:springs.pop});petMotion[i].opacity.to(d<0||i===d?1:root.dataset.theme==='dark'?.68:.62,{spring:springs.pop}) }); settleRing(run);
+    // Name changes are immediate while the discs move; there is no label layout or ripple animation.
+    if(d>=0){ lbl.textContent=APPS[d][0]; lbl.style.setProperty('--c',APPS[d][2]) } lbl.classList.toggle('show',d>=0); if(d>=0) haptic('choose') }
   function dirOf(dx,dy){ const dist=Math.hypot(dx,dy); if(dist<12) return -1; if(dir<0&&dist<18) return -1;
     const a=(Math.atan2(dx,-dy)/SEC+N)%N, n=Math.round(a)%N;
     if(dir>=0&&n!==dir){ const off=Math.abs(((a-dir+N*1.5)%N)-N/2); if(off<HOLD) return dir } // stays put until ~7 degrees past the boundary
@@ -136,21 +131,21 @@ function openFromRing(id,color,to){
   const pages=[home,brief,side,dim], savedTransitions=pages.map(el=>el.style.transition);
   const paint=()=>setPos(briefMotion.value,sideMotion.value);
   const briefMotion=animator(paint,{unit:'scalar'}), sideMotion=animator(paint,{unit:'scalar'});
-  function takePages(){ ++pageRun; pages.forEach(el=>el.style.transition='none') }
+  function takePages(){ ++pageRun; pages.forEach(el=>el.style.transition='none'); side.classList.add('moving') }
   function setPos(b,s){ const W=app.clientWidth, S=side.offsetWidth;
     brief.style.transform=`translateX(${(b-1)*W}px)`; home.style.transform=s>0?`translateX(${b*W-s*S*.12}px) scale(${1-.07*Math.min(1,s)})`:`translateX(${b*W}px)`; home.style.borderRadius=s>0?`${Math.round(30*Math.min(1,s))}px`:'';
     side.style.transform=`translateX(${(1-s)*100}%)`; dim.style.opacity=Math.min(1,s); side.classList.toggle('open',s>0); dim.style.pointerEvents=s>.5?'auto':'none' }
-  // The menu's rows ripple in each time it opens; the Briefing's tiles cascade (DESIGN-SYSTEM.md §8).
+  // The Briefing's tiles cascade (DESIGN-SYSTEM.md §8); menu rows stay visible.
   function enter(el){ [...el.querySelectorAll(':scope .sidescroll>:not(#convos), :scope #convos>*, :scope .grid>*')].forEach((c,i)=>c.style.setProperty('--k',String(Math.min(i,10)))); el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); clearTimeout(el._enter); el._enter=setTimeout(()=>el.classList.remove('enter'),900) }
   // Only the place in view takes focus or taps; the others are inert (audit fix 5).
   function inertAll(){ home.inert=view!=='home'; brief.inert=view!=='brief'; side.inert=view!=='side' }
   function go(v,ms,velocity={}){ const was=view; view=v; takePages(); const run=pageRun;
-    // --settle describes 410 ms of this spring; the page used to play it over --d-page.
+    // Preserve the flick clock; the dim and home scale use these same progress values.
     const timeScale=(ms??(parseFloat(getComputedStyle(root).getPropertyValue('--d-page'))||460))/410;
     briefMotion.to(v==='brief'?1:0,{spring:springs.page,velocity:velocity.b,timeScale});
     sideMotion.to(v==='side'?1:0,{spring:springs.page,velocity:velocity.s,timeScale});
-    Promise.all([briefMotion.whenResting(),sideMotion.whenResting()]).then(()=>{if(run===pageRun)pages.forEach((el,i)=>{void getComputedStyle(el).transform;el.style.transition=savedTransitions[i]})});
-    inertAll(); if(v!=='home') menu(false); if(v!==was&&v==='side') enter(side); if(v!==was&&v==='brief') enter(brief) }
+    Promise.all([briefMotion.whenResting(),sideMotion.whenResting()]).then(()=>{if(run===pageRun){side.classList.remove('moving');pages.forEach((el,i)=>{el.style.transition=savedTransitions[i]})}});
+    inertAll(); if(v!=='home') menu(false); if(v!==was&&v==='brief') enter(brief) }
   function resumePages(){ if(start?.paused){start.paused=false;go(view,undefined,{b:start.bv,s:start.sv})} }
   inertAll();
   // Every gesture has a button (GESTURES.md §9): Apps, Briefing and Menu, first in the focus order and
@@ -187,7 +182,6 @@ function openFromRing(id,color,to){
       swipe.s=swipe.axis==='side'?start.s+band(start.s-mx/S)-band(start.s):start.s;
       briefMotion.set(swipe.b); sideMotion.set(swipe.s); return }
     e.preventDefault(); const dx=e.clientX-start.x, dy=e.clientY-start.y, d=Math.hypot(dx,dy), k=Math.min(1,R*.55/(d||1));
-    if(!hub.style.transition)opacityOnly(hub);
     hub.style.transform=`translate(${dx*k}px,${dy*k}px)`; setDir(dirOf(dx,dy)) },{passive:false});
   // The finger's speed over its last 100 ms (px/ms, + is rightward); 0 if it stopped before lifting.
   function flick(v,at){ const last=v[v.length-1]; if(!last||at-last[0]>60) return 0; const first=v.find(p=>last[0]-p[0]<=100)||last; return last[0]>first[0]?(last[1]-first[1])/(last[0]-first[0]):0 }
@@ -201,11 +195,12 @@ function openFromRing(id,color,to){
     go(to,Math.abs(v)>F?Math.round(Math.min(460,Math.max(180,left/Math.abs(v)*1.8))):undefined,{b:axis==='brief'?v*1000/app.clientWidth:0,s:axis==='side'?-v*1000/side.offsetWidth:0});
     if(to!==from){ haptic('commit'); if(to==='brief'||to==='side') learn(to) } }
   function close(commit){ clearTimeout(holdT); press.classList.remove('on');
-    if(open){ ++showing; const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
+    if(open){ const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
       const run=++ringRun;
       if(chosen>=0){ const p=pets[chosen]; p.classList.add('go'); haptic('commit'); const to=APPS[chosen][3]; if(to){ const r=p.getBoundingClientRect(); launchFrom(r.left+r.width/2,r.top+r.height/2); openFromRing(apps[chosen].id,APPS[chosen][2],to) } else toast(APPS[chosen][0]+' comes later') }
-      pets.forEach((p,i)=>{opacityOnly(p);p.style.opacity='0';const m=petMotion[i];m.radial.to(i===chosen?1.25:0,{spring:i===chosen?springs.pop:springs.ring});m.choice.to(i===chosen?.5:0,{spring:springs.pop})});
-      petsRest().then(()=>{if(run!==ringRun||open)return;ring.classList.remove('show','active');pets.forEach((p,i)=>{p.classList.remove('go','on');petMotion[i].radial.set(0);petMotion[i].choice.set(0);p.style.opacity='';p.style.transition=''});hub.style.transition='' });
+      pets.forEach((p,i)=>{const m=petMotion[i], spring=i===chosen?springs.pop:springs.ring;m.opacity.to(0,{spring});m.radial.to(i===chosen?1.25:0,{spring});m.choice.to(i===chosen?.12:0,{spring})});
+      settleRing(run);
+      petsRest().then(()=>{if(run!==ringRun||open)return;ring.classList.remove('show','active','moving');pets.forEach((p,i)=>{p.classList.remove('go','on');petMotion[i].radial.set(0);petMotion[i].choice.set(0);petMotion[i].opacity.set(0)}) });
       dir=-1; lbl.classList.remove('show') }
     resumePages(); open=false; start=null }
   window.addEventListener('pointerup',e=>{ if(start&&e.pointerId===start.id){ if(swipe) endSwipe(e.timeStamp); close(true) } });
