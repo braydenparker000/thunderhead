@@ -50,6 +50,18 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     cursor: true,
     phase: 'P3',
   },
+  // Arranging the page comes right after memory (2026-11-02): placed after health and the
+  // books it began at minute 33 of the budgets, past the 30-minute target, and a run the hard stop
+  // ended had cut it, so the Briefing and home got nothing (BRIEFING.md "Why the Briefing was
+  // empty"). Here it begins by minute 15 and has the facts of step 4 to draw on.
+  {
+    step: 7,
+    name: 'arrange tomorrow',
+    budget_min: 4,
+    idempotent: 'surfaces are put by app and slot',
+    cursor: false,
+    phase: 'P3',
+  },
   {
     step: 5,
     name: 'health and agreed fixes',
@@ -67,14 +79,6 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     idempotent: 'a book is claimed by one run at a time and goes on from its cursor; a page is put by its number',
     cursor: false,
     phase: 'P7',
-  },
-  {
-    step: 7,
-    name: 'arrange tomorrow',
-    budget_min: 4,
-    idempotent: 'surfaces are put by app and slot',
-    cursor: false,
-    phase: 'P3',
   },
   {
     step: 8,
