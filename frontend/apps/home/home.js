@@ -190,7 +190,7 @@ function openFromRing(id,color,to){
   const briefMotion=animator(paint,{unit:'scalar'}), sideMotion=animator(paint,{unit:'scalar'});
   function takePages(){ ++pageRun; pages.forEach(el=>el.style.transition='none'); side.classList.add('moving') }
   function setPos(b,s){ const W=app.clientWidth, S=side.offsetWidth;
-    brief.style.transform=`translateX(${(b-1)*W}px)`; home.style.transform=s>0?`translateX(${b*W-s*S*.12}px) scale(${1-.07*Math.min(1,s)})`:`translateX(${b*W}px)`; home.style.borderRadius=s>0?`${Math.round(30*Math.min(1,s))}px`:'';
+    brief.style.transform=`translateX(${(b-1)*W}px)`; home.style.transform=s>0?`translateX(${b*W-s*S*.12}px) scale(${1-.07*Math.min(1,s)})`:`translateX(${b*W}px)`;
     side.style.transform=`translateX(${(1-s)*100}%)`; dim.style.opacity=Math.min(1,s); side.classList.toggle('open',s>0); dim.style.pointerEvents=s>.5?'auto':'none';
     // The menu slides on its own opaque fill; its frosted layer cross-fades in from 85% of the way open, before it
     // rests, and back out as soon as a finger takes it or it leaves (home.css).
