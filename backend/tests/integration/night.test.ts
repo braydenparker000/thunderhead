@@ -188,8 +188,7 @@ describe('the run record', () => {
   });
 
   it('the steps of later phases are skipped on the way, each with why', async () => {
-    // 7 (arranging the page) runs right after memory, before health and the books, so the hard
-    // stop can't starve it (BRIEFING.md "Why the Briefing was empty"): order is the list's.
+    // 7 (arranging the page) runs right after memory, before health and the books (BRIEFING.md).
     expect((await night({ day: yday, action: 'step_done', step: 4 }, 'cse_night_c')).body.resume_from).toBe(7);
     expect((await night({ day: yday, action: 'step_done', step: 5 }, 'cse_night_c')).status).toBe(409);
     expect((await night({ day: yday, action: 'step_done', step: 7 }, 'cse_night_c')).body).toEqual({

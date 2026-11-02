@@ -1,8 +1,9 @@
 // The Briefing's weather tile in Chromium at 390×844 against the mocked Worker (BRIEFING.md §2, §7):
 // with no place it reads "Set a place for the weather"; its sheet takes a town's name (an unknown
 // one says so), and once kept the tile shows the place, the temperature big and the sentence, and
-// its sheet the next 12 hours and tomorrow's high and low. CSP violations are console errors, so the
-// test also proves the page fits its CSP. Set SHOTS=<dir> to keep screenshots of the tile and sheet.
+// its sheet the next 12 hours and tomorrow's high and low (the tile, tomorrow's in one line). CSP
+// violations are console errors, so the test also proves the page fits its CSP. Set SHOTS=<dir> to
+// keep screenshots of the tile and sheet.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -58,6 +59,9 @@ test('the weather tile asks for a place, keeps one, and shows the next hours', o
   await sheet.waitFor({ state: 'detached' });
   await page.waitForFunction(() => document.querySelector('#brief .tile.weather .big')?.textContent === '19°');
   assert.deepEqual(await tile.evaluate((t) => [t.querySelector('.k').textContent, t.querySelector('.s').textContent, t.className]), ['Testville', 'Rain from 15:00 to 18:00.', 'tile wide weather']);
+  // Tomorrow's high and low on the tile itself (2026-11-02), from the same forecast.
+  assert.equal(await tile.locator('.s.wtom').textContent(), 'Tomorrow 21° / 10°');
+  assert.match(await tile.getAttribute('aria-label'), /tomorrow high 21°, low 10°$/);
   await page.waitForTimeout(600);
   await tile.click();
   await sheet.waitFor();
