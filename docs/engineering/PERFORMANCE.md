@@ -30,7 +30,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 | Browser | Chrome on Android, tab or installed web app | decisions.md |
 | Navigation | 3-button or gestures **[unknown]** | ask the owner |
 
-Lab stand-in: Playwright Chromium at the `a15` project size ([TESTING.md §10.1](TESTING.md#101-projects-proposal)) with CDP `Emulation.setCPUThrottlingRate {rate: 4}` **[proposal: calibrate the rate once against a device trace]**.
+Lab stand-in: Playwright Chromium at the `a15` size (384 × 832; [TESTING.md, Not built](TESTING.md#not-built)) with CDP `Emulation.setCPUThrottlingRate {rate: 4}` **[proposal: calibrate the rate once against a device trace]**.
 
 ---
 

@@ -153,10 +153,6 @@ move.
 | Undo | `{verb: "astra.close"}` (returns to the previous screen). |
 | Ledger | "Opened <title> in Astra — you asked for something under 25 minutes." (Law 3: the why). |
 
-### 4.2 `astra.save` [proposal]
-
-Adds a title to Astra's Library. Args `{ref}`. Undo `astra.unsave`. Shown in the Ledger.
-
 ### 4.3 Surfaces
 
 | Slot | Kind | Where |
@@ -293,3 +289,13 @@ font checks (§2), and the `?open=` deep link.
 | 4 | Root service worker scope over `/astra/` with Astra's own Cache Storage use | Browser test in P8. |
 | 5 | Whether cross-document view transitions feel right on the A15 between the shell and `/astra/` | Device check; fall back to no transition if a frame drop > 100 ms is measured. |
 | 6 | The stream rule as a decisions line | Settled: recorded 2026-10-27 (owner). |
+
+---
+
+## Not built
+
+Sections once marked [proposal] that are not built and not in PLAN.md; their full text is in
+[archive/NOT-BUILT-2026-11-02.md](../../archive/NOT-BUILT-2026-11-02.md).
+
+- **§4.2 `astra.save`.** A verb that adds a title to Astra's Library (args `{ref}`, undo `astra.unsave`).
+  Not built and not in PLAN.md.

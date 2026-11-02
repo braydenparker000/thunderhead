@@ -81,3 +81,4 @@ Historical; superseded on 2026-11-02; kept for the record. Not rules, not plans.
 - [archive/MIGRATION.md](archive/MIGRATION.md): the migration spec, all but the old Worker's retirement.
 - [archive/STATUS-2026-10.md](archive/STATUS-2026-10.md): October's status page and the whole deploy log.
 - [archive/EVALS-aspirational.md](archive/EVALS-aspirational.md): the evals specified but not built.
+- [archive/NOT-BUILT-2026-11-02.md](archive/NOT-BUILT-2026-11-02.md): spec sections once marked [proposal], not built and not planned.

@@ -571,24 +571,6 @@ Imported songs without a file show "Add the tab file to practise this song".
 
 ---
 
-## 15. New feature ideas (all [proposal])
-
-1. **Play along with the real recording.** If the piece is in the owner's Music library, attach it:
-   the owner taps once on the downbeat of each section while it plays to create sync points;
-   alphaTab's external-media mode then moves the cursor with the recording, slowed with
-   pitch-preserving `playbackRate` (down to 50 %). Loops work on the recording too.
-2. **Hard-bar finder.** From ears data, the bars with the most timing misses across the last 5
-   sessions are tinted faintly in the tab, and the teacher's next plan starts there.
-3. **Interleaved warm-up.** Today begins with a 5-minute warm-up that rotates three short sections
-   from different songs every 90 s (interleaving research), at 80 % of best.
-4. **Memory mode.** Fades the tab bar by bar for a section the owner can play cleanly at target;
-   the cursor still moves, and a tap reveals the bar for 2 s. Passes in memory mode are logged
-   with `focus: 'memory'`.
-5. **Take-to-take compare.** Two sent takes of the same section shown as a timing strip (offset per
-   note), so the owner sees rushing shrink week to week.
-
----
-
 ## 16. Open questions / tests
 
 | # | Question | How to settle |
@@ -602,3 +584,13 @@ Imported songs without a file show "Add the tab file to practise this song".
 | 7 | gprotab.net: keep it as a second source? (Songsterr is settled: permitted) | Owner decision before the port (the old app uses it) |
 | 8 | Does the Clean / Not yet strip slow practice down? | Owner tries 3 sessions; option to auto-count passes as clean |
 | 9 | Pass criteria (90 % within ±30 ms) too strict or loose for the current piece | Compare with the owner's own judgement over 50 passes |
+
+---
+
+## Not built
+
+Sections once marked [proposal] that are not built and not in PLAN.md; their full text is in
+[archive/NOT-BUILT-2026-11-02.md](../../archive/NOT-BUILT-2026-11-02.md).
+
+- **§15 New feature ideas.** Play along with the real recording, a hard-bar finder, an interleaved warm-up, memory mode, take-to-take compare.
+  Not built and not in PLAN.md (its Guitar item is the metronome and practice timer on the island).

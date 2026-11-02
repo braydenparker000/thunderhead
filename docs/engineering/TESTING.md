@@ -220,16 +220,6 @@ PITR can't run locally (it isn't supported in local development). It is covered 
 
 ## 10. Browser tests (layer 10)
 
-### 10.1 Projects **[proposal]**
-
-| Project | Viewport (CSS px) | DPR | Touch | Notes |
-|---|---|---|---|---|
-| `a15` | 384 × 832 **[unverified until measured on the phone]** | 2.8125 | yes | UA `Android 14; SM-A155F` Chrome |
-| `tall` | 390 × 844 | 2 | yes | Today's test size |
-| `small` | 360 × 740 | 3 | yes | Smallest supported |
-
-Each project runs in day, night and reduced motion. Gesture tests drive real touch through CDP `Input.dispatchTouchEvent` (Playwright's `touchscreen` only taps). Today's suite uses the mouse, which still exercises pointer events.
-
 ### 10.2 Required suites
 
 | Suite | Acceptance |
@@ -237,7 +227,7 @@ Each project runs in day, night and reduced motion. Gesture tests drive real tou
 | Clean load | Zero console errors (CSP violations show up as errors); no sideways scroll |
 | Gestures | Hold 220 ms → ring; slide → label; release → open; centre release cancels; swipe right → briefing; swipe left → menu; edge starts (< 24 px) ignored. Values from [GESTURES.md](../design/GESTURES.md) |
 | Overlays and Back | Briefing, menu, `+` sheet and apps are history entries; Back closes the top one; Back at home root leaves |
-| Mount hygiene | Each shell app (Study, and any ported app later folded into the shell) mounts and unmounts 20 times; DOM nodes and counted listeners return to baseline ±5% |
+| Mount hygiene | None: shell apps share no mount interface ([ARCHITECTURE.md §7](ARCHITECTURE.md#7-the-frontend-the-shell-its-apps-and-the-ported-apps)) |
 | Ported pages (P1b) | Each ported page opens from the ring by navigation and loads with no 404 and no CSP violation, against a local stand-in for the old Worker that allows the site origin; its own service worker (if any) registers at its folder scope and the shell's worker still serves `/` |
 | Offline | `context.setOffline(true)`: the shell opens from the SW; a typed message shows the outbox copy; it sends on reconnect |
 | Conversation (P2, `tests/chat-browser.test.mjs`) | Against the mocked Worker and its live socket (`page.routeWebSocket`), day and night at 390×844: first-run line; a reply over the socket reveals in Fraunces italic with its chip, which opens the app; "…" at 1.2 s and "Waking up…" at 8 s with the edge thinking (Playwright clock); the honest line, error edge and voice row 3; offline outbox sends once on reconnect; three failed tries show "Didn't send · Retry"; Stop keeps focus while the clock ticks and works from the keyboard; a verb run on the phone with its undo, and `unsupported_verb`; a home line and the generic card; changes during a slow load and a load that fails once still reach the screen; a failed message left in the outbox shows only its meta; IndexedDB refusing writes loses nothing; concurrent outbox writes all land; sign-out with an unsent message asks first. `SHOTS=<dir>` keeps the screenshots |
@@ -342,3 +332,13 @@ Generated at test start from a fixed seed, never committed as data. Year-2 sizes
 | T3 | Does local workerd `rowsWritten` match production billing? | Compare the meter with the Cloudflare dashboard after one week (DATA.md D2) |
 | T4 | How long does the full `npm test` take on the GitHub runner at P2? | Read CI timings; split layers if over 3 min |
 | T5 | Can CDP `Input.dispatchTouchEvent` reproduce the hold-and-slide gesture faithfully enough? | Compare with a device trace of the same gesture |
+
+---
+
+## Not built
+
+Sections once marked [proposal] that are not built and not in PLAN.md; their full text is in
+[archive/NOT-BUILT-2026-11-02.md](../archive/NOT-BUILT-2026-11-02.md).
+
+- **§10.1 Projects.** The browser suites at three phone sizes (`a15` 384 × 832, `tall` 390 × 844, `small` 360 × 740), each in day, night and reduced motion, with real touch.
+  Not built: the suites run at 390 × 844 (AGENTS.md's phone size) with the mouse.
