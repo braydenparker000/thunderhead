@@ -419,23 +419,50 @@ Music and Podcasts open inside home. The island is one black capsule that change
 its controls inside the same element (`th/island/`). Track names and artwork stay on this phone.
 
 - **Compact:** 36 px tall, at least 124 px wide and at most 60% of the viewport, centred at
-  `calc(10px + env(safe-area-inset-top))`. A 22 px app-colour dot, the title in small semibold white
-  type with a fading right edge, and five 3 × 14 px level bars. The 2 px bottom progress line uses
-  the app colour at 60% opacity. Hold to scroll a long title; swipe sideways for next or previous.
+  `calc(10px + env(safe-area-inset-top))`. The left lobe is the current artwork, 24 px with 7 px
+  corners (the 22 px app-colour dot when there is none, or until it has loaded), then the title in
+  small semibold white type and five 3 × 14 px level bars. The 2 px progress line runs along the
+  bottom, inset 16 px, in the app colour at 60% opacity. Swipe sideways for next or previous.
   Music's bars read its engine; without a meter they move only while playback runs.
+- **Long titles:** the capsule grows with its title up to 60% of the viewport. Past that, the title's
+  last 16 px fade out. Only once the capsule has rested, compact and untouched, for 2 s, the title
+  scrolls once to its end at 40 px/s (16 px past it, so the last letter clears the fade), holds
+  1.5 s, snaps back on `--pop`, and rests 8 s before the next pass. A touch stops it and brings the
+  title back; a hold alone neither scrolls nor expands. There is no continuous marquee. Expanded,
+  the title may take two lines at `--lh-tight` before an ellipsis.
 - **Expanded:** tap the capsule, or a visible home line naming its app. The same capsule grows to
-  `min(360px, 100vw - 24px)` × 128 px with a 28 px radius, on `springs.island` scaled to `--d-base`.
-  Its width squishes out by 4% before settling. Content fades in from 40% of the shape change:
-  72 px artwork with 16 px corners, title and subtitle, three 44 px circular controls, tabular
-  elapsed/total times, and a 3 px bottom progress line. Tap the artwork or title to open the app.
-  Tap outside, swipe up, press Escape, or leave it untouched for six seconds to collapse it.
+  `min(360px, 100vw - 24px)` × 180 px with a 28 px radius. A 16 px app glyph in the app colour sits
+  top left, and the sleep timer's moon top right. Below them, the 72 px artwork with 16 px corners,
+  and beside it the title and subtitle. The progress line, now 3 px over a faint track, sits under
+  them; elapsed and remaining time (tabular numerals) sit under its ends, and three controls with
+  44 px hit areas sit between the times (Podcasts shows 15 s back and 30 s on). Tap the artwork or
+  title to open the app. Tap outside, swipe up, press Escape, or leave it untouched for six seconds
+  to collapse it.
+- **The morph:** width and height spring on `springs.island` scaled to `--d-base`; the width
+  squishes out by 4% before settling. The artwork is one node, the shared element: it travels and
+  scales from the lobe to its expanded place by transform only, on the same spring (its corner
+  radius is set each frame in its own unscaled pixels, so it reads 7 px small and 16 px large). The
+  compact title and bars fade out by 40% of the shape; the expanded details fade in from 40%. The
+  progress line rises and thickens from 2 to 3 px by `scaleY`. Collapse is the same path in
+  reverse. Play or pause pulses the capsule to 1.03 and back on `springs.pop`. Nothing inside the
+  capsule uses `backdrop-filter`.
+- **Artwork:** it comes from the app: Music's track art (fetched through its worker, which signs the
+  bucket link), Podcasts' media-session artwork or, before an episode plays, its player's episode or
+  show image. It is fetched inside the app's window, under its CSP, only once the capsule shows,
+  decoded off the main thread (`createImageBitmap`; a `data:` image through `img.decode()`), centre-
+  cropped once into a 144 px canvas, and drawn only while the capsule rests, so it never holds up a
+  morph. Home's CSP allows only its own and `data:` images, hence the canvas; an image host without
+  CORS falls back to the app's own already-decoded `<img>` (drawn, never read back). A failed load
+  keeps the dot.
 - **Alert:** a visible home line naming the active app, or a waiting decision card, makes the
-  capsule's inner line gold for that item's life. Once per changed item, it widens by 24 px and
-  shows a 16 px gold dot for 1.2 seconds, then returns on the spring. No repeating pulse. Alerts
-  use the cards already visible in home, so quiet-hour holds stay in force.
-- **Reduced motion:** shape changes snap; content fades over 150 ms. No marquee or moving bars.
+  capsule's inner line gold for that item's life; the gold line fades in over `--d-base`, never
+  pops. Once per changed item, it widens by 24 px and shows a 16 px gold dot for 1.2 seconds, then
+  returns on the spring. No repeating pulse. Alerts use the cards already visible in home, so
+  quiet-hour holds stay in force.
+- **Reduced motion:** shape changes snap; content fades over 150 ms. No title scroll, pulse or moving
+  bars.
 - **Sleep timer:** when set, a moon and the remaining minutes sit at the expanded capsule's top
-  right. Tap it to cancel, with Undo. Set it with “sleep timer 20 minutes” or “play until I fall
+  right, level with the app glyph. Tap it to cancel, with Undo. Set it with “sleep timer 20 minutes” or “play until I fall
   asleep” (30 minutes). Music uses its own timer, which waits while paused; Podcasts uses the
   island's timer.
 

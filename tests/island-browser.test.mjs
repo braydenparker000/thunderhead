@@ -280,24 +280,40 @@ test('one capsule renders compact, expanded and alert; all morphs settle and rev
     assert.ok(compact.width>=124 && compact.width<=234,'compact width bounds');
     near(compact.x+compact.width/2,195,'centered'); near(compact.y,10,'safe-area position');
     assert.equal(compact.background,'rgb(0, 0, 0)');
-    near((await rect(page,'.dot')).width,22,'app dot');
+    // Without art the compact lobe is the 22 px app-colour dot: the artwork node itself.
+    const lobe=await page.locator('.th-island .art').evaluate(e=>({width:e.getBoundingClientRect().width,radius:parseFloat(getComputedStyle(e).borderRadius)*e.getBoundingClientRect().width/72,background:getComputedStyle(e).backgroundColor,images:e.closest('.th-island').querySelectorAll('img').length}));
+    near(lobe.width,22,'app dot'); near(lobe.radius,11,'round dot'); assert.equal(lobe.background,'rgb(47, 125, 246)'); assert.equal(lobe.images,0,'no second image');
     assert.equal(await page.locator('.bars i').count(),5);
     near((await rect(page,'.bars i:first-child')).width,3,'bar width');
     near(await page.locator('.bars i').first().evaluate(e=>parseFloat(getComputedStyle(e).height)),14,'bar height');
     near((await rect(page,'.progress')).height,2,'compact progress');
-    await page.evaluate(()=>window.capsule=document.querySelector('.th-island'));
+    await page.evaluate(()=>{window.capsule=document.querySelector('.th-island');window.artNode=capsule.querySelector('.art');});
     const expansion=await page.evaluate(async()=>{
       const m=await import('/th/island/island.js'),start=performance.now(),samples=[];
       let running=true;
-      const sample=()=>{const e=document.querySelector('.th-island'),r=e.getBoundingClientRect();samples.push({at:performance.now()-start,width:r.width,height:r.height,opacity:Number(getComputedStyle(e.querySelector('.details')).opacity)});if(running)requestAnimationFrame(sample);};
+      const sample=()=>{const e=document.querySelector('.th-island'),r=e.getBoundingClientRect(),a=e.querySelector('.art'),s=getComputedStyle(a);samples.push({at:performance.now()-start,width:r.width,height:r.height,opacity:Number(getComputedStyle(e.querySelector('.details')).opacity),compact:Number(getComputedStyle(e.querySelector('.compact')).opacity),box:[a.offsetLeft,a.offsetTop,a.offsetWidth,a.offsetHeight].join(),moved:s.transform!=='none'});if(running)requestAnimationFrame(sample);};
       requestAnimationFrame(sample); await m.wide(true); running=false;
       return {ms:performance.now()-start,max:Math.max(...samples.map(s=>s.width)),samples};
     });
     const expanded=await rect(page,'.th-island');
-    near(expanded.width,360,'expanded width'); near(expanded.height,128,'expanded height'); near(expanded.radius,28,'expanded radius');
+    near(expanded.width,360,'expanded width'); near(expanded.height,180,'expanded height'); near(expanded.radius,28,'expanded radius');
     assert.ok(expansion.max>360*1.025 && expansion.max<=360*1.041,`4% width squish: ${expansion.max}`);
-    assert.ok(expansion.samples.filter(s=>s.height<72.8).every(s=>s.opacity===0),'details wait for 40%');
+    // The bars and title hand off to the controls at 40% of the shape (36 + 144 × .4 = 93.6 px).
+    assert.ok(expansion.samples.filter(s=>s.height<93).every(s=>s.opacity===0),'details wait for 40%');
+    assert.ok(expansion.samples.filter(s=>s.height>94.5).every(s=>s.compact===0),'compact content is gone by 40%');
+    assert.ok(expansion.samples.some(s=>s.compact>0&&s.compact<1),'compact content fades rather than cuts');
     assert.equal(await page.evaluate(()=>capsule===document.querySelector('.th-island')),true,'same element');
+    // One artwork node: its layout box never changes; it travels and scales by transform only.
+    assert.equal(await page.evaluate(()=>artNode===document.querySelector('.th-island .art')),true,'same artwork node');
+    assert.deepEqual([...new Set(expansion.samples.map(s=>s.box))],['0,0,72,72'],'artwork layout box is fixed');
+    assert.ok(expansion.samples.every(s=>s.moved),'artwork moves by transform');
+    const art=await rect(page,'.th-island .art');
+    near(art.x-expanded.x,16,'artwork left'); near(art.y-expanded.y,38,'artwork top'); near(art.radius,16,'artwork corners');
+    // Under the progress line: elapsed and remaining in tabular numerals; a coloured app glyph at top left.
+    const detail=await page.locator('.th-island').evaluate(e=>{const q=s=>e.querySelector(s),line=q('.progress').getBoundingClientRect(),el=q('.elapsed').getBoundingClientRect(),g=q('.glyph').getBoundingClientRect(),top=e.getBoundingClientRect();
+      return {under:el.top>=line.bottom,numerals:getComputedStyle(q('.elapsed')).fontVariantNumeric+'/'+getComputedStyle(q('.left')).fontVariantNumeric,elapsed:q('.elapsed').textContent,glyph:[g.x-top.x,g.y-top.y,g.width],color:getComputedStyle(q('.glyph')).color,
+        backdrop:[e,...e.querySelectorAll('*')].filter(n=>!['none',''].includes(getComputedStyle(n).backdropFilter??'none')).length};});
+    assert.deepEqual({...detail,glyph:detail.glyph.map(Math.round)},{under:true,numerals:'tabular-nums/tabular-nums',elapsed:'0:00',glyph:[18,14,16],color:'rgb(47, 125, 246)',backdrop:0});
     for(const button of await page.locator('.controls button').all()){const r=await button.boundingBox();near(r.width,44,'control width');near(r.height,44,'control height');}
     near((await rect(page,'.art')).width,72,'artwork'); near((await rect(page,'.progress')).height,3,'expanded progress');
     if(process.env.ISLAND_CAPTURE) { await painted(page); await page.screenshot({path:`${process.env.ISLAND_CAPTURE}/expanded.png`}); }
@@ -327,7 +343,11 @@ test('one capsule renders compact, expanded and alert; all morphs settle and rev
     near((await rect(page,'.th-island')).height,36,'idle collapse');
     // A home line about this app raises a bounded alert; the gold line lasts with the note.
     const alertStart=await page.evaluate(()=>{
-      const note=document.createElement('div');note.className='note';note.id='island-note';note.textContent='Music has a new mix.';document.querySelector('#talk').append(note);return performance.now();
+      const note=document.createElement('div');note.className='note';note.id='island-note';note.textContent='Music has a new mix.';document.querySelector('#talk').append(note);
+      // The gold line's fade, read each frame.
+      const capsule=document.querySelector('.th-island');window.gold=[];const start=performance.now();
+      const read=()=>{window.gold.push([performance.now()-start,Number(getComputedStyle(capsule,'::after').opacity)]);if(performance.now()-start<600)requestAnimationFrame(read);};requestAnimationFrame(read);
+      return start;
     });
     await page.waitForSelector('.th-island.alert-flash'); await settle(page);
     near((await rect(page,'.th-island')).width,compact.width+24,'alert widening');
@@ -338,8 +358,13 @@ test('one capsule renders compact, expanded and alert; all morphs settle and rev
     assert.ok(alertMs<1500,`alert returns within 1.5 s: ${alertMs}`);
     near((await rect(page,'.th-island')).width,compact.width,'alert returns');
     assert.equal(await page.locator('.th-island').evaluate(e=>e.classList.contains('alert')),true,'gold persists for the line life');
+    // The gold line fades in over --d-base (300 ms): partway through at 100 ms, whole by 450 ms; never a pop.
+    const gold=await page.evaluate(()=>window.gold);
+    assert.ok(gold.filter(([at])=>at<100).every(([,o])=>o<.9),`gold line fades in: ${JSON.stringify(gold.slice(0,8))}`);
+    assert.ok(gold.some(([,o])=>o>.05&&o<.95),'gold passes through the middle');
+    assert.ok(gold.filter(([at])=>at>450).every(([,o])=>o===1),'gold line arrives');
     await page.locator('#island-note').click(); await settle(page);
-    near((await rect(page,'.th-island')).height,128,'home line expands the capsule');
+    near((await rect(page,'.th-island')).height,180,'home line expands the capsule');
     await page.mouse.click(10,400); await settle(page);
     near((await rect(page,'.th-island')).height,36,'outside collapses');
     await page.evaluate(()=>document.querySelector('#island-note').remove());
@@ -378,7 +403,7 @@ test('signed-in idle warms Music then Podcasts; frames stay hidden, inert and al
     t.diagnostic(JSON.stringify({surface:'music',idleFirstMs:musicFirst.ms,device:'Chromium 390x844, not an A15'}));
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.close()));
     await page.locator('.compact').click();await settle(page);
-    near((await rect(page,'.th-island')).height,128,'switching apps keeps compact controls operable');
+    near((await rect(page,'.th-island')).height,180,'switching apps keeps compact controls operable');
     assert.equal(await page.evaluate(()=>retained.every((w,i)=>w===document.querySelectorAll('iframe.th-app')[i].contentWindow)),true,'same contexts after closing and switching');
     t.diagnostic(JSON.stringify({surface:'podcasts',idleFirstMs:podFirst.ms,secondMs:podSecond.ms,device:'Chromium 390x844, not an A15'}));
   }finally{await context.close();}
@@ -401,7 +426,7 @@ test('reduced motion snaps shape and fades content; cold Podcasts opens under it
     const cold=await readyOpen(page,'podcasts');await settle(page);
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.collapse('test')));
     const snap=await page.evaluate(async()=>{const m=await import('/th/island/island.js');const start=performance.now();const done=m.wide(true),r=document.querySelector('.th-island').getBoundingClientRect();const initial=getComputedStyle(document.querySelector('.details')).opacity;await done;return{width:r.width,height:r.height,initial,ms:performance.now()-start,opacity:getComputedStyle(document.querySelector('.details')).opacity};});
-    near(snap.width,360,'reduced expanded width');near(snap.height,128,'reduced expanded height');assert.equal(snap.initial,'0');assert.equal(snap.opacity,'1');assert.ok(snap.ms>=140 && snap.ms<300,`150 ms content fade: ${snap.ms}`);
+    near(snap.width,360,'reduced expanded width');near(snap.height,180,'reduced expanded height');assert.equal(snap.initial,'0');assert.equal(snap.opacity,'1');assert.ok(snap.ms>=140 && snap.ms<300,`150 ms content fade: ${snap.ms}`);
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.wide(false)));
     near((await rect(page,'.th-island')).height,36,'reduced compact height');
     assert.ok(cold.ms<1500,`cold Podcasts local: ${cold.ms}`);
@@ -428,7 +453,7 @@ test('a cold open reveals the coloured cover immediately; reversals settle and t
     assert.equal(await page.locator('iframe.th-app').evaluate(f=>f.inert),true);
     await page.locator('.compact').click();await settle(page);
     await page.evaluate(async()=>{const m=await import('/th/island/island.js');void m.wide(false);await new Promise(requestAnimationFrame);await m.wide(true);});
-    near((await rect(page,'.th-island')).height,128,'reversed expansion rests');
+    near((await rect(page,'.th-island')).height,180,'reversed expansion rests');
     // Real decoded audio, invented silence: no stub of paused, play(), or the island's media lookup.
     const wav=Buffer.alloc(44+8000*2*60);
     wav.write('RIFF',0);wav.writeUInt32LE(wav.length-8,4);wav.write('WAVEfmt ',8);wav.writeUInt32LE(16,16);wav.writeUInt16LE(1,20);wav.writeUInt16LE(1,22);wav.writeUInt32LE(8000,24);wav.writeUInt32LE(16000,28);wav.writeUInt16LE(2,32);wav.writeUInt16LE(16,34);wav.write('data',36);wav.writeUInt32LE(wav.length-44,40);
@@ -445,7 +470,10 @@ test('a cold open reveals the coloured cover immediately; reversals settle and t
     t.diagnostic(JSON.stringify({surface:'podcasts',coldMs:podCold.ms,motion:'normal',device:'Chromium 390x844, not an A15'}));
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.close()));
     assert.equal(await page.locator('.th-island').getAttribute('data-app'),'music','still-playing engine comes back');
-    await page.waitForFunction(()=>!document.querySelector('.th-island .art img').hidden);
+    // The artwork fills the compact lobe: 24 px with 7 px corners, drawn from the track's own art.
+    await page.waitForSelector('.th-island .art.has-art');await settle(page);
+    const lobe=await page.locator('.th-island .art').evaluate(e=>{const r=e.getBoundingClientRect(),c=e.querySelector('canvas');return {x:r.x-e.parentElement.getBoundingClientRect().x,width:r.width,radius:parseFloat(getComputedStyle(e).borderRadius)*r.width/72,pixel:[...c.getContext('2d').getImageData(72,72,1,1).data]};});
+    near(lobe.x,6,'artwork lobe left');near(lobe.width,24,'artwork lobe');near(lobe.radius,7,'artwork lobe corners');assert.deepEqual(lobe.pixel,[0,128,128,255],'the track art is drawn');
     assert.equal(await page.locator('.th-island .tt').textContent(),'Test tone');
     assert.match(await page.locator('.compact').getAttribute('aria-label'),/Test tone, Test artist/);
     assert.match(await page.locator('.heading').getAttribute('aria-label'),/Test tone, Test artist/);
@@ -457,12 +485,17 @@ test('a cold open reveals the coloured cover immediately; reversals settle and t
       await page.screenshot({path:`${process.env.ISLAND_CAPTURE}/playing-expanded.png`});
     }
     assert.equal(await page.evaluate(()=>document.querySelector('iframe[data-app=music]').contentWindow.__cp.player.audio.paused),false,'parking did not stop playback');
-    await page.evaluate(()=>import('/th/island/island.js').then(m=>m.control('pause')));
+    // Pause from the expanded capsule: the capsule swells to 1.03 and back on the pop spring.
+    if(!process.env.ISLAND_CAPTURE){await page.locator('.compact').click();await settle(page);}
+    const swell=await page.evaluate(()=>new Promise(resolve=>{const c=document.querySelector('.th-island'),seen=[];const start=performance.now();
+      const read=()=>{seen.push(Number(c.style.scale||1));if(performance.now()-start<700)requestAnimationFrame(read);else resolve({peak:Math.max(...seen),end:seen.at(-1)});};
+      document.querySelector('[data-control="toggle"]').click();requestAnimationFrame(read);}));
+    assert.ok(swell.peak>1.027&&swell.peak<=1.0301,`pulse peaks at 1.03: ${swell.peak}`);near(swell.end*1000,1000,'pulse returns to 1');
     await page.waitForFunction(()=>document.querySelector('iframe[data-app=music]').contentWindow.__cp.player.audio.paused);
   }finally{await context.close();}
 });
 
-test('idle fallback waits three seconds after chat; holds alone marquee and decisions alert',opts,async()=>{
+test('idle fallback waits three seconds after chat; a long title scrolls once at rest and stops for a touch; decisions alert',opts,async()=>{
   const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'allow'});
   try{
     await context.addInitScript(()=>{delete window.requestIdleCallback;document.addEventListener('th:changed',()=>{window.chatLoadedAt??=performance.now();});});
@@ -472,19 +505,30 @@ test('idle fallback waits three seconds after chat; holds alone marquee and deci
     await page.waitForSelector('iframe.th-app[data-app=music]',{state:'attached',timeout:8000});
     assert.ok(await page.evaluate(()=>performance.now()-chatLoadedAt>=2900),'three-second fallback');
     await readyOpen(page,'music');await settle(page);await page.evaluate(()=>import('/th/island/island.js').then(m=>m.close()));
-    await page.evaluate(()=>{const p=document.querySelector('iframe[data-app=music]').contentWindow.__cp.player;p.queue=[{id:'island-title',title:'An invented long title for the held marquee'}];p.index=0;});
+    // A title past 60% of the viewport: the capsule stops at 234 px and fades the title's last 16 px.
+    await page.evaluate(()=>{const p=document.querySelector('iframe[data-app=music]').contentWindow.__cp.player;p.queue=[{id:'island-title',title:'An invented title, a little too long'}];p.index=0;});
     await page.waitForFunction(()=>document.querySelector('.title').textContent.includes('invented'));
-    assert.equal(await page.locator('.title').evaluate(e=>e.getAnimations().length),0,'no marquee before hold');
+    const shown=await page.evaluate(()=>performance.now());await settle(page);
+    near((await rect(page,'.th-island')).width,234,'60% of the viewport');
+    assert.equal(await page.locator('.th-island').evaluate(e=>e.classList.contains('long')),true,'the long title is masked');
+    // Two seconds at rest, then one pass to its end at 40 px/s (25 ms a pixel, 16 px past the end).
+    const pass=await page.evaluate(()=>new Promise(resolve=>{const t=document.querySelector('.title');
+      const look=()=>{const a=t.getAnimations()[0];if(a)resolve({at:performance.now(),duration:a.effect.getTiming().duration,distance:t.scrollWidth-t.parentElement.clientWidth+16,scrolling:t.closest('.th-island').classList.contains('scrolling')});else requestAnimationFrame(look);};look();}));
+    assert.ok(pass.at-shown>=1900,`waits two seconds at rest: ${pass.at-shown}`);
+    near(pass.duration,pass.distance*25,'40 px/s');assert.equal(pass.scrolling,true);
+    near((await rect(page,'.th-island')).height,36,'the pass keeps compact');
+    // A touch stops it and brings the title back; a hold alone neither scrolls nor expands.
     const box=await page.locator('.compact').boundingBox();await page.mouse.move(box.x+box.width/2,box.y+18);await page.mouse.down();
-    await page.waitForSelector('.th-island.marquee');
-    await page.waitForFunction(()=>new DOMMatrix(getComputedStyle(document.querySelector('.title')).transform).e<0);
-    near((await rect(page,'.th-island')).height,36,'hold keeps compact');
-    await page.mouse.up();await page.waitForFunction(()=>!document.querySelector('.th-island').classList.contains('marquee'));
+    await page.waitForFunction(()=>!document.querySelector('.th-island').classList.contains('scrolling'));
+    await page.waitForTimeout(600);
+    assert.equal(await page.locator('.title').evaluate(e=>new DOMMatrix(getComputedStyle(e).transform).e),0,'the title is back at its start');
+    assert.equal(await page.locator('.title').evaluate(e=>e.getAnimations().length),0,'nothing scrolls while touched');
+    await page.mouse.up();
     const state=await page.locator('.th-island').getAttribute('data-state');assert.equal(state,'compact');
     await page.locator('.compact').click();await settle(page);
     await page.mouse.move(355,75);await page.mouse.down();
     await page.waitForTimeout(6200);
-    near((await rect(page,'.th-island')).height,128,'a held touch keeps the expanded capsule open');
+    near((await rect(page,'.th-island')).height,180,'a held touch keeps the expanded capsule open');
     await page.mouse.up();
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.wide(false)));
     await page.evaluate(()=>{let dock=document.querySelector('#decision');if(!dock){dock=document.createElement('div');dock.id='decision';document.body.append(dock);}const card=document.createElement('div');card.className='card';card.textContent='A decision is waiting.';dock.append(card);document.dispatchEvent(new Event('th:decisions'));});

@@ -1,17 +1,22 @@
 // @ts-check
 // A single capsule, retained players, and one reversible clip from its measured shape (HOME §12).
 import { appFor } from '../registry/apps.js';
-import { animator, motionReduced, springs, restTime, haptic } from '../motion.js';
+import { animator, motionReduced, springs, restTime, response, haptic } from '../motion.js';
 import { frames, retain } from './frames.js';
 export const LAYERED = Object.freeze(['music', 'podcasts']);
 /** @param {string} id */
 export const layered = id => LAYERED.includes(id);
 const BARS = 5, HOLD_MS = 450;
+// The expanded capsule (HOME §12.1): a glyph row, the 72 px art beside a title of up to two lines,
+// the progress line, then the times under its ends and the controls between them.
+const TALL = 180, ART = 72, ART_Y = 38, LINE_Y = 124;
 const clamp = (/** @type {number} */ n) => Math.max(0, Math.min(1, n));
 /** @type {import('./frames.js').Layer|null} */
 let layer = null;
 /** @type {HTMLDivElement|null} */
 let island = null;
+/** The shared artwork node and the progress line (moved by transform only), then the compact and expanded groups. @type {HTMLElement[]} */
+let movers = [];
 let expanded = false, compactWidth = 124, flight = 0, insets = [0,0,0,0,18];
 let raf = 0;
 /** @type {ReturnType<typeof setTimeout>|undefined} */
@@ -23,35 +28,54 @@ let alertEnd;
 /** @type {{end:number,timer:ReturnType<typeof setTimeout>}|null} */
 let podSleep = null;
 /** @param {string} name */
+const token = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+/** @param {string} name */
 function ms(name) {
-  const v = getComputedStyle(document.documentElement).getPropertyValue(`--d-${name}`).trim();
+  const v = token(`--d-${name}`);
   return parseFloat(v) * (v.endsWith('ms') ? 1 : 1000);
 }
 const springOptions = (name = 'base') => ({ spring:springs.island, timeScale:ms(name) / restTime(springs.island) || 1 });
+// The compact title and bars hand off to the details at 40% of the shape: out by 40%, in from it.
+// Opacity is set on the two groups themselves, so a frame restyles them and not the whole capsule.
+let faded = '';
 const content = animator(v => {
   if (!island) return;
-  island.style.setProperty('--details', String(clamp(v)));
-  island.style.setProperty('--compact', String(1 - clamp(v)));
+  const r = motionReduced(), c = String(1 - clamp(r ? v : v / .4)), d = String(clamp(r ? v : (v - .4) / .6)), [art, line, compact, details] = movers;
+  if (`${c} ${d}` === faded) return;
+  faded = `${c} ${d}`; compact.style.opacity = c; details.style.opacity = d;
+  // The artwork's app icon and the line's track arrive with the details.
+  art.style.setProperty('--details', d); line.style.setProperty('--details', d);
 }, { unit:'opacity' });
-const shape = animator(v => {
+const shape = animator(paint, { unit:'scalar' });
+const alertWidth = animator(paint);
+/** 0: the app-colour dot fills the compact lobe; 1: the artwork does. */
+const artOn = animator(paint, { unit:'scalar' });
+/** Draws the capsule at the shape's value, without resetting an in-flight spring or its velocity. */
+function paint() {
   if (!island) return;
-  const p = clamp(v), width = Math.min(360, innerWidth - 24);
+  const p = clamp(shape.value), width = Math.min(360, innerWidth - 24), s = island.style, [art, line] = movers;
   // Finish growing at 80%, then squish out by 4% and settle on the same spring clock.
-  const grow = clamp(p / .8), squish = p > .8 ? Math.sin(Math.PI * (p - .8) / .2) * width * .04 : 0;
-  island.style.width = `${compactWidth + (width - compactWidth) * grow + squish + alertWidth.value * (1-p)}px`;
-  island.style.height = `${36 + 92*p}px`;
-  island.style.borderRadius = `${18 + 10*p}px`;
-  if (!motionReduced()) content.set(clamp((p - .4) / .6));
-}, { unit:'scalar' });
-const alertWidth = animator(() => renderShape());
-function renderShape() {
-  // Repaint without resetting an in-flight shape or its velocity.
-  if (!island) return;
-  const p = clamp(shape.value), width = Math.min(360, innerWidth - 24);
   const squish = p > .8 ? Math.sin(Math.PI * (p - .8) / .2) * width * .04 : 0;
-  island.style.width = `${compactWidth + (width-compactWidth)*clamp(p/.8) + squish + alertWidth.value*(1-p)}px`;
+  s.width = `${compactWidth + (width - compactWidth) * clamp(p / .8) + squish + alertWidth.value * (1 - p)}px`;
+  s.height = `${36 + (TALL - 36) * p}px`;
+  s.borderRadius = `${18 + 10 * p}px`;
+  // One artwork node travels and scales from the compact lobe (24 px with 7 px corners, or the 22 px
+  // dot without art) to the 72 px art with 16 px corners. Corners are in its own unscaled pixels.
+  const a = clamp(artOn.value), from = 22 + 2 * a, k = (from + (ART - from) * p) / ART, at = (36 - from) / 2;
+  art.style.transform = `translate(${at + (16 - at) * p}px,${at + (ART_Y - at) * p}px) scale(${k})`;
+  art.style.borderRadius = `${((from / 2 + (7 - from / 2) * a) * (1 - p) + 16 * p) / k}px`;
+  // The progress line rises above the times and thickens from 2 to 3 px.
+  line.style.transform = `translateY(${33 + (LINE_Y - 33) * p}px) scaleY(${(2 + p) / 3})`;
+  if (!motionReduced()) content.set(p);
 }
 const capsuleFade = animator(v => { if (island) island.style.opacity = String(clamp(v)); }, { unit:'opacity' });
+// Play or pause swells the capsule to 1.03 and back on springs.pop: one impulse, in thousandths.
+const pulse = animator(v => { if (island) island.style.scale = String(1 + v / 1000); });
+function kick() {
+  let peak = 0;
+  for (let t = 0; t < .5; t += .002) peak = Math.max(peak, response(springs.pop, t, 0, 1, 0).value);
+  pulse.to(0, { spring:springs.pop, velocity:30 / peak });
+}
 const morph = animator(v => {
   if (!layer) return;
   const p = clamp(v), [t,r,b,l,radius] = insets.map(n => n*p);
@@ -64,7 +88,7 @@ const morph = animator(v => {
 }, { unit:'scalar' });
 /** All public transitions complete at the actual spring rest, including a reversal. */
 export async function whenResting() {
-  await Promise.all([shape.whenResting(), content.whenResting(), alertWidth.whenResting(), morph.whenResting(), capsuleFade.whenResting()]);
+  await Promise.all([shape, content, alertWidth, artOn, pulse, morph, capsuleFade].map(a => a.whenResting()));
 }
 /** @returns {any} */
 function win() { try { return layer?.frame.contentWindow ?? null; } catch { return null; } }
@@ -108,7 +132,7 @@ export async function openApp(id, o = {}) {
     layer = next;
     const is = ensureIsland();
     is.hidden = false; is.style.transform = ''; is.style.opacity = '1';
-    expanded = false; shape.set(0); content.set(0); capsuleFade.set(1);
+    expanded = false; marquee(-1); shape.set(0); content.set(0); capsuleFade.set(1);
     is.dataset.state='compact';
     const compact=/** @type {HTMLButtonElement} */ (is.querySelector('.compact'));
     compact.inert=false; compact.setAttribute('aria-expanded','false');
@@ -174,7 +198,7 @@ export async function collapse(why, velocity) {
         if(a && !a.paused && !a.ended) {layer=other;tick();break;}
       } catch {}
     }
-    touch();
+    touch(); marquee();
   }
   void why;
 }
@@ -182,7 +206,7 @@ export async function collapse(why, velocity) {
 export async function expand(why) {
   if (!layer || layer.front) return;
   const l = layer, current = ++flight, is = ensureIsland();
-  clearTimeout(idleClose);
+  clearTimeout(idleClose); marquee(-1);
   // Preserve the exact measured shape while the frame grows or reverses.
   shape.stop(); content.stop(); alertWidth.stop();
   measure();
@@ -242,18 +266,22 @@ function watch(l) {
   } catch {}
 }
 /** @param {string} name */
-const icon = name => `<svg class="i" aria-hidden="true"><use href="/ui/icons.svg#${name}"/></svg>`;
+const use = name => `<use href="/ui/icons.svg#${name}"/>`;
+/** @param {string} name @param {string} [more] */
+const icon = (name, more = '') => `<svg class="i${more}" aria-hidden="true">${use(name)}</svg>`;
 function ensureIsland() {
   if (island) return island;
   const b = document.createElement('div');
   b.setAttribute('role','group');
   b.className='th-island'; b.hidden=true; b.dataset.state='compact';
-  b.innerHTML = `<button type="button" class="compact" aria-label="Expand player" aria-expanded="false"><span class="dot"></span><span class="title-mask"><span class="title"></span></span><span class="bars">${'<i></i>'.repeat(BARS)}</span><span class="alert-dot"></span></button><div class="details" inert><button type="button" class="art" aria-label="Open app"><img alt="" hidden>${icon('music-notes-simple')}</button><button type="button" class="heading" aria-label="Open app"><span class="tt"></span><span class="by"></span></button><button type="button" class="zz" aria-label="Sleep timer">${icon('moon-stars')}<b></b></button><div class="controls"><button type="button" data-control="previous" aria-label="Previous">${icon('play')}</button><button type="button" data-control="toggle" aria-label="Play">${icon('play')}</button><button type="button" data-control="next" aria-label="Next">${icon('play')}</button></div><div class="times"><span class="elapsed"></span><span class="total"></span></div></div><div class="progress"><i></i></div>`;
+  b.innerHTML = `<button type="button" class="compact" aria-label="Expand player" aria-expanded="false"><span class="title-mask"><span class="title"></span></span><span class="bars">${'<i></i>'.repeat(BARS)}</span><span class="alert-dot"></span></button><div class="details" inert>${icon('music-notes-simple-bold',' glyph')}<button type="button" class="zz" aria-label="Sleep timer">${icon('moon-stars')}<b></b></button><button type="button" class="heading" aria-label="Open app"><span class="tt"></span><span class="by"></span></button><span class="elapsed"></span><span class="left"></span><div class="controls"><button type="button" data-control="previous" aria-label="Previous"></button><button type="button" data-control="toggle" aria-label="Play">${icon('play')}</button><button type="button" data-control="next" aria-label="Next"></button></div></div><span class="art" aria-hidden="true"><canvas width="144" height="144"></canvas>${icon('music-notes-simple')}</span><div class="progress"><i></i></div>`;
   document.body.append(b); island=b;
+  movers = /** @type {HTMLElement[]} */ (['.art','.progress','.compact','.details'].map(s => b.querySelector(s)));
   b.querySelector('.compact')?.addEventListener('click', e => { if (!held || !/** @type {MouseEvent} */ (e).detail) void wide(true); held=false; });
-  for (const button of b.querySelectorAll('.art,.heading')) button.addEventListener('click', () => void expand('island'));
+  for (const node of b.querySelectorAll('.art,.heading')) node.addEventListener('click', () => { if (expanded) void expand('island'); });
   for (const button of /** @type {NodeListOf<HTMLButtonElement>} */ (b.querySelectorAll('[data-control]'))) button.addEventListener('click', () => {
     const cmd = button.dataset.control;
+    if (cmd === 'toggle') kick();
     control(cmd === 'toggle' ? playing() ? 'pause' : 'play' : /** @type {'next'|'previous'} */ (cmd));
     touch(); haptic('choose');
   });
@@ -261,6 +289,8 @@ function ensureIsland() {
   gestures(b);
   document.addEventListener('pointerdown', e => { if (expanded && !b.contains(/** @type {Node} */ (e.target))) void wide(false); }, true);
   document.addEventListener('keydown', e => { if (e.key === 'Escape' && expanded) { void wide(false); /** @type {HTMLElement} */ (b.querySelector('.compact')).focus(); } });
+  // The title's width is measured again once Switzer has loaded.
+  document.fonts?.addEventListener('loadingdone', () => { lastTitle = ''; });
   const changes = new MutationObserver(notices);
   for (const node of document.querySelectorAll('#talk,#decision')) changes.observe(node,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class']});
   document.addEventListener('th:decisions', notices);
@@ -278,10 +308,12 @@ export async function wide(on=true) {
   const compact=/** @type {HTMLButtonElement} */ (b.querySelector('.compact'));
   compact.setAttribute('aria-expanded',String(on)); compact.inert=on;
   /** @type {HTMLElement} */ (b.querySelector('.details')).inert=!on;
+  marquee(-1);
   shape.to(on?1:0,springOptions());
   if (motionReduced()) content.to(on?1:0);
   touch(); if(on) haptic('open');
   await whenResting();
+  if (!expanded) marquee();
 }
 let held=false;
 /** @param {HTMLElement} b */
@@ -289,8 +321,9 @@ function gestures(b) {
   /** @type {{x:number,y:number}|null} */ let start=null;
   /** @type {ReturnType<typeof setTimeout>|undefined} */ let hold;
   b.addEventListener('pointerdown', e => {
-    touching=true; touch(); held=false; start={x:e.clientX,y:e.clientY};
-    if (!expanded) hold=setTimeout(() => { held=true; if(!motionReduced()) b.classList.add('marquee'); },HOLD_MS);
+    // A touch stops a scrolling title; a hold alone does nothing (no marquee).
+    touching=true; touch(); held=false; start={x:e.clientX,y:e.clientY}; marquee(-1);
+    if (!expanded) hold=setTimeout(() => { held=true; },HOLD_MS);
   });
   b.addEventListener('pointermove', e => {
     if (!start) return;
@@ -298,7 +331,7 @@ function gestures(b) {
     if (Math.abs(dy)>30 && dy < -Math.abs(dx)) { held=true; clearTimeout(hold); start=null; void wide(false); }
     else if (!expanded && Math.abs(dx)>40 && Math.abs(dx)>Math.abs(dy)*1.5) { held=true; clearTimeout(hold); start=null; control(dx<0?'next':'previous'); }
   });
-  const end=() => {if(!touching) return; touching=false; clearTimeout(hold); start=null; b.classList.remove('marquee'); touch();};
+  const end=() => {if(!touching) return; touching=false; clearTimeout(hold); start=null; touch(); if (!expanded) marquee();};
   addEventListener('pointerup',end); addEventListener('pointercancel',end);
   b.addEventListener('contextmenu',e=>e.preventDefault());
 }
@@ -323,21 +356,108 @@ function notices() {
   }
   noticeKey=key;
 }
-const time = (/** @type {number} */ s) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
-let lastArt='', lastTitle='', titleViewport=0;
+let marqueeRun = 0;
+/** @type {ReturnType<typeof setTimeout>|undefined} */
+let marqueeWait;
+/**
+ * A title too long for the capsule (HOME §12.1): after `delay` ms at rest it scrolls once to its end at
+ * 40 px/s, holds 1.5 s, snaps back, and rests 8 s before the next pass. A negative delay only stops it.
+ */
+function marquee(delay = 2000) {
+  const run = ++marqueeRun, text = /** @type {HTMLElement|null} */ (island?.querySelector('.title'));
+  clearTimeout(marqueeWait);
+  if (!island || !text) return;
+  const is = island;
+  // An engine without linear() easings snaps back without the curve.
+  /** @param {number} from */
+  const back = from => { try { text.animate([{transform:`translateX(${from}px)`},{transform:'none'}], {duration:ms('quick'), easing:token('--pop')}); } catch {} };
+  const at = new DOMMatrix(getComputedStyle(text).transform).e;
+  for (const a of text.getAnimations()) a.cancel();
+  if (at < -1) back(at);
+  is.classList.remove('scrolling');
+  const wait = (/** @type {number} */ t) => new Promise(r => { marqueeWait = setTimeout(r, t); });
+  if (delay >= 0) void (async () => {
+    await wait(delay);
+    while (run === marqueeRun) {
+      const end = text.parentElement ? text.parentElement.clientWidth - text.scrollWidth - 16 : 0;
+      if (end >= -16 || motionReduced()) return;
+      // Only while the capsule rests, compact and untouched, in a visible page.
+      if (expanded || touching || is.hidden || document.hidden || !shape.resting || !alertWidth.resting || layer?.front) { await wait(2000); continue; }
+      is.classList.add('scrolling');
+      // 40 px/s: 25 ms a pixel, on to 16 px past the end so its last letter clears the fade.
+      const scroll = text.animate([{transform:'none'},{transform:`translateX(${end}px)`}], {duration:-end * 25, easing:token('--ease-linear'), fill:'forwards'});
+      await scroll.finished.catch(() => {});
+      if (run !== marqueeRun) return;
+      await wait(1500);
+      if (run !== marqueeRun) return;
+      scroll.cancel(); back(end); is.classList.remove('scrolling');
+      await wait(ms('quick') + 8000);
+    }
+  })();
+}
+const time = (/** @type {number} */ s) => {
+  const t = Math.max(0, Math.floor(s)), m = Math.floor(t / 60), x = String(t % 60).padStart(2,'0');
+  return m < 60 ? `${m}:${x}` : `${Math.floor(m / 60)}:${String(m % 60).padStart(2,'0')}:${x}`;
+};
+let lastArt='', lastTitle='', titleViewport=0, lastApp='';
 let meterData=new Uint8Array(0);
+/**
+ * The app's artwork, drawn once into the shared node. Fetched inside its app (its worker and CSP),
+ * decoded off the main thread (createImageBitmap, or img.decode() for a data: URL), and drawn only
+ * while the capsule rests, so it never holds up a morph. A failed load keeps the dot.
+ * @param {string} src @param {any} m
+ */
+async function showArt(src, m) {
+  const [art] = movers, canvas = /** @type {HTMLCanvasElement} */ (art.querySelector('canvas'));
+  const image = async (/** @type {string} */ url) => { const i = new Image(); i.src = url; await i.decode(); return i; };
+  /** @type {any} */ let bits = null;
+  try {
+    if (src.startsWith('data:image/')) bits = await image(src);
+    else if (src) {
+      /** @type {Blob|null} */ let blob = null;
+      try { const r = await m.w.fetch(src, { referrerPolicy:'no-referrer' }); if (r.ok) blob = await r.blob(); } catch {}
+      // An SVG has no bitmap decoder; a host without CORS leaves the app's own <img>, already decoded.
+      if (blob) bits = await createImageBitmap(blob).catch(() => new Promise(done => { const f = new FileReader(); f.onload = () => done(image(String(f.result))); f.onerror = () => done(null); f.readAsDataURL(/** @type {Blob} */ (blob)); }));
+      else { const own = [...m.w.document.images].find(i => i.currentSrc === src && i.naturalWidth); if (own) bits = await createImageBitmap(own); }
+    }
+  } catch {}
+  if (!shape.resting) await shape.whenResting();
+  if (src !== lastArt) return bits?.close?.();
+  art.classList.toggle('has-art', Boolean(bits));
+  artOn.to(bits ? 1 : 0, springOptions('fast'));
+  if (!bits) return;
+  const w = bits.naturalWidth || bits.width, h = bits.naturalHeight || bits.height, side = Math.min(w, h), g = canvas.getContext('2d');
+  g?.clearRect(0, 0, 144, 144);
+  g?.drawImage(bits, (w - side) / 2, (h - side) / 2, side, side, 0, 0, 144, 144);
+  bits.close?.();
+}
 /** Titles and artwork stay in this page. Fetch artwork inside its app, under that app's CSP. */
 function tick() {
   cancelAnimationFrame(raf); clearTimeout(slow);
   const is=island;
   if (!is || !layer) return;
-  const m=media(), app=appFor(layer.id), on=playing();
+  const m=media(), app=appFor(layer.id), on=playing(), pod=layer.id==='podcasts';
   const meta=m?.w.navigator.mediaSession?.metadata;
   const t=m?.kind==='music' ? m.p.track : null;
-  const title=t?.title || meta?.title || app?.name || '', by=t?.artist || meta?.artist || '';
+  // Podcasts names its episode in the media session only once it plays; before that, its player says.
+  const page=(/** @type {string} */ id)=>pod ? m?.w.document.getElementById(id) : null;
+  const title=t?.title || meta?.title || page('player-title')?.textContent || app?.name || '', by=t?.artist || meta?.artist || page('player-show')?.textContent || '';
+  const shown=page('player-art')?.currentSrc ?? '', art=t?.art?.url || meta?.artwork?.[0]?.src || (/^https?:/.test(shown) ? shown : '');
   for (const node of is.querySelectorAll('.title,.tt')) if(node.textContent!==title) node.textContent=title;
   const sub=/** @type {HTMLElement} */ (is.querySelector('.by')); if(sub.textContent!==by) sub.textContent=by;
-  is.style.setProperty('--c',app?.color ?? '#2f7df6'); is.dataset.app=layer.id;
+  if (lastApp !== layer.id) {
+    lastApp = layer.id;
+    is.style.setProperty('--c',app?.color ?? '#2f7df6');
+    /** @type {Element} */ (is.querySelector('.glyph')).innerHTML=use(`${app?.icon}-bold`);
+    /** @type {Element} */ (is.querySelector('.art .i')).innerHTML=use(app?.icon ?? '');
+    // Podcasts skips 15 s back and 30 s on; Music steps through its queue.
+    const [previous, next] = /** @type {HTMLElement[]} */ ([...is.querySelectorAll('[data-control="previous"],[data-control="next"]')]);
+    previous.innerHTML=pod ? `<b>15</b>${icon('arrow-counter-clockwise')}` : icon('play');
+    next.innerHTML=pod ? `<b>30</b>${icon('arrow-clockwise')}` : icon('play');
+    previous.setAttribute('aria-label', pod ? 'Back 15 seconds' : 'Previous');
+    next.setAttribute('aria-label', pod ? 'Forward 30 seconds' : 'Next');
+  }
+  is.dataset.app=layer.id;
   is.classList.toggle('playing',on);
   const zz=Math.ceil(sleepLeft()/60); is.classList.toggle('sleep',zz>0);
   /** @type {HTMLElement} */ (is.querySelector('.zz b')).textContent=zz?String(zz):'';
@@ -348,25 +468,19 @@ function tick() {
   const action=on?'Pause':'Play'; if(toggle.getAttribute('aria-label')!==action) {toggle.setAttribute('aria-label',action); toggle.innerHTML=icon(on?'pause':'play');}
   const a=m?.kind==='music'?m.p.audio:m?.a;
   const duration=Number.isFinite(a?.duration)?a.duration:0, elapsed=Number.isFinite(a?.currentTime)?a.currentTime:0;
-  is.style.setProperty('--progress',String(duration?clamp(elapsed/duration):0));
+  movers[1].style.setProperty('--progress',String(duration?clamp(elapsed/duration):0));
   /** @type {HTMLElement} */ (is.querySelector('.elapsed')).textContent=time(elapsed);
-  /** @type {HTMLElement} */ (is.querySelector('.total')).textContent=time(duration);
+  /** @type {HTMLElement} */ (is.querySelector('.left')).textContent=duration ? `−${time(duration-elapsed)}` : '';
   const text=/** @type {HTMLElement} */ (is.querySelector('.title'));
   if (title!==lastTitle || titleViewport!==innerWidth) {
     lastTitle=title; titleViewport=innerWidth;
-    compactWidth=Math.max(124,Math.min(innerWidth*.6-24,text.scrollWidth+83));
-    is.style.setProperty('--marquee',`${Math.min(0,compactWidth-83-text.scrollWidth)}px`);
-    renderShape();
+    // The capsule grows with its title up to 60% of the viewport; past that the title fades out.
+    const need=text.scrollWidth+85, most=innerWidth*.6;
+    compactWidth=Math.max(124,Math.min(most,need));
+    is.classList.toggle('long',need>most);
+    paint(); marquee();
   }
-  const art=meta?.artwork?.[0]?.src ?? '';
-  if (art!==lastArt) {
-    lastArt=art;
-    const img=/** @type {HTMLImageElement} */ (is.querySelector('.art img')); img.hidden=true;
-    if(art.startsWith('data:image/')) {img.src=art;img.hidden=false;}
-    else if(art && m) void m.w.fetch(art).then((/** @type {Response} */ r)=>r.blob()).then((/** @type {Blob} */ blob)=>{
-      const reader=new FileReader(); reader.onload=()=>{if(lastArt===art){img.src=String(reader.result);img.hidden=false;}}; reader.readAsDataURL(blob);
-    }).catch(()=>{});
-  }
+  if (art!==lastArt && !layer.front) { lastArt=art; void showArt(art, m); }
   const an=m?.kind==='music' && !motionReduced() && !document.hidden && !layer.front && on ? m.w.__cp?.dsp?.nodes?.analyser : null;
   is.classList.toggle('live',Boolean(an));
   // Without an analyser, retain the playing-only fallback; reduced motion and pause stop it.
@@ -375,7 +489,7 @@ function tick() {
     const breathe=on && !an && !layer?.front && !document.hidden && !motionReduced();
     if(!breathe) for(const animation of animations) animation.cancel();
     else if(!animations.length) bar.animate([{transform:'scaleY(.25)'},{transform:'scaleY(1)'}],
-      {duration:ms('rise')*(.6+i*.08),easing:getComputedStyle(document.documentElement).getPropertyValue('--settle').trim(),iterations:Infinity,direction:'alternate'});
+      {duration:ms('rise')*(.6+i*.08),easing:token('--settle'),iterations:Infinity,direction:'alternate'});
   });
   if(an) {
     if(meterData.length!==an.frequencyBinCount) meterData=new Uint8Array(an.frequencyBinCount);
@@ -383,8 +497,11 @@ function tick() {
     const step=Math.max(1,Math.floor(meterData.length/3/BARS));
     const draw=()=>{
       if(document.hidden || layer?.front || motionReduced()) return;
-      an.getByteFrequencyData(meterData);
-      bars.forEach((b,i)=>{let sum=0;for(let k=0;k<step;k++) sum+=meterData[i*step+k]??0;b.style.transform=`scaleY(${Math.max(.18,Math.min(1,sum/step/190))})`;});
+      // The bars are out of sight while expanded or morphing: no style writes then.
+      if(!expanded && shape.resting) {
+        an.getByteFrequencyData(meterData);
+        bars.forEach((b,i)=>{let sum=0;for(let k=0;k<step;k++) sum+=meterData[i*step+k]??0;b.style.transform=`scaleY(${Math.max(.18,Math.min(1,sum/step/190))})`;});
+      }
       raf=requestAnimationFrame(draw);
     };
     draw();
@@ -392,7 +509,7 @@ function tick() {
   if(!layer.front) slow=setTimeout(tick,500);
   notices();
 }
-addEventListener('resize',()=>{ if(layer && !layer.front){tick();renderShape();} });
+addEventListener('resize',()=>{ if(layer && !layer.front){tick();paint();} });
 /**
  * The phone's commands, on the app playing behind the chat (or in front). `minutes` for 'sleep'.
  * @param {'pause' | 'play' | 'next' | 'previous' | 'sleep' | 'never'} cmd @param {number} [minutes]
