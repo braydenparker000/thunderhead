@@ -68,3 +68,9 @@ aperture-fill
 
 # Shared menu and Settings back button
 caret-left
+# Settings catalogue pages and the Briefing tiles order (2026-11-02)
+palette
+hand-pointing
+sparkle
+shield-check
+arrow-down

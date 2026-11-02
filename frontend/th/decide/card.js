@@ -12,6 +12,7 @@ import { quietUntil } from '../chat/quiet.js';
 import { api, signedIn } from '../client.js';
 import { failure } from '../flow.js';
 import { el, toast, tooSoon } from '../ui.js';
+import { dock } from './dock.js';
 import * as m from './model.js';
 import { setDecisions } from './state.js';
 
@@ -39,10 +40,8 @@ export function startDecisions() {
   const home = document.querySelector('#home');
   const ask = document.querySelector('#ask');
   if (!home || !ask) return;
-  const slot = el('div', { id: 'decision', class: 'dock' });
-  ask.before(slot);
-  // The conversation ends above the docked card, however tall it is (home.css --dock-h).
-  new ResizeObserver(() => document.documentElement.style.setProperty('--dock-h', `${slot.offsetHeight ? slot.offsetHeight + 10 : 0}px`)).observe(slot);
+  // The conversation ends above the docked card, however tall it is (dock.js, --dock-h).
+  const slot = dock('decision', ask);
 
   /** @type {Proposal[]} */
   let items = [];

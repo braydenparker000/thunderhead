@@ -1,7 +1,7 @@
 // @ts-check
 // The conversation's logic without the DOM (HOME.md §2, §4, §7), so node tests cover it: merging
-// the server's messages with the outbox, what the reply slot shows while a reply is on its way,
-// the status chip, the mind's home lines among the messages, the edge light, a local message's meta line, and how a reply's text becomes
+// the server's messages with the outbox, what the reply slot and the working card show while a
+// reply is on its way, the status chip, the mind's home lines among the messages, the edge light, a local message's meta line, and how a reply's text becomes
 // lines and links. Times are ms; `now` is always passed in.
 
 /** @typedef {import('../../../shared/contract/api.ts').Message} Message */
@@ -82,26 +82,65 @@ export function slot({ sentAt, now, presence, progress }) {
   return 'dots';
 }
 
-/** What a message is about, for the words the slot shows until the mind says what it is doing. */
+/** What a message is about, for the working card's title until the mind says what it is doing. */
 const TOPICS = /** @type {[RegExp, string][]} */ ([
-  [/\b(music|songs?|playlists?|albums?|tracks?|listen|m[uú]sica|canci[oó]n)/i, 'Thinking about your music…'],
-  [/\b(guitar|chords?|riffs?|tabs?|scales?|practi[cs]e|guitarra)/i, 'Thinking about guitar…'],
-  [/\b(podcasts?|episodes?)/i, 'Thinking about podcasts…'],
-  [/\b(watch|movies?|films?|shows?|anime|series|pel[ií]culas?)/i, 'Thinking about what to watch…'],
-  [/\b(study|books?|chapters?|verses?|scriptures?|read|estudi|libros?)/i, 'Thinking about your books…'],
-  [/\b(weather|rain|snow|temperature|forecast|clima|lluvia)/i, 'Thinking about the weather…'],
-  [/\b(today|tomorrow|tonight|schedule|plan|agenda|remind|week|hoy|ma[nñ]ana)/i, 'Thinking about your day…'],
-  [/\b(remember|forgot|last time|did i|recuerdas)/i, 'Thinking back…'],
+  [/\b(music|songs?|playlists?|albums?|tracks?|listen|m[uú]sica|canci[oó]n)/i, 'Thinking about your music'],
+  [/\b(guitar|chords?|riffs?|tabs?|scales?|practi[cs]e|guitarra)/i, 'Thinking about guitar'],
+  [/\b(podcasts?|episodes?)/i, 'Thinking about podcasts'],
+  [/\b(watch|movies?|films?|shows?|anime|series|pel[ií]culas?)/i, 'Thinking about what to watch'],
+  [/\b(study|books?|chapters?|verses?|scriptures?|read|estudi|libros?)/i, 'Thinking about your books'],
+  [/\b(weather|rain|snow|temperature|forecast|clima|lluvia)/i, 'Thinking about the weather'],
+  [/\b(today|tomorrow|tonight|schedule|plan|agenda|remind|week|hoy|ma[nñ]ana)/i, 'Thinking about your day'],
+  [/\b(remember|forgot|last time|did i|recuerdas)/i, 'Thinking back'],
 ]);
-export const WORD_MS = 3000;
+/** @param {string} body */
+export const topic = (body) => TOPICS.find(([re]) => re.test(body))?.[1] ?? 'Thinking';
 
-/** The reply slot's words while the mind works (HOME.md §4.4): its own note (`th status working
- * --note`), else words from the message, then two more, 3 s each. @param {{ body: string, sentAt: number, now: number, presence: MindPresence | null }} s */
-export function thinking({ body, sentAt, now, presence }) {
-  const note = presence?.state === 'working' ? (presence.note ?? '').trim() : '';
-  if (note) return /[….!?]$/.test(note) ? note : `${note}…`;
-  const lines = [TOPICS.find(([re]) => re.test(body))?.[1] ?? 'Thinking…', 'Working it out…', 'Putting it together…'];
-  return lines[Math.min(lines.length - 1, Math.floor(Math.max(0, now - sentAt - THINK_AFTER_MS) / WORD_MS))];
+/** The working card shows after this long with a live mind (sooner once it gives a title), and
+ * after WAKING_CARD_MS with one still waking (HOME.md §4.13). */
+export const CARD_AFTER_MS = 1500;
+export const WAKING_CARD_MS = 3000;
+const USE_KINDS = new Set(['fact', 'song', 'page', 'source', 'app']);
+/** A command, a flag, a file path or a URL: never on the card (a Bash call's description can
+ * become the note, mind/hooks/post-tool.mjs). */
+const RAW = /`|\bhttps?:\/\/|(?:^|\s)[~.]{0,2}\/[\w.-]|\b[\w-]+\.(?:m?js|ts|json|md|py|sh|css|html|txt|ya?ml|sql)\b|(?:^|\s)--?[a-z]/i;
+/** The mind's words as the card may show them, or ''. @param {unknown} s */
+export const plain = (s) => (typeof s === 'string' && s.trim() && !RAW.test(s) ? s.trim() : '');
+
+/** When the run of owner messages that waits began (the first after the mind's last reply): a title
+ * the mind gave before it was for something else. @param {Shown[]} shown @param {Shown} waiting */
+function runStart(shown, waiting) {
+  let at = waiting.created_at;
+  for (let i = shown.indexOf(waiting); i >= 0; i--) {
+    const m = shown[i];
+    if (m.author === 'mind' && REPLY_KINDS.has(m.kind)) break;
+    if (m.author === 'owner' && !m.local) at = m.created_at;
+  }
+  return at;
+}
+
+/** The working card (HOME.md §4.13), or null. While a reply is on its way to a message the Worker
+ * has: at once once the mind gives a title or chips for it, else 1.5 s after it was sent to a live
+ * mind, or 3 s to one still waking ("Waking up", its dot pulsing; a minute on, "This can take a
+ * minute."). The title is the mind's, else its note, else words from the message; the note is the
+ * live line under a title. What the mind said before this run of messages counts for nothing.
+ * @param {{ shown: Shown[], waiting: Shown | null, now: number, presence: MindPresence | null }} s
+ * @returns {{ title: string, note: string, using: import('../../../shared/contract/feed.ts').MindUse[], waking: boolean } | null} */
+export function work({ shown, waiting, now, presence }) {
+  if (!waiting || waiting.local) return null;
+  const state = presence?.state;
+  if (state === 'unconfigured' || state === 'failed' || state === 'limited') return null;
+  const start = runStart(shown, waiting);
+  const working = state === 'working';
+  const given = working && (presence?.title_at ?? 0) >= start;
+  const title = given ? plain(presence?.title) : '';
+  const using = given && Array.isArray(presence?.using) ? presence.using.filter((u) => USE_KINDS.has(u?.kind) && plain(u.label)).slice(0, 6) : [];
+  const t = now - waiting.created_at;
+  const live = !!state && LIVE.has(state);
+  if (!title && !using.length && t < (live ? CARD_AFTER_MS : WAKING_CARD_MS)) return null;
+  const note = working && (presence?.since ?? 0) >= start ? plain(presence?.note) : '';
+  if (!live) return { title: 'Waking up', note: t >= WAKING_LONG_AFTER_MS ? 'This can take a minute.' : '', using: [], waking: true };
+  return title ? { title, note, using, waking: false } : { title: note || topic(waiting.body), note: '', using, waking: false };
 }
 
 /** The status chip at the top of home, or null while all is well (owner, 2026-10-31: no standing

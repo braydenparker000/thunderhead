@@ -106,7 +106,10 @@ const budgets = [
   // (2026-10-31, later) + the status chip, the mind's lines as cards and the catch-up line after
   // quiet, in place of the voice line (HOME.md §2).
   // (2026-11-01) + off the record: its conversation shown in place of today's, its outbox, no cache.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 97_000],
+  // (2026-11-02, night chat) 97,000 → 107,500: the working card (th/chat/working.js, 7,100 bytes;
+  // its logic in model.js) and a reply's choice, less the reply slot's thinking words and Stop:
+  // measured 107,441 bytes, 10,560 over main's 96,881.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 107_500],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -144,9 +147,12 @@ const budgets = [
   // 1,253 bytes gzipped against 5f7cdd9. The site is served uncompressed (ARCHITECTURE.md §5, the
   // brotli proposal); when compressed uploads land, this budget moves to compressed bytes.
   ['settings CSS bytes', sum(/^apps\/settings\/.*\.css$/), 11_484], // Task B: never exceed the measured pre-redesign CSS.
-  // (2026-11-02, shell feel) 76,000 → 76,456 measured: the panels' opaque fill and frost layers, the
-  // ring's face, lift and name layers (+1,865 bytes), on top of main's Briefing blocks (+721).
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 76_456],
+  // (2026-11-02, night chat) 76,000 → 77,400: the working card and the line under the ask bar, less
+  // the thinking words' shimmer (chat.css 12,025 → 14,807, +2,782 over main's 74,591): measured
+  // 77,373 bytes.
+  // (2026-11-02, shell feel) → 79,237 measured: the menu's and Settings' opaque fill and frost layers,
+  // the ring's face, lift and name layers (+1,864 bytes net of comments trimmed in home.css).
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 79_237],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 21_003],
