@@ -155,6 +155,8 @@ export function startDecisions() {
       toast(m.toastFor(decision, r));
       setDecisions({ answered: m.answered(decision, r) });
       settle(p.id);
+      // A Yes or a No, as a sense (`card.decide`, sensitive): the card's class only; "Not yet" isn't one.
+      if (decision !== 'snooze') import('../senses/send.js').then((s) => s.sense('card.decide', `proposal:${p.id}`, { class: p.class })).catch(() => {});
     } catch (e) {
       const f = failure(e);
       if (m.settled(f.code ?? undefined)) {

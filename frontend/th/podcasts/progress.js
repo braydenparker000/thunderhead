@@ -24,8 +24,15 @@
 // Only signed in, and in a top-level page or one of home's own frames (th/ported/session.js). What
 // this module remembers (what the Worker has, and since when it last asked) is `th.p.podcasts.sync`,
 // cleared on sign-out with the rest of `th.p.*` (th/session.js).
+// The listening, as senses too (shared/contract/senses.ts `podcast.*`, th/senses/send.js): an episode
+// starting to sound (`podcast.play`), playing to its end (`podcast.finish`), left unfinished for
+// another (`podcast.skip`), from the app's `<audio>` and the episode it keeps as current; a show
+// followed or unfollowed, as this module notices it (not on a phone's first look, which only
+// learns what is followed). The ref is `podcast:<show id>/<episode id>`: the show's id is the hash
+// of its feed address the Worker's follows use, never the address or a title.
 import { CONFIG } from '../../config.js';
 import { framedByOther, sessionToken } from '../ported/session.js';
+import { episodeID } from './feed.js';
 
 /** The Worker's limits this module keeps to (PODCAST_LIMITS in shared/contract/podcasts.ts; kept here,
  * not in th/contract.js, which counts against the shell's size budget; tests/podcasts-progress.test.mjs
@@ -73,7 +80,18 @@ export const deps = {
   framed: framedByOther,
   api: () => CONFIG.api,
   online: () => navigator.onLine,
+  /** One sense (th/senses/send.js). @param {string} type @param {string} ref @param {Record<string, number> | null} [data] */
+  sense: (type, ref, data = null) => import('../senses/send.js').then((m) => m.sense(type, ref, data)).catch(() => false),
 };
+
+/** An episode's ref for a sense, from the app's key `<feed address>#<episode id>`, or null for a
+ * key the Worker would refuse. @param {string} key */
+export function episodeRef(key) {
+  const cut = key.lastIndexOf('#');
+  return keyProblem(key) ? null : `podcast:${episodeID(key.slice(0, cut))}/${key.slice(cut + 1)}`;
+}
+/** A show's ref for a sense, from its feed address. @param {string} feedUrl */
+export const showRef = (feedUrl) => (feedProblem(feedUrl) ? null : `podcast:${episodeID(feedUrl)}`);
 
 /** Why a key is refused, or null (the Worker's `progressKeyProblem`, shared/contract/podcasts.ts).
  * @param {string} key */
@@ -318,8 +336,16 @@ async function pushNow() {
   const app = loadApp(storage);
   if (!app) return;
   const mem = loadMemory(storage);
+  // What was followed before this look; a phone's first look (nothing remembered) only learns it.
+  const known = read(storage, SYNC_KEY) ? new Map(Object.entries(mem.follows).map(([u, k]) => [u, k.followed])) : null;
   // The stamps are kept before sending, so a follow noticed now keeps its time if the send fails.
-  if (noteFollows(app, mem, deps.now())) save(storage, SYNC_KEY, mem);
+  if (noteFollows(app, mem, deps.now())) {
+    save(storage, SYNC_KEY, mem);
+    for (const [url, k] of Object.entries(mem.follows)) {
+      const ref = known && (known.get(url) ?? false) !== k.followed ? showRef(url) : null;
+      if (ref) void deps.sense(k.followed ? 'podcast.follow' : 'podcast.unfollow', ref);
+    }
+  }
   let ok = true;
   for (const batch of chunks(progressToSend(app, mem))) {
     const refused = await send('progress', batch, t, mem);
@@ -385,12 +411,47 @@ export function reset() {
  * the position it just saved when these send. @param {Document} doc */
 export function wire(doc) {
   const audio = doc.getElementById('audio');
+  if (audio instanceof HTMLMediaElement) listening(audio);
   for (const e of ['pause', 'ended']) audio?.addEventListener(e, () => void push());
   addEventListener('visibilitychange', () => doc.hidden && void push());
   addEventListener('pagehide', () => void push());
   addEventListener('online', () => void push());
   setInterval(() => audio instanceof HTMLMediaElement && !audio.paused && void push(), EVERY_MS);
   void push();
+}
+
+/** The episode the app keeps as current (its storage's `current`), as its key, or null. */
+function currentKey() {
+  const e = /** @type {any} */ (read(deps.storage(), APP_KEY))?.current;
+  return typeof e?.show?.feedUrl === 'string' && typeof e.id === 'string' ? `${e.show.feedUrl}#${e.id}` : null;
+}
+
+/** The listening senses from the app's player: a new episode sounding is a play (a resume of the
+ * same one is not), and the one before it a skip unless it ended; an end is a finish.
+ * @param {HTMLMediaElement} audio */
+export function listening(audio) {
+  /** Where in it and how long, while its own source plays (`src`: a new episode's loading moves the
+   * element before it sounds). @type {{ key: string, ref: string, src: string, at: number, dur: number, ended: boolean } | null} */
+  let now = null;
+  const ms = (/** @type {number} */ s) => (Number.isFinite(s) && s > 0 ? Math.round(Math.min(s, L.seconds_max) * 1000) : 0);
+  audio.addEventListener('timeupdate', () => {
+    if (!now || audio.currentSrc !== now.src || audio.seeking) return;
+    now.at = Math.max(now.at, ms(audio.currentTime));
+    now.dur = ms(audio.duration) || now.dur;
+  });
+  audio.addEventListener('playing', () => {
+    const key = currentKey();
+    if (!key || now?.key === key) return;
+    if (now && !now.ended) void deps.sense('podcast.skip', now.ref, { at_ms: now.at, duration_ms: now.dur });
+    const ref = episodeRef(key);
+    now = ref ? { key, ref, src: audio.currentSrc, at: ms(audio.currentTime), dur: ms(audio.duration), ended: false } : null;
+    if (now) void deps.sense('podcast.play', now.ref, { at_ms: now.at });
+  });
+  audio.addEventListener('ended', () => {
+    if (!now || now.ended) return;
+    now.ended = true;
+    void deps.sense('podcast.finish', now.ref, { listened_ms: now.dur || now.at });
+  });
 }
 
 /** @type {Promise<void> | null} */
