@@ -66,11 +66,13 @@ export function helpText(command, role = process.env.TH_ROLE || '') {
   for (const [name, [usage, what]] of Object.entries(USAGE)) lines.push(`  th ${name} ${usage}`.trimEnd(), `      ${what}`);
   lines.push('', `Routes this build offers${role ? ` the ${role} role` : ''} (th get takes the GETs):`);
   for (const r of routesFor(role)) lines.push(`  ${r.key}${r.note ? `  (${r.note})` : ''}`);
-  lines.push('', 'Verbs (th verb):');
+  lines.push('', 'Verbs (th verb): [runs on · class · undo]. worker: done at once, before your reply ends; app: an intent that waits for that app to open; phone: the next signed-in phone. Undo: stored = the Worker keeps the inverse, reported = the phone reports it; th undo <ledger_id> runs either.');
   for (const [name, v] of Object.entries(CONTRACT.verbs)) {
     const ver = Math.max(...Object.keys(v.versions).map(Number));
     const args = Object.keys(v.versions[ver].args.properties || {}).join(', ');
-    lines.push(`  ${name} v${ver} {${args}}${v.queueable ? '' : ' (owner tap only)'}: ${v.doc}`);
+    const runs = v.side === 'worker' ? 'worker' : v.intent ? `app ${v.app}` : 'phone';
+    const cls = v.permit === null ? 'no class: the owner\'s words' : `${v.permit}${v.floor ? ` (floor ${v.floor})` : ''}${v.tell_min ? ', never below tell' : ''}`;
+    lines.push(`  ${name} v${ver} {${args}} [${runs} · ${cls} · undo ${v.undo}]${v.queueable ? '' : ' (not yours to queue: an owner tap or an undo)'}: ${v.doc}`);
   }
   const permits = CONTRACT.permits;
   if (permits) {
