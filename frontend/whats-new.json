@@ -1,18 +1,15 @@
 {
-  "id": "2026-11-01-off-the-record",
-  "date": "2026-11-01",
+  "id": "2026-11-02-ring-menu-island",
+  "date": "2026-11-02",
   "lines": [
     {
-      "text": "Off the record: tap + and pick it, or just say it. I answer, remember none of it, and it's gone in 7 days."
+      "text": "The ring is quicker and springier: hold, and the apps fly out from your finger and settle into place."
     },
     {
-      "text": "Hold a conversation in the menu to delete it. Settings › Recently deleted keeps it 30 days."
+      "text": "The menu and Settings are rebuilt: calmer rows, real switches and sheets, and no flash when they open."
     },
     {
-      "text": "I know your music now: ask what's playing, for songs that fit a mood, or for songs like one you love."
-    },
-    {
-      "text": "Songs you mark \"not for me\" stay out of my picks too.",
+      "text": "Music and Podcasts live in one capsule at the top. Tap it for controls; the app grows out of it and is ready before you ask.",
       "open": "music",
       "label": "Open Music"
     }
