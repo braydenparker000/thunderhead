@@ -12,22 +12,49 @@
 // a one-time token for the app's worker, given before the frame opens). Only transform, opacity and
 // clip-path animate; with reduced motion, a crossfade.
 import { appFor } from '../registry/apps.js';
+import { animator, motionReduced, springs } from '../motion.js';
 
 /** The apps that open as a layer and keep playing behind the chat. */
 export const LAYERED = Object.freeze(['music', 'podcasts']);
 const BARS = 5;
 const HOLD_MS = 450;
-const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-const SETTLE = () => getComputedStyle(document.documentElement).getPropertyValue('--settle').trim() || 'cubic-bezier(.2,.7,.2,1)';
+const still = motionReduced;
 const FULL = 'inset(0px 0px 0px 0px round 0px)';
-/** @param {DOMRect} r */
-const clipTo = (r) => `inset(${r.top}px ${innerWidth - r.right}px ${innerHeight - r.bottom}px ${r.left}px round ${r.height / 2}px)`;
+function timing() {
+  const s = getComputedStyle(document.documentElement);
+  const ms = (/** @type {string} */ name) => {
+    const v = s.getPropertyValue(`--d-${name}`).trim();
+    return parseFloat(v) * (v.endsWith('ms') ? 1 : 1000);
+  };
+  return { fast: ms('fast'), quick: ms('quick'), settle: s.getPropertyValue('--settle').trim() };
+}
 
 /** @typedef {{ id: string, frame: HTMLIFrameElement, front: boolean }} Layer */
 /** @type {Layer | null} */
 let layer = null;
 /** @type {HTMLButtonElement | null} */
 let island = null;
+let flight = 0;
+let insets = [0, 0, 0, 0, 0];
+// One shape and one velocity, including a reversal before it reaches either end.
+const morph = animator((value) => {
+  if (!layer) return;
+  const [top, right, bottom, left, radius] = insets.map((n) => n * Math.min(1, value));
+  layer.frame.style.clipPath = still() ? FULL : `inset(${top}px ${right}px ${bottom}px ${left}px round ${Math.max(0, radius)}px)`;
+}, { unit: 'scalar' });
+const fade = animator((value) => { if (layer) layer.frame.style.opacity = String(value); }, { unit: 'opacity' });
+/** Keep the endpoints fixed during a reversal, so reading the pill cannot move the shape. @param {DOMRect} r */
+function measure(r) {
+  if (morph.resting) insets = [r.top, innerWidth - r.right, innerHeight - r.bottom, r.left, r.height / 2];
+}
+/** @param {HTMLIFrameElement} f */
+function interrupt(f) {
+  const opacity = Number(getComputedStyle(f).opacity);
+  for (const a of f.getAnimations()) a.cancel();
+  fade.stop();
+  f.style.removeProperty('opacity');
+  return opacity;
+}
 let raf = 0;
 /** @type {ReturnType<typeof setTimeout> | undefined} */
 let slow;
@@ -146,6 +173,7 @@ export async function openApp(id, o = {}) {
   frame.src = token ? `${app.path}?th-frame=${token}` : app.path;
   document.body.append(frame);
   layer = { id, frame, front: true };
+  morph.set(0);
   history.pushState({ th: 'app', app: id }, '');
   await new Promise((r) => {
     frame.addEventListener('load', r, { once: true });
@@ -154,21 +182,25 @@ export async function openApp(id, o = {}) {
   watch(frame);
   // The ring's circle (ui/launch.js) gives way to the app under it.
   const cover = /** @type {HTMLElement | null} */ (document.querySelector('.launch'));
-  if (cover) cover.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 220, fill: 'forwards' }).finished.then(() => cover.remove(), () => cover.remove());
+  if (cover) cover.animate([{ opacity: 1 }, { opacity: 0 }], { duration: timing().fast * 11 / 8, fill: 'forwards' }).finished.then(() => cover.remove(), () => cover.remove());
   return true;
 }
 
-/** The app shrinks into the island and goes on behind the chat. @param {string} why */
-export async function collapse(why) {
+/** The app shrinks into the island and goes on behind the chat. @param {string} why @param {number} [velocity] downward px/s */
+export async function collapse(why, velocity) {
   if (!layer?.front) return;
   layer.front = false;
   const is = ensureIsland();
   is.hidden = false;
   const r = is.getBoundingClientRect();
   const f = layer.frame;
-  if (still()) f.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160, fill: 'forwards' });
+  const { fast } = timing(), opacity = interrupt(f);
+  ++flight;
+  measure(r);
+  // The old shrink reaches the pill earlier than expansion reaches the screen.
+  morph.to(1, { spring: springs.island, timeScale: fast / 160 * .622 || 1, velocity: velocity === undefined ? undefined : velocity / Math.max(1, innerHeight - r.height) });
+  if (still()) { fade.set(opacity); fade.to(0); }
   else {
-    f.animate([{ clipPath: FULL }, { clipPath: clipTo(r), offset: 0.8 }, { clipPath: clipTo(r), opacity: 0 }], { duration: 560, easing: SETTLE(), fill: 'forwards' });
     is.animate(
       [
         { opacity: 0, transform: 'scale(.55)' },
@@ -177,7 +209,7 @@ export async function collapse(why) {
         { opacity: 1, transform: 'scale(.98,1.03)', offset: 0.92 },
         { opacity: 1, transform: 'scale(1)' },
       ],
-      { duration: 640, easing: 'ease-out' },
+      { duration: fast * 4, easing: 'ease-out' },
     );
   }
   f.classList.add('away');
@@ -194,23 +226,31 @@ export async function expand(why) {
   const f = layer.frame;
   const is = ensureIsland();
   const r = is.getBoundingClientRect();
-  for (const a of f.getAnimations()) a.cancel();
+  const { quick, settle } = timing(), opacity = interrupt(f), current = ++flight;
+  measure(r);
   f.classList.remove('away');
   f.inert = false;
   delete document.body.dataset.island;
   // One entry for the app in front: a swipe down leaves it, so Back still brings the chat.
   if (history.state?.th !== 'app') history.pushState({ th: 'app', app: layer.id }, '');
-  const grow = still()
-    ? f.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 160 })
-    : f.animate([{ clipPath: clipTo(r), opacity: 0 }, { clipPath: clipTo(r), opacity: 1, offset: 0.1 }, { clipPath: FULL, opacity: 1 }], { duration: 620, easing: SETTLE() });
-  is.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.14)', opacity: 1, offset: 0.35 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: still() ? 1 : 300, easing: 'ease-in' });
-  await grow.finished.catch(() => {});
-  is.hidden = true;
+  morph.to(0, { spring: springs.island, timeScale: quick / 240 || 1 });
+  if (still()) { fade.set(opacity); fade.to(1); }
+  const grow = still() ? fade.whenResting()
+    : f.animate([{ opacity }, { opacity: 1, offset: 0.1 }, { opacity: 1 }], { duration: quick * 31 / 12, easing: settle }).finished.catch(() => {});
+  is.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.14)', opacity: 1, offset: 0.35 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: still() ? 0 : quick * 5 / 4, easing: 'ease-in' });
+  await grow;
+  if (flight === current && layer?.frame === f && layer.front) is.hidden = true;
+  await morph.whenResting();
   void why;
 }
 
 /** The app goes: its frame unloads (and its sound stops), the island goes. */
 export function close() {
+  ++flight;
+  morph.stop();
+  fade.stop();
+  for (const a of layer?.frame.getAnimations() ?? []) a.cancel();
+  for (const a of island?.getAnimations() ?? []) a.cancel();
   layer?.frame.remove();
   layer = null;
   if (island) island.hidden = true;
@@ -228,17 +268,19 @@ addEventListener('popstate', () => {
 function watch(f) {
   const w = /** @type {any} */ (f.contentWindow);
   if (!w) return;
-  /** @type {{ x: number, y: number } | null} */
+  /** @type {{ x: number, y: number, lastY: number, t: number } | null} */
   let s = null;
   const opts = { capture: true, passive: true };
   try {
-    w.addEventListener('pointerdown', (/** @type {PointerEvent} */ e) => (s = e.clientY > w.innerHeight - 150 ? { x: e.clientX, y: e.clientY } : null), opts);
+    w.addEventListener('pointerdown', (/** @type {PointerEvent} */ e) => (s = e.clientY > w.innerHeight - 150 ? { x: e.clientX, y: e.clientY, lastY: e.clientY, t: e.timeStamp } : null), opts);
     w.addEventListener('pointermove', (/** @type {PointerEvent} */ e) => {
       if (!s) return;
       const dy = e.clientY - s.y;
+      const velocity = (e.clientY - s.lastY) * 1000 / Math.max(1, e.timeStamp - s.t);
+      s.lastY = e.clientY; s.t = e.timeStamp;
       if (dy > 56 && dy > Math.abs(e.clientX - s.x) * 1.4) {
         s = null;
-        void collapse('swipe down');
+        void collapse('swipe down', velocity);
       }
     }, opts);
     for (const t of ['pointerup', 'pointercancel']) w.addEventListener(t, () => (s = null), opts);
@@ -291,7 +333,7 @@ function gestures(b) {
       clearTimeout(hold);
       done = true;
       control(dx < 0 ? 'next' : 'previous');
-      b.animate([{ transform: 'translateX(0)' }, { transform: `translateX(${dx < 0 ? -14 : 14}px)` }, { transform: 'translateX(0)' }], { duration: 320, easing: 'ease-out' });
+      b.animate([{ transform: 'translateX(0)' }, { transform: `translateX(${dx < 0 ? -14 : 14}px)` }, { transform: 'translateX(0)' }], { duration: timing().fast * 2, easing: 'ease-out' });
     }
   });
   b.addEventListener('pointerup', () => {
@@ -399,14 +441,15 @@ function wide() {
   btn('Close', close);
   card.append(title, by, row);
   document.body.append(card);
-  card.animate(still() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateX(-50%) scale(.6,.4)' }, { opacity: 1, transform: 'translateX(-50%) scale(1)' }], { duration: 300, easing: SETTLE() });
+  const { quick, settle } = timing();
+  card.animate(still() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateX(-50%) scale(.6,.4)' }, { opacity: 1, transform: 'translateX(-50%) scale(1)' }], { duration: quick * 5 / 4, easing: settle });
   const timer = setTimeout(shut, 5000);
   const away = (/** @type {Event} */ e) => !card.contains(/** @type {Node} */ (e.target)) && shut();
   setTimeout(() => addEventListener('pointerdown', away, true));
   function shut() {
     clearTimeout(timer);
     removeEventListener('pointerdown', away, true);
-    card.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 160 }).finished.then(() => card.remove(), () => card.remove());
+    card.animate([{ opacity: 1 }, { opacity: 0 }], { duration: timing().fast }).finished.then(() => card.remove(), () => card.remove());
   }
 }
 

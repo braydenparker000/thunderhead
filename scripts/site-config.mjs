@@ -88,6 +88,7 @@ export function swJs(source, build) {
  * vendor/ (its own cache), the route stubs (copies of index.html), the ported folders, the worker
  * scripts themselves, or text files no page loads. */
 export function precached(path) {
+  if (path.startsWith('lab/')) return false; // Tuning labs load only when requested, never for offline boot.
   const top = path.split('/')[0];
   if (top === 'vendor' || PORTED.includes(top)) return false;
   if (APP_ROUTES.some((r) => path === `${r}/index.html`)) return false;

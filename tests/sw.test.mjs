@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { APP_ROUTES, PORTED, precached, swJs } from '../scripts/site-config.mjs';
@@ -13,10 +13,10 @@ import { checkDue, safeToApply, CHECK_EVERY_MS } from '../frontend/th/update-rul
 const REPO = fileURLToPath(new URL('../', import.meta.url));
 const SITE = join(REPO, 'frontend');
 
-test('precache.json leaves out vendor/, the route stubs, the ported folders and the worker scripts', () => {
+test('precache.json leaves out lab/, vendor/, the route stubs, the ported folders and the worker scripts', () => {
   for (const p of ['index.html', 'signin/index.html', 'setup/setup.js', 'ui/icons.svg', 'config.js', 'manifest.webmanifest', '.well-known/change-password/index.html'])
     assert.ok(precached(p), p);
-  for (const p of ['vendor/x-1/x.js', 'music/index.html', 'astra/sw.js', 'assets/config.js', 'sw.js', 'sw-kill.js', 'precache.json', 'ui/csp.txt', ...APP_ROUTES.map((r) => `${r}/index.html`)])
+  for (const p of ['lab/feel/panel.js', 'lab/feel/panel.css', 'lab/stream/index.html', 'vendor/x-1/x.js', 'music/index.html', 'astra/sw.js', 'assets/config.js', 'sw.js', 'sw-kill.js', 'precache.json', 'ui/csp.txt', ...APP_ROUTES.map((r) => `${r}/index.html`)])
     assert.ok(!precached(p), p);
 });
 
@@ -46,6 +46,13 @@ test('stage writes the build into sw.js and a precache list whose sizes match th
   }
   for (const page of ['index.html', 'signin/index.html', 'setup/index.html', 'recover/index.html', '404.html'])
     assert.ok(files.some((f) => f.path === page), page);
+  assert.ok(!files.some(f => f.path.startsWith('lab/')), 'labs never enter the offline boot cache');
+  // Compare every staged path with the pre-T1b membership rule, allowing only lab/ to leave.
+  const before = path => !['vendor', ...PORTED].includes(path.split('/')[0])
+    && !APP_ROUTES.some(r => path === `${r}/index.html`)
+    && !['sw.js', 'sw-kill.js', 'precache.json'].includes(path) && !path.endsWith('.txt');
+  const paths = readdirSync(out, { recursive: true }).filter(path => statSync(join(out, path)).isFile());
+  assert.deepEqual(files.map(f => f.path).sort(), paths.filter(path => before(path) && !path.startsWith('lab/')).sort(), 'all other precache members stay');
 });
 
 test('an update applies only when nothing plays, nothing is typed and nothing is open', () => {

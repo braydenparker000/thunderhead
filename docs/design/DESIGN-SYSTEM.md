@@ -82,6 +82,8 @@ This replaces the first build's three copies of every dark token (media query, `
 
 Type uses two independent axes in `frontend/ui/tokens.css`: size (`--fs-*`) and line height (`--lh-*`). Sites compose them with their existing weight and family, for example `font:500 var(--fs-small)/var(--lh-loose) var(--ui)`. The values are provisional and preserve the existing appearance exactly, without size, line-height, weight or family changes. Tracking, emphasis, numeric variants and wrapping stay at their sites.
 
+`frontend/th/type.js` generates all thirty size tokens from a base and modular ratio, rounds to half pixels, and optionally snaps the off-ramp sizes to the nearest role. Its density factor scales the seventeen line-height classes while keeping the flat and ask values fixed. The file's current values are a frozen baseline; only the open `/?feel` panel previews generated values, and a later freeze replaces them after tuning. Appearance changes only reply and input sizes, and the tuning ramp keeps the input at least 16 px.
+
 `--ui` and `--voice` both resolve to `"Switzer",system-ui,-apple-system,"Segoe UI",sans-serif`. `--mono` resolves to `ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,monospace`. A shorthand that previously omitted line height still omits it and uses CSS's `normal` line height. A size-only rule uses `font-size:var(--fs-…)`, preserving the other font properties it inherits. `font:inherit` remains a valid way to inherit the complete font.
 
 The thirteen role names are the core ramp:
@@ -307,18 +309,22 @@ Acceptance (built): with `reducedMotion: 'reduce'`, `document.getAnimations().fi
 
 ### 8.5 The engine
 
-**Not built: T1b is blocked at its numerical-parity gate.** The revised specification uses mass 1, stiffness `k`, damping ratio `ζ`, `omega = sqrt(k)` and `response = 2π/omega`. Its proposed defaults are page `(380, .8)`, pop `(800, .6)`, ring `(600, .72)` and island `(420, .78)`. The page/pop parameters match the frozen CSS curves in closed form, but the required semi-implicit Euler step of `1/120 s` does not meet the required maximum error of `.01`.
+**Built (T1b):** `frontend/th/motion.js` advances the exact damped oscillator from its current position and velocity over each real frame interval, clamped to 32 ms. Mass is 1, stiffness is `k` in 1/s², damping is the ratio `ζ`, angular frequency is `sqrt(k)`, and response is `2π/sqrt(k)` seconds. Underdamped, critical and overdamped cases share one requestAnimationFrame loop, which stops when idle. Retargeting carries velocity; a gesture can override it in units per second.
 
-Starting at `x = 0`, `v = 0`, target `1`, the prescribed update is `v += (k*(1-x) - 2*ζ*sqrt(k)*v)*dt`, then `x += v*dt`. Interpolating its states at the 25 token timestamps gives:
+| Spring | k | ζ | Reference |
+|---|---:|---:|---|
+| page | 380 | .8 | Frozen `--settle` over 410 ms; maximum sample error .002658 |
+| pop | 800 | .6 | Frozen `--pop` over 345 ms; maximum sample error .005739 |
+| ring | 1450 | .61 | Fitted to the active ring's actual 260 ms CSS fan, including its opening frame |
+| island | 130 | .82 | Fitted to the existing island expansion, including its shape hold |
 
-| Preset / reference span | Worst timestamp | CSS token value | Euler value | Absolute error |
-|---|---:|---:|---:|---:|
-| page / 410 ms | 51.25 ms | .292 | .347134406 | .055134406 |
-| pop / 345 ms | 43.125 ms | .436 | .526044169 | .090044169 |
+Rest requires position within 1% of the move's travel and speed within 2% of travel per second; pixel moves have floors of .1 px and .5 px/s. Position-only time to 1% in trajectory comparisons is measured separately, after the last crossing, so overshoot is included. Scalar moves use relative thresholds without pixel floors. Reduced motion sets non-opacity values immediately; opacity reaches its target linearly in 150 ms. Haptics use existing call sites only: open `[8]`, choose `[4]`, commit `[10]`.
 
-Closed-form maximum errors are `.002657821` and `.005738997`; they establish the parameters' fit, not the accuracy of this finite integration step. Holding the last completed Euler state also fails (`.044606985` / `.069922686`). The failing samples are inside the curve, so snapping its final point to `1` cannot fix them.
+One physics drives the shell: gesture surfaces use `motion.js`; CSS state changes use tokens sampled from the same springs. Home has one progress animator per swipe axis, direct finger tracking, velocity at release and continuous takeover. A time scale preserves the old page curve's 410 ms reference played over `--d-page`, including the existing 180–460 ms flick clock. The ring separates radial motion from its chosen/other scale offset; its transform CSS transition is disabled while moving and restored at rest. Cleanup waits for every pet, with a generation guard for reopening. The island uses one scalar for its four clip insets and radius; swipe-down supplies velocity, and the existing decorative opacity/pill keyframes use token durations. Its hidden collapse uses a .622 time scale to fit the old, earlier clip endpoint. Sheets continue to use CSS tokens.
 
-Implementation needs a revised numerical-method requirement: for example, Euler at `1/960 s` gives `.005292263` / `.007360389`, or an analytic state update follows the closed-form reference. Neither is the specified `1/120 s` Euler method. Surface timing and interruption still require browser verification after that decision. The frozen T1a tokens remain the built behavior; the engine, surface migration and `/?feel` panel are pending.
+Open `/?feel` while signed in for the draggable, collapsible tuning sheet. It tunes all four springs, press scale/time, type base/ratio/hero/snap, density, haptics and reduced motion. Opening without saved tuning preserves the file values; changing a spring regenerates `--settle`, `--pop` and the page/pop duration tokens. Changes are stored locally at `th.lab.feel` and apply only while the panel is open. Collapse restores the prior inline styles and engine settings; Reset restores file defaults and removes saved tuning; `/?feel=off` clears it without loading the lab. Lab files are outside the offline precache.
+
+**Freeze procedure:** tune on the phone, use **Copy tokens**, and review the complete CSS block (both type axes and the small/large Appearance overrides) plus its engine parameter comment. A follow-up PR copies the chosen values into `ui/tokens.css` and the four spring defaults into `motion.js`, then reruns the motion/type checks and phone trajectory comparison. T1b leaves the current token values untouched; the first ramp preview is a deliberate tuning action, not a default redesign.
 
 ## 9. Contrast requirements and checks
 

@@ -133,11 +133,23 @@ test('signed out, the 404’s Back home goes on to sign-in without a cross-fade 
 
 /** A touch drag through `pts` ({ x, y }), one touch event every `ms` by the events' own clock, so
  * a flick's speed doesn't depend on how fast the runner delivers them. */
-async function touchDrag(page, cdp, pts, ms = 12) {
+async function touchDrag(page, cdp, pts, ms = 12, measure = false) {
   const t0 = Date.now() / 1000;
   const send = (type, touchPoints, i) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints, timestamp: t0 + (i * ms) / 1000 });
   await send('touchStart', [pts[0]], 0);
   for (const [i, p] of pts.slice(1).entries()) await send('touchMove', [p], i + 1);
+  if (measure) await page.evaluate(() => {
+    window.flickSamples = [];
+    addEventListener('pointerup', () => {
+      const h = document.querySelector('#home'), start = performance.now();
+      const sample = () => {
+        const t = performance.now() - start;
+        window.flickSamples.push([t, h.getBoundingClientRect().left]);
+        if (t < 650) requestAnimationFrame(sample);
+      };
+      sample();
+    }, { once: true });
+  });
   await send('touchEnd', [], pts.length);
   await page.waitForTimeout(700);
 }
@@ -157,11 +169,14 @@ test('swipes start easily on a touchscreen: arcs, flicks, and scrolling still sc
   assert.equal((await where()).brief, true, 'arc → Briefing');
   // A quick 90 px flick back (well under 28% of the width) commits; the Briefing's own content is
   // under the finger now, which is fine: swipes start anywhere.
-  await touchDrag(page, cdp, line(330, 500, 240, 500, 3));
+  await touchDrag(page, cdp, line(330, 500, 240, 500, 3), 12, true);
   assert.equal((await where()).brief, false, 'flick → home');
-  // …and finishes at the finger's speed, quicker than a settle from a slow drag.
-  const ms = await page.$eval('#home', (h) => parseFloat(h.style.transitionDuration));
-  assert.ok(ms >= 180 && ms < 460, `flick settle ${ms} ms`);
+  // Measure the moving surface itself; the engine has no CSS transition duration to inspect.
+  const samples = await page.evaluate(() => window.flickSamples);
+  const travel = Math.abs(samples[0][1]);
+  const last = samples.findLastIndex(([, x]) => Math.abs(x) > travel * .01);
+  const ms = samples[last + 1]?.[0] ?? Infinity;
+  assert.ok(travel > 0 && ms > 0 && ms < 460, `flick reaches and stays within 1% in ${ms} ms`);
   await touchDrag(page, cdp, line(mine.r, mine.y, mine.r - 90, mine.y, 3));
   assert.equal((await where()).side, true, 'flick left → menu');
   await page.click('#dim', { position: { x: 20, y: 300 } });
@@ -239,7 +254,7 @@ test('past the end a page stretches a little and springs back', opts, async () =
   const stretched = await page.$eval('#brief', (b) => b.getBoundingClientRect().left);
   assert.ok(stretched > 2 && stretched < 40, `stretched ${stretched}px, not dragged off`);
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: at(40) });
-  await page.waitForTimeout(700);
+  await page.waitForFunction(() => document.querySelector('#brief').style.transition !== 'none');
   assert.equal(Math.round(await page.$eval('#brief', (b) => b.getBoundingClientRect().left)), 0, 'and springs back');
   assert.deepEqual(errors, []);
   await context.close();

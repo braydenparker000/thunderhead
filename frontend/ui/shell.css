@@ -15,7 +15,7 @@ html{-webkit-tap-highlight-color:transparent}
 /* The press: everything tappable gives under the finger the same way (what has its own motion, the
    chips, buttons, the + sheet, the decision buttons and the ring, keeps it). */
 .row,.tile,.sbtn,.uundo,.sback,.seg button,.past button,.iconBtn,.srole{transition:transform var(--d-fast) var(--pop),background-color var(--d-fast) var(--ease-default),color var(--d-fast) var(--ease-default),opacity var(--d-fast) var(--ease-default)}
-.row:active,.tile:active,.sbtn:active,.uundo:active,.sback:active,.seg button:active,.past button:active,.iconBtn:active,.srole:active{transform:scale(.97)}
+.row:active,.tile:active,.sbtn:active,.uundo:active,.sback:active,.seg button:active,.past button:active,.iconBtn:active,.srole:active{transform:scale(var(--press-scale,.97))}
 @media (prefers-reduced-motion: reduce){
   .field::before,.field::after{animation:none}
   ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation-duration:var(--d-sheet)}
