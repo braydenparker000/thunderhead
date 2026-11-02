@@ -519,7 +519,7 @@ Symptoms: the app shows `budget_exhausted` or Cloudflare error 1027; the watchdo
 
 ## Not built
 
-Sections once marked [proposal] that are not built and not in PLAN.md; their full text is in
+Sections once marked as proposals that are not built and not in PLAN.md; their full text is in
 [archive/NOT-BUILT-2026-11-02.md](../archive/NOT-BUILT-2026-11-02.md).
 
 - **§6.4 Fallback: client-side KDF ("server relief").** scrypt on the phone and only a keyed hash on the server, with the same verifier, picked by `AUTH_KDF_WHERE`.

@@ -258,7 +258,7 @@ Acceptance: delete a message on fixtures, take a backup, restore an older backup
 
 ## Not built
 
-Sections once marked [proposal] that are not built and not in PLAN.md; their full text is in
+Sections once marked as proposals that are not built and not in PLAN.md; their full text is in
 [archive/NOT-BUILT-2026-11-02.md](../archive/NOT-BUILT-2026-11-02.md).
 
 - **§10.2 Erase everything.** Settings → Privacy, the password and the word `ERASE`: every table and private file goes after 7 days in which it can be cancelled.

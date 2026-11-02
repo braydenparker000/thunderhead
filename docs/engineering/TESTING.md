@@ -337,7 +337,7 @@ Generated at test start from a fixed seed, never committed as data. Year-2 sizes
 
 ## Not built
 
-Sections once marked [proposal] that are not built and not in PLAN.md; their full text is in
+Sections once marked as proposals that are not built and not in PLAN.md; their full text is in
 [archive/NOT-BUILT-2026-11-02.md](../archive/NOT-BUILT-2026-11-02.md).
 
 - **§10.1 Projects.** The browser suites at three phone sizes (`a15` 384 × 832, `tall` 390 × 844, `small` 360 × 740), each in day, night and reduced motion, with real touch.

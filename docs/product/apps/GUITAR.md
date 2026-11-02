@@ -589,7 +589,7 @@ Imported songs without a file show "Add the tab file to practise this song".
 
 ## Not built
 
-Sections once marked [proposal] that are not built and not in PLAN.md; their full text is in
+Sections once marked as proposals that are not built and not in PLAN.md; their full text is in
 [archive/NOT-BUILT-2026-11-02.md](../../archive/NOT-BUILT-2026-11-02.md).
 
 - **§15 New feature ideas.** Play along with the real recording, a hard-bar finder, an interleaved warm-up, memory mode, take-to-take compare.

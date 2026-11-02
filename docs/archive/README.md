@@ -20,5 +20,5 @@ The files keep their old names and section numbers, so code comments and decisio
 | [MEASUREMENTS.md](MEASUREMENTS.md) | `backend/` | P1's local and production measurements. The production results (X1, X3, X4) are in decisions.md. |
 | [MIGRATION.md](MIGRATION.md) | `docs/engineering/` | The migration spec, §1 to §7 and §9 to §12. §8, retiring the old Worker, is still live at [engineering/MIGRATION.md](../engineering/MIGRATION.md). |
 | [STATUS-2026-10.md](STATUS-2026-10.md) | `docs/process/STATUS.md` | The long "Current phase" narrative and the whole deploy log up to 2026-11-01, verbatim. |
-| [NOT-BUILT-2026-11-02.md](NOT-BUILT-2026-11-02.md) | specs in `docs/` | Sections once marked [proposal] that describe something not built and not in PLAN.md, verbatim; each spec keeps two lines on each under "Not built". |
+| [NOT-BUILT-2026-11-02.md](NOT-BUILT-2026-11-02.md) | specs in `docs/` | Sections once marked as proposals that describe something not built and not in PLAN.md, verbatim; each spec keeps two lines on each under "Not built". |
 | [EVALS-aspirational.md](EVALS-aspirational.md) | `docs/mind/EVALS.md` | The parts of the evals spec that are not built: the metrics M-1 to M-20, the LAW, MP, RT and META sets, and the full weekly loop. |

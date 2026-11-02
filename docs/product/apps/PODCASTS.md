@@ -549,7 +549,7 @@ random progress entries match.
 
 ## Not built
 
-Sections once marked [proposal] that are not built and not in PLAN.md; their full text is in
+Sections once marked as proposals that are not built and not in PLAN.md; their full text is in
 [archive/NOT-BUILT-2026-11-02.md](../../archive/NOT-BUILT-2026-11-02.md).
 
 - **§13 New feature ideas.** Catch-up length, chapter skipping by habit, ask about the moment, a morning walk queue, show health.
