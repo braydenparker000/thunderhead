@@ -113,7 +113,8 @@ const budgets = [
   ['commands and dictation JS bytes', sum(/^th\/(commands|dictate)\/.*\.js$/), 21_000],
   // Apps as layers inside home and the island (th/island, loaded when Music or Podcasts opens), 2026-11-01;
   // 24 KB with the sleep timer on it and room for Guitar's.
-  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 24_000],
+  // Task C: +8,120 measured bytes (22,958 → 31,078) for one capsule, readiness and retained frames.
+  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 32_120],
   // Off the record (th/record, 2026-11-01): starting and ending one, home's view of it, its marker.
   ['off the record JS bytes', sum(/^th\/record\/.*\.js$/), 4_500],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads

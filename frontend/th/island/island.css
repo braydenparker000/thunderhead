@@ -1,39 +1,48 @@
-/* Apps inside the Thunderhead and the island (th/island/island.js; HOME.md §13). The app: full screen
-   in a frame, clipped to its own rectangle, shrinking into the island by its clip. The island: a door
-   back, never a player; dark glass, the app's colour, Music's live bars, Podcasts' ring of time left.
-   Only transform, opacity and clip-path animate. */
-.th-app{position:fixed;inset:0;z-index:40;width:100%;height:100%;border:0;background:#000;clip-path:inset(0 0 0 0 round 0px)}
-.th-app.away{opacity:0;pointer-events:none}
-.th-island{--c:#2f7df6;--done:0deg;position:fixed;z-index:41;top:calc(10px + env(safe-area-inset-top,0px));left:50%;height:38px;min-width:104px;translate:-50% 0;padding:0 14px 0 5px;display:flex;align-items:center;gap:10px;border:0;border-radius:999px;background:#0b1020;color:#fff;box-shadow:0 14px 34px -14px rgba(8,14,40,.65),0 0 0 1px rgba(255,255,255,.07),inset 0 1px 0 rgba(255,255,255,.08);cursor:pointer;touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;transform-origin:50% 50%}
-.th-island[hidden]{display:none}
-.th-island .dot{width:28px;height:28px;border-radius:50%;background:radial-gradient(120% 120% at 30% 20%,color-mix(in srgb,var(--c) 70%,#fff),var(--c) 60%);box-shadow:0 0 14px -2px color-mix(in srgb,var(--c) 80%,transparent)}
-.th-island .bars{display:flex;align-items:center;gap:3px;height:16px}
-.th-island .bars i{display:block;width:3px;height:100%;border-radius:2px;background:color-mix(in srgb,var(--c) 75%,#fff);transform:scaleY(.25);transition:transform var(--d-base) var(--ease-default)}
-/* Live: the engine's level drives each bar (no transition, 60 frames a second). Without a meter: a breath. */
-.th-island.live .bars i{transition:none}
-.th-island.playing:not(.live) .bars i{animation:th-level calc(var(--d-rise) * var(--k,1)) var(--ease-ambient) calc(var(--d-rise) * var(--ko,0)) infinite alternate}
-.th-island.playing:not(.live) .bars i:nth-child(2){--k:.69;--ko:-.22}
-.th-island.playing:not(.live) .bars i:nth-child(3){--k:.87;--ko:-.5}
-.th-island.playing:not(.live) .bars i:nth-child(4){--k:.6;--ko:-.13}
-.th-island.playing:not(.live) .bars i:nth-child(5){--k:.78;--ko:-.37}
-@keyframes th-level{0%{transform:scaleY(.25)}100%{transform:scaleY(1)}}
-.th-island:not(.playing){opacity:.78}
-.th-island .left{display:none;font:600 var(--fs-small)/var(--lh-flat) var(--ui);font-variant-numeric:tabular-nums}
-/* Podcasts: a ring of the time gone round the dot, and the minutes left. */
-.th-island[data-app="podcasts"] .bars{display:none}
-.th-island[data-app="podcasts"] .left{display:block}
-.th-island[data-app="podcasts"] .dot{background:radial-gradient(circle,var(--c) 56%,transparent 57%),conic-gradient(#fff var(--done),rgba(255,255,255,.18) 0)}
-/* A sleep timer: a moon and the minutes left. */
-.th-island .zz{display:none;align-items:center;gap:4px;font:600 var(--fs-small)/var(--lh-flat) var(--ui);font-variant-numeric:tabular-nums;color:rgba(255,255,255,.82)}
-.th-island.sleep .zz{display:flex}
-.th-island .zz .i{width:15px;height:15px;fill:currentColor}
-.th-island:active{scale:.96}
-/* The wide card, held open from the island for a moment. */
-.th-wide{position:fixed;z-index:42;top:calc(10px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);width:min(360px,calc(100vw - 24px));padding:16px 16px 14px;border-radius:26px;background:#0b1020;color:#fff;box-shadow:0 24px 60px -20px rgba(8,14,40,.75),0 0 0 1px rgba(255,255,255,.08);transform-origin:50% 0}
-.th-wide .tt{margin:0 4px;font:600 var(--fs-ask)/var(--lh-tight) var(--ui);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.th-wide .by{margin:2px 4px 12px;font:400 var(--fs-chip)/var(--lh-tight) var(--ui);color:rgba(255,255,255,.65);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.th-wide .by:empty{display:none}
-.th-wide .row{display:flex;flex-wrap:wrap;gap:8px}
-.th-wide .row button{min-height:44px;padding:0 14px;border:0;border-radius:999px;background:rgba(255,255,255,.12);color:#fff;font:500 var(--fs-chip) var(--ui)}
-.th-wide .row button:first-child{background:#fff;color:#0b1020}
-@media (prefers-reduced-motion:reduce){.th-island.playing:not(.live) .bars i{animation:none;transform:scaleY(.6)}}
+.th-app-shell,.th-app-shell.launch{position:fixed;inset:0;z-index:40;background:var(--c);clip-path:inset(0 round 0px);pointer-events:auto}
+.th-app{width:100%;height:100%;border:0;background:#000;display:block}
+.th-app-shell.parked{visibility:hidden;translate:0 -200vh;pointer-events:none}
+.th-app-wait{position:absolute;inset:0;display:grid;place-content:center;gap:24px;background:var(--c)}
+.th-app-wait[hidden]{display:none}
+.wait-dots{display:flex;gap:8px;align-items:center;justify-content:center;width:124px;height:36px;background:#000;border-radius:999px}
+.wait-dots i{width:6px;height:6px;background:#fff;border-radius:50%}
+.th-app-wait button{border:0;border-radius:999px;min-height:44px;padding:0 16px;background:#000;color:#fff;font:600 var(--fs-small)/var(--lh-tight) var(--ui)}
+.th-island{--c:#2f7df6;--details:0;--compact:1;--progress:0;position:fixed;z-index:41;top:calc(10px + env(safe-area-inset-top,0px));left:50%;translate:-50% 0;width:124px;height:36px;border-radius:18px;background:#000;color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.08);touch-action:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;transform-origin:center;overflow:hidden;contain:layout;
+&[hidden]{display:none}
+&.alert{box-shadow:inset 0 0 0 1px var(--gold)}
+& button{border:0;color:#fff;cursor:pointer;font:600 var(--fs-small)/var(--lh-tight) var(--ui)}
+& button:focus-visible{outline:2px solid var(--gold);outline-offset:-3px}
+& .compact{position:absolute;inset:0;width:100%;height:36px;display:flex;align-items:center;gap:8px;padding:0 8px;background:transparent;opacity:var(--compact)}
+& .dot{flex:none;width:22px;height:22px;border-radius:50%;background:var(--c)}
+& .title-mask{flex:1;min-width:0;overflow:hidden;mask-image:linear-gradient(to right,#000 85%,transparent)}
+& .title{display:block;width:max-content;white-space:nowrap;font:600 var(--fs-small)/var(--lh-flat) var(--ui)}
+&.marquee .title{animation:th-marquee calc(var(--d-rise) * 4) var(--ease-linear) infinite alternate}
+& .bars{display:flex;align-items:center;gap:3px;height:14px;flex:none}
+& .bars i{width:3px;height:14px;border-radius:2px;background:var(--c);transform:scaleY(.25)}
+& .alert-dot{position:absolute;right:8px;top:10px;width:16px;height:16px;border-radius:50%;background:var(--gold);opacity:0;transition:opacity var(--d-fast) var(--settle)}
+&.alert-flash .alert-dot{opacity:1}
+&.alert-flash .compact{padding-right:32px}
+& .details{position:absolute;inset:0;width:min(360px,calc(100vw - 24px));height:128px;opacity:var(--details)}
+& .details[inert],& .compact[inert]{pointer-events:none}
+& .art{position:absolute;top:16px;left:16px;width:72px;height:72px;border-radius:16px;background:var(--c);overflow:hidden;display:grid;place-items:center}
+& .art img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+& .art img[hidden]{display:none}
+& .i{width:20px;height:20px;fill:currentColor}
+& .art .i{width:28px;height:28px}
+& .heading{position:absolute;left:100px;right:16px;top:14px;background:transparent;padding:0;text-align:left;min-height:44px}
+&.sleep .heading{right:64px}
+& .tt,& .by{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+& .tt{font:600 var(--fs-input)/var(--lh-tight) var(--ui)}
+& .by{font:400 var(--fs-small)/var(--lh-tight) var(--ui);color:rgba(255,255,255,.7)}
+& .controls{position:absolute;top:60px;left:100px;display:flex;gap:10px}
+& .controls button{width:44px;height:44px;border-radius:50%;padding:0;background:rgba(255,255,255,.12);display:grid;place-items:center}
+& .zz{display:none;position:absolute;top:0;right:8px;align-items:center;justify-content:center;gap:3px;min-width:44px;height:44px;background:transparent;font:600 var(--fs-label)/var(--lh-flat) var(--ui);font-variant-numeric:tabular-nums}
+&.sleep .zz{display:flex}
+& .zz .i{width:14px;height:14px}
+& .times{position:absolute;left:16px;right:16px;bottom:8px;display:flex;justify-content:space-between;font:400 var(--fs-label)/var(--lh-flat) var(--ui);font-variant-numeric:tabular-nums;color:rgba(255,255,255,.7)}
+& .progress{position:absolute;bottom:0;left:0;right:0;height:2px;pointer-events:none}
+&[data-state="expanded"] .progress{height:3px}
+& .progress i{display:block;width:100%;height:100%;transform:scaleX(var(--progress));transform-origin:left;background:var(--c);opacity:.6}
+}
+@media(prefers-reduced-motion:reduce){.th-island .bars i,.th-island.marquee .title,.wait-dots i{animation:none!important}.th-island .alert-dot{transition:opacity var(--d-sheet) var(--settle)}}
+.th-island [data-control="previous"] .i,.th-island [data-control="next"] .i{border-right:2px solid currentColor;width:18px;height:18px}.th-island [data-control="previous"] .i{transform:rotate(180deg)}
+@keyframes th-marquee{to{transform:translateX(var(--marquee))}}

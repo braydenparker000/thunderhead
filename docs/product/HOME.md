@@ -415,16 +415,65 @@ Built 2026-10-31: the counters below are kept on this phone (`th-hint`); the hin
 
 ### 12.1 Apps inside the Thunderhead, and the island
 
-**Built 2026-11-01 (NEXT-BATCH.md part 3; `th/island/island.js`, `th/island/island.css`, `th/ported/frames.js`).** Music and Podcasts open as a **layer inside home**, from the ring, a chip, "open music" or the mind's `app.open`: the ring's circle reveal grows as before, the app loads in a full-screen frame under it, and the circle fades away. The other apps load in their place as before.
+Music and Podcasts open inside home. The island is one black capsule that changes shape, with
+its controls inside the same element (`th/island/`). Track names and artwork stay on this phone.
 
-- **Back to the chat:** swipe down on the app's own mini player (a downward swipe that starts in the bottom 150 px of the app), or Android's Back. The app shrinks into the island, one shape on a spring (`--settle`), and the island lands with a small squash; the app keeps playing behind the chat. Reduced motion: a crossfade.
-- **The island** is a door, not a player: a dark pill at the top centre. Music shows its colour and five level bars driven by its own audio engine's meter (60 frames a second while it plays; a slow breath when the engine has no meter; twice-a-second checks when paused). Podcasts shows a ring of the time gone and the minutes left. **A sleep timer** shows as a moon and its minutes left (2026-11-01): set by "sleep timer 20 minutes", "play until I fall asleep" or the wide card's "Sleep in 30 min"; off by "cancel the sleep timer" or the card's "Sleep off (n min)", each with Undo. Music's is its own (it waits at its full time while nothing plays); Podcasts' is the island's.
-- **Tap** the island: the app grows back out of it. **Hold** (450 ms): it opens wide for 5 s with the song and artist (read from the app on this screen, sent nowhere), Pause/Play, Next (Podcasts: +30 s), Who is this?, More like this (both sent to the mind as words), Sleep in 30 min or Sleep off, Open, Close (the app unloads). **Swipe sideways** on it: next or previous (Podcasts: 30 s on, 15 s back).
-- **The phone's commands** act on the app in the layer, at once, with a toast: "pause", "play", "skip"/"next", "previous", "sleep timer 20 minutes" / "play until I fall asleep" (30 minutes; Music's own sleep timer, with Undo), "never play this again" (rated "not for me" and skipped, with Undo; the mind hears it as a `music.rate` sense with the song's id, so its mixes leave it out too). With nothing open: "Nothing is playing here. Open Music or Podcasts first." "Stop" alone and "play Evening" go to the mind as words.
-- **The session in the frame:** the ported apps' workers give the owner's session only to a top-level page or to a frame home opened itself: home hands the app's worker a one-time token first, then opens the frame at `?th-frame=<token>`; an app that reloads itself claims its trust back with a fresh one (SECURITY.md §4.4 rule 5). A copy another site frames still gets nothing.
-- **Updates wait:** a new release of the shell doesn't apply while an app in the layer plays (`th/update.js` counts its decks).
-- **Lock screen and AirPods:** the app's own media session runs in the frame; Chrome routes the controls to the frame that plays (home plays nothing). The owner's phone test (`/lab/island/`) confirms it on the A15.
-- Not yet: a "Thunderhead" item in Music's own menu, Guitar in a layer (metronome pulse on the island), Astra and My Media in Android's picture-in-picture.
+- **Compact:** 36 px tall, at least 124 px wide and at most 60% of the viewport, centred at
+  `calc(10px + env(safe-area-inset-top))`. A 22 px app-colour dot, the title in small semibold white
+  type with a fading right edge, and five 3 × 14 px level bars. The 2 px bottom progress line uses
+  the app colour at 60% opacity. Hold to scroll a long title; swipe sideways for next or previous.
+  Music's bars read its engine; without a meter they move only while playback runs.
+- **Expanded:** tap the capsule, or a visible home line naming its app. The same capsule grows to
+  `min(360px, 100vw - 24px)` × 128 px with a 28 px radius, on `springs.island` scaled to `--d-base`.
+  Its width squishes out by 4% before settling. Content fades in from 40% of the shape change:
+  72 px artwork with 16 px corners, title and subtitle, three 44 px circular controls, tabular
+  elapsed/total times, and a 3 px bottom progress line. Tap the artwork or title to open the app.
+  Tap outside, swipe up, press Escape, or leave it untouched for six seconds to collapse it.
+- **Alert:** a visible home line naming the active app, or a waiting decision card, makes the
+  capsule's inner line gold for that item's life. Once per changed item, it widens by 24 px and
+  shows a 16 px gold dot for 1.2 seconds, then returns on the spring. No repeating pulse. Alerts
+  use the cards already visible in home, so quiet-hour holds stay in force.
+- **Reduced motion:** shape changes snap; content fades over 150 ms. No marquee or moving bars.
+- **Sleep timer:** when set, a moon and the remaining minutes sit at the expanded capsule's top
+  right. Tap it to cancel, with Undo. Set it with “sleep timer 20 minutes” or “play until I fall
+  asleep” (30 minutes). Music uses its own timer, which waits while paused; Podcasts uses the
+  island's timer.
+
+**The app grows from the capsule.** Opening from the ring, a chip or the island uses the capsule's
+exact current rect and radius as the full-screen frame's clip origin. The app-colour cover and
+three waiting dots appear immediately if the app has not finished booting. The capsule scales
+down and fades by 30% of the growth. Back or a downward swipe starting in the app's bottom 150 px
+reverses the clip, and the capsule returns from 70% of the shrink. Interrupting either direction
+preserves the spring's velocity. Completion waits for `whenResting()`, not a guessed timeout.
+
+**Warm frames:** after the chat's first successful sync, an idle callback (three-second fallback)
+boots Music, then Podcasts. This happens only when signed in and never with `saveData` enabled.
+Warming waits for the home service worker, so it cannot bypass the frame-session handshake.
+The warm frames are off-screen, `visibility:hidden` and inert. Closing hides a frame; it never
+unloads it or stops playback. If the app just visited is quiet while another retained app plays,
+the island returns to the playing engine. A failed boot offers Retry in the same frame; a late
+successful boot still clears the cover. An app's own reload reattaches its gestures and readiness
+watcher.
+
+**Readiness:** the current apps have no bridge ready message. Music's completed `__cp.player`
+startup and removed boot cover, and Podcasts' post-handler chrome measurement, are watched from
+home. The next frame emits `th:app-ready` with only app id, elapsed milliseconds and cold/warm
+state, and a `th:island:<app>:ready` Performance measure. The browser test logs cold and second
+opens using `performance.now()`; Chromium traces qualify the local result. These are not A15
+measurements. The phone acceptance remains under 1,500 ms cold and under 300 ms on the second open.
+
+The phone's playback commands still reach the retained engine: pause, play, next, previous, sleep,
+and Music's “never play this again” with Undo. Podcasts preserves its existing 30-second forward
+and 15-second back behavior. The three-control capsule replaces the old separate wide card; its
+“Who is this?” and “More like this” actions remain ordinary requests in the chat.
+
+The session boundary is unchanged: home gives the app worker a one-time token before navigation;
+only the exact retained frame windows can request a fresh claim after a reload. Another site's
+framed copy gets no session. Updates still wait while any retained frame plays. Lock-screen and
+headset controls remain the app's own media session.
+
+Left for later: a Thunderhead menu item inside Music, Guitar in a layer, and Astra/My Media
+picture-in-picture. The old `/lab/island/` prototype does not demonstrate this version.
 
 ## 13. Accessibility
 
