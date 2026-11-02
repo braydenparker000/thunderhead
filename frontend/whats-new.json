@@ -1,17 +1,20 @@
 {
-  "id": "2026-11-02-ring-menu-island",
+  "id": "2026-11-02-night",
   "date": "2026-11-02",
   "lines": [
     {
-      "text": "The ring is quicker and springier: hold, and the apps fly out from your finger and settle into place."
-    },
-    {
-      "text": "The menu and Settings are rebuilt: calmer rows, real switches and sheets, and no flash when they open."
-    },
-    {
-      "text": "Music and Podcasts live in one capsule at the top. Tap it for controls; the app grows out of it, ready before you ask.",
+      "text": "The ring is quicker, the menu and Settings are rebuilt, and Music and Podcasts share one capsule at the top.",
       "open": "music",
       "label": "Open Music"
+    },
+    {
+      "text": "Chat shows what the mind is doing while it works, and offers choices you can tap instead of typing."
+    },
+    {
+      "text": "The Briefing fills itself again overnight: the weather, what's due, the next holiday and the night's report."
+    },
+    {
+      "text": "Settings now cover appearance, chat, gestures, the island, the Briefing, the mind and privacy."
     }
   ]
 }
