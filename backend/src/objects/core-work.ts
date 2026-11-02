@@ -7,7 +7,7 @@ import type { MuseNote, WorkHello, WorkOrder, WorkOrderPut, WorkStatus } from '.
 import { briefing } from '../areas/briefing/assemble';
 import { type Forecast, type Place, weatherTile } from '../areas/briefing/weather';
 import { logicalDay } from '../areas/conversation/day';
-import { getSetting, putSetting } from '../areas/settings/store';
+import { deleteSetting, getSetting, putSetting } from '../areas/settings/store';
 import * as work from '../areas/work/ops';
 import * as wstore from '../areas/work/store';
 import { Fail, type Out } from '../lib/result';
@@ -64,8 +64,8 @@ export abstract class CoreWork extends CoreBackups {
     });
   }
 
-  /** GET /v1/briefing: what the Briefing page shows now. */
-  briefingNow(): BriefingResponse {
+  /** GET /v1/briefing: what the Briefing page shows now; `songsAdded` from the Music object. */
+  briefingNow(songsAdded: number | null = null): BriefingResponse {
     const now = Date.now();
     const tz = this.tz();
     const day = logicalDay(now, tz);
@@ -75,6 +75,37 @@ export abstract class CoreWork extends CoreBackups {
       tz,
       day,
       weather: weatherTile(place, forecast, now, tz),
+      songsAdded,
+      nightConfigured: this.nightConfigured(),
+    });
+  }
+
+  /** The owner's country (ISO 3166-1 alpha-2) for the Holidays tile, or undefined. */
+  ownerCountry(): string | undefined {
+    const v = getSetting(this.db, 'owner.country');
+    return typeof v === 'string' ? v : undefined;
+  }
+
+  /** PUT /v1/briefing/place: the place and, from the same lookup, the owner's country (a place
+   * whose country the geocoder doesn't give leaves none, so the Holidays tile hides). */
+  setPlace(place: Place, country: string | null, actor: string): void {
+    this.write((w) => {
+      putSetting(w.db, 'weather.place', place, actor, w.at);
+      w.change('setting', 'setting:weather.place');
+      if (country) putSetting(w.db, 'owner.country', country, actor, w.at);
+      else deleteSetting(w.db, 'owner.country');
+      w.change('setting', 'setting:owner.country');
+    });
+  }
+
+  /** The country of a place kept before 2026-11-02 (when it wasn't asked), looked up once: kept
+   * only while that place is still the one set and no country is. */
+  backfillCountry(place: Place, country: string): void {
+    this.write((w) => {
+      const now = this.weather().place;
+      if (!now || now.lat !== place.lat || now.lon !== place.lon || this.ownerCountry()) return;
+      putSetting(w.db, 'owner.country', country, 'worker', w.at);
+      w.change('setting', 'setting:owner.country');
     });
   }
 

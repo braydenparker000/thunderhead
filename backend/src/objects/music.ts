@@ -191,6 +191,11 @@ export class Music extends MusicMind {
     return store.counts(this.db);
   }
 
+  /** Songs added since `since`, counted to 100 (GET /v1/briefing's line of the day). */
+  addedSince(since: number): number {
+    return store.addedSince(this.db, since);
+  }
+
   /** One upload-tool operation. Its R2 checks run first; its writes are one transaction. */
   async write(op: string, body: Record<string, unknown>, now = Date.now()): Promise<WriteResult> {
     const fn = Object.hasOwn(WRITE_OPS, op) ? WRITE_OPS[op] : undefined;

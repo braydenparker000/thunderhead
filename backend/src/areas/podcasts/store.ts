@@ -124,6 +124,14 @@ export function markChecked(
   );
 }
 
+/** New episodes the night counted in the shows it checked since `since` (the Briefing's line of
+ * the day): one pass over the follows, a handful of rows. */
+export const newSince = (db: Db, since: number) =>
+  db.one<{ n: number }>(
+    'SELECT coalesce(sum(new_n), 0) AS n FROM podcast_follows WHERE followed = 1 AND checked_at >= ?',
+    since,
+  )?.n ?? 0;
+
 /** Of these positions' keys, the ones a phone has started or finished: one lookup each (a handful). */
 export function started(db: Db, keys: string[]): string[] {
   return keys.filter((key) => {

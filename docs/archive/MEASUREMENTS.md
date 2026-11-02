@@ -71,6 +71,8 @@ revoked (kept 30 days so an old token learns why) instead of deleting them.
 | `POST /v1/ops/errors`, one item (Core; error row + change row) | 0 | 2 |
 | `GET /v1/settings` (Core) | 1 | 0 |
 | `PATCH /v1/settings`, one key (Core; setting + change row) | 0 | 2 |
+| `GET /v1/briefing` (Core; 12 reminders set, 4 due; the follows of `podcast-calls.ts`. 8 read before Due, Holidays and the day's line, 2026-11-02) | 34 | 0 |
+| `GET /v1/briefing` (Music: 40 songs added in the last day, the log walked back 50 rows a page) | 50 | 0 |
 
 - Authentication itself costs **1 row read** once per token per isolate-minute (2 for an agent
   key: the `UNIQUE` token-hash index), and **1 write at most once an hour** per session or key.
