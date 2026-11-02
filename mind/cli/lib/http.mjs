@@ -11,6 +11,19 @@ import {getState, setState} from './state.mjs';
 const num = (value, fallback) => (Number.isFinite(Number(value)) && value !== '' && value !== undefined ? Number(value) : fallback);
 export const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
+/** `--proposal <id>`: the approved card that lets a write through while its standing permission is
+ * Ask (API.md §11.11), sent as `TH-Proposal`; the Worker checks the card itself. */
+export function proposalHeaders(flags) {
+  const id = flags.proposal;
+  if (id === undefined) return undefined;
+  if (typeof id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(id))
+    throw new ThError(EXIT.validation, 'validation', '--proposal takes the approved card\'s id');
+  return {'TH-Proposal': id};
+}
+
+/** A gated write's `permit` (its class and position: `tell` means say what you did), when it has one. */
+export const permitOut = data => (data && data.permit ? {permit: data.permit} : {});
+
 export function settings(env = process.env) {
   return {
     api: (env.TH_API || '').replace(/\/+$/, ''),

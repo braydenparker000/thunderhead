@@ -5,13 +5,15 @@
 // most 5 from the mind in any 24 hours). One the owner set on the phone is taken back only with
 // `--from` naming the owner's message that asked; the mind's own need none.
 //
-//   th remind <when> <text|-> --from <owner message id>   → {"id","fire_at","shifted"}
+//   th remind <when> <text|-> --from <owner message id>   → {"id","fire_at","shifted","permit"}
 //   th remind list                                        → {"items":[…]}
-//   th remind cancel <id> [--from <owner message id>]     → {"id","state"}
+//   th remind cancel <id> [--from <owner message id>]     → {"id","state","permit"}
 //
 // <when> is an ISO 8601 time with its offset (2026-10-31T19:00:00+02:00) or a relative +90m, +2h, +1d.
+// `permit` is the standing permission it ran under (`tell`: say you did it); `--proposal <id>` sends
+// the approved card when the owner set reminders to Ask.
 import {parseArgs} from './args.mjs';
-import {request} from './http.mjs';
+import {permitOut, proposalHeaders, request} from './http.mjs';
 import {uuidv7} from './ids.mjs';
 import {invalid, need, out, textArg} from './io.mjs';
 
@@ -43,8 +45,8 @@ export async function remind(argv) {
     if (from !== undefined && (typeof from !== 'string' || !UUID.test(from)))
       throw invalid(`--from must be the owner's message id; got ${from}`);
     const query = from ? `?source_message_id=${seg(from)}` : '';
-    const {data} = await request('DELETE', `/v1/reminders/${seg(rest[1])}${query}`);
-    return out({id: data.reminder.id, state: data.reminder.state});
+    const {data} = await request('DELETE', `/v1/reminders/${seg(rest[1])}${query}`, {headers: proposalHeaders(flags)});
+    return out({id: data.reminder.id, state: data.reminder.state, ...permitOut(data)});
   }
   if (rest.length < 2) throw invalid(USAGE);
   const at = whenMs(rest[0]);
@@ -53,7 +55,8 @@ export async function remind(argv) {
   if (text.length > MAX_TEXT) throw invalid(`the reminder is over ${MAX_TEXT} characters`);
   const from = need(flags, 'from');
   if (!UUID.test(from)) throw invalid(`--from must be the owner's message id; got ${from}`);
-  const {data} = await request('PUT', `/v1/reminders/${seg(uuidv7())}`, {body: {text, at, source_message_id: from}});
+  const {data} = await request('PUT', `/v1/reminders/${seg(uuidv7())}`,
+    {headers: proposalHeaders(flags), body: {text, at, source_message_id: from}});
   const r = data.reminder;
-  out({id: r.id, fire_at: r.fire_at, shifted: r.fire_at !== r.at});
+  out({id: r.id, fire_at: r.fire_at, shifted: r.fire_at !== r.at, ...permitOut(data)});
 }

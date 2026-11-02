@@ -5,7 +5,7 @@ import {basename, dirname, extname, join} from 'node:path';
 import {parseArgs} from './args.mjs';
 import {EXIT, ThError, VERSION, exitFor, invalid, jsonFlag, need, out, textArg, toMs} from './io.mjs';
 import {CONTRACT, checkRoute, plainPath, routeOf} from './contract.mjs';
-import {request, settings, sleep, stopNotice} from './http.mjs';
+import {permitOut, proposalHeaders, request, settings, sleep, stopNotice} from './http.mjs';
 import {getState, setState, thDir} from './state.mjs';
 import {sha256, uuidv7} from './ids.mjs';
 
@@ -190,13 +190,13 @@ export async function status(argv) {
 }
 
 export async function title(argv) {
-  const {rest} = parseArgs(argv);
+  const {flags, rest} = parseArgs(argv);
   const [thread, ...words] = rest;
   const text = words.join(' ').trim();
-  if (!thread || !text) throw invalid('usage: th title <thread> <title>');
+  if (!thread || !text) throw invalid('usage: th title <thread> <title> [--proposal <approved card id>]');
   if (text.length > 80) throw invalid('the title is over 80 characters');
-  await request('PATCH', `/v1/threads/${seg(thread)}`, {body: {title: text}});
-  out({ok: true});
+  const {data} = await request('PATCH', `/v1/threads/${seg(thread)}`, {headers: proposalHeaders(flags), body: {title: text}});
+  out({ok: true, ...permitOut(data)});
 }
 
 export async function note(argv) {
