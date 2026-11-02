@@ -2,6 +2,7 @@
 // (§11.12). Types only; the verb and surface vocabularies with their schemas are runtime data in
 // verbs.ts and surfaces.ts.
 import type { Id, Json, JsonObject, Ms } from './api';
+import type { Permit, PermitPosition } from './permits.ts';
 
 export type Actor = 'owner' | 'mind:chat' | 'mind:night' | 'mind:reflex' | 'muse' | 'ci' | 'worker';
 export type LedgerKind = 'memory' | 'arrangement' | 'verb' | 'deploy' | 'proposal' | 'mistake' | 'undo' | 'note';
@@ -20,6 +21,9 @@ export interface LedgerEntry {
   status: 'done' | 'undone' | 'failed';
   tainted: boolean;
   proposal_id: Id | null;
+  /** The standing permission a mind's action ran under (permits.ts): `tell` rows are the ones the
+   * owner was to hear about. Null for anyone else's rows, and the mind's own bookkeeping. */
+  permit: PermitPosition | null;
   undone_at: Ms | null;
 }
 
@@ -55,6 +59,10 @@ export interface Verb {
   /** The ledger row of this action (the undo handle). */
   ledger_id: Id | null;
 }
+
+/** A write the standing permissions gate (permits.ts), as it answers the mind: its record plus the
+ * permit it ran under, so the chat role knows to say what it did (`tell`). Absent for the owner. */
+export type Permitted<T> = T & { permit?: Permit };
 
 /** PUT /v1/verbs/:id. `why` is the ledger line the owner can read (8–200 characters). */
 export interface PutVerbRequest {

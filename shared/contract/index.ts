@@ -23,6 +23,23 @@ export {
   MUSIC_THEMES,
 } from './music.ts';
 export * from './night.ts';
+export {
+  classOf,
+  MIND_ACTIONS,
+  type MindActionName,
+  PERMIT_CLASSES,
+  PERMIT_FLOORS,
+  PERMIT_POSITIONS,
+  type Permit,
+  type PermitClass,
+  type PermitFloor,
+  type PermitPosition,
+  type PermitRefusal,
+  type PermitSpec,
+  permitKey,
+  permitOf,
+  permitSetting,
+} from './permits.ts';
 export { PODCAST_LIMITS } from './podcasts.ts';
 export {
   PROPOSAL_CLASS_NAMES,

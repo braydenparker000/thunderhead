@@ -66,3 +66,38 @@ test('every change kind, frame type and search source is a plain lowercase word'
   for (const k of [...c.CHANGE_KINDS, ...c.FRAME_TYPES, ...Object.keys(c.SEARCH_SOURCES)]) assert.match(k, /^[a-z_]+$/);
   assert.equal(new Set(c.CHANGE_KINDS).size, c.CHANGE_KINDS.length);
 });
+
+test('every action the mind takes has a standing-permission class; floors are marked, never inferred', () => {
+  const classes = new Set(c.PERMIT_CLASSES);
+  const floors = Object.keys(c.PERMIT_FLOORS);
+  for (const [name, v] of Object.entries(c.VERBS)) {
+    assert.ok(classes.has(v.permit), `${name}: permit class`);
+    assert.equal(c.classOf(name), v.permit, name);
+    // A floor is exactly what makes a verb ask-first.
+    assert.equal(v.floor !== undefined, v.class === 'ask_first', `${name}: a floor iff ask_first`);
+    if (v.floor !== undefined) assert.ok(floors.includes(v.floor), `${name}: floor`);
+  }
+  for (const [name, a] of Object.entries(c.MIND_ACTIONS)) {
+    assert.match(name, /^[a-z]+\.[a-z_]+$/, name);
+    assert.ok(!Object.hasOwn(c.VERBS, name), `${name}: not also a verb`);
+    assert.ok(classes.has(a.class), `${name}: class`);
+    if ('floor' in a) assert.ok(floors.includes(a.floor), `${name}: floor`);
+    assert.ok(sentence(a.doc), `${name}: doc line`);
+  }
+  assert.equal(c.classOf('music.nothing'), null);
+  // Each class is one Settings row of three positions, and each such row is a class.
+  const rows = c.SETTINGS.filter((s) => s.key.startsWith('mind.permit.'));
+  assert.deepEqual(rows.map((s) => s.key.slice('mind.permit.'.length)), [...c.PERMIT_CLASSES]);
+  for (const s of rows) {
+    assert.deepEqual(s.options.map((o) => o.value), [...c.PERMIT_POSITIONS], s.key);
+    assert.ok(c.PERMIT_POSITIONS.includes(s.default), s.key);
+  }
+  // The page lists the floors, in the contract's words and order.
+  assert.equal(
+    c.SETTING_GROUPS.mind.notes['Standing permissions'],
+    `Always asks first: ${Object.values(c.PERMIT_FLOORS).join(', ')}.`,
+  );
+  // A card that lets one through is filed under its floor, else `permit`.
+  assert.deepEqual([...c.PROPOSAL_OPS['permit.allow'].classes].sort(), ['permit', ...floors].sort());
+  for (const k of ['permit', ...floors]) assert.equal(c.PROPOSAL_CLASSES[k].ask_first, true, k);
+});

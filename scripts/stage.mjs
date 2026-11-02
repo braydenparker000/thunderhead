@@ -95,7 +95,8 @@ const budgets = [
   // th/ modules the shell loads at boot, and the conversation it loads after the first paint.
   // Task A: measured 72,232 bytes (+133 over the prior limit), including whenResting().
   // (2026-11-02) +204 measured (72,436): motion.js's lift and fade springs for the ring's discs.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 72_436],
+  // (2026-11-02) +54 measured (72,490): contract.js's `permit` card class ("You said to ask").
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 72_490],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.

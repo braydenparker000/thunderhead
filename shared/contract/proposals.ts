@@ -9,14 +9,16 @@
 import * as z from 'zod/mini';
 import type { Actor, Id, Json, Ms } from './api';
 
-/** The four ask-first classes, plus `memory_big` (memory changes the Worker won't apply alone,
- * MEMORY.md §6, M8–M10), which is a decision but not ask-first. `label` is the card's class text
- * (HOME.md §3.1). */
+/** The four ask-first classes (the standing permissions' floors, permits.ts), `permit` (an action
+ * whose standing permission the owner set to Ask), and `memory_big` (memory changes the Worker won't
+ * apply alone, MEMORY.md §6, M8–M10), which is a decision but not ask-first. `label` is the card's
+ * class text (HOME.md §3.1). */
 export const PROPOSAL_CLASSES = {
   delete: { ask_first: true, label: "Can't be undone" },
   money: { ask_first: true, label: 'Costs money' },
   access: { ask_first: true, label: 'Changes access' },
   reach_people: { ask_first: true, label: 'Reaches someone else' },
+  permit: { ask_first: true, label: 'You said to ask' },
   memory_big: { ask_first: false, label: 'Changes what I remember' },
 } as const;
 export type ProposalClass = keyof typeof PROPOSAL_CLASSES;
@@ -103,6 +105,15 @@ export const PROPOSAL_OPS = {
     ref: ['laws', 'sha256'],
     args: z.strictObject({ sha256, previous: z.nullable(sha256) }),
     doc: 'Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only.',
+  },
+  'permit.allow': {
+    // Filed under the action's floor, else `permit`; the Worker checks which (proposals/ops.ts).
+    classes: ['permit', 'money', 'delete', 'access', 'reach_people'],
+    by: ['C', 'N'],
+    runs: 'core',
+    ref: ['call', 'call'],
+    args: z.strictObject({ action: z.string().check(z.regex(/^[a-z][a-z0-9]*\.[a-z][a-z0-9_]*$/)), call: sha256 }),
+    doc: "Let the mind take one action its standing permission (Ask) or a floor keeps behind a card: exactly the call its refusal named (`call`, the SHA-256 of the action and its canonical body), once, within 7 days of the yes. The refusal's details carry this spec ready to raise (API.md §11.11).",
   },
 } as const satisfies Record<string, ProposalOp>;
 export type ProposalOpName = keyof typeof PROPOSAL_OPS;
