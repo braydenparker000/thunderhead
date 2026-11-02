@@ -65,8 +65,15 @@ export async function openPage(name, opts = {}) {
   const body = el('div', { class: 'sbody' });
   const header = el('header', { class: 'sheader' }, [back, title]);
   const scroll = el('div', { class: 'sscroll' }, [body]);
-  const page = el('section', { class: 'spage', role: 'dialog', 'aria-modal': 'true', 'aria-label': TITLES[name] }, [header, scroll]);
+  // The frosted panel behind the page, as the menu's (#side > .field): flat while the page moves, blurred at rest (home.css).
+  const field = el('div', { class: 'field', 'aria-hidden': 'true' });
+  const page = el('section', { class: 'spage', role: 'dialog', 'aria-modal': 'true', 'aria-label': TITLES[name] }, [field, header, scroll]);
   scroll.addEventListener('scroll', () => header.classList.toggle('scrolled', scroll.scrollTop > 0), { passive: true });
+  // The page's module is resolved before the page is shown, so its first visible frame already has its
+  // content (the shell-look first-frame check); boot preloads these during idle, so this normally costs nothing.
+  const MODULES = { settings: './home.js', quiet: './home.js', agents: './agents.js', memory: './memory.js', export: './export.js', notifications: './notifications.js', deleted: './deleted.js', account: './account.js' };
+  /** @type {any} */
+  const mod = name in MODULES ? await import(MODULES[/** @type {keyof typeof MODULES} */ (name)]) : null;
   document.querySelector('#app').append(page);
   stack.push(page);
   requestAnimationFrame(() => page.classList.add('in'));
@@ -86,15 +93,15 @@ export async function openPage(name, opts = {}) {
   page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
   // The page's title takes focus (a screen reader names the page), never a ring on the back button.
   title.focus({ preventScroll: true });
-  if (name === 'settings') (await import('./home.js')).settingsHome(body, (p) => openPage(/** @type {any} */ (p), { over: true }), opts.focus);
-  else if (name === 'quiet') cleanup = await (await import('./home.js')).quietPage(body);
+  if (name === 'settings') mod.settingsHome(body, (p) => openPage(/** @type {any} */ (p), { over: true }), opts.focus);
+  else if (name === 'quiet') cleanup = await mod.quietPage(body);
   else if (name === 'devices') await devices(body);
-  else if (name === 'agents') (await import('./agents.js')).agents(body, opts);
-  else if (name === 'memory') cleanup = await (await import('./memory.js')).memory(body);
-  else if (name === 'export') await (await import('./export.js')).exportPage(body);
-  else if (name === 'notifications') await (await import('./notifications.js')).notifications(body);
-  else if (name === 'deleted') await (await import('./deleted.js')).deletedPage(body);
-  else (await import('./account.js')).account(body);
+  else if (name === 'agents') mod.agents(body, opts);
+  else if (name === 'memory') cleanup = await mod.memory(body);
+  else if (name === 'export') await mod.exportPage(body);
+  else if (name === 'notifications') await mod.notifications(body);
+  else if (name === 'deleted') await mod.deletedPage(body);
+  else mod.account(body);
 }
 
 /** A line under a form or list for a failed request. */
