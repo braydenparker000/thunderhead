@@ -98,8 +98,11 @@ test('the ring flies out together in 120 ms, past the ring and back, its glass f
     window.ringPoint('pointerdown');
   });
   await page.clock.runFor(220);
+  // The flight runs on the document's timeline, which the page clock does not hold, so its first
+  // frame is read by seeking to it rather than by racing it.
   const start = await page.evaluate(() => {
     const pets = [...document.querySelectorAll('#ring .pet')];
+    pets.forEach(p => { const a = p.getAnimations()[0]; if (a) { a.pause(); a.currentTime = 0; } });
     return { time: performance.now(), moving: document.querySelector('#ring').classList.contains('moving'), pets: pets.map(p => {
       const css = getComputedStyle(p), m = new DOMMatrix(css.transform);
       return { radius: Math.hypot(m.m41, m.m42), scale: m.a, blur: css.backdropFilter, shadow: css.boxShadow, layer: getComputedStyle(p, '::before').visibility };
