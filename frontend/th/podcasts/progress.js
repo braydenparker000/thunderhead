@@ -8,7 +8,8 @@
 //   into the app's storage before the app reads it, the newer `updatedAt` winning, so an episode
 //   left on another phone resumes where it was. A pull that comes back at `by` or later is not
 //   applied (the app has read its storage then, and would write over it); `since` stays, so the
-//   next open brings it;
+//   next open brings it; the mind's pending intents for the shows and Up Next go into the same
+//   write (th/podcasts/intents.js), reported once it is saved;
 // - then, and on pause, on hiding the page, every 60 s while an episode plays and when the network
 //   returns, the positions the Worker doesn't have yet go up (PUT, ≤ 100 and < 60 KB a request),
 //   and so do the follows and unfollows since the last time (PUT /v1/podcasts/follows), so the night
@@ -73,6 +74,9 @@ export const deps = {
   framed: framedByOther,
   api: () => CONFIG.api,
   online: () => navigator.onLine,
+  /** The app's pending intents applied to its storage (th/podcasts/intents.js), not yet reported.
+   * @param {App} app @returns {Promise<{ done: unknown[], send: () => Promise<void> } | null>} */
+  intents: (app) => import('./intents.js').then((m) => m.applyToApp(/** @type {any} */ (app))),
 };
 
 /** Why a key is refused, or null (the Worker's `progressKeyProblem`, shared/contract/podcasts.ts).
@@ -282,9 +286,15 @@ export async function open(by) {
     const got = await pull(mem, t, stop.signal);
     if (!got || deps.sincePage() >= by) return;
     const app = loadApp(storage) ?? { version: 1, progress: {}, follows: [] };
-    if (applyProgress(app, mem, got.items) && !save(storage, APP_KEY, app)) return;
+    const moved = applyProgress(app, mem, got.items);
+    // The mind's pending intents for the shows and Up Next (th/podcasts/intents.js), into the same
+    // write; reported only once it is saved (late: unsaved, their claims lapse and they come back).
+    const intents = await deps.intents(app).catch(() => null);
+    if (deps.sincePage() >= by) return;
+    if ((moved || intents?.done.length) && !save(storage, APP_KEY, app)) return;
     mem.since.progress = got.next_since;
     save(storage, SYNC_KEY, mem);
+    void intents?.send().catch(() => {});
   } catch {
     // Late or refused: nothing applied, `since` kept for the next open.
   } finally {

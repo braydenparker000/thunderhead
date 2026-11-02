@@ -282,6 +282,8 @@ export function installDj(ctx, player) {
   import('/th/music/report.js').then((m) => m.installReport(ctx)).catch(() => {});
   // The owner's ratings, as senses for the mind's find and mixes (MUSIC.md §10.5).
   import('/th/music/ratings.js').then((m) => m.installRatings(ctx)).catch(() => {});
+  // What the mind queued for the player while Music was closed (pending intents, API.md §11.11).
+  import('/th/music/intents.js').then((m) => m.installIntents(ctx, player)).catch(() => {});
   // In home's layer after Music reloaded itself: its frame's trust back from its worker (no-op on top).
   import('/th/ported/claim.js').catch(() => {});
   const learned = load();
