@@ -52,6 +52,8 @@ const BODY_BYTES = 60_000;
 const KEEPALIVE_BYTES = 8_000;
 /** Pages read on open, at most (3,000 rows; the Worker keeps 1,000 positions). */
 const PAGES = 6;
+/** The pending intents must be in this long before the app reads its storage, or wait. */
+const INTENTS_SPARE_MS = 50;
 const UNFOLLOW_MEMORY_MS = L.unfollowed_keep_days * 86_400_000;
 
 /** @typedef {{ position?: number, duration?: number, played?: boolean, updatedAt?: number, episode?: unknown }} Entry */
@@ -287,11 +289,18 @@ export async function open(by) {
     if (!got || deps.sincePage() >= by) return;
     const app = loadApp(storage) ?? { version: 1, progress: {}, follows: [] };
     const moved = applyProgress(app, mem, got.items);
-    // The mind's pending intents for the shows and Up Next (th/podcasts/intents.js), into the same
-    // write; reported only once it is saved (late: unsaved, their claims lapse and they come back).
-    const intents = await deps.intents(app).catch(() => null);
+    // The mind's pending intents for the shows and Up Next (th/podcasts/intents.js), applied to a
+    // copy and kept only if they were all in before `by` (less a moment for the write), into the
+    // same write; reported only once it is saved. Late, or no answer: the positions go alone, and
+    // the intents' claims lapse and come back for the next open.
+    const draft = structuredClone(app);
+    const intents = await Promise.race([
+      deps.intents(draft).catch(() => null),
+      new Promise((done) => setTimeout(() => done(null), Math.max(0, by - deps.sincePage() - INTENTS_SPARE_MS))),
+    ]);
+    const out = intents ? draft : app;
     if (deps.sincePage() >= by) return;
-    if ((moved || intents?.done.length) && !save(storage, APP_KEY, app)) return;
+    if ((moved || intents?.done.length) && !save(storage, APP_KEY, out)) return;
     mem.since.progress = got.next_since;
     save(storage, SYNC_KEY, mem);
     void intents?.send().catch(() => {});

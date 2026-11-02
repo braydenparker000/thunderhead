@@ -46,6 +46,9 @@ export async function applyIntents(executors, target, io) {
   };
 }
 
+/** A call to the Worker gives up after this long (the next open tries again). */
+const CALL_MS = 15_000;
+
 export const deps = {
   /** @type {typeof fetch} */
   fetch: (...a) => fetch(...a),
@@ -69,6 +72,7 @@ export async function workerIo(app) {
         credentials: 'omit',
         mode: 'cors',
         cache: 'no-store',
+        signal: AbortSignal.timeout(CALL_MS),
       });
     } catch {
       return null;
