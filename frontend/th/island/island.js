@@ -1,468 +1,376 @@
 // @ts-check
-// Apps inside the Thunderhead, and the island (NEXT-BATCH.md part 3; HOME.md §13). Home stays
-// loaded. Music and Podcasts open as a layer over it, in a frame, with the ring's circle reveal
-// (ui/launch.js); the other apps open as before. Swipe down on the app's mini player, or Back, and
-// the app shrinks into the island, one shape on a spring, and keeps playing behind the chat. The
-// island is a door, not a player: a small dark shape at the top, Music's live level bars (from its
-// own audio engine) or Podcasts' ring of the time left. Tap it and the app grows back out of it; hold
-// it and it opens wide for a moment (the song, pause and skip, Who is this?, More like this, Close);
-// swipe it sideways for next or previous. A sleep timer shows on it as a moon and the minutes left
-// (set by voice, "sleep timer 20 minutes", or from the wide card). The phone's commands reach the playing app through here
-// (control()). The frame gets the owner's session only because home opened it (th/ported/frames.js:
-// a one-time token for the app's worker, given before the frame opens). Only transform, opacity and
-// clip-path animate; with reduced motion, a crossfade.
+// A single capsule, retained players, and one reversible clip from its measured shape (HOME §12).
 import { appFor } from '../registry/apps.js';
-import { animator, motionReduced, springs } from '../motion.js';
-
-/** The apps that open as a layer and keep playing behind the chat. */
+import { animator, motionReduced, springs, restTime, haptic } from '../motion.js';
+import { frames, retain } from './frames.js';
 export const LAYERED = Object.freeze(['music', 'podcasts']);
-const BARS = 5;
-const HOLD_MS = 450;
-const still = motionReduced;
-const FULL = 'inset(0px 0px 0px 0px round 0px)';
-function timing() {
-  const s = getComputedStyle(document.documentElement);
-  const ms = (/** @type {string} */ name) => {
-    const v = s.getPropertyValue(`--d-${name}`).trim();
-    return parseFloat(v) * (v.endsWith('ms') ? 1 : 1000);
-  };
-  return { fast: ms('fast'), quick: ms('quick'), settle: s.getPropertyValue('--settle').trim() };
-}
-
-/** @typedef {{ id: string, frame: HTMLIFrameElement, front: boolean }} Layer */
-/** @type {Layer | null} */
+/** @param {string} id */
+export const layered = id => LAYERED.includes(id);
+const BARS = 5, HOLD_MS = 450;
+const clamp = (/** @type {number} */ n) => Math.max(0, Math.min(1, n));
+/** @type {import('./frames.js').Layer|null} */
 let layer = null;
-/** @type {HTMLButtonElement | null} */
+/** @type {HTMLDivElement|null} */
 let island = null;
-let flight = 0;
-let insets = [0, 0, 0, 0, 0];
-// One shape and one velocity, including a reversal before it reaches either end.
-const morph = animator((value) => {
-  if (!layer) return;
-  const [top, right, bottom, left, radius] = insets.map((n) => n * Math.min(1, value));
-  layer.frame.style.clipPath = still() ? FULL : `inset(${top}px ${right}px ${bottom}px ${left}px round ${Math.max(0, radius)}px)`;
-}, { unit: 'scalar' });
-const fade = animator((value) => { if (layer) layer.frame.style.opacity = String(value); }, { unit: 'opacity' });
-/** Keep the endpoints fixed during a reversal, so reading the pill cannot move the shape. @param {DOMRect} r */
-function measure(r) {
-  if (morph.resting) insets = [r.top, innerWidth - r.right, innerHeight - r.bottom, r.left, r.height / 2];
-}
-/** @param {HTMLIFrameElement} f */
-function interrupt(f) {
-  const opacity = Number(getComputedStyle(f).opacity);
-  for (const a of f.getAnimations()) a.cancel();
-  fade.stop();
-  f.style.removeProperty('opacity');
-  return opacity;
-}
+let expanded = false, compactWidth = 124, flight = 0, insets = [0,0,0,0,18];
 let raf = 0;
-/** @type {ReturnType<typeof setTimeout> | undefined} */
+/** @type {ReturnType<typeof setTimeout>|undefined} */
 let slow;
-/** Podcasts' sleep timer (Music keeps its own): when it ends, in ms since the epoch. */
-/** @type {{ end: number, timer: ReturnType<typeof setTimeout> } | null} */
+/** @type {ReturnType<typeof setTimeout>|undefined} */
+let idleClose;
+/** @type {ReturnType<typeof setTimeout>|undefined} */
+let alertEnd;
+/** @type {{end:number,timer:ReturnType<typeof setTimeout>}|null} */
 let podSleep = null;
-
-/** Home's side of th/ported/claim.js: a fresh token, only for its own layer's frame. */
-/** @type {any} */ (window).thIsland = {
-  /** @param {Window} w the asking page */
-  token: async (w) => (layer && w === layer.frame.contentWindow ? frameToken(appFor(layer.id)?.path ?? '') : ''),
-};
-
-/** Whether `id` opens as a layer here. @param {string} id */
-export const layered = (id) => LAYERED.includes(id);
-
-/** The app's window in the frame, when it has loaded (same site). @returns {any} */
-function win() {
-  try {
-    return layer?.frame.contentWindow ?? null;
-  } catch {
-    return null;
-  }
+/** @param {string} name */
+function ms(name) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(`--d-${name}`).trim();
+  return parseFloat(v) * (v.endsWith('ms') ? 1 : 1000);
 }
-
-/** Music's player, or Podcasts' audio element, in the frame.
- * @returns {{ kind: 'music', p: any, w: any } | { kind: 'podcasts', a: HTMLAudioElement, w: any } | null} */
+const springOptions = (name = 'base') => ({ spring:springs.island, timeScale:ms(name) / restTime(springs.island) || 1 });
+const content = animator(v => {
+  if (!island) return;
+  island.style.setProperty('--details', String(clamp(v)));
+  island.style.setProperty('--compact', String(1 - clamp(v)));
+}, { unit:'opacity' });
+const shape = animator(v => {
+  if (!island) return;
+  const p = clamp(v), width = Math.min(360, innerWidth - 24);
+  // Finish growing at 80%, then squish out by 4% and settle on the same spring clock.
+  const grow = clamp(p / .8), squish = p > .8 ? Math.sin(Math.PI * (p - .8) / .2) * width * .04 : 0;
+  island.style.width = `${compactWidth + (width - compactWidth) * grow + squish + alertWidth.value * (1-p)}px`;
+  island.style.height = `${36 + 92*p}px`;
+  island.style.borderRadius = `${18 + 10*p}px`;
+  if (!motionReduced()) content.set(clamp((p - .4) / .6));
+}, { unit:'scalar' });
+const alertWidth = animator(() => renderShape());
+function renderShape() {
+  // Repaint without resetting an in-flight shape or its velocity.
+  if (!island) return;
+  const p = clamp(shape.value), width = Math.min(360, innerWidth - 24);
+  const squish = p > .8 ? Math.sin(Math.PI * (p - .8) / .2) * width * .04 : 0;
+  island.style.width = `${compactWidth + (width-compactWidth)*clamp(p/.8) + squish + alertWidth.value*(1-p)}px`;
+}
+const capsuleFade = animator(v => { if (island) island.style.opacity = String(clamp(v)); }, { unit:'opacity' });
+const morph = animator(v => {
+  if (!layer) return;
+  const p = clamp(v), [t,r,b,l,radius] = insets.map(n => n*p);
+  layer.shell.style.clipPath = `inset(${t}px ${r}px ${b}px ${l}px round ${radius}px)`;
+  if (island && !motionReduced()) {
+    const visible = clamp((p-.7)/.3);
+    island.style.opacity = String(visible);
+    island.style.transform = `scale(${.6 + .4*visible})`;
+  }
+}, { unit:'scalar' });
+/** All public transitions complete at the actual spring rest, including a reversal. */
+export async function whenResting() {
+  await Promise.all([shape.whenResting(), content.whenResting(), alertWidth.whenResting(), morph.whenResting(), capsuleFade.whenResting()]);
+}
+/** @returns {any} */
+function win() { try { return layer?.frame.contentWindow ?? null; } catch { return null; } }
+/** @returns {{kind:'music',p:any,w:any}|{kind:'podcasts',a:HTMLAudioElement,w:any}|null} */
 function media() {
   const w = win();
   if (!w || !layer) return null;
-  // A frame that ended on an error page (offline, a crash) is another origin: nothing to reach.
   try {
-    if (layer.id === 'music') return w.__cp?.player ? { kind: 'music', p: w.__cp.player, w } : null;
-    const a = /** @type {HTMLAudioElement | null} */ (w.document?.querySelector('audio'));
-    return a ? { kind: 'podcasts', a, w } : null;
-  } catch {
-    return null;
-  }
+    if (layer.id === 'music') return w.__cp?.player ? { kind:'music', p:w.__cp.player, w } : null;
+    const a = w.document?.querySelector('audio');
+    return a ? { kind:'podcasts', a, w } : null;
+  } catch { return null; }
 }
-
-/** Whether the app behind the chat is playing. */
 export function playing() {
-  const m = media();
-  if (!m) return false;
-  const el = m.kind === 'music' ? m.p.audio : m.a;
-  return Boolean(el && !el.paused && !el.ended);
+  const m = media(), a = m?.kind === 'music' ? m.p.audio : m?.a;
+  return Boolean(a && !a.paused && !a.ended);
 }
-
-/** Seconds until the sleep timer stops the app behind the chat (0: none). Music's counts on its own
- * clock (its frame's), and waits at its full time while nothing plays. */
 export function sleepLeft() {
   const m = media();
-  if (m?.kind === 'podcasts') return podSleep ? Math.max(0, (podSleep.end - Date.now()) / 1000) : 0;
-  try {
-    const s = m?.p.sleep;
-    if (!s) return 0;
-    return s.end === null ? s.seconds : Math.max(0, (s.end - m.w.performance.now()) / 1000);
-  } catch {
-    return 0;
-  }
+  if (m?.kind === 'podcasts') return podSleep ? Math.max(0,(podSleep.end-Date.now())/1000) : 0;
+  const s = m?.p.sleep;
+  return !s ? 0 : s.end === null ? s.seconds : Math.max(0,(s.end-m?.w.performance.now())/1000);
 }
+/** @param {{text:string,undo?:()=>void}} r */
+function toastOf(r) { void import('../ui.js').then(({toast}) => toast(r.text, r.undo ? {label:'Undo',run:r.undo} : undefined)); }
 
-/** Says what a command from the card did, as the phone's commands do. @param {{ text: string, undo?: () => void }} r */
-function toastOf(r) {
-  void import('../ui.js').then(({ toast }) => toast(r.text, r.undo ? { label: 'Undo', run: r.undo } : undefined), () => {});
-}
-
-/** One-time token for the app's worker, so it trusts this frame (th/ported/frames.js). Waits up to
- * 4 s for a worker to be there (registering it on a first visit) and for its answer.
- * @param {string} scope the app's folder */
-async function frameToken(scope) {
-  const token = [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
-  try {
-    const sw = navigator.serviceWorker;
-    if (!sw) return '';
-    // The app's own worker: home's worker (scope /) also matches the app's folder, so only a
-    // registration for exactly that folder will do; on a first visit it is registered here.
-    let reg = await sw.getRegistration(scope);
-    if (!reg || new URL(reg.scope).pathname !== scope) reg = await sw.register(`${scope}sw.js`, { scope, type: scope === '/podcasts/' ? 'module' : 'classic' });
-    const worker = reg.active ?? (await new Promise((r) => {
-      const w = reg.installing ?? reg.waiting;
-      w?.addEventListener('statechange', () => w.state === 'activated' && r(reg.active));
-      setTimeout(() => r(reg.active), 4000);
-    }));
-    if (!worker) return '';
-    const ch = new MessageChannel();
-    const ok = await new Promise((r) => {
-      ch.port1.onmessage = (e) => r(e.data?.ok === true);
-      worker.postMessage({ th: 'frame-token', token }, [ch.port2]);
-      setTimeout(() => r(false), 1500);
-    });
-    return ok ? token : '';
-  } catch {
-    return '';
-  }
-}
-
-/**
- * Opens `id` as a layer (true), or says it doesn't open as one (false: the caller navigates).
- * @param {string} id @param {{ cover?: () => Promise<void> }} [o] the ring's reveal, already sized
- */
+/** @param {string} id @param {{cover?:()=>Promise<void>}} [o] */
 export async function openApp(id, o = {}) {
-  const app = appFor(id);
-  if (!layered(id) || !app?.built) return false;
-  if (layer?.id === id) {
-    if (!layer.front) await expand('open');
-    return true;
+  if (!layered(id) || !appFor(id)?.built) return false;
+  const started = performance.now();
+  // Ring/chip callers start their generic reveal before importing us. Retire it immediately;
+  // the retained layer supplies the capsule clip, including while its frame is still booting.
+  for (const cover of document.querySelectorAll('.launch:not(.th-app-shell)')) { for (const a of cover.getAnimations()) a.cancel(); cover.remove(); }
+  void o;
+  await styles();
+  const next = retain(id, watch), cold = !next.ready;
+  if (layer !== next) {
+    ++flight;
+    morph.stop();
+    if (layer) park(layer);
+    layer = next;
+    const is = ensureIsland();
+    is.hidden = false; is.style.transform = ''; is.style.opacity = '1';
+    expanded = false; shape.set(0); content.set(0); capsuleFade.set(1);
+    is.dataset.state='compact';
+    const compact=/** @type {HTMLButtonElement} */ (is.querySelector('.compact'));
+    compact.inert=false; compact.setAttribute('aria-expanded','false');
+    /** @type {HTMLElement} */ (is.querySelector('.details')).inert=true;
+    tick();
+    measure(); morph.set(1);
   }
-  if (layer) close();
-  styles();
-  const [token] = await Promise.all([frameToken(app.path), o.cover?.()]);
-  const frame = document.createElement('iframe');
-  frame.className = 'th-app';
-  frame.title = app.name;
-  frame.allow = 'autoplay; fullscreen; picture-in-picture; screen-wake-lock';
-  frame.src = token ? `${app.path}?th-frame=${token}` : app.path;
-  document.body.append(frame);
-  layer = { id, frame, front: true };
-  morph.set(0);
-  history.pushState({ th: 'app', app: id }, '');
-  await new Promise((r) => {
-    frame.addEventListener('load', r, { once: true });
-    setTimeout(r, 8000);
+  void expand('open');
+  const opening = flight;
+  void next.loaded.then(() => {
+    if (opening !== flight || !next.front || !next.ready) return;
+    requestAnimationFrame(() => {
+      if (opening !== flight || !next.front || !next.ready) return;
+      const duration = performance.now() - started;
+      performance.measure(`th:island:${id}:ready`, {start:started, end:performance.now()});
+      document.dispatchEvent(new CustomEvent('th:app-ready', {detail:{app:id,ms:duration,cold}}));
+    });
   });
-  watch(frame);
-  // The ring's circle (ui/launch.js) gives way to the app under it.
-  const cover = /** @type {HTMLElement | null} */ (document.querySelector('.launch'));
-  if (cover) cover.animate([{ opacity: 1 }, { opacity: 0 }], { duration: timing().fast * 11 / 8, fill: 'forwards' }).finished.then(() => cover.remove(), () => cover.remove());
   return true;
 }
-
-/** The app shrinks into the island and goes on behind the chat. @param {string} why @param {number} [velocity] downward px/s */
+/** Prewarm only after the chat's first successful load; called by warm.js at idle. */
+export async function warm() {
+  if (document.documentElement.dataset.signedIn === undefined || /** @type {any} */ (navigator).connection?.saveData) return;
+  // A warm frame needs its worker's session handshake; blocked workers cannot prewarm safely.
+  if (!navigator.serviceWorker) return;
+  await navigator.serviceWorker.ready;
+  await styles();
+  for (const id of LAYERED) {
+    if (document.documentElement.dataset.signedIn === undefined || /** @type {any} */ (navigator).connection?.saveData) return;
+    const l = retain(id, watch);
+    // A failed Music boot must not keep Podcasts from warming forever.
+    await Promise.race([l.loaded, new Promise(r => setTimeout(r, 15_000))]);
+  }
+}
+/** @param {import('./frames.js').Layer} l */
+function park(l) { l.front = false; l.frame.inert = true; l.frame.classList.add('away'); l.shell.classList.remove('launch'); l.shell.classList.add('parked'); }
+function measure() {
+  if (!island || !morph.resting) return;
+  island.style.transform = '';
+  const r = island.getBoundingClientRect();
+  insets = [r.top,innerWidth-r.right,innerHeight-r.bottom,r.left,parseFloat(getComputedStyle(island).borderRadius)];
+  morph.set(morph.value);
+}
+/** @param {string} why @param {number} [velocity] */
 export async function collapse(why, velocity) {
   if (!layer?.front) return;
-  layer.front = false;
-  const is = ensureIsland();
-  is.hidden = false;
-  const r = is.getBoundingClientRect();
-  const f = layer.frame;
-  const { fast } = timing(), opacity = interrupt(f);
-  ++flight;
-  measure(r);
-  // The old shrink reaches the pill earlier than expansion reaches the screen.
-  morph.to(1, { spring: springs.island, timeScale: fast / 160 * .622 || 1, velocity: velocity === undefined ? undefined : velocity / Math.max(1, innerHeight - r.height) });
-  if (still()) { fade.set(opacity); fade.to(0); }
-  else {
-    is.animate(
-      [
-        { opacity: 0, transform: 'scale(.55)' },
-        { opacity: 0, transform: 'scale(.55)', offset: 0.6 },
-        { opacity: 1, transform: 'scale(1.1,.86)', offset: 0.82 },
-        { opacity: 1, transform: 'scale(.98,1.03)', offset: 0.92 },
-        { opacity: 1, transform: 'scale(1)' },
-      ],
-      { duration: fast * 4, easing: 'ease-out' },
-    );
-  }
-  f.classList.add('away');
-  f.inert = true;
-  document.body.dataset.island = layer.id;
-  void why;
+  const l = layer, current = ++flight, is = ensureIsland();
+  l.front = false; l.frame.inert = true;
+  is.hidden = false; is.inert = false;
   tick();
+  measure();
+  document.body.dataset.island = l.id;
+  morph.to(1, {...springOptions(), velocity:velocity === undefined ? undefined : velocity/Math.max(1,innerHeight-36)});
+  if (motionReduced()) capsuleFade.to(1);
+  await whenResting();
+  if (current === flight && layer === l && !l.front) {
+    park(l); is.style.opacity = '1'; is.style.transform = '';
+    // If the app just visited is quiet, the island returns to the engine still playing.
+    if (!playing()) for (const other of frames.values()) {
+      try {
+        const w=/** @type {any} */ (other.frame.contentWindow);
+        const a=other.id==='music'?w.__cp?.player?.audio:w.document.querySelector('audio');
+        if(a && !a.paused && !a.ended) {layer=other;tick();break;}
+      } catch {}
+    }
+    touch();
+  }
+  void why;
 }
-
-/** The island grows back into the app. @param {string} why */
+/** @param {string} why */
 export async function expand(why) {
   if (!layer || layer.front) return;
-  layer.front = true;
-  const f = layer.frame;
-  const is = ensureIsland();
-  const r = is.getBoundingClientRect();
-  const { quick, settle } = timing(), opacity = interrupt(f), current = ++flight;
-  measure(r);
-  f.classList.remove('away');
-  f.inert = false;
+  const l = layer, current = ++flight, is = ensureIsland();
+  clearTimeout(idleClose);
+  // Preserve the exact measured shape while the frame grows or reverses.
+  shape.stop(); content.stop(); alertWidth.stop();
+  measure();
+  l.front = true; l.frame.inert = false; l.frame.classList.remove('away'); l.shell.classList.remove('parked');
+  // Keep the shell's launch marker on the real capsule reveal until its spring rests.
+  l.shell.classList.add('launch');
+  is.inert = true;
   delete document.body.dataset.island;
-  // One entry for the app in front: a swipe down leaves it, so Back still brings the chat.
-  if (history.state?.th !== 'app') history.pushState({ th: 'app', app: layer.id }, '');
-  morph.to(0, { spring: springs.island, timeScale: quick / 240 || 1 });
-  if (still()) { fade.set(opacity); fade.to(1); }
-  const grow = still() ? fade.whenResting()
-    : f.animate([{ opacity }, { opacity: 1, offset: 0.1 }, { opacity: 1 }], { duration: quick * 31 / 12, easing: settle }).finished.catch(() => {});
-  is.animate([{ transform: 'scale(1)', opacity: 1 }, { transform: 'scale(1.14)', opacity: 1, offset: 0.35 }, { transform: 'scale(1.6)', opacity: 0 }], { duration: still() ? 0 : quick * 5 / 4, easing: 'ease-in' });
-  await grow;
-  if (flight === current && layer?.frame === f && layer.front) is.hidden = true;
-  await morph.whenResting();
+  if (history.state?.th !== 'app') history.pushState({th:'app',app:l.id}, '');
+  morph.to(0, springOptions());
+  if (motionReduced()) capsuleFade.to(0);
+  await whenResting();
+  if (current === flight && layer === l && l.front) { is.hidden = true; l.shell.classList.remove('launch'); }
   void why;
 }
+/** Closing returns to the chat; the engine and its frame stay alive. */
+export function close() { return collapse('close'); }
+addEventListener('popstate', () => { if (layer?.front) void collapse('Back'); });
 
-/** The app goes: its frame unloads (and its sound stops), the island goes. */
-export function close() {
-  ++flight;
-  morph.stop();
-  fade.stop();
-  for (const a of layer?.frame.getAnimations() ?? []) a.cancel();
-  for (const a of island?.getAnimations() ?? []) a.cancel();
-  layer?.frame.remove();
-  layer = null;
-  if (island) island.hidden = true;
-  delete document.body.dataset.island;
-  cancelAnimationFrame(raf);
-  clearTimeout(slow);
-}
-
-/** Back from the app goes to the chat, not out of home. */
-addEventListener('popstate', () => {
-  if (layer?.front) void collapse('Back');
-});
-
-/** The swipe down on the app's own mini player (its bottom strip), read from the frame's touches. @param {HTMLIFrameElement} f */
-function watch(f) {
-  const w = /** @type {any} */ (f.contentWindow);
+/** Reattach on every frame navigation, including the app's own theme reload. @param {import('./frames.js').Layer} l */
+function watch(l) {
+  const w = l.frame.contentWindow;
   if (!w) return;
-  /** @type {{ x: number, y: number, lastY: number, t: number } | null} */
+  /** @type {{x:number,y:number,lastY:number,t:number}|null} */
   let s = null;
-  const opts = { capture: true, passive: true };
   try {
-    w.addEventListener('pointerdown', (/** @type {PointerEvent} */ e) => (s = e.clientY > w.innerHeight - 150 ? { x: e.clientX, y: e.clientY, lastY: e.clientY, t: e.timeStamp } : null), opts);
-    w.addEventListener('pointermove', (/** @type {PointerEvent} */ e) => {
-      if (!s) return;
-      const dy = e.clientY - s.y;
-      const velocity = (e.clientY - s.lastY) * 1000 / Math.max(1, e.timeStamp - s.t);
-      s.lastY = e.clientY; s.t = e.timeStamp;
-      if (dy > 56 && dy > Math.abs(e.clientX - s.x) * 1.4) {
-        s = null;
-        void collapse('swipe down', velocity);
-      }
-    }, opts);
-    for (const t of ['pointerup', 'pointercancel']) w.addEventListener(t, () => (s = null), opts);
+    w.addEventListener('pointerdown', e => { s = e.clientY > w.innerHeight-150 ? {x:e.clientX,y:e.clientY,lastY:e.clientY,t:e.timeStamp} : null; }, {capture:true,passive:true});
+    w.addEventListener('pointermove', e => {
+      if (!s || layer !== l || !l.front) return;
+      const dy = e.clientY-s.y, velocity = (e.clientY-s.lastY)*1000/Math.max(1,e.timeStamp-s.t);
+      s.lastY=e.clientY; s.t=e.timeStamp;
+      if (dy > 56 && dy > Math.abs(e.clientX-s.x)*1.4) { s=null; void collapse('swipe down',velocity); }
+    }, {capture:true,passive:true});
+    for (const type of ['pointerup','pointercancel']) w.addEventListener(type, () => {s=null;});
   } catch {}
 }
-
-/** The island's element, made once. */
+/** @param {string} name */
+const icon = name => `<svg class="i" aria-hidden="true"><use href="/ui/icons.svg#${name}"/></svg>`;
 function ensureIsland() {
   if (island) return island;
-  const b = document.createElement('button');
-  b.type = 'button';
-  b.className = 'th-island';
-  b.hidden = true;
-  const dot = document.createElement('span');
-  dot.className = 'dot';
-  const bars = document.createElement('span');
-  bars.className = 'bars';
-  for (let i = 0; i < BARS; i++) bars.append(document.createElement('i'));
-  const left = document.createElement('span');
-  left.className = 'left';
-  const zz = document.createElement('span');
-  zz.className = 'zz';
-  zz.innerHTML = '<svg class="i" aria-hidden="true"><use href="/ui/icons.svg#moon-stars"/></svg><b></b>';
-  b.append(dot, bars, left, zz);
-  document.body.append(b);
+  const b = document.createElement('div');
+  b.setAttribute('role','group');
+  b.className='th-island'; b.hidden=true; b.dataset.state='compact';
+  b.innerHTML = `<button type="button" class="compact" aria-label="Expand player" aria-expanded="false"><span class="dot"></span><span class="title-mask"><span class="title"></span></span><span class="bars">${'<i></i>'.repeat(BARS)}</span><span class="alert-dot"></span></button><div class="details" inert><button type="button" class="art" aria-label="Open app"><img alt="" hidden>${icon('music-notes-simple')}</button><button type="button" class="heading" aria-label="Open app"><span class="tt"></span><span class="by"></span></button><button type="button" class="zz" aria-label="Sleep timer">${icon('moon-stars')}<b></b></button><div class="controls"><button type="button" data-control="previous" aria-label="Previous">${icon('play')}</button><button type="button" data-control="toggle" aria-label="Play">${icon('play')}</button><button type="button" data-control="next" aria-label="Next">${icon('play')}</button></div><div class="times"><span class="elapsed"></span><span class="total"></span></div></div><div class="progress"><i></i></div>`;
+  document.body.append(b); island=b;
+  b.querySelector('.compact')?.addEventListener('click', e => { if (!held || !/** @type {MouseEvent} */ (e).detail) void wide(true); held=false; });
+  for (const button of b.querySelectorAll('.art,.heading')) button.addEventListener('click', () => void expand('island'));
+  for (const button of /** @type {NodeListOf<HTMLButtonElement>} */ (b.querySelectorAll('[data-control]'))) button.addEventListener('click', () => {
+    const cmd = button.dataset.control;
+    control(cmd === 'toggle' ? playing() ? 'pause' : 'play' : /** @type {'next'|'previous'} */ (cmd));
+    touch(); haptic('choose');
+  });
+  b.querySelector('.zz')?.addEventListener('click', () => { toastOf(control('sleep', sleepLeft() ? 0 : 30)); touch(); });
   gestures(b);
-  island = b;
+  document.addEventListener('pointerdown', e => { if (expanded && !b.contains(/** @type {Node} */ (e.target))) void wide(false); }, true);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && expanded) { void wide(false); /** @type {HTMLElement} */ (b.querySelector('.compact')).focus(); } });
+  const changes = new MutationObserver(notices);
+  for (const node of document.querySelectorAll('#talk,#decision')) changes.observe(node,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class']});
+  document.addEventListener('th:decisions', notices);
+  document.addEventListener('click', e => { const note = /** @type {Element} */ (e.target).closest?.('#talk .note'); if (note && about(note)) void wide(true); });
+  notices();
   return b;
 }
-
-/** Tap: back into the app. Hold: the wide card. Sideways: next or previous. @param {HTMLButtonElement} b */
+let touching=false;
+function touch() { clearTimeout(idleClose); if (expanded && !touching) idleClose=setTimeout(() => void wide(false),6000); }
+/** @param {boolean} [on] */
+export async function wide(on=true) {
+  if (!layer || layer.front) return;
+  const b=ensureIsland(); expanded=on;
+  b.dataset.state=on ? 'expanded' : b.classList.contains('alert') ? 'alert' : 'compact';
+  const compact=/** @type {HTMLButtonElement} */ (b.querySelector('.compact'));
+  compact.setAttribute('aria-expanded',String(on)); compact.inert=on;
+  /** @type {HTMLElement} */ (b.querySelector('.details')).inert=!on;
+  shape.to(on?1:0,springOptions());
+  if (motionReduced()) content.to(on?1:0);
+  touch(); if(on) haptic('open');
+  await whenResting();
+}
+let held=false;
+/** @param {HTMLElement} b */
 function gestures(b) {
-  /** @type {{ x: number, y: number, t: number } | null} */
-  let s = null;
-  /** @type {ReturnType<typeof setTimeout> | undefined} */
-  let hold;
-  let done = false;
-  b.addEventListener('pointerdown', (e) => {
-    s = { x: e.clientX, y: e.clientY, t: Date.now() };
-    done = false;
-    hold = setTimeout(() => {
-      done = true;
-      wide();
-    }, HOLD_MS);
+  /** @type {{x:number,y:number}|null} */ let start=null;
+  /** @type {ReturnType<typeof setTimeout>|undefined} */ let hold;
+  b.addEventListener('pointerdown', e => {
+    touching=true; touch(); held=false; start={x:e.clientX,y:e.clientY};
+    if (!expanded) hold=setTimeout(() => { held=true; if(!motionReduced()) b.classList.add('marquee'); },HOLD_MS);
   });
-  b.addEventListener('pointermove', (e) => {
-    if (!s || done) return;
-    const dx = e.clientX - s.x;
-    if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(e.clientY - s.y) * 1.5) {
-      clearTimeout(hold);
-      done = true;
-      control(dx < 0 ? 'next' : 'previous');
-      b.animate([{ transform: 'translateX(0)' }, { transform: `translateX(${dx < 0 ? -14 : 14}px)` }, { transform: 'translateX(0)' }], { duration: timing().fast * 2, easing: 'ease-out' });
-    }
+  b.addEventListener('pointermove', e => {
+    if (!start) return;
+    const dx=e.clientX-start.x,dy=e.clientY-start.y;
+    if (Math.abs(dy)>30 && dy < -Math.abs(dx)) { held=true; clearTimeout(hold); start=null; void wide(false); }
+    else if (!expanded && Math.abs(dx)>40 && Math.abs(dx)>Math.abs(dy)*1.5) { held=true; clearTimeout(hold); start=null; control(dx<0?'next':'previous'); }
   });
-  b.addEventListener('pointerup', () => {
-    clearTimeout(hold);
-    if (s && !done) void expand('tap on the island');
-    s = null;
-  });
-  b.addEventListener('pointercancel', () => {
-    clearTimeout(hold);
-    s = null;
-  });
-  b.addEventListener('contextmenu', (e) => e.preventDefault());
-  b.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      void expand('keyboard');
-    }
-  });
+  const end=() => {if(!touching) return; touching=false; clearTimeout(hold); start=null; b.classList.remove('marquee'); touch();};
+  addEventListener('pointerup',end); addEventListener('pointercancel',end);
+  b.addEventListener('contextmenu',e=>e.preventDefault());
 }
-
-/** The live look: Music's level from its engine's meter (60 frames a second), Podcasts' time left. */
+/** @param {Element} note */
+function about(note) { return Boolean(layer && new RegExp(`\\b${layer.id === 'music' ? 'music' : 'podcasts?'}\\b`,'i').test(note.textContent ?? '')); }
+let noticeKey='';
+function notices() {
+  if (!island) return;
+  const notes=[...document.querySelectorAll('#talk .note')].filter(about);
+  const decision=document.querySelector('#decision .card:not(.gone)');
+  const key=notes.map(n=>n.closest('[data-id]')?.getAttribute('data-id') ?? n.textContent).join('|') + (decision?.textContent ?? '');
+  island.classList.toggle('alert',Boolean(key));
+  if (key && key!==noticeKey) {
+    clearTimeout(alertEnd); island.classList.add('alert-flash');
+    if (!expanded) island.dataset.state='alert';
+    alertWidth.to(24,springOptions('fast'));
+    alertEnd=setTimeout(() => {
+      island?.classList.remove('alert-flash');
+      alertWidth.to(0,springOptions('fast'));
+      if (island && !expanded) island.dataset.state='compact';
+    },1200);
+  }
+  noticeKey=key;
+}
+const time = (/** @type {number} */ s) => `${Math.floor(s/60)}:${String(Math.floor(s%60)).padStart(2,'0')}`;
+let lastArt='', lastTitle='', titleViewport=0;
+let meterData=new Uint8Array(0);
+/** Titles and artwork stay in this page. Fetch artwork inside its app, under that app's CSP. */
 function tick() {
-  cancelAnimationFrame(raf);
-  clearTimeout(slow);
-  const is = island;
-  if (!is || !layer || layer.front) return;
-  const m = media();
-  const color = appFor(layer.id)?.color ?? '#2f7df6';
-  is.style.setProperty('--c', color);
-  is.dataset.app = layer.id;
-  const on = playing();
-  is.classList.toggle('playing', on);
-  const zz = Math.ceil(sleepLeft() / 60);
-  is.classList.toggle('sleep', zz > 0);
-  /** @type {HTMLElement} */ (is.querySelector('.zz b')).textContent = zz ? String(zz) : '';
-  is.setAttribute('aria-label', `${appFor(layer.id)?.name ?? 'The app'} ${on ? 'playing' : 'paused'}${zz ? `, stops in ${zz} min` : ''}: tap to open, hold for more`);
-  if (m?.kind === 'music') {
-    let an = null;
-    try {
-      an = m.w.__cp?.dsp?.nodes?.analyser ?? null;
-    } catch {}
-    const bars = /** @type {NodeListOf<HTMLElement>} */ (is.querySelectorAll('.bars i'));
-    if (an && on && !document.hidden) {
-      const data = new Uint8Array(an.frequencyBinCount);
-      an.getByteFrequencyData(data);
-      const step = Math.max(1, Math.floor(data.length / 3 / BARS));
-      bars.forEach((b, i) => {
-        let sum = 0;
-        for (let k = 0; k < step; k++) sum += data[i * step + k] ?? 0;
-        b.style.transform = `scaleY(${Math.max(0.18, Math.min(1, sum / step / 190)).toFixed(3)})`;
-      });
-      is.classList.add('live');
-    } else is.classList.remove('live');
-  } else if (m?.kind === 'podcasts') {
-    const a = m.a;
-    const left = a.duration > 0 ? Math.max(0, a.duration - a.currentTime) : 0;
-    is.style.setProperty('--done', `${a.duration > 0 ? Math.round((a.currentTime / a.duration) * 360) : 0}deg`);
-    /** @type {HTMLElement} */ (is.querySelector('.left')).textContent = left ? `${Math.max(1, Math.round(left / 60))} min` : '';
-  }
-  // Every frame while the bars move; twice a second otherwise (paused, Podcasts, the screen off).
-  if (is.classList.contains('live')) raf = requestAnimationFrame(tick);
-  else slow = setTimeout(tick, 500);
-}
-
-/** Held: the island opens wide for a moment with the song and its buttons, then shrinks back. */
-function wide() {
-  const m = media();
-  const is = island;
+  cancelAnimationFrame(raf); clearTimeout(slow);
+  const is=island;
   if (!is || !layer) return;
-  document.querySelector('.th-wide')?.remove();
-  const card = document.createElement('div');
-  card.className = 'th-wide';
-  card.setAttribute('role', 'dialog');
-  card.setAttribute('aria-label', appFor(layer.id)?.name ?? 'Playing');
-  const t = m?.kind === 'music' ? m.p.track : null;
-  // On this screen only: the title is read from the app here and sent nowhere.
-  const title = document.createElement('p');
-  title.className = 'tt';
-  title.textContent = t?.title || (m?.kind === 'podcasts' ? m.w.document.title : appFor(layer.id)?.name) || '';
-  const by = document.createElement('p');
-  by.className = 'by';
-  by.textContent = t?.artist || '';
-  const row = document.createElement('div');
-  row.className = 'row';
-  /** @param {string} label @param {() => void} run */
-  const btn = (label, run) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.textContent = label;
-    b.addEventListener('click', () => {
-      run();
-      shut();
-    });
-    row.append(b);
-  };
-  btn(playing() ? 'Pause' : 'Play', () => control(playing() ? 'pause' : 'play'));
-  btn(m?.kind === 'podcasts' ? '+30 s' : 'Next', () => control('next'));
-  if (m?.kind === 'music') {
-    btn('Who is this?', () => ask('Who is this?'));
-    btn('More like this', () => ask('More like this'));
+  const m=media(), app=appFor(layer.id), on=playing();
+  const meta=m?.w.navigator.mediaSession?.metadata;
+  const t=m?.kind==='music' ? m.p.track : null;
+  const title=t?.title || meta?.title || app?.name || '', by=t?.artist || meta?.artist || '';
+  for (const node of is.querySelectorAll('.title,.tt')) if(node.textContent!==title) node.textContent=title;
+  const sub=/** @type {HTMLElement} */ (is.querySelector('.by')); if(sub.textContent!==by) sub.textContent=by;
+  is.style.setProperty('--c',app?.color ?? '#2f7df6'); is.dataset.app=layer.id;
+  is.classList.toggle('playing',on);
+  const zz=Math.ceil(sleepLeft()/60); is.classList.toggle('sleep',zz>0);
+  /** @type {HTMLElement} */ (is.querySelector('.zz b')).textContent=zz?String(zz):'';
+  is.querySelector('.compact')?.setAttribute('aria-label', `${title}${by ? `, ${by}` : ''}. Expand ${app?.name} player`);
+  is.querySelector('.heading')?.setAttribute('aria-label', `${title}${by ? `, ${by}` : ''}. Open ${app?.name}`);
+  is.setAttribute('aria-label',`${app?.name} ${on?'playing':'paused'}${zz?`, stops in ${zz} min`:''}`);
+  const toggle=/** @type {HTMLButtonElement} */ (is.querySelector('[data-control="toggle"]'));
+  const action=on?'Pause':'Play'; if(toggle.getAttribute('aria-label')!==action) {toggle.setAttribute('aria-label',action); toggle.innerHTML=icon(on?'pause':'play');}
+  const a=m?.kind==='music'?m.p.audio:m?.a;
+  const duration=Number.isFinite(a?.duration)?a.duration:0, elapsed=Number.isFinite(a?.currentTime)?a.currentTime:0;
+  is.style.setProperty('--progress',String(duration?clamp(elapsed/duration):0));
+  /** @type {HTMLElement} */ (is.querySelector('.elapsed')).textContent=time(elapsed);
+  /** @type {HTMLElement} */ (is.querySelector('.total')).textContent=time(duration);
+  const text=/** @type {HTMLElement} */ (is.querySelector('.title'));
+  if (title!==lastTitle || titleViewport!==innerWidth) {
+    lastTitle=title; titleViewport=innerWidth;
+    compactWidth=Math.max(124,Math.min(innerWidth*.6-24,text.scrollWidth+83));
+    is.style.setProperty('--marquee',`${Math.min(0,compactWidth-83-text.scrollWidth)}px`);
+    renderShape();
   }
-  const zz = Math.ceil(sleepLeft() / 60);
-  btn(zz ? `Sleep off (${zz} min)` : 'Sleep in 30 min', () => toastOf(control('sleep', zz ? 0 : 30)));
-  btn(`Open ${appFor(layer.id)?.name ?? ''}`.trim(), () => void expand('open from the card'));
-  btn('Close', close);
-  card.append(title, by, row);
-  document.body.append(card);
-  const { quick, settle } = timing();
-  card.animate(still() ? [{ opacity: 0 }, { opacity: 1 }] : [{ opacity: 0, transform: 'translateX(-50%) scale(.6,.4)' }, { opacity: 1, transform: 'translateX(-50%) scale(1)' }], { duration: quick * 5 / 4, easing: settle });
-  const timer = setTimeout(shut, 5000);
-  const away = (/** @type {Event} */ e) => !card.contains(/** @type {Node} */ (e.target)) && shut();
-  setTimeout(() => addEventListener('pointerdown', away, true));
-  function shut() {
-    clearTimeout(timer);
-    removeEventListener('pointerdown', away, true);
-    card.animate([{ opacity: 1 }, { opacity: 0 }], { duration: timing().fast }).finished.then(() => card.remove(), () => card.remove());
+  const art=meta?.artwork?.[0]?.src ?? '';
+  if (art!==lastArt) {
+    lastArt=art;
+    const img=/** @type {HTMLImageElement} */ (is.querySelector('.art img')); img.hidden=true;
+    if(art.startsWith('data:image/')) {img.src=art;img.hidden=false;}
+    else if(art && m) void m.w.fetch(art).then((/** @type {Response} */ r)=>r.blob()).then((/** @type {Blob} */ blob)=>{
+      const reader=new FileReader(); reader.onload=()=>{if(lastArt===art){img.src=String(reader.result);img.hidden=false;}}; reader.readAsDataURL(blob);
+    }).catch(()=>{});
   }
+  const an=m?.kind==='music' && !motionReduced() && !document.hidden && !layer.front && on ? m.w.__cp?.dsp?.nodes?.analyser : null;
+  is.classList.toggle('live',Boolean(an));
+  // Without an analyser, retain the playing-only fallback; reduced motion and pause stop it.
+  is.querySelectorAll('.bars i').forEach((bar,i)=>{
+    const animations=bar.getAnimations();
+    const breathe=on && !an && !layer?.front && !document.hidden && !motionReduced();
+    if(!breathe) for(const animation of animations) animation.cancel();
+    else if(!animations.length) bar.animate([{transform:'scaleY(.25)'},{transform:'scaleY(1)'}],
+      {duration:ms('rise')*(.6+i*.08),easing:getComputedStyle(document.documentElement).getPropertyValue('--settle').trim(),iterations:Infinity,direction:'alternate'});
+  });
+  if(an) {
+    if(meterData.length!==an.frequencyBinCount) meterData=new Uint8Array(an.frequencyBinCount);
+    const bars=/** @type {NodeListOf<HTMLElement>} */ (is.querySelectorAll('.bars i'));
+    const step=Math.max(1,Math.floor(meterData.length/3/BARS));
+    const draw=()=>{
+      if(document.hidden || layer?.front || motionReduced()) return;
+      an.getByteFrequencyData(meterData);
+      bars.forEach((b,i)=>{let sum=0;for(let k=0;k<step;k++) sum+=meterData[i*step+k]??0;b.style.transform=`scaleY(${Math.max(.18,Math.min(1,sum/step/190))})`;});
+      raf=requestAnimationFrame(draw);
+    };
+    draw();
+  }
+  if(!layer.front) slow=setTimeout(tick,500);
+  notices();
 }
-
-/** Puts words in the ask bar and sends them, as the owner would. @param {string} text */
-function ask(text) {
-  const q = /** @type {HTMLTextAreaElement | null} */ (document.querySelector('#q'));
-  const form = /** @type {HTMLFormElement | null} */ (document.querySelector('#ask'));
-  if (!q || !form) return;
-  q.value = text;
-  q.dispatchEvent(new Event('input'));
-  form.requestSubmit();
-}
-
+addEventListener('resize',()=>{ if(layer && !layer.front){tick();renderShape();} });
 /**
  * The phone's commands, on the app playing behind the chat (or in front). `minutes` for 'sleep'.
  * @param {'pause' | 'play' | 'next' | 'previous' | 'sleep' | 'never'} cmd @param {number} [minutes]
@@ -524,11 +432,12 @@ export function control(cmd, minutes = 30) {
   return { ok: true, text: { pause: 'Paused.', play: 'Playing.', next: 'Next song.', previous: 'Previous song.' }[cmd] ?? '' };
 }
 
-/** The island's styles, loaded the first time an app opens as a layer. */
+
+/** @type {Promise<void>|null} */
+let sheet=null;
 function styles() {
-  if (document.querySelector('link[href="/th/island/island.css"]')) return;
-  const l = document.createElement('link');
-  l.rel = 'stylesheet';
-  l.href = '/th/island/island.css';
-  document.head.append(l);
+  return sheet ??= new Promise(resolve=>{
+    const link=document.createElement('link'); link.rel='stylesheet'; link.href='/th/island/island.css';
+    link.onload=()=>resolve(); link.onerror=()=>resolve(); document.head.append(link);
+  });
 }
