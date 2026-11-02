@@ -138,7 +138,8 @@ test('Settings keeps a fixed header with a round caret back button and focuses i
       blur: getComputedStyle(s).backdropFilter,
       header: Boolean(s.querySelector(':scope > .sheader .page-title')),
       scroll: Boolean(s.querySelector(':scope > .sscroll .sbody')),
-      back: [document.querySelector('.sback').getAttribute('aria-label'), document.querySelector('.sback svg use').getAttribute('href')],
+      // The page's own back button: the menu's Settings circle shares the class once the menu is prepared.
+      back: [s.querySelector('.sheader .sback').getAttribute('aria-label'), s.querySelector('.sheader .sback svg use').getAttribute('href')],
       focused: document.activeElement?.tagName,
     };
   });
