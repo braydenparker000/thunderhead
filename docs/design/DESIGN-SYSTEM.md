@@ -305,6 +305,21 @@ Under `prefers-reduced-motion: reduce`:
 
 Acceptance (built): with `reducedMotion: 'reduce'`, `document.getAnimations().filter(a => a.playState === 'running')` is empty 1 s after load on home.
 
+### 8.5 The engine
+
+**Not built: T1b is blocked at its numerical-parity gate.** The revised specification uses mass 1, stiffness `k`, damping ratio `ζ`, `omega = sqrt(k)` and `response = 2π/omega`. Its proposed defaults are page `(380, .8)`, pop `(800, .6)`, ring `(600, .72)` and island `(420, .78)`. The page/pop parameters match the frozen CSS curves in closed form, but the required semi-implicit Euler step of `1/120 s` does not meet the required maximum error of `.01`.
+
+Starting at `x = 0`, `v = 0`, target `1`, the prescribed update is `v += (k*(1-x) - 2*ζ*sqrt(k)*v)*dt`, then `x += v*dt`. Interpolating its states at the 25 token timestamps gives:
+
+| Preset / reference span | Worst timestamp | CSS token value | Euler value | Absolute error |
+|---|---:|---:|---:|---:|
+| page / 410 ms | 51.25 ms | .292 | .347134406 | .055134406 |
+| pop / 345 ms | 43.125 ms | .436 | .526044169 | .090044169 |
+
+Closed-form maximum errors are `.002657821` and `.005738997`; they establish the parameters' fit, not the accuracy of this finite integration step. Holding the last completed Euler state also fails (`.044606985` / `.069922686`). The failing samples are inside the curve, so snapping its final point to `1` cannot fix them.
+
+Implementation needs a revised numerical-method requirement: for example, Euler at `1/960 s` gives `.005292263` / `.007360389`, or an analytic state update follows the closed-form reference. Neither is the specified `1/120 s` Euler method. Surface timing and interruption still require browser verification after that decision. The frozen T1a tokens remain the built behavior; the engine, surface migration and `/?feel` panel are pending.
+
 ## 9. Contrast requirements and checks
 
 Measured with the WCAG 2.x formula against each token's worst background. "Worst field" is blob-1 at 60% over field-1 = `#c2d6f9`. "Glass" is `--glass` composited over that.
