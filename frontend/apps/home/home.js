@@ -138,26 +138,31 @@ function openFromRing(id,color,to){
   // The motion tokens, read off the hold's path (after the first paint, then whenever the ring has closed), so the
   // hold's own frame forces no style.
   function tokens(){ const css=getComputedStyle(root), ms=n=>parseFloat(css.getPropertyValue(n))||0;
-    look={fast:ms('--d-fast'),quick:ms('--d-quick'),ease:css.getPropertyValue('--ease-out').trim()||'ease-out'} }
+    look={fast:ms('--d-fast'),quick:ms('--d-quick'),ease:css.getPropertyValue('--ease-out').trim()||'ease-out'}; if(!motionReduced()) flightFx() }
   function fan(){ opening=true; peak=0;
     if(motionReduced()){ petMotion.forEach(m=>{m.radial.to(1,{spring:springs.pop});m.size.to(1,{spring:springs.lift});m.choice.to(0,{spring:springs.pop});m.face.to(1,{spring:springs.fade})}); settleRing(ringRun); return }
-    // The flight out as compositor animations: both springs sampled every 12 ms from rest, all seven on one clock.
-    const run=ringRun, rest={pop:restTime(springs.pop),lift:restTime(springs.lift)}, T=Math.max(rest.pop,rest.lift);
-    const at=(n,ms)=>ms>=rest[n]?1:response(springs[n],ms/1000).value, grid=[];
-    for(let ms=0;ms<T;ms+=12) grid.push(ms); grid.push(T);
-    const r=grid.map(ms=>at('pop',ms)), z=grid.map(ms=>.2+.8*at('lift',ms));
-    // The glass, as they pass 85% of the way out (they are slowing by then: the spring's speed peaks near 42%). Each
-    // disc fades in whole before that, and its fade then ends (no fill): a disc with an opacity animation still on it
-    // is drawn on its own surface, and its glass would blur only the disc, not what is behind it.
-    let at85=0; while(at('pop',at85)<.85&&at85<T) at85++;
-    petMotion.forEach(m=>m.face.set(1));
-    const anims=petMotion.flatMap((m,i)=>[pets[i].animate(grid.map((ms,k)=>({offset:ms/T,transform:`translate(${m.x*r[k]}px,${m.y*r[k]}px) scale(${z[k]})`})),{duration:T,fill:'forwards'}),
-      pets[i].animate([{opacity:0},{opacity:1}],{duration:Math.round(at85*.8),easing:look.ease})]);
-    flight={run,anims,glass:setTimeout(()=>{ if(flight?.run===run){ opening=false; ring.classList.add('glassy') } },at85)};
+    const run=ringRun, fx=flightFx(); petMotion.forEach(m=>m.face.set(1));
+    const anims=fx.effects.map(e=>{ const a=new Animation(e,document.timeline); a.play(); return a });
+    flight={run,anims,glass:setTimeout(()=>{ if(flight?.run===run){ opening=false; ring.classList.add('glassy') } },fx.at85)};
     ringMoving();
     // The flight is over when the discs' paths are (the fades end well before).
     Promise.all(anims.filter((a,k)=>k%2===0).map(a=>a.finished)).then(()=>{ if(flight?.run===run) land(1) },()=>{});
   }
+  // The flight out as compositor animations: both springs sampled every 12 ms from rest, all seven on one clock. The glass
+  // comes in as they pass 85% of the way out (slowing by then: the spring's speed peaks near 42%). Each disc fades in whole
+  // before that, and its fade then ends (no fill): a disc with an opacity animation on it is drawn on its own surface, and
+  // its glass would blur only the disc. Built off the hold's path (idle, and after each close) and kept while the springs
+  // and tokens are the same, so the hold's frame only starts them.
+  let built=null;
+  function flightFx(){ const key=JSON.stringify([springs.pop,springs.lift,look.ease]); if(built?.key===key) return built;
+    const rest={pop:restTime(springs.pop),lift:restTime(springs.lift)}, T=Math.max(rest.pop,rest.lift), grid=[];
+    const at=(n,ms)=>ms>=rest[n]?1:response(springs[n],ms/1000).value;
+    for(let ms=0;ms<T;ms+=12) grid.push(ms); grid.push(T);
+    const r=grid.map(ms=>at('pop',ms)), z=grid.map(ms=>.2+.8*at('lift',ms));
+    let at85=0; while(at('pop',at85)<.85&&at85<T) at85++;
+    const effects=petMotion.flatMap((m,i)=>[new KeyframeEffect(pets[i],grid.map((ms,k)=>({offset:ms/T,transform:`translate(${m.x*r[k]}px,${m.y*r[k]}px) scale(${z[k]})`})),{duration:T,fill:'forwards'}),
+      new KeyframeEffect(pets[i],[{opacity:0},{opacity:1}],{duration:Math.round(at85*.8),easing:look.ease})]);
+    return built={key,effects,at85} }
   // The flight ends, or a choice or release takes it over: the engine carries on from where the discs are, at their speed.
   function land(done){ if(!flight) return; const t=done?Infinity:(flight.anims[0].currentTime??0)/1000;
     const at=n=>t===Infinity?{value:1,velocity:0}:response(springs[n],t), r=at('pop'), z=at('lift'), f=done?1:Number(getComputedStyle(pets[0]).opacity);
