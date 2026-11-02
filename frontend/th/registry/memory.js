@@ -44,9 +44,10 @@ export function groupOf(f) {
   return GROUPS.some((g) => g.id === f.kind) ? f.kind : 'other';
 }
 
-/** Where a current fact goes: the review list, Fading, or its group. @param {Fact} f */
+/** Where a current fact goes: the review list, Learned from outside (M11), Fading, or its group. @param {Fact} f */
 export function shelfOf(f) {
   if (f.tags.includes('imported') && f.source !== 'user') return 'review';
+  if (f.provenance === 'outside') return 'outside';
   if (f.kind !== 'rule' && !f.pinned && f.confidence_now < MEMORY.confidence.fading) return 'fading';
   return groupOf(f);
 }

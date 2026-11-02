@@ -1,7 +1,9 @@
 // The Memory page's facts (MEMORY.md §12, MENU-AND-SETTINGS.md §4.4): a row per fact with its
 // source, its odds in words and its age; tap for the detail (what it rests on, earlier versions,
 // why) and the owner's actions. Fix writes a new version in the owner's words; Forget asks once,
-// gives 10 s to undo, then deletes for good. Text is always set as text, never as markup.
+// gives 10 s to undo, then deletes for good. A fact learned from outside text (MEMORY.md §6 M11) has
+// two: Keep, which makes it the owner's (their own ledger row its evidence, as Fix's), and Forget.
+// Text is always set as text, never as markup.
 import { api, signedIn } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { uuidv7 } from '/th/chat/model.js';
@@ -41,8 +43,10 @@ export const op = (o, keepalive = false) => signedIn((t) => api.memoryOps(t, uui
 const monthYear = (ms) => new Date(ms).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' });
 const dayMonth = (ms) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
-/** "You said · Pretty sure, about 8 in 10 · since Nov 2026" */
+/** "You said · Pretty sure, about 8 in 10 · since Nov 2026"; one learned from outside text waits,
+ * with the day it was learned: "You said · waiting for you · 2 Nov 2026" (what the mind took it for). */
 export function metaLine(f) {
+  if (f.provenance === 'outside') return `${sourceLabel(f.source)} · waiting for you · ${dayMonth(f.recorded_at)}`;
   return `${sourceLabel(f.source)} · ${f.kind === 'rule' ? 'A standing rule' : odds(f.confidence_now)} · since ${monthYear(f.valid_from ?? f.recorded_at)}`;
 }
 
@@ -121,6 +125,12 @@ function actions(f, ctx, row, host, shelf) {
   const run = async (o, done) => {
     try { await op(o); toast(done); ctx.reload(); } catch (e) { toast(memoryLine(e)); if (e?.details?.[0]?.issue === 'superseded') ctx.reload(); }
   };
+  // Learned from outside: Keep (a confirm from this device, which makes it the owner's) or Forget.
+  if (shelf === 'outside') {
+    add('Keep', () => run({ op: 'confirm', id: f.id }, 'Kept'));
+    add('Forget', () => ctx.forget(f), ' danger');
+    return bar;
+  }
   if (shelf === 'review') add("Yes, that's right", () => run({ op: 'confirm', id: f.id }, 'Thanks. Saved in your words'));
   if (shelf === 'fading') add('Still true', () => run({ op: 'confirm', id: f.id }, 'Kept'));
   add('Fix', async () => fix(host, f, ctx, row, shelf));

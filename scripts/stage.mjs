@@ -96,7 +96,9 @@ const budgets = [
   // Task A: measured 72,232 bytes (+133 over the prior limit), including whenResting().
   // (2026-11-02) +204 measured (72,436): motion.js's lift and fade springs for the ring's discs.
   // (2026-11-02) +54 measured (72,490): contract.js's `permit` card class ("You said to ask").
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 72_490],
+  // (2026-11-02, provenance) +17 measured (72,507): contract.js's memory reasons `outside_rule` and
+  // `outside_supersede` in place of `session_tainted` (MEMORY.md §6 M11).
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 72_507],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -110,7 +112,9 @@ const budgets = [
   // (2026-11-02, night chat) 97,000 → 107,500: the working card (th/chat/working.js, 7,100 bytes;
   // its logic in model.js) and a reply's choice, less the reply slot's thinking words and Stop:
   // measured 107,441 bytes, 10,560 over main's 96,881.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 107_500],
+  // (2026-11-02, provenance) 107,500 → 107,506: the Memory registry's "Learned from outside" shelf
+  // (th/registry/memory.js, +65 measured: 107,506).
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 107_506],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
