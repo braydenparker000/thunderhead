@@ -21,6 +21,8 @@ const SONG_ID = /^r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$/;
 export const PLAY_MAX = 500;
 /** How long Music waits for its library before applying (the songs must be there to queue). */
 const LIBRARY_WAIT_MS = 30_000;
+/** How often Music looks again while it is in view: one small read a minute (the open verbs). */
+const LOOK_MS = 60_000;
 
 const idOf = (/** @type {string} */ ref) => ref.slice('music:'.length);
 /** @param {any} library @param {string} ref @returns {Track | null} */
@@ -95,7 +97,8 @@ export const EXECUTORS = {
 };
 
 /** Applies Music's pending intents once its library has songs; again whenever Music comes back
- * into view. Never throws.
+ * into view, and every LOOK_MS while it is in view (Music playing as home's island stays in view,
+ * so a song queued from the chat joins within a minute). Never throws.
  * @param {any} ctx the player's context (its library) @param {any} player */
 export function installIntents(ctx, player) {
   let busy = false;
@@ -121,4 +124,7 @@ export function installIntents(ctx, player) {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') void go();
   });
+  setInterval(() => {
+    if (document.visibilityState === 'visible') void go();
+  }, LOOK_MS);
 }
