@@ -12,7 +12,7 @@ This page holds the loaded text plus an "in practice" example and a testable che
 5. Every article has a check. A law with no passing check is treated as broken, not as untested.
 6. Changes follow the amendment rule (Article 17). The mind may suggest a change. It never merges one itself.
 
-Sibling docs: [BEHAVIOR.md](BEHAVIOR.md) (how the laws turn into speech and action), [RUNTIME.md](RUNTIME.md), [MEMORY.md](MEMORY.md), [EVALS.md](EVALS.md) (every check ID used below), [MUSE.md](MUSE.md).
+Sibling docs: [BEHAVIOR.md](BEHAVIOR.md) (how the laws turn into speech and action), [RUNTIME.md](RUNTIME.md), [MEMORY.md](MEMORY.md), [EVALS.md](EVALS.md) (every check ID used below), [MUSE.md](../archive/MUSE.md).
 
 ---
 

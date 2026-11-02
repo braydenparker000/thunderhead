@@ -339,7 +339,7 @@ Later step (after the as-is port, only if the owner agrees): the engine is the o
 core, moved into `frontend/lib/audio/` with a plain API. It serves Music and Podcasts ([PODCASTS](PODCASTS.md)). Guitar uses its own
 low-latency context ([GUITAR](GUITAR.md)).
 
-**[built] The streaming path** ([NEXT-BATCH](../../process/NEXT-BATCH.md) part 2; `frontend/th/music/stream/`).
+**[built] The streaming path** ([NEXT-BATCH](../../archive/NEXT-BATCH.md) part 2; `frontend/th/music/stream/`).
 **In the player** (`deck.js`, called from `player.js` `assign`): each of the player's two decks plays
 its song through its own feed, so cross-fades, gapless joins, the lock screen, AirPods and the playback
 log work as before. A song streams when it is Opus from the network with a catalog length, not a CUE

@@ -35,7 +35,7 @@ behavior; anything marked **[proposal]** is not decided yet. Fixed decisions liv
 - [RUNTIME.md](mind/RUNTIME.md): sessions, wake loop, the `th` CLI, hooks
 - [MEMORY.md](mind/MEMORY.md): what it remembers and how
 - [EVALS.md](mind/EVALS.md): the meter and the tests of its behavior
-- [MUSE.md](mind/MUSE.md): the worker agent and work orders
+- [MUSE.md](archive/MUSE.md): the worker agent and work orders
 
 ## Engineering
 
@@ -48,8 +48,8 @@ behavior; anything marked **[proposal]** is not decided yet. Fixed decisions liv
 ## Process
 
 - [STATUS.md](process/STATUS.md): where things stand now
-- [ROADMAP.md](process/ROADMAP.md): phases and "done when"
+- [ROADMAP.md](archive/ROADMAP.md): phases and "done when"
 - [decisions.md](process/decisions.md): fixed decisions, newest last
 - [SETUP.md](process/SETUP.md): the owner's one-time setup
-- [RESEARCH-AGENDA.md](process/RESEARCH-AGENDA.md): open questions and how to settle them
-- [IDEAS.md](process/IDEAS.md): evaluated feature backlog
+- [RESEARCH-AGENDA.md](archive/RESEARCH-AGENDA.md): open questions and how to settle them
+- [IDEAS.md](archive/IDEAS.md): evaluated feature backlog

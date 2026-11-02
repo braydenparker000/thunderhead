@@ -111,7 +111,7 @@ Confirm: the next request from the phone carries the fixed build in `TH-Client`.
 
 ### 3.4 Ported app pages (P1b)
 
-The five existing apps are ported as they are (owner ruling; [ARCHITECTURE.md §11](ARCHITECTURE.md#11-the-as-is-port-p1b), [MIGRATION.md §5–6](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)). Steps, in order:
+The five existing apps are ported as they are (owner ruling; [ARCHITECTURE.md §11](ARCHITECTURE.md#11-the-as-is-port-p1b), [MIGRATION.md §5–6](../archive/MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)). Steps, in order:
 
 | # | Who | Step | Confirm |
 |---|---|---|---|
@@ -125,7 +125,7 @@ Rollback:
 - A broken ported page: roll back the site (§3.2), or restore that folder's old bytes from the old repo; the old page keeps working meanwhile.
 - A broken old Worker after step 4: `wrangler rollback <recorded version>` from the old repo's workflow (ask first only for a new deploy; a rollback to the recorded version is containment). The ported pages then fail CORS until step 4 is fixed and repeated; the old pages are unaffected.
 
-Each app later switches to `thunderhead-api` when its data moves (Music P5, Guitar P6, Astra, Podcasts, My Media P8), as a normal site + API deploy ([MIGRATION.md §7](MIGRATION.md#7-caller-switch-over-order) step 5).
+Each app later switches to `thunderhead-api` when its data moves (Music P5, Guitar P6, Astra, Podcasts, My Media P8), as a normal site + API deploy ([MIGRATION.md §7](../archive/MIGRATION.md#7-caller-switch-over-order) step 5).
 
 ---
 
@@ -295,7 +295,7 @@ Up to P3, a tripped watchdog writes a ledger note and a briefing line. From P4 i
 | `jobs.stuck` | A job `running` > 2 h, or `attempts` ≥ 5 | S3 |
 | `db.size` | Any object > 700 MB | S3 |
 | `events.export.late` (P5) | Day D not archived by D+1 09:00 | S3 |
-| `muse.silent` (P4) | No Muse API call in 26 h ([MUSE.md](../mind/MUSE.md) §9) | S4; Briefing line "Muse hasn't checked in since yesterday." |
+| `muse.silent` (P4) | No Muse API call in 26 h ([MUSE.md](../archive/MUSE.md) §9) | S4; Briefing line "Muse hasn't checked in since yesterday." |
 
 Acceptance: each watchdog has a vitest case that sets the condition with fixtures and a fake clock and asserts exactly one ledger note per trip (no repeat until it clears and trips again).
 

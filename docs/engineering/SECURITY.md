@@ -335,8 +335,8 @@ Not fallbacks:
 
 ## 7. CORS
 
-- **Allowlist:** `SITE_ORIGINS` (a Worker variable): the exact new site origin. The old site's origin is never added: the phone export travels as a file and is uploaded from the new origin ([MIGRATION.md §5](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)), so the owner never signs in to the new Worker from the old origin. `http://127.0.0.1:8080` exists only in the dev config.
-- **The other direction (P1b):** the old Worker allows the new site's origin (its `FRONTEND_ORIGINS` set) so the ported pages work until their data moves. That is an ask-first old-Worker deploy, and the entry goes when the old Worker retires ([MIGRATION.md §6](MIGRATION.md#6-cors-the-new-site-on-the-old-worker-p1b-temporary)).
+- **Allowlist:** `SITE_ORIGINS` (a Worker variable): the exact new site origin. The old site's origin is never added: the phone export travels as a file and is uploaded from the new origin ([MIGRATION.md §5](../archive/MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)), so the owner never signs in to the new Worker from the old origin. `http://127.0.0.1:8080` exists only in the dev config.
+- **The other direction (P1b):** the old Worker allows the new site's origin (its `FRONTEND_ORIGINS` set) so the ported pages work until their data moves. That is an ask-first old-Worker deploy, and the entry goes when the old Worker retires ([MIGRATION.md §6](../archive/MIGRATION.md#6-cors-the-new-site-on-the-old-worker-p1b-temporary)).
 - **Allowed origin:** `Access-Control-Allow-Origin: <that exact origin>` and `Vary: Origin`. Never `*`. Never `Access-Control-Allow-Credentials`.
 - **Preflight:** methods `GET, POST, PUT, PATCH, DELETE`; headers `Authorization, Content-Type, TH-Client, TH-File-Name, TH-Sha256, TH-Seconds, If-None-Match, Range, If-Range`; `Access-Control-Max-Age: 7200` (Chrome's cap). [API.md §4](API.md#4-cors) is canonical.
 - **Exposed:** `TH-Request-Id`, `TH-Server`, `TH-Min-Client`, `Retry-After`, `ETag` (not CORS-safelisted, so they must be listed to be readable).

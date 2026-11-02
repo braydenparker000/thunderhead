@@ -16,7 +16,7 @@ Platform facts come from the Claude Code docs read 2026-10-28 (scheduled tasks, 
 9. **Code ships as:** branch → CI green on that SHA → fast-forward `main` → watch Deploy → confirm `release.json` and `/v1/health` → report "Live". Never force-push, never merge commits on `main`.
 10. **Every session that changed code or plans updates `docs/process/STATUS.md`** before it ends.
 
-Sibling docs: [CONSTITUTION.md](CONSTITUTION.md), [BEHAVIOR.md](BEHAVIOR.md), [MEMORY.md](MEMORY.md) (what `brief`, `recall`, `remember` read and write), [EVALS.md](EVALS.md), [MUSE.md](MUSE.md). Engineering: [API.md](../engineering/API.md) (canonical for routes; route names here marked **[proposal]** until API.md fixes them), [SECURITY.md](../engineering/SECURITY.md) (token inventory), [OPERATIONS.md](../engineering/OPERATIONS.md), [JOBS.md](../engineering/JOBS.md).
+Sibling docs: [CONSTITUTION.md](CONSTITUTION.md), [BEHAVIOR.md](BEHAVIOR.md), [MEMORY.md](MEMORY.md) (what `brief`, `recall`, `remember` read and write), [EVALS.md](EVALS.md), [MUSE.md](../archive/MUSE.md). Engineering: [API.md](../engineering/API.md) (canonical for routes; route names here marked **[proposal]** until API.md fixes them), [SECURITY.md](../engineering/SECURITY.md) (token inventory), [OPERATIONS.md](../engineering/OPERATIONS.md), [JOBS.md](../engineering/JOBS.md).
 
 ---
 
@@ -258,7 +258,7 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th verb` | `<verb> [<args json>] --why <8–200 chars> [--schema <n>] [--device <id>] [--ref <ref>]` | `{"verb_id","status","ledger_id"}` | C N | Any queueable verb in the contract, args checked first; owner-tap verbs (`app.open`) are refused. Ask-first verbs need `--proposal <id>` (approved, P4). |
 | `th undo` | `<ledger id>` | `{"ledger_id"}` | C | |
 | `th ledger` | `[--since <iso>] [--kind <k>] [--limit 50]` | `{"items","next"}` | C N R | Filtered by the Worker. |
-| `th order` | `new --kind <k> --spec <json> --deadline <iso> [--title <t>]` · `list` · `get <id>` · `cancel <id> --why <t>` | `{"id"}` | C N | Work orders for Muse ([MUSE.md](MUSE.md)); the result schema is the kind's (built P4 stage G). No kind carries the owner's data yet, so `--personal` is refused before anything is sent. |
+| `th order` | `new --kind <k> --spec <json> --deadline <iso> [--title <t>]` · `list` · `get <id>` · `cancel <id> --why <t>` | `{"id"}` | C N | Work orders for Muse ([MUSE.md](../archive/MUSE.md)); the result schema is the kind's (built P4 stage G). No kind carries the owner's data yet, so `--personal` is refused before anything is sent. |
 | `th muse` | `notes [--after <seq>]` · `note <text>` | notes, `{"id"}` | C N | Muse's own thread (built P4 stage G; `th board` and the Board brief went with the Board, 2026-10-31). |
 | `th taint` | `--source <tool> --ref <url or id>` | `{"tainted":true}` | C N R | Called by the PostToolUse hook; irreversible for the session. |
 | `th pending` | — | `{"unanswered":[ids],"stop":bool,"day_closed":bool,"limited":bool,"idle_min":n,"idle_cutoff_min":n}` | C N R | Used by the Stop hook. |

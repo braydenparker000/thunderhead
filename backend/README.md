@@ -5,8 +5,9 @@ two SQLite Durable Objects, `Core` (the owner's data) and `Auth` (password, reco
 sessions, notices, reset tickets, agent keys). The contract it implements is
 [docs/engineering/API.md](../docs/engineering/API.md) with [SIGN-IN.md](../docs/product/SIGN-IN.md),
 [SECURITY.md](../docs/engineering/SECURITY.md) and [DATA.md](../docs/engineering/DATA.md).
-Measurements, what matches the contract and the open findings are in
-[MEASUREMENTS.md](MEASUREMENTS.md).
+P1's measurements and findings are historical, in
+[docs/archive/MEASUREMENTS.md](../docs/archive/MEASUREMENTS.md); the production results are in
+[decisions.md](../docs/process/decisions.md).
 
 ## Layout
 
@@ -23,7 +24,7 @@ Measurements, what matches the contract and the open findings are in
 | `tests/integration/` | Through the real fetch handler on workerd: `route-scopes` (API.md §13 walk), setup, login and sessions, back-off, recovery, reset tickets, account and agent keys, the HTTP edge, ops, objects, scrypt timing. |
 | `tests/cost/` | Rows per endpoint against `budgets.json`; workerd's row-accounting facts. |
 | `tests/migrations/` | Empty → current schema equals `auth.schema.sql` / `core.schema.sql`. |
-| `../shared/contract/` | `api.ts`, `errors.ts`, `refs.ts`: types only, checked from the backend (`satisfies`) and the frontend (JSDoc). |
+| `../shared/contract/` | The contract: types (`api.ts`, `errors.ts`, `refs.ts`) checked from the backend (`satisfies`) and the frontend (JSDoc), and runtime data and code the Worker, the phone and `th` share: the route table (`routes.ts`), zod schemas, the phrase lint (`lint.ts`) and the report cleaner (`reports-clean.ts`). |
 
 ## Run it locally
 
