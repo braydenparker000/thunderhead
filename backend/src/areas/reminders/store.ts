@@ -102,6 +102,14 @@ export function markDone(db: Db, id: string, at: number, messageId: string, push
   );
 }
 
+/** A set reminder's new time (and when it rings). Returns whether it was still set. */
+export function move(db: Db, id: string, at: number, fireAt: number): boolean {
+  return (
+    db.all("UPDATE reminders SET at = ?, fire_at = ? WHERE id = ? AND state = 'set' RETURNING id", at, fireAt, id)
+      .length > 0
+  );
+}
+
 export function markCancelled(db: Db, id: string, at: number): void {
   db.run("UPDATE reminders SET state = 'cancelled', cancelled_at = ? WHERE id = ? AND state = 'set'", at, id);
 }

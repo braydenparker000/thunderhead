@@ -31,6 +31,7 @@ import { getSetting } from '../settings/store';
 import * as surfaces from '../surfaces/store';
 import * as work from '../work/ops';
 import { nextHoliday } from './holidays';
+import { arrange, pinsOf } from './pins';
 
 const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const plural = (n: number, one: string, many = `${one}s`) => `${n > 99 ? '99+' : n} ${n === 1 ? one : many}`;
@@ -187,13 +188,12 @@ export function briefing(
   const due = dueReminders(db, { now: c.now, tz: c.tz, date });
   const dueT = dueTile(due, c.tz);
   const holiday = holidayTile(db, date);
-  // BRIEFING.md §4: at most 8 tiles; the night's own come after what waits and what is due.
-  const tiles: BriefingTile[] = [
-    ...(waiting ? [waiting] : []),
-    ...(dueT ? [dueT] : []),
-    ...nightTiles(db, c.now),
-    ...(holiday ? [holiday] : []),
-  ].slice(0, 8);
+  // BRIEFING.md §4: at most 8 tiles; the night's own come after what waits and what is due, and a
+  // tile the mind pinned right after what waits (pins.ts).
+  const tiles: BriefingTile[] = arrange(
+    [...(waiting ? [waiting] : []), ...(dueT ? [dueT] : []), ...nightTiles(db, c.now), ...(holiday ? [holiday] : [])],
+    pinsOf(db),
+  ).slice(0, 8);
   return {
     day: c.day,
     title: titleLine(Math.floor(wallMinute(c.now, c.tz) / 60), !tiles.length),

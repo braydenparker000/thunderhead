@@ -32,6 +32,44 @@ export function putFollows(w: Writer, items: PodcastFollow[], refused: Refused):
   return { applied, stale: items.length - applied, refused, at: w.at };
 }
 
+/** What an episode's position was, for the undo of `podcasts.mark_played` (null: none kept). */
+export type ProgressWas = { position_s: number; duration_s: number; played: boolean } | null;
+
+/** The `podcasts.mark_played` verb (verbs/worker.ts): the episode played (from 0, PODCASTS.md §5.4
+ * rule 3), stamped newer than whatever is kept, so every phone takes it when Podcasts opens (the
+ * newer wins). Null when it was played already (nothing written); else what it was and the stamp. */
+export function markPlayed(w: Writer, key: string): { was: ProgressWas; stamp: number } | null {
+  const had = store.progressOf(w.db, key);
+  if (had?.played === 1) return null;
+  const stamp = Math.max(w.at, (had?.updated_at ?? 0) + 1);
+  store.putProgress(
+    w.db,
+    { key, position_s: 0, duration_s: had?.duration_s ?? 0, played: true, updated_at: stamp },
+    w.at,
+  );
+  const was = had ? { position_s: had.position_s, duration_s: had.duration_s, played: false } : null;
+  return { was, stamp };
+}
+
+/** Its undo: where the episode was left, stamped newer again, only while the played mark is still
+ * the one written (a phone that moved on since stands: 409 from the caller). Whether it was. */
+export function unmarkPlayed(w: Writer, key: string, was: ProgressWas, stamp: number): boolean {
+  const now = store.progressOf(w.db, key);
+  if (!now || now.updated_at !== stamp || now.played !== 1) return false;
+  store.putProgress(
+    w.db,
+    {
+      key,
+      position_s: was?.position_s ?? 0,
+      duration_s: was?.duration_s ?? now.duration_s,
+      played: was?.played ?? false,
+      updated_at: Math.max(w.at, stamp + 1),
+    },
+    w.at,
+  );
+  return true;
+}
+
 /** The night's checks, by show id. The numbers are clamped here, never refused: a feed's odd dates or
  * a re-dated back catalogue can't make the night's whole report bounce (then nothing would be
  * recorded and the same shows would take every slot again). A time at or before 1970, or past the

@@ -101,6 +101,14 @@ export function topicIgnoredAt(db: Db, key: string): number | null {
   );
 }
 
+/** When a topic was last shown (or followed up, verbs/follow.ts), or null. One read by the key. */
+export function topicShownAt(db: Db, key: string): number | null {
+  return (
+    db.one<{ last_shown_at: number | null }>('SELECT last_shown_at FROM topics WHERE topic_key = ?', key)
+      ?.last_shown_at ?? null
+  );
+}
+
 export function topicShown(db: Db, key: string, at: number): void {
   db.run(
     `INSERT INTO topics (topic_key, last_shown_at, shown_count) VALUES (?, ?, 1)
