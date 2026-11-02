@@ -85,6 +85,9 @@ test('Notifications: on, a test, off; a push shows its words, or a line that say
   await page.locator('.spage button', { hasText: 'Let me reach you' }).click();
   await page.locator('.spage button', { hasText: 'Send a test' }).waitFor();
   assert.equal(await status.textContent(), 'On');
+  assert.deepEqual(await page.$$eval('.spage button, .spage input', (els) => els.filter((e) => !e.matches('.row, .switch, .seg-option, .field, .btn, .sback')).map((e) => e.outerHTML)), [], 'Notifications uses shared controls');
+  assert.equal(await page.locator('.spage select, .spage input[type=checkbox]:not(.switch), .spage input[type=radio]:not(.seg-option)').count(), 0);
+  assert.ok(await page.$$eval('.spage .row', (rows) => rows.every((e) => e.getBoundingClientRect().height >= 44)));
   assert.ok(calls.includes('GET /v1/push/key'), calls.join('\n'));
   assert.ok(calls.includes('PUT /v1/push/subscription {"endpoint":"https://fcm.googleapis.com/fcm/send/fake-phone","keys":{"p256dh":"BPhone","auth":"secret"}}'), calls.join('\n'));
   await page.locator('.spage button', { hasText: 'Send a test' }).click();

@@ -9,6 +9,7 @@ import { api, signedIn } from '/th/client.js';
 import { uuidv7 } from '/th/chat/model.js';
 import { ADD_KINDS, fold, GROUPS, odds, shelfOf } from '/th/registry/memory.js';
 import { el, toast, tooSoon } from '/th/ui.js';
+import { icon, picker } from './components.js';
 import { factRow, memoryLine, op, privateText } from './memory-facts.js';
 import { forgets } from './memory-forget.js';
 import { meterFold } from './memory-meter.js';
@@ -22,11 +23,13 @@ const SHOWN = 100;
 
 /** @param {HTMLElement} body @returns {Promise<() => void>} the cleanup */
 export async function memory(body) {
-  const filter = el('input', { type: 'search', class: 'sedit msearch', placeholder: 'Search what I remember', 'aria-label': 'Search what I remember', autocomplete: 'off' });
+  const filter = el('input', { type: 'search', class: 'field sedit msearch', placeholder: 'Search what I remember', 'aria-label': 'Search what I remember', autocomplete: 'off' });
   const add = el('button', { type: 'button', class: 'btn soft', text: 'Add something I should know' });
   const addHost = el('div', { class: 'srec' });
   const profile = el('div', { class: 'mprofile' });
-  const summary = el('details', { class: 'mfold' }, [el('summary', { text: 'What a new session reads first' }), profile]);
+  const caret = icon('caret-right');
+  caret.setAttribute('class', 'i row-caret');
+  const summary = el('details', { class: 'group mfold' }, [el('summary', { class: 'row' }, [icon('book-open-text'), el('span', { class: 'row-copy row-title', text: 'What a new session reads first' }), caret]), profile]);
   const sections = el('div', { class: 'msections', 'aria-busy': 'true' });
   const line = el('p', { class: 'line', role: 'status' });
   body.replaceChildren(filter, add, addHost, summary, sections, meterFold(), line);
@@ -133,9 +136,9 @@ export async function memory(body) {
         more.push(b);
       }
       out.push(el('section', { class: 'msec', 'data-sec': id }, [
-        el('h2', { text: items.length ? `${title} (${items.length})` : title, tabindex: '-1' }),
+        el('h2', { class: 'group-title', text: items.length ? `${title} (${items.length})` : title, tabindex: '-1' }),
         ...(help ? [el('p', { class: 'st2', text: help })] : []),
-        ...(items.length ? cut.map(draw) : empty ? [el('p', { class: 'sempty', text: empty })] : []),
+        ...(items.length ? [el('div', { class: 'group' }, cut.map(draw))] : empty ? [el('p', { class: 'sempty', text: empty })] : []),
         ...more,
         ...extra,
       ]));
@@ -186,12 +189,15 @@ export async function memory(body) {
 
 /** Add: a fact or rule in the owner's own words (source user; its own ledger row is the evidence). */
 function addForm(host, button, ctx) {
-  const kind = el('select', { id: 'memory-kind', class: 'sedit' }, ADD_KINDS.map(([v, label]) => el('option', { value: v, text: label })));
-  const text = el('textarea', { id: 'memory-text', class: 'sedit marea', maxlength: '280', rows: '3' });
+  let selectedKind = ADD_KINDS[0][0];
+  const kind = picker('What kind of thing', ADD_KINDS, selectedKind, (value) => { selectedKind = value; });
+  kind.id = 'memory-kind';
+  kind.prepend(icon('brain'));
+  const text = el('textarea', { id: 'memory-text', class: 'field sedit marea', maxlength: '280', rows: '3' });
   const save = el('button', { type: 'submit', class: 'btn', text: 'Save' });
   const cancel = el('button', { type: 'button', class: 'btn soft', text: 'Cancel' });
   const form = el('form', { class: 'mform' }, [
-    el('label', { for: 'memory-kind', class: 'st2', text: 'What kind of thing' }), kind,
+    el('div', { class: 'group' }, [kind]),
     el('label', { for: 'memory-text', class: 'st2', text: 'In one sentence' }), text,
     save, cancel,
   ]);
@@ -206,7 +212,7 @@ function addForm(host, button, ctx) {
     if (!words) return;
     save.disabled = true;
     try {
-      await op({ op: 'add', id: uuidv7(), kind: kind.value, text: words, source: 'user', evidence: [] });
+      await op({ op: 'add', id: uuidv7(), kind: selectedKind, text: words, source: 'user', evidence: [] });
       toast('Saved');
       close();
       ctx.reload();

@@ -6,6 +6,7 @@
 // the owner, and never a comparison with anyone (law 16).
 import { api, signedIn } from '/th/client.js';
 import { el } from '/th/ui.js';
+import { icon } from './components.js';
 
 /** @typedef {import('../../../shared/contract/predictions.ts').InsightResponse} InsightResponse */
 
@@ -27,8 +28,8 @@ export function meterParts(r) {
   /** @param {string} title @param {string | string[]} text one line, or one per item @param {string} [more] */
   const part = (title, text, more) =>
     el('section', { class: 'msec mmeter' }, [
-      el('h3', { text: title }),
-      ...[text].flat().map((t) => el('p', { text: t })),
+      el('h3', { class: 'group-title', text: title }),
+      ...[text].flat().map((t) => el('p', { class: 'shelp', text: t })),
       ...(more ? [el('p', { class: 'st2', text: more })] : []),
     ]);
   const fixed = r.corrections.reduce((n, w) => n + w.fixed, 0);
@@ -78,7 +79,9 @@ function guessLine(s) {
 /** The fold, read the first time it opens. */
 export function meterFold() {
   const host = el('div', { class: 'mmeters', 'aria-live': 'polite' });
-  const fold = el('details', { class: 'mfold' }, [el('summary', { text: 'How well I know you' }), host]);
+  const caret = icon('caret-right');
+  caret.setAttribute('class', 'i row-caret');
+  const fold = el('details', { class: 'group mfold' }, [el('summary', { class: 'row' }, [icon('brain'), el('span', { class: 'row-copy row-title', text: 'How well I know you' }), caret]), host]);
   let read = false;
   fold.addEventListener('toggle', async () => {
     if (!(/** @type {HTMLDetailsElement} */ (fold).open) || read) return;

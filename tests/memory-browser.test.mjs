@@ -45,11 +45,11 @@ test('a kind and a source this build does not know still render; private text is
   assert.equal(await other.locator('.mtext').textContent(), 'A kind from a later build');
   assert.match(await other.locator('.st2').nth(0).textContent(), /^dreamed · Probably, about 7 in 10 · since /);
   const belief = page.locator('.mrow', { hasText: 'Prays every morning' }).locator('.mtext');
-  assert.equal(await belief.getAttribute('class'), 'mtext blur');
+  assert.ok(await belief.evaluate((e) => e.classList.contains('mtext') && e.classList.contains('row') && e.classList.contains('blur')));
   assert.equal(await belief.getAttribute('aria-label'), 'Private. Tap to show.');
   assert.equal(await belief.locator('span').getAttribute('aria-hidden'), 'true', 'its words stay out of the accessibility tree');
   await belief.click();
-  assert.equal(await belief.getAttribute('class'), 'mtext');
+  assert.ok(await belief.evaluate((e) => e.classList.contains('mtext') && e.classList.contains('row') && !e.classList.contains('blur')));
   assert.equal(await belief.locator('span').getAttribute('aria-hidden'), null);
   assert.equal(await page.locator('.mrow', { hasText: 'Prays every morning' }).locator('.mdetail').isHidden(), true, 'the first tap only shows it');
   await page.close();
@@ -94,10 +94,11 @@ test('pin, mute, still true and yes that is right send their ops, and the page s
     await shown.waitFor();
   };
   await act('Likes calm music', 'Pin', row('Likes calm music').locator('.badge', { hasText: 'Pinned' }));
-  await act('Likes calm music', "Don't bring this up", row('Likes calm music').locator('.badge', { hasText: "Won't bring up" }));
+  await act('Likes calm music', 'Bring this up', row('Likes calm music').locator('.badge', { hasText: "Won't bring up" }));
   await act('Was tired last month', 'Still true', under('Right now', 'Was tired last month'));
   await act('Has a herb garden', "Yes, that's right", under('Facts', 'Has a herb garden'));
   assert.deepEqual(ops(api).map((o) => o.op), ['pin', 'may_raise', 'confirm', 'confirm']);
+  assert.equal(ops(api).find((o) => o.op === 'may_raise').value, false, 'turning Bring this up off preserves the mute operation');
   assert.equal(await page.locator('.msec h2', { hasText: 'Imported, to review' }).count(), 0, 'reviewed: off the review shelf');
   await page.close();
 });
@@ -221,7 +222,10 @@ test('Add saves a fact in my words; an empty memory and an older Worker each say
   assert.match(await page.locator('.msections > .sempty').textContent(), /^Nothing yet\./);
   await shot(page, 'memory-empty');
   await page.click('button:has-text("Add something I should know")');
-  await page.selectOption('#memory-kind', 'rule');
+  await page.click('#memory-kind');
+  await page.clock.runFor(600);
+  await page.locator('.sheet .row', { hasText: 'How to talk to me' }).click();
+  await page.clock.runFor(600);
   await page.fill('#memory-text', 'Answer in two lines on the phone');
   await page.click('.mform button:has-text("Save")');
   await page.waitForSelector('.mrow:has-text("Answer in two lines")');
@@ -249,3 +253,37 @@ test('How well I know you: read when opened, in plain words, never a score for t
   await page.close();
 });
 
+
+test('Memory list, detail and editors use shared controls and the kind picker is a checked sheet', opts, async () => {
+  const { page, errors } = await open();
+  const controls = async () => {
+    const found = await page.evaluate(() => {
+      const hosts = [...document.querySelectorAll('.spage, .sheet')];
+      return hosts.flatMap((host) => [...host.querySelectorAll('button, input:not([type="hidden"]), textarea, select, summary, a[href]')]
+        .filter((e) => !e.matches('.row, .switch, .seg-option, .field, .btn, .sback') || e.tagName === 'SELECT')
+        .map((e) => e.outerHTML));
+    });
+    assert.deepEqual(found, []);
+    const small = await page.$$eval('.spage .row, .sheet .row', (rows) => rows.filter((e) => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden' && e.getBoundingClientRect().height < 44).map((e) => [e.textContent, e.getBoundingClientRect().height]));
+    assert.deepEqual(small, []);
+  };
+  await controls();
+  await page.click('.mrow:has-text("Practises after lunch") .mtext');
+  await page.click('.mrow:has-text("Practises after lunch") button:has-text("Fix")');
+  await controls();
+  await page.click('.mrow:has-text("Practises after lunch") button:has-text("Cancel")');
+  await page.clock.runFor(600);
+  await page.click('button:has-text("Add something I should know")');
+  await controls();
+  await page.click('#memory-kind');
+  await page.clock.runFor(600);
+  await controls();
+  assert.equal(await page.locator('.sheet [aria-checked="true"]').count(), 1, 'one current kind');
+  assert.match(await page.locator('.sheet [aria-checked="true"]').textContent(), /A preference/);
+  await page.locator('.sheet .row', { hasText: 'How to talk to me' }).click();
+  await page.clock.runFor(600);
+  assert.match(await page.locator('#memory-kind').textContent(), /How to talk to me/);
+  await controls();
+  assert.deepEqual(errors, []);
+  await page.close();
+});

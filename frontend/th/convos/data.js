@@ -35,6 +35,12 @@ export const list = {
   at: 0,
 };
 
+/** Read-only idle preparation never asks the Worker for today's thread. */
+export function cachedToday() {
+  const t = current.today;
+  return t ? { day: t.day, id: t.thread?.id ?? null, at: t.thread?.updated_at ?? null, messages: t.messages } : null;
+}
+
 /** Today's day and thread id: home's conversation has them; before it has loaded, the Worker. */
 export async function today() {
   /** @type {TodayResponse} */

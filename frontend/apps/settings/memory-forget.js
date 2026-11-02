@@ -113,7 +113,7 @@ export async function forgets(on) {
       t = el('div', { class: 'toast utoast', role: 'status', 'aria-live': 'polite' });
       document.body.append(t);
     }
-    const undo = el('button', { type: 'button', class: 'uundo', text: 'Undo' });
+    const undo = el('button', { type: 'button', class: 'btn quiet inline uundo', text: 'Undo' });
     t.replaceChildren(el('span', { text: 'Forgotten.' }), undo);
     t.classList.add('show');
     clearTimeout(undoHide);

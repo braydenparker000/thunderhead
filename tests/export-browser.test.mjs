@@ -61,11 +61,13 @@ test('Export: the password again, the bar, then one tap saves the ZIP; the last 
     await page.click('.slink[data-page="export"]');
     await page.waitForSelector('.spage[aria-label="Export"] .xport .btn');
     assert.equal(await page.textContent('.xport .btn'), 'Download everything');
-    await page.waitForFunction(() => /^Last automatic backup: Sunday 03:20/.test(document.querySelector('.spage .sbody > .shelp:last-child')?.textContent ?? ''));
+    await page.waitForFunction(() => /^Last automatic backup: Sunday 03:20/.test(document.querySelector('.spage[aria-label="Export"] .group-section:last-child .shelp')?.textContent ?? ''));
     await shot(page, 'export', theme);
     // The password again: a wrong one says so and asks again.
     await page.click('.xport .btn');
     await page.waitForSelector('.xport #current-password');
+    assert.deepEqual(await page.$$eval('.spage[aria-label="Export"] button, .xport input', (els) => els.filter((e) => !e.matches('.row, .switch, .seg-option, .field, .btn, .sback')).map((e) => e.outerHTML)), [], 'Export and its password form use shared controls');
+    assert.equal(await page.locator('.spage[aria-label="Export"] select, .spage[aria-label="Export"] input[type=checkbox]:not(.switch), .spage[aria-label="Export"] input[type=radio]:not(.seg-option)').count(), 0);
     await page.fill('#current-password', 'not it');
     await page.click('.xport button[type="submit"]');
     await page.waitForFunction(() => document.querySelector('.xport .line')?.textContent?.length > 0 && document.querySelector('.xport .line')?.className === 'line');
@@ -96,8 +98,8 @@ test('Export: leaving and coming back finds the export still building; a failed 
   await page.click('.slink[data-page="export"]');
   await page.waitForSelector('.xport .btn');
   // The backups line fills in once its own request answers.
-  await page.waitForFunction(() => /\S/.test(document.querySelector('.spage .sbody > .shelp:last-child')?.textContent ?? ''));
-  assert.match(await page.textContent('.spage .sbody > .shelp:last-child'), /^Automatic backups run every Sunday at 02:30/);
+  await page.waitForFunction(() => /\S/.test(document.querySelector('.spage[aria-label="Export"] .group-section:last-child .shelp')?.textContent ?? ''));
+  assert.match(await page.textContent('.spage[aria-label="Export"] .group-section:last-child .shelp'), /^Automatic backups run every Sunday at 02:30/);
   await page.click('.xport .btn');
   await page.fill('#current-password', 'right password here');
   await page.click('.xport button[type="submit"]');

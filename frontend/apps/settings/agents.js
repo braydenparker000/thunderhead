@@ -4,17 +4,18 @@ import { api, signedIn } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { dMMM, lastUsed, ROLES } from '/th/format.js';
-import { confirmSheet, el, toast, tooSoon } from '/th/ui.js';
+import { el, toast, tooSoon } from '/th/ui.js';
 import { errLine } from './settings.js';
+import { confirmSheet, icon, row as choiceRow } from './components.js';
 
 const UNUSED_MS = 90 * 86_400_000;
 
 /** @param {HTMLElement} body @param {{ role?: string }} opts */
 export async function agents(body, opts = {}) {
-  const list = el('div', { class: 'slist', 'aria-busy': 'true' });
+  const list = el('div', { class: 'group slist', 'aria-busy': 'true' });
   const add = el('button', { type: 'button', class: 'btn', text: 'New agent key' });
   const sheet = el('div', { class: 'srec' });
-  body.replaceChildren(list, add, sheet);
+  body.replaceChildren(el('h2', { class: 'group-title', text: 'Agent keys' }), list, add, sheet);
 
   const load = async () => {
     try {
@@ -34,38 +35,60 @@ export async function agents(body, opts = {}) {
 function row(a, reload) {
   const role = ROLES[a.role]?.label ?? a.role;
   const meta = `Made ${dMMM(a.created_at)} on ${a.created_on} · ${lastUsed(a.last_used_at)}${a.last_country ? ` · ${a.last_country}` : ''}`;
-  const text = el('div', { class: 'stext' }, [
+  const text = el('div', { class: 'row-copy stext' }, [
     el('div', { class: 'st1' }, [el('span', { class: 'sname static', text: a.name }), el('span', { class: 'badge', text: role })]),
     el('div', { class: 'st2', text: meta }),
   ]);
   if (Date.now() - (a.last_used_at ?? a.created_at) > UNUSED_MS) text.append(el('div', { class: 'st2 gold', text: 'Not used for 90 days — revoke?' }));
-  const revoke = el('button', { type: 'button', class: 'sbtn', text: 'Revoke' });
+  const revoke = el('button', { type: 'button', class: 'btn quiet inline sbtn', text: 'Revoke' });
   revoke.addEventListener('click', async () => {
     if (tooSoon() || !(await confirmSheet({ title: `Revoke '${a.name}'?`, body: 'Anything using it stops working within a minute.', action: 'Revoke', keep: 'Cancel' }))) return;
     try { await signedIn((t) => api.revokeAgent(t, a.id)); toast('Key revoked'); reload(); } catch (e) { toast(lineFor(failure(e))); }
   });
-  return el('div', { class: 'srow' }, [text, revoke]);
+  return el('div', { class: 'row srow' }, [icon('key'), text, revoke]);
 }
 
 function newKey(host, add, reload, preset) {
   add.hidden = true;
   const first = preset in ROLES ? preset : 'mind:chat';
-  const name = el('input', { id: 'agent-name', name: 'agent-name', maxlength: '32', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', value: ROLES[first].name });
+  const name = el('input', { class: 'field', id: 'agent-name', name: 'agent-name', maxlength: '32', autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', value: ROLES[first].name });
   let named = false;
   name.addEventListener('input', () => { named = true; });
-  const roles = el('div', { class: 'sroles', role: 'radiogroup', 'aria-label': 'Role' });
+  const roles = el('div', { class: 'group sroles', role: 'radiogroup', 'aria-label': 'Role' });
   for (const [value, r] of Object.entries(ROLES)) {
-    const input = el('input', { type: 'radio', name: 'role', value, id: `role-${value.replace(':', '-')}` });
-    input.checked = value === first;
-    input.addEventListener('change', () => { if (!named) name.value = r.name; });
-    roles.append(el('label', { class: 'srole', for: input.id }, [input, el('span', {}, [el('b', { text: r.label }), el('small', { text: r.does })])]));
+    const option = choiceRow({ title: r.label, detail: r.does, icon: 'key' });
+    option.id = `role-${value.replace(':', '-')}`;
+    option.value = value;
+    option.setAttribute('role', 'radio');
+    option.setAttribute('aria-checked', String(value === first));
+    option.tabIndex = value === first ? 0 : -1;
+    const check = icon('check'); check.setAttribute('class', 'i row-check'); check.toggleAttribute('hidden', value !== first);
+    option.append(check);
+    option.addEventListener('click', () => {
+      for (const button of roles.querySelectorAll('button')) {
+        const selected = button === option;
+        button.setAttribute('aria-checked', String(selected));
+        button.tabIndex = selected ? 0 : -1;
+        button.querySelector('.row-check').toggleAttribute('hidden', !selected);
+      }
+      if (!named) name.value = r.name;
+    });
+    roles.append(option);
   }
-  const pw = el('input', { id: 'current-password', name: 'password', type: 'password', autocomplete: 'current-password', required: '' });
+  roles.addEventListener('keydown', (e) => {
+    const buttons = [...roles.querySelectorAll('button')];
+    const current = buttons.indexOf(document.activeElement);
+    const direction = ['ArrowRight', 'ArrowDown'].includes(e.key) ? 1 : ['ArrowLeft', 'ArrowUp'].includes(e.key) ? -1 : 0;
+    const index = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 : direction ? (current + direction + buttons.length) % buttons.length : -1;
+    if (index < 0) return;
+    e.preventDefault(); buttons[index].click(); buttons[index].focus();
+  });
+  const pw = el('input', { class: 'field', id: 'current-password', name: 'password', type: 'password', autocomplete: 'current-password', required: '' });
   const go = el('button', { type: 'submit', class: 'btn', text: 'Make key' });
   const cancel = el('button', { type: 'button', class: 'btn soft', text: 'Cancel' });
   const line = el('p', { class: 'line', role: 'status' });
   const form = el('form', { class: 'sform', novalidate: '' }, [
-    el('h2', { text: 'New agent key' }),
+    el('h2', { class: 'group-title', text: 'New agent key' }),
     el('div', { class: 'fld' }, [el('label', { for: 'agent-name', text: 'Name' }), name]),
     el('div', { class: 'fld' }, [el('span', { class: 'lbl', text: 'Role' }), roles]),
     el('div', { class: 'fld' }, [el('label', { for: 'current-password', text: 'Current password' }), pw]),
@@ -77,7 +100,7 @@ function newKey(host, add, reload, preset) {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (tooSoon() || go.disabled) return;
-    const role = form.querySelector('input[name="role"]:checked')?.value ?? 'mind:chat';
+    const role = roles.querySelector('button[aria-checked="true"]')?.value ?? 'mind:chat';
     go.disabled = true;
     line.textContent = '';
     try {
@@ -102,7 +125,7 @@ function shownOnce(host, token, role, close) {
   // `name` in backticks reads as code.
   role.goes.split(/(`[^`]+`)/).forEach((part) => goes.append(part.startsWith('`') ? el('code', { text: part.slice(1, -1) }) : part));
   host.replaceChildren(el('div', { class: 'sform' }, [
-    el('h2', { text: 'Your new key' }),
+    el('h2', { class: 'group-title', text: 'Your new key' }),
     box, el('div', { class: 'row2' }, [copy]), goes,
     el('p', { class: 'shelp strong', text: "You won't see it again." }),
     done,
