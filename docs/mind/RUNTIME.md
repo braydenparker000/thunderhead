@@ -608,20 +608,19 @@ Rules:
 
 | Section | Content | Limit |
 |---|---|---|
-| Updated | Date, role (chat/night), short session ref (no URLs to private sessions) | 1 line |
-| Phase | Current phase and its "done when" | 2 lines |
-| Next | The next 3 tasks, in order | 3 lines |
-| In flight | Branch → state (CI, waiting on owner, blocked) | ≤ 10 lines |
-| Blocked / waiting on owner | Generic phrasing ("owner decision: push end time") | ≤ 10 lines |
-| Last deploy | Site SHA, Worker version, time | 2 lines |
-| Recent decisions | Pointers to new lines in decisions.md | ≤ 5 lines |
+| Now | Date; one paragraph: who leads, the plan, what changed since the last update | 1 paragraph |
+| Current phase | What is live, in five bullets | 5 bullets |
+| Next three tasks | The next 3 tasks, in order | 3 items |
+| Blocked / waiting on the owner | Generic phrasing ("owner decision: push end time"), with its SETUP.md step | ≤ 10 lines |
+| Last deploy | The last three deploys: time, SHA, Deploy run, the pull requests in it | 3 entries |
 
 Rules:
 1. Updated before the session ends whenever it changed code, plans or blockers.
-2. Total ≤ 80 lines; older items move to git history, not to an archive section.
+2. Total ≤ 80 lines; older items move to git history, not to an archive section. (The one-time cut of
+   2026-11-02 kept October's long page verbatim in [archive/STATUS-2026-10.md](../archive/STATUS-2026-10.md).)
 3. Personal context (what the owner said, memory) never goes here; it stays in the Worker.
 
-**Acceptance:** CI lint: STATUS.md ≤ 80 lines and contains each section heading.
+**Acceptance:** STATUS.md ≤ 80 lines with these five headings. Not linted in CI yet; checked by hand.
 
 ---
 

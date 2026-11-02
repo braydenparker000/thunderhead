@@ -4,6 +4,10 @@ The one-time steps only the owner can do. Each step is one action. Labels are th
 Azure portal and GitHub showed in October 2026; if a label differs slightly, pick the closest.
 Nothing here is secret except where it says so.
 
+Adding a step (for agents): ready-to-paste values only, one exact place per step (page, tab, secret or
+variable, repository or environment), a screenshot first for screens the agent cannot see, and verify
+each step before the next.
+
 ## A. GitHub repository (3 minutes)
 
 1. Open `github.com/new`.
