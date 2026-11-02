@@ -355,7 +355,7 @@ Runs instead of Stop when a turn ends on an API error (`error`: `rate_limit`, `o
 
 **A soft gate.** The pre-tool rules parse shell commands (pipes, `$(…)`, `bash -c`, heredocs) but cannot see every way out: `node -e "fetch(…)"` or Python bypass the curl/wget host rule. The environment's network list is the real control; the hook catches an honest or confused session. For night and reflex it denies every bare `git push` (no refspec) rather than looking up the upstream, which keeps it deterministic.
 
-**Protected-paths gate (built in P4 stage C).** The `guard` GitHub check is deferred (decisions.md). Until it exists, the hook denies edits to and pushes of protected paths without an approved `access` proposal whose spec lists those paths and the commit SHA. This is a soft gate: it stops an honest or confused session, not a determined attacker who already controls the repo. The constitution pin ([CONSTITUTION.md](CONSTITUTION.md#the-constitution-pin-proposal)) and the ledger catch the rest.
+**Protected-paths gate (built in P4 stage C).** The `guard` GitHub check is deferred (decisions.md). Until it exists, the hook denies edits to and pushes of protected paths without an approved `access` proposal whose spec lists those paths and the commit SHA. This is a soft gate: it stops an honest or confused session, not a determined attacker who already controls the repo. The constitution pin ([CONSTITUTION.md](CONSTITUTION.md#the-constitution-pin-built-p4-stage-a)) and the ledger catch the rest.
 
 **Check (HK-4):** unit tests feed sample tool inputs per role; e.g. night + `git push origin HEAD:main` → deny.
 
@@ -481,7 +481,7 @@ Behaviour:
 4. **Night at the limit:** the roll's fire fails or stops; the 06:07 fallback tries again; F14 if neither runs.
 5. **Self-restraint [proposal]:** the briefing's "Now" section shows `wakes today` and `pre-warms left`. If `wakes today ≥ 25`, the mind shortens its idle cutoff to 30 min for the rest of the day.
 6. **Weekly check:** until a supported readout exists, the owner reads claude.ai/settings/usage once a week and the mind asks for the number in a Sunday home line only if the owner opted in. **[proposal]**
-7. **Max 5x now, maybe Pro later (owner ruling).** Everything keeps working on Pro, only leaner. The owner sets the plan in Settings → Agents, and the Worker switches to a lean profile **[proposal: the numbers]**: pre-warm off, chat wakes ≤ 8 per hour, idle cutoff 30 min, night shift target ≤ 15 min (steps 5 and 9 alternate weeks), Sunday evals reduced to INJ and LAW-1. Replies, memory, the ledger, the instant tier and every gate stay the same; only speed and optional work shrink.
+7. **Max 5x now, maybe Pro later (owner ruling).** Everything keeps working on Pro, only leaner. The owner sets the plan in Settings → Agents, and the Worker switches to a lean profile **[proposal: the numbers]**: pre-warm off, chat wakes ≤ 8 per hour, idle cutoff 30 min, night shift target ≤ 15 min (steps 5 and 9 alternate weeks), Sunday evals reduced to INJ. Replies, memory, the ledger, the instant tier and every gate stay the same; only speed and optional work shrink.
 
 ---
 

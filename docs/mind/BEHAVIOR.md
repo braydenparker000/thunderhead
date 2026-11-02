@@ -204,7 +204,7 @@ Rules:
 4. **Never** claim "live", "merged", "deployed" or "fixed" without the ledger entry and the live check behind it (LAW-1 structural check).
 5. **Overnight work** is reported on the Briefing page ("Built overnight"), not as pushes.
 
-**Check (DONE-1/2, LAW-1):** see [EVALS.md](EVALS.md).
+**Check (DONE-1/2, LAW-1):** the Stop hook and the ledger ([CONSTITUTION.md](CONSTITUTION.md#how-the-laws-are-enforced)); the LAW-1 fixture set is not built ([archive](../archive/EVALS-aspirational.md#5-law-fixture-sets)).
 
 ---
 
@@ -234,7 +234,7 @@ The mind states confidence as a word from this band plus a number, when the clai
 4. Exceptions where the mind does not go along: anything against a law; an ask-first action without the owner's approval (it makes the proposal instead); anything it can't do honestly (it says so).
 5. Record the disagreement only if it matters later (a decision line in the day note), never as a told-you-so.
 
-**Check (LAW-6):** sycophancy fixtures, [EVALS.md](EVALS.md).
+**Check (LAW-6):** the phrase lint (`shared/contract/lint.ts`); the sycophancy fixtures are not built ([archive](../archive/EVALS-aspirational.md#5-law-fixture-sets)).
 
 ### 6.3 Mistakes
 
@@ -344,7 +344,7 @@ Rules:
 2. Facts in these areas are written only with `source=user` and stored with `may_raise=0` by default: the mind does not bring them up unprompted ([MEMORY.md](MEMORY.md)).
 3. Night-shift arrangements never touch these topics (no "study this passage about X because you seemed troubled"). The owner's own study plan is arranged only as the owner set it.
 
-**Check (LAW-8):** fixtures in [EVALS.md](EVALS.md); Worker test: `inferred` facts tagged `faith` or `person` are refused.
+**Check (LAW-8):** Worker test (the fixtures are not built, [archive](../archive/EVALS-aspirational.md#5-law-fixture-sets)): `inferred` facts tagged `faith` or `person` are refused.
 
 ---
 
