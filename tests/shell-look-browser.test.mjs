@@ -80,19 +80,29 @@ test('idle parses menu and Settings; moving surfaces are flat and rows have no e
   } finally { await context.close(); }
 });
 
-test('first-open Settings waits for its content module before showing a sliding page', opts, async () => {
+test('first-open Settings has content on its first visible slide frame, even before idle finishes', opts, async () => {
   let release, requested;
   const held = new Promise(resolve => { release = resolve; }), arrived = new Promise(resolve => { requested = resolve; });
   const { page, context, errors } = await open({ beforeLoad: page => page.route('**/apps/settings/home.js', async route => { requested(); await held; await route.continue(); }) });
   try {
     await arrived;
+    await (await context.newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate: 6 });
     await go(page, 'side');
     await page.evaluate(async () => (await import('/th/motion.js')).whenResting());
     await page.evaluate(() => {
       window.firstSettingsFrame = null;
       const watch = new MutationObserver(records => {
         const page = records.flatMap(r => [...r.addedNodes]).find(n => n instanceof Element && n.matches('.spage'));
-        if (page) { watch.disconnect(); requestAnimationFrame(() => { window.firstSettingsFrame = { row: Boolean(page.querySelector('.sbody .sfield')), moving: page.classList.contains('moving') }; }); }
+        if (page) {
+          watch.disconnect();
+          // Insertion's first rAF can still be wholly offscreen while a cached import resolves.
+          // Assert the first displayed slide frame, the same start used by the Frames readout.
+          const sample = () => {
+            if (page.getBoundingClientRect().left >= document.querySelector('#app').getBoundingClientRect().right) { requestAnimationFrame(sample); return; }
+            window.firstSettingsFrame = { row: Boolean(page.querySelector('.sbody .sfield')), moving: page.classList.contains('moving') };
+          };
+          requestAnimationFrame(sample);
+        }
       });
       watch.observe(document.querySelector('#app'), { childList: true });
       document.querySelector('#settings').click();
