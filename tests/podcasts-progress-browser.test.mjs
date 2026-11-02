@@ -22,7 +22,7 @@ const TONE = readFileSync(new URL('./fixtures/tone.opus', import.meta.url));
 const TOKEN = `th1_${'B'.repeat(43)}abcdef`;
 const RSS = `<?xml version="1.0"?><rss><channel><title>Invented Show</title><item><title>Episode two</title><guid>ep-2</guid><itunes:duration>30</itunes:duration><enclosure url="https://media.example.org/2.opus" type="audio/ogg"/></item><item><title>Episode one</title><guid>ep-1</guid><itunes:duration>30</itunes:duration><enclosure url="https://media.example.org/1.opus" type="audio/ogg"/></item></channel></rss>`;
 let site, mock, browser, base, api;
-const seen = { gets: [], puts: [], auth: new Set() };
+const seen = { gets: [], puts: [], auth: new Set(), senses: [] };
 let remote = [];
 
 before(async () => {
@@ -41,6 +41,12 @@ before(async () => {
     if (url.pathname === '/v1/podcasts/progress' && req.method === 'GET') {
       seen.gets.push(url.search);
       return json(200, { items: remote, next_since: Date.now(), next: null });
+    }
+    // The senses' sealed batches (th/senses/send.js): each event kept, as the Worker would.
+    if (req.method === 'PUT' && url.pathname.startsWith('/v1/senses/batches/')) {
+      const { events } = JSON.parse(raw);
+      seen.senses.push(...events);
+      return json(200, { accepted: events.length, rejected: [] });
     }
     if (req.method === 'PUT' && url.pathname.startsWith('/v1/podcasts/')) {
       const body = JSON.parse(raw);
@@ -164,6 +170,34 @@ test('signed in: another phone’s newer position is there before the app reads;
   const paused = seen.puts.filter((p) => p.path.endsWith('/progress')).flatMap((p) => p.items).find((p) => p.key === `${FEED}#${ids[2]}`);
   assert.ok(paused && paused.position_s > 0 && paused.updated_at > now, JSON.stringify(seen.puts));
   assert.deepEqual([...seen.auth].filter(Boolean), [`Bearer ${TOKEN}`]);
+
+  // The listening as senses: the episode sounding is `podcast.play`, by the show's id (the hash of
+  // its feed) and the episode's, never an address or a title.
+  const show1 = await idOf(page, FEED);
+  await until(() => seen.senses.some((e) => e.type === 'podcast.play'));
+  const play = seen.senses.find((e) => e.type === 'podcast.play');
+  assert.equal(play.ref, `podcast:${show1}/${ids[2]}`);
+  assert.deepEqual(Object.keys(play.data), ['at_ms']);
+  assert.ok(!JSON.stringify(seen.senses).includes('example.org') && !JSON.stringify(seen.senses).includes('Invented'), 'ids only');
+  assert.equal(seen.senses.filter((e) => e.type === 'podcast.follow').length, 0, "a phone's first look only learns what is followed");
+  // Unfollowing a show (the app's own storage, then the sync's look) is `podcast.unfollow`.
+  const unfollow = (feed) => page.evaluate(async (f) => {
+    const s = JSON.parse(localStorage.getItem('jarvis.podcasts.v1'));
+    s.follows = s.follows.filter((x) => x.feedUrl !== f);
+    localStorage.setItem('jarvis.podcasts.v1', JSON.stringify(s));
+    await (await import('/th/podcasts/progress.js')).push();
+  }, feed);
+  await unfollow(OTHER);
+  await until(() => seen.senses.some((e) => e.type === 'podcast.unfollow'));
+  assert.deepEqual(seen.senses.filter((e) => e.type === 'podcast.unfollow').map((e) => e.ref), [`podcast:${await idOf(page, OTHER)}`]);
+  // With Podcasts' senses switched off, the next unfollow goes up as a follow but sends no sense.
+  await page.evaluate(() => localStorage.setItem('th.p.settings', JSON.stringify({ 'privacy.senses.podcasts': false })));
+  const puts = seen.puts.length;
+  await unfollow(FEED);
+  await until(() => seen.puts.length > puts);
+  await new Promise((r) => setTimeout(r, 3500));
+  assert.equal(seen.senses.filter((e) => e.type === 'podcast.unfollow').length, 1, 'nothing sent with the switch off');
+  assert.equal(await page.evaluate(() => (localStorage.getItem('th.p.senses') ?? '[]') === '[]' || !localStorage.getItem('th.p.senses')), true);
   assert.deepEqual(errors, []);
   await context.close();
 });

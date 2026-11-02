@@ -64,8 +64,9 @@ const UNFOLLOW_MEMORY_MS = L.unfollowed_keep_days * 86_400_000;
 /** @typedef {{ progress: Record<string, Entry>, follows: { feedUrl: string, title?: string, author?: string, artwork?: string }[], [k: string]: unknown }} App */
 /** @typedef {{ followed: boolean, at: number, sent: boolean, title: string, author: string, artwork: string }} Known */
 /** `sent`: per key, the app's own `updatedAt` (phone clock) of the version the Worker has. `offset`:
- * the Worker's clock minus the phone's, ms.
- * @typedef {{ v: 1, since: { progress: number }, sent: Record<string, number>, follows: Record<string, Known>, offset?: number }} Memory */
+ * the Worker's clock minus the phone's, ms. `looked`: this phone has looked at the follows once (a
+ * first look only learns them, so it sends no follow senses).
+ * @typedef {{ v: 1, since: { progress: number }, sent: Record<string, number>, follows: Record<string, Known>, offset?: number, looked?: boolean }} Memory */
 /** @typedef {import('../../../shared/contract/podcasts.ts').PodcastProgress} Progress */
 /** @typedef {import('../../../shared/contract/podcasts.ts').PodcastFollow} Follow */
 
@@ -336,16 +337,19 @@ async function pushNow() {
   const app = loadApp(storage);
   if (!app) return;
   const mem = loadMemory(storage);
-  // What was followed before this look; a phone's first look (nothing remembered) only learns it.
-  const known = read(storage, SYNC_KEY) ? new Map(Object.entries(mem.follows).map(([u, k]) => [u, k.followed])) : null;
+  // What was followed before this look; this phone's first look (`looked` not yet kept) only learns it.
+  const known = mem.looked ? new Map(Object.entries(mem.follows).map(([u, k]) => [u, k.followed])) : null;
   // The stamps are kept before sending, so a follow noticed now keeps its time if the send fails.
-  if (noteFollows(app, mem, deps.now())) {
+  const noted = noteFollows(app, mem, deps.now());
+  if (noted || !mem.looked) {
+    mem.looked = true;
     save(storage, SYNC_KEY, mem);
+  }
+  if (noted && known)
     for (const [url, k] of Object.entries(mem.follows)) {
-      const ref = known && (known.get(url) ?? false) !== k.followed ? showRef(url) : null;
+      const ref = (known.get(url) ?? false) !== k.followed ? showRef(url) : null;
       if (ref) void deps.sense(k.followed ? 'podcast.follow' : 'podcast.unfollow', ref);
     }
-  }
   let ok = true;
   for (const batch of chunks(progressToSend(app, mem))) {
     const refused = await send('progress', batch, t, mem);
