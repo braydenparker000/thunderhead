@@ -34,7 +34,13 @@ async function start() {
   onSignedOut(() => location.replace('/signin/'));
   flushPendingSignout();
   for (const row of document.querySelectorAll('[data-open] small')) row.remove();
-  const open = async (name, opts) => (await import('/apps/settings/settings.js')).openPage(name, opts);
+  // The Settings home builds synchronously once both modules are parsed, even if tapped before idle.
+  const open = async (name, opts) => {
+    const [settings] = await Promise.all([import('/apps/settings/settings.js'), ...(name === 'settings' || name === 'quiet' ? [import('/apps/settings/home.js')] : [])]);
+    return settings.openPage(name, opts);
+  };
+  movingSettings();
+  const prepareMenu = menuCode();
   // Capture phase: the rows' "comes with sign-in" toasts (home.js) never run once signed in.
   document.addEventListener('click', (e) => {
     const row = e.target.closest?.('[data-open]');
@@ -55,14 +61,17 @@ async function start() {
   } catch {}
   // The conversation loads after the first paint, so the shell stays small (PERFORMANCE.md §2). If
   // it can't, the ask bar says so (home.js) rather than doing nothing.
-  requestAnimationFrame(() => setTimeout(() => import('/th/chat/index.js').then((m) => m.startChat()).catch(() => { root.dataset.chat = 'failed'; }), 0));
+  requestAnimationFrame(() => setTimeout(() => import('/th/chat/index.js').then((m) => m.startChat()).catch(() => { root.dataset.chat = 'failed'; }).finally(() => {
+    const prepare = () => Promise.all([prepareMenu(), import('/apps/settings/settings.js'), import('/apps/settings/home.js')]).catch(() => {});
+    if ('requestIdleCallback' in window) requestIdleCallback(prepare, { timeout: 2000 });
+    else setTimeout(prepare, 2000);
+  }), 0));
   // The Briefing page (BRIEFING.md) too: from this phone at once, then from the Worker.
   requestAnimationFrame(() => setTimeout(() => import('/th/briefing/page.js').then((m) => m.startBriefing()).catch(() => {}), 0));
   // Decision cards (HOME.md §3) load after the first paint too.
   requestAnimationFrame(() => setTimeout(() => import('/th/decide/card.js').then((m) => m.startDecisions()).catch(() => {}), 0));
   // What's new after an update (th/news), once per release.
   requestAnimationFrame(() => setTimeout(() => import('/th/news/news.js').then((m) => m.startNews()).catch(() => {}), 0));
-  menuCode();
   // Push (SECURITY.md §10): when it is on, the subscription follows a replaced key and a new sign-in.
   if ('Notification' in window && Notification.permission === 'granted')
     requestAnimationFrame(() => setTimeout(() => import('/th/push/phone.js').then((m) => m.recheck()).catch(() => {}), 0));
@@ -103,6 +112,36 @@ function menuCode() {
     e.stopImmediatePropagation();
     load().then(() => import('/th/convos/search.js')).then((s) => s.enter()).catch(() => toast("Couldn't load search. Reload to try again."));
   }, true);
+  // Task B may supply a cheap preparation hook. Without it, parsing must not load conversations.
+  return () => import('/th/convos/menu.js').then((m) => { if (typeof m.prepare === 'function') m.prepare(); });
+}
+
+/** Settings owns its CSS slide. Track it here, before its first paint, without changing that module. */
+function movingSettings() {
+  const app = document.querySelector('#app');
+  const watch = (page) => {
+    let shown = page.classList.contains('in'), run = 0;
+    const moving = () => {
+      const at = ++run;
+      page.classList.add('moving');
+      // Two frames let insertion / .in styles resolve, including reduced motion (no transition).
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const slides = page.getAnimations().filter((a) => a instanceof CSSTransition && a.transitionProperty === 'transform');
+        Promise.all(slides.map((a) => a.finished.catch(() => {}))).then(() => { if (at === run) page.classList.remove('moving'); });
+      }));
+    };
+    const changes = new MutationObserver(() => {
+      const next = page.classList.contains('in');
+      if (next !== shown) { shown = next; moving(); }
+    });
+    changes.observe(page, { attributes: true, attributeFilter: ['class'] });
+    page.addEventListener('transitionrun', (e) => { if (e.target === page && e.propertyName === 'transform') moving(); });
+    moving();
+  };
+  new MutationObserver((records) => {
+    for (const record of records) for (const node of record.addedNodes)
+      if (node instanceof HTMLElement && node.matches('.spage')) watch(node);
+  }).observe(app, { childList: true });
 }
 
 const hidden = (id) => { try { return localStorage.getItem(`th.p.hide.${id}`) === '1'; } catch { return false; } };

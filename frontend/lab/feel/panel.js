@@ -6,6 +6,9 @@ const SPRINGS = ['page', 'ring', 'pop', 'island'];
 const MOTION = ['--d-instant', '--d-fast', '--d-quick', '--d-base', '--d-sheet', '--d-page', '--d-rise', '--d-edge', '--settle', '--pop', '--press-scale'];
 const NAMES = [...MOTION, ...Object.keys(ramp()), ...Object.keys(density())];
 let current;
+let readFrames = () => null;
+/** The last gesture, or its current sample. Nothing is installed without ?feel. */
+export const frameReadout = () => readFrames();
 const element = (tag, className, text) => {
   const node = document.createElement(tag);
   if (className) node.className = className;
@@ -14,6 +17,140 @@ const element = (tag, className, text) => {
 };
 const params = value => ({ stiffness: value.stiffness, damping: value.damping });
 const number = (value, fallback, min, max) => typeof value === 'number' && Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
+
+// Keep measurement entirely in the opt-in lab. At rest there is no animation frame or observer;
+// closing the sheet removes the event listeners too. The numbers describe rAF intervals, not FPS.
+function framesGroup(body) {
+  const group = element('details', 'feel-group feel-frames'); group.id = 'feel-frames';
+  group.append(element('summary', '', 'Frames'));
+  const note = element('p', 'feel-frame-note', 'Hold or swipe on the app to record the last gesture.');
+  const out = element('dl', 'feel-frame-readout'); out.id = 'feel-frame-readout';
+  const fields = {};
+  for (const [key, label] of [['frames', 'Frames sampled'], ['over', 'Over 16.7 ms / 32 ms'], ['first', 'Touch to first frame'], ['longest', 'Longest frame'], ['p95', 'p95 interval'], ['tasks', 'Long tasks'], ['menu', 'Menu content'], ['settings', 'Settings content'], ['ring', 'Ring at 90%']]) {
+    const value = element('dd', '', '—'); fields[key] = value;
+    out.append(element('dt', '', label), value);
+  }
+  group.append(note, out); body.append(group);
+  const enabled = new URLSearchParams(location.search).has('feel') && new URLSearchParams(location.search).get('feel') !== 'off';
+  const app = document.querySelector('#app'), side = document.querySelector('#side'), ring = document.querySelector('#ring');
+  let active = null, last = null, frame = 0, timer = 0, tasks = null, surfaces = null, listening = false, pointer = false;
+  const rounded = value => value === null ? null : Math.round(value * 10) / 10;
+  const snapshot = () => {
+    if (!active) return last && structuredClone(last);
+    const sorted = [...active.intervals].sort((a, b) => a - b);
+    return {
+      frames: sorted.length, framesOver16_7: sorted.filter(n => n > 16.7).length, framesOver32: sorted.filter(n => n > 32).length,
+      firstFrameMs: rounded(active.firstFrame), longestMs: rounded(sorted.at(-1) || 0), p95Ms: rounded(sorted[Math.max(0, Math.ceil(sorted.length * .95) - 1)] || 0),
+      longTasks: active.longTasks, longestTaskMs: rounded(active.longestTask), longTasksAvailable: tasks !== false,
+      paintMs: Object.fromEntries(Object.entries(active.paint).map(([key, value]) => [key, rounded(value)])),
+      afterOpenMs: Object.fromEntries(Object.entries(active.paint).map(([key, value]) => [key, value === null || active.opened[key] === null ? null : rounded(value - active.opened[key])])),
+    };
+  };
+  readFrames = snapshot;
+  const show = () => {
+    const data = snapshot();
+    if (!data) return;
+    out.dataset.readout = JSON.stringify(data);
+    fields.frames.textContent = String(data.frames);
+    fields.over.textContent = `${data.framesOver16_7} / ${data.framesOver32}`;
+    fields.first.textContent = data.firstFrameMs === null ? '—' : `${data.firstFrameMs} ms`;
+    fields.longest.textContent = `${data.longestMs} ms`; fields.p95.textContent = `${data.p95Ms} ms`;
+    fields.tasks.textContent = data.longTasksAvailable ? `${data.longTasks} (longest ${data.longestTaskMs} ms)` : 'Unavailable';
+    for (const name of ['menu', 'settings', 'ring']) fields[name].textContent = data.paintMs[name] === null ? '—' : `${data.paintMs[name]} ms (${data.afterOpenMs[name]} ms after ${name === 'ring' ? 'hold' : 'slide'})`;
+  };
+  const addTasks = entries => {
+    if (!active) return;
+    // The initiating pointer task starts just before our listener: count its overlap too.
+    for (const task of entries) if (task.startTime + task.duration > active.start) { active.longTasks++; active.longestTask = Math.max(active.longestTask, task.duration); }
+  };
+  const finish = () => {
+    clearTimeout(timer); cancelAnimationFrame(frame); timer = frame = 0;
+    if (tasks) { addTasks(tasks.takeRecords()); tasks.disconnect(); }
+    surfaces?.disconnect(); surfaces = null;
+    if (active) { last = snapshot(); active = null; show(); note.textContent = 'Last gesture. The first interval starts at touch-down; the preceding frame is unknown. Content times start at touch-down; brackets start at the first visible slide frame or completed hold.'; }
+    out.dataset.recording = 'false'; pointer = false;
+  };
+  // A row must intersect the viewport and its clipping parents, with no invisible ancestor.
+  const visible = (node, whole = false) => {
+    if (!node) return false;
+    const rect = node.getBoundingClientRect();
+    let left = Math.max(0, rect.left), right = Math.min(innerWidth, rect.right), top = Math.max(0, rect.top), bottom = Math.min(innerHeight, rect.bottom);
+    if (!rect.width || !rect.height) return false;
+    for (let parent = node; parent && parent !== document.documentElement; parent = parent.parentElement) {
+      const style = getComputedStyle(parent);
+      if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) <= 0) return false;
+      if (style.overflowX !== 'visible' || style.overflowY !== 'visible') {
+        const clip = parent.getBoundingClientRect();
+        if (style.overflowX !== 'visible') { left = Math.max(left, clip.left); right = Math.min(right, clip.right); }
+        if (style.overflowY !== 'visible') { top = Math.max(top, clip.top); bottom = Math.min(bottom, clip.bottom); }
+      }
+    }
+    return whole ? left <= rect.left && right >= rect.right && top <= rect.top && bottom >= rect.bottom : right > left && bottom > top;
+  };
+  const page = () => document.querySelector('.spage:last-of-type');
+  const opened = () => ({ menu: side?.classList.contains('open') || false, settings: page()?.classList.contains('in') || false, ring: ring?.classList.contains('show') || false });
+  const markOpen = () => {
+    if (!active) return;
+    if (!active.before.ring && ring?.classList.contains('show') && active.opened.ring === null) active.opened.ring = performance.now() - active.start;
+  };
+  const sample = time => {
+    if (!active || !listening) return;
+    const elapsed = performance.now() - active.start;
+    // No idle rAF means the frame before touch-down is unknown. Its remaining interval is a
+    // lower bound, but including it still catches a long first-open task before the first rAF.
+    if (active.previous === null) { active.firstFrame = elapsed; active.intervals.push(elapsed); }
+    else active.intervals.push(time - active.previous);
+    active.previous = time;
+    markOpen();
+    const settings = page();
+    for (const [name, surface, showClass] of [['menu', side, 'open'], ['settings', settings, 'in']]) {
+      if (!active.before[name] && active.opened[name] === null && surface?.classList.contains(showClass) && visible(surface)) active.opened[name] = elapsed;
+    }
+    if (active.opened.menu !== null && active.paint.menu === null && visible(side?.querySelector('.row'))) active.paint.menu = elapsed;
+    if (active.opened.settings !== null && active.paint.settings === null && visible(settings?.querySelector('.sbody .sfield, .sbody .srow, .sbody .row, .sbody .slink'))) active.paint.settings = elapsed;
+    if (active.opened.ring !== null && active.paint.ring === null && ring?.classList.contains('show')) {
+      const pets = [...ring.querySelectorAll('.pet')];
+      if (pets.length === 7 && pets.every(pet => { const matrix = new DOMMatrixReadOnly(getComputedStyle(pet).transform); return Math.hypot(matrix.m41, matrix.m42) >= 62 * .9 && visible(pet, true); })) active.paint.ring = elapsed;
+    }
+    frame = requestAnimationFrame(sample);
+  };
+  const extend = event => {
+    if (!active || event.target.closest?.('#feel-lab')) return;
+    clearTimeout(timer); timer = setTimeout(finish, 1200);
+    if (event.type === 'pointerup' || event.type === 'pointercancel') pointer = false;
+  };
+  const begin = event => {
+    if (!listening || event.target.closest?.('#feel-lab')) return;
+    if (event.type === 'pointerdown' && !event.isPrimary) return;
+    // Chromium sends touchstart after pointerdown for the same contact.
+    if (event.type === 'touchstart' && pointer) { extend(event); return; }
+    finish();
+    pointer = event.type === 'pointerdown';
+    active = { start: performance.now(), previous: null, firstFrame: null, intervals: [], longTasks: 0, longestTask: 0, before: opened(), opened: { menu: null, settings: null, ring: null }, paint: { menu: null, settings: null, ring: null } };
+    note.textContent = 'Recording the last gesture…'; out.dataset.recording = 'true';
+    tasks = false;
+    if (typeof PerformanceObserver !== 'undefined' && PerformanceObserver.supportedEntryTypes?.includes('longtask')) {
+      tasks = new PerformanceObserver(list => addTasks(list.getEntries())); tasks.observe({ type: 'longtask' });
+    }
+    // The hold completes between frames. The ring's class timestamps that exact start; slides
+    // start at their first visible frame, since adding .in alone does not yet move the page.
+    surfaces = new MutationObserver(markOpen);
+    if (ring) surfaces.observe(ring, { attributes: true, attributeFilter: ['class'] });
+    extend(event); frame = requestAnimationFrame(sample);
+  };
+  const starts = ['pointerdown', 'touchstart'], ends = ['pointermove', 'pointerup', 'pointercancel', 'touchmove', 'touchend', 'touchcancel'];
+  const listen = value => {
+    value = Boolean(value && enabled && app);
+    if (value === listening) return;
+    listening = value;
+    for (const type of starts) app[value ? 'addEventListener' : 'removeEventListener'](type, begin, { capture: true, passive: true });
+    for (const type of ends) window[value ? 'addEventListener' : 'removeEventListener'](type, extend, { capture: true, passive: true });
+    if (!value) finish();
+  };
+  group.addEventListener('toggle', () => { if (group.open) show(); });
+  listen(true);
+  return { listen, line: () => `/* frames: ${JSON.stringify(snapshot())} */` };
+}
 
 /** Opens only when boot explicitly loads the lab; stored tuning has no effect elsewhere. */
 export async function start() {
@@ -73,8 +210,9 @@ export async function start() {
   toggle.type = 'button'; toggle.setAttribute('aria-controls', 'feel-body'); toggle.setAttribute('aria-expanded', 'true');
   header.append(drag, heading, toggle);
   const body = element('div', 'feel-body'); body.id = 'feel-body';
-  body.append(element('p', 'feel-intro', 'Changes preview while this panel is open. Collapse to pause the preview.'));
+  body.append(element('p', 'feel-intro', 'Changes preview while this panel is open. Collapse pauses tuning and frame recording.'));
   panel.append(header, body);
+  const frames = framesGroup(body);
   const controls = [];
   let opened = true;
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { /* Tuning still works without storage. */ } };
@@ -166,7 +304,7 @@ export async function start() {
       return `:root[data-text="${text}"]{--fs-reply:${axis['--fs-reply']};--fs-input:${axis['--fs-input']}}`;
     });
     const engine = SPRINGS.map(name => `${name} ${JSON.stringify(state.tuned.motion ? state.springs[name] : originalSprings[name])}`).join(', ');
-    return `:root{\n  /* feel, tuned ${new Date().toISOString().slice(0, 10)} on the owner's phone */\n${rows.join('\n')}\n}\n${sizes.join('\n')}\n/* engine: ${engine} */\n`;
+    return `:root{\n  /* feel, tuned ${new Date().toISOString().slice(0, 10)} on the owner's phone */\n${rows.join('\n')}\n}\n${sizes.join('\n')}\n/* engine: ${engine} */\n${frames.line()}\n`;
   };
   copy.addEventListener('click', async () => {
     output.value = exportTokens();
@@ -177,6 +315,7 @@ export async function start() {
     opened = value; body.hidden = !value; panel.classList.toggle('feel-collapsed', !value);
     toggle.textContent = value ? 'Collapse' : 'Open feel'; toggle.setAttribute('aria-expanded', String(value));
     value ? apply() : restore();
+    frames.listen(value);
     move(0, 0);
   };
   toggle.addEventListener('click', () => setOpen(!opened));

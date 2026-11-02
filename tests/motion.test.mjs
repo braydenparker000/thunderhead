@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { animator, configureMotion, haptic, linearCurve, motionReduced, motionSettings, response, restTime, setSpring, spring, springs } from '../frontend/th/motion.js';
 
+const frozen = { page: spring({ stiffness: 380, damping: .8 }), pop: spring({ stiffness: 800, damping: .6 }) };
 const css = await readFile(new URL('../frontend/ui/tokens.css', import.meta.url), 'utf8');
 const tokens = name => css.match(new RegExp(`--${name}:linear\\(([^)]+)\\)`))[1].split(',').map(Number);
 const close = (actual, expected, tolerance = 1e-10) => assert.ok(Math.abs(actual - expected) <= tolerance, `${actual} vs ${expected}, tolerance ${tolerance}`);
@@ -17,20 +18,30 @@ function clock(t, reduced = false) {
   return { tick, make, frames, vibrations, get now() { return now; } };
 }
 
-test('the running analytic engine matches every existing page and pop curve sample', t => {
+test('the analytic engine still reproduces the frozen CSS curves with their original parameters', t => {
   const c = clock(t);
+  // Task A retunes gesture defaults without changing tokens.css. These retain the original
+  // curve contract, independently of the live spring settings exported by the feel panel.
+
   for (const [name, token, duration] of [['page', 'settle', 410], ['pop', 'pop', 345]]) {
     const values = tokens(token);
     assert.equal(values.length, 25);
     const a = c.make();
-    a.to(1, { spring: springs[name] });
+    a.to(1, { spring: frozen[name] });
     close(a.value, values[0], .01);
     for (let i = 1; i < values.length; i++) {
       c.tick(duration / 24);
       close(a.value, values[i], .01);
-      close(a.value, response(springs[name], duration * i / 24000).value);
+      close(a.value, response(frozen[name], duration * i / 24000).value);
     }
     a.stop(); c.tick(0);
+  }
+});
+
+test('gesture defaults use the chosen page, pop and fall-back springs', () => {
+  for (const [name, stiffness, damping] of [['page', 320, .86], ['pop', 900, .55], ['ring', 1100, .7]]) {
+    assert.equal(springs[name].stiffness, stiffness);
+    assert.equal(springs[name].damping, damping);
   }
 });
 
@@ -189,7 +200,7 @@ test('the spring registry replaces a preset without mutating old parameters', ()
 
 test('CSS curves adapt to curvature, have ordered percentages, and retain the token response', () => {
   for (const [name, token, ms] of [['page', 'settle', 410], ['pop', 'pop', 345]]) {
-    const text = linearCurve(springs[name], ms);
+    const text = linearCurve(frozen[name], ms);
     const pairs = [...text.matchAll(/(-?[\d.]+) ([\d.]+)%/g)].map(m => [Number(m[2]) / 100, Number(m[1])]);
     assert.match(text, /^linear\(0 0%, .*1 100%\)$/);
     assert.ok(pairs.length > 2 && pairs.length <= 32);
@@ -202,7 +213,7 @@ test('CSS curves adapt to curvature, have ordered percentages, and retain the to
       const [a, x] = pairs[next - 1], [b, y] = pairs[next];
       close(x + (y - x) * (t - a) / (b - a), expected, .01);
     }
-    assert.equal(linearCurve(springs[name], ms), text);
+    assert.equal(linearCurve(frozen[name], ms), text);
   }
 });
 

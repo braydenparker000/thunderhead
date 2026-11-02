@@ -89,39 +89,31 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .scrim{position:absolute;inset:0;z-index:8;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--d-fast) var(--ease-default)}
 .scrim.show{opacity:1}
 .ring{position:absolute;z-index:9;width:0;height:0;pointer-events:none}
-/* Each app is its own disc of liquid glass (owner, 2026-10-31: "what makes it so good"). Only
-   transform and opacity ever move, so the compositor does all of it: they spring out, and the chosen
-   one is drawn by fading in a colour layer and a white icon inside it rather than repainting the disc
-   under its blur. No will-change: Chrome keeps such a layer at the scale it was first drawn (here the
-   resting 0.2) and stretches it, which blurred the icons; without it each disc is drawn sharp at its
-   largest scale. 50 px discs 62 px out leave ~4 px between them, a tight ring for a short swipe. */
-.ring .pet{--c:var(--accent-text);position:absolute;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;display:grid;place-items:center;color:var(--c);
+/* Moving discs have a flat fill and line. The separate glass layer keeps its blur fixed;
+   it is hidden during motion and fades in only at rest. No promoted ring layers at scale .2. */
+.ring .pet{--c:var(--accent-text);position:absolute;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;display:grid;place-items:center;color:var(--c);isolation:isolate;
+  background:var(--glass-flat);border:1px solid var(--disc-line);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;
+  opacity:0;transform:translate(0,0) scale(.2)}
+.ring .pet::before{content:"";position:absolute;inset:-1px;border-radius:inherit;z-index:-1;pointer-events:none;
   background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.75),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 22%,transparent),transparent 70%),color-mix(in srgb,var(--disc) 45%,transparent);
   backdrop-filter:blur(14px) saturate(1.8);-webkit-backdrop-filter:blur(14px) saturate(1.8);
-  border:1px solid rgba(255,255,255,.65);
   box-shadow:inset 0 1.5px 1px rgba(255,255,255,.95),inset 0 -6px 12px color-mix(in srgb,var(--c) 18%,transparent),inset 0 0 0 .5px color-mix(in srgb,var(--c) 25%,transparent),0 10px 26px rgba(20,30,60,.18);
-  opacity:0;transform:translate(0,0) scale(.2);transition:transform calc(var(--d-fast) * 17 / 8) var(--pop),opacity calc(var(--d-edge) / 10) var(--ease-default);transition-delay:calc(var(--i)*calc(var(--d-fast) / 10))}
-:root[data-theme="dark"] .ring .pet{border-color:rgba(255,255,255,.18);background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.22),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 30%,transparent),transparent 70%),rgba(255,255,255,.05);box-shadow:inset 0 1.5px 1px rgba(255,255,255,.35),inset 0 -6px 12px color-mix(in srgb,var(--c) 25%,transparent),0 10px 26px rgba(0,0,0,.5)}
+  opacity:1;transition:opacity var(--d-fast) var(--ease-default)}
+:root[data-theme="dark"] .ring .pet::before{background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.22),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 30%,transparent),transparent 70%),rgba(255,255,255,.05);box-shadow:inset 0 1.5px 1px rgba(255,255,255,.35),inset 0 -6px 12px color-mix(in srgb,var(--c) 25%,transparent),0 10px 26px rgba(0,0,0,.5)}
+.ring.moving .pet::before,.ring:not(.show) .pet::before{opacity:0;visibility:hidden;transition:none}
 .ring .pet svg.ph{fill:currentColor;stroke:none}
 .ring .pet svg{grid-area:1/1;width:24px;height:24px;transition:opacity var(--d-fast) var(--ease-default)}
 .ring .pet svg.on{color:#fff;opacity:0}
 .ring .pet .fill{grid-area:1/1;place-self:stretch;margin:-1px;border-radius:50%;opacity:0;transition:opacity var(--d-fast) var(--ease-default);
-  background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.55),rgba(255,255,255,0) 50%),color-mix(in srgb,var(--c) 92%,transparent);
-  box-shadow:inset 0 1.5px 1px rgba(255,255,255,.8),inset 0 -8px 14px rgba(0,0,0,.12),0 0 0 6px color-mix(in srgb,var(--c) 20%,transparent),0 12px 28px color-mix(in srgb,var(--c) 40%,transparent)}
-.ring.show .pet{opacity:1}
-.ring.show.active .pet{transition-delay:0ms;transition-duration:calc(var(--d-fast) * 13 / 8),var(--d-fast)}
-.ring.closing .pet{transition:transform var(--d-fast) var(--ease-in),opacity var(--d-fast) var(--ease-in);transition-delay:0ms}
-.ring.active .pet:not(.on){opacity:.62}
-:root[data-theme="dark"] .ring.active .pet:not(.on){opacity:.68}
+  background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.55),rgba(255,255,255,0) 50%),color-mix(in srgb,var(--c) 92%,transparent)}
 .ring .pet.on .fill,.ring .pet.on svg.on{opacity:1}
 .ring .pet.on svg:not(.on){opacity:0}
-.ring .pet.go{transition:transform var(--d-quick) var(--ease-emph),opacity var(--d-quick) var(--ease-emph);opacity:0!important}
-.ring .hub{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--ink);opacity:0;transform:translate(0,0);will-change:transform;transition:opacity calc(var(--d-quick) / 2) var(--ease-default),transform calc(var(--d-quick) / 2) var(--settle)}
+.ring .hub{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--ink);opacity:0;transform:translate(0,0);transition:opacity calc(var(--d-quick) / 2) var(--ease-default)}
 .ring.show .hub{opacity:.28}
 .ring .lbl{--c:var(--accent-text);position:absolute;left:0;top:0;transform:translate(-50%,0);white-space:nowrap;font:600 var(--fs-small) var(--ui);color:var(--ink);opacity:0;transition:opacity calc(var(--d-edge) / 10) var(--ease-default);padding:6px 12px;border-radius:12px;background:var(--disc);border:1px solid color-mix(in srgb,var(--c) 30%,var(--disc-line));box-shadow:0 8px 22px -12px color-mix(in srgb,var(--c) 60%,transparent)}
 .ring .lbl.show{opacity:1}
-.ring .lbl.swap{animation:lblswap calc(var(--d-fast) * 13 / 8) var(--settle)}
-@keyframes lblswap{from{transform:translate(-50%,5px);opacity:.35}}
+.ring.moving .lbl{transition:none;animation:none}
+.app:has(.ring.moving) .press{animation:none;opacity:0}
 .press{position:absolute;z-index:9;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:1.5px solid var(--ink-3);opacity:0;pointer-events:none}
 .press.on{animation:press var(--d-quick) var(--ease-emph) forwards}
 @keyframes press{from{opacity:.0;transform:scale(.4)}to{opacity:.55;transform:scale(2.2)}}
@@ -151,7 +143,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 /* Chrome lets a scroller pan sideways again inside a pan-y parent, so each scroller says pan-y too:
    every sideways drag stays the page's (swipes, a row's actions) and Chrome only ever scrolls. */
 .app,.convo,.brief,.side{touch-action:pan-y}
-.page{position:absolute;inset:0;transition:transform var(--d-page) var(--settle);will-change:transform}
+.page{position:absolute;inset:0;will-change:transform}
 .home{z-index:2}
 .brief{z-index:2;transform:translateX(-100%);overflow-y:auto;scrollbar-width:none;padding:calc(18px + env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) 40px max(18px,env(safe-area-inset-left,0px))}
 .brief::-webkit-scrollbar,.side::-webkit-scrollbar{display:none}
@@ -171,11 +163,11 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .whours .wrain{color:var(--ink-3);text-align:right}
 .tile.gold,:root[data-theme="dark"] .tile.gold{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 50%,transparent)}
 .bnote{display:block;margin-inline:auto;min-height:44px;padding:0 18px;border:0;border-radius:var(--r-full);background:none;cursor:pointer;font:500 var(--fs-label) var(--ui);color:var(--ink-3);margin-top:18px;text-align:center}
-.dim{position:absolute;inset:0;z-index:11;background:var(--dim);opacity:0;pointer-events:none;transition:opacity var(--d-page) var(--ease-out)}
+.dim{position:absolute;inset:0;z-index:11;background:var(--dim);opacity:0;pointer-events:none}
 /* the menu (MENU-AND-SETTINGS.md §1): a page on home's own field that leaves home's edge in sight,
    sunk back (home.js); the conversations scroll, and search and Settings sit in a bar at the
    bottom, where the thumb is, like the ask bar on home (owner, 2026-10-31) */
-.side{position:absolute;z-index:12;top:0;bottom:0;right:0;width:calc(100% - 52px);transform:translateX(100%);transition:transform var(--d-page) var(--settle);overflow:hidden;border-radius:30px 0 0 30px;background:var(--bg);box-shadow:none;display:flex;flex-direction:column}
+.side{position:absolute;z-index:12;top:0;bottom:0;right:0;width:calc(100% - 52px);transform:translateX(100%);overflow:hidden;border-radius:30px 0 0 30px;background:var(--bg);box-shadow:none;display:flex;flex-direction:column}
 .side.open{box-shadow:-30px 0 60px -30px rgba(5,10,25,.55)}
 .side>.field,.side>.grain{border-radius:inherit}
 .sidescroll{position:relative;flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:none;touch-action:pan-y;padding:calc(22px + env(safe-area-inset-top,0px)) 18px 20px 20px}
@@ -188,9 +180,9 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .setbtn{flex:none;width:44px;height:44px;border-radius:50%;border:0;display:grid;place-items:center;background:color-mix(in srgb,var(--ink) 6%,transparent);color:var(--ink-2);cursor:pointer;transition:transform var(--d-fast) var(--pop)}
 .setbtn:active{transform:scale(.94)}
 .setbtn svg{width:21px;height:21px;fill:currentColor}
-/* The rows ripple in each time the menu opens, and the Briefing's tiles cascade (home.js enter()) */
+/* The Briefing's tiles cascade; menu rows are painted on the first slide frame. */
 @keyframes ripple{from{opacity:0;transform:translateY(14px)}}
-.side.enter .sidescroll>:not(#convos),.side.enter #convos>*,.brief.enter .grid>*{animation:ripple calc(var(--d-base) * 11 / 6) var(--settle) both;animation-delay:calc(var(--k,0)*calc(var(--d-sheet) / 10) + calc(var(--d-base) / 5))}
+.brief.enter .grid>*{animation:ripple calc(var(--d-base) * 11 / 6) var(--settle) both;animation-delay:calc(var(--k,0)*calc(var(--d-sheet) / 10) + calc(var(--d-base) / 5))}
 .sh{font:500 var(--fs-small) var(--ui);color:var(--ink-3);margin:24px 8px 2px}
 .sh small{display:block;font-weight:400;font-size:var(--fs-label);margin-top:4px;line-height:var(--lh-body)}
 .grp{font:500 var(--fs-small) var(--ui);color:var(--ink-3);margin:14px 8px 2px}
@@ -222,7 +214,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .past{max-width:100%}
 .past button{white-space:nowrap;flex:none;border:0;background:var(--accent-text);color:#fff;border-radius:999px;padding:6px 12px;font:600 var(--fs-label) var(--ui);cursor:pointer}
 .turns .turn:first-child{margin-top:8px}
-@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.side.enter .sidescroll>*,.side.enter #convos>*,.brief.enter .grid>*{animation:none}.field::before,.field::after,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet,.ring .pet svg,.ring .pet .fill,.scrim,.toast{transition:none}.ring .lbl.swap{animation:none}}
+@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.side.enter .sidescroll>*,.side.enter #convos>*,.brief.enter .grid>*{animation:none}.field::before,.field::after,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet,.ring .pet::before,.ring .hub,.ring .lbl,.ring .pet svg,.ring .pet .fill,.scrim,.toast{transition:none}.ring .lbl.swap{animation:none}}
 /* the gestures' buttons (GESTURES.md §9): clipped until focused, then a glass pill at the top left */
 .skips{position:absolute;z-index:15;top:calc(8px + env(safe-area-inset-top,0px));left:12px;display:flex;gap:6px}
 .skips button{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;padding:0}
@@ -246,3 +238,14 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .tile.weather .s{font:500 var(--fs-body)/var(--lh-reading) var(--ui);color:var(--ink-2)}
 .tile.weather .k{font-size:var(--fs-chip)}
 .tile .big{font-size:var(--fs-big)}
+
+/* The same two layers on the menu and Settings: cheap while sliding, frosted at rest.
+   The field element is retained for the shared page structure, with no moving blobs under glass. */
+#app .side,#app .spage{background:var(--glass-flat);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
+#app .side>.field,#app .spage>.field{background:var(--panel);backdrop-filter:blur(28px) saturate(1.6);-webkit-backdrop-filter:blur(28px) saturate(1.6);opacity:1;transition:opacity var(--d-fast) var(--ease-default)}
+#app .side>.field::before,#app .side>.field::after,#app .spage>.field::before,#app .spage>.field::after{display:none}
+#app .side>.grain,#app .spage>.grain{display:none}
+#app .side.moving>.field,#app .spage.moving>.field,#app .side:not(.open)>.field,#app .spage:not(.in)>.field{opacity:0;visibility:hidden;transition:none}
+#app:has(.spage.in) .side>.field,#app .spage:has(~ .spage.in)>.field{opacity:0;visibility:hidden}
+.side .sidebar{background:var(--glass-flat);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
+@media (prefers-reduced-motion: reduce){#app .side>.field,#app .spage>.field{transition:none}}

@@ -6,7 +6,7 @@ export function spring({ stiffness = 380, damping = .8 } = {}) {
   const omega = Math.sqrt(stiffness);
   return { stiffness, damping, omega, response: 2 * Math.PI / omega };
 }
-export const springs = { page: spring(), pop: spring({ stiffness: 800, damping: .6 }), ring: spring({ stiffness: 1450, damping: .61 }), island: spring({ stiffness: 130, damping: .82 }) };
+export const springs = { page: spring({ stiffness: 320, damping: .86 }), pop: spring({ stiffness: 900, damping: .55 }), ring: spring({ stiffness: 1100, damping: .7 }), island: spring({ stiffness: 130, damping: .82 }) };
 /** @param {keyof typeof springs} name @param {Partial<Params>} params */
 export function setSpring(name, params) { return springs[name] = spring({ ...springs[name], ...params }); }
 
@@ -39,6 +39,10 @@ export function haptic(kind) { if (config.haptics) try { config.vibrate([{ open:
 
 /** @type {Set<(time:number)=>void>} */
 const moving = new Set();
+/** @type {Set<()=>void>} */
+const idle = new Set();
+/** Resolves when all current engine motion rests, including retargeting. @returns {Promise<void>} */
+export function whenResting() { return moving.size ? new Promise(resolve => idle.add(resolve)) : Promise.resolve(); }
 let queued = false;
 function schedule() {
   if (queued || !moving.size) return;
@@ -52,7 +56,7 @@ export function animator(onFrame, { unit = 'px' } = {}) {
   let elapsed = 0, origin = 0, linear = false, params = springs.page;
   /** @type {Set<()=>void>} */
   const waiting = new Set();
-  const stopped = () => { moving.delete(move); velocity = 0; for (const done of waiting) done(); waiting.clear(); };
+  const stopped = () => { moving.delete(move); velocity = 0; for (const done of waiting) done(); waiting.clear(); if (!moving.size) { for (const done of idle) done(); idle.clear(); } };
   const resting = () => Math.abs(target - value) <= Math.max(unit === 'px' ? .1 : 1e-6, travel * .01) && Math.abs(velocity) <= Math.max(unit === 'px' ? .5 : 1e-6, travel * .02);
   const set = (/** @type {number} */ next) => { value = target = next; stopped(); onFrame(value, velocity); };
   function move(/** @type {number} */ time) {

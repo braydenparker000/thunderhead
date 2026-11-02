@@ -81,7 +81,11 @@ test('home does not load the lab or apply saved tuning without the query', opts,
   const { page, context, errors, labRequests } = await open('/', saved);
   try {
     await page.waitForFunction(() => document.querySelector('#talk .reply'));
+    await page.mouse.move(200, 180); await page.mouse.down();
+    await page.waitForFunction(() => document.querySelector('#ring').classList.contains('show'));
+    await page.mouse.up();
     assert.equal(await page.locator('#feel-lab').count(), 0);
+    assert.equal(await page.locator('#feel-frame-readout').count(), 0, 'a real gesture installs no readout without ?feel');
     assert.deepEqual(labRequests, []);
     assert.equal((await look(page)).row, '14.5px');
     assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--fs-body')), '');
@@ -145,7 +149,7 @@ test('copy exports both axes and Appearance, saved tuning survives reload, and c
     assert.match(exported, /--fs-ask:16px;/);
     assert.match(exported, /--lh-ask:22px;/);
     assert.match(exported, /--press-scale:0\.96;/);
-    assert.match(exported, /engine: page \{"stiffness":700,"damping":0\.8\}/);
+    assert.match(exported, /engine: page \{"stiffness":700,"damping":0\.86\}/);
     await page.waitForFunction(() => document.querySelector('.feel-status').textContent.startsWith('Tokens copied.'));
     assert.equal(await page.evaluate(() => navigator.clipboard.readText()), exported);
     const tuned = await look(page);
@@ -237,6 +241,8 @@ test('closing restores prior inline token values, priorities, and engine setting
     });
     const engine = await physics(page);
     assert.equal((await look(page)).row, '17px');
+    await page.mouse.move(200, 180); await page.mouse.down(); await page.mouse.up();
+    assert.equal(await page.evaluate(async () => (await import('/lab/feel/panel.js')).frameReadout()), null, 'even an explicitly opened lab cannot sample without ?feel');
     await page.getByLabel('Snap off-ramp sizes', { exact: true }).check();
     await input(page, 'Base size', 14);
     await input(page, 'Page stiffness', 700);
@@ -247,6 +253,88 @@ test('closing restores prior inline token values, priorities, and engine setting
     assert.equal(await page.evaluate(() => document.documentElement.style.cssText), before);
     assert.deepEqual(await physics(page), engine);
     assert.equal((await look(page)).row, '17px');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('Frames starts collapsed, records the ring and long tasks, exports the gesture, and stops when collapsed', opts, async () => {
+  const { page, context, errors } = await open();
+  try {
+    await page.evaluate(async () => { window.readFrames = (await import('/lab/feel/panel.js')).frameReadout; });
+    assert.equal(await page.locator('#feel-frames summary').textContent(), 'Frames');
+    assert.equal(await page.locator('#feel-frames').getAttribute('open'), null);
+    assert.equal(await page.evaluate(async () => (await import('/lab/feel/panel.js')).frameReadout()), null);
+    // Work in the initiating pointer task must be counted even before the first sampled rAF.
+    await page.evaluate(() => document.querySelector('#app').addEventListener('pointerdown', () => {
+      const end = performance.now() + 65; while (performance.now() < end) {}
+    }, { once: true }));
+    await page.mouse.move(200, 180); await page.mouse.down();
+    await page.waitForFunction(() => {
+      const result = window.readFrames();
+      return result && result.paintMs.ring !== null;
+    });
+    const initial = await page.evaluate(() => window.readFrames());
+    if (initial.longTasksAvailable) assert.ok(initial.longTasks >= 1, 'the initiating pointer task overlaps the gesture');
+    // A real busy main-thread task proves the observer's numbers are populated, when supported.
+    await page.evaluate(() => new Promise(resolve => setTimeout(() => { const end = performance.now() + 65; while (performance.now() < end) {} resolve(); }, 0)));
+    await page.mouse.up();
+    await page.waitForFunction(() => document.querySelector('#feel-frame-readout').dataset.recording === 'false');
+    const readout = await page.evaluate(async () => (await import('/lab/feel/panel.js')).frameReadout());
+    assert.ok(readout.frames > 0, 'the gesture produced frame intervals');
+    assert.ok(readout.framesOver16_7 >= readout.framesOver32 && readout.framesOver16_7 <= readout.frames);
+    assert.ok(readout.longestMs >= readout.p95Ms && readout.p95Ms > 0);
+    assert.ok(readout.firstFrameMs > 32 && readout.framesOver32 >= 1, 'the initiating task is included in the first interval');
+    assert.ok(readout.longestMs >= readout.firstFrameMs, 'the longest interval includes touch to first frame');
+    assert.ok(readout.paintMs.ring >= 220 && readout.afterOpenMs.ring > 0, `ring content is timed from touch-down and from the hold completing: ${JSON.stringify(readout)}`);
+    assert.equal(readout.paintMs.menu, null);
+    assert.equal(readout.paintMs.settings, null);
+    if (readout.longTasksAvailable) { assert.ok(readout.longTasks > 0); assert.ok(readout.longestTaskMs >= 50); }
+    await page.locator('#feel-frames summary').click();
+    assert.match(await page.locator('#feel-frame-readout').textContent(), /Ring at 90%.*ms.*after hold/);
+    await page.getByRole('button', { name: 'Copy tokens', exact: true }).click();
+    const exported = await page.getByLabel('Tokens to save', { exact: true }).inputValue();
+    const copied = JSON.parse(exported.match(/\/\* frames: (.*) \*\//)[1]);
+    assert.deepEqual(copied, readout, 'Copy tokens includes the measured gesture');
+    await page.getByRole('button', { name: 'Collapse', exact: true }).click();
+    await page.mouse.move(200, 180); await page.mouse.down(); await page.mouse.up();
+    await page.waitForTimeout(1300);
+    assert.deepEqual(await page.evaluate(async () => (await import('/lab/feel/panel.js')).frameReadout()), readout, 'the closed sheet records nothing');
+    await page.getByRole('button', { name: 'Open feel', exact: true }).click();
+    await page.mouse.move(200, 180); await page.mouse.down();
+    await page.waitForFunction(() => document.querySelector('#feel-frame-readout').dataset.recording === 'true');
+    await page.getByRole('button', { name: 'Collapse', exact: true }).evaluate(node => node.click());
+    const stopped = await page.evaluate(async () => (await import('/lab/feel/panel.js')).frameReadout());
+    await page.mouse.up(); await page.waitForTimeout(1300);
+    assert.deepEqual(await page.evaluate(async () => (await import('/lab/feel/panel.js')).frameReadout()), stopped, 'closing cancels an in-flight sample');
+    assert.equal(await page.locator('#feel-frame-readout').getAttribute('data-recording'), 'false');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
+test('Frames times newly opened menu and Settings content and does not count a surface already open', opts, async () => {
+  const { page, context, errors } = await open();
+  try {
+    await page.evaluate(async () => { window.readFrames = (await import('/lab/feel/panel.js')).frameReadout; });
+    const point = (type, x) => page.evaluate(({ type, x }) => document.querySelector('#app').dispatchEvent(new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 9, clientX: x, clientY: 180 })), { type, x });
+    await point('pointerdown', 330); await point('pointermove', 60); await point('pointerup', 60);
+    await page.waitForFunction(() => {
+      const result = window.readFrames();
+      return result && result.paintMs.menu !== null;
+    });
+    const menu = await page.evaluate(async () => (await import('/lab/feel/panel.js')).frameReadout());
+    assert.ok(menu.paintMs.menu >= 0 && menu.afterOpenMs.menu >= 0);
+    // The panel covers the bottom bar on a phone; dispatch the same pointer/click sequence there.
+    await page.locator('#settings').evaluate(node => {
+      for (const type of ['pointerdown', 'pointerup']) node.dispatchEvent(new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 10, clientX: 340, clientY: 790 }));
+      node.click();
+    });
+    await page.waitForFunction(() => {
+      const result = window.readFrames();
+      return result && result.paintMs.settings !== null;
+    });
+    const settings = await page.evaluate(async () => (await import('/lab/feel/panel.js')).frameReadout());
+    assert.equal(settings.paintMs.menu, null, 'the open menu is not counted again');
+    assert.ok(settings.paintMs.settings >= 0 && settings.afterOpenMs.settings >= 0);
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });
