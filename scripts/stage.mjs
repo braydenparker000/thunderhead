@@ -104,7 +104,10 @@ const budgets = [
   // (2026-10-31, later) + the status chip, the mind's lines as cards and the catch-up line after
   // quiet, in place of the voice line (HOME.md §2).
   // (2026-11-01) + off the record: its conversation shown in place of today's, its outbox, no cache.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 97_000],
+  // (2026-11-02, night chat) 97,000 → 107,500: the working card (th/chat/working.js, 7,134 bytes;
+  // its logic in model.js) and a reply's choice, less the reply slot's thinking words and Stop:
+  // measured 107,418 bytes, 10,537 over main's 96,881.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 107_500],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -137,7 +140,9 @@ const budgets = [
   // 1,253 bytes gzipped against 5f7cdd9. The site is served uncompressed (ARCHITECTURE.md §5, the
   // brotli proposal); when compressed uploads land, this budget moves to compressed bytes.
   ['settings CSS bytes', sum(/^apps\/settings\/.*\.css$/), 11_484], // Task B: never exceed the measured pre-redesign CSS.
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 76_000],
+  // (2026-11-02, night chat) 76,000 → 76,700: the working card and the line under the ask bar, less
+  // the thinking words' shimmer (chat.css 12,025 → 14,807): measured 76,652 bytes.
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 76_700],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 20_000],
   // One face since 2026-10-31: Switzer, variable 100–900 (43.2 KB, the official file, never subset:

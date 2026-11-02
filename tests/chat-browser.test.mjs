@@ -1,10 +1,12 @@
 // Home's conversation in Chromium at 390×844 against the mocked Worker and its live socket
-// (tests/fixtures/mock-api.mjs): first run, a reply over the socket with its chip, waking, the
-// mind not waking, the offline outbox, Stop, a verb run on this phone, a home line and the
-// generic card; and the review cases: changes during a slow or failed load, a failed message left
+// (tests/fixtures/mock-api.mjs): first run, a reply over the socket with its chip, the working
+// card (the mind's title, live line and chips, waking, Stop, under a decision, folding into the
+// reply), the line under the ask bar, a choice, the mind not waking, the offline outbox, a verb
+// run on this phone, a home line and the generic card; and the review cases: changes during a slow or failed load, a failed message left
 // in the outbox, IndexedDB refusing writes, concurrent outbox writes, and sign-out with unsent
 // messages. CSP violations are console errors, so each test also proves the page fits its CSP.
-// Set SHOTS=<dir> to keep the screenshots (day and night: empty, conversation, waking, not waking).
+// Set SHOTS=<dir> to keep the screenshots (day and night: empty, conversation, working, waking,
+// working under a decision, a choice, not waking).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
@@ -12,6 +14,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { proposal } from './fixtures/mock-proposals.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -84,6 +87,21 @@ async function eventually(read, want, message) {
 }
 const shot = async (page, name, theme) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-${theme === 'light' ? 'day' : 'night'}.png` }); };
 const send = async (page, text) => { await page.fill('#q', text); await page.press('#q', 'Enter'); };
+/** The mind reports `th status working` with the working card's fields (a mind_status change). */
+const report = (api, fields) => { api.chat.presence('working'); Object.assign(api.chat.state.presence, fields); };
+/** The working card as the owner sees it, or null. */
+const workCard = (page) => page.evaluate(() => {
+  const c = document.querySelector('#working .work:not(.fold)');
+  const shows = (n) => Boolean(n) && n.checkVisibility();
+  return c && { title: c.querySelector('.wkt').textContent, note: shows(c.querySelector('.wkn')) ? c.querySelector('.wkn').textContent : null,
+    chips: [...c.querySelectorAll('.wkchip')].filter(shows).map((x) => x.textContent), stop: shows(c.querySelector('.wkstop')) ? c.querySelector('.wkstop').textContent : null, waking: c.classList.contains('waking') };
+});
+const FACT = '0192f0c4-0000-7000-8000-000000000001';
+const USING = [
+  { kind: 'fact', id: FACT, label: 'Runs on Sunday mornings' },
+  { kind: 'song', id: '/music/', label: 'Evening' },
+  { kind: 'source', id: 'https://example.org/running/plan', label: 'A running guide' },
+];
 
 test('first run: nothing stands on the page saying all is well; the bar asks', opts, async () => {
   for (const theme of ['light', 'dark']) {
@@ -220,22 +238,29 @@ test('a cited answer: numbered sources in the text, Where to study under it, eac
   await context.close();
 });
 
-test('waking: thinking words after 1.2 s, then "Waking up…" at 8 s, with the edge thinking', opts, async () => {
+test('waking: the line under the bar fills once the Worker has it; at 3 s the working card says "Waking up", then the mind\'s own title', opts, async () => {
   for (const theme of ['light', 'dark']) {
-    const { page, context, errors } = await open({ theme, clock: true });
+    const { page, context, errors, api } = await open({ theme });
+    await page.evaluate(() => {
+      window.lineSeen = [];
+      new MutationObserver(() => window.lineSeen.push(document.querySelector('#ask .sendline').className)).observe(document.querySelector('#ask'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+    });
     await send(page, 'Are you there?');
     await page.waitForSelector('#talk .you');
-    await page.clock.runFor(1500);
-    await page.waitForSelector('#talk .wait.dots');
-    assert.equal(await page.textContent('#talk .wait'), 'Thinking…');
+    await page.waitForFunction(() => window.lineSeen.includes('sendline go done'));
+    assert.ok((await page.evaluate(() => window.lineSeen)).includes('sendline go'), 'it filled part way first');
+    await page.waitForTimeout(1600);
+    assert.equal(await workCard(page), null, 'a mind still asleep gets 3 s first');
+    await page.waitForSelector('#working .work.waking');
+    assert.deepEqual(await workCard(page), { title: 'Waking up', note: null, chips: [], stop: null, waking: true });
+    assert.equal(await page.$eval('#working .d', (d) => getComputedStyle(d).animationName), 'wake', 'its dot pulses');
     assert.ok(await page.$eval('#edge', (e) => e.classList.contains('think')));
-    // The mock Worker stamps the message with real time, a little after this fake clock: margins.
-    await page.clock.runFor(4000);
-    assert.equal(await page.textContent('#talk .wait'), 'Working it out…');
-    await page.clock.runFor(3500);
-    await page.waitForSelector('#talk .wait.waking');
-    assert.equal(await page.textContent('#talk .wait'), 'Waking up…');
+    assert.equal(await page.$('#talk .wait'), null, 'nothing waits in the thread: the card says it');
+    await page.waitForTimeout(500);
     await shot(page, 'waking', theme);
+    report(api, { title: 'Checking what came in overnight', title_at: Date.now() });
+    await eventually(async () => (await workCard(page))?.title, 'Checking what came in overnight', 'the mind\'s own title replaces it');
+    assert.equal((await workCard(page)).waking, false);
     assert.deepEqual(errors, []);
     await context.close();
   }
@@ -344,23 +369,98 @@ test('a failed send says so and Retry sends it', opts, async () => {
   await context.close();
 });
 
-test('Stop: while the mind works on an answer, Stop asks it to stop after the current step', opts, async () => {
+test('Stop: the working card\'s Stop asks the mind to stop after this step; the card stays until its reply', opts, async () => {
   const { page, context, errors, api } = await open({ chat: { messages: [owner('m1', 'Rebuild the playlist')], presence: { state: 'working', note: null, since: Date.now() } } });
-  await page.waitForSelector('#talk .stop');
+  await page.waitForSelector('#working .wkstop:not([hidden])');
+  assert.equal((await workCard(page)).title, 'Thinking about your music', 'words from the message until the mind says');
   await page.waitForFunction(() => document.querySelector('#edge').classList.contains('think'), null, { timeout: 3000 });
-  await page.focus('#talk .stop');
-  await page.waitForTimeout(1500); // the clock ticks; the slot isn't drawn again
-  const onStop = () => page.evaluate(() => document.activeElement?.classList.contains('stop') ?? false);
+  await page.focus('#working .wkstop');
+  await page.waitForTimeout(1500); // the clock ticks; the card isn't drawn again
+  const onStop = () => page.evaluate(() => document.activeElement?.classList.contains('wkstop') ?? false);
   assert.ok(await onStop(), 'focus stays on Stop');
   await page.keyboard.press('Enter');
-  await page.waitForSelector('#talk .stopping');
-  for (let i = 0; i < 60 && !api.calls.some((c) => c.call === 'POST /v1/mind/stop'); i++) await page.waitForTimeout(50);
-  assert.ok(api.calls.some((c) => c.call === 'POST /v1/mind/stop'));
+  await page.waitForSelector('#working .wkstop.stopping');
+  await eventually(() => api.calls.filter((c) => c.call === 'POST /v1/mind/stop').length, 1);
   await page.waitForTimeout(300);
   assert.ok(await onStop(), 'and on it while stopping');
-  assert.equal(await page.textContent('#talk .stop'), 'Stopping…');
+  assert.equal((await workCard(page)).stop, 'Stopping…');
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  assert.equal(api.calls.filter((c) => c.call === 'POST /v1/mind/stop').length, 1, 'a second press sends nothing');
+  api.chat.reply('Stopped. Done: the list. Not done: the order.');
+  await page.waitForSelector('#talk .reply');
+  await eventually(() => page.$$eval('#working .work', (c) => c.length), 0, 'the reply folds the card away');
   assert.deepEqual(errors, []);
   await context.close();
+});
+
+test('the working card: the mind\'s title, its live line and chips dock above the bar; chips open what they name; it folds into the reply', opts, async () => {
+  for (const theme of ['light', 'dark']) {
+    const { page, context, errors, api } = await open({ theme, chat: { presence: { state: 'listening', note: null, since: Date.now() } } });
+    await send(page, 'Find songs for my run');
+    await page.waitForSelector('#talk .you');
+    await page.waitForFunction(() => document.querySelector('#ask .sendline').classList.contains('done'));
+    const given = Date.now();
+    report(api, { title: 'Finding songs for your run', note: 'Looking at last week', using: USING, title_at: given });
+    await eventually(() => workCard(page), { title: 'Finding songs for your run', note: 'Looking at last week', chips: ['Runs on Sunday mornings', 'Evening', 'A running guide'], stop: 'Stop', waking: false });
+    // Docked just above the ask bar in the decision card's place, the conversation ending above it.
+    await page.waitForFunction(() => document.querySelector('#working .work').getAnimations().every((a) => a.playState === 'finished'));
+    const dock = await page.evaluate(() => {
+      const c = document.querySelector('#working .work').getBoundingClientRect();
+      return { gap: Math.round(document.querySelector('#ask').getBoundingClientRect().top - c.bottom), above: document.querySelector('#convo').getBoundingClientRect().bottom <= c.top + 1, left: Math.round(c.left), right: Math.round(innerWidth - c.right) };
+    });
+    assert.ok(dock.gap >= 0 && dock.gap <= 24 && dock.above && dock.left === 16 && dock.right === 16, JSON.stringify(dock));
+    // The live line moves on as the mind reports; the title and chips stand.
+    report(api, { title: 'Finding songs for your run', note: 'Picking twelve', using: USING, title_at: given });
+    await eventually(async () => (await workCard(page))?.note, 'Picking twelve');
+    await page.waitForTimeout(600);
+    await shot(page, 'working', theme);
+    if (theme === 'dark') {
+      await page.evaluate(() => {
+        window.opened = [];
+        document.addEventListener('th:open', (e) => window.opened.push(e.detail));
+      });
+      await page.click('#working .wkchip >> nth=0');
+      assert.deepEqual(await page.evaluate(() => window.opened), [{ name: 'memory', focus: FACT }], 'a fact opens Memory at it');
+      await page.keyboard.press('Escape');
+      await page.click('#working .wkchip >> nth=2', { force: true });
+      await page.waitForFunction(() => [...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('example.org')));
+      assert.equal(await page.evaluate(() => [...document.querySelectorAll('.toast')].some((t) => t.textContent.includes('/running'))), false, 'a source says its host only');
+    }
+    api.chat.reply('Twelve for your run, slow to fast.');
+    await page.waitForSelector('#working .work.fold', { state: 'attached' });
+    await page.waitForSelector('#talk .reply');
+    await eventually(() => page.$$eval('#working .work', (c) => c.length), 0, 'folded into the reply, then gone');
+    await eventually(() => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--dock-h').trim()), '0px', 'the conversation ends at the bar again');
+    assert.deepEqual(errors, [], `${theme}: ${errors.join('; ')}`);
+    await context.close();
+  }
+});
+
+test('a decision waiting comes first: the working card sits above it, folded to its title line, and opens again after', opts, async () => {
+  for (const theme of ['light', 'dark']) {
+    const { page, context, errors, api } = await open({ theme, chat: { presence: { state: 'listening', note: null, since: Date.now() } } });
+    await send(page, 'Plan my week');
+    await page.waitForFunction(() => document.querySelector('#ask .sendline').classList.contains('done'));
+    report(api, { title: 'Planning your week', note: 'Reading your reminders', using: USING.slice(0, 1), title_at: Date.now() });
+    await eventually(async () => (await workCard(page))?.note, 'Reading your reminders');
+    api.proposals.add(proposal({ question: 'Forget the old gym times?', options: ['Forget them', 'Keep them'] }));
+    await page.waitForSelector('#decision .card');
+    await eventually(() => workCard(page), { title: 'Planning your week', note: null, chips: [], stop: 'Stop', waking: false }, 'only its title line');
+    // Stacked: the conversation, then the working card, then the decision card, then the bar.
+    const stack = () => page.evaluate(() => {
+      const w = document.querySelector('#working .work').getBoundingClientRect();
+      const d = document.querySelector('#decision .card').getBoundingClientRect();
+      return { above: w.bottom <= d.top, convo: document.querySelector('#convo').getBoundingClientRect().bottom <= w.top + 1 };
+    });
+    await eventually(stack, { above: true, convo: true });
+    await page.waitForTimeout(1400);
+    await shot(page, 'working-under-decision', theme);
+    await page.click('#decision .decide button:not(.yes)');
+    await eventually(async () => (await workCard(page))?.note, 'Reading your reminders', 'the card opens again once the decision is answered');
+    assert.deepEqual(errors, [], `${theme}: ${errors.join('; ')}`);
+    await context.close();
+  }
 });
 
 test('a verb queued for this phone runs once and reports its undo; one it lacks is unsupported_verb', opts, async () => {
@@ -595,6 +695,26 @@ test('follow-ups: two taps under the newest reply; one sends its words answering
   assert.equal(await page.$eval('#talk .follows', (f) => getComputedStyle(f).display), 'none', 'an older turn shows none');
   assert.deepEqual(errors, []);
   await context.close();
+});
+
+test('a choice: its options are taps under the newest reply; one sends its words as the owner\'s, answering that reply', opts, async () => {
+  for (const theme of ['light', 'dark']) {
+    const reply = { after: 200, text: 'Calm or upbeat for tonight?', meta: { blocks: [{ type: 'choice', options: ['Calm', 'Upbeat', 'Something new', 'A fourth', 'A fifth is never shown'] }], followups: ['Never beside a choice'] } };
+    const { page, context, errors, api } = await open({ theme, chat: { reply, presence: { state: 'listening', note: null, since: Date.now() } } });
+    await send(page, 'Play something for tonight');
+    await page.waitForSelector('#talk .choices.now.in');
+    assert.deepEqual(await page.$$eval('#talk .follow', (b) => b.map((x) => x.textContent)), ['Calm', 'Upbeat', 'Something new', 'A fourth']);
+    assert.equal(await page.$('#talk .reply .blocks'), null, 'a choice is not drawn as a block');
+    await page.waitForTimeout(500);
+    await shot(page, 'choice', theme);
+    const replyId = await page.$eval('#talk .replybox', (b) => b.dataset.id);
+    await page.click('#talk .choices .follow >> nth=1');
+    await eventually(() => sent(api).at(-1), { body: 'Upbeat', reply_to: replyId }, 'the tap answers the reply in the owner\'s own words');
+    await page.waitForFunction(() => document.querySelectorAll('#talk .turn').length === 2 && document.querySelectorAll('#talk .choices').length === 2);
+    assert.equal(await page.$eval('#talk .choices', (f) => getComputedStyle(f).display), 'none', 'not under an older reply');
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
 });
 
 test('a tapped reply: Copy, Shorter, Say more and Ask about this', opts, async () => {

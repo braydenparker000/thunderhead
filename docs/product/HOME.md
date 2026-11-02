@@ -6,7 +6,7 @@ Sibling docs: [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM](../design/DESIG
 
 ## Rules at a glance
 
-1. **One screen** (owner ruling). Top to bottom: date line (with the status chip only when something is off), today's conversation with the mind's cards in it, hint (only while learning), decision card (docked, only when one waits), ask bar. Nothing else. **No chips on home** except the action chip under a reply (§4.5).
+1. **One screen** (owner ruling). Top to bottom: date line (with the status chip only when something is off), today's conversation with the mind's cards in it, hint (only while learning), the working card (docked, only while a reply is on its way, §4.13), decision card (docked, only when one waits), ask bar. Nothing else. **No chips on home** except the action chip under a reply (§4.5).
 2. **Nothing stands on screen to say all is well** (owner, 2026-10-31). The status chip shows only while something is off (§2.1); the mind's lines are cards in the chat (§2.2).
 3. A **decision** is one gold card with at most two buttons. Only one is shown at a time; the rest queue behind it.
 4. The **conversation** is today's thread. It starts on its own each day (04:00, after 60 quiet minutes). The owner never starts or clears a daily one (owner ruling); a conversation **off the record** is the one they start (§4.12), and a conversation's Delete is in the menu.
@@ -29,6 +29,7 @@ Measured in Chromium at 390×844 (the A15's CSS viewport is likely ~384×832, un
 | Conversation column (`.convo`) | `top: 56px`, `bottom: 98px`, side padding 24 px, `flex-direction: column` with a growing spacer on top (min 40 px), so content sits **low** | Yes (vertical) |
 | ↳ Voice line | First item after the spacer | With the column |
 | ↳ Decision card | Docked just above the ask bar (§3) | Fixed |
+| ↳ Working card | Docked just above the ask bar, above a decision card when one waits (§4.13) | Fixed |
 | ↳ Turns | 22 px between turns (8 px before the first) | With the column |
 | ↳ Hint | 22 px under the last item | With the column |
 | Ask bar | `bottom: 24px + safe-area`, `left/right: max(16px, safe-area)`, 54 px tall | No |
@@ -160,7 +161,8 @@ Acceptance: with two mocked proposals, the first card shows "1 of 2"; tapping Ye
 - **Links:** underlined, `--accent-text`, open in a new tab with `rel="noopener noreferrer"`. Only `https:` URLs become links. Long URLs show the host plus "…".
 - **Length:** the mind's default is ≤ 3 sentences ([COPY](../design/COPY.md)). The **latest** reply is always shown in full. Older replies taller than **14 lines** collapse to 10 lines with a fade and a "Show all" text button (built 2026-10-30; a reply is measured when drawn, so the one being read never folds under the owner, and one unfolded stays open).
 - **Tap a reply** (not a link, a chip or a block) and a row slides out under it: **Copy**, **Shorter**, **Say more**, **Ask about this** (built 2026-10-30, `th/reply/actions.js`, loaded on the first tap; a second tap closes it). Shorter and Say more go at once as the owner's message ("Shorter, please.", "Say more about that.") answering that reply (`reply_to`); Ask about this puts "About: …" over the ask bar with ✕, and the next message answers it.
-- **Follow-ups:** a reply may offer up to two short next asks in `meta.followups` (≤ 40 characters), drawn as outline pills under it in the newest turn only; a tap sends the words as the owner's message answering that reply.
+- **Follow-ups:** a reply may offer up to two short next asks in `meta.followups` (≤ 40 characters), drawn as outline pills under the newest reply only, while its turn is the last (a third is never shown); a tap sends the words as the owner's message answering that reply.
+- **A choice** (built 2026-11-02): when the mind asks the owner to pick, a `choice` block in `meta.blocks` (`{"type":"choice","options":["Calm","Upbeat"]}`, 2 to 4 options of ≤ 40 characters; `shared/contract` `ChoiceBlock`, `CHOICE_LIMITS`) is drawn as filled accent pills under the reply, never as a block. A tap sends the option's words as the owner's own message answering that reply (`reply_to`), so the mind decides from the owner's words and the Worker does nothing special. Like follow-ups, it shows under the newest reply only, and follow-ups don't show beside it. The mind finds it in `th help say`.
 - **The time over a turn:** a turn that starts the day or comes an hour or more after the one before carries its time (`09:40`, Inter 11.5, `--ink-3`), centred above it.
 
 ### 4.4 A reply's life
@@ -169,9 +171,10 @@ Acceptance: with two mocked proposals, the first card shows "1 of 2"; tapping Ye
 |---|---|---|
 | 0 | The owner bubble rises (500 ms). Hint fades out for the session. | starts `think` pulse |
 | 0–1.2 s | Nothing yet (most instant-tier answers land here) | think |
-| ≥ 1.2 s | **Thinking words** (owner, 2026-10-30), Inter 500 14 in `--ink-3` with a light passing across them every 2.6 s, each new line fading in: the mind's own note while it works (`th status working --note "<3-6 words>"`, ROLES.md chat step 1), else words from what the owner asked ("Thinking about your music…", "…guitar…", "…your books…", "…your day…", "Thinking back…", or "Thinking…"), then "Working it out…" and "Putting it together…", 3 s each, the last staying. Reduced motion: no light, no fade (`model.thinking`) | think |
-| ≥ 8 s and the session has not claimed the wake | "Waking up…" (Inter 13, `--ink-3`) | think |
-| ≥ 60 s, still unclaimed | "Still waking. This can take a minute." | think |
+| at once, once the mind gives a title | **The working card** docks above the bar (§4.13) with the mind's title, its live line and chips. (Until 2026-11-02 the slot under the turn showed rotating thinking words here: "Thinking about your music…", "Working it out…", "Putting it together…".) | think |
+| ≥ 1.5 s, the mind live | The working card, titled with the mind's note, else words from what the owner asked ("Thinking about your music", "…guitar", "…your books", "…your day", "Thinking back", or "Thinking"; `model.topic`) | think |
+| ≥ 3 s, the mind not live yet | The working card says **Waking up**, its dot pulsing, until the mind's own title replaces it | think |
+| ≥ 60 s, still unclaimed | The card's line: "This can take a minute." | think |
 | 240 s, still unclaimed | The Worker posts a system line: "The mind isn't waking (likely a usage limit or an outage). I'll answer when it's back." While that line stands in the thread with no reply after it, the status chip stays hidden: home never says the same thing twice. The chip's *Can't wake just now* shows when the mind can't wake and the thread doesn't say so (opening home during the back-off, §2.1). | error (§7) |
 | Reply arrives | Text reveals (§4.4.1); then any action chip fades in (400 ms) | back to calm |
 
@@ -179,7 +182,7 @@ The wake timings come from the mind's loop: the page fires a pre-warm on the fir
 
 **Reveal (built 2026-10-31):** a new reply's words fade up one after another, at most 1.2 s in all, the text whole for a screen reader (`th/chat/view.js` `words()`); a message just sent rises out of the ask bar into its place. Before: the reply is delivered whole (the mind posts complete messages; there is no token streaming). The client reveals it at **160 characters per second**, capped at **1.2 s** total (longer replies reveal faster), then shows it all. Built time-based (a CSS animation of `--reveal-ms`), on an ease-out curve (2026-10-30) so the first lines come quickly and the end settles. Reduced motion: no reveal. A screen reader gets the whole reply at once (`aria-live="polite"` on the turns list, text set in one go, the visual reveal done with a clip mask, not by changing the text).
 
-**Stop (built, P2).** While the mind works on an answer (presence `working`), the reply slot carries a quiet **Stop** text button (Inter 13, accent, 44 px hit area) beside the "…". A tap sends `POST /v1/mind/stop`; the slot reads "Stopping…" until the mind's reply ("Stopped. Done: … Not done: …", [BEHAVIOR.md](../mind/BEHAVIOR.md)). Stop ends the work, not the session. The ask bar does not change.
+**Stop (built, P2; on the working card since 2026-11-02).** While the mind works on an answer (presence `working`), the working card carries a quiet **Stop** text button (Inter 600 13, accent, 44 px hit area) at the end of its title line. A tap sends `POST /v1/mind/stop`; it reads "Stopping…" until the mind's reply ("Stopped. Done: … Not done: …", [BEHAVIOR.md](../mind/BEHAVIOR.md)), which folds the card. Stop ends the work, not the session. The ask bar does not change.
 
 **Not connected yet (built, P2).** Until the owner connects the mind-chat task (SETUP.md K), the reply slot reads "Saved. I'll answer once I'm connected." instead of the waking lines, and the edge stays calm; messages wait and are answered once a session runs.
 
@@ -255,10 +258,32 @@ Acceptance: with a mocked clock, a thread with its last message at 03:30 rolls a
 
 Built 2026-11-01 (NEXT-BATCH.md part 8; `th/record/record.js`; the Worker's rules in [MEMORY.md §6.1](../mind/MEMORY.md)). A conversation the mind answers but never remembers, gone 7 days after its last message. The owner starts one from the + sheet's **Off the record**, or by saying "off the record" (also "go off the record"; "Off the record: <words>" starts it and leaves the words in the bar to send there, so they never go on the record), a phone command (§6.3).
 
-- Home shows that conversation in place of today's: a quiet line at its top, an `eye-slash` and **Off the record · gone in 7 days** (Inter 12.5, `--ink-3`) with **End** (accent, 44 px); the bar reads *Off the record*. Messages go to it by its id; the mind's answer lands in it; Stop, the reply slot and the thinking words work as on today's.
+- Home shows that conversation in place of today's: a quiet line at its top, an `eye-slash` and **Off the record · gone in 7 days** (Inter 12.5, `--ink-3`) with **End** (accent, 44 px); the bar reads *Off the record*. Messages go to it by its id; the mind's answer lands in it; Stop and the working card work as on today's.
 - **End**, "back on the record" (or "on the record") returns to today; so does the conversation's own end (deleted, or its time up), with "That conversation off the record is gone."
 - This phone keeps only which conversation it is in (`th.p.otr`, wiped at sign-out); it never caches its messages, and the mind's home lines and the catch-up line stay with today's.
 - In the menu it is a row under Now tagged **Off the record** (the date as its title); opened, its card reads "Off the record" and "2 messages · gone in 7 days". The menu's search never finds it.
+
+### 4.13 The working card
+
+**Built 2026-11-02** (owner: "Better chat interface. Think intelligent UI. Don't overdo it. Also better live readouts. I wanna see what the Thunderhead is working on while busy."; `th/chat/working.js`, its logic in `th/chat/model.js` `work()`). While a reply is on its way, one card docks above the ask bar in the decision card's place and style (§3; the docking is shared, `th/decide/dock.js`): what the owner acts on, and what is working for them, sits by the bar.
+
+| Part | Content |
+|---|---|
+| Dot | 7 px, `--accent-text` (the mind's blue; gold stays the decision card's). While the mind is waking it pulses softly (opacity and a ring, every 1.4 s; not under reduced motion). |
+| Title | One line, Inter 500 15, `--ink`, ellipsis: the mind's own words for what it is doing (`th status working --title`, ≤ 60). Until it gives one: its note, else words from what the owner asked (§4.4), or **Waking up** while the mind isn't live. |
+| Live line | One line under the title, Inter 13, `--ink-2`: the mind's note (`--note`, ≤ 140), which moves on as it reports (a Bash call's description becomes it, `mind/hooks/post-tool.mjs`), while the title and chips stand. "This can take a minute." after a minute of waking. |
+| Chips | Up to 6 small pills (Inter 500 12, `--tint`, a 14 px Phosphor glyph) for what the mind draws on (`--using kind:id:label`), showing the label only (≤ 40, capped by the Worker). A **fact** (`brain`) opens Settings › Memory at it (`th:open` with `{name:'memory', focus:<id>}`); a **song** (`music-notes-simple`) opens Music at its path; a **page** (`book-open-text`, a `book:` cite ref or a path in Study) opens Study there; a **source** (`newspaper`) says only its host, in a toast; an **app** (the app's own glyph) opens it. |
+| Stop | At the end of the title line (§4.4). |
+
+- **When:** only while a message the Worker has waits for a reply: at once once the mind gives a title or chips for it; 1.5 s after it was sent to a live mind (`working`, `listening`); 3 s after it was sent to one still waking ("Waking up"). Never for a mind not connected (the slot's "Saved. I'll answer once I'm connected." stays), nor one that can't wake (the Worker's line says so).
+- **Never stale:** a title or chips count only when given after the first owner message the mind hasn't answered yet (`title_at`), and a note only when reported after it; what the mind said for an earlier answer is not shown for this one.
+- **Never raw:** a title or note that looks like a command, a flag or a file path is not shown (`model.plain`); a chip never shows anything but its label. No tool names, no file paths, no avatars, no typing theatre.
+- **A decision waiting** comes first: the working card sits above the decision card, folded to its title line (with Stop), and opens again once the decision is answered.
+- **The reply** folds the card up into it: height, padding and opacity to 0 over `--d-base` on `--settle`, while the conversation slides down into its place (`--dock-h` follows the card's height each frame).
+- **Only one card.** Gone from an older conversation's view (`.pastview`).
+- **The data:** `POST /v1/mind/status` takes, besides `state` and `note`, an optional `title` (≤ 60) and `using` (≤ 6 of `{kind: fact|song|page|source|app, id?, label ≤ 40}`; a source's id is its https URL; an id has no spaces), checked by the Worker (zod). While the session stays `working`, a report that leaves out the title or chips keeps them; another state drops them. The Worker takes one report per 3 s from a session (a `working` or `listening` report inside that, in the same state, is answered 204 and changes nothing the phone sees; the lease and the acknowledgement still happen), and the presence reaches the phone as the existing `mind_status` change (`mind.status`, with `title`, `using`, `title_at`). `th status working --title "…" --note "…" --using fact:<id>:<label>` sets them (it waits out the 3 s for a title or chips); the old note-only form is unchanged. ROLES.md chat step 1 asks for a title and chips when the work takes more than a moment.
+
+Acceptance (tests/chat-browser, chat-logic, backend mind): the card appears on a `mind_status` report with its title, line and chips, docked 16 px from each side just above the bar with the conversation ending above it; its line moves on while the title stands; a fact chip asks for Memory at that fact and a source chip toasts only its host; the reply folds it away and `--dock-h` returns to 0; Stop asks once and reads "Stopping…"; a cold mind gets "Waking up" at 3 s with a pulsing dot, replaced by its own title; under a decision it shows its title line only, above the decision card; the Worker refuses a title over 60, a seventh chip, a label over 40, an unknown kind, a source that isn't https, and keeps the first of two reports inside 3 s.
 
 ## 5. Edge cases in the conversation
 
@@ -306,7 +331,7 @@ Closing: tap `+` again, tap anywhere outside, pick an item, Back, or Escape. Bef
 - Send by the send button, the keyboard's Send/Enter key, or Ctrl/Cmd+Enter on a hardware keyboard (Shift+Enter is a new line).
 - Whitespace-only input never sends.
 - Limit: **8,000 characters** [proposal]. From 7,500 a counter "500 left" shows at the bar's top-right; over the limit send is disabled and the toast reads "Too long to send. Try sending it as a file."
-- On send: the input clears, the bubble appears at once (optimistic), haptic none (typing is not a gesture).
+- On send: the input clears, the bubble appears at once (optimistic), haptic none (typing is not a gesture). **The first moment** (built 2026-11-02, `th/chat/working.js`): a 2 px accent line just under the ask bar (8 px below it, inset 26 px) fills to 70 % while the message goes, to 100 % once the Worker has it (the send's answer), then fades; it fades unfilled when the message waits offline or fails. Not shown for a message queued offline.
 - **The draft** (built 2026-10-30): what is in the bar is kept on this phone as it is typed (`th.p.draft`), comes back after the app is closed or reloaded, and goes once sent; signing out clears it with the rest of `th.p.*`.
 - **What a command will do** (built 2026-10-30): while the text is an order this phone carries out itself, an accent line over the bar says what will happen before it is sent: "Quiet until 06:30. No notifications until then." or "Ends quiet now." Requests the mind decides (play, remind) get no promise here.
 - Pre-warm: the first keystroke after ≥ 90 s of no typing tells the Worker the owner is typing, so the mind can start waking ([RUNTIME](../mind/RUNTIME.md)). No text is sent with it.
