@@ -11,6 +11,10 @@ export const FACT_KINDS = {
   goal: { half_life_days: 90, cap: 10 },
   preference: { half_life_days: 180, cap: 25 },
   routine: { half_life_days: 60, cap: 15 },
+  // What the Worker counted the owner doing at a time (the senses' `routines`, MEMORY.md §4): the
+  // night writes it `observed`, citing the routine's `rollup:` ref, and confirms it while the count
+  // holds; one the count no longer shows fades over the window's own four weeks.
+  habit: { half_life_days: 28, cap: 10 },
   fact: { half_life_days: 5 * 365, cap: 30 },
   rule: { half_life_days: null, cap: null },
 } as const;

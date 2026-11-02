@@ -62,12 +62,12 @@ pushes.
      owner didn't title it. `kept_owner_edit`: the owner wrote that note; leave it.
    - 3 Loose ends: `th thread done <id>` for each one the day finished, `th thread add "<what>"
      --evidence <message ids>` for each commitment in the messages.
-   - 4 Facts: candidates from the owner's messages (`user`) and the counts (`observed`, 10+
-     times). Check each with `th recall --kind facts "<subject>"`, then add, confirm, supersede
-     or leave it, all in one file: `th facts --batch <file> --night`. Over 50 ops: send parts
-     (`--part 2`, …), saving your place after each with `th night step 4 cursor
-     "<part>:<last message id>"`; a cursor you are given: go on after it with the next part.
-     Exit 7 names a part sent before with other ops: send only what is missing, as the next part.
+   - 4 Facts: candidates from the owner's messages (`user`) and `th day`'s `routines` (each
+     an `observed` `habit`, its `ref` the evidence). Check each with `th recall --kind facts
+     "<subject>"`, then add, confirm, supersede or leave it, all in one file:
+     `th facts --batch <file> --night`. Over 50 ops: send parts (`--part 2`, …), saving your
+     place after each with `th night step 4 cursor "<part>:<last message id>"`; given a cursor,
+     go on after it. Exit 7 names a part sent before with other ops: send only what is missing.
    - 7 Arrange tomorrow: `th podcasts new` (line.4), 0-3 lines (`th surface home
      line.<1-3> … --ref app:<id>`) and tiles (`th surface briefing study|built|note.<n> --kind
      tile`), each with its why (the page has weather, reminders, holidays).

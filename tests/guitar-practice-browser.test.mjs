@@ -111,8 +111,19 @@ test('the ladder: opens on the worst bars, asks after each pass, steps up after 
   const session = senses.find((e) => e.type === 'guitar.session');
   assert.equal(session.ref, `tab:${SONG}`);
   assert.deepEqual(session.data.sections, ['4-4']);
+  assert.equal(session.data.bpm, 67, 'the best clean tempo the session reached');
   assert.ok(session.data.seconds > 5 && session.data.played_seconds >= 5, JSON.stringify(session.data));
+  assert.deepEqual(senses.filter((e) => e.type === 'guitar.piece_opened').map((e) => [e.ref, e.data]), [[`tab:${SONG}`, undefined]], 'the piece opened, once');
   assert.ok(JSON.stringify(senses).length < 2000, 'numbers and bar ranges only');
+
+  // With Guitar's senses switched off (Settings › Privacy, as this phone last saw it), opening the
+  // piece again sends nothing.
+  const before = await page.evaluate(() => JSON.parse(localStorage.getItem('th.p.senses') || '[]').length);
+  await page.evaluate(() => localStorage.setItem('th.p.settings', JSON.stringify({ 'privacy.senses.guitar': false })));
+  await page.goto(`${base}/guitar/#play=${encodeURIComponent(SONG)}`);
+  await page.waitForFunction(() => document.querySelector('.tp-play') && !document.querySelector('.tp-play').disabled, null, { timeout: 30_000 });
+  await page.waitForTimeout(500);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('th.p.senses') || '[]').length), before, 'nothing kept to send');
   assert.deepEqual(errors, []);
   await context.close();
 });

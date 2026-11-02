@@ -2,9 +2,11 @@
 // named queries, never SQL from outside. `check` runs in the route (its parameters checked, a 422
 // naming the bad one); `run` runs in the Senses object with what `check` returned. A sensitive event
 // (sensitivity 1) is named by its type and time only: its ref and data stay out of every answer.
-import { SENSE_LIMITS, SENSE_TYPE } from '../../../../shared/contract/senses.ts';
+import { SENSE_APPS, SENSE_LIMITS, SENSE_TYPE, SENSE_TYPES } from '../../../../shared/contract/senses.ts';
 import { ApiError } from '../../http/errors';
 import type { Db } from '../../objects/base';
+import { logicalDay } from '../conversation/day';
+import { routines, windowDays } from './routines';
 import * as store from './store';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -79,6 +81,31 @@ const QUERIES: Record<string, { check: (p: P, now: number) => P; run: (db: Db, a
   day_summary: {
     check: (p) => ({ day: day(p.day, 'day') }),
     run: (db, a) => store.summary(db, a.day as string),
+  },
+  /** When the owner does things (routines.ts): of one type, one app's types, or every type, over the
+   * 28 logical days that end on `to` (today's by default), in the owner's zone (`tz`, which the
+   * route adds). Weekdays, hours and counts only, whatever an event's sensitivity. */
+  routines: {
+    check(p) {
+      if (p.type !== undefined && p.app !== undefined) bad('app', 'a type or an app, not both');
+      const app = p.app ?? null;
+      if (app !== null && !(SENSE_APPS as readonly unknown[]).includes(app))
+        bad('app', `one of ${SENSE_APPS.join(', ')}`);
+      const types =
+        p.type !== undefined
+          ? [type(p.type, 'type')]
+          : app !== null
+            ? Object.entries(SENSE_TYPES)
+                .filter(([, s]) => s.app === app)
+                .map(([k]) => k)
+            : null;
+      return { types, to: p.to === undefined ? null : day(p.to, 'to') };
+    },
+    run(db, a) {
+      const tz = typeof a.tz === 'string' && a.tz ? a.tz : 'UTC';
+      const to = (a.to as string | null) ?? logicalDay(Date.now(), tz);
+      return routines(store.quarterCounts(db, windowDays(to), a.types as string[] | null), to, tz);
+    },
   },
 };
 export const QUERY_NAMES = Object.keys(QUERIES);
