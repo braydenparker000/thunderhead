@@ -93,7 +93,7 @@ const budgets = [
   ['total bytes', total, 40_000_000],
   ['home JS bytes', sum(/^(apps\/home|ui)\/.*\.js$/), 120_000],
   // th/ modules the shell loads at boot, and the conversation it loads after the first paint.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 64_000],
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 72_099], // T1b: +6,603 motion.js +1,496 type.js.
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.

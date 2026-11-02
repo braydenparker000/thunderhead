@@ -17,10 +17,15 @@ const ROUTES = { '/settings/password/': 'account', '/settings/agents/': 'agents'
 // The service worker works with or without sign-in.
 startUpdates();
 
+const feel = new URLSearchParams(location.search).get('feel');
+if (feel === 'off' && window.top === window.self) { try { localStorage.removeItem('th.lab.feel'); } catch {} }
+
 // A framed copy does nothing at all (frame guard, SECURITY.md §4.3).
 if (configured && window.top === window.self) {
   if (!(await store.read())) toSignin();
-  else start();
+  else void start().then(() => {
+    if (feel !== null && feel !== 'off') return import('/lab/feel/panel.js').then((m) => m.start());
+  });
 }
 
 async function start() {

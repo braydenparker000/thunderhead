@@ -66,6 +66,8 @@ States: `idle → pressed → (holding | swiping | scrolling | longpress) → id
 
 Owner ruling: hold still on an empty spot for 220 ms → a tight ring of six apps opens around the finger; slide toward one and let go to open it; letting go in the centre cancels. Radius 62 px, 56 px liquid-glass bubbles, 28 px icons. Order clockwise from the top: Music, Guitar, Podcasts, Astra, My Media, Study.
 
+**T1b implementation:** ring radial motion uses `springs.ring`, selection/fly-out uses `springs.pop`, the hub tracks directly, and cleanup waits for all pets to rest; open/choose/commit haptics are `[8]`/`[4]`/`[10]` (the original timeline below is historical).
+
 ### 3.1 Geometry
 
 | Quantity | Value | Source |
@@ -111,6 +113,8 @@ It **does** open while a filed conversation is shown read-only on home (the ring
 ## 4. Horizontal swipes: briefing and menu
 
 Owner ruling: swipe right → the Briefing; swipe left → a menu on the right side.
+
+**T1b implementation:** one `springs.page` animator per axis carries release velocity and supports takeover at the current position; the thresholds and rubber band stay, with the former page/flick clock expressed as a time scale.
 
 ### 4.1 Positions
 
@@ -214,6 +218,8 @@ Implementation rules (`lib/router.js`):
 4. A cold start at a deep link (`/music/`) has no home entry below it. Back from that app's root goes to home (`navigation.navigate('/', {history: 'replace'})`), and the next Back leaves.
 
 Acceptance: test G5 below drives each row with `page.goBack()` and asserts the expected layer state.
+
+**T1b island implementation:** one `springs.island` scalar interpolates clip insets/radius, swipe-down passes its vertical velocity, and reversing the morph carries its current state; pill/fade durations come from the shared tokens.
 
 ## 8. Haptics
 

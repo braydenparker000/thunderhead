@@ -32,10 +32,10 @@ const drag = async (page, x0, x1, y = 300) => {
   await page.mouse.move(x0, y); await page.mouse.down();
   await page.mouse.move(x0 + (x1 - x0) * 0.3, y, { steps: 4 }); await page.mouse.move(x1, y, { steps: 8 });
   await page.mouse.up();
-  // The page settles with a transition whose length follows the flick: wait for it to end rather
-  // than a fixed time, which a busy machine outruns.
+  // The engine restores the page's stylesheet transition once both progress axes rest.
+  // Wait for that completion as well as any remaining decorative CSS transitions.
   await page.waitForTimeout(50);
-  await page.waitForFunction(() => !document.getAnimations().some(a => a instanceof CSSTransition && a.playState === 'running'), null, { timeout: 3000 });
+  await page.waitForFunction(() => ['home', 'brief', 'side', 'dim'].every(id => document.getElementById(id).style.transition !== 'none') && !document.getAnimations().some(a => a instanceof CSSTransition && a.playState === 'running'), null, { timeout: 3000 });
 };
 // `+ 0` turns -0 into 0.
 const left = (page, sel) => page.$eval(sel, el => Math.round(el.getBoundingClientRect().left) + 0);
@@ -125,6 +125,58 @@ test('swipe right opens the briefing, swipe left opens the menu', async () => {
   assert.ok(await left(page, '#side') < 390, 'menu in view');
   await page.click('#dim', { position: { x: 20, y: 300 } }); await page.waitForTimeout(550);
   assert.ok(await left(page, '#side') >= 390, 'menu closed');
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('springs preserve drag reversals, cross-axis navigation, regrabs and a reopened ring', async () => {
+  const { page, errors } = await open();
+  const rest = () => page.waitForFunction(() => ['home', 'brief', 'side'].every(id => document.getElementById(id).style.transition !== 'none'));
+  await page.evaluate(() => {
+    window.dragPoint = (type, x) => document.querySelector('#app').dispatchEvent(new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 7, clientX: x, clientY: 350 }));
+    window.dragPoint('pointerdown', 200);
+    window.dragPoint('pointermove', 190);
+    window.dragPoint('pointermove', 340);
+    window.dragPoint('pointerup', 340);
+  });
+  await rest();
+  assert.equal(await left(page, '#brief'), 0, 'a home drag can reverse across its starting point');
+  const jump = await page.evaluate(() => new Promise(resolve => {
+    const home = document.querySelector('#home');
+    let last = home.getBoundingClientRect().left, biggest = 0;
+    document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' }));
+    const sample = () => {
+      const x = home.getBoundingClientRect().left;
+      biggest = Math.max(biggest, Math.abs(x - last)); last = x;
+      if (home.style.transition === 'none') requestAnimationFrame(sample); else resolve(biggest);
+    };
+    requestAnimationFrame(sample);
+  }));
+  assert.ok(jump < 120, `both progress axes compose without a full-page jump (${jump}px)`);
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'brief' })));
+  await page.waitForFunction(() => { const x = document.querySelector('#brief').getBoundingClientRect().left; return x > -250 && x < -100; });
+  const regrab = await page.evaluate(() => {
+    const brief = document.querySelector('#brief');
+    const before = brief.getBoundingClientRect().left;
+    window.dragPoint('pointerdown', 200);
+    const held = brief.getBoundingClientRect().left;
+    window.dragPoint('pointermove', 210);
+    const moved = brief.getBoundingClientRect().left;
+    window.dragPoint('pointerup', 210);
+    return { before, held, moved };
+  });
+  assert.ok(Math.abs(regrab.held - regrab.before) < .01, 'taking over keeps the current position');
+  assert.ok(Math.abs(regrab.moved - regrab.held - 10) < .1, 'the next drag is anchored to that position');
+  await rest();
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'home' })));
+  await rest();
+  await page.evaluate(() => document.querySelector('[data-skip="apps"]').click());
+  await page.waitForTimeout(100);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => document.querySelector('[data-skip="apps"]').click());
+  await page.waitForTimeout(800);
+  assert.ok(await page.$eval('#ring', r => r.classList.contains('show')), 'an old close cannot hide a reopened ring');
+  assert.ok(await page.$eval('#ring .pet', p => Math.abs(new DOMMatrix(getComputedStyle(p).transform).m42 + 62) < .1));
   assert.deepEqual(errors, []);
   await page.close();
 });

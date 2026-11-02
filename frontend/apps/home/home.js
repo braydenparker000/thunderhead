@@ -3,6 +3,7 @@
 import { apps } from '/th/registry/apps.js';
 import { from as launchFrom, launch } from '/ui/launch.js';
 import { startPinned } from './pinned.js';
+import { animator, springs, haptic, motionReduced } from '/th/motion.js';
 
 // Music and Podcasts open as a layer inside home and keep playing behind the chat (th/island); the
 // others load in their place. The reveal starts at once; the layer's code loads while it grows.
@@ -15,7 +16,6 @@ function openFromRing(id,color,to){
   const $=s=>document.querySelector(s), root=document.documentElement;
   const edge=$('#edge'), toastEl=$('#toast'); let tt;
   const toast=m=>{toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>toastEl.classList.remove('show'),1700)};
-  const buzz=p=>{try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}};
   try{$('#date').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}catch(e){}
 
   // Day or night: Auto follows the clock, Day or Night sticks (theme.js applied it before the first
@@ -40,7 +40,7 @@ function openFromRing(id,color,to){
   const learn=k=>{ learnt[k]=(learnt[k]||0)+1; try{ localStorage.setItem(HINT,JSON.stringify(learnt)) }catch(e){} if(known()) hint.classList.add('gone') };
   if(known()) hint.classList.add('gone');
   function menu(on){ opts.classList.toggle('show',on); $('#home').classList.toggle('menuOpen',on); ask.classList.toggle('menu',on); plus.setAttribute('aria-expanded',on) }
-  plus.addEventListener('click',()=>{ menu(!opts.classList.contains('show')); buzz(6) });
+  plus.addEventListener('click',()=>{ menu(!opts.classList.contains('show')); haptic('open') });
   opts.addEventListener('click',e=>{ if(e.target.closest('button')) menu(false) });
   document.addEventListener('pointerdown',e=>{ if(opts.classList.contains('show')&&!e.target.closest('#opts,#plus')) menu(false) });
 
@@ -97,32 +97,61 @@ function openFromRing(id,color,to){
   const ring=$('#ring'), scrim=$('#scrim'), lbl=$('#lbl'), hub=$('#hub'), press=$('#press'), app=$('#app'), R=62;
   const pets=APPS.map(([n,svg,c],i)=>{const p=document.createElement('div');p.className='pet';p.innerHTML=svg;p.title=n;p.style.setProperty('--c',c);p.style.setProperty('--i',i);ring.appendChild(p);return p});
   let start=null, open=false, dir=-1, holdT=null;
+  let ringRun=0, showing=0;
+  // Keep the existing opacity transition; transforms belong to the engine while it moves.
+  function opacityOnly(el){
+    el.style.transition='';
+    const s=getComputedStyle(el), list=v=>v.split(/,(?![^()]*\))/).map(x=>x.trim());
+    const i=list(s.transitionProperty).indexOf('opacity');
+    const part=v=>{const a=list(v);return a[i%a.length]};
+    el.style.transition=i<0?'none':`opacity ${part(s.transitionDuration)} ${part(s.transitionTimingFunction)} ${part(s.transitionDelay)}`;
+  }
+  const petMotion=pets.map((p,i)=>{
+    const draw=()=>{p.style.transform=`translate(${R*Math.sin(i*SEC)*radial.value}px,${-R*Math.cos(i*SEC)*radial.value}px) scale(${.2+.8*radial.value+choice.value})`};
+    const radial=animator(draw,{unit:'scalar'}), choice=animator(draw,{unit:'scalar'});
+    return {radial,choice};
+  });
+  const petsRest=()=>Promise.all(petMotion.flatMap(m=>[m.radial.whenResting(),m.choice.whenResting()]));
+  function releasePetStyles(run){ petsRest().then(()=>{if(run===ringRun)pets.forEach(p=>{void getComputedStyle(p).transform;p.style.transition=''})}) }
+  function showRing(){ ++ringRun; ++showing; pets.forEach(p=>{p.classList.remove('go','on');p.style.opacity=''}); ring.classList.add('show'); scrim.classList.add('show') }
+  // Keep the existing opening frame; a choice made before it arrives must survive it.
+  function openFan(keyboard=false){ const run=showing, begin=()=>{if(open&&run===showing){fan();if(keyboard&&dir<0)setDir(0)}}; if(motionReduced())begin();else requestAnimationFrame(begin) }
   const blocked=el=>el.closest('button,input,textarea,form,.chip,.card,.note,.you,.reply,.opts');
   function place(x,y){ const r=app.getBoundingClientRect(); const m=R+30;
     const cx=Math.min(Math.max(x-r.left,m),r.width-m), cy=Math.min(Math.max(y-r.top,m+30),r.height-m-40);
     ring.style.left=cx+'px'; ring.style.top=cy+'px';
     lbl.style.top=(R+30)+'px'; return {cx:cx+r.left,cy:cy+r.top} }
   // Out on the spring; the chosen disc swells a little and the others ease back (transform only: the compositor's).
-  const at=(i,k)=>`translate(${R*Math.sin(i*SEC)}px,${-R*Math.cos(i*SEC)}px) scale(${k})`;
-  function fan(on){ pets.forEach((p,i)=>{ p.style.transform=on?at(i,1):'translate(0,0) scale(.2)' }) }
-  function setDir(d){ if(d===dir) return; dir=d; pets.forEach((p,i)=>{ p.classList.toggle('on',i===d); p.style.transform=at(i,d<0?1:i===d?1.12:.94) }); ring.classList.toggle('active',d>=0);
+  function fan(){ pets.forEach((p,i)=>{opacityOnly(p);petMotion[i].radial.to(1,{spring:springs.ring});petMotion[i].choice.to(dir<0?0:i===dir?.12:-.06,{spring:springs.pop})}); releasePetStyles(ringRun) }
+  function setDir(d){ if(d===dir) return; dir=d; const run=++ringRun; ring.classList.toggle('active',d>=0); pets.forEach((p,i)=>{ p.classList.toggle('on',i===d); opacityOnly(p); petMotion[i].choice.to(d<0?0:i===d?.12:-.06,{spring:springs.pop}) }); releasePetStyles(run);
     // The name glides in rather than popping: the label keeps its place and its text crossfades up.
-    if(d>=0){ lbl.textContent=APPS[d][0]; lbl.style.setProperty('--c',APPS[d][2]); lbl.classList.remove('swap'); void lbl.offsetWidth; lbl.classList.add('swap') } lbl.classList.toggle('show',d>=0); if(d>=0) buzz(8) }
+    if(d>=0){ lbl.textContent=APPS[d][0]; lbl.style.setProperty('--c',APPS[d][2]); lbl.classList.remove('swap'); void lbl.offsetWidth; lbl.classList.add('swap') } lbl.classList.toggle('show',d>=0); if(d>=0) haptic('choose') }
   function dirOf(dx,dy){ const dist=Math.hypot(dx,dy); if(dist<12) return -1; if(dir<0&&dist<18) return -1;
     const a=(Math.atan2(dx,-dy)/SEC+N)%N, n=Math.round(a)%N;
     if(dir>=0&&n!==dir){ const off=Math.abs(((a-dir+N*1.5)%N)-N/2); if(off<HOLD) return dir } // stays put until ~7 degrees past the boundary
     return n }
   const home=$('#home'), brief=$('#brief'), side=$('#side'), dim=$('#dim');
   let view='home', swipe=null, swiped=false;
-  function setPos(b,s,anim,ms){ const W=app.clientWidth, S=side.offsetWidth;
-    [home,brief,side,dim].forEach(el=>{ el.style.transition=anim?'':'none'; el.style.transitionDuration=anim&&ms?ms+'ms':'' });
-    brief.style.transform=`translateX(${(b-1)*W}px)`; home.style.transform=s>0?`translateX(${-s*S*.12}px) scale(${1-.07*Math.min(1,s)})`:`translateX(${b*W}px)`; home.style.borderRadius=s>0?`${Math.round(30*Math.min(1,s))}px`:'';
+  let pageRun=0;
+  const pages=[home,brief,side,dim], savedTransitions=pages.map(el=>el.style.transition);
+  const paint=()=>setPos(briefMotion.value,sideMotion.value);
+  const briefMotion=animator(paint,{unit:'scalar'}), sideMotion=animator(paint,{unit:'scalar'});
+  function takePages(){ ++pageRun; pages.forEach(el=>el.style.transition='none') }
+  function setPos(b,s){ const W=app.clientWidth, S=side.offsetWidth;
+    brief.style.transform=`translateX(${(b-1)*W}px)`; home.style.transform=s>0?`translateX(${b*W-s*S*.12}px) scale(${1-.07*Math.min(1,s)})`:`translateX(${b*W}px)`; home.style.borderRadius=s>0?`${Math.round(30*Math.min(1,s))}px`:'';
     side.style.transform=`translateX(${(1-s)*100}%)`; dim.style.opacity=Math.min(1,s); side.classList.toggle('open',s>0); dim.style.pointerEvents=s>.5?'auto':'none' }
   // The menu's rows ripple in each time it opens; the Briefing's tiles cascade (DESIGN-SYSTEM.md §8).
   function enter(el){ [...el.querySelectorAll(':scope .sidescroll>:not(#convos), :scope #convos>*, :scope .grid>*')].forEach((c,i)=>c.style.setProperty('--k',String(Math.min(i,10)))); el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); clearTimeout(el._enter); el._enter=setTimeout(()=>el.classList.remove('enter'),900) }
   // Only the place in view takes focus or taps; the others are inert (audit fix 5).
   function inertAll(){ home.inert=view!=='home'; brief.inert=view!=='brief'; side.inert=view!=='side' }
-  function go(v,ms){ const was=view; view=v; setPos(v==='brief'?1:0,v==='side'?1:0,true,ms); inertAll(); if(v!=='home') menu(false); if(v!==was&&v==='side') enter(side); if(v!==was&&v==='brief') enter(brief) }
+  function go(v,ms,velocity={}){ const was=view; view=v; takePages(); const run=pageRun;
+    // --settle describes 410 ms of this spring; the page used to play it over --d-page.
+    const timeScale=(ms??(parseFloat(getComputedStyle(root).getPropertyValue('--d-page'))||460))/410;
+    briefMotion.to(v==='brief'?1:0,{spring:springs.page,velocity:velocity.b,timeScale});
+    sideMotion.to(v==='side'?1:0,{spring:springs.page,velocity:velocity.s,timeScale});
+    Promise.all([briefMotion.whenResting(),sideMotion.whenResting()]).then(()=>{if(run===pageRun)pages.forEach((el,i)=>{void getComputedStyle(el).transform;el.style.transition=savedTransitions[i]})});
+    inertAll(); if(v!=='home') menu(false); if(v!==was&&v==='side') enter(side); if(v!==was&&v==='brief') enter(brief) }
+  function resumePages(){ if(start?.paused){start.paused=false;go(view,undefined,{b:start.bv,s:start.sv})} }
   inertAll();
   // Every gesture has a button (GESTURES.md §9): Apps, Briefing and Menu, first in the focus order and
   // shown only when focused; the Briefing's Back home; Escape returns home. The ring by keyboard:
@@ -135,48 +164,52 @@ function openFromRing(id,color,to){
   document.addEventListener('th:go',e=>go(e.detail)); // settings pages return to the open menu
   app.addEventListener('click',e=>{ if(swiped){ e.stopPropagation(); e.preventDefault() } },true);
   app.addEventListener('pointerdown',e=>{ if(!e.isPrimary||e.target.closest('input,textarea')) return;
-    start={x:e.clientX,y:e.clientY,id:e.pointerId,t:performance.now(),el:e.target}; swipe=null;
+    start={x:e.clientX,y:e.clientY,id:e.pointerId,t:performance.now(),el:e.target,b:briefMotion.value,s:sideMotion.value,bv:briefMotion.velocity,sv:sideMotion.velocity,paused:!briefMotion.resting||!sideMotion.resting}; swipe=null;
+    if(start.paused){takePages();briefMotion.stop();sideMotion.stop()}
     if(view!=='home'||blocked(e.target)||opts.classList.contains('show')) return;
     const r=app.getBoundingClientRect(); press.style.left=(e.clientX-r.left)+'px'; press.style.top=(e.clientY-r.top)+'px'; press.classList.remove('on'); void press.offsetWidth; press.classList.add('on');
-    holdT=setTimeout(()=>{ press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); learn('ring'); ring.classList.remove('closing'); ring.classList.add('show'); scrim.classList.add('show'); requestAnimationFrame(()=>fan(true)); buzz(6) },220) });
+    holdT=setTimeout(()=>{ resumePages(); press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); learn('ring'); showRing(); openFan(); haptic('open') },220) });
   window.addEventListener('pointermove',e=>{ if(!start||e.pointerId!==start.id) return;
     if(!open){ const mx=e.clientX-start.x, my=e.clientY-start.y, d=Math.hypot(mx,my);
       // Sideways is ours from 6 px, before Chrome's own slop (8 dp) can hand the touch to a scroller;
       // anything else is the scroller's once it passes the 10 px hold slop.
       // A leftward drag that starts on a conversation row is the row's own (its Pin and Summary).
-      if(!swipe&&view==='side'&&mx<0&&d>=6&&start.el.closest&&start.el.closest('#convos .row.thr')){ start=null; return }
-      if(!swipe){ if(d>=6&&Math.abs(mx)>Math.abs(my)){ clearTimeout(holdT); press.classList.remove('on'); swipe={from:view,b:view==='brief'?1:0,s:view==='side'?1:0,v:[]} }
-        else { if(d>10){ clearTimeout(holdT); press.classList.remove('on'); start=null } return } }
+      if(!swipe&&view==='side'&&mx<0&&d>=6&&start.el.closest&&start.el.closest('#convos .row.thr')){ resumePages(); start=null; return }
+      if(!swipe){ if(d>=6&&Math.abs(mx)>Math.abs(my)){ clearTimeout(holdT); press.classList.remove('on'); takePages(); swipe={from:view,axis:start.b>0&&(view==='brief'||start.s<=0)?'brief':start.s>0?'side':mx>0?'brief':'side',b:start.b,s:start.s,v:[]} }
+        else { if(d>10){ clearTimeout(holdT); press.classList.remove('on'); resumePages(); start=null } return } }
       e.preventDefault(); swipe.v.push([e.timeStamp,e.clientX]); if(swipe.v.length>8) swipe.v.shift();
       const W=app.clientWidth, S=side.offsetWidth;
       // Past the end a page stretches a little and springs back on release (a rubber band).
       const band=v=>v<=1?Math.max(0,v):1+(v-1)*.22/(1+(v-1)*2);
-      if(swipe.from==='home'){ swipe.b=mx>0?band(mx/W):0; swipe.s=mx<0?band(-mx/S):0 }
-      else if(swipe.from==='brief') swipe.b=band(1+mx/W);
-      else swipe.s=band(1-mx/S);
-      setPos(swipe.b,swipe.s,false); return }
+      if(start.b===0&&start.s===0)swipe.axis=mx>0?'brief':'side';
+      // Anchor a regrab at its rendered value, including an in-flight overshoot.
+      swipe.b=swipe.axis==='brief'?start.b+band(start.b+mx/W)-band(start.b):start.b;
+      swipe.s=swipe.axis==='side'?start.s+band(start.s-mx/S)-band(start.s):start.s;
+      briefMotion.set(swipe.b); sideMotion.set(swipe.s); return }
     e.preventDefault(); const dx=e.clientX-start.x, dy=e.clientY-start.y, d=Math.hypot(dx,dy), k=Math.min(1,R*.55/(d||1));
+    if(!hub.style.transition)opacityOnly(hub);
     hub.style.transform=`translate(${dx*k}px,${dy*k}px)`; setDir(dirOf(dx,dy)) },{passive:false});
   // The finger's speed over its last 100 ms (px/ms, + is rightward); 0 if it stopped before lifting.
   function flick(v,at){ const last=v[v.length-1]; if(!last||at-last[0]>60) return 0; const first=v.find(p=>last[0]-p[0]<=100)||last; return last[0]>first[0]?(last[1]-first[1])/(last[0]-first[0]):0 }
   // A swipe commits at 28% of its travel or a flick of 0.45 px/ms its way (GESTURES.md §4).
   // A flick finishes at the finger's speed (the spring's settle is about 1.8 times the straight run),
   // between 180 and 460 ms; a commit ticks once.
-  function endSwipe(at){ const {from,b,s}=swipe, v=at===undefined?0:flick(swipe.v,at), F=.45; swipe=null; swiped=true; setTimeout(()=>swiped=false,60);
+  function endSwipe(at){ const {from,b,s,axis}=swipe, v=at===undefined?0:flick(swipe.v,at), F=.45; swipe=null; start.paused=false; swiped=true; setTimeout(()=>swiped=false,60);
     const to=from==='home'?(b>0&&(v>F||b>.28&&v>=-F)?'brief':s>0&&(v<-F||s>.28&&v<=F)?'side':'home')
       :from==='brief'?(v<-F||b<.72&&v<=F?'home':'brief'):(v>F||s<.72&&v>=-F?'home':'side');
     const left=to==='brief'||from==='brief'?Math.abs((to==='brief'?1:0)-b)*app.clientWidth:Math.abs((to==='side'?1:0)-s)*side.offsetWidth;
-    go(to,Math.abs(v)>F?Math.round(Math.min(460,Math.max(180,left/Math.abs(v)*1.8))):undefined);
-    if(to!==from){ buzz(5); if(to==='brief'||to==='side') learn(to) } }
+    go(to,Math.abs(v)>F?Math.round(Math.min(460,Math.max(180,left/Math.abs(v)*1.8))):undefined,{b:axis==='brief'?v*1000/app.clientWidth:0,s:axis==='side'?-v*1000/side.offsetWidth:0});
+    if(to!==from){ haptic('commit'); if(to==='brief'||to==='side') learn(to) } }
   function close(commit){ clearTimeout(holdT); press.classList.remove('on');
-    if(open){ const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
-      if(chosen>=0){ const p=pets[chosen], a=chosen*SEC; p.classList.add('go'); p.style.transform=`translate(${R*1.25*Math.sin(a)}px,${-R*1.25*Math.cos(a)}px) scale(1.7)`; buzz([12,40,12]); const to=APPS[chosen][3]; if(to){ const r=p.getBoundingClientRect(); launchFrom(r.left+r.width/2,r.top+r.height/2); openFromRing(apps[chosen].id,APPS[chosen][2],to) } else toast(APPS[chosen][0]+' comes later') }
-      ring.classList.add('closing'); pets.forEach((p,i)=>{ if(i!==chosen) p.style.transform='translate(0,0) scale(.2)' });
-      setTimeout(()=>{ ring.classList.remove('show','closing','active'); pets.forEach(p=>{p.classList.remove('go','on')}); fan(false) },230);
+    if(open){ ++showing; const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
+      const run=++ringRun;
+      if(chosen>=0){ const p=pets[chosen]; p.classList.add('go'); haptic('commit'); const to=APPS[chosen][3]; if(to){ const r=p.getBoundingClientRect(); launchFrom(r.left+r.width/2,r.top+r.height/2); openFromRing(apps[chosen].id,APPS[chosen][2],to) } else toast(APPS[chosen][0]+' comes later') }
+      pets.forEach((p,i)=>{opacityOnly(p);p.style.opacity='0';const m=petMotion[i];m.radial.to(i===chosen?1.25:0,{spring:i===chosen?springs.pop:springs.ring});m.choice.to(i===chosen?.5:0,{spring:springs.pop})});
+      petsRest().then(()=>{if(run!==ringRun||open)return;ring.classList.remove('show','active');pets.forEach((p,i)=>{p.classList.remove('go','on');petMotion[i].radial.set(0);petMotion[i].choice.set(0);p.style.opacity='';p.style.transition=''});hub.style.transition='' });
       dir=-1; lbl.classList.remove('show') }
-    open=false; start=null }
+    resumePages(); open=false; start=null }
   window.addEventListener('pointerup',e=>{ if(start&&e.pointerId===start.id){ if(swipe) endSwipe(e.timeStamp); close(true) } });
-  function keyRing(){ if(open) return; const r=app.getBoundingClientRect(); place(r.left+r.width/2,r.top+r.height/2); open=true; hint.classList.add('gone'); ring.classList.remove('closing'); ring.classList.add('show'); scrim.classList.add('show'); requestAnimationFrame(()=>{ fan(true); setDir(0) });
+  function keyRing(){ if(open) return; const r=app.getBoundingClientRect(); place(r.left+r.width/2,r.top+r.height/2); open=true; hint.classList.add('gone'); showRing(); openFan(true);
     const keys=e=>{ if(e.key==='ArrowRight'||e.key==='ArrowDown'){ e.preventDefault(); setDir((dir+1)%N) } else if(e.key==='ArrowLeft'||e.key==='ArrowUp'){ e.preventDefault(); setDir((dir-1+N)%N) }
       else if(e.key==='Enter'||e.key===' '){ e.preventDefault(); done(true) } else if(e.key==='Escape'||e.key==='Tab'){ e.preventDefault(); done(false) } };
     const done=c=>{ document.removeEventListener('keydown',keys,true); close(c) };
