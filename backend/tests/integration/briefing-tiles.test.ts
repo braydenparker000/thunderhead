@@ -232,9 +232,17 @@ describe('the tiles the Worker fills itself', () => {
     );
     expect((await inCore(true)).night).toBe('The night shift ran out of time before arranging this page.');
     expect((await inCore(false)).night).toBeNull();
+    // Not done and still before step 7: working for 20 minutes after its last move, then stopped.
+    const early = JSON.stringify({ 1: { at: now - 10 * 60_000, done: true } });
+    await coreSql('UPDATE night_runs SET steps_json = ?, done_at = NULL WHERE day = ?', early, night);
+    expect((await inCore(true)).night).toBeNull();
+    const stale = JSON.stringify({ 1: { at: now - 30 * 60_000, done: true } });
+    await coreSql('UPDATE night_runs SET steps_json = ? WHERE day = ?', stale, night);
+    expect((await inCore(true)).night).toBe('The night shift stopped before arranging this page.');
     await coreSql(
-      'UPDATE night_runs SET steps_json = ? WHERE day = ?',
+      'UPDATE night_runs SET steps_json = ?, done_at = ? WHERE day = ?',
       JSON.stringify({ ...steps, 7: { at: now, done: true } }),
+      now,
       night,
     );
     expect((await inCore(true)).night).toBeNull();

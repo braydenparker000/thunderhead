@@ -90,16 +90,16 @@ export const ARRANGE_STEP = 7;
 
 /** Where the night of the day before `today` stands with arranging the page (the Briefing's
  * `night` line): `arranged` once step 7 is done; `cut` when the run ended without it (the hard
- * stop) or stopped and has not moved for 20 minutes; `working` while a run is under way; `none`
- * when no run has started. */
-export function arrangeState(db: Db, today: string, now: number): 'arranged' | 'cut' | 'working' | 'none' {
+ * stop); `stopped` when it is not done and has not moved for 20 minutes; `working` while a run is
+ * under way; `none` when no run has started. */
+export function arrangeState(db: Db, today: string, now: number): 'arranged' | 'cut' | 'stopped' | 'working' | 'none' {
   const run = nightRun(db, nightDayOf(today));
   if (!run) return 'none';
   const steps = JSON.parse(run.steps_json) as Record<string, StepRecord>;
   if (steps[ARRANGE_STEP]?.done) return 'arranged';
   if (run.done_at !== null) return 'cut';
   const last = Math.max(run.started_at, ...Object.values(steps).map((x) => x.at));
-  return now - last < NIGHT_HOLD_MS ? 'working' : 'cut';
+  return now - last < NIGHT_HOLD_MS ? 'working' : 'stopped';
 }
 
 /** The day roll's fire of the night shift (RUNTIME.md §3), inside the roll's own commit: once for

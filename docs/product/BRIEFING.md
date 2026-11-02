@@ -99,7 +99,7 @@ The Thunderhead's own line, Fraunces italic. Fixed lines by time of day, unless 
 | New media arrives | Its tile appears or its count goes up |
 | Midnight | Nothing; the page belongs to the conversation day, which rolls at 04:00 after 60 quiet minutes |
 
-If the night shift has not run by the first open of the day, the page is the Worker's own: weather, waiting, Due, Holidays and the day's line (built 2026-11-02), and, while the night shift is connected, one line under the tiles (`BriefingResponse.night`): "The night shift hasn't run yet." (from 07:00, after the 06:07 fallback had its chance) or "The night shift ran out of time before arranging this page." (its run ended, or stopped for 20 minutes, without step 7). It takes the place of "I'll arrange this page each night."
+If the night shift has not run by the first open of the day, the page is the Worker's own: weather, waiting, Due, Holidays and the day's line (built 2026-11-02), and, while the night shift is connected, one line under the tiles (`BriefingResponse.night`): "The night shift hasn't run yet." (from 07:00, after the 06:07 fallback had its chance) "The night shift ran out of time before arranging this page." (the hard stop ended its run before step 7) or "The night shift stopped before arranging this page." (not done, and no step for 20 minutes, before step 7). It takes the place of "I'll arrange this page each night."
 
 ## 5. Arranging, loading and refreshing
 
@@ -130,7 +130,7 @@ The whole page is cached in IndexedDB. Offline, it paints from cache with the da
 | No place set for weather | The weather tile reads "Weather" / "Set a place for the weather" and opens Settings → Briefing place [proposal] |
 | Nothing at all to show | Title *A quiet day.* and the weather tile only |
 | Weather API failing | Last good value with "as of"; hidden after 12 h |
-| Night shift failed | The Worker's own page (§4) and the night line: "The night shift ran out of time before arranging this page." / "The night shift hasn't run yet." (built 2026-11-02) |
+| Night shift failed | The Worker's own page (§4) and the night line: "The night shift ran out of time before arranging this page." / "The night shift stopped before arranging this page." / "The night shift hasn't run yet." (built 2026-11-02) |
 
 ## 8. Long-press on a tile
 

@@ -157,12 +157,14 @@ function museLine(db: Db, now: number): string | null {
   return now - s.last > WORK_LIMITS.silent_h * HOUR ? "Muse hasn't checked in since yesterday." : null;
 }
 
-/** The night line (RUNTIME.md §9 F14, F15), only while the night shift is connected: it ran out
- * of time before step 7, or stopped there, or (from 07:00, after the 06:07 fallback) hasn't run. */
+/** The night line (RUNTIME.md §9 F14, F15), only while the night shift is connected: the hard
+ * stop ended its run before step 7, or it stopped before it, or (from 07:00, after the 06:07
+ * fallback) it hasn't run. */
 function nightNote(db: Db, c: { now: number; tz: string; day: string; nightConfigured: boolean }): string | null {
   if (!c.nightConfigured) return null;
   const s = arrangeState(db, c.day, c.now);
   if (s === 'cut') return 'The night shift ran out of time before arranging this page.';
+  if (s === 'stopped') return 'The night shift stopped before arranging this page.';
   if (s === 'none' && wallMinute(c.now, c.tz) >= 7 * 60) return "The night shift hasn't run yet.";
   return null;
 }

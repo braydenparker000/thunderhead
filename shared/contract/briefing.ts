@@ -108,8 +108,9 @@ export interface BriefingResponse {
   /** "Muse hasn't checked in since yesterday." / null */
   muse: string | null;
   /** When the connected night shift didn't arrange the page for today: "The night shift hasn't
-   * run yet." or "The night shift ran out of time before arranging this page."; otherwise null
-   * (also while it isn't connected). Absent in answers from before 2026-11-02. */
+   * run yet." (from 07:00), "The night shift ran out of time before arranging this page." (the
+   * hard stop) or "The night shift stopped before arranging this page."; otherwise null (also
+   * while it isn't connected). Absent in answers from before 2026-11-02. */
   night?: string | null;
   /** From 60% of a Free-plan daily limit: "Today's database use is at 62% of the free plan's daily
    * limit." (from 80% with when backups and uploads run again); otherwise null. */
