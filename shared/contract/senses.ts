@@ -79,7 +79,8 @@ export const SENSE_TYPES = {
     'A song that sounded is left before its last 3 s.',
   ),
   'music.finish': t('music', ['music'], { listened_ms: 'ms' }, 'A song plays to its end.'),
-  'music.rate': t('music', ['music'], { rating: 'int', from: 'int' }, 'A rating set in Music (0–5; from: the one before).'),
+  // `from` is whatever the library held before, so any number (the new rating is checked whole).
+  'music.rate': t('music', ['music'], { rating: 'int', from: 'num' }, 'A rating set in Music (0–5; from: the one before).'),
   // Podcasts (th/podcasts/progress.js): `podcast:<show id>/<episode id>`, or `podcast:<show id>` for a
   // show; the show's id is the 16-hex hash of its feed address, as the Worker's follows name it.
   'podcasts.open': t('podcasts', [], {}, "Podcasts' page opens."),

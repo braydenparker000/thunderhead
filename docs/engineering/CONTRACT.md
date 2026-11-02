@@ -270,7 +270,7 @@ Every event type the phone may send (`PUT /v1/senses/batches/:id`, API.md §11.1
 | `music.play` | music | `music:` | context_ref: ref, source: `list` \| `search` \| `mix` \| `dj` \| `shuffle` \| `queue` \| `verb`, offline: bool | 0 | A song starts sounding. |
 | `music.skip` | music | `music:` | at_ms: ms, duration_ms: ms, by: `next` \| `previous` \| `pick` \| `notification` \| `swipe`, next_ref: ref | 0 | A song that sounded is left before its last 3 s. |
 | `music.finish` | music | `music:` | listened_ms: ms | 0 | A song plays to its end. |
-| `music.rate` | music | `music:` | rating: int, from: int | 0 | A rating set in Music (0–5; from: the one before). |
+| `music.rate` | music | `music:` | rating: int, from: num | 0 | A rating set in Music (0–5; from: the one before). |
 | `podcasts.open` | podcasts | — | — | 0 | Podcasts' page opens. |
 | `podcast.play` | podcasts | `podcast:` | at_ms: ms | 0 | An episode starts sounding (at_ms: where in it). |
 | `podcast.finish` | podcasts | `podcast:` | listened_ms: ms | 0 | An episode plays to its end. |
