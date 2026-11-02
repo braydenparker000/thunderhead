@@ -131,7 +131,11 @@ const budgets = [
   ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 20_000],
   // (2026-10-31) + the menu as a page with day cards, the ring's layers, the docked card, the pinned
   // line and time chip, the Briefing's hero and the 44 px hit areas.
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 68_000],
+  // (2026-11-02, T1a) 68,000 → 76,000: every motion and type value now goes through a token
+  // (`var(--fs-small)/var(--lh-body)` in place of `13px/1.4`), which costs 6,929 bytes raw and
+  // 1,253 bytes gzipped against 5f7cdd9. The site is served uncompressed (ARCHITECTURE.md §5, the
+  // brotli proposal); when compressed uploads land, this budget moves to compressed bytes.
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 76_000],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 20_000],
   // One face since 2026-10-31: Switzer, variable 100–900 (43.2 KB, the official file, never subset:

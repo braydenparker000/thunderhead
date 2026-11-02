@@ -13,7 +13,7 @@ Sibling docs: [HOME](../product/HOME.md), [GESTURES](GESTURES.md), [COPY](COPY.m
 4. **Contrast is tested, not eyeballed.** Text ≥ 4.5:1, large text (≥ 24 px, or ≥ 18.66 px bold) and icons/UI parts ≥ 3:1, measured against the **worst** background each token can sit on. A node test fails the build otherwise.
 5. **Targets ≥ 44×44 CSS px** (hit area, not necessarily the drawn shape). WCAG 2.2 AA's floor is 24×24.
 6. **Motion is quick and springy, never slow**, carries meaning, and collapses under `prefers-reduced-motion`.
-7. **Only tokens.** No raw hex, px radius, duration or z-index in app CSS. A lint test greps for them.
+7. **Token shape is checked.** `tests/feel.test.mjs` scans its fifteen shell CSS files for nonzero literal times shorter than 2 s in `transition*`/`animation*` declarations. Outside `ui/tokens.css`, it rejects raw `cubic-bezier()` and `linear()` curves and timing keywords (`ease`, `ease-in`, `ease-out`, `ease-in-out`, `linear`). A `font-size` value must be `var(--fs-…)`; a `font` shorthand must be `inherit` or use `var(--fs-…)` in the size position, with either a `var(--lh-…)` line height or no line height. Standalone `line-height` declarations are not checked. A `/* T1: … */` comment exempts only its own line; the test prints the exempt-line count (currently zero). It checks shape, never token values. Hex colours, radii and z-index are not yet enforced.
 8. **Icons are Phosphor regular** (MIT), from one SVG sprite, `fill: currentColor`, always `aria-hidden` with a text label on the control.
 9. **Glass is expensive on the A15.** At most **2** live `backdrop-filter` surfaces on screen at once; everything else uses "flat glass" (§6).
 10. **No chrome:** no header bar, tab bar, badges, counters of other people, or dividers. Space does the grouping.
@@ -76,31 +76,95 @@ This replaces the first build's three copies of every dark token (media query, `
 
 ## 2. Type
 
-**Built 2026-10-31 (Switzer):** one self-hosted face, `ui/fonts/Switzer.woff2`, the official variable file (wght 100–900, 43.2 KB) from Indian Type Foundry's Fontshare, free under the ITF Free Font License. That licence allows self-hosting it for our own site but not keeping it in a public repository, and forbids changing the file (no subsetting): so it is not committed. `scripts/fonts.mjs` fetches it from Fontshare and checks its SHA-256 byte for byte; the checks and the deploy run it, and stage refuses to publish without it (`TH_FONTS=required`); a local checkout runs it once (README). Weights: text 400, controls and labels 500, titles and big numbers 600 (-0.02em from 24 px); replies 400 16.5/1.55, the owner's bubble 400 16/1.45. Before Switzer (the same day): Quicksand (OFL) committed as `ui/fonts/Quicksand.woff2`, Light (300) from 24 px and every smaller weight one step heavier than Inter's. Small spaced capitals are gone: labels are sentence case at 13 px. The table below keeps its sizes; read its fonts as Quicksand. Before (kept for history): fonts were self-hosted (decisions.md): `ui/fonts/Fraunces-Italic.woff2` (variable, wght 300–500, SOFT 50, WONK 0), `ui/fonts/Fraunces.woff2` (upright for replies: wght 400–600, optical size fixed at 18, SOFT 50, WONK 0, the italic's 222 Latin characters, 30.6 KB; cut from `@fontsource-variable/fraunces` 5.3.0's full Latin file with fontTools' instancer and subsetter) and `ui/fonts/Inter.woff2` (roman, wght 400–600). All `font-display: swap`, preloaded.
+**Built (Switzer):** the shell uses one self-hosted variable face, `ui/fonts/Switzer.woff2` (wght 100–900, 43.2 KB), from Indian Type Foundry's Fontshare under the ITF Free Font License. The official file is fetched by `scripts/fonts.mjs`, checked against its SHA-256, and never committed or modified. Stage requires it when `TH_FONTS=required`; a local checkout fetches it once (README). `font-display: swap` and the page preload remain in place. Code retains its existing monospace families.
 
-| Token | Font | Size / line height | Weight | Use | Status |
-|---|---|---|---|---|---|
-| `--t-voice-hero` | Fraunces italic | `clamp(32px, 9vw, 40px)` / 1.12 | 340 | The 404's line (home's voice line is gone, HOME.md §2) | built |
-| `--t-voice-title` | Fraunces italic | 34 / 1.12 | 340 | Briefing title ("Here's your day.") | built |
-| `--t-voice-reply` | Fraunces upright | 17.5 / 1.5 | 400 (bold 600) | The mind's replies, as rich text (HOME.md §4.3) | built 2026-10-30 (was italic 340 at 20 / 1.4) |
-| `--t-big` | Inter | 30 / 1.05, −0.02em | 500 | One big number in a tile (temperature) | built |
-| `--t-body` | Inter | 15 / 1.4 | 400 | Owner bubbles, tile values | built |
-| `--t-input` | Inter | 16 / 1.375 | 400 | Ask bar (16 px avoids zoom-on-focus) | built |
-| `--t-row` | Inter | 15 / 1.35 | 500 | Menu rows | built |
-| `--t-sheet-item` | Inter | 16 / 1.3 | 500 | `+` sheet items | built |
-| `--t-chip` | Inter | 14 / 1.3 | 500 | Action chips, toast | built |
-| `--t-small` | Inter | 13 / 1.4 | 400 | Tile detail line, segmented control | built |
-| `--t-label` | Inter | 12 / 1.35 | 500 | Hint, decision "why" line, meta | built |
-| `--t-caps` | Inter | 11 / 1.3, +0.14em, uppercase | 600 | Date line, briefing date, menu section heads (+0.12em) | built |
+### Baseline (2026-11-01), redesigned in T1b
 
-Rules:
+Type uses two independent axes in `frontend/ui/tokens.css`: size (`--fs-*`) and line height (`--lh-*`). Sites compose them with their existing weight and family, for example `font:500 var(--fs-small)/var(--lh-loose) var(--ui)`. The values are provisional and preserve the existing appearance exactly, without size, line-height, weight or family changes. Tracking, emphasis, numeric variants and wrapping stay at their sites.
 
-- Voice weight never below **340** (Apple: avoid light weights at small sizes). Tracking −0.01em.
-- `font-variant-numeric: tabular-nums` on times, durations and counts.
-- `text-wrap: balance` on the voice line and titles; `text-wrap: pretty` on replies.
-- All sizes are written in `rem` in the CSS (1 rem = 16 px) so Android's font-size setting scales them. [proposal] Adopt `<meta name="text-scale" content="scale">` once it ships in stable Chrome.
-- Second-language passages are marked with that language's `lang` code, from the private setting (hyphenation and screen-reader voice).
-- **Measured capacity (Chromium, Fraunces as shipped):** the voice hero fits **22 characters per visual line** at every phone width from 360 to 412 px (the size scales with width). A reply fits **37–42 characters per line** at 360–412 px.
+`--ui` and `--voice` both resolve to `"Switzer",system-ui,-apple-system,"Segoe UI",sans-serif`. `--mono` resolves to `ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,monospace`. A shorthand that previously omitted line height still omits it and uses CSS's `normal` line height. A size-only rule uses `font-size:var(--fs-…)`, preserving the other font properties it inherits. `font:inherit` remains a valid way to inherit the complete font.
+
+The thirteen role names are the core ramp:
+
+| Token | Exact value | Sites (examples) |
+|---|---|---|
+| `--fs-label` | `12px` | `.fld .help`, `.foot`, `.why` |
+| `--fs-small` | `13px` | `.fld label`, `.lbl`, `.inp .show` |
+| `--fs-chip` | `14px` | `.check`, `.link`, `.line` |
+| `--fs-body` | `15px` | `.btn`, `.auth .lead`, `.home` |
+| `--fs-input` | `16px` | `.you`; follows Appearance |
+| `--fs-reply` | `16.5px` | `.reply`; follows Appearance |
+| `--fs-strong` | `17px` | `.panel h2`, `#now .tl`, `.b-quote blockquote` |
+| `--fs-section` | `21px` | `.codebox` |
+| `--fs-heading` | `24px` | `.allconvos .gl`, `.bsv` |
+| `--fs-page-title` | `30px` | `.auth h1`, `.tile .big`, `.sidetitle` |
+| `--fs-title` | `34px` | `.btitle` base rule; superseded by `--fs-hero` |
+| `--fs-big` | `36px` | `.tile .big` |
+| `--fs-hero` | `clamp(38px,11vw,46px)` | `.btitle` |
+
+There are thirteen `x-` sizes outside that ramp. The large Appearance sizes, 18 px and 18.5 px, are included because the setting uses them. These values remain distinct until a later design decision changes them.
+
+| Token | Exact value | Sites (examples) |
+|---|---|---|
+| `--fs-x-10-5` | `10.5px` | `.gn` |
+| `--fs-x-11` | `11px` | `.talk .reply a.cite`, `.tag`, `.bcite` |
+| `--fs-x-11-5` | `11.5px` | `.talk .turn[data-time]::before`, `.bsa`, `.book .bs` |
+| `--fs-x-12-5` | `12.5px` | `.status`, `.otrmark`, `.otrmark button` |
+| `--fs-x-13-5` | `13.5px` | `.talk .follow`, `.cited .hit b` |
+| `--fs-x-14-5` | `14.5px` | `.row` |
+| `--fs-x-15-5` | `15.5px` | `.talk .reply.progress`, `.talk .note .nt`, `.slink` |
+| `--fs-x-18` | `18px` | Appearance: large owner bubbles |
+| `--fs-x-18-5` | `18.5px` | Appearance: large replies |
+| `--fs-x-22` | `22px` | `.gl` |
+| `--fs-x-28` | `28px` | `.verse h1` |
+| `--fs-x-64` | `64px` | `.tile.weather .big` |
+| `--fs-x-not-found` | `clamp(32px,9vw,40px)` | `.voice` |
+
+The three relative sizes scale with their parent reply. `--fs-ask` supplies all fixed 16 px text: the ask bar, form controls, card questions (`.card .q`), confirm-sheet headings (`.csheet h2`) and the other sites that must not follow the conversation setting. These bring the size-token total to thirty.
+
+| Token | Exact value | Sites (examples) |
+|---|---|---|
+| `--fs-rel-code` | `.84em` | `.talk .reply code` |
+| `--fs-rel-marker` | `.88em` | `.talk .reply ol>li::marker` |
+| `--fs-rel-heading` | `1.06em` | `.talk .reply h3` |
+| `--fs-ask` | `16px` | Ask textarea, fixed-size form fields and other fixed 16 px text |
+
+The seventeen line-height values below occur in the existing styles. There is no unused 1.2 step. Unitless values scale with the element's font size; `--lh-ask` is the existing fixed 22 px line height.
+
+| Token | Exact value | Sites (examples) |
+|---|---|---|
+| `--lh-flat` | `1` | `.tile.weather .big`, `.talk .reply a.cite`, `.talk .turn[data-time]::before` |
+| `--lh-dense` | `1.1` | `.voice`, `.sidetitle`, `.bsv` |
+| `--lh-snug` | `1.25` | `#now .tl` |
+| `--lh-tight` | `1.3` | `.fld label`, `.lbl`, `.inp input` |
+| `--lh-compact` | `1.35` | `.csheet h2`, `.panel h2`, `.toast` |
+| `--lh-body` | `1.4` | `.tile .s`, `.sh small`, `.talk .sys` |
+| `--lh-card` | `1.42` | `.card .q`, `.card.news ul.q li` |
+| `--lh-reading` | `1.45` | `.fld .help`, `.line`, `.csheet p` |
+| `--lh-loose` | `1.5` | `.codebox`, `.auth .lead`, `.panel p` |
+| `--lh-reply` | `1.55` | `.codebox.small`, `.reply`, `.vtext p` |
+| `--lh-badge` | `1.6` | `.counts`, `.tag`, `.badge` |
+| `--lh-tall` | `2` | `.whours li` |
+| `--lh-hero` | `1.06` | `.btitle` |
+| `--lh-big` | `1.05` | `.tile .big` |
+| `--lh-title` | `1.12` | `.btitle` |
+| `--lh-page-title` | `1.15` | `.auth h1`, `.gl`, `.verse h1` |
+| `--lh-ask` | `22px` | `.ask textarea` |
+
+Appearance overrides only the conversation size tokens:
+
+| Setting | `--fs-reply` | `--fs-input` |
+|---|---|---|
+| Small (`data-text="s"`) | `var(--fs-body)` = 15 px | `var(--fs-body)` = 15 px |
+| Large (`data-text="l"`) | `var(--fs-x-18-5)` = 18.5 px | `var(--fs-x-18)` = 18 px |
+
+The `.you` bubble uses `--fs-input`; `.reply` uses `--fs-reply`. The existing `:root[data-text] .reply` and `.you` rules in `ui/shell.css` retain their specificity and set `font-size` through those tokens, so progress replies still follow the setting over their default 15.5 px size. The ask bar stays at `var(--fs-ask)/var(--lh-ask)`, 16 px / 22 px, in every setting. Other fixed 16 px sites also use `--fs-ask`, preventing the setting from changing form controls.
+
+The former composite type tokens are no longer defined. The old uppercase 11 px / +0.14em caps style remains **not built**. Sizes are px, with `em` and `clamp()` where the existing styles use them; Appearance is the shell's text-size mechanism. **[proposal]** Adopt `<meta name="text-scale" content="scale">` when it is supported by the target browsers.
+
+`tests/feel.test.mjs` requires size tokens in `font-size` declarations and the size position of `font` shorthands; an explicit shorthand line height must use a `--lh-*` token. `font:inherit` needs no exception. Standalone `line-height` declarations are not checked in this task. The shell currently has zero exempt lines.
+
+Keep `font-variant-numeric: tabular-nums` on times, durations and counts, `text-wrap: balance` on titles and `text-wrap: pretty` on replies. Mark second-language passages with their language's `lang` code for hyphenation and screen readers.
 
 ## 3. Space
 
@@ -175,34 +239,43 @@ Budget: at most **2 live-glass surfaces visible at once** (ask bar + one of: car
 
 ### 8.1 Durations and curves
 
-| Token | Value | Use | Status |
-|---|---|---|---|
-| `--d-instant` | 90 ms | Label crossfade, hub follow | built (90–100) |
-| `--d-fast` | 160 ms | Ring collapse, pressed scale | built |
-| `--d-quick` | 240 ms | Press ring, chosen-bubble fly-out, icon swaps (mic ↔ send) | built |
-| `--d-base` | 300 ms | Fades of the conversation (blur behind `+`), card fold start | built |
-| `--d-sheet` | 380 ms | `+` sheet unfold | built |
-| `--d-page` | 460 ms | Briefing, menu and Settings settle (on `--settle`, whose tail is near-still, so it reads quicker than it is) | built |
-| `--d-rise` | 900 ms | Voice line rise (500 ms for a conversation turn) | built |
-| `--d-edge` | 1,400 ms | Edge light state crossfade | built |
-| `--ease-out` | `cubic-bezier(.2,.8,.2,1)` | Page settles | built |
-| `--ease-rise` | `cubic-bezier(.2,.7,.2,1)` | Rise, card fold | built |
-| `--ease-emph` | `cubic-bezier(.2,0,0,1)` | Press ring, fly-out | built |
-| `--ease-pop` | `cubic-bezier(.34,1.45,.64,1)` | Buttons, bubbles, `+` rotate (overshoot ~10%) | built |
-| `--ease-sheet` | `cubic-bezier(.34,1.3,.64,1)` | Sheet unfold | built |
+**Baseline (2026-11-01), redesigned in T1b.** These are the exact motion tokens in `ui/tokens.css`. Values remain provisional; durations and delays derived with `calc()` retain their existing timings except for the explicit T1a motion changes.
+
+| Token | Exact value | Use |
+|---|---|---|
+| `--d-instant` | `90ms` | Level meters and short delays |
+| `--d-fast` | `160ms` | Ring collapse, presses and short fades |
+| `--d-quick` | `240ms` | Press ring and chosen-pet fly-out |
+| `--d-base` | `300ms` | Conversation fades and card transitions |
+| `--d-sheet` | `380ms` | Sheets and inherited sheet timings |
+| `--d-page` | `460ms` | Briefing, menu and Settings settle |
+| `--d-rise` | `900ms` | Island level-bar base and rise timings |
+| `--d-edge` | `1400ms` | Edge crossfade, mic breath, recording dot and flash |
+| `--ease-out` | `cubic-bezier(.2,.8,.2,1)` | Existing outward curve; edge crossfade and card pulse |
+| `--ease-in` | `cubic-bezier(.4,0,1,1)` | Ring close |
+| `--ease-rise` | `cubic-bezier(.2,.7,.2,1)` | Defined for tuning; no current site |
+| `--ease-emph` | `cubic-bezier(.2,0,0,1)` | Press ring and chosen-pet fly-out |
+| `--ease-pop` | `cubic-bezier(.34,1.45,.64,1)` | Defined for tuning; no current site |
+| `--ease-sheet` | `cubic-bezier(.34,1.3,.64,1)` | Defined for tuning; no current site |
+| `--ease-ambient` | `ease-in-out` | Drift, thinking, mic breath, recording and level-bar loops |
+| `--ease-linear` | `linear` | Meters and constant-speed loops |
+| `--ease-default` | `ease` | Preserves the CSS `ease` keyword, including implicit defaults |
+| `--ease-standard-out` | `ease-out` | Preserves the CSS `ease-out` keyword where its original curve stays |
+
+`--ease-out` is a custom bezier, while `--ease-standard-out` is CSS's `ease-out`; they are different curves. `--ease-default` preserves CSS's explicit or implicit `ease`. Ambient animations may retain literal durations of at least 2 s, and zero delays may remain literal. Shorter durations and delays use `--d-*` tokens directly or through `calc()`.
+
+Under reduced motion, `--d-instant`, `--d-fast`, `--d-quick`, `--d-base`, `--d-rise` and `--d-edge` become `0ms`; `--d-sheet` and `--d-page` become `150ms`. Existing per-file reduced-motion rules remain in force.
 
 ### 8.2 Springs
 
-Generated once as CSS `linear()` easings (Chrome 113+) from Material 3's spring tokens, so the motion is physically consistent:
+**Baseline (2026-11-01), redesigned in T1b.** The shell has two sampled CSS `linear()` curves. Their duration is supplied separately by a `--d-*` token; these definitions do not establish an engine response or stiffness.
 
-| Token | Damping / stiffness | ≈ Settle | Replaces |
-|---|---|---|---|
-| `--spring-fast` | 0.6 / 800 | 250 ms, ~9% overshoot | `--ease-pop` (ring bubbles, `+`, mic/send) |
-| `--spring` | 0.8 / 380 | 300 ms, ~1.5% overshoot | Cards, rows, chips |
-| `--spring-slow` | 0.8 / 200 | 400 ms | Pages, sheets |
-| `--spring-fx` | 1.0 / 1600 | 150 ms | Opacity and colour |
+| Token | Exact value | Meaning |
+|---|---|---|
+| `--settle` | `linear(0, .047, .156, .292, .433, .563, .678, .772, .847, .904, .946, .975, .994, 1.006, 1.012, 1.015, 1.015, 1.014, 1.012, 1.01, 1.008, 1.006, 1.004, 1.003, 1)` | Pages, sheets, cards and settling motion; sampled peak 1.015 (1.5% overshoot) |
+| `--pop` | `linear(0, .071, .235, .436, .632, .801, .93, 1.018, 1.069, 1.092, 1.094, 1.082, 1.065, 1.046, 1.028, 1.013, 1.003, .996, .992, .991, .991, .993, .995, .996, 1)` | Ring pets, presses and the confirm sheet; sampled peak 1.094 (9.4% overshoot) |
 
-Built as two, which is all the shell needs: `--settle` (damping 0.8, ~1.5% overshoot) moves pages, the menu and Settings; `--pop` (damping 0.6, ~9%) is the press on rows, tiles, chips and buttons (scale .97 while held, `--d-fast`).
+Both become the `linear` timing keyword under reduced motion. T1b will supply the tuning engine and generate frozen curves from the chosen springs; this baseline preserves the current samples.
 
 ### 8.3 Named animations
 
