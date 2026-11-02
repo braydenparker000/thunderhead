@@ -8,10 +8,12 @@ import type {
   DayStats,
   MindNightRequest,
   MindNightResponse,
+  MindStatusRequest,
   Page,
   PendingResponse,
   WakeItem,
 } from '../../../../shared/contract/api';
+import { MIND_STATUS_LIMITS, MIND_USE_KINDS } from '../../../../shared/contract/feed.ts';
 import {
   NIGHT_CURSOR_MAX,
   NIGHT_DAY_PARTS,
@@ -38,12 +40,24 @@ const briefBody = z.strictObject({
   constitution_sha256: z.string().check(z.regex(/^[0-9a-f]{64}$|^none$/)),
   th_version: text(40),
 });
+const L = MIND_STATUS_LIMITS;
+/** One thing the mind draws on (the working card's chips, HOME.md §4.13). The id is never shown;
+ * a source's is its https URL (the phone shows only the host), the rest carry no spaces. */
+const useItem = z
+  .strictObject({
+    kind: z.enum(MIND_USE_KINDS),
+    id: z.optional(z.string().check(z.minLength(1), z.maxLength(L.id), z.regex(/^\S+$/))),
+    label: text(L.label),
+  })
+  .check(z.refine((u) => u.kind !== 'source' || u.id === undefined || /^https:\/\/[^/\s]+/.test(u.id), 'https URL'));
 const statusBody = z.strictObject({
   state: z.enum(['working', 'listening', 'stopping', 'limited']),
   thread_id: z.optional(z.string().check(z.maxLength(40))),
-  note: z.optional(text(140)),
+  note: z.optional(text(L.note)),
+  title: z.optional(text(L.title)),
+  using: z.optional(z.array(useItem).check(z.maxLength(L.using))),
   error: z.optional(text(60)),
-});
+}) satisfies z.ZodMiniType<MindStatusRequest>;
 const noteBody = z.strictObject({
   id: z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)),
   thread_id: z.optional(z.string().check(z.maxLength(40))),

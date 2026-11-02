@@ -10,6 +10,7 @@ import type {
   MindStatusRequest,
   PendingResponse,
 } from '../../../../shared/contract/api';
+import { MIND_STATUS_LIMITS } from '../../../../shared/contract/feed.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail } from '../../lib/result';
 import { HOUR, MINUTE } from '../../lib/time';
@@ -135,15 +136,23 @@ export function claim(w: Writer, r: BriefRequest, tz: string): Claimed {
   return { wake };
 }
 
+/** Each chat session's last accepted `working` or `listening` report: the same state again within
+ * 3 s changes nothing the phone sees (MIND_STATUS_LIMITS.every_ms, HOME.md §4.13). Kept in memory:
+ * a Core that restarts forgets it, which only lets one more report through. */
+const reported = new Map<string, { at: number; state: string }>();
+
 /** POST /v1/mind/status. Returns whether the phone should get a typing pulse. The presence light,
  * the lease and the hand-outs are the chat session's; night and reflex report through their own
- * runs (P3, P4), so their status changes nothing here. */
+ * runs (P3, P4), so their status changes nothing here. A report inside 3 s of the session's last
+ * accepted one in the same state still renews the lease and acknowledges what was handed out (it
+ * is the session's housekeeping), but its note, title and chips are dropped. */
 export function status(w: Writer, sessionId: string | null, role: MindRole, r: MindStatusRequest): { typing: boolean } {
   const { db, at } = w;
   if (role !== 'chat') return { typing: false };
   if (sessionId) renew(db, sessionId, at, true);
   if (r.state === 'working') convo.ackHandedOut(db, at);
   if (r.state === 'stopping' && sessionId) {
+    reported.delete(sessionId);
     store.dropLease(db, 'chat', sessionId);
     store.endSession(db, sessionId, at);
     const s = store.session(db, sessionId);
@@ -152,7 +161,14 @@ export function status(w: Writer, sessionId: string | null, role: MindRole, r: M
     setPresence(w, 'asleep');
     return { typing: false };
   }
-  setPresence(w, r.state, r.note ?? null);
+  if (r.state === 'working' || r.state === 'listening') {
+    const key = sessionId ?? '';
+    const last = reported.get(key);
+    if (last && last.state === r.state && at - last.at < MIND_STATUS_LIMITS.every_ms) return { typing: false };
+    if (reported.size > 64) for (const [k, v] of reported) if (at - v.at > HOUR) reported.delete(k);
+    reported.set(key, { at, state: r.state });
+  }
+  setPresence(w, r.state, r.note ?? null, { title: r.title, using: r.using });
   return { typing: r.state === 'working' };
 }
 

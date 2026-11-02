@@ -67,5 +67,17 @@ export const SEARCH_SOURCES = {
 } as const;
 export type SearchSource = keyof typeof SEARCH_SOURCES;
 
+/** The kinds of thing the mind may say it is drawing on while it works: the working card's chips
+ * (HOME.md §4.13, conversation.ts MindUse). */
+export const MIND_USE_KINDS = ['fact', 'song', 'page', 'source', 'app'] as const;
+export type MindUseKind = (typeof MIND_USE_KINDS)[number];
+/** The working card's limits, checked by the Worker and `th status`: characters, items, and the
+ * gap between two accepted reports from one session. */
+export const MIND_STATUS_LIMITS = { title: 60, note: 140, using: 6, label: 40, id: 200, every_ms: 3_000 } as const;
+
+/** A reply's blocks (HOME.md §4.3) gain `choice`: 2 to 4 options of ≤ 40 characters, drawn as taps
+ * under the reply; a tap sends the option's words as the owner's message. */
+export const CHOICE_LIMITS = { min: 2, max: 4, chars: 40 } as const;
+
 /** Message kinds; owners write `text` and `voice`, agents any of them. */
 export const MESSAGE_KINDS = ['text', 'voice', 'progress', 'card', 'question', 'error'] as const;

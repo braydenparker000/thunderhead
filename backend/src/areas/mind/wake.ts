@@ -2,7 +2,7 @@
 // §4.4, §11): the fire conditions, the 120 s retry and 240 s give-up, requeues of handed-out
 // messages nobody acknowledged, the usage backoff, and the presence the phone shows. Everything
 // here runs inside a commit; the HTTP fire itself happens after it (fire.ts).
-import type { MindPresence, MindRole } from '../../../../shared/contract/api';
+import type { MindPresence, MindRole, MindUse } from '../../../../shared/contract/api';
 import { uuidv7 } from '../../lib/ids';
 import { HOUR, MINUTE, SECOND } from '../../lib/time';
 import type { Db } from '../../objects/base';
@@ -43,11 +43,34 @@ export function backoff(db: Db): Backoff {
   return b && typeof b.until === 'number' ? b : { until: 0, step: -1 };
 }
 
-/** The presence light's state, written to the setting `mind.status` on every transition. */
-export function setPresence(w: Writer, state: MindPresence['state'], note: string | null = null): void {
+/** What a status report says it is doing besides the note: the working card's title and chips. */
+export interface Work {
+  title?: string;
+  using?: MindUse[];
+}
+
+/** The presence light's state, written to the setting `mind.status` on every transition. A status
+ * report (`work`) that leaves out the title or the chips keeps the ones the session gave while it
+ * stays `working`, so the note is the live line under them (HOME.md §4.13); any other state, and
+ * the Worker's own transitions (no `work`), drop them. */
+export function setPresence(
+  w: Writer,
+  state: MindPresence['state'],
+  note: string | null = null,
+  work: Work | null = null,
+): void {
   const cur = settings.getSetting(w.db, 'mind.status') as MindPresence | undefined;
-  if (cur && cur.state === state && cur.note === note) return;
-  settings.putSetting(w.db, 'mind.status', { state, note, since: w.at } satisfies MindPresence, 'worker', w.at);
+  const keep = work !== null && state === 'working' && cur?.state === 'working';
+  const given = work !== null && (work.title !== undefined || work.using !== undefined);
+  const title = work?.title ?? (keep ? (cur?.title ?? null) : null);
+  const using = work?.using ?? (keep ? (cur?.using ?? []) : []);
+  const titleAt = given ? w.at : keep ? (cur?.title_at ?? null) : null;
+  const same = (cur?.title ?? null) === title && JSON.stringify(cur?.using ?? []) === JSON.stringify(using);
+  if (cur && cur.state === state && cur.note === note && same && !given) return;
+  // Only a presence with a title or chips carries the fields, so every other one stays as it was.
+  const extra = title !== null || using.length ? { title, using, title_at: titleAt } : {};
+  const next: MindPresence = { state, note, since: w.at, ...extra };
+  settings.putSetting(w.db, 'mind.status', next, 'worker', w.at);
   w.change('mind_status', 'setting:mind.status');
 }
 

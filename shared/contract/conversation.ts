@@ -3,7 +3,7 @@
 // snake_case. The vocabularies these name (change kinds, frames, apps, sources) are runtime data
 // in feed.ts.
 import type { Day, Id, JsonObject, Ms, Page } from './api';
-import type { AppId, ChangeKind, SearchSource } from './feed';
+import type { AppId, ChangeKind, MindUseKind, SearchSource } from './feed';
 
 /** `off_record`: answered, never remembered, purged 7 days after its last message; `restored`: a
  * day's conversation given back from Recently deleted beside the fresh one its day began after the
@@ -38,6 +38,14 @@ export interface Chip {
   label: string;
   app: AppId;
   path: string;
+}
+
+/** A reply block (`meta.blocks[]`, HOME.md §4.3) the phone draws as taps under the reply: a tap
+ * sends that option's words as the owner's own message answering it (limits: feed.ts
+ * CHOICE_LIMITS). Nothing special on the Worker: the mind decides from the owner's words. */
+export interface ChoiceBlock {
+  type: 'choice';
+  options: string[];
 }
 
 /** A file on a message (HOME.md §4.6; limits in files.ts). */
@@ -193,8 +201,23 @@ export interface BriefResponse {
 export interface MindStatusRequest {
   state: MindState;
   thread_id?: Id;
+  /** The live line under the working card's title (HOME.md §4.13), ≤ 140 characters. */
   note?: string;
+  /** What the mind is doing, in its own words: the working card's title, ≤ 60 characters. It
+   * stands, with `using`, until a report gives a new one or the session leaves `working`. */
+  title?: string;
+  /** What it is drawing on, as small chips on the working card (≤ 6). */
+  using?: MindUse[];
   error?: string;
+}
+
+/** One thing the mind is drawing on: a fact (its id), a song (its path in Music), a page (a
+ * `book:` cite ref or a path in Study), a source (its https URL: the phone shows only the host)
+ * or an app (its id). The label, ≤ 40 characters, is the only text the chip shows. */
+export interface MindUse {
+  kind: MindUseKind;
+  id?: string;
+  label: string;
 }
 
 export interface MindNoteRequest {
@@ -276,6 +299,12 @@ export interface MindPresence {
   state: MindState | 'asleep' | 'waking' | 'failed' | 'unconfigured';
   note: string | null;
   since: Ms | null;
+  /** The working card's title and chips while the session reports `working` (MindStatusRequest). */
+  title?: string | null;
+  using?: MindUse[];
+  /** When `title` or `using` was last given, so the phone shows them only for work begun after
+   * the message it waits on (a live session's presence outlasts one answer). */
+  title_at?: Ms | null;
 }
 
 export interface WakeItem {
