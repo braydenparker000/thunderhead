@@ -1,8 +1,10 @@
 // @ts-check
-// The Briefing page (BRIEFING.md), one swipe right of home: the date, the Thunderhead's line, and
-// the tiles the Worker says have something to say (GET /v1/briefing): the weather first (a tap
-// opens its next hours and the place, weather.js), "Waiting on you" (gold; a tap goes home to the
-// card), then the night shift's tiles (a tap opens their place in their app). It paints from this phone first
+// The Briefing page (BRIEFING.md), one swipe right of home: the date, the Thunderhead's line, the
+// day's counts in one line, and the tiles the Worker says have something to say (GET
+// /v1/briefing): the weather first with tomorrow's high and low (a tap opens its next hours and the
+// place, weather.js), "Waiting on you" (gold; a tap goes home to the card), "Due" (a tap opens the
+// reminders, due.js), the night shift's tiles (a tap opens their place in their app), then
+// "Holidays". A line says when the night shift didn't arrange the page. It paints from this phone first
 // (IndexedDB `th-data`, wiped on sign-out), then from the Worker when the page comes into view, and
 // again when a card, a work order or a setting changes. With nothing but the weather, a quiet line
 // says the night arranges it (BRIEFING.md §7) instead of a placeholder tile. While nothing is on
@@ -70,6 +72,10 @@ export async function startBriefing() {
       const w = shown.weather;
       import('./weather.js').then((m) => m.openWeather(w, () => { at = 0; refresh(); }));
     }
+    else if (t.dataset.go === 'due') {
+      const due = shown?.tiles.find((x) => x.kind === 'due');
+      if (due?.kind === 'due') import('./due.js').then((m) => m.openDue(due));
+    }
   });
   refresh();
 }
@@ -104,15 +110,29 @@ function tile(t) {
   return node;
 }
 
-/** The weather tile: the place (or "Weather"), the temperature big, the sentence. @param {NonNullable<BriefingResponse['weather']>} w */
+/** The weather tile: the place (or "Weather"), the temperature big, the sentence, and tomorrow's
+ * high and low when the forecast has them. @param {NonNullable<BriefingResponse['weather']>} w */
 function weatherTile(w) {
   const node = tile({ icon: 'cloud-sun', label: w.place ?? 'Weather', value: w.temp ?? '', detail: w.detail, cls: 'wide weather', go: 'weather' });
   const v = /** @type {HTMLElement} */ (node.querySelector('.v'));
   if (w.temp) v.className = 'big';
   else v.remove();
-  node.setAttribute('aria-label', [w.place ?? 'Weather', w.temp, w.detail].filter(Boolean).join(', '));
+  const tomorrow = w.temp && w.tomorrow ? `Tomorrow ${w.tomorrow.high}° / ${w.tomorrow.low}°` : null;
+  if (tomorrow) node.append(el('span', { class: 's wtom', text: tomorrow }));
+  node.setAttribute('aria-label', [w.place ?? 'Weather', w.temp, w.detail, tomorrow && `tomorrow high ${w.tomorrow?.high}°, low ${w.tomorrow?.low}°`].filter(Boolean).join(', '));
   return node;
 }
+
+/** "Due": the counts and the next time; a tap opens the list. @param {import('../../../shared/contract/briefing.ts').DueTile} t */
+function dueTile(t) {
+  const node = tile({ icon: 'alarm', label: t.label, value: t.value, detail: t.detail, cls: 'half due', go: 'due' });
+  const n = t.today + t.tomorrow;
+  node.setAttribute('aria-label', `${t.label}, ${t.value}, ${t.detail}, opens the ${n === 1 ? 'reminder' : `${n} reminders`}`);
+  return node;
+}
+
+/** "Holidays": the next one within two weeks; nothing to open. @param {import('../../../shared/contract/briefing.ts').HolidayTile} t */
+const holidayTile = (t) => tile({ icon: 'calendar-star', label: t.label, value: t.value, detail: t.detail, cls: 'half holiday' });
 
 const APP_ICON = /** @type {Record<string, string>} */ ({ study: 'book-bookmark', music: 'music-notes-simple', guitar: 'guitar', podcasts: 'microphone', astra: 'monitor-play', media: 'youtube-logo' });
 
@@ -142,8 +162,19 @@ function draw(b) {
   if (b.weather) tiles.push(keyed(weatherTile(b.weather), 'weather'));
   for (const t of b.tiles) {
     if (t.kind === 'night') tiles.push(keyed(nightTile(t), `night:${t.label}`));
-    else tiles.push(keyed(tile({ icon: 'bell', label: t.label, value: t.value, detail: t.detail, cls: 'gold half', go: 'waiting' }), `waiting:${t.label}`));
+    else if (t.kind === 'due') tiles.push(keyed(dueTile(t), 'due'));
+    else if (t.kind === 'holiday') tiles.push(keyed(holidayTile(t), 'holiday'));
+    else if (t.kind === 'waiting') tiles.push(keyed(tile({ icon: 'bell', label: t.label, value: t.value, detail: t.detail, cls: 'gold half', go: 'waiting' }), `waiting:${t.label}`));
   }
+  // The date and the day's counts (the Worker's; an answer from before has none).
+  if (b.today?.date) $('#bdate').textContent = b.today.date;
+  let line = /** @type {HTMLElement | null} */ (document.querySelector('#brief .btoday'));
+  if (!line) {
+    line = el('p', { class: 'btoday' });
+    $('#brief .btitle').after(line);
+  }
+  line.textContent = b.today?.line ?? '';
+  line.hidden = !b.today?.line;
   // The owner's arrangement: their order first, the rest as the Worker gave them; hidden ones out.
   const arr = arrangement();
   const place = (/** @type {HTMLElement} */ t) => {
@@ -171,7 +202,9 @@ function draw(b) {
   // The day's database use, from 60% of the free plan's daily limit (an answer from before has none).
   if (b.quota) notes.push(el('p', { class: 'bmuse', text: b.quota }));
   if (b.muse) notes.push(el('p', { class: 'bmuse', text: b.muse }));
-  if (!b.tiles.length) notes.push(el('p', { class: 'bmuse', text: 'I’ll arrange this page each night. Tomorrow it fills in.' }));
+  // Why the night's tiles are missing, when the Worker knows (BRIEFING.md §7); else the promise.
+  if (b.night) notes.push(el('p', { class: 'bmuse bnight', text: b.night }));
+  else if (!b.tiles.length) notes.push(el('p', { class: 'bmuse', text: 'I’ll arrange this page each night. Tomorrow it fills in.' }));
   if (hidden.length) {
     const show = el('button', { type: 'button', class: 'bmuse bhidden', text: `${hidden.length === 1 ? 'One tile' : `${hidden.length} tiles`} hidden · Show` });
     show.addEventListener('click', () => {

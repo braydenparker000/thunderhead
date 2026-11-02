@@ -184,6 +184,27 @@ export function logOp(db: Db, at: number, op: string, trackId: string | null, be
   db.run('DELETE FROM catalog_log WHERE seq <= (SELECT max(seq) FROM catalog_log) - ?', LOG_KEEP);
 }
 
+/** Songs registered since `since` (the Briefing's line of the day), counting at most `cap`: the
+ * log is walked back from its newest row by its key, 50 rows a page, and stops at the first row
+ * older than `since`, so the rows read are the day's changes and one more, never the whole log. */
+export function addedSince(db: Db, since: number, cap = 100): number {
+  let n = 0;
+  let below = Number.MAX_SAFE_INTEGER;
+  for (let pages = 0; pages < 10 && n < cap; pages++) {
+    const rows = db.all<{ seq: number; at: number; op: string }>(
+      'SELECT seq, at, op FROM catalog_log WHERE seq < ? ORDER BY seq DESC LIMIT 50',
+      below,
+    );
+    for (const r of rows) {
+      if (r.at < since) return n;
+      if (r.op === 'register' && ++n >= cap) return n;
+    }
+    if (rows.length < 50) return n;
+    below = rows[rows.length - 1].seq;
+  }
+  return n;
+}
+
 export function trackCount(db: Db): number {
   return db.one<{ n: number }>('SELECT count(*) AS n FROM tracks')?.n ?? 0;
 }

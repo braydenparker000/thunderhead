@@ -256,7 +256,14 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `brief.weather.stale` | Weather is out of date | Weather > 12 h old (proposal) |
 | `brief.weather.place` | Set a place for the weather | No place set (proposal) |
 | `brief.firstday` | I'll arrange this page each night. Tomorrow it fills in. | First day (proposal; voice, but shown in a tile: Inter, see Open questions) |
-| `brief.nonight` | The night shift hasn't run yet. I'll catch up. | Fallback briefing (proposal) |
+| `brief.nonight` | The night shift hasn't run yet. | Under the tiles, from 07:00, while the night shift is connected and hasn't started (built 2026-11-02, the Worker's; "I'll catch up." dropped: nothing promises it) |
+| `brief.nightcut` | The night shift ran out of time before arranging this page. | Under the tiles when the hard stop ended the night's run before step 7 (built 2026-11-02, the Worker's) |
+| `brief.nightstopped` | The night shift stopped before arranging this page. | Under the tiles when the night's run is not done and hasn't moved for 20 minutes, before step 7 (built 2026-11-02, the Worker's) |
+| `brief.due.k` / `.v` / `.s` | Due / 2 today · 1 tomorrow / Next at 14:30 (Next tomorrow at 09:00) | The Due tile, counts and the next time only (built 2026-11-02, the Worker's) |
+| `brief.due.sheet` | Due · Today · Tomorrow · Close | The Due sheet: each reminder's time and words (built 2026-11-02) |
+| `brief.holiday.k` / `.s` | Holidays / Wednesday 11 November · in 9 days (· tomorrow; Today) | The Holidays tile, the holiday's name as its value (built 2026-11-02, the Worker's) |
+| `brief.today` | 2 reminders due today, 3 new episodes and 12 songs added. | The day's line under the title, counts only, no zeros (built 2026-11-02, the Worker's) |
+| `brief.weather.tomorrow` | Tomorrow 21° / 10° | Under the weather tile's sentence (built 2026-11-02) |
 | `brief.hide` | Hide for today | Long-press (proposal) |
 | `brief.less` | Show less of this | Long-press (proposal) |
 
