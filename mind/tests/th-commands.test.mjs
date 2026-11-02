@@ -83,6 +83,33 @@ test('status acknowledges, records state, and prints th: STOP when the owner tap
   assert.equal((await th(['status', 'dancing'], e)).code, 8);
 }));
 
+test('status takes the working card\'s title and chips; the old note-only form is unchanged', withFake({}, async fake => {
+  const e = env(fake);
+  const r = await th(['status', 'working', '--title', 'Finding songs for your run', '--note', 'Last week first',
+    '--using', 'fact:0192f0c4-0000-7000-8000-000000000001:Runs on Sundays', '--using', 'page:book:0192f0c4-0000-7000-8000-0000000000bb#p3.b2:Chapter 3',
+    '--using', 'source:https://example.org/a:b:A running guide', '--using', 'app:music:Music', '--using', 'song:Evening'], e);
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(fake.state.statuses.at(-1), {...fake.state.statuses.at(-1), state: 'working', title: 'Finding songs for your run', note: 'Last week first', using: [
+    {kind: 'fact', id: '0192f0c4-0000-7000-8000-000000000001', label: 'Runs on Sundays'},
+    {kind: 'page', id: 'book:0192f0c4-0000-7000-8000-0000000000bb#p3.b2', label: 'Chapter 3'},
+    {kind: 'source', id: 'https://example.org/a:b', label: 'A running guide'},
+    {kind: 'app', id: 'music', label: 'Music'},
+    {kind: 'song', label: 'Evening'},
+  ]});
+  await th(['status', 'working', '--note', 'Picking twelve'], e);
+  const plain = fake.state.statuses.at(-1);
+  assert.equal(plain.note, 'Picking twelve');
+  assert.equal('title' in plain || 'using' in plain, false, 'a note alone sends neither');
+  const seven = Array.from({length: 7}, (_, i) => ['--using', `fact:Fact ${i}`]).flat();
+  for (const bad of [['--title', 'x'.repeat(61)], ['--using', 'tool:Bash'], ['--using', `fact:abc:${'x'.repeat(41)}`],
+    ['--using', 'source:http://example.org:Plain web'], ['--using', 'page:has space:Label'], seven])
+    assert.equal((await th(['status', 'working', ...bad], e)).code, 8, bad.join(' '));
+  // The phone and the Worker read the same kinds and limits from the contract.
+  const {MIND_USE_KINDS} = await import('../../shared/contract/feed.ts');
+  const {USE_KINDS} = await import('../cli/lib/conv.mjs');
+  assert.deepEqual(USE_KINDS, [...MIND_USE_KINDS]);
+}));
+
 test('amend, history, title', withFake({}, async fake => {
   const e = env(fake);
   const posted = await th(['say', 'today', '--kind', 'card', '--meta', '{"state":"checks"}', 'PR: fix search'], e);
