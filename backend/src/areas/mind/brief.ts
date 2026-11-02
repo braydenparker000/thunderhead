@@ -154,9 +154,10 @@ const quietLine = (i: BriefInput) =>
     ? 'off'
     : `until ${i.quietUntil - i.now > 24 * 3_600_000 ? `${weekday(i.quietUntil, i.tz)} ` : ''}${clock(i.quietUntil, i.tz)} (the owner said go quiet: no nudges; cards and home lines wait)`;
 
-/** Section 13: what the owner chose in Settings for the mind, one `key: value` line each. */
+/** Section 13: what the owner chose in Settings for the mind, one `key: value` line each. The
+ * standing permissions' lines say what each position asks of the mind (areas/mind/permit.ts). */
 export const SETTINGS_LEGEND =
-  "The owner's choices in Settings (The mind, Briefing); (default) where never changed. Standing permissions (mind.permit.*): ask = a decision card first; tell = do it, then say so; quiet = do it, the ledger only. The Worker doesn't enforce them yet.";
+  "The owner's choices in Settings (The mind, Briefing); (default) where never changed. Standing permissions (mind.permit.*), enforced by the Worker: tell = do it and say so in your reply; quiet = do it, mention it only if asked; ask = a decision card first (the 403 proposal_required names it: th propose it, then the same call with --proposal <id>). Money, deleting the owner's data, keys and access, and reaching another person always ask.";
 const settingsSection = (lines: string[]) =>
   budgeted([SETTINGS_LEGEND, ...lines], 2_000, 'oldest', (k) => `(+${k} more: th get /v1/settings)`);
 
