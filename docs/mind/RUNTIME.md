@@ -13,10 +13,10 @@ Platform facts come from the Claude Code docs read 2026-10-28 (scheduled tasks, 
 6. **Wake on the first keystroke** (pre-warm), retry an unclaimed wake once at 120 s, and show an honest line at 240 s.
 7. **End a chat session** after 120 min with no owner message (10 min if it was a pre-warm that never got a message), on day close, or on Stop.
 8. **Usage limits are reported, never hidden.** Scheduled runs stop at the limit; the Worker shows "mind not waking" and stops refiring until a backoff passes. Usage credits stay off.
-9. **Code ships as:** branch → CI green on that SHA → fast-forward `main` → watch Deploy → confirm `release.json` and `/v1/health` → report "Live". Never force-push, never merge commits on `main`.
+9. **Code ships as a pull request the owner merges:** branch → CI green on that SHA → pull request → the owner tries it and merges it → watch Deploy → confirm `release.json` and `/v1/health` → report "Live". The mind never pushes to `main` and never merges its own pull request unless the owner says so for that change (AGENTS.md, which wins). Never force-push.
 10. **Every session that changed code or plans updates `docs/process/STATUS.md`** before it ends.
 
-Sibling docs: [CONSTITUTION.md](CONSTITUTION.md), [BEHAVIOR.md](BEHAVIOR.md), [MEMORY.md](MEMORY.md) (what `brief`, `recall`, `remember` read and write), [EVALS.md](EVALS.md), [MUSE.md](MUSE.md). Engineering: [API.md](../engineering/API.md) (canonical for routes; route names here marked **[proposal]** until API.md fixes them), [SECURITY.md](../engineering/SECURITY.md) (token inventory), [OPERATIONS.md](../engineering/OPERATIONS.md), [JOBS.md](../engineering/JOBS.md).
+Sibling docs: [CONSTITUTION.md](CONSTITUTION.md), [BEHAVIOR.md](BEHAVIOR.md), [MEMORY.md](MEMORY.md) (what `brief`, `recall`, `remember` read and write), [EVALS.md](EVALS.md), [MUSE.md](../archive/MUSE.md). Engineering: [API.md](../engineering/API.md) (canonical for routes; route names here marked **[proposal]** until API.md fixes them), [SECURITY.md](../engineering/SECURITY.md) (token inventory), [OPERATIONS.md](../engineering/OPERATIONS.md), [JOBS.md](../engineering/JOBS.md).
 
 ---
 
@@ -31,7 +31,7 @@ Sibling docs: [CONSTITUTION.md](CONSTITUTION.md), [BEHAVIOR.md](BEHAVIOR.md), [M
 | Lifetime | Wake → answer → listen → end at idle cutoff, day close or Stop | One run; target ≤ 30 min, hard stop 45 min (Sunday: 60 min) | One run, ≤ 10 min |
 | Wakes per day (own cap) | ≤ 20 per hour, ≤ 40 per day **[proposal]**; platform cap 30/h per task | 1 (+1 fallback that exits at once if done) | ≤ 4 |
 | Speaks to the owner by | Replies in the thread; home lines; pushes within budget; decision cards | Home lines for tomorrow (0–4); "Built overnight" items; decision cards that appear at 06:30 | One notice line; a decision card if a rollback needs one |
-| May ship code to `main` | Yes, under the autonomy rule | No: it pushes agreed work (an open thread tagged `agreed`) to a `claude/<slug>` branch, and the next chat session ships it **[proposal]** | Rollback only |
+| How its code ships | Agreed work as a pull request the owner merges (§13) | It pushes agreed work (an open thread tagged `agreed`) to a `claude/<slug>` branch, never `main` (the hook denies it), and the next chat session opens the pull request | A revert only, as a pull request the owner merges (§13; the watchdog's handle text in `shared/contract/watchdogs.ts` and the hook still allow a revert pushed to `main`: to change) |
 | May not | Approve proposals on its own (it may only record the owner's own words with `th decide --by-message`, which the Worker verifies); write `rule` facts without owner-message evidence | Post chat replies; push notifications; ask-first verbs | Write memory; ship new code |
 
 **Phases** (from the unified plan in the architecture review): chat arrives in P2 (the daily conversation), night in P3 (memory v1), reflex in P4 (safety rails, ops).
@@ -254,15 +254,15 @@ Role column: C = chat, N = night, R = reflex. "Out" is the stdout JSON shape.
 | `th push` | `--title <t> --body <b> --ref <ref> --why <t> --topic <key> [--deadline <iso>]` | `{"queued_until"}` | C | The Worker holds it until a natural pause or drops it at the deadline ([BEHAVIOR.md §3.4](BEHAVIOR.md#34-rung-3-push)). |
 | `th remind` | `<when> <text\|-> --from <owner message id>` · `list` · `cancel <id> [--from <owner message id>]` | `{"id","fire_at","shifted"}` · `{"items"}` · `{"id","state"}` | C (N: `list`) | A reminder the owner asked for in words ([BEHAVIOR.md §3.4](BEHAVIOR.md#34-rung-3-push) "Owner-set reminders", [API.md §11.24](../engineering/API.md)). `<when>` is an ISO 8601 time with its offset (`2026-10-31T19:00:00+02:00`) or `+90m`, `+2h`, `+1d`; the id is a new UUIDv7. `--from` is the owner's message that asked: an owner-device message of the last 48 hours, at most 3 reminders from one and 5 from the mind in any 24 hours, words that pass the phrase lint (exit 8 otherwise, the reason in the error's `details`); a tainted session is refused (exit 6). The Worker delivers it once at its time, a line and a push outside the push budget; `shifted: true` means the time fell in quiet hours and moved to `fire_at`, their end, which the reply says ("Set for 06:30, the earliest I'll ring."). `cancel` takes back one not yet delivered (exit 7 once it was); one the owner set on the phone needs `--from` naming the owner's message that asked to take it back (exit 8 without it). |
 | `th propose` | `--class delete\|money\|access\|reach_people\|memory_big --question <q> --why <t> --spec <json> --if-ignored <t> [--odds <0-1>] [--options "<action>\|<safe>"] [--safe reject\|snooze]` (default "Do it\|Not now", each ≤ 20 characters; `--safe snooze` makes the second button "Not yet") | `{"proposal_id","spec_hash","target"}` (`target`: the Worker's line naming what a Yes changes, shown on the card) | C N R | Shows a decision card. The spec's op, class, role and args are checked against the contract's proposal ops first (exit 8); `th help` lists the ops. |
-| `th decide` | `<proposal id> --by-message <message id> [--spec-hash <hash>] [--reject]` | `{"status":"approved","ledger_id"}` | C | Records the owner's own words as the approval (owner ruling), through `POST /v1/proposals/:id/decide` with `by_message` ([API.md §11.10](../engineering/API.md)). The Worker refuses (exit 6, `not_owner_words`) unless the message is an owner-device message in the open day's thread, sent after the card, the owner's latest message there and not the answer to another card **[proposal]** ([BEHAVIOR.md §4](BEHAVIOR.md#4-how-decisions-and-proposals-are-posed)); the laws card takes a tap only. Only the session that holds the chat lease records words (exit 6, `session_required`), and a tainted one records no approval (exit 6, `session_tainted`). Rejections are recorded the same way. |
+| `th decide` | `<proposal id> --by-message <message id> [--spec-hash <hash>] [--reject]` | `{"status":"approved","ledger_id"}` | C | Records the owner's own words as the approval (owner ruling), through `POST /v1/proposals/:id/decide` with `by_message` ([API.md §11.10](../engineering/API.md)). The Worker refuses (exit 6, `not_owner_words`) unless the message is an owner-device message in the open day's thread, sent after the card, the owner's latest message there and not the answer to another card (built: `backend/src/areas/proposals/decide.ts`; [BEHAVIOR.md §4](BEHAVIOR.md#4-how-decisions-and-proposals-are-posed)); the laws card takes a tap only. Only the session that holds the chat lease records words (exit 6, `session_required`), and a tainted one records no approval (exit 6, `session_tainted`). Rejections are recorded the same way. |
 | `th verb` | `<verb> [<args json>] --why <8–200 chars> [--schema <n>] [--device <id>] [--ref <ref>]` | `{"verb_id","status","ledger_id"}` | C N | Any queueable verb in the contract, args checked first; owner-tap verbs (`app.open`) are refused. Ask-first verbs need `--proposal <id>` (approved, P4). |
 | `th undo` | `<ledger id>` | `{"ledger_id"}` | C | |
 | `th ledger` | `[--since <iso>] [--kind <k>] [--limit 50]` | `{"items","next"}` | C N R | Filtered by the Worker. |
-| `th order` | `new --kind <k> --spec <json> --deadline <iso> [--title <t>]` · `list` · `get <id>` · `cancel <id> --why <t>` | `{"id"}` | C N | Work orders for Muse ([MUSE.md](MUSE.md)); the result schema is the kind's (built P4 stage G). No kind carries the owner's data yet, so `--personal` is refused before anything is sent. |
+| `th order` | `new --kind <k> --spec <json> --deadline <iso> [--title <t>]` · `list` · `get <id>` · `cancel <id> --why <t>` | `{"id"}` | C N | Work orders for Muse ([MUSE.md](../archive/MUSE.md)); the result schema is the kind's (built P4 stage G). No kind carries the owner's data yet, so `--personal` is refused before anything is sent. |
 | `th muse` | `notes [--after <seq>]` · `note <text>` | notes, `{"id"}` | C N | Muse's own thread (built P4 stage G; `th board` and the Board brief went with the Board, 2026-10-31). |
 | `th taint` | `--source <tool> --ref <url or id>` | `{"tainted":true}` | C N R | Called by the PostToolUse hook; irreversible for the session. |
 | `th pending` | — | `{"unanswered":[ids],"stop":bool,"day_closed":bool,"limited":bool,"idle_min":n,"idle_cutoff_min":n}` | C N R | Used by the Stop hook. |
-| `th ci` | `<sha> [--workflow ci\|deploy] [--card <message id>] [--minutes 40]` | `{"state":"passed\|failed\|running","url"}` | C N R | Built 2026-10-31 (`mind/cli/lib/ci.mjs`). Reads the workflow's newest run on that SHA from the public GitHub API (the repository is public: no token) every 20 s (≤ 45 calls an hour, under the 60/h unauthenticated limit) and keeps the card current. Exit 0 passed, 1 failed, 3 still running at the time limit, 9 GitHub unreachable, 10 GitHub's hourly limit. It needs `api.github.com` on the role's environment network list (R-7). |
+| `th ci` | `<sha> [--workflow ci\|deploy] [--card <message id>] [--minutes 40]` | `{"state":"passed\|failed\|running","url"}` | C N R | Built 2026-10-31 (`mind/cli/lib/ci.mjs`). Reads the workflow's newest run on that SHA from the public GitHub API (the repository is public: no token) every 20 s (≤ 45 calls an hour, under the 60/h unauthenticated limit) and keeps the card current. Exit 0 passed, 1 failed, 3 still running at the time limit, 9 GitHub unreachable, 10 GitHub's hourly limit. It needs `api.github.com` on the role's environment network list (R-7). It only waits and reports: nothing in it pushes or merges. The "fast-forward `main`" step that once followed it in §13 is gone (2026-11-02, AGENTS.md); `--workflow deploy` waits on the Deploy run after the owner merges. |
 | `th health` | `[--deep]` | Worker health JSON, with `meter`: today's database use against the day's budget (the Free plan's limits less the old Worker's share; `read_pct`, `written_pct`, `pct`, and `hold_until` while the heavy work waits from 80%), or null when it can't be read | C N R | `--deep` needs the role's ops scope. |
 | `th errors` | `[--hours 24]` | `{"items":[…]}` | C N R | The Core errors table (`since` on the Worker). |
 | `th reports` | `[--kind playback] [--since <ms\|iso>] [--limit 50] [--cursor <c>]` | `{"kind","batches","from","to","devices","pages","events","repeats","first_sound_ms","waits","stalls","errors","items","next"}` | C N R | Built 2026-10-31 (`mind/cli/lib/reports.mjs`). The batches the owner's phone sent about playback (`GET /v1/ops/reports`, kept 30 days), newest first, as one summary: events by type (an event sent twice, same page and `n`, counted once; `repeats` says how many), time to first sound (n, p50, p90, max), the decks' waits from each page's newest batch, the player's own stalls (`stall`, not the browser's `stalled`), the newest 5 errors, then one line per batch. Track ids and timings only. A batch's every event: `th get /v1/ops/reports kind=playback limit=1`. |
@@ -355,7 +355,7 @@ Runs instead of Stop when a turn ends on an API error (`error`: `rate_limit`, `o
 
 **A soft gate.** The pre-tool rules parse shell commands (pipes, `$(…)`, `bash -c`, heredocs) but cannot see every way out: `node -e "fetch(…)"` or Python bypass the curl/wget host rule. The environment's network list is the real control; the hook catches an honest or confused session. For night and reflex it denies every bare `git push` (no refspec) rather than looking up the upstream, which keeps it deterministic.
 
-**Protected-paths gate (built in P4 stage C).** The `guard` GitHub check is deferred (decisions.md). Until it exists, the hook denies edits to and pushes of protected paths without an approved `access` proposal whose spec lists those paths and the commit SHA. This is a soft gate: it stops an honest or confused session, not a determined attacker who already controls the repo. The constitution pin ([CONSTITUTION.md](CONSTITUTION.md#the-constitution-pin-proposal)) and the ledger catch the rest.
+**Protected-paths gate (built in P4 stage C).** The `guard` GitHub check is deferred (decisions.md). Until it exists, the hook denies edits to and pushes of protected paths without an approved `access` proposal whose spec lists those paths and the commit SHA. This is a soft gate: it stops an honest or confused session, not a determined attacker who already controls the repo. The constitution pin ([CONSTITUTION.md](CONSTITUTION.md#the-constitution-pin-built-p4-stage-a)) and the ledger catch the rest.
 
 **Check (HK-4):** unit tests feed sample tool inputs per role; e.g. night + `git push origin HEAD:main` → deny.
 
@@ -388,9 +388,9 @@ The reader does not lift the taint: its answer is outside text. The session is t
 | Setup script | `cd /home/user/thunderhead && npm ci --ignore-scripts` (the script runs as root outside the repository, so `~` is `/root`; cached by the platform) | same | same |
 
 Rules:
-1. **Tokens** are issued from Settings → Agents on a signed-in device, shown once, and stored only as hashes in the `Auth` Durable Object (decisions.md). Format: `thm_` + 43 base62 + 6 base62 CRC32 checksum, the same for every mind role (the role is stored with the hash, not in the token) ([SECURITY.md §5.1](../engineering/SECURITY.md)) **[proposal]**. The owner pastes each into its environment's network secret.
+1. **Tokens** are issued from Settings → Agents on a signed-in device, shown once, and stored only as hashes in the `Auth` Durable Object (decisions.md). Format: `thm_` + 43 base62 + 6 base62 CRC32 checksum, the same for every mind role (the role is stored with the hash, not in the token) ([SECURITY.md §5.1](../engineering/SECURITY.md)). The owner pastes each into its environment's network secret.
 2. **One token per environment.** A token's role is fixed at issue; the Worker never trusts a role claimed in a header.
-3. **No Cloudflare, Azure or R2 credential** in any environment. The current system's read-only Cloudflare observability token is not carried over **[proposal]**; the mind reads errors from the Worker's own `errors` table instead.
+3. **No Cloudflare, Azure or R2 credential** in any environment. The current system's read-only Cloudflare observability token is not carried over (AGENTS.md); the mind reads errors from the Worker's own `errors` table instead.
 4. Environment variables are visible to anyone using the environment, so they hold no secrets.
 5. **Rotation:** the owner revokes and reissues from Settings → Agents (an `access` action). The Worker accepts the new hash at once and the old one stops within 60 s.
 6. **The one-time import** (P3, [SETUP.md L2–L3](../process/SETUP.md)) is the one exception to rule 2, and it is not a mind role: a manual session of the owner's existing Claude environment, the only one whose network secret carries the old Worker's agent key, runs `mind/jobs/old-export.mjs` with the new Worker's host and a `mind:chat` key named `import-once` added for that run only (the import routes take no other key, so no routine can write "old" owner messages); the owner revokes the key and removes the host afterwards. The driver has no token of its own and prints counts only.
@@ -454,9 +454,9 @@ These are also the SLOs in the architecture review (warm p90 < 15 s, cold p90 < 
 | F10 | Two chat sessions | Claim returns `already_live` | The second ends silently | Nothing |
 | F11 | Day rolls during long work | `th wait` exit 5 | Finish the step (≤ 30 min), note, end | New messages land in the new day's thread and wake a new session |
 | F12 | CI red on the mind's branch | `th ci` exit 1 | Fix and retry up to 3 times, then report | "Didn't work: …" with the failing test name |
-| F13 | Deploy failed after fast-forward | Deploy workflow fails; its auto-rollback runs | Confirm the rollback is live; open thread | "Didn't work: release 3f2a1c9 failed its live check and was rolled back. Live is still 9b1e0d2." |
-| F14 | Night shift didn't run | No `night_runs` row done by 09:00 | Fallback 06:07 already tried; next chat session runs the missing steps 1–4 first | Briefing page: "The night shift didn't run (likely the usage limit). Yesterday's notes will be written later." |
-| F15 | Night shift fails midway | `night_runs.step` stuck | The next night or a chat session resumes from the last finished step | Briefing page: "The night shift stopped at step N." |
+| F13 | Deploy failed after the owner merged | Deploy workflow fails; its auto-rollback runs | Confirm the rollback is live; open thread | "Didn't work: release 3f2a1c9 failed its live check and was rolled back. Live is still 9b1e0d2." |
+| F14 | Night shift didn't run | No `night_runs` row done by 09:00 | Fallback 06:07 already tried; next chat session runs the missing steps 1–4 first | Briefing page, from 07:00 (built 2026-11-02): "The night shift hasn't run yet." |
+| F15 | Night shift fails midway | `night_runs.step` stuck | The next night or a chat session resumes from the last finished step | Briefing page, when step 7 wasn't reached (built 2026-11-02): "The night shift ran out of time before arranging this page." (the hard stop) or "The night shift stopped before arranging this page." (no step for 20 minutes); the mind's night line names the steps a hard stop cut |
 | F16 | Laws file changed without approval | Constitution pin | `rule` writes refused; decision card | Gold edge; card "The laws file changed without your OK." |
 | F17 | GitHub disconnected for the account | F1 pattern on every wake | After 3 consecutive F1s with fire 200, the Worker suspects GitHub **[proposal]** | Settings banner: "Scheduled tasks may be skipping runs. Check the GitHub connection at claude.ai." (runs are skipped up to 72 h, then the task turns off) |
 
@@ -481,7 +481,7 @@ Behaviour:
 4. **Night at the limit:** the roll's fire fails or stops; the 06:07 fallback tries again; F14 if neither runs.
 5. **Self-restraint [proposal]:** the briefing's "Now" section shows `wakes today` and `pre-warms left`. If `wakes today ≥ 25`, the mind shortens its idle cutoff to 30 min for the rest of the day.
 6. **Weekly check:** until a supported readout exists, the owner reads claude.ai/settings/usage once a week and the mind asks for the number in a Sunday home line only if the owner opted in. **[proposal]**
-7. **Max 5x now, maybe Pro later (owner ruling).** Everything keeps working on Pro, only leaner. The owner sets the plan in Settings → Agents, and the Worker switches to a lean profile **[proposal: the numbers]**: pre-warm off, chat wakes ≤ 8 per hour, idle cutoff 30 min, night shift target ≤ 15 min (steps 5 and 9 alternate weeks), Sunday evals reduced to INJ and LAW-1. Replies, memory, the ledger, the instant tier and every gate stay the same; only speed and optional work shrink.
+7. **Max 5x now, maybe Pro later (owner ruling).** Everything keeps working on Pro, only leaner. The owner sets the plan in Settings → Agents, and the Worker switches to a lean profile **[proposal: the numbers]**: pre-warm off, chat wakes ≤ 8 per hour, idle cutoff 30 min, night shift target ≤ 15 min (steps 5 and 9 alternate weeks), Sunday evals reduced to INJ. Replies, memory, the ledger, the instant tier and every gate stay the same; only speed and optional work shrink.
 
 ---
 
@@ -502,12 +502,12 @@ Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its cl
 | 2 | Day note (≤ 150 words, decisions, importance 1–10); final titles and summaries for filed threads (unless `title_source=owner`) | 5 min | `day_notes`, `threads` |
 | 3 | Open threads: close finished ones, add commitments found in messages (evidence = message ids) | 3 min | `open_threads` |
 | 4 | Facts: candidates from owner messages (`user`) and stats (`observed`, n ≥ 10); for each, `th recall --kind facts` and choose ADD / CONFIRM / SUPERSEDE / NOOP; submit them with `th facts --batch <file> --night`, in parts of ≤ 50 ops (`--part 2`, …, each part sent once, its place saved as the step's cursor) | 6 min | `facts`, ledger, proposals for risky changes (P4) |
+| 7 | Arrange tomorrow (P3+; right after step 4 since 2026-11-02, so it starts by minute 15 of the budgets, long before the hard stop: [BRIEFING.md](../product/BRIEFING.md#why-the-briefing-was-empty-2026-11-02)): 0–4 home lines, surfaces, practice set (in-app surfaces only in apps whose agreed evolution added them; the as-is ports have none); one of the lines may be the new podcast episodes (§12.1) | 4 min | `surfaces` |
 | 5 | Health: `th errors`, `th health --deep`; small agreed fixes on a branch (only `agreed` work, pushed to a branch; never to `main`) | ≤ 8 min | Branch, maybe a release |
 | 6 | Indexing. From P7: read Study's waiting books (`bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2 --minutes 10`; a book not finished goes on the next night; it prints counts only, so no book text reaches the session). Then the listening pass: `th music jobs` (collects last night's job, sends the next ≤ 500 songs, or the neighbours step, to Actions by the job's id; built 2026-11-01, JOBS.md §3) | 10 min | Pages, FTS, refs in `Library`; one Actions job dispatched |
-| 11 | Songs (P5, last before 10, after every step that writes memory: reading songs' tags taints the session, and the next night's fired wake starts clean once this session has ended, §4.3): the next untagged songs' notes (≤ 400), at most 2 mixes, Sunday's line (§12.1) | 6 min | `track_notes`, verbs, one home line |
-| 7 | Arrange tomorrow (P3+): 0–4 home lines, surfaces, practice set (in-app surfaces only in apps whose agreed evolution added them; the as-is ports have none); one of the lines may be the new podcast episodes (§12.1) | 4 min | `surfaces` |
 | 8 | "Built overnight" items for the Briefing page; arrange the Briefing page | 1 min | Briefing items |
 | 9 | Sunday only: weekly review and evals ([EVALS.md](EVALS.md)); built in P4 stage C as the injection suite (`th eval begin`, then what it prints), and in P9 the weekly improvement after it (`th eval week`, EVALS.md §7) | +15 min | `eval_runs`, one PR at most |
+| 11 | Songs (P5, last before 10, after every step that writes memory: reading songs' tags taints the session, and the next night's fired wake starts clean once this session has ended, §4.3): the next untagged songs' notes (≤ 400), at most 2 mixes, Sunday's line (§12.1) | 6 min | `track_notes`, verbs, one home line |
 | 10 | Session note; update `docs/process/STATUS.md` if code changed; `th night done` | 2 min | — |
 
 - **Budget:** target ≤ 30 min, hard stop 45 min (Sunday 60). At the hard stop, finish the current step, mark the rest skipped, `th night done --partial`.
@@ -580,25 +580,26 @@ its checks and 20 for its count of reads.
 
 ## 13. Shipping code
 
-The autonomy rule in commands. The agent pushes as the owner's GitHub identity; GitHub can't gate it, so the steps are the gate.
+The autonomy rule in commands. Agreement is the go-ahead to build; the shipping path ends at a pull request the owner merges, because merging to `main` is what makes something live and agents never push to `main` (AGENTS.md, which wins over this page). The agent pushes as the owner's GitHub identity, so GitHub can't tell the two apart: the steps are the gate.
 
 1. `git fetch origin && git switch -c claude/<slug> origin/main`.
 2. Small commits; `git push -u origin claude/<slug>` after each meaningful step (the VM can vanish).
 3. `npm ci && npm test` in the session. Fix until green.
 4. Push; `th ci <sha> --card <card id>` waits for CI on that exact SHA.
-5. Fast-forward only: `git fetch origin main`; if `origin/main` is not an ancestor of `HEAD`, rebase onto it and go back to step 3. Then `git push origin HEAD:main`. Never `--force`, never a merge commit.
-6. `th ci <sha> --workflow deploy` waits for the Deploy workflow.
-7. Confirm live: `<site>/release.json` names the SHA; if `backend/` or `shared/` changed, `GET /v1/health` reports the new version.
-8. Ledger row `kind=deploy` with `undo` = "roll back to <previous sha>"; report `Live: …` (BEHAVIOR §5).
-9. Update `docs/process/STATUS.md` in the same or the next push.
+5. Open the pull request: `gh pr create --base main`, its body in plain words (what changes, how to try it, the preview link when there is one). If `main` moved and the branch conflicts, merge `origin/main` into the branch (never `--force`) and go back to step 3. *(Until 2026-11-02 this step fast-forwarded `main` with `git push origin HEAD:main`; that is gone.)*
+6. The owner tries it and merges it, or says no. The mind does not merge its own pull request unless the owner says so for that change.
+7. After the merge, `th ci <merge sha> --workflow deploy` waits for the Deploy workflow.
+8. Confirm live: `<site>/release.json` names the SHA; if `backend/` or `shared/` changed, `GET /v1/health` reports the new version.
+9. Ledger row `kind=deploy` with `undo` = "roll back to <previous sha>"; report `Live: …` (BEHAVIOR §5).
+10. Update `docs/process/STATUS.md` in the same pull request or the next one.
 
 Rules:
 - Protected paths (`mind/CONSTITUTION.md`, `.claude/**`, `mind/hooks/**`, `.github/**`, auth and token code) need an approved `access` proposal for that SHA (§6.4).
 - Commit messages end with the attribution lines the platform asks for.
 - Nothing personal in commits, branch names, PR text or Actions logs.
-- Rollback on request: Actions → Deploy → run with the previous commit, through the Worker's job endpoint or by asking the owner; the mind never holds Azure or Cloudflare credentials.
+- Rollback when the owner asks: Actions → Deploy → run with the previous commit, through the Worker's job endpoint or by the owner; the mind never holds Azure or Cloudflare credentials.
 
-**Acceptance:** a test change goes from branch to "Live" with a ledger row and a matching `release.json` in one session.
+**Acceptance:** a test change goes from branch to an open pull request with CI green; after the owner merges it, the session reports "Live" with a ledger row and a matching `release.json`.
 
 ---
 
@@ -608,20 +609,19 @@ Rules:
 
 | Section | Content | Limit |
 |---|---|---|
-| Updated | Date, role (chat/night), short session ref (no URLs to private sessions) | 1 line |
-| Phase | Current phase and its "done when" | 2 lines |
-| Next | The next 3 tasks, in order | 3 lines |
-| In flight | Branch → state (CI, waiting on owner, blocked) | ≤ 10 lines |
-| Blocked / waiting on owner | Generic phrasing ("owner decision: push end time") | ≤ 10 lines |
-| Last deploy | Site SHA, Worker version, time | 2 lines |
-| Recent decisions | Pointers to new lines in decisions.md | ≤ 5 lines |
+| Now | Date; one paragraph: who leads, the plan, what changed since the last update | 1 paragraph |
+| Current phase | What is live, in five bullets | 5 bullets |
+| Next three tasks | The next 3 tasks, in order | 3 items |
+| Blocked / waiting on the owner | Generic phrasing ("owner decision: push end time"), with its SETUP.md step | ≤ 10 lines |
+| Last deploy | The last three deploys: time, SHA, Deploy run, the pull requests in it | 3 entries |
 
 Rules:
 1. Updated before the session ends whenever it changed code, plans or blockers.
-2. Total ≤ 80 lines; older items move to git history, not to an archive section.
+2. Total ≤ 80 lines; older items move to git history, not to an archive section. (The one-time cut of
+   2026-11-02 kept October's long page verbatim in [archive/STATUS-2026-10.md](../archive/STATUS-2026-10.md).)
 3. Personal context (what the owner said, memory) never goes here; it stays in the Worker.
 
-**Acceptance:** CI lint: STATUS.md ≤ 80 lines and contains each section heading.
+**Acceptance:** STATUS.md ≤ 80 lines with these five headings. Not linted in CI yet; checked by hand.
 
 ---
 

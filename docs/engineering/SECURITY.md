@@ -299,7 +299,7 @@ The Worker on Free has **10 ms CPU per request**. Even scrypt N=2^14, p=1 costs 
 
 **Best evidence today:** probably 30 s (E1, E2, E4, E9), with one contrary sentence (E3). Not proven. So test X3 decides, and the fallback (§6.4) is designed so that neither outcome needs a re-design.
 
-### 6.3 Test X3 (run before any auth code ships) **[proposal: run it from Actions]**
+### 6.3 Test X3 (run before any auth code ships; run from Actions, PASS on 2026-10-29)
 
 No Claude session holds a Cloudflare credential, so X3 runs as a GitHub workflow:
 1. `.github/workflows/bench.yml` (test `x3`), `workflow_dispatch`, job `environment: worker`. The same workflow runs X1 and X4.
@@ -315,28 +315,12 @@ No Claude session holds a Cloudflare credential, so X3 runs as a GitHub workflow
 
 If `wrangler tail` doesn't show DO `cpuTime` on Free (open question), read **Workers → thunderhead-x3 → Metrics** in the dashboard on the phone; outcome counts alone still decide pass/fail.
 
-### 6.4 Fallback: client-side KDF ("server relief") **[proposal]**
-
-If X3 fails, scrypt moves to the phone and the server does only a keyed hash. The stored verifier is **identical**, so switching between modes needs no password reset.
-
-1. `POST /v1/auth/prelogin {username}` (public, same back-off as login) returns `{kdf: "scrypt", n, r, p, salt}`. For a wrong username it returns a deterministic fake salt `HMAC(AUTH_PEPPER, "fake-salt:" + username)[0..16]` with the same parameters, so the answer never reveals whether the username exists.
-2. The page computes `dk = scrypt(NFKC(password), salt, n, r, p, 32)` in a dedicated Web Worker using a vendored WASM build (hash-wasm, MIT, pinned with SHA-256). Those pages add `'wasm-unsafe-eval'` to their CSP.
-3. The page sends `{username, dk}` instead of `password`. The server computes `HMAC-SHA256(AUTH_PEPPER, dk)` and compares it with the stored verifier (~0.01 ms of CPU).
-4. Setting a password: the page also checks length and blocklist, and does the breach check through the Worker (`GET /v1/auth/pwned/:prefix5`, a pass-through of the k-anonymity range API), because the server no longer sees the password.
-5. A Worker variable `AUTH_KDF_WHERE = "server" | "client"` picks the mode. The server accepts only the configured field, so there's one path in production; CI tests both.
-
-Trade-offs: `dk` is password-equivalent for this site (as the password is). Against a stolen database, an attacker still needs the pepper and then one scrypt per guess, exactly as before. Password rules move to the client, which is acceptable for a one-person app. Cost: about 0.5–2 s of phone CPU per sign-in on the owner's phone (measure at P1; target p95 ≤ 2 s).
-
-Not fallbacks:
-- The architecture review's interim "N=2^14, p=1" still costs ~37–42 ms, which doesn't fit a 10 ms budget either.
-- Workers Paid ($5/month) would settle it, but costs money; ask the owner first.
-
 ---
 
 ## 7. CORS
 
-- **Allowlist:** `SITE_ORIGINS` (a Worker variable): the exact new site origin. The old site's origin is never added: the phone export travels as a file and is uploaded from the new origin ([MIGRATION.md §5](MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)), so the owner never signs in to the new Worker from the old origin. `http://127.0.0.1:8080` exists only in the dev config.
-- **The other direction (P1b):** the old Worker allows the new site's origin (its `FRONTEND_ORIGINS` set) so the ported pages work until their data moves. That is an ask-first old-Worker deploy, and the entry goes when the old Worker retires ([MIGRATION.md §6](MIGRATION.md#6-cors-the-new-site-on-the-old-worker-p1b-temporary)).
+- **Allowlist:** `SITE_ORIGINS` (a Worker variable): the exact new site origin. The old site's origin is never added: the phone export travels as a file and is uploaded from the new origin ([MIGRATION.md §5](../archive/MIGRATION.md#5-the-as-is-port-and-phone-local-data-p1b)), so the owner never signs in to the new Worker from the old origin. `http://127.0.0.1:8080` exists only in the dev config.
+- **The other direction (P1b):** the old Worker allows the new site's origin (its `FRONTEND_ORIGINS` set) so the ported pages work until their data moves. That is an ask-first old-Worker deploy, and the entry goes when the old Worker retires ([MIGRATION.md §6](../archive/MIGRATION.md#6-cors-the-new-site-on-the-old-worker-p1b-temporary)).
 - **Allowed origin:** `Access-Control-Allow-Origin: <that exact origin>` and `Vary: Origin`. Never `*`. Never `Access-Control-Allow-Credentials`.
 - **Preflight:** methods `GET, POST, PUT, PATCH, DELETE`; headers `Authorization, Content-Type, TH-Client, TH-File-Name, TH-Sha256, TH-Seconds, If-None-Match, Range, If-Range`; `Access-Control-Max-Age: 7200` (Chrome's cap). [API.md §4](API.md#4-cors) is canonical.
 - **Exposed:** `TH-Request-Id`, `TH-Server`, `TH-Min-Client`, `Retry-After`, `ETag` (not CORS-safelisted, so they must be listed to be readable).
@@ -416,7 +400,7 @@ Never: Cloudflare, Azure or R2 credentials in any Claude environment; any secret
 ### 12.1 Repository settings (owner, once, from the phone)
 - Actions → General → Workflow permissions: **Read repository contents**. Each workflow starts `permissions: {}` and each job asks for only what it needs.
 - Fork pull request workflows: **Require approval for all external contributors**.
-- Rules → ruleset on `main`: **Restrict deletions**, **Block force pushes**, empty bypass list. No required status checks in v1 (decisions: the agent fast-forwards `main` after CI passes on the same SHA; `deploy.yml` tests again).
+- Rules → ruleset on `main`: **Restrict deletions**, **Block force pushes**, empty bypass list. No required status checks in v1 (work lands as pull requests the owner merges, AGENTS.md; CI runs on the branch and `deploy.yml` tests again).
 - Environment `worker`: deployment branches = `main` only; holds `CLOUDFLARE_API_TOKEN` and `TH_CI_TOKEN`.
 - The **site deploy job uses no environment.** Azure's federated credential trusts the subject `repo:…/thunderhead@<repo_id>:ref:refs/heads/main`; adding `environment:` would change the subject to `…:environment:<name>` and break the sign-in.
 - Secret scanning and push protection: on. Private vulnerability reporting: on, so a stranger can report privately. **[proposal]**
@@ -499,12 +483,6 @@ Each ends with a ledger entry and a line in `docs/process/STATUS.md` (no persona
 | `ROUTINE_*_TOKEN` / `ROUTINE_*_URL` | Regenerate in the task's settings in Claude. Impact: someone can wake the mind with the text `wake` (burns usage, capped at 30/h). |
 | Any secret pushed to the repo | Rotate first, then remove from history isn't enough on a public repo: assume it's copied. |
 
-### 14.6 Pepper rotation (lazy, no forced reset) **[proposal]**
-1. Add `AUTH_PEPPER_V2`; deploy with `AUTH_PEPPER_CURRENT=2`.
-2. On the next sign-in, the password is verified with v1 and re-stored with v2.
-3. Settings shows "Make a new recovery code" (it can't be re-hashed lazily).
-4. When `pepper_v=1` no longer appears in `Auth`, delete `AUTH_PEPPER`.
-
 ### 14.7 A stranger used up the free quota
 Symptoms: the app shows `budget_exhausted` or Cloudflare error 1027; the watchdog fires at 70% of the daily 100k Worker requests before 18:00 UTC.
 1. Nothing is lost; quotas reset at 00:00 UTC. The shell keeps working from cache; the outbox holds messages.
@@ -519,13 +497,6 @@ Symptoms: the app shows `budget_exhausted` or Cloudflare error 1027; the watchdo
 ### 14.9 Someone else signed in (new-device notice says "Not me")
 1. Tapping "Not me — sign it out" already revoked it.
 2. Change the password (§14.3); review agent keys and the ledger.
-
-### 14.10 Start the account over (last resort, ask-first) **[proposal]**
-For when the reset ticket can't work (for example, no mind key and no GitHub access). It wipes only `Auth`: credential, sessions, agent keys, notices and push subscriptions. Core data is untouched.
-1. The owner asks in a session; the agent opens a PR adding a one-shot migration that clears the `Auth` tables when the Worker secret `AUTH_WIPE_FP` matches a fingerprint the owner made on `/setup/`.
-2. The owner installs that fingerprint through GitHub (as in Open setup) and merges.
-3. After deploy, `Auth` waits 24 h (same delay as a reset), then clears itself; `/setup/` opens again. Every still-signed-in device sees a red notice and can cancel during the wait.
-4. Setup runs as on day one; agent keys are re-made.
 
 ---
 
@@ -543,3 +514,17 @@ For when the reset ticket can't work (for example, no mind key and no GitHub acc
 | T21 | Are GitHub custom secret-scanning patterns available for this public repo at $0? | Settings → Code security; if not, rely on the repo test (§5.2) |
 | T22 | Does a same-site neighbour frame really get our first-party storage in the owner's Chrome? | Two storage-account test sites in the same zone (or two local origins sharing a site via a hosts entry); expect yes, which the guard already handles |
 | T23 | Can Actions log retention be set to 30 days on this repo? | Settings → Actions → General |
+
+---
+
+## Not built
+
+Sections once marked as proposals that are not built and not in PLAN.md; their full text is in
+[archive/NOT-BUILT-2026-11-02.md](../archive/NOT-BUILT-2026-11-02.md).
+
+- **§6.4 Fallback: client-side KDF ("server relief").** scrypt on the phone and only a keyed hash on the server, with the same verifier, picked by `AUTH_KDF_WHERE`.
+  Not needed: X3 passed on 2026-10-29 (decisions.md), so scrypt runs in the `Auth` object.
+- **§14.6 Pepper rotation (lazy, no forced reset).** Add `AUTH_PEPPER_V2`, re-store each password with it at the next sign-in, then drop the old pepper.
+  Not built (the Worker has one pepper; `pepper_v` is stored for the day it does) and not in PLAN.md.
+- **§14.10 Start the account over (last resort, ask-first).** A one-shot migration, gated on a fingerprint the owner makes and a 24 h wait, clears `Auth` only.
+  Not built and not in PLAN.md; the reset ticket is the built way back in.

@@ -1,5 +1,7 @@
 # P1 measurements (local workerd)
 
+> **Archived 2026-11-02** (was `backend/MEASUREMENTS.md`): historical, kept for the record; see [README.md](README.md). Its production results are in [decisions.md](../process/decisions.md).
+
 Measured 2026-10-28 on the P1 spike (§1, §3–§5) and again after the contract rework (§2, bundle), in **local workerd 2026-10-23** (wrangler 4.154.0,
 `@cloudflare/vitest-plugin` 1.4.9, Node 22.22) on a 4-vCPU Intel Xeon @ 2.10 GHz. Nothing was
 deployed. Every number here can be reproduced with `npm test -w backend` (cost, accounting) or
@@ -69,6 +71,8 @@ revoked (kept 30 days so an old token learns why) instead of deleting them.
 | `POST /v1/ops/errors`, one item (Core; error row + change row) | 0 | 2 |
 | `GET /v1/settings` (Core) | 1 | 0 |
 | `PATCH /v1/settings`, one key (Core; setting + change row) | 0 | 2 |
+| `GET /v1/briefing` (Core; 12 reminders set, 4 due; the follows of `podcast-calls.ts`. 8 read before Due, Holidays and the day's line, 2026-11-02) | 34 | 0 |
+| `GET /v1/briefing` (Music: 40 songs added in the last day, the log walked back 50 rows a page) | 50 | 0 |
 
 - Authentication itself costs **1 row read** once per token per isolate-minute (2 for an agent
   key: the `UNIQUE` token-hash index), and **1 write at most once an hour** per session or key.

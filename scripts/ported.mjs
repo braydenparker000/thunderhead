@@ -1,4 +1,4 @@
-// Writes frontend/ported.json, the record of the as-is port (MIGRATION.md §5.1): for every ported
+// Writes frontend/ported.json, the record of the as-is port (docs/archive/MIGRATION.md §5.1): for every ported
 // file its hash, the old file's hash and the exact edits made to it, each folder's outside hosts
 // and page CSPs. tests/ported.test.mjs checks the committed files against it, without the old repo.
 // Usage: node scripts/ported.mjs <old repo checkout> <old repo commit>
@@ -33,7 +33,7 @@ export const EDITS = {
     edits: [["    if (!response.ok) throw Error(\"My Media isn't set up on this site yet.\");\n    const config = await response.json().catch(() => { throw Error(\"My Media's settings couldn't be read.\"); });\n", '    const config = await response.json();\n']],
   },
   // The reporter only reports on its own live site; its site is now this one.
-  // Data moves (MIGRATION.md §2.5): signed in, every ported page reports its errors to the new Worker's inbox with
+  // Data moves (docs/archive/MIGRATION.md §2.5): signed in, every ported page reports its errors to the new Worker's inbox with
   // the owner's session (th/ported/session.js), addresses cut to their host; signed out, to the old one as before.
   // P9 (the owner's yes, decisions 2026-10-30): signed in, the page's opening is one sense event.
   'assets/error-report.js': {
@@ -45,7 +45,7 @@ export const EDITS = {
       ["    if (session && CONFIG.api) fetch(CONFIG.api + '/v1/ops/errors', {method: 'POST', headers: {'Content-Type': 'application/json', Authorization: 'Bearer ' + session}, body: JSON.stringify({items: reports.map(item)}), keepalive: true, credentials: 'omit', mode: 'cors'}).catch(() => {});\n    else fetch(ENDPOINT, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reports}), keepalive: true, credentials: 'omit', mode: 'cors'}).catch(() => {});\n", "    fetch(ENDPOINT, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({reports}), keepalive: true, credentials: 'omit', mode: 'cors'}).catch(() => {});\n"],
     ],
   },
-  // P6 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the new Worker with the owner's session, the old
+  // P6 data move (docs/archive/MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the new Worker with the owner's session, the old
   // one while it can't answer.
   'guitar/sources.js': {
     adjustments: ['data-move'],
@@ -85,7 +85,7 @@ export const EDITS = {
     ],
   },
   // Guitar tips per section the owner asked for (decisions 2026-10-30): a section's label opens its tips.
-  // Guitar's practice loop, the owner's yes (NEXT-BATCH.md part 9, 2026-10-31): the tempo ladder replaces
+  // Guitar's practice loop, the owner's yes (docs/archive/NEXT-BATCH.md part 9, 2026-10-31): the tempo ladder replaces
   // the speed trainer in the Speed sheet, a loop's pass asks Clean or Not yet, a new day opens on the bars
   // that went worst, and practice senses go to the Worker (th/guitar/practice.js). The first pair comes
   // first because undo runs in order and it sits on the tips' import line.
@@ -161,7 +161,7 @@ export const EDITS = {
       ["    const from = el.volume, t0 = performance.now();\n    const step = now => {\n      const k = Math.min(1, Math.max(0, now - t0) / Math.max(1, ms));\n      el.volume = Math.max(0, Math.min(1, from + (to - from) * k));\n      return k < 1;\n    };\n    // A hidden page gets no frames: a timer steps the fade then.\n    const off = this.ctx.onFrame?.(step), tick = setInterval(() => { if (globalThis.document?.hidden) step(performance.now()); }, 25);\n    entry.cancel = () => { off?.(); clearInterval(tick); };\n    // At its end the fade's level is set, however few steps it took.\n    entry.timer = setTimeout(() => { if (this.pending.get(el) === entry) el.volume = Math.max(0, Math.min(1, to)); finish(); }, ms);\n", "    const from = el.volume;\n    let t0 = null;\n    entry.cancel = this.ctx.onFrame?.(now => {\n      t0 ??= now;\n      const k = Math.min(1, (now - t0) / Math.max(1, ms));\n      el.volume = Math.max(0, Math.min(1, from + (to - from) * k));\n      return k < 1;\n    });\n    entry.timer = setTimeout(finish, ms);\n"],
     ],
   },
-  // P8 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the Podcasts worker answers the app's
+  // P8 data move (docs/archive/MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the Podcasts worker answers the app's
   // requests to the old Worker from the new one (th/podcasts/bridge.js), the old one while the new one can't.
   'podcasts/sw.js': {
     adjustments: ['data-move'],
@@ -170,7 +170,7 @@ export const EDITS = {
       ["  const req = event.request, url = new URL(req.url);\n  if (podcastsBridge.handles(url)) { event.respondWith(podcastsBridge.answer(req, event)); return; }\n", "  const req = event.request, url = new URL(req.url);\n"],
     ],
   },
-  // P5 data move (MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the player's worker answers its library
+  // P5 data move (docs/archive/MIGRATION.md §7 step 5, SECURITY.md §4.4 rule 4): the player's worker answers its library
   // requests from the new Worker (th/music/bridge.js), the old one while the new one can't.
   'music/sw.js': {
     adjustments: ['data-move', 'improvement'],

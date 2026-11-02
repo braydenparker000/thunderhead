@@ -4,6 +4,10 @@ The one-time steps only the owner can do. Each step is one action. Labels are th
 Azure portal and GitHub showed in October 2026; if a label differs slightly, pick the closest.
 Nothing here is secret except where it says so.
 
+Adding a step (for agents): ready-to-paste values only, one exact place per step (page, tab, secret or
+variable, repository or environment), a screenshot first for screens the agent cannot see, and verify
+each step before the next.
+
 ## A. GitHub repository (3 minutes)
 
 1. Open `github.com/new`.
@@ -372,7 +376,7 @@ ledger note and the briefing line.
 ### M3. Cut (owner, 2026-10-31)
 
 There is no Muse Daily Board any more, so Muse doesn't move onto the work orders and nothing here
-is needed. Muse's music uploads moved on their own (N4, [MUSE-UPLOADS.md](MUSE-UPLOADS.md)). Tell
+is needed. Muse's music uploads moved on their own (N4, [MUSE-UPLOADS.md](../archive/MUSE-UPLOADS.md)). Tell
 Muse to stop producing the Daily Board, on the old relay too.
 
 ### M4. Retire `jc` (about 2 minutes, from 2026-11-05)
@@ -493,7 +497,7 @@ upload music from (it never leaves that computer):
 **If Muse does your uploads** (2026-10-31): Muse makes the key instead of you, on its side, and
 sends you only the public key (64 characters); you do step 2 with it, then tell Muse it's
 registered, and Muse uploads one test song and sends you the `register` answer for the agent. The
-message for Muse, ready to paste, is [MUSE-UPLOADS.md](MUSE-UPLOADS.md).
+message for Muse, ready to paste, is [MUSE-UPLOADS.md](../archive/MUSE-UPLOADS.md).
 
 N5 (music private: the old Worker's public read off, ask-first) comes after the player has used
 only the new Worker for 3 days.

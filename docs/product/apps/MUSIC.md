@@ -339,7 +339,7 @@ Later step (after the as-is port, only if the owner agrees): the engine is the o
 core, moved into `frontend/lib/audio/` with a plain API. It serves Music and Podcasts ([PODCASTS](PODCASTS.md)). Guitar uses its own
 low-latency context ([GUITAR](GUITAR.md)).
 
-**[built] The streaming path** ([NEXT-BATCH](../../process/NEXT-BATCH.md) part 2; `frontend/th/music/stream/`).
+**[built] The streaming path** ([NEXT-BATCH](../../archive/NEXT-BATCH.md) part 2; `frontend/th/music/stream/`).
 **In the player** (`deck.js`, called from `player.js` `assign`): each of the player's two decks plays
 its song through its own feed, so cross-fades, gapless joins, the lock screen, AirPods and the playback
 log work as before. A song streams when it is Opus from the network with a catalog length, not a CUE
@@ -687,11 +687,6 @@ query with and without the tier-2 index and asserts the Songs section is identic
 
 Budgets (A15, 20k-track fixture): tier 0 ≤ 3 ms, tier 1 ≤ 8 ms per keystroke; tier 2 ≤ 25 ms.
 Search runs in the main thread for tiers 0–1 and in a worker for tier 2 vectors.
-
-### 8.4 Query words that act as filters [proposal]
-
-`by:<artist>`, `album:<name>`, `year:1990s`, `kept` (offline only), `unplayed`. Unknown filters are
-treated as words.
 
 **Acceptance:** a golden set of 60 queries over a generic 2,000-track fixture (typos, accents,
 reordered words, articles) with expected top results, run in `node --test`.
@@ -1050,25 +1045,6 @@ See [PERFORMANCE](../../engineering/PERFORMANCE.md).
 
 ---
 
-## 16. New feature ideas (all [proposal])
-
-1. **"Pick up where the day left off."** At the day roll the mind notes what was playing at the end
-   of the evening; the next morning, opening Music offers that album from the track after.
-2. **Mood dial on a mix.** A mix's page has a 3-step dial (calmer · as is · livelier) that re-ranks
-   the mix by energy from the DJ features, instantly, on the phone. Each turn is a sense, so the
-   mind learns the recipe was off.
-3. **Rediscovery shelf.** A Library section "Not heard in a year" built locally from stats: songs
-   with ≥ 5 old plays and none in 365 days. No mind call needed.
-4. **Song-length-aware queue for a time box.** "Play 25 minutes" (from the Thunderhead or the
-   ··· menu) builds a queue whose durations sum to 25 min ± 30 s, ending on a track with a
-   natural fade.
-5. **Gentle transitions in DJ mode.** When both tracks have beat grids (from the analysis job), a
-   DJ-mode crossfade of 8 s aligns downbeats; otherwise the normal crossfade.
-6. **Guitar link.** A song that also exists as a tab in Guitar shows a small guitar glyph; tapping
-   it opens the tab at the same position ([GUITAR](GUITAR.md) §12).
-
----
-
 ## 17. Open questions / tests
 
 | # | Question | How to settle |
@@ -1085,3 +1061,15 @@ See [PERFORMANCE](../../engineering/PERFORMANCE.md).
 | 10 | Real CSS viewport of the A15 for the layout checks | Remote DevTools (`innerWidth`, `devicePixelRatio`) |
 | 11 | Ref format for playlists (`music:playlist/<id>`) agreed in [GLOSSARY](../GLOSSARY.md) | Coordinator |
 | 12 | The chat's "nostalgic playlist" (§4.2) needs a way to write a playlist into the ported player, which has no verbs | Owner decides whether that small hook comes with the port or after it |
+
+---
+
+## Not built
+
+Sections once marked as proposals that are not built and not in PLAN.md; their full text is in
+[archive/NOT-BUILT-2026-11-02.md](../../archive/NOT-BUILT-2026-11-02.md).
+
+- **§8.4 Query words that act as filters.** `by:<artist>`, `album:<name>`, `year:1990s`, `kept`, `unplayed` in the player's search.
+  Not built: search forgives accents, word order and a typo, without filters (§8.3's acceptance stays).
+- **§16 New feature ideas.** Pick up where the day left off, a mood dial on a mix, a rediscovery shelf, a queue for a time box, beat-aligned DJ transitions, a Guitar link.
+  Not built and not in PLAN.md.

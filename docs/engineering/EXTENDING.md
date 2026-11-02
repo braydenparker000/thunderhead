@@ -138,7 +138,7 @@ Embeddings plug in behind the same route, not as a new endpoint: set `SEMANTIC.r
 `sources.ts` to an object whose `run(env, query, sources)` returns one ranked hit list over the
 asked sources (it gets `query.text`, the query as typed). The route fuses it with the FTS lists by
 rank. `backend/tests/integration/memory-notes.test.ts` plugs in a fake to prove the fusion; the
-real one ships only after the cross-language probes pass (EVALS.md §3.4).
+real one ships only after cross-language probes pass (specified, not built: archive/EVALS-aspirational.md §3.4).
 
 ### A night step
 

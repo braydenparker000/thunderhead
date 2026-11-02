@@ -24,3 +24,7 @@ export function putSetting(db: Db, key: string, value: unknown, actor: string, a
     actor,
   );
 }
+
+export function deleteSetting(db: Db, key: string): void {
+  db.run('DELETE FROM settings WHERE key = ?', key);
+}

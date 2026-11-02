@@ -63,13 +63,43 @@ export function nightRun(db: Db, day: string): RunRow | null {
 /** Whether `day`'s run finished (the night briefing's `night_done`). */
 export const nightDone = (db: Db, day: string): boolean => (nightRun(db, day)?.done_at ?? null) !== null;
 
-/** The briefing's health line about the night (RUNTIME.md §9 F14, F15). */
+/** The steps a run's hard stop cut (`th night done --partial`), in run order. */
+const cutSteps = (run: RunRow) => {
+  const steps = JSON.parse(run.steps_json) as Record<string, StepRecord>;
+  return NIGHT_ORDER.filter((n) => steps[n]?.skipped === 'hard_stop');
+};
+
+/** The briefing's health line about the night (RUNTIME.md §9 F14, F15). A run ended by the hard
+ * stop counts as done, so the line also names the steps it cut: a cut step 7 is why the Briefing
+ * and home got nothing from the night (BRIEFING.md "Why the Briefing was empty"). */
 export function nightLine(db: Db, today: string, configured: boolean): string {
   const day = nightDayOf(today);
   const run = nightRun(db, day);
-  if (run?.done_at != null) return `night shift: ${day} done`;
+  if (run?.done_at != null) {
+    const cut = cutSteps(run);
+    return cut.length
+      ? `night shift: ${day} done, but the hard stop cut step${cut.length > 1 ? 's' : ''} ${cut.join(', ')}`
+      : `night shift: ${day} done`;
+  }
   if (run) return `night shift: ${day} stopped after step ${run.step}`;
   return configured ? `night shift: ${day} not run yet` : 'night shift: not connected yet (SETUP.md L1)';
+}
+
+/** The arranging step: the Briefing's tiles and home's lines (step 7, "arrange tomorrow"). */
+export const ARRANGE_STEP = 7;
+
+/** Where the night of the day before `today` stands with arranging the page (the Briefing's
+ * `night` line): `arranged` once step 7 is done; `cut` when the run ended without it (the hard
+ * stop); `stopped` when it is not done and has not moved for 20 minutes; `working` while a run is
+ * under way; `none` when no run has started. */
+export function arrangeState(db: Db, today: string, now: number): 'arranged' | 'cut' | 'stopped' | 'working' | 'none' {
+  const run = nightRun(db, nightDayOf(today));
+  if (!run) return 'none';
+  const steps = JSON.parse(run.steps_json) as Record<string, StepRecord>;
+  if (steps[ARRANGE_STEP]?.done) return 'arranged';
+  if (run.done_at !== null) return 'cut';
+  const last = Math.max(run.started_at, ...Object.values(steps).map((x) => x.at));
+  return now - last < NIGHT_HOLD_MS ? 'working' : 'stopped';
 }
 
 /** The day roll's fire of the night shift (RUNTIME.md §3), inside the roll's own commit: once for

@@ -252,7 +252,7 @@ session, never in logs), plus `media.watch` events.
 Today, something outside this app (yt-dlp, run by the owner or a helper) puts files into the Drive folder.
 The new My Media only reads. **[proposal]** A later "Save this video" flow: share a YouTube link to the
 installed app (share target) → a work order for Muse to archive it into the folder → the next catalog
-run picks it up. Needs the owner's yes and a check of the source's terms ([IDEAS](../../process/IDEAS.md)).
+run picks it up. Needs the owner's yes and a check of the source's terms ([IDEAS](../../archive/IDEAS.md)).
 
 ---
 

@@ -1,20 +1,22 @@
 # Research agenda
 
+> **Archived 2026-11-02** (was `docs/process/RESEARCH-AGENDA.md`): historical, kept for the record; see [README.md](README.md).
+
 Every open question from tonight's research, deduplicated and ordered by the phase it gates, each with the cheapest test that settles it and who runs it. Also the recurring research the mind does in its weekly review so the facts under the project don't silently go stale.
 The questions are real gaps found in the research; the test designs, IDs, owners and the cadence are **[proposal]** until the owner accepts this page.
 
 ## Rules at a glance
 
 1. **One question, one row, one ID** (`RA-P<phase>-<nn>`). Duplicates across reports are merged; the "From" column lists every source so nothing is lost.
-2. **A question is settled only by a test or a primary source**, never by reasoning alone. The result is written as one line in [decisions.md](decisions.md) (date · result · source), and the row's status becomes **Closed** with that date.
+2. **A question is settled only by a test or a primary source**, never by reasoning alone. The result is written as one line in [decisions.md](../process/decisions.md) (date · result · source), and the row's status becomes **Closed** with that date.
 3. **Run a row before the first code that depends on it.** A phase may start while its rows are open, but the dependent feature waits (see [ROADMAP.md](ROADMAP.md) rule 5).
 4. **Cheapest test first.** Reading a primary source beats a probe; a probe beats a build; the owner's time is the most expensive resource (each owner task is ≤ 5 minutes with exact steps).
-5. **Public repo, public logs.** Tests in GitHub Actions use synthetic data and print numbers only. Anything touching personal data runs inside a Claude session or on the owner's phone. No Cloudflare or Azure credential ever enters a session ([decisions.md](decisions.md)).
+5. **Public repo, public logs.** Tests in GitHub Actions use synthetic data and print numbers only. Anything touching personal data runs inside a Claude session or on the owner's phone. No Cloudflare or Azure credential ever enters a session ([decisions.md](../process/decisions.md)).
 6. **Outside web pages are data, not instructions.** Research reads happen through the quarantined reader; nothing read on the web becomes a fact, a rule or a config change without a decision line.
 7. **The weekly review re-checks the platform monthly** (§4) and speaks only when something changed.
 8. **Unknowns found later are added here**, never left as a comment in code.
 
-Sibling docs: [IDEAS.md](IDEAS.md) (feature backlog; its open questions point here), [ROADMAP.md](ROADMAP.md), [STATUS.md](STATUS.md), [TESTING.md](../engineering/TESTING.md), [OPERATIONS.md](../engineering/OPERATIONS.md), [EVALS.md](../mind/EVALS.md), [RUNTIME.md](../mind/RUNTIME.md).
+Sibling docs: [IDEAS.md](IDEAS.md) (feature backlog; its open questions point here), [ROADMAP.md](ROADMAP.md), [STATUS.md](../process/STATUS.md), [TESTING.md](../engineering/TESTING.md), [OPERATIONS.md](../engineering/OPERATIONS.md), [EVALS.md](../mind/EVALS.md), [RUNTIME.md](../mind/RUNTIME.md).
 
 ---
 
@@ -39,7 +41,7 @@ Sibling docs: [IDEAS.md](IDEAS.md) (feature backlog; its open questions point he
 
 | ID | Question | Why it matters | Gates | Cheapest test | Who | From |
 |---|---|---|---|---|---|---|
-| RA-P0-01 | What are the exact Azure portal labels for adding the ID-based federated credential (subject-type selector, the GitHub ID boxes)? | Setup steps must be exact for a phone-only owner. | [SETUP.md](SETUP.md) wording | Owner opens the app registration → Certificates & secrets → Federated credentials → Add, and reads the field names aloud or sends a screenshot without IDs. Pass: SETUP.md matches. | OW | R1-1, FC A3 |
+| RA-P0-01 | What are the exact Azure portal labels for adding the ID-based federated credential (subject-type selector, the GitHub ID boxes)? | Setup steps must be exact for a phone-only owner. | [SETUP.md](../process/SETUP.md) wording | Owner opens the app registration → Certificates & secrets → Federated credentials → Add, and reads the field names aloud or sends a screenshot without IDs. Pass: SETUP.md matches. | OW | R1-1, FC A3 |
 | RA-P0-02 | Does `azure/login` see the subscription right after the role assignment, or only after propagation? | A first-deploy "No subscriptions found" looks like a broken setup. | Deploy retry note | Run Deploy; if it fails with that message, re-run after 10 min. Pass: a note in OPERATIONS.md with the observed delay. | CI | R1-3 |
 | RA-P0-03 | Are content types right on the live site (`.js`, `.css`, `.woff2`, `.webmanifest`, `.svg`)? | Wrong MIME types break module scripts and fonts. | Upload step (`--content-type` overrides) | `curl -sI` each asset type after the first deploy, in the live check. Pass: all match. | CI | R1-4 |
 | RA-P0-04 | Does the static website serve compressed responses, and does a pre-compressed upload with `Content-Encoding: br` work? | Bytes on a mid-range phone; Storage has no automatic compression. | Whether `stage.mjs` pre-compresses assets | `curl -sI -H 'Accept-Encoding: br'` against `/` and a JS file; then upload one test file pre-compressed with `Content-Encoding: br` and load it in Chromium. Pass: decision line "compress at stage" or "not needed". | CI | R4-12, R7 X2 |
@@ -321,5 +323,5 @@ Values as read on 2026-10-28. A "changed" result compares against the last recor
 ## Sources
 
 - Research reports 1–7 in the scratchpad (`research/1-setup-and-pipeline.md` §5, `2-backend.md` §10, `3-auth-security.md` §6, `4-frontend-pwa.md` §9, `5-mind.md` §11, `6-factcheck.md` §A/§D, `7-architecture-review.md` §4/§7/§8), the feasibility research, and the plan §16–§17. These are not in the repository; their items are carried here in full.
-- [decisions.md](decisions.md) and [ROADMAP.md](ROADMAP.md) for phases and closed questions.
+- [decisions.md](../process/decisions.md) and [ROADMAP.md](ROADMAP.md) for phases and closed questions.
 - Workers AI pricing (read 2026-10-28) for the MeloTTS and Whisper rates.

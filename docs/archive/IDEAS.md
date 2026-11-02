@@ -1,7 +1,9 @@
 # Ideas
 
+> **Archived 2026-11-02** (was `docs/process/IDEAS.md`): historical, kept for the record; see [README.md](README.md).
+
 The evaluated backlog of new features for the Thunderhead: a wide brainstorm (95 ideas), each scored the same way, a top 10 specified exactly enough to build, and the anti-features that would make it worse.
-Nothing on this page is decided. **Every idea, number and spec here is [proposal]** until the owner says yes and a line lands in [decisions.md](decisions.md).
+Nothing on this page is decided. **Every idea, number and spec here is [proposal]** until the owner says yes and a line lands in [decisions.md](../process/decisions.md).
 
 ## Rules at a glance
 
@@ -209,7 +211,7 @@ The second language is set privately in Settings; nothing here names it.
 | SY4 | Failure drills | Monthly, on local workerd: inject 5xx, 403 and offline; run the browser suite; the result appears on the Health page. | 3 | M | L | yes | B | P4 | 4 |
 | SY5 | Quota weather | A "System" line on the Briefing page appears only when a free-tier quota passes 70 % before 18:00 UTC. | 3 | S | L | yes | B | P4 | 5 |
 
-- **SY1** is the runtime side of the monthly research cadence in [RESEARCH-AGENDA.md §4](RESEARCH-AGENDA.md#4-recurring-research-cadence). It reads outside web pages, so it runs in the quarantined reader and can never write facts or rules.
+- **SY1** is the runtime side of the monthly research cadence in [RESEARCH-AGENDA.md §4](RESEARCH-AGENDA.md#4-recurring-research-cadence-proposal). It reads outside web pages, so it runs in the quarantined reader and can never write facts or rules.
 - **SY3** is `test`: there is no confirmed way for a session to read its own plan usage (`RA-P2-07`). Until then the owner checks `/usage` weekly.
 
 ### Time and attention (TA)
