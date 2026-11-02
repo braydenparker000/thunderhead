@@ -243,12 +243,10 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .tile.weather .k{font-size:var(--fs-chip)}
 .tile .big{font-size:var(--fs-big)}
 
-/* The menu and Settings pages: an opaque fill (::before) moves; the frost (> .field) fades in over it
-   from 85% of the way in (.frost, home.js and settings.js), then the fill fades out under the frost,
-   so what is behind never shows through unblurred. Held or covered, the fill comes back first. */
-#app .side,#app .spage{background:none;backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
-/* each panel is its own layer, as the Briefing is: it slides without being repainted */
-#app .side,#app .spage{will-change:transform}
+/* The menu and Settings pages, each its own layer: an opaque fill (::before) moves; the frost (> .field)
+   fades in over it from 85% of the way in (.frost), then the fill fades out under it, so what is
+   behind never shows through unblurred. Held or covered, the fill comes back first. */
+#app .side,#app .spage{background:none;backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none;will-change:transform}
 #app .side::before,#app .spage::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(var(--panel),var(--panel)),var(--bg);opacity:1;transition:opacity var(--d-fast) var(--ease-out)}
 #app .side>.field,#app .spage>.field{display:block;background:var(--panel);backdrop-filter:blur(28px) saturate(1.6);-webkit-backdrop-filter:blur(28px) saturate(1.6);opacity:0;visibility:hidden;transition:opacity var(--d-fast) var(--ease-out) var(--d-fast),visibility 0s calc(var(--d-fast) * 2)}
 #app .side>.field::before,#app .side>.field::after,#app .spage>.field::before,#app .spage>.field::after{display:none}
@@ -257,7 +255,6 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 #app .side.frost::before,#app .spage.frost::before{opacity:0;transition:opacity var(--d-fast) var(--ease-out) var(--d-fast)}
 #app .side.frost:has(~ .spage.in)>.field,#app .spage.frost:has(~ .spage.in)>.field{opacity:0;visibility:hidden;transition:opacity var(--d-fast) var(--ease-out) var(--d-fast),visibility 0s calc(var(--d-fast) * 2)}
 #app .side.frost:has(~ .spage.in)::before,#app .spage.frost:has(~ .spage.in)::before{opacity:1;transition:opacity var(--d-fast) var(--ease-out)}
-.side .sidebar{background:var(--glass-flat);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
 /* Under the ring, menu and Settings the field holds still, so at rest no frame is drawn. */
 .app.hush>.field::before,.app.hush>.field::after,.app:has(>.spage)>.field::before,.app:has(>.spage)>.field::after{animation-play-state:paused}
 @media (prefers-reduced-motion: reduce){#app .side>.field,#app .spage>.field,#app .side::before,#app .spage::before{transition:none}}

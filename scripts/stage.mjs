@@ -141,7 +141,9 @@ const budgets = [
   // 1,253 bytes gzipped against 5f7cdd9. The site is served uncompressed (ARCHITECTURE.md §5, the
   // brotli proposal); when compressed uploads land, this budget moves to compressed bytes.
   ['settings CSS bytes', sum(/^apps\/settings\/.*\.css$/), 11_484], // Task B: never exceed the measured pre-redesign CSS.
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 76_000],
+  // (2026-11-02, shell feel) 76,000 → 76,456 measured: the panels' opaque fill and frost layers, the
+  // ring's face, lift and name layers (+1,865 bytes), on top of main's Briefing blocks (+721).
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 76_456],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 20_000],
   // One face since 2026-10-31: Switzer, variable 100–900 (43.2 KB, the official file, never subset:
