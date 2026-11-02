@@ -50,10 +50,14 @@ export function memoryPages() {
   };
 }
 
-/** The page drew its sections; time then stops, 800 ms on (past the 500 ms tap guard). */
+/** The page drew its sections; time then stops, 800 ms on (past the 500 ms tap guard), by when the
+ * page has slid into place (settings.js moves it on the page's own frames, which the clock runs). */
 export async function ready(page) {
   await page.waitForSelector('.msections:not([aria-busy])');
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 800));
+  // On a slow runner the pause can land mid-slide: run the page's frames on until it is in place.
+  for (let i = 0; i < 20 && !(await page.$('.spage.in:not(.moving)')); i++) await page.clock.runFor(100);
+  await page.waitForSelector('.spage.in:not(.moving)');
 }
 
 export const headings = (page) => page.$$eval('.msec h2', (hs) => hs.map((h) => h.textContent));

@@ -3,7 +3,7 @@
 import { apps } from '/th/registry/apps.js';
 import { from as launchFrom, launch } from '/ui/launch.js';
 import { startPinned } from './pinned.js';
-import { animator, springs, haptic } from '/th/motion.js';
+import { animator, springs, haptic, motionReduced, response, restTime } from '/th/motion.js';
 
 // Music and Podcasts open as a layer inside home and keep playing behind the chat (th/island); the
 // others load in their place. The reveal starts at once; the layer's code loads while it grows.
@@ -37,7 +37,7 @@ function openFromRing(id,color,to){
   // swiped open once (HOME.md §10; audit fix 11), counted on this phone.
   const HINT='th-hint'; let learnt={ring:0,brief:0,side:0}; try{ learnt={...learnt,...JSON.parse(localStorage.getItem(HINT)||'{}')} }catch(e){}
   const known=()=>learnt.ring>=3&&learnt.brief>=1&&learnt.side>=1;
-  const learn=k=>{ learnt[k]=(learnt[k]||0)+1; try{ localStorage.setItem(HINT,JSON.stringify(learnt)) }catch(e){} if(known()) hint.classList.add('gone') };
+  const learn=k=>{ if(known()) return; learnt[k]=(learnt[k]||0)+1; try{ localStorage.setItem(HINT,JSON.stringify(learnt)) }catch(e){} if(known()) hint.classList.add('gone') };
   if(known()) hint.classList.add('gone');
   function menu(on){ opts.classList.toggle('show',on); $('#home').classList.toggle('menuOpen',on); ask.classList.toggle('menu',on); plus.setAttribute('aria-expanded',on) }
   plus.addEventListener('click',()=>{ menu(!opts.classList.contains('show')); haptic('open') });
@@ -87,40 +87,104 @@ function openFromRing(id,color,to){
   });
 
   // Compass: hold an empty spot ~220 ms, a tight ring of apps springs out around the finger; slide toward one, let go to open.
-  // Seven directions, clockwise from the top; an app not shipped yet (Photos) says it comes later. Each app keeps its own
-  // glass disc at rest; a moving disc is flat and its glass layer fades back after the engines rest.
-  const APPS=apps.map(a=>[a.name,`<span class="fill" aria-hidden="true"></span><svg class="i ph" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}-bold"/></svg><svg class="i ph on" aria-hidden="true"><use href="/ui/icons.svg#${a.icon}-bold"/></svg>`,a.color,a.built?a.path:'']);
+  // Seven directions, clockwise from the top; an app not shipped yet (Photos) says it comes later.
+  // Motion (GESTURES.md §3): what moves in space springs past its mark (the discs fly ~13% past the ring and magnet back,
+  // growing .2 → 1.06 → 1); fades never overshoot. The flight out is the springs' own curve played by the compositor
+  // (nothing for the page to do each frame); a choice or a release mid-flight hands it to the th/motion.js engine at
+  // exactly the position and speed it had. Each disc's frosted glass (::before) fades in on --d-fast once the discs are
+  // 85% of the way out and slowing, so it is in place as they settle, and fades out with them. The chosen disc lifts on a
+  // soft shadow once it rests; the name fades up under the ring. Only transform and opacity change; the disc itself never
+  // fades, so its glass always sees what is behind it.
+  const APPS=apps.map(a=>[a.name,`<span class="lift" aria-hidden="true"></span><span class="face" aria-hidden="true"><span class="fill"></span><svg class="i ph"><use href="/ui/icons.svg#${a.icon}-fill"/></svg><svg class="i ph on"><use href="/ui/icons.svg#${a.icon}-fill"/></svg></span>`,a.color,a.built?a.path:'']);
   // A choice holds until the finger is ~7 degrees past its sector's edge, whatever the number of apps (GESTURES.md §3.2).
   // Direction is measured from where the thumb went down, not from the ring's drawn centre: near an edge the ring
   // moves inward to fit, and measuring from there made a straight swipe up pick the wrong app (owner, 2026-10-31).
   const N=APPS.length, SEC=Math.PI*2/N, HOLD=.5+7*N/360;
   const ring=$('#ring'), scrim=$('#scrim'), lbl=$('#lbl'), hub=$('#hub'), press=$('#press'), app=$('#app'), R=62;
-  const pets=APPS.map(([n,svg,c],i)=>{const p=document.createElement('div');p.className='pet';p.innerHTML=svg;p.title=n;p.style.setProperty('--c',c);p.style.setProperty('--i',i);ring.appendChild(p);return p});
+  const pets=APPS.map(([n,svg,c])=>{const p=document.createElement('div');p.className='pet';p.innerHTML=svg;p.title=n;p.style.setProperty('--c',c);ring.appendChild(p);return p});
+  // The name that is leaving fades up and out while the new one fades up into its place.
+  const ghost=document.createElement('div'); ghost.className='lbl ghost'; ghost.setAttribute('aria-hidden','true'); ring.appendChild(ghost);
   let start=null, open=false, dir=-1, holdT=null;
-  let ringRun=0;
+  let ringRun=0, opening=false, peak=0, look={fast:160,quick:240,ease:'ease-out'}, flight=null;
   const petMotion=pets.map((p,i)=>{
-    const draw=()=>{p.style.transform=`translate(${R*Math.sin(i*SEC)*radial.value}px,${-R*Math.cos(i*SEC)*radial.value}px) scale(${.2+.8*radial.value+choice.value})`};
-    const radial=animator(draw,{unit:'scalar'}), choice=animator(draw,{unit:'scalar'});
-    const opacity=animator(v=>{p.style.opacity=String(Math.max(0,Math.min(1,v)))},{unit:'opacity'});
-    return {radial,choice,opacity};
+    const x=R*Math.sin(i*SEC), y=-R*Math.cos(i*SEC);
+    // Three springs share one transform: it is written once a frame, after they have all stepped.
+    let queued=false;
+    const write=()=>{queued=false;const r=radial.value;p.style.transform=`translate(${x*r}px,${y*r}px) scale(${size.value+choice.value})`};
+    const draw=()=>{if(!queued){queued=true;queueMicrotask(write)}};
+    const radial=animator((v,speed)=>{draw();if(i===0)glassy(v,speed)},{unit:'scalar'}), size=animator(draw,{unit:'scalar'}), choice=animator(draw,{unit:'scalar'});
+    const faceEl=p.querySelector('.face'), face=animator(v=>{faceEl.style.opacity=String(Math.max(0,Math.min(1,v)))},{unit:'opacity'});
+    size.set(.2);
+    return {x,y,faceEl,write,radial,size,choice,face};
   });
-  const engines=()=>petMotion.flatMap(m=>[m.radial,m.choice,m.opacity]);
+  // The glass starts to fade in as the discs pass 85% of the way out with their speed falling (GESTURES.md §3).
+  function glassy(v,speed){ if(!opening) return; peak=Math.max(peak,speed); if(v>=.85&&(speed<peak||speed===0)){ opening=false; ring.classList.add('glassy') } }
+  const engines=()=>petMotion.flatMap(m=>[m.radial,m.size,m.choice,m.face]);
   const petsRest=()=>Promise.all(engines().map(m=>m.whenResting()));
-  function ringMoving(){ ring.classList.toggle('moving',engines().some(m=>!m.resting)) }
+  function ringMoving(){ ring.classList.toggle('moving',!!flight||engines().some(m=>!m.resting)) }
   function settleRing(run){ ringMoving(); petsRest().then(()=>{if(run===ringRun)ringMoving()}) }
-  function showRing(){ ++ringRun; pets.forEach(p=>p.classList.remove('go','on')); ring.classList.add('show'); scrim.classList.add('show') }
+  // Behind the ring and the open menu the field holds still (home.css .hush): nothing under their glass changes,
+  // so once they rest no frame is drawn at all.
+  function hush(){ app.classList.toggle('hush',ring.classList.contains('show')||view==='side') }
+  function showRing(){ ++ringRun; ground(); pets.forEach(p=>p.classList.remove('go','on','lifted')); ring.classList.remove('glassy'); ring.classList.add('show'); scrim.classList.add('show'); hush() }
   // Start at the hold deadline: all seven share the same frame, without a CSS stagger.
   function openFan(keyboard=false){ fan();if(keyboard&&dir<0)setDir(0) }
   const blocked=el=>el.closest('button,input,textarea,form,.chip,.card,.note,.you,.reply,.opts');
-  function place(x,y){ const r=app.getBoundingClientRect(); const m=R+30;
+  // The ring keeps clear of the edges at its overshoot: 1.13 R plus half a disc at 1.06.
+  function place(x,y){ const r=app.getBoundingClientRect(); const m=R+36;
     const cx=Math.min(Math.max(x-r.left,m),r.width-m), cy=Math.min(Math.max(y-r.top,m+30),r.height-m-40);
     ring.style.left=cx+'px'; ring.style.top=cy+'px';
-    lbl.style.top=(R+30)+'px'; return {cx:cx+r.left,cy:cy+r.top} }
-  // Out on the spring; the chosen disc swells a little and the others ease back (transform only: the compositor's).
-  function fan(){ petMotion.forEach(m=>{m.radial.to(1,{spring:springs.pop});m.choice.to(0,{spring:springs.pop});m.opacity.to(1,{spring:springs.pop})}); settleRing(ringRun) }
-  function setDir(d){ if(d===dir) return; dir=d; const run=++ringRun; ring.classList.toggle('active',d>=0); pets.forEach((p,i)=>{ p.classList.toggle('on',i===d); petMotion[i].choice.to(d<0?0:i===d?.12:-.06,{spring:springs.pop});petMotion[i].opacity.to(d<0||i===d?1:root.dataset.theme==='dark'?.68:.62,{spring:springs.pop}) }); settleRing(run);
-    // Name changes are immediate while the discs move; there is no label layout or ripple animation.
-    if(d>=0){ lbl.textContent=APPS[d][0]; lbl.style.setProperty('--c',APPS[d][2]) } lbl.classList.toggle('show',d>=0); if(d>=0) haptic('choose') }
+    lbl.style.top=ghost.style.top=(R+34)+'px'; return {cx:cx+r.left,cy:cy+r.top} }
+  // The motion tokens, read off the hold's path (after the first paint, then whenever the ring has closed), so the
+  // hold's own frame forces no style.
+  function tokens(){ const css=getComputedStyle(root), ms=n=>parseFloat(css.getPropertyValue(n))||0;
+    look={fast:ms('--d-fast'),quick:ms('--d-quick'),ease:css.getPropertyValue('--ease-out').trim()||'ease-out'}; if(!motionReduced()) flightFx() }
+  function fan(){ opening=true; peak=0;
+    if(motionReduced()){ petMotion.forEach(m=>{m.radial.to(1,{spring:springs.pop});m.size.to(1,{spring:springs.lift});m.choice.to(0,{spring:springs.pop});m.face.to(1,{spring:springs.fade})}); settleRing(ringRun); return }
+    const run=ringRun, fx=flightFx(); petMotion.forEach(m=>m.face.set(1));
+    // Started at the hold's own time, not at the first frame that shows them, so the flight keeps its clock.
+    const t0=document.timeline.currentTime, anims=fx.effects.map(e=>{ const a=new Animation(e,document.timeline); if(t0==null) a.play(); else a.startTime=t0; return a });
+    flight={run,anims,glass:setTimeout(()=>{ if(flight?.run===run){ opening=false; ring.classList.add('glassy') } },fx.at85)};
+    ringMoving();
+    // The flight is over when the discs' paths are (the fades end well before).
+    Promise.all(anims.filter((a,k)=>k%2===0).map(a=>a.finished)).then(()=>{ if(flight?.run===run) land(1) },()=>{});
+  }
+  // The flight out as compositor animations: both springs sampled every 12 ms from rest, all seven on one clock. The glass
+  // comes in as they pass 85% of the way out (slowing by then: the spring's speed peaks near 42%). Each disc fades in whole
+  // before that, and its fade then ends (no fill): a disc with an opacity animation on it is drawn on its own surface, and
+  // its glass would blur only the disc. Built off the hold's path (idle, and after each close) and kept while the springs
+  // and tokens are the same, so the hold's frame only starts them.
+  let built=null;
+  function flightFx(){ const key=JSON.stringify([springs.pop,springs.lift,look.ease]); if(built?.key===key) return built;
+    const rest={pop:restTime(springs.pop),lift:restTime(springs.lift)}, T=Math.max(rest.pop,rest.lift), grid=[];
+    const at=(n,ms)=>ms>=rest[n]?1:response(springs[n],ms/1000).value;
+    for(let ms=0;ms<T;ms+=12) grid.push(ms); grid.push(T);
+    const r=grid.map(ms=>at('pop',ms)), z=grid.map(ms=>.2+.8*at('lift',ms));
+    let at85=0; while(at('pop',at85)<.85&&at85<T) at85++;
+    const effects=petMotion.flatMap((m,i)=>[new KeyframeEffect(pets[i],grid.map((ms,k)=>({offset:ms/T,transform:`translate(${m.x*r[k]}px,${m.y*r[k]}px) scale(${z[k]})`})),{duration:T,fill:'forwards'}),
+      new KeyframeEffect(pets[i],[{opacity:0},{opacity:1}],{duration:Math.round(at85*.8),easing:look.ease})]);
+    return built={key,effects,at85} }
+  // The flight ends, or a choice or release takes it over: the engine carries on from where the discs are, at their speed.
+  function land(done){ if(!flight) return; const t=done?Infinity:(flight.anims[0].currentTime??0)/1000;
+    const at=n=>t===Infinity?{value:1,velocity:0}:response(springs[n],t), r=at('pop'), z=at('lift'), f=done?1:Number(getComputedStyle(pets[0]).opacity);
+    petMotion.forEach(m=>{ m.radial.set(r.value); m.size.set(.2+.8*z.value); m.face.set(f); m.write();
+      if(!done){ m.radial.to(1,{spring:springs.pop,velocity:r.velocity}); m.size.to(1,{spring:springs.lift,velocity:.8*z.velocity}); m.face.to(1,{spring:springs.fade}) } });
+    ground(); settleRing(ringRun) }
+  function ground(){ if(!flight) return; clearTimeout(flight.glass); flight.anims.forEach(a=>a.cancel()); flight=null }
+  function setDir(d){ if(d===dir) return; land(0); dir=d; const run=++ringRun; ring.classList.toggle('active',d>=0);
+    const dimmed=root.dataset.theme==='dark'?.6:.55;
+    pets.forEach((p,i)=>{ p.classList.toggle('on',i===d); p.classList.remove('lifted'); petMotion[i].choice.to(d<0?0:i===d?.12:-.06,{spring:springs.pop}); petMotion[i].face.to(d<0||i===d?1:dimmed,{spring:springs.fade}) });
+    settleRing(run);
+    // The chosen disc lifts on its shadow only once it has come to rest.
+    if(d>=0) petMotion[d].choice.whenResting().then(()=>{ if(dir===d&&open) pets[d].classList.add('lifted') });
+    name(d); if(d>=0) haptic('choose') }
+  // The name under the ring: the new one fades up into place, the old one fades on up and out (compositor only).
+  function name(d){ const was=lbl.classList.contains('show')?lbl.textContent:'', next=d>=0?APPS[d][0]:'';
+    if(was===next) return;
+    const rise=(el,keys,ms)=>{ try{ el.animate(keys,{duration:ms,easing:look.ease}) }catch(e){} };
+    if(was){ ghost.textContent=was; ghost.style.setProperty('--c',lbl.style.getPropertyValue('--c')); rise(ghost,[{opacity:1,transform:'translate(-50%,0)'},{opacity:0,transform:'translate(-50%,-6px)'}],look.fast) }
+    lbl.classList.toggle('show',d>=0);
+    if(d>=0){ lbl.textContent=next; lbl.style.setProperty('--c',APPS[d][2]); rise(lbl,[{opacity:0,transform:'translate(-50%,8px)'},{opacity:1,transform:'translate(-50%,0)'}],look.quick) } }
   function dirOf(dx,dy){ const dist=Math.hypot(dx,dy); if(dist<12) return -1; if(dir<0&&dist<18) return -1;
     const a=(Math.atan2(dx,-dy)/SEC+N)%N, n=Math.round(a)%N;
     if(dir>=0&&n!==dir){ const off=Math.abs(((a-dir+N*1.5)%N)-N/2); if(off<HOLD) return dir } // stays put until ~7 degrees past the boundary
@@ -133,13 +197,16 @@ function openFromRing(id,color,to){
   const briefMotion=animator(paint,{unit:'scalar'}), sideMotion=animator(paint,{unit:'scalar'});
   function takePages(){ ++pageRun; pages.forEach(el=>el.style.transition='none'); side.classList.add('moving') }
   function setPos(b,s){ const W=app.clientWidth, S=side.offsetWidth;
-    brief.style.transform=`translateX(${(b-1)*W}px)`; home.style.transform=s>0?`translateX(${b*W-s*S*.12}px) scale(${1-.07*Math.min(1,s)})`:`translateX(${b*W}px)`; home.style.borderRadius=s>0?`${Math.round(30*Math.min(1,s))}px`:'';
-    side.style.transform=`translateX(${(1-s)*100}%)`; dim.style.opacity=Math.min(1,s); side.classList.toggle('open',s>0); dim.style.pointerEvents=s>.5?'auto':'none' }
+    brief.style.transform=`translateX(${(b-1)*W}px)`; home.style.transform=s>0?`translateX(${b*W-s*S*.12}px) scale(${1-.07*Math.min(1,s)})`:`translateX(${b*W}px)`;
+    side.style.transform=`translateX(${(1-s)*100}%)`; dim.style.opacity=Math.min(1,s); side.classList.toggle('open',s>0); dim.style.pointerEvents=s>.5?'auto':'none';
+    // The menu slides on its own opaque fill; its frosted layer cross-fades in from 85% of the way open, before it
+    // rests, and back out as soon as a finger takes it or it leaves (home.css).
+    side.classList.toggle('frost',view==='side'&&!swipe&&s>=.85) }
   // The Briefing's tiles cascade (DESIGN-SYSTEM.md §8); menu rows stay visible.
   function enter(el){ [...el.querySelectorAll(':scope .sidescroll>:not(#convos), :scope #convos>*, :scope .grid>*')].forEach((c,i)=>c.style.setProperty('--k',String(Math.min(i,10)))); el.classList.remove('enter'); void el.offsetWidth; el.classList.add('enter'); clearTimeout(el._enter); el._enter=setTimeout(()=>el.classList.remove('enter'),900) }
   // Only the place in view takes focus or taps; the others are inert (audit fix 5).
   function inertAll(){ home.inert=view!=='home'; brief.inert=view!=='brief'; side.inert=view!=='side' }
-  function go(v,ms,velocity={}){ const was=view; view=v; takePages(); const run=pageRun;
+  function go(v,ms,velocity={}){ const was=view; view=v; takePages(); hush(); const run=pageRun;
     // Preserve the flick clock; the dim and home scale use these same progress values.
     const timeScale=(ms??(parseFloat(getComputedStyle(root).getPropertyValue('--d-page'))||460))/410;
     briefMotion.to(v==='brief'?1:0,{spring:springs.page,velocity:velocity.b,timeScale});
@@ -147,7 +214,7 @@ function openFromRing(id,color,to){
     Promise.all([briefMotion.whenResting(),sideMotion.whenResting()]).then(()=>{if(run===pageRun){side.classList.remove('moving');pages.forEach((el,i)=>{el.style.transition=savedTransitions[i]})}});
     inertAll(); if(v!=='home') menu(false); if(v!==was&&v==='brief') enter(brief) }
   function resumePages(){ if(start?.paused){start.paused=false;go(view,undefined,{b:start.bv,s:start.sv})} }
-  inertAll();
+  inertAll(); requestAnimationFrame(()=>setTimeout(tokens));
   // Every gesture has a button (GESTURES.md §9): Apps, Briefing and Menu, first in the focus order and
   // shown only when focused; the Briefing's Back home; Escape returns home. The ring by keyboard:
   // it opens in the middle, the arrows move round it, Enter opens the app, Escape closes it.
@@ -158,12 +225,13 @@ function openFromRing(id,color,to){
   dim.addEventListener('click',()=>go('home'));
   document.addEventListener('th:go',e=>go(e.detail)); // settings pages return to the open menu
   app.addEventListener('click',e=>{ if(swiped){ e.stopPropagation(); e.preventDefault() } },true);
-  app.addEventListener('pointerdown',e=>{ if(!e.isPrimary||e.target.closest('input,textarea')) return;
+  app.addEventListener('pointerdown',e=>{ if(!e.isPrimary||e.target.closest('input,textarea,.spage')) return;
     start={x:e.clientX,y:e.clientY,id:e.pointerId,t:performance.now(),el:e.target,b:briefMotion.value,s:sideMotion.value,bv:briefMotion.velocity,sv:sideMotion.velocity,paused:!briefMotion.resting||!sideMotion.resting}; swipe=null;
     if(start.paused){takePages();briefMotion.stop();sideMotion.stop()}
     if(view!=='home'||blocked(e.target)||opts.classList.contains('show')) return;
     const r=app.getBoundingClientRect(); press.style.left=(e.clientX-r.left)+'px'; press.style.top=(e.clientY-r.top)+'px'; press.classList.remove('on'); void press.offsetWidth; press.classList.add('on');
-    holdT=setTimeout(()=>{ resumePages(); press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); learn('ring'); showRing(); openFan(); haptic('open') },220) });
+    // The hold's own frame does only what the ring needs; counting it for the hint waits until the ring is out.
+    holdT=setTimeout(()=>{ resumePages(); press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); showRing(); openFan(); haptic('open'); setTimeout(()=>learn('ring'),600) },220) });
   window.addEventListener('pointermove',e=>{ if(!start||e.pointerId!==start.id) return;
     if(!open){ const mx=e.clientX-start.x, my=e.clientY-start.y, d=Math.hypot(mx,my);
       // Sideways is ours from 6 px, before Chrome's own slop (8 dp) can hand the touch to a scroller;
@@ -195,13 +263,16 @@ function openFromRing(id,color,to){
     go(to,Math.abs(v)>F?Math.round(Math.min(460,Math.max(180,left/Math.abs(v)*1.8))):undefined,{b:axis==='brief'?v*1000/app.clientWidth:0,s:axis==='side'?-v*1000/side.offsetWidth:0});
     if(to!==from){ haptic('commit'); if(to==='brief'||to==='side') learn(to) } }
   function close(commit){ clearTimeout(holdT); press.classList.remove('on');
-    if(open){ const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
-      const run=++ringRun;
+    if(open){ land(0); const chosen=commit?dir:-1; scrim.classList.remove('show'); hub.style.transform='translate(0,0)';
+      const run=++ringRun; opening=false;
       if(chosen>=0){ const p=pets[chosen]; p.classList.add('go'); haptic('commit'); const to=APPS[chosen][3]; if(to){ const r=p.getBoundingClientRect(); launchFrom(r.left+r.width/2,r.top+r.height/2); openFromRing(apps[chosen].id,APPS[chosen][2],to) } else toast(APPS[chosen][0]+' comes later') }
-      pets.forEach((p,i)=>{const m=petMotion[i], spring=i===chosen?springs.pop:springs.ring;m.opacity.to(0,{spring});m.radial.to(i===chosen?1.25:0,{spring});m.choice.to(i===chosen?.12:0,{spring})});
+      // The chosen disc carries on out and grows as it fades; the others fold back into the finger. Their glass
+      // fades out with their faces (.glassy off, --d-fast).
+      ring.classList.remove('glassy');
+      pets.forEach((p,i)=>{const m=petMotion[i], c=i===chosen, spring=c?springs.pop:springs.ring; p.classList.remove('lifted'); m.face.to(0,{spring:springs.fade}); m.radial.to(c?1.25:0,{spring}); m.size.to(c?1.15:.2,{spring}); m.choice.to(c?.12:0,{spring})});
       settleRing(run);
-      petsRest().then(()=>{if(run!==ringRun||open)return;ring.classList.remove('show','active','moving');pets.forEach((p,i)=>{p.classList.remove('go','on');petMotion[i].radial.set(0);petMotion[i].choice.set(0);petMotion[i].opacity.set(0)}) });
-      dir=-1; lbl.classList.remove('show') }
+      petsRest().then(()=>{if(run!==ringRun||open)return;ring.classList.remove('show','active','moving');pets.forEach((p,i)=>{p.classList.remove('go','on');const m=petMotion[i];m.radial.set(0);m.size.set(.2);m.choice.set(0);m.face.set(0)}); hush(); requestAnimationFrame(()=>setTimeout(tokens)) });
+      dir=-1; name(-1) }
     resumePages(); open=false; start=null }
   window.addEventListener('pointerup',e=>{ if(start&&e.pointerId===start.id){ if(swipe) endSwipe(e.timeStamp); close(true) } });
   function keyRing(){ if(open) return; const r=app.getBoundingClientRect(); place(r.left+r.width/2,r.top+r.height/2); open=true; hint.classList.add('gone'); showRing(); openFan(true);

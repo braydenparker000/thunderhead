@@ -44,7 +44,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .decide .yes{background:var(--gold);color:#2b1d00;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 8px 18px -10px var(--gold)}
 /* today, as small flat-glass chips that carry their app's icon (DESIGN-SYSTEM.md §6: only the ask bar
    and one overlay blur what is behind them, so a long conversation scrolls smoothly) */
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;animation:rise calc(var(--d-fast) * 5) calc(var(--d-base) * 7 / 5) var(--settle) both}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;animation:rise calc(var(--d-fast) * 5) calc(var(--d-base) * 7 / 5) var(--settle) backwards}
 .chip{--c:var(--ink-3);border:1px solid var(--glass-line);background:var(--glass-flat);border-radius:14px;padding:8px 12px 8px 10px;font:500 var(--fs-chip) var(--ui);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:7px;text-align:left;transition:transform calc(var(--d-base) / 2) var(--ease-default)}
 .chip:active{transform:scale(.97)}
 .chip .ic{width:17px;height:17px;fill:var(--c);flex:none}
@@ -53,7 +53,8 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .hint i{width:14px;height:14px;border-radius:50%;border:1.5px solid currentColor;opacity:.7}
 .hint.gone{animation:none;opacity:0}
 /* the conversation */
-.turn{margin-top:22px;display:flex;flex-direction:column;gap:8px;animation:rise calc(var(--d-rise) * 5 / 9) var(--settle) both}
+/* backwards: a filling animation kept each turn in its own layer for good */
+.turn{margin-top:22px;display:flex;flex-direction:column;gap:8px;animation:rise calc(var(--d-rise) * 5 / 9) var(--settle) backwards}
 .you{align-self:flex-end;max-width:80%;font:400 var(--fs-input)/var(--lh-reading) var(--ui);color:var(--ink);background:var(--glass-flat);border:1px solid var(--glass-line);padding:9px 14px;border-radius:19px 19px 6px 19px}
 /* a reply: the Thunderhead's words, with no bubble (yours have one); italic is kept for emphasis and
    quotes inside a reply */
@@ -85,35 +86,37 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 @keyframes breathe{50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--accent-text) 22%,transparent)}}
 .ask.listening textarea::placeholder,.ask.finishing textarea::placeholder{color:var(--accent-text)}
 @media (prefers-reduced-motion:reduce){.ask.listening .mic,.ask.finishing .mic{animation:none}}
-/* compass: tight ring around the finger */
+/* compass (GESTURES.md §3): a disc is its glass (::before, .glassy) under its face (fill and icon) */
 .scrim{position:absolute;inset:0;z-index:8;background:var(--scrim);opacity:0;pointer-events:none;transition:opacity var(--d-fast) var(--ease-default)}
 .scrim.show{opacity:1}
 .ring{position:absolute;z-index:9;width:0;height:0;pointer-events:none}
-/* Moving discs have a flat fill and line. The separate glass layer keeps its blur fixed;
-   it is hidden during motion and fades in only at rest. No promoted ring layers at scale .2. */
-.ring .pet{--c:var(--accent-text);position:absolute;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;display:grid;place-items:center;color:var(--c);isolation:isolate;
-  background:var(--glass-flat);border:1px solid var(--disc-line);box-shadow:none;backdrop-filter:none;-webkit-backdrop-filter:none;
-  opacity:0;transform:translate(0,0) scale(.2)}
-.ring .pet::before{content:"";position:absolute;inset:-1px;border-radius:inherit;z-index:-1;pointer-events:none;
-  background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.75),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 22%,transparent),transparent 70%),color-mix(in srgb,var(--disc) 45%,transparent);
+.ring .pet{--c:var(--accent-text);--hi:.6;--tn:16%;position:absolute;width:50px;height:50px;margin:-25px 0 0 -25px;border-radius:50%;display:grid;place-items:center;color:var(--c);isolation:isolate;transform:translate(0,0) scale(.2)}
+.ring .pet::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;pointer-events:none;
+  background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.75),#fff0 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 22%,transparent),transparent 70%),color-mix(in srgb,var(--disc) 45%,transparent);
   backdrop-filter:blur(14px) saturate(1.8);-webkit-backdrop-filter:blur(14px) saturate(1.8);
-  box-shadow:inset 0 1.5px 1px rgba(255,255,255,.95),inset 0 -6px 12px color-mix(in srgb,var(--c) 18%,transparent),inset 0 0 0 .5px color-mix(in srgb,var(--c) 25%,transparent),0 10px 26px rgba(20,30,60,.18);
-  opacity:1;transition:opacity var(--d-fast) var(--ease-default)}
-:root[data-theme="dark"] .ring .pet::before{background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.22),rgba(255,255,255,0) 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 30%,transparent),transparent 70%),rgba(255,255,255,.05);box-shadow:inset 0 1.5px 1px rgba(255,255,255,.35),inset 0 -6px 12px color-mix(in srgb,var(--c) 25%,transparent),0 10px 26px rgba(0,0,0,.5)}
-.ring.moving .pet::before,.ring:not(.show) .pet::before{opacity:0;visibility:hidden;transition:none}
-.ring .pet svg.ph{fill:currentColor;stroke:none}
-.ring .pet svg{grid-area:1/1;width:24px;height:24px;transition:opacity var(--d-fast) var(--ease-default)}
-.ring .pet svg.on{color:#fff;opacity:0}
-.ring .pet .fill{grid-area:1/1;place-self:stretch;margin:-1px;border-radius:50%;opacity:0;transition:opacity var(--d-fast) var(--ease-default);
-  background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.55),rgba(255,255,255,0) 50%),color-mix(in srgb,var(--c) 92%,transparent)}
-.ring .pet.on .fill,.ring .pet.on svg.on{opacity:1}
+  box-shadow:inset 0 1.5px 1px rgba(255,255,255,.95),inset 0 -6px 12px color-mix(in srgb,var(--c) 18%,transparent),inset 0 0 0 .5px color-mix(in srgb,var(--c) 25%,transparent),inset 0 0 0 1px var(--disc-line);
+  opacity:0;visibility:hidden;transition:opacity var(--d-fast) var(--ease-out),visibility 0s var(--d-fast)}
+.ring.glassy .pet::before{opacity:1;visibility:visible;transition:opacity var(--d-fast) var(--ease-out)}
+:root[data-theme="dark"] .ring .pet::before{background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.22),#fff0 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) 30%,transparent),transparent 70%),rgba(255,255,255,.05);box-shadow:inset 0 1.5px 1px rgba(255,255,255,.35),inset 0 -6px 12px color-mix(in srgb,var(--c) 25%,transparent),inset 0 0 0 1px var(--disc-line)}
+.ring .pet .face{grid-area:1/1;place-self:stretch;display:grid;place-items:center;border-radius:inherit;opacity:0;isolation:isolate}
+.ring .pet .face::before{content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;transition:opacity var(--d-fast) var(--ease-out);
+  background:radial-gradient(120% 90% at 30% 15%,rgb(255 255 255/var(--hi)),transparent 45%),radial-gradient(100% 100% at 50% 100%,color-mix(in srgb,var(--c) var(--tn),transparent),transparent 70%),var(--glass-flat);box-shadow:inset 0 0 0 1px var(--disc-line)}
+:root[data-theme="dark"] .ring .pet{--hi:.16;--tn:24%}
+.ring.glassy .pet .face::before{opacity:0;transition-delay:var(--d-fast)}
+.ring .pet svg{grid-area:1/1;width:24px;height:24px;fill:currentColor;stroke:none;transition:opacity var(--d-fast) var(--ease-out)}
+.ring .pet svg.on,.ring .pet .fill{color:#fff;opacity:0;visibility:hidden;transition:opacity var(--d-fast) var(--ease-out),visibility 0s var(--d-fast)}
+.ring .pet .fill{grid-area:1/1;place-self:stretch;border-radius:50%;
+  background:radial-gradient(120% 90% at 30% 15%,rgba(255,255,255,.55),#fff0 50%),color-mix(in srgb,var(--c) 92%,transparent)}
+.ring .pet.on .fill,.ring .pet.on svg.on{opacity:1;visibility:visible;transition:opacity var(--d-fast) var(--ease-out)}
 .ring .pet.on svg:not(.on){opacity:0}
+/* the chosen disc's shadow, once it rests */
+.ring .pet .lift{position:absolute;inset:0;z-index:-2;border-radius:inherit;pointer-events:none;opacity:0;visibility:hidden;transition:opacity var(--d-fast) var(--ease-out),visibility 0s var(--d-fast);
+  box-shadow:0 14px 26px -10px color-mix(in srgb,var(--c) 75%,transparent),0 4px 10px -4px rgba(10,20,40,.3)}
+.ring .pet.lifted .lift{opacity:1;visibility:visible;transition:opacity var(--d-fast) var(--ease-out)}
 .ring .hub{position:absolute;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:50%;background:var(--ink);opacity:0;transform:translate(0,0);transition:opacity calc(var(--d-quick) / 2) var(--ease-default)}
 .ring.show .hub{opacity:.28}
-.ring .lbl{--c:var(--accent-text);position:absolute;left:0;top:0;transform:translate(-50%,0);white-space:nowrap;font:600 var(--fs-small) var(--ui);color:var(--ink);opacity:0;transition:opacity calc(var(--d-edge) / 10) var(--ease-default);padding:6px 12px;border-radius:12px;background:var(--disc);border:1px solid color-mix(in srgb,var(--c) 30%,var(--disc-line));box-shadow:0 8px 22px -12px color-mix(in srgb,var(--c) 60%,transparent)}
+.ring .lbl{--c:var(--accent-text);position:absolute;left:0;top:0;transform:translate(-50%,0);white-space:nowrap;font:600 var(--fs-small) var(--ui);color:var(--ink);opacity:0;padding:6px 12px;border-radius:12px;background:var(--disc);border:1px solid color-mix(in srgb,var(--c) 30%,var(--disc-line));box-shadow:0 8px 22px -12px color-mix(in srgb,var(--c) 60%,transparent)}
 .ring .lbl.show{opacity:1}
-.ring.moving .lbl{transition:none;animation:none}
-.app:has(.ring.moving) .press{animation:none;opacity:0}
 .press{position:absolute;z-index:9;width:16px;height:16px;margin:-8px 0 0 -8px;border-radius:50%;border:1.5px solid var(--ink-3);opacity:0;pointer-events:none}
 .press.on{animation:press var(--d-quick) var(--ease-emph) forwards}
 @keyframes press{from{opacity:.0;transform:scale(.4)}to{opacity:.55;transform:scale(2.2)}}
@@ -163,7 +166,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .whours .wrain{color:var(--ink-3);text-align:right}
 .tile.gold,:root[data-theme="dark"] .tile.gold{box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--gold) 50%,transparent)}
 .bnote{display:block;margin-inline:auto;min-height:44px;padding:0 18px;border:0;border-radius:var(--r-full);background:none;cursor:pointer;font:500 var(--fs-label) var(--ui);color:var(--ink-3);margin-top:18px;text-align:center}
-.dim{position:absolute;inset:0;z-index:11;background:var(--dim);opacity:0;pointer-events:none}
+.dim{position:absolute;inset:0;z-index:11;background:var(--dim);opacity:0;pointer-events:none;will-change:opacity}
 /* the menu (MENU-AND-SETTINGS.md §1): a page on home's own field that leaves home's edge in sight,
    sunk back (home.js); the conversations scroll, and search and Settings sit in a bar at the
    bottom, where the thumb is, like the ask bar on home (owner, 2026-10-31) */
@@ -214,7 +217,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .past{max-width:100%}
 .past button{white-space:nowrap;flex:none;border:0;background:var(--accent-text);color:#fff;border-radius:999px;padding:6px 12px;font:600 var(--fs-label) var(--ui);cursor:pointer}
 .turns .turn:first-child{margin-top:8px}
-@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.side.enter .sidescroll>*,.side.enter #convos>*,.brief.enter .grid>*{animation:none}.field::before,.field::after,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet,.ring .pet::before,.ring .hub,.ring .lbl,.ring .pet svg,.ring .pet .fill,.scrim,.toast{transition:none}.ring .lbl.swap{animation:none}}
+@media (prefers-reduced-motion: reduce){.page,.side,.dim,.opts,.opts button{transition:none}.side.enter .sidescroll>*,.side.enter #convos>*,.brief.enter .grid>*{animation:none}.field::before,.field::after,.card,.chips,.hint,.turn{animation:none}.edge.think::after{animation:none;opacity:.85}.ring .pet::before,.ring .pet .face::before,.ring .hub,.ring .pet svg,.ring .pet .fill,.ring .pet .lift,.scrim,.toast{transition:none}}
 /* the gestures' buttons (GESTURES.md §9): clipped until focused, then a glass pill at the top left */
 .skips{position:absolute;z-index:15;top:calc(8px + env(safe-area-inset-top,0px));left:12px;display:flex;gap:6px}
 .skips button{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;padding:0}
@@ -239,13 +242,18 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);overflow:hidden
 .tile.weather .k{font-size:var(--fs-chip)}
 .tile .big{font-size:var(--fs-big)}
 
-/* The same two layers on the menu and Settings: cheap while sliding, frosted at rest.
-   The field element is retained for the shared page structure, with no moving blobs under glass. */
-#app .side,#app .spage{background:var(--glass-flat);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
-#app .side>.field,#app .spage>.field{background:var(--panel);backdrop-filter:blur(28px) saturate(1.6);-webkit-backdrop-filter:blur(28px) saturate(1.6);opacity:1;transition:opacity var(--d-fast) var(--ease-default)}
+/* The menu and Settings pages, each its own layer: an opaque fill (::before) moves; the frost (> .field)
+   fades in over it from 85% of the way in (.frost), then the fill fades out under it, so what is
+   behind never shows through unblurred. Held or covered, the fill comes back first. */
+#app .side,#app .spage{background:none;backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none;will-change:transform}
+#app .side::before,#app .spage::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;background:linear-gradient(var(--panel),var(--panel)),var(--bg);opacity:1;transition:opacity var(--d-fast) var(--ease-out)}
+#app .side>.field,#app .spage>.field{display:block;background:var(--panel);backdrop-filter:blur(28px) saturate(1.6);-webkit-backdrop-filter:blur(28px) saturate(1.6);opacity:0;visibility:hidden;transition:opacity var(--d-fast) var(--ease-out) var(--d-fast),visibility 0s calc(var(--d-fast) * 2)}
 #app .side>.field::before,#app .side>.field::after,#app .spage>.field::before,#app .spage>.field::after{display:none}
 #app .side>.grain,#app .spage>.grain{display:none}
-#app .side.moving>.field,#app .spage.moving>.field,#app .side:not(.open)>.field,#app .spage:not(.in)>.field{opacity:0;visibility:hidden;transition:none}
-#app:has(.spage.in) .side>.field,#app .spage:has(~ .spage.in)>.field{opacity:0;visibility:hidden}
-.side .sidebar{background:var(--glass-flat);backdrop-filter:none;-webkit-backdrop-filter:none;box-shadow:none}
-@media (prefers-reduced-motion: reduce){#app .side>.field,#app .spage>.field{transition:none}}
+#app .side.frost>.field,#app .spage.frost>.field{opacity:1;visibility:visible;transition:opacity var(--d-fast) var(--ease-out)}
+#app .side.frost::before,#app .spage.frost::before{opacity:0;transition:opacity var(--d-fast) var(--ease-out) var(--d-fast)}
+#app .side.frost:has(~ .spage.in)>.field,#app .spage.frost:has(~ .spage.in)>.field{opacity:0;visibility:hidden;transition:opacity var(--d-fast) var(--ease-out) var(--d-fast),visibility 0s calc(var(--d-fast) * 2)}
+#app .side.frost:has(~ .spage.in)::before,#app .spage.frost:has(~ .spage.in)::before{opacity:1;transition:opacity var(--d-fast) var(--ease-out)}
+/* under the ring, menu and Settings the field holds still: at rest nothing is drawn */
+.app.hush>.field::before,.app.hush>.field::after,.app:has(>.spage)>.field::before,.app:has(>.spage)>.field::after{animation-play-state:paused}
+@media (prefers-reduced-motion: reduce){#app .side>.field,#app .spage>.field,#app .side::before,#app .spage::before{transition:none}}

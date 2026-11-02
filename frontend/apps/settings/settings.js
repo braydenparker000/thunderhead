@@ -5,12 +5,15 @@
 // with a fixed header and scrolling groups: a page opened from
 // Settings returns there, Settings and a page opened by its address return to the open menu. Signing out never asks for the password;
 // handing out a credential (recovery code, agent key) checks it inline (§15).
+// A page slides on springs.page, the menu's progress model, and leaves by its Back button, Escape, or a
+// sideways drag from its left edge or its header (GESTURES.md §4.4).
 import { api, signedIn, signOutHere } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { dMMM, lastActive, place } from '/th/format.js';
 import { wipe } from '/th/session.js';
 import { el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
+import { animator, haptic, springs } from '/th/motion.js';
 import { outbox } from '/th/chat/store.js';
 import { confirmSheet, icon, row } from './components.js';
 
@@ -65,10 +68,12 @@ export async function openPage(name, opts = {}) {
   const body = el('div', { class: 'sbody' });
   const header = el('header', { class: 'sheader' }, [back, title]);
   const scroll = el('div', { class: 'sscroll' }, [body]);
-  // The frosted panel behind the page, as the menu's (#side > .field): flat while the page moves, blurred at rest (home.css).
+  // The frosted panel behind the page, as the menu's (#side > .field): the page moves on its own opaque fill and the
+  // frost cross-fades in from 85% of the way in (.frost, home.css).
   const field = el('div', { class: 'field', 'aria-hidden': 'true' });
-  const page = el('section', { class: 'spage', role: 'dialog', 'aria-modal': 'true', 'aria-label': TITLES[name] }, [field, header, scroll]);
+  const page = el('section', { class: 'spage sprung', role: 'dialog', 'aria-modal': 'true', 'aria-label': TITLES[name] }, [field, header, scroll]);
   scroll.addEventListener('scroll', () => header.classList.toggle('scrolled', scroll.scrollTop > 0), { passive: true });
+  const slide = pageMotion(page);
   // The page's module is resolved before the page is shown, so its first visible frame already has its
   // content (the shell-look first-frame check); boot preloads these during idle, so this normally costs nothing.
   const MODULES = { settings: './home.js', quiet: './home.js', agents: './agents.js', memory: './memory.js', export: './export.js', notifications: './notifications.js', deleted: './deleted.js', account: './account.js', appearance: './appearance.js', chat: './chat.js', gestures: './gestures.js', island: './island.js', briefing: './briefing.js', mind: './mind.js', privacy: './privacy.js', about: './about.js' };
@@ -76,12 +81,16 @@ export async function openPage(name, opts = {}) {
   const mod = name in MODULES ? await import(MODULES[/** @type {keyof typeof MODULES} */ (name)]) : null;
   document.querySelector('#app').append(page);
   stack.push(page);
-  requestAnimationFrame(() => page.classList.add('in'));
-  const close = () => {
+  let closed = false;
+  requestAnimationFrame(() => { if (!closed) { page.classList.add('in'); slide.to(1); } });
+  /** @param {number} [velocity] the finger's, in progress per second @param {number} [ms] a flick's own duration */
+  const close = (velocity = 0, ms = undefined) => {
+    if (closed) return;
+    closed = true;
     cleanup?.();
     cleanup = null;
     page.classList.remove('in');
-    Promise.all(page.getAnimations().map((animation) => animation.finished.catch(() => {}))).then(() => page.remove());
+    slide.to(0, velocity, ms).then(() => page.remove());
     const i = stack.indexOf(page);
     if (i >= 0) stack.splice(i, 1);
     if (location.pathname !== '/') history.replaceState(null, '', '/');
@@ -89,8 +98,9 @@ export async function openPage(name, opts = {}) {
     if (below) /** @type {HTMLElement | null} */ (below.querySelector('h1'))?.focus({ preventScroll: true });
     else document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' }));
   };
-  back.addEventListener('click', close);
+  back.addEventListener('click', () => close());
   page.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+  swipeBack(page, slide, close);
   // The page's title takes focus (a screen reader names the page), never a ring on the back button.
   title.focus({ preventScroll: true });
   if (name === 'settings') mod.settingsHome(body, (p) => openPage(/** @type {any} */ (p), { over: true }), opts.focus);
@@ -103,6 +113,84 @@ export async function openPage(name, opts = {}) {
   else if (name === 'deleted') await mod.deletedPage(body);
   else if (mod.page) cleanup = (await mod.page(body)) ?? null; // the catalogue's pages and About (catalog.js)
   else mod.account(body);
+}
+
+/** The page's slide: progress 0 (off to the right) to 1 (in place), on springs.page with the menu's clock
+ * (home.js go()), so a page and the menu move alike; it carries `.moving` while it moves and `.frost` from
+ * 85% of the way in while it is headed in and no finger holds it.
+ * @param {HTMLElement} page */
+function pageMotion(page) {
+  let target = 0, held = false, run = 0;
+  const motion = animator((v) => {
+    // Full width, so it never goes past where it rests: that would open a gap at the right edge.
+    page.style.transform = v >= 1 && motion.resting ? 'none' : `translateX(${(Math.max(0, 1 - v) * 100).toFixed(3)}%)`;
+    page.classList.toggle('frost', target === 1 && !held && v >= .85);
+  }, { unit: 'scalar' });
+  motion.set(0);
+  page.classList.add('moving');
+  const clock = () => (parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--d-page')) || 460) / 410;
+  return {
+    get value() { return motion.value; },
+    /** @param {number} to @param {number} [velocity] @param {number} [ms] a flick's own duration */
+    to(to, velocity = 0, ms = undefined) {
+      target = to; held = false;
+      const at = ++run;
+      page.classList.add('moving');
+      motion.to(to, { spring: springs.page, velocity, timeScale: ms ? ms / 410 : clock() });
+      return motion.whenResting().then(() => { if (at === run) page.classList.remove('moving'); });
+    },
+    /** A finger has the page: it follows on x, unfrosted. @param {number} v */
+    hold(v) { held = true; ++run; page.classList.add('moving'); motion.set(v); },
+  };
+}
+
+/** Leaving a page by hand: a sideways drag that starts within 24 px of its left edge or on its header
+ * follows the finger; letting go past 28% of the way, or with a flick of 0.45 px/ms to the right, closes it
+ * at the finger's speed, otherwise it springs back (GESTURES.md §4.4). The Back button stays.
+ * @param {HTMLElement} page @param {ReturnType<typeof pageMotion>} slide @param {(velocity?: number, ms?: number) => void} close */
+function swipeBack(page, slide, close) {
+  /** @type {{ x: number, y: number, id: number, from: number, w: number, on: boolean, v: number[][] } | null} */
+  let drag = null, swallow = false;
+  page.addEventListener('pointerdown', (e) => {
+    if (!e.isPrimary || e.button > 0 || !page.classList.contains('in') || stack[stack.length - 1] !== page) return;
+    const r = page.getBoundingClientRect();
+    if (e.clientX - r.left > 24 && !/** @type {Element} */ (e.target).closest('.sheader')) return;
+    drag = { x: e.clientX, y: e.clientY, id: e.pointerId, from: slide.value, w: r.width || 1, on: false, v: [] };
+  });
+  page.addEventListener('pointermove', (e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (!drag.on) {
+      if (Math.hypot(dx, dy) < 6) return;
+      // Sideways from 6 px, before Chrome's own slop; anything else is the scroller's.
+      if (Math.abs(dx) <= Math.abs(dy)) { drag = null; return; }
+      drag.on = true;
+      try { page.setPointerCapture(e.pointerId); } catch {}
+    }
+    if (e.cancelable) e.preventDefault();
+    drag.v.push([e.timeStamp, e.clientX]); if (drag.v.length > 8) drag.v.shift();
+    slide.hold(Math.min(1, Math.max(0, drag.from - dx / drag.w)));
+  }, { passive: false });
+  const end = (/** @type {PointerEvent} */ e) => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const d = drag; drag = null;
+    if (!d.on) return;
+    swallow = true; setTimeout(() => { swallow = false; }, 60);
+    // The finger's speed over its last 100 ms (px/ms, + is rightward); 0 if it rested before lifting.
+    const last = d.v[d.v.length - 1], first = d.v.find((q) => last[0] - q[0] <= 100) ?? last;
+    const v = e.type === 'pointerup' && last && e.timeStamp - last[0] <= 60 && last[0] > first[0] ? (last[1] - first[1]) / (last[0] - first[0]) : 0;
+    const p = slide.value, F = .45;
+    if (v > F || (p < .72 && v >= -F)) {
+      // A flick finishes at the finger's speed (the spring's settle is about 1.8 times the straight run).
+      const ms = Math.abs(v) > F ? Math.round(Math.min(460, Math.max(180, (p * d.w) / Math.abs(v) * 1.8))) : undefined;
+      haptic('commit');
+      close(-v * 1000 / d.w, ms);
+    } else slide.to(1, -v * 1000 / d.w);
+  };
+  page.addEventListener('pointerup', end);
+  page.addEventListener('pointercancel', end);
+  // The click that ends a drag (on the Back button, say) is the drag's, not the button's.
+  page.addEventListener('click', (e) => { if (swallow) { e.stopPropagation(); e.preventDefault(); } }, true);
 }
 
 /** A line under a form or list for a failed request. */

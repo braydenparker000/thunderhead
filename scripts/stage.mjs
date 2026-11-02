@@ -93,7 +93,9 @@ const budgets = [
   ['total bytes', total, 40_000_000],
   ['home JS bytes', sum(/^(apps\/home|ui)\/.*\.js$/), 120_000],
   // th/ modules the shell loads at boot, and the conversation it loads after the first paint.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 72_232], // Task A: measured 72,232 bytes (+133 over the prior limit), including whenResting().
+  // Task A: measured 72,232 bytes (+133 over the prior limit), including whenResting().
+  // (2026-11-02) +204 measured (72,436): motion.js's lift and fade springs for the ring's discs.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 72_436],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -148,7 +150,9 @@ const budgets = [
   // (2026-11-02, night chat) 76,000 → 77,400: the working card and the line under the ask bar, less
   // the thinking words' shimmer (chat.css 12,025 → 14,807, +2,782 over main's 74,591): measured
   // 77,373 bytes.
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 77_400],
+  // (2026-11-02, shell feel) → 79,237 measured: the menu's and Settings' opaque fill and frost layers,
+  // the ring's face, lift and name layers (+1,864 bytes net of comments trimmed in home.css).
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 79_237],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 21_003],

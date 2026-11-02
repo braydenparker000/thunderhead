@@ -56,7 +56,7 @@ const blurs = (page) => page.evaluate(() => [...document.querySelectorAll('body 
 }).map((e) => e.id || e.className));
 const go = (page, view) => page.evaluate((v) => document.dispatchEvent(new CustomEvent('th:go', { detail: v })), view);
 
-test('idle parses menu and Settings; moving surfaces are flat and rows have no entrance delay', opts, async () => {
+test('idle parses menu and Settings; moving panels are opaque and unblurred, frosted at rest, and rows have no entrance delay', opts, async () => {
   const { page, context, errors } = await open();
   try {
     await page.waitForFunction(() => ['/th/convos/menu.js', '/apps/settings/settings.js', '/apps/settings/home.js'].every(path => performance.getEntriesByType('resource').some(r => new URL(r.name).pathname === path)));
@@ -64,18 +64,25 @@ test('idle parses menu and Settings; moving surfaces are flat and rows have no e
       const side = document.querySelector('#side'), app = document.querySelector('#app');
       const point = (type, x) => app.dispatchEvent(new PointerEvent(type, { bubbles: true, isPrimary: true, pointerId: 29, clientX: x, clientY: 300 }));
       point('pointerdown', 330); point('pointermove', 150);
-      const field = getComputedStyle(side.querySelector('.field')), row = getComputedStyle(side.querySelector('.row'));
-      const state = { moving: side.classList.contains('moving'), blur: getComputedStyle(side).backdropFilter, field: field.visibility, row: row.opacity, rowAnimation: row.animationName, dim: document.querySelector('#dim').style.transition, home: document.querySelector('#home').style.transition };
+      const field = getComputedStyle(side.querySelector('.field')), row = getComputedStyle(side.querySelector('.row')), fill = getComputedStyle(side, '::before');
+      const state = { moving: side.classList.contains('moving'), blur: getComputedStyle(side).backdropFilter, field: field.visibility, fill: [fill.opacity, fill.backgroundImage.startsWith('linear-gradient'), fill.backgroundColor], row: row.opacity, rowAnimation: row.animationName, dim: document.querySelector('#dim').style.transition, home: document.querySelector('#home').style.transition };
       point('pointerup', 150); return state;
     });
-    assert.deepEqual(moving, { moving: true, blur: 'none', field: 'hidden', row: '1', rowAnimation: 'none', dim: 'none', home: 'none' });
+    // The panel moves on its own opaque fill (--panel over --bg), never a see-through one.
+    assert.deepEqual(moving, { moving: true, blur: 'none', field: 'hidden', fill: ['1', true, await page.evaluate(() => getComputedStyle(document.body).backgroundColor)], row: '1', rowAnimation: 'none', dim: 'none', home: 'none' });
     await page.evaluate(async () => (await import('/th/motion.js')).whenResting());
     assert.equal(await page.$eval('#side', s => s.classList.contains('moving')), false);
+    // At rest the frost has faded in over the fill, and then the fill out under it.
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#side'), '::before').opacity === '0');
+    assert.deepEqual(await page.$eval('#side > .field', f => [getComputedStyle(f).visibility, getComputedStyle(f).opacity, /blur/.test(getComputedStyle(f).backdropFilter)]), ['visible', '1', true]);
     await page.click('#settings');
     await page.waitForSelector('.spage.in .sfield');
     await page.waitForFunction(() => !document.querySelector('.spage').classList.contains('moving'));
     const panel = await page.$eval('.spage > .field', field => ({ visible: getComputedStyle(field).visibility, blur: getComputedStyle(field).backdropFilter, transition: getComputedStyle(field).transitionProperty }));
     assert.equal(panel.visible, 'visible'); assert.match(panel.blur, /blur/); assert.equal(panel.transition, 'opacity');
+    // The menu under the page keeps its fill and drops its blur.
+    await page.waitForFunction(() => getComputedStyle(document.querySelector('#side > .field')).visibility === 'hidden');
+    assert.equal(await page.$eval('#side', s => getComputedStyle(s, '::before').opacity), '1');
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
 });
@@ -145,6 +152,42 @@ test('Settings keeps a fixed header with a round caret back button and focuses i
   });
   assert.deepEqual(look, { blur: 'none', header: true, scroll: true, back: ['Back to the menu', '/ui/icons.svg#caret-left'], focused: 'H1' });
   assert.ok((await blurs(page)).length <= 2);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('a Settings page leaves by a sideways drag from its header or its left edge; a short slow one springs back', opts, async () => {
+  const { page, context, errors } = await open({ touch: true });
+  const cdp = await context.newCDPSession(page);
+  await go(page, 'side');
+  await page.waitForTimeout(700);
+  await page.tap('#settings');
+  await page.waitForSelector('.spage.in:not(.moving)');
+  const at = () => page.evaluate(() => [...document.querySelectorAll('.spage')].map(p => Math.round(p.getBoundingClientRect().left)));
+  // 80 px, slowly, on the header: under 28%, so it follows the finger and springs back.
+  await touchDrag(page, cdp, line(150, 60, 230, 62, 20), 40);
+  assert.deepEqual(await at(), [0], 'springs back');
+  // Mid-drag the page is under the finger and has dropped its frost for its opaque fill.
+  const t0 = Date.now() / 1000;
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: 10, y: 500 }], timestamp: t0 });
+  for (let i = 1; i <= 8; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: 10 + i * 20, y: 502 }], timestamp: t0 + i * .03 });
+  // Moves reach the page with its frames: read after the next two.
+  const held = await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(() => { const p = document.querySelector('.spage'); r([Math.round(p.getBoundingClientRect().left), p.classList.contains('frost')]); }))));
+  assert.ok(Math.abs(held[0] - 160) <= 2 && held[1] === false, `follows the finger from the left edge: ${held}`);
+  // Let go past 28% of the way: it leaves, and the menu is open under it.
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: t0 + .5 });
+  await page.waitForFunction(() => !document.querySelector('.spage'));
+  assert.equal(await page.$eval('#side', s => s.classList.contains('open') && !s.inert), true);
+  // A quick 60 px flick on the header leaves too.
+  await page.tap('#settings');
+  await page.waitForSelector('.spage.in:not(.moving)');
+  await touchDrag(page, cdp, line(150, 60, 210, 60, 4), 12);
+  await page.waitForFunction(() => !document.querySelector('.spage'));
+  // The Back button still works.
+  await page.tap('#settings');
+  await page.waitForSelector('.spage.in:not(.moving)');
+  await page.tap('.spage .sheader .sback');
+  await page.waitForFunction(() => !document.querySelector('.spage'));
   assert.deepEqual(errors, []);
   await context.close();
 });

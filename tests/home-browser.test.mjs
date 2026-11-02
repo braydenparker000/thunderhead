@@ -29,7 +29,8 @@ async function open(theme = 'light', path = '/') {
   return { page, errors };
 }
 const whenResting = page => page.evaluate(async () => (await import('/th/motion.js')).whenResting());
-const ringRest = async page => { await page.waitForFunction(() => document.querySelector('#ring').classList.contains('show')); await whenResting(page); };
+// The flight out is a compositor animation (home.js), then the engine's: wait for both.
+const ringRest = async page => { await page.waitForFunction(() => document.querySelector('#ring').classList.contains('show')); await page.waitForFunction(() => !document.querySelector('#ring').classList.contains('moving')); await whenResting(page); };
 const drag = async (page, x0, x1, y = 300) => {
   await page.mouse.move(x0, y); await page.mouse.down();
   await page.mouse.move(x0 + (x1 - x0) * 0.3, y, { steps: 4 }); await page.mouse.move(x1, y, { steps: 8 });
@@ -86,7 +87,7 @@ test('holding still opens the Compass ring; sliding picks an app', async () => {
   await page.close();
 });
 
-test('the ring flies out together in 120 ms, overshoots on pop, and uses flat discs until rest', async () => {
+test('the ring flies out together in 120 ms, past the ring and back, its glass fading in as the discs slow; the chosen disc lifts at rest', async () => {
   const { page, errors } = await open();
   // The browser's page clock isolates the trajectory from runner scheduling. Rendering/frame cost
   // is measured separately in the opt-in Frames readout on the device.
@@ -97,8 +98,11 @@ test('the ring flies out together in 120 ms, overshoots on pop, and uses flat di
     window.ringPoint('pointerdown');
   });
   await page.clock.runFor(220);
+  // The flight runs on the document's timeline, which the page clock does not hold, so its first
+  // frame is read by seeking to it rather than by racing it.
   const start = await page.evaluate(() => {
     const pets = [...document.querySelectorAll('#ring .pet')];
+    pets.forEach(p => { const a = p.getAnimations()[0]; if (a) { a.pause(); a.currentTime = 0; } });
     return { time: performance.now(), moving: document.querySelector('#ring').classList.contains('moving'), pets: pets.map(p => {
       const css = getComputedStyle(p), m = new DOMMatrix(css.transform);
       return { radius: Math.hypot(m.m41, m.m42), scale: m.a, blur: css.backdropFilter, shadow: css.boxShadow, layer: getComputedStyle(p, '::before').visibility };
@@ -110,22 +114,41 @@ test('the ring flies out together in 120 ms, overshoots on pop, and uses flat di
     assert.equal(p.radius, 0); assert.equal(p.scale, .2);
     assert.equal(p.blur, 'none'); assert.equal(p.shadow, 'none'); assert.equal(p.layer, 'hidden');
   }
-  let reached;
-  for (let ms = 16; ms <= 112; ms += 16) {
-    await page.clock.runFor(16);
-    const frame = await page.evaluate(() => ({ time: performance.now(), radii: [...document.querySelectorAll('#ring .pet')].map(p => {
-      const m = new DOMMatrix(getComputedStyle(p).transform); return Math.hypot(m.m41, m.m42);
-    }) }));
-    assert.ok(Math.max(...frame.radii) - Math.min(...frame.radii) < .01, 'no stagger');
-    if (frame.radii.every(r => r >= 62 * .9)) { reached = frame.time - start.time; break; }
-  }
+  // The flight out is the springs' curve played by the compositor: seek it to read its trajectory. The
+  // discs fly ~13% past the ring and magnet back, growing from .2 through ~1.06 to 1 (GESTURES.md §3).
+  const trajectory = await page.evaluate(() => {
+    const pets = [...document.querySelectorAll('#ring .pet')], flights = pets.map(p => p.getAnimations()[0]);
+    flights.forEach(a => a.pause());
+    const frames = [];
+    for (let ms = 0; ms <= flights[0].effect.getComputedTiming().duration; ms += 4) {
+      flights.forEach(a => { a.currentTime = ms; });
+      frames.push({ ms, pets: pets.map(p => { const m = new DOMMatrix(getComputedStyle(p).transform); return { radius: Math.hypot(m.m41, m.m42), scale: m.a }; }) });
+    }
+    flights.forEach(a => { a.currentTime = 0; a.play(); });
+    return frames;
+  });
+  for (const f of trajectory) { const radii = f.pets.map(p => p.radius); assert.ok(Math.max(...radii) - Math.min(...radii) < .01, `no stagger at ${f.ms} ms`); }
+  const reached = trajectory.find(f => f.pets.every(p => p.radius >= 62 * .9))?.ms;
   assert.ok(reached > 0 && reached <= 120, `all seven reach 90% radius in ${reached} ms`);
-  await page.clock.runFor(600); await whenResting(page);
-  assert.equal(await page.$eval('#ring', r => r.classList.contains('moving')), false);
+  const most = Math.max(...trajectory.map(f => f.pets[0].radius)), biggest = Math.max(...trajectory.map(f => f.pets[0].scale));
+  assert.ok(most >= 62 * 1.1 && most <= 62 * 1.14, `radial overshoot ${(most / 62 - 1) * 100}%`);
+  assert.ok(biggest >= 1.04 && biggest <= 1.08, `the discs grow to ${biggest} on the way out`);
+  const end = trajectory.at(-1).pets[0];
+  assert.ok(Math.abs(end.radius - 62) < .7 && Math.abs(end.scale - 1) < .01, 'and land on the ring');
+  // The glass starts to fade in as they pass 85% of the way out, while they still move.
+  const at85 = trajectory.find(f => f.pets[0].radius >= 62 * .85).ms;
+  await page.clock.runFor(at85 - 4);
+  assert.equal(await page.$eval('#ring', r => r.classList.contains('glassy')), false, 'no glass before 85%');
+  await page.clock.runFor(8);
+  assert.deepEqual(await page.$eval('#ring', r => [r.classList.contains('glassy'), r.classList.contains('moving')]), [true, true], 'the glass starts before rest');
+  await page.waitForFunction(() => !document.querySelector('#ring').classList.contains('moving'));
+  await whenResting(page);
   await page.$eval('#ring .pet', p => Promise.all(p.getAnimations({ subtree: true }).map(a => a.finished)));
   assert.equal(await page.$eval('#ring .pet', p => getComputedStyle(p, '::before').opacity), '1');
   await page.evaluate(() => window.ringPoint('pointermove', 200, 350));
   assert.equal(await page.$eval('#ring', r => r.classList.contains('moving')), true);
+  assert.equal(await page.$eval('#ring .pet', p => p.classList.contains('lifted')), false, 'no lift while it moves');
+  assert.equal(await page.$eval('#ring .pet', p => getComputedStyle(p, '::before').opacity), '1', 'the glass stays while the discs move to choose');
   let peak = 1;
   for (let i = 0; i < 30; i++) {
     await page.clock.runFor(16);
@@ -134,6 +157,8 @@ test('the ring flies out together in 120 ms, overshoots on pop, and uses flat di
   await whenResting(page);
   // Overshoot is relative to the .12 scale step, just as the engine measures relative travel.
   const overshoot = (peak - 1.12) / .12;
+  assert.equal(await page.textContent('#lbl'), 'Music');
+  assert.deepEqual(await page.$$eval('#ring .pet', pets => pets.map(p => p.classList.contains('lifted'))), [true, false, false, false, false, false, false], 'the chosen disc lifts once it rests');
   assert.ok(overshoot >= .08 && overshoot <= .16, `chosen scale overshoot ${overshoot * 100}%`);
   const scales = await page.$$eval('#ring .pet', pets => pets.map(p => new DOMMatrix(getComputedStyle(p).transform).a));
   assert.ok(Math.abs(scales[0] - 1.12) < .001);

@@ -6,7 +6,8 @@ export function spring({ stiffness = 380, damping = .8 } = {}) {
   const omega = Math.sqrt(stiffness);
   return { stiffness, damping, omega, response: 2 * Math.PI / omega };
 }
-export const springs = { page: spring({ stiffness: 320, damping: .86 }), pop: spring({ stiffness: 900, damping: .55 }), ring: spring({ stiffness: 1100, damping: .7 }), island: spring({ stiffness: 130, damping: .82 }) };
+// Spatial springs overshoot (lift: a disc's size .2→1.06→1); effects never do (fade) (GESTURES.md §3).
+export const springs = { page: spring({ stiffness: 320, damping: .86 }), pop: spring({ stiffness: 900, damping: .55 }), ring: spring({ stiffness: 1100, damping: .7 }), island: spring({ stiffness: 130, damping: .82 }), lift: spring({ stiffness: 700, damping: .64 }), fade: spring({ stiffness: 3800, damping: 1 }) };
 /** @param {keyof typeof springs} name @param {Partial<Params>} params */
 export function setSpring(name, params) { return springs[name] = spring({ ...springs[name], ...params }); }
 

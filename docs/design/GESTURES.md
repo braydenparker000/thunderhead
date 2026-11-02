@@ -62,18 +62,24 @@ States: `idle → pressed → (holding | swiping | scrolling | longpress) → id
 
 ## 3. The Compass ring (hold)
 
-**Built 2026-10-31:** seven apps (Photos, the photo editor that comes later, between Study and Music), radius **62 px** with **50 px** discs and **24 px** bold icons, about 4 px apart (owner, 2026-10-31: tighter, sharper, a shorter swipe), each its own glass disc at rest (owner: "what makes it so good"). The hold before a neighbour takes over stays ~7° past the sector's edge for any number of apps (`HOLD = 0.5 + 7·N/360` sectors). Only transform and opacity move, and nothing is held in a layer by `will-change` (Chrome keeps such a layer at the 0.2 scale it rests at and stretches it, which blurred the icons): the discs spring out together on `springs.pop` (stiffness 900, damping .55), the chosen one swells to 1.12 while the others ease to 0.94, and its colour and white icon fade in on layers inside it instead of repainting the disc under its blur; the label keeps its place, tinted by the app, and changes without animation while the ring moves. During motion the discs use `--glass-flat` and a 1 px `--disc-line`; their separate glass layer returns with a `--d-fast` opacity fade at rest. By keyboard (the focused "Apps" button): the ring opens in the middle, the arrows move round it, Enter opens, Escape closes. The geometry table below is the six-app original.
+**Built 2026-10-31:** seven apps (Photos, the photo editor that comes later, between Study and Music), radius **62 px** with **50 px** discs and **24 px** icons (Phosphor fill since 2026-11-02, bold before), about 4 px apart (owner, 2026-10-31: tighter, sharper, a shorter swipe), each its own glass disc at rest (owner: "what makes it so good"). The hold before a neighbour takes over stays ~7° past the sector's edge for any number of apps (`HOLD = 0.5 + 7·N/360` sectors). Only transform and opacity move, and nothing is held in a layer by `will-change` (Chrome keeps such a layer at the 0.2 scale it rests at and stretches it, which blurred the icons): the discs spring out together on `springs.pop` (stiffness 900, damping .55), the chosen one swells to 1.12 while the others ease to 0.94, and its colour and white icon fade in on layers inside it instead of repainting the disc under its blur. The motion route since 2026-11-02 is below ("Motion route"). By keyboard (the focused "Apps" button): the ring opens in the middle, the arrows move round it, Enter opens, Escape closes. The geometry table below is the six-app original.
 
 Owner ruling: hold still on an empty spot for 220 ms → a tight ring of six apps opens around the finger; slide toward one and let go to open it; letting go in the centre cancels. Radius 62 px, 56 px liquid-glass bubbles, 28 px icons. Order clockwise from the top: Music, Guitar, Podcasts, Astra, My Media, Study.
 
-**Task A implementation:** all seven pets start at scale .2 and zero radius, reaching 90% of 62 px within 120 ms of the hold completing. Radial opening, selection and chosen-pet fly-out use `springs.pop` (900/.55, about 12.6% overshoot of the scale step); the chosen pet flies to 1.25 R and fades, while the others return on `springs.ring` (1100/.7). The hub tracks directly, `.ring.moving` follows engine rest, and cleanup waits for all pets to rest; open/choose/commit haptics are `[8]`/`[4]`/`[10]` (the original timeline below is historical).
+**Motion route (2026-11-02).** Material 3 Expressive's split, which is Android's own: what moves in space rides springs that may overshoot, while fades and colour ride critically damped ones that never do. Compared with iOS 17/18 context menus (a lifted preview on a soft shadow, the menu growing from the touch point on a ~0.8-damped spring under a blurred backdrop) and Nothing OS (monochrome glyphs, short mechanical easing, almost no overshoot), it is the one that fits a thumb-first Android ring and keeps the current idea; iOS lends it the lift.
+- Out: from the finger, radius on `springs.pop` (~12.6% past the ring, then it magnets back), size on `springs.lift` (700/.64: .2 → 1.06 → 1), all seven on one clock, no stagger; the flight is those springs sampled every 8 ms and played by the compositor, and a choice or release mid-flight hands it to the engine at the same position and speed. Fades (faces, dimming) ride `springs.fade` (3800/1).
+- Glass: a flat face flies; the frosted layer fades in on `--d-fast` once the discs pass 85% of the way out with their speed falling, so it is there as they settle, and fades out with them. The disc itself never fades: an ancestor below full opacity cuts its glass off from what is behind it.
+- Choose: the chosen disc swells to 1.12 on `springs.pop` and lifts on a soft shadow in its colour only once it rests; the others ease to 0.94 and their faces dim. The name fades up under the ring; the one it replaces fades on up and out. Haptics `[8]` open, `[4]` choose, `[10]` commit.
+- Cost: behind the ring, the menu and Settings the field's drift pauses (`.hush`), so once they rest nothing is drawn.
+
+**Task A implementation (history):** all seven pets start at scale .2 and zero radius, reaching 90% of 62 px within 120 ms of the hold completing. Radial opening, selection and chosen-pet fly-out use `springs.pop` (900/.55, about 12.6% overshoot of the scale step); the chosen pet flies to 1.25 R and fades, while the others return on `springs.ring` (1100/.7). The hub tracks directly, `.ring.moving` follows engine rest, and cleanup waits for all pets to rest; open/choose/commit haptics are `[8]`/`[4]`/`[10]` (the original timeline below is historical).
 
 ### 3.1 Geometry
 
 | Quantity | Value | Source |
 |---|---|---|
 | Ring radius (centre to bubble centre) | **62 px** | decisions.md |
-| Bubble | **50 px** circle, icon **24 px** in Phosphor bold (2026-10-31; was 56 and 28 regular) | decisions.md |
+| Bubble | **50 px** circle, icon **24 px** in Phosphor fill (2026-11-02: solid glyphs read better than bold on day glass, where the app colours are only 2–3:1; 2026-10-31 bold; was 56 and 28 regular) | decisions.md |
 | Sectors | 6 × 60°, sector `i` centred at `i·60°` clockwise from straight up | `home.js` |
 | Centre clamp | The ring centre is clamped to **≥ 92 px** from the left and right edges (`R + 30`), **≥ 122 px** from the top (`R + 60`) and **≥ 132 px** from the bottom (`R + 70`), so no bubble or label is ever cut off | `home.js place()` |
 | Label | App name pill, Inter 600 13 px, **92 px** below the centre (`R + 30`), shown only for the selected sector | `home.js` |
@@ -149,6 +155,10 @@ There are three positions. Only one is "at rest" at any time.
 - Menu: tap the dim layer, press system Back, or pick a row that navigates.
 - Briefing: system Back, a left swipe, or tapping a tile that goes home ("Waiting on you").
 - Both: the Escape key.
+
+### 4.4 Leaving a Settings page by hand (built 2026-11-02)
+
+A sideways drag that starts within **24 px** of a Settings page's left edge, or anywhere on its header, moves the page with the finger on the menu's progress model; letting go past **28%** of the width, or with a flick of **0.45 px/ms** to the right, closes it on `springs.page` at the finger's speed (the same 180–460 ms flick clock as the menu), otherwise it springs back. The page never passes where it rests. Back and Escape still close it. Under reduced motion it snaps. The page moves on its own opaque fill; its frost cross-fades in from 85% of the way in, before it rests, and leaves as soon as a finger takes it. Note: on gesture navigation the left 24 px is also Android's Back zone (§6).
 
 ## 5. Long-press "Ask about this"
 

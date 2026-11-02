@@ -90,7 +90,8 @@ async function until(ok, ms = 3000) {
 async function show(page, name) {
   await page.evaluate((n) => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: n } })), name);
   await page.waitForSelector(name === 'about' ? '.spage.in #about-worker' : `.spage.in .scatalog[data-group="${name}"]:not([aria-busy])`);
-  await page.waitForFunction(() => !document.querySelector('.spage')?.getAnimations().length);
+  // A page slides in on springs.page (settings.js): it carries .moving until it rests.
+  await page.waitForFunction(() => { const p = document.querySelector('.spage'); return p && !p.classList.contains('moving') && !p.getAnimations().length; });
 }
 
 test('Settings lists every catalogue page as a row with its icon, and each opens under its own title', opts, async () => {
