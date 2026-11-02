@@ -234,7 +234,7 @@ CREATE TABLE ledger (
   verb_id TEXT,
   undone_at INTEGER,
   req_sha256 TEXT
-  );
+  , permit TEXT);
 
 CREATE INDEX ledger_at ON ledger (at);
 

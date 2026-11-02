@@ -109,6 +109,8 @@ describe('upgrade from P2', () => {
       for (const c of ['taint_event_at', 'songs_at', 'off_record_at'])
         sql.exec(`ALTER TABLE mind_sessions DROP COLUMN ${c}`);
       sql.exec('ALTER TABLE session_notes DROP COLUMN tainted');
+      // Step 28 (standing permissions) added the ledger's permit.
+      sql.exec('ALTER TABLE ledger DROP COLUMN permit');
       sql.exec('DELETE FROM _migrations WHERE version > 7');
       sql.exec(
         `INSERT INTO threads (id, day, kind, status, started_at, updated_at) VALUES ('t-p2', '2026-10-01', 'daily', 'filed', 1, 1)`,
@@ -124,7 +126,8 @@ describe('upgrade from P2', () => {
       expect(applied).toBe(Math.max(...CORE_MIGRATIONS.map((m) => m.version)));
       expect(all("SELECT body FROM messages WHERE id = 'm-p2'")).toEqual([{ body: 'kept across the upgrade' }]);
       expect(all(`SELECT rowid FROM messages_fts WHERE messages_fts MATCH '"upgrade"'`)).toHaveLength(1);
-      expect(all("SELECT what FROM ledger WHERE id = 'l-p2'")).toEqual([{ what: 'a P2 row' }]);
+      // An older row ran under no standing permission.
+      expect(all("SELECT what, permit FROM ledger WHERE id = 'l-p2'")).toEqual([{ what: 'a P2 row', permit: null }]);
       // A thread from before step 27 is not held: no purge, not deleted, its kind its own.
       expect(all("SELECT kind, purge_at, deleted_at, kind_was FROM threads WHERE id = 't-p2'")).toEqual([
         { kind: 'daily', purge_at: null, deleted_at: null, kind_was: null },

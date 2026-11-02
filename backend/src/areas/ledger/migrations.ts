@@ -32,6 +32,14 @@ export const LEDGER_MIGRATIONS: Migration[] = [
       `CREATE INDEX ledger_at ON ledger (at)`,
     ],
   },
+  {
+    // The standing permission a mind's action ran under (`ask`, `tell`, `quiet`; NULL for anyone
+    // else's), so what it was to tell the owner can be found again (shared/contract/permits.ts).
+    version: 28,
+    name: 'ledger permit',
+    kind: 'expand',
+    sql: ['ALTER TABLE ledger ADD COLUMN permit TEXT'],
+  },
 ];
 
 export const LEDGER_TABLES: Record<string, TableInfo> = {

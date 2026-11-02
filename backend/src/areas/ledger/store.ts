@@ -1,5 +1,6 @@
 // SQL for the ledger inside Core (DATA.md §4.3). `insert` is called only by objects/commit.ts.
 import type { Actor, LedgerEntry, LedgerKind } from '../../../../shared/contract/api';
+import type { PermitPosition } from '../../../../shared/contract/permits.ts';
 import type { Db } from '../../objects/base';
 
 export interface LedgerRow {
@@ -20,13 +21,14 @@ export interface LedgerRow {
   verb_id: string | null;
   req_sha256: string | null;
   proposal_id: string | null;
+  permit: PermitPosition | null;
 }
 
 /** Only objects/commit.ts calls this. */
 export function insert(db: Db, r: LedgerRow): void {
   db.run(
     `INSERT INTO ledger (id, at, actor, session_id, kind, what, why, ref, topic_key, undo_json, undoable, status,
-       tainted, op_json, verb_id, req_sha256, proposal_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       tainted, op_json, verb_id, req_sha256, proposal_id, permit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     r.id,
     r.at,
     r.actor,
@@ -44,11 +46,13 @@ export function insert(db: Db, r: LedgerRow): void {
     r.verb_id,
     r.req_sha256,
     r.proposal_id,
+    r.permit,
   );
 }
 
 type Raw = Omit<LedgerEntry, 'undoable' | 'tainted'> & { undoable: number; tainted: number };
-const COLS = 'seq, id, at, actor, kind, what, why, ref, topic_key, undoable, status, tainted, proposal_id, undone_at';
+const COLS =
+  'seq, id, at, actor, kind, what, why, ref, topic_key, undoable, status, tainted, proposal_id, permit, undone_at';
 
 const toEntry = (r: Raw): LedgerEntry => ({ ...r, undoable: r.undoable === 1, tainted: r.tainted === 1 });
 

@@ -5,6 +5,7 @@
 // route can change state without the phone and the mind seeing it.
 import type { Actor, LedgerKind } from '../../../shared/contract/api';
 import type { ChangeKind } from '../../../shared/contract/feed.ts';
+import type { PermitPosition } from '../../../shared/contract/permits.ts';
 import * as feed from '../areas/feed/store';
 import * as ledger from '../areas/ledger/store';
 import { uuidv7 } from '../lib/ids';
@@ -32,6 +33,8 @@ export interface LedgerDraft {
   req_sha256?: string | null;
   /** The proposal this row belongs to (else the one the Writer is running, below). */
   proposal_id?: string | null;
+  /** The standing permission a mind's action ran under (areas/mind/permit.ts `gate`). */
+  permit?: PermitPosition | null;
 }
 
 export class Writer {
@@ -72,6 +75,7 @@ export class Writer {
       verb_id: d.verb_id ?? null,
       req_sha256: d.req_sha256 ?? null,
       proposal_id: d.proposal_id ?? this.proposal,
+      permit: d.permit ?? null,
     });
     this.change('ledger', `ledger:${id}`);
     return id;
