@@ -43,8 +43,8 @@ async function open(zone) {
 const patches = (api) => api.calls.filter((c) => c.call === 'PATCH /v1/settings' && c.body && 'owner.tz' in c.body);
 
 test("a phone in another zone than the Worker's sends its own, once", opts, async () => {
-  const { context, page, api } = await open('America/Argentina/Buenos_Aires');
-  // The phone's own name for it (Chromium canonicalizes to "America/Buenos_Aires").
+  const { context, page, api } = await open('Asia/Kolkata');
+  // The phone's own name for it (Chromium may canonicalize to the older "Asia/Calcutta").
   const here = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   assert.deepEqual(patches(api).map((c) => c.body), [{ 'owner.tz': here }]);
   // Another pass over the settings (a reconnect) sends nothing more.
@@ -61,10 +61,10 @@ test('a phone in the same zone sends nothing', opts, async () => {
 });
 
 test('an alias of the same zone is the same zone', opts, async () => {
-  const { context, page } = await open('America/Argentina/Buenos_Aires');
+  const { context, page } = await open('Asia/Kolkata');
   assert.deepEqual(await page.evaluate(() => import('/th/chat/zone.js').then((m) => [
-    m.sameZone(Intl.DateTimeFormat().resolvedOptions().timeZone, 'America/Argentina/Buenos_Aires'),
-    m.sameZone('UTC', 'America/Argentina/Buenos_Aires'),
+    m.sameZone(Intl.DateTimeFormat().resolvedOptions().timeZone, 'Asia/Kolkata'),
+    m.sameZone('UTC', 'Asia/Kolkata'),
     m.sameZone('UTC', 'Not/AZone'),
   ])), [true, false, false]);
   await context.close();
