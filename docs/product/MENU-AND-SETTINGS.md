@@ -289,9 +289,11 @@ the ones the Holidays tile has lists for; auto takes the weather place's country
 ### 6.6 The mind (`mind.js`)
 
 Four parts: How I talk, Nights, Reaching you, Standing permissions. Each permission is Ask (a
-decision card first), Do and tell, or Do quietly (the ledger only). The page says under them: "The
-mind reads these; enforcement comes with the next release." The mind's prompt (`mind/ROLES.md`)
-does not yet tell it to read section 13 before it answers.
+decision card first), Do and tell, or Do quietly (the ledger only), and the Worker enforces it
+([API.md §11.11](../engineering/API.md#standing-permissions)). The page says under them: "Always
+asks first: money, deleting your data, keys and access, reaching another person." (the floors no
+setting lowers). The mind's prompt (`mind/ROLES.md`) does not yet tell it to read section 13 before
+it answers; the briefing's section 13 says what each position asks of it.
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
@@ -302,16 +304,16 @@ does not yet tell it to read section 13 before it answers.
 | `mind.idle` | range (min): 10 / 30 / 120 | worker | `120` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.pushes` | segments: never / urgent / normal | worker | `normal` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.ask_outside` | switch | worker | `on` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.permit.music` | segments: ask / tell / quiet | worker | `quiet` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.permit.podcasts` | segments: ask / tell / quiet | worker | `quiet` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.permit.reminders` | segments: ask / tell / quiet | worker | `tell` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.permit.settings` | segments: ask / tell / quiet | worker | `tell` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.permit.muse` | segments: ask / tell / quiet | worker | `ask` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.permit.watch` | segments: ask / tell / quiet | worker | `tell` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.permit.practice` | segments: ask / tell / quiet | worker | `tell` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.permit.tiles` | segments: ask / tell / quiet | worker | `quiet` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.permit.titles` | segments: ask / tell / quiet | worker | `quiet` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `mind.permit.outside` | segments: ask / tell / quiet | worker | `ask` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.permit.music` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
+| `mind.permit.podcasts` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
+| `mind.permit.reminders` | segments: ask / tell / quiet | worker | `tell` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
+| `mind.permit.settings` | segments: ask / tell / quiet | worker | `tell` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
+| `mind.permit.muse` | segments: ask / tell / quiet | worker | `ask` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
+| `mind.permit.watch` | segments: ask / tell / quiet | worker | `tell` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
+| `mind.permit.practice` | segments: ask / tell / quiet | worker | `tell` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
+| `mind.permit.tiles` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
+| `mind.permit.titles` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
+| `mind.permit.outside` | segments: ask / tell / quiet | worker | `ask` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 
 ### 6.7 Privacy and data (`privacy.js`)
 
