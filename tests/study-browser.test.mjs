@@ -22,7 +22,7 @@ const opts = { skip: live && 'local only (mocked API)' };
 const TOKEN = `th1_${'C'.repeat(43)}abcdef`;
 const PDF = makePdf({ pages: 6, filler: 600_000 });
 let site, mock, browser, base, api;
-const state = { books: [], files: new Map(), downloads: 0, positions: [], parts: [], tables: [], down: false };
+const state = { books: [], files: new Map(), downloads: 0, positions: [], parts: [], tables: [], down: false, senses: [] };
 const TABLE = readFileSync(new URL('./study/table.json', import.meta.url), 'utf8');
 
 const book = (over) => ({
@@ -86,6 +86,12 @@ before(async () => {
       const b = state.books.find((x) => x.id === m[1]);
       if (b && (!b.position || b.position.at < p.at)) b.position = p;
       return json(200, { position: p });
+    }
+    // The senses' sealed batches (th/senses/send.js).
+    if (req.method === 'PUT' && path.startsWith('/v1/senses/batches/')) {
+      const { events } = JSON.parse(body.toString());
+      state.senses.push(...events);
+      return json(200, { accepted: events.length, rejected: [] });
     }
     if (path === '/v1/library/search')
       return json(200, {
@@ -233,6 +239,36 @@ test('the reader: the book downloaded once and kept on the phone, printed page n
 test('opening again starts at the saved place; search shows snippets as text, grouped by book', opts, async () => {
   const { page, context, errors } = await open(`/study/?book=${state.books[0].id}`);
   await page.waitForFunction(() => document.querySelector('.pill')?.textContent === 'p. 2');
+  // Reading, as a sense: over 10 s in the book, then the page hides: `study.read` with the book's
+  // id, the pages shown and the time, never a page's words.
+  await page.waitForTimeout(10_500);
+  await page.evaluate(() => {
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
+    document.dispatchEvent(new Event('visibilitychange'));
+  });
+  const outbox = () => page.evaluate(() => JSON.parse(localStorage.getItem('th.p.senses') || '[]'));
+  for (let i = 0; i < 30 && !(await outbox()).some((e) => e.type === 'study.read'); i++) await page.waitForTimeout(100);
+  const read = (await outbox()).find((e) => e.type === 'study.read');
+  assert.equal(read?.ref, `book:${state.books[0].id}`);
+  assert.deepEqual(Object.keys(read.data), ['pages', 'ms']);
+  assert.ok(read.data.pages >= 1 && read.data.ms >= 10_000 && read.data.ms < 60_000, JSON.stringify(read.data));
+  await page.goto(`${base}/study/?q=morning`);
+  await page.locator('.hit').first().waitFor();
+  // A search, as a sense once its results have stood: the count of hits, never the words.
+  await page.waitForFunction(() => JSON.parse(localStorage.getItem('th.p.senses') || '[]').some((e) => e.type === 'study.search'));
+  const searched = (await outbox()).filter((e) => e.type === 'study.search');
+  assert.deepEqual(searched.map((e) => [e.ref, e.data]), [[undefined, { hits: 1 }]]);
+  assert.ok(!JSON.stringify(await outbox()).includes('morning'), 'never the words');
+  // Sent a few seconds later, in a sealed batch.
+  for (let i = 0; i < 80 && !state.senses.some((e) => e.type === 'study.search'); i++) await page.waitForTimeout(100);
+  assert.deepEqual(state.senses.filter((e) => e.type !== 'study.open').map((e) => e.type), ['study.read', 'study.search']);
+  // With Study's senses switched off, the next search sends nothing.
+  await page.evaluate(() => localStorage.setItem('th.p.settings', JSON.stringify({ 'privacy.senses.study': false })));
+  await page.locator('input[type=search]').fill('light');
+  await page.locator('.hit').first().waitFor();
+  await page.waitForTimeout(2_000);
+  assert.equal((await outbox()).filter((e) => e.type === 'study.search').length + state.senses.filter((e) => e.type === 'study.search').length, 1);
+  await page.evaluate(() => localStorage.removeItem('th.p.settings'));
   await page.goto(`${base}/study/?q=morning`);
   await page.locator('.hit').first().waitFor();
   assert.equal(await page.locator('.hit mark').textContent(), 'morning');

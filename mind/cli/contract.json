@@ -3462,6 +3462,10 @@
         "half_life_days": 60,
         "cap": 15
       },
+      "habit": {
+        "half_life_days": 28,
+        "cap": 10
+      },
       "fact": {
         "half_life_days": 1825,
         "cap": 30

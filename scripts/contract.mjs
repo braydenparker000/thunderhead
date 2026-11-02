@@ -338,6 +338,22 @@ function docs() {
   L.push('## Apps', '', '| App | Folder | Name | Phase |', '|---|---|---|---|');
   for (const [id, a] of Object.entries(c.APPS))
     L.push(`| \`${id}\` | \`${a.path}\` | ${a.name} | ${a.phase}${a.deferred ? ` (page: ${a.deferred})` : ''} |`);
+  const field = (f) => (Array.isArray(f) ? f.map((x) => `\`${x}\``).join(' \\| ') : f);
+  L.push(
+    '',
+    '## Senses',
+    '',
+    `Every event type the phone may send (\`PUT /v1/senses/batches/:id\`, API.md §11.14), its app's switch (\`privacy.senses.<app>\`), the ref kinds it may carry, its only data fields and their kinds, and its sensitivity (1: type and time only in every answer). Anything else is refused: \`bad_type\`, \`bad_data\`, \`bad_ref\`; an app switched off, \`switched_off\`. The \`routines\` query: ${c.ROUTINES.days} logical days, a band of 1 to ${c.ROUTINES.max_hours} hours on the weekdays with events in ${c.ROUTINES.day_weeks}+ weeks, kept at ${c.ROUTINES.min_n}+ events in ${c.ROUTINES.min_weeks}+ weeks.`,
+    '',
+    '| Type | App | Ref | Data | Sensitivity | When |',
+    '|---|---|---|---|---|---|',
+  );
+  for (const [n, s] of Object.entries(c.SENSE_TYPES)) {
+    const data = Object.entries(s.data).map(([k, f]) => `${k}: ${field(f)}`);
+    L.push(
+      `| \`${n}\` | ${s.app} | ${s.ref.map((r) => `\`${r}:\``).join(', ') || '—'} | ${data.join(', ') || '—'} | ${s.sensitivity} | ${cell(s.doc)} |`,
+    );
+  }
   L.push('', '## Search sources', '', '| Source | Phase | Ref kind |', '|---|---|---|');
   for (const [id, s] of Object.entries(c.SEARCH_SOURCES)) L.push(`| \`${id}\` | ${s.phase} | \`${s.ref}\` |`);
   L.push('', '## Memory', '', '| Fact kind | Half-life (days) | Profile cap |', '|---|---|---|');

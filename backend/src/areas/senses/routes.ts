@@ -5,10 +5,13 @@
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import {
+  SENSE_APPS,
   SENSE_LIMITS,
+  type SenseApp,
   type SenseBatchResponse,
   type SenseEvent,
   type SenseQueryResponse,
+  senseSwitch,
 } from '../../../../shared/contract/senses.ts';
 import { type AppEnv, guard, principalOf } from '../../http/auth';
 import { ApiError } from '../../http/errors';
@@ -28,21 +31,34 @@ const queryBody = z.strictObject({
   name: z.string().check(z.maxLength(40)),
   params: z.record(z.string(), z.unknown()),
 });
-const TZ_MS = 10 * 60_000;
+/** How long this isolate keeps the owner's zone and senses switches: a switch turned off holds here
+ * within a minute (the phone stops sending at once, th/senses/send.js). */
+const OWNER_MS = 60_000;
 const noSandbox = () => {
   if (inSandbox()) throw new ApiError('validation', [{ path: 'TH-Sandbox', issue: 'the sandbox has no senses' }]);
 };
-let zone: { tz: string; until: number } | null = null;
+let owner: { tz: string; off: SenseApp[]; until: number } | null = null;
+/** The next batch reads the zone and the switches again (tests: a switch just changed). */
+export const forgetOwner = () => {
+  owner = null;
+};
 
 /** The batch's song ratings (`music.rate`, ref `music:<id>`, `data.rating` 0–5) that pass the same
  * check the Senses object makes (a uuidv7, a time within the window, sensitivity 0), checked again
  * on every pass: the same batch sent again is answered from its record without its rejections, so
  * an event refused the first time (a time out of the window) must not slip in on a retry. A
- * rating's time is never later than now, so a phone's clock ahead can't pin it. */
-function ratingsOf(events: unknown[], now: number): { id: string; rating: number; at: number }[] {
+ * rating's time is never later than now, so a phone's clock ahead can't pin it. With Music's senses
+ * switched off, none is handed over. */
+function ratingsOf(events: unknown[], now: number, off: SenseApp[]): { id: string; rating: number; at: number }[] {
   return events.flatMap((e) => {
     const c = checkEvent(e as SenseEvent, now);
-    if (typeof c === 'string' || c.type !== 'music.rate' || c.sensitivity !== 0 || !c.ref?.startsWith('music:'))
+    if (
+      typeof c === 'string' ||
+      c.type !== 'music.rate' ||
+      c.sensitivity !== 0 ||
+      !c.ref?.startsWith('music:') ||
+      off.includes(c.switch)
+    )
       return [];
     const id = c.ref.slice(6);
     const rating = (JSON.parse(c.data_json ?? '{}') as { rating?: unknown }).rating;
@@ -52,12 +68,14 @@ function ratingsOf(events: unknown[], now: number): { id: string; rating: number
   });
 }
 
-/** The owner's zone (Core's private setting), kept 10 minutes in this isolate. */
-async function ownerTz(env: Env): Promise<string> {
-  if (zone && zone.until > Date.now()) return zone.tz;
-  const s = (await coreObject(env).settings()) as { 'owner.tz'?: string };
-  zone = { tz: s['owner.tz'] || env.OWNER_TZ || 'UTC', until: Date.now() + TZ_MS };
-  return zone.tz;
+/** The owner's zone (Core's private setting) and the apps whose senses they switched off
+ * (`privacy.senses.<app>` false; on by default), kept a minute in this isolate. */
+async function ownerOf(env: Env): Promise<{ tz: string; off: SenseApp[] }> {
+  if (owner && owner.until > Date.now()) return owner;
+  const s = (await coreObject(env).settings()) as Record<string, unknown>;
+  const tz = typeof s['owner.tz'] === 'string' && s['owner.tz'] ? s['owner.tz'] : env.OWNER_TZ || 'UTC';
+  owner = { tz, off: SENSE_APPS.filter((a) => s[senseSwitch(a)] === false), until: Date.now() + OWNER_MS };
+  return owner;
 }
 
 export const sensesRoutes = new Hono<AppEnv>()
@@ -76,13 +94,16 @@ export const sensesRoutes = new Hono<AppEnv>()
       throw new ApiError('validation', [{ path: 'events', issue: `1 to ${SENSE_LIMITS.batch_events} events` }]);
     const p = principalOf(c);
     const device = p.kind === 'device' ? p.session_id : 'agent';
+    const { tz, off } = await ownerOf(c.env);
     const r = await fresh(
       sensesObject(c.env).putBatch(
         id,
         await sha256(new TextEncoder().encode(text)),
         device,
         events as SenseEvent[],
-        await ownerTz(c.env),
+        tz,
+        Date.now(),
+        off,
       ),
     );
     if ('conflict' in r) throw new ApiError('conflict');
@@ -90,7 +111,7 @@ export const sensesRoutes = new Hono<AppEnv>()
     // find after the senses' 90 days. The same batch again hands them over again, which changes
     // nothing (the newest rating of each song wins); a failure here answers 5xx, and the phone's
     // retry of the sealed batch hands them over then.
-    const rated = ratingsOf(events, Date.now());
+    const rated = ratingsOf(events, Date.now(), off);
     if (rated.length) await fresh(musicObject(c.env).putRatings(rated));
     return c.json(r satisfies SenseBatchResponse);
   })
@@ -98,6 +119,8 @@ export const sensesRoutes = new Hono<AppEnv>()
     noSandbox();
     const { name, params } = await json(c, queryBody);
     const args = check(name, params);
+    // The routines are in the owner's hours.
+    if (name === 'routines') args.tz = (await ownerOf(c.env)).tz;
     const r = (await fresh(sensesObject(c.env).query(name, args))) as SenseQueryResponse;
     return c.json(r satisfies SenseQueryResponse);
   });

@@ -3,7 +3,7 @@
 import type { Db } from '../../objects/base';
 import type { CheckedEvent } from './validate';
 
-export interface EventRow extends Omit<CheckedEvent, 'sensitivity'> {
+export interface EventRow extends Omit<CheckedEvent, 'sensitivity' | 'switch'> {
   seq: number;
   day: string;
   device_id: string;
@@ -101,6 +101,18 @@ export function earlySkips(db: Db, days: string[], since: number, underMs: numbe
     ...days,
     since,
     underMs,
+  );
+}
+
+/** Events by type, logical day and quarter of an hour (UTC), on some days, of some types (null: all),
+ * by the (day, type) index: counts only, for the routines. */
+export function quarterCounts(db: Db, days: string[], types: string[] | null) {
+  return db.all<{ type: string; day: string; q: number; n: number }>(
+    `SELECT type, day, at / 900000 AS q, count(*) AS n FROM events
+     WHERE day IN (${days.map(() => '?').join(', ')})${types ? ` AND type IN (${types.map(() => '?').join(', ')})` : ''}
+     GROUP BY type, day, q`,
+    ...days,
+    ...(types ?? []),
   );
 }
 

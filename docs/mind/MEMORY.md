@@ -98,7 +98,7 @@ open_threads(
 -- Semantic (L2): bi-temporal, provenance-linked, never edited in place
 facts(
   id TEXT PRIMARY KEY,
-  kind TEXT NOT NULL,                                                  -- 'preference'|'routine'|'fact'|'goal'|'state'|'rule'
+  kind TEXT NOT NULL,                                                  -- 'preference'|'routine'|'habit'|'fact'|'goal'|'state'|'rule'
   about TEXT NOT NULL,                                                 -- 'owner' | 'world' | 'person'   [proposal]
   subject TEXT,                                                        -- short key, e.g. 'music.evening'
   text TEXT NOT NULL,                                                  -- ≤ 280 chars, one claim
@@ -173,6 +173,8 @@ Consolidation (night step 4) chooses exactly one of ADD / CONFIRM / SUPERSEDE / 
 |---|---|---|---|---|
 | `user` | The owner said it | 0.95 | 0.95 (pinned: 1.0) | ≥ 1 owner message (`author=owner`, `origin=owner_device` or imported owner message); all evidence owner-origin |
 | `observed` | Seen in the owner's own events | 0.70 | 0.85 | ≥ 10 owner-device events, or a stats rollup covering ≥ 10 |
+
+A **`habit`** (B1, 2026-11-02) is an `observed` fact of when the owner does something, written by the night from `th day`'s `routines` (API.md §11.14: 10+ events in 3+ weeks of the last 28 days, by weekday and owner-local hour) with the routine's `rollup:routines/…` ref as its one piece of evidence, which the Senses object can count again (`routineRef`); the Worker's check of that ref in M5 is still to come, so until it lands such a write is refused as `bad_evidence`.
 | `inferred` | The mind's reading of patterns | 0.50 | 0.80 until the owner confirms | Owner messages, owner events or day notes; never outside text |
 
 ---
@@ -190,6 +192,7 @@ c(now) = c0 · 0.5 ^ ((now − last_confirmed) / half_life(kind))
 | `state` | 3 days | "Is tired this week" |
 | `preference` | 180 days | "Likes calm music in the evening" |
 | `routine` | 60 days | "Practises guitar after lunch" |
+| `habit` | 28 days | "Practises guitar on weekday evenings, 21:00 to 22:00" (counted; confirmed while the count holds) |
 | `goal` | 90 days | "Wants to play the piece at 100 bpm" |
 | `fact` | 5 years | "Owns a classical guitar" |
 | `rule` | none | "Answer in the second language after 21:00" |

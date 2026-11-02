@@ -482,6 +482,8 @@ constitution must yield zero violations.
 
 ### 9.1 Senses (events)
 
+**Built (B1, 2026-11-02):** `study.open`, `study.read` (`book:<id>`, `{pages, ms}`: the pages shown and the active time, on hiding the page or leaving the book, from 10 s), `study.search` (`{hits}` only, once the results have stood 1.5 s) and `study.highlight` (sensitivity 1; nothing makes a highlight on the phone yet). The list and its fields are `SENSE_TYPES` (CONTRACT.md "Senses"); the table below is the fuller plan, and only `study.highlight` is sensitive so far.
+
 Shape per [decisions](../../process/decisions.md): `{id, at, type, ref, data, sensitivity}`.
 All `study.*` events use **sensitivity 1** (private: never brought up unprompted) **[proposal]**.
 
