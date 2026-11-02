@@ -94,8 +94,10 @@ preview and shell immediately and keep the existing local preferences. Larger re
 on replies. Auto still follows the existing clock rules. About remains a group at the bottom
 of Settings, with the running short commit and Check for update.
 
-Navigation order: Quiet hours, Notifications, What I remember, Password, Devices, Export,
-Recently deleted. Connected apps stays hidden until it has a working surface.
+Navigation order (2026-11-02): More appearance, Home and chat, Ring and gestures, Island,
+Briefing, The mind, Quiet hours, Notifications, What I remember, Privacy and data, Password,
+Devices, Export, Recently deleted, About and diagnostics. The catalogue's pages (§6) and About
+open over Settings like the others. Connected apps stays hidden until it has a working surface.
 
 ### 4.2 Quiet hours
 
@@ -168,10 +170,170 @@ Sheets trap keyboard focus and restore it on close. Keep is the initial focus fo
 The noninteractive page heading receives focus without a decorative ring.
 
 The browser suites check conversation grouping/search/actions, Memory and Undo, export and push,
-and the shared-control contract across every Settings route and the menu in both themes.
+and the shared-control contract across every Settings route and the menu in both themes; the
+catalogue's pages are checked in `tests/settings-browser.test.mjs` (§6).
 They reject native selects and unstyled checks/radios, require primitive classes and rows at
 least 44 px high, and verify 18.5 px large replies, live preview and the fixed header hairline.
 
 Visual inspection uses real Switzer at 390×844. Before/after timing is recorded from Chromium
 traces because Task A's readout is not in the base revision. Host Chromium measurements are not
 Galaxy A15 measurements; device judgment and final feel tuning remain with the owner.
+
+## 6. The settings catalogue
+
+The owner asked for Settings full of things to change (2026-11-02). Every such setting is one
+entry of a catalogue, [`shared/contract/settings.ts`](../../shared/contract/settings.ts), and that
+list is the only place a setting is declared:
+
+- **An entry** is `{ key, group, section?, label, detail, kind, options?, default, scope, mind }`,
+  plus `unit` for a range and `attr` for an Appearance key. `group` is the page; `section` a heading
+  inside it; `detail` the one line under the row.
+- **Kinds.** `switch` (true or false), `choice` (one option's string: segments up to four
+  options, a sheet picker past that), `range` (one option's number, shown with its unit as
+  segments), `order` (some option values, each once, in the owner's order: move up, move down, hide
+  and show, all buttons) and `text` (a string in a sheet, with `max` and `pattern`; none is
+  catalogued yet).
+- **Scope `worker`.** Kept in Core's settings table. `PATCH /v1/settings` takes exactly P1's keys
+  and the catalogue's worker keys, each checked by its kind
+  (`backend/src/areas/settings/catalog.ts`, spread into `areas/ops/schema.ts`); a phone key, an
+  unknown key or a value its kind refuses is still `422 validation` naming the key. A key is stored
+  only once changed: readers take the catalogue's default for a missing one.
+- **Scope `phone`.** This phone's localStorage, `th.s.<key>` (`'true'`/`'false'`, a number, a
+  string, or JSON for an order), removed at the default; it survives signing out, like `th-theme`.
+  An Appearance key also sets its `attr` on `<html>` while it is not the default.
+- **`mind: true`.** Listed in the mind's briefing, section 13 "Your settings", as `key: value`
+  lines in catalogue order, `(default)` while unset, after a legend for the permissions (`ask`,
+  `tell`, `quiet`). The core's section 7 points at it. All `mind.*` keys and `briefing.tiles` are
+  mind keys; only worker keys may be.
+- **The phone's copy.** `node scripts/contract.mjs` writes `frontend/apps/settings/catalog-data.js`
+  from the contract (`tests/contract-gen.test.mjs` fails while it is stale). One renderer,
+  `apps/settings/catalog.js`, draws any group with the shared controls (§1) and saves by scope:
+  phone keys at once; worker keys by PATCH, one key per request, one request after another, the page
+  showing the Worker's answer once `GET /v1/settings` returns (the group is inert until then) and
+  putting a control back, with the error line, when a PATCH fails. Worker values are kept in
+  `th.p.settings` meanwhile, so a page opens with them; signing out wipes it.
+- **Reading a setting elsewhere.** `phoneValue(key)` from `apps/settings/catalog.js` gives a phone
+  key's value or its default; every change is the document event `th:setting`
+  (`{ key, value, scope }`). Worker keys are in `GET /v1/settings`. `applyPhone()` puts the
+  Appearance attributes on `<html>`: catalog.js runs it when it loads; before the first paint it
+  needs the same few lines in `ui/theme.js` (not yet there).
+
+Each page is a module of a few lines (`apps/settings/<page>.js` exporting `page(body)`, which calls
+`renderGroup(body, '<group>')`); `settings.js` opens it by name. Adding a setting: add its entry,
+run `node scripts/contract.mjs`, add its row to the table below; the page, PATCH and the briefing
+follow. `tests/settings-browser.test.mjs` fails when a page shows a row that is not in the
+catalogue, misses one that is, or a key here lacks its row, scope or default;
+`backend/tests/integration/settings-catalog.test.ts` checks PATCH and the briefing.
+
+"Read by" says who uses each one today. **Exposed** means the value is kept and readable but no
+code acts on it yet: the shell, chat, island and Briefing were being changed by others the night
+these were added, so wiring them is the next step.
+
+### 6.1 Appearance (`appearance.js`, "More appearance")
+
+Below the Theme, Text size and Still background at the top of Settings (§4.1), which keep their
+own keys (`th-theme`, `th-text`, `th-still`). The accent stays blue (owner, 2026-10-31): the
+intensity only says how strongly.
+
+| Key | Control | Scope | Default | Read by |
+|---|---|---|---|---|
+| `appearance.accent` | segments: calm / vivid | phone | `calm` | exposed: `data-accent-intensity` on `<html>`; no CSS follows it yet |
+| `appearance.glass` | segments: frosted / flat | phone | `frosted` | exposed: `data-glass` on `<html>`; no CSS follows it yet |
+| `appearance.corners` | segments: soft / sharper | phone | `soft` | exposed: `data-corners` on `<html>`; no CSS follows it yet |
+| `appearance.ring` | segments: compact / regular / large | phone | `regular` | exposed: `data-ring-size` on `<html>`; no CSS follows it yet |
+| `appearance.haptics` | segments: off / light / full | phone | `light` | exposed: `data-haptics` on `<html>`; no CSS follows it yet |
+| `appearance.motion` | segments: system / always | phone | `system` | exposed: `data-reduced-motion` on `<html>`; no CSS follows it yet |
+
+### 6.2 Home and chat (`chat.js`)
+
+| Key | Control | Scope | Default | Read by |
+|---|---|---|---|---|
+| `chat.time_markers` | switch | phone | `on` | exposed: `phoneValue()`; the chat does not read it yet |
+| `chat.fold` | switch | phone | `on` | exposed: `phoneValue()`; the chat does not read it yet |
+| `chat.reveal` | segments: words / instant | phone | `words` | exposed: `phoneValue()`; the chat does not read it yet |
+| `chat.followups` | segments: two / none | phone | `two` | exposed: `phoneValue()`; the chat does not read it yet |
+| `chat.enter_sends` | switch | phone | `on` | exposed: `phoneValue()`; the chat does not read it yet |
+| `chat.dictation` | segments: auto / en / es | phone | `auto` | exposed: `phoneValue()`; the chat does not read it yet |
+
+### 6.3 Ring and gestures (`gestures.js`)
+
+| Key | Control | Scope | Default | Read by |
+|---|---|---|---|---|
+| `gestures.hold_ms` | range (ms): 160 / 220 / 300 | phone | `220` | exposed: `phoneValue()`; the shell does not read it yet |
+| `gestures.swipe_px` | range (px): 6 / 10 | phone | `6` | exposed: `phoneValue()`; the shell does not read it yet |
+| `gestures.edge_guard` | switch | phone | `on` | exposed: `phoneValue()`; the shell does not read it yet |
+
+### 6.4 Island (`island.js`)
+
+| Key | Control | Scope | Default | Read by |
+|---|---|---|---|---|
+| `island.art` | switch | phone | `on` | exposed: `phoneValue()`; the island does not read it yet |
+| `island.titles` | segments: scroll / fade | phone | `scroll` | exposed: `phoneValue()`; the island does not read it yet |
+| `island.controls` | segments: prev-play-next / play-next-sleep | phone | `prev-play-next` | exposed: `phoneValue()`; the island does not read it yet |
+| `island.alerts` | switch | phone | `on` | exposed: `phoneValue()`; the island does not read it yet |
+| `island.sleep_min` | range (min): 15 / 30 / 45 | phone | `30` | exposed: `phoneValue()`; the island does not read it yet |
+
+### 6.5 Briefing (`briefing.js`)
+
+Tiles, in order lists the shown tiles top first, each with move up, move down and hide; hidden tiles
+wait in a group below with show. Focus stays with the tile that moved. The holiday countries are
+the ones the Holidays tile has lists for; auto takes the weather place's country.
+
+| Key | Control | Scope | Default | Read by |
+|---|---|---|---|---|
+| `briefing.tiles` | order of weather, due, holidays, study, built, podcasts, notes, report | worker | `weather, due, holidays, study, built, podcasts, notes, report` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `briefing.units` | segments: c / f | worker | `c` | exposed: `GET /v1/settings`; nothing reads it yet |
+| `briefing.due_days` | range (days): 1 / 3 / 7 | worker | `3` | exposed: `GET /v1/settings`; nothing reads it yet |
+| `briefing.holidays` | picker: auto / AU / CA / FR / DE / MX / ES / GB / US | worker | `auto` | exposed: `GET /v1/settings`; nothing reads it yet |
+
+### 6.6 The mind (`mind.js`)
+
+Four parts: How I talk, Nights, Reaching you, Standing permissions. Each permission is Ask (a
+decision card first), Do and tell, or Do quietly (the ledger only). The page says under them: "The
+mind reads these; enforcement comes with the next release." The mind's prompt (`mind/ROLES.md`)
+does not yet tell it to read section 13 before it answers.
+
+| Key | Control | Scope | Default | Read by |
+|---|---|---|---|---|
+| `mind.voice` | segments: plain / warmer / drier | worker | `plain` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.verbosity` | segments: short / normal / full | worker | `normal` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.night_scope` | segments: bookkeeping / arrange / full | worker | `full` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.night_budget` | range (min): 5 / 15 / 30 | worker | `30` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.idle` | range (min): 10 / 30 / 120 | worker | `120` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.pushes` | segments: never / urgent / normal | worker | `normal` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.ask_outside` | switch | worker | `on` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.permit.music` | segments: ask / tell / quiet | worker | `quiet` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.permit.podcasts` | segments: ask / tell / quiet | worker | `quiet` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.permit.reminders` | segments: ask / tell / quiet | worker | `tell` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.permit.settings` | segments: ask / tell / quiet | worker | `tell` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.permit.muse` | segments: ask / tell / quiet | worker | `ask` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.permit.watch` | segments: ask / tell / quiet | worker | `tell` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.permit.practice` | segments: ask / tell / quiet | worker | `tell` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.permit.tiles` | segments: ask / tell / quiet | worker | `quiet` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.permit.titles` | segments: ask / tell / quiet | worker | `quiet` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.permit.outside` | segments: ask / tell / quiet | worker | `ask` | the mind (briefing section 13); the Worker does not enforce it yet |
+
+### 6.7 Privacy and data (`privacy.js`)
+
+Senses per app and error reports, then a read-only group, What leaves this phone: the weather
+town (by name and as its coordinates, to Open-Meteo), the feed addresses of followed podcasts, and
+nothing else. `th/senses/send.js` and the error reporter do not read the switches yet: a check on
+the phone alone would only hold on the phone where it was switched, so the Worker's senses and
+errors routes are the place to honour them.
+
+| Key | Control | Scope | Default | Read by |
+|---|---|---|---|---|
+| `privacy.senses.music` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
+| `privacy.senses.podcasts` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
+| `privacy.senses.guitar` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
+| `privacy.senses.study` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
+| `privacy.senses.home` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
+| `privacy.errors` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
+
+### 6.8 About and diagnostics (`about.js`)
+
+Read-only, no catalogue keys: Release (the build, a preview's branch, the short commit from
+`config.js`), Worker (`GET /v1/health`: its tag, or the first 8 characters of its version id),
+Rows today (`GET /v1/ops/meter?days=1`: rows read and written since 00:00 UTC with their percentages
+of the free plan's day), and the last Frames readout if the feel lab left one on this phone under
+`th.lab.frames` (the lab does not store it yet; until then the row says how to record one).

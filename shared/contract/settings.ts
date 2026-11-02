@@ -56,7 +56,7 @@ export const SETTING_GROUPS = {
   },
   chat: { title: 'Home and chat', icon: 'chat-circle', lead: 'How the conversation on home looks and listens. Kept on this phone.' },
   gestures: { title: 'Ring and gestures', icon: 'hand-pointing', lead: 'How holds and swipes feel. Kept on this phone.' },
-  island: { title: 'Island', icon: 'music-notes', lead: 'The capsule at the top while Music or Podcasts plays. Kept on this phone.' },
+  island: { title: 'Island', icon: 'music-notes-simple', lead: 'The capsule at the top while Music or Podcasts plays. Kept on this phone.' },
   briefing: { title: 'Briefing', icon: 'newspaper', lead: 'Swipe right on home for the Briefing. These follow you to every phone.' },
   mind: {
     title: 'The mind',
@@ -207,19 +207,19 @@ export const SETTINGS = [
     default: ['weather', 'due', 'holidays', 'study', 'built', 'podcasts', 'notes', 'report'], ...FOR_MIND,
   },
   {
-    key: 'briefing.units', group: 'briefing', label: 'Units', kind: 'choice',
+    key: 'briefing.units', group: 'briefing', section: 'Tile details', label: 'Units', kind: 'choice',
     detail: 'Temperatures on the weather tile.',
     options: [{ value: 'c', label: '°C' }, { value: 'f', label: '°F' }], default: 'c', ...IN_WORKER,
   },
   {
-    key: 'briefing.due_days', group: 'briefing', label: 'Due, days ahead', kind: 'range', unit: 'days',
+    key: 'briefing.due_days', group: 'briefing', section: 'Tile details', label: 'Due, days ahead', kind: 'range', unit: 'days',
     detail: 'How far ahead the Due tile looks.',
     options: [{ value: 1, label: '1 day' }, { value: 3, label: '3 days' }, { value: 7, label: '7 days' }],
     default: 3, ...IN_WORKER,
   },
   {
     // The countries the Holidays tile has lists for (BRIEFING.md §2); auto: the weather place's.
-    key: 'briefing.holidays', group: 'briefing', label: 'Holiday country', kind: 'choice',
+    key: 'briefing.holidays', group: 'briefing', section: 'Tile details', label: 'Holiday country', kind: 'choice',
     detail: "Auto uses the country of your weather place.",
     options: [
       { value: 'auto', label: 'Auto' },
