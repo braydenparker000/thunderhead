@@ -82,6 +82,8 @@ Never stored anywhere: raw IP addresses, full user-agent strings, cities, passwo
 
 Acceptance: [DATA.md](DATA.md) has a row for every table, and a test fails if a table exists without a retention rule and an export flag.
 
+**What the apps tell the Worker as senses** (B1, 2026-11-02; the list is `SENSE_TYPES`, CONTRACT.md "Senses", and the Worker refuses anything else): Music, what plays, is skipped, finishes or is rated, by song id; Podcasts, an episode played, finished or skipped and a show followed or unfollowed, by the show's hash and the episode's id, never the feed's address or a title; Guitar, the piece opened and each practice pass, best tempo and session as numbers and bar ranges; Study, the book read with how many pages and for how long, and how many results a search found, never its words; Astra and My Media, how long each title was watched, finished or dropped, by its id, read from the apps' own progress on the phone; the shell, which app opened or closed and when, a ring choice, an island tap and which setting changed (its key, never its value); home, which of the mind's lines came on screen, which tiles and chips were tapped and a decision card's class. All ids, counts and times: no title, no name, nothing typed. Each app has its own switch in Settings › Privacy and data (`privacy.senses.<app>`, on by default; Astra and My Media share one, and so do the ring, the island and app opens); with one off the phone sends nothing of that app and the Worker keeps nothing it receives. The mind reads them only through fixed queries of counts (API.md §11.14); a decision card's and a highlight's events are sensitive (type and time only).
+
 ## 3. On the phone
 
 ### 3.1 What the phone keeps
@@ -90,7 +92,8 @@ Acceptance: [DATA.md](DATA.md) has a row for every table, and a test fails if a 
 | Session token | IndexedDB `th-auth` | Until sign-out or revocation | yes |
 | Recent conversation, last briefing, surfaces | IndexedDB `th-data` | Last 7 days **[proposal]** | yes |
 | Outbox (messages and events not sent yet; a message's photos, files and voice memos with it, bytes and all, at most 20 MB, or one file up to 25 MB alone) | IndexedDB `th-data` | Until sent | yes |
-| App openings and tile taps not sent yet (P9; names and times only) | `localStorage` `th.p.senses`, `th.p.senses.batch` (at most 200) | Until the Worker takes them | yes |
+| Senses not sent yet (ids, numbers and times only; none of an app switched off) | `localStorage` `th.p.senses`, `th.p.senses.batch` (at most 200) | Until the Worker takes them | yes |
+| What the senses last saw (B1): Astra's and My Media's places by title id (`th.p.senses.watch`), the home lines already reported seen (`th.p.senses.lines`, ledger ids, the newest 100) | `localStorage` | Until sign-out | yes |
 | Podcasts' sync (NEXT-BATCH.md part 7): when it last asked the Worker, which positions the Worker has (their keys and times), the follows it sent | `localStorage` `th.p.podcasts.sync` | Until sign-out | yes |
 | "Go quiet"'s end (P8) | `localStorage` `th.p.quiet.until`, `th.p.quiet.pending` | Until it ends | yes |
 | Unsent text in the ask bar | memory, then IndexedDB `th-data` draft | Until sent or cleared | yes |

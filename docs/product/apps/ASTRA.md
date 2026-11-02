@@ -111,6 +111,8 @@ changed plus deletions (fonts, SW, classic import).
 
 ## 3. Senses
 
+**Built (B1, 2026-11-02), shared with My Media:** `astra.open` (the page), `media.watch` (`{ms}` watched since the last report), `media.finish` and `media.drop` (an unfinished title taken off Continue Watching), by `astra:<type>:<id>[:<season>:<episode>]`, read from Astra's own progress (`astra.v2.progress`) by `th/senses/watch.js`, so Astra is unchanged. One switch, Settings › Privacy › Astra and My Media. The list and its fields are `SENSE_TYPES` (CONTRACT.md "Senses"); the table below is the fuller plan.
+
 Shape per [decisions](../../process/decisions.md): `{id, at, type, ref, data, sensitivity}`.
 Refs: `astra:<type>:<id>` for a title (`astra:movie:tt0000001`), `astra:<type>:<id>:<season>:<episode>`
 for an episode. **No sense ever carries a stream URL, an add-on URL or name, an info hash, a file name or a

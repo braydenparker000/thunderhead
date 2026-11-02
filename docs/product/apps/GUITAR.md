@@ -441,7 +441,9 @@ Not yet measured on the owner's phone; this is the first test of P6 (§16).
 
 Built 2026-10-31: `guitar.pass` (by `owner` only, until the ears), `guitar.bpm` and `guitar.session`
 (`sections` are the section keys marked that session), from `th/guitar/practice.js`, signed in only;
-`guitar.open` since P9. The rest of the table waits on its features.
+`guitar.open` since P9. Since B1 (2026-11-02) also `guitar.piece_opened` (`tab:<id>`, when the reader
+has the piece) and `guitar.session`'s `bpm`, the best clean tempo the session reached; the list and its
+fields are `SENSE_TYPES` (CONTRACT.md "Senses"). The rest of the table waits on its features.
 
 | Type | When | `ref` | `data` |
 |---|---|---|---|
