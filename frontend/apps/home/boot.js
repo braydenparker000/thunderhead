@@ -23,10 +23,9 @@ if (feel === 'off' && window.top === window.self) { try { localStorage.removeIte
 // A framed copy does nothing at all (frame guard, SECURITY.md §4.3).
 if (configured && window.top === window.self) {
   if (!(await store.read())) toSignin();
-  else {
-    await start();
-    if (feel !== null && feel !== 'off') void import('/lab/feel/panel.js').then((m) => m.start());
-  }
+  else void start().then(() => {
+    if (feel !== null && feel !== 'off') return import('/lab/feel/panel.js').then((m) => m.start());
+  });
 }
 
 async function start() {
