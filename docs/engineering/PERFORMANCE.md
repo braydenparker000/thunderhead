@@ -45,7 +45,7 @@ Enforced by `scripts/stage.mjs` on every deploy (the deploy fails before publish
 | Ported folders (P1b) + `/assets/` | Recorded per folder in `ported.json` at the port (measured in the old repo 2026-10-28: Music ~3.4 MB/107 files, Guitar ~2.6 MB/24, Podcasts ~0.3 MB/14, Astra ~4.2 MB/66, My Media ~0.2 MB/11, shared `/assets/` files ~12.5 MB, almost all libmedia); fails if a folder grows without a recorded adjustment | — | `stage.mjs` + `tests/ported.test.mjs` |
 | Home + `ui/` JS (critical path) | ≤ 120,000 | ~13.3 KB | `stage.mjs` (exists) |
 | Home + `ui/` CSS | ≤ 76,000 | ~74.1 KB | `stage.mjs` (exists) |
-| Styles loaded just after the first paint (`th/**/*.css`: a reply's tools, the + sheet's work) | ≤ 20,000 (16,000 until the + sheet, 2026-10-30) | ~16.0 KB | `stage.mjs` (built) |
+| Styles loaded just after the first paint (`th/**/*.css`: a reply's tools, the + sheet's work, the island) | ≤ 21,003 (16,000 until the + sheet, 2026-10-30; 20,000 until the island capsule's details, 2026-11-02) | ~21.0 KB | `stage.mjs` (built) |
 | Fonts (`.woff2`) | ≤ 140,000 (130,000 until the upright Fraunces for replies, 2026-10-30) | ~134 KB | `stage.mjs` (exists) |
 | Icon sprite `ui/icons.svg` | ≤ 30,000 | ~18.8 KB | `stage.mjs` (built) |
 | `th/` JS loaded by the shell at boot (`th/*.js`) | ≤ 64,000, counted inside the 120 KB (60,000 until 2026-10-30: the contract's verb list grows with each app feature) | ~63 KB | `stage.mjs` (P2) |

@@ -114,7 +114,10 @@ const budgets = [
   // Apps as layers inside home and the island (th/island, loaded when Music or Podcasts opens), 2026-11-01;
   // 24 KB with the sleep timer on it and room for Guitar's.
   // Task C: +8,120 measured bytes (22,958 → 31,078) for one capsule, readiness and retained frames.
-  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 32_120],
+  // Podcasts' way home (2026-11-02): +1,778 measured bytes (31,078 → 32,856) for touch swipes and in-app home links.
+  // The capsule's details (2026-11-02): +7,411 measured bytes (32,856 → 40,267) for the shared artwork, its
+  // off-thread decode and fallback, long titles, the pulse, the times, glyph and Podcasts' skip controls.
+  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 41_309],
   // Off the record (th/record, 2026-11-01): starting and ending one, home's view of it, its marker.
   ['off the record JS bytes', sum(/^th\/record\/.*\.js$/), 4_500],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads
@@ -141,7 +144,8 @@ const budgets = [
   ['settings CSS bytes', sum(/^apps\/settings\/.*\.css$/), 11_484], // Task B: never exceed the measured pre-redesign CSS.
   ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 76_000],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
-  ['later CSS bytes', sum(/^th\/.*\.css$/), 20_000],
+  // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
+  ['later CSS bytes', sum(/^th\/.*\.css$/), 21_003],
   // One face since 2026-10-31: Switzer, variable 100–900 (43.2 KB, the official file, never subset:
   // its licence forbids changing it; Quicksand was 28.2 KB, Fraunces and Inter 133 KB).
   ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 48_000],
