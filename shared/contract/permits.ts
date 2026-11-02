@@ -64,7 +64,7 @@ export const MIND_ACTIONS = {
   },
   'memory.outside': {
     class: 'outside',
-    doc: 'Keeping a fact learned from outside text. Memory refuses outside text altogether today (MEMORY.md §7), which no position loosens; provenance labels will route it here.',
+    doc: 'Keeping a fact learned from outside text. A write from a session that read outside text is labelled outside and waits for the owner\'s Keep in Settings › Memory (MEMORY.md §6 M11); no position loosens that.',
   },
 } as const satisfies Record<string, PermitSpec>;
 export type MindActionName = keyof typeof MIND_ACTIONS;

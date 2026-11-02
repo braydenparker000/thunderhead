@@ -231,7 +231,7 @@ How the mind may take each class of action, the owner's `mind.permit.<class>` se
 | `reminder.cancel` | reminders | — | Taking a reminder back (`DELETE /v1/reminders/:id`). |
 | `muse.order` | muse | — | A work order for Muse (`PUT /v1/work/orders/:id`). |
 | `muse.order_personal` | muse | reach_people | A work order of a kind that carries the owner's data (`personal` in work.ts): Muse runs on another provider (BEHAVIOR.md §7 rule 4). No such kind is built. |
-| `memory.outside` | outside | — | Keeping a fact learned from outside text. Memory refuses outside text altogether today (MEMORY.md §7), which no position loosens; provenance labels will route it here. |
+| `memory.outside` | outside | — | Keeping a fact learned from outside text. A write from a session that read outside text is labelled outside and waits for the owner's Keep in Settings › Memory (MEMORY.md §6 M11); no position loosens that. |
 
 ## Surface kinds
 
