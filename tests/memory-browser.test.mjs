@@ -154,7 +154,7 @@ test('closing the page inside the undo window sends the Forget at once', opts, a
   await page.clock.runFor(600);
   await page.click('.csheet button:has-text("Forget")');
   await page.waitForSelector('.utoast.show');
-  await page.click('.sback');
+  await page.click('.spage .sheader .sback'); // the page's own back button, not the menu's Settings circle
   await until(() => ops(api).map((o) => o.op), ['forget']);
   await until(() => page.locator('.utoast').count(), 0, 'no Undo left for what was already sent');
   await page.close();
