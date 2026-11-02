@@ -522,5 +522,13 @@
   "cron tick, purging 500 messages off the record (Core)": {
     "rows_read_max": 1066,
     "rows_written_max": 510
+  },
+  "GET /v1/briefing (Core)": {
+    "rows_read_max": 34,
+    "rows_written_max": 0
+  },
+  "GET /v1/briefing (Music: 40 songs added today)": {
+    "rows_read_max": 50,
+    "rows_written_max": 0
   }
 }

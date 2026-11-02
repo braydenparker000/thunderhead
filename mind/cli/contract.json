@@ -2648,6 +2648,14 @@
         "phase": "P3"
       },
       {
+        "step": 7,
+        "name": "arrange tomorrow",
+        "budget_min": 4,
+        "idempotent": "surfaces are put by app and slot",
+        "cursor": false,
+        "phase": "P3"
+      },
+      {
         "step": 5,
         "name": "health and agreed fixes",
         "budget_min": 8,
@@ -2662,14 +2670,6 @@
         "idempotent": "a book is claimed by one run at a time and goes on from its cursor; a page is put by its number",
         "cursor": false,
         "phase": "P7"
-      },
-      {
-        "step": 7,
-        "name": "arrange tomorrow",
-        "budget_min": 4,
-        "idempotent": "surfaces are put by app and slot",
-        "cursor": false,
-        "phase": "P3"
       },
       {
         "step": 8,

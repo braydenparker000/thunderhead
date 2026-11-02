@@ -5,6 +5,15 @@ button.tile:active{transform:scale(.98)}
 .tile .k .i{width:16px;height:16px;fill:currentColor}
 .tile.gold{--c:var(--gold-text)}
 .bmuse{margin:14px 6px 0;font:400 var(--fs-small)/var(--lh-reading) var(--ui);color:var(--ink-3)}
+/* The day's counts under the title, tomorrow on the weather tile, and the Due sheet's list
+   (BRIEFING.md §1, §2): the Worker's words, the shell's type. */
+.btoday{margin:-12px 6px 18px;font:500 var(--fs-body)/var(--lh-reading) var(--ui);color:var(--ink-2)}
+.btoday[hidden]{display:none}
+.tile.weather .s.wtom{font:400 var(--fs-small)/var(--lh-body) var(--ui);color:var(--ink-3)}
+.dday{margin:14px 0 4px;font:600 var(--fs-label) var(--ui);color:var(--ink-3)}
+.dlist{list-style:none;margin:0 0 6px;padding:0;display:grid;gap:6px}
+.dlist li{display:grid;grid-template-columns:3.6em 1fr;gap:8px;font:400 var(--fs-body)/var(--lh-reading) var(--ui);color:var(--ink);overflow-wrap:anywhere}
+.dlist .dat{color:var(--ink-3)}
 #decision .card.pulse{animation:cardpulse var(--d-edge) var(--ease-out)}
 @keyframes cardpulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--gold) 60%,transparent)}100%{box-shadow:0 0 0 14px transparent}}
 .bb{margin-top:14px}
