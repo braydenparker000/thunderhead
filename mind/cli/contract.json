@@ -502,14 +502,16 @@
         "N"
       ],
       "phase": "P2",
-      "status": "built"
+      "status": "built",
+      "note": "a Worker-side verb runs at once (status done); a phone verb waits for a phone, an intent for its app"
     },
     "GET /v1/verbs/pending": {
       "who": [
         "D"
       ],
       "phase": "P2",
-      "status": "built"
+      "status": "built",
+      "note": "?app=: that app's pending intents; without it, never an intent"
     },
     "POST /v1/verbs/:id/claim": {
       "who": [
@@ -1083,6 +1085,16 @@
       "status": "built",
       "note": "?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out; 429 from 80%"
     },
+    "GET /v1/music/mixes": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "the mixes music.mix_save kept, newest first, ≤ 50: id (for music.play_mix), name, tracks, recipe"
+    },
     "PUT /v1/music/uploads/audio/:file": {
       "who": "P",
       "phase": "P5",
@@ -1610,7 +1622,7 @@
       "app": "shell",
       "class": "reversible",
       "permit": "tiles",
-      "executor": "device",
+      "side": "phone",
       "queueable": false,
       "undo": "none",
       "doc": "Opens an app at a place. Runs only when the owner taps a reply's action chip; the mind never opens an app by itself (BEHAVIOR.md §2.2).",
@@ -1654,7 +1666,7 @@
       "app": "music",
       "class": "reversible",
       "permit": "music",
-      "executor": "device",
+      "side": "phone",
       "queueable": true,
       "undo": "reported",
       "doc": "Makes a playlist in the Music player from tracks (`music:<id>`), on this phone. Open it with a reply chip to `/music/#pl=<list_id>`. Its undo removes it while the owner hasn't changed it.",
@@ -1706,7 +1718,7 @@
       "app": "music",
       "class": "reversible",
       "permit": "music",
-      "executor": "device",
+      "side": "phone",
       "queueable": false,
       "undo": "none",
       "doc": "Only the undo of music.create_playlist: removes a playlist the Thunderhead made, while the owner hasn't changed it (else `owner_edited`). Deleting the owner's own playlists is ask-first and no verb.",
@@ -1731,11 +1743,911 @@
         }
       }
     },
+    "music.queue": {
+      "app": "music",
+      "class": "reversible",
+      "permit": "music",
+      "side": "phone",
+      "intent": true,
+      "queueable": true,
+      "undo": "reported",
+      "doc": "Adds songs (`music:<id>`) to the player's queue, next or at the end. The play queue lives in the player, so Music applies it when it next opens (an intent); songs not in that phone's library are counted as `missing`. Its undo (`music.unqueue`) takes them back out.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "refs": {
+                "minItems": 1,
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^music:r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$"
+                }
+              },
+              "at": {
+                "type": "string",
+                "enum": [
+                  "next",
+                  "end"
+                ]
+              }
+            },
+            "required": [
+              "refs",
+              "at"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "queued": {
+                "type": "number"
+              },
+              "missing": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "queued",
+              "missing"
+            ]
+          }
+        }
+      }
+    },
+    "music.unqueue": {
+      "app": "music",
+      "class": "reversible",
+      "permit": "music",
+      "side": "phone",
+      "intent": true,
+      "queueable": false,
+      "undo": "none",
+      "doc": "Only the undo of music.queue: takes those songs back out of the queue where they have not played yet.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "refs": {
+                "minItems": 1,
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^music:r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$"
+                }
+              }
+            },
+            "required": [
+              "refs"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "removed": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "removed"
+            ]
+          }
+        }
+      }
+    },
+    "music.play_mix": {
+      "app": "music",
+      "class": "reversible",
+      "permit": "music",
+      "side": "phone",
+      "intent": true,
+      "queueable": true,
+      "undo": "reported",
+      "doc": "Loads a saved mix (`mix_id`), the songs a find picks (`find`: moods, occasion, energy, like, limit, as `th music find`; songs ruled out are left out) or songs (`refs`) as the player's queue; it starts only after an owner gesture (MUSIC.md §10.3), else it waits paused. Music applies it when it next opens (an intent). Its undo restores the queue before it (its first 500 songs and the place).",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "mix_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "find": {
+                "type": "object",
+                "properties": {
+                  "moods": {
+                    "minItems": 1,
+                    "maxItems": 4,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "calm",
+                        "peaceful",
+                        "melancholy",
+                        "sad",
+                        "hopeful",
+                        "joyful",
+                        "romantic",
+                        "nostalgic",
+                        "dark",
+                        "tense",
+                        "energetic",
+                        "triumphant",
+                        "playful",
+                        "dreamy",
+                        "reverent",
+                        "focused"
+                      ]
+                    }
+                  },
+                  "occasion": {
+                    "type": "string",
+                    "enum": [
+                      "focus",
+                      "wind-down",
+                      "morning",
+                      "workout",
+                      "drive",
+                      "study",
+                      "worship",
+                      "party",
+                      "rainy-day",
+                      "sunday",
+                      "sleep"
+                    ]
+                  },
+                  "energy": {
+                    "type": "string",
+                    "enum": [
+                      "low",
+                      "mid",
+                      "high"
+                    ]
+                  },
+                  "like": {
+                    "type": "string",
+                    "pattern": "^r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$"
+                  },
+                  "limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 100
+                  }
+                },
+                "additionalProperties": false
+              },
+              "refs": {
+                "minItems": 1,
+                "maxItems": 500,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^music:r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$"
+                }
+              },
+              "index": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 499
+              }
+            }
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "tracks": {
+                "type": "number"
+              },
+              "started": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "tracks",
+              "started"
+            ]
+          }
+        }
+      }
+    },
+    "music.rate": {
+      "app": "music",
+      "class": "reversible",
+      "permit": "music",
+      "side": "phone",
+      "intent": true,
+      "queueable": true,
+      "undo": "reported",
+      "doc": "Rates a song 1–5 in the player's library, only one the owner has not rated (else `owner_rated`): the owner's rating stays theirs. The ratings live in the player, so Music applies it when it next opens (an intent), and its own `music.rate` sense tells the Worker. Its undo (`music.unrate`) clears it while it is still the rating set.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "pattern": "^music:r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$"
+              },
+              "rating": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              }
+            },
+            "required": [
+              "ref",
+              "rating"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "previous": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "previous"
+            ]
+          }
+        }
+      }
+    },
+    "music.unrate": {
+      "app": "music",
+      "class": "reversible",
+      "permit": "music",
+      "side": "phone",
+      "intent": true,
+      "queueable": false,
+      "undo": "none",
+      "doc": "Only the undo of music.rate: clears the song's rating while it is still the one set (else `owner_edited`).",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "pattern": "^music:r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$"
+              },
+              "rating": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              }
+            },
+            "required": [
+              "ref",
+              "rating"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      }
+    },
+    "music.never": {
+      "app": "music",
+      "class": "reversible",
+      "permit": "music",
+      "side": "worker",
+      "queueable": true,
+      "undo": "stored",
+      "doc": "Records the owner's \"never play this again\" as their rule (subject `music.never`, its text naming the song by `music:<id>` only), through memory's own rules: `evidence` must be the owner's messages. Find, like and every mix leave the song out at once. Its undo closes the rule.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "ref": {
+                "type": "string",
+                "pattern": "^music:r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$"
+              },
+              "evidence": {
+                "minItems": 1,
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^msg:[A-Za-z0-9_-]{1,64}$"
+                }
+              }
+            },
+            "required": [
+              "ref",
+              "evidence"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "fact_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "fact_id"
+            ]
+          }
+        }
+      }
+    },
+    "music.mix_save": {
+      "app": "music",
+      "class": "reversible",
+      "permit": "music",
+      "side": "worker",
+      "queueable": true,
+      "undo": "stored",
+      "doc": "Saves songs (a find's result) as a named mix in the Worker (`GET /v1/music/mixes`), for `music.play_mix {mix_id}` later; `recipe` is the one line it was found by. The mix's id is the verb's id. Its undo deletes the mix.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "refs": {
+                "minItems": 1,
+                "maxItems": 200,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^music:r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$"
+                }
+              },
+              "recipe": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              }
+            },
+            "required": [
+              "name",
+              "refs"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "mix_id": {
+                "type": "string"
+              },
+              "tracks": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "mix_id",
+              "tracks"
+            ]
+          }
+        }
+      }
+    },
+    "podcasts.follow": {
+      "app": "podcasts",
+      "class": "reversible",
+      "permit": "podcasts",
+      "side": "phone",
+      "intent": true,
+      "queueable": true,
+      "undo": "reported",
+      "doc": "Follows a show by its feed address in Podcasts. The follows live in the app (the Worker keeps the copy it sends), so Podcasts applies it when it next opens (an intent). Its undo unfollows it; a show already followed changes nothing and has no undo.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "feed_url": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300
+              },
+              "author": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "artwork": {
+                "type": "string",
+                "maxLength": 2000
+              }
+            },
+            "required": [
+              "feed_url",
+              "title"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "show_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "show_id"
+            ]
+          }
+        }
+      }
+    },
+    "podcasts.unfollow": {
+      "app": "podcasts",
+      "class": "reversible",
+      "permit": "podcasts",
+      "side": "phone",
+      "intent": true,
+      "tell_min": true,
+      "queueable": true,
+      "undo": "reported",
+      "doc": "Unfollows a show by its id (16 hex digits, the night's name for it) in Podcasts, when it next opens (an intent). Never below `tell`: it takes away something the owner chose. Its undo follows it again.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "show_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              }
+            },
+            "required": [
+              "show_id"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      }
+    },
+    "podcasts.queue_episode": {
+      "app": "podcasts",
+      "class": "reversible",
+      "permit": "podcasts",
+      "side": "phone",
+      "intent": true,
+      "queueable": true,
+      "undo": "reported",
+      "doc": "Adds an episode of a followed show (by the show's id; without `episode_id`, its newest) to the end of Podcasts' Up Next, when Podcasts next opens (an intent). Its undo takes it out again.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "show_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{16}$"
+              },
+              "episode_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              }
+            },
+            "required": [
+              "show_id"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "key"
+            ]
+          }
+        }
+      }
+    },
+    "podcasts.unqueue_episode": {
+      "app": "podcasts",
+      "class": "reversible",
+      "permit": "podcasts",
+      "side": "phone",
+      "intent": true,
+      "queueable": false,
+      "undo": "none",
+      "doc": "Only the undo of podcasts.queue_episode: takes that episode out of Up Next.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 2065
+              }
+            },
+            "required": [
+              "key"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {}
+          }
+        }
+      }
+    },
+    "podcasts.mark_played": {
+      "app": "podcasts",
+      "class": "reversible",
+      "permit": "podcasts",
+      "side": "worker",
+      "queueable": true,
+      "undo": "stored",
+      "doc": "Marks an episode (`<feed address>#<episode id>`, as GET /v1/podcasts/progress names it) played in the Worker's positions, which every phone takes when Podcasts opens (the newer wins). Its undo puts back where it was left.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "maxLength": 2065
+              }
+            },
+            "required": [
+              "key"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "played": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "played"
+            ]
+          }
+        }
+      }
+    },
+    "reminder.move": {
+      "app": "shell",
+      "class": "reversible",
+      "permit": "reminders",
+      "side": "worker",
+      "queueable": true,
+      "undo": "stored",
+      "doc": "Moves a set reminder to a new time, by the reminders' own rules: in the future, at most 400 days ahead, a time inside quiet hours rings at their end; only from the chat, from a clean session; one the owner set on the phone needs the owner's message that asked (`source_message_id`). Its undo puts back the time before, while the reminder is still set at the new one.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "source_message_id": {
+                "type": "string",
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "id",
+              "at"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "at": {
+                "type": "number"
+              },
+              "fire_at": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "at",
+              "fire_at"
+            ]
+          }
+        }
+      }
+    },
+    "settings.set": {
+      "app": "shell",
+      "class": "reversible",
+      "permit": "settings",
+      "side": "worker",
+      "queueable": true,
+      "undo": "stored",
+      "doc": "Changes one of the Worker's settings in the catalogue (MENU-AND-SETTINGS.md §6), to a value the catalogue allows. Never the standing permissions (`mind.permit.*`), the outside-sources switch (`mind.ask_outside`) or Privacy and data (`privacy.*`): those are the owner's alone. Its undo puts back the value before (or the default), while the setting still holds the new one.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "value": {
+                "$ref": "#/$defs/__schema0"
+              }
+            },
+            "required": [
+              "key",
+              "value"
+            ],
+            "$defs": {
+              "__schema0": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "previous": {
+                "$ref": "#/$defs/__schema0"
+              }
+            },
+            "required": [
+              "previous"
+            ],
+            "$defs": {
+              "__schema0": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  },
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/$defs/__schema0"
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {
+                      "$ref": "#/$defs/__schema0"
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "briefing.pin_tile": {
+      "app": "shell",
+      "class": "reversible",
+      "permit": "tiles",
+      "side": "worker",
+      "queueable": true,
+      "undo": "stored",
+      "doc": "Pins a tile the Briefing knows (`due`, `holidays`, or a night slot: `practice`, `study`, `built`, `note.1`–`note.3`) right after \"Waiting on you\", newest pin first, at most 3 (a fourth unpins the oldest); a pinned tile shows only when it has something to say. The owner's own arrangement on the phone still wins. Its undo puts back the pins before.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "tile": {
+                "type": "string",
+                "enum": [
+                  "due",
+                  "holidays",
+                  "practice",
+                  "study",
+                  "built",
+                  "note.1",
+                  "note.2",
+                  "note.3"
+                ]
+              }
+            },
+            "required": [
+              "tile"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "pinned": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "pinned"
+            ]
+          }
+        }
+      }
+    },
+    "briefing.unpin_tile": {
+      "app": "shell",
+      "class": "reversible",
+      "permit": "tiles",
+      "side": "worker",
+      "queueable": true,
+      "undo": "stored",
+      "doc": "Unpins a Briefing tile, which goes back to its usual place. Its undo pins it again where it was.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "tile": {
+                "type": "string",
+                "enum": [
+                  "due",
+                  "holidays",
+                  "practice",
+                  "study",
+                  "built",
+                  "note.1",
+                  "note.2",
+                  "note.3"
+                ]
+              }
+            },
+            "required": [
+              "tile"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "pinned": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "pinned"
+            ]
+          }
+        }
+      }
+    },
+    "memory.note": {
+      "app": "shell",
+      "class": "reversible",
+      "permit": null,
+      "side": "worker",
+      "queueable": true,
+      "undo": "stored",
+      "doc": "Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), from a clean session, never off the record; no card. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 280
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "state",
+                  "goal",
+                  "preference",
+                  "routine",
+                  "fact",
+                  "rule"
+                ]
+              },
+              "subject": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "evidence": {
+                "minItems": 1,
+                "maxItems": 5,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^msg:[A-Za-z0-9_-]{1,64}$"
+                }
+              }
+            },
+            "required": [
+              "text",
+              "kind",
+              "evidence"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "fact_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "fact_id"
+            ]
+          }
+        }
+      }
+    },
     "shell.appearance": {
       "app": "shell",
       "class": "reversible",
       "permit": "settings",
-      "executor": "device",
+      "side": "phone",
       "queueable": true,
       "undo": "reported",
       "doc": "Sets the phone's appearance (auto, day or night). The phone reports the previous mode as the undo.",
