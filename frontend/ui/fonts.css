@@ -1,8 +1,5 @@
-/* The shell's one face (owner, 2026-10-31): Switzer by Indian Type Foundry, the official variable
-   file (100–900), free under the ITF Free Font License, which lets us self-host it for this site but
-   not keep it in a public repository; scripts/fonts.mjs fetches it at build and checks it byte for
-   byte (DESIGN-SYSTEM.md §2). font-display: swap, so text shows at once in the fallback. */
+/* Switzer (ITF FFL): fetch and verify with scripts/fonts.mjs; never commit the font. */
 @font-face{font-family:"Switzer";font-style:normal;font-weight:100 900;font-display:swap;src:url("fonts/Switzer.woff2") format("woff2")}
 
-/* Frame guard (see ui/theme.js): nothing shows until the page proves it is not framed. */
+/* Frame guard (ui/theme.js). */
 html:not([data-unframed]) body{visibility:hidden}

@@ -13,7 +13,7 @@ Sibling docs: [HOME](../product/HOME.md), [GESTURES](GESTURES.md), [COPY](COPY.m
 4. **Contrast is tested, not eyeballed.** Text ≥ 4.5:1, large text (≥ 24 px, or ≥ 18.66 px bold) and icons/UI parts ≥ 3:1, measured against the **worst** background each token can sit on. A node test fails the build otherwise.
 5. **Targets ≥ 44×44 CSS px** (hit area, not necessarily the drawn shape). WCAG 2.2 AA's floor is 24×24.
 6. **Motion is quick and springy, never slow**, carries meaning, and collapses under `prefers-reduced-motion`.
-7. **Only tokens.** No raw hex, px radius, duration or z-index in app CSS. A lint test greps for them.
+7. **Token shape is checked.** `tests/feel.test.mjs` scans its fifteen shell CSS files for nonzero literal times shorter than 2 s in `transition*`/`animation*` declarations. Outside `ui/tokens.css`, it rejects raw `cubic-bezier()` and `linear()` curves, timing keywords (`ease`, `ease-in`, `ease-out`, `ease-in-out`, `linear`), every `font-size` declaration, and `font` shorthands that do not begin with `var(--t-`. A `/* T1: … */` comment exempts only its own line; the test prints the exempt-line count. It checks shape, never token values. Hex colours, radii and z-index are not yet enforced.
 8. **Icons are Phosphor regular** (MIT), from one SVG sprite, `fill: currentColor`, always `aria-hidden` with a text label on the control.
 9. **Glass is expensive on the A15.** At most **2** live `backdrop-filter` surfaces on screen at once; everything else uses "flat glass" (§6).
 10. **No chrome:** no header bar, tab bar, badges, counters of other people, or dividers. Space does the grouping.
@@ -76,31 +76,118 @@ This replaces the first build's three copies of every dark token (media query, `
 
 ## 2. Type
 
-**Built 2026-10-31 (Switzer):** one self-hosted face, `ui/fonts/Switzer.woff2`, the official variable file (wght 100–900, 43.2 KB) from Indian Type Foundry's Fontshare, free under the ITF Free Font License. That licence allows self-hosting it for our own site but not keeping it in a public repository, and forbids changing the file (no subsetting): so it is not committed. `scripts/fonts.mjs` fetches it from Fontshare and checks its SHA-256 byte for byte; the checks and the deploy run it, and stage refuses to publish without it (`TH_FONTS=required`); a local checkout runs it once (README). Weights: text 400, controls and labels 500, titles and big numbers 600 (-0.02em from 24 px); replies 400 16.5/1.55, the owner's bubble 400 16/1.45. Before Switzer (the same day): Quicksand (OFL) committed as `ui/fonts/Quicksand.woff2`, Light (300) from 24 px and every smaller weight one step heavier than Inter's. Small spaced capitals are gone: labels are sentence case at 13 px. The table below keeps its sizes; read its fonts as Quicksand. Before (kept for history): fonts were self-hosted (decisions.md): `ui/fonts/Fraunces-Italic.woff2` (variable, wght 300–500, SOFT 50, WONK 0), `ui/fonts/Fraunces.woff2` (upright for replies: wght 400–600, optical size fixed at 18, SOFT 50, WONK 0, the italic's 222 Latin characters, 30.6 KB; cut from `@fontsource-variable/fraunces` 5.3.0's full Latin file with fontTools' instancer and subsetter) and `ui/fonts/Inter.woff2` (roman, wght 400–600). All `font-display: swap`, preloaded.
+**Built (Switzer):** the shell uses one self-hosted variable face, `ui/fonts/Switzer.woff2` (wght 100–900, 43.2 KB), from Indian Type Foundry's Fontshare under the ITF Free Font License. The official file is fetched by `scripts/fonts.mjs`, checked against its SHA-256, and never committed or modified. Stage requires it when `TH_FONTS=required`; a local checkout fetches it once (README). `font-display: swap` and the page preload remain in place. Code retains its existing monospace families.
 
-| Token | Font | Size / line height | Weight | Use | Status |
-|---|---|---|---|---|---|
-| `--t-voice-hero` | Fraunces italic | `clamp(32px, 9vw, 40px)` / 1.12 | 340 | The 404's line (home's voice line is gone, HOME.md §2) | built |
-| `--t-voice-title` | Fraunces italic | 34 / 1.12 | 340 | Briefing title ("Here's your day.") | built |
-| `--t-voice-reply` | Fraunces upright | 17.5 / 1.5 | 400 (bold 600) | The mind's replies, as rich text (HOME.md §4.3) | built 2026-10-30 (was italic 340 at 20 / 1.4) |
-| `--t-big` | Inter | 30 / 1.05, −0.02em | 500 | One big number in a tile (temperature) | built |
-| `--t-body` | Inter | 15 / 1.4 | 400 | Owner bubbles, tile values | built |
-| `--t-input` | Inter | 16 / 1.375 | 400 | Ask bar (16 px avoids zoom-on-focus) | built |
-| `--t-row` | Inter | 15 / 1.35 | 500 | Menu rows | built |
-| `--t-sheet-item` | Inter | 16 / 1.3 | 500 | `+` sheet items | built |
-| `--t-chip` | Inter | 14 / 1.3 | 500 | Action chips, toast | built |
-| `--t-small` | Inter | 13 / 1.4 | 400 | Tile detail line, segmented control | built |
-| `--t-label` | Inter | 12 / 1.35 | 500 | Hint, decision "why" line, meta | built |
-| `--t-caps` | Inter | 11 / 1.3, +0.14em, uppercase | 600 | Date line, briefing date, menu section heads (+0.12em) | built |
+### Baseline (2026-11-01), redesigned in T1b
 
-Rules:
+These are provisional definitions in `frontend/ui/tokens.css`, not a redesigned scale. The thirteen core names remain available for T1b. Additional baseline tokens preserve the existing sizes, line heights and families exactly; this migration makes no type-size snaps. Each site keeps its existing weight with `font-weight` after the shorthand when it differs from the token's default. Tracking, emphasis and wrapping stay at their sites.
 
-- Voice weight never below **340** (Apple: avoid light weights at small sizes). Tracking −0.01em.
-- `font-variant-numeric: tabular-nums` on times, durations and counts.
-- `text-wrap: balance` on the voice line and titles; `text-wrap: pretty` on replies.
-- All sizes are written in `rem` in the CSS (1 rem = 16 px) so Android's font-size setting scales them. [proposal] Adopt `<meta name="text-scale" content="scale">` once it ships in stable Chrome.
-- Second-language passages are marked with that language's `lang` code, from the private setting (hyphenation and screen-reader voice).
-- **Measured capacity (Chromium, Fraunces as shipped):** the voice hero fits **22 characters per visual line** at every phone width from 360 to 412 px (the size scales with width). A reply fits **37–42 characters per line** at 360–412 px.
+`--ui` and `--voice` both resolve to `"Switzer",system-ui,-apple-system,"Segoe UI",sans-serif`. `--mono` resolves to `ui-monospace,"SF Mono","Roboto Mono",Menlo,Consolas,monospace`. A shorthand without `/…` retains CSS's `normal` line height; relative `em` values remain relative to their surrounding text.
+
+| Token | Exact `font` shorthand | Sites (examples) |
+|---|---|---|
+| `--t-label` | `500 12px/1.35 var(--ui)` | Defined for the ramp; no current site |
+| `--t-small` | `400 13px/1.4 var(--ui)` | `.tile .s`, `.talk .sys`, `.card .tg` |
+| `--t-chip` | `500 14px/1.3 var(--ui)` | `.cstitle`, `.hgroup h2`, `.th-wide .by` |
+| `--t-body` | `400 15px/1.4 var(--ui)` | `.mtext`, `.snow`, `.talk .sys.reminder` |
+| `--t-input` | `400 16px/1.45 var(--ui)` | `.you` |
+| `--t-reply` | `400 16.5px/1.55 var(--voice)` | `.reply` |
+| `--t-strong` | `600 17px/1.35 var(--ui)` | `.panel h2` |
+| `--t-section` | `600 21px/1.5 var(--ui)` | Defined for the ramp; no current site |
+| `--t-heading` | `400 24px/1.2 var(--ui)` | Defined for the ramp; no current site |
+| `--t-page-title` | `600 30px/1.15 var(--ui)` | `.auth h1` |
+| `--t-title` | `400 34px/1.12 var(--ui)` | `.btitle` base rule; superseded by `--t-hero` |
+| `--t-big` | `500 36px/1.05 var(--ui)` | `.tile .big` |
+| `--t-hero` | `400 clamp(38px,11vw,46px)/1.06 var(--ui)` | `.btitle` |
+
+The preservation variants below are built. They keep differences such as form labels at 13 px / 1.3, the menu's 14.5 px rows, the 28 px Study verse title, the 64 px weather number and monospace code boxes. Consolidating these values is a later design decision. The listed selectors are examples; a token may serve several sites.
+
+| Token | Exact `font` shorthand | Sites (examples) |
+|---|---|---|
+| `--t-code-inline` | `500 .84em ui-monospace,SFMono-Regular,Menlo,monospace` | `.talk .reply code` |
+| `--t-list-marker` | `500 .88em var(--ui)` | `.talk .reply ol>li::marker` |
+| `--t-reply-heading` | `600 1.06em/1.35 var(--voice)` | `.talk .reply h3` |
+| `--t-count-normal` | `600 10.5px var(--ui)` | `.gn` |
+| `--t-fine-normal` | `400 11.5px var(--ui)` | `.bsa` |
+| `--t-fine-flat` | `500 11.5px/1 var(--ui)` | `.talk .turn[data-time]::before` |
+| `--t-fine-compact` | `400 11.5px/1.35 var(--ui)` | `.book .bs` |
+| `--t-micro-normal` | `600 11px var(--ui)` | `.bcite`, `.cover .ring span`, `.vtext sup` |
+| `--t-micro-flat` | `600 11px/1 var(--ui)` | `.talk .reply a.cite` |
+| `--t-micro-tight` | `400 11px/1.3 var(--ui)` | `.cover.plain em` |
+| `--t-micro-badge` | `600 11px/1.6 var(--ui)` | `.tag`, `.badge` |
+| `--t-detail-normal` | `500 12.5px var(--ui)` | `.status`, `.otrmark button`, `.acts .link` |
+| `--t-detail-compact` | `400 12.5px/1.35 var(--ui)` | `.pmeta`, `.sdel small`, `#cmdhint` |
+| `--t-detail-body` | `500 12.5px/1.4 var(--ui)` | `.otrmark` |
+| `--t-detail-reading` | `400 12.5px/1.45 var(--ui)` | `.bnote2` |
+| `--t-code-label-normal` | `500 12px var(--mono)` | `.shelp code`, `.sform code` |
+| `--t-label-normal` | `500 12px var(--ui)` | `.why`, `.hint`, `.timechip` |
+| `--t-label-tight` | `400 12px/1.3 var(--ui)` | `.talk .meta` |
+| `--t-label-body` | `400 12px/1.4 var(--ui)` | `.sh small`, `.srole small`, `.crow small` |
+| `--t-label-reading` | `400 12px/1.45 var(--ui)` | `.fld .help`, `.st2` |
+| `--t-code-label-loose` | `400 12px/1.5 var(--mono)` | `.mprofile` |
+| `--t-label-loose` | `400 12px/1.5 var(--ui)` | `.foot` |
+| `--t-follow-normal` | `500 13.5px var(--ui)` | `.talk .follow` |
+| `--t-follow-compact` | `600 13.5px/1.35 var(--ui)` | `.cited .hit b` |
+| `--t-code-small-normal` | `500 13px var(--mono)` | `.panel code` |
+| `--t-small-normal` | `500 13px var(--ui)` | `.inp .show`, `.link.quiet`, `.tabs button` |
+| `--t-small-flat` | `600 13px/1 var(--ui)` | `.th-island .left`, `.th-island .zz` |
+| `--t-small-tight` | `500 13px/1.3 var(--ui)` | `.fld label`, `.lbl`, `.talk .reply .sthead` |
+| `--t-small-compact` | `400 13px/1.35 var(--ui)` | `#now .sub` |
+| `--t-mono-small-reading` | `400 13px/1.45 ui-monospace,SFMono-Regular,Menlo,monospace` | `.talk .reply pre` |
+| `--t-small-reading` | `400 13px/1.45 var(--ui)` | `.sidelead`, `.bmuse`, `.bwho` |
+| `--t-small-loose` | `400 13px/1.5 var(--ui)` | `.shelp`, `.mwhy` |
+| `--t-code-detail` | `500 13px/1.55 var(--mono)` | `.codebox.small` |
+| `--t-row-normal` | `500 14.5px var(--ui)` | `.row` |
+| `--t-chip-normal` | `600 14px var(--ui)` | `.check`, `.link`, `.decide button` |
+| `--t-chip-compact` | `500 14px/1.35 var(--ui)` | `.toast`, `.talk .reply .study`, `.srow .tl` |
+| `--t-chip-body` | `400 14px/1.4 var(--ui)` | `.talk .reply table`, `.talk .wait.dots`, `.allconvos .alllead` |
+| `--t-chip-reading` | `500 14px/1.45 var(--ui)` | `.line`, `.csheet p`, `.reason` |
+| `--t-voice-chip-reading` | `400 14px/1.45 var(--voice)` | `.mev q` |
+| `--t-chip-loose` | `400 14px/1.5 var(--ui)` | `.panel p`, `.panel ol` |
+| `--t-chip-badge` | `500 14px/1.6 var(--ui)` | `.counts` |
+| `--t-note-normal` | `500 15.5px var(--ui)` | `.slink`, `.sswitch` |
+| `--t-note-reading` | `400 15.5px/1.45 var(--ui)` | `.talk .note .nt` |
+| `--t-progress` | `400 15.5px/1.55 var(--voice)` | `.talk .reply.progress` |
+| `--t-body-normal` | `500 15px var(--ui)` | `.btn`, `.home`, `.search` |
+| `--t-body-tight` | `600 15px/1.3 var(--ui)` | `.ptl`, `.tx .tl`, `.sname` |
+| `--t-body-compact` | `500 15px/1.35 var(--ui)` | `.tile .v`, `.bb h3` |
+| `--t-body-card` | `500 15px/1.42 var(--ui)` | `.card.news ul.q li` |
+| `--t-body-reading` | `400 15px/1.45 var(--ui)` | `.tile.weather .s`, `.talk .reply .blocks`, `.marea` |
+| `--t-body-loose` | `400 15px/1.5 var(--ui)` | `.auth .lead` |
+| `--t-body-tall` | `400 15px/2 var(--ui)` | `.whours li` |
+| `--t-input-normal` | `400 16px var(--ui)` | `.opts button`, `.sbox input`, `.csacts button` |
+| `--t-input-tight` | `400 16px/1.3 var(--ui)` | `.inp input`, `.fld input:not([type="checkbox"]):not([type="radio"])`, `.fld select` |
+| `--t-input-compact` | `600 16px/1.35 var(--ui)` | `.csheet h2` |
+| `--t-input-card` | `500 16px/1.42 var(--ui)` | `.card .q` |
+| `--t-ask` | `400 16px/22px var(--ui)` | `.ask textarea` |
+| `--t-strong-normal` | `500 17px var(--ui)` | `.squiet input[type=time]` |
+| `--t-strong-snug` | `600 17px/1.25 var(--ui)` | `#now .tl` |
+| `--t-strong-tight` | `600 17px/1.3 var(--ui)` | `.vcard b` |
+| `--t-strong-reading` | `500 17px/1.45 var(--ui)` | `.b-quote blockquote` |
+| `--t-strong-reply` | `400 17px/1.55 var(--ui)` | `.vtext p` |
+| `--t-code-section-loose` | `600 21px/1.5 var(--mono)` | `.codebox` |
+| `--t-group-heading` | `600 22px/1.15 var(--ui)` | `.gl` |
+| `--t-heading-dense` | `600 24px/1.1 var(--ui)` | `.bsv` |
+| `--t-heading-heading` | `600 24px/1.15 var(--ui)` | `.allconvos .gl` |
+| `--t-verse-title-heading` | `600 28px/1.15 var(--ui)` | `.verse h1` |
+| `--t-page-title-number` | `600 30px/1.05 var(--ui)` | `.tile .big` base rule; superseded by `--t-big` |
+| `--t-page-title-dense` | `600 30px/1.1 var(--ui)` | `.sidetitle`, `.spage h1`, `.libhead h1` |
+| `--t-weather-flat` | `500 64px/1 var(--ui)` | `.tile.weather .big` |
+| `--t-not-found` | `600 clamp(32px,9vw,40px)/1.1 var(--voice)` | `.voice` |
+| `--t-text-input` | `400 16px/1.45 var(--ui)` | `.empty p` |
+
+The Appearance text-size setting overrides only the conversation tokens:
+
+| Setting | `--t-reply` | `--t-input` | `--t-progress` |
+|---|---|---|---|
+| Small (`data-text="s"`) | `400 15px/1.55 var(--voice)` | `400 15px/1.45 var(--ui)` | `var(--t-reply)` |
+| Large (`data-text="l"`) | `400 18.5px/1.55 var(--voice)` | `400 18px/1.45 var(--ui)` | `var(--t-reply)` |
+
+`--t-input` belongs to the owner's bubble. The ask bar uses `--t-ask` and stays at 16 px / 22 px for every text setting. Form controls and other non-conversation text use independent variants; `--t-text-input` retains 16 px / 1.45 without following the bubble setting. Sizes are written in px, with `em` and `clamp()` where the existing styles use them; Appearance is the shell's text-size mechanism. **[proposal]** Adopt `<meta name="text-scale" content="scale">` when it is supported by the target browsers.
+
+The old names `--t-voice-hero`, `--t-voice-title`, `--t-voice-reply`, `--t-row`, `--t-sheet-item` and `--t-caps` are **not built**. In particular, there is no uppercase 11 px / +0.14em `--t-caps` style. The old Fraunces and Inter table did not describe the current code.
+
+Keep `font-variant-numeric: tabular-nums` on times, durations and counts, `text-wrap: balance` on titles and `text-wrap: pretty` on replies. Mark second-language passages with their language's `lang` code for hyphenation and screen readers.
 
 ## 3. Space
 
@@ -175,34 +262,43 @@ Budget: at most **2 live-glass surfaces visible at once** (ask bar + one of: car
 
 ### 8.1 Durations and curves
 
-| Token | Value | Use | Status |
-|---|---|---|---|
-| `--d-instant` | 90 ms | Label crossfade, hub follow | built (90–100) |
-| `--d-fast` | 160 ms | Ring collapse, pressed scale | built |
-| `--d-quick` | 240 ms | Press ring, chosen-bubble fly-out, icon swaps (mic ↔ send) | built |
-| `--d-base` | 300 ms | Fades of the conversation (blur behind `+`), card fold start | built |
-| `--d-sheet` | 380 ms | `+` sheet unfold | built |
-| `--d-page` | 460 ms | Briefing, menu and Settings settle (on `--settle`, whose tail is near-still, so it reads quicker than it is) | built |
-| `--d-rise` | 900 ms | Voice line rise (500 ms for a conversation turn) | built |
-| `--d-edge` | 1,400 ms | Edge light state crossfade | built |
-| `--ease-out` | `cubic-bezier(.2,.8,.2,1)` | Page settles | built |
-| `--ease-rise` | `cubic-bezier(.2,.7,.2,1)` | Rise, card fold | built |
-| `--ease-emph` | `cubic-bezier(.2,0,0,1)` | Press ring, fly-out | built |
-| `--ease-pop` | `cubic-bezier(.34,1.45,.64,1)` | Buttons, bubbles, `+` rotate (overshoot ~10%) | built |
-| `--ease-sheet` | `cubic-bezier(.34,1.3,.64,1)` | Sheet unfold | built |
+**Baseline (2026-11-01), redesigned in T1b.** These are the exact motion tokens in `ui/tokens.css`. Values remain provisional; durations and delays derived with `calc()` retain their existing timings except for the explicit T1a motion changes.
+
+| Token | Exact value | Use |
+|---|---|---|
+| `--d-instant` | `90ms` | Level meters and short delays |
+| `--d-fast` | `160ms` | Ring collapse, presses and short fades |
+| `--d-quick` | `240ms` | Press ring and chosen-pet fly-out |
+| `--d-base` | `300ms` | Conversation fades and card transitions |
+| `--d-sheet` | `380ms` | Sheets and inherited sheet timings |
+| `--d-page` | `460ms` | Briefing, menu and Settings settle |
+| `--d-rise` | `900ms` | Island level-bar base and rise timings |
+| `--d-edge` | `1400ms` | Edge crossfade, mic breath, recording dot and flash |
+| `--ease-out` | `cubic-bezier(.2,.8,.2,1)` | Existing outward curve; edge crossfade and card pulse |
+| `--ease-in` | `cubic-bezier(.4,0,1,1)` | Ring close |
+| `--ease-rise` | `cubic-bezier(.2,.7,.2,1)` | Defined for tuning; no current site |
+| `--ease-emph` | `cubic-bezier(.2,0,0,1)` | Press ring and chosen-pet fly-out |
+| `--ease-pop` | `cubic-bezier(.34,1.45,.64,1)` | Defined for tuning; no current site |
+| `--ease-sheet` | `cubic-bezier(.34,1.3,.64,1)` | Defined for tuning; no current site |
+| `--ease-ambient` | `ease-in-out` | Drift, thinking, mic breath, recording and level-bar loops |
+| `--ease-linear` | `linear` | Meters and constant-speed loops |
+| `--ease-default` | `ease` | Preserves the CSS `ease` keyword, including implicit defaults |
+| `--ease-standard-out` | `ease-out` | Preserves the CSS `ease-out` keyword where its original curve stays |
+
+`--ease-out` is a custom bezier, while `--ease-standard-out` is CSS's `ease-out`; they are different curves. `--ease-default` preserves CSS's explicit or implicit `ease`. Ambient animations may retain literal durations of at least 2 s, and zero delays may remain literal. Shorter durations and delays use `--d-*` tokens directly or through `calc()`.
+
+Under reduced motion, `--d-instant`, `--d-fast`, `--d-quick`, `--d-base`, `--d-rise` and `--d-edge` become `0ms`; `--d-sheet` and `--d-page` become `150ms`. Existing per-file reduced-motion rules remain in force.
 
 ### 8.2 Springs
 
-Generated once as CSS `linear()` easings (Chrome 113+) from Material 3's spring tokens, so the motion is physically consistent:
+**Baseline (2026-11-01), redesigned in T1b.** The shell has two sampled CSS `linear()` curves. Their duration is supplied separately by a `--d-*` token; these definitions do not establish an engine response or stiffness.
 
-| Token | Damping / stiffness | ≈ Settle | Replaces |
-|---|---|---|---|
-| `--spring-fast` | 0.6 / 800 | 250 ms, ~9% overshoot | `--ease-pop` (ring bubbles, `+`, mic/send) |
-| `--spring` | 0.8 / 380 | 300 ms, ~1.5% overshoot | Cards, rows, chips |
-| `--spring-slow` | 0.8 / 200 | 400 ms | Pages, sheets |
-| `--spring-fx` | 1.0 / 1600 | 150 ms | Opacity and colour |
+| Token | Exact value | Meaning |
+|---|---|---|
+| `--settle` | `linear(0, .047, .156, .292, .433, .563, .678, .772, .847, .904, .946, .975, .994, 1.006, 1.012, 1.015, 1.015, 1.014, 1.012, 1.01, 1.008, 1.006, 1.004, 1.003, 1)` | Pages, sheets, cards and settling motion; sampled peak 1.015 (1.5% overshoot) |
+| `--pop` | `linear(0, .071, .235, .436, .632, .801, .93, 1.018, 1.069, 1.092, 1.094, 1.082, 1.065, 1.046, 1.028, 1.013, 1.003, .996, .992, .991, .991, .993, .995, .996, 1)` | Ring pets, presses and the confirm sheet; sampled peak 1.094 (9.4% overshoot) |
 
-Built as two, which is all the shell needs: `--settle` (damping 0.8, ~1.5% overshoot) moves pages, the menu and Settings; `--pop` (damping 0.6, ~9%) is the press on rows, tiles, chips and buttons (scale .97 while held, `--d-fast`).
+Both become the `linear` timing keyword under reduced motion. T1b will supply the tuning engine and generate frozen curves from the chosen springs; this baseline preserves the current samples.
 
 ### 8.3 Named animations
 
