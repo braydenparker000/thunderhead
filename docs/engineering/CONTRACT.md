@@ -260,6 +260,49 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `study` | `/study/` | Study | P7 |
 | `photos` | `/photos/` | Photos | P9 (page: the photo editor comes later) |
 
+## Senses
+
+Every event type the phone may send (`PUT /v1/senses/batches/:id`, API.md §11.14), its app's switch (`privacy.senses.<app>`), the ref kinds it may carry, its only data fields and their kinds, and its sensitivity (1: type and time only in every answer). Anything else is refused: `bad_type`, `bad_data`, `bad_ref`; an app switched off, `switched_off`. The `routines` query: 28 logical days, a band of 1 to 3 hours on the weekdays with events in 2+ weeks, kept at 10+ events in 3+ weeks.
+
+| Type | App | Ref | Data | Sensitivity | When |
+|---|---|---|---|---|---|
+| `player.open` | music | — | — | 0 | Music's page opens. |
+| `music.play` | music | `music:` | context_ref: ref, source: `list` \| `search` \| `mix` \| `dj` \| `shuffle` \| `queue` \| `verb`, offline: bool | 0 | A song starts sounding. |
+| `music.skip` | music | `music:` | at_ms: ms, duration_ms: ms, by: `next` \| `previous` \| `pick` \| `notification` \| `swipe`, next_ref: ref | 0 | A song that sounded is left before its last 3 s. |
+| `music.finish` | music | `music:` | listened_ms: ms | 0 | A song plays to its end. |
+| `music.rate` | music | `music:` | rating: int, from: int | 0 | A rating set in Music (0–5; from: the one before). |
+| `podcasts.open` | podcasts | — | — | 0 | Podcasts' page opens. |
+| `podcast.play` | podcasts | `podcast:` | at_ms: ms | 0 | An episode starts sounding (at_ms: where in it). |
+| `podcast.finish` | podcasts | `podcast:` | listened_ms: ms | 0 | An episode plays to its end. |
+| `podcast.skip` | podcasts | `podcast:` | at_ms: ms, duration_ms: ms | 0 | Another episode starts while this one was not finished. |
+| `podcast.follow` | podcasts | `podcast:` | — | 0 | A show followed. |
+| `podcast.unfollow` | podcasts | `podcast:` | — | 0 | A show unfollowed. |
+| `guitar.open` | guitar | `tab:` | — | 0 | Guitar's page opens. |
+| `guitar.piece_opened` | guitar | `tab:` | — | 0 | A piece opens in the reader. |
+| `guitar.pass` | guitar | `tab:` | bpm: int, speed_pct: num, clean: bool, by: `owner` \| `ears` | 0 | A loop pass marked Clean or Not yet. |
+| `guitar.bpm` | guitar | `tab:` | bpm: int | 0 | A new best clean tempo for a section. |
+| `guitar.session` | guitar | `tab:` | seconds: int, played_seconds: int, sections: ids, bpm: int | 0 | The reader closes after practice (sections: the section keys marked; bpm: the best clean tempo reached). |
+| `study.open` | study | `book:` | — | 0 | Study's page opens. |
+| `study.read` | study | `book:` | pages: int, ms: ms | 0 | Reading in a book, on leaving it or hiding the page. |
+| `study.search` | study | — | hits: int | 0 | A search shows its results (the count only, never the words). |
+| `study.highlight` | study | `book:` | — | 1 | A highlight made in a book (nothing on the phone makes one yet). |
+| `astra.open` | media | — | — | 0 | Astra's page opens. |
+| `mymedia.open` | media | — | — | 0 | My Media's page opens. |
+| `media.watch` | media | `astra:`, `media:` | ms: ms | 0 | Time watched of a title since the last report. |
+| `media.finish` | media | `astra:`, `media:` | — | 0 | A title watched to its end. |
+| `media.drop` | media | `astra:`, `media:` | at_ms: ms | 0 | A title not finished taken off Continue Watching. |
+| `app.open` | shell | `app:` | — | 0 | Music or Podcasts comes to the front inside home. |
+| `app.close` | shell | `app:` | ms: ms | 0 | Music or Podcasts goes back into the island (ms: how long it was in front). |
+| `ring.choice` | shell | `app:` | — | 0 | An app picked on the ring. |
+| `island.tap` | shell | `app:` | to: `details` \| `app` \| `control` | 0 | The island tapped: its details, its app, or a control. |
+| `briefing.open` | shell | — | — | 0 | The Briefing comes into view. |
+| `settings.change` | shell | `setting:` | — | 0 | A setting changed: its key only, never its value. |
+| `briefing.tile` | home | `ledger:` | — | 0 | A night tile tapped (its ref: the tile's ledger row). |
+| `line.seen` | home | `ledger:` | — | 0 | A home line on screen (its ref: the line's ledger row). |
+| `line.dismiss` | home | `ledger:` | — | 0 | A home line dismissed (nothing on the phone sends it yet). |
+| `card.decide` | home | `proposal:` | class: `delete` \| `money` \| `access` \| `reach_people` \| `permit` \| `memory_big` | 1 | A decision card answered Yes or No (its class only). |
+| `reply.open_chip` | home | `app:` | — | 0 | A reply's Open chip tapped (its ref: the app it opens). |
+
 ## Search sources
 
 | Source | Phase | Ref kind |
@@ -277,6 +320,7 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `goal` | 90 | 10 |
 | `preference` | 180 | 25 |
 | `routine` | 60 | 15 |
+| `habit` | 28 | 10 |
 | `fact` | 1825 | 30 |
 | `rule` | never decays | not in the profile (briefing section 3) |
 
