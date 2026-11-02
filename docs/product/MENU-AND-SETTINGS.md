@@ -106,8 +106,9 @@ The status line and held-notification rules are unchanged.
 
 ### 4.3 Notifications
 
-The phone's permission/subscription status sits above shared actions: Let me reach you,
-Send a test and Turn off on this phone. Only the owner's enable tap requests browser permission.
+The phone's permission/subscription status sits above the Notifications on this phone switch.
+Its checked state means notifications are on; Send a test appears while they are on.
+Only the owner's enable tap requests browser permission.
 The existing budget and quiet-hours explanation stays. Per-kind toggles remain deferred;
 all currently supported kinds retain their existing policy.
 
