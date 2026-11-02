@@ -219,8 +219,9 @@ export function meterRows(db: Db, from: number) {
         from,
       )
       .map((r) => r.at),
-    arrangements: db.all<{ id: string; at: number; ref: string | null; undone_at: number | null }>(
-      `SELECT id, at, ref, undone_at FROM ledger
+    // `line`: a line on home (surfaces/ops.ts writes `home/line.<n> ← <kind>`), which the phone reports seen.
+    arrangements: db.all<{ id: string; at: number; ref: string | null; undone_at: number | null; line: number }>(
+      `SELECT id, at, ref, undone_at, what LIKE 'home/line.%' AS line FROM ledger
         WHERE at >= ? AND kind = 'arrangement' AND actor LIKE 'mind:%' AND what LIKE '%←%'`,
       from,
     ),

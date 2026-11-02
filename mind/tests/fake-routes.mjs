@@ -45,11 +45,17 @@ export function extraRoutes(ctl) {
   }
 
   return [
-    // The senses' fixed questions (API.md §11.14): a test sets s.senseRows to what one answers.
+    // The senses' fixed questions (API.md §11.14): a test sets s.senseRows (a day's summary) and
+    // s.routineRows (the routines, kept with the params asked in s.routinesAsked) to what they answer.
     ['POST', /^\/v1\/senses\/query$/, ALL, ({body}) => {
-      const other = body?.name !== 'day_summary' ? ctl.senseQuery?.(body) : null;
+      const own = ['day_summary', 'routines'].includes(body?.name);
+      const other = !own ? ctl.senseQuery?.(body) : null;
       if (other) return [200, other];
-      if (body?.name !== 'day_summary') throw new HttpError(422, 'validation');
+      if (!own) throw new HttpError(422, 'validation');
+      if (body.name === 'routines') {
+        s.routinesAsked = body.params;
+        return [200, {rows: s.routineRows ?? [], rows_read: 1}];
+      }
       return [200, {rows: s.senseRows ?? [], rows_read: 1}];
     }],
     // The watchdogs (OPERATIONS.md §8.2): a test sets s.watchdogs to the items it needs.

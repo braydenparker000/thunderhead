@@ -331,11 +331,13 @@ errors routes are the place to honour them.
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
-| `privacy.senses.music` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
-| `privacy.senses.podcasts` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
-| `privacy.senses.guitar` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
-| `privacy.senses.study` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
-| `privacy.senses.home` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
+| `privacy.senses.music` | switch | worker | `on` | the phone's senses (`th/senses/send.js`, from `th.p.settings`) and `PUT /v1/senses/batches` (B1): off sends and keeps nothing of Music |
+| `privacy.senses.podcasts` | switch | worker | `on` | the same, for Podcasts |
+| `privacy.senses.guitar` | switch | worker | `on` | the same, for Guitar |
+| `privacy.senses.study` | switch | worker | `on` | the same, for Study |
+| `privacy.senses.media` | switch | worker | `on` | the same, for Astra and My Media (B1) |
+| `privacy.senses.home` | switch | worker | `on` | the same, for home: lines seen, tiles and chips tapped, cards answered |
+| `privacy.senses.shell` | switch | worker | `on` | the same, for the ring, the island, Music and Podcasts in front, settings changed (B1) |
 | `privacy.errors` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
 
 ### 6.8 About and diagnostics (`about.js`)

@@ -7,7 +7,10 @@
 import { MUSIC_NOTE_LIMITS } from '../../../shared/contract/music.ts';
 import {
   type EventsSummary,
+  parseRoutineRef,
+  type Routine,
   SENSE_LIMITS,
+  type SenseApp,
   type SenseBatchResponse,
   type SenseEvent,
 } from '../../../shared/contract/senses.ts';
@@ -17,6 +20,7 @@ import { logicalDay } from '../areas/conversation/day';
 import { sha256 } from '../areas/import/vault';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
 import * as queries from '../areas/senses/queries';
+import { routines, windowDays } from '../areas/senses/routines';
 import * as store from '../areas/senses/store';
 import { checkEvent, msOf } from '../areas/senses/validate';
 import { DAY } from '../lib/time';
@@ -108,6 +112,7 @@ export class Senses extends OwnerObject {
     events: SenseEvent[],
     tz: string,
     now = Date.now(),
+    off: readonly SenseApp[] = [],
   ): SenseBatchResponse | { conflict: true } {
     return this.ctx.storage.transactionSync(() => {
       const had = store.batch(this.db, id);
@@ -119,6 +124,12 @@ export class Senses extends OwnerObject {
         const c = checkEvent(e, now);
         if (typeof c === 'string') {
           rejected.push({ i, reason: c });
+          return;
+        }
+        // The owner switched this app's senses off (Settings › Privacy): nothing of it is kept, even
+        // from a phone that hasn't heard yet.
+        if (off.includes(c.switch)) {
+          rejected.push({ i, reason: 'switched_off' });
           return;
         }
         const day = logicalDay(c.at, tz);
@@ -155,6 +166,16 @@ export class Senses extends OwnerObject {
       if (r.ref.startsWith('music:')) by[r.ref.slice(6)] = (by[r.ref.slice(6)] ?? 0) + r.n;
     this.skips = { day: today, by };
     return by;
+  }
+
+  /** A routine's ref counted again (rule M5: an `observed` habit cites one): its routine as the
+   * events still kept show it, or null when the window no longer holds it. For the memory batch's
+   * check of a `rollup:` ref (MEMORY.md §4). */
+  routineRef(ref: string, tz: string): Routine | null {
+    const r = parseRoutineRef(ref);
+    if (!r) return null;
+    const found = routines(store.quarterCounts(this.db, windowDays(r.to), [r.type]), r.to, tz);
+    return found.find((x) => x.ref === ref) ?? null;
   }
 
   /** Some types' rollups for the meter (P9): counts by day and ref only. */

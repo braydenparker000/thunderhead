@@ -54,7 +54,7 @@ export const USAGE = {
   push: ['--title --body --ref --why --topic [--deadline]', 'a push (P8)'],
   predict: ['<category> --p <0.01-0.99> --why <text> [--n <n> | --time <HH:MM> | --card <id> | --app <app>] [--day <day>] | list [--open] | skill',
     'a prediction about the open day, resolved from what the owner does once it ends: chat.any (they write), chat.count --n 2-50 (at least n messages), chat.before --time (their first message before then), decision.answered --card <id> (they answer that waiting card), app.open --app music|guitar|podcasts|astra|media|study (they open that app, as their phone reports it). Honest odds; at most 12 a day; a chat one only before their first message (P9)'],
-  day: ['<YYYY-MM-DD> [--part messages|ledger|notes [--cursor <c>]]', 'the night\'s input: counts and every part, or one page of a part (P3)'],
+  day: ['<YYYY-MM-DD> [--part messages|ledger|notes [--cursor <c>]]', 'the night\'s input: counts, routines (habits for step 4) and every part, or one page of a part (P3)'],
   daynote: ['<day> --summary --decisions <json> --importance <1-10>', 'the day note; prints its provenance (an outside one is shown marked, never evidence)'],
   facts: ['--batch <file.json> [--night [--part <k>] [--day <day>]]', 'a batch of memory ops; --night: part k of step 4 for the night run\'s day (P3)'],
   night: ['start | step <n> done | step <n> cursor <c> | done [--partial] | steps [--day <day>]', 'the night run: where it stands, each step done, a saved place (P3)'],

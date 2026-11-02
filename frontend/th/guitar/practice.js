@@ -34,7 +34,7 @@ function save(k) {
   } catch {}
 }
 const today = (t = new Date()) => `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`;
-/** @param {string} type @param {string} ref @param {Record<string, unknown>} data */
+/** @param {string} type @param {string} ref @param {Record<string, unknown> | null} data */
 const sense = (type, ref, data) => import('/th/senses/send.js').then((m) => m.sense(type, ref, data)).catch(() => {});
 
 /**
@@ -56,6 +56,8 @@ export function practiceLoop(reader, player, ui) {
   let keys = null;
   const opened = Date.now();
   let played = 0;
+  /** The best clean tempo this session, in BPM. */
+  let reached = 0;
   const marked = new Set();
   const tick = setInterval(() => {
     if (player.playing && document.visibilityState === 'visible') played += 5;
@@ -92,6 +94,7 @@ export function practiceLoop(reader, player, ui) {
     marked.add(sec.key);
     sense('guitar.pass', ref(), { bpm: bpm(pct), speed_pct: pct, clean, by: 'owner' });
     if (clean && pct > (prev?.best || 0)) sense('guitar.bpm', ref(), { bpm: bpm(pct) });
+    if (clean) reached = Math.max(reached, bpm(pct));
     c = judge(c, clean, kept.prefs.step);
     if (c.moved) {
       play(c.speed);
@@ -139,8 +142,10 @@ export function practiceLoop(reader, player, ui) {
     }
   }
 
-  /** The song is open: a new day opens on the bars that went worst last time, at its climb's speed. */
+  /** The song is open: one sense that this piece opened; a new day opens on the bars that went worst
+   * last time, at its climb's speed. */
   function ready() {
+    sense('guitar.piece_opened', `tab:${reader.song.key}`, null);
     if (!kept.prefs.on || !player.bars) return;
     const w = weakest(records(), today());
     if (w && w.key !== sec?.key) {
@@ -182,12 +187,13 @@ export function practiceLoop(reader, player, ui) {
     );
   }
 
-  /** The reader closed: one session sense, if anything was played or marked. */
+  /** The reader closed: one session sense, if anything was played or marked, with the best clean
+   * tempo reached in it (the tempo the session got to; none when no pass was clean). */
   function end() {
     clearInterval(tick);
     hide();
     if (played >= 5 || marked.size)
-      sense('guitar.session', `tab:${reader.song.key}`, { seconds: Math.round((Date.now() - opened) / 1000), played_seconds: played, sections: [...marked] });
+      sense('guitar.session', `tab:${reader.song.key}`, { seconds: Math.round((Date.now() - opened) / 1000), played_seconds: played, sections: [...marked], ...(reached ? { bpm: reached } : {}) });
   }
 
   return { passed, section, ready, controls, end };

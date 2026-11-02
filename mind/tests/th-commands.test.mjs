@@ -317,10 +317,14 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   const said = fake.addOwnerMessage('I like slow jazz in the evening');
   assert.equal((await th(['brief', '--claim'], e)).code, 0);
   fake.state.senseRows = [{type: 'music.play', n: 12, sum_ms: 0}, {type: 'music.skip', n: 3, sum_ms: 0}];
+  fake.state.routineRows = [{type: 'guitar.session', weekdays: ['mon', 'tue', 'wed', 'thu', 'fri'], hour_from: 21, hour_to: 22, n: 18, weeks: 4,
+    ref: 'rollup:routines/guitar.session/mon.tue.wed.thu.fri/21-22/2026-10-28'}];
   const d = await th(['day', '2026-10-28'], e);
   assert.equal(d.code, 0, d.stderr);
   assert.deepEqual(d.json.events_summary, {day: '2026-10-28', total: 15, by_type: fake.state.senseRows},
     'what the owner did that day, counts by type only');
+  assert.deepEqual(d.json.routines, fake.state.routineRows, 'the routines, as the habits step 4 writes, each with the ref it cites');
+  assert.deepEqual(fake.state.routinesAsked, {to: '2026-10-28'}, 'counted over the 28 days to the night’s day');
   assert.equal(d.json.stats.owner, 1);
   assert.deepEqual(d.json.messages, [{id: said.id, author: 'owner', kind: 'text', body: said.body, reply_to: null, at: said.created_at}],
     'each message as the night reads it: what it says and its id for evidence');

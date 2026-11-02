@@ -58,11 +58,12 @@ test('every surface kind and version is drawn, and anything else becomes the gen
   // then; a line from the day is its own card at its time; yesterday's lines are gone.
   const t = (hm) => new Date(`2026-10-29T${hm}`).getTime();
   const line = (slot, text, hm, extra = {}) => ({ ...surface('line', 1, { text, ...extra }, 'home', slot), written_at: t(hm), seq: Number(slot.slice(-1)) });
-  const items = [line('line.3', 'Third.', '05:20'), line('line.1', 'First.', '05:30'), line('line.2', 'Later.', '14:00', { lang: 'es' }), { ...line('line.4', 'Old.', '05:00'), written_at: t('03:00') }];
+  // Each line keeps its ledger row, which the phone reports seen (`line.seen`, th/senses/shell.js).
+  const items = [line('line.3', 'Third.', '05:20'), { ...line('line.1', 'First.', '05:30'), ledger_id: 'l1' }, line('line.2', 'Later.', '14:00', { lang: 'es' }), { ...line('line.4', 'Old.', '05:00'), written_at: t('03:00') }];
   assert.deepEqual(homeLines(items.slice(0, 2), { day: '2026-10-29', now: t('06:10') }), [], 'the night held before 06:30');
   assert.deepEqual(homeLines(items, { day: '2026-10-29', now: t('15:00') }), [
-    { id: 'night:2026-10-29', lines: [{ text: 'First.', lang: null }, { text: 'Third.', lang: null }], at: t('06:30'), night: true },
-    { id: 'line.2@2', lines: [{ text: 'Later.', lang: 'es' }], at: t('14:00'), night: false },
+    { id: 'night:2026-10-29', lines: [{ text: 'First.', lang: null, ledger: 'l1' }, { text: 'Third.', lang: null, ledger: null }], at: t('06:30'), night: true },
+    { id: 'line.2@2', lines: [{ text: 'Later.', lang: 'es', ledger: null }], at: t('14:00'), night: false },
   ]);
   const night = (o) => homeLines(items.slice(0, 2), { day: '2026-10-29', ...o }).filter((c) => c.night).length;
   assert.equal(night({ now: t('07:00'), quietEnd: '07:30' }), 0, "the owner's later end holds them");

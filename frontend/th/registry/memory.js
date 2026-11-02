@@ -18,6 +18,7 @@ export const GROUPS = [
   { id: 'goal', label: 'Goals' },
   { id: 'preference', label: 'Preferences' },
   { id: 'routine', label: 'Routines' },
+  { id: 'habit', label: 'Habits', help: 'What I counted you doing, and when.' },
   { id: 'fact', label: 'Facts' },
   { id: 'other', label: 'Other' },
 ];
@@ -69,6 +70,7 @@ const REF_LABELS = {
   ledger: (/** @type {EvidenceItem} */ e) => (e.who === 'owner' ? 'You set this here' : 'A change I made'),
   import: () => 'Your old notebook',
   event: () => 'Something you did',
+  rollup: () => 'What I counted you doing',
 };
 
 /** How one piece of evidence is introduced. @param {EvidenceItem} e */
