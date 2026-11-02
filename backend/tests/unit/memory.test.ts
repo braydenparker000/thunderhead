@@ -203,10 +203,10 @@ const sections = (text: string) => [...text.matchAll(/^## (\d+)\. /gm)].map((m) 
 const section = (text: string, n: number) => text.slice(text.indexOf(`## ${n}. `), text.indexOf(`## ${n + 1}. `));
 
 describe('the briefing (MEMORY.md §9)', () => {
-  it('an empty first day has every section in order, core 1–7 and full 1–12', () => {
+  it('an empty first day has every section in order, core 1–7 and full 1–13', () => {
     const b = buildBrief(input());
     expect(sections(b.core)).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(sections(b.full)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(sections(b.full)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
     expect(b.core).toContain('No standing rules yet.');
     expect(b.core).toContain('No open threads.');
   });
@@ -275,7 +275,7 @@ describe('the briefing (MEMORY.md §9)', () => {
   it('the later sections keep their budgets (today earlier ≤ 8,000)', () => {
     const earlier = Array.from({ length: 188 }, (_, i) => msg(i, 'e'.repeat(200)));
     const b = buildBrief(input({ todayEarlier: earlier }));
-    const twelve = b.full.slice(b.full.indexOf('## 12. Today earlier'));
+    const twelve = section(b.full, 12);
     expect(twelve.length).toBeLessThanOrEqual(8_100);
     expect(twelve).toMatch(/\(\+\d+ more: th history today\)/);
   });
