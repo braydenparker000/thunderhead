@@ -184,6 +184,45 @@ test('Music opens as a layer that its worker trusts; Back makes it the island; a
   await context.close();
 });
 
+test('Podcasts returns home by Back, by its own arrow and by a touch swipe down on its mini player', opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'allow', hasTouch: true });
+  try {
+    const page = await signedIn(context);
+    const errors = [];
+    page.on('pageerror', (e) => errors.push(e.message));
+    // An invented episode left in Podcasts, so its mini player shows.
+    await page.evaluate(() => localStorage.setItem('jarvis.podcasts.v1', JSON.stringify({ version: 1, follows: [], queue: [], downloads: {}, progress: {}, speed: 1, country: 'us', autoplay: true,
+      current: { id: 'ep-1', title: 'An invented episode', duration: 600, audio: 'https://media.example.org/1.opus', show: { title: 'An invented show', feedUrl: 'https://feeds.example.org/x.xml', artwork: '' } } })));
+    await page.goto(`${base}/`);
+    const open = () => page.evaluate(async () => { const m = await import('/th/island/island.js'); await m.openApp('podcasts'); await m.whenResting(); });
+    const home = async () => {
+      await page.waitForFunction(() => document.body.dataset.island === 'podcasts' && !document.querySelector('.th-island').hidden, null, { timeout: 8000 });
+      await page.evaluate(() => import('/th/island/island.js').then((m) => m.whenResting()));
+      return page.evaluate(() => ({ path: location.pathname, away: document.querySelector('iframe[data-app=podcasts]').classList.contains('away'), frame: document.querySelector('iframe[data-app=podcasts]').contentWindow.location.pathname }));
+    };
+    const back = { path: '/', away: true, frame: '/podcasts/' };
+    await open();
+    await page.waitForSelector('iframe[data-app=podcasts][data-ready=true]', { state: 'attached', timeout: 20_000 });
+    await page.goBack();
+    const byBack = await home();
+    // The app's top-left arrow is a link to "/": it shrinks the layer instead of loading home inside it.
+    await open();
+    await page.frameLocator('iframe[data-app=podcasts]').locator('.topbar a[href="/"]').click();
+    const byArrow = await home();
+    // A real touch drag: Podcasts' page pans, so the browser cancels the pointer stream early.
+    await open();
+    const cdp = await context.newCDPSession(page);
+    const mini = await page.frameLocator('iframe[data-app=podcasts]').locator('#mini-player').boundingBox();
+    let y = mini.y + 12;
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: mini.x + 60, y }] });
+    for (; y < mini.y + 130; y += 8) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: mini.x + 60, y }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    const bySwipe = await home();
+    assert.deepEqual({ byBack, byArrow, bySwipe }, { byBack: back, byArrow: back, bySwipe: back }, 'Podcasts returns to home every way');
+    assert.deepEqual(errors, []);
+  } finally { await context.close(); }
+});
+
 test("the same player framed by another site's page gets no session", opts, async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'allow' });
   const page = await signedIn(context);

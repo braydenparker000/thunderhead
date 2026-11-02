@@ -204,19 +204,41 @@ addEventListener('popstate', () => { if (layer?.front) void collapse('Back'); })
 
 /** Reattach on every frame navigation, including the app's own theme reload. @param {import('./frames.js').Layer} l */
 function watch(l) {
-  const w = l.frame.contentWindow;
+  const w = /** @type {any} */ (l.frame.contentWindow);
   if (!w) return;
   /** @type {{x:number,y:number,lastY:number,t:number}|null} */
   let s = null;
+  const on = { capture:true, passive:true };
+  // Podcasts' swipe starts on its mini player or tab bar (its page scrolls); Music's in its bottom 150 px.
+  /** @param {any} target @param {number} x @param {number} y @param {number} t */
+  const down = (target, x, y, t) => {
+    const zone = w.document.getElementById('mini-player') ? target?.closest?.('#mini-player,.podcast-nav') : y > w.innerHeight-150;
+    s = zone ? {x,y,lastY:y,t} : null;
+  };
+  /** @param {number} x @param {number} y @param {number} t */
+  const move = (x, y, t) => {
+    if (!s || layer !== l || !l.front) return;
+    const dy = y-s.y, velocity = (y-s.lastY)*1000/Math.max(1,t-s.t);
+    s.lastY=y; s.t=t;
+    if (dy > 56 && dy > Math.abs(x-s.x)*1.4) { s=null; void collapse('swipe down',velocity); }
+  };
   try {
-    w.addEventListener('pointerdown', e => { s = e.clientY > w.innerHeight-150 ? {x:e.clientX,y:e.clientY,lastY:e.clientY,t:e.timeStamp} : null; }, {capture:true,passive:true});
-    w.addEventListener('pointermove', e => {
-      if (!s || layer !== l || !l.front) return;
-      const dy = e.clientY-s.y, velocity = (e.clientY-s.lastY)*1000/Math.max(1,e.timeStamp-s.t);
-      s.lastY=e.clientY; s.t=e.timeStamp;
-      if (dy > 56 && dy > Math.abs(e.clientX-s.x)*1.4) { s=null; void collapse('swipe down',velocity); }
-    }, {capture:true,passive:true});
-    for (const type of ['pointerup','pointercancel']) w.addEventListener(type, () => {s=null;});
+    // Touch is read from touch events: they keep arriving while a page pans, where the browser
+    // cancels the pointer stream after a few pixels (Podcasts pans; Music is touch-action:none).
+    w.addEventListener('pointerdown', (/** @type {PointerEvent} */ e) => { if (e.pointerType !== 'touch') down(e.target,e.clientX,e.clientY,e.timeStamp); }, on);
+    w.addEventListener('pointermove', (/** @type {PointerEvent} */ e) => { if (e.pointerType !== 'touch') move(e.clientX,e.clientY,e.timeStamp); }, on);
+    w.addEventListener('touchstart', (/** @type {TouchEvent} */ e) => { const p = e.touches[0]; if (e.touches.length === 1) down(e.target,p.clientX,p.clientY,e.timeStamp); else s=null; }, on);
+    w.addEventListener('touchmove', (/** @type {TouchEvent} */ e) => { const p = e.touches[0]; if (p) move(p.clientX,p.clientY,e.timeStamp); }, on);
+    for (const type of ['pointerup','touchend','touchcancel']) w.addEventListener(type, () => {s=null;});
+    w.addEventListener('pointercancel', (/** @type {PointerEvent} */ e) => { if (e.pointerType !== 'touch') s=null; });
+    // An app's own way home (Podcasts' top-left arrow is a link to "/") shrinks the layer here,
+    // instead of loading home inside the frame.
+    w.addEventListener('click', (/** @type {MouseEvent} */ e) => {
+      const a = /** @type {any} */ (e.target)?.closest?.('a[href]');
+      if (!a || layer !== l || !l.front || e.metaKey || e.ctrlKey || e.shiftKey) return;
+      const u = new URL(a.href, w.location.href);
+      if (u.origin === location.origin && u.pathname === '/') { e.preventDefault(); void collapse('home link'); }
+    }, true);
   } catch {}
 }
 /** @param {string} name */

@@ -442,8 +442,11 @@ its controls inside the same element (`th/island/`). Track names and artwork sta
 **The app grows from the capsule.** Opening from the ring, a chip or the island uses the capsule's
 exact current rect and radius as the full-screen frame's clip origin. The app-colour cover and
 three waiting dots appear immediately if the app has not finished booting. The capsule scales
-down and fades by 30% of the growth. Back or a downward swipe starting in the app's bottom 150 px
-reverses the clip, and the capsule returns from 70% of the shrink. Interrupting either direction
+down and fades by 30% of the growth. Back, the app's own way home (Podcasts' top-left arrow, a link
+to `/`, which would otherwise load home inside the frame), or a downward swipe reverses the clip, and
+the capsule returns from 70% of the shrink. The swipe starts in Music's bottom 150 px, or on Podcasts'
+mini player or tab bar (its page scrolls, so its list is left alone). Touch is read from touch
+events: a page that pans gets its pointer stream cancelled after a few pixels. Interrupting either direction
 preserves the spring's velocity. Completion waits for `whenResting()`, not a guessed timeout.
 
 **Warm frames:** after the chat's first successful sync, an idle callback (three-second fallback)
