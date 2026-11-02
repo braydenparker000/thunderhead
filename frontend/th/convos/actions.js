@@ -1,12 +1,10 @@
 // @ts-check
-// A conversation card held (450 ms, GESTURES.md §1; MENU-AND-SETTINGS.md §3.3): a sheet with
-// Continue this (the mind reads it in today's briefing), Rename (the owner's name wins forever;
-// empty gives naming back), Pin or Unpin, and Delete. Today's card (Now) offers Delete alone, which
-// starts a fresh today. Delete asks once; the Worker hides it at once, Settings › Recently deleted
-// keeps it 30 days (with Restore), then it is purged. Only this device can (the Worker checks).
+// Held conversation actions: continue, rename, pin and reversible delete.
 import { lineFor } from '../copy.js';
 import { failure } from '../flow.js';
-import { confirmSheet, toast } from '../ui.js';
+import { toast } from '../ui.js';
+import { haptic } from '../motion.js';
+import { confirmSheet, row as actionRow, sheet as bottomSheet } from '../../apps/settings/components.js';
 import * as data from './data.js';
 
 const HOLD_MS = 450;
@@ -34,11 +32,9 @@ export function holdCards(host, pins, redraw) {
       if (!held) return;
       swallow = true;
       setTimeout(() => (swallow = false), 400);
-      try {
-        navigator.vibrate?.(8);
-      } catch {}
-      if (row === now) data.today().then((t) => t.id && sheet(/** @type {string} */ (t.id), pins, redraw, true), () => {});
-      else sheet(/** @type {string} */ (row.dataset.id), pins, redraw);
+      haptic('open');
+      if (row === now) data.today().then((t) => t.id && conversationSheet(/** @type {string} */ (t.id), pins, redraw, true), () => {});
+      else conversationSheet(/** @type {string} */ (row.dataset.id), pins, redraw);
       held = null;
     }, HOLD_MS) };
   };
@@ -67,27 +63,20 @@ export function holdCards(host, pins, redraw) {
 
 /** The sheet over the menu, near the thumb; today's offers Delete alone.
  * @param {string} id @param {{ get: () => string[], set: (ids: string[]) => void }} pins @param {() => void} redraw @param {boolean} [today] */
-function sheet(id, pins, redraw, today = false) {
-  document.querySelector('.holdsheet')?.remove();
+function conversationSheet(id, pins, redraw, today = false) {
+  if (document.querySelector('.holdsheet')) return;
   const t = data.list.threads.get(id);
-  const box = el('div', 'holdsheet');
-  box.setAttribute('role', 'dialog');
-  box.setAttribute('aria-label', 'Conversation');
-  const title = el('div', 'cstitle', today ? 'Now' : t?.title || 'This conversation');
-  const list = el('div', 'csacts');
-  const close = () => {
-    box.classList.remove('in');
-    setTimeout(() => box.remove(), 260);
-  };
-  /** @param {string} label @param {() => void | Promise<void>} run */
-  const act = (label, run) => {
-    const b = el('button', '', label);
-    b.type = 'button';
-    b.addEventListener('click', () => run());
+  const list = el('div', 'csacts group');
+  const modal = bottomSheet({ title: today ? 'Now' : t?.title || 'This conversation', children: [list] });
+  modal.element.classList.add('holdsheet', 'in');
+  const close = () => modal.close();
+  /** @param {string} label @param {string} icon @param {() => void | Promise<void>} run */
+  const act = (label, icon, run) => {
+    const b = actionRow({ title: label, icon, danger: label === 'Delete', open: label === 'Rename', onClick: run });
     list.append(b);
     return b;
   };
-  if (!today) act('Continue this', async () => {
+  if (!today) act('Continue this', 'chat-circle', async () => {
     close();
     try {
       await data.carryOn(id);
@@ -96,11 +85,11 @@ function sheet(id, pins, redraw, today = false) {
       toast(lineFor(failure(e)));
     }
   });
-  if (!today) act('Rename', () => {
-    const input = el('input', 'csname');
+  if (!today) act('Rename', 'pencil-simple', () => {
+    const input = el('input', 'field csname');
     Object.assign(input, { type: 'text', maxLength: 60, value: t?.title ?? '', enterKeyHint: 'done' });
     input.setAttribute('aria-label', 'Name');
-    const save = el('button', 'cssave', 'Save');
+    const save = el('button', 'btn cssave', 'Save');
     save.type = 'button';
     const done = async () => {
       save.disabled = true;
@@ -119,19 +108,20 @@ function sheet(id, pins, redraw, today = false) {
       if (e.key === 'Escape') close();
     });
     save.addEventListener('click', done);
+    list.classList.remove('group');
     list.replaceChildren(input, save);
     input.focus();
     input.select();
   });
   const pinned = pins.get().includes(id);
-  if (!today) act(pinned ? 'Unpin' : 'Pin', () => {
+  if (!today) act(pinned ? 'Unpin' : 'Pin', 'push-pin', () => {
     close();
     const before = pins.get();
     pins.set(pinned ? before.filter((p) => p !== id) : [id, ...before].slice(0, 20));
     toast(pinned ? 'Unpinned' : 'Pinned', { label: 'Undo', run: () => pins.set(before) });
   });
-  act('Delete', async () => {
-    close();
+  act('Delete', 'trash', async () => {
+    await close();
     const yes = await confirmSheet({ title: 'Delete this conversation?', body: 'It goes now; you can undo for 30 days in Settings › Recently deleted.', action: 'Delete' });
     if (!yes) return;
     try {
@@ -142,14 +132,4 @@ function sheet(id, pins, redraw, today = false) {
       toast(lineFor(failure(e)));
     }
   }).classList.add('del');
-  const cancel = el('button', 'cscancel', 'Cancel');
-  cancel.type = 'button';
-  cancel.addEventListener('click', close);
-  box.append(title, list, cancel);
-  box.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') close();
-  });
-  /** @type {HTMLElement} */ (document.querySelector('#side')).append(box);
-  requestAnimationFrame(() => box.classList.add('in'));
-  /** @type {HTMLElement | null} */ (list.querySelector('button'))?.focus({ preventScroll: true });
 }

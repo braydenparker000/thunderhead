@@ -326,7 +326,34 @@ Open `/?feel` while signed in for the draggable, collapsible tuning sheet. It tu
 
 **Freeze procedure:** tune on the phone, use **Copy tokens**, and review the complete CSS block (both type axes and the small/large Appearance overrides) plus its engine parameter comment. A follow-up PR copies the chosen values into `ui/tokens.css` and the four spring defaults into `motion.js`, then reruns the motion/type checks and phone trajectory comparison. Task A changes only the engine defaults; the frozen CSS curves and token values remain untouched. The original CSS curve tests use their original spring parameters. With the strict engine position-and-speed rest thresholds, the new pop rests at about 367 ms analytically (not the rough 250 ms target); it reaches 90% radius within 120 ms. The first ramp preview remains a deliberate tuning action.
 
-## 9. Contrast requirements and checks
+## 9. Components
+
+Built for the menu and Settings in Task B. `ui/forms.css` is the one control stylesheet;
+`apps/settings/components.js` supplies shared DOM and sheet gestures. The older control entries
+in §12 describe the earlier baseline; this table is authoritative for menu and Settings.
+
+| Component | Anatomy | States and behavior |
+|---|---|---|
+| `.group` | `--glass-flat`, 1 px `--glass-line`, `--r-l` (22 px); hairlines inset 16 px; 12 px between adjacent groups | Title above: `--fs-label`/`--lh-compact`, weight 600, uppercase, .08em tracking, `--ink-3`, 16 px left inset and 8 px below |
+| `.row` | Minimum 52 px, 16 px side padding; optional 24 px Phosphor icon in `--ink-2`; title `--fs-body`/`--lh-compact` weight 500, detail `--fs-small`/`--lh-compact` in `--ink-3`; trailing body-size value and 16 px caret | Press tint `--press` and `scale(var(--press-scale,.97))` on `--d-fast`; release `--pop`; shell focus ring. Destructive title in `--alarm`, no caret. Pinned conversation glyph is 16 px inside the icon column. |
+| `.switch` | Labelled row, 46×28 track, full radius, off `--tint` with glass border, on `--accent-fill`; 24 px white knob with `--e2` | `role=switch`, `aria-checked`; knob travels 18 px on `--pop`/`--d-quick`; the full row supplies at least 44 px hit height |
+| `.seg` | 36 px pill track in `--tint`; 2–4 options in `--fs-chip` weight 500; `--glass-flat` thumb with `--e1` | Thumb moves on `--settle`/`--d-base`; radio roles, checked state and arrow keys; option hit areas extend to 44 px |
+| `.sheet` | Bottom sheet in `--sheet`, blur, `--r-xl` top corners, 20 px padding; 36×4 `--ink-3` grabber at .4 opacity; `--dim` backdrop | Page spring scaled to `--d-sheet`; drag past 30% or downward flick dismisses with its velocity, shorter drag returns. Escape, Cancel and backdrop dismiss; focus trapped while open and restored on close. |
+| `.field` | At least 48 px, `--glass-flat`, `--r-row`, 1 px glass border, `--fs-input`/`--lh-compact`, `--ink-3` placeholder | Accent focus border/ring. Smaller uses the fixed `--fs-ask` input token to retain the 16 px floor. Textareas may grow. Qualified selectors distinguish inputs from the shell's ambient `.field`. |
+| `.btn` | 48 px, full radius, body type weight 600. Primary accent/white, secondary flat glass/ink, quiet text-only accent | Same press/release as rows; disabled state; inline actions keep the same height |
+| `.sback` | 40 px circle, flat glass, `caret-left`; invisible 2 px extension supplies 44 px hit area | Shell ring and press. Page title beside it: `--fs-page-title`/`--lh-page-title`, weight 600. Menu Settings uses `gear-six` in the same circle. |
+
+Settings content scrolls under a stationary header whose hairline appears when scrolled. The
+Appearance preview inherits the current theme and reply size. The menu keeps `--panel`, a steady
+Now glow, day groups and a flat bottom bar. There are no native select controls; option pickers
+use checked rows in the same sheet. Hidden Agents administration retains five radio rows for its
+existing role flow. Page CSS contains layout and reading surfaces, not alternate controls.
+
+No token values change. Spacing tokens (`--s-*`) do not exist in the current token file, so
+geometry uses pixels. Motion and type always use existing tokens. Under reduced motion controls
+appear in place; sheet opacity uses the shared engine's reduced-motion path.
+
+### 9.1 Contrast requirements and checks
 
 Measured with the WCAG 2.x formula against each token's worst background. "Worst field" is blob-1 at 60% over field-1 = `#c2d6f9`. "Glass" is `--glass` composited over that.
 

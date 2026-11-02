@@ -129,19 +129,20 @@ test('at most two surfaces blur what is behind them, in every view', opts, async
   await context.close();
 });
 
-test('Settings sits on home’s field with a round back button and focuses its title', opts, async () => {
+test('Settings keeps a fixed header with a round caret back button and focuses its title', opts, async () => {
   const { page, context, errors } = await open({ path: '/settings/devices/' });
   await page.waitForSelector('.spage.in .sback');
   const look = await page.evaluate(() => {
     const s = document.querySelector('.spage');
     return {
       blur: getComputedStyle(s).backdropFilter,
-      field: Boolean(s.querySelector(':scope > .field')),
+      header: Boolean(s.querySelector(':scope > .sheader .page-title')),
+      scroll: Boolean(s.querySelector(':scope > .sscroll .sbody')),
       back: [document.querySelector('.sback').getAttribute('aria-label'), document.querySelector('.sback svg use').getAttribute('href')],
       focused: document.activeElement?.tagName,
     };
   });
-  assert.deepEqual(look, { blur: 'none', field: true, back: ['Back to the menu', '/ui/icons.svg#arrow-left'], focused: 'H1' });
+  assert.deepEqual(look, { blur: 'none', header: true, scroll: true, back: ['Back to the menu', '/ui/icons.svg#caret-left'], focused: 'H1' });
   assert.ok((await blurs(page)).length <= 2);
   assert.deepEqual(errors, []);
   await context.close();

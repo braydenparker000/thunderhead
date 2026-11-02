@@ -98,11 +98,11 @@ test("a private fact's line in the profile is blurred until tapped", opts, async
   const { page, context } = await pages.open();
   await page.click('.mfold summary');
   const line = page.locator('.mprofile .pline', { hasText: 'Prays every morning' });
-  assert.deepEqual([await line.getAttribute('class'), await line.getAttribute('aria-label')], ['pline blur', 'Private. Tap to show.']);
+  assert.deepEqual([await line.getAttribute('class'), await line.getAttribute('aria-label')], ['pline row blur', 'Private. Tap to show.']);
   assert.equal(await page.locator('.mprofile .pline.blur').count(), 1, 'only that one');
   assert.equal(await line.locator('span').getAttribute('aria-hidden'), 'true', 'its words stay out of the accessibility tree');
   await line.click();
-  assert.equal(await line.getAttribute('class'), 'pline');
+  assert.equal(await line.getAttribute('class'), 'pline row');
   assert.equal(await line.locator('span').getAttribute('aria-hidden'), null);
   await context.close();
 });
@@ -115,7 +115,7 @@ test('a line the Worker marks private is blurred even when the ids do not line u
   const { page, context } = await pages.open({ mock: { memory } });
   await page.click('.mfold summary');
   const line = page.locator('.mprofile .pline', { hasText: 'Prays every morning' });
-  assert.equal(await line.getAttribute('class'), 'pline blur');
+  assert.equal(await line.getAttribute('class'), 'pline row blur');
   assert.equal(await page.locator('.mprofile .pline.blur').count(), 1, 'only that one');
   await context.close();
 });
@@ -164,7 +164,7 @@ test('after a Forget, focus moves to the next fact, not to the page', opts, asyn
   const { page, context } = await pages.open();
   await forget(page, 'Practises after lunch');
   const focused = await page.evaluate(() => [document.activeElement?.className, document.activeElement?.textContent]);
-  assert.deepEqual(focused, ['mtext', 'A kind from a later build'], 'the fact after it on the page');
+  assert.deepEqual(focused, ['mtext row', 'A kind from a later build'], 'the fact after it on the page');
   await context.close();
 });
 

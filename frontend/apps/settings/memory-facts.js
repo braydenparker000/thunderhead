@@ -7,7 +7,8 @@ import { lineFor } from '/th/copy.js';
 import { uuidv7 } from '/th/chat/model.js';
 import { failure } from '/th/flow.js';
 import { evidenceLabel, odds, sourceLabel } from '/th/registry/memory.js';
-import { confirmSheet, el, toast, tooSoon } from '/th/ui.js';
+import { el, toast, tooSoon } from '/th/ui.js';
+import { confirmSheet, icon, switchRow } from './components.js';
 
 /** The owner's words for a refused op (API.md §11.13 reasons); anything else is the usual line. */
 const REFUSED = {
@@ -28,8 +29,8 @@ export function memoryLine(e) {
  * reached and is read out as private until shown; its words stay out of the accessibility tree
  * until then. @param {string} cls @param {string} text */
 export function privateText(cls, text) {
-  const words = el('span', { 'aria-hidden': 'true', text });
-  const b = el('button', { type: 'button', class: `${cls} blur`, 'aria-label': 'Private. Tap to show.' }, [words]);
+  const words = el('span', { class: 'row-copy row-title', 'aria-hidden': 'true', text });
+  const b = el('button', { type: 'button', class: `${cls} row blur`, 'aria-label': 'Private. Tap to show.' }, [icon('eye-slash'), words]);
   b.addEventListener('click', () => { b.classList.remove('blur'); b.removeAttribute('aria-label'); words.removeAttribute('aria-hidden'); }, { once: true });
   return b;
 }
@@ -51,8 +52,11 @@ export function metaLine(f) {
  */
 export function factRow(f, ctx, shelf) {
   const secret = f.sensitivity === 1;
-  const words = el('span', secret ? { 'aria-hidden': 'true', text: f.text } : { text: f.text });
-  const text = el('button', { type: 'button', class: `mtext${secret ? ' blur' : ''}`, 'aria-expanded': 'false' }, [words]);
+  const words = el('span', secret ? { class: 'row-copy row-title', 'aria-hidden': 'true', text: f.text } : { class: 'row-copy row-title', text: f.text });
+  const symbol = secret ? 'eye-slash' : ({ rule: 'chat-circle', preference: 'gear-six', routine: 'clock', goal: 'check', state: 'clock' }[f.kind] ?? 'brain');
+  const caret = icon('caret-right');
+  caret.setAttribute('class', 'i row-caret');
+  const text = el('button', { type: 'button', class: `mtext row${secret ? ' blur' : ''}`, 'aria-expanded': 'false' }, [icon(symbol), words, caret]);
   if (secret) text.setAttribute('aria-label', 'Private. Tap to show.');
   const badges = el('div', { class: 'mbadges' });
   if (f.pinned) badges.append(el('span', { class: 'badge', text: 'Pinned' }));
@@ -106,7 +110,7 @@ async function showDetail(host, f, ctx, row, shelf) {
 function actions(f, ctx, row, host, shelf) {
   const bar = el('div', { class: 'macts' });
   const add = (label, fn, cls = '') => {
-    const b = el('button', { type: 'button', class: `sbtn${cls}`, text: label });
+    const b = el('button', { type: 'button', class: `btn soft sbtn${cls}`, text: label });
     b.addEventListener('click', async () => {
       if (tooSoon()) return;
       b.disabled = true;
@@ -120,10 +124,21 @@ function actions(f, ctx, row, host, shelf) {
   if (shelf === 'review') add("Yes, that's right", () => run({ op: 'confirm', id: f.id }, 'Thanks. Saved in your words'));
   if (shelf === 'fading') add('Still true', () => run({ op: 'confirm', id: f.id }, 'Kept'));
   add('Fix', async () => fix(host, f, ctx, row, shelf));
-  if (f.kind !== 'rule') add(f.pinned ? 'Unpin' : 'Pin', () => run({ op: 'pin', id: f.id, pinned: !f.pinned }, f.pinned ? 'Unpinned' : 'Pinned'));
-  if (f.kind !== 'rule')
-    add(f.may_raise ? "Don't bring this up" : 'You can bring this up', () =>
+  if (f.kind !== 'rule') {
+    const toggle = (label, symbol, on, fn) => {
+      const b = switchRow(label, symbol, on, async () => {
+        if (tooSoon()) { b.setAttribute('aria-checked', String(on)); return; }
+        b.disabled = true;
+        try { await fn(); } finally { b.disabled = false; b.setAttribute('aria-checked', String(on)); }
+      });
+      return b;
+    };
+    const pin = toggle('Pinned', 'push-pin', f.pinned, () =>
+      run({ op: 'pin', id: f.id, pinned: !f.pinned }, f.pinned ? 'Unpinned' : 'Pinned'));
+    const raise = toggle('Bring this up', 'chat-circle', f.may_raise, () =>
       run({ op: 'may_raise', id: f.id, value: !f.may_raise }, f.may_raise ? "I won't bring it up" : 'Noted'));
+    bar.append(el('div', { class: 'group' }, [pin, raise]));
+  }
   add('Forget', () => ctx.forget(f), ' danger');
   return bar;
 }
@@ -131,7 +146,7 @@ function actions(f, ctx, row, host, shelf) {
 /** Fix: the text as the owner wants it, saved as a new version (the old one stays as history). */
 function fix(host, f, ctx, row, shelf) {
   const id = `fix-${f.id}`;
-  const area = el('textarea', { id, class: 'sedit marea', maxlength: '280', rows: '3' });
+  const area = el('textarea', { id, class: 'field sedit marea', maxlength: '280', rows: '3' });
   area.value = f.text;
   const save = el('button', { type: 'submit', class: 'btn', text: 'Save' });
   const cancel = el('button', { type: 'button', class: 'btn soft', text: 'Cancel' });

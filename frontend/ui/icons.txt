@@ -62,3 +62,6 @@ monitor-play-bold
 youtube-logo-bold
 book-bookmark-bold
 aperture-bold
+
+# Shared menu and Settings back button
+caret-left

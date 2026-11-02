@@ -1,303 +1,177 @@
 # Menu and Settings
 
-The menu is the panel one swipe left of home, on the right side: search, the conversations list, and settings (owner ruling).
-This file specifies the panel, search (scope and behaviour), the conversations list (grouping, titles, continue, rename, delete-with-ask-first) and every settings page with exact behaviour.
-Sibling docs: [HOME](HOME.md), [GESTURES](../design/GESTURES.md), [DESIGN-SYSTEM](../design/DESIGN-SYSTEM.md), [COPY](../design/COPY.md), [SIGN-IN](SIGN-IN.md), [SECURITY](../engineering/SECURITY.md), [PRIVACY](../engineering/PRIVACY.md), [MEMORY](../mind/MEMORY.md), [DATA](../engineering/DATA.md), [API](../engineering/API.md).
+The menu keeps conversations within reach. Settings uses the same controls, with room to read
+and a fixed back button and title. These are plain ES modules; there is no component framework.
+The implementation lives in `th/convos/`, `apps/settings/`, and `ui/forms.css`.
 
-## Rules at a glance
+## 1. Structure and shared controls
 
-1. **Open:** swipe left on home or the hidden "Menu" button. **Close:** swipe right, tap the dimmed home beside it, Back, Escape, or pick a row that navigates.
-2. Three sections, always in this order: **Search**, **Conversations**, **Settings**.
-3. The owner **never starts or names** a conversation (owner ruling). Titles are automatic; renaming is optional and wins forever.
-4. **Deleting is ask-first** (decisions.md): a confirm sheet, then a 30-day "Recently deleted" window in Settings (built 2026-11-01). Nothing in the menu deletes in one tap.
-5. **Access changes are ask-first too:** signing out other devices, new or revoked agent tokens, and turning off push need a confirm on this signed-in device.
-6. Settings pages change things **immediately**; there is no Save button except where text is typed.
-7. Everything personal shown here comes from behind sign-in; nothing is cached in `localStorage` (only IndexedDB, cleared on sign-out).
+Swipe left or use Menu to open the panel. Its background is `--panel`; the bottom bar is flat
+glass, with Search everything and a circular Settings button. The conversation list scrolls
+above that bar. Now has a steady accent glow. Closing and reopening does not replay a cascade.
 
-## 1. The panel
+Settings opens over the shell. A sub-page opened from Settings returns there; a direct route
+returns to the menu. The header stays above the scrolling content, showing a hairline after
+content has scrolled underneath. Its title takes focus to announce the page.
 
-**Built 2026-10-31 (owner: chats and settings together, and an accent picker, were "dumb"; the menu "feels very normal"):** the menu holds only the conversations. It is a page on home's own field, `calc(100% - 52px)` wide with rounded leading corners, leaving home's edge in sight, sunk back (scale 0.93, rounded, dimmed). Its title "Conversations" is large and light; Now is a glowing card; each day is a flat-glass card (title and date, then the night's summary or the message count, two lines); group names are large and light and still fold. Search and a Settings button sit in a bar at the bottom like the ask bar on home; search's field takes the pill's place there and the results fill the list above it. The cards ripple in each time it opens. Held, a card offers Continue this, Rename (the owner's name wins: `PUT /v1/threads/:id/title`, device only; empty gives naming back), Pin and Delete (2026-11-01, §3.3); Now offers Delete alone. The table below is the first build.
+All control presentation lives in `ui/forms.css`. The shared DOM helpers are in
+`apps/settings/components.js`. Page styles only arrange content.
 
-| Part | Values (built) |
+| Primitive | As built |
 |---|---|
-| Panel | Right side, `width: min(84%, 360px)`, full height, `--panel` (frosted by day; near-black, 94%, by night, so it sits with the black field: the old `--sheet` grey with saturate 1.6 read greyish brown over the warm glow, owner 2026-10-30) with blur 24 px, 1 px left border `--glass-line`, sideways E3 shadow when open |
-| Padding | top `16px + safe-area`, sides 14 px, bottom `24px + safe-area`; scrolls vertically, no scrollbar |
-| Home behind it | Moves left by 20% of the panel width; a dim layer `rgba(10,14,22,.3)` fades in with the drag |
-| Section heads | Inter 600 11 px caps, +0.12em, `--ink-3`, 24 px above, with an optional sentence under (Inter 400 12, sentence case) |
-| Group labels | Inter 500 12, `--ink-3`, 14 px above |
-| Rows | See [DESIGN-SYSTEM](../design/DESIGN-SYSTEM.md) §12 (row): 18 px icon, Inter 500 15 title with ellipsis, meta on the right, chevron for pages |
-| Settings sub-pages [proposal] | Open full screen over everything (not inside the narrow panel), slide in from the right (`--spring-slow`), with a back row "‹ Settings" at the top. Back returns to the open menu. |
+| `.group`, `.group-title` | Inset flat glass card, 1 px glass border, `--r-l`; separators start 16 px in. Titles use `--fs-label`/`--lh-compact`, weight 600, uppercase, .08em tracking and `--ink-3`. Adjacent groups are 12 px apart. |
+| `.row` | At least 52 px, 16 px side padding; optional 24 px Phosphor icon, body title, small detail, trailing value and 16 px caret when opening another surface. Destructive titles use `--alarm`. |
+| `.switch` | A labelled row with `role="switch"` and `aria-checked`. Track 46×28; white 24 px knob moves 18 px on `--pop`/`--d-quick`. The row supplies the hit area. |
+| `.seg` | 36 px pill track, 2–4 labelled radio buttons, a sliding flat glass thumb on `--settle`/`--d-base`; arrow keys change selection. Transparent hit areas reach 44 px. |
+| `.sheet` | Bottom glass sheet, `--r-xl` top corners, 20 px padding, dim and 36×4 grabber. Downward drag past 30% or a flick dismisses; shorter drags settle back. Escape, Cancel and dim tap also close. |
+| `.field` | Text, search and time inputs, at least 48 px, flat glass, `--r-row`, glass border and accent focus. Type uses `--fs-input`; Smaller falls back to the fixed input token so fields never drop below 16 px. |
+| `.btn` | 48 px pill, body type at weight 600: accent primary, flat glass secondary, text-only quiet; destructive actions use alarm text. |
+| `.sback` | 40 px flat glass circle with a 44 px hit area and `caret-left`; `gear-six` uses the same circle in the menu. Title beside it uses `--fs-page-title`/`--lh-page-title`, weight 600. |
+
+Presses tint and scale on `--d-fast`; releases use `--pop`. Focus uses the shell ring. All type,
+curves and motion durations come from `tokens.css`; its values are unchanged. Reduced motion
+removes control travel. No native select is rendered. Pickers open sheets with a check on the
+current choice. Legacy sign-in fields share these surfaces without changing sign-in behavior.
 
 ## 2. Search
 
-Built: the field, local-first results, the Worker's search appended, offline, nothing found and the groups Go to, Conversations and What I remember (`frontend/th/convos/search.js`, loaded with the menu; `tests/convos-browser.test.mjs`). This phone's part covers app and settings names, thread titles and today's messages; a cache of the last 30 days of messages is not built yet. Day notes are listed under What I remember ("Day note · 28 Oct") and open that page filtered by the query.
+The Search everything button becomes a field in the bottom bar; Clear empties it and Escape or
+Back exits. Results appear in titled groups: Go to, Conversations and What I remember. This
+phone answers first; Worker results append after typing pauses. Each group has Show all when
+needed. Accent folding, the two-character minimum, offline results and the error line remain.
 
-### 2.1 Behaviour
-
-| Step | Rule |
-|---|---|
-| Field | A pill at the top (42 px tall, radius 21, `--tint` fill, magnifier icon) reading "Search everything" (a label, not a placeholder in the ask bar sense). (built) |
-| Tap | It becomes a real `<input type="search">`, focused, keyboard up. The rest of the panel is replaced by results. An × clears; Back or Escape leaves search mode. |
-| Query | Case-insensitive and accent-folded ("cancion" finds "canción"). Minimum **2** characters. Debounce **150 ms**. |
-| Local first | Results from this phone's cache (thread titles, the last 30 days of messages, settings and app names) show within one frame. |
-| Server | The Worker's full-text search (SQLite FTS5, bm25) over all messages, day notes and facts answers next; its results are **appended** within their groups, never reordering rows already on screen. |
-| Offline | Local results only, with a line at the top: "Offline: searching this phone only." |
-| Nothing found | "Nothing found for "<query>"." and a button **Ask me instead**, which closes the menu and puts the query into the ask bar. |
-| History | No search history is kept [proposal]. |
-
-### 2.2 Scope and result groups
-
-Groups appear in this order; empty groups are hidden.
-
-| Group | What it finds | Shows | Max before "Show all N" | Tap |
-|---|---|---|---|---|
-| **Go to** | App names, settings page names, exact commands ("quiet hours") | Icon + name | 4 | Opens the app or settings page |
-| **Conversations** | Messages (owner's and the mind's) and thread titles | Thread title · date, and a snippet of ±40 characters around the match with the match in **bold** | 5 | Closes the menu, shows that thread on home scrolled to the message, highlighted with an accent tint for 2 s ([HOME](HOME.md) §4.9) |
-| **What I remember** | Facts | The fact's text and its source ("you said", "I noticed", "I inferred") | 3 | Opens What I remember at that fact |
-| **App results** [proposal, not built] | Each app registers a search provider as it moves over (songs and artists in Music, pieces in Guitar, books and pages in Study, saved videos in My Media, episodes in Podcasts) | App-specific row | 3 per app | Opens the item in its app |
-
-Every search follows the owner's rule: intelligent search must be genuinely better than plain search and never worse. Exact and prefix matches come first, then typo-tolerant, and smarter results never reorder them ([MUSIC](apps/MUSIC.md) §8).
-
-Acceptance: with fixture threads, "canción" and "cancion" return the same hits; a query of 1 character shows nothing; offline shows the offline line and only cached hits; tapping a message hit opens home on that thread with the message highlighted.
+Settings names and other words find the same pages: password finds Password · Account, dark
+finds Theme, font finds Text size, backup finds Export. Appearance hits bring the relevant
+control into view. Connected apps and the legacy Agents administration route are not advertised
+in navigation or search. App shortcuts still open their existing destinations.
 
 ## 3. Conversations
 
-The section head reads "Conversations" with the line "A fresh one starts on its own each morning. Nothing to start or name." (built).
+### 3.1 Day cards
 
-Built: the groups, titles with their fallback, the row metas and the taps below (`frontend/th/convos/`, loaded when the menu first opens; `tests/convos-browser.test.mjs`, `tests/convos-logic.test.mjs`). Now is a slim flat-glass row with a live dot, today's date and message count. Each group under it has a heading with its count and a chevron; a tap folds its rows away (the height eases, the rows cascade back in on opening), and what is folded is remembered on this phone. A row is text only and compact (owner, 2026-10-30: "smaller, more compact"; 44 px, no icon tile): the title with its date on the right, and a second line: the night shift's summary, else how many messages. Imported old chats (`kind = 'imported'`) land by their own day like any thread, tagged gold "Old Chats" with a clock icon, and open read-only like any past thread. The list is read newest first, 30 a page, again on opening the menu after 30 s or when the feed reports a thread change; the first pages are kept on this phone (IndexedDB) for offline, with the line "Offline: showing what this phone has." Not built yet: the long-press actions (decisions.md) and the per-app icons (every older row uses `chat-circle` in `--ink-3`).
+Pinned conversations come first with a pin glyph. The rest are grouped as Today, Yesterday,
+Earlier this week (Monday onward), and Last week. Each heading uses the group-title treatment
+and can fold its card; folded rows leave the tab order. This phone remembers folded groups.
 
-### 3.1 Grouping
+Now shows today's date, message count and part of day. An older row shows its title, summary or
+message count, and a trailing time/date. Imported threads retain Old Chats; off-the-record
+threads retain their marker. Untitled threads show their date. Titles are always text.
 
-| Group | Contains | Row meta |
-|---|---|---|
-| **Today** | Only the current thread, titled **Now** (built), accent icon | "this morning" / "this afternoon" / "this evening" / "tonight" by the time of its last message (05–12 / 12–18 / 18–22 / 22–05) |
-| **Yesterday** (built) | The previous day's thread (and any old chat of that day) | Time of its last message ("21:40", 24-hour) |
-| **Earlier this week** (built) | From Monday of this week to the day before yesterday (weeks run Monday to Sunday, so a Saturday is never "this week" on a Thursday) | Weekday and date ("Mon 26") |
-| **Last week** (built) | Monday to Sunday of the week before | Weekday and date ("Sat 24") |
-| **All conversations ›** (built) | One row that opens a full-screen list of every thread but Now, grouped by month ("October", "December 2025" outside this year), each month folding like the menu's groups, newest first, 30 at a time ("Show more"), with "‹ Menu" back | Weekday and date ("Sat 19") |
+All conversations opens a page with the same fixed header, grouped by month, 30 rows at a time.
+Show more preserves pagination. Tapping an older row opens its read-only conversation on home;
+Back to now and Now return to the current conversation.
 
-One thread per day (decisions.md). The prototype showed two "Today" rows (topics within a day); this doc does not, see Open questions.
+### 3.2 Preparation
 
-### 3.2 Titles and icons
+`prepare()` imports search, installs listeners once, and builds from the cached list without
+opening the menu or reading the Worker. Concurrent and repeated calls share its promise and
+retain the built DOM. It uses today's already-loaded chat when available. Task A can call this
+export during idle time. `startMenu()` joins preparation and refreshes stale data in the
+background; a prepared first open only has to reveal the list. Online and feed changes still
+refresh the visible list. The existing boot caller is unchanged in this task.
 
-1. At the day roll the Worker gives the old thread a **provisional title**: the first owner message trimmed to 40 characters at a word boundary ([MEMORY](../mind/MEMORY.md) §11; Workers AI titles are deferred).
-2. The night shift rewrites it as the **final title**, unless the owner renamed it.
-3. Titles are ≤ **40** characters, sentence case, no date, no quotes ("A calm playlist for the evening", "Bars 9 to 12, slow then up to tempo").
-5. **Swiped left** (built 2026-10-30), a row offers **Pin** (or Unpin) and, when the night wrote one, its whole **Summary** in place; pinned rows come first in a "Pinned" group, kept on this phone (`th.p.pins`, at most 20). The drag is the row's: the menu's own swipe ignores a leftward drag that starts on a row. Skeleton rows stand in while the list first loads.
-6. **Search finds settings by other words** (built 2026-10-30): "password" finds Account, "sign out" Devices, "backup" Export, "push" Notifications, "dark" Appearance, "font" Text size, "colour" Accent; a found Appearance control scrolls into view and flashes once.
-4. Rows carry no icon (owner, 2026-10-30); the app a thread was mostly about may come back as a small coloured word in its second line [proposal].
-6. Until a thread has a title, its row shows its date ("Monday 26 October") (built).
-5. An empty day (no messages) has no thread and no row.
+### 3.3 Actions
 
-### 3.3 Tap and long-press
+Hold a conversation for Continue this, Rename, Pin/Unpin and Delete in the shared sheet. Now
+offers Delete alone. A left swipe retains the existing Pin and full Summary actions.
 
-| Gesture on a row | Result |
-|---|---|
-| Tap "Now" | Closes the menu; home shows today (built: toast "This is the current conversation" when already there) |
-| Tap an older row | Closes the menu; home shows that thread read-only with the "Back to now" pill ([HOME](HOME.md) §4.9) (built) |
-| Long-press an older row (450 ms) | Action sheet: **Continue this** · **Rename** · **Pin** · **Delete** (built) |
-| Long-press "Now" | **Delete** alone (built 2026-11-01): today's conversation goes, and the next message starts a fresh today |
+Rename uses a shared field and Save, allows 60 characters, and an empty title returns naming to
+the mind. Continue this links the older thread to today's context. Pinning is local to this phone
+and can be undone. These data operations retain their existing API calls.
 
-**Continue this.** Links the old thread to today: the mind's next briefing loads that thread's summary and its last 15 messages ([RUNTIME](../mind/RUNTIME.md)). Today's thread gets a system line "Continuing: <title>". Toast: "I'll keep that in mind today." Reversible (the link can be removed by long-pressing again: "Stop continuing").
+Delete asks in a second sheet. Keep is focused; cancellation does nothing. On confirmation,
+the conversation is hidden and Undo can restore it. Recently deleted retains it for 30 days,
+after which the existing server purge applies. Deleting Now lets the next message start a fresh
+conversation. Facts learned from a conversation are managed separately in Memory.
 
-**Rename.** The title becomes an inline text field (Inter 15), selected. Enter or tapping outside saves; Escape cancels; an empty title reverts to the automatic one. Max **60** characters. After a rename, the night shift never changes it.
-
-**Delete (ask first; built 2026-11-01, `th/convos/actions.js`, `DELETE /v1/threads/:id`).**
-
-1. A bottom confirm sheet opens: title **"Delete this conversation?"**; body **"It goes now; you can undo for 30 days in Settings › Recently deleted."** Buttons: **Delete** (`--alarm` text) and **Keep** (focused).
-2. Tapping Delete on this signed-in device is the approval. The Worker hides it at once: from the menu, search, the briefing and the mind (its waiting messages settle); the thread disappears from the list.
-3. A toast "Deleted." with **Undo** (Restore).
-4. For **30 days** it is listed under **Settings › Recently deleted** with **Restore**. Then the cron's prune pass purges it: its messages, its files in the private bucket, the mind's session notes about it and its evidence links. What the mind learned from it stays in What I remember (facts keep their text, losing the citation; day notes stay), where the owner can fix or forget it ([MEMORY.md §6.1](../mind/MEMORY.md)). Backups made after the delete leave it out; one made before keeps it until it ages out.
-5. Deleting today's thread (Now) starts a fresh today; restoring it later brings it back beside the new one.
-6. The mind can never delete or restore a conversation: the routes are the owner's device's only, and no verb or proposal op does it.
-
-Acceptance (built: `tests/held-browser.test.mjs`, `backend/tests/integration/held-delete.test.ts`, `held-purge.test.ts`): deleting needs two taps (row action, then Delete); the thread is gone from search immediately; Undo restores it with all messages; a mind token calling the delete route directly gets 403; after 30 days it is purged.
-
-## 4. Settings
-
-**Built 2026-10-31:** Settings is its own page, opened from the menu's bar (`apps/settings/home.js`): Appearance (Theme Auto · Day · Night, Text size, Still background; no accent), then a row for each page (Quiet hours, Notifications, What I remember, Sign-in & devices, Agents, Account, Export), then About (Check for update and the release). A page opened from it returns to it. Quiet hours is a real page: Starts and Ends (never before 06:30, saved through `PATCH /v1/settings`) and Go quiet now (1 hour, until tomorrow, until I turn it off; End now). Connected apps is not listed until it has something true to show. Search's Go to opens these (Theme, Text size and Still background open Settings at that control).
-
-The list, in order [proposal]. Before sign-in, rows show the meta "soon" and tap to the toast "<Name> comes with sign-in" (built).
-
-| Row | Icon | Opens |
-|---|---|---|
-| **Appearance** | (inline control) | §4.1 |
-| **Quiet hours** | `moon-stars` (built uses `bell`) | §4.2 |
-| **Notifications** | `bell` | §4.3 |
-| **What I remember** | `brain` | §4.4 |
-| **Connected apps** | `plugs-connected` | §4.5 |
-| **Devices** | `devices` | §4.6 |
-| **Agents** | `key` | §4.7 |
-| **Account** | `user-circle` | §4.8 |
-| **Export** | `download-simple` | §4.9 |
-| **Recently deleted** | `trash` | §3.3, §4.8 (built 2026-11-01) |
-| **On this phone** [proposal] | `device-mobile` | §4.10 |
-| **About** | `info` | §4.11 |
+## 4. Settings pages
 
 ### 4.1 Appearance
 
-Shown inline in the menu, not as a page.
+The top group starts with a live reply-bubble and row preview. Theme (Auto, Day, Night) and Text
+size (Smaller, Default, Larger) use segments; Still background uses a switch. They update the
+preview and shell immediately and keep the existing local preferences. Larger remains 18.5 px
+on replies. Auto still follows the existing clock rules. About remains a group at the bottom
+of Settings, with the running short commit and Check for update.
 
-| Control | Values | Behaviour |
-|---|---|---|
-| Theme (segmented, built) | **Auto** · **Day** · **Night** | Applies at once. Auto = night from 19:00 to 07:00 local. Stored per device (`th-theme`) [proposal: also synced to the account as the default for new devices]. |
-| Still background [proposal] | toggle, default off | Stops the field's drift and the edge breathing (the motion that otherwise runs forever). Also forced on by the system's reduced-motion setting. |
-| Vibration [proposal] | toggle, default on | Turns off all haptics in the app. |
+Navigation order: Quiet hours, Notifications, What I remember, Password, Devices, Export,
+Recently deleted. Connected apps stays hidden until it has a working surface.
 
 ### 4.2 Quiet hours
 
-Owner ruling: nothing before 06:30 local, no pushes, no sounds, nothing that needs the owner.
-
-| Control | Values | Behaviour |
-|---|---|---|
-| Starts | time, default **22:00** [proposal] | From this time: no pushes, no sounds, new decisions held, the night's home lines held until it ends. |
-| Ends | time, **06:30 or later** | The picker does not offer anything earlier than 06:30. Shown as "06:30 (the earliest)". |
-| Go quiet now (plan law 9) | **1 hour** · **Until tomorrow** · **Until I turn it off** | Same as quiet hours, starting now, for that long. A line at the top of the page says "Quiet until 14:20" with **End now**. No penalty: the mind keeps working; it just holds anything that would need the owner. |
-
-What quiet hours hold back, and when it comes back:
-
-| Thing | During quiet hours | Afterwards |
-|---|---|---|
-| Push notifications | Not sent | Decisions: one push at the end, if any still wait (counts against the daily budget). A reminder for a time inside quiet hours moves to their end (06:30 by default). |
-| Decision cards | New ones not shown | Shown at the first open after the end |
-| Sounds | None (the app makes no sounds of its own anyway, except media the owner plays) | n/a |
-| The conversation | Works normally if the owner writes | n/a |
-
-Acceptance: with the clock at 05:00 and a waiting decision created at 23:00, home shows no card and no gold edge; at 06:31 it shows both; the end-time picker rejects 06:00.
+The Every day group has Starts and Ends rows. Each opens a time field in a shared sheet.
+Save keeps the existing `PATCH /v1/settings` behavior, including the 06:30 minimum end time.
+Go quiet now offers 1 hour, Until tomorrow and Until I turn it off, or End now while quiet.
+The status line and held-notification rules are unchanged.
 
 ### 4.3 Notifications
 
-| Element | Behaviour |
-|---|---|
-| **Let me reach you** | A button. Only this tap ever asks the browser for notification permission (never on load). |
-| State line | "Not set up" · "On" · "Blocked in Chrome. Turn it on in Chrome's site settings for this site." |
-| Budget | Fixed text: "At most 2 a day, never in quiet hours." (plan §6) Reminders the owner set do not count. |
-| Kinds (toggles) | **Decisions waiting** (on) · **Reminders you set** (on) · **Something broke** (on) · **New sign-in on another device** (on, cannot be turned off: security) |
-| Send a test | Sends one test push now ("This is a test. Nothing needs you.") |
-| Turning push off | Unsubscribes this device at once (removes its push subscription). |
-
-Every push shows a visible notification (no silent pushes). Tapping a notification opens the app at the relevant place (the decision card, the reminder line, the device list). Delivery itself is specified in [API](../engineering/API.md) and [SECURITY](../engineering/SECURITY.md).
-
-Built (P8: `apps/settings/notifications.js`, `th/push/phone.js`, the shell's `sw.js`): the row, the state line, the budget line, "Let me reach you", "Send a test" and "Turn off on this phone". At start, a phone with push on makes its subscription again under a replaced key and sends it after a new sign-in. The per-kind toggles wait (IDEAS.md, parked): every kind that exists today is on.
+The phone's permission/subscription status sits above the Notifications on this phone switch.
+Its checked state means notifications are on; Send a test appears while they are on.
+Only the owner's enable tap requests browser permission.
+The existing budget and quiet-hours explanation stays. Per-kind toggles remain deferred;
+all currently supported kinds retain their existing policy.
 
 ### 4.4 What I remember
 
-The owner's window into the mind's memory ([MEMORY](../mind/MEMORY.md)). "You can open, fix or delete anything" (plan §3).
+Search, Add something I should know, Profile, fact groups, Loose ends, Days, Fading and Imported
+to review keep their existing queries and ordering. Profile and the meter stay folded until
+opened. Sensitive text remains blurred and excluded from the accessibility tree until revealed.
 
-| Part | Behaviour |
-|---|---|
-| Top | A filter field, **Add something I should know**, then **Profile** ("What a new session reads first": the deterministic summary of the strongest facts, read-only, folded) |
-| Groups | Built (P3): How to talk to me (rules) · Beliefs (facts tagged `faith`, whatever their kind) · Right now · Goals · Preferences · Routines · Facts · Other (a kind this phone doesn't know yet), then Loose ends · Days · Fading · Imported, to review. Sensitive facts are listed but their text is blurred until tapped. |
-| A fact row | The fact's text; its source ("You said" / "I noticed" / "I inferred"); its confidence now as words with odds ("Pretty sure, about 8 in 10", COPY.md §1.2); since when |
-| Tap a fact | Detail: what it rests on (who said it, when, and the start of what was said), the mind's reason when it gave one, history (earlier versions), and actions |
-| **Fix** | Edit the text; saves as a new version in the owner's words that replaces the old one (the old one is kept as history) |
-| **Pin** | The mind treats it as true until unpinned and never lets it fade |
-| **Forget** | Asks once ("Forget this? It can't be brought back."), then the fact leaves the page and the toast "Forgotten. Undo" shows for 10 s; only then is it deleted for good with every version (MEMORY.md §3). Leaving the page inside those 10 s sends it at once. There is no Recently deleted for facts: forgetting is the point. The owner's tap is the approval. |
-| How well I know you (P9) | Folded at the end, read when opened: corrections in the last 4 weeks by week, the last memory checks, what the mind arranged and what the owner did with it, and its guesses about the owner's day against their usual pattern (from 30 checked). A check on the mind, never a score for the owner (EVALS.md §9) |
-| Proposals | Facts the night shift wants to add or replace that need the owner (e.g. replacing something the owner said) appear as decision cards on home, not here |
+Facts are inset cards with a shared row and meaningful icon, source/confidence/age metadata,
+badges and expandable evidence/history. Fix uses a shared field; Pin and Bring this up use
+switches. Forget retains its confirmation and ten-second Undo window, offline queue, retries
+and focus continuation. Leaving the page flushes pending Forget operations as before.
+
+Add opens a form with a sheet picker for Kind. Loose-end editing uses segments for whose turn
+it is, plus existing date/text fields. Day-note editing retains its content and operations.
+The How well I know you meter keeps its existing calculations and display; only its surrounding
+surfaces change.
 
 ### 4.5 Connected apps
 
-Read-only status in v1 [proposal]; one row per connection, with a status dot (green: fine; amber: late; red: failing) and its last contact time.
-
-| Row | Status means |
-|---|---|
-| The mind | Last wake, today's wakes, and whether it is awake now |
-| Muse (music uploads, routine jobs) | Last work order delivered |
-| Weather | Place and last update |
-| Site deploys | Last release and whether its live check passed |
-| Old system (during migration) | Whether anything still calls it |
-
-Tapping a row shows its last 10 events. Changing a connection is done by asking the Thunderhead (and is an access change: ask-first).
+Hidden. This task does not add a connection, status integration or access grant.
 
 ### 4.6 Devices
 
-Per [SIGN-IN](SIGN-IN.md) and [SECURITY](../engineering/SECURITY.md) (writer B owns the rules; this is the screen).
+Signed in lists the current phone first, its badge, dates and location description. Device names
+remain editable. Access groups sign-out actions; destructive actions use alarm text and keep
+confirmation. Recovery-code creation still requires the current password and the existing
+shown-once confirmation flow. Nothing changes which sessions or credentials are affected.
 
-| Element | Behaviour |
-|---|---|
-| List | Each signed-in device: a name ("Chrome on Android"), "This device" on the current one, signed in date, last used |
-| **Sign out** (per device) | Confirm sheet "Sign out <name>?"; on confirm the session ends at once and its push subscription is removed |
-| **Sign out everywhere** | Confirm sheet; signs out every device including this one, then shows sign-in |
+### 4.7 Legacy Agents route
 
-### 4.7 Agents
+The direct route remains available for existing links but is hidden from navigation. It uses
+shared rows, fields and buttons. Five role choices remain a radio-row group with check marks,
+preserving the existing administration flow. Creating a key still requires the password; keys
+are still shown once. Revoke still confirms. No new role or access behavior is introduced.
 
-Agent tokens let the mind's sessions and helper agents call the Worker (decisions.md: issued and revoked only from here, stored as hashes).
+### 4.8 Password and Recently deleted
 
-| Element | Behaviour |
-|---|---|
-| List | Name, role (chat, night, reflex, Muse, CI; [SIGN-IN](SIGN-IN.md) §17), created, last used |
-| **New token** | Pick a role, confirm (access change). The token is shown **once** with a Copy button and the line "This shows once. Paste it where it's needed, then close this." |
-| **Revoke** | Confirm sheet; effective at once |
+Password is the existing Account route. Current/new password fields keep their password-manager
+autocomplete, Show control and submit behavior. Sign out all other devices is a switch, on by
+default. This phone keeps import and sign-out actions.
 
-### 4.8 Account
-
-| Element | Behaviour |
-|---|---|
-| Username | Shown |
-| Change password | Current + new + confirm, password-manager friendly ([SIGN-IN](SIGN-IN.md)) |
-| Recovery code | Make a new one (shown once); the old one stops working |
-| Recently deleted | Built 2026-11-01 as its own Settings row (`apps/settings/deleted.js`, `GET /v1/threads/deleted`): the conversations deleted in the last 30 days, newest first, each "Deleted 1 Nov · gone in 28 days · 14 messages" with **Restore**. Facts are not here (forgetting is the point); "Delete now" is not built |
-| Sign out | Signs out this device only; the outbox and caches on this phone are cleared after a confirm if anything is still unsent ("2 messages haven't sent yet. Sign out anyway?") |
+Recently deleted lists conversations with deletion date, remaining days and message count.
+Restore uses the shared button and the existing API; it does not add a permanent-delete action.
 
 ### 4.9 Export
 
-"Download everything" (plan §8). Built in P4 stage F (`frontend/apps/settings/export.js`, `tests/export-browser.test.mjs`; the Worker side in `backend/src/areas/backups/`): the row **Export** with `download-simple` after Account.
+Shared groups, password fields and buttons surround the existing export job. Download everything
+still requires the password. The gathering bar, resuming a pending export, download link and
+backup explanation keep their logic. This task does not start an export outside test fixtures.
 
-| Step | Behaviour |
-|---|---|
-| Start | **Download everything**. Asks for the password again (step-up; a wrong one says so and asks again, throttled like every password check). |
-| Building | A bar and the line "Gathering everything… 40%"; the page can be left: coming back finds it still building (this phone remembers which). The push when it is ready waits for Web Push (P8). |
-| Ready | **Download (2.3 MB)**, saving one ZIP to the phone, with the line "The link works for an hour, on this phone only.": `tables/<table>.jsonl` for each table DATA.md §10 marks for export (JSON Lines; a big table continues in `<table>-2.jsonl`), `README.md` explaining the format, and `export.json` with the counts. Attachments come with the files feature (none are stored yet). Only the device that asked can see or download it. |
-| Backups | A line: "Last automatic backup: Sunday 03:20 (weekly, private)." or, before the first, "Automatic backups run every Sunday at 02:30 (weekly, private)." |
+## 5. Accessibility and verification
 
-### 4.10 On this phone [proposal]
+Controls have visible labels, shared focus rings, radio/switch state, and designed hit areas.
+Sheets trap keyboard focus and restore it on close. Keep is the initial focus for confirmations.
+The noninteractive page heading receives focus without a decorative ring.
 
-| Element | Behaviour |
-|---|---|
-| Storage | "Using 1.2 GB of about 20 GB" from `navigator.storage.estimate()`; whether storage is persistent |
-| Offline music | Budget (default 512 MB), slider; **Clear offline music** (confirm; removes local copies only, nothing on the server) |
-| Offline files | Podcast downloads and Study PDFs kept on the phone; clear each |
-| Waiting to send | Outbox count; **Send now** |
+The browser suites check conversation grouping/search/actions, Memory and Undo, export and push,
+and the shared-control contract across every Settings route and the menu in both themes.
+They reject native selects and unstyled checks/radios, require primitive classes and rows at
+least 44 px high, and verify 18.5 px large replies, live preview and the fixed header hairline.
 
-### 4.11 About
-
-| Element | Behaviour |
-|---|---|
-| Version | The live release from `release.json`: short commit and date ("a1b2c3d · 28 Oct 2026") |
-| Check for update | Checks the service worker; "Up to date" or "Updating when it's safe" |
-| Show gesture hints again | Resets the hint counters ([HOME](HOME.md) §10) |
-| Licences | Phosphor Icons (MIT); Fraunces and Inter (SIL Open Font License); any other shipped library with its licence |
-| Source | Link to the public repository |
-
-## 5. Accessibility
-
-- The panel is a `<nav aria-label="Menu">`; opening it moves focus to the search field's button; closing returns focus to the "Menu" button.
-- The segmented theme control is a `role="radiogroup"` [proposal: built uses plain buttons].
-- Every confirm sheet traps focus while open and puts initial focus on **Keep** (the safe choice).
-- Toggles are `<input type="checkbox" role="switch">` with visible labels.
-- All rows ≥ 44 px tall.
-
-## 6. Acceptance summary
-
-| # | Check |
-|---|---|
-| M1 | Swipe, Menu button, Back, Escape and dim-tap all open/close the panel as in Rules 1 |
-| M2 | Search: accent folding, 2-character minimum, offline line, server results appended without reordering (built: `tests/convos-browser.test.mjs`) |
-| M3 | Grouping by the calendar: on a Thursday, fixture threads of today, yesterday, Monday, last Saturday and 40 days ago land in Today/Now, Yesterday, Earlier this week, Last week and All conversations; Monday and Sunday edges, month and year crossings; a folded group stays folded on reload (built: `tests/convos-logic.test.mjs`, `tests/convos-browser.test.mjs`) |
-| M4 | Rename: 61 characters is cut to 60; empty reverts; the night shift does not overwrite (`title_source=owner`) |
-| M5 | Delete: confirm sheet, Undo for 8 s, Recently deleted for 30 days, purge after |
-| M6 | Quiet hours: end time cannot be before 06:30; decisions held as §4.2 |
-| M7 | Notifications: no permission prompt without a tap on "Let me reach you" |
-| M8 | Agents: a new token is shown once and cannot be shown again |
-| M9 | Axe: no violations on the menu and each settings page, day and night |
-
-## Open questions / tests
-
-| Question | How to settle it |
-|---|---|
-| The prototype's menu showed two rows under "Today" (topics within a day). Decisions.md says one conversation per day. This doc shows one row per day. Should the night shift split a day into topic rows? | Owner choice. If yes: topic rows are sub-rows under the day, titled by topic, all pointing into the same thread. |
-| A 30-day "Recently deleted" window | Owner accepts or prefers immediate deletion after the confirm. |
-| Default quiet-hours start (22:00 proposed) | Ask the owner. |
-| Should settings sub-pages open full screen (proposed) or inside the 360 px panel (prototype)? | Build both for "What I remember" and look on the A15. |
-| Search over messages in English and the second language: is FTS5 with accent folding enough, or is cross-language recall needed? | The mind research's later embedding phase; measure missed searches first. |
+Visual inspection uses real Switzer at 390×844. Before/after timing is recorded from Chromium
+traces because Task A's readout is not in the base revision. Host Chromium measurements are not
+Galaxy A15 measurements; device judgment and final feel tuning remain with the owner.

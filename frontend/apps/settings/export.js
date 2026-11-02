@@ -7,6 +7,7 @@ import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { el } from '/th/ui.js';
 import { withPassword } from './settings.js';
+import { group, icon } from './components.js';
 
 /** The export this phone is waiting for, so leaving and coming back keeps watching it. */
 const KEY = 'th.export.id';
@@ -40,7 +41,7 @@ export async function exportPage(body) {
   const lead = el('p', { class: 'shelp', text: 'One ZIP with everything I keep about you: our conversations, what I remember, day notes, loose ends, decisions and the ledger of what I did. Sign-in data stays out.' });
   const host = el('div', { class: 'sform xport' });
   const backup = el('p', { class: 'shelp', text: '' });
-  body.replaceChildren(lead, host, backup);
+  body.replaceChildren(group('Your data', [el('div', { class: 'row' }, [icon('download-simple'), lead]), host]), group('Automatic backup', [backup]));
 
   const line = el('p', { class: 'line', role: 'status' });
   const fill = el('span');

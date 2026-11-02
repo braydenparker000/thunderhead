@@ -1,18 +1,9 @@
 // @ts-check
-// The menu's Conversations (MENU-AND-SETTINGS.md §3), loaded when the menu first opens (boot.js),
-// so the shell stays inside its budget. Now is a card for today (its date, how many messages, its
-// part of the day); under it come Yesterday, Earlier this week (since Monday) and Last week, each a
-// heading that folds its rows away and remembers that on this phone; then "All conversations ›", a
-// full-screen list of every thread by month, the months folding the same way, 30 rows at a time.
-// A row is the title, the date on the right ("21:40" yesterday, else "Sat 24"), and the night
-// shift's summary or the message count under it, with an "Old Chats" tag on an imported one. A tap
-// on a row shows it read-only on home (past.js); a tap on Now returns there. Swiped left, a row
-// offers Pin (pinned rows come first, kept on this phone) and its whole summary. Skeleton rows
-// stand in while the list first loads. Held, a row offers Continue this, Rename, Pin and Delete,
-// and Now offers Delete (actions.js); one off the record is tagged so. Text is set with textContent.
+// Conversations grouped by day, prepared from cache before opening; list and search share data.
 import { lineFor } from '../copy.js';
 import { failure } from '../flow.js';
 import { toast } from '../ui.js';
+import { icon } from '../../apps/settings/components.js';
 import { holdCards } from './actions.js';
 import * as data from './data.js';
 import { byMonth, count, GROUPS, grouped, isNow, longDate, metaOf, OLD_CHATS, OTR, PAGE, partOfDay, subOf, titleOf } from './model.js';
@@ -87,23 +78,48 @@ function tapIn(e, before) {
   openThread(/** @type {string} */ (row.dataset.id));
 }
 
-/** Wires the menu once; boot.js calls it when the menu first starts to open. */
+/** @type {Promise<void> | undefined} */
+let prepared;
+/** Imports and builds the cached menu during idle time, without opening it or fetching data.
+ * The same promise joins simultaneous idle/open calls. @returns {Promise<void>} */
+export function prepare() {
+  return prepared ??= (async () => {
+    wireMenu();
+    // Search is an idle prefetch: a missing module must not hide the cached conversation list.
+    await Promise.all([import('./search.js').catch(() => null), data.fromCache()]);
+    await draw(undefined, true);
+  })();
+}
+
+/** boot.js calls this on first opening; a prepared list is already ready to reveal. */
 export function startMenu() {
+  return prepare().then(() => {
+    if (stale || Date.now() - data.list.at > STALE_MS) return load();
+  });
+}
+
+/** Event handlers are installed once, including when prepare precedes the first open. */
+function wireMenu() {
   if (started) return;
   started = true;
   const side = $('#side');
+  $('#search').classList.add('field');
+  $('#settings').classList.add('sback');
+  const now = $('#now');
+  now.replaceChildren(icon('chat-circle'), el('span', 't row-copy'), el('small', 'row-value'));
+  now.insertAdjacentHTML('beforeend', svg('caret-right', ' row-caret'));
   new MutationObserver(() => {
-    if (side.classList.contains('open') && (stale || Date.now() - data.list.at > STALE_MS)) load();
+    if (side.classList.contains('open')) void startMenu();
   }).observe(side, { attributes: true, attributeFilter: ['class'] });
   addEventListener('online', () => {
     stale = true;
-    if (side.classList.contains('open')) load();
+    if (side.classList.contains('open')) void startMenu();
   });
   document.addEventListener('th:changed', (e) => {
     const kinds = /** @type {CustomEvent<string[]>} */ (e).detail ?? [];
     if (!kinds.some((k) => k === 'thread' || k === 'message' || k === '*')) return;
     stale = true;
-    if (side.classList.contains('open')) load();
+    if (side.classList.contains('open')) void startMenu();
   });
   // Now: back from an older conversation, else the toast that it is already here (home.js).
   $('#now').addEventListener('click', (e) => {
@@ -124,7 +140,6 @@ export function startMenu() {
     },
   }, () => draw());
   if (!$('#convos').children.length) $('#convos').replaceChildren(...[0, 1, 2].map(() => el('div', 'row thr skelrow')));
-  load();
 }
 
 /** @returns {string[]} */
@@ -190,7 +205,7 @@ function actions(row) {
   box.dataset.id = id;
   /** @param {string} label @param {() => void} fn */
   const add = (label, fn) => {
-    const b = el('button', '', label);
+    const b = el('button', 'btn quiet compact', label);
     b.type = 'button';
     b.addEventListener('click', () => {
       box.remove();
@@ -213,12 +228,11 @@ function actions(row) {
   row.after(box);
 }
 
-/** Reads the list (from this phone first, so there is something at once) and draws it. */
+/** Refreshes after preparation; the visible cached DOM stays in place until fresh data arrives. */
 function load() {
   stale = false;
   loading ??= (async () => {
     try {
-      if (await data.fromCache()) await draw();
       // Offline, what this phone has stands, with a line that says so.
       if (!navigator.onLine) throw new Error('offline');
       await data.refresh();
@@ -251,15 +265,17 @@ function row(t, g, i) {
   b.type = 'button';
   b.dataset.id = t.id;
   b.style.setProperty('--i', String(Math.min(i, 12)));
-  const l1 = el('span', 'l1');
-  l1.append(el('span', 'tl', titleOf(t)), el('small', 'when', metaOf(t, g)));
-  const l2 = el('span', 'l2');
-  if (t.kind === 'imported') l2.append(el('span', 'tag', OLD_CHATS));
-  if (t.kind === 'off_record') l2.append(el('span', 'tag otr', OTR));
-  l2.append(el('span', 'sum', subOf(t)));
-  const tx = el('span', 'tx');
-  tx.append(l1, l2);
-  b.append(tx);
+  const copy = el('span', 'tx row-copy');
+  const title = el('span', 'tl row-title', titleOf(t));
+  const detail = el('span', 'l2 row-detail');
+  if (t.kind === 'imported') detail.append(el('span', 'tag', OLD_CHATS));
+  if (t.kind === 'off_record') detail.append(el('span', 'tag otr', OTR));
+  detail.append(el('span', 'sum', subOf(t)));
+  copy.append(title, detail);
+  const symbol = icon(pinned().includes(t.id) ? 'push-pin' : 'chat-circle');
+  if (pinned().includes(t.id)) symbol.classList.add('pin');
+  b.append(symbol, copy, el('small', 'when row-value', metaOf(t, g)));
+  b.insertAdjacentHTML('beforeend', svg('caret-right', ' row-caret'));
   return b;
 }
 
@@ -269,12 +285,12 @@ function group(key, name, rows, closed) {
   const shut = closed.has(key);
   const g = el('section', `cg${shut ? ' closed' : ''}`);
   g.dataset.g = key;
-  const head = el('button', 'ghead');
+  const head = el('button', 'ghead group-title btn quiet');
   head.type = 'button';
   head.setAttribute('aria-expanded', String(!shut));
-  head.append(el('span', 'gl', name), el('span', 'gn', String(rows.length)));
+  head.append(el('span', 'gl', name), el('small', 'gn', String(rows.length)));
   head.insertAdjacentHTML('beforeend', svg('caret-right', ' chev'));
-  const inner = el('div', 'gin');
+  const inner = el('div', 'gin group');
   inner.append(...rows);
   const body = el('div', 'gbody');
   body.append(inner);
@@ -293,15 +309,15 @@ function drawNow() {
   if (!today.day) return;
   const sub = `${longDate(today.day)}${n ? ` · ${count(n)}` : ''}`;
   if (text.querySelector('.sub')?.textContent === sub) return;
-  text.replaceChildren(el('span', 'tl', 'Now'), el('span', 'sub', sub));
+  text.replaceChildren(el('span', 'tl row-title', 'Now'), el('span', 'sub row-detail', sub));
 }
 
-/** The groups under Now, and the line when the list couldn't load. @param {unknown} [error] */
-async function draw(error) {
+/** The groups under Now. @param {unknown} [error] @param {boolean} [cachedOnly] */
+async function draw(error, cachedOnly = false) {
   // A row's actions open across a redraw open again under it.
   const acting = /** @type {HTMLElement | null} */ (document.querySelector('#convos .rowacts'))?.dataset.id;
   const host = $('#convos');
-  today = await data.today().catch(() => today);
+  today = cachedOnly ? data.cachedToday() ?? today : await data.today().catch(() => today);
   drawNow();
   /** @type {Node[]} */
   const out = [];
@@ -320,10 +336,10 @@ async function draw(error) {
       const b = el('button', 'row all');
       b.type = 'button';
       b.dataset.all = '';
-      const tx = el('span', 'tx');
-      tx.append(el('span', 'tl', 'All conversations'), el('span', 'l2', data.list.done ? `${others} ${others === 1 ? 'conversation' : 'conversations'}, by month` : 'By month, newest first'));
-      b.append(tx);
-      b.insertAdjacentHTML('beforeend', svg('caret-right', ' go'));
+      const tx = el('span', 'tx row-copy');
+      tx.append(el('span', 'tl row-title', 'All conversations'), el('span', 'l2 row-detail', data.list.done ? `${others} ${others === 1 ? 'conversation' : 'conversations'}, by month` : 'By month, newest first'));
+      b.append(icon('chat-circle'), tx);
+      b.insertAdjacentHTML('beforeend', svg('caret-right', ' go row-caret'));
       out.push(b);
     } else if (!error) out.push(el('p', 'cline', 'Each day files itself here once it is over.'));
   }
@@ -347,7 +363,7 @@ async function allPage() {
   const back = el('button', 'sback');
   back.type = 'button';
   back.setAttribute('aria-label', 'Back to the menu');
-  back.innerHTML = svg('arrow-left');
+  back.innerHTML = svg('caret-left');
   const lead = el('p', 'alllead');
   const list = el('div', 'alllist');
   const more = el('button', 'btn soft', 'Show more');
@@ -358,13 +374,12 @@ async function allPage() {
   page.setAttribute('role', 'dialog');
   page.setAttribute('aria-modal', 'true');
   page.setAttribute('aria-label', 'All conversations');
-  const field = el('div', 'field');
-  const grain = el('div', 'grain');
-  field.setAttribute('aria-hidden', 'true');
-  grain.setAttribute('aria-hidden', 'true');
+  const header = el('header', 'sheader');
+  header.append(back, el('h1', 'page-title', 'All conversations'));
   const scroll = el('div', 'sscroll');
-  scroll.append(back, el('h1', '', 'All conversations'), lead, list, more, line);
-  page.append(field, grain, scroll);
+  scroll.append(lead, list, more, line);
+  scroll.addEventListener('scroll', () => header.classList.toggle('scrolled', scroll.scrollTop > 0), { passive: true });
+  page.append(header, scroll);
   $('#app').append(page);
   requestAnimationFrame(() => page.classList.add('in'));
   back.focus({ preventScroll: true });

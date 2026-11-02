@@ -74,7 +74,7 @@ const menu = async (page) => {
 };
 const menuOpen = (page) => page.$eval('#side', (s) => s.classList.contains('open'));
 /** A row as "title | date | tag | second line". */
-const rowText = (r) => [...r.querySelectorAll('.tl, .when, .tag, .sum, .row.all .l2')].map((x) => x.textContent).join(' | ');
+const rowText = (r) => ['.tl', '.when', '.tag', r.matches('.all') ? '.l2' : '.sum'].map((s) => r.querySelector(s)?.textContent).filter((s) => s !== undefined).join(' | ');
 /** The Conversations section: each group as [name, count, rows…], then the All row. */
 const section = (page) => page.$$eval('#convos > *', (els, f) => {
   const text = new Function(`return ${f}`)();
@@ -127,12 +127,12 @@ test('the menu groups conversations by the calendar: Now, Yesterday, Earlier thi
     assert.equal(await page.$('#app img'), null, 'a title is text, never markup');
     await page.waitForTimeout(400);
     await shot(page, 'all', theme);
-    await page.click('.allconvos .btn');
+    await page.getByRole('button', { name: 'Show more', exact: true }).click();
     await eventually(rows, 42);
     assert.deepEqual(await months(), ['October', 'September', 'August', 'July', 'December 2025']);
     assert.equal(await page.textContent('.allconvos .alllead'), '42 conversations, newest first.');
     assert.equal(await page.$$eval('.allconvos .row.thr', (r) => r.at(-1).querySelector('.tag')?.textContent), 'Old Chats');
-    assert.ok(await page.$eval('.allconvos .btn', (b) => b.hidden), 'nothing more to show');
+    assert.ok(await page.getByRole('button', { name: 'Show more', exact: true, includeHidden: true }).evaluate((b) => b.hidden), 'nothing more to show');
     assert.equal(await page.title(), 'Thunderhead');
     // A month folds there too.
     await page.click('.allconvos [data-g="m:2026-08"] .ghead');
@@ -255,11 +255,15 @@ test('search: this phone first, the Worker appended, accent-folded, Show all, a 
     await page.waitForSelector('.sbox input');
     assert.ok(await page.$eval('.sbox input', (i) => i === document.activeElement), 'the field has focus');
     assert.ok(await hidden(page, '#convos'), 'the rest of the panel steps aside');
-    const groups = () => page.$$eval('.sres .grp', (g) => g.map((x) => x.textContent));
+    const groups = () => page.$$eval('.sres > .group-title', (g) => g.map((x) => x.textContent));
     const rows = (g) => page.$$eval('.sres > *', (els, g) => {
       const out = [];
       let cur = null;
-      for (const e of els) if (e.classList.contains('grp')) cur = e.textContent; else if (cur === g && e.matches('.srow')) out.push([...e.querySelectorAll('.tl, .sn, .src')].map((x) => x.textContent).join(' | '));
+      for (const e of els) {
+        if (e.classList.contains('group-title')) cur = e.textContent;
+        else if (cur === g && e.matches('.group'))
+          for (const row of e.querySelectorAll('.srow')) out.push([...row.querySelectorAll('.tl, .sn, .src')].map((x) => x.textContent).join(' | '));
+      }
       return out;
     }, g);
     // One character shows nothing.
@@ -357,5 +361,171 @@ test('the list and a thread say when they cannot load, and Retry or reopening lo
   await page.waitForSelector('#past .reply');
   assert.equal(await page.textContent('#past .reply'), 'You were at 84. Try 88 next.');
   assert.deepEqual(errors.filter((e) => !/ERR_INTERNET_DISCONNECTED|Failed to load resource|503/.test(e)), []);
+  await context.close();
+});
+
+/** The shared controls are used even by a page reached through search or a direct route. */
+async function primitiveControls(page, root) {
+  const found = await page.$eval(root, (host) => {
+    const interactive = 'button, input:not([type="hidden"]), textarea, select, summary, a[href]';
+    const primitive = '.row, .switch, .seg-option, .field, .btn, .sback';
+    return {
+      native: [...host.querySelectorAll('select, input[type="checkbox"], input[type="radio"]')].filter((e) => e.tagName === 'SELECT' || !e.matches('.switch, .seg-option')).map((e) => e.outerHTML),
+      unstyled: [...host.querySelectorAll(interactive)].filter((e) => !e.matches(primitive)).map((e) => e.outerHTML),
+      short: [...host.querySelectorAll('.row')].filter((e) => e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden' && e.getBoundingClientRect().height < 44).map((e) => [e.textContent, e.getBoundingClientRect().height]),
+    };
+  });
+  assert.deepEqual(found, { native: [], unstyled: [], short: [] }, root);
+}
+
+test('the menu and every Settings page use shared controls at phone size in day and night', opts, async () => {
+  for (const theme of ['light', 'dark']) {
+    const { page, context, errors } = await open({ theme });
+    await menu(page);
+    await primitiveControls(page, '#side');
+    await page.click('#search');
+    await page.fill('.sbox input', 'garden');
+    await page.waitForSelector('.sres .row');
+    await primitiveControls(page, '#side');
+    await page.press('.sbox input', 'Escape');
+    for (const name of ['settings', 'quiet', 'notifications', 'memory', 'account', 'devices', 'agents', 'export', 'deleted']) {
+      await page.evaluate((name) => document.dispatchEvent(new CustomEvent('th:open', { detail: { name } })), name);
+      await page.waitForSelector('.spage.in .sbody');
+      if (name === 'memory') await page.waitForSelector('.msections:not([aria-busy])');
+      if (name === 'devices') await page.waitForSelector('.spage .slist:not([aria-busy])');
+      if (name === 'export') await page.waitForSelector('.xport button');
+      if (name === 'agents') await page.getByRole('button', { name: 'New agent key', exact: true }).click();
+      await page.waitForTimeout(600);
+      await primitiveControls(page, '.spage');
+      assert.ok(await page.$eval('.spage', (e) => e.scrollWidth <= e.clientWidth), `${name}: no sideways scroll`);
+    }
+    assert.deepEqual(errors, [], theme);
+    await context.close();
+  }
+});
+
+test('prepare builds cached conversations once without opening the menu or rereading the Worker', opts, async () => {
+  const { page, context, api, errors } = await open();
+  await menu(page);
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('#talk .you');
+  const reads = () => api.calls.filter((c) => c.call === 'GET /v1/threads').length;
+  const before = reads();
+  const result = await page.evaluate(async () => {
+    const menu = await import('/th/convos/menu.js');
+    await Promise.all([menu.prepare(), menu.prepare()]);
+    const first = document.querySelector('#convos').firstElementChild;
+    await menu.prepare();
+    return {
+      open: document.querySelector('#side').classList.contains('open'),
+      rows: document.querySelectorAll('#convos .row.thr').length,
+      same: first === document.querySelector('#convos').firstElementChild,
+    };
+  });
+  assert.equal(result.open, false);
+  assert.ok(result.rows > 0, 'the cached list is ready');
+  assert.equal(result.same, true, 'repeat preparation keeps the built DOM');
+  assert.equal(reads(), before, 'preparation reads this phone only');
+  await menu(page);
+  await page.evaluate(async () => {
+    const { startMenu } = await import('/th/convos/menu.js');
+    startMenu(); startMenu();
+  });
+  await page.click('section.cg[data-g="week"] .ghead');
+  assert.equal(await page.getAttribute('section.cg[data-g="week"] .ghead', 'aria-expanded'), 'false', 'one click has one listener');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('large text still makes the reply 18.5 px and the Settings header stays in place while scrolling', opts, async () => {
+  const { page, context, api, errors } = await open();
+  api.chat.reply('A reply at the chosen size.');
+  await page.waitForSelector('#talk .reply');
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'settings' } })));
+  await page.waitForSelector('#set-text [data-v="l"]');
+  await page.click('#set-text [data-v="l"]');
+  assert.equal(await page.$eval('#talk .reply', (e) => getComputedStyle(e).fontSize), '18.5px');
+  assert.equal(await page.$eval('.appearance-preview .preview-reply', (e) => getComputedStyle(e).fontSize), '18.5px', 'Appearance previews the chosen reply size');
+  const dayFill = await page.$eval('.appearance-preview', (e) => getComputedStyle(e).backgroundColor);
+  await page.click('#set-theme [data-v="dark"]');
+  await page.waitForFunction(() => document.documentElement.dataset.theme === 'dark');
+  assert.notEqual(await page.$eval('.appearance-preview', (e) => getComputedStyle(e).backgroundColor), dayFill, 'Appearance previews the chosen theme');
+  const before = await page.$eval('.spage h1', (e) => e.getBoundingClientRect().top);
+  await page.$eval('.spage .sscroll', (e) => { e.scrollTop = e.scrollHeight; });
+  await page.waitForFunction(() => document.querySelector('.spage .sscroll').scrollTop > 0 && document.querySelector('.sheader.scrolled'));
+  assert.notEqual(await page.$eval('.sheader', (e) => getComputedStyle(e).borderBottomColor), 'rgba(0, 0, 0, 0)', 'scrolling shows the header hairline');
+  assert.equal(await page.$eval('.spage h1', (e) => e.getBoundingClientRect().top), before, 'the title remains in its fixed header');
+  await primitiveControls(page, '.spage');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('held conversation actions use a sheet that settles after a short drag and dismisses past thirty percent', opts, async () => {
+  const { page, context, api, errors } = await open();
+  await menu(page);
+  const target = page.locator(`#convos [data-id="${T.yesterday}"]`);
+  const bounds = await target.boundingBox();
+  await page.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.waitForSelector('.sheet');
+  await page.mouse.up();
+  await page.waitForTimeout(600);
+  await primitiveControls(page, '.sheet');
+  assert.deepEqual(await page.locator('.sheet .row').allTextContents(), ['Continue this', 'Rename', 'Pin', 'Delete']);
+  const handle = await page.locator('.sheet-handle').boundingBox();
+  const x = handle.x + handle.width / 2, y = handle.y + handle.height / 2;
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + 12, { steps: 4 });
+  await page.waitForTimeout(150);
+  await page.mouse.up();
+  await page.waitForFunction(() => {
+    const sheet = document.querySelector('.sheet');
+    return sheet && Math.abs(new DOMMatrix(getComputedStyle(sheet).transform).m42) < 1;
+  });
+  const height = await page.locator('.sheet').evaluate((e) => e.getBoundingClientRect().height);
+  await page.mouse.move(x, y);
+  await page.mouse.down();
+  await page.mouse.move(x, y + height * .4, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForSelector('.sheet', { state: 'detached' });
+  assert.ok(!(api.calls.some((c) => c.call.startsWith('DELETE '))), 'dismissing actions does not delete a conversation');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('Quiet hours picker cancellation keeps the saved choice and the earliest end stays 06:30', opts, async () => {
+  const { page, context, errors } = await open();
+  const patches = [];
+  await page.route(`${API}/v1/settings`, async (route) => {
+    if (route.request().method() !== 'PATCH') return route.fallback();
+    patches.push(route.request().postDataJSON());
+    await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+  });
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'quiet' } })));
+  const starts = page.locator('.spage .row').filter({ hasText: 'Starts' });
+  const ends = page.locator('.spage .row').filter({ hasText: 'Ends' });
+  const save = page.locator('.spage').getByRole('button', { name: 'Save', exact: true });
+  await starts.click();
+  await page.fill('#quiet-start', '21:30');
+  await page.locator('.sheet').getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.waitForSelector('.sheet', { state: 'detached' });
+  assert.equal(await starts.locator('.row-value').textContent(), '22:00');
+  assert.equal(await save.isDisabled(), true, 'a cancelled edit does not dirty the form');
+  await starts.click();
+  await page.fill('#quiet-start', '21:30');
+  await page.locator('.sheet').getByRole('button', { name: 'Done', exact: true }).click();
+  await page.waitForSelector('.sheet', { state: 'detached' });
+  await ends.click();
+  await page.fill('#quiet-end', '06:00');
+  await page.locator('.sheet').getByRole('button', { name: 'Done', exact: true }).click();
+  await page.waitForSelector('.sheet', { state: 'detached' });
+  await save.click();
+  assert.equal(await page.locator('.spage .line').textContent(), 'Quiet hours end at 06:30 at the earliest.');
+  assert.equal(await ends.locator('.row-value').textContent(), '06:30');
+  assert.deepEqual(patches, [], 'an earlier end never reaches the Worker');
+  await save.click();
+  await eventually(() => patches, [{ 'quiet.start': '21:30', 'quiet.end': '06:30' }]);
+  assert.deepEqual(errors, []);
   await context.close();
 });

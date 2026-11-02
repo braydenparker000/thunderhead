@@ -1,7 +1,7 @@
 // Web Push on the phone in Chromium (frontend/th/push/phone.js, apps/settings/notifications.js and
 // the shell's sw.js; MENU-AND-SETTINGS.md §4.3, SECURITY.md §10) against the mocked Worker. Settings
-// → Notifications: "Not set up", then "Let me reach you" (permission granted for the test) sends
-// this phone's subscription, "Send a test" asks for one, "Turn off on this phone" removes it. The
+// → Notifications: the named switch (permission granted for the test) sends this phone's
+// subscription, "Send a test" asks for one, switching off removes it. The
 // headless browser has no push service, so the permission and the subscription are stand-ins; the push is real:
 // delivered to the shell's worker over CDP, which fetches its words with the session and shows
 // them, or a line that says nothing when it can't (shown where the browser can show one: full
@@ -80,11 +80,17 @@ test('Notifications: on, a test, off; a push shows its words, or a line that say
 
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'notifications' } })));
   const status = page.locator('.spage .shelp[role="status"]');
-  await page.locator('.spage button', { hasText: 'Let me reach you' }).waitFor();
+  const enabled = page.getByRole('switch', { name: 'Notifications on this phone', exact: true });
+  await enabled.waitFor();
   assert.equal(await status.textContent(), 'Not set up');
-  await page.locator('.spage button', { hasText: 'Let me reach you' }).click();
+  assert.equal(await enabled.getAttribute('aria-checked'), 'false');
+  await enabled.click();
   await page.locator('.spage button', { hasText: 'Send a test' }).waitFor();
   assert.equal(await status.textContent(), 'On');
+  assert.equal(await enabled.getAttribute('aria-checked'), 'true');
+  assert.deepEqual(await page.$$eval('.spage button, .spage input', (els) => els.filter((e) => !e.matches('.row, .switch, .seg-option, .field, .btn, .sback')).map((e) => e.outerHTML)), [], 'Notifications uses shared controls');
+  assert.equal(await page.locator('.spage select, .spage input[type=checkbox]:not(.switch), .spage input[type=radio]:not(.seg-option)').count(), 0);
+  assert.ok(await page.$$eval('.spage .row', (rows) => rows.every((e) => e.getBoundingClientRect().height >= 44)));
   assert.ok(calls.includes('GET /v1/push/key'), calls.join('\n'));
   assert.ok(calls.includes('PUT /v1/push/subscription {"endpoint":"https://fcm.googleapis.com/fcm/send/fake-phone","keys":{"p256dh":"BPhone","auth":"secret"}}'), calls.join('\n'));
   await page.locator('.spage button', { hasText: 'Send a test' }).click();
@@ -120,8 +126,9 @@ test('Notifications: on, a test, off; a push shows its words, or a line that say
   assert.ok(fetched('gone-00000'));
   if (canShow) assert.deepEqual((await shown()).find((n) => n.tag === 'gone-00000'), { title: 'Thunderhead', body: 'Thunderhead has something for you.', tag: 'gone-00000', url: '/' });
 
-  await page.locator('.spage button', { hasText: 'Turn off on this phone' }).click();
-  await page.locator('.spage button', { hasText: 'Let me reach you' }).waitFor();
+  await enabled.click();
+  await page.waitForFunction(() => document.querySelector('.spage .shelp[role="status"]')?.textContent === 'Not set up');
+  assert.equal(await enabled.getAttribute('aria-checked'), 'false');
   assert.ok(calls.includes('DELETE /v1/push/subscription'));
   assert.deepEqual(errors, []);
   await context.close();

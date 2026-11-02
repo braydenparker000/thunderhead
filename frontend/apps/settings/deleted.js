@@ -7,6 +7,7 @@ import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { dMMM } from '/th/format.js';
 import { el, toast } from '/th/ui.js';
+import { icon } from './components.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').DeletedThread} DeletedThread */
 
@@ -24,24 +25,25 @@ const meta = (/** @type {DeletedThread} */ t, now = Date.now()) => {
 
 /** @param {HTMLElement} body */
 export async function deletedPage(body) {
-  const list = el('div', { class: 'slist sdeleted' });
+  const list = el('div', { class: 'group slist sdeleted' });
   const line = el('p', { class: 'line', role: 'status' });
-  body.append(el('p', { class: 'slead', text: 'Conversations you deleted stay here for 30 days, then they are gone for good, with their files.' }), list, line);
+  body.append(el('p', { class: 'slead', text: 'Conversations you deleted stay here for 30 days, then they are gone for good, with their files.' }), el('h2', { class: 'group-title', text: 'Conversations' }), list, line);
   const draw = async () => {
     line.textContent = '';
+    line.classList.remove('ok');
     try {
       /** @type {{ items: DeletedThread[] }} */
       const r = await signedIn((t) => api.call('/v1/threads/deleted', { token: t }));
       list.hidden = !r.items.length;
       list.replaceChildren(...r.items.map(row));
-      if (!r.items.length) line.textContent = 'Nothing deleted in the last 30 days.';
+      if (!r.items.length) { line.classList.add('ok'); line.textContent = 'Nothing deleted in the last 30 days.'; }
     } catch (e) {
       line.textContent = lineFor(failure(e));
     }
   };
   /** @param {DeletedThread} t */
   const row = (t) => {
-    const go = el('button', { type: 'button', class: 'btn soft', text: 'Restore', 'aria-label': `Restore ${title(t)}` });
+    const go = el('button', { type: 'button', class: 'btn quiet inline', text: 'Restore', 'aria-label': `Restore ${title(t)}` });
     go.addEventListener('click', async () => {
       go.disabled = true;
       try {
@@ -53,8 +55,8 @@ export async function deletedPage(body) {
         toast(lineFor(failure(e)));
       }
     });
-    return el('div', { class: 'srow sdel', 'data-id': t.id }, [
-      el('div', { class: 'stext' }, [el('span', { class: 't', text: title(t) }), el('small', { text: meta(t) })]),
+    return el('div', { class: 'row srow sdel', 'data-id': t.id }, [
+      icon('trash'), el('div', { class: 'row-copy stext' }, [el('span', { class: 'row-title t', text: title(t) }), el('small', { class: 'row-detail', text: meta(t) })]),
       go,
     ]);
   };

@@ -87,7 +87,7 @@ test('home does not load the lab or apply saved tuning without the query', opts,
     assert.equal(await page.locator('#feel-lab').count(), 0);
     assert.equal(await page.locator('#feel-frame-readout').count(), 0, 'a real gesture installs no readout without ?feel');
     assert.deepEqual(labRequests, []);
-    assert.equal((await look(page)).row, '14.5px');
+    assert.equal((await look(page)).row, '15px');
     assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue('--fs-body')), '');
     assert.deepEqual(errors, []);
   } finally { await context.close(); }
@@ -230,7 +230,7 @@ test('closing restores prior inline token values, priorities, and engine setting
   try {
     const before = await page.evaluate(async () => {
       const root = document.documentElement;
-      root.style.setProperty('--fs-x-14-5', '17px', 'important');
+      root.style.setProperty('--fs-body', '17px', 'important');
       root.style.setProperty('--d-fast', '123ms');
       const motion = await import('/th/motion.js');
       motion.setSpring('page', { stiffness: 600, damping: .9 });

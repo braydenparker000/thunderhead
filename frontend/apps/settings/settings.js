@@ -2,7 +2,7 @@
 // row for each page, then About), and the pages that need sign-in: Quiet hours (§4.2), Devices
 // (SIGN-IN.md §11.1, §7.2), Agents (§17), Account (§9.1), What I remember (MEMORY.md §12),
 // Notifications (MENU-AND-SETTINGS.md §4.3) and Export (§4.9). Each opens full screen over the shell
-// on home's own field and slides in from the right, with a round back button: a page opened from
+// with a fixed header and scrolling groups: a page opened from
 // Settings returns there, Settings and a page opened by its address return to the open menu. Signing out never asks for the password;
 // handing out a credential (recovery code, agent key) checks it inline (§15).
 import { api, signedIn, signOutHere } from '/th/client.js';
@@ -10,10 +10,11 @@ import { lineFor } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { dMMM, lastActive, place } from '/th/format.js';
 import { wipe } from '/th/session.js';
-import { confirmSheet, el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
+import { el, recoveryScreen, toast, tooSoon } from '/th/ui.js';
 import { outbox } from '/th/chat/store.js';
+import { confirmSheet, icon, row } from './components.js';
 
-const TITLES = { settings: 'Settings', quiet: 'Quiet hours', devices: 'Sign-in & devices', agents: 'Agents', account: 'Account', memory: 'What I remember', notifications: 'Notifications', export: 'Export', deleted: 'Recently deleted' };
+const TITLES = { settings: 'Settings', quiet: 'Quiet hours', devices: 'Devices', agents: 'Agents', account: 'Password', memory: 'What I remember', notifications: 'Notifications', export: 'Export', deleted: 'Recently deleted' };
 
 /** Signs this device out, asking first while messages are still waiting to send (SIGN-IN.md §11.3)
  * or a Forget hasn't reached the Worker (MEMORY.md §12): signing out wipes the phone, and with it
@@ -59,22 +60,13 @@ export async function openPage(name, opts = {}) {
   const under = stack[stack.length - 1] ?? null;
   /** @type {(() => void) | null} what the page must do as it closes (Memory sends a pending Forget) */
   let cleanup = null;
-  // A round glass back button over the same field as home, the title under it (DESIGN-SYSTEM.md §12).
-  const back = el('button', { type: 'button', class: 'sback', 'aria-label': under ? 'Back to Settings' : 'Back to the menu' });
-  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  icon.setAttribute('class', 'i');
-  icon.setAttribute('aria-hidden', 'true');
-  const use = document.createElementNS('http://www.w3.org/2000/svg', 'use');
-  use.setAttribute('href', '/ui/icons.svg#arrow-left');
-  icon.append(use);
-  back.append(icon);
-  const title = el('h1', { text: TITLES[name], tabindex: '-1' });
+  const back = el('button', { type: 'button', class: 'sback', 'aria-label': under ? 'Back to Settings' : 'Back to the menu' }, [icon('caret-left')]);
+  const title = el('h1', { class: 'page-title', text: TITLES[name], tabindex: '-1' });
   const body = el('div', { class: 'sbody' });
-  const page = el('section', { class: 'spage', role: 'dialog', 'aria-modal': 'true', 'aria-label': TITLES[name] }, [
-    el('div', { class: 'field', 'aria-hidden': 'true' }),
-    el('div', { class: 'grain', 'aria-hidden': 'true' }),
-    el('div', { class: 'sscroll' }, [back, title, body]),
-  ]);
+  const header = el('header', { class: 'sheader' }, [back, title]);
+  const scroll = el('div', { class: 'sscroll' }, [body]);
+  const page = el('section', { class: 'spage', role: 'dialog', 'aria-modal': 'true', 'aria-label': TITLES[name] }, [header, scroll]);
+  scroll.addEventListener('scroll', () => header.classList.toggle('scrolled', scroll.scrollTop > 0), { passive: true });
   document.querySelector('#app').append(page);
   stack.push(page);
   requestAnimationFrame(() => page.classList.add('in'));
@@ -82,7 +74,7 @@ export async function openPage(name, opts = {}) {
     cleanup?.();
     cleanup = null;
     page.classList.remove('in');
-    setTimeout(() => page.remove(), 480);
+    Promise.all(page.getAnimations().map((animation) => animation.finished.catch(() => {}))).then(() => page.remove());
     const i = stack.indexOf(page);
     if (i >= 0) stack.splice(i, 1);
     if (location.pathname !== '/') history.replaceState(null, '', '/');
@@ -118,12 +110,12 @@ export const errLine = (host, e) => {
  */
 export function withPassword(host, title, buttonLabel, fn) {
   return new Promise((resolve) => {
-    const input = el('input', { id: 'current-password', name: 'password', type: 'password', autocomplete: 'current-password', required: '' });
+    const input = el('input', { class: 'field', id: 'current-password', name: 'password', type: 'password', autocomplete: 'current-password', required: '' });
     const go = el('button', { type: 'submit', class: 'btn', text: buttonLabel });
     const cancel = el('button', { type: 'button', class: 'btn soft', text: 'Cancel' });
     const line = el('p', { class: 'line', role: 'status' });
     const form = el('form', { class: 'sform', novalidate: '' }, [
-      el('h2', { text: title }),
+      el('h2', { class: 'group-title', text: title }),
       el('div', { class: 'fld' }, [el('label', { for: 'current-password', text: 'Current password' }), input]),
       go, cancel, line,
     ]);
@@ -148,11 +140,11 @@ export function withPassword(host, title, buttonLabel, fn) {
 // --- Devices ---------------------------------------------------------------------------------
 
 async function devices(body) {
-  const list = el('div', { class: 'slist', 'aria-busy': 'true' });
+  const list = el('div', { class: 'group slist', 'aria-busy': 'true' });
   const warn = el('p', { class: 'swarn', hidden: '' });
-  const actions = el('div', { class: 'sactions' });
+  const actions = el('div', { class: 'group sactions' });
   const recovery = el('div', { class: 'srec' });
-  body.replaceChildren(warn, list, actions, recovery);
+  body.replaceChildren(warn, el('h2', { class: 'group-title', text: 'Signed in' }), list, el('h2', { class: 'group-title', text: 'Access' }), actions, recovery);
   const load = async () => {
     try {
       const [me, sessions] = await signedIn((t) => Promise.all([api.me(t), api.sessions(t)]));
@@ -166,7 +158,8 @@ async function devices(body) {
     }
   };
   const btn = (text, cls, fn) => {
-    const b = el('button', { type: 'button', class: `btn ${cls}`, text });
+    const b = row({ title: text, icon: 'devices', danger: cls === 'danger' });
+    b.classList.add('btn');
     b.addEventListener('click', () => { if (!tooSoon()) fn(); });
     actions.append(b);
   };
@@ -186,7 +179,9 @@ async function devices(body) {
   rec.addEventListener('click', async () => {
     const r = await withPassword(recovery, 'Make a new recovery code', 'Make code', (t, pw) => api.newRecoveryCode(t, pw));
     if (!r) { recovery.replaceChildren(rec); return; }
-    const last5 = await recoveryScreen(recovery, r.recovery_code);
+    const showing = recoveryScreen(recovery, r.recovery_code);
+    recovery.querySelector('input')?.classList.add('field');
+    const last5 = await showing;
     await signedIn((t) => api.confirmRecovery(t, last5)).catch(() => {});
     recovery.replaceChildren(rec);
     toast('New recovery code saved');
@@ -197,16 +192,17 @@ async function devices(body) {
 }
 
 function deviceRow(s, reload) {
-  const name = el('button', { type: 'button', class: 'sname', text: s.label, 'aria-label': `Rename ${s.label}` });
-  const row = el('div', { class: 'srow' }, [
-    el('div', { class: 'stext' }, [
+  const name = el('button', { type: 'button', class: 'btn quiet inline row-title sname', text: s.label, 'aria-label': `Rename ${s.label}` });
+  const row = el('div', { class: 'row srow' }, [
+    icon('device-mobile'),
+    el('div', { class: 'row-copy stext' }, [
       el('div', { class: 'st1' }, [name, ...(s.this_device ? [el('span', { class: 'badge', text: 'This device' })] : [])]),
       el('div', { class: 'st2', text: place(s) }),
       el('div', { class: 'st2', text: `Signed in ${dMMM(s.signed_in_at)} · ${lastActive(s.last_seen_at)}` }),
     ]),
   ]);
   name.addEventListener('click', () => {
-    const input = el('input', { class: 'sedit', value: s.label, maxlength: '40', 'aria-label': 'Device name' });
+    const input = el('input', { class: 'field sedit', value: s.label, maxlength: '40', 'aria-label': 'Device name' });
     name.replaceWith(input);
     input.focus({ preventScroll: true });
     input.select();
@@ -224,7 +220,7 @@ function deviceRow(s, reload) {
     input.addEventListener('blur', save);
   });
   if (!s.this_device) {
-    const out = el('button', { type: 'button', class: 'sbtn', text: 'Sign out' });
+    const out = el('button', { type: 'button', class: 'btn quiet inline sbtn', text: 'Sign out' });
     out.addEventListener('click', async () => {
       if (tooSoon() || !(await confirmSheet({ title: `Sign out ${s.label}?`, body: 'It stops working within a minute.', action: 'Sign out' }))) return;
       try { await signedIn((t) => api.revokeSession(t, s.id)); toast('Signed out'); reload(); } catch (e) { toast(lineFor(failure(e))); }

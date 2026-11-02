@@ -1,11 +1,5 @@
 // @ts-check
-// Search in the menu (MENU-AND-SETTINGS.md §2): the "Search everything" pill becomes a search
-// field and the panel shows results instead, in groups (Go to 4, Conversations 5, What I remember
-// 3, each with "Show all N"). This phone answers first, in the same frame: app and settings names,
-// thread titles, today's messages. The Worker's search (GET /v1/search: every message, imported
-// old chats included, facts and day notes) answers 150 ms after typing stops, and its rows are
-// appended within their groups, never reordering what is on screen. Offline it says so and
-// searches this phone only. × clears; Back or Escape leaves search. Text is set with textContent.
+// Local-first menu search. Worker results append within groups after typing pauses.
 import { current } from '../chat/index.js';
 import { failure } from '../flow.js';
 import { SOURCES } from '../registry/memory.js';
@@ -25,7 +19,7 @@ const OFFLINE = 'Offline: searching this phone only.';
 const PARTIAL = "Couldn't reach the full search. These are from this phone.";
 
 const $ = (/** @type {string} */ s) => /** @type {HTMLElement} */ (document.querySelector(s));
-const svg = (/** @type {string} */ icon) => `<svg class="i" aria-hidden="true"><use href="/ui/icons.svg#${icon}"/></svg>`;
+const svg = (/** @type {string} */ icon, cls = '') => `<svg class="i${cls}" aria-hidden="true"><use href="/ui/icons.svg#${icon}"/></svg>`;
 /** @template {keyof HTMLElementTagNameMap} K @param {K} tag @param {string} [cls] @param {string} [text] */
 function el(tag, cls, text) {
   const n = document.createElement(tag);
@@ -48,12 +42,12 @@ let wired = false;
 export function enter() {
   if (ui) return ui.input.focus();
   wire();
-  const box = el('div', 'search sbox');
+  const box = el('div', 'field-box sbox');
   box.innerHTML = svg('magnifying-glass');
-  const input = el('input');
+  const input = el('input', 'field');
   Object.assign(input, { type: 'search', autocomplete: 'off', spellcheck: false, enterKeyHint: 'search' });
   input.setAttribute('aria-label', 'Search everything');
-  const clear = el('button', 'sclear');
+  const clear = el('button', 'sback sclear');
   clear.type = 'button';
   clear.setAttribute('aria-label', 'Clear');
   clear.innerHTML = svg('x');
@@ -160,8 +154,7 @@ const SETTINGS = /** @type {[string, { name: string, focus?: string }, string, s
   ['Notifications', { name: 'notifications' }, 'bell', 'push alerts notify'],
   ['What I remember', { name: 'memory' }, 'brain', 'memory facts forget'],
   ['Sign-in & devices', { name: 'devices' }, 'devices', 'sign out sessions phone logout devices'],
-  ['Agents', { name: 'agents' }, 'key', 'keys api tokens'],
-  ['Account', { name: 'account' }, 'user-circle', 'password recovery code username'],
+  ['Password · Account', { name: 'account' }, 'user-circle', 'password recovery code username'],
   ['Export', { name: 'export' }, 'download-simple', 'download backup data'],
   ['Recently deleted', { name: 'deleted' }, 'trash', 'trash bin restore undelete'],
   ['Check for update', { name: 'settings', focus: 'update' }, 'info', 'version about'],
@@ -258,7 +251,7 @@ function askInstead() {
 
 /** @param {Part[]} parts */
 function marked(parts) {
-  const s = el('span', 'sn');
+  const s = el('span', 'sn row-detail');
   for (const p of parts) s.append(p.bold ? el('b', '', p.text) : p.text);
   return s;
 }
@@ -268,20 +261,21 @@ function rowEl(r) {
   const b = el('button', 'row srow');
   b.type = 'button';
   b.dataset.ref = r.ref;
-  if (r.color) b.style.setProperty('--c', r.color);
   b.innerHTML = svg(r.icon);
-  const t = el('span', 't');
+  b.querySelector('svg')?.classList.add('row-icon');
+  const t = el('span', 't row-copy');
   if (r.title) {
     // A long title is cut, never the date after it (audit fix 11).
     const at = r.title.lastIndexOf(' · ');
-    const line = el('span', 'tl');
+    const line = el('span', 'tl row-title');
     if (at > 0) line.append(el('span', 'tt', r.title.slice(0, at)), el('span', 'td', r.title.slice(at)));
     else line.textContent = r.title;
     t.append(line);
   }
   if (r.parts) t.append(marked(r.parts));
-  if (r.sub) t.append(el('span', 'src', r.sub));
+  if (r.sub) t.append(el('span', 'src row-detail', r.sub));
   b.append(t);
+  b.insertAdjacentHTML('beforeend', svg('caret-right', ' row-caret'));
   return b;
 }
 
@@ -299,9 +293,11 @@ function draw() {
     if (!rows.length) continue;
     const shown = run.all.has(g) ? rows : rows.slice(0, SHOWN[g]);
     drawn.push(...shown);
-    out.push(el('div', 'grp', name), ...shown.map(rowEl));
+    const list = el('div', 'group');
+    list.append(...shown.map(rowEl));
+    out.push(el('div', 'group-title', name), list);
     if (shown.length < rows.length) {
-      const all = el('button', 'showall', `Show all ${rows.length}`);
+      const all = el('button', 'btn quiet showall', `Show all ${rows.length}`);
       all.type = 'button';
       all.dataset.all = g;
       out.push(all);
