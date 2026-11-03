@@ -9,6 +9,7 @@ import { writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { outlast } from './fixtures/waits.mjs';
 
 // Timing reads (how fast the capsule or an app arrives) are the phone's acceptance (HOME.md §12), measured
 // there with the Frames readout. On a shared CI runner they vary with load, so they are enforced only with
@@ -105,8 +106,9 @@ test('Music opens as a layer that its worker trusts; Back makes it the island; a
   assert.ok(seen.some((s) => s.auth === `Bearer ${TOKEN}`), `the framed player was given the session (${JSON.stringify(seen)})`);
 
   // Music reloads itself in the frame (a day/night switch does): its page claims the trust back.
-  await page.evaluate(() => document.querySelector('iframe.th-app').contentWindow.location.reload());
-  await page.waitForFunction(() => document.querySelector('iframe.th-app').contentWindow.__cp?.player, null, { timeout: 20_000 });
+  // The old page is marked first, so the waits below are for the reloaded page, not the one leaving.
+  await page.evaluate(() => { const w = document.querySelector('iframe.th-app').contentWindow; w.__leaving = true; w.location.reload(); });
+  await page.waitForFunction(() => { const w = document.querySelector('iframe.th-app').contentWindow; return !w.__leaving && w.__cp?.player; }, null, { timeout: 20_000 });
   await page.waitForFunction(() => document.querySelector('iframe.th-app').dataset.ready === 'true');
   assert.equal(await page.locator('.th-app-wait').isVisible(), false, 'reload clears the loading cover');
   seen.length = 0;
@@ -166,8 +168,7 @@ test('Music opens as a layer that its worker trusts; Back makes it the island; a
         .map((e) => e.data.rating);
     };
     const settle = async (n) => {
-      for (let i = 0; i < 50 && rates().length < n; i++) await new Promise((r) => setTimeout(r, 100));
-      await new Promise((r) => setTimeout(r, 500));
+      for (let i = 0; i < 150 && rates().length < n; i++) await new Promise((r) => setTimeout(r, 100));
       return rates();
     };
     const r = (await import('/th/island/island.js')).control('never');
@@ -236,17 +237,25 @@ test("the same player framed by another site's page gets no session", opts, asyn
   await page.goto(`${base}/music/`);
   await page.evaluate(async () => { await navigator.serviceWorker.register('/music/sw.js', { scope: '/music/' }); await navigator.serviceWorker.ready; });
   // That top-level page's own requests (trusted, rightly) finish before the count starts.
-  await page.goto(`${base}/no-such-page`);
-  await page.waitForTimeout(2000);
+  await page.goto(`${base}/no-such-page`, { waitUntil: 'networkidle' });
   seen.length = 0;
+  // The framed player's first library request settles only after its worker chose: a trusted frame's
+  // goes to the Worker with the session (`seen`), any other passes through to the old address.
+  const library = () => new Promise((resolve) => {
+    const done = (r) => { if (r.url().endsWith('/music/library.json')) { context.off('requestfinished', done); context.off('requestfailed', done); resolve(); } };
+    context.on('requestfinished', done);
+    context.on('requestfailed', done);
+  });
+  let asked = library();
   await page.goto(`${otherBase}/`);
   const f = page.frameLocator('#f');
   await f.locator('body').waitFor({ state: 'attached', timeout: 20_000 });
-  await page.waitForTimeout(4000);
+  await asked;
   assert.ok(!seen.some((s) => s.auth.startsWith('Bearer ')), `no session for another site's frame (${JSON.stringify(seen)})`);
   // Nor with a made-up token: a token is only good once home gave it to the worker.
+  asked = library();
   await page.evaluate((u) => { document.getElementById('f').src = `${u}/music/?th-frame=${'a'.repeat(32)}`; }, base);
-  await page.waitForTimeout(4000);
+  await asked;
   assert.ok(!seen.some((s) => s.auth.startsWith('Bearer ')), 'a made-up token is no key');
   await context.close();
 });
@@ -420,11 +429,15 @@ test('signed-in idle warms Music then Podcasts; frames stay hidden, inert and al
 test('saveData and signed-out home do not warm frames',opts,async()=>{
   const context=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'allow'});
   try {
-    const page=await signedIn(context,{saveData:true});await page.goto(`${base}/`);
-    await page.waitForTimeout(3200);assert.equal(await page.locator('iframe.th-app').count(),0);
+    // warm.js decides at idle or 3 s after the chat's first sync: the page clock runs that decision.
+    await context.addInitScript(()=>document.addEventListener('th:changed',()=>{window.chatLoadedAt??=performance.now();}));
+    const page=await signedIn(context,{saveData:true});await page.clock.install();await page.goto(`${base}/`);
+    await page.waitForFunction(()=>window.chatLoadedAt!==undefined);await page.clock.runFor(3100);
+    assert.equal(await page.locator('iframe.th-app').count(),0);
   }finally{await context.close();}
   const out=await browser.newContext({viewport:{width:390,height:844},serviceWorkers:'allow'});
-  try{const page=await out.newPage();await page.goto(`${base}/`);await page.waitForTimeout(3200);assert.equal(await page.locator('iframe.th-app').count(),0);}finally{await out.close();}
+  // Signed out, home goes to sign-in, which has no frames to warm.
+  try{const page=await out.newPage();await page.goto(`${base}/`);await page.waitForURL(/\/signin\//);assert.equal(await page.locator('iframe.th-app').count(),0);}finally{await out.close();}
 });
 
 test('reduced motion snaps shape and fades content; cold Podcasts opens under its cover',opts,async t=>{
@@ -528,14 +541,18 @@ test('idle fallback waits three seconds after chat; a long title scrolls once at
     // A touch stops it and brings the title back; a hold alone neither scrolls nor expands.
     const box=await page.locator('.compact').boundingBox();await page.mouse.move(box.x+box.width/2,box.y+18);await page.mouse.down();
     await page.waitForFunction(()=>!document.querySelector('.th-island').classList.contains('scrolling'));
-    await page.waitForTimeout(600);
+    // The title snaps back on its own short animation (island.js marquee()): wait for it to finish.
+    await page.locator('.title').evaluate(e=>Promise.all(e.getAnimations().map(a=>a.finished.catch(()=>{}))));
+    // Held past the 450 ms hold timer (island.js HOLD_MS), so letting go is not a tap.
+    await outlast(page,600);
     assert.equal(await page.locator('.title').evaluate(e=>new DOMMatrix(getComputedStyle(e).transform).e),0,'the title is back at its start');
     assert.equal(await page.locator('.title').evaluate(e=>e.getAnimations().length),0,'nothing scrolls while touched');
     await page.mouse.up();
     const state=await page.locator('.th-island').getAttribute('data-state');assert.equal(state,'compact');
     await page.locator('.compact').click();await settle(page);
     await page.mouse.move(355,75);await page.mouse.down();
-    await page.waitForTimeout(6200);
+    // A negative read: it outlasts the island's 6 s idle close (island.js touch()), which a held touch suspends.
+    await outlast(page,6200);
     near((await rect(page,'.th-island')).height,180,'a held touch keeps the expanded capsule open');
     await page.mouse.up();
     await page.evaluate(()=>import('/th/island/island.js').then(m=>m.wide(false)));
