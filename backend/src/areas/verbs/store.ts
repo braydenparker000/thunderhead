@@ -89,13 +89,16 @@ export function insert(
   );
 }
 
-/** Open verbs for a device (its own or any), oldest first. */
-export function open(db: Db, deviceId: string): Row[] {
-  return db.all<Row>(
+/** Open verbs for a device (its own or any), oldest first: only the verbs named `in`, or all but
+ * those named `not` (home's loop leaves the apps' intents alone). Picked from the same 50 open rows
+ * either way (a verb list in the SQL made SQLite read a row more), so it costs what it did. */
+export function open(db: Db, deviceId: string, only: { in: string[] } | { not: string[] } = { not: [] }): Row[] {
+  const rows = db.all<Row>(
     `SELECT * FROM verbs WHERE status IN ('pending', 'claimed') AND (device_id IS NULL OR device_id = ?)
      ORDER BY created_at LIMIT 50`,
     deviceId,
   );
+  return 'in' in only ? rows.filter((r) => only.in.includes(r.verb)) : rows.filter((r) => !only.not.includes(r.verb));
 }
 
 export function claim(db: Db, id: string, by: string, at: number): void {

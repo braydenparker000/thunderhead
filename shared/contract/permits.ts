@@ -41,6 +41,9 @@ export interface PermitSpec {
   class: PermitClass;
   /** Marked by hand on the action, never inferred from its name. */
   floor?: PermitFloor;
+  /** Never below `tell`: a `quiet` class still says it (an action that takes away something the
+   * owner chose, verbs.ts `tell_min`). */
+  tell_min?: true;
   doc: string;
 }
 
@@ -70,11 +73,19 @@ export const MIND_ACTIONS = {
 export type MindActionName = keyof typeof MIND_ACTIONS;
 
 /** An action's class and floor: a verb's from verbs.ts, Core's own from MIND_ACTIONS; null for a
- * name that is neither. */
+ * name that is neither, and for a verb with no class (`memory.note`: the owner's own words only,
+ * so it is never gated). Worker-side verbs are found here through VERBS, never also listed in
+ * MIND_ACTIONS (a contract test keeps the two apart). */
 export function permitOf(action: string): PermitSpec | null {
   if (Object.hasOwn(VERBS, action)) {
-    const v = VERBS[action as keyof typeof VERBS] as { permit: PermitClass; floor?: PermitFloor; doc: string };
-    return { class: v.permit, ...(v.floor ? { floor: v.floor } : {}), doc: v.doc };
+    const v = VERBS[action as keyof typeof VERBS] as {
+      permit: PermitClass | null;
+      floor?: PermitFloor;
+      tell_min?: true;
+      doc: string;
+    };
+    if (v.permit === null) return null;
+    return { class: v.permit, ...(v.floor ? { floor: v.floor } : {}), ...(v.tell_min ? { tell_min: true } : {}), doc: v.doc };
   }
   return Object.hasOwn(MIND_ACTIONS, action) ? MIND_ACTIONS[action as MindActionName] : null;
 }

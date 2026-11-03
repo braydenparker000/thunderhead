@@ -96,6 +96,8 @@ describe('upgrade from P2', () => {
         'meter_days',
         'podcast_progress',
         'podcast_follows',
+        // Step 29: the mixes music.mix_save keeps.
+        'mixes',
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       sql.exec('ALTER TABLE surfaces DROP COLUMN facts_json');

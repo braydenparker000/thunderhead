@@ -146,6 +146,47 @@ export function cancel(w: Writer, c: Caller, id: string, source?: string): Permi
   return withPermit(store.shown(store.byId(w.db, id) as store.ReminderRow), g);
 }
 
+/** The `reminder.move` verb (verbs/worker.ts), by this area's rules: the chat mind only, from a
+ * clean session; a reminder the owner set on the phone moves only when the owner asked, naming that
+ * message (as taking it back does); a set reminder only (one delivered is gone, 410; one taken back
+ * is a conflict); the new time in the future and within the days ahead, ringing at the end of the
+ * quiet hours it falls in. Its standing permission was checked by the verb's gate. Returns the time
+ * before (the undo's) and the new one; `changed: false` when it is the same (nothing written). */
+export function move(
+  w: Writer,
+  c: Caller,
+  id: string,
+  at: number,
+  source: string | undefined,
+  tz: string,
+): { before: number; at: number; fire_at: number; changed: boolean } {
+  if (c.who !== 'C') throw new Fail('forbidden', { reason: 'only the chat moves a reminder, from the owner asking' });
+  cleanSession(w, c);
+  const had = store.byId(w.db, id);
+  if (!had) throw new Fail('not_found');
+  if (had.state === 'done') throw new Fail('expired');
+  if (had.state !== 'set') throw new Fail('conflict', { reason: 'the reminder was taken back' });
+  if (had.origin !== 'mind') {
+    if (!source) throw invalid('args.source_message_id', "the owner's message that asked to move it");
+    checkSource(w, source, false);
+  }
+  if (at < w.at - PAST_MS) throw invalid('args.at', 'in the past');
+  if (at > w.at + REMINDER_LIMITS.days_ahead * DAY)
+    throw invalid('args.at', `at most ${REMINDER_LIMITS.days_ahead} days ahead`);
+  if (at === had.at) return { before: had.at, at, fire_at: had.fire_at, changed: false };
+  const fire = fireAt(at, tz, quietWindow(w.db));
+  store.move(w.db, id, at, fire);
+  return { before: had.at, at, fire_at: fire, changed: true };
+}
+
+/** The undo of a move: back to the time before, only while the reminder is still set at the time
+ * it was moved to (a later move, its delivery or its cancelling stands: 409). */
+export function moveBack(w: Writer, id: string, before: number, movedTo: number, tz: string): void {
+  const had = store.byId(w.db, id);
+  if (had?.state !== 'set' || had.at !== movedTo) throw new Fail('conflict', { reason: 'the reminder changed since' });
+  store.move(w.db, id, before, fireAt(before, tz, quietWindow(w.db)));
+}
+
 /** The alarm's pass: every set reminder due by now becomes its line in today's thread, once (the
  * row turns `done` in the same commit). A push is owed unless it is delivered inside quiet hours
  * or `push` is false (the eval sandbox). Returns how many owe a push; past PER_RUN, the alarm

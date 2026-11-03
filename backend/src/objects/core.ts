@@ -43,6 +43,8 @@ import { listenApplyJob, listenPackJob, listenRejectJob } from '../areas/music/l
 import { lawsAtClaim, settle as settleProposals } from '../areas/proposals/ops';
 import * as surfaces from '../areas/surfaces/ops';
 import { list as listSurfaces } from '../areas/surfaces/store';
+import { dropUnasked } from '../areas/verbs/follow';
+import { list as listMixes } from '../areas/verbs/mixes';
 import * as verbs from '../areas/verbs/ops';
 import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
@@ -203,6 +205,8 @@ export class Core extends CoreHeld {
     this.write((w) => {
       verbs.settle(w);
       settleProposals(w);
+      // The verbs' follow-ups the mind never asked about, 3 days on (verbs/follow.ts).
+      dropUnasked(w);
     }, now);
     const pruned = await this.pruneDaily(now, day.logicalDay(now, tz));
     const cfg = wakeNight && !this.sandboxed ? fireConfig(this.env, 'night') : null;
@@ -232,15 +236,23 @@ export class Core extends CoreHeld {
   }
 
   undo(c: Caller, id: string) {
-    return this.run((w) => ledger.undo(w, c, id));
+    const out = this.run((w) => ledger.undo(w, c, id, () => this.tz()));
+    // An undo may have moved a reminder back (verbs/undo.ts): the alarm follows the soonest.
+    if (out.ok) this.changed();
+    return out;
   }
 
-  putVerb(c: Caller, id: string, r: PutVerbRequest, hash: string) {
-    return this.run((w) => verbs.put(w, c, id, r, hash));
+  /** `prepared`: what the route worked out first (a play_mix find's songs); absent from a Worker of
+   * the release before, which sends none (then such a find is refused, 422). */
+  putVerb(c: Caller, id: string, r: PutVerbRequest, hash: string, prepared?: verbs.Prepared) {
+    const out = this.run((w) => verbs.put(w, c, id, r, hash, () => this.tz(), prepared ?? {}));
+    if (out.ok && out.value.created && r.verb === 'reminder.move') this.changed();
+    return out;
   }
 
-  pendingVerbs(deviceId: string) {
-    return this.write((w) => verbs.pending(w, deviceId));
+  /** `app`: that app's pending intents; without it, what home's own loop runs. */
+  pendingVerbs(deviceId: string, app?: string) {
+    return this.write((w) => verbs.pending(w, deviceId, app));
   }
 
   claimVerb(id: string, deviceId: string) {
@@ -248,7 +260,12 @@ export class Core extends CoreHeld {
   }
 
   verbResult(id: string, deviceId: string, r: VerbResultRequest) {
-    return this.run((w) => verbs.result(w, id, deviceId, r));
+    return this.run((w) => verbs.result(w, id, deviceId, r, () => this.tz()));
+  }
+
+  /** GET /v1/music/mixes: the mixes `music.mix_save` kept, newest first. */
+  musicMixes() {
+    return listMixes(this.db);
   }
 
   surfaces(since: number) {

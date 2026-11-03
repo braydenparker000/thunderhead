@@ -203,6 +203,8 @@ Rules:
 3. **Never** report a plan as progress ("I'll look into it") without doing it in the same session. If the session must end, the unfinished part becomes an `open_thread` owned by the mind and the reply says so.
 4. **Never** claim "live", "merged", "deployed" or "fixed" without the ledger entry and the live check behind it (LAW-1 structural check).
 5. **Overnight work** is reported on the Briefing page ("Built overnight"), not as pushes.
+6. **Follow-through** (built 2026-11-02, `backend/src/areas/verbs/follow.ts`): when a verb of class music, podcasts, practice or watch that you queued completes under `tell` or `quiet` (a Worker-side verb as it runs, a phone verb or intent when the phone reports it done), the Worker opens one loose end for you, "follow up: did <verb> land? (<your why>)", citing the verb's ledger row, due the next owner-local day; at most one per verb in 7 days, none for one that changed nothing or only recorded the owner's words (`music.never`).
+   Ask once, in passing, when the owner is next talking about it, then close it (`th thread done <id>`); one still open 3 days after it was opened is dropped by the Worker.
 
 **Check (DONE-1/2, LAW-1):** the Stop hook and the ledger ([CONSTITUTION.md](CONSTITUTION.md#how-the-laws-are-enforced)); the LAW-1 fixture set is not built ([archive](../archive/EVALS-aspirational.md#5-law-fixture-sets)).
 

@@ -18,14 +18,18 @@ test('the generated contract copies are current (run node scripts/contract.mjs)'
   assert.deepEqual(stale(), []);
 });
 
-test('every verb has a class, an executor, versioned schemas and a doc line', () => {
+test('every verb has a class, a side, versioned schemas, a doc line and a line for the briefing', () => {
   for (const [name, v] of Object.entries(c.VERBS)) {
     assert.match(name, /^[a-z]+\.[a-z_]+$/, name);
     assert.ok(['reversible', 'ask_first'].includes(v.class), `${name}: class`);
-    assert.ok(['device', 'worker'].includes(v.executor), `${name}: executor`);
-    assert.ok(['reported', 'none'].includes(v.undo), `${name}: undo`);
-    assert.ok(v.queueable || v.executor === 'device', `${name}: an owner-tap verb runs on the device`);
+    assert.ok(['phone', 'worker'].includes(v.side), `${name}: side`);
+    // The Worker stores the inverse of what it runs; a phone reports its own.
+    assert.ok(v.side === 'worker' ? v.undo === 'stored' : ['reported', 'none'].includes(v.undo), `${name}: undo`);
+    assert.ok(v.queueable || v.side === 'phone', `${name}: an owner-tap or inverse-only verb runs on the phone`);
+    // An intent is a phone verb that an app applies as it opens, so it names a real app.
+    if (v.intent) assert.ok(v.side === 'phone' && Object.hasOwn(c.APPS, v.app), `${name}: an intent is an app's`);
     assert.ok(sentence(v.doc), `${name}: doc line`);
+    assert.ok(typeof v.what === 'string' && v.what.length >= 8 && v.what.length <= 60 && !v.what.includes('|'), `${name}: what`);
     const versions = Object.keys(v.versions).map(Number);
     assert.ok(versions.length > 0 && versions.every((n) => Number.isInteger(n) && n >= 1), `${name}: versions`);
     for (const [ver, s] of Object.entries(v.versions)) {
@@ -71,8 +75,14 @@ test('every action the mind takes has a standing-permission class; floors are ma
   const classes = new Set(c.PERMIT_CLASSES);
   const floors = Object.keys(c.PERMIT_FLOORS);
   for (const [name, v] of Object.entries(c.VERBS)) {
+    // No class only for the owner's own words (memory.note), which its area checks; never gated.
+    if (v.permit === null) {
+      assert.deepEqual([name, c.classOf(name), v.floor], ['memory.note', null, undefined]);
+      continue;
+    }
     assert.ok(classes.has(v.permit), `${name}: permit class`);
     assert.equal(c.classOf(name), v.permit, name);
+    if (v.tell_min) assert.equal(v.floor, undefined, `${name}: tell_min is for a class the owner can set`);
     // A floor is exactly what makes a verb ask-first.
     assert.equal(v.floor !== undefined, v.class === 'ask_first', `${name}: a floor iff ask_first`);
     if (v.floor !== undefined) assert.ok(floors.includes(v.floor), `${name}: floor`);

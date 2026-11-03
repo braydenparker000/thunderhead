@@ -30,7 +30,7 @@ for the owner's yes.
 7. **Search never gets worse than plain search.** Exact and prefix matches always come first. Fuzzy
    matches follow. "Similar vibe" results sit in their own section and never reorder the others.
 8. **The mind arranges; the owner decides.** The mind can build mixes, queue songs and add "why"
-   chips. It never rates songs, never deletes an owner playlist, and never starts sound without an
+   chips. It never changes a rating the owner gave (it rates only a song they have not rated, from what they said), never deletes an owner playlist, and never starts sound without an
    owner action behind it (§10.3).
 9. **Everything the owner does is a sense; everything the mind does is a verb with undo.**
 10. **Works offline.** With no network the library still browses and searches; every song with a
@@ -836,8 +836,15 @@ returns `{result, undo}`.
 | `music.set_why` | `{ref, why, expires}` | Attaches a why chip | Removes it |
 | `music.keep_offline` | `{refs}` | Marks for offline (downloads on Wi-Fi only when the verb came from the mind) | Unmark |
 
-Not verbs, on purpose: rating, deleting an owner playlist (ask-first class), changing sound
-settings, clearing offline copies.
+Not verbs, on purpose: changing a rating the owner gave, deleting an owner playlist (ask-first class),
+changing sound settings, clearing offline copies.
+
+**Built (2026-11-02, the mind's verbs batch 1; API.md §11.11):** `music.queue` (and its undo
+`music.unqueue`), `music.play_mix` (a mix `music.mix_save` kept in the Worker, a find the Worker runs,
+or songs; loaded paused; its undo is the queue before) and `music.rate` (only a song the owner has
+not rated; its undo `music.unrate`) are intents: the queue and the ratings live in the player, so
+Music applies them when it opens (`frontend/th/music/intents.js`, from `installDj`). `music.never`
+(the owner's rule, through memory) and `music.mix_save` run in the Worker at once.
 
 **Built (2026-10-30, the owner's day-1 request):** `music.create_playlist` v1 `{name, refs}` and its
 undo `music.delete_playlist` v1 `{list_id}` (not queueable by the mind; refuses `owner_edited` once
