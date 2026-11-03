@@ -1,4 +1,5 @@
-// Settings → What I remember (MEMORY.md §12, MENU-AND-SETTINGS.md §4.4): everything the mind
+// Settings → What I remember (MEMORY.md §12, MENU-AND-SETTINGS.md §4.4): first what the mind learned
+// from outside text and waits for the owner's Keep or Forget (MEMORY.md §6 M11); then everything it
 // knows, grouped as the owner thinks of it, with a filter over all of it; the standing rules; loose
 // ends; the day notes; facts that are fading and imported ones to review; and, folded at the end, how
 // well the mind knows the owner (memory-meter.js, P9). Every action is a ledger
@@ -144,6 +145,9 @@ export async function memory(body) {
       ]));
     };
     const byPin = (a, b) => Number(b.pinned) - Number(a.pinned) || b.confidence_now - a.confidence_now;
+    const newest = (a, b) => b.recorded_at - a.recorded_at;
+    section('outside', 'Learned from outside', "From pages and files I read, or my own guesses. I won't use them until you keep them.",
+      (shelves.get('outside') ?? []).sort(newest), (f) => fRow(f, 'outside'));
     for (const g of GROUPS)
       section(g.id, g.label, g.help, (shelves.get(g.id) ?? []).sort(byPin), (f) => fRow(f), g.id === 'rule' && !q ? 'No standing rules yet.' : '');
     const tRow = (t) => keep(`t:${t.id}`, JSON.stringify(t), () => threadRow(t, ctx));

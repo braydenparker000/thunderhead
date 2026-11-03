@@ -2,7 +2,7 @@
 // Local-first menu search. Worker results append within groups after typing pauses.
 import { current } from '../chat/index.js';
 import { failure } from '../flow.js';
-import { SOURCES } from '../registry/memory.js';
+import { whose } from '../registry/memory.js';
 import { apps } from '../registry/apps.js';
 import { toast } from '../ui.js';
 import * as data from './data.js';
@@ -329,7 +329,7 @@ function fill(rows) {
     } else if (r.ref.startsWith('fact:') && r.sub === undefined) {
       asked.add(`${mine}:${r.ref}`);
       data.fact(refId(r.ref)).then((f) => {
-        r.sub = SOURCES[/** @type {keyof typeof SOURCES} */ (f.source)] ?? '';
+        r.sub = whose(f);
         if (mine === token) draw();
       }, () => {});
     }

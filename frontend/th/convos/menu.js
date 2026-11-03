@@ -1,5 +1,6 @@
 // @ts-check
 // Conversations grouped by day, prepared from cache before opening; list and search share data.
+// Muse's tasks (tasks.js) are a group above them while there are any.
 import { lineFor } from '../copy.js';
 import { failure } from '../flow.js';
 import { toast } from '../ui.js';
@@ -8,6 +9,7 @@ import { holdCards } from './actions.js';
 import * as data from './data.js';
 import { byMonth, count, GROUPS, grouped, isNow, longDate, metaOf, OLD_CHATS, OTR, PAGE, partOfDay, subOf, titleOf } from './model.js';
 import * as past from './past.js';
+import * as tasks from './tasks.js';
 
 /** @typedef {import('../../../shared/contract/api.ts').Thread} Thread */
 /** @typedef {import('./model.js').Group} Group */
@@ -71,6 +73,8 @@ function tapIn(e, before) {
   const t = /** @type {HTMLElement} */ (e.target);
   const head = /** @type {HTMLElement | null} */ (t.closest('button.ghead'));
   if (head) return toggle(head);
+  const task = /** @type {HTMLElement | null} */ (t.closest('button[data-task]'));
+  if (task) return void tasks.open(/** @type {string} */ (task.dataset.task), () => draw());
   const row = /** @type {HTMLElement | null} */ (t.closest('button[data-id], button[data-all]'));
   if (!row) return;
   if (row.dataset.all !== undefined) return void allPage();
@@ -117,7 +121,7 @@ function wireMenu() {
   });
   document.addEventListener('th:changed', (e) => {
     const kinds = /** @type {CustomEvent<string[]>} */ (e).detail ?? [];
-    if (!kinds.some((k) => k === 'thread' || k === 'message' || k === '*')) return;
+    if (!kinds.some((k) => k === 'thread' || k === 'message' || k === 'work' || k === '*')) return;
     stale = true;
     if (side.classList.contains('open')) void startMenu();
   });
@@ -235,7 +239,7 @@ function load() {
     try {
       // Offline, what this phone has stands, with a line that says so.
       if (!navigator.onLine) throw new Error('offline');
-      await data.refresh();
+      await Promise.all([data.refresh(), tasks.refresh()]);
       await draw();
     } catch (e) {
       stale = true;
@@ -328,6 +332,7 @@ async function draw(error, cachedOnly = false) {
     const all = every.filter((t) => !top.includes(t));
     const g = grouped(all, today.day, today.id);
     const closed = closedSet();
+    if (tasks.items.length) out.push(group('tasks', 'Tasks', tasks.items.map(tasks.row), closed));
     if (top.length) out.push(group('pinned', 'Pinned', /** @type {Thread[]} */ (top).map((t, i) => row(t, 'week', i)), closed));
     out.push(...g.today.map((t, i) => row(t, 'today', i)));
     for (const [key, name] of GROUPS) if (g[key].length) out.push(group(key, name, g[key].map((t, i) => row(t, key, i)), closed));

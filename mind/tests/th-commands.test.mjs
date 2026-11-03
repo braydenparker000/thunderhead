@@ -142,15 +142,18 @@ test('remember, recall, confirm, supersede, forget', withFake({}, async fake => 
   const rem = await th(['remember', '--kind', 'preference', '--text', 'Prefers short answers on the phone', '--evidence', said.id], e);
   assert.equal(rem.code, 0, rem.stderr);
   assert.ok(rem.json.fact_id && rem.json.ledger_id);
+  assert.equal(rem.json.provenance, 'owner');
   assert.equal(fake.state.facts[0].evidence[0], `msg:${said.id}`);
   const rec = await th(['recall', 'short answers', '--kind', 'facts'], e);
   assert.equal(rec.json.items[0].ref, `fact:${rem.json.fact_id}`);
-  assert.deepEqual(Object.keys(rec.json.items[0]).sort(), ['at', 'ref', 'score', 'snippet', 'source']);
+  assert.deepEqual(Object.keys(rec.json.items[0]).sort(), ['at', 'provenance', 'ref', 'score', 'snippet', 'source']);
   assert.equal(rec.json.items[0].source, 'facts');
+  assert.equal(rec.json.items[0].provenance, 'owner');
   assert.equal((await th(['search', 'short answers', '--sources', 'nope'], e)).code, 8);
-  assert.equal((await th(['confirm', rem.json.fact_id, '--evidence', said.id], e)).code, 0);
+  assert.deepEqual((await th(['confirm', rem.json.fact_id, '--evidence', said.id], e)).json, {ok: true, provenance: 'owner'});
   const sup = await th(['supersede', rem.json.fact_id, '--text', 'Prefers very short answers', '--evidence', said.id], e);
   assert.equal(sup.code, 0, sup.stderr);
+  assert.equal(sup.json.provenance, 'owner');
   assert.equal(fake.state.facts.find(f => f.id === sup.json.fact_id).kind, 'preference');
   const fg = await th(['forget', sup.json.fact_id, '--why', 'The owner asked to forget it'], e);
   assert.equal(fg.code, 0);
@@ -161,9 +164,20 @@ test('remember, recall, confirm, supersede, forget', withFake({}, async fake => 
   assert.equal((await th(['remember', '--kind', 'mood', '--text', 'x', '--evidence', said.id], e)).code, 8);
   assert.equal((await th(['taint', '--source', 'WebFetch', '--ref', 'https://example.com/page'], e)).code, 0);
   assert.equal(fake.state.requests.at(-1).path, '/v1/mind/taint');
+  // MEMORY.md §6 M11: a session that read outside text writes, labelled outside; no rule from it.
   const tainted = await th(['remember', '--kind', 'fact', '--text', 'Something', '--evidence', said.id], e);
-  assert.equal(tainted.code, 6);
-  assert.equal(errCode(tainted), 'session_tainted');
+  assert.equal(tainted.code, 0, tainted.stderr);
+  assert.equal(tainted.json.provenance, 'outside');
+  const sup2 = await th(['supersede', tainted.json.fact_id, '--text', 'Something else', '--evidence', said.id], e);
+  assert.equal(sup2.json.provenance, 'outside');
+  assert.equal((await th(['confirm', sup2.json.fact_id, '--evidence', said.id], e)).json.provenance, 'outside');
+  const rule = await th(['remember', '--kind', 'rule', '--text', 'Always do X', '--evidence', said.id], e);
+  assert.equal(rule.code, 8);
+  assert.match(rule.stderr, /outside_rule/);
+  const note = await th(['note', '--session', 'Read a page.'], e);
+  assert.equal(note.json.provenance, 'outside');
+  const thread = await th(['thread', 'add', 'Read', 'it', 'again', '--evidence', said.id], e);
+  assert.equal(thread.json.provenance, 'outside');
 }));
 
 test('thread add, list, done, drop', withFake({}, async fake => {
@@ -243,19 +257,21 @@ test('verb (checked against the contract), undo, ledger', withFake({}, async fak
 
 test('order new, list, get, cancel; no personal order kinds; Muse\'s thread', withFake({}, async fake => {
   const e = env(fake);
-  const spec = '{"v":1,"goal":"Check the weather feed.","inputs":{},"constraints":[],"done_when":"Each URL checked."}';
-  const n = await th(['order', 'new', '--kind', 'media.check', '--title', 'Weather feeds', '--spec', spec, '--deadline', '2026-10-29T06:00:00Z'], e);
+  const n = await th(['order', 'new', '--words', 'Find the weather feed that moved.', '--app', 'podcasts', '--deadline', '2026-10-29T06:00:00Z'], e);
   assert.equal(n.code, 0, n.stderr);
   const stored = fake.state.orders.get(n.json.id).value;
-  assert.deepEqual([stored.deadline_at, stored.title, stored.schema, stored.personal], [Date.parse('2026-10-29T06:00:00Z'), 'Weather feeds', undefined, undefined]);
+  assert.deepEqual([stored.kind, stored.deadline_at, stored.title, stored.spec, stored.schema, stored.personal],
+    ['muse.request', Date.parse('2026-10-29T06:00:00Z'), 'Find the weather feed that moved.', {v: 1, words: 'Find the weather feed that moved.', app: 'podcasts'}, undefined, undefined]);
+  assert.equal(n.json.state, 'asked');
   assert.equal((await th(['order', 'list'], e)).json.items.length, 1);
-  assert.equal((await th(['order', 'get', n.json.id], e)).json.kind, 'media.check');
+  assert.equal((await th(['order', 'get', n.json.id], e)).json.kind, 'muse.request');
   assert.equal((await th(['order', 'cancel', n.json.id], e)).code, 8, '--why is required');
   assert.equal((await th(['order', 'cancel', n.json.id, '--why', 'No longer needed today'], e)).json.status, 'cancelled');
   assert.equal((await th(['order', 'get', 'nope'], e)).code, 8);
   const before = fake.state.requests.length;
-  const personal = await th(['order', 'new', '--kind', 'research.brief', '--personal', '--spec', spec, '--deadline', '2026-10-29T06:00:00Z'], e);
-  assert.equal(personal.code, 8, 'refused before anything is sent');
+  for (const args of [['--words', 'x', '--personal'], ['--kind', 'research.brief', '--words', 'x'], ['--words', 'x'.repeat(501)], []]) {
+    assert.equal((await th(['order', 'new', ...args], e)).code, 8, `refused before anything is sent: ${args.join(' ')}`);
+  }
   assert.equal(fake.state.requests.length, before);
   assert.equal((await th(['muse', 'nonsense'], e)).code, 8);
 }));
@@ -315,16 +331,17 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   assert.deepEqual(d.json.messages, [{id: said.id, author: 'owner', kind: 'text', body: said.body, reply_to: null, at: said.created_at}],
     'each message as the night reads it: what it says and its id for evidence');
   assert.deepEqual(d.json.next, {messages: null, ledger: null, notes: null});
-  assert.equal((await th(['daynote', '2026-10-28', '--summary', 'A quiet day.', '--decisions', '[]', '--importance', '3'], e)).json.version, 1);
-  fake.state.dayNotes.set('2026-10-27', {summary: 'The owner wrote this.', decisions: [], importance: 4, version: 2, written_by: 'owner'});
+  assert.deepEqual((await th(['daynote', '2026-10-28', '--summary', 'A quiet day.', '--decisions', '[]', '--importance', '3'], e)).json,
+    {version: 1, provenance: 'owner'});
+  fake.state.dayNotes.set('2026-10-27', {summary: 'The owner wrote this.', decisions: [], importance: 4, version: 2, written_by: 'owner', provenance: 'owner'});
   assert.deepEqual((await th(['daynote', '2026-10-27', '--summary', 'Night words.', '--decisions', '[]', '--importance', '3'], e)).json,
-    {version: 2, kept_owner_edit: true}, "the owner's edit stands, and th says so");
+    {version: 2, kept_owner_edit: true, provenance: 'owner'}, "the owner's edit stands, and th says so");
   const batch = join(e.TMPDIR, 'batch.json');
   writeFileSync(batch, JSON.stringify({ops: [{op: 'add', kind: 'preference', subject: 'music', text: 'Likes slow jazz in the evening', source: 'user', evidence: [`msg:${said.id}`], sensitivity: 0}]}));
-  assert.deepEqual((await th(['facts', '--batch', batch], e)).json, {applied: 1, proposed: 0, rejected: []});
+  assert.deepEqual((await th(['facts', '--batch', batch], e)).json, {applied: 1, outside: 0, proposed: 0, rejected: []});
   writeFileSync(batch, JSON.stringify([{op: 'add', kind: 'routine', subject: 'music', text: 'Plays guitar after dinner', source: 'observed', evidence: [`msg:${said.id}`], sensitivity: 0},
     {op: 'add', kind: 'fact', subject: 'x', text: 'Unsupported', source: 'user', evidence: ['msg:does-not-exist'], sensitivity: 0}]));
-  assert.deepEqual((await th(['facts', '--batch', batch], e)).json, {applied: 1, proposed: 0, rejected: [{i: 1, reason: 'bad_evidence'}]}, 'valid ops apply, bad ones are listed');
+  assert.deepEqual((await th(['facts', '--batch', batch], e)).json, {applied: 1, outside: 0, proposed: 0, rejected: [{i: 1, reason: 'bad_evidence'}]}, 'valid ops apply, bad ones are listed');
   assert.deepEqual((await th(['night', 'start'], e)).json, {resume_from: 1, done: false, cursor: null, skipped: []});
   const ahead = await th(['night', 'step', '3', 'done'], e);
   assert.equal(ahead.code, 7, 'a step ahead of the run is a conflict');
@@ -361,19 +378,19 @@ test('facts --night: a part of the night run\'s day is one batch; the same file 
   writeFileSync(batch, JSON.stringify({ops: [op('Takes the bus to work')]}));
   assert.equal((await th(['facts', '--batch', batch, '--night'], e)).code, 8, 'no night run started yet');
   assert.equal((await th(['night', 'start'], e)).code, 0);
-  assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 1, proposed: 0, rejected: []});
-  assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 1, proposed: 0, rejected: [], already: true},
+  assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 1, outside: 0, proposed: 0, rejected: []});
+  assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 1, outside: 0, proposed: 0, rejected: [], already: true},
     'the same file is the same batch: the Worker answers what it applied the first time');
   writeFileSync(batch, JSON.stringify({ops: [op('Goes to work by bus')]}));
   const again = await th(['facts', '--batch', batch, '--night'], e);
   assert.equal(again.code, 7, 'a second file without --part is part 1 again, with other ops');
   assert.match(JSON.parse(again.stderr).error.message, /part 1 of the night of 2026-10-28 .* as --part 2/);
-  assert.deepEqual((await th(['facts', '--batch', batch, '--night', '--part', '2'], e)).json, {applied: 1, proposed: 0, rejected: []});
+  assert.deepEqual((await th(['facts', '--batch', batch, '--night', '--part', '2'], e)).json, {applied: 1, outside: 0, proposed: 0, rejected: []});
   // A backfill night: its own day, so its own batch ids.
   assert.equal((await th(['night', 'start', '--day', '2026-10-25'], e)).code, 0);
   assert.equal((await th(['night', 'step', '1', 'done'], e)).json.resume_from, 2, 'the steps go to the run started');
   assert.equal(fake.state.night.get('2026-10-25').resume, 2);
-  assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 1, proposed: 0, rejected: []});
+  assert.deepEqual((await th(['facts', '--batch', batch, '--night'], e)).json, {applied: 1, outside: 0, proposed: 0, rejected: []});
   assert.deepEqual([...fake.state.batches.keys()],
     [nightBatchId('2026-10-28', 1), nightBatchId('2026-10-28', 2), nightBatchId('2026-10-25', 1)]);
   for (const bad of [['--part', '2'], ['--day', '2026-10-25'], ['--night', '--part', '0']])

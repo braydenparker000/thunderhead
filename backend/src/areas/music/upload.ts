@@ -8,13 +8,16 @@
 //   hash and their own format, then stored once in `jarvis-music` under their content address
 //   (`If-None-Match: *`), marked verified. The only writes this Worker makes to that bucket; it
 //   never deletes from it (DATA.md §7.2).
-// - POST …/<op>: the catalog writer's operations (areas/music/writer*.ts) in the Music object;
+// - POST …/<op>: the catalog writer's operations (areas/music/writer*.ts) in the Music object (the
+//   songs `register` and `register-batch` add also go to Muse's upload batch in Core, a task in the
+//   menu, areas/work);
 //   `export` (the catalog with its waveforms) and `links` (signed links to tracks' audio, for the
 //   waveform backfill) read only. Past 80% of a day's Free-plan rows they answer 429 with
 //   Retry-After until 00:00 UTC (areas/meter/hold.ts): their reads put the day near the cap once.
 import { Hono } from 'hono';
 import type { AppEnv } from '../../http/auth';
 import { ApiError } from '../../http/errors';
+import { coreObject } from '../../objects/core';
 import { musicObject, type WriteResult } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
 import { sha256 } from '../import/vault';
@@ -180,8 +183,38 @@ export const uploadRoutes = new Hono<AppEnv>()
     // The RPC types can't carry `unknown`; the body is the writer's own JSON.
     const r = (await fresh(music.write(op, input as Record<string, unknown>))) as unknown as WriteResult;
     if (r.status !== 200) answer(r.status, r.body);
+    // New songs show in the menu's Tasks as Muse's upload batch (areas/work), after the answer.
+    if (op === 'register' || op === 'register-batch') c.executionCtx.waitUntil(batch(c.env, op, input, r.body));
     return c.json(r.body);
   });
+
+/** The songs a register call added (not duplicates), and their artists as short hashes (counted,
+ * never stored by name), to Core's open upload batch. A failure here never fails the upload. */
+async function batch(env: Env, op: string, input: unknown, out: unknown): Promise<void> {
+  try {
+    const one = op === 'register';
+    const asked = (one ? [input] : ((input as { tracks?: unknown[] }).tracks ?? [])) as {
+      metadata?: { artist?: unknown };
+    }[];
+    const got = (one ? [out] : ((out as { results?: unknown[] }).results ?? [])) as {
+      registered?: boolean;
+      duplicate?: boolean;
+      id?: string;
+    }[];
+    const ids: string[] = [];
+    const artists = new Set<string>();
+    for (const [i, r] of got.entries()) {
+      if (!r?.registered || r.duplicate || typeof r.id !== 'string') continue;
+      ids.push(r.id);
+      const artist = asked[i]?.metadata?.artist;
+      if (typeof artist === 'string' && artist.trim())
+        artists.add((await sha256(new TextEncoder().encode(artist.trim().toLowerCase()))).slice(0, 12));
+    }
+    if (ids.length) await coreObject(env).workUploaded(ids, [...artists]);
+  } catch {
+    // the songs are in; only their task line is missed
+  }
+}
 
 /** Signed links to tracks' audio (3 h), for a tool that measures the audio itself. */
 async function links(env: Env, ids: unknown) {

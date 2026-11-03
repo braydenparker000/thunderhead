@@ -3,11 +3,13 @@
 // retention), the Auth object's tidy-up (old sessions, spent counters, old notices, a new
 // AUTH_RESET_FP), approvals whose Auth step never reported (a crash between the decision and
 // the step), run again, and the pushes that may go now (a nudge waiting for a pause, a sign-in
-// notice held by quiet hours).
+// notice held by quiet hours). On the day roll, the owner's calendar links are fetched again
+// (areas/briefing/calendar.ts), so the morning's Briefing and brief start from this day's.
 
 import { authObject } from '../../objects/auth';
 import { coreObject } from '../../objects/core';
 import { missingMethod } from '../../objects/rpc';
+import { refreshCalendars } from '../briefing/calendar';
 import { runAfter } from '../proposals/after';
 import { deliver } from '../push/routes';
 
@@ -18,8 +20,20 @@ export async function runCron(env: Env): Promise<void> {
   const night = tick.night ?? null;
   if (pruned.sessions || pruned.counters || pruned.notices || pruned.pushes || tick.rolled || tick.pruned || night)
     console.log(JSON.stringify({ evt: 'cron', ...pruned, rolled: tick.rolled, core_pruned: tick.pruned, night }));
+  if (tick.rolled) await rollCalendars(core);
   await retryApprovals(env, core);
   await sendPushes(env);
+}
+
+/** Every calendar link, fetched on the day roll; a failure is kept on its link, never thrown. */
+async function rollCalendars(core: ReturnType<typeof coreObject>): Promise<void> {
+  try {
+    const plan = await core.calendarPlan(true);
+    if (plan.links.length) await refreshCalendars(core, plan.links, plan.tz, Date.now());
+  } catch (e) {
+    // A Core still on the release before the calendar (a deploy in progress).
+    if (!missingMethod(e)) throw e;
+  }
 }
 
 async function sendPushes(env: Env): Promise<void> {

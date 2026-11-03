@@ -5,6 +5,8 @@
 // come from the section's own `mind.permit.<class>: <position>` lines, so it reads no row. Verbs
 // only the owner taps, or only an undo queues, are left out; one line after the legend says how to
 // schedule a verb and run a plan. Pure.
+
+import type { MindRole } from '../../../../shared/contract/api';
 import { PERMIT_FLOORS } from '../../../../shared/contract/permits.ts';
 import { PLAN_LIMITS, SCHEDULE_LIMITS } from '../../../../shared/contract/schedules.ts';
 import { VERBS, type VerbSpec } from '../../../../shared/contract/verbs.ts';
@@ -56,3 +58,12 @@ export function verbTable(settings: readonly string[]): string {
   }
   return out.trimEnd();
 }
+
+// Section 7's delegation line (RUNTIME.md §6.6): which subagents the role may hand work to.
+const DELEGATE_ALL =
+  'Delegate (Agent): reader for outside text · researcher for long reads · night-step for mechanical steps · coder for agreed code';
+export const DELEGATE: Record<MindRole, string> = {
+  chat: DELEGATE_ALL,
+  night: DELEGATE_ALL,
+  reflex: 'Delegate (Agent): reader for outside text, nothing else',
+};

@@ -7,7 +7,7 @@
 /** @typedef {import('../../../shared/contract/api.ts').Message} Message */
 /** @typedef {import('../../../shared/contract/api.ts').MindPresence} MindPresence */
 /** @typedef {{ id: string, body: string, created_at: number, state: 'sending' | 'queued' | 'failed' | 'toolong', tries: number, failed_at?: number, reply_to?: string,
- *   files?: import('../attach/state.js').LocalFile[], thread_id?: string }} Local */
+ *   files?: import('../attach/state.js').LocalFile[], thread_id?: string, mention?: 'muse' }} Local */
 /** @typedef {(Message & { local?: false }) | (Local & { author: 'owner', kind: 'text', local: true })} Shown */
 
 export const THINK_AFTER_MS = 1200;
@@ -38,12 +38,13 @@ const REPLY_KINDS = new Set(['text', 'question', 'card']);
 
 /** The newest owner message no mind reply came after, or null (system lines and progress posts
  * don't answer; a message still in the outbox waits for a reply only while it is sending, so a
- * queued or failed one shows its meta line and nothing else). @param {Shown[]} shown */
+ * queued or failed one shows its meta line and nothing else; an "@muse" waits on Muse, never the
+ * mind). @param {Shown[]} shown */
 export function waitingFor(shown) {
   for (let i = shown.length - 1; i >= 0; i--) {
     const m = shown[i];
     if (m.author === 'mind' && REPLY_KINDS.has(m.kind)) return null;
-    if (m.author !== 'owner' || (m.local && m.state !== 'sending')) continue;
+    if (m.author !== 'owner' || (m.local ? m.state !== 'sending' || m.mention : /** @type {any} */ (m.meta)?.mention)) continue;
     return !m.local && m.answered_at ? null : m;
   }
   return null;

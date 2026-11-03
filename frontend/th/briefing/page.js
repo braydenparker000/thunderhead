@@ -2,7 +2,8 @@
 // The Briefing page (BRIEFING.md), one swipe right of home: the date, the Thunderhead's line, the
 // day's counts in one line, and the tiles the Worker says have something to say (GET
 // /v1/briefing): the weather first with tomorrow's high and low (a tap opens its next hours and the
-// place, weather.js), "Waiting on you" (gold; a tap goes home to the card), "Due" (a tap opens the
+// place, weather.js), "Waiting on you" (gold; a tap goes home to the card), "Today" (the owner's
+// calendar: what is still on today, all-day ones as one line, tomorrow's first), "Due" (a tap opens the
 // reminders, due.js), the night shift's tiles (a tap opens their place in their app), then
 // "Holidays". A line says when the night shift didn't arrange the page. It paints from this phone first
 // (IndexedDB `th-data`, wiped on sign-out), then from the Worker when the page comes into view, and
@@ -131,6 +132,24 @@ function dueTile(t) {
   return node;
 }
 
+/** "Today": each event still on today (time, title, where), the all-day ones as one line, tomorrow's
+ * first and a failing link's line; nothing to open. @param {import('../../../shared/contract/briefing.ts').CalendarTile} t */
+function calendarTile(t) {
+  const allDay = t.today.filter((e) => !e.time).map((e) => e.title);
+  const timed = t.today.filter((e) => e.time).map((e) => `${e.time} ${e.title}${e.location ? ` · ${e.location}` : ''}`);
+  const later = [
+    ...(allDay.length ? [`All day: ${allDay.join(', ')}`] : []),
+    ...(t.tomorrow ? [`Tomorrow ${t.tomorrow.time ?? 'all day'} ${t.tomorrow.title}`] : []),
+  ];
+  const lines = [...timed, ...later];
+  const node = tile({ icon: 'calendar-blank', label: t.label, value: lines[0] ?? t.value, detail: lines.length ? '' : t.detail, cls: 'wide cal' });
+  if (lines.length) node.querySelector('.s')?.remove();
+  for (const [i, l] of lines.slice(1).entries()) node.append(el('span', { class: i + 1 < timed.length ? 'v' : 's', text: l }));
+  if (lines.length && t.notice) node.append(el('span', { class: 's', text: t.notice }));
+  node.setAttribute('aria-label', [t.label, ...(lines.length ? lines : [t.value, t.detail]), lines.length && t.notice].filter(Boolean).join(', '));
+  return node;
+}
+
 /** "Holidays": the next one within two weeks; nothing to open. @param {import('../../../shared/contract/briefing.ts').HolidayTile} t */
 const holidayTile = (t) => tile({ icon: 'calendar-star', label: t.label, value: t.value, detail: t.detail, cls: 'half holiday' });
 
@@ -163,6 +182,7 @@ function draw(b) {
   for (const t of b.tiles) {
     if (t.kind === 'night') tiles.push(keyed(nightTile(t), `night:${t.label}`));
     else if (t.kind === 'due') tiles.push(keyed(dueTile(t), 'due'));
+    else if (t.kind === 'calendar') tiles.push(keyed(calendarTile(t), 'calendar'));
     else if (t.kind === 'holiday') tiles.push(keyed(holidayTile(t), 'holiday'));
     else if (t.kind === 'waiting') tiles.push(keyed(tile({ icon: 'bell', label: t.label, value: t.value, detail: t.detail, cls: 'gold half', go: 'waiting' }), `waiting:${t.label}`));
   }

@@ -1,8 +1,12 @@
-// Memory's provenance and taint rules, enforced by the Worker (MEMORY.md §6, M1–M17), each a
-// small function with its own test. A broken rule throws `Reject` with its reason; the batch
-// lists it and applies the other ops (API.md §11.13). M1 (origin from the principal) is how
-// messages are written; M8–M10 route to the owner and wait for proposals (P4), so they reject
-// with `proposal_required`; M13's one-claim half is the weekly in-session review.
+// Memory's provenance rules, enforced by the Worker (MEMORY.md §6, M1–M17), each a small function
+// with its own test. A broken rule throws `Reject` with its reason; the batch lists it and applies
+// the other ops (API.md §11.13). M1 (origin from the principal) is how messages are written; M9–M10
+// route to the owner and wait for proposals (P4), so they reject with `proposal_required`; M13's
+// one-claim half is the weekly in-session review. M8 and M14 no longer refuse (owner ruling
+// 2026-11-03: the mind may write anything down): a sensitive guess is stored private and never
+// raised (fact-ops.ts `flags`), and like every guess it is `outside` until the owner keeps it. M11 labels instead of refusing (2026-11-02): a
+// session that read outside text writes, and what it writes is `outside` (`label` below), which
+// M11a–e keep out of the profile, the briefing's first sections and the rules until the owner keeps it.
 import * as z from 'zod/mini';
 import {
   FACT_ABOUT,
@@ -11,6 +15,7 @@ import {
   MEMORY_LIMITS,
   type MemoryReason,
   OWNER_ONLY_TAGS,
+  type Provenance,
   SENSITIVE_TAGS,
 } from '../../../../shared/contract/memory.ts';
 import { neverStored } from '../../../../shared/contract/never-stored.ts';
@@ -20,7 +25,8 @@ import { messageOrigin } from '../conversation/store';
 import { item as importItem } from '../import/store';
 import { byId as ledgerRow } from '../ledger/store';
 import { taintedAt } from '../mind/guards';
-import { dayNote } from './notes';
+import { dayNote, notedBy } from './notes';
+import { type FactRow, provenanceOf } from './store';
 
 export class Reject extends Error {
   constructor(readonly reason: MemoryReason) {
@@ -34,11 +40,19 @@ export interface OpContext {
   db: Db;
   at: number;
   device: boolean;
+  /** The session read outside text (its own taint, one its claim took over, or a later one of its
+   * role, mind/guards.ts): what it writes is labelled `outside` (M11). */
   tainted: boolean;
   /** M12: the session's constitution file was missing (its pin cannot hold). */
   lawsBroken: boolean;
   selfLedger: string;
+  /** The `rollup:` refs the batch cites, counted again by the senses before the transaction
+   * (rollups.ts): ref → n. A ref not here counts nothing. */
+  rollups?: Record<string, number>;
 }
+
+/** M5: an `observed` fact rests on at least this many of the owner's own events. */
+export const OBSERVED_EVENTS = 10;
 
 const id = z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/));
 const ref = z.string().check(z.maxLength(240));
@@ -119,7 +133,8 @@ interface Cited {
   owner: boolean;
   /** A message (or the device's own ledger row), the kind M3 needs at least one of. */
   words: boolean;
-  event: boolean;
+  /** The owner's events it stands for (M5): a rollup's recount; 0 for anything else. */
+  events: number;
 }
 
 /** M2 and M6: every cited id exists (else `bad_evidence`), is a kind memory may cite, and is not
@@ -138,30 +153,41 @@ function cite(ctx: OpContext, r: string): Cited {
     if (held === 'off_record') throw new Reject('off_record_evidence');
     if (held === 'deleted') throw new Reject('deleted_evidence');
     const owner = msg.author === 'owner' && (msg.origin === 'owner_device' || msg.origin === 'import');
-    return { ref: r, at: msg.created_at, owner, words: owner, event: false };
+    return { ref: r, at: msg.created_at, owner, words: owner, events: 0 };
   }
   if (kind === 'day') {
     const note = dayNote(ctx.db, key);
     if (!note) throw new Reject('bad_evidence');
-    // A note from a session that was tainted when it wrote it carries outside text (M6).
-    const taint = note.written_by === 'owner' ? null : taintedAt(ctx.db, note.written_by);
+    // M11d: a note a session that read outside text wrote is shown, marked, but is never evidence
+    // (M6). By its own label (the session's record is pruned 90 days after it ends); a note with
+    // none (an older Worker's) by that record, as before Core step 32.
+    if (notedBy(note) === 'outside') throw new Reject('tainted_evidence');
+    const taint = note.provenance || note.written_by === 'owner' ? null : taintedAt(ctx.db, note.written_by);
     if (taint !== null && taint <= note.written_at) throw new Reject('tainted_evidence');
-    return { ref: r, at: null, owner: false, words: false, event: false };
+    return { ref: r, at: null, owner: false, words: false, events: 0 };
   }
   if (kind === 'ledger') {
     if (!ctx.device) throw new Reject('bad_evidence');
-    if (key === ctx.selfLedger) return { ref: r, at: ctx.at, owner: true, words: true, event: false };
+    if (key === ctx.selfLedger) return { ref: r, at: ctx.at, owner: true, words: true, events: 0 };
     const row = ledgerRow(ctx.db, key);
     if (!row) throw new Reject('bad_evidence');
-    return { ref: r, at: null, owner: row.actor === 'owner', words: row.actor === 'owner', event: false };
+    return { ref: r, at: null, owner: row.actor === 'owner', words: row.actor === 'owner', events: 0 };
   }
   if (kind === 'import') {
     // A raw imported document (the old notebook, MEMORY.md §14): evidence of what the old system
     // held, never the owner's own words, so a fact citing only it is not `user`.
     if (!importItem(ctx.db, key)) throw new Reject('bad_evidence');
-    return { ref: r, at: null, owner: false, words: false, event: false };
+    return { ref: r, at: null, owner: false, words: false, events: 0 };
   }
-  // Events have no table before Senses (P5): they can't be checked yet, so they aren't accepted.
+  if (kind === 'rollup') {
+    // M5 (MEMORY.md §4): a routine of the senses, counted again before the batch (rollups.ts); one
+    // the senses don't know, or that counts fewer than 10 events, is no evidence at all.
+    const n = ctx.rollups?.[r];
+    if (n === undefined || n < OBSERVED_EVENTS) throw new Reject('bad_evidence');
+    return { ref: r, at: null, owner: false, words: false, events: n };
+  }
+  // Single events live in the Senses object and can't be checked inside Core's transaction, so they
+  // aren't accepted; their counts come as `rollup:` refs.
   throw new Reject('bad_evidence');
 }
 
@@ -185,7 +211,8 @@ export function evidence(ctx: OpContext, given: string[] | undefined, source: Fa
   const cited = list.map((r) => cite(ctx, r));
   if (source === 'user' && !(cited.every((c) => c.owner) && cited.some((c) => c.words)))
     throw new Reject('not_owner_evidence');
-  if (source === 'observed' && cited.filter((c) => c.event).length < 10) throw new Reject('too_little_evidence');
+  if (source === 'observed' && cited.reduce((n, c) => n + c.events, 0) < OBSERVED_EVENTS)
+    throw new Reject('too_little_evidence');
   // M2 / MEMORY.md §4: an inferred fact rests on the owner's words, day notes or imports, never
   // on the mind's or the system's own messages.
   if (source === 'inferred' && cited.some((c) => c.ref.startsWith('msg:') && !c.owner))
@@ -199,22 +226,37 @@ export interface FactShape {
   about: string;
   tags: string[];
   sensitivity: 0 | 1;
+  provenance: Provenance;
 }
 
-/** The content rules: M4 and M12 for rules, M7 for faith and people, M14 for sensitive traits. */
+/** M11, the label a new version gets: the owner's own (device) writes are `owner`; a session that
+ * read outside text writes `outside`, and so does an inferred fact (the mind's reading, never the
+ * owner's words); otherwise `observed` for an observed fact, `owner` for a `user` one (whose
+ * evidence M3 holds to the owner's own words). M11e: a new version of an `outside` fact stays
+ * `outside` from the mind, clean or not; only the owner's tap makes it `owner`. */
+export function label(ctx: OpContext, source: FactSource, old: FactRow | null): Provenance {
+  if (ctx.device) return 'owner';
+  if (ctx.tainted || source === 'inferred') return 'outside';
+  if (old && provenanceOf(old) === 'outside') return 'outside';
+  return source === 'observed' ? 'observed' : 'owner';
+}
+
+/** The content rules: M4 and M12 for rules, M11c for outside text, M7 for faith and people. */
 export function content(ctx: OpContext, f: FactShape): void {
   if (f.kind === 'rule' && f.source !== 'user') throw new Reject('rule_needs_owner');
+  if (f.kind === 'rule' && f.provenance === 'outside') throw new Reject('outside_rule');
   if (f.kind === 'rule' && ctx.lawsBroken && !ctx.device) throw new Reject('laws_unpinned');
   const ownerOnly = f.about === 'person' || f.tags.some((t) => (OWNER_ONLY_TAGS as readonly string[]).includes(t));
   if (ownerOnly && f.source !== 'user') throw new Reject('needs_owner_words');
-  if (f.source === 'inferred' && f.tags.some((t) => (SENSITIVE_TAGS as readonly string[]).includes(t)))
-    throw new Reject('no_inferred_sensitive');
 }
 
-/** M11: a tainted session may not remember, confirm or supersede (enforced from P3, when memory
- * writes arrive). */
-export function clean(ctx: OpContext): void {
-  if (ctx.tainted && !ctx.device) throw new Reject('session_tainted');
+/** M11c's second half: an `outside` version never replaces an `owner` or `observed` one (the
+ * owner's words would leave the profile on outside say-so, and the owner's Forget of the change
+ * would take the lineage with it). The mind adds it as a new fact instead, which waits for the
+ * owner's keep; replacing an `outside` version (its own, or one still waiting) is allowed. Superseding
+ * a rule is M11c's first half (fact-ops.ts). */
+export function noDisplace(old: FactRow, provenance: Provenance): void {
+  if (provenance === 'outside' && provenanceOf(old) !== 'outside') throw new Reject('outside_supersede');
 }
 
 /** pin, may_raise and forget are the owner's alone. */
@@ -222,7 +264,7 @@ export function owner(ctx: OpContext): void {
   if (!ctx.device) throw new Reject('device_only');
 }
 
-/** M8: a new inferred fact with sensitivity 1 goes to the owner (P4's proposals; refused now). */
-export function askFirst(f: FactShape): void {
-  if (f.source === 'inferred' && f.sensitivity === 1) throw new Reject('proposal_required');
-}
+/** M14 (2026-11-03): a guess about something sensitive (a sensitive tag, or sensitivity 1) is kept
+ * private and never raised unprompted; the owner may lift either on the Memory page. */
+export const sensitiveGuess = (source: FactSource, tags: string[], sensitivity: 0 | 1): boolean =>
+  source === 'inferred' && (sensitivity === 1 || tags.some((t) => (SENSITIVE_TAGS as readonly string[]).includes(t)));

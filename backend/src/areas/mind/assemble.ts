@@ -5,6 +5,7 @@
 import type { BriefResponse, MindRole } from '../../../../shared/contract/api';
 import { dayBefore, HOUR } from '../../lib/time';
 import type { Db } from '../../objects/base';
+import { briefLines, view as calendarView } from '../briefing/calendar-store';
 import { currentDay } from '../conversation/day';
 import { offRecordOf } from '../conversation/held';
 import { dayCounts } from '../conversation/stats';
@@ -101,6 +102,8 @@ export function assemble(
     days: memory ? notes.dayNotes(db, dayBefore(day, 7), dayBefore(day), 7) : [],
     night: nightLine(db, day, opts.nightConfigured),
     settings: mindSettingLines(db),
+    // Reflex handles breakage: the owner's day is not its business.
+    calendar: role === 'reflex' ? [] : briefLines(calendarView(db, now, tz), tz),
   });
   return {
     wake,
@@ -109,6 +112,8 @@ export function assemble(
     core,
     full,
     night_done: night !== null && nightDone(db, night),
+    // What its memory writes are labelled (MEMORY.md §7); `tainted` is its old name, kept one release.
+    provenance: tainted ? 'outside' : 'owner',
     tainted,
   };
 }

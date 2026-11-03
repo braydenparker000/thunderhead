@@ -1,5 +1,6 @@
 // The Briefing page's data (BRIEFING.md §1–§4, MUSE.md §9): the weather tile (weather.ts), "Waiting
 // on you" from the decision cards the owner can see now (a card held for quiet hours stays off it),
+// "Today" (the owner's calendar events still on today and tomorrow's first, calendar-store.ts),
 // "Due" (the owner's reminders today and tomorrow), the night shift's tiles, "Holidays" (the next
 // public holiday within 14 days in the owner's country, holidays.ts), the date and a line of the
 // day's counts, Muse's line, a line when the connected night shift didn't arrange the page and,
@@ -8,6 +9,10 @@
 import {
   type BriefingResponse,
   type BriefingTile,
+  CALENDAR_LIMITS,
+  type CalendarEvent,
+  type CalendarItem,
+  type CalendarTile,
   DUE_LIMITS,
   type DueTile,
   HOLIDAY_WITHIN_DAYS,
@@ -30,6 +35,7 @@ import { dueBefore } from '../reminders/store';
 import { getSetting } from '../settings/store';
 import * as surfaces from '../surfaces/store';
 import * as work from '../work/ops';
+import { type CalendarView, view as calendarView } from './calendar-store';
 import { nextHoliday } from './holidays';
 import { arrange, pinsOf } from './pins';
 
@@ -84,6 +90,39 @@ function dueTile(d: ReturnType<typeof dueReminders>, tz: string): DueTile | null
   };
 }
 
+/** "Today": what is still on today from the owner's calendars, all-day ones first, and tomorrow's
+ * first; or, when a link has failed past its 48 hours (or never worked), the line that says so. No
+ * links, nothing left today or tomorrow, no failure: no tile. */
+export function calendarTile(v: CalendarView, tz: string): CalendarTile | null {
+  if (!v.today.length && !v.tomorrow && !v.notice) return null;
+  const item = (e: CalendarEvent): CalendarItem => ({ ...e, time: e.all_day ? null : hhmm(e.start, tz) });
+  const today = v.today.slice(0, CALENDAR_LIMITS.tile_items).map(item);
+  const tomorrow = v.tomorrow ? item(v.tomorrow) : null;
+  // The next timed event leads; all-day ones are a line of their own on the page.
+  const first = today.find((e) => e.time) ?? today[0];
+  const value = first
+    ? first.time
+      ? `${first.time} ${first.title}`
+      : `All day: ${first.title}`
+    : tomorrow
+      ? `Tomorrow ${tomorrow.time ? `${tomorrow.time} ` : ''}${tomorrow.title}`
+      : 'Calendar not reachable';
+  const detail = v.today.length
+    ? `${plural(v.today.length, 'thing')} on today`
+    : tomorrow
+      ? 'Nothing else today'
+      : (v.notice ?? '');
+  return {
+    kind: 'calendar',
+    label: 'Today',
+    value: short(value, 32),
+    detail: short(detail, 60),
+    today,
+    tomorrow,
+    notice: v.notice,
+  };
+}
+
 /** "Holidays": the next one within 14 days, from the owner's country (none set: no tile). */
 function holidayTile(db: Db, date: string): HolidayTile | null {
   const h = nextHoliday(getSetting(db, 'owner.country'), date, HOLIDAY_WITHIN_DAYS);
@@ -100,21 +139,26 @@ function holidayTile(db: Db, date: string): HolidayTile | null {
   };
 }
 
-/** The date and one line from the day's counts, never from anyone's words; null when all are 0. */
-export function todayLine(date: string, n: { due: number; episodes: number; songs: number | null }): TodayLine {
+/** The date and one line from the day's counts, never from anyone's words; null when all are 0.
+ * Over 60 characters, "due today" becomes "due"; still over, the last counts drop until it fits
+ * (the calendar's comes first, as what the day holds). */
+export function todayLine(
+  date: string,
+  n: { due: number; episodes: number; songs: number | null; events?: number },
+): TodayLine {
   const parts = (dueWords: string) =>
     [
+      (n.events ?? 0) > 0 && `${plural(n.events ?? 0, 'thing')} on today`,
       n.due > 0 && `${plural(n.due, 'reminder')} ${dueWords}`,
       n.episodes > 0 && plural(n.episodes, 'new episode'),
       (n.songs ?? 0) > 0 && `${plural(n.songs ?? 0, 'song')} added`,
     ].filter((p): p is string => Boolean(p));
   const sentence = (p: string[]) =>
     p.length ? `${p.length > 1 ? `${p.slice(0, -1).join(', ')} and ${p.at(-1)}` : p[0]}.` : null;
-  const line = sentence(parts('due today'));
-  return {
-    date: dateLine(date),
-    line: line && line.length > TODAY_LINE_MAX ? sentence(parts('due')) : line,
-  };
+  let line = sentence(parts('due today'));
+  const shorter = parts('due');
+  for (let k = shorter.length; line && line.length > TODAY_LINE_MAX && k > 0; k--) line = sentence(shorter.slice(0, k));
+  return { date: dateLine(date), line };
 }
 
 const SLOTS = ['practice', 'study', 'built', 'note.1', 'note.2', 'note.3'];
@@ -188,16 +232,25 @@ export function briefing(
   const due = dueReminders(db, { now: c.now, tz: c.tz, date });
   const dueT = dueTile(due, c.tz);
   const holiday = holidayTile(db, date);
-  // BRIEFING.md §4: at most 8 tiles; the night's own come after what waits and what is due, and a
-  // tile the mind pinned right after what waits (pins.ts).
+  const cal = calendarView(db, c.now, c.tz);
+  const calT = calendarTile(cal, c.tz);
+  // BRIEFING.md §4: at most 8 tiles; the night's own come after what waits, the day's calendar and
+  // what is due, and a tile the mind pinned right after what waits (pins.ts; Today is not pinnable).
   const tiles: BriefingTile[] = arrange(
-    [...(waiting ? [waiting] : []), ...(dueT ? [dueT] : []), ...nightTiles(db, c.now), ...(holiday ? [holiday] : [])],
+    [
+      ...(waiting ? [waiting] : []),
+      ...(calT ? [calT] : []),
+      ...(dueT ? [dueT] : []),
+      ...nightTiles(db, c.now),
+      ...(holiday ? [holiday] : []),
+    ],
     pinsOf(db),
   ).slice(0, 8);
   return {
     day: c.day,
     title: titleLine(Math.floor(wallMinute(c.now, c.tz) / 60), !tiles.length),
     today: todayLine(date, {
+      events: cal.today.length,
       due: due.today,
       episodes: newSince(db, c.now - 20 * HOUR),
       songs: c.songsAdded ?? null,

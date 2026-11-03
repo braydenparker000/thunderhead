@@ -51,8 +51,9 @@ describe('borrowing an older session id', () => {
     const LATER = 'cse_review_night_later';
     expect((await brief(P.N, LATER, 'night')).status).toBe(200);
     expect((await apiJson('POST', '/v1/mind/taint', { ...as(P.N, LATER), body: { source: 'Read' } })).status).toBe(200);
-    // The first night session claimed before that taint and never read outside text itself.
+    // The first night session claimed before that taint and never read outside text itself: what it
+    // writes is labelled outside all the same (MEMORY.md §6 M11).
     const r = await ops(as(P.N, NIGHT_SESSION), [op()]);
-    expect([r.status, r.body.error?.code]).toEqual([403, 'session_tainted']);
+    expect([r.status, r.body.applied[0]?.provenance]).toEqual([200, 'outside']);
   });
 });

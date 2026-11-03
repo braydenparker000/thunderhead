@@ -29,14 +29,18 @@ export function extraRoutes(ctl) {
     return null;
   };
   const tainted = session => s.tainted.has(session);
+  /** MEMORY.md §6 M11: the label a write gets; a session that read outside text writes `outside`. */
+  const label = (session, source, old = null) =>
+    tainted(session) || source === 'inferred' || old?.provenance === 'outside' ? 'outside' : source === 'observed' ? 'observed' : 'owner';
+  const noted = session => (tainted(session) ? 'outside' : 'owner');
 
   function validateAdd(op, i, session) {
     const ev = op.evidence || [];
     if (!ev.length || ev.length > 20 || ev.some(r => !refExists(r))) return {i, reason: 'bad_evidence'};
     if (op.source === 'user' && ev.some(r => refExists(r)?.origin !== 'owner_device')) return {i, reason: 'not_owner_evidence'};
     if (op.kind === 'rule' && op.source !== 'user') return {i, reason: 'rule_needs_owner'};
+    if (op.kind === 'rule' && label(session, op.source) === 'outside') return {i, reason: 'outside_rule'};
     if (String(op.text || '').length > 280) return {i, reason: 'too_long'};
-    if (tainted(session)) return {i, reason: 'session_tainted'};
     return null;
   }
 
@@ -72,8 +76,8 @@ export function extraRoutes(ctl) {
     }],
     ['POST', /^\/v1\/mind\/notes$/, ALL, ({body, session}) => {
       if (!body.id || typeof body.body !== 'string' || body.body.split(/\s+/).filter(Boolean).length > 120) throw new HttpError(422, 'validation');
-      if (!s.notes.some(n => n.id === body.id)) s.notes.push({...body, session, at: ctl.now()});
-      return [201, {id: body.id}];
+      if (!s.notes.some(n => n.id === body.id)) s.notes.push({...body, session, at: ctl.now(), provenance: noted(session)});
+      return [201, {id: body.id, provenance: s.notes.find(n => n.id === body.id).provenance}];
     }],
     ['POST', /^\/v1\/mind\/taint$/, ALL, ({session, body}) => {
       s.tainted.add(session);
@@ -106,29 +110,28 @@ export function extraRoutes(ctl) {
       if (sources.some(x => !['messages', 'facts', 'day_notes', 'library'].includes(x))) throw new HttpError(422, 'validation', 'unknown source');
       const want = x => !sources.length || sources.includes(x);
       const items = [];
-      if (want('messages')) for (const m of s.messages) if (m.body.toLowerCase().includes(q)) items.push({source: 'messages', ref: `msg:${m.id}`, snippet: m.body.slice(0, 200), at: m.created_at, score: 1, thread_id: m.thread_id});
-      if (want('facts')) for (const f of s.facts) if (!f.superseded_at && f.text.toLowerCase().includes(q)) items.push({source: 'facts', ref: `fact:${f.id}`, snippet: f.text, at: f.recorded_at, score: 2});
+      if (want('messages')) for (const m of s.messages) if (m.body.toLowerCase().includes(q)) items.push({source: 'messages', ref: `msg:${m.id}`, snippet: m.body.slice(0, 200), at: m.created_at, score: 1, thread_id: m.thread_id, provenance: m.author === 'owner' ? 'owner' : 'outside'});
+      if (want('facts')) for (const f of s.facts) if (!f.superseded_at && f.text.toLowerCase().includes(q)) items.push({source: 'facts', ref: `fact:${f.id}`, snippet: f.text, at: f.recorded_at, score: 2, provenance: f.provenance ?? 'owner'});
       return {items: items.slice(0, Number(query.get('limit')) || 20)};
     }],
     ['POST', /^\/v1\/memory\/ops$/, CN, ({body, role, session}) => {
       const ops = body.ops || [];
       if (!body.batch_id || !ops.length || ops.length > 50) throw new HttpError(422, 'validation');
       // API.md §11.13: each op is validated on its own; valid ops apply, rejected ones are listed;
-      // all rejected → 422 (403 session_tainted when the reason is taint).
+      // all rejected → 422. A session that read outside text writes, labelled `outside` (M11).
       const rejected = [];
       ops.forEach((op, i) => {
         let reason = null;
+        const old = s.facts.find(f => f.id === op.id && !f.superseded_at);
         if (op.op === 'add') reason = validateAdd(op, i, session)?.reason ?? null;
         else if (op.op === 'confirm' || op.op === 'supersede') {
-          if (tainted(session)) reason = 'session_tainted';
-          else if (!s.facts.some(f => f.id === op.id && !f.superseded_at)) reason = 'unknown_ref';
+          if (!old) reason = 'unknown_ref';
+          else if (op.op === 'supersede' && label(session, op.new?.source ?? old.source, old) === 'outside')
+            reason = old.kind === 'rule' ? 'outside_rule' : old.provenance !== 'outside' ? 'outside_supersede' : null;
         } else reason = 'device_only';
         if (reason) rejected.push({i, reason});
       });
-      if (rejected.length === ops.length) {
-        if (rejected.every(r => r.reason === 'session_tainted')) throw new HttpError(403, 'session_tainted');
-        throw new HttpError(422, 'validation', rejected.map(r => r.reason).join(','));
-      }
+      if (rejected.length === ops.length) throw new HttpError(422, 'validation', rejected.map(r => r.reason).join(','));
       const valid = new Set(ops.map((_, i) => i).filter(i => !rejected.some(r => r.i === i)));
       return idem(s.batches, body.batch_id, body, () => {
         const applied = [], proposals = [];
@@ -136,27 +139,29 @@ export function extraRoutes(ctl) {
           if (!valid.has(i)) return;
           if (op.op === 'add') {
             if (op.source === 'inferred' && op.sensitivity === 1) { proposals.push({i, proposal_id: randomUUID()}); return; }
-            s.facts.push({...op, op: undefined, recorded_at: ctl.now(), superseded_at: null});
-            applied.push({i, fact_id: op.id, ledger_id: ctl.addLedger(actorOf(role), 'memory', `remember ${op.id}`).id});
+            const provenance = label(session, op.source);
+            s.facts.push({...op, op: undefined, recorded_at: ctl.now(), superseded_at: null, provenance});
+            applied.push({i, fact_id: op.id, ledger_id: ctl.addLedger(actorOf(role), 'memory', `remember ${op.id}`).id, provenance});
           } else if (op.op === 'confirm') {
             const f = s.facts.find(x => x.id === op.id); f.last_confirmed = ctl.now();
-            applied.push({i, fact_id: f.id, ledger_id: ctl.addLedger(actorOf(role), 'memory', `confirm ${f.id}`).id});
+            applied.push({i, fact_id: f.id, ledger_id: ctl.addLedger(actorOf(role), 'memory', `confirm ${f.id}`).id, provenance: f.provenance ?? 'owner'});
           } else {
             const old = s.facts.find(x => x.id === op.id);
             const fresh = {kind: old.kind, subject: old.subject, source: old.source, sensitivity: old.sensitivity, ...Object.fromEntries(Object.entries(op.new).filter(([, v]) => v !== undefined))};
             if (old.source === 'user' && fresh.source !== 'user') { proposals.push({i, proposal_id: randomUUID()}); return; }
             old.superseded_at = ctl.now(); old.superseded_by = fresh.id;
-            s.facts.push({...fresh, recorded_at: ctl.now(), superseded_at: null});
-            applied.push({i, fact_id: fresh.id, ledger_id: ctl.addLedger(actorOf(role), 'memory', `supersede ${old.id}`).id});
+            const provenance = label(session, fresh.source, old);
+            s.facts.push({...fresh, recorded_at: ctl.now(), superseded_at: null, provenance});
+            applied.push({i, fact_id: fresh.id, ledger_id: ctl.addLedger(actorOf(role), 'memory', `supersede ${old.id}`).id, provenance});
           }
         });
         return {applied, proposals, rejected};
       });
     }],
     ['GET', /^\/v1\/memory\/open-threads$/, CN, ({query}) => ({items: [...s.openThreads.values()].filter(t => query.get('status') === 'all' || t.status === 'open')})],
-    ['PUT', /^\/v1\/memory\/open-threads\/([^/]+)$/, CN, ({params, body}) => {
+    ['PUT', /^\/v1\/memory\/open-threads\/([^/]+)$/, CN, ({params, body, session}) => {
       if (!body.text || !Array.isArray(body.evidence) || !body.evidence.length) throw new HttpError(422, 'validation');
-      const row = {id: params[0], status: 'open', ...body};
+      const row = {id: params[0], status: 'open', ...body, provenance: noted(session)};
       s.openThreads.set(params[0], row);
       return row;
     }],
@@ -166,13 +171,13 @@ export function extraRoutes(ctl) {
       if (!['done', 'dropped'].includes(body.status) || (body.status === 'dropped' && !body.why)) throw new HttpError(422, 'validation');
       return Object.assign(row, {status: body.status, closed_why: body.why ?? null});
     }],
-    ['PUT', /^\/v1\/memory\/day-notes\/([^/]+)$/, ['night'], ({params, body}) => {
+    ['PUT', /^\/v1\/memory\/day-notes\/([^/]+)$/, ['night'], ({params, body, session}) => {
       if (!body.summary || !(body.importance >= 1 && body.importance <= 10)) throw new HttpError(422, 'validation');
       const had = s.dayNotes.get(params[0]);
       if (had?.written_by === 'owner') return {day: params[0], ...had, kept_owner_edit: true};
       const version = (had?.version || 0) + 1;
-      s.dayNotes.set(params[0], {...body, version});
-      return {day: params[0], version};
+      s.dayNotes.set(params[0], {...body, version, provenance: noted(session)});
+      return {day: params[0], version, provenance: noted(session)};
     }],
     // The night's input as the Worker gives it: counts, then pages after an opaque cursor
     // (`s.dayPage` rows a page, 200 unless a test makes it smaller).
@@ -299,9 +304,9 @@ export function extraRoutes(ctl) {
     ['GET', /^\/v1\/predictions\/skill$/, ALL, () => ({categories: []})],
     ['PUT', /^\/v1\/work\/orders\/([^/]+)$/, CN, ({params, body}) => {
       const extra = Object.keys(body).filter(k => !['kind', 'title', 'spec', 'deadline_at'].includes(k));
-      if (extra.length || !['research.brief', 'media.check'].includes(body.kind) || !body.title || body.title.length > 80 ||
-        !body.spec || !Number.isFinite(body.deadline_at)) throw new HttpError(422, 'validation');
-      return idem(s.orders, params[0], body, () => ({id: params[0], ...body, assignee: 'muse', status: 'queued', origin: 'muse'}));
+      if (extra.length || body.kind !== 'muse.request' || !body.title || body.title.length > 80 || body.spec?.v !== 1 ||
+        typeof body.spec.words !== 'string' || body.spec.words.length > 500 || !Number.isFinite(body.deadline_at)) throw new HttpError(422, 'validation');
+      return idem(s.orders, params[0], body, () => ({id: params[0], ...body, assignee: 'muse', status: 'queued', state: 'asked', message_id: null, origin: 'muse'}));
     }],
     ['GET', /^\/v1\/work\/orders$/, ALL, () => ({items: [...s.orders.values()].map(o => o.value), next: null})],
     ['GET', /^\/v1\/work\/orders\/([^/]+)$/, ALL, ({params}) => {

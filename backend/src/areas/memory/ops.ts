@@ -2,7 +2,9 @@
 // its own (validate.ts); the valid ones apply together in the caller's commit, each with its
 // ledger row and stored inverse, and the rest are listed with their reason. A batch is idempotent
 // by its id for 7 days (op_batches). Ledger rows of memory never carry a fact's text, so the
-// owner's `forget` can leave nothing behind but a contentless tombstone.
+// owner's `forget` can leave nothing behind but a contentless tombstone. A session that read
+// outside text writes too: each version it writes is labelled `outside` (MEMORY.md §6 M11) and
+// each applied op answers with its label.
 import { MEMORY_LIMITS, type MemoryOpsResponse } from '../../../../shared/contract/memory.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail } from '../../lib/result';
@@ -15,8 +17,16 @@ import { batch, putBatch } from './notes';
 import { flag, forget } from './owner-ops';
 import { type OpContext, type ParsedOp, parseOp, Reject } from './validate';
 
-/** POST /v1/memory/ops. `hash` is the canonical body hash (API.md §7). */
-export function apply(w: Writer, c: Caller, batchId: string, raw: unknown[], hash: string): MemoryOpsResponse {
+/** POST /v1/memory/ops. `hash` is the canonical body hash (API.md §7); `rollups` the counts of the
+ * `rollup:` refs it cites, made by the senses before this transaction (rollups.ts, rule M5). */
+export function apply(
+  w: Writer,
+  c: Caller,
+  batchId: string,
+  raw: unknown[],
+  hash: string,
+  rollups: Record<string, number> = {},
+): MemoryOpsResponse {
   const key = `memory.ops:${batchId}`;
   const seen = batch(w.db, key);
   if (seen) {
@@ -24,9 +34,9 @@ export function apply(w: Writer, c: Caller, batchId: string, raw: unknown[], has
     return JSON.parse(seen.result_json) as MemoryOpsResponse;
   }
   const device = c.who === 'D';
-  // A mind writes only from a claimed, live session of its role; a tainted one writes nothing.
+  // A mind writes only from a claimed, live session of its role, so a new session id can't shed
+  // the label its claim took over (MEMORY.md §7); one that read outside text writes `outside`.
   const guards = device ? null : claimedSession(w.db, c.session_id, c.who === 'N' ? 'night' : 'chat');
-  if (guards?.tainted) throw new Fail('session_tainted');
   // One that was handed a message off the record remembers nothing, whatever it cites (held.ts).
   if (guards?.offRecord) throw new Fail('off_record');
   const out: MemoryOpsResponse = { applied: [], proposals: [], rejected: [] };
@@ -41,6 +51,7 @@ export function apply(w: Writer, c: Caller, batchId: string, raw: unknown[], has
       // owner has not approved, writes no rule.
       lawsBroken: guards !== null && lawsBroken(w.db, guards.constitution),
       selfLedger: uuidv7(w.at),
+      rollups,
     };
     try {
       const op = parseOp(r);
@@ -57,7 +68,7 @@ export function apply(w: Writer, c: Caller, batchId: string, raw: unknown[], has
   if (!out.applied.length) {
     const reasons = new Set(out.rejected.map((r) => r.reason));
     const only = reasons.size === 1 ? [...reasons][0] : null;
-    if (only === 'session_tainted' || only === 'laws_unpinned') throw new Fail(only);
+    if (only === 'laws_unpinned') throw new Fail(only);
     throw new Fail(
       'validation',
       out.rejected.map((r) => ({ path: `ops.${r.i}`, issue: r.reason })),

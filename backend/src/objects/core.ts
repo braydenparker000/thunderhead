@@ -44,6 +44,7 @@ import * as surfaces from '../areas/surfaces/ops';
 import { list as listSurfaces } from '../areas/surfaces/store';
 import { dropUnasked } from '../areas/verbs/follow';
 import * as verbs from '../areas/verbs/ops';
+import * as placed from '../areas/work/placed';
 import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
@@ -71,8 +72,11 @@ export class Core extends CoreVerbs {
 
   putMessage(c: Caller, p: convo.PutMessage) {
     const out = this.run((w) => {
-      const r = convo.putMessage(w, c, p, this.tz());
-      const ownerNew = r.created && r.message.author === 'owner';
+      let r = convo.putMessage(w, c, p, this.tz());
+      // "@muse …" asks Muse, not the mind: its order and line answer it here (areas/work); no wake.
+      const asked = r.created && p.mention === 'muse';
+      if (asked) r = { ...r, message: placed.fromMention(w, r.message) };
+      const ownerNew = r.created && r.message.author === 'owner' && !asked;
       if (r.created && c.who === 'C' && r.message.kind === 'text') {
         // The chat mind's reply after a Stop ("Stopped. Done: … Not done: …") clears it, and once
         // nothing waits the mind is listening again, so the edge stops pulsing.

@@ -1,6 +1,7 @@
 // /v1/memory (API.md §11.13): facts, the profile, batches of memory ops, day notes and open
 // threads. Handlers check the envelope and call one Core RPC; each op is validated on its own in
-// the object (validate.ts), so one bad op never sinks a night's batch.
+// the object (validate.ts), so one bad op never sinks a night's batch. A mind session reads what is
+// labelled `outside` kept back unless it asks (`outside=1`, which marks it: outside-read.ts).
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import type {
@@ -24,6 +25,9 @@ import { decodeCursor, encodeCursor } from '../../lib/cursor';
 import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
+import { keptDay, keptFact, keptThread } from './kept';
+import { askedOutside, served } from './outside-read';
+import { rollupCounts, rollupRefs } from './rollups';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -34,6 +38,7 @@ const factsQuery = z.object({
   include_superseded: bool,
   limit: z.optional(z.coerce.number().check(z.int(), z.gte(1), z.lte(200))),
   cursor: z.optional(z.string().check(z.maxLength(200))),
+  outside: bool,
 });
 const opsBody = z.strictObject({
   batch_id: z.string().check(z.regex(UUID)),
@@ -42,6 +47,7 @@ const opsBody = z.strictObject({
 const daysQuery = z.object({
   from: z.optional(z.string().check(z.regex(DAY))),
   to: z.optional(z.string().check(z.regex(DAY))),
+  outside: bool,
 });
 const dayBody = z.strictObject({
   summary: z.string().check(
@@ -70,7 +76,7 @@ const patchBody = z.strictObject({
   status: z.enum(['done', 'dropped']),
   why,
 }) satisfies z.ZodMiniType<PatchOpenThreadRequest>;
-const threadsQuery = z.object({ status: z.optional(z.enum(['open', 'all'])) });
+const threadsQuery = z.object({ status: z.optional(z.enum(['open', 'all'])), outside: bool });
 
 function dayParam(day: string | undefined): string {
   if (!day || !DAY.test(day)) throw new ApiError('validation', [{ path: 'day', issue: 'YYYY-MM-DD' }]);
@@ -89,12 +95,13 @@ export const memoryRoutes = new Hono<AppEnv>()
     };
     const { items, last } = await fresh(coreObject(c.env).facts(filter, before, limit));
     const next = items.length === limit && last !== null ? encodeCursor('facts', [last]) : null;
-    return c.json({ items, next } satisfies Page<Fact>);
+    return c.json({ items: await served(c, items, keptFact), next } satisfies Page<Fact>);
   })
   .get('/memory/facts/:id', guard('GET /v1/memory/facts/:id'), async (c) => {
     const id = c.req.param('id') ?? '';
     if (!UUID.test(id)) throw new ApiError('validation', [{ path: 'id', issue: 'a lowercase UUID' }]);
-    const found = await fresh(coreObject(c.env).factDetail(id));
+    parse(z.object({ outside: bool }), c.req.query());
+    const found = value(await fresh(coreObject(c.env).factDetail(callerOf(c), id, askedOutside(c))));
     if (!found) throw new ApiError('not_found');
     return c.json(found satisfies FactDetail);
   })
@@ -103,14 +110,20 @@ export const memoryRoutes = new Hono<AppEnv>()
   })
   .post('/memory/ops', guard('POST /v1/memory/ops'), async (c) => {
     const body = await json(c, opsBody);
-    const out = value(await fresh(coreObject(c.env).memoryOps(callerOf(c), body.batch_id, body.ops, reqHash(body))));
+    // Rule M5's `rollup:` refs, counted again by the senses before Core's transaction (rollups.ts),
+    // once Core has said this caller may write memory at all.
+    const refs = rollupRefs(body.ops);
+    const writer = refs.length ? value(await fresh(coreObject(c.env).memoryWriter(callerOf(c)))) : null;
+    const rollups = writer ? await rollupCounts(c.env, refs, writer.tz) : {};
+    const out = value(
+      await fresh(coreObject(c.env).memoryOps(callerOf(c), body.batch_id, body.ops, reqHash(body), rollups)),
+    );
     return c.json(out satisfies MemoryOpsResponse);
   })
   .get('/memory/day-notes', guard('GET /v1/memory/day-notes'), async (c) => {
     const q = parse(daysQuery, c.req.query());
-    return c.json({
-      items: (await fresh(coreObject(c.env).dayNotes(q.from ?? null, q.to ?? null))) satisfies DayNote[],
-    });
+    const items = await fresh(coreObject(c.env).dayNotes(q.from ?? null, q.to ?? null));
+    return c.json({ items: (await served(c, items, keptDay)) satisfies DayNote[] });
   })
   .put('/memory/day-notes/:day', guard('PUT /v1/memory/day-notes/:day'), async (c) => {
     const day = dayParam(c.req.param('day'));
@@ -119,7 +132,8 @@ export const memoryRoutes = new Hono<AppEnv>()
   })
   .get('/memory/open-threads', guard('GET /v1/memory/open-threads'), async (c) => {
     const q = parse(threadsQuery, c.req.query());
-    return c.json({ items: (await fresh(coreObject(c.env).openThreads(q.status ?? 'open'))) satisfies OpenThread[] });
+    const items = await fresh(coreObject(c.env).openThreads(q.status ?? 'open'));
+    return c.json({ items: (await served(c, items, keptThread)) satisfies OpenThread[] });
   })
   .put('/memory/open-threads/:id', guard('PUT /v1/memory/open-threads/:id'), async (c) => {
     const id = idParam(c);

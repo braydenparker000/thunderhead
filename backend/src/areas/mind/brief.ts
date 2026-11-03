@@ -9,7 +9,7 @@ import type { LedgerEntry, Message, MindRole } from '../../../../shared/contract
 import type { DayNoteRow, OpenThreadRow } from '../memory/notes';
 import { renderDayNote, renderDays, renderRules, renderThreads } from '../memory/profile';
 import type { FactRow } from '../memory/store';
-import { verbTable } from './brief-verbs';
+import { DELEGATE, verbTable } from './brief-verbs';
 
 export const CORE_MAX = 9_500;
 export const FULL_MAX = 48_000;
@@ -24,7 +24,9 @@ export interface BriefInput {
   laws: string;
   /** Decision cards waiting for the owner, oldest first. */
   decisions: { id: string; class: string; question: string; expires_at: number; show_from: number }[];
-  /** The session is tainted (MEMORY.md §7): section 1 says so, before anything else is read. */
+  /** The session read outside text, or its claim took over a taint (MEMORY.md §7): what it writes
+   * is labelled `outside`, and section 1 says so, before anything else is read. Otherwise its
+   * `outside` loose ends and day notes are kept back (MEMORY.md §6 M11f). */
   tainted: boolean;
   now: number;
   tz: string;
@@ -59,6 +61,9 @@ export interface BriefInput {
   night: string | null;
   /** Section 13: `key: value` for each setting the mind reads (settings/catalog.ts mindSettingLines). */
   settings?: string[];
+  /** The owner's calendar for section 1 (briefing/calendar-store.ts briefLines): today's events
+   * still on, tomorrow's first, a failing link; a shared link's marked `(outside)`. */
+  calendar?: string[];
 }
 
 /** Formatters made once per zone (one per line cost the briefing tens of ms of CPU). */
@@ -159,8 +164,14 @@ const quietLine = (i: BriefInput) =>
  * standing permissions' lines say what each position asks of the mind (areas/mind/permit.ts). */
 export const SETTINGS_LEGEND =
   "The owner's choices in Settings (The mind, Briefing); (default) where never changed. Standing permissions (mind.permit.*), enforced by the Worker: tell = do it and say so in your reply; quiet = do it, mention it only if asked; ask = a decision card first (the 403 proposal_required names it: th propose it, then the same call with --proposal <id>). Money, deleting the owner's data, keys and access, and reaching another person always ask.";
+/** Section 7's second line: which of the mind's subagents (.claude/agents/, RUNTIME.md §6.6) to hand
+ * work to, each on a cheaper model than the session's; the hook starts only these for the role. */
 const settingsSection = (lines: string[]) =>
   budgeted([SETTINGS_LEGEND, ...lines], 2_000, 'oldest', (k) => `(+${k} more: th get /v1/settings)`);
+
+/** Section 1's line for a session that read outside text (MEMORY.md §6 M11, §7). */
+export const OUTSIDE_LINE =
+  "outside: what you write this session is labelled outside; it waits for the owner's keep in Settings › Memory before it shapes the profile";
 
 export function buildBrief(i: BriefInput): { core: string; full: string } {
   const night = i.role === 'night';
@@ -171,11 +182,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     i.backoffUntil > i.now ? `usage backoff until ${clock(i.backoffUntil, i.tz)}` : 'no usage backoff',
     `${i.laws} · open decisions ${i.decisions.length} · quiet: ${quietLine(i)}`,
     ...(i.watchdogs.length ? [watchdogLine(i.watchdogs, i.tz)] : []),
-    ...(i.tainted
-      ? [
-          'taint: this session is tainted (it, or one of its role in the last 24 hours, read outside content); memory writes are refused',
-        ]
-      : []),
+    ...(i.tainted ? [OUTSIDE_LINE] : []),
     // After the taint line, so a long section 1 never cuts that one.
     ...(i.quota ? [i.quota] : []),
   ].join('\n');
@@ -213,16 +220,20 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
       return waiting.length ? budgeted(waiting, b, 'oldest', more) : 'Nothing is waiting.';
     }
     if (n === 3) return reflex ? NO_MEMORY : renderRules(i.rules, i.tz, b, more);
-    if (n === 4) return reflex ? NO_MEMORY : renderThreads(i.threads, i.tz, b, more);
+    if (n === 4) return reflex ? NO_MEMORY : renderThreads(i.threads, i.tz, b, more, !i.tainted);
     if (n === 5) return night ? 'See section 2.' : budgeted(tail, b, 'newest', more);
-    if (i.yesterday.note) return renderDayNote(i.yesterday.note, b, more);
+    if (i.yesterday.note) return renderDayNote(i.yesterday.note, b, more, !i.tainted);
     return yesterday.length ? budgeted(yesterday, b, 'newest', more) : 'No messages yesterday.';
   };
+  // Today's state: the calendar after the lines above, in its own budget, never cutting them.
+  const calendar = i.calendar?.length
+    ? `\n${budgeted(i.calendar, 700, 'oldest', (k) => `(+${k} more: th get /v1/briefing/calendar days=2)`)}`
+    : '';
   const body: Record<number, string> = {
-    1: now.slice(0, 500),
+    1: now.slice(0, 500) + calendar,
     2: make(2, 2_800, false).slice(0, 2_800),
     3: make(3, 1_400, false),
-    7: 'Full briefing: $TMPDIR/th/brief.md · Search: th recall "<q>" · Your settings: th brief --section 13',
+    7: `Full briefing: $TMPDIR/th/brief.md · Search: th recall "<q>" · Your settings: th brief --section 13\n${DELEGATE[i.role]}`,
   };
   let left =
     CORE_MAX - 40 - [1, 2, 3, 7].reduce((n, s) => n + body[s].length + frame(s), 0) - frame(4) - frame(5) - frame(6);
@@ -251,7 +262,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     ...[2, 3, 4, 5, 6].map((n): [number, string] => [n, make(n, FULL_BUDGET[n], true)]),
     [7, body[7]],
     [8, reflex ? NO_MEMORY : i.profile.slice(0, 6_000)],
-    [9, reflex ? NO_MEMORY : renderDays(i.days, 1_400)],
+    [9, reflex ? NO_MEMORY : renderDays(i.days, 1_400, !i.tainted)],
     [
       10,
       pending.length

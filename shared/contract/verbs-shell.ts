@@ -1,7 +1,7 @@
 // The Thunderhead's own verbs that the Worker runs (verbs.ts): moving a reminder, a setting, the
 // Briefing's pins and a fact in the owner's own words.
 import * as z from 'zod/mini';
-import { FACT_KIND_NAMES } from './memory.ts';
+import { FACT_KIND_NAMES, PROVENANCES } from './memory.ts';
 import { ownerWords, UUID7, type VerbSpec } from './verb-spec.ts';
 
 /** The tiles the Briefing knows by name (briefing/assemble.ts): "Due", "Holidays" and the night
@@ -99,10 +99,10 @@ export const SHELL_VERBS = {
           subject: z.optional(z.string().check(z.minLength(1), z.maxLength(64))),
           evidence: ownerWords,
         }),
-        result: z.object({ fact_id: z.string() }),
+        result: z.object({ fact_id: z.string(), provenance: z.enum(PROVENANCES) }),
       },
     },
     what: "remember a fact in the owner's own words (no card)",
-    doc: "Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), from a clean session, never off the record; no card. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's.",
+    doc: "Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), never off the record; no card. `provenance` is the label memory gave it (MEMORY.md §6 M11): `owner`, or `outside` from a session that read outside text, which waits for the owner's keep. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's.",
   },
 } as const satisfies Record<string, VerbSpec>;

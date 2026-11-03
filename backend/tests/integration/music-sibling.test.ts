@@ -10,7 +10,17 @@ import { LEFT_OUT } from '../../src/areas/mind/notes';
 import { uuidv7 } from '../../src/lib/ids';
 import { dayBefore, HOUR } from '../../src/lib/time';
 import { apiJson, coreSql } from '../helpers';
-import { addOp, as, brief, firedWake, ownerSays, type Principals, principals, reason } from '../memory-helpers';
+import {
+  addOp,
+  as,
+  brief,
+  firedWake,
+  labelled,
+  ownerSays,
+  type Principals,
+  principals,
+  reason,
+} from '../memory-helpers';
 
 let P = {} as Principals;
 let yday = '';
@@ -57,10 +67,10 @@ describe('a sibling session id', () => {
     );
     expect(after.tainted_at).toBe(x.tainted_at);
     expect(after.taint_event_at).toBeGreaterThanOrEqual(after.claimed);
-    // N1, under its own id: refused for memory, and its web is closed.
-    expect(await reason(as(P.N, 'cse_sib_n1'), addOp([`msg:${said}`]))).toBe('session_tainted');
+    // N1, under its own id: what it writes is labelled outside (MEMORY.md §6 M11), and its web is closed.
+    expect(await labelled(as(P.N, 'cse_sib_n1'), addOp([`msg:${said}`]))).toBe('outside');
     const note = await dayNote('cse_sib_n1', 'Written after a sibling read the songs.');
-    expect([note.status, note.body.error?.code]).toEqual([403, 'session_tainted']);
+    expect([note.status, (note.body as { provenance?: string }).provenance]).toEqual([200, 'outside']);
     expect(await songs(as(P.N, 'cse_sib_n1'))).toBe(true);
   });
 

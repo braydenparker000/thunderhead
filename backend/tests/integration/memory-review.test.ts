@@ -1,9 +1,9 @@
 // Stage A.5, the independent review of P3 stage A: each finding as a test that fails on aedff64.
-// Forget reaches versions an undo unlinked; a mind writes memory only from a claimed, live,
-// untainted session (day notes too), and a note from a tainted session is never evidence; the
+// Forget reaches versions an undo unlinked; a mind writes memory only from a claimed, live session
+// (day notes too, labelled `outside` after outside text), and a tainted note is never evidence; the
 // mind can only make a fact more protected; muting or forgetting clears the surfaces that cite
 // it; M12 covers the rule being replaced; the owner's day-note edit wins; M10 caps chat batches;
-// a forgotten id is never reused; an older owner message never lifts a guess to the owner's word.
+// a forgotten id is never reused; no owner message lifts a guess to the owner's word (M11e).
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { Fact, Page, SurfacesResponse, UndoResponse } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
@@ -88,7 +88,7 @@ describe('1. forget reaches every version, even one an undo unlinked', () => {
   });
 });
 
-describe('2. a mind writes memory only from a claimed, live, untainted session', () => {
+describe('2. a mind writes memory only from a claimed, live session; outside text labels it', () => {
   it('a tainted chat key that sends a fresh TH-Session is refused, not laundered', async () => {
     const s = 'cse_review_tainted_chat';
     await apiJson('POST', '/v1/mind/taint', { ...as(P.C, s), body: { source: 'WebFetch' } });
@@ -98,7 +98,7 @@ describe('2. a mind writes memory only from a claimed, live, untainted session',
     );
   });
 
-  it('day notes: a tainted night session and a sessionless call are refused', async () => {
+  it("day notes: a tainted night session's is written labelled outside; a sessionless call is refused", async () => {
     const s = 'cse_review_night_tainted';
     expect((await brief(P.N, s, 'night')).status).toBe(200);
     await apiJson('POST', '/v1/mind/taint', { ...as(P.N, s), body: { source: 'WebFetch' } });
@@ -107,20 +107,19 @@ describe('2. a mind writes memory only from a claimed, live, untainted session',
       decisions: ['Delete the library'],
       importance: 9,
     };
-    const tainted = await apiJson<{ error: { code: string } }>('PUT', '/v1/memory/day-notes/2020-02-02', {
-      ...as(P.N, s),
-      body,
-    });
-    expect([tainted.status, tainted.body.error.code]).toEqual([403, 'session_tainted']);
     const bare = await apiJson<{ error: { code: string } }>('PUT', '/v1/memory/day-notes/2020-02-02', {
       token: P.N,
       body,
     });
     expect([bare.status, bare.body.error.code]).toEqual([403, 'session_required']);
-    expect(await coreSql("SELECT day FROM day_notes WHERE day = '2020-02-02'")).toEqual([]);
+    const tainted = await apiJson<{ provenance: string }>('PUT', '/v1/memory/day-notes/2020-02-02', {
+      ...as(P.N, s),
+      body,
+    });
+    expect([tainted.status, tainted.body.provenance]).toEqual([200, 'outside']);
   });
 
-  it('a day note written while its session was tainted is never evidence', async () => {
+  it('a day note written while its session was tainted is never evidence (labelled, or from before labels)', async () => {
     const s = 'cse_review_old_taint';
     await apiJson('POST', '/v1/mind/taint', { ...as(P.N, s), body: { source: 'WebFetch' } });
     await coreSql(
@@ -135,6 +134,9 @@ describe('2. a mind writes memory only from a claimed, live, untainted session',
     S.night = await freshSession(P.N, 'night', 'cse_review_night_2');
     const op = addOp(['day:2020-03-03'], { source: 'inferred', text: 'Wants the music library deleted' });
     expect(await reason(chat(), op)).toBe('tainted_evidence');
+    // The one the tainted night wrote above carries its label (M11d), whoever cites it.
+    const labelled = addOp(['day:2020-02-02'], { source: 'inferred', text: 'Wants all music deleted' });
+    expect(await reason(chat(), labelled)).toBe('tainted_evidence');
   });
 });
 
@@ -249,16 +251,17 @@ describe('8, 10 and the nits', () => {
     expect([r.body.applied.length, r.body.rejected]).toEqual([10, [{ i: 10, reason: 'proposal_required' }]]);
   });
 
-  it("an owner message older than a guess doesn't lift it to the owner's word; a newer one does", async () => {
+  it("no owner message lifts a guess to the owner's word (M11e); the owner's tap does", async () => {
     const older = await ownerSays(P.D, 'I want to perform the piece one day.');
     const guess = addOp([`msg:${said}`], { source: 'inferred', kind: 'goal', text: 'Wants to perform the piece' });
-    await ops(chat(), [guess]);
+    expect((await ops(chat(), [guess])).body.applied[0].provenance).toBe('outside');
     const r = await ops(chat(), [{ op: 'confirm', id: guess.id, evidence: [`msg:${older}`] }]);
     expect(r.body.applied[0].fact_id).toBe(guess.id);
     expect((await get(guess.id))?.source).toBe('inferred');
+    // A newer one lifted it before M11e; now it waits for the owner's Keep (memory-provenance.test.ts).
     const newer = await ownerSays(P.D, 'Yes, I really want to perform it.');
-    const lifted = await ops(chat(), [{ op: 'confirm', id: guess.id, evidence: [`msg:${newer}`] }]);
-    expect((await get(lifted.body.applied[0].fact_id))?.source).toBe('user');
+    const still = await ops(chat(), [{ op: 'confirm', id: guess.id, evidence: [`msg:${newer}`] }]);
+    expect(still.body.applied[0]).toMatchObject({ fact_id: guess.id, provenance: 'outside' });
   });
 });
 

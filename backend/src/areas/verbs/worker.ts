@@ -42,12 +42,14 @@ type Args = Record<string, unknown>;
 type Executor = (x: RunCtx, a: Args) => Ran;
 
 /** A fact from the owner's own words, through memory's whole path (its batch, its session, taint
- * and off-the-record checks, M3's owner evidence, M4 and the laws pin for a rule). */
-function remember(x: RunCtx, op: JsonObject): Ran {
+ * and off-the-record checks, M3's owner evidence, M4 and the laws pin for a rule). `labelled`: its
+ * result says the label memory gave it (MEMORY.md §6 M11): from a session that read outside text a
+ * note is `outside` and waits for the owner's keep (a rule from one is refused, `outside_rule`). */
+function remember(x: RunCtx, op: JsonObject, labelled = false): Ran {
   const id = op.id as string;
   const out = memory.apply(x.w, x.c, `verb:${x.id}`, [op], x.hash);
   return {
-    result: { fact_id: id },
+    result: labelled ? { fact_id: id, provenance: out.applied[0].provenance } : { fact_id: id },
     undo: { op: 'memory.close', args: { fact_id: id } },
     ledger_id: out.applied[0].ledger_id,
   };
@@ -75,16 +77,20 @@ export const WORKER_VERBS: Record<string, Executor> = {
       evidence: a.evidence as string[],
     }),
   'memory.note': (x, a) =>
-    remember(x, {
-      op: 'add',
-      id: uuidv7(x.w.at),
-      kind: a.kind as string,
-      ...(a.subject ? { subject: a.subject as string } : {}),
-      text: a.text as string,
-      source: 'user',
-      about: 'owner',
-      evidence: a.evidence as string[],
-    }),
+    remember(
+      x,
+      {
+        op: 'add',
+        id: uuidv7(x.w.at),
+        kind: a.kind as string,
+        ...(a.subject ? { subject: a.subject as string } : {}),
+        text: a.text as string,
+        source: 'user',
+        about: 'owner',
+        evidence: a.evidence as string[],
+      },
+      true,
+    ),
   'music.mix_save': ({ w, c, id }, a) => {
     const refs = [...new Set(a.refs as string[])];
     mixes.insert(w.db, {

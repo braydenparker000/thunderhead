@@ -8,6 +8,7 @@ import type {
   DayStats,
   MindNightRequest,
   MindNightResponse,
+  MindNoteResponse,
   MindStatusRequest,
   Page,
   PendingResponse,
@@ -130,8 +131,9 @@ export const mindRoutes = new Hono<AppEnv>()
     return c.body(null, 204);
   })
   .post('/mind/notes', guard('POST /v1/mind/notes'), async (c) => {
-    value(await coreObject(c.env).mindNote(callerOf(c), await json(c, noteBody)));
-    return c.body(null, 201);
+    // The note's id and its label (MEMORY.md §6 M11): `th note` prints it.
+    const out = value(await coreObject(c.env).mindNote(callerOf(c), await json(c, noteBody)));
+    return c.json(out satisfies MindNoteResponse, 201);
   })
   .post('/mind/taint', guard('POST /v1/mind/taint'), async (c) => {
     const { source } = await json(c, taintBody);

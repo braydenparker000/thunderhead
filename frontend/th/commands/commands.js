@@ -7,7 +7,13 @@
 // stays words for the mind (it may mean its work); "never play this again" reaches the mind as a
 // `music.rate` sense with the song's id, so it keeps the song out of its mixes too. "Off the record"
 // starts a conversation the mind answers and never remembers; "back on the record" ends it (th/record).
+// "@muse <words>" goes as the owner's message marked for Muse, a task (HOME.md §6.6).
 import { appFor } from '../registry/apps.js';
+
+/** The words after "@muse " or "@Muse,", else null (as work/mention.ts). @param {string} text */
+export const mentionOf = (text) => /^@muse(?:\s*[,:]\s*|\s+)(\S[\s\S]*)$/i.exec(text.trim())?.[1].trim() ?? null;
+/** @param {string} words */
+export const musePreview = (words) => (words.length > 500 ? 'Too long for Muse: 500 characters at most.' : 'Asks Muse. It shows in the menu under Tasks.');
 
 /** The names the owner calls each app, to the app's id. */
 const APP_NAMES = /** @type {Record<string, string>} */ ({
