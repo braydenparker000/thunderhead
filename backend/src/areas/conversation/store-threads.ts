@@ -1,6 +1,6 @@
 // A thread's title and its link to the day it continues (the conversation's store, split off to
 // keep each file short): the mind's titles, the owner's name for a thread, the roll's provisional
-// title. All SQL, as in store.ts.
+// title; and one owner message the Worker itself answers (an `@muse`). All SQL, as in store.ts.
 import type { Db } from '../../objects/base';
 
 export function patchThread(db: Db, id: string, title: string | undefined, summary: string | undefined, at: number) {
@@ -33,4 +33,16 @@ export function autoTitle(db: Db, id: string, title: string): void {
 
 export function linkContinues(db: Db, todayId: string, filedId: string, at: number): void {
   db.run('UPDATE threads SET continues = ?, updated_at = ? WHERE id = ?', filedId, at, todayId);
+}
+
+/** Settles one owner message and no other: the Worker's own answer to an `@muse` (work/lines.ts),
+ * which is no reply from the mind, so what the owner said before it still waits for one. */
+export function answerOne(db: Db, id: string, at: number): void {
+  db.run(
+    `UPDATE messages SET answered_at = ?, acked_at = coalesce(acked_at, ?) WHERE id = ? AND author = 'owner'
+       AND answered_at IS NULL`,
+    at,
+    at,
+    id,
+  );
 }

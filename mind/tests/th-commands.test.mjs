@@ -257,19 +257,21 @@ test('verb (checked against the contract), undo, ledger', withFake({}, async fak
 
 test('order new, list, get, cancel; no personal order kinds; Muse\'s thread', withFake({}, async fake => {
   const e = env(fake);
-  const spec = '{"v":1,"goal":"Check the weather feed.","inputs":{},"constraints":[],"done_when":"Each URL checked."}';
-  const n = await th(['order', 'new', '--kind', 'media.check', '--title', 'Weather feeds', '--spec', spec, '--deadline', '2026-10-29T06:00:00Z'], e);
+  const n = await th(['order', 'new', '--words', 'Find the weather feed that moved.', '--app', 'podcasts', '--deadline', '2026-10-29T06:00:00Z'], e);
   assert.equal(n.code, 0, n.stderr);
   const stored = fake.state.orders.get(n.json.id).value;
-  assert.deepEqual([stored.deadline_at, stored.title, stored.schema, stored.personal], [Date.parse('2026-10-29T06:00:00Z'), 'Weather feeds', undefined, undefined]);
+  assert.deepEqual([stored.kind, stored.deadline_at, stored.title, stored.spec, stored.schema, stored.personal],
+    ['muse.request', Date.parse('2026-10-29T06:00:00Z'), 'Find the weather feed that moved.', {v: 1, words: 'Find the weather feed that moved.', app: 'podcasts'}, undefined, undefined]);
+  assert.equal(n.json.state, 'asked');
   assert.equal((await th(['order', 'list'], e)).json.items.length, 1);
-  assert.equal((await th(['order', 'get', n.json.id], e)).json.kind, 'media.check');
+  assert.equal((await th(['order', 'get', n.json.id], e)).json.kind, 'muse.request');
   assert.equal((await th(['order', 'cancel', n.json.id], e)).code, 8, '--why is required');
   assert.equal((await th(['order', 'cancel', n.json.id, '--why', 'No longer needed today'], e)).json.status, 'cancelled');
   assert.equal((await th(['order', 'get', 'nope'], e)).code, 8);
   const before = fake.state.requests.length;
-  const personal = await th(['order', 'new', '--kind', 'research.brief', '--personal', '--spec', spec, '--deadline', '2026-10-29T06:00:00Z'], e);
-  assert.equal(personal.code, 8, 'refused before anything is sent');
+  for (const args of [['--words', 'x', '--personal'], ['--kind', 'research.brief', '--words', 'x'], ['--words', 'x'.repeat(501)], []]) {
+    assert.equal((await th(['order', 'new', ...args], e)).code, 8, `refused before anything is sent: ${args.join(' ')}`);
+  }
   assert.equal(fake.state.requests.length, before);
   assert.equal((await th(['muse', 'nonsense'], e)).code, 8);
 }));

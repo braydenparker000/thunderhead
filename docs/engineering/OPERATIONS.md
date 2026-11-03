@@ -295,7 +295,7 @@ Up to P3, a tripped watchdog writes a ledger note and a briefing line. From P4 i
 | `jobs.stuck` | A job `running` > 2 h, or `attempts` ≥ 5 | S3 |
 | `db.size` | Any object > 700 MB | S3 |
 | `events.export.late` (P5) | Day D not archived by D+1 09:00 | S3 |
-| `muse.silent` (P4) | No Muse API call in 26 h ([MUSE.md](../archive/MUSE.md) §9) | S4; Briefing line "Muse hasn't checked in since yesterday." |
+| ~~`muse.silent`~~ (removed 2026-11-03) | Muse now polls for tasks ([MUSE-PROTOCOL.md](MUSE-PROTOCOL.md)); an order it leaves shows its age in the menu's Tasks, and the Briefing still says "Muse hasn't checked in since yesterday." after 26 h | — |
 
 Acceptance: each watchdog has a vitest case that sets the condition with fixtures and a fake clock and asserts exactly one ledger note per trip (no repeat until it clears and trips again).
 

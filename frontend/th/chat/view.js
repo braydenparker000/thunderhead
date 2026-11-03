@@ -144,7 +144,8 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap }) {
       return wrap;
     }
     const wrap = el('div', `reply${m.kind === 'progress' ? ' progress' : ''}`);
-    wrap.append(rich(m.body));
+    // Muse's own line (its task done, areas/work) is outside text: plain words, never Markdown or links.
+    wrap.append(m.author === 'muse' ? el('p', '', m.body) : rich(m.body));
     if (!m.local && m.attachments?.length) wrap.append(attachments(m.attachments));
     if (s.fresh.has(m.id)) {
       wrap.classList.add('reveal');

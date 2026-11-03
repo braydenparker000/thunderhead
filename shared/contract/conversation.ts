@@ -1,7 +1,6 @@
-// The P2 shapes: the conversation (API.md §2, §11.7), the change feed and live channel (§11.5,
-// §11.6, §12), search and the mind's own routes (§11.8). Types only, like api.ts; wire format is
-// snake_case. The vocabularies these name (change kinds, frames, apps, sources) are runtime data
-// in feed.ts.
+// The P2 shapes: the conversation (API.md §2, §11.7), the change feed and live channel (§11.5, §11.6,
+// §12), search and the mind's own routes (§11.8). Types only, like api.ts; wire format is snake_case.
+// The vocabularies these name (change kinds, frames, apps, sources) are runtime data in feed.ts.
 import type { Day, Id, JsonObject, Ms, Page } from './api';
 import type { AppId, ChangeKind, MindUse, SearchSource } from './feed';
 
@@ -72,13 +71,14 @@ export interface Message {
 }
 
 /** PUT /v1/messages/:id. `thread_id: 'system'` only for night/reflex error posts (mind Finding 1);
- * an id only names a conversation off the record (device, mind:chat). */
+ * an id only names one off the record (device, mind:chat). `mention`: "@muse …" (work.ts `Mention`). */
 export interface PutMessageRequest {
   body: string;
   kind?: MessageKind;
   meta?: JsonObject;
   reply_to?: Id;
   thread_id?: 'system' | Id;
+  mention?: 'muse';
 }
 
 export interface PatchMessageRequest {

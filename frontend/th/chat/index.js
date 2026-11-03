@@ -335,7 +335,7 @@ export async function startChat() {
             keep(m);
           }
         }
-        return api.say(tok, m.id, m.body, m.reply_to, m.files?.map((f) => `file:${f.id}`), m.thread_id);
+        return api.say(tok, m.id, m.body, m.reply_to, m.files?.map((f) => `file:${f.id}`), m.thread_id, m.mention);
       });
       // Sent: the Worker's copy replaces this phone's. With today not loaded yet (it failed), it is
       // kept as today's first message rather than dropped from the screen (audit fix 2).
@@ -437,9 +437,12 @@ export async function startChat() {
       void commands.run(command, () => model.uuidv7(Date.now()));
       return;
     }
+    // "@muse …": the owner's message, marked so the Worker makes it a task for Muse (never off the record).
+    const muse = picked.length || otr || !commands ? null : commands.mentionOf(body);
+    if (muse && muse.length > 500) return toast(commands?.musePreview(muse) ?? '');
     // "Ask about this" left a quote over the bar: this message answers that reply.
     const about = $('#about');
-    const m = enqueue(body, about?.dataset.id, take());
+    const m = enqueue(body, about?.dataset.id, take(), !!muse);
     about?.remove();
     if (m.state === 'sending') sendLine.start(m.id);
     paint();
@@ -451,8 +454,8 @@ export async function startChat() {
     flush();
   });
   /** A message from the phone, answering `replyTo` if given, with the files picked for it.
-   * @param {string} body @param {string} [replyTo] @param {import('../attach/state.js').LocalFile[]} [files] */
-  function enqueue(body, replyTo, files) {
+   * @param {string} body @param {string} [replyTo] @param {import('../attach/state.js').LocalFile[]} [files] @param {boolean} [muse] */
+  function enqueue(body, replyTo, files, muse) {
     const now = Date.now();
     /** @type {Local} */
     const m = {
@@ -464,6 +467,7 @@ export async function startChat() {
       ...(replyTo ? { reply_to: replyTo } : {}),
       ...(files?.length ? { files } : {}),
       ...(otr ? { thread_id: otr } : {}),
+      ...(muse ? { mention: /** @type {'muse'} */ ('muse') } : {}),
     };
     state.local.push(m);
     return m;
@@ -497,7 +501,8 @@ export async function startChat() {
   const hintCmd = () => {
     const o = quietOrder(q.value.trim());
     const c = o || !commands ? null : commands.commandOf(q.value.trim());
-    cmd.textContent = c && commands ? commands.preview(c) : !o ? '' : 'until' in o ? `${quietLine(o.until)} No notifications until then.` : quietUntil() ? 'Ends quiet now.' : '';
+    const muse = c || o || otr || !commands ? null : commands.mentionOf(q.value);
+    cmd.textContent = muse && commands ? commands.musePreview(muse) : c && commands ? commands.preview(c) : !o ? '' : 'until' in o ? `${quietLine(o.until)} No notifications until then.` : quietUntil() ? 'Ends quiet now.' : '';
   };
   q.addEventListener('input', hintCmd);
   ask.addEventListener('submit', () => setTimeout(hintCmd));

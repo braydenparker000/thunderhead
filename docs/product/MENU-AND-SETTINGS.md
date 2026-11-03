@@ -84,6 +84,23 @@ the conversation is hidden and Undo can restore it. Recently deleted retains it 
 after which the existing server purge applies. Deleting Now lets the next message start a fresh
 conversation. Facts learned from a conversation are managed separately in Memory.
 
+### 3.4 Tasks
+
+What Muse was asked (the owner's `@muse` in the chat, or the mind's order) and Muse's own music
+uploads, as a **Tasks** group right under Now, before Pinned (`th/convos/tasks.js`). It reads
+`GET /v1/work/orders` (newest first, 20 at most) when the menu opens and whenever the feed says
+`work` changed; while there are none the group isn't there at all. Each row uses the conversations'
+row anatomy: the state's icon (asked `clock`, picked up `hand-pointing`, working `arrow-clockwise`,
+done `check`, failed `warning-circle`, cancelled `x`), the title (the owner's first 60 characters of
+words), the state in words and the age (now, 12 min, 3 h, then the day). The heading folds like the
+others and is remembered.
+
+A tap opens the shared sheet: the title, the state and age, what came of it (Muse's note when done,
+its reason when it failed), then Muse's progress lines with their times (`GET
+/v1/work/thread?order=`), and **Cancel task** while it is asked, picked up or working (the owner's
+cancel is never gated; the chat says "Cancelled. Muse won't do it."). The sheet's own button reads
+Close. Nothing new in Settings: Muse orders the mind places ask first under `mind.permit.muse`.
+
 ## 4. Settings pages
 
 ### 4.1 Appearance

@@ -367,6 +367,10 @@ Limits and rules:
 
 Acceptance: in Playwright with a mobile Chrome emulation, typing "hello" swaps mic → send within 250 ms; Enter sends; the input is empty afterwards; `#q` has no `placeholder` attribute except while listening.
 
+### 6.6 Mentions: `@muse`
+
+A message that starts `@muse ` or `@Muse,` asks Muse, not the mind (built 2026-11-03; `th/commands` reads it, the line under the bar says "Asks Muse. It shows in the menu under Tasks."). It goes through the outbox like any message, marked `mention: 'muse'`, so it waits offline and keeps its place; past 500 characters it stays in the bar with "Too long for Muse". The Worker makes it a task under the owner's own authority, answers with a system line ("Asked Muse. I'll tell you when it lands."), and wakes no mind, so no working card shows. Each state after that is one line in today's conversation (picked up, working, then done or failed), posted by the Worker, so it lands while the mind sleeps; done is Muse's own reply-style line, "Muse added 41 songs from 3 artists.", in plain words with an Open chip. Off the record, or with a file picked, the words go to the mind as usual. The task and Muse's progress lines are in the menu's Tasks ([MENU-AND-SETTINGS.md §3.4](MENU-AND-SETTINGS.md)); the routes in [API.md §11.7 rule 10, §11.19](../engineering/API.md).
+
 ## 7. Edge light
 
 The Thunderhead's presence (owner ruling): light rising from the **bottom** of the screen, behind the ask bar (owner, 2026-10-30: "the pulsing is too much. It should only be at bottom"; it was an inset glow on all four edges with a 1.5 s pulse). One layer `#edge`, the bottom 40% of the screen, `pointer-events: none`, above the conversation (z 6), with two bands: the **glow** (`::after`, its colour by state) and the **gold** (`::before`) under it while a card waits, so the gold stays under a thinking pulse. Each band is a radial gradient from the bottom centre; only their opacity animates, so the compositor moves them and nothing is repainted (the old box-shadow pulse repainted the whole screen every frame).

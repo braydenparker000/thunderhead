@@ -99,9 +99,11 @@ const budgets = [
   // (2026-11-02, senses) +8 measured (72,498): contract.js's `habit` fact kind.
   // (2026-11-02) +1,808 measured (74,306): contract.js's verbs, batch 1 (17 more, each with its side
   // and whether it is an app's intent).
-  // (2026-11-02, provenance) +17 measured (74,323): contract.js's memory reasons `outside_rule` and
-  // `outside_supersede` in place of `session_tainted` (MEMORY.md §6 M11).
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_323],
+  // (2026-11-03, @muse) +104 measured (74,410): api.js's `say` sends the `mention` marker.
+  // (2026-11-03, provenance) +11 measured (74,421): contract.js's memory reasons `outside_rule`,
+  // `outside_supersede` and `outside_confirm` in place of `session_tainted` and `no_inferred_sensitive`
+  // (MEMORY.md §6 M11).
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_421],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -117,10 +119,12 @@ const budgets = [
   // measured 107,441 bytes, 10,560 over main's 96,881.
   // (2026-11-02, senses) +430 measured (107,871): each home line's ledger row on its card and a
   // chip's app (for `line.seen` and `reply.open_chip`), and the Memory page's Habits group.
-  // (2026-11-02, provenance) +80 measured (107,951): the Memory registry's "Learned from outside" shelf.
-  // (2026-11-03, provenance) +224 measured (108,175): the registry's `whose` ("From outside" for an
-  // outside fact the mind took for the owner's words, in menu search and on the Memory page).
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 108_175],
+  // (2026-11-03, @muse) +792 measured (108,663): an "@muse" marked and sent from the outbox, its
+  // hint and length check (index.js), never waited on as the mind's (model.js), and Muse's done
+  // line drawn as plain words (view.js).
+  // (2026-11-03, provenance) +304 measured (108,967): the Memory registry's "Learned from outside"
+  // shelf and its `whose` ("From outside" for an outside fact taken for the owner's words).
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 108_967],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -145,7 +149,9 @@ const budgets = [
   // The menu's conversations and search, loaded when the menu first opens.
   // (2026-10-31) + a held card's Continue, Rename and Pin (actions.js), Settings by name in search.
   // (2026-11-01) + Delete with its sheet and Now's hold, the off-the-record tag, Recently deleted by name.
-  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 65_000],
+  // (2026-11-03, @muse) 65,000 → 70,205 measured (+6,071 over main's 64,134): the Tasks group and
+  // its sheet (tasks.js, 5,640) and their place in the menu (menu.js, +431).
+  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 70_205],
   // The Briefing page, loaded after the first paint.
   // + skeletons, pull to refresh and the owner's arrangement of the tiles (2026-10-30).
   // (2026-11-02) 20,000 → 24,000: + Due and its sheet (due.js, loaded on tap), Holidays, the day's
