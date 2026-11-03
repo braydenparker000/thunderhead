@@ -198,12 +198,16 @@ export async function startChat() {
   async function loadSurfaces() {
     state.surfaces = (await signedIn((tok) => api.surfaces(tok))).items;
   }
-  /** Today's plans (API.md §11.11): their ledger rows since the day began. */
+  /** Today's plans (API.md §11.11): their ledger rows since the day began. Never holds the chat: if
+   * the read fails, the lines it had stay until the next `plan` change. */
   async function loadPlans() {
     const day = state.today?.day;
     if (!day) return;
     const since = new Date(`${day}T04:00`).getTime();
-    state.plans = (await signedIn((tok) => api.call(`/v1/ledger?kind=plan&since=${since}&limit=20`, { token: tok }))).items;
+    await signedIn((tok) => api.call(`/v1/ledger?kind=plan&since=${since}&limit=20`, { token: tok })).then(
+      (r) => { state.plans = /** @type {any} */ (r).items ?? state.plans; },
+      () => {},
+    );
   }
   /** A plan's Undo: all its steps, last first (the Worker's); its line goes once undone.
    * @param {string} id @param {HTMLButtonElement} b */

@@ -125,9 +125,10 @@ const budgets = [
   // line drawn as plain words (view.js).
   // (2026-11-03, provenance) +304 measured (108,967): the Memory registry's "Learned from outside"
   // shelf and its `whose` ("From outside" for an outside fact taken for the owner's words).
-  // (2026-11-03, schedules) +2,545 measured (111,512): a plan's line on home with its Undo (today's
-  // plans from the ledger, their cards, the undo call and its words, and their cache).
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 111_512],
+  // (2026-11-03, schedules) +2,726 measured (111,693): a plan's line on home with its Undo (today's
+  // plans from the ledger, read so a failure never holds the chat; their cards, the undo call and
+  // its words, and their cache).
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 111_693],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
