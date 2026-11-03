@@ -1,8 +1,7 @@
-// Waits for the browser suites (TESTING.md, "Browser tests: waits and timing"): a test waits for the
+// Waits for the browser suites (TESTING.md §10.1, "Browser tests: waits and timing"): a test waits for the
 // condition it needs (an element, an attribute, a stored key, a call the mock saw, the springs at
 // rest), never for a guessed number of milliseconds, and a timing read is a diagnostic on CI.
 import assert from 'node:assert/strict';
-import { isDeepStrictEqual } from 'node:util';
 
 /** Timing reads (milliseconds, frames, audio levels) measure the machine as much as the product: they
  * are enforced with TH_STRICT_TIMING=1 and otherwise reported, so a loaded runner cannot fail them. */
@@ -23,18 +22,6 @@ export async function until(ok, { timeout = 15_000, message = 'the condition nev
     if (Date.now() > end) throw new assert.AssertionError({ message: `${message} (waited ${timeout} ms)` });
     await new Promise((r) => setTimeout(r, 25));
   }
-}
-
-/** Reads until the value is `want` (15 s at most), then asserts it, so a slow page fails with the
- * value it had. @param {() => unknown} read @param {unknown} want @param {string} [message] */
-export async function eventually(read, want, message) {
-  const end = Date.now() + 15_000;
-  let got = await read();
-  while (!isDeepStrictEqual(got, want) && Date.now() < end) {
-    await new Promise((r) => setTimeout(r, 25));
-    got = await read();
-  }
-  assert.deepEqual(got, want, message);
 }
 
 /** Every spring on the page at rest (th/motion.js). @param {import('playwright').Page} page */
