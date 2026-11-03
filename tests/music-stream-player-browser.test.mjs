@@ -125,7 +125,7 @@ test('a song streams: at most ~60 s ahead, part of the file, its length known, s
     let most = 0;
     for (let i = 0; i < 12; i++) {
       most = Math.max(most, await page.evaluate(() => { const a = __cp.player.audio, b = a.buffered; let e = a.currentTime; for (let k = 0; k < b.length; k++) if (b.start(k) <= a.currentTime + 0.1) e = Math.max(e, b.end(k)); return e - a.currentTime; }));
-      await page.waitForTimeout(250);
+      await page.waitForTimeout(250); // one look every 250 ms over 3 s of playing: the window watched, not a wait
     }
     assert.ok(most <= 60.6, `buffered ahead at most ${most.toFixed(2)} s`);
     const playing = await page.evaluate(() => __cp.player.track.id);

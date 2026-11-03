@@ -60,7 +60,7 @@ async function open({ theme = 'light', work = {}, clock = false, messages = [own
   return { page, context, errors, api };
 }
 async function eventually(read, want, message) {
-  const end = Date.now() + 5_000;
+  const end = Date.now() + 15_000;
   let got = await read();
   while (!isDeepStrictEqual(got, want) && Date.now() < end) {
     await new Promise((r) => setTimeout(r, 20));

@@ -274,7 +274,7 @@ test('the same through the audio engine, and with Next pressed twice', opts, asy
       const p = __cp.player, gaps = [], a = p.indexAt(4), b = p.indexAt(6), want = p.queue[b].title;
       const t0 = performance.now();
       p.load(a, true);
-      await new Promise((r) => setTimeout(r, 150));
+      await new Promise((r) => setTimeout(r, 150)); // the two presses 150 ms apart are the case itself
       p.load(b, true);
       const fresh = p.audio;
       while (performance.now() - t0 < 10_000 && !fresh._heard) {

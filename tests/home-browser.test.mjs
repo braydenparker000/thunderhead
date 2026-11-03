@@ -261,7 +261,7 @@ test('springs preserve drag reversals, cross-axis navigation, regrabs and a reop
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'home' })));
   await rest();
   await page.evaluate(() => document.querySelector('[data-skip="apps"]').click());
-  await page.waitForTimeout(100);
+  await page.waitForTimeout(100); // the close comes while the ring still opens: the case itself (input, not a wait)
   await page.keyboard.press('Escape');
   await page.evaluate(() => document.querySelector('[data-skip="apps"]').click());
   await ringRest(page);
