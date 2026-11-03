@@ -86,6 +86,8 @@ export const MEMORY_REASONS = {
   outside_rule: 'This write is labelled outside: outside text never becomes or replaces a rule.',
   outside_supersede:
     "This write is labelled outside: it can't replace what the owner said or did. Add it as a new fact; it waits for the owner's keep.",
+  outside_confirm:
+    "This session read outside text, so it confirms nothing (a fact would stop fading on outside say-so). Remember it as a new fact; it waits for the owner's keep.",
   laws_unpinned: "This session's laws file is missing or is not the version the owner approved, so it may not write rules.",
   device_only: 'Only the owner can do this, from the Memory page.',
   duplicate_id: 'A fact with this id already exists.',

@@ -225,9 +225,11 @@ type Confirm = Extract<ParsedOp, { op: 'confirm' }>;
  * from the mind, the owner's own words written after the fact was. An older message can't lift
  * it; whether the words really state it is the weekly in-session review's check. An `outside` fact
  * is lifted only by the owner's tap (M11e: Keep, under "Learned from outside"), into an `owner`
- * version; the mind's confirm of one, and any confirm from a session that read outside text, only
- * refreshes it in place and keeps its label. */
+ * version; the mind's confirm of one only refreshes it in place and keeps its label. A session that
+ * read outside text confirms nothing (M11e): on outside say-so a confirm would keep a fact, the
+ * owner's included, from fading; it remembers what it learned as a new fact instead. */
 export function confirm(w: Writer, c: Caller, ctx: OpContext, op: Confirm): Applied {
+  if (outsideRead(ctx)) throw new Reject('outside_confirm');
   const f = current(ctx, op.id);
   const was = store.provenanceOf(f);
   let ownerWords = true;
@@ -243,7 +245,7 @@ export function confirm(w: Writer, c: Caller, ctx: OpContext, op: Confirm): Appl
     ownerWords &&
     (ctx.device
       ? f.source !== 'user' || was === 'outside'
-      : f.source !== 'user' && !ctx.tainted && was !== 'outside' && (newestOwnerWords(ctx, refs) ?? 0) > f.recorded_at);
+      : f.source !== 'user' && was !== 'outside' && (newestOwnerWords(ctx, refs) ?? 0) > f.recorded_at);
   if (lifts) {
     const tags = store.strings(f.tags_json);
     const lift: Supersede = {
@@ -271,7 +273,6 @@ export function confirm(w: Writer, c: Caller, ctx: OpContext, op: Confirm): Appl
     why: ctx.device ? 'the owner said it is still true' : cites(refs),
     ref: short(f.id),
     undo: { op: 'memory.restore', args: { fact_id: f.id, confidence: f.confidence, last_confirmed: f.last_confirmed } },
-    tainted: outsideRead(ctx),
   });
   store.confirmFact(w.db, f.id, confidence, w.at);
   w.change('fact', short(f.id));

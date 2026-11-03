@@ -169,14 +169,27 @@ describe('B. what outside may not do', () => {
     const [why] = await coreSql<{ why: string }>('SELECT why FROM ledger WHERE id = ?', k.ledger_id);
     expect(why.why).toBe('the owner kept it');
     expect((await profile()).fact_ids).toContain(k.fact_id);
+    // Undo of the Keep (memory.reopen): the outside version is current again, and out of the profile.
+    const u = await apiJson<{ status: string }>('POST', `/v1/ledger/${k.ledger_id}/undo`, { ...device(), body: {} });
+    expect(u.body.status).toBe('undone');
+    expect(await fact(fixed.new.id)).toMatchObject({ superseded_at: null, provenance: 'outside' });
+    expect((await fact(k.fact_id))?.superseded_at).not.toBeNull();
+    expect((await profile()).fact_ids).not.toContain(fixed.new.id);
+    expect((await profile()).fact_ids).not.toContain(k.fact_id);
+    // Kept again: the owner's once more.
+    const again = await ops(device(), [{ op: 'confirm', id: fixed.new.id }]);
+    expect(again.body.applied[0].provenance).toBe('owner');
   });
 });
 
 describe('D. the session writes; each write answers with its label', () => {
-  it("confirming the owner's fact keeps it the owner's; a loose end and a session note are outside", async () => {
-    const c = await ops(outside(), [{ op: 'confirm', id: ids.owner, evidence: [`msg:${said}`] }]);
-    expect(c.body.applied[0]).toMatchObject({ fact_id: ids.owner, provenance: 'owner' });
-    expect((await fact(ids.owner))?.superseded_at).toBeNull();
+  it('it confirms nothing (M11e); a loose end and a session note are outside', async () => {
+    const confirmed = async () =>
+      (await coreSql<{ at: number }>('SELECT last_confirmed AS at FROM facts WHERE id = ?', ids.owner))[0].at;
+    const before = await confirmed();
+    const confirm = { op: 'confirm', id: ids.owner, evidence: [`msg:${said}`] };
+    expect(await labelled(outside(), confirm)).toBe('outside_confirm');
+    expect(await confirmed()).toBe(before);
     const open = await apiJson<{ items: OpenThread[] }>('GET', '/v1/memory/open-threads', device());
     expect(open.body.items.find((t) => t.id === ids.thread)?.provenance).toBe('outside');
     const note = await apiJson<MindNoteResponse>('POST', '/v1/mind/notes', {
@@ -184,12 +197,23 @@ describe('D. the session writes; each write answers with its label', () => {
       body: { id: uuidv7(), body: 'Read a page about jazz.', open_items: [] },
     });
     expect([note.status, note.body.provenance]).toEqual([201, 'outside']);
-    // A loose end the owner closes is the owner's now.
+  });
+
+  it("the owner's Done and Drop say a loose end is finished, not that its words are theirs: it stays outside", async () => {
     const done = await apiJson<OpenThread>('PATCH', `/v1/memory/open-threads/${ids.thread}`, {
       ...device(),
       body: { status: 'done' },
     });
-    expect(done.body.provenance).toBe('owner');
+    expect([done.status, done.body.provenance]).toEqual([200, 'outside']);
+    const other = await apiJson<OpenThread>('PUT', `/v1/memory/open-threads/${uuidv7()}`, {
+      ...outside(),
+      body: { text: 'Find the jazz page again', owner: 'mind', evidence: [`msg:${said}`] },
+    });
+    const drop = await apiJson<OpenThread>('PATCH', `/v1/memory/open-threads/${other.body.id}`, {
+      ...device(),
+      body: { status: 'dropped', why: 'not needed' },
+    });
+    expect([drop.status, drop.body.provenance]).toEqual([200, 'outside']);
   });
 
   it('recall carries each hit’s label: an outside fact, an outside day note, the owner’s message', async () => {

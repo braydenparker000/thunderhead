@@ -78,12 +78,13 @@ function mindSession(w: Writer, c: Caller): { tainted: boolean } | null {
   return s;
 }
 
-/** M11 for a loose end or a day note: the owner's own write is `owner`; one from a session that
- * read outside text is `outside`; a clean session's is `owner`, except that a write which leaves
- * a loose end's words as they were (closing it, moving its date) keeps the label they had. */
+/** M11 for a loose end or a day note: one from a session that read outside text is `outside`;
+ * otherwise `owner`, except that a write which leaves a loose end's words as they were (closing it,
+ * dropping it, moving its date) keeps the label they had, the owner's Done and Drop included: their
+ * tap says it is finished, not that the words are theirs. Only the owner's own words over it (an
+ * edit) make an `outside` loose end theirs. */
 function noted(c: Caller, s: { tainted: boolean } | null, kept: Provenance | null): Provenance {
-  if (c.who === 'D') return 'owner';
-  if (s?.tainted) return 'outside';
+  if (s?.tainted && c.who !== 'D') return 'outside';
   return kept ?? 'owner';
 }
 
