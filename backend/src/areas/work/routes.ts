@@ -1,13 +1,20 @@
-// /v1/work (API.md §11.21, MUSE.md §4): the mind makes and cancels work orders; Muse, server to
-// server with its own key, says hello, claims one order at a time, heartbeats it, returns its
-// result (checked against the kind's schema; 422 names each problem) or a failure, and keeps notes
-// in its own thread. The sandbox has none of it.
+// /v1/work (API.md §11.19, MUSE-PROTOCOL.md): the mind makes work orders (the owner's come from
+// `@muse` in the chat, PUT /v1/messages/:id), and the owner or the mind cancels them; Muse, server
+// to server with its own key, says hello, claims one order at a time, posts progress lines in its
+// thread naming the order (or heartbeats it), returns its result (checked against the kind's
+// schema; 422 names each problem) or a failure. The sandbox has none of it.
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import * as z from 'zod/mini';
 import type { Page, Permitted } from '../../../../shared/contract/api';
 import type { Permit } from '../../../../shared/contract/permits.ts';
-import { type MuseNote, WORK_KIND_NAMES, WORK_LIMITS, type WorkOrder } from '../../../../shared/contract/work.ts';
+import {
+  ASKED_KINDS,
+  type MuseNote,
+  WORK_APPS,
+  WORK_LIMITS,
+  type WorkOrder,
+} from '../../../../shared/contract/work.ts';
 import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { callerOf } from '../../http/caller';
 import { ApiError } from '../../http/errors';
@@ -20,15 +27,12 @@ import { fresh } from '../../objects/rpc';
 const ID = z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/));
 const line = (max: number, min = 1) => z.string().check(z.minLength(min), z.maxLength(max));
 const putBody = z.strictObject({
-  kind: z.enum(WORK_KIND_NAMES as [string, ...string[]]),
+  kind: z.enum(ASKED_KINDS as [string, ...string[]]),
   title: line(WORK_LIMITS.title),
   spec: z.strictObject({
     v: z.literal(1),
-    goal: line(300),
-    inputs: z.record(z.string(), z.unknown()),
-    constraints: z.array(line(300)).check(z.maxLength(20)),
-    done_when: line(300),
-    sources_policy: z.optional(line(300)),
+    words: line(WORK_LIMITS.words),
+    app: z.optional(z.enum(WORK_APPS as [string, ...string[]])),
   }),
   deadline_at: z.number().check(z.int()),
 });
@@ -36,7 +40,7 @@ const listQuery = z.object({
   status: z.optional(z.enum(['queued', 'claimed', 'done', 'rejected', 'failed', 'expired', 'cancelled', 'all'])),
   limit: z.optional(z.coerce.number().check(z.int(), z.minimum(1), z.maximum(100))),
 });
-const noteBody = z.strictObject({ id: ID, body: line(WORK_LIMITS.note_body) });
+const noteBody = z.strictObject({ id: ID, body: line(WORK_LIMITS.note_body), order_id: z.optional(ID) });
 const tooLarge = (): never => {
   throw new ApiError('too_large');
 };
@@ -106,7 +110,9 @@ export const workRoutes = new Hono<AppEnv>()
       );
       const r = value(await fresh(coreObject(c.env).workResult(idOf(c.req.param('id')), result))) as
         | { ok: true }
-        | { ok: false; problems: string[] };
+        | { ok: false; problems: string[]; left: number };
+      // Each problem by its path. The order stays Muse's to send again, until the third result that
+      // fails, which rejects it (MUSE-PROTOCOL.md: a 409 then says so).
       if (!r.ok)
         throw new ApiError(
           'invalid_result',
@@ -116,18 +122,25 @@ export const workRoutes = new Hono<AppEnv>()
     },
   )
   .post('/work/orders/:id/fail', guard('POST /v1/work/orders/:id/fail'), async (c) => {
-    const { reason } = await json(c, z.strictObject({ reason: line(WORK_LIMITS.fail_reason) }));
-    return c.json(value(await fresh(coreObject(c.env).workFail(idOf(c.req.param('id')), reason))));
+    const { reason, retry } = await json(
+      c,
+      z.strictObject({ reason: line(WORK_LIMITS.fail_reason), retry: z.optional(z.boolean()) }),
+    );
+    return c.json(value(await fresh(coreObject(c.env).workFail(idOf(c.req.param('id')), reason, retry ?? false))));
   })
   .get('/work/thread', guard('GET /v1/work/thread'), async (c) => {
     const after = Number(c.req.query('after') ?? 0);
     if (!Number.isInteger(after) || after < 0) throw new ApiError('validation', [{ path: 'after', issue: 'a seq' }]);
-    const items = (await fresh(coreObject(c.env).museNotes(after, 100))) as MuseNote[];
+    // `?order=<id>`: that order's progress lines only (the menu's task sheet).
+    const order = c.req.query('order');
+    const items = (await fresh(
+      coreObject(c.env).museNotes(after, 100, order === undefined ? null : idOf(order)),
+    )) as MuseNote[];
     return c.json({ items, next: items.length === 100 ? String(items.at(-1)?.seq) : null } satisfies Page<MuseNote>);
   })
   .post('/work/thread/messages', guard('POST /v1/work/thread/messages'), async (c) => {
-    const { id, body } = await json(c, noteBody);
+    const { id, body, order_id } = await json(c, noteBody);
     const who = whoOf(principalOf(c));
     const author = who === 'M' ? 'muse' : who === 'D' ? 'owner' : 'mind';
-    return c.json(value(await fresh(coreObject(c.env).museNote(id, author, body))), 201);
+    return c.json(value(await fresh(coreObject(c.env).museNote(id, author, body, order_id ?? null))), 201);
   });

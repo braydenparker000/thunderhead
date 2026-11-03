@@ -1,6 +1,7 @@
-// Work orders and the Briefing's half of the Core object (P4 stages G–H, areas/work): the mind's
-// orders, Muse's calls, the tick's leases and deadlines, and what the Briefing page shows. A code
-// layer of the one Core class. (The Daily Board, its brief and approval were cut on 2026-10-31.)
+// Work orders and the Briefing's half of the Core object (areas/work, MUSE-PROTOCOL.md): the
+// mind's orders (the owner's `@muse` are made with their message, core.ts), Muse's calls and
+// uploads, the tick's leases, deadlines and upload batches, and what the Briefing page shows. A
+// code layer of the one Core class. (The Daily Board, its brief and approval were cut on 2026-10-31.)
 
 import type { BriefingResponse } from '../../../shared/contract/briefing.ts';
 import type { Permit } from '../../../shared/contract/permits.ts';
@@ -11,7 +12,7 @@ import { logicalDay } from '../areas/conversation/day';
 import { deleteSetting, getSetting, putSetting } from '../areas/settings/store';
 import * as work from '../areas/work/ops';
 import * as wstore from '../areas/work/store';
-import { Fail, type Out } from '../lib/result';
+import { Fail, invalid, type Out } from '../lib/result';
 import type { Caller } from './caller';
 import { CoreBackups } from './core-backups';
 
@@ -45,21 +46,30 @@ export abstract class CoreWork extends CoreBackups {
   workHeartbeat(id: string, note: string | null): Out<{ lease_until: number }> {
     return this.run((w) => work.heartbeat(w, id, note));
   }
-  workResult(id: string, result: unknown): Out<{ ok: true } | { ok: false; problems: string[] }> {
+  workResult(id: string, result: unknown): Out<{ ok: true } | { ok: false; problems: string[]; left: number }> {
     return this.run((w) => work.result(w, id, result));
   }
-  workFail(id: string, reason: string): Out<{ status: string }> {
-    return this.run((w) => work.fail(w, id, reason));
+  workFail(id: string, reason: string, retry: boolean): Out<{ status: string }> {
+    return this.run((w) => work.fail(w, id, reason, retry));
   }
-  museNotes(after: number, limit: number): MuseNote[] {
-    return wstore.notesAfter(this.db, after, limit);
+  /** Songs Muse registered through its signed route (areas/music/upload.ts): its upload batch. */
+  workUploaded(ids: string[], artists: string[]): void {
+    if (this.sandboxed) return;
+    this.write((w) => work.uploaded(w, ids, artists));
   }
-  museNote(id: string, author: MuseNote['author'], body: string): Out<{ id: string }> {
+  /** Muse's thread, or one order's progress lines. */
+  museNotes(after: number, limit: number, orderId: string | null = null): MuseNote[] {
+    return orderId ? wstore.notesOf(this.db, orderId, after, limit) : wstore.notesAfter(this.db, after, limit);
+  }
+  /** A note in Muse's thread; Muse's naming the order it holds is a progress line of it (a heartbeat). */
+  museNote(id: string, author: MuseNote['author'], body: string, orderId: string | null = null): Out<{ id: string }> {
     return this.run((w) => {
+      if (orderId && author !== 'muse') throw invalid('order_id', "only Muse's progress lines name an order");
       if (author === 'muse') work.touch(w);
       const had = wstore.note(w.db, id);
-      if (had && (had.body !== body || had.author !== author)) throw new Fail('conflict');
-      wstore.insertNote(w.db, { id, author, body, at: w.at });
+      if (had && (had.body !== body || had.author !== author || had.order_id !== orderId)) throw new Fail('conflict');
+      if (orderId) work.heartbeat(w, orderId, body);
+      wstore.insertNote(w.db, { id, author, body, order_id: orderId, at: w.at });
       w.change('work', `note:${id}`);
       return { id };
     });

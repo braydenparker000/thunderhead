@@ -12,6 +12,7 @@ import type { Writer } from '../../objects/commit';
 import { attach } from '../files/ops';
 import { gate, withPermit } from '../mind/permit';
 import * as settings from '../settings/store';
+import { checkMention } from '../work/mention';
 import { currentDay, provisionalTitle } from './day';
 import * as held from './held';
 import { heldIds } from './held-store';
@@ -27,6 +28,8 @@ export interface PutMessage {
   /** 'system' (night and reflex errors), or a conversation off the record (held.ts). */
   thread_id?: string;
   attachments?: string[];
+  /** The owner's `@muse` (work/mention.ts): Core makes the order once it is stored. */
+  mention?: 'muse';
   req_sha256: string;
 }
 
@@ -72,6 +75,8 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
   // before today's thread is touched, so a day spoken only off the record makes no daily thread.
   const named = p.thread_id && p.thread_id !== 'system' ? p.thread_id : null;
   const offRecord = held.offRecordTarget(w.db, c, named, target, w.at);
+  if (p.mention)
+    checkMention({ body: p.body, files: files.length, owner: c.who === 'D', offRecord: offRecord !== null });
   const thread = offRecord ? (store.thread(w.db, offRecord) as Thread) : today(w, tz);
   // A reply names a message of its thread, or an owner message still unanswered from an earlier
   // day, so nothing the owner said is lost across the roll.
@@ -87,7 +92,7 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
     origin,
     kind,
     body: p.body,
-    meta: p.meta ?? null,
+    meta: p.mention ? { ...p.meta, mention: p.mention } : (p.meta ?? null),
     reply_to: p.reply_to ?? null,
     created_at: w.at,
     device_id: c.who === 'D' ? c.device_id : null,

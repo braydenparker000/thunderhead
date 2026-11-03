@@ -4,6 +4,7 @@
 // in feed.ts.
 import type { Day, Id, JsonObject, Ms, Page } from './api';
 import type { AppId, ChangeKind, MindUse, SearchSource } from './feed';
+import type { TaskState } from './work';
 
 /** `off_record`: answered, never remembered, purged 7 days after its last message; `restored`: a
  * day's conversation given back from Recently deleted beside the fresh one its day began after the
@@ -71,14 +72,28 @@ export interface Message {
   answered_at: Ms | null;
 }
 
+/** Who an owner's message may be addressed to besides the mind: `muse` ("@muse …" in the ask
+ * bar, th/commands) makes the words a work order for Muse (work.ts `muse.request`). */
+export type Mention = 'muse';
+
 /** PUT /v1/messages/:id. `thread_id: 'system'` only for night/reflex error posts (mind Finding 1);
- * an id only names a conversation off the record (device, mind:chat). */
+ * an id only names a conversation off the record (device, mind:chat). `mention` (the owner's only,
+ * never off the record): the Worker makes the order under the owner's own authority, answers the
+ * message with a system line naming it (`meta.work`) and wakes no mind; the stored message carries
+ * `meta.mention`. */
 export interface PutMessageRequest {
   body: string;
   kind?: MessageKind;
   meta?: JsonObject;
   reply_to?: Id;
   thread_id?: 'system' | Id;
+  mention?: Mention;
+}
+
+/** `meta.work` on a line the Worker posts about an order asked for with `@muse`: which order and
+ * the state it reached (work.ts TASK_STATES). Muse's own line when it is done also carries `chip`. */
+export interface WorkLineMeta {
+  work: { id: Id; state: TaskState };
 }
 
 export interface PatchMessageRequest {

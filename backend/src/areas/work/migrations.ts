@@ -1,6 +1,7 @@
-// Work orders and Muse's thread (MUSE.md §3.1, §2): one row per order with its spec, state, lease
-// and the validated result; Muse's notes (and the mind's or the owner's replies) in their own
-// table, never in the owner's conversation. Muse's results are outside text wherever they go.
+// Work orders and Muse's thread (MUSE-PROTOCOL.md; history in archive/MUSE.md §3.1): one row per
+// order with its spec, state, lease and the validated result; Muse's notes (its progress lines,
+// and the mind's or the owner's replies) in their own table, never in the owner's conversation.
+// Muse's results are outside text wherever they go.
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneNotes, pruneOrders } from './store';
 
@@ -44,11 +45,28 @@ export const WORK_MIGRATIONS: Migration[] = [
       )`,
     ],
   },
+  {
+    // `@muse` in the chat (2026-11-02): the owner's message an order answers, the last state its
+    // conversation was told (lines.ts), the results Muse sent that failed their checks, and the
+    // order a note of Muse's is a progress line of. The newest-first index serves the menu's Tasks.
+    // (The verbs branch also numbers a step 29: whichever merges second takes 30.)
+    version: 29,
+    name: 'work orders from the chat',
+    kind: 'expand',
+    sql: [
+      'ALTER TABLE work_orders ADD COLUMN message_id TEXT',
+      'ALTER TABLE work_orders ADD COLUMN said TEXT',
+      'ALTER TABLE work_orders ADD COLUMN invalid INTEGER NOT NULL DEFAULT 0',
+      'CREATE INDEX work_orders_new ON work_orders (created_at)',
+      'ALTER TABLE muse_notes ADD COLUMN order_id TEXT',
+      'CREATE INDEX muse_notes_order ON muse_notes (order_id, seq)',
+    ],
+  },
 ];
 
 export const WORK_TABLES: Record<string, TableInfo> = {
   work_orders: {
-    retention: '1 year after finished (a Board edition a day, its result with it)',
+    retention: '1 year after finished, its result with it',
     backup: true,
     export: true,
     prune: pruneOrders,

@@ -187,9 +187,9 @@ describe('the other gated writes', () => {
     const order = await apiJson<ErrorBody>('PUT', `/v1/work/orders/${uuidv7()}`, {
       ...chat(),
       body: {
-        kind: 'research.brief',
+        kind: 'muse.request',
         title: 'Bus timetable',
-        spec: { v: 1, goal: 'Summarise it.', inputs: {}, constraints: [], done_when: 'Two sources agree.' },
+        spec: { v: 1, words: 'Find the new bus timetable.' },
         deadline_at: Date.now() + 3_600_000,
       },
     });

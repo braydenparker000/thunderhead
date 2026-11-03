@@ -43,7 +43,6 @@ describe('the routes', () => {
       'backup.stale',
       'drill.failed',
       'drill.overdue',
-      'muse.silent',
     ]);
     expect(items.find((i) => i.name === 'events.export.late')).toMatchObject({ state: 'later', waits: 'phase P5' });
     expect(items.find((i) => i.name === 'quota.do_calls')).toMatchObject({ state: 'later' });
@@ -67,7 +66,7 @@ describe('the drill (SETUP.md M2)', () => {
       return Response.json({ claude_code_session_id: 'session_drill' });
     }) as unknown as typeof fetch;
     const owner = { actor: 'owner', who: 'D', session_id: null, device_id: null } as const;
-    const drill = (name: 'db.size' | 'roll.stuck' | 'muse.silent') =>
+    const drill = (name: 'db.size' | 'roll.stuck' | 'events.export.late') =>
       connected((o) => o.watchdogDrill(owner, name, fake));
     const d = await drill('db.size');
     expect(d.ok && { fired: d.value.fired, state: d.value.item.state, detail: d.value.item.detail }).toEqual({
@@ -79,9 +78,9 @@ describe('the drill (SETUP.md M2)', () => {
     const id = d.ok ? d.value.wake_id : null;
     const [w] = await coreSql('SELECT reason, fire_status, session_id FROM wakes WHERE id = ?', id);
     expect(w).toEqual({ reason: 'watchdog:db.size', fire_status: 200, session_id: 'session_drill' });
-    // Tripped already, not built, or one that wakes nobody: refused.
+    // Tripped already, or not built: refused.
     expect((await drill('db.size')).ok).toBe(false);
-    expect((await drill('muse.silent')).ok).toBe(false);
+    expect((await drill('events.export.late')).ok).toBe(false);
     // Its check passes, but the drill holds until the reflex reports it.
     const now = Date.now();
     await watch(now + 15 * MINUTE);
