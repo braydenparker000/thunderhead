@@ -12,7 +12,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
-import { SETTING_GROUPS, SETTINGS, validSetting } from '../shared/contract/settings.ts';
+import { linkProblem, SETTING_GROUPS, SETTINGS, validSetting } from '../shared/contract/settings.ts';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
 
 const live = Boolean(process.env.SITE_URL);
@@ -266,6 +266,82 @@ test('the Briefing: tiles move and hide from the keyboard, the holiday country i
   await context.close();
 });
 
+test('the Briefing: calendar links are added, marked, removed and refused with the reason', opts, async () => {
+  const { page, context, errors, worker } = await open();
+  await show(page, 'briefing');
+  const rows = () => page.$$eval('[data-key="briefing.calendars"] [data-link]', (r) => r.map((x) => [x.querySelector('.row-title').textContent, x.querySelector('.row-detail').textContent]));
+  /** Opens Add, pastes `url` (Shared when asked) and presses Add; resolves with the sheet's line. */
+  const add = async (url, shared = false) => {
+    await page.click('[data-key="briefing.calendars"] [data-act="add"]');
+    await page.waitForSelector('.sheet.csheet input.field');
+    await page.fill('.sheet.csheet input.field', url);
+    if (shared) await page.click('.sheet.csheet [data-v="shared"]');
+    await page.click('.sheet.csheet .btn:not(.soft)');
+  };
+  const closed = () => page.waitForFunction(() => !document.querySelector('.sheet.csheet'));
+  assert.deepEqual(await rows(), []);
+  // Refused on the phone with the reason, before anything is sent.
+  for (const [url, why] of [
+    ['http://calendar.example.com/a.ics', 'Only https links (a webcal link works with https in its place).'],
+    ['https://10.0.0.5/a.ics', 'Only a public address, not a local or numeric one.'],
+    ['https://calendar.local/a.ics', 'Only a public address, not a local or numeric one.'],
+    ['calendar.example.com/a.ics', 'That is not a link.'],
+  ]) {
+    if (!(await page.$('.sheet.csheet input.field'))) await add(url);
+    else {
+      await page.fill('.sheet.csheet input.field', url);
+      await page.click('.sheet.csheet .btn:not(.soft)');
+    }
+    await page.waitForFunction((w) => document.querySelector('.sheet.csheet .line')?.textContent === w, why);
+  }
+  await page.click('.sheet.csheet .btn.soft');
+  await closed();
+  assert.deepEqual(worker.patches, []);
+  // A webcal link is taken as https; the second is marked Shared.
+  await add('webcal://calendar.example.com/ical/a/basic.ics');
+  await closed();
+  await add('https://shared.example.org/team.ics', true);
+  await closed();
+  await until(() => worker.patches.length === 2);
+  assert.deepEqual(worker.patches.at(-1), { 'briefing.calendars': [
+    { url: 'https://calendar.example.com/ical/a/basic.ics', mine: true },
+    { url: 'https://shared.example.org/team.ics', mine: false },
+  ] });
+  assert.deepEqual(await rows(), [['calendar.example.com', 'Mine'], ['shared.example.org', 'Shared: its titles are outside text']]);
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/settings-briefing-calendars.png`, fullPage: true });
+  // The same link twice is refused.
+  await add('https://shared.example.org/team.ics');
+  await page.waitForFunction(() => document.querySelector('.sheet.csheet .line')?.textContent === 'That link is already here.');
+  await page.click('.sheet.csheet .btn.soft');
+  await closed();
+  // Mine and Shared flip from the row; Remove takes one out and focus goes to Add.
+  await page.click('[aria-label="Mine: calendar.example.com"]');
+  await until(() => worker.patches.length === 3);
+  assert.equal(worker.patches.at(-1)['briefing.calendars'][0].mine, false);
+  assert.equal(await page.getAttribute('[aria-label="Mine: calendar.example.com"]', 'aria-pressed'), 'false');
+  await page.click('[aria-label="Remove shared.example.org"]');
+  await until(() => worker.patches.length === 4);
+  assert.deepEqual(worker.patches.at(-1), { 'briefing.calendars': [{ url: 'https://calendar.example.com/ical/a/basic.ics', mine: false }] });
+  assert.equal(await page.evaluate(() => document.activeElement?.dataset.act), 'add');
+  // Three at most: Add goes once there are three.
+  await add('https://b.example.com/b.ics');
+  await closed();
+  await add('https://c.example.com/c.ics');
+  await closed();
+  await until(() => worker.patches.length === 6);
+  assert.equal(await page.$('[data-key="briefing.calendars"] [data-act="add"]'), null);
+  // What the Worker keeps comes back after a reload.
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForSelector('html[data-signed-in]');
+  await page.evaluate(() => localStorage.removeItem('th.p.settings'));
+  await show(page, 'briefing');
+  await page.waitForFunction(() => document.querySelectorAll('[data-key="briefing.calendars"] [data-link]').length === 3);
+  assert.deepEqual((await rows()).map(([h]) => h), ['calendar.example.com', 'b.example.com', 'c.example.com']);
+  assert.deepEqual(worker.refused, []);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 test('About reads the release, the Worker, today\'s rows and the last Frames readout', opts, async () => {
   const frames = JSON.stringify({ frames: 120, framesOver16_7: 3, framesOver32: 0, p95Ms: 14.2, longestMs: 33.1 });
   const { page, context, errors } = await open({ init: { 'th.lab.frames': frames } });
@@ -329,6 +405,16 @@ test("the phone's copy of the catalogue and its value check agree with the contr
     return all.map((s) => [s.default, ...values].map((v) => c.valid(s, v)));
   }, probes);
   SETTINGS.forEach((s, i) => assert.deepEqual(verdicts[i], [s.default, ...probes].map((v) => validSetting(s, v)), s.key));
+  // Links: the phone refuses what the Worker refuses, with the same words.
+  const urls = ['https://calendar.example.com/a.ics', 'http://calendar.example.com/a.ics', 'https://10.0.0.5/a.ics', 'https://intranet.local/a.ics',
+    'https://localhost/a.ics', 'https://u:p@calendar.example.com/a.ics', 'https://calendar.example.com:8443/a.ics', 'https://[::1]/a.ics',
+    'https://x.nip.io/a.ics', 'not a link', `https://calendar.example.com/${'a'.repeat(520)}`];
+  assert.deepEqual(await page.evaluate(async (us) => { const c = await import('/apps/settings/catalog.js'); return us.map((u) => c.linkProblem(u)); }, urls), urls.map((u) => linkProblem(u)));
+  const link = (url, mine = true) => ({ url, mine });
+  const lists = [[link(urls[0])], [link(urls[1])], [link(urls[0]), link(urls[0], false)], ['a', 'b', 'c', 'd'].map((x) => link(`https://${x}.example.com/c.ics`)),
+    [{ url: urls[0] }], [{ ...link(urls[0]), extra: 1 }], [null], urls[0]];
+  const cal = SETTINGS.find((x) => x.key === 'briefing.calendars');
+  assert.deepEqual(await page.evaluate(async (ls) => { const c = await import('/apps/settings/catalog.js'); const { SETTINGS: all } = await import('/apps/settings/catalog-data.js'); const s = all.find((x) => x.key === 'briefing.calendars'); return ls.map((v) => c.valid(s, v)); }, lists), lists.map((v) => validSetting(cal, v)));
   // A text setting (none is catalogued yet) edits in a sheet and keeps only what it allows.
   const kept = await page.evaluate(async () => {
     const c = await import('/apps/settings/catalog.js');
@@ -349,7 +435,7 @@ test("the phone's copy of the catalogue and its value check agree with the contr
 
 test('MENU-AND-SETTINGS.md documents every key with its scope, its default and who reads it', () => {
   const doc = readFileSync(new URL('../docs/product/MENU-AND-SETTINGS.md', import.meta.url), 'utf8');
-  const shown = (v) => (Array.isArray(v) ? v.join(', ') : typeof v === 'boolean' ? (v ? 'on' : 'off') : String(v));
+  const shown = (v) => (Array.isArray(v) ? (v.length ? v.join(', ') : 'none') : typeof v === 'boolean' ? (v ? 'on' : 'off') : String(v));
   for (const s of SETTINGS) {
     const line = doc.split('\n').find((l) => l.startsWith(`| \`${s.key}\` |`));
     assert.ok(line, `${s.key} has a row`);

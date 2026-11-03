@@ -108,11 +108,11 @@
     "rows_written_max": 50
   },
   "POST /v1/mind/brief (no claim, no setting stored) (Core)": {
-    "rows_read_max": 175,
+    "rows_read_max": 176,
     "rows_written_max": 0
   },
   "POST /v1/mind/brief (no claim, 18 settings stored) (Core)": {
-    "rows_read_max": 193,
+    "rows_read_max": 194,
     "rows_written_max": 0
   },
   "PATCH /v1/settings, 1 catalogue key (Core)": {
@@ -156,7 +156,7 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 130,
+    "rows_read_max": 132,
     "rows_written_max": 18
   },
   "cron tick, nothing due (Core)": {
@@ -540,11 +540,23 @@
     "rows_written_max": 510
   },
   "GET /v1/briefing (Core)": {
-    "rows_read_max": 34,
+    "rows_read_max": 37,
     "rows_written_max": 0
   },
   "GET /v1/briefing (Music: 40 songs added today)": {
     "rows_read_max": 50,
     "rows_written_max": 0
+  },
+  "GET /v1/briefing (Core, 2 calendar links, 40 events)": {
+    "rows_read_max": 50,
+    "rows_written_max": 0
+  },
+  "GET /v1/briefing/calendar?days=7 (Core, 40 events)": {
+    "rows_read_max": 44,
+    "rows_written_max": 0
+  },
+  "GET /v1/briefing (Core, a new calendar link fetched: 30 events)": {
+    "rows_read_max": 67,
+    "rows_written_max": 61
   }
 }

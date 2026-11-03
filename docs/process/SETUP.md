@@ -633,3 +633,11 @@ Thunderhead (the live Worker), so you sign in there once, like a new phone.
 
 From then on the lead runs step 3 for whatever it asks you to try. Worker changes can't be previewed
 this way; a pull request says when that is the case.
+
+## Q. Your calendar on the Briefing (about 2 minutes, any time; 2026-11-02)
+
+Copy your calendar's private ICS link (Google Calendar: Settings → your calendar → **Secret address
+in iCal format**; Outlook: **Publish a calendar** → ICS; iCloud: share the calendar as **Public**,
+then copy its `webcal://` link) and paste it in **Settings → Briefing → Calendars → Add a calendar
+link**, marked **Mine**; a shared or work calendar is **Shared**. Up to three. If the Briefing then
+says "A calendar link redirects elsewhere.", open the link in a browser and paste the address it ends at.

@@ -61,6 +61,9 @@ export interface BriefInput {
   night: string | null;
   /** Section 13: `key: value` for each setting the mind reads (settings/catalog.ts mindSettingLines). */
   settings?: string[];
+  /** The owner's calendar for section 1 (briefing/calendar-store.ts briefLines): today's events
+   * still on, tomorrow's first, a failing link; a shared link's marked `(outside)`. */
+  calendar?: string[];
 }
 
 /** Formatters made once per zone (one per line cost the briefing tens of ms of CPU). */
@@ -220,8 +223,12 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     if (i.yesterday.note) return renderDayNote(i.yesterday.note, b, more, !i.tainted);
     return yesterday.length ? budgeted(yesterday, b, 'newest', more) : 'No messages yesterday.';
   };
+  // Today's state: the calendar after the lines above, in its own budget, never cutting them.
+  const calendar = i.calendar?.length
+    ? `\n${budgeted(i.calendar, 700, 'oldest', (k) => `(+${k} more: th get /v1/briefing/calendar days=2)`)}`
+    : '';
   const body: Record<number, string> = {
-    1: now.slice(0, 500),
+    1: now.slice(0, 500) + calendar,
     2: make(2, 2_800, false).slice(0, 2_800),
     3: make(3, 1_400, false),
     7: 'Full briefing: $TMPDIR/th/brief.md · Search: th recall "<q>" · Your settings: th brief --section 13',

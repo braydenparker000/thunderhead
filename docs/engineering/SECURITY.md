@@ -338,6 +338,10 @@ Every response, errors and preflights included:
 - Bodies: 64 KB by default; 4 KB on `/v1/auth/*`; 256 KB for event batches. Over the limit → `413 too_large` before parsing.
 - Errors never echo the request body or a token.
 
+### 8.1 Addresses the Worker fetches for the owner
+
+The Worker asks only fixed origins (Open-Meteo, Have I Been Pwned, the push services, Guitar's sources) or an address the owner gave, each checked as public before it is asked: Podcasts' feeds and episodes (checked again at each redirect, at most 16) and, from 2026-11-02, the owner's calendar links (`areas/briefing/calendar.ts`). A calendar link is checked when it is saved (`linkProblem` in `shared/contract/settings.ts`: https only, at most 512 characters, no user, password or port, a host that is neither numeric nor local, `.local`, `.internal`, `.arpa` and the wildcard-DNS names included) and again before each fetch; no redirect is followed (`redirect: 'manual'`, a 3xx is the failure `redirect`), the answer must be `text/calendar` or `text/plain`, at most 1 MB (refused by `Content-Length` or cut off as it streams) within 10 s. A link is a key to its calendar: it stays in Core's settings, only the owner's devices read it back, and an agent's `GET /v1/settings` has each link's host and mark only.
+
 ## 9. Presigned media URLs
 
 Fixed by decisions: `POST /v1/media/sign {refs}`, signing time floored to the hour, 3 h expiry, re-sign on 403.

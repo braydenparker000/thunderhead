@@ -3,7 +3,8 @@
 // catalogue (shared/contract/settings.ts; its copy catalog-data.js is written by scripts/contract.mjs).
 // Each setting is a row of the shared controls (components.js) with its one-line detail under it:
 // a switch, a segmented choice (a sheet picker past four options), a range of stops, an ordered list
-// (move up, move down, hide, show) or a text field in a sheet.
+// (move up, move down, hide, show), a text field in a sheet, or a list of links (each with Mine or
+// Shared and Remove; Add opens a sheet that says why a link can't be kept).
 //   phone settings   localStorage `th.s.<key>`, removed at the default; those with an `attr` put it
 //                    on <html> while not at the default (applyPhone), so CSS can follow them.
 //   worker settings  GET /v1/settings, back by PATCH one key at a time, in order; kept in
@@ -19,6 +20,7 @@ import { SETTING_GROUPS, SETTINGS } from './catalog-data.js';
 
 /** @typedef {import('../../../shared/contract/settings.ts').SettingSpec} Spec */
 /** @typedef {import('../../../shared/contract/settings.ts').SettingValue} Value */
+/** @typedef {import('../../../shared/contract/settings.ts').SettingLink} Link */
 /** @typedef {keyof typeof SETTING_GROUPS} Group */
 
 const PREFIX = 'th.s.';
@@ -29,6 +31,26 @@ const ALL = SETTINGS;
 /** @param {string} key */
 export const spec = (key) => ALL.find((s) => s.key === key);
 
+/** Why a link can't be kept, or null (shared/contract/settings.ts linkProblem, as the Worker checks).
+ * @param {string} url @param {number} [max] @returns {string | null} */
+export function linkProblem(url, max = 512) {
+  if (url.length > max) return `That link is over ${max} characters.`;
+  /** @type {URL} */
+  let u;
+  try {
+    u = new URL(url);
+  } catch {
+    return 'That is not a link.';
+  }
+  if (u.protocol !== 'https:') return 'Only https links (a webcal link works with https in its place).';
+  const host = u.hostname.toLowerCase().replace(/\.$/, '');
+  if (u.username || u.password || u.port) return 'A link with a user, password or port is not supported.';
+  if (!host.includes('.') || /^[\d.]+$/.test(host) || host.includes(':') || host.includes('[') ||
+    /(?:^|\.)(?:localhost|local|internal|lan|home|test|invalid|onion|arpa)$/.test(host) || /(?:^|\.)(?:nip\.io|sslip\.io|localtest\.me|lvh\.me)$/.test(host))
+    return 'Only a public address, not a local or numeric one.';
+  return null;
+}
+
 /** Whether `value` is one `s` allows (shared/contract/settings.ts validSetting, as the Worker checks).
  * @param {Spec} s @param {unknown} value @returns {value is Value} */
 export function valid(s, value) {
@@ -38,6 +60,9 @@ export function valid(s, value) {
   if (s.kind === 'range') return typeof value === 'number' && allowed.includes(value);
   if (s.kind === 'order')
     return Array.isArray(value) && new Set(value).size === value.length && value.every((v) => typeof v === 'string' && allowed.includes(v));
+  if (s.kind === 'links')
+    return Array.isArray(value) && value.length <= (s.items ?? 3) && new Set(value.map((l) => l?.url)).size === value.length &&
+      value.every((l) => l !== null && typeof l === 'object' && Object.keys(l).sort().join() === 'mine,url' && typeof l.mine === 'boolean' && typeof l.url === 'string' && linkProblem(l.url, s.max) === null);
   return typeof value === 'string' && value.length <= (s.max ?? 200) && (s.pattern === undefined || new RegExp(s.pattern).test(value));
 }
 
@@ -54,7 +79,7 @@ export function phoneValue(key) {
     const raw = localStorage.getItem(PREFIX + key);
     if (raw === null) v = undefined;
     else if (s.kind === 'switch') v = raw === 'true' ? true : raw === 'false' ? false : raw;
-    else v = s.kind === 'range' ? Number(raw) : s.kind === 'order' ? JSON.parse(raw) : raw;
+    else v = s.kind === 'range' ? Number(raw) : s.kind === 'order' || s.kind === 'links' ? JSON.parse(raw) : raw;
   } catch {}
   return valid(s, v) ? v : s.default;
 }
@@ -77,7 +102,7 @@ const announce = (s, value) => document.dispatchEvent(new CustomEvent('th:settin
 function setPhone(s, value) {
   try {
     if (same(value, s.default)) localStorage.removeItem(PREFIX + s.key);
-    else localStorage.setItem(PREFIX + s.key, s.kind === 'order' ? JSON.stringify(value) : String(value));
+    else localStorage.setItem(PREFIX + s.key, typeof value === 'object' ? JSON.stringify(value) : String(value));
   } catch {}
   applyPhone();
   announce(s, value);
@@ -122,6 +147,7 @@ export function build(s, value, pick) {
       pick(next);
     });
   } else if (s.kind === 'order') node = order(s, /** @type {readonly string[]} */ (value), pick);
+  else if (s.kind === 'links') node = links(s, /** @type {readonly Link[]} */ (value), pick);
   else if (s.kind === 'text') node = text(s, String(value), pick, detail);
   else {
     const options = /** @type {[string, string][]} */ ((s.options ?? []).map((o) => [String(o.value), o.label]));
@@ -217,6 +243,63 @@ function order(s, value, pick) {
   return host;
 }
 
+/** A list of links: each a row with its host, whether it is the owner's own (Mine) or someone
+ * else's (Shared: its words are outside text for the mind), and Remove; then Add, while there is
+ * room, which opens a sheet for the address. A webcal link is taken as https.
+ * @param {Spec} s @param {readonly Link[]} value @param {(next: Value) => unknown} pick */
+function links(s, value, pick) {
+  let items = [...value];
+  const list = el('div', { class: 'group' });
+  const host = el('section', { class: 'group-section' }, [
+    el('h2', { class: 'group-title', text: s.label }), el('p', { class: 'shelp', id: detailId(s.key), text: s.detail }), list,
+  ]);
+  /** @param {string} url */
+  const name = (url) => { try { return new URL(url).hostname; } catch { return url; } };
+  /** @param {Link[]} next @param {string} [focus] */
+  const change = (next, focus) => { items = next; draw(focus); pick(items.map((l) => ({ ...l }))); };
+  /** @param {string} symbol @param {string} label @param {() => void} fn @param {string} act */
+  const button = (symbol, label, fn, act) => {
+    const b = el('button', { type: 'button', class: 'sback', 'aria-label': label, 'data-act': act }, [icon(symbol)]);
+    b.addEventListener('click', fn);
+    return b;
+  };
+  /** @param {string} [focus] a link's address and the action that had focus, `url|act` */
+  const draw = (focus) => {
+    const add = row({ title: 'Add a calendar link', icon: 'plus', open: true, onClick: () => adding() });
+    add.dataset.act = 'add';
+    list.replaceChildren(...items.map((l, i) => {
+      const mine = button('user-circle', `Mine: ${name(l.url)}`, () => change(items.with(i, { ...l, mine: !l.mine }), `${l.url}|mine`), 'mine');
+      mine.setAttribute('aria-pressed', String(l.mine));
+      return el('div', { class: 'row', 'data-link': l.url }, [
+        el('div', { class: 'row-copy' }, [el('span', { class: 'row-title', text: name(l.url) }), el('span', { class: 'row-detail', text: l.mine ? 'Mine' : 'Shared: its titles are outside text' })]),
+        mine, button('trash', `Remove ${name(l.url)}`, () => change(items.filter((x) => x !== l), 'add'), 'remove'),
+      ]);
+    }), ...(items.length < (s.items ?? 3) ? [add] : []));
+    if (!focus) return;
+    const [url, act] = focus.includes('|') ? focus.split('|') : ['', focus];
+    const at = url ? [...list.querySelectorAll('[data-link]')].find((n) => /** @type {HTMLElement} */ (n).dataset.link === url) : list;
+    /** @type {HTMLElement | null | undefined} */ (at?.querySelector(`[data-act="${act}"]`) ?? list.querySelector('button'))?.focus({ preventScroll: true });
+  };
+  const adding = () => {
+    const input = el('input', { class: 'field', type: 'url', inputmode: 'url', autocomplete: 'off', spellcheck: 'false', placeholder: 'Paste the ICS link', maxlength: String((s.max ?? 512) + 8), 'aria-label': 'Calendar link' });
+    let mine = true;
+    const whose = choice('Whose', [['mine', 'Mine'], ['shared', 'Shared']], 'mine', (v) => { mine = v === 'mine'; });
+    const line = el('p', { class: 'line', role: 'status' });
+    const done = el('button', { type: 'button', class: 'btn', text: 'Add' });
+    const modal = sheet({ title: 'Add a calendar link', children: [input, whose, line, done] });
+    done.addEventListener('click', () => {
+      const url = input.value.trim().replace(/^webcal:\/\//i, 'https://');
+      const why = items.some((l) => l.url === url) ? 'That link is already here.' : linkProblem(url, s.max);
+      if (why) { line.textContent = why; return; }
+      change([...items, { url, mine }], `${url}|mine`);
+      void modal.close();
+    });
+    input.focus({ preventScroll: true });
+  };
+  draw();
+  return host;
+}
+
 /**
  * Renders the catalogue group `name` into `body`: its lead line, then each part of it as a titled
  * group (a group with no parts as one untitled group), a note under a part that has one, and `after`
@@ -254,7 +337,9 @@ export async function renderGroup(body, name, opts = {}) {
         confirmed = { ...confirmed, [s.key]: next };
         announce(s, next);
       } catch (e) {
-        line.textContent = lineFor(failure(e));
+        // A link the Worker refuses says why (its words are the catalogue's, linkProblem).
+        const issue = s.kind === 'links' ? /** @type {{ details?: { issue?: string }[] }} */ (e)?.details?.[0]?.issue : null;
+        line.textContent = issue || lineFor(failure(e));
         // Put the control back to what the Worker has, unless a newer change of it is on its way.
         if (store[s.key] !== next) return;
         store = { ...store, [s.key]: confirmed[s.key] };
@@ -281,8 +366,10 @@ export async function renderGroup(body, name, opts = {}) {
   const parts = [];
   for (const section of [...new Set(specs.map((s) => s.section ?? ''))]) {
     const inPart = specs.filter((s) => (s.section ?? '') === section);
-    const rows = inPart.filter((s) => s.kind !== 'order').map(control);
-    for (const s of inPart.filter((x) => x.kind === 'order')) parts.push(control(s));
+    // An ordered list and a list of links are each a part of their own.
+    const own = (/** @type {Spec} */ x) => x.kind === 'order' || x.kind === 'links';
+    const rows = inPart.filter((x) => !own(x)).map(control);
+    for (const s of inPart.filter(own)) parts.push(control(s));
     if (rows.length) parts.push(section ? group(section, rows) : el('div', { class: 'group' }, rows));
     const note = section && g.notes?.[section];
     if (note) parts.push(el('p', { class: 'shelp', text: note }));
