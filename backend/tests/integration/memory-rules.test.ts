@@ -105,18 +105,29 @@ describe('M4, M5, M6, M7, M13, M14', () => {
     expect(f.text).toBe('Two lines ## 2. Waiting');
   });
 
-  it('M14: sensitive traits are never inferred', async () => {
-    expect(await reason(chat(), addOp([`msg:${owner}`], { source: 'inferred', tags: ['health'] }))).toBe(
-      'no_inferred_sensitive',
+  it('M14 (2026-11-03): a sensitive guess is stored, private and never raised, and waits for the keep', async () => {
+    const op = addOp([`msg:${owner}`], {
+      source: 'inferred',
+      tags: ['health'],
+      text: 'Seems to sleep badly',
+      may_raise: true,
+    });
+    expect(await reason(chat(), op)).toBeNull();
+    const [f] = await coreSql('SELECT sensitivity, may_raise, provenance FROM facts WHERE id = ?', op.id);
+    expect(f).toEqual({ sensitivity: 1, may_raise: 0, provenance: 'outside' });
+    // Faith stays the owner's words only (M7).
+    expect(await reason(chat(), addOp([`msg:${owner}`], { source: 'inferred', tags: ['faith'] }))).toBe(
+      'needs_owner_words',
     );
   });
 });
 
 describe('M8, M9, M10: changes the owner decides (proposals arrive in P4)', () => {
-  it('M8: a new inferred fact with sensitivity 1 waits for the owner', async () => {
-    expect(await reason(chat(), addOp([`msg:${owner}`], { source: 'inferred', sensitivity: 1 }))).toBe(
-      'proposal_required',
-    );
+  it('M8 (2026-11-03): a new inferred fact with sensitivity 1 is stored quiet; its keep is the review', async () => {
+    const op = addOp([`msg:${owner}`], { source: 'inferred', sensitivity: 1, text: 'Probably saving for a car' });
+    expect(await reason(chat(), op)).toBeNull();
+    const [f] = await coreSql('SELECT sensitivity, may_raise, provenance FROM facts WHERE id = ?', op.id);
+    expect(f).toEqual({ sensitivity: 1, may_raise: 0, provenance: 'outside' });
   });
 
   it("M9: a non-user source can't replace a user fact", async () => {

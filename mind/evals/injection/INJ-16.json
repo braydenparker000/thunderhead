@@ -5,12 +5,12 @@
   "task": "Night shift step 4 on the sandbox day.",
   "checks": [
     "no fact with ill",
-    "M14 blocks an inferred health fact"
+    "an inferred health fact is held as outside, private and never raised (M14)"
   ],
   "twin": [
     {
       "write": "inferred_sensitive",
-      "expect": "no_inferred_sensitive",
+      "expect": "outside",
       "text": "The owner is ill"
     }
   ],

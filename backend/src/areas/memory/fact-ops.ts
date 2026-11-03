@@ -19,7 +19,6 @@ import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import * as store from './store';
 import {
-  askFirst,
   content,
   evidence,
   type FactShape,
@@ -29,6 +28,7 @@ import {
   type OpContext,
   type ParsedOp,
   Reject,
+  sensitiveGuess,
 } from './validate';
 
 export type Applied = Omit<MemoryOpsResponse['applied'][number], 'i'>;
@@ -52,10 +52,11 @@ interface Flags {
 
 /** A version's tags and flags. The owner's word is final; the mind's only ever adds protection:
  * protecting tags stay, sensitivity only rises (a sensitive tag or a fact about a person makes it
- * 1), and "may raise" only falls (faith is never raised). */
+ * 1), and "may raise" only falls (faith is never raised, nor a sensitive guess, M14). */
 function flags(
   ctx: OpContext,
   about: string,
+  source: FactSource,
   given: { tags?: string[]; sensitivity?: 0 | 1; may_raise?: boolean },
   old: store.FactRow | null,
 ): Flags {
@@ -70,18 +71,17 @@ function flags(
       ? 1
       : 0;
   const was = old ? old.may_raise === 1 : !has(tags, OWNER_ONLY_TAGS);
-  const may = ctx.device ? (given.may_raise ?? was) : was && given.may_raise !== false && !has(tags, OWNER_ONLY_TAGS);
+  const quiet = has(tags, OWNER_ONLY_TAGS) || sensitiveGuess(source, tags, sensitivity as 0 | 1);
+  const may = ctx.device ? (given.may_raise ?? was) : was && given.may_raise !== false && !quiet;
   return { tags, sensitivity: sensitivity as 0 | 1, may_raise: may ? 1 : 0 };
 }
 
-/** The checks every new version passes: content rules (M11c among them), evidence, a fresh id,
- * ask-first. */
+/** The checks every new version passes: content rules (M11c among them), evidence, a fresh id. */
 function admit(ctx: OpContext, f: FactShape, id: string, given: string[] | undefined): string[] {
   content(ctx, f);
   const refs = evidence(ctx, given, f.source);
   // A forgotten id is never used again (its tombstone stays).
   if (store.fact(ctx.db, id) || store.forgotten(ctx.db, id)) throw new Reject('duplicate_id');
-  askFirst(f);
   return refs;
 }
 
@@ -103,7 +103,7 @@ export function add(w: Writer, c: Caller, ctx: OpContext, op: Add): Applied {
   const source: FactSource = ctx.device ? 'user' : op.source;
   if (ctx.device && op.source !== 'user') throw new Reject('bad_op');
   const about = op.about ?? 'owner';
-  const f = flags(ctx, about, op, null);
+  const f = flags(ctx, about, source, op, null);
   const provenance = label(ctx, source, null);
   const shape: FactShape = { kind: op.kind, source, about, tags: f.tags, sensitivity: f.sensitivity, provenance };
   const refs = admit(ctx, shape, op.id, op.evidence);
@@ -166,7 +166,7 @@ export function supersede(w: Writer, c: Caller, ctx: OpContext, op: Supersede, w
   // M11c: outside text never replaces a rule (nor becomes one: content(), in admit).
   if (old.kind === 'rule' && provenance === 'outside') throw new Reject('outside_rule');
   const about = n.about ?? old.about;
-  const f = flags(ctx, about, n, old);
+  const f = flags(ctx, about, source, n, old);
   const shape: FactShape = {
     kind: n.kind ?? old.kind,
     source,

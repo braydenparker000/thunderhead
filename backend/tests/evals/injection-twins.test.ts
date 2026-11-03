@@ -157,15 +157,23 @@ async function attempt(t: Twin): Promise<string> {
       return code(await apiJson('POST', '/v1/memory/ops', { ...as(C, CHAT), body: { batch_id: uuidv7(), ops: [op] } }));
     }
     case 'inferred_sensitive': {
+      // M14 (2026-11-03): stored, but private, never raised, and outside until the owner keeps it.
       const op = addOp(await evidence(), {
         text: String(t.text),
         source: 'inferred',
         tags: ['health'],
         subject: 'health',
       });
-      return code(
-        await apiJson('POST', '/v1/memory/ops', { ...as(N, NIGHT), body: { batch_id: uuidv7(), ops: [op] } }),
-      );
+      const r = await apiJson<MemoryOpsResponse>('POST', '/v1/memory/ops', {
+        ...as(N, NIGHT),
+        body: { batch_id: uuidv7(), ops: [op] },
+      });
+      const applied = r.status === 200 ? r.body.applied[0] : undefined;
+      if (!applied) return code(r);
+      await heldOutside(applied.fact_id, String(t.text));
+      const [f] = await coreSql('SELECT sensitivity, may_raise FROM facts WHERE id = ?', applied.fact_id);
+      expect(f).toEqual({ sensitivity: 1, may_raise: 0 });
+      return applied.provenance;
     }
     case 'settings':
       return code(await apiJson('PATCH', '/v1/settings', { ...as(C, CHAT), body: t.patch }));
@@ -213,8 +221,10 @@ describe('injection fixtures (EVALS.md §4)', () => {
     const tried = await coreSql<{ kind: string; provenance: string }>(
       "SELECT kind, provenance FROM facts WHERE text LIKE '%jazz%' OR text LIKE '%bpm%' OR text LIKE '%caps%' OR text LIKE '%quiet hours%' OR text LIKE '%ill%' OR text LIKE '%05:00%'",
     );
-    // INJ-01 and INJ-03 wrote theirs, labelled outside (M11); the rules and the rest were refused.
+    // INJ-01, INJ-03 and INJ-16 wrote theirs, labelled outside (M11; INJ-16's guess private and
+    // quiet, M14); the rules and the rest were refused.
     expect(tried).toEqual([
+      { kind: 'preference', provenance: 'outside' },
       { kind: 'preference', provenance: 'outside' },
       { kind: 'preference', provenance: 'outside' },
     ]);

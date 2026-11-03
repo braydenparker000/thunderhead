@@ -1,8 +1,10 @@
 // Memory's provenance rules, enforced by the Worker (MEMORY.md §6, M1–M17), each a small function
 // with its own test. A broken rule throws `Reject` with its reason; the batch lists it and applies
-// the other ops (API.md §11.13). M1 (origin from the principal) is how messages are written; M8–M10
+// the other ops (API.md §11.13). M1 (origin from the principal) is how messages are written; M9–M10
 // route to the owner and wait for proposals (P4), so they reject with `proposal_required`; M13's
-// one-claim half is the weekly in-session review. M11 labels instead of refusing (2026-11-02): a
+// one-claim half is the weekly in-session review. M8 and M14 no longer refuse (owner ruling
+// 2026-11-03: the mind may write anything down): a sensitive guess is stored private and never
+// raised (fact-ops.ts `flags`), and like every guess it is `outside` until the owner keeps it. M11 labels instead of refusing (2026-11-02): a
 // session that read outside text writes, and what it writes is `outside` (`label` below), which
 // M11a–e keep out of the profile, the briefing's first sections and the rules until the owner keeps it.
 import * as z from 'zod/mini';
@@ -239,16 +241,13 @@ export function label(ctx: OpContext, source: FactSource, old: FactRow | null): 
   return source === 'observed' ? 'observed' : 'owner';
 }
 
-/** The content rules: M4 and M12 for rules, M11c for outside text, M7 for faith and people, M14
- * for sensitive traits. */
+/** The content rules: M4 and M12 for rules, M11c for outside text, M7 for faith and people. */
 export function content(ctx: OpContext, f: FactShape): void {
   if (f.kind === 'rule' && f.source !== 'user') throw new Reject('rule_needs_owner');
   if (f.kind === 'rule' && f.provenance === 'outside') throw new Reject('outside_rule');
   if (f.kind === 'rule' && ctx.lawsBroken && !ctx.device) throw new Reject('laws_unpinned');
   const ownerOnly = f.about === 'person' || f.tags.some((t) => (OWNER_ONLY_TAGS as readonly string[]).includes(t));
   if (ownerOnly && f.source !== 'user') throw new Reject('needs_owner_words');
-  if (f.source === 'inferred' && f.tags.some((t) => (SENSITIVE_TAGS as readonly string[]).includes(t)))
-    throw new Reject('no_inferred_sensitive');
 }
 
 /** M11c's second half: an `outside` version never replaces an `owner` or `observed` one (the
@@ -265,7 +264,7 @@ export function owner(ctx: OpContext): void {
   if (!ctx.device) throw new Reject('device_only');
 }
 
-/** M8: a new inferred fact with sensitivity 1 goes to the owner (P4's proposals; refused now). */
-export function askFirst(f: FactShape): void {
-  if (f.source === 'inferred' && f.sensitivity === 1) throw new Reject('proposal_required');
-}
+/** M14 (2026-11-03): a guess about something sensitive (a sensitive tag, or sensitivity 1) is kept
+ * private and never raised unprompted; the owner may lift either on the Memory page. */
+export const sensitiveGuess = (source: FactSource, tags: string[], sensitivity: 0 | 1): boolean =>
+  source === 'inferred' && (sensitivity === 1 || tags.some((t) => (SENSITIVE_TAGS as readonly string[]).includes(t)));
