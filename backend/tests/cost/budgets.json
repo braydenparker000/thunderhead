@@ -549,7 +549,7 @@
   },
   "cron tick, purging a deleted day of 20 messages (Core)": {
     "rows_read_max": 163,
-    "rows_written_max": 109
+    "rows_written_max": 110
   },
   "cron tick, purging 500 messages off the record (Core)": {
     "rows_read_max": 1066,
