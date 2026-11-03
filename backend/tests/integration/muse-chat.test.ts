@@ -1,4 +1,4 @@
-// `@muse` in the chat (HOME.md §6.5, MUSE-PROTOCOL.md). The owner's message with `mention: 'muse'`
+// `@muse` in the chat (HOME.md §6.6, MUSE-PROTOCOL.md). The owner's message with `mention: 'muse'`
 // makes a `muse.request` under the owner's own authority (Muse orders ask by default, and this one
 // still needs no card), linked to the message, which a system line answers with the order's id; each
 // state the order reaches is one line in the conversation, done is Muse's own message with an Open

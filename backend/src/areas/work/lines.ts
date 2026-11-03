@@ -1,4 +1,4 @@
-// What the owner's conversation hears about an order they asked for with `@muse` (HOME.md §6.5,
+// What the owner's conversation hears about an order they asked for with `@muse` (HOME.md §6.6,
 // MUSE-PROTOCOL.md): one line per state it reaches, in order (asked → picked up → working → done,
 // failed or cancelled; a step back to the queue says nothing and is not said again), posted by the
 // Worker in the commit that changes the order, so it works while the mind sleeps. A line goes to
