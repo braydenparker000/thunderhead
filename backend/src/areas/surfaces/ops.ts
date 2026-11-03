@@ -1,7 +1,8 @@
 // Surfaces (API.md §11.12): the mind places a versioned kind in an app's slot, validated against
 // the contract (shared/contract/surfaces.ts); every write and delete is a ledger row whose undo
 // restores what was there. A topic the owner dismissed stays quiet for 14 days (409 nudge_repeat),
-// and a surface may not draw on a fact the owner muted (422 muted_fact). The mind places one under
+// and a surface may not draw on a fact the owner muted (422 muted_fact), nor on one labelled outside
+// that the owner has not kept (422 outside_fact, MEMORY.md §6 M11b). The mind places one under
 // its standing permission for lines and tiles (mind/permit.ts); clearing one only takes back what
 // the mind placed, so it is never gated.
 import type { Permitted, PutSurfaceRequest, Surface } from '../../../../shared/contract/api';
@@ -10,7 +11,7 @@ import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { scrubArrangements, scrubUndo } from '../ledger/store';
-import { factFlags } from '../memory/store';
+import { factFlags, provenanceOf } from '../memory/store';
 import { gate, ledgerPermit, withPermit } from '../mind/permit';
 import * as store from './store';
 
@@ -80,7 +81,8 @@ export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfa
 }
 
 /** The facts a surface cites (its `facts`, and a `fact:` ref): each must exist, and none may be
- * muted (`may_raise = 0`, MEMORY.md §12) or private (sensitivity 1, PRIVACY.md §4). */
+ * muted (`may_raise = 0`, MEMORY.md §12), private (sensitivity 1, PRIVACY.md §4) or labelled
+ * `outside` (M11b: outside text reaches no home line or push until the owner keeps it). */
 function drawsOn(w: Writer, r: PutSurfaceRequest): string[] {
   const ids = new Set(Array.isArray(r.facts) ? r.facts : []);
   if (r.ref?.startsWith('fact:')) ids.add(r.ref.slice('fact:'.length));
@@ -88,6 +90,7 @@ function drawsOn(w: Writer, r: PutSurfaceRequest): string[] {
   const flags = factFlags(w.db, [...ids]);
   if (flags.length < ids.size) throw new Fail('validation', { reason: 'unknown_fact' });
   if (flags.some((f) => f.may_raise === 0)) throw new Fail('validation', { reason: 'muted_fact' });
+  if (flags.some((f) => provenanceOf(f) === 'outside')) throw new Fail('validation', { reason: 'outside_fact' });
   if (flags.some((f) => f.sensitivity === 1)) throw new Fail('too_sensitive');
   return [...ids];
 }

@@ -244,24 +244,23 @@ export function deleteFacts(db: Db, rows: FactRow[], at: number): void {
   if (rows.length) db.run(`INSERT INTO facts_fts (facts_fts) VALUES ('optimize')`);
 }
 
-/** The flags surfaces check (muted, sensitive) for the facts a surface cites. */
-export function factFlags(db: Db, ids: string[]): { id: string; may_raise: number; sensitivity: number }[] {
-  if (!ids.length) return [];
-  return db.all(`SELECT id, may_raise, sensitivity FROM facts WHERE id IN (${ids.map(() => '?').join(', ')})`, ...ids);
+/** What a row's label is read from (`provenanceOf`), and the flags surfaces check of a fact. */
+type Labelled = { source: string; provenance: Provenance | null };
+type Flags = Labelled & { id: string; may_raise: number; sensitivity: number };
+
+/** The flags surfaces check (muted, sensitive, and outside by `provenanceOf`) for the facts a surface cites. */
+export function factFlags(db: Db, ids: string[]): Flags[] {
+  const marks = ids.map(() => '?').join(', ');
+  return ids.length
+    ? db.all(`SELECT id, may_raise, sensitivity, source, provenance FROM facts WHERE id IN (${marks})`, ...ids)
+    : [];
 }
 
 /** The `facts` search source (MEMORY.md §10): current versions only, bm25, a «»-marked snippet,
  * each with its provenance (`th recall` shows it). */
 export function searchFacts(db: Db, match: string, since: number | null, until: number | null, limit: number) {
   return db
-    .all<{
-      id: string;
-      recorded_at: number;
-      snippet: string;
-      score: number;
-      source: string;
-      provenance: Provenance | null;
-    }>(
+    .all<{ id: string; recorded_at: number; snippet: string; score: number } & Labelled>(
       `SELECT f.id, f.recorded_at, snippet(facts_fts, -1, '«', '»', '…', 24) AS snippet, bm25(facts_fts) AS score,
        f.source, f.provenance
      FROM facts_fts JOIN facts f ON f.seq = facts_fts.rowid
