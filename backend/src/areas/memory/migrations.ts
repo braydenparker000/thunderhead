@@ -98,6 +98,8 @@ export const MEMORY_MIGRATIONS: Migration[] = [
       'ALTER TABLE facts ADD COLUMN provenance TEXT',
       'ALTER TABLE day_notes ADD COLUMN provenance TEXT',
       'ALTER TABLE open_threads ADD COLUMN provenance TEXT',
+      // The current outside facts by age, for the prune pass's drop of those nobody kept (expire.ts).
+      `CREATE INDEX facts_outside ON facts (recorded_at) WHERE provenance = 'outside' AND superseded_at IS NULL`,
     ],
   },
 ];

@@ -150,6 +150,8 @@ CREATE TABLE 'facts_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOU
 
 CREATE INDEX facts_lineage ON facts (lineage_id);
 
+CREATE INDEX facts_outside ON facts (recorded_at) WHERE provenance = 'outside' AND superseded_at IS NULL;
+
 CREATE TABLE files (
   id TEXT PRIMARY KEY,
   key TEXT NOT NULL,

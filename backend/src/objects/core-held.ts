@@ -14,6 +14,7 @@ import { lastMessageAt } from '../areas/conversation/stats';
 import * as cstore from '../areas/conversation/store';
 import type * as fstore from '../areas/files/store';
 import { byId as fileById } from '../areas/files/store';
+import { DROP_STEP, dropUnkept } from '../areas/memory/expire';
 import { quotaHold } from '../areas/meter/quota';
 import { markOffRecord } from '../areas/mind/guards';
 import { getSetting, putSetting } from '../areas/settings/store';
@@ -96,11 +97,14 @@ export abstract class CoreHeld extends CorePodcasts {
   protected async pruneDaily(now: number, today: string): Promise<number> {
     const purged = await this.purgeHeld(now);
     if (getSetting(this.db, 'prune.day') === today) return purged;
+    // Outside facts nobody kept, in their own commit: they write the ledger (memory/expire.ts).
+    const dropped = this.write((w) => dropUnkept(w, now), now);
     return (
       purged +
+      dropped +
       this.ctx.storage.transactionSync(() => {
         let total = 0;
-        let short = true;
+        let short = dropped < DROP_STEP;
         for (const t of Object.values(CORE_TABLES)) {
           const n = t.prune?.(this.db, now, PRUNE_STEP) ?? 0;
           total += n;
