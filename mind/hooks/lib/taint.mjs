@@ -17,11 +17,12 @@
 // - curl or wget to the Worker or the site by a literal URL (a host that can't be read taints);
 // - npm test/run/ci and a plain npm install (the lockfile's packages), tsc, biome, vitest, playwright,
 //   `wrangler types|dev`, node running a project script;
-// - a short list of commands on own files, and commands that read no file at all.
+// - a short list of commands on own files, and commands that read no file at all;
+// - the answer of the night-step and coder subagents (their own calls are checked as they run).
 // Pure: the same call always gives the same answer, and nothing here touches the network.
 import {isAbsolute, join, relative, resolve, sep} from 'node:path';
 import {parseShell, unwrap} from './shell.mjs';
-import {fetchHosts, gitSub, hostAllowed, thSub} from './rules.mjs';
+import {AGENTS, fetchHosts, gitSub, hostAllowed, thSub} from './rules.mjs';
 
 /** @typedef {{cwd: string, tmpDir: string, ownHosts: string[], projectDir?: string}} TaintContext */
 /** @typedef {{source: string, ref: string}} Taint */
@@ -182,6 +183,13 @@ export function taintOf(input, ctx) {
   }
   if (tool === 'Bash') return bashTaint(String(ti.command ?? ''), ctx);
   if (tool === 'WebFetch') return {source: 'WebFetch', ref: typeof ti.url === 'string' ? ti.url : 'url'};
-  if (tool === 'Task' || tool === 'Agent') return {source: ti.subagent_type === 'reader' ? 'reader' : 'subagent', ref: 'file'};
+  if (tool === 'Task' || tool === 'Agent') {
+    const name = String(ti.subagent_type ?? '');
+    const agent = Object.hasOwn(AGENTS, name) ? AGENTS[name] : null;
+    // night-step and coder have no web tool, and their own calls pass these hooks (each taints as
+    // it would here), so what they hand back is local; a quarantined one's answer is outside text.
+    if (agent && !agent.quarantined) return null;
+    return {source: agent ? name : 'subagent', ref: 'file'};
+  }
   return {source: tool.startsWith('mcp__') ? 'mcp' : (tool || 'unknown tool').slice(0, 40), ref: ''};
 }

@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {readdirSync, readFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {AGENTS, decide} from '../hooks/lib/rules.mjs';
+import {taintOf} from '../hooks/lib/taint.mjs';
 import {ROOT} from './helpers.mjs';
 import {CONTRACT} from '../cli/lib/contract.mjs';
 
@@ -99,4 +100,15 @@ test('inside a subagent: its tools only; the researcher is quarantined like the 
   }
   // The session itself is not held to a subagent's rules.
   assert.equal(decide({tool_name: 'Bash', tool_input: {command: 'th facts --batch f.json --night'}}, ctx('chat')), null);
+});
+
+test('what a subagent hands back: the quarantined ones taint by name, the shell ones are local, any other is a subagent', () => {
+  const c = {cwd: '/work/repo', projectDir: '/work/repo', tmpDir: '/tmp/sess', ownHosts: []};
+  const back = subagent_type => taintOf({tool_name: 'Agent', tool_input: {subagent_type, prompt: 'p'}}, c);
+  assert.deepEqual(back('reader'), {source: 'reader', ref: 'file'});
+  assert.deepEqual(back('researcher'), {source: 'researcher', ref: 'file'});
+  assert.equal(back('night-step'), null);
+  assert.equal(back('coder'), null);
+  assert.deepEqual(back('general-purpose'), {source: 'subagent', ref: 'file'});
+  assert.deepEqual(back('constructor'), {source: 'subagent', ref: 'file'});
 });
