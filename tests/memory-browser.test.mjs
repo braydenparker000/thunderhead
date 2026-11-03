@@ -308,6 +308,8 @@ test('Learned from outside: at the top, newest first; Keep makes it mine, Forget
     const group = page.locator('.msec[data-sec="outside"]');
     assert.deepEqual(await group.locator('.mtext').allTextContents(), ['Practises at 200 bpm', 'Wants a louder metronome', 'Hates jazz'], 'newest first');
     assert.match(await group.locator('.mrow').first().locator('.st2').first().textContent(), /^I inferred · waiting for you · \d/);
+    // Taken for the owner's words, but from outside: not "You said" until it is kept.
+    assert.match(await group.locator('.mrow', { hasText: 'Hates jazz' }).locator('.st2').first().textContent(), /^From outside · waiting for you · \d/);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0, 'no sideways scroll');
     await shot(page, `memory-outside-${theme === 'light' ? 'day' : 'night'}`);
     assert.deepEqual(errors, [], theme);

@@ -8,7 +8,7 @@ import { api, signedIn } from '/th/client.js';
 import { lineFor } from '/th/copy.js';
 import { uuidv7 } from '/th/chat/model.js';
 import { failure } from '/th/flow.js';
-import { evidenceLabel, odds, sourceLabel } from '/th/registry/memory.js';
+import { evidenceLabel, odds, whose } from '/th/registry/memory.js';
 import { el, toast, tooSoon } from '/th/ui.js';
 import { confirmSheet, icon, switchRow } from './components.js';
 
@@ -44,10 +44,10 @@ const monthYear = (ms) => new Date(ms).toLocaleDateString('en-GB', { month: 'sho
 const dayMonth = (ms) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 
 /** "You said · Pretty sure, about 8 in 10 · since Nov 2026"; one learned from outside text waits,
- * with the day it was learned: "You said · waiting for you · 2 Nov 2026" (what the mind took it for). */
+ * with the day it was learned: "From outside · waiting for you · 2 Nov 2026" (a guess stays "I inferred"). */
 export function metaLine(f) {
-  if (f.provenance === 'outside') return `${sourceLabel(f.source)} · waiting for you · ${dayMonth(f.recorded_at)}`;
-  return `${sourceLabel(f.source)} · ${f.kind === 'rule' ? 'A standing rule' : odds(f.confidence_now)} · since ${monthYear(f.valid_from ?? f.recorded_at)}`;
+  if (f.provenance === 'outside') return `${whose(f)} · waiting for you · ${dayMonth(f.recorded_at)}`;
+  return `${whose(f)} · ${f.kind === 'rule' ? 'A standing rule' : odds(f.confidence_now)} · since ${monthYear(f.valid_from ?? f.recorded_at)}`;
 }
 
 /**
