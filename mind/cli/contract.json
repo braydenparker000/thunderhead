@@ -1031,6 +1031,16 @@
       "status": "built",
       "note": "the weather's place, by a town's name"
     },
+    "GET /v1/briefing/calendar": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?days=1–14 (7): the owner's calendar events kept from today's midnight, each link by its host only; `source: outside` marks a shared link's words"
+    },
     "GET /v1/music/catalog": {
       "who": [
         "D"

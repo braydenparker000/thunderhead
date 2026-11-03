@@ -94,6 +94,8 @@ describe('upgrade from P2', () => {
         'meter_days',
         'podcast_progress',
         'podcast_follows',
+        'calendar_events',
+        'calendar_feeds',
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       sql.exec('ALTER TABLE surfaces DROP COLUMN facts_json');

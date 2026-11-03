@@ -203,6 +203,7 @@ export const ROUTES = {
   'POST /v1/work/thread/messages': { who: ['M', 'D', 'C', 'N'], phase: 'P4' },
   'GET /v1/briefing': { who: D, phase: 'P4' },
   'PUT /v1/briefing/place': { who: D, phase: 'P8', note: "the weather's place, by a town's name" },
+  'GET /v1/briefing/calendar': { who: ['D', 'C', 'N'], phase: 'P8', note: "?days=1–14 (7): the owner's calendar events kept from today's midnight, each link by its host only; `source: outside` marks a shared link's words" },
 
   // --- P5 and later ---------------------------------------------------------------------------
   'GET /v1/music/catalog': { who: D, phase: 'P5', note: "the ported player's format; ETag, 304; 409 before the import" },

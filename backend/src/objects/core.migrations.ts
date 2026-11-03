@@ -4,6 +4,7 @@
 // retention (DATA.md §10). This file only composes them, so an area can later move to its own
 // object with its migrations and rows.
 import { BACKUPS_MIGRATIONS, BACKUPS_TABLES } from '../areas/backups/migrations';
+import { BRIEFING_MIGRATIONS, BRIEFING_TABLES } from '../areas/briefing/migrations';
 import { CONVERSATION_MIGRATIONS, CONVERSATION_TABLES } from '../areas/conversation/migrations';
 import { EVALS_MIGRATIONS, EVALS_TABLES } from '../areas/evals/migrations';
 import { FEED_MIGRATIONS, FEED_TABLES } from '../areas/feed/migrations';
@@ -88,6 +89,7 @@ export const CORE_MIGRATIONS: Migration[] = [
   ...REPORTS_MIGRATIONS,
   ...METER_MIGRATIONS,
   ...PODCASTS_MIGRATIONS,
+  ...BRIEFING_MIGRATIONS,
 ].sort((a, b) => a.version - b.version);
 
 /** Every Core table with its retention and export inclusion (DATA.md §10); a test fails if a
@@ -115,4 +117,5 @@ export const CORE_TABLES: Record<string, TableInfo> = {
   ...REPORTS_TABLES,
   ...METER_TABLES,
   ...PODCASTS_TABLES,
+  ...BRIEFING_TABLES,
 };

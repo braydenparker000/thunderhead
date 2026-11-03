@@ -5,6 +5,7 @@
 // changes it; until then every reader takes the catalogue's default.
 import * as z from 'zod/mini';
 import {
+  linkProblem,
   SETTINGS,
   type SettingSpec,
   type SettingValue,
@@ -30,7 +31,42 @@ function schemaFor(s: SettingSpec): z.ZodMiniType<SettingValue, SettingValue> {
       return z.array(z.string()).check(z.maxLength(values(s).length), check);
     case 'text':
       return z.string().check(z.maxLength(s.max ?? 200), check);
+    case 'links':
+      // Each address checked on its own, so a refusal says which one and why (linkProblem's words).
+      return z
+        .array(
+          z.strictObject({
+            url: z.string().check(
+              z.refine((u) => linkProblem(u, s.max) === null, {
+                error: (i) => linkProblem(String(i.input), s.max) ?? '',
+              }),
+            ),
+            mine: z.boolean(),
+          }),
+        )
+        .check(z.maxLength(s.items ?? 3), check) as z.ZodMiniType<SettingValue, SettingValue>;
   }
+}
+
+/** What an agent may see of a setting: a calendar link is a key to its calendar, so only its host
+ * and its mark leave for anyone but the owner's devices (PRIVACY.md §5). */
+export function forAgents(settings: Record<string, unknown>): Record<string, unknown> {
+  const v = settings['briefing.calendars'];
+  if (!Array.isArray(v)) return settings;
+  const host = (u: unknown) => {
+    try {
+      return new URL(String(u)).hostname;
+    } catch {
+      return '';
+    }
+  };
+  return {
+    ...settings,
+    'briefing.calendars': v.map((l: { url?: unknown; mine?: unknown }) => ({
+      host: host(l?.url),
+      mine: l?.mine === true,
+    })),
+  };
 }
 
 /** Every worker key of the catalogue, optional, for PATCH /v1/settings's strict object. */
