@@ -11,7 +11,7 @@ import * as verbs from '../areas/verbs/ops';
 import * as plans from '../areas/verbs/plan';
 import * as schedule from '../areas/verbs/schedule';
 import { due as dueRows, soonest } from '../areas/verbs/store';
-import { attempt } from '../lib/result';
+import { attempt, type Out } from '../lib/result';
 import type { Caller } from './caller';
 import { CoreHeld } from './core-held';
 
@@ -39,6 +39,12 @@ export abstract class CoreVerbs extends CoreHeld {
     return out;
   }
 
+  /** A verb with `fire_at`, under a name the release before lacks: an object still on it answers 503
+   * (`fresh`) for a moment of the deploy, instead of running the verb at once. */
+  scheduleVerb(c: Caller, id: string, r: PutVerbRequest, hash: string, prepared?: verbs.Prepared) {
+    return this.putVerb(c, id, r, hash, prepared);
+  }
+
   /** POST /v1/verbs/plan; `prepared`: each step's (a play_mix find's songs). */
   postPlan(c: Caller, r: PostPlanRequest, hash: string, prepared: verbs.Prepared[]) {
     const out = this.run((w) => plans.post(w, c, r, hash, () => this.tz(), Array.isArray(prepared) ? prepared : []));
@@ -63,8 +69,18 @@ export abstract class CoreVerbs extends CoreHeld {
     const next = this.verbsDue();
     if (next === null || next > now) return;
     for (const row of dueRows(this.db, now, due.PER_PASS)) {
-      const out = attempt(() => this.write((w) => due.fire(w, row.id, () => this.tz()), now));
-      if (!out.ok) this.write((w) => due.failed(w, row.id, out.code, out.details, () => this.tz()), now);
+      let out: Out<unknown>;
+      try {
+        out = attempt(() => this.write((w) => due.fire(w, row.id, () => this.tz()), now));
+      } catch {
+        // A bug, not a refusal: recorded as failed all the same, so one row never holds the alarm.
+        console.error(JSON.stringify({ evt: 'scheduled_verb_failed', id: row.id }));
+        out = { ok: false, code: 'internal' };
+      }
+      if (!out.ok) {
+        const { code, details } = out;
+        this.write((w) => due.failed(w, row.id, code, details, () => this.tz()), now);
+      }
     }
     this.verbsChanged();
   }

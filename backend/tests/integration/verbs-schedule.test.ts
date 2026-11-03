@@ -27,6 +27,13 @@ async function alarmAt(at: number) {
   await runInDurableObject(stub(), (o: Core) => o.alarm());
   vi.useRealTimers();
 }
+/** The 15-minute tick on that clock: it runs what the alarm missed. */
+async function tickAt(at: number) {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(at + 1_000);
+  await runInDurableObject(stub(), (o: Core) => o.tick(at + 1_000));
+  vi.useRealTimers();
+}
 const scheduled = async () =>
   (await apiJson<ScheduledResponse>('GET', '/v1/verbs/scheduled', { token: P.D })).body.items;
 const one = async (id: string) =>
@@ -90,12 +97,12 @@ describe('a scheduled Worker-side verb', () => {
 });
 
 describe('a scheduled phone intent', () => {
-  it('is no app’s until its time, then pending from that moment, with its queued row', async () => {
+  it('is no app’s until its time, then pending from that moment (the tick, when no alarm came)', async () => {
     const at = Date.now() + 2 * HOUR;
     const r = await verb('music.queue', { refs: [SONG(1)], at: 'end' }, { fire_at: iso(at) });
     expect(r.body.status).toBe('scheduled');
     expect(await one(r.body.id)).toBeUndefined();
-    await alarmAt(at);
+    await tickAt(at);
     const v = await one(r.body.id);
     expect(v?.status).toBe('pending');
     expect(v?.expires_at).toBe(at + 24 * HOUR);

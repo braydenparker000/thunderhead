@@ -110,7 +110,12 @@ export const verbsRoutes = new Hono<AppEnv>()
     const id = idParam(c);
     const body = await json(c, putBody);
     const prepared = await prepare(c.env, body);
-    const out = value(await coreObject(c.env).putVerb(callerOf(c), id, body, reqHash(body), prepared));
+    const core = coreObject(c.env);
+    const out = value(
+      body.fire_at === undefined
+        ? await core.putVerb(callerOf(c), id, body, reqHash(body), prepared)
+        : await fresh(core.scheduleVerb(callerOf(c), id, body, reqHash(body), prepared)),
+    );
     const answer: VerbAnswer = {
       ...out.verb,
       ...(out.permit ? { permit: out.permit } : {}),
