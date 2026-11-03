@@ -14,6 +14,7 @@ import {fileURLToPath} from 'node:url';
 import {parseArgs} from './lib/args.mjs';
 import {EXIT, invalid, out, printError} from './lib/io.mjs';
 import {brief} from './lib/brief.mjs';
+import {skill} from './lib/skill.mjs';
 import {wait} from './lib/wait.mjs';
 import {helpText} from './lib/help.mjs';
 import * as conv from './lib/conv.mjs';
@@ -35,6 +36,7 @@ const withFlags = (fn, spec) => argv => fn(parseArgs(argv, spec).flags);
 /** @type {Record<string, (argv: string[]) => Promise<number|void>>} */
 export const COMMANDS = {
   brief: withFlags(brief, {bool: ['claim', 'full', 'json']}),
+  skill,
   wait: withFlags(wait),
   say: conv.say, amend: conv.amend, history: conv.history, file: conv.file, status: conv.status,
   title: conv.title, note: conv.note, pending: conv.pending, taint: conv.taint, health: conv.health,
