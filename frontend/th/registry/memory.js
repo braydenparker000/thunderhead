@@ -39,8 +39,7 @@ export const SOURCES = { user: 'You said', observed: 'I noticed', inferred: 'I i
 /** @param {string} source */
 export const sourceLabel = (source) => (Object.hasOwn(SOURCES, source) ? SOURCES[/** @type {keyof typeof SOURCES} */ (source)] : source);
 
-/** Whose words, as the owner reads it: one labelled outside that the mind took for theirs is not
- * "You said" until they keep it (MEMORY.md §6 M11). @param {Pick<Fact, 'source' | 'provenance'>} f */
+/** Not "You said" until kept (MEMORY.md §6 M11). @param {Pick<Fact, 'source' | 'provenance'>} f */
 export const whose = (f) => (f.provenance === 'outside' && f.source === 'user' ? 'From outside' : sourceLabel(f.source));
 
 /** Which group a fact is listed in. @param {Pick<Fact, 'kind' | 'tags'>} f */

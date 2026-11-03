@@ -118,7 +118,9 @@ const budgets = [
   // (2026-11-02, senses) +430 measured (107,871): each home line's ledger row on its card and a
   // chip's app (for `line.seen` and `reply.open_chip`), and the Memory page's Habits group.
   // (2026-11-02, provenance) +80 measured (107,951): the Memory registry's "Learned from outside" shelf.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 107_951],
+  // (2026-11-03, provenance) +224 measured (108,175): the registry's `whose` ("From outside" for an
+  // outside fact the mind took for the owner's words, in menu search and on the Memory page).
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 108_175],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
