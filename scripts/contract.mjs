@@ -207,6 +207,8 @@ function mind() {
       limits: c.MUSIC_NOTE_LIMITS,
     },
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
+    // Role knowledge on demand (`th skill <name>`): the files in mind/skills/, their size and headings.
+    skills: { names: c.SKILLS, limits: c.SKILL_LIMITS, headings: c.SKILL_HEADINGS },
     night: {
       steps: c.NIGHT_STEPS,
       built_phases: c.BUILT_PHASES,
@@ -429,6 +431,14 @@ function docs() {
     '|---|---|---|',
   );
   for (const [n, k] of Object.entries(c.READER_KINDS)) L.push(`| \`${n}\` | ${shape(k.schema)} | ${cell(k.doc)} |`);
+  L.push(
+    '',
+    '## Skills',
+    '',
+    `Role knowledge the mind reads on demand (\`th skill <name>\`, the briefing's section 8): one file per app and area at \`mind/skills/<name>.md\`, at most ${c.SKILL_LIMITS.chars} characters, with the headings ${c.SKILL_HEADINGS.map((h) => `"${h}"`).join(', ')} in that order.`,
+    '',
+    c.SKILLS.map((s) => `\`${s}\``).join(' · '),
+  );
   L.push(
     '',
     '## Watchdogs',

@@ -57,6 +57,7 @@ export { READER_KINDS, READER_LIMITS, type ReaderKind } from './reader.ts';
 export { FIRE_AT, PLAN_ACTION, PLAN_LIMITS, QUIET_HELD, SCHEDULE_LIMITS } from './schedules.ts';
 export { ROUTINES, SENSE_APPS, SENSE_TYPES, type SenseApp, type SenseTypeName, senseSwitch } from './senses.ts';
 export { SETTING_GROUPS, SETTINGS, type SettingGroup, type SettingSpec, settingSpec, validSetting } from './settings.ts';
+export { SKILL_HEADINGS, SKILL_LIMITS, SKILLS, type SkillName } from './skills.ts';
 export { BUILT_PHASES, builtRoutes, type Phase, ROUTES, type RouteKey, type RouteSpec, type Who } from './routes.ts';
 export { SURFACE_KINDS, type SurfaceKind, type SurfaceKindName, surfaceKind } from './surfaces.ts';
 export { latestVersion, VERBS, type VerbName, type VerbSpec, type VerbVersion, verbSpec } from './verbs.ts';

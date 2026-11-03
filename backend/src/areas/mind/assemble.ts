@@ -1,11 +1,13 @@
 // Gathers the briefing's inputs from the stores (MEMORY.md §9) and renders it (brief.ts). Reads
 // only, each bounded; runs after the claim's commit so the briefing reflects it. Memory (rules,
-// open threads, the profile, day notes) comes from areas/memory through its own store and renders.
-// The night role's day is the one it works on, the day before the open one (RUNTIME.md §12).
+// open threads, the profile, day notes) comes from areas/memory through its own store and renders;
+// today's state and the day's arrangements from brief-gather.ts, with the phone's reports the
+// caller read from the Senses object (null when it couldn't). The night role's day is the one it
+// works on, the day before the open one (RUNTIME.md §12).
 import type { BriefResponse, MindRole } from '../../../../shared/contract/api';
 import { dayBefore, HOUR } from '../../lib/time';
 import type { Db } from '../../objects/base';
-import { briefLines, view as calendarView } from '../briefing/calendar-store';
+import { view as calendarView } from '../briefing/calendar-store';
 import { currentDay } from '../conversation/day';
 import { offRecordOf } from '../conversation/held';
 import { dayCounts } from '../conversation/stats';
@@ -19,10 +21,12 @@ import { quotaBriefLine, safeQuota } from '../meter/quota';
 import * as ops from '../ops/store';
 import { lawsLine } from '../proposals/laws';
 import * as proposals from '../proposals/store';
+import type { BriefReports } from '../senses/brief';
 import { mindSettingLines } from '../settings/catalog';
 import { quietUntil } from '../settings/quiet';
 import * as watchdogs from '../watchdogs/ops';
 import { buildBrief } from './brief';
+import { calendarLines, dayLines, dueLines, playingLine, weatherLine } from './brief-gather';
 import { nightDayOf, nightDone, nightLine } from './night';
 import * as sessionNotes from './notes';
 import * as store from './store';
@@ -40,7 +44,7 @@ export function assemble(
   wake: BriefResponse['wake'],
   constitution: string,
   sessionId: string,
-  opts: { nightConfigured: boolean; offRecordSeen?: () => void },
+  opts: { nightConfigured: boolean; offRecordSeen?: () => void; reports?: BriefReports | null },
 ): BriefResponse {
   const day = currentDay(db, tz, now);
   const night = role === 'night' ? nightDayOf(day) : null;
@@ -63,6 +67,11 @@ export function assemble(
   // Messages off the record it hands out mark the session (the caller writes it): no memory from it.
   const offRecord = offRecordOf(db, waiting, now);
   if (offRecord.length) opts.offRecordSeen?.();
+  // Reflex handles breakage: the owner's day is not its business, so none of it is read.
+  const owners = role !== 'reflex';
+  const calendar = owners ? calendarLines(calendarView(db, now, tz), tz) : { own: [], shared: [] };
+  const reports = opts.reports ?? null;
+  const theDay = owners ? dayLines(db, { day: night ?? day, now, tz, reports }) : null;
   const { core, full } = buildBrief({
     role,
     constitution,
@@ -98,12 +107,20 @@ export function assemble(
     quota: quotaBriefLine(safeQuota(db, now)),
     rules: memory ? facts.currentFacts(db, ['rule'], RULES_READ) : [],
     threads: memory ? notes.openThreads(db, 'open', 60) : [],
+    facts: current,
     profile: memory ? renderProfile(current, now, tz).text : '',
     days: memory ? notes.dayNotes(db, dayBefore(day, 7), dayBefore(day), 7) : [],
     night: nightLine(db, day, opts.nightConfigured),
     settings: mindSettingLines(db),
-    // Reflex handles breakage: the owner's day is not its business.
-    calendar: role === 'reflex' ? [] : briefLines(calendarView(db, now, tz), tz),
+    weather: owners ? weatherLine(db, now, tz) : null,
+    calendar: calendar.own,
+    due: owners ? dueLines(db, now, tz) : [],
+    // The song playing is the chat's: the night works on a closed day.
+    playing: role === 'chat' ? playingLine(reports, now, tz) : null,
+    arranged: theDay?.arranged,
+    predicted: theDay?.predicted,
+    tiles: theDay?.tiles,
+    calendarShared: calendar.shared,
   });
   return {
     wake,

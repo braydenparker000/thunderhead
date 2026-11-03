@@ -1,12 +1,10 @@
-// Memory's pure parts (MEMORY.md §5, §8, §9): the decay formula per kind, the deterministic
-// profile render (byte-identical for the same rows, ≤ 6,000 characters, caps, order, line
-// format), the briefing's fill order and budgets, and the deploy-transition wrapper.
+// Memory's pure parts (MEMORY.md §5, §8): the decay formula per kind, the deterministic profile
+// render (byte-identical for the same rows, ≤ 6,000 characters, caps, order, line format), and the
+// deploy-transition wrapper. The briefing's are in brief.test.ts and brief-layer.test.ts.
 import { describe, expect, it } from 'vitest';
-import type { Message } from '../../../shared/contract/api';
 import { decayed, FACT_KINDS, type FactKind } from '../../../shared/contract/memory.ts';
-import { renderProfile, renderRules, shortId } from '../../src/areas/memory/profile';
+import { renderProfile, shortId } from '../../src/areas/memory/profile';
 import type { FactRow } from '../../src/areas/memory/store';
-import { type BriefInput, buildBrief, CORE_MAX, FULL_MAX } from '../../src/areas/mind/brief';
 import { fresh } from '../../src/objects/rpc';
 
 const DAY = 86_400_000;
@@ -146,138 +144,6 @@ describe('the profile (MEMORY.md §8)', () => {
     expect(p.fact_ids).toEqual([rows[3].id]);
     expect(p.text.split('\n')).toHaveLength(1);
     expect(p.text).not.toMatch(/\n## /);
-  });
-});
-
-const msg = (i: number, body = `message number ${i}`): Message => ({
-  seq: i,
-  id: `0192f0c4-0000-7000-8000-${i.toString(16).padStart(12, '0')}`,
-  thread_id: 't',
-  author: 'owner',
-  origin: 'owner_device',
-  kind: 'text',
-  body,
-  meta: null,
-  attachments: [],
-  reply_to: null,
-  created_at: NOW - (100 - i) * 60_000,
-  delivered_at: null,
-  acked_at: null,
-  answered_at: null,
-});
-
-function input(over: Partial<BriefInput> = {}): BriefInput {
-  return {
-    role: 'chat',
-    constitution: 'a'.repeat(64),
-    laws: 'laws: pinned',
-    decisions: [],
-    tainted: false,
-    now: NOW,
-    tz: 'UTC',
-    day: '2026-11-03',
-    wakeReason: 'message',
-    wakesToday: 1,
-    prewarmsLeft: 8,
-    backoffUntil: 0,
-    quietUntil: 0,
-    threadId: 'today',
-    waiting: [],
-    todayTail: [],
-    todayEarlier: [],
-    note: null,
-    yesterday: { threadId: null, tail: [], note: null },
-    ledger: [],
-    errorsOpen: 0,
-    watchdogs: [],
-    rules: [],
-    threads: [],
-    profile: 'Nothing known yet.',
-    days: [],
-    night: null,
-    ...over,
-  };
-}
-
-const sections = (text: string) => [...text.matchAll(/^## (\d+)\. /gm)].map((m) => Number(m[1]));
-const section = (text: string, n: number) => text.slice(text.indexOf(`## ${n}. `), text.indexOf(`## ${n + 1}. `));
-
-describe('the briefing (MEMORY.md §9)', () => {
-  it('an empty first day has every section in order, core 1–7 and full 1–13', () => {
-    const b = buildBrief(input());
-    expect(sections(b.core)).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(sections(b.full)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
-    expect(b.core).toContain('No standing rules yet.');
-    expect(b.core).toContain('No open threads.');
-  });
-
-  it('30 long waiting messages and 60 rules: the cap holds, 1, 2, 3 and 7 stay, cuts are marked', () => {
-    const waiting = Array.from({ length: 30 }, (_, i) => msg(i, `please look at this ${'x'.repeat(300)}`));
-    const rules = Array.from({ length: 60 }, (_, i) =>
-      fact({ kind: 'rule', text: `Rule number ${i} ${'y'.repeat(60)}` }),
-    );
-    const threads = Array.from({ length: 30 }, (_, i) => ({
-      id: `0192f0c4-0000-7000-8000-${i.toString(16).padStart(12, '0')}`,
-      text: `Loose end ${i} ${'z'.repeat(120)}`,
-      owner: 'mind' as const,
-      due_at: null,
-      tags_json: null,
-      status: 'open' as const,
-      evidence_json: '[]',
-      opened_at: NOW - i * DAY,
-      last_progress_at: null,
-      closed_at: null,
-      closed_why: null,
-    }));
-    const tail = Array.from({ length: 12 }, (_, i) => msg(40 + i, `tail ${'w'.repeat(400)}`));
-    const b = buildBrief(input({ waiting, rules, threads, todayTail: tail }));
-    expect(b.core.length).toBeLessThanOrEqual(CORE_MAX);
-    expect(b.full.length).toBeLessThanOrEqual(FULL_MAX);
-    expect(sections(b.core)).toEqual([1, 2, 3, 4, 5, 6, 7]);
-    expect(b.core).toMatch(/\(\+\d+ more waiting: th brief --section 2\)/);
-    // The full file holds what the core cut, so `th brief --section 3` gives more, and points on.
-    expect(section(b.full, 3).split('\n').length).toBeGreaterThan(section(b.core, 3).split('\n').length);
-    expect(section(b.full, 3)).toContain('more: th get /v1/memory/facts kind=rule');
-    expect(b.core).toMatch(/\(\+\d+ more: th brief --section 3\)/);
-    expect(b.core).toContain('## 7. Pointer\nFull briefing: $TMPDIR/th/brief.md');
-    expect(b.core).not.toContain('(+cut: th brief --full)');
-  });
-
-  it('the rules render oldest first with pinned on top and no confidence', () => {
-    const rules = [
-      fact({ kind: 'rule', text: 'Second', recorded_at: NOW - DAY }),
-      fact({ kind: 'rule', text: 'First', recorded_at: NOW - 2 * DAY }),
-      fact({ kind: 'rule', text: 'Pinned', pinned: 1, recorded_at: NOW }),
-    ];
-    const text = renderRules(rules, 'UTC', 1_400);
-    expect(text.split('\n').map((l) => l.split('] ')[1].split(' (')[0])).toEqual(['Pinned', 'First', 'Second']);
-    expect(text).not.toMatch(/\(\d\.\d, /);
-  });
-
-  it("night role: sections 2 and 5 point at yesterday's thread", () => {
-    const b = buildBrief(input({ role: 'night', yesterday: { threadId: 'y1', tail: [msg(1)], note: null } }));
-    expect(b.core).toContain("## 2. Waiting\nYesterday's thread: y1, 1 messages; run th day 2026-11-03");
-    expect(b.core).toContain('## 5. Today so far\nSee section 2.');
-  });
-
-  it('reflex reads no memory: its briefing names the memory sections without their content', () => {
-    const rules = [fact({ kind: 'rule', text: 'A standing rule' })];
-    const note = { body: 'A session note', created_at: NOW };
-    const b = buildBrief(input({ role: 'reflex', rules, profile: 'A profile line', days: [], note }));
-    for (const n of [3, 4, 8, 9]) expect(b.full).toContain(`## ${n}. `);
-    expect(b.full).not.toContain('A standing rule');
-    expect(b.full).not.toContain('A profile line');
-    expect(b.full).not.toContain('A session note');
-    // Sections 3, 4, 8 and 9, and the session-note line of 5.
-    expect(b.full.match(/Not in the reflex briefing/g)).toHaveLength(5);
-  });
-
-  it('the later sections keep their budgets (today earlier ≤ 8,000)', () => {
-    const earlier = Array.from({ length: 188 }, (_, i) => msg(i, 'e'.repeat(200)));
-    const b = buildBrief(input({ todayEarlier: earlier }));
-    const twelve = section(b.full, 12);
-    expect(twelve.length).toBeLessThanOrEqual(8_100);
-    expect(twelve).toMatch(/\(\+\d+ more: th history today\)/);
   });
 });
 

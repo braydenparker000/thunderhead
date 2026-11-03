@@ -1,6 +1,6 @@
 // Open threads and day notes (API.md §11.13, MEMORY.md §2, §9, §11): written with evidence and a
 // ledger row whose undo restores them, idempotent for the same body (a rerun night step never
-// makes version 2), shown in the briefing (sections 4, 6 and 9) and found by federated search,
+// makes version 2), shown in the briefing (sections 2, 6 and 11) and found by federated search,
 // whose semantic seam fuses one more ranked list.
 import { afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { DayNote, OpenThread, SearchResponse, UndoResponse } from '../../../shared/contract/api';
@@ -51,7 +51,7 @@ describe('open threads', () => {
     expect(all.body.items.map((t) => t.id)).toContain(id);
   });
 
-  it('show in briefing section 4, mind-owned first then due soonest, with full ids', async () => {
+  it('show in briefing section 2, the owner’s, mind-owned first then due soonest, with full ids', async () => {
     const mine = uuidv7();
     const theirs = uuidv7();
     await putThread({ token: P.D }, theirs, { text: 'Owner: send the recording', owner: 'owner', evidence: [] });
@@ -62,7 +62,7 @@ describe('open threads', () => {
       due_at: Date.now() + 3_600_000,
     });
     const b = await brief(P.C, CHAT_SESSION, 'chat');
-    const four = b.body.core.slice(b.body.core.indexOf('## 4.'), b.body.core.indexOf('## 5.'));
+    const four = b.body.core.slice(b.body.core.indexOf('## 2.'), b.body.core.indexOf('## 3.'));
     expect(four.indexOf(`[${mine}] Mind: tidy`)).toBeGreaterThan(-1);
     expect(four.indexOf(`[${mine}]`)).toBeLessThan(four.indexOf(`[${theirs}]`));
   });
@@ -114,9 +114,9 @@ describe('day notes', () => {
     expect(list.body.items.map((n) => n.version)).toEqual([2]);
   });
 
-  it("yesterday's note is section 6 of the next briefing, and its line is in section 9", async () => {
+  it("yesterday's note is section 6 of the next briefing, and its line is in section 11", async () => {
     const b = await brief(P.C, CHAT_SESSION, 'chat');
-    expect(b.body.full).toMatch(/## 9\. Last 7 days\n.*A calm day of practice/);
+    expect(b.body.full).toMatch(/## 11\. Last 7 days\n.*A calm day of practice/);
     // No day was filed yet, so "yesterday" is the calendar day before the open one.
     const six = b.body.core.slice(b.body.core.indexOf('## 6.'), b.body.core.indexOf('## 7.'));
     expect(six).toContain(`Day note ${yesterday()} (importance 5, v2): A calm day of practice`);

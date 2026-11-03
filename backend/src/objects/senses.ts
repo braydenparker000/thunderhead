@@ -19,6 +19,7 @@ import { gzip, page, type Row } from '../areas/backups/rows';
 import { logicalDay } from '../areas/conversation/day';
 import { sha256 } from '../areas/import/vault';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
+import { type BriefReports, briefReports } from '../areas/senses/brief';
 import * as queries from '../areas/senses/queries';
 import { routines, windowDays } from '../areas/senses/routines';
 import * as store from '../areas/senses/store';
@@ -181,6 +182,12 @@ export class Senses extends OwnerObject {
   /** Some types' rollups for the meter (P9): counts by day and ref only. */
   rollupsFor(types: string[], from: string, to: string): { day: string; type: string; ref: string; n: number }[] {
     return store.rollupsFor(this.db, types, from, to);
+  }
+
+  /** The mind's briefing (areas/senses/brief.ts): the day's newest song events, ids and times
+   * only, and the meter's rollups of `from`–`to`. */
+  briefReports(o: { day: string; from: string; to: string; music: boolean }): BriefReports {
+    return briefReports(this.db, o);
   }
 
   /** A type's days for the predictions' resolvers (P9): counts only. */

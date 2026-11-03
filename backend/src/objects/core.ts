@@ -33,13 +33,14 @@ import * as ledger from '../areas/ledger/ops';
 import { type LedgerFilter, page as ledgerPage } from '../areas/ledger/store';
 import { assemble } from '../areas/mind/assemble';
 import { type FireResult, fire, fireConfig } from '../areas/mind/fire';
-import { nightWake } from '../areas/mind/night';
+import { nightDayOf, nightWake } from '../areas/mind/night';
 import * as mind from '../areas/mind/ops';
 import * as stop from '../areas/mind/stop';
 import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
 import { listenApplyJob, listenPackJob, listenRejectJob } from '../areas/music/listen-jobs';
 import { lawsAtClaim, settle as settleProposals } from '../areas/proposals/ops';
+import type { BriefReports } from '../areas/senses/brief';
 import * as surfaces from '../areas/surfaces/ops';
 import { list as listSurfaces } from '../areas/surfaces/store';
 import { dropUnasked } from '../areas/verbs/follow';
@@ -47,8 +48,10 @@ import * as verbs from '../areas/verbs/ops';
 import * as placed from '../areas/work/placed';
 import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
+import { dayBefore } from '../lib/time';
 import type { Caller } from './caller';
 import { CoreVerbs } from './core-verbs';
+import { sensesObject } from './senses';
 
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
 const JOB_HANDLERS: Record<string, JobHandler> = {
@@ -109,7 +112,8 @@ export class Core extends CoreVerbs {
     return f;
   }
 
-  brief(_c: Caller, r: BriefRequest) {
+  async brief(_c: Caller, r: BriefRequest) {
+    const reports = await this.briefReports(r.role);
     return attempt(() => {
       // The claim also checks the session's laws file against the pin (a card when it differs).
       const claimed = r.claim
@@ -127,11 +131,24 @@ export class Core extends CoreVerbs {
         offRecordSeen: () => {
           offRecord = true;
         },
+        reports,
       });
       // A briefing that hands out a message off the record marks the session: it writes no memory.
       if (offRecord) this.markOffRecord(r.session_id, r.role);
       return out;
     });
+  }
+
+  /** What the briefing reads of the phone's reports (areas/senses/brief.ts): the day's song events
+   * and the rollups that say how its arrangements were met. Reflex and the sandbox read none; a
+   * Senses object that can't answer leaves them out (the briefing says "not known"). */
+  private async briefReports(role: BriefRequest['role']): Promise<BriefReports | null> {
+    if (role === 'reflex' || this.sandboxed) return null;
+    const open = day.currentDay(this.db, this.tz(), Date.now());
+    const on = role === 'night' ? nightDayOf(open) : open;
+    return sensesObject(this.env)
+      .briefReports({ day: open, from: on, to: dayBefore(on, -1), music: role === 'chat' })
+      .catch(() => null);
   }
 
   mindStatus(c: Caller, r: MindStatusRequest): { typing: boolean; stop: boolean } {

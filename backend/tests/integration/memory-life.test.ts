@@ -74,11 +74,11 @@ describe('remember and recall', () => {
     expect(b.body.full).toContain('Not in the reflex briefing');
   });
 
-  it('rules go to section 3 of the core, not the profile', async () => {
+  it('rules go to section 4 of the core, not the profile', async () => {
     const op = addOp([`msg:${said}`], { kind: 'rule', text: 'Answer in two lines on the phone' });
     expect(await reason(chat(), op)).toBeNull();
     const b = await brief(P.C, CHAT_SESSION, 'chat');
-    const three = b.body.core.slice(b.body.core.indexOf('## 3.'), b.body.core.indexOf('## 4.'));
+    const three = b.body.core.slice(b.body.core.indexOf('## 4.'), b.body.core.indexOf('## 5.'));
     expect(three).toContain('Answer in two lines on the phone (since');
     expect((await apiJson<ProfileResponse>('GET', '/v1/memory/profile', device())).body.text).not.toContain(
       'two lines',

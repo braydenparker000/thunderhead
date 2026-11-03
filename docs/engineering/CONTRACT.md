@@ -445,6 +445,12 @@ What the reader subagent (`.claude/agents/reader.md`) answers with, checked by `
 | `list` | `{ kind: 'list', items: array, instructions_seen: boolean, instructions_note: string \| null }` | Items found (search results, a setlist, a table), each with a short note and its source. |
 | `unreadable` | `{ kind: 'unreadable', source: string, why: string }` | The source could not be read (blocked, empty, not text, too large). |
 
+## Skills
+
+Role knowledge the mind reads on demand (`th skill <name>`, the briefing's section 8): one file per app and area at `mind/skills/<name>.md`, at most 2500 characters, with the headings "What it is", "What you can read", "What you can do", "What you must not do" in that order.
+
+`music` · `podcasts` · `guitar` · `study` · `astra` · `media` · `briefing` · `calendar` · `memory` · `verbs` · `muse` · `night` · `code`
+
 ## Watchdogs
 
 Each 15-minute tick runs every built watchdog; a trip writes one ledger note and, for one that wakes, wakes `mind-reflex` (at most 4 in any 24 hours); `th reflex` prints what to do (OPERATIONS.md §8.2).
