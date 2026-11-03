@@ -13,7 +13,12 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { timing } from './fixtures/waits.mjs';
 
+// Whether some deck plays, which song ends up current and that the outgoing deck is silent when the new
+// song sounds are the player's logic and stay hard. How soon the fade reaches silence and how soon the
+// old deck lets go are read off a runner's timers and audio thread, so they are diagnostics on CI
+// (TH_STRICT_TIMING=1 enforces them; fixtures/waits.mjs).
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)', timeout: 120_000 };
 const OLD = 'https://jarvis-hub-api.braydenparker999.workers.dev';
@@ -171,7 +176,7 @@ function watchSkip(page, ahead) {
     const p = __cp.player, dsp = __cp.dsp, old = p.audio, target = p.indexAt(k), want = p.queue[target].title;
     const analyser = dsp.bypass ? null : dsp.nodes?.analyser;
     const buf = new Float32Array(2048);
-    const out = { gaps: [], heldLoud: [], states: new Set(), heardAt: null, released: null, maxPeakWhileWaiting: 0 };
+    const out = { gaps: [], heldLoud: [], states: new Set(), heardAt: null, released: null, maxPeakWhileWaiting: 0, lastWaiting: null };
     const t0 = performance.now();
     p.load(target, true);
     const fresh = p.audio;
@@ -188,10 +193,14 @@ function watchSkip(page, ahead) {
         // Past the 400 ms fade (and the 500 ms it may wait): the outgoing deck is silent.
         if (t > 1200 && old !== p.audio && !old.paused) {
           if (dsp.bypass && old.volume > 0.001) out.heldLoud.push([t, old.volume]);
+          let peak = 0;
           if (analyser) {
             analyser.getFloatTimeDomainData(buf);
-            for (const v of buf) out.maxPeakWhileWaiting = Math.max(out.maxPeakWhileWaiting, Math.abs(v));
+            for (const v of buf) peak = Math.max(peak, Math.abs(v));
+            out.maxPeakWhileWaiting = Math.max(out.maxPeakWhileWaiting, peak);
           }
+          // The outgoing deck's level at the last look before the new song sounded: the wait's end state.
+          out.lastWaiting = { t, volume: old.volume, peak };
         }
       }
       await new Promise((r) => setTimeout(r, 20));
@@ -210,8 +219,10 @@ test('a skip to a song not signed yet keeps a deck playing, silently, until the 
     assert.equal(r.track, r.want);
     assert.ok(r.heardAt !== null && r.heardAt > 2000, `the new song sounded after the slow signing (${r.heardAt} ms)`);
     assert.equal(r.gaps.length, 0, `no deck played from ${r.gaps[0]} to ${r.gaps.at(-1)} ms`);
-    assert.deepEqual(r.heldLoud, [], 'the outgoing deck is silent while it waits');
-    assert.ok(r.released !== null && r.released < 1000, `the outgoing deck lets go once the new one plays (${r.released} ms)`);
+    assert.ok(r.lastWaiting === null || r.lastWaiting.volume <= 0.001, `the outgoing deck is silent by the time the new song sounds (${JSON.stringify(r.lastWaiting)})`);
+    timing(r.heldLoud.length === 0, `the outgoing deck is silent from 1.2 s while it waits (${JSON.stringify(r.heldLoud.slice(0, 4))})`);
+    assert.ok(r.released !== null, 'the outgoing deck lets go once the new one plays');
+    timing(r.released < 1000, `the outgoing deck lets go within 1 s of the new one playing (${r.released} ms)`);
     assert.deepEqual(r.states, ['playing']);
     assert.ok(r.current && r.playing);
 
@@ -251,8 +262,10 @@ test('the same through the audio engine, and with Next pressed twice', opts, asy
     assert.equal(r.track, r.want);
     assert.ok(r.heardAt !== null && r.heardAt > 2000, `the new song sounded after the slow signing (${r.heardAt} ms)`);
     assert.equal(r.gaps.length, 0, `no deck played from ${r.gaps[0]} to ${r.gaps.at(-1)} ms`);
-    assert.ok(r.maxPeakWhileWaiting < 0.001, `the engine's output is silent while the outgoing deck waits (peak ${r.maxPeakWhileWaiting})`);
-    assert.ok(r.released !== null && r.released < 1000, `the outgoing deck lets go once the new one plays (${r.released} ms)`);
+    assert.ok(r.lastWaiting === null || r.lastWaiting.peak < 0.001, `the engine's output is silent by the time the new song sounds (${JSON.stringify(r.lastWaiting)})`);
+    timing(r.maxPeakWhileWaiting < 0.001, `the engine's output is silent from 1.2 s while the outgoing deck waits (peak ${r.maxPeakWhileWaiting})`);
+    assert.ok(r.released !== null, 'the outgoing deck lets go once the new one plays');
+    timing(r.released < 1000, `the outgoing deck lets go within 1 s of the new one playing (${r.released} ms)`);
     assert.deepEqual(r.states, ['playing']);
 
     // Next twice, 150 ms apart, to songs not signed yet: the song that was playing goes on, silent,
@@ -304,7 +317,9 @@ test('the same through the audio engine, and with Next pressed twice', opts, asy
     const stopped = await page.evaluate(async () => {
       const p = __cp.player, at = p.positionMs();
       __actions.stop();
-      await new Promise((r) => setTimeout(r, 600));
+      // Stop fades out, then pauses and lets the decks go: wait for that, not for a guessed 600 ms.
+      const t0 = performance.now();
+      while (performance.now() - t0 < 10_000 && !(p.state === 2 && p.decks.every((d) => d.paused))) await new Promise((r) => setTimeout(r, 20));
       return { at, now: p.positionMs(), state: p.state, decks: p.decks.map((d) => ({ paused: d.paused, src: !!d.getAttribute('src'), current: d === p.audio, preload: d.preload, ready: d.readyState })) };
     });
     assert.equal(stopped.state, 2, 'paused');
