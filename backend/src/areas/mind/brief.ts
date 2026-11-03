@@ -64,6 +64,8 @@ export interface BriefInput {
   /** The owner's calendar for section 1 (briefing/calendar-store.ts briefLines): today's events
    * still on, tomorrow's first, a failing link; a shared link's marked `(outside)`. */
   calendar?: string[];
+  /** Section 1's day pulse (watches/brief.ts): the wake budget, and why a watch woke this session. */
+  pulse?: string[];
 }
 
 /** Formatters made once per zone (one per line cost the briefing tens of ms of CPU). */
@@ -78,7 +80,7 @@ function format(tz: string, kind: 'clock' | 'weekday'): Intl.DateTimeFormat {
   }
   return f;
 }
-const clock = (at: number, tz: string) => format(tz, 'clock').format(at);
+export const clock = (at: number, tz: string) => format(tz, 'clock').format(at);
 const weekday = (at: number, tz: string) => format(tz, 'weekday').format(at);
 
 /** A message's files after its words: ref, type, a memo's length, name (quoted as JSON, so a name
@@ -223,10 +225,10 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     if (i.yesterday.note) return renderDayNote(i.yesterday.note, b, more, !i.tainted);
     return yesterday.length ? budgeted(yesterday, b, 'newest', more) : 'No messages yesterday.';
   };
-  // Today's state: the calendar after the lines above, in its own budget, never cutting them.
-  const calendar = i.calendar?.length
-    ? `\n${budgeted(i.calendar, 700, 'oldest', (k) => `(+${k} more: th get /v1/briefing/calendar days=2)`)}`
-    : '';
+  // Today's state: the watches, then the calendar, after the lines above, each in its own budget.
+  const part = (l: string[] | undefined, b: number, more: string) =>
+    l?.length ? `\n${budgeted(l, b, 'oldest', (k) => `(+${k} more: ${more})`)}` : '';
+  const calendar = part(i.pulse, 1_200, 'th watch list') + part(i.calendar, 700, 'th get /v1/briefing/calendar days=2');
   const body: Record<number, string> = {
     1: now.slice(0, 500) + calendar,
     2: make(2, 2_800, false).slice(0, 2_800),

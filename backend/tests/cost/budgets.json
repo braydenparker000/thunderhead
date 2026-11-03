@@ -105,23 +105,23 @@
   },
   "POST /v1/mind/brief (claim, 20 messages) (Core)": {
     "rows_read_max": 145,
-    "rows_written_max": 50
+    "rows_written_max": 51
   },
   "POST /v1/mind/brief (no claim, no setting stored) (Core)": {
-    "rows_read_max": 176,
+    "rows_read_max": 183,
     "rows_written_max": 0
   },
-  "POST /v1/mind/brief (no claim, 18 settings stored) (Core)": {
-    "rows_read_max": 194,
+  "POST /v1/mind/brief (no claim, 19 settings stored) (Core)": {
+    "rows_read_max": 203,
     "rows_written_max": 0
   },
   "PATCH /v1/settings, 1 catalogue key (Core)": {
     "rows_read_max": 0,
     "rows_written_max": 2
   },
-  "PATCH /v1/settings, every mind setting (18 keys) (Core)": {
+  "PATCH /v1/settings, every mind setting (19 keys) (Core)": {
     "rows_read_max": 0,
-    "rows_written_max": 36
+    "rows_written_max": 38
   },
   "GET /v1/live/wait (nothing new, 1 s) (Core)": {
     "rows_read_max": 30,
@@ -156,7 +156,7 @@
     "rows_written_max": 0
   },
   "cron tick, the daily prune pass (Core)": {
-    "rows_read_max": 132,
+    "rows_read_max": 136,
     "rows_written_max": 18
   },
   "cron tick, nothing due (Core)": {
@@ -317,10 +317,18 @@
   },
   "cron tick, resolving a prediction (Core)": {
     "rows_read_max": 62,
-    "rows_written_max": 8
+    "rows_written_max": 9
   },
   "GET /v1/insight (Core)": {
     "rows_read_max": 62,
+    "rows_written_max": 0
+  },
+  "GET /v1/mind/watches (Core)": {
+    "rows_read_max": 8,
+    "rows_written_max": 0
+  },
+  "GET /v1/mind/usage (Core)": {
+    "rows_read_max": 10,
     "rows_written_max": 0
   },
   "POST /v1/ops/reports (Core)": {

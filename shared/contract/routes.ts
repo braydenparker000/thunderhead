@@ -92,6 +92,8 @@ export const ROUTES = {
   'POST /v1/mind/typing': { who: D, phase: 'P2' },
   'POST /v1/mind/stop': { who: D, phase: 'P2', note: 'the owner taps Stop: the work ends, not the session' },
   'GET /v1/mind/wakes': { who: AGENTS_READ, phase: 'P2' },
+  'GET /v1/mind/watches': { who: AGENTS_READ, phase: 'P9', note: 'the day pulse: waiting watches, the last day\'s others, the wake budget' },
+  'GET /v1/mind/usage': { who: AGENTS_READ, phase: 'P9', note: 'the meter: wakes by cause, minutes awake, night minutes, watches (today, 7 days)' },
   'POST /v1/mind/brief': { who: MIND, phase: 'P2' },
   'POST /v1/mind/status': { who: MIND, phase: 'P2' },
   'POST /v1/mind/notes': { who: MIND, phase: 'P2' },
@@ -108,8 +110,7 @@ export const ROUTES = {
   'PUT /v1/surfaces/:app/:slot': { who: ['C', 'N'], phase: 'P2' },
   'DELETE /v1/surfaces/:app/:slot': { who: ['D', 'C', 'N'], phase: 'P2' },
   'POST /v1/media/sign': {
-    who: ['D', 'C', 'N'],
-    phase: 'P2',
+    who: ['D', 'C', 'N'], phase: 'P2',
     note: 'music: refs (device only, P5), book: refs (P7); file: refs are not signable yet; 503 not_configured until the signing key is set',
   },
 

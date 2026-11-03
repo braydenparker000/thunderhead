@@ -75,9 +75,11 @@ test('every action the mind takes has a standing-permission class; floors are ma
   const classes = new Set(c.PERMIT_CLASSES);
   const floors = Object.keys(c.PERMIT_FLOORS);
   for (const [name, v] of Object.entries(c.VERBS)) {
-    // No class only for the owner's own words (memory.note), which its area checks; never gated.
+    // No class only for the owner's own words (memory.note), which its area checks, and the mind's
+    // own bookkeeping (the watches, which the owner's wake budget bounds instead); never gated.
     if (v.permit === null) {
-      assert.deepEqual([name, c.classOf(name), v.floor], ['memory.note', null, undefined]);
+      assert.ok(['memory.note', 'watch.set', 'watch.cancel'].includes(name), `${name}: no class`);
+      assert.deepEqual([c.classOf(name), v.floor], [null, undefined], name);
       continue;
     }
     assert.ok(classes.has(v.permit), `${name}: permit class`);

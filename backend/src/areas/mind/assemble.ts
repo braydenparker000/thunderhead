@@ -22,11 +22,12 @@ import * as proposals from '../proposals/store';
 import { mindSettingLines } from '../settings/catalog';
 import { quietUntil } from '../settings/quiet';
 import * as watchdogs from '../watchdogs/ops';
-import { buildBrief } from './brief';
+import { buildBrief, clock } from './brief';
 import { nightDayOf, nightDone, nightLine } from './night';
 import * as sessionNotes from './notes';
 import * as store from './store';
 import { backoff } from './wake';
+import { briefLines as pulseLines } from './watches/brief';
 
 /** How many current facts a briefing reads at most (newest first), and how many rules. */
 const FACTS_READ = 2_000;
@@ -104,6 +105,8 @@ export function assemble(
     settings: mindSettingLines(db),
     // Reflex handles breakage: the owner's day is not its business.
     calendar: role === 'reflex' ? [] : briefLines(calendarView(db, now, tz), tz),
+    // The day pulse: the wake budget, and the watches that woke this session (RUNTIME.md §3).
+    pulse: role === 'reflex' ? [] : pulseLines(db, { sessionId, now, tz, tainted, clock: (at) => clock(at, tz) }),
   });
   return {
     wake,

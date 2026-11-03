@@ -20,6 +20,9 @@ export const CHANGE_KINDS = [
   'mind_status',
   'error',
   'work',
+  // A watch set, met, fired or refused (watches.ts); a prediction resolved (predictions.ts).
+  'watch',
+  'prediction',
 ] as const;
 export type ChangeKind = (typeof CHANGE_KINDS)[number];
 

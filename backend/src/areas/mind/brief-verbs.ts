@@ -25,7 +25,10 @@ function positions(settings: readonly string[]): Map<string, string> {
 
 function line(name: string, v: VerbSpec, at: Map<string, string>): string {
   const runs = v.side === 'worker' ? 'worker' : v.intent ? `app (${v.app})` : 'phone';
-  let permit = "no class (the owner's own words only)";
+  // No class: the owner's own words (memory.note), or the mind's own bookkeeping (the watches).
+  let permit = name.startsWith('watch.')
+    ? 'no class (yours; each wake it fires counts against the wake budget)'
+    : "no class (the owner's own words only)";
   if (v.permit !== null) {
     const now = v.floor ? `ask (${PERMIT_FLOORS[v.floor]})` : (at.get(v.permit) ?? 'unknown');
     permit = `${v.permit}: ${v.tell_min && now === 'quiet' ? 'tell (never quiet)' : now}`;

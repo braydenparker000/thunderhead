@@ -37,8 +37,15 @@ export interface LedgerDraft {
   permit?: PermitPosition | null;
 }
 
+/** One change-feed row a commit wrote, as a watch reads it (areas/mind/watches). */
+export interface Made {
+  kind: ChangeKind;
+  ref: string | null;
+}
+
 export class Writer {
   readonly kinds = new Set<ChangeKind>();
+  readonly made: Made[] = [];
   seq = 0;
   /** Set while an approved proposal's op runs: every ledger row it writes carries its id. */
   proposal: string | null = null;
@@ -52,6 +59,7 @@ export class Writer {
   change(kind: ChangeKind, ref: string | null = null): void {
     this.seq = feed.addChange(this.db, kind, ref, this.at);
     this.kinds.add(kind);
+    this.made.push({ kind, ref });
   }
 
   /** One ledger row (and its feed entry). Returns the ledger id. */
@@ -86,11 +94,12 @@ export interface Committed<T> {
   value: T;
   kinds: ChangeKind[];
   seq: number;
+  made: Made[];
 }
 
 /** Runs `fn` in one SQLite transaction with a Writer. A throw rolls back everything. */
 export function commit<T>(storage: DurableObjectStorage, db: Db, fn: (w: Writer) => T, at = Date.now()): Committed<T> {
   const w = new Writer(db, at);
   const value = storage.transactionSync(() => fn(w));
-  return { value, kinds: [...w.kinds], seq: w.seq };
+  return { value, kinds: [...w.kinds], seq: w.seq, made: w.made };
 }

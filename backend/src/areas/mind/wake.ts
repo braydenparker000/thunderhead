@@ -24,7 +24,8 @@ const REQUEUES_IN_A_ROW = 3;
 const BACKOFF_MIN = [15, 30, 60, 120];
 export const NOT_WAKING = "The mind isn't waking (likely a usage limit or an outage). I'll answer when it's back.";
 
-export type WakeReason = 'prewarm' | 'message' | 'requeue';
+/** `watch`: a met watch (watches/pulse.ts), which checks its budget and the live lease first. */
+export type WakeReason = 'prewarm' | 'message' | 'requeue' | 'watch';
 export interface ToFire {
   id: string;
   task: MindRole;

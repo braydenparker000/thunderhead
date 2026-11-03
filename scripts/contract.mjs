@@ -231,6 +231,15 @@ function mind() {
     permits: permits(),
     lint: { banned_phrases: BANNED_PHRASES },
     watchdogs: { limits: c.WATCHDOG_LIMITS, reflex_procedure: c.REFLEX_PROCEDURE, items: c.WATCHDOGS },
+    // The day pulse (`th watch`): the kinds, the limits, what an event or a change watch may name.
+    watches: {
+      kinds: c.WATCH_KINDS,
+      limits: c.WATCH_LIMITS,
+      states: c.WATCH_STATES,
+      worker_events: c.WORKER_EVENTS,
+      changes: c.WATCH_CHANGES,
+      wake_causes: c.WAKE_CAUSES,
+    },
     reader: {
       limits: c.READER_LIMITS,
       kinds: Object.fromEntries(
@@ -432,6 +441,18 @@ function docs() {
     L.push(
       `| \`${n}\` | ${cell(w.trips)} | ${w.severity} | ${cell(w.slo)} | ${w.wakes ? 'yes' : 'no'} | ${w.phase} | ${w.deferred ? `waits for ${cell(w.deferred)}` : c.BUILT_PHASES.includes(w.phase) ? 'built' : 'later'} |`,
     );
+  L.push(
+    '',
+    '## Watches',
+    '',
+    `The day pulse (RUNTIME.md §3): \`watch.set\` stores a condition (${c.WATCH_KINDS.map((k) => `\`${k}\``).join(', ')}) that, met once, wakes the chat with its why and note, within the owner's wake budget (\`mind.wake_budget\`). At most ${c.WATCH_LIMITS.live} wait at once; an \`at\` watch is at most ${c.WATCH_LIMITS.ahead_days} days ahead, and an event or change watch lapses unmet after as long; a met watch that cannot wake the mind yet waits ${c.WATCH_LIMITS.queued_hours} hours. States: ${c.WATCH_STATES.map((k) => `\`${k}\``).join(' · ')}. The meter counts wakes by cause: ${c.WAKE_CAUSES.map((k) => `\`${k}\``).join(' · ')}.`,
+    '',
+    '| Event watch (beside every sense type) | When |',
+    '|---|---|',
+  );
+  for (const [n, d] of Object.entries(c.WORKER_EVENTS)) L.push(`| \`${n}\` | ${cell(d)} |`);
+  L.push('', '| Change watch | Met when |', '|---|---|');
+  for (const [n, d] of Object.entries(c.WATCH_CHANGES)) L.push(`| \`${n}\` | ${cell(d)} |`);
   L.push('', '## Error codes', '', '| Code | Status | Message |', '|---|---|---|');
   for (const [code, [status, message]] of Object.entries(c.CODES)) L.push(`| \`${code}\` | ${status} | ${cell(message)} |`);
   L.push('', '## Phrase lint', '', BANNED_PHRASES.map((p) => `"${p}"`).join(' · '), '');
