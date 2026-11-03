@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { CONTENT_TYPES, configJs } from '../scripts/site-config.mjs';
 import { TONE, longTone } from './fixtures/ogg-make.mjs';
+import { timing } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (local files)' };
@@ -110,10 +111,14 @@ test('the fixture twice: the second copy starts at the first’s true end, gaple
     rec.port.onmessage = (e) => chunks.push(...e.data);
     ctx.createMediaElementSource(a).connect(rec);
     rec.connect(ctx.destination);
+    const from = ctx.currentTime;
     w.feed.load([{ url: () => '/media/tone.opus' }, { url: () => '/media/tone.opus', bytes: 13722, durationMs: 3000 }]);
     await a.play();
     await new Promise((resolve) => { w.feed.addEventListener('ended', resolve); setTimeout(resolve, 20_000); });
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    // The recorder has passed on everything up to the end and one block more (it posts every 4,096
+    // samples from the audio thread), rather than a guessed 300 ms.
+    const need = Math.ceil((ctx.currentTime - from) * 48000) + 4096;
+    for (const end = performance.now() + 10_000; chunks.reduce((n, c) => n + c.length, 0) < need && performance.now() < end; ) await new Promise((resolve) => setTimeout(resolve, 20));
     const buffered = [];
     for (let i = 0; i < a.buffered.length; i++) buffered.push([a.buffered.start(i), a.buffered.end(i)]);
     // The recording: where the sound starts and stops, the longest silence inside it, and the 440 Hz
@@ -146,7 +151,7 @@ test('the fixture twice: the second copy starts at the first’s true end, gaple
   assert.deepEqual(starts.map((e) => [e.index, e.at]), [[0, 0], [1, 3]]);
   assert.deepEqual(ends.map((e) => [e.index, e.at]), [[0, 3], [1, 6]], 'each copy ends at its true end: 144000 samples after its start');
   assert.equal(starts[1].at - ends[0].at, 0, 'on the timeline the second copy begins on the sample the first ends');
-  assert.ok(starts[1].late <= 250, `the start event came ${starts[1].late} ms after the join`);
+  timing(starts[1].late <= 250, `the start event came ${starts[1].late} ms after the join`);
   assert.equal(r.events.at(-1).type, 'ended');
   assert.equal(r.buffered.length, 1, 'one buffered range: nothing missing at the join');
   assert.ok(Math.abs(r.buffered[0][0]) < 1e-3 && Math.abs(r.buffered[0][1] - 6) < 1e-3, `buffered ${JSON.stringify(r.buffered)}`);
