@@ -129,6 +129,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/work/thread/messages` | M D C N | P4 | built |  |
 | `GET /v1/briefing` | D | P4 | built |  |
 | `PUT /v1/briefing/place` | D | P8 | built | the weather's place, by a town's name |
+| `GET /v1/briefing/calendar` | D C N | P8 | built | ?days=1–14 (7): the owner's calendar events kept from today's midnight, each link by its host only; `source: outside` marks a shared link's words |
 | `GET /v1/music/catalog` | D | P5 | built | the ported player's format; ETag, 304; 409 before the import |
 | `GET /v1/music/waveforms/:id` | D | P5 | built |  |
 | `GET /v1/music/tracks` | C N | P5 | built | ?q=&limit=: tracks by their tags (songs rated 1 left out), for a playlist the mind makes; &untagged=1: the night's next ≤ 200 songs needing a note, `more` |

@@ -21,6 +21,7 @@ import { libraryObject } from '../../objects/library';
 import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
 import { sensesObject } from '../../objects/senses';
+import { forAgents } from '../settings/catalog';
 import { errorsBody, errorsQuery, meterQuery, perfBody, settingsPatch } from './schema';
 
 export function version(env: Env): Version {
@@ -143,7 +144,9 @@ export const opsRoutes = new Hono<AppEnv>()
     return c.json((await fresh(coreObject(c.env).meterDays(q.days ?? 1))) satisfies MeterResponse);
   })
   .get('/settings', guard('GET /v1/settings'), async (c) => {
-    return c.json((await coreObject(c.env).settings()) satisfies Settings);
+    const all = (await coreObject(c.env).settings()) satisfies Settings;
+    // The mind reads its settings here: never a calendar link's address (settings/catalog.ts).
+    return c.json(whoOf(principalOf(c)) === 'D' ? all : (forAgents(all) as Settings));
   })
   .patch('/settings', guard('PATCH /v1/settings'), async (c) => {
     const patch = await json(c, settingsPatch);

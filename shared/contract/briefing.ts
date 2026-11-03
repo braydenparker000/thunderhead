@@ -1,6 +1,6 @@
 // What GET /v1/briefing answers (BRIEFING.md): the page's title line, the date and a line of the
-// day's counts, the weather (P8), its tiles in order ("Waiting on you", "Due", then the night
-// shift's tiles, P8, then "Holidays"), one line about Muse when there is something to say, one
+// day's counts, the weather (P8), its tiles in order ("Waiting on you", "Today" from the owner's
+// calendars, "Due", then the night shift's tiles, P8, then "Holidays"), one line about Muse when there is something to say, one
 // about the night shift when it didn't arrange the page, and one about the day's database use from
 // 60% of the Free plan's limit. The Worker fills Due, Holidays and the day's line itself every
 // morning, without a mind session. Counts and titles only, except the Due sheet's reminders (the
@@ -62,13 +62,81 @@ export interface HolidayTile {
   in_days: number;
 }
 
-/** BRIEFING.md §1 "Today": the owner-local date, and one line made from counts (reminders due
- * today, new podcast episodes, songs added in the last day), never from message text; null when
- * every count is zero. */
+/** BRIEFING.md §2 "Today" (2026-11-02): one event of the owner's calendars (`briefing.calendars`,
+ * areas/briefing/calendar.ts), as the Worker keeps it and `GET /v1/briefing/calendar` lists it.
+ * `source` is `outside` for a link marked shared: its words were written by someone else. */
+export interface CalendarEvent {
+  uid: string;
+  /** ms; an all-day event runs from the owner's midnight of its first day to that of the day after its last. */
+  start: number;
+  end: number;
+  all_day: boolean;
+  /** ≤ 80 characters, one line; "(no title)" when it had none. */
+  title: string;
+  location: string | null;
+  source: 'owner' | 'outside';
+}
+
+/** One line of the "Today" tile: the start in the owner's zone ("18:00"; null for all day) and the
+ * event as kept. */
+export interface CalendarItem extends CalendarEvent {
+  time: string | null;
+}
+
+/** BRIEFING.md §2 "Today": the owner's calendar events not yet over today (all-day ones first) and
+ * tomorrow's first; a line when a link has failed for 48 hours (or never worked). */
+export interface CalendarTile {
+  kind: 'calendar';
+  label: 'Today';
+  /** "18:00 Dinner", "All day: Bins out", "Tomorrow 09:00 Standup" or "Calendar not reachable". */
+  value: string;
+  /** "2 things on today", "Nothing else today", or the failure line. */
+  detail: string;
+  /** At most `CALENDAR_LIMITS.tile_items`, soonest first. */
+  today: CalendarItem[];
+  tomorrow: CalendarItem | null;
+  /** "Calendar not reachable since Saturday 14:00", "A calendar link redirects elsewhere." … or null. */
+  notice: string | null;
+}
+
+/** What `GET /v1/briefing/calendar?days=` answers: the kept events from the owner's midnight today
+ * for `days` days, and each link by its host only (a link is a key to its calendar). */
+export interface CalendarResponse {
+  items: CalendarEvent[];
+  feeds: {
+    host: string;
+    source: 'owner' | 'outside';
+    /** Last good fetch, the first failure since, and its code; all null before the first try. */
+    ok_at: number | null;
+    failing_since: number | null;
+    error: string | null;
+  }[];
+}
+
+/** The calendar's fetch and its rows (BRIEFING.md "Today", PRIVACY.md §5): each link at most 1 MB
+ * in 10 s, no redirect followed, `text/calendar` or `text/plain`; the next 14 days kept, at most
+ * 300 events a link; a failing link's rows kept 48 hours; asked again when the Briefing opens and
+ * the last try is over 30 minutes old, and on the day roll. */
+export const CALENDAR_LIMITS = {
+  bytes: 1_048_576,
+  timeout_ms: 10_000,
+  days: 14,
+  events: 300,
+  keep_failed_h: 48,
+  stale_min: 30,
+  title: 80,
+  location: 80,
+  tile_items: 6,
+} as const;
+
+/** BRIEFING.md §1 "Today": the owner-local date, and one line made from counts (calendar events
+ * still on today, reminders due today, new podcast episodes, songs added in the last day), never
+ * from message text; null when every count is zero. */
 export interface TodayLine {
   /** "Monday 2 November". */
   date: string;
-  /** "2 reminders due today, 3 new episodes and 12 songs added." ≤ 60 characters, or null. */
+  /** "2 things on today, 2 reminders due, 3 new episodes and 12 songs added." ≤ 60 characters
+   * (the shorter wording, then the last counts dropped, until it fits), or null. */
   line: string | null;
 }
 
@@ -95,7 +163,7 @@ export interface PutPlaceRequest {
   name: string;
 }
 
-export type BriefingTile = WaitingTile | DueTile | NightTile | HolidayTile;
+export type BriefingTile = WaitingTile | CalendarTile | DueTile | NightTile | HolidayTile;
 
 export interface BriefingResponse {
   day: string;
@@ -103,7 +171,7 @@ export interface BriefingResponse {
   /** The date and the day's counts (absent in answers from before 2026-11-02). */
   today?: TodayLine;
   weather: WeatherTile;
-  /** At most 8, in order: "Waiting on you", "Due", the night's tiles by slot, "Holidays". */
+  /** At most 8, in order: "Waiting on you", "Today", "Due", the night's tiles by slot, "Holidays". */
   tiles: BriefingTile[];
   /** "Muse hasn't checked in since yesterday." / null */
   muse: string | null;

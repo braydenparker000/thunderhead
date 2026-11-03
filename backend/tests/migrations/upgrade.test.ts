@@ -96,6 +96,9 @@ describe('upgrade from P2', () => {
         'podcast_follows',
         // Step 29: the mixes music.mix_save keeps.
         'mixes',
+        // Step 31: the owner's calendars.
+        'calendar_events',
+        'calendar_feeds',
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       sql.exec('ALTER TABLE surfaces DROP COLUMN facts_json');

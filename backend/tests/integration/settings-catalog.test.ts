@@ -19,6 +19,7 @@ function other(s: SettingSpec): SettingValue {
   if (s.kind === 'switch') return !s.default;
   if (s.kind === 'order') return [...(s.default as readonly string[])].reverse().slice(1);
   if (s.kind === 'text') return 'x';
+  if (s.kind === 'links') return [{ url: 'https://calendar.example.com/a/basic.ics', mine: false }];
   return values.find((v) => v !== s.default) as SettingValue;
 }
 
@@ -90,6 +91,48 @@ describe('the settings catalogue', () => {
       body: { 'briefing.tiles': ['report', 'weather'], 'briefing.holidays': 'GB' },
     });
     expect([ok.status, ok.body['briefing.tiles']]).toEqual([200, ['report', 'weather']]);
+  });
+
+  it('takes up to 3 calendar links, each a public https address, and says why it refuses one', async () => {
+    const put = (v: unknown) =>
+      apiJson<Refused & { error: { details?: { path: string; issue: string }[] } }>('PATCH', '/v1/settings', {
+        token: D,
+        body: { 'briefing.calendars': v },
+      });
+    const link = (url: string, mine = true) => [{ url, mine }];
+    const why: [unknown, string, string][] = [
+      [link('http://calendar.example.com/a.ics'), 'briefing.calendars.0.url', 'Only https links'],
+      [link('https://192.0.2.10/a.ics'), 'briefing.calendars.0.url', 'Only a public address'],
+      [link('https://localhost/a.ics'), 'briefing.calendars.0.url', 'Only a public address'],
+      [link('https://calendar.local/a.ics'), 'briefing.calendars.0.url', 'Only a public address'],
+      [link('https://user:pw@calendar.example.com/a.ics'), 'briefing.calendars.0.url', 'user, password or port'],
+      [link(`https://calendar.example.com/${'a'.repeat(500)}.ics`), 'briefing.calendars.0.url', 'over 512 characters'],
+      [link('not a link'), 'briefing.calendars.0.url', 'That is not a link.'],
+    ];
+    for (const [value, path, words] of why) {
+      const r = await put(value);
+      expect([r.status, r.body.error.details?.[0]?.path], JSON.stringify(value)).toEqual([422, path]);
+      expect(r.body.error.details?.[0]?.issue).toContain(words);
+    }
+    const a = 'https://calendar.example.com/a.ics';
+    for (const bad of [
+      [...link(a), ...link(a, false)],
+      ['a', 'b', 'c', 'd'].map((x) => ({ url: `https://calendar.example.com/${x}.ics`, mine: true })),
+      [{ url: a }],
+      [{ url: a, mine: true, extra: 1 }],
+      a,
+    ])
+      expect((await put(bad)).status, JSON.stringify(bad)).toBe(422);
+    const three = ['a', 'b', 'c'].map((x, i) => ({ url: `https://calendar.example.com/${x}.ics`, mine: i !== 1 }));
+    expect((await put(three)).status).toBe(200);
+    // The owner's devices see the links; the mind sees only each link's host and its mark.
+    expect((await apiJson<Settings>('GET', '/v1/settings', { token: D })).body['briefing.calendars']).toEqual(three);
+    expect((await apiJson<Settings>('GET', '/v1/settings', { token: C })).body['briefing.calendars']).toEqual([
+      { host: 'calendar.example.com', mine: true },
+      { host: 'calendar.example.com', mine: false },
+      { host: 'calendar.example.com', mine: true },
+    ]);
+    expect((await put([])).status).toBe(200);
   });
 
   it("the mind's briefing lists every mind setting as key: value, marked (default) until changed", async () => {

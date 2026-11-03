@@ -3,10 +3,11 @@
 // uploads, the tick's leases, deadlines and upload batches, and what the Briefing page shows. A
 // code layer of the one Core class. (The Daily Board, its brief and approval were cut on 2026-10-31.)
 
-import type { BriefingResponse } from '../../../shared/contract/briefing.ts';
+import type { BriefingResponse, CalendarEvent, CalendarResponse } from '../../../shared/contract/briefing.ts';
 import type { Permit } from '../../../shared/contract/permits.ts';
 import type { MuseNote, WorkHello, WorkOrder, WorkOrderPut, WorkStatus } from '../../../shared/contract/work.ts';
 import { briefing } from '../areas/briefing/assemble';
+import * as calendar from '../areas/briefing/calendar-store';
 import { type Forecast, type Place, weatherTile } from '../areas/briefing/weather';
 import { logicalDay } from '../areas/conversation/day';
 import { deleteSetting, getSetting, putSetting } from '../areas/settings/store';
@@ -137,5 +138,27 @@ export abstract class CoreWork extends CoreBackups {
       if (now && now.lat === place.lat && now.lon === place.lon)
         putSetting(this.db, 'weather.forecast', f, 'worker', f.at);
     });
+  }
+
+  // --- the owner's calendars (BRIEFING.md "Today"): the Worker fetches, Core keeps --------------
+
+  /** Each calendar link with whether it is due a fetch (`all`: every one, the day roll), and the zone. */
+  calendarPlan(all = false): { tz: string; links: ReturnType<typeof calendar.plan> } {
+    return { tz: this.tz(), links: calendar.plan(this.db, Date.now(), all) };
+  }
+
+  /** A link's events from a good fetch (ignored if the link was removed meanwhile). */
+  calendarPut(feed: string, url: string, rows: CalendarEvent[], at: number): void {
+    this.ctx.storage.transactionSync(() => calendar.put(this.db, feed, url, rows, at));
+  }
+
+  /** A link's failed fetch: its code; its events stay for 48 hours. */
+  calendarFailed(feed: string, url: string, code: string, at: number): void {
+    this.ctx.storage.transactionSync(() => calendar.failed(this.db, feed, url, code, at));
+  }
+
+  /** GET /v1/briefing/calendar. */
+  calendarList(days: number): CalendarResponse {
+    return calendar.list(this.db, Date.now(), this.tz(), days);
   }
 }

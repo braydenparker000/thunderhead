@@ -28,7 +28,8 @@ const wrangler = Object.values(
   raw(import.meta.glob('../../wrangler.jsonc', { query: '?raw', import: 'default', eager: true })),
 )[0];
 
-/** Migration steps a branch built beside another may skip in the numbering (none). */
+/** Migration steps a branch built beside another may skip in the numbering: 30 is taken by a branch
+ * in flight (2026-11-02); the calendar is 31 and ships after it. */
 const PENDING: number[] = [];
 
 const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');

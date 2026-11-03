@@ -22,6 +22,30 @@ CREATE TABLE backups (
 
 CREATE INDEX backups_done ON backups (state, finished_at);
 
+CREATE TABLE calendar_events (
+  feed TEXT NOT NULL,
+  uid TEXT NOT NULL,
+  start INTEGER NOT NULL,
+  end INTEGER NOT NULL,
+  all_day INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  location TEXT,
+  source TEXT NOT NULL,
+  PRIMARY KEY (feed, uid, start)
+  ) WITHOUT ROWID;
+
+CREATE INDEX calendar_events_start ON calendar_events (start);
+
+CREATE TABLE calendar_feeds (
+  feed TEXT PRIMARY KEY,
+  checked_at INTEGER NOT NULL,
+  ok_at INTEGER,
+  failing_since INTEGER,
+  error TEXT,
+  hash TEXT,
+  n INTEGER NOT NULL DEFAULT 0
+  ) WITHOUT ROWID;
+
 CREATE TABLE changes (
   seq INTEGER PRIMARY KEY,
   kind TEXT NOT NULL,

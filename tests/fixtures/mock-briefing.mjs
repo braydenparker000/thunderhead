@@ -12,6 +12,18 @@ export function briefingState() {
   };
 }
 
+/** The Today tile (BRIEFING.md "Today") as the Worker makes it from invented calendars: two timed
+ * events and one all day still on today, tomorrow's first, and the line for a link that failed. */
+export function calendarTile({ notice = null } = {}) {
+  const ev = (time, title, more = {}) => ({ uid: title, start: 0, end: 0, all_day: time === null, title, location: null, source: 'owner', time, ...more });
+  return {
+    kind: 'calendar', label: 'Today', value: '15:00 Dentist', detail: '3 things on today',
+    today: [ev(null, 'Bins out'), ev('15:00', 'Dentist', { location: 'High Street' }), ev('18:30', 'Dinner', { source: 'outside' })],
+    tomorrow: ev('09:00', 'Standup'),
+    notice,
+  };
+}
+
 /** The weather tile for a place, 12 synthetic hours from now. */
 export function weatherFor(place) {
   const start = Math.floor(Date.now() / 3_600_000) * 3_600_000;
