@@ -147,6 +147,12 @@ it is, plus existing date/text fields. Day-note editing retains its content and 
 The How well I know you meter keeps its existing calculations and display; only its surrounding
 surfaces change.
 
+Learned from outside (2026-11-02, MEMORY.md §6 M11, §12) comes first when it has anything: the
+facts a session wrote after reading outside text, or the mind's guesses, newest first, each with
+"waiting for you" and the day. Two actions only: Keep (makes it the owner's) and Forget (the same
+confirmation and Undo as above). Loose ends and days a session wrote after reading outside text say
+so in their line.
+
 ### 4.5 Connected apps
 
 Hidden. This task does not add a connection, status integration or access grant.

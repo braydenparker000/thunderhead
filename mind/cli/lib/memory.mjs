@@ -1,5 +1,9 @@
 // Memory commands: recall, remember, confirm, supersede, forget, thread, day, daynote, facts
 // (RUNTIME.md §5.3, MEMORY.md §3, API.md §11.13). Writes are small operations, never documents.
+// Every write prints the `provenance` the Worker gave it (MEMORY.md §6 M11): `owner`, `observed`,
+// or `outside` once this session has read outside text (it waits for the owner's keep), and every
+// recall hit carries its own. A memory hit labelled `outside` comes kept back (its ref and label,
+// not its words) unless `--outside` asks for it, which marks this session (MEMORY.md §6 M11f).
 import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
 import {EXIT, ThError, invalid, jsonFlag, list, need, out, toMs} from './io.mjs';
@@ -32,18 +36,19 @@ async function ops(list, batchId = uuidv7()) {
   return data;
 }
 
-/** {fact_id, ledger_id} when applied, {fact_id: null, proposal_id} when the Worker routed it to the owner. */
+/** {fact_id, ledger_id, provenance} when applied, {fact_id: null, proposal_id} when the Worker
+ * routed it to the owner. */
 function factResult(data) {
   const applied = data.applied?.[0];
-  if (applied) return {fact_id: applied.fact_id, ledger_id: applied.ledger_id};
+  if (applied) return {fact_id: applied.fact_id, ledger_id: applied.ledger_id, provenance: applied.provenance ?? null};
   return {fact_id: null, proposal_id: data.proposals?.[0]?.proposal_id ?? null};
 }
 
 /** `th search` / `th recall`: federated search over the contract's sources (default: all built ones). */
 export async function recall(argv) {
-  const {flags, rest} = parseArgs(argv);
+  const {flags, rest} = parseArgs(argv, {bool: ['outside']});
   const q = rest.join(' ').trim();
-  if (!q) throw invalid('usage: th search <query> [--sources messages,facts,…] [--since <date>] [--until <date>] [--thread <id>] [--limit 20]');
+  if (!q) throw invalid('usage: th search <query> [--sources messages,facts,…] [--since <date>] [--until <date>] [--thread <id>] [--limit 20] [--outside]');
   if (q.length > 200) throw invalid('the query is over 200 characters');
   const asked = typeof flags.sources === 'string' ? flags.sources : typeof flags.kind === 'string' && flags.kind !== 'all' ? flags.kind : '';
   const sources = list(asked);
@@ -53,8 +58,10 @@ export async function recall(argv) {
   const {data} = await request('GET', '/v1/search', {query: {
     q, sources: sources.length ? sources.join(',') : undefined, since: toMs(flags.since, 'since'), until: toMs(flags.until, 'until'),
     thread: typeof flags.thread === 'string' ? flags.thread : undefined, limit: Number(flags.limit) || 20,
+    outside: flags.outside ? '1' : undefined,
   }});
-  out({items: (data.items || []).map(({source, ref, at, snippet, score}) => ({source, ref, at, snippet, score}))});
+  out({items: (data.items || []).map(({source, ref, at, snippet, score, provenance}) =>
+    ({source, ref, at, snippet, score, ...(provenance ? {provenance} : {})}))});
 }
 
 export async function remember(argv) {
@@ -73,8 +80,9 @@ export async function remember(argv) {
 export async function confirm(argv) {
   const {flags, rest} = parseArgs(argv);
   if (!rest[0]) throw invalid('usage: th confirm <fact id> --evidence <ids>');
-  await ops([{op: 'confirm', id: rest[0], evidence: evidenceRefs(flags.evidence)}]);
-  out({ok: true});
+  const data = await ops([{op: 'confirm', id: rest[0], evidence: evidenceRefs(flags.evidence)}]);
+  // A confirm keeps the fact's label: only the owner's tap makes an outside fact theirs.
+  out({ok: true, provenance: data.applied?.[0]?.provenance ?? null});
 }
 
 export async function supersede(argv) {
@@ -116,9 +124,9 @@ export async function thread(argv) {
     const owner = flags.owner ?? 'mind';
     if (owner !== 'mind' && owner !== 'owner') throw invalid('--owner must be mind or owner');
     const id = uuidv7();
-    await request('PUT', `/v1/memory/open-threads/${seg(id)}`,
+    const {data} = await request('PUT', `/v1/memory/open-threads/${seg(id)}`,
       {body: {text, owner, due_at: toMs(flags.due, 'due'), evidence: evidenceRefs(flags.evidence)}});
-    return out({id});
+    return out({id, provenance: data?.provenance ?? null});
   }
   if (sub === 'done' || sub === 'drop') {
     const id = words[0];
@@ -195,7 +203,8 @@ export async function daynote(argv) {
   if (!(importance >= 1 && importance <= 10)) throw invalid('--importance must be 1-10');
   const {data} = await request('PUT', `/v1/memory/day-notes/${d}`, {body: {summary: need(flags, 'summary'), decisions, importance}});
   // The owner edited this day: their note stands and this one was not written.
-  out(data.kept_owner_edit ? {version: data.version ?? null, kept_owner_edit: true} : {version: data.version ?? null});
+  const provenance = data.provenance ?? null;
+  out(data.kept_owner_edit ? {version: data.version ?? null, kept_owner_edit: true, provenance} : {version: data.version ?? null, provenance});
 }
 
 /** A UUID (version 8) from a name: the same name, the same id. */
@@ -244,4 +253,6 @@ export async function facts(argv) {
   out(sent[batchId] === sha ? {...applied(data), already: true} : applied(data));
 }
 
-const applied = data => ({applied: (data.applied || []).length, proposed: (data.proposals || []).length, rejected: data.rejected || []});
+/** A batch's counts; `outside`: how many of the applied ops the Worker labelled outside (MEMORY.md §6 M11). */
+const applied = data => ({applied: (data.applied || []).length, outside: (data.applied || []).filter(a => a.provenance === 'outside').length,
+  proposed: (data.proposals || []).length, rejected: data.rejected || []});

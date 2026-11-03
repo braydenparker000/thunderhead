@@ -100,7 +100,10 @@ const budgets = [
   // (2026-11-02) +1,808 measured (74,306): contract.js's verbs, batch 1 (17 more, each with its side
   // and whether it is an app's intent).
   // (2026-11-03, @muse) +104 measured (74,410): api.js's `say` sends the `mention` marker.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_410],
+  // (2026-11-03, provenance) +11 measured (74,421): contract.js's memory reasons `outside_rule`,
+  // `outside_supersede` and `outside_confirm` in place of `session_tainted` and `no_inferred_sensitive`
+  // (MEMORY.md §6 M11).
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_421],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -119,7 +122,9 @@ const budgets = [
   // (2026-11-03, @muse) +792 measured (108,663): an "@muse" marked and sent from the outbox, its
   // hint and length check (index.js), never waited on as the mind's (model.js), and Muse's done
   // line drawn as plain words (view.js).
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 108_663],
+  // (2026-11-03, provenance) +304 measured (108,967): the Memory registry's "Learned from outside"
+  // shelf and its `whose` ("From outside" for an outside fact taken for the owner's words).
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 108_967],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:

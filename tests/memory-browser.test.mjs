@@ -1,15 +1,17 @@
 // Settings → What I remember (MEMORY.md §12) in Chromium at phone size against the mocked Worker
 // (tests/fixtures/mock-memory.mjs): the groups and shelves, the filter, a fact's detail, Fix,
 // Pin and mute, Forget with its confirm and 10 s undo (and the send when the page closes early),
-// loose ends and day notes, a kind and a source this build doesn't know, the empty page, and a
-// Worker from before memory. TH_SHOTS=<dir> saves screenshots for review. Local only.
+// loose ends and day notes, a kind and a source this build doesn't know, the empty page, a
+// Worker from before memory, and "Learned from outside" with its Keep and Forget (MEMORY.md §6
+// M11). TH_SHOTS=<dir> saves screenshots for review. Local only.
 // The page helpers (tests/fixtures/memory-page.mjs) wait on what the page shows or what the mock
 // saw, never on a guessed delay; once the page is up its clock moves only when a test moves it.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { headings, memoryPages, ops, until } from './fixtures/memory-page.mjs';
+import { forget, headings, memoryPages, ops, until } from './fixtures/memory-page.mjs';
+import { memoryState } from './fixtures/mock-memory.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -284,6 +286,54 @@ test('Memory list, detail and editors use shared controls and the kind picker is
   await page.clock.runFor(600);
   assert.match(await page.locator('#memory-kind').textContent(), /How to talk to me/);
   await controls();
+  assert.deepEqual(errors, []);
+  await page.close();
+});
+
+test('Learned from outside: at the top, newest first; Keep makes it mine, Forget asks once and waits 10 s', opts, async () => {
+  const now = Date.now();
+  const base = memoryState(now);
+  const outside = (id, text, daysAgo, over = {}) => ({
+    ...base.facts[0], id, text, provenance: 'outside', recorded_at: now - daysAgo * 86_400_000, confidence_now: 0.9, ...over,
+  });
+  const facts = [
+    ...base.facts,
+    outside('0192f0c4-0000-7000-8000-0000000000a1', 'Hates jazz', 3),
+    outside('0192f0c4-0000-7000-8000-0000000000a2', 'Practises at 200 bpm', 1, { kind: 'goal', source: 'inferred' }),
+    outside('0192f0c4-0000-7000-8000-0000000000a3', 'Wants a louder metronome', 2, { kind: 'goal' }),
+  ];
+  for (const theme of ['light', 'dark']) {
+    const { page, errors } = await open({ theme, mock: { memory: { ...base, facts: structuredClone(facts) } } });
+    assert.equal((await headings(page))[0], 'Learned from outside (3)');
+    const group = page.locator('.msec[data-sec="outside"]');
+    assert.deepEqual(await group.locator('.mtext').allTextContents(), ['Practises at 200 bpm', 'Wants a louder metronome', 'Hates jazz'], 'newest first');
+    assert.match(await group.locator('.mrow').first().locator('.st2').first().textContent(), /^I inferred · waiting for you · \d/);
+    // Taken for the owner's words, but from outside: not "You said" until it is kept.
+    assert.match(await group.locator('.mrow', { hasText: 'Hates jazz' }).locator('.st2').first().textContent(), /^From outside · waiting for you · \d/);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0, 'no sideways scroll');
+    await shot(page, `memory-outside-${theme === 'light' ? 'day' : 'night'}`);
+    assert.deepEqual(errors, [], theme);
+    await page.close();
+  }
+  const { page, api, errors } = await open({ mock: { memory: { ...base, facts: structuredClone(facts) } } });
+  const group = page.locator('.msec[data-sec="outside"]');
+  const row = (text) => group.locator('.mrow', { hasText: text });
+  // Two actions and nothing else: no Fix, Pin or "Bring this up" for words that may not be mine.
+  await row('Hates jazz').locator('.mtext').click();
+  await row('Hates jazz').locator('.macts').waitFor();
+  assert.deepEqual(await row('Hates jazz').locator('.macts button').allTextContents(), ['Keep', 'Forget']);
+  await shot(page, 'memory-outside-detail');
+  await row('Hates jazz').locator('button', { hasText: 'Keep' }).click();
+  await until(async () => (await headings(page))[0], 'Learned from outside (2)');
+  assert.deepEqual(ops(api).at(-1), { op: 'confirm', id: '0192f0c4-0000-7000-8000-0000000000a1' });
+  assert.equal(await page.locator('.msec[data-sec="preference"] .mrow', { hasText: 'Hates jazz' }).count(), 1, 'kept: mine, under its kind');
+  // Forget: the page's own, asked once, sent after the 10 s undo (once the "Kept" toast has gone).
+  await page.clock.runFor(4_000);
+  await forget(page, 'Wants a louder metronome');
+  assert.equal(await row('Wants a louder metronome').count(), 0, 'off the page while the undo runs');
+  await page.clock.runFor(10_500);
+  await until(() => ops(api).at(-1), { op: 'forget', id: '0192f0c4-0000-7000-8000-0000000000a3' });
+  await until(async () => (await headings(page))[0], 'Learned from outside (1)');
   assert.deepEqual(errors, []);
   await page.close();
 });

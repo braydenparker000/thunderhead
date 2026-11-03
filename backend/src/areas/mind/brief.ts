@@ -24,7 +24,9 @@ export interface BriefInput {
   laws: string;
   /** Decision cards waiting for the owner, oldest first. */
   decisions: { id: string; class: string; question: string; expires_at: number; show_from: number }[];
-  /** The session is tainted (MEMORY.md §7): section 1 says so, before anything else is read. */
+  /** The session read outside text, or its claim took over a taint (MEMORY.md §7): what it writes
+   * is labelled `outside`, and section 1 says so, before anything else is read. Otherwise its
+   * `outside` loose ends and day notes are kept back (MEMORY.md §6 M11f). */
   tainted: boolean;
   now: number;
   tz: string;
@@ -165,6 +167,10 @@ export const SETTINGS_LEGEND =
 const settingsSection = (lines: string[]) =>
   budgeted([SETTINGS_LEGEND, ...lines], 2_000, 'oldest', (k) => `(+${k} more: th get /v1/settings)`);
 
+/** Section 1's line for a session that read outside text (MEMORY.md §6 M11, §7). */
+export const OUTSIDE_LINE =
+  "outside: what you write this session is labelled outside; it waits for the owner's keep in Settings › Memory before it shapes the profile";
+
 export function buildBrief(i: BriefInput): { core: string; full: string } {
   const night = i.role === 'night';
   const reflex = i.role === 'reflex';
@@ -174,11 +180,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     i.backoffUntil > i.now ? `usage backoff until ${clock(i.backoffUntil, i.tz)}` : 'no usage backoff',
     `${i.laws} · open decisions ${i.decisions.length} · quiet: ${quietLine(i)}`,
     ...(i.watchdogs.length ? [watchdogLine(i.watchdogs, i.tz)] : []),
-    ...(i.tainted
-      ? [
-          'taint: this session is tainted (it, or one of its role in the last 24 hours, read outside content); memory writes are refused',
-        ]
-      : []),
+    ...(i.tainted ? [OUTSIDE_LINE] : []),
     // After the taint line, so a long section 1 never cuts that one.
     ...(i.quota ? [i.quota] : []),
   ].join('\n');
@@ -216,9 +218,9 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
       return waiting.length ? budgeted(waiting, b, 'oldest', more) : 'Nothing is waiting.';
     }
     if (n === 3) return reflex ? NO_MEMORY : renderRules(i.rules, i.tz, b, more);
-    if (n === 4) return reflex ? NO_MEMORY : renderThreads(i.threads, i.tz, b, more);
+    if (n === 4) return reflex ? NO_MEMORY : renderThreads(i.threads, i.tz, b, more, !i.tainted);
     if (n === 5) return night ? 'See section 2.' : budgeted(tail, b, 'newest', more);
-    if (i.yesterday.note) return renderDayNote(i.yesterday.note, b, more);
+    if (i.yesterday.note) return renderDayNote(i.yesterday.note, b, more, !i.tainted);
     return yesterday.length ? budgeted(yesterday, b, 'newest', more) : 'No messages yesterday.';
   };
   // Today's state: the calendar after the lines above, in its own budget, never cutting them.
@@ -258,7 +260,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     ...[2, 3, 4, 5, 6].map((n): [number, string] => [n, make(n, FULL_BUDGET[n], true)]),
     [7, body[7]],
     [8, reflex ? NO_MEMORY : i.profile.slice(0, 6_000)],
-    [9, reflex ? NO_MEMORY : renderDays(i.days, 1_400)],
+    [9, reflex ? NO_MEMORY : renderDays(i.days, 1_400, !i.tainted)],
     [
       10,
       pending.length

@@ -209,12 +209,14 @@ export async function note(argv) {
   const open = jsonFlag(flags.open, 'open') ?? [];
   if (!Array.isArray(open) || open.length > 10) throw invalid('--open must be a JSON array of at most 10 {text, ref?}');
   const id = uuidv7();
-  await request('POST', '/v1/mind/notes', {
+  const {data} = await request('POST', '/v1/mind/notes', {
     body: {id, thread_id: typeof flags.thread === 'string' ? flags.thread : undefined, body,
       open_items: open.map(item => (typeof item === 'string' ? {text: item} : item))},
   });
   setState('note_at', Date.now());
-  out({id});
+  // `outside` once this session read outside text (MEMORY.md §7): its words are then left out of
+  // the next briefing and the night's reading.
+  out({id, provenance: data?.provenance ?? null});
 }
 
 export async function pending() {

@@ -127,7 +127,7 @@ describe('supersede, confirm, and the owner own fixes', () => {
     expect((await apiJson('GET', '/v1/memory/facts/not-an-id', device())).status).toBe(422);
   });
 
-  it("confirm resets the clock; confirmed in the owner's words, a guess becomes a user fact", async () => {
+  it("confirm resets the clock; a guess waits for the owner's tap to become their word (M11e)", async () => {
     const guess = addOp([`msg:${said}`], {
       source: 'inferred',
       kind: 'goal',
@@ -139,14 +139,15 @@ describe('supersede, confirm, and the owner own fixes', () => {
     await coreSql('UPDATE facts SET last_confirmed = last_confirmed - 86400000 WHERE id = ?', guess.id);
     const yes = await ownerSays(P.D, 'Yes, I want to perform it.');
     const r = await ops(chat(), [{ op: 'confirm', id: guess.id, evidence: [`msg:${yes}`] }]);
-    const lifted = await fact(r.body.applied[0].fact_id);
-    // The mind lifts it on the owner's newer words but keeps "imported": only the owner's tap clears it.
-    expect(lifted).toMatchObject({
-      source: 'user',
-      tags: ['imported'],
-      evidence: [`msg:${yes}`],
-      text: 'Wants to perform the piece',
-    });
+    // The mind's confirm resets the clock; a guess is `outside`, so no words of the owner lift it.
+    expect(r.body.applied[0]).toMatchObject({ fact_id: guess.id, provenance: 'outside' });
+    const confirmed = await fact(guess.id);
+    expect(confirmed).toMatchObject({ source: 'inferred', superseded_by: null });
+    expect(confirmed?.last_confirmed).toBeGreaterThan(Date.now() - 60_000);
+    // The owner's tap ("Yes, that's right") lifts it, and clears "imported".
+    const tap = await ops(device(), [{ op: 'confirm', id: guess.id }]);
+    const lifted = await fact(tap.body.applied[0].fact_id);
+    expect(lifted).toMatchObject({ source: 'user', provenance: 'owner', tags: [], text: 'Wants to perform the piece' });
     expect((await fact(guess.id))?.superseded_by).toBe(lifted?.id);
   });
 

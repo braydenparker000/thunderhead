@@ -1,8 +1,8 @@
 // What memory's rules read about a mind session (MEMORY.md §6–7, API.md §3). A mind may write
 // memory only from a session that claimed its briefing in its own role and has not ended:
-// otherwise 403 `session_required`, so a fresh or made-up TH-Session can't step around a taint.
-// The claim records the constitution hash (M12; `none` when the file was missing); `th taint`
-// marks the session for good (M11).
+// otherwise 403 `session_required`, so a fresh or made-up TH-Session can't shed a taint. The claim
+// records the constitution hash (M12; `none` when the file was missing); `th taint` marks the
+// session for good, and from then on what it writes is labelled `outside` (M11).
 import type { MindRole } from '../../../../shared/contract/api';
 import { Fail } from '../../lib/result';
 import type { Db } from '../../objects/base';

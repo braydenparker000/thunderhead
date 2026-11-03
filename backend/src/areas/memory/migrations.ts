@@ -6,6 +6,17 @@
 // `lineage_id` (eng) is the first version's id, shared by every later one, so `forget` finds
 // them all even after an undo unlinked a version. `fact_tombstones` keeps the forgotten ids (no
 // text) so none is used again and a restore can re-apply the forgets.
+// Step 32 (2026-11-02) labels every write with its `provenance` (MEMORY.md §6 M11: `owner`,
+// `observed` or `outside`) in place of refusing a tainted session's writes. Steps only add (no
+// UPDATE), so the rows from before it keep no label and read by the rule they were written under
+// (store.ts `provenanceOf`, notes.ts `notedBy`): a fact by its source (`user` → owner, `observed` →
+// observed, `inferred` → outside); a day note as `owner` (that Worker refused a tainted session's);
+// a loose end as `owner`. A row restored from an older backup reads the same way. A rollback is
+// not that safe (README "Release and rollback", MEMORY.md §6): the older Worker ignores the column,
+// so its profile and briefing take `outside` facts in as the owner's, and a confirm or supersede it
+// writes leaves a NULL-label `user` row that reads `owner` once this Worker is back. Roll back
+// across step 32 only with that in mind, and review "Learned from outside" and the facts written
+// meanwhile after rolling forward.
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneBatches, pruneThreads } from './notes';
 
@@ -81,6 +92,18 @@ export const MEMORY_MIGRATIONS: Migration[] = [
         result_json TEXT NOT NULL,
         at INTEGER NOT NULL
       ) WITHOUT ROWID`,
+    ],
+  },
+  {
+    version: 32,
+    name: 'provenance on facts, day notes and open threads',
+    kind: 'expand',
+    sql: [
+      'ALTER TABLE facts ADD COLUMN provenance TEXT',
+      'ALTER TABLE day_notes ADD COLUMN provenance TEXT',
+      'ALTER TABLE open_threads ADD COLUMN provenance TEXT',
+      // The current outside facts by age, for the prune pass's drop of those nobody kept (expire.ts).
+      `CREATE INDEX facts_outside ON facts (recorded_at) WHERE provenance = 'outside' AND superseded_at IS NULL`,
     ],
   },
 ];

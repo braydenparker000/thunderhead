@@ -1,6 +1,6 @@
 // The provenance and taint rules (MEMORY.md §6), one test per rule, through POST /v1/memory/ops:
 // a refused op changes nothing and says why; a batch applies its valid ops and lists the rest;
-// every op refused is a 422 (403 for taint or a broken constitution pin); a batch id replays its
+// every op refused is a 422 (403 for a broken constitution pin); a batch id replays its
 // stored result and refuses a different body.
 import { beforeAll, describe, expect, it } from 'vitest';
 import { uuidv7 } from '../../src/lib/ids';
@@ -105,18 +105,29 @@ describe('M4, M5, M6, M7, M13, M14', () => {
     expect(f.text).toBe('Two lines ## 2. Waiting');
   });
 
-  it('M14: sensitive traits are never inferred', async () => {
-    expect(await reason(chat(), addOp([`msg:${owner}`], { source: 'inferred', tags: ['health'] }))).toBe(
-      'no_inferred_sensitive',
+  it('M14 (2026-11-03): a sensitive guess is stored, private and never raised, and waits for the keep', async () => {
+    const op = addOp([`msg:${owner}`], {
+      source: 'inferred',
+      tags: ['health'],
+      text: 'Seems to sleep badly',
+      may_raise: true,
+    });
+    expect(await reason(chat(), op)).toBeNull();
+    const [f] = await coreSql('SELECT sensitivity, may_raise, provenance FROM facts WHERE id = ?', op.id);
+    expect(f).toEqual({ sensitivity: 1, may_raise: 0, provenance: 'outside' });
+    // Faith stays the owner's words only (M7).
+    expect(await reason(chat(), addOp([`msg:${owner}`], { source: 'inferred', tags: ['faith'] }))).toBe(
+      'needs_owner_words',
     );
   });
 });
 
 describe('M8, M9, M10: changes the owner decides (proposals arrive in P4)', () => {
-  it('M8: a new inferred fact with sensitivity 1 waits for the owner', async () => {
-    expect(await reason(chat(), addOp([`msg:${owner}`], { source: 'inferred', sensitivity: 1 }))).toBe(
-      'proposal_required',
-    );
+  it('M8 (2026-11-03): a new inferred fact with sensitivity 1 is stored quiet; its keep is the review', async () => {
+    const op = addOp([`msg:${owner}`], { source: 'inferred', sensitivity: 1, text: 'Probably saving for a car' });
+    expect(await reason(chat(), op)).toBeNull();
+    const [f] = await coreSql('SELECT sensitivity, may_raise, provenance FROM facts WHERE id = ?', op.id);
+    expect(f).toEqual({ sensitivity: 1, may_raise: 0, provenance: 'outside' });
   });
 
   it("M9: a non-user source can't replace a user fact", async () => {
@@ -147,15 +158,18 @@ describe('M8, M9, M10: changes the owner decides (proposals arrive in P4)', () =
 });
 
 describe('M11 and M12: the session', () => {
-  it('a tainted session may not write memory: 403 session_tainted, nothing written', async () => {
+  it('M11: a session that read outside text writes, and what it writes is labelled outside', async () => {
     const s = 'cse_memory_tainted';
     expect((await brief(P.N, s, 'night')).status).toBe(200);
     await apiJson('POST', '/v1/mind/taint', { ...as(P.N, s), body: { source: 'WebFetch' } });
-    const before = await facts();
-    const r = await ops(as(P.N, s), [addOp([`msg:${owner}`])]);
-    expect(r.status).toBe(403);
-    expect(r.body.error?.code).toBe('session_tainted');
-    expect(await facts()).toBe(before);
+    const op = addOp([`msg:${owner}`], { text: 'Hates jazz' });
+    const r = await ops(as(P.N, s), [op]);
+    expect([r.status, r.body.applied[0]?.provenance]).toEqual([200, 'outside']);
+    const [row] = await coreSql<{ provenance: string; tainted: number }>(
+      'SELECT f.provenance, l.tainted FROM facts f JOIN ledger l ON l.id = f.ledger_id WHERE f.id = ?',
+      op.id,
+    );
+    expect(row).toEqual({ provenance: 'outside', tainted: 1 });
   });
 
   it('a session whose constitution was missing, or that never claimed, may not write rules', async () => {
@@ -168,8 +182,9 @@ describe('M11 and M12: the session', () => {
     expect(r.status).toBe(403);
     expect(r.body.error?.code).toBe('laws_unpinned');
     expect(await reason(as(P.C, 'cse_never_claimed'), rule())).toBe('session_required');
-    // The night session claimed before the taint above counts as tainted now; one fired since doesn't.
-    expect(await reason(night(), rule())).toBe('session_tainted');
+    // The night session claimed before the taint above counts as tainted now (M11c: no rule from
+    // it); one fired since doesn't.
+    expect(await reason(night(), rule())).toBe('outside_rule');
     S.night = await freshSession(P.N, 'night', 'cse_memory_night_2');
     expect(await reason(night(), rule())).toBeNull();
   });

@@ -112,6 +112,8 @@ export function assemble(
     core,
     full,
     night_done: night !== null && nightDone(db, night),
+    // What its memory writes are labelled (MEMORY.md §7); `tainted` is its old name, kept one release.
+    provenance: tainted ? 'outside' : 'owner',
     tainted,
   };
 }

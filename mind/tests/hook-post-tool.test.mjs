@@ -20,7 +20,7 @@ const call = (tool_name, tool_input) => ({hook_event_name: 'PostToolUse', sessio
 const pendingOf = e => { try { return JSON.parse(readFileSync(join(e.TMPDIR, 'th', 'state', 'taint_pending.json'), 'utf8')); } catch { return null; } };
 const taints = fake => fake.state.requests.filter(r => r.path === '/v1/mind/taint').length;
 
-test('outside text taints the session once, and then memory writes are refused (exit 6)', withFake(async fake => {
+test('outside text taints the session once, and then what it remembers is labelled outside', withFake(async fake => {
   const e = env(fake);
   const r = await hook('post-tool', call('WebFetch', {url: 'https://example.com/article', prompt: 'summarise'}), e);
   assert.equal(r.code, 0);
@@ -32,7 +32,8 @@ test('outside text taints the session once, and then memory writes are refused (
   assert.equal(taints(fake), 1, 'once per session');
   const said = fake.addOwnerMessage('I like jazz');
   const remember = await th(['remember', '--kind', 'preference', '--text', 'Likes jazz', '--evidence', said.id], e);
-  assert.equal(remember.code, 6);
+  assert.equal(remember.code, 0);
+  assert.equal(remember.json.provenance, 'outside', 'MEMORY.md §6 M11: written, and labelled');
 }));
 
 test('each tainting channel, and the calls that are not', withFake(async fake => {
@@ -128,10 +129,10 @@ test('the taint fails closed: marked before the call, kept when th taint fails, 
   fake.failNext('POST', '/v1/mind/taint', 503, 'unavailable', 4);
   await hook('post-tool', call('Bash', {command: 'gh issue view 3'}), e);
   assert.equal(pendingOf(e)?.source, 'gh');
-  // The next write sends the taint first, and so is refused.
+  // The next write sends the taint first, and so is labelled outside.
   const said = fake.addOwnerMessage('I like jazz');
   const remember = await th(['remember', '--kind', 'preference', '--text', 'Likes jazz', '--evidence', said.id], e);
-  assert.equal(remember.code, 6);
+  assert.equal(remember.json?.provenance, 'outside');
   const paths = fake.state.requests.map(r => r.path);
   assert.ok(paths.lastIndexOf('/v1/mind/taint') < paths.lastIndexOf('/v1/memory/ops'), 'the taint went first');
   assert.equal(pendingOf(e), null);

@@ -103,3 +103,11 @@ export async function reason(call: { token: string; headers?: Record<string, str
   if (r.status === 200) return r.body.rejected[0]?.reason ?? null;
   return r.body.error?.details?.[0]?.issue ?? r.body.error?.code ?? `http_${r.status}`;
 }
+
+/** One op through a principal: the label the Worker gave what it wrote (MEMORY.md §6 M11), or the
+ * reason it was refused. */
+export async function labelled(call: { token: string; headers?: Record<string, string> }, op: unknown) {
+  const r = await ops(call, [op]);
+  if (r.status === 200 && r.body.applied[0]) return r.body.applied[0].provenance;
+  return r.body.rejected?.[0]?.reason ?? r.body.error?.details?.[0]?.issue ?? r.body.error?.code ?? `http_${r.status}`;
+}

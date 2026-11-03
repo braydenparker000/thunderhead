@@ -8,13 +8,16 @@ import { choice, icon } from './components.js';
 import { memoryLine } from './memory-facts.js';
 
 const dayMonth = (ms) => new Date(ms).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+/** A loose end or day note a session wrote after reading outside text (MEMORY.md §6 M11): kept and
+ * used, marked so the owner knows. */
+const FROM_OUTSIDE = ' · after reading outside text';
 const weekday = (day) =>
   new Date(`${day}T12:00:00Z`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
 
 /** A loose end: whose it is, when it's due, and Done / Drop. */
 export function threadRow(t, ctx) {
   const whose = t.owner === 'mind' ? "I'll do this" : 'Yours';
-  const meta = `${whose}${t.due_at ? ` · due ${dayMonth(t.due_at)}` : ''} · since ${dayMonth(t.opened_at)}`;
+  const meta = `${whose}${t.due_at ? ` · due ${dayMonth(t.due_at)}` : ''} · since ${dayMonth(t.opened_at)}${t.provenance === 'outside' ? FROM_OUTSIDE : ''}`;
   const host = el('div', { class: 'mdetail' });
   const done = el('button', { type: 'button', class: 'btn soft sbtn', text: 'Done' });
   const drop = el('button', { type: 'button', class: 'btn soft sbtn', text: 'Drop' });
@@ -89,7 +92,7 @@ export function dayRow(d, ctx) {
   const host = el('div', { class: 'mdetail' });
   const edit = el('button', { type: 'button', class: 'btn soft sbtn', text: 'Edit' });
   const kids = [
-    el('div', { class: 'st2', text: `${weekday(d.day)} · ${d.written_by === 'owner' ? 'edited by you' : `importance ${d.importance} of 10`}` }),
+    el('div', { class: 'st2', text: `${weekday(d.day)} · ${d.written_by === 'owner' ? 'edited by you' : `importance ${d.importance} of 10`}${d.provenance === 'outside' ? FROM_OUTSIDE : ''}` }),
     summary,
   ];
   for (const decision of d.decisions) kids.push(el('div', { class: 'st2', text: `Decided: ${decision}` }));

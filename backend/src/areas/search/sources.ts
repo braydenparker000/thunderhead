@@ -3,7 +3,8 @@
 // each source with its own store (and object, if it has one). Semantic recall (P8, embeddings)
 // plugs in behind the same route as `SEMANTIC`: it gets the plain query text and returns ranked
 // hits like any source. Hits are merged by reciprocal-rank fusion (k = 60), so scores are
-// comparable across sources whatever each store's native ranking is.
+// comparable across sources whatever each store's native ranking is. Each memory hit carries its
+// provenance (MEMORY.md §6 M11), so `th recall` shows what is the owner's own and what is not.
 import type { SearchHit } from '../../../../shared/contract/api';
 import { SEARCH_SOURCES, type SearchSource } from '../../../../shared/contract/feed.ts';
 import type { Who } from '../../../../shared/contract/routes.ts';
@@ -38,6 +39,9 @@ export const SOURCES: Partial<Record<SearchSource, Source>> = {
         snippet: r.snippet,
         at: r.created_at,
         thread_id: r.thread_id,
+        // The owner's own words (from a device, or imported) are `owner`; anyone else's are not.
+        provenance:
+          r.author === 'owner' && (r.origin === 'owner_device' || r.origin === 'import') ? 'owner' : 'outside',
       }));
     },
   },
@@ -47,7 +51,13 @@ export const SOURCES: Partial<Record<SearchSource, Source>> = {
       // Facts belong to no thread: a thread facet asks for messages only.
       if (q.thread) return [];
       const rows = await fresh(coreObject(env).searchFacts(q.match, q.since, q.until, q.limit));
-      return rows.map((r) => ({ source: 'facts', ref: `fact:${r.id}`, snippet: r.snippet, at: r.recorded_at }));
+      return rows.map((r) => ({
+        source: 'facts',
+        ref: `fact:${r.id}`,
+        snippet: r.snippet,
+        at: r.recorded_at,
+        provenance: r.provenance,
+      }));
     },
   },
   day_notes: {
@@ -55,7 +65,13 @@ export const SOURCES: Partial<Record<SearchSource, Source>> = {
     async run(env, q) {
       if (q.thread) return [];
       const rows = await fresh(coreObject(env).searchDayNotes(q.match, q.since, q.until, q.limit));
-      return rows.map((r) => ({ source: 'day_notes', ref: `day:${r.day}`, snippet: r.snippet, at: r.written_at }));
+      return rows.map((r) => ({
+        source: 'day_notes',
+        ref: `day:${r.day}`,
+        snippet: r.snippet,
+        at: r.written_at,
+        provenance: r.provenance,
+      }));
     },
   },
 };

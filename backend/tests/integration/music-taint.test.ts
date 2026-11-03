@@ -2,8 +2,9 @@
 // taints the mind session it serves them to, whatever the hooks did, and records a night session
 // that read them (`songs` in GET /v1/mind/pending), whose web the PreToolUse hook closes. The taint
 // carries like any other, except that a night claim on a wake the Worker fired on a later day starts
-// clean once every tainted night session has ended: step 11's songs (or step 9's evals) don't take
-// the next night's day note. A live tainted session, a same-day claim or a manual one inherits.
+// clean once every tainted night session has ended: step 11's songs (or step 9's evals) don't label
+// the next night's day note `outside` (MEMORY.md §6 M11; until 2026-11-02 they refused it). A live
+// tainted session, a same-day claim or a manual one inherits.
 // A mind principal reads songs' tags only from a claimed, live session (422 without one, 403 for a
 // made-up one).
 // The suite's cases run in order on one store.
@@ -12,15 +13,20 @@ import type { PendingResponse, TodayResponse } from '../../../shared/contract/ap
 import { MUSIC_TAINT_SOURCE } from '../../../shared/contract/music.ts';
 import { dayBefore, HOUR } from '../../src/lib/time';
 import { apiJson, coreSql } from '../helpers';
-import { addOp, as, brief, firedWake, ownerSays, type Principals, principals, reason } from '../memory-helpers';
+import { addOp, as, brief, firedWake, labelled, ownerSays, type Principals, principals } from '../memory-helpers';
 
 let P = {} as Principals;
 let yday = '';
 const dayNote = (session: string, summary: string) =>
-  apiJson<{ error?: { code: string } }>('PUT', `/v1/memory/day-notes/${yday}`, {
+  apiJson<{ error?: { code: string }; provenance?: string }>('PUT', `/v1/memory/day-notes/${yday}`, {
     ...as(P.N, session),
     body: { summary, decisions: [], importance: 3 },
   });
+/** The label a day note got (MEMORY.md §6 M11), or the status it was refused with. */
+const noteLabel = async (session: string, summary: string) => {
+  const r = await dayNote(session, summary);
+  return r.status === 200 ? r.body.provenance : r.status;
+};
 const pending = async (token: string, session: string) =>
   (await apiJson<PendingResponse>('GET', '/v1/mind/pending', as(token, session))).body;
 const row = async (session: string) =>
@@ -61,10 +67,10 @@ beforeAll(async () => {
 });
 
 describe("the Worker taints the mind session it serves songs' tags to", () => {
-  it('night N reads songs (step 11): tainted, recorded as a reader, no day note after that', async () => {
+  it('night N reads songs (step 11): tainted, recorded as a reader, its day note outside after that', async () => {
     await brief(P.N, 'cse_mt_n1', 'night');
     await brief(P.N, 'cse_mt_an', 'night');
-    expect((await dayNote('cse_mt_n1', 'A day with music.')).status).toBe(200);
+    expect(await noteLabel('cse_mt_n1', 'A day with music.')).toBe('owner');
     expect(await pending(P.N, 'cse_mt_n1')).toMatchObject({ songs: false });
     // A mind principal names its session, a claimed and live one, or gets no tags (a raw call can't
     // read them unrecorded); the device needs none.
@@ -87,8 +93,7 @@ describe("the Worker taints the mind session it serves songs' tags to", () => {
     expect(await row('cse_mt_n1')).toMatchObject({ taint_source: MUSIC_TAINT_SOURCE, ended_at: null });
     expect(await readers()).toEqual(['cse_mt_n1']);
     expect(await pending(P.N, 'cse_mt_n1')).toMatchObject({ songs: true });
-    const after = await dayNote('cse_mt_n1', 'Changed after the songs.');
-    expect([after.status, after.body.error?.code]).toEqual([403, 'session_tainted']);
+    expect(await noteLabel('cse_mt_n1', 'Changed after the songs.')).toBe('outside');
     // The listening pass's read of one song names its neighbours: it marks too.
     await apiJson('GET', `/v1/music/analysis/${song}`, as(P.N, 'cse_mt_an'));
     expect(await row('cse_mt_an')).toMatchObject({ taint_source: MUSIC_TAINT_SOURCE });
@@ -123,7 +128,7 @@ describe("the Worker taints the mind session it serves songs' tags to", () => {
     await brief(P.C, 'cse_mt_c1', 'chat');
     expect((await apiJson('GET', '/v1/music/find?moods=calm', as(P.C, 'cse_mt_c1'))).status).toBe(200);
     expect(await row('cse_mt_c1')).toMatchObject({ taint_source: MUSIC_TAINT_SOURCE });
-    expect(await reason(as(P.C, 'cse_mt_c1'), addOp([`msg:${said}`]))).toBe('session_tainted');
+    expect(await labelled(as(P.C, 'cse_mt_c1'), addOp([`msg:${said}`]))).toBe('outside');
     expect(await pending(P.C, 'cse_mt_c1')).toMatchObject({ songs: false });
     expect(await readers()).toEqual(['cse_mt_an', 'cse_mt_n1']);
     await lapse();
@@ -139,18 +144,18 @@ describe("the night after: a later day's fired wake starts clean once the tainte
     const next = await brief(P.N, 'cse_mt_n2', 'night');
     expect([next.body.wake?.claim_match, next.body.tainted]).toEqual(['loose', false]);
     expect((await row('cse_mt_n2')).tainted_at).toBeNull();
-    expect((await dayNote('cse_mt_n2', 'The next night writes again.')).status).toBe(200);
+    expect(await noteLabel('cse_mt_n2', 'The next night writes again.')).toBe('owner');
     expect(await pending(P.N, 'cse_mt_n2')).toMatchObject({ songs: false });
   });
 
   it('night N tainted by step 9 (the evals) ended; night N+1 claims clean too', async () => {
     await apiJson('POST', '/v1/mind/taint', { ...as(P.N, 'cse_mt_n2'), body: { source: 'th eval', ref_kind: 'file' } });
-    expect((await dayNote('cse_mt_n2', 'Refused: tainted.')).status).toBe(403);
+    expect(await noteLabel('cse_mt_n2', 'Labelled: tainted.')).toBe('outside');
     await endNight('cse_mt_n2');
     await toYesterday('cse_mt_n2', 22);
     await nextWake();
     expect((await brief(P.N, 'cse_mt_n3', 'night')).body.tainted).toBe(false);
-    expect((await dayNote('cse_mt_n3', 'Clean after the evals.')).status).toBe(200);
+    expect(await noteLabel('cse_mt_n3', 'Clean after the evals.')).toBe('owner');
   });
 
   it('a live tainted night session, and a made-up id on the next wake: it inherits', async () => {
@@ -161,7 +166,7 @@ describe("the night after: a later day's fired wake starts clean once the tainte
     const madeUp = await brief(P.N, 'cse_mt_madeup', 'night');
     expect([madeUp.body.wake?.claim_match, madeUp.body.tainted]).toEqual(['loose', true]);
     expect(await row('cse_mt_madeup')).toMatchObject({ taint_source: `inherited:${MUSIC_TAINT_SOURCE}` });
-    expect((await dayNote('cse_mt_madeup', 'Refused: inherited.')).status).toBe(403);
+    expect(await noteLabel('cse_mt_madeup', 'Labelled: inherited.')).toBe('outside');
     // The songs were read before this claim: they don't close its web (a read after it would).
     expect(await pending(P.N, 'cse_mt_madeup')).toMatchObject({ songs: false });
   });
@@ -178,6 +183,6 @@ describe("the night after: a later day's fired wake starts clean once the tainte
     await firedWake('night', 'session_someone_today');
     const sameDay = await brief(P.N, 'cse_mt_n5', 'night');
     expect([sameDay.body.wake?.claim_match, sameDay.body.tainted]).toEqual(['loose', true]);
-    expect((await dayNote('cse_mt_n5', 'Refused: same day.')).status).toBe(403);
+    expect(await noteLabel('cse_mt_n5', 'Labelled: same day.')).toBe('outside');
   });
 });

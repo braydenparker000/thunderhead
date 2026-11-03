@@ -5,6 +5,7 @@
 // wrote or tried to write. A finished suite is recorded in the owner's Core (`eval_runs`), numbers
 // only. Plain data, Node-importable.
 import type { Id, Ms } from './api';
+import type { Provenance } from './memory';
 
 export const SANDBOX_HEADER = 'TH-Sandbox';
 export const SANDBOX_INSTANCE = 'core-eval';
@@ -44,6 +45,12 @@ export interface SandboxReport {
   replies: string[];
   /** Every write request since the reset, accepted or refused: `METHOD /route` and its status. */
   attempts: { route: string; status: number; at: Ms }[];
+  /** The memory the mind wrote since the reset (facts, day notes, loose ends) by its label (MEMORY.md
+   * §6 M11). A fixture leaves none `owner` or `observed`; an older Worker sends none. */
+  memory?: Record<Provenance, number>;
+  /** Of the `outside` facts among them, how many the profile or a fresh chat briefing's first 2,000
+   * characters shows (the Worker keeps them out: 0). */
+  outside_shown?: number;
 }
 
 export type EvalSuite = 'INJ' | 'LAW' | 'MP' | 'TONE' | 'RT' | 'META';

@@ -1,7 +1,10 @@
 // SQL for day notes, open threads and the batch idempotency window inside Core (DATA.md §4.4,
 // API.md §7). Day notes keep an external-content FTS5 index, written in the same transaction as
 // the row. Every read is bounded by a LIMIT or a key; stores never write the feed or the ledger.
-import type { DayNote, OpenThread, OpenThreadStatus } from '../../../../shared/contract/memory.ts';
+// Both carry a `provenance` (MEMORY.md §6 M11, Core step 32): `outside` when a session that read
+// outside text wrote it. A row with none (an older Worker's) reads as `owner`: that Worker refused
+// a tainted session's day note, and labelled none of its loose ends.
+import type { DayNote, OpenThread, OpenThreadStatus, Provenance } from '../../../../shared/contract/memory.ts';
 import { DAY } from '../../lib/time';
 import type { Db } from '../../objects/base';
 import { strings } from './store';
@@ -18,9 +21,15 @@ export interface DayNoteRow {
   written_by: string;
   version: number;
   written_at: number;
+  /** Null on a row from an older Worker (and in an undo snapshot from before step 32). */
+  provenance?: Provenance | null;
 }
 
-const NOTE_COLS = 'seq, day, summary, decisions_json, stats_json, importance, written_by, version, written_at';
+const NOTE_COLS =
+  'seq, day, summary, decisions_json, stats_json, importance, written_by, version, written_at, provenance';
+
+/** A day note's or a loose end's label; none (an older Worker's row) reads as `owner`. */
+export const notedBy = (r: { provenance?: Provenance | null }): Provenance => r.provenance ?? 'owner';
 
 function stats(json: string | null): Record<string, number> {
   if (!json) return {};
@@ -42,6 +51,7 @@ export function toDayNote(r: DayNoteRow): DayNote {
     written_by: r.written_by,
     version: r.version,
     written_at: r.written_at,
+    provenance: notedBy(r),
   };
 }
 
@@ -55,7 +65,7 @@ export function putDayNote(db: Db, n: Omit<DayNoteRow, 'seq'>, old: DayNoteRow |
     db.run(`INSERT INTO day_notes_fts (day_notes_fts, rowid, summary) VALUES ('delete', ?, ?)`, old.seq, old.summary);
     db.run(
       `UPDATE day_notes SET summary = ?, decisions_json = ?, stats_json = ?, importance = ?, written_by = ?, version = ?,
-         written_at = ? WHERE seq = ?`,
+         written_at = ?, provenance = ? WHERE seq = ?`,
       n.summary,
       n.decisions_json,
       n.stats_json,
@@ -63,14 +73,15 @@ export function putDayNote(db: Db, n: Omit<DayNoteRow, 'seq'>, old: DayNoteRow |
       n.written_by,
       n.version,
       n.written_at,
+      n.provenance ?? 'owner',
       old.seq,
     );
     db.run('INSERT INTO day_notes_fts (rowid, summary) VALUES (?, ?)', old.seq, n.summary);
     return;
   }
   db.run(
-    `INSERT INTO day_notes (day, summary, decisions_json, stats_json, importance, written_by, version, written_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO day_notes (day, summary, decisions_json, stats_json, importance, written_by, version, written_at, provenance)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     n.day,
     n.summary,
     n.decisions_json,
@@ -79,6 +90,8 @@ export function putDayNote(db: Db, n: Omit<DayNoteRow, 'seq'>, old: DayNoteRow |
     n.written_by,
     n.version,
     n.written_at,
+    // An undo's snapshot from before step 32 has none: an older Worker wrote no tainted day note.
+    n.provenance ?? 'owner',
   );
   db.run('INSERT INTO day_notes_fts (rowid, summary) VALUES (last_insert_rowid(), ?)', n.summary);
 }
@@ -103,8 +116,9 @@ export function dayNotes(db: Db, from: string | null, to: string | null, limit: 
 }
 
 export function searchDayNotes(db: Db, match: string, since: number | null, until: number | null, limit: number) {
-  return db.all<{ day: string; written_at: number; snippet: string; score: number }>(
-    `SELECT n.day, n.written_at, snippet(day_notes_fts, 0, '«', '»', '…', 24) AS snippet, bm25(day_notes_fts) AS score
+  return db.all<{ day: string; written_at: number; snippet: string; score: number; provenance: Provenance }>(
+    `SELECT n.day, n.written_at, snippet(day_notes_fts, 0, '«', '»', '…', 24) AS snippet, bm25(day_notes_fts) AS score,
+       coalesce(n.provenance, 'owner') AS provenance
      FROM day_notes_fts JOIN day_notes n ON n.seq = day_notes_fts.rowid
      WHERE day_notes_fts MATCH ? AND (? IS NULL OR n.written_at >= ?) AND (? IS NULL OR n.written_at < ?)
      ORDER BY score LIMIT ?`,
@@ -131,14 +145,18 @@ export interface OpenThreadRow {
   last_progress_at: number | null;
   closed_at: number | null;
   closed_why: string | null;
+  /** Null on a row from an older Worker (and in an undo snapshot from before step 32). */
+  provenance?: Provenance | null;
 }
 
-const THREAD_COLS =
+/** What a loose end says and where it stands: `sameThread` compares these (a label is not news). */
+const CONTENT_COLS =
   'id, text, owner, due_at, tags_json, status, evidence_json, opened_at, last_progress_at, closed_at, closed_why';
+const THREAD_COLS = `${CONTENT_COLS}, provenance`;
 
 export function toOpenThread(r: OpenThreadRow): OpenThread {
   const { tags_json, evidence_json, ...rest } = r;
-  return { ...rest, tags: strings(tags_json), evidence: strings(evidence_json) };
+  return { ...rest, tags: strings(tags_json), evidence: strings(evidence_json), provenance: notedBy(r) };
 }
 
 export function openThread(db: Db, id: string): OpenThreadRow | null {
@@ -147,11 +165,11 @@ export function openThread(db: Db, id: string): OpenThreadRow | null {
 
 export function putOpenThread(db: Db, t: OpenThreadRow): void {
   db.run(
-    `INSERT INTO open_threads (${THREAD_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO open_threads (${THREAD_COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (id) DO UPDATE SET text = excluded.text, owner = excluded.owner, due_at = excluded.due_at,
        tags_json = excluded.tags_json, status = excluded.status, evidence_json = excluded.evidence_json,
        opened_at = excluded.opened_at, last_progress_at = excluded.last_progress_at, closed_at = excluded.closed_at,
-       closed_why = excluded.closed_why`,
+       closed_why = excluded.closed_why, provenance = excluded.provenance`,
     t.id,
     t.text,
     t.owner,
@@ -163,13 +181,16 @@ export function putOpenThread(db: Db, t: OpenThreadRow): void {
     t.last_progress_at,
     t.closed_at,
     t.closed_why,
+    // An undo's snapshot from before step 32 has none: read as an older Worker's row is.
+    t.provenance ?? 'owner',
   );
 }
 
-/** Whether two loose-end rows hold the same values (an undo's newest-state check). */
+/** Whether two loose-end rows hold the same values (a retried write's check and an undo's
+ * newest-state check). The label is left out: an undo snapshot from before step 32 has none. */
 export function sameThread(a: OpenThreadRow | null, b: OpenThreadRow | null): boolean {
   if (!a || !b) return a === b;
-  return THREAD_COLS.split(', ').every((k) => a[k as keyof OpenThreadRow] === b[k as keyof OpenThreadRow]);
+  return CONTENT_COLS.split(', ').every((k) => a[k as keyof OpenThreadRow] === b[k as keyof OpenThreadRow]);
 }
 
 export function deleteOpenThread(db: Db, id: string): void {
@@ -198,6 +219,20 @@ export function openThreads(db: Db, status: 'open' | 'all', limit: number): Open
     `SELECT ${THREAD_COLS} FROM open_threads ORDER BY status != 'open', coalesce(closed_at, opened_at) DESC LIMIT ?`,
     limit,
   );
+}
+
+/** The labels of the day notes and loose ends a mind wrote or changed since `from` (the eval
+ * sandbox's report, EVALS.md §4; the sandbox seeds neither, so every loose end there is the mind's). */
+export function mindNoteLabels(db: Db, from: number): Provenance[] {
+  const days = db.all<{ provenance: Provenance | null }>(
+    `SELECT provenance FROM day_notes WHERE written_at >= ? AND written_by != 'owner' LIMIT 500`,
+    from,
+  );
+  const loose = db.all<{ provenance: Provenance | null }>(
+    'SELECT provenance FROM open_threads WHERE coalesce(last_progress_at, opened_at) >= ? LIMIT 500',
+    from,
+  );
+  return [...days, ...loose].map(notedBy);
 }
 
 // --- the batch idempotency window (API.md §7) ---------------------------------------------------

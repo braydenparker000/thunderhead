@@ -1,10 +1,11 @@
 // Stage A.6, the second review of P3 memory: each finding as a test that fails on 54cd448. A taint
 // can't be shed by claiming a new session id (only the session the Worker fired after the taint
-// starts clean); forgetting a fact takes its words from the ledger rows of the surfaces that drew
-// on it; the reflex briefing carries no session note; a night write over the owner's day-note edit
-// says so; and a day note in everyday words is kept. The never-stored rules themselves are unit
-// tests (tests/unit/memory-guards.test.ts). Storage carries over between tests here, so the
-// untainted cases run before the first taint.
+// starts clean; since 2026-11-02 the inherited taint labels writes `outside`, MEMORY.md §6 M11,
+// where it refused them); forgetting a fact takes its words from the ledger rows of the surfaces
+// that drew on it; the reflex briefing carries no session note; a night write over the owner's
+// day-note edit says so; and a day note in everyday words is kept. The never-stored rules
+// themselves are unit tests (tests/unit/memory-guards.test.ts). Storage carries over between tests
+// here, so the untainted cases run before the first taint.
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { DayNote, LedgerEntry, Page } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
@@ -16,6 +17,7 @@ import {
   brief,
   CHAT_SESSION,
   firedWake,
+  labelled,
   NIGHT_SESSION,
   ops,
   ownerSays,
@@ -51,7 +53,7 @@ describe('before any taint', () => {
   it("the owner's own session, on a day with no tainted session, starts clean", async () => {
     const b = await brief(P.N, 'cse_a6_manual', 'night');
     expect([b.status, b.body.wake?.claim_match, b.body.tainted]).toEqual([200, 'manual', false]);
-    expect(b.body.core).not.toContain('taint:');
+    expect(b.body.core).not.toContain('outside:');
     expect(await reason(as(P.N, 'cse_a6_manual'), addOp([`msg:${said}`], { text: 'Clean manual write' }))).toBeNull();
   });
 
@@ -115,17 +117,17 @@ describe('before any taint', () => {
 });
 
 describe('a taint holds for its role: a new claim takes it over (24 hours since A.7)', () => {
-  it('night: after th taint, a claim with a new id is tainted too (no fact, no day note)', async () => {
+  it('night: after th taint, a claim with a new id is tainted too (its fact and day note are outside)', async () => {
     await taint(P.N, NIGHT_SESSION);
     const s = 'cse_a6_minted';
     const b = await brief(P.N, s, 'night');
-    expect([b.status, b.body.tainted]).toEqual([200, true]);
-    expect(b.body.core).toContain('taint: this session is tainted');
-    expect(await reason(as(P.N, s), addOp([`msg:${said}`], { text: 'Night laundered via new claim' }))).toBe(
-      'session_tainted',
+    expect([b.status, b.body.tainted, b.body.provenance]).toEqual([200, true, 'outside']);
+    expect(b.body.core).toContain('outside: what you write this session is labelled outside');
+    expect(await labelled(as(P.N, s), addOp([`msg:${said}`], { text: 'Night laundered via new claim' }))).toBe(
+      'outside',
     );
     const dn = await dayNote(as(P.N, s), dayBefore(today, 3), 'Minted session note.');
-    expect([dn.status, dn.body.error?.code]).toEqual([403, 'session_tainted']);
+    expect([dn.status, dn.body.provenance]).toEqual([200, 'outside']);
     const [row] = await coreSql<{ taint_source: string }>(
       'SELECT taint_source FROM mind_sessions WHERE session_id = ?',
       s,
@@ -150,8 +152,9 @@ describe('a taint holds for its role: a new claim takes it over (24 hours since 
     const s = 'cse_a6fresh';
     const b = await brief(P.N, s, 'night');
     expect([b.body.wake?.claim_match, b.body.tainted]).toEqual(['exact', false]);
-    expect(await reason(as(P.N, s), addOp([`msg:${said}`], { text: 'A clean fired session' }))).toBeNull();
-    expect((await dayNote(as(P.N, s), dayBefore(today, 4), 'A fired session note.')).status).toBe(200);
+    expect(await labelled(as(P.N, s), addOp([`msg:${said}`], { text: 'A clean fired session' }))).toBe('owner');
+    const dn = await dayNote(as(P.N, s), dayBefore(today, 4), 'A fired session note.');
+    expect([dn.status, dn.body.provenance]).toEqual([200, 'owner']);
   });
 
   it('chat: stopping and claiming a new id does not shed it', async () => {
@@ -162,8 +165,8 @@ describe('a taint holds for its role: a new claim takes it over (24 hours since 
     await apiJson('POST', '/v1/mind/status', { ...as(P.C, c1), body: { state: 'stopping' } });
     const c2 = 'cse_a6_chat_2';
     expect((await brief(P.C, c2, 'chat')).body.tainted).toBe(true);
-    expect(await reason(as(P.C, c2), addOp([`msg:${said}`], { text: 'Chat laundered via new claim' }))).toBe(
-      'session_tainted',
+    expect(await labelled(as(P.C, c2), addOp([`msg:${said}`], { text: 'Chat laundered via new claim' }))).toBe(
+      'outside',
     );
   });
 
