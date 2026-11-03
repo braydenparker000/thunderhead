@@ -85,7 +85,7 @@ day_notes(
   importance INTEGER NOT NULL,                                         -- 1..10
   written_by TEXT NOT NULL,                                            -- session id or 'owner'
   version INTEGER NOT NULL, written_at INTEGER NOT NULL,
-  provenance TEXT)                                                     -- 'owner' | 'outside' (§6 M11; NULL before step 30 reads 'owner')
+  provenance TEXT)                                                     -- 'owner' | 'outside' (§6 M11; NULL before step 32 reads 'owner')
 -- day_notes_fts: FTS5(summary)
 
 -- Commitments and loose ends
@@ -116,7 +116,7 @@ facts(
   pinned INTEGER NOT NULL DEFAULT 0,
   may_raise INTEGER NOT NULL DEFAULT 1,                                -- 0 = don't bring this up
   written_by TEXT NOT NULL,                                            -- session id or 'owner'
-  provenance TEXT)                                                     -- 'owner'|'observed'|'outside' (§6 M11); NULL (before step 30) reads by source
+  provenance TEXT)                                                     -- 'owner'|'observed'|'outside' (§6 M11); NULL (before step 32) reads by source
 -- facts_fts: FTS5(text, subject). Engineering adds `seq` (the FTS rowid, as for messages) and
 -- `ledger_id` (the row that wrote the version); day_notes gets `seq` too (DATA.md §4.4).
 
@@ -231,7 +231,7 @@ Every rule is code in `backend/src/areas/memory/validate.ts` with its own test. 
 | M11a | An `outside` fact never enters the profile (§8), pinned or not | (left out) |
 | M11b | Nothing `outside` is in briefing sections 1–2 (§9), and no `outside` fact is anywhere in the briefing (rules can't be outside, the profile leaves them out). An `outside` loose end or day note is shown in its later section, after the rest, marked `(outside)` | (left out; marked) |
 | M11c | An `outside` write never becomes a `rule` nor replaces one (M4 stays), and never replaces an `owner` or `observed` version: it is added as a new fact instead, which waits for the owner's Keep (replacing an `outside` version is allowed, and stays `outside`) | `422` `outside_rule`; `422` `outside_supersede` |
-| M11d | `outside` is never evidence for a fact (M6 stays): a day note labelled `outside` (or, from before step 30, written while its session was tainted) is refused; an `outside` loose end is used as any other, but no fact cites a loose end | `422` `tainted_evidence` |
+| M11d | `outside` is never evidence for a fact (M6 stays): a day note labelled `outside` (or, from before step 32, written while its session was tainted) is refused; an `outside` loose end is used as any other, but no fact cites a loose end | `422` `tainted_evidence` |
 | M11e | Only the owner's tap makes an `outside` fact `owner`: Keep under "Learned from outside" (a device `confirm`, its own ledger row the evidence, §12) or Fix. The mind's `confirm` of one, clean or not, only refreshes it; its `supersede` of one stays `outside` | (keeps `outside`) |
 | M12 | If the constitution pin is broken this session, `rule` writes are refused, and so is superseding a rule into anything else. Until the pin arrives (P4) the check is the hash the session claimed with: a session that sent `none` (its file was missing) writes no rules | `403` `laws_unpinned` |
 | M13 | `text` ≤ 280 characters and one claim (no "and also") — length is enforced; one-claim is checked weekly in-session | `422` `too_long` |

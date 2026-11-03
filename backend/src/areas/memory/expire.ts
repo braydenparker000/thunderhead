@@ -6,7 +6,7 @@
 // naming it loses its words), with one ledger row that says how many, never which or what. Never
 // dropped: a kept one (it is `owner` from then on), a lineage holding any version the owner or the
 // events wrote, a pinned one, one the notebook import left for review (`imported`, MEMORY.md §14),
-// and rows from before Core step 30 (no label). No surface can cite one (surfaces/ops.ts), so none
+// and rows from before Core step 32 (no label). No surface can cite one (surfaces/ops.ts), so none
 // has a slot to leave.
 import { DAY } from '../../lib/time';
 import type { Writer } from '../../objects/commit';

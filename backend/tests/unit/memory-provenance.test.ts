@@ -1,5 +1,5 @@
 // Provenance in memory's pure parts (MEMORY.md §6 M11a, M11b): an `outside` fact is in no profile
-// and no rule, a row from before Core step 30 reads by its source, and the briefing shows an
+// and no rule, a row from before Core step 32 reads by its source, and the briefing shows an
 // `outside` loose end or day note marked, after the rest, never in sections 1–2; section 1 says a
 // session's writes are labelled outside.
 import { describe, expect, it } from 'vitest';
@@ -99,7 +99,7 @@ describe('provenance in the profile (MEMORY.md §6 M11a)', () => {
     const outside = [
       fact({ text: 'Hates jazz', provenance: 'outside' }),
       fact({ text: 'Plays at 200 bpm', provenance: 'outside', pinned: 1 }),
-      // From before Core step 30: an inferred fact reads as outside, a user one as the owner's.
+      // From before Core step 32: an inferred fact reads as outside, a user one as the owner's.
       fact({ text: 'Probably likes tea', source: 'inferred', confidence: 0.5 }),
     ];
     const p = renderProfile([owner, ...outside], NOW, 'UTC');

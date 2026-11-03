@@ -145,15 +145,15 @@ describe('upgrade from P2', () => {
   });
 });
 
-describe('upgrade to provenance (Core step 30, MEMORY.md §6 M11)', () => {
+describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
   it('adds the label and reads the rows written before it by the rule they were written under', async () => {
     await runInDurableObject(core() as unknown as DurableObjectStub<Auth>, async (_o, state) => {
       const sql = state.storage.sql;
       const all = (q: string, ...b: unknown[]) => sql.exec(q, ...b).toArray() as Row[];
-      // Back to before step 30 (test-only SQL; migrations never drop).
+      // Back to before step 32 (test-only SQL; migrations never drop).
       sql.exec('DROP INDEX facts_outside');
       for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`ALTER TABLE ${t} DROP COLUMN provenance`);
-      sql.exec('DELETE FROM _migrations WHERE version > 29');
+      sql.exec('DELETE FROM _migrations WHERE version > 31');
       for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`DELETE FROM ${t}`);
       for (const source of ['user', 'observed', 'inferred'])
         sql.exec(

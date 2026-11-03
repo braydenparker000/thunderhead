@@ -6,7 +6,7 @@
 // `lineage_id` (eng) is the first version's id, shared by every later one, so `forget` finds
 // them all even after an undo unlinked a version. `fact_tombstones` keeps the forgotten ids (no
 // text) so none is used again and a restore can re-apply the forgets.
-// Step 30 (2026-11-02) labels every write with its `provenance` (MEMORY.md §6 M11: `owner`,
+// Step 32 (2026-11-02) labels every write with its `provenance` (MEMORY.md §6 M11: `owner`,
 // `observed` or `outside`) in place of refusing a tainted session's writes. Steps only add (no
 // UPDATE), so the rows from before it keep no label and read by the rule they were written under
 // (store.ts `provenanceOf`, notes.ts `notedBy`): a fact by its source (`user` → owner, `observed` →
@@ -91,7 +91,7 @@ export const MEMORY_MIGRATIONS: Migration[] = [
     ],
   },
   {
-    version: 30,
+    version: 32,
     name: 'provenance on facts, day notes and open threads',
     kind: 'expand',
     sql: [
