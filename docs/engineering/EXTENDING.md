@@ -113,13 +113,17 @@ area's commit. Phones that do not know it ignore it and resync; nothing else cha
    the `ask_first` verbs), `side` (`worker` or `phone`), `queueable` (false = owner taps only,
    e.g. a chip, or only another verb's inverse), `undo` (`stored` for a Worker-side verb: it keeps
    `{op, args}`; `reported` = the phone returns its inverse), schema version 1 with `args` and
-   `result`, a doc line and `what` (one line for the briefing's verb table). An action Core runs
+   `result`, a doc line and `what` (one line for the briefing's verb table), and `now_only` when it
+   rests on the session that asks (the owner's words, a clean chat session): such a verb is never
+   scheduled (`fire_at`) or a step of a scheduled plan. An action Core runs
    itself for the mind outside the verbs goes in `MIND_ACTIONS` (`permits.ts`) and its write calls
    `gate()` (`areas/mind/permit.ts`) before it writes; a verb is never listed there too.
 2. **Worker-side** (preferred: it works with the app closed): its executor goes in
    `WORKER_VERBS` (`backend/src/areas/verbs/worker.ts`), calling the owning area's own op; it runs
    in the commit that queues it, after the gate, and returns its result and its inverse `{op, args}`
    (null when it changed nothing), whose op goes in `verbs/undo.ts` (or memory's own, `memory.close`).
+   The same executor runs a plan's step and a scheduled verb when its time comes (`verbs/run.ts`),
+   so a new verb needs nothing more to be planned or scheduled.
    **Phone-side:** its executor goes in `frontend/th/registry/verbs.js` and returns its result and,
    for `undo: 'reported'`, its inverse; until a phone has it, that phone answers `unsupported_verb`
    and the ledger shows the attempt failed. When the state it changes lives in an app that may be

@@ -103,7 +103,8 @@ const budgets = [
   // (2026-11-03, provenance) +11 measured (74,421): contract.js's memory reasons `outside_rule`,
   // `outside_supersede` and `outside_confirm` in place of `session_tainted` and `no_inferred_sensitive`
   // (MEMORY.md §6 M11).
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_421],
+  // (2026-11-03, schedules) +7 measured (74,428): contract.js's `plan` change kind.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_428],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -124,7 +125,9 @@ const budgets = [
   // line drawn as plain words (view.js).
   // (2026-11-03, provenance) +304 measured (108,967): the Memory registry's "Learned from outside"
   // shelf and its `whose` ("From outside" for an outside fact taken for the owner's words).
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 108_967],
+  // (2026-11-03, schedules) +2,545 measured (111,512): a plan's line on home with its Undo (today's
+  // plans from the ledger, their cards, the undo call and its words, and their cache).
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 111_512],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -171,7 +174,8 @@ const budgets = [
   // 77,373 bytes.
   // (2026-11-02, shell feel) → 79,237 measured: the menu's and Settings' opaque fill and frost layers,
   // the ring's face, lift and name layers (+1,864 bytes net of comments trimmed in home.css).
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 79_237],
+  // (2026-11-03, schedules) +16 measured (79,253): a plan line's Undo shares Retry's look (chat.css).
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 79_253],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
   ['later CSS bytes', sum(/^th\/.*\.css$/), 21_003],
