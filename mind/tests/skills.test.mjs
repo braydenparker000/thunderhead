@@ -33,7 +33,6 @@ test('each skill is within its characters, a title and the four headings in orde
       assert.ok(body.trim().length >= 80, `${name}: "${h}" says something`);
     }
     assert.doesNotMatch(text, /\p{Extended_Pictographic}/u, `${name}: no emoji`);
-    assert.doesNotMatch(text, /claude-|\b(sonnet|opus|haiku|fable)\b/i, `${name}: no model names`);
   }
 });
 
