@@ -308,6 +308,7 @@ test('the Briefing: calendar links are added, marked, removed and refused with t
     { url: 'https://shared.example.org/team.ics', mine: false },
   ] });
   assert.deepEqual(await rows(), [['calendar.example.com', 'Mine'], ['shared.example.org', 'Shared: its titles are outside text']]);
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/settings-briefing-calendars.png`, fullPage: true });
   // The same link twice is refused.
   await add('https://shared.example.org/team.ics');
   await page.waitForFunction(() => document.querySelector('.sheet.csheet .line')?.textContent === 'That link is already here.');
