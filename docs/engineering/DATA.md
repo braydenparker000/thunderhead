@@ -445,7 +445,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Core.exports | 1 day after it expires (the ZIP's parts leave the bucket when it does, an hour after it was ready) | no | no |
 | Core.work_orders | 1 year after it finished (each with its validated result, outside text from Muse) | yes | yes |
 | Core.muse_notes | newest 500 notes (Muse's own thread, never the owner's conversation) | yes | yes |
-| Core.facts, day_notes | forever (facts until forgotten) | yes | yes |
+| Core.facts, day_notes | forever (facts until forgotten; a fact labelled `outside` that nobody kept, 90 days after it was written, by the daily pass: MEMORY.md §6 M11g) | yes | yes |
 | Core.fact_tombstones | forever (forgotten ids only, no text: an id is never reused, and a restore re-applies the forget) | yes | no |
 | Core.open_threads | open: until closed; closed: 1 year | yes | yes |
 | Core.session_notes | 180 days | yes | yes |

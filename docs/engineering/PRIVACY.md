@@ -43,7 +43,7 @@ Retention marked **[proposal]** is new; the rest comes from decisions, the plan 
 |---|---|---|---|---|---|
 | Conversation messages | `Core` DO (+ FTS index) | owner devices, mind | Until deleted (purged 30 days after a Delete); off the record 7 days after the last message, never indexed | yes, never one off the record or deleted | yes; off the record only the chat answering it; deleted, no |
 | Threads (daily conversations, titles) | `Core` | Worker, mind | Until deleted | yes | yes |
-| Memory: facts (bi-temporal; superseded rows kept as history) | `Core` | mind (provenance rules: after outside text, labelled `outside`), owner | Until forgotten | yes | yes |
+| Memory: facts (bi-temporal; superseded rows kept as history) | `Core` | mind (provenance rules: after outside text, labelled `outside`), owner | Until forgotten; one labelled `outside` that nobody kept, 90 days after it was written (§4) | yes | yes (one labelled `outside` kept back from a clean session unless it asks, MEMORY.md §6 M11f) |
 | Memory: day notes | `Core` | night shift | Until deleted | yes | yes |
 | Memory: open threads | `Core` | mind, owner | Open: until closed; closed: 1 year **[proposal]** | yes | yes |
 | Memory: session notes | `Core` | mind | 180 days **[proposal]** | yes | yes |
@@ -129,6 +129,8 @@ Rules:
 - `may_raise=0` items may still inform quiet arrangements (for example, not scheduling practice at a time the owner said is off-limits), but the arrangement's "why" must not reveal the item. If it can't be explained without revealing it, the mind doesn't make the arrangement. **[proposal]**
 - The mind may never lower an item's sensitivity or set `may_raise=1` on its own; only the owner can.
 - Events from other people (anything about someone else) are sensitivity 1 and never raised in a push, even generically.
+- **The mind's guesses about sensitive things** (health, sexuality, politics, religion, money; owner ruling 2026-11-03, MEMORY.md §6 M14) are stored, but with sensitivity 1 and `may_raise=0`, which the mind can't lift: they inform, they are shown to the owner on the Memory page, and they are never raised. Faith and other people still come only from the owner's words; keys, passwords and card or bank numbers are still never stored.
+- **Outside facts** (written after the mind read outside text, or guessed: `provenance = outside`, MEMORY.md §6 M11) are never raised either: in no profile, briefing rule, home line or push (a surface citing one is refused, `422 outside_fact`) until the owner keeps one. They are stored until the owner keeps or forgets them, and are in the backups and the export like any fact. One nobody kept is dropped by the daily prune pass 90 days after it was written (`OUTSIDE_KEEP_DAYS`, MEMORY.md §6 M11g), as a forget drops it; the ledger keeps one row with the count, never which or what. A backup made before then keeps it until that backup ages out (§10).
 - Nothing about faith practice is ever the subject of a nudge or a prediction (law 8; [../mind/CONSTITUTION.md](../mind/CONSTITUTION.md)).
 - Acceptance: eval fixtures in [../mind/EVALS.md](../mind/EVALS.md) include a sensitivity-1 fact and a `may_raise=0` fact; across 20 runs of the morning briefing and voice-line generation, neither appears. The Worker also filters: surfaces for Home and pushes whose `ref` points at sensitivity-1 data are rejected with `422 too_sensitive`.
 
