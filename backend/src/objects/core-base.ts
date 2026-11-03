@@ -83,9 +83,7 @@ export abstract class CoreBase extends OwnerObject {
    * writing only when it moves. */
   protected schedule(): void {
     const due = [this.reminderDue(), this.verbsDue(), this.watchDue()];
-    const times = [wake.nextAlarmAt(this.db), jobs.nextDue(this.db), ...due].filter(
-      (x): x is number => x !== null,
-    );
+    const times = [wake.nextAlarmAt(this.db), jobs.nextDue(this.db), ...due].filter((x): x is number => x !== null);
     const t = times.length ? Math.min(...times) : null;
     if (t !== null && t !== this.alarmAt) {
       this.alarmAt = t;
