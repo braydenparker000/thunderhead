@@ -1,6 +1,6 @@
 // @ts-check
 // The conversation on home, drawn (HOME.md §4): owner bubbles on the right, the mind's replies in
-// in the shell's face with no bubble, system lines small and centred, one action chip and, under
+// in the shell's face with no bubble, system lines small and centred (a plan's line with its Undo), one action chip and, under
 // the newest reply only, its choice or up to two follow-ups; the time over a turn after an hour's
 // gap, older long replies folded, a tap on a reply for its actions, the slot's line while the mind
 // isn't connected (the working card says the rest, th/chat/working.js), and the "New reply ↓"
@@ -63,9 +63,9 @@ const clock = (/** @type {number} */ at) => {
 };
 
 /**
- * @param {{ talk: HTMLElement, convo: HTMLElement, onRetry: (id: string) => void, onChip: (chip: { app: string, path: string, label: string }) => void, onFollow: (text: string, replyTo: string) => void, onTap: (m: Shown, node: HTMLElement) => void }} o
+ * @param {{ talk: HTMLElement, convo: HTMLElement, onRetry: (id: string) => void, onChip: (chip: { app: string, path: string, label: string }) => void, onFollow: (text: string, replyTo: string) => void, onTap: (m: Shown, node: HTMLElement) => void, onUndo: (ledgerId: string, button: HTMLButtonElement) => void }} o
  */
-export function createView({ talk, convo, onRetry, onChip, onFollow, onTap }) {
+export function createView({ talk, convo, onRetry, onChip, onFollow, onTap, onUndo }) {
   /** @type {Map<string, { node: HTMLElement, sig: string, m: Shown }>} */
   const nodes = new Map();
   /** Older long replies the owner unfolded. */
@@ -121,6 +121,13 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap }) {
         card.append(text);
         // Its ledger rows, for `line.seen` (th/senses/shell.js).
         if (l.ledger) card.dataset.ledger = `${card.dataset.ledger ?? ''} ${l.ledger}`.trim();
+        // A plan's line: its Undo takes back all of it (POST /v1/ledger/:id/undo, its steps last first).
+        if (l.undo && l.ledger) {
+          const b = el('button', 'nu', 'Undo');
+          b.type = 'button';
+          b.addEventListener('click', () => onUndo(String(l.ledger), b));
+          text.append(' ', b);
+        }
       }
       return card;
     }

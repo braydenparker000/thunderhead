@@ -166,9 +166,16 @@ export function catchUp(shown, from, to, cards) {
   return parts.length ? `While you were quiet: ${parts.join(', ')}.` : null;
 }
 
+/** Today's plans as home lines (API.md §11.11): each its one line, the `what` of its ledger row, with
+ * Undo, at the time it ran; one undone (or failed) shows no more. From 04:00 of the thread's day.
+ * @param {import('../../../shared/contract/api.ts').LedgerEntry[]} rows @param {string} day */
+export const planLines = (rows, day) => rows
+  .filter((r) => r.kind === 'plan' && r.status === 'done' && r.at >= new Date(`${day}T04:00`).getTime())
+  .map((r) => ({ id: `plan:${r.id}`, lines: [{ text: r.what, lang: null, ledger: r.id, undo: true }], at: r.at, night: false }));
+
 /** Today's messages with the mind's home lines among them in time order: a line is a card in the
  * chat, where it was placed (HOME.md §2.1), never a standing line at the top.
- * @param {Shown[]} shown @param {{ id: string, lines: { text: string, lang: string | null }[], at: number, night: boolean }[]} cardsIn
+ * @param {Shown[]} shown @param {{ id: string, lines: { text: string, lang: string | null, ledger?: string | null, undo?: boolean }[], at: number, night: boolean }[]} cardsIn
  * @returns {Shown[]} */
 export function withLines(shown, cardsIn) {
   if (!cardsIn.length) return shown;

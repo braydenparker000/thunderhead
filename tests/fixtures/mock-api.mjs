@@ -121,6 +121,8 @@ function chatState(o = {}) {
     /** The owner's "go quiet" end (the setting `quiet.until`), or 0. */
     quietUntil: o.quietUntil ?? 0,
     surfaces: o.surfaces ?? [],
+    /** Ledger rows (`GET /v1/ledger`), e.g. today's plans; an undo marks one undone. */
+    ledger: o.ledger ?? [],
     verbs: o.verbs ?? [],
     results: [],
     sockets: [],
@@ -210,6 +212,19 @@ function chatAnswer(c, method, p, url, body) {
   if (k === 'GET /v1/surfaces') return [200, { items: c.surfaces, seq: c.seq }];
   if (k === 'POST /v1/mind/typing') { c.typing++; return [204, null]; }
   if (k === 'POST /v1/mind/stop') { c.stop = { at: Date.now(), seq: c.seq + 1, cleared_at: null }; changed(c, 'mind_status'); return [204, null]; }
+  if (k === 'GET /v1/ledger') {
+    const kind = url.searchParams.get('kind');
+    const since = Number(url.searchParams.get('since')) || 0;
+    return [200, { items: c.ledger.filter((r) => (!kind || r.kind === kind) && r.at >= since), next: null }];
+  }
+  if (method === 'POST' && /^\/v1\/ledger\/[^/]+\/undo$/.test(p)) {
+    const r = c.ledger.find((x) => x.id === p.split('/')[3]);
+    if (!r) return [404, { error: { code: 'not_found', message: 'no', request_id: 't' } }];
+    if (r.status === 'undone') return [409, { error: { code: 'already_undone', message: 'undone', request_id: 't' } }];
+    r.status = 'undone';
+    changed(c, r.kind === 'plan' ? 'plan' : 'ledger');
+    return [200, { undo_ledger_id: crypto.randomUUID(), status: 'undone' }];
+  }
   if (k === 'GET /v1/verbs/pending') return [200, { items: c.verbs.filter((v) => v.status === 'pending') }];
   if (method === 'POST' && /^\/v1\/verbs\/[^/]+\/claim$/.test(p)) {
     const v = c.verbs.find((x) => x.id === p.split('/')[3]);
