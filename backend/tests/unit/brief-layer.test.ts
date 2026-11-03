@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { SKILLS } from '../../../shared/contract/skills.ts';
 import { buildBrief, CORE_MAX, VOICE } from '../../src/areas/mind/brief';
+import { daySection } from '../../src/areas/mind/brief-day';
 import { LAYER_MAX, NOW_MAX } from '../../src/areas/mind/brief-layer';
 import { fact, input, msg, section, thread } from '../brief-helpers';
 
@@ -166,6 +167,8 @@ describe('then the day, then on demand', () => {
     );
     expect(section(crowded.core, 7)).toMatch(/\(\+\d+ more: th ledger --kind arrangement\)/);
     expect(section(buildBrief(input()).core, 7)).toContain('Nothing arranged or predicted for 2026-11-03');
+    // With no room for its first line, only where the rest is.
+    expect(daySection(rich(), 100)).toBe('(no room in the core: th brief --section 7)');
   });
 
   it('section 8 names every skill as th skill <name>, and the full file, recall and the settings', () => {

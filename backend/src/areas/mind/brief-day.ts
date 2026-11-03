@@ -28,9 +28,10 @@ export function daySection(i: BriefInput, budget: number): string {
   const text = lines.length
     ? lines.join('\n')
     : `Nothing arranged or predicted for ${i.day}, and no tiles on the Briefing.`;
-  return text.length <= budget
-    ? text
-    : `${text.slice(0, text.lastIndexOf('\n', budget - 40))}\n(+more: th brief --section 7)`;
+  if (text.length <= budget) return text;
+  // Cut at a whole line; with no room for even the first one, only where the rest is.
+  const at = text.lastIndexOf('\n', budget - 40);
+  return at > 0 ? `${text.slice(0, at)}\n(+more: th brief --section 7)` : '(no room in the core: th brief --section 7)';
 }
 const head = (title: string, body: string[]) => (body.length ? [title, ...body] : []);
 
