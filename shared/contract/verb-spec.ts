@@ -31,6 +31,10 @@ export interface VerbSpec {
   /** A phone verb that the app `app` applies when it next opens (GET /v1/verbs/pending?app=);
    * home's own loop never takes it, so it is accepted while the app is closed. */
   intent?: true;
+  /** Runs only as it is asked: it rests on the session that asks (the owner's words in its
+   * evidence, a clean chat session), which is gone by a later time, so it is never scheduled
+   * (`fire_at`) or a step of a scheduled plan (API.md §11.11). */
+  now_only?: true;
   /** Whether an agent may queue it with PUT /v1/verbs/:id. `false` = owner taps only (a chip), or
    * only ever another verb's inverse. */
   queueable: boolean;

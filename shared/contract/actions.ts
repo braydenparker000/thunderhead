@@ -5,7 +5,17 @@ import type { Id, Json, JsonObject, Ms } from './api';
 import type { Permit, PermitPosition } from './permits.ts';
 
 export type Actor = 'owner' | 'mind:chat' | 'mind:night' | 'mind:reflex' | 'muse' | 'ci' | 'worker';
-export type LedgerKind = 'memory' | 'arrangement' | 'verb' | 'deploy' | 'proposal' | 'mistake' | 'undo' | 'note';
+/** `plan`: a plan's one row (API.md §11.11): its line on home (`what`), its steps' rows in its undo. */
+export type LedgerKind =
+  | 'memory'
+  | 'arrangement'
+  | 'verb'
+  | 'plan'
+  | 'deploy'
+  | 'proposal'
+  | 'mistake'
+  | 'undo'
+  | 'note';
 
 export interface LedgerEntry {
   seq: number;
@@ -41,7 +51,8 @@ export interface UndoResponse {
   status: 'undone' | 'queued';
 }
 
-export type VerbStatus = 'pending' | 'claimed' | 'done' | 'failed' | 'expired';
+/** `scheduled`: waiting for its `fire_at` (no phone sees it yet); `cancelled`: taken back before it ran. */
+export type VerbStatus = 'pending' | 'claimed' | 'done' | 'failed' | 'expired' | 'scheduled' | 'cancelled';
 
 export interface Verb {
   id: Id;
@@ -56,8 +67,13 @@ export interface Verb {
   expires_at: Ms;
   result: Json | null;
   error: { code: string; message?: string } | null;
-  /** The ledger row of this action (the undo handle). */
+  /** The ledger row of this action (the undo handle); none while it is scheduled. */
   ledger_id: Id | null;
+  /** When a scheduled verb runs (or ran): its `fire_at`, moved to the end of quiet hours for music
+   * and podcasts. Null for one that ran as it was queued. Optional for readers of older answers. */
+  fire_at?: Ms | null;
+  /** The plan it is a step of (`POST /v1/verbs/plan`), or null. */
+  plan_id?: Id | null;
 }
 
 /** A write the standing permissions gate (permits.ts), as it answers the mind: its record plus the
@@ -74,6 +90,54 @@ export interface PutVerbRequest {
   device_id?: string;
   expires_at?: Ms;
   proposal_id?: Id;
+  /** Run it later: an ISO time within the next 7 days, owner-local (no offset) or with its offset. */
+  fire_at?: string;
+}
+
+/** PUT /v1/verbs/:id's answer: the verb and its permit; `shifted` when a scheduled music or podcasts
+ * verb's time fell in quiet hours and it fires at their end instead (its `fire_at`). */
+export type VerbAnswer = Permitted<Verb> & { shifted?: boolean };
+
+/** One step of a plan: a verb call as `PUT /v1/verbs/:id` takes it, without its own why. */
+export interface PlanStep {
+  verb: string;
+  schema: number;
+  args: JsonObject;
+  device_id?: string;
+}
+
+/** POST /v1/verbs/plan: 2–8 steps, one why (8–200), one line for home (`what`, ≤ 80), optionally
+ * later (`fire_at`, as a verb's). `id` (a UUIDv7) makes it idempotent. */
+export interface PostPlanRequest {
+  id: Id;
+  steps: PlanStep[];
+  why: string;
+  what: string;
+  ref?: string;
+  fire_at?: string;
+  proposal_id?: Id;
+}
+
+/** A plan: `done` once its steps ran (Worker-side ones done, phone ones pending as intents),
+ * `scheduled` until its `fire_at`, `failed` (a scheduled one whose step failed when it ran:
+ * `error.step`, 1-based, names it, and nothing of it stands) or `cancelled`. */
+export interface Plan {
+  id: Id;
+  status: 'scheduled' | 'done' | 'failed' | 'cancelled';
+  what: string;
+  why: string;
+  created_at: Ms;
+  fire_at: Ms | null;
+  steps: { verb: string; schema: number; verb_id: Id | null; status: VerbStatus | null; ledger_id: Id | null }[];
+  /** The plan's one ledger row (kind `plan`): its line on home and its undo. Null while scheduled. */
+  ledger_id: Id | null;
+  error: { code: string; step?: number; verb?: string } | null;
+}
+export type PlanAnswer = Permitted<Plan> & { shifted?: boolean };
+
+/** GET /v1/verbs/scheduled: what waits for its time, soonest first (a plan as verb `plan.run`). */
+export interface ScheduledResponse {
+  items: Verb[];
 }
 
 /** POST /v1/verbs/:id/result. A phone that lacks the verb answers ok:false, code unsupported_verb. */

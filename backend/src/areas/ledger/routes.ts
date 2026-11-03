@@ -22,7 +22,7 @@ const pageQuery = z.object({
   actor: z.optional(z.enum(['owner', 'mind:chat', 'mind:night', 'mind:reflex', 'muse', 'ci', 'worker'])),
   status: z.optional(z.enum(['done', 'undone', 'failed'])),
   since: z.optional(z.coerce.number().check(z.int(), z.gte(0))),
-  kind: z.optional(z.enum(['memory', 'arrangement', 'verb', 'deploy', 'proposal', 'mistake', 'undo', 'note'])),
+  kind: z.optional(z.enum(['memory', 'arrangement', 'verb', 'plan', 'deploy', 'proposal', 'mistake', 'undo', 'note'])),
 });
 
 export const ledgerRoutes = new Hono<AppEnv>()

@@ -6,8 +6,9 @@
 // core-proposals.ts, the evals in core-evals.ts, the watchdogs (each tick) in core-watchdogs.ts and backups, the drill
 // and exports in core-backups.ts, Muse's work orders and the Briefing in core-work.ts, the predictions (P9) in
 // core-predictions.ts, the reminders in core-reminders.ts, the phone's reports in core-reports.ts, Podcasts'
-// positions and follows in core-podcasts.ts, and reading threads, off the record, Delete, Restore and the prune
-// pass in core-held.ts. The alarm also runs the chunked jobs (areas/jobs).
+// positions and follows in core-podcasts.ts, reading threads, off the record, Delete, Restore and the prune
+// pass in core-held.ts, and the verbs, plans and scheduled actions in core-verbs.ts. The alarm also runs the
+// chunked jobs (areas/jobs).
 import type {
   BriefRequest,
   JsonObject,
@@ -17,9 +18,7 @@ import type {
   PendingResponse,
   PutLedgerRequest,
   PutSurfaceRequest,
-  PutVerbRequest,
   TodayResponse,
-  VerbResultRequest,
 } from '../../../shared/contract/api';
 import { drillJob } from '../areas/backups/drill';
 import { exportJob } from '../areas/backups/export-job';
@@ -44,13 +43,12 @@ import { lawsAtClaim, settle as settleProposals } from '../areas/proposals/ops';
 import * as surfaces from '../areas/surfaces/ops';
 import { list as listSurfaces } from '../areas/surfaces/store';
 import { dropUnasked } from '../areas/verbs/follow';
-import { list as listMixes } from '../areas/verbs/mixes';
 import * as verbs from '../areas/verbs/ops';
 import * as placed from '../areas/work/placed';
 import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
-import { CoreHeld } from './core-held';
+import { CoreVerbs } from './core-verbs';
 
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
 const JOB_HANDLERS: Record<string, JobHandler> = {
@@ -63,7 +61,7 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [listenRejectJob.kind]: listenRejectJob,
 };
 
-export class Core extends CoreHeld {
+export class Core extends CoreVerbs {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
@@ -179,20 +177,23 @@ export class Core extends CoreHeld {
     this.schedule();
   }
 
-  /** Wake retries, give-ups, requeues (RUNTIME.md §4.4–4.5), then due reminders (after any wake), then jobs. */
+  /** Wake retries, give-ups, requeues (RUNTIME.md §4.4–4.5), then due reminders (after any wake) and
+   * scheduled verbs, then jobs. */
   override async alarm(): Promise<void> {
     this.alarmAt = null;
     const fires = this.write((w) => wake.onAlarm(w, this.configured(), this.tz()));
     const cfg = this.sandboxed ? null : fireConfig(this.env, 'chat');
     if (cfg) for (const f of fires) this.recordFire(f.id, await fire(cfg));
     await this.deliverReminders(Date.now());
+    this.fireVerbs(Date.now());
     await runJobs({ env: this.env, db: this.db, write: (fn, at) => this.write(fn, at) }, JOB_HANDLERS);
     this.schedule();
   }
 
   /** The 15-minute cron: the day roll after 60 quiet minutes (firing the night shift for the day it
    * closed, after the roll's commit), verbs, the prune pass (held conversations each tick, then
-   * DATA.md §10 daily, core-held.ts) and each area's pass. */
+   * DATA.md §10 daily, core-held.ts), each area's pass, and reminders and scheduled verbs the
+   * alarm missed. */
   async tick(
     now = Date.now(),
     fetchImpl: typeof fetch = fetch,
@@ -226,6 +227,7 @@ export class Core extends CoreHeld {
     this.workTick(now);
     await this.predictionsTick(now, tz, due ?? d);
     await this.deliverReminders(now);
+    this.fireVerbs(now);
     return { rolled: due, pruned, night: wakeNight?.id ?? null, reflex };
   }
 
@@ -245,32 +247,7 @@ export class Core extends CoreHeld {
     if (out.ok) this.changed();
     return out;
   }
-
-  /** `prepared`: what the route worked out first (a play_mix find's songs); absent from a Worker of
-   * the release before, which sends none (then such a find is refused, 422). */
-  putVerb(c: Caller, id: string, r: PutVerbRequest, hash: string, prepared?: verbs.Prepared) {
-    const out = this.run((w) => verbs.put(w, c, id, r, hash, () => this.tz(), prepared ?? {}));
-    if (out.ok && out.value.created && r.verb === 'reminder.move') this.changed();
-    return out;
-  }
-
-  /** `app`: that app's pending intents; without it, what home's own loop runs. */
-  pendingVerbs(deviceId: string, app?: string) {
-    return this.write((w) => verbs.pending(w, deviceId, app));
-  }
-
-  claimVerb(id: string, deviceId: string) {
-    return this.run((w) => verbs.claim(w, id, deviceId));
-  }
-
-  verbResult(id: string, deviceId: string, r: VerbResultRequest) {
-    return this.run((w) => verbs.result(w, id, deviceId, r, () => this.tz()));
-  }
-
-  /** GET /v1/music/mixes: the mixes `music.mix_save` kept, newest first. */
-  musicMixes() {
-    return listMixes(this.db);
-  }
+  // The verbs, plans and scheduled actions are in core-verbs.ts.
 
   surfaces(since: number) {
     return { items: listSurfaces(this.db, since, Date.now()), seq: this.lastSeq() };

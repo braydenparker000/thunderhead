@@ -616,9 +616,11 @@ CREATE TABLE verbs (
   undo_json TEXT,
   error_json TEXT,
   req_sha256 TEXT
-  ) WITHOUT ROWID;
+  , fire_at INTEGER, plan_id TEXT, why TEXT, permit TEXT) WITHOUT ROWID;
 
 CREATE INDEX verbs_open ON verbs (created_at) WHERE status IN ('pending', 'claimed');
+
+CREATE INDEX verbs_scheduled ON verbs (fire_at) WHERE status = 'scheduled';
 
 CREATE TABLE wakes (
   id TEXT PRIMARY KEY,

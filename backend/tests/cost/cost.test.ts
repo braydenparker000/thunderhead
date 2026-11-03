@@ -284,8 +284,8 @@ describe('rows per endpoint', () => {
       .then(() => listenCalls(cost, grant))
       .then(() => heldCalls(cost, grant))
       .then(() => import('./settings-calls').then((m) => m.settingsCalls(cost, grant))));
-  it('measures the music notes and find against their budget', () => musicCalls(cost as never, grant));
-
+  it('measures the music notes and find, then scheduled actions and plans, against their budget', () =>
+    musicCalls(cost as never, grant).then(() => import('./verb-calls').then((m) => m.verbCalls(cost, grant))));
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);
     console.log(['| Call | Rows read | Rows written |', '|---|---|---|', ...lines].join('\n'));

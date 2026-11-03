@@ -29,6 +29,10 @@ describe("the briefing's verb table", () => {
     expect(row('podcasts.unfollow')).toMatch(/· podcasts: tell \(never quiet\) ·/);
     expect(row('memory.note')).toMatch(/· no class \(the owner's own words only\) ·/);
     expect(table.length).toBeLessThanOrEqual(VERBS_MAX);
+    // One line on later and plans, naming the verbs that never wait.
+    expect(table.split('\n')[1]).toMatch(
+      /^Later: th verb … --at <time> .*never music\.never, reminder\.move, memory\.note\).* th plan <file\.json>/,
+    );
     // Section 13's settings check reads `<key>: ` at a line's start: no verb line looks like one.
     expect(table).not.toMatch(/^[a-z]+\.[a-z_.]+: /m);
   });
