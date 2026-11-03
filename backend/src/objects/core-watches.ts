@@ -71,6 +71,11 @@ export abstract class CoreWatches extends CoreBase {
     this.schedule();
   }
 
+  /** Whether any watch waits (from memory; one read once per object start). */
+  protected watchesWaiting(): boolean {
+    return this.watchSummary().waiting > 0;
+  }
+
   /** The alarm's and the tick's pass (pulse.ts): lapses, due times, the queue; then the wake's fire. */
   protected async watchesTick(now: number, fetchImpl: typeof fetch = fetch): Promise<string | null> {
     this.releaseSoon = false;

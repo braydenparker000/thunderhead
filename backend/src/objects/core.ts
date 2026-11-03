@@ -182,15 +182,16 @@ export class Core extends CoreHeld {
     this.schedule();
   }
 
-  /** Wake retries, give-ups, requeues (RUNTIME.md §4.4–4.5), due reminders (after any wake), watches, then jobs. */
+  /** Wake retries, give-ups, requeues (RUNTIME.md §4.4–4.5), due reminders (after any wake), jobs, then watches. */
   override async alarm(): Promise<void> {
     this.alarmAt = null;
     const fires = this.write((w) => wake.onAlarm(w, this.configured(), this.tz()));
     const cfg = this.sandboxed ? null : fireConfig(this.env, 'chat');
     if (cfg) for (const f of fires) this.recordFire(f.id, await fire(cfg));
     await this.deliverReminders(Date.now());
-    await this.watchesTick(Date.now());
     await runJobs({ env: this.env, db: this.db, write: (fn, at) => this.write(fn, at) }, JOB_HANDLERS);
+    // Only while a watch waits: an alarm with none does no more than before.
+    if (this.watchesWaiting()) await this.watchesTick(Date.now());
     this.schedule();
   }
 
