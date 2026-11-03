@@ -454,7 +454,6 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `backup.stale` | the newest complete backup is more than 8 days old (once one exists) | S3 | Backups: newest complete backup < 8 days old | yes | P4 | built |
 | `drill.failed` | the last restore drill failed | S3 | Backups: the monthly drill passes | yes | P4 | built |
 | `drill.overdue` | no restore drill for 35 days since the first complete backup | S3 | Backups: the monthly drill passes | yes | P4 | built |
-| `muse.silent` | no Muse API call in 26 hours | S4 | Muse checks in daily (MUSE.md §9) | no | P4 | built |
 | `events.export.late` | day D not archived by D+1 09:00 | S3 | Senses: each day archived by the next morning | yes | P5 | built |
 
 ## Error codes

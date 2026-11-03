@@ -7,6 +7,7 @@ import { heldAnswer } from './mock-held.mjs';
 import { memoryAnswer, memoryState } from './mock-memory.mjs';
 import { proposalsAnswer, proposalsState } from './mock-proposals.mjs';
 import { threadsAnswer, threadsState } from './mock-threads.mjs';
+import { order as workOrder, workAnswer, workState } from './mock-work.mjs';
 
 export const API = 'https://api.th.test';
 
@@ -46,6 +47,9 @@ export async function mockApi(page, overrides = {}) {
   state.briefing = 'briefing' in overrides ? overrides.briefing : briefingState();
   state.proposals = proposalsState(overrides.proposals);
   state.threads = overrides.threads ?? threadsState();
+  state.work = workState(overrides.work);
+  // An "@muse" adds its order here (chatAnswer).
+  state.chat.work = state.work;
   const calls = [];
   await page.routeWebSocket(/\/v1\/live\?ticket=/, (ws) => {
     state.chat.sockets.push(ws);
@@ -163,6 +167,8 @@ function chatControls(c) {
   return {
     reply: (text, extra = {}) => message(c, { id: crypto.randomUUID(), author: 'mind', body: text, ...extra }),
     system: (text, meta = null) => message(c, { id: crypto.randomUUID(), author: 'system', origin: 'system', body: text, meta }),
+    /** Muse's own line when a task is done, as the Worker posts it (with `meta.chip`). */
+    muse: (text, meta = null) => message(c, { id: crypto.randomUUID(), author: 'muse', body: text, meta }),
     presence: (s) => { c.presence = { state: s, note: null, since: Date.now() }; changed(c, 'mind_status'); },
     surface: (s) => { c.surfaces = [s]; changed(c, 'surface'); },
     verb: (v) => { c.verbs.push(v); changed(c, 'verb'); },
@@ -182,6 +188,16 @@ function chatAnswer(c, method, p, url, body) {
       const { body: _b, sha256: _s, ...a } = c.files[ref.replace(/^file:/, '')];
       return a;
     });
+    // "@muse ...": as the Worker does, an order, the message answered and a line naming the order.
+    if (body.mention === 'muse') {
+      const m = message(c, { id, author: 'owner', body: body.body, attachments, meta: { mention: 'muse' }, answered_at: Date.now() });
+      const words = body.body.replace(/^@muse[\s,:]+/i, '').trim();
+      const o = workOrder({ title: words.slice(0, 60), spec: { v: 1, words }, created_at: Date.now(), message_id: id });
+      c.work?.orders.push(o);
+      changed(c, 'work');
+      message(c, { id: crypto.randomUUID(), author: 'system', origin: 'system', body: "Asked Muse. I'll tell you when it lands.", meta: { work: { id: o.id, state: 'asked' } }, reply_to: id });
+      return [201, m];
+    }
     const m = message(c, { id, author: 'owner', body: body.body, attachments });
     if (c.reply) setTimeout(() => { m.answered_at = Date.now(); message(c, { id: crypto.randomUUID(), author: 'mind', body: c.reply.text, meta: c.reply.meta ?? null, reply_to: id }); }, c.reply.after);
     return [201, m];
@@ -275,6 +291,7 @@ function answer(state, method, url, body) {
     exportAnswer(state.export, method, p, body) ??
     briefingAnswer(state.briefing, method, p, body) ??
     heldAnswer(state, method, p, body, (kind) => changed(state.chat, kind)) ??
+    workAnswer(state.work, method, p, url, body, (kind) => changed(state.chat, kind)) ??
     chatAnswer(state.chat, method, p, url, body) ??
     threadsAnswer(state.threads, method, p, url, state.chat.thread, state.memory?.facts) ??
     err(404, 'not_found')

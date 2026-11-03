@@ -57,6 +57,7 @@ and win over any other page here. Historical pages are in [archive/](archive/REA
 - [TESTING.md](engineering/TESTING.md): the test layers and CI.
 - [PERFORMANCE.md](engineering/PERFORMANCE.md): budgets for the site and the Worker.
 - [JOBS.md](engineering/JOBS.md): heavy work in Actions and chunked jobs.
+- [MUSE-PROTOCOL.md](engineering/MUSE-PROTOCOL.md): what Muse implements to take tasks (`@muse`): claim, progress, result.
 - [MIGRATION.md](engineering/MIGRATION.md): retiring the old Worker.
 
 ## Process

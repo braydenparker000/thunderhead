@@ -3,13 +3,13 @@
 // and their format and stored once, verified, under their content address in jarvis-music (the
 // local test bucket); the catalog writer's operations change the Music object one at a time, each
 // logged and moving the catalog's ETag; nothing is ever deleted from the bucket.
-import { createExecutionContext, runInDurableObject } from 'cloudflare:test';
+import { createExecutionContext, runInDurableObject, waitOnExecutionContext } from 'cloudflare:test';
 import { env } from 'cloudflare:workers';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { MusicCatalog } from '../../../shared/contract/music.ts';
 import { app } from '../../src/app';
 import { signatureMessage } from '../../src/areas/music/validate';
-import { setupOwner } from '../helpers';
+import { coreSql, setupOwner } from '../helpers';
 
 const hex = (b: ArrayBuffer | Uint8Array) =>
   Array.from(new Uint8Array(b), (x) => x.toString(16).padStart(2, '0')).join('');
@@ -31,13 +31,8 @@ let pub = '';
 let owner = '';
 let E: Env;
 
-async function send(
-  method: string,
-  path: string,
-  bytes: Uint8Array,
-  type: string,
-  over: { time?: number; key?: CryptoKeyPair; headers?: Record<string, string>; env?: Env } = {},
-) {
+type Over = { time?: number; key?: CryptoKeyPair; headers?: Record<string, string>; env?: Env; ctx?: ExecutionContext };
+async function send(method: string, path: string, bytes: Uint8Array, type: string, over: Over = {}) {
   const k = over.key ?? keys;
   const key = hex((await crypto.subtle.exportKey('raw', k.publicKey)) as ArrayBuffer);
   const time = String(over.time ?? Math.floor(Date.now() / 1000));
@@ -63,10 +58,14 @@ async function send(
     'X-Music-Sha256': hash,
     ...over.headers,
   };
-  return app.fetch(new Request(url, { method, headers, body: bytes }), over.env ?? E, createExecutionContext());
+  return app.fetch(
+    new Request(url, { method, headers, body: bytes }),
+    over.env ?? E,
+    over.ctx ?? createExecutionContext(),
+  );
 }
-const op = async (name: string, body: object) => {
-  const r = await send('POST', name, enc.encode(JSON.stringify(body)), 'application/json');
+const op = async (name: string, body: object, ctx?: ExecutionContext) => {
+  const r = await send('POST', name, enc.encode(JSON.stringify(body)), 'application/json', { ctx });
   return { status: r.status, body: (await r.json()) as Record<string, unknown> & { error?: { code: string } } };
 };
 const catalog = async () => {
@@ -150,10 +149,21 @@ describe('the catalog writer', () => {
     expect((await op('register', reg)).body).toMatchObject({ error: { code: 'conflict' } });
     expect((await send('PUT', `audio/${h}.opus`, bytes, 'audio/ogg')).status).toBe(200);
     const before = (await catalog()).etag;
-    const done = await op('register', reg);
+    const ctx = createExecutionContext();
+    const done = await op('register', reg, ctx);
     id = `r2_native_${h}`;
     expect(done).toEqual({ status: 200, body: { registered: true, duplicate: false, id, count: 1 } });
-    expect((await op('register', reg)).body).toMatchObject({ registered: true, duplicate: true, id });
+    // The new song is Muse's upload batch, a task in the menu (areas/work); the same one again isn't.
+    await waitOnExecutionContext(ctx);
+    const again = createExecutionContext();
+    expect((await op('register', reg, again)).body).toMatchObject({ registered: true, duplicate: true, id });
+    await waitOnExecutionContext(again);
+    const batch = await coreSql<{ result_json: string }>(
+      "SELECT result_json FROM work_orders WHERE kind = 'muse.upload_batch' AND status = 'claimed'",
+    );
+    expect(batch.map((b) => JSON.parse(b.result_json))).toEqual([
+      { added: { songs: 1, artists: 1 }, ids: [id], note: '', open: { app: 'music', path: '/music/' } },
+    ]);
     const c = await catalog();
     expect(c.etag).not.toBe(before);
     expect(c.body.tracks.at(-1)).toMatchObject({
