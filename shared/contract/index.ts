@@ -54,6 +54,7 @@ export {
 export { REMINDER_LIMITS } from './reminders.ts';
 export { REPORT_KINDS, REPORT_LIMITS, type ReportKind } from './reports.ts';
 export { READER_KINDS, READER_LIMITS, type ReaderKind } from './reader.ts';
+export { FIRE_AT, PLAN_ACTION, PLAN_LIMITS, QUIET_HELD, SCHEDULE_LIMITS } from './schedules.ts';
 export { ROUTINES, SENSE_APPS, SENSE_TYPES, type SenseApp, type SenseTypeName, senseSwitch } from './senses.ts';
 export { SETTING_GROUPS, SETTINGS, type SettingGroup, type SettingSpec, settingSpec, validSetting } from './settings.ts';
 export { BUILT_PHASES, builtRoutes, type Phase, ROUTES, type RouteKey, type RouteSpec, type Who } from './routes.ts';

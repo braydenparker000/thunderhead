@@ -160,6 +160,7 @@ function mind() {
           side: v.side,
           ...(v.intent ? { intent: true } : {}),
           ...(v.tell_min ? { tell_min: true } : {}),
+          ...(v.now_only ? { now_only: true } : {}),
           queueable: v.queueable,
           undo: v.undo,
           doc: v.doc,
@@ -229,6 +230,8 @@ function mind() {
     // Standing permissions: each class's setting and default, the floors, and the actions Core runs
     // itself (a verb's class is on the verb above).
     permits: permits(),
+    // Scheduled actions and plans (`th verb --at`, `th plan`): checked before the call.
+    schedules: { limits: c.SCHEDULE_LIMITS, plans: c.PLAN_LIMITS, plan_action: c.PLAN_ACTION, quiet_held: c.QUIET_HELD },
     lint: { banned_phrases: BANNED_PHRASES },
     watchdogs: { limits: c.WATCHDOG_LIMITS, reflex_procedure: c.REFLEX_PROCEDURE, items: c.WATCHDOGS },
     // The day pulse (`th watch`): the kinds, the limits, what an event or a change watch may name.
@@ -293,7 +296,7 @@ function docs() {
     '',
     '## Verbs',
     '',
-    'Side `worker`: run inside the commit that queues it, `done` at once, its inverse stored on the ledger row (`stored`). Side `phone`: claimed and run by a signed-in phone, which reports its inverse (`reported`); an intent waits for its app to open (`GET /v1/verbs/pending?app=`). `tell_min`: never below tell.',
+    'Side `worker`: run inside the commit that queues it, `done` at once, its inverse stored on the ledger row (`stored`). Side `phone`: claimed and run by a signed-in phone, which reports its inverse (`reported`); an intent waits for its app to open (`GET /v1/verbs/pending?app=`). `tell_min`: never below tell. `now only`: never scheduled or a step of a scheduled plan.',
     '',
     '| Verb | App | Class | Permit | Side | Queueable | Undo | Versions | Args (newest) | What it does |',
   );
@@ -301,8 +304,9 @@ function docs() {
   for (const [n, v] of Object.entries(c.VERBS)) {
     const vs = versions(v.versions);
     const permit = v.permit === null ? 'none (the owner\'s words)' : `${v.permit}${v.floor ? ` (floor: ${v.floor})` : ''}${v.tell_min ? ' (tell_min)' : ''}`;
+    const later = v.now_only ? ' (now only)' : '';
     L.push(
-      `| \`${n}\` | ${v.app} | ${v.class} | ${permit} | ${v.side}${v.intent ? ' (intent)' : ''} | ${v.queueable ? 'yes' : 'no (owner tap or undo)'} | ${v.undo} | ${vs.join(', ')} | ${shape(v.versions[vs.at(-1)].args)} | ${cell(v.doc)} |`,
+      `| \`${n}\` | ${v.app} | ${v.class} | ${permit} | ${v.side}${v.intent ? ' (intent)' : ''} | ${v.queueable ? `yes${later}` : 'no (owner tap or undo)'} | ${v.undo} | ${vs.join(', ')} | ${shape(v.versions[vs.at(-1)].args)} | ${cell(v.doc)} |`,
     );
   }
   const p = permits();
@@ -325,6 +329,12 @@ function docs() {
   }
   L.push('', '| Core action | Class | Floor | What it is |', '|---|---|---|---|');
   for (const [n, a] of Object.entries(p.actions)) L.push(`| \`${n}\` | ${a.class} | ${a.floor ?? '—'} | ${cell(a.doc)} |`);
+  L.push(
+    '',
+    '## Scheduled actions and plans',
+    '',
+    `A verb or a plan with \`fire_at\` (ISO, owner-local or with its offset) waits as a \`scheduled\` row: at most ${c.SCHEDULE_LIMITS.pending} at once (429 \`too_many_scheduled\`), at most ${c.SCHEDULE_LIMITS.days_ahead} days ahead; its permit is checked when it is queued. Classes that wait out quiet hours (fired at their end, \`shifted\`): ${c.QUIET_HELD.map((x) => `\`${x}\``).join(', ')}. A plan is ${c.PLAN_LIMITS.min_steps}–${c.PLAN_LIMITS.max_steps} verbs with one why, one undo and a line of at most ${c.PLAN_LIMITS.what} characters, gated and carded as \`${c.PLAN_ACTION}\` under its strictest step's position (API.md §11.11).`,
+  );
   L.push('', '## Surface kinds', '', '| Kind | Slots | Versions | Payload (newest) | What it is |', '|---|---|---|---|---|');
   for (const [n, k] of Object.entries(c.SURFACE_KINDS)) {
     const vs = versions(k.versions);

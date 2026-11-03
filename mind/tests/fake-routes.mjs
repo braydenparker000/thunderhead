@@ -244,7 +244,35 @@ export function extraRoutes(ctl) {
       if (ASK_FIRST_VERBS.includes(body.verb) && s.proposals.get(body.proposal_id)?.value.status !== 'approved') throw new HttpError(403, 'proposal_required');
       // The watches run in the Worker, done at once (fake-watches.mjs).
       if (String(body.verb).startsWith('watch.')) return ctl.watchVerb(params[0], body, actorOf(role));
-      return idem(s.verbs, params[0], body, () => ({id: params[0], ...body, status: 'pending', ledger_id: ctl.addLedger(actorOf(role), 'verb', body.verb).id}));
+      // Later (API.md §11.11): a scheduled row with no ledger row; at most 20 wait.
+      if (body.fire_at !== undefined) {
+        if ([...s.verbs.values()].filter(v => v.value.status === 'scheduled').length >= 20) throw new HttpError(429, 'too_many_scheduled');
+        const fire = Date.parse(/(Z|[+-]\d\d:\d\d)$/.test(body.fire_at) ? body.fire_at : `${body.fire_at}Z`);
+        return idem(s.verbs, params[0], body, () => ({id: params[0], ...body, actor: actorOf(role), status: 'scheduled', fire_at: fire, shifted: false, ledger_id: null}));
+      }
+      return idem(s.verbs, params[0], body, () => ({id: params[0], ...body, actor: actorOf(role), status: 'pending', ledger_id: ctl.addLedger(actorOf(role), 'verb', body.verb).id}));
+    }],
+    ['POST', /^\/v1\/verbs\/plan$/, CN, ({body, role}) => {
+      if (!Array.isArray(body.steps) || body.steps.length < 2 || body.steps.length > 8 || !body.what) throw new HttpError(422, 'validation', 'steps');
+      if (s.verbs.has(body.id) && s.verbs.get(body.id).value.verb !== 'plan.run') throw new HttpError(409, 'conflict');
+      const [code, plan] = idem(s.verbs, body.id, body, () => {
+        const later = body.fire_at !== undefined;
+        const steps = body.steps.map(st => ({verb: st.verb, schema: st.schema, verb_id: later ? null : randomUUID(), status: later ? null : 'done', ledger_id: later ? null : ctl.addLedger(actorOf(role), 'verb', `${st.verb} done`, `plan:${body.id}`).id}));
+        return {id: body.id, verb: 'plan.run', args: {what: body.what, steps: body.steps}, actor: actorOf(role), status: later ? 'scheduled' : 'done', what: body.what, why: body.why,
+          fire_at: later ? Date.parse(body.fire_at) : null, steps, ledger_id: later ? null : ctl.addLedger(actorOf(role), 'plan', body.what).id, error: null,
+          permit: {action: 'plan.run', class: 'music', position: 'quiet'}, ...(later ? {shifted: false} : {})};
+      });
+      return [code, plan];
+    }],
+    ['GET', /^\/v1\/verbs\/scheduled$/, CN, () => ({items: [...s.verbs.values()].map(v => v.value).filter(v => v.status === 'scheduled')
+      .sort((a, b) => a.fire_at - b.fire_at).map(v => ({id: v.id, verb: v.verb, args: v.args, fire_at: v.fire_at, status: v.status, created_at: 0}))})],
+    ['POST', /^\/v1\/verbs\/([^/]+)\/cancel$/, CN, ({params, role}) => {
+      const v = s.verbs.get(params[0])?.value;
+      if (!v) throw new HttpError(404, 'not_found');
+      if (v.actor !== actorOf(role)) throw new HttpError(403, 'forbidden');
+      if (v.status !== 'scheduled' && v.status !== 'cancelled') throw new HttpError(409, 'already_decided');
+      v.status = 'cancelled';
+      return {id: v.id, verb: v.verb, status: v.status};
     }],
     ['GET', /^\/v1\/ledger$/, ALL, ({query}) => {
       const since = Number(query.get('since')) || 0, kind = query.get('kind');

@@ -160,6 +160,8 @@ export const MUSIC_VERBS = {
     class: 'reversible',
     permit: 'music',
     side: 'worker',
+    // The owner's words of this session, through memory's rules: never later.
+    now_only: true,
     queueable: true,
     undo: 'stored',
     versions: {

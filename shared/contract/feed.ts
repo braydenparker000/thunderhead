@@ -11,6 +11,8 @@ export const CHANGE_KINDS = [
   'ledger',
   'proposal',
   'verb',
+  // A plan's ledger row was written or undone (its line on home).
+  'plan',
   'surface',
   'notice',
   'fact',

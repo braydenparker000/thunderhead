@@ -147,6 +147,22 @@
     "rows_read_max": 5,
     "rows_written_max": 0
   },
+  "PUT /v1/verbs/:id (fire_at) (Core)": {
+    "rows_read_max": 8,
+    "rows_written_max": 3
+  },
+  "GET /v1/verbs/scheduled (1 waiting) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "POST /v1/verbs/plan (2 steps) (Core)": {
+    "rows_read_max": 10,
+    "rows_written_max": 30
+  },
+  "GET /v1/ledger (kind plan, today) (Core)": {
+    "rows_read_max": 30,
+    "rows_written_max": 0
+  },
   "PUT /v1/surfaces/home/:slot (Core)": {
     "rows_read_max": 1,
     "rows_written_max": 7

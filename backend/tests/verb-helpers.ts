@@ -15,7 +15,7 @@ import { uuidv7 } from '../src/lib/ids';
 import { apiJson } from './helpers';
 import { chat, P } from './proposal-helpers';
 
-export type Out = Verb & { permit?: Permit } & ErrorBody;
+export type Out = Verb & { permit?: Permit; shifted?: boolean } & ErrorBody;
 
 export const SONG = (n: number) => `music:r2_song${String(n).padStart(8, '0')}`;
 export const FEED = 'https://feeds.example.test/show.xml';

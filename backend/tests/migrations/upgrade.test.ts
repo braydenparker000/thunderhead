@@ -123,6 +123,9 @@ describe('upgrade from P2', () => {
       sql.exec('ALTER TABLE session_notes DROP COLUMN tainted');
       // Step 28 (standing permissions) added the ledger's permit.
       sql.exec('ALTER TABLE ledger DROP COLUMN permit');
+      // Step 33 (scheduled verbs and plans) added the verbs' columns and index.
+      sql.exec('DROP INDEX IF EXISTS verbs_scheduled');
+      for (const c of ['fire_at', 'plan_id', 'why', 'permit']) sql.exec(`ALTER TABLE verbs DROP COLUMN ${c}`);
       sql.exec('DELETE FROM _migrations WHERE version > 7');
       sql.exec(
         `INSERT INTO threads (id, day, kind, status, started_at, updated_at) VALUES ('t-p2', '2026-10-01', 'daily', 'filed', 1, 1)`,
@@ -164,6 +167,9 @@ describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
       sql.exec('DROP INDEX mind_sessions_claimed');
       sql.exec('ALTER TABLE wakes DROP COLUMN reason_json');
       for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`ALTER TABLE ${t} DROP COLUMN provenance`);
+      // And step 33's (scheduled verbs), which comes after it.
+      sql.exec('DROP INDEX verbs_scheduled');
+      for (const c of ['fire_at', 'plan_id', 'why', 'permit']) sql.exec(`ALTER TABLE verbs DROP COLUMN ${c}`);
       sql.exec('DELETE FROM _migrations WHERE version > 31');
       for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`DELETE FROM ${t}`);
       for (const source of ['user', 'observed', 'inferred'])

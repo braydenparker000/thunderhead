@@ -76,9 +76,14 @@ export abstract class CoreBase extends OwnerObject {
   /** When the watches next need the alarm: the soonest `at`, or now for a queue just met (core-watches.ts). */
   protected abstract watchDue(): number | null;
 
-  /** Sets the alarm to the next due wake retry, requeue, job, reminder or watch, writing only when it moves. */
+  /** When the soonest scheduled verb or plan is due, or null (core-verbs.ts keeps it in memory). */
+  protected abstract verbsDue(): number | null;
+
+  /** Sets the alarm to the next due wake retry, requeue, job, reminder, scheduled verb or watch,
+   * writing only when it moves. */
   protected schedule(): void {
-    const times = [wake.nextAlarmAt(this.db), jobs.nextDue(this.db), this.reminderDue(), this.watchDue()].filter(
+    const due = [this.reminderDue(), this.verbsDue(), this.watchDue()];
+    const times = [wake.nextAlarmAt(this.db), jobs.nextDue(this.db), ...due].filter(
       (x): x is number => x !== null,
     );
     const t = times.length ? Math.min(...times) : null;

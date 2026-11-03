@@ -55,6 +55,7 @@ export async function startChat() {
     /** @type {{ seq: number, cleared_at: number | null } | null} */ stop: null,
     stopping: false,
     /** @type {Surface[]} */ surfaces: [],
+    /** Today's plans: their ledger rows (kind `plan`), each a line on home with its Undo. @type {import('../../../shared/contract/api.ts').LedgerEntry[]} */ plans: [],
     /** The newest change on screen: the feed is pulled from here, and it moves only once the
      * loads a change needs have succeeded (API.md §12). */
     applied: 0,
@@ -73,6 +74,7 @@ export async function startChat() {
     onChip: openChip,
     onFollow: (text, id) => sendNow(text, id),
     onTap: (m, node) => void import('../reply/actions.js').then((a) => a.toggle(node, m, { send: sendNow })),
+    onUndo: undoPlan,
   });
   const workCard = createWorking({ ask, onStop: stopMind, onOpen: openChip });
   const sendLine = createSendLine(ask);
@@ -111,7 +113,7 @@ export async function startChat() {
     const stop = waiting && (working || standing) && !waiting.local ? (standing || state.stopping ? 'stopping' : 'button') : 'none';
     // The mind's home lines join today's chat as cards, at the time they were placed (the night's at
     // the end of the quiet hours).
-    const lines = state.today && !otr ? homeLines(state.surfaces, { day: state.today.day, now, quietEnd: state.quietEnd }) : [];
+    const lines = state.today && !otr ? [...homeLines(state.surfaces, { day: state.today.day, now, quietEnd: state.quietEnd }), ...model.planLines(state.plans, state.today.day)] : [];
     // Once quiet ends, one line says what came while it held (the cards it held show a moment later).
     const ended = state.today && !catchingUp && !otr ? endedQuiet(now) : null;
     if (ended && state.today) {
@@ -196,6 +198,32 @@ export async function startChat() {
   async function loadSurfaces() {
     state.surfaces = (await signedIn((tok) => api.surfaces(tok))).items;
   }
+  /** Today's plans (API.md §11.11): their ledger rows since the day began. Never holds the chat: if
+   * the read fails, the lines it had stay until the next `plan` change. */
+  async function loadPlans() {
+    const day = state.today?.day;
+    if (!day) return;
+    const since = new Date(`${day}T04:00`).getTime();
+    await signedIn((tok) => api.call(`/v1/ledger?kind=plan&since=${since}&limit=20`, { token: tok })).then(
+      (r) => { state.plans = /** @type {any} */ (r).items ?? state.plans; },
+      () => {},
+    );
+  }
+  /** A plan's Undo: all its steps, last first (the Worker's); its line goes once undone.
+   * @param {string} id @param {HTMLButtonElement} b */
+  async function undoPlan(id, b) {
+    b.disabled = true;
+    try {
+      await signedIn((tok) => api.call(`/v1/ledger/${encodeURIComponent(id)}/undo`, { method: 'POST', token: tok, body: {} }));
+      state.plans = state.plans.map((p) => (p.id === id ? { ...p, status: 'undone' } : p));
+      toast('Undone.');
+      paint();
+    } catch (e) {
+      b.disabled = false;
+      const code = failure(e).code;
+      toast(code === 'already_undone' ? 'Already undone.' : code === 'conflict' ? 'Something changed since, so it stays.' : "Couldn't undo it. Try again.");
+    }
+  }
   let verbsBusy = false;
   async function runVerbs() {
     if (verbsBusy) return;
@@ -218,7 +246,7 @@ export async function startChat() {
     }
   }
   // Never a word off the record in this phone's cache.
-  const save = () => otr || cache.write({ today: state.today, presence: state.presence, surfaces: state.surfaces, seq: state.applied, at: Date.now() });
+  const save = () => otr || cache.write({ today: state.today, presence: state.presence, surfaces: state.surfaces, plans: state.plans, seq: state.applied, at: Date.now() });
 
   // --- sync -----------------------------------------------------------------------------------
   // Each pass pulls the feed from `applied` and reloads only what it touches; a frame that comes
@@ -268,6 +296,7 @@ export async function startChat() {
     if (kinds.has('message') || kinds.has('thread')) jobs.push(loadToday());
     if (kinds.has('setting') || kinds.has('mind_status')) jobs.push(loadSettings());
     if (kinds.has('surface')) jobs.push(loadSurfaces());
+    if (kinds.has('plan')) jobs.push(loadPlans());
     await Promise.all(jobs);
     state.applied = to;
     if (kinds.has('verb')) runVerbs();
@@ -278,7 +307,7 @@ export async function startChat() {
    * where the feed picks up; the other loads start after it, so they hold all of that too. */
   async function full() {
     const seq = await loadToday();
-    await Promise.all([loadSettings(), loadSurfaces()]);
+    await Promise.all([loadSettings(), loadSurfaces(), loadPlans()]);
     state.applied = seq;
     document.dispatchEvent(new CustomEvent('th:changed', { detail: ['*'] }));
     runVerbs();
@@ -542,7 +571,7 @@ export async function startChat() {
   // --- life ---------------------------------------------------------------------------------
   const cached = await cache.read();
   if (cached && !otr) {
-    Object.assign(state, { today: cached.today, presence: cached.presence, surfaces: cached.surfaces ?? [] });
+    Object.assign(state, { today: cached.today, presence: cached.presence, surfaces: cached.surfaces ?? [], plans: cached.plans ?? [] });
     current.today ??= cached.today;
     paint();
   }

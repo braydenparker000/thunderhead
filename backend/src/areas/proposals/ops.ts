@@ -7,6 +7,7 @@ import type { Json, Proposal, PutProposalRequest } from '../../../../shared/cont
 import { lintMindText } from '../../../../shared/contract/lint.ts';
 import { PERMIT_FLOORS, permitOf, permitSetting } from '../../../../shared/contract/permits.ts';
 import { PROPOSAL_CLASSES, PROPOSAL_LIMITS, proposalOp } from '../../../../shared/contract/proposals.ts';
+import { PLAN_ACTION } from '../../../../shared/contract/schedules.ts';
 import { canonicalJson } from '../../lib/canonical';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
@@ -50,6 +51,8 @@ function targetOf(w: Writer, op: string, args: Record<string, Json>, given: stri
     return `${short((args.paths as string[]).join(', '), 160)} (from ${String(args.base).slice(0, 7)})`;
   if (op === 'permit.allow') {
     const action = String(args.action);
+    // A plan's card approves its steps by their hash (API.md §11.11): the question names them.
+    if (action === PLAN_ACTION) return `${PLAN_ACTION}, once (a plan: its steps, one undo)`;
     const p = permitOf(action);
     if (!p) throw invalid('spec.args.action', 'not an action the standing permissions know');
     return `${action}, once (${p.floor ? PERMIT_FLOORS[p.floor] : permitSetting(p.class).label})`;
@@ -59,6 +62,8 @@ function targetOf(w: Writer, op: string, args: Record<string, Json>, given: stri
 
 /** A `permit.allow` card is filed under its action's floor, else `permit` (permits.ts). */
 function permitClass(cls: string, args: Record<string, unknown>): void {
+  // A plan's class is its strictest step's, which only the plan knows: checked when it is used.
+  if (String(args.action) === PLAN_ACTION) return;
   const p = permitOf(String(args.action));
   if (!p) throw invalid('spec.args.action', 'not an action the standing permissions know');
   const want = p.floor ?? 'permit';
