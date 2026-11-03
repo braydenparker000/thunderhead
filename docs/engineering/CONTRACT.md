@@ -350,7 +350,7 @@ Every event type the phone may send (`PUT /v1/senses/batches/:id`, API.md §11.1
 | `routine` | 60 | 15 |
 | `habit` | 28 | 10 |
 | `fact` | 1825 | 30 |
-| `rule` | never decays | not in the profile (briefing section 3) |
+| `rule` | never decays | not in the profile (briefing section 4) |
 
 | Source | Starts at | Cap | Profile letter |
 |---|---|---|---|

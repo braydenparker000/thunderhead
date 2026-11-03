@@ -370,7 +370,7 @@ function docs() {
   for (const [id, s] of Object.entries(c.SEARCH_SOURCES)) L.push(`| \`${id}\` | ${s.phase} | \`${s.ref}\` |`);
   L.push('', '## Memory', '', '| Fact kind | Half-life (days) | Profile cap |', '|---|---|---|');
   for (const [k, v] of Object.entries(c.FACT_KINDS))
-    L.push(`| \`${k}\` | ${v.half_life_days ?? 'never decays'} | ${v.cap ?? 'not in the profile (briefing section 3)'} |`);
+    L.push(`| \`${k}\` | ${v.half_life_days ?? 'never decays'} | ${v.cap ?? 'not in the profile (briefing section 4)'} |`);
   L.push('', '| Source | Starts at | Cap | Profile letter |', '|---|---|---|---|');
   for (const [k, v] of Object.entries(c.FACT_SOURCES)) L.push(`| \`${k}\` | ${v.base} | ${v.cap} | ${v.letter} |`);
   L.push('', '| Refusal reason | Meaning |', '|---|---|');

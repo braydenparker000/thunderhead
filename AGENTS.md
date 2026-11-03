@@ -47,7 +47,7 @@ when it helps, update it when you change what it describes, but it is not law.
   never runs, so two branches with new steps ship in number order.
 - **The phone** (`frontend/`): plain ES modules, no build. `music/` `guitar/` `podcasts/` `astra/`
   `media/` came from the old site and are our code now: change them like any other file.
-- **The mind** (`mind/`): the `th` CLI and the roles. Its laws are `mind/CONSTITUTION.md`; keep
+- **The mind** (`mind/`): the `th` CLI, the roles and the skills (`mind/skills/`, each ≤ 2,500 characters). Its laws are `mind/CONSTITUTION.md`; keep
   `mind/ROLES.md` under its 6,000-character cap (it is the mind's own prompt).
 
 ## Before a pull request

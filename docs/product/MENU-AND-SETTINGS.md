@@ -230,7 +230,8 @@ list is the only place a setting is declared:
   An Appearance key also sets its `attr` on `<html>` while it is not the default.
 - **`mind: true`.** Listed in the mind's briefing, section 13 "Your settings", as `key: value`
   lines in catalogue order, `(default)` while unset, after a legend for the permissions (`ask`,
-  `tell`, `quiet`). The core's section 7 points at it. All `mind.*` keys and `briefing.tiles` are
+  `tell`, `quiet`). The core's section 8 points at it, and section 2 carries the standing
+  permissions' positions in one line. All `mind.*` keys and `briefing.tiles` are
   mind keys; only worker keys may be.
 - **The phone's copy.** `node scripts/contract.mjs` writes `frontend/apps/settings/catalog-data.js`
   from the contract (`tests/contract-gen.test.mjs` fails while it is stale). One renderer,
@@ -314,7 +315,7 @@ devices see them; an agent's `GET /v1/settings` has each link's host and mark on
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
 | `briefing.tiles` | order of weather, due, holidays, study, built, podcasts, notes, report | worker | `weather, due, holidays, study, built, podcasts, notes, report` | the mind (briefing section 13); the Worker does not enforce it yet |
-| `briefing.calendars` | links: up to 3 ICS links, each Mine or Shared | worker | `none` | the Worker (the Today tile, the day's line, the brief's section 1); agents see hosts only |
+| `briefing.calendars` | links: up to 3 ICS links, each Mine or Shared | worker | `none` | the Worker (the Today tile, the day's line, the brief's section 1 for Mine links, section 7 for Shared ones); agents see hosts only |
 | `briefing.units` | segments: c / f | worker | `c` | exposed: `GET /v1/settings`; nothing reads it yet |
 | `briefing.due_days` | range (days): 1 / 3 / 7 | worker | `3` | exposed: `GET /v1/settings`; nothing reads it yet |
 | `briefing.holidays` | picker: auto / AU / CA / FR / DE / MX / ES / GB / US | worker | `auto` | exposed: `GET /v1/settings`; nothing reads it yet |
@@ -325,8 +326,8 @@ Four parts: How I talk, Nights, Reaching you, Standing permissions. Each permiss
 decision card first), Do and tell, or Do quietly (the ledger only), and the Worker enforces it
 ([API.md §11.11](../engineering/API.md#standing-permissions)). The page says under them: "Always
 asks first: money, deleting your data, keys and access, reaching another person." (the floors no
-setting lowers). The mind's prompt (`mind/ROLES.md`) does not yet tell it to read section 13 before
-it answers; the briefing's section 13 says what each position asks of it.
+setting lowers). The briefing's section 2 gives each class's position on every wake, in the first
+2,000 characters; section 13 says what each position asks of it and lists every verb.
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
