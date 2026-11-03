@@ -9,13 +9,11 @@ import { writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
-import { outlast } from './fixtures/waits.mjs';
+import { outlast, timing } from './fixtures/waits.mjs';
 
 // Timing reads (how fast the capsule or an app arrives) are the phone's acceptance (HOME.md §12), measured
 // there with the Frames readout. On a shared CI runner they vary with load, so they are enforced only with
-// TH_STRICT_TIMING=1 and otherwise reported as diagnostics. Shape, state and end-position checks stay hard.
-const strictTiming = Boolean(process.env.TH_STRICT_TIMING);
-const timing = (ok, message) => { if (strictTiming) assert.ok(ok, message); else if (!ok) console.log(`# timing (not enforced on CI): ${message}`); };
+// TH_STRICT_TIMING=1 and otherwise reported as diagnostics (fixtures/waits.mjs). Shape, state and end-position checks stay hard.
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)', timeout: 120_000 };
@@ -511,7 +509,8 @@ test('a cold open reveals the coloured cover immediately; reversals settle and t
     const swell=await page.evaluate(()=>new Promise(resolve=>{const c=document.querySelector('.th-island'),seen=[];const start=performance.now();
       const read=()=>{seen.push(Number(c.style.scale||1));if(performance.now()-start<700)requestAnimationFrame(read);else resolve({peak:Math.max(...seen),end:seen.at(-1)});};
       document.querySelector('[data-control="toggle"]').click();requestAnimationFrame(read);}));
-    assert.ok(swell.peak>1.027&&swell.peak<=1.0301,`pulse peaks at 1.03: ${swell.peak}`);near(swell.end*1000,1000,'pulse returns to 1');
+    // Read once a frame: how close a frame lands to the peak depends on the runner's frame rate.
+    assert.ok(swell.peak>1&&swell.peak<=1.0301,`pulse swells, never past 1.03: ${swell.peak}`);timing(swell.peak>1.027,`pulse peaks at 1.03: ${swell.peak}`);near(swell.end*1000,1000,'pulse returns to 1');
     await page.waitForFunction(()=>document.querySelector('iframe[data-app=music]').contentWindow.__cp.player.audio.paused);
   }finally{await context.close();}
 });
