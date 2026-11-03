@@ -1,9 +1,12 @@
 {
-  "id": "2026-11-03-muse",
+  "id": "2026-11-03-watches",
   "date": "2026-11-03",
   "lines": [
     {
-      "text": "Start a message with @muse to hand it to Muse. The menu's new Tasks group shows how it's going."
+      "text": "The mind can now wake itself to look at something at a time it chose, like setting up the evening drive."
+    },
+    {
+      "text": "Settings › The mind shows today's count at the top, and how many such wakes a day it may set (12 unless you change it)."
     }
   ]
 }
