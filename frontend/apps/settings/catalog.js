@@ -281,7 +281,7 @@ function links(s, value, pick) {
     /** @type {HTMLElement | null | undefined} */ (at?.querySelector(`[data-act="${act}"]`) ?? list.querySelector('button'))?.focus({ preventScroll: true });
   };
   const adding = () => {
-    const input = el('input', { class: 'field', type: 'url', inputmode: 'url', autocomplete: 'off', spellcheck: 'false', placeholder: 'https://…/calendar.ics', maxlength: String((s.max ?? 512) + 8), 'aria-label': 'Calendar link' });
+    const input = el('input', { class: 'field', type: 'url', inputmode: 'url', autocomplete: 'off', spellcheck: 'false', placeholder: 'Paste the ICS link', maxlength: String((s.max ?? 512) + 8), 'aria-label': 'Calendar link' });
     let mine = true;
     const whose = choice('Whose', [['mine', 'Mine'], ['shared', 'Shared']], 'mine', (v) => { mine = v === 'mine'; });
     const line = el('p', { class: 'line', role: 'status' });
