@@ -132,6 +132,18 @@ const HINTS: [RegExp, AppId][] = [
 ];
 export const hintOf = (words: string): AppId | null => HINTS.find(([re]) => re.test(words))?.[1] ?? null;
 
+/** Who an owner's message may be addressed to besides the mind (PutMessageRequest.mention): `muse`
+ * ("@muse …" in the ask bar, th/commands) makes the words a `muse.request` under the owner's own
+ * authority; the Worker answers the message with a system line naming it and wakes no mind, and the
+ * stored message carries `meta.mention`. */
+export type Mention = 'muse';
+
+/** `meta.work` on a line the Worker posts about an order asked for with `@muse`: which order and
+ * the state it reached. Muse's own line when it is done also carries `chip`. */
+export interface WorkLineMeta {
+  work: { id: string; state: TaskState };
+}
+
 /** `spec` of a `muse.request`: the words, and optionally the app it belongs in. */
 export interface MuseRequestSpec {
   v: 1;

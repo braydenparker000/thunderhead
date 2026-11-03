@@ -31,19 +31,8 @@ let pub = '';
 let owner = '';
 let E: Env;
 
-async function send(
-  method: string,
-  path: string,
-  bytes: Uint8Array,
-  type: string,
-  over: {
-    time?: number;
-    key?: CryptoKeyPair;
-    headers?: Record<string, string>;
-    env?: Env;
-    ctx?: ExecutionContext;
-  } = {},
-) {
+type Over = { time?: number; key?: CryptoKeyPair; headers?: Record<string, string>; env?: Env; ctx?: ExecutionContext };
+async function send(method: string, path: string, bytes: Uint8Array, type: string, over: Over = {}) {
   const k = over.key ?? keys;
   const key = hex((await crypto.subtle.exportKey('raw', k.publicKey)) as ArrayBuffer);
   const time = String(over.time ?? Math.floor(Date.now() / 1000));
