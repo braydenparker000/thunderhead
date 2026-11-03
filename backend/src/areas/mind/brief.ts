@@ -64,8 +64,7 @@ export interface BriefInput {
   /** The owner's calendar for section 1 (briefing/calendar-store.ts briefLines): today's events
    * still on, tomorrow's first, a failing link; a shared link's marked `(outside)`. */
   calendar?: string[];
-  /** Section 1's day pulse (watches/brief.ts): the wake budget, and why a watch woke this session. */
-  pulse?: string[];
+  pulse?: string[]; // section 1's day pulse (watches/brief.ts): the wake budget, why a watch woke it
 }
 
 /** Formatters made once per zone (one per line cost the briefing tens of ms of CPU). */
