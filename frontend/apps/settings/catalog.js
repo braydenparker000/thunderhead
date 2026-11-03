@@ -303,8 +303,9 @@ function links(s, value, pick) {
 /**
  * Renders the catalogue group `name` into `body`: its lead line, then each part of it as a titled
  * group (a group with no parts as one untitled group), a note under a part that has one, and `after`
- * (a page's own read-only groups). Resolves once the worker values are in (at once for a phone group).
- * @param {HTMLElement} body @param {Group} name @param {{ after?: Node[] }} [opts]
+ * (a page's own read-only groups), `before` above the page's lead line (The mind's Today count).
+ * Resolves once the worker values are in (at once for a phone group).
+ * @param {HTMLElement} body @param {Group} name @param {{ before?: Node[], after?: Node[] }} [opts]
  */
 export async function renderGroup(body, name, opts = {}) {
   /** @type {{ title: string, lead: string, notes?: Record<string, string> }} */
@@ -375,7 +376,7 @@ export async function renderGroup(body, name, opts = {}) {
     if (note) parts.push(el('p', { class: 'shelp', text: note }));
   }
   const host = el('div', { class: 'scatalog', 'data-group': name }, parts);
-  body.append(el('p', { class: 'slead', text: g.lead }), host, ...(opts.after ?? []), line);
+  body.append(...(opts.before ?? []), el('p', { class: 'slead', text: g.lead }), host, ...(opts.after ?? []), line);
 
   if (!specs.some((s) => s.scope === 'worker')) return;
   // Until the Worker answers, its values can't be changed here: a change would race the answer.
