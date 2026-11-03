@@ -11,8 +11,12 @@
 // UPDATE), so the rows from before it keep no label and read by the rule they were written under
 // (store.ts `provenanceOf`, notes.ts `notedBy`): a fact by its source (`user` → owner, `observed` →
 // observed, `inferred` → outside); a day note as `owner` (that Worker refused a tainted session's);
-// a loose end as `owner`. A row an older Worker writes after a rollback, or one restored from an
-// older backup, reads the same way.
+// a loose end as `owner`. A row restored from an older backup reads the same way. A rollback is
+// not that safe (README "Release and rollback", MEMORY.md §6): the older Worker ignores the column,
+// so its profile and briefing take `outside` facts in as the owner's, and a confirm or supersede it
+// writes leaves a NULL-label `user` row that reads `owner` once this Worker is back. Roll back
+// across step 32 only with that in mind, and review "Learned from outside" and the facts written
+// meanwhile after rolling forward.
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneBatches, pruneThreads } from './notes';
 
