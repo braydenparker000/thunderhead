@@ -136,7 +136,7 @@ the steps in order; each one says how to check it before the next.
    - Repository: `braydenparker000/thunderhead`, and only that one
    - Environment: `th-chat`
    - Connectors: remove every one
-   - Model: leave the default
+   - Model: as [Models for the mind](#models-for-the-mind) says
    - Prompt, word for word:
 
      ```text
@@ -158,6 +158,18 @@ the steps in order; each one says how to check it before the next.
 6. Tell the agent "K done". From now on each message wakes the mind when no session is live; a
    session ends on its own after 2 quiet hours (RUNTIME.md §4.6), or 10 minutes after a typing
    pre-warm that brought no message.
+
+### Models for the mind (about 2 minutes, any time)
+
+Each scheduled task runs on the model set in its own **Model** field: claude.ai/code/routines → the
+task → **Edit** → **Model** (and **Effort**, where the page shows it) → **Save**.
+
+- `mind-chat`: the strongest model (Opus), effort **high**. It talks with you, so it gets the best.
+- `mind-night` and `mind-reflex`: the mid model (Sonnet), default effort.
+
+The mind's own helpers (the reader, researcher, night-step and coder) don't use these fields: each
+names its model in its file under `.claude/agents/` (RUNTIME.md §6.6), so a change there is a
+reviewed commit. Check: the next session's page on claude.ai shows the model you picked.
 
 ## L. Night shift and import (P3)
 
@@ -198,7 +210,7 @@ nothing is fired. Do the steps in order; each says how to check it before the ne
    - Repository: `braydenparker000/thunderhead`, and only that one
    - Environment: `th-night`
    - Connectors: remove every one
-   - Model: leave the default
+   - Model: as [Models for the mind](#models-for-the-mind) says
    - Prompt, word for word:
 
      ```text
@@ -351,7 +363,7 @@ ledger note and the briefing line.
    - Repository: `braydenparker000/thunderhead`, and only that one
    - Environment: `th-reflex`
    - Connectors: remove every one
-   - Model: leave the default
+   - Model: as [Models for the mind](#models-for-the-mind) says
    - Prompt, word for word:
 
      ```text

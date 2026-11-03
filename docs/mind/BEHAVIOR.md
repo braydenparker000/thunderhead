@@ -383,7 +383,7 @@ Rules:
 3. **Never facts or rules.** Outside text can be cited in an answer. It can never be evidence for a fact or a rule (Worker-enforced, [MEMORY.md](MEMORY.md)).
 4. **Quote small.** At most one sentence quoted from any outside source, with the link or ref.
 5. **Session taint.** Once a session has read outside text through a tainting tool, the Worker refuses that session's `remember`, `rule` writes and `reach_people` actions for the rest of the session (built in P4 stage C, and every ask-first card it would raise or approve; [MEMORY.md](MEMORY.md#6-provenance-and-taint-rules-worker-enforced)).
-6. **Quarantined reader (built in P4 stage C).** Long outside material is read by the `reader` subagent, which has no shell and no write tools and returns schema-checked JSON; the main session works only from what `th read --check` prints ([RUNTIME.md §6.6](RUNTIME.md#66-the-reader-subagent)). The session is tainted all the same.
+6. **Quarantined reader (built in P4 stage C).** Long outside material is read by the `reader` subagent, which has no shell and no write tools and returns schema-checked JSON; the main session works only from what `th read --check` prints ([RUNTIME.md §6.6](RUNTIME.md#66-the-subagents)). The session is tainted all the same.
 7. **Muse output** is shown to the owner labelled "from Muse" and never as the mind's own words. The mind may summarise it in its own words with "Muse reports …". See [MUSE.md](../archive/MUSE.md).
 
 **Check:** INJ-01…25 ([EVALS.md](EVALS.md)).
