@@ -93,6 +93,17 @@ export abstract class CoreMemory extends CoreBase {
     return { ...renderProfile(rows, now, this.tz()), rendered_at: now };
   }
 
+  /** Whether this caller may write memory at all, and the owner's zone: the memory route asks before
+   * it has the senses count a batch's `rollup:` refs (memory/rollups.ts), so a batch Core would refuse
+   * (403 session_required, off_record) costs the Senses object nothing. */
+  memoryWriter(c: Caller): Out<{ tz: string }> {
+    return attempt(() => {
+      if (c.who !== 'D' && claimedSession(this.db, c.session_id, c.who === 'N' ? 'night' : 'chat').offRecord)
+        throw new Fail('off_record');
+      return { tz: this.tz() };
+    });
+  }
+
   /** `rollups`: the `rollup:` refs the batch cites, counted again by the senses (memory/rollups.ts). */
   memoryOps(
     c: Caller,

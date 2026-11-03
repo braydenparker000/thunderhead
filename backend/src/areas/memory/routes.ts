@@ -110,8 +110,11 @@ export const memoryRoutes = new Hono<AppEnv>()
   })
   .post('/memory/ops', guard('POST /v1/memory/ops'), async (c) => {
     const body = await json(c, opsBody);
-    // Rule M5's `rollup:` refs, counted again by the senses before Core's transaction (rollups.ts).
-    const rollups = await rollupCounts(c.env, body.ops);
+    // Rule M5's `rollup:` refs, counted again by the senses before Core's transaction (rollups.ts),
+    // once Core has said this caller may write memory at all.
+    const refs = rollupRefs(body.ops);
+    const writer = refs.length ? value(await fresh(coreObject(c.env).memoryWriter(callerOf(c)))) : null;
+    const rollups = writer ? await rollupCounts(c.env, refs, writer.tz) : {};
     const out = value(
       await fresh(coreObject(c.env).memoryOps(callerOf(c), body.batch_id, body.ops, reqHash(body), rollups)),
     );

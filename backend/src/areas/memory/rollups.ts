@@ -1,12 +1,12 @@
 // The senses' half of rule M5 (MEMORY.md §4, §6): an `observed` fact may rest on one `rollup:` ref
 // that counts at least 10 of the owner's events, a routine of the senses
 // (`rollup:routines/<type>/<weekdays>/<from>-<to>/<to day>`). Core's transaction can't call another
-// object, so the memory route asks first: each distinct `rollup:` ref a batch cites is counted again
-// by `Rollups.routineRef` (the Senses object's, which the senses' routines add), and the counts go
-// into the batch with it; `cite()` (validate.ts) takes a ref counted at n ≥ 10 and refuses any
-// other as `bad_evidence`. A Senses object without `routineRef`, or a call that fails, counts
-// nothing, so until the senses' routines are in, a `rollup:` ref is refused as before.
-import { coreObject } from '../../objects/core';
+// object, so the memory route asks first: once Core has said the caller may write memory at all
+// (core-memory.ts `memoryWriter`, which also gives the owner's zone), each distinct `rollup:` ref the
+// batch cites is counted again by the Senses object's `routineRef` (objects/senses.ts), and the
+// counts go into the batch with it; `cite()` (validate.ts) takes a ref counted at n ≥ 10 and refuses
+// any other as `bad_evidence`. A call that fails, or a count that takes longer than
+// `ROLLUPS_TIMEOUT_MS` in all, counts nothing: the refs are then `bad_evidence`, never a 500.
 import { sensesObject } from '../../objects/senses';
 
 /** What the route asks of the senses: a ref counted again, or null when it counts nothing. */
@@ -14,17 +14,11 @@ export interface Rollups {
   routineRef(ref: string, tz: string): Promise<{ n: number } | null>;
 }
 
-/** The Senses object as the source of counts. Typed here, not by the object's class, so this works
- * before and after the senses' routines add the method. */
+/** The Senses object as the source of counts. */
 export const sensesRollups = (env: Env): Rollups => ({
   async routineRef(ref, tz) {
-    try {
-      const stub = sensesObject(env) as unknown as { routineRef(ref: string, tz: string): Promise<unknown> };
-      const r = (await stub.routineRef(ref, tz)) as { n?: unknown } | null;
-      return r && typeof r.n === 'number' ? { n: r.n } : null;
-    } catch {
-      return null;
-    }
+    const r = await sensesObject(env).routineRef(ref, tz);
+    return r && typeof r.n === 'number' ? { n: r.n } : null;
   },
 });
 
@@ -33,6 +27,9 @@ export const ROLLUPS: { source: (env: Env) => Rollups } = { source: sensesRollup
 
 /** At most this many distinct `rollup:` refs are counted for one batch; any more stay uncounted. */
 export const ROLLUPS_PER_BATCH = 20;
+/** The whole count's time limit (the senses answer in milliseconds; a stuck call must not hold the
+ * night's batch). */
+export const ROLLUPS_TIMEOUT_MS = 5_000;
 
 const ROLLUP = /^rollup:[A-Za-z0-9._:/-]{1,160}$/;
 
@@ -50,19 +47,24 @@ export function rollupRefs(ops: unknown[]): string[] {
   return [...out];
 }
 
-/** Each `rollup:` ref the batch cites, counted again in the owner's zone: ref → n (a ref left out
- * counts nothing). The zone is read from Core only when there is a ref to count. */
-export async function rollupCounts(env: Env, ops: unknown[]): Promise<Record<string, number>> {
-  const refs = rollupRefs(ops);
+/** Each ref counted again in the owner's zone `tz`: ref → n (a ref left out counts nothing). All of
+ * them or none: any failure, or the time limit, counts nothing. */
+export async function rollupCounts(env: Env, refs: string[], tz: string): Promise<Record<string, number>> {
   if (!refs.length) return {};
-  const settings = (await coreObject(env).settings()) as { 'owner.tz'?: unknown };
-  const tz =
-    typeof settings['owner.tz'] === 'string' && settings['owner.tz'] ? settings['owner.tz'] : env.OWNER_TZ || 'UTC';
-  const source = ROLLUPS.source(env);
-  const counts: Record<string, number> = {};
-  for (const ref of refs) {
-    const r = await source.routineRef(ref, tz);
-    if (r) counts[ref] = r.n;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<null>((done) => {
+    timer = setTimeout(() => done(null), ROLLUPS_TIMEOUT_MS);
+  });
+  try {
+    const source = ROLLUPS.source(env);
+    const counted = Promise.all(refs.map(async (ref) => [ref, await source.routineRef(ref, tz)] as const));
+    const got = await Promise.race([counted, late]);
+    const counts: Record<string, number> = {};
+    for (const [ref, r] of got ?? []) if (r) counts[ref] = r.n;
+    return counts;
+  } catch {
+    return {};
+  } finally {
+    clearTimeout(timer);
   }
-  return counts;
 }
