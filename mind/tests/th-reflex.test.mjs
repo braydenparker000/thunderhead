@@ -27,7 +27,7 @@ test('th reflex: the procedure, each tripped watchdog with what to do, and what 
   assert.ok(r.json.procedure.some(s => s.includes('th handled')) && r.json.procedure.some(s => s.includes('git revert')));
   assert.deepEqual(r.json.tripped.map(t => t.name), ['errors.spike', 'roll.stuck', 'muse.silent']);
   assert.equal(r.json.tripped[0].handle, CONTRACT.items['errors.spike'].handle);
-  // muse.silent wakes nobody, and roll.stuck has its report.
+  // A name the contract no longer has (muse.silent, removed 2026-11-02) wakes nobody, and roll.stuck has its report.
   assert.deepEqual(r.json.unreported, ['errors.spike']);
   assert.deepEqual(r.json.ok, ['db.size']);
   assert.equal(r.json.later, 1);

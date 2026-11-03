@@ -108,23 +108,29 @@ export async function verb(argv) {
   out({verb_id: data.id || id, status: data.status ?? null, ledger_id: data.ledger_id ?? null, ...permitOut(data)});
 }
 
-/** Work orders for Muse (API.md §11.19): new | list | get | cancel. */
+/** Work orders for Muse (API.md §11.19, MUSE-PROTOCOL.md): new | list | get | cancel. An order is a
+ * `muse.request`: words (at most 500 characters) and, optionally, the app it belongs in. Placing one
+ * is the standing permission `muse.order` (ask by default: `--proposal <card>` once approved). */
 export async function order(argv) {
   const {flags, rest} = parseArgs(argv, {bool: ['personal']});
   const [sub, id] = rest;
   if (sub === 'new') {
-    const kind = need(flags, 'kind');
-    const title = typeof flags.title === 'string' ? flags.title : kind;
-    if (title.length > 80) throw invalid('--title is over 80 characters');
-    // No order kind carries the owner's data yet: one that would needs a reach_people card first (MUSE.md §6).
+    if (flags.kind !== undefined && flags.kind !== 'muse.request') throw invalid('--kind: muse.request is the one kind an order is placed of');
+    // No order kind carries the owner's data: one that would needs a reach_people card first.
     if (flags.personal) throw invalid('no personal order kinds are built: the owner\'s data never goes to Muse without a reach_people card');
+    const words = need(flags, 'words');
+    if (words.length > 500) throw invalid('--words is over 500 characters');
+    const title = typeof flags.title === 'string' ? flags.title : words.replace(/\s+/g, ' ').slice(0, 60);
+    if (title.length > 80) throw invalid('--title is over 80 characters');
+    const app = typeof flags.app === 'string' ? flags.app : undefined;
+    const deadline = flags.deadline === undefined ? Date.now() + 3 * 86_400_000 : toMs(flags.deadline, 'deadline');
     const orderId = uuidv7();
-    const {data} = await request('PUT', `/v1/work/orders/${seg(orderId)}`, {headers: proposalHeaders(flags), body: {kind, title,
-      spec: jsonFlag(need(flags, 'spec'), 'spec'), deadline_at: toMs(need(flags, 'deadline'), 'deadline')}});
-    return out({id: orderId, ...permitOut(data)});
+    const {data} = await request('PUT', `/v1/work/orders/${seg(orderId)}`, {headers: proposalHeaders(flags), body: {kind: 'muse.request', title,
+      spec: {v: 1, words, ...(app ? {app} : {})}, deadline_at: deadline}});
+    return out({id: orderId, state: data.state ?? null, ...permitOut(data)});
   }
   if (sub === 'list') {
-    const {data} = await request('GET', '/v1/work/orders', {query: {status: 'all', limit: 200}});
+    const {data} = await request('GET', '/v1/work/orders', {query: {status: 'all', limit: 100}});
     return out({items: data.items || []});
   }
   if (sub === 'get' && id) return out((await request('GET', `/v1/work/orders/${seg(id)}`)).data);
@@ -134,20 +140,21 @@ export async function order(argv) {
     const {data} = await request('POST', `/v1/work/orders/${seg(id)}/cancel`, {body: {why}});
     return out({id, status: data.status ?? 'cancelled'});
   }
-  throw invalid('usage: th order new --kind <k> --spec <json> --deadline <iso> [--title <t>] | list | get <id> | cancel <id> --why <t>');
+  throw invalid('usage: th order new --words <text> [--app <app>] [--title <t>] [--deadline <iso>] [--proposal <id>] | list | get <id> | cancel <id> --why <t>');
 }
 
-/** `th muse notes [--after <seq>] | note <text>`: Muse's own thread (MUSE.md §4). */
+/** `th muse notes [--after <seq>] [--order <id>] | note <text>`: Muse's own thread, or one order's
+ * progress lines (MUSE-PROTOCOL.md). */
 export async function muse(argv) {
   const {flags, rest} = parseArgs(argv);
   const [sub, ...words] = rest;
-  if (sub === 'notes') return out((await request('GET', '/v1/work/thread', {query: {after: flags.after ?? 0}})).data);
+  if (sub === 'notes') return out((await request('GET', '/v1/work/thread', {query: {after: flags.after ?? 0, ...(typeof flags.order === 'string' ? {order: flags.order} : {})}})).data);
   if (sub === 'note' && words.length) {
     const noteId = uuidv7();
     await request('POST', '/v1/work/thread/messages', {body: {id: noteId, body: words.join(' ')}});
     return out({id: noteId});
   }
-  throw invalid('usage: th muse notes [--after <seq>] | note <text>');
+  throw invalid('usage: th muse notes [--after <seq>] [--order <id>] | note <text>');
 }
 
 /** `th surface <app> <slot> --kind … | ls | rm <app> <slot>`: any surface kind in the contract. */
