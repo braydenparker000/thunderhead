@@ -183,6 +183,10 @@ export const SETTINGS = [
     ],
     default: ['weather', 'due', 'holidays', 'study', 'built', 'podcasts', 'notes', 'report'],
   },
+  // The owner's calendars (BRIEFING.md "Today"): ICS links the Worker fetches each morning and when
+  // the Briefing opens. Not for the mind: a link is a key to the calendar, so agents see only hosts.
+  { key: 'briefing.calendars', group: 'briefing', label: 'Calendars', kind: 'links', ...IN_WORKER, default: [], max: 512, items: 3,
+    detail: 'Up to 3 ICS links (https). Mine: your own. Shared: someone else\'s, its titles kept as outside text.' },
   { ...TILE, key: 'briefing.units', label: 'Units', kind: 'choice', default: 'c', options: o('c:°C', 'f:°F'),
     detail: 'Temperatures on the weather tile.' },
   { ...TILE, key: 'briefing.due_days', label: 'Due, days ahead', kind: 'range', unit: 'days', default: 3, options: stops('days', 1, 3, 7),
@@ -190,10 +194,6 @@ export const SETTINGS = [
   // The countries the Holidays tile has lists for (briefing/holidays.ts); auto: the weather place's.
   { ...TILE, key: 'briefing.holidays', label: 'Holiday country', kind: 'choice', default: 'auto', detail: 'Auto uses the country of your weather place.',
     options: o('auto:Auto', 'AU:Australia', 'CA:Canada', 'FR:France', 'DE:Germany', 'MX:Mexico', 'ES:Spain', 'GB:United Kingdom', 'US:United States') },
-  // The owner's calendars (BRIEFING.md "Today"): ICS links the Worker fetches each morning and when
-  // the Briefing opens. Not for the mind: a link is a key to the calendar, so agents see only hosts.
-  { key: 'briefing.calendars', group: 'briefing', label: 'Calendars', kind: 'links', ...IN_WORKER, default: [], max: 512, items: 3,
-    detail: 'Up to 3 ICS links (https). Mine: your own. Shared: someone else\'s, its titles kept as outside text.' },
   // The mind: all in its briefing.
   { ...MIND, section: 'How I talk', key: 'mind.voice', label: 'Voice', kind: 'choice', default: 'plain',
     options: o('plain:Plain', 'warmer:Warmer', 'drier:Drier'), detail: 'Plain, a little warmer, or drier.' },
