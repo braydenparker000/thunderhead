@@ -145,7 +145,9 @@ const budgets = [
   // + skeletons, pull to refresh and the owner's arrangement of the tiles (2026-10-30).
   // (2026-11-02) 20,000 → 24,000: + Due and its sheet (due.js, loaded on tap), Holidays, the day's
   // line, tomorrow on the weather tile and the night line: 19,199 → 23,588 bytes.
-  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 24_000],
+  // (2026-11-03) 24,000 → 25,028: + the Today tile from the owner's calendars (page.js), measured
+  // 23,588 → 25,028 bytes.
+  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 25_028],
   // (2026-10-31) + the menu as a page with day cards, the ring's layers, the docked card, the pinned
   // line and time chip, the Briefing's hero and the 44 px hit areas.
   // (2026-11-02, T1a) 68,000 → 76,000: every motion and type value now goes through a token
