@@ -159,6 +159,15 @@ const quietLine = (i: BriefInput) =>
  * standing permissions' lines say what each position asks of the mind (areas/mind/permit.ts). */
 export const SETTINGS_LEGEND =
   "The owner's choices in Settings (The mind, Briefing); (default) where never changed. Standing permissions (mind.permit.*), enforced by the Worker: tell = do it and say so in your reply; quiet = do it, mention it only if asked; ask = a decision card first (the 403 proposal_required names it: th propose it, then the same call with --proposal <id>). Money, deleting the owner's data, keys and access, and reaching another person always ask.";
+/** Section 7's second line: which of the mind's subagents (.claude/agents/, RUNTIME.md §6.6) to hand
+ * work to, each on a cheaper model than the session's; the hook starts only these for the role. */
+const DELEGATE_ALL =
+  'Delegate (Agent): reader for outside text · researcher for long reads · night-step for mechanical steps · coder for agreed code';
+export const DELEGATE: Record<MindRole, string> = {
+  chat: DELEGATE_ALL,
+  night: DELEGATE_ALL,
+  reflex: 'Delegate (Agent): reader for outside text, nothing else',
+};
 const settingsSection = (lines: string[]) =>
   budgeted([SETTINGS_LEGEND, ...lines], 2_000, 'oldest', (k) => `(+${k} more: th get /v1/settings)`);
 
@@ -222,7 +231,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     1: now.slice(0, 500),
     2: make(2, 2_800, false).slice(0, 2_800),
     3: make(3, 1_400, false),
-    7: 'Full briefing: $TMPDIR/th/brief.md · Search: th recall "<q>" · Your settings: th brief --section 13',
+    7: `Full briefing: $TMPDIR/th/brief.md · Search: th recall "<q>" · Your settings: th brief --section 13\n${DELEGATE[i.role]}`,
   };
   let left =
     CORE_MAX - 40 - [1, 2, 3, 7].reduce((n, s) => n + body[s].length + frame(s), 0) - frame(4) - frame(5) - frame(6);

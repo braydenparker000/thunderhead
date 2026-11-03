@@ -279,6 +279,14 @@ describe('the briefing (MEMORY.md §9)', () => {
     expect(twelve.length).toBeLessThanOrEqual(8_100);
     expect(twelve).toMatch(/\(\+\d+ more: th history today\)/);
   });
+
+  it('section 7 names the subagents to delegate to, by role (RUNTIME.md §6.6)', () => {
+    const seven = (role: 'chat' | 'night' | 'reflex') => buildBrief(input({ role })).core.split('## 7. ')[1];
+    for (const name of ['reader', 'researcher', 'night-step', 'coder'])
+      expect(seven('chat') + seven('night')).toContain(name);
+    expect(seven('night')).toContain('night-step for mechanical steps');
+    expect(seven('reflex')).toMatch(/reader for outside text, nothing else$/);
+  });
 });
 
 describe('deploy-transition tolerance', () => {
