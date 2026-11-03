@@ -119,6 +119,8 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap }) {
         const text = el('div', 'nt', String(l.text));
         if (typeof l.lang === 'string') text.lang = l.lang;
         card.append(text);
+        // Its ledger rows, for `line.seen` (th/senses/shell.js).
+        if (l.ledger) card.dataset.ledger = `${card.dataset.ledger ?? ''} ${l.ledger}`.trim();
       }
       return card;
     }
@@ -168,6 +170,7 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap }) {
     if (chip && app) {
       const b = el('button', 'chip');
       b.type = 'button';
+      b.dataset.app = app.id;
       b.style.setProperty('--c', app.color);
       b.innerHTML = `<svg class="ic" aria-hidden="true"><use href="/ui/icons.svg#${app.icon}"/></svg>`;
       b.append(String(chip.label));

@@ -1,6 +1,7 @@
 // The phone's registries against the contract (EXTENDING.md rules 3 and 9): every app has a ring
 // entry with its colour and icon, deep links stay inside a shipped app, every device verb the
-// Worker can queue has an executor here (anything else is answered unsupported_verb), and every
+// Worker can queue has an executor here, or in its app for an intent (anything else is answered
+// unsupported_verb), and every
 // surface kind and version is drawn by a renderer or falls back to the generic card.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -10,6 +11,8 @@ import { GROUPS, groupOf, odds, SOURCES, sourceLabel, shelfOf } from '../fronten
 import { RING, apps, appFor, deepLink } from '../frontend/th/registry/apps.js';
 import { hasRenderer, homeLines, place } from '../frontend/th/registry/surfaces.js';
 import { EXECUTORS, canRun, run } from '../frontend/th/registry/verbs.js';
+import { EXECUTORS as MUSIC_INTENTS } from '../frontend/th/music/intents.js';
+import { EXECUTORS as PODCAST_INTENTS } from '../frontend/th/podcasts/intents.js';
 
 test('every app in the contract is on the ring, with a colour and an icon in the sprite', () => {
   const sprite = readFileSync(new URL('../frontend/ui/icons.svg', import.meta.url), 'utf8');
@@ -38,12 +41,19 @@ test('deep links: only inside a shipped app, never out of it', () => {
   assert.equal(appFor('constructor'), null);
 });
 
-test('every device verb the Worker can queue has an executor here; the rest are unsupported_verb', async () => {
+test('every phone verb has an executor: home\'s here, an intent in its app; the rest are unsupported_verb', async () => {
+  // An intent runs in the app that applies it as it opens (pending intents, API.md §11.11).
+  const APP_EXECUTORS = { music: MUSIC_INTENTS, podcasts: PODCAST_INTENTS };
   for (const [name, v] of Object.entries(VERBS)) {
-    if (v.executor !== 'device') continue;
-    for (const version of v.versions) assert.ok(canRun(name, version), `${name} v${version} has no executor`);
+    if (v.side !== 'phone') continue;
+    for (const version of v.versions) {
+      if (v.intent) assert.ok(APP_EXECUTORS[v.app]?.[name]?.[version], `${name} v${version} has no executor in ${v.app}`);
+      else assert.ok(canRun(name, version), `${name} v${version} has no executor`);
+    }
   }
-  for (const name of Object.keys(EXECUTORS)) assert.ok(Object.hasOwn(VERBS, name), `${name} is not in the contract`);
+  for (const name of Object.keys(EXECUTORS)) assert.ok(Object.hasOwn(VERBS, name) && !VERBS[name].intent, `${name} is not home's`);
+  for (const [app, ex] of Object.entries(APP_EXECUTORS))
+    for (const name of Object.keys(ex)) assert.ok(VERBS[name]?.intent && VERBS[name].app === app, `${name} is not an intent of ${app}`);
   assert.deepEqual(await run({ verb: 'music.queue_add', schema: 1, args: {} }), { ok: false, error: { code: 'unsupported_verb' } });
   assert.deepEqual(await run({ verb: 'shell.appearance', schema: 9, args: { mode: 'day' } }), { ok: false, error: { code: 'unsupported_verb' } });
 });
@@ -58,11 +68,12 @@ test('every surface kind and version is drawn, and anything else becomes the gen
   // then; a line from the day is its own card at its time; yesterday's lines are gone.
   const t = (hm) => new Date(`2026-10-29T${hm}`).getTime();
   const line = (slot, text, hm, extra = {}) => ({ ...surface('line', 1, { text, ...extra }, 'home', slot), written_at: t(hm), seq: Number(slot.slice(-1)) });
-  const items = [line('line.3', 'Third.', '05:20'), line('line.1', 'First.', '05:30'), line('line.2', 'Later.', '14:00', { lang: 'es' }), { ...line('line.4', 'Old.', '05:00'), written_at: t('03:00') }];
+  // Each line keeps its ledger row, which the phone reports seen (`line.seen`, th/senses/shell.js).
+  const items = [line('line.3', 'Third.', '05:20'), { ...line('line.1', 'First.', '05:30'), ledger_id: 'l1' }, line('line.2', 'Later.', '14:00', { lang: 'es' }), { ...line('line.4', 'Old.', '05:00'), written_at: t('03:00') }];
   assert.deepEqual(homeLines(items.slice(0, 2), { day: '2026-10-29', now: t('06:10') }), [], 'the night held before 06:30');
   assert.deepEqual(homeLines(items, { day: '2026-10-29', now: t('15:00') }), [
-    { id: 'night:2026-10-29', lines: [{ text: 'First.', lang: null }, { text: 'Third.', lang: null }], at: t('06:30'), night: true },
-    { id: 'line.2@2', lines: [{ text: 'Later.', lang: 'es' }], at: t('14:00'), night: false },
+    { id: 'night:2026-10-29', lines: [{ text: 'First.', lang: null, ledger: 'l1' }, { text: 'Third.', lang: null, ledger: null }], at: t('06:30'), night: true },
+    { id: 'line.2@2', lines: [{ text: 'Later.', lang: 'es', ledger: null }], at: t('14:00'), night: false },
   ]);
   const night = (o) => homeLines(items.slice(0, 2), { day: '2026-10-29', ...o }).filter((c) => c.night).length;
   assert.equal(night({ now: t('07:00'), quietEnd: '07:30' }), 0, "the owner's later end holds them");

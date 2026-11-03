@@ -343,9 +343,20 @@ export async function searchScreen(main, q, inBook) {
     if (first.length) out.replaceChildren(...first);
     const got = await hits;
     if (n !== asked) return;
-    if ('r' in got) showHits(out, t, got.r, known, first);
-    else out.replaceChildren(...first, el('p', { class: 'note', text: lineFor(failure(got.e)) }));
+    if ('r' in got) {
+      showHits(out, t, got.r, known, first);
+      searched(got.r.items.length);
+    } else out.replaceChildren(...first, el('p', { class: 'note', text: lineFor(failure(got.e)) }));
   };
+  // A search, as a sense (`study.search`): how many hits, never the words; once the results have
+  // stood for 1.5 s, so typing a word is one search, not one for each letter.
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let settled;
+  const searched = (/** @type {number} */ hits) => {
+    clearTimeout(settled);
+    settled = setTimeout(() => import('/th/senses/send.js').then((m) => m.sense('study.search', null, { hits })).catch(() => {}), 1500);
+  };
+  input.addEventListener('input', () => clearTimeout(settled));
   input.addEventListener('input', () => {
     clearTimeout(typing);
     typing = setTimeout(() => {

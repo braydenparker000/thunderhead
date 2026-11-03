@@ -187,6 +187,24 @@ export async function openReader(main, bookId, askedPage, block) {
 
   // --- where the owner is -------------------------------------------------------------------
   let current = 1;
+  // Reading, as a sense (`study.read`, shared/contract/senses.ts): the pages shown and the time
+  // active (visible, with a touch or a scroll in the last 2 minutes, STUDY.md §9.4) since the last
+  // report, sent when the page hides and when the book closes, once there are 10 s of it. The
+  // book's id and two numbers; never a page's words.
+  const read = { pages: new Set(), ms: 0, last: Date.now() };
+  const active = () => {
+    const n = Date.now();
+    read.ms += Math.min(n - read.last, 120_000);
+    read.last = n;
+  };
+  const reportRead = () => {
+    if (read.ms >= 10_000) {
+      const d = { pages: Math.max(1, read.pages.size), ms: Math.round(read.ms) };
+      import('/th/senses/send.js').then((m) => m.sense('study.read', `book:${bookId}`, d)).catch(() => {});
+    }
+    read.pages = new Set([current]);
+    read.ms = 0;
+  };
   const pageAt = () => {
     const mid = reader.scrollTop + reader.clientHeight / 2;
     let lo = 0;
@@ -228,6 +246,7 @@ export async function openReader(main, bookId, askedPage, block) {
       showPage();
       keep();
     }
+    read.pages.add(current);
     clearTimeout(settle);
     settle = setTimeout(() => {
       data.saveLocalPlace(bookId, place()).catch(() => {});
@@ -301,12 +320,19 @@ export async function openReader(main, bookId, askedPage, block) {
   };
   touch();
   for (const t of ['pointerdown', 'scroll']) reader.addEventListener(t, touch, { passive: true });
+  for (const t of ['pointerdown', 'scroll']) reader.addEventListener(t, active, { passive: true });
 
   const onHide = () => {
     if (document.visibilityState === 'hidden') {
       data.saveLocalPlace(bookId, place()).catch(() => {});
       saveServer(true);
-    } else touch();
+      active();
+      reportRead();
+    } else {
+      // Time away from the page is not reading.
+      read.last = Date.now();
+      touch();
+    }
   };
   document.addEventListener('visibilitychange', onHide);
   addEventListener('resize', size);
@@ -341,6 +367,8 @@ export async function openReader(main, bookId, askedPage, block) {
     clearTimeout(idle);
     data.saveLocalPlace(bookId, place()).catch(() => {});
     saveServer(false);
+    if (document.visibilityState === 'visible') active();
+    reportRead();
     document.removeEventListener('visibilitychange', onHide);
     removeEventListener('resize', size);
     wake?.release?.().catch(() => {});

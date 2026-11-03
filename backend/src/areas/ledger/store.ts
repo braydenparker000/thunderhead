@@ -132,6 +132,18 @@ export function setStatus(db: Db, id: string, status: 'done' | 'undone' | 'faile
   db.run('UPDATE ledger SET status = ?, undone_at = coalesce(?, undone_at) WHERE id = ?', status, at, id);
 }
 
+/** A Worker-side verb whose area wrote the act's own row (memory's `remembered a rule`): that row
+ * becomes the verb's, carrying its id and the permit it ran under. */
+export function linkVerb(db: Db, id: string, verbId: string, permit: string | null, proposalId: string | null): void {
+  db.run(
+    'UPDATE ledger SET verb_id = ?, permit = coalesce(?, permit), proposal_id = coalesce(?, proposal_id) WHERE id = ?',
+    verbId,
+    permit,
+    proposalId,
+    id,
+  );
+}
+
 /** Ledger rows of the last `ms`, for the briefing. */
 export function since(db: Db, at: number, limit: number): LedgerEntry[] {
   return db
@@ -219,8 +231,9 @@ export function meterRows(db: Db, from: number) {
         from,
       )
       .map((r) => r.at),
-    arrangements: db.all<{ id: string; at: number; ref: string | null; undone_at: number | null }>(
-      `SELECT id, at, ref, undone_at FROM ledger
+    // `line`: a line on home (surfaces/ops.ts writes `home/line.<n> ← <kind>`), which the phone reports seen.
+    arrangements: db.all<{ id: string; at: number; ref: string | null; undone_at: number | null; line: number }>(
+      `SELECT id, at, ref, undone_at, what LIKE 'home/line.%' AS line FROM ledger
         WHERE at >= ? AND kind = 'arrangement' AND actor LIKE 'mind:%' AND what LIKE '%←%'`,
       from,
     ),

@@ -1,11 +1,15 @@
-// Verbs (API.md §11.11): the mind queues one, a signed-in phone claims it, runs it and reports
-// the result. Everything is checked against the contract (shared/contract/verbs.ts): the verb
-// must exist and be queueable, its schema version known, its args and result valid. A phone that
-// lacks the verb reports `unsupported_verb`. The mind queues under its standing permissions
-// (mind/permit.ts): an Ask class, or an ask-first verb's floor, needs an approved card.
+// Verbs (API.md §11.11): the mind queues one; a Worker-side verb runs at once in that commit
+// (worker.ts), a phone verb waits for a signed-in phone to claim it, run it and report the result.
+// An intent (a phone verb whose state lives in an app that may be closed) waits for that app: home's
+// loop never sees it, the app asks for its own when it opens (`pending(…, app)`). Everything is
+// checked against the contract (shared/contract/verbs.ts): the verb must exist and be queueable,
+// its schema version known, its args and result valid. A phone that lacks the verb reports
+// `unsupported_verb`. The mind queues under its standing permissions (mind/permit.ts): an Ask
+// class, or an ask-first verb's floor, needs an approved card. A mind's verb in a followed class
+// that completes under tell or quiet gets one follow-up loose end (follow.ts).
 import type { Actor, JsonObject, PutVerbRequest, Verb, VerbResultRequest } from '../../../../shared/contract/api';
 import type { Permit } from '../../../../shared/contract/permits.ts';
-import { latestVersion, verbSpec } from '../../../../shared/contract/verbs.ts';
+import { latestVersion, VERBS, type VerbSpec, verbSpec } from '../../../../shared/contract/verbs.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
 import { HOUR } from '../../lib/time';
@@ -14,7 +18,10 @@ import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import * as ledger from '../ledger/store';
 import { gate, ledgerPermit } from '../mind/permit';
+import { followThrough } from './follow';
+import * as mixes from './mixes';
 import * as store from './store';
+import { runHere } from './worker';
 
 export const CLAIM_MS = 120_000;
 const MAX_CLAIMS = 3;
@@ -25,12 +32,20 @@ const issues = (path: string, e: { issues: { path: PropertyKey[]; message: strin
     e.issues.map((i) => ({ path: [path, ...i.path.map(String)].join('.'), issue: i.message })),
   );
 
+/** What the route worked out before the commit: the songs a `music.play_mix` find picked (the Music
+ * object answers finds, so it can't be asked from inside Core's transaction). */
+export interface Prepared {
+  refs?: string[];
+}
+
 export function put(
   w: Writer,
   c: Caller,
   id: string,
   r: PutVerbRequest,
   reqHash: string,
+  zone: () => string = () => 'UTC',
+  prepared: Prepared = {},
 ): { verb: Verb; created: boolean; permit?: Permit } {
   const found = store.byId(w.db, id);
   if (found) {
@@ -48,8 +63,15 @@ export function put(
   if (r.expires_at !== undefined && (r.expires_at < w.at || r.expires_at > w.at + 7 * 24 * HOUR))
     throw invalid('expires_at', 'within the next 7 days');
   // The standing permission (an ask-first verb has a floor, so it always needs its card): what a
-  // card approves is the verb, its schema and its args, not where it runs.
-  const g = gate(w, c, r.verb, { schema: r.schema, args: args.data }, `verb:${id}`, r.proposal_id);
+  // card approves is the verb, its schema and its args, not where it runs. A verb with no class
+  // (`memory.note`, the owner's own words only) is not gated; its area checks the words.
+  const g =
+    spec.permit === null
+      ? null
+      : gate(w, c, r.verb, { schema: r.schema, args: args.data }, `verb:${id}`, r.proposal_id);
+  if (spec.side === 'worker') return runHere(w, c, id, r, args.data as JsonObject, reqHash, g, zone);
+  // What the phone runs: a mix or a find becomes its songs here (the phone has neither).
+  const phoneArgs = r.verb === 'music.play_mix' ? songsFor(w, args.data as JsonObject, prepared) : args.data;
   const ledgerId = w.ledger({
     kind: 'verb',
     actor: c.actor,
@@ -68,7 +90,7 @@ export function put(
     verb: r.verb,
     schema: r.schema,
     ref: r.ref ?? null,
-    args_json: JSON.stringify(args.data),
+    args_json: JSON.stringify(phoneArgs),
     device_id: r.device_id ?? null,
     expires_at: r.expires_at ?? w.at + 24 * HOUR,
     proposal_id: r.proposal_id ?? null,
@@ -83,11 +105,26 @@ export function put(
   };
 }
 
+/** `music.play_mix`'s songs for the phone: a saved mix's (not found: 404), the find's the route ran,
+ * or the ones given; with the place to start from. */
+function songsFor(w: Writer, a: JsonObject, prepared: Prepared): JsonObject {
+  if (typeof a.mix_id === 'string') {
+    const refs = mixes.refsOf(w.db, a.mix_id);
+    if (!refs) throw new Fail('not_found', { reason: 'no such mix' });
+    return { ...a, refs };
+  }
+  if (a.find !== undefined) {
+    if (!prepared.refs?.length) throw invalid('args.find', 'no songs match it');
+    return { ...a, refs: prepared.refs };
+  }
+  return a;
+}
+
 /** The permit a queued verb ran under, read back from its ledger row (a retry's answer). */
 function permitOf(db: Db, v: store.VerbRow): { permit?: Permit } {
   const row = v.ledger_id ? ledger.byId(db, v.ledger_id) : null;
   const spec = verbSpec(v.verb);
-  return row?.permit && spec ? { permit: { action: v.verb, class: spec.permit, position: row.permit } } : {};
+  return row?.permit && spec?.permit ? { permit: { action: v.verb, class: spec.permit, position: row.permit } } : {};
 }
 
 /** Stale claims and expired verbs are settled lazily on every read and by the daily tick. */
@@ -96,9 +133,18 @@ export function settle(w: Writer): void {
     w.change('verb', `verb:${id}`);
 }
 
-export function pending(w: Writer, deviceId: string): Verb[] {
+/** The intents (verbs.ts `intent`), by the app that applies them. */
+const INTENTS: Record<string, string[]> = {};
+for (const [name, v] of Object.entries(VERBS) as [string, VerbSpec][])
+  if (v.intent) INTENTS[v.app] = [...(INTENTS[v.app] ?? []), name];
+const ALL_INTENTS = Object.values(INTENTS).flat();
+
+/** Open verbs for a device: without `app`, what home's own loop runs (never an intent); with it,
+ * that app's pending intents, which it applies when it opens. */
+export function pending(w: Writer, deviceId: string, app?: string): Verb[] {
   settle(w);
-  return store.open(w.db, deviceId).map(store.toVerb);
+  const only = app === undefined ? { not: ALL_INTENTS } : { in: INTENTS[app] ?? [] };
+  return store.open(w.db, deviceId, only).map(store.toVerb);
 }
 
 export function claim(w: Writer, id: string, deviceId: string): Verb {
@@ -113,7 +159,13 @@ export function claim(w: Writer, id: string, deviceId: string): Verb {
   return store.toVerb(store.byId(w.db, id) as store.VerbRow);
 }
 
-export function result(w: Writer, id: string, deviceId: string, r: VerbResultRequest): Verb {
+export function result(
+  w: Writer,
+  id: string,
+  deviceId: string,
+  r: VerbResultRequest,
+  zone: () => string = () => 'UTC',
+): Verb {
   const v = store.byId(w.db, id);
   if (!v || (v.device_id !== null && v.device_id !== deviceId)) throw new Fail('not_found');
   if (v.status === 'done' || v.status === 'failed') return store.toVerb(v);
@@ -160,6 +212,9 @@ export function result(w: Writer, id: string, deviceId: string, r: VerbResultReq
   });
   store.setLedger(w.db, id, outcome);
   w.change('verb', `verb:${id}`);
+  // A mind's verb the phone did, under tell or quiet (an inverse the Worker queued has no permit).
+  if (r.ok && queued?.permit && queued.permit !== 'ask')
+    followThrough(w, { verb: v.verb, why: queued.why, position: queued.permit }, outcome, zone);
   return store.toVerb(store.byId(w.db, id) as store.VerbRow);
 }
 

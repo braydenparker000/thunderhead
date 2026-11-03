@@ -52,7 +52,8 @@ describe('the phone’s batches', () => {
     ev({ data: { blob: 'x'.repeat(3_000) } }),
     ev({ ref: 'not a ref' }),
     ev({ id: 'not-an-id' }),
-    ev({ type: 'health.note', at: NOW - 10_000, ref: 'fact:x', data: { note: 'private' }, sensitivity: 1 }),
+    // Sensitive by its type (a decision card's class): stored at 1 though the phone sent none.
+    ev({ type: 'card.decide', at: NOW - 10_000, ref: 'proposal:x', data: { class: 'money' } }),
   ];
 
   it('stores the good events on the owner’s day and names each bad one', async () => {
@@ -77,7 +78,7 @@ describe('the phone’s batches', () => {
       [today, 'music', 'music.play', 'device'],
       [today, 'music', 'music.skip', 'device'],
       [today, 'music', 'music.finish', 'device'],
-      [today, 'health', 'health.note', 'device'],
+      [today, 'card', 'card.decide', 'device'],
     ]);
   });
 
@@ -109,7 +110,7 @@ describe('the agents’ questions', () => {
       ref?: string;
       data?: object;
     }[];
-    expect(seq.map((e) => e.type)).toEqual(['music.play', 'music.skip', 'music.finish', 'health.note']);
+    expect(seq.map((e) => e.type)).toEqual(['music.play', 'music.skip', 'music.finish', 'card.decide']);
     // A sensitive event: its type and time, never its ref or data.
     expect(seq[3]).not.toHaveProperty('ref');
     expect(seq[3]).not.toHaveProperty('data');

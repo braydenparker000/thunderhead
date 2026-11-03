@@ -22,6 +22,8 @@ export type RefKind =
   | 'verse'
   | 'podcast'
   | 'astra'
-  | 'media';
+  | 'media'
+  // A count the Worker can make again: a routine of the senses (senses.ts routineRef), cited by a habit.
+  | 'rollup';
 
 export type Ref = `${RefKind}:${string}`;

@@ -70,8 +70,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/ledger` | D C N R | P2 | built |  |
 | `PUT /v1/ledger/:id` | C N R | P2 | built |  |
 | `POST /v1/ledger/:id/undo` | D C | P2 | built | mind:chat: its own actions only |
-| `PUT /v1/verbs/:id` | C N | P2 | built |  |
-| `GET /v1/verbs/pending` | D | P2 | built |  |
+| `PUT /v1/verbs/:id` | C N | P2 | built | a Worker-side verb runs at once (status done); a phone verb waits for a phone, an intent for its app |
+| `GET /v1/verbs/pending` | D | P2 | built | ?app=: that app's pending intents; without it, never an intent |
 | `POST /v1/verbs/:id/claim` | D | P2 | built |  |
 | `POST /v1/verbs/:id/result` | D | P2 | built |  |
 | `GET /v1/surfaces` | D C N R | P2 | built |  |
@@ -135,6 +135,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `PUT /v1/music/notes` | C N | P5 | built | {items}: 1–200 notes checked against the vocabularies; a bad note or unknown id refuses the batch; 429 from 80% of the day's budget |
 | `GET /v1/music/notes` | D C N | P5 | built | ?ids=a,b (≤ 200, each with its tags) or ?cursor=&limit=: every note, a page at a time |
 | `GET /v1/music/find` | C N | P5 | built | ?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out; 429 from 80% |
+| `GET /v1/music/mixes` | D C N | P5 | built | the mixes music.mix_save kept, newest first, ≤ 50: id (for music.play_mix), name, tracks, recipe |
 | `PUT /v1/music/uploads/audio/:file` | public | P5 | built | signed by an upload tool key; Ogg Opus, ≤ 32 MiB |
 | `PUT /v1/music/uploads/art/:file` | public | P5 | built | signed by an upload tool key; JPEG or PNG, ≤ 2 MiB |
 | `POST /v1/music/uploads/:op` | public | P5 | built | signed by an upload tool key; the catalog writer's operations, export and links |
@@ -199,12 +200,31 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 
 ## Verbs
 
-| Verb | App | Class | Permit | Runs on | Queueable | Undo | Versions | Args (newest) | What it does |
+Side `worker`: run inside the commit that queues it, `done` at once, its inverse stored on the ledger row (`stored`). Side `phone`: claimed and run by a signed-in phone, which reports its inverse (`reported`); an intent waits for its app to open (`GET /v1/verbs/pending?app=`). `tell_min`: never below tell.
+
+| Verb | App | Class | Permit | Side | Queueable | Undo | Versions | Args (newest) | What it does |
 |---|---|---|---|---|---|---|---|---|---|
-| `app.open` | shell | reversible | tiles | device | no (owner tap) | none | 1 | `{ app: 'music' \| 'guitar' \| 'podcasts' \| 'astra' \| 'media' \| 'study' \| 'photos', path: string }` | Opens an app at a place. Runs only when the owner taps a reply's action chip; the mind never opens an app by itself (BEHAVIOR.md §2.2). |
-| `music.create_playlist` | music | reversible | music | device | yes | reported | 1 | `{ name: string, refs: array }` | Makes a playlist in the Music player from tracks (`music:<id>`), on this phone. Open it with a reply chip to `/music/#pl=<list_id>`. Its undo removes it while the owner hasn't changed it. |
-| `music.delete_playlist` | music | reversible | music | device | no (owner tap) | none | 1 | `{ list_id: string }` | Only the undo of music.create_playlist: removes a playlist the Thunderhead made, while the owner hasn't changed it (else `owner_edited`). Deleting the owner's own playlists is ask-first and no verb. |
-| `shell.appearance` | shell | reversible | settings | device | yes | reported | 1 | `{ mode: 'auto' \| 'day' \| 'night' }` | Sets the phone's appearance (auto, day or night). The phone reports the previous mode as the undo. |
+| `app.open` | shell | reversible | tiles | phone | no (owner tap or undo) | none | 1 | `{ app: 'music' \| 'guitar' \| 'podcasts' \| 'astra' \| 'media' \| 'study' \| 'photos', path: string }` | Opens an app at a place. Runs only when the owner taps a reply's action chip; the mind never opens an app by itself (BEHAVIOR.md §2.2). |
+| `music.create_playlist` | music | reversible | music | phone | yes | reported | 1 | `{ name: string, refs: array }` | Makes a playlist in the Music player from tracks (`music:<id>`), on this phone. Open it with a reply chip to `/music/#pl=<list_id>`. Its undo removes it while the owner hasn't changed it. |
+| `music.delete_playlist` | music | reversible | music | phone | no (owner tap or undo) | none | 1 | `{ list_id: string }` | Only the undo of music.create_playlist: removes a playlist the Thunderhead made, while the owner hasn't changed it (else `owner_edited`). Deleting the owner's own playlists is ask-first and no verb. |
+| `music.queue` | music | reversible | music | phone (intent) | yes | reported | 1 | `{ refs: array, at: 'next' \| 'end' }` | Adds songs (`music:<id>`) to the player's queue, next or at the end. The play queue lives in the player, so Music applies it when it next opens (an intent); songs not in that phone's library are counted as `missing`. Its undo (`music.unqueue`) takes them back out. |
+| `music.unqueue` | music | reversible | music | phone (intent) | no (owner tap or undo) | none | 1 | `{ refs: array }` | Only the undo of music.queue: takes those songs back out of the queue where they have not played yet. |
+| `music.play_mix` | music | reversible | music | phone (intent) | yes | reported | 1 | `{ mix_id?: string, find?: object, refs?: array, index?: integer }` | Loads a saved mix (`mix_id`), the songs a find picks (`find`: moods, occasion, energy, like, limit, as `th music find`; songs ruled out are left out) or songs (`refs`) as the player's queue; it starts only after an owner gesture (MUSIC.md §10.3), else it waits paused. Music applies it when it next opens (an intent). Its undo restores the queue before it (its first 500 songs and the place). |
+| `music.rate` | music | reversible | music | phone (intent) | yes | reported | 1 | `{ ref: string, rating: integer }` | Rates a song 1–5 in the player's library, only one the owner has not rated (else `owner_rated`): the owner's rating stays theirs. The ratings live in the player, so Music applies it when it next opens (an intent), and its own `music.rate` sense tells the Worker. Its undo (`music.unrate`) clears it while it is still the rating set. |
+| `music.unrate` | music | reversible | music | phone (intent) | no (owner tap or undo) | none | 1 | `{ ref: string, rating: integer }` | Only the undo of music.rate: clears the song's rating while it is still the one set (else `owner_edited`). |
+| `music.never` | music | reversible | music | worker | yes | stored | 1 | `{ ref: string, evidence: array }` | Records the owner's "never play this again" as their rule (subject `music.never`, its text naming the song by `music:<id>` only), through memory's own rules: `evidence` must be the owner's messages. Find, like and every mix leave the song out at once. Its undo closes the rule. |
+| `music.mix_save` | music | reversible | music | worker | yes | stored | 1 | `{ name: string, refs: array, recipe?: string }` | Saves songs (a find's result) as a named mix in the Worker (`GET /v1/music/mixes`), for `music.play_mix {mix_id}` later; `recipe` is the one line it was found by. The mix's id is the verb's id. Its undo deletes the mix. |
+| `podcasts.follow` | podcasts | reversible | podcasts | phone (intent) | yes | reported | 1 | `{ feed_url: string, title: string, author?: string, artwork?: string }` | Follows a show by its feed address in Podcasts. The follows live in the app (the Worker keeps the copy it sends), so Podcasts applies it when it next opens (an intent). Its undo unfollows it; a show already followed changes nothing and has no undo. |
+| `podcasts.unfollow` | podcasts | reversible | podcasts (tell_min) | phone (intent) | yes | reported | 1 | `{ show_id: string }` | Unfollows a show by its id (16 hex digits, the night's name for it) in Podcasts, when it next opens (an intent). Never below `tell`: it takes away something the owner chose. Its undo follows it again. |
+| `podcasts.queue_episode` | podcasts | reversible | podcasts | phone (intent) | yes | reported | 1 | `{ show_id: string, episode_id?: string }` | Adds an episode of a followed show (by the show's id; without `episode_id`, its newest) to the end of Podcasts' Up Next, when Podcasts next opens (an intent). Its undo takes it out again. |
+| `podcasts.unqueue_episode` | podcasts | reversible | podcasts | phone (intent) | no (owner tap or undo) | none | 1 | `{ key: string }` | Only the undo of podcasts.queue_episode: takes that episode out of Up Next. |
+| `podcasts.mark_played` | podcasts | reversible | podcasts | worker | yes | stored | 1 | `{ key: string }` | Marks an episode (`<feed address>#<episode id>`, as GET /v1/podcasts/progress names it) played in the Worker's positions, which every phone takes when Podcasts opens (the newer wins). Its undo puts back where it was left. |
+| `reminder.move` | shell | reversible | reminders | worker | yes | stored | 1 | `{ id: string, at: integer, source_message_id?: string }` | Moves a set reminder to a new time, by the reminders' own rules: in the future, at most 400 days ahead, a time inside quiet hours rings at their end; only from the chat, from a clean session; one the owner set on the phone needs the owner's message that asked (`source_message_id`). Its undo puts back the time before, while the reminder is still set at the new one. |
+| `settings.set` | shell | reversible | settings | worker | yes | stored | 1 | `{ key: string, value: json }` | Changes one of the Worker's settings in the catalogue (MENU-AND-SETTINGS.md §6), to a value the catalogue allows. Never the standing permissions (`mind.permit.*`), the outside-sources switch (`mind.ask_outside`) or Privacy and data (`privacy.*`): those are the owner's alone. Its undo puts back the value before (or the default), while the setting still holds the new one. |
+| `briefing.pin_tile` | shell | reversible | tiles | worker | yes | stored | 1 | `{ tile: 'due' \| 'holidays' \| 'practice' \| 'study' \| 'built' \| 'note.1' \| 'note.2' \| 'note.3' }` | Pins a tile the Briefing knows (`due`, `holidays`, or a night slot: `practice`, `study`, `built`, `note.1`–`note.3`) right after "Waiting on you", newest pin first, at most 3 (a fourth unpins the oldest); a pinned tile shows only when it has something to say. The owner's own arrangement on the phone still wins. Its undo puts back the pins before. |
+| `briefing.unpin_tile` | shell | reversible | tiles | worker | yes | stored | 1 | `{ tile: 'due' \| 'holidays' \| 'practice' \| 'study' \| 'built' \| 'note.1' \| 'note.2' \| 'note.3' }` | Unpins a Briefing tile, which goes back to its usual place. Its undo pins it again where it was. |
+| `memory.note` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ text: string, kind: 'state' \| 'goal' \| 'preference' \| 'routine' \| 'habit' \| 'fact' \| 'rule', subject?: string, evidence: array }` | Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), from a clean session, never off the record; no card. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's. |
+| `shell.appearance` | shell | reversible | settings | phone | yes | reported | 1 | `{ mode: 'auto' \| 'day' \| 'night' }` | Sets the phone's appearance (auto, day or night). The phone reports the previous mode as the undo. |
 
 ## Standing permissions
 
@@ -212,14 +232,14 @@ How the mind may take each class of action, the owner's `mind.permit.<class>` se
 
 | Class | Setting | Label | Default | Verbs | Core actions |
 |---|---|---|---|---|---|
-| `music` | `mind.permit.music` | Music | quiet | `music.create_playlist`, `music.delete_playlist` | — |
-| `podcasts` | `mind.permit.podcasts` | Podcasts | quiet | — | — |
-| `reminders` | `mind.permit.reminders` | Reminders | tell | — | `reminder.set`, `reminder.cancel` |
-| `settings` | `mind.permit.settings` | Settings | tell | `shell.appearance` | — |
+| `music` | `mind.permit.music` | Music | quiet | `music.create_playlist`, `music.delete_playlist`, `music.queue`, `music.unqueue`, `music.play_mix`, `music.rate`, `music.unrate`, `music.never`, `music.mix_save` | — |
+| `podcasts` | `mind.permit.podcasts` | Podcasts | quiet | `podcasts.follow`, `podcasts.unfollow`, `podcasts.queue_episode`, `podcasts.unqueue_episode`, `podcasts.mark_played` | — |
+| `reminders` | `mind.permit.reminders` | Reminders | tell | `reminder.move` | `reminder.set`, `reminder.cancel` |
+| `settings` | `mind.permit.settings` | Settings | tell | `settings.set`, `shell.appearance` | — |
 | `muse` | `mind.permit.muse` | Muse orders | ask | — | `muse.order`, `muse.order_personal` (floor: reach_people) |
 | `watch` | `mind.permit.watch` | Watch lists | tell | — | — |
 | `practice` | `mind.permit.practice` | Practice | tell | — | — |
-| `tiles` | `mind.permit.tiles` | Lines and tiles | quiet | `app.open` | `surface.put` |
+| `tiles` | `mind.permit.tiles` | Lines and tiles | quiet | `app.open`, `briefing.pin_tile`, `briefing.unpin_tile` | `surface.put` |
 | `titles` | `mind.permit.titles` | Titles | quiet | — | `thread.title` |
 | `outside` | `mind.permit.outside` | Remembering from outside text | ask | — | `memory.outside` |
 
@@ -260,6 +280,49 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `study` | `/study/` | Study | P7 |
 | `photos` | `/photos/` | Photos | P9 (page: the photo editor comes later) |
 
+## Senses
+
+Every event type the phone may send (`PUT /v1/senses/batches/:id`, API.md §11.14), its app's switch (`privacy.senses.<app>`), the ref kinds it may carry, its only data fields and their kinds, and its sensitivity (1: type and time only in every answer). Anything else is refused: `bad_type`, `bad_data`, `bad_ref`; an app switched off, `switched_off`. The `routines` query: 28 logical days, a band of 1 to 3 hours on the weekdays with events in 2+ weeks, kept at 10+ events in 3+ weeks.
+
+| Type | App | Ref | Data | Sensitivity | When |
+|---|---|---|---|---|---|
+| `player.open` | music | — | — | 0 | Music's page opens. |
+| `music.play` | music | `music:` | context_ref: ref, source: `list` \| `search` \| `mix` \| `dj` \| `shuffle` \| `queue` \| `verb`, offline: bool | 0 | A song starts sounding. |
+| `music.skip` | music | `music:` | at_ms: ms, duration_ms: ms, by: `next` \| `previous` \| `pick` \| `notification` \| `swipe`, next_ref: ref | 0 | A song that sounded is left before its last 3 s. |
+| `music.finish` | music | `music:` | listened_ms: ms | 0 | A song plays to its end. |
+| `music.rate` | music | `music:` | rating: int, from: num | 0 | A rating set in Music (0–5; from: the one before). |
+| `podcasts.open` | podcasts | — | — | 0 | Podcasts' page opens. |
+| `podcast.play` | podcasts | `podcast:` | at_ms: ms | 0 | An episode starts sounding (at_ms: where in it). |
+| `podcast.finish` | podcasts | `podcast:` | listened_ms: ms | 0 | An episode plays to its end. |
+| `podcast.skip` | podcasts | `podcast:` | at_ms: ms, duration_ms: ms | 0 | Another episode starts while this one was not finished. |
+| `podcast.follow` | podcasts | `podcast:` | — | 0 | A show followed. |
+| `podcast.unfollow` | podcasts | `podcast:` | — | 0 | A show unfollowed. |
+| `guitar.open` | guitar | `tab:` | — | 0 | Guitar's page opens. |
+| `guitar.piece_opened` | guitar | `tab:` | — | 0 | A piece opens in the reader. |
+| `guitar.pass` | guitar | `tab:` | bpm: int, speed_pct: num, clean: bool, by: `owner` \| `ears` | 0 | A loop pass marked Clean or Not yet. |
+| `guitar.bpm` | guitar | `tab:` | bpm: int | 0 | A new best clean tempo for a section. |
+| `guitar.session` | guitar | `tab:` | seconds: int, played_seconds: int, sections: ids, bpm: int | 0 | The reader closes after practice (sections: the section keys marked; bpm: the best clean tempo reached). |
+| `study.open` | study | `book:` | — | 0 | Study's page opens. |
+| `study.read` | study | `book:` | pages: int, ms: ms | 0 | Reading in a book, on leaving it or hiding the page. |
+| `study.search` | study | — | hits: int | 0 | A search shows its results (the count only, never the words). |
+| `study.highlight` | study | `book:` | — | 1 | A highlight made in a book (nothing on the phone makes one yet). |
+| `astra.open` | media | — | — | 0 | Astra's page opens. |
+| `mymedia.open` | media | — | — | 0 | My Media's page opens. |
+| `media.watch` | media | `astra:`, `media:` | ms: ms | 0 | Time watched of a title since the last report. |
+| `media.finish` | media | `astra:`, `media:` | — | 0 | A title watched to its end. |
+| `media.drop` | media | `astra:`, `media:` | at_ms: ms | 0 | A title not finished taken off Continue Watching. |
+| `app.open` | shell | `app:` | — | 0 | Music or Podcasts comes to the front inside home. |
+| `app.close` | shell | `app:` | ms: ms | 0 | Music or Podcasts goes back into the island (ms: how long it was in front). |
+| `ring.choice` | shell | `app:` | — | 0 | An app picked on the ring. |
+| `island.tap` | shell | `app:` | to: `details` \| `app` \| `control` | 0 | The island tapped: its details, its app, or a control. |
+| `briefing.open` | shell | — | — | 0 | The Briefing comes into view. |
+| `settings.change` | shell | `setting:` | — | 0 | A setting changed: its key only, never its value. |
+| `briefing.tile` | home | `ledger:` | — | 0 | A night tile tapped (its ref: the tile's ledger row). |
+| `line.seen` | home | `ledger:` | — | 0 | A home line on screen (its ref: the line's ledger row). |
+| `line.dismiss` | home | `ledger:` | — | 0 | A home line dismissed (nothing on the phone sends it yet). |
+| `card.decide` | home | `proposal:` | class: `delete` \| `money` \| `access` \| `reach_people` \| `permit` \| `memory_big` | 1 | A decision card answered Yes or No (its class only). |
+| `reply.open_chip` | home | `app:` | — | 0 | A reply's Open chip tapped (its ref: the app it opens). |
+
 ## Search sources
 
 | Source | Phase | Ref kind |
@@ -277,6 +340,7 @@ Protocol 1. Frames (server → client): `hello`, `changed`, `typing`, `bye`. Clo
 | `goal` | 90 | 10 |
 | `preference` | 180 | 25 |
 | `routine` | 60 | 15 |
+| `habit` | 28 | 10 |
 | `fact` | 1825 | 30 |
 | `rule` | never decays | not in the profile (briefing section 3) |
 

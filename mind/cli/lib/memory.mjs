@@ -176,8 +176,14 @@ export async function day(argv) {
   const events_summary = await request('POST', '/v1/senses/query', {body: {name: 'day_summary', params: {day: d}}})
     .then(r => { const by_type = r.data?.rows ?? []; return {day: d, total: by_type.reduce((n, t) => n + t.n, 0), by_type}; })
     .catch(() => null);
+  // When the owner does things, as the Worker counted them over the 28 days to this one (the senses'
+  // `routines`: types, weekdays, hours and counts): step 4 writes each as an `observed` fact of kind
+  // `habit` citing its `ref` (rule M5), or confirms the habit it already is. Null as above.
+  const routines = await request('POST', '/v1/senses/query', {body: {name: 'routines', params: {to: d}}})
+    .then(r => r.data?.rows ?? [])
+    .catch(() => null);
   out({stats, messages: messages.items, ledger: ledger.items, session_notes: notes.items,
-    next: {messages: messages.next, ledger: ledger.next, notes: notes.next}, events_summary});
+    next: {messages: messages.next, ledger: ledger.next, notes: notes.next}, events_summary, routines});
 }
 
 export async function daynote(argv) {

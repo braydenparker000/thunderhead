@@ -162,7 +162,7 @@ describe('how the owner listens', () => {
 
   it('a song rated 1 on the phone ("not for me", or "never play this again" said to it) is left out for good, until undone', async () => {
     const rate = (rating: number, from: number, ago_ms: number) =>
-      sendSenses(P.D, [{ type: 'music.rate', id: S[4], ago_ms, data: { rating, from, by: 'command' } }]);
+      sendSenses(P.D, [{ type: 'music.rate', id: S[4], ago_ms, data: { rating, from } }]);
     await rate(1, 0, 120_000);
     // Kept in Music itself: gone from the senses (as on day 91), the rating still counts.
     expect(

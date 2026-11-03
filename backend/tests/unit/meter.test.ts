@@ -36,6 +36,29 @@ describe('the meter', () => {
     ];
     // a1 undone; a2 tapped; a3 its app opened the next day; a4's app only three days later; a5 new;
     // a6 undone after four days: it counts as ignored.
-    expect(arrangements(rows, senses, NOW, 'UTC')).toEqual({ kept: 2, undone: 1, ignored: 2, waiting: 1 });
+    expect(arrangements(rows, senses, NOW, 'UTC')).toEqual({ kept: 2, undone: 1, ignored: 2, waiting: 1, unseen: 0 });
+  });
+
+  it('M-16 from home: the shell or a chip opening its app keeps it, a dismissal leaves it, a line never seen is unseen', () => {
+    const day = (n: number) => new Date(at(n) - 4 * H).toISOString().slice(0, 10);
+    const rows = [
+      { id: 'b1', at: at(5), ref: 'app:podcasts', undone_at: null, line: 1 },
+      { id: 'b2', at: at(5), ref: 'app:astra', undone_at: null, line: 1 },
+      { id: 'b3', at: at(5), ref: 'app:guitar', undone_at: null, line: 1 },
+      { id: 'b4', at: at(5), ref: null, undone_at: null, line: 1 },
+      { id: 'b5', at: at(5), ref: null, undone_at: null, line: 1 },
+      { id: 'b6', at: at(5), ref: null, undone_at: null, line: 0 },
+    ];
+    const senses = [
+      // b1: the shell brought Podcasts to the front; b2: a reply's chip opened Astra the next day.
+      { day: day(5), type: 'app.open', ref: 'app:podcasts', n: 1 },
+      { day: day(4), type: 'reply.open_chip', ref: 'app:astra', n: 1 },
+      // b3: dismissed, though Guitar opened that day.
+      { day: day(5), type: 'line.dismiss', ref: 'ledger:b3', n: 1 },
+      { day: day(5), type: 'guitar.open', ref: '', n: 1 },
+      // b4: seen and left; b5: never on screen; b6 is a tile, which the phone doesn't report seen.
+      { day: day(5), type: 'line.seen', ref: 'ledger:b4', n: 2 },
+    ];
+    expect(arrangements(rows, senses, NOW, 'UTC')).toEqual({ kept: 2, undone: 0, ignored: 3, waiting: 0, unseen: 1 });
   });
 });

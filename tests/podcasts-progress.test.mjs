@@ -1,7 +1,8 @@
 // frontend/th/podcasts/progress.js against a fake Worker (NEXT-BATCH.md part 7): on open, the
 // Worker's newer positions are written into the ported app's storage before it reads it (an
 // episode's details kept, an unknown episode added, an older one left), page by page, and `since`
-// moves on; a pull back too late writes nothing and keeps `since`. Then this phone's positions the
+// moves on; a pull back too late writes nothing and keeps `since`; the mind's pending intents join
+// that write when they come in time, and are reported once it is saved. Then this phone's positions the
 // Worker doesn't have go up, in requests of ≤ 100, and its follows and unfollows; a refusal no
 // retry fixes is not sent again, an outage is. Signed out or in another site's frame, nothing is
 // asked. The key check agrees with the Worker's. Synthetic shows and episodes only.
@@ -284,4 +285,34 @@ test('the app’s edit asks once a page: one pull, however often it is called', 
   assert.equal(sync.opened(BY), a);
   await a;
   assert.equal(worker.requests.filter((r) => r.method === 'GET').length, 1);
+});
+
+test("the mind's pending intents go into the same write, reported once saved; ones that don't come in time wait", async () => {
+  const intents = sync.deps.intents;
+  try {
+    setApp({ follows: [] });
+    const sent = [];
+    sync.deps.intents = async (draft) => {
+      draft.follows.push({ feedUrl: FEED, title: 'Invented Show' });
+      return { done: [{}], send: async () => void sent.push('sent') };
+    };
+    await sync.open(BY);
+    assert.deepEqual(app().follows.map((s) => s.feedUrl), [FEED]);
+    await new Promise((r) => setTimeout(r, 0));
+    assert.deepEqual(sent, ['sent']);
+    // An intents step with no answer: the positions go alone, and none of its changes.
+    setApp({ follows: [] });
+    worker.rows.set(key(9), { key: key(9), position_s: 42, duration_s: 100, played: false, updated_at: NOW - 1, synced_at: NOW + 1 });
+    worker.clock = NOW + 2;
+    sync.deps.intents = async (draft) => {
+      draft.follows.push({ feedUrl: FEED, title: 'Invented Show' });
+      return new Promise(() => {});
+    };
+    page = BY - 80;
+    await sync.open(BY);
+    assert.deepEqual(app().follows, []);
+    assert.equal(app().progress[key(9)].position, 42);
+  } finally {
+    sync.deps.intents = intents;
+  }
 });
