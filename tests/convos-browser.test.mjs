@@ -361,13 +361,16 @@ test('the list and a thread say when they cannot load, and Retry or reopening lo
   const { page, context, errors, api } = await open();
   api.state.chat.fail['/v1/threads'] = 1;
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' })));
-  await page.waitForSelector('#convos .cline');
-  assert.match(await page.textContent('#convos .cline'), /^Couldn't load your conversations\./);
+  // Read as it shows: the chat's own first sync may load the list again (and well) a moment later.
+  const said = await (await page.waitForFunction(() => document.querySelector('#convos .cline')?.textContent)).jsonValue();
+  assert.match(said, /^Couldn't load your conversations\./);
   await go(page, 'home');
   await menu(page);
   assert.equal(await page.$('#convos .cline'), null);
   // Offline: the list this phone has, and a thread that waits with Retry.
   await context.setOffline(true);
+  // The page knows it is offline before the menu is told to load again.
+  await page.waitForFunction(() => !navigator.onLine);
   await page.evaluate(() => { dispatchEvent(new Event('offline')); document.dispatchEvent(new CustomEvent('th:changed', { detail: ['thread'] })); });
   await eventually(() => page.textContent('#convos .cline'), 'Offline: showing what this phone has.');
   await page.click(`#convos [data-id="${T.monday}"]`);
