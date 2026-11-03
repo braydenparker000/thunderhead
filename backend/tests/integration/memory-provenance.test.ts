@@ -117,11 +117,13 @@ describe('B. what outside may not do', () => {
     ids.thread = t.body.id;
     const b = await chatBrief();
     // The fact: not in the first 2,000 characters, nor anywhere (rules can't be outside, the
-    // profile leaves it out). The loose end: usable, so shown, but after sections 1–2 and marked.
+    // profile leaves it out). The loose end: after sections 1–2, marked, and to this clean session
+    // its words are kept back (M11f; memory-outside-reads.test.ts has the rest).
     expect(b.core.slice(0, 2_000)).not.toContain('Hates jazz');
     expect(b.full).not.toContain('Hates jazz');
     expect(b.core.slice(0, b.core.indexOf('## 3. '))).not.toContain('jazz');
-    expect(b.core).toContain(`[${ids.thread}] (outside) Read the page about jazz again`);
+    expect(b.core).toContain(`[${ids.thread}] (outside, kept back) a loose end`);
+    expect(b.full).not.toContain('Read the page about jazz again');
   });
 
   it('M11c: outside text never becomes or replaces a rule, nor replaces what the owner said', async () => {

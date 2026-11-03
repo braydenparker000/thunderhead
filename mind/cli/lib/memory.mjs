@@ -2,7 +2,8 @@
 // (RUNTIME.md §5.3, MEMORY.md §3, API.md §11.13). Writes are small operations, never documents.
 // Every write prints the `provenance` the Worker gave it (MEMORY.md §6 M11): `owner`, `observed`,
 // or `outside` once this session has read outside text (it waits for the owner's keep), and every
-// recall hit carries its own.
+// recall hit carries its own. A memory hit labelled `outside` comes kept back (its ref and label,
+// not its words) unless `--outside` asks for it, which marks this session (MEMORY.md §6 M11f).
 import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
 import {EXIT, ThError, invalid, jsonFlag, list, need, out, toMs} from './io.mjs';
@@ -45,9 +46,9 @@ function factResult(data) {
 
 /** `th search` / `th recall`: federated search over the contract's sources (default: all built ones). */
 export async function recall(argv) {
-  const {flags, rest} = parseArgs(argv);
+  const {flags, rest} = parseArgs(argv, {bool: ['outside']});
   const q = rest.join(' ').trim();
-  if (!q) throw invalid('usage: th search <query> [--sources messages,facts,…] [--since <date>] [--until <date>] [--thread <id>] [--limit 20]');
+  if (!q) throw invalid('usage: th search <query> [--sources messages,facts,…] [--since <date>] [--until <date>] [--thread <id>] [--limit 20] [--outside]');
   if (q.length > 200) throw invalid('the query is over 200 characters');
   const asked = typeof flags.sources === 'string' ? flags.sources : typeof flags.kind === 'string' && flags.kind !== 'all' ? flags.kind : '';
   const sources = list(asked);
@@ -57,6 +58,7 @@ export async function recall(argv) {
   const {data} = await request('GET', '/v1/search', {query: {
     q, sources: sources.length ? sources.join(',') : undefined, since: toMs(flags.since, 'since'), until: toMs(flags.until, 'until'),
     thread: typeof flags.thread === 'string' ? flags.thread : undefined, limit: Number(flags.limit) || 20,
+    outside: flags.outside ? '1' : undefined,
   }});
   out({items: (data.items || []).map(({source, ref, at, snippet, score, provenance}) =>
     ({source, ref, at, snippet, score, ...(provenance ? {provenance} : {})}))});

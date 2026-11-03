@@ -138,12 +138,22 @@ describe('provenance in the briefing (MEMORY.md §6 M11b)', () => {
     provenance,
   });
 
-  it('outside loose ends and day notes are shown marked, after the rest; sections 1–2 hold none of them', () => {
+  const marked = (tainted: boolean) => {
     const threads = [thread(1, 'Read the article the page named', 'outside'), thread(2, 'Fix the metronome', 'owner')];
     const y = note('2026-11-02', 'A day the page described', 'outside');
-    const b = buildBrief(
-      input({ threads, yesterday: { threadId: null, tail: [], note: y }, days: [y], waiting: [msg(1, 'hello')] }),
+    return buildBrief(
+      input({
+        tainted,
+        threads,
+        yesterday: { threadId: null, tail: [], note: y },
+        days: [y],
+        waiting: [msg(1, 'hello')],
+      }),
     );
+  };
+
+  it('to a session that read outside text: shown marked, after the rest; sections 1–2 hold none of them', () => {
+    const b = marked(true);
     const four = section(b.core, 4).split('\n').slice(1, 3);
     expect(four[0]).toContain('Fix the metronome');
     expect(four[1]).toMatch(/^\[[0-9a-f-]+\] \(outside\) Read the article the page named \(/);
@@ -151,6 +161,18 @@ describe('provenance in the briefing (MEMORY.md §6 M11b)', () => {
     expect(section(b.full, 9)).toContain('2026-11-02 (outside) (4): A day the page described');
     const first = b.core.slice(0, b.core.indexOf('## 3. '));
     for (const t of ['Read the article', 'A day the page described']) expect(first).not.toContain(t);
+  });
+
+  it('to a clean session: kept back, their ids, label and kind only, and where to read them (M11f)', () => {
+    const b = marked(false);
+    const four = section(b.core, 4).split('\n').slice(1, 4);
+    expect(four[1]).toMatch(/^\[[0-9a-f-]+\] \(outside, kept back\) a loose end \(mind, since /);
+    expect(four[2]).toBe(
+      'outside, kept back: th get /v1/memory/open-threads outside=1 reads it; you write outside after',
+    );
+    expect(section(b.core, 6)).toContain('Day note 2026-11-02 (outside, kept back) (importance 4, v1)');
+    expect(section(b.full, 9)).toContain('2026-11-02 (outside, kept back) (4)');
+    for (const t of ['Read the article', 'A day the page described']) expect(b.full).not.toContain(t);
   });
 
   it("section 1 says a session's writes are labelled outside, and never refused", () => {

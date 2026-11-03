@@ -25,7 +25,8 @@ export interface BriefInput {
   /** Decision cards waiting for the owner, oldest first. */
   decisions: { id: string; class: string; question: string; expires_at: number; show_from: number }[];
   /** The session read outside text, or its claim took over a taint (MEMORY.md §7): what it writes
-   * is labelled `outside`, and section 1 says so, before anything else is read. */
+   * is labelled `outside`, and section 1 says so, before anything else is read. Otherwise its
+   * `outside` loose ends and day notes are kept back (MEMORY.md §6 M11f). */
   tainted: boolean;
   now: number;
   tz: string;
@@ -214,9 +215,9 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
       return waiting.length ? budgeted(waiting, b, 'oldest', more) : 'Nothing is waiting.';
     }
     if (n === 3) return reflex ? NO_MEMORY : renderRules(i.rules, i.tz, b, more);
-    if (n === 4) return reflex ? NO_MEMORY : renderThreads(i.threads, i.tz, b, more);
+    if (n === 4) return reflex ? NO_MEMORY : renderThreads(i.threads, i.tz, b, more, !i.tainted);
     if (n === 5) return night ? 'See section 2.' : budgeted(tail, b, 'newest', more);
-    if (i.yesterday.note) return renderDayNote(i.yesterday.note, b, more);
+    if (i.yesterday.note) return renderDayNote(i.yesterday.note, b, more, !i.tainted);
     return yesterday.length ? budgeted(yesterday, b, 'newest', more) : 'No messages yesterday.';
   };
   const body: Record<number, string> = {
@@ -252,7 +253,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     ...[2, 3, 4, 5, 6].map((n): [number, string] => [n, make(n, FULL_BUDGET[n], true)]),
     [7, body[7]],
     [8, reflex ? NO_MEMORY : i.profile.slice(0, 6_000)],
-    [9, reflex ? NO_MEMORY : renderDays(i.days, 1_400)],
+    [9, reflex ? NO_MEMORY : renderDays(i.days, 1_400, !i.tainted)],
     [
       10,
       pending.length

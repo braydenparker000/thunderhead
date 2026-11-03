@@ -3,7 +3,8 @@
 // clock give byte-identical text (snapshot-tested). Text is one line per item: a fact can never
 // fake a `## <n>.` section marker. Provenance (MEMORY.md §6 M11): an `outside` fact is in no render
 // (M11a; rules can't be outside, M11c); an `outside` loose end or day note is shown, marked
-// `(outside)` right after its id or day, and loose ends list it after the rest.
+// `(outside)` right after its id or day, and loose ends list it after the rest. To a session that
+// read no outside text (`keep`) it is kept back: its id, label and kind, never its words (M11f).
 import {
   CONFIDENCE,
   decayed,
@@ -13,6 +14,7 @@ import {
   MEMORY_LIMITS,
   type Provenance,
 } from '../../../../shared/contract/memory.ts';
+import { KEPT_BACK } from './kept';
 import { type DayNoteRow, notedBy, type OpenThreadRow } from './notes';
 import { type FactRow, provenanceOf } from './store';
 
@@ -138,7 +140,13 @@ export function renderRules(
 
 /** What marks a loose end or a day note that a session which read outside text wrote. */
 export const OUTSIDE_MARK = ' (outside)';
+/** The same, with its words kept back from a session that read no outside text (M11f). */
+export const KEPT_MARK = ` ${KEPT_BACK}`;
 const mark = (r: { provenance?: Provenance | null }) => (notedBy(r) === 'outside' ? OUTSIDE_MARK : '');
+const kept = (r: { provenance?: Provenance | null }, keep: boolean) => keep && notedBy(r) === 'outside';
+/** Where a session reads what was kept back (and is labelled outside from then on). */
+const READ_IT = (path: string) =>
+  `${KEPT_BACK.slice(1, -1)}: th get ${path} outside=1 reads it; you write outside after`;
 
 /** Section 4: mind-owned first, then the owner's; due soonest first, then the oldest; the
  * `outside` ones after all the rest, marked. Full ids, because `th thread done <id>` needs them. */
@@ -147,6 +155,7 @@ export function renderThreads(
   tz: string,
   budget: number,
   more = (n: number) => `(+${n} more: th brief --section 4)`,
+  keep = false,
 ): string {
   const open = rows
     .filter((t) => t.status === 'open')
@@ -158,14 +167,12 @@ export function renderThreads(
         a.opened_at - b.opened_at,
     );
   if (!open.length) return 'No open threads.';
-  return within(
-    open.map(
-      (t) =>
-        `[${t.id}]${mark(t)} ${one(t.text)} (${t.owner}${t.due_at ? `, due ${date(t.due_at, tz)}` : ''}, since ${date(t.opened_at, tz)})`,
-    ),
-    budget,
-    more,
-  ).text;
+  const lines = open.map(
+    (t) =>
+      `[${t.id}]${kept(t, keep) ? `${KEPT_MARK} a loose end` : `${mark(t)} ${one(t.text)}`} (${t.owner}${t.due_at ? `, due ${date(t.due_at, tz)}` : ''}, since ${date(t.opened_at, tz)})`,
+  );
+  if (open.some((t) => kept(t, keep))) lines.push(READ_IT('/v1/memory/open-threads'));
+  return within(lines, budget, more).text;
 }
 
 /** Section 6 when the night shift wrote yesterday's note. */
@@ -173,7 +180,10 @@ export function renderDayNote(
   n: DayNoteRow,
   budget: number,
   more = (k: number) => `(+${k} more: th brief --section 6)`,
+  keep = false,
 ): string {
+  if (kept(n, keep))
+    return `Day note ${n.day}${KEPT_MARK} (importance ${n.importance}, v${n.version})\n${READ_IT(`/v1/memory/day-notes from=${n.day} to=${n.day}`)}`;
   let decisions: string[] = [];
   try {
     const v = JSON.parse(n.decisions_json ?? '[]');
@@ -187,10 +197,11 @@ export function renderDayNote(
 }
 
 /** Section 9: one line per day note, newest first. */
-export function renderDays(rows: DayNoteRow[], budget: number): string {
+export function renderDays(rows: DayNoteRow[], budget: number, keep = false): string {
   if (!rows.length) return 'No day notes yet.';
   return within(
     rows.map((n) => {
+      if (kept(n, keep)) return `${n.day}${KEPT_MARK} (${n.importance})`;
       const s = one(n.summary);
       return `${n.day}${mark(n)} (${n.importance}): ${s.length > 160 ? `${s.slice(0, 159)}…` : s}`;
     }),

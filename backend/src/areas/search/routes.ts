@@ -1,6 +1,8 @@
 // GET /v1/search (API.md §11.7): `sources` names the stores to ask (default: every built source the
 // caller may read); `kind` is kept as an alias for a single source. Items carry their `source`.
-// The semantic seam (sources.ts `SEMANTIC`) adds its ranked list when one is plugged in.
+// The semantic seam (sources.ts `SEMANTIC`) adds its ranked list when one is plugged in. A mind
+// session gets a memory hit labelled `outside` kept back unless it asks (`outside=1`, which marks
+// it: MEMORY.md §6 M11f, memory/outside-read.ts).
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import type { SearchResponse } from '../../../../shared/contract/api';
@@ -8,6 +10,8 @@ import type { SearchSource } from '../../../../shared/contract/feed.ts';
 import { type AppEnv, guard, principalOf, whoOf } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { parse } from '../../http/validate';
+import { keptHit, outsideHit } from '../memory/kept';
+import { served } from '../memory/outside-read';
 import { ftsMatch, fuse, plain, SEMANTIC, SOURCE_NAMES, SOURCES } from './sources';
 
 const ms = z.optional(z.coerce.number().check(z.int(), z.gte(0)));
@@ -19,6 +23,7 @@ const query = z.object({
   until: ms,
   thread: z.optional(z.string().check(z.regex(/^[0-9a-f-]{36}$/))),
   limit: z.optional(z.coerce.number().check(z.int(), z.gte(1), z.lte(50))),
+  outside: z.optional(z.enum(['true', 'false', '1', '0'])),
 });
 
 export const searchRoutes = new Hono<AppEnv>().get('/search', guard('GET /v1/search'), async (c) => {
@@ -45,5 +50,5 @@ export const searchRoutes = new Hono<AppEnv>().get('/search', guard('GET /v1/sea
     // Semantic recall (P8) is one more ranked list over the same sources, fused like the rest.
     ...(SEMANTIC.recall && names.length ? [SEMANTIC.recall.run(c.env, sq, names)] : []),
   ]);
-  return c.json({ items: fuse(lists, limit) } satisfies SearchResponse);
+  return c.json({ items: await served(c, fuse(lists, limit), keptHit, outsideHit) } satisfies SearchResponse);
 });

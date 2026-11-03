@@ -15,7 +15,7 @@ export const USAGE = {
   title: ['<thread id> <title> [--proposal <id>]', 'name a thread'],
   note: ['--session <text|-> [--open <json>]', 'the session note (≤ 120 words); prints its provenance'],
   pending: ['', 'what the Stop hook reads: unanswered, stop, day_closed, limited, idle'],
-  search: ['<query> [--sources messages,facts,…] [--since] [--until] [--thread <id>] [--limit 20]', 'federated search (recall is the same)'],
+  search: ['<query> [--sources messages,facts,…] [--since] [--until] [--thread <id>] [--limit 20] [--outside]', 'federated search (recall is the same); --outside: outside memory\'s words, which labels what you write after'],
   recall: ['<query> [--sources …] [--kind …]', 'same as search'],
   verb: ['<app.action> [<args json>|-] --why <8–200 chars> [--schema <n>] [--device <id>] [--ref <ref>] [--proposal <id>]', 'ask a phone to do something (undoable); - reads the args JSON from stdin (text from elsewhere, like a song title, never goes in a quoted argument)'],
   surface: ['<app> <slot> --kind <k> --payload <json|-> --why <t> --topic <key> [--ref app:<id>] [--expires <iso>] [--proposal <id>] · ls · rm <app> <slot>', 'place, list or clear a surface; --payload - reads it from stdin; --ref names the app it is about, so opening that app counts as using it'],
