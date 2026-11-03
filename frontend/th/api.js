@@ -174,9 +174,10 @@ export function createApi({ base, client, timeoutMs = TIMEOUT_MS }) {
     /** @param {string} token @returns {Promise<TodayResponse>} */
     today: (token) => call('/v1/threads/today', { token }),
     /** @param {string} token @param {string} id @param {string} body @param {string} [replyTo] the reply it answers
-     * @param {string[]} [attachments] `file:<id>` refs, uploaded first @param {string} [thread] one off the record @returns {Promise<Message>} */
-    say: (token, id, body, replyTo, attachments, thread) =>
-      call(`/v1/messages/${encodeURIComponent(id)}`, { method: 'PUT', token, body: { body, ...(replyTo ? { reply_to: replyTo } : {}), ...(attachments?.length ? { attachments } : {}), ...(thread ? { thread_id: thread } : {}) } }),
+     * @param {string[]} [attachments] `file:<id>` refs, uploaded first @param {string} [thread] one off the record
+     * @param {'muse'} [mention] "@muse …": a task for Muse @returns {Promise<Message>} */
+    say: (token, id, body, replyTo, attachments, thread, mention) =>
+      call(`/v1/messages/${encodeURIComponent(id)}`, { method: 'PUT', token, body: { body, ...(replyTo ? { reply_to: replyTo } : {}), ...(attachments?.length ? { attachments } : {}), ...(thread ? { thread_id: thread } : {}), ...(mention ? { mention } : {}) } }),
     /** @param {string} token @param {number} after @returns {Promise<ChangesResponse>} */
     changes: (token, after) => call(`/v1/changes?after=${after}&limit=500`, { token }),
     /** @param {string} token @returns {Promise<LiveTicket>} */

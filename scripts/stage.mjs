@@ -99,7 +99,8 @@ const budgets = [
   // (2026-11-02, senses) +8 measured (72,498): contract.js's `habit` fact kind.
   // (2026-11-02) +1,808 measured (74,306): contract.js's verbs, batch 1 (17 more, each with its side
   // and whether it is an app's intent).
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_306],
+  // (2026-11-03, @muse) +104 measured (74,410): api.js's `say` sends the `mention` marker.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_410],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -115,7 +116,10 @@ const budgets = [
   // measured 107,441 bytes, 10,560 over main's 96,881.
   // (2026-11-02, senses) +430 measured (107,871): each home line's ledger row on its card and a
   // chip's app (for `line.seen` and `reply.open_chip`), and the Memory page's Habits group.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 107_871],
+  // (2026-11-03, @muse) +792 measured (108,663): an "@muse" marked and sent from the outbox, its
+  // hint and length check (index.js), never waited on as the mind's (model.js), and Muse's done
+  // line drawn as plain words (view.js).
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 108_663],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -140,7 +144,9 @@ const budgets = [
   // The menu's conversations and search, loaded when the menu first opens.
   // (2026-10-31) + a held card's Continue, Rename and Pin (actions.js), Settings by name in search.
   // (2026-11-01) + Delete with its sheet and Now's hold, the off-the-record tag, Recently deleted by name.
-  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 65_000],
+  // (2026-11-03, @muse) 65,000 → 70,205 measured (+6,071 over main's 64,134): the Tasks group and
+  // its sheet (tasks.js, 5,640) and their place in the menu (menu.js, +431).
+  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 70_205],
   // The Briefing page, loaded after the first paint.
   // + skeletons, pull to refresh and the owner's arrangement of the tiles (2026-10-30).
   // (2026-11-02) 20,000 → 24,000: + Due and its sheet (due.js, loaded on tap), Holidays, the day's

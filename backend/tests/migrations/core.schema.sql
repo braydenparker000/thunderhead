@@ -359,7 +359,9 @@ CREATE TABLE muse_notes (
   author TEXT NOT NULL,
   body TEXT NOT NULL,
   created_at INTEGER NOT NULL
-  );
+  , order_id TEXT);
+
+CREATE INDEX muse_notes_order ON muse_notes (order_id, seq);
 
 CREATE TABLE night_runs (
   day TEXT PRIMARY KEY,
@@ -673,8 +675,10 @@ CREATE TABLE work_orders (
   result_valid INTEGER,
   result_errors_json TEXT,
   finished_at INTEGER
-  ) WITHOUT ROWID;
+  , message_id TEXT, said TEXT, invalid INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID;
 
 CREATE INDEX work_orders_kind_day ON work_orders (kind, day);
+
+CREATE INDEX work_orders_new ON work_orders (created_at);
 
 CREATE INDEX work_orders_open ON work_orders (status, created_at);

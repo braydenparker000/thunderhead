@@ -30,7 +30,7 @@ const wrangler = Object.values(
 
 /** Migration steps a branch built beside another may skip in the numbering: 30 is taken by a branch
  * in flight (2026-11-02); the calendar is 31 and ships after it. */
-const PENDING: number[] = [30];
+const PENDING: number[] = [];
 
 const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 // wrangler.jsonc has whole-line comments only, so dropping them leaves plain JSON.

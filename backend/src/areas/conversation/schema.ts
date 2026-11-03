@@ -26,6 +26,8 @@ export const putMessage = z
     // 'system' (night and reflex errors), or a conversation off the record by its id (held.ts).
     thread_id: z.optional(z.union([z.literal('system'), z.string().check(z.regex(UUID7))])),
     attachments: z.optional(z.array(z.string().check(z.maxLength(200))).check(z.maxLength(10))),
+    // "@muse …" from the owner: the words become a work order for Muse (work/mention.ts).
+    mention: z.optional(z.literal('muse')),
   })
   .check(
     z.refine((p) => p.body.length > 0 || (p.attachments?.length ?? 0) > 0, {

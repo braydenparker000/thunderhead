@@ -499,6 +499,8 @@ sends you only the public key (64 characters); you do step 2 with it, then tell 
 registered, and Muse uploads one test song and sends you the `register` answer for the agent. The
 message for Muse, ready to paste, is [MUSE-UPLOADS.md](../archive/MUSE-UPLOADS.md).
 
+**Muse's tasks (`@muse`, 2026-11-03):** make Muse a key in Settings › Agents (`/settings/agents/`, role **Muse**), then send Muse that key, the API address and [MUSE-PROTOCOL.md](../engineering/MUSE-PROTOCOL.md), and ask it to implement the protocol (poll for a task every 5 minutes). Until then an `@muse` waits under Tasks as "Asked".
+
 N5 (music private: the old Worker's public read off, ask-first) comes after the player has used
 only the new Worker for 3 days.
 
