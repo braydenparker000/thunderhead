@@ -123,7 +123,6 @@ export function startShellSenses(doc = document) {
       shown.observe(n);
     }
   };
-  const talk = doc.querySelector('#talk');
-  if (talk) new MutationObserver(watchLines).observe(talk, { childList: true, subtree: true });
+  const convo = doc.querySelector('#convo'); if (convo) new MutationObserver(watchLines).observe(convo, { childList: true, subtree: true }); // #convo, not #talk: the chat may draw #talk after this starts
   watchLines();
 }
