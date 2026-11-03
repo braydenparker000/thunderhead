@@ -294,7 +294,5 @@ export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P
 
 /** The rows this build must register: built phases, minus deferred rows. */
 export function builtRoutes(): [RouteKey, RouteSpec][] {
-  return (Object.entries(ROUTES) as [RouteKey, RouteSpec][]).filter(
-    ([, r]) => BUILT_PHASES.includes(r.phase) && !r.deferred,
-  );
+  return (Object.entries(ROUTES) as [RouteKey, RouteSpec][]).filter(([, r]) => BUILT_PHASES.includes(r.phase) && !r.deferred);
 }

@@ -59,10 +59,12 @@ export function plan(db: Db, now: number, all = false) {
 
 /** The rows and state of links no longer set go. */
 function tidy(db: Db, keep: string[]): void {
-  const list = keep.map(() => '?').join(', ');
-  const not = keep.length ? `WHERE feed NOT IN (${list})` : '';
-  db.run(`DELETE FROM calendar_events ${not}`, ...keep);
-  db.run(`DELETE FROM calendar_feeds ${not}`, ...keep);
+  // By the links' rows (a few), then each gone link's events by its key: never a scan of them all.
+  for (const f of db.all<{ feed: string }>('SELECT feed FROM calendar_feeds'))
+    if (!keep.includes(f.feed)) {
+      db.run('DELETE FROM calendar_events WHERE feed = ?', f.feed);
+      db.run('DELETE FROM calendar_feeds WHERE feed = ?', f.feed);
+    }
 }
 
 /** A good fetch: its events replace the link's, unless they are the same as last time. Ignored when
@@ -80,7 +82,7 @@ export function put(db: Db, feed: string, url: string, rows: CalendarEvent[], at
     db.run('DELETE FROM calendar_events WHERE feed = ?', feed);
     for (const r of rows)
       db.run(
-        `INSERT OR REPLACE INTO calendar_events (feed, uid, start, end, all_day, title, location, source)
+        `INSERT OR IGNORE INTO calendar_events (feed, uid, start, end, all_day, title, location, source)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         feed,
         r.uid,
