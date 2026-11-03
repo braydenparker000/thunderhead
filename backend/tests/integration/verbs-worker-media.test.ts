@@ -3,7 +3,7 @@
 // fact in their own words; and the gate's own rules (never below tell; a refusal writes nothing).
 // The shell's are in verbs-worker.test.ts. Everything is synthetic.
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { MusicMixesResponse } from '../../../shared/contract/api';
+import type { MusicMixesResponse, ProfileResponse } from '../../../shared/contract/api';
 import type { PodcastPage, PodcastProgress } from '../../../shared/contract/podcasts.ts';
 import { uuidv7 } from '../../src/lib/ids';
 import type { Core } from '../../src/objects/core';
@@ -157,5 +157,26 @@ describe('the gate', () => {
       'x'.repeat(64),
     );
     expect(out.ok && out.value.verb.status).toBe('done');
+  });
+});
+
+// Last: it marks the chat session as having read outside text.
+describe('from a session that read outside text (MEMORY.md §6 M11)', () => {
+  it('memory.note is stored outside, says so, and stays out of the profile; music.never is outside_rule', async () => {
+    const said = await ownerSays(P.D, 'I drink green tea in the afternoon');
+    await apiJson('POST', '/v1/mind/taint', { ...chat(), body: { source: 'WebFetch', ref_kind: 'url' } });
+    const r = await doneNow(
+      await verb('memory.note', {
+        text: 'Drinks green tea after lunch',
+        kind: 'preference',
+        evidence: [`msg:${said}`],
+      }),
+    );
+    const { fact_id, provenance } = r.result as { fact_id: string; provenance: string };
+    expect(provenance).toBe('outside');
+    const profile = await apiJson<ProfileResponse>('GET', '/v1/memory/profile', { token: P.D });
+    expect(profile.body.fact_ids).not.toContain(fact_id);
+    const never = await verb('music.never', { ref: SONG(9), evidence: [`msg:${said}`] });
+    expect([never.status, never.body.error.details]).toEqual([422, [{ path: 'ops.0', issue: 'outside_rule' }]]);
   });
 });
