@@ -1,44 +1,33 @@
-// Work orders at work (docs/engineering/MUSE-PROTOCOL.md): an order is placed by the owner's
-// `@muse` in the chat (their own act, never gated) or by the mind (`muse.order`, Ask by default);
-// Muse claims one at a time, posts progress lines (each one keeps its lease) and returns a result
-// the Worker checks against the kind's schema before anyone sees it (a result that fails is named
-// and Muse may send it again, three at most), or a failure. Each tick lapses a lease with no word
-// for 30 minutes, expires an order past its deadline and closes an upload batch 30 minutes after its
-// last upload. Every change writes the feed (`work`), so the chat mind's `th wait`, the menu's Tasks
-// and the Briefing see it; an order asked for with `@muse` also tells its conversation (lines.ts);
+// Muse's side of work orders (docs/engineering/MUSE-PROTOCOL.md): Muse claims one at a time,
+// posts progress lines (each one keeps its lease) and returns a result the Worker checks against the
+// kind's schema before anyone sees it (a result that fails is named and Muse may send it again,
+// three at most), or a failure; the owner or the mind cancels; each tick lapses a lease with no
+// word for 30 minutes, expires an order past its deadline and closes a quiet upload batch. How an
+// order is placed (the owner's `@muse`, the mind's PUT) is placed.ts; Muse's uploads are batch.ts.
+// Every change writes the feed (`work`), so the chat mind's `th wait`, the menu's Tasks and the
+// Briefing see it; an order asked for with `@muse` also tells its conversation (lines.ts);
 // finishing writes one ledger row.
 
-import { neverStored } from '../../../../shared/contract/never-stored.ts';
-import type { Permit } from '../../../../shared/contract/permits.ts';
 import {
   ASKED_KINDS,
-  hintOf,
   type MuseResult,
   WORK_KINDS,
   WORK_LIMITS,
   type WorkHello,
   type WorkKind,
-  type WorkOrder,
-  type WorkOrderPut,
 } from '../../../../shared/contract/work.ts';
-import { uuidv7 } from '../../lib/ids';
-import { Fail, invalid } from '../../lib/result';
-import { DAY, MINUTE } from '../../lib/time';
+import { Fail } from '../../lib/result';
+import { MINUTE } from '../../lib/time';
 import type { Db } from '../../objects/base';
-import { type Caller, isMind } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { chipPath } from '../conversation/ops';
-import { answerOne } from '../conversation/store-threads';
-import { claimedSession } from '../mind/guards';
-import { gate, positionFor, withPermit } from '../mind/permit';
 import { getSetting, putSetting } from '../settings/store';
-import { failedLine, LINES, say, sayOnly } from './lines';
-import { mentionWords } from './mention';
+import { closeBatch } from './batch';
+import { failedLine, LINES, say } from './lines';
 import * as store from './store';
 import { validate } from './validate';
 
 const LEASE = WORK_LIMITS.lease_min * MINUTE;
-const GAP = WORK_LIMITS.batch_gap_min * MINUTE;
 const SEEN_EVERY = 10 * MINUTE;
 
 export interface Seen {
@@ -58,89 +47,6 @@ const ledger = (w: Writer, what: string, id: string) =>
     undoable: false,
   });
 const reread = (w: Writer, id: string) => store.order(w.db, id) as store.OrderRow;
-
-/** What a mind may send towards Muse: only from a claimed session of its role that has read no
- * outside content (an order reaches another agent), and nothing MEMORY.md §13 says is never
- * stored. The owner's device may always. */
-export function toMuse(w: Writer, c: Caller, path: string, value: unknown): void {
-  if (c.who !== 'D' && claimedSession(w.db, c.session_id, c.who === 'N' ? 'night' : 'chat').tainted)
-    throw new Fail('session_tainted');
-  if (neverStored(JSON.stringify(value))) throw invalid(path, 'never_stored');
-}
-
-/** The standing permission an order of `kind` is taken under: Muse orders, or, for a kind that
- * carries the owner's data, the reach-people floor (marked on the kind, `personal`). */
-const orderAction = (kind: string) => (WORK_KINDS[kind as WorkKind]?.personal ? 'muse.order_personal' : 'muse.order');
-
-/** PUT /v1/work/orders/:id from the mind. The same id with the same order again is fine. */
-export function create(
-  w: Writer,
-  c: Caller,
-  id: string,
-  r: WorkOrderPut,
-): { order: WorkOrder; created: boolean; permit?: Permit } {
-  const had = store.order(w.db, id);
-  if (had) {
-    if (had.kind !== r.kind || had.title !== r.title) throw new Fail('conflict');
-    // No ledger row keeps an order's permit: the position as it stands now.
-    const action = orderAction(had.kind);
-    const permit: Permit | null = isMind(c) ? { action, class: 'muse', position: positionFor(w.db, action) } : null;
-    return { order: store.toOrder(had), created: false, ...(permit ? { permit } : {}) };
-  }
-  if (!(ASKED_KINDS as string[]).includes(r.kind)) throw invalid('kind', `one of ${ASKED_KINDS.join(', ')}`);
-  toMuse(w, c, 'spec', [r.title, r.spec]);
-  if (JSON.stringify(r.spec).length > WORK_LIMITS.spec_bytes)
-    throw invalid('spec', `at most ${WORK_LIMITS.spec_bytes} bytes`);
-  if (r.deadline_at <= w.at + 5 * MINUTE || r.deadline_at > w.at + WORK_LIMITS.deadline_days * DAY)
-    throw invalid('deadline_at', `from 5 minutes to ${WORK_LIMITS.deadline_days} days from now`);
-  // A card approves the kind, title and spec; the deadline is left out, so an order approved a
-  // day later can still be sent with a deadline that is in the future then.
-  const g = gate(w, c, orderAction(r.kind), { kind: r.kind, title: r.title, spec: r.spec }, `work:${id}`);
-  store.insertOrder(w.db, {
-    id,
-    kind: r.kind,
-    title: r.title,
-    spec: r.spec,
-    deadline_at: r.deadline_at,
-    created_by: c.session_id ?? c.actor,
-    at: w.at,
-  });
-  changed(w, id);
-  return withPermit({ order: store.toOrder(reread(w, id)), created: true }, g);
-}
-
-/** The owner's first 60 characters of words, as the task's title. */
-export function titleOf(words: string): string {
-  const one = words.replace(/\s+/g, ' ').trim();
-  return one.length <= WORK_LIMITS.title_words ? one : `${one.slice(0, WORK_LIMITS.title_words).trimEnd()}…`;
-}
-
-/** The owner's `@muse` (PUT /v1/messages/:id with `mention: 'muse'`, already stored and checked):
- * a `muse.request` with their words, made under their own authority (the owner's writes are never
- * gated), linked to the message, which this answers with the first line (lines.ts). Words holding
- * what never leaves make no order, and a line says why. */
-export function fromMention(w: Writer, m: { id: string; body: string }): void {
-  const words = (mentionWords(m.body) ?? m.body.trim()).slice(0, WORK_LIMITS.words);
-  answerOne(w.db, m.id, w.at);
-  if (neverStored(words)) {
-    sayOnly(w, m.id, LINES.withheld);
-    return;
-  }
-  const id = uuidv7(w.at);
-  const app = hintOf(words);
-  store.insertOrder(w.db, {
-    id,
-    kind: 'muse.request',
-    title: titleOf(words),
-    spec: { v: 1, words, ...(app ? { app } : {}) },
-    deadline_at: w.at + WORK_LIMITS.deadline_days * DAY,
-    created_by: 'owner',
-    at: w.at,
-    message_id: m.id,
-  });
-  changed(w, id);
-  say(w, reread(w, id), 'asked');
-}
 
 /** POST /v1/work/orders/:id/cancel: the owner's (never gated) or the mind's taking back. */
 export function cancel(w: Writer, id: string) {
@@ -287,60 +193,11 @@ export function fail(w: Writer, id: string, reason: string, retry = false) {
   return { status };
 }
 
-/** Songs Muse registered through its signed upload route (areas/music/upload.ts): added to the
- * open upload batch, or a new one. `artists` are short hashes of the artists' names, kept only to
- * count them; no name is stored here. */
-export function uploaded(w: Writer, ids: string[], artists: string[]): void {
-  if (!ids.length) return;
-  let o = store.openBatch(w.db);
-  if (!o) {
-    const id = uuidv7(w.at);
-    store.insertOrder(w.db, {
-      id,
-      kind: 'muse.upload_batch',
-      title: 'Songs Muse uploaded',
-      spec: { v: 1, words: 'Songs Muse uploaded through its own upload route.', artists: [] },
-      deadline_at: w.at + WORK_LIMITS.deadline_days * DAY,
-      created_by: 'muse',
-      at: w.at,
-      status: 'claimed',
-    });
-    o = reread(w, id);
-  }
-  const spec = JSON.parse(o.spec_json) as { artists?: string[] };
-  const seenArtists = new Set(spec.artists ?? []);
-  for (const a of artists) if (seenArtists.size < 500) seenArtists.add(a);
-  const prev = o.result_json ? (JSON.parse(o.result_json) as MuseResult) : null;
-  const result: MuseResult = {
-    added: { songs: (prev?.added.songs ?? 0) + ids.length, artists: seenArtists.size },
-    ids: [...(prev?.ids ?? []), ...ids].slice(0, 50),
-    note: '',
-    open: { app: 'music', path: '/music/' },
-  };
-  store.setStatus(w.db, o.id, {
-    status: 'claimed',
-    spec_json: JSON.stringify({ ...spec, artists: [...seenArtists] }),
-    result_json: JSON.stringify(result),
-    heartbeat_at: w.at,
-    heartbeat_note: `${result.added.songs} so far`,
-  });
-  changed(w, o.id);
-}
-
 /** The tick: upload batches 30 minutes quiet close as done; lapsed leases and deadlines. */
 export function tick(w: Writer): void {
   for (const o of store.open(w.db)) {
-    if (o.kind === 'muse.upload_batch') {
-      if ((o.heartbeat_at ?? 0) + GAP <= w.at || o.deadline_at <= w.at) {
-        store.setStatus(w.db, o.id, {
-          status: 'done',
-          result_valid: 1,
-          heartbeat_note: null,
-          finished_at: Math.min(w.at, (o.heartbeat_at ?? w.at) + GAP),
-        });
-        changed(w, o.id);
-      }
-    } else if (o.deadline_at <= w.at) {
+    if (o.kind === 'muse.upload_batch') closeBatch(w, o);
+    else if (o.deadline_at <= w.at) {
       store.setStatus(w.db, o.id, { status: 'expired', finished_at: w.at });
       changed(w, o.id);
       ledger(w, `"${o.title}" expired: not finished by its deadline`, o.id);

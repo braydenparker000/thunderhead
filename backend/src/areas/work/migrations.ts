@@ -49,8 +49,7 @@ export const WORK_MIGRATIONS: Migration[] = [
     // `@muse` in the chat (2026-11-02): the owner's message an order answers, the last state its
     // conversation was told (lines.ts), the results Muse sent that failed their checks, and the
     // order a note of Muse's is a progress line of. The newest-first index serves the menu's Tasks.
-    // (The verbs branch also numbers a step 29: whichever merges second takes 30.)
-    version: 29,
+    version: 30,
     name: 'work orders from the chat',
     kind: 'expand',
     sql: [

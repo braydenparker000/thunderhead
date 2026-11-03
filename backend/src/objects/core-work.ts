@@ -10,7 +10,9 @@ import { briefing } from '../areas/briefing/assemble';
 import { type Forecast, type Place, weatherTile } from '../areas/briefing/weather';
 import { logicalDay } from '../areas/conversation/day';
 import { deleteSetting, getSetting, putSetting } from '../areas/settings/store';
+import { uploaded } from '../areas/work/batch';
 import * as work from '../areas/work/ops';
+import { create } from '../areas/work/placed';
 import * as wstore from '../areas/work/store';
 import { Fail, invalid, type Out } from '../lib/result';
 import type { Caller } from './caller';
@@ -24,7 +26,7 @@ export abstract class CoreWork extends CoreBackups {
   }
 
   workCreate(c: Caller, id: string, r: WorkOrderPut): Out<{ order: WorkOrder; created: boolean; permit?: Permit }> {
-    return this.run((w) => work.create(w, c, id, r));
+    return this.run((w) => create(w, c, id, r));
   }
   workCancel(_c: Caller, id: string): Out<{ status: 'cancelled' }> {
     return this.run((w) => work.cancel(w, id));
@@ -55,7 +57,7 @@ export abstract class CoreWork extends CoreBackups {
   /** Songs Muse registered through its signed route (areas/music/upload.ts): its upload batch. */
   workUploaded(ids: string[], artists: string[]): void {
     if (this.sandboxed) return;
-    this.write((w) => work.uploaded(w, ids, artists));
+    this.write((w) => uploaded(w, ids, artists));
   }
   /** Muse's thread, or one order's progress lines. */
   museNotes(after: number, limit: number, orderId: string | null = null): MuseNote[] {

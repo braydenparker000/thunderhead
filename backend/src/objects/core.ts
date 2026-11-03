@@ -46,7 +46,7 @@ import { list as listSurfaces } from '../areas/surfaces/store';
 import { dropUnasked } from '../areas/verbs/follow';
 import { list as listMixes } from '../areas/verbs/mixes';
 import * as verbs from '../areas/verbs/ops';
-import * as work from '../areas/work/ops';
+import * as placed from '../areas/work/placed';
 import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import type { Caller } from './caller';
@@ -75,18 +75,9 @@ export class Core extends CoreHeld {
   putMessage(c: Caller, p: convo.PutMessage) {
     const out = this.run((w) => {
       let r = convo.putMessage(w, c, p, this.tz());
-      // "@muse …": the owner asks Muse, not the mind. The order and its first line answer the
-      // message in this commit (areas/work), and no mind is woken for it.
+      // "@muse …" asks Muse, not the mind: its order and line answer it here (areas/work); no wake.
       const asked = r.created && p.mention === 'muse';
-      if (asked) {
-        work.fromMention(w, r.message);
-        const {
-          req_sha256: _h,
-          session_id: _s,
-          ...message
-        } = cstore.messageById(w.db, r.message.id) as NonNullable<ReturnType<typeof cstore.messageById>>;
-        r = { ...r, message };
-      }
+      if (asked) r = { ...r, message: placed.fromMention(w, r.message) };
       const ownerNew = r.created && r.message.author === 'owner' && !asked;
       if (r.created && c.who === 'C' && r.message.kind === 'text') {
         // The chat mind's reply after a Stop ("Stopped. Done: … Not done: …") clears it, and once
