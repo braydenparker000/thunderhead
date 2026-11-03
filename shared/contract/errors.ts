@@ -65,6 +65,7 @@ export type ErrorCode =
   | 'reset_not_ready'
   | 'client_outdated'
   | 'rate_limited'
+  | 'too_many_scheduled'
   // 5xx
   | 'internal'
   | 'upstream'
@@ -103,6 +104,9 @@ export type ErrorDetails =
       resume_from?: number;
       /** A book upload not yet whole (409): the parts received so far. */
       parts?: number[];
+      /** A plan's step that was refused or failed (1-based), and its verb. */
+      step?: number;
+      verb?: string;
     };
 
 export interface ErrorBody {

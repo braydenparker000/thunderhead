@@ -527,6 +527,35 @@
       "phase": "P2",
       "status": "built"
     },
+    "POST /v1/verbs/plan": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "2–8 verbs, one why, one undo; the strictest step decides its permit; fire_at runs it later"
+    },
+    "GET /v1/verbs/scheduled": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "what waits for its fire_at, soonest first (≤ 20)"
+    },
+    "POST /v1/verbs/:id/cancel": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "a scheduled verb or plan before it runs (its undo until then); the mind cancels its own"
+    },
     "GET /v1/surfaces": {
       "who": [
         "D",
@@ -2040,6 +2069,7 @@
       "class": "reversible",
       "permit": "music",
       "side": "worker",
+      "now_only": true,
       "queueable": true,
       "undo": "stored",
       "doc": "Records the owner's \"never play this again\" as their rule (subject `music.never`, its text naming the song by `music:<id>` only), through memory's own rules: `evidence` must be the owner's messages. Find, like and every mix leave the song out at once. Its undo closes the rule.",
@@ -2331,6 +2361,7 @@
       "class": "reversible",
       "permit": "reminders",
       "side": "worker",
+      "now_only": true,
       "queueable": true,
       "undo": "stored",
       "doc": "Moves a set reminder to a new time, by the reminders' own rules: in the future, at most 400 days ahead, a time inside quiet hours rings at their end; only from the chat, from a clean session; one the owner set on the phone needs the owner's message that asked (`source_message_id`). Its undo puts back the time before, while the reminder is still set at the new one.",
@@ -2584,6 +2615,7 @@
       "class": "reversible",
       "permit": null,
       "side": "worker",
+      "now_only": true,
       "queueable": true,
       "undo": "stored",
       "doc": "Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), from a clean session, never off the record; no card. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's.",
@@ -2989,6 +3021,10 @@
       429,
       "Too many attempts. Try again soon."
     ],
+    "too_many_scheduled": [
+      429,
+      "Twenty scheduled actions already wait; cancel one or let one run first."
+    ],
     "internal": [
       500,
       "Something went wrong on our side."
@@ -3020,6 +3056,7 @@
     "ledger",
     "proposal",
     "verb",
+    "plan",
     "surface",
     "notice",
     "fact",
@@ -3959,6 +3996,22 @@
         "doc": "Keeping a fact learned from outside text. Memory refuses outside text altogether today (MEMORY.md §7), which no position loosens; provenance labels will route it here."
       }
     }
+  },
+  "schedules": {
+    "limits": {
+      "pending": 20,
+      "days_ahead": 7
+    },
+    "plans": {
+      "min_steps": 2,
+      "max_steps": 8,
+      "what": 80
+    },
+    "plan_action": "plan.run",
+    "quiet_held": [
+      "music",
+      "podcasts"
+    ]
   },
   "lint": {
     "banned_phrases": [

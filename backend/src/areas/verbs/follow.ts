@@ -5,7 +5,9 @@
 // day. At most one per topic (`follow.<verb>`) in 7 days, kept in the nudges' `topics` rows. The
 // mind closes it once it has asked (`th thread done`); one still open 3 days after it was opened
 // is dropped by the 15-minute tick. Under `ask` the owner already saw a card for exactly that
-// call, so nothing is followed up.
+// call, so nothing is followed up. A plan counts once, keyed by the plan (its line on home, so the
+// same evening plan run every day is asked about once a week), when it runs; its steps never count
+// on their own (`followPlan`).
 import type { PermitPosition } from '../../../../shared/contract/permits.ts';
 import { permitOf } from '../../../../shared/contract/permits.ts';
 import { uuidv7 } from '../../lib/ids';
@@ -25,16 +27,25 @@ export const FOLLOW_TAG = 'follow-up';
 
 export const topicOf = (verb: string) => `follow.${verb}`;
 
-/** After a mind's verb completed: its follow-up, if the rule asks for one. Returns its id, or null. */
+/** After a mind's verb completed: its follow-up, if the rule asks for one. Returns its id, or null.
+ * A plan names its own class, topic and words (`followPlan`). */
 export function followThrough(
   w: Writer,
-  v: { verb: string; why: string; position: PermitPosition | null },
+  v: {
+    verb: string;
+    why: string;
+    position: PermitPosition | null;
+    cls?: string | null;
+    topic?: string;
+    label?: string;
+  },
   ledgerId: string,
   zone: () => string,
 ): string | null {
-  const cls = permitOf(v.verb)?.class;
+  const cls = v.cls !== undefined ? v.cls : permitOf(v.verb)?.class;
   if (!cls || !FOLLOW_CLASSES.includes(cls) || (v.position !== 'tell' && v.position !== 'quiet')) return null;
-  const topic = topicOf(v.verb);
+  const topic = v.topic ?? topicOf(v.verb);
+  const label = v.label ?? v.verb;
   const last = topicShownAt(w.db, topic);
   if (last !== null && last > w.at - FOLLOW_GAP) return null;
   topicShown(w.db, topic, w.at);
@@ -42,7 +53,7 @@ export function followThrough(
   const tz = zone();
   const row: notes.OpenThreadRow = {
     id,
-    text: `follow up: did ${v.verb} land? (${v.why.replace(/\s+/g, ' ').trim()})`.slice(0, 280),
+    text: `follow up: did ${label} land? (${v.why.replace(/\s+/g, ' ').trim()})`.slice(0, 280),
     owner: 'mind',
     due_at: zonedInstant(dayBefore(ownerDay(w.at, tz), -1), 0, tz),
     tags_json: JSON.stringify([FOLLOW_TAG]),
@@ -57,13 +68,38 @@ export function followThrough(
     kind: 'memory',
     actor: 'worker',
     what: 'opened a follow-up',
-    why: `after ${v.verb} (ledger:${ledgerId})`,
+    why: `after ${label} (ledger:${ledgerId})`,
     ref: `open:${id}`,
     undo: { op: 'open.restore', args: { id, before: null, after: { ...row } } },
   });
   notes.putOpenThread(w.db, row);
   w.change('open_thread', `open:${id}`);
   return id;
+}
+
+/** A plan that ran: one follow-up for all of it, in the first followed class among its steps,
+ * keyed by its line (`follow.plan:<what>`). */
+export function followPlan(
+  w: Writer,
+  p: { what: string; why: string; position: PermitPosition | null; verbs: string[] },
+  ledgerId: string,
+  zone: () => string,
+): string | null {
+  const cls = p.verbs.map((v) => permitOf(v)?.class ?? null).find((c) => c && FOLLOW_CLASSES.includes(c)) ?? null;
+  const what = p.what.replace(/\s+/g, ' ').trim();
+  return followThrough(
+    w,
+    {
+      verb: 'plan.run',
+      why: p.why,
+      position: p.position,
+      cls,
+      topic: `follow.plan:${what.toLowerCase().slice(0, 64)}`,
+      label: `the plan "${what}"`,
+    },
+    ledgerId,
+    zone,
+  );
 }
 
 /** The tick's pass: follow-ups still open FOLLOW_KEEP after they were opened are dropped. Reads the

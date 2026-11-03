@@ -113,6 +113,9 @@ describe('upgrade from P2', () => {
       sql.exec('ALTER TABLE session_notes DROP COLUMN tainted');
       // Step 28 (standing permissions) added the ledger's permit.
       sql.exec('ALTER TABLE ledger DROP COLUMN permit');
+      // Step 33 (scheduled verbs and plans) added the verbs' columns and index.
+      sql.exec('DROP INDEX IF EXISTS verbs_scheduled');
+      for (const c of ['fire_at', 'plan_id', 'why', 'permit']) sql.exec(`ALTER TABLE verbs DROP COLUMN ${c}`);
       sql.exec('DELETE FROM _migrations WHERE version > 7');
       sql.exec(
         `INSERT INTO threads (id, day, kind, status, started_at, updated_at) VALUES ('t-p2', '2026-10-01', 'daily', 'filed', 1, 1)`,

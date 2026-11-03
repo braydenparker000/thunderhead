@@ -17,6 +17,8 @@ export const SHELL_VERBS = {
     class: 'reversible',
     permit: 'reminders',
     side: 'worker',
+    // From the chat, a clean session, the owner's message that asked: all of the moment.
+    now_only: true,
     queueable: true,
     undo: 'stored',
     versions: {
@@ -86,6 +88,7 @@ export const SHELL_VERBS = {
     // No standing permission: only ever the owner's own words, which memory's rules check (M3).
     permit: null,
     side: 'worker',
+    now_only: true,
     queueable: true,
     undo: 'stored',
     versions: {

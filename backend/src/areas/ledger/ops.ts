@@ -1,7 +1,7 @@
 // The ledger's own routes (API.md §11.9): agents record actions taken outside the Worker, and any
 // stored inverse can be undone. A Core-internal action (surfaces, memory, a Worker-side verb) is undone in the same
 // transaction; a phone action is undone by queueing its inverse verb, and the row becomes
-// `undone` when the phone reports that verb done.
+// `undone` when the phone reports that verb done. A plan's row is undone step by step, last first.
 import type { JsonObject, LedgerEntry, PutLedgerRequest, UndoResponse } from '../../../../shared/contract/api';
 import { Fail } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
@@ -9,6 +9,7 @@ import type { Writer } from '../../objects/commit';
 import * as memory from '../memory/undo';
 import * as surfaces from '../surfaces/ops';
 import * as verbs from '../verbs/ops';
+import { undoPlan } from '../verbs/plan';
 import { VERB_UNDO_OPS, undo as verbUndo } from '../verbs/undo';
 import * as store from './store';
 
@@ -75,7 +76,10 @@ export function undo(w: Writer, c: Caller, id: string, zone: () => string = () =
     verbs.linkInverse(w.db, verbId, undoId);
     return { undo_ledger_id: undoId, status: 'queued' };
   }
-  if (inverse.op?.startsWith('surface.')) {
+  // A plan: each step's own undo, last first, through this same function (verbs/plan.ts).
+  let status: UndoResponse['status'] = 'undone';
+  if (inverse.op === 'plan.undo') status = undoPlan(w, inverse.args ?? {}, (step) => undo(w, c, step, zone));
+  else if (inverse.op?.startsWith('surface.')) {
     const args = inverse.args as { app: string; slot: string; was?: 'put' | 'clear' };
     // Rows written before undo args carried `was`: the ledger line says which action it was.
     const was = args.was ?? (row.what.endsWith(' cleared') ? 'clear' : 'put');
@@ -93,5 +97,5 @@ export function undo(w: Writer, c: Caller, id: string, zone: () => string = () =
     why: `undo of ledger:${id}`,
     ref: `ledger:${id}`,
   });
-  return { undo_ledger_id: undoId, status: 'undone' };
+  return { undo_ledger_id: undoId, status };
 }

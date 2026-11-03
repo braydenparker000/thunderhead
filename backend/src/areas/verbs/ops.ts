@@ -6,9 +6,11 @@
 // its schema version known, its args and result valid. A phone that lacks the verb reports
 // `unsupported_verb`. The mind queues under its standing permissions (mind/permit.ts): an Ask
 // class, or an ask-first verb's floor, needs an approved card. A mind's verb in a followed class
-// that completes under tell or quiet gets one follow-up loose end (follow.ts).
+// that completes under tell or quiet gets one follow-up loose end (follow.ts). With `fire_at` it
+// waits as a `scheduled` row and runs at that time (schedule.ts, due.ts); a plan's steps run
+// through the same paths (run.ts, plan.ts).
 import type { Actor, JsonObject, PutVerbRequest, Verb, VerbResultRequest } from '../../../../shared/contract/api';
-import type { Permit } from '../../../../shared/contract/permits.ts';
+import type { Permit, PermitPosition } from '../../../../shared/contract/permits.ts';
 import { latestVersion, VERBS, type VerbSpec, verbSpec } from '../../../../shared/contract/verbs.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
@@ -17,11 +19,11 @@ import type { Db } from '../../objects/base';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import * as ledger from '../ledger/store';
-import { gate, ledgerPermit } from '../mind/permit';
+import { gate } from '../mind/permit';
 import { followThrough } from './follow';
-import * as mixes from './mixes';
+import { type Call, type Prepared, phoneArgs, queuePhone, runWorker } from './run';
+import * as schedule from './schedule';
 import * as store from './store';
-import { runHere } from './worker';
 
 export const CLAIM_MS = 120_000;
 const MAX_CLAIMS = 3;
@@ -32,11 +34,7 @@ const issues = (path: string, e: { issues: { path: PropertyKey[]; message: strin
     e.issues.map((i) => ({ path: [path, ...i.path.map(String)].join('.'), issue: i.message })),
   );
 
-/** What the route worked out before the commit: the songs a `music.play_mix` find picked (the Music
- * object answers finds, so it can't be asked from inside Core's transaction). */
-export interface Prepared {
-  refs?: string[];
-}
+export type { Prepared } from './run';
 
 export function put(
   w: Writer,
@@ -46,12 +44,14 @@ export function put(
   reqHash: string,
   zone: () => string = () => 'UTC',
   prepared: Prepared = {},
-): { verb: Verb; created: boolean; permit?: Permit } {
+): { verb: Verb; created: boolean; permit?: Permit; shifted?: boolean } {
   const found = store.byId(w.db, id);
   if (found) {
     if (found.req_sha256 !== reqHash) throw new Fail('conflict');
-    // The same call again: the permit it ran under, from its ledger row.
-    return { verb: store.toVerb(found), created: false, ...permitOf(w.db, found) };
+    // The same call again: the permit it ran under, from its ledger row (a scheduled one's own).
+    const shifted =
+      r.fire_at && found.fire_at !== null ? { shifted: schedule.fireMs(r.fire_at, zone()) !== found.fire_at } : {};
+    return { verb: store.toVerb(found), created: false, ...permitOf(w.db, found), ...shifted };
   }
   const spec = verbSpec(r.verb);
   if (!spec) throw invalid('verb', 'unknown verb');
@@ -60,71 +60,58 @@ export function put(
   if (!version) throw invalid('schema', `known versions: ${Object.keys(spec.versions).join(', ')}`);
   const args = version.args.safeParse(r.args);
   if (!args.success) throw issues('args', args.error);
-  if (r.expires_at !== undefined && (r.expires_at < w.at || r.expires_at > w.at + 7 * 24 * HOUR))
-    throw invalid('expires_at', 'within the next 7 days');
+  // Later (schedule.ts): its time, checked and counted before the gate; music and podcasts wait out
+  // quiet hours. A scheduled phone verb's expiry counts from when it fires.
+  const tz = r.fire_at === undefined ? 'UTC' : zone();
+  const requested = r.fire_at === undefined ? null : schedule.when(w, [r.verb], r.fire_at, tz);
+  const fire = requested === null ? null : schedule.held(w, [r.verb], requested, tz);
+  const from = fire ?? w.at;
+  if (r.expires_at !== undefined && (r.expires_at < from || r.expires_at > from + 7 * 24 * HOUR))
+    throw invalid('expires_at', fire === null ? 'within the next 7 days' : 'after fire_at, within 7 days of it');
   // The standing permission (an ask-first verb has a floor, so it always needs its card): what a
-  // card approves is the verb, its schema and its args, not where it runs. A verb with no class
-  // (`memory.note`, the owner's own words only) is not gated; its area checks the words.
-  const g =
-    spec.permit === null
-      ? null
-      : gate(w, c, r.verb, { schema: r.schema, args: args.data }, `verb:${id}`, r.proposal_id);
-  if (spec.side === 'worker') return runHere(w, c, id, r, args.data as JsonObject, reqHash, g, zone);
-  // What the phone runs: a mix or a find becomes its songs here (the phone has neither).
-  const phoneArgs = r.verb === 'music.play_mix' ? songsFor(w, args.data as JsonObject, prepared) : args.data;
-  const ledgerId = w.ledger({
-    kind: 'verb',
-    actor: c.actor,
-    session_id: c.session_id,
-    what: `${r.verb} queued`,
-    why: r.why,
-    ref: r.ref ?? `verb:${id}`,
-    verb_id: id,
-    undoable: false,
-    ...ledgerPermit(g),
-  });
-  store.insert(w.db, {
+  // card approves is the verb, its schema and its args (and when it runs, for a scheduled one), not
+  // where it runs. A verb with no class (`memory.note`, the owner's own words only) is not gated;
+  // its area checks the words.
+  const call = { schema: r.schema, args: args.data, ...(requested === null ? {} : { fire_at: requested }) };
+  const g = spec.permit === null ? null : gate(w, c, r.verb, call, `verb:${id}`, r.proposal_id);
+  const x: Call = {
     id,
-    created_at: w.at,
-    actor: c.actor,
     verb: r.verb,
     schema: r.schema,
+    // What the phone runs: a mix or a find becomes its songs here (the phone has neither).
+    args: spec.side === 'phone' ? phoneArgs(w, r.verb, args.data as JsonObject, prepared) : (args.data as JsonObject),
+    why: r.why,
     ref: r.ref ?? null,
-    args_json: JSON.stringify(phoneArgs),
     device_id: r.device_id ?? null,
-    expires_at: r.expires_at ?? w.at + 24 * HOUR,
+    position: g?.permit.position ?? null,
     proposal_id: r.proposal_id ?? null,
-    ledger_id: ledgerId,
-    req_sha256: reqHash,
-  });
-  w.change('verb', `verb:${id}`);
-  return {
-    verb: store.toVerb(store.byId(w.db, id) as store.VerbRow),
-    created: true,
-    ...(g ? { permit: g.permit } : {}),
+    card: g?.proposal_id ?? null,
+    hash: reqHash,
+    plan_id: null,
+    expires_at: r.expires_at ?? null,
   };
+  const permit = g ? { permit: g.permit } : {};
+  if (fire !== null) {
+    schedule.queue(w, c, x, spec.side, fire);
+    const verb = store.toVerb(store.byId(w.db, id) as store.VerbRow);
+    return { verb, created: true, ...permit, shifted: fire !== requested };
+  }
+  if (spec.side === 'worker') {
+    const { ledgerId, ran } = runWorker(w, c, x, zone);
+    // A verb that only records the owner's own words (its area's row: music.never) is not followed up.
+    if (g && ran.undo && !ran.ledger_id)
+      followThrough(w, { verb: r.verb, why: r.why, position: g.permit.position }, ledgerId, zone);
+  } else queuePhone(w, c, x);
+  return { verb: store.toVerb(store.byId(w.db, id) as store.VerbRow), created: true, ...permit };
 }
 
-/** `music.play_mix`'s songs for the phone: a saved mix's (not found: 404), the find's the route ran,
- * or the ones given; with the place to start from. */
-function songsFor(w: Writer, a: JsonObject, prepared: Prepared): JsonObject {
-  if (typeof a.mix_id === 'string') {
-    const refs = mixes.refsOf(w.db, a.mix_id);
-    if (!refs) throw new Fail('not_found', { reason: 'no such mix' });
-    return { ...a, refs };
-  }
-  if (a.find !== undefined) {
-    if (!prepared.refs?.length) throw invalid('args.find', 'no songs match it');
-    return { ...a, refs: prepared.refs };
-  }
-  return a;
-}
-
-/** The permit a queued verb ran under, read back from its ledger row (a retry's answer). */
+/** The permit a queued verb ran under, read back from its ledger row, or a scheduled one's own (a
+ * retry's answer). */
 function permitOf(db: Db, v: store.VerbRow): { permit?: Permit } {
   const row = v.ledger_id ? ledger.byId(db, v.ledger_id) : null;
+  const position = (row?.permit ?? v.permit) as PermitPosition | null;
   const spec = verbSpec(v.verb);
-  return row?.permit && spec?.permit ? { permit: { action: v.verb, class: spec.permit, position: row.permit } } : {};
+  return position && spec?.permit ? { permit: { action: v.verb, class: spec.permit, position } } : {};
 }
 
 /** Stale claims and expired verbs are settled lazily on every read and by the daily tick. */
@@ -168,7 +155,8 @@ export function result(
 ): Verb {
   const v = store.byId(w.db, id);
   if (!v || (v.device_id !== null && v.device_id !== deviceId)) throw new Fail('not_found');
-  if (v.status === 'done' || v.status === 'failed') return store.toVerb(v);
+  // A plan's step its undo took back before any phone claimed it stays taken back.
+  if (v.status === 'done' || v.status === 'failed' || v.status === 'cancelled') return store.toVerb(v);
   if (v.status === 'expired' || v.expires_at < w.at) throw new Fail('expired');
   const spec = verbSpec(v.verb);
   if (r.ok && spec) {
@@ -212,8 +200,9 @@ export function result(
   });
   store.setLedger(w.db, id, outcome);
   w.change('verb', `verb:${id}`);
-  // A mind's verb the phone did, under tell or quiet (an inverse the Worker queued has no permit).
-  if (r.ok && queued?.permit && queued.permit !== 'ask')
+  // A mind's verb the phone did, under tell or quiet (an inverse the Worker queued has no permit); a
+  // plan's step never on its own: the plan counted once when it ran (follow.ts `followPlan`).
+  if (r.ok && queued?.permit && queued.permit !== 'ask' && !v.plan_id)
     followThrough(w, { verb: v.verb, why: queued.why, position: queued.permit }, outcome, zone);
   return store.toVerb(store.byId(w.db, id) as store.VerbRow);
 }

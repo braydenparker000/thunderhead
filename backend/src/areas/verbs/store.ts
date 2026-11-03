@@ -1,4 +1,5 @@
-// SQL for verbs queued for a phone (DATA.md §4.3). Stores never write the change feed.
+// SQL for verbs queued for a phone, run by the Worker or waiting for their time (DATA.md §4.3).
+// Stores never write the change feed.
 import type { Verb, VerbStatus } from '../../../../shared/contract/api';
 import type { Db } from '../../objects/base';
 
@@ -23,6 +24,12 @@ interface Row {
   undo_json: string | null;
   error_json: string | null;
   req_sha256: string | null;
+  /** Step 33: when a scheduled row runs; the plan a step is part of; a scheduled row's why and the
+   * position it was queued under (for the ledger row it writes when it runs). */
+  fire_at: number | null;
+  plan_id: string | null;
+  why: string | null;
+  permit: string | null;
 }
 
 export type VerbRow = Row;
@@ -42,6 +49,8 @@ export function toVerb(r: Row): Verb {
     result: r.result_json ? JSON.parse(r.result_json) : null,
     error: r.error_json ? JSON.parse(r.error_json) : null,
     ledger_id: r.ledger_id,
+    fire_at: r.fire_at ?? null,
+    plan_id: r.plan_id ?? null,
   };
 }
 
@@ -69,11 +78,12 @@ export function insert(
     | 'proposal_id'
     | 'ledger_id'
     | 'req_sha256'
-  >,
+  > &
+    Partial<Pick<Row, 'fire_at' | 'plan_id' | 'why' | 'permit'>> & { status?: 'pending' | 'scheduled' },
 ): void {
   db.run(
     `INSERT INTO verbs (id, created_at, actor, verb, schema, ref, args_json, device_id, status, proposal_id, ledger_id,
-       expires_at, req_sha256) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
+       expires_at, req_sha256, fire_at, plan_id, why, permit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     v.id,
     v.created_at,
     v.actor,
@@ -82,20 +92,25 @@ export function insert(
     v.ref,
     v.args_json,
     v.device_id,
+    v.status ?? 'pending',
     v.proposal_id,
     v.ledger_id,
     v.expires_at,
     v.req_sha256,
+    v.fire_at ?? null,
+    v.plan_id ?? null,
+    v.why ?? null,
+    v.permit ?? null,
   );
 }
 
-/** Open verbs for a device (its own or any), oldest first: only the verbs named `in`, or all but
+/** Open verbs for a device (its own or any), oldest first (then by id: a plan's steps in order): only the verbs named `in`, or all but
  * those named `not` (home's loop leaves the apps' intents alone). Picked from the same 50 open rows
  * either way (a verb list in the SQL made SQLite read a row more), so it costs what it did. */
 export function open(db: Db, deviceId: string, only: { in: string[] } | { not: string[] } = { not: [] }): Row[] {
   const rows = db.all<Row>(
     `SELECT * FROM verbs WHERE status IN ('pending', 'claimed') AND (device_id IS NULL OR device_id = ?)
-     ORDER BY created_at LIMIT 50`,
+     ORDER BY created_at, id LIMIT 50`,
     deviceId,
   );
   return 'in' in only ? rows.filter((r) => only.in.includes(r.verb)) : rows.filter((r) => !only.not.includes(r.verb));
@@ -158,7 +173,7 @@ export function finish(
 /** Finished rows are kept 30 days (DATA.md §10). */
 export function prune(db: Db, now: number, max: number): number {
   return db.all(
-    `DELETE FROM verbs WHERE id IN (SELECT id FROM verbs WHERE status IN ('done', 'failed', 'expired')
+    `DELETE FROM verbs WHERE id IN (SELECT id FROM verbs WHERE status IN ('done', 'failed', 'expired', 'cancelled')
        AND coalesce(done_at, expires_at) < ? LIMIT ?) RETURNING 1`,
     now - 30 * 86_400_000,
     max,
@@ -173,4 +188,48 @@ export function setLedger(db: Db, id: string, ledgerId: string): void {
 /** An open (pending or claimed) verb with this ref, read through the `verbs_open` index. */
 export function openByRef(db: Db, ref: string): Row | null {
   return db.one<Row>("SELECT * FROM verbs WHERE status IN ('pending', 'claimed') AND ref = ? LIMIT 1", ref);
+}
+
+// --- scheduled rows (schedule.ts): every read goes through the `verbs_scheduled` index ------------
+
+/** What waits for its time, soonest first (at most 20 by the limit; 50 read at most). */
+export function scheduled(db: Db): Row[] {
+  return db.all<Row>("SELECT * FROM verbs WHERE status = 'scheduled' ORDER BY fire_at LIMIT 50");
+}
+
+export function scheduledCount(db: Db): number {
+  return db.one<{ n: number }>("SELECT count(*) AS n FROM verbs WHERE status = 'scheduled'")?.n ?? 0;
+}
+
+/** The soonest scheduled time, or null (the alarm's). */
+export function soonest(db: Db): number | null {
+  return db.one<{ t: number | null }>("SELECT min(fire_at) AS t FROM verbs WHERE status = 'scheduled'")?.t ?? null;
+}
+
+/** Scheduled rows due by `now`, soonest first. */
+export function due(db: Db, now: number, max: number): Row[] {
+  return db.all<Row>(
+    "SELECT * FROM verbs WHERE status = 'scheduled' AND fire_at <= ? ORDER BY fire_at LIMIT ?",
+    now,
+    max,
+  );
+}
+
+/** A scheduled row moved on (quiet hours began since it was queued). */
+export function setFireAt(db: Db, id: string, at: number): void {
+  db.run("UPDATE verbs SET fire_at = ? WHERE id = ? AND status = 'scheduled'", at, id);
+}
+
+/** A scheduled phone verb's time came: it is pending for a phone (or its app) from now. */
+export function release(db: Db, id: string, ledgerId: string): void {
+  db.run("UPDATE verbs SET status = 'pending', ledger_id = ? WHERE id = ? AND status = 'scheduled'", ledgerId, id);
+}
+
+/** Taken back before it ran: a scheduled row, or a plan's step no phone has claimed yet. */
+export function cancel(db: Db, id: string, at: number): void {
+  db.run(
+    "UPDATE verbs SET status = 'cancelled', done_at = ? WHERE id = ? AND status IN ('scheduled', 'pending')",
+    at,
+    id,
+  );
 }
