@@ -9,7 +9,7 @@ import type { LedgerEntry, Message, MindRole } from '../../../../shared/contract
 import type { DayNoteRow, OpenThreadRow } from '../memory/notes';
 import { renderDayNote, renderDays, renderRules, renderThreads } from '../memory/profile';
 import type { FactRow } from '../memory/store';
-import { verbTable } from './brief-verbs';
+import { DELEGATE, verbTable } from './brief-verbs';
 
 export const CORE_MAX = 9_500;
 export const FULL_MAX = 48_000;
@@ -166,13 +166,6 @@ export const SETTINGS_LEGEND =
   "The owner's choices in Settings (The mind, Briefing); (default) where never changed. Standing permissions (mind.permit.*), enforced by the Worker: tell = do it and say so in your reply; quiet = do it, mention it only if asked; ask = a decision card first (the 403 proposal_required names it: th propose it, then the same call with --proposal <id>). Money, deleting the owner's data, keys and access, and reaching another person always ask.";
 /** Section 7's second line: which of the mind's subagents (.claude/agents/, RUNTIME.md §6.6) to hand
  * work to, each on a cheaper model than the session's; the hook starts only these for the role. */
-const DELEGATE_ALL =
-  'Delegate (Agent): reader for outside text · researcher for long reads · night-step for mechanical steps · coder for agreed code';
-export const DELEGATE: Record<MindRole, string> = {
-  chat: DELEGATE_ALL,
-  night: DELEGATE_ALL,
-  reflex: 'Delegate (Agent): reader for outside text, nothing else',
-};
 const settingsSection = (lines: string[]) =>
   budgeted([SETTINGS_LEGEND, ...lines], 2_000, 'oldest', (k) => `(+${k} more: th get /v1/settings)`);
 

@@ -1,44 +1,39 @@
-// Memory's pure parts (MEMORY.md §5, §8, §9): the decay formula per kind, the deterministic
-// profile render (byte-identical for the same rows, ≤ 6,000 characters, caps, order, line
-// format), the briefing's fill order and budgets, and the deploy-transition wrapper.
+// The briefing's delegation line (RUNTIME.md §6.6): section 7 names the subagents each role may
+// hand work to.
 import { describe, expect, it } from 'vitest';
-import type { Message } from '../../../shared/contract/api';
-import { decayed, FACT_KINDS, type FactKind } from '../../../shared/contract/memory.ts';
-import { renderProfile, renderRules, shortId } from '../../src/areas/memory/profile';
-import type { FactRow } from '../../src/areas/memory/store';
-import { type BriefInput, buildBrief, CORE_MAX, FULL_MAX } from '../../src/areas/mind/brief';
-import { fresh } from '../../src/objects/rpc';
+import { type BriefInput, buildBrief } from '../../src/areas/mind/brief';
 
-const DAY = 86_400_000;
 const NOW = Date.UTC(2026, 10, 3, 12);
 
-let n = 0;
-function fact(over: Partial<FactRow> = {}): FactRow {
-  n++;
-  const hex = n.toString(16).padStart(12, '0');
+function input(over: Partial<BriefInput> = {}): BriefInput {
   return {
-    seq: n,
-    id: `0192f0c4-0000-7000-8000-${hex}`,
-    kind: 'preference',
-    about: 'owner',
-    subject: 'music',
-    text: `Likes calm music number ${n}`,
-    tags_json: null,
-    source: 'user',
-    confidence: 0.95,
-    evidence_json: '["msg:x"]',
-    valid_from: null,
-    valid_to: null,
-    recorded_at: NOW - 10 * DAY,
-    superseded_at: null,
-    superseded_by: null,
-    last_confirmed: NOW,
-    sensitivity: 0,
-    pinned: 0,
-    may_raise: 1,
-    written_by: 'owner',
-    ledger_id: null,
-    lineage_id: `0192f0c4-0000-7000-8000-${hex}`,
+    role: 'chat',
+    constitution: 'a'.repeat(64),
+    laws: 'laws: pinned',
+    decisions: [],
+    tainted: false,
+    now: NOW,
+    tz: 'UTC',
+    day: '2026-11-03',
+    wakeReason: 'message',
+    wakesToday: 1,
+    prewarmsLeft: 8,
+    backoffUntil: 0,
+    quietUntil: 0,
+    threadId: 'today',
+    waiting: [],
+    todayTail: [],
+    todayEarlier: [],
+    note: null,
+    yesterday: { threadId: null, tail: [], note: null },
+    ledger: [],
+    errorsOpen: 0,
+    watchdogs: [],
+    rules: [],
+    threads: [],
+    profile: 'Nothing known yet.',
+    days: [],
+    night: null,
     ...over,
   };
 }
