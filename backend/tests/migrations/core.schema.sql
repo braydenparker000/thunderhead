@@ -341,6 +341,18 @@ CREATE INDEX mind_sessions_taint_event ON mind_sessions (role, coalesce(taint_ev
 
 CREATE INDEX mind_sessions_tainted ON mind_sessions (role, tainted_at) WHERE tainted_at IS NOT NULL;
 
+CREATE TABLE mixes (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  refs_json TEXT NOT NULL,
+  tracks INTEGER NOT NULL,
+  recipe TEXT,
+  actor TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE INDEX mixes_created ON mixes (created_at);
+
 CREATE TABLE muse_notes (
   seq INTEGER PRIMARY KEY,
   id TEXT NOT NULL UNIQUE,

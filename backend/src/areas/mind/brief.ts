@@ -9,6 +9,7 @@ import type { LedgerEntry, Message, MindRole } from '../../../../shared/contract
 import type { DayNoteRow, OpenThreadRow } from '../memory/notes';
 import { renderDayNote, renderDays, renderRules, renderThreads } from '../memory/profile';
 import type { FactRow } from '../memory/store';
+import { verbTable } from './brief-verbs';
 
 export const CORE_MAX = 9_500;
 export const FULL_MAX = 48_000;
@@ -283,7 +284,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
         (k) => `(+${k} more: th history today)`,
       ) || 'Nothing earlier.',
     ],
-    [13, settingsSection(i.settings ?? [])],
+    [13, `${settingsSection(i.settings ?? [])}\n${verbTable(i.settings ?? [])}`],
   ];
   const full = sections
     .map(([n, b]) => render(n, b))

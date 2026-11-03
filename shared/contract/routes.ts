@@ -100,8 +100,8 @@ export const ROUTES = {
   'GET /v1/ledger': { who: AGENTS_READ, phase: 'P2' },
   'PUT /v1/ledger/:id': { who: MIND, phase: 'P2' },
   'POST /v1/ledger/:id/undo': { who: ['D', 'C'], phase: 'P2', note: 'mind:chat: its own actions only' },
-  'PUT /v1/verbs/:id': { who: ['C', 'N'], phase: 'P2' },
-  'GET /v1/verbs/pending': { who: D, phase: 'P2' },
+  'PUT /v1/verbs/:id': { who: ['C', 'N'], phase: 'P2', note: 'a Worker-side verb runs at once (status done); a phone verb waits for a phone, an intent for its app' },
+  'GET /v1/verbs/pending': { who: D, phase: 'P2', note: "?app=: that app's pending intents; without it, never an intent" },
   'POST /v1/verbs/:id/claim': { who: D, phase: 'P2' },
   'POST /v1/verbs/:id/result': { who: D, phase: 'P2' },
   'GET /v1/surfaces': { who: AGENTS_READ, phase: 'P2' },
@@ -213,6 +213,7 @@ export const ROUTES = {
   'PUT /v1/music/notes': { who: ['C', 'N'], phase: 'P5', note: "{items}: 1–200 notes checked against the vocabularies; a bad note or unknown id refuses the batch; 429 from 80% of the day's budget" },
   'GET /v1/music/notes': { who: ['D', 'C', 'N'], phase: 'P5', note: '?ids=a,b (≤ 200, each with its tags) or ?cursor=&limit=: every note, a page at a time' },
   'GET /v1/music/find': { who: ['C', 'N'], phase: 'P5', note: '?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out; 429 from 80%' },
+  'GET /v1/music/mixes': { who: ['D', 'C', 'N'], phase: 'P5', note: 'the mixes music.mix_save kept, newest first, ≤ 50: id (for music.play_mix), name, tracks, recipe' },
   // The upload tools, server to server: no bearer token, each request signed (Ed25519) by a tool's key.
   'PUT /v1/music/uploads/audio/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; Ogg Opus, ≤ 32 MiB' },
   'PUT /v1/music/uploads/art/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; JPEG or PNG, ≤ 2 MiB' },

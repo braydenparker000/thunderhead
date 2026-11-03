@@ -54,6 +54,13 @@ export function putProgress(db: Db, p: PodcastProgress, at: number): boolean {
   );
 }
 
+/** One episode's position, by its key (one read), or null. */
+export const progressOf = (db: Db, key: string) =>
+  db.one<ProgressRow>(
+    'SELECT key, position_s, duration_s, played, updated_at, synced_at FROM podcast_progress WHERE key = ?',
+    key,
+  );
+
 /** Positions taken after the `[synced_at, key]` cursor, oldest first. */
 export const progressPage = (db: Db, after: [number, string], limit: number) =>
   db.all<ProgressRow>(

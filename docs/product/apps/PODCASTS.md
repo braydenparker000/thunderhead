@@ -416,6 +416,8 @@ advance the fake clock 24 h → the file is gone and progress remains.
 
 ### 8.1 Senses
 
+**Built (B1, 2026-11-02):** `podcast.play`, `podcast.finish`, `podcast.skip` (by `podcast:<show id>/<episode id>`, the show's id the hash of its feed, never the address) and `podcast.follow` / `podcast.unfollow` (`podcast:<show id>`; not on a phone's first look at its follows), from `th/podcasts/progress.js`. The list and its fields are `SENSE_TYPES` (CONTRACT.md "Senses"); the table below is the fuller plan.
+
 | Type | When | `ref` | `data` |
 |---|---|---|---|
 | `podcasts.play` | An episode starts sounding | `podcast:<s>/<e>` | `{position_s, source: 'listen'|'show'|'queue'|'briefing'|'verb', offline}` |

@@ -217,6 +217,8 @@ Check: invented export with 50 progress entries → 50 rows; 3 unknown IDs repor
 
 ### 6.1 Senses
 
+**Built (B1, 2026-11-02), shared with Astra:** `mymedia.open` (the page), `media.watch` (`{ms}`), `media.finish`, `media.drop`, by `media:<drive file id>`, read from My Media's own progress (`mymedia.progress.v1`) by `th/senses/watch.js`, so the app is unchanged. The list and its fields are `SENSE_TYPES` (CONTRACT.md "Senses"); the table below is the fuller plan.
+
 | Type | When | `ref` | `data` | Sensitivity |
 |---|---|---|---|---|
 | `media.watch` | Pause, end, close, hide, and every 5 min while playing | `media:<id>` | `{pos_s, dur_s, delta_s, completed, speed}` | 0 |

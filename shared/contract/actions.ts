@@ -84,6 +84,19 @@ export interface VerbResultRequest {
   error?: { code: string; message?: string };
 }
 
+/** One mix `music.mix_save` kept (GET /v1/music/mixes): `id` is the verb's that saved it, the id
+ * `music.play_mix {mix_id}` takes; `tracks`: how many songs. */
+export interface MusicMix {
+  id: Id;
+  name: string;
+  tracks: number;
+  recipe: string | null;
+  created_at: Ms;
+}
+export interface MusicMixesResponse {
+  items: MusicMix[];
+}
+
 export interface Surface {
   app: string;
   slot: string;

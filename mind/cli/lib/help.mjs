@@ -54,7 +54,7 @@ export const USAGE = {
   push: ['--title --body --ref --why --topic [--deadline]', 'a push (P8)'],
   predict: ['<category> --p <0.01-0.99> --why <text> [--n <n> | --time <HH:MM> | --card <id> | --app <app>] [--day <day>] | list [--open] | skill',
     'a prediction about the open day, resolved from what the owner does once it ends: chat.any (they write), chat.count --n 2-50 (at least n messages), chat.before --time (their first message before then), decision.answered --card <id> (they answer that waiting card), app.open --app music|guitar|podcasts|astra|media|study (they open that app, as their phone reports it). Honest odds; at most 12 a day; a chat one only before their first message (P9)'],
-  day: ['<YYYY-MM-DD> [--part messages|ledger|notes [--cursor <c>]]', 'the night\'s input: counts and every part, or one page of a part (P3)'],
+  day: ['<YYYY-MM-DD> [--part messages|ledger|notes [--cursor <c>]]', 'the night\'s input: counts, routines (habits for step 4) and every part, or one page of a part (P3)'],
   daynote: ['<day> --summary --decisions <json> --importance <1-10>', 'the day note (P3)'],
   facts: ['--batch <file.json> [--night [--part <k>] [--day <day>]]', 'a batch of memory ops; --night: part k of step 4 for the night run\'s day (P3)'],
   night: ['start | step <n> done | step <n> cursor <c> | done [--partial] | steps [--day <day>]', 'the night run: where it stands, each step done, a saved place (P3)'],
@@ -66,11 +66,13 @@ export function helpText(command, role = process.env.TH_ROLE || '') {
   for (const [name, [usage, what]] of Object.entries(USAGE)) lines.push(`  th ${name} ${usage}`.trimEnd(), `      ${what}`);
   lines.push('', `Routes this build offers${role ? ` the ${role} role` : ''} (th get takes the GETs):`);
   for (const r of routesFor(role)) lines.push(`  ${r.key}${r.note ? `  (${r.note})` : ''}`);
-  lines.push('', 'Verbs (th verb):');
+  lines.push('', 'Verbs (th verb): [runs on · class · undo]. worker: done at once, before your reply ends; app: an intent that waits for that app to open; phone: the next signed-in phone. Undo: stored = the Worker keeps the inverse, reported = the phone reports it; th undo <ledger_id> runs either.');
   for (const [name, v] of Object.entries(CONTRACT.verbs)) {
     const ver = Math.max(...Object.keys(v.versions).map(Number));
     const args = Object.keys(v.versions[ver].args.properties || {}).join(', ');
-    lines.push(`  ${name} v${ver} {${args}}${v.queueable ? '' : ' (owner tap only)'}: ${v.doc}`);
+    const runs = v.side === 'worker' ? 'worker' : v.intent ? `app ${v.app}` : 'phone';
+    const cls = v.permit === null ? 'no class: the owner\'s words' : `${v.permit}${v.floor ? ` (floor ${v.floor})` : ''}${v.tell_min ? ', never below tell' : ''}`;
+    lines.push(`  ${name} v${ver} {${args}} [${runs} · ${cls} · undo ${v.undo}]${v.queueable ? '' : ' (not yours to queue: an owner tap or an undo)'}: ${v.doc}`);
   }
   const permits = CONTRACT.permits;
   if (permits) {

@@ -1,21 +1,34 @@
 // The meter (P9; EVALS.md §9 and M-8, M-16): pure counts from the rows Core and the Senses object give.
-// An arrangement (a surface the mind placed) is undone when the owner took it back within 48 hours, kept
-// when they acted on it on its day or the next (tapped it, or opened the app it names, `ref: app:<id>`),
-// else ignored; one placed in the last 48 hours waits. Never a score to push the owner with (law 16).
+// An arrangement (a surface the mind placed) is undone when the owner took it back within 48 hours;
+// else, once 48 hours have passed, kept when they acted on it on its day or the next (tapped its tile,
+// or opened the app it names, `ref: app:<id>`: the app's page, the shell bringing it to the front, or
+// a reply's chip to it), ignored when they dismissed it or did nothing, and, for a home line, unseen
+// when it never came on screen (`line.seen`): a line nobody saw was not turned down. One placed in
+// the last 48 hours waits. Never a score to push the owner with (law 16).
 import { type InsightResponse, PREDICTION_APPS } from '../../../../shared/contract/predictions.ts';
 import { DAY, dayBefore, HOUR } from '../../lib/time';
 import { logicalDay } from '../conversation/day';
 
 export const WEEKS = 4;
 export const DECIDED_AFTER = 48 * HOUR;
-/** The sense types the meter reads: a tile's tap and each app's opening. */
-export const METER_SENSES = ['briefing.tile', ...Object.values(PREDICTION_APPS)];
+/** The sense types the meter reads: a tile's tap, each app's opening (its page, the shell's, a
+ * reply's chip), and whether a home line was seen or dismissed. */
+export const METER_SENSES = [
+  'briefing.tile',
+  ...Object.values(PREDICTION_APPS),
+  'app.open',
+  'reply.open_chip',
+  'line.seen',
+  'line.dismiss',
+];
 
 export interface Arrangement {
   id: string;
   at: number;
   ref: string | null;
   undone_at: number | null;
+  /** A line on home (`home/line.<n>`), which the phone reports seen. */
+  line?: number | boolean;
 }
 export interface Rollup {
   day: string;
@@ -41,17 +54,23 @@ export function arrangements(
   tz: string,
 ): InsightResponse['arrangements'] {
   const seen = new Set(senses.filter((r) => r.n > 0).map((r) => `${r.day}|${r.type}|${r.ref}`));
-  const out = { kept: 0, undone: 0, ignored: 0, waiting: 0 };
+  const out = { kept: 0, undone: 0, ignored: 0, waiting: 0, unseen: 0 };
   for (const a of rows) {
     if (a.undone_at !== null && a.undone_at - a.at <= DECIDED_AFTER) out.undone++;
     else if (now - a.at < DECIDED_AFTER) out.waiting++;
     else {
       const day = logicalDay(a.at, tz);
+      const days = [day, dayBefore(day, -1)];
+      const on = (type: string, ref: string) => days.some((d) => seen.has(`${d}|${type}|${ref}`));
+      const own = `ledger:${a.id}`;
       const app = a.ref?.startsWith('app:') ? PREDICTION_APPS[a.ref.slice(4) as keyof typeof PREDICTION_APPS] : null;
-      const acted = [day, dayBefore(day, -1)].some(
-        (d) => seen.has(`${d}|briefing.tile|ledger:${a.id}`) || (app && seen.has(`${d}|${app}|`)),
-      );
-      if (acted) out.kept++;
+      const opened = !!a.ref && (on('app.open', a.ref) || on('reply.open_chip', a.ref) || (!!app && on(app, '')));
+      // A tap on it is kept; a dismissal outweighs the app opened anyway; a home line never shown is
+      // not counted against it.
+      if (on('briefing.tile', own)) out.kept++;
+      else if (on('line.dismiss', own)) out.ignored++;
+      else if (opened) out.kept++;
+      else if (a.line && !on('line.seen', own)) out.unseen++;
       else out.ignored++;
     }
   }

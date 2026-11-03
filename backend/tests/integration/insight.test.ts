@@ -56,17 +56,24 @@ describe('the meter', () => {
         })
       ).status,
     ).toBe(201);
-    // M-16: a line naming Guitar, opened the next day (kept); a line nobody acted on (ignored); one new.
+    // M-16: a line naming Guitar, opened the next day (kept); a line seen and not acted on (ignored);
+    // a line that never came on screen (unseen); one new.
     const kept = (await surface('line.1', { ref: 'app:guitar' })).body.ledger_id;
     const left = (await surface('line.2', {})).body.ledger_id;
-    await coreSql('UPDATE ledger SET at = ? WHERE id IN (?, ?)', ago, kept, left);
+    const unseen = (await surface('line.4', {})).body.ledger_id;
+    await coreSql('UPDATE ledger SET at = ? WHERE id IN (?, ?, ?)', ago, kept, left, unseen);
     await surface('line.3', {});
     const opened = ago + DAY;
     expect(
       (
         await api('PUT', `/v1/senses/batches/${uuidv7()}`, {
           token: D,
-          body: { events: [{ id: uuidv7(opened), at: opened, type: 'guitar.open' }] },
+          body: {
+            events: [
+              { id: uuidv7(opened), at: opened, type: 'guitar.open' },
+              { id: uuidv7(ago + 60_000), at: ago + 60_000, type: 'line.seen', ref: `ledger:${left}` },
+            ],
+          },
         })
       ).status,
     ).toBe(200);
@@ -76,7 +83,7 @@ describe('the meter', () => {
     expect(r.body.corrections).toHaveLength(4);
     expect(r.body.corrections[3]).toEqual({ fixed: 1, learned: 1 });
     expect(r.body.memory).toEqual([{ passed: 35, n: 40, at: expect.any(Number) }]);
-    expect(r.body.arrangements).toEqual({ kept: 1, undone: 0, ignored: 1, waiting: 1 });
+    expect(r.body.arrangements).toEqual({ kept: 1, undone: 0, ignored: 1, waiting: 1, unseen: 1 });
     expect(r.body.skill.map((s) => s.category)).toEqual([
       'chat.any',
       'chat.count',

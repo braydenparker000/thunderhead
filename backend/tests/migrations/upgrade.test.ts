@@ -94,6 +94,9 @@ describe('upgrade from P2', () => {
         'meter_days',
         'podcast_progress',
         'podcast_follows',
+        // Step 29: the mixes music.mix_save keeps.
+        'mixes',
+        // Step 31: the owner's calendars.
         'calendar_events',
         'calendar_feeds',
       ])

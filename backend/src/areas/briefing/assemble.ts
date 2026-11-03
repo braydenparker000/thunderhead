@@ -37,6 +37,7 @@ import * as surfaces from '../surfaces/store';
 import * as work from '../work/ops';
 import { type CalendarView, view as calendarView } from './calendar-store';
 import { nextHoliday } from './holidays';
+import { arrange, pinsOf } from './pins';
 
 const short = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const plural = (n: number, one: string, many = `${one}s`) => `${n > 99 ? '99+' : n} ${n === 1 ? one : many}`;
@@ -234,14 +235,17 @@ export function briefing(
   const cal = calendarView(db, c.now, c.tz);
   const calT = calendarTile(cal, c.tz);
   // BRIEFING.md §4: at most 8 tiles; the night's own come after what waits, the day's calendar and
-  // what is due.
-  const tiles: BriefingTile[] = [
-    ...(waiting ? [waiting] : []),
-    ...(calT ? [calT] : []),
-    ...(dueT ? [dueT] : []),
-    ...nightTiles(db, c.now),
-    ...(holiday ? [holiday] : []),
-  ].slice(0, 8);
+  // what is due, and a tile the mind pinned right after what waits (pins.ts; Today is not pinnable).
+  const tiles: BriefingTile[] = arrange(
+    [
+      ...(waiting ? [waiting] : []),
+      ...(calT ? [calT] : []),
+      ...(dueT ? [dueT] : []),
+      ...nightTiles(db, c.now),
+      ...(holiday ? [holiday] : []),
+    ],
+    pinsOf(db),
+  ).slice(0, 8);
   return {
     day: c.day,
     title: titleLine(Math.floor(wallMinute(c.now, c.tz) / 60), !tiles.length),

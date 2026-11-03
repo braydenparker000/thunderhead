@@ -221,11 +221,15 @@ export const SETTINGS = [
   { ...PERMIT, key: 'mind.permit.outside', label: 'Remembering from outside text', default: 'ask',
     detail: 'Keeping a fact learned from something outside our conversations.' },
   // Privacy and data.
-  { ...SENSES, key: 'privacy.senses.music', label: 'Music', detail: 'When Music opens and what you rate, as names and times.' },
-  { ...SENSES, key: 'privacy.senses.podcasts', label: 'Podcasts', detail: 'When Podcasts opens, as a time.' },
-  { ...SENSES, key: 'privacy.senses.guitar', label: 'Guitar', detail: 'When Guitar opens and your practice, as numbers.' },
-  { ...SENSES, key: 'privacy.senses.study', label: 'Study', detail: 'When Study opens, as a time.' },
-  { ...SENSES, key: 'privacy.senses.home', label: 'Home', detail: 'Which Briefing tiles you tap, as names and times.' },
+  // One switch for each app's senses (senses.ts SENSE_APPS; the phone sends nothing of an app whose
+  // switch is off, and the Worker keeps nothing of it). The details say what each sends: ids and times.
+  { ...SENSES, key: 'privacy.senses.music', label: 'Music', detail: 'When Music opens, what plays, what you skip and what you rate, as ids and times.' },
+  { ...SENSES, key: 'privacy.senses.podcasts', label: 'Podcasts', detail: 'When Podcasts opens, what plays, finishes or gets skipped, and the shows you follow, as ids and times.' },
+  { ...SENSES, key: 'privacy.senses.guitar', label: 'Guitar', detail: 'When Guitar opens, the pieces you open and your practice, as numbers.' },
+  { ...SENSES, key: 'privacy.senses.study', label: 'Study', detail: 'When Study opens, the books you read and for how long, and how many results a search found.' },
+  { ...SENSES, key: 'privacy.senses.media', label: 'Astra and My Media', detail: 'When they open, and how long you watch each title, as ids and minutes.' },
+  { ...SENSES, key: 'privacy.senses.home', label: 'Home', detail: 'Which of my lines you saw, which tiles and chips you tap and which cards you answer, as ids and times.' },
+  { ...SENSES, key: 'privacy.senses.shell', label: 'Ring and island', detail: 'Which apps you open and close and when, and which setting you change, never its value.' },
   { ...SENSES, section: 'Reports', key: 'privacy.errors', label: 'Error reports',
     detail: 'When something breaks, what broke and where, never what you wrote.' },
 ] as const satisfies readonly SettingSpec[];

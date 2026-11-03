@@ -14,7 +14,6 @@ const TZ = 'America/New_York';
 // The window: Monday 2 November 2026 (after the US clock change on the 1st) and 13 days more.
 const FROM = zonedMinute('2026-11-02', 0, TZ);
 const TO = zonedMinute('2026-11-16', 0, TZ);
-const Z = (iso: string) => Date.parse(iso);
 
 /** A calendar of these events (CRLF lines, as hosts send them). */
 const ics = (...events: string[][]) =>

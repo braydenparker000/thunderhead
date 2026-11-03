@@ -90,8 +90,9 @@ export interface InsightResponse {
   corrections: { fixed: number; learned: number }[];
   /** M-10: the newest memory checks (suite MP), newest first. */
   memory: { passed: number; n: number; at: Ms }[];
-  /** M-16 over the 28 days up to 48 hours ago (`waiting`: placed since, not decided yet). */
-  arrangements: { kept: number; undone: number; ignored: number; waiting: number };
+  /** M-16 over the 28 days up to 48 hours ago (`waiting`: placed since, not decided yet; `unseen`:
+   * home lines that never came on screen, counted as none of the other three). */
+  arrangements: { kept: number; undone: number; ignored: number; waiting: number; unseen: number };
   /** M-18, per category. */
   skill: CategorySkill[];
 }
