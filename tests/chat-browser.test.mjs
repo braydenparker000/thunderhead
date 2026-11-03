@@ -15,6 +15,7 @@ import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
 import { proposal } from './fixtures/mock-proposals.mjs';
+import { outlast, until as waitUntil } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -62,22 +63,25 @@ async function open({ theme = 'light', chat = {}, clock = false, outbox = [], in
       tx.onerror = () => reject(tx.error);
     };
   }), outbox);
+  // The chat's first complete sync (th/chat/index.js publishes th:changed after it).
+  await page.addInitScript(() => document.addEventListener('th:changed', () => { window.__synced = true; }, { once: true }));
   if (init) await page.addInitScript(init);
   if (setup) await setup(page);
   errors.length = 0; // the 404 page used to reach the origin
   if (clock) await page.clock.install();
   await page.goto(`${base}${path}`, { waitUntil: 'load' });
   if (clock) await page.clock.runFor(300);
-  if (path === '/' && !setup) await page.waitForSelector('#talk', { state: 'attached' });
-  await page.waitForTimeout(300);
+  // The chat draws the line under the ask bar in the same task that wires the bar's send, once it has
+  // read the outbox: from then on a message typed here is the chat's, not home's.
+  if (path === '/' && !setup) await page.waitForSelector('#ask .sendline', { state: 'attached' });
   return { page, context, errors, api };
 }
 /** The status chip at the top: null while all is well, else [kind, words] (no standing voice line). */
 const status = (page) => page.$eval('#status', (s) => (s.hidden ? null : [s.dataset.kind, s.textContent]));
-/** Reads until the value is `want` (5 s at most), then asserts it: a step waits on what the page
+/** Reads until the value is `want` (15 s at most), then asserts it: a step waits on what the page
  * shows or the mock saw, never on a guessed delay. */
 async function eventually(read, want, message) {
-  const end = Date.now() + 5_000;
+  const end = Date.now() + 15_000;
   let got = await read();
   while (!isDeepStrictEqual(got, want) && Date.now() < end) {
     await new Promise((r) => setTimeout(r, 20));
@@ -85,7 +89,12 @@ async function eventually(read, want, message) {
   }
   assert.deepEqual(got, want, message);
 }
-const shot = async (page, name, theme) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-${theme === 'light' ? 'day' : 'night'}.png` }); };
+/** A screenshot once everything on the page has finished moving (only with SHOTS). */
+const shot = async (page, name, theme) => {
+  if (!SHOTS) return;
+  await page.evaluate(async () => { await (await import('/th/motion.js')).whenResting(); await Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {}))); });
+  await page.screenshot({ path: `${SHOTS}/${name}-${theme === 'light' ? 'day' : 'night'}.png` });
+};
 const send = async (page, text) => { await page.fill('#q', text); await page.press('#q', 'Enter'); };
 /** The mind reports `th status working` with the working card's fields (a mind_status change). */
 const report = (api, fields) => { api.chat.presence('working'); Object.assign(api.chat.state.presence, fields); };
@@ -111,7 +120,6 @@ test('first run: nothing stands on the page saying all is well; the bar asks', o
     assert.equal(await page.$('#say'), null, 'no voice line');
     assert.equal(await page.getAttribute('#q', 'placeholder'), 'Ask anything');
     assert.equal(await page.$$eval('#talk .turn', (t) => t.length), 0);
-    await page.waitForTimeout(900);
     await shot(page, 'empty', theme);
     assert.deepEqual(errors, []);
     await context.close();
@@ -132,7 +140,6 @@ test('a message goes out at once; the reply arrives over the socket, reveals, an
     assert.equal(await page.textContent('#talk .chip'), 'Open in Music');
     assert.equal(api.calls.filter((c) => c.call.startsWith('PUT /v1/messages/')).length, 1);
     assert.equal(await page.$('#talk .slot'), null, 'nothing waits any more');
-    await page.waitForTimeout(700);
     await shot(page, 'conversation', theme);
     if (theme === 'dark') {
       await page.click('#talk .chip');
@@ -205,7 +212,6 @@ test('a rich reply: upright, with a heading, a list, bold and a quote, and block
     assert.equal(await page.$$eval(`${r} .blocks .bstat`, (s) => s.length), 2);
     assert.equal(await page.$$eval(`${r} .blocks .bchart rect`, (s) => s.length), 4);
     assert.ok(await page.$eval('#convo', (c) => c.scrollWidth <= c.clientWidth), 'nothing scrolls sideways');
-    await page.waitForTimeout(1500);
     await shot(page, 'rich', theme);
     assert.deepEqual(errors, []);
     await context.close();
@@ -230,7 +236,6 @@ test('a cited answer: numbered sources in the text, Where to study under it, eac
     ['A Commentary, p. 11', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=12&b=3'],
     ['A Commentary, p. 39', '/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=40&b=1'],
   ]);
-  await page.waitForTimeout(500);
   await shot(page, 'cited-answer', 'light');
   await page.click('#talk .reply .study a >> nth=1');
   await page.waitForURL(`${base}/study/?book=0190c8a2-7d1e-7abc-8def-0123456789ab&p=40&b=1`);
@@ -244,19 +249,22 @@ test('waking: the line under the bar fills once the Worker has it; at 3 s the wo
     await page.evaluate(() => {
       window.lineSeen = [];
       new MutationObserver(() => window.lineSeen.push(document.querySelector('#ask .sendline').className)).observe(document.querySelector('#ask'), { subtree: true, attributes: true, attributeFilter: ['class'] });
+      // When the message went and when the working card first showed, on the page's own clock.
+      document.querySelector('#ask').addEventListener('submit', () => { window.sentAt ??= performance.now(); }, true);
+      new MutationObserver(() => { if (document.querySelector('#working .work')) window.cardAt ??= performance.now(); }).observe(document.body, { subtree: true, childList: true, attributes: true });
     });
     await send(page, 'Are you there?');
     await page.waitForSelector('#talk .you');
     await page.waitForFunction(() => window.lineSeen.includes('sendline go done'));
     assert.ok((await page.evaluate(() => window.lineSeen)).includes('sendline go'), 'it filled part way first');
-    await page.waitForTimeout(1600);
-    assert.equal(await workCard(page), null, 'a mind still asleep gets 3 s first');
     await page.waitForSelector('#working .work.waking');
+    // Timers never fire early, so this holds however loaded the runner is.
+    const after = await page.evaluate(() => window.cardAt - window.sentAt);
+    assert.ok(after >= 2900, `a mind still asleep gets 3 s first (the card came after ${Math.round(after)} ms)`);
     assert.deepEqual(await workCard(page), { title: 'Waking up', note: null, chips: [], stop: null, waking: true });
     assert.equal(await page.$eval('#working .d', (d) => getComputedStyle(d).animationName), 'wake', 'its dot pulses');
     assert.ok(await page.$eval('#edge', (e) => e.classList.contains('think')));
     assert.equal(await page.$('#talk .wait'), null, 'nothing waits in the thread: the card says it');
-    await page.waitForTimeout(500);
     await shot(page, 'waking', theme);
     report(api, { title: 'Checking what came in overnight', title_at: Date.now() });
     await eventually(async () => (await workCard(page))?.title, 'Checking what came in overnight', 'the mind\'s own title replaces it');
@@ -275,7 +283,6 @@ test("the mind not waking: the honest line and the error edge; the status chip o
     await eventually(() => status(page), null, 'said once, in the thread');
     assert.ok(await page.$eval('#edge', (e) => e.classList.contains('err')));
     assert.equal(await page.$('#talk .wait'), null, 'no waking line under the honest one');
-    await page.waitForTimeout(900);
     await shot(page, 'not-waking', theme);
     assert.deepEqual(errors, []);
     await context.close();
@@ -298,7 +305,7 @@ test('offline: the message waits with its meta, then goes once when the phone is
   await context.setOffline(false);
   await page.evaluate(() => dispatchEvent(new Event('online')));
   // Sent: the Worker has it (the bubble's meta goes as soon as it is sending, so wait on the call).
-  for (let i = 0; i < 100 && api.state.chat.messages.length === 0; i++) await page.waitForTimeout(50);
+  await waitUntil(() => api.state.chat.messages.length > 0, { message: 'the Worker got the message' });
   await page.waitForFunction(() => !document.querySelector('#talk .meta'));
   assert.equal(api.calls.filter((c) => c.call.startsWith('PUT /v1/messages/')).length, 1);
   // A second load shows it once, from the server, with nothing left in the outbox.
@@ -342,7 +349,7 @@ test('"go quiet" with the network off: the quiet chip at once, nothing sent; the
 test('a failed send says so and Retry sends it', opts, async () => {
   const { page, context, errors, api } = await open({ clock: true, chat: { failSay: 9 } });
   const puts = () => api.calls.filter((c) => c.call.startsWith('PUT /v1/messages/')).length;
-  const until = async (ok) => { for (let i = 0; i < 100 && !(await ok()); i++) await new Promise((r) => setTimeout(r, 50)); };
+  const until = async (ok) => { for (let i = 0; i < 300 && !(await ok()); i++) await new Promise((r) => setTimeout(r, 50)); };
   // The retry's timer is set before the outbox copy is written, so a copy with n tries has it set.
   const kept = () => page.evaluate(() => new Promise((resolve) => {
     const req = indexedDB.open('th-data', 1);
@@ -375,17 +382,18 @@ test('Stop: the working card\'s Stop asks the mind to stop after this step; the 
   assert.equal((await workCard(page)).title, 'Thinking about your music', 'words from the message until the mind says');
   await page.waitForFunction(() => document.querySelector('#edge').classList.contains('think'), null, { timeout: 3000 });
   await page.focus('#working .wkstop');
-  await page.waitForTimeout(1500); // the clock ticks; the card isn't drawn again
+  await outlast(page, 1500); // the card's clock ticks (each second) on the page; the card isn't drawn again
   const onStop = () => page.evaluate(() => document.activeElement?.classList.contains('wkstop') ?? false);
   assert.ok(await onStop(), 'focus stays on Stop');
   await page.keyboard.press('Enter');
   await page.waitForSelector('#working .wkstop.stopping');
   await eventually(() => api.calls.filter((c) => c.call === 'POST /v1/mind/stop').length, 1);
-  await page.waitForTimeout(300);
+  // The answer to the stop redraws the card: its toast says it has come.
+  await page.waitForFunction(() => document.querySelector('.toast')?.textContent.includes('Stopping after this step.'));
   assert.ok(await onStop(), 'and on it while stopping');
   assert.equal((await workCard(page)).stop, 'Stopping…');
   await page.keyboard.press('Enter');
-  await page.waitForTimeout(300);
+  await outlast(page, 300); // a negative read: nothing to wait for but time
   assert.equal(api.calls.filter((c) => c.call === 'POST /v1/mind/stop').length, 1, 'a second press sends nothing');
   api.chat.reply('Stopped. Done: the list. Not done: the order.');
   await page.waitForSelector('#talk .reply');
@@ -413,7 +421,6 @@ test('the working card: the mind\'s title, its live line and chips dock above th
     // The live line moves on as the mind reports; the title and chips stand.
     report(api, { title: 'Finding songs for your run', note: 'Picking twelve', using: USING, title_at: given });
     await eventually(async () => (await workCard(page))?.note, 'Picking twelve');
-    await page.waitForTimeout(600);
     await shot(page, 'working', theme);
     if (theme === 'dark') {
       await page.evaluate(() => {
@@ -454,7 +461,6 @@ test('a decision waiting comes first: the working card sits above it, folded to 
       return { above: w.bottom <= d.top, convo: document.querySelector('#convo').getBoundingClientRect().bottom <= w.top + 1 };
     });
     await eventually(stack, { above: true, convo: true });
-    await page.waitForTimeout(1400);
     await shot(page, 'working-under-decision', theme);
     await page.click('#decision .decide button:not(.yes)');
     await eventually(async () => (await workCard(page))?.note, 'Reading your reminders', 'the card opens again once the decision is answered');
@@ -529,7 +535,9 @@ test("home lines are cards in the chat (the night's as one Overnight card); a ki
   await context.close();
 });
 
-const until = async (ok, ms = 5000) => { for (let t = 0; t < ms && !(await ok()); t += 50) await new Promise((r) => setTimeout(r, 50)); };
+const until = async (ok, ms = 15_000) => { for (let t = 0; t < ms && !(await ok()); t += 50) await new Promise((r) => setTimeout(r, 50)); };
+/** How many times the page has asked for `path`. */
+const asked = (api, path) => api.calls.filter((c) => c.call === `GET ${path}`).length;
 
 test('changes during a slow load, and a load that fails once, still reach the screen', opts, async () => {
   const { page, context, errors, api } = await open({ chat: { messages: [owner('m1', 'Are you there?')], presence: { state: 'working', note: null, since: Date.now() } } });
@@ -540,8 +548,9 @@ test('changes during a slow load, and a load that fails once, still reach the sc
   assert.equal(await edge(), 'think');
   // The mind's presence changes, and its reply lands while that is still loading.
   api.state.chat.slow['/v1/settings'] = 800;
+  const settings = asked(api, '/v1/settings');
   api.chat.presence('listening');
-  await page.waitForTimeout(150);
+  await waitUntil(() => asked(api, '/v1/settings') > settings, { message: 'the presence change loads the settings' });
   api.chat.reply('Yes, here.');
   await reply('Yes, here.');
   await until(async () => (await edge()) === 'calm');
@@ -551,8 +560,9 @@ test('changes during a slow load, and a load that fails once, still reach the sc
   api.chat.presence('working');
   await until(async () => (await edge()) === 'think');
   api.state.chat.slow['/v1/threads/today'] = 800;
+  const today = asked(api, '/v1/threads/today');
   api.chat.reply('Done.');
-  await page.waitForTimeout(150);
+  await waitUntil(() => asked(api, '/v1/threads/today') > today, { message: 'the reply loads today' });
   api.chat.presence('listening');
   await reply('Done.');
   await until(async () => (await edge()) === 'calm');
@@ -572,7 +582,7 @@ test("a message left failed in the outbox shows only \"Didn't send · Retry\"", 
   const { page, context, errors } = await open({ outbox: [{ id: '0192f0c4-0000-7000-8000-0000000000f1', body: 'Did this go?', created_at: at, state: 'failed', tries: 4, failed_at: at }] });
   await page.waitForSelector('#talk .meta.bad');
   assert.match(await page.textContent('#talk .meta'), /^Didn't send · Retry$/);
-  await page.waitForTimeout(1500);
+  await page.waitForFunction(() => window.__synced);
   assert.equal(await page.$('#talk .slot'), null, 'no reply slot under it');
   assert.equal(await page.$eval('#edge', (e) => e.dataset.state), 'calm', 'failed two minutes ago: the error edge has gone');
   assert.deepEqual(errors, []);
@@ -620,7 +630,7 @@ test('signing out with a message still unsent asks first', opts, async () => {
   await page.waitForSelector('.csheet');
   assert.equal(await page.textContent('.csheet h2'), "1 message hasn't sent yet. Sign out anyway?");
   await page.click('.csheet button:has-text("Cancel")');
-  await page.waitForTimeout(700);
+  await page.waitForSelector('.csheet', { state: 'detached' });
   assert.equal(api.calls.filter((c) => c.call === 'POST /v1/auth/signout').length, 0, 'Cancel keeps this phone signed in');
   await page.click(out);
   await page.click('.csheet button:has-text("Sign out")');
@@ -644,7 +654,7 @@ test('signing out with a Forget still waiting sends it first, and asks while it 
   assert.equal(await page.textContent('.csheet h2'), "1 Forget hasn't gone through yet. Sign out anyway?");
   assert.equal(await page.textContent('.csheet p'), "If you sign out now, I'll keep remembering that fact.");
   await page.click('.csheet button:has-text("Cancel")');
-  await page.waitForTimeout(700);
+  await page.waitForSelector('.csheet', { state: 'detached' });
   assert.equal(api.calls.filter((c) => c.call === 'POST /v1/auth/signout').length, 0, 'Cancel keeps this phone signed in');
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('th.p.forget'))), [CALM], 'and the Forget still waits');
   api.state.chat.fail['/v1/memory/ops'] = 0;
@@ -659,7 +669,7 @@ test('signing out with a Forget still waiting sends it first, and asks while it 
 test('a message waiting on a retry holds the next one, so they arrive in order', opts, async () => {
   const { page, context, errors, api } = await open({ chat: { failSay: 1 } });
   await send(page, 'First, this');
-  for (let i = 0; i < 40 && !api.calls.some((c) => c.call.startsWith('PUT /v1/messages/')); i++) await page.waitForTimeout(50);
+  await waitUntil(() => api.calls.some((c) => c.call.startsWith('PUT /v1/messages/')), { message: 'the first went' });
   await send(page, 'Then this');
   await until(async () => api.state.chat.messages.length === 2);
   assert.deepEqual(api.state.chat.messages.map((m) => m.body), ['First, this', 'Then this']);
@@ -705,7 +715,6 @@ test('a choice: its options are taps under the newest reply; one sends its words
     await page.waitForSelector('#talk .choices.now.in');
     assert.deepEqual(await page.$$eval('#talk .follow', (b) => b.map((x) => x.textContent)), ['Calm', 'Upbeat', 'Something new', 'A fourth']);
     assert.equal(await page.$('#talk .reply .blocks'), null, 'a choice is not drawn as a block');
-    await page.waitForTimeout(500);
     await shot(page, 'choice', theme);
     const replyId = await page.$eval('#talk .replybox', (b) => b.dataset.id);
     await page.click('#talk .choices .follow >> nth=1');
@@ -723,7 +732,8 @@ test('a tapped reply: Copy, Shorter, Say more and Ask about this', opts, async (
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await send(page, 'What should I practise?');
   await page.waitForSelector('#talk .reply');
-  await page.waitForTimeout(700);
+  // The reply reveals word by word; it is tapped once it has.
+  await page.$eval('#talk .reply', (r) => Promise.all(r.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {}))));
   const replyId = await page.$eval('#talk .reply', (r) => r.dataset.id);
   // The actions load on the first tap, so each row is waited for.
   const tap = async () => { await page.click(`#talk [data-id="${replyId}"]`); await page.waitForSelector('#talk .ractions'); };
