@@ -26,8 +26,9 @@ export abstract class CoreReminders extends CoreFiles {
     return this.soonest;
   }
 
-  /** After a change to the set reminders: read the soonest again and move the alarm to it. */
-  private changed(): void {
+  /** After a change to the set reminders (here, or a `reminder.move` verb or its undo, core.ts):
+   * read the soonest again and move the alarm to it. */
+  protected changed(): void {
     this.soonest = undefined;
     this.schedule();
   }

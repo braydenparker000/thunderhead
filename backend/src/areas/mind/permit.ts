@@ -32,9 +32,11 @@ export function positionFor(db: Db, action: string): PermitPosition {
   if (!spec) throw new Error(`no standing permission for ${action}`);
   if (spec.floor) return 'ask';
   const set = getSetting(db, permitKey(spec.class));
-  return (PERMIT_POSITIONS as readonly unknown[]).includes(set)
+  const position = (PERMIT_POSITIONS as readonly unknown[]).includes(set)
     ? (set as PermitPosition)
     : (permitSetting(spec.class).default as PermitPosition);
+  // An action that takes away something the owner chose is never done quietly (`tell_min`).
+  return spec.tell_min && position === 'quiet' ? 'tell' : position;
 }
 
 /** What a card approves: the action and its call, canonical, hashed. A call is what the action

@@ -40,7 +40,7 @@ skipped. [CONTRACT.md](CONTRACT.md) is the generated list of what exists today.
 | File | Holds | Read by |
 |---|---|---|
 | `routes.ts` | API.md §13 as rows: who may call, phase, `deferred` with the reason | Worker `guard()`, public-route list, route-scope test, `th help` |
-| `verbs.ts` | Each verb: app, class, executor, queueable, undo, versioned zod/mini schemas for args and result, doc line | Worker validation, phone executors, `th verb` |
+| `verbs.ts` | Each verb: app, class, permit, side (worker or phone; an app's intent), queueable, undo, versioned zod/mini schemas for args and result, doc line | Worker validation, phone executors, `th verb` |
 | `surfaces.ts` | Each surface kind: allowed app/slot patterns, versioned payload schemas, doc line | Worker validation, phone renderers, `th surface` |
 | `feed.ts` | Change kinds, the live protocol version, frame types, close codes, apps, search sources, message kinds | Worker, phone, `th` |
 | `codes.ts` | Each error code's HTTP status and log message | Worker errors, `th` exit codes |
@@ -63,7 +63,7 @@ The registries are plain data with zod/mini schemas, so Node imports them withou
 | File | Keyed by | Holds | Fallback |
 |---|---|---|---|
 | `frontend/th/registry/apps.js` | `APPS` ids | Colour and icon per app; the ring, chips and deep links derive from it | An app whose phase isn't built says it comes later |
-| `frontend/th/registry/verbs.js` | verb name and schema version | The executor: runs it, returns its result and (for `undo: 'reported'`) its inverse | `unsupported_verb` |
+| `frontend/th/registry/verbs.js` | verb name and schema version | The executor of a phone verb home runs: runs it, returns its result and (for `undo: 'reported'`) its inverse; an app's intents have theirs in `th/music/intents.js` and `th/podcasts/intents.js` | `unsupported_verb` |
 | `frontend/th/registry/surfaces.js` | surface kind and schema version | The renderer: where the surface shows (a card in today's chat for `line`) | The generic card with the surface's `why` |
 
 `tests/registries.test.mjs` checks them against `frontend/th/contract.js`: every app has a ring entry and an icon in the sprite, every device verb the Worker can queue has an executor, and every surface kind and version has a renderer (anything else falls back). `frontend/th/registry/memory.js` does the same for the Memory page: every fact kind and source in the contract has its group and label, and a kind, source or evidence ref it doesn't know renders under "Other" by its own name.
@@ -110,14 +110,22 @@ area's commit. Phones that do not know it ignore it and resync; nothing else cha
 1. Add it to `VERBS` in `verbs.ts`: app, class (`reversible` or `ask_first`), its standing
    permission `permit` (one of `PERMIT_CLASSES` in `permits.ts`) and, by hand, its `floor` when it
    spends money, deletes the owner's data, touches keys or access, or reaches another person (exactly
-   the `ask_first` verbs), executor (`device` or `worker`), `queueable` (false = owner taps only,
-   e.g. a chip), `undo` (`reported` = the executor returns its inverse), schema version 1 with
-   `args` and `result`, and a doc line. An action Core runs itself for the mind goes in
-   `MIND_ACTIONS` (`permits.ts`) and its write calls `gate()` (`areas/mind/permit.ts`) before it
-   writes.
-2. A device verb gets its executor in `frontend/th/registry/verbs.js`; it returns its result and,
-   for `undo: 'reported'`, its inverse. Until a phone has it, that phone answers `unsupported_verb`
-   and the ledger shows the attempt failed.
+   the `ask_first` verbs), `side` (`worker` or `phone`), `queueable` (false = owner taps only,
+   e.g. a chip, or only another verb's inverse), `undo` (`stored` for a Worker-side verb: it keeps
+   `{op, args}`; `reported` = the phone returns its inverse), schema version 1 with `args` and
+   `result`, a doc line and `what` (one line for the briefing's verb table). An action Core runs
+   itself for the mind outside the verbs goes in `MIND_ACTIONS` (`permits.ts`) and its write calls
+   `gate()` (`areas/mind/permit.ts`) before it writes; a verb is never listed there too.
+2. **Worker-side** (preferred: it works with the app closed): its executor goes in
+   `WORKER_VERBS` (`backend/src/areas/verbs/worker.ts`), calling the owning area's own op; it runs
+   in the commit that queues it, after the gate, and returns its result and its inverse `{op, args}`
+   (null when it changed nothing), whose op goes in `verbs/undo.ts` (or memory's own, `memory.close`).
+   **Phone-side:** its executor goes in `frontend/th/registry/verbs.js` and returns its result and,
+   for `undo: 'reported'`, its inverse; until a phone has it, that phone answers `unsupported_verb`
+   and the ledger shows the attempt failed. When the state it changes lives in an app that may be
+   closed, mark it `intent: true` and put its executor in that app's intents module
+   (`frontend/th/music/intents.js`, `frontend/th/podcasts/intents.js`): the app applies it as it
+   opens ([API.md §11.11](API.md#pending-intents)).
 3. Changing args or result means a new schema version beside the old one. Phones run the newest
    version they know; the Worker keeps validating every listed version.
 4. While its class is set to Ask, or it has a floor, the mind's call is refused (`403

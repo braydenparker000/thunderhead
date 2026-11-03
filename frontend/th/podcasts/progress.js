@@ -8,7 +8,8 @@
 //   into the app's storage before the app reads it, the newer `updatedAt` winning, so an episode
 //   left on another phone resumes where it was. A pull that comes back at `by` or later is not
 //   applied (the app has read its storage then, and would write over it); `since` stays, so the
-//   next open brings it;
+//   next open brings it; the mind's pending intents for the shows and Up Next go into the same
+//   write (th/podcasts/intents.js), reported once it is saved;
 // - then, and on pause, on hiding the page, every 60 s while an episode plays and when the network
 //   returns, the positions the Worker doesn't have yet go up (PUT, ≤ 100 and < 60 KB a request),
 //   and so do the follows and unfollows since the last time (PUT /v1/podcasts/follows), so the night
@@ -58,6 +59,8 @@ const BODY_BYTES = 60_000;
 const KEEPALIVE_BYTES = 8_000;
 /** Pages read on open, at most (3,000 rows; the Worker keeps 1,000 positions). */
 const PAGES = 6;
+/** The pending intents must be in this long before the app reads its storage, or wait. */
+const INTENTS_SPARE_MS = 50;
 const UNFOLLOW_MEMORY_MS = L.unfollowed_keep_days * 86_400_000;
 
 /** @typedef {{ position?: number, duration?: number, played?: boolean, updatedAt?: number, episode?: unknown }} Entry */
@@ -83,6 +86,9 @@ export const deps = {
   online: () => navigator.onLine,
   /** One sense (th/senses/send.js). @param {string} type @param {string} ref @param {Record<string, number> | null} [data] */
   sense: (type, ref, data = null) => import('../senses/send.js').then((m) => m.sense(type, ref, data)).catch(() => false),
+  /** The app's pending intents applied to its storage (th/podcasts/intents.js), not yet reported.
+   * @param {App} app @returns {Promise<{ done: unknown[], send: () => Promise<void> } | null>} */
+  intents: (app) => import('./intents.js').then((m) => m.applyToApp(/** @type {any} */ (app))),
 };
 
 /** An episode's ref for a sense, from the app's key `<feed address>#<episode id>`, or null for a
@@ -301,9 +307,22 @@ export async function open(by) {
     const got = await pull(mem, t, stop.signal);
     if (!got || deps.sincePage() >= by) return;
     const app = loadApp(storage) ?? { version: 1, progress: {}, follows: [] };
-    if (applyProgress(app, mem, got.items) && !save(storage, APP_KEY, app)) return;
+    const moved = applyProgress(app, mem, got.items);
+    // The mind's pending intents for the shows and Up Next (th/podcasts/intents.js), applied to a
+    // copy and kept only if they were all in before `by` (less a moment for the write), into the
+    // same write; reported only once it is saved. Late, or no answer: the positions go alone, and
+    // the intents' claims lapse and come back for the next open.
+    const draft = structuredClone(app);
+    const intents = await Promise.race([
+      deps.intents(draft).catch(() => null),
+      new Promise((done) => setTimeout(() => done(null), Math.max(0, by - deps.sincePage() - INTENTS_SPARE_MS))),
+    ]);
+    const out = intents ? draft : app;
+    if (deps.sincePage() >= by) return;
+    if ((moved || intents?.done.length) && !save(storage, APP_KEY, out)) return;
     mem.since.progress = got.next_since;
     save(storage, SYNC_KEY, mem);
+    void intents?.send().catch(() => {});
   } catch {
     // Late or refused: nothing applied, `since` kept for the next open.
   } finally {

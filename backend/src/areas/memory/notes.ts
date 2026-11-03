@@ -176,6 +176,16 @@ export function deleteOpenThread(db: Db, id: string): void {
   db.run('DELETE FROM open_threads WHERE id = ?', id);
 }
 
+/** Open threads due before `before`, soonest first, through the `open_threads_due` index (the
+ * verbs' follow-ups that went unasked, verbs/follow.ts). */
+export function openDueBefore(db: Db, before: number, limit: number): OpenThreadRow[] {
+  return db.all<OpenThreadRow>(
+    `SELECT ${THREAD_COLS} FROM open_threads WHERE status = 'open' AND due_at < ? ORDER BY due_at LIMIT ?`,
+    before,
+    limit,
+  );
+}
+
 /** Open threads (due soonest first, the `open_threads_due` index), or the newest of all. */
 export function openThreads(db: Db, status: 'open' | 'all', limit: number): OpenThreadRow[] {
   if (status === 'open')
