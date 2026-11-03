@@ -58,3 +58,8 @@ export async function guardOpen(page, { held = false } = {}) {
  * loaded the runner, which a wait in the test process cannot promise. For "nothing happens" reads only.
  * @param {import('playwright').Page | import('playwright').Frame} page @param {number} ms */
 export const outlast = (page, ms) => page.evaluate((t) => new Promise((r) => setTimeout(r, t)), ms);
+
+/** The shell's first-paint work has run: the shell queues it as an animation frame and then a task
+ * (boot.js, home.js), so a frame and a task queued after load run after it.
+ * @param {import('playwright').Page} page */
+export const afterFirstPaint = (page) => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => setTimeout(r))));
