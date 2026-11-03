@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 // PostToolUse hook (RUNTIME.md §6.5). 1. Taint: the first time the session may have taken in text
 // the owner did not write (lib/taint.mjs: every call but a short list of plainly local ones), it
-// calls `th taint` once; from then on the Worker refuses the session's memory writes and its
-// ask-first cards. 2. Live progress: while the chat session reports `working`, a Bash call's
+// calls `th taint` once; from then on the Worker labels the session's memory writes `outside`
+// (MEMORY.md §6 M11) and refuses its ask-first cards. It is the Worker's only signal for a web
+// fetch, so it stays. 2. Live progress: while the chat session reports `working`, a Bash call's
 // description becomes the presence note, at most one every 3 s.
 // It never blocks and prints nothing; with TH_ROLE unset (the owner's own Claude Code) it does nothing.
 //

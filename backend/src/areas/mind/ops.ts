@@ -6,6 +6,7 @@ import type {
   LiveEvent,
   LiveWaitResponse,
   MindNoteRequest,
+  MindNoteResponse,
   MindRole,
   MindStatusRequest,
   PendingResponse,
@@ -172,12 +173,15 @@ export function status(w: Writer, sessionId: string | null, role: MindRole, r: M
   return { typing: r.state === 'working' };
 }
 
-export function note(w: Writer, sessionId: string | null, role: MindRole, r: MindNoteRequest): void {
+/** `th note`, answered with its label (MEMORY.md §6 M11): `outside` (stored as `tainted`) when its
+ * session read outside text; unlike a loose end's or a day note's, its words then stay left out of
+ * every later reader, since the night writes facts from them (notes.ts). */
+export function note(w: Writer, sessionId: string | null, role: MindRole, r: MindNoteRequest): MindNoteResponse {
   const body = JSON.stringify(r.open_items);
   const found = sessionNotes.note(w.db, r.id);
   if (found) {
     if (found.body !== r.body || found.open_items_json !== body) throw new Fail('conflict');
-    return;
+    return { id: r.id, provenance: found.tainted === 1 ? 'outside' : 'owner' };
   }
   // A session note is read by the night: never one about a conversation off the record (403
   // off_record) or a deleted one (410 gone), conversation/held.ts.
@@ -199,6 +203,7 @@ export function note(w: Writer, sessionId: string | null, role: MindRole, r: Min
     open: body,
     tainted,
   });
+  return { id: r.id, provenance: tainted ? 'outside' : 'owner' };
 }
 
 /** Irreversible for the session; enforced from P4, recorded now (API.md §3). A session that never

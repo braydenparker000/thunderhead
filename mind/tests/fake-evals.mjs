@@ -17,12 +17,15 @@ export function evalRoutes(ctl) {
   return [
     ['POST', /^\/v1\/evals\/sandbox$/, ['chat', 'night'], ({req, body}) => {
       if (req.headers['th-sandbox'] !== 'eval') return [422, {error: {code: 'validation', message: 'only in the eval sandbox'}}];
-      Object.assign(s.sandbox, {resets: s.sandbox.resets + 1, seed: body.seed, attempts: [], ledger: {}});
+      Object.assign(s.sandbox, {resets: s.sandbox.resets + 1, seed: body.seed, attempts: [], ledger: {}, at: ctl.now()});
       return {seeded: body.seed.length, thread_id: null};
     }],
     ['GET', /^\/v1\/evals\/sandbox$/, ['chat', 'night'], ({req}) => {
       if (req.headers['th-sandbox'] !== 'eval') return [422, {error: {code: 'validation', message: 'only in the eval sandbox'}}];
-      return {reset_at: 1, ledger: s.sandbox.ledger, messages_outside: 0, replies: [], attempts: s.sandbox.attempts};
+      // The labels of the facts written since the reset (MEMORY.md §6 M11); the fake keeps no profile.
+      const memory = {owner: 0, observed: 0, outside: 0};
+      for (const f of s.facts) if (f.recorded_at >= s.sandbox.at) memory[f.provenance ?? 'owner']++;
+      return {reset_at: 1, ledger: s.sandbox.ledger, messages_outside: 0, replies: [], attempts: s.sandbox.attempts, memory, outside_shown: 0};
     }],
     ['PUT', /^\/v1\/evals\/runs\/([^/]+)$/, ['chat', 'night'], ({req, body, params}) => {
       if (req.headers['th-sandbox']) return [422, {error: {code: 'validation', message: 'not in the sandbox'}}];

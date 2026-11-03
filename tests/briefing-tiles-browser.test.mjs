@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
-import { briefingState } from './fixtures/mock-briefing.mjs';
+import { briefingState, calendarTile } from './fixtures/mock-briefing.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -136,6 +136,45 @@ test('the Worker’s own tiles: the day’s line, Due with its sheet, Holidays, 
   if (process.env.SHOTS) await page.waitForTimeout(600).then(() => page.screenshot({ path: `${process.env.SHOTS}/briefing-due-sheet.png` }));
   await page.keyboard.press('Escape');
   await sheet.waitFor({ state: 'detached' });
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('Today: the calendar’s events with their times and places, the all-day ones as one line, tomorrow’s first, a failing link’s line', opts, async () => {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, serviceWorkers: 'block' });
+  const page = await context.newPage();
+  const errors = [];
+  page.on('pageerror', (e) => errors.push(e.message));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+  const state = briefingState();
+  state.page.today = { date: 'Tuesday 3 November', line: '3 things on today and 1 reminder due today.' };
+  state.page.tiles.push(calendarTile({ notice: 'Calendar not reachable since Sunday 21:30' }));
+  await mockApi(page, { briefing: state });
+  await openBriefing(page, errors);
+  await page.waitForSelector('#brief .tile.cal');
+  const t = page.locator('#brief .tile.cal');
+  // Wide, after "Waiting on you"; nothing to open.
+  assert.deepEqual(await page.$$eval('#brief .grid > .tile', (ts) => ts.map((x) => x.querySelector('.k').textContent)), ['Waiting on you', 'Today']);
+  assert.equal(await t.evaluate((n) => [n.tagName, n.classList.contains('wide')].join()), 'DIV,true');
+  assert.equal(await t.locator('use').getAttribute('href'), '/ui/icons.svg#calendar-blank');
+  assert.deepEqual(await t.locator('.v, .s').allTextContents(), [
+    '15:00 Dentist · High Street',
+    '18:30 Dinner',
+    'All day: Bins out',
+    'Tomorrow 09:00 Standup',
+    'Calendar not reachable since Sunday 21:30',
+  ]);
+  assert.deepEqual(await t.locator('.v').allTextContents(), ['15:00 Dentist · High Street', '18:30 Dinner']);
+  assert.equal(await t.getAttribute('aria-label'), 'Today, 15:00 Dentist · High Street, 18:30 Dinner, All day: Bins out, Tomorrow 09:00 Standup, Calendar not reachable since Sunday 21:30');
+  assert.equal(await page.locator('#brief .btoday').textContent(), '3 things on today and 1 reminder due today.');
+  assert.ok(await t.evaluate((n) => n.getBoundingClientRect().right <= innerWidth && document.scrollingElement.scrollWidth <= innerWidth));
+  if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/briefing-today.png` });
+  // Only the failing link's line: the tile says so on its own.
+  state.page.tiles = [{ ...calendarTile(), today: [], tomorrow: null, value: 'Calendar not reachable', detail: 'A calendar link redirects elsewhere.', notice: 'A calendar link redirects elsewhere.' }];
+  await page.reload({ waitUntil: 'load' });
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'brief' })));
+  await page.waitForFunction(() => document.querySelector('#brief .tile.cal .v')?.textContent === 'Calendar not reachable');
+  assert.deepEqual(await t.locator('.v, .s').allTextContents(), ['Calendar not reachable', 'A calendar link redirects elsewhere.']);
   assert.deepEqual(errors, []);
   await context.close();
 });

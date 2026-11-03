@@ -1,22 +1,28 @@
 // /v1/briefing (BRIEFING.md §1–§6): what the Briefing page shows now (the weather asked of
 // Open-Meteo again when the kept forecast is over 30 minutes old: at once when there is none, else
-// while the page shows the kept one; the songs added in the last day from the Music object) and
-// the weather's place by a town's name, with its country for the Holidays tile.
+// while the page shows the kept one; the owner's calendar links the same way, at once for a link
+// never tried, calendar.ts; the songs added in the last day from the Music object), the weather's
+// place by a town's name, with its country for the Holidays tile, and the calendar's events for
+// `th get` (each link by its host only).
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
-import type { BriefingResponse } from '../../../../shared/contract/briefing.ts';
+import { type BriefingResponse, CALENDAR_LIMITS, type CalendarResponse } from '../../../../shared/contract/briefing.ts';
 import { type AppEnv, deviceOf, guard } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { inSandbox } from '../../http/sandbox';
-import { json } from '../../http/validate';
+import { json, parse } from '../../http/validate';
 import { DAY } from '../../lib/time';
 import { coreObject } from '../../objects/core';
 import { musicObject } from '../../objects/music';
 import { fresh } from '../../objects/rpc';
+import { refreshCalendars } from './calendar';
 import { findPlace, forecastFor, type Place } from './weather';
 
 const STALE_MS = 30 * 60_000;
 const placeBody = z.object({ name: z.string().check(z.minLength(2), z.maxLength(80)) });
+const calendarQuery = z.object({
+  days: z.optional(z.coerce.number().check(z.int(), z.gte(1), z.lte(CALENDAR_LIMITS.days))),
+});
 
 /** A place kept before its country was asked (2026-11-02): the geocoder once more, by its name;
  * kept only when the answer is the same place (its rounded coordinates). */
@@ -33,7 +39,10 @@ export const briefingRoutes = new Hono<AppEnv>()
     const songs = musicObject(c.env)
       .addedSince(Date.now() - DAY)
       .catch(() => null);
-    const { place, forecast } = await core.weather();
+    const [{ place, forecast }, cal] = await Promise.all([core.weather(), core.calendarPlan()]);
+    // What the page must wait for (nothing kept yet), and what may finish after it is answered.
+    const now: Promise<unknown>[] = [];
+    const later: Promise<unknown>[] = [];
     if (place && (!forecast || Date.now() - forecast.at > STALE_MS)) {
       const ask = Promise.all([
         forecastFor(place, Date.now()).then((f) => core.putForecast(place, f)),
@@ -41,10 +50,21 @@ export const briefingRoutes = new Hono<AppEnv>()
           ? null
           : countryOf(place).then((cc) => (cc ? core.backfillCountry(place, cc) : undefined)),
       ]).catch(() => {});
-      if (forecast) c.executionCtx.waitUntil(ask);
-      else await ask;
+      (forecast ? later : now).push(ask);
     }
+    const due = cal.links.filter((l) => l.due);
+    if (due.length) {
+      const ask = refreshCalendars(core, due, cal.tz, Date.now()).catch(() => {});
+      (due.some((l) => l.fresh) ? now : later).push(ask);
+    }
+    if (later.length) c.executionCtx.waitUntil(Promise.all(later));
+    await Promise.all(now);
     return c.json((await fresh(core.briefingNow(await songs))) as BriefingResponse);
+  })
+  .get('/briefing/calendar', guard('GET /v1/briefing/calendar'), async (c) => {
+    if (inSandbox()) throw new ApiError('validation', [{ path: 'TH-Sandbox', issue: 'the sandbox has no calendar' }]);
+    const q = parse(calendarQuery, c.req.query());
+    return c.json((await fresh(coreObject(c.env).calendarList(q.days ?? 7))) as CalendarResponse);
   })
   .put('/briefing/place', guard('PUT /v1/briefing/place'), async (c) => {
     const { name } = await json(c, placeBody);

@@ -91,7 +91,7 @@ describe('the profile (MEMORY.md §8)', () => {
         pinned: 1,
         recorded_at: Date.UTC(2026, 10, 2),
       }),
-      fact({ kind: 'goal', text: 'Wants to play the piece at 100 bpm', source: 'inferred', confidence: 0.5 }),
+      fact({ kind: 'goal', text: 'Wants to play the piece at 100 bpm', source: 'observed', confidence: 0.7 }),
       fact({ kind: 'routine', text: 'Practises after lunch', may_raise: 0, sensitivity: 1 }),
       fact({ kind: 'rule', text: 'Answer in the second language after 21:00' }),
     ];
@@ -107,7 +107,7 @@ describe('the profile (MEMORY.md §8)', () => {
       'Practises after lunch',
       'Owns a classical guitar',
     ]);
-    expect(lines[2]).toContain('(0.5, i, since');
+    expect(lines[2]).toContain('(0.7, o, since');
     expect(lines[3]).toMatch(/ · don't raise · private$/);
     expect(a.text).not.toContain('second language');
     expect(a.fact_ids).toHaveLength(5);
@@ -278,14 +278,6 @@ describe('the briefing (MEMORY.md §9)', () => {
     const twelve = section(b.full, 12);
     expect(twelve.length).toBeLessThanOrEqual(8_100);
     expect(twelve).toMatch(/\(\+\d+ more: th history today\)/);
-  });
-
-  it('section 7 names the subagents to delegate to, by role (RUNTIME.md §6.6)', () => {
-    const seven = (role: 'chat' | 'night' | 'reflex') => buildBrief(input({ role })).core.split('## 7. ')[1];
-    for (const name of ['reader', 'researcher', 'night-step', 'coder'])
-      expect(seven('chat') + seven('night')).toContain(name);
-    expect(seven('night')).toContain('night-step for mechanical steps');
-    expect(seven('reflex')).toMatch(/reader for outside text, nothing else$/);
   });
 });
 

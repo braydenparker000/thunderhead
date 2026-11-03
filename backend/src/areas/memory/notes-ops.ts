@@ -1,12 +1,15 @@
 // Open threads (commitments and loose ends) and day notes (API.md §11.13, MEMORY.md §2, §11).
 // Each write is one ledger row whose undo restores what was there; the same body again changes
 // nothing, so a night step that reruns never writes a second version, and the owner's edit of a
-// day note is never written over by the night. A mind writes from a claimed, live session; a
-// tainted one may still add a loose end ("remember: …", MEMORY.md §7.4) but no day note.
+// day note is never written over by the night. A mind writes from a claimed, live session; one
+// that read outside text writes both, labelled `outside` (MEMORY.md §6 M11): a loose end it wrote is
+// shown and used as any other, marked; a day note it wrote is shown, marked, and is never evidence
+// for a fact (M11d, validate.ts).
 import type {
   DayNote,
   OpenThread,
   PatchOpenThreadRequest,
+  Provenance,
   PutDayNoteRequest,
   PutOpenThreadRequest,
 } from '../../../../shared/contract/memory.ts';
@@ -65,14 +68,24 @@ const WORDS = {
   reopen: 'reopened a loose end',
 } as const;
 
-/** A mind writes loose ends and day notes only from a claimed, live session of its role (a
- * tainted one may still note a loose end, MEMORY.md §7.4). */
+/** A mind writes loose ends and day notes only from a claimed, live session of its role, so a new
+ * session id can't shed the label its claim took over (MEMORY.md §7). */
 function mindSession(w: Writer, c: Caller): { tainted: boolean } | null {
   if (c.who === 'D') return null;
   const s = claimedSession(w.db, c.session_id, c.who === 'N' ? 'night' : 'chat');
   // One that was handed a message off the record writes neither (conversation/held.ts).
   if (s.offRecord) throw new Fail('off_record');
   return s;
+}
+
+/** M11 for a loose end or a day note: one from a session that read outside text is `outside`;
+ * otherwise `owner`, except that a write which leaves a loose end's words as they were (closing it,
+ * dropping it, moving its date) keeps the label they had, the owner's Done and Drop included: their
+ * tap says it is finished, not that the words are theirs. Only the owner's own words over it (an
+ * edit) make an `outside` loose end theirs. */
+function noted(c: Caller, s: { tainted: boolean } | null, kept: Provenance | null): Provenance {
+  if (s?.tainted && c.who !== 'D') return 'outside';
+  return kept ?? 'owner';
 }
 
 /** Text a loose end or a day note keeps: one paragraph, nothing MEMORY.md §13 never stores. */
@@ -83,7 +96,7 @@ function clean(path: string, t: string): string {
 }
 
 export function putThread(w: Writer, c: Caller, id: string, r: PutOpenThreadRequest): OpenThread {
-  mindSession(w, c);
+  const s = mindSession(w, c);
   const before = notes.openThread(w.db, id);
   const status = r.status ?? before?.status ?? 'open';
   const why = r.why === undefined ? null : clean('why', r.why);
@@ -109,23 +122,32 @@ export function putThread(w: Writer, c: Caller, id: string, r: PutOpenThreadRequ
     last_progress_at: before ? w.at : null,
     closed_at: status === 'open' ? null : closing ? w.at : (before?.closed_at ?? w.at),
     closed_why: status === 'open' ? null : closing ? why : (why ?? before?.closed_why ?? null),
+    provenance: noted(c, s, before && before.text === text ? notes.notedBy(before) : null),
   };
-  // The same body again (a retried call, a rerun night step) changes nothing.
+  // The same body again (a retried call, a rerun night step) changes nothing, its label included.
   if (before && notes.sameThread({ ...row, last_progress_at: before.last_progress_at }, before))
     return notes.toOpenThread(before);
-  write(w, c, row, before, self, !before ? 'open' : closing ? status : before.status !== 'open' ? 'reopen' : 'update');
+  const what = !before ? 'open' : closing ? status : before.status !== 'open' ? 'reopen' : 'update';
+  write(w, c, row, before, self, what, Boolean(s?.tainted));
   return notes.toOpenThread(row);
 }
 
 export function patchThread(w: Writer, c: Caller, id: string, r: PatchOpenThreadRequest): OpenThread {
-  mindSession(w, c);
+  const s = mindSession(w, c);
   const before = notes.openThread(w.db, id);
   if (!before) throw new Fail('not_found');
   const why = r.why === undefined ? null : clean('why', r.why);
   if (r.status === 'dropped' && !why) throw invalid('why', 'required to drop it');
   if (before.status === r.status) return notes.toOpenThread(before);
-  const row = { ...before, status: r.status, last_progress_at: w.at, closed_at: w.at, closed_why: why };
-  write(w, c, row, before, uuidv7(w.at), r.status);
+  const row = {
+    ...before,
+    status: r.status,
+    last_progress_at: w.at,
+    closed_at: w.at,
+    closed_why: why,
+    provenance: noted(c, s, notes.notedBy(before)),
+  };
+  write(w, c, row, before, uuidv7(w.at), r.status, Boolean(s?.tainted));
   return notes.toOpenThread(row);
 }
 
@@ -136,6 +158,8 @@ function write(
   before: notes.OpenThreadRow | null,
   self: string,
   what: keyof typeof WORDS,
+  /** The ledger's mark: a session that read outside text wrote it. */
+  outsideRead: boolean,
 ): void {
   const device = c.who === 'D';
   w.ledger({
@@ -152,6 +176,7 @@ function write(
           : 'from the conversation',
     ref: `open:${row.id}`,
     undo: { op: 'open.restore', args: { id: row.id, before, after: row } },
+    tainted: outsideRead,
   });
   notes.putOpenThread(w.db, row);
   w.change('open_thread', `open:${row.id}`);
@@ -160,8 +185,9 @@ function write(
 /** PUT /v1/memory/day-notes/:day: the night shift's note, or the owner's edit; `stats` are the
  * Worker's own counts. A body equal to the stored one keeps its version. */
 export function putDayNote(w: Writer, c: Caller, day: string, today: string, r: PutDayNoteRequest): DayNote {
-  // A day note is evidence later (M2), so a tainted session never writes one.
-  if (mindSession(w, c)?.tainted) throw new Fail('session_tainted');
+  // A day note is evidence later (M2), so one a session that read outside text writes is labelled
+  // `outside`: shown, marked, never evidence (M11d).
+  const s = mindSession(w, c);
   if (day > today) throw invalid('day', 'not a future day');
   const summary = clean('summary', r.summary);
   if (!summary) throw invalid('summary', 'required');
@@ -186,6 +212,7 @@ export function putDayNote(w: Writer, c: Caller, day: string, today: string, r: 
     written_by: c.who === 'D' ? 'owner' : (c.session_id ?? c.actor),
     version: (before?.version ?? 0) + 1,
     written_at: w.at,
+    provenance: noted(c, s, null),
   };
   const { seq: _seq, ...was } = before ?? { seq: 0 };
   w.ledger({
@@ -196,6 +223,7 @@ export function putDayNote(w: Writer, c: Caller, day: string, today: string, r: 
     why: c.who === 'D' ? 'the owner edited it' : 'the night shift summed up the day',
     ref: `day:${day}`,
     undo: { op: 'day.restore', args: { day, version: row.version, before: before ? was : null } },
+    tainted: Boolean(s?.tainted),
   });
   notes.putDayNote(w.db, row, before);
   w.change('day_note', `day:${day}`);

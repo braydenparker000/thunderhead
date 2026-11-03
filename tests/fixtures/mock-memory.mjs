@@ -73,7 +73,8 @@ export function memoryAnswer(m, method, p, url, body) {
     else if (o.op === 'forget') m.facts = m.facts.filter((x) => x.id !== o.id);
     else if (o.op === 'pin') f.pinned = o.pinned;
     else if (o.op === 'may_raise') f.may_raise = o.value;
-    else if (o.op === 'confirm') Object.assign(f, { source: 'user', tags: f.tags.filter((t) => t !== 'imported'), confidence_now: 0.95 });
+    // The owner's confirm makes a fact theirs: "Yes, that's right", or Keep under "Learned from outside".
+    else if (o.op === 'confirm') Object.assign(f, { source: 'user', provenance: 'owner', tags: f.tags.filter((t) => t !== 'imported'), confidence_now: 0.95 });
     else if (o.op === 'supersede') {
       f.superseded_at = Date.now();
       f.superseded_by = o.new.id;

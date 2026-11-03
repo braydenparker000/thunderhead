@@ -41,6 +41,14 @@ The Worker deploys from the same workflow (job `api`, before `site`; off until
   Or revert the bad commit on `main`.
 - **What's live:** `<site>/release.json`.
 
+**Rolling the Worker back across Core step 32 (memory provenance, 2026-11-03).** The schema stays (steps
+only add), but a Worker from before it ignores the `provenance` column: its profile and briefing then
+take facts labelled `outside` (written after reading outside text, waiting for the owner's Keep) in as
+the owner's, and a confirm or supersede it writes leaves a `user` row with no label, which reads as the
+owner's own once the newer Worker is back. Roll back across it only for a real outage, keep it short,
+and after rolling forward review Settings › Memory (Learned from outside, and the facts written while
+the older Worker ran); [MEMORY.md §6](docs/mind/MEMORY.md#6-provenance-and-taint-rules-worker-enforced).
+
 Deploys need these repository settings: secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID`,
 `AZURE_SUBSCRIPTION_ID`; variables `AZURE_STORAGE_ACCOUNT`, `SITE_URL`,
 `AZURE_DEPLOY_ENABLED=true`.

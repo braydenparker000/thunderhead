@@ -129,6 +129,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/work/thread/messages` | M D C N | P4 | built |  |
 | `GET /v1/briefing` | D | P4 | built |  |
 | `PUT /v1/briefing/place` | D | P8 | built | the weather's place, by a town's name |
+| `GET /v1/briefing/calendar` | D C N | P8 | built | ?days=1–14 (7): the owner's calendar events kept from today's midnight, each link by its host only; `source: outside` marks a shared link's words |
 | `GET /v1/music/catalog` | D | P5 | built | the ported player's format; ETag, 304; 409 before the import |
 | `GET /v1/music/waveforms/:id` | D | P5 | built |  |
 | `GET /v1/music/tracks` | C N | P5 | built | ?q=&limit=: tracks by their tags (songs rated 1 left out), for a playlist the mind makes; &untagged=1: the night's next ≤ 200 songs needing a note, `more` |
@@ -223,7 +224,7 @@ Side `worker`: run inside the commit that queues it, `done` at once, its inverse
 | `settings.set` | shell | reversible | settings | worker | yes | stored | 1 | `{ key: string, value: json }` | Changes one of the Worker's settings in the catalogue (MENU-AND-SETTINGS.md §6), to a value the catalogue allows. Never the standing permissions (`mind.permit.*`), the outside-sources switch (`mind.ask_outside`) or Privacy and data (`privacy.*`): those are the owner's alone. Its undo puts back the value before (or the default), while the setting still holds the new one. |
 | `briefing.pin_tile` | shell | reversible | tiles | worker | yes | stored | 1 | `{ tile: 'due' \| 'holidays' \| 'practice' \| 'study' \| 'built' \| 'note.1' \| 'note.2' \| 'note.3' }` | Pins a tile the Briefing knows (`due`, `holidays`, or a night slot: `practice`, `study`, `built`, `note.1`–`note.3`) right after "Waiting on you", newest pin first, at most 3 (a fourth unpins the oldest); a pinned tile shows only when it has something to say. The owner's own arrangement on the phone still wins. Its undo puts back the pins before. |
 | `briefing.unpin_tile` | shell | reversible | tiles | worker | yes | stored | 1 | `{ tile: 'due' \| 'holidays' \| 'practice' \| 'study' \| 'built' \| 'note.1' \| 'note.2' \| 'note.3' }` | Unpins a Briefing tile, which goes back to its usual place. Its undo pins it again where it was. |
-| `memory.note` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ text: string, kind: 'state' \| 'goal' \| 'preference' \| 'routine' \| 'habit' \| 'fact' \| 'rule', subject?: string, evidence: array }` | Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), from a clean session, never off the record; no card. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's. |
+| `memory.note` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ text: string, kind: 'state' \| 'goal' \| 'preference' \| 'routine' \| 'habit' \| 'fact' \| 'rule', subject?: string, evidence: array }` | Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), never off the record; no card. `provenance` is the label memory gave it (MEMORY.md §6 M11): `owner`, or `outside` from a session that read outside text, which waits for the owner's keep. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's. |
 | `shell.appearance` | shell | reversible | settings | phone | yes | reported | 1 | `{ mode: 'auto' \| 'day' \| 'night' }` | Sets the phone's appearance (auto, day or night). The phone reports the previous mode as the undo. |
 
 ## Standing permissions
@@ -251,7 +252,7 @@ How the mind may take each class of action, the owner's `mind.permit.<class>` se
 | `reminder.cancel` | reminders | — | Taking a reminder back (`DELETE /v1/reminders/:id`). |
 | `muse.order` | muse | — | A work order for Muse (`PUT /v1/work/orders/:id`). |
 | `muse.order_personal` | muse | reach_people | A work order of a kind that carries the owner's data (`personal` in work.ts): Muse runs on another provider (BEHAVIOR.md §7 rule 4). No such kind is built. |
-| `memory.outside` | outside | — | Keeping a fact learned from outside text. Memory refuses outside text altogether today (MEMORY.md §7), which no position loosens; provenance labels will route it here. |
+| `memory.outside` | outside | — | Keeping a fact learned from outside text. A write from a session that read outside text is labelled outside and waits for the owner's Keep in Settings › Memory (MEMORY.md §6 M11); no position loosens that. |
 
 ## Surface kinds
 
@@ -361,8 +362,9 @@ Every event type the phone may send (`PUT /v1/senses/batches/:id`, API.md §11.1
 | `tainted_evidence` | Muse or outside text is never evidence. |
 | `needs_owner_words` | Faith and facts about people come only from the owner's words. |
 | `too_long` | One claim, at most 280 characters. |
-| `no_inferred_sensitive` | Sensitive traits are never inferred. |
-| `session_tainted` | This session read outside text, so it may not write memory. |
+| `outside_rule` | This write is labelled outside: outside text never becomes or replaces a rule. |
+| `outside_supersede` | This write is labelled outside: it can't replace what the owner said or did. Add it as a new fact; it waits for the owner's keep. |
+| `outside_confirm` | This session read outside text, so it confirms nothing (a fact would stop fading on outside say-so). Remember it as a new fact; it waits for the owner's keep. |
 | `laws_unpinned` | This session's laws file is missing or is not the version the owner approved, so it may not write rules. |
 | `device_only` | Only the owner can do this, from the Memory page. |
 | `duplicate_id` | A fact with this id already exists. |
@@ -454,7 +456,6 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `backup.stale` | the newest complete backup is more than 8 days old (once one exists) | S3 | Backups: newest complete backup < 8 days old | yes | P4 | built |
 | `drill.failed` | the last restore drill failed | S3 | Backups: the monthly drill passes | yes | P4 | built |
 | `drill.overdue` | no restore drill for 35 days since the first complete backup | S3 | Backups: the monthly drill passes | yes | P4 | built |
-| `muse.silent` | no Muse API call in 26 hours | S4 | Muse checks in daily (MUSE.md §9) | no | P4 | built |
 | `events.export.late` | day D not archived by D+1 09:00 | S3 | Senses: each day archived by the next morning | yes | P5 | built |
 
 ## Error codes

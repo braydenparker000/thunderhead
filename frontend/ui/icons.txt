@@ -16,6 +16,7 @@ file-text
 waveform
 alarm
 calendar-star
+calendar-blank
 magnifying-glass
 moon-stars
 bell

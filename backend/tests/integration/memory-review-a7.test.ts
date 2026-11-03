@@ -11,6 +11,7 @@ import {
   as,
   brief,
   CHAT_SESSION,
+  labelled,
   NIGHT_SESSION,
   ownerSays,
   type Principals,
@@ -63,7 +64,10 @@ describe('a taint is found by its own time, and holds for 24 hours', () => {
     await stop(P.C, 'cse_a7_spans');
     const next = await brief(P.C, 'cse_a7_after_roll', 'chat');
     expect([next.body.day, next.body.tainted]).toEqual([dayBefore(today, -1), true]);
-    expect(await add(P.C, 'cse_a7_after_roll', 'Laundered across the roll')).toBe('session_tainted');
+    // What it writes is labelled outside (MEMORY.md §6 M11), not laundered into the owner's.
+    expect(await labelled(as(P.C, 'cse_a7_after_roll'), addOp([`msg:${said}`], { text: 'Across the roll' }))).toBe(
+      'outside',
+    );
   });
 
   it('a taint 23 hours old carries over', async () => {

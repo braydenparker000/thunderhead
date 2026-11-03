@@ -281,6 +281,14 @@ test('search: this phone first, the Worker appended, accent-folded, Show all, a 
     ]);
     await eventually(() => rows('What I remember'), ['Likes calm music in the evening | You said']);
     assert.equal(await page.$eval('.sres .srow .sn b', (b) => b.textContent), 'calm');
+    // One the mind took for the owner's words from outside text is not "You said" until they keep it.
+    const heard = api.state.memory.facts[0];
+    api.state.memory.facts.push({ ...heard, id: '0192f0c4-0000-7000-8000-0000000000c9', text: 'Hates calm jazz', provenance: 'outside' });
+    await page.fill('.sbox input', 'calm jazz');
+    await eventually(() => rows('What I remember'), ['Hates calm jazz | From outside']);
+    api.state.memory.facts.pop();
+    await page.fill('.sbox input', 'calm');
+    await eventually(() => rows('What I remember'), ['Likes calm music in the evening | You said']);
     await shot(page, 'search', theme);
     // Go to: app and settings names.
     await page.fill('.sbox input', 'devi');

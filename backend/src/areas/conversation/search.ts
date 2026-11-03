@@ -16,9 +16,18 @@ export function searchMessages(
   limit: number,
 ) {
   const held = heldIds(db);
-  return db.all<{ seq: number; id: string; thread_id: string; created_at: number; snippet: string; score: number }>(
+  return db.all<{
+    seq: number;
+    id: string;
+    thread_id: string;
+    created_at: number;
+    snippet: string;
+    score: number;
+    author: string;
+    origin: string;
+  }>(
     `SELECT m.seq, m.id, m.thread_id, m.created_at, snippet(messages_fts, 0, '«', '»', '…', 24) AS snippet,
-       bm25(messages_fts) AS score
+       bm25(messages_fts) AS score, m.author, m.origin
      FROM messages_fts JOIN messages m ON m.seq = messages_fts.rowid
      WHERE messages_fts MATCH ? AND (? IS NULL OR m.created_at >= ?) AND (? IS NULL OR m.created_at < ?)
        AND (? IS NULL OR m.thread_id = ?) ${held.length ? 'AND m.thread_id NOT IN (SELECT value FROM json_each(?))' : ''}

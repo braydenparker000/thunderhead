@@ -28,7 +28,7 @@ Sign-in screens and flows are in [../product/SIGN-IN.md](../product/SIGN-IN.md).
 | A2 | The power to act: verbs on the phone, proposals, deploys, merges, pushes | A hijacked actor could do harm in the owner's name |
 | A3 | Credentials: password, recovery code, session tokens, agent keys, Worker secrets, the Cloudflare deploy token, the Claude account | Keys to A1 and A2 |
 | A4 | Availability: 100k Worker requests a day, 100k DO row writes a day, Claude usage limits | Free tiers can be exhausted by others |
-| A5 | Memory integrity | Outside text must never become a "fact" about the owner (taint rule, [../mind/MEMORY.md](../mind/MEMORY.md)) |
+| A5 | Memory integrity | Outside text must never become a "fact" about the owner: what a session writes after reading it is labelled `outside` and stays out of the profile, the briefing's first sections and the rules until the owner keeps it (provenance rule M11, [../mind/MEMORY.md](../mind/MEMORY.md); until 2026-11-02 the taint rule refused it) |
 | A6 | The music audio in `jarvis-music` | One copy; irreplaceable. Never deleted from (decisions). |
 
 ### 1.2 Who might attack, and what they can do
@@ -248,7 +248,7 @@ Rules:
 | `auth/breakglass` (start) | — | W (owner-asked only) | — | — | — | — |
 | `auth/breakglass/cancel` | W | — | — | — | — | — |
 | Conversation, threads | RW | RW | R + home lines | R (last 24 h) + one system notice | own Muse thread | — |
-| Memory (facts, day notes, open threads) | RW (edit, forget) | R + remember (taint rules) | R + observed/inferred facts, day notes | — | — | — |
+| Memory (facts, day notes, open threads) | RW (edit, forget) | R + remember (provenance rules) | R + observed/inferred facts, day notes | — | — | — |
 | Ledger | R + undo | R + W via actions | R + W via actions | R | — | — |
 | Proposals | approve/reject (device tap) | create; record the owner's own words (`by_message`, Worker-verified) | create | create | — | — |
 | Verbs, surfaces | R | W | W | — | — | — |
@@ -337,6 +337,10 @@ Every response, errors and preflights included:
 - `TH-Request-Id` = the `cf-ray` value; the same id is in the error body and the log line.
 - Bodies: 64 KB by default; 4 KB on `/v1/auth/*`; 256 KB for event batches. Over the limit → `413 too_large` before parsing.
 - Errors never echo the request body or a token.
+
+### 8.1 Addresses the Worker fetches for the owner
+
+The Worker asks only fixed origins (Open-Meteo, Have I Been Pwned, the push services, Guitar's sources) or an address the owner gave, each checked as public before it is asked: Podcasts' feeds and episodes (checked again at each redirect, at most 16) and, from 2026-11-02, the owner's calendar links (`areas/briefing/calendar.ts`). A calendar link is checked when it is saved (`linkProblem` in `shared/contract/settings.ts`: https only, at most 512 characters, no user, password or port, a host that is neither numeric nor local, `.local`, `.internal`, `.arpa` and the wildcard-DNS names included) and again before each fetch; no redirect is followed (`redirect: 'manual'`, a 3xx is the failure `redirect`), the answer must be `text/calendar` or `text/plain`, at most 1 MB (refused by `Content-Length` or cut off as it streams) within 10 s. A link is a key to its calendar: it stays in Core's settings, only the owner's devices read it back, and an agent's `GET /v1/settings` has each link's host and mark only.
 
 ## 9. Presigned media URLs
 

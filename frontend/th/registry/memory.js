@@ -39,15 +39,19 @@ export const SOURCES = { user: 'You said', observed: 'I noticed', inferred: 'I i
 /** @param {string} source */
 export const sourceLabel = (source) => (Object.hasOwn(SOURCES, source) ? SOURCES[/** @type {keyof typeof SOURCES} */ (source)] : source);
 
+/** Not "You said" until kept (MEMORY.md §6 M11). @param {Pick<Fact, 'source' | 'provenance'>} f */
+export const whose = (f) => (f.provenance === 'outside' && f.source === 'user' ? 'From outside' : sourceLabel(f.source));
+
 /** Which group a fact is listed in. @param {Pick<Fact, 'kind' | 'tags'>} f */
 export function groupOf(f) {
   if (f.kind !== 'rule' && f.tags.includes('faith')) return 'beliefs';
   return GROUPS.some((g) => g.id === f.kind) ? f.kind : 'other';
 }
 
-/** Where a current fact goes: the review list, Fading, or its group. @param {Fact} f */
+/** Where a current fact goes: the review list, Learned from outside (M11), Fading, or its group. @param {Fact} f */
 export function shelfOf(f) {
   if (f.tags.includes('imported') && f.source !== 'user') return 'review';
+  if (f.provenance === 'outside') return 'outside';
   if (f.kind !== 'rule' && !f.pinned && f.confidence_now < MEMORY.confidence.fading) return 'fading';
   return groupOf(f);
 }

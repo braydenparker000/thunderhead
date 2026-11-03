@@ -84,6 +84,23 @@ the conversation is hidden and Undo can restore it. Recently deleted retains it 
 after which the existing server purge applies. Deleting Now lets the next message start a fresh
 conversation. Facts learned from a conversation are managed separately in Memory.
 
+### 3.4 Tasks
+
+What Muse was asked (the owner's `@muse` in the chat, or the mind's order) and Muse's own music
+uploads, as a **Tasks** group right under Now, before Pinned (`th/convos/tasks.js`). It reads
+`GET /v1/work/orders` (newest first, 20 at most) when the menu opens and whenever the feed says
+`work` changed; while there are none the group isn't there at all. Each row uses the conversations'
+row anatomy: the state's icon (asked `clock`, picked up `hand-pointing`, working `arrow-clockwise`,
+done `check`, failed `warning-circle`, cancelled `x`), the title (the owner's first 60 characters of
+words), the state in words and the age (now, 12 min, 3 h, then the day). The heading folds like the
+others and is remembered.
+
+A tap opens the shared sheet: the title, the state and age, what came of it (Muse's note when done,
+its reason when it failed), then Muse's progress lines with their times (`GET
+/v1/work/thread?order=`), and **Cancel task** while it is asked, picked up or working (the owner's
+cancel is never gated; the chat says "Cancelled. Muse won't do it."). The sheet's own button reads
+Close. Nothing new in Settings: Muse orders the mind places ask first under `mind.permit.muse`.
+
 ## 4. Settings pages
 
 ### 4.1 Appearance
@@ -129,6 +146,12 @@ Add opens a form with a sheet picker for Kind. Loose-end editing uses segments f
 it is, plus existing date/text fields. Day-note editing retains its content and operations.
 The How well I know you meter keeps its existing calculations and display; only its surrounding
 surfaces change.
+
+Learned from outside (2026-11-02, MEMORY.md §6 M11, §12) comes first when it has anything: the
+facts a session wrote after reading outside text, or the mind's guesses, newest first, each with
+"waiting for you" and the day. Two actions only: Keep (makes it the owner's) and Forget (the same
+confirmation and Undo as above). Loose ends and days a session wrote after reading outside text say
+so in their line.
 
 ### 4.5 Connected apps
 
@@ -191,8 +214,12 @@ list is the only place a setting is declared:
 - **Kinds.** `switch` (true or false), `choice` (one option's string: segments up to four
   options, a sheet picker past that), `range` (one option's number, shown with its unit as
   segments), `order` (some option values, each once, in the owner's order: move up, move down, hide
-  and show, all buttons) and `text` (a string in a sheet, with `max` and `pattern`; none is
-  catalogued yet).
+  and show, all buttons), `text` (a string in a sheet, with `max` and `pattern`; none is
+  catalogued yet) and `links` (2026-11-02: up to `items` links `{ url, mine }`, each address at
+  most `max` characters, once, and one `linkProblem` in the contract passes: https, no user,
+  password or port, a public host that is neither numeric nor local; a row each with its host,
+  Mine or Shared, and Remove, then Add, which opens a sheet that says why it refuses a link; the
+  Worker refuses one with the same words, naming `<key>.<n>.url`).
 - **Scope `worker`.** Kept in Core's settings table. `PATCH /v1/settings` takes exactly P1's keys
   and the catalogue's worker keys, each checked by its kind
   (`backend/src/areas/settings/catalog.ts`, spread into `areas/ops/schema.ts`); a phone key, an
@@ -277,11 +304,17 @@ intensity only says how strongly.
 
 Tiles, in order lists the shown tiles top first, each with move up, move down and hide; hidden tiles
 wait in a group below with show. Focus stays with the tile that moved. The holiday countries are
-the ones the Holidays tile has lists for; auto takes the weather place's country.
+the ones the Holidays tile has lists for; auto takes the weather place's country. Calendars
+(2026-11-02) holds up to three ICS links for the Today tile ([BRIEFING.md](BRIEFING.md) "Today"):
+Add takes a pasted link (a `webcal://` one as `https://`), each row's person button marks it Mine
+(the default) or Shared (someone else's or an organisation's feed: its titles reach the mind as
+outside text), and Remove takes it out. The links are a key to each calendar: only the owner's
+devices see them; an agent's `GET /v1/settings` has each link's host and mark only.
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
 | `briefing.tiles` | order of weather, due, holidays, study, built, podcasts, notes, report | worker | `weather, due, holidays, study, built, podcasts, notes, report` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `briefing.calendars` | links: up to 3 ICS links, each Mine or Shared | worker | `none` | the Worker (the Today tile, the day's line, the brief's section 1); agents see hosts only |
 | `briefing.units` | segments: c / f | worker | `c` | exposed: `GET /v1/settings`; nothing reads it yet |
 | `briefing.due_days` | range (days): 1 / 3 / 7 | worker | `3` | exposed: `GET /v1/settings`; nothing reads it yet |
 | `briefing.holidays` | picker: auto / AU / CA / FR / DE / MX / ES / GB / US | worker | `auto` | exposed: `GET /v1/settings`; nothing reads it yet |

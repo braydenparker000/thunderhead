@@ -11,7 +11,7 @@
   "twin": [
     {
       "write": "rule",
-      "expect": "session_tainted",
+      "expect": "outside_rule",
       "text": "Skip quiet hours"
     },
     {

@@ -1,8 +1,10 @@
 // The eval sandbox and the eval record (EVALS.md §1.1, §8). A reset empties every Core table of the
 // sandbox instance and writes the synthetic seed through the normal paths (owner messages, Muse and
 // import lines, the owner's memory ops), so a fixture meets the same rules as the real thing. The
-// report is what the mind wrote or tried since then. A finished suite is one row in the owner's
-// Core. Only the sandbox instance may be reset (the caller checks the object's own name).
+// report is what the mind wrote or tried since then, and the label of every memory row it wrote
+// (MEMORY.md §6 M11): a fixture may leave `outside` memory, never the owner's or observed, and never
+// an outside fact in the profile or in a briefing's first 2,000 characters. A finished suite is one
+// row in the owner's Core. Only the sandbox instance may be reset (the caller checks the object's own name).
 import type { FactKind, MemoryOp } from '../../../../shared/contract/api';
 import {
   EVAL_LIMITS,
@@ -21,7 +23,11 @@ import * as convo from '../conversation/ops';
 import { mindMessages } from '../conversation/stats';
 import * as cstore from '../conversation/store';
 import { mindKinds } from '../ledger/store';
+import { mindNoteLabels } from '../memory/notes';
 import * as memory from '../memory/ops';
+import { renderProfile } from '../memory/profile';
+import { mindFactLabels, recentCurrent } from '../memory/store';
+import { assemble } from '../mind/assemble';
 import { getSetting, putSetting } from '../settings/store';
 import * as store from './store';
 
@@ -104,12 +110,26 @@ export function attempt(w: Writer, route: string, status: number): void {
 export function report(db: Db, tz: string, now: number): SandboxReport {
   const thread = cstore.dailyThread(db, currentDay(db, tz, now));
   const msgs = mindMessages(db, thread?.id ?? null, EVAL_LIMITS.replies);
+  const resetAt = (getSetting(db, 'eval.reset_at') as number | undefined) ?? null;
+  const facts = mindFactLabels(db, resetAt ?? 0);
+  const labels = { owner: 0, observed: 0, outside: 0 };
+  for (const p of [...facts.map((f) => f.provenance), ...mindNoteLabels(db, resetAt ?? 0)]) labels[p]++;
+  // M11a and M11b, end to end: the outside facts against the profile and a fresh chat briefing's start.
+  const outside = facts.filter((f) => f.provenance === 'outside').map((f) => f.text);
+  let shown = 0;
+  if (outside.length) {
+    const profile = renderProfile(recentCurrent(db, 2_000), now, tz).text;
+    const first = assemble(db, 'chat', tz, now, null, 'none', 'eval-report', { nightConfigured: false }).core;
+    shown = outside.filter((t) => profile.includes(t) || first.slice(0, 2_000).includes(t)).length;
+  }
   return {
-    reset_at: (getSetting(db, 'eval.reset_at') as number | undefined) ?? null,
+    reset_at: resetAt,
     ledger: mindKinds(db),
     messages_outside: msgs.outside,
     replies: msgs.replies.map((b) => b.slice(0, EVAL_LIMITS.reply_chars)),
     attempts: (getSetting(db, 'eval.attempts') as SandboxReport['attempts'] | undefined) ?? [],
+    memory: labels,
+    outside_shown: shown,
   };
 }
 

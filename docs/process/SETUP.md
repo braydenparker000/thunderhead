@@ -511,6 +511,8 @@ sends you only the public key (64 characters); you do step 2 with it, then tell 
 registered, and Muse uploads one test song and sends you the `register` answer for the agent. The
 message for Muse, ready to paste, is [MUSE-UPLOADS.md](../archive/MUSE-UPLOADS.md).
 
+**Muse's tasks (`@muse`, 2026-11-03):** make Muse a key in Settings › Agents (`/settings/agents/`, role **Muse**), then send Muse that key, the API address and [MUSE-PROTOCOL.md](../engineering/MUSE-PROTOCOL.md), and ask it to implement the protocol (poll for a task every 5 minutes). Until then an `@muse` waits under Tasks as "Asked".
+
 N5 (music private: the old Worker's public read off, ask-first) comes after the player has used
 only the new Worker for 3 days.
 
@@ -643,3 +645,11 @@ Thunderhead (the live Worker), so you sign in there once, like a new phone.
 
 From then on the lead runs step 3 for whatever it asks you to try. Worker changes can't be previewed
 this way; a pull request says when that is the case.
+
+## Q. Your calendar on the Briefing (about 2 minutes, any time; 2026-11-02)
+
+Copy your calendar's private ICS link (Google Calendar: Settings → your calendar → **Secret address
+in iCal format**; Outlook: **Publish a calendar** → ICS; iCloud: share the calendar as **Public**,
+then copy its `webcal://` link) and paste it in **Settings → Briefing → Calendars → Add a calendar
+link**, marked **Mine**; a shared or work calendar is **Shared**. Up to three. If the Briefing then
+says "A calendar link redirects elsewhere.", open the link in a browser and paste the address it ends at.

@@ -153,14 +153,6 @@ export const WATCHDOGS = {
     handle: `Read th get /v1/ops/backups: a drill needs a complete backup. Start nothing yourself. ${REPORT}.`,
     phase: 'P4',
   },
-  'muse.silent': {
-    trips: 'no Muse API call in 26 hours',
-    severity: 'S4',
-    slo: 'Muse checks in daily (MUSE.md §9)',
-    wakes: false,
-    handle: `Read th get /v1/work/orders?status=all for the orders Muse left. Contact Muse by no channel: a note in its thread is the most (th post /v1/work/thread/messages). ${REPORT}.`,
-    phase: 'P4',
-  },
   'events.export.late': {
     trips: 'day D not archived by D+1 09:00',
     severity: 'S3',

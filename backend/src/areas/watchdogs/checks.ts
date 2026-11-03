@@ -12,7 +12,6 @@ import { dayNote } from '../memory/notes';
 import { METER_CHECKS } from '../meter/checks';
 import { nightDayOf, nightDone } from '../mind/night';
 import { errorCounts } from '../ops/store';
-import { WORK_CHECKS } from '../work/checks';
 import * as store from './store';
 
 export interface CheckCtx {
@@ -114,8 +113,10 @@ const dbSize: Check = (_db, c) => ({
  * entry (shared/contract/watchdogs.ts) has no `deferred` and its check is here. An area that brings
  * a watchdog's data adds its check (and, if it reads outside SQL, its GATHER entry) in its own
  * module and spreads it in below: the backups' `backup.stale`, `drill.failed` and `drill.overdue`
- * (P4 stage E, areas/backups/checks.ts), Muse's `muse.silent` (stage G, areas/work/checks.ts) and the
- * quotas' `quota.rows_read` and `quota.rows_written` (the row meter, areas/meter/checks.ts). */
+ * (P4 stage E, areas/backups/checks.ts) and the quotas' `quota.rows_read` and `quota.rows_written`
+ * (the row meter, areas/meter/checks.ts). Muse's `muse.silent` was removed on 2026-11-02: Muse now
+ * polls for orders, an order it leaves shows its age in the menu's Tasks, and the Briefing still
+ * says when Muse hasn't called for a day. */
 export const CHECKS: Partial<Record<WatchdogName, Check>> = {
   'errors.spike': errorsSpike,
   'client.errors': clientErrors,
@@ -124,7 +125,6 @@ export const CHECKS: Partial<Record<WatchdogName, Check>> = {
   'jobs.stuck': jobsStuck,
   'db.size': dbSize,
   ...BACKUP_CHECKS,
-  ...WORK_CHECKS,
   ...METER_CHECKS,
 };
 

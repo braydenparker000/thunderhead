@@ -22,6 +22,30 @@ CREATE TABLE backups (
 
 CREATE INDEX backups_done ON backups (state, finished_at);
 
+CREATE TABLE calendar_events (
+  feed TEXT NOT NULL,
+  uid TEXT NOT NULL,
+  start INTEGER NOT NULL,
+  end INTEGER NOT NULL,
+  all_day INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  location TEXT,
+  source TEXT NOT NULL,
+  PRIMARY KEY (feed, uid, start)
+  ) WITHOUT ROWID;
+
+CREATE INDEX calendar_events_start ON calendar_events (start);
+
+CREATE TABLE calendar_feeds (
+  feed TEXT PRIMARY KEY,
+  checked_at INTEGER NOT NULL,
+  ok_at INTEGER,
+  failing_since INTEGER,
+  error TEXT,
+  hash TEXT,
+  n INTEGER NOT NULL DEFAULT 0
+  ) WITHOUT ROWID;
+
 CREATE TABLE changes (
   seq INTEGER PRIMARY KEY,
   kind TEXT NOT NULL,
@@ -39,7 +63,7 @@ CREATE TABLE day_notes (
   written_by TEXT NOT NULL,
   version INTEGER NOT NULL,
   written_at INTEGER NOT NULL
-  );
+  , provenance TEXT);
 
 CREATE VIRTUAL TABLE day_notes_fts USING fts5 (summary, content = 'day_notes', content_rowid = 'seq', tokenize = 'unicode61 remove_diacritics 2');
 
@@ -134,7 +158,7 @@ CREATE TABLE facts (
   written_by TEXT NOT NULL,
   ledger_id TEXT,
   lineage_id TEXT NOT NULL
-  );
+  , provenance TEXT);
 
 CREATE INDEX facts_current ON facts (kind) WHERE superseded_at IS NULL;
 
@@ -149,6 +173,8 @@ CREATE TABLE 'facts_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB);
 CREATE TABLE 'facts_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID;
 
 CREATE INDEX facts_lineage ON facts (lineage_id);
+
+CREATE INDEX facts_outside ON facts (recorded_at) WHERE provenance = 'outside' AND superseded_at IS NULL;
 
 CREATE TABLE files (
   id TEXT PRIMARY KEY,
@@ -335,7 +361,9 @@ CREATE TABLE muse_notes (
   author TEXT NOT NULL,
   body TEXT NOT NULL,
   created_at INTEGER NOT NULL
-  );
+  , order_id TEXT);
+
+CREATE INDEX muse_notes_order ON muse_notes (order_id, seq);
 
 CREATE TABLE night_runs (
   day TEXT PRIMARY KEY,
@@ -367,7 +395,7 @@ CREATE TABLE open_threads (
   last_progress_at INTEGER,
   closed_at INTEGER,
   closed_why TEXT
-  ) WITHOUT ROWID;
+  , provenance TEXT) WITHOUT ROWID;
 
 CREATE INDEX open_threads_due ON open_threads (due_at) WHERE status = 'open';
 
@@ -649,8 +677,10 @@ CREATE TABLE work_orders (
   result_valid INTEGER,
   result_errors_json TEXT,
   finished_at INTEGER
-  ) WITHOUT ROWID;
+  , message_id TEXT, said TEXT, invalid INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID;
 
 CREATE INDEX work_orders_kind_day ON work_orders (kind, day);
+
+CREATE INDEX work_orders_new ON work_orders (created_at);
 
 CREATE INDEX work_orders_open ON work_orders (status, created_at);

@@ -1033,6 +1033,16 @@
       "status": "built",
       "note": "the weather's place, by a town's name"
     },
+    "GET /v1/briefing/calendar": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P8",
+      "status": "built",
+      "note": "?days=1–14 (7): the owner's calendar events kept from today's midnight, each link by its host only; `source: outside` marks a shared link's words"
+    },
     "GET /v1/music/catalog": {
       "who": [
         "D"
@@ -2586,7 +2596,7 @@
       "side": "worker",
       "queueable": true,
       "undo": "stored",
-      "doc": "Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), from a clean session, never off the record; no card. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's.",
+      "doc": "Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), never off the record; no card. `provenance` is the label memory gave it (MEMORY.md §6 M11): `owner`, or `outside` from a session that read outside text, which waits for the owner's keep. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's.",
       "versions": {
         "1": {
           "args": {
@@ -2635,10 +2645,19 @@
             "properties": {
               "fact_id": {
                 "type": "string"
+              },
+              "provenance": {
+                "type": "string",
+                "enum": [
+                  "owner",
+                  "observed",
+                  "outside"
+                ]
               }
             },
             "required": [
-              "fact_id"
+              "fact_id",
+              "provenance"
             ]
           }
         }
@@ -3521,8 +3540,9 @@
       "tainted_evidence": "Muse or outside text is never evidence.",
       "needs_owner_words": "Faith and facts about people come only from the owner's words.",
       "too_long": "One claim, at most 280 characters.",
-      "no_inferred_sensitive": "Sensitive traits are never inferred.",
-      "session_tainted": "This session read outside text, so it may not write memory.",
+      "outside_rule": "This write is labelled outside: outside text never becomes or replaces a rule.",
+      "outside_supersede": "This write is labelled outside: it can't replace what the owner said or did. Add it as a new fact; it waits for the owner's keep.",
+      "outside_confirm": "This session read outside text, so it confirms nothing (a fact would stop fading on outside say-so). Remember it as a new fact; it waits for the owner's keep.",
       "laws_unpinned": "This session's laws file is missing or is not the version the owner approved, so it may not write rules.",
       "device_only": "Only the owner can do this, from the Memory page.",
       "duplicate_id": "A fact with this id already exists.",
@@ -3956,7 +3976,7 @@
       },
       "memory.outside": {
         "class": "outside",
-        "doc": "Keeping a fact learned from outside text. Memory refuses outside text altogether today (MEMORY.md §7), which no position loosens; provenance labels will route it here."
+        "doc": "Keeping a fact learned from outside text. A write from a session that read outside text is labelled outside and waits for the owner's Keep in Settings › Memory (MEMORY.md §6 M11); no position loosens that."
       }
     }
   },
@@ -4094,14 +4114,6 @@
         "slo": "Backups: the monthly drill passes",
         "wakes": true,
         "handle": "Read th get /v1/ops/backups: a drill needs a complete backup. Start nothing yourself. Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
-        "phase": "P4"
-      },
-      "muse.silent": {
-        "trips": "no Muse API call in 26 hours",
-        "severity": "S4",
-        "slo": "Muse checks in daily (MUSE.md §9)",
-        "wakes": false,
-        "handle": "Read th get /v1/work/orders?status=all for the orders Muse left. Contact Muse by no channel: a note in its thread is the most (th post /v1/work/thread/messages). Report it: th say system --kind error \"<what tripped, since when, what you checked, what you left>\".",
         "phase": "P4"
       },
       "events.export.late": {
