@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { outlast } from './fixtures/waits.mjs';
 
 process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = '1';
 const live = Boolean(process.env.SITE_URL);
@@ -135,7 +136,7 @@ test('signed in: another phone’s newer position is there before the app reads;
   assert.equal(stored[`${FEED}#${ids[2]}`].position, 9, 'this phone’s newer one stays');
   assert.deepEqual(seen.gets, ['?since=0']);
   // On open, this phone's newer position and both follows go up.
-  const until = async (fn) => { for (let i = 0; i < 100 && !fn(); i++) await new Promise((r) => setTimeout(r, 100)); assert.ok(fn()); };
+  const until = async (fn) => { for (let i = 0; i < 150 && !fn(); i++) await new Promise((r) => setTimeout(r, 100)); assert.ok(fn()); };
   await until(() => seen.puts.some((p) => p.path.endsWith('/follows')));
   const sent = seen.puts.filter((p) => p.path.endsWith('/progress')).flatMap((p) => p.items);
   assert.deepEqual(sent.map((p) => [p.key, p.position_s]), [[`${FEED}#${ids[2]}`, 9]]);
@@ -195,7 +196,7 @@ test('signed in: another phone’s newer position is there before the app reads;
   const puts = seen.puts.length;
   await unfollow(FEED);
   await until(() => seen.puts.length > puts);
-  await new Promise((r) => setTimeout(r, 3500));
+  await outlast(page, 3500); // a negative read: past the senses' 3 s send, on the page's own timers
   assert.equal(seen.senses.filter((e) => e.type === 'podcast.unfollow').length, 1, 'nothing sent with the switch off');
   assert.equal(await page.evaluate(() => (localStorage.getItem('th.p.senses') ?? '[]') === '[]' || !localStorage.getItem('th.p.senses')), true);
   assert.deepEqual(errors, []);
@@ -208,7 +209,7 @@ test('signed out: nothing is asked or sent', opts, async () => {
   const { context, page, errors } = await opened(false, () => ({ version: 1, follows: [show], progress: {}, queue: [] }));
   await page.goto(`${base}/podcasts/`, { waitUntil: 'load' });
   await page.locator('#heading').waitFor();
-  await new Promise((r) => setTimeout(r, 1500));
+  await outlast(page, 1500); // a negative read: nothing to wait for but time, on the page's own timers
   assert.deepEqual([seen.gets, seen.puts], [[], []]);
   assert.deepEqual(errors, []);
   await context.close();

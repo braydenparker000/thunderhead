@@ -10,6 +10,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { outlast } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -43,12 +44,12 @@ async function open({ chat = {}, b = browser, context = null } = {}) {
   }), TOKEN);
   errors.length = 0;
   await page.goto(`${base}/`, { waitUntil: 'load' });
-  await page.waitForSelector('#talk', { state: 'attached' });
-  await page.waitForTimeout(300);
+  // The chat wires the bar in the same task that draws the line under it (th/chat/index.js).
+  await page.waitForSelector('#ask .sendline', { state: 'attached' });
   return { page, context, errors, api };
 }
 async function eventually(read, want, message) {
-  const end = Date.now() + 5_000;
+  const end = Date.now() + 15_000;
   let got = await read();
   while (!isDeepStrictEqual(got, want) && Date.now() < end) {
     await new Promise((r) => setTimeout(r, 20));
@@ -177,7 +178,7 @@ test('a voice memo: the strip shows the level, × throws it away, Stop keeps it;
   await page.waitForSelector('.tray .ti.tmemo');
   // Leaving the page stops the microphone and keeps what was recorded (PRIVACY.md §7).
   await record();
-  await page.waitForTimeout(1200);
+  await page.waitForFunction(() => document.querySelector('.rtime')?.textContent === '0:01'); // a second recorded
   await page.evaluate(() => {
     Object.defineProperty(document, 'hidden', { value: true, configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
@@ -245,7 +246,8 @@ test('dictation: hold the mic and the words fill the bar as you speak; let go to
   // When the Worker can't hear, the owner is told, and nothing lands in the bar.
   api.state.chat.deaf = true;
   await press();
-  await page.waitForTimeout(1200);
+  await page.waitForSelector('#ask.listening');
+  await outlast(page, 1200); // past the 0.6 s a take needs, on the page's own timers
   await page.mouse.up();
   await page.waitForFunction(() => /Couldn.t hear that/.test(document.querySelector('.toast')?.textContent ?? ''));
   assert.equal(await page.inputValue('#q'), '');

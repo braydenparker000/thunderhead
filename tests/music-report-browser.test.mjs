@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { outlast, until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)', timeout: 90_000 };
@@ -89,7 +90,7 @@ test('signed in, Music sends one batch when hidden: track ids and timings, no ti
     assert.deepEqual(logged.map((e) => e.track), ['demo1', 'demo2']);
     for (const e of logged) assert.ok(Number.isInteger(e.ms) && e.ms >= 0 && e.ms < 20_000, `first sound in ${e.ms} ms`);
     await hide(page);
-    for (let i = 0; i < 50 && !reports(api).length; i++) await page.waitForTimeout(100);
+    await until(() => reports(api).length).catch(() => {});
     const [sent, ...more] = reports(api);
     assert.ok(sent, 'a batch went');
     assert.deepEqual(more, []);
@@ -112,7 +113,7 @@ test('signed in, Music sends one batch when hidden: track ids and timings, no ti
 
     // The page then goes (pagehide): a batch goes only with what came after (nothing repeats).
     await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
-    await page.waitForTimeout(500);
+    await outlast(page, 500); // a negative read: a repeat would have gone with pagehide's batch
     const lastT = b.events.at(-1).t;
     for (const later of reports(api).slice(1)) {
       assert.equal(later.body.body.seq, 2);
@@ -131,7 +132,7 @@ test('signed out, Music sends nothing but still times each play', opts, async ()
   try {
     await playTwo(page);
     await hide(page);
-    await page.waitForTimeout(1000);
+    await outlast(page, 1000); // a negative read: nothing to wait for but time, on the page's own timers
     assert.equal(reports(api).length, 0);
   } finally {
     await context.close();
