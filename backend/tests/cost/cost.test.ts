@@ -267,9 +267,8 @@ describe('rows per endpoint', () => {
     await cost('GET /v1/ops/meter?days=30 (Core)', () => api('GET', '/v1/ops/meter?days=30', d), 200, k);
   });
 
-  // P3: memory on a Core that already holds the P2 rows above, the import (stage D), decision cards
-  // (P4), Study's library (P7), predictions (P9); then the phone's reports and Podcasts' sync, the
-  // listening pass, held conversations and what the mind knows (each in its *-calls.ts).
+  // P3 memory on a Core holding the P2 rows above, the import (D), decision cards (P4), Study's library (P7),
+  // predictions (P9); the phone's reports and sync, the listening pass, held talks, what the mind knows (*-calls.ts).
   it('measures every P3 memory endpoint against its budget', () => memoryCalls(cost, grant));
   it('measures the import against its budget', () => importCalls(cost, grant));
   it('measures the decision cards against their budget', () => proposalCalls(cost, grant));
@@ -280,12 +279,13 @@ describe('rows per endpoint', () => {
       .then(() => heldCalls(cost, grant))
       .then(() => import('./settings-calls').then((m) => m.settingsCalls(cost, grant)))
       .then(() => import('./photos-calls').then((m) => m.photosCalls(cost, grant))));
-  // Recall by meaning last (recall-calls.ts): its 200 new messages would change what others read.
+  // Recall by meaning, then a paste, last (recall-calls.ts, photos-calls.ts): they change what others read.
   it('measures the music notes and find, scheduled actions and plans, the listening history, then recall by meaning', () =>
     musicCalls(cost as never, grant)
       .then(() => import('./verb-calls').then((m) => m.verbCalls(cost, grant)))
       .then(() => import('./history-calls').then((m) => m.historyCalls(cost as never, grant)))
-      .then(() => import('./recall-calls').then((m) => m.recallCalls(cost as never, grant))));
+      .then(() => import('./recall-calls').then((m) => m.recallCalls(cost as never, grant)))
+      .then(() => import('./photos-calls').then((m) => m.pasteCalls(cost, grant))));
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);
     console.log(['| Call | Rows read | Rows written |', '|---|---|---|', ...lines].join('\n'));

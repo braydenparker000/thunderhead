@@ -698,5 +698,17 @@
   "DELETE /v1/photos/:id/versions/:vid (Core)": {
     "rows_read_max": 3,
     "rows_written_max": 2
+  },
+  "POST /v1/photos/paste (1 photo) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 8
+  },
+  "POST /v1/photos/paste (12 photos) (Core)": {
+    "rows_read_max": 48,
+    "rows_written_max": 41
+  },
+  "POST /v1/photos/paste (the same 12 again) (Core)": {
+    "rows_read_max": 13,
+    "rows_written_max": 0
   }
 }

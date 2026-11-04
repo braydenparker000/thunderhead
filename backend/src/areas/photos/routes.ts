@@ -23,6 +23,7 @@ import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 import { sha256 } from '../import/vault';
 import { fileMeta } from './google';
+import { normal, pasteBody } from './paste';
 import { recipeBody, recipeObject, sealRecipe } from './recipe';
 import { accessToken } from './token';
 
@@ -122,6 +123,11 @@ export const photosRoutes = new Hono<AppEnv>()
     const sealed = await sealRecipe(body.recipe);
     const out = value(await fresh(coreObject(c.env).putPhotoRecipe(id, sealed.json, sealed.sha)));
     return c.json({ photo: out.photo, recipe: JSON.parse(sealed.json), changed: out.changed });
+  })
+  // A copied edit onto up to 20 photos (PHOTOS.md, Copy and paste): one ledger row, undo = all of them.
+  .post('/photos/paste', guard('POST /v1/photos/paste'), async (c) => {
+    const b = normal(await json(c, pasteBody));
+    return c.json(value(await fresh(coreObject(c.env).pastePhotos(b))));
   })
   // Versions (PHOTOS.md, Versions): restore is the recipe put above, with its undo.
   .get('/photos/:id/versions', guard('GET /v1/photos/:id/versions'), async (c) => {

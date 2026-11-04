@@ -6,6 +6,7 @@
 import type { PhotoRecipe } from './photos-recipe.ts';
 
 export * from './photos-recipe.ts';
+export * from './photos-paste.ts';
 export * from './photos-versions.ts';
 
 export const PHOTO_LIMITS = {

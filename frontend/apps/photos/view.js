@@ -7,6 +7,7 @@ import { confirmSheet, el, toast } from '/th/ui.js';
 import * as data from './data.js';
 import { previewFromDrive } from './import.js';
 import { back, go } from './nav.js';
+import { chooser } from './select.js';
 import { dayName, icon, thumb } from './shelf.js';
 
 const HOLD_MS = 450;
@@ -120,15 +121,17 @@ function actions(host, p, show) {
   /** @type {HTMLElement | null} */ (sheet.querySelector('button'))?.focus();
 }
 
-/** One day whole. @param {HTMLElement} box @param {string} day */
+/** One day whole; a long press chooses photos (select.js). @param {HTMLElement} box @param {string} day */
 export async function dayScreen(box, day) {
   const grid = el('div', { class: 'grid', 'aria-busy': 'true' });
   const top = el('button', { type: 'button', class: 'back', text: '‹ Photos' });
   top.addEventListener('click', back);
-  box.replaceChildren(el('div', { class: 'shelf' }, [top, el('h1', { text: dayName(day) }), grid]));
+  const title = el('h1', { text: dayName(day) });
+  box.replaceChildren(el('div', { class: 'shelf' }, [top, title, grid]));
+  const pick = chooser(box, title);
   try {
     const s = await data.day(day);
-    grid.append(...(s.days[0]?.photos ?? []).map(thumb));
+    grid.append(...(s.days[0]?.photos ?? []).map((p) => pick.wire(thumb(p), p)));
     if (!s.days.length) grid.append(el('p', { class: 'empty', text: 'Nothing on this day any more.' }));
   } catch {
     grid.append(el('p', { class: 'empty', text: 'This day did not load.' }));

@@ -2,12 +2,14 @@
 // The shelf (PHOTOS.md §3.1): days newest first, like the Briefing's, each with up to four
 // thumbnails and a count; a day opens whole; pull down (or Import) to pick photos, each on the shelf
 // at once with its upload's progress. Thumbnails come from this phone (IndexedDB) or are made from
-// the Worker's preview once; offline, the kept shelf is shown with a plain line.
+// the Worker's preview once; offline, the kept shelf is shown with a plain line. A long press starts
+// choosing photos to paste a copied edit onto or to export (select.js).
 import { el, toast } from '/th/ui.js';
 import * as data from './data.js';
 import { importFiles } from './import.js';
 import { go } from './nav.js';
 import { makeThumb } from './preview.js';
+import { chooser } from './select.js';
 
 const ACCEPT = '.raf,.RAF,.dng,.DNG,.jpg,.jpeg,.heic,.heif,image/jpeg,image/heic,image/heif';
 const icon = (/** @type {string} */ n) => {
@@ -43,14 +45,14 @@ export function thumb(p) {
   return box;
 }
 
-/** @param {{ day: string, count: number, photos: data.PhotoItem[] }} d */
-const dayRow = (d) => {
+/** @param {{ day: string, count: number, photos: data.PhotoItem[] }} d @param {(t: HTMLElement, p: data.PhotoItem) => HTMLElement} wire */
+const dayRow = (d, wire) => {
   const head = el('button', { type: 'button', class: 'dayhead', 'data-day': d.day }, [
     el('span', { class: 'dname', text: dayName(d.day) }),
     el('span', { class: 'dcount', text: count(d.count) }),
   ]);
   head.addEventListener('click', () => go(`?day=${d.day}`));
-  return el('section', { class: 'day' }, [head, el('div', { class: 'tiles' }, d.photos.map(thumb))]);
+  return el('section', { class: 'day' }, [head, el('div', { class: 'tiles' }, d.photos.map((p) => wire(thumb(p), p)))]);
 };
 
 /** The shelf's screen. @param {HTMLElement} box */
@@ -64,10 +66,11 @@ export async function shelfScreen(box) {
   const more = el('button', { type: 'button', class: 'more', hidden: '', text: 'Earlier days' });
   const bin = el('button', { type: 'button', class: 'linkish', text: 'Recently deleted' });
   bin.addEventListener('click', () => go('?deleted=1'));
+  const head = el('div', { class: 'head' }, [el('h1', { text: 'Photos' }), add]);
   const shelf = el('div', { class: 'shelf' }, [
     pull,
     el('a', { class: 'back', href: '/', text: '‹ Home' }),
-    el('div', { class: 'head' }, [el('h1', { text: 'Photos' }), add]),
+    head,
     line,
     arriving,
     days,
@@ -76,6 +79,7 @@ export async function shelfScreen(box) {
     picker,
   ]);
   box.replaceChildren(shelf);
+  const pick = chooser(box, head);
   add.addEventListener('click', () => picker.click());
   picker.addEventListener('change', () => {
     const files = [...(picker.files ?? [])];
@@ -88,7 +92,7 @@ export async function shelfScreen(box) {
   const load = async (/** @type {string | null} */ before) => {
     try {
       const s = await data.shelf(before);
-      days.append(...s.days.map(dayRow));
+      days.append(...s.days.map((d) => dayRow(d, pick.wire)));
       next = s.next;
       more.hidden = !next;
       if (s.offline) line.textContent = 'Offline: this is the shelf as this phone last saw it.';
