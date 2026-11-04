@@ -1,12 +1,15 @@
 // The editor's recipe table on the phone (frontend/apps/photos/edit/fields.js) is the contract's
 // (shared/contract/photos-recipe.ts): every control's range and default, the curves; the canonical
-// form drops defaults; the tone lookup is monotonic and its ends fixed for a JPEG as shot.
+// form drops defaults; the tone lookup is monotonic and its ends fixed for a JPEG as shot. The copied
+// edit's panels (frontend/apps/photos/copied.js) are the contract's (shared/contract/photos-paste.ts).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { canonicalRecipe, RECIPE_CURVES, RECIPE_NUMBERS, RECIPE_WB } from '../shared/contract/photos-recipe.ts';
 import { CURVES, NUMBERS, PANELS } from '../frontend/apps/photos/edit/fields.js';
 import { toneLut } from '../frontend/apps/photos/edit/uniforms.js';
 import { gainsFor, neutralFor, tempTintOf } from '../frontend/apps/photos/edit/color.js';
+import { PANEL_KEYS as CONTRACT_PANELS, PASTE_LIMITS, PASTE_PANELS, pasteOnto } from '../shared/contract/photos-paste.ts';
+import { MAX_PHOTOS, named, PANEL_KEYS, PANEL_NAMES, pick } from '../frontend/apps/photos/copied.js';
 
 test('the phone has the contract’s ranges and defaults, and every slider names a real key', () => {
   for (const [k, v] of Object.entries(RECIPE_NUMBERS)) assert.deepEqual(NUMBERS[k], [...v], k);
@@ -40,4 +43,16 @@ test('white balance: as shot is no change, and the picker makes a colour neutral
   const n = neutralFor(d65, warm);
   const k = gainsFor(d65, n.temperature, n.tint).map((x, i) => x * warm[i]);
   assert.ok(Math.abs(k[0] / k[1] - 1) < 0.08 && Math.abs(k[2] / k[1] - 1) < 0.08, JSON.stringify({ n, k }));
+});
+
+test('the copied edit’s panels are the contract’s, and a copy pasted is what the Worker writes', () => {
+  assert.deepEqual(PANEL_NAMES.map(([p]) => p), [...PASTE_PANELS]);
+  for (const p of PASTE_PANELS) assert.deepEqual(PANEL_KEYS[p], [...CONTRACT_PANELS[p]], p);
+  assert.equal(MAX_PHOTOS, PASTE_LIMITS.photos);
+  const from = { Exposure2012: 0.5, Vibrance: 20, CropAngle: 4, Texture: 10 };
+  const copy = pick(from, ['light', 'color']);
+  assert.deepEqual(copy, { Exposure2012: 0.5, Vibrance: 20 });
+  assert.equal(named(['light', 'color', 'crop']), 'Light, Color and Crop and geometry');
+  // Light pasted from a photo with no contrast change sets contrast back; Effects stays the photo's own.
+  assert.deepEqual(pasteOnto({ Contrast2012: 30, Clarity2012: 15 }, ['light', 'color'], copy), { Clarity2012: 15, Exposure2012: 0.5, Vibrance: 20 });
 });

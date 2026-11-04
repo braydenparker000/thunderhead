@@ -6,6 +6,7 @@
 import {
   type DriveFile,
   PHOTO_LIMITS as L,
+  type PastePhotosResponse,
   type PatchPhotoRequest,
   type PhotoItem,
   type PhotoResponse,
@@ -17,6 +18,7 @@ import {
 import { logicalDay } from '../areas/conversation/day';
 import { quotaHold } from '../areas/meter/quota';
 import * as ops from '../areas/photos/ops';
+import * as paste from '../areas/photos/paste';
 import * as recipe from '../areas/photos/recipe';
 import * as store from '../areas/photos/store';
 import * as versions from '../areas/photos/versions';
@@ -59,6 +61,11 @@ export abstract class CorePhotos extends CoreVerbs {
   /** The recipe in its canonical JSON and hash (routes.ts seals it); the same hash writes nothing. */
   putPhotoRecipe(id: string, json: string, sha: string): Out<{ photo: PhotoItem; changed: boolean }> {
     return this.run((w) => recipe.put(w, id, json, sha));
+  }
+
+  /** A copied edit onto up to 20 photos, one ledger row (areas/photos/paste.ts). */
+  pastePhotos(b: ReturnType<typeof paste.normal>): Out<PastePhotosResponse> {
+    return this.run((w) => paste.paste(w, b));
   }
 
   // --- versions (areas/photos/versions.ts) -------------------------------------------------------

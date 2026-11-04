@@ -59,7 +59,7 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
 - **What the Worker keeps**: one row per photo (ids, numbers, the camera's words) and a preview of
   at most 400 KB (ten thousand photos of 300 KB is 3 GB, inside R2's free 10 GB).
 - **The mind** sees no pixel, no name and no token: the senses carry ids, formats and ratings only
-  (`photo.import`, `photo.delete`, `photo.rate`, `photo.edit` with the panel only; `privacy.senses.photos` switches them off).
+  (`photo.import`, `photo.delete`, `photo.rate`, `photo.edit` with the panel only, `photo.paste` with the count and panels only; `privacy.senses.photos` switches them off).
 - **Rows**: an import is 1 read and 4 writes, its preview 3 and 2; the shelf's first page of 14 days
   of 6 photos reads 140 rows; a saved recipe 3 reads and 6 writes, the same one again 2 and 0 ([backend/tests/cost/budgets.json](../../../backend/tests/cost/budgets.json)).
   Drive's quotas are far above one person's use. Owner steps: [SETUP.md §R](../../process/SETUP.md).
@@ -137,8 +137,8 @@ top bar.
   band in blocks of 1,024 columns; a block's region of the photo (through the geometry, padded) comes
   from a 1:1 engine tile when the export is finer than the working copy, else from the working copy;
   the band goes to our streaming JPEG encoder in a worker (decisions.md, 2026-11-04). sRGB (JFIF).
-  The sheet takes a batch of up to 20 with progress and Cancel; today it opens from the editor with
-  one photo. The sense `photo.export` names the size, format and where.
+  The sheet takes a batch of up to 20 with progress and Cancel: from the editor with one photo, or
+  from the shelf with the photos chosen (§6). The sense `photo.export` names the size, format and where.
 - **The XMP names**: the JPEG's APP1 carries the recipe as XMP: `crs:` (Camera Raw settings) for every
   key Lightroom has (all but the flips: `Exposure2012`, `Contrast2012`, the HSL and grading keys,
   `PostCropVignette*`, `Grain*`, `Sharpness`, `SharpenRadius`, `LuminanceSmoothing`, `Crop*`,
@@ -149,8 +149,35 @@ top bar.
   go under our own namespace `urn:thunderhead:photos:1.0` (`th:FlipHorizontal`, `th:FlipVertical`).
   The names are Lightroom's; the numbers mean ours, close but not identical.
 
-## 6. Next
+## 6. Copy and paste, choosing photos (§3.3 Copy recipe and §3.4 Export batch of the plan, as built)
 
-Copy recipe (copy all or chosen panels, paste to many from the shelf by long-press, one ledger row
-for a batch) and the shelf's multi-select that also feeds a batch export; the RAF's own lens tables
-through the engine; P1d the camera look and the mind; P2 masks, saved looks and culling.
+- **Copy** (`edit/copy.js`): More (⋯) in the editor's top bar opens Copy edit, the six panels as
+  switches (Light, Color, Effects, Detail, Optics, Crop and geometry), each with how many changes it
+  has on this photo or "as shot"; all on but Crop and geometry. Copy holds the chosen panels and the
+  photo's keys in them (`copied.js`), in memory and in the tab's session storage, so a reload keeps it
+  and closing the tab lets it go. Each panel owns its keys (`shared/contract/photos-paste.ts`
+  `PANEL_KEYS`; Light has the curves, Color the white balance, the mix, grading and black and white,
+  Optics the two switches, Crop and geometry the crop, angle, perspective, constrain and flips), so a
+  key the copy leaves out is pasted as that panel's default: pasting Light from a photo with no
+  contrast change sets contrast back to as shot.
+- **Choosing photos** (`select.js`): on the shelf or a whole day, a long press (450 ms, a short buzz
+  where the phone has one) starts choosing; then a tap adds or takes away. A bar on top counts them
+  and has Cancel, Paste (while an edit is copied) and Export; at most 20, and the 21st tap says so.
+  While an edit is copied, a chip under the title names its panels, with × to let it go.
+- **Paste**: one call, `POST /v1/photos/paste` (API.md §11.26): each photo keeps its own keys outside
+  the copied panels and takes the copy's inside them; a photo whose edit is replaced gets an automatic
+  version of that edit first (the same caps as Versions; a photo as shot needs none); a photo that
+  already has the look writes nothing. One ledger row for the paste ("pasted a look to 12 photos"),
+  and the line under the title offers Undo, which puts every photo back; a photo edited again since
+  keeps that edit. The same paste again (a retry) writes nothing and answers the same row. The sense
+  `photo.paste` names how many photos and which panels, never a value or an id.
+- **Export from the shelf** (`edit/batch.js`): the chosen photos open the Export sheet; each renders
+  as the editor's Export does (its recipe, its original or a tile of it, else its preview), one
+  renderer for the batch and one photo in memory at a time. Nothing new in the renderer.
+- **Cost**: a paste onto 1 photo is 3 rows read and 8 written, onto 12 photos 48 read and 41 written,
+  the same 12 again 13 read and none written (backend/tests/cost/budgets.json).
+
+## 7. Next
+
+The RAF's own lens tables through the engine; P1d the camera look and the mind; P2 masks, saved looks
+and culling.

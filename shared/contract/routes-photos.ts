@@ -15,6 +15,7 @@ export const PHOTO_ROUTES = {
   'DELETE /v1/photos/:id': { who: ['D'], phase: 'P9', note: 'to Recently deleted' },
   'POST /v1/photos/:id/restore': { who: ['D'], phase: 'P9' },
   'PUT /v1/photos/:id/recipe': { who: ['D'], phase: 'P9', note: 'the edit as a recipe (crs names); the same hash again writes nothing; a ledger row, undo = the recipe before' },
+  'POST /v1/photos/paste': { who: ['D'], phase: 'P9', note: '{ids ≤ 20, panels, recipe}: each photo’s recipe with those panels replaced, an automatic version of an edit it replaces; one ledger row, undo = every recipe before' },
   'GET /v1/photos/:id/versions': { who: ['D'], phase: 'P9', note: 'the versions, newest first: 20 automatic and 20 named at most' },
   'POST /v1/photos/:id/versions': { who: ['D'], phase: 'P9', note: '{id, kind auto|named, name?, recipe}; an automatic one equal to the newest writes nothing; the oldest automatic goes past 20' },
   'PATCH /v1/photos/:id/versions/:vid': { who: ['D'], phase: 'P9', note: '{name}: renames (an automatic one becomes named)' },

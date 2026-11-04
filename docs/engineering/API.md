@@ -643,7 +643,7 @@ type MemoryOp =
 | Podcasts | `podcasts.open`, `podcast.play`, `podcast.finish`, `podcast.skip`, `podcast.follow`, `podcast.unfollow` (`podcast:<show id>/<episode id>`; the show's id is the hash of its feed) |
 | Guitar | `guitar.open`, `guitar.piece_opened`, `guitar.pass`, `guitar.bpm`, `guitar.session` (minutes as `seconds`, the sections marked, the tempo reached as `bpm`) |
 | Study | `study.open`, `study.read` (`pages`, `ms`), `study.search` (`hits` only), `study.highlight` (sensitive; nothing sends it yet) |
-| Photos | `photo.import` (`format` only), `photo.delete`, `photo.rate` (`rating`, `flag`); ref `photo:<id>`, never a name or a pixel |
+| Photos | `photo.import` (`format` only), `photo.delete`, `photo.rate` (`rating`, `flag`); ref `photo:<id>`, never a name or a pixel; `photo.paste` (`count` and a switch per panel), no ref |
 | Astra, My Media (`media`) | `astra.open`, `mymedia.open`, `media.watch` (`ms`), `media.finish`, `media.drop` (`astra:…` or `media:<id>`; read from each app's own progress by `th/senses/watch.js`) |
 | Shell | `app.open`, `app.close` (`ms` in front), `ring.choice`, `island.tap` (`to`), `briefing.open`, `settings.change` (`setting:<key>`, never the value) |
 | Home | `briefing.tile`, `line.seen`, `line.dismiss` (nothing sends it yet), `card.decide` (sensitive; the class only), `reply.open_chip` |
@@ -882,6 +882,16 @@ public and checked by its one-use state.
   `DELETE /versions/:vid` → `{ok}`. Versions leave no ledger row: restoring one is the recipe `PUT`
   above, with its undo. A photo in Recently deleted takes no new version (404); its versions go with it
   when it is purged. Core step 43.
+- `POST /v1/photos/paste` `{ids (1–20 photos), panels (of light, color, effects, detail, optics,
+  crop), recipe (the copy's keys, each in a panel named, or 422)}` → `{items: [{id, changed, recipe,
+  before}], ledger_id}` (`shared/contract/photos-paste.ts`): each photo's recipe with the named
+  panels' keys replaced by the copy's (a key left out is its default), canonical and hashed as the
+  recipe `PUT`; a photo whose edit is replaced gets an automatic version of it first (the caps above).
+  All or nothing: a photo not on the shelf (or in Recently deleted) is 404 and nothing is written. One
+  ledger row whose undo (`photo.paste`) puts each changed photo's recipe back, except one edited since
+  (409 when that is all of them). The request's hash (photos, panels, copy) rides on the row: the same
+  paste again changes nothing and answers that row's `ledger_id` (from the last hour), else `null`.
+  No schema change.
 
 ## 12. WebSocket protocol (`/v1/live`)
 

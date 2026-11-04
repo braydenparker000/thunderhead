@@ -1845,6 +1845,14 @@
       "status": "built",
       "note": "the edit as a recipe (crs names); the same hash again writes nothing; a ledger row, undo = the recipe before"
     },
+    "POST /v1/photos/paste": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "{ids ≤ 20, panels, recipe}: each photo’s recipe with those panels replaced, an automatic version of an edit it replaces; one ledger row, undo = every recipe before"
+    },
     "GET /v1/photos/:id/versions": {
       "who": [
         "D"
@@ -3508,6 +3516,7 @@
                   "photo.delete",
                   "photo.edit",
                   "photo.export",
+                  "photo.paste",
                   "photo.rate",
                   "astra.open",
                   "mymedia.open",

@@ -84,8 +84,6 @@ export function put(w: Writer, id: string, json: string, sha: string): { photo: 
   return { photo: photo(), changed: true };
 }
 
-export const PHOTO_UNDO_OPS = ['photo.recipe'];
-
 /** The ledger's undo: the recipe before, unless the photo was edited again since (409) or is gone. */
 export function undo(w: Writer, _op: string, args: Record<string, unknown>): void {
   const id = String(args.id ?? '');

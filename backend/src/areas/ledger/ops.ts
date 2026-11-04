@@ -9,7 +9,7 @@ import type { Writer } from '../../objects/commit';
 import { REPORT_UNDO_OPS, undoReport } from '../briefing/report';
 import * as memory from '../memory/undo';
 import * as watches from '../mind/watches/ops';
-import * as photos from '../photos/recipe';
+import * as photos from '../photos/undo';
 import * as surfaces from '../surfaces/ops';
 import * as verbs from '../verbs/ops';
 import { undoPlan } from '../verbs/plan';
@@ -91,7 +91,7 @@ export function undo(w: Writer, c: Caller, id: string, zone: () => string = () =
   // The Worker-side verbs' stored inverses (verbs/undo.ts).
   else if (inverse.op && VERB_UNDO_OPS.includes(inverse.op)) verbUndo(w, c.actor, inverse.op, inverse.args ?? {}, zone);
   else if (inverse.op && watches.WATCH_UNDO_OPS.includes(inverse.op)) watches.undo(w, inverse.op, inverse.args ?? {});
-  // A photo's recipe: the one before, unless edited again since (photos/recipe.ts).
+  // A photo's recipe, or a paste onto many: the ones before, unless edited again since (photos/undo.ts).
   else if (inverse.op && photos.PHOTO_UNDO_OPS.includes(inverse.op)) photos.undo(w, inverse.op, inverse.args ?? {});
   // The night's report: back to the version before, or none (briefing/report.ts).
   else if (inverse.op && REPORT_UNDO_OPS.includes(inverse.op)) undoReport(w, id, inverse.op, inverse.args ?? {});

@@ -1,6 +1,7 @@
 // Photos' calls of the cost suite (cost.test.ts checks every budget), metered in Core: an import
 // (the photo's row, then its preview's), the shelf's first page of 14 days with four photos each,
-// one whole day, a rating, a recipe saved (a change, then the same again) and a delete. The shelf holds 15 days of 6 invented photos first.
+// one whole day, a rating, a recipe saved (a change, then the same again), versions and a delete;
+// then, after the ledger's own reads are measured, a paste onto 1 and onto 12 photos (pasteCalls). The shelf holds 15 days of 6 invented photos first.
 import { exports } from 'cloudflare:workers';
 import type { SignedIn } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
@@ -108,4 +109,47 @@ export async function photosCalls(cost: Cost, grant: (ip: string, password?: str
     k,
   );
   await cost('DELETE /v1/photos/:id (Core)', () => api('DELETE', `/v1/photos/${id}`, d), 200, k);
+}
+
+/** Paste a copied edit (Light and Color) onto 1 and onto 12 photos, each with an edit of its own (one
+ * setup paste gave them that, so the ledger grows by three rows only), so each gets an automatic version
+ * first; then the same 12 again, which writes nothing. Run last: the ledger reads before count rows. */
+export async function pasteCalls(cost: Cost, grant: (ip: string, password?: string) => Promise<SignedIn>) {
+  const d = { token: (await grant('192.0.2.252', `${PASSWORD} new`)).token };
+  fakeGoogle();
+  const many: string[] = [];
+  for (let i = 0; i < 13; i++) {
+    const pid = uuidv7();
+    await api('PUT', `/v1/photos/${pid}`, { ...d, body: photoBody() });
+    many.push(pid);
+  }
+  await api('POST', '/v1/photos/paste', {
+    ...d,
+    body: { ids: many, panels: ['light', 'effects'], recipe: { Exposure2012: 0.3, Texture: 5 } },
+  });
+  const k = core();
+  const look = {
+    ids: many.slice(12),
+    panels: ['light', 'color'],
+    recipe: { Exposure2012: 0.8, Contrast2012: 20, Vibrance: 12 },
+  };
+  await cost(
+    'POST /v1/photos/paste (1 photo) (Core)',
+    () => api('POST', '/v1/photos/paste', { ...d, body: look }),
+    200,
+    k,
+  );
+  const twelve = { ...look, ids: many.slice(0, 12) };
+  await cost(
+    'POST /v1/photos/paste (12 photos) (Core)',
+    () => api('POST', '/v1/photos/paste', { ...d, body: twelve }),
+    200,
+    k,
+  );
+  await cost(
+    'POST /v1/photos/paste (the same 12 again) (Core)',
+    () => api('POST', '/v1/photos/paste', { ...d, body: twelve }),
+    200,
+    k,
+  );
 }

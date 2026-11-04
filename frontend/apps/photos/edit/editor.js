@@ -9,6 +9,7 @@ import * as data from '../data.js';
 import { back } from '../nav.js';
 import { icon } from '../shelf.js';
 import { neutralFor, srgbTo2020, tempTintOf } from './color.js';
+import { copyButton } from './copy.js';
 import { cropOverlay } from './crop.js';
 import { exportSheet } from './export.js';
 import { renderExport } from './export-run.js';
@@ -46,7 +47,7 @@ export async function editScreen(box, id) {
   const tool = el('div', { class: 'etool' });
   const chips = el('div', { class: 'echips', role: 'tablist', 'aria-label': 'Tools' });
   const strip = el('nav', { class: 'estrip', 'aria-label': 'Panels' });
-  const root = el('div', { class: 'editor', role: 'dialog', 'aria-label': 'Edit the photo' }, [stage, el('div', { class: 'etop' }, [close, el('div', { class: 'etitle' }, [el('b', { text: 'Edit' }), status]), exp]), el('div', { class: 'ebottom' }, [tool, chips, strip])]);
+  const root = el('div', { class: 'editor', role: 'dialog', 'aria-label': 'Edit the photo' }, [stage, el('div', { class: 'etop' }, [close, el('div', { class: 'etitle' }, [el('b', { text: 'Edit' }), status]), exp, copyButton(() => ed.recipe)]), el('div', { class: 'ebottom' }, [tool, chips, strip])]);
   box.replaceChildren(root);
   close.addEventListener('click', back);
   const say = (/** @type {string} */ s) => { status.textContent = s; };

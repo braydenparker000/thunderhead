@@ -4,6 +4,7 @@
 // refused. Restoring is the phone's recipe put (recipe.ts), so it carries that undo; versions
 // themselves leave no ledger row (they are the history, not a change to the photo).
 import { type PhotoVersion, VERSION_LIMITS as V, type VersionKind } from '../../../../shared/contract/photos.ts';
+import { uuidv7 } from '../../lib/ids';
 import { Fail } from '../../lib/result';
 import type { Db } from '../../objects/base';
 import type { Writer } from '../../objects/commit';
@@ -89,6 +90,30 @@ export function add(
     );
   w.change('photo', `photo:${photoId}`);
   return { version: toItem(one(w.db, photoId, id) as Row), created: true };
+}
+
+/** A paste's automatic version of the edit it replaces (paste.ts): as `add` makes one, with no feed
+ * row of its own (the paste writes one for the shelf). */
+export function snapshot(w: Writer, photoId: string, json: string, sha: string): void {
+  const newest = w.db.one<{ recipe_sha: string }>(
+    `SELECT recipe_sha FROM photo_versions WHERE photo_id = ? AND kind = 'auto' ORDER BY created_at DESC, id DESC LIMIT 1`,
+    photoId,
+  );
+  if (newest?.recipe_sha === sha) return;
+  w.db.run(
+    "INSERT INTO photo_versions (id, photo_id, kind, name, recipe_json, recipe_sha, created_at) VALUES (?, ?, 'auto', NULL, ?, ?, ?)",
+    uuidv7(w.at),
+    photoId,
+    json,
+    sha,
+    w.at,
+  );
+  if (count(w.db, photoId, 'auto') > V.auto)
+    w.db.run(
+      `DELETE FROM photo_versions WHERE id IN (SELECT id FROM photo_versions WHERE photo_id = ? AND kind = 'auto'
+       ORDER BY created_at, id LIMIT 1)`,
+      photoId,
+    );
 }
 
 /** A new name; an automatic version named becomes a named one (within the named cap). */
