@@ -11,8 +11,9 @@ import { PERMIT_FLOORS } from '../../../../shared/contract/permits.ts';
 import { PLAN_LIMITS, SCHEDULE_LIMITS } from '../../../../shared/contract/schedules.ts';
 import { VERBS, type VerbSpec } from '../../../../shared/contract/verbs.ts';
 
-/** The table's characters at most (the full briefing's section 13 holds it beside the settings). */
-export const VERBS_MAX = 2_000;
+/** The table's characters at most (the full briefing's section 13 holds it beside the settings).
+ * (2026-11-03, watches) 2,000 → 2,400: the later-and-plans line and the two watch verbs (+271). */
+export const VERBS_MAX = 2_400;
 
 export const VERBS_LEGEND =
   'Verbs (th verb <name> \'<args>\' --why "…"; th help lists their args): name · runs on · class: position now · what. worker = done before your reply ends; app = waits for that app to open (say so); phone = the next signed-in phone. Undo: th undo <ledger_id>.';
@@ -38,7 +39,10 @@ function positions(settings: readonly string[]): Map<string, string> {
 
 function line(name: string, v: VerbSpec, at: Map<string, string>): string {
   const runs = v.side === 'worker' ? 'worker' : v.intent ? `app (${v.app})` : 'phone';
-  let permit = "no class (the owner's own words only)";
+  // No class: the owner's own words (memory.note), or the mind's own bookkeeping (the watches).
+  let permit = name.startsWith('watch.')
+    ? 'no class (yours, within the wake budget)'
+    : "no class (the owner's own words only)";
   if (v.permit !== null) {
     const now = v.floor ? `ask (${PERMIT_FLOORS[v.floor]})` : (at.get(v.permit) ?? 'unknown');
     permit = `${v.permit}: ${v.tell_min && now === 'quiet' ? 'tell (never quiet)' : now}`;

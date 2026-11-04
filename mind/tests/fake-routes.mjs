@@ -242,6 +242,8 @@ export function extraRoutes(ctl) {
     ['PUT', /^\/v1\/verbs\/([^/]+)$/, CN, ({params, body, role}) => {
       if (typeof body.why !== 'string' || body.why.length < 8 || body.why.length > 200) throw new HttpError(422, 'validation', 'why');
       if (ASK_FIRST_VERBS.includes(body.verb) && s.proposals.get(body.proposal_id)?.value.status !== 'approved') throw new HttpError(403, 'proposal_required');
+      // The watches run in the Worker, done at once (fake-watches.mjs).
+      if (String(body.verb).startsWith('watch.')) return ctl.watchVerb(params[0], body, actorOf(role));
       // Later (API.md §11.11): a scheduled row with no ledger row; at most 20 wait.
       if (body.fire_at !== undefined) {
         if ([...s.verbs.values()].filter(v => v.value.status === 'scheduled').length >= 20) throw new HttpError(429, 'too_many_scheduled');

@@ -61,3 +61,4 @@ export { BUILT_PHASES, builtRoutes, type Phase, ROUTES, type RouteKey, type Rout
 export { SURFACE_KINDS, type SurfaceKind, type SurfaceKindName, surfaceKind } from './surfaces.ts';
 export { latestVersion, VERBS, type VerbName, type VerbSpec, type VerbVersion, verbSpec } from './verbs.ts';
 export { REFLEX_PROCEDURE, WATCHDOG_LIMITS, WATCHDOG_NAMES, WATCHDOGS, type WatchdogName } from './watchdogs.ts';
+export { WAKE_CAUSES, WATCH_CHANGES, WATCH_KINDS, WATCH_LIMITS, WATCH_STATES, WORKER_EVENTS } from './watches.ts';

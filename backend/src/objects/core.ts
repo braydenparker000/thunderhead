@@ -7,8 +7,8 @@
 // and exports in core-backups.ts, Muse's work orders and the Briefing in core-work.ts, the predictions (P9) in
 // core-predictions.ts, the reminders in core-reminders.ts, the phone's reports in core-reports.ts, Podcasts'
 // positions and follows in core-podcasts.ts, reading threads, off the record, Delete, Restore and the prune
-// pass in core-held.ts, and the verbs, plans and scheduled actions in core-verbs.ts. The alarm also runs the
-// chunked jobs (areas/jobs).
+// pass in core-held.ts, the verbs, plans and scheduled actions in core-verbs.ts, and the watches (the day pulse)
+// under them all, in core-watches.ts. The alarm also runs the chunked jobs (areas/jobs).
 import type {
   BriefRequest,
   JsonObject,
@@ -38,6 +38,7 @@ import * as mind from '../areas/mind/ops';
 import * as stop from '../areas/mind/stop';
 import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
+import { onClaim } from '../areas/mind/watches/pulse';
 import { listenApplyJob, listenPackJob, listenRejectJob } from '../areas/music/listen-jobs';
 import { lawsAtClaim, settle as settleProposals } from '../areas/proposals/ops';
 import * as surfaces from '../areas/surfaces/ops';
@@ -116,6 +117,8 @@ export class Core extends CoreVerbs {
         ? this.write((w) => {
             const out = mind.claim(w, r, this.tz());
             lawsAtClaim(w, r.constitution_sha256, this.tz());
+            // The chat takes the watches that woke it, and the queue the night or a backoff held.
+            if (r.role === 'chat' && out.wake) onClaim(w, r.session_id, out.wake.id);
             return out;
           }).wake
         : null;
@@ -178,7 +181,7 @@ export class Core extends CoreVerbs {
   }
 
   /** Wake retries, give-ups, requeues (RUNTIME.md §4.4–4.5), then due reminders (after any wake) and
-   * scheduled verbs, then jobs. */
+   * scheduled verbs, then jobs, then watches. */
   override async alarm(): Promise<void> {
     this.alarmAt = null;
     const fires = this.write((w) => wake.onAlarm(w, this.configured(), this.tz()));
@@ -187,6 +190,8 @@ export class Core extends CoreVerbs {
     await this.deliverReminders(Date.now());
     this.fireVerbs(Date.now());
     await runJobs({ env: this.env, db: this.db, write: (fn, at) => this.write(fn, at) }, JOB_HANDLERS);
+    // Only while a watch waits: an alarm with none does no more than before.
+    if (this.watchesWaiting()) await this.watchesTick(Date.now());
     this.schedule();
   }
 
@@ -197,7 +202,7 @@ export class Core extends CoreVerbs {
   async tick(
     now = Date.now(),
     fetchImpl: typeof fetch = fetch,
-  ): Promise<{ rolled: string | null; pruned: number; night: string | null; reflex: string | null }> {
+  ): Promise<Record<'rolled' | 'night' | 'reflex' | 'watch', string | null> & { pruned: number }> {
     const tz = this.tz();
     const d = day.currentDay(this.db, tz, now);
     const due = day.rollDue(d, now, tz, this.lastSpokeAt(cstore.dailyThread(this.db, d)?.id ?? null));
@@ -228,7 +233,8 @@ export class Core extends CoreVerbs {
     await this.predictionsTick(now, tz, due ?? d);
     await this.deliverReminders(now);
     this.fireVerbs(now);
-    return { rolled: due, pruned, night: wakeNight?.id ?? null, reflex };
+    const watch = await this.watchesTick(now, fetchImpl);
+    return { rolled: due, pruned, night: wakeNight?.id ?? null, reflex, watch };
   }
 
   // --- the ledger, verbs and surfaces ------------------------------------------------------------

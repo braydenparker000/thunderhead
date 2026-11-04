@@ -1,7 +1,14 @@
 // The first half of the Core object (see core.ts): the P1 routes' data, the change feed and the
 // live channel's sockets, and the helpers every area uses: `write` (commit.ts: one transaction,
 // then the live channel), `run` (area failures as `{ok:false, code}`) and `schedule` (the alarm).
-import type { ChangesResponse, ErrorReport, ErrorRow, PerfRequest, Settings } from '../../../shared/contract/api';
+import type {
+  ChangeKind,
+  ChangesResponse,
+  ErrorReport,
+  ErrorRow,
+  PerfRequest,
+  Settings,
+} from '../../../shared/contract/api';
 import { SANDBOX_INSTANCE } from '../../../shared/contract/evals.ts';
 import { sha256Hex } from '../areas/auth/crypto';
 import * as day from '../areas/conversation/day';
@@ -18,7 +25,7 @@ import * as settings from '../areas/settings/store';
 import { attempt, Fail, type Out } from '../lib/result';
 import { HOUR } from '../lib/time';
 import { type ClassHealth, OwnerObject } from './base';
-import { commit, type Writer } from './commit';
+import { commit, type Made, type Writer } from './commit';
 import { CORE_MIGRATIONS } from './core.migrations';
 
 /** P1 (settings, errors, perf, health), the change feed and the live channel, and the write and
@@ -40,9 +47,15 @@ export abstract class CoreBase extends OwnerObject {
 
   protected write<T>(fn: (w: Writer) => T, at = Date.now()): T {
     const r = commit(this.ctx.storage, this.db, fn, at);
-    if (r.kinds.length) this.hub.changed(r.seq, r.kinds);
+    if (r.kinds.length) {
+      this.hub.changed(r.seq, r.kinds);
+      this.committed(r.kinds, r.made, at);
+    }
     return r.value;
   }
+
+  /** After a commit that changed something: what a watch waits on (core-watches.ts). */
+  protected abstract committed(kinds: ChangeKind[], made: Made[], at: number): void;
 
   protected run<T>(fn: (w: Writer) => T): Out<T> {
     return attempt(() => this.write(fn));
@@ -60,16 +73,17 @@ export abstract class CoreBase extends OwnerObject {
 
   /** When the soonest set reminder is due, or null (core-reminders.ts keeps it in memory). */
   protected abstract reminderDue(): number | null;
+  /** When the watches next need the alarm: the soonest `at`, or now for a queue just met (core-watches.ts). */
+  protected abstract watchDue(): number | null;
 
   /** When the soonest scheduled verb or plan is due, or null (core-verbs.ts keeps it in memory). */
   protected abstract verbsDue(): number | null;
 
-  /** Sets the alarm to the next due wake retry, requeue, job, reminder or scheduled verb, writing
-   * only when it moves. */
+  /** Sets the alarm to the next due wake retry, requeue, job, reminder, scheduled verb or watch,
+   * writing only when it moves. */
   protected schedule(): void {
-    const times = [wake.nextAlarmAt(this.db), jobs.nextDue(this.db), this.reminderDue(), this.verbsDue()].filter(
-      (x): x is number => x !== null,
-    );
+    const due = [this.reminderDue(), this.verbsDue(), this.watchDue()];
+    const times = [wake.nextAlarmAt(this.db), jobs.nextDue(this.db), ...due].filter((x): x is number => x !== null);
     const t = times.length ? Math.min(...times) : null;
     if (t !== null && t !== this.alarmAt) {
       this.alarmAt = t;

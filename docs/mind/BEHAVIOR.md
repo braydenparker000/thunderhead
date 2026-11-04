@@ -77,6 +77,8 @@ Rungs 0 and 1 live inside apps, so a ported app shows them only after its agreed
 
 Climb one rung only when the rung below would fail the owner. Every rung needs a `why` (≥ 8 characters, Worker-enforced) and a `topic_key` (a stable slug like `practice.bars-9-12`) so repeats can be counted.
 
+A wake a watch fired ([RUNTIME.md §3](RUNTIME.md#3-triggers), the day pulse) is not a reason to speak: the mind looks at what the watch names, then speaks only by this ladder, as for any unprompted speech (in quiet hours nothing that notifies).
+
 | Rung | What it is | Where it shows | When to use it | Budget | Lifetime |
 |---|---|---|---|---|---|
 | 0. **Silent arrangement** | A reversible change to an app: queue order, practice set, study page, list order | Inside the app, with a small why chip | The owner would want it done and it can be undone in one tap | Unlimited, but one change per (app, slot) per 6 h **[proposal]** | Until replaced |

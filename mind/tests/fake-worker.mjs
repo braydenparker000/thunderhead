@@ -11,6 +11,7 @@ import {reportRoutes} from './fake-reports.mjs';
 import {listenRoutes} from './fake-listen.mjs';
 import {podcastRoutes} from './fake-podcasts.mjs';
 import {musicRoutes} from './fake-music.mjs';
+import {watchRoutes} from './fake-watches.mjs';
 
 // Deliberately short and fake: the repository's credential scan rejects anything token-length.
 export const TOKENS = {chat: 'thm_fake_chat_token', night: 'thm_fake_night_token', reflex: 'thm_fake_reflex_token'};
@@ -87,7 +88,7 @@ export function createFake(options = {}) {
 
   function buildCore(role) {
     const waiting = s.messages.filter(m => m.author === 'owner' && !m.answered_at);
-    return [`## 1. Now\nRole: ${role}. Day ${o.day}. laws: pinned.`,
+    return [`## 1. Now\nRole: ${role}. Day ${o.day}. laws: pinned.${s.pulse ? `\n${s.pulse.join('\n')}` : ''}`,
       `## 2. Waiting\n${waiting.map(m => `[${m.id}] ${m.body}`).join('\n') || 'Nothing waiting.'}`,
       '## 3. Standing rules\n(none)', '## 4. Open threads\n(none)', '## 5. Today so far\n(none)', '## 6. Yesterday\n(no day note)',
       '## 7. Pointer\nFull briefing: $TMPDIR/th/brief.md · Search: th recall "<q>"'].join('\n\n');
@@ -201,6 +202,7 @@ export function createFake(options = {}) {
     ...listenRoutes(ctl),
     ...podcastRoutes(ctl),
     ...musicRoutes(ctl),
+    ...watchRoutes(ctl),
   ];
 
   const server = createServer(async (req, res) => {

@@ -334,6 +334,8 @@ CREATE TABLE mind_sessions (
   last_owner_at INTEGER
   , taint_event_at INTEGER, songs_at INTEGER, off_record_at INTEGER) WITHOUT ROWID;
 
+CREATE INDEX mind_sessions_claimed ON mind_sessions (claimed_at);
+
 CREATE INDEX mind_sessions_open ON mind_sessions (role) WHERE ended_at IS NULL;
 
 CREATE INDEX mind_sessions_songs ON mind_sessions (role, songs_at) WHERE songs_at IS NOT NULL;
@@ -638,7 +640,7 @@ CREATE TABLE wakes (
   first_reply_at INTEGER,
   ended_at INTEGER,
   end_reason TEXT
-  ) WITHOUT ROWID;
+  , reason_json TEXT) WITHOUT ROWID;
 
 CREATE INDEX wakes_at ON wakes (at);
 
@@ -656,6 +658,31 @@ CREATE TABLE watchdogs (
   handled_outcome TEXT,
   handled_note TEXT
   ) WITHOUT ROWID;
+
+CREATE TABLE watches (
+  id TEXT PRIMARY KEY,
+  kind TEXT NOT NULL,
+  fire_at INTEGER,
+  type TEXT,
+  ref TEXT,
+  why TEXT NOT NULL,
+  note TEXT,
+  outside INTEGER NOT NULL DEFAULT 0,
+  state TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  until INTEGER NOT NULL,
+  session_id TEXT,
+  met_at INTEGER,
+  met_ref TEXT,
+  settled_at INTEGER,
+  by TEXT,
+  wake_id TEXT,
+  to_session TEXT
+  ) WITHOUT ROWID;
+
+CREATE INDEX watches_settled ON watches (settled_at) WHERE settled_at IS NOT NULL;
+
+CREATE INDEX watches_waiting ON watches (kind, type, fire_at) WHERE state IN ('live', 'queued');
 
 CREATE TABLE work_orders (
   id TEXT PRIMARY KEY,

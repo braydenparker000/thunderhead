@@ -62,6 +62,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/mind/typing` | D | P2 | built |  |
 | `POST /v1/mind/stop` | D | P2 | built | the owner taps Stop: the work ends, not the session |
 | `GET /v1/mind/wakes` | D C N R | P2 | built |  |
+| `GET /v1/mind/watches` | D C N R | P9 | built | the day pulse: waiting watches, the last day's others, the wake budget |
+| `GET /v1/mind/usage` | D C N R | P9 | built | the meter: wakes by cause, minutes awake, night minutes, watches (today, 7 days) |
 | `POST /v1/mind/brief` | C N R | P2 | built |  |
 | `POST /v1/mind/status` | C N R | P2 | built |  |
 | `POST /v1/mind/notes` | C N R | P2 | built |  |
@@ -228,6 +230,8 @@ Side `worker`: run inside the commit that queues it, `done` at once, its inverse
 | `briefing.pin_tile` | shell | reversible | tiles | worker | yes | stored | 1 | `{ tile: 'due' \| 'holidays' \| 'practice' \| 'study' \| 'built' \| 'note.1' \| 'note.2' \| 'note.3' }` | Pins a tile the Briefing knows (`due`, `holidays`, or a night slot: `practice`, `study`, `built`, `note.1`–`note.3`) right after "Waiting on you", newest pin first, at most 3 (a fourth unpins the oldest); a pinned tile shows only when it has something to say. The owner's own arrangement on the phone still wins. Its undo puts back the pins before. |
 | `briefing.unpin_tile` | shell | reversible | tiles | worker | yes | stored | 1 | `{ tile: 'due' \| 'holidays' \| 'practice' \| 'study' \| 'built' \| 'note.1' \| 'note.2' \| 'note.3' }` | Unpins a Briefing tile, which goes back to its usual place. Its undo pins it again where it was. |
 | `memory.note` | shell | reversible | none (the owner's words) | worker | yes (now only) | stored | 1 | `{ text: string, kind: 'state' \| 'goal' \| 'preference' \| 'routine' \| 'habit' \| 'fact' \| 'rule', subject?: string, evidence: array }` | Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), never off the record; no card. `provenance` is the label memory gave it (MEMORY.md §6 M11): `owner`, or `outside` from a session that read outside text, which waits for the owner's keep. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's. |
+| `watch.set` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ kind: 'at' \| 'event' \| 'change', at?: integer, type?: 'player.open' \| 'music.play' \| 'music.skip' \| 'music.finish' \| 'music.rate' \| 'podcasts.open' \| 'podcast.play' \| 'podcast.finish' \| 'podcast.skip' \| 'podcast.follow' \| 'podcast.unfollow' \| 'guitar.open' \| 'guitar.piece_opened' \| 'guitar.pass' \| 'guitar.bpm' \| 'guitar.session' \| 'study.open' \| 'study.read' \| 'study.search' \| 'study.highlight' \| 'astra.open' \| 'mymedia.open' \| 'media.watch' \| 'media.finish' \| 'media.drop' \| 'app.open' \| 'app.close' \| 'ring.choice' \| 'island.tap' \| 'briefing.open' \| 'settings.change' \| 'briefing.tile' \| 'line.seen' \| 'line.dismiss' \| 'card.decide' \| 'reply.open_chip' \| 'reminder.fired' \| 'work' \| 'verb' \| 'proposal' \| 'prediction', ref?: string, why: string, note?: string }` | Sets a watch: `at` (a time, at most 7 days ahead), `event` (a sense type or `reminder.fired`, optionally its ref) or `change` (`work`, `verb`, `proposal` or `prediction`, met when it settles; optionally its ref). Met once, it wakes the chat with its why and note (a live session hears it in `th wait`), within the wake budget; at most 20 wait at once. From a claimed session that was handed nothing off the record. Its undo cancels it. |
+| `watch.cancel` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ id: string }` | Cancels a live or queued watch. Its undo sets it waiting again while its time has not passed and fewer than 20 wait. |
 | `shell.appearance` | shell | reversible | settings | phone | yes | reported | 1 | `{ mode: 'auto' \| 'day' \| 'night' }` | Sets the phone's appearance (auto, day or night). The phone reports the previous mode as the undo. |
 
 ## Standing permissions
@@ -270,7 +274,7 @@ A verb or a plan with `fire_at` (ISO, owner-local or with its offset) waits as a
 
 ## Change kinds
 
-`message` · `thread` · `ledger` · `proposal` · `verb` · `plan` · `surface` · `notice` · `fact` · `day_note` · `open_thread` · `setting` · `mind_status` · `error` · `work`
+`message` · `thread` · `ledger` · `proposal` · `verb` · `plan` · `surface` · `notice` · `fact` · `day_note` · `open_thread` · `setting` · `mind_status` · `error` · `work` · `watch` · `prediction`
 
 ## Live channel
 
@@ -464,6 +468,21 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `drill.failed` | the last restore drill failed | S3 | Backups: the monthly drill passes | yes | P4 | built |
 | `drill.overdue` | no restore drill for 35 days since the first complete backup | S3 | Backups: the monthly drill passes | yes | P4 | built |
 | `events.export.late` | day D not archived by D+1 09:00 | S3 | Senses: each day archived by the next morning | yes | P5 | built |
+
+## Watches
+
+The day pulse (RUNTIME.md §3): `watch.set` stores a condition (`at`, `event`, `change`) that, met once, wakes the chat with its why and note, within the owner's wake budget (`mind.wake_budget`). At most 20 wait at once; an `at` watch is at most 7 days ahead, and an event or change watch lapses unmet after as long; a met watch that cannot wake the mind yet waits 12 hours. States: `live` · `queued` · `fired` · `over_budget` · `cancelled` · `expired`. The meter counts wakes by cause: `owner` · `watch` · `roll` · `schedule` · `watchdog`.
+
+| Event watch (beside every sense type) | When |
+|---|---|
+| `reminder.fired` | A reminder rings (ref: reminder:<id>). |
+
+| Change watch | Met when |
+|---|---|
+| `work` | A work order ends: done, failed, rejected, expired or cancelled (ref: work:<id>). |
+| `verb` | A verb's result comes back, done or failed (ref: verb:<id>); never a watch verb's own. |
+| `proposal` | A decision card is answered or lapses (ref: proposal:<id>). |
+| `prediction` | A prediction resolves (ref: prediction:<id>). |
 
 ## Error codes
 

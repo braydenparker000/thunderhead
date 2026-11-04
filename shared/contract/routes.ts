@@ -92,6 +92,8 @@ export const ROUTES = {
   'POST /v1/mind/typing': { who: D, phase: 'P2' },
   'POST /v1/mind/stop': { who: D, phase: 'P2', note: 'the owner taps Stop: the work ends, not the session' },
   'GET /v1/mind/wakes': { who: AGENTS_READ, phase: 'P2' },
+  'GET /v1/mind/watches': { who: AGENTS_READ, phase: 'P9', note: 'the day pulse: waiting watches, the last day\'s others, the wake budget' },
+  'GET /v1/mind/usage': { who: AGENTS_READ, phase: 'P9', note: 'the meter: wakes by cause, minutes awake, night minutes, watches (today, 7 days)' },
   'POST /v1/mind/brief': { who: MIND, phase: 'P2' },
   'POST /v1/mind/status': { who: MIND, phase: 'P2' },
   'POST /v1/mind/notes': { who: MIND, phase: 'P2' },
