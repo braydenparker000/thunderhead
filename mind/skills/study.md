@@ -20,6 +20,8 @@ printed label (what the owner sees). Books are ingested by the night (step 6) in
 - End with where to study: the cited pages, and a chip to `/study/` at the book and page.
 - The Briefing's `study` tile (night step 7): today's reading, "p. 212 · 20 min", with its why.
 - Night step 6: `bash mind/jobs/study-setup.sh`, then the ingest job, two books, ten minutes.
+- The growth loop: `th study week` gives the week's pages, minutes and books moved; night step 13
+  (`th growth`) marks the next passage from where the owner left off, at that pace.
 
 ## What you must not do
 - Never decide on prayer, revelation or the owner's leaders' decisions (law 8): report what each

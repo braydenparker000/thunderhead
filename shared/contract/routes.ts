@@ -121,6 +121,7 @@ export const ROUTES = {
 
   // --- P3: memory and the night shift -----------------------------------------------------------
   'POST /v1/mind/night': { who: ['N'], phase: 'P3', note: 'the night run: start, step done, cursor, done' },
+  'PUT /v1/mind/growth/:day': { who: ['N'], phase: 'P7', note: "night step 13, the week's growth (growth.ts): from a claimed night session, for a closed day with a run; the Briefing's practice and study tiles from the week's counts and the plans through guitar.set_plan and study.mark_next, silent under 3 sessions; the same again writes nothing" },
   'GET /v1/mind/day/:day': { who: ['N'], phase: 'P3', note: "a closed day's stats, messages, ledger and notes" },
   'GET /v1/memory/facts': { who: MEMORY_READ, phase: 'P3' },
   'GET /v1/memory/facts/:id': { who: MEMORY_READ, phase: 'P3', note: 'one fact: its earlier versions, evidence and why' },

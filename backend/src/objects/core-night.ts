@@ -4,11 +4,13 @@
 // the night's report (step 12, areas/briefing/report.ts). `Core`
 // (core.ts) adds the day roll that fires the night shift.
 import type { MindNightRequest, MindNightResponse } from '../../../shared/contract/api';
+import type { GrowthResponse } from '../../../shared/contract/growth.ts';
 import type { NightDayPart } from '../../../shared/contract/night.ts';
 import type { NightReport, PutNightReportRequest } from '../../../shared/contract/night-report.ts';
 import { putReport, recount } from '../areas/briefing/report';
 import { currentDay } from '../areas/conversation/day';
 import { fireConfig } from '../areas/mind/fire';
+import { type GrowthInput, growth } from '../areas/mind/growth';
 import { night } from '../areas/mind/night';
 import { type DayPart, dayPart } from '../areas/mind/night-input';
 import { attempt, type Out } from '../lib/result';
@@ -33,6 +35,12 @@ export abstract class CoreNight extends CoreMemory {
   reportPut(c: Caller, day: string, r: PutNightReportRequest, hash: string): Out<NightReport> {
     const tz = this.tz();
     return this.run((w) => putReport(w, c, day, r, hash, { today: currentDay(w.db, tz, w.at), tz }));
+  }
+
+  /** PUT /v1/mind/growth/:day (night step 13, areas/mind/growth.ts): each tile and plan its own commit. */
+  growth(c: Caller, day: string, x: GrowthInput): Out<GrowthResponse> {
+    const tz = this.tz();
+    return growth((fn) => this.run(fn), c, day, x, { today: (w) => currentDay(w.db, tz, w.at), tz });
   }
 
   nightDay(q: { day: string; part: NightDayPart; after: (number | string)[] | null; limit: number }): Out<DayPart> {

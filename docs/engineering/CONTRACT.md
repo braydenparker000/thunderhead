@@ -89,6 +89,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/surfaces/topics/:key/said` | C N | P9 | built | the mind said a topic went quiet (once: 409 already_said) |
 | `POST /v1/media/sign` | D C N | P2 | built | music: refs (device only, P5), book: refs (P7); file: refs are not signable yet; 503 not_configured until the signing key is set |
 | `POST /v1/mind/night` | N | P3 | built | the night run: start, step done, cursor, done |
+| `PUT /v1/mind/growth/:day` | N | P7 | built | night step 13, the week's growth (growth.ts): from a claimed night session, for a closed day with a run; the Briefing's practice and study tiles from the week's counts and the plans through guitar.set_plan and study.mark_next, silent under 3 sessions; the same again writes nothing |
 | `GET /v1/mind/day/:day` | N | P3 | built | a closed day's stats, messages, ledger and notes |
 | `GET /v1/memory/facts` | D C N | P3 | built |  |
 | `GET /v1/memory/facts/:id` | D C N | P3 | built | one fact: its earlier versions, evidence and why |
@@ -424,7 +425,7 @@ What the mind knows of each song (`PUT /v1/music/notes`, `th music note`), forma
 
 ## Night shift
 
-The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, hard stop 45 (Sunday 60). A step of a phase not built yet, and the Sunday step on another night, is skipped on the way.
+The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, hard stop 45 (Sunday 60). A step of a phase not built yet, the Sunday step on another night, and the weekly step once a night of its week did it (the night into Sunday, or the first after it that runs), are skipped on the way.
 
 | Step | Name | Budget (min) | Phase | Cursor | Runs again without harm because |
 |---|---|---|---|---|---|
@@ -433,6 +434,7 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 | 3 | loose ends | 3 | P3 | no | a loose end is put by its id; closing a closed one is a no-op |
 | 4 | facts | 6 | P3 | yes | each part is one batch with its own id (`th facts --night --part <k>`); sent again, it is already applied |
 | 7 | arrange tomorrow | 4 | P3 | no | surfaces are put by app and slot |
+| 13 | growth (the week in Guitar and Study) (weekly) | 1 | P7 | no | tiles and plans are put by slot, and one the same as the one in place writes nothing |
 | 5 | health and agreed fixes | 8 | P3 | no | reads, then one branch per agreed loose end |
 | 6 | indexing (Study’s books) | 10 | P7 | no | a book is claimed by one run at a time and goes on from its cursor; a page is put by its number |
 | 8 | built overnight | 1 | P4 | no | items are put by id |

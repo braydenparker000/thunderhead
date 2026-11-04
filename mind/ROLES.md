@@ -56,6 +56,7 @@ pushes.
      file: `th facts --batch <file> --night` (parts over 50 ops, a cursor after each).
    - 7 Arrange the open day: `th podcasts new`, 0-3 home lines, tiles (`th skill briefing`);
      7b up to 6 predictions (`th help predict`).
+   - 13 The week's growth, when not skipped: `th growth`. It writes the words itself.
    - 5 Health: `th errors`, `th health --deep`; fix only loose ends tagged `agreed` (`th skill code`).
    - 6 Books (`th skill study`).
    - 9 Sundays only: `th eval begin`, then exactly what it prints.

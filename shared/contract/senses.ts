@@ -192,6 +192,10 @@ export const SENSE_QUERIES = {
   /** When the owner does things, as observed habits (`th day`; ROUTINES): `{ type? | app?, to?: Day }`
    * → `Routine[]`, counts and hours only. */
   routines: 'routines',
+  /** A week of Guitar (growth.ts): `{ to: Day }` → one `GuitarWeek`, counts and ids only. */
+  guitar_week: 'guitar_week',
+  /** A week of Study (growth.ts): `{ to: Day }` → one `StudyWeek`, counts and ids only. */
+  study_week: 'study_week',
 } as const;
 export type SenseQueryName = keyof typeof SENSE_QUERIES;
 

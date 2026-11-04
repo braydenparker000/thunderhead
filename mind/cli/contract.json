@@ -669,6 +669,14 @@
       "status": "built",
       "note": "the night run: start, step done, cursor, done"
     },
+    "PUT /v1/mind/growth/:day": {
+      "who": [
+        "N"
+      ],
+      "phase": "P7",
+      "status": "built",
+      "note": "night step 13, the week's growth (growth.ts): from a claimed night session, for a closed day with a run; the Briefing's practice and study tiles from the week's counts and the plans through guitar.set_plan and study.mark_next, silent under 3 sessions; the same again writes nothing"
+    },
     "GET /v1/mind/day/:day": {
       "who": [
         "N"
@@ -4595,6 +4603,15 @@
         "idempotent": "surfaces are put by app and slot",
         "cursor": false,
         "phase": "P3"
+      },
+      {
+        "step": 13,
+        "name": "growth (the week in Guitar and Study)",
+        "budget_min": 1,
+        "idempotent": "tiles and plans are put by slot, and one the same as the one in place writes nothing",
+        "cursor": false,
+        "phase": "P7",
+        "weekly": true
       },
       {
         "step": 5,

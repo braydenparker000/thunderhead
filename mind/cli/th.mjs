@@ -33,6 +33,7 @@ import {music} from './lib/music.mjs';
 import {podcasts} from './lib/podcasts.mjs';
 import * as later from './lib/plan.mjs';
 import {routine} from './lib/routine.mjs';
+import * as grow from './lib/growth.mjs';
 
 const withFlags = (fn, spec) => argv => fn(parseArgs(argv, spec).flags);
 
@@ -48,7 +49,7 @@ export const COMMANDS = {
   supersede: memory.supersede, forget: memory.forget, thread: memory.thread, day: memory.day,
   daynote: memory.daynote, facts: memory.facts,
   propose: act.propose, decide: act.decide, approved: act.approved, verb: act.verb, order: act.order, muse: act.muse, surface: act.surface,
-  plan: later.plan, verbs: later.verbs, routine,
+  plan: later.plan, verbs: later.verbs, routine, guitar: grow.guitar, study: grow.study, growth: grow.growth,
   library, music, remind, watch, podcasts, push: act.push, predict: act.predict, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
   ci: argv => ci(argv),
   help: async argv => { out(helpText(argv[0])); },

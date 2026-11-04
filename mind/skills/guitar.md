@@ -22,6 +22,8 @@ bars and BPM, never in vague progress.
 - At night, a prediction that the owner opens Guitar today: `th predict app.open --app guitar --p
   <odds> --why "<why>"`, honest odds.
 - Open Guitar with a reply chip to `/guitar/`.
+- The growth loop: `th guitar week` gives the week's sessions, best clean tempo per section and the
+  BPM gained; coach from it, and night step 13 (`th growth`) sets tomorrow's section from it.
 
 ## What you must not do
 - Never write into a score, and never invent a quotation from a teacher.
