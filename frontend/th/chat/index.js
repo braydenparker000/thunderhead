@@ -577,11 +577,7 @@ export async function startChat() {
   }
   // The first pass loads everything; offline or with the Worker away, the cache stands, the
   // outbox waits and the pass tries again.
-  await sync();
-  state.loaded = true;
-  paint();
-  live.start();
-  flush();
+  // Listening before the first sync: going offline during it is not missed.
   addEventListener('online', () => {
     state.offline = false;
     live.wake();
@@ -593,6 +589,11 @@ export async function startChat() {
     state.offline = true;
     paint();
   });
+  await sync();
+  state.loaded = true;
+  paint();
+  live.start();
+  flush();
   document.addEventListener('th:quiet', () => paint());
   document.addEventListener('th:otr', () => {
     otr = rec.current();
