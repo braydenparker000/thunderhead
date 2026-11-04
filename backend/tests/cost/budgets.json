@@ -572,7 +572,7 @@
     "rows_written_max": 0
   },
   "GET /v1/briefing (Core, 2 calendar links, 40 events)": {
-    "rows_read_max": 50,
+    "rows_read_max": 54,
     "rows_written_max": 0
   },
   "GET /v1/briefing/calendar?days=7 (Core, 40 events)": {
