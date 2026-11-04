@@ -200,7 +200,11 @@ test('The mind › What lands: a row per topic with its counts, and Reopen bring
   assert.ok(box.h >= 44, `Reopen is ${box.h}px`);
   assert.equal(box.name, 'Reopen Episodes new');
   await page.click('#mind-lands [data-topic="episodes.new"] button');
-  await page.waitForFunction(() => !document.querySelector('#mind-lands [data-topic="episodes.new"] button'));
+  // The fold reads again: the row comes back from that read, without its Reopen.
+  await page.waitForFunction(() => {
+    const r = document.querySelector('#mind-lands [data-topic="episodes.new"]');
+    return r !== null && !r.querySelector('button');
+  });
   assert.deepEqual(heard.reopened, [['/v1/surfaces/topics/episodes.new/reopen', {}]]);
   assert.equal(heard.reads, 2, 'read again after the Reopen');
   assert.match(await page.$eval('#mind-lands [data-topic="episodes.new"]', (r) => r.textContent), /^Episodes newUsed 0 · took back 1/);
