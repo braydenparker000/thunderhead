@@ -40,6 +40,8 @@ export default defineConfig({
           MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
           VAPID_PRIVATE_JWK: VAPID,
           SITE_ORIGINS: 'https://site.example.test',
+          // The cost suite's exact mode (tests/cost/cost.test.ts): TH_STRICT_COST=1 drops its 10% headroom.
+          TH_STRICT_COST: process.env.TH_STRICT_COST ?? '',
         },
       },
     }),

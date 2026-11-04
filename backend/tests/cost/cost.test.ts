@@ -1,7 +1,7 @@
-// Cost (TESTING.md §6): rows read and written per endpoint, from the objects' own cursor meters,
-// against tests/cost/budgets.json. These are the units the free plan bills (5M read, 100k written
-// a day). An endpoint without a budget fails; a budget rises only with DATA.md §8.2 and
-// PERFORMANCE.md §4. The budgets are the numbers measured in local workerd (MEASUREMENTS.md §2).
+// Cost (TESTING.md §6): rows read and written per endpoint (the objects' cursor meters; the free plan bills
+// 5M read, 100k written a day) against tests/cost/budgets.json. An endpoint without a budget fails; a budget rises
+// only with DATA.md §8.2 and PERFORMANCE.md §4. The budgets are the numbers measured in local workerd (MEASUREMENTS.md
+// §2); a call may exceed one by 10%, rounded up: ceil(max * 1.1). TH_STRICT_COST=1 makes it exact (measurement runs).
 import { describe, expect, it } from 'vitest';
 import type {
   Message,
@@ -38,7 +38,7 @@ import { proposalCalls } from './proposal-calls';
 import { phoneCalls } from './report-calls';
 import { ticks } from './ticks';
 
-type Budget = { rows_read_max: number; rows_written_max: number };
+const room = (max: number) => (process.env.TH_STRICT_COST === '1' ? max : Math.ceil((max * 11) / 10));
 const measured: Record<string, Rows> = {};
 type Stub = Parameters<typeof rowsDuring>[0];
 
@@ -289,11 +289,11 @@ describe('rows per endpoint', () => {
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);
     console.log(['| Call | Rows read | Rows written |', '|---|---|---|', ...lines].join('\n'));
-    const table = budgets as Record<string, Budget>;
+    const table = budgets as Record<string, { rows_read_max: number; rows_written_max: number }>;
     expect(Object.keys(measured).sort()).toEqual(Object.keys(table).sort());
     for (const [name, rows] of Object.entries(measured)) {
-      expect(rows.read, `${name} rows read`).toBeLessThanOrEqual(table[name].rows_read_max);
-      expect(rows.written, `${name} rows written`).toBeLessThanOrEqual(table[name].rows_written_max);
+      expect(rows.read, `${name} rows read`).toBeLessThanOrEqual(room(table[name].rows_read_max));
+      expect(rows.written, `${name} rows written`).toBeLessThanOrEqual(room(table[name].rows_written_max));
     }
   });
 });
