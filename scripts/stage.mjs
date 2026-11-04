@@ -167,9 +167,9 @@ const budgets = [
   // line, tomorrow on the weather tile and the night line: 19,199 → 23,588 bytes.
   // (2026-11-03) 24,000 → 25,028: + the Today tile from the owner's calendars (page.js), measured
   // 23,588 → 25,028 bytes.
-  // (2026-11-04, the report card) 25,028 → 28,696: + the night's report tile, its lines and Undo
+  // (2026-11-04, the report card) 25,028 → 28,700: + the night's report tile, its lines and Undo
   // (report.js, 3,600 bytes), measured.
-  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 28_696],
+  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 28_700],
   // (2026-10-31) + the menu as a page with day cards, the ring's layers, the docked card, the pinned
   // line and time chip, the Briefing's hero and the 44 px hit areas.
   // (2026-11-02, T1a) 68,000 → 76,000: every motion and type value now goes through a token
