@@ -84,6 +84,11 @@ export function put(
   return shown(row);
 }
 
+/** How many predictions `actor` made since `since` (the night's report counts, by `predictions_made`). */
+export const madeSince = (db: Db, actor: string, since: number): number =>
+  db.one<{ n: number }>('SELECT count(*) AS n FROM predictions WHERE made_at >= ? AND made_by = ?', since, actor)?.n ??
+  0;
+
 /** Whether any prediction's day is over and it waits for its outcome (one index probe). */
 export const anyDue = (db: Db, open: string) =>
   db.one('SELECT 1 AS x FROM predictions WHERE resolved_at IS NULL AND day < ? LIMIT 1', open) !== null;

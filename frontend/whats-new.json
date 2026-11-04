@@ -1,12 +1,15 @@
 {
-  "id": "2026-11-04-recall",
+  "id": "2026-11-04-report",
   "date": "2026-11-04",
   "lines": [
     {
-      "text": "Search finds things by meaning now, not only by the exact words: ask in your own words and it still turns up."
+      "text": "The Briefing now opens with what the night did: tap Overnight to see each thing."
     },
     {
-      "text": "It covers what you and the mind said, what it remembers, day notes and your Study books, a day or so behind."
+      "text": "Anything it did that you don't want, Undo takes back right there."
+    },
+    {
+      "text": "The same report is the first message in the day's chat, until you write."
     }
   ]
 }

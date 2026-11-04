@@ -3,14 +3,18 @@
 // while the page shows the kept one; the owner's calendar links the same way, at once for a link
 // never tried, calendar.ts; the songs added in the last day from the Music object), the weather's
 // place by a town's name, with its country for the Holidays tile, and the calendar's events for
-// `th get` (each link by its host only).
+// `th get` (each link by its host only); and the night's report, which night step 12 puts
+// (report.ts).
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import { type BriefingResponse, CALENDAR_LIMITS, type CalendarResponse } from '../../../../shared/contract/briefing.ts';
+import { NIGHT_REPORT_KINDS, type NightReport } from '../../../../shared/contract/night-report.ts';
 import { type AppEnv, deviceOf, guard } from '../../http/auth';
+import { callerOf, reqHash } from '../../http/caller';
 import { ApiError } from '../../http/errors';
 import { inSandbox } from '../../http/sandbox';
 import { json, parse } from '../../http/validate';
+import { value } from '../../lib/result';
 import { DAY } from '../../lib/time';
 import { coreObject } from '../../objects/core';
 import { musicObject } from '../../objects/music';
@@ -20,6 +24,19 @@ import { findPlace, forecastFor, type Place } from './weather';
 
 const STALE_MS = 30 * 60_000;
 const placeBody = z.object({ name: z.string().check(z.minLength(2), z.maxLength(80)) });
+// The words' own limits are the contract's check (nightReportProblem), so th and the Worker agree.
+const reportBody = z.strictObject({
+  headline: z.string().check(z.maxLength(200)),
+  lines: z
+    .array(
+      z.strictObject({
+        kind: z.enum(NIGHT_REPORT_KINDS),
+        text: z.string().check(z.maxLength(400)),
+        ref: z.optional(z.nullable(z.string().check(z.maxLength(80)))),
+      }),
+    )
+    .check(z.maxLength(12)),
+});
 const calendarQuery = z.object({
   days: z.optional(z.coerce.number().check(z.int(), z.gte(1), z.lte(CALENDAR_LIMITS.days))),
 });
@@ -65,6 +82,15 @@ export const briefingRoutes = new Hono<AppEnv>()
     if (inSandbox()) throw new ApiError('validation', [{ path: 'TH-Sandbox', issue: 'the sandbox has no calendar' }]);
     const q = parse(calendarQuery, c.req.query());
     return c.json((await fresh(coreObject(c.env).calendarList(q.days ?? 7))) as CalendarResponse);
+  })
+  .put('/briefing/report/:day', guard('PUT /v1/briefing/report/:day'), async (c) => {
+    if (inSandbox()) throw new ApiError('validation', [{ path: 'TH-Sandbox', issue: 'the sandbox has no briefing' }]);
+    const day = c.req.param('day');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || new Date(`${day}T12:00:00Z`).toISOString().slice(0, 10) !== day)
+      throw new ApiError('validation', [{ path: 'day', issue: 'a calendar day, YYYY-MM-DD' }]);
+    const body = await json(c, reportBody);
+    const out = value(await coreObject(c.env).reportPut(callerOf(c), day, body, reqHash(body)));
+    return c.json(out satisfies NightReport);
   })
   .put('/briefing/place', guard('PUT /v1/briefing/place'), async (c) => {
     const { name } = await json(c, placeBody);

@@ -62,6 +62,7 @@ export const USAGE = {
   daynote: ['<day> --summary --decisions <json> --importance <1-10>', 'the day note; prints its provenance (an outside one is shown marked, never evidence)'],
   facts: ['--batch <file.json> [--night [--part <k>] [--day <day>]]', 'a batch of memory ops; --night: part k of step 4 for the night run\'s day (P3)'],
   night: ['start | step <n> done | step <n> cursor <c> | done [--partial] | steps [--day <day>]', 'the night run: where it stands, each step done, a saved place (P3)'],
+  report: ['--headline "<≤ 60>" [--line <kind>[@ledger:<id>|@app:<id>]:"<≤ 100>" …] [--day <day>]', 'night step 12: what the night did, the Briefing\'s first tile and the open day\'s first message; ≤ 6 plain lines; a ledger ref (a row this run wrote, th ledger --since) is the owner\'s Undo on the tile; the Worker adds the counts; the same report again changes nothing'],
 };
 
 export function helpText(command, role = process.env.TH_ROLE || '') {

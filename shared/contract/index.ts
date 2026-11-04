@@ -25,6 +25,14 @@ export {
 } from './music.ts';
 export * from './night.ts';
 export {
+  NIGHT_REPORT_KINDS,
+  NIGHT_REPORT_LIMITS,
+  NIGHT_REPORT_REF,
+  type NightReportKind,
+  nightReportCountsLine,
+  nightReportProblem,
+} from './night-report.ts';
+export {
   classOf,
   MIND_ACTIONS,
   type MindActionName,

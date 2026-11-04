@@ -209,13 +209,19 @@ To confirm on the live Worker once a key can read it: `GET /v1/mind/wakes` (the 
 
 **The mind.** The brief's section 1 (the state of now, in the first 2,000 characters) gets the Mine links' `calendar today: 18:00–21:00 "Dinner" at "The Old Mill"`, `calendar tomorrow: …` and `calendar: <the failure line>`, in a 400-character budget of their own; a Shared link's events go to section 7 (the day), marked `(outside)`: outside text, never quoted into memory, and never in the first layer (MEMORY.md §9, 2026-11-03). Titles are JSON-quoted as data. Section 7 also has the page's tiles, one line each as the page shows them, and how each of the day's arrangements was met so far. Reflex's brief has none. `th get /v1/briefing/calendar days=7` lists the kept events. Reminders follow nothing automatically; the mind can reason from the calendar.
 
-## The report card (design, not built)
+## The report card (built 2026-11-04)
 
-The owner chose: the night's written report becomes an **expandable tile** on the Briefing and the **first message of the day's fresh chat**. Design only; nothing of it is built.
+The owner chose: the night's written report becomes an **expandable tile** on the Briefing and the **first message of the day's fresh chat**. **Built** as designed below (`shared/contract/night-report.ts`, `backend/src/areas/briefing/report*.ts`, `frontend/th/briefing/report.js`, `th report`; tests `backend/tests/integration/night-report.test.ts`, `tests/briefing-report-browser.test.mjs`, `mind/tests/th-report.test.mjs`), with these departures:
 
-**Who writes it, and when.** The night, as a new step 12 "the report", placed after step 9 and before step 11 (the run: 1, 2, 3, 4, 7, 5, 6, 8, 9, 12, 11, 10). Before the songs, because reading songs' tags taints the session and a tainted session's words may not reach the owner; what step 11 then does joins the report as Worker counts, never as words. `th report --headline "<…>" --line <kind>:"<…>" …` → `PUT /v1/briefing/report/:day`: the night key only (`N`), a claimed, live, untainted session (`403 session_tainted` otherwise), `:day` the run's closed day. The same body again answers the stored report; a new body from the same session replaces it (a ledger row with undo); from another session, 409.
+- **Its place:** the first tile after the weather, before "Waiting on you" (the lead's brief, owner decision 16: what the night did is the first thing the owner sees), not after Due. Pins never move it.
+- **Undo per line:** a line whose `ref` is `ledger:<id>` (a row the night wrote; any other is 422) has an Undo on the tile, `POST /v1/ledger/:id/undo`, the same as `th undo`; an undone line says so. So the tile also reads the rows its lines name.
+- **Counts:** the Worker counts from Core's own rows since the run began (the night's ledger rows, its predictions, the run's cut steps), again at `th night done`. Songs, mixes and pages are kept in the Music and Library objects and are `null` for now; the detail line leaves them out.
+- **The message:** posted once, when the report is first put; a replacement or an undo changes the tile, never the chat. Messages have no `visible_from`, so it shows when it is put (inside the quiet hours, with no push); the counts are its last paragraph, not a block. Its origin is the new `night`.
+- **Ledger:** every version is a row (`arrangement`, `briefing/report ← <day>`), the first one too: its undo removes the report.
 
-**Data shape** (`shared/contract/briefing.ts`, to add):
+**Who writes it, and when.** The night, as step 12 "the report", placed after step 9 and before step 11 (the run: 1, 2, 3, 4, 7, 5, 6, 8, 9, 12, 11, 10). Before the songs, because reading songs' tags taints the session and a tainted session's words may not reach the owner; what step 11 then does joins the report as Worker counts, never as words. `th report --headline "<…>" --line <kind>:"<…>" …` → `PUT /v1/briefing/report/:day`: the night key only (`N`), a claimed, live, untainted session (`403 session_tainted` otherwise), `:day` the run's closed day. The same body again answers the stored report; a new body from the same session replaces it (a ledger row with undo); from another session, 409.
+
+**Data shape** (`shared/contract/night-report.ts`; the counts' songs, mixes and pages are `number | null`, and the stored report also keeps `message_id`):
 
 ```ts
 type ReportKind = 'memory' | 'loose_ends' | 'built' | 'reading' | 'music' | 'health' | 'predictions' | 'note';
@@ -241,7 +247,7 @@ interface NightReport {
 
 **Cost.** One report row, one message row and their change and ledger rows: 4 to 6 writes a night; the tile reads one row.
 
-**Tests (when built).** The route's guards (night key only, a tainted session refused, the limits, the same body again, another session 409); the report as the open day's first message only when the thread has no owner message, hidden until the quiet end, with no push; the tile expands and collapses at 390×844, keyboard and screen reader included; a cut run's `steps_cut`; the lint.
+**Tests.** The route's guards (night key only, a tainted session refused, the limits, the same body again, another session 409); the report as the open day's first message only when the thread has no owner message, hidden until the quiet end, with no push; the tile expands and collapses at 390×844, keyboard and screen reader included; a cut run's `steps_cut`; the lint.
 
 ## Open questions / tests
 

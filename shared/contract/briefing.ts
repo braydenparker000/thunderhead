@@ -1,11 +1,12 @@
 // What GET /v1/briefing answers (BRIEFING.md): the page's title line, the date and a line of the
-// day's counts, the weather (P8), its tiles in order ("Waiting on you", "Today" from the owner's
+// day's counts, the weather (P8), its tiles in order (the night's report, "Waiting on you", "Today" from the owner's
 // calendars, "Due", then the night shift's tiles, P8, then "Holidays"), one line about Muse when there is something to say, one
 // about the night shift when it didn't arrange the page, and one about the day's database use from
 // 60% of the Free plan's limit. The Worker fills Due, Holidays and the day's line itself every
 // morning, without a mind session. Counts and titles only, except the Due sheet's reminders (the
 // owner's own words, to the owner's device).
 
+import type { NightReportKind } from './night-report.ts';
 export interface WaitingTile {
   kind: 'waiting';
   label: 'Waiting on you';
@@ -163,7 +164,27 @@ export interface PutPlaceRequest {
   name: string;
 }
 
-export type BriefingTile = WaitingTile | CalendarTile | DueTile | NightTile | HolidayTile;
+/** The night's report (night-report.ts): folded to the headline and the counts; a tap shows the
+ * lines, each with its place to open (`path`, from an `app:` ref) or its Undo (`undo`, from a
+ * `ledger:` ref: `open` while it can be undone, `undone` once it was). */
+export interface ReportTile {
+  kind: 'report';
+  label: 'Overnight';
+  value: string;
+  detail: string;
+  day: string;
+  lines: {
+    kind: NightReportKind;
+    text: string;
+    path: string | null;
+    ledger_id: string | null;
+    undo: 'open' | 'undone' | null;
+  }[];
+  /** What the hard stop cut, in run order. */
+  cut: number[];
+}
+
+export type BriefingTile = ReportTile | WaitingTile | CalendarTile | DueTile | NightTile | HolidayTile;
 
 export interface BriefingResponse {
   day: string;
@@ -171,7 +192,7 @@ export interface BriefingResponse {
   /** The date and the day's counts (absent in answers from before 2026-11-02). */
   today?: TodayLine;
   weather: WeatherTile;
-  /** At most 8, in order: "Waiting on you", "Today", "Due", the night's tiles by slot, "Holidays". */
+  /** At most 8, in order: the night's report, "Waiting on you", "Today", "Due", the night's tiles by slot, "Holidays". */
   tiles: BriefingTile[];
   /** "Muse hasn't checked in since yesterday." / null */
   muse: string | null;

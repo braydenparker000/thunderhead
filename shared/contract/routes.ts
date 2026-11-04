@@ -199,6 +199,7 @@ export const ROUTES = {
   'GET /v1/work/thread': { who: ['M', 'D', 'C', 'N'], phase: 'P4', note: 'Muse\'s own thread, never the owner\'s conversation' },
   'POST /v1/work/thread/messages': { who: ['M', 'D', 'C', 'N'], phase: 'P4' },
   'GET /v1/briefing': { who: D, phase: 'P4' },
+  'PUT /v1/briefing/report/:day': { who: ['N'], phase: 'P4', note: "night step 12, the night's report (night-report.ts): a claimed, live, untainted night session; the same body again answers the stored report, a new one from the same session replaces it (undo), another session's is 409" },
   'PUT /v1/briefing/place': { who: D, phase: 'P8', note: "the weather's place, by a town's name" },
   'GET /v1/briefing/calendar': { who: ['D', 'C', 'N'], phase: 'P8', note: "?days=1–14 (7): the owner's calendar events kept from today's midnight, each link by its host only; `source: outside` marks a shared link's words" },
 

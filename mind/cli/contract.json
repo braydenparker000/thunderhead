@@ -1114,6 +1114,14 @@
       "phase": "P4",
       "status": "built"
     },
+    "PUT /v1/briefing/report/:day": {
+      "who": [
+        "N"
+      ],
+      "phase": "P4",
+      "status": "built",
+      "note": "night step 12, the night's report (night-report.ts): a claimed, live, untainted night session; the same body again answers the stored report, a new one from the same session replaces it (undo), another session's is 409"
+    },
     "PUT /v1/briefing/place": {
       "who": [
         "D"
@@ -3945,6 +3953,14 @@
         "sunday": true
       },
       {
+        "step": 12,
+        "name": "the report",
+        "budget_min": 1,
+        "idempotent": "the same report again answers the stored one; a new one from the same session replaces it",
+        "cursor": false,
+        "phase": "P4"
+      },
+      {
         "step": 11,
         "name": "songs (notes, mixes)",
         "budget_min": 6,
@@ -3987,7 +4003,27 @@
       "notes"
     ],
     "page_max": 200,
-    "backfill_days": 7
+    "backfill_days": 7,
+    "report": {
+      "kinds": [
+        "memory",
+        "loose_ends",
+        "built",
+        "reading",
+        "music",
+        "health",
+        "predictions",
+        "note"
+      ],
+      "limits": {
+        "headline": 60,
+        "lines": 6,
+        "line": 100,
+        "total": 800,
+        "keep_days": 30
+      },
+      "ref": "^(app:[a-z]{2,16}|ledger:[0-9a-f-]{36})$"
+    }
   },
   "proposals": {
     "classes": {

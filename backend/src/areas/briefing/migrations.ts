@@ -6,6 +6,7 @@
 // address itself is only in the setting `briefing.calendars`, never in these rows.
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneEvents, pruneFeeds } from './calendar-store';
+import { pruneReports } from './report-store';
 
 export const BRIEFING_MIGRATIONS: Migration[] = [
   {
@@ -36,6 +37,25 @@ export const BRIEFING_MIGRATIONS: Migration[] = [
       ) WITHOUT ROWID`,
     ],
   },
+  // The night's report (BRIEFING.md "The report card"): one row per closed day, kept 30 days.
+  {
+    version: 36,
+    name: 'night_reports',
+    kind: 'expand',
+    sql: [
+      `CREATE TABLE night_reports (
+        day TEXT PRIMARY KEY,
+        written_at INTEGER NOT NULL,
+        session_id TEXT NOT NULL,
+        headline TEXT NOT NULL,
+        lines_json TEXT NOT NULL,
+        counts_json TEXT NOT NULL,
+        req_sha256 TEXT NOT NULL,
+        ledger_id TEXT NOT NULL,
+        message_id TEXT
+      ) WITHOUT ROWID`,
+    ],
+  },
 ];
 
 export const BRIEFING_TABLES: Record<string, TableInfo> = {
@@ -52,5 +72,11 @@ export const BRIEFING_TABLES: Record<string, TableInfo> = {
     backup: false,
     export: false,
     prune: pruneFeeds,
+  },
+  night_reports: {
+    retention: "one row per closed day, the night's report; deleted by the daily prune after 30 days",
+    backup: true,
+    export: true,
+    prune: pruneReports,
   },
 };

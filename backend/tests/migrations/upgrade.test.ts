@@ -104,8 +104,9 @@ describe('upgrade from P2', () => {
         // Step 31: the owner's calendars.
         'calendar_events',
         'calendar_feeds',
-        // Step 34: the watches.
+        // Step 34: the watches; step 36: the night's reports.
         'watches',
+        'night_reports',
       ])
         sql.exec(`DROP TABLE IF EXISTS ${t}`);
       // Step 34 also gave the P2 wakes their reason and the sessions a claim-time index.
@@ -169,6 +170,7 @@ describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
       // Back to before step 32 (test-only SQL; migrations never drop), and so before step 34 too.
       sql.exec('DROP INDEX facts_outside');
       sql.exec('DROP TABLE watches');
+      sql.exec('DROP TABLE night_reports');
       sql.exec('DROP INDEX mind_sessions_claimed');
       sql.exec('ALTER TABLE wakes DROP COLUMN reason_json');
       for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`ALTER TABLE ${t} DROP COLUMN provenance`);

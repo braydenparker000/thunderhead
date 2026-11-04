@@ -1,9 +1,12 @@
 // The night shift's half of the Core object (P3, areas/mind/night*.ts): the run record that
 // `th night` moves through and the closed day's input that `th day` reads. Like the rest of Core,
-// each RPC is a thin call into the area; the run's writes go through `run` (commit.ts). `Core`
+// each RPC is a thin call into the area; the run's writes go through `run` (commit.ts), and so does
+// the night's report (step 12, areas/briefing/report.ts). `Core`
 // (core.ts) adds the day roll that fires the night shift.
 import type { MindNightRequest, MindNightResponse } from '../../../shared/contract/api';
 import type { NightDayPart } from '../../../shared/contract/night.ts';
+import type { NightReport, PutNightReportRequest } from '../../../shared/contract/night-report.ts';
+import { putReport, recount } from '../areas/briefing/report';
 import { currentDay } from '../areas/conversation/day';
 import { fireConfig } from '../areas/mind/fire';
 import { night } from '../areas/mind/night';
@@ -18,10 +21,18 @@ export abstract class CoreNight extends CoreMemory {
     // The watches met while it ran waited for its end (RUNTIME.md §3); the recall index catches up
     // on the day and the night's notes.
     if (out.ok && out.value.done) {
+      // What the steps after the report did, and what the hard stop cut, join its counts.
+      this.write((w) => recount(w, r.day));
       this.watchesAfterNight();
       this.queueRecall();
     }
     return out;
+  }
+
+  /** PUT /v1/briefing/report/:day (night step 12, areas/briefing/report.ts). */
+  reportPut(c: Caller, day: string, r: PutNightReportRequest, hash: string): Out<NightReport> {
+    const tz = this.tz();
+    return this.run((w) => putReport(w, c, day, r, hash, { today: currentDay(w.db, tz, w.at), tz }));
   }
 
   nightDay(q: { day: string; part: NightDayPart; after: (number | string)[] | null; limit: number }): Out<DayPart> {

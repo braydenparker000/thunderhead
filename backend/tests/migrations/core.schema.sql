@@ -367,6 +367,18 @@ CREATE TABLE muse_notes (
 
 CREATE INDEX muse_notes_order ON muse_notes (order_id, seq);
 
+CREATE TABLE night_reports (
+  day TEXT PRIMARY KEY,
+  written_at INTEGER NOT NULL,
+  session_id TEXT NOT NULL,
+  headline TEXT NOT NULL,
+  lines_json TEXT NOT NULL,
+  counts_json TEXT NOT NULL,
+  req_sha256 TEXT NOT NULL,
+  ledger_id TEXT NOT NULL,
+  message_id TEXT
+  ) WITHOUT ROWID;
+
 CREATE TABLE night_runs (
   day TEXT PRIMARY KEY,
   started_at INTEGER NOT NULL,

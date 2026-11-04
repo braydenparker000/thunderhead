@@ -64,7 +64,7 @@ export function nightRun(db: Db, day: string): RunRow | null {
 export const nightDone = (db: Db, day: string): boolean => (nightRun(db, day)?.done_at ?? null) !== null;
 
 /** The steps a run's hard stop cut (`th night done --partial`), in run order. */
-const cutSteps = (run: RunRow) => {
+export const cutSteps = (run: RunRow) => {
   const steps = JSON.parse(run.steps_json) as Record<string, StepRecord>;
   return NIGHT_ORDER.filter((n) => steps[n]?.skipped === 'hard_stop');
 };

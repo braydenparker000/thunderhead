@@ -536,6 +536,7 @@ Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its cl
 | 6 | Indexing. From P7: read Study's waiting books (`bash mind/jobs/study-setup.sh`, then `node mind/jobs/study-ingest.mjs --books 2 --minutes 10`; a book not finished goes on the next night; it prints counts only, so no book text reaches the session). Then the listening pass: `th music jobs` (collects last night's job, sends the next ≤ 500 songs, or the neighbours step, to Actions by the job's id; built 2026-11-01, JOBS.md §3) | 10 min | Pages, FTS, refs in `Library`; one Actions job dispatched |
 | 8 | "Built overnight" items for the Briefing page; arrange the Briefing page | 1 min | Briefing items |
 | 9 | Sunday only: weekly review and evals ([EVALS.md](EVALS.md)); built in P4 stage C as the injection suite (`th eval begin`, then what it prints), and in P9 the weekly improvement after it (`th eval week`, EVALS.md §7) | +15 min | `eval_runs`, one PR at most |
+| 12 | The report (2026-11-04; after 9, before 11, since a tainted session's words may not reach the owner): `th report --headline "<≤ 60>" --line <kind>@ledger:<id>:"<≤ 100>"`, at most 6 plain lines, each one thing the run did with its ledger row (`th ledger --since <the run's start>`), so the owner's Undo on the tile is `th undo` on that row ([BRIEFING.md](../product/BRIEFING.md) "The report card") | 1 min | `night_reports`; the Briefing's first tile; the open day's first message while the owner hasn't written |
 | 11 | Songs (P5, last before 10, after every step that writes memory: reading songs' tags taints the session, and the next night's fired wake starts clean once this session has ended, §4.3): the next untagged songs' notes (≤ 400), at most 2 mixes, Sunday's line (§12.1) | 6 min | `track_notes`, verbs, one home line |
 | 10 | Session note; update `docs/process/STATUS.md` if code changed; `th night done` | 2 min | — |
 
@@ -543,7 +544,7 @@ Fired by the day roll (`roll`, §3) or by the 06:07 schedule (`schedule`; its cl
 - **Writes:** a few dozen rows per night for the steps, and up to about 400 for the songs' notes (§12.1), well under the Durable Object daily write budget.
 - **Quiet hours:** the night shift posts nothing that notifies the owner. Home lines and decision cards it creates become visible at 06:30 **[not built: surfaces show when placed; a `visible_from` arrives with decision cards, P4]**.
 - **Predictions** (P9, built): step 7b, up to 6 a night about the open day with `th predict` (`th help predict` lists the resolvers), resolved by the Worker's fixed SQL resolvers once the day is over ([API.md §11.23](../engineering/API.md)).
-- **Songs** (built 2026-11-01): step 11, §12.1. A step's number is a name, never its place: 11 is the next free number and runs between 9 and 10, after every step that writes memory (the registry's order, `th night steps`), and a finished run answers `resume_from: 12`, past every number.
+- **Songs** (built 2026-11-01): step 11, §12.1. A step's number is a name, never its place: 11 is the next free number and runs between 9 and 10, after every step that writes memory (the registry's order, `th night steps`), and a finished run answers `resume_from: 13`, past every number (step 12, the report, 2026-11-04, runs between 9 and 11).
 
 ### 12.1 Songs (night step 11)
 

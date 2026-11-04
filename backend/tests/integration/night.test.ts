@@ -153,7 +153,7 @@ describe('the run record', () => {
     const before = await run(yday);
     expect((await night({ day: yday, action: 'step_done', step: 1 }, 'cse_night_a')).body.resume_from).toBe(2);
     expect(await run(yday)).toEqual(before);
-    expect((await night({ day: yday, action: 'step_done', step: 12 }, 'cse_night_a')).status).toBe(422);
+    expect((await night({ day: yday, action: 'step_done', step: 13 }, 'cse_night_a')).status).toBe(422);
     expect((await night({ day: yday, action: 'cursor', step: 2, cursor: 'x' }, 'cse_night_a')).status).toBe(422);
   });
 
@@ -201,13 +201,13 @@ describe('the run record', () => {
     // Step 9 (the weekly evals) is due only on the night into Sunday, whatever day this runs on.
     const sunday = weekly(yday);
     expect((await night({ day: yday, action: 'step_done', step: 6 }, 'cse_night_c')).body).toEqual({
-      resume_from: sunday ? 9 : 11,
+      resume_from: sunday ? 9 : 12,
       done: false,
       cursor: null,
       skipped: sunday ? [8] : [8, 9],
     }); // P7
-    if (sunday) await night({ day: yday, action: 'step_done', step: 9 }, 'cse_night_c');
-    // 11 (the songs) runs last before 10, after every step that writes memory: order is the list's.
+    for (const step of sunday ? [9, 12] : [12]) await night({ day: yday, action: 'step_done', step }, 'cse_night_c');
+    // 12 (the report), then 11 (the songs) last before 10, after every step that writes memory: order is the list's.
     expect((await night({ day: yday, action: 'step_done', step: 10 }, 'cse_night_c')).status).toBe(409);
     expect((await night({ day: yday, action: 'step_done', step: 11 }, 'cse_night_c')).body.resume_from).toBe(10); // P5
     const r = await run(yday);
@@ -278,11 +278,11 @@ describe('the run record', () => {
       resume_from: NIGHT_END,
       done: true,
       cursor: null,
-      skipped: [2, 3, 4, 5, 6, 7, 8, 9, 11],
+      skipped: [2, 3, 4, 5, 6, 7, 8, 9, 11, 12],
     });
     const steps = JSON.parse((await run(d2)).steps_json);
-    const cut = [...Array(6).fill('hard_stop'), 'later', weekly(d2) ? 'hard_stop' : 'not_sunday', 'hard_stop'];
-    expect([2, 3, 4, 5, 6, 7, 8, 9, 11].map((n) => steps[n].skipped)).toEqual(cut);
+    for (const n of [2, 3, 4, 5, 6, 7, 8, 9, 11, 12])
+      expect(steps[n].skipped, `${n}`).toBe(n === 8 ? 'later' : n === 9 && !weekly(d2) ? 'not_sunday' : 'hard_stop');
     expect(steps[10]).toMatchObject({ done: true, session: 'cse_night_e' });
   });
 

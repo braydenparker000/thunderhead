@@ -222,6 +222,8 @@ function mind() {
       day_parts: c.NIGHT_DAY_PARTS,
       page_max: c.NIGHT_PAGE_MAX,
       backfill_days: c.NIGHT_BACKFILL_DAYS,
+      // Step 12, `th report` (night-report.ts): the kinds, the limits and a ref's form.
+      report: { kinds: c.NIGHT_REPORT_KINDS, limits: c.NIGHT_REPORT_LIMITS, ref: c.NIGHT_REPORT_REF.source },
     },
     proposals: {
       classes: c.PROPOSAL_CLASSES,
