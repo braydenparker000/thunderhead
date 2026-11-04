@@ -1,14 +1,15 @@
 // @ts-check
-// A recipe as the GPU reads it (shaders/develop.*): 28 vec4s of controls and the view, and the tone
+// A recipe as the GPU reads it (shaders/develop.*): 32 vec4s of controls, geometry and the view, and the tone
 // curve as a 1024-entry lookup (RGBA half floats). The lookup holds, per channel, what the sliders
 // that act on tone globally do in order: the base curve (RAW only: a soft shoulder and a little
 // contrast, since a linear RAW looks flat), Contrast, Whites and Blacks, then the point curves
 // (master, then the channel's), to sRGB-encoded output. Its input is log2 of linear light from 2^-12 to 4.
 import { CURVES, HUES, NUMBERS, val } from './fields.js';
 import { gainsFor, REC2020_TO_SRGB } from './color.js';
+import { frameSize, geometry } from './geometry.js';
 
 export const LUT_SIZE = 1024;
-export const UNIFORMS = 28;
+export const UNIFORMS = 32;
 
 /** @param {number} f */
 export function half(f) {
@@ -73,7 +74,7 @@ function tint(/** @type {number} */ hue, /** @type {number} */ sat) {
 
 /**
  * @param {import('./fields.js').Recipe} r
- * @param {{ raw: boolean, rawPhoto?: boolean, asShot: number[], shot: { temperature: number, tint: number }, auto?: { temperature: number, tint: number } | null, width: number, height: number }} img
+ * @param {{ raw: boolean, rawPhoto?: boolean, asShot: number[], shot: { temperature: number, tint: number }, auto?: { temperature: number, tint: number } | null, width: number, height: number, ca?: number[] }} img
  * @param {{ scale: number[], offset: number[], size: number[], flip: number, p0: number[], tile: null | { u0: number, v0: number, u1: number, v1: number, texel: number[] } }} view
  */
 export function pack(r, img, view) {
@@ -89,11 +90,12 @@ export function pack(r, img, view) {
   put(4, [v('Sharpness') / 100, v('SharpenRadius'), v('SharpenDetail') / 100, v('SharpenEdgeMasking') / 100]);
   put(5, [v('LuminanceSmoothing') / 100, v('LuminanceNoiseReductionDetail') / 100, v('ColorNoiseReduction') / 100, v('ColorNoiseReductionDetail') / 100]);
   put(6, [v('PostCropVignetteAmount') / 100, v('PostCropVignetteMidpoint') / 100, v('PostCropVignetteFeather') / 100, v('PostCropVignetteRoundness') / 100]);
-  put(7, [v('GrainAmount') / 100, v('GrainSize') / 100, v('GrainFrequency') / 100, img.width]);
+  const geo = geometry(r, img.width, img.height), [fw, fh] = frameSize(geo);
+  put(7, [v('GrainAmount') / 100, v('GrainSize') / 100, v('GrainFrequency') / 100, fw]);
   put(8, [...tint(v('SplitToningShadowHue'), v('SplitToningShadowSaturation')), v('ColorGradeShadowLum') / 100]);
   put(9, [...tint(v('ColorGradeMidtoneHue'), v('ColorGradeMidtoneSat')), v('ColorGradeMidtoneLum') / 100]);
   put(10, [...tint(v('SplitToningHighlightHue'), v('SplitToningHighlightSaturation')), v('ColorGradeHighlightLum') / 100]);
-  put(11, [v('ColorGradeBlending') / 100, v('SplitToningBalance') / 100, img.width / img.height, 0]);
+  put(11, [v('ColorGradeBlending') / 100, v('SplitToningBalance') / 100, fw / fh, 0]);
   HUES.forEach((h, i) => {
     u[48 + i] = v(`HueAdjustment${h}`) / 100;
     u[56 + i] = v(`SaturationAdjustment${h}`) / 100;
@@ -105,6 +107,11 @@ export function pack(r, img, view) {
   put(21, [...view.size, view.flip, 0]);
   put(22, [...(view.tile?.texel ?? [0, 0]), 0, 0]);
   REC2020_TO_SRGB.forEach((row, i) => put(23 + i, [...row, 0]));
+  put(26, geo.crop);
+  put(27, [geo.cos, geo.sin, geo.z, geo.a]);
+  put(28, [geo.kv, geo.kh, geo.kd, geo.rmax]);
+  put(29, [...geo.flip, v('VignetteAmount') / 100, 0]);
+  put(30, [...(r.AutoLateralCA && img.ca ? img.ca : [0, 0]), 0, 0]);
   return u;
 }
 

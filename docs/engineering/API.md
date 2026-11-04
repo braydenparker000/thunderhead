@@ -867,7 +867,21 @@ public and checked by its one-use state.
   values are 422. Stored canonical (defaults dropped, keys sorted, ≤ 8 KB) with its SHA-256: the same
   recipe again is `changed: false` and writes nothing. A change writes a ledger row whose undo
   (`photo.recipe`) puts the recipe before back, 409 once the photo was edited again since. Deleted: 404.
-  Core step 42.
+  Core step 42. Since P1c the recipe also holds crop and geometry (`CropLeft/Top/Right/Bottom` 0–1 of
+  the straightened frame, left before right and top before bottom or 422; `CropAngle` ±45;
+  `PerspectiveVertical`, `PerspectiveHorizontal` ±100), optics (`LensManualDistortionAmount`,
+  `VignetteAmount` ±100) and the switches `AutoLateralCA`, `LensProfileEnable`, `CropConstrainToWarp`,
+  `FlipHorizontal`, `FlipVertical` (the last two ours).
+- `GET /v1/photos/:id/versions` → `{items: PhotoVersion[]}` newest first (`{id, kind 'auto'|'named',
+  name, recipe, created_at}`, `shared/contract/photos-versions.ts`); 404 for a photo the shelf never had.
+  `POST` `{id (the phone's UUIDv7), kind, name? (≤ 60, named only), recipe}` → `201 {version, created}`:
+  the recipe checked and stored canonical as above; an automatic version equal to the newest automatic
+  one is `200 created: false` and writes nothing, the same `id` again is that version; past 20 automatic
+  versions the oldest goes in the same commit; a 21st named one is `409 conflict` until one is deleted.
+  `PATCH /versions/:vid` `{name}` → `{version}` (an automatic one named becomes named, within the cap);
+  `DELETE /versions/:vid` → `{ok}`. Versions leave no ledger row: restoring one is the recipe `PUT`
+  above, with its undo. A photo in Recently deleted takes no new version (404); its versions go with it
+  when it is purged. Core step 43.
 
 ## 12. WebSocket protocol (`/v1/live`)
 

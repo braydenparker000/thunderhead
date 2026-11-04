@@ -10,6 +10,8 @@ import {
   PHOTO_FORMATS,
   type PhotoItem,
   type PhotoShelfResponse,
+  VERSION_KINDS,
+  VERSION_LIMITS,
 } from '../../../../shared/contract/photos.ts';
 import { type AppEnv, guard } from '../../http/auth';
 import { idParam } from '../../http/caller';
@@ -21,13 +23,19 @@ import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 import { sha256 } from '../import/vault';
 import { fileMeta } from './google';
-import { recipeBody, sealRecipe } from './recipe';
+import { recipeBody, recipeObject, sealRecipe } from './recipe';
 import { accessToken } from './token';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const text = (max: number) => z.string().check(z.minLength(1), z.maxLength(max));
 const maybe = <T extends z.ZodMiniType>(t: T) => z.optional(z.nullable(t));
 const dim = z.number().check(z.int(), z.gte(1), z.lte(100_000));
+const versionBody = z.strictObject({
+  id: z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)),
+  kind: z.enum(VERSION_KINDS),
+  name: z.optional(text(VERSION_LIMITS.name_chars)),
+  recipe: recipeObject,
+});
 const putBody = z.strictObject({
   drive_id: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,160}$/)),
   name: text(L.name_chars),
@@ -114,6 +122,32 @@ export const photosRoutes = new Hono<AppEnv>()
     const sealed = await sealRecipe(body.recipe);
     const out = value(await fresh(coreObject(c.env).putPhotoRecipe(id, sealed.json, sealed.sha)));
     return c.json({ photo: out.photo, recipe: JSON.parse(sealed.json), changed: out.changed });
+  })
+  // Versions (PHOTOS.md, Versions): restore is the recipe put above, with its undo.
+  .get('/photos/:id/versions', guard('GET /v1/photos/:id/versions'), async (c) => {
+    const items = await fresh(coreObject(c.env).photoVersions(idParam(c)));
+    if (!items) throw new ApiError('not_found');
+    return c.json({ items });
+  })
+  .post('/photos/:id/versions', guard('POST /v1/photos/:id/versions'), async (c) => {
+    const id = idParam(c);
+    const body = await json(c, versionBody);
+    const sealed = await sealRecipe(body.recipe);
+    const name = body.kind === 'named' ? (body.name ?? 'Version') : null;
+    const out = value(
+      await fresh(coreObject(c.env).addPhotoVersion(id, body.id, body.kind, name, sealed.json, sealed.sha)),
+    );
+    return c.json({ version: out.version, created: out.created }, out.created ? 201 : 200);
+  })
+  .patch('/photos/:id/versions/:vid', guard('PATCH /v1/photos/:id/versions/:vid'), async (c) => {
+    const id = idParam(c);
+    const vid = idParam(c, 'vid');
+    const body = await json(c, z.strictObject({ name: text(VERSION_LIMITS.name_chars) }));
+    return c.json({ version: value(await fresh(coreObject(c.env).renamePhotoVersion(id, vid, body.name))) });
+  })
+  .delete('/photos/:id/versions/:vid', guard('DELETE /v1/photos/:id/versions/:vid'), async (c) => {
+    value(await fresh(coreObject(c.env).deletePhotoVersion(idParam(c), idParam(c, 'vid'))));
+    return c.json({ ok: true });
   })
   .patch('/photos/:id', guard('PATCH /v1/photos/:id'), async (c) => {
     const id = idParam(c);

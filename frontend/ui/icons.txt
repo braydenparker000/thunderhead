@@ -84,3 +84,10 @@ star
 star-fill
 flag
 prohibit
+# Photos: crop and geometry, versions, export
+crop
+flip-horizontal
+flip-vertical
+stack
+columns
+export

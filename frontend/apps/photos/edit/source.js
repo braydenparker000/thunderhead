@@ -68,7 +68,7 @@ function engineSource(p, token) {
           ms: m.ms,
           tile: (x, y, w, h) => new Promise((ok, no) => {
             const id = ++n;
-            waiting.set(id, (r) => (r.type === 'tile' ? ok({ kind: 'planar', width: r.width, height: r.height, data: r.data }) : no(new Error(r.message))));
+            waiting.set(id, (r) => (r.type === 'tile' ? ok({ kind: 'planar', width: r.width, height: r.height, data: r.data, x: r.x, y: r.y }) : no(new Error(r.message))));
             worker.postMessage({ type: 'tile', id, x, y, w, h });
           }),
           close: () => worker.terminate(),

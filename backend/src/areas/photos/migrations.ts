@@ -1,6 +1,6 @@
 // Photos (PHOTOS.md, DATA.md §4.14): one row per photo on the shelf, and the Drive ids of photos
 // purged from Recently deleted until their originals are in Drive's own trash. Schema step 41; the
-// recipe's two columns, step 42.
+// recipe's two columns, step 42; its versions, step 43.
 import { PHOTO_LIMITS } from '../../../../shared/contract/photos.ts';
 import { DAY } from '../../lib/time';
 import type { Migration, TableInfo } from '../../objects/base';
@@ -53,11 +53,35 @@ export const PHOTOS_MIGRATIONS: Migration[] = [
     // JSON's SHA-256, so the same recipe again writes nothing. Null is "as shot".
     sql: ['ALTER TABLE photos ADD COLUMN recipe_json TEXT', 'ALTER TABLE photos ADD COLUMN recipe_sha TEXT'],
   },
+  {
+    version: 43,
+    name: 'photo_versions',
+    kind: 'expand',
+    // A photo's versions (PHOTOS.md, Versions): a canonical recipe each, automatic or named, at most
+    // 20 of each per photo (versions.ts holds the caps); gone with the photo when it is purged.
+    sql: [
+      `CREATE TABLE photo_versions (
+        id TEXT PRIMARY KEY,
+        photo_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        name TEXT,
+        recipe_json TEXT NOT NULL,
+        recipe_sha TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      ) WITHOUT ROWID`,
+      'CREATE INDEX photo_versions_photo ON photo_versions (photo_id, kind, created_at)',
+    ],
+  },
 ];
 
 export const PHOTOS_TABLES: Record<string, TableInfo> = {
   photos: {
     retention: `forever while on the shelf (ids, numbers, the camera's words); purged ${PHOTO_LIMITS.deleted_days} days after a delete`,
+    backup: true,
+    export: true,
+  },
+  photo_versions: {
+    retention: 'forever while its photo is kept (at most 20 automatic and 20 named); purged with it',
     backup: true,
     export: true,
   },

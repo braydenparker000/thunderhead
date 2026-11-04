@@ -5,16 +5,21 @@
 // wheels with luminance, then Blending and Balance) and B&W.
 import { el } from '/th/ui.js';
 import { icon } from '../shelf.js';
+import { cropTool } from './crop.js';
 import { curveTool } from './curve.js';
+import { opticsTool } from './optics.js';
+import { versionsTool } from './versions.js';
 import { HUES, PANELS, val, WHEELS } from './fields.js';
 import { segments, slider, wheel } from './slider.js';
 
 const SWATCH = { Red: '#e0453a', Orange: '#ef8a2c', Yellow: '#e8cf35', Green: '#4caf50', Aqua: '#2ec4c6', Blue: '#3f6fe8', Purple: '#8a52e0', Magenta: '#d64fb5' };
 
 /** @typedef {{ recipe: import('./fields.js').Recipe, rawPhoto: boolean, shot: { temperature: number, tint: number }, auto: { temperature: number, tint: number } | null,
- *   mode: 'view' | 'pick' | 'target', mixProp: string, mixHue: string, wheel: string,
+ *   mode: 'view' | 'pick' | 'target' | 'level', mixProp: string, mixHue: string, wheel: string, id: string, aspect: string | null,
+ *   img: { width: number, height: number, ca?: number[] }, thumb: (r: import('./fields.js').Recipe) => Promise<HTMLCanvasElement>,
+ *   compare: (two: { recipe: import('./fields.js').Recipe, label: string }[]) => void, restore: (r: import('./fields.js').Recipe) => void,
  *   set: (key: string, v: unknown, done: boolean) => void, setWb: (t: number, tint: number, done: boolean) => void,
- *   wbMode: (m: string) => void, runAuto: () => void, setMode: (m: 'view' | 'pick' | 'target', hint?: string) => void }} Ed */
+ *   wbMode: (m: string) => void, runAuto: () => void, setMode: (m: 'view' | 'pick' | 'target' | 'level', hint?: string) => void }} Ed */
 
 /** The white balance now in force: Custom's own, Auto's, or the file's. @param {Ed} ed */
 export const wbNow = (ed) => (ed.recipe.WhiteBalance === 'Custom' ? { temperature: val(ed.recipe, 'Temperature'), tint: val(ed.recipe, 'Tint') }
@@ -40,6 +45,9 @@ export function toolView(ed, panelId, toolId) {
   if (!t) return el('div');
   ed.setMode('view');
   if ('key' in t) return control(ed, t);
+  if (panelId === 'crop') return cropTool(ed, t.tool);
+  if (panelId === 'optics') return opticsTool(ed);
+  if (panelId === 'versions') return versionsTool(ed, t.tool);
   if (t.tool === 'auto') {
     const b = el('button', { type: 'button', class: 'eauto' }, [icon('magic-wand'), el('span', { text: 'Auto' })]);
     b.addEventListener('click', () => ed.runAuto());

@@ -6,6 +6,7 @@
 import type { PhotoRecipe } from './photos-recipe.ts';
 
 export * from './photos-recipe.ts';
+export * from './photos-versions.ts';
 
 export const PHOTO_LIMITS = {
   /** A preview the phone sends: a JPEG of at most this many bytes (2048 px at quality ~0.8). */
@@ -43,6 +44,8 @@ export type PhotoFlag = (typeof PHOTO_FLAGS)[number];
 
 /** The folder the app makes in the owner's Drive on first connect. */
 export const DRIVE_FOLDER = 'Thunderhead Photos';
+/** Exports the phone sends back to Drive: a folder beside DRIVE_FOLDER the phone makes on first use. */
+export const DRIVE_EXPORTS = 'Thunderhead Exports';
 /** The one scope asked for: files this app creates, nothing else in the Drive. */
 export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 

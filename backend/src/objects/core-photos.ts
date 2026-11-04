@@ -10,13 +10,16 @@ import {
   type PhotoItem,
   type PhotoResponse,
   type PhotoShelfResponse,
+  type PhotoVersion,
   type PutPhotoRequest,
+  type VersionKind,
 } from '../../../shared/contract/photos.ts';
 import { logicalDay } from '../areas/conversation/day';
 import { quotaHold } from '../areas/meter/quota';
 import * as ops from '../areas/photos/ops';
 import * as recipe from '../areas/photos/recipe';
 import * as store from '../areas/photos/store';
+import * as versions from '../areas/photos/versions';
 import { getSetting, putSetting } from '../areas/settings/store';
 import { uuidv7 } from '../lib/ids';
 import type { Out } from '../lib/result';
@@ -56,6 +59,24 @@ export abstract class CorePhotos extends CoreVerbs {
   /** The recipe in its canonical JSON and hash (routes.ts seals it); the same hash writes nothing. */
   putPhotoRecipe(id: string, json: string, sha: string): Out<{ photo: PhotoItem; changed: boolean }> {
     return this.run((w) => recipe.put(w, id, json, sha));
+  }
+
+  // --- versions (areas/photos/versions.ts) -------------------------------------------------------
+
+  photoVersions(id: string): PhotoVersion[] | null {
+    return store.byId(this.db, id) ? versions.list(this.db, id) : null;
+  }
+
+  addPhotoVersion(id: string, vid: string, kind: VersionKind, name: string | null, json: string, sha: string) {
+    return this.run((w) => versions.add(w, id, vid, kind, name, json, sha));
+  }
+
+  renamePhotoVersion(id: string, vid: string, name: string): Out<PhotoVersion> {
+    return this.run((w) => versions.rename(w, id, vid, name));
+  }
+
+  deletePhotoVersion(id: string, vid: string): Out<void> {
+    return this.run((w) => versions.remove(w, id, vid));
   }
 
   photoPreviewKey(id: string): { key: string; sha: string } | null {

@@ -106,7 +106,10 @@ export const due = (db: Db, cutoff: number, limit: number) =>
   );
 
 export function purge(db: Db, ids: string[], driveIds: string[], at: number): void {
-  for (const id of ids) db.run('DELETE FROM photos WHERE id = ?', id);
+  for (const id of ids) {
+    db.run('DELETE FROM photos WHERE id = ?', id);
+    db.run('DELETE FROM photo_versions WHERE photo_id = ?', id);
+  }
   for (const d of driveIds)
     db.run('INSERT INTO photos_gone (drive_id, purged_at) VALUES (?, ?) ON CONFLICT DO NOTHING', d, at);
 }

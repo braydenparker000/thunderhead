@@ -3,6 +3,8 @@
 // triangle, then for each target pixel the photo's pixel from the proxy (or the 1:1 detail proxy), the
 // two blur levels and the tone lookup, sRGB-encoded out.
 import { body } from './develop-body.js';
+import { caBody, geoBody } from './geometry-body.js';
+import { UNIFORMS } from '../uniforms.js';
 
 const wgsl = (/** @type {string} */ s) =>
   s.replace(/\bD1 (\w+) = /g, 'var $1: f32 = ').replace(/\bD2 (\w+) = /g, 'var $1: vec2f = ')
@@ -13,7 +15,7 @@ const wgsl = (/** @type {string} */ s) =>
     .replace(/\bTAP\(/g, 'tap(t, ').replace(/\bHC\(/g, 'hc(').replace(/\bADJ\(/g, 'adj(');
 
 export const DEVELOP_WGSL = /* wgsl */ `
-struct U { v: array<vec4f, 28> }
+struct U { v: array<vec4f, ${UNIFORMS}> }
 @group(0) @binding(0) var<uniform> u: U;
 @group(0) @binding(1) var smp: sampler;
 @group(0) @binding(2) var P0: texture_2d<f32>;
@@ -55,12 +57,15 @@ fn vnoise(p: vec2f) -> f32 {
 }
 @fragment fn fs(@builtin(position) pos: vec4f) -> @location(0) vec4f {
   let px = pos.xy;
-  let uv = px * u.v[18].xy + u.v[18].zw;
+  let q = px * u.v[18].xy + u.v[18].zw;
+  if (q.x < 0.0 || q.y < 0.0 || q.x > 1.0 || q.y > 1.0) { return vec4f(0.0, 0.0, 0.0, 1.0); }
+${wgsl(geoBody((x) => x))}
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) { return vec4f(0.0, 0.0, 0.0, 1.0); }
   let t = u.v[20].z > 0.5 && uv.x >= u.v[19].z && uv.y >= u.v[19].w && uv.x <= u.v[20].x && uv.y <= u.v[20].y;
   let s = select(uv, (uv - u.v[19].zw) / (u.v[20].xy - u.v[19].zw), t);
   let ts = select(u.v[19].xy, u.v[22].xy, t);
-  let c0 = tap(t, s);
+  var c0 = tap(t, s);
+${wgsl(caBody((x) => x))}
 ${wgsl(body((x) => x))}
   return vec4f(clamp(e, vec3f(0.0), vec3f(1.0)), 1.0);
 }`;

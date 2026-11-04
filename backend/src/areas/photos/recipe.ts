@@ -10,6 +10,7 @@ import {
   type PhotoItem,
   type PhotoRecipe,
   RECIPE_CURVES,
+  RECIPE_FLAGS,
   RECIPE_NUMBERS,
   RECIPE_WB,
   WB_MODES,
@@ -34,14 +35,18 @@ const shape: Record<string, z.ZodMiniType> = {
   WhiteBalance: z.optional(z.enum(WB_MODES)),
   Temperature: num(...RECIPE_WB.Temperature),
   Tint: num(...RECIPE_WB.Tint),
-  ConvertToGrayscale: z.optional(z.boolean()),
 };
+for (const k of RECIPE_FLAGS) shape[k] = z.optional(z.boolean());
 for (const [k, [min, max]] of Object.entries(RECIPE_NUMBERS)) shape[k] = num(min, max);
 for (const k of RECIPE_CURVES) shape[k] = curve;
-export const recipeBody = z.strictObject({ recipe: z.strictObject(shape) });
+export const recipeObject = z.strictObject(shape);
+export const recipeBody = z.strictObject({ recipe: recipeObject });
 
 /** The canonical JSON and its hash, refused when it is larger than any real recipe. */
 export async function sealRecipe(r: PhotoRecipe): Promise<{ json: string; sha: string }> {
+  // A crop is a rectangle: each edge before its opposite.
+  if ((r.CropLeft ?? 0) >= (r.CropRight ?? 1) || (r.CropTop ?? 0) >= (r.CropBottom ?? 1))
+    throw new ApiError('validation', [{ path: 'recipe.Crop', issue: 'left before right, top before bottom' }]);
   const json = JSON.stringify(canonicalRecipe(r));
   if (json.length > L.recipe_bytes) throw new ApiError('too_large');
   return { json, sha: json === '{}' ? '' : await sha256(new TextEncoder().encode(json)) };

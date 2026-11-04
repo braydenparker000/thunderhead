@@ -5,7 +5,7 @@
 
 /** @typedef {import('../../../../shared/contract/photos-recipe.ts').PhotoRecipe} Recipe */
 /** @typedef {{ key: string, label: string, step: number, unit?: string, up?: string, down?: string, zero?: string, raw?: number }} Control */
-/** @typedef {{ id: 'light'|'color'|'effects'|'detail', label: string, icon: string, tools: (Control | { tool: string, label: string })[] }} Panel */
+/** @typedef {{ id: 'light'|'color'|'effects'|'detail'|'optics'|'crop'|'versions', label: string, icon: string, tools: (Control | { tool: string, label: string })[] }} Panel */
 
 const pm = (/** @type {number} */ n) => [-n, n, 0];
 /** [min, max, default], the contract's RECIPE_NUMBERS. */
@@ -23,6 +23,9 @@ export const NUMBERS = /** @type {Record<string, number[]>} */ ({
   Sharpness: [0, 150, 40], SharpenRadius: [0.5, 3, 1], SharpenDetail: [0, 100, 25], SharpenEdgeMasking: [0, 100, 0],
   LuminanceSmoothing: [0, 100, 0], LuminanceNoiseReductionDetail: [0, 100, 50], ColorNoiseReduction: [0, 100, 25], ColorNoiseReductionDetail: [0, 100, 50],
   Temperature: [2000, 50000, 5500], Tint: [-150, 150, 0],
+  LensManualDistortionAmount: pm(100), VignetteAmount: pm(100),
+  CropTop: [0, 1, 0], CropLeft: [0, 1, 0], CropBottom: [0, 1, 1], CropRight: [0, 1, 1], CropAngle: [-45, 45, 0],
+  PerspectiveVertical: pm(100), PerspectiveHorizontal: pm(100),
 });
 export const CURVES = ['ToneCurvePV2012', 'ToneCurvePV2012Red', 'ToneCurvePV2012Green', 'ToneCurvePV2012Blue'];
 export const HUES = ['Red', 'Orange', 'Yellow', 'Green', 'Aqua', 'Blue', 'Purple', 'Magenta'];
@@ -38,7 +41,7 @@ export function val(r, key, raw = true) {
 
 /** The value in words and its number, as the slider shows it. @param {Control} c @param {number} v @param {number} [def] */
 export function words(c, v, def = NUMBERS[c.key]?.[2] ?? 0) {
-  const n = c.step < 1 ? (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)) : c.unit === 'K' ? `${Math.round(v)} K` : c.unit === '°' ? `${Math.round(v)}°` : v > 0 && NUMBERS[c.key]?.[0] < 0 ? `+${Math.round(v)}` : String(Math.round(v));
+  const n = c.unit === '°' && c.step < 1 ? `${v > 0 ? '+' : ''}${v.toFixed(1)}°` : c.step < 1 ? (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)) : c.unit === 'K' ? `${Math.round(v)} K` : c.unit === '°' ? `${Math.round(v)}°` : v > 0 && NUMBERS[c.key]?.[0] < 0 ? `+${Math.round(v)}` : String(Math.round(v));
   const w = v > def ? c.up : v < def ? c.down : (c.zero ?? 'as shot');
   return { number: n, words: w ?? '' };
 }
@@ -87,6 +90,26 @@ export const PANELS = [
     { key: 'LuminanceNoiseReductionDetail', label: 'Noise detail', step: 1, up: 'more detail kept', down: 'smoother', zero: 'as shot' },
     { key: 'ColorNoiseReduction', label: 'Color noise', step: 1, up: 'cleaner colour', down: 'less cleaning', zero: 'as shot' },
     { key: 'ColorNoiseReductionDetail', label: 'Color detail', step: 1, up: 'more colour detail', down: 'smoother', zero: 'as shot' },
+  ] },
+  { id: 'optics', label: 'Optics', icon: 'aperture', tools: [
+    { tool: 'ca', label: 'Chromatic aberration' },
+    b('LensManualDistortionAmount', 'Distortion', 'barrel corrected', 'pincushion corrected'),
+    b('VignetteAmount', 'Lens vignetting', 'lighter corners', 'darker corners'),
+  ] },
+  { id: 'crop', label: 'Crop', icon: 'crop', tools: [
+    { tool: 'aspect', label: 'Aspect' },
+    { key: 'CropAngle', label: 'Rotate', step: 0.1, unit: '°', up: 'turned clockwise', down: 'turned anticlockwise', zero: 'level' },
+    { tool: 'level', label: 'Level' },
+    { tool: 'flip', label: 'Flip' },
+    b('PerspectiveVertical', 'Vertical', 'top wider', 'bottom wider'),
+    b('PerspectiveHorizontal', 'Horizontal', 'left wider', 'right wider'),
+    { tool: 'constrain', label: 'Constrain' },
+    { tool: 'reset', label: 'Reset' },
+  ] },
+  { id: 'versions', label: 'Versions', icon: 'stack', tools: [
+    { tool: 'all', label: 'All' },
+    { tool: 'named', label: 'Named' },
+    { tool: 'auto', label: 'Automatic' },
   ] },
 ];
 
