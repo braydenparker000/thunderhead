@@ -140,7 +140,8 @@ test('every row on every page is a catalogue entry, with its detail, a 44 px hit
     const expected = SETTINGS.filter((s) => s.group === name).map((s) => s.key);
     assert.deepEqual(got.keys, expected, `${name}: its rows are its catalogue entries, in order`);
     assert.deepEqual(got.loose, [], `${name}: no row outside the catalogue`);
-    assert.equal(got.info, { privacy: 3, about: 4 }[name] ?? 0, `${name}: read-only rows`);
+    // The mind's What lands fold (its rows are read when it opens) is one read-only row.
+    assert.equal(got.info, { privacy: 3, about: 4, mind: 1 }[name] ?? 0, `${name}: read-only rows`);
     assert.deepEqual(got.details, [], `${name}: a detail line under each`);
     assert.deepEqual(got.small, [], `${name}: 44 px hit areas`);
     assert.equal(got.unnamed, 0, `${name}: every button has a name`);
@@ -158,6 +159,58 @@ test('every row on every page is a catalogue entry, with its detail, a 44 px hit
   assert.equal(await page.evaluate(() => localStorage.getItem('th.s.chat.reveal')), 'instant');
   assert.equal(await page.evaluate(() => document.activeElement?.dataset.v), 'instant');
   assert.deepEqual(worker.patches, [], 'phone settings never reach the Worker');
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+/** What lands (GET /v1/insight/topics): a topic that rests and one that does not, worst first. */
+const LANDS = {
+  window_days: 30,
+  items: [
+    { topic_key: 'episodes.new', places: ['home'], kept: 0, undone: 1, ignored: 2, unseen: 1, waiting: 0, streak: 3, quiet_until: Date.UTC(2026, 11, 4), reopens: '2026-12-04', said: true },
+    { topic_key: 'practice.bars', places: ['briefing', 'home'], kept: 3, undone: 0, ignored: 1, unseen: 0, waiting: 1, streak: 1, quiet_until: null, reopens: null, said: false },
+  ],
+};
+
+test('The mind › What lands: a row per topic with its counts, and Reopen brings a resting one back', opts, async () => {
+  const { page, context, errors } = await open();
+  const heard = { reads: 0, reopened: [] };
+  const reply = (route, status, body) => route.fulfill({ status, headers: { ...CORS, 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  await page.route(`${API}/v1/insight/topics`, (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    heard.reads++;
+    return reply(route, 200, heard.reopened.length ? { ...LANDS, items: [{ ...LANDS.items[0], streak: 0, quiet_until: null, reopens: null, said: false }, LANDS.items[1]] } : LANDS);
+  });
+  await page.route(`${API}/v1/surfaces/topics/*/reopen`, (route) => {
+    if (route.request().method() === 'OPTIONS') return route.fulfill({ status: 204, headers: CORS });
+    heard.reopened.push([new URL(route.request().url()).pathname, route.request().postDataJSON()]);
+    return reply(route, 200, { topic_key: 'episodes.new', ledger_id: '0192f0c4-0000-7000-8000-00000000000a' });
+  });
+  await show(page, 'mind');
+  assert.equal(heard.reads, 0, 'read only when it opens');
+  await page.click('#mind-lands summary');
+  await page.waitForSelector('#mind-lands [data-topic="practice.bars"]');
+  const rows = await page.$$eval('#mind-lands [data-topic]', (rs) => rs.map((r) => [r.dataset.topic, r.textContent, Boolean(r.querySelector('button'))]));
+  assert.deepEqual(rows, [
+    ['episodes.new', 'Episodes newUsed 0 · took back 1 · left 2 · not seen 1 · on homeResting until 4 December: you passed it over 3 times in a row.Reopen', true],
+    ['practice.bars', 'Practice barsUsed 3 · took back 0 · left 1 · not seen 0 · on the Briefing and home', false],
+  ]);
+  assert.ok(await page.$('#mind-lands >> text=Counts only, never a score for you.'));
+  const box = await page.$eval('#mind-lands [data-topic="episodes.new"] button', (b) => { const r = b.getBoundingClientRect(); return { h: r.height, name: b.getAttribute('aria-label') }; });
+  assert.ok(box.h >= 44, `Reopen is ${box.h}px`);
+  assert.equal(box.name, 'Reopen Episodes new');
+  await page.click('#mind-lands [data-topic="episodes.new"] button');
+  // The fold reads again: the row comes back from that read, without its Reopen.
+  await page.waitForFunction(() => {
+    const r = document.querySelector('#mind-lands [data-topic="episodes.new"]');
+    return r !== null && !r.querySelector('button');
+  });
+  assert.deepEqual(heard.reopened, [['/v1/surfaces/topics/episodes.new/reopen', {}]]);
+  assert.equal(heard.reads, 2, 'read again after the Reopen');
+  assert.match(await page.$eval('#mind-lands [data-topic="episodes.new"]', (r) => r.textContent), /^Episodes newUsed 0 · took back 1/);
+  assert.ok(await page.waitForSelector('text=Episodes new can come back now.'));
+  // It fits the phone's width.
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), 'no sideways scroll');
   assert.deepEqual(errors, []);
   await context.close();
 });

@@ -1,8 +1,10 @@
 // /v1/predictions (P9, EVALS.md M-18): the night shift's predictions, kept under their own id;
-// the list; and the skill per category, which the meter shows.
+// the list; the skill per category, which the meter shows; and the calibration, odds claimed
+// against what happened over 28 days (with the arrangement cards' odds against a yes).
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import {
+  type CalibrationResponse,
   type CategorySkill,
   PREDICTION_CATEGORIES,
   PREDICTION_LIMITS,
@@ -49,4 +51,7 @@ export const predictionsRoutes = new Hono<AppEnv>()
   })
   .get('/predictions/skill', guard('GET /v1/predictions/skill'), async (c) =>
     c.json({ categories: (await fresh(coreObject(c.env).predictionSkill())) satisfies CategorySkill[] }),
+  )
+  .get('/predictions/calibration', guard('GET /v1/predictions/calibration'), async (c) =>
+    c.json((await fresh(coreObject(c.env).calibration())) satisfies CalibrationResponse),
   );

@@ -260,3 +260,37 @@ export function arrangedBetween(db: Db, from: number, to: number, limit: number)
     limit,
   );
 }
+
+/** The mind's arrangements since `from` that name a topic, oldest first, with where each went
+ * (`home/line.2 ← line`: `home`), by the ledger's time index. At most 2,000 (8 a day is ~240). */
+export function topicArrangements(db: Db, from: number) {
+  return db.all<{
+    id: string;
+    at: number;
+    ref: string | null;
+    undone_at: number | null;
+    line: number;
+    topic_key: string;
+    place: string;
+  }>(
+    `SELECT id, at, ref, undone_at, what LIKE 'home/line.%' AS line, topic_key, substr(what, 1, instr(what, '/') - 1) AS place
+       FROM ledger WHERE at >= ? AND kind = 'arrangement' AND actor LIKE 'mind:%' AND what LIKE '%←%'
+       AND topic_key IS NOT NULL ORDER BY at, seq LIMIT 2000`,
+    from,
+  );
+}
+
+/** What the speech setting's day has spent (mind/speech.ts): the mind's home line puts and the cards
+ * it raised since `from`, leaving out those that name the owner's message asking for them. */
+export function speechSpentSince(db: Db, from: number): { lines: number; cards: number } {
+  const n = (sql: string) =>
+    db.one<{ n: number }>(
+      `SELECT count(*) AS n FROM ledger WHERE at >= ? AND actor LIKE 'mind:%' AND ${sql}
+         AND (op_json IS NULL OR json_extract(op_json, '$.asked_by') IS NULL)`,
+      from,
+    )?.n ?? 0;
+  return {
+    lines: n("kind = 'arrangement' AND what LIKE 'home/line.%←%'"),
+    cards: n("kind = 'proposal' AND what LIKE 'asked the owner%'"),
+  };
+}

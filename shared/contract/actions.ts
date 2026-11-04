@@ -189,6 +189,9 @@ export interface PutSurfaceRequest {
    * (422 `muted_fact`), one labelled outside and not kept (422 `outside_fact`), a private one too
    * (422 `too_sensitive`). */
   facts?: Id[];
+  /** The owner's message that asked for it (lands.ts ASKED_HOURS): never held back by "quiet" or
+   * "silent" (`mind.speech`), and not counted in what quiet allows a day. */
+  asked_by?: Id;
 }
 
 export interface SurfacesResponse {

@@ -87,6 +87,9 @@ export interface BriefInput {
   predicted?: string[];
   tiles?: string[];
   calendarShared?: string[];
+  /** Section 1's speech line, and section 7's What lands (brief-learn.ts): the table, what to say once, the odds. */
+  speech?: string;
+  lands?: string[];
 }
 
 /** The role-side note over section 3 when any waiting message is off the record: the Worker refuses
@@ -96,11 +99,11 @@ export const OFF_RECORD_NOTE = (ids: string[]) =>
 
 /** The full briefing's budgets for sections 3–7: `th brief --section <n>` reads the full file, so
  * whatever the core cut is there (MEMORY.md §9), and its own cuts point past the briefing. */
-const FULL_BUDGET: Record<number, number> = { 3: 7_000, 4: 4_500, 5: 4_000, 6: 2_500, 7: 1_500 };
+const FULL_BUDGET: Record<number, number> = { 3: 7_000, 4: 4_500, 5: 4_000, 6: 2_500, 7: 2_200 };
 /** The core's budgets for the sections that fill what is left (6, 7, then 5). */
 const CORE_FILL: [number, number][] = [
   [6, 800],
-  [7, 900],
+  [7, 1_400],
   [5, 2_200],
 ];
 

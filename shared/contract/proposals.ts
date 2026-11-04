@@ -39,7 +39,21 @@ export const PROPOSAL_LIMITS = {
   snoozes: 3,
   /** The canonical spec JSON, at most. */
   spec_bytes: 8_192,
+  /** A card's odds, when given: never certain either way (BEHAVIOR.md §6.1). */
+  odds_min: 0.05,
+  odds_max: 0.95,
 } as const;
+
+/** Whether a card must carry odds (BEHAVIOR.md §4): an arrangement the mind proposes, filed under
+ * `permit` (a standing permission the owner set to Ask: music, the tiles, practice…), says how sure
+ * it is the owner wants it, which the owner's answer then settles (GET /v1/predictions/calibration,
+ * `cards`). The floors and memory_big keep odds optional. */
+export const oddsRequired = (cls: ProposalClass): boolean => cls === 'permit';
+
+/** A card's odds in words, worded only here (scripts/contract.mjs copies this function into the
+ * phone's contract.js for the card): below .4 a guess, .4 to .75 fairly sure, above .75 sure. */
+export type OddsWords = 'a guess' | 'fairly sure' | 'sure';
+export const oddsWords: (p: number) => OddsWords = (p) => (p < 0.4 ? 'a guess' : p <= 0.75 ? 'fairly sure' : 'sure');
 
 const uuid = z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/));
 const sha256 = z.string().check(z.regex(/^[0-9a-f]{64}$/));
@@ -171,7 +185,11 @@ export interface PutProposalRequest {
   question: string;
   why: string;
   if_ignored: string;
+  /** 0.05–0.95; required for class `permit` (oddsRequired). */
   odds?: number;
+  /** The owner's message that asked for it (lands.ts ASKED_HOURS): a card the owner asked for is a
+   * reply, so "quiet" and "silent" (`mind.speech`) never hold it back. */
+  asked_by?: Id;
   options: [string, string];
   /** What the second button does (default `reject`). */
   safe?: 'reject' | 'snooze';

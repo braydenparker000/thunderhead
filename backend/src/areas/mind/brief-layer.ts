@@ -87,9 +87,10 @@ function todayLines(i: BriefInput, room: number): string[] {
   return out;
 }
 
-/** Section 1, ≤ NOW_MAX characters: the state, the voice, then today's state in what is left. */
+/** Section 1, ≤ NOW_MAX characters: the state and how the mind may speak today (brief-learn.ts),
+ * the voice, then today's state in what is left. */
 export function nowSection(i: BriefInput): string {
-  const head = [stateLines(i), ...VOICE].join('\n');
+  const head = [stateLines(i), ...(i.speech ? [i.speech.slice(0, 240)] : []), ...VOICE].join('\n');
   return [head, ...todayLines(i, NOW_MAX - head.length - 1)].join('\n');
 }
 

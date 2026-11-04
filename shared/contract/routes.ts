@@ -112,6 +112,8 @@ export const ROUTES = {
   'GET /v1/surfaces': { who: AGENTS_READ, phase: 'P2' },
   'PUT /v1/surfaces/:app/:slot': { who: ['C', 'N'], phase: 'P2' },
   'DELETE /v1/surfaces/:app/:slot': { who: ['D', 'C', 'N'], phase: 'P2' },
+  'POST /v1/surfaces/topics/:key/reopen': { who: ['D', 'C'], phase: 'P9', note: "a resting topic open again: a tap, or the owner's own words (by_message, checked as a card's)" },
+  'POST /v1/surfaces/topics/:key/said': { who: ['C', 'N'], phase: 'P9', note: 'the mind said a topic went quiet (once: 409 already_said)' },
   'POST /v1/media/sign': { who: ['D', 'C', 'N'], phase: 'P2', note: 'music: refs (device only, P5), book: refs (P7); file: refs are not signable yet; 503 not_configured until the signing key is set' },
 
   // --- P3: memory and the night shift -----------------------------------------------------------
@@ -159,19 +161,13 @@ export const ROUTES = {
   'POST /v1/evals/sandbox': { who: ['C', 'N'], phase: 'P4', note: 'with TH-Sandbox: eval only: reset the eval sandbox to a synthetic seed' },
   'GET /v1/evals/sandbox': { who: ['C', 'N'], phase: 'P4', note: 'with TH-Sandbox: eval only: what was written or tried since the reset' },
   'PUT /v1/evals/runs/:id': { who: ['C', 'N'], phase: 'P4', note: 'one finished suite, numbers and ids only (never in the sandbox)' },
-  'GET /v1/evals/runs': {
-    who: ['D', 'C', 'N', 'I'],
-    phase: 'P4',
-    note: 'ci: the weekly improvement check reads the numbers (P9)',
-  },
-  'PUT /v1/predictions/:id': {
-    who: ['N'],
-    phase: 'P9',
-    note: 'a prediction about the open day or the next, with a fixed resolver; at most 12 a day',
-  },
+  'GET /v1/evals/runs': { who: ['D', 'C', 'N', 'I'], phase: 'P4', note: 'ci: the weekly improvement check reads the numbers (P9)' },
+  'PUT /v1/predictions/:id': { who: ['N'], phase: 'P9', note: 'a prediction about the open day or the next, with a fixed resolver; at most 12 a day' },
   'GET /v1/predictions': { who: ['D', 'C', 'N'], phase: 'P9', note: 'newest first; ?open=1 for the unresolved' },
   'GET /v1/predictions/skill': { who: ['D', 'C', 'N'], phase: 'P9', note: 'Brier skill per category (EVALS.md M-18)' },
   'GET /v1/insight': { who: ['D', 'C', 'N'], phase: 'P9', note: 'the meter: M-8, M-10, M-16, M-18 (EVALS.md §9), counts only' },
+  'GET /v1/insight/topics': { who: ['D', 'C', 'N'], phase: 'P9', note: 'what lands: per topic, 30 days of kept, undone, ignored and unseen, the streak and when a resting one reopens' },
+  'GET /v1/predictions/calibration': { who: ['D', 'C', 'N'], phase: 'P9', note: 'per category, the last 28 days: odds claimed against what happened (cards: against a yes)' },
   'GET /v1/ops/watchdogs': { who: ['D', 'C', 'N', 'R', 'I'], phase: 'P4', note: 'every watchdog, its state and the SLO it guards' },
   'POST /v1/ops/watchdogs/:name/handled': {
     who: ['C', 'N', 'R'],

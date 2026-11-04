@@ -13,12 +13,14 @@ import { offRecordOf } from '../conversation/held';
 import { dayCounts } from '../conversation/stats';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
+import { lastPass } from '../insight/topics';
 import * as ledger from '../ledger/store';
 import * as notes from '../memory/notes';
 import { renderProfile } from '../memory/profile';
 import * as facts from '../memory/store';
 import { quotaBriefLine, safeQuota } from '../meter/quota';
 import * as ops from '../ops/store';
+import { calibration } from '../predictions/ops';
 import { lawsLine } from '../proposals/laws';
 import * as proposals from '../proposals/store';
 import type { BriefReports } from '../senses/brief';
@@ -27,9 +29,11 @@ import { quietUntil } from '../settings/quiet';
 import * as watchdogs from '../watchdogs/ops';
 import { buildBrief } from './brief';
 import { calendarLines, dayLines, dueLines, playingLine, weatherLine } from './brief-gather';
+import { landsLines, speechLine } from './brief-learn';
 import { clock } from './brief-text';
 import { nightDayOf, nightDone, nightLine } from './night';
 import * as sessionNotes from './notes';
+import { speechState } from './speech';
 import * as store from './store';
 import { backoff } from './wake';
 import { briefLines as pulseLines } from './watches/brief';
@@ -127,6 +131,10 @@ export function assemble(
     predicted: theDay?.predicted,
     tiles: theDay?.tiles,
     calendarShared: calendar.shared,
+    // How the mind may speak today (section 1), and what lands as the last pass left it, with the odds
+    // claimed against what happened (section 7; insight/topics.ts, predictions/ops.ts).
+    speech: speechLine(speechState(db, now, tz)),
+    lands: role === 'reflex' ? [] : landsLines(lastPass(db, now, tz), calibration(db, now).items),
   });
   return {
     wake,

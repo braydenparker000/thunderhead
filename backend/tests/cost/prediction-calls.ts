@@ -1,5 +1,6 @@
 // The P9 prediction calls of the cost suite (cost.test.ts checks every budget): the night shift's
-// prediction, the list, the skill, the meter, and a tick that resolves one whose day is over.
+// prediction, the list, the skill, the meter, what lands, the calibration, and a tick that resolves
+// one whose day is over.
 import { runInDurableObject } from 'cloudflare:test';
 import type { NewAgentResponse, SignedIn } from '../../../shared/contract/api';
 import { logicalDay } from '../../src/areas/conversation/day';
@@ -43,6 +44,9 @@ export async function predictionCalls(cost: Cost, grant: (ip: string, password?:
   // The day pulse's list and the usage meter (areas/mind/watches): about 8 days of rows by time index.
   await cost('GET /v1/mind/watches (Core)', () => api('GET', '/v1/mind/watches', d), 200, core());
   await cost('GET /v1/mind/usage (Core)', () => api('GET', '/v1/mind/usage', d), 200, core());
+  // What lands: the pass over 30 days of arrangements, which keeps each topic's counts.
+  await cost('GET /v1/insight/topics (Core)', () => api('GET', '/v1/insight/topics', d), 200, core());
+  await cost('GET /v1/predictions/calibration (Core)', () => api('GET', '/v1/predictions/calibration', d), 200, core());
   await coreSql(
     `INSERT INTO predictions (id, made_at, made_by, category, args_json, day, p, why, req_sha256)
      VALUES (?, 0, 'mind:night', 'chat.before', '{"time":"09:00"}', ?, 0.6, 'synthetic', 'x')`,

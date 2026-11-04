@@ -2,7 +2,8 @@
 // row back (its undo, and the Briefing's pins'). The catalogue says which keys exist and which values
 // each allows (shared/contract/settings.ts); the mind may change a Worker setting in it, never its
 // own standing permissions (`mind.permit.*`), the switch that has it ask before outside sources
-// (`mind.ask_outside`) or Privacy and data (`privacy.*`): those are the owner's alone. Its standing
+// (`mind.ask_outside`), how much it may speak unasked (`mind.speech`) or Privacy and data
+// (`privacy.*`): those are the owner's alone. Its standing
 // permission (`settings`) was checked by the verb's gate.
 import { settingSpec, validSetting } from '../../../../shared/contract/settings';
 import { canonicalJson } from '../../lib/canonical';
@@ -12,7 +13,7 @@ import { deleteSetting, getSetting, putSetting } from './store';
 
 /** Keys only the owner changes, whatever the mind's standing permission says. */
 export const ownerOnly = (key: string) =>
-  key.startsWith('mind.permit.') || key === 'mind.ask_outside' || key.startsWith('privacy.');
+  key.startsWith('mind.permit.') || key === 'mind.ask_outside' || key === 'mind.speech' || key.startsWith('privacy.');
 
 /** How to put a row back: its value before, or `unset` (the catalogue's default applies again),
  * only while it still holds `expect` (what the mind wrote). */

@@ -595,7 +595,7 @@ CREATE TABLE topics (
   last_shown_at INTEGER,
   ignored_at INTEGER,
   shown_count INTEGER NOT NULL DEFAULT 0
-  ) WITHOUT ROWID;
+  , quiet_from INTEGER, quiet_until INTEGER, said_at INTEGER, reopened_at INTEGER, lands_json TEXT) WITHOUT ROWID;
 
 CREATE TABLE verbs (
   id TEXT PRIMARY KEY,

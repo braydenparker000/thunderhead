@@ -1,14 +1,18 @@
 // /v1/surfaces (API.md §11.12): what the mind placed on a screen, by app and slot. Kinds and
-// their payload schemas are the contract's (shared/contract/surfaces.ts).
+// their payload schemas are the contract's (shared/contract/surfaces.ts). A topic that rests opens
+// again by the owner's tap or own words (`reopen`), and the mind records it said so once (`said`).
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import type { Permitted, PutSurfaceRequest, Surface, SurfacesResponse } from '../../../../shared/contract/api';
+import type { ReopenTopicRequest, ReopenTopicResponse } from '../../../../shared/contract/lands.ts';
 import { type AppEnv, guard } from '../../http/auth';
 import { callerOf } from '../../http/caller';
 import { ApiError } from '../../http/errors';
 import { json, parse } from '../../http/validate';
+import { UUIDV7 } from '../../lib/ids';
 import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
+import { fresh } from '../../objects/rpc';
 
 const NAME = /^[a-z][a-z0-9_]{0,23}$/;
 const SLOT = /^[a-z][a-z0-9_]{0,23}(\.[a-z0-9_]{1,12})?$/;
@@ -25,7 +29,17 @@ const putBody = z.strictObject({
       .array(z.string().check(z.regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/)))
       .check(z.maxLength(20)),
   ),
+  asked_by: z.optional(z.string().check(z.regex(UUIDV7))),
 }) satisfies z.ZodMiniType<PutSurfaceRequest>;
+const TOPIC = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+const reopenBody = z.strictObject({
+  by_message: z.optional(z.string().check(z.regex(UUIDV7))),
+}) satisfies z.ZodMiniType<ReopenTopicRequest>;
+
+function topicParam(key: string | undefined): string {
+  if (!key || !TOPIC.test(key)) throw new ApiError('not_found');
+  return key;
+}
 const listQuery = z.object({ since_seq: z.optional(z.coerce.number().check(z.int(), z.gte(0))) });
 
 function place(app: string | undefined, slot: string | undefined): [string, string] {
@@ -47,4 +61,18 @@ export const surfacesRoutes = new Hono<AppEnv>()
     const [app, slot] = place(c.req.param('app'), c.req.param('slot'));
     value(await coreObject(c.env).deleteSurface(callerOf(c), app, slot));
     return c.body(null, 204);
+  })
+  .post('/surfaces/topics/:key/reopen', guard('POST /v1/surfaces/topics/:key/reopen'), async (c) => {
+    const key = topicParam(c.req.param('key'));
+    // A device's tap sends `{}`; mind:chat names the owner's words.
+    const body = await json(c, reopenBody);
+    return c.json(
+      value(
+        await fresh(coreObject(c.env).reopenTopic(callerOf(c), key, body.by_message)),
+      ) satisfies ReopenTopicResponse,
+    );
+  })
+  .post('/surfaces/topics/:key/said', guard('POST /v1/surfaces/topics/:key/said'), async (c) => {
+    const key = topicParam(c.req.param('key'));
+    return c.json(value(await fresh(coreObject(c.env).saidTopic(key))));
   });

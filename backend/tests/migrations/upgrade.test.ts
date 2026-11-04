@@ -15,6 +15,9 @@ import coreSchema from './core.schema.sql?raw';
 const P1_TABLES = ['settings', 'changes', 'errors', 'perf_days'];
 type Row = Record<string, SqlStorageValue>;
 
+/** The topics' columns of Core step 35 (what lands), dropped to go back before it (test-only SQL). */
+const LANDS_COLUMNS = ['quiet_from', 'quiet_until', 'said_at', 'reopened_at', 'lands_json'];
+
 describe('upgrade from P1', () => {
   it('keeps every P1 row and adds the P2 steps once each', async () => {
     await runInDurableObject(core() as unknown as DurableObjectStub<Auth>, async (_o, state) => {
@@ -126,6 +129,8 @@ describe('upgrade from P2', () => {
       // Step 33 (scheduled verbs and plans) added the verbs' columns and index.
       sql.exec('DROP INDEX IF EXISTS verbs_scheduled');
       for (const c of ['fire_at', 'plan_id', 'why', 'permit']) sql.exec(`ALTER TABLE verbs DROP COLUMN ${c}`);
+      // Step 35 (what lands) added the topics' columns.
+      for (const c of LANDS_COLUMNS) sql.exec(`ALTER TABLE topics DROP COLUMN ${c}`);
       sql.exec('DELETE FROM _migrations WHERE version > 7');
       sql.exec(
         `INSERT INTO threads (id, day, kind, status, started_at, updated_at) VALUES ('t-p2', '2026-10-01', 'daily', 'filed', 1, 1)`,
@@ -170,6 +175,7 @@ describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
       // And step 33's (scheduled verbs), which comes after it.
       sql.exec('DROP INDEX verbs_scheduled');
       for (const c of ['fire_at', 'plan_id', 'why', 'permit']) sql.exec(`ALTER TABLE verbs DROP COLUMN ${c}`);
+      for (const c of LANDS_COLUMNS) sql.exec(`ALTER TABLE topics DROP COLUMN ${c}`);
       sql.exec('DELETE FROM _migrations WHERE version > 31');
       for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`DELETE FROM ${t}`);
       for (const source of ['user', 'observed', 'inferred'])

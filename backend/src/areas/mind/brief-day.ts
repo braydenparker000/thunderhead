@@ -1,6 +1,6 @@
 // The briefing's later core sections (MEMORY.md §9): 7, the day (what the mind arranged on it and how
-// the owner met each so far, the predictions about it, the Briefing's tiles one line each, a shared
-// calendar's events), and 8, on demand (where everything else is: the full file's sections, recall,
+// the owner met each so far, what lands over 30 days per topic (brief-learn.ts), the predictions about
+// it, the Briefing's tiles one line each, a shared calendar's events), and 8, on demand (where everything else is: the full file's sections, recall,
 // any route, the skills, the subagents; and the loose ends written after outside text, which the
 // first layer leaves out). Each part has its own budget and keeps the oldest. Pure.
 import { SKILLS } from '../../../../shared/contract/skills.ts';
@@ -11,7 +11,7 @@ import { part } from './brief-text';
 import { DELEGATE } from './brief-verbs';
 
 /** Section 7's parts at most, each with where the rest is. */
-export const DAY_BUDGET = { arranged: 420, predicted: 260, tiles: 340, shared: 260 } as const;
+export const DAY_BUDGET = { arranged: 420, lands: 600, predicted: 260, tiles: 340, shared: 260 } as const;
 
 /** Section 7 within `budget` (its parts' own budgets first). */
 export function daySection(i: BriefInput, budget: number): string {
@@ -21,6 +21,7 @@ export function daySection(i: BriefInput, budget: number): string {
       `Arranged on ${i.day}, each as the owner met it so far (kept, undone, ignored, unseen, no answer yet):`,
       part(i.arranged, DAY_BUDGET.arranged, 'th ledger --kind arrangement'),
     ),
+    ...part(i.lands, DAY_BUDGET.lands, 'th surface topics'),
     ...head(`Predicted for ${i.day}:`, part(i.predicted, DAY_BUDGET.predicted, 'th predict list --open')),
     ...head('The Briefing shows:', part(i.tiles, DAY_BUDGET.tiles, 'what the night placed: th surface ls')),
     ...head('Shared calendars:', part(i.calendarShared, DAY_BUDGET.shared, 'th get /v1/briefing/calendar days=2')),

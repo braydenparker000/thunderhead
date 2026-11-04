@@ -29,7 +29,7 @@ const wrangler = Object.values(
 )[0];
 
 /** Migration steps a branch built beside another may skip in the numbering (none: scheduled
- * actions' Core 33 and the watches' 34 are both in, 2026-11-03). */
+ * actions' Core 33, the watches' 34 and what lands' 35 are all in, 2026-11-04). */
 const PENDING: number[] = [];
 
 const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');

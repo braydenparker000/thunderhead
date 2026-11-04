@@ -79,6 +79,24 @@ export interface SkillResponse {
   categories: CategorySkill[];
 }
 
+/** One category's odds against what happened, over the last 28 days (GET /v1/predictions/calibration):
+ * how many were settled, the mean odds claimed and how often it came true. `cards` are the arrangement
+ * cards the owner answered (proposals.ts oddsRequired): their odds against a yes. */
+export interface Calibration {
+  category: PredictionCategory | 'cards';
+  n: number;
+  claimed: number;
+  right: number;
+  /** The mean squared gap between the odds and what happened (lower is better). */
+  brier: number;
+}
+
+/** GET /v1/predictions/calibration: categories with anything settled in the window. */
+export interface CalibrationResponse {
+  days: number;
+  items: Calibration[];
+}
+
 /** GET /v1/predictions */
 export interface PredictionsResponse {
   items: Prediction[];

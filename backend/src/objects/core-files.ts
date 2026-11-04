@@ -7,9 +7,9 @@ import * as files from '../areas/files/ops';
 import * as fstore from '../areas/files/store';
 import type { Out } from '../lib/result';
 import type { Caller } from './caller';
-import { CorePredictions } from './core-predictions';
+import { CoreLands } from './core-lands';
 
-export abstract class CoreFiles extends CorePredictions {
+export abstract class CoreFiles extends CoreLands {
   /** A chat file's row: the route serves its bytes from the bucket by its key. */
   fileRow(id: string): fstore.FileRow | null {
     return fstore.byId(this.db, id);

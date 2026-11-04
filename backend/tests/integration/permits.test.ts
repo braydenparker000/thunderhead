@@ -60,6 +60,8 @@ async function approved(r: PermitRefusal): Promise<string> {
     question: 'May I do this one thing?',
     why: 'Your standing permission says to ask first.',
     if_ignored: 'Nothing happens.',
+    // An arrangement's card says how sure the mind is (BEHAVIOR.md §4).
+    odds: 0.7,
     options: ['Do it', 'Not now'],
     spec: r.card.spec,
   });
@@ -131,6 +133,8 @@ describe('a verb under each position (settings: shell.appearance)', () => {
       question: 'May I switch to the light look?',
       why: 'You set settings to ask first.',
       if_ignored: 'Nothing changes.',
+      // An arrangement's card says how sure the mind is (BEHAVIOR.md §4).
+      odds: 0.7,
       options: ['Switch', 'Not now'],
       spec: r.card.spec,
     };

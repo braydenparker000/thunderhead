@@ -20,7 +20,12 @@ function bounded(flags, name, max) {
   return value;
 }
 
-/** A decision card (BEHAVIOR.md §4): one question, why, two options (action, safe), if-ignored, odds. */
+/** The owner's message that asked for this (`--asked-by <message id>`): a reply, so the owner's
+ * speech setting (quiet, silent) never holds it back (BEHAVIOR.md §3.7). */
+const askedBy = flags => (typeof flags['asked-by'] === 'string' ? flags['asked-by'] : undefined);
+
+/** A decision card (BEHAVIOR.md §4): one question, why, two options (action, safe), if-ignored, odds
+ * (required on an arrangement's card, class permit: how sure you are the owner wants it). */
 export async function propose(argv) {
   const {flags} = parseArgs(argv);
   const cls = need(flags, 'class');
@@ -29,8 +34,11 @@ export async function propose(argv) {
   if (!spec || typeof spec !== 'object' || typeof spec.op !== 'string') throw invalid('--spec must be {"op": "...", "args": {...}}');
   const options = typeof flags.options === 'string' ? flags.options.split('|').map(s => s.trim()) : ['Do it', 'Not now'];
   if (options.length !== 2 || options.some(o => !o || o.length > 20)) throw invalid('--options must be "Action|Safe choice", each ≤ 20 characters');
+  const {odds_min: lo, odds_max: hi} = CONTRACT.proposals.limits;
+  if (flags.odds === undefined && CONTRACT.proposals.odds_required.includes(cls))
+    throw invalid(`--odds is required for a ${cls} card (an arrangement): how sure you are the owner wants it, ${lo}–${hi}`);
   const odds = flags.odds === undefined ? undefined : Number(flags.odds);
-  if (odds !== undefined && !(odds >= 0 && odds <= 1)) throw invalid('--odds must be between 0 and 1');
+  if (odds !== undefined && !(odds >= lo && odds <= hi)) throw invalid(`--odds must be between ${lo} and ${hi}`);
   const safe = flags.safe === undefined ? undefined : flags.safe;
   if (safe !== undefined && safe !== 'reject' && safe !== 'snooze') throw invalid('--safe must be reject (No) or snooze (Not yet)');
   const full = {v: 1, args: {}, ...spec};
@@ -38,7 +46,7 @@ export async function propose(argv) {
   const id = uuidv7();
   const {data} = await request('PUT', `/v1/proposals/${seg(id)}`, {body: {
     class: cls, question: bounded(flags, 'question', 80), why: bounded(flags, 'why', 140),
-    if_ignored: bounded(flags, 'if-ignored', 140), odds, options, safe, spec: full,
+    if_ignored: bounded(flags, 'if-ignored', 140), odds, options, safe, spec: full, asked_by: askedBy(flags),
   }});
   // `target`: the Worker's own line naming what a Yes changes (the card shows it under the question).
   out({proposal_id: data.id || id, spec_hash: data.spec_hash ?? null, target: data.target ?? null});
@@ -165,12 +173,23 @@ export async function muse(argv) {
   throw invalid('usage: th muse notes [--after <seq>] [--order <id>] | note <text>');
 }
 
-/** `th surface <app> <slot> --kind … | ls | rm <app> <slot>`: any surface kind in the contract. */
+/** `th surface <app> <slot> --kind … | ls | rm <app> <slot> | topics | said <topic> | reopen <topic>
+ * --by-message <id>`: any surface kind in the contract; what lands per topic (BEHAVIOR.md §3.6). A
+ * topic that rests answers 422 topic_quiet (exit 8) with the day it reopens. */
 export async function surface(argv) {
   const {flags, rest} = parseArgs(argv);
   if (rest[0] === 'ls') {
     const {data} = await request('GET', '/v1/surfaces', {query: {since_seq: flags.since}});
     return out({items: data.items || [], seq: data.seq ?? null});
+  }
+  if (rest[0] === 'topics' && rest.length === 1) return out((await request('GET', '/v1/insight/topics')).data);
+  if ((rest[0] === 'said' || rest[0] === 'reopen') && rest.length === 2) {
+    const topic = rest[1];
+    if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(topic)) throw invalid('the topic is a slug: lowercase letters, digits, . _ -');
+    if (rest[0] === 'said') return out((await request('POST', `/v1/surfaces/topics/${seg(topic)}/said`, {body: {}})).data);
+    // Reopening is the owner's: their own words, which the Worker checks as it checks a card's.
+    const body = {by_message: need(flags, 'by-message')};
+    return out((await request('POST', `/v1/surfaces/topics/${seg(topic)}/reopen`, {body})).data);
   }
   if (rest[0] === 'rm') {
     const [, app, slot] = rest;
@@ -179,7 +198,7 @@ export async function surface(argv) {
     return out({ok: true});
   }
   const [app, slot] = rest;
-  if (!app || !slot) throw invalid('usage: th surface <app> <slot> --kind <k> --payload <json> --why <t> --topic <key> [--expires <iso>] · ls · rm <app> <slot>');
+  if (!app || !slot) throw invalid('usage: th surface <app> <slot> --kind <k> --payload <json> --why <t> --topic <key> [--expires <iso>] [--asked-by <message id>] · ls · rm <app> <slot> · topics · said <topic> · reopen <topic> --by-message <id>');
   const kind = need(flags, 'kind');
   const given = need(flags, 'payload');
   const payload = jsonFlag(given === '-' ? readFileSync(0, 'utf8') : given, 'payload');
@@ -190,6 +209,7 @@ export async function surface(argv) {
     kind, schema, payload, why: why(flags), topic_key: topic, expires_at: toMs(flags.expires, 'expires'),
     // The app it is about (`app:music`): its opening counts as the owner acting on it (EVALS.md M-16).
     ref: typeof flags.ref === 'string' ? flags.ref : undefined,
+    asked_by: askedBy(flags),
   }});
   out({ledger_id: data.ledger_id ?? null, ...permitOut(data)});
 }
@@ -199,7 +219,7 @@ export async function push(argv) {
   const id = uuidv7();
   const {data} = await request('PUT', `/v1/pushes/${seg(id)}`, {body: {
     title: need(flags, 'title'), body: need(flags, 'body'), ref: need(flags, 'ref'), why: need(flags, 'why'),
-    topic_key: need(flags, 'topic'), deadline: toMs(flags.deadline, 'deadline'),
+    topic_key: need(flags, 'topic'), deadline: toMs(flags.deadline, 'deadline'), asked_by: askedBy(flags),
   }});
   out({queued_until: data.queued_until ?? null});
 }

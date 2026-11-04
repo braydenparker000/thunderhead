@@ -95,6 +95,10 @@ export const PROPOSAL_CLASSES = Object.freeze(${j(c.PROPOSAL_CLASSES)});
 /** @type {typeof import('../../shared/contract/proposals.ts').PROPOSAL_LIMITS} */
 export const PROPOSAL_LIMITS = Object.freeze(${j(c.PROPOSAL_LIMITS)});
 
+/** A card's odds in words (shared/contract/proposals.ts oddsWords, copied as it is written there).
+ * @type {typeof import('../../shared/contract/proposals.ts').oddsWords} */
+export const oddsWords = ${c.oddsWords.toString()};
+
 /** Memory (MEMORY.md §2–§8): fact kinds in profile order, sources, the confidence thresholds, and
  * the reasons an op can be refused. A kind or source not listed renders generically.
  * @type {Readonly<{kinds: readonly import('../../shared/contract/memory.ts').FactKind[], sources: readonly import('../../shared/contract/memory.ts').FactSource[], confidence: typeof import('../../shared/contract/memory.ts').CONFIDENCE, limits: typeof import('../../shared/contract/memory.ts').MEMORY_LIMITS, reasons: readonly import('../../shared/contract/memory.ts').MemoryReason[]}>} */
@@ -222,6 +226,8 @@ function mind() {
     proposals: {
       classes: c.PROPOSAL_CLASSES,
       limits: c.PROPOSAL_LIMITS,
+      // The classes whose cards must carry odds (`th propose --odds`, an arrangement's).
+      odds_required: c.PROPOSAL_CLASS_NAMES.filter((k) => c.oddsRequired(k)),
       ops: Object.fromEntries(
         Object.entries(c.PROPOSAL_OPS).map(([n, o]) => [
           n,
@@ -232,6 +238,9 @@ function mind() {
     // Standing permissions: each class's setting and default, the floors, and the actions Core runs
     // itself (a verb's class is on the verb above).
     permits: permits(),
+    // What lands and the speech setting (`th surface topics`, `--asked-by`): the rule's numbers.
+    lands: c.LANDS,
+    speech: { positions: c.SPEECH_POSITIONS, quiet: c.SPEECH_QUIET, asked_hours: c.ASKED_HOURS },
     // Scheduled actions and plans (`th verb --at`, `th plan`): checked before the call.
     schedules: { limits: c.SCHEDULE_LIMITS, plans: c.PLAN_LIMITS, plan_action: c.PLAN_ACTION, quiet_held: c.QUIET_HELD },
     lint: { banned_phrases: BANNED_PHRASES },
@@ -419,7 +428,7 @@ function docs() {
     '',
     '## Proposals',
     '',
-    `Decision cards (\`PUT /v1/proposals/:id\`, \`th propose\`). A card: question ≤ ${lim.question}, why ≤ ${lim.why}, if ignored ≤ ${lim.if_ignored}, two options ≤ ${lim.option} each; at most ${lim.waiting} raised by agents wait at once; each expires after ${lim.expires_days} days; "Not yet" brings it back the next morning at most ${lim.snoozes} times; the canonical spec ≤ ${lim.spec_bytes} bytes. Only the owner decides: a tap on a device, or their own words recorded by mind:chat (\`by_message\`).`,
+    `Decision cards (\`PUT /v1/proposals/:id\`, \`th propose\`). A card: question ≤ ${lim.question}, why ≤ ${lim.why}, if ignored ≤ ${lim.if_ignored}, two options ≤ ${lim.option} each; at most ${lim.waiting} raised by agents wait at once; each expires after ${lim.expires_days} days; "Not yet" brings it back the next morning at most ${lim.snoozes} times; the canonical spec ≤ ${lim.spec_bytes} bytes; odds, when given, ${lim.odds_min}–${lim.odds_max}, and required on a card of class ${c.PROPOSAL_CLASS_NAMES.filter((k) => c.oddsRequired(k)).map((k) => `\`${k}\``).join(', ')} (an arrangement): the card words them as ${[0.3, 0.6, 0.9].map((p) => `"${c.oddsWords(p)}"`).join(', ')} (below .4, .4 to .75, above .75). Only the owner decides: a tap on a device, or their own words recorded by mind:chat (\`by_message\`).`,
     '',
     '| Class | Ask first | Card label |',
     '|---|---|---|',

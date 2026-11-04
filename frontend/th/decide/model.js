@@ -2,7 +2,7 @@
 // tests/decide-logic.test.mjs. Which cards may show and in what order, the card's lines, what the
 // second button does, and what each answer says afterwards. The Worker decides what a card is; this
 // only chooses how it looks.
-import { PROPOSAL_CLASSES } from '../contract.js';
+import { oddsWords, PROPOSAL_CLASSES } from '../contract.js';
 
 /** @typedef {import('../../../shared/contract/api').Proposal} Proposal */
 /** @typedef {import('../../../shared/contract/api').DecideProposalResponse} DecideProposalResponse */
@@ -57,10 +57,18 @@ export function whyLine(p) {
 /** "1 of 3" when more than one waits, else empty. @param {number} i @param {number} n */
 export const ofLine = (i, n) => (n > 1 ? `${i + 1} of ${n}` : '');
 
+/** The odds in the contract's words (oddsWords: a guess, fairly sure, sure), with the number:
+ * "About 90% sure.", "Fairly sure: about 70%.", "A guess: about 30%." @param {number} odds */
+export function oddsLine(odds) {
+  const n = Math.round(odds * 100);
+  const words = oddsWords(odds);
+  return words === 'sure' ? `About ${n}% sure.` : `${words[0].toUpperCase()}${words.slice(1)}: about ${n}%.`;
+}
+
 /** The card's smaller lines: the why, the odds when given, and what happens if it is ignored.
  * @param {Proposal} p @returns {string[]} */
 export function details(p) {
-  const odds = typeof p.odds === 'number' ? `About ${Math.round(p.odds * 100)}% sure.` : '';
+  const odds = typeof p.odds === 'number' ? oddsLine(p.odds) : '';
   return [p.why, odds, p.if_ignored].filter((x) => typeof x === 'string' && x.length > 0);
 }
 

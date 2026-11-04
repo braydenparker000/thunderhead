@@ -101,6 +101,67 @@ export function topicIgnoredAt(db: Db, key: string): number | null {
   );
 }
 
+/** A topic's learning state (BEHAVIOR.md §3.6; Core step 35): whether it rests, since when its
+ * streak counts, whether the mind said so, and the last pass's counts (`lands_json`). */
+export interface TopicState {
+  topic_key: string;
+  ignored_at: number | null;
+  quiet_from: number | null;
+  quiet_until: number | null;
+  said_at: number | null;
+  reopened_at: number | null;
+  lands_json: string | null;
+}
+const STATE = 'topic_key, ignored_at, quiet_from, quiet_until, said_at, reopened_at, lands_json';
+
+/** One topic's state, or null (one read by the key: the put's nudge_repeat and topic_quiet checks). */
+export function topicState(db: Db, key: string): TopicState | null {
+  return db.one<TopicState>(`SELECT ${STATE} FROM topics WHERE topic_key = ?`, key);
+}
+
+/** Every topic the briefing or a pass needs: one with counts from the last pass, or resting now. */
+export function topicStates(db: Db, now: number): TopicState[] {
+  return db.all<TopicState>(
+    `SELECT ${STATE} FROM topics WHERE lands_json IS NOT NULL OR quiet_until > ? LIMIT 500`,
+    now,
+  );
+}
+
+/** The topic rests from `from` to `until`; whether it was said starts again. */
+export function topicQuiet(db: Db, key: string, from: number, until: number): void {
+  db.run(
+    `INSERT INTO topics (topic_key, shown_count, quiet_from, quiet_until) VALUES (?, 0, ?, ?)
+     ON CONFLICT (topic_key) DO UPDATE SET quiet_from = excluded.quiet_from, quiet_until = excluded.quiet_until, said_at = NULL`,
+    key,
+    from,
+    until,
+  );
+}
+
+/** The owner reopened it: it no longer rests, and its streak counts from now. */
+export function topicReopened(db: Db, key: string, at: number, lands: string | null): void {
+  db.run(
+    'UPDATE topics SET quiet_until = NULL, said_at = NULL, reopened_at = ?, lands_json = ? WHERE topic_key = ?',
+    at,
+    lands,
+    key,
+  );
+}
+
+export function topicSaid(db: Db, key: string, at: number): void {
+  db.run('UPDATE topics SET said_at = ? WHERE topic_key = ?', at, key);
+}
+
+/** The last pass's counts for a topic (null: nothing in the window). */
+export function topicLands(db: Db, key: string, lands: string | null): void {
+  db.run(
+    `INSERT INTO topics (topic_key, shown_count, lands_json) VALUES (?, 0, ?)
+     ON CONFLICT (topic_key) DO UPDATE SET lands_json = excluded.lands_json`,
+    key,
+    lands,
+  );
+}
+
 /** When a topic was last shown (or followed up, verbs/follow.ts), or null. One read by the key. */
 export function topicShownAt(db: Db, key: string): number | null {
   return (

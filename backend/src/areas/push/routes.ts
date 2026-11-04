@@ -6,12 +6,16 @@
 import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import { type AppEnv, deviceOf, guard } from '../../http/auth';
+import { callerOf } from '../../http/caller';
 import { ApiError } from '../../http/errors';
 import { inSandbox } from '../../http/sandbox';
 import { json } from '../../http/validate';
+import { UUIDV7 } from '../../lib/ids';
+import { value } from '../../lib/result';
 import { fromB64u, pushService, vapidPublic } from '../../lib/webpush';
 import { authObject } from '../../objects/auth';
 import { coreObject } from '../../objects/core';
+import { fresh } from '../../objects/rpc';
 import { sha256Hex } from '../auth/crypto';
 
 /** Sends every push that may go now. */
@@ -36,6 +40,8 @@ const nudgeBody = z.object({
   why: z.string().check(z.minLength(8), z.maxLength(300)),
   topic_key: z.string().check(z.minLength(1), z.maxLength(80), z.regex(/^[a-z0-9._:-]+$/)),
   deadline: z.optional(z.number().check(z.int(), z.gte(0))),
+  // The owner's message that asked for it ("tell me when it is done"): "quiet" lets it through.
+  asked_by: z.optional(z.string().check(z.regex(UUIDV7))),
 });
 const ID = /^[A-Za-z0-9_-]{8,64}$/;
 
@@ -83,6 +89,8 @@ export const pushRoutes = new Hono<AppEnv>()
     const r = await json(c, nudgeBody);
     configured(c.env);
     if (inSandbox()) return c.json({ queued_until: Date.now() }, 202);
+    // The owner's speech setting first (BEHAVIOR.md §3.7): quiet and silent take no unasked push.
+    value(await fresh(coreObject(c.env).speechCheck(callerOf(c), 'push', r.asked_by)));
     const ctx = await coreObject(c.env).pushContext();
     const out = await authObject(c.env).queueNudge(id, r, sha256Hex(JSON.stringify(r)), ctx);
     if ('code' in out) throw new ApiError(out.code);

@@ -605,6 +605,24 @@
       "phase": "P2",
       "status": "built"
     },
+    "POST /v1/surfaces/topics/:key/reopen": {
+      "who": [
+        "D",
+        "C"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "a resting topic open again: a tap, or the owner's own words (by_message, checked as a card's)"
+    },
+    "POST /v1/surfaces/topics/:key/said": {
+      "who": [
+        "C",
+        "N"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "the mind said a topic went quiet (once: 409 already_said)"
+    },
     "POST /v1/media/sign": {
       "who": [
         "D",
@@ -869,6 +887,26 @@
       "phase": "P9",
       "status": "built",
       "note": "the meter: M-8, M-10, M-16, M-18 (EVALS.md §9), counts only"
+    },
+    "GET /v1/insight/topics": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "what lands: per topic, 30 days of kept, undone, ignored and unseen, the streak and when a resting one reopens"
+    },
+    "GET /v1/predictions/calibration": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "per category, the last 28 days: odds claimed against what happened (cards: against a yes)"
     },
     "GET /v1/ops/watchdogs": {
       "who": [
@@ -3155,6 +3193,10 @@
       409,
       "There are already 20 active keys."
     ],
+    "already_said": [
+      409,
+      "The mind already said this topic went quiet."
+    ],
     "setup_done": [
       410,
       "Setup is already done."
@@ -3226,6 +3268,14 @@
     "username_invalid": [
       422,
       "Use 3–32 letters, numbers, dots, dashes or underscores."
+    ],
+    "topic_quiet": [
+      422,
+      "This topic rests: the owner passed it over three times in a row."
+    ],
+    "speech_budget": [
+      422,
+      "The owner's speech setting holds this back today."
     ],
     "reset_not_ready": [
       425,
@@ -3974,8 +4024,13 @@
       "waiting": 3,
       "expires_days": 7,
       "snoozes": 3,
-      "spec_bytes": 8192
+      "spec_bytes": 8192,
+      "odds_min": 0.05,
+      "odds_max": 0.95
     },
+    "odds_required": [
+      "permit"
+    ],
     "ops": {
       "memory.forget": {
         "classes": [
@@ -4243,6 +4298,24 @@
         "doc": "Keeping a fact learned from outside text. A write from a session that read outside text is labelled outside and waits for the owner's Keep in Settings › Memory (MEMORY.md §6 M11); no position loosens that."
       }
     }
+  },
+  "lands": {
+    "window_days": 30,
+    "streak": 3,
+    "quiet_days": 30,
+    "brief_rows": 8
+  },
+  "speech": {
+    "positions": [
+      "as_needed",
+      "quiet",
+      "silent"
+    ],
+    "quiet": {
+      "lines": 1,
+      "cards": 1
+    },
+    "asked_hours": 48
   },
   "schedules": {
     "limits": {
