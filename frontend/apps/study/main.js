@@ -8,7 +8,7 @@
 import { configured, toSignin } from '/th/client.js';
 import { onSignedOut, store } from '/th/session.js';
 import { el } from '/th/ui.js';
-import { onPlace } from './nav.js';
+import { go, onPlace } from './nav.js';
 
 const main = /** @type {HTMLElement} */ (document.querySelector('#study'));
 /** @type {(() => void) | null} what the place on screen must do as it goes (the reader saves its page) */
@@ -32,7 +32,35 @@ async function render() {
     else done();
   } else if (q.has('verse')) (await import('./verse.js')).verseScreen(box, q.get('verse') ?? '');
   else if (q.has('q')) (await import('./library.js')).searchScreen(box, q.get('q') ?? '', q.get('in'));
-  else (await import('./library.js')).libraryScreen(box);
+  else {
+    // The library draws its heading at once, then its books: the card goes under the heading.
+    const shown = (await import('./library.js')).libraryScreen(box);
+    nextCard(box);
+    await shown;
+  }
+}
+
+// The mind's "where you left off, and what next" (`study/next`, study.mark_next): one card under
+// the library's heading, its why behind a tap and Dismiss; Open goes to its page
+// (th/ported/arrangement.js sends the senses).
+/** @param {HTMLElement} box */
+function nextCard(box) {
+  import('/th/ported/arrangement.js')
+    .then((m) =>
+      m.mount(
+        'study',
+        'next',
+        (a) => ({
+          label: 'Where you left off',
+          title: String(a.payload.next),
+          detail: `Left off: ${a.payload.left_off}`,
+          action: 'Open',
+          go: () => go(`?book=${encodeURIComponent(String(a.payload.book).replace(/^book:/, ''))}${a.payload.page ? `&p=${a.payload.page}` : ''}`),
+        }),
+        (card) => box.querySelector('.libhead')?.after(card),
+      ),
+    )
+    .catch(() => {});
 }
 
 if (window.top === window.self) {

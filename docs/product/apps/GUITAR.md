@@ -577,6 +577,8 @@ Imported songs without a file show "Add the tab file to practise this song".
 ## The mind's arrangement slot (2026-11-04, verbs batch 2)
 
 One slot, one kind ([BEHAVIOR.md §3.1](../../mind/BEHAVIOR.md#31-rung-0-silent-arrangement), API.md §11.11 "The apps' arrangements"): `guitar/today`, kind `section`, placed by `guitar.set_plan` (a song, one to four sections with the ladder's tempos, a label): today's section, which the owner's tap opens in the reader. It carries its why behind a tap, and the app reports it seen, taken up or dismissed (`arrangement.seen`, `arrangement.tap`, `arrangement.dismiss`), so the meter and what lands count it.
+
+**As built (2026-11-04, `frontend/guitar/app.js`, `th/ported/arrangement.js`):** a card at the top of My songs ("Today's section": the song, its label, the first section's bars and tempo), Start, Why (the ledger row's why, folded) and Dismiss. Start opens the reader on the section, looped at its tempo (the reader's speeds go in fives of the score's tempo), through the route `#play=<key>&bars=<a>-<b>&bpm=<n>`. `guitar.start_practice {tab, section, bpm?}` is Guitar's intent (`th/guitar/intents.js`): the next time the owner opens Guitar it lands there the same way; a ledger row, no undo; a song this phone never opened is `song_unknown`.
 ## 16. Open questions / tests
 
 | # | Question | How to settle |

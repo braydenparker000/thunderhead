@@ -113,7 +113,8 @@ const budgets = [
   // Reduced motion on or off from the owner's setting.
   // (2026-11-04, verbs batch 2) +987 measured (76,689): contract.js's seven new verbs, the apps'
   // arrangement kinds and senses, and the law-8 topics.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 76_689],
+  // (2026-11-04, the apps' arrangements) +116 measured (76,689 → 76,805): guitar.start_practice in th/contract.js.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 76_805],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -208,7 +209,8 @@ const budgets = [
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
   // (2026-11-04) + the mind's line in the capsule: +470 measured bytes of island.css (21,003 → 21,473).
-  ['later CSS bytes', sum(/^th\/.*\.css$/), 21_485],
+  // (2026-11-04) + the apps' arrangement card, th/ported/arrangement.css (loaded by the apps, not home): +2,991 measured (21,485 → 24,476).
+  ['later CSS bytes', sum(/^th\/.*\.css$/), 24_476],
   // One face since 2026-10-31: Switzer, variable 100–900 (43.2 KB, the official file, never subset:
   // its licence forbids changing it; Quicksand was 28.2 KB, Fraunces and Inter 133 KB).
   ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 48_000],

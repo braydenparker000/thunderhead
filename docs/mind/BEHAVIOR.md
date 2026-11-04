@@ -97,6 +97,8 @@ A wake a watch fired ([RUNTIME.md §3](RUNTIME.md#3-triggers), the day pulse) is
 5. A one-tap undo on the why chip restores the previous arrangement and counts as "undone" for the kept/undone metric.
 6. Each app has one slot for it (2026-11-04, `ARRANGEMENT_SLOTS`): Music "tonight" (a mix on the home shelf), Guitar "today's section", Podcasts "next up", Study "where you left off, and what next", Astra and My Media "for tonight" (a shortlist: titles to pick from, never a pick). The app reports each seen, taken up or dismissed (`arrangement.*` senses), and the meter counts them as it counts home's lines (§3.6). The speech setting does not hold them back; law 8's topics are refused at the verb gate (§9).
 
+7. On the phone (2026-11-04, `frontend/th/ported/arrangement.js`): each app draws its slot as one small card in its own look, its action, its why behind a tap and Dismiss. `arrangement.seen` goes once a day while it is on screen, `arrangement.tap` on its action, `arrangement.dismiss` on Dismiss, which is also the owner's DELETE of the slot (its topic rests 14 days); that phone never shows that arrangement again, only a new one. Drawn in Music, Guitar, Podcasts, Study and Astra; not yet in My Media.
+
 **Check (VL-0):** every arrangement row in the ledger has `undo_json` not null; a browser test undoes one arrangement and the previous order returns.
 
 ### 3.2 Rung 1: margin note

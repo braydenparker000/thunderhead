@@ -26,8 +26,11 @@ const IMPROVED = {
   'music/src/player/player.js': ['/th/music/dj.js', '/th/music/stream/deck.js'],
   'music/src/list/sources.js': ['/th/music/search.js'],
   'guitar/reader.js': ['/th/guitar/teacher.js', '/th/guitar/practice.js'],
+  // The mind's arrangement in each app's slot (th/ported/arrangement.js) and Guitar's intents.
+  'guitar/app.js': ['/th/guitar/intents.js', '/th/ported/arrangement.js'],
+  'astra/src/ui/components.js': ['/th/ported/arrangement.js'],
   'astra/src/main.js': ['/th/astra/open.js'],
-  'podcasts/app.js': ['/th/podcasts/progress.js'],
+  'podcasts/app.js': ['/th/podcasts/progress.js', '/th/ported/arrangement.js'],
   'music/sw.js': [],
 };
 const sha = b => createHash('sha256').update(b).digest('hex');

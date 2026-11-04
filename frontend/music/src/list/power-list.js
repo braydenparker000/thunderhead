@@ -88,6 +88,8 @@ export class PowerList extends FastLayout {
   }
 
   setSource(source) {
+    // Home's shelf on screen (with list mode, list-widget.js): Music's "tonight" card shows.
+    document.documentElement.toggleAttribute('data-cp-home', !!source?.home);
     this.reorder = null;
     if (this.selection) this.setSelectionMode(false);
     // The rows as they showed the leaving source: a page transition's ghost

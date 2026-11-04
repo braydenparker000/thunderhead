@@ -30,15 +30,17 @@ export function cover(song, size = '') {
 // ----- routing ----------------------------------------------------------------
 function route() {
   const hash = location.hash.slice(1);
-  const play = /^play=(.+)$/.exec(hash);
+  // `&bars=<a>-<b>&bpm=<n>`: at a planned section (th/guitar/intents.js playHash).
+  const play = /^play=([^&]+)(?:&bars=(\d+)-(\d+))?(?:&bpm=(\d+))?$/.exec(hash);
   if (play) {
     const key = decodeURIComponent(play[1]);
+    const at = play[2] ? { a: +play[2], b: +play[3], ...(play[4] ? { bpm: +play[4] } : {}) } : null;
     if (!readerOpen()) {
       // Opened directly (reload or a link): put Home underneath first.
       history.replaceState(null, '', '#' + view);
       show(view);
       const song = store.song(key) || fromKey(key);
-      if (song) openSong(song);
+      if (song) openSong(song, at);
     }
     return;
   }
@@ -75,9 +77,9 @@ function render() {
   else renderSongs();
 }
 
-export function openSong(song) {
+export function openSong(song, at = null) {
   const key = song.key || songKey(song.source, song.id);
-  openReader({ ...song, key, ...(store.song(key) || {}) }, { store, onclose: () => { if (view === 'songs' || view === 'practice') render(); } });
+  openReader({ ...song, key, ...(store.song(key) || {}) }, { store, at, onclose: () => { if (view === 'songs' || view === 'practice') render(); } });
 }
 
 // ----- My songs ---------------------------------------------------------------
@@ -90,6 +92,7 @@ function renderSongs() {
   if (!counts[segment] && STATUSES.some(s => counts[s.value])) segment = STATUSES.find(s => counts[s.value]).value;
   const recent = store.recent(1)[0];
   const nodes = [header('My songs', el('button.icon-btn', { type: 'button', 'aria-label': 'Search tabs', html: icon('search'), onclick: () => go('search') }))];
+  if (planCard) nodes.push(planCard);
   if (!all.length) {
     nodes.push(el('section.empty-hero', {},
       el('div.hero-art', { 'aria-hidden': 'true', html: icon('guitar', 56) }),
@@ -236,6 +239,25 @@ function renderPractice() {
 }
 const stat = (label, value) => el('div.stat', {}, el('small', {}, label), el('strong', {}, value));
 
+// ----- the mind's plan --------------------------------------------------------------
+// Today's section (`guitar/today`, guitar.set_plan) as a card on My songs, its why behind a tap
+// (th/ported/arrangement.js); Start opens the reader on it, looped at its tempo. guitar.start_practice
+// lands there as Guitar opens (th/guitar/intents.js).
+let planCard = null;
+function planFace(a, sectionAt) {
+  const key = String(a.payload.tab || '').replace(/^tab:/, ''), s = a.payload.sections?.[0];
+  const song = store.song(key) || fromKey(key), at = s && sectionAt(s.key, s.bpm);
+  if (!song || !at) return null;
+  const more = a.payload.sections.length > 1 ? ` · +${a.payload.sections.length - 1} more` : '';
+  return { label: 'Today’s section', title: song.title, detail: [a.payload.label, `Bars ${at.a + 1}–${at.b + 1} at ${s.bpm} BPM${more}`].filter(Boolean).join(' · '), action: 'Start', go: () => openSong(song, at) };
+}
+function startPlan() {
+  Promise.all([import('/th/guitar/intents.js'), import('/th/ported/arrangement.js')]).then(([g, arr]) => {
+    g.installIntents({ open: (key, at) => { const song = store.song(key) || fromKey(key); if (!song) return false; openSong(song, at); return true; } });
+    arr.mount('guitar', 'today', (a) => planFace(a, g.sectionAt), (card) => { planCard = card; if (view === 'songs' && !readerOpen()) render(); }, () => { planCard = null; });
+  }).catch(() => {});
+}
+
 // ----- start --------------------------------------------------------------------
 for (const tab of tabs.querySelectorAll('[data-view]')) tab.addEventListener('click', () => go(tab.dataset.view));
 addEventListener('popstate', () => setTimeout(route));
@@ -244,3 +266,4 @@ store.subscribe(() => { if (!readerOpen() && view !== 'search') { clearTimeout(r
 let rerender;
 if (/^#play=/.test(location.hash)) route();
 else show(['songs', 'search', 'practice'].includes(location.hash.slice(1)) ? location.hash.slice(1) : 'songs');
+startPlan();

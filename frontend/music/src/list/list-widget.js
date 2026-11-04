@@ -1192,6 +1192,7 @@ export class ListWidget extends FastLayout {
     if (this.mode === mode) return;
     this.mode = mode;
     const list = mode === 'list', lyrics = mode === 'lyrics';
+    document.documentElement.toggleAttribute('data-cp-list', list);
     this.libList.visibility = list ? VISIBLE : GONE;
     // The art and the lyrics are no list layout: the toolbar shows (yv0.A).
     if (list) this.libList.levelChanged = true;

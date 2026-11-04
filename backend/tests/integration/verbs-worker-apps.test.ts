@@ -95,6 +95,24 @@ describe('the arrangements: a shortlist, the next passage, the plan', () => {
     expect((await verb('guitar.set_plan', { tab: 'tab:t1', sections: [{ key: 'verse', bpm: 88 }] })).status).toBe(422);
   });
 
+  it('guitar.start_practice waits for Guitar: queued as its intent, claimed and reported, a row with no undo', async () => {
+    const put = await verb('guitar.start_practice', { tab: 'tab:t1', section: '4-8', bpm: 88 });
+    expect([put.status, put.body.status, put.body.permit?.class]).toEqual([201, 'pending', 'practice']);
+    const pending = async (app: string) =>
+      (await apiJson<{ items: Verb[] }>('GET', `/v1/verbs/pending?app=${app}`, { token: P.D })).body.items;
+    expect((await pending('music')).some((v) => v.id === put.body.id)).toBe(false);
+    const v = (await pending('guitar')).find((x) => x.id === put.body.id);
+    expect(v).toMatchObject({ verb: 'guitar.start_practice', args: { tab: 'tab:t1', section: '4-8', bpm: 88 } });
+    expect((await apiJson('POST', `/v1/verbs/${put.body.id}/claim`, { token: P.D, body: {} })).status).toBe(200);
+    const done = await apiJson<Verb>('POST', `/v1/verbs/${put.body.id}/result`, {
+      token: P.D,
+      body: { ok: true, result: { opened: 'tab:t1#4-8' } },
+    });
+    expect(done.body.status).toBe('done');
+    expect(await ledgerRow(done.body.ledger_id)).toMatchObject({ kind: 'verb', undoable: false });
+    expect((await verb('guitar.start_practice', { tab: 'tab:t1', section: 'bridge' })).status).toBe(422);
+  });
+
   it('under ask: refused with its card, and nothing placed', async () => {
     await settle({ 'mind.permit.practice': 'ask' });
     const r = await verb('guitar.set_plan', { tab: 'tab:t2', sections: [{ key: '1-4', bpm: 70 }] });

@@ -6,7 +6,7 @@
 // missed; each due row runs in its own commit (areas/verbs/due.ts).
 import type { PostPlanRequest, PutVerbRequest, VerbResultRequest } from '../../../shared/contract/api';
 import * as due from '../areas/verbs/due';
-import { list as listMixes } from '../areas/verbs/mixes';
+import { list as listMixes, songs as mixSongs } from '../areas/verbs/mixes';
 import * as verbs from '../areas/verbs/ops';
 import * as plans from '../areas/verbs/plan';
 import * as schedule from '../areas/verbs/schedule';
@@ -101,5 +101,10 @@ export abstract class CoreVerbs extends CoreHeld {
   /** GET /v1/music/mixes: the mixes `music.mix_save` kept, newest first. */
   musicMixes() {
     return listMixes(this.db);
+  }
+
+  /** GET /v1/music/mixes/:id: one mix's songs, or null (one read by the key). */
+  musicMix(id: string) {
+    return mixSongs(this.db, id);
   }
 }

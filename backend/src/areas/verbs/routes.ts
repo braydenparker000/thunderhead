@@ -8,6 +8,7 @@ import * as z from 'zod/mini';
 import type {
   JsonObject,
   MusicMixesResponse,
+  MusicMixSongs,
   PlanAnswer,
   PostPlanRequest,
   PutVerbRequest,
@@ -160,4 +161,10 @@ export const verbsRoutes = new Hono<AppEnv>()
   })
   .get('/music/mixes', guard('GET /v1/music/mixes'), async (c) => {
     return c.json({ items: await fresh(coreObject(c.env).musicMixes()) } satisfies MusicMixesResponse);
+  })
+  // One mix's songs, for the owner's tap on Music's "tonight" (the mix the mind placed there).
+  .get('/music/mixes/:id', guard('GET /v1/music/mixes/:id'), async (c) => {
+    const mix = await fresh(coreObject(c.env).musicMix(idParam(c)));
+    if (!mix) throw new ApiError('not_found');
+    return c.json(mix satisfies MusicMixSongs);
   });

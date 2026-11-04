@@ -212,6 +212,7 @@ export const ROUTES = {
   'GET /v1/music/notes': { who: ['D', 'C', 'N'], phase: 'P5', note: '?ids=a,b (≤ 200, each with its tags) or ?cursor=&limit=: every note, a page at a time' },
   'GET /v1/music/find': { who: ['C', 'N'], phase: 'P5', note: '?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out; 429 from 80%' },
   'GET /v1/music/mixes': { who: ['D', 'C', 'N'], phase: 'P5', note: 'the mixes music.mix_save kept, newest first, ≤ 50: id (for music.play_mix), name, tracks, recipe' },
+  'GET /v1/music/mixes/:id': { who: ['D'], phase: 'P5', note: "one mix's songs in order, for the owner's tap on Music's \"tonight\" (404 not_found)" },
   // The upload tools, server to server: no bearer token, each request signed (Ed25519) by a tool's key.
   'PUT /v1/music/uploads/audio/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; Ogg Opus, ≤ 32 MiB' },
   'PUT /v1/music/uploads/art/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; JPEG or PNG, ≤ 2 MiB' },
