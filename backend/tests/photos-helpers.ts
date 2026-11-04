@@ -1,8 +1,10 @@
 // Photos' test helpers (PHOTOS.md): a fake Google that answers the consent's code, refresh tokens,
 // the folder, pages of the folder's listing and the trash, and records what it was asked; a photo's
 // registration body. Every id, name, camera and token here is invented.
+import { exports } from 'cloudflare:workers';
 import { useGoogle } from '../src/areas/photos/google';
 import { uuidv7 } from '../src/lib/ids';
+import { apiJson, SITE } from './helpers';
 
 export interface FakeGoogle {
   calls: { method: string; url: string; body: string }[];
@@ -12,10 +14,15 @@ export interface FakeGoogle {
   revoked: boolean;
   minted: number;
   trashed: string[];
+  /** What Drive says of a file at registration, by id (default: in the app's folder, the size and
+   * hash of photoBody), or 404 for a file Drive does not have. */
+  meta: Record<string, { parents?: string[]; size?: number; sha256?: string } | 404>;
+  /** A trash that fails, by id, with this status. */
+  trashFail: Record<string, number>;
 }
 
 export function fakeGoogle(): FakeGoogle {
-  const g: FakeGoogle = { calls: [], folder: [], revoked: false, minted: 0, trashed: [] };
+  const g: FakeGoogle = { calls: [], folder: [], revoked: false, minted: 0, trashed: [], meta: {}, trashFail: {} };
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   useGoogle(async (input, init) => {
@@ -47,9 +54,22 @@ export function fakeGoogle(): FakeGoogle {
       const page = all.slice(start, start + size);
       return json({ files: page, ...(start + size < all.length ? { nextPageToken: String(start + size) } : {}) });
     }
+    if (u.pathname === '/drive/v3/about') return json({ user: { emailAddress: 'owner@example.test' } });
+    const fileId = decodeURIComponent(u.pathname.split('/').pop() ?? '');
     if (u.pathname.startsWith('/drive/v3/files/') && method === 'PATCH') {
-      g.trashed.push(decodeURIComponent(u.pathname.split('/').pop() ?? ''));
+      if (g.trashFail[fileId]) return json({ error: { status: 'FAIL' } }, g.trashFail[fileId]);
+      g.trashed.push(fileId);
       return json({ id: 'x' });
+    }
+    if (u.pathname.startsWith('/drive/v3/files/')) {
+      const m = g.meta[fileId] ?? {};
+      if (m === 404) return json({ error: { status: 'NOT_FOUND' } }, 404);
+      return json({
+        parents: m.parents ?? ['folder-made-1'],
+        size: String(m.size ?? 31_457_280),
+        sha256Checksum: m.sha256 ?? 'a'.repeat(64),
+        trashed: false,
+      });
     }
     return json({ error: { status: 'NOT_FOUND' } }, 404);
   });
@@ -79,3 +99,14 @@ export const previewBytes = (n = 2048) => {
   b.set([0xff, 0xd9], n - 2);
   return b;
 };
+
+/** Links Drive through the routes with the fake Google's good code (Connect, then the callback). */
+export async function connectDrive(token: string): Promise<Response> {
+  const r = await apiJson<{ url: string }>('POST', '/v1/photos/drive/connect', { token, headers: { Origin: SITE } });
+  const state = new URL(r.body.url).searchParams.get('state');
+  return exports.default.fetch(
+    new Request(`https://api.example.test/v1/photos/drive/callback?code=good-code&state=${state}`, {
+      redirect: 'manual',
+    }),
+  );
+}

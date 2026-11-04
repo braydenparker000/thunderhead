@@ -53,7 +53,7 @@ before(async () => {
     if (path === '/v1/photos/deleted') return json(200, { items: state.photos.filter((p) => p.deleted_at) });
     if (path === '/v1/photos/upload-token') return json(200, { access_token: 'fake-drive-token', expires_at: Date.now() + 3e6, folder_id: 'folder-1' });
     if (path === '/v1/photos/drive' && req.method === 'DELETE') { state.connected = false; return res.writeHead(204, cors).end(); }
-    if (path === '/v1/photos/drive') return json(200, { configured: true, connected: state.connected !== false, folder_name: state.connected !== false ? 'Thunderhead Photos' : null, revoked: false, connected_at: 1 });
+    if (path === '/v1/photos/drive') return json(200, { configured: true, connected: state.connected !== false, folder_name: state.connected !== false ? 'Thunderhead Photos' : null, revoked: false, connected_at: 1, account: state.connected !== false ? 'owner@example.test' : null });
     if (path === '/v1/photos/drive/connect') return json(200, { url: 'https://accounts.google.com/o/oauth2/v2/auth?scope=drive.file&state=s1' });
     if (path === '/v1/settings') return json(200, { 'owner.tz': 'UTC', min_client: 0 });
     if ((m = /^\/v1\/photos\/([^/]+)\/preview$/.exec(path))) {
@@ -237,7 +237,7 @@ test('on a Galaxy A35-sized phone (360×780 at 3×) the shelf fits, with 44 px t
 test('Settings › Photos: Drive by its folder, Disconnect, Connect to Google’s consent; recent originals not yet', opts, async () => {
   const { page, context, errors } = await open('/settings/photos/');
   await page.waitForSelector('.sphotos .btn');
-  assert.match(await page.textContent('.sphotos'), /Connected\. Originals go to “Thunderhead Photos”/);
+  assert.match(await page.textContent('.sphotos'), /Connected as owner@example\.test\. Originals go to “Thunderhead Photos”/);
   await page.waitForSelector('button[data-v="recent"][disabled]');
   await shot(page, 'settings');
   await page.click('.sphotos .btn');

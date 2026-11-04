@@ -9,6 +9,7 @@ export const GOOGLE = {
   token: 'https://oauth2.googleapis.com/token',
   revoke: 'https://oauth2.googleapis.com/revoke',
   files: 'https://www.googleapis.com/drive/v3/files',
+  about: 'https://www.googleapis.com/drive/v3/about',
 } as const;
 const FOLDER = 'application/vnd.google-apps.folder';
 
@@ -115,56 +116,79 @@ export async function folder(token: string, name: string): Promise<string> {
 
 type Listed = { id?: string; name?: string; size?: string; modifiedTime?: string; mimeType?: string };
 
-/** The folder's files changed after `after` (an RFC 3339 time), oldest first, at most `max`
- * across pages of 100; returns them checked, and the newest time seen for the next run. */
+/** The folder's files changed after `after` (an RFC 3339 time), oldest first, at most `max` in
+ * ONE page (one subrequest: the daily pass stays far under the free plan's 50 a run); returns them
+ * checked, and the newest time seen, from where the next run goes on. */
 export async function listFolder(token: string, folderId: string, after: string | null, max: number) {
   const files: DriveFile[] = [];
   let cursor = after;
-  let page: string | undefined;
-  do {
-    const q = `'${folderId}' in parents and trashed = false${after ? ` and modifiedTime > '${after}'` : ''}`;
-    const params = new URLSearchParams({
-      q,
-      orderBy: 'modifiedTime',
-      pageSize: String(Math.min(100, max - files.length)),
-      fields: 'nextPageToken, files(id, name, size, modifiedTime, mimeType)',
-      ...(page ? { pageToken: page } : {}),
+  const q = `'${folderId}' in parents and trashed = false${after ? ` and modifiedTime > '${after}'` : ''}`;
+  const params = new URLSearchParams({
+    q,
+    orderBy: 'modifiedTime',
+    pageSize: String(max),
+    fields: 'files(id, name, size, modifiedTime, mimeType)',
+  });
+  const r = await ask<{ files?: Listed[] }>(`${GOOGLE.files}?${params}`, { headers: bearer(token) });
+  for (const f of (r.files ?? []).slice(0, max)) {
+    const modified = Date.parse(f.modifiedTime ?? '');
+    if (f.modifiedTime && Number.isFinite(modified)) cursor = f.modifiedTime;
+    if (!f.id || !/^[A-Za-z0-9_-]{1,160}$/.test(f.id) || !Number.isFinite(modified) || f.mimeType === FOLDER) continue;
+    files.push({
+      id: f.id,
+      name: String(f.name ?? 'Untitled'),
+      size: Number(f.size) || 0,
+      modified,
+      mime: String(f.mimeType ?? ''),
     });
-    const r = await ask<{ files?: Listed[]; nextPageToken?: string }>(`${GOOGLE.files}?${params}`, {
-      headers: bearer(token),
-    });
-    for (const f of r.files ?? []) {
-      const modified = Date.parse(f.modifiedTime ?? '');
-      if (!f.id || !/^[A-Za-z0-9_-]{1,160}$/.test(f.id) || !Number.isFinite(modified)) continue;
-      if (f.mimeType === FOLDER) continue;
-      files.push({
-        id: f.id,
-        name: String(f.name ?? 'Untitled'),
-        size: Number(f.size) || 0,
-        modified,
-        mime: String(f.mimeType ?? ''),
-      });
-      cursor = f.modifiedTime ?? cursor;
-    }
-    page = r.nextPageToken;
-  } while (page && files.length < max);
+  }
   return { files, cursor };
 }
 
-/** An original to Drive's own trash (the owner can still take it back there for 30 days). */
-export async function trash(token: string, id: string): Promise<void> {
+/** An original to Drive's own trash (the owner can still take it back there for 30 days):
+ * `done` when it is there or no longer ours to reach (404, 403), `retry` on anything else. */
+export async function trash(token: string, id: string): Promise<'done' | 'retry'> {
   try {
     await ask(`${GOOGLE.files}/${encodeURIComponent(id)}?fields=id`, {
       method: 'PATCH',
       headers: { ...bearer(token), 'Content-Type': 'application/json' },
       body: JSON.stringify({ trashed: true }),
     });
+    return 'done';
   } catch (e) {
-    // Already gone from Drive: nothing left to trash.
-    if (!(e instanceof GoogleError && e.status === 404)) throw e;
+    return e instanceof GoogleError && (e.status === 404 || e.status === 403) ? 'done' : 'retry';
   }
 }
 
+/** A file's parents, size and SHA-256 as Drive has them (the check at registration), or null when
+ * Drive does not know it or it is not ours to see. */
+export async function fileMeta(token: string, id: string) {
+  try {
+    const f = await ask<{ parents?: string[]; size?: string; sha256Checksum?: string; trashed?: boolean }>(
+      `${GOOGLE.files}/${encodeURIComponent(id)}?fields=parents,size,sha256Checksum,trashed`,
+      { headers: bearer(token) },
+    );
+    return {
+      parents: f.parents ?? [],
+      size: Number(f.size),
+      sha256: f.sha256Checksum ?? null,
+      trashed: f.trashed === true,
+    };
+  } catch (e) {
+    if (e instanceof GoogleError && (e.status === 404 || e.status === 403)) return null;
+    throw e;
+  }
+}
+
+/** The Google account that gave the consent, by its address (Settings › Photos shows it). */
+export async function account(token: string): Promise<string | null> {
+  const a = await ask<{ user?: { emailAddress?: string } }>(`${GOOGLE.about}?fields=user(emailAddress)`, {
+    headers: bearer(token),
+  });
+  return a.user?.emailAddress?.slice(0, 200) ?? null;
+}
+
 export async function revoke(token: string): Promise<void> {
-  await fetcher(`${GOOGLE.revoke}?${new URLSearchParams({ token })}`, { method: 'POST' }).catch(() => undefined);
+  // In the body, never the address (SECURITY.md rule 8: no tokens in URLs).
+  await fetcher(GOOGLE.revoke, form({ token })).catch(() => undefined);
 }

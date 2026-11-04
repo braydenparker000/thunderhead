@@ -8,12 +8,15 @@ import { MINUTE } from '../../lib/time';
 import { authObject } from '../../objects/auth';
 import { type Client, refresh } from './google';
 
-/** The OAuth client from the Worker's secrets; `origin` is the Worker's own (for the callback). */
-export function clientOf(env: Env, origin = ''): Client | null {
-  const e = env as { GOOGLE_CLIENT_ID?: string; GOOGLE_CLIENT_SECRET?: string };
+/** The OAuth client from the Worker's secrets. Its redirect is fixed: the configured Worker origin
+ * (WORKER_ORIGIN, the deploy's WORKER_URL), never the request's, and the Google client's
+ * registered redirect URI must equal it exactly (SETUP.md §R2). */
+export function clientOf(env: Env): Client | null {
+  const e = env as { GOOGLE_CLIENT_ID?: string; GOOGLE_CLIENT_SECRET?: string; WORKER_ORIGIN?: string };
   const id = present(e.GOOGLE_CLIENT_ID);
   const secret = present(e.GOOGLE_CLIENT_SECRET);
-  return id && secret ? { id, secret, redirect: `${origin}/v1/photos/drive/callback` } : null;
+  const origin = /^https:\/\/[A-Za-z0-9.-]+$/.test(e.WORKER_ORIGIN ?? '') ? e.WORKER_ORIGIN : null;
+  return id && secret && origin ? { id, secret, redirect: `${origin}/v1/photos/drive/callback` } : null;
 }
 
 export type Access = { token: string; expires_at: number; folder_id: string };

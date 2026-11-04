@@ -21,7 +21,8 @@ Step P1a, 2026-11-04: the shelf and the store. No editing yet.
   (`POST /v1/photos/upload-token`). A dropped connection asks Drive how far it got and goes on; the
   session is kept on the phone, so a reload resumes it. The bytes never pass through the Worker.
 - **Registered** once in Drive (`PUT /v1/photos/:id`): the Drive id, size, SHA-256, camera, capture
-  time, format, dimensions and film simulation. Its day is the capture day in the owner's zone.
+  time, format, dimensions and film simulation. The Worker checks with Drive first (one call) that
+  the file is in the app's folder with that size and, when Drive gives one, that SHA-256. Its day is the capture day in the owner's zone.
 - **The working preview**: made on the phone (`apps/photos/preview.js`) at 2,048 px on its longest
   side (Settings › Photos: 1,024 or 2,048), a JPEG of at most 400 KB, sent to the Worker
   (`PUT /v1/photos/:id/preview`) and kept in the private bucket (`photos/previews/<id>.jpg`), read
@@ -34,8 +35,9 @@ Step P1a, 2026-11-04: the shelf and the store. No editing yet.
   back); then the cron's prune pass purges its row and preview (bytes first), and the next Drive pass
   moves its original to Drive's own trash (the owner can still take it back there).
 - **The daily Drive pass** (`areas/photos/reconcile.ts`, from the 15-minute cron once a logical day):
-  lists the app's folder from where the last pass stopped (oldest change first, pages of 100, at most
-  200 files a run) and registers each file the shelf does not know with no preview; the phone makes
+  moves at most 20 purged originals to Drive's trash (each on its own; a busy Drive's waits a day),
+  then lists the app's folder from where the last pass stopped (oldest change first, one page of at
+  most 200 files: a run makes at most 22 outbound calls, under the free plan's 50) and registers each file the shelf does not know with no preview; the phone makes
   one the first time it is opened (a RAF's header and preview fetched by range). Held by the rows
   guard with the other heavy work; waits while Drive is not connected.
 - **Offline**: the shelf's pages, each photo, thumbnails and previews are kept on the phone
@@ -43,7 +45,7 @@ Step P1a, 2026-11-04: the shelf and the store. No editing yet.
 
 ## 2. Settings › Photos (§3.6, as built)
 
-Google Drive (Connect; or the folder by name and Disconnect; a plain line when Google took the access
+Google Drive (Connect; or "Connected as" the consenting Google account, the folder by name and Disconnect; a plain line when Google took the access
 back), Preview size (`photos.preview_size`, 1,024 / 2,048 px), What stays on the phone
 (`photos.keep`: previews only; recent originals come with editing and are shown, not yet chosen),
 and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).

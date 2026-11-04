@@ -631,9 +631,11 @@ Photos keeps your originals in your own Google Drive. The app asks only for the 
 ### R2. The OAuth client and its two secrets
 
 1. **APIs & Services** → **Credentials** → **Create credentials** → **OAuth client ID**:
-   **Web application**; **Authorized redirect URIs**: your Worker's address followed by
-   `/v1/photos/drive/callback` (for example `https://thunderhead-api.<your-subdomain>.workers.dev/v1/photos/drive/callback`)
-   → **Create**. The page shows a **Client ID** and a **Client secret**.
+   **Web application**; **Authorized redirect URIs**: exactly your repository variable `WORKER_URL`
+   (with no trailing slash) followed by `/v1/photos/drive/callback`, for example
+   `https://thunderhead-api.<your-subdomain>.workers.dev/v1/photos/drive/callback`. The Worker
+   sends this one fixed address (the deploy passes `WORKER_URL` to it as `WORKER_ORIGIN`), never one
+   built from a request, so it must match character for character → **Create**. The page shows a **Client ID** and a **Client secret**.
 2. dash.cloudflare.com → **Workers & Pages** → `thunderhead-api` → **Settings** → **Variables and
    Secrets**: `GOOGLE_CLIENT_ID` → **Edit** → paste the Client ID → **Save**; then
    `GOOGLE_CLIENT_SECRET` → **Edit** → paste the Client secret → **Save**. Never put either in a
@@ -644,5 +646,13 @@ Photos keeps your originals in your own Google Drive. The app asks only for the 
 On your phone: Settings → **Photos** → **Connect Google Drive** → choose your account → **Allow**.
 You come back to Photos with "Google Drive is connected"; the folder appears in your Drive. To
 stop: **Disconnect Google Drive** there (your files stay), or remove the app's access in your
-Google account (Settings › Photos then says so).
+Google account (Settings › Photos then says so). Settings › Photos shows "Connected as" with the
+Google account that consented: if it is not yours, Disconnect at once.
+
+### R4. The first real upload (a check, once)
+
+Import one photo and watch it reach "In Drive", then find it in the "Thunderhead Photos" folder.
+The phone relies on Drive letting the browser read the upload session's address (the `Location`
+header of the resumable upload); the tests fake Google, so this is the first place it is proven.
+If the import stops at "This one did not upload", tell the agent.
 

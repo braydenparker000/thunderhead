@@ -18,7 +18,7 @@ async function drive(box) {
     return;
   }
   const said = s.connected
-    ? `Connected. Originals go to “${s.folder_name}” in your Drive.`
+    ? `Connected${s.account ? ` as ${s.account}` : ''}. Originals go to “${s.folder_name}” in your Drive.`
     : s.revoked
       ? 'Google took back this app’s access to your Drive. Connect again to keep importing.'
       : !s.configured

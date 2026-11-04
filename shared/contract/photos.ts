@@ -17,6 +17,9 @@ export const PHOTO_LIMITS = {
   deleted_days: 30,
   /** Photos purged in one tick, and files the daily reconciliation registers in one run. */
   purge_step: 50,
+  /** The daily Drive pass's outbound calls: a token, at most 20 trashes and one listing of at most
+   * 200 files, so a run stays under 25 subrequests (the free plan allows 50). */
+  trash_per_run: 20,
   reconcile_files: 200,
   /** A file name, a camera's name and a film simulation's name, in characters. */
   name_chars: 200,
@@ -101,6 +104,8 @@ export interface DriveStatus {
   folder_name: string | null;
   revoked: boolean;
   connected_at: number | null;
+  /** The Google account that gave the consent (the owner's phone only, never the mind). */
+  account: string | null;
 }
 
 /** POST /v1/photos/upload-token: a short-lived Drive token for the phone's own resumable upload. */

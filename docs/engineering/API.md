@@ -834,7 +834,8 @@ NEXT-BATCH.md part 7 ([PODCASTS.md §5.4](../product/apps/PODCASTS.md); types an
 Core step 41 and Auth step 4 ([DATA.md](DATA.md)). The owner's phone only (`D`); the callback is
 public and checked by its one-use state.
 
-- `GET /v1/photos/drive` → `{configured, connected, folder_name, revoked, connected_at}`.
+- `GET /v1/photos/drive` → `{configured, connected, folder_name, revoked, connected_at, account}`
+  (`account`: the consenting Google address, stored sealed; the phone's alone).
 - `POST /v1/photos/drive/connect` → `{url}`: Google's consent address (scope `drive.file`,
   offline access, a state good for 10 minutes, stored as its SHA-256 with the site origin to go back to).
 - `GET /v1/photos/drive/callback?code=&state=` (public): trades the code, seals the refresh token in
@@ -847,7 +848,8 @@ public and checked by its one-use state.
   `not_configured` without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. The phone uploads the original
   to Drive itself (resumable upload); its bytes never pass through the Worker.
 - `PUT /v1/photos/:id` `{drive_id, name, format, bytes, sha256, camera?, film?, width?, height?, taken_at}`
-  → 201 `{photo}`; the same id again is 200, a Drive file already on the shelf is that photo (200),
+  → 201 `{photo}`, after one check with Drive: the file is in the app's folder, not in the trash,
+  with that size and (when Drive gives one) that SHA-256, else 422 on `drive_id`; the same id again is 200, a Drive file already on the shelf is that photo (200),
   another Drive file on the same id 409. Its day is `taken_at`'s in the owner's zone.
 - `GET /v1/photos?before=<day>` → `{days: [{day, count, photos (≤ 4)}], next}`, 14 days a page,
   newest first; `?day=<day>` one day whole (≤ 200 photos).
@@ -855,7 +857,8 @@ public and checked by its one-use state.
   `DELETE` moves it to Recently deleted; `POST …/restore` brings it back; `GET /v1/photos/deleted`
   lists Recently deleted (newest first, ≤ 200). A deleted photo is purged 30 days on with its preview.
 - `PUT /v1/photos/:id/preview` (`image/jpeg`, ≤ 400 KB) → `{photo}`; `GET` the bytes, private, with
-  an ETag (304 on a match). Kept in `thunderhead-private` under `photos/previews/<id>.jpg`.
+  an ETag (304 on a match), `Cache-Control: private, no-store` and `Content-Security-Policy: sandbox`. A
+  deleted photo takes no preview (404, no bytes written). Kept in `thunderhead-private` under `photos/previews/<id>.jpg`.
 
 ## 12. WebSocket protocol (`/v1/live`)
 

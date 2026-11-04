@@ -157,8 +157,8 @@ export class Auth extends OwnerObject {
     if (!p) throw new Error('AUTH_PEPPER is not set');
     return p;
   }
-  driveStatus(configured: boolean): DriveStatus {
-    return grant.status(this.db, configured);
+  driveStatus(configured: boolean): Promise<DriveStatus> {
+    return grant.status(this.db, this.pepper, configured);
   }
   driveStateNew(hash: string, origin: string): void {
     grant.newState(this.db, hash, origin, Date.now());
@@ -166,8 +166,8 @@ export class Auth extends OwnerObject {
   driveStateTake(hash: string): string | null {
     return this.ctx.storage.transactionSync(() => grant.takeState(this.db, hash, Date.now()));
   }
-  async drivePut(refresh: string, folderId: string, folderName: string, access: { token: string; expires_at: number }) {
-    await grant.put(this.db, this.pepper, refresh, folderId, folderName, Date.now());
+  async drivePut(g: grant.NewGrant, access: { token: string; expires_at: number }) {
+    await grant.put(this.db, this.pepper, g, Date.now());
     this.driveAccess = access;
   }
   /** A live grant: its refresh token (for the Worker's own call to Google, never a client), its

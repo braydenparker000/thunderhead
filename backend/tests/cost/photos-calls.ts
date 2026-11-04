@@ -5,7 +5,7 @@ import { exports } from 'cloudflare:workers';
 import type { SignedIn } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
 import { api, core, PASSWORD } from '../helpers';
-import { photoBody, previewBytes } from '../photos-helpers';
+import { connectDrive, fakeGoogle, photoBody, previewBytes } from '../photos-helpers';
 
 type Cost = (
   name: string,
@@ -16,6 +16,9 @@ type Cost = (
 
 export async function photosCalls(cost: Cost, grant: (ip: string, password?: string) => Promise<SignedIn>) {
   const d = { token: (await grant('192.0.2.253', `${PASSWORD} new`)).token };
+  // Registration checks the file with Drive (a fake Google here; the Worker never calls Google in tests).
+  fakeGoogle();
+  await connectDrive(d.token);
   for (let day = 0; day < 15; day++)
     for (let i = 0; i < 6; i++)
       await api('PUT', `/v1/photos/${uuidv7()}`, {

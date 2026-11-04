@@ -83,7 +83,11 @@ export abstract class CorePhotos extends CoreVerbs {
     if (getSetting(this.db, 'photos.drive_day') === today || quotaHold(this.db, now) !== null)
       return { due: false, cursor: null, gone: [] };
     const cursor = getSetting(this.db, 'photos.drive_cursor');
-    return { due: true, cursor: typeof cursor === 'string' ? cursor : null, gone: store.gone(this.db, L.purge_step) };
+    return {
+      due: true,
+      cursor: typeof cursor === 'string' ? cursor : null,
+      gone: store.gone(this.db, L.trash_per_run),
+    };
   }
 
   /** The pass's result in one commit: the files the shelf does not know registered (at most 200),

@@ -9,7 +9,7 @@ import { DRIVE_FOLDER, type DriveStatus, type UploadTokenResponse } from '../../
 import { type AppEnv, guard } from '../../http/auth';
 import { ApiError } from '../../http/errors';
 import { authObject } from '../../objects/auth';
-import { consentUrl, exchange, folder, GoogleError, revoke } from './google';
+import { account, consentUrl, exchange, folder, GoogleError, revoke } from './google';
 import { randomState, stateHash } from './seal';
 import { accessToken, clientOf } from './token';
 
@@ -17,7 +17,6 @@ const origins = (env: Env) =>
   env.SITE_ORIGINS.split(',')
     .map((o) => o.trim())
     .filter(Boolean);
-const workerOrigin = (url: string) => new URL(url).origin;
 const notConnected = (why: string) => new ApiError('conflict', [{ path: 'drive', issue: why }]);
 
 export const driveRoutes = new Hono<AppEnv>()
@@ -26,7 +25,7 @@ export const driveRoutes = new Hono<AppEnv>()
     return c.json(s satisfies DriveStatus);
   })
   .post('/photos/drive/connect', guard('POST /v1/photos/drive/connect'), async (c) => {
-    const client = clientOf(c.env, workerOrigin(c.req.url));
+    const client = clientOf(c.env);
     if (!client) throw new ApiError('not_configured');
     // Back to the site the owner tapped Connect on (a preview build's or the live one), never elsewhere.
     const from = c.req.header('Origin') ?? '';
@@ -42,17 +41,19 @@ export const driveRoutes = new Hono<AppEnv>()
     if (!back) return c.text('This link has expired. Start again from Settings › Photos.', 400);
     const to = (result: string) => c.redirect(`${back}/photos/?drive=${result}`, 302);
     const code = c.req.query('code');
-    const client = clientOf(c.env, workerOrigin(c.req.url));
+    const client = clientOf(c.env);
     if (!code || !client) return to(c.req.query('error') === 'access_denied' ? 'declined' : 'failed');
     try {
       const now = Date.now();
       const t = await exchange(client, code, now);
       if (!t.refresh_token) return to('failed');
       const folderId = await folder(t.access_token, DRIVE_FOLDER);
-      await authObject(c.env).drivePut(t.refresh_token, folderId, DRIVE_FOLDER, {
-        token: t.access_token,
-        expires_at: t.expires_at,
-      });
+      // Which Google account consented, so a consent someone else finished shows at once.
+      const who = await account(t.access_token).catch(() => null);
+      await authObject(c.env).drivePut(
+        { refresh: t.refresh_token, folder_id: folderId, folder_name: DRIVE_FOLDER, account: who },
+        { token: t.access_token, expires_at: t.expires_at },
+      );
       return to('connected');
     } catch (e) {
       if (e instanceof GoogleError) return to('failed');

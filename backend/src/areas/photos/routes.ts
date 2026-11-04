@@ -20,6 +20,8 @@ import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 import { sha256 } from '../import/vault';
+import { fileMeta } from './google';
+import { accessToken } from './token';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const text = (max: number) => z.string().check(z.minLength(1), z.maxLength(max));
@@ -51,6 +53,31 @@ const found = (p: PhotoItem | null) => {
   return p;
 };
 
+/** What the phone says it uploaded, checked with Drive (one call): the file is in the app's folder,
+ * not in the trash, with the size and, when Drive gives one, the SHA-256 the phone sent. */
+async function inDrive(env: Env, b: { drive_id: string; bytes: number; sha256: string }): Promise<void> {
+  let a: Awaited<ReturnType<typeof accessToken>>;
+  let meta: Awaited<ReturnType<typeof fileMeta>>;
+  try {
+    a = await accessToken(env);
+    meta = typeof a === 'string' ? null : await fileMeta(a.token, b.drive_id);
+  } catch {
+    throw new ApiError('upstream');
+  }
+  if (a === 'not_configured') throw new ApiError('not_configured');
+  if (typeof a === 'string')
+    throw new ApiError('conflict', [{ path: 'drive', issue: 'Google Drive is not connected' }]);
+  const issue =
+    !meta || meta.trashed || !meta.parents.includes(a.folder_id)
+      ? "not a file in the app's Drive folder"
+      : meta.size !== b.bytes
+        ? 'its size in Drive differs'
+        : meta.sha256 && meta.sha256 !== b.sha256
+          ? 'its SHA-256 in Drive differs'
+          : null;
+  if (issue) throw new ApiError('validation', [{ path: 'drive_id', issue }]);
+}
+
 export const photosRoutes = new Hono<AppEnv>()
   .get('/photos', guard('GET /v1/photos'), async (c) => {
     const day = c.req.query('day');
@@ -70,6 +97,7 @@ export const photosRoutes = new Hono<AppEnv>()
   .put('/photos/:id', guard('PUT /v1/photos/:id'), async (c) => {
     const id = idParam(c);
     const body = await json(c, putBody);
+    await inDrive(c.env, body);
     const out = value(await fresh(coreObject(c.env).putPhoto(id, body)));
     return c.json({ photo: out.photo }, out.created ? 201 : 200);
   })
@@ -94,7 +122,8 @@ export const photosRoutes = new Hono<AppEnv>()
       throw new ApiError('validation', [{ path: 'Content-Type', issue: 'image/jpeg' }]);
     const vault = vaultOf(c.env);
     const core = coreObject(c.env);
-    found(await fresh(core.photo(id)));
+    // Refused before any bytes go in: a deleted photo takes no preview (nor leaves one behind).
+    if (found(await fresh(core.photo(id))).deleted_at !== null) throw new ApiError('not_found');
     const bytes = new Uint8Array(await c.req.arrayBuffer());
     if (bytes.byteLength > L.preview_bytes) throw new ApiError('too_large');
     if (bytes.byteLength < 4 || bytes[0] !== 0xff || bytes[1] !== 0xd8)
@@ -106,14 +135,23 @@ export const photosRoutes = new Hono<AppEnv>()
     } catch {
       throw new ApiError('upstream');
     }
-    return c.json({ photo: value(await fresh(core.photoPreview(id, key, sha))) });
+    const out = await fresh(core.photoPreview(id, key, sha));
+    // Deleted meanwhile: the row refused, so the bytes go too.
+    if (!out.ok) await vault.delete(key).catch(() => undefined);
+    return c.json({ photo: value(out) });
   })
   .get('/photos/:id/preview', guard('GET /v1/photos/:id/preview'), async (c) => {
     const id = idParam(c);
     const vault = vaultOf(c.env);
     const p = await fresh(coreObject(c.env).photoPreviewKey(id));
     if (!p) throw new ApiError('not_found');
-    const headers = { 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, no-cache', ETag: `"${p.sha}"` };
+    // As a chat file's bytes (SECURITY.md §9.1): never stored by a cache, sandboxed if opened alone.
+    const headers = {
+      'Content-Type': 'image/jpeg',
+      'Cache-Control': 'private, no-store',
+      'Content-Security-Policy': "sandbox; default-src 'none'",
+      ETag: `"${p.sha}"`,
+    };
     if ((c.req.header('If-None-Match') ?? '').includes(p.sha)) return c.body(null, 304, headers);
     const obj = await vault.get(p.key);
     if (!obj) throw new ApiError('not_found');

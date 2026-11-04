@@ -92,6 +92,9 @@
     // The account's R2 host for signed media links (`<id>.r2.cloudflarestorage.com`). The real id
     // comes from the `worker` environment's CLOUDFLARE_ACCOUNT_ID through `--var`, never this file.
     "R2_ACCOUNT_ID": "none",
+    // The Worker's own origin, for Photos' fixed OAuth redirect (`<origin>/v1/photos/drive/callback`).
+    // The real value is the `worker` environment's WORKER_URL through `--var`; this one matches nothing.
+    "WORKER_ORIGIN": "https://thunderhead-api.zNN.workers.dev",
     // Fallback only. The owner's real time zone is the private Core setting `owner.tz`, set from
     // the phone, never written in this public repo.
     "OWNER_TZ": "UTC",

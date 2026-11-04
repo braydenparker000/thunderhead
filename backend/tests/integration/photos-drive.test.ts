@@ -41,6 +41,7 @@ describe('connecting Google Drive', () => {
       folder_name: null,
       revoked: false,
       connected_at: null,
+      account: null,
     });
     expect((await api('POST', '/v1/photos/upload-token', { token: D })).status).toBe(409);
   });
@@ -55,8 +56,17 @@ describe('connecting Google Drive', () => {
     expect(res.headers.get('Location')).toBe(`${SITE}/photos/?drive=connected`);
     // The state works once.
     expect((await callback(`code=good-code&state=${url.searchParams.get('state')}`)).status).toBe(400);
-    expect(await status()).toMatchObject({ connected: true, folder_name: 'Thunderhead Photos', revoked: false });
-    const [row] = await authSql<{ sealed: string; folder_id: string }>('SELECT sealed, folder_id FROM drive_grant');
+    // The consenting account, shown to the owner's phone; sealed at rest like the token.
+    expect(await status()).toMatchObject({
+      connected: true,
+      folder_name: 'Thunderhead Photos',
+      account: 'owner@example.test',
+    });
+    const [row] = await authSql<{ sealed: string; folder_id: string; account: string }>(
+      'SELECT sealed, folder_id, account FROM drive_grant',
+    );
+    expect(row?.account).toMatch(/^v1\./);
+    expect(row?.account).not.toContain('example.test');
     expect(row?.folder_id).toBe('folder-made-1');
     expect(row?.sealed).toMatch(/^v1\./);
     expect(row?.sealed).not.toContain('fake-refresh-1');
@@ -98,7 +108,9 @@ describe('connecting Google Drive', () => {
     expect((await status()).connected).toBe(true);
     expect((await api('DELETE', '/v1/photos/drive', { token: D })).status).toBe(204);
     expect(await authSql('SELECT id FROM drive_grant')).toEqual([]);
-    expect(g.calls.at(-1)?.url).toContain('/revoke');
+    const revoke = g.calls.at(-1);
+    expect(revoke?.url).toBe('https://oauth2.googleapis.com/revoke');
+    expect(revoke?.body).toBe('token=fake-refresh-1');
     await connect();
   });
 });
@@ -117,16 +129,18 @@ describe('the daily Drive pass', () => {
     await apiJson('PUT', `/v1/photos/${uuidv7()}`, { token: D, body: known });
     await runInDurableObject(core(), (o: Core) =>
       (o as unknown as { db: { run(q: string, ...a: unknown[]): number } }).db.run(
-        'INSERT INTO photos_gone (drive_id, purged_at) VALUES (?, ?)',
-        'hand-added-1',
-        Date.now(),
+        "INSERT INTO photos_gone (drive_id, purged_at) VALUES ('hand-added-1', 1), ('gone-403', 2), ('gone-500', 3)",
       ),
     );
+    // Each trash on its own: one Drive will not let us reach is done, a busy Drive's waits a day.
+    g.trashFail = { 'gone-403': 403, 'gone-500': 500 };
     g.folder = Array.from({ length: 230 }, (_, i) => file(i));
     const first = await drivePass(env);
-    expect(first).toEqual({ added: 198, trashed: 1 });
+    expect(first).toEqual({ added: 198, trashed: 2 });
     expect(g.trashed).toEqual(['hand-added-1']);
-    expect(await coreSql('SELECT drive_id FROM photos_gone')).toEqual([]);
+    expect(await coreSql('SELECT drive_id FROM photos_gone')).toEqual([{ drive_id: 'gone-500' }]);
+    // One listing page a run, so a run stays under 25 subrequests.
+    expect(g.calls.filter((c) => c.url.includes('in+parents')).length).toBe(1);
     // Once a day: the same day's tick does nothing.
     expect(await drivePass(env)).toBeNull();
     const day = await apiJson<PhotoShelfResponse>('GET', '/v1/photos?day=2026-09-01', { token: D });

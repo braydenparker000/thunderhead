@@ -11,10 +11,11 @@ import { uuidv7 } from '../../src/lib/ids';
 import { DAY } from '../../src/lib/time';
 import type { Core } from '../../src/objects/core';
 import { api, apiJson, core, coreSql, makeAgent, setupOwner } from '../helpers';
-import { photoBody, previewBytes } from '../photos-helpers';
+import { connectDrive, type FakeGoogle, fakeGoogle, photoBody, previewBytes } from '../photos-helpers';
 
 let D = '';
 let C = '';
+let g: FakeGoogle;
 const put = (id: string, body: object, token = D) =>
   apiJson<{ photo: PhotoItem }>('PUT', `/v1/photos/${id}`, { token, body });
 const shelf = (q = '') => apiJson<PhotoShelfResponse>('GET', `/v1/photos${q}`, { token: D });
@@ -31,6 +32,8 @@ async function exportsFetch(path: string, init: RequestInit = {}) {
 beforeAll(async () => {
   D = (await setupOwner()).token;
   C = await makeAgent(D, 'mind:chat');
+  g = fakeGoogle();
+  await connectDrive(D);
 });
 
 describe('PUT /v1/photos/:id', () => {
@@ -59,6 +62,27 @@ describe('PUT /v1/photos/:id', () => {
     expect((await put(uuidv7(), { ...photoBody(), format: 'gif' })).status).toBe(422);
     expect((await put(uuidv7(), photoBody(), C)).status).toBe(403);
     expect((await put('not-an-id', photoBody())).status).toBe(422);
+  });
+
+  it('checks with Drive that the file is in the app folder with that size and hash', async () => {
+    const issue = async (body: object) => {
+      const r = await apiJson<{ error: { details: { issue: string }[] } }>('PUT', `/v1/photos/${uuidv7()}`, {
+        token: D,
+        body,
+      });
+      return [r.status, r.body.error?.details?.[0]?.issue];
+    };
+    g.meta['drive-elsewhere'] = { parents: ['someone-elses-folder'] };
+    g.meta['drive-gone'] = 404;
+    g.meta['drive-short'] = { size: 10 };
+    g.meta['drive-other-hash'] = { sha256: 'b'.repeat(64) };
+    expect(await issue(photoBody({ drive: 'drive-elsewhere' }))).toEqual([422, "not a file in the app's Drive folder"]);
+    expect(await issue(photoBody({ drive: 'drive-gone' }))).toEqual([422, "not a file in the app's Drive folder"]);
+    expect(await issue(photoBody({ drive: 'drive-short' }))).toEqual([422, 'its size in Drive differs']);
+    expect(await issue(photoBody({ drive: 'drive-other-hash' }))).toEqual([422, 'its SHA-256 in Drive differs']);
+    expect(await coreSql("SELECT id FROM photos WHERE drive_id LIKE 'drive-%' AND drive_id != 'drive-one'")).toEqual(
+      [],
+    );
   });
 });
 
@@ -141,7 +165,17 @@ describe('the preview', () => {
     expect(got.status).toBe(200);
     expect(got.headers.get('Content-Type')).toBe('image/jpeg');
     expect(new Uint8Array(await got.arrayBuffer())).toEqual(previewBytes());
+    expect(got.headers.get('Cache-Control')).toBe('private, no-store');
+    expect(got.headers.get('Content-Security-Policy')).toBe("sandbox; default-src 'none'");
     const etag = got.headers.get('ETag') ?? '';
     expect((await exportsFetch(`/v1/photos/${id}/preview`, { headers: { 'If-None-Match': etag } })).status).toBe(304);
+  });
+
+  it('a deleted photo takes no preview, and leaves no bytes behind', async () => {
+    const id = uuidv7();
+    await put(id, photoBody({ taken: Date.UTC(2026, 3, 10, 8) }));
+    await api('DELETE', `/v1/photos/${id}`, { token: D });
+    expect((await sendPreview(id, previewBytes())).status).toBe(404);
+    expect(await env.VAULT.head(`photos/previews/${id}.jpg`)).toBeNull();
   });
 });

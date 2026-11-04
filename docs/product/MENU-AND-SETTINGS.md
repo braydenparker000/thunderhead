@@ -399,7 +399,7 @@ SHA-256 (`PUT /v1/music/history`) and counted once, and what was counted (counts
 ### 6.6c Photos (`photos.js`)
 
 Google Drive first ([PHOTOS.md §3.6](apps/PHOTOS.md)): Connect (Google's consent for the
-`drive.file` scope, back to `/photos/`), or the folder by name and Disconnect; a plain line when
+`drive.file` scope, back to `/photos/`), or "Connected as" the Google account, the folder by name and Disconnect; a plain line when
 Google took the access back, and one when the Worker has no OAuth client yet. Then the two keys
 below (recent originals come with editing: shown, not yet chosen), and Recently deleted, which
 opens Photos' own list (`/photos/?deleted=1`). `/settings/photos/` opens this page.

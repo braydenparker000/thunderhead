@@ -36,7 +36,8 @@ CREATE TABLE drive_grant (
   folder_id TEXT NOT NULL,
   folder_name TEXT NOT NULL,
   connected_at INTEGER NOT NULL,
-  revoked_at INTEGER
+  revoked_at INTEGER,
+  account TEXT
   );
 
 CREATE TABLE drive_states (

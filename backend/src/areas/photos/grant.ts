@@ -1,5 +1,5 @@
 // The Drive grant inside the Auth object, where the owner's other keys live (PHOTOS.md §3.7): the
-// refresh token sealed (seal.ts), the app's folder, when it was linked and whether Google has
+// refresh token and the consenting account's address sealed (seal.ts), the app's folder, when it was linked and whether Google has
 // since refused it; and the one-use states of a consent in progress (10 minutes each). The access
 // token it mints is kept only in the object's memory until it expires.
 import type { DriveStatus } from '../../../../shared/contract/photos.ts';
@@ -16,7 +16,8 @@ export const GRANT_SQL = [
     folder_id TEXT NOT NULL,
     folder_name TEXT NOT NULL,
     connected_at INTEGER NOT NULL,
-    revoked_at INTEGER
+    revoked_at INTEGER,
+    account TEXT
   )`,
   `CREATE TABLE drive_states (
     hash TEXT PRIMARY KEY,
@@ -25,11 +26,19 @@ export const GRANT_SQL = [
   ) WITHOUT ROWID`,
 ];
 
-type Row = { sealed: string; folder_id: string; folder_name: string; connected_at: number; revoked_at: number | null };
+type Row = {
+  sealed: string;
+  folder_id: string;
+  folder_name: string;
+  connected_at: number;
+  revoked_at: number | null;
+  account: string | null;
+};
 const row = (db: Db) =>
-  db.one<Row>('SELECT sealed, folder_id, folder_name, connected_at, revoked_at FROM drive_grant WHERE id = 1');
+  db.one<Row>('SELECT sealed, folder_id, folder_name, connected_at, revoked_at, account FROM drive_grant WHERE id = 1');
 
-export function status(db: Db, configured: boolean): DriveStatus {
+/** For the owner's phone only (GET /v1/photos/drive is a device route): the account opened. */
+export async function status(db: Db, pepper: string, configured: boolean): Promise<DriveStatus> {
   const r = row(db);
   return {
     configured,
@@ -37,6 +46,7 @@ export function status(db: Db, configured: boolean): DriveStatus {
     folder_name: r?.folder_name ?? null,
     revoked: r?.revoked_at != null,
     connected_at: r?.connected_at ?? null,
+    account: r?.account ? await open(pepper, r.account) : null,
   };
 }
 
@@ -56,16 +66,28 @@ export function takeState(db: Db, hash: string, now: number): string | null {
   return r.expires_at >= now ? r.origin : null;
 }
 
-export async function put(db: Db, pepper: string, refresh: string, folderId: string, folderName: string, now: number) {
-  const sealed = await seal(pepper, refresh);
+export interface NewGrant {
+  refresh: string;
+  folder_id: string;
+  folder_name: string;
+  /** The consenting Google account's address, sealed like the token. */
+  account: string | null;
+}
+
+export async function put(db: Db, pepper: string, g: NewGrant, now: number) {
+  const sealed = await seal(pepper, g.refresh);
+  const account = g.account ? await seal(pepper, g.account) : null;
   db.run(
-    `INSERT INTO drive_grant (id, sealed, folder_id, folder_name, connected_at, revoked_at) VALUES (1, ?, ?, ?, ?, NULL)
+    `INSERT INTO drive_grant (id, sealed, folder_id, folder_name, connected_at, revoked_at, account)
+     VALUES (1, ?, ?, ?, ?, NULL, ?)
      ON CONFLICT (id) DO UPDATE SET sealed = excluded.sealed, folder_id = excluded.folder_id,
-       folder_name = excluded.folder_name, connected_at = excluded.connected_at, revoked_at = NULL`,
+       folder_name = excluded.folder_name, connected_at = excluded.connected_at, revoked_at = NULL,
+       account = excluded.account`,
     sealed,
-    folderId,
-    folderName,
+    g.folder_id,
+    g.folder_name,
     now,
+    account,
   );
 }
 
