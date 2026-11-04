@@ -1,6 +1,7 @@
 // SQL for the ledger inside Core (DATA.md §4.3). `insert` is called only by objects/commit.ts.
 import type { Actor, LedgerEntry, LedgerKind } from '../../../../shared/contract/api';
 import type { PermitPosition } from '../../../../shared/contract/permits.ts';
+import { ARRANGEMENT_SLOTS } from '../../../../shared/contract/surfaces.ts';
 import type { Db } from '../../objects/base';
 
 export interface LedgerRow {
@@ -221,6 +222,8 @@ export function mindKinds(db: Db): Record<string, number> {
   return Object.fromEntries(rows.map((r) => [r.kind, r.n]));
 }
 
+/** What the phone reports seen: a line on home (`home/line.<n> ← <kind>`) or an app's arrangement. */
+const SEEN = `(what LIKE 'home/line.%' OR ${ARRANGEMENT_SLOTS.map((x) => `what LIKE '${x} %'`).join(' OR ')})`;
 /** The meter's rows since `from` (P9, EVALS.md M-8 and M-16): when the owner fixed or forgot a fact, and
  * each arrangement the mind placed (a surface put) with its ref and when it was undone. */
 export function meterRows(db: Db, from: number) {
@@ -232,9 +235,9 @@ export function meterRows(db: Db, from: number) {
         from,
       )
       .map((r) => r.at),
-    // `line`: a line on home (surfaces/ops.ts writes `home/line.<n> ← <kind>`), which the phone reports seen.
+    // `line`: what the phone reports seen (SEEN).
     arrangements: db.all<{ id: string; at: number; ref: string | null; undone_at: number | null; line: number }>(
-      `SELECT id, at, ref, undone_at, what LIKE 'home/line.%' AS line FROM ledger
+      `SELECT id, at, ref, undone_at, ${SEEN} AS line FROM ledger
         WHERE at >= ? AND kind = 'arrangement' AND actor LIKE 'mind:%' AND what LIKE '%←%'`,
       from,
     ),
@@ -253,7 +256,7 @@ export function arrangedBetween(db: Db, from: number, to: number, limit: number)
     what: string;
     why: string | null;
   }>(
-    `SELECT id, at, ref, undone_at, what LIKE 'home/line.%' AS line, what, why FROM ledger
+    `SELECT id, at, ref, undone_at, ${SEEN} AS line, what, why FROM ledger
       WHERE at >= ? AND at < ? AND kind = 'arrangement' AND actor LIKE 'mind:%' AND what LIKE '%←%' ORDER BY at, seq LIMIT ?`,
     from,
     to,
@@ -273,7 +276,7 @@ export function topicArrangements(db: Db, from: number) {
     topic_key: string;
     place: string;
   }>(
-    `SELECT id, at, ref, undone_at, what LIKE 'home/line.%' AS line, topic_key, substr(what, 1, instr(what, '/') - 1) AS place
+    `SELECT id, at, ref, undone_at, ${SEEN} AS line, topic_key, substr(what, 1, instr(what, '/') - 1) AS place
        FROM ledger WHERE at >= ? AND kind = 'arrangement' AND actor LIKE 'mind:%' AND what LIKE '%←%'
        AND topic_key IS NOT NULL ORDER BY at, seq LIMIT 2000`,
     from,

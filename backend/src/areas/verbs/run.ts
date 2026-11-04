@@ -69,7 +69,7 @@ const why = (x: Call) => (x.queued ? `${x.why} (queued ${x.queued})` : x.why);
 /** A Worker-side verb, run in this commit: its ledger row (the area's own, or one written here)
  * and its `done` row. A refusal (a Fail) is the caller's to roll back. */
 export function runWorker(w: Writer, c: Caller, x: Call, zone: () => string): { ledgerId: string; ran: Ran } {
-  const ran = runWorkerVerb(x.verb, { w, c, id: x.id, hash: x.hash ?? x.id, zone }, x.args);
+  const ran = runWorkerVerb(x.verb, { w, c, id: x.id, hash: x.hash ?? x.id, zone, why: x.why }, x.args);
   let ledgerId = ran.ledger_id ?? null;
   if (ledgerId) ledger.linkVerb(w.db, ledgerId, x.id, x.position, x.card);
   else

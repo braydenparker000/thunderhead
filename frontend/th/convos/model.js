@@ -135,8 +135,13 @@ export function metaOf(t, g) {
 /** "1 message", "14 messages" @param {number} n */
 export const count = (n) => `${n} ${n === 1 ? 'message' : 'messages'}`;
 
-/** A row's second line: the night shift's summary on one line, else how many messages. @param {Thread} t */
-export const subOf = (t) => (t.summary ?? '').replace(/\s+/g, ' ').trim() || count(t.message_count);
+/** A row's second line: the topic it is filed under, then the night shift's summary on one line,
+ * else how many messages. @param {Thread} t */
+export const subOf = (t) => {
+  const sub = (t.summary ?? '').replace(/\s+/g, ' ').trim() || count(t.message_count);
+  // The topic the mind filed it under (thread.file), first.
+  return t.topic ? `${t.topic} · ${sub}` : sub;
+};
 
 /** The past view's "when": "Today", "Yesterday", "Monday 26 October", "Wednesday 3 December 2025".
  * @param {string} day @param {string} today */

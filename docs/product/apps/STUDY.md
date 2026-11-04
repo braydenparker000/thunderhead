@@ -629,6 +629,10 @@ the page — checked on the owner's phone with one real book.
 
 ---
 
+
+## The mind's arrangement slot (2026-11-04, verbs batch 2)
+
+One slot, one kind ([BEHAVIOR.md §3.1](../../mind/BEHAVIOR.md#31-rung-0-silent-arrangement), API.md §11.11 "The apps' arrangements"): `study/next`, kind `passage`, placed by `study.mark_next`: where the owner left off and what next, with the page; only the owner's own plan, as they set it. Their pace (pages a week) is `study.pace_goal`, from their own words only. It carries its why behind a tap, and the app reports it seen, taken up or dismissed (`arrangement.seen`, `arrangement.tap`, `arrangement.dismiss`), so the meter and what lands count it.
 ## Open questions / tests
 
 | # | Question | How to settle |

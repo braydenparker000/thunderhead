@@ -22,6 +22,7 @@ import * as ledger from '../ledger/store';
 import { gate } from '../mind/permit';
 import { speechGate } from '../mind/speech';
 import { followThrough } from './follow';
+import { lawGate } from './law';
 import { type Call, type Prepared, phoneArgs, queuePhone, runWorker } from './run';
 import * as schedule from './schedule';
 import * as store from './store';
@@ -61,6 +62,8 @@ export function put(
   if (!version) throw invalid('schema', `known versions: ${Object.keys(spec.versions).join(', ')}`);
   const args = version.args.safeParse(r.args);
   if (!args.success) throw issues('args', args.error);
+  // Law 8: no verb reaches prayer, revelation, leaders, health or people (law.ts).
+  lawGate(r.verb, r.why, args.data);
   // Later (schedule.ts): its time, checked and counted before the gate; music and podcasts wait out
   // quiet hours. A scheduled phone verb's expiry counts from when it fires.
   const tz = r.fire_at === undefined ? 'UTC' : zone();

@@ -2,8 +2,9 @@
 // An arrangement (a surface the mind placed) is undone when the owner took it back within 48 hours;
 // else, once 48 hours have passed, kept when they acted on it on its day or the next (tapped its tile,
 // or opened the app it names, `ref: app:<id>`: the app's page, the shell bringing it to the front, or
-// a reply's chip to it), ignored when they dismissed it or did nothing, and, for a home line, unseen
-// when it never came on screen (`line.seen`): a line nobody saw was not turned down. One placed in
+// a reply's chip to it, or took up an app's arrangement, `arrangement.tap`), ignored when they
+// dismissed it or did nothing, and, for a home line or an app's arrangement, unseen when it never
+// came on screen (`line.seen`, `arrangement.seen`): a line nobody saw was not turned down. One placed in
 // the last 48 hours waits. Never a score to push the owner with (law 16).
 import { type InsightResponse, PREDICTION_APPS } from '../../../../shared/contract/predictions.ts';
 import { DAY, dayBefore, HOUR } from '../../lib/time';
@@ -20,6 +21,9 @@ export const METER_SENSES = [
   'reply.open_chip',
   'line.seen',
   'line.dismiss',
+  'arrangement.seen',
+  'arrangement.tap',
+  'arrangement.dismiss',
 ];
 
 export interface Arrangement {
@@ -27,7 +31,7 @@ export interface Arrangement {
   at: number;
   ref: string | null;
   undone_at: number | null;
-  /** A line on home (`home/line.<n>`), which the phone reports seen. */
+  /** A line on home (`home/line.<n>`) or an app's arrangement slot, which the phone reports seen. */
   line?: number | boolean;
 }
 export interface Rollup {
@@ -68,10 +72,10 @@ export function metSoFar(
   const opened = !!a.ref && (on('app.open', a.ref) || on('reply.open_chip', a.ref) || (!!app && on(app, '')));
   // A tap on it is kept; a dismissal outweighs the app opened anyway; a home line never shown is
   // not counted against it.
-  if (on('briefing.tile', own)) return 'kept';
-  if (on('line.dismiss', own)) return 'ignored';
+  if (on('briefing.tile', own) || on('arrangement.tap', own)) return 'kept';
+  if (on('line.dismiss', own) || on('arrangement.dismiss', own)) return 'ignored';
   if (opened) return 'kept';
-  if (a.line && !on('line.seen', own)) return 'unseen';
+  if (a.line && !on('line.seen', own) && !on('arrangement.seen', own)) return 'unseen';
   return null;
 }
 

@@ -25,6 +25,7 @@ import * as convo from '../conversation/store';
 import { claimedSession } from '../mind/guards';
 import { gate, positionFor, withPermit } from '../mind/permit';
 import { heldUntil, inQuiet, type QuietWindow, quietWindow } from '../settings/quiet';
+import { inAny, pastAll, snoozeWindows } from './snooze';
 import * as store from './store';
 
 /** How far in the past a new reminder's time may be (a slow send of "now"). */
@@ -45,7 +46,8 @@ const PER_RUN = 20;
 const CONTROL = /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/;
 
 /** When a reminder asked for `at` is delivered: then, or the end of the quiet hours it falls in. */
-export const fireAt = (at: number, tz: string, quiet: QuietWindow) => heldUntil(at, tz, quiet);
+export const fireAt = (at: number, tz: string, quiet: QuietWindow, rules: QuietWindow[] = []) =>
+  rules.length ? pastAll(at, tz, [quiet, ...rules]) : heldUntil(at, tz, quiet);
 
 /** The mind's claimed chat session, clean (as memory writes need it): else 403. */
 function cleanSession(w: Writer, c: Caller): void {
@@ -100,7 +102,7 @@ export function put(
     id,
     text,
     at: r.at,
-    fire_at: fireAt(r.at, tz, quietWindow(w.db)),
+    fire_at: fireAt(r.at, tz, quietWindow(w.db), snoozeWindows(w.db)),
     state: 'set',
     origin: mind ? 'mind' : 'owner_device',
     source_message_id: r.source_message_id ?? null,
@@ -174,7 +176,7 @@ export function move(
   if (at > w.at + REMINDER_LIMITS.days_ahead * DAY)
     throw invalid('args.at', `at most ${REMINDER_LIMITS.days_ahead} days ahead`);
   if (at === had.at) return { before: had.at, at, fire_at: had.fire_at, changed: false };
-  const fire = fireAt(at, tz, quietWindow(w.db));
+  const fire = fireAt(at, tz, quietWindow(w.db), snoozeWindows(w.db));
   store.move(w.db, id, at, fire);
   return { before: had.at, at, fire_at: fire, changed: true };
 }
@@ -184,17 +186,19 @@ export function move(
 export function moveBack(w: Writer, id: string, before: number, movedTo: number, tz: string): void {
   const had = store.byId(w.db, id);
   if (had?.state !== 'set' || had.at !== movedTo) throw new Fail('conflict', { reason: 'the reminder changed since' });
-  store.move(w.db, id, before, fireAt(before, tz, quietWindow(w.db)));
+  store.move(w.db, id, before, fireAt(before, tz, quietWindow(w.db), snoozeWindows(w.db)));
 }
 
 /** The alarm's pass: every set reminder due by now becomes its line in today's thread, once (the
  * row turns `done` in the same commit). A push is owed unless it is delivered inside quiet hours
- * or `push` is false (the eval sandbox). Returns how many owe a push; past PER_RUN, the alarm
+ * or a rule's window, or `push` is false (the eval sandbox). Returns how many owe a push; past PER_RUN, the alarm
  * comes back at once for the rest. */
 export function deliverDue(w: Writer, tz: string, push: boolean, rang: string[] = []): number {
-  const owed = push && !inQuiet(w.at, tz, quietWindow(w.db));
+  const due = store.due(w.db, w.at, PER_RUN);
+  // Inside the quiet hours or a standing rule's window (snooze.ts), it lands without a push.
+  const owed = due.length > 0 && push && !inQuiet(w.at, tz, quietWindow(w.db)) && !inAny(w.at, tz, snoozeWindows(w.db));
   let pushes = 0;
-  for (const r of store.due(w.db, w.at, PER_RUN)) {
+  for (const r of due) {
     const id = uuidv7(w.at);
     if (!store.markDone(w.db, r.id, w.at, id, owed ? w.at + PUSH_MS : null)) continue;
     rang.push(r.id);

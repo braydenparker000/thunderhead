@@ -10,7 +10,6 @@
 import type { Permitted, PutSurfaceRequest, Surface } from '../../../../shared/contract/api';
 import { surfaceKind } from '../../../../shared/contract/surfaces.ts';
 import { Fail, invalid } from '../../lib/result';
-import { ownerDay } from '../../lib/time';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { scrubArrangements, scrubUndo } from '../ledger/store';
@@ -18,9 +17,9 @@ import { factFlags, provenanceOf } from '../memory/store';
 import { gate, ledgerPermit, withPermit } from '../mind/permit';
 import { asked, speechGate } from '../mind/speech';
 import { homeLines } from '../settings/home-lines';
+import { topicOpen } from './arrange';
 import * as store from './store';
 
-const QUIET_MS = 14 * 86_400_000;
 const UNDO_WINDOW_MS = 30 * 86_400_000;
 
 export function put(
@@ -53,10 +52,7 @@ export function put(
       payload.error.issues.map((i) => ({ path: ['payload', ...i.path.map(String)].join('.'), issue: i.message })),
     );
   const cites = drawsOn(w, r);
-  const topic = store.topicState(w.db, r.topic_key);
-  if (topic?.ignored_at != null && w.at - topic.ignored_at < QUIET_MS) throw new Fail('nudge_repeat');
-  if (topic?.quiet_until != null && topic.quiet_until > w.at)
-    throw new Fail('topic_quiet', { until: topic.quiet_until, reopens: ownerDay(topic.quiet_until, tz) });
+  topicOpen(w, r.topic_key, () => tz);
   if (r.expires_at !== undefined && r.expires_at <= w.at) throw invalid('expires_at', 'in the future');
   // A home line is the voice ladder's rung 2; a tile only "silent" holds back.
   const wasAsked = asked(w.db, c, r.asked_by, w.at);

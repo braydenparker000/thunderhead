@@ -61,4 +61,18 @@ describe('the meter', () => {
     ];
     expect(arrangements(rows, senses, NOW, 'UTC')).toEqual({ kept: 2, undone: 0, ignored: 3, waiting: 0, unseen: 1 });
   });
+
+  it('M-16 in an app: its arrangement taken up is kept, dismissed ignored, never on screen unseen', () => {
+    const day = (n: number) => new Date(at(n) - 4 * H).toISOString().slice(0, 10);
+    // An arrangement in an app names no app to open (its ref: the song, the book): only its own senses count.
+    const rows = ['c1', 'c2', 'c3', 'c4'].map((id) => ({ id, at: at(5), ref: 'tab:t1', undone_at: null, line: 1 }));
+    const senses = [
+      { day: day(5), type: 'arrangement.seen', ref: 'ledger:c1', n: 1 },
+      { day: day(5), type: 'arrangement.tap', ref: 'ledger:c1', n: 1 },
+      { day: day(5), type: 'arrangement.seen', ref: 'ledger:c2', n: 1 },
+      { day: day(5), type: 'arrangement.dismiss', ref: 'ledger:c2', n: 1 },
+      { day: day(5), type: 'arrangement.seen', ref: 'ledger:c3', n: 1 },
+    ];
+    expect(arrangements(rows, senses, NOW, 'UTC')).toEqual({ kept: 1, undone: 0, ignored: 2, waiting: 0, unseen: 1 });
+  });
 });

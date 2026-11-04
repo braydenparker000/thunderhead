@@ -13,8 +13,9 @@ import { PLAN_LIMITS, SCHEDULE_LIMITS } from '../../../../shared/contract/schedu
 import { VERBS, type VerbSpec } from '../../../../shared/contract/verbs.ts';
 
 /** The table's characters at most (the full briefing's section 13 holds it beside the settings).
- * (2026-11-03, watches) 2,000 → 2,400: the later-and-plans line and the two watch verbs (+271). */
-export const VERBS_MAX = 2_400;
+ * (2026-11-03, watches) 2,000 → 2,400: the later-and-plans line and the two watch verbs (+271).
+ * (2026-11-04, verbs batch 2) 2,400 → 3,000: seven more verbs (the table measured 2,813). */
+export const VERBS_MAX = 3_000;
 
 export const VERBS_LEGEND =
   'Verbs (th verb <name> \'<args>\' --why "…"; th help lists their args): name · runs on · class: position now · what. worker = done before your reply ends; app = waits for that app to open (say so); phone = the next signed-in phone. Undo: th undo <ledger_id>.';

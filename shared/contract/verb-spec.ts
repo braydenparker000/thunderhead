@@ -57,3 +57,34 @@ export const songs = (max: number) => z.array(song).check(z.minLength(1), z.maxL
 export const ownerWords = z
   .array(z.string().check(z.regex(/^msg:[A-Za-z0-9_-]{1,64}$/)))
   .check(z.minLength(1), z.maxLength(5));
+
+/** Law 8 (mind/CONSTITUTION.md; BEHAVIOR.md §9): the topics the mind may read but never acts on.
+ * Memory keeps faith and facts about people to the owner's own words (`needs_owner_words`,
+ * OWNER_ONLY_TAGS); the verb gate carries the same list, widened to the constitution's topics, so
+ * no verb, plan or scheduled routine reaches them. Each topic with the words that name it. */
+export const LAW8_TOPICS = {
+  faith: ['faith', 'prayer', 'prayers', 'pray', 'praying'],
+  revelation: ['revelation', 'revelations'],
+  leaders: ['leader', 'leaders', 'bishop'],
+  health: ['health', 'medical', 'illness', 'diagnosis'],
+  people: ['person', 'people', 'relationship', 'relationships'],
+} as const;
+/** The args a verb says what it is about in (and its why), the only words the gate reads: a
+ * title, a song or a mood names content, never a topic the mind decides on. */
+export const LAW8_FIELDS = ['topic', 'why', 'filters', 'left_off', 'next', 'label', 'during'] as const;
+const LAW8_WORD = new Map<string, string>(
+  Object.entries(LAW8_TOPICS).flatMap(([topic, ws]) => ws.map((w): [string, string] => [w, topic])),
+);
+
+/** The law-8 topic a verb's why or args name, or null (whole words, any case). */
+export function law8Topic(why: string, args: unknown): string | null {
+  const texts = [why];
+  if (args && typeof args === 'object')
+    for (const k of LAW8_FIELDS) {
+      const v = (args as Record<string, unknown>)[k];
+      for (const t of Array.isArray(v) ? v : [v]) if (typeof t === 'string') texts.push(t);
+    }
+  for (const t of texts)
+    for (const w of t.toLowerCase().split(/[^a-z]+/)) if (LAW8_WORD.has(w)) return LAW8_WORD.get(w) ?? null;
+  return null;
+}

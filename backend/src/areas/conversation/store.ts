@@ -8,7 +8,7 @@ import type { Db } from '../../objects/base';
 type MessageRow = Omit<Message, 'meta' | 'attachments'> & { meta_json: string | null; attachments_json: string | null };
 
 const THREAD_COLS =
-  'id, day, kind, status, title, title_source, summary, continues, message_count, started_at, updated_at, filed_at, purge_at';
+  'id, day, kind, status, title, title_source, summary, continues, message_count, started_at, updated_at, filed_at, purge_at, topic';
 const MSG_COLS =
   'seq, id, thread_id, author, origin, kind, body, meta_json, attachments_json, reply_to, created_at, delivered_at, acked_at, answered_at';
 

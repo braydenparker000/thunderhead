@@ -113,10 +113,10 @@ describe('upgrade from P2', () => {
       sql.exec('ALTER TABLE wakes DROP COLUMN reason_json');
       sql.exec('DROP INDEX IF EXISTS mind_sessions_claimed');
       sql.exec('ALTER TABLE surfaces DROP COLUMN facts_json');
-      // Step 26 (held conversations) added columns and indexes to the P2 threads table.
+      // Step 26 (held conversations) added columns and indexes to the P2 threads table; step 37 its topic.
       sql.exec('DROP INDEX IF EXISTS threads_purge');
       sql.exec('DROP INDEX IF EXISTS threads_deleted');
-      for (const c of ['purge_at', 'deleted_at', 'kind_was']) sql.exec(`ALTER TABLE threads DROP COLUMN ${c}`);
+      for (const c of ['purge_at', 'deleted_at', 'kind_was', 'topic']) sql.exec(`ALTER TABLE threads DROP COLUMN ${c}`);
       sql.exec('DROP INDEX IF EXISTS mind_sessions_tainted');
       sql.exec('DROP INDEX IF EXISTS mind_sessions_open');
       sql.exec('DROP INDEX IF EXISTS session_notes_at');
@@ -178,6 +178,8 @@ describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
       sql.exec('DROP INDEX verbs_scheduled');
       for (const c of ['fire_at', 'plan_id', 'why', 'permit']) sql.exec(`ALTER TABLE verbs DROP COLUMN ${c}`);
       for (const c of LANDS_COLUMNS) sql.exec(`ALTER TABLE topics DROP COLUMN ${c}`);
+      // And step 37's (a conversation's topic).
+      sql.exec('ALTER TABLE threads DROP COLUMN topic');
       sql.exec('DELETE FROM _migrations WHERE version > 31');
       for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`DELETE FROM ${t}`);
       for (const source of ['user', 'observed', 'inferred'])

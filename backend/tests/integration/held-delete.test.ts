@@ -62,7 +62,8 @@ describe('only the owner deletes and restores', () => {
       expect((await api('POST', `/v1/threads/${past}/restore`, chat(token))).status).toBe(403);
       expect((await api('GET', '/v1/threads/deleted', chat(token))).status).toBe(403);
     }
-    expect(Object.keys(VERBS).filter((v) => /thread|conversation/.test(v))).toEqual([]);
+    // The one verb on a conversation files it under a topic: it deletes nothing, and a held one is 404.
+    expect(Object.keys(VERBS).filter((v) => /thread|conversation/.test(v))).toEqual(['thread.file']);
     expect(Object.keys(PROPOSAL_OPS).filter((v) => /thread|conversation/.test(v))).toEqual([]);
   });
 });
