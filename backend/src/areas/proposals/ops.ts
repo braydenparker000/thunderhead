@@ -2,11 +2,12 @@
 // for the owner (deciding it is decide.ts), expires after 7 days or is cancelled; the Worker raises
 // its own laws card at a claim. Every step writes a ledger row and a `proposal` change, so the
 // phone's card and the mind's briefing follow it. A tainted session raises no card at all: every agent op is in an
-// ask-first class, and outside text must never start one (SECURITY.md §5.3, EVALS.md INJ-02…22).
+// ask-first class, and outside text must never start one (SECURITY.md §5.3, EVALS.md INJ-02…22). An
+// arrangement's card carries odds; the owner's speech setting may hold an unasked card back (mind/speech.ts).
 import type { Json, Proposal, PutProposalRequest } from '../../../../shared/contract/api';
 import { lintMindText } from '../../../../shared/contract/lint.ts';
 import { PERMIT_FLOORS, permitOf, permitSetting } from '../../../../shared/contract/permits.ts';
-import { PROPOSAL_CLASSES, PROPOSAL_LIMITS, proposalOp } from '../../../../shared/contract/proposals.ts';
+import { oddsRequired, PROPOSAL_CLASSES, PROPOSAL_LIMITS, proposalOp } from '../../../../shared/contract/proposals.ts';
 import { PLAN_ACTION } from '../../../../shared/contract/schedules.ts';
 import { canonicalJson } from '../../lib/canonical';
 import { uuidv7 } from '../../lib/ids';
@@ -17,6 +18,7 @@ import type { Writer } from '../../objects/commit';
 import { sha256Hex } from '../auth/crypto';
 import { lineage } from '../memory/store';
 import { claimedSession } from '../mind/guards';
+import { asked, speechGate } from '../mind/speech';
 import { heldUntil, quietWindow } from '../settings/quiet';
 import { lawsCard } from './laws';
 import * as store from './store';
@@ -102,6 +104,9 @@ export function put(
       args.error.issues.map((i) => ({ path: ['spec', 'args', ...i.path.map(String)].join('.'), issue: i.message })),
     );
   if (r.spec.op === 'permit.allow') permitClass(r.class, args.data as Record<string, unknown>);
+  // An arrangement the mind proposes says how sure it is the owner wants it (BEHAVIOR.md §4).
+  if (oddsRequired(r.class) && r.odds === undefined)
+    throw invalid('odds', `required on a card of class ${r.class}: how sure you are the owner wants it, 0.05–0.95`);
   lint('question', r.question);
   lint('why', r.why);
   lint('if_ignored', r.if_ignored);
@@ -110,13 +115,16 @@ export function put(
   const specJson = canonicalJson(spec);
   if (new TextEncoder().encode(specJson).length > PROPOSAL_LIMITS.spec_bytes)
     throw invalid('spec', `at most ${PROPOSAL_LIMITS.spec_bytes} bytes`);
+  // The owner's speech setting: quiet takes 1 card a day, silent none, unless the owner asked for it.
+  const wasAsked = asked(w.db, c, r.asked_by, w.at);
+  speechGate(w.db, c, 'card', wasAsked, w.at, tz);
   if (store.waiting(w.db).filter((p) => p.created_by !== 'worker').length >= PROPOSAL_LIMITS.waiting)
     throw new Fail('decision_budget');
   const ref = refOf(op, spec.args);
   if (store.waitingFor(w.db, ref))
     throw new Fail('conflict', [{ path: 'spec', issue: 'a card for this already waits' }]);
   const target = targetOf(w, spec.op, spec.args, given);
-  insert(w, c.actor, c.session_id, id, { ...r, spec }, specJson, ref, hash, tz, target);
+  insert(w, c.actor, c.session_id, id, { ...r, spec }, specJson, ref, hash, tz, target, wasAsked ? r.asked_by : null);
   return { proposal: store.toProposal(store.byId(w.db, id) as store.ProposalRow), created: true };
 }
 
@@ -139,6 +147,7 @@ function insert(
   hash: string | null,
   tz: string,
   target: string,
+  askedBy: string | null = null,
 ): void {
   // A card made in quiet hours waits for their end (HOME.md §3.4); the owner's words must come
   // after it could first be seen.
@@ -174,6 +183,8 @@ function insert(
     ref: `proposal:${id}`,
     undoable: false,
     proposal_id: id,
+    // The owner's message that asked for it: outside what the speech setting counts (mind/speech.ts).
+    op: askedBy ? { op: 'proposal.put', asked_by: askedBy } : null,
   });
   w.change('proposal', `proposal:${id}`);
 }

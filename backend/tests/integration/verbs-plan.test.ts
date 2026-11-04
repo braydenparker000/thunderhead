@@ -172,6 +172,8 @@ describe('an ask anywhere in a plan', () => {
       question: 'Change the units and queue a song?',
       why: 'Music is set to ask first.',
       if_ignored: 'Nothing happens.',
+      // An arrangement's card says how sure the mind is (BEHAVIOR.md §4).
+      odds: 0.7,
       options: ['Do it', 'Not now'],
       spec: no.card.spec,
     });

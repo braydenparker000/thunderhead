@@ -205,6 +205,8 @@ describe('the permit, checked when it is queued', () => {
       question: 'Change the units at that time?',
       why: 'Your standing permission says to ask first.',
       if_ignored: 'Nothing happens.',
+      // An arrangement's card says how sure the mind is (BEHAVIOR.md §4).
+      odds: 0.7,
       options: ['Do it', 'Not now'],
       spec: refusal(r.body).card.spec,
     });

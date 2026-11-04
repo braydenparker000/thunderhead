@@ -2,6 +2,8 @@
 // own id and resolved by the tick once their day is over; the skill per category is the Brier score
 // against the base rate of the 28 days before each predicted day.
 import {
+  type Calibration,
+  type CalibrationResponse,
   type CategorySkill,
   PREDICTION_CATEGORIES,
   PREDICTION_LIMITS,
@@ -161,4 +163,35 @@ export function skill(db: Db): CategorySkill[] {
       bins,
     };
   });
+}
+
+/** The calibration's window (GET /v1/predictions/calibration, the briefing's odds line). */
+export const CALIBRATION_DAYS = 28;
+
+/** Odds claimed against what happened over the last 28 days, per category that settled any: the
+ * predictions resolved in the window (by the category index), and `cards`, the arrangement cards
+ * (class permit, odds required) the owner answered or let expire in it: a yes is right, a no or no
+ * answer wrong; a cancelled card says nothing. */
+export function calibration(db: Db, now: number): CalibrationResponse {
+  const from = now - CALIBRATION_DAYS * DAY;
+  const of = (category: Calibration['category'], rows: { p: number; outcome: number }[]): Calibration => ({
+    category,
+    n: rows.length,
+    claimed: round(mean(rows.map((r) => r.p))) ?? 0,
+    right: round(mean(rows.map((r) => r.outcome))) ?? 0,
+    brier: round(mean(rows.map((r) => (r.p - r.outcome) ** 2))) ?? 0,
+  });
+  const items = Object.keys(PREDICTION_CATEGORIES).map((category) =>
+    of(
+      category as PredictionCategory,
+      db.all<{ p: number; outcome: number }>(
+        'SELECT p, outcome FROM predictions WHERE category = ? AND resolved_at >= ? AND outcome IS NOT NULL',
+        category,
+        from,
+      ),
+    ),
+  );
+  const cards = pstore.oddsAnswered(db, from);
+  items.push(of('cards', cards));
+  return { days: CALIBRATION_DAYS, items: items.filter((c) => c.n > 0) };
 }

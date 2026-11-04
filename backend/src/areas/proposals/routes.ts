@@ -34,7 +34,7 @@ const putBody = z.strictObject({
   question: text(L.question),
   why: text(L.why),
   if_ignored: text(L.if_ignored),
-  odds: z.optional(z.number().check(z.gte(0), z.lte(1))),
+  odds: z.optional(z.number().check(z.gte(L.odds_min), z.lte(L.odds_max))),
   options: z.tuple([option, option]),
   safe: z.optional(z.enum(['reject', 'snooze'])),
   spec: z.strictObject({
@@ -42,6 +42,7 @@ const putBody = z.strictObject({
     op: z.string().check(z.minLength(1), z.maxLength(60)),
     args: z.record(z.string(), z.json()),
   }),
+  asked_by: z.optional(z.string().check(z.regex(UUIDV7))),
 }) satisfies z.ZodMiniType<PutProposalRequest>;
 const decideBody = z.strictObject({
   decision: z.enum(['approve', 'reject', 'snooze']),

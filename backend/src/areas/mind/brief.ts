@@ -64,6 +64,7 @@ export interface BriefInput {
   /** The owner's calendar for section 1 (briefing/calendar-store.ts briefLines): today's events
    * still on, tomorrow's first, a failing link; a shared link's marked `(outside)`. */
   calendar?: string[];
+  learn?: string; // section 1's last lines (brief-learn.ts learnTail): how it may speak, what lands, the odds
 }
 
 /** Formatters made once per zone (one per line cost the briefing tens of ms of CPU). */
@@ -230,7 +231,7 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     ? `\n${budgeted(i.calendar, 700, 'oldest', (k) => `(+${k} more: th get /v1/briefing/calendar days=2)`)}`
     : '';
   const body: Record<number, string> = {
-    1: now.slice(0, 500) + calendar,
+    1: now.slice(0, 500) + calendar + (i.learn ?? ''),
     2: make(2, 2_800, false).slice(0, 2_800),
     3: make(3, 1_400, false),
     7: `Full briefing: $TMPDIR/th/brief.md · Search: th recall "<q>" · Your settings: th brief --section 13\n${DELEGATE[i.role]}`,

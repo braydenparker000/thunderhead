@@ -28,9 +28,10 @@ const wrangler = Object.values(
   raw(import.meta.glob('../../wrangler.jsonc', { query: '?raw', import: 'default', eager: true })),
 )[0];
 
-/** Migration steps a branch built beside another may skip in the numbering (none: Muse's Core 30,
- * the calendar's 31 and provenance's 32 are all in, 2026-11-03). */
-const PENDING: number[] = [];
+/** Migration steps a branch built beside another may skip in the numbering (Muse's Core 30, the
+ * calendar's 31 and provenance's 32 are all in, 2026-11-03; 34 is the watches' on claude/mind-watches,
+ * which merges before what lands' 35, 2026-11-04). */
+const PENDING: number[] = [34];
 
 const stripComments = (code: string) => code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
 // wrangler.jsonc has whole-line comments only, so dropping them leaves plain JSON.

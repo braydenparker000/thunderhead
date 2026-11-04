@@ -41,6 +41,21 @@ export const SURFACES_MIGRATIONS: Migration[] = [
     kind: 'expand',
     sql: ['ALTER TABLE surfaces ADD COLUMN facts_json TEXT'],
   },
+  {
+    // What lands (BEHAVIOR.md §3.6): a topic passed over three times in a row rests (`quiet_from`
+    // to `quiet_until`), the mind says so once (`said_at`), the owner may reopen it (`reopened_at`,
+    // from when its streak counts again); `lands_json` is the last pass's counts, for the briefing.
+    version: 35,
+    name: 'topics: what lands',
+    kind: 'expand',
+    sql: [
+      'ALTER TABLE topics ADD COLUMN quiet_from INTEGER',
+      'ALTER TABLE topics ADD COLUMN quiet_until INTEGER',
+      'ALTER TABLE topics ADD COLUMN said_at INTEGER',
+      'ALTER TABLE topics ADD COLUMN reopened_at INTEGER',
+      'ALTER TABLE topics ADD COLUMN lands_json TEXT',
+    ],
+  },
 ];
 
 export const SURFACES_TABLES: Record<string, TableInfo> = {

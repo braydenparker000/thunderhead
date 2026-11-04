@@ -285,3 +285,15 @@ export function toProposal(r: ProposalRow): Proposal {
     result: r.result_json === null ? null : (JSON.parse(r.result_json) as ProposalResult),
   };
 }
+
+/** The arrangement cards (class permit, odds required) the owner answered or let expire since
+ * `from`, each its odds and whether the answer was a yes (predictions/ops.ts calibration); a
+ * cancelled one says nothing. By the decided index. */
+export function oddsAnswered(db: Db, from: number): { p: number; outcome: number }[] {
+  return db.all<{ p: number; outcome: number }>(
+    `SELECT odds AS p, CASE WHEN status IN ('approved', 'executed', 'failed') THEN 1 ELSE 0 END AS outcome
+       FROM proposals WHERE decided_at IS NOT NULL AND decided_at >= ? AND class = 'permit' AND odds IS NOT NULL
+       AND status IN ('approved', 'executed', 'failed', 'rejected', 'expired')`,
+    from,
+  );
+}

@@ -11,20 +11,24 @@ import { offRecordOf } from '../conversation/held';
 import { dayCounts } from '../conversation/stats';
 import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
+import { lastPass } from '../insight/topics';
 import * as ledger from '../ledger/store';
 import * as notes from '../memory/notes';
 import { renderProfile } from '../memory/profile';
 import * as facts from '../memory/store';
 import { quotaBriefLine, safeQuota } from '../meter/quota';
 import * as ops from '../ops/store';
+import { calibration } from '../predictions/ops';
 import { lawsLine } from '../proposals/laws';
 import * as proposals from '../proposals/store';
 import { mindSettingLines } from '../settings/catalog';
 import { quietUntil } from '../settings/quiet';
 import * as watchdogs from '../watchdogs/ops';
 import { buildBrief } from './brief';
+import { landsLines, learnTail, speechLine } from './brief-learn';
 import { nightDayOf, nightDone, nightLine } from './night';
 import * as sessionNotes from './notes';
+import { speechState } from './speech';
 import * as store from './store';
 import { backoff } from './wake';
 
@@ -104,6 +108,11 @@ export function assemble(
     settings: mindSettingLines(db),
     // Reflex handles breakage: the owner's day is not its business.
     calendar: role === 'reflex' ? [] : briefLines(calendarView(db, now, tz), tz),
+    // How the mind may speak; what lands as the last pass left it (insight/topics.ts), and the odds.
+    learn: learnTail(
+      speechLine(speechState(db, now, tz)),
+      role === 'reflex' ? [] : landsLines(lastPass(db, now, tz), calibration(db, now).items),
+    ),
   });
   return {
     wake,

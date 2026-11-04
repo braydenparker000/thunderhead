@@ -190,8 +190,8 @@ export class Core extends CoreVerbs {
     this.schedule();
   }
 
-  /** The 15-minute cron: the day roll after 60 quiet minutes (firing the night shift for the day it
-   * closed, after the roll's commit), verbs, the prune pass (held conversations each tick, then
+  /** The 15-minute cron: the day roll after 60 quiet minutes (then what lands, counted, and the
+   * night shift fired for the day it closed, after the roll's commit), verbs, the prune pass (held conversations each tick, then
    * DATA.md §10 daily, core-held.ts), each area's pass, and reminders and scheduled verbs the
    * alarm missed. */
   async tick(
@@ -207,6 +207,8 @@ export class Core extends CoreVerbs {
           return nightWake(w, due, this.nightConfigured());
         }, now)
       : null;
+    // What lands, counted on the roll, so the night arranges the new day knowing what rests.
+    if (due) await this.landsTick(now);
     this.write((w) => {
       verbs.settle(w);
       settleProposals(w);
@@ -254,7 +256,7 @@ export class Core extends CoreVerbs {
   }
 
   putSurface(c: Caller, app: string, slot: string, r: PutSurfaceRequest) {
-    return this.run((w) => surfaces.put(w, c, app, slot, r));
+    return this.run((w) => surfaces.put(w, c, app, slot, r, this.tz()));
   }
 
   deleteSurface(c: Caller, app: string, slot: string) {

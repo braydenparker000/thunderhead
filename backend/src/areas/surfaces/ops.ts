@@ -1,24 +1,35 @@
 // Surfaces (API.md §11.12): the mind places a versioned kind in an app's slot, validated against
 // the contract (shared/contract/surfaces.ts); every write and delete is a ledger row whose undo
-// restores what was there. A topic the owner dismissed stays quiet for 14 days (409 nudge_repeat),
-// and a surface may not draw on a fact the owner muted (422 muted_fact), nor on one labelled outside
+// restores what was there. A topic the owner dismissed stays quiet for 14 days (409 nudge_repeat), a
+// topic passed over three times in a row rests for 30 (422 topic_quiet, insight/topics.ts), the
+// owner's speech setting may hold a line or a tile back (422 speech_budget, mind/speech.ts), and a
+// surface may not draw on a fact the owner muted (422 muted_fact), nor on one labelled outside
 // that the owner has not kept (422 outside_fact, MEMORY.md §6 M11b). The mind places one under
 // its standing permission for lines and tiles (mind/permit.ts); clearing one only takes back what
 // the mind placed, so it is never gated.
 import type { Permitted, PutSurfaceRequest, Surface } from '../../../../shared/contract/api';
 import { surfaceKind } from '../../../../shared/contract/surfaces.ts';
 import { Fail, invalid } from '../../lib/result';
+import { ownerDay } from '../../lib/time';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { scrubArrangements, scrubUndo } from '../ledger/store';
 import { factFlags, provenanceOf } from '../memory/store';
 import { gate, ledgerPermit, withPermit } from '../mind/permit';
+import { asked, speechGate } from '../mind/speech';
 import * as store from './store';
 
 const QUIET_MS = 14 * 86_400_000;
 const UNDO_WINDOW_MS = 30 * 86_400_000;
 
-export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfaceRequest): Permitted<Surface> {
+export function put(
+  w: Writer,
+  c: Caller,
+  app: string,
+  slot: string,
+  r: PutSurfaceRequest,
+  tz = 'UTC',
+): Permitted<Surface> {
   const kind = surfaceKind(r.kind);
   if (!kind) throw invalid('kind', 'unknown surface kind');
   const slots = Object.hasOwn(kind.slots, app) ? (kind.slots as Record<string, RegExp>)[app] : undefined;
@@ -32,9 +43,15 @@ export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfa
       payload.error.issues.map((i) => ({ path: ['payload', ...i.path.map(String)].join('.'), issue: i.message })),
     );
   const cites = drawsOn(w, r);
-  const ignored = store.topicIgnoredAt(w.db, r.topic_key);
-  if (ignored !== null && w.at - ignored < QUIET_MS) throw new Fail('nudge_repeat');
+  const topic = store.topicState(w.db, r.topic_key);
+  if (topic?.ignored_at != null && w.at - topic.ignored_at < QUIET_MS) throw new Fail('nudge_repeat');
+  if (topic?.quiet_until != null && topic.quiet_until > w.at)
+    throw new Fail('topic_quiet', { until: topic.quiet_until, reopens: ownerDay(topic.quiet_until, tz) });
   if (r.expires_at !== undefined && r.expires_at <= w.at) throw invalid('expires_at', 'in the future');
+  // A home line is the voice ladder's rung 2; a tile only "silent" holds back.
+  const wasAsked = asked(w.db, c, r.asked_by, w.at);
+  speechGate(w.db, c, app === 'home' ? 'line' : 'tile', wasAsked, w.at, tz);
+  const askedBy = wasAsked ? (r.asked_by ?? null) : null;
   // Lines and tiles: what a card approves is the slot and what goes in it, not the why.
   const g = gate(
     w,
@@ -55,8 +72,12 @@ export function put(w: Writer, c: Caller, app: string, slot: string, r: PutSurfa
     undo: before
       ? { op: 'surface.restore', args: { app, slot, row: before, was: 'put' } }
       : { op: 'surface.delete', args: { app, slot, was: 'put' } },
-    // The facts it drew on, so forgetting one can find this row and take its words (never shown).
-    op: cites.length ? { op: 'surface.put', facts: cites } : null,
+    // The facts it drew on, so forgetting one can find this row and take its words (never shown),
+    // and the owner's message that asked for it (outside what the speech setting counts).
+    op:
+      cites.length || askedBy
+        ? { op: 'surface.put', ...(cites.length ? { facts: cites } : {}), ...(askedBy ? { asked_by: askedBy } : {}) }
+        : null,
     ...ledgerPermit(g),
   });
   w.change('surface', `app:${app}#${slot}`);
