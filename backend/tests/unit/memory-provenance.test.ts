@@ -1,6 +1,7 @@
 // Provenance in memory's pure parts (MEMORY.md §6 M11a, M11b): an `outside` fact is in no profile
 // and no rule, a row from before Core step 32 reads by its source, and the briefing shows an
-// `outside` loose end or day note marked, after the rest, never in sections 1–2; section 1 says a
+// `outside` loose end or day note marked, after the rest, never in sections 1–2 (the first 2,000:
+// a loose end of theirs is section 8's, and 10's with the rest); section 1 says a
 // session's writes are labelled outside.
 import { describe, expect, it } from 'vitest';
 import type { Message } from '../../../shared/contract/api';
@@ -152,26 +153,33 @@ describe('provenance in the briefing (MEMORY.md §6 M11b)', () => {
     );
   };
 
+  /** The loose ends' lines of section 8 (core) and 10 (full): after their lead line, or the heading. */
+  const linesAfter = (text: string, lead: string) => text.slice(text.indexOf(lead) + lead.length + 1).split('\n');
+
   it('to a session that read outside text: shown marked, after the rest; sections 1–2 hold none of them', () => {
     const b = marked(true);
-    const four = section(b.core, 4).split('\n').slice(1, 3);
-    expect(four[0]).toContain('Fix the metronome');
-    expect(four[1]).toMatch(/^\[[0-9a-f-]+\] \(outside\) Read the article the page named \(/);
+    expect(section(b.core, 2)).toContain('Fix the metronome');
+    const eight = linesAfter(section(b.core, 8), 'Loose ends written after outside text:');
+    expect(eight[0]).toMatch(/^\[[0-9a-f-]+\] \(outside\) Read the article the page named \(/);
+    const ten = linesAfter(section(b.full, 10), '## 10. Open threads');
+    expect(ten[0]).toContain('Fix the metronome');
+    expect(ten[1]).toMatch(/^\[[0-9a-f-]+\] \(outside\) Read the article the page named \(/);
     expect(section(b.core, 6)).toContain('Day note 2026-11-02 (outside) (importance 4, v1): A day the page described');
-    expect(section(b.full, 9)).toContain('2026-11-02 (outside) (4): A day the page described');
+    expect(section(b.full, 11)).toContain('2026-11-02 (outside) (4): A day the page described');
     const first = b.core.slice(0, b.core.indexOf('## 3. '));
-    for (const t of ['Read the article', 'A day the page described']) expect(first).not.toContain(t);
+    for (const t of ['Read the article', 'A day the page described', '(outside)']) expect(first).not.toContain(t);
   });
 
   it('to a clean session: kept back, their ids, label and kind only, and where to read them (M11f)', () => {
     const b = marked(false);
-    const four = section(b.core, 4).split('\n').slice(1, 4);
-    expect(four[1]).toMatch(/^\[[0-9a-f-]+\] \(outside, kept back\) a loose end \(mind, since /);
-    expect(four[2]).toBe(
+    const eight = linesAfter(section(b.core, 8), 'Loose ends written after outside text:');
+    expect(eight[0]).toMatch(/^\[[0-9a-f-]+\] \(outside, kept back\) a loose end \(mind, since /);
+    expect(eight[1]).toBe(
       'outside, kept back: th get /v1/memory/open-threads outside=1 reads it; you write outside after',
     );
+    expect(linesAfter(section(b.full, 10), '## 10. Open threads')[1]).toMatch(/\(outside, kept back\) a loose end/);
     expect(section(b.core, 6)).toContain('Day note 2026-11-02 (outside, kept back) (importance 4, v1)');
-    expect(section(b.full, 9)).toContain('2026-11-02 (outside, kept back) (4)');
+    expect(section(b.full, 11)).toContain('2026-11-02 (outside, kept back) (4)');
     for (const t of ['Read the article', 'A day the page described']) expect(b.full).not.toContain(t);
   });
 

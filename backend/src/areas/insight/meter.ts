@@ -46,6 +46,35 @@ export function corrections(fixed: number[], learned: number[], now: number): In
   return out;
 }
 
+/** The rollups that counted something, as one set to look up. */
+export const seenSet = (senses: Rollup[]) =>
+  new Set(senses.filter((r) => r.n > 0).map((r) => `${r.day}|${r.type}|${r.ref}`));
+
+/** How the owner has met one arrangement so far, by the meter's rule: undone (taken back within 48
+ * hours), kept (its tile tapped, or the app it names opened, on its day or the next), ignored
+ * (dismissed), unseen (a home line never on screen), or nothing yet. The meter decides only once 48
+ * hours have passed (nothing yet then counts as ignored); the mind's briefing reads it as it stands. */
+export function metSoFar(
+  a: Arrangement,
+  seen: Set<string>,
+  tz: string,
+): 'undone' | 'kept' | 'ignored' | 'unseen' | null {
+  if (a.undone_at !== null && a.undone_at - a.at <= DECIDED_AFTER) return 'undone';
+  const day = logicalDay(a.at, tz);
+  const days = [day, dayBefore(day, -1)];
+  const on = (type: string, ref: string) => days.some((d) => seen.has(`${d}|${type}|${ref}`));
+  const own = `ledger:${a.id}`;
+  const app = a.ref?.startsWith('app:') ? PREDICTION_APPS[a.ref.slice(4) as keyof typeof PREDICTION_APPS] : null;
+  const opened = !!a.ref && (on('app.open', a.ref) || on('reply.open_chip', a.ref) || (!!app && on(app, '')));
+  // A tap on it is kept; a dismissal outweighs the app opened anyway; a home line never shown is
+  // not counted against it.
+  if (on('briefing.tile', own)) return 'kept';
+  if (on('line.dismiss', own)) return 'ignored';
+  if (opened) return 'kept';
+  if (a.line && !on('line.seen', own)) return 'unseen';
+  return null;
+}
+
 /** M-16. */
 export function arrangements(
   rows: Arrangement[],
@@ -53,26 +82,13 @@ export function arrangements(
   now: number,
   tz: string,
 ): InsightResponse['arrangements'] {
-  const seen = new Set(senses.filter((r) => r.n > 0).map((r) => `${r.day}|${r.type}|${r.ref}`));
+  const seen = seenSet(senses);
   const out = { kept: 0, undone: 0, ignored: 0, waiting: 0, unseen: 0 };
   for (const a of rows) {
-    if (a.undone_at !== null && a.undone_at - a.at <= DECIDED_AFTER) out.undone++;
+    const met = metSoFar(a, seen, tz);
+    if (met === 'undone') out.undone++;
     else if (now - a.at < DECIDED_AFTER) out.waiting++;
-    else {
-      const day = logicalDay(a.at, tz);
-      const days = [day, dayBefore(day, -1)];
-      const on = (type: string, ref: string) => days.some((d) => seen.has(`${d}|${type}|${ref}`));
-      const own = `ledger:${a.id}`;
-      const app = a.ref?.startsWith('app:') ? PREDICTION_APPS[a.ref.slice(4) as keyof typeof PREDICTION_APPS] : null;
-      const opened = !!a.ref && (on('app.open', a.ref) || on('reply.open_chip', a.ref) || (!!app && on(app, '')));
-      // A tap on it is kept; a dismissal outweighs the app opened anyway; a home line never shown is
-      // not counted against it.
-      if (on('briefing.tile', own)) out.kept++;
-      else if (on('line.dismiss', own)) out.ignored++;
-      else if (opened) out.kept++;
-      else if (a.line && !on('line.seen', own)) out.unseen++;
-      else out.ignored++;
-    }
+    else out[met ?? 'ignored']++;
   }
   return out;
 }

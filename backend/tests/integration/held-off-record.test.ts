@@ -96,7 +96,7 @@ describe('writing in it', () => {
         th_version: '0.1.0',
       },
     });
-    const waiting = b.body.core.slice(b.body.core.indexOf('## 2. Waiting'), b.body.core.indexOf('## 3.'));
+    const waiting = b.body.core.slice(b.body.core.indexOf('## 3. Waiting'), b.body.core.indexOf('## 4.'));
     expect(waiting).toContain(`Off the record (thread ${t.id})`);
     expect(waiting).toContain('Remember nothing from it');
     expect(waiting).toMatch(new RegExp(`\\[${asked.id}\\] \\d\\d:\\d\\d owner \\(off the record\\): zanzibar`));

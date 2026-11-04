@@ -3792,6 +3792,32 @@
       "deleted_evidence": "That conversation was deleted: nothing from it becomes memory."
     }
   },
+  "skills": {
+    "names": [
+      "music",
+      "podcasts",
+      "guitar",
+      "study",
+      "astra",
+      "media",
+      "briefing",
+      "calendar",
+      "memory",
+      "verbs",
+      "muse",
+      "night",
+      "code"
+    ],
+    "limits": {
+      "chars": 2500
+    },
+    "headings": [
+      "What it is",
+      "What you can read",
+      "What you can do",
+      "What you must not do"
+    ]
+  },
   "night": {
     "steps": [
       {

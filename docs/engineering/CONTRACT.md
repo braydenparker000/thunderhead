@@ -354,7 +354,7 @@ Every event type the phone may send (`PUT /v1/senses/batches/:id`, API.md §11.1
 | `routine` | 60 | 15 |
 | `habit` | 28 | 10 |
 | `fact` | 1825 | 30 |
-| `rule` | never decays | not in the profile (briefing section 3) |
+| `rule` | never decays | not in the profile (briefing section 4) |
 
 | Source | Starts at | Cap | Profile letter |
 |---|---|---|---|
@@ -448,6 +448,12 @@ What the reader subagent (`.claude/agents/reader.md`) answers with, checked by `
 | `answer` | `{ kind: 'answer', question: string, answer: string, odds: number, sources: array, quote: string \| null, instructions_seen: boolean, instructions_note: string \| null }` | The question the task asked, answered from the material only, with odds. |
 | `list` | `{ kind: 'list', items: array, instructions_seen: boolean, instructions_note: string \| null }` | Items found (search results, a setlist, a table), each with a short note and its source. |
 | `unreadable` | `{ kind: 'unreadable', source: string, why: string }` | The source could not be read (blocked, empty, not text, too large). |
+
+## Skills
+
+Role knowledge the mind reads on demand (`th skill <name>`, the briefing's section 8): one file per app and area at `mind/skills/<name>.md`, at most 2500 characters, with the headings "What it is", "What you can read", "What you can do", "What you must not do" in that order.
+
+`music` · `podcasts` · `guitar` · `study` · `astra` · `media` · `briefing` · `calendar` · `memory` · `verbs` · `muse` · `night` · `code`
 
 ## Watchdogs
 

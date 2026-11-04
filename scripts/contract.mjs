@@ -207,6 +207,8 @@ function mind() {
       limits: c.MUSIC_NOTE_LIMITS,
     },
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
+    // Role knowledge on demand (`th skill <name>`): the files in mind/skills/, their size and headings.
+    skills: { names: c.SKILLS, limits: c.SKILL_LIMITS, headings: c.SKILL_HEADINGS },
     night: {
       steps: c.NIGHT_STEPS,
       built_phases: c.BUILT_PHASES,
@@ -377,7 +379,7 @@ function docs() {
   for (const [id, s] of Object.entries(c.SEARCH_SOURCES)) L.push(`| \`${id}\` | ${s.phase} | \`${s.ref}\` |`);
   L.push('', '## Memory', '', '| Fact kind | Half-life (days) | Profile cap |', '|---|---|---|');
   for (const [k, v] of Object.entries(c.FACT_KINDS))
-    L.push(`| \`${k}\` | ${v.half_life_days ?? 'never decays'} | ${v.cap ?? 'not in the profile (briefing section 3)'} |`);
+    L.push(`| \`${k}\` | ${v.half_life_days ?? 'never decays'} | ${v.cap ?? 'not in the profile (briefing section 4)'} |`);
   L.push('', '| Source | Starts at | Cap | Profile letter |', '|---|---|---|---|');
   for (const [k, v] of Object.entries(c.FACT_SOURCES)) L.push(`| \`${k}\` | ${v.base} | ${v.cap} | ${v.letter} |`);
   L.push('', '| Refusal reason | Meaning |', '|---|---|');
@@ -438,6 +440,14 @@ function docs() {
     '|---|---|---|',
   );
   for (const [n, k] of Object.entries(c.READER_KINDS)) L.push(`| \`${n}\` | ${shape(k.schema)} | ${cell(k.doc)} |`);
+  L.push(
+    '',
+    '## Skills',
+    '',
+    `Role knowledge the mind reads on demand (\`th skill <name>\`, the briefing's section 8): one file per app and area at \`mind/skills/<name>.md\`, at most ${c.SKILL_LIMITS.chars} characters, with the headings ${c.SKILL_HEADINGS.map((h) => `"${h}"`).join(', ')} in that order.`,
+    '',
+    c.SKILLS.map((s) => `\`${s}\``).join(' · '),
+  );
   L.push(
     '',
     '## Watchdogs',

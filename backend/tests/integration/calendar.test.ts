@@ -119,11 +119,14 @@ describe('the owner’s calendars', () => {
     expect(t?.tomorrow).toMatchObject({ title: 'Team lunch', time: '09:00', source: 'outside', location: null });
     expect(p.tiles.map((x) => x.kind).indexOf('calendar')).toBe(p.tiles.some((x) => x.kind === 'waiting') ? 1 : 0);
     expect(p.today?.line).toMatch(/^1 thing on today[,.]/);
-    // The brief's today state: the titles as data, a shared link's marked.
+    // The brief's today state: the titles as data; a shared link's, marked, after the first layer
+    // (MEMORY.md §9: nothing outside in sections 1–2), in the day's section.
     const core = (await brief(C, CHAT_SESSION, 'chat')).body.core;
     const now1 = core.slice(0, core.indexOf('## 2.'));
     expect(now1).toContain('calendar today: all day "Bins out"');
-    expect(now1).toContain('calendar tomorrow: 09:00–10:00 "Team lunch" (outside)');
+    expect(now1).not.toContain('Team lunch');
+    const day7 = core.slice(core.indexOf('## 7.'), core.indexOf('## 8.'));
+    expect(day7).toContain('Shared calendars:\ncalendar tomorrow: 09:00–10:00 "Team lunch" (outside)');
     // The mind's read: the events, each link by its host, never its address.
     const r = await apiJson<CalendarResponse>('GET', '/v1/briefing/calendar?days=7', { token: C });
     expect(r.status).toBe(200);

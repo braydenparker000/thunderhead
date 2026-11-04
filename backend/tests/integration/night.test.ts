@@ -138,7 +138,7 @@ describe('the run record', () => {
     const b = await brief(p.N, 'cse_night_a', 'night');
     expect(b.body.day).toBe(yday);
     expect(b.body.core).toContain(`day ${yday} · role night`);
-    expect(b.body.core).toContain(`## 2. Waiting\nYesterday's thread: none, 0 messages; run th day ${yday}`);
+    expect(b.body.core).toContain(`## 3. Waiting\nYesterday's thread: none, 0 messages; run th day ${yday}`);
     expect(b.body.full).toContain('night shift: not connected yet (SETUP.md L1)');
     expect((await night({ day: yday, action: 'start' }, 'cse_night_a')).body).toEqual({
       resume_from: 1,

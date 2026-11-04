@@ -104,15 +104,15 @@
     "rows_written_max": 0
   },
   "POST /v1/mind/brief (claim, 20 messages) (Core)": {
-    "rows_read_max": 145,
+    "rows_read_max": 157,
     "rows_written_max": 51
   },
   "POST /v1/mind/brief (no claim, no setting stored) (Core)": {
-    "rows_read_max": 183,
+    "rows_read_max": 256,
     "rows_written_max": 0
   },
   "POST /v1/mind/brief (no claim, 19 settings stored) (Core)": {
-    "rows_read_max": 203,
+    "rows_read_max": 276,
     "rows_written_max": 0
   },
   "PATCH /v1/settings, 1 catalogue key (Core)": {
@@ -177,7 +177,7 @@
   },
   "cron tick, nothing due (Core)": {
     "rows_read_max": 54,
-    "rows_written_max": 4
+    "rows_written_max": 5
   },
   "GET /v1/ops/meter (Core)": {
     "rows_read_max": 15,
@@ -333,7 +333,7 @@
   },
   "cron tick, resolving a prediction (Core)": {
     "rows_read_max": 62,
-    "rows_written_max": 9
+    "rows_written_max": 10
   },
   "GET /v1/insight (Core)": {
     "rows_read_max": 62,
@@ -557,11 +557,11 @@
   },
   "cron tick, purging a deleted day of 20 messages (Core)": {
     "rows_read_max": 163,
-    "rows_written_max": 109
+    "rows_written_max": 110
   },
   "cron tick, purging 500 messages off the record (Core)": {
     "rows_read_max": 1066,
-    "rows_written_max": 510
+    "rows_written_max": 511
   },
   "GET /v1/briefing (Core)": {
     "rows_read_max": 37,

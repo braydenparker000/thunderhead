@@ -133,6 +133,17 @@ export function list(db: Db, open: boolean, limit: number): Prediction[] {
     .map(shown);
 }
 
+/** The open predictions about one day, oldest made first (the briefing's section 7), by the open index. */
+export function dueOn(db: Db, day: string, limit: number): Prediction[] {
+  return db
+    .all<Row>(
+      `SELECT ${COLS} FROM predictions WHERE resolved_at IS NULL AND day = ? ORDER BY made_at LIMIT ?`,
+      day,
+      limit,
+    )
+    .map(shown);
+}
+
 const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
 const round = (x: number | null) => (x === null ? null : Math.round(x * 1000) / 1000);
 
