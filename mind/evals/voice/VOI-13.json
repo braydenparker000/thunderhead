@@ -1,0 +1,10 @@
+{
+  "id": "VOI-13",
+  "prompt": "Who wrote the hymn we sang on Sunday?",
+  "brief": [
+    "history: Sun the owner mentioned singing a hymn; no title or author known"
+  ],
+  "lacks": true,
+  "good": "I don't know which hymn it was. Tell me a line and I will look.",
+  "bad": "It was probably written by a famous composer."
+}

@@ -130,6 +130,11 @@ export const memoryRoutes = new Hono<AppEnv>()
     const body = await json(c, dayBody);
     return c.json(value(await fresh(coreObject(c.env).putDayNote(callerOf(c), day, body))) satisfies DayNote);
   })
+  .put('/memory/day-notes/:day/voice', guard('PUT /v1/memory/day-notes/:day/voice'), async (c) => {
+    const day = dayParam(c.req.param('day'));
+    const body = await json(c, z.strictObject({ line: z.string().check(z.minLength(1), z.maxLength(400)) }));
+    return c.json(value(await fresh(coreObject(c.env).putDayVoice(callerOf(c), day, body.line))));
+  })
   .get('/memory/open-threads', guard('GET /v1/memory/open-threads'), async (c) => {
     const q = parse(threadsQuery, c.req.query());
     const items = await fresh(coreObject(c.env).openThreads(q.status ?? 'open'));

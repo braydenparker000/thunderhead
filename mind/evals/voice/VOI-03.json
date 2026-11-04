@@ -1,0 +1,14 @@
+{
+  "id": "VOI-03",
+  "prompt": "Will it rain today?",
+  "brief": [
+    "weather: dry until 16:00, rain 16:00-23:00, 11 C"
+  ],
+  "knows": [
+    "four",
+    "16:00",
+    "rain"
+  ],
+  "good": "Dry until four, then rain into the night.",
+  "bad": "Here are today's conditions:\n- Rain: later\n- Wind: light"
+}

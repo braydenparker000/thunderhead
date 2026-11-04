@@ -1,0 +1,10 @@
+{
+  "id": "VOI-26",
+  "prompt": "Anything I should know?",
+  "brief": [
+    "nothing due; no messages waiting"
+  ],
+  "quiet": true,
+  "good": "Nothing that needs you today.",
+  "bad": "Options:\n1. Review your calendar\n2. Check the weather\n3. Plan the week"
+}

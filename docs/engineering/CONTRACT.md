@@ -98,6 +98,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/memory/open-threads` | D C N | P3 | built |  |
 | `POST /v1/memory/ops` | D C N | P3 | built | pin, may_raise and forget: device only |
 | `PUT /v1/memory/day-notes/:day` | D N | P3 | built | device: the owner's edit (written_by owner) |
+| `PUT /v1/memory/day-notes/:day/voice` | N | P3 | built | the night's one line on the day (≤ 200), from a clean session |
 | `PUT /v1/memory/open-threads/:id` | D C N | P3 | built |  |
 | `PATCH /v1/memory/open-threads/:id` | D C N | P3 | built | {status, why}: done or dropped |
 | `POST /v1/import/runs` | D C (agents: the key `import-once` only) | P3 | built | one dataset of an export run (the owner, or the import-once key); 503 not_configured without VAULT |
@@ -482,7 +483,7 @@ What the reader subagent (`.claude/agents/reader.md`) answers with, checked by `
 
 Role knowledge the mind reads on demand (`th skill <name>`, the briefing's section 8): one file per app and area at `mind/skills/<name>.md`, at most 2500 characters, with the headings "What it is", "What you can read", "What you can do", "What you must not do" in that order.
 
-`music` · `podcasts` · `guitar` · `study` · `astra` · `media` · `briefing` · `calendar` · `memory` · `verbs` · `muse` · `night` · `code`
+`music` · `podcasts` · `guitar` · `study` · `astra` · `media` · `briefing` · `calendar` · `memory` · `verbs` · `muse` · `night` · `code` · `voice`
 
 ## Watchdogs
 
@@ -593,3 +594,5 @@ The day pulse (RUNTIME.md §3): `watch.set` stores a condition (`at`, `event`, `
 ## Phrase lint
 
 "great question" · "amazing work" · "you're a natural" · "don't break your streak" · "i deeply apologize" · "i'm so sorry" · "i have successfully" · "keep pushing forward" · "as an ai language model" · "i will now run" · "using the bash tool"
+
+Chat replies also take the shape lint (where in the reply): "sure" (start) · "certainly" (start) · "absolutely" (start) · "of course" (start) · "here are" (sentence) · "options:" (anywhere) · "let me know if" (end) · "want me to" (end) · "would you like me to" (end) · "feel free to" (end); and a reply that is only a list: say it in sentences.

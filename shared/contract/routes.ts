@@ -130,6 +130,7 @@ export const ROUTES = {
   'GET /v1/memory/open-threads': { who: MEMORY_READ, phase: 'P3' },
   'POST /v1/memory/ops': { who: ['D', 'C', 'N'], phase: 'P3', note: 'pin, may_raise and forget: device only' },
   'PUT /v1/memory/day-notes/:day': { who: ['D', 'N'], phase: 'P3', note: "device: the owner's edit (written_by owner)" },
+  'PUT /v1/memory/day-notes/:day/voice': { who: ['N'], phase: 'P3', note: "the night's one line on the day (≤ 200), from a clean session" },
   'PUT /v1/memory/open-threads/:id': { who: ['D', 'C', 'N'], phase: 'P3' },
   'PATCH /v1/memory/open-threads/:id': { who: ['D', 'C', 'N'], phase: 'P3', note: '{status, why}: done or dropped' },
   'POST /v1/import/runs': {

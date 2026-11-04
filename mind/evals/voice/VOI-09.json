@@ -1,0 +1,14 @@
+{
+  "id": "VOI-09",
+  "prompt": "How did I sleep?",
+  "brief": [
+    "state: woke 08:10, later than the usual 07:00; first thing today 10:00"
+  ],
+  "knows": [
+    "08:10",
+    "later",
+    "ten"
+  ],
+  "good": "Longer than you meant to; the first thing today is at ten.",
+  "bad": "How do you feel you slept?"
+}

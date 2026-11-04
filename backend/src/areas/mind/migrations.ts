@@ -11,6 +11,7 @@
 // pulse (watches/, RUNTIME.md §3; 33 is scheduled actions'): the watches, the wake's reason
 // (`wakes.reason_json`, `{watch, kind, note}` on a wake a watch fired) and a time index on the
 // sessions' claims, which the usage meter reads (GET /v1/mind/usage) instead of every session row.
+// v39 keeps the outside read's time on the wake (`outside_ms`: the lookup title to the reply).
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneLeases, pruneNightRuns, pruneNotes, pruneSessions, pruneWakes } from './prune';
 import { pruneWatches } from './watches/store';
@@ -148,6 +149,13 @@ export const MIND_MIGRATIONS: Migration[] = [
       'ALTER TABLE wakes ADD COLUMN reason_json TEXT',
       'CREATE INDEX mind_sessions_claimed ON mind_sessions (claimed_at)',
     ],
+  },
+  {
+    version: 39,
+    name: 'outside-read time on the wake',
+    kind: 'expand',
+    // From the working card's lookup title to the reply (RUNTIME.md §6.6), beside first_reply_at.
+    sql: ['ALTER TABLE wakes ADD COLUMN outside_ms INTEGER'],
   },
 ];
 

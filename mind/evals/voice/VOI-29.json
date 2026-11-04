@@ -1,0 +1,14 @@
+{
+  "id": "VOI-29",
+  "prompt": "Explain how the night shift decides what goes on the Briefing, in detail.",
+  "brief": [
+    "briefing: tiles placed by the night from the day's state, what landed and the owner's settings"
+  ],
+  "depth": true,
+  "knows": [
+    "night",
+    "tiles"
+  ],
+  "good": "The night reads the day that closed and what landed over the last month. It keeps tiles that were used and drops those you passed over. Then it places at most a few for the morning, each with a reason you can see. Your settings come first: anything you turned off never shows.",
+  "bad": "Here are the steps:\n- read\n- place\n- done"
+}

@@ -230,3 +230,54 @@ describe("the mind's name and the owner's hours (Settings › The mind)", () => 
     expect(now(b.core)).toContain("Tuesday 20:30 (UTC), the owner's evening (day from 09:00) · day 2026-11-03");
   });
 });
+
+describe('"You told me" (mind/skills/voice.md)', () => {
+  it('puts the owner rules in section 2, newest first, within 400 characters, inside the first 2,000', () => {
+    const rules = Array.from({ length: 12 }, (_, i) =>
+      fact({ kind: 'rule', text: `Stop suggesting the plan number ${i} in the morning`, recorded_at: 1_000 + i }),
+    );
+    const b = buildBrief(rich({ rules }));
+    const two = section(b.core, 2);
+    const at = two.indexOf('You told me');
+    expect(at).toBeGreaterThan(0);
+    const block = two.slice(at, two.indexOf('Loose ends:'));
+    expect(block.length).toBeLessThanOrEqual(400);
+    expect(block).toMatch(/number 11 in the morning[\s\S]*number 10 in the morning/);
+    expect(block).not.toContain('number 0 in');
+    expect(block).toContain('more: th brief --section 4)');
+    expect(b.core.slice(0, LAYER_MAX)).toContain('number 11 in the morning');
+    expect(b.core.indexOf('## 3.')).toBeLessThanOrEqual(LAYER_MAX + 2);
+  });
+
+  it('is left out with no rules, and never shows a superseded one', () => {
+    expect(section(buildBrief(rich()).core, 2)).not.toContain('You told me');
+    const old = fact({ kind: 'rule', text: 'Answer in the second language', superseded_at: 5 });
+    expect(section(buildBrief(rich({ rules: [old] })).core, 2)).not.toContain('You told me');
+  });
+});
+
+describe("the night's one line (memory/day-voice.ts)", () => {
+  const note = (voice: string | null) => ({
+    seq: 1,
+    day: '2030-01-14',
+    summary: 'A short practice day.',
+    decisions_json: '[]',
+    stats_json: '{}',
+    importance: 3,
+    written_by: 'cse_night',
+    version: 1,
+    written_at: 1,
+    provenance: 'owner' as const,
+    voice,
+  });
+  it("opens the chat's section 7, and only the chat's", () => {
+    const yesterday = { threadId: null, tail: [], note: note('The house was quiet; the later train again.') };
+    expect(section(buildBrief(rich({ yesterday })).core, 7)).toMatch(
+      /^Last night you noted .*: The house was quiet; the later train again\.$/m,
+    );
+    expect(section(buildBrief(rich({ yesterday, role: 'night' })).full, 7)).not.toContain('Last night you noted');
+    expect(section(buildBrief(rich({ yesterday: { ...yesterday, note: note(null) } })).core, 7)).not.toContain(
+      'Last night',
+    );
+  });
+});

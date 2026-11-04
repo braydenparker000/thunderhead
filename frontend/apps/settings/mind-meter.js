@@ -4,7 +4,8 @@
 // it set itself against the owner's wake budget (`mind.wake_budget`, the setting below on the same
 // page), the minutes awake, the night shift's minutes, and a small row for the 7 days before.
 // Counts only: never why it woke or what it looked at. One more line when a cold wake was
-// answered: how long it took to wake and then to reply, the newest day that has one.
+// answered: how long it took to wake and then to reply, the newest day that has one, and beside it
+// how long an outside read took to its answer.
 import { api, signedIn } from '/th/client.js';
 import { el } from '/th/ui.js';
 
@@ -20,14 +21,17 @@ const awake = (d) => Object.values(d.minutes).reduce((n, v) => n + v, 0);
 /** @param {string} day */
 const weekday = (day) => new Date(`${day}T12:00:00Z`).toLocaleDateString('en', { weekday: 'short', timeZone: 'UTC' });
 
-/** The newest day with a cold wake answered: the median seconds to wake, then to the first reply.
+/** The newest day with a cold wake answered or an outside read: the median seconds to wake, then
+ * to the first reply; beside them, the median outside read, from looking it up to the answer.
  * @param {UsageResponse} u @returns {string | null} */
 export function latencyLine(u) {
-  const d = [u.today, ...u.days].find((x) => x.latency && x.latency.replies > 0);
+  const d = [u.today, ...u.days].find((x) => x.latency && (x.latency.replies > 0 || (x.latency.lookups ?? 0) > 0));
   if (!d) return null;
-  const { replies, claim_s, reply_s } = d.latency;
+  const { replies, claim_s, reply_s, lookups = 0, outside_s = null } = d.latency;
   const when = d === u.today ? 'today' : `on ${weekday(d.day)}`;
-  return `From cold: ${claim_s} s to wake, then ${reply_s} s to the first reply (${count(replies, 'time', 'times')} ${when}).`;
+  const cold = replies ? `From cold: ${claim_s} s to wake, then ${reply_s} s to the first reply (${count(replies, 'time', 'times')} ${when}).` : '';
+  const looked = lookups ? `Looking things up: ${outside_s} s to the answer (${count(lookups, 'time', 'times')}${cold ? '' : ` ${when}`}).` : '';
+  return [cold, looked].filter(Boolean).join(' ');
 }
 
 /** The block's lines: the wakes it set itself, the minutes, the 7 days, and the cold-wake line when

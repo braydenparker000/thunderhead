@@ -1,4 +1,5 @@
-// The briefing's later core sections (MEMORY.md §9): 7, the day (what the mind arranged on it and how
+// The briefing's later core sections (MEMORY.md §9): 7, the day (for the chat, first the night's one
+// line on the day before, in its own voice (memory/day-voice.ts); what the mind arranged on it and how
 // the owner met each so far, what lands over 30 days per topic (brief-learn.ts), the predictions about
 // it, the Briefing's tiles one line each, a shared calendar's events), and 8, on demand (where everything else is: the full file's sections, recall,
 // any route, the skills, the subagents; and the loose ends written after outside text, which the
@@ -16,7 +17,9 @@ export const DAY_BUDGET = { arranged: 420, lands: 600, predicted: 260, tiles: 34
 /** Section 7 within `budget` (its parts' own budgets first). */
 export function daySection(i: BriefInput, budget: number): string {
   if (i.role === 'reflex') return "Not for the reflex: the owner's day is not its business.";
+  const voice = i.role === 'chat' ? i.yesterday.note?.voice : null;
   const lines = [
+    ...(voice ? [`${NIGHT_LINE}${voice}`] : []),
     ...head(
       `Arranged on ${i.day}, each as the owner met it so far (kept, undone, ignored, unseen, no answer yet):`,
       part(i.arranged, DAY_BUDGET.arranged, 'th ledger --kind arrangement'),
@@ -35,6 +38,8 @@ export function daySection(i: BriefInput, budget: number): string {
   return at > 0 ? `${text.slice(0, at)}\n(+more: th brief --section 7)` : '(no room in the core: th brief --section 7)';
 }
 const head = (title: string, body: string[]) => (body.length ? [title, ...body] : []);
+/** The night's line, the chat's to draw on: the owner sees it only by asking (MEMORY.md §3.1). */
+export const NIGHT_LINE = 'Last night you noted (yours; say it only if it helps or they ask): ';
 
 /** The owner's hours unless they set others (Settings › The mind, `mind.day_start` and
  * `mind.night_start`): the phone's Auto theme switches on the same two (ui/theme.js). */

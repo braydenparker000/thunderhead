@@ -7,6 +7,7 @@
 import type { DayNote, OpenThread, OpenThreadStatus, Provenance } from '../../../../shared/contract/memory.ts';
 import { DAY } from '../../lib/time';
 import type { Db } from '../../objects/base';
+import { indexed } from './day-voice';
 import { strings } from './store';
 
 // --- day notes ---------------------------------------------------------------------------------
@@ -23,10 +24,12 @@ export interface DayNoteRow {
   written_at: number;
   /** Null on a row from an older Worker (and in an undo snapshot from before step 32). */
   provenance?: Provenance | null;
+  /** The night's one line on the day (step 40, day-voice.ts); null or absent when none. */
+  voice?: string | null;
 }
 
 const NOTE_COLS =
-  'seq, day, summary, decisions_json, stats_json, importance, written_by, version, written_at, provenance';
+  'seq, day, summary, decisions_json, stats_json, importance, written_by, version, written_at, provenance, voice';
 
 /** A day note's or a loose end's label; none (an older Worker's row) reads as `owner`. */
 export const notedBy = (r: { provenance?: Provenance | null }): Provenance => r.provenance ?? 'owner';
@@ -52,6 +55,7 @@ export function toDayNote(r: DayNoteRow): DayNote {
     version: r.version,
     written_at: r.written_at,
     provenance: notedBy(r),
+    ...(r.voice ? { voice: r.voice } : {}),
   };
 }
 
@@ -62,7 +66,7 @@ export function dayNote(db: Db, day: string): DayNoteRow | null {
 /** Writes a day's note: a new row, or the next version over the old one (its FTS entry swapped). */
 export function putDayNote(db: Db, n: Omit<DayNoteRow, 'seq'>, old: DayNoteRow | null): void {
   if (old) {
-    db.run(`INSERT INTO day_notes_fts (day_notes_fts, rowid, summary) VALUES ('delete', ?, ?)`, old.seq, old.summary);
+    db.run(`INSERT INTO day_notes_fts (day_notes_fts, rowid, summary) VALUES ('delete', ?, ?)`, old.seq, indexed(old));
     db.run(
       `UPDATE day_notes SET summary = ?, decisions_json = ?, stats_json = ?, importance = ?, written_by = ?, version = ?,
          written_at = ?, provenance = ? WHERE seq = ?`,
@@ -76,7 +80,7 @@ export function putDayNote(db: Db, n: Omit<DayNoteRow, 'seq'>, old: DayNoteRow |
       n.provenance ?? 'owner',
       old.seq,
     );
-    db.run('INSERT INTO day_notes_fts (rowid, summary) VALUES (?, ?)', old.seq, n.summary);
+    db.run('INSERT INTO day_notes_fts (rowid, summary) VALUES (?, ?)', old.seq, indexed({ ...n, voice: old.voice }));
     return;
   }
   db.run(
@@ -98,7 +102,7 @@ export function putDayNote(db: Db, n: Omit<DayNoteRow, 'seq'>, old: DayNoteRow |
 
 /** Removes a day note (the undo of its first version). */
 export function deleteDayNote(db: Db, old: DayNoteRow): void {
-  db.run(`INSERT INTO day_notes_fts (day_notes_fts, rowid, summary) VALUES ('delete', ?, ?)`, old.seq, old.summary);
+  db.run(`INSERT INTO day_notes_fts (day_notes_fts, rowid, summary) VALUES ('delete', ?, ?)`, old.seq, indexed(old));
   db.run('DELETE FROM day_notes WHERE seq = ?', old.seq);
 }
 

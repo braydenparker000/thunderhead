@@ -16,7 +16,7 @@ import {CONTRACT, checkProposal, checkVerb} from './contract.mjs';
 import {request} from './http.mjs';
 import {uuidv7} from './ids.mjs';
 import {ThError, invalid, need, out} from './io.mjs';
-import {lintText} from './conv.mjs';
+import {lintText} from './lint.mjs';
 
 const R = CONTRACT.routines;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;

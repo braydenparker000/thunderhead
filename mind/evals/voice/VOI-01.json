@@ -1,0 +1,13 @@
+{
+  "id": "VOI-01",
+  "prompt": "What's on tomorrow?",
+  "brief": [
+    "calendar: Thu 09:30 dentist; Thu 18:00 choir practice"
+  ],
+  "knows": [
+    "dentist",
+    "choir"
+  ],
+  "good": "The dentist at 9:30, then choir at six.",
+  "bad": "What would you like to know about tomorrow?"
+}

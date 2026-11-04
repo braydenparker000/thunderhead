@@ -1,15 +1,12 @@
 {
-  "id": "2026-11-04-settings-second",
+  "id": "2026-11-04-mind-voice",
   "date": "2026-11-04",
   "lines": [
     {
-      "text": "You can give me a name in Settings › The mind. I answer to it, and the app says it where it said the mind."
+      "text": "The mind speaks in its own voice: shorter, surer, and it remembers what you told it to stop."
     },
     {
-      "text": "Day starts and Evening starts set when Auto turns the theme light or dark, and when I count it as your evening."
-    },
-    {
-      "text": "Keep conversations in Privacy and data can delete ones older than a year or 90 days. Ones under a topic stay."
+      "text": "What you told me now has its own heading in What I remember, newest first, and I keep each one for good."
     }
   ]
 }

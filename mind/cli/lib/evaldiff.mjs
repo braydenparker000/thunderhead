@@ -7,7 +7,7 @@
 export const SUITES = ['INJ', 'LAW', 'MP', 'TONE', 'RT', 'META'];
 
 /** Files that make up the evals: fixtures, the harness, the record and their doc. */
-const EVAL_FILES = [/^mind\/evals\//, /^mind\/cli\/lib\/eval(diff)?\.mjs$/, /^mind\/tests\/(evals|th-eval|fake-evals)/,
+const EVAL_FILES = [/^mind\/evals\//, /^mind\/cli\/lib\/eval(diff|-voice)?\.mjs$/, /^mind\/tests\/(evals|th-eval|fake-evals)/,
   /^backend\/src\/areas\/evals\//, /^docs\/mind\/EVALS\.md$/, /^scripts\/eval-diff\.mjs$/];
 /** What the mind is: its files and its harness's settings. */
 const MIND_FILES = /^(mind|\.claude)\//;

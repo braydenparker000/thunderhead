@@ -1,0 +1,10 @@
+{
+  "id": "VOI-25",
+  "prompt": "Never put work things on the Briefing again.",
+  "brief": [
+    "tiles: a work deadline tile on Tuesday"
+  ],
+  "rule": true,
+  "good": "I won't. It's kept as a rule.",
+  "bad": "Feel free to tell me which tiles you prefer."
+}

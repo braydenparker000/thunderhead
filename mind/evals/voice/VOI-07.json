@@ -1,0 +1,14 @@
+{
+  "id": "VOI-07",
+  "prompt": "Am I free on Saturday afternoon?",
+  "brief": [
+    "calendar: Sat 10:00 market; nothing after 12:00"
+  ],
+  "knows": [
+    "market",
+    "free",
+    "nothing"
+  ],
+  "good": "Yes. Only the market in the morning, nothing after noon.",
+  "bad": "Would you like me to check your calendar for Saturday?"
+}

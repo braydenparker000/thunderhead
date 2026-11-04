@@ -169,6 +169,12 @@ Consolidation (night step 4) chooses exactly one of ADD / CONFIRM / SUPERSEDE / 
 
 **Acceptance:** Worker tests for every op, including that `forget` leaves no text in `ledger`, `facts`, `facts_fts` or the weekly snapshot after the next export.
 
+### 3.1 Corrections and the night's line (built 2026-11-04)
+
+**A correction is a rule.** When the owner's message corrects the mind or tells it to stop ("stop suggesting X", "don't do Y", "never Z again"), the chat writes a `kind=rule` fact in the owner's words with that message as its evidence (`th remember --kind rule --source user --text "…" --evidence <msg id>`; mind/skills/voice.md) and says in one line that it is kept. There is no classifier in the Worker: the mind decides what is a correction, and the evidence rules check the write (M3, M4: a rule needs the owner's own words and a clean session). Rules never decay. The briefing shows them in section 2, inside the first 2,000 characters, as **You told me**: newest first, at most 400 characters with the heading, the rest behind `th brief --section 4` (`toldMe` in `areas/mind/brief-layer.ts`); the Memory page lists them under **You told me**, newest first (§12).
+
+**The night's line.** Once a night, right after the day note and before any outside text (night step 2), the night writes one line in its own voice about the day, what it noticed (`th note --day-voice "<≤ 200 characters>"`, `PUT /v1/memory/day-notes/:day/voice`, `areas/memory/day-voice.ts`). It is kept with that day's note (`day_notes.voice`, Core step 40) through the phrase lint, and indexed with the summary, so `th recall` and search find the day by it; a later line replaces it, and an edit of the summary keeps it. A session that read outside text (`403 session_tainted`), the chat, or a day with no note (`404`) can't write one. The next morning's chat reads it first in section 7 (`Last night you noted …`); it is the chat's to draw on, never sent to the owner, who sees it only by looking: on the Memory page under the day ("I noticed: …").
+
 ---
 
 ## 4. Confidence by source
@@ -305,7 +311,7 @@ The briefing is **layered** (MIND-PLAN §2.5): what every wake must read first, 
 | # | Section | Content, in order | Budget (chars) |
 |---|---|---|---|
 | 1 | Now | Weekday, time and zone, the day, the role; the wake reason, wakes today, pre-warms left, a usage backoff while there is one; `laws: …`, open decisions, quiet; a tripped watchdog; for a session that read outside text, the line "what you write this session is labelled outside…" (§7); the day's database use from 60%. Then the **voice** in three lines ([BEHAVIOR.md §10](BEHAVIOR.md#10-tone)). Then **today's state**, a line each, each part in its own budget and all in what section 1 has left (a part with no room says where it is): the **day pulse** (`wakes today: 4 of 12, 3 watches live`, then each watch that woke this session with its why and note, and what to do; a watch set after outside text is kept back here from every session, `th watch list` reads it), `weather:` (the forecast the Briefing keeps; no fetch), the owner's own calendar (`calendar today: …`, `calendar tomorrow: …`, a failing link), what is due (`due 15:00: "…"`, at most 3 reminders until the end of the owner's day, and `scheduled: N waiting, the next at …`), and `music:` (a song started and not skipped or finished since, or when the last one ended; from the phone's reports) | the state ≤ 500; pulse ≤ 420, weather ≤ 160, calendar ≤ 280, due ≤ 240, music ≤ 160; the section ≤ 1,400 |
-| 2 | The owner | **In their own words:** the profile's top lines (§8's order) that are `owner` facts about the owner, each `[f:<id>] <words>` with `· don't raise` / `· private`, never an `observed` habit, a fact about someone else or anything from outside. **Loose ends:** the open threads with no outside label, mind-owned first, due soonest. **Verbs by class:** each class's position now (`music quiet · podcasts quiet · reminders tell · …`) and the floors that always ask, with `Each verb: th brief --section 13` (the verb table itself is in section 13, the full file: it doesn't fit 2,000 with the rest) | what is left of 2,000: the verbs line first, loose ends ≤ 500 (40%), facts ≤ 900 |
+| 2 | The owner | **In their own words:** the profile's top lines (§8's order) that are `owner` facts about the owner, each `[f:<id>] <words>` with `· don't raise` / `· private`, never an `observed` habit, a fact about someone else or anything from outside. **You told me:** the owner's rules, newest first, ≤ 400 characters with the heading (§3.1). **Loose ends:** the open threads with no outside label, mind-owned first, due soonest. **Verbs by class:** each class's position now (`music quiet · podcasts quiet · reminders tell · …`) and the floors that always ask, with `Each verb: th brief --section 13` (the verb table itself is in section 13, the full file: it doesn't fit 2,000 with the rest) | what is left of 2,000: the verbs line first, loose ends ≤ 500 (40%), facts ≤ 900 |
 
 **Then the day: the rest of the core.**
 
@@ -315,7 +321,7 @@ The briefing is **layered** (MIND-PLAN §2.5): what every wake must read first, 
 | 4 | Standing rules | `kind=rule` facts, all of them, pinned first | 1,400 | 4,500 |
 | 5 | Today so far | Latest session note + the last 12 messages verbatim (the conversation's tail) | 2,200 (trimmed oldest first) | 4,000 |
 | 6 | Yesterday | Day note, or the fallback (last 20 messages of yesterday) if the night shift hasn't run | 800 | 2,500 |
-| 7 | The day | **Arranged on <day>:** each arrangement the mind placed since the day began at 04:00 (at most 8, oldest first), its time, slot, why and how the owner met it so far by the meter's rule ([EVALS.md §9](EVALS.md) M-16, `metSoFar`): kept, undone, ignored (dismissed), unseen yet, no answer yet ("not known (no reports)" when the Senses object didn't answer). **Predicted for <day>:** the open predictions, category, args, odds and why. **The Briefing shows:** each tile as the page shows it now, one line. **Shared calendars:** a Shared link's events, marked `(outside)` | 900 (parts: arranged 420, predicted 260, tiles 340, shared 260) | 1,500 |
+| 7 | The day | For the chat, first **Last night you noted:** the night's line on the day before (§3.1). **Arranged on <day>:** each arrangement the mind placed since the day began at 04:00 (at most 8, oldest first), its time, slot, why and how the owner met it so far by the meter's rule ([EVALS.md §9](EVALS.md) M-16, `metSoFar`): kept, undone, ignored (dismissed), unseen yet, no answer yet ("not known (no reports)" when the Senses object didn't answer). **Predicted for <day>:** the open predictions, category, args, odds and why. **The Briefing shows:** each tile as the page shows it now, one line. **Shared calendars:** a Shared link's events, marked `(outside)` | 900 (parts: arranged 420, predicted 260, tiles 340, shared 260) | 1,500 |
 
 **Then on demand.**
 
@@ -377,9 +383,9 @@ Reached from Menu → Settings → Memory (layout in [MENU-AND-SETTINGS.md](../p
 | Section | Shows | Owner actions |
 |---|---|---|
 | What I know | Current facts grouped by kind, pinned first; each with text, a source label ("You said" / "Seen" / "My guess"), a confidence bar, "since" date, and an evidence link per id | **Fix**, **Pin**, **Don't bring this up**, **Forget** |
-| Standing rules | `kind=rule` facts | Fix, Forget, Add |
+| You told me (built 2026-11-04; "How to talk to me" before) | `kind=rule` facts, newest first (§3.1) | Fix, Forget, Add |
 | Loose ends | Open threads (one written after outside text keeps that label through Done and Drop, M11e) | Done, Drop, Add |
-| Days | Day notes, newest first | Edit (writes a new version, `written_by=owner`) |
+| Days | Day notes, newest first, each with the night's line under it when there is one ("I noticed: …", §3.1) | Edit (writes a new version, `written_by=owner`; the line stays) |
 | What changed | Diff of this week's profile snapshot against last week's | — |
 | Fading | Facts with confidence < 0.10 | Confirm ("Still true"), Forget |
 | Imported, to review | Facts from the old notebook (§14) | "Yes, that's right" (→ `user`), Fix, Forget |

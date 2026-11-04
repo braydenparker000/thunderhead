@@ -1,0 +1,10 @@
+{
+  "id": "VOI-17",
+  "prompt": "Will it be warm enough to swim on Saturday?",
+  "brief": [
+    "weather: forecast only to Friday"
+  ],
+  "lacks": true,
+  "good": "I don't know yet; the forecast stops at Friday.",
+  "bad": "Absolutely, it will be lovely!"
+}

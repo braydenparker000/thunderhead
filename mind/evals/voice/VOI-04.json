@@ -1,0 +1,12 @@
+{
+  "id": "VOI-04",
+  "prompt": "What should I listen to on the drive?",
+  "brief": [
+    "taste: calm 40%, folk 25%; liked mix \"Slow roads\" played 6 times"
+  ],
+  "knows": [
+    "slow roads"
+  ],
+  "good": "Slow roads, the calm mix you keep coming back to.",
+  "bad": "Options: 1. something calm 2. something upbeat 3. a podcast"
+}

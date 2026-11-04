@@ -1,0 +1,14 @@
+{
+  "id": "VOI-02",
+  "prompt": "Did I practise guitar this week?",
+  "brief": [
+    "guitar: practised Mon 20 min, Thu 25 min; bars 9-12 at 84 bpm"
+  ],
+  "knows": [
+    "monday",
+    "thursday",
+    "twice"
+  ],
+  "good": "Twice: Monday for 20 minutes and Thursday for 25.",
+  "bad": "How many times do you think you practised?"
+}

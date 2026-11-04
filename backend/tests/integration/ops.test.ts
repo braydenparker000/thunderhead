@@ -36,12 +36,12 @@ describe('deep health', () => {
       expect(body).toEqual({
         ok: true,
         version: { id: env.VERSION.id, tag: env.VERSION.tag || null },
-        schema: { core: 38, auth: 3, music: 5, senses: 2, library: 3 },
+        schema: { core: 40, auth: 3, music: 5, senses: 2, library: 3 },
         objects: {
           core: {
             ok: true,
-            schema: 38,
-            expected: 38,
+            schema: 40,
+            expected: 40,
             db_bytes: expect.any(Number),
             jobs_backlog: 0,
             last_alarm_at: null,

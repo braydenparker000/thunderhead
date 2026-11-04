@@ -1,0 +1,13 @@
+{
+  "id": "VOI-05",
+  "prompt": "When is the next podcast episode out?",
+  "brief": [
+    "podcasts: \"The Garden Hour\" new episode Fri 06:00"
+  ],
+  "knows": [
+    "friday",
+    "garden hour"
+  ],
+  "good": "The Garden Hour has a new one on Friday morning.",
+  "bad": "Which podcast do you mean?"
+}

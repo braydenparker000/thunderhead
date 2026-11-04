@@ -97,7 +97,41 @@ describe('the idle cutoff', () => {
       replies: 1,
       claim_s: Math.round((w.claimed_at - w.fired_at) / 1000),
       reply_s: Math.round(((w.first_reply_at as number) - w.claimed_at) / 1000),
+      lookups: 0,
+      outside_s: null,
     });
     expect(u.today.latency.claim_s).toBeGreaterThanOrEqual(9);
+  });
+
+  it('keeps the outside read on the wake, from the lookup title to the reply, once; another title is not one', async () => {
+    const outsideMs = async () =>
+      (await coreSql<{ outside_ms: number | null }>('SELECT outside_ms FROM wakes WHERE session_id = ?', SESSION))[0]
+        .outside_ms;
+    // A listening report first: a second working report inside 3 s would drop its title.
+    const status = async (title: string) => {
+      await apiJson('POST', '/v1/mind/status', { ...as(p.C, SESSION), body: { state: 'listening' } });
+      await apiJson('POST', '/v1/mind/status', { ...as(p.C, SESSION), body: { state: 'working', title } });
+    };
+    const reply = (to: string, body: string) =>
+      apiJson<Message>('PUT', `/v1/messages/${uuidv7()}`, { ...as(p.C, SESSION), body: { body, reply_to: to } });
+    const plain = await ownerSays(p.D, 'what is the weather?');
+    await status('Reading the forecast');
+    await reply(plain, 'Dry until four.');
+    expect(await outsideMs()).toBeNull();
+    const asked = await ownerSays(p.D, 'who wrote that hymn?');
+    await new Promise((r) => setTimeout(r, 5));
+    await status('Looking that up');
+    const answered = await reply(asked, 'An organist in the 1880s, about four in five.');
+    expect(answered.status).toBe(201);
+    const ms = await outsideMs();
+    expect(ms).not.toBeNull();
+    expect(ms as number).toBeGreaterThanOrEqual(0);
+    const later = await ownerSays(p.D, 'and the tune?');
+    await reply(later, 'The same organist.');
+    expect(await outsideMs()).toBe(ms);
+    const u: UsageResponse = await runInDurableObject(core() as unknown as DurableObjectStub<Core>, (o: Core) =>
+      o.usage(),
+    );
+    expect(u.today.latency).toMatchObject({ lookups: 1, outside_s: Math.round((ms as number) / 1000) });
   });
 });

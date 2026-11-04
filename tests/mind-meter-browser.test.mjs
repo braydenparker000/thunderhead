@@ -2,7 +2,8 @@
 // against the mocked Worker: the block at the top of the page, above the lead line and the settings,
 // draws GET /v1/mind/usage's counts (the wakes the mind set itself against the wake budget, the
 // minutes awake, the night shift's minutes, the 7 days before), counts only; with the budget at Off
-// it says so; when the Worker can't answer it says that, and the page's settings still work.
+// it says so; when the Worker can't answer it says that, and the page's settings still work; the
+// cold-wake line carries the outside reads beside it.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
@@ -82,4 +83,17 @@ test('Today with the wake budget at Off, and when the Worker cannot answer', opt
   // The settings below still answer.
   assert.ok(await down.page.$('[data-key="mind.voice"] .seg-option.on'));
   await down.context.close();
+});
+
+test('the cold-wake line carries the outside reads beside it; a day with only lookups says that', opts, async () => {
+  const lat = (l) => ({ ...USAGE, today: { ...USAGE.today, latency: l } });
+  const both = await openMind({ usage: lat({ replies: 2, claim_s: 12, reply_s: 30, lookups: 3, outside_s: 18 }) });
+  await both.page.waitForSelector('.spage.in [data-meter] .snow');
+  assert.deepEqual((await lines(both.page)).at(-1), ['shelp', 'From cold: 12 s to wake, then 30 s to the first reply (2 times today). Looking things up: 18 s to the answer (3 times).']);
+  await both.context.close();
+  const only = await openMind({ usage: lat({ replies: 0, claim_s: null, reply_s: null, lookups: 1, outside_s: 9 }) });
+  await only.page.waitForSelector('.spage.in [data-meter] .snow');
+  assert.deepEqual((await lines(only.page)).at(-1), ['shelp', 'Looking things up: 9 s to the answer (1 time today).']);
+  assert.deepEqual(only.errors, []);
+  await only.context.close();
 });

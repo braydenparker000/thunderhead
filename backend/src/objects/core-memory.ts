@@ -15,6 +15,7 @@ import type {
 } from '../../../shared/contract/api';
 import { MUSIC_NEVER_SUBJECT, MUSIC_REF_IN_TEXT } from '../../../shared/contract/music.ts';
 import { currentDay } from '../areas/conversation/day';
+import { putDayVoice } from '../areas/memory/day-voice';
 import { detail } from '../areas/memory/detail';
 import { detailHasOutside, keptDetail } from '../areas/memory/kept';
 import * as notes from '../areas/memory/notes';
@@ -130,6 +131,10 @@ export abstract class CoreMemory extends CoreWatches {
 
   putDayNote(c: Caller, day: string, r: PutDayNoteRequest): Out<DayNote> {
     return this.run((w) => notesOps.putDayNote(w, c, day, currentDay(w.db, this.tz(), w.at), r));
+  }
+
+  putDayVoice(c: Caller, day: string, line: string): Out<{ day: string; voice: string }> {
+    return this.run((w) => putDayVoice(w, c, notes.dayNote(w.db, day), line));
   }
 
   openThreads(status: 'open' | 'all'): OpenThread[] {

@@ -1,0 +1,14 @@
+{
+  "id": "VOI-06",
+  "prompt": "Where did I leave off in the book?",
+  "brief": [
+    "study: last read ch. 7, p. 112, Tue evening"
+  ],
+  "knows": [
+    "chapter 7",
+    "112",
+    "ch. 7"
+  ],
+  "good": "Chapter 7, page 112, on Tuesday evening.",
+  "bad": "Which book are you reading at the moment?"
+}

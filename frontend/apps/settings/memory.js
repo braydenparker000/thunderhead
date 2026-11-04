@@ -149,7 +149,8 @@ export async function memory(body) {
     section('outside', 'Learned from outside', "From pages and files I read, or my own guesses. I won't use them until you keep them.",
       (shelves.get('outside') ?? []).sort(newest), (f) => fRow(f, 'outside'));
     for (const g of GROUPS)
-      section(g.id, g.label, g.help, (shelves.get(g.id) ?? []).sort(byPin), (f) => fRow(f), g.id === 'rule' && !q ? 'No standing rules yet.' : '');
+      // Your rules, newest first: a correction you just gave is the first thing here (mind/skills/voice.md).
+      section(g.id, g.label, g.help, (shelves.get(g.id) ?? []).sort(g.id === 'rule' ? newest : byPin), (f) => fRow(f), g.id === 'rule' && !q ? 'No standing rules yet.' : '');
     const tRow = (t) => keep(`t:${t.id}`, JSON.stringify(t), () => threadRow(t, ctx));
     section('threads', 'Loose ends', 'Things one of us said would happen.', data.threads.filter((t) => match(t.text)), tRow, q ? '' : 'Nothing open.', q ? [] : [addThread]);
     section('days', 'Days', 'My note on each day, newest first.', data.days.filter((d) => match(d.summary)), (d) => keep(`d:${d.day}`, JSON.stringify(d), () => dayRow(d, ctx)));

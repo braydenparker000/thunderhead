@@ -4,13 +4,13 @@
 // files a message names become its attachments (areas/files/ops.ts).
 import type { JsonObject, Message, MessageKind, Permitted, Thread } from '../../../../shared/contract/api';
 import { APPS, type AppId, appBuilt } from '../../../../shared/contract/feed.ts';
-import { lintMindText } from '../../../../shared/contract/lint.ts';
+import { lintChatReply, lintMindText } from '../../../../shared/contract/lint.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { attach } from '../files/ops';
-import { recordFirstReply } from '../mind/latency';
+import { recordFirstReply, recordOutside } from '../mind/latency';
 import { gate, withPermit } from '../mind/permit';
 import { takeUsing } from '../mind/using';
 import * as settings from '../settings/store';
@@ -51,6 +51,11 @@ export function today(w: Writer, tz: string): Thread {
   return t;
 }
 
+/** The phrase lint on a mind message's words; a text message (only the chat posts one) is also
+ * checked for shape: no list alone, no opener, no closer that offers more (BEHAVIOR.md §2.2). */
+const bodyLint = (kind: string, body: string) =>
+  kind === 'text' ? lintChatReply(body) : kind === 'question' ? lintMindText(body) : null;
+
 /** Returns the stored message and whether this call created it. */
 export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { message: Message; created: boolean } {
   const existing = store.messageById(w.db, p.id);
@@ -71,7 +76,7 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
   if (files.length && c.who !== 'D' && c.who !== 'C') throw invalid('attachments', 'only the owner and the chat mind');
   if (!p.body && (c.who !== 'D' || !files.length)) throw invalid('body', 'empty: only an owner message with files');
   if (c.who !== 'D') {
-    const lint = kind === 'text' || kind === 'question' ? lintMindText(p.body) : null;
+    const lint = bodyLint(kind, p.body);
     if (lint) throw new Fail('validation', [{ path: 'body', issue: lint }]);
     checkChip(p.meta);
   }
@@ -93,6 +98,7 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
   const attachments = files.length ? attach(w.db, files, c.who === 'D' ? 'owner' : 'mind', p.id) : [];
   // The chat mind's reply to the owner's words takes the chips it gave while working on them.
   const reply = c.who === 'C' && target?.author === 'owner' && REPLY_KINDS.has(kind);
+  if (reply && c.session_id) recordOutside(w.db, c.session_id, target.created_at, w.at);
   const using = reply ? takeUsing(w, target.created_at) : [];
   const extra: JsonObject = {
     ...(p.mention ? { mention: p.mention } : {}),
@@ -169,7 +175,7 @@ export function patchMessage(w: Writer, id: string, body: string | undefined, me
   const m = store.messageById(w.db, id);
   if (m?.author !== 'mind') throw new Fail('not_found');
   if (body !== undefined) {
-    const lint = m.kind === 'text' || m.kind === 'question' ? lintMindText(body) : null;
+    const lint = bodyLint(m.kind, body);
     if (lint) throw new Fail('validation', [{ path: 'body', issue: lint }]);
   }
   checkChip(meta);

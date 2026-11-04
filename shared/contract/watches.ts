@@ -98,8 +98,15 @@ export interface UsageDay {
   night_min: number;
   watches: { fired: number; refused: number };
   /** Cold wakes answered that day (chat wakes a message fired whose session replied): how many,
-   * and the median seconds from the fire to the claim and from the claim to the first reply. */
-  latency: { replies: number; claim_s: number | null; reply_s: number | null };
+   * and the median seconds from the fire to the claim and from the claim to the first reply; and
+   * the chat wakes with an outside read (`outside_ms`): how many, the median seconds it took. */
+  latency: {
+    replies: number;
+    claim_s: number | null;
+    reply_s: number | null;
+    lookups: number;
+    outside_s: number | null;
+  };
 }
 
 /** GET /v1/mind/usage: the meter on Settings › The mind. Counts only. */

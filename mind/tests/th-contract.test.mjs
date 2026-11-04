@@ -56,6 +56,23 @@ test('surfaces, verbs and the phrase lint are checked locally', withFake(async f
   assert.equal((await th(['surface', 'rm', 'home', 'line.1'], e)).code, 0);
 }));
 
+test('th say checks a chat reply\'s shape locally (exit 8, nothing sent); a progress card keeps the phrase lint alone', withFake(async fake => {
+  const e = env(fake);
+  const before = fake.state.requests.length;
+  for (const shape of CONTRACT.lint.banned_shapes) {
+    const text = shape.at === 'end' ? `Moved to Friday. ${shape.phrase} that suits.` : `${shape.phrase} the dentist at 9:30.`;
+    const r = await th(['say', 'today', text], e);
+    assert.equal(r.code, 8, text);
+    assert.match(r.stderr, /banned shape/, text);
+  }
+  const list = await th(['say', 'today', '- the dentist\n- choir'], e);
+  assert.equal(list.code, 8);
+  assert.match(list.stderr, /only a list/);
+  assert.equal(fake.state.requests.length, before, 'nothing reached the Worker');
+  assert.equal((await th(['say', 'today', '--kind', 'progress', '- Reading the calendar'], e)).code, 0);
+  assert.equal((await th(['say', 'today', 'The dentist at 9:30, choir at six.'], e)).code, 0);
+}));
+
 test('th get reads any built GET route; th help comes from the contract', withFake(async fake => {
   const e = env(fake);
   const today = await th(['get', '/v1/threads/today'], e);

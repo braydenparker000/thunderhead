@@ -124,7 +124,7 @@ describe('the usage meter', () => {
       minutes: { chat: 45 + 150, night: 30 + 60, reflex: 10 },
       night_min: 26,
       watches: { fired: 1, refused: 1 },
-      latency: { replies: 2, claim_s: 15, reply_s: 40 },
+      latency: { replies: 2, claim_s: 15, reply_s: 40, lookups: 0, outside_s: null },
     });
     expect(u.days.map((d) => d.day)).toEqual([
       '2030-01-14',
@@ -141,7 +141,7 @@ describe('the usage meter', () => {
       minutes: { chat: 20, night: 0, reflex: 0 },
       night_min: 60,
       watches: { fired: 1, refused: 0 },
-      latency: { replies: 0, claim_s: null, reply_s: null },
+      latency: { replies: 0, claim_s: null, reply_s: null, lookups: 0, outside_s: null },
     });
     expect(u.days[1].wakes).toEqual({ owner: 0, watch: 0, roll: 0, schedule: 0, watchdog: 0 });
     expect([u.budget, u.live]).toEqual([12, 1]);

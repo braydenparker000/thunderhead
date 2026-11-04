@@ -106,6 +106,14 @@ export const MEMORY_MIGRATIONS: Migration[] = [
       `CREATE INDEX facts_outside ON facts (recorded_at) WHERE provenance = 'outside' AND superseded_at IS NULL`,
     ],
   },
+  {
+    version: 40,
+    // The night's one line on the day, in its own voice (`th note --day-voice`, MEMORY.md §3.1): kept
+    // with the day note, read by the next morning's chat, indexed with the summary for recall.
+    name: 'the night line on the day note',
+    kind: 'expand',
+    sql: ['ALTER TABLE day_notes ADD COLUMN voice TEXT'],
+  },
 ];
 
 export const MEMORY_TABLES: Record<string, TableInfo> = {

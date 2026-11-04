@@ -78,6 +78,28 @@ describe('the daily thread', () => {
     expect((await say(D, { body: 'Great question! 🎉' })).status).toBe(201);
   });
 
+  it('refuses a chat reply in a banned shape (422 phrase), not a progress card or the owner', async () => {
+    const q = (await say(D, { body: 'what is on tomorrow' })).body;
+    for (const body of [
+      '- the dentist\n- choir',
+      'Sure, the dentist at 9:30.',
+      'The dentist at 9:30. Want me to move it?',
+    ]) {
+      const r = await say(C, { body, reply_to: q.id }, uuidv7(), mind(C));
+      expect(r.status, body).toBe(422);
+      expect(JSON.stringify(r.body.error)).toMatch(/banned shape|only a list/);
+    }
+    expect((await say(C, { body: '- Reading the calendar', kind: 'progress' }, uuidv7(), mind(C))).status).toBe(201);
+    expect((await say(D, { body: 'Sure. Let me know if you want me to.' })).status).toBe(201);
+    const ok = await say(C, { body: 'The dentist at 9:30, choir at six.', reply_to: q.id }, uuidv7(), mind(C));
+    expect(ok.status).toBe(201);
+    const amend = await apiJson('PATCH', `/v1/messages/${ok.body.id}`, {
+      ...mind(C),
+      body: { body: 'Options: dentist, choir.' },
+    });
+    expect(amend.status).toBe(422);
+  });
+
   it('accepts one well-formed action chip and refuses any other shape', async () => {
     const chip = (c: object) => say(C, { body: 'It is in Music.', meta: { chip: c } }, uuidv7(), mind(C));
     expect((await chip({ label: 'Open in Music', app: 'music', path: '/music/' })).status).toBe(201);

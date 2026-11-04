@@ -233,6 +233,8 @@ export interface DayNote {
   provenance: Provenance;
   /** On a night write only: the owner had edited this day, so their version stands, unchanged. */
   kept_owner_edit?: true;
+  /** The night's one line on the day (`th note --day-voice`, ≤ 200), when it wrote one. */
+  voice?: string;
 }
 
 /** POST /v1/mind/notes (the session note, conversation.ts): its id and its label, `outside` from a
