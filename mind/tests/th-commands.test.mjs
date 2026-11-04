@@ -232,6 +232,46 @@ test('propose, decide --by-message (owner words verified), decision budget exit 
   assert.equal(fake.state.requests.length, before);
 }));
 
+test('propose: an arrangement card (class permit) without odds exits 8 before the network; with odds it goes', withFake({}, async fake => {
+  const e = env(fake);
+  const card = (...more) => ['propose', '--class', 'permit', '--question', 'May I switch to the night look?', '--why', 'You said to ask first.',
+    '--spec', JSON.stringify({op: 'permit.allow', args: {action: 'shell.appearance', call: 'a'.repeat(64)}}), '--if-ignored', 'Nothing happens.', ...more];
+  const before = fake.state.requests.length;
+  const none = await th(card(), e);
+  assert.equal(none.code, 8);
+  assert.match(none.stderr, /--odds is required for a permit card/);
+  assert.equal((await th(card('--odds', '0.99'), e)).code, 8, 'never sure either way: 0.05–0.95');
+  assert.equal(fake.state.requests.length, before, 'refused before the network');
+  const asked = fake.addOwnerMessage('switch it to night if you can');
+  const ok = await th(card('--odds', '0.7', '--asked-by', asked.id), e);
+  assert.equal(ok.code, 0, ok.stderr);
+  assert.deepEqual([last(fake, '/v1/proposals/').body.odds, last(fake, '/v1/proposals/').body.asked_by], [0.7, asked.id]);
+  // A floor's card may leave the odds out.
+  const del = await th(['propose', '--class', 'delete', '--question', 'Forget this fact for good?', '--why', 'You said it was wrong.',
+    '--spec', '{"op":"memory.forget","args":{"id":"01890a5d-ac96-774b-bcce-b302099a8057"}}', '--if-ignored', 'Nothing happens.'], e);
+  assert.equal(del.code, 0, del.stderr);
+}));
+
+test('surface on a resting topic prints topic_quiet (exit 8); topics, said and reopen in the owner\'s words', withFake({quietTopics: {'episodes.new': '2026-12-04'}}, async fake => {
+  const e = env(fake);
+  const s = await th(['surface', 'home', 'line.1', '--kind', 'line', '--payload', '{"text":"Two new episodes."}', '--why', 'New ones came in', '--topic', 'episodes.new'], e);
+  assert.equal(s.code, 8);
+  assert.equal(errCode(s), 'topic_quiet');
+  assert.deepEqual(JSON.parse(s.stderr.trim()).error.details, {until: Date.parse('2026-12-04T00:00:00Z'), reopens: '2026-12-04'});
+  const t = await th(['surface', 'topics'], e);
+  assert.equal(t.code, 0, t.stderr);
+  assert.deepEqual(t.json.items.map(i => [i.topic_key, i.streak, i.reopens]), [['episodes.new', 3, '2026-12-04']]);
+  assert.equal((await th(['surface', 'said', 'episodes.new'], e)).code, 0);
+  assert.equal((await th(['surface', 'reopen', 'episodes.new'], e)).code, 8, 'reopening needs the owner\'s words');
+  const words = fake.addOwnerMessage('bring the episodes back');
+  const r = await th(['surface', 'reopen', 'episodes.new', '--by-message', words.id], e);
+  assert.equal(r.code, 0, r.stderr);
+  assert.deepEqual(last(fake, '/v1/surfaces/topics/').body, {by_message: words.id});
+  const again = await th(['surface', 'home', 'line.1', '--kind', 'line', '--payload', '{"text":"Two new episodes."}', '--why', 'New ones came in', '--topic', 'episodes.new', '--asked-by', words.id], e);
+  assert.equal(again.code, 0, again.stderr);
+  assert.equal(last(fake, '/v1/surfaces/home').body.asked_by, words.id);
+}));
+
 test('verb (checked against the contract), undo, ledger', withFake({}, async fake => {
   const e = env(fake);
   const why = ['--why', 'the owner asked for night mode'];

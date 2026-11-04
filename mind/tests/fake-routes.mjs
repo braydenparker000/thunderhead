@@ -5,7 +5,7 @@ import {HttpError, hash} from './fake-worker.mjs';
 
 const ALL = ['chat', 'night', 'reflex'];
 const CN = ['chat', 'night'];
-const EXECUTORS = ['verb', 'memory.forget', 'memory.apply_batch', 'agents.revoke', 'files.delete', 'ops.restore', 'music.delete_from_catalog'];
+const EXECUTORS = ['verb', 'memory.forget', 'memory.apply_batch', 'agents.revoke', 'files.delete', 'ops.restore', 'music.delete_from_catalog', 'permit.allow'];
 const ASK_FIRST_VERBS = ['music.delete_playlist', 'files.delete'];
 const actorOf = role => `mind:${role}`;
 
@@ -219,7 +219,9 @@ export function extraRoutes(ctl) {
       return answer();
     }],
     ['PUT', /^\/v1\/proposals\/([^/]+)$/, ALL, ({params, body, role}) => {
-      const ok = ['delete', 'money', 'access', 'reach_people', 'memory_big'].includes(body.class) && body.question?.length <= 80 &&
+      // An arrangement's card (class permit) carries odds, 0.05–0.95 (BEHAVIOR.md §4).
+      if (body.class === 'permit' && !(body.odds >= 0.05 && body.odds <= 0.95)) throw new HttpError(422, 'validation', 'odds', [{path: 'odds', issue: 'required on a permit card'}]);
+      const ok = ['delete', 'money', 'access', 'reach_people', 'permit', 'memory_big'].includes(body.class) && body.question?.length <= 80 &&
         body.why?.length <= 140 && body.if_ignored && Array.isArray(body.options) && body.options.length === 2 && EXECUTORS.includes(body.spec?.op);
       if (!ok) throw new HttpError(422, 'validation', 'card');
       if (!s.proposals.has(params[0]) && [...s.proposals.values()].filter(p => p.value.status === 'waiting').length >= 3) throw new HttpError(409, 'decision_budget');
@@ -285,11 +287,26 @@ export function extraRoutes(ctl) {
     }],
     ['PUT', /^\/v1\/surfaces\/([^/]+)\/([^/]+)$/, CN, ({params, body, role}) => {
       if (!body.why || body.why.length < 8 || !body.topic_key) throw new HttpError(422, 'validation');
+      // A topic that rests (options.quietTopics: topic → the day it reopens), as the Worker answers.
+      const reopens = ctl.options.quietTopics?.[body.topic_key];
+      if (reopens) throw new HttpError(422, 'topic_quiet', 'This topic rests.', {until: Date.parse(`${reopens}T00:00:00Z`), reopens});
       const row = {app: params[0], slot: params[1], ...body, written_at: ctl.now(), ledger_id: ctl.addLedger(actorOf(role), 'arrangement', `${params[0]}/${params[1]}`).id};
       s.surfaces.set(`${params[0]}/${params[1]}`, row);
       return row;
     }],
     ['GET', /^\/v1\/surfaces$/, ALL, () => ({items: [...s.surfaces.values()], seq: s.seq})],
+    ['GET', /^\/v1\/insight\/topics$/, CN, () => ({window_days: 30, items: Object.entries(ctl.options.quietTopics ?? {}).map(([topic_key, reopens]) => ({
+      topic_key, places: ['home'], kept: 0, undone: 0, ignored: 3, unseen: 0, waiting: 0, streak: 3, quiet_until: Date.parse(`${reopens}T00:00:00Z`), reopens, said: false}))})],
+    ['POST', /^\/v1\/surfaces\/topics\/([^/]+)\/said$/, CN, ({params}) => {
+      if (!ctl.options.quietTopics?.[params[0]]) throw new HttpError(404, 'not_found');
+      return {topic_key: params[0], said_at: ctl.now()};
+    }],
+    ['POST', /^\/v1\/surfaces\/topics\/([^/]+)\/reopen$/, ['chat'], ({params, body}) => {
+      const m = s.messages.find(x => x.id === body.by_message);
+      if (!m || m.origin !== 'owner_device') throw new HttpError(403, 'not_owner_words');
+      delete ctl.options.quietTopics?.[params[0]];
+      return {topic_key: params[0], ledger_id: ctl.addLedger('owner', 'arrangement', `topic ${params[0]} reopened`, `msg:${m.id}`).id};
+    }],
     ['DELETE', /^\/v1\/surfaces\/([^/]+)\/([^/]+)$/, CN, ({params}) => {
       s.surfaces.delete(`${params[0]}/${params[1]}`);
       return null;
