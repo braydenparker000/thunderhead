@@ -211,6 +211,8 @@ function mind() {
       limits: c.MUSIC_NOTE_LIMITS,
     },
     memory: { ...memory(), kinds: c.FACT_KINDS, sources: c.FACT_SOURCES, reasons: c.MEMORY_REASONS },
+    // Role knowledge on demand (`th skill <name>`): the files in mind/skills/, their size and headings.
+    skills: { names: c.SKILLS, limits: c.SKILL_LIMITS, headings: c.SKILL_HEADINGS },
     night: {
       steps: c.NIGHT_STEPS,
       built_phases: c.BUILT_PHASES,
@@ -243,6 +245,15 @@ function mind() {
     schedules: { limits: c.SCHEDULE_LIMITS, plans: c.PLAN_LIMITS, plan_action: c.PLAN_ACTION, quiet_held: c.QUIET_HELD },
     lint: { banned_phrases: BANNED_PHRASES },
     watchdogs: { limits: c.WATCHDOG_LIMITS, reflex_procedure: c.REFLEX_PROCEDURE, items: c.WATCHDOGS },
+    // The day pulse (`th watch`): the kinds, the limits, what an event or a change watch may name.
+    watches: {
+      kinds: c.WATCH_KINDS,
+      limits: c.WATCH_LIMITS,
+      states: c.WATCH_STATES,
+      worker_events: c.WORKER_EVENTS,
+      changes: c.WATCH_CHANGES,
+      wake_causes: c.WAKE_CAUSES,
+    },
     reader: {
       limits: c.READER_LIMITS,
       kinds: Object.fromEntries(
@@ -377,7 +388,7 @@ function docs() {
   for (const [id, s] of Object.entries(c.SEARCH_SOURCES)) L.push(`| \`${id}\` | ${s.phase} | \`${s.ref}\` |`);
   L.push('', '## Memory', '', '| Fact kind | Half-life (days) | Profile cap |', '|---|---|---|');
   for (const [k, v] of Object.entries(c.FACT_KINDS))
-    L.push(`| \`${k}\` | ${v.half_life_days ?? 'never decays'} | ${v.cap ?? 'not in the profile (briefing section 3)'} |`);
+    L.push(`| \`${k}\` | ${v.half_life_days ?? 'never decays'} | ${v.cap ?? 'not in the profile (briefing section 4)'} |`);
   L.push('', '| Source | Starts at | Cap | Profile letter |', '|---|---|---|---|');
   for (const [k, v] of Object.entries(c.FACT_SOURCES)) L.push(`| \`${k}\` | ${v.base} | ${v.cap} | ${v.letter} |`);
   L.push('', '| Refusal reason | Meaning |', '|---|---|');
@@ -440,6 +451,14 @@ function docs() {
   for (const [n, k] of Object.entries(c.READER_KINDS)) L.push(`| \`${n}\` | ${shape(k.schema)} | ${cell(k.doc)} |`);
   L.push(
     '',
+    '## Skills',
+    '',
+    `Role knowledge the mind reads on demand (\`th skill <name>\`, the briefing's section 8): one file per app and area at \`mind/skills/<name>.md\`, at most ${c.SKILL_LIMITS.chars} characters, with the headings ${c.SKILL_HEADINGS.map((h) => `"${h}"`).join(', ')} in that order.`,
+    '',
+    c.SKILLS.map((s) => `\`${s}\``).join(' · '),
+  );
+  L.push(
+    '',
     '## Watchdogs',
     '',
     `Each 15-minute tick runs every built watchdog; a trip writes one ledger note and, for one that wakes, wakes \`mind-reflex\` (at most ${c.WATCHDOG_LIMITS.reflex_wakes_per_day} in any 24 hours); \`th reflex\` prints what to do (OPERATIONS.md §8.2).`,
@@ -451,6 +470,18 @@ function docs() {
     L.push(
       `| \`${n}\` | ${cell(w.trips)} | ${w.severity} | ${cell(w.slo)} | ${w.wakes ? 'yes' : 'no'} | ${w.phase} | ${w.deferred ? `waits for ${cell(w.deferred)}` : c.BUILT_PHASES.includes(w.phase) ? 'built' : 'later'} |`,
     );
+  L.push(
+    '',
+    '## Watches',
+    '',
+    `The day pulse (RUNTIME.md §3): \`watch.set\` stores a condition (${c.WATCH_KINDS.map((k) => `\`${k}\``).join(', ')}) that, met once, wakes the chat with its why and note, within the owner's wake budget (\`mind.wake_budget\`). At most ${c.WATCH_LIMITS.live} wait at once; an \`at\` watch is at most ${c.WATCH_LIMITS.ahead_days} days ahead, and an event or change watch lapses unmet after as long; a met watch that cannot wake the mind yet waits ${c.WATCH_LIMITS.queued_hours} hours. States: ${c.WATCH_STATES.map((k) => `\`${k}\``).join(' · ')}. The meter counts wakes by cause: ${c.WAKE_CAUSES.map((k) => `\`${k}\``).join(' · ')}.`,
+    '',
+    '| Event watch (beside every sense type) | When |',
+    '|---|---|',
+  );
+  for (const [n, d] of Object.entries(c.WORKER_EVENTS)) L.push(`| \`${n}\` | ${cell(d)} |`);
+  L.push('', '| Change watch | Met when |', '|---|---|');
+  for (const [n, d] of Object.entries(c.WATCH_CHANGES)) L.push(`| \`${n}\` | ${cell(d)} |`);
   L.push('', '## Error codes', '', '| Code | Status | Message |', '|---|---|---|');
   for (const [code, [status, message]] of Object.entries(c.CODES)) L.push(`| \`${code}\` | ${status} | ${cell(message)} |`);
   L.push('', '## Phrase lint', '', BANNED_PHRASES.map((p) => `"${p}"`).join(' · '), '');

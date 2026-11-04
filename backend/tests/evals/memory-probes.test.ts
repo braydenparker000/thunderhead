@@ -71,7 +71,7 @@ describe('memory probes on the synthetic seed', () => {
   it.each(probes.probes)('$id ($cat): $query', async (p) => {
     const hits = await recall(p.query);
     // What a fresh session has for this question: the fact hits and the profile.
-    const known = fold([...hits.map((h) => h.snippet.replace(/[«»]/g, '')), section(full, 8)].join('\n'));
+    const known = fold([...hits.map((h) => h.snippet.replace(/[«»]/g, '')), section(full, 9)].join('\n'));
     for (const k of p.forbidden_keys) expect(known, `${p.id} must not surface "${k}"`).not.toContain(fold(k));
     if (p.cat === 'E') expect(hits, `${p.id}: nothing to recall`).toEqual([]);
     else {
@@ -80,13 +80,13 @@ describe('memory probes on the synthetic seed', () => {
     }
   });
 
-  it.each(probes.rules)('$id: the standing rule is in core section 3', (r) => {
-    for (const k of r.expected_keys) expect(section(core, 3)).toContain(k);
+  it.each(probes.rules)('$id: the standing rule is in core section 4', (r) => {
+    for (const k of r.expected_keys) expect(section(core, 4)).toContain(k);
   });
 
   it('a forgotten fact is in no briefing section and no fact search', async () => {
     for (const words of probes.forgotten) {
-      for (const n of [3, 4, 8, 9]) expect(fold(section(full, n))).not.toContain(fold(words));
+      for (const n of [2, 4, 9, 10, 11]) expect(fold(section(full, n))).not.toContain(fold(words));
       expect(await recall(words)).toEqual([]);
     }
   });

@@ -4,15 +4,17 @@
 // signed-in phone), its class and the owner's position for it now, and its one line. The positions
 // come from the section's own `mind.permit.<class>: <position>` lines, so it reads no row. Verbs
 // only the owner taps, or only an undo queues, are left out; one line after the legend says how to
-// schedule a verb and run a plan. Pure.
+// schedule a verb and run a plan. Section 2 (the first 2,000 characters) carries the positions in
+// one line (verbSummary). Pure.
 
 import type { MindRole } from '../../../../shared/contract/api';
-import { PERMIT_FLOORS } from '../../../../shared/contract/permits.ts';
+import { PERMIT_CLASSES, PERMIT_FLOORS } from '../../../../shared/contract/permits.ts';
 import { PLAN_LIMITS, SCHEDULE_LIMITS } from '../../../../shared/contract/schedules.ts';
 import { VERBS, type VerbSpec } from '../../../../shared/contract/verbs.ts';
 
-/** The table's characters at most (the full briefing's section 13 holds it beside the settings). */
-export const VERBS_MAX = 2_000;
+/** The table's characters at most (the full briefing's section 13 holds it beside the settings).
+ * (2026-11-03, watches) 2,000 → 2,400: the later-and-plans line and the two watch verbs (+271). */
+export const VERBS_MAX = 2_400;
 
 export const VERBS_LEGEND =
   'Verbs (th verb <name> \'<args>\' --why "…"; th help lists their args): name · runs on · class: position now · what. worker = done before your reply ends; app = waits for that app to open (say so); phone = the next signed-in phone. Undo: th undo <ledger_id>.';
@@ -38,7 +40,10 @@ function positions(settings: readonly string[]): Map<string, string> {
 
 function line(name: string, v: VerbSpec, at: Map<string, string>): string {
   const runs = v.side === 'worker' ? 'worker' : v.intent ? `app (${v.app})` : 'phone';
-  let permit = "no class (the owner's own words only)";
+  // No class: the owner's own words (memory.note), or the mind's own bookkeeping (the watches).
+  let permit = name.startsWith('watch.')
+    ? 'no class (yours, within the wake budget)'
+    : "no class (the owner's own words only)";
   if (v.permit !== null) {
     const now = v.floor ? `ask (${PERMIT_FLOORS[v.floor]})` : (at.get(v.permit) ?? 'unknown');
     permit = `${v.permit}: ${v.tell_min && now === 'quiet' ? 'tell (never quiet)' : now}`;
@@ -59,7 +64,15 @@ export function verbTable(settings: readonly string[]): string {
   return out.trimEnd();
 }
 
-// Section 7's delegation line (RUNTIME.md §6.6): which subagents the role may hand work to.
+/** Section 2's line: each class's position now, in Settings' order (not `outside`: keeping an
+ * outside fact is the owner's tap whatever it says), the floors that always ask, and the table. */
+export function verbSummary(settings: readonly string[]): string {
+  const at = positions(settings);
+  const now = PERMIT_CLASSES.filter((c) => c !== 'outside').map((c) => `${c} ${at.get(c) ?? 'unknown'}`);
+  return `Verbs by class, the owner's positions now: ${now.join(' · ')}; ${Object.values(PERMIT_FLOORS).join(', ')}: always ask. Each verb: th brief --section 13.`;
+}
+
+// Section 8's delegation line (RUNTIME.md §6.6): which subagents the role may hand work to.
 const DELEGATE_ALL =
   'Delegate (Agent): reader for outside text · researcher for long reads · night-step for mechanical steps · coder for agreed code';
 export const DELEGATE: Record<MindRole, string> = {

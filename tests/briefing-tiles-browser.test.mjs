@@ -11,6 +11,12 @@ import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
 import { briefingState, calendarTile } from './fixtures/mock-briefing.mjs';
+import { resting, until } from './fixtures/waits.mjs';
+/** The Briefing in view and at rest (home.js go(): it stops being inert, then the springs settle). */
+const briefRest = async (page) => {
+  await page.waitForFunction(() => !document.querySelector('#brief').inert);
+  await resting(page);
+};
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -60,14 +66,14 @@ test('night tiles: in order, halves paired, a big number, a wide note, a tap ope
     ['tile wide night', 'Note', null, 'Bring the umbrella'],
   ]);
   assert.equal(await page.locator('#brief .tile.night', { hasText: 'Note' }).evaluate((t) => t.tagName), 'DIV');
-  await page.waitForTimeout(600);
+  await briefRest(page);
   await page.locator('#brief .tile.night', { hasText: 'Study' }).click();
   await page.waitForURL(/\/study\/\?book=b1&p=212$/);
   assert.deepEqual(errors.filter((e) => !/study|pdf/i.test(e)), []);
   // The tap acted on the night's arrangement (M-16): its ledger row, sent from Study with its own
   // opening (Study's own data isn't mocked here).
   const sent = () => api.calls.filter((c) => c.call.startsWith('PUT /v1/senses/batches/')).flatMap((c) => c.body.events);
-  for (let i = 0; i < 50 && sent().length < 2; i++) await page.waitForTimeout(100);
+  await until(() => sent().length >= 2).catch(() => {});
   assert.deepEqual(sent().map((e) => [e.type, e.ref ?? null]).sort(), [['briefing.tile', 'ledger:0192f0c4-0000-7000-8000-00000000c0de'], ['study.open', null]]);
   await context.close();
 });
@@ -127,13 +133,13 @@ test('the Worker’s own tiles: the day’s line, Due with its sheet, Holidays, 
   assert.ok(await page.evaluate(() => [...document.querySelectorAll('#brief .grid > .tile')].every((t) => t.getBoundingClientRect().right <= innerWidth)));
   if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/briefing-worker-tiles.png` });
   // Due opens its list: today's then tomorrow's, each with its time and words.
-  await page.waitForTimeout(600);
+  await briefRest(page);
   await page.locator('#brief .tile.due').click();
   const sheet = page.locator('.dsheet');
   await sheet.waitFor();
   assert.deepEqual(await sheet.locator('.dday').allTextContents(), ['Today', 'Tomorrow']);
   assert.deepEqual(await sheet.locator('.dlist li').allTextContents(), ['14:30Call the plumber', '18:00Pick up the parcel', '09:00Water the plants']);
-  if (process.env.SHOTS) await page.waitForTimeout(600).then(() => page.screenshot({ path: `${process.env.SHOTS}/briefing-due-sheet.png` }));
+  if (process.env.SHOTS) await resting(page).then(() => page.screenshot({ path: `${process.env.SHOTS}/briefing-due-sheet.png` }));
   await page.keyboard.press('Escape');
   await sheet.waitFor({ state: 'detached' });
   assert.deepEqual(errors, []);

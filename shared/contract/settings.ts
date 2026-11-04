@@ -213,6 +213,9 @@ export const SETTINGS = [
     detail: 'As needed: when it helps you. Quiet: a line and a card a day at most. Silent: only when you ask; reminders still ring.' },
   { ...MIND, section: 'Reaching you', key: 'mind.ask_outside', label: 'Ask before outside sources', kind: 'switch', default: true,
     detail: 'I ask before I read the web or other outside text for you.' },
+  // The day pulse (watches.ts): how many wakes a day the mind may set itself; the Worker refuses the rest.
+  { ...MIND, section: 'Waking', key: 'mind.wake_budget', label: 'Wakes I set myself', kind: 'range', unit: 'a day', default: 12,
+    options: [{ value: 0, label: 'Off' }, ...stops('a day', 6, 12, 24, 40)], detail: 'A day, to look at something at a time I chose. Your messages never count. Off: none.' },
   { ...PERMIT, key: 'mind.permit.music', label: 'Music', default: 'quiet', detail: 'Playlists, the queue and what plays.' },
   { ...PERMIT, key: 'mind.permit.podcasts', label: 'Podcasts', default: 'quiet', detail: 'Following shows and queueing episodes.' },
   { ...PERMIT, key: 'mind.permit.reminders', label: 'Reminders', default: 'tell', detail: 'Setting, moving and cancelling reminders.' },

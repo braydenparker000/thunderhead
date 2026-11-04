@@ -5,6 +5,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { outlast } from './fixtures/waits.mjs';
 
 let server, browser, base;
 before(async () => {
@@ -58,7 +59,7 @@ test('a new release waits while the ask bar holds text, then applies and drops t
   let reloaded = false;
   page.on('framenavigated', (f) => { if (f === page.mainFrame()) reloaded = true; });
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-  await page.waitForTimeout(6000);
+  await outlast(page, 6000); // a negative read: past the shell's 5 s look, on the page's own timers
   assert.equal(reloaded, false, 'reloaded while typing');
   await page.fill('#q', '');
   await page.$eval('#q', (q) => q.blur());

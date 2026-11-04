@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { outlast } from './fixtures/waits.mjs';
 import { ramp, density } from '../frontend/th/type.js';
 
 const live = Boolean(process.env.SITE_URL);
@@ -297,14 +298,14 @@ test('Frames starts collapsed, records the ring and long tasks, exports the gest
     assert.deepEqual(copied, readout, 'Copy tokens includes the measured gesture');
     await page.getByRole('button', { name: 'Collapse', exact: true }).click();
     await page.mouse.move(200, 180); await page.mouse.down(); await page.mouse.up();
-    await page.waitForTimeout(1300);
+    await outlast(page, 1300); // a negative read: past a sample's length, on the page's own timers
     assert.deepEqual(await page.evaluate(async () => (await import('/lab/feel/panel.js')).frameReadout()), readout, 'the closed sheet records nothing');
     await page.getByRole('button', { name: 'Open feel', exact: true }).click();
     await page.mouse.move(200, 180); await page.mouse.down();
     await page.waitForFunction(() => document.querySelector('#feel-frame-readout').dataset.recording === 'true');
     await page.getByRole('button', { name: 'Collapse', exact: true }).evaluate(node => node.click());
     const stopped = await page.evaluate(async () => (await import('/lab/feel/panel.js')).frameReadout());
-    await page.mouse.up(); await page.waitForTimeout(1300);
+    await page.mouse.up(); await outlast(page, 1300); // a negative read, as above
     assert.deepEqual(await page.evaluate(async () => (await import('/lab/feel/panel.js')).frameReadout()), stopped, 'closing cancels an in-flight sample');
     assert.equal(await page.locator('#feel-frame-readout').getAttribute('data-recording'), 'false');
     assert.deepEqual(errors, []);

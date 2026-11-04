@@ -1,4 +1,4 @@
-# Every push to main: job `test` runs every check once, in four parallel parts (checks.yml). Then
+# Every push to main: job `test` runs every check once, in five parallel jobs (checks.yml). Then
 # job `api` deploys the Worker thunderhead-api when backend/, shared/ or the lockfile changed since
 # the live tag (off until WORKER_DEPLOY_ENABLED=true), smoke-checks it and runs `wrangler rollback`
 # on failure. Then job `site` publishes the site to the Azure Storage static website and checks it

@@ -7,8 +7,8 @@
 // and exports in core-backups.ts, Muse's work orders and the Briefing in core-work.ts, the predictions (P9) in
 // core-predictions.ts, the reminders in core-reminders.ts, the phone's reports in core-reports.ts, Podcasts'
 // positions and follows in core-podcasts.ts, reading threads, off the record, Delete, Restore and the prune
-// pass in core-held.ts, and the verbs, plans and scheduled actions in core-verbs.ts. The alarm also runs the
-// chunked jobs (areas/jobs).
+// pass in core-held.ts, the verbs, plans and scheduled actions in core-verbs.ts, and the watches (the day pulse)
+// under them all, in core-watches.ts. The alarm also runs the chunked jobs (areas/jobs).
 import type {
   BriefRequest,
   JsonObject,
@@ -33,13 +33,15 @@ import * as ledger from '../areas/ledger/ops';
 import { type LedgerFilter, page as ledgerPage } from '../areas/ledger/store';
 import { assemble } from '../areas/mind/assemble';
 import { type FireResult, fire, fireConfig } from '../areas/mind/fire';
-import { nightWake } from '../areas/mind/night';
+import { nightDayOf, nightWake } from '../areas/mind/night';
 import * as mind from '../areas/mind/ops';
 import * as stop from '../areas/mind/stop';
 import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
+import { onClaim } from '../areas/mind/watches/pulse';
 import { listenApplyJob, listenPackJob, listenRejectJob } from '../areas/music/listen-jobs';
 import { lawsAtClaim, settle as settleProposals } from '../areas/proposals/ops';
+import type { BriefReports } from '../areas/senses/brief';
 import * as surfaces from '../areas/surfaces/ops';
 import { list as listSurfaces } from '../areas/surfaces/store';
 import { dropUnasked } from '../areas/verbs/follow';
@@ -47,8 +49,10 @@ import * as verbs from '../areas/verbs/ops';
 import * as placed from '../areas/work/placed';
 import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
+import { dayBefore } from '../lib/time';
 import type { Caller } from './caller';
 import { CoreVerbs } from './core-verbs';
+import { sensesObject } from './senses';
 
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
 const JOB_HANDLERS: Record<string, JobHandler> = {
@@ -109,13 +113,16 @@ export class Core extends CoreVerbs {
     return f;
   }
 
-  brief(_c: Caller, r: BriefRequest) {
+  async brief(_c: Caller, r: BriefRequest) {
+    const reports = await this.briefReports(r.role);
     return attempt(() => {
       // The claim also checks the session's laws file against the pin (a card when it differs).
       const claimed = r.claim
         ? this.write((w) => {
             const out = mind.claim(w, r, this.tz());
             lawsAtClaim(w, r.constitution_sha256, this.tz());
+            // The chat takes the watches that woke it, and the queue the night or a backoff held.
+            if (r.role === 'chat' && out.wake) onClaim(w, r.session_id, out.wake.id);
             return out;
           }).wake
         : null;
@@ -127,11 +134,24 @@ export class Core extends CoreVerbs {
         offRecordSeen: () => {
           offRecord = true;
         },
+        reports,
       });
       // A briefing that hands out a message off the record marks the session: it writes no memory.
       if (offRecord) this.markOffRecord(r.session_id, r.role);
       return out;
     });
+  }
+
+  /** What the briefing reads of the phone's reports (areas/senses/brief.ts): the day's song events
+   * and the rollups that say how its arrangements were met. Reflex and the sandbox read none; a
+   * Senses object that can't answer leaves them out (the briefing says "not known"). */
+  private async briefReports(role: BriefRequest['role']): Promise<BriefReports | null> {
+    if (role === 'reflex' || this.sandboxed) return null;
+    const open = day.currentDay(this.db, this.tz(), Date.now());
+    const on = role === 'night' ? nightDayOf(open) : open;
+    return sensesObject(this.env)
+      .briefReports({ day: open, from: on, to: dayBefore(on, -1), music: role === 'chat' })
+      .catch(() => null);
   }
 
   mindStatus(c: Caller, r: MindStatusRequest): { typing: boolean; stop: boolean } {
@@ -178,7 +198,7 @@ export class Core extends CoreVerbs {
   }
 
   /** Wake retries, give-ups, requeues (RUNTIME.md §4.4–4.5), then due reminders (after any wake) and
-   * scheduled verbs, then jobs. */
+   * scheduled verbs, then jobs, then watches. */
   override async alarm(): Promise<void> {
     this.alarmAt = null;
     const fires = this.write((w) => wake.onAlarm(w, this.configured(), this.tz()));
@@ -187,6 +207,8 @@ export class Core extends CoreVerbs {
     await this.deliverReminders(Date.now());
     this.fireVerbs(Date.now());
     await runJobs({ env: this.env, db: this.db, write: (fn, at) => this.write(fn, at) }, JOB_HANDLERS);
+    // Only while a watch waits: an alarm with none does no more than before.
+    if (this.watchesWaiting()) await this.watchesTick(Date.now());
     this.schedule();
   }
 
@@ -197,7 +219,7 @@ export class Core extends CoreVerbs {
   async tick(
     now = Date.now(),
     fetchImpl: typeof fetch = fetch,
-  ): Promise<{ rolled: string | null; pruned: number; night: string | null; reflex: string | null }> {
+  ): Promise<Record<'rolled' | 'night' | 'reflex' | 'watch', string | null> & { pruned: number }> {
     const tz = this.tz();
     const d = day.currentDay(this.db, tz, now);
     const due = day.rollDue(d, now, tz, this.lastSpokeAt(cstore.dailyThread(this.db, d)?.id ?? null));
@@ -230,7 +252,8 @@ export class Core extends CoreVerbs {
     await this.predictionsTick(now, tz, due ?? d);
     await this.deliverReminders(now);
     this.fireVerbs(now);
-    return { rolled: due, pruned, night: wakeNight?.id ?? null, reflex };
+    const watch = await this.watchesTick(now, fetchImpl);
+    return { rolled: due, pruned, night: wakeNight?.id ?? null, reflex, watch };
   }
 
   // --- the ledger, verbs and surfaces ------------------------------------------------------------

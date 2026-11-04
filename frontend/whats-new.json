@@ -1,9 +1,15 @@
 {
-  "id": "2026-11-03-plans",
+  "id": "2026-11-03-watches",
   "date": "2026-11-03",
   "lines": [
     {
       "text": "Ask for things later, like “at six, queue the drive mix”. Several at once come as one line, with one Undo."
+    },
+    {
+      "text": "The mind can now wake itself to look at something at a time it chose, like setting up the evening drive."
+    },
+    {
+      "text": "Settings › The mind shows today's count at the top, and how many such wakes a day it may set (12 unless you change it)."
     }
   ]
 }

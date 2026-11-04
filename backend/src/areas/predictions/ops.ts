@@ -119,6 +119,8 @@ export function resolve(w: Writer, open: string, tz: string, sensed: Map<string,
       w.at,
       r.id,
     );
+    // A watch on a prediction's resolution (areas/mind/watches) hears it on the change feed.
+    w.change('prediction', `prediction:${r.id}`);
     n++;
   }
   return n;
@@ -128,6 +130,17 @@ export function list(db: Db, open: boolean, limit: number): Prediction[] {
   return db
     .all<Row>(
       `SELECT ${COLS} FROM predictions ${open ? 'WHERE resolved_at IS NULL' : ''} ORDER BY made_at DESC LIMIT ?`,
+      limit,
+    )
+    .map(shown);
+}
+
+/** The open predictions about one day, oldest made first (the briefing's section 7), by the open index. */
+export function dueOn(db: Db, day: string, limit: number): Prediction[] {
+  return db
+    .all<Row>(
+      `SELECT ${COLS} FROM predictions WHERE resolved_at IS NULL AND day = ? ORDER BY made_at LIMIT ?`,
+      day,
       limit,
     )
     .map(shown);

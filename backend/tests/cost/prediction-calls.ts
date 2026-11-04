@@ -41,6 +41,9 @@ export async function predictionCalls(cost: Cost, grant: (ip: string, password?:
   await cost('GET /v1/predictions (Core)', () => api('GET', '/v1/predictions?open=1', d), 200, core());
   await cost('GET /v1/predictions/skill (Core)', () => api('GET', '/v1/predictions/skill', d), 200, core());
   await cost('GET /v1/insight (Core)', () => api('GET', '/v1/insight', d), 200, core());
+  // The day pulse's list and the usage meter (areas/mind/watches): about 8 days of rows by time index.
+  await cost('GET /v1/mind/watches (Core)', () => api('GET', '/v1/mind/watches', d), 200, core());
+  await cost('GET /v1/mind/usage (Core)', () => api('GET', '/v1/mind/usage', d), 200, core());
   // What lands: the pass over 30 days of arrangements, which keeps each topic's counts.
   await cost('GET /v1/insight/topics (Core)', () => api('GET', '/v1/insight/topics', d), 200, core());
   await cost('GET /v1/predictions/calibration (Core)', () => api('GET', '/v1/predictions/calibration', d), 200, core());

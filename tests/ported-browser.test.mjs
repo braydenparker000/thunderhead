@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { outlast } from './fixtures/waits.mjs';
 
 const PAGES = ['/music/', '/guitar/', '/guitar/credits.html', '/podcasts/', '/astra/', '/astra/lab/', '/media/'];
 let server, browser, base;
@@ -31,7 +32,7 @@ for (const path of PAGES) {
     await page.route('**/assets/drive-config.json', route => route.fulfill({ contentType: 'application/json', body: '{"apiKey":"","folderId":"","videoFolderId":""}' }));
     await page.goto(base + path, { waitUntil: 'load' });
     await page.waitForLoadState('networkidle').catch(() => {});
-    await page.waitForTimeout(800);
+    await outlast(page, 800); // a negative read (no missing file, no error): the apps' own idle loads, on their timers
     if (process.env.SHOTS) await page.screenshot({ path: join(process.env.SHOTS, `${path.replace(/\W+/g, '-').replace(/^-|-$/g, '') || 'home'}.png`) });
     assert.deepEqual(missing, [], `${path} asked for files the site does not have`);
     assert.deepEqual(errors, [], `${path} had errors`);

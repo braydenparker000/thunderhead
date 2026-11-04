@@ -16,7 +16,7 @@ import {
   worstFirst,
 } from '../../src/areas/insight/lands';
 import { arrangements, type Rollup } from '../../src/areas/insight/meter';
-import { landsLines, landsRow, learnTail, oddsLine, speechLine } from '../../src/areas/mind/brief-learn';
+import { landsLines, landsRow, oddsLine, speechLine } from '../../src/areas/mind/brief-learn';
 import { DAY, HOUR } from '../../src/lib/time';
 
 const NOW = Date.UTC(2026, 10, 20, 12);
@@ -193,13 +193,6 @@ describe('the briefing’s lines', () => {
     // Nothing placed and nothing settled: no lines at all.
     expect(landsLines([], [])).toEqual([]);
     expect(oddsLine([])).toBeNull();
-  });
-  it('the tail keeps whole lines within its budget and says where the rest is', () => {
-    const long = Array.from({ length: 40 }, (_, i) => `row ${i} ${'x'.repeat(60)}`);
-    const tail = learnTail('speech: as needed', long);
-    expect(tail.startsWith('\nspeech: as needed\nrow 0')).toBe(true);
-    expect(tail.length).toBeLessThanOrEqual(1_400);
-    expect(tail).toMatch(/\(\+\d+ more: th surface topics\)$/);
   });
 });
 

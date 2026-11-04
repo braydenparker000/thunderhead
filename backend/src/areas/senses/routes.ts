@@ -19,7 +19,7 @@ import { inSandbox } from '../../http/sandbox';
 import { json } from '../../http/validate';
 import { coreObject } from '../../objects/core';
 import { musicObject } from '../../objects/music';
-import { fresh } from '../../objects/rpc';
+import { fresh, missingMethod } from '../../objects/rpc';
 import { sensesObject } from '../../objects/senses';
 import { sha256 } from '../import/vault';
 import { SONG_ID } from '../music/shapes';
@@ -68,6 +68,22 @@ function ratingsOf(events: unknown[], now: number, off: SenseApp[]): { id: strin
   });
 }
 
+/** What a watch on an event may see of the batch (areas/mind/watches): each type with its ref (none
+ * for a sensitive one, whose ref never reaches an agent) and its time, once each, checked as the
+ * Senses object checks them; an app switched off sends none. */
+function seenOf(events: unknown[], now: number, off: SenseApp[]): { type: string; ref: string | null; at: number }[] {
+  const seen = new Map<string, { type: string; ref: string | null; at: number }>();
+  for (const e of events) {
+    const c = checkEvent(e as SenseEvent, now);
+    if (typeof c === 'string' || off.includes(c.switch)) continue;
+    const ref = c.sensitivity === 0 ? c.ref : null;
+    const at = Math.min(c.at, now);
+    const had = seen.get(`${c.type}|${ref}`);
+    if (!had || had.at < at) seen.set(`${c.type}|${ref}`, { type: c.type, ref, at });
+  }
+  return [...seen.values()];
+}
+
 /** The owner's zone (Core's private setting) and the apps whose senses they switched off
  * (`privacy.senses.<app>` false; on by default), kept a minute in this isolate. */
 async function ownerOf(env: Env): Promise<{ tz: string; off: SenseApp[] }> {
@@ -113,6 +129,15 @@ export const sensesRoutes = new Hono<AppEnv>()
     // retry of the sealed batch hands them over then.
     const rated = ratingsOf(events, Date.now(), off);
     if (rated.length) await fresh(musicObject(c.env).putRatings(rated));
+    // The live event watches these meet (one Core call; none read a row unless a type is watched). A
+    // Core of the release before lacks the call for a moment during a deploy: those go unwatched.
+    const seen = seenOf(events, Date.now(), off);
+    if (seen.length)
+      try {
+        await coreObject(c.env).watchEvents(seen);
+      } catch (e) {
+        if (!missingMethod(e)) throw e;
+      }
     return c.json(r satisfies SenseBatchResponse);
   })
   .post('/senses/query', guard('POST /v1/senses/query'), async (c) => {

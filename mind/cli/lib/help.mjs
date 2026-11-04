@@ -7,6 +7,7 @@ import {EXIT} from './io.mjs';
 /** One line per command: usage, then what it does. The table in RUNTIME.md §5.3 has the details. */
 export const USAGE = {
   brief: ['[--claim] [--full] [--section <n|name>] [--json]', 'the briefing (core on stdout; --claim binds the wake)'],
+  skill: ['[<name>]', `how an app or area works, read before you act in it: what it is, what you can read and do there, what you must not do (mind/skills/<name>.md); no name lists them: ${CONTRACT.skills.names.join(', ')}`],
   wait: ['[--minutes 24] [--after <seq>]', 'listen: exit 0 messages/events · 3 timeout · 4 Stop · 5 day closed'],
   say: ['today|system [--reply-to <id>] [--kind text|progress|card|question|error] [--meta <json>] <text|->', 'post to today\'s thread (night/reflex: --kind error to system). The phone shows Markdown: ### headings, - and 1. lists, > quotes, **bold**, *italic*, `code`, | tables |. When a picture says it better, --meta {"blocks":[…]} adds up to 4 blocks under the words: stats {items:[{label,value,change?,direction?}]}, chart {kind:line|column|bar,text,labels,series:[{name,values}],unit?}, timeline {items:[{date,label,text}]}, comparison {items:[{label,text}]}, agenda {items:[{at,label,place?}]}, explanation {steps:[…]}, callout {kind:context|watch,text}. To ask the owner to pick one, a choice block {"type":"choice","options":["Calm","Upbeat"]} (2 to 4 options, ≤ 40 characters each) shows them as taps under the reply; the tapped option comes back as the owner\'s own message, its reply_to this one (follow-ups don\'t show beside it). --meta {"followups":["Play it now","Make it longer"]} offers up to 2 short next asks (≤ 40 characters) as taps under the reply; the owner\'s tap comes back as their message, its reply_to this one'],
   amend: ['<message id> [--meta <json>] [--body <text|->]', 'change your own post (keeps a card current)'],
@@ -35,6 +36,7 @@ export const USAGE = {
   help: ['[command]', 'this text'],
   file: ['<id|file:id> [--out <path>]', 'save an attachment from the Worker to $TMPDIR/th/files/<id>.<ext>; prints path, type, name and a voice memo\'s words (text)'],
   remind: ['<when> <text|-> --from <owner message id> [--proposal <id>] | list | cancel <id> [--from <owner message id>]', 'a reminder the owner asked for in that message (sent in the last 48 h, at most 3 from one, 5 from you a day): <when> is an ISO time with its offset or +90m, +2h, +1d; delivered once at that time as a line and a push, a time in quiet hours moved to their end (shifted: true says so in the reply). Cancel one the owner set on the phone only with --from naming the message that asked'],
+  watch: ['set at <when> | set event <type> [--ref <ref>] | set change <work|verb|proposal|prediction> [--ref <ref>] --why <8–200> [--note <≤140>] | cancel <id> | list', `the day pulse: a condition that, met once, wakes you with its why and note (a live session hears it in th wait), within the owner's wake budget (mind.wake_budget a day; the rest are refused and your briefing counts them). <when> as th remind, at most ${CONTRACT.watches.limits.ahead_days} days ahead; an event is a sense type or reminder.fired; a change is met when its thing settles. At most ${CONTRACT.watches.limits.live} wait; each fires once. A watch wake speaks only by the voice ladder`],
   // Later phases: the commands exist so the procedure never changes; the Worker answers when its
   // phase is built, and until then th exits 8 not_built.
   remember: ['--kind <k> --text <t> --evidence <ids> [--subject] [--sensitivity 0|1] [--source]', 'add a fact; prints its provenance: owner, observed, or outside after outside text (it waits for the owner\'s keep; never a rule)'],
@@ -73,7 +75,7 @@ export function helpText(command, role = process.env.TH_ROLE || '') {
     const ver = Math.max(...Object.keys(v.versions).map(Number));
     const args = Object.keys(v.versions[ver].args.properties || {}).join(', ');
     const runs = v.side === 'worker' ? 'worker' : v.intent ? `app ${v.app}` : 'phone';
-    const cls = v.permit === null ? 'no class: the owner\'s words' : `${v.permit}${v.floor ? ` (floor ${v.floor})` : ''}${v.tell_min ? ', never below tell' : ''}`;
+    const cls = v.permit === null ? (name.startsWith('watch.') ? 'no class: your own, within the wake budget' : 'no class: the owner\'s words') : `${v.permit}${v.floor ? ` (floor ${v.floor})` : ''}${v.tell_min ? ', never below tell' : ''}`;
     lines.push(`  ${name} v${ver} {${args}} [${runs} · ${cls} · undo ${v.undo}]${v.queueable ? '' : ' (not yours to queue: an owner tap or an undo)'}: ${v.doc}`);
   }
   const permits = CONTRACT.permits;

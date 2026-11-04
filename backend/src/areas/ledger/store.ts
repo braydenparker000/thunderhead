@@ -241,6 +241,26 @@ export function meterRows(db: Db, from: number) {
   };
 }
 
+/** The arrangements the mind placed between `from` and `to`, oldest first (the briefing's section 7,
+ * with the meter's columns and the words: what and why), at most `limit`, by the time index. */
+export function arrangedBetween(db: Db, from: number, to: number, limit: number) {
+  return db.all<{
+    id: string;
+    at: number;
+    ref: string | null;
+    undone_at: number | null;
+    line: number;
+    what: string;
+    why: string | null;
+  }>(
+    `SELECT id, at, ref, undone_at, what LIKE 'home/line.%' AS line, what, why FROM ledger
+      WHERE at >= ? AND at < ? AND kind = 'arrangement' AND actor LIKE 'mind:%' AND what LIKE '%←%' ORDER BY at, seq LIMIT ?`,
+    from,
+    to,
+    limit,
+  );
+}
+
 /** The mind's arrangements since `from` that name a topic, oldest first, with where each went
  * (`home/line.2 ← line`: `home`), by the ledger's time index. At most 2,000 (8 a day is ~240). */
 export function topicArrangements(db: Db, from: number) {

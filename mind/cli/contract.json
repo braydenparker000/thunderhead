@@ -423,6 +423,28 @@
       "phase": "P2",
       "status": "built"
     },
+    "GET /v1/mind/watches": {
+      "who": [
+        "D",
+        "C",
+        "N",
+        "R"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "the day pulse: waiting watches, the last day's others, the wake budget"
+    },
+    "GET /v1/mind/usage": {
+      "who": [
+        "D",
+        "C",
+        "N",
+        "R"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "the meter: wakes by cause, minutes awake, night minutes, watches (today, 7 days)"
+    },
     "POST /v1/mind/brief": {
       "who": [
         "C",
@@ -2733,6 +2755,183 @@
         }
       }
     },
+    "watch.set": {
+      "app": "shell",
+      "class": "reversible",
+      "permit": null,
+      "side": "worker",
+      "queueable": true,
+      "undo": "stored",
+      "doc": "Sets a watch: `at` (a time, at most 7 days ahead), `event` (a sense type or `reminder.fired`, optionally its ref) or `change` (`work`, `verb`, `proposal` or `prediction`, met when it settles; optionally its ref). Met once, it wakes the chat with its why and note (a live session hears it in `th wait`), within the wake budget; at most 20 wait at once. From a claimed session that was handed nothing off the record. Its undo cancels it.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "at",
+                  "event",
+                  "change"
+                ]
+              },
+              "at": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "player.open",
+                  "music.play",
+                  "music.skip",
+                  "music.finish",
+                  "music.rate",
+                  "podcasts.open",
+                  "podcast.play",
+                  "podcast.finish",
+                  "podcast.skip",
+                  "podcast.follow",
+                  "podcast.unfollow",
+                  "guitar.open",
+                  "guitar.piece_opened",
+                  "guitar.pass",
+                  "guitar.bpm",
+                  "guitar.session",
+                  "study.open",
+                  "study.read",
+                  "study.search",
+                  "study.highlight",
+                  "astra.open",
+                  "mymedia.open",
+                  "media.watch",
+                  "media.finish",
+                  "media.drop",
+                  "app.open",
+                  "app.close",
+                  "ring.choice",
+                  "island.tap",
+                  "briefing.open",
+                  "settings.change",
+                  "briefing.tile",
+                  "line.seen",
+                  "line.dismiss",
+                  "card.decide",
+                  "reply.open_chip",
+                  "reminder.fired",
+                  "work",
+                  "verb",
+                  "proposal",
+                  "prediction"
+                ]
+              },
+              "ref": {
+                "type": "string",
+                "maxLength": 200,
+                "pattern": "^[a-z][a-z0-9]{1,15}:[A-Za-z0-9._:/-]{1,160}(#[A-Za-z0-9._:-]{1,64})?$"
+              },
+              "why": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 200
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 140
+              }
+            },
+            "required": [
+              "kind",
+              "why"
+            ],
+            "additionalProperties": false
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "watch_id": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "live",
+                  "queued",
+                  "fired",
+                  "over_budget",
+                  "cancelled",
+                  "expired"
+                ]
+              },
+              "until": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "watch_id",
+              "state",
+              "until"
+            ]
+          }
+        }
+      }
+    },
+    "watch.cancel": {
+      "app": "shell",
+      "class": "reversible",
+      "permit": null,
+      "side": "worker",
+      "queueable": true,
+      "undo": "stored",
+      "doc": "Cancels a live or queued watch. Its undo sets it waiting again while its time has not passed and fewer than 20 wait.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "id"
+            ],
+            "additionalProperties": false
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "watch_id": {
+                "type": "string"
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "live",
+                  "queued",
+                  "fired",
+                  "over_budget",
+                  "cancelled",
+                  "expired"
+                ]
+              },
+              "until": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "watch_id",
+              "state",
+              "until"
+            ]
+          }
+        }
+      }
+    },
     "shell.appearance": {
       "app": "shell",
       "class": "reversible",
@@ -3134,7 +3333,9 @@
     "setting",
     "mind_status",
     "error",
-    "work"
+    "work",
+    "watch",
+    "prediction"
   ],
   "frame_types": [
     "hello",
@@ -3640,6 +3841,32 @@
       "off_record_evidence": "That conversation is off the record: nothing from it becomes memory.",
       "deleted_evidence": "That conversation was deleted: nothing from it becomes memory."
     }
+  },
+  "skills": {
+    "names": [
+      "music",
+      "podcasts",
+      "guitar",
+      "study",
+      "astra",
+      "media",
+      "briefing",
+      "calendar",
+      "memory",
+      "verbs",
+      "muse",
+      "night",
+      "code"
+    ],
+    "limits": {
+      "chars": 2500
+    },
+    "headings": [
+      "What it is",
+      "What you can read",
+      "What you can do",
+      "What you must not do"
+    ]
   },
   "night": {
     "steps": [
@@ -4251,6 +4478,46 @@
         "phase": "P5"
       }
     }
+  },
+  "watches": {
+    "kinds": [
+      "at",
+      "event",
+      "change"
+    ],
+    "limits": {
+      "live": 20,
+      "ahead_days": 7,
+      "why_min": 8,
+      "why_max": 200,
+      "note": 140,
+      "ref": 200,
+      "queued_hours": 12
+    },
+    "states": [
+      "live",
+      "queued",
+      "fired",
+      "over_budget",
+      "cancelled",
+      "expired"
+    ],
+    "worker_events": {
+      "reminder.fired": "A reminder rings (ref: reminder:<id>)."
+    },
+    "changes": {
+      "work": "A work order ends: done, failed, rejected, expired or cancelled (ref: work:<id>).",
+      "verb": "A verb's result comes back, done or failed (ref: verb:<id>); never a watch verb's own.",
+      "proposal": "A decision card is answered or lapses (ref: proposal:<id>).",
+      "prediction": "A prediction resolves (ref: prediction:<id>)."
+    },
+    "wake_causes": [
+      "owner",
+      "watch",
+      "roll",
+      "schedule",
+      "watchdog"
+    ]
   },
   "reader": {
     "limits": {

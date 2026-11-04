@@ -15,6 +15,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { outlast, resting } from './fixtures/waits.mjs';
 import { T } from './fixtures/mock-threads.mjs';
 
 const live = Boolean(process.env.SITE_URL);
@@ -60,7 +61,7 @@ async function open(chat = {}) {
   return { page, context, errors, api };
 }
 async function eventually(read, want, message) {
-  const end = Date.now() + 5_000;
+  const end = Date.now() + 15_000;
   let got = await read();
   while (!isDeepStrictEqual(got, want) && Date.now() < end) {
     await new Promise((r) => setTimeout(r, 20));
@@ -68,19 +69,26 @@ async function eventually(read, want, message) {
   }
   assert.deepEqual(got, want, message);
 }
-const shot = async (page, name) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}.png` }); };
+/** A screenshot once everything on the page has finished moving (only with SHOTS). */
+const shot = async (page, name) => {
+  if (!SHOTS) return;
+  await resting(page);
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {}))));
+  await page.screenshot({ path: `${SHOTS}/${name}.png` });
+};
 const talk = (page) => page.$$eval('#talk .you, #talk .reply', (els) => els.map((e) => e.textContent.trim()));
 const menu = async (page) => {
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' })));
   await page.waitForSelector('#convos .row.thr');
-  await page.waitForTimeout(450);
+  await page.waitForFunction(() => !document.querySelector('#side').classList.contains('moving'));
+  await resting(page);
 };
-/** Holds a card 600 ms (the hold is 450). */
+/** Holds a card 600 ms (the hold is 450), on the page's own timers so the hold's runs first. */
 async function hold(page, selector) {
-  const box = await (await page.$(selector)).boundingBox();
+  const box = await page.locator(selector).boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.down();
-  await page.waitForTimeout(600);
+  await outlast(page, 600);
   await page.mouse.up();
   await page.waitForSelector('.holdsheet.in');
 }
@@ -90,7 +98,6 @@ test('the + sheet starts one off the record: the marker and the bar say so, it i
   await page.click('#plus');
   await page.waitForSelector('#opts.show');
   assert.equal(await page.textContent('#opts [data-act="otr"]'), 'Off the record');
-  await page.waitForTimeout(400);
   await shot(page, 'otr-sheet');
   await page.click('#opts [data-act="otr"]');
   await page.waitForSelector('#otr');
@@ -149,7 +156,6 @@ test('a held card offers Delete; its sheet asks once in the agreed words; Undo r
   await page.waitForSelector('.csheet.on');
   assert.equal(await page.textContent('.csheet h2'), 'Delete this conversation?');
   assert.equal(await page.textContent('.csheet p'), 'It goes now; you can undo for 30 days in Settings › Recently deleted.');
-  await page.waitForTimeout(300);
   await shot(page, 'delete-sheet');
   await page.click('.csheet .btn.danger');
   await page.waitForSelector(`#convos .row.thr[data-id="${T.yesterday}"]`, { state: 'detached' });
@@ -166,7 +172,6 @@ test("Now's card held offers Delete alone; deleting today empties home for a fre
   await menu(page);
   await hold(page, '#now');
   assert.deepEqual(await page.$$eval('.holdsheet .csacts button', (b) => b.map((x) => x.textContent)), ['Delete']);
-  await page.waitForTimeout(300);
   await shot(page, 'now-sheet');
   await page.click('.holdsheet .csacts .del');
   await page.waitForSelector('.csheet.on');
@@ -187,7 +192,6 @@ test('Settings › Recently deleted lists them with when they go; Restore brings
   await page.waitForSelector('.sdel');
   assert.equal(await page.textContent('.sdel .t'), 'A calm playlist for the evening');
   assert.match((await page.textContent('.sdel small')).replace(/\u00a0/g, ' '), /^Deleted \d+ \w+ · gone in 30 days · 3 messages$/);
-  await page.waitForTimeout(500);
   await shot(page, 'recently-deleted');
   await page.click('.sdel .btn');
   await page.waitForSelector('.sdel', { state: 'detached' });
@@ -220,8 +224,10 @@ test('the menu tags one off the record and its past view says when it goes; the 
   await page.click('.past button');
   await menu(page);
   await page.click('#search');
+  // Off the record is never found: read once the Worker has answered this query.
+  const answered = page.waitForResponse((r) => new URL(r.url()).pathname === '/v1/search' && new URL(r.url()).searchParams.get('q') === 'heron');
   await page.fill('#side input[type="search"]', 'heron');
-  await page.waitForTimeout(400);
+  await answered;
   const found = await page.$$eval('#side .srow, #side [data-ref]', (r) => r.filter((x) => /heron/i.test(x.textContent)).length);
   assert.equal(found, 0);
   assert.deepEqual(errors, []);

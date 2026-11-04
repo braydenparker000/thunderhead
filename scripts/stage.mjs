@@ -104,7 +104,9 @@ const budgets = [
   // `outside_supersede` and `outside_confirm` in place of `session_tainted` and `no_inferred_sensitive`
   // (MEMORY.md §6 M11).
   // (2026-11-03, schedules) +7 measured (74,428): contract.js's `plan` change kind.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_428],
+  // (2026-11-03, watches) +208 measured (74,636): contract.js's `watch.set` and `watch.cancel` verbs
+  // and the `watch` and `prediction` change kinds.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_636],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -128,7 +130,8 @@ const budgets = [
   // (2026-11-03, schedules) +2,726 measured (111,693): a plan's line on home with its Undo (today's
   // plans from the ledger, read so a failure never holds the chat; their cards, the undo call and
   // its words, and their cache).
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 111_693],
+  // (2026-11-04) +77 measured (111,770): the chat listens for offline before its first sync.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 111_770],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:

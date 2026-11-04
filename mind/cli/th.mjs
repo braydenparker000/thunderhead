@@ -14,6 +14,7 @@ import {fileURLToPath} from 'node:url';
 import {parseArgs} from './lib/args.mjs';
 import {EXIT, invalid, out, printError} from './lib/io.mjs';
 import {brief} from './lib/brief.mjs';
+import {skill} from './lib/skill.mjs';
 import {wait} from './lib/wait.mjs';
 import {helpText} from './lib/help.mjs';
 import * as conv from './lib/conv.mjs';
@@ -23,6 +24,7 @@ import {evalCmd} from './lib/eval.mjs';
 import {read} from './lib/read.mjs';
 import {library} from './lib/library.mjs';
 import {remind} from './lib/remind.mjs';
+import {watch} from './lib/watch.mjs';
 import * as reflexCmds from './lib/reflex.mjs';
 import {ci} from './lib/ci.mjs';
 import {reports} from './lib/reports.mjs';
@@ -35,6 +37,7 @@ const withFlags = (fn, spec) => argv => fn(parseArgs(argv, spec).flags);
 /** @type {Record<string, (argv: string[]) => Promise<number|void>>} */
 export const COMMANDS = {
   brief: withFlags(brief, {bool: ['claim', 'full', 'json']}),
+  skill,
   wait: withFlags(wait),
   say: conv.say, amend: conv.amend, history: conv.history, file: conv.file, status: conv.status,
   title: conv.title, note: conv.note, pending: conv.pending, taint: conv.taint, health: conv.health,
@@ -44,7 +47,7 @@ export const COMMANDS = {
   daynote: memory.daynote, facts: memory.facts,
   propose: act.propose, decide: act.decide, approved: act.approved, verb: act.verb, order: act.order, muse: act.muse, surface: act.surface,
   plan: later.plan, verbs: later.verbs,
-  library, music, remind, podcasts, push: act.push, predict: act.predict, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
+  library, music, remind, watch, podcasts, push: act.push, predict: act.predict, night: act.night, eval: evalCmd, read, reflex: reflexCmds.reflex, handled: reflexCmds.handled, drill: reflexCmds.drill,
   ci: argv => ci(argv),
   help: async argv => { out(helpText(argv[0])); },
 };

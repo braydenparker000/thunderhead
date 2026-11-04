@@ -2,8 +2,8 @@
 // (the owner's position and, while quiet, what today has spent), and the arrangements' short table:
 // what lands per topic over 30 days (worst first, at most 8), the topics that rest (with the one
 // sentence to say once, until it is recorded), and the odds claimed against what happened over 28
-// days. Pure, each its own small function, so a briefing laid out differently takes them as they are;
-// until the briefing has a section for the day's arrangements they close section 1 (learnTail).
+// days. Pure, each its own small function: section 1 takes the speech line (brief-layer.ts), section 7,
+// the day, takes the rest after what was arranged on it (brief-day.ts).
 import { LANDS, SPEECH_QUIET, type SpeechSpent, type TopicLands } from '../../../../shared/contract/lands.ts';
 import type { Calibration } from '../../../../shared/contract/predictions.ts';
 
@@ -54,20 +54,4 @@ export function landsLines(topics: TopicLands[], calibration: Calibration[]): st
     ...(unsaid.length ? [SAY_ONCE(unsaid)] : []),
     ...(odds ? [odds] : []),
   ];
-}
-
-/** The speech line, then the arrangements' lines within 1,400 characters (whole lines, the oldest
- * kept), as section 1's tail: each on its own line after what is above it. */
-export function learnTail(speech: string, lands: string[]): string {
-  const out = [speech.slice(0, 240)];
-  let used = out[0].length;
-  for (const [k, l] of lands.entries()) {
-    if (used + l.length + 1 > 1_340) {
-      out.push(`(+${lands.length - k} more: th surface topics)`);
-      break;
-    }
-    out.push(l);
-    used += l.length + 1;
-  }
-  return `\n${out.join('\n')}`;
 }

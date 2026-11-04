@@ -6,14 +6,14 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 
 ## Rules at a glance
 
-1. **One command:** `npm test` at the repo root runs every offline layer. CI runs the same checks, split into four parallel jobs (§2). Nobody needs to remember a second one.
+1. **One command:** `npm test` at the repo root runs every offline layer. CI runs the same checks, split into five parallel jobs (§2). Nobody needs to remember a second one.
 2. **Tests run on real runtimes:** the backend in real workerd with real SQLite Durable Objects (Vitest + `@cloudflare/vitest-plugin`), and the frontend in real Chromium (Playwright) against a local server that behaves like Azure. No hand-rolled fake storage.
 3. **Phone size is the default size.** Browser tests run at the Galaxy A15's size, plus 390×844 and 360×740.
 4. **Every endpoint has a cost test** that pins rows read, rows written and DO calls.
 5. **Live checks are read-only.** They never send a message, write a row or sign in.
 6. **Fixtures are synthetic.** No real names, places, messages, songs, notes, scripture text or dates tied to the owner. The repo is public.
 7. **Evals with personal data run only inside mind sessions**, never in Actions.
-8. **A flaky test is a bug.** It is fixed or deleted within a day, never retried into green (the one built-in exception is the live check's single retry, which covers network blips).
+8. **A flaky test is a bug.** It is fixed or deleted within a day, never retried into green (the one built-in exception is the live check's single retry, which covers network blips). Browser tests wait for conditions, never for time, and their timing reads are diagnostics on CI (§10.1).
 9. **A release that touches gestures, audio or the service worker isn't done** until the real-device checklist passes on the A15.
 
 ---
@@ -54,7 +54,7 @@ Inventions beyond [decisions.md](../process/decisions.md) are marked **[proposal
 | 13 Evals | — | synthetic, deterministic parts only | — | — | ✓ (Sundays, `mind-night`) | — |
 | 14 Device | — | — | — | — | — | ✓ per §12.2 |
 
-**How CI runs them (built 2026-10-30, owner: "go faster without losing quality").** `ci.yml` (every branch but `main`) and `deploy.yml` (job `test`, before anything goes live) both call `checks.yml`: four jobs at once, the site and mind suites in three parts and the Worker's suite. `scripts/test-part.mjs <k> <n>` deals the test files into parts by size, largest first, each to the part with the fewest bytes so far, so the parts take about as long with no timing table to maintain; `tests/test-part.test.mjs` proves every file runs in exactly one part. Each commit is checked once (the deploy's `api` and `site` jobs no longer re-run the suite), in about two minutes where one job took four and a half (measured 2026-10-30: site and mind 165 s, Worker 95 s, on a 4-vCPU runner).
+**How CI runs them (built 2026-10-30, owner: "go faster without losing quality").** `ci.yml` (every branch but `main`) and `deploy.yml` (job `test`, before anything goes live) both call `checks.yml`: five jobs at once, the site and mind suites in four parts and the Worker's suite (four since 2026-11-03: the heaviest of three ran past two minutes). `scripts/test-part.mjs <k> <n>` deals the test files into parts by how long each took in one measured full run (`scripts/test-durations.json`, rewritten by `node scripts/test-part.mjs --measure`), largest first, each to the part with the least time so far; a file the table doesn't know yet counts by its size at the table's own rate, so a new test needs no re-measure until the parts drift. `tests/test-part.test.mjs` proves every file runs in exactly one of the four parts, that the parts' measured times are within 25 % of each other, and that the table names no file that has gone. Each commit is checked once (the deploy's `api` and `site` jobs no longer re-run the suite), in about two minutes where one job took four and a half (measured 2026-10-30: site and mind 165 s, Worker 95 s, on a 4-vCPU runner).
 
 Time budget: `npm test` ≤ 5 min on a 4-vCPU runner; each CI part ≤ 2 min. A part that grows past it gets another part (raise `n` in `checks.yml`) or its slowest file split. CI's job timeout is 10 minutes.
 
@@ -219,6 +219,15 @@ PITR can't run locally (it isn't supported in local development). It is covered 
 ---
 
 ## 10. Browser tests (layer 10)
+
+### 10.1 Browser tests: waits and timing
+
+Two rules, since 2026-11-03, when a day of deploys failed four times on load races that passed on a re-run:
+
+1. **Wait for conditions, not for time.** A step waits for what it needs: an element or attribute, a key in storage, a call the mock saw, the springs at rest (`whenResting`), the tap guard let go (`tooSoon()`). Never `waitForTimeout` before an assertion. A "nothing happens" read that must outlast a product timer (the 3 s senses send, the 6 s idle close) outlasts it on the page's own timers, which keep the order however loaded the runner is; a pause that is part of the input (a hold, the gap between two taps) says so where it is. Helpers: `tests/fixtures/waits.mjs`.
+2. **Timing is diagnostic on CI.** An assertion on milliseconds, frames or audio levels that measures the machine rather than the product's logic goes through `timing()` (`tests/fixtures/waits.mjs`): on CI it prints `# timing (not enforced on CI): …`; with `TH_STRICT_TIMING=1` it fails like any assertion. Logic stays hard: what happened, in what order, where it ended, and lower bounds that only a bug can break (a timer never fires early).
+
+CI runs the site and mind suites in **four** parts (§2). No retries anywhere: a test that needs one is fixed instead.
 
 ### 10.2 Required suites
 

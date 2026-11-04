@@ -1,5 +1,6 @@
-// The deterministic renders of memory (MEMORY.md §8, §9): the profile, the standing rules, the
-// open threads and the day-note lines of the briefing. No model writes them, so the same rows and
+// The deterministic renders of memory (MEMORY.md §8, §9): the profile, the owner's own lines of the
+// briefing's first layer, the standing rules, the open threads and the day-note lines of the
+// briefing. No model writes them, so the same rows and
 // clock give byte-identical text (snapshot-tested). Text is one line per item: a fact can never
 // fake a `## <n>.` section marker. Provenance (MEMORY.md §6 M11): an `outside` fact is in no render
 // (M11a; rules can't be outside, M11c); an `outside` loose end or day note is shown, marked
@@ -77,11 +78,10 @@ export interface Profile {
   private_ids: string[];
 }
 
-/** MEMORY.md §8: current non-rule facts, decayed, below 0.25 dropped unless pinned; pinned first,
- * then by kind (state, goal, preference, routine, fact), by confidence and recency; per-kind caps;
- * ≤ 6,000 characters with `(+N more: th recall --kind facts)`. M11a: no `outside` fact, pinned or
- * not, until the owner keeps it. */
-export function renderProfile(rows: FactRow[], now: number, tz: string): Profile {
+/** The profile's choice (MEMORY.md §8): current non-rule facts, decayed, below 0.25 dropped unless
+ * pinned; pinned first, then by kind (state, goal, preference, routine, fact), by confidence and
+ * recency; per-kind caps. M11a: no `outside` fact, pinned or not, until the owner keeps it. */
+function choose(rows: FactRow[], now: number) {
   const live = rows
     .filter((f) => f.kind !== 'rule' && f.superseded_at === null && (f.valid_to === null || f.valid_to > now))
     .filter((f) => provenanceOf(f) !== 'outside')
@@ -103,8 +103,13 @@ export function renderProfile(rows: FactRow[], now: number, tz: string): Profile
     per.set(f.kind, n + 1);
     return n < (known ?? 0);
   });
+  return { chosen, dropped: live.length - chosen.length };
+}
+
+/** MEMORY.md §8: the chosen facts, ≤ 6,000 characters with `(+N more: th recall --kind facts)`. */
+export function renderProfile(rows: FactRow[], now: number, tz: string): Profile {
+  const { chosen, dropped } = choose(rows, now);
   const lines = chosen.map(({ f, c }) => factLine(f, c, tz));
-  const dropped = live.length - chosen.length;
   const { text, kept } = within(
     lines,
     MEMORY_LIMITS.profile_chars,
@@ -119,13 +124,26 @@ export function renderProfile(rows: FactRow[], now: number, tz: string): Profile
   };
 }
 
-/** Section 3: every current rule, pinned first, oldest first (rules never decay). None is
+/** The briefing's first layer (MEMORY.md §9, section 2): who the owner is in their own words, the
+ * profile's top lines that are the owner's (`owner` provenance, about the owner: never an `observed`
+ * habit nor anything from outside), each its id, its words and its marks, in profile order. */
+export function renderOwner(rows: FactRow[], now: number, budget: number, more: (n: number) => string): string {
+  const own = choose(rows, now).chosen.filter(({ f }) => provenanceOf(f) === 'owner' && f.about === 'owner');
+  if (!own.length) return 'Nothing in their own words yet.';
+  const lines = own.map(
+    ({ f }) =>
+      `[f:${shortId(f.id)}] ${one(f.text)}${f.may_raise === 1 ? '' : " · don't raise"}${f.sensitivity === 1 ? ' · private' : ''}`,
+  );
+  return within(lines, budget, more).text;
+}
+
+/** Section 4: every current rule, pinned first, oldest first (rules never decay). None is
  * `outside` (M11c refuses one); a row that somehow were would be left out like the profile's. */
 export function renderRules(
   rows: FactRow[],
   tz: string,
   budget: number,
-  more = (n: number) => `(+${n} more: th brief --section 3)`,
+  more = (n: number) => `(+${n} more: th brief --section 4)`,
 ): string {
   const rules = rows
     .filter((f) => f.kind === 'rule' && f.superseded_at === null && provenanceOf(f) !== 'outside')
@@ -148,13 +166,14 @@ const kept = (r: { provenance?: Provenance | null }, keep: boolean) => keep && n
 const READ_IT = (path: string) =>
   `${KEPT_BACK.slice(1, -1)}: th get ${path} outside=1 reads it; you write outside after`;
 
-/** Section 4: mind-owned first, then the owner's; due soonest first, then the oldest; the
- * `outside` ones after all the rest, marked. Full ids, because `th thread done <id>` needs them. */
+/** Loose ends (sections 2, 8 and 10 of the briefing): mind-owned first, then the owner's; due
+ * soonest first, then the oldest; the `outside` ones after all the rest, marked (section 2 is given
+ * none of them). Full ids, because `th thread done <id>` needs them. */
 export function renderThreads(
   rows: OpenThreadRow[],
   tz: string,
   budget: number,
-  more = (n: number) => `(+${n} more: th brief --section 4)`,
+  more = (n: number) => `(+${n} more: th brief --section 10)`,
   keep = false,
 ): string {
   const open = rows
@@ -196,7 +215,7 @@ export function renderDayNote(
   return within(lines, budget, more).text;
 }
 
-/** Section 9: one line per day note, newest first. */
+/** Section 11: one line per day note, newest first. */
 export function renderDays(rows: DayNoteRow[], budget: number, keep = false): string {
   if (!rows.length) return 'No day notes yet.';
   return within(

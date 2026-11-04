@@ -1,5 +1,5 @@
-# The checks a commit must pass (TESTING.md §1.1), as four jobs at once: the site and mind suites
-# in three parts (scripts/test-part.mjs deals the files by size) and the Worker's suite. Called by
+# The checks a commit must pass (TESTING.md §1.1), as five jobs at once: the site and mind suites
+# in four parts (scripts/test-part.mjs deals the files by measured time) and the Worker's suite. Called by
 # Deploy before anything goes live and by Test on every other branch, so each commit is checked
 # once, in about two minutes. `npm test` runs exactly the same checks in one go.
 name: Checks
@@ -23,7 +23,7 @@ jobs:
     strategy:
       fail-fast: true
       matrix:
-        part: [site 1/3, site 2/3, site 3/3, worker]
+        part: [site 1/4, site 2/4, site 3/4, site 4/4, worker]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

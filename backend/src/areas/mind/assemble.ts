@@ -1,11 +1,13 @@
 // Gathers the briefing's inputs from the stores (MEMORY.md §9) and renders it (brief.ts). Reads
 // only, each bounded; runs after the claim's commit so the briefing reflects it. Memory (rules,
-// open threads, the profile, day notes) comes from areas/memory through its own store and renders.
-// The night role's day is the one it works on, the day before the open one (RUNTIME.md §12).
+// open threads, the profile, day notes) comes from areas/memory through its own store and renders;
+// today's state and the day's arrangements from brief-gather.ts, with the phone's reports the
+// caller read from the Senses object (null when it couldn't). The night role's day is the one it
+// works on, the day before the open one (RUNTIME.md §12).
 import type { BriefResponse, MindRole } from '../../../../shared/contract/api';
 import { dayBefore, HOUR } from '../../lib/time';
 import type { Db } from '../../objects/base';
-import { briefLines, view as calendarView } from '../briefing/calendar-store';
+import { view as calendarView } from '../briefing/calendar-store';
 import { currentDay } from '../conversation/day';
 import { offRecordOf } from '../conversation/held';
 import { dayCounts } from '../conversation/stats';
@@ -21,16 +23,20 @@ import * as ops from '../ops/store';
 import { calibration } from '../predictions/ops';
 import { lawsLine } from '../proposals/laws';
 import * as proposals from '../proposals/store';
+import type { BriefReports } from '../senses/brief';
 import { mindSettingLines } from '../settings/catalog';
 import { quietUntil } from '../settings/quiet';
 import * as watchdogs from '../watchdogs/ops';
 import { buildBrief } from './brief';
-import { landsLines, learnTail, speechLine } from './brief-learn';
+import { calendarLines, dayLines, dueLines, playingLine, weatherLine } from './brief-gather';
+import { landsLines, speechLine } from './brief-learn';
+import { clock } from './brief-text';
 import { nightDayOf, nightDone, nightLine } from './night';
 import * as sessionNotes from './notes';
 import { speechState } from './speech';
 import * as store from './store';
 import { backoff } from './wake';
+import { briefLines as pulseLines } from './watches/brief';
 
 /** How many current facts a briefing reads at most (newest first), and how many rules. */
 const FACTS_READ = 2_000;
@@ -44,7 +50,7 @@ export function assemble(
   wake: BriefResponse['wake'],
   constitution: string,
   sessionId: string,
-  opts: { nightConfigured: boolean; offRecordSeen?: () => void },
+  opts: { nightConfigured: boolean; offRecordSeen?: () => void; reports?: BriefReports | null },
 ): BriefResponse {
   const day = currentDay(db, tz, now);
   const night = role === 'night' ? nightDayOf(day) : null;
@@ -67,6 +73,11 @@ export function assemble(
   // Messages off the record it hands out mark the session (the caller writes it): no memory from it.
   const offRecord = offRecordOf(db, waiting, now);
   if (offRecord.length) opts.offRecordSeen?.();
+  // Reflex handles breakage: the owner's day is not its business, so none of it is read.
+  const owners = role !== 'reflex';
+  const calendar = owners ? calendarLines(calendarView(db, now, tz), tz) : { own: [], shared: [] };
+  const reports = opts.reports ?? null;
+  const theDay = owners ? dayLines(db, { day: night ?? day, now, tz, reports }) : null;
   const { core, full } = buildBrief({
     role,
     constitution,
@@ -102,17 +113,28 @@ export function assemble(
     quota: quotaBriefLine(safeQuota(db, now)),
     rules: memory ? facts.currentFacts(db, ['rule'], RULES_READ) : [],
     threads: memory ? notes.openThreads(db, 'open', 60) : [],
+    facts: current,
     profile: memory ? renderProfile(current, now, tz).text : '',
     days: memory ? notes.dayNotes(db, dayBefore(day, 7), dayBefore(day), 7) : [],
     night: nightLine(db, day, opts.nightConfigured),
     settings: mindSettingLines(db),
-    // Reflex handles breakage: the owner's day is not its business.
-    calendar: role === 'reflex' ? [] : briefLines(calendarView(db, now, tz), tz),
-    // How the mind may speak; what lands as the last pass left it (insight/topics.ts), and the odds.
-    learn: learnTail(
-      speechLine(speechState(db, now, tz)),
-      role === 'reflex' ? [] : landsLines(lastPass(db, now, tz), calibration(db, now).items),
-    ),
+    weather: owners ? weatherLine(db, now, tz) : null,
+    calendar: calendar.own,
+    due: owners ? dueLines(db, now, tz) : [],
+    // The song playing is the chat's: the night works on a closed day.
+    playing: role === 'chat' ? playingLine(reports, now, tz) : null,
+    // The day pulse (RUNTIME.md §3): the wake budget, and the watches that woke this session. It is
+    // in the first 2,000 characters, where nothing outside goes (MEMORY.md §9): a watch set after
+    // outside text is kept back here from every session (`th watch list` reads it).
+    pulse: owners ? pulseLines(db, { sessionId, now, tz, tainted: false, clock: (at) => clock(at, tz) }) : [],
+    arranged: theDay?.arranged,
+    predicted: theDay?.predicted,
+    tiles: theDay?.tiles,
+    calendarShared: calendar.shared,
+    // How the mind may speak today (section 1), and what lands as the last pass left it, with the odds
+    // claimed against what happened (section 7; insight/topics.ts, predictions/ops.ts).
+    speech: speechLine(speechState(db, now, tz)),
+    lands: role === 'reflex' ? [] : landsLines(lastPass(db, now, tz), calibration(db, now).items),
   });
   return {
     wake,

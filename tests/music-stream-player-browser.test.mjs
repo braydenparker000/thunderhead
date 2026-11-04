@@ -106,6 +106,9 @@ async function boot({ off = false } = {}) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}/music/`, { waitUntil: 'load' });
   await page.waitForFunction((n) => !!navigator.serviceWorker.controller && window.__cp?.player?.queue?.length >= n, N, { timeout: 30_000 });
+  // The player loads its streaming path on its own (player.js) and plays a song plainly until it has:
+  // the same module asked for here resolves only after the player's own ask did.
+  await page.evaluate(() => import('/th/music/stream/deck.js').then(() => {}));
   return { context, page, errors };
 }
 
@@ -120,12 +123,13 @@ test('a song streams: at most ~60 s ahead, part of the file, its length known, s
   try {
     await playFrom(page, 0);
     const deck = await page.evaluate(() => { const a = __cp.player.audio; return { blob: a.src.startsWith('blob:'), stream: !!a._stream, duration: a.duration }; });
-    assert.deepEqual(deck, { blob: true, stream: true, duration: SECONDS }, 'through the feed, the catalog length from the start');
+    const log = deck.stream ? [] : await page.evaluate(() => window.__cp.ctx.playbackLog.events.filter((e) => /stream|stall|reload/.test(e.type)));
+    assert.deepEqual(deck, { blob: true, stream: true, duration: SECONDS }, `through the feed, the catalog length from the start ${JSON.stringify(log)}`);
     // While it plays, never much more than 60 s buffered ahead of where it is.
     let most = 0;
     for (let i = 0; i < 12; i++) {
       most = Math.max(most, await page.evaluate(() => { const a = __cp.player.audio, b = a.buffered; let e = a.currentTime; for (let k = 0; k < b.length; k++) if (b.start(k) <= a.currentTime + 0.1) e = Math.max(e, b.end(k)); return e - a.currentTime; }));
-      await page.waitForTimeout(250);
+      await page.waitForTimeout(250); // one look every 250 ms over 3 s of playing: the window watched, not a wait
     }
     assert.ok(most <= 60.6, `buffered ahead at most ${most.toFixed(2)} s`);
     const playing = await page.evaluate(() => __cp.player.track.id);

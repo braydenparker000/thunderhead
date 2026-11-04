@@ -130,12 +130,12 @@ test('the player’s library, audio and Web Audio come from the new Worker and t
     await a.play();
     let peak = 0;
     const buf = new Float32Array(an.fftSize);
-    for (let i = 0; i < 30 && peak < 0.05; i++) {
+    for (let i = 0; i < 200 && peak < 0.05; i++) {
       await new Promise((r) => setTimeout(r, 50));
       an.getFloatTimeDomainData(buf);
       for (const v of buf) peak = Math.max(peak, Math.abs(v));
     }
-    for (let i = 0; i < 40 && a.currentTime < 0.5; i++) await new Promise((r) => setTimeout(r, 50));
+    for (let i = 0; i < 200 && a.currentTime < 0.5; i++) await new Promise((r) => setTimeout(r, 50));
     return { time: a.currentTime, peak, error: a.error?.code ?? null };
   }, [OLD, ID]);
   assert.equal(heard.error, null);

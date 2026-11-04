@@ -51,7 +51,7 @@ describe('claim, lease and briefing', () => {
     expect(first.status).toBe(200);
     expect(first.body.wake).toMatchObject({ reason: 'manual', claim_match: 'manual' });
     expect(first.body.core).toMatch(/^## 1\. Now\n/m);
-    expect(first.body.core).toContain('## 2. Waiting');
+    expect(first.body.core).toContain('## 3. Waiting');
     expect(first.body.core).toContain('Are you there?');
     expect(first.body.core.length).toBeLessThanOrEqual(9_500);
     expect(first.body.full.length).toBeGreaterThan(first.body.core.length);
