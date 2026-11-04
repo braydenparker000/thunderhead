@@ -39,7 +39,8 @@ import * as stop from '../areas/mind/stop';
 import * as mstore from '../areas/mind/store';
 import * as wake from '../areas/mind/wake';
 import { onClaim } from '../areas/mind/watches/pulse';
-import { listenApplyJob, listenPackJob, listenRejectJob } from '../areas/music/listen-jobs';
+import { historyJob } from '../areas/music/history-job';
+import { mbJob } from '../areas/music/history-mb';
 import { lawsAtClaim, settle as settleProposals } from '../areas/proposals/ops';
 import { embedJob } from '../areas/search/embed-job';
 import type { BriefReports } from '../areas/senses/brief';
@@ -61,9 +62,8 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [backupJob.kind]: backupJob,
   [drillJob.kind]: drillJob,
   [exportJob.kind]: exportJob,
-  [listenApplyJob.kind]: listenApplyJob,
-  [listenPackJob.kind]: listenPackJob,
-  [listenRejectJob.kind]: listenRejectJob,
+  [historyJob.kind]: historyJob,
+  [mbJob.kind]: mbJob,
   [embedJob.kind]: embedJob,
 };
 

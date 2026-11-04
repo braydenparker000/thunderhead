@@ -150,20 +150,16 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/music/notes` | D C N | P5 | built | ?ids=a,b (≤ 200, each with its tags) or ?cursor=&limit=: every note, a page at a time |
 | `GET /v1/music/find` | C N | P5 | built | ?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out; 429 from 80% |
 | `GET /v1/music/mixes` | D C N | P5 | built | the mixes music.mix_save kept, newest first, ≤ 50: id (for music.play_mix), name, tracks, recipe |
+| `PUT /v1/music/history` | D | P5 | built | raw bytes ≤ 32 MiB (zip, json or csv); TH-File-Name, TH-Sha256; 200 done before, 202 queued |
+| `GET /v1/music/history` | D C N | P5 | built | the imported files and the artists resolved: counts only |
+| `GET /v1/music/taste` | C N | P5 | built | ?limit=1-50: top artists (MusicBrainz ids, canonical names) and years by plays |
+| `GET /v1/music/similar/:mbid` | C N | P5 | built | ListenBrainz's similar artists, kept a week; plays and catalog songs of each |
 | `GET /v1/music/mixes/:id` | D | P5 | built | one mix's songs in order, for the owner's tap on Music's "tonight" (404 not_found) |
 | `PUT /v1/music/uploads/audio/:file` | public | P5 | built | signed by an upload tool key; Ogg Opus, ≤ 32 MiB |
 | `PUT /v1/music/uploads/art/:file` | public | P5 | built | signed by an upload tool key; JPEG or PNG, ≤ 2 MiB |
 | `POST /v1/music/uploads/:op` | public | P5 | built | signed by an upload tool key; the catalog writer's operations, export and links |
 | `PUT /v1/senses/batches/:id` | D | P5 | built | a sealed batch of 1–500 events, ≤ 256 KB |
 | `POST /v1/senses/query` | C N R | P5 | built | a fixed, named query; never SQL |
-| `GET /v1/jobs/next` | N | P5 | built | ?kind=audio.analysis&max=1-500\|audio.neighbours; 204: none due |
-| `POST /v1/jobs/:id/collect` | N I (agents: the key `jobs-audio` only) | P5 | built | checks the manifest |
-| `GET /v1/jobs` | C N R I | P5 | built | ?kind=&open=1: states and counts, never hashes |
-| `GET /v1/jobs/:id` | C N R I | P5 | built |  |
-| `GET /v1/jobs/:id/spec` | I (agents: the key `jobs-audio` only) | P5 | built | what the Actions run works from |
-| `PUT /v1/jobs/:id/files/:name` | I (agents: the key `jobs-audio` only) | P5 | built | part-NNN.jsonl, neighbours.bin, manifest last |
-| `GET /v1/music/pack` | D | P5 | built | every song's numbers, moods, embedding and neighbours; ETag, 304 |
-| `GET /v1/music/analysis/:id` | C N | P5 | built | ?like=0-50: one song's numbers and nearest songs |
 | `GET /v1/guitar/search` | D | P6 | built | Songsterr search, ?q= |
 | `GET /v1/guitar/songs/:id` | D | P6 | built |  |
 | `GET /v1/guitar/songs/:id/score` | D | P6 | built | ?revision=&parts= |

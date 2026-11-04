@@ -8,14 +8,15 @@
 //                                      `[{n|id, known, moods, occasions, themes, language, era,
 //                                      energy, conf}]` or `{items: […]}`, checked here against the
 //                                      contract's vocabularies first, then PUT /v1/music/notes
-//   find [--mood m]… [--occasion o] [--energy low|mid|high|0-1] [--limit 30]   songs by feeling
-//   like <id> [--mood m]… [--limit 20] songs like one (the listening pass's neighbours when it has
-//                                      them, else the closest by notes and tags)
+//   find [--mood m]… [--occasion o] [--energy low|mid|high|0-1] [--like-history] [--limit 30]
+//                                      songs by feeling, or weighted by the owner's plays of the artist
+//   like <id> [--mood m]… [--limit 20] songs like one (the closest by notes and tags)
 //   now [--id]                         the song playing now, or last played, with its note (with
 //                                      --id, its id alone: no tags, so no outside text)
 //   week [--days 7]                    what the owner has been into: plays, top songs, artists,
 //                                      moods and genres
-//   analysis <id> [--n 10] · jobs [--max 500]   the listening pass's two (lib/listen.mjs)
+//   taste [--limit 10] · similar <artist id> [--limit 20] · find --like-history   the owner's
+//                                      listening history (lib/taste.mjs): counts, ids, canonical names
 //
 // A handle `n` saves the long track ids in a night's tagging; it means the song of that number in
 // the last `th music page` of this session. Track ids, titles and notes stay between th and the
@@ -28,13 +29,13 @@ import {CONTRACT} from './contract.mjs';
 import {request} from './http.mjs';
 import {invalid, out} from './io.mjs';
 import {getState, setState} from './state.mjs';
-import {analysis, jobs} from './listen.mjs';
+import {similar, taste} from './taste.mjs';
 
 const M = CONTRACT.music;
 const L = M.limits;
 const SONG_ID = /^r2_(?:[A-Za-z0-9_-]{10,200}|native_[a-f0-9]{64})$/;
 const DAY_MS = 86_400_000;
-const USAGE = 'usage: th music page | note [--file <path>] | find --mood <m> [--occasion <o>] [--energy <e>] [--limit <n>] | like <id> | now [--id] | week | analysis <id> [--n 10] | jobs [--max 500]';
+const USAGE = 'usage: th music page | note [--file <path>] | find --mood <m> [--occasion <o>] [--energy <e>] [--limit <n>] | like <id> | now [--id] | week | taste | similar <artist id>';
 
 /** A track's tags without the empty ones (fewer tokens for the mind to read). */
 const lean = t => Object.fromEntries(Object.entries(t).filter(([, v]) => v !== '' && v !== 0 && v !== null && v !== undefined));
@@ -131,12 +132,13 @@ function feeling(flags) {
 const found = data => ({...data, items: (data.items ?? []).map(lean)});
 
 async function find(argv) {
-  const {flags, rest} = parseArgs(argv, {repeat: ['mood']});
-  if (rest.length) throw invalid('usage: th music find --mood <m> [--mood <m>] [--occasion <o>] [--energy low|mid|high] [--limit 30]');
+  const {flags, rest} = parseArgs(argv, {repeat: ['mood'], bool: ['like-history']});
+  if (rest.length) throw invalid('usage: th music find --mood <m> [--mood <m>] [--occasion <o>] [--energy low|mid|high] [--like-history] [--limit 30]');
   const f = feeling(flags);
-  if (!f.moods && !f.occasion && f.energy === undefined) throw invalid('ask for a --mood, an --occasion or an --energy');
+  const history = flags['like-history'] ? 1 : undefined;
+  if (!f.moods && !f.occasion && f.energy === undefined && !history) throw invalid('ask for a --mood, an --occasion, an --energy or --like-history');
   const limit = intFlag(flags.limit, 'limit', 1, L.find_max, L.find_default);
-  out(found((await request('GET', '/v1/music/find', {query: {...f, limit}})).data));
+  out(found((await request('GET', '/v1/music/find', {query: {...f, history, limit}})).data));
 }
 
 async function like(argv) {
@@ -207,8 +209,8 @@ async function week(argv) {
   });
 }
 
-// The listening pass's two (lib/listen.mjs): how a song sounds, and the night's step 6.
-const SUBS = {page, note, find, like, now, week, analysis, jobs};
+// The owner's listening history (lib/taste.mjs): their top artists and years, and artists like one.
+const SUBS = {page, note, find, like, now, week, taste, similar};
 
 /** @param {string[]} argv */
 export async function music(argv) {

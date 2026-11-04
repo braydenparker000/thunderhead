@@ -4,6 +4,7 @@
 // today's state and the day's arrangements from brief-gather.ts, with the phone's reports the
 // caller read from the Senses object (null when it couldn't). The night role's day is the one it
 // works on, the day before the open one (RUNTIME.md §12).
+
 import type { BriefResponse, MindRole } from '../../../../shared/contract/api';
 import { dayBefore, HOUR } from '../../lib/time';
 import type { Db } from '../../objects/base';
@@ -26,6 +27,7 @@ import * as proposals from '../proposals/store';
 import type { BriefReports } from '../senses/brief';
 import { mindSettingLines } from '../settings/catalog';
 import { quietUntil } from '../settings/quiet';
+import { getSetting } from '../settings/store';
 import * as watchdogs from '../watchdogs/ops';
 import { buildBrief } from './brief';
 import { calendarLines, dayLines, dueLines, playingLine, weatherLine } from './brief-gather';
@@ -123,6 +125,11 @@ export function assemble(
     due: owners ? dueLines(db, now, tz) : [],
     // The song playing is the chat's: the night works on a closed day.
     playing: role === 'chat' ? playingLine(reports, now, tz) : null,
+    // The owner's taste in one line, unless they switched their history off (Settings › Music).
+    taste:
+      role === 'reflex' || getSetting(db, 'music.history') === false
+        ? null
+        : ((getSetting(db, 'music.taste') as string | null | undefined) ?? null),
     // The day pulse (RUNTIME.md §3): the wake budget, and the watches that woke this session. It is
     // in the first 2,000 characters, where nothing outside goes (MEMORY.md §9): a watch set after
     // outside text is kept back here from every session (`th watch list` reads it).

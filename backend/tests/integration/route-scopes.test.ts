@@ -47,7 +47,8 @@ const tokenFor = (route: string, p: Who) =>
 beforeAll(async () => {
   tokens.D = (await setupOwner()).token;
   tokens.C = await makeAgent(tokens.D, 'mind:chat');
-  for (const name of new Set(Object.values(KEYED))) named[name] = await makeAgent(tokens.D, keyRoleOf(name), name);
+  for (const name of new Set([...Object.values(KEYED), JOBS_KEY]))
+    named[name] = await makeAgent(tokens.D, keyRoleOf(name), name);
   tokens.N = await makeAgent(tokens.D, 'mind:night');
   tokens.R = await makeAgent(tokens.D, 'mind:reflex');
   tokens.M = await makeAgent(tokens.D, 'muse');
@@ -106,13 +107,10 @@ describe('route table (API.md §13)', () => {
     }
   });
 
-  it('a keyed route refuses every other key of its roles (the routine chat key on the import, the deploy CI key on the jobs)', async () => {
+  it('a keyed route refuses every other key of its roles (the routine chat key on the import)', async () => {
     expect(Object.keys(KEYED).sort()).toEqual([
-      'GET /v1/jobs/:id/spec',
       'POST /v1/import/runs',
-      'POST /v1/jobs/:id/collect',
       'POST /v1/ops/import/parts',
-      'PUT /v1/jobs/:id/files/:name',
       'PUT /v1/ops/import/manifest/:run_id',
     ]);
     for (const route of Object.keys(KEYED)) {
@@ -121,19 +119,18 @@ describe('route table (API.md §13)', () => {
     }
   });
 
-  it("the listening pass's CI key reaches its own routes only (never a backup, the drill or a status)", async () => {
+  it("the cut listening pass's CI key reaches no route (never a backup, the drill or a status)", async () => {
     const jobsKey = named[JOBS_KEY];
     for (const route of [
       'POST /v1/ops/backups/run',
       'POST /v1/ops/drill/run',
-      'GET /v1/jobs/:id',
+      'GET /v1/ops/backups',
       'GET /v1/auth/me',
       'GET /v1/ops/meter',
     ]) {
       const { status, body } = await call(route, jobsKey);
       expect([status, body?.error.code], route).toEqual([403, 'forbidden']);
     }
-    expect((await call('GET /v1/jobs/:id/spec', jobsKey)).status).toBe(404);
   });
 
   it('answers 404 for unknown routes before any token check', async () => {

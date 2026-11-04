@@ -14,6 +14,9 @@ export function musicRoutes(ctl) {
   s.tracks = [];
   s.trackNotes = new Map();
   s.senseEvents = [];
+  /** The owner's top artists and an artist's similar ones, as GET /v1/music/taste and /similar give them. */
+  s.taste = [];
+  s.similar = [];
   /** Songs as the catalog would hold them: `{id, title, artist, …}`. */
   ctl.addTracks = rows => { s.tracks.push(...rows.map(r => ({album: '', genre: '', composer: '', year: 0, dur: 200, artist: '', ...r}))); };
   /** A sense the phone sent: `{type, id, at}`. */
@@ -89,8 +92,18 @@ export function musicRoutes(ctl) {
       }
       return {items, missing, next: null};
     }],
+    ['GET', /^\/v1\/music\/taste$/, CN, ({query}) => {
+      const limit = Number(query.get('limit') || 10);
+      if (!(limit >= 1 && limit <= 50)) throw new HttpError(422, 'validation');
+      return {plays: 120, minutes: 300, artists: 2, years: [{year: 2021, plays: 120}], top: s.taste.slice(0, limit)};
+    }],
+    ['GET', /^\/v1\/music\/similar\/([^/]+)$/, CN, ({params}) => ({mbid: params[0], fetched_at: ctl.now(), items: s.similar})],
     ['GET', /^\/v1\/music\/find$/, CN, ({query, role, session}) => {
       heard(role, session);
+      if (query.get('history') === '1') {
+        const items = s.tracks.map(t => ({...tags(t), score: 0.6, known: null, why: {history: 1}}));
+        return {items, total: items.length, analysis: false, left_out: {never: 0, rated: 0, skipped: 0}};
+      }
       const moods = (query.get('moods') || '').split(',').filter(Boolean);
       const like = query.get('like');
       const limit = Number(query.get('limit') || 30);

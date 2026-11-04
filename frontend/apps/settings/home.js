@@ -31,6 +31,7 @@ export const PAGES = /** @type {const} */ ([
   ['island', 'Island', 'music-notes-simple'],
   ['briefing', 'Briefing', 'newspaper'],
   ['mind', 'The mind', 'sparkle'],
+  ['music', 'Music', 'music-notes-simple'],
   ['quiet', 'Quiet hours', 'moon-stars'],
   ['notifications', 'Notifications', 'bell'],
   ['memory', 'What I remember', 'brain'],

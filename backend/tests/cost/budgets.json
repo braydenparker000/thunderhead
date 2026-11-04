@@ -111,17 +111,17 @@
     "rows_read_max": 261,
     "rows_written_max": 0
   },
-  "POST /v1/mind/brief (no claim, 21 settings stored) (Core)": {
-    "rows_read_max": 299,
+  "POST /v1/mind/brief (no claim, 22 settings stored) (Core)": {
+    "rows_read_max": 298,
     "rows_written_max": 0
   },
   "PATCH /v1/settings, 1 catalogue key (Core)": {
     "rows_read_max": 0,
     "rows_written_max": 2
   },
-  "PATCH /v1/settings, every mind setting (21 keys) (Core)": {
+  "PATCH /v1/settings, every mind setting (22 keys) (Core)": {
     "rows_read_max": 0,
-    "rows_written_max": 42
+    "rows_written_max": 44
   },
   "GET /v1/live/wait (nothing new, 1 s) (Core)": {
     "rows_read_max": 30,
@@ -295,7 +295,7 @@
     "rows_read_max": 50,
     "rows_written_max": 21
   },
-  "POST /v1/proposals/:id/decide (the owner\u2019s words; the forget runs) (Core)": {
+  "POST /v1/proposals/:id/decide (the owner’s words; the forget runs) (Core)": {
     "rows_read_max": 59,
     "rows_written_max": 22
   },
@@ -373,58 +373,6 @@
   },
   "GET /v1/ops/reports (50 of 250) (Core)": {
     "rows_read_max": 51,
-    "rows_written_max": 0
-  },
-  "GET /v1/jobs/next audio.analysis, 50 of 600 (Music)": {
-    "rows_read_max": 1240,
-    "rows_written_max": 1
-  },
-  "GET /v1/jobs/:id/spec (Music)": {
-    "rows_read_max": 1,
-    "rows_written_max": 0
-  },
-  "PUT /v1/jobs/:id/files/:name (Music)": {
-    "rows_read_max": 1,
-    "rows_written_max": 0
-  },
-  "POST /v1/jobs/:id/collect (Music)": {
-    "rows_read_max": 2,
-    "rows_written_max": 1
-  },
-  "alarm: one part of 50 results applied, the job ended, the phone file built (Music)": {
-    "rows_read_max": 1440,
-    "rows_written_max": 105
-  },
-  "GET /v1/jobs/:id (Music)": {
-    "rows_read_max": 1,
-    "rows_written_max": 0
-  },
-  "music.listen.pack, the phone file again (Music)": {
-    "rows_read_max": 670,
-    "rows_written_max": 1
-  },
-  "GET /v1/music/pack (Music)": {
-    "rows_read_max": 0,
-    "rows_written_max": 0
-  },
-  "GET /v1/music/analysis/:id (Music)": {
-    "rows_read_max": 3,
-    "rows_written_max": 1
-  },
-  "POST /v1/jobs/:id/collect (Core)": {
-    "rows_read_max": 3,
-    "rows_written_max": 2
-  },
-  "alarm: one part of 50 results applied, the job ended, the phone file built (Core)": {
-    "rows_read_max": 80,
-    "rows_written_max": 20
-  },
-  "GET /v1/jobs/next audio.analysis, nothing due, first night (Music)": {
-    "rows_read_max": 1250,
-    "rows_written_max": 1
-  },
-  "GET /v1/jobs/next audio.analysis, nothing due, nothing changed (Music)": {
-    "rows_read_max": 25,
     "rows_written_max": 0
   },
   "PUT /v1/podcasts/progress (1 new) (Core)": {
@@ -634,5 +582,37 @@
   "GET /v1/search (by meaning, 200 vectors) (Core)": {
     "rows_read_max": 95,
     "rows_written_max": 0
+  },
+  "PUT /v1/music/history, a new file of 6,000 streams (Core)": {
+    "rows_read_max": 4,
+    "rows_written_max": 2
+  },
+  "music.history: the file's whole import in one alarm, 5,000 rows (Music)": {
+    "rows_read_max": 12030,
+    "rows_written_max": 8884
+  },
+  "PUT /v1/music/history, the same file again (Music)": {
+    "rows_read_max": 1,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/history (Music)": {
+    "rows_read_max": 3,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/taste (Music)": {
+    "rows_read_max": 11,
+    "rows_written_max": 0
+  },
+  "GET /v1/music/similar/:mbid, fetched (Music)": {
+    "rows_read_max": 4,
+    "rows_written_max": 1
+  },
+  "GET /v1/music/similar/:mbid, kept (Music)": {
+    "rows_read_max": 5,
+    "rows_written_max": 0
+  },
+  "music.history: the file's whole import in one alarm, 5,000 rows (Core)": {
+    "rows_read_max": 98,
+    "rows_written_max": 19
   }
 }

@@ -61,7 +61,7 @@ function stateLines(i: BriefInput): string {
 /** Today's parts in order, each at most its own budget, together at most what section 1 has left:
  * the day pulse (the wake budget's line, then the watches that woke this session), the weather, the
  * owner's own calendar, what is due (reminders, scheduled verbs), the song playing. */
-export const TODAY_BUDGET = { pulse: 420, weather: 160, calendar: 280, due: 240, playing: 160 } as const;
+export const TODAY_BUDGET = { pulse: 420, weather: 160, calendar: 280, due: 240, playing: 160, taste: 200 } as const;
 
 /** Today's state within `room`, owner's own only; a part with no room left says where it is. Reflex
  * gets none: the owner's day is not its business. */
@@ -73,6 +73,7 @@ function todayLines(i: BriefInput, room: number): string[] {
     [i.calendar, TODAY_BUDGET.calendar, 'th get /v1/briefing/calendar days=2'],
     [i.due, TODAY_BUDGET.due, 'th remind list'],
     [i.playing ? [i.playing] : [], TODAY_BUDGET.playing, 'th music now'],
+    [i.taste ? [i.taste] : [], TODAY_BUDGET.taste, 'th music taste'],
   ];
   const out: string[] = [];
   for (const [lines, cap, more] of parts) {

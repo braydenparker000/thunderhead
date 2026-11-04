@@ -30,7 +30,6 @@ import budgets from './budgets.json';
 import { heldCalls } from './held-calls';
 import { importCalls } from './import-calls';
 import { libraryCalls } from './library-calls';
-import { listenCalls } from './listen-calls';
 import { memoryCalls } from './memory-calls';
 import { musicCalls } from './music-calls';
 import { predictionCalls } from './prediction-calls';
@@ -276,15 +275,15 @@ describe('rows per endpoint', () => {
   it('measures the decision cards against their budget', () => proposalCalls(cost, grant));
   it('measures the library against its budget', () => libraryCalls(cost as never, grant));
   it('measures the predictions against their budget', () => predictionCalls(cost, grant));
-  it('measures the phone’s reports and sync, the listening pass, held conversations and settings', () =>
+  it('measures the phone’s reports and sync, held conversations and settings', () =>
     phoneCalls(cost, grant)
-      .then(() => listenCalls(cost, grant))
       .then(() => heldCalls(cost, grant))
       .then(() => import('./settings-calls').then((m) => m.settingsCalls(cost, grant))));
   // Recall by meaning last (recall-calls.ts): its 200 new messages would change what others read.
-  it('measures the music notes and find, scheduled actions and plans, then recall by meaning', () =>
+  it('measures the music notes and find, scheduled actions and plans, the listening history, then recall by meaning', () =>
     musicCalls(cost as never, grant)
       .then(() => import('./verb-calls').then((m) => m.verbCalls(cost, grant)))
+      .then(() => import('./history-calls').then((m) => m.historyCalls(cost as never, grant)))
       .then(() => import('./recall-calls').then((m) => m.recallCalls(cost as never, grant))));
   it('every endpoint has a budget and stays within it', () => {
     const lines = Object.entries(measured).map(([k, v]) => `| ${k} | ${v.read} | ${v.written} |`);

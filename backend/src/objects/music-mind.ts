@@ -184,7 +184,7 @@ export abstract class MusicMind extends MusicPacks {
       seed = { id: t.id, entry: packed.get(t.id) ?? entryOf(null, tagsOf(t), t.ord), neighbours: near ?? [] };
     }
     const r = rank(
-      { notes: packed, audio, seed },
+      { notes: packed, audio, seed, history: q.history ? this.historyWeights() : undefined },
       q,
       new Map(Object.entries(skips)),
       new Set(never),
