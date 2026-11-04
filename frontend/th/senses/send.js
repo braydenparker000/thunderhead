@@ -35,6 +35,7 @@ const APPS = /** @type {Record<string, string>} */ ({
   line: 'home',
   card: 'home',
   reply: 'home',
+  arrangement: 'home',
   briefing: 'home',
 });
 /** Whose privacy switch a type falls under. @param {string} type */
