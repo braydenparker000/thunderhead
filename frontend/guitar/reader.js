@@ -17,16 +17,17 @@ const player = new Player();
 let open = null;
 export const readerOpen = () => !!open;
 
-export function openReader(song, { store, onclose }) {
+export function openReader(song, { store, onclose, at = null }) {
   if (open) open.close(true);
-  const r = new Reader(song, store, onclose);
+  const r = new Reader(song, store, onclose, at);
   open = r;
   return r;
 }
 
 class Reader {
-  constructor(song, store, onclose) {
-    this.song = song; this.store = store; this.onclose = onclose;
+  constructor(song, store, onclose, at) {
+    // `at`: a planned section to open on (th/guitar/intents.js), {a, b, bpm?}, over where it was left.
+    this.song = song; this.store = store; this.onclose = onclose; this.at = at;
     this.prefs = store.prefs;
     this.urls = []; this.geo = new Map(); this.manualScroll = 0; this.lastSystem = null; this.loopPick = null;
     this.lastInteraction = performance.now();
@@ -171,6 +172,13 @@ class Reader {
         this.updateSpeedLabel();
         this.practice.ready();
       } else this.clearLoop(false);
+      // A planned section, once, on the first track that has its bars: looped, at its tempo.
+      const at = this.at, tempo = this.timeline?.tempos[0]?.[1];
+      if (at && at.b < player.bars.length) {
+        this.at = null;
+        this.setLoopBars(at.a, at.b, false); player.seek(player.bars[at.a].s);
+        if (at.bpm && tempo) this.setSpeed(Math.round(at.bpm / tempo * 100));
+      }
       this.timeEnd.textContent = formatTime(player.duration);
       this.showLoading(false);
       this.playButton.disabled = false;

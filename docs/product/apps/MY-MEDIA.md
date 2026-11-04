@@ -262,6 +262,8 @@ run picks it up. Needs the owner's yes and a check of the source's terms ([IDEAS
 ## The mind's arrangement slot (2026-11-04, verbs batch 2)
 
 One slot, one kind ([BEHAVIOR.md §3.1](../../mind/BEHAVIOR.md#31-rung-0-silent-arrangement), API.md §11.11 "The apps' arrangements"): `media/tonight`, kind `shortlist`, placed by `media.shortlist`, as Astra's. It carries its why behind a tap, and the app reports it seen, taken up or dismissed (`arrangement.seen`, `arrangement.tap`, `arrangement.dismiss`), so the meter and what lands count it.
+
+**Not drawn yet (2026-11-04):** My Media's page (`frontend/media/`) does not share Astra's components, so `media/tonight` is placed and counted but not shown; it is the next app to draw it.
 ## Open questions / tests
 
 | # | Question | How to settle |

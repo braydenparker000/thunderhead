@@ -2,7 +2,7 @@
 
 import {h, timeLeft, reducedMotion, scrollTimelines} from '../ui/dom.js';
 import {icon} from '../ui/icons.js';
-import {posterCard, setWatchedBadge, image, longPress, liftMenu, skeletonRow, emptyCard, toast} from '../ui/components.js';
+import {posterCard, setWatchedBadge, image, longPress, liftMenu, skeletonRow, emptyCard, toast, mountTonight} from '../ui/components.js';
 import {homeCatalogs, loadRows, heroItems, ROW_ITEMS, episodeCode} from '../app/content.js';
 
 const HERO_INTERVAL = 8000;
@@ -36,7 +36,9 @@ export class HomeScreen {
     this.hero = h('div', {class: 'hero-slot'});
     this.cw = h('div', {class: 'cw-slot'});
     this.rows = h('div', {class: 'rows'});
-    view.append(h('div', {class: 'home'}, this.hero, this.cw, this.rows));
+    this.tonight = h('div', {class: 'tonight-slot'});
+    view.append(h('div', {class: 'home'}, this.hero, this.tonight, this.cw, this.rows));
+    mountTonight(app, this.tonight);
     this.ctx = posterContext(app);
     app.progress.onChange(() => this.renderContinue());
     // On screen: the badges change now; under another tab or screen: when Home shows again.

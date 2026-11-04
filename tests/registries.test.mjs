@@ -13,6 +13,7 @@ import { hasRenderer, homeLines, place } from '../frontend/th/registry/surfaces.
 import { EXECUTORS, canRun, run } from '../frontend/th/registry/verbs.js';
 import { EXECUTORS as MUSIC_INTENTS } from '../frontend/th/music/intents.js';
 import { EXECUTORS as PODCAST_INTENTS } from '../frontend/th/podcasts/intents.js';
+import { EXECUTORS as GUITAR_INTENTS } from '../frontend/th/guitar/intents.js';
 
 test('every app in the contract is on the ring, with a colour and an icon in the sprite', () => {
   const sprite = readFileSync(new URL('../frontend/ui/icons.svg', import.meta.url), 'utf8');
@@ -43,7 +44,7 @@ test('deep links: only inside a shipped app, never out of it', () => {
 
 test('every phone verb has an executor: home\'s here, an intent in its app; the rest are unsupported_verb', async () => {
   // An intent runs in the app that applies it as it opens (pending intents, API.md §11.11).
-  const APP_EXECUTORS = { music: MUSIC_INTENTS, podcasts: PODCAST_INTENTS };
+  const APP_EXECUTORS = { music: MUSIC_INTENTS, podcasts: PODCAST_INTENTS, guitar: GUITAR_INTENTS };
   for (const [name, v] of Object.entries(VERBS)) {
     if (v.side !== 'phone') continue;
     for (const version of v.versions) {

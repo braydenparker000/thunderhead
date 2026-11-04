@@ -129,4 +129,21 @@ export const APP_VERBS = {
     what: "Guitar's next sections and tempos",
     doc: "Places Guitar's arrangement \"today's section\" (`guitar/today`, kind `section`): a song (`tab:<id>`), one to four sections (`<first bar>-<last bar>`, as the ladder keys them) each at a tempo (20–300 bpm) from the ladder's last ceilings, and a short label. Coaching, not doing (law 5): the owner plays it. Its undo puts back the plan before.",
   },
+  'guitar.start_practice': {
+    app: 'guitar',
+    class: 'reversible',
+    permit: 'practice',
+    side: 'phone',
+    intent: true,
+    queueable: true,
+    undo: 'none',
+    versions: {
+      1: {
+        args: z.object({ tab: plan.shape.tab, section: section.shape.key, bpm: z.optional(section.shape.bpm) }),
+        result: z.object({ opened: z.string() }),
+      },
+    },
+    what: 'open Guitar at the planned section',
+    doc: "Opens Guitar's reader at a section of a song (`tab:<id>`, `<first bar>-<last bar>` as guitar.set_plan names it), looped, at its tempo when given, the next time the owner opens Guitar (an intent): it never opens the app or plays by itself. A song this phone has never opened is `song_unknown`. Nothing to undo: the owner closes it.",
+  },
 } as const satisfies Record<string, VerbSpec>;

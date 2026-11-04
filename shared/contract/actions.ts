@@ -160,6 +160,12 @@ export interface MusicMix {
 export interface MusicMixesResponse {
   items: MusicMix[];
 }
+/** GET /v1/music/mixes/:id: one mix's songs (`music:<id>`), in order. */
+export interface MusicMixSongs {
+  id: Id;
+  name: string;
+  refs: string[];
+}
 
 export interface Surface {
   app: string;

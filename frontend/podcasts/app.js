@@ -531,3 +531,6 @@ const measureChrome=()=>{const nav=document.querySelector('.podcast-nav').getBou
 const chromeObserver=new ResizeObserver(measureChrome);chromeObserver.observe(document.querySelector('.podcast-nav'));chromeObserver.observe($('mini-player'));measureChrome();
 if(current){updateCurrent();updatePosition();}
 renderRoute();reconcileDownloads().catch(()=>{});
+// The mind's "next up" (`podcasts/next`): one card on Discover with its why behind a tap and Dismiss; Play plays the episode, from Up Next or the show's saved feed, else opens the show (th/ported/arrangement.js).
+async function playKey(key){const at=key.lastIndexOf('#'),feedUrl=key.slice(0,at),id=key.slice(at+1);let e=episodeRefs.get(key)||state.queue.find(x=>keyOf(x)===key);if(!e){const data=await storedFeed(feedUrl).catch(()=>null),found=data?.episodes?.find(x=>x?.id===id);if(found)e=episode(found,{...state.follows.find(s=>s.feedUrl===feedUrl),...data.show,feedUrl});}if(e)playEpisode(e);else location.hash='#show='+encodeURIComponent(feedUrl);}
+import('/th/ported/arrangement.js').then(m=>m.mount('podcasts','next',a=>({label:'Next up',title:String(a.payload.title),detail:a.payload.show,action:'Play',go:()=>playKey(String(a.payload.key))}),card=>$('results').before(card))).catch(()=>{});

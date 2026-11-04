@@ -2,7 +2,7 @@
 // (`music:<id>` refs, in order) and the one line they were found by, under the id of the verb that
 // saved it. `music.play_mix {mix_id}` hands its songs to the phone; GET /v1/music/mixes lists them.
 // The newest MIXES_KEEP stay. Stores never write the change feed.
-import type { MusicMix } from '../../../../shared/contract/api';
+import type { MusicMix, MusicMixSongs } from '../../../../shared/contract/api';
 import type { Db } from '../../objects/base';
 
 export const MIXES_KEEP = 50;
@@ -34,6 +34,12 @@ export function insert(db: Db, m: Omit<Row, 'tracks'>): void {
 export function refsOf(db: Db, id: string): string[] | null {
   const r = db.one<{ refs_json: string }>('SELECT refs_json FROM mixes WHERE id = ?', id);
   return r ? (JSON.parse(r.refs_json) as string[]) : null;
+}
+
+/** One mix's name and songs in order, or null (one read by the key). */
+export function songs(db: Db, id: string): MusicMixSongs | null {
+  const r = db.one<{ name: string; refs_json: string }>('SELECT name, refs_json FROM mixes WHERE id = ?', id);
+  return r ? { id, name: r.name, refs: JSON.parse(r.refs_json) as string[] } : null;
 }
 
 /** Deletes one mix; whether there was one. */

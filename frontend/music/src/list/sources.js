@@ -225,6 +225,8 @@ export class HomeSource {
     withOptions(this, list, {key: 'home', zoomKind: 'home', defaultZoom: 1});
     this.homeCategories = HOME.map(c => ({...c, hint: HOME_HINTS[c.title] ?? null}));
     this.rebuild = () => new HomeSource(ctx, list, nav);
+    // The library's home: Music's "tonight" card shows over it (th/music/tonight.js).
+    this.home = true;
   }
 
   get count() { return this.items.length; }

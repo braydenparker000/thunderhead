@@ -285,6 +285,8 @@ font checks (§2), and the `?open=` deep link.
 ## The mind's arrangement slot (2026-11-04, verbs batch 2)
 
 One slot, one kind ([BEHAVIOR.md §3.1](../../mind/BEHAVIOR.md#31-rung-0-silent-arrangement), API.md §11.11 "The apps' arrangements"): `astra/tonight`, kind `shortlist`, placed by `astra.shortlist`: "three for tonight", two or three titles and up to three filters for the owner to pick from; it never picks or plays. It carries its why behind a tap, and the app reports it seen, taken up or dismissed (`arrangement.seen`, `arrangement.tap`, `arrangement.dismiss`), so the meter and what lands count it.
+
+**As built (2026-11-04, `frontend/astra/src/ui/components.js` `mountTonight`):** a card on Home under the hero ("Three for tonight"): each title a button that opens it, the filters under it, Why and Dismiss. It never picks or plays.
 ## Open questions / tests
 
 | # | Question | How to settle |

@@ -1,0 +1,30 @@
+/* An app's arrangement card (th/ported/arrangement.js): one small card in the app's own colours,
+   Switzer only, every control at least 44 px, its fold and entrance still under reduced motion. */
+@font-face{font-family:"Switzer";font-style:normal;font-weight:100 900;font-display:swap;src:url("/ui/fonts/Switzer.woff2") format("woff2")}
+.th-arr{--a-bg:#15181d;--a-fg:#f4f1ea;--a-dim:#b9b4ab;--a-accent:#f2a93b;--a-on:#17120b;--a-line:rgba(255,255,255,.1);
+  box-sizing:border-box;margin:12px 0;padding:14px 16px 12px;border-radius:18px;background:var(--a-bg);color:var(--a-fg);
+  border:1px solid var(--a-line);font:400 15px/1.35 "Switzer",system-ui,sans-serif;animation:th-arr-in .32s cubic-bezier(.2,.8,.2,1) both}
+.th-arr *{font-family:inherit}
+.th-arr[data-app=music]{--a-bg:#1b1b1f;--a-fg:#fff;--a-dim:rgba(255,255,255,.7);--a-accent:#a8c7fa;--a-on:#062e6f;
+  position:fixed;left:16px;right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 148px);z-index:15;margin:0;display:none;box-shadow:0 12px 32px rgba(0,0,0,.5)}
+:root[data-cp-home][data-cp-list] .th-arr[data-app=music]{display:block}
+.th-arr[data-app=podcasts]{--a-bg:#171b21;--a-fg:#f5f6f8;--a-dim:#aab1bd;--a-accent:#a9c8f5;--a-on:#08090b;--a-line:#303640}
+.th-arr[data-app=astra],.th-arr[data-app=media]{--a-bg:#1a1a1a;--a-fg:#f5f7f8;--a-dim:#b8bec5;--a-accent:#f5f5f5;--a-on:#0d0d0d;margin:12px 16px}
+.th-arr[data-app=study]{--a-bg:light-dark(#fff,#11161d);--a-fg:var(--ink,light-dark(#152231,#eceff4));--a-dim:var(--ink-2,light-dark(#46566a,#a6b0bc));
+  --a-accent:var(--accent-fill,#2468d8);--a-on:#fff;--a-line:light-dark(rgba(21,34,49,.1),rgba(255,255,255,.1))}
+.th-arr-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+.th-arr-text small{font-size:12px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--a-dim)}
+.th-arr-text strong{font-size:17px;font-weight:650;overflow-wrap:anywhere}
+.th-arr-text span{color:var(--a-dim);font-size:14px}
+.th-arr-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.th-arr button{min-height:44px;min-width:44px;border-radius:22px;padding:0 16px;font:600 14px/1 "Switzer",system-ui,sans-serif;cursor:pointer;
+  border:1px solid var(--a-line);background:transparent;color:var(--a-fg);-webkit-tap-highlight-color:transparent}
+.th-arr button:active{transform:scale(.97)}
+.th-arr button:focus-visible{outline:2px solid var(--a-accent);outline-offset:2px}
+.th-arr .th-arr-go{background:var(--a-accent);color:var(--a-on);border-color:transparent}
+.th-arr .th-arr-x{margin-left:auto;color:var(--a-dim)}
+.th-arr .th-arr-pick{display:block;width:100%;margin-top:8px;text-align:left;border-radius:14px;padding:10px 14px;line-height:1.3}
+.th-arr-why{margin:10px 0 0;color:var(--a-dim);font-size:14px}
+@keyframes th-arr-in{from{opacity:0;transform:translateY(6px)}}
+@media (prefers-reduced-motion:reduce){.th-arr{animation:none}.th-arr button:active{transform:none}}
+body.podcast-page:not([data-screen=discover]) .th-arr[data-app=podcasts]{display:none}

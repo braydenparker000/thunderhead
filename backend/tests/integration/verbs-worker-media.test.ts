@@ -3,7 +3,7 @@
 // fact in their own words; and the gate's own rules (never below tell; a refusal writes nothing).
 // The shell's are in verbs-worker.test.ts. Everything is synthetic.
 import { beforeAll, describe, expect, it } from 'vitest';
-import type { MusicMixesResponse, ProfileResponse } from '../../../shared/contract/api';
+import type { MusicMixesResponse, MusicMixSongs, ProfileResponse } from '../../../shared/contract/api';
 import type { PodcastPage, PodcastProgress } from '../../../shared/contract/podcasts.ts';
 import { uuidv7 } from '../../src/lib/ids';
 import type { Core } from '../../src/objects/core';
@@ -62,8 +62,13 @@ describe('music.mix_save', () => {
     });
     const listed = await apiJson<MusicMixesResponse>('GET', '/v1/music/mixes', chat());
     expect(listed.status).toBe(200);
+    // The owner's tap on Music's "tonight" plays it: its songs in order, for the phone only.
+    const songs = await apiJson<MusicMixSongs>('GET', `/v1/music/mixes/${r.id}`, { token: P.D });
+    expect(songs.body).toEqual({ id: r.id, name: 'Drive home', refs: [SONG(1), SONG(2)] });
+    expect((await apiJson('GET', `/v1/music/mixes/${r.id}`, chat())).status).toBe(403);
     expect((await undo(r.ledger_id)).body.status).toBe('undone');
     expect((await mixes()).some((m) => m.id === r.id)).toBe(false);
+    expect((await apiJson('GET', `/v1/music/mixes/${r.id}`, { token: P.D })).status).toBe(404);
   });
 
   it('under ask: refused, and no mix kept', async () => {

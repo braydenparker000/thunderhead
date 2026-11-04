@@ -259,3 +259,16 @@ export function skeletonRow(count = 6, {title = true, landscape = false} = {}) {
 export function emptyCard(title, body, action = null) {
   return h('div', {class: 'state-card'}, h('h3', {}, title), h('p', {}, body), action ? h('button', {class: 'btn primary wide', type: 'button', onclick: action.run}, action.label) : null);
 }
+
+/** The mind's "three for tonight" (`astra/tonight`, astra.shortlist) in `slot` on Home: two or three
+ * titles to pick from (a tap opens one) and the filters it chose by, its why behind a tap and
+ * Dismiss. It never picks or plays (th/ported/arrangement.js reads it and sends the senses). */
+export function mountTonight(app, slot) {
+  import('/th/ported/arrangement.js').then(m => m.mount('astra', 'tonight', a => {
+    const titles = (a.payload.titles || []).map(t => ({...t, at: /^astra:([^:]+):(.+)$/.exec(t.ref)})).filter(t => t.at);
+    const filters = (a.payload.filters || []).join(' · ');
+    if (!titles.length && !filters) return null;
+    return {label: 'Three for tonight', title: titles.length ? 'Pick one' : filters, detail: titles.length ? filters : '',
+      extra: titles.map(t => m.choice(a, t.title, () => app.openTitle({type: t.at[1], id: t.at[2], name: t.title})))};
+  }, card => slot.replaceChildren(card))).catch(() => {});
+}

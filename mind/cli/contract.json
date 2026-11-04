@@ -1202,6 +1202,14 @@
       "status": "built",
       "note": "the mixes music.mix_save kept, newest first, ≤ 50: id (for music.play_mix), name, tracks, recipe"
     },
+    "GET /v1/music/mixes/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "one mix's songs in order, for the owner's tap on Music's \"tonight\" (404 not_found)"
+    },
     "PUT /v1/music/uploads/audio/:file": {
       "who": "P",
       "phase": "P5",
@@ -3152,6 +3160,53 @@
             },
             "required": [
               "placed"
+            ]
+          }
+        }
+      }
+    },
+    "guitar.start_practice": {
+      "app": "guitar",
+      "class": "reversible",
+      "permit": "practice",
+      "side": "phone",
+      "intent": true,
+      "queueable": true,
+      "undo": "none",
+      "doc": "Opens Guitar's reader at a section of a song (`tab:<id>`, `<first bar>-<last bar>` as guitar.set_plan names it), looped, at its tempo when given, the next time the owner opens Guitar (an intent): it never opens the app or plays by itself. A song this phone has never opened is `song_unknown`. Nothing to undo: the owner closes it.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "tab": {
+                "type": "string",
+                "pattern": "^tab:[A-Za-z0-9._:/-]{1,160}$"
+              },
+              "section": {
+                "type": "string",
+                "pattern": "^\\d{1,4}-\\d{1,4}$"
+              },
+              "bpm": {
+                "type": "integer",
+                "minimum": 20,
+                "maximum": 300
+              }
+            },
+            "required": [
+              "tab",
+              "section"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "opened": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "opened"
             ]
           }
         }
