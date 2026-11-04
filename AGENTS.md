@@ -60,7 +60,11 @@ when it helps, update it when you change what it describes, but it is not law.
 
 ## How it ships (after the owner merges)
 
-Merging to `main` runs Deploy: checks, the Worker, then the site. Confirm the live `release.json` names
+`npm run preflight` is the one command before you push, and again after merging `origin/main` into a
+branch (about a minute): it rewrites the contract copies, then runs the type check, the contract check,
+the site budgets, the Worker's static and line-cap tests and the mind's tests, the checks a merge most
+often breaks. Merging to `main` runs Deploy: checks (skipped when Test already passed on exactly the
+merged files, `scripts/tree-tested.mjs`), the Worker, then the site. Confirm the live `release.json` names
 the commit. Rollback: Actions → Deploy → Run workflow with the previous commit. A change the owner will
 notice gets a plain line in `frontend/whats-new.json` (a new `id`, at most four lines): home shows them
 once as a card after the update.

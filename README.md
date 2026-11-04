@@ -27,13 +27,21 @@ node scripts/test-part.mjs --measure    # re-time every file into scripts/test-d
 SITE_URL=https://<site> node --test tests/home-browser.test.mjs   # check the live site
 ```
 
+## Before you push
+
+`npm run preflight` is the one command (about a minute): it rewrites the contract copies, then runs the
+type check, the contract check, the site budgets (`stage.mjs`), the Worker's static and line-cap tests
+and the mind's tests. Run it again after merging `origin/main`: those are the checks a merge most often
+breaks. `npm test` stays the full suite.
+
 ## Release and rollback
 
 The Worker deploys from the same workflow (job `api`, before `site`; off until
 `WORKER_DEPLOY_ENABLED=true`), with a smoke check and `wrangler rollback` on failure; see
 [backend/README.md](backend/README.md). The site:
 
-- **Release:** push to `main`. The Deploy workflow tests (once, in five parallel jobs), publishes `frontend/` to the
+- **Release:** push to `main`. The Deploy workflow tests (once, in five parallel jobs; skipped when Test already
+  passed on exactly the merged files), publishes `frontend/` to the
   storage account's `$web` container, waits until the live `release.json` names the
   commit, and runs the browser checks against the live site.
 - **Automatic rollback:** if the live check fails, the workflow puts the previous live
