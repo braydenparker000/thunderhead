@@ -229,7 +229,8 @@ list is the only place a setting is declared:
   string, or JSON for an order), removed at the default; it survives signing out, like `th-theme`.
   An Appearance key also sets its `attr` on `<html>` while it is not the default.
 - **`mind: true`.** Listed in the mind's briefing, section 13 "Your settings", as `key: value`
-  lines in catalogue order, `(default)` while unset, after a legend for the permissions (`ask`,
+  lines in catalogue order, `(default)` while unset, each one the mind may change followed by its
+  detail line (2026-11-04; section 13 holds 3,000 characters), after a legend for the permissions (`ask`,
   `tell`, `quiet`). The core's section 8 points at it, and section 2 carries the standing
   permissions' positions in one line. All `mind.*` keys and `briefing.tiles` are
   mind keys; only worker keys may be.
@@ -243,8 +244,9 @@ list is the only place a setting is declared:
 - **Reading a setting elsewhere.** `phoneValue(key)` from `apps/settings/catalog.js` gives a phone
   key's value or its default; every change is the document event `th:setting`
   (`{ key, value, scope }`). Worker keys are in `GET /v1/settings`. `applyPhone()` puts the
-  Appearance attributes on `<html>`: catalog.js runs it when it loads; before the first paint it
-  needs the same few lines in `ui/theme.js` (not yet there).
+  Appearance attributes on `<html>`: catalog.js runs it when it loads and on every change; before the
+  first paint `ui/theme.js` sets the same attributes from `th.s.<key>` (2026-11-04; its list is held
+  equal to the catalogue's by `tests/settings-depth-browser.test.mjs`).
 
 Each page is a module of a few lines (`apps/settings/<page>.js` exporting `page(body)`, which calls
 `renderGroup(body, '<group>')`); `settings.js` opens it by name. Adding a setting: add its entry,
@@ -265,36 +267,41 @@ intensity only says how strongly.
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
-| `appearance.accent` | segments: calm / vivid | phone | `calm` | exposed: `data-accent-intensity` on `<html>`; no CSS follows it yet |
-| `appearance.glass` | segments: frosted / flat | phone | `frosted` | exposed: `data-glass` on `<html>`; no CSS follows it yet |
-| `appearance.corners` | segments: soft / sharper | phone | `soft` | exposed: `data-corners` on `<html>`; no CSS follows it yet |
-| `appearance.ring` | segments: compact / regular / large | phone | `regular` | exposed: `data-ring-size` on `<html>`; no CSS follows it yet |
-| `appearance.haptics` | segments: off / light / full | phone | `light` | exposed: `data-haptics` on `<html>`; no CSS follows it yet |
-| `appearance.motion` | segments: system / always | phone | `system` | exposed: `data-reduced-motion` on `<html>`; no CSS follows it yet |
+| `appearance.accent` | segments: soft / calm / vivid | phone | `calm` | `ui/tokens.css`: `--accent-fill`, `--accent-text`, `--accent-icon`, `--glow` (each keeps 4.5:1) |
+| `appearance.glass` | segments: frosted / flat | phone | `frosted` | `ui/tokens.css`: flat drops every `backdrop-filter` and makes the glass, bar, sheet and panel fills opaque enough to read |
+| `appearance.corners` | segments: sharper / soft / rounder | phone | `soft` | `ui/tokens.css`: every `--r-*` token but the full pill |
+| `appearance.glyphs` | segments: filled / outline | phone | `filled` | `apps/home/home.js`: the ring's icons, Phosphor fill or regular |
+| `appearance.ring` | segments: compact / regular / large | phone | `regular` | `ui/tokens.css` scales `.ring` (.86 / 1 / 1.16); `home.js` keeps it clear of the edges by the same factor |
+| `appearance.haptics` | segments: off / light / full | phone | `light` | `th/motion.js` `buzz()`: off none, full pulses twice as long; the ring, swipes, dictation, the decision card and the Briefing's hold |
+| `appearance.motion` | segments: follow system / on / off | phone | `system` | `ui/tokens.css` (the duration tokens) and `th/motion.js` `motionReduced()`; off keeps the tokens and springs, while a few decorative loops still follow the phone's own setting |
 
 ### 6.2 Home and chat (`chat.js`)
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
+| `chat.density` | segments: comfortable / compact | phone | `comfortable` | `ui/tokens.css`: compact turns sit 12 px apart, not 22 |
 | `chat.time_markers` | switch | phone | `on` | exposed: `phoneValue()`; the chat does not read it yet |
 | `chat.fold` | switch | phone | `on` | exposed: `phoneValue()`; the chat does not read it yet |
 | `chat.reveal` | segments: words / instant | phone | `words` | exposed: `phoneValue()`; the chat does not read it yet |
 | `chat.followups` | segments: two / none | phone | `two` | exposed: `phoneValue()`; the chat does not read it yet |
 | `chat.enter_sends` | switch | phone | `on` | exposed: `phoneValue()`; the chat does not read it yet |
+| `chat.mic` | switch | phone | `on` | `ui/tokens.css`: off hides the mic, and the send button stands alone |
 | `chat.dictation` | segments: auto / en / es | phone | `auto` | exposed: `phoneValue()`; the chat does not read it yet |
 
 ### 6.3 Ring and gestures (`gestures.js`)
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
-| `gestures.hold_ms` | range (ms): 160 / 220 / 300 | phone | `220` | exposed: `phoneValue()`; the shell does not read it yet |
-| `gestures.swipe_px` | range (px): 6 / 10 | phone | `6` | exposed: `phoneValue()`; the shell does not read it yet |
+| `gestures.ring_apps` | order of music, guitar, podcasts, astra, media, study | phone | `music, guitar, podcasts, astra, media, study` | `th/registry/apps.js` `ringApps()` and `home.js`: the shown apps clockwise from the top, then Photos in the seventh place, kept for it; the ring is built again on a change |
+| `gestures.hold_ms` | range (ms): 160 / 220 / 300 | phone | `220` | `home.js`: the hold before the ring opens |
+| `gestures.swipe_px` | range (px): 6 / 10 | phone | `6` | `home.js`: how far a drag goes before it is a swipe |
 | `gestures.edge_guard` | switch | phone | `on` | exposed: `phoneValue()`; the shell does not read it yet |
 
 ### 6.4 Island (`island.js`)
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
+| `island.mode` | segments: capsule / bar / off | phone | `capsule` | `ui/tokens.css` (bar: the capsule across the top, its clip following the measured box) and `th/island/island.js` (off: `openApp` declines, so Music and Podcasts open as their own pages) |
 | `island.art` | switch | phone | `on` | exposed: `phoneValue()`; the island does not read it yet |
 | `island.titles` | segments: scroll / fade | phone | `scroll` | exposed: `phoneValue()`; the island does not read it yet |
 | `island.controls` | segments: prev-play-next / play-next-sleep | phone | `prev-play-next` | exposed: `phoneValue()`; the island does not read it yet |
@@ -314,7 +321,7 @@ devices see them; an agent's `GET /v1/settings` has each link's host and mark on
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
-| `briefing.tiles` | order of weather, due, holidays, study, built, podcasts, notes, report | worker | `weather, due, holidays, study, built, podcasts, notes, report` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `briefing.tiles` | order of report, today, due, practice, study, built, notes, holidays (the tiles the Worker places) | worker | `report, today, due, practice, study, built, notes, holidays` | the Worker (`briefing/owner-tiles.ts`, 2026-11-04): unset, its own order; set, a tile left out is not served and the rest go in the owner's order, "Waiting on you" first unless Overnight is, the mind's pins moving within it; the weather stays above them all; the mind (briefing section 13) |
 | `briefing.calendars` | links: up to 3 ICS links, each Mine or Shared | worker | `none` | the Worker (the Today tile, the day's line, the brief's section 1 for Mine links, section 7 for Shared ones); agents see hosts only |
 | `briefing.units` | segments: c / f | worker | `c` | exposed: `GET /v1/settings`; nothing reads it yet |
 | `briefing.due_days` | range (days): 1 / 3 / 7 | worker | `3` | exposed: `GET /v1/settings`; nothing reads it yet |
@@ -353,6 +360,7 @@ December" and has Reopen (`POST /v1/surfaces/topics/:key/reopen`), after which t
 | `mind.idle` | range (min): 10 / 30 / 120 | worker | `120` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.pushes` | segments: never / urgent / normal | worker | `normal` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.speech` | segments: as needed / quiet / silent | worker | `as_needed` | the Worker, at each `th surface`, `th propose` and `th push`: quiet takes 1 home line change and 1 card a day and a push only for what the owner asked for, silent none (`422 speech_budget`); as needed holds nothing back ([BEHAVIOR.md §3.7](../mind/BEHAVIOR.md)); the owner's alone (the mind's `settings.set` is refused); the mind (briefing sections 1 and 13) |
+| `mind.home_lines` | range (lines): none / 1 / 2 / 3 / 4 | worker | `4` | the Worker, at each `PUT /v1/surfaces/home/line.N`: a slot past the count is `422 validation` on `slot` (`settings/home-lines.ts`); the mind (briefing section 13) |
 | `mind.ask_outside` | switch | worker | `on` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.wake_budget` | range (a day): Off / 6 / 12 / 24 / 40, a sheet picker | worker | `12` | the Worker, at each watch's wake: past it the watch is refused (`over_budget`), Off refuses new watches; the owner's own messages never count ([RUNTIME.md §3, §11](../mind/RUNTIME.md)); the mind (briefing sections 1 and 13) |
 | `mind.permit.music` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
@@ -368,7 +376,8 @@ December" and has Reopen (`POST /v1/surfaces/topics/:key/reopen`), after which t
 
 ### 6.7 Privacy and data (`privacy.js`)
 
-Senses per app and error reports, then a read-only group, What leaves this phone: the weather
+Senses per app and error reports, then a read-only group, What leaves this phone, then Your data
+with Export, which opens the Export page (§4.9) over this one: the weather
 town (by name and as its coordinates, to Open-Meteo), the feed addresses of followed podcasts, and
 nothing else. `th/senses/send.js` and the error reporter do not read the switches yet: a check on
 the phone alone would only hold on the phone where it was switched, so the Worker's senses and

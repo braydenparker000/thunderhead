@@ -105,4 +105,29 @@
 /* Appearance only changes replies and owner bubbles. Fixed 16px fields share --fs-ask. */
 :root[data-text="s"]{--fs-reply:var(--fs-body);--fs-input:var(--fs-body)}
 :root[data-text="l"]{--fs-reply:var(--fs-x-18-5);--fs-input:var(--fs-x-18)}
-@media (prefers-reduced-motion: reduce){:root{--d-instant:0ms;--d-fast:0ms;--d-quick:0ms;--d-base:0ms;--d-rise:0ms;--d-edge:0ms;--d-sheet:150ms;--d-page:150ms;--settle:linear;--pop:linear}}
+/* Reduced motion (Settings → More appearance): follows the phone unless the owner set it on
+   (`always`) or off (`never`); th/motion.js reads the same attribute for the springs. */
+@media (prefers-reduced-motion: reduce){:root:not([data-reduced-motion="never"]){--d-instant:0ms;--d-fast:0ms;--d-quick:0ms;--d-base:0ms;--d-rise:0ms;--d-edge:0ms;--d-sheet:150ms;--d-page:150ms;--settle:linear;--pop:linear}}
+:root[data-reduced-motion="always"]{--d-instant:0ms;--d-fast:0ms;--d-quick:0ms;--d-base:0ms;--d-rise:0ms;--d-edge:0ms;--d-sheet:150ms;--d-page:150ms;--settle:linear;--pop:linear}
+
+/* The owner's appearance (MENU-AND-SETTINGS.md §6.1, DESIGN-SYSTEM.md §1.2, §4, §6): each a data
+   attribute on <html> while it is not the default, set by ui/theme.js before the first paint and by
+   Settings when it changes. Accent intensity keeps the blue: soft is quieter, vivid stronger; each
+   keeps white on the fill and the text on the field at 4.5:1 or more. */
+:root[data-accent-intensity="soft"]{--accent-fill:#3d66a8;--accent-text:light-dark(#30578f,#93b2e0);--accent-icon:light-dark(#4a74b8,#93b2e0);--glow:light-dark(#7d9fd8,#5f86c8)}
+:root[data-accent-intensity="vivid"]{--accent-fill:#1a5cf0;--accent-text:light-dark(#0f4fd6,#5c9bff);--accent-icon:light-dark(#1f6bff,#5c9bff);--glow:light-dark(#3d7cff,#2f74ff)}
+/* Flat glass everywhere: no backdrop blur at all, and fills opaque enough to read without it. */
+:root[data-glass="flat"]{--glass:var(--glass-flat);--bar:light-dark(rgba(255,255,255,.88),rgba(30,32,36,.94));--sheet:light-dark(rgba(247,249,253,.97),rgba(18,20,24,.98));--panel:light-dark(rgba(248,250,253,.98),rgba(5,6,8,.99))}
+:root[data-glass="flat"] *,:root[data-glass="flat"] *::before,:root[data-glass="flat"] *::after{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+/* Corners: sharper and rounder move every radius token by the same steps (the full pill stays). */
+:root[data-corners="sharper"]{--r-xs:4px;--r-s:6px;--r-m:8px;--r-chip:9px;--r-row:10px;--r-bubble:12px;--r-l:14px;--r-xl:18px}
+:root[data-corners="round"]{--r-xs:8px;--r-s:13px;--r-m:16px;--r-chip:18px;--r-row:20px;--r-bubble:23px;--r-l:26px;--r-xl:30px}
+/* Ring size: the ring scales about the finger (home.js keeps it clear of the edges by the same factor). */
+:root[data-ring-size="compact"] .ring{scale:.86}
+:root[data-ring-size="large"] .ring{scale:1.16}
+/* Home and chat: compact turns sit closer; with dictation off the send button stands alone. */
+:root[data-chat-density="compact"] .turn{margin-top:12px}
+:root[data-mic="false"] .mic{display:none}
+:root[data-mic="false"] .send{opacity:1;transform:none;pointer-events:auto}
+/* The island as a bar across the top: the capsule's clip follows its measured box (th/island). */
+:root[data-island="bar"] .th-island{width:calc(100vw - 24px)!important;border-radius:var(--r-m)}

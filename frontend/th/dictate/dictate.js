@@ -8,6 +8,7 @@
 // while the finger is down: letting go, leaving the page or the screen going off stops it
 // (PRIVACY.md §7). Two minutes at most; under 0.6 s is thrown away.
 import { DICTATE_LIMITS } from '../contract.js';
+import { buzz } from '../motion.js';
 
 /** A press longer than this is a hold (dictation); a shorter one is a tap (a voice memo). */
 export const HOLD_MS = 280;
@@ -129,10 +130,10 @@ export function listen(ears) {
     started = Date.now();
     piece();
     ears.onState('listening');
-    navigator.vibrate?.(18);
+    buzz(18);
     tick = setInterval(everyTick, EVERY_MS);
     cap = setTimeout(() => {
-      navigator.vibrate?.(8);
+      buzz(8);
       stop();
     }, TAKE_MS);
     document.addEventListener('visibilitychange', hidden);

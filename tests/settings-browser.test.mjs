@@ -123,7 +123,7 @@ test('every row on every page is a catalogue entry, with its detail, a 44 px hit
       const rows = [...body.querySelectorAll('.row, .seg-field')];
       return {
         keys: [...body.querySelectorAll('[data-key]')].map((n) => n.dataset.key),
-        loose: rows.filter((r) => !r.closest('[data-key]') && !r.hasAttribute('data-info')).map((r) => r.textContent),
+        loose: rows.filter((r) => !r.closest('[data-key]') && !r.hasAttribute('data-info') && !r.hasAttribute('data-page')).map((r) => r.textContent),
         info: rows.filter((r) => r.hasAttribute('data-info')).length,
         details: [...body.querySelectorAll('[data-key]')].filter((n) => !(n.querySelector('.row-detail, .shelp')?.textContent ?? '').trim()).map((n) => n.dataset.key),
         // Hit areas: rows and switches by their box, segment options and round buttons with their invisible extension.
@@ -292,22 +292,22 @@ test('the Briefing: tiles move and hide from the keyboard, the holiday country i
   const { page, context, errors, worker } = await open();
   await show(page, 'briefing');
   const order = () => page.$$eval('[data-key="briefing.tiles"] .group:not([hidden]) [data-item]', (r) => r.map((x) => x.dataset.item));
-  assert.deepEqual(await order(), ['weather', 'due', 'holidays', 'study', 'built', 'podcasts', 'notes', 'report']);
+  assert.deepEqual(await order(), ['report', 'today', 'due', 'practice', 'study', 'built', 'notes', 'holidays']);
   await page.focus('[data-item="due"] [aria-label="Move Due up"]');
   await page.keyboard.press('Enter');
   assert.equal(await page.evaluate(() => document.activeElement?.closest('[data-item]')?.dataset.item), 'due', 'focus stays with the tile');
-  await page.focus('[data-item="report"] [aria-label="Hide Report"]');
+  await page.focus('[data-item="holidays"] [aria-label="Hide Holidays"]');
   await page.keyboard.press('Enter');
-  assert.deepEqual(await order(), ['due', 'weather', 'holidays', 'study', 'built', 'podcasts', 'notes', 'report']);
-  assert.deepEqual(await page.$$eval('[data-key="briefing.tiles"] .group:last-of-type [data-item]', (r) => r.map((x) => x.dataset.item)), ['report']);
-  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Show Report');
+  assert.deepEqual(await order(), ['report', 'due', 'today', 'practice', 'study', 'built', 'notes', 'holidays']);
+  assert.deepEqual(await page.$$eval('[data-key="briefing.tiles"] .group:last-of-type [data-item]', (r) => r.map((x) => x.dataset.item)), ['holidays']);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), 'Show Holidays');
   await until(() => worker.patches.length === 2);
   assert.deepEqual(worker.patches, [
-    { 'briefing.tiles': ['due', 'weather', 'holidays', 'study', 'built', 'podcasts', 'notes', 'report'] },
-    { 'briefing.tiles': ['due', 'weather', 'holidays', 'study', 'built', 'podcasts', 'notes'] },
+    { 'briefing.tiles': ['report', 'due', 'today', 'practice', 'study', 'built', 'notes', 'holidays'] },
+    { 'briefing.tiles': ['report', 'due', 'today', 'practice', 'study', 'built', 'notes'] },
   ]);
   // The first tile can't move up and the last can't move down: those buttons are out of the way.
-  assert.equal(await page.$('[data-item="due"] [aria-label="Move Due up"]:not(:disabled)'), null);
+  assert.equal(await page.$('[data-item="report"] [aria-label="Move Overnight up"]:not(:disabled)'), null);
   await page.click('[data-key="briefing.holidays"]');
   await page.waitForSelector('.sheet [role=radio][data-value="GB"]');
   await page.click('.sheet [role=radio][data-value="GB"]');

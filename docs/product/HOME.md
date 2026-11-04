@@ -62,6 +62,7 @@ A `line` surface in app `home` (slots `line.1`–`line.4`, ≤ 44 characters, en
 - **The night's lines** (placed after the day began at 04:00 and before the quiet hours end) are **one card** headed **Overnight** (moon icon), its lines in slot order with a hairline between them, held until the quiet hours end (06:30, or the owner's later `quiet.end`, never earlier; Law 13) and placed in the chat as of then.
 - **A line placed later in the day** (by a chat session) is its own card, at its time, with no heading.
 - Lines from before today's 04:00 are not shown: each day starts clean.
+- How many: at most the owner's **Lines on home** (Settings → The mind, `mind.home_lines`, 0–4, default 4): the Worker refuses a line in a slot past it (2026-11-04).
 - Look: tinted as the mind's (accent 7% fill, accent 16% border, radius 16), never a bubble like the owner's; heading 500 12 in the accent; lines 400 15.5/1.45 `--ink`. Not tappable; not a reply.
 - A surface kind or version this phone can't draw still shows as the generic card with its `why` (EXTENDING.md rule 3).
 
@@ -446,7 +447,10 @@ Built 2026-10-31: the counters below are kept on this phone (`th-hint`); the hin
 ### 12.1 Apps inside the Thunderhead, and the island
 
 Music and Podcasts open inside home. The island is one black capsule that changes shape, with
-its controls inside the same element (`th/island/`). Track names and artwork stay on this phone.
+its controls inside the same element (`th/island/`). The owner's **Island behaviour** (Settings → Island,
+`island.mode`, 2026-11-04): Capsule (the default), Bar (the same element across the top, 12 px
+from each side, its clip following the measured box), or Off (Music and Podcasts open as their own
+pages, with no island). Track names and artwork stay on this phone.
 
 - **Compact:** 36 px tall, at least 124 px wide and at most 60% of the viewport, centred at
   `calc(10px + env(safe-area-inset-top))`. The left lobe is the current artwork, 24 px with 7 px

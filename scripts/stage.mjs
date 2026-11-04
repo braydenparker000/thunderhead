@@ -109,7 +109,9 @@ const budgets = [
   // (2026-11-04, what lands) +301 measured (74,937): contract.js's `oddsWords` (a card's odds in
   // words) and the cards' odds limits.
   // (2026-11-04, show) +188 measured (75,125): contract.js's `island.show` and `island.clear` verbs.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 75_125],
+  // (2026-11-04, settings depth) +577 measured (75,702): motion.js's `buzz()` (Haptics off / full) and
+  // Reduced motion on or off from the owner's setting.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 75_702],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -137,7 +139,9 @@ const budgets = [
   // (2026-11-04, show) +3,826 measured (115,596): "How I got this" under a reply (th/chat/using.js,
   // the chips moved out of working.js and shared with the fold; a file, a day and a search chip)
   // and the island line's two executors (registry/verbs.js).
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 115_596],
+  // (2026-11-04, settings depth) +579 measured (116,175): registry/apps.js's `ringApps()`, the ring in
+  // the owner's order with Photos last.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 116_175],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -151,7 +155,8 @@ const budgets = [
   // The capsule's details (2026-11-02): +7,411 measured bytes (32,856 → 40,267) for the shared artwork, its
   // off-thread decode and fallback, long titles, the pulse, the times, glyph and Podcasts' skip controls.
   // The mind's line (2026-11-04): +1,681 measured bytes (41,309 → 42,990), line.js and its place in the capsule.
-  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 42_990],
+  // (2026-11-04, settings depth): +155 measured bytes (42,990 → 43,145), Island off declines the layer.
+  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 43_145],
   // Off the record (th/record, 2026-11-01): starting and ending one, home's view of it, its marker.
   ['off the record JS bytes', sum(/^th\/record\/.*\.js$/), 4_500],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads
@@ -175,7 +180,8 @@ const budgets = [
   // 23,588 → 25,028 bytes.
   // (2026-11-04, the report card) 25,028 → 28,700: + the night's report tile, its lines and Undo
   // (report.js, 3,600 bytes), measured.
-  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 28_700],
+  // (2026-11-04, settings depth) 28,700 → 28,722 measured: the hold's tap back follows Haptics.
+  ['briefing JS bytes', sum(/^th\/briefing\/.*\.js$/), 28_722],
   // (2026-10-31) + the menu as a page with day cards, the ring's layers, the docked card, the pinned
   // line and time chip, the Briefing's hero and the 44 px hit areas.
   // (2026-11-02, T1a) 68,000 → 76,000: every motion and type value now goes through a token
@@ -191,7 +197,9 @@ const budgets = [
   // (2026-11-03, schedules) +16 measured (79,253): a plan line's Undo shares Retry's look (chat.css).
   // (2026-11-04, the report card) +970 measured (80,223): the report tile's head, lines and Undo (home.css).
   // (2026-11-04, show) +882 measured (81,105): "How I got this" under a reply (chat.css).
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 81_105],
+  // (2026-11-04, settings depth) +2,658 measured (81,105 → 83,763): tokens.css follows the owner's
+  // appearance (accent, glass, corners, ring size, reduced motion), compact turns, the mic off, the bar.
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 83_763],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
   // (2026-11-04) + the mind's line in the capsule: +470 measured bytes of island.css (21,003 → 21,473).

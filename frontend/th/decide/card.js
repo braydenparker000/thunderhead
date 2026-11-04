@@ -13,6 +13,7 @@ import { api, signedIn } from '../client.js';
 import { failure } from '../flow.js';
 import { el, toast, tooSoon } from '../ui.js';
 import { dock } from './dock.js';
+import { buzz } from '../motion.js';
 import * as m from './model.js';
 import { setDecisions } from './state.js';
 
@@ -24,11 +25,6 @@ const RISE_GAP_MS = 300;
 /** The rise (home.css `.card`: 800 ms after 300 ms), where the browser can't report it. */
 const RISE_MS = 1_100;
 const ARM_MS = 500;
-const buzz = (/** @type {number[]} */ p) => {
-  try {
-    navigator.vibrate?.(p);
-  } catch {}
-};
 
 /** Lights the gold edge while any card that needs the owner is on home (a decision or a notice). */
 export function glow() {

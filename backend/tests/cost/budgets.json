@@ -111,17 +111,17 @@
     "rows_read_max": 261,
     "rows_written_max": 0
   },
-  "POST /v1/mind/brief (no claim, 20 settings stored) (Core)": {
-    "rows_read_max": 283,
+  "POST /v1/mind/brief (no claim, 21 settings stored) (Core)": {
+    "rows_read_max": 299,
     "rows_written_max": 0
   },
   "PATCH /v1/settings, 1 catalogue key (Core)": {
     "rows_read_max": 0,
     "rows_written_max": 2
   },
-  "PATCH /v1/settings, every mind setting (20 keys) (Core)": {
+  "PATCH /v1/settings, every mind setting (21 keys) (Core)": {
     "rows_read_max": 0,
-    "rows_written_max": 40
+    "rows_written_max": 42
   },
   "GET /v1/live/wait (nothing new, 1 s) (Core)": {
     "rows_read_max": 30,

@@ -9,6 +9,8 @@
 // by scripts/contract.mjs), and tests/settings-browser.test.mjs checks that every row on those pages
 // is one of these and that every worker key is taken by PATCH. Add a setting here first.
 
+export { linkProblem, validSetting } from './settings-check.ts';
+
 export type SettingKind = 'switch' | 'choice' | 'range' | 'order' | 'text' | 'links';
 export type SettingScope = 'worker' | 'phone';
 /** One link of a `links` setting: its address and whether it is the owner's own (`mine`) or someone
@@ -96,48 +98,27 @@ const MIND = { group: 'mind', ...FOR_MIND } as const;
 const PERMIT = { ...MIND, section: 'Standing permissions', kind: 'choice', options: o('ask:Ask', 'tell:Do and tell', 'quiet:Do quietly') } as const;
 const SENSES = { group: 'privacy', section: 'Senses', kind: 'switch', default: true, ...IN_WORKER } as const;
 
-/** Why a calendar link can't be kept, in the owner's words, or null when it can (BRIEFING.md "Today",
- * SECURITY.md: the Worker fetches only public https addresses). The Worker's PATCH refuses with this
- * reason; the phone's Settings row (catalog.js linkProblem) says the same before it sends. */
-export function linkProblem(url: string, max = 512): string | null {
-  if (url.length > max) return `That link is over ${max} characters.`;
-  let u: URL;
-  try {
-    u = new URL(url);
-  } catch {
-    return 'That is not a link.';
-  }
-  if (u.protocol !== 'https:') return 'Only https links (a webcal link works with https in its place).';
-  const host = u.hostname.toLowerCase().replace(/\.$/, '');
-  if (u.username || u.password || u.port) return 'A link with a user, password or port is not supported.';
-  if (
-    !host.includes('.') ||
-    /^[\d.]+$/.test(host) ||
-    host.includes(':') ||
-    host.includes('[') ||
-    /(?:^|\.)(?:localhost|local|internal|lan|home|test|invalid|onion|arpa)$/.test(host) ||
-    /(?:^|\.)(?:nip\.io|sslip\.io|localtest\.me|lvh\.me)$/.test(host)
-  )
-    return 'Only a public address, not a local or numeric one.';
-  return null;
-}
-
 /** Every catalogued setting, in page order. */
 export const SETTINGS = [
   // Appearance: each puts its `attr` on <html> while it isn't the default, for CSS to follow.
   { ...LOOK, key: 'appearance.accent', label: 'Accent intensity', default: 'calm', attr: 'data-accent-intensity',
-    detail: 'How strongly the blue shows on buttons, switches and links.', options: o('calm:Calm', 'vivid:Vivid') },
+    detail: 'How strongly the blue shows on buttons, switches and links.', options: o('soft:Soft', 'calm:Calm', 'vivid:Vivid') },
   { ...LOOK, key: 'appearance.glass', label: 'Glass', default: 'frosted', attr: 'data-glass',
     detail: 'Frosted blurs what is behind a panel; flat is plainer and easier on the battery.', options: o('frosted:Frosted', 'flat:Flat') },
   { ...LOOK, key: 'appearance.corners', label: 'Corners', default: 'soft', attr: 'data-corners',
-    detail: 'How round cards, bubbles and buttons are.', options: o('soft:Soft', 'sharper:Sharper') },
+    detail: 'How round cards, bubbles and buttons are.', options: o('sharper:Sharper', 'soft:Soft', 'round:Rounder') },
+  { ...LOOK, key: 'appearance.glyphs', label: 'Ring icons', default: 'filled', attr: 'data-glyphs',
+    detail: 'The icons on the ring of apps: solid shapes or outlines.', options: o('filled:Filled', 'outline:Outline') },
   { ...LOOK, key: 'appearance.ring', label: 'Ring size', default: 'regular', attr: 'data-ring-size',
     detail: 'How big the ring of apps is when you hold an empty spot on home.', options: o('compact:Compact', 'regular:Regular', 'large:Large') },
   { ...LOOK, key: 'appearance.haptics', label: 'Haptics', default: 'light', attr: 'data-haptics',
     detail: 'How much the phone taps back on holds, swipes and switches.', options: o('off:Off', 'light:Light', 'full:Full') },
   { ...LOOK, key: 'appearance.motion', label: 'Reduced motion', default: 'system', attr: 'data-reduced-motion',
-    detail: 'Always on keeps things still even when the phone allows motion.', options: o('system:Follow system', 'always:Always on') },
+    detail: 'On keeps things still even when the phone allows motion; off keeps the springs even when it asks for less.',
+    options: o('system:Follow system', 'always:On', 'never:Off') },
   // Home and chat.
+  { ...CHAT, key: 'chat.density', label: 'Density', kind: 'choice', default: 'comfortable', attr: 'data-chat-density',
+    options: o('comfortable:Comfortable', 'compact:Compact'), detail: 'The space between turns in the conversation.' },
   { ...CHAT, key: 'chat.time_markers', label: 'Time markers', kind: 'switch', default: true,
     detail: 'A small time over a turn when a while has passed since the last one.' },
   { ...CHAT, key: 'chat.fold', label: 'Fold long replies', kind: 'switch', default: true,
@@ -148,9 +129,21 @@ export const SETTINGS = [
     detail: 'Two things you might ask next under a reply, or none.' },
   { ...CHAT, key: 'chat.enter_sends', label: 'Send on Enter', kind: 'switch', default: true,
     detail: 'Off: Enter starts a new line and only the send button sends.' },
+  { ...CHAT, key: 'chat.mic', label: 'Dictation', kind: 'switch', default: true, attr: 'data-mic',
+    detail: 'The mic in the ask bar: tap for a voice memo, hold to dictate. Off hides it.' },
   { ...CHAT, key: 'chat.dictation', label: 'Dictation language', kind: 'choice', default: 'auto', options: o('auto:Auto', 'en:English', 'es:Spanish'),
     detail: 'The language the mic listens for. Auto works it out from what you say.' },
-  // Ring and gestures.
+  // Ring and gestures. The ring's seven places: the owner's six apps in their order, then Photos, reserved.
+  { ...GESTURES, key: 'gestures.ring_apps', label: 'Apps on the ring', kind: 'order', default: ['music', 'guitar', 'podcasts', 'astra', 'media', 'study'],
+    detail: 'Clockwise from the top. The last place stays kept for Photos.',
+    options: [
+      { value: 'music', label: 'Music', detail: 'Your library and what plays.' },
+      { value: 'guitar', label: 'Guitar', detail: 'Pieces and practice.' },
+      { value: 'podcasts', label: 'Podcasts', detail: 'Shows you follow.' },
+      { value: 'astra', label: 'Astra', detail: 'Films and series.' },
+      { value: 'media', label: 'My Media', detail: 'Videos you keep.' },
+      { value: 'study', label: 'Study', detail: 'What you are reading.' },
+    ] },
   { ...GESTURES, key: 'gestures.hold_ms', label: 'Hold time', kind: 'range', unit: 'ms', default: 220, options: stops('ms', 160, 220, 300),
     detail: 'How long you hold an empty spot on home before the ring opens.' },
   { ...GESTURES, key: 'gestures.swipe_px', label: 'Swipe start', kind: 'range', unit: 'px', default: 6, options: stops('px', 6, 10),
@@ -158,6 +151,9 @@ export const SETTINGS = [
   { ...GESTURES, key: 'gestures.edge_guard', label: 'Edge back guard', kind: 'switch', default: true,
     detail: "A swipe that starts at the screen's edge is left to the phone's own back gesture." },
   // Island.
+  { ...ISLAND, key: 'island.mode', label: 'Behaviour', kind: 'choice', default: 'capsule', attr: 'data-island',
+    options: o('capsule:Capsule', 'bar:Bar', 'off:Off'),
+    detail: 'Music and Podcasts shrink to a capsule, or to a bar across the top. Off opens them as their own page.' },
   { ...ISLAND, key: 'island.art', label: 'Album art', kind: 'switch', default: true, detail: "The song's or the show's art in the capsule." },
   { ...ISLAND, key: 'island.titles', label: 'Long titles', kind: 'choice', default: 'scroll', options: o('scroll:Scroll once', 'fade:Fade'),
     detail: 'A title too long for the capsule scrolls by once, or fades at its edge.' },
@@ -170,18 +166,18 @@ export const SETTINGS = [
   // Briefing.
   {
     key: 'briefing.tiles', group: 'briefing', label: 'Tiles, in order', kind: 'order', ...FOR_MIND,
-    detail: 'Which tiles the Briefing shows, top first. Hidden ones wait below.',
+    detail: 'Which tiles the Briefing shows, top first, under the weather and what waits on you. Hidden ones wait below.',
     options: [
-      { value: 'weather', label: 'Weather', detail: 'Now, the next hours and tomorrow.' },
-      { value: 'due', label: 'Due', detail: 'Reminders and dates coming up.' },
-      { value: 'holidays', label: 'Holidays', detail: 'Public holidays coming up.' },
+      { value: 'report', label: 'Overnight', detail: 'What the night shift did.' },
+      { value: 'today', label: 'Today', detail: 'What is left on your calendars.' },
+      { value: 'due', label: 'Due', detail: 'Reminders today and tomorrow.' },
+      { value: 'practice', label: 'Practice', detail: 'What to practise next.' },
       { value: 'study', label: 'Study', detail: 'Where you are in what you are reading.' },
       { value: 'built', label: 'Built', detail: 'What the night shift made or fixed.' },
-      { value: 'podcasts', label: 'Podcasts', detail: 'New episodes from shows you follow.' },
       { value: 'notes', label: 'Notes', detail: 'Short notes the night shift left you.' },
-      { value: 'report', label: 'Report', detail: 'How the apps ran yesterday.' },
+      { value: 'holidays', label: 'Holidays', detail: 'Public holidays coming up.' },
     ],
-    default: ['weather', 'due', 'holidays', 'study', 'built', 'podcasts', 'notes', 'report'],
+    default: ['report', 'today', 'due', 'practice', 'study', 'built', 'notes', 'holidays'],
   },
   // The owner's calendars (BRIEFING.md "Today"): ICS links the Worker fetches each morning and when
   // the Briefing opens. Not for the mind: a link is a key to the calendar, so agents see only hosts.
@@ -211,6 +207,9 @@ export const SETTINGS = [
   { ...MIND, section: 'Reaching you', key: 'mind.speech', label: 'Speaking up', kind: 'choice', default: 'as_needed',
     options: o('as_needed:As needed', 'quiet:Quiet', 'silent:Silent'),
     detail: 'As needed: when it helps you. Quiet: a line and a card a day at most. Silent: only when you ask; reminders still ring.' },
+  // Home lines (HOME.md §2.2): the Worker refuses a line in a slot past this.
+  { ...MIND, section: 'Reaching you', key: 'mind.home_lines', label: 'Lines on home', kind: 'range', unit: 'lines', default: 4,
+    options: [{ value: 0, label: 'None' }, ...stops('lines', 1, 2, 3, 4)], detail: 'How many of my lines may sit on home at once. None: I only answer in the chat.' },
   { ...MIND, section: 'Reaching you', key: 'mind.ask_outside', label: 'Ask before outside sources', kind: 'switch', default: true,
     detail: 'I ask before I read the web or other outside text for you.' },
   // The day pulse (watches.ts): how many wakes a day the mind may set itself; the Worker refuses the rest.
@@ -248,44 +247,4 @@ export type WorkerSettingKey = Extract<(typeof SETTINGS)[number], { scope: 'work
 /** The entry for `key`, or undefined for a key the catalogue doesn't have. */
 export function settingSpec(key: string): SettingSpec | undefined {
   return (SETTINGS as readonly SettingSpec[]).find((s) => s.key === key);
-}
-
-/** Whether `value` is one `spec` allows: the Worker's PATCH and the phone's reads both hold to it. */
-export function validSetting(spec: SettingSpec, value: unknown): value is SettingValue {
-  const allowed = (spec.options ?? []).map((o) => o.value);
-  switch (spec.kind) {
-    case 'switch':
-      return typeof value === 'boolean';
-    case 'choice':
-      return typeof value === 'string' && allowed.includes(value);
-    case 'range':
-      return typeof value === 'number' && allowed.includes(value);
-    case 'order':
-      return (
-        Array.isArray(value) &&
-        new Set(value).size === value.length &&
-        value.every((v) => typeof v === 'string' && allowed.includes(v))
-      );
-    case 'text':
-      return (
-        typeof value === 'string' &&
-        value.length <= (spec.max ?? 200) &&
-        (spec.pattern === undefined || new RegExp(spec.pattern).test(value))
-      );
-    case 'links':
-      return (
-        Array.isArray(value) &&
-        value.length <= (spec.items ?? 3) &&
-        new Set(value.map((l) => l?.url)).size === value.length &&
-        value.every(
-          (l) =>
-            l !== null &&
-            typeof l === 'object' &&
-            Object.keys(l).sort().join() === 'mine,url' &&
-            typeof l.mine === 'boolean' &&
-            typeof l.url === 'string' &&
-            linkProblem(l.url, spec.max) === null,
-        )
-      );
-  }
 }

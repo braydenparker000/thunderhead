@@ -1,6 +1,6 @@
 // Thunderhead home: one quiet chat screen. Hold still for the Compass ring, swipe right for the briefing, swipe left for the menu.
 // The ring's apps come from the app registry (th/registry/apps.js, EXTENDING.md rule 3).
-import { apps } from '/th/registry/apps.js';
+import { ringApps } from '/th/registry/apps.js';
 import { from as launchFrom, launch } from '/ui/launch.js';
 import { startPinned } from './pinned.js';
 import { animator, springs, haptic, motionReduced, response, restTime } from '/th/motion.js';
@@ -95,18 +95,24 @@ function openFromRing(id,color,to){
   // 85% of the way out and slowing, so it is in place as they settle, and fades out with them. The chosen disc lifts on a
   // soft shadow once it rests; the name fades up under the ring. Only transform and opacity change; the disc itself never
   // fades, so its glass always sees what is behind it.
-  const APPS=apps.map(a=>[a.name,`<span class="lift" aria-hidden="true"></span><span class="face" aria-hidden="true"><span class="fill"></span><svg class="i ph"><use href="/ui/icons.svg#${a.icon}-fill"/></svg><svg class="i ph on"><use href="/ui/icons.svg#${a.icon}-fill"/></svg></span>`,a.color,a.built?a.path:'']);
+  // The owner's ring (Settings → Ring and gestures): their apps in their order, Photos last; Ring icons
+  // filled or outlined; built again when either changes. Hold time and swipe start are theirs too.
+  const pref=k=>{ try{ return localStorage.getItem('th.s.'+k) }catch(e){ return null } }, num=(k,d)=>Number(pref(k))||d;
+  const ringNow=()=>{ try{ return ringApps(JSON.parse(pref('gestures.ring_apps')||'null')) }catch(e){ return ringApps(null) } };
+  const skin=a=>{ const g=root.dataset.glyphs==='outline'?'':'-fill'; return [a.name,`<span class="lift" aria-hidden="true"></span><span class="face" aria-hidden="true"><span class="fill"></span><svg class="i ph"><use href="/ui/icons.svg#${a.icon}${g}"/></svg><svg class="i ph on"><use href="/ui/icons.svg#${a.icon}${g}"/></svg></span>`,a.color,a.built?a.path:''] };
+  let apps=ringNow(), APPS=apps.map(skin);
   // A choice holds until the finger is ~7 degrees past its sector's edge, whatever the number of apps (GESTURES.md §3.2).
   // Direction is measured from where the thumb went down, not from the ring's drawn centre: near an edge the ring
   // moves inward to fit, and measuring from there made a straight swipe up pick the wrong app (owner, 2026-10-31).
-  const N=APPS.length, SEC=Math.PI*2/N, HOLD=.5+7*N/360;
+  let N=APPS.length, SEC=Math.PI*2/N, HOLD=.5+7*N/360;
   const ring=$('#ring'), scrim=$('#scrim'), lbl=$('#lbl'), hub=$('#hub'), press=$('#press'), app=$('#app'), R=62;
-  const pets=APPS.map(([n,svg,c])=>{const p=document.createElement('div');p.className='pet';p.innerHTML=svg;p.title=n;p.style.setProperty('--c',c);ring.appendChild(p);return p});
+  const pet=([n,svg,c])=>{const p=document.createElement('div');p.className='pet';p.innerHTML=svg;p.title=n;p.style.setProperty('--c',c);ring.appendChild(p);return p};
+  let pets=APPS.map(pet);
   // The name that is leaving fades up and out while the new one fades up into its place.
   const ghost=document.createElement('div'); ghost.className='lbl ghost'; ghost.setAttribute('aria-hidden','true'); ring.appendChild(ghost);
   let start=null, open=false, dir=-1, holdT=null;
   let ringRun=0, opening=false, peak=0, look={fast:160,quick:240,ease:'ease-out'}, flight=null;
-  const petMotion=pets.map((p,i)=>{
+  const motionOf=(p,i)=>{
     const x=R*Math.sin(i*SEC), y=-R*Math.cos(i*SEC);
     // Three springs share one transform: it is written once a frame, after they have all stepped.
     let queued=false;
@@ -116,7 +122,10 @@ function openFromRing(id,color,to){
     const faceEl=p.querySelector('.face'), face=animator(v=>{faceEl.style.opacity=String(Math.max(0,Math.min(1,v)))},{unit:'opacity'});
     size.set(.2);
     return {x,y,faceEl,write,radial,size,choice,face};
-  });
+  };
+  let petMotion=pets.map(motionOf);
+  function rebuild(){ if(open) return; pets.forEach(p=>p.remove()); apps=ringNow(); APPS=apps.map(skin); N=APPS.length; SEC=Math.PI*2/N; HOLD=.5+7*N/360; pets=APPS.map(pet); petMotion=pets.map(motionOf); built=null }
+  document.addEventListener('th:setting',e=>{ if(['gestures.ring_apps','appearance.glyphs'].includes(e.detail?.key)) rebuild() });
   // The glass starts to fade in as the discs pass 85% of the way out with their speed falling (GESTURES.md §3).
   function glassy(v,speed){ if(!opening) return; peak=Math.max(peak,speed); if(v>=.85&&(speed<peak||speed===0)){ opening=false; ring.classList.add('glassy') } }
   const engines=()=>petMotion.flatMap(m=>[m.radial,m.size,m.choice,m.face]);
@@ -131,7 +140,7 @@ function openFromRing(id,color,to){
   function openFan(keyboard=false){ fan();if(keyboard&&dir<0)setDir(0) }
   const blocked=el=>el.closest('button,input,textarea,form,.chip,.card,.note,.you,.reply,.opts');
   // The ring keeps clear of the edges at its overshoot: 1.13 R plus half a disc at 1.06.
-  function place(x,y){ const r=app.getBoundingClientRect(); const m=R+36;
+  function place(x,y){ const r=app.getBoundingClientRect(); const m=(R+36)*({compact:.86,large:1.16}[root.dataset.ringSize]||1);
     const cx=Math.min(Math.max(x-r.left,m),r.width-m), cy=Math.min(Math.max(y-r.top,m+30),r.height-m-40);
     ring.style.left=cx+'px'; ring.style.top=cy+'px';
     lbl.style.top=ghost.style.top=(R+34)+'px'; return {cx:cx+r.left,cy:cy+r.top} }
@@ -231,14 +240,14 @@ function openFromRing(id,color,to){
     if(view!=='home'||blocked(e.target)||opts.classList.contains('show')) return;
     const r=app.getBoundingClientRect(); press.style.left=(e.clientX-r.left)+'px'; press.style.top=(e.clientY-r.top)+'px'; press.classList.remove('on'); void press.offsetWidth; press.classList.add('on');
     // The hold's own frame does only what the ring needs; counting it for the hint waits until the ring is out.
-    holdT=setTimeout(()=>{ resumePages(); press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); showRing(); openFan(); haptic('open'); setTimeout(()=>learn('ring'),600) },220) });
+    holdT=setTimeout(()=>{ resumePages(); press.classList.remove('on'); const c=place(start.x,start.y); start.cx=c.cx; start.cy=c.cy; open=true; hint.classList.add('gone'); showRing(); openFan(); haptic('open'); setTimeout(()=>learn('ring'),600) },num('gestures.hold_ms',220)) });
   window.addEventListener('pointermove',e=>{ if(!start||e.pointerId!==start.id) return;
     if(!open){ const mx=e.clientX-start.x, my=e.clientY-start.y, d=Math.hypot(mx,my);
       // Sideways is ours from 6 px, before Chrome's own slop (8 dp) can hand the touch to a scroller;
       // anything else is the scroller's once it passes the 10 px hold slop.
       // A leftward drag that starts on a conversation row is the row's own (its Pin and Summary).
-      if(!swipe&&view==='side'&&mx<0&&d>=6&&start.el.closest&&start.el.closest('#convos .row.thr')){ resumePages(); start=null; return }
-      if(!swipe){ if(d>=6&&Math.abs(mx)>Math.abs(my)){ clearTimeout(holdT); press.classList.remove('on'); takePages(); swipe={from:view,axis:start.b>0&&(view==='brief'||start.s<=0)?'brief':start.s>0?'side':mx>0?'brief':'side',b:start.b,s:start.s,v:[]} }
+      if(!swipe&&view==='side'&&mx<0&&d>=num('gestures.swipe_px',6)&&start.el.closest&&start.el.closest('#convos .row.thr')){ resumePages(); start=null; return }
+      if(!swipe){ if(d>=num('gestures.swipe_px',6)&&Math.abs(mx)>Math.abs(my)){ clearTimeout(holdT); press.classList.remove('on'); takePages(); swipe={from:view,axis:start.b>0&&(view==='brief'||start.s<=0)?'brief':start.s>0?'side':mx>0?'brief':'side',b:start.b,s:start.s,v:[]} }
         else { if(d>10){ clearTimeout(holdT); press.classList.remove('on'); resumePages(); start=null } return } }
       e.preventDefault(); swipe.v.push([e.timeStamp,e.clientX]); if(swipe.v.length>8) swipe.v.shift();
       const W=app.clientWidth, S=side.offsetWidth;
