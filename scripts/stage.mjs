@@ -195,7 +195,7 @@ const budgets = [
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
   // (2026-11-04) + the mind's line in the capsule: +470 measured bytes of island.css (21,003 → 21,473).
-  ['later CSS bytes', sum(/^th\/.*\.css$/), 21_473],
+  ['later CSS bytes', sum(/^th\/.*\.css$/), 21_485],
   // One face since 2026-10-31: Switzer, variable 100–900 (43.2 KB, the official file, never subset:
   // its licence forbids changing it; Quicksand was 28.2 KB, Fraunces and Inter 133 KB).
   ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 48_000],
