@@ -92,6 +92,8 @@ export const ROUTES = {
   'POST /v1/mind/typing': { who: D, phase: 'P2' },
   'POST /v1/mind/stop': { who: D, phase: 'P2', note: 'the owner taps Stop: the work ends, not the session' },
   'GET /v1/mind/wakes': { who: AGENTS_READ, phase: 'P2' },
+  'GET /v1/mind/watches': { who: AGENTS_READ, phase: 'P9', note: 'the day pulse: waiting watches, the last day\'s others, the wake budget' },
+  'GET /v1/mind/usage': { who: AGENTS_READ, phase: 'P9', note: 'the meter: wakes by cause, minutes awake, night minutes, watches (today, 7 days)' },
   'POST /v1/mind/brief': { who: MIND, phase: 'P2' },
   'POST /v1/mind/status': { who: MIND, phase: 'P2' },
   'POST /v1/mind/notes': { who: MIND, phase: 'P2' },
@@ -104,14 +106,13 @@ export const ROUTES = {
   'GET /v1/verbs/pending': { who: D, phase: 'P2', note: "?app=: that app's pending intents; without it, never an intent" },
   'POST /v1/verbs/:id/claim': { who: D, phase: 'P2' },
   'POST /v1/verbs/:id/result': { who: D, phase: 'P2' },
+  'POST /v1/verbs/plan': { who: ['C', 'N'], phase: 'P2', note: '2–8 verbs, one why, one undo; the strictest step decides its permit; fire_at runs it later' },
+  'GET /v1/verbs/scheduled': { who: ['D', 'C', 'N'], phase: 'P2', note: 'what waits for its fire_at, soonest first (≤ 20)' },
+  'POST /v1/verbs/:id/cancel': { who: ['D', 'C', 'N'], phase: 'P2', note: 'a scheduled verb or plan before it runs (its undo until then); the mind cancels its own' },
   'GET /v1/surfaces': { who: AGENTS_READ, phase: 'P2' },
   'PUT /v1/surfaces/:app/:slot': { who: ['C', 'N'], phase: 'P2' },
   'DELETE /v1/surfaces/:app/:slot': { who: ['D', 'C', 'N'], phase: 'P2' },
-  'POST /v1/media/sign': {
-    who: ['D', 'C', 'N'],
-    phase: 'P2',
-    note: 'music: refs (device only, P5), book: refs (P7); file: refs are not signable yet; 503 not_configured until the signing key is set',
-  },
+  'POST /v1/media/sign': { who: ['D', 'C', 'N'], phase: 'P2', note: 'music: refs (device only, P5), book: refs (P7); file: refs are not signable yet; 503 not_configured until the signing key is set' },
 
   // --- P3: memory and the night shift -----------------------------------------------------------
   'POST /v1/mind/night': { who: ['N'], phase: 'P3', note: 'the night run: start, step done, cursor, done' },

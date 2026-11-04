@@ -11,6 +11,8 @@ export const CHANGE_KINDS = [
   'ledger',
   'proposal',
   'verb',
+  // A plan's ledger row was written or undone (its line on home).
+  'plan',
   'surface',
   'notice',
   'fact',
@@ -20,6 +22,9 @@ export const CHANGE_KINDS = [
   'mind_status',
   'error',
   'work',
+  // A watch set, met, fired or refused (watches.ts); a prediction resolved (predictions.ts).
+  'watch',
+  'prediction',
 ] as const;
 export type ChangeKind = (typeof CHANGE_KINDS)[number];
 

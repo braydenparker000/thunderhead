@@ -1,6 +1,9 @@
 // Verbs queued for a phone or run by the Worker (DATA.md §4.3), with retention (§10). `error_json`
 // holds a failed result's code (e.g. `unsupported_verb`). Schema step 29: the mixes `music.mix_save`
 // keeps (a name and its songs, by the id of the verb that saved it), which `music.play_mix` plays.
+// Step 33: scheduled actions and plans (schedule.ts, plan.ts): when a `scheduled` row fires, the plan
+// a step belongs to, and the why and permit a scheduled row keeps for the ledger row it writes when
+// it runs (none is written while it waits).
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneMixes } from './mixes';
 import { prune } from './store';
@@ -53,11 +56,24 @@ export const VERBS_MIGRATIONS: Migration[] = [
       'CREATE INDEX mixes_created ON mixes (created_at)',
     ],
   },
+  {
+    version: 33,
+    name: 'verbs scheduled',
+    kind: 'expand',
+    sql: [
+      'ALTER TABLE verbs ADD COLUMN fire_at INTEGER',
+      'ALTER TABLE verbs ADD COLUMN plan_id TEXT',
+      'ALTER TABLE verbs ADD COLUMN why TEXT',
+      'ALTER TABLE verbs ADD COLUMN permit TEXT',
+      // At most 20 rows: the alarm's soonest, the due pass and the list read only these.
+      "CREATE INDEX verbs_scheduled ON verbs (fire_at) WHERE status = 'scheduled'",
+    ],
+  },
 ];
 
 export const VERBS_TABLES: Record<string, TableInfo> = {
   verbs: {
-    retention: 'done/failed/expired deleted 30 days after done_at or expires_at',
+    retention: 'done/failed/expired/cancelled deleted 30 days after done_at or expires_at',
     backup: true,
     export: true,
     prune,

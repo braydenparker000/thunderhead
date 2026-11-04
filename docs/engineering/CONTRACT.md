@@ -62,6 +62,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/mind/typing` | D | P2 | built |  |
 | `POST /v1/mind/stop` | D | P2 | built | the owner taps Stop: the work ends, not the session |
 | `GET /v1/mind/wakes` | D C N R | P2 | built |  |
+| `GET /v1/mind/watches` | D C N R | P9 | built | the day pulse: waiting watches, the last day's others, the wake budget |
+| `GET /v1/mind/usage` | D C N R | P9 | built | the meter: wakes by cause, minutes awake, night minutes, watches (today, 7 days) |
 | `POST /v1/mind/brief` | C N R | P2 | built |  |
 | `POST /v1/mind/status` | C N R | P2 | built |  |
 | `POST /v1/mind/notes` | C N R | P2 | built |  |
@@ -74,6 +76,9 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/verbs/pending` | D | P2 | built | ?app=: that app's pending intents; without it, never an intent |
 | `POST /v1/verbs/:id/claim` | D | P2 | built |  |
 | `POST /v1/verbs/:id/result` | D | P2 | built |  |
+| `POST /v1/verbs/plan` | C N | P2 | built | 2–8 verbs, one why, one undo; the strictest step decides its permit; fire_at runs it later |
+| `GET /v1/verbs/scheduled` | D C N | P2 | built | what waits for its fire_at, soonest first (≤ 20) |
+| `POST /v1/verbs/:id/cancel` | D C N | P2 | built | a scheduled verb or plan before it runs (its undo until then); the mind cancels its own |
 | `GET /v1/surfaces` | D C N R | P2 | built |  |
 | `PUT /v1/surfaces/:app/:slot` | C N | P2 | built |  |
 | `DELETE /v1/surfaces/:app/:slot` | D C N | P2 | built |  |
@@ -201,7 +206,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 
 ## Verbs
 
-Side `worker`: run inside the commit that queues it, `done` at once, its inverse stored on the ledger row (`stored`). Side `phone`: claimed and run by a signed-in phone, which reports its inverse (`reported`); an intent waits for its app to open (`GET /v1/verbs/pending?app=`). `tell_min`: never below tell.
+Side `worker`: run inside the commit that queues it, `done` at once, its inverse stored on the ledger row (`stored`). Side `phone`: claimed and run by a signed-in phone, which reports its inverse (`reported`); an intent waits for its app to open (`GET /v1/verbs/pending?app=`). `tell_min`: never below tell. `now only`: never scheduled or a step of a scheduled plan.
 
 | Verb | App | Class | Permit | Side | Queueable | Undo | Versions | Args (newest) | What it does |
 |---|---|---|---|---|---|---|---|---|---|
@@ -213,18 +218,20 @@ Side `worker`: run inside the commit that queues it, `done` at once, its inverse
 | `music.play_mix` | music | reversible | music | phone (intent) | yes | reported | 1 | `{ mix_id?: string, find?: object, refs?: array, index?: integer }` | Loads a saved mix (`mix_id`), the songs a find picks (`find`: moods, occasion, energy, like, limit, as `th music find`; songs ruled out are left out) or songs (`refs`) as the player's queue; it starts only after an owner gesture (MUSIC.md §10.3), else it waits paused. Music applies it when it next opens (an intent). Its undo restores the queue before it (its first 500 songs and the place). |
 | `music.rate` | music | reversible | music | phone (intent) | yes | reported | 1 | `{ ref: string, rating: integer }` | Rates a song 1–5 in the player's library, only one the owner has not rated (else `owner_rated`): the owner's rating stays theirs. The ratings live in the player, so Music applies it when it next opens (an intent), and its own `music.rate` sense tells the Worker. Its undo (`music.unrate`) clears it while it is still the rating set. |
 | `music.unrate` | music | reversible | music | phone (intent) | no (owner tap or undo) | none | 1 | `{ ref: string, rating: integer }` | Only the undo of music.rate: clears the song's rating while it is still the one set (else `owner_edited`). |
-| `music.never` | music | reversible | music | worker | yes | stored | 1 | `{ ref: string, evidence: array }` | Records the owner's "never play this again" as their rule (subject `music.never`, its text naming the song by `music:<id>` only), through memory's own rules: `evidence` must be the owner's messages. Find, like and every mix leave the song out at once. Its undo closes the rule. |
+| `music.never` | music | reversible | music | worker | yes (now only) | stored | 1 | `{ ref: string, evidence: array }` | Records the owner's "never play this again" as their rule (subject `music.never`, its text naming the song by `music:<id>` only), through memory's own rules: `evidence` must be the owner's messages. Find, like and every mix leave the song out at once. Its undo closes the rule. |
 | `music.mix_save` | music | reversible | music | worker | yes | stored | 1 | `{ name: string, refs: array, recipe?: string }` | Saves songs (a find's result) as a named mix in the Worker (`GET /v1/music/mixes`), for `music.play_mix {mix_id}` later; `recipe` is the one line it was found by. The mix's id is the verb's id. Its undo deletes the mix. |
 | `podcasts.follow` | podcasts | reversible | podcasts | phone (intent) | yes | reported | 1 | `{ feed_url: string, title: string, author?: string, artwork?: string }` | Follows a show by its feed address in Podcasts. The follows live in the app (the Worker keeps the copy it sends), so Podcasts applies it when it next opens (an intent). Its undo unfollows it; a show already followed changes nothing and has no undo. |
 | `podcasts.unfollow` | podcasts | reversible | podcasts (tell_min) | phone (intent) | yes | reported | 1 | `{ show_id: string }` | Unfollows a show by its id (16 hex digits, the night's name for it) in Podcasts, when it next opens (an intent). Never below `tell`: it takes away something the owner chose. Its undo follows it again. |
 | `podcasts.queue_episode` | podcasts | reversible | podcasts | phone (intent) | yes | reported | 1 | `{ show_id: string, episode_id?: string }` | Adds an episode of a followed show (by the show's id; without `episode_id`, its newest) to the end of Podcasts' Up Next, when Podcasts next opens (an intent). Its undo takes it out again. |
 | `podcasts.unqueue_episode` | podcasts | reversible | podcasts | phone (intent) | no (owner tap or undo) | none | 1 | `{ key: string }` | Only the undo of podcasts.queue_episode: takes that episode out of Up Next. |
 | `podcasts.mark_played` | podcasts | reversible | podcasts | worker | yes | stored | 1 | `{ key: string }` | Marks an episode (`<feed address>#<episode id>`, as GET /v1/podcasts/progress names it) played in the Worker's positions, which every phone takes when Podcasts opens (the newer wins). Its undo puts back where it was left. |
-| `reminder.move` | shell | reversible | reminders | worker | yes | stored | 1 | `{ id: string, at: integer, source_message_id?: string }` | Moves a set reminder to a new time, by the reminders' own rules: in the future, at most 400 days ahead, a time inside quiet hours rings at their end; only from the chat, from a clean session; one the owner set on the phone needs the owner's message that asked (`source_message_id`). Its undo puts back the time before, while the reminder is still set at the new one. |
+| `reminder.move` | shell | reversible | reminders | worker | yes (now only) | stored | 1 | `{ id: string, at: integer, source_message_id?: string }` | Moves a set reminder to a new time, by the reminders' own rules: in the future, at most 400 days ahead, a time inside quiet hours rings at their end; only from the chat, from a clean session; one the owner set on the phone needs the owner's message that asked (`source_message_id`). Its undo puts back the time before, while the reminder is still set at the new one. |
 | `settings.set` | shell | reversible | settings | worker | yes | stored | 1 | `{ key: string, value: json }` | Changes one of the Worker's settings in the catalogue (MENU-AND-SETTINGS.md §6), to a value the catalogue allows. Never the standing permissions (`mind.permit.*`), the outside-sources switch (`mind.ask_outside`) or Privacy and data (`privacy.*`): those are the owner's alone. Its undo puts back the value before (or the default), while the setting still holds the new one. |
 | `briefing.pin_tile` | shell | reversible | tiles | worker | yes | stored | 1 | `{ tile: 'due' \| 'holidays' \| 'practice' \| 'study' \| 'built' \| 'note.1' \| 'note.2' \| 'note.3' }` | Pins a tile the Briefing knows (`due`, `holidays`, or a night slot: `practice`, `study`, `built`, `note.1`–`note.3`) right after "Waiting on you", newest pin first, at most 3 (a fourth unpins the oldest); a pinned tile shows only when it has something to say. The owner's own arrangement on the phone still wins. Its undo puts back the pins before. |
 | `briefing.unpin_tile` | shell | reversible | tiles | worker | yes | stored | 1 | `{ tile: 'due' \| 'holidays' \| 'practice' \| 'study' \| 'built' \| 'note.1' \| 'note.2' \| 'note.3' }` | Unpins a Briefing tile, which goes back to its usual place. Its undo pins it again where it was. |
-| `memory.note` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ text: string, kind: 'state' \| 'goal' \| 'preference' \| 'routine' \| 'habit' \| 'fact' \| 'rule', subject?: string, evidence: array }` | Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), never off the record; no card. `provenance` is the label memory gave it (MEMORY.md §6 M11): `owner`, or `outside` from a session that read outside text, which waits for the owner's keep. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's. |
+| `memory.note` | shell | reversible | none (the owner's words) | worker | yes (now only) | stored | 1 | `{ text: string, kind: 'state' \| 'goal' \| 'preference' \| 'routine' \| 'habit' \| 'fact' \| 'rule', subject?: string, evidence: array }` | Remembers a fact about the owner from their own message (source `user`), through memory's rules: every evidence ref must be the owner's own message (M3), never off the record; no card. `provenance` is the label memory gave it (MEMORY.md §6 M11): `owner`, or `outside` from a session that read outside text, which waits for the owner's keep. Its undo closes the fact (it stops being current, as a supersede closes the old version); forgetting it for good stays the owner's. |
+| `watch.set` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ kind: 'at' \| 'event' \| 'change', at?: integer, type?: 'player.open' \| 'music.play' \| 'music.skip' \| 'music.finish' \| 'music.rate' \| 'podcasts.open' \| 'podcast.play' \| 'podcast.finish' \| 'podcast.skip' \| 'podcast.follow' \| 'podcast.unfollow' \| 'guitar.open' \| 'guitar.piece_opened' \| 'guitar.pass' \| 'guitar.bpm' \| 'guitar.session' \| 'study.open' \| 'study.read' \| 'study.search' \| 'study.highlight' \| 'astra.open' \| 'mymedia.open' \| 'media.watch' \| 'media.finish' \| 'media.drop' \| 'app.open' \| 'app.close' \| 'ring.choice' \| 'island.tap' \| 'briefing.open' \| 'settings.change' \| 'briefing.tile' \| 'line.seen' \| 'line.dismiss' \| 'card.decide' \| 'reply.open_chip' \| 'reminder.fired' \| 'work' \| 'verb' \| 'proposal' \| 'prediction', ref?: string, why: string, note?: string }` | Sets a watch: `at` (a time, at most 7 days ahead), `event` (a sense type or `reminder.fired`, optionally its ref) or `change` (`work`, `verb`, `proposal` or `prediction`, met when it settles; optionally its ref). Met once, it wakes the chat with its why and note (a live session hears it in `th wait`), within the wake budget; at most 20 wait at once. From a claimed session that was handed nothing off the record. Its undo cancels it. |
+| `watch.cancel` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ id: string }` | Cancels a live or queued watch. Its undo sets it waiting again while its time has not passed and fewer than 20 wait. |
 | `shell.appearance` | shell | reversible | settings | phone | yes | reported | 1 | `{ mode: 'auto' \| 'day' \| 'night' }` | Sets the phone's appearance (auto, day or night). The phone reports the previous mode as the undo. |
 
 ## Standing permissions
@@ -254,6 +261,10 @@ How the mind may take each class of action, the owner's `mind.permit.<class>` se
 | `muse.order_personal` | muse | reach_people | A work order of a kind that carries the owner's data (`personal` in work.ts): Muse runs on another provider (BEHAVIOR.md §7 rule 4). No such kind is built. |
 | `memory.outside` | outside | — | Keeping a fact learned from outside text. A write from a session that read outside text is labelled outside and waits for the owner's Keep in Settings › Memory (MEMORY.md §6 M11); no position loosens that. |
 
+## Scheduled actions and plans
+
+A verb or a plan with `fire_at` (ISO, owner-local or with its offset) waits as a `scheduled` row: at most 20 at once (429 `too_many_scheduled`), at most 7 days ahead; its permit is checked when it is queued. Classes that wait out quiet hours (fired at their end, `shifted`): `music`, `podcasts`. A plan is 2–8 verbs with one why, one undo and a line of at most 80 characters, gated and carded as `plan.run` under its strictest step's position (API.md §11.11).
+
 ## Surface kinds
 
 | Kind | Slots | Versions | Payload (newest) | What it is |
@@ -263,7 +274,7 @@ How the mind may take each class of action, the owner's `mind.permit.<class>` se
 
 ## Change kinds
 
-`message` · `thread` · `ledger` · `proposal` · `verb` · `surface` · `notice` · `fact` · `day_note` · `open_thread` · `setting` · `mind_status` · `error` · `work`
+`message` · `thread` · `ledger` · `proposal` · `verb` · `plan` · `surface` · `notice` · `fact` · `day_note` · `open_thread` · `setting` · `mind_status` · `error` · `work` · `watch` · `prediction`
 
 ## Live channel
 
@@ -458,6 +469,21 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `drill.overdue` | no restore drill for 35 days since the first complete backup | S3 | Backups: the monthly drill passes | yes | P4 | built |
 | `events.export.late` | day D not archived by D+1 09:00 | S3 | Senses: each day archived by the next morning | yes | P5 | built |
 
+## Watches
+
+The day pulse (RUNTIME.md §3): `watch.set` stores a condition (`at`, `event`, `change`) that, met once, wakes the chat with its why and note, within the owner's wake budget (`mind.wake_budget`). At most 20 wait at once; an `at` watch is at most 7 days ahead, and an event or change watch lapses unmet after as long; a met watch that cannot wake the mind yet waits 12 hours. States: `live` · `queued` · `fired` · `over_budget` · `cancelled` · `expired`. The meter counts wakes by cause: `owner` · `watch` · `roll` · `schedule` · `watchdog`.
+
+| Event watch (beside every sense type) | When |
+|---|---|
+| `reminder.fired` | A reminder rings (ref: reminder:<id>). |
+
+| Change watch | Met when |
+|---|---|
+| `work` | A work order ends: done, failed, rejected, expired or cancelled (ref: work:<id>). |
+| `verb` | A verb's result comes back, done or failed (ref: verb:<id>); never a watch verb's own. |
+| `proposal` | A decision card is answered or lapses (ref: proposal:<id>). |
+| `prediction` | A prediction resolves (ref: prediction:<id>). |
+
 ## Error codes
 
 | Code | Status | Message |
@@ -518,6 +544,7 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `reset_not_ready` | 425 | The reset ticket is not usable yet. |
 | `client_outdated` | 426 | A newer client is required for writes. |
 | `rate_limited` | 429 | Too many attempts. Try again soon. |
+| `too_many_scheduled` | 429 | Twenty scheduled actions already wait; cancel one or let one run first. |
 | `internal` | 500 | Something went wrong on our side. |
 | `upstream` | 502 | An upstream service failed. |
 | `budget_exhausted` | 503 | Today's free-plan budget is used up. |

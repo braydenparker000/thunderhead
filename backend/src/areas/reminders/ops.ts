@@ -191,12 +191,13 @@ export function moveBack(w: Writer, id: string, before: number, movedTo: number,
  * row turns `done` in the same commit). A push is owed unless it is delivered inside quiet hours
  * or `push` is false (the eval sandbox). Returns how many owe a push; past PER_RUN, the alarm
  * comes back at once for the rest. */
-export function deliverDue(w: Writer, tz: string, push: boolean): number {
+export function deliverDue(w: Writer, tz: string, push: boolean, rang: string[] = []): number {
   const owed = push && !inQuiet(w.at, tz, quietWindow(w.db));
   let pushes = 0;
   for (const r of store.due(w.db, w.at, PER_RUN)) {
     const id = uuidv7(w.at);
     if (!store.markDone(w.db, r.id, w.at, id, owed ? w.at + PUSH_MS : null)) continue;
+    rang.push(r.id);
     convo.insertMessage(w.db, {
       id,
       thread_id: today(w, tz).id,

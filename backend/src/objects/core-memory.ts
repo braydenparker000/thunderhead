@@ -26,14 +26,14 @@ import { claimedSession } from '../areas/mind/guards';
 import { taint } from '../areas/mind/ops';
 import { attempt, Fail, invalid, type Out } from '../lib/result';
 import type { Caller } from './caller';
-import { CoreBase } from './core-base';
+import { CoreWatches } from './core-watches';
 
 /** How many current facts the profile reads at most (newest first): a bound on its rows read. */
 export const PROFILE_READ = 2_000;
 /** The taint source of a mind read that asked for memory labelled `outside` (MEMORY.md §6 M11f). */
 export const OUTSIDE_READ = 'outside memory';
 
-export abstract class CoreMemory extends CoreBase {
+export abstract class CoreMemory extends CoreWatches {
   facts(filter: facts.FactsFilter, before: number | null, limit: number): { items: Fact[]; last: number | null } {
     const now = Date.now();
     const rows = facts.factsPage(this.db, filter, before, limit);

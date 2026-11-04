@@ -28,6 +28,7 @@ import * as sessionNotes from './notes';
 import * as stop from './stop';
 import * as store from './store';
 import { ACK_MS, backoff, clearBackoff, LEASE_MS, leaseLive, setPresence } from './wake';
+import { liveEvents } from './watches/brief';
 
 const RENEW_EVERY_MS = 30_000;
 /** How long a taint carries over to the role's new claims, counted from the taint itself. */
@@ -189,8 +190,7 @@ export function note(w: Writer, sessionId: string | null, role: MindRole, r: Min
   // Nor from a session that was handed a message off the record, whatever thread it names.
   if (sawOffRecord(w.db, sessionId)) throw new Fail('off_record');
   const s = sessionId ? store.session(w.db, sessionId) : null;
-  // Written after outside text (MEMORY.md §7): a clean session's briefing and the night's day leave
-  // its words out.
+  // Written after outside text (MEMORY.md §7): a clean session's briefing and the night leave it out.
   const tainted = taintedNow(w.db, sessionId, role);
   sessionNotes.putNote(w.db, {
     id: r.id,
@@ -263,8 +263,7 @@ function renew(db: Db, sessionId: string, at: number, takeIfFree: boolean): bool
  * chat session that holds the lease, verb results, and the day-closed signal. */
 export function take(w: Writer, since: number, role: MindRole, sessionId: string | null, tz: string): LiveWaitResponse {
   const { db, at } = w;
-  // A cursor past the newest change (a restored store, stale local state) would wait forever:
-  // start from the newest instead.
+  // A cursor past the newest change (a restored store, stale local state) would wait forever.
   const last = feed.lastSeq(db);
   const after = Math.min(since, last);
   const holds = role === 'chat' && sessionId !== null && renew(db, sessionId, at, true);
@@ -278,11 +277,13 @@ export function take(w: Writer, since: number, role: MindRole, sessionId: string
       const st = verbs.statusOf(db, c.ref.slice('verb:'.length));
       if (st === 'done' || st === 'failed') events.push({ type: 'verb.result', ref: c.ref, at: c.at });
     }
+  // A watch met while this session lives is its event, not a new wake (watches/pulse.ts).
+  events.push(...liveEvents(db, changes, holds ? sessionId : null, () => taintedNow(db, sessionId, role)));
   const s = sessionId ? store.session(db, sessionId) : null;
   const signals: LiveWaitResponse['signals'] = s && s.day < currentDay(db, tz, at) ? ['day_closed'] : [];
   const st = role === 'chat' ? stop.standing(db) : null;
   if (st && st.seq > after) signals.push('stop');
-  // Messages off the record are handed out (the chat answers them) and named, so it remembers none.
+  // Messages off the record are handed out and named, so it remembers none.
   const offRecord = messages.length ? offRecordOf(db, messages, at) : [];
   // The Worker marks the session it hands them to: from now on it writes no memory (guards.ts).
   if (offRecord.length && sessionId) markOffRecord(db, { id: sessionId, role, day: currentDay(db, tz, at), at });

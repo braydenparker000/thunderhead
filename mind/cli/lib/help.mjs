@@ -17,7 +17,9 @@ export const USAGE = {
   pending: ['', 'what the Stop hook reads: unanswered, stop, day_closed, limited, idle'],
   search: ['<query> [--sources messages,facts,…] [--since] [--until] [--thread <id>] [--limit 20] [--outside]', 'federated search (recall is the same); --outside: outside memory\'s words, which labels what you write after'],
   recall: ['<query> [--sources …] [--kind …]', 'same as search'],
-  verb: ['<app.action> [<args json>|-] --why <8–200 chars> [--schema <n>] [--device <id>] [--ref <ref>] [--proposal <id>]', 'ask a phone to do something (undoable); - reads the args JSON from stdin (text from elsewhere, like a song title, never goes in a quoted argument)'],
+  verb: ['<app.action> [<args json>|-] --why <8–200 chars> [--at <time>] [--schema <n>] [--device <id>] [--ref <ref>] [--proposal <id>] | cancel <id>', 'do something (undoable); - reads the args JSON from stdin (text from elsewhere, like a song title, never goes in a quoted argument). --at runs it later: an ISO time, owner-local (2026-11-03T18:00) or with its offset, or +90m, +2h, +1d, within 7 days, at most 20 waiting; music and podcasts wait out quiet hours (shifted: true says it fires at their end); the permit is checked now (a card now, for that call and time); a verb that rests on the owner\'s words now (music.never, reminder.move, memory.note) never waits. cancel <id> takes a scheduled verb or plan back before it runs (its undo until then; after, th undo its ledger row)'],
+  verbs: ['scheduled', 'what waits for its time, soonest first (a plan as plan.run with its line and steps)'],
+  plan: ['<file.json|-> --why <8–200 chars> [--what <home\'s line>] [--at <time>] [--proposal <id>]', 'several verbs, one why, one undo: the file is {"what": "Set up your evening.", "steps": [{"verb": "music.queue", "args": {…}}, …]} (2–8 steps, each checked like th verb; "schema" and "device" optional). They run in order (Worker-side ones done, intents pending in order); a step that fails takes the ones before back and names itself. Home shows the line once, with Undo; th undo <ledger_id> reverses the steps last first. Its permit is the strictest step\'s: an ask anywhere asks once, a plan.run card for exactly these steps (and time). --at schedules the whole plan like a verb'],
   surface: ['<app> <slot> --kind <k> --payload <json|-> --why <t> --topic <key> [--ref app:<id>] [--expires <iso>] [--proposal <id>] · ls · rm <app> <slot>', 'place, list or clear a surface; --payload - reads it from stdin; --ref names the app it is about, so opening that app counts as using it'],
   undo: ['<ledger id>', 'undo one of your actions'],
   ledger: ['[--since <iso>] [--kind <k>] [--limit 50]', 'what was done and why'],
@@ -33,6 +35,7 @@ export const USAGE = {
   help: ['[command]', 'this text'],
   file: ['<id|file:id> [--out <path>]', 'save an attachment from the Worker to $TMPDIR/th/files/<id>.<ext>; prints path, type, name and a voice memo\'s words (text)'],
   remind: ['<when> <text|-> --from <owner message id> [--proposal <id>] | list | cancel <id> [--from <owner message id>]', 'a reminder the owner asked for in that message (sent in the last 48 h, at most 3 from one, 5 from you a day): <when> is an ISO time with its offset or +90m, +2h, +1d; delivered once at that time as a line and a push, a time in quiet hours moved to their end (shifted: true says so in the reply). Cancel one the owner set on the phone only with --from naming the message that asked'],
+  watch: ['set at <when> | set event <type> [--ref <ref>] | set change <work|verb|proposal|prediction> [--ref <ref>] --why <8–200> [--note <≤140>] | cancel <id> | list', `the day pulse: a condition that, met once, wakes you with its why and note (a live session hears it in th wait), within the owner's wake budget (mind.wake_budget a day; the rest are refused and your briefing counts them). <when> as th remind, at most ${CONTRACT.watches.limits.ahead_days} days ahead; an event is a sense type or reminder.fired; a change is met when its thing settles. At most ${CONTRACT.watches.limits.live} wait; each fires once. A watch wake speaks only by the voice ladder`],
   // Later phases: the commands exist so the procedure never changes; the Worker answers when its
   // phase is built, and until then th exits 8 not_built.
   remember: ['--kind <k> --text <t> --evidence <ids> [--subject] [--sensitivity 0|1] [--source]', 'add a fact; prints its provenance: owner, observed, or outside after outside text (it waits for the owner\'s keep; never a rule)'],
@@ -71,7 +74,7 @@ export function helpText(command, role = process.env.TH_ROLE || '') {
     const ver = Math.max(...Object.keys(v.versions).map(Number));
     const args = Object.keys(v.versions[ver].args.properties || {}).join(', ');
     const runs = v.side === 'worker' ? 'worker' : v.intent ? `app ${v.app}` : 'phone';
-    const cls = v.permit === null ? 'no class: the owner\'s words' : `${v.permit}${v.floor ? ` (floor ${v.floor})` : ''}${v.tell_min ? ', never below tell' : ''}`;
+    const cls = v.permit === null ? (name.startsWith('watch.') ? 'no class: your own, within the wake budget' : 'no class: the owner\'s words') : `${v.permit}${v.floor ? ` (floor ${v.floor})` : ''}${v.tell_min ? ', never below tell' : ''}`;
     lines.push(`  ${name} v${ver} {${args}} [${runs} · ${cls} · undo ${v.undo}]${v.queueable ? '' : ' (not yours to queue: an owner tap or an undo)'}: ${v.doc}`);
   }
   const permits = CONTRACT.permits;

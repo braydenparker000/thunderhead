@@ -1,27 +1,24 @@
 // The verbs the Worker runs itself (`side: 'worker'` in shared/contract/verbs.ts, API.md §11.11): each
-// through the owning area's own op, inside the commit that queues it and after its permit gate, so
+// through the owning area's own op, inside the commit that queues it (or that runs its plan or its
+// scheduled time) and after its permit gate (run.ts records it), so
 // the verb is `done` at once and its ledger row keeps the inverse as `{op, args}` (undo.ts runs it;
 // `th undo` and the phone's Undo need nothing else). An executor that changes nothing (the setting
 // already holds the value, the episode was played) returns no undo. A refusal (a Fail) rolls the
 // whole commit back: nothing is queued, nothing written, the card the gate took is not used.
 
-import type { JsonObject, PutVerbRequest, Verb } from '../../../../shared/contract/api';
+import type { JsonObject } from '../../../../shared/contract/api';
 import { MUSIC_NEVER_SUBJECT } from '../../../../shared/contract/music.ts';
-import type { Permit } from '../../../../shared/contract/permits.ts';
 import { uuidv7 } from '../../lib/ids';
 import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { PINS_KEY, pinsOf, withPin } from '../briefing/pins';
-import * as ledger from '../ledger/store';
 import * as memory from '../memory/ops';
-import { type Gated, ledgerPermit } from '../mind/permit';
+import { WATCH_EXECUTORS } from '../mind/watches/verbs';
 import * as podcasts from '../podcasts/sync';
 import * as reminders from '../reminders/ops';
 import { mindSet, writeSetting } from '../settings/mind-set';
-import { followThrough } from './follow';
 import * as mixes from './mixes';
-import * as store from './store';
 
 export interface RunCtx {
   w: Writer;
@@ -132,6 +129,8 @@ export const WORKER_VERBS: Record<string, Executor> = {
   },
   'briefing.pin_tile': pin(true),
   'briefing.unpin_tile': pin(false),
+  // The day pulse's own (areas/mind/watches): watch.set, watch.cancel.
+  ...WATCH_EXECUTORS,
 };
 
 /** Runs a Worker-side verb; a verb the map lacks is a bug in the contract, not a refusal. */
@@ -139,58 +138,4 @@ export function runWorkerVerb(name: string, x: RunCtx, args: Args): Ran {
   const run = Object.hasOwn(WORKER_VERBS, name) ? WORKER_VERBS[name] : null;
   if (!run) throw new Fail('unavailable', { reason: `no Worker executor for ${name}` });
   return run(x, args);
-}
-
-/** A Worker-side verb, queued (verbs/ops.ts `put`): run through its area's op in this commit, after the gate, and
- * kept `done` at once with its result; its ledger row (the area's own, or one written here) holds
- * the inverse as `{op, args}`. A mind's verb in a followed class then gets its follow-up. */
-export function runHere(
-  w: Writer,
-  c: Caller,
-  id: string,
-  r: PutVerbRequest,
-  args: JsonObject,
-  reqHash: string,
-  g: Gated | null,
-  zone: () => string,
-): { verb: Verb; created: boolean; permit?: Permit } {
-  const ran = runWorkerVerb(r.verb, { w, c, id, hash: reqHash, zone }, args);
-  let ledgerId = ran.ledger_id ?? null;
-  if (ledgerId) ledger.linkVerb(w.db, ledgerId, id, g?.permit.position ?? null, g?.proposal_id ?? null);
-  else
-    ledgerId = w.ledger({
-      kind: 'verb',
-      actor: c.actor,
-      session_id: c.session_id,
-      what: `${r.verb} done${ran.undo ? '' : ' (nothing changed)'}`,
-      why: r.why,
-      ref: r.ref ?? `verb:${id}`,
-      verb_id: id,
-      undo: ran.undo,
-      ...ledgerPermit(g),
-    });
-  store.insert(w.db, {
-    id,
-    created_at: w.at,
-    actor: c.actor,
-    verb: r.verb,
-    schema: r.schema,
-    ref: r.ref ?? null,
-    args_json: JSON.stringify(args),
-    device_id: null,
-    expires_at: w.at,
-    proposal_id: r.proposal_id ?? null,
-    ledger_id: ledgerId,
-    req_sha256: reqHash,
-  });
-  store.finish(w.db, id, true, w.at, ran.result, ran.undo, null);
-  w.change('verb', `verb:${id}`);
-  // A verb that only records the owner's own words (its area's row: music.never) is not followed up.
-  if (g && ran.undo && !ran.ledger_id)
-    followThrough(w, { verb: r.verb, why: r.why, position: g.permit.position }, ledgerId, zone);
-  return {
-    verb: store.toVerb(store.byId(w.db, id) as store.VerbRow),
-    created: true,
-    ...(g ? { permit: g.permit } : {}),
-  };
 }

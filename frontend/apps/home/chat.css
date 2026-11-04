@@ -6,7 +6,7 @@
 .talk .meta{font:400 var(--fs-label)/var(--lh-tight) var(--ui);color:var(--ink-3);display:flex;align-items:center;gap:4px}
 .talk .meta.bad{color:#b42318}
 :root[data-theme="dark"] .talk .meta.bad{color:#ff6b5e}
-.talk .retry{border:0;background:none;padding:0 6px;min-height:44px;margin:-14px 0;font:600 var(--fs-label) var(--ui);color:var(--accent-text);cursor:pointer}
+.talk .retry,.talk .note .nu{border:0;background:none;padding:0 6px;min-height:44px;margin:-14px 0;font:600 var(--fs-label) var(--ui);color:var(--accent-text);cursor:pointer}
 .talk .sys{align-self:center;max-width:88%;text-align:center;font:400 var(--fs-small)/var(--lh-body) var(--ui);color:var(--ink-3);overflow-wrap:anywhere;user-select:text;-webkit-user-select:text}
 .talk .turn.sysline{align-items:center}
 .talk .replybox{display:flex;flex-direction:column;align-items:flex-start;gap:10px}

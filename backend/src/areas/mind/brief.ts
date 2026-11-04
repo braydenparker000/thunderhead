@@ -9,7 +9,7 @@ import type { LedgerEntry, Message, MindRole } from '../../../../shared/contract
 import type { DayNoteRow, OpenThreadRow } from '../memory/notes';
 import { renderDayNote, renderDays, renderRules, renderThreads } from '../memory/profile';
 import type { FactRow } from '../memory/store';
-import { verbTable } from './brief-verbs';
+import { DELEGATE, verbTable } from './brief-verbs';
 
 export const CORE_MAX = 9_500;
 export const FULL_MAX = 48_000;
@@ -64,6 +64,7 @@ export interface BriefInput {
   /** The owner's calendar for section 1 (briefing/calendar-store.ts briefLines): today's events
    * still on, tomorrow's first, a failing link; a shared link's marked `(outside)`. */
   calendar?: string[];
+  pulse?: string[]; // section 1's day pulse (watches/brief.ts): the wake budget, why a watch woke it
 }
 
 /** Formatters made once per zone (one per line cost the briefing tens of ms of CPU). */
@@ -78,7 +79,7 @@ function format(tz: string, kind: 'clock' | 'weekday'): Intl.DateTimeFormat {
   }
   return f;
 }
-const clock = (at: number, tz: string) => format(tz, 'clock').format(at);
+export const clock = (at: number, tz: string) => format(tz, 'clock').format(at);
 const weekday = (at: number, tz: string) => format(tz, 'weekday').format(at);
 
 /** A message's files after its words: ref, type, a memo's length, name (quoted as JSON, so a name
@@ -164,6 +165,8 @@ const quietLine = (i: BriefInput) =>
  * standing permissions' lines say what each position asks of the mind (areas/mind/permit.ts). */
 export const SETTINGS_LEGEND =
   "The owner's choices in Settings (The mind, Briefing); (default) where never changed. Standing permissions (mind.permit.*), enforced by the Worker: tell = do it and say so in your reply; quiet = do it, mention it only if asked; ask = a decision card first (the 403 proposal_required names it: th propose it, then the same call with --proposal <id>). Money, deleting the owner's data, keys and access, and reaching another person always ask.";
+/** Section 7's second line: which of the mind's subagents (.claude/agents/, RUNTIME.md §6.6) to hand
+ * work to, each on a cheaper model than the session's; the hook starts only these for the role. */
 const settingsSection = (lines: string[]) =>
   budgeted([SETTINGS_LEGEND, ...lines], 2_000, 'oldest', (k) => `(+${k} more: th get /v1/settings)`);
 
@@ -223,15 +226,15 @@ export function buildBrief(i: BriefInput): { core: string; full: string } {
     if (i.yesterday.note) return renderDayNote(i.yesterday.note, b, more, !i.tainted);
     return yesterday.length ? budgeted(yesterday, b, 'newest', more) : 'No messages yesterday.';
   };
-  // Today's state: the calendar after the lines above, in its own budget, never cutting them.
-  const calendar = i.calendar?.length
-    ? `\n${budgeted(i.calendar, 700, 'oldest', (k) => `(+${k} more: th get /v1/briefing/calendar days=2)`)}`
-    : '';
+  // Today's state: the watches, then the calendar, after the lines above, each in its own budget.
+  const part = (l: string[] | undefined, b: number, more: string) =>
+    l?.length ? `\n${budgeted(l, b, 'oldest', (k) => `(+${k} more: ${more})`)}` : '';
+  const calendar = part(i.pulse, 1_200, 'th watch list') + part(i.calendar, 700, 'th get /v1/briefing/calendar days=2');
   const body: Record<number, string> = {
     1: now.slice(0, 500) + calendar,
     2: make(2, 2_800, false).slice(0, 2_800),
     3: make(3, 1_400, false),
-    7: 'Full briefing: $TMPDIR/th/brief.md · Search: th recall "<q>" · Your settings: th brief --section 13',
+    7: `Full briefing: $TMPDIR/th/brief.md · Search: th recall "<q>" · Your settings: th brief --section 13\n${DELEGATE[i.role]}`,
   };
   let left =
     CORE_MAX - 40 - [1, 2, 3, 7].reduce((n, s) => n + body[s].length + frame(s), 0) - frame(4) - frame(5) - frame(6);

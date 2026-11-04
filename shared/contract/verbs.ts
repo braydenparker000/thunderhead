@@ -15,6 +15,7 @@ import type { VerbSpec } from './verb-spec.ts';
 import { MUSIC_VERBS } from './verbs-music.ts';
 import { PODCAST_VERBS } from './verbs-podcasts.ts';
 import { SHELL_VERBS } from './verbs-shell.ts';
+import { WATCH_VERBS } from './watches.ts';
 
 export type { VerbSpec, VerbVersion } from './verb-spec.ts';
 export { PLAY_MAX } from './verbs-music.ts';
@@ -46,6 +47,7 @@ export const VERBS = {
   ...MUSIC_VERBS,
   ...PODCAST_VERBS,
   ...SHELL_VERBS,
+  ...WATCH_VERBS,
   'shell.appearance': {
     app: 'shell',
     class: 'reversible',

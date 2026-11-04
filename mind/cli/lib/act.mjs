@@ -1,5 +1,6 @@
 // Acting commands: propose, decide, approved, verb, order, surface, push, predict, night
-// (RUNTIME.md §5.3, BEHAVIOR.md §4, API.md §11.10–11.12, §11.19–11.20).
+// (RUNTIME.md §5.3, BEHAVIOR.md §4, API.md §11.10–11.12, §11.19–11.20); plans and what waits for
+// its time are in plan.mjs.
 import {readFileSync} from 'node:fs';
 import {parseArgs} from './args.mjs';
 import {EXIT, invalid, jsonFlag, need, out, textArg, toMs} from './io.mjs';
@@ -7,6 +8,7 @@ import {CONTRACT, checkProposal, checkSurface, checkVerb} from './contract.mjs';
 import {permitOut, proposalHeaders, request} from './http.mjs';
 import {getState, setState} from './state.mjs';
 import {uuidv7} from './ids.mjs';
+import {cancel, fireAt, laterOk} from './plan.mjs';
 
 /** The card classes (shared/contract/proposals.ts); `permit` is a standing permission set to Ask. */
 export const CLASSES = Object.keys(CONTRACT.proposals.classes);
@@ -88,24 +90,30 @@ function why(flags) {
   return text;
 }
 
-/** `th verb <app.action> [<args json>] --why <t>`: any verb in the contract, checked before sending. */
+/** `th verb <app.action> [<args json>] --why <t> [--at <time>]`: any verb in the contract, checked
+ * before sending; with --at it waits for that time (plan.mjs). `th verb cancel <id>` takes a scheduled
+ * one back before it runs. */
 export async function verb(argv) {
   const {flags, rest} = parseArgs(argv);
   const [name, argsJson] = rest;
-  if (!name || !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*$/.test(name)) throw invalid('usage: th verb <app>.<action> [<args json>] --why <text> [--schema <n>] [--device <id>] [--ref <ref>]');
+  if (name === 'cancel' && rest.length === 2) return cancel(rest[1]);
+  if (!name || !/^[a-z][a-z0-9_]*\.[a-z][a-z0-9_.]*$/.test(name)) throw invalid('usage: th verb <app>.<action> [<args json>] --why <text> [--at <time>] [--schema <n>] [--device <id>] [--ref <ref>] | cancel <id>');
   // `-`: the args JSON on stdin, so text from elsewhere (a song's title in a mix's name) is never
   // inside a quoted shell argument.
   const raw = argsJson ?? flags.args;
   const args = jsonFlag(raw === '-' ? readFileSync(0, 'utf8') : raw, 'args') ?? {};
   const schema = checkVerb(name, flags.schema === undefined ? undefined : Number(flags.schema), args);
+  if (flags.at !== undefined) laterOk(name);
   const id = uuidv7();
   const {data} = await request('PUT', `/v1/verbs/${seg(id)}`, {body: {
     verb: name, schema, args, why: why(flags),
     ref: typeof flags.ref === 'string' ? flags.ref : undefined,
     device_id: typeof flags.device === 'string' ? flags.device : undefined,
     proposal_id: typeof flags.proposal === 'string' ? flags.proposal : undefined,
+    fire_at: flags.at === undefined ? undefined : fireAt(flags.at),
   }});
-  out({verb_id: data.id || id, status: data.status ?? null, ledger_id: data.ledger_id ?? null, ...permitOut(data)});
+  out({verb_id: data.id || id, status: data.status ?? null, ledger_id: data.ledger_id ?? null,
+    ...(flags.at === undefined ? {} : {fire_at: data.fire_at ?? null, shifted: Boolean(data.shifted)}), ...permitOut(data)});
 }
 
 /** Work orders for Muse (API.md §11.19, MUSE-PROTOCOL.md): new | list | get | cancel. An order is a

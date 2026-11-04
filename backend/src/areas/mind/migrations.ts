@@ -7,9 +7,13 @@
 // v26 dates every taint event (`taint_event_at`: a later read re-dates an already tainted session,
 // a claim's inherited taint doesn't), records when a night session last read songs' tags
 // (`songs_at`, so a sibling's read closes the web of every night session claimed before it), and
-// marks a session note written by a tainted session (`tainted`, MEMORY.md §7).
+// marks a session note written by a tainted session (`tainted`, MEMORY.md §7). v34 is the day
+// pulse (watches/, RUNTIME.md §3; 33 is scheduled actions'): the watches, the wake's reason
+// (`wakes.reason_json`, `{watch, kind, note}` on a wake a watch fired) and a time index on the
+// sessions' claims, which the usage meter reads (GET /v1/mind/usage) instead of every session row.
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneLeases, pruneNightRuns, pruneNotes, pruneSessions, pruneWakes } from './prune';
+import { pruneWatches } from './watches/store';
 
 export const MIND_MIGRATIONS: Migration[] = [
   {
@@ -112,6 +116,39 @@ export const MIND_MIGRATIONS: Migration[] = [
       'ALTER TABLE session_notes ADD COLUMN tainted INTEGER NOT NULL DEFAULT 0',
     ],
   },
+  {
+    version: 34,
+    name: 'watches, wake reasons, session claim times',
+    kind: 'expand',
+    sql: [
+      `CREATE TABLE watches (
+        id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL,
+        fire_at INTEGER,
+        type TEXT,
+        ref TEXT,
+        why TEXT NOT NULL,
+        note TEXT,
+        outside INTEGER NOT NULL DEFAULT 0,
+        state TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        until INTEGER NOT NULL,
+        session_id TEXT,
+        met_at INTEGER,
+        met_ref TEXT,
+        settled_at INTEGER,
+        by TEXT,
+        wake_id TEXT,
+        to_session TEXT
+      ) WITHOUT ROWID`,
+      // The waiting ones: the count, the soonest time, an event's or a change's kind, the queue.
+      "CREATE INDEX watches_waiting ON watches (kind, type, fire_at) WHERE state IN ('live', 'queued')",
+      // The settled ones by when: the meter, the list's last day, a claim's hand-over, the prune.
+      'CREATE INDEX watches_settled ON watches (settled_at) WHERE settled_at IS NOT NULL',
+      'ALTER TABLE wakes ADD COLUMN reason_json TEXT',
+      'CREATE INDEX mind_sessions_claimed ON mind_sessions (claimed_at)',
+    ],
+  },
 ];
 
 export const MIND_TABLES: Record<string, TableInfo> = {
@@ -120,4 +157,5 @@ export const MIND_TABLES: Record<string, TableInfo> = {
   mind_sessions: { retention: '90 days after ended_at', backup: true, export: false, prune: pruneSessions },
   session_notes: { retention: '180 days', backup: true, export: true, prune: pruneNotes },
   night_runs: { retention: '400 days', backup: true, export: false, prune: pruneNightRuns },
+  watches: { retention: '30 days after it settles', backup: true, export: false, prune: pruneWatches },
 };

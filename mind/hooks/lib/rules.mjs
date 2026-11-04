@@ -28,6 +28,22 @@ export function nightSafe({cmd, args}, words, ctx) {
   if (!dirs.length) return cmd === 'ls' && (inside(ctx.cwd, ctx.projectDir, ctx) || inside(ctx.cwd, ctx.tmpDir, ctx));
   return dirs.every(d => !/[$`*?~]/.test(d) && (inside(d, ctx.projectDir, ctx) || inside(d, ctx.tmpDir, ctx)));
 }
+/** The mind's own subagents (.claude/agents/<name>.md, RUNTIME.md §6.6): the tools each one has, the
+ * roles that may start it, and whether it is quarantined (it reads outside text: the drop folder and
+ * the web only, no URL with a query). A role starts only these, plus BUILT_IN's. */
+export const AGENTS = {
+  reader: {tools: ['WebFetch', 'WebSearch', 'Read', 'Grep', 'Glob'], roles: ['chat', 'night', 'reflex'], quarantined: true},
+  researcher: {tools: ['WebFetch', 'WebSearch', 'Read', 'Grep', 'Glob'], roles: ['chat', 'night'], quarantined: true},
+  'night-step': {tools: ['Bash', 'Read', 'Grep', 'Glob'], roles: ['chat', 'night'], quarantined: false},
+  coder: {tools: ['Bash', 'Read', 'Edit', 'Write', 'Grep', 'Glob'], roles: ['chat', 'night'], quarantined: false},
+};
+/** Claude Code's own subagents a role may still start: the Sunday evals hand each fixture to a
+ * general-purpose one (night step 9, EVALS.md). */
+const BUILT_IN = {night: ['general-purpose']};
+/** What `th` the shell subagents (night-step, coder) may run: reading only. Every write (memory,
+ * replies, cards, verbs, surfaces, the night's steps) is the calling session's. */
+const SUBAGENT_TH = new Set(['brief', 'history', 'pending', 'search', 'recall', 'ledger', 'get', 'health', 'errors', 'help', 'day',
+  'library', 'read', 'approved', 'ci', 'reports']);
 const WRITE_TOOLS = ['Write', 'Edit', 'MultiEdit', 'NotebookEdit'];
 const READ_TOOLS = ['Read', 'Grep', 'Glob', 'NotebookRead'];
 const DEV_PATHS = ['/dev/null', '/dev/stdout', '/dev/stderr', '/dev/tty'];
@@ -241,6 +257,17 @@ function checkSegment(seg, ctx) {
   return null;
 }
 
+/** A shell subagent's command (night-step, coder): th only to read, and no push to main. */
+function subagentSegment(seg, name) {
+  const {cmd, args} = unwrap(seg.words);
+  const th = thSub({cmd, args});
+  if (th && (!SUBAGENT_TH.has(th.sub) || (th.sub === 'brief' && th.rest.includes('--claim'))))
+    return `The ${name} runs th only to read (not th ${th.sub}): hand what it found back, and the calling session writes it.`;
+  const push = cmd === 'git' ? gitPush(args) : null;
+  if (push && (push.implicit || push.dests.includes('main'))) return `The ${name} pushes only to a claude/<slug> branch, named explicitly (never main).`;
+  return null;
+}
+
 /** A `gh api` call that writes contents, git objects or refs: any method but GET (fields make it a
  * POST) to repos/…/contents or repos/…/git (refs live there), or a GraphQL mutation. Every word is
  * checked, so an option value that looks like a path can't hide the endpoint. */
@@ -273,12 +300,18 @@ export function decide(input, ctx) {
   if (!ROLES.includes(ctx.role)) return `Unknown TH_ROLE "${ctx.role}": every tool is denied until it is chat, night or reflex.`;
   const tool = input.tool_name ?? '';
   const ti = input.tool_input ?? {};
-  // The reader subagent (when Claude Code names it) has its five tools and nothing else.
-  if (input.agent_type === 'reader' && !READ_TOOLS.includes(tool) && tool !== 'WebFetch' && tool !== 'WebSearch')
-    return `The reader has only WebFetch, WebSearch, Read, Grep and Glob (not ${tool}).`;
+  // Each of the mind's own subagents (when Claude Code names it) has its tools and nothing else.
+  const agent = Object.hasOwn(AGENTS, input.agent_type ?? '') ? AGENTS[input.agent_type] : null;
+  if (agent && !agent.tools.includes(tool)) return `The ${input.agent_type} has only ${agent.tools.join(', ')} (not ${tool}).`;
+  // A role starts only its own subagents, so each runs on the model its file names (RUNTIME.md §6.6).
+  if (tool === 'Agent' || tool === 'Task') {
+    const name = String(ti.subagent_type ?? '');
+    const ok = [...Object.keys(AGENTS).filter(a => AGENTS[a].roles.includes(ctx.role)), ...(BUILT_IN[ctx.role] ?? [])];
+    if (!ok.includes(name)) return `The ${ctx.role} role starts only these subagents: ${ok.join(', ')} (not ${name || 'a nameless one'}).`;
+  }
   if (tool === 'Bash') {
     for (const seg of parseShell(String(ti.command ?? ''))) {
-      const reason = checkSegment(seg, ctx);
+      const reason = checkSegment(seg, ctx) ?? (agent ? subagentSegment(seg, input.agent_type) : null);
       if (reason) return reason;
     }
     return null;
@@ -292,11 +325,11 @@ export function decide(input, ctx) {
     if (unapproved([path], ctx)) return protectedReason(path);
     if (ctx.role === 'reflex' && !insideTmp(path, ctx)) return `The reflex role may write files only under $TMPDIR (not ${path}).`;
   }
-  // It reads only the drop folder and the web.
-  if (input.agent_type === 'reader' && READ_TOOLS.includes(tool)) {
+  // A quarantined subagent reads only the drop folder and the web.
+  if (agent?.quarantined && READ_TOOLS.includes(tool)) {
     const where = [path, tool === 'Glob' ? ti.pattern : undefined].filter(p => typeof p === 'string');
     if (!where.length || where.some(p => !inside(p, `${ctx.tmpDir}${sep}th${sep}ext`, ctx)))
-      return 'The reader reads only the drop folder $TMPDIR/th/ext/ and the web.';
+      return `The ${input.agent_type} reads only the drop folder $TMPDIR/th/ext/ and the web.`;
   }
   // The night's songs (RUNTIME.md §6.4, §12.1): once it has read songs' tags (the Worker's record),
   // no web lookup or MCP tool, which could carry their titles out (the notes are what it knows).
@@ -305,7 +338,7 @@ export function decide(input, ctx) {
     const host = hostOf(ti.url);
     if (ctx.role === 'reflex' && host && !hostAllowed(host, ctx.allowedHosts)) return `The reflex role may not fetch ${host}.`;
     // What the reader fetches was chosen by outside text: no query may carry data out.
-    if (input.agent_type === 'reader' && ti.url.includes('?')) return 'The reader may not fetch a URL with a query: it could carry data out.';
+    if (agent?.quarantined && ti.url.includes('?')) return `The ${input.agent_type} may not fetch a URL with a query: it could carry data out.`;
   }
   return null;
 }

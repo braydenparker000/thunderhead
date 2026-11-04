@@ -7,7 +7,7 @@ import { kv } from '../idb.js';
 
 /** @typedef {import('./model.js').Local} Local */
 /** @typedef {{ today: import('../../../shared/contract/api.ts').TodayResponse | null, presence: import('../../../shared/contract/api.ts').MindPresence | null,
- *   surfaces: import('../../../shared/contract/api.ts').Surface[], seq: number, at: number }} Cached */
+ *   surfaces: import('../../../shared/contract/api.ts').Surface[], plans?: import('../../../shared/contract/api.ts').LedgerEntry[], seq: number, at: number }} Cached */
 
 const db = kv('th-data');
 const KEY = 'chat.outbox.';
