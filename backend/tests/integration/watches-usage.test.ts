@@ -49,6 +49,24 @@ describe('the usage meter', () => {
     await wake('night', 'roll', at(4, 10));
     await wake('night', 'manual', at(6, 7));
     await wake('reflex', 'watchdog:errors.spike', at(14));
+    const answered = async (
+      reason: string,
+      fired: number,
+      claimed: number,
+      replied: number,
+      retry: string | null = null,
+    ) =>
+      coreSql(
+        'UPDATE wakes SET fired_at = ?, claimed_at = ?, first_reply_at = ? WHERE id = ?',
+        fired,
+        claimed,
+        replied,
+        await wake('chat', reason, fired, retry),
+      );
+    await answered('message', at(15), at(15, 0) + 20_000, at(15, 1) + 10_000); // 20 s to claim, 50 s to reply
+    const lost = await wake('chat', 'message', at(15, 30));
+    await answered('message', at(15, 32), at(15, 32) + 10_000, at(15, 32) + 40_000, lost); // the retry got the claim: 10 s, 30 s
+    await answered('prewarm', at(16), at(16) + 5_000, at(16) + 8_000); // warm already: not a cold wake
     await wake('chat', 'message', at(20, 0, 14));
     // 03:30 on the 15th is still the 14th's logical day (it ends at 04:00).
     await wake('chat', 'watch', at(3, 30));
@@ -102,10 +120,11 @@ describe('the usage meter', () => {
     const u: UsageResponse = await usage();
     expect(u.today).toEqual({
       day: '2030-01-15',
-      wakes: { owner: 4, watch: 2, roll: 1, schedule: 1, watchdog: 1 },
+      wakes: { owner: 7, watch: 2, roll: 1, schedule: 1, watchdog: 1 },
       minutes: { chat: 45 + 150, night: 30 + 60, reflex: 10 },
       night_min: 26,
       watches: { fired: 1, refused: 1 },
+      latency: { replies: 2, claim_s: 15, reply_s: 40 },
     });
     expect(u.days.map((d) => d.day)).toEqual([
       '2030-01-14',
@@ -122,6 +141,7 @@ describe('the usage meter', () => {
       minutes: { chat: 20, night: 0, reflex: 0 },
       night_min: 60,
       watches: { fired: 1, refused: 0 },
+      latency: { replies: 0, claim_s: null, reply_s: null },
     });
     expect(u.days[1].wakes).toEqual({ owner: 0, watch: 0, roll: 0, schedule: 0, watchdog: 0 });
     expect([u.budget, u.live]).toEqual([12, 1]);

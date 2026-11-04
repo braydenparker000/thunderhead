@@ -1,15 +1,12 @@
 {
-  "id": "2026-11-03-watches",
-  "date": "2026-11-03",
+  "id": "2026-11-04-latency",
+  "date": "2026-11-04",
   "lines": [
     {
-      "text": "Ask for things later, like “at six, queue the drive mix”. Several at once come as one line, with one Undo."
+      "text": "On a busy day the mind stays awake longer between your messages, so the next one is answered at once instead of after a cold start."
     },
     {
-      "text": "The mind can now wake itself to look at something at a time it chose, like setting up the evening drive."
-    },
-    {
-      "text": "Settings › The mind shows today's count at the top, and how many such wakes a day it may set (12 unless you change it)."
+      "text": "Settings › The mind shows how long a cold start took: seconds to wake, then seconds to the first reply."
     }
   ]
 }

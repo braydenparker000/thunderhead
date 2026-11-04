@@ -23,6 +23,7 @@ import * as convo from '../conversation/store';
 import * as feed from '../feed/store';
 import * as verbs from '../verbs/store';
 import { claimedSession, markOffRecord, sawOffRecord, taintedNow } from './guards';
+import { idleCutoff } from './latency';
 import { nightDayOf, nightDone } from './night';
 import * as sessionNotes from './notes';
 import * as stop from './stop';
@@ -228,16 +229,15 @@ export function taint(
 
 export function pending(db: Db, sessionId: string | null, role: MindRole, now: number, tz: string): PendingResponse {
   const s = sessionId ? store.session(db, sessionId) : null;
-  const wake = s?.wake_id ? store.wake(db, s.wake_id) : null;
   const since = s?.last_owner_at ?? s?.claimed_at ?? now;
-  const prewarmOnly = wake?.reason === 'prewarm' && s?.last_owner_at === null;
+  const prewarmOnly = store.wake(db, s?.wake_id ?? '')?.reason === 'prewarm' && s?.last_owner_at === null;
   return {
     unanswered: role === 'chat' ? convo.unansweredIds(db) : [],
     stop: role === 'chat' && stop.standing(db) !== null,
     day_closed: s !== null && s.day < currentDay(db, tz, now),
     limited: backoff(db).until > now,
     idle_min: Math.floor((now - since) / MINUTE),
-    idle_cutoff_min: prewarmOnly ? 10 : 120,
+    idle_cutoff_min: prewarmOnly ? 10 : idleCutoff(db, now, tz),
     // The night (RUNTIME.md §6.4): closed once any night session read songs' tags since this one
     // claimed, and for a night call that names no session the Worker knows (fails closed).
     songs: role === 'night' && (s === null || store.songsSince(db, s.claimed_at)),

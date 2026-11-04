@@ -172,13 +172,15 @@ R-6 (does an exact match happen?) no longer decides whether the night can write:
 | Condition | Action | `end_reason` |
 |---|---|---|
 | Pre-warm wake and no owner message within 10 min | `th status stopping`, end | `prewarm_idle` |
-| 120 min since the last owner message and no job running | `th note --session`, `th status stopping`, end | `idle` |
+| Past the idle cutoff since the last owner message (`th pending` says `idle_cutoff_min`) and no job running | `th note --session`, `th status stopping`, end | `idle` |
 | `th wait` exits 5 (day closed) | Finish the current step (≤ 30 min of work), write the session note, end. New messages go to the new day's thread and fire a fresh session. | `day_closed` |
 | `th wait` exits 4 (Stop) | Finish the current step, reply "Stopped. Done: … Not done: …", keep listening (Stop ends the work, not the session) | — |
 | Usage limit hit (StopFailure) | Hook reports; the session can't continue | `limit` |
 | `th` exits 2 (token refused) | Write the session note if possible, end | `error` |
 
-The 120-min cutoff is a starting value. Test R-3 measures the usage cost of idle turns against cold wakes and sets it from data.
+The cutoff is adaptive to the day (B5, 2026-11-04): the owner's `mind.idle` setting (120 min unless changed) plus 15 min for every owner message today after the first, at most double the setting and never past 240 min. A busy day keeps the session alive for the next message, since an idle turn on a warm cache costs less than a cold wake and answers at once; a quiet day ends at the setting. The Worker computes it in `GET /v1/mind/pending`, which the Stop hook reads.
+
+**Cold-wake latency, measured:** the Worker keeps the session's first reply to an owner message on the wake it claimed (`first_reply_at`, §4.2), so every cold wake has three times: fired, claimed, first reply. The usage meter (§5.4, `GET /v1/mind/usage`) gives each day's medians, and Settings › The mind shows the newest day's in one line. Test R-3 reads them instead of the usage page.
 
 **Acceptance (wake loop):** P2 "done when": warm and cold latency measured over ≥ 10 wakes; a forced VM kill mid-answer loses no message (requeue fires a new session that answers it); a pre-warm with no message ends within 11 min.
 

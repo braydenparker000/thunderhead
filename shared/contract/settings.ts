@@ -204,7 +204,7 @@ export const SETTINGS = [
   { ...MIND, section: 'Nights', key: 'mind.night_budget', label: 'Night budget', kind: 'range', unit: 'min', default: 30,
     options: stops('min', 5, 15, 30), detail: 'How long the night shift may run.' },
   { ...MIND, section: 'Reaching you', key: 'mind.idle', label: 'Awake in a quiet chat', kind: 'range', unit: 'min', default: 120,
-    options: stops('min', 10, 30, 120), detail: 'How long I stay awake after the last message before I sleep.' },
+    options: stops('min', 10, 30, 120), detail: 'How long I stay awake after the last message before I sleep. On a busy day I stay up to twice this, never past 4 hours.' },
   { ...MIND, section: 'Reaching you', key: 'mind.pushes', label: 'Notifications', kind: 'choice', default: 'normal',
     options: o('never:Never', 'urgent:Urgent only', 'normal:Normal'), detail: 'When I may send one. Normal keeps the budget of 2 a day and quiet hours.' },
   // Speech (BEHAVIOR.md §3.7): as needed is no cap at all; the Worker holds the mind to the other two.
