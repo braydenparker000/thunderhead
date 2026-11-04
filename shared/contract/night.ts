@@ -20,6 +20,9 @@ export interface NightStep {
   phase: 'P3' | 'P4' | 'P5' | 'P7';
   /** Run on Sundays only. */
   sunday?: true;
+  /** Run once a week: on the night into Sunday, or, when that night didn't do it, the next night
+   * that runs until one does (skipped as `week_done` after). */
+  weekly?: true;
   /** Built in a later step of its phase: the text says what it waits on. Skipped (`later`) until then. */
   deferred?: string;
 }
@@ -61,6 +64,19 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     idempotent: 'surfaces are put by app and slot',
     cursor: false,
     phase: 'P3',
+  },
+  // The week's growth (MIND-PLAN §9, 2026-11-04; growth.ts): once a week, right after arranging,
+  // the Briefing's practice and study tiles say what grew, from counts, and tomorrow's section and
+  // the next passage are set through the C1 verbs; silent under 3 sessions. The Worker's words
+  // (`th growth`), so nothing here taints the session or waits on its wording.
+  {
+    step: 13,
+    name: 'growth (the week in Guitar and Study)',
+    budget_min: 1,
+    idempotent: 'tiles and plans are put by slot, and one the same as the one in place writes nothing',
+    cursor: false,
+    phase: 'P7',
+    weekly: true,
   },
   {
     step: 5,
@@ -134,7 +150,7 @@ export const NIGHT_STEPS: readonly NightStep[] = [
 ];
 
 export const NIGHT_LAST_STEP = NIGHT_STEPS[NIGHT_STEPS.length - 1].step;
-/** The steps run in the list's order, not their numbers' (12 and 11 run between 9 and 10). */
+/** The steps run in the list's order, not their numbers' (13 runs after 7; 12 and 11 between 9 and 10). */
 export const NIGHT_ORDER: readonly number[] = NIGHT_STEPS.map((s) => s.step);
 /** `resume_from` once the run is done: past every step's number. */
 export const NIGHT_END = Math.max(...NIGHT_ORDER) + 1;

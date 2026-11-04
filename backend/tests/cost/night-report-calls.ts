@@ -4,7 +4,7 @@
 // change-feed rows, after reading the run, the night's ledger rows since it began and its
 // predictions), the same body again (reads only), a replacement, then the Briefing with its tile
 // (the report's row and the quiet hours' end; its lines name no ledger row, so the read is the
-// same at any hour). Run from briefing-calls.ts.
+// same at any hour), then night step 13 (growth-calls.ts). Run from briefing-calls.ts.
 import type { NewAgentResponse, SignedIn, Surface, TodayResponse } from '../../../shared/contract/api';
 import { dayBefore } from '../../src/lib/time';
 import { api, apiJson, core, PASSWORD } from '../helpers';
@@ -56,4 +56,5 @@ export async function nightReportCalls(cost: Cost, d: SignedIn) {
     body: { headline: 'A quiet night, one note', lines: [{ kind: 'music', text: 'Music is ready', ref: 'app:music' }] },
   });
   await cost('GET /v1/briefing (Core, with the night’s report)', () => api('GET', '/v1/briefing', d), 200, core());
+  await import('./growth-calls').then((m) => m.growthCalls(cost, d, N, S, day));
 }

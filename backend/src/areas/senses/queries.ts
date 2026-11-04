@@ -8,6 +8,7 @@ import type { Db } from '../../objects/base';
 import { logicalDay } from '../conversation/day';
 import { routines, windowDays } from './routines';
 import * as store from './store';
+import { guitarWeek, studyWeek } from './week';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const PREFIX = /^[a-z]+(\.[a-z_]+)*$/;
@@ -106,6 +107,16 @@ const QUERIES: Record<string, { check: (p: P, now: number) => P; run: (db: Db, a
       const to = (a.to as string | null) ?? logicalDay(Date.now(), tz);
       return routines(store.quarterCounts(db, windowDays(to), a.types as string[] | null), to, tz);
     },
+  },
+  /** A week of Guitar and of Study (week.ts, growth.ts): the 7 logical days that end on `to`, as
+   * counts, refs and bar ranges, never content; each answers one row. */
+  guitar_week: {
+    check: (p) => ({ to: day(p.to, 'to') }),
+    run: (db, a) => [guitarWeek(db, a.to as string)],
+  },
+  study_week: {
+    check: (p) => ({ to: day(p.to, 'to') }),
+    run: (db, a) => [studyWeek(db, a.to as string)],
   },
 };
 export const QUERY_NAMES = Object.keys(QUERIES);

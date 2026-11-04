@@ -4,6 +4,8 @@
 // bucket (`books/<id>.pdf`), uploaded as R2 multipart uploads in parts the Worker streams straight
 // to the bucket. The class shipped alone (migration tag v4); P7 step 1b gives it its routes, its
 // daily pass and its place in the weekly backup and the export.
+
+import { GROWTH, type StudyPlace } from '../../../shared/contract/growth.ts';
 import type {
   Book,
   BookCreateRequest,
@@ -20,6 +22,7 @@ import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
 import { candidatesOf } from '../areas/library/cite';
 import * as ops from '../areas/library/ops';
+import { placeOf } from '../areas/library/place';
 import { search } from '../areas/library/search';
 import * as store from '../areas/library/store';
 import * as vectors from '../areas/library/vectors';
@@ -58,6 +61,11 @@ export class Library extends OwnerObject {
 
   books(): Book[] {
     return store.books(this.db).map((b) => ops.toBook(this.db, b));
+  }
+
+  /** Where each book read this week stands, for night step 13's next passage (library/place.ts). */
+  places(items: { id: string; ahead: number }[], since: number): StudyPlace[] {
+    return items.slice(0, GROWTH.items).map((b) => placeOf(this.db, b.id, b.ahead, since));
   }
 
   /** The files of whole books (their upload finished), for the phone to read and keep. */

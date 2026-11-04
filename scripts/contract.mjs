@@ -415,14 +415,14 @@ function docs() {
     '',
     '## Night shift',
     '',
-    `The steps in order (\`POST /v1/mind/night\`, \`th night\`). The run: target ${b.target} min, hard stop ${b.hard} (Sunday ${b.sunday_hard}). A step of a phase not built yet, and the Sunday step on another night, is skipped on the way.`,
+    `The steps in order (\`POST /v1/mind/night\`, \`th night\`). The run: target ${b.target} min, hard stop ${b.hard} (Sunday ${b.sunday_hard}). A step of a phase not built yet, the Sunday step on another night, and the weekly step once a night of its week did it (the night into Sunday, or the first after it that runs), are skipped on the way.`,
     '',
     '| Step | Name | Budget (min) | Phase | Cursor | Runs again without harm because |',
     '|---|---|---|---|---|---|',
   );
   for (const s of c.NIGHT_STEPS)
     L.push(
-      `| ${s.step} | ${s.name}${s.sunday ? ' (Sunday)' : ''} | ${s.budget_min} | ${s.phase} | ${s.cursor ? 'yes' : 'no'} | ${cell(s.idempotent)} |`,
+      `| ${s.step} | ${s.name}${s.sunday ? ' (Sunday)' : s.weekly ? ' (weekly)' : ''} | ${s.budget_min} | ${s.phase} | ${s.cursor ? 'yes' : 'no'} | ${cell(s.idempotent)} |`,
     );
   const lim = c.PROPOSAL_LIMITS;
   L.push(

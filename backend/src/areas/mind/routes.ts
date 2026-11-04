@@ -15,6 +15,7 @@ import type {
   WakeItem,
 } from '../../../../shared/contract/api';
 import { MIND_STATUS_LIMITS, MIND_USE_KINDS } from '../../../../shared/contract/feed.ts';
+import type { GrowthResponse } from '../../../../shared/contract/growth.ts';
 import {
   NIGHT_CURSOR_MAX,
   NIGHT_DAY_PARTS,
@@ -25,11 +26,13 @@ import { UUID7 } from '../../../../shared/contract/verb-spec.ts';
 import { type AppEnv, guard } from '../../http/auth';
 import { callerOf } from '../../http/caller';
 import { ApiError } from '../../http/errors';
+import { inSandbox } from '../../http/sandbox';
 import { json, parse } from '../../http/validate';
 import { decodeCursor, encodeCursor } from '../../lib/cursor';
 import { value } from '../../lib/result';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
+import { gatherGrowth } from './growth-gather';
 import { fireWake } from './wakeup';
 
 const ROLE = { C: 'chat', N: 'night', R: 'reflex' } as const;
@@ -166,4 +169,12 @@ export const mindRoutes = new Hono<AppEnv>()
     );
     if (!('items' in out)) return c.json(out satisfies DayStats);
     return c.json({ items: out.items, next: out.last ? encodeCursor(route, out.last) : null } satisfies Page<unknown>);
+  })
+  // Night step 13, the week's growth (growth.ts): the week's counts read first, then Core places.
+  .put('/mind/growth/:day', guard('PUT /v1/mind/growth/:day'), async (c) => {
+    if (inSandbox()) throw new ApiError('validation', [{ path: 'TH-Sandbox', issue: 'the sandbox has no senses' }]);
+    const day = c.req.param('day') ?? '';
+    if (!realDay(day)) throw new ApiError('validation', [{ path: 'day', issue: 'YYYY-MM-DD' }]);
+    const x = await gatherGrowth(c.env, day);
+    return c.json(value(await fresh(coreObject(c.env).growth(callerOf(c), day, x))) satisfies GrowthResponse);
   });

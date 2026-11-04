@@ -2,8 +2,8 @@
 // keeps the last finished step, each step's time and session (or why it was skipped), a step's
 // saved cursor and when the run ended, so a refired session resumes at the first step not done
 // and never repeats one. The steps are shared/contract/night.ts's: a number it doesn't list is
-// refused, steps go in order, a step of a phase not built yet (and the weekly step on any other
-// night) is skipped on the way, and `done` ends the session and its wake (`night_done`). The day
+// refused, steps go in order, a step of a phase not built yet (and the Sunday step on any other
+// night, the weekly one once a night of its week did it) is skipped on the way, and `done` ends the session and its wake (`night_done`). The day
 // roll fires the night once for the day before the new open day (`nightWake`), but only while the
 // mind-night task is connected (ROUTINE_NIGHT_URL/TOKEN, SETUP.md L1).
 import type { MindNightRequest, MindNightResponse } from '../../../../shared/contract/api';
@@ -27,7 +27,7 @@ import { claimedSession } from './guards';
 import * as store from './store';
 import type { ToFire } from './wake';
 
-type Skip = 'later' | 'not_sunday' | 'hard_stop';
+type Skip = 'later' | 'not_sunday' | 'week_done' | 'hard_stop';
 /** A step done (`done`), skipped (`skipped`, with why), or under way with a saved `cursor`. */
 interface StepRecord {
   at: number;
@@ -122,18 +122,30 @@ export function nightWake(w: Writer, today: string, configured: boolean): ToFire
 /** The weekly step runs on the night into Sunday, the one that works on Saturday. */
 export const weekly = (day: string) => new Date(`${day}T12:00:00Z`).getUTCDay() === 6;
 
-function notDue(s: NightStep, day: string): Skip | null {
+/** A weekly step (13) is done for the week when a run since the Saturday on or before `day` (that
+ * night's own run aside) did it: the night into Sunday does it, or the first after it that runs. */
+function weekDone(db: Db, step: number, day: string): boolean {
+  const since = (new Date(`${day}T12:00:00Z`).getUTCDay() + 1) % 7;
+  for (let k = 1, d = dayBefore(day); k <= since; k++, d = dayBefore(d)) {
+    const run = nightRun(db, d);
+    if (run && (JSON.parse(run.steps_json) as Record<string, StepRecord>)[step]?.done) return true;
+  }
+  return false;
+}
+
+function notDue(db: Db, s: NightStep, day: string): Skip | null {
   if (!BUILT_PHASES.includes(s.phase) || s.deferred) return 'later';
   if (s.sunday && !weekly(day)) return 'not_sunday';
+  if (s.weekly && weekDone(db, s.step, day)) return 'week_done';
   return null;
 }
 
 /** The first step neither done nor skipped, marking the steps that aren't due on the way. */
-function next(steps: Record<string, StepRecord>, day: string, at: number): number {
+function next(db: Db, steps: Record<string, StepRecord>, day: string, at: number): number {
   for (const s of NIGHT_STEPS) {
     const rec = steps[s.step];
     if (rec?.done || rec?.skipped) continue;
-    const skip = rec ? null : notDue(s, day);
+    const skip = rec ? null : notDue(db, s, day);
     if (!skip) return s.step;
     steps[s.step] = { at, skipped: skip };
   }
@@ -181,7 +193,7 @@ export function night(w: Writer, c: Caller, r: MindNightRequest, today: string):
     ? { ...stored }
     : { day: r.day, started_at: at, step: 0, steps_json: '{}', done_at: null, session_id: null };
   const steps = JSON.parse(row.steps_json) as Record<string, StepRecord>;
-  let resume = next(steps, r.day, at);
+  let resume = next(db, steps, r.day, at);
   const step = r.step ?? 0;
   if (r.action === 'step_done' || r.action === 'cursor') {
     if (!NIGHT_STEPS.some((s) => s.step === step))
@@ -195,14 +207,14 @@ export function night(w: Writer, c: Caller, r: MindNightRequest, today: string):
     if (nightPos(resume) < nightPos(NIGHT_LAST_STEP) && !r.partial) throw new Fail('conflict', { resume_from: resume });
     for (const s of NIGHT_STEPS)
       if (nightPos(s.step) >= nightPos(resume) && s.step !== NIGHT_LAST_STEP)
-        steps[s.step] = { at, skipped: notDue(s, r.day) ?? 'hard_stop' };
+        steps[s.step] = { at, skipped: notDue(db, s, r.day) ?? 'hard_stop' };
     steps[NIGHT_LAST_STEP] = { at, session: c.session_id, done: true };
     row.done_at = at;
     resume = NIGHT_END;
     endNight(db, c.session_id, at);
   } else if (r.action === 'step_done' && step === resume) {
     steps[step] = { at, session: c.session_id, done: true };
-    resume = next(steps, r.day, at);
+    resume = next(db, steps, r.day, at);
   } else if (r.action === 'cursor' && step === resume) {
     if (!NIGHT_STEPS.find((s) => s.step === step)?.cursor) throw invalid('step', `step ${step} keeps no cursor`);
     steps[step] = { at, session: c.session_id, cursor: r.cursor };

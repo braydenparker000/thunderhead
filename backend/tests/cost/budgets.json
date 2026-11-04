@@ -567,6 +567,22 @@
     "rows_read_max": 41,
     "rows_written_max": 0
   },
+  "PUT /v1/mind/growth/:day (Core, first: 2 tiles, 1 plan)": {
+    "rows_read_max": 10,
+    "rows_written_max": 26
+  },
+  "PUT /v1/mind/growth/:day (Core, the same again)": {
+    "rows_read_max": 8,
+    "rows_written_max": 0
+  },
+  "PUT /v1/mind/growth/:day (Senses, a week: 3 sessions, 60 passes, 4 bests, 3 reads)": {
+    "rows_read_max": 182,
+    "rows_written_max": 0
+  },
+  "PUT /v1/mind/growth/:day (Library, one book never opened)": {
+    "rows_read_max": 0,
+    "rows_written_max": 0
+  },
   "search.embed step, 100 messages (Library)": {
     "rows_read_max": 0,
     "rows_written_max": 300
