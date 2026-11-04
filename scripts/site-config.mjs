@@ -85,7 +85,7 @@ export function swJs(source, build) {
 }
 
 /** Whether a staged file belongs in /precache.json: everything the shell and its pages use, but not
- * vendor/ (its own cache), the route stubs (copies of index.html), the ported folders, the worker
+ * vendor/ (its own cache), Photos' RAW engine (photos/engine/, 2.2 MB, used only with the network), the route stubs (copies of index.html), the ported folders, the worker
  * scripts themselves, or text files no page loads. */
 export function precached(path) {
   if (path.startsWith('lab/')) return false; // Tuning labs load only when requested, never for offline boot.

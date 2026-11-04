@@ -1,7 +1,7 @@
 // @ts-check
 // The recipe on the phone (shared/contract/photos-recipe.ts, which tests/photos-edit.test.mjs checks
 // this against): each control's range and default, and the four panels as the editor shows them, one
-// slider at a time, in Lightroom's order: a name, the recipe key, a step, and the value in words.
+// slider at a time, in the order of the study: a name, the recipe key, a step, and the value in words.
 
 /** @typedef {import('../../../../shared/contract/photos-recipe.ts').PhotoRecipe} Recipe */
 /** @typedef {{ key: string, label: string, step: number, unit?: string, up?: string, down?: string, zero?: string, raw?: number }} Control */
