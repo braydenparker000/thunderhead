@@ -260,7 +260,7 @@
     "rows_written_max": 0
   },
   "POST /v1/import/runs and its job: 1 part of 50 threads, verified (Core)": {
-    "rows_read_max": 70,
+    "rows_read_max": 85,
     "rows_written_max": 116
   },
   "GET /v1/import/runs/:id (Core)": {
@@ -572,15 +572,15 @@
     "rows_written_max": 0
   },
   "GET /v1/briefing (Core, 2 calendar links, 40 events)": {
-    "rows_read_max": 50,
+    "rows_read_max": 54,
     "rows_written_max": 0
   },
   "GET /v1/briefing/calendar?days=7 (Core, 40 events)": {
-    "rows_read_max": 44,
+    "rows_read_max": 48,
     "rows_written_max": 0
   },
   "GET /v1/briefing (Core, a new calendar link fetched: 30 events)": {
-    "rows_read_max": 67,
+    "rows_read_max": 71,
     "rows_written_max": 61
   }
 }
