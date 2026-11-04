@@ -63,7 +63,7 @@ CREATE TABLE day_notes (
   written_by TEXT NOT NULL,
   version INTEGER NOT NULL,
   written_at INTEGER NOT NULL
-  , provenance TEXT);
+  , provenance TEXT, voice TEXT);
 
 CREATE VIRTUAL TABLE day_notes_fts USING fts5 (summary, content = 'day_notes', content_rowid = 'seq', tokenize = 'unicode61 remove_diacritics 2');
 
@@ -678,7 +678,7 @@ CREATE TABLE wakes (
   first_reply_at INTEGER,
   ended_at INTEGER,
   end_reason TEXT
-  , reason_json TEXT) WITHOUT ROWID;
+  , reason_json TEXT, outside_ms INTEGER) WITHOUT ROWID;
 
 CREATE INDEX wakes_at ON wakes (at);
 

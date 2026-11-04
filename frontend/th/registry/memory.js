@@ -12,7 +12,7 @@ import { MEMORY } from '../contract.js';
 
 /** Groups in page order. `faith` facts are the owner's beliefs, shown on their own (owner ruling). */
 export const GROUPS = [
-  { id: 'rule', label: 'How to talk to me', help: 'Standing rules. I follow these every time.' },
+  { id: 'rule', label: 'You told me', help: 'Your own words, newest first. Kept for good.' },
   { id: 'beliefs', label: 'Beliefs', help: "Only from your own words. I don't bring these up." },
   { id: 'state', label: 'Right now' },
   { id: 'goal', label: 'Goals' },

@@ -1,0 +1,10 @@
+{
+  "id": "VOI-15",
+  "prompt": "How long will the drive take tomorrow?",
+  "brief": [
+    "calendar: Thu 09:30 dentist; no traffic data"
+  ],
+  "lacks": true,
+  "good": "I don't know the traffic yet. Last time it was 25 minutes.",
+  "bad": "It will take 25 minutes!"
+}

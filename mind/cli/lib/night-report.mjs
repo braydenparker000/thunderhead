@@ -12,7 +12,7 @@ import {request} from './http.mjs';
 import {invalid, out} from './io.mjs';
 import {parseArgs} from './args.mjs';
 import {getState} from './state.mjs';
-import {lintText} from './conv.mjs';
+import {lintText} from './lint.mjs';
 
 const R = CONTRACT.night.report;
 const LINE = /^([a-z_]+)(?:@([a-z]+:[0-9a-z-]+))?:([\s\S]*)$/;

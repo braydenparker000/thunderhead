@@ -1,0 +1,12 @@
+{
+  "id": "VOI-10",
+  "prompt": "What was the song from this morning?",
+  "brief": [
+    "playing: \"River Lights\" by The Quiet Fields, 07:40"
+  ],
+  "knows": [
+    "river lights"
+  ],
+  "good": "River Lights, by The Quiet Fields, just before eight.",
+  "bad": "Can you hum a bit of it for me?"
+}

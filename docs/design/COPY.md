@@ -333,8 +333,8 @@ The yes-button label and the confirmation toast come from the proposal itself (w
 | `set.memory` | What I remember | Row (built) |
 | `set.memory.source` | You said · I noticed · I inferred | Fact sources, first word of the row's line (built, P3) |
 | `set.memory.odds` | Almost certainly, about 9 in 10 or more · Pretty sure, about 8 in 10 · Probably, about 7 in 10 · Maybe, maybe not, about 5 in 10 · I doubt it, about 3 in 10 · Very unlikely, 1 in 10 or less | A fact's confidence now (§1.2); a rule reads "A standing rule" (built, P3) |
-| `set.memory.groups` | How to talk to me · Beliefs · Right now · Goals · Preferences · Routines · Facts · Other · Loose ends · Days · Fading · Imported, to review | Section titles, each with its count (built, P3) |
-| `set.memory.help` | Standing rules. I follow these every time. · Only from your own words. I don't bring these up. · Things one of us said would happen. · My note on each day, newest first. · I haven't heard these in a while. · From your old notebook. Tell me which are right. | Under the section titles (built, P3) |
+| `set.memory.groups` | You told me · Beliefs · Right now · Goals · Preferences · Routines · Facts · Other · Loose ends · Days · Fading · Imported, to review | Section titles, each with its count (built, P3) |
+| `set.memory.help` | Your own words, newest first. Kept for good. · Only from your own words. I don't bring these up. · Things one of us said would happen. · My note on each day, newest first. · I haven't heard these in a while. · From your old notebook. Tell me which are right. | Under the section titles (built, P3) |
 | `set.memory.badges` | Pinned · Won't bring up · Private | On a fact's row; private text is blurred until tapped (built, P3) |
 | `set.memory.fix` / `.pin` / `.forget` | Fix / Pin · Unpin / Forget | Fact actions (built, P3) |
 | `set.memory.mute` | Don't bring this up · You can bring this up | Fact action (built, P3) |

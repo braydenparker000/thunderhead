@@ -8,6 +8,10 @@ import {CONTRACT, checkRoute, plainPath, routeOf} from './contract.mjs';
 import {permitOut, proposalHeaders, request, settings, sleep, stopNotice} from './http.mjs';
 import {getState, setState, thDir} from './state.mjs';
 import {sha256, uuidv7} from './ids.mjs';
+import {lintReply, lintText} from './lint.mjs';
+import {dayVoice} from './day-voice.mjs';
+
+export {lintText};
 
 export const KINDS = ['text', 'progress', 'card', 'question', 'error'];
 export const STATES = ['working', 'listening', 'stopping', 'limited'];
@@ -81,14 +85,6 @@ async function fileBytes(path) {
   throw last;
 }
 
-/** The Worker's phrase lint (shared/contract/lint.ts, via contract.json): code fences are exempt. */
-export function lintText(text) {
-  const prose = text.replace(/```[\s\S]*?```/g, ' ').toLowerCase();
-  for (const p of CONTRACT.lint.banned_phrases) if (prose.includes(p)) return `banned phrase: "${p}"`;
-  if (/\p{Extended_Pictographic}/u.test(prose)) return 'no emoji';
-  return null;
-}
-
 export async function say(argv) {
   const {flags, rest} = parseArgs(argv, {repeat: ['attach']});
   const [thread, ...words] = rest;
@@ -100,7 +96,8 @@ export async function say(argv) {
   const text = textArg(words);
   if (!text.trim()) throw invalid('the message is empty');
   if (text.length > MAX_BODY) throw invalid(`the message is over ${MAX_BODY} characters`);
-  const lint = kind === 'text' || kind === 'question' ? lintText(text) : null;
+  // A text message is the chat's reply: it takes the shape lint too (BEHAVIOR.md §2.2).
+  const lint = kind === 'text' ? lintReply(text) : kind === 'question' ? lintText(text) : null;
   if (lint) throw invalid(`the phrase lint refuses it (${lint})`);
   if (flags.attach.length > FILES.mind_per_message) throw invalid(`at most ${FILES.mind_per_message} attachments`);
   const meta = jsonFlag(flags.meta, 'meta');
@@ -203,7 +200,8 @@ export async function title(argv) {
 
 export async function note(argv) {
   const {flags} = parseArgs(argv);
-  if (flags.session === undefined || flags.session === true) throw invalid('usage: th note --session <text|-> [--open <json>]');
+  if (flags['day-voice'] !== undefined) return dayVoice(flags);
+  if (flags.session === undefined || flags.session === true) throw invalid('usage: th note --session <text|-> [--open <json>] | --day-voice <line>');
   const body = textArg([String(flags.session)]).trim();
   const words = body.split(/\s+/).filter(Boolean).length;
   if (!words) throw invalid('the session note is empty');

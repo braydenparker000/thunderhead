@@ -1,0 +1,13 @@
+{
+  "id": "VOI-30",
+  "prompt": "Walk me through why the deploy failed, step by step.",
+  "brief": [
+    "ci: the build failed on a missing font file; the tests passed"
+  ],
+  "depth": true,
+  "knows": [
+    "font"
+  ],
+  "good": "The tests passed. The build then looked for the font file, which is fetched at build time. The fetch was skipped, so the file was missing and the build stopped. Running the fetch first fixes it.",
+  "bad": "Want me to look into it?"
+}

@@ -3,15 +3,17 @@
 // the laws and quiet; the mind's voice in three lines (BEHAVIOR.md §10) and the name the owner gave
 // it; and today's state, each line its own: the weather, the owner's own calendar, what is due, the
 // song playing. Section 2 is the owner: who they are in their
-// own words, their loose ends, and each verb class's position. Nothing `outside` is in it (MEMORY.md
+// own words, what they told the mind to do or stop ("You told me", their rules, newest first), their
+// loose ends, and each verb class's position. Nothing `outside` is in it (MEMORY.md
 // §6 M11): a shared calendar's events go to section 7 and a loose end written after outside text to
 // section 8. Each part is its own small function, so a new line joins one list. Pure.
 
 import { notedBy } from '../memory/notes';
 import { renderOwner, renderThreads } from '../memory/profile';
+import { provenanceOf } from '../memory/store';
 import type { BriefInput } from './brief';
 import { dayPart, nameLine } from './brief-day';
-import { clock, part, weekday } from './brief-text';
+import { budgeted, clock, part, weekday } from './brief-text';
 import { verbSummary } from './brief-verbs';
 
 /** Sections 1 and 2 together, headings included: the first layer. */
@@ -100,13 +102,31 @@ export function nowSection(i: BriefInput): string {
   return [head, ...todayLines(i, NOW_MAX - head.length - 1)].join('\n');
 }
 
-/** Section 2 within `budget`: the owner's own words (the profile's top `owner` lines), their loose
- * ends (none written after outside text), the verb classes' positions. Cuts point at the full
- * sections (9, 10, 13). Reflex reads no memory and queues no verb. */
+/** Section 2's "You told me" at most, heading included: the owner's rules, newest first, so a
+ * correction they gave is in the first 2,000 on every wake (mind/skills/voice.md). */
+export const TOLD_MAX = 400;
+export const TOLD_HEAD = 'You told me (newest first; keep each for good):';
+
+/** The rules as section 2's block, or none while there are none. Rules are never outside (M4). */
+export function toldMe(rules: BriefInput['rules']): string[] {
+  const own = rules
+    .filter((f) => f.kind === 'rule' && f.superseded_at === null && provenanceOf(f) !== 'outside')
+    .sort((a, b) => b.recorded_at - a.recorded_at || (a.id < b.id ? 1 : -1));
+  if (!own.length) return [];
+  const lines = own.map((f) => `- ${f.text.replace(/\s+/g, ' ').slice(0, 160)}`);
+  const more = (k: number) => `(+${k} more: th brief --section 4)`;
+  return [TOLD_HEAD, budgeted(lines, TOLD_MAX - TOLD_HEAD.length - 1, 'oldest', more)];
+}
+
+/** Section 2 within `budget`: the owner's own words (the profile's top `owner` lines), what they
+ * told you (their rules, newest first), their loose ends (none written after outside text), the
+ * verb classes' positions. Cuts point at the full sections (4, 9, 10, 13). Reflex reads no memory
+ * and queues no verb. */
 export function ownerSection(i: BriefInput, budget: number): string {
   if (i.role === 'reflex') return NO_MEMORY;
   const verbs = verbSummary(i.settings ?? []);
-  const room = budget - verbs.length - 60;
+  const told = toldMe(i.rules);
+  const room = budget - verbs.length - 60 - told.reduce((n, l) => n + l.length + 1, 0);
   const own = i.threads.filter((t) => notedBy(t) !== 'outside');
   const threads = renderThreads(
     own,
@@ -120,5 +140,5 @@ export function ownerSection(i: BriefInput, budget: number): string {
     Math.min(900, room - threads.length),
     (k) => `(+${k} more: th brief --section 9)`,
   );
-  return ['In their own words:', facts, 'Loose ends:', threads, verbs].join('\n');
+  return ['In their own words:', facts, ...told, 'Loose ends:', threads, verbs].join('\n');
 }

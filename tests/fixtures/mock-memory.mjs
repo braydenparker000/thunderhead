@@ -26,7 +26,7 @@ export function memoryState(now = Date.now(), over = {}) {
       f('0192f0c4-0000-7000-8000-000000000008', { kind: 'telepathy', text: 'A kind from a later build', source: 'dreamed', confidence_now: 0.7 }),
     ],
     threads: [{ id: '0192f0c4-0000-7000-8000-0000000000t1', text: 'Fix the metronome bug', owner: 'mind', due_at: now + DAY, tags: ['agreed'], status: 'open', evidence: ['msg:x'], opened_at: now - DAY, last_progress_at: null, closed_at: null, closed_why: null }],
-    days: [{ day: '2026-10-28', summary: 'A calm day of practice and one bug report.', decisions: ['Fix the metronome first'], stats: { messages: 12 }, importance: 4, written_by: 'cse_night', version: 1, written_at: now - DAY }],
+    days: [{ day: '2026-10-28', summary: 'A calm day of practice and one bug report.', decisions: ['Fix the metronome first'], stats: { messages: 12 }, importance: 4, written_by: 'cse_night', version: 1, written_at: now - DAY, voice: 'The metronome waited all evening.' }],
     profile: [
       '[f:00000002] Wants the second piece at 100 bpm (1.0, u, since 2026-10)',
       "[f:00000005] Prays every morning (0.9, u, since 2026-10) · don't raise · private",

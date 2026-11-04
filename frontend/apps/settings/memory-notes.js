@@ -86,7 +86,7 @@ export function threadAdd(ctx) {
   return host;
 }
 
-/** A day note: the day, how much it mattered, the summary and its decisions; Edit. */
+/** A day note: the day, how much it mattered, the summary, its decisions and the night's line; Edit. */
 export function dayRow(d, ctx) {
   const summary = el('div', { class: 'mtext row static' }, [icon('newspaper'), el('span', { class: 'row-copy row-title', text: d.summary })]);
   const host = el('div', { class: 'mdetail' });
@@ -96,6 +96,8 @@ export function dayRow(d, ctx) {
     summary,
   ];
   for (const decision of d.decisions) kids.push(el('div', { class: 'st2', text: `Decided: ${decision}` }));
+  // The night's one line on the day, in my own voice: here when you look, never sent to you.
+  if (d.voice) kids.push(el('div', { class: 'st2', 'data-voice': '', text: `I noticed: ${d.voice}` }));
   const row = el('div', { class: 'mrow', 'data-day': d.day }, [...kids, el('div', { class: 'macts' }, [edit]), host]);
   edit.addEventListener('click', () => {
     const id = `day-${d.day}`;

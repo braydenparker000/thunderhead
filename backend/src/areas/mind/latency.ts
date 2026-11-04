@@ -8,7 +8,11 @@
 //
 // The first reply: a chat session's first reply to an owner message is kept on the wake it
 // claimed (`first_reply_at`, RUNTIME.md §4.2), so every cold wake has three times (fired, claimed,
-// first reply) and the usage meter can give the day's medians (watches/usage.ts).
+// first reply) and the usage meter can give the day's medians (watches/usage.ts). An outside read
+// begun for the message (the working card's title `Looking that up`) is kept the same way, from
+// the title to the reply (`outside_ms`, RUNTIME.md §6.6).
+import type { MindPresence } from '../../../../shared/contract/api';
+import { LOOKUP_TITLE } from '../../../../shared/contract/feed.ts';
 import { settingSpec, validSetting } from '../../../../shared/contract/settings.ts';
 import type { Db } from '../../objects/base';
 import { currentDay, ownerCount } from '../conversation/day';
@@ -40,6 +44,20 @@ export function recordFirstReply(db: Db, sessionId: string, at: number): void {
     `UPDATE wakes SET first_reply_at = ? WHERE first_reply_at IS NULL
        AND id = (SELECT wake_id FROM mind_sessions WHERE session_id = ?)`,
     at,
+    sessionId,
+  );
+}
+
+/** The outside read's time on the wake: the lookup title given at or after the owner's message
+ * (`since`) to this reply, kept once. Read before the reply takes the card's chips (mind/using.ts). */
+export function recordOutside(db: Db, sessionId: string, since: number, at: number): void {
+  const cur = getSetting(db, 'mind.status') as MindPresence | undefined;
+  const from = cur?.title_at ?? 0;
+  if (cur?.state !== 'working' || !cur.title?.startsWith(LOOKUP_TITLE) || from < since) return;
+  db.run(
+    `UPDATE wakes SET outside_ms = ? WHERE outside_ms IS NULL
+       AND id = (SELECT wake_id FROM mind_sessions WHERE session_id = ?)`,
+    Math.max(0, at - from),
     sessionId,
   );
 }

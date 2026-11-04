@@ -81,6 +81,9 @@ export type MindUseKind = (typeof MIND_USE_KINDS)[number];
 /** The working card's limits, checked by the Worker and `th status`: characters, items, and the
  * gap between two accepted reports from one session. */
 export const MIND_STATUS_LIMITS = { title: 60, note: 140, using: 6, label: 40, id: 200, every_ms: 3_000 } as const;
+/** The working card's title for an outside read (mind/skills/voice.md): from it to the reply is the
+ * wake's `outside_ms`, which the usage meter shows beside the cold-wake time (RUNTIME.md §6.6). */
+export const LOOKUP_TITLE = 'Looking that up';
 /** One thing the mind is drawing on (`POST /v1/mind/status` `using`): a fact (its id), a song (its
  * path in Music), a page (a `book:` cite ref or a path in Study), a source (its https URL: the
  * phone shows only the host), an app (its id), a file (its id), a day (`YYYY-MM-DD`) or a search

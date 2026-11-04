@@ -179,6 +179,13 @@ export function extraRoutes(ctl) {
       s.dayNotes.set(params[0], {...body, version, provenance: noted(session)});
       return {day: params[0], version, provenance: noted(session)};
     }],
+    ['PUT', /^\/v1\/memory\/day-notes\/([^/]+)\/voice$/, ['night'], ({params, body}) => {
+      const had = s.dayNotes.get(params[0]);
+      if (!had) throw new HttpError(404, 'not_found');
+      if (!body.line || body.line.length > 200) throw new HttpError(422, 'validation');
+      had.voice = body.line;
+      return {day: params[0], voice: body.line};
+    }],
     // The night's input as the Worker gives it: counts, then pages after an opaque cursor
     // (`s.dayPage` rows a page, 200 unless a test makes it smaller).
     ['GET', /^\/v1\/mind\/day\/([^/]+)$/, ['night'], ({params, query}) => {

@@ -392,10 +392,12 @@ The session hands work to four subagents defined in `.claude/agents/` (a protect
 
 | Agent | Model | Tools | When | Roles |
 |---|---|---|---|---|
-| `reader` | `sonnet` | `WebFetch`, `WebSearch`, `Read`, `Grep`, `Glob` | One piece of outside text: a page, a PDF, a long file, search results | chat, night, reflex |
+| `reader` | `haiku` (the fastest, 2026-11-04) | `WebFetch`, `WebSearch`, `Read`, `Grep`, `Glob` | One piece of outside text: a page, a PDF, a long file | chat, night, reflex |
 | `researcher` | `opus` | same as the reader | A long outside read: many pages or searches, a survey (≤ 30 fetches) | chat, night |
 | `night-step` | `sonnet` | `Bash`, `Read`, `Grep`, `Glob` | A mechanical step: the day's stats, drafting titles or a facts batch under `$TMPDIR/th/work/` | chat, night |
 | `coder` | `opus` | `Bash`, `Read`, `Edit`, `Write`, `Grep`, `Glob` | Agreed code work on a `claude/<slug>` branch: edit, test, commit, push the branch | chat, night |
+
+**The lookup ladder (2026-11-04, [mind/skills/voice.md](../../mind/skills/voice.md)).** A presence does not keep the owner waiting on an outside read. Fastest first: a quick factual question is answered from search snippets the session reads itself (`WebSearch`, which taints it like any web read, §6.5); one long page goes to the `reader`; the `researcher` only for a survey across many sources. Before any of them the chat sends `th status working --title "Looking that up"` (with the first working report: a second one inside 3 s drops its title, §5.3), and after 60 seconds it answers with what it has and says the read was cut short. The Worker keeps the time from that title to the reply on the wake (`wakes.outside_ms`, Core step 39, `recordOutside` in `areas/mind/latency.ts`: the first lookup a wake answers), and Settings › The mind's meter shows the day's median beside the cold-start time ("Looking things up: 18 s to the answer").
 
 None writes memory, posts, pushes to `main` or handles a secret; each file says so. The hook adds: `night-step` and `coder` run `th` only to read (`th day`, `recall`, `get`, `ci`, …; the calling session sends what they drafted) and push only a named branch, never `main`.
 

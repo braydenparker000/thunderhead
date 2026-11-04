@@ -2,7 +2,8 @@
 // before it, in the owner's logical days, from the Worker's own records only: the wakes by cause
 // (a retry is the same wake), the minutes each role was awake (the sessions' claims and ends), the
 // night shift's run, the watches fired or refused, and how fast cold wakes were answered (the
-// median seconds from the fire to the claim and from the claim to the first reply, B5). Counts
+// median seconds from the fire to the claim and from the claim to the first reply, B5; and the
+// median outside read, from the lookup title to the reply, RUNTIME.md §6.6). Counts
 // only. A session that never said it ended counts to its role's limit: the chat's idle cutoff
 // after the owner's last message (its setting's 120 min; a busy day's longer cutoff is not
 // known here), the night's hard stop (60), the reflex's run (10). Reads by time index, about 8
@@ -37,7 +38,7 @@ const empty = (day: string): UsageDay => ({
   minutes: { chat: 0, night: 0, reflex: 0 },
   night_min: 0,
   watches: { fired: 0, refused: 0 },
-  latency: { replies: 0, claim_s: null, reply_s: null },
+  latency: { replies: 0, claim_s: null, reply_s: null, lookups: 0, outside_s: null },
 });
 
 const minutes = (from: number, to: number) => Math.max(0, Math.round((to - from) / MINUTE));
@@ -63,6 +64,7 @@ export function usage(db: Db, now: number, tz: string): UsageResponse {
   const of = (at: number) => byDay.get(logicalDay(at, tz));
   const claims = new Map<string, number[]>();
   const replies = new Map<string, number[]>();
+  const outside = new Map<string, number[]>();
   for (const w of db.all<{
     at: number;
     task: string;
@@ -71,7 +73,11 @@ export function usage(db: Db, now: number, tz: string): UsageResponse {
     fired_at: number | null;
     claimed_at: number | null;
     first_reply_at: number | null;
-  }>('SELECT at, task, reason, retry_of, fired_at, claimed_at, first_reply_at FROM wakes WHERE at >= ?', from)) {
+    outside_ms: number | null;
+  }>(
+    'SELECT at, task, reason, retry_of, fired_at, claimed_at, first_reply_at, outside_ms FROM wakes WHERE at >= ?',
+    from,
+  )) {
     const d = of(w.at);
     if (!d) continue;
     // A retry is the same wake to the count, but the one that got the claim to the latency.
@@ -81,10 +87,15 @@ export function usage(db: Db, now: number, tz: string): UsageResponse {
       claims.set(d.day, [...(claims.get(d.day) ?? []), seconds(w.fired_at, w.claimed_at)]);
       replies.set(d.day, [...(replies.get(d.day) ?? []), seconds(w.claimed_at, w.first_reply_at)]);
     }
+    if (w.task === 'chat' && w.outside_ms !== null) {
+      d.latency.lookups++;
+      outside.set(d.day, [...(outside.get(d.day) ?? []), Math.round(w.outside_ms / 1000)]);
+    }
   }
   for (const d of days) {
     d.latency.claim_s = median(claims.get(d.day) ?? []);
     d.latency.reply_s = median(replies.get(d.day) ?? []);
+    d.latency.outside_s = median(outside.get(d.day) ?? []);
   }
   for (const s of db.all<{ role: MindRole; claimed_at: number; ended_at: number | null; last_owner_at: number | null }>(
     'SELECT role, claimed_at, ended_at, last_owner_at FROM mind_sessions WHERE claimed_at >= ? AND wake_id IS NOT NULL',

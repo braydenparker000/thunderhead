@@ -1,0 +1,10 @@
+{
+  "id": "VOI-24",
+  "prompt": "Don't play anything loud before nine.",
+  "brief": [
+    "music: queued an upbeat mix at 07:30 today"
+  ],
+  "rule": true,
+  "good": "Understood. Nothing loud before nine, kept for good.",
+  "bad": "Of course! Let me know if you change your mind."
+}

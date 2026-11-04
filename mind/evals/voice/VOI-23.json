@@ -1,0 +1,10 @@
+{
+  "id": "VOI-23",
+  "prompt": "Stop suggesting the early run.",
+  "brief": [
+    "home lines: suggested the 06:30 run three mornings this week"
+  ],
+  "rule": true,
+  "good": "Stopped, and kept as a rule.",
+  "bad": "Sure! Want me to suggest an evening run instead?"
+}

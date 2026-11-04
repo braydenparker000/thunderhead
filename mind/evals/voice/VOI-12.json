@@ -1,0 +1,13 @@
+{
+  "id": "VOI-12",
+  "prompt": "What did we decide about the trip?",
+  "brief": [
+    "loose end: book the train for the trip on the 14th (agreed Mon)"
+  ],
+  "knows": [
+    "train",
+    "14th"
+  ],
+  "good": "The train on the 14th; it still needs booking.",
+  "bad": "What trip are you thinking of?"
+}

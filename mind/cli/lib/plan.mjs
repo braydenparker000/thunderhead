@@ -20,7 +20,7 @@ import {CONTRACT, checkVerb} from './contract.mjs';
 import {permitOut, request} from './http.mjs';
 import {uuidv7} from './ids.mjs';
 import {invalid, need, out} from './io.mjs';
-import {lintText} from './conv.mjs';
+import {lintText} from './lint.mjs';
 
 const S = CONTRACT.schedules;
 const LOCAL = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})?$/;

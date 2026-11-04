@@ -31,7 +31,7 @@ test('the page groups what I know, in day and night, with no errors and no sidew
   for (const theme of ['light', 'dark']) {
     const { page, errors } = await open({ theme });
     assert.deepEqual(await headings(page), [
-      'How to talk to me (1)', 'Beliefs (1)', 'Goals (1)', 'Preferences (1)', 'Routines (1)', 'Other (1)',
+      'You told me (1)', 'Beliefs (1)', 'Goals (1)', 'Preferences (1)', 'Routines (1)', 'Other (1)',
       'Loose ends (1)', 'Days (1)', 'Fading (1)', 'Imported, to review (1)',
     ]);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth) <= 0, 'no sideways scroll');
@@ -208,6 +208,8 @@ test('loose ends close with Done, or Drop with a reason; a day note is edited in
   await page.locator('.mrow', { hasText: 'Fix the metronome bug' }).waitFor({ state: 'detached' });
   const bodies = (call) => api.calls.filter((c) => call(c.call)).map((c) => c.body);
   assert.deepEqual(bodies((c) => c.startsWith('PATCH /v1/memory/open-threads/')), [{ status: 'dropped', why: 'Not needed any more' }]);
+  // The night's line shows under its day, here only because the owner looked (MEMORY.md §3.1).
+  assert.equal(await page.locator('.mrow[data-day="2026-10-28"] [data-voice]').textContent(), 'I noticed: The metronome waited all evening.');
   await page.click('.mrow[data-day="2026-10-28"] button:has-text("Edit")');
   await page.fill('.mrow[data-day="2026-10-28"] textarea', 'A calm day. The bug report came in the evening.');
   await page.click('.mrow[data-day="2026-10-28"] button:has-text("Save")');

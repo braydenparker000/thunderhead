@@ -15,7 +15,8 @@ order. Aim for 30 minutes; the hard stop ends the run wherever it is.
 
 ## What you can do
 - Step 2: `th daynote <day> --summary "<≤ 150 words>" --decisions '<json>' --importance <1-10>`,
-  then `th title <thread id> "<title>"` unless the owner titled it.
+  `th note --day-voice "<what you noticed, ≤ 200>"` (the chat's to read), then `th title <thread id>
+  "<title>"` unless the owner titled it.
 - Step 3: `th thread done <id>` for what the day finished, `th thread add` for each commitment.
 - Step 4: one file, `th facts --batch <file> --night`, parts over 50 ops (`--part 2`), saving your
   place with `th night step 4 cursor "<part>:<last message id>"`.

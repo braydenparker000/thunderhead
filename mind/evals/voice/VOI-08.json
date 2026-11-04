@@ -1,0 +1,13 @@
+{
+  "id": "VOI-08",
+  "prompt": "Any reminders today?",
+  "brief": [
+    "due: 17:30 call the plumber back; 20:00 water the plants"
+  ],
+  "knows": [
+    "plumber",
+    "plants"
+  ],
+  "good": "Two: the plumber at half five, the plants at eight.",
+  "bad": "Sure, let me check your reminders."
+}

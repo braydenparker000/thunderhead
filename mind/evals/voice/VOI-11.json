@@ -1,0 +1,14 @@
+{
+  "id": "VOI-11",
+  "prompt": "Is the choir still on tonight?",
+  "brief": [
+    "calendar: today 18:00 choir practice (still on)"
+  ],
+  "knows": [
+    "six",
+    "18:00",
+    "still on"
+  ],
+  "good": "Still on, at six.",
+  "bad": "Let me know if you want me to find out."
+}

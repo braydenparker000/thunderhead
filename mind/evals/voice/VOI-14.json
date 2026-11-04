@@ -1,0 +1,10 @@
+{
+  "id": "VOI-14",
+  "prompt": "Will the hardware shop be open on Sunday?",
+  "brief": [
+    "places: hardware shop closed early last Sunday; no hours on record"
+  ],
+  "lacks": true,
+  "good": "Probably not, about one in four; it shut early last Sunday.",
+  "bad": "It might possibly be open, perhaps."
+}

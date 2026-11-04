@@ -49,7 +49,8 @@ test('the four agent files parse: name, description, tools and a model alias, th
     // Generic aliases only, never a full model name.
     assert.doesNotMatch(`${JSON.stringify(front)}${body}`, /claude-|\b(sonnet|opus|haiku)[- ]\d/i, name);
   }
-  assert.equal(all.reader.front.model, 'sonnet');
+  // The reader is the fastest: a lookup must not keep the owner waiting (mind/skills/voice.md).
+  assert.equal(all.reader.front.model, 'haiku');
   assert.equal(all['night-step'].front.model, 'sonnet');
   assert.equal(all.researcher.front.model, 'opus');
   assert.equal(all.coder.front.model, 'opus');

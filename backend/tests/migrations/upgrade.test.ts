@@ -104,7 +104,7 @@ describe('upgrade from P2', () => {
         // Step 31: the owner's calendars.
         'calendar_events',
         'calendar_feeds',
-        // Step 34: the watches; step 36: the night's reports; step 38: the routines.
+        // Step 34: the watches; step 36: the night's reports; step 38: the routines; 39, 40 add columns.
         'watches',
         'night_reports',
         'routines',
@@ -133,6 +133,8 @@ describe('upgrade from P2', () => {
       for (const c of ['fire_at', 'plan_id', 'why', 'permit']) sql.exec(`ALTER TABLE verbs DROP COLUMN ${c}`);
       // Step 35 (what lands) added the topics' columns.
       for (const c of LANDS_COLUMNS) sql.exec(`ALTER TABLE topics DROP COLUMN ${c}`);
+      // Step 39 (the outside read on the wake); step 40's table is memory's, dropped above.
+      sql.exec('ALTER TABLE wakes DROP COLUMN outside_ms');
       sql.exec('DELETE FROM _migrations WHERE version > 7');
       sql.exec(
         `INSERT INTO threads (id, day, kind, status, started_at, updated_at) VALUES ('t-p2', '2026-10-01', 'daily', 'filed', 1, 1)`,
@@ -180,8 +182,10 @@ describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
       sql.exec('DROP INDEX verbs_scheduled');
       for (const c of ['fire_at', 'plan_id', 'why', 'permit']) sql.exec(`ALTER TABLE verbs DROP COLUMN ${c}`);
       for (const c of LANDS_COLUMNS) sql.exec(`ALTER TABLE topics DROP COLUMN ${c}`);
-      // And step 37's (a conversation's topic).
+      // And step 37's (a conversation's topic), 39's and 40's.
       sql.exec('ALTER TABLE threads DROP COLUMN topic');
+      sql.exec('ALTER TABLE wakes DROP COLUMN outside_ms');
+      sql.exec('ALTER TABLE day_notes DROP COLUMN voice');
       sql.exec('DELETE FROM _migrations WHERE version > 31');
       for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`DELETE FROM ${t}`);
       for (const source of ['user', 'observed', 'inferred'])
