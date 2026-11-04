@@ -8,6 +8,7 @@
 // hidden. Loaded lazily by boot.js after the first paint.
 import { CONFIG } from '../../config.js';
 import { api, signedIn } from '../client.js';
+import { keepShell, mindName } from '../copy.js';
 import { failure } from '../flow.js';
 import { homeLines, fallbackCards } from '../registry/surfaces.js';
 import { appFor } from '../registry/apps.js';
@@ -188,6 +189,7 @@ export async function startChat() {
   async function loadSettings() {
     const s = /** @type {Record<string, unknown>} */ (await signedIn((tok) => api.settings(tok)));
     state.presence = presenceOf(s);
+    keepShell(s);
     state.stop = /** @type {any} */ (s['mind.stop']) ?? null;
     if (state.stop?.cleared_at) state.stopping = false;
     fromWorker(s['quiet.until']);
@@ -563,7 +565,7 @@ export async function startChat() {
       toast('Stopping after this step.');
     } catch {
       state.stopping = false;
-      toast("Couldn't reach the mind. Try again.");
+      toast(`Couldn't reach ${mindName()}. Try again.`);
       paint();
     }
   }

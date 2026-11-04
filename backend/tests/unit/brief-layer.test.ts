@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 import { SKILLS } from '../../../shared/contract/skills.ts';
 import { buildBrief, CORE_MAX, VOICE } from '../../src/areas/mind/brief';
-import { daySection } from '../../src/areas/mind/brief-day';
+import { dayPart, daySection } from '../../src/areas/mind/brief-day';
 import { LAYER_MAX, NOW_MAX } from '../../src/areas/mind/brief-layer';
 import { fact, input, msg, section, thread } from '../brief-helpers';
 
@@ -77,7 +77,7 @@ describe('the first 2,000 characters (sections 1–2)', () => {
     expect(b.core.indexOf('\n\n## 3. ')).toBeLessThanOrEqual(LAYER_MAX);
     const first = b.core.slice(0, LAYER_MAX);
     for (const want of [
-      '## 1. Now\nTuesday 12:00 (UTC) · day 2026-11-03 · role chat',
+      "## 1. Now\nTuesday 12:00 (UTC), the owner's day (evening from 22:00) · day 2026-11-03 · role chat",
       'wake: message · wakes today 1 · pre-warms left 8',
       'laws: pinned · open decisions 0 · quiet: off',
       ...VOICE,
@@ -203,5 +203,30 @@ describe('then the day, then on demand', () => {
     const b = buildBrief(rich({ role: 'reflex', facts: [], threads: [] }));
     expect(section(b.core, 2)).toBe('## 2. The owner\nNot in the reflex briefing (reflex reads no memory).');
     for (const t of ['weather:', 'calendar today', 'due 15:00', 'music:', 'th skill']) expect(b.core).not.toContain(t);
+  });
+});
+
+describe("the mind's name and the owner's hours (Settings › The mind)", () => {
+  const now = (core: string) => core.slice(0, core.indexOf('\n## 2. '));
+  it('says the name the owner gave in one line after the voice, and none while it has none', () => {
+    const named = now(buildBrief(rich({ name: 'Wren' })).core);
+    const lines = named.split('\n').filter((l) => l.includes('Wren'));
+    expect(lines).toEqual(['Name: the owner calls you Wren; answer to it, and still call yourself "I".']);
+    expect(named.indexOf(lines[0] as string)).toBeGreaterThan(named.indexOf(VOICE[2]));
+    expect(now(buildBrief(rich({ name: '' })).core)).not.toContain('Name:');
+  });
+
+  it("counts the clock as the owner's day or evening by their hours, 07:00 and 22:00 unless set", () => {
+    const at = (hhmm: string) => Date.parse(`2026-11-03T${hhmm}:00Z`);
+    expect(dayPart(at('06:59'), 'UTC')).toBe("the owner's evening (day from 07:00)");
+    expect(dayPart(at('07:00'), 'UTC')).toBe("the owner's day (evening from 22:00)");
+    expect(dayPart(at('21:59'), 'UTC')).toBe("the owner's day (evening from 22:00)");
+    expect(dayPart(at('22:00'), 'UTC')).toBe("the owner's evening (day from 07:00)");
+    expect(dayPart(at('00:30'), 'UTC')).toBe("the owner's evening (day from 07:00)");
+    const late = { day: '09:00', night: '20:00' };
+    expect(dayPart(at('08:30'), 'UTC', late)).toBe("the owner's evening (day from 09:00)");
+    expect(dayPart(at('20:00'), 'UTC', late)).toBe("the owner's evening (day from 09:00)");
+    const b = buildBrief(rich({ now: at('20:30'), hours: late }));
+    expect(now(b.core)).toContain("Tuesday 20:30 (UTC), the owner's evening (day from 09:00) · day 2026-11-03");
   });
 });

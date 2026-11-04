@@ -337,7 +337,10 @@ row for the 7 days before (wakes a day). Counts only: never why it woke or what 
 the budget at Off it says so; when the Worker can't answer it says that, and the settings below
 still work. The day is the owner's logical day (it ends at 04:00).
 
-Five parts: How I talk, Nights, Reaching you, Waking, Standing permissions. Each permission is Ask (a
+Six parts: How I talk, Day and evening, Nights, Reaching you, Waking, Standing permissions. The name
+the owner gives the mind (2026-11-04) is what the shell says wherever it would say "the mind" (the
+page's title and its row in Settings, the copy in `th/copy.js` `mindName()`), from `th.p.settings`,
+which home's read of the settings keeps (`keepShell`); the briefing says it in one line of section 1. Each permission is Ask (a
 decision card first), Do and tell, or Do quietly (the ledger only), and the Worker enforces it
 ([API.md §11.11](../engineering/API.md#standing-permissions)). The page says under them: "Always
 asks first: money, deleting your data, keys and access, reaching another person." (the floors no
@@ -359,8 +362,11 @@ Remove. Each switch, Undo or Remove reads the list again. "No routines yet. I as
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
+| `mind.name` | text in a sheet, ≤ 20 characters, no control characters | worker | empty (``) | the shell's copy, in place of "the mind"; the mind (briefing sections 1 and 13); the Worker's PATCH holds it to the phrase lint (`shared/contract/lint.ts`, `422 validation`); the owner's alone (the mind's `settings.set` is refused) |
 | `mind.voice` | segments: plain / warmer / drier | worker | `plain` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.verbosity` | segments: short / normal / full | worker | `normal` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.day_start` | a sheet picker: 05:00 to 10:00 | worker | `07:00` | `ui/theme.js` (Auto turns day at it, also while the page is open); the mind (briefing section 1's "now": the owner's day or evening, `brief-day.ts` `dayPart`; section 13) |
+| `mind.night_start` | a sheet picker: 18:00 to 23:00 | worker | `22:00` | `ui/theme.js` (Auto turns night at it); the mind (briefing sections 1 and 13) |
 | `mind.night_scope` | segments: bookkeeping / arrange / full | worker | `full` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.night_budget` | range (min): 5 / 15 / 30 | worker | `30` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.idle` | range (min): 10 / 30 / 120 | worker | `120` | the mind (briefing section 13); the Worker does not enforce it yet |
@@ -392,7 +398,7 @@ SHA-256 (`PUT /v1/music/history`) and counted once, and what was counted (counts
 
 ### 6.7 Privacy and data (`privacy.js`)
 
-Senses per app and error reports, then a read-only group, What leaves this phone, then Your data
+Senses per app and error reports, then Keep conversations, then a read-only group, What leaves this phone, then Your data
 with Export, which opens the Export page (§4.9) over this one: the weather
 town (by name and as its coordinates, to Open-Meteo), the feed addresses of followed podcasts, and
 nothing else. `th/senses/send.js` and the error reporter do not read the switches yet: a check on
@@ -409,6 +415,7 @@ errors routes are the place to honour them.
 | `privacy.senses.home` | switch | worker | `on` | the same, for home: lines seen, tiles and chips tapped, cards answered |
 | `privacy.senses.shell` | switch | worker | `on` | the same, for the ring, the island, Music and Podcasts in front, settings changed (B1) |
 | `privacy.errors` | switch | worker | `on` | exposed: `GET /v1/settings`; nothing reads it yet |
+| `privacy.retention` | segments: forever / 1 year / 90 days (Conversations) | worker | `forever` | the prune pass, once a logical day (`areas/conversation/retention.ts`, [DATA.md §10](../engineering/DATA.md)): a conversation unchanged for longer is purged as a deleted one is, with a ledger row; one filed under a topic is kept; the owner's alone |
 
 ### 6.8 About and diagnostics (`about.js`)
 

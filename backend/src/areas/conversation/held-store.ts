@@ -150,6 +150,26 @@ export function newestOffRecordPurge(db: Db): number | null {
   );
 }
 
+// --- Keep conversations (retention.ts) --------------------------------------------------------
+
+/** Conversations unchanged since before `before`, not held and not filed under a topic, on
+ * `threads_status_updated` (each status's range of old rows, never the table): at most `limit`. */
+export function pastKeep(db: Db, before: number, limit: number): string[] {
+  return db
+    .all<{ id: string }>(
+      `SELECT id FROM threads WHERE status IN ('open', 'filed') AND updated_at < ?
+         AND purge_at IS NULL AND topic IS NULL LIMIT ?`,
+      before,
+      limit,
+    )
+    .map((r) => r.id);
+}
+
+/** Due now: gone from every read at once (held.ts `stateOf`), purged by the next prune pass. */
+export function markPastKeep(db: Db, id: string, at: number): number {
+  return db.run('UPDATE threads SET purge_at = ? WHERE id = ? AND purge_at IS NULL AND topic IS NULL', at, id);
+}
+
 // --- the purge (purge.ts) ----------------------------------------------------------------------
 
 export interface DueRow {

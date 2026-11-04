@@ -18,11 +18,8 @@ function openFromRing(id,color,to){
   const toast=m=>{toastEl.textContent=m;toastEl.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>toastEl.classList.remove('show'),1700)};
   try{$('#date').textContent=new Date().toLocaleDateString(undefined,{weekday:'short',day:'numeric',month:'short'})}catch(e){}
 
-  // Day or night: Auto follows the clock, Day or Night sticks (theme.js applied it before the first
-  // paint). Settings → Appearance (apps/settings/appearance.js) and the shell.appearance verb both
-  // change it through th:theme; text size and a still background live there too.
-  function setTheme(p){ const hr=new Date().getHours(); root.dataset.theme=p==='auto'?((hr>=19||hr<7)?'dark':'light'):p; try{localStorage.setItem('th-theme',p)}catch(e){} }
-  document.addEventListener('th:theme',e=>{ if(['auto','light','dark'].includes(e.detail)) setTheme(e.detail) });
+  // Day or night: ui/theme.js keeps it (Auto by the owner's hours, Day or Night sticks), from the
+  // first paint and through th:theme, which Settings → Appearance and the shell.appearance verb send.
   // Offline is said once, on the date line ("· Offline", th/chat), and each waiting message says it
   // will send when back (audit fix 10: the pill made it three).
   try{$('#bdate').textContent=new Date().toLocaleDateString(undefined,{weekday:'long',day:'numeric',month:'long'})}catch(e){}

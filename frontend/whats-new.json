@@ -1,15 +1,15 @@
 {
-  "id": "2026-11-04-mind-verbs-3",
+  "id": "2026-11-04-settings-second",
   "date": "2026-11-04",
   "lines": [
     {
-      "text": "The DJ shuffle now leans toward the artists you play most, while Use my listening history is on."
+      "text": "You can give me a name in Settings › The mind. I answer to it, and the app says it where it said the mind."
     },
     {
-      "text": "A playlist from your words puts those artists first too. Turn the switch off and both stop."
+      "text": "Day starts and Evening starts set when Auto turns the theme light or dark, and when I count it as your evening."
     },
     {
-      "text": "I can ask in the chat before I keep something I learned from outside text. Your yes is the keep."
+      "text": "Keep conversations in Privacy and data can delete ones older than a year or 90 days. Ones under a topic stay."
     }
   ]
 }

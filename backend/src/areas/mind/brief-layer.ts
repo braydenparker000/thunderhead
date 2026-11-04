@@ -1,7 +1,8 @@
 // The briefing's first layer (MEMORY.md §9): sections 1 and 2, the first 2,000 characters, which a
-// session reads on every wake. Section 1 is now: the clock, the wake, the laws and quiet; the mind's
-// voice in three lines (BEHAVIOR.md §10); and today's state, each line its own: the weather, the
-// owner's own calendar, what is due, the song playing. Section 2 is the owner: who they are in their
+// session reads on every wake. Section 1 is now: the clock (the owner's day or evening), the wake,
+// the laws and quiet; the mind's voice in three lines (BEHAVIOR.md §10) and the name the owner gave
+// it; and today's state, each line its own: the weather, the owner's own calendar, what is due, the
+// song playing. Section 2 is the owner: who they are in their
 // own words, their loose ends, and each verb class's position. Nothing `outside` is in it (MEMORY.md
 // §6 M11): a shared calendar's events go to section 7 and a loose end written after outside text to
 // section 8. Each part is its own small function, so a new line joins one list. Pure.
@@ -9,6 +10,7 @@
 import { notedBy } from '../memory/notes';
 import { renderOwner, renderThreads } from '../memory/profile';
 import type { BriefInput } from './brief';
+import { dayPart, nameLine } from './brief-day';
 import { clock, part, weekday } from './brief-text';
 import { verbSummary } from './brief-verbs';
 
@@ -46,7 +48,7 @@ function stateLines(i: BriefInput): string {
   const wakes = `wakes today ${i.wakesToday}`;
   const backoff = i.backoffUntil > i.now ? ` · usage backoff until ${clock(i.backoffUntil, i.tz)}` : '';
   return [
-    `${weekday(i.now, i.tz)} ${clock(i.now, i.tz)} (${i.tz}) · day ${i.day} · role ${i.role}`,
+    `${weekday(i.now, i.tz)} ${clock(i.now, i.tz)} (${i.tz}), ${dayPart(i.now, i.tz, i.hours)} · day ${i.day} · role ${i.role}`,
     `wake: ${i.wakeReason ?? 'manual'} · ${wakes} · pre-warms left ${i.prewarmsLeft}${backoff}`,
     `${i.laws} · open decisions ${i.decisions.length} · quiet: ${quietLine(i)}`,
     ...(i.watchdogs.length ? [watchdogLine(i.watchdogs, i.tz)] : []),
@@ -91,7 +93,10 @@ function todayLines(i: BriefInput, room: number): string[] {
 /** Section 1, ≤ NOW_MAX characters: the state and how the mind may speak today (brief-learn.ts),
  * the voice, then today's state in what is left. */
 export function nowSection(i: BriefInput): string {
-  const head = [stateLines(i), ...(i.speech ? [i.speech.slice(0, 240)] : []), ...VOICE].join('\n');
+  const name = nameLine(i.name);
+  const head = [stateLines(i), ...(i.speech ? [i.speech.slice(0, 240)] : []), ...VOICE, ...(name ? [name] : [])].join(
+    '\n',
+  );
   return [head, ...todayLines(i, NOW_MAX - head.length - 1)].join('\n');
 }
 

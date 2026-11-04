@@ -10,6 +10,7 @@ import type { Who } from '../../../shared/contract/routes.ts';
 import { currentDay } from '../areas/conversation/day';
 import * as held from '../areas/conversation/held';
 import * as purge from '../areas/conversation/purge';
+import { expirePastKeep, RETENTION_STEP } from '../areas/conversation/retention';
 import { lastMessageAt } from '../areas/conversation/stats';
 import * as cstore from '../areas/conversation/store';
 import type * as fstore from '../areas/files/store';
@@ -91,9 +92,10 @@ export abstract class CoreHeld extends CorePodcasts {
 
   // --- the prune pass ----------------------------------------------------------------------------
 
-  /** Held conversations first, each tick; then every table's prune, ≤ 2,000 rows each a step, once
-   * a logical day: the day counts as done only when no prune was cut short, so a backlog continues
-   * on the next tick. Returns the rows pruned and messages purged. */
+  /** Held conversations first, each tick; then once a logical day the conversations past Keep
+   * conversations marked due (retention.ts, for the next tick's purge) and every table's prune,
+   * ≤ 2,000 rows each a step: the day counts as done only when nothing was cut short, so a backlog
+   * continues on the next tick. Returns the rows pruned, conversations marked and messages purged. */
   protected async pruneDaily(now: number, today: string): Promise<number> {
     const purged = await this.purgeHeld(now);
     if (getSetting(this.db, 'prune.day') === today) return purged;
@@ -103,8 +105,8 @@ export abstract class CoreHeld extends CorePodcasts {
       purged +
       dropped +
       this.ctx.storage.transactionSync(() => {
-        let total = 0;
-        let short = dropped < DROP_STEP;
+        let total = expirePastKeep(this.db, now);
+        let short = dropped < DROP_STEP && total < RETENTION_STEP;
         for (const t of Object.values(CORE_TABLES)) {
           const n = t.prune?.(this.db, now, PRUNE_STEP) ?? 0;
           total += n;

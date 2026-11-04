@@ -2,7 +2,8 @@
 // off the record and a message in it (no FTS entry), Delete and Restore of a day's thread of 20
 // messages, Recently deleted, and the cron's tick purging, as it does when a purge is due: a
 // deleted day of 20 messages (FTS entries, an `optimize`, the evidence scan), and one full step of
-// 500 messages off the record.
+// 500 messages off the record; then Keep conversations at 90 days: the day's pass marking three days
+// past it (conversation/retention.ts), and the next tick purging them.
 import { runInDurableObject } from 'cloudflare:test';
 import type { Message, SignedIn, Thread } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
@@ -59,4 +60,27 @@ export async function heldCalls(cost: Cost, grant: (ip: string, password?: strin
   );
   await coreSql('UPDATE threads SET purge_at = ? WHERE id = ?', Date.now() - 1, big);
   await cost('cron tick, purging 500 messages off the record (Core)', tick, 204, k);
+
+  // Three days of 5 messages, 100 days unchanged, past Keep conversations at 90 days.
+  await api('PATCH', '/v1/settings', { ...d, body: { 'privacy.retention': '90d' } });
+  const old: string[] = [];
+  for (let n = 0; n < 3; n++) {
+    let t = '';
+    for (let i = 0; i < 5; i++)
+      t = (await apiJson<Message>('PUT', `/v1/messages/${uuidv7()}`, { ...d, body: { body: `old cost ${i}` } })).body
+        .thread_id;
+    await coreSql(
+      "UPDATE threads SET day = ?, status = 'filed', updated_at = ? WHERE id = ?",
+      `2026-0${n + 6}-15`,
+      Date.now() - 100 * 86_400_000,
+      t,
+    );
+    old.push(t);
+  }
+  await coreSql("DELETE FROM settings WHERE key = 'prune.day'");
+  await cost("cron tick, the day's pass marking 3 conversations past Keep conversations (Core)", tick, 204, k);
+  const marked = await coreSql<{ id: string }>("SELECT id FROM threads WHERE purge_at IS NOT NULL AND kind = 'daily'");
+  if (marked.length !== 3 || !old.every((t) => marked.some((m) => m.id === t))) throw new Error('not the 3 days');
+  await cost('cron tick, purging 3 conversations past Keep conversations (Core)', tick, 204, k);
+  await coreSql("DELETE FROM settings WHERE key = 'privacy.retention'");
 }

@@ -117,7 +117,10 @@ const budgets = [
   // (2026-11-04, routines) +65 measured (76,805 → 76,870): th/contract.js's `routine` card class and
   // change kind.
   // (2026-11-04, verbs batch 3) +299 measured (76,870 → 77,169): th/contract.js's three new verbs.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 77_169],
+  // (2026-11-04, settings second) +1,205 measured (77,169 → 78,374): th/copy.js's `mindName()` (the
+  // mind's name wherever the copy says "the mind") and `keepShell()` (the name and the owner's hours
+  // kept from home's read of the settings, for the copy and ui/theme.js's Auto).
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 78_374],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -149,7 +152,9 @@ const budgets = [
   // the owner's order with Photos last.
   // (2026-11-04, verbs batch 2) +251 measured (116,426): registry/surfaces.js keeps the apps'
   // arrangement kinds off home.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 116_426],
+  // (2026-11-04, settings second) +73 measured (116,426 → 116,499): the chat keeps the shell's
+  // settings from its read and says the mind's name when Stop can't reach it.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 116_499],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:

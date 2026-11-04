@@ -91,6 +91,8 @@ const o = (...pairs: string[]) =>
 /** A range's stops, each labelled with its unit (`160 ms`, `1 day`, `3 days`). */
 const stops = (unit: string, ...ns: number[]) =>
   ns.map((n) => ({ value: n, label: `${n} ${n === 1 ? unit.replace(/s$/, '') : unit}` }));
+/** Hours on the clock, `07:00`, as both value and label. */
+const hours = (...hs: number[]) => hs.map((h) => `${String(h).padStart(2, '0')}:00`).map((v) => ({ value: v, label: v }));
 const ON_PHONE = { scope: 'phone', mind: false } as const;
 const IN_WORKER = { scope: 'worker', mind: false } as const;
 const FOR_MIND = { scope: 'worker', mind: true } as const;
@@ -195,11 +197,19 @@ export const SETTINGS = [
   // The countries the Holidays tile has lists for (briefing/holidays.ts); auto: the weather place's.
   { ...TILE, key: 'briefing.holidays', label: 'Holiday country', kind: 'choice', default: 'auto', detail: 'Auto uses the country of your weather place.',
     options: o('auto:Auto', 'AU:Australia', 'CA:Canada', 'FR:France', 'DE:Germany', 'MX:Mexico', 'ES:Spain', 'GB:United Kingdom', 'US:United States') },
-  // The mind: all in its briefing.
+  // The mind: all in its briefing. Its name, the owner's alone (mind-set.ts ownerOnly), phrase-linted
+  // by the Worker's PATCH (settings/catalog.ts); the shell says it wherever it would say "the mind".
+  { ...MIND, section: 'How I talk', key: 'mind.name', label: 'Name', kind: 'text', default: '', max: 20, pattern: '^[^\\u0000-\\u001f\\u007f]*$',
+    detail: 'What you call me, up to 20 characters. Empty: the mind.' },
   { ...MIND, section: 'How I talk', key: 'mind.voice', label: 'Voice', kind: 'choice', default: 'plain',
     options: o('plain:Plain', 'warmer:Warmer', 'drier:Drier'), detail: 'Plain, a little warmer, or drier.' },
   { ...MIND, section: 'How I talk', key: 'mind.verbosity', label: 'Length', kind: 'choice', default: 'normal',
     options: o('short:Short', 'normal:Normal', 'full:Full'), detail: 'How much I say when you have not asked for more or less.' },
+  // The owner's day (theme.js's Auto, the briefing's "now", brief-day.ts dayPart): day from the one, evening from the other.
+  { ...MIND, section: 'Day and evening', key: 'mind.day_start', label: 'Day starts', kind: 'choice', default: '07:00',
+    options: hours(5, 6, 7, 8, 9, 10), detail: 'From this hour Auto shows the day theme, and I count it as your day.' },
+  { ...MIND, section: 'Day and evening', key: 'mind.night_start', label: 'Evening starts', kind: 'choice', default: '22:00',
+    options: hours(18, 19, 20, 21, 22, 23), detail: 'From this hour Auto shows the night theme, and I count it as your evening.' },
   { ...MIND, section: 'Nights', key: 'mind.night_scope', label: 'Night scope', kind: 'choice', default: 'full',
     options: o('bookkeeping:Bookkeeping', 'arrange:Arrange', 'full:Full'), detail: 'Only the bookkeeping, also arranging tomorrow, or all of the night shift.' },
   { ...MIND, section: 'Nights', key: 'mind.night_budget', label: 'Night budget', kind: 'range', unit: 'min', default: 30,
@@ -245,6 +255,10 @@ export const SETTINGS = [
   { ...SENSES, key: 'privacy.senses.shell', label: 'Ring and island', detail: 'Which apps you open and close and when, and which setting you change, never its value.' },
   { ...SENSES, section: 'Reports', key: 'privacy.errors', label: 'Error reports',
     detail: 'When something breaks, what broke and where, never what you wrote.' },
+  // Retention (conversation/retention.ts): once a day, conversations past it are purged as a deleted one is.
+  { key: 'privacy.retention', group: 'privacy', section: 'Conversations', label: 'Keep conversations', kind: 'choice', ...IN_WORKER,
+    default: 'forever', options: o('forever:Forever', '1y:1 year', '90d:90 days'),
+    detail: 'Older ones are deleted for good, once a day. Ones you filed under a topic are kept; delete those yourself.' },
 ] as const satisfies readonly SettingSpec[];
 
 export type SettingKey = (typeof SETTINGS)[number]['key'];
