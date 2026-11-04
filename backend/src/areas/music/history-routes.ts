@@ -1,4 +1,4 @@
-// /v1/music/history, /v1/music/taste and /v1/music/similar/:mbid (MUSIC.md §16, API.md §11.9): the
+// /v1/music/history, /v1/music/taste(/weights) and /v1/music/similar/:mbid (MUSIC.md §16, API.md §11.9): the
 // owner's listening-history files in, their taste out. A file is kept in the private bucket by its
 // SHA-256 (which the phone sends and the Worker checks), so the same file again is answered with its
 // import's state and never counted twice; its import is a job in Core (history-job.ts). The mind
@@ -10,6 +10,7 @@ import {
   TASTE_LIMITS as L,
   type SimilarResponse,
   type TasteResponse,
+  type TasteWeightsResponse,
 } from '../../../../shared/contract/taste.ts';
 import { type AppEnv, guard } from '../../http/auth';
 import { ApiError } from '../../http/errors';
@@ -61,6 +62,11 @@ export const historyRoutes = new Hono<AppEnv>()
     if (!Number.isInteger(n) || n < 1 || n > L.taste_max)
       throw new ApiError('validation', [{ path: 'limit', issue: `1 to ${L.taste_max}` }]);
     return c.json((await fresh(musicObject(c.env).taste(n))) satisfies TasteResponse);
+  })
+  .get('/music/taste/weights', guard('GET /v1/music/taste/weights'), async (c) => {
+    if (!(await fresh(coreObject(c.env).historyOn())))
+      return c.json({ on: false, weights: {} } satisfies TasteWeightsResponse);
+    return c.json({ on: true, weights: await fresh(musicObject(c.env).tasteWeights()) } satisfies TasteWeightsResponse);
   })
   .get('/music/similar/:mbid', guard('GET /v1/music/similar/:mbid'), async (c) => {
     const mbid = c.req.param('mbid');

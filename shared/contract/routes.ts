@@ -218,6 +218,7 @@ export const ROUTES = {
   'GET /v1/music/mixes': { who: ['D', 'C', 'N'], phase: 'P5', note: 'the mixes music.mix_save kept, newest first, ≤ 50: id (for music.play_mix), name, tracks, recipe' },
   'PUT /v1/music/history': { who: D, phase: 'P5', note: 'raw bytes ≤ 32 MiB (zip, json or csv); TH-File-Name, TH-Sha256; 200 done before, 202 queued' },
   'GET /v1/music/history': { who: ['D', 'C', 'N'], phase: 'P5', note: 'the imported files and the artists resolved: counts only' },
+  'GET /v1/music/taste/weights': { who: ['D'], phase: 'P5', note: "the DJ shuffle's history weights by song id, none while music.history is off" },
   'GET /v1/music/taste': { who: ['C', 'N'], phase: 'P5', note: '?limit=1-50: top artists (MusicBrainz ids, canonical names) and years by plays' },
   'GET /v1/music/similar/:mbid': { who: ['C', 'N'], phase: 'P5', note: "ListenBrainz's similar artists, kept a week; plays and catalog songs of each" },
   'GET /v1/music/mixes/:id': { who: ['D'], phase: 'P5', note: "one mix's songs in order, for the owner's tap on Music's \"tonight\" (404 not_found)" },

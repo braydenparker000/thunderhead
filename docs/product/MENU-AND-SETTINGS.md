@@ -378,7 +378,7 @@ Remove. Each switch, Undo or Remove reads the list again. "No routines yet. I as
 | `mind.permit.practice` | segments: ask / tell / quiet | worker | `tell` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 | `mind.permit.tiles` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 | `mind.permit.titles` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
-| `mind.permit.outside` | segments: ask / tell / quiet | worker | `ask` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
+| `mind.permit.outside` | segments: ask / tell / quiet | worker | `ask` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13). Keeping an outside fact (`memory.outside_keep`) asks at every position: the owner's tap on its card is the keep |
 
 ### 6.6b Music (`music.js`)
 
@@ -388,7 +388,7 @@ SHA-256 (`PUT /v1/music/history`) and counted once, and what was counted (counts
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
-| `music.history` | switch | worker | `on` | the mind (briefing section 13) and the brief's taste line (`areas/mind/assemble.ts`: off leaves it out); find's `history=1` is the mind's to skip |
+| `music.history` | switch | worker | `on` | the mind (briefing section 13) and the brief's taste line (`areas/mind/assemble.ts`: off leaves it out); the DJ shuffle's weights (`GET /v1/music/taste/weights` answers none while off) and a `music.play_mix` find ("playlist from words") weigh by history only while on; find's `history=1` is the mind's to skip |
 
 ### 6.7 Privacy and data (`privacy.js`)
 

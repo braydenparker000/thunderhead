@@ -84,12 +84,15 @@ async function prepare(env: Env, body: Pick<PutVerbRequest, 'verb' | 'args'>): P
   if (!find || typeof find !== 'object' || Array.isArray(find)) return {};
   if (inSandbox()) throw new ApiError('validation', [{ path: 'args.find', issue: 'the sandbox has no music' }]);
   const f = find as Record<string, unknown>;
+  // "Playlist from words" weighs by the owner's history while its switch is on (MUSIC.md §16.4).
+  const history = await fresh(coreObject(env).historyOn());
   const q = parseFind({
     moods: Array.isArray(f.moods) ? f.moods.join(',') : undefined,
     occasion: typeof f.occasion === 'string' ? f.occasion : undefined,
     energy: typeof f.energy === 'string' ? f.energy : undefined,
     like: typeof f.like === 'string' ? f.like : undefined,
     limit: typeof f.limit === 'number' ? String(f.limit) : undefined,
+    history: history ? '1' : undefined,
   });
   if ('issues' in q)
     throw new ApiError(

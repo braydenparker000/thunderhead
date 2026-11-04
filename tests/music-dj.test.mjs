@@ -5,7 +5,7 @@
 // sixth shuffle mode; and the player's steps pass over songs rated "never" (stepOver).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { closeness, djOrder, DJ_AHEAD, installDjMode, KEEP_AHEAD, learn, lesson, pick, replan, seeded, SHUFFLE_DJ, left, stepOver } from '../frontend/th/music/dj.js';
+import { closeness, djOrder, DJ_AHEAD, HISTORY_W, installDjMode, KEEP_AHEAD, learn, lesson, loadWeights, pick, replan, seeded, SHUFFLE_DJ, left, stepOver } from '../frontend/th/music/dj.js';
 
 const GENRES = ['Classical', 'Jazz', 'Rock', 'Folk', 'Ambient'];
 const library = (n) =>
@@ -148,4 +148,39 @@ test('never means never: next, previous and the advance pass over songs rated 1,
     const plain = p >= 0 && p < 6 ? order[p] : wrap ? order[((p % 6) + 6) % 6] : null;
     assert.equal(stepOver(order, 2, rel, wrap, () => false), plain, `rel ${rel} wrap ${wrap}`);
   }
+});
+
+test('history: songs of an artist the owner played much come up more; no weights, no change', () => {
+  const t = library(600);
+  // An invented history: the owner played "Artist 3" a great deal and "Artist 8" a little.
+  const weights = {};
+  for (const x of t) if (x.artist === 'Artist 3') weights[x.id] = 1;
+  else if (x.artist === 'Artist 8') weights[x.id] = 0.3;
+  const pool = [...t.keys()];
+  // From folk songs of other artists (each just played, so its own artist waits), as Artist 3's are.
+  const folk = [13, 18, 23, 28, 33];
+  const count = (w) => {
+    const rand = seeded(11);
+    let n = 0;
+    for (let k = 0; k < 400; k++) {
+      const c = folk[k % folk.length];
+      if (t[pick(t, c, pool, [t[c].id], empty(), rand, NOW, w)].artist === 'Artist 3') n++;
+    }
+    return n;
+  };
+  const plain = count({});
+  const weighted = count(weights);
+  assert.ok(weighted > plain * 2 && weighted >= 40, `${weighted} picks of Artist 3 with history, ${plain} without`);
+  // The planned part leans the same way, and the artist rule still holds.
+  const lean = (w) => djOrder(t, 13, { learned: empty(), seed: 5, now: NOW, weights: w }).slice(1, DJ_AHEAD + 1).filter((i) => weights[t[i].id]).length;
+  assert.ok(lean(weights) > lean({}), `${lean(weights)} history songs planned, ${lean({})} without`);
+  const planned = djOrder(t, 13, { learned: empty(), seed: 5, now: NOW, weights });
+  for (let k = 1; k < DJ_AHEAD; k++) {
+    const window = planned.slice(Math.max(0, k - 9), k).map((i) => t[i].artist);
+    assert.ok(!window.includes(t[planned[k]].artist), `artist repeats at pick ${k}`);
+  }
+  // With the switch off the phone keeps no weights: the order is the one without history.
+  assert.deepEqual(djOrder(t, 13, { learned: empty(), seed: 5, now: NOW, weights: {} }), djOrder(t, 13, { learned: empty(), seed: 5, now: NOW }));
+  assert.deepEqual(loadWeights(), {});
+  assert.ok(HISTORY_W < 0.5, 'history never outweighs a shared genre');
 });

@@ -81,6 +81,26 @@ export function create(
   return withPermit({ order: store.toOrder(reread(w, id)), created: true }, g);
 }
 
+/** `muse.order_personal` (shared/contract/verbs-mind.ts), after its reach-people card: a
+ * `muse.request` marked `personal`, by the same rules as the mind's other orders (a clean session,
+ * nothing never stored), with the verb's id and the longest deadline. */
+export function placePersonal(w: Writer, c: Caller, id: string, a: { title: string; words: string; app?: string }) {
+  const spec = { v: 1, words: a.words, ...(a.app ? { app: a.app } : {}) };
+  toMuse(w, c, 'args', [a.title, spec]);
+  if (store.order(w.db, id)) throw new Fail('conflict');
+  store.insertOrder(w.db, {
+    id,
+    kind: 'muse.request',
+    title: a.title,
+    spec,
+    deadline_at: w.at + WORK_LIMITS.deadline_days * DAY,
+    created_by: c.session_id ?? c.actor,
+    at: w.at,
+    personal: true,
+  });
+  changed(w, id);
+}
+
 /** The owner's first 60 characters of words, as the task's title. */
 export function titleOf(words: string): string {
   const one = words.replace(/\s+/g, ' ').trim();

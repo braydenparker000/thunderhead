@@ -53,22 +53,13 @@ export interface PermitSpec {
  * act), a push (it reaches the owner, under `mind.pushes`), and `POST /v1/auth/breakglass`: keys and
  * access, but the way back in when the owner can reach no signed-in device to answer a card, so its
  * ask is its own: the fingerprint the owner gives in their own words, the 24-hour wait and the notice
- * on every device (SIGN-IN.md). */
+ * on every device (SIGN-IN.md). A conversation's title (`PATCH /v1/threads/:id` too), the outside keep
+ * and a Muse order with the owner's data are verbs (verbs-mind.ts), gated under their verb names. */
 export const MIND_ACTIONS = {
   'surface.put': { class: 'tiles', doc: 'A line on home or a tile on the Briefing (`PUT /v1/surfaces/:app/:slot`).' },
-  'thread.title': { class: 'titles', doc: "A conversation's title or summary (`PATCH /v1/threads/:id`)." },
   'reminder.set': { class: 'reminders', doc: 'A reminder the owner asked for (`PUT /v1/reminders/:id`).' },
   'reminder.cancel': { class: 'reminders', doc: 'Taking a reminder back (`DELETE /v1/reminders/:id`).' },
   'muse.order': { class: 'muse', doc: 'A work order for Muse (`PUT /v1/work/orders/:id`).' },
-  'muse.order_personal': {
-    class: 'muse',
-    floor: 'reach_people',
-    doc: "A work order of a kind that carries the owner's data (`personal` in work.ts): Muse runs on another provider (BEHAVIOR.md §7 rule 4). No such kind is built.",
-  },
-  'memory.outside': {
-    class: 'outside',
-    doc: 'Keeping a fact learned from outside text. A write from a session that read outside text is labelled outside and waits for the owner\'s Keep in Settings › Memory (MEMORY.md §6 M11); no position loosens that.',
-  },
 } as const satisfies Record<string, PermitSpec>;
 export type MindActionName = keyof typeof MIND_ACTIONS;
 

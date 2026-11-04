@@ -76,6 +76,14 @@ export interface TasteResponse {
   top: TasteArtist[];
 }
 
+/** GET /v1/music/taste/weights (the owner's phone, for the DJ shuffle): each catalog song whose
+ * artist the owner played, 0–1 by the log of the plays; `on: false` and none while the switch "Use
+ * my listening history" (`music.history`) is off. Song ids and numbers only. */
+export interface TasteWeightsResponse {
+  on: boolean;
+  weights: Record<string, number>;
+}
+
 /** GET /v1/music/similar/:mbid: ListenBrainz's similar artists (and Last.fm's when its key is set). */
 export interface SimilarResponse {
   mbid: string;

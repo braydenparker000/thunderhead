@@ -14,6 +14,7 @@ import { APP_IDS } from './feed.ts';
 import type { VerbSpec } from './verb-spec.ts';
 import { APP_VERBS } from './verbs-apps.ts';
 import { ISLAND_VERBS } from './verbs-island.ts';
+import { MIND_VERBS } from './verbs-mind.ts';
 import { MUSIC_VERBS } from './verbs-music.ts';
 import { PODCAST_VERBS } from './verbs-podcasts.ts';
 import { SHELL_VERBS } from './verbs-shell.ts';
@@ -55,6 +56,7 @@ export const VERBS = {
   ...APP_VERBS,
   ...ISLAND_VERBS,
   ...WATCH_VERBS,
+  ...MIND_VERBS,
   'shell.appearance': {
     app: 'shell',
     class: 'reversible',

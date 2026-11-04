@@ -2,7 +2,7 @@
 // (ledger/ops.ts dispatches by `op`, DATA.md §4.3) in the same transaction as its `undo` row. Like
 // the surfaces' and memory's undo, only the newest state is taken back: a mix already gone is no
 // conflict (the undo's end holds), but a setting, an episode or a reminder that changed since
-// answers 409 instead of overwriting what came after (and so does a conversation filed again since). `memory.close` (music.never, memory.note) is
+// answers 409 instead of overwriting what came after (and so does a conversation filed or named again since, or a Muse order no longer open). `memory.close` (music.never, memory.note) is
 // memory's own (memory/undo.ts).
 import { Fail } from '../../lib/result';
 import type { Writer } from '../../objects/commit';
@@ -10,9 +10,17 @@ import { type ProgressWas, unmarkPlayed } from '../podcasts/sync';
 import { moveBack } from '../reminders/ops';
 import { restoreSetting, type SettingWas } from '../settings/mind-set';
 import { unfile } from './apps';
+import { MIND_UNDO_OPS, undoMind } from './mind';
 import * as mixes from './mixes';
 
-export const VERB_UNDO_OPS = ['mix.delete', 'podcast.progress', 'reminder.move', 'setting.restore', 'thread.topic'];
+export const VERB_UNDO_OPS = [
+  'mix.delete',
+  'podcast.progress',
+  'reminder.move',
+  'setting.restore',
+  'thread.topic',
+  ...MIND_UNDO_OPS,
+];
 
 type Args = Record<string, unknown>;
 const str = (v: unknown) => (typeof v === 'string' ? v : '');
@@ -38,6 +46,10 @@ export function undo(w: Writer, actor: string, op: string, args: Args, zone: () 
       return;
     case 'thread.topic':
       unfile(w, args);
+      return;
+    case 'thread.retitle':
+    case 'work.cancel':
+      undoMind(w, op, args);
       return;
     default:
       throw new Fail('validation', { reason: 'not_undoable' });

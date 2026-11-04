@@ -7,6 +7,8 @@
 // learns from this phone's skips (§9.3): a song skipped early scores lower, one played through
 // higher, and so does the move from the song before it, fading with a 60-day half-life. The pick
 // among the best five is random with weights softmax(score / 0.15), seeded so a test can replay it.
+// While "Use my listening history" is on, a song whose artist the owner played much scores up to
+// HISTORY_W more (MUSIC.md §16.4; the weights th/music/taste.js keeps from the Worker).
 // The player plans DJ_AHEAD songs at a time (its play order) and plans again after a skip, keeping
 // the KEEP_AHEAD songs already planned next (their first seconds may be on the phone already).
 // installDj also names the next songs to the player's worker, which signs their links ahead
@@ -26,6 +28,9 @@ const RECENT = 50;
 const RECENT_MS = 2 * 3_600_000;
 const HALF_LIFE_MS = 60 * 86_400_000;
 const STORE = 'th.music.dj';
+export const TASTE_STORE = 'th.music.taste';
+/** The most a song's history weight (0 to 1) adds to its score: under a shared genre's 0.5. */
+export const HISTORY_W = 0.3;
 const KEEP = 4000;
 
 /** @typedef {{ id: string, artist?: string, album?: string, albumArtist?: string, genre?: string, composer?: string, year?: number, rating?: number, lastPlayed?: number }} Track */
@@ -94,8 +99,9 @@ const faded = (v, now) => (v ? v[0] * 0.5 ** ((now - v[1]) / HALF_LIFE_MS) : 0);
  * The next song after `c` among `pool` (indices into `tracks`), or -1.
  * @param {Track[]} tracks @param {number} c @param {number[]} pool @param {string[]} history newest last
  * @param {Learned} learned @param {() => number} rand @param {number} now
+ * @param {Record<string, number>} [weights] song id → its history weight, 0 to 1
  */
-export function pick(tracks, c, pool, history, learned, rand, now) {
+export function pick(tracks, c, pool, history, learned, rand, now, weights = {}) {
   const cur = tracks[c];
   const last = new Set(history.slice(-RECENT));
   const artists = history.slice(-10).map((id) => low(byId(tracks, id)?.artist)).filter(Boolean);
@@ -110,6 +116,7 @@ export function pick(tracks, c, pool, history, learned, rand, now) {
     const mine = faded(learned.tracks[x.id], now);
     if (mine <= -3) continue;
     let s = closeness(cur, x) + 0.25 * Math.max(-1, Math.min(1, mine)) + 0.25 * Math.max(-1, Math.min(1, faded(learned.moves[`${cur.id}>${x.id}`], now)));
+    s += HISTORY_W * Math.max(0, Math.min(1, weights[x.id] ?? 0));
     if (low(x.album) && albums.includes(low(x.album))) s -= 0.3;
     // The same artist within 10 songs only when nothing else is left.
     (low(x.artist) && artists.includes(low(x.artist)) ? sameArtist : scored).push([i, s]);
@@ -137,13 +144,14 @@ function byId(tracks, id) {
  * The DJ's play order for a queue: the current song first (or `o.keep`, songs already chosen, the
  * current one first), then DJ_AHEAD songs each picked after the one before (from the songs close in
  * the tags plus 100 at random), then the rest shuffled.
- * @param {Track[]} tracks @param {number} index @param {{ learned?: Learned, seed?: number, now?: number, keep?: number[] }} [o]
+ * @param {Track[]} tracks @param {number} index @param {{ learned?: Learned, seed?: number, now?: number, keep?: number[], weights?: Record<string, number> }} [o]
  */
 export function djOrder(tracks, index, o = {}) {
   const n = tracks.length;
   const rand = seeded(o.seed ?? (Date.now() ^ (n * 2654435761)));
   const now = o.now ?? Date.now();
   const learned = o.learned ?? load();
+  const weights = o.weights ?? loadWeights();
   const start = index >= 0 && index < n ? index : Math.floor(rand() * n);
   const keep = o.keep?.[0] === start ? o.keep : [start];
   /** @type {Map<string, number[]>} */
@@ -166,7 +174,7 @@ export function djOrder(tracks, index, o = {}) {
     const near = [`c:${low(t.composer)}`, `a:${low(t.artist)}`, ...[...genres(t)].map((g) => `g:${g}`)].flatMap((k) => by.get(k) ?? []);
     const all = [...left];
     const pool = [...new Set([...near.filter((i) => left.has(i)).slice(0, 400), ...Array.from({ length: Math.min(100, all.length) }, () => all[Math.floor(rand() * all.length)])])];
-    let next = pick(tracks, c, pool, history, learned, rand, now);
+    let next = pick(tracks, c, pool, history, learned, rand, now, weights);
     if (next < 0) next = all[Math.floor(rand() * all.length)];
     order.push(next);
     left.delete(next);
@@ -184,7 +192,7 @@ export function djOrder(tracks, index, o = {}) {
  * A new plan after a skip: from the song now playing, keeping the KEEP_AHEAD songs the old plan had
  * next, except any just played or skipped (learned.recent), so their heads on the phone serve.
  * @param {Track[]} tracks @param {number[] | null} order @param {number} index
- * @param {{ learned?: Learned, seed?: number, now?: number }} [o]
+ * @param {{ learned?: Learned, seed?: number, now?: number, weights?: Record<string, number> }} [o]
  */
 export function replan(tracks, order, index, o = {}) {
   const learned = o.learned ?? load();
@@ -192,6 +200,16 @@ export function replan(tracks, order, index, o = {}) {
   const at = order?.length === tracks.length ? order.indexOf(index) : -1;
   const next = at < 0 ? [] : order.slice(at + 1, at + 1 + KEEP_AHEAD).filter((i) => !recent.has(tracks[i].id));
   return djOrder(tracks, index, { ...o, learned, keep: [index, ...next] });
+}
+
+/** The history weights taste.js keeps, or none (the switch off, never fetched). @returns {Record<string, number>} */
+export function loadWeights() {
+  try {
+    const w = JSON.parse(localStorage.getItem(TASTE_STORE) ?? 'null')?.weights;
+    return w && typeof w === 'object' ? w : {};
+  } catch {
+    return {};
+  }
 }
 
 /** This phone's learning. @returns {Learned} */
@@ -286,6 +304,8 @@ export function installDj(ctx, player) {
   import('/th/music/intents.js').then((m) => m.installIntents(ctx, player)).catch(() => {});
   // The mind's "tonight", a mix on the home shelf, played by the owner's tap (th/music/tonight.js).
   import('/th/music/tonight.js').then((m) => m.installTonight(ctx, player)).catch(() => {});
+  // The owner's history weights for the DJ, while their switch is on (th/music/taste.js).
+  import('/th/music/taste.js').then((m) => m.installTaste()).catch(() => {});
   // In home's layer after Music reloaded itself: its frame's trust back from its worker (no-op on top).
   import('/th/ported/claim.js').catch(() => {});
   const learned = load();
