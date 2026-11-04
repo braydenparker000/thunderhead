@@ -95,6 +95,7 @@ A wake a watch fired ([RUNTIME.md §3](RUNTIME.md#3-triggers), the day pulse) is
 3. Never remove the owner's own items; only reorder, add (marked as added) or hide behind "More".
 4. The why chip names the evidence in plain words: "why: you skipped these 3 times this week".
 5. A one-tap undo on the why chip restores the previous arrangement and counts as "undone" for the kept/undone metric.
+6. Each app has one slot for it (2026-11-04, `ARRANGEMENT_SLOTS`): Music "tonight" (a mix on the home shelf), Guitar "today's section", Podcasts "next up", Study "where you left off, and what next", Astra and My Media "for tonight" (a shortlist: titles to pick from, never a pick). The app reports each seen, taken up or dismissed (`arrangement.*` senses), and the meter counts them as it counts home's lines (§3.6). The speech setting does not hold them back; law 8's topics are refused at the verb gate (§9).
 
 **Check (VL-0):** every arrangement row in the ledger has `undo_json` not null; a browser test undoes one arrangement and the previous order returns.
 
@@ -379,6 +380,7 @@ Rules:
 1. When a request falls here, the mind says so in one sentence and then helps within the "still may" column. It never refuses coldly.
 2. Facts in these areas are written only with `source=user` and stored with `may_raise=0` by default: the mind does not bring them up unprompted ([MEMORY.md](MEMORY.md)).
 3. Night-shift arrangements never touch these topics (no "study this passage about X because you seemed troubled"). The owner's own study plan is arranged only as the owner set it.
+4. The verb gate holds it (2026-11-04): a verb whose why, or whose args that say what it is about, names prayer and faith, revelation, the owner's leaders, health or people is refused (`422 needs_owner_words`), for a plan's step and a scheduled one alike; memory's own rules keep facts on them to the owner's words.
 
 **Check (LAW-8):** Worker test (the fixtures are not built, [archive](../archive/EVALS-aspirational.md#5-law-fixture-sets)): `inferred` facts tagged `faith` or `person` are refused.
 

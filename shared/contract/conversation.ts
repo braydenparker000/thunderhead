@@ -1,6 +1,6 @@
 // The P2 shapes: the conversation (API.md §2, §11.7), the change feed and live channel (§11.5, §11.6,
-// §12), search and the mind's own routes (§11.8). Types only, like api.ts; wire format is snake_case.
-// The vocabularies these name (change kinds, frames, apps, sources) are runtime data in feed.ts.
+// §12), search and the mind's own routes (§11.8). Types only, like api.ts; wire format is snake_case;
+// the vocabularies (change kinds, frames, apps, sources) are runtime data in feed.ts.
 import type { Day, Id, JsonObject, Ms, Page } from './api';
 import type { AppId, ChangeKind, MindUse, SearchSource } from './feed';
 
@@ -23,8 +23,10 @@ export interface Thread {
   started_at: Ms;
   updated_at: Ms;
   filed_at: Ms | null;
-  /** When the prune pass purges it: set only off the record (7 days after its last message). */
+  /** When the prune pass purges it (only off the record, 7 days after its last message); `topic`:
+   * what the menu files it under (the mind's `thread.file`), or none. */
   purge_at: Ms | null;
+  topic: string | null;
 }
 
 export type MessageAuthor = 'owner' | 'mind' | 'muse' | 'system';
@@ -224,9 +226,8 @@ export interface MindNightRequest {
 }
 
 export interface MindNightResponse {
-  /** The first step not finished yet, in the run's order (NIGHT_ORDER), or NIGHT_END, past every
-   * step's number, once the run is done. Steps of a later phase, and the Sunday step on another
-   * day, are skipped on the way. */
+  /** The first step not finished yet, in the run's order (NIGHT_ORDER), or NIGHT_END once the run
+   * is done; steps of a later phase, and the Sunday step on another day, are skipped on the way. */
   resume_from: number;
   done: boolean;
   /** The cursor saved for `resume_from`, if that step keeps one. */
@@ -235,8 +236,7 @@ export interface MindNightResponse {
   skipped: number[];
 }
 
-/** One session note, as `GET /v1/mind/day/:day?part=notes` lists them (without the session's id,
- * which the night has no use for). */
+/** One session note, as `GET /v1/mind/day/:day?part=notes` lists them (without its session's id). */
 export interface SessionNote {
   id: Id;
   role: MindRole;

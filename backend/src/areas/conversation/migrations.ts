@@ -71,6 +71,13 @@ export const CONVERSATION_MIGRATIONS: Migration[] = [
       'ALTER TABLE mind_sessions ADD COLUMN off_record_at INTEGER',
     ],
   },
+  {
+    // thread.file (verbs-shell.ts): the topic the menu files a conversation under.
+    version: 37,
+    name: 'threads.topic',
+    kind: 'expand',
+    sql: ['ALTER TABLE threads ADD COLUMN topic TEXT'],
+  },
 ];
 
 // Held threads and their messages are left out of backups and the export (held-store.ts

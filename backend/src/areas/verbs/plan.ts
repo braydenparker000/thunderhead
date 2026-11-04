@@ -30,6 +30,7 @@ import type { Writer } from '../../objects/commit';
 import * as ledger from '../ledger/store';
 import { gatePlan } from '../mind/permit';
 import { followPlan } from './follow';
+import { lawGate } from './law';
 import { type Call, type Prepared, phoneArgs, queuePhone, runWorker } from './run';
 import * as schedule from './schedule';
 import * as store from './store';
@@ -51,7 +52,7 @@ interface Kept {
 type Done = { verb_id: string; ledger_id: string }[];
 
 /** Each step against its spec, before anything is gated or runs: 422 naming the step. */
-function validate(steps: PlanStep[]): Step[] {
+function validate(steps: PlanStep[], why: string): Step[] {
   return steps.map((s, i) => {
     const spec = verbSpec(s.verb);
     if (!spec) throw invalid(`steps.${i}.verb`, 'unknown verb');
@@ -67,6 +68,7 @@ function validate(steps: PlanStep[]): Step[] {
           issue: x.message,
         })),
       );
+    lawGate(s.verb, why, args.data, `steps.${i}.args`);
     return { verb: s.verb, schema: s.schema, args: args.data as JsonObject, device_id: s.device_id ?? null };
   });
 }
@@ -101,7 +103,7 @@ export function post(
   }
   const problem = lintMindText(r.what);
   if (problem) throw invalid('what', problem);
-  const steps = validate(r.steps);
+  const steps = validate(r.steps, r.why);
   const verbs = steps.map((s) => s.verb);
   const tz = r.fire_at === undefined ? 'UTC' : zone();
   const requested = r.fire_at === undefined ? null : schedule.when(w, verbs, r.fire_at, tz);

@@ -107,6 +107,9 @@ export type ErrorDetails =
       resume_from?: number;
       /** A book upload not yet whole (409): the parts received so far. */
       parts?: number[];
+      /** A verb that reaches a law-8 topic (422 `needs_owner_words`): which one, and where. */
+      topic?: string;
+      path?: string;
       /** A plan's step that was refused or failed (1-based), and its verb. */
       step?: number;
       verb?: string;

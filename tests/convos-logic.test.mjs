@@ -51,6 +51,7 @@ test('metas: part of the day for Now, the time yesterday, the weekday and date o
   assert.deepEqual(['2026-10-28', '2026-10-26', '2026-09-12', '2025-12-03', TODAY].map((d) => m.whenOf(d, TODAY)), ['Yesterday', 'Monday 26 October', 'Saturday 12 September', 'Wednesday 3 December 2025', 'Today']);
   assert.equal(m.subOf(t('s', '2026-10-24', { summary: ' Scales first,\n then bars 9 to 12. ' })), 'Scales first, then bars 9 to 12.');
   assert.deepEqual([0, 1, 14].map((n) => m.subOf(t('c', '2026-10-24', { message_count: n }))), ['0 messages', '1 message', '14 messages']);
+  assert.equal(m.subOf(t('f', '2026-10-24', { message_count: 3, topic: 'Trip planning' })), 'Trip planning · 3 messages');
 });
 
 test('search folds accents and case, so "cancion" and "canción" find the same', () => {

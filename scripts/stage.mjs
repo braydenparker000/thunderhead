@@ -111,7 +111,9 @@ const budgets = [
   // (2026-11-04, show) +188 measured (75,125): contract.js's `island.show` and `island.clear` verbs.
   // (2026-11-04, settings depth) +577 measured (75,702): motion.js's `buzz()` (Haptics off / full) and
   // Reduced motion on or off from the owner's setting.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 75_702],
+  // (2026-11-04, verbs batch 2) +987 measured (76,689): contract.js's seven new verbs, the apps'
+  // arrangement kinds and senses, and the law-8 topics.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 76_689],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -141,7 +143,9 @@ const budgets = [
   // and the island line's two executors (registry/verbs.js).
   // (2026-11-04, settings depth) +579 measured (116,175): registry/apps.js's `ringApps()`, the ring in
   // the owner's order with Photos last.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 116_175],
+  // (2026-11-04, verbs batch 2) +251 measured (116,426): registry/surfaces.js keeps the apps'
+  // arrangement kinds off home.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 116_426],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -171,7 +175,8 @@ const budgets = [
   // (2026-11-01) + Delete with its sheet and Now's hold, the off-the-record tag, Recently deleted by name.
   // (2026-11-03, @muse) 65,000 → 70,205 measured (+6,071 over main's 64,134): the Tasks group and
   // its sheet (tasks.js, 5,640) and their place in the menu (menu.js, +431).
-  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 70_205],
+  // (2026-11-04, verbs batch 2) +111 measured (70,316): a row's topic (thread.file) before its summary.
+  ['menu JS bytes', sum(/^th\/convos\/.*\.js$/), 70_316],
   // The Briefing page, loaded after the first paint.
   // + skeletons, pull to refresh and the owner's arrangement of the tiles (2026-10-30).
   // (2026-11-02) 20,000 → 24,000: + Due and its sheet (due.js, loaded on tap), Holidays, the day's

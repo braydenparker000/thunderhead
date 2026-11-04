@@ -592,7 +592,7 @@ CREATE TABLE threads (
   filed_at INTEGER,
   message_count INTEGER NOT NULL DEFAULT 0,
   updated_at INTEGER NOT NULL
-  , purge_at INTEGER, deleted_at INTEGER, kind_was TEXT) WITHOUT ROWID;
+  , purge_at INTEGER, deleted_at INTEGER, kind_was TEXT, topic TEXT) WITHOUT ROWID;
 
 CREATE UNIQUE INDEX threads_daily_day ON threads (day) WHERE kind = 'daily';
 

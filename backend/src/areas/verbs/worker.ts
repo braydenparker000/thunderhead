@@ -18,6 +18,7 @@ import { WATCH_EXECUTORS } from '../mind/watches/verbs';
 import * as podcasts from '../podcasts/sync';
 import * as reminders from '../reminders/ops';
 import { mindSet, writeSetting } from '../settings/mind-set';
+import { APP_EXECUTORS } from './apps';
 import * as mixes from './mixes';
 
 export interface RunCtx {
@@ -29,6 +30,8 @@ export interface RunCtx {
   hash: string;
   /** The owner's zone, read only by a verb that needs it (a settings row read). */
   zone: () => string;
+  /** The call's why: an arrangement's why chip (apps.ts). */
+  why: string;
 }
 
 export interface Ran {
@@ -131,6 +134,8 @@ export const WORKER_VERBS: Record<string, Executor> = {
   'briefing.unpin_tile': pin(false),
   // The day pulse's own (areas/mind/watches): watch.set, watch.cancel.
   ...WATCH_EXECUTORS,
+  // Batch 2: the apps' arrangements, Study's pace, thread.file, reminder.snooze_rule.
+  ...APP_EXECUTORS,
 };
 
 /** Runs a Worker-side verb; a verb the map lacks is a bug in the contract, not a refusal. */

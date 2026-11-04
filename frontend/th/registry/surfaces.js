@@ -20,6 +20,12 @@ export const RENDERERS = {
   tile: {
     1: () => null,
   },
+  // An app's arrangement (surfaces.ts ARRANGEMENT_SLOTS) belongs to its app's own screen, never home.
+  mix: { 1: () => null },
+  section: { 1: () => null },
+  episode: { 1: () => null },
+  passage: { 1: () => null },
+  shortlist: { 1: () => null },
 };
 
 /** @param {string} kind @param {number} schema */

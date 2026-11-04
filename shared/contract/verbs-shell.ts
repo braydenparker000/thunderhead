@@ -10,6 +10,18 @@ export const PINNABLE_TILES = ['due', 'holidays', 'practice', 'study', 'built', 
 /** Tiles pinned at once; a fourth pin unpins the oldest. */
 export const PINS_MAX = 3;
 const pinned = z.object({ pinned: z.array(z.string()) });
+/** The standing reminder rules (`reminder.snooze_rule`): what the window is for, at most this many. */
+export const SNOOZE_DURING = ['practice', 'study', 'watching', 'work', 'meals'] as const;
+export const SNOOZE_RULES_MAX = 3;
+const hhmm = z.string().check(z.regex(/^([01]\d|2[0-3]):[0-5]\d$/));
+/** A conversation's topic in the menu: plain words, one line. */
+const topicName = z
+  .string()
+  .check(
+    z.minLength(1),
+    z.maxLength(40),
+    z.refine((s) => s.trim() === s && !/[\n\r\t]/.test(s), 'one line, no spaces at its ends'),
+  );
 
 export const SHELL_VERBS = {
   'reminder.move': {
@@ -33,6 +45,22 @@ export const SHELL_VERBS = {
     },
     what: 'move a set reminder to a new time',
     doc: "Moves a set reminder to a new time, by the reminders' own rules: in the future, at most 400 days ahead, a time inside quiet hours rings at their end; only from the chat, from a clean session; one the owner set on the phone needs the owner's message that asked (`source_message_id`). Its undo puts back the time before, while the reminder is still set at the new one.",
+  },
+  'reminder.snooze_rule': {
+    app: 'shell',
+    class: 'reversible',
+    permit: 'reminders',
+    side: 'worker',
+    queueable: true,
+    undo: 'stored',
+    versions: {
+      1: {
+        args: z.object({ during: z.enum(SNOOZE_DURING), from: hhmm, to: hhmm }),
+        result: z.object({ rules: z.number() }),
+      },
+    },
+    what: 'no reminder rings in a daily window (a standing rule)',
+    doc: 'A standing rule like "never during practice": a daily window (`from`–`to`, the owner\'s local time) named by what it is for (`practice`, `study`, `watching`, `work`, `meals`), at most 3; a rule for the same `during` replaces it. A reminder set or moved into the window rings at its end, and one already due inside it lands in the thread without a push. Its undo puts back the rules before.',
   },
   'settings.set': {
     app: 'shell',
@@ -81,6 +109,22 @@ export const SHELL_VERBS = {
     },
     what: 'unpin a Briefing tile',
     doc: 'Unpins a Briefing tile, which goes back to its usual place. Its undo pins it again where it was.',
+  },
+  'thread.file': {
+    app: 'shell',
+    class: 'reversible',
+    permit: 'titles',
+    side: 'worker',
+    queueable: true,
+    undo: 'stored',
+    versions: {
+      1: {
+        args: z.object({ thread_id: z.string().check(z.regex(UUID7)), topic: topicName }),
+        result: z.object({ previous: z.nullable(z.string()) }),
+      },
+    },
+    what: 'file a conversation under a topic',
+    doc: "Files a conversation under a topic (≤ 40 characters, plain words) that the menu shows with it; never one held off the record or deleted. Its undo puts back the topic before (or none), while it still holds this one.",
   },
   'memory.note': {
     app: 'shell',

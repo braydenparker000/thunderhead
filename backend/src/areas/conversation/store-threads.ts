@@ -31,6 +31,11 @@ export function autoTitle(db: Db, id: string, title: string): void {
   db.run(`UPDATE threads SET title = ?, title_source = 'auto' WHERE id = ? AND title IS NULL`, title, id);
 }
 
+/** The topic the menu files a thread under (thread.file), or none; whether a thread was there. */
+export function setTopic(db: Db, id: string, topic: string | null, at: number): boolean {
+  return db.all('UPDATE threads SET topic = ?, updated_at = ? WHERE id = ? RETURNING 1', topic, at, id).length > 0;
+}
+
 export function linkContinues(db: Db, todayId: string, filedId: string, at: number): void {
   db.run('UPDATE threads SET continues = ?, updated_at = ? WHERE id = ?', filedId, at, todayId);
 }

@@ -12,6 +12,7 @@
 import * as z from 'zod/mini';
 import { APP_IDS } from './feed.ts';
 import type { VerbSpec } from './verb-spec.ts';
+import { APP_VERBS } from './verbs-apps.ts';
 import { ISLAND_VERBS } from './verbs-island.ts';
 import { MUSIC_VERBS } from './verbs-music.ts';
 import { PODCAST_VERBS } from './verbs-podcasts.ts';
@@ -19,9 +20,11 @@ import { SHELL_VERBS } from './verbs-shell.ts';
 import { WATCH_VERBS } from './watches.ts';
 
 export type { VerbSpec, VerbVersion } from './verb-spec.ts';
+export { LAW8_TOPICS, law8Topic } from './verb-spec.ts';
+export { PLAN_SECTIONS_MAX, SHORTLIST_MAX } from './verbs-apps.ts';
 export { ISLAND_LINE_MAX } from './verbs-island.ts';
 export { PLAY_MAX } from './verbs-music.ts';
-export { PINNABLE_TILES, PINS_MAX } from './verbs-shell.ts';
+export { PINNABLE_TILES, PINS_MAX, SNOOZE_DURING, SNOOZE_RULES_MAX } from './verbs-shell.ts';
 
 const path = z.string().check(z.minLength(1), z.maxLength(200), z.regex(/^\/[A-Za-z0-9._~!$&'()*+,;=:@/?#%-]*$/));
 const mode = z.enum(['auto', 'day', 'night']);
@@ -49,6 +52,7 @@ export const VERBS = {
   ...MUSIC_VERBS,
   ...PODCAST_VERBS,
   ...SHELL_VERBS,
+  ...APP_VERBS,
   ...ISLAND_VERBS,
   ...WATCH_VERBS,
   'shell.appearance': {

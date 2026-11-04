@@ -133,6 +133,11 @@ export const SENSE_TYPES = {
   'briefing.tile': t('home', ['ledger'], {}, "A night tile tapped (its ref: the tile's ledger row)."),
   'line.seen': t('home', ['ledger'], {}, "A home line on screen (its ref: the line's ledger row)."),
   'line.dismiss': t('home', ['ledger'], {}, 'A home line dismissed (nothing on the phone sends it yet).'),
+  // An app's arrangement (surfaces.ts ARRANGEMENT_SLOTS), from the app that draws it: on screen, its
+  // tap (the owner took it up: kept), its dismissal (ignored). Its ref: the arrangement's ledger row.
+  'arrangement.seen': t('home', ['ledger'], {}, "An app's arrangement on screen."),
+  'arrangement.tap': t('home', ['ledger'], {}, "An app's arrangement taken up (played, opened, started)."),
+  'arrangement.dismiss': t('home', ['ledger'], {}, "An app's arrangement dismissed."),
   'card.decide': t('home', ['proposal'], { class: PROPOSAL_CLASS_NAMES }, 'A decision card answered Yes or No (its class only).', 1),
   'reply.open_chip': t('home', ['app'], {}, "A reply's Open chip tapped (its ref: the app it opens)."),
 } as const satisfies Record<string, SenseTypeSpec>;

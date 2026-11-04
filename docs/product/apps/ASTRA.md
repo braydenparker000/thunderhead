@@ -281,6 +281,10 @@ font checks (§2), and the `?open=` deep link.
 
 ---
 
+
+## The mind's arrangement slot (2026-11-04, verbs batch 2)
+
+One slot, one kind ([BEHAVIOR.md §3.1](../../mind/BEHAVIOR.md#31-rung-0-silent-arrangement), API.md §11.11 "The apps' arrangements"): `astra/tonight`, kind `shortlist`, placed by `astra.shortlist`: "three for tonight", two or three titles and up to three filters for the owner to pick from; it never picks or plays. It carries its why behind a tap, and the app reports it seen, taken up or dismissed (`arrangement.seen`, `arrangement.tap`, `arrangement.dismiss`), so the meter and what lands count it.
 ## Open questions / tests
 
 | # | Question | How to settle |
