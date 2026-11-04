@@ -186,10 +186,10 @@ export async function surface(argv) {
   if ((rest[0] === 'said' || rest[0] === 'reopen') && rest.length === 2) {
     const topic = rest[1];
     if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(topic)) throw invalid('the topic is a slug: lowercase letters, digits, . _ -');
+    if (rest[0] === 'said') return out((await request('POST', `/v1/surfaces/topics/${seg(topic)}/said`, {body: {}})).data);
     // Reopening is the owner's: their own words, which the Worker checks as it checks a card's.
-    const body = rest[0] === 'said' ? {} : {by_message: need(flags, 'by-message')};
-    const {data} = await request('POST', `/v1/surfaces/topics/${seg(topic)}/${rest[0]}`, {body});
-    return out(data);
+    const body = {by_message: need(flags, 'by-message')};
+    return out((await request('POST', `/v1/surfaces/topics/${seg(topic)}/reopen`, {body})).data);
   }
   if (rest[0] === 'rm') {
     const [, app, slot] = rest;

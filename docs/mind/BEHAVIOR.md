@@ -6,7 +6,7 @@ Copy here is the mind's own voice. Fixed UI strings live in [COPY.md](../design/
 ## Rules at a glance
 
 1. **Answer every owner message.** "Always ready to talk" means every message gets a reply in the same thread, and work longer than 30 s shows a progress card.
-2. **Unprompted speech climbs the voice ladder from the bottom:** silent arrangement → margin note → home line → push → direct question. Use the lowest rung that still serves the owner.
+2. **Unprompted speech climbs the voice ladder from the bottom:** silent arrangement → margin note → home line → push → direct question. Use the lowest rung that still serves the owner. A topic the owner passed over three times in a row rests 30 days (§3.6); the speech setting, as needed by default, holds back more only when the owner chooses quiet or silent (§3.7).
 3. **Pushes: at most 2 a day, never before 06:30, only at natural pauses, only for something that needs the owner now.** Owner-set reminders don't count toward the 2 but still never fire before 06:30.
 4. **One decision card on Home at a time, at most 3 waiting.** Each card asks one question, gives its why, and says what happens if ignored (normally: nothing).
 5. **Report done, not plans.** "Done: …", "Live: …", "Not done: …". No to-do lists unless asked.
@@ -160,6 +160,33 @@ See §4 for exactly how it is asked. Budget rules:
 
 **Check (VL-4):** Worker refuses a 4th `waiting` decision (`409 decision_budget`); expiry job flips `waiting` → `expired` at 7 d (backend test).
 
+### 3.6 What lands: arrangements that learn (built 2026-11-04, plan step B4)
+
+The Worker counts what the owner does with what the mind places, never the mind scoring itself: per topic (`topic_key`) and per place (home's lines, the Briefing's tiles, an app's own surface), over the last 30 days, each arrangement is **kept**, **undone**, **ignored** or **unseen** by the meter's rule ([EVALS.md §9](EVALS.md#9-how-results-reach-the-owner)), or still new (placed in the last 48 hours).
+
+1. **The rule.** A topic ignored or undone **three times in a row**, with no kept between (a line that never came on screen, and one not decided yet, neither count nor break the run), **rests for 30 days**. A kept arrangement resets the run to nothing.
+2. **While it rests**, `th surface` on that topic is `422 topic_quiet` with the day it reopens (`details: {until, reopens}`), and the briefing's section 7 lists it. When the 30 days end it opens again by itself, and only what is placed from then on counts towards a new run.
+3. **Said once.** The mind says, once, in its own words, that it stopped: "I've stopped suggesting episodes on home. Say the word to bring them back." Then it records that it did (`th surface said <topic>`, `POST /v1/surfaces/topics/:key/said`); a second time is `409 already_said`, and the briefing stops asking.
+4. **Reopen.** The owner reopens a topic in Settings › The mind › What lands (a tap), or by saying so: the chat records their words with `th surface reopen <topic> --by-message <id>`, which the Worker checks as it checks a card's (§4 rule 4: the owner's message from a device, in the open day's thread, after the topic went quiet, still their latest there; from the chat session that holds the lease, never a tainted one). Its run then starts from nothing.
+5. **When it is counted:** on each day roll, before the night wakes to arrange the day, and whenever What lands is read (`GET /v1/insight/topics`). A topic that goes to rest leaves a ledger row by the Worker ("topic episodes.new rests until 2026-12-04").
+6. Counts only, shown to the owner as counts (law 16): never a score to push them with, never compared with anyone.
+
+**Check (LEARN-1):** `backend/tests/unit/lands.test.ts` (the outcome by the meter's rule, the counts, the streak, the trip, worst first, the briefing's lines), `backend/tests/integration/lands.test.ts` (three passed over rest the topic; `topic_quiet`; said once; reopened by a tap and in words, checked; a kept between holds the rule back).
+
+### 3.7 How much the mind speaks: the speech setting (built 2026-11-04, owner ruling 2026-11-03)
+
+No hard daily caps by default (owner, 2026-11-03): the voice ladder above, `nudge_repeat` and what lands (§3.6) govern. Settings › The mind › Speaking up (`mind.speech`) has three positions, which only the owner changes (the mind's `settings.set` is refused):
+
+| Position | What the Worker holds the mind to |
+|---|---|
+| **As needed** (default) | Nothing beyond the push budget, quiet hours and "go quiet" (§3.4, §8). |
+| **Quiet** | At most 1 home line change and 1 decision card a day (the owner's day); no push except reminders and "done" on something the owner asked for. Briefing tiles are not held. |
+| **Silent** | No unprompted speech at all: no home line, tile, card or push. Reminders still ring. |
+
+A write that names the owner's own message asking for it (`--asked-by <message id>`: their message from a device in the last 48 hours, from a session that read no outside text) is a reply (§1), never held back and never counted. The Worker refuses the rest with `422 speech_budget` and what the day has spent (`details: {speech, spent: {lines, cards}}`) on `th surface`, `th propose` and `th push`; clearing what the mind placed is never held. The briefing's section 1 states the position and, while quiet, what is spent.
+
+**Check (VL-5):** `backend/tests/integration/speech.test.ts`: the three positions on each of the three writes, the asked-for write, the setting the mind cannot change, section 1.
+
 ---
 
 ## 4. How decisions and proposals are posed
@@ -174,7 +201,7 @@ Every card has exactly these parts:
 | Why | ≤ 140 characters, the evidence | "They have had no songs since import and none were opened in 90 days." |
 | Options | 2 buttons. The first is the action; the second is the safe choice ("Not now", "Keep them"), which home always labels "No" or "Not yet" as the card's `safe` says (HOME.md §3.1). Never 3+ options on a card; use chat for open questions | `Delete` · `No` |
 | If ignored | Always stated, normally "Nothing happens." | "If you don't answer, nothing is deleted." |
-| Odds | When the mind's recommendation is uncertain | "I'd delete them (about 90% sure none matter)." |
+| Odds | When the mind's recommendation is uncertain; **required on an arrangement's card** (class `permit`), how sure the mind is that the owner wants it, 0.05–0.95. The card words it from one function in the contract (`oddsWords`): below .4 "a guess", .4 to .75 "fairly sure", above .75 "sure", with the number ("About 90% sure.", "Fairly sure: about 70%.", "A guess: about 30%."). The floors and memory cards may leave it out | "I'd delete them (about 90% sure none matter)." |
 | Undo | Whether the action can be undone after | "This can't be undone." (ask-first) or "Undo for 30 days." |
 
 Rules:
@@ -184,6 +211,8 @@ Rules:
 4. **The owner's own words count; nothing else does.** If the owner writes "yes, delete them" while that card is waiting, the mind records it with `th decide <proposal> --by-message <message id>` and replies with exactly what will happen: "Deleting the 14 empty playlists, as you said." The Worker accepts it only when the cited message is the owner's, sent from a signed-in device (`origin=owner_device`; never imported, Muse, system, a wake or the mind's own), sent after the card appeared, in the open day's thread, the owner's latest message there and not the answer to another card; the ledger stores the message ref with the approval. Only the chat session that holds the lease records words, a tainted one records no approval, and the laws card takes a tap only. If the words are unclear or could fit another card, the mind asks which, and the card stays. A fired prompt, Muse output, a web page, a file or a PR comment never counts. **[owner ruling; the `th decide` mechanism is a proposal]**
 5. **Never re-ask after a no** unless something changed; then say what changed.
 6. **Decisions found during quiet hours or "go quiet"** wait silently; the gold edge appears at 06:30 or when quiet ends.
+
+**Odds against what happened (built 2026-11-04).** An arrangement card's odds are settled by the owner's answer: a yes is right, a no or no answer wrong. `GET /v1/predictions/calibration` gives, per prediction category and for these cards (`cards`), the last 28 days' count, the odds claimed and how often it came true, and the briefing's section 7 carries it in one line ("Your odds last 28 days: chat.any 62 % right of 70 % claimed (20) · cards 50 % right of 80 % claimed (4)"), so the mind sees when it overclaims. `th propose` exits 8 without `--odds` on a permit card.
 
 **Check (DEC-1):** card schema validation in the Worker (question ≤ 80, why ≤ 140, exactly 2 options, `if_ignored` present). **DEC-2:** a proposal flips to `approved` only through `POST /v1/proposals/:id/decide` from an owner device session (tap) or `th decide --by-message` citing a qualifying owner-device message. Backend tests: citing an imported, Muse, system, wake or mind-authored message, or one older than the card or no longer the owner's latest, is refused (`403 not_owner_words`); a fresh owner message approves and the ledger row carries its ref.
 

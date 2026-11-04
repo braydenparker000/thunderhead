@@ -106,7 +106,9 @@ const budgets = [
   // (2026-11-03, schedules) +7 measured (74,428): contract.js's `plan` change kind.
   // (2026-11-03, watches) +208 measured (74,636): contract.js's `watch.set` and `watch.cancel` verbs
   // and the `watch` and `prediction` change kinds.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_636],
+  // (2026-11-04, what lands) +301 measured (74,937): contract.js's `oddsWords` (a card's odds in
+  // words) and the cards' odds limits.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_937],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.

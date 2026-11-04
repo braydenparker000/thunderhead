@@ -337,6 +337,13 @@ asks first: money, deleting your data, keys and access, reaching another person.
 setting lowers). The briefing's section 2 gives each class's position on every wake, in the first
 2,000 characters; section 13 says what each position asks of it and lists every verb.
 
+**What lands** closes the page (`mind-lands.js`, 2026-11-04, [BEHAVIOR.md §3.6](../mind/BEHAVIOR.md)):
+a fold read when it opens (`GET /v1/insight/topics`), a row per topic the mind placed in the last 30
+days, worst first, with its counts in words ("Used 3 · took back 0 · left 1 · not seen 0 · on the
+Briefing and home"). A topic the owner passed over three times in a row says "Resting until 4
+December" and has Reopen (`POST /v1/surfaces/topics/:key/reopen`), after which the fold reads again;
+"Counts only, never a score for you."
+
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|
 | `mind.voice` | segments: plain / warmer / drier | worker | `plain` | the mind (briefing section 13); the Worker does not enforce it yet |
@@ -345,6 +352,7 @@ setting lowers). The briefing's section 2 gives each class's position on every w
 | `mind.night_budget` | range (min): 5 / 15 / 30 | worker | `30` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.idle` | range (min): 10 / 30 / 120 | worker | `120` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.pushes` | segments: never / urgent / normal | worker | `normal` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.speech` | segments: as needed / quiet / silent | worker | `as_needed` | the Worker, at each `th surface`, `th propose` and `th push`: quiet takes 1 home line change and 1 card a day and a push only for what the owner asked for, silent none (`422 speech_budget`); as needed holds nothing back ([BEHAVIOR.md §3.7](../mind/BEHAVIOR.md)); the owner's alone (the mind's `settings.set` is refused); the mind (briefing sections 1 and 13) |
 | `mind.ask_outside` | switch | worker | `on` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.wake_budget` | range (a day): Off / 6 / 12 / 24 / 40, a sheet picker | worker | `12` | the Worker, at each watch's wake: past it the watch is refused (`over_budget`), Off refuses new watches; the owner's own messages never count ([RUNTIME.md §3, §11](../mind/RUNTIME.md)); the mind (briefing sections 1 and 13) |
 | `mind.permit.music` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |

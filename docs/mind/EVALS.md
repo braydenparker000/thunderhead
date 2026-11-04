@@ -153,6 +153,9 @@ The fuller loop (LAW, MP and TONE suites each Sunday, a monthly probe refresh, t
 |---|---|---|
 | P9 onwards | Memory page → "How well I know you": M-8, M-10, M-16, M-18 as small trend lines with their evidence. Built (P9): a fold at the end of the page, read when opened (`GET /v1/insight`), in plain words with the weeks or checks before; "This is how I check myself, never a score for you." | — |
 | Any time | The owner asks "how are you doing?" | The mind answers from `eval_runs` and the meter, with numbers |
+| Built 2026-11-04 (B4) | Settings › The mind → "What lands": M-16 per topic, a fold read when opened (`GET /v1/insight/topics`) | "Used 3 · took back 0 · left 1 · not seen 0 · on the Briefing and home"; "Counts only, never a score for you." |
+
+**The rate per topic (built 2026-11-04, BEHAVIOR.md §3.6).** M-16's rule, one arrangement at a time (`areas/insight/lands.ts` calls the meter's own function, so the two never disagree), counted per `topic_key` and per place (home, the Briefing, an app) over the last 30 days: kept, undone, ignored, unseen, and those still new. The streak is the ignored and undone in a row at the end, a kept resetting it and the unseen and new skipped; three send the topic to rest for 30 days. The pass keeps each topic's counts on its `topics` row (Core step 35) for the briefing, whose section 7 shows at most 8 rows, worst first (resting, then the longest streak, then the most turned down). Calibration sits beside it: `GET /v1/predictions/calibration`, odds claimed against what happened over 28 days, per prediction category and for the arrangement cards (a yes is right), in one briefing line.
 
 The Sunday Briefing line, the home line on a zero-tolerance failure and the line when the memory score falls are not built ([archive](../archive/EVALS-aspirational.md#9-how-results-reach-the-owner-rows-not-built)).
 
