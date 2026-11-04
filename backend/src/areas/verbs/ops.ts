@@ -20,6 +20,7 @@ import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import * as ledger from '../ledger/store';
 import { gate } from '../mind/permit';
+import { speechGate } from '../mind/speech';
 import { followThrough } from './follow';
 import { type Call, type Prepared, phoneArgs, queuePhone, runWorker } from './run';
 import * as schedule from './schedule';
@@ -73,6 +74,8 @@ export function put(
   // where it runs. A verb with no class (`memory.note`, the owner's own words only) is not gated;
   // its area checks the words.
   const call = { schema: r.schema, args: args.data, ...(requested === null ? {} : { fire_at: requested }) };
+  // The island line is unprompted speech: "silent" holds it back like a tile (mind/speech.ts).
+  if (r.verb === 'island.show') speechGate(w.db, c, 'tile', false, w.at, zone());
   const g = spec.permit === null ? null : gate(w, c, r.verb, call, `verb:${id}`, r.proposal_id);
   const x: Call = {
     id,

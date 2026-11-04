@@ -108,7 +108,8 @@ const budgets = [
   // and the `watch` and `prediction` change kinds.
   // (2026-11-04, what lands) +301 measured (74,937): contract.js's `oddsWords` (a card's odds in
   // words) and the cards' odds limits.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 74_937],
+  // (2026-11-04, show) +188 measured (75,125): contract.js's `island.show` and `island.clear` verbs.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 75_125],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -133,7 +134,10 @@ const budgets = [
   // plans from the ledger, read so a failure never holds the chat; their cards, the undo call and
   // its words, and their cache).
   // (2026-11-04) +77 measured (111,770): the chat listens for offline before its first sync.
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 111_770],
+  // (2026-11-04, show) +3,826 measured (115,596): "How I got this" under a reply (th/chat/using.js,
+  // the chips moved out of working.js and shared with the fold; a file, a day and a search chip)
+  // and the island line's two executors (registry/verbs.js).
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 115_596],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:
@@ -146,13 +150,15 @@ const budgets = [
   // Podcasts' way home (2026-11-02): +1,778 measured bytes (31,078 → 32,856) for touch swipes and in-app home links.
   // The capsule's details (2026-11-02): +7,411 measured bytes (32,856 → 40,267) for the shared artwork, its
   // off-thread decode and fallback, long titles, the pulse, the times, glyph and Podcasts' skip controls.
-  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 41_309],
+  // The mind's line (2026-11-04): +1,681 measured bytes (41,309 → 42,990), line.js and its place in the capsule.
+  ['island JS bytes', sum(/^th\/island\/.*\.js$/), 42_990],
   // Off the record (th/record, 2026-11-01): starting and ending one, home's view of it, its marker.
   ['off the record JS bytes', sum(/^th\/record\/.*\.js$/), 4_500],
   // The + sheet (2026-10-30): pickers, the bar's tray, the voice memo strip, Remind me, uploads
   // and attachments in the conversation, loaded when the sheet opens or a message has files.
   // (2026-11-01) + Off the record in the sheet.
-  ['attach JS bytes', sum(/^th\/attach\/.*\.js$/), 36_200],
+  // (2026-11-04, show) +56 measured (36,256): show.js's `save`, shared with a reply's file chip.
+  ['attach JS bytes', sum(/^th\/attach\/.*\.js$/), 36_256],
   // What's new after an update (th/news, loaded after the first paint), 2026-11-01.
   ['news JS bytes', sum(/^th\/news\/.*\.js$/), 6_000],
   // The menu's conversations and search, loaded when the menu first opens.
@@ -184,10 +190,12 @@ const budgets = [
   // the ring's face, lift and name layers (+1,864 bytes net of comments trimmed in home.css).
   // (2026-11-03, schedules) +16 measured (79,253): a plan line's Undo shares Retry's look (chat.css).
   // (2026-11-04, the report card) +970 measured (80,223): the report tile's head, lines and Undo (home.css).
-  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 80_223],
+  // (2026-11-04, show) +882 measured (81,105): "How I got this" under a reply (chat.css).
+  ['home CSS bytes', sum(/^(apps\/home|ui)\/.*\.css$/), 81_105],
   // Styles home loads just after its first paint (th/reply/tools.css, th/attach/attach.css).
   // (2026-11-02) + the island capsule's details: +1,003 measured bytes of th/island/island.css (4,816 → 5,819).
-  ['later CSS bytes', sum(/^th\/.*\.css$/), 21_003],
+  // (2026-11-04) + the mind's line in the capsule: +470 measured bytes of island.css (21,003 → 21,473).
+  ['later CSS bytes', sum(/^th\/.*\.css$/), 21_485],
   // One face since 2026-10-31: Switzer, variable 100–900 (43.2 KB, the official file, never subset:
   // its licence forbids changing it; Quicksand was 28.2 KB, Fraunces and Inter 133 KB).
   ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 48_000],

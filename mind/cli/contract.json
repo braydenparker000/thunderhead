@@ -2763,6 +2763,88 @@
         }
       }
     },
+    "island.show": {
+      "app": "shell",
+      "class": "reversible",
+      "permit": "tiles",
+      "side": "phone",
+      "queueable": true,
+      "undo": "reported",
+      "doc": "Shows one sentence (at most 80 characters, never a question, under the phrase lint) in the island's capsule while Music or Podcasts plays there; the next one replaces it, and it goes when that app leaves the island (opened full screen, or another app takes the capsule). Nothing playing in the island is `not_playing`. The phone reports `island.clear` as its undo.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "text": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "text"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "app": {
+                "type": "string",
+                "enum": [
+                  "music",
+                  "podcasts"
+                ]
+              },
+              "line": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9-]{8,40}$"
+              }
+            },
+            "required": [
+              "app",
+              "line"
+            ]
+          }
+        }
+      }
+    },
+    "island.clear": {
+      "app": "shell",
+      "class": "reversible",
+      "permit": "tiles",
+      "side": "phone",
+      "queueable": false,
+      "undo": "none",
+      "doc": "Takes away the island line that `island.show` put up, if it still stands; a later line stays (`cleared: false`).",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "line": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9-]{8,40}$"
+              }
+            },
+            "required": [
+              "line"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "cleared": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "cleared"
+            ]
+          }
+        }
+      }
+    },
     "watch.set": {
       "app": "shell",
       "class": "reversible",

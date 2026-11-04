@@ -101,7 +101,7 @@ export const topic = (body) => TOPICS.find(([re]) => re.test(body))?.[1] ?? 'Thi
  * after WAKING_CARD_MS with one still waking (HOME.md §4.13). */
 export const CARD_AFTER_MS = 1500;
 export const WAKING_CARD_MS = 3000;
-const USE_KINDS = new Set(['fact', 'song', 'page', 'source', 'app']);
+const USE_KINDS = new Set(['fact', 'song', 'page', 'source', 'app', 'file', 'day', 'search']);
 /** A command, a flag, a file path or a URL: never on the card (a Bash call's description can
  * become the note, mind/hooks/post-tool.mjs). */
 const RAW = /`|\bhttps?:\/\/|(?:^|\s)[~.]{0,2}\/[\w.-]|\b[\w-]+\.(?:m?js|ts|json|md|py|sh|css|html|txt|ya?ml|sql)\b|(?:^|\s)--?[a-z]/i;

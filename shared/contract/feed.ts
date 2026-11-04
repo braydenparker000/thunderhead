@@ -73,17 +73,19 @@ export const SEARCH_SOURCES = {
 export type SearchSource = keyof typeof SEARCH_SOURCES;
 
 /** The kinds of thing the mind may say it is drawing on while it works: the working card's chips
- * (HOME.md §4.13, conversation.ts MindUse). */
-export const MIND_USE_KINDS = ['fact', 'song', 'page', 'source', 'app'] as const;
+ * (HOME.md §4.13, conversation.ts MindUse), which the reply keeps as `meta.using`. */
+export const MIND_USE_KINDS = ['fact', 'song', 'page', 'source', 'app', 'file', 'day', 'search'] as const;
 export type MindUseKind = (typeof MIND_USE_KINDS)[number];
 /** The working card's limits, checked by the Worker and `th status`: characters, items, and the
  * gap between two accepted reports from one session. */
 export const MIND_STATUS_LIMITS = { title: 60, note: 140, using: 6, label: 40, id: 200, every_ms: 3_000 } as const;
 /** One thing the mind is drawing on (`POST /v1/mind/status` `using`): a fact (its id), a song (its
  * path in Music), a page (a `book:` cite ref or a path in Study), a source (its https URL: the
- * phone shows only the host) or an app (its id). The label is the only text the chip shows. The
+ * phone shows only the host), an app (its id), a file (its id), a day (`YYYY-MM-DD`) or a search
+ * (no id: the label says what was looked for). The label is the only text the chip shows. The
  * title and chips stand while the session stays `working`; the presence's `title_at` says when
- * they were given, so the phone shows them only for work begun after the message it waits on. */
+ * they were given, so the phone shows them only for work begun after the message it waits on. The
+ * reply to that message takes them as its `meta.using` (API.md §11.7), and the presence drops them. */
 export interface MindUse {
   kind: MindUseKind;
   id?: string;
