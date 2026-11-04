@@ -6,7 +6,7 @@ import { bodyLimit } from 'hono/body-limit';
 import { FILE_LIMITS } from '../../shared/contract/files.ts';
 import { IMPORT_PART_BYTES } from '../../shared/contract/imports.ts';
 import { LIBRARY_LIMITS } from '../../shared/contract/library.ts';
-import { LISTEN_LIMITS } from '../../shared/contract/listen.ts';
+import { TASTE_LIMITS } from '../../shared/contract/taste.ts';
 import { authRoutes } from './areas/auth/routes';
 import { backupsRoutes } from './areas/backups/routes';
 import { briefingRoutes } from './areas/briefing/routes';
@@ -25,7 +25,7 @@ import { scriptureRoutes } from './areas/library/scripture';
 import { memoryRoutes } from './areas/memory/routes';
 import { mindRoutes } from './areas/mind/routes';
 import { watchesRoutes } from './areas/mind/watches/routes';
-import { listenRoutes } from './areas/music/listen-routes';
+import { historyRoutes } from './areas/music/history-routes';
 import { notesRoutes } from './areas/music/notes-routes';
 import { musicRoutes } from './areas/music/routes';
 import { BIG_OPS, UPLOAD_LIMITS, uploadRoutes } from './areas/music/upload';
@@ -75,14 +75,13 @@ const BOOK_PAGES = /^\/v1\/library\/books\/[^/]+\/pages$/;
 const scripture = bodyLimit({ maxSize: LIBRARY_LIMITS.text_bytes, onError: tooLarge });
 // A chat file (HOME.md §4.6), one upload; GET has no body.
 const chatFile = bodyLimit({ maxSize: FILE_LIMITS.bytes, onError: tooLarge });
-// An Actions run's file for the listening pass (each name's own limit is checked in the route).
-const jobFile = bodyLimit({ maxSize: LISTEN_LIMITS.neighbours_bytes, onError: tooLarge });
-const JOB_FILE = /^\/v1\/jobs\/[^/]+\/files\/[^/]+$/;
+// A listening-history export (MUSIC.md §16.1), one upload.
+const historyFile = bodyLimit({ maxSize: TASTE_LIMITS.file_bytes, onError: tooLarge });
 const limitFor = (path: string) =>
   path.startsWith('/v1/files/')
     ? chatFile
-    : JOB_FILE.test(path)
-      ? jobFile
+    : path === '/v1/music/history'
+      ? historyFile
       : path === '/v1/ops/import/parts'
         ? part
         : path.startsWith('/v1/ops/import/manifest/')
@@ -148,7 +147,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', workRoutes)
   .route('/v1', briefingRoutes)
   .route('/v1', musicRoutes)
-  .route('/v1', listenRoutes)
+  .route('/v1', historyRoutes)
   .route('/v1', notesRoutes)
   .route('/v1', uploadRoutes)
   .route('/v1', sensesRoutes)

@@ -4,12 +4,13 @@
 // back). P5 step 2 fills it from the old export (areas/import, datasets `music` and `music_log`) and
 // serves it: the whole catalog without waveforms under one ETag, one track's waveform, and the
 // content keys a signed link needs. P5 step 3 makes it the catalog's single writer for the upload
-// tools (areas/music/writer.ts), one operation at a time. The listening pass (schema step 3, songs
-// analysed in Actions) is its code layer music-listen.ts; what the mind reads and writes here (the
-// tags, its notes about each song, songs by feeling) is the layer above it, music-mind.ts.
+// tools (areas/music/writer.ts), one operation at a time. The owner's listening history (schema step 5,
+// MUSIC.md §16) is its code layer music-taste.ts; what the mind reads and writes here (the tags, its
+// notes about each song, songs by feeling) is the layers above it, music-packs.ts and music-mind.ts.
 import type { BackupOf } from '../areas/backups/ops';
 import { page, type Row } from '../areas/backups/rows';
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
+import { HISTORY_SQL, HISTORY_TABLES } from '../areas/music/history-store';
 import { LISTEN_SQL, LISTEN_TABLES } from '../areas/music/listen-store';
 import { NOTES_SQL, NOTES_TABLES } from '../areas/music/notes-sql';
 import * as store from '../areas/music/store';
@@ -56,15 +57,25 @@ export const MUSIC_MIGRATIONS: Migration[] = [
     kind: 'expand',
     sql: [METER_DAYS_SQL],
   },
-  // The listening pass (JOBS.md §3): Actions specs, one analysis row per audio hash, one per track.
+  // The listening pass's tables (cut 2026-11-04; they stay, empty: steps only add). listen-store.ts.
   { version: 3, name: 'listen', kind: 'expand', sql: LISTEN_SQL },
   // What the mind knows of each song (MUSIC.md §10.5): areas/music/notes-sql.ts.
   { version: 4, name: 'track_notes', kind: 'expand', sql: NOTES_SQL },
+  // The owner's listening history (MUSIC.md §16): areas/music/history-store.ts.
+  { version: 5, name: 'listens', kind: 'expand', sql: HISTORY_SQL },
 ];
 
-/** Every catalog table, the listening pass's, the mind's notes and ratings, in the backup and the export
- * (DATA.md §10); `meter_days` (counts) and the derived `find_packs` stay out of both. */
-export const MUSIC_TABLES = ['tracks', 'catalog_log', 'music_state', ...LISTEN_TABLES, ...NOTES_TABLES] as const;
+/** Every catalog table, the listening pass's, the mind's notes and ratings and the listening history,
+ * in the backup and the export (DATA.md §10); `meter_days` (counts), the derived `find_packs` and
+ * ListenBrainz's `similar_artists` (fetched again) stay out of both. */
+export const MUSIC_TABLES = [
+  'tracks',
+  'catalog_log',
+  'music_state',
+  ...LISTEN_TABLES,
+  ...NOTES_TABLES,
+  ...HISTORY_TABLES.filter((t) => t !== 'similar_artists'),
+] as const;
 
 /** The one instance: the owner's library. */
 export const MUSIC_INSTANCE = 'library';

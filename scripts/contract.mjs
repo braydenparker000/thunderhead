@@ -195,8 +195,6 @@ function mind() {
     files: { limits: c.FILE_LIMITS },
     // The phone's reports (`th reports`): the kinds and the page size, checked before the call.
     reports: { kinds: c.REPORT_KINDS, limits: c.REPORT_LIMITS },
-    // The listening pass (`th music`): the job kinds, the mood list and the limits.
-    listen: { kinds: c.LISTEN_KINDS, moods: c.MOODS, limits: c.LISTEN_LIMITS },
     // Podcasts (`th podcasts new`): the night's budget of shows and how long before one is due again.
     podcasts: { limits: c.PODCAST_LIMITS },
     // What the mind knows of each song (`th music`): a note is checked against these before it is sent.

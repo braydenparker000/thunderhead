@@ -6,9 +6,8 @@ import type { ImportStatus } from '../../../shared/contract/api';
 import { type StartImport, start } from '../areas/import/ops';
 import * as store from '../areas/import/store';
 import { LANE_ROWS_PER_DAY, laneRows, nextLaneDay, useLane } from '../areas/jobs/runner';
-import { requeueJob } from '../areas/jobs/store';
-import type { ApplyPayload } from '../areas/music/listen';
-import { applyJobId, LISTEN_APPLY } from '../areas/music/listen-jobs';
+import { job, requeueJob } from '../areas/jobs/store';
+import { HISTORY_JOB, type HistoryPayload } from '../areas/music/history-job';
 import type { Out } from '../lib/result';
 import type { Caller } from './caller';
 import { CoreNight } from './core-night';
@@ -31,15 +30,18 @@ export abstract class CoreImport extends CoreNight {
     return { open: laneRows(this.db, now) < LANE_ROWS_PER_DAY, resume_at: nextLaneDay(now) };
   }
 
+  /** Queues a listening-history file's import (areas/music/history-job.ts) by its SHA-256: asking
+   * again while it is queued or running changes nothing; its state, for the upload's answer. */
+  queueHistory(payload: HistoryPayload, now = Date.now()): 'queued' | 'running' | 'failed' | 'done' {
+    const id = `history-${payload.sha256}`;
+    this.write((w) => requeueJob(w.db, { id, kind: HISTORY_JOB, payload, at: now }), now);
+    this.schedule();
+    const s = job(this.db, id)?.state;
+    return s === 'running' || s === 'failed' || s === 'done' ? s : 'queued';
+  }
+
   /** Counts rows another object wrote under the bulk lane. */
   useBulkLane(rows: number, now = Date.now()): void {
     if (rows > 0) this.write((w) => useLane(w, rows, now), now);
-  }
-
-  /** Queues the listening pass's apply job for a collected Actions job (areas/music/listen-jobs.ts);
-   * asking again while it is queued or running changes nothing, after it failed runs it again. */
-  queueListenApply(payload: ApplyPayload, now = Date.now()): void {
-    this.write((w) => requeueJob(w.db, { id: applyJobId(payload.job_id), kind: LISTEN_APPLY, payload, at: now }), now);
-    this.schedule();
   }
 }

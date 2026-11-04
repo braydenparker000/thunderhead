@@ -11,7 +11,6 @@ export { HELD_LIMITS } from './held.ts';
 export * from './imports.ts';
 export { ASKED_HOURS, LANDS, SPEECH_POSITIONS, SPEECH_QUIET } from './lands.ts';
 export * from './memory.ts';
-export { LISTEN_KINDS, LISTEN_LIMITS, MOODS } from './listen.ts';
 export {
   ISO_639_1,
   MUSIC_LIMITS,

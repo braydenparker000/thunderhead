@@ -28,6 +28,7 @@ const D: Who[] = ['D'];
 /** The one key that may write the import (SETUP.md L2): a Mind · chat key with this name. */
 export const IMPORT_KEY = 'import-once';
 /** The listening pass's own CI key (SETUP.md N6), confined: it may call only the routes naming it. */
+// The cut listening pass's CI key (2026-11-04) stays confined: a key minted with this name reaches no route.
 export const JOBS_KEY = 'jobs-audio';
 export const CONFINED_KEYS: readonly string[] = [JOBS_KEY];
 const AGENTS_READ: Who[] = ['D', 'C', 'N', 'R'];
@@ -214,6 +215,10 @@ export const ROUTES = {
   'GET /v1/music/notes': { who: ['D', 'C', 'N'], phase: 'P5', note: '?ids=a,b (≤ 200, each with its tags) or ?cursor=&limit=: every note, a page at a time' },
   'GET /v1/music/find': { who: ['C', 'N'], phase: 'P5', note: '?moods=&occasion=&energy=&like=&limit=: songs by feeling or like one; never-play rules, songs rated 1 and early skips left out; 429 from 80%' },
   'GET /v1/music/mixes': { who: ['D', 'C', 'N'], phase: 'P5', note: 'the mixes music.mix_save kept, newest first, ≤ 50: id (for music.play_mix), name, tracks, recipe' },
+  'PUT /v1/music/history': { who: D, phase: 'P5', note: 'raw bytes ≤ 32 MiB (zip, json or csv); TH-File-Name, TH-Sha256; 200 done before, 202 queued' },
+  'GET /v1/music/history': { who: ['D', 'C', 'N'], phase: 'P5', note: 'the imported files and the artists resolved: counts only' },
+  'GET /v1/music/taste': { who: ['C', 'N'], phase: 'P5', note: '?limit=1-50: top artists (MusicBrainz ids, canonical names) and years by plays' },
+  'GET /v1/music/similar/:mbid': { who: ['C', 'N'], phase: 'P5', note: "ListenBrainz's similar artists, kept a week; plays and catalog songs of each" },
   'GET /v1/music/mixes/:id': { who: ['D'], phase: 'P5', note: "one mix's songs in order, for the owner's tap on Music's \"tonight\" (404 not_found)" },
   // The upload tools, server to server: no bearer token, each request signed (Ed25519) by a tool's key.
   'PUT /v1/music/uploads/audio/:file': { who: 'P', phase: 'P5', note: 'signed by an upload tool key; Ogg Opus, ≤ 32 MiB' },
@@ -222,14 +227,6 @@ export const ROUTES = {
   'PUT /v1/senses/batches/:id': { who: D, phase: 'P5', note: 'a sealed batch of 1–500 events, ≤ 256 KB' },
   'POST /v1/senses/query': { who: MIND, phase: 'P5', note: 'a fixed, named query; never SQL' },
   // The listening pass (JOBS.md §3): Actions analyses songs by sha256; results come back through the Worker.
-  'GET /v1/jobs/next': { who: ['N'], phase: 'P5', note: '?kind=audio.analysis&max=1-500|audio.neighbours; 204: none due' },
-  'POST /v1/jobs/:id/collect': { who: ['N', 'I'], phase: 'P5', key: JOBS_KEY, keyRole: 'I', note: 'checks the manifest' },
-  'GET /v1/jobs': { who: ['C', 'N', 'R', 'I'], phase: 'P5', note: '?kind=&open=1: states and counts, never hashes' },
-  'GET /v1/jobs/:id': { who: ['C', 'N', 'R', 'I'], phase: 'P5' },
-  'GET /v1/jobs/:id/spec': { who: ['I'], phase: 'P5', key: JOBS_KEY, note: 'what the Actions run works from' },
-  'PUT /v1/jobs/:id/files/:name': { who: ['I'], phase: 'P5', key: JOBS_KEY, note: 'part-NNN.jsonl, neighbours.bin, manifest last' },
-  'GET /v1/music/pack': { who: D, phase: 'P5', note: "every song's numbers, moods, embedding and neighbours; ETag, 304" },
-  'GET /v1/music/analysis/:id': { who: ['C', 'N'], phase: 'P5', note: "?like=0-50: one song's numbers and nearest songs" },
   // P6: Guitar's tab sources, as the old Worker served them, for the owner's device only.
   'GET /v1/guitar/search': { who: D, phase: 'P6', note: 'Songsterr search, ?q=' },
   'GET /v1/guitar/songs/:id': { who: D, phase: 'P6' },

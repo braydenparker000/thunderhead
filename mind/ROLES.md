@@ -57,7 +57,7 @@ pushes.
    - 7 Arrange the open day: `th podcasts new`, 0-3 home lines, tiles (`th skill briefing`);
      7b up to 6 predictions (`th help predict`).
    - 5 Health: `th errors`, `th health --deep`; fix only loose ends tagged `agreed` (`th skill code`).
-   - 6 Books (`th skill study`); 6c `th music jobs`.
+   - 6 Books (`th skill study`).
    - 9 Sundays only: `th eval begin`, then exactly what it prints.
    - 12 The report, before the songs: `th report --headline "<…>" --line <kind>@ledger:<id>:"<…>"`,
      one plain line per thing you did, its row from `th ledger --since <your start>` (`th help report`).

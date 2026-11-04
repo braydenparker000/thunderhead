@@ -79,7 +79,6 @@ describe("the Worker taints the mind session it serves songs' tags to", () => {
       '/v1/music/tracks?untagged=1&limit=5',
       `/v1/music/notes?ids=${song}`,
       '/v1/music/find?moods=calm',
-      `/v1/music/analysis/${song}`,
     ]) {
       const bare = await apiJson<{ error: { code: string; details: { path: string }[] } }>('GET', path, { token: P.N });
       expect([bare.status, bare.body.error.details[0].path], path).toEqual([422, 'TH-Session']);
@@ -95,7 +94,7 @@ describe("the Worker taints the mind session it serves songs' tags to", () => {
     expect(await pending(P.N, 'cse_mt_n1')).toMatchObject({ songs: true });
     expect(await noteLabel('cse_mt_n1', 'Changed after the songs.')).toBe('outside');
     // The listening pass's read of one song names its neighbours: it marks too.
-    await apiJson('GET', `/v1/music/analysis/${song}`, as(P.N, 'cse_mt_an'));
+    await apiJson('GET', '/v1/music/find?moods=calm', as(P.N, 'cse_mt_an'));
     expect(await row('cse_mt_an')).toMatchObject({ taint_source: MUSIC_TAINT_SOURCE });
     expect(await readers()).toEqual(['cse_mt_an', 'cse_mt_n1']);
     await toYesterday('cse_mt_an', 25);

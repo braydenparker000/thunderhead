@@ -42,7 +42,7 @@ test('th against the real Worker', {timeout: 300_000, skip: available() ? false 
     assert.equal((await th(['say', 'today', 'Great question. A walk.'], chat)).code, 8, 'the phrase lint');
   });
 
-  await t.test('search, get and help reach the built routes; an unknown job is 404 (exit 8)', async () => {
+  await t.test('search, get and help reach the built routes; an unknown import run is 404 (exit 8)', async () => {
     const s = await th(['search', 'evening plan'], chat);
     ok(s, 'search');
     assert.equal(s.json.items[0].source, 'messages');
@@ -50,7 +50,7 @@ test('th against the real Worker', {timeout: 300_000, skip: available() ? false 
     ok(today, 'get');
     assert.ok(today.json.messages.some(m => m.id === asked));
     assert.match((await th(['help'], chat)).stdout, /shell\.appearance/);
-    const later = await th(['get', '/v1/jobs/x'], chat);
+    const later = await th(['get', '/v1/import/runs/00000000-0000-4000-8000-000000000000'], chat);
     assert.equal(later.code, 8);
     assert.match(later.stderr, /not_found/);
   });

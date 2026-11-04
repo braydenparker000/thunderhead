@@ -79,6 +79,8 @@ export interface BriefInput {
   calendar?: string[];
   due?: string[];
   playing?: string | null;
+  /** The owner's taste from their listening history, one line of counts (areas/music/history-job.ts). */
+  taste?: string | null;
   /** Section 1's day pulse (watches/brief.ts): the wake budget's line, then why a watch woke it. */
   pulse?: string[];
   /** Section 7, the day (brief-gather.ts): its arrangements, each with how the owner met it so far;

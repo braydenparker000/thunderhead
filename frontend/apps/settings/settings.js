@@ -17,7 +17,7 @@ import { animator, haptic, springs } from '/th/motion.js';
 import { outbox } from '/th/chat/store.js';
 import { confirmSheet, icon, row } from './components.js';
 
-const TITLES = { settings: 'Settings', quiet: 'Quiet hours', devices: 'Devices', agents: 'Agents', account: 'Password', memory: 'What I remember', notifications: 'Notifications', export: 'Export', deleted: 'Recently deleted', appearance: 'Appearance', chat: 'Home and chat', gestures: 'Ring and gestures', island: 'Island', briefing: 'Briefing', mind: 'The mind', privacy: 'Privacy and data', about: 'About and diagnostics' };
+const TITLES = { settings: 'Settings', quiet: 'Quiet hours', devices: 'Devices', agents: 'Agents', account: 'Password', memory: 'What I remember', notifications: 'Notifications', export: 'Export', deleted: 'Recently deleted', appearance: 'Appearance', chat: 'Home and chat', gestures: 'Ring and gestures', island: 'Island', briefing: 'Briefing', mind: 'The mind', music: 'Music', privacy: 'Privacy and data', about: 'About and diagnostics' };
 
 /** Signs this device out, asking first while messages are still waiting to send (SIGN-IN.md §11.3)
  * or a Forget hasn't reached the Worker (MEMORY.md §12): signing out wipes the phone, and with it
@@ -76,7 +76,7 @@ export async function openPage(name, opts = {}) {
   const slide = pageMotion(page);
   // The page's module is resolved before the page is shown, so its first visible frame already has its
   // content (the shell-look first-frame check); boot preloads these during idle, so this normally costs nothing.
-  const MODULES = { settings: './home.js', quiet: './home.js', agents: './agents.js', memory: './memory.js', export: './export.js', notifications: './notifications.js', deleted: './deleted.js', account: './account.js', appearance: './appearance.js', chat: './chat.js', gestures: './gestures.js', island: './island.js', briefing: './briefing.js', mind: './mind.js', privacy: './privacy.js', about: './about.js' };
+  const MODULES = { settings: './home.js', quiet: './home.js', agents: './agents.js', memory: './memory.js', export: './export.js', notifications: './notifications.js', deleted: './deleted.js', account: './account.js', appearance: './appearance.js', chat: './chat.js', gestures: './gestures.js', island: './island.js', briefing: './briefing.js', mind: './mind.js', music: './music.js', privacy: './privacy.js', about: './about.js' };
   /** @type {any} */
   const mod = name in MODULES ? await import(MODULES[/** @type {keyof typeof MODULES} */ (name)]) : null;
   document.querySelector('#app').append(page);

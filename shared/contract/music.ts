@@ -216,8 +216,15 @@ export interface MusicFindItem extends MusicTrackRow {
   score: number;
   known: boolean | null;
   /** What the score is made of: the asked moods' and occasion's confidences, the energy used, the
-   * closeness to `like`, and the early skips that cost it. */
-  why: { moods?: Partial<Record<MusicMood, number>>; occasion?: number; energy?: number; like?: number; skips?: number };
+   * closeness to `like`, the owner's history with the artist (`history`, 0–1) and the early skips that cost it. */
+  why: {
+    moods?: Partial<Record<MusicMood, number>>;
+    occasion?: number;
+    energy?: number;
+    like?: number;
+    history?: number;
+    skips?: number;
+  };
 }
 export interface MusicFindResponse {
   items: MusicFindItem[];

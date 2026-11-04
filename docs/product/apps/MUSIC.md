@@ -1058,6 +1058,24 @@ See [PERFORMANCE](../../engineering/PERFORMANCE.md).
 One slot, one kind ([BEHAVIOR.md §3.1](../../mind/BEHAVIOR.md#31-rung-0-silent-arrangement), API.md §11.11 "The apps' arrangements"): `music/tonight`, kind `mix`: a mix saved with `music.mix_save`, placed with `PUT /v1/surfaces` (`th surface music tonight --kind mix`) and shown on the home shelf; the owner's tap plays it. It carries its why behind a tap, and the app reports it seen, taken up or dismissed (`arrangement.seen`, `arrangement.tap`, `arrangement.dismiss`), so the meter and what lands count it.
 
 **As built (2026-11-04, `th/music/tonight.js`):** a card over the library's home while it is on screen ("Tonight": the mix's name and size), Play, Why and Dismiss. Play reads the mix's songs (`GET /v1/music/mixes/:id`, the phone only), makes them the queue through `music.play_mix`'s own executor and starts at once, the tap being the gesture.
+## 16. Taste from your listening history (2026-11-04, owner decisions 12 and 13)
+
+The mind knows the owner's taste from years of listening, from exports they drop in **Settings › Music › Listening history**; the listening pass (audio analysed in Actions) was cut the same day ([JOBS.md §3](../../engineering/JOBS.md)).
+
+### 16.1 The imports
+
+Three formats, zip or json (or csv for Last.fm), each ≤ 32 MiB: Spotify's extended streaming history (`Streaming_History_Audio_*.json`; the older `StreamingHistory*.json` too; a stream counts as a play from 30 s, every stream's minutes count, podcasts and video streams are left out), YouTube Music's watch history from Google Takeout (`watch-history.json`, only the entries headed "YouTube Music"; the artist from its "- Topic" channel; no minutes) and a Last.fm export (its scrobbles as json pages or csv; no minutes). The phone sends each file with its SHA-256 (`PUT /v1/music/history`); the Worker keeps it in the private bucket by its hash and queues `music.history`, a bulk-lane job in Core: the file is summed by artist, album and the year of the play into Music's `listens` (schema step 5: artist key, album, year, source, plays, minutes) and `listen_artists` (plays per artist), a part of 2,000 rows a step, counted once per file and once per part. Track titles are read past and never kept. The rows guard holds it from 80 %.
+
+### 16.2 Canonical names and similar artists
+
+`music.mb` resolves each artist with 3 plays or more, most played first, to a MusicBrainz id and canonical name: one request a step, a step at most every 1.1 s, a User-Agent naming the app and nothing of the owner, three tries; an artist MusicBrainz doesn't know stays as the name. ListenBrainz's similar artists are fetched by MusicBrainz id when the mind asks (`th music similar <id>`) and kept a week (`similar_artists`, out of the backup). A Last.fm API key is optional (`LASTFM_API_KEY`, SETUP.md N6): with one, Last.fm's similar artists are merged in; MusicBrainz and ListenBrainz need none.
+
+### 16.3 Reading the taste
+
+`th music taste` (top artists by plays as MusicBrainz ids and canonical names, an unresolved artist as an opaque id with no name; top years; counts only), `th music similar <artist id>` (each with the owner's plays and the catalog's songs of them) and `th music find --like-history` (find's `history=1`: each catalog song weighted 0–1 by the log of its artist's plays, `why.history`). The brief's section 1 carries one line: plays, artists, the years and the top three by canonical name. The switch **Use my listening history** (Settings › Music, `music.history`, in the mind's settings) turns the brief's line off; the mind reads it and stops using taste.
+
+**Not built yet (second pass):** the DJ shuffle on the phone and "playlist from words" weighting by history counts.
+
 ## 17. Open questions / tests
 
 | # | Question | How to settle |

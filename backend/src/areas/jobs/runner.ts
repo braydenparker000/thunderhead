@@ -40,12 +40,14 @@ export interface JobHandler {
    * in an object no meter counts (the drill's scratch copy), which the bulk lane and the day's meter
    * count too. `read`: rows its load read in another object (a backup part of Music, the Senses or
    * the Library), added to that class's day at once rather than at the next tick. */
+  /** `after`: the next step waits this long (ms), so a job that asks an outside service keeps its
+   * rate (MusicBrainz's one a second) without a timer. */
   step(
     w: Writer,
     payload: unknown,
     cursor: unknown,
     input: unknown,
-  ): ({ next: unknown } | { done: true }) & { rows?: number; read?: { class: string; rows: number } };
+  ): ({ next: unknown; after?: number } | { done: true }) & { rows?: number; read?: { class: string; rows: number } };
   /** The job failed for good: what the area records about it. */
   failed?(w: Writer, payload: unknown, code: string): void;
 }
@@ -134,7 +136,7 @@ export async function runJobs(host: JobHost, handlers: Record<string, JobHandler
         const done = 'done' in r;
         store.updateJob(w.db, job.id, {
           state: done ? 'done' : 'running',
-          due_at: now,
+          due_at: now + (!done && 'after' in r ? (r.after ?? 0) : 0),
           cursor: done ? undefined : r.next,
           attempts: 0,
           last_error: null,

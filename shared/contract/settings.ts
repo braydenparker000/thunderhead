@@ -76,6 +76,11 @@ export const SETTING_GROUPS = {
     // The floors no setting lowers (permits.ts PERMIT_FLOORS, in its order; a contract test holds them equal).
     notes: { 'Standing permissions': 'Always asks first: money, deleting your data, keys and access, reaching another person.' },
   },
+  music: {
+    title: 'Music',
+    icon: 'music-notes-simple',
+    lead: 'Your listening history, from the exports you drop here. Your Worker keeps the counts.',
+  },
   privacy: { title: 'Privacy and data', icon: 'shield-check', lead: 'What this phone tells your Worker, and what leaves it at all.' },
 } as const satisfies Record<string, { title: string; icon: string; lead: string; notes?: Record<string, string> }>;
 export type SettingGroup = keyof typeof SETTING_GROUPS;
@@ -229,6 +234,8 @@ export const SETTINGS = [
   // Privacy and data.
   // One switch for each app's senses (senses.ts SENSE_APPS; the phone sends nothing of an app whose
   // switch is off, and the Worker keeps nothing of it). The details say what each sends: ids and times.
+  { key: 'music.history', group: 'music', label: 'Use my listening history', kind: 'switch', default: true, ...FOR_MIND,
+    detail: 'Find and my brief weigh songs by how much you played their artist.' },
   { ...SENSES, key: 'privacy.senses.music', label: 'Music', detail: 'When Music opens, what plays, what you skip and what you rate, as ids and times.' },
   { ...SENSES, key: 'privacy.senses.podcasts', label: 'Podcasts', detail: 'When Podcasts opens, what plays, finishes or gets skipped, and the shows you follow, as ids and times.' },
   { ...SENSES, key: 'privacy.senses.guitar', label: 'Guitar', detail: 'When Guitar opens, the pieces you open and your practice, as numbers.' },

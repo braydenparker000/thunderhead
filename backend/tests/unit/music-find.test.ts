@@ -14,6 +14,7 @@ describe('parseFind', () => {
       occasion: 'wind-down',
       energy: 0.2,
       like: null,
+      history: false,
       limit: 10,
     });
     expect(parseFind({ energy: '0.65' })).toMatchObject({ energy: 0.65, limit: 30 });

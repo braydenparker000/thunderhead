@@ -8,7 +8,6 @@ import {extraRoutes} from './fake-routes.mjs';
 import {evalRoutes} from './fake-evals.mjs';
 import {reminderRoutes} from './fake-reminders.mjs';
 import {reportRoutes} from './fake-reports.mjs';
-import {listenRoutes} from './fake-listen.mjs';
 import {podcastRoutes} from './fake-podcasts.mjs';
 import {musicRoutes} from './fake-music.mjs';
 import {watchRoutes} from './fake-watches.mjs';
@@ -199,7 +198,6 @@ export function createFake(options = {}) {
     ...evalRoutes(ctl),
     ...reminderRoutes(ctl),
     ...reportRoutes(ctl),
-    ...listenRoutes(ctl),
     ...podcastRoutes(ctl),
     ...musicRoutes(ctl),
     ...watchRoutes(ctl),

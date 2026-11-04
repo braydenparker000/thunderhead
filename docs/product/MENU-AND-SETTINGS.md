@@ -380,6 +380,16 @@ Remove. Each switch, Undo or Remove reads the list again. "No routines yet. I as
 | `mind.permit.titles` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 | `mind.permit.outside` | segments: ask / tell / quiet | worker | `ask` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 
+### 6.6b Music (`music.js`)
+
+Whether find and the brief use the owner's listening history, then Listening history
+(`music-history.js`, [MUSIC.md §16](apps/MUSIC.md)): the exports picked or dropped, each sent with its
+SHA-256 (`PUT /v1/music/history`) and counted once, and what was counted (counts only).
+
+| Key | Control | Scope | Default | Read by |
+|---|---|---|---|---|
+| `music.history` | switch | worker | `on` | the mind (briefing section 13) and the brief's taste line (`areas/mind/assemble.ts`: off leaves it out); find's `history=1` is the mind's to skip |
+
 ### 6.7 Privacy and data (`privacy.js`)
 
 Senses per app and error reports, then a read-only group, What leaves this phone, then Your data

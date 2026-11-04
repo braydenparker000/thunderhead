@@ -927,6 +927,7 @@ From P2 this table is data: `shared/contract/routes.ts` is the source the Worker
 | `POST /v1/media/sign` | D (C N for `file:`) | P5 (P2 for `file:` refs) · built: `music:` refs for D (`book:` refs are not signed: Study reads books through `GET /v1/library/books/:id/file`); `file:` refs answer `not_signable`: chat files are read through `GET /v1/files/:id` |
 | `GET /v1/music/catalog`, `GET /v1/music/waveforms/:id` | D | P5 |
 | `GET /v1/music/tracks`, `PUT /v1/music/notes`, `GET /v1/music/find` | C N | P5 |
+| `PUT /v1/music/history` (D; raw bytes ≤ 32 MiB, `TH-File-Name`, `TH-Sha256` → `200 {sha256, source, state: done}` for a file counted before, `202 … queued` otherwise; 422 for a file that is no export), `GET /v1/music/history` (D C N; the files and the artists resolved, counts only), `GET /v1/music/taste?limit=1–50` (C N; `TasteResponse`), `GET /v1/music/similar/:mbid` (C N; ListenBrainz's similar artists, kept a week; 503 `unavailable` when it can't answer and nothing is kept); find takes `history=1` ([MUSIC.md §16](../product/apps/MUSIC.md), `shared/contract/taste.ts`) | D C N | P5 |
 | `GET /v1/music/mixes` | D C N | P5 |
 | `GET /v1/music/mixes/:id` | D | P5 |
 | `GET /v1/music/notes` | D C N | P5 |

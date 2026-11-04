@@ -13,7 +13,7 @@ import {
 } from '../../../shared/contract/music.ts';
 import { type AudioEntry, listeningMap, type NoteEntry } from '../areas/music/find';
 import * as notes from '../areas/music/store-notes';
-import { MusicListen } from './music-listen';
+import { MusicTaste } from './music-taste';
 
 /** A track's tags from its record as the old catalog kept it. */
 export function tagsOf(r: { id: string; record_json: string }): MusicTrackRow {
@@ -67,7 +67,7 @@ export const rowOf = (r: notes.NoteRow): MusicNoteRow => ({
 /** A rebuild that failed is tried again after this long. */
 const REBUILD_BACKOFF_MS = 60 * 60 * 1000;
 
-export abstract class MusicPacks extends MusicListen {
+export abstract class MusicPacks extends MusicTaste {
   /** The packed notes by track id, and where the next new note goes. */
   protected packed: Map<string, NoteEntry> | null = null;
   protected place: { open: number; fill: number } | null = null;

@@ -33,11 +33,13 @@ export interface FindQuery {
   occasion: MusicOccasion | null;
   energy: number | null;
   like: string | null;
+  /** Weigh songs by the owner's plays of their artist (`--like-history`). */
+  history: boolean;
   limit: number;
 }
 
 const ENERGY: Record<string, number> = { low: 0.2, mid: 0.5, high: 0.8 };
-const W = { mood: 1, occasion: 0.8, energy: 0.5, like: 1, skip: 0.25 };
+const W = { mood: 1, occasion: 0.8, energy: 0.5, like: 1, history: 0.6, skip: 0.25 };
 const r2 = (n: number) => Math.round(n * 100) / 100;
 
 /** The query string, checked: the query, or what is wrong with it. */
@@ -64,11 +66,12 @@ export function parseFind(q: Record<string, string | undefined>): FindQuery | { 
   const limit = q.limit === undefined || q.limit === '' ? L.find_default : Number(q.limit);
   if (!Number.isInteger(limit) || limit < 1 || limit > L.find_max)
     issues.push({ path: 'limit', issue: `1 to ${L.find_max}` });
-  if (!moods.length && !occasion && energy === null && !like)
-    issues.push({ path: 'moods', issue: 'ask for moods, an occasion, an energy or like' });
+  const history = q.history === '1';
+  if (!moods.length && !occasion && energy === null && !like && !history)
+    issues.push({ path: 'moods', issue: 'ask for moods, an occasion, an energy, like or history' });
   return issues.length
     ? { issues }
-    : { moods: moods as MusicMood[], occasion: occasion as MusicOccasion, energy, like, limit };
+    : { moods: moods as MusicMood[], occasion: occasion as MusicOccasion, energy, like, history, limit };
 }
 
 /** A song as find reads it from the packs (`find_packs`, music-mind.ts): its note's words and the
@@ -100,6 +103,8 @@ export interface Known {
   /** `like`: the song, its entry (or one from its tags alone), and its neighbours when the
    * listening pass measured it. */
   seed: { id: string; entry: NoteEntry; neighbours: { id: string; score: number }[] } | null;
+  /** `history`: each song's weight from the owner's plays of its artist, 0–1 (music-taste.ts). */
+  history?: Map<string, number>;
 }
 
 /** One ranked song, before its tags are read. */
@@ -189,7 +194,13 @@ export function rank(
   const near = k.seed?.neighbours.length ? new Map(k.seed.neighbours.map((n) => [n.id, n.score])) : null;
   const left_out = { never: 0, rated: 0, skipped: 0 };
   const scored: { item: Ranked; raw: number; ord: number }[] = [];
-  const ids = new Set([...k.notes.keys(), ...(k.audio?.keys() ?? []), ...(near?.keys() ?? [])]);
+  const hist = q.history ? (k.history ?? new Map<string, number>()) : null;
+  const ids = new Set([
+    ...k.notes.keys(),
+    ...(k.audio?.keys() ?? []),
+    ...(near?.keys() ?? []),
+    ...(hist?.keys() ?? []),
+  ]);
   for (const id of ids) {
     // Like a song the listening pass measured: its neighbours are the candidates.
     if ((k.seed && id === k.seed.id) || (near && !near.has(id))) continue;
@@ -221,8 +232,11 @@ export function rank(
       if (like > 0) why.like = r2(like);
       score += W.like * like;
     }
+    const h = hist?.get(id) ?? 0;
+    if (h) why.history = h;
+    score += W.history * h;
     const asked = q.moods.length || q.occasion;
-    const shows = asked ? feel > 0.15 : k.seed ? (why.like ?? 0) > 0 : energy !== null;
+    const shows = asked ? feel > 0.15 : k.seed ? (why.like ?? 0) > 0 : q.energy !== null ? energy !== null : h > 0;
     if (!shows) continue;
     if (never.has(id)) {
       left_out.never++;
