@@ -28,10 +28,13 @@ describe("the briefing's verb table", () => {
     // Never below tell, and the owner's own words have no class.
     expect(row('podcasts.unfollow')).toMatch(/· podcasts: tell \(never quiet\) ·/);
     expect(row('memory.note')).toMatch(/· no class \(the owner's own words only\) ·/);
+    // The outside keep asks whatever its position says; a personal Muse order asks by its floor.
+    expect(row('memory.outside_keep')).toMatch(/· outside: ask \(the owner's keep\) ·/);
+    expect(row('muse.order_personal')).toMatch(/· muse: ask \(reaching another person\) ·/);
     expect(table.length).toBeLessThanOrEqual(VERBS_MAX);
     // One line on later and plans, naming the verbs that never wait.
     expect(table.split('\n')[1]).toMatch(
-      /^Later: th verb … --at <time> .*never music\.never, reminder\.move, memory\.note, study\.pace_goal\).* th plan <file\.json>/,
+      /^Later: th verb … --at <time> .*never music\.never, reminder\.move, memory\.note, study\.pace_goal, memory\.outside_keep, muse\.order_personal\).* th plan <file\.json>/,
     );
     // Section 13's settings check reads `<key>: ` at a line's start: no verb line looks like one.
     expect(table).not.toMatch(/^[a-z]+\.[a-z_.]+: /m);

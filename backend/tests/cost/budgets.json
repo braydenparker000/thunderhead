@@ -619,6 +619,10 @@
     "rows_read_max": 11,
     "rows_written_max": 0
   },
+  "GET /v1/music/taste/weights (Music)": {
+    "rows_read_max": 1097,
+    "rows_written_max": 0
+  },
   "GET /v1/music/similar/:mbid, fetched (Music)": {
     "rows_read_max": 4,
     "rows_written_max": 1

@@ -71,7 +71,7 @@ export const LAW8_TOPICS = {
 } as const;
 /** The args a verb says what it is about in (and its why), the only words the gate reads: a
  * title, a song or a mood names content, never a topic the mind decides on. */
-export const LAW8_FIELDS = ['topic', 'why', 'filters', 'left_off', 'next', 'label', 'during'] as const;
+export const LAW8_FIELDS = ['topic', 'why', 'filters', 'left_off', 'next', 'label', 'during', 'words'] as const;
 const LAW8_WORD = new Map<string, string>(
   Object.entries(LAW8_TOPICS).flatMap(([topic, ws]) => ws.map((w): [string, string] => [w, topic])),
 );

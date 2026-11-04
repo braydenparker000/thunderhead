@@ -126,6 +126,11 @@ export abstract class MusicTaste extends OwnerObject {
     }));
   }
 
+  /** The DJ shuffle's weights (GET /v1/music/taste/weights, MUSIC.md §16.4): find's, by song id. */
+  tasteWeights(): Record<string, number> {
+    return Object.fromEntries(this.historyWeights());
+  }
+
   /** find's history weight: each catalog song whose artist the owner played, log-scaled to 0–1. */
   protected historyWeights(): Map<string, number> {
     const by = this.byKey();

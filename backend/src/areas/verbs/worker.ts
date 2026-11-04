@@ -19,6 +19,7 @@ import * as podcasts from '../podcasts/sync';
 import * as reminders from '../reminders/ops';
 import { mindSet, writeSetting } from '../settings/mind-set';
 import { APP_EXECUTORS } from './apps';
+import { MIND_EXECUTORS } from './mind';
 import * as mixes from './mixes';
 
 export interface RunCtx {
@@ -136,6 +137,8 @@ export const WORKER_VERBS: Record<string, Executor> = {
   ...WATCH_EXECUTORS,
   // Batch 2: the apps' arrangements, Study's pace, thread.file, reminder.snooze_rule.
   ...APP_EXECUTORS,
+  // Batch 3: thread.title, memory.outside_keep, muse.order_personal.
+  ...MIND_EXECUTORS,
 };
 
 /** Runs a Worker-side verb; a verb the map lacks is a bug in the contract, not a refusal. */

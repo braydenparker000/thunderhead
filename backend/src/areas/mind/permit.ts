@@ -28,13 +28,14 @@ import { takeApproval } from '../proposals/approval';
 import * as proposals from '../proposals/store';
 import { getSetting } from '../settings/store';
 
-/** How the mind may take `action` now: a floor always asks; else the owner's setting for its
+/** How the mind may take `action` now: a floor (and the outside keep) always asks; else the owner's setting for its
  * class, or the contract's default while the owner never set one (or set one no longer allowed).
  * One settings row read. An action the contract doesn't list is a bug, not a refusal. */
 export function positionFor(db: Db, action: string): PermitPosition {
   const spec = permitOf(action);
   if (!spec) throw new Error(`no standing permission for ${action}`);
-  if (spec.floor) return 'ask';
+  // Keeping outside text is the owner's alone (MEMORY.md §6 M11): no position loosens it.
+  if (spec.floor || spec.class === 'outside') return 'ask';
   const set = getSetting(db, permitKey(spec.class));
   const position = (PERMIT_POSITIONS as readonly unknown[]).includes(set)
     ? (set as PermitPosition)

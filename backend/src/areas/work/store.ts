@@ -51,16 +51,19 @@ export function insertOrder(
     at: number;
     message_id?: string | null;
     status?: 'queued' | 'claimed';
+    /** Its words carry the owner's data (`muse.order_personal`, the reach-people floor). */
+    personal?: boolean;
   },
 ): void {
   const status = r.status ?? 'queued';
   db.run(
     `INSERT INTO work_orders (id, kind, assignee, title, spec_json, personal, deadline_at, status, created_by, created_at, claimed_at, heartbeat_at, message_id)
-     VALUES (?, ?, 'muse', ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+     VALUES (?, ?, 'muse', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     r.id,
     r.kind,
     r.title,
     JSON.stringify(r.spec),
+    r.personal ? 1 : 0,
     r.deadline_at,
     status,
     r.created_by,

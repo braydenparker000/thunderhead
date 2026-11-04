@@ -46,6 +46,7 @@ export async function historyCalls(cost: Cost, grant: (ip: string, password?: st
   await cost('PUT /v1/music/history, the same file again (Music)', put, 200, mu);
   await cost('GET /v1/music/history (Music)', () => api('GET', '/v1/music/history', d), 200, mu);
   await cost('GET /v1/music/taste (Music)', () => api('GET', '/v1/music/taste', m), 200, mu);
+  await cost('GET /v1/music/taste/weights (Music)', () => api('GET', '/v1/music/taste/weights', d), 200, mu);
   const similar = () => api('GET', `/v1/music/similar/${mbidOf(1)}`, m);
   await cost('GET /v1/music/similar/:mbid, fetched (Music)', similar, 200, mu);
   await cost('GET /v1/music/similar/:mbid, kept (Music)', similar, 200, mu);

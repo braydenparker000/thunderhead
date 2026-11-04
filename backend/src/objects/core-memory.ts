@@ -26,6 +26,7 @@ import { claimedSession } from '../areas/mind/guards';
 import { taint } from '../areas/mind/ops';
 import { queueEmbed } from '../areas/search/embed-job';
 import { liveRefs } from '../areas/search/live';
+import { getSetting } from '../areas/settings/store';
 import { attempt, Fail, invalid, type Out } from '../lib/result';
 import type { Caller } from './caller';
 import { CoreWatches } from './core-watches';
@@ -49,6 +50,12 @@ export abstract class CoreMemory extends CoreWatches {
     for (const text of facts.ruleTexts(this.db, MUSIC_NEVER_SUBJECT, now))
       for (const m of text.matchAll(MUSIC_REF_IN_TEXT)) ids.add(m[1]);
     return [...ids];
+  }
+
+  /** Whether "Use my listening history" (`music.history`) is on: the DJ shuffle and a play_mix
+   * find weigh by it only then (MUSIC.md §16.4). One settings row. */
+  historyOn(): boolean {
+    return getSetting(this.db, 'music.history') !== false;
   }
 
   /** One fact with its history and evidence. A mind session that did not ask (`asked`) gets what is

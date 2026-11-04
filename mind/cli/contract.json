@@ -1256,6 +1256,14 @@
       "status": "built",
       "note": "the imported files and the artists resolved: counts only"
     },
+    "GET /v1/music/taste/weights": {
+      "who": [
+        "D"
+      ],
+      "phase": "P5",
+      "status": "built",
+      "note": "the DJ shuffle's history weights by song id, none while music.history is off"
+    },
     "GET /v1/music/taste": {
       "who": [
         "C",
@@ -3471,6 +3479,154 @@
         }
       }
     },
+    "thread.title": {
+      "app": "shell",
+      "class": "reversible",
+      "permit": "titles",
+      "side": "worker",
+      "queueable": true,
+      "undo": "stored",
+      "doc": "Names a conversation (≤ 80 characters, one line), as `PATCH /v1/threads/:id` does; never one the owner named, one held off the record or deleted, or a title on law 8's topics. Its undo puts back the title before (or none), while it still holds this one.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "thread_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              },
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              }
+            },
+            "required": [
+              "thread_id",
+              "title"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "previous": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "previous"
+            ]
+          }
+        }
+      }
+    },
+    "memory.outside_keep": {
+      "app": "shell",
+      "class": "reversible",
+      "permit": "outside",
+      "side": "worker",
+      "now_only": true,
+      "queueable": true,
+      "undo": "stored",
+      "doc": "The owner's Keep of a current `outside` fact, asked in the chat: it always waits for an approved card (no position loosens it), and then lifts the fact into an `owner` version as Keep under \"Learned from outside\" in Settings › Memory does. Only from a session that read no outside text. Its undo puts back the outside version, while the kept one is still current.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "fact_id": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+              }
+            },
+            "required": [
+              "fact_id"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "fact_id": {
+                "type": "string"
+              },
+              "provenance": {
+                "type": "string",
+                "enum": [
+                  "owner",
+                  "observed",
+                  "outside"
+                ]
+              }
+            },
+            "required": [
+              "fact_id",
+              "provenance"
+            ]
+          }
+        }
+      }
+    },
+    "muse.order_personal": {
+      "app": "shell",
+      "class": "ask_first",
+      "permit": "muse",
+      "floor": "reach_people",
+      "side": "worker",
+      "now_only": true,
+      "queueable": true,
+      "undo": "stored",
+      "doc": "A `muse.request` whose words carry the owner's data (the order is marked `personal`), placed for Muse with a 7-day deadline: always with an approved `reach_people` card, only from a session that read no outside text, never with what MEMORY.md §13 says is never stored or with words on law 8's topics. Its order id is the verb's. Its undo cancels the order while it is still open.",
+      "versions": {
+        "1": {
+          "args": {
+            "type": "object",
+            "properties": {
+              "title": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "words": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500
+              },
+              "app": {
+                "type": "string",
+                "enum": [
+                  "music",
+                  "guitar",
+                  "podcasts",
+                  "astra",
+                  "media",
+                  "study",
+                  "photos"
+                ]
+              }
+            },
+            "required": [
+              "title",
+              "words"
+            ]
+          },
+          "result": {
+            "type": "object",
+            "properties": {
+              "order_id": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "order_id"
+            ]
+          }
+        }
+      }
+    },
     "shell.appearance": {
       "app": "shell",
       "class": "reversible",
@@ -5153,10 +5309,6 @@
         "class": "tiles",
         "doc": "A line on home or a tile on the Briefing (`PUT /v1/surfaces/:app/:slot`)."
       },
-      "thread.title": {
-        "class": "titles",
-        "doc": "A conversation's title or summary (`PATCH /v1/threads/:id`)."
-      },
       "reminder.set": {
         "class": "reminders",
         "doc": "A reminder the owner asked for (`PUT /v1/reminders/:id`)."
@@ -5168,15 +5320,6 @@
       "muse.order": {
         "class": "muse",
         "doc": "A work order for Muse (`PUT /v1/work/orders/:id`)."
-      },
-      "muse.order_personal": {
-        "class": "muse",
-        "floor": "reach_people",
-        "doc": "A work order of a kind that carries the owner's data (`personal` in work.ts): Muse runs on another provider (BEHAVIOR.md §7 rule 4). No such kind is built."
-      },
-      "memory.outside": {
-        "class": "outside",
-        "doc": "Keeping a fact learned from outside text. A write from a session that read outside text is labelled outside and waits for the owner's Keep in Settings › Memory (MEMORY.md §6 M11); no position loosens that."
       }
     }
   },

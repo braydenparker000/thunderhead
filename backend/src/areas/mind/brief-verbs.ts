@@ -14,8 +14,9 @@ import { VERBS, type VerbSpec } from '../../../../shared/contract/verbs.ts';
 
 /** The table's characters at most (the full briefing's section 13 holds it beside the settings).
  * (2026-11-03, watches) 2,000 → 2,400: the later-and-plans line and the two watch verbs (+271).
- * (2026-11-04, verbs batch 2) 2,400 → 3,000: seven more verbs (the table measured 2,813). */
-export const VERBS_MAX = 3_000;
+ * (2026-11-04, verbs batch 2) 2,400 → 3,000: seven more verbs (the table measured 2,813).
+ * (2026-11-04, verbs batch 3) 3,000 → 3,400: three more verbs (the table measured 3,293). */
+export const VERBS_MAX = 3_400;
 
 export const VERBS_LEGEND =
   'Verbs (th verb <name> \'<args>\' --why "…"; th help lists their args): name · runs on · class: position now · what. worker = done before your reply ends; app = waits for that app to open (say so); phone = the next signed-in phone. Undo: th undo <ledger_id>.';
@@ -46,7 +47,12 @@ function line(name: string, v: VerbSpec, at: Map<string, string>): string {
     ? 'no class (yours, within the wake budget)'
     : "no class (the owner's own words only)";
   if (v.permit !== null) {
-    const now = v.floor ? `ask (${PERMIT_FLOORS[v.floor]})` : (at.get(v.permit) ?? 'unknown');
+    // Keeping an outside fact asks at every position (mind/permit.ts): the owner's tap is the keep.
+    const now = v.floor
+      ? `ask (${PERMIT_FLOORS[v.floor]})`
+      : v.permit === 'outside'
+        ? "ask (the owner's keep)"
+        : (at.get(v.permit) ?? 'unknown');
     permit = `${v.permit}: ${v.tell_min && now === 'quiet' ? 'tell (never quiet)' : now}`;
   }
   return `${name} · ${runs} · ${permit} · ${v.what}`;

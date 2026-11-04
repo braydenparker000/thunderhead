@@ -6,7 +6,12 @@
 import { runInDurableObject } from 'cloudflare:test';
 import { beforeAll, describe, expect, it } from 'vitest';
 import type { MusicFindResponse } from '../../../shared/contract/music.ts';
-import type { HistoryStatus, SimilarResponse, TasteResponse } from '../../../shared/contract/taste.ts';
+import type {
+  HistoryStatus,
+  SimilarResponse,
+  TasteResponse,
+  TasteWeightsResponse,
+} from '../../../shared/contract/taste.ts';
 import { lookup, similarFetch, useFetch } from '../../src/areas/music/history-mb';
 import type { Core } from '../../src/objects/core';
 import { apiJson, core, coreSql } from '../helpers';
@@ -117,5 +122,18 @@ describe('reading the taste', () => {
     expect(new Set(got)).toEqual(new Set(ids.slice(0, 5)));
     expect(r.body.items.every((i) => (i.why.history ?? 0) > 0)).toBe(true);
     expect(r.body.items[0].why.history).toBe(1);
+  });
+
+  it("the DJ's weights: the phone's, by song id, the most played artist's at 1; none with the switch off", async () => {
+    const weights = () => apiJson<TasteWeightsResponse>('GET', '/v1/music/taste/weights', { token: p.D });
+    const on = await weights();
+    expect([on.status, on.body.on]).toEqual([200, true]);
+    expect(new Set(Object.keys(on.body.weights))).toEqual(new Set(ids.slice(0, 5)));
+    expect(on.body.weights[ids[0]]).toBe(1);
+    expect(Object.values(on.body.weights).every((w) => w > 0 && w <= 1)).toBe(true);
+    expect((await apiJson('GET', '/v1/music/taste/weights', as(p.C, CHAT_SESSION))).status).toBe(403);
+    await apiJson('PATCH', '/v1/settings', { token: p.D, body: { 'music.history': false } });
+    expect((await weights()).body).toEqual({ on: false, weights: {} });
+    await apiJson('PATCH', '/v1/settings', { token: p.D, body: { 'music.history': true } });
   });
 });

@@ -1074,7 +1074,12 @@ Three formats, zip or json (or csv for Last.fm), each ≤ 32 MiB: Spotify's exte
 
 `th music taste` (top artists by plays as MusicBrainz ids and canonical names, an unresolved artist as an opaque id with no name; top years; counts only), `th music similar <artist id>` (each with the owner's plays and the catalog's songs of them) and `th music find --like-history` (find's `history=1`: each catalog song weighted 0–1 by the log of its artist's plays, `why.history`). The brief's section 1 carries one line: plays, artists, the years and the top three by canonical name. The switch **Use my listening history** (Settings › Music, `music.history`, in the mind's settings) turns the brief's line off; the mind reads it and stops using taste.
 
-**Not built yet (second pass):** the DJ shuffle on the phone and "playlist from words" weighting by history counts.
+### 16.4 The DJ shuffle and "playlist from words"
+
+While **Use my listening history** is on, both lean towards the artists the owner played most, with the weights `th music find --like-history` uses (each catalog song 0–1 by the log of its artist's plays, `MusicTaste.historyWeights()`):
+
+- **The DJ shuffle** (§9): when Music opens, the phone asks `GET /v1/music/taste/weights` (the owner's phone only; song ids and numbers) and keeps the answer on the phone (`th/music/taste.js`, `th.music.taste`). Each candidate's score gains up to 0.3 (`HISTORY_W`, under a shared genre's 0.5), so history breaks ties among songs that follow well and never outranks the flow; the artist and album rules, the skips and "not for me" hold as before. With the switch off the Worker answers `{on: false}`, the phone drops what it kept, and the order is the one without history (`tests/music-dj.test.mjs`, an invented history).
+- **"Playlist from words"** (a `music.play_mix` with a `find`: the moods and occasion the mind read from the owner's words): the route adds find's `history` weighting while the switch is on (`verbs/routes.ts` `prepare`), so among the songs that fit the words the most played artists come first; history alone never brings in a song that doesn't fit.
 
 ## 17. Open questions / tests
 

@@ -153,6 +153,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/music/mixes` | D C N | P5 | built | the mixes music.mix_save kept, newest first, ≤ 50: id (for music.play_mix), name, tracks, recipe |
 | `PUT /v1/music/history` | D | P5 | built | raw bytes ≤ 32 MiB (zip, json or csv); TH-File-Name, TH-Sha256; 200 done before, 202 queued |
 | `GET /v1/music/history` | D C N | P5 | built | the imported files and the artists resolved: counts only |
+| `GET /v1/music/taste/weights` | D | P5 | built | the DJ shuffle's history weights by song id, none while music.history is off |
 | `GET /v1/music/taste` | C N | P5 | built | ?limit=1-50: top artists (MusicBrainz ids, canonical names) and years by plays |
 | `GET /v1/music/similar/:mbid` | C N | P5 | built | ListenBrainz's similar artists, kept a week; plays and catalog songs of each |
 | `GET /v1/music/mixes/:id` | D | P5 | built | one mix's songs in order, for the owner's tap on Music's "tonight" (404 not_found) |
@@ -248,6 +249,9 @@ Side `worker`: run inside the commit that queues it, `done` at once, its inverse
 | `island.clear` | shell | reversible | tiles | phone | no (owner tap or undo) | none | 1 | `{ line: string }` | Takes away the island line that `island.show` put up, if it still stands; a later line stays (`cleared: false`). |
 | `watch.set` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ kind: 'at' \| 'event' \| 'change', at?: integer, type?: 'player.open' \| 'music.play' \| 'music.skip' \| 'music.finish' \| 'music.rate' \| 'podcasts.open' \| 'podcast.play' \| 'podcast.finish' \| 'podcast.skip' \| 'podcast.follow' \| 'podcast.unfollow' \| 'guitar.open' \| 'guitar.piece_opened' \| 'guitar.pass' \| 'guitar.bpm' \| 'guitar.session' \| 'study.open' \| 'study.read' \| 'study.search' \| 'study.highlight' \| 'astra.open' \| 'mymedia.open' \| 'media.watch' \| 'media.finish' \| 'media.drop' \| 'app.open' \| 'app.close' \| 'ring.choice' \| 'island.tap' \| 'briefing.open' \| 'settings.change' \| 'briefing.tile' \| 'line.seen' \| 'line.dismiss' \| 'arrangement.seen' \| 'arrangement.tap' \| 'arrangement.dismiss' \| 'card.decide' \| 'reply.open_chip' \| 'reminder.fired' \| 'work' \| 'verb' \| 'proposal' \| 'prediction', ref?: string, why: string, note?: string }` | Sets a watch: `at` (a time, at most 7 days ahead), `event` (a sense type or `reminder.fired`, optionally its ref) or `change` (`work`, `verb`, `proposal` or `prediction`, met when it settles; optionally its ref). Met once, it wakes the chat with its why and note (a live session hears it in `th wait`), within the wake budget; at most 20 wait at once. From a claimed session that was handed nothing off the record. Its undo cancels it. |
 | `watch.cancel` | shell | reversible | none (the owner's words) | worker | yes | stored | 1 | `{ id: string }` | Cancels a live or queued watch. Its undo sets it waiting again while its time has not passed and fewer than 20 wait. |
+| `thread.title` | shell | reversible | titles | worker | yes | stored | 1 | `{ thread_id: string, title: string }` | Names a conversation (≤ 80 characters, one line), as `PATCH /v1/threads/:id` does; never one the owner named, one held off the record or deleted, or a title on law 8's topics. Its undo puts back the title before (or none), while it still holds this one. |
+| `memory.outside_keep` | shell | reversible | outside | worker | yes (now only) | stored | 1 | `{ fact_id: string }` | The owner's Keep of a current `outside` fact, asked in the chat: it always waits for an approved card (no position loosens it), and then lifts the fact into an `owner` version as Keep under "Learned from outside" in Settings › Memory does. Only from a session that read no outside text. Its undo puts back the outside version, while the kept one is still current. |
+| `muse.order_personal` | shell | ask_first | muse (floor: reach_people) | worker | yes (now only) | stored | 1 | `{ title: string, words: string, app?: 'music' \| 'guitar' \| 'podcasts' \| 'astra' \| 'media' \| 'study' \| 'photos' }` | A `muse.request` whose words carry the owner's data (the order is marked `personal`), placed for Muse with a 7-day deadline: always with an approved `reach_people` card, only from a session that read no outside text, never with what MEMORY.md §13 says is never stored or with words on law 8's topics. Its order id is the verb's. Its undo cancels the order while it is still open. |
 | `shell.appearance` | shell | reversible | settings | phone | yes | reported | 1 | `{ mode: 'auto' \| 'day' \| 'night' }` | Sets the phone's appearance (auto, day or night). The phone reports the previous mode as the undo. |
 
 ## Standing permissions
@@ -260,22 +264,19 @@ How the mind may take each class of action, the owner's `mind.permit.<class>` se
 | `podcasts` | `mind.permit.podcasts` | Podcasts | quiet | `podcasts.follow`, `podcasts.unfollow`, `podcasts.queue_episode`, `podcasts.unqueue_episode`, `podcasts.mark_played` | — |
 | `reminders` | `mind.permit.reminders` | Reminders | tell | `reminder.move`, `reminder.snooze_rule` | `reminder.set`, `reminder.cancel` |
 | `settings` | `mind.permit.settings` | Settings | tell | `settings.set`, `shell.appearance` | — |
-| `muse` | `mind.permit.muse` | Muse orders | ask | — | `muse.order`, `muse.order_personal` (floor: reach_people) |
+| `muse` | `mind.permit.muse` | Muse orders | ask | `muse.order_personal` (floor: reach_people) | `muse.order` |
 | `watch` | `mind.permit.watch` | Watch lists | tell | `astra.shortlist`, `media.shortlist` | — |
 | `practice` | `mind.permit.practice` | Practice | tell | `study.mark_next`, `study.pace_goal`, `guitar.set_plan`, `guitar.start_practice` | — |
 | `tiles` | `mind.permit.tiles` | Lines and tiles | quiet | `app.open`, `briefing.pin_tile`, `briefing.unpin_tile`, `island.show`, `island.clear` | `surface.put` |
-| `titles` | `mind.permit.titles` | Titles | quiet | `thread.file` | `thread.title` |
-| `outside` | `mind.permit.outside` | Remembering from outside text | ask | — | `memory.outside` |
+| `titles` | `mind.permit.titles` | Titles | quiet | `thread.file`, `thread.title` | — |
+| `outside` | `mind.permit.outside` | Remembering from outside text | ask | `memory.outside_keep` | — |
 
 | Core action | Class | Floor | What it is |
 |---|---|---|---|
 | `surface.put` | tiles | — | A line on home or a tile on the Briefing (`PUT /v1/surfaces/:app/:slot`). |
-| `thread.title` | titles | — | A conversation's title or summary (`PATCH /v1/threads/:id`). |
 | `reminder.set` | reminders | — | A reminder the owner asked for (`PUT /v1/reminders/:id`). |
 | `reminder.cancel` | reminders | — | Taking a reminder back (`DELETE /v1/reminders/:id`). |
 | `muse.order` | muse | — | A work order for Muse (`PUT /v1/work/orders/:id`). |
-| `muse.order_personal` | muse | reach_people | A work order of a kind that carries the owner's data (`personal` in work.ts): Muse runs on another provider (BEHAVIOR.md §7 rule 4). No such kind is built. |
-| `memory.outside` | outside | — | Keeping a fact learned from outside text. A write from a session that read outside text is labelled outside and waits for the owner's Keep in Settings › Memory (MEMORY.md §6 M11); no position loosens that. |
 
 ## Scheduled actions and plans
 

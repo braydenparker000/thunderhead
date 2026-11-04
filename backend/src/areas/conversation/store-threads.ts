@@ -26,6 +26,11 @@ export function ownerTitle(db: Db, id: string, title: string | null, at: number)
   );
 }
 
+/** thread.title's undo: the title and its source as they were (verbs/mind.ts). */
+export function restoreTitle(db: Db, id: string, title: string | null, source: string | null, at: number): void {
+  db.run('UPDATE threads SET title = ?, title_source = ?, updated_at = ? WHERE id = ?', title, source, at, id);
+}
+
 /** The roll's provisional title, only where none exists. */
 export function autoTitle(db: Db, id: string, title: string): void {
   db.run(`UPDATE threads SET title = ?, title_source = 'auto' WHERE id = ? AND title IS NULL`, title, id);
