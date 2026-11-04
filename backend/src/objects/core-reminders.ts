@@ -66,8 +66,11 @@ export abstract class CoreReminders extends CoreFiles {
   protected async deliverReminders(now: number): Promise<void> {
     const next = this.reminderDue();
     if (next === null || next > now) return;
-    const pushes = this.write((w) => reminders.deliverDue(w, this.tz(), !this.sandboxed), now);
+    const rang: string[] = [];
+    const pushes = this.write((w) => reminders.deliverDue(w, this.tz(), !this.sandboxed, rang), now);
     this.changed();
+    // A watch on `reminder.fired` (RUNTIME.md §3) is met by the reminder's own ring.
+    this.watchEvents(rang.map((id) => ({ type: 'reminder.fired', ref: `reminder:${id}`, at: now })));
     if (!pushes) return;
     try {
       await authObject(this.env).deliverPushes(this.pushContext());

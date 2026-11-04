@@ -14,8 +14,9 @@ import { verbSummary } from './brief-verbs';
 
 /** Sections 1 and 2 together, headings included: the first layer. */
 export const LAYER_MAX = 2_000;
-/** Section 1's body at most, so section 2 always has room inside the layer. */
-export const NOW_MAX = 1_300;
+/** Section 1's body at most, so section 2 always has room inside the layer (1,300 until the day
+ * pulse joined it: one fired watch is about 290 characters). */
+export const NOW_MAX = 1_400;
 /** Reflex handles breakage and reads no memory (RUNTIME.md §7.1): its briefing says so in place. */
 export const NO_MEMORY = 'Not in the reflex briefing (reflex reads no memory).';
 /** Section 1's line for a session that read outside text (MEMORY.md §6 M11, §7). */
@@ -42,7 +43,7 @@ const quietLine = (i: BriefInput) =>
 /** The session's state: where and when, the wake, the laws and quiet; a tripped watchdog, the
  * outside label and the day's database use when there are any. At most 500 characters. */
 function stateLines(i: BriefInput): string {
-  const wakes = `wakes today ${i.wakesToday}${i.wakeBudget ? ` of ${i.wakeBudget}` : ''}`;
+  const wakes = `wakes today ${i.wakesToday}`;
   const backoff = i.backoffUntil > i.now ? ` · usage backoff until ${clock(i.backoffUntil, i.tz)}` : '';
   return [
     `${weekday(i.now, i.tz)} ${clock(i.now, i.tz)} (${i.tz}) · day ${i.day} · role ${i.role}`,
@@ -57,22 +58,39 @@ function stateLines(i: BriefInput): string {
     .slice(0, 500);
 }
 
-/** Today's state, owner's own only, each in its budget: the weather, the calendar, what is due (the
- * reminders, the scheduled verbs), the song playing. Reflex gets none: the day is not its business. */
-function todayLines(i: BriefInput): string[] {
+/** Today's parts in order, each at most its own budget, together at most what section 1 has left:
+ * the day pulse (the wake budget's line, then the watches that woke this session), the weather, the
+ * owner's own calendar, what is due (reminders, scheduled verbs), the song playing. */
+export const TODAY_BUDGET = { pulse: 420, weather: 160, calendar: 280, due: 240, playing: 160 } as const;
+
+/** Today's state within `room`, owner's own only; a part with no room left says where it is. Reflex
+ * gets none: the owner's day is not its business. */
+function todayLines(i: BriefInput, room: number): string[] {
   if (i.role === 'reflex') return [];
-  return [
-    ...(i.weather ? [`weather: ${i.weather}`.slice(0, 160)] : []),
-    ...part(i.calendar, 400, 'th get /v1/briefing/calendar days=2'),
-    ...part(i.due, 360, 'th remind list'),
-    ...(i.playing ? [i.playing.slice(0, 160)] : []),
+  const parts: [string[] | undefined, number, string][] = [
+    [i.pulse, TODAY_BUDGET.pulse, 'th watch list'],
+    [i.weather ? [`weather: ${i.weather}`] : [], TODAY_BUDGET.weather, 'the Briefing'],
+    [i.calendar, TODAY_BUDGET.calendar, 'th get /v1/briefing/calendar days=2'],
+    [i.due, TODAY_BUDGET.due, 'th remind list'],
+    [i.playing ? [i.playing] : [], TODAY_BUDGET.playing, 'th music now'],
   ];
+  const out: string[] = [];
+  for (const [lines, cap, more] of parts) {
+    const b = Math.min(cap, room);
+    if (!lines?.length) continue;
+    // One short line fits whole; a list keeps its oldest lines and says where the rest are.
+    const text = lines.length === 1 && lines[0].length <= b ? lines[0] : (part(lines, Math.max(b, 61), more)[0] ?? '');
+    if (text.length + 1 > room) break;
+    out.push(text);
+    room -= text.length + 1;
+  }
+  return out;
 }
 
-/** Section 1, ≤ NOW_MAX characters (cut at a whole line). */
+/** Section 1, ≤ NOW_MAX characters: the state, the voice, then today's state in what is left. */
 export function nowSection(i: BriefInput): string {
-  const text = [stateLines(i), ...VOICE, ...todayLines(i)].join('\n');
-  return text.length <= NOW_MAX ? text : text.slice(0, text.lastIndexOf('\n', NOW_MAX));
+  const head = [stateLines(i), ...VOICE].join('\n');
+  return [head, ...todayLines(i, NOW_MAX - head.length - 1)].join('\n');
 }
 
 /** Section 2 within `budget`: the owner's own words (the profile's top `owner` lines), their loose

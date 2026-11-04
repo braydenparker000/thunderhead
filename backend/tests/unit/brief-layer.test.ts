@@ -55,6 +55,7 @@ const rich = (over: Parameters<typeof input>[0] = {}) =>
     calendarShared: ['calendar today: 20:00–21:00 "Gig at the hall" (outside)'],
     due: ['due 15:00: "Call the plumber"', 'scheduled: 1 waiting, the next at 18:00 (th verbs scheduled)'],
     playing: 'music: a song started at 11:50 (10 min ago), not skipped or finished since (th music now)',
+    pulse: PULSE,
     settings: SETTINGS,
     waiting: [msg(1, 'Is the metronome fixed?')],
     arranged: ['06:12 home/line.2 ← line · kept: the bus leaves early on Tuesdays'],
@@ -62,6 +63,12 @@ const rich = (over: Parameters<typeof input>[0] = {}) =>
     tiles: ['Due: 1 today · Next at 15:00'],
     ...over,
   });
+/** The day pulse as watches/brief.ts writes it: the budget's line, a watch that fired, what to do. */
+const PULSE = [
+  'wakes today: 4 of 12, 3 watches live',
+  'watch 0192f0c4-0000-7000-8000-00000000a001 fired (at 17:45): set up the drive · note: the drive at six',
+  'A watch woke you: look at what it names, then speak only by the voice ladder (BEHAVIOR.md §3); nothing that notifies in quiet hours.',
+];
 const layer = (core: string) => core.slice(0, core.indexOf('\n\n## 3. '));
 
 describe('the first 2,000 characters (sections 1–2)', () => {
@@ -79,6 +86,7 @@ describe('the first 2,000 characters (sections 1–2)', () => {
       'due 15:00: "Call the plumber"',
       'scheduled: 1 waiting, the next at 18:00',
       'music: a song started at 11:50',
+      ...PULSE,
       '## 2. The owner\nIn their own words:\n[f:',
       'Prefers short answers on the phone',
       'Wants to play the second piece at 100 bpm',
@@ -117,7 +125,7 @@ describe('the first 2,000 characters (sections 1–2)', () => {
       expect(section(buildBrief(input({ role })).core, 1)).toContain(VOICE.join('\n'));
   });
 
-  it('keep their budgets when crowded: section 1 ≤ 1,300, the layer ≤ 2,000, the core ≤ 9,500', () => {
+  it('keep their budgets when crowded: section 1 ≤ 1,400, the layer ≤ 2,000, the core ≤ 9,500', () => {
     const b = buildBrief(
       rich({
         facts: Array.from({ length: 40 }, (_, i) => fact({ text: `Owner fact ${i} ${'f'.repeat(80)}` })),
@@ -143,9 +151,21 @@ describe('the first 2,000 characters (sections 1–2)', () => {
     expect(section(b.core, 1)).toMatch(/\(\+\d+ more: th get \/v1\/briefing\/calendar days=2\)/);
   });
 
-  it('say the wake budget when there is one', () => {
-    expect(buildBrief(input({ wakesToday: 3, wakeBudget: 12 })).core).toContain('wakes today 3 of 12 ·');
-    expect(buildBrief(input({ wakesToday: 3 })).core).toContain('wakes today 3 ·');
+  it('carry the day pulse first in today’s state: the wake budget, the watch that woke it, cut to its budget', () => {
+    const one = section(buildBrief(rich()).core, 1);
+    expect(one).toContain(`${VOICE[2]}\n${PULSE.join('\n')}\nweather: 11°`);
+    const many = Array.from(
+      { length: 5 },
+      (_, i) => `watch w${i} fired (at 17:4${i}): ${'y'.repeat(180)} · note: ${'n'.repeat(100)}`,
+    );
+    const b = buildBrief(rich({ pulse: [PULSE[0], ...many, PULSE[2]], tainted: true, quota: 'x'.repeat(60) }));
+    const crowded = section(b.core, 1);
+    expect(crowded).toContain(PULSE[0]);
+    expect(crowded).toMatch(/\(\+\d+ more: th watch list\)/);
+    // What follows keeps its line, or says where it is.
+    expect(crowded).toContain('weather: 11°');
+    for (const t of [/due 15:00|th remind list/, /th music now/]) expect(crowded).toMatch(t);
+    expect(layer(b.core).length).toBeLessThanOrEqual(LAYER_MAX);
   });
 });
 

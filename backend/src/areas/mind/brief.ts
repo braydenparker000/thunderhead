@@ -42,8 +42,6 @@ export interface BriefInput {
   day: string;
   wakeReason: string | null;
   wakesToday: number;
-  /** The owner's wake budget for the day, when one is set: section 1 says "wakes today 3 of 12". */
-  wakeBudget?: number | null;
   prewarmsLeft: number;
   backoffUntil: number;
   /** When the owner's "go quiet" ends (0: off). */
@@ -81,6 +79,8 @@ export interface BriefInput {
   calendar?: string[];
   due?: string[];
   playing?: string | null;
+  /** Section 1's day pulse (watches/brief.ts): the wake budget's line, then why a watch woke it. */
+  pulse?: string[];
   /** Section 7, the day (brief-gather.ts): its arrangements, each with how the owner met it so far;
    * the open predictions about it; the Briefing's tiles; a shared calendar's lines. */
   arranged?: string[];

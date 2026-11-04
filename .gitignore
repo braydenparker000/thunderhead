@@ -1,4 +1,3 @@
-# A symlink too (an agent worktree links the main checkout's), not only the folder.
 node_modules
 .deploy/
 test-results/

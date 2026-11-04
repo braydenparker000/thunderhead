@@ -27,10 +27,12 @@ import { quietUntil } from '../settings/quiet';
 import * as watchdogs from '../watchdogs/ops';
 import { buildBrief } from './brief';
 import { calendarLines, dayLines, dueLines, playingLine, weatherLine } from './brief-gather';
+import { clock } from './brief-text';
 import { nightDayOf, nightDone, nightLine } from './night';
 import * as sessionNotes from './notes';
 import * as store from './store';
 import { backoff } from './wake';
+import { briefLines as pulseLines } from './watches/brief';
 
 /** How many current facts a briefing reads at most (newest first), and how many rules. */
 const FACTS_READ = 2_000;
@@ -117,6 +119,10 @@ export function assemble(
     due: owners ? dueLines(db, now, tz) : [],
     // The song playing is the chat's: the night works on a closed day.
     playing: role === 'chat' ? playingLine(reports, now, tz) : null,
+    // The day pulse (RUNTIME.md §3): the wake budget, and the watches that woke this session. It is
+    // in the first 2,000 characters, where nothing outside goes (MEMORY.md §9): a watch set after
+    // outside text is kept back here from every session (`th watch list` reads it).
+    pulse: owners ? pulseLines(db, { sessionId, now, tz, tainted: false, clock: (at) => clock(at, tz) }) : [],
     arranged: theDay?.arranged,
     predicted: theDay?.predicted,
     tiles: theDay?.tiles,

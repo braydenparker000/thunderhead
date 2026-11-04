@@ -24,6 +24,7 @@ import { libraryRoutes } from './areas/library/routes';
 import { scriptureRoutes } from './areas/library/scripture';
 import { memoryRoutes } from './areas/memory/routes';
 import { mindRoutes } from './areas/mind/routes';
+import { watchesRoutes } from './areas/mind/watches/routes';
 import { listenRoutes } from './areas/music/listen-routes';
 import { notesRoutes } from './areas/music/notes-routes';
 import { musicRoutes } from './areas/music/routes';
@@ -130,6 +131,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', conversationRoutes)
   .route('/v1', searchRoutes)
   .route('/v1', mindRoutes)
+  .route('/v1', watchesRoutes)
   .route('/v1', ledgerRoutes)
   .route('/v1', verbsRoutes)
   .route('/v1', surfacesRoutes)

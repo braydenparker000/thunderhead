@@ -266,6 +266,15 @@ const INSIGHT = {
   skill: [skill('chat.any', 34, 0.23), skill('chat.before', 12, null), skill('app.open', 31, -0.05), skill('chat.count', 0, null)],
 };
 
+/** The mind's usage (GET /v1/mind/usage, Settings › The mind's Today): a synthetic week of counts. */
+const usageDay = (day, watch, owner, chat, night) => ({ day, wakes: { owner, watch, roll: 1, schedule: 0, watchdog: 0 }, minutes: { chat, night, reflex: 0 }, night_min: night, watches: { fired: watch, refused: 0 } });
+export const USAGE = {
+  today: { ...usageDay('2026-11-03', 4, 6, 52, 24), watches: { fired: 4, refused: 1 } },
+  days: ['02', '01', '31', '30', '29', '28', '27'].map((d, i) => usageDay(i < 2 ? `2026-11-${d}` : `2026-10-${d}`, i % 3, 2 + i, 30, 20)),
+  budget: 12,
+  live: 3,
+};
+
 const err = (status, code, extra = {}) => [status, { error: { code, message: code, request_id: 'test', ...extra } }];
 
 function answer(state, method, url, body) {
@@ -300,6 +309,7 @@ function answer(state, method, url, body) {
   if (k === 'POST /v1/ops/reports') return [201, { id: crypto.randomUUID(), at: Date.now() }];
   if (k === 'POST /v1/ops/errors') return [204, null];
   if (k === 'GET /v1/insight') return [200, state.insight ?? INSIGHT];
+  if (k === 'GET /v1/mind/usage') return state.usage === 'fail' ? err(503, 'unavailable') : [200, state.usage ?? USAGE];
   return (
     proposalsAnswer(state.proposals, method, p, url, body, (kind) => changed(state.chat, kind)) ??
     memoryAnswer(state.memory, method, p, url, body) ??

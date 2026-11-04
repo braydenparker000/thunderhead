@@ -322,7 +322,15 @@ devices see them; an agent's `GET /v1/settings` has each link's host and mark on
 
 ### 6.6 The mind (`mind.js`)
 
-Four parts: How I talk, Nights, Reaching you, Standing permissions. Each permission is Ask (a
+**Today** sits at the top, above the parts (`mind-meter.js`, from `GET /v1/mind/usage`, read as
+the page opens; [API.md §11.8](../engineering/API.md#118-mind)): the wakes the mind set itself today
+against the wake budget ("4 of 12 wakes I set myself", with any refused and how many watches wait),
+the minutes it was awake and the times it woke for the owner, the night shift's minutes, and one
+row for the 7 days before (wakes a day). Counts only: never why it woke or what it looked at. With
+the budget at Off it says so; when the Worker can't answer it says that, and the settings below
+still work. The day is the owner's logical day (it ends at 04:00).
+
+Five parts: How I talk, Nights, Reaching you, Waking, Standing permissions. Each permission is Ask (a
 decision card first), Do and tell, or Do quietly (the ledger only), and the Worker enforces it
 ([API.md §11.11](../engineering/API.md#standing-permissions)). The page says under them: "Always
 asks first: money, deleting your data, keys and access, reaching another person." (the floors no
@@ -338,6 +346,7 @@ setting lowers). The briefing's section 2 gives each class's position on every w
 | `mind.idle` | range (min): 10 / 30 / 120 | worker | `120` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.pushes` | segments: never / urgent / normal | worker | `normal` | the mind (briefing section 13); the Worker does not enforce it yet |
 | `mind.ask_outside` | switch | worker | `on` | the mind (briefing section 13); the Worker does not enforce it yet |
+| `mind.wake_budget` | range (a day): Off / 6 / 12 / 24 / 40, a sheet picker | worker | `12` | the Worker, at each watch's wake: past it the watch is refused (`over_budget`), Off refuses new watches; the owner's own messages never count ([RUNTIME.md §3, §11](../mind/RUNTIME.md)); the mind (briefing sections 1 and 13) |
 | `mind.permit.music` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 | `mind.permit.podcasts` | segments: ask / tell / quiet | worker | `quiet` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |
 | `mind.permit.reminders` | segments: ask / tell / quiet | worker | `tell` | the Worker, at each write the mind makes (API.md §11.11); the mind (briefing section 13) |

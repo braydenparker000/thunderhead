@@ -7,6 +7,7 @@ import { Fail } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import * as memory from '../memory/undo';
+import * as watches from '../mind/watches/ops';
 import * as surfaces from '../surfaces/ops';
 import * as verbs from '../verbs/ops';
 import { undoPlan } from '../verbs/plan';
@@ -87,6 +88,7 @@ export function undo(w: Writer, c: Caller, id: string, zone: () => string = () =
   } else if (inverse.op && memory.MEMORY_UNDO_OPS.includes(inverse.op)) memory.undo(w, inverse.op, inverse.args ?? {});
   // The Worker-side verbs' stored inverses (verbs/undo.ts).
   else if (inverse.op && VERB_UNDO_OPS.includes(inverse.op)) verbUndo(w, c.actor, inverse.op, inverse.args ?? {}, zone);
+  else if (inverse.op && watches.WATCH_UNDO_OPS.includes(inverse.op)) watches.undo(w, inverse.op, inverse.args ?? {});
   else throw new Fail('validation', { reason: 'not_undoable' });
   store.setStatus(w.db, id, 'undone', w.at);
   const undoId = w.ledger({

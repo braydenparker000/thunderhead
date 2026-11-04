@@ -14,6 +14,7 @@ import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { PINS_KEY, pinsOf, withPin } from '../briefing/pins';
 import * as memory from '../memory/ops';
+import { WATCH_EXECUTORS } from '../mind/watches/verbs';
 import * as podcasts from '../podcasts/sync';
 import * as reminders from '../reminders/ops';
 import { mindSet, writeSetting } from '../settings/mind-set';
@@ -128,6 +129,8 @@ export const WORKER_VERBS: Record<string, Executor> = {
   },
   'briefing.pin_tile': pin(true),
   'briefing.unpin_tile': pin(false),
+  // The day pulse's own (areas/mind/watches): watch.set, watch.cancel.
+  ...WATCH_EXECUTORS,
 };
 
 /** Runs a Worker-side verb; a verb the map lacks is a bug in the contract, not a refusal. */

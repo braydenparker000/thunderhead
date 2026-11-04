@@ -117,6 +117,8 @@ export function resolve(w: Writer, open: string, tz: string, sensed: Map<string,
       w.at,
       r.id,
     );
+    // A watch on a prediction's resolution (areas/mind/watches) hears it on the change feed.
+    w.change('prediction', `prediction:${r.id}`);
     n++;
   }
   return n;

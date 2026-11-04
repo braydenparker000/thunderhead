@@ -44,8 +44,7 @@ export interface Attachment {
   /** `file:<id>`; the bytes are `GET /v1/files/<id>`. */
   ref: string;
   name: string;
-  /** Its media type, as uploaded. */
-  type: string;
+  type: string; // its media type, as uploaded
   bytes: number;
   /** A voice memo's length in seconds, as the phone recorded it. */
   seconds?: number;
@@ -150,9 +149,10 @@ export type LiveFrame =
 export type LiveSignal = 'day_closed' | 'stop';
 
 export interface LiveEvent {
-  type: 'proposal.decided' | 'work.done' | 'verb.result' | 'deploy.result';
+  type: 'proposal.decided' | 'work.done' | 'verb.result' | 'deploy.result' | 'watch.fired';
   ref: string;
   at: Ms;
+  kind?: string; why?: string | null; note?: string | null; // watch.fired: the watch's own (watches.ts)
 }
 
 export interface LiveWaitResponse {
