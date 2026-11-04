@@ -106,6 +106,9 @@ async function boot({ off = false } = {}) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}/music/`, { waitUntil: 'load' });
   await page.waitForFunction((n) => !!navigator.serviceWorker.controller && window.__cp?.player?.queue?.length >= n, N, { timeout: 30_000 });
+  // The player loads its streaming path on its own (player.js) and plays a song plainly until it has:
+  // the same module asked for here resolves only after the player's own ask did.
+  await page.evaluate(() => import('/th/music/stream/deck.js').then(() => {}));
   return { context, page, errors };
 }
 

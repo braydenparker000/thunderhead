@@ -123,7 +123,7 @@ test('Notifications: on, a test, off; a push shows its words, or a line that say
   assert.ok(fetched('nudge-0001'), calls.join('\n'));
   if (canShow) assert.deepEqual(await shown(), [{ title: 'Leave by 16:40', body: 'The bus is 10 minutes early today.', tag: 'nudge-0001', url: '/' }]);
   await cdp.send('ServiceWorker.deliverPushMessage', { origin: base, registrationId, data: JSON.stringify({ k: 'nudge', id: 'gone-00000' }) });
-  await until(async () => fetched('gone-00000') && (!canShow || (await shown()).length > 1)).catch(() => {});
+  await until(async () => fetched('gone-00000') && (!canShow || (await shown()).some((n) => n.tag === 'gone-00000')), { timeout: 30_000 }).catch(() => {});
   assert.ok(fetched('gone-00000'));
   if (canShow) assert.deepEqual((await shown()).find((n) => n.tag === 'gone-00000'), { title: 'Thunderhead', body: 'Thunderhead has something for you.', tag: 'gone-00000', url: '/' });
 
