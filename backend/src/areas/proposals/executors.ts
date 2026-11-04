@@ -6,10 +6,12 @@
 // `agents.revoke` runs in the Auth object after the commit (after.ts).
 import type { Json, ProposalResult } from '../../../../shared/contract/api';
 import { PROPOSAL_OPS, type ProposalOpName } from '../../../../shared/contract/proposals.ts';
+import type { RoutineArgs } from '../../../../shared/contract/routines.ts';
 import { uuidv7 } from '../../lib/ids';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { forget } from '../memory/owner-ops';
+import { approve as approveRoutine } from '../verbs/routines';
 import { pin } from './laws';
 import type { ProposalRow } from './store';
 
@@ -18,7 +20,7 @@ export interface Ran {
   ledger_id: string | null;
 }
 
-type CoreRun = (w: Writer, args: Record<string, Json>, p: ProposalRow, owner: Caller) => Ran;
+type CoreRun = (w: Writer, args: Record<string, Json>, p: ProposalRow, owner: Caller, tz: string) => Ran;
 
 /** The ops that run inside Core's commit. */
 export const CORE_RUNS: Partial<Record<ProposalOpName, CoreRun>> = {
@@ -36,6 +38,8 @@ export const CORE_RUNS: Partial<Record<ProposalOpName, CoreRun>> = {
   // The approval is the record: the mind's same call, sent again naming this card, uses it up
   // (approval.ts); `used_by` names that write once it has.
   'permit.allow': (_w, a) => ({ result: { action: String(a.action), used_by: null }, ledger_id: null }),
+  // The routine as the owner read it on the card, checked again and stored on (verbs/routines.ts).
+  'routine.propose': (w, a, p, owner, tz) => approveRoutine(w, a as unknown as RoutineArgs, p, owner, tz),
 };
 
 /** Every op is run somewhere: in Core (above) or after the commit (after.ts). */

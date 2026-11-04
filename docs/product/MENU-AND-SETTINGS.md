@@ -344,12 +344,18 @@ asks first: money, deleting your data, keys and access, reaching another person.
 setting lowers). The briefing's section 2 gives each class's position on every wake, in the first
 2,000 characters; section 13 says what each position asks of it and lists every verb.
 
-**What lands** closes the page (`mind-lands.js`, 2026-11-04, [BEHAVIOR.md §3.6](../mind/BEHAVIOR.md)):
+**What lands** comes near the end of the page (`mind-lands.js`, 2026-11-04, [BEHAVIOR.md §3.6](../mind/BEHAVIOR.md)):
 a fold read when it opens (`GET /v1/insight/topics`), a row per topic the mind placed in the last 30
 days, worst first, with its counts in words ("Used 3 · took back 0 · left 1 · not seen 0 · on the
 Briefing and home"). A topic the owner passed over three times in a row says "Resting until 4
 December" and has Reopen (`POST /v1/surfaces/topics/:key/reopen`), after which the fold reads again;
 "Counts only, never a score for you."
+
+**Routines** follows it (`mind-routines.js`, 2026-11-04, MIND-PLAN §3.6, API.md §11.11 "Routines"): a
+fold read when it opens (`GET /v1/routines`), one box per routine the owner approved on a card: its
+switch with the name and its condition in words ("Weekdays at 07:30"), then when it last ran ("Last
+ran 4 Nov, 07:30.") with Undo for that run, or why the last try stopped. A routine that is off shows
+Remove. Each switch, Undo or Remove reads the list again. "No routines yet. I ask before I set one up."
 
 | Key | Control | Scope | Default | Read by |
 |---|---|---|---|---|

@@ -140,8 +140,8 @@ test('every row on every page is a catalogue entry, with its detail, a 44 px hit
     const expected = SETTINGS.filter((s) => s.group === name).map((s) => s.key);
     assert.deepEqual(got.keys, expected, `${name}: its rows are its catalogue entries, in order`);
     assert.deepEqual(got.loose, [], `${name}: no row outside the catalogue`);
-    // The mind's What lands fold (its rows are read when it opens) is one read-only row.
-    assert.equal(got.info, { privacy: 3, about: 4, mind: 1 }[name] ?? 0, `${name}: read-only rows`);
+    // The mind's What lands and Routines folds (their rows are read when they open) are read-only rows.
+    assert.equal(got.info, { privacy: 3, about: 4, mind: 2 }[name] ?? 0, `${name}: read-only rows`);
     assert.deepEqual(got.details, [], `${name}: a detail line under each`);
     assert.deepEqual(got.small, [], `${name}: 44 px hit areas`);
     assert.equal(got.unnamed, 0, `${name}: every button has a name`);

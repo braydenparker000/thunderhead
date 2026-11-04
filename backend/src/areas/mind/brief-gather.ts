@@ -16,6 +16,7 @@ import { dueOn } from '../predictions/ops';
 import { dueBefore } from '../reminders/store';
 import type { BriefReports } from '../senses/brief';
 import { getSetting } from '../settings/store';
+import { dueBefore as routinesBefore } from '../verbs/routine-store';
 import { scheduledCount, soonest } from '../verbs/store';
 import { clock } from './brief-text';
 
@@ -49,7 +50,7 @@ export function calendarLines(v: CalendarView, tz: string): { own: string[]; sha
 }
 
 /** What is due today: the owner's reminders until the end of their day (at most 3, then where the
- * rest are), and the verbs and plans waiting for their time. */
+ * rest are), the verbs and plans waiting for their time, and the routines due today. */
 export function dueLines(db: Db, now: number, tz: string): string[] {
   const end = zonedInstant(ownerDay(now + DAY, tz), 0, tz);
   const rows = dueBefore(db, end, 4);
@@ -58,6 +59,10 @@ export function dueLines(db: Db, now: number, tz: string): string[] {
   const waiting = scheduledCount(db);
   const next = waiting ? soonest(db) : null;
   if (next !== null) lines.push(`scheduled: ${waiting} waiting, the next at ${clock(next, tz)} (th verbs scheduled)`);
+  // The routines due before the day ends, in one line (an index read; none on, no row).
+  const due = routinesBefore(db, end, 4);
+  const named = due.slice(0, 3).map((r) => `${JSON.stringify(one(r.name, 40))} at ${clock(r.next_at, tz)}`);
+  if (due.length) lines.push(`routines today: ${named.join(', ')}${due.length > 3 ? ', +more' : ''} (th routine list)`);
   return lines;
 }
 

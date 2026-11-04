@@ -8,6 +8,7 @@
 // mind:chat and checked by the Worker against the message itself. Plain data, Node-importable.
 import * as z from 'zod/mini';
 import type { Actor, Id, Json, Ms } from './api';
+import { routineArgs } from './routines.ts';
 
 /** The four ask-first classes (the standing permissions' floors, permits.ts), `permit` (an action
  * whose standing permission the owner set to Ask), and `memory_big` (memory changes the Worker won't
@@ -19,6 +20,8 @@ export const PROPOSAL_CLASSES = {
   access: { ask_first: true, label: 'Changes access' },
   reach_people: { ask_first: true, label: 'Reaches someone else' },
   permit: { ask_first: true, label: 'You said to ask' },
+  // A routine (routines.ts): a plan the owner approves once, which then runs on its own.
+  routine: { ask_first: true, label: 'Runs on its own' },
   memory_big: { ask_first: false, label: 'Changes what I remember' },
 } as const;
 export type ProposalClass = keyof typeof PROPOSAL_CLASSES;
@@ -46,9 +49,9 @@ export const PROPOSAL_LIMITS = {
 
 /** Whether a card must carry odds (BEHAVIOR.md §4): an arrangement the mind proposes, filed under
  * `permit` (a standing permission the owner set to Ask: music, the tiles, practice…), says how sure
- * it is the owner wants it, which the owner's answer then settles (GET /v1/predictions/calibration,
+ * it is the owner wants it (so does a routine), which the owner's answer then settles (GET /v1/predictions/calibration,
  * `cards`). The floors and memory_big keep odds optional. */
-export const oddsRequired = (cls: ProposalClass): boolean => cls === 'permit';
+export const oddsRequired = (cls: ProposalClass): boolean => cls === 'permit' || cls === 'routine';
 
 /** A card's odds in words, worded only here (scripts/contract.mjs copies this function into the
  * phone's contract.js for the card): below .4 a guess, .4 to .75 fairly sure, above .75 sure. */
@@ -128,6 +131,14 @@ export const PROPOSAL_OPS = {
     ref: ['call', 'call'],
     args: z.strictObject({ action: z.string().check(z.regex(/^[a-z][a-z0-9]*\.[a-z][a-z0-9_]*$/)), call: sha256 }),
     doc: "Let the mind take one action its standing permission (Ask) or a floor keeps behind a card: exactly the call its refusal named (`call`, the SHA-256 of the action and its canonical body), once, within 7 days of the yes. The refusal's details carry this spec ready to raise (API.md §11.11).",
+  },
+  'routine.propose': {
+    classes: ['routine'],
+    by: ['C', 'N'],
+    runs: 'core',
+    ref: ['routine', 'id'],
+    args: routineArgs,
+    doc: "Store a routine the owner approves once (routines.ts): a plan of 1-8 verbs (one why, one line on home) and a condition, `at` HH:MM on some weekdays, `after` a sense type (at most once a day) or `fact` an observed routine fact's usual time. The card's target is the steps and the condition in words, written by the Worker; the yes stores it on, under the permit as it stands then, and it runs without a session until switched off.",
   },
 } as const satisfies Record<string, ProposalOp>;
 export type ProposalOpName = keyof typeof PROPOSAL_OPS;

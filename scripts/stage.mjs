@@ -114,7 +114,9 @@ const budgets = [
   // (2026-11-04, verbs batch 2) +987 measured (76,689): contract.js's seven new verbs, the apps'
   // arrangement kinds and senses, and the law-8 topics.
   // (2026-11-04, the apps' arrangements) +116 measured (76,689 → 76,805): guitar.start_practice in th/contract.js.
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 76_805],
+  // (2026-11-04, routines) +65 measured (76,805 → 76,870): th/contract.js's `routine` card class and
+  // change kind.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 76_870],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.

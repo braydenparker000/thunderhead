@@ -41,6 +41,7 @@ import { searchRoutes } from './areas/search/routes';
 import { sensesRoutes } from './areas/senses/routes';
 import { surfacesRoutes } from './areas/surfaces/routes';
 import { verbsRoutes } from './areas/verbs/routes';
+import { routineRoutes } from './areas/verbs/routine-routes';
 import { watchdogsRoutes } from './areas/watchdogs/routes';
 import { workRoutes } from './areas/work/routes';
 import type { AppEnv } from './http/auth';
@@ -134,6 +135,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', watchesRoutes)
   .route('/v1', ledgerRoutes)
   .route('/v1', verbsRoutes)
+  .route('/v1', routineRoutes)
   .route('/v1', surfacesRoutes)
   .route('/v1', memoryRoutes)
   .route('/v1', importRoutes)

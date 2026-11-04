@@ -35,7 +35,7 @@ import { type Call, type Prepared, phoneArgs, queuePhone, runWorker } from './ru
 import * as schedule from './schedule';
 import * as store from './store';
 
-interface Step {
+export interface Step {
   verb: string;
   schema: number;
   args: JsonObject;
@@ -43,7 +43,7 @@ interface Step {
 }
 /** What a plan's row keeps in `args_json`: its line and its steps (a phone step's args as the phone
  * gets them). Its `result_json` holds the steps' verb and ledger ids once it ran. */
-interface Kept {
+export interface Kept {
   what: string;
   steps: Step[];
   /** The class the gate filed it under (its strictest step's), for a retry's answer. */
@@ -52,7 +52,7 @@ interface Kept {
 type Done = { verb_id: string; ledger_id: string }[];
 
 /** Each step against its spec, before anything is gated or runs: 422 naming the step. */
-function validate(steps: PlanStep[], why: string): Step[] {
+export function validate(steps: PlanStep[], why: string): Step[] {
   return steps.map((s, i) => {
     const spec = verbSpec(s.verb);
     if (!spec) throw invalid(`steps.${i}.verb`, 'unknown verb');

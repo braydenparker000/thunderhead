@@ -542,6 +542,32 @@ CREATE TABLE reports (
   PRIMARY KEY (kind, at, id)
   ) WITHOUT ROWID;
 
+CREATE TABLE routines (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  what TEXT NOT NULL,
+  why TEXT NOT NULL,
+  steps_json TEXT NOT NULL,
+  cond_json TEXT NOT NULL,
+  when_text TEXT NOT NULL,
+  event_type TEXT,
+  actor TEXT NOT NULL,
+  proposal_id TEXT NOT NULL,
+  permit TEXT,
+  status TEXT NOT NULL,
+  approved_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  next_at INTEGER,
+  last_run_at INTEGER,
+  last_ledger_id TEXT,
+  last_day TEXT,
+  last_error TEXT
+  ) WITHOUT ROWID;
+
+CREATE INDEX routines_event ON routines (event_type) WHERE event_type IS NOT NULL AND status = 'on';
+
+CREATE INDEX routines_next ON routines (next_at) WHERE next_at IS NOT NULL;
+
 CREATE TABLE session_notes (
   id TEXT PRIMARY KEY,
   session_id TEXT,
