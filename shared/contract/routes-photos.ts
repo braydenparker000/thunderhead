@@ -10,10 +10,11 @@ export const PHOTO_ROUTES = {
   'GET /v1/photos': { who: ['D'], phase: 'P9', note: '?before=<day>: days newest first, 4 photos and a count each; ?day=: one day' },
   'GET /v1/photos/deleted': { who: ['D'], phase: 'P9', note: 'Recently deleted, newest first: 30 days' },
   'PUT /v1/photos/:id': { who: ['D'], phase: 'P9', note: 'registers an upload: Drive id, size, hash, camera, capture time, format' },
-  'GET /v1/photos/:id': { who: ['D'], phase: 'P9' },
+  'GET /v1/photos/:id': { who: ['D'], phase: 'P9', note: 'the photo and its recipe' },
   'PATCH /v1/photos/:id': { who: ['D'], phase: 'P9', note: '{rating 0–5, flag pick|reject|null}' },
   'DELETE /v1/photos/:id': { who: ['D'], phase: 'P9', note: 'to Recently deleted' },
   'POST /v1/photos/:id/restore': { who: ['D'], phase: 'P9' },
+  'PUT /v1/photos/:id/recipe': { who: ['D'], phase: 'P9', note: 'the edit as a recipe (crs names); the same hash again writes nothing; a ledger row, undo = the recipe before' },
   'PUT /v1/photos/:id/preview': { who: ['D'], phase: 'P9', note: 'the JPEG preview, ≤ 400 KB' },
   'GET /v1/photos/:id/preview': { who: ['D'], phase: 'P9', note: 'the preview bytes, private; an ETag' },
 } as const;

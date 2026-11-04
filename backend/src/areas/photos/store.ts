@@ -21,17 +21,19 @@ export interface PhotoRow {
   /** The bucket key of its preview: the Worker's alone, never sent. */
   preview_key: string | null;
   preview_sha: string | null;
+  /** The recipe's hash (its JSON is read apart, recipe.ts); null as shot. */
+  recipe_sha: string | null;
   deleted_at: number | null;
   created_at: number;
   updated_at: number;
 }
 
 const COLS =
-  'id, drive_id, name, format, bytes, sha256, camera, film, width, height, taken_at, day, rating, flag, preview_key, preview_sha, deleted_at, created_at, updated_at';
+  'id, drive_id, name, format, bytes, sha256, camera, film, width, height, taken_at, day, rating, flag, preview_key, preview_sha, recipe_sha, deleted_at, created_at, updated_at';
 
 export function toItem(r: PhotoRow): PhotoItem {
-  const { preview_key, preview_sha: _sha, updated_at: _u, ...rest } = r;
-  return { ...rest, preview: preview_key !== null };
+  const { preview_key, preview_sha: _sha, recipe_sha, updated_at: _u, ...rest } = r;
+  return { ...rest, preview: preview_key !== null, edited: recipe_sha !== null };
 }
 
 export const byId = (db: Db, id: string): PhotoRow | null =>
@@ -42,7 +44,7 @@ export const byDrive = (db: Db, driveId: string): PhotoRow | null =>
 
 export function insert(db: Db, r: PhotoRow): void {
   db.run(
-    `INSERT INTO photos (${COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO photos (${COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     r.id,
     r.drive_id,
     r.name,
@@ -59,6 +61,7 @@ export function insert(db: Db, r: PhotoRow): void {
     r.flag,
     r.preview_key,
     r.preview_sha,
+    r.recipe_sha,
     r.deleted_at,
     r.created_at,
     r.updated_at,

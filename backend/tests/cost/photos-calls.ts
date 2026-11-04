@@ -1,6 +1,6 @@
 // Photos' calls of the cost suite (cost.test.ts checks every budget), metered in Core: an import
 // (the photo's row, then its preview's), the shelf's first page of 14 days with four photos each,
-// one whole day, a rating and a delete. The shelf holds 15 days of 6 invented photos first.
+// one whole day, a rating, a recipe saved (a change, then the same again) and a delete. The shelf holds 15 days of 6 invented photos first.
 import { exports } from 'cloudflare:workers';
 import type { SignedIn } from '../../../shared/contract/api';
 import { uuidv7 } from '../../src/lib/ids';
@@ -56,6 +56,19 @@ export async function photosCalls(cost: Cost, grant: (ip: string, password?: str
   await cost(
     'PATCH /v1/photos/:id (Core)',
     () => api('PATCH', `/v1/photos/${id}`, { ...d, body: { rating: 3 } }),
+    200,
+    k,
+  );
+  const recipe = { Exposure2012: 0.4, Contrast2012: 12, Shadows2012: 30, Vibrance: 15, Texture: 10, Sharpness: 50 };
+  await cost(
+    'PUT /v1/photos/:id/recipe (a change) (Core)',
+    () => api('PUT', `/v1/photos/${id}/recipe`, { ...d, body: { recipe } }),
+    200,
+    k,
+  );
+  await cost(
+    'PUT /v1/photos/:id/recipe (the same again) (Core)',
+    () => api('PUT', `/v1/photos/${id}/recipe`, { ...d, body: { recipe } }),
     200,
     k,
   );

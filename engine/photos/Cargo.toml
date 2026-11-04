@@ -1,0 +1,45 @@
+[package]
+name = "photos-engine"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+publish = false
+description = "Photos' RAW engine: LightCraft's decode and colour crates behind a small wasm-bindgen API"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+# LightCraft (MIT OR Apache-2.0) pinned at one commit. Cargo cannot apply a patch file, so
+# scripts/photos-engine.mjs checks this commit out into vendor/lightcraft, applies
+# patches/lightcraft-memory.diff (the two memory patches) and the [patch] below points the git
+# dependency at that patched checkout.
+[dependencies]
+lightcraft-raw = { git = "https://github.com/storytold/lightcraft", rev = "ae7ac42a109e3a18481c916d55516ed60535e49f", default-features = false }
+lightcraft-color = { git = "https://github.com/storytold/lightcraft", rev = "ae7ac42a109e3a18481c916d55516ed60535e49f" }
+lightcraft-raster = { git = "https://github.com/storytold/lightcraft", rev = "ae7ac42a109e3a18481c916d55516ed60535e49f", default-features = false }
+half = { version = "2", default-features = false }
+bytemuck = "1"
+wasm-bindgen = "=0.2.129"
+js-sys = "0.3"
+
+[patch."https://github.com/storytold/lightcraft"]
+lightcraft-raw = { path = "vendor/lightcraft/crates/raw" }
+lightcraft-color = { path = "vendor/lightcraft/crates/color" }
+lightcraft-raster = { path = "vendor/lightcraft/crates/raster" }
+
+[features]
+default = ["jxl"]
+# DNG 1.7 JPEG XL tiles (jxl-oxide): phones write them.
+jxl = ["lightcraft-raw/jxl"]
+
+[profile.release]
+opt-level = "s"
+lto = "fat"
+codegen-units = 1
+panic = "abort"
+strip = true
+debug = false
+
+[workspace]
+# The patched LightCraft checkout is its own workspace, not part of this one.
+exclude = ["vendor"]

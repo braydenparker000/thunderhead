@@ -75,7 +75,11 @@ hand-pointing
 sparkle
 shield-check
 arrow-down
-# Photos (apps/photos): rate, flag, reject
+# Photos (apps/photos): rate, flag, reject; the editor's panels, Auto and B&W
+sun
+triangle
+magic-wand
+circle-half
 star
 star-fill
 flag

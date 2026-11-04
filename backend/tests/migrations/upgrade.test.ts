@@ -188,7 +188,7 @@ describe('upgrade to provenance (Core step 32, MEMORY.md §6 M11)', () => {
       sql.exec('ALTER TABLE threads DROP COLUMN topic');
       sql.exec('ALTER TABLE wakes DROP COLUMN outside_ms');
       sql.exec('ALTER TABLE day_notes DROP COLUMN voice');
-      // Step 41 (Photos) added the shelf's tables.
+      // Step 41 (Photos) added the shelf’s tables, and 42 the recipe’s columns on them.
       for (const t of ['photos', 'photos_gone']) sql.exec(`DROP TABLE IF EXISTS ${t}`);
       sql.exec('DELETE FROM _migrations WHERE version > 31');
       for (const t of ['facts', 'day_notes', 'open_threads']) sql.exec(`DELETE FROM ${t}`);

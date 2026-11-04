@@ -3,6 +3,10 @@
 // per photo (ids, numbers, the camera's words) and a small JPEG preview in the private bucket. No
 // pixel and no Drive token ever reaches the mind. Plain data with erasable types only.
 
+import type { PhotoRecipe } from './photos-recipe.ts';
+
+export * from './photos-recipe.ts';
+
 export const PHOTO_LIMITS = {
   /** A preview the phone sends: a JPEG of at most this many bytes (2048 px at quality ~0.8). */
   preview_bytes: 400 * 1024,
@@ -27,6 +31,8 @@ export const PHOTO_LIMITS = {
   film_chars: 40,
   /** An original's largest size (Drive takes far more; this only refuses nonsense). */
   bytes_max: 2 * 1024 * 1024 * 1024,
+  /** A recipe's canonical JSON, in bytes (all controls and four full curves fit in about 3 KB). */
+  recipe_bytes: 8 * 1024,
 } as const;
 
 /** The formats the picker takes. HEIC only where the phone's browser decodes it. */
@@ -61,6 +67,8 @@ export interface PhotoItem {
   flag: PhotoFlag | null;
   /** Whether the Worker holds a preview (GET /v1/photos/:id/preview). */
   preview: boolean;
+  /** Whether it has a recipe other than "as shot" (PUT /v1/photos/:id/recipe). */
+  edited: boolean;
   deleted_at: number | null;
   created_at: number;
 }
@@ -78,6 +86,12 @@ export interface PutPhotoRequest {
   height?: number | null;
   /** EXIF capture time; else the file's own time. */
   taken_at: number;
+}
+
+/** GET /v1/photos/:id: the photo and its recipe (`{}` as shot). */
+export interface PhotoResponse {
+  photo: PhotoItem;
+  recipe: PhotoRecipe;
 }
 
 export interface PatchPhotoRequest {

@@ -27,6 +27,16 @@ node scripts/test-part.mjs --measure    # re-time every file into scripts/test-d
 SITE_URL=https://<site> node --test tests/home-browser.test.mjs   # check the live site
 ```
 
+## Photos' RAW engine
+
+`engine/photos` is a small Rust crate (LightCraft's decoders, pinned, with our memory patches); its
+build is committed in `frontend/photos/engine/` with hashes in `engine/photos/build.json`. To rebuild after
+changing it: Rust with the `wasm32-unknown-unknown` target and `wasm-bindgen-cli` 0.2.129, then
+`node scripts/photos-engine.mjs` (it checks LightCraft out at the pinned commit into
+`engine/photos/vendor/`, applies the patch, builds, binds and records the hashes), then update the
+engine line in `scripts/stage.mjs` to the new size. `node scripts/photos-engine.mjs --check` checks
+the committed files. Details: [engine/photos/README.md](engine/photos/README.md).
+
 ## Before you push
 
 `npm run preflight` is the one command (about a minute): it rewrites the contract copies, then runs the

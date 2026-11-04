@@ -1,6 +1,6 @@
 // The one service worker of the shell, scope / (ARCHITECTURE.md §8). stage.mjs writes the build
 // number into BUILD; each release is precached whole into the cache th-<BUILD> from
-// /precache.json, and a new worker waits until the shell says it is a safe moment (§8.3).
+// /precache.json (which leaves out labs, vendor/ and Photos' RAW engine: site-config.mjs), and a new worker waits until the shell says it is a safe moment (§8.3).
 // Never touched: the API and every other host, the ported app folders and /assets/ (they keep
 // their own service workers), and anything that is not a GET. It also shows Web Push notifications.
 const BUILD = 0;

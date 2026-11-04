@@ -1,15 +1,15 @@
 {
-  "id": "2026-11-04-photos-shelf",
+  "id": "2026-11-04-photos-edit",
   "date": "2026-11-04",
   "lines": [
     {
-      "text": "Photos is on the ring: import RAF, DNG or JPEG, and your originals go straight to your own Google Drive."
+      "text": "Photos can edit now: open a photo, tap Edit, and use Light, Color, Effects and Detail, one slider at a time."
     },
     {
-      "text": "Your shelf shows each day's photos, newest first, and works offline. Hold a photo to rate, pick or delete it."
+      "text": "RAF files from your Fujifilm open in full; hold the photo to see it as shot, use two fingers for the histogram."
     },
     {
-      "text": "Connect Google Drive once in Settings, Photos."
+      "text": "Your edits save as you go, even offline, and never change the original in your Drive."
     }
   ]
 }

@@ -1,5 +1,6 @@
 // Photos (PHOTOS.md, DATA.md §4.14): one row per photo on the shelf, and the Drive ids of photos
-// purged from Recently deleted until their originals are in Drive's own trash. Schema step 41.
+// purged from Recently deleted until their originals are in Drive's own trash. Schema step 41; the
+// recipe's two columns, step 42.
 import { PHOTO_LIMITS } from '../../../../shared/contract/photos.ts';
 import { DAY } from '../../lib/time';
 import type { Migration, TableInfo } from '../../objects/base';
@@ -43,6 +44,14 @@ export const PHOTOS_MIGRATIONS: Migration[] = [
         purged_at INTEGER NOT NULL
       ) WITHOUT ROWID`,
     ],
+  },
+  {
+    version: 42,
+    name: 'photos_recipe',
+    kind: 'expand',
+    // A photo's recipe (PHOTOS.md, the editor): its canonical JSON (defaults left out) and that
+    // JSON's SHA-256, so the same recipe again writes nothing. Null is "as shot".
+    sql: ['ALTER TABLE photos ADD COLUMN recipe_json TEXT', 'ALTER TABLE photos ADD COLUMN recipe_sha TEXT'],
   },
 ];
 

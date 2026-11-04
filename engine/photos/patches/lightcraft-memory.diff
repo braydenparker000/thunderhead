@@ -1,0 +1,162 @@
+diff --git a/crates/raw/src/lib.rs b/crates/raw/src/lib.rs
+index b0398cd0..a0999424 100644
+--- a/crates/raw/src/lib.rs
++++ b/crates/raw/src/lib.rs
+@@ -53,6 +53,8 @@ mod vendor;
+ mod wb_estimate;
+ 
+ pub use demosaic::{Method, demosaic};
++/// Streaming RAF decode (Photos): headers without samples, then sensor columns band by band.
++pub use vendor::raf::{decode_columns as raf_decode_columns, decode_header as raf_decode_header};
+ pub use dngwrite::{DngCompression, DngWriteOptions, write_dng, write_rendered_dng};
+ pub use lens_metadata::LensMetadata;
+ pub use lightcraft_color::Mat3;
+diff --git a/crates/raw/src/vendor/raf.rs b/crates/raw/src/vendor/raf.rs
+index b60a7426..094a566f 100644
+--- a/crates/raw/src/vendor/raf.rs
++++ b/crates/raw/src/vendor/raf.rs
+@@ -131,6 +131,71 @@ fn fuji_kelvin_presets(ifd: &Ifd) -> Option<crate::kelvin_presets::KelvinPresets
+     crate::kelvin_presets::KelvinPresets::from_neutral_pair(a, d65)
+ }
+ 
++/// Headers of a RAF as [`decode`] reads them, without samples, for hosts that stream the samples with
++/// [`decode_columns`]: the white level is the nominal `2^bits − 1` (a full decode measures it from the samples).
++pub fn decode_header(bytes: &[u8]) -> Result<RawImage> {
++    let mut img = decode(bytes, Mode::Header)?;
++    img.white = vec![((1u32 << img.bits.clamp(1, 16)) - 1) as f32];
++    Ok(img)
++}
++
++/// Sensor columns `[x0, x1)` of a RAF (raw-data coordinates, margins included), handed to `sink(band_x0,
++/// band_width, samples)` band by band from left to right, each band full height and row-major. Compressed files
++/// decode only the 768-px stripes the columns overlap, one at a time; uncompressed files unpack only those
++/// columns, in 256-px bands. Peak extra memory is one band.
++pub fn decode_columns(bytes: &[u8], x0: usize, x1: usize, sink: &mut dyn FnMut(usize, usize, &[u16])) -> Result<()> {
++    let h = header(bytes)?;
++    let raw = h.raw.ok_or_else(|| RawError::Corrupt("RAF without raw data".into()))?;
++    let ifd = raw_ifd(raw)?;
++    let get = |t: u16| ifd.u64(t).map(|v| usize::try_from(v).map_err(|_| RawError::Limit("RAF IFD value too large"))).transpose();
++    let (w, hgt) = (get(0xf001)?.unwrap_or(0), get(0xf002)?.unwrap_or(0));
++    let bits = ifd.u64(0xf003).and_then(|v| u32::try_from(v).ok()).unwrap_or(0);
++    let (off, len) = (get(0xf007)?.unwrap_or(0), get(0xf008)?.unwrap_or(0));
++    if w == 0 || hgt == 0 || !(8..=16).contains(&bits) {
++        return Err(RawError::Corrupt(format!("RAF raw IFD: {w}x{hgt}, {bits} bits")));
++    }
++    let n = w.checked_mul(hgt).filter(|n| *n <= crate::MAX_SAMPLES).ok_or(RawError::Limit("image too large"))?;
++    let src = raw
++        .get(off..off.checked_add(len).ok_or_else(|| RawError::Corrupt("RAF strip size overflow".into()))?)
++        .ok_or_else(|| RawError::Corrupt("RAF strip outside file".into()))?;
++    let (x0, x1) = (x0.min(w), x1.min(w));
++    if be32(bytes, 108).unwrap_or(0) != 0 {
++        return super::rafc::decode_columns(src, w, hgt, bits, cfa(&h).width == 6, x0, x1, sink);
++    }
++    let words32 = ifd.u64(PACKED_WORDS).is_some_and(|v| v != 0);
++    let store = if len as u64 >= (n as u64) * 2 { 16 } else { bits };
++    let packed_row = w.checked_mul(store as usize).map(|n| n.div_ceil(8)).ok_or(RawError::Limit("RAF row too large"))?;
++    let stride = match get(0xf005)?.unwrap_or(0) {
++        0 => packed_row,
++        words => words.checked_mul(4).ok_or(RawError::Limit("RAF stride too large"))?.max(packed_row),
++    };
++    let required = stride.checked_mul(hgt - 1).and_then(|n| n.checked_add(packed_row)).ok_or(RawError::Limit("RAF strip too large"))?;
++    if len < required {
++        return Err(RawError::Unsupported(format!("Fujifilm RAF packing ({len} bytes for {w}x{hgt} {bits}-bit)")));
++    }
++    let mut row = if store == 16 { Vec::new() } else { vec![0u16; w] };
++    let mut band = Vec::new();
++    // narrower bands than the compressed stripes: an uncompressed band is only a copy, so keep it small
++    for bx in (x0..x1).step_by(256) {
++        let bw = 256.min(x1 - bx);
++        band.clear();
++        band.reserve(bw * hgt);
++        for y in 0..hgt {
++            let s = src.get(y * stride..y * stride + packed_row).unwrap_or(&[]);
++            if store == 16 {
++                let cols = s.get(bx * 2..(bx + bw) * 2).unwrap_or(&[]);
++                band.extend(cols.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)));
++            } else {
++                unpack_row(s, store, words32, &mut row);
++                band.extend_from_slice(&row[bx..bx + bw]);
++            }
++        }
++        band.resize(bw * hgt, 0);
++        sink(bx, bw, &band);
++    }
++    Ok(())
++}
++
+ pub(crate) fn decode(bytes: &[u8], mode: Mode) -> Result<RawImage> {
+     let h = header(bytes)?;
+     let raw = h.raw.ok_or_else(|| RawError::Corrupt("RAF without raw data".into()))?;
+diff --git a/crates/raw/src/vendor/rafc.rs b/crates/raw/src/vendor/rafc.rs
+index fd08f986..80407a43 100644
+--- a/crates/raw/src/vendor/rafc.rs
++++ b/crates/raw/src/vendor/rafc.rs
+@@ -30,7 +30,7 @@ struct Stripe<'a> {
+     width: usize,
+ }
+ 
+-pub(super) fn decode(src: &[u8], width: usize, height: usize, bits: u32, xtrans: bool, mode: Mode) -> Result<Vec<u16>> {
++fn parse<'a>(src: &'a [u8], width: usize, height: usize, bits: u32, xtrans: bool) -> Result<(usize, Vec<Stripe<'a>>)> {
+     let h = src.get(..16).ok_or_else(|| corrupt("truncated header"))?;
+     if !h.starts_with(b"IS") {
+         return Err(corrupt("missing compression signature"));
+@@ -89,19 +89,55 @@ pub(super) fn decode(src: &[u8], width: usize, height: usize, bits: u32, xtrans:
+         stripes.push(Stripe { bytes, quantizers, width: (width - i * BLOCK).min(BLOCK) });
+         offset = end;
+     }
++    Ok((n, stripes))
++}
++
++pub(super) fn decode(src: &[u8], width: usize, height: usize, bits: u32, xtrans: bool, mode: Mode) -> Result<Vec<u16>> {
++    let (n, stripes) = parse(src, width, height, bits, xtrans)?;
+     if mode == Mode::Header {
+         return Ok(Vec::new());
+     }
+-    let decoded: Vec<Vec<u16>> = stripes.par_iter().map(|s| decode_stripe(s, height, bits, xtrans)).collect::<Result<_>>()?;
++    // Decode as many stripes at a time as there are threads and copy each batch into place before the next, so
++    // the decoded stripes never coexist with the output as a second full-size copy (single-threaded wasm32 holds
++    // one 768-px stripe beside the output instead of the whole image).
+     let mut output = vec![0; n];
+-    for (i, (stripe, data)) in stripes.iter().zip(&decoded).enumerate() {
+-        for (row, samples) in output.chunks_exact_mut(width).zip(data.chunks_exact(stripe.width)) {
+-            row.get_mut(i * BLOCK..i * BLOCK + stripe.width).ok_or_else(|| corrupt("invalid stripe placement"))?.copy_from_slice(samples);
++    let batch = rayon::current_num_threads().max(1);
++    for (b, group) in stripes.chunks(batch).enumerate() {
++        let decoded: Vec<Vec<u16>> = group.par_iter().map(|s| decode_stripe(s, height, bits, xtrans)).collect::<Result<_>>()?;
++        for (j, (stripe, data)) in group.iter().zip(&decoded).enumerate() {
++            let i = b * batch + j;
++            for (row, samples) in output.chunks_exact_mut(width).zip(data.chunks_exact(stripe.width)) {
++                row.get_mut(i * BLOCK..i * BLOCK + stripe.width).ok_or_else(|| corrupt("invalid stripe placement"))?.copy_from_slice(samples);
++            }
+         }
+     }
+     Ok(output)
+ }
+ 
++/// The stripes overlapping sensor columns `[x0, x1)`, decoded one at a time and handed to `sink(stripe_x0,
++/// stripe_width, samples)` (full height, row-major), so a host holds one stripe instead of the whole mosaic.
++pub(super) fn decode_columns(
++    src: &[u8],
++    width: usize,
++    height: usize,
++    bits: u32,
++    xtrans: bool,
++    x0: usize,
++    x1: usize,
++    sink: &mut dyn FnMut(usize, usize, &[u16]),
++) -> Result<()> {
++    let (_, stripes) = parse(src, width, height, bits, xtrans)?;
++    for (i, stripe) in stripes.iter().enumerate() {
++        let sx = i * BLOCK;
++        if sx + stripe.width <= x0 || sx >= x1 {
++            continue;
++        }
++        let data = decode_stripe(stripe, height, bits, xtrans)?;
++        sink(sx, stripe.width, &data);
++    }
++    Ok(())
++}
++
+ struct Bits<'a> {
+     src: &'a [u8],
+     pos: usize,

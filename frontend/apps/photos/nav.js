@@ -1,6 +1,6 @@
 // @ts-check
 // Photos' places (the storage website has no rewrites, so they are queries on /photos/): the shelf
-// (no query), `?day=` one day, `?photo=` the full view, `?deleted=1` Recently deleted. Each is a
+// (no query), `?day=` one day, `?photo=` the full view, `?edit=` its editor, `?deleted=1` Recently deleted. Each is a
 // history entry, so Android's back closes the sheet, then the view, then Photos (GESTURES.md).
 
 /** @type {() => void} */

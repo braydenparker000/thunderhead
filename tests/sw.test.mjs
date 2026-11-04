@@ -13,10 +13,10 @@ import { checkDue, safeToApply, CHECK_EVERY_MS } from '../frontend/th/update-rul
 const REPO = fileURLToPath(new URL('../', import.meta.url));
 const SITE = join(REPO, 'frontend');
 
-test('precache.json leaves out lab/, vendor/, the route stubs, the ported folders and the worker scripts', () => {
+test('precache.json leaves out lab/, vendor/, Photos\' RAW engine, the route stubs, the ported folders and the worker scripts', () => {
   for (const p of ['index.html', 'signin/index.html', 'setup/setup.js', 'ui/icons.svg', 'config.js', 'manifest.webmanifest', '.well-known/change-password/index.html'])
     assert.ok(precached(p), p);
-  for (const p of ['lab/feel/panel.js', 'lab/feel/panel.css', 'lab/stream/index.html', 'vendor/x-1/x.js', 'music/index.html', 'astra/sw.js', 'assets/config.js', 'sw.js', 'sw-kill.js', 'precache.json', 'ui/csp.txt', ...APP_ROUTES.map((r) => `${r}/index.html`)])
+  for (const p of ['lab/feel/panel.js', 'lab/feel/panel.css', 'lab/stream/index.html', 'photos/engine/photos_engine.js', 'photos/engine/photos_engine_bg.wasm', 'vendor/x-1/x.js', 'music/index.html', 'astra/sw.js', 'assets/config.js', 'sw.js', 'sw-kill.js', 'precache.json', 'ui/csp.txt', ...APP_ROUTES.map((r) => `${r}/index.html`)])
     assert.ok(!precached(p), p);
 });
 
@@ -47,12 +47,13 @@ test('stage writes the build into sw.js and a precache list whose sizes match th
   for (const page of ['index.html', 'signin/index.html', 'setup/index.html', 'recover/index.html', '404.html'])
     assert.ok(files.some((f) => f.path === page), page);
   assert.ok(!files.some(f => f.path.startsWith('lab/')), 'labs never enter the offline boot cache');
-  // Compare every staged path with the pre-T1b membership rule, allowing only lab/ to leave.
+  // Compare every staged path with the pre-T1b membership rule, allowing only lab/ and Photos' RAW
+  // engine (photos/engine/, 2.2 MB, needed only with the network: site-config.mjs) to leave.
   const before = path => !['vendor', ...PORTED].includes(path.split('/')[0])
     && !APP_ROUTES.some(r => path === `${r}/index.html`)
     && !['sw.js', 'sw-kill.js', 'precache.json'].includes(path) && !path.endsWith('.txt');
   const paths = readdirSync(out, { recursive: true }).filter(path => statSync(join(out, path)).isFile());
-  assert.deepEqual(files.map(f => f.path).sort(), paths.filter(path => before(path) && !path.startsWith('lab/')).sort(), 'all other precache members stay');
+  assert.deepEqual(files.map(f => f.path).sort(), paths.filter(path => before(path) && !path.startsWith('lab/') && !path.startsWith('photos/engine/')).sort(), 'all other precache members stay');
 });
 
 test('an update applies only when nothing plays, nothing is typed and nothing is open', () => {
@@ -74,7 +75,7 @@ test('ui/icons.svg is built from ui/icons.txt, within budget, and the shell draw
   const sprite = readFileSync(join(SITE, 'ui/icons.svg'), 'utf8');
   assert.equal(sprite, buildSprite(), 'ui/icons.svg is stale: run node scripts/icons.mjs');
   // The same measured budget as scripts/stage.mjs (2026-11-04, Photos: star, star-fill, flag, prohibit).
-  assert.ok(Buffer.byteLength(sprite) <= 30_722, `sprite is ${Buffer.byteLength(sprite)} bytes`);
+  assert.ok(Buffer.byteLength(sprite) <= 32_722, `sprite is ${Buffer.byteLength(sprite)} bytes`);
   for (const f of ['index.html', 'apps/home/home.js'])
     assert.doesNotMatch(readFileSync(join(SITE, f), 'utf8'), /<path\b/, `${f} still draws an inline icon`);
   for (const [, name] of readFileSync(join(SITE, 'index.html'), 'utf8').matchAll(/icons\.svg#([a-z-]+)/g))
