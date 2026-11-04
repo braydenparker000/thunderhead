@@ -25,7 +25,7 @@ import { calibration } from '../predictions/ops';
 import { lawsLine } from '../proposals/laws';
 import * as proposals from '../proposals/store';
 import type { BriefReports } from '../senses/brief';
-import { mindSettingLines } from '../settings/catalog';
+import { mindSettings } from '../settings/catalog';
 import { quietUntil } from '../settings/quiet';
 import { getSetting } from '../settings/store';
 import * as watchdogs from '../watchdogs/ops';
@@ -68,6 +68,8 @@ export function assemble(
   // Reflex reads no memory (RUNTIME.md §7.1): none of it is even read for its briefing.
   const memory = role !== 'reflex';
   const current = memory ? facts.recentCurrent(db, FACTS_READ) : [];
+  // The mind's settings, one read: section 13's lines, its name and the owner's hours (section 1).
+  const mine = mindSettings(db);
   // Waiting messages are the only words off the record a briefing shows (the chat must answer
   // them), each marked, with the role-side note (brief.ts); today's, yesterday's and the full
   // file's messages are the daily threads' only, and a deleted thread's waiting ones were settled.
@@ -119,7 +121,9 @@ export function assemble(
     profile: memory ? renderProfile(current, now, tz).text : '',
     days: memory ? notes.dayNotes(db, dayBefore(day, 7), dayBefore(day), 7) : [],
     night: nightLine(db, day, opts.nightConfigured),
-    settings: mindSettingLines(db),
+    settings: mine.lines,
+    name: String(mine.value('mind.name') ?? ''),
+    hours: { day: String(mine.value('mind.day_start')), night: String(mine.value('mind.night_start')) },
     weather: owners ? weatherLine(db, now, tz) : null,
     calendar: calendar.own,
     due: owners ? dueLines(db, now, tz) : [],

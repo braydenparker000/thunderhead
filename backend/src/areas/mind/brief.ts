@@ -72,6 +72,10 @@ export interface BriefInput {
   night: string | null;
   /** Section 13: `key: value` for each setting the mind reads (settings/catalog.ts mindSettingLines). */
   settings?: string[];
+  /** The name the owner gave the mind (`mind.name`; empty: none), and their day's hours
+   * (`mind.day_start`, `mind.night_start`) that section 1's "now" counts day or evening by. */
+  name?: string;
+  hours?: { day: string; night: string };
   /** Today's state for section 1 (brief-gather.ts): the weather; the owner's own calendar (today's
    * events still on, tomorrow's first, a failing link); what is due (reminders, scheduled verbs);
    * the song playing. A shared calendar's events (`outside`) are section 7's `calendarShared`. */

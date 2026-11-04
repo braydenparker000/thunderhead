@@ -7,7 +7,7 @@ import { SKILLS } from '../../../../shared/contract/skills.ts';
 import { notedBy } from '../memory/notes';
 import { renderThreads } from '../memory/profile';
 import type { BriefInput } from './brief';
-import { part } from './brief-text';
+import { clock, part } from './brief-text';
 import { DELEGATE } from './brief-verbs';
 
 /** Section 7's parts at most, each with where the rest is. */
@@ -35,6 +35,24 @@ export function daySection(i: BriefInput, budget: number): string {
   return at > 0 ? `${text.slice(0, at)}\n(+more: th brief --section 7)` : '(no room in the core: th brief --section 7)';
 }
 const head = (title: string, body: string[]) => (body.length ? [title, ...body] : []);
+
+/** The owner's hours unless they set others (Settings › The mind, `mind.day_start` and
+ * `mind.night_start`): the phone's Auto theme switches on the same two (ui/theme.js). */
+export const OWNER_HOURS = { day: '07:00', night: '22:00' } as const;
+
+/** Section 1's "now": the owner's day from its start until evening starts, else their evening. */
+export function dayPart(now: number, tz: string, hours: { day: string; night: string } = OWNER_HOURS): string {
+  const h = Number(clock(now, tz).slice(0, 2)) % 24;
+  const day = Number.parseInt(hours.day, 10);
+  const night = Number.parseInt(hours.night, 10);
+  return h >= day && h < night
+    ? `the owner's day (evening from ${hours.night})`
+    : `the owner's evening (day from ${hours.day})`;
+}
+
+/** Section 1's one line with the name the owner gave the mind, or none while it has none. */
+export const nameLine = (name: string | undefined) =>
+  name?.trim() ? `Name: the owner calls you ${name.trim()}; answer to it, and still call yourself "I".` : null;
 
 /** The skills line: what a session reads before it acts in an app or an area (mind/skills/). */
 export const SKILLS_LINE = `Skills, read one before you act in its app or area: th skill <name> (${SKILLS.join(', ')}).`;

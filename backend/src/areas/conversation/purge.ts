@@ -1,8 +1,9 @@
 // The purge of held conversations (held.ts): off the record 7 days after the last message, deleted
-// 30 days after the delete. Run by the cron's prune pass (objects/core-held.ts), each tick, in
-// steps of at most HELD_LIMITS.purge_messages messages, and never while the rows guard holds the
-// heavy work (from 80% of the day's budget, until 00:00 UTC). A thread whose purge is due is gone
-// from every read and refuses every write at once (held.ts `stateOf`); the purge makes it so on disk.
+// 30 days after the delete, and one past Keep conversations once retention.ts marks it. Run by the
+// cron's prune pass (objects/core-held.ts), each tick, in steps of at most
+// HELD_LIMITS.purge_messages messages, and never while the rows guard holds the heavy work (from
+// 80% of the day's budget, until 00:00 UTC). A thread whose purge is due is gone from every read
+// and refuses every write at once (held.ts `stateOf`); the purge makes it so on disk.
 // A step: `plan` reads what is due and the bucket keys of its messages' files; the object deletes
 // those bytes; then one commit (`apply`) deletes the messages (with their FTS entries when they were
 // indexed), the files' rows and the evidence links (memory/unlink.ts), and once a thread has no
@@ -21,7 +22,7 @@ import * as hs from './held-store';
 export interface PurgeStep {
   thread: string;
   /** What it was when due: the ledger says which, never what was in it. */
-  was: 'off_record' | 'deleted';
+  was: 'off_record' | 'deleted' | 'expired';
   /** Its messages have FTS entries (every kind but off the record). */
   indexed: boolean;
   messages: hs.PurgeMessage[];
@@ -29,6 +30,13 @@ export interface PurgeStep {
 }
 
 const FILE_REF = /^file:([0-9a-f-]{36})$/;
+
+/** The ledger's words for each purge: what went and why, never what was in it. */
+const PURGED: Record<PurgeStep['was'], [string, string]> = {
+  off_record: ['purged a conversation off the record', 'off the record: gone 7 days after its last message'],
+  deleted: ['purged a deleted conversation', 'deleted 30 days ago: Recently deleted keeps one that long'],
+  expired: ['purged an old conversation', 'past Keep conversations in Settings › Privacy and data'],
+};
 
 /** The file ids a message carries (`attachments_json`, API.md §2 `Attachment`). */
 function fileIds(m: hs.PurgeMessage): string[] {
@@ -53,7 +61,7 @@ export function plan(db: Db, now: number, max: number = HELD_LIMITS.purge_messag
     const ids = messages.flatMap(fileIds);
     steps.push({
       thread: t.id,
-      was: t.kind === 'off_record' ? 'off_record' : 'deleted',
+      was: t.kind === 'off_record' || t.kind === 'deleted' ? t.kind : 'expired',
       indexed: (t.kind === 'deleted' ? t.kind_was : t.kind) !== 'off_record',
       messages,
       files: files.byIds(db, ids).map((f) => ({ id: f.id, key: f.key })),
@@ -78,11 +86,8 @@ export function apply(w: Writer, s: PurgeStep): boolean {
   w.ledger({
     kind: 'note',
     actor: 'worker',
-    what: s.was === 'off_record' ? 'purged a conversation off the record' : 'purged a deleted conversation',
-    why:
-      s.was === 'off_record'
-        ? 'off the record: gone 7 days after its last message'
-        : 'deleted 30 days ago: Recently deleted keeps one that long',
+    what: PURGED[s.was][0],
+    why: PURGED[s.was][1],
     ref: `thread:${s.thread}`,
     undoable: false,
   });

@@ -1,16 +1,47 @@
 // Runs before the first paint.
 // 1. Frame guard, fail-closed: the page stays invisible unless it is the top-level page. Other
 //    sites on the same Azure zone count as the same "site", so a framed copy could see our storage.
-// 2. Day or night, so night never flashes white. "auto" follows the clock: night 19:00 to 07:00.
+// 2. Day or night, so night never flashes white. "auto" follows the owner's hours (Settings › The
+//    mind, `mind.day_start` and `mind.night_start`, 07:00 and 22:00 unless set, as this phone last
+//    saw them in `th.p.settings`): day from the one, night from the other, flipping at each while
+//    the page stays open. Settings and the shell.appearance verb change the choice through th:theme;
+//    new hours arrive as th:setting.
 // 3. The shell's pages cross-fade into each other (shell.css). A cross-fade that can't run rejects
 //    its promise, which is expected, not an error: into a page that moves on before it shows (signed
 //    out, home goes straight to sign-in), or toward an app's page, which doesn't take part and would
 //    throw on arriving, so it is skipped before it leaves.
 try { if (window.top === window.self) document.documentElement.dataset.unframed = ''; } catch {}
+{
+let flip = 0;
+/** Applies the theme for `pref` (the stored one when not given) and, for Auto, waits for the next of the two hours. */
+const theme = (pref) => {
+  clearTimeout(flip);
+  let day = 7, night = 22;
+  try {
+    pref = pref || localStorage.getItem('th-theme') || 'auto';
+    const s = JSON.parse(localStorage.getItem('th.p.settings') || '{}') || {};
+    const at = (v, d) => { const h = parseInt(v, 10); return h >= 0 && h < 24 ? h : d; };
+    day = at(s['mind.day_start'], 7);
+    night = at(s['mind.night_start'], 22);
+  } catch {}
+  const now = new Date(), h = now.getHours();
+  document.documentElement.dataset.theme = pref && pref !== 'auto' ? pref : h >= day && h < night ? 'light' : 'dark';
+  if (pref && pref !== 'auto') return;
+  const next = new Date(now);
+  next.setMinutes(0, 0, 0);
+  for (let i = 0; i < 25; i++) { next.setHours(next.getHours() + 1); if (next.getHours() === day || next.getHours() === night) break; }
+  flip = setTimeout(() => theme(), next.getTime() - now.getTime() + 50);
+};
+theme();
+document.addEventListener('th:theme', (e) => {
+  if (!['auto', 'light', 'dark'].includes(e.detail)) return;
+  try { localStorage.setItem('th-theme', e.detail); } catch {}
+  theme(e.detail);
+});
+document.addEventListener('th:setting', (e) => { if (/^mind\.(day|night)_start$/.test(e.detail?.key)) theme(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) theme(); });
+}
 try {
-  const pref = localStorage.getItem('th-theme') || 'auto';
-  const hour = new Date().getHours();
-  document.documentElement.dataset.theme = pref === 'auto' ? (hour >= 19 || hour < 7 ? 'dark' : 'light') : pref;
   // The owner's text size and still background (Settings → Appearance). The accent picker is gone
   // (owner, 2026-10-31): blue only, so an old choice is dropped.
   const d = document.documentElement.dataset;

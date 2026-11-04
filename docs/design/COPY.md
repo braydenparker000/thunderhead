@@ -65,6 +65,7 @@ Use one of these phrases with its number. Never decimals, never percentages over
 - Sentence case. Full stops at the end of home lines and replies; none on chips and labels.
 - Numbers as digits ("2 new videos", "bars 9 to 12").
 - Times and dates in the phone's locale format (examples here use 24-hour: "19:00").
+- The mind's name (Settings › The mind › Name, 2026-11-04): wherever the shell's copy says "the mind", it says the name the owner gave it ("The mind" at the start of a line or a title), through `mindName()` in `th/copy.js`; with no name set it stays "the mind". The Worker's own system lines (`sys.nowake`) keep "the mind".
 - Second language (set privately in Settings): when the owner writes in it, the mind answers in it. Fixed strings are English in v1 [proposal: a second-language set later, chosen in Appearance].
 - Quotes: curly (’ “ ”) in fixed strings.
 
@@ -131,7 +132,7 @@ Home has no standing voice line (owner, 2026-10-31: "something always telling me
 | `convo.stop` | Stop | Text button in the reply slot while the mind works on an answer (built, P2) |
 | `convo.stopping` | Stopping… | After Stop, until the mind's "Stopped." reply (built, P2) |
 | `toast.stop` | Stopping after this step. | After Stop (built, P2) |
-| `toast.stop.failed` | Couldn't reach the mind. Try again. | Stop couldn't reach the Worker (built, P2) |
+| `toast.stop.failed` | Couldn't reach the mind. Try again. | Stop couldn't reach the Worker (built, P2); the mind's name in place of "the mind" when set |
 | `toast.chat.failed` | Couldn't load the conversation. Reload to try again. | Send tapped while signed in but the chat code failed to load (built, P2) |
 | `convo.showall` | Show all | Collapsed older reply (proposal) |
 | `past.back` | Back to now | Viewing a filed conversation (built) |

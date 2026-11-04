@@ -8,6 +8,7 @@
 // `music.rate` sense with the song's id, so it keeps the song out of its mixes too. "Off the record"
 // starts a conversation the mind answers and never remembers; "back on the record" ends it (th/record).
 // "@muse <words>" goes as the owner's message marked for Muse, a task (HOME.md §6.6).
+import { mindName } from '../copy.js';
 import { appFor } from '../registry/apps.js';
 
 /** The words after "@muse " or "@Muse,", else null (as work/mention.ts). @param {string} text */
@@ -142,7 +143,7 @@ export function preview(c) {
       next: 'Next song (Podcasts: 30 seconds on).',
       previous: 'Previous song (Podcasts: 15 seconds back).',
       sleep: c.minutes === 0 ? 'Turns the sleep timer off.' : `Stops the music in ${c.minutes ?? 30} minutes.`,
-      never: 'Skips it and rates it "not for me", here and for the mind\'s mixes.',
+      never: `Skips it and rates it "not for me", here and for ${mindName()}'s mixes.`,
     }[c.cmd];
   return `A reminder at ${whenWords(c.at)}: ${c.text}`;
 }

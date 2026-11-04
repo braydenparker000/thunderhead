@@ -5,7 +5,7 @@
 // day's quiet starts and ends (never before 06:30), and "go quiet" for a while (BEHAVIOR.md §8).
 import { api, signedIn } from '/th/client.js';
 import { quietLine, quietUntil, setQuiet } from '/th/chat/quiet.js';
-import { lineFor } from '/th/copy.js';
+import { lineFor, mindName } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { el, toast } from '/th/ui.js';
 import { updateLine } from '/th/update-rules.js';
@@ -79,7 +79,7 @@ export function appearance() {
 export function settingsHome(body, open, focus) {
   const rows = [];
   for (const [page, name, symbol] of PAGES) {
-    const button = row({ title: name, icon: symbol, open: true, onClick: () => open(page) });
+    const button = row({ title: page === 'mind' ? mindName(true) : name, icon: symbol, open: true, onClick: () => open(page) });
     button.classList.add('slink');
     button.dataset.page = page;
     rows.push(button);

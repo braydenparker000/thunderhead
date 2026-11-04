@@ -1,6 +1,7 @@
 // @ts-check
 // The owner's words for every error the sign-in pages and Settings handle (SIGN-IN.md §5.3,
-// §9.2, §11.2, §18). The UI keys on `code`, never on the server's message.
+// §9.2, §11.2, §18). The UI keys on `code`, never on the server's message. And the mind's name,
+// said wherever the shell says "the mind" (Settings › The mind › Name).
 
 /** @typedef {import('../../shared/contract/api.ts').ErrorCode} ErrorCode */
 /** @typedef {import('../../shared/contract/api.ts').RevokeReason} RevokeReason */
@@ -64,4 +65,27 @@ export function lineFor(err, opts = {}) {
   if (code === 'unavailable' || code === 'upstream' || (err.status ?? 0) >= 500)
     return opts.auth ? LINES.auth_unavailable : LINES.internal;
   return LINES.internal;
+}
+
+// The Worker settings the shell reads, as this phone last saw them (catalog.js's cache).
+const CACHE = 'th.p.settings';
+const SHELL_KEYS = ['mind.name', 'mind.day_start', 'mind.night_start'];
+
+/** The mind's name, else "the mind" ("The mind" with `cap`). */
+export function mindName(cap = false) {
+  let n = '';
+  try { n = String(JSON.parse(localStorage.getItem(CACHE) || '{}')?.['mind.name'] ?? '').trim(); } catch {}
+  return n || (cap ? 'The mind' : 'the mind');
+}
+
+/** Keeps those keys from GET /v1/settings, announcing each change as Settings does (the theme
+ * follows new hours). @param {Record<string, unknown>} s */
+export function keepShell(s) {
+  try {
+    const c = JSON.parse(localStorage.getItem(CACHE) || '{}') || {};
+    const changed = SHELL_KEYS.filter((k) => JSON.stringify(c[k]) !== JSON.stringify(s[k]));
+    for (const k of changed) if (k in s) c[k] = s[k]; else delete c[k];
+    localStorage.setItem(CACHE, JSON.stringify(c));
+    for (const key of changed) document.dispatchEvent(new CustomEvent('th:setting', { detail: { key, value: s[key], scope: 'worker' } }));
+  } catch {}
 }

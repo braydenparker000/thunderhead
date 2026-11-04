@@ -8,7 +8,7 @@
 // A page slides on springs.page, the menu's progress model, and leaves by its Back button, Escape, or a
 // sideways drag from its left edge or its header (GESTURES.md §4.4).
 import { api, signedIn, signOutHere } from '/th/client.js';
-import { lineFor } from '/th/copy.js';
+import { lineFor, mindName } from '/th/copy.js';
 import { failure } from '/th/flow.js';
 import { dMMM, lastActive, place } from '/th/format.js';
 import { wipe } from '/th/session.js';
@@ -64,14 +64,15 @@ export async function openPage(name, opts = {}) {
   /** @type {(() => void) | null} what the page must do as it closes (Memory sends a pending Forget) */
   let cleanup = null;
   const back = el('button', { type: 'button', class: 'sback', 'aria-label': under ? 'Back to Settings' : 'Back to the menu' }, [icon('caret-left')]);
-  const title = el('h1', { class: 'page-title', text: TITLES[name], tabindex: '-1' });
+  const named = name === 'mind' ? mindName(true) : TITLES[name]; // the name the owner gave the mind, if any
+  const title = el('h1', { class: 'page-title', text: named, tabindex: '-1' });
   const body = el('div', { class: 'sbody' });
   const header = el('header', { class: 'sheader' }, [back, title]);
   const scroll = el('div', { class: 'sscroll' }, [body]);
   // The frosted panel behind the page, as the menu's (#side > .field): the page moves on its own opaque fill and the
   // frost cross-fades in from 85% of the way in (.frost, home.css).
   const field = el('div', { class: 'field', 'aria-hidden': 'true' });
-  const page = el('section', { class: 'spage sprung', role: 'dialog', 'aria-modal': 'true', 'aria-label': TITLES[name] }, [field, header, scroll]);
+  const page = el('section', { class: 'spage sprung', role: 'dialog', 'aria-modal': 'true', 'aria-label': named }, [field, header, scroll]);
   scroll.addEventListener('scroll', () => header.classList.toggle('scrolled', scroll.scrollTop > 0), { passive: true });
   const slide = pageMotion(page);
   // The page's module is resolved before the page is shown, so its first visible frame already has its
