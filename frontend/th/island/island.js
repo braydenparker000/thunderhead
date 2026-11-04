@@ -3,6 +3,7 @@
 import { appFor } from '../registry/apps.js';
 import { animator, motionReduced, springs, restTime, response, haptic } from '../motion.js';
 import { frames, retain } from './frames.js';
+import { drop, saidFor } from './line.js';
 export const LAYERED = Object.freeze(['music', 'podcasts']);
 /** @param {string} id */
 export const layered = id => LAYERED.includes(id);
@@ -102,6 +103,8 @@ function media() {
     return a ? { kind:'podcasts', a, w } : null;
   } catch { return null; }
 }
+/** The app the capsule shows now, or null (none, or it is in front). */
+export const inIsland = () => (layer && !layer.front && island && !island.hidden ? layer.id : null);
 export function playing() {
   const m = media(), a = m?.kind === 'music' ? m.p.audio : m?.a;
   return Boolean(a && !a.paused && !a.ended);
@@ -211,6 +214,7 @@ export async function expand(why) {
   shape.stop(); content.stop(); alertWidth.stop();
   measure();
   l.front = true; l.frame.inert = false; l.frame.classList.remove('away'); l.shell.classList.remove('parked');
+  drop(l.id);
   // Keep the shell's launch marker on the real capsule reveal until its spring rests.
   l.shell.classList.add('launch');
   is.inert = true;
@@ -274,7 +278,7 @@ function ensureIsland() {
   const b = document.createElement('div');
   b.setAttribute('role','group');
   b.className='th-island'; b.hidden=true; b.dataset.state='compact';
-  b.innerHTML = `<button type="button" class="compact" aria-label="Expand player" aria-expanded="false"><span class="title-mask"><span class="title"></span></span><span class="bars">${'<i></i>'.repeat(BARS)}</span><span class="alert-dot"></span></button><div class="details" inert>${icon('music-notes-simple-bold',' glyph')}<button type="button" class="zz" aria-label="Sleep timer">${icon('moon-stars')}<b></b></button><button type="button" class="heading" aria-label="Open app"><span class="tt"></span><span class="by"></span></button><span class="elapsed"></span><span class="left"></span><div class="controls"><button type="button" data-control="previous" aria-label="Previous"></button><button type="button" data-control="toggle" aria-label="Play">${icon('play')}</button><button type="button" data-control="next" aria-label="Next"></button></div></div><span class="art" aria-hidden="true"><canvas width="144" height="144"></canvas>${icon('music-notes-simple')}</span><div class="progress"><i></i></div>`;
+  b.innerHTML = `<button type="button" class="compact" aria-label="Expand player" aria-expanded="false"><span class="title-mask"><span class="title"></span></span><span class="bars">${'<i></i>'.repeat(BARS)}</span><span class="alert-dot"></span></button><div class="details" inert>${icon('music-notes-simple-bold',' glyph')}<span class="say"></span><button type="button" class="zz" aria-label="Sleep timer">${icon('moon-stars')}<b></b></button><button type="button" class="heading" aria-label="Open app"><span class="tt"></span><span class="by"></span></button><span class="elapsed"></span><span class="left"></span><div class="controls"><button type="button" data-control="previous" aria-label="Previous"></button><button type="button" data-control="toggle" aria-label="Play">${icon('play')}</button><button type="button" data-control="next" aria-label="Next"></button></div></div><span class="art" aria-hidden="true"><canvas width="144" height="144"></canvas>${icon('music-notes-simple')}</span><div class="progress"><i></i></div>`;
   document.body.append(b); island=b;
   movers = /** @type {HTMLElement[]} */ (['.art','.progress','.compact','.details'].map(s => b.querySelector(s)));
   b.querySelector('.compact')?.addEventListener('click', e => { if (!held || !/** @type {MouseEvent} */ (e).detail) void wide(true); held=false; });
@@ -294,6 +298,7 @@ function ensureIsland() {
   const changes = new MutationObserver(notices);
   for (const node of document.querySelectorAll('#talk,#decision')) changes.observe(node,{childList:true,subtree:true,characterData:true,attributes:true,attributeFilter:['class']});
   document.addEventListener('th:decisions', notices);
+  document.addEventListener('th:island-line', () => { if (layer && !layer.front) tick(); });
   document.addEventListener('click', e => { const note = /** @type {Element} */ (e.target).closest?.('#talk .note'); if (note && about(note)) void wide(true); });
   notices();
   return b;
@@ -443,7 +448,10 @@ function tick() {
   const page=(/** @type {string} */ id)=>pod ? m?.w.document.getElementById(id) : null;
   const title=t?.title || meta?.title || page('player-title')?.textContent || app?.name || '', by=t?.artist || meta?.artist || page('player-show')?.textContent || '';
   const shown=page('player-art')?.currentSrc ?? '', art=t?.art?.url || meta?.artwork?.[0]?.src || (/^https?:/.test(shown) ? shown : '');
-  for (const node of is.querySelectorAll('.title,.tt')) if(node.textContent!==title) node.textContent=title;
+  // The mind's line (line.js) takes the compact title's place; expanded, it sits in the top row.
+  const said=saidFor(layer.id), top=said || title;
+  for (const node of is.querySelectorAll('.title,.tt,.say')) { const want=node.classList.contains('title') ? top : node.classList.contains('tt') ? title : said; if(node.textContent!==want) node.textContent=want; }
+  is.classList.toggle('said',Boolean(said));
   const sub=/** @type {HTMLElement} */ (is.querySelector('.by')); if(sub.textContent!==by) sub.textContent=by;
   if (lastApp !== layer.id) {
     lastApp = layer.id;
@@ -461,7 +469,7 @@ function tick() {
   is.classList.toggle('playing',on);
   const zz=Math.ceil(sleepLeft()/60); is.classList.toggle('sleep',zz>0);
   /** @type {HTMLElement} */ (is.querySelector('.zz b')).textContent=zz?String(zz):'';
-  is.querySelector('.compact')?.setAttribute('aria-label', `${title}${by ? `, ${by}` : ''}. Expand ${app?.name} player`);
+  is.querySelector('.compact')?.setAttribute('aria-label', `${said ? `${said} ` : ''}${title}${by ? `, ${by}` : ''}. Expand ${app?.name} player`);
   is.querySelector('.heading')?.setAttribute('aria-label', `${title}${by ? `, ${by}` : ''}. Open ${app?.name}`);
   is.setAttribute('aria-label',`${app?.name} ${on?'playing':'paused'}${zz?`, stops in ${zz} min`:''}`);
   const toggle=/** @type {HTMLButtonElement} */ (is.querySelector('[data-control="toggle"]'));
@@ -472,8 +480,8 @@ function tick() {
   /** @type {HTMLElement} */ (is.querySelector('.elapsed')).textContent=time(elapsed);
   /** @type {HTMLElement} */ (is.querySelector('.left')).textContent=duration ? `−${time(duration-elapsed)}` : '';
   const text=/** @type {HTMLElement} */ (is.querySelector('.title'));
-  if (title!==lastTitle || titleViewport!==innerWidth) {
-    lastTitle=title; titleViewport=innerWidth;
+  if (top!==lastTitle || titleViewport!==innerWidth) {
+    lastTitle=top; titleViewport=innerWidth;
     // The capsule grows with its title up to 60% of the viewport; past that the title fades out.
     const need=text.scrollWidth+85, most=innerWidth*.6;
     compactWidth=Math.max(124,Math.min(most,need));

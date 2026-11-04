@@ -1,15 +1,15 @@
 {
-  "id": "2026-11-04-report",
+  "id": "2026-11-04-show",
   "date": "2026-11-04",
   "lines": [
     {
-      "text": "The Briefing now opens with what the night did: tap Overnight to see each thing."
+      "text": "A reply that drew on something now has \"How I got this\" under it: tap it to see what it used."
     },
     {
-      "text": "Anything it did that you don't want, Undo takes back right there."
+      "text": "Each of those opens its place: a fact in Memory, a song in Music, a file, or that day's chat."
     },
     {
-      "text": "The same report is the first message in the day's chat, until you write."
+      "text": "While Music or Podcasts plays, the island can carry one short line about what's on."
     }
   ]
 }

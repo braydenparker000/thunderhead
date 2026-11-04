@@ -12,7 +12,7 @@ import {sha256, uuidv7} from './ids.mjs';
 export const KINDS = ['text', 'progress', 'card', 'question', 'error'];
 export const STATES = ['working', 'listening', 'stopping', 'limited'];
 /** The working card's chips and limits (shared/contract/feed.ts MIND_USE_KINDS, MIND_STATUS_LIMITS). */
-export const USE_KINDS = ['fact', 'song', 'page', 'source', 'app'];
+export const USE_KINDS = ['fact', 'song', 'page', 'source', 'app', 'file', 'day', 'search'];
 const STATUS = {title: 60, note: 140, using: 6, label: 40, id: 200, every_ms: 3_000};
 const MAX_BODY = 16_000;
 /** What the Worker takes (shared/contract/files.ts): bytes per file, files per mind message, name length. */
@@ -25,6 +25,8 @@ const TYPES = {png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'im
 const EXT = {};
 for (const [ext, type] of Object.entries(TYPES)) EXT[type] ??= ext;
 const UUID7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+/** The ids a chip's kind takes, where it has a shape (a search has none: its label says what). */
+const USE_ID = {source: [/^https:\/\/[^/\s]+/, 'the id is its https URL'], day: [/^\d{4}-\d{2}-\d{2}$/, 'the id is its date, YYYY-MM-DD'], file: [UUID7, "the id is the file's id"], search: [/^$/, 'no id; the label says what you looked for']};
 const seg = value => encodeURIComponent(String(value));
 const mib = n => `${Math.round(n / 1024 / 1024)} MiB`;
 
@@ -161,7 +163,7 @@ export function useOf(spec) {
   const label = (cut < 0 ? rest : rest.slice(cut + 1)).trim();
   if (!label || label.length > STATUS.label) throw invalid(`--using needs a label of 1 to ${STATUS.label} characters`);
   if (id.length > STATUS.id || /\s/.test(id)) throw invalid(`--using: an id has no spaces and at most ${STATUS.id} characters`);
-  if (kind === 'source' && id && !/^https:\/\/[^/\s]+/.test(id)) throw invalid('--using source: the id is its https URL');
+  if (id && USE_ID[kind] && !USE_ID[kind][0].test(id)) throw invalid(`--using ${kind}: ${USE_ID[kind][1]}`);
   return id ? {kind, id, label} : {kind, label};
 }
 

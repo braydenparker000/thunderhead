@@ -21,6 +21,7 @@ import {
   NIGHT_PAGE_MAX,
   type NightDayPart,
 } from '../../../../shared/contract/night.ts';
+import { UUID7 } from '../../../../shared/contract/verb-spec.ts';
 import { type AppEnv, guard } from '../../http/auth';
 import { callerOf } from '../../http/caller';
 import { ApiError } from '../../http/errors';
@@ -43,14 +44,20 @@ const briefBody = z.strictObject({
 });
 const L = MIND_STATUS_LIMITS;
 /** One thing the mind draws on (the working card's chips, HOME.md §4.13). The id is never shown;
- * a source's is its https URL (the phone shows only the host), the rest carry no spaces. */
+ * a source's is its https URL (the phone shows only the host), a day's its date, a file's its id,
+ * a search has none; the rest carry no spaces. */
 const useItem = z
   .strictObject({
     kind: z.enum(MIND_USE_KINDS),
     id: z.optional(z.string().check(z.minLength(1), z.maxLength(L.id), z.regex(/^\S+$/))),
     label: text(L.label),
   })
-  .check(z.refine((u) => u.kind !== 'source' || u.id === undefined || /^https:\/\/[^/\s]+/.test(u.id), 'https URL'));
+  .check(
+    z.refine((u) => u.kind !== 'source' || u.id === undefined || /^https:\/\/[^/\s]+/.test(u.id), 'https URL'),
+    z.refine((u) => u.kind !== 'day' || u.id === undefined || /^\d{4}-\d{2}-\d{2}$/.test(u.id), 'a day: YYYY-MM-DD'),
+    z.refine((u) => u.kind !== 'file' || u.id === undefined || UUID7.test(u.id), "a file's id"),
+    z.refine((u) => u.kind !== 'search' || u.id === undefined, 'a search has no id: its label says what'),
+  );
 const statusBody = z.strictObject({
   state: z.enum(['working', 'listening', 'stopping', 'limited']),
   thread_id: z.optional(z.string().check(z.maxLength(40))),

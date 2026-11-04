@@ -6,70 +6,19 @@
 // decision card waiting comes first: this one sits above it, folded to its title line. When the
 // reply comes the card folds up into it. And the first moment (HOME.md §6.3): a 2 px line under the
 // ask bar fills as the Worker takes the message just sent, then fades. Every word is set with
-// textContent; a chip shows its label and nothing else (the Worker caps it).
-import { from } from '../../ui/launch.js';
+// textContent; a chip shows its label and nothing else (the Worker caps it; th/chat/using.js). The
+// reply keeps them, folded under it as "How I got this".
 import { decisions } from '../decide/state.js';
 import { dock } from '../decide/dock.js';
-import { appFor, deepLink } from '../registry/apps.js';
-import { el, toast } from '../ui.js';
-import { citeHref, plain } from './model.js';
+import { el } from '../ui.js';
+import { chip } from './using.js';
 
 /** @typedef {import('../../../shared/contract/feed.ts').MindUse} MindUse */
 /** @typedef {{ title: string, note: string, using: MindUse[], waking: boolean, stop: 'none' | 'button' | 'stopping' }} Work */
-/** @typedef {{ app: string, path: string, label: string }} Open */
-
-/** A chip's glyph by kind (ui/icons.svg); an app's chip shows that app's own.
- * @type {Record<import('../../../shared/contract/feed.ts').MindUseKind, string>} */
-const GLYPH = { fact: 'brain', song: 'music-notes-simple', page: 'book-open-text', source: 'newspaper', app: 'caret-right' };
+/** @typedef {import('./using.js').Open} Open */
 
 /** A motion token's time in ms (0 under reduced motion). @param {string} name */
 const ms = (name) => parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)) || 0;
-/** An https URL's host, the only part of a source the card ever shows. @param {string} url */
-function hostOf(url) {
-  try {
-    const u = new URL(url);
-    return u.protocol === 'https:' ? u.host : '';
-  } catch {
-    return '';
-  }
-}
-
-/** What a tap on a chip does, or null for a chip that only says: a fact opens Settings › Memory at
- * it, a song Music at its path, a page Study there, a source says its host, an app opens.
- * @param {MindUse} u @param {(o: Open) => void} open */
-function tapFor(u, open) {
-  const id = typeof u.id === 'string' ? u.id : '';
-  if (u.kind === 'fact') return id ? () => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'memory', focus: id } })) : null;
-  if (u.kind === 'song') return () => open({ app: 'music', path: deepLink('music', id) ? id : '/music/', label: '' });
-  if (u.kind === 'page') {
-    const path = citeHref(id) ?? (deepLink('study', id) ? id : null);
-    return path ? () => open({ app: 'study', path, label: '' }) : null;
-  }
-  if (u.kind === 'source') {
-    const host = hostOf(id);
-    return host ? () => toast(host) : null;
-  }
-  const app = u.kind === 'app' ? appFor(id) : null;
-  return app?.built ? () => open({ app: app.id, path: app.path, label: '' }) : null;
-}
-
-/** @param {MindUse} u @param {(o: Open) => void} open */
-function chip(u, open) {
-  const tap = tapFor(u, open);
-  const c = el(tap ? 'button' : 'span', { class: 'wkchip' });
-  const icon = u.kind === 'app' ? appFor(String(u.id))?.icon ?? GLYPH.app : GLYPH[u.kind];
-  c.innerHTML = `<svg class="i" aria-hidden="true"><use href="/ui/icons.svg#${icon}"/></svg>`;
-  c.append(plain(u.label).slice(0, 40));
-  if (tap) {
-    c.setAttribute('type', 'button');
-    c.addEventListener('click', () => {
-      const r = c.getBoundingClientRect();
-      if (u.kind === 'song' || u.kind === 'page' || u.kind === 'app') from(r.left + r.width / 2, r.top + r.height / 2);
-      tap();
-    });
-  }
-  return c;
-}
 
 /** @param {{ ask: HTMLElement, onStop: () => void, onOpen: (o: Open) => void }} o */
 export function createWorking({ ask, onStop, onOpen }) {

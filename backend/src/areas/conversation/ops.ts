@@ -12,6 +12,7 @@ import type { Writer } from '../../objects/commit';
 import { attach } from '../files/ops';
 import { recordFirstReply } from '../mind/latency';
 import { gate, withPermit } from '../mind/permit';
+import { takeUsing } from '../mind/using';
 import * as settings from '../settings/store';
 import { checkMention } from '../work/mention';
 import { currentDay, provisionalTitle } from './day';
@@ -34,6 +35,8 @@ export interface PutMessage {
   req_sha256: string;
 }
 
+/** The mind's posts that answer: what the phone shows as a reply (th/chat/model.js REPLY_KINDS). */
+const REPLY_KINDS = new Set<MessageKind>(['text', 'question', 'card']);
 const AUTHOR = { D: ['owner', 'owner_device'], C: ['mind', 'mind'], N: ['mind', 'mind'], R: ['mind', 'mind'] } as const;
 
 /** Today's open daily thread, made on its first message (the owner never makes one). */
@@ -62,6 +65,8 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
   if ((c.who === 'N' || c.who === 'R') && (kind !== 'error' || p.thread_id !== 'system'))
     throw new Fail('forbidden', { reason: 'night and reflex post only kind error to the system thread' });
   if (p.thread_id === 'system' && c.who !== 'N' && c.who !== 'R') throw invalid('thread_id', 'only night and reflex');
+  // "How I got this" is the Worker's record of the work (mind/using.ts), never a body's.
+  if (p.meta && 'using' in p.meta) throw invalid('meta.using', 'set by the Worker');
   const files = p.attachments ?? [];
   if (files.length && c.who !== 'D' && c.who !== 'C') throw invalid('attachments', 'only the owner and the chat mind');
   if (!p.body && (c.who !== 'D' || !files.length)) throw invalid('body', 'empty: only an owner message with files');
@@ -86,6 +91,13 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
   const [author, origin] = AUTHOR[c.who];
   // The files go to this message in its own commit: a refusal leaves both as they were.
   const attachments = files.length ? attach(w.db, files, c.who === 'D' ? 'owner' : 'mind', p.id) : [];
+  // The chat mind's reply to the owner's words takes the chips it gave while working on them.
+  const reply = c.who === 'C' && target?.author === 'owner' && REPLY_KINDS.has(kind);
+  const using = reply ? takeUsing(w, target.created_at) : [];
+  const extra: JsonObject = {
+    ...(p.mention ? { mention: p.mention } : {}),
+    ...(using.length ? { using: using as unknown as JsonObject[] } : {}),
+  };
   const message = store.insertMessage(w.db, {
     id: p.id,
     thread_id: thread.id,
@@ -93,7 +105,7 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
     origin,
     kind,
     body: p.body,
-    meta: p.mention ? { ...p.meta, mention: p.mention } : (p.meta ?? null),
+    meta: Object.keys(extra).length ? { ...p.meta, ...extra } : (p.meta ?? null),
     reply_to: p.reply_to ?? null,
     created_at: w.at,
     device_id: c.who === 'D' ? c.device_id : null,
@@ -161,10 +173,14 @@ export function patchMessage(w: Writer, id: string, body: string | undefined, me
     if (lint) throw new Fail('validation', [{ path: 'body', issue: lint }]);
   }
   checkChip(meta);
+  if (meta && 'using' in meta) throw invalid('meta.using', 'set by the Worker');
   // A deleted conversation takes no more words; one off the record keeps none in the index.
   const h = held.threadHeld(w.db, m.thread_id, w.at);
   if (h === 'deleted') throw new Fail('gone');
-  store.patchMessage(w.db, m.seq, m.body, body, meta, w.at, h !== 'off_record');
+  // New meta replaces the old, but "How I got this" stays: it is the Worker's, not the mind's.
+  const using = (m.meta as JsonObject | null)?.using;
+  const kept = meta !== undefined && using !== undefined ? { ...meta, using } : meta;
+  store.patchMessage(w.db, m.seq, m.body, body, kept, w.at, h !== 'off_record');
   w.change('message', `msg:${id}`);
   const {
     req_sha256: _h,

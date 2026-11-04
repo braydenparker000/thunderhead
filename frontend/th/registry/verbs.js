@@ -44,6 +44,13 @@ export const EXECUTORS = {
   'music.delete_playlist': {
     1: async (args) => (await import('../music/playlists.js')).deletePlaylist(args),
   },
+  // The island line, in the capsule while Music or Podcasts plays there (th/island/line.js).
+  'island.show': {
+    1: async (args) => (await import('../island/line.js')).show(args),
+  },
+  'island.clear': {
+    1: async (args) => (await import('../island/line.js')).clear(args),
+  },
   'shell.appearance': {
     1: async ({ mode }) => {
       const previous = currentMode();

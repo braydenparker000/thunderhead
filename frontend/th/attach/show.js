@@ -102,20 +102,24 @@ function file(i) {
   const sz = Object.assign(document.createElement('span'), { className: 'fsize', textContent: size(i.bytes) });
   b.append(name, sz);
   b.setAttribute('aria-label', `Save ${i.name}, ${size(i.bytes)}`);
-  b.addEventListener('click', () =>
-    bytesOf(i.id).then(
-      (blob) => {
-        // Saved as plain bytes: a blob keeping its type (an HTML file, an SVG) could run as this
-        // page's origin if it were ever opened in place.
-        const bytes = new Blob([blob], { type: 'application/octet-stream' });
-        const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(bytes), download: i.name });
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
-      },
-      () => toast("Couldn't fetch that file. Try again."),
-    ),
-  );
+  b.addEventListener('click', () => save(i.id, i.name));
   return b;
+}
+
+/** Saves a file to the phone under its name: a file row, or a reply's file chip (HOME.md §4.13).
+ * @param {string} id @param {string} name */
+export function save(id, name) {
+  return bytesOf(id).then(
+    (blob) => {
+      // Saved as plain bytes: a blob keeping its type (an HTML file, an SVG) could run as this
+      // page's origin if it were ever opened in place.
+      const bytes = new Blob([blob], { type: 'application/octet-stream' });
+      const a = Object.assign(document.createElement('a'), { href: URL.createObjectURL(bytes), download: name });
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 30_000);
+    },
+    () => toast("Couldn't fetch that file. Try again."),
+  );
 }
 
 /** A shared audio context, made on the first play (a page may only start sound from a tap). */

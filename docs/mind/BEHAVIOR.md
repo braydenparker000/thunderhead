@@ -83,6 +83,7 @@ A wake a watch fired ([RUNTIME.md §3](RUNTIME.md#3-triggers), the day pulse) is
 |---|---|---|---|---|---|
 | 0. **Silent arrangement** | A reversible change to an app: queue order, practice set, study page, list order | Inside the app, with a small why chip | The owner would want it done and it can be undone in one tap | Unlimited, but one change per (app, slot) per 6 h **[proposal]** | Until replaced |
 | 1. **Margin note** | One short line inside an app (a tip, "this part is new") | The app's margin surface | Useful only while the owner is in that app | 1 visible per app screen; ≤ 6 per day across apps **[proposal]** | 24 h default, max 7 d |
+| 1. **Island line** | One sentence in the island's capsule while Music or Podcasts plays there (`island.show`: ≤ 80 characters, never a question, the phrase lint; the Worker refuses the rest) | The capsule, in the title's place; expanded, its top row (HOME.md §12.1) | Something about what is playing, while it plays | One at a time: the next replaces it; Silent holds it back (§3.7) | Until its undo, the next line, or its app leaving the island |
 | 2. **Home line** | A card in today's chat on Home (the night's lines together as one "Overnight" card, shown when quiet hours end) | Home | Something today is worth knowing at a glance | 0–4 per day | Until the day rolls |
 | 3. **Push** | A phone notification | The phone's notification shade | Something needs the owner *now* and can't wait for the next time they open the app | ≤ 2 per day | Until tapped or 12 h |
 | 4. **Direct question** | A decision card on Home with gold at the bottom edge | Home (one at a time), Briefing → "What's waiting" (all) | Only the owner can decide, and it matters | ≤ 3 waiting; 1 visible | 7 days, then `expired` |
@@ -181,7 +182,7 @@ No hard daily caps by default (owner, 2026-11-03): the voice ladder above, `nudg
 |---|---|
 | **As needed** (default) | Nothing beyond the push budget, quiet hours and "go quiet" (§3.4, §8). |
 | **Quiet** | At most 1 home line change and 1 decision card a day (the owner's day); no push except reminders and "done" on something the owner asked for. Briefing tiles are not held. |
-| **Silent** | No unprompted speech at all: no home line, tile, card or push. Reminders still ring. |
+| **Silent** | No unprompted speech at all: no home line, tile, island line (`island.show`, held like a tile), card or push. Reminders still ring. |
 
 A write that names the owner's own message asking for it (`--asked-by <message id>`: their message from a device in the last 48 hours, from a session that read no outside text) is a reply (§1), never held back and never counted. The Worker refuses the rest with `422 speech_budget` and what the day has spent (`details: {speech, spent: {lines, cards}}`) on `th surface`, `th propose` and `th push`; clearing what the mind placed is never held. The briefing's section 1 states the position and, while quiet, what is spent.
 

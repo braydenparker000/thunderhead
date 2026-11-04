@@ -34,6 +34,11 @@
 & .art .i{width:28px;height:28px;opacity:var(--details)}
 & .has-art .i{visibility:hidden}
 & .glyph{position:absolute;left:18px;top:14px;width:16px;height:16px;color:var(--c)}
+/* The mind's line (th/island/line.js): compact, it is the title, a voice rather than a name; expanded, two lines at most in the top row. */
+&.said .title{font-weight:500}
+& .say{position:absolute;left:44px;right:16px;top:21px;translate:0 -50%;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere;font:500 var(--fs-label)/1.2 var(--ui);color:rgba(255,255,255,.78)}
+&.sleep .say{right:56px}
+& .say:empty{display:none}
 & .zz{display:none;position:absolute;top:0;right:6px;align-items:center;justify-content:center;gap:3px;min-width:44px;height:44px;font:600 var(--fs-label)/var(--lh-flat) var(--ui);font-variant-numeric:tabular-nums}
 &.sleep .zz{display:flex}
 & .zz .i{width:14px;height:14px}

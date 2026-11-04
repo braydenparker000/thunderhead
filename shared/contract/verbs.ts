@@ -12,12 +12,14 @@
 import * as z from 'zod/mini';
 import { APP_IDS } from './feed.ts';
 import type { VerbSpec } from './verb-spec.ts';
+import { ISLAND_VERBS } from './verbs-island.ts';
 import { MUSIC_VERBS } from './verbs-music.ts';
 import { PODCAST_VERBS } from './verbs-podcasts.ts';
 import { SHELL_VERBS } from './verbs-shell.ts';
 import { WATCH_VERBS } from './watches.ts';
 
 export type { VerbSpec, VerbVersion } from './verb-spec.ts';
+export { ISLAND_LINE_MAX } from './verbs-island.ts';
 export { PLAY_MAX } from './verbs-music.ts';
 export { PINNABLE_TILES, PINS_MAX } from './verbs-shell.ts';
 
@@ -47,6 +49,7 @@ export const VERBS = {
   ...MUSIC_VERBS,
   ...PODCAST_VERBS,
   ...SHELL_VERBS,
+  ...ISLAND_VERBS,
   ...WATCH_VERBS,
   'shell.appearance': {
     app: 'shell',

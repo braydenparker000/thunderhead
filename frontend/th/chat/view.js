@@ -9,6 +9,7 @@
 // change once). Text is always set with textContent, never parsed as markup.
 import { appFor } from '../registry/apps.js';
 import { citeHref, meta, revealMs } from './model.js';
+import { howFold } from './using.js';
 import { rich } from './rich.js';
 import { from } from '../../ui/launch.js';
 
@@ -206,6 +207,9 @@ export function createView({ talk, convo, onRetry, onChip, onFollow, onTap, onUn
       }
       under.push(row);
     }
+    // What it drew on (`meta.using`, set by the Worker): "How I got this", folded (th/chat/using.js).
+    const how = m.author === 'mind' && !m.local ? howFold(/** @type {any} */ (m.meta)?.using, onChip) : null;
+    if (how) under.push(how);
     if (!under.length) return wrap;
     const box = el('div', 'replybox');
     box.append(wrap, ...under);
