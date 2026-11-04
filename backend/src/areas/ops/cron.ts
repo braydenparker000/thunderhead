@@ -10,6 +10,7 @@ import { authObject } from '../../objects/auth';
 import { coreObject } from '../../objects/core';
 import { missingMethod } from '../../objects/rpc';
 import { refreshCalendars } from '../briefing/calendar';
+import { drivePass } from '../photos/reconcile';
 import { runAfter } from '../proposals/after';
 import { deliver } from '../push/routes';
 
@@ -23,6 +24,18 @@ export async function runCron(env: Env): Promise<void> {
   if (tick.rolled) await rollCalendars(core);
   await retryApprovals(env, core);
   await sendPushes(env);
+  await photosPass(env);
+}
+
+/** Photos' daily Drive pass (areas/photos/reconcile.ts); a failure waits for the next tick. */
+async function photosPass(env: Env): Promise<void> {
+  try {
+    const out = await drivePass(env);
+    if (out?.added || out?.trashed) console.log(JSON.stringify({ evt: 'cron_photos', ...out }));
+  } catch (e) {
+    // A Core still on the release before Photos (a deploy in progress), or Google not answering.
+    if (!missingMethod(e)) console.log(JSON.stringify({ evt: 'cron_photos', failed: true }));
+  }
 }
 
 /** Every calendar link, fetched on the day roll; a failure is kept on its link, never thrown. */

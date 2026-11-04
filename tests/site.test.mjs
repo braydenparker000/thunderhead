@@ -46,6 +46,9 @@ test('no outside hosts anywhere in the site', async () => {
     const text = await readFile(f, 'utf8');
     for (const [url] of text.matchAll(/https?:\/\/[^\s"'()<>]+/g)) {
       if (url.startsWith('http://www.w3.org/')) continue;
+      // Photos uploads originals to the owner's own Drive itself (PHOTOS.md §3.7): Google's API host,
+      // in its page's CSP and its upload module, and nowhere else.
+      if (['photos/index.html', 'apps/photos/drive.js'].includes(relative(SITE, f)) && /^https:\/\/www\.googleapis\.com(\/(upload\/)?drive\/v3\/files)?;?$/.test(url)) continue;
       assert.fail(`${relative(REPO, f)} reaches ${url}`);
     }
   }

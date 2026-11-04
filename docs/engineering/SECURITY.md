@@ -10,7 +10,7 @@ Sign-in screens and flows are in [../product/SIGN-IN.md](../product/SIGN-IN.md).
 3. **No cookies.** One opaque bearer token per device, stored on the server only as SHA-256. Agents get their own role-scoped keys.
 4. **No Cloudflare or Azure credential ever sits in a Claude session.** Deploy credentials live in GitHub; Worker secrets live in the Worker; agent keys are made by the owner from a signed-in device.
 5. **The password hash (scrypt 2^15/8/3 + pepper) runs in the `Auth` Durable Object**, and only after test X3 proves it fits. If it doesn't, the same hash runs on the phone and the server keeps only a keyed hash of the result (§6.4).
-6. **Storage hosting sends no headers.** So: a meta CSP first in every `<head>`. The shell and every new page: no inline script, a JavaScript frame guard that fails closed, and no third-party origins at all. Each ported app page (P1b, copied as it is) keeps its own meta CSP that allows exactly what that app loads today, from a per-app allowlist (§4.4).
+6. **Storage hosting sends no headers.** So: a meta CSP first in every `<head>`. The shell and every new page: no inline script, a JavaScript frame guard that fails closed, and no third-party origins at all, with one named exception: the Photos page's `connect-src https://www.googleapis.com`, so the phone uploads originals straight to the owner's own Drive, by the owner's choice (§4.1, [PHOTOS.md](../product/apps/PHOTOS.md)). Each ported app page (P1b, copied as it is) keeps its own meta CSP that allows exactly what that app loads today, from a per-app allowlist (§4.4).
 7. **Ask-first actions (delete, money, access, reaching people) execute only after the owner approves:** a tap on a signed-in device, or the owner's own words in the conversation, which the Worker verifies (an owner-device message sent after the card, the owner's latest in that thread; decisions 2026-10-28). A fired prompt, Muse output, a web page or any other text the mind read is never approval.
 8. **Logs and public places never hold secrets or personal data:** no tokens in URLs (except 30-second single-use tickets and presigned media URLs, never logged), no request bodies from `/v1/auth/*`, no titles in Actions logs.
 9. **Pin everything:** exact npm versions, a lockfile, `npm ci --ignore-scripts`, Actions by full commit SHA, vendored files by SHA-256.
@@ -127,6 +127,13 @@ Decisions fix the host. Consequences for security:
 ## 4. Front-end security
 
 ### 4.1 CSP (meta, first element after `<meta charset>`)
+
+The one third-party origin a new page may name (2026-11-04): Photos' own page (`/photos/`) adds
+`https://www.googleapis.com` to `connect-src` and `blob:` to `img-src`, and nothing else. The phone
+uploads an original to the owner's Drive itself (a resumable upload with a short-lived token the
+Worker mints, scope `drive.file`) and reads an original back only to make a missing preview; no
+other page reaches Google, and `tests/site.test.mjs` allows that host only in that page and
+`apps/photos/drive.js`.
 
 App shell (`/index.html` and app stubs):
 ```
@@ -384,6 +391,8 @@ Names only. "Rotate" says who does it and how; runbooks are in §14. A test chec
 | `IP_HASH_KEY` | Worker secret | Source keys for back-off; the daily key is `HMAC(IP_HASH_KEY, UTC date)` | First value generated inside the bootstrap deploy run, like `AUTH_PEPPER` ([OPERATIONS.md §5.1](OPERATIONS.md)). Yearly or on suspicion; rotation only resets back-off counters |
 | `ASTRA_SEAL_KEY` (P1b) | Worker secret | AES-256-GCM key sealing Astra's add-on list and backups ([ASTRA.md §5.3](../product/apps/ASTRA.md)) | Made once by `rotate-secret.yml` with `generate: ASTRA_SEAL_KEY` (32 random bytes, never printed) before the first `/import/` run; while it is `none`, `POST /v1/import/phone` answers `503 unavailable` with `details.reason = "seal_key_missing"` and stores nothing. Rotation re-seals lazily (open with the old key, seal with the new), like the pepper (§14.6) |
 | `R2_SIGN_ACCESS_KEY_ID`, `R2_SIGN_SECRET` | Worker secrets | Presigning (read-only, two buckets) | Owner: new R2 API token in the Cloudflare dashboard, paste both, delete the old token |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` (P9, Photos) | Worker secrets (`none` until the owner sets them, SETUP.md §R) | Photos' OAuth client for Google Drive (scope `drive.file`); the redirect is fixed, `WORKER_ORIGIN` + `/v1/photos/drive/callback` | Owner: a new client secret in Google Cloud → Credentials, pasted into the Worker's secrets; Disconnect and Connect again in Settings › Photos |
+| The Drive grant (P9) | `Auth` DO table `drive_grant`: the refresh token and the consenting account's address, each sealed with AES-256-GCM under a key HKDF-SHA-256 derives from `AUTH_PEPPER` (salt `thunderhead`, info `photos.drive.refresh`), a fresh 12-byte nonce each | Minting short-lived Drive access tokens (kept only in the object's memory, handed only to the owner's phone and the Worker's daily pass; never to the mind) | Owner: Disconnect in Settings › Photos (the Worker also asks Google to revoke it, the token in a POST body), or remove the app's access in the Google account |
 | `VAPID_PRIVATE_JWK` | Worker secret | Web Push; made by the first deploy that lacks it | Agent proposes; owner approves; devices re-subscribe automatically |
 | `ROUTINE_CHAT_URL` + `ROUTINE_CHAT_TOKEN`, `ROUTINE_NIGHT_URL` + `ROUTINE_NIGHT_TOKEN` (+ `ROUTINE_REFLEX_URL` + `ROUTINE_REFLEX_TOKEN` in P4); names as in [RUNTIME.md §2](../mind/RUNTIME.md) | Worker secrets | Firing the Claude scheduled tasks (wake text `wake` only) | Owner regenerates the trigger token in the task's settings in Claude, pastes into the Cloudflare dashboard |
 | `CLOUDFLARE_API_TOKEN` | GitHub environment `worker` (only `main`) | `wrangler deploy`, secret puts, X3 | Owner in the Cloudflare dashboard: account-scoped, Workers Scripts Edit only, no zones, no expiry (review §1 #24), yearly rotation note in [OPERATIONS.md](OPERATIONS.md) |

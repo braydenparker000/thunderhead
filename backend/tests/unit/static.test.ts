@@ -55,8 +55,10 @@ const SECRETS = [
   'R2_SIGN_SECRET',
   'MUSIC_UPLOAD_PUBLIC_KEYS',
   'VAPID_PRIVATE_JWK',
+  'GOOGLE_CLIENT_ID',
+  'GOOGLE_CLIENT_SECRET',
 ];
-const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP', 'LIVE_WAIT', 'R2_ACCOUNT_ID'];
+const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP', 'LIVE_WAIT', 'R2_ACCOUNT_ID', 'WORKER_ORIGIN'];
 const BINDINGS = ['VERSION', 'CORE', 'AUTH', 'MUSIC', 'SENSES', 'LIBRARY', 'VAULT', 'MEDIA', 'AI'];
 
 describe('source rules', () => {
@@ -102,6 +104,7 @@ describe('source rules', () => {
     expect(Object.keys(config.vars).sort()).toEqual([...VARS].sort());
     for (const name of Object.keys(config.vars)) expect(name).not.toMatch(/KEY|SECRET|TOKEN|PEPPER|PASSWORD/);
     expect(config.vars.SITE_ORIGINS).toBe('https://thunderhead.zNN.web.core.windows.net');
+    expect(config.vars.WORKER_ORIGIN).toBe('https://thunderhead-api.zNN.workers.dev');
     expect(config.vars.OWNER_TZ).toBe('UTC');
     expect(config.vars.R2_ACCOUNT_ID).toBe('none');
     expect(wrangler).not.toMatch(/account_id|[0-9a-f]{32}/);

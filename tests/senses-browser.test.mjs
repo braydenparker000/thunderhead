@@ -100,10 +100,9 @@ async function act(page) {
   });
   // A reply's Open chip.
   await page.click('#talk .chip');
-  // The ring by key: it opens on Music; six steps round to Photos, which comes later (no page to
-  // leave for).
+  // The ring by key: it opens on Music, which comes to the front inside home (every app on the ring
+  // has its page now, PHOTOS.md; the others would leave home before it is read).
   await page.evaluate(() => document.querySelector('[data-skip="apps"]').click());
-  for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowRight');
   await page.keyboard.press('Enter');
 }
 
@@ -127,7 +126,7 @@ test('the shell and home send what the owner does, ids and times only', opts, as
   assert.ok(of('app.close')[0][1].ms >= 0 && of('app.close')[0][1].ms < 10_000);
   assert.deepEqual(of('island.tap'), [['app:podcasts', { to: 'details' }]]);
   assert.deepEqual(of('reply.open_chip'), [['app:music', null]]);
-  assert.deepEqual(of('ring.choice'), [['app:photos', null]]);
+  assert.deepEqual(of('ring.choice'), [['app:music', null]]);
   for (const e of all) assert.ok(Object.hasOwn(SENSE_TYPES, e.type), `${e.type} is in the list`);
   assert.ok(!/Invented|Rain|book is ready|flat|Buy the/.test(JSON.stringify(all)), 'no words travel');
   // The same line seen again (a reload) is not sent again.

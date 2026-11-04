@@ -27,6 +27,8 @@ export const CHANGE_KINDS = [
   'prediction',
   // A routine stored, switched, removed or run (routines.ts).
   'routine',
+  // A photo registered, rated, deleted, restored or purged (areas/photos).
+  'photo',
 ] as const;
 export type ChangeKind = (typeof CHANGE_KINDS)[number];
 
@@ -50,8 +52,8 @@ export const APPS = {
   astra: { path: '/astra/', name: 'Astra', phase: 'P1b' },
   media: { path: '/media/', name: 'My Media', phase: 'P1b' },
   study: { path: '/study/', name: 'Study', phase: 'P7' },
-  // The ring's seventh place, for the photo editor that comes later (owner, 2026-10-31); not openable yet.
-  photos: { path: '/photos/', name: 'Photos', phase: 'P9', deferred: 'the photo editor comes later' },
+  // The ring's seventh place (owner, 2026-10-31): the shelf and the store first (PHOTOS.md), editing later.
+  photos: { path: '/photos/', name: 'Photos', phase: 'P9' },
 } as const;
 export type AppId = keyof typeof APPS;
 export const APP_IDS = Object.keys(APPS) as AppId[];

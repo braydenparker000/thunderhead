@@ -1,7 +1,9 @@
 // Schema steps for the Auth object (DATA.md §5, §9). Expand-only; an entry never changes after
 // it ships. Tables are WITHOUT ROWID with the lookup key as primary key wherever that saves an
 // index: on the free plan every index entry is one more billed row write.
+
 import { METER_DAYS_SQL } from '../areas/meter/migrations';
+import { GRANT_SQL } from '../areas/photos/grant';
 import type { Migration } from './base';
 
 export const AUTH_MIGRATIONS: Migration[] = [
@@ -127,4 +129,6 @@ export const AUTH_MIGRATIONS: Migration[] = [
     kind: 'expand',
     sql: [METER_DAYS_SQL],
   },
+  // Photos (PHOTOS.md §3.7): the Drive grant, sealed, and the one-use states of a consent.
+  { version: 4, name: 'drive_grant', kind: 'expand', sql: GRANT_SQL },
 ];

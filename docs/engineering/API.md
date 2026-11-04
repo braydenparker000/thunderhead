@@ -643,6 +643,7 @@ type MemoryOp =
 | Podcasts | `podcasts.open`, `podcast.play`, `podcast.finish`, `podcast.skip`, `podcast.follow`, `podcast.unfollow` (`podcast:<show id>/<episode id>`; the show's id is the hash of its feed) |
 | Guitar | `guitar.open`, `guitar.piece_opened`, `guitar.pass`, `guitar.bpm`, `guitar.session` (minutes as `seconds`, the sections marked, the tempo reached as `bpm`) |
 | Study | `study.open`, `study.read` (`pages`, `ms`), `study.search` (`hits` only), `study.highlight` (sensitive; nothing sends it yet) |
+| Photos | `photo.import` (`format` only), `photo.delete`, `photo.rate` (`rating`, `flag`); ref `photo:<id>`, never a name or a pixel |
 | Astra, My Media (`media`) | `astra.open`, `mymedia.open`, `media.watch` (`ms`), `media.finish`, `media.drop` (`astra:…` or `media:<id>`; read from each app's own progress by `th/senses/watch.js`) |
 | Shell | `app.open`, `app.close` (`ms` in front), `ring.choice`, `island.tap` (`to`), `briefing.open`, `settings.change` (`setting:<key>`, never the value) |
 | Home | `briefing.tile`, `line.seen`, `line.dismiss` (nothing sends it yet), `card.decide` (sensitive; the class only), `reply.open_chip` |
@@ -826,6 +827,38 @@ NEXT-BATCH.md part 7 ([PODCASTS.md §5.4](../product/apps/PODCASTS.md); types an
 - **The night never receives podcast text.** `GET …/follows` for a mind gives each show by its opaque `show_id` only, leaving out `feed_url` (its publisher chose it), `title`, `author` and `artwork` (`PodcastNightFollowRow`), on one page with no cursor, and the feed comes only as numbers (counts mode, §11.21), so neither marks the session. `GET …/progress` still carries feed addresses of any show listened to: served to a mind principal it needs `TH-Session` naming a claimed, live session of its role (422 `validation` without one, so raw `curl` gets nothing; 403 `session_required` for one that isn't), which Core marks tainted (source `podcasts`) before the answer goes out (`backend/src/areas/podcasts/taint.ts`, `CorePodcasts.podcastsRead`); the night doesn't read it. The owner's device is never marked. The mark costs 4–6 rows read and 2 written the first time, 4 read after; counts mode's look-up of started episodes one row each.
 
 ---
+
+### 11.26 Photos (P9)
+
+[PHOTOS.md](../product/apps/PHOTOS.md); types and `PHOTO_LIMITS` in `shared/contract/photos.ts`;
+Core step 41 and Auth step 4 ([DATA.md](DATA.md)). The owner's phone only (`D`); the callback is
+public and checked by its one-use state.
+
+- `GET /v1/photos/drive` → `{configured, connected, folder_name, revoked, connected_at, account}`
+  (`account`: the consenting Google address, stored sealed; the phone's alone).
+- `POST /v1/photos/drive/connect` → `{url}`: Google's consent address (scope `drive.file`,
+  offline access, a state good for 10 minutes, stored as its SHA-256 with the site origin to go back to).
+- `GET /v1/photos/drive/callback?code=&state=` (public): trades the code, seals the refresh token in
+  the Auth object, finds or makes the folder "Thunderhead Photos", then 302 to
+  `<site>/photos/?drive=connected|declined|failed`. A used or late state is 400 with a plain line.
+- `DELETE /v1/photos/drive` → 204: forgets the grant and asks Google to revoke it; the files stay.
+- `POST /v1/photos/upload-token` → `{access_token, expires_at, folder_id}`: minted from the refresh
+  token, kept in the Auth object's memory until 5 minutes before it expires. 409 `conflict`
+  (`details: drive`) when Drive is not connected or Google took the access back; 503
+  `not_configured` without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. The phone uploads the original
+  to Drive itself (resumable upload); its bytes never pass through the Worker.
+- `PUT /v1/photos/:id` `{drive_id, name, format, bytes, sha256, camera?, film?, width?, height?, taken_at}`
+  → 201 `{photo}`, after one check with Drive: the file is in the app's folder, not in the trash,
+  with that size and (when Drive gives one) that SHA-256, else 422 on `drive_id`; the same id again is 200, a Drive file already on the shelf is that photo (200),
+  another Drive file on the same id 409. Its day is `taken_at`'s in the owner's zone.
+- `GET /v1/photos?before=<day>` → `{days: [{day, count, photos (≤ 4)}], next}`, 14 days a page,
+  newest first; `?day=<day>` one day whole (≤ 200 photos).
+- `GET /v1/photos/:id` → `{photo}`; `PATCH` `{rating 0–5, flag 'pick'|'reject'|null}`;
+  `DELETE` moves it to Recently deleted; `POST …/restore` brings it back; `GET /v1/photos/deleted`
+  lists Recently deleted (newest first, ≤ 200). A deleted photo is purged 30 days on with its preview.
+- `PUT /v1/photos/:id/preview` (`image/jpeg`, ≤ 400 KB) → `{photo}`; `GET` the bytes, private, with
+  an ETag (304 on a match), `Cache-Control: private, no-store` and `Content-Security-Policy: sandbox`. A
+  deleted photo takes no preview (404, no bytes written). Kept in `thunderhead-private` under `photos/previews/<id>.jpg`.
 
 ## 12. WebSocket protocol (`/v1/live`)
 

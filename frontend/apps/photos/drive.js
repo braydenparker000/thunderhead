@@ -1,0 +1,120 @@
+// @ts-check
+// The original straight to the owner's Google Drive (PHOTOS.md §3.1): a resumable upload the phone
+// runs itself with the short-lived token the Worker mints, so the bytes never pass through the
+// Worker. Chunks of 8 MiB with their progress; a dropped connection asks Drive how far it got and
+// goes on from there, with the session kept on the phone, so even a reload resumes it.
+
+export const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
+export const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files';
+const CHUNK = 8 * 1024 * 1024;
+
+/** @param {number} ms */
+const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** A new upload session for this file in the app's folder; its address. @param {string} token
+ * @param {Blob} file @param {string} name @param {string} folder */
+async function begin(token, file, name, folder) {
+  const res = await fetch(`${DRIVE_UPLOAD}?uploadType=resumable&fields=id`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json; charset=UTF-8',
+      'X-Upload-Content-Type': file.type || 'application/octet-stream',
+      'X-Upload-Content-Length': String(file.size),
+    },
+    body: JSON.stringify({ name, parents: [folder] }),
+  });
+  const at = res.headers.get('Location');
+  if (!res.ok || !at) throw Object.assign(new Error('drive'), { status: res.status });
+  return at;
+}
+
+/** One PUT to the session: a chunk (with progress) or, with no bytes, "how far did you get".
+ * @param {string} session @param {Blob} file @param {number} start @param {boolean} ask
+ * @param {(sent: number) => void} onSent
+ * @returns {Promise<{ status: number, range: string | null, body: any }>} */
+function put(session, file, start, ask, onSent) {
+  return new Promise((resolve, reject) => {
+    const x = new XMLHttpRequest();
+    x.open('PUT', session);
+    const end = Math.min(file.size, start + CHUNK);
+    x.setRequestHeader('Content-Range', ask ? `bytes */${file.size}` : `bytes ${start}-${end - 1}/${file.size}`);
+    x.upload.onprogress = (e) => onSent(start + e.loaded);
+    x.onerror = x.ontimeout = () => reject(Object.assign(new Error('network'), { status: 0 }));
+    x.onload = () => {
+      let body = null;
+      try {
+        body = JSON.parse(x.responseText);
+      } catch {}
+      resolve({ status: x.status, range: x.getResponseHeader('Range'), body });
+    };
+    x.send(ask ? null : file.slice(start, end));
+  });
+}
+
+/** Where Drive's session stands after a 308: the next byte it wants. @param {string | null} range */
+const nextByte = (range) => {
+  const m = /bytes=0-(\d+)/.exec(range ?? '');
+  return m ? Number(m[1]) + 1 : 0;
+};
+
+/**
+ * Uploads `file` to the folder and returns its Drive id. `token()` gives a live upload token (the
+ * Worker's), `session` a session kept from before, `keep(session)` keeps a new one.
+ * @param {{ file: Blob, name: string, token: () => Promise<{ access_token: string, folder_id: string }>,
+ *   session?: string | null, keep?: (session: string) => void, onProgress?: (sent: number, total: number) => void }} o
+ * @returns {Promise<string>}
+ */
+export async function upload(o) {
+  const progress = o.onProgress ?? (() => {});
+  let session = o.session ?? null;
+  let start = 0;
+  let ask = Boolean(session);
+  for (let tries = 0; tries < 6; ) {
+    try {
+      if (!session) {
+        const t = await o.token();
+        session = await begin(t.access_token, o.file, o.name, t.folder_id);
+        o.keep?.(session);
+        ask = false;
+        start = 0;
+      }
+      const r = await put(session, o.file, start, ask, (sent) => progress(sent, o.file.size));
+      ask = false;
+      if ((r.status === 200 || r.status === 201) && r.body?.id) {
+        progress(o.file.size, o.file.size);
+        return String(r.body.id);
+      }
+      if (r.status === 308) {
+        start = nextByte(r.range);
+        progress(start, o.file.size);
+        continue;
+      }
+      // A session Drive has forgotten (a week old, or cancelled): start a new one.
+      if (r.status === 404 || r.status === 410) {
+        session = null;
+        tries++;
+        continue;
+      }
+      throw Object.assign(new Error('drive'), { status: r.status });
+    } catch (e) {
+      const status = /** @type {{ status?: number }} */ (e).status ?? 0;
+      if (status && status < 500 && status !== 429) throw e;
+      // A dropped connection or a busy Drive: ask how far it got, after a short wait.
+      tries++;
+      ask = Boolean(session);
+      await pause(Math.min(8000, 500 * 2 ** tries));
+    }
+  }
+  throw Object.assign(new Error('drive'), { status: 0 });
+}
+
+/** Bytes of an original in Drive (a byte range, or all of it), for a photo found by the daily
+ * pass that has no preview yet. @param {string} token @param {string} id @param {[number, number]} [range] */
+export async function fetchOriginal(token, id, range) {
+  const res = await fetch(`${DRIVE_FILES}/${encodeURIComponent(id)}?alt=media`, {
+    headers: { Authorization: `Bearer ${token}`, ...(range ? { Range: `bytes=${range[0]}-${range[1] - 1}` } : {}) },
+  });
+  if (!res.ok) throw Object.assign(new Error('drive'), { status: res.status });
+  return res.blob();
+}

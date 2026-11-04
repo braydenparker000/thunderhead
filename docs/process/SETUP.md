@@ -613,3 +613,46 @@ in iCal format**; Outlook: **Publish a calendar** → ICS; iCloud: share the cal
 then copy its `webcal://` link) and paste it in **Settings → Briefing → Calendars → Add a calendar
 link**, marked **Mine**; a shared or work calendar is **Shared**. Up to three. If the Briefing then
 says "A calendar link redirects elsewhere.", open the link in a browser and paste the address it ends at.
+
+## R. Photos and your Google Drive (about 15 minutes, once; 2026-11-04)
+
+Photos keeps your originals in your own Google Drive. The app asks only for the files it makes
+(`drive.file`), in one folder, "Thunderhead Photos".
+
+### R1. A Google Cloud project with the Drive API
+
+1. console.cloud.google.com → the project menu → **New project**, any name (for example
+   `thunderhead-photos`) → **Create**, then select it.
+2. **APIs & Services** → **Library** → search **Google Drive API** → **Enable**.
+3. **APIs & Services** → **OAuth consent screen**: user type **External**, an app name, your own
+   address as support and developer contact; scope `.../auth/drive.file`; add your own Google
+   account under **Test users** (or publish the app: `drive.file` needs no verification).
+
+### R2. The OAuth client and its two secrets
+
+1. **APIs & Services** → **Credentials** → **Create credentials** → **OAuth client ID**:
+   **Web application**; **Authorized redirect URIs**: exactly your repository variable `WORKER_URL`
+   (with no trailing slash) followed by `/v1/photos/drive/callback`, for example
+   `https://thunderhead-api.<your-subdomain>.workers.dev/v1/photos/drive/callback`. The Worker
+   sends this one fixed address (the deploy passes `WORKER_URL` to it as `WORKER_ORIGIN`), never one
+   built from a request, so it must match character for character → **Create**. The page shows a **Client ID** and a **Client secret**.
+2. dash.cloudflare.com → **Workers & Pages** → `thunderhead-api` → **Settings** → **Variables and
+   Secrets**: `GOOGLE_CLIENT_ID` → **Edit** → paste the Client ID → **Save**; then
+   `GOOGLE_CLIENT_SECRET` → **Edit** → paste the Client secret → **Save**. Never put either in a
+   file, a chat or a variable. (The deploy adds both as `none` until you do.)
+
+### R3. Connect
+
+On your phone: Settings → **Photos** → **Connect Google Drive** → choose your account → **Allow**.
+You come back to Photos with "Google Drive is connected"; the folder appears in your Drive. To
+stop: **Disconnect Google Drive** there (your files stay), or remove the app's access in your
+Google account (Settings › Photos then says so). Settings › Photos shows "Connected as" with the
+Google account that consented: if it is not yours, Disconnect at once.
+
+### R4. The first real upload (a check, once)
+
+Import one photo and watch it reach "In Drive", then find it in the "Thunderhead Photos" folder.
+The phone relies on Drive letting the browser read the upload session's address (the `Location`
+header of the resumable upload); the tests fake Google, so this is the first place it is proven.
+If the import stops at "This one did not upload", tell the agent.
+

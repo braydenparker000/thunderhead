@@ -1,12 +1,15 @@
 {
-  "id": "2026-11-04-mind-voice",
+  "id": "2026-11-04-photos-shelf",
   "date": "2026-11-04",
   "lines": [
     {
-      "text": "The mind speaks in its own voice: shorter, surer, and it remembers what you told it to stop."
+      "text": "Photos is on the ring: import RAF, DNG or JPEG, and your originals go straight to your own Google Drive."
     },
     {
-      "text": "What you told me now has its own heading in What I remember, newest first, and I keep each one for good."
+      "text": "Your shelf shows each day's photos, newest first, and works offline. Hold a photo to rate, pick or delete it."
+    },
+    {
+      "text": "Connect Google Drive once in Settings, Photos."
     }
   ]
 }

@@ -1,11 +1,13 @@
 // The Hono app, in API.md §10's order: request id and response headers → CORS (origin check,
 // preflights) → client version → body limits → per-route guard (auth, then scope) → route →
 // onError. Unknown routes fall through to 404 before any token check.
+
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { FILE_LIMITS } from '../../shared/contract/files.ts';
 import { IMPORT_PART_BYTES } from '../../shared/contract/imports.ts';
 import { LIBRARY_LIMITS } from '../../shared/contract/library.ts';
+import { PHOTO_LIMITS } from '../../shared/contract/photos.ts';
 import { TASTE_LIMITS } from '../../shared/contract/taste.ts';
 import { authRoutes } from './areas/auth/routes';
 import { backupsRoutes } from './areas/backups/routes';
@@ -30,6 +32,8 @@ import { notesRoutes } from './areas/music/notes-routes';
 import { musicRoutes } from './areas/music/routes';
 import { BIG_OPS, UPLOAD_LIMITS, uploadRoutes } from './areas/music/upload';
 import { opsRoutes } from './areas/ops/routes';
+import { driveRoutes } from './areas/photos/drive-routes';
+import { photosRoutes } from './areas/photos/routes';
 import { podcastsRoutes } from './areas/podcasts/routes';
 import { podcastSyncRoutes } from './areas/podcasts/sync-routes';
 import { predictionsRoutes } from './areas/predictions/routes';
@@ -77,6 +81,9 @@ const scripture = bodyLimit({ maxSize: LIBRARY_LIMITS.text_bytes, onError: tooLa
 const chatFile = bodyLimit({ maxSize: FILE_LIMITS.bytes, onError: tooLarge });
 // A listening-history export (MUSIC.md §16.1), one upload.
 const historyFile = bodyLimit({ maxSize: TASTE_LIMITS.file_bytes, onError: tooLarge });
+// A photo's preview (PHOTOS.md §3.1), checked again in the route.
+const preview = bodyLimit({ maxSize: PHOTO_LIMITS.preview_bytes, onError: tooLarge });
+const PREVIEW = /^\/v1\/photos\/[^/]+\/preview$/;
 const limitFor = (path: string) =>
   path.startsWith('/v1/files/')
     ? chatFile
@@ -100,7 +107,9 @@ const limitFor = (path: string) =>
                       ? pages
                       : path.startsWith('/v1/library/scripture')
                         ? scripture
-                        : small;
+                        : PREVIEW.test(path)
+                          ? preview
+                          : small;
 
 export const app = new Hono<AppEnv>()
   .use(async (c, next) => {
@@ -161,5 +170,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', libraryRoutes)
   .route('/v1', ingestRoutes)
   .route('/v1', scriptureRoutes)
+  .route('/v1', driveRoutes)
+  .route('/v1', photosRoutes)
   .notFound(notFound)
   .onError(onError);

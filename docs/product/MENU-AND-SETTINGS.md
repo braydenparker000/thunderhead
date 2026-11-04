@@ -396,7 +396,19 @@ SHA-256 (`PUT /v1/music/history`) and counted once, and what was counted (counts
 |---|---|---|---|---|
 | `music.history` | switch | worker | `on` | the mind (briefing section 13) and the brief's taste line (`areas/mind/assemble.ts`: off leaves it out); the DJ shuffle's weights (`GET /v1/music/taste/weights` answers none while off) and a `music.play_mix` find ("playlist from words") weigh by history only while on; find's `history=1` is the mind's to skip |
 
-### 6.7 Privacy and data (`privacy.js`)
+### 6.6c Photos (`photos.js`)
+
+Google Drive first ([PHOTOS.md §3.6](apps/PHOTOS.md)): Connect (Google's consent for the
+`drive.file` scope, back to `/photos/`), or "Connected as" the Google account, the folder by name and Disconnect; a plain line when
+Google took the access back, and one when the Worker has no OAuth client yet. Then the two keys
+below (recent originals come with editing: shown, not yet chosen), and Recently deleted, which
+opens Photos' own list (`/photos/?deleted=1`). `/settings/photos/` opens this page.
+
+| Key | Control | Scope | Default | Read by |
+|---|---|---|---|---|
+| `photos.preview_size` | segments: 1,024 / 2,048 px (On this phone) | worker | `2048` | the phone, when it makes a photo's preview on import or first open (`apps/photos/data.js` `previewSide`, from `th.p.settings`) |
+| `photos.keep` | segments: previews only / recent originals too (On this phone) | worker | `previews` | nothing yet: previews are kept on every phone; recent originals come with editing (P1c) |
+
 
 Senses per app and error reports, then Keep conversations, then a read-only group, What leaves this phone, then Your data
 with Export, which opens the Export page (§4.9) over this one: the weather
@@ -411,6 +423,7 @@ errors routes are the place to honour them.
 | `privacy.senses.podcasts` | switch | worker | `on` | the same, for Podcasts |
 | `privacy.senses.guitar` | switch | worker | `on` | the same, for Guitar |
 | `privacy.senses.study` | switch | worker | `on` | the same, for Study |
+| `privacy.senses.photos` | switch | worker | `on` | the same, for Photos: imports, ratings and deletes, ids and formats only |
 | `privacy.senses.media` | switch | worker | `on` | the same, for Astra and My Media (B1) |
 | `privacy.senses.home` | switch | worker | `on` | the same, for home: lines seen, tiles and chips tapped, cards answered |
 | `privacy.senses.shell` | switch | worker | `on` | the same, for the ring, the island, Music and Podcasts in front, settings changed (B1) |

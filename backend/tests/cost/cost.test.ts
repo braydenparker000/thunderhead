@@ -278,7 +278,8 @@ describe('rows per endpoint', () => {
   it('measures the phone’s reports and sync, held conversations and settings', () =>
     phoneCalls(cost, grant)
       .then(() => heldCalls(cost, grant))
-      .then(() => import('./settings-calls').then((m) => m.settingsCalls(cost, grant))));
+      .then(() => import('./settings-calls').then((m) => m.settingsCalls(cost, grant)))
+      .then(() => import('./photos-calls').then((m) => m.photosCalls(cost, grant))));
   // Recall by meaning last (recall-calls.ts): its 200 new messages would change what others read.
   it('measures the music notes and find, scheduled actions and plans, the listening history, then recall by meaning', () =>
     musicCalls(cost as never, grant)
