@@ -5,7 +5,7 @@ import {HttpError, hash} from './fake-worker.mjs';
 
 const ALL = ['chat', 'night', 'reflex'];
 const CN = ['chat', 'night'];
-const EXECUTORS = ['verb', 'memory.forget', 'memory.apply_batch', 'agents.revoke', 'files.delete', 'ops.restore', 'music.delete_from_catalog', 'permit.allow'];
+const EXECUTORS = ['verb', 'memory.forget', 'memory.apply_batch', 'agents.revoke', 'files.delete', 'ops.restore', 'music.delete_from_catalog', 'permit.allow', 'routine.propose'];
 const ASK_FIRST_VERBS = ['music.delete_playlist', 'files.delete'];
 const actorOf = role => `mind:${role}`;
 
@@ -220,12 +220,28 @@ export function extraRoutes(ctl) {
     }],
     ['PUT', /^\/v1\/proposals\/([^/]+)$/, ALL, ({params, body, role}) => {
       // An arrangement's card (class permit) carries odds, 0.05–0.95 (BEHAVIOR.md §4).
-      if (body.class === 'permit' && !(body.odds >= 0.05 && body.odds <= 0.95)) throw new HttpError(422, 'validation', 'odds', [{path: 'odds', issue: 'required on a permit card'}]);
-      const ok = ['delete', 'money', 'access', 'reach_people', 'permit', 'memory_big'].includes(body.class) && body.question?.length <= 80 &&
+      if ((body.class === 'permit' || body.class === 'routine') && !(body.odds >= 0.05 && body.odds <= 0.95)) throw new HttpError(422, 'validation', 'odds', [{path: 'odds', issue: 'required on a permit card'}]);
+      const ok = ['delete', 'money', 'access', 'reach_people', 'permit', 'routine', 'memory_big'].includes(body.class) && body.question?.length <= 80 &&
         body.why?.length <= 140 && body.if_ignored && Array.isArray(body.options) && body.options.length === 2 && EXECUTORS.includes(body.spec?.op);
       if (!ok) throw new HttpError(422, 'validation', 'card');
       if (!s.proposals.has(params[0]) && [...s.proposals.values()].filter(p => p.value.status === 'waiting').length >= 3) throw new HttpError(409, 'decision_budget');
       return idem(s.proposals, params[0], body, () => ({id: params[0], ...body, created_by: actorOf(role), created_at: ctl.now(), seq: ++s.seq, spec_hash: hash(body.spec), status: 'waiting'}));
+    }],
+    ['POST', /^\/v1\/proposals\/([^/]+)\/cancel$/, ALL, ({params}) => {
+      const p = s.proposals.get(params[0])?.value;
+      if (!p) throw new HttpError(404, 'not_found');
+      if (p.status !== 'waiting') throw new HttpError(409, 'already_decided');
+      p.status = 'cancelled';
+      return {status: 'cancelled'};
+    }],
+    // Routines (API.md §11.11): what a test put in `state.routines`; the mind switches one off only.
+    ['GET', /^\/v1\/routines$/, CN, () => ({items: [...(s.routines ??= new Map()).values()]})],
+    ['POST', /^\/v1\/routines\/([^/]+)\/switch$/, CN, ({params, body}) => {
+      const r = (s.routines ??= new Map()).get(params[0]);
+      if (!r) throw new HttpError(404, 'not_found');
+      if (body.on) throw new HttpError(403, 'forbidden', 'only the owner switches a routine on');
+      r.on = false;
+      return r;
     }],
     ['GET', /^\/v1\/proposals$/, ALL, ({query}) => ({items: [...s.proposals.values()].map(p => p.value)
       .filter(p => query.get('status') === 'all' || p.status === (query.get('status') || 'waiting')), next: null})],

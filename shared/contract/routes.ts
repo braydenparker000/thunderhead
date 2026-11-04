@@ -3,6 +3,7 @@
 // and the generated appendix docs/engineering/CONTRACT.md. A route is added here first; the
 // scope test fails until the Worker registers exactly the built rows with exactly these
 // principals. Plain data with erasable types only, so Node can import it without a build.
+import { ROUTINE_ROUTES } from './routes-routines.ts';
 
 /** D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci (API.md §13). */
 export type Who = 'D' | 'C' | 'N' | 'R' | 'M' | 'I';
@@ -108,6 +109,7 @@ export const ROUTES = {
   'POST /v1/verbs/:id/result': { who: D, phase: 'P2' },
   'POST /v1/verbs/plan': { who: ['C', 'N'], phase: 'P2', note: '2–8 verbs, one why, one undo; the strictest step decides its permit; fire_at runs it later' },
   'GET /v1/verbs/scheduled': { who: ['D', 'C', 'N'], phase: 'P2', note: 'what waits for its fire_at, soonest first (≤ 20)' },
+  ...ROUTINE_ROUTES,
   'POST /v1/verbs/:id/cancel': { who: ['D', 'C', 'N'], phase: 'P2', note: 'a scheduled verb or plan before it runs (its undo until then); the mind cancels its own' },
   'GET /v1/surfaces': { who: AGENTS_READ, phase: 'P2' },
   'PUT /v1/surfaces/:app/:slot': { who: ['C', 'N'], phase: 'P2' },

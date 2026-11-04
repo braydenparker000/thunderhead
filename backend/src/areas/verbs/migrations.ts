@@ -3,7 +3,8 @@
 // keeps (a name and its songs, by the id of the verb that saved it), which `music.play_mix` plays.
 // Step 33: scheduled actions and plans (schedule.ts, plan.ts): when a `scheduled` row fires, the plan
 // a step belongs to, and the why and permit a scheduled row keeps for the ledger row it writes when
-// it runs (none is written while it waits).
+// it runs (none is written while it waits). Step 38: routines (routines.ts), a plan and a condition
+// the owner approved once; the alarm's soonest and the due pass read `routines_next` only.
 import type { Migration, TableInfo } from '../../objects/base';
 import { pruneMixes } from './mixes';
 import { prune } from './store';
@@ -69,6 +70,37 @@ export const VERBS_MIGRATIONS: Migration[] = [
       "CREATE INDEX verbs_scheduled ON verbs (fire_at) WHERE status = 'scheduled'",
     ],
   },
+  {
+    version: 38,
+    name: 'routines',
+    kind: 'expand',
+    sql: [
+      `CREATE TABLE routines (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        what TEXT NOT NULL,
+        why TEXT NOT NULL,
+        steps_json TEXT NOT NULL,
+        cond_json TEXT NOT NULL,
+        when_text TEXT NOT NULL,
+        event_type TEXT,
+        actor TEXT NOT NULL,
+        proposal_id TEXT NOT NULL,
+        permit TEXT,
+        status TEXT NOT NULL,
+        approved_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        next_at INTEGER,
+        last_run_at INTEGER,
+        last_ledger_id TEXT,
+        last_day TEXT,
+        last_error TEXT
+      ) WITHOUT ROWID`,
+      // The tick's check: the soonest time-bound routine that is on (NULL while off or event-bound).
+      'CREATE INDEX routines_next ON routines (next_at) WHERE next_at IS NOT NULL',
+      "CREATE INDEX routines_event ON routines (event_type) WHERE event_type IS NOT NULL AND status = 'on'",
+    ],
+  },
 ];
 
 export const VERBS_TABLES: Record<string, TableInfo> = {
@@ -83,5 +115,10 @@ export const VERBS_TABLES: Record<string, TableInfo> = {
     backup: true,
     export: true,
     prune: pruneMixes,
+  },
+  routines: {
+    retention: 'forever while kept (at most 12); the owner’s Remove deletes one at once',
+    backup: true,
+    export: true,
   },
 };

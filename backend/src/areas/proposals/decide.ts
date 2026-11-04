@@ -119,7 +119,7 @@ export function decide(w: Writer, c: Caller, id: string, r: DecideProposalReques
   const run = CORE_RUNS[p.op as keyof typeof CORE_RUNS];
   w.proposal = id;
   try {
-    const out = run ? run(w, args, p, owner) : null;
+    const out = run ? run(w, args, p, owner, tz) : null;
     if (!out) throw new Fail('not_found');
     store.finish(w.db, id, 'executed', out.result, out.ledger_id);
     return { status: 'executed', result: out.result, ledger_id: ledgerId };

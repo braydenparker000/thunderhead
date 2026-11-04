@@ -245,6 +245,7 @@ function mind() {
     speech: { positions: c.SPEECH_POSITIONS, quiet: c.SPEECH_QUIET, asked_hours: c.ASKED_HOURS },
     // Scheduled actions and plans (`th verb --at`, `th plan`): checked before the call.
     schedules: { limits: c.SCHEDULE_LIMITS, plans: c.PLAN_LIMITS, plan_action: c.PLAN_ACTION, quiet_held: c.QUIET_HELD },
+    routines: { limits: c.ROUTINE_LIMITS, days: c.ROUTINE_DAYS },
     lint: { banned_phrases: BANNED_PHRASES },
     watchdogs: { limits: c.WATCHDOG_LIMITS, reflex_procedure: c.REFLEX_PROCEDURE, items: c.WATCHDOGS },
     // The day pulse (`th watch`): the kinds, the limits, what an event or a change watch may name.

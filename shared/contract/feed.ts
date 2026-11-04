@@ -25,6 +25,8 @@ export const CHANGE_KINDS = [
   // A watch set, met, fired or refused (watches.ts); a prediction resolved (predictions.ts).
   'watch',
   'prediction',
+  // A routine stored, switched, removed or run (routines.ts).
+  'routine',
 ] as const;
 export type ChangeKind = (typeof CHANGE_KINDS)[number];
 

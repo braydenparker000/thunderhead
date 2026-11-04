@@ -163,6 +163,18 @@
     "rows_read_max": 34,
     "rows_written_max": 0
   },
+  "GET /v1/routines (2 routines) (Core)": {
+    "rows_read_max": 4,
+    "rows_written_max": 0
+  },
+  "cron tick, 2 routines not due (Core)": {
+    "rows_read_max": 54,
+    "rows_written_max": 12
+  },
+  "cron tick, running a routine of 2 steps (Core)": {
+    "rows_read_max": 87,
+    "rows_written_max": 37
+  },
   "PUT /v1/surfaces/home/:slot (Core)": {
     "rows_read_max": 2,
     "rows_written_max": 7

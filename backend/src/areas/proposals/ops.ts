@@ -8,6 +8,7 @@ import type { Json, Proposal, PutProposalRequest } from '../../../../shared/cont
 import { lintMindText } from '../../../../shared/contract/lint.ts';
 import { PERMIT_FLOORS, permitOf, permitSetting } from '../../../../shared/contract/permits.ts';
 import { oddsRequired, PROPOSAL_CLASSES, PROPOSAL_LIMITS, proposalOp } from '../../../../shared/contract/proposals.ts';
+import type { RoutineArgs } from '../../../../shared/contract/routines.ts';
 import { PLAN_ACTION } from '../../../../shared/contract/schedules.ts';
 import { canonicalJson } from '../../lib/canonical';
 import { uuidv7 } from '../../lib/ids';
@@ -20,6 +21,7 @@ import { lineage } from '../memory/store';
 import { claimedSession } from '../mind/guards';
 import { asked, speechGate } from '../mind/speech';
 import { heldUntil, quietWindow } from '../settings/quiet';
+import { target as routineTarget } from '../verbs/routines';
 import { lawsCard } from './laws';
 import * as store from './store';
 
@@ -48,6 +50,7 @@ function targetOf(w: Writer, op: string, args: Record<string, Json>, given: stri
     if (!given) throw invalid('spec.args.agent_id', 'no active agent key with this id');
     return given;
   }
+  if (op === 'routine.propose') return routineTarget(w.db, args as unknown as RoutineArgs);
   if (op === 'laws.pin') return `mind/CONSTITUTION.md, sha256 ${String(args.sha256).slice(0, 12)}`;
   if (op === 'repo.change')
     return `${short((args.paths as string[]).join(', '), 160)} (from ${String(args.base).slice(0, 7)})`;

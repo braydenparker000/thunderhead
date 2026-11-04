@@ -568,6 +568,34 @@
       "status": "built",
       "note": "what waits for its fire_at, soonest first (≤ 20)"
     },
+    "GET /v1/routines": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "the approved routines (at most 12), on and off, each with its condition in words and its last run"
+    },
+    "POST /v1/routines/:id/switch": {
+      "who": [
+        "D",
+        "C",
+        "N"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "{on}: the owner switches one on or off; the mind only off (th routine cancel)"
+    },
+    "DELETE /v1/routines/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P2",
+      "status": "built",
+      "note": "removes one that is off (409 while it is on)"
+    },
     "POST /v1/verbs/:id/cancel": {
       "who": [
         "D",
@@ -4072,7 +4100,8 @@
     "error",
     "work",
     "watch",
-    "prediction"
+    "prediction",
+    "routine"
   ],
   "frame_types": [
     "hello",
@@ -4776,6 +4805,10 @@
         "ask_first": true,
         "label": "You said to ask"
       },
+      "routine": {
+        "ask_first": true,
+        "label": "Runs on its own"
+      },
       "memory_big": {
         "ask_first": false,
         "label": "Changes what I remember"
@@ -4794,7 +4827,8 @@
       "odds_max": 0.95
     },
     "odds_required": [
-      "permit"
+      "permit",
+      "routine"
     ],
     "ops": {
       "memory.forget": {
@@ -4965,6 +4999,151 @@
           ],
           "additionalProperties": false
         }
+      },
+      "routine.propose": {
+        "classes": [
+          "routine"
+        ],
+        "by": [
+          "C",
+          "N"
+        ],
+        "runs": "core",
+        "ref": [
+          "routine",
+          "id"
+        ],
+        "doc": "Store a routine the owner approves once (routines.ts): a plan of 1-8 verbs (one why, one line on home) and a condition, `at` HH:MM on some weekdays, `after` a sense type (at most once a day) or `fact` an observed routine fact's usual time. The card's target is the steps and the condition in words, written by the Worker; the yes stores it on, under the permit as it stands then, and it runs without a session until switched off.",
+        "args": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40
+            },
+            "why": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 200
+            },
+            "what": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            "steps": {
+              "minItems": 1,
+              "maxItems": 8,
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "verb": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9]*\\.[a-z][a-z0-9_]*$"
+                  },
+                  "schema": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 99
+                  },
+                  "args": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string"
+                    },
+                    "additionalProperties": {}
+                  },
+                  "device_id": {
+                    "type": "string",
+                    "maxLength": 40
+                  }
+                },
+                "required": [
+                  "verb",
+                  "schema",
+                  "args"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "condition": {
+              "anyOf": [
+                {
+                  "type": "object",
+                  "properties": {
+                    "at": {
+                      "type": "string",
+                      "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$"
+                    },
+                    "days": {
+                      "minItems": 1,
+                      "maxItems": 7,
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "mon",
+                          "tue",
+                          "wed",
+                          "thu",
+                          "fri",
+                          "sat",
+                          "sun"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "at"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "after": {
+                      "type": "string",
+                      "maxLength": 40,
+                      "pattern": "^[a-z]+(\\.[a-z_]+)+$"
+                    }
+                  },
+                  "required": [
+                    "after"
+                  ],
+                  "additionalProperties": false
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "fact": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"
+                    }
+                  },
+                  "required": [
+                    "fact"
+                  ],
+                  "additionalProperties": false
+                }
+              ]
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "why",
+            "what",
+            "steps",
+            "condition"
+          ],
+          "additionalProperties": false
+        }
       }
     }
   },
@@ -5096,6 +5275,26 @@
     "quiet_held": [
       "music",
       "podcasts"
+    ]
+  },
+  "routines": {
+    "limits": {
+      "max": 12,
+      "name": 40,
+      "min_steps": 1,
+      "max_steps": 8,
+      "per_pass": 10,
+      "event_fresh_ms": 3600000,
+      "error": 80
+    },
+    "days": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat",
+      "sun"
     ]
   },
   "lint": {

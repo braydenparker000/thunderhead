@@ -78,6 +78,9 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/verbs/:id/result` | D | P2 | built |  |
 | `POST /v1/verbs/plan` | C N | P2 | built | 2–8 verbs, one why, one undo; the strictest step decides its permit; fire_at runs it later |
 | `GET /v1/verbs/scheduled` | D C N | P2 | built | what waits for its fire_at, soonest first (≤ 20) |
+| `GET /v1/routines` | D C N | P2 | built | the approved routines (at most 12), on and off, each with its condition in words and its last run |
+| `POST /v1/routines/:id/switch` | D C N | P2 | built | {on}: the owner switches one on or off; the mind only off (th routine cancel) |
+| `DELETE /v1/routines/:id` | D | P2 | built | removes one that is off (409 while it is on) |
 | `POST /v1/verbs/:id/cancel` | D C N | P2 | built | a scheduled verb or plan before it runs (its undo until then); the mind cancels its own |
 | `GET /v1/surfaces` | D C N R | P2 | built |  |
 | `PUT /v1/surfaces/:app/:slot` | C N | P2 | built |  |
@@ -295,7 +298,7 @@ A verb or a plan with `fire_at` (ISO, owner-local or with its offset) waits as a
 
 ## Change kinds
 
-`message` · `thread` · `ledger` · `proposal` · `verb` · `plan` · `surface` · `notice` · `fact` · `day_note` · `open_thread` · `setting` · `mind_status` · `error` · `work` · `watch` · `prediction`
+`message` · `thread` · `ledger` · `proposal` · `verb` · `plan` · `surface` · `notice` · `fact` · `day_note` · `open_thread` · `setting` · `mind_status` · `error` · `work` · `watch` · `prediction` · `routine`
 
 ## Live channel
 
@@ -356,7 +359,7 @@ Every event type the phone may send (`PUT /v1/senses/batches/:id`, API.md §11.1
 | `arrangement.seen` | home | `ledger:` | — | 0 | An app's arrangement on screen. |
 | `arrangement.tap` | home | `ledger:` | — | 0 | An app's arrangement taken up (played, opened, started). |
 | `arrangement.dismiss` | home | `ledger:` | — | 0 | An app's arrangement dismissed. |
-| `card.decide` | home | `proposal:` | class: `delete` \| `money` \| `access` \| `reach_people` \| `permit` \| `memory_big` | 1 | A decision card answered Yes or No (its class only). |
+| `card.decide` | home | `proposal:` | class: `delete` \| `money` \| `access` \| `reach_people` \| `permit` \| `routine` \| `memory_big` | 1 | A decision card answered Yes or No (its class only). |
 | `reply.open_chip` | home | `app:` | — | 0 | A reply's Open chip tapped (its ref: the app it opens). |
 
 ## Search sources
@@ -444,7 +447,7 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 
 ## Proposals
 
-Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80, why ≤ 140, if ignored ≤ 140, two options ≤ 20 each; at most 3 raised by agents wait at once; each expires after 7 days; "Not yet" brings it back the next morning at most 3 times; the canonical spec ≤ 8192 bytes; odds, when given, 0.05–0.95, and required on a card of class `permit` (an arrangement): the card words them as "a guess", "fairly sure", "sure" (below .4, .4 to .75, above .75). Only the owner decides: a tap on a device, or their own words recorded by mind:chat (`by_message`).
+Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80, why ≤ 140, if ignored ≤ 140, two options ≤ 20 each; at most 3 raised by agents wait at once; each expires after 7 days; "Not yet" brings it back the next morning at most 3 times; the canonical spec ≤ 8192 bytes; odds, when given, 0.05–0.95, and required on a card of class `permit`, `routine` (an arrangement): the card words them as "a guess", "fairly sure", "sure" (below .4, .4 to .75, above .75). Only the owner decides: a tap on a device, or their own words recorded by mind:chat (`by_message`).
 
 | Class | Ask first | Card label |
 |---|---|---|
@@ -453,6 +456,7 @@ Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80,
 | `access` | yes | Changes access |
 | `reach_people` | yes | Reaches someone else |
 | `permit` | yes | You said to ask |
+| `routine` | yes | Runs on its own |
 | `memory_big` | no | Changes what I remember |
 
 | Op | Classes | Raised by | Runs in | Acts on | Args | What approving does |
@@ -462,6 +466,7 @@ Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80,
 | `repo.change` | access | C | core | `repo:<base>` | `{ paths: array, base: string }` | Let a mind session change these protected paths on a branch from this commit; the pre-tool hook checks the approval with th approved before an edit or a push. Decided by a tap on a signed-in device only. |
 | `laws.pin` | access | worker | core | `laws:<sha256>` | `{ sha256: string, previous: string \| null }` | Pin mind/CONSTITUTION.md at this SHA-256; any other version is then reported in every briefing and its rule writes are refused (the constitution pin). Decided by a tap on a signed-in device only. |
 | `permit.allow` | permit, money, delete, access, reach_people | C N | core | `call:<call>` | `{ action: string, call: string }` | Let the mind take one action its standing permission (Ask) or a floor keeps behind a card: exactly the call its refusal named (`call`, the SHA-256 of the action and its canonical body), once, within 7 days of the yes. The refusal's details carry this spec ready to raise (API.md §11.11). |
+| `routine.propose` | routine | C N | core | `routine:<id>` | `{ id: string, name: string, why: string, what: string, steps: array, condition: object \| object \| object }` | Store a routine the owner approves once (routines.ts): a plan of 1-8 verbs (one why, one line on home) and a condition, `at` HH:MM on some weekdays, `after` a sense type (at most once a day) or `fact` an observed routine fact's usual time. The card's target is the steps and the condition in words, written by the Worker; the yes stores it on, under the permit as it stands then, and it runs without a session until switched off. |
 
 ## Reader kinds
 

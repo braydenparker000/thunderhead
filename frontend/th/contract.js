@@ -15,7 +15,7 @@
 export const LIVE_PROTOCOL = 1;
 
 /** @type {readonly ChangeKind[]} */
-export const CHANGE_KINDS = Object.freeze(["message","thread","ledger","proposal","verb","plan","surface","notice","fact","day_note","open_thread","setting","mind_status","error","work","watch","prediction"]);
+export const CHANGE_KINDS = Object.freeze(["message","thread","ledger","proposal","verb","plan","surface","notice","fact","day_note","open_thread","setting","mind_status","error","work","watch","prediction","routine"]);
 
 /** @type {readonly FrameType[]} */
 export const FRAME_TYPES = Object.freeze(["hello","changed","typing","bye"]);
@@ -49,7 +49,7 @@ export const SURFACE_KINDS = Object.freeze({"line":{"slots":{"home":"^line\\.[1-
 
 /** Decision cards (shared/contract/proposals.ts): each class's label and the card's limits. */
 /** @type {typeof import('../../shared/contract/proposals.ts').PROPOSAL_CLASSES} */
-export const PROPOSAL_CLASSES = Object.freeze({"delete":{"ask_first":true,"label":"Can't be undone"},"money":{"ask_first":true,"label":"Costs money"},"access":{"ask_first":true,"label":"Changes access"},"reach_people":{"ask_first":true,"label":"Reaches someone else"},"permit":{"ask_first":true,"label":"You said to ask"},"memory_big":{"ask_first":false,"label":"Changes what I remember"}});
+export const PROPOSAL_CLASSES = Object.freeze({"delete":{"ask_first":true,"label":"Can't be undone"},"money":{"ask_first":true,"label":"Costs money"},"access":{"ask_first":true,"label":"Changes access"},"reach_people":{"ask_first":true,"label":"Reaches someone else"},"permit":{"ask_first":true,"label":"You said to ask"},"routine":{"ask_first":true,"label":"Runs on its own"},"memory_big":{"ask_first":false,"label":"Changes what I remember"}});
 
 /** @type {typeof import('../../shared/contract/proposals.ts').PROPOSAL_LIMITS} */
 export const PROPOSAL_LIMITS = Object.freeze({"question":80,"why":140,"if_ignored":140,"option":20,"waiting":3,"expires_days":7,"snoozes":3,"spec_bytes":8192,"odds_min":0.05,"odds_max":0.95});
