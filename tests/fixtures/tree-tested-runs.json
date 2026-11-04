@@ -1,0 +1,45 @@
+{
+  "total_count": 4,
+  "workflow_runs": [
+    {
+      "name": "Test",
+      "path": ".github/workflows/ci.yml",
+      "event": "push",
+      "head_branch": "claude/example",
+      "head_sha": "1111111111111111111111111111111111111111",
+      "status": "completed",
+      "conclusion": "success",
+      "head_commit": { "id": "1111111111111111111111111111111111111111", "tree_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+    },
+    {
+      "name": "Test",
+      "path": ".github/workflows/ci.yml",
+      "event": "push",
+      "head_branch": "claude/example",
+      "head_sha": "2222222222222222222222222222222222222222",
+      "status": "completed",
+      "conclusion": "failure",
+      "head_commit": { "id": "2222222222222222222222222222222222222222", "tree_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+    },
+    {
+      "name": "Test",
+      "path": ".github/workflows/ci.yml",
+      "event": "push",
+      "head_branch": "claude/other",
+      "head_sha": "3333333333333333333333333333333333333333",
+      "status": "in_progress",
+      "conclusion": null,
+      "head_commit": { "id": "3333333333333333333333333333333333333333", "tree_id": "cccccccccccccccccccccccccccccccccccccccc" }
+    },
+    {
+      "name": "Test",
+      "path": ".github/workflows/ci.yml",
+      "event": "push",
+      "head_branch": "claude/old",
+      "head_sha": "4444444444444444444444444444444444444444",
+      "status": "completed",
+      "conclusion": "success",
+      "head_commit": null
+    }
+  ]
+}

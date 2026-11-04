@@ -16,6 +16,7 @@ something live. AGENTS.md is the one page of rules; read it first.
 1. `git fetch origin && git switch -c claude/<slug> origin/main`.
 2. Small commits; `git push -u origin claude/<slug>` after each meaningful step (the VM can vanish).
 3. `npm ci && npm test` in the session; fix until green.
+   After merging `origin/main`, `npm run preflight` (about a minute) before pushing again.
 4. Push; `th ci <sha> --card <card id>` waits for CI on that exact commit.
 5. `gh pr create --base main`, its body in plain words: what changes, how to try it.
 6. The owner tries it and merges, or says no. After the merge, wait for Deploy, confirm the live

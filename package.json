@@ -9,7 +9,8 @@
     "test:backend": "npm test -w backend",
     "serve": "node scripts/serve.mjs",
     "dev": "npm run dev -w backend",
-    "test:mind": "node --test mind/tests/*.test.mjs"
+    "test:mind": "node --test mind/tests/*.test.mjs",
+    "preflight": "node scripts/contract.mjs && tsc && node scripts/contract.mjs --check && node scripts/stage.mjs \"$(git rev-parse HEAD)\" && npm exec -w backend -- vitest run tests/unit/static.test.ts && npm run test:mind"
   },
   "devDependencies": {
     "@phosphor-icons/core": "2.1.1",
