@@ -120,7 +120,8 @@ test('a song streams: at most ~60 s ahead, part of the file, its length known, s
   try {
     await playFrom(page, 0);
     const deck = await page.evaluate(() => { const a = __cp.player.audio; return { blob: a.src.startsWith('blob:'), stream: !!a._stream, duration: a.duration }; });
-    assert.deepEqual(deck, { blob: true, stream: true, duration: SECONDS }, 'through the feed, the catalog length from the start');
+    const log = deck.stream ? [] : await page.evaluate(() => window.__cp.ctx.playbackLog.events.filter((e) => /stream|stall|reload/.test(e.type)));
+    assert.deepEqual(deck, { blob: true, stream: true, duration: SECONDS }, `through the feed, the catalog length from the start ${JSON.stringify(log)}`);
     // While it plays, never much more than 60 s buffered ahead of where it is.
     let most = 0;
     for (let i = 0; i < 12; i++) {

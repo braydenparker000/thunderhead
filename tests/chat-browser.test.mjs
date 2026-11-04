@@ -487,7 +487,10 @@ test("the phone's own commands: a reminder set at once with Undo, an app opened;
   await page.waitForFunction(() => document.querySelector('#cmdhint') !== null);
   await page.fill('#q', 'remind me in 20 minutes to Call the bank');
   await page.dispatchEvent('#q', 'input');
-  await eventually(() => page.textContent('#cmdhint'), `A reminder at ${new Date(Date.now() + 20 * 60_000).toTimeString().slice(0, 5)}: Call the bank`);
+  // In 20 minutes may be past midnight here, when the hint says tomorrow.
+  const at = new Date(Date.now() + 20 * 60_000);
+  const day = at.toDateString() === new Date().toDateString() ? '' : 'tomorrow ';
+  await eventually(() => page.textContent('#cmdhint'), `A reminder at ${day}${at.toTimeString().slice(0, 5)}: Call the bank`);
   await page.press('#q', 'Enter');
   await eventually(() => api.calls.filter((c) => c.call.startsWith('PUT /v1/reminders/')).length, 1);
   const put = api.calls.find((c) => c.call.startsWith('PUT /v1/reminders/'));

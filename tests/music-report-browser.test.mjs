@@ -33,6 +33,9 @@ async function musicPage(signedIn) {
   // Nothing outside this machine: the old Worker the player still names is never reached.
   await context.route(/^https:\/\/(?!api\.th\.test\/)/, (route) => route.abort());
   const page = await context.newPage();
+  // The audio engine stays out: once it runs (sooner or later, by the runner's pace) it joins the next
+  // song to the one playing, and a joined song has no wait to time (th/music/report.js firstSound).
+  await page.addInitScript(() => { AudioWorklet.prototype.addModule = () => new Promise(() => {}); });
   const api = await mockApi(page);
   await page.goto(`${base}/no-such-page`);
   if (signedIn) await page.evaluate((token) => new Promise((resolve, reject) => {
@@ -49,6 +52,9 @@ async function musicPage(signedIn) {
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(`${base}/music/?demo`, { waitUntil: 'load' });
   await page.waitForFunction(() => window.__cp?.player?.queue?.length >= 4 && !!window.__cp.ctx.playbackLog, null, { timeout: 30_000 });
+  // The report looks for the log every 500 ms (th/music/report.js installReport): past its next look,
+  // on the page's own timers, it times each play. A play before that is not timed at all.
+  await outlast(page, 600);
   return { context, page, api, errors };
 }
 

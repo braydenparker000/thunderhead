@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
-import { outlast } from './fixtures/waits.mjs';
+import { outlast, until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -49,6 +49,8 @@ test("a phone in another zone than the Worker's sends its own, once", opts, asyn
   const { context, page, api } = await open('Asia/Kolkata');
   // The phone's own name for it (Chromium may canonicalize to the older "Asia/Calcutta").
   const here = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+  // The settings pass sends it without holding up the sync, so it may land a moment after.
+  await until(() => patches(api).length > 0).catch(() => {});
   assert.deepEqual(patches(api).map((c) => c.body), [{ 'owner.tz': here }]);
   // Another pass over the settings (a reconnect) sends nothing more.
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
