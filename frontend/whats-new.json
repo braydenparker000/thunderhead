@@ -1,12 +1,12 @@
 {
-  "id": "2026-11-04-latency",
+  "id": "2026-11-04-recall",
   "date": "2026-11-04",
   "lines": [
     {
-      "text": "On a busy day the mind stays awake longer between your messages, so the next one is answered at once."
+      "text": "Search finds things by meaning now, not only by the exact words: ask in your own words and it still turns up."
     },
     {
-      "text": "Settings › The mind shows how long a cold start took: seconds to wake, then seconds to the first reply."
+      "text": "It covers what you and the mind said, what it remembers, day notes and your Study books, a day or so behind."
     }
   ]
 }

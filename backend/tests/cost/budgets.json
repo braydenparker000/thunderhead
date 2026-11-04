@@ -590,5 +590,21 @@
   "GET /v1/briefing (Core, a new calendar link fetched: 30 events)": {
     "rows_read_max": 71,
     "rows_written_max": 61
+  },
+  "search.embed step, 100 messages (Library)": {
+    "rows_read_max": 0,
+    "rows_written_max": 300
+  },
+  "search.embed step, 100 messages (Core)": {
+    "rows_read_max": 205,
+    "rows_written_max": 2
+  },
+  "GET /v1/search (by meaning, 200 vectors) (Library)": {
+    "rows_read_max": 204,
+    "rows_written_max": 0
+  },
+  "GET /v1/search (by meaning, 200 vectors) (Core)": {
+    "rows_read_max": 95,
+    "rows_written_max": 0
   }
 }

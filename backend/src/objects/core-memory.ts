@@ -24,6 +24,8 @@ import { renderProfile } from '../areas/memory/profile';
 import * as facts from '../areas/memory/store';
 import { claimedSession } from '../areas/mind/guards';
 import { taint } from '../areas/mind/ops';
+import { queueEmbed } from '../areas/search/embed-job';
+import { liveRefs } from '../areas/search/live';
 import { attempt, Fail, invalid, type Out } from '../lib/result';
 import type { Caller } from './caller';
 import { CoreWatches } from './core-watches';
@@ -141,5 +143,16 @@ export abstract class CoreMemory extends CoreWatches {
 
   searchDayNotes(match: string, since: number | null, until: number | null, limit: number) {
     return notes.searchDayNotes(this.db, match, since, until, limit);
+  }
+
+  /** Of the recall's candidates, those that still stand, with a message's thread (search/live.ts). */
+  recallLive(refs: string[]): Record<string, string | null> {
+    return Object.fromEntries(liveRefs(this.db, refs.slice(0, 50)));
+  }
+
+  /** The recall indexer runs (areas/search/embed-job.ts): on the day roll and when the night is done. */
+  protected queueRecall(now = Date.now()): void {
+    this.write((w) => queueEmbed(w.db, w.at), now);
+    this.schedule();
   }
 }

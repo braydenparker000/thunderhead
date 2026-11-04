@@ -1,8 +1,8 @@
 // Federated search (MEMORY.md §10, API.md §11.7): one query shape, many sources. Messages (P2),
 // facts and day notes (P3) are FTS5 indexes in Core; the library registers here in its phase,
-// each source with its own store (and object, if it has one). Semantic recall (P8, embeddings)
-// plugs in behind the same route as `SEMANTIC`: it gets the plain query text and returns ranked
-// hits like any source. Hits are merged by reciprocal-rank fusion (k = 60), so scores are
+// each source with its own store (and object, if it has one). Recall by meaning (P8, embeddings,
+// semantic.ts) is plugged in behind the same route as `SEMANTIC`: it gets the plain query text and
+// returns ranked hits like any source. Hits are merged by reciprocal-rank fusion (k = 60), so scores are
 // comparable across sources whatever each store's native ranking is. Each memory hit carries its
 // provenance (MEMORY.md §6 M11), so `th recall` shows what is the owner's own and what is not.
 import type { SearchHit } from '../../../../shared/contract/api';
@@ -10,6 +10,7 @@ import { SEARCH_SOURCES, type SearchSource } from '../../../../shared/contract/f
 import type { Who } from '../../../../shared/contract/routes.ts';
 import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
+import { semanticRecall } from './semantic';
 
 export interface SourceQuery {
   /** The FTS5 expression (`ftsMatch`): every term quoted. */
@@ -77,12 +78,11 @@ export const SOURCES: Partial<Record<SearchSource, Source>> = {
 };
 
 /** The semantic-recall seam (MEMORY.md §10.6, P8): one ranked list over the asked sources, fused
- * with the FTS lists. Null until embeddings pass their eval (EVALS.md §3.4); a test plugs in a
- * fake to prove the fusion. */
+ * with the FTS lists. Live (semantic.ts, its eval in EVALS.md §3.4); a test may plug in a fake. */
 export interface SemanticRecall {
   run(env: Env, q: SourceQuery, sources: SearchSource[]): Promise<Omit<SearchHit, 'score'>[]>;
 }
-export const SEMANTIC: { recall: SemanticRecall | null } = { recall: null };
+export const SEMANTIC: { recall: SemanticRecall | null } = { recall: semanticRecall };
 
 export const SOURCE_NAMES = Object.keys(SEARCH_SOURCES) as SearchSource[];
 
@@ -110,14 +110,15 @@ export function ftsMatch(q: string): string | null {
 
 const K = 60;
 
-/** Reciprocal-rank fusion over each source's ranked list; ties by recency. */
+/** Reciprocal-rank fusion over each source's ranked list; ties by recency. A ref in two lists keeps
+ * the first list's hit (an FTS snippet, with its match marked) and adds the ranks. */
 export function fuse(lists: Omit<SearchHit, 'score'>[][], limit: number): SearchHit[] {
   const scored = new Map<string, SearchHit>();
   for (const list of lists)
     list.forEach((hit, rank) => {
       const prev = scored.get(hit.ref);
       const score = (prev?.score ?? 0) + 1 / (K + rank + 1);
-      scored.set(hit.ref, { ...hit, score: Math.round(score * 1e6) / 1e6 });
+      scored.set(hit.ref, { ...(prev ?? hit), score: Math.round(score * 1e6) / 1e6 });
     });
   return [...scored.values()].sort((a, b) => b.score - a.score || b.at - a.at).slice(0, limit);
 }

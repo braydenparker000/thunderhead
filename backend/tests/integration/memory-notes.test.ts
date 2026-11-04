@@ -10,6 +10,8 @@ import { dayBefore } from '../../src/lib/time';
 import { apiJson, coreSql } from '../helpers';
 import { as, brief, CHAT_SESSION, NIGHT_SESSION, ownerSays, type Principals, principals } from '../memory-helpers';
 
+/** The live recall by meaning, put back after a test plugs in its fake. */
+const LIVE = SEMANTIC.recall;
 let P = {} as Principals;
 let said = '';
 const chat = () => as(P.C, CHAT_SESSION);
@@ -126,7 +128,7 @@ describe('day notes', () => {
 
 describe('federated search over facts and day notes', () => {
   afterEach(() => {
-    SEMANTIC.recall = null;
+    SEMANTIC.recall = LIVE;
   });
 
   it('finds day notes; a thread facet leaves facts and day notes out', async () => {
@@ -147,7 +149,7 @@ describe('federated search over facts and day notes', () => {
       },
     };
     const r = await apiJson<SearchResponse>('GET', '/v1/search?q=metronome', { token: P.D });
-    expect(asked).toEqual(['messages', 'facts', 'day_notes']);
+    expect(asked).toEqual(['messages', 'facts', 'day_notes', 'library']);
     expect(r.body.items.map((h) => h.ref)).toContain('fact:semantic-only');
     expect(r.body.items.find((h) => h.ref === 'fact:semantic-only')?.snippet).toBe('meaning of metronome');
   });

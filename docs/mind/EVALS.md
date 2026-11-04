@@ -60,6 +60,10 @@ The private weekly probes (40 a week from the owner's own facts, regenerated mon
 
 **Scoring (deterministic first):** correct if every `expected_keys` item appears (accent- and case-folded) and no `forbidden_keys` item appears. Category E is correct if the answer contains an abstention phrase from `mind/evals/abstain.json` and no invented value. Category F is correct if it includes a hedge ("last I knew", a date) and no flat assertion.
 
+### 3.4 Recall by meaning
+
+Built 2026-11-04 as the smallest honest version of the archive's gate (its cross-language probes wait for the multilingual model): `backend/tests/evals/recall-meaning.test.ts` writes 20 invented things the owner said and asks for each in other words ("that thing I said about the recording" for a voice memo); each must be in the top 3 of `GET /v1/search`, and FTS alone must not find it, so it is found by meaning. Tests never reach Workers AI, so the model there is a fake that puts words of one meaning on one dimension (`backend/tests/recall-helpers.ts`): the eval proves the path (the index, cosine, the live check, the fusion), not the real model's quality, which only a run against the live Worker shows. Gate: 20 of 20.
+
 ---
 
 ## 4. Injection fixtures (INJ)
