@@ -1,9 +1,12 @@
 // The usage meter (MIND-PLAN §5.4, GET /v1/mind/usage, Settings › The mind): today and the 7 days
 // before it, in the owner's logical days, from the Worker's own records only: the wakes by cause
 // (a retry is the same wake), the minutes each role was awake (the sessions' claims and ends), the
-// night shift's run, and the watches fired or refused. Counts only. A session that never said it
-// ended counts to its role's limit: the chat's idle cutoff after the owner's last message (120
-// min), the night's hard stop (60), the reflex's run (10). Reads by time index, about 8 days of rows.
+// night shift's run, the watches fired or refused, and how fast cold wakes were answered (the
+// median seconds from the fire to the claim and from the claim to the first reply, B5). Counts
+// only. A session that never said it ended counts to its role's limit: the chat's idle cutoff
+// after the owner's last message (its setting's 120 min; a busy day's longer cutoff is not
+// known here), the night's hard stop (60), the reflex's run (10). Reads by time index, about 8
+// days of rows.
 import type { MindRole } from '../../../../../shared/contract/api';
 import {
   type UsageDay,
@@ -34,9 +37,23 @@ const empty = (day: string): UsageDay => ({
   minutes: { chat: 0, night: 0, reflex: 0 },
   night_min: 0,
   watches: { fired: 0, refused: 0 },
+  latency: { replies: 0, claim_s: null, reply_s: null },
 });
 
 const minutes = (from: number, to: number) => Math.max(0, Math.round((to - from) / MINUTE));
+const seconds = (from: number, to: number) => Math.max(0, Math.round((to - from) / 1000));
+
+/** The middle value (the mean of the two middle ones for an even count), or null for none. */
+export function median(ns: number[]): number | null {
+  if (!ns.length) return null;
+  const s = [...ns].sort((a, b) => a - b);
+  const mid = s.length >> 1;
+  return s.length % 2 ? s[mid] : Math.round((s[mid - 1] + s[mid]) / 2);
+}
+
+/** A cold wake: a chat wake a message fired (or a requeue of one), not a pre-warm or a watch. */
+const cold = (w: { task: string; reason: string }) =>
+  w.task === 'chat' && (w.reason === 'message' || w.reason === 'requeue');
 
 export function usage(db: Db, now: number, tz: string): UsageResponse {
   const today = logicalDay(now, tz);
@@ -44,12 +61,30 @@ export function usage(db: Db, now: number, tz: string): UsageResponse {
   const byDay = new Map(days.map((d) => [d.day, d]));
   const from = zonedInstant(days[DAYS - 1].day, DAY_STARTS_HOUR, tz);
   const of = (at: number) => byDay.get(logicalDay(at, tz));
-  for (const w of db.all<{ at: number; task: string; reason: string }>(
-    'SELECT at, task, reason FROM wakes WHERE at >= ? AND retry_of IS NULL',
-    from,
-  )) {
+  const claims = new Map<string, number[]>();
+  const replies = new Map<string, number[]>();
+  for (const w of db.all<{
+    at: number;
+    task: string;
+    reason: string;
+    retry_of: string | null;
+    fired_at: number | null;
+    claimed_at: number | null;
+    first_reply_at: number | null;
+  }>('SELECT at, task, reason, retry_of, fired_at, claimed_at, first_reply_at FROM wakes WHERE at >= ?', from)) {
     const d = of(w.at);
-    if (d) d.wakes[causeOf(w.task, w.reason)]++;
+    if (!d) continue;
+    // A retry is the same wake to the count, but the one that got the claim to the latency.
+    if (w.retry_of === null) d.wakes[causeOf(w.task, w.reason)]++;
+    if (cold(w) && w.fired_at !== null && w.claimed_at !== null && w.first_reply_at !== null) {
+      d.latency.replies++;
+      claims.set(d.day, [...(claims.get(d.day) ?? []), seconds(w.fired_at, w.claimed_at)]);
+      replies.set(d.day, [...(replies.get(d.day) ?? []), seconds(w.claimed_at, w.first_reply_at)]);
+    }
+  }
+  for (const d of days) {
+    d.latency.claim_s = median(claims.get(d.day) ?? []);
+    d.latency.reply_s = median(replies.get(d.day) ?? []);
   }
   for (const s of db.all<{ role: MindRole; claimed_at: number; ended_at: number | null; last_owner_at: number | null }>(
     'SELECT role, claimed_at, ended_at, last_owner_at FROM mind_sessions WHERE claimed_at >= ? AND wake_id IS NOT NULL',

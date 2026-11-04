@@ -3,7 +3,8 @@
 // the mind woke and how long it was awake, read when the page opens (GET /v1/mind/usage). The wakes
 // it set itself against the owner's wake budget (`mind.wake_budget`, the setting below on the same
 // page), the minutes awake, the night shift's minutes, and a small row for the 7 days before.
-// Counts only: never why it woke or what it looked at.
+// Counts only: never why it woke or what it looked at. One more line when a cold wake was
+// answered: how long it took to wake and then to reply, the newest day that has one.
 import { api, signedIn } from '/th/client.js';
 import { el } from '/th/ui.js';
 
@@ -19,7 +20,18 @@ const awake = (d) => Object.values(d.minutes).reduce((n, v) => n + v, 0);
 /** @param {string} day */
 const weekday = (day) => new Date(`${day}T12:00:00Z`).toLocaleDateString('en', { weekday: 'short', timeZone: 'UTC' });
 
-/** The block's lines: the wakes it set itself, the minutes, the 7 days. @param {UsageResponse} u @returns {string[]} */
+/** The newest day with a cold wake answered: the median seconds to wake, then to the first reply.
+ * @param {UsageResponse} u @returns {string | null} */
+export function latencyLine(u) {
+  const d = [u.today, ...u.days].find((x) => x.latency && x.latency.replies > 0);
+  if (!d) return null;
+  const { replies, claim_s, reply_s } = d.latency;
+  const when = d === u.today ? 'today' : `on ${weekday(d.day)}`;
+  return `From cold: ${claim_s} s to wake, then ${reply_s} s to the first reply (${count(replies, 'time', 'times')} ${when}).`;
+}
+
+/** The block's lines: the wakes it set itself, the minutes, the 7 days, and the cold-wake line when
+ * there is one. @param {UsageResponse} u @returns {string[]} */
 export function meterLines(u) {
   const t = u.today;
   const mine =
@@ -27,10 +39,12 @@ export function meterLines(u) {
       ? 'I set no wakes myself: you turned them off.'
       : `${t.wakes.watch} of ${u.budget} wakes I set myself${t.watches.refused ? `, ${t.watches.refused} more refused` : ''}${u.live ? ` · ${u.live} waiting` : ''}`;
   const yours = t.wakes.owner ? ` · ${count(t.wakes.owner, 'wake', 'wakes')} for you` : '';
+  const latency = latencyLine(u);
   return [
     mine,
     `Awake ${awake(t)} min${yours} · night shift ${t.night_min} min`,
     `Last 7 days: ${u.days.map((d) => `${weekday(d.day)} ${wakes(d)}`).join(' · ')} wakes`,
+    ...(latency ? [latency] : []),
   ];
 }
 

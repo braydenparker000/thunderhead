@@ -45,3 +45,11 @@ export function provisionalTitle(text: string | null): string | null {
   const at = cut.lastIndexOf(' ');
   return `${(at > 12 ? cut.slice(0, at) : one.slice(0, 40)).replace(/[\s,;:.–-]+$/, '')}…`;
 }
+
+/** How many messages the owner sent in a thread (today's, for the chat's idle cutoff, mind/latency.ts). */
+export function ownerCount(db: Db, threadId: string): number {
+  return (
+    db.one<{ n: number }>("SELECT count(*) AS n FROM messages WHERE thread_id = ? AND author = 'owner'", threadId)?.n ??
+    0
+  );
+}

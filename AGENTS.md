@@ -43,6 +43,9 @@ when it helps, update it when you change what it describes, but it is not law.
 - **The Worker** (`backend/`, Cloudflare, Hono, SQLite Durable Objects) is on the Free plan: 5,000,000
   rows read and 100,000 written a day, shared with the old Worker. Anything that reads or writes in
   bulk is chunked, measured (`backend/tests/cost`) and held by the rows guard from 80 %.
+- **Every source file stays under 300 lines** (`backend/tests/unit/static.test.ts` counts a trailing
+  newline, so 299 by `wc -l`): a change that adds to a file near the cap moves the new piece to its
+  own module in the same area, since the mind's, the conversation's and the contract's files sit at it.
 - **Schema steps** only ever add, and run in number order: a step numbered below one already applied
   never runs, so two branches with new steps ship in number order.
 - **The phone** (`frontend/`): plain ES modules, no build. `music/` `guitar/` `podcasts/` `astra/`

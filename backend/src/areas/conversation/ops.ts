@@ -10,6 +10,7 @@ import { Fail, invalid } from '../../lib/result';
 import type { Caller } from '../../objects/caller';
 import type { Writer } from '../../objects/commit';
 import { attach } from '../files/ops';
+import { recordFirstReply } from '../mind/latency';
 import { gate, withPermit } from '../mind/permit';
 import * as settings from '../settings/store';
 import { checkMention } from '../work/mention';
@@ -106,6 +107,8 @@ export function putMessage(w: Writer, c: Caller, p: PutMessage, tz: string): { m
     // Any chat post acknowledges what was handed out; a reply settles it and everything before it.
     store.ackHandedOut(w.db, w.at);
     if (p.reply_to) store.answer(w.db, p.reply_to, w.at, offRecord, offRecord ? [] : heldIds(w.db));
+    // The wake's cold-to-answer time (RUNTIME.md §4.2): the first reply to the owner's words.
+    if (p.reply_to && target?.author === 'owner' && c.session_id) recordFirstReply(w.db, c.session_id, w.at);
   }
   w.change('message', `msg:${message.id}`);
   const {
