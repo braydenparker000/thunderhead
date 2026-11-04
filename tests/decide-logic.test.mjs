@@ -34,6 +34,8 @@ test("the why line names who asked and, for an ask-first card, the class's words
 
 test('the small lines, the buttons and what each answer says', () => {
   assert.deepEqual(m.details(proposal({ odds: 0.9 })), ['They have had no songs since import.', 'About 90% sure.', 'Nothing happens; they stay.']);
+  // The odds in the contract's words (shared/contract/proposals.ts oddsWords), with the number.
+  assert.deepEqual([0.3, 0.4, 0.75, 0.76].map(m.oddsLine), ['A guess: about 30%.', 'Fairly sure: about 40%.', 'Fairly sure: about 75%.', 'About 76% sure.']);
   // The second label is fixed, whatever the card's second option says (HOME.md §3.1).
   assert.deepEqual(m.buttons(proposal()), { yes: 'Delete', safe: 'No', safeDecision: 'reject' });
   assert.deepEqual(m.buttons(proposal({ options: ['Delete', 'Yes, keep them'] })), { yes: 'Delete', safe: 'No', safeDecision: 'reject' });
