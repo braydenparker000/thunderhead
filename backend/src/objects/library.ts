@@ -22,6 +22,7 @@ import { candidatesOf } from '../areas/library/cite';
 import * as ops from '../areas/library/ops';
 import { search } from '../areas/library/search';
 import * as store from '../areas/library/store';
+import * as vectors from '../areas/library/vectors';
 import * as verses from '../areas/library/verses';
 import { uuidv7 } from '../lib/ids';
 import { attempt, attemptAsync, Fail, type Out } from '../lib/result';
@@ -185,6 +186,36 @@ export class Library extends OwnerObject {
       ...verses.cited(this.db, code, chapter, v1, v2, limit),
       highlights: verses.highlightsOn(this.db, code, chapter, v1, v2),
     };
+  }
+
+  // --- the recall index (MEMORY.md §10.6, areas/library/vectors.ts) ----------------------------
+
+  embedPages(after: number, limit: number) {
+    return vectors.pagesAfter(this.db, after, limit);
+  }
+
+  /** One batch of the indexer's vectors, in one commit; rows written. */
+  putEmbeddings(rows: vectors.VectorIn[], now = Date.now()): number {
+    return this.ctx.storage.transactionSync(() => vectors.putVectors(this.db, rows, now));
+  }
+
+  /** The nearest rows to a query vector, Study's pages only while their book is ready. */
+  recall(query: Float32Array, sources: string[], limit: number): vectors.VectorHit[] {
+    const hits = vectors.nearest(this.db, query, sources, limit);
+    const pages = hits.filter((h) => h.source === 'library').map((h) => h.ref);
+    const live = pages.length ? vectors.livePages(this.db, pages) : new Set<string>();
+    return hits.filter((h) => h.source !== 'library' || live.has(h.ref));
+  }
+
+  embeddingRefs(after: string, limit: number): string[] {
+    return vectors.refsAfter(this.db, after, limit);
+  }
+
+  /** Drops rows gone from their source; `last`: the sweep's end, which also trims to the cap. */
+  dropEmbeddings(refs: string[], last = false): number {
+    return this.ctx.storage.transactionSync(
+      () => vectors.dropVectors(this.db, refs) + (last ? vectors.trim(this.db) : 0),
+    );
   }
 
   // --- the mind's ingestion runs (STUDY.md §3.3) ------------------------------------------------

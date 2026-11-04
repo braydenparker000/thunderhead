@@ -1,6 +1,7 @@
 // GET /v1/search (API.md §11.7): `sources` names the stores to ask (default: every built source the
 // caller may read); `kind` is kept as an alias for a single source. Items carry their `source`.
-// The semantic seam (sources.ts `SEMANTIC`) adds its ranked list when one is plugged in. A mind
+// Recall by meaning (sources.ts `SEMANTIC`, semantic.ts) adds its ranked list, Study's pages among
+// its sources (`library`); it fails open, so FTS alone answers when it can't. A mind
 // session gets a memory hit labelled `outside` kept back unless it asks (`outside=1`, which marks
 // it: MEMORY.md §6 M11f, memory/outside-read.ts).
 import { Hono } from 'hono';
@@ -36,6 +37,8 @@ export const searchRoutes = new Hono<AppEnv>().get('/search', guard('GET /v1/sea
   if (!match) throw new ApiError('validation', [{ path: 'q', issue: 'no search terms' }]);
   const who = whoOf(principalOf(c));
   const names = (asked.length ? asked : SOURCE_NAMES).filter((s) => SOURCES[s]?.who.includes(who));
+  // By meaning, Study's pages too (they have no FTS source here yet: GET /v1/library/search).
+  const meant = (asked.length ? asked : SOURCE_NAMES).filter((s) => names.includes(s) || s === 'library');
   const limit = q.limit ?? 20;
   const sq = {
     match,
@@ -48,7 +51,7 @@ export const searchRoutes = new Hono<AppEnv>().get('/search', guard('GET /v1/sea
   const lists = await Promise.all([
     ...names.map((s) => SOURCES[s]?.run(c.env, sq) ?? Promise.resolve([])),
     // Semantic recall (P8) is one more ranked list over the same sources, fused like the rest.
-    ...(SEMANTIC.recall && names.length ? [SEMANTIC.recall.run(c.env, sq, names)] : []),
+    ...(SEMANTIC.recall && meant.length ? [SEMANTIC.recall.run(c.env, sq, meant)] : []),
   ]);
   return c.json({ items: await served(c, fuse(lists, limit), keptHit, outsideHit) } satisfies SearchResponse);
 });

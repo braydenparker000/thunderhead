@@ -282,6 +282,8 @@ Built (P7 step 1, `backend/src/objects/library.ts`, schema in `library.migration
 
 The FTS cost per page is unknown (open question D3). Ingestion is a bulk job under the lane cap.
 
+`embeddings` (step 3, 2026-11-04, recall by meaning, MEMORY.md §10.6): `ref TEXT PK` (`msg:<id>`, `fact:<id>`, `day:<day>`, `book:<id>#p<n>`), `source`, `vector BLOB` (384 Float32, unit length), `snippet` (≤ 200 chars, what the hit shows), `at`, `provenance` (as the row's FTS hit is labelled; none for a page), `indexed_at`; index `(at)`. Written by Core's `search.embed` lane job a batch at a time (`areas/library/vectors.ts`; 100 vectors write 300 rows), read whole by the recall (one row a vector), at most 10,000 rows (the oldest by `at` go at the end of each run's sweep). Derived: in no backup or export, rebuilt by the indexer.
+
 ---
 
 ## 7. R2 buckets and key layout
@@ -385,14 +387,14 @@ Rules from the platform that drive the numbers: every index entry touched is one
 - One bulk job runs at a time, account-wide. `Core.settings['bulk.lane']` names the holder `{class, job_id, day}`. A job asks for the lane through the `ensureAlarm` RPC that `Core.tick` already makes every 15 minutes. **[proposal]**
 - The lane holder may write 40,000 rows per day (`meter.bulk_rows_written`). At the cap the job sets `state='paused'` with `due_at` = next 00:05 UTC.
 - Built as the rows-read guard (§8.1, 2026-10-31): once the day's rows written by the five objects and the drill's scratch copy (Core's `meter_days`, gathered by `tick`) pass 80% of the day's budget (54,400 of 68,000), every lane job pauses before its next step until 00:00 UTC, even below the lane's own cap.
-- Lane users: imports, FTS reindex, music catalog import (on its own day), library ingestion, table restores, the monthly drill, the listening pass's apply job (`music.listen.apply`: Music's rows counted in Core's step commit).
+- Lane users: imports, FTS reindex, music catalog import (on its own day), library ingestion, table restores, the monthly drill, the listening pass's apply job (`music.listen.apply`: Music's rows counted in Core's step commit), the recall indexer (`search.embed`: the Library's rows counted the same way).
 
 Acceptance: a vitest test with a fake meter at 39,990 runs one job step of 2,000 rows and sees the job pause at the step boundary, with `due_at` next 00:05 UTC.
 
 ### 8.4 Reads
 
 - No request-path query may scan a growing table. Every hot query has an `EXPLAIN QUERY PLAN` test that rejects `SCAN <table>` without an index.
-- Search queries are capped at 20,000 rows read each (checked in cost tests at fixture scale).
+- Search queries are capped at 20,000 rows read each (checked in cost tests at fixture scale). The recall by meaning reads every row of the Library's `embeddings` for the asked sources (a scan, bounded by the table's 10,000-row cap: one row a vector, 204 for 200 in the cost suite) and checks its 30 candidates in Core by key (95 rows with the FTS lists); an index batch of 100 messages reads 205 in Core and writes 300 in the Library, 2 in Core.
 - The Music object's mind-facing reads (2026-11-01, measured cold at full size: 12,000 tracks, 11,600 with a note, the object just started): every read is by key or a key range, so a call's rows follow its own size, not the catalog's. A batch of 200 notes replacing 200 reads 1,226 rows (each song's track and note by key, its pack, the triggers' check of the restore mark) and writes 203; the same batch again reads 800 and writes 0; notes by id read 4 rows an id (200 for 50); a page of 200 notes 601; the night's untagged page of 200, its place kept, 202. Find cold reads 134 with the listening pass's moods and energy for every song (the restore mark, the meta rows, the pass's epoch, the notes' 24 packs and the audio's, the ratings of 1, the winners' tags by key), 136 with `like` (the seed's row and its 50 neighbours by key), 81 warm (the epoch, the winners' tags); the packs built again after a restore, the audio's with them, read every note, track and measured song once (36,409 rows, 52 written: a one-off). In the Senses object find reads the early skips (113 rows for 40 skips among 200 events: one index seek a day of 33, then only the skips; 0 until a new skip arrives); in Core, the current rules (3), and for a mind session the taint below (8 read, 5 written in all). A batch of 100 ratings of 1 (the phone's one-time catch-up, 100 a page load) writes 200 rows in Music and 301 in Senses. Songs' tags served to a mind session cost every call 5 rows read and 5 written in Core (the claimed, live session checked, the dated taint event and, for a night session, its songs mark, with their index entries: a night of 60 pages writes about 300) and, for a night session, 6 read and 1 written in Music (the reader). The listening pass's packs are built from its table when its epoch moves (a job applied songs, at most once a night) or a day on (one row a measured song then, about 26 written). The word search `/v1/music/tracks?q=` still reads the tags once per object start (12,000 at 12,000 tracks, under the 20,000 cap), as it did before the notes.
 - The weekly backup reads every row once (~0.5M rows at year 2).
 
@@ -487,6 +489,7 @@ Retention of personal data is owned by [PRIVACY.md §2](PRIVACY.md); this table 
 | Music.song_readers | 7 days (night session ids that read songs' tags; dropped as new ones arrive) | no | no |
 | Library.books, pages, verse_refs, positions | forever (a book until the owner approves deleting it) | yes | yes (PDFs by signed URL) |
 | Library.pages_fts | derived | no (rebuilt) | no |
+| Library.embeddings | derived; ≤ 10,000 rows, the oldest dropped; a row gone from its source dropped by the next run's sweep | no (rebuilt) | no |
 | Library.highlights | forever; a deleted one 30 days after `deleted_at` | yes | yes |
 | Library.ingest_jobs | finished runs 90 days | yes | no |
 

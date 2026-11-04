@@ -108,4 +108,24 @@ export const LIBRARY_MIGRATIONS: Migration[] = [
     kind: 'expand',
     sql: [METER_DAYS_SQL],
   },
+  {
+    // Recall by meaning (MEMORY.md §10.6): one vector per indexed row of Core's memory and Study's
+    // pages, keyed by the row's ref, with what its hit shows. Derived: rebuilt by the indexer, so
+    // in no backup or export; capped at 10,000 rows, the oldest (`at`) going first.
+    version: 3,
+    name: 'embeddings',
+    kind: 'expand',
+    sql: [
+      `CREATE TABLE embeddings (
+        ref TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        vector BLOB NOT NULL,
+        snippet TEXT NOT NULL,
+        at INTEGER NOT NULL,
+        provenance TEXT,
+        indexed_at INTEGER NOT NULL
+      )`,
+      'CREATE INDEX embeddings_at ON embeddings (at)',
+    ],
+  },
 ];

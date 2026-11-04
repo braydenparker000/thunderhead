@@ -41,6 +41,7 @@ import * as wake from '../areas/mind/wake';
 import { onClaim } from '../areas/mind/watches/pulse';
 import { listenApplyJob, listenPackJob, listenRejectJob } from '../areas/music/listen-jobs';
 import { lawsAtClaim, settle as settleProposals } from '../areas/proposals/ops';
+import { embedJob } from '../areas/search/embed-job';
 import type { BriefReports } from '../areas/senses/brief';
 import * as surfaces from '../areas/surfaces/ops';
 import { list as listSurfaces } from '../areas/surfaces/store';
@@ -63,6 +64,7 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [listenApplyJob.kind]: listenApplyJob,
   [listenPackJob.kind]: listenPackJob,
   [listenRejectJob.kind]: listenRejectJob,
+  [embedJob.kind]: embedJob,
 };
 
 export class Core extends CoreVerbs {
@@ -229,8 +231,9 @@ export class Core extends CoreVerbs {
           return nightWake(w, due, this.nightConfigured());
         }, now)
       : null;
-    // What lands, counted on the roll, so the night arranges the new day knowing what rests.
-    if (due) await this.landsTick(now);
+    // What lands, counted on the roll, so the night arranges the new day knowing what rests; the
+    // recall index catches up on the day closed.
+    if (due) await this.landsTick(now).then(() => this.queueRecall(now));
     this.write((w) => {
       verbs.settle(w);
       settleProposals(w);

@@ -15,8 +15,12 @@ import { CoreMemory } from './core-memory';
 export abstract class CoreNight extends CoreMemory {
   night(c: Caller, r: MindNightRequest): Out<MindNightResponse> {
     const out = this.run((w) => night(w, c, r, currentDay(w.db, this.tz(), w.at)));
-    // The watches met while it ran waited for its end (RUNTIME.md §3).
-    if (out.ok && out.value.done) this.watchesAfterNight();
+    // The watches met while it ran waited for its end (RUNTIME.md §3); the recall index catches up
+    // on the day and the night's notes.
+    if (out.ok && out.value.done) {
+      this.watchesAfterNight();
+      this.queueRecall();
+    }
     return out;
   }
 
