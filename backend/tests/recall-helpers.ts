@@ -47,7 +47,7 @@ export function fakeVector(text: string): number[] {
     if (m >= 0) v[m] += 1;
     else v[MEANINGS.length + (hash(w) % (DIMS - MEANINGS.length))] += 0.2;
   }
-  if (v.every((x) => x === 0)) v[DIMS - 1] = 1;
+  if (Math.max(...v) === 0) v[DIMS - 1] = 1;
   return v;
 }
 
