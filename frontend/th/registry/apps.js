@@ -23,6 +23,14 @@ const LOOK = {
 /** The ring, clockwise from the top. @type {readonly AppId[]} */
 export const RING = Object.freeze(['music', 'guitar', 'podcasts', 'astra', 'media', 'study', 'photos']);
 
+/** The ring as the owner arranged it (Settings → Ring and gestures, `gestures.ring_apps`): their apps
+ * in their order, then Photos in the seventh place, kept for it; a list the catalogue would refuse
+ * (an unknown app, one twice, Photos) is the default, as Settings shows it. @param {unknown} order */
+export function ringApps(order) {
+  const ok = Array.isArray(order) && order.every((id, i) => id !== 'photos' && order.indexOf(id) === i && appFor(String(id)));
+  return [...(ok ? order : RING.slice(0, 6)), 'photos'].map((id) => /** @type {AppEntry} */ (appFor(id)));
+}
+
 /** @type {readonly AppEntry[]} */
 export const apps = Object.freeze(
   RING.map((id) => {

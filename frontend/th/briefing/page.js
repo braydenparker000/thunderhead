@@ -14,6 +14,7 @@
 // textContent only.
 import { api, signedIn } from '../client.js';
 import { kv } from '../idb.js';
+import { buzz } from '../motion.js';
 import { el, toast } from '../ui.js';
 import { reportTile } from './report.js';
 
@@ -317,7 +318,7 @@ function arrangeByPress(page) {
     if (!t?.dataset.key) return;
     press = { t, x: e.clientX, y: e.clientY, timer: setTimeout(() => {
       pressed = true;
-      navigator.vibrate?.(8);
+      buzz(8);
       arrange(/** @type {string} */ (t.dataset.key));
     }, 450) };
   });

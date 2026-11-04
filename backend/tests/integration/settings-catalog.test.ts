@@ -74,9 +74,9 @@ describe('the settings catalogue', () => {
       ['mind.night_budget', 20],
       ['mind.night_budget', '30'],
       ['mind.permit.music', 'always'],
-      ['briefing.tiles', ['weather', 'weather']],
+      ['briefing.tiles', ['due', 'due']],
       ['briefing.tiles', ['weather', 'horoscope']],
-      ['briefing.tiles', 'weather'],
+      ['briefing.tiles', 'due'],
       ['briefing.tiles', [...Array(9).keys()].map(String)],
       ['briefing.holidays', 'ZZ'],
       ['privacy.errors', null],
@@ -88,9 +88,9 @@ describe('the settings catalogue', () => {
     // An order may hide tiles: any subset, each once, in any order.
     const ok = await apiJson<Settings>('PATCH', '/v1/settings', {
       token: D,
-      body: { 'briefing.tiles': ['report', 'weather'], 'briefing.holidays': 'GB' },
+      body: { 'briefing.tiles': ['report', 'due'], 'briefing.holidays': 'GB' },
     });
-    expect([ok.status, ok.body['briefing.tiles']]).toEqual([200, ['report', 'weather']]);
+    expect([ok.status, ok.body['briefing.tiles']]).toEqual([200, ['report', 'due']]);
   });
 
   it('takes up to 3 calendar links, each a public https address, and says why it refuses one', async () => {
@@ -144,11 +144,14 @@ describe('the settings catalogue', () => {
     expect(mind.length).toBeGreaterThan(15);
     for (const s of mind) expect(section, s.key).toMatch(new RegExp(`^${s.key.replaceAll('.', '\\.')}: `, 'm'));
     for (const s of specs.filter((x) => !x.mind)) expect(section, s.key).not.toContain(`${s.key}:`);
-    expect(section).toContain('mind.voice: plain\n');
-    expect(section).toContain('mind.night_budget: 30 min\n');
+    expect(section).toContain('mind.voice: plain — Plain, a little warmer, or drier.\n');
+    expect(section).toContain('mind.night_budget: 30 min — How long the night shift may run.\n');
+    expect(section).toContain('mind.home_lines: 4 lines — How many of my lines');
     expect(section).toContain('mind.ask_outside: on\n');
     expect(section).toContain('mind.permit.muse: ask\n');
-    expect(section).toContain('briefing.tiles: weather, due, holidays, study, built, podcasts, notes, report');
+    expect(section).toContain(
+      'briefing.tiles: report, today, due, practice, study, built, notes, holidays — Which tiles',
+    );
     expect(section).toContain('ask = a decision card first');
 
     await api('PATCH', '/v1/settings', {
@@ -156,10 +159,10 @@ describe('the settings catalogue', () => {
       body: { 'mind.voice': 'drier', 'mind.permit.music': 'ask', 'mind.ask_outside': false, 'briefing.tiles': [] },
     });
     section = await yourSettings();
-    expect(section).toContain('mind.voice: drier\n');
+    expect(section).toMatch(/^mind\.voice: drier — /m);
     expect(section).toContain('mind.permit.music: ask\n');
     expect(section).toContain('mind.ask_outside: off\n');
-    expect(section).toMatch(/^briefing\.tiles: none$/m);
+    expect(section).toMatch(/^briefing\.tiles: none — /m);
     // The core points at it.
     expect((await brief(C, CHAT_SESSION, 'chat')).body.core).toContain('Your settings: th brief --section 13');
   });
@@ -169,8 +172,8 @@ describe('a fresh owner', () => {
   it('sees every mind setting at its default', async () => {
     const { mindSettingLines } = await import('../../src/areas/settings/catalog');
     const lines = mindSettingLines({ one: () => null, all: () => [] } as never);
-    expect(lines).toContain('mind.voice: plain (default)');
-    expect(lines).toContain('mind.idle: 120 min (default)');
-    expect(lines.every((l) => l.endsWith('(default)'))).toBe(true);
+    expect(lines).toContain('mind.voice: plain (default) — Plain, a little warmer, or drier.');
+    expect(lines).toContain('mind.speech: as_needed (default)');
+    expect(lines.every((l) => l.includes(' (default)'))).toBe(true);
   });
 });

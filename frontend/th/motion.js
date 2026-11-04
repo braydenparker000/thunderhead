@@ -34,9 +34,14 @@ const config = { requestFrame: f => requestAnimationFrame(f), now: () => perform
 export const motionSettings = () => ({ reduced: config.reduced, haptics: config.haptics });
 /** @param {Partial<typeof config>} [options] */
 export function configureMotion(options = {}) { Object.assign(config, options); return motionSettings(); }
-export const motionReduced = () => config.reduced ?? config.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// The owner's Reduced motion and Haptics (Settings → More appearance) ride on <html> as data attributes.
+const owner = (/** @type {string} */ name) => globalThis.document?.documentElement.dataset[name];
+export const motionReduced = () => config.reduced ?? ({ always: true, never: false }[owner('reducedMotion') ?? ''] ?? config.matchMedia('(prefers-reduced-motion: reduce)').matches);
+/** A tap back (ms, or a pattern of pulses and gaps): none with Haptics off, pulses twice as long with
+ * it full. @param {number | number[]} p */
+export function buzz(p) { const h = owner('haptics'), list = [p].flat(); if (config.haptics && h !== 'off') try { config.vibrate(h === 'full' ? list.map((ms, i) => i % 2 ? ms : ms * 2) : list); } catch {} }
 /** @param {'open'|'choose'|'commit'} kind */
-export function haptic(kind) { if (config.haptics) try { config.vibrate([{ open: 8, choose: 4, commit: 10 }[kind]]); } catch {} }
+export function haptic(kind) { buzz({ open: 8, choose: 4, commit: 10 }[kind]); }
 
 /** @type {Set<(time:number)=>void>} */
 const moving = new Set();

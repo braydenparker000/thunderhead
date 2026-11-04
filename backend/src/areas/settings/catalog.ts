@@ -13,6 +13,7 @@ import {
   type WorkerSettingKey,
 } from '../../../../shared/contract/settings';
 import type { Db } from '../../objects/base';
+import { ownerOnly } from './mind-set';
 
 const specs = SETTINGS as readonly SettingSpec[];
 const values = (s: SettingSpec) => (s.options ?? []).map((o) => o.value);
@@ -95,7 +96,8 @@ const shown = (s: SettingSpec, v: SettingValue): string => {
 
 /** The briefing's "Your settings" lines: `key: value` for every `mind: true` setting, in catalogue
  * order, marked `(default)` while the owner hasn't changed it (a stored value that is no longer
- * allowed counts as unchanged). */
+ * allowed counts as unchanged); one the mind may change (`settings.set`, not mind-set.ts ownerOnly)
+ * then says what it does, in its detail line. */
 export function mindSettingLines(db: Db): string[] {
   const stored = readSettings(
     db,
@@ -103,6 +105,7 @@ export function mindSettingLines(db: Db): string[] {
   );
   return MIND.map((s) => {
     const v = stored.get(s.key);
-    return validSetting(s, v) ? `${s.key}: ${shown(s, v)}` : `${s.key}: ${shown(s, s.default)} (default)`;
+    const head = validSetting(s, v) ? `${s.key}: ${shown(s, v)}` : `${s.key}: ${shown(s, s.default)} (default)`;
+    return ownerOnly(s.key) ? head : `${head} — ${s.detail}`;
   });
 }

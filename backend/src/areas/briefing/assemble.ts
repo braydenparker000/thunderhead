@@ -37,6 +37,7 @@ import * as surfaces from '../surfaces/store';
 import * as work from '../work/ops';
 import { type CalendarView, view as calendarView } from './calendar-store';
 import { nextHoliday } from './holidays';
+import { byOwner, ownerTiles } from './owner-tiles';
 import { arrange, pinsOf } from './pins';
 import { reportTile } from './report-tile';
 
@@ -238,19 +239,20 @@ export function briefing(
   // BRIEFING.md §4: at most 8 tiles; the night's report first (the first thing the owner sees of
   // the night, after the weather), the night's own after what waits, the day's calendar and what is
   // due, and a tile the mind pinned right after what waits (pins.ts; Today is not pinnable).
+  // The owner's own choice of tiles and their order goes over that (owner-tiles.ts).
   const report = reportTile(db, c);
+  const order = ownerTiles(db);
+  const rest = [
+    ...(calT ? [calT] : []),
+    ...(dueT ? [dueT] : []),
+    ...nightTiles(db, c.now),
+    ...(holiday ? [holiday] : []),
+  ];
+  const mine = order ? byOwner([...(report ? [report] : []), ...rest], order) : [...(report ? [report] : []), ...rest];
+  const lead = mine[0]?.kind === 'report' ? mine.slice(0, 1) : [];
   const tiles: BriefingTile[] = [
-    ...(report ? [report] : []),
-    ...arrange(
-      [
-        ...(waiting ? [waiting] : []),
-        ...(calT ? [calT] : []),
-        ...(dueT ? [dueT] : []),
-        ...nightTiles(db, c.now),
-        ...(holiday ? [holiday] : []),
-      ],
-      pinsOf(db),
-    ),
+    ...lead,
+    ...arrange([...(waiting ? [waiting] : []), ...mine.slice(lead.length)], pinsOf(db)),
   ].slice(0, 8);
   return {
     day: c.day,

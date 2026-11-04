@@ -120,7 +120,8 @@ function toastOf(r) { void import('../ui.js').then(({toast}) => toast(r.text, r.
 
 /** @param {string} id @param {{cover?:()=>Promise<void>}} [o] */
 export async function openApp(id, o = {}) {
-  if (!layered(id) || !appFor(id)?.built) return false;
+  // Island off (Settings → Island): Music and Podcasts open as their own pages, never inside home.
+  if (!layered(id) || !appFor(id)?.built || document.documentElement.dataset.island === 'off') return false;
   const started = performance.now();
   // Ring/chip callers start their generic reveal before importing us. Retire it immediately;
   // the retained layer supplies the capsule clip, including while its frame is still booting.

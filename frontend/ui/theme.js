@@ -18,6 +18,17 @@ try {
   if (text === 's' || text === 'l') d.text = text;
   if (localStorage.getItem('th-still')) d.still = '';
   localStorage.removeItem('th-accent');
+  // The catalogue's phone settings that CSS follows (shared/contract/settings.ts `attr`; Settings'
+  // applyPhone keeps them current after this): each one stored is a choice other than the default.
+  // tests/settings-depth-browser.test.mjs holds this list equal to the catalogue's.
+  for (const [key, attr] of [
+    ['appearance.accent', 'data-accent-intensity'], ['appearance.glass', 'data-glass'], ['appearance.corners', 'data-corners'],
+    ['appearance.glyphs', 'data-glyphs'], ['appearance.ring', 'data-ring-size'], ['appearance.haptics', 'data-haptics'],
+    ['appearance.motion', 'data-reduced-motion'], ['chat.density', 'data-chat-density'], ['chat.mic', 'data-mic'], ['island.mode', 'data-island'],
+  ]) {
+    const v = localStorage.getItem(`th.s.${key}`);
+    if (v && /^[a-z-]{1,16}$/.test(v)) document.documentElement.setAttribute(attr, v);
+  }
 } catch {}
 const expected = (fade) => fade?.ready.catch(() => {});
 expected(document.activeViewTransition);

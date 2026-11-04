@@ -17,6 +17,7 @@ import { scrubArrangements, scrubUndo } from '../ledger/store';
 import { factFlags, provenanceOf } from '../memory/store';
 import { gate, ledgerPermit, withPermit } from '../mind/permit';
 import { asked, speechGate } from '../mind/speech';
+import { homeLines } from '../settings/home-lines';
 import * as store from './store';
 
 const QUIET_MS = 14 * 86_400_000;
@@ -34,6 +35,15 @@ export function put(
   if (!kind) throw invalid('kind', 'unknown surface kind');
   const slots = Object.hasOwn(kind.slots, app) ? (kind.slots as Record<string, RegExp>)[app] : undefined;
   if (!slots?.test(slot)) throw invalid('slot', `${r.kind} lives in ${Object.keys(kind.slots).join(', ')}`);
+  // The owner's Lines on home (`mind.home_lines`): a line in a slot past it is refused.
+  if (app === 'home' && r.kind === 'line') {
+    const most = homeLines(w.db);
+    if (Number(slot.slice(5)) > most)
+      throw invalid(
+        'slot',
+        most ? `the owner keeps ${most} lines on home: line.1 to line.${most}` : 'the owner keeps no lines on home',
+      );
+  }
   const schema = kind.versions[r.schema];
   if (!schema) throw invalid('schema', `known versions: ${Object.keys(kind.versions).join(', ')}`);
   const payload = schema.safeParse(r.payload);
