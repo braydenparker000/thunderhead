@@ -75,3 +75,8 @@ hand-pointing
 sparkle
 shield-check
 arrow-down
+# Photos (apps/photos): rate, flag, reject
+star
+star-fill
+flag
+prohibit

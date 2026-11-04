@@ -1743,6 +1743,114 @@
       "phase": "P8",
       "status": "built",
       "note": "?kind=&since=&limit=&cursor=, newest first, ≤ 512 KB"
+    },
+    "GET /v1/photos/drive": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "connected or not, the folder by name, a revoked grant"
+    },
+    "POST /v1/photos/drive/connect": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "Google's consent address, scope drive.file, a state good for 10 minutes"
+    },
+    "GET /v1/photos/drive/callback": {
+      "who": "P",
+      "phase": "P9",
+      "status": "built",
+      "note": "Google's redirect: ?code=&state=; stores the grant sealed, makes the folder, back to /photos/"
+    },
+    "DELETE /v1/photos/drive": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "forgets the grant (the files stay in Drive)"
+    },
+    "POST /v1/photos/upload-token": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "a Drive access token for the phone’s own upload, and the folder id"
+    },
+    "GET /v1/photos": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "?before=<day>: days newest first, 4 photos and a count each; ?day=: one day"
+    },
+    "GET /v1/photos/deleted": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "Recently deleted, newest first: 30 days"
+    },
+    "PUT /v1/photos/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "registers an upload: Drive id, size, hash, camera, capture time, format"
+    },
+    "GET /v1/photos/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built"
+    },
+    "PATCH /v1/photos/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "{rating 0–5, flag pick|reject|null}"
+    },
+    "DELETE /v1/photos/:id": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "to Recently deleted"
+    },
+    "POST /v1/photos/:id/restore": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built"
+    },
+    "PUT /v1/photos/:id/preview": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "the JPEG preview, ≤ 400 KB"
+    },
+    "GET /v1/photos/:id/preview": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "the preview bytes, private; an ETag"
     }
   },
   "verbs": {
@@ -3356,6 +3464,9 @@
                   "study.read",
                   "study.search",
                   "study.highlight",
+                  "photo.import",
+                  "photo.delete",
+                  "photo.rate",
                   "astra.open",
                   "mymedia.open",
                   "media.watch",
@@ -4234,7 +4345,8 @@
     "work",
     "watch",
     "prediction",
-    "routine"
+    "routine",
+    "photo"
   ],
   "frame_types": [
     "hello",
@@ -4281,8 +4393,7 @@
     "photos": {
       "path": "/photos/",
       "name": "Photos",
-      "phase": "P9",
-      "deferred": "the photo editor comes later"
+      "phase": "P9"
     }
   },
   "search_sources": {

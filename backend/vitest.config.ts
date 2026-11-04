@@ -39,6 +39,9 @@ export default defineConfig({
           // No upload tool keys in tests; the upload tests pass their own env.
           MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
           VAPID_PRIVATE_JWK: VAPID,
+          // Photos' OAuth client: invented values; Google itself is faked (areas/photos/google.ts useGoogle).
+          GOOGLE_CLIENT_ID: 'test-client.apps.example',
+          GOOGLE_CLIENT_SECRET: 'test-client-secret',
           SITE_ORIGINS: 'https://site.example.test',
           // The cost suite's exact mode (tests/cost/cost.test.ts): TH_STRICT_COST=1 drops its 10% headroom.
           TH_STRICT_COST: process.env.TH_STRICT_COST ?? '',

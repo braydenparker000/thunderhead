@@ -12,6 +12,7 @@ import type {
   SignedInWithCode,
 } from '../../../shared/contract/api';
 import type { ErrorCode } from '../../../shared/contract/errors';
+import type { DriveStatus } from '../../../shared/contract/photos.ts';
 import type { PushItem, PutPushRequest, PutPushResponse } from '../../../shared/contract/push.ts';
 import * as account from '../areas/auth/account';
 import * as agents from '../areas/auth/agents';
@@ -20,6 +21,7 @@ import * as flows from '../areas/auth/flows';
 import { hibpCheck, noBreachCheck } from '../areas/auth/passwords';
 import * as reset from '../areas/auth/reset';
 import { activeSessions } from '../areas/auth/store';
+import * as grant from '../areas/photos/grant';
 import * as outbox from '../areas/push/outbox';
 import type { PushContext } from '../areas/push/rules';
 import * as pushes from '../areas/push/store';
@@ -119,6 +121,7 @@ export class Auth extends OwnerObject {
     return reset.cancel(this.deps, ticketId, label, sessionId);
   }
   prune(): { sessions: number; counters: number; notices: number; pushes: number } {
+    grant.pruneStates(this.db, Date.now());
     return reset.prune(this.deps);
   }
 
@@ -144,6 +147,47 @@ export class Auth extends OwnerObject {
     const sub = this.env.SITE_ORIGINS.split(',')[0]?.trim() || 'https://thunderhead.invalid';
     const live = activeSessions(this.db, ctx.now).map((s) => s.id);
     return outbox.deliver(this.db, ctx, { vapid: await vapid(this.env.VAPID_PRIVATE_JWK), sub }, live);
+  }
+
+  // --- Photos' Drive grant (areas/photos/grant.ts; PHOTOS.md §3.7) ---
+  /** The access token minted last, in memory only, until it expires. */
+  private driveAccess: { token: string; expires_at: number } | null = null;
+  private get pepper(): string {
+    const p = present(this.env.AUTH_PEPPER);
+    if (!p) throw new Error('AUTH_PEPPER is not set');
+    return p;
+  }
+  driveStatus(configured: boolean): DriveStatus {
+    return grant.status(this.db, configured);
+  }
+  driveStateNew(hash: string, origin: string): void {
+    grant.newState(this.db, hash, origin, Date.now());
+  }
+  driveStateTake(hash: string): string | null {
+    return this.ctx.storage.transactionSync(() => grant.takeState(this.db, hash, Date.now()));
+  }
+  async drivePut(refresh: string, folderId: string, folderName: string, access: { token: string; expires_at: number }) {
+    await grant.put(this.db, this.pepper, refresh, folderId, folderName, Date.now());
+    this.driveAccess = access;
+  }
+  /** A live grant: its refresh token (for the Worker's own call to Google, never a client), its
+   * folder, and the access token still good for at least `margin` ms, if one is. */
+  async driveGrant(margin: number) {
+    const g = await grant.live(this.db, this.pepper);
+    if (!g) return null;
+    const a = this.driveAccess;
+    return { ...g, access: a && a.expires_at - margin > Date.now() ? a : null };
+  }
+  driveAccessPut(access: { token: string; expires_at: number }): void {
+    this.driveAccess = access;
+  }
+  driveRevoked(): void {
+    this.driveAccess = null;
+    grant.revoked(this.db, Date.now());
+  }
+  driveForget(): void {
+    this.driveAccess = null;
+    grant.forget(this.db);
   }
 }
 

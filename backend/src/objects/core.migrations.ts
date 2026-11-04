@@ -3,6 +3,7 @@
 // step is owned by its area (areas/<name>/migrations.ts), which also declares its tables'
 // retention (DATA.md §10). This file only composes them, so an area can later move to its own
 // object with its migrations and rows.
+
 import { BACKUPS_MIGRATIONS, BACKUPS_TABLES } from '../areas/backups/migrations';
 import { BRIEFING_MIGRATIONS, BRIEFING_TABLES } from '../areas/briefing/migrations';
 import { CONVERSATION_MIGRATIONS, CONVERSATION_TABLES } from '../areas/conversation/migrations';
@@ -16,6 +17,7 @@ import { MEMORY_MIGRATIONS, MEMORY_TABLES } from '../areas/memory/migrations';
 import { METER_MIGRATIONS, METER_TABLES } from '../areas/meter/migrations';
 import { MIND_MIGRATIONS, MIND_TABLES } from '../areas/mind/migrations';
 import { OPS_TABLES } from '../areas/ops/tables';
+import { PHOTOS_MIGRATIONS, PHOTOS_TABLES } from '../areas/photos/migrations';
 import { PODCASTS_MIGRATIONS, PODCASTS_TABLES } from '../areas/podcasts/migrations';
 import { PREDICTIONS_MIGRATIONS, PREDICTIONS_TABLES } from '../areas/predictions/migrations';
 import { PROPOSALS_MIGRATIONS, PROPOSALS_TABLES } from '../areas/proposals/migrations';
@@ -90,6 +92,7 @@ export const CORE_MIGRATIONS: Migration[] = [
   ...METER_MIGRATIONS,
   ...PODCASTS_MIGRATIONS,
   ...BRIEFING_MIGRATIONS,
+  ...PHOTOS_MIGRATIONS,
 ].sort((a, b) => a.version - b.version);
 
 /** Every Core table with its retention and export inclusion (DATA.md §10); a test fails if a
@@ -118,4 +121,5 @@ export const CORE_TABLES: Record<string, TableInfo> = {
   ...METER_TABLES,
   ...PODCASTS_TABLES,
   ...BRIEFING_TABLES,
+  ...PHOTOS_TABLES,
 };

@@ -81,6 +81,11 @@ export const SETTING_GROUPS = {
     icon: 'music-notes-simple',
     lead: 'Your listening history, from the exports you drop here. Your Worker keeps the counts.',
   },
+  photos: {
+    title: 'Photos',
+    icon: 'aperture',
+    lead: 'Your Worker keeps the shelf and a small preview of each photo; the originals stay in your Drive.',
+  },
   privacy: { title: 'Privacy and data', icon: 'shield-check', lead: 'What this phone tells your Worker, and what leaves it at all.' },
 } as const satisfies Record<string, { title: string; icon: string; lead: string; notes?: Record<string, string> }>;
 export type SettingGroup = keyof typeof SETTING_GROUPS;
@@ -250,11 +255,19 @@ export const SETTINGS = [
   { ...SENSES, key: 'privacy.senses.podcasts', label: 'Podcasts', detail: 'When Podcasts opens, what plays, finishes or gets skipped, and the shows you follow, as ids and times.' },
   { ...SENSES, key: 'privacy.senses.guitar', label: 'Guitar', detail: 'When Guitar opens, the pieces you open and your practice, as numbers.' },
   { ...SENSES, key: 'privacy.senses.study', label: 'Study', detail: 'When Study opens, the books you read and for how long, and how many results a search found.' },
+  { ...SENSES, key: 'privacy.senses.photos', label: 'Photos', detail: 'When you import, rate or delete a photo, its id and format only, never the picture or its name.' },
   { ...SENSES, key: 'privacy.senses.media', label: 'Astra and My Media', detail: 'When they open, and how long you watch each title, as ids and minutes.' },
   { ...SENSES, key: 'privacy.senses.home', label: 'Home', detail: 'Which of my lines you saw, which tiles and chips you tap and which cards you answer, as ids and times.' },
   { ...SENSES, key: 'privacy.senses.shell', label: 'Ring and island', detail: 'Which apps you open and close and when, and which setting you change, never its value.' },
   { ...SENSES, section: 'Reports', key: 'privacy.errors', label: 'Error reports',
     detail: 'When something breaks, what broke and where, never what you wrote.' },
+  // Photos (PHOTOS.md §3.6): the phone makes each preview at this size; what stays on the phone.
+  { key: 'photos.preview_size', group: 'photos', section: 'On this phone', label: 'Preview size', kind: 'choice', ...IN_WORKER,
+    default: '2048', options: o('1024:1,024 px', '2048:2,048 px'),
+    detail: 'The preview your Worker keeps of each photo, its longest side. Smaller is quicker on a slow line.' },
+  { key: 'photos.keep', group: 'photos', section: 'On this phone', label: 'What stays on the phone', kind: 'choice', ...IN_WORKER,
+    default: 'previews', options: o('previews:Previews only', 'recent:Recent originals too'),
+    detail: 'Previews keep the shelf working offline. Keeping recent originals comes with editing.' },
   // Retention (conversation/retention.ts): once a day, conversations past it are purged as a deleted one is.
   { key: 'privacy.retention', group: 'privacy', section: 'Conversations', label: 'Keep conversations', kind: 'choice', ...IN_WORKER,
     default: 'forever', options: o('forever:Forever', '1y:1 year', '90d:90 days'),

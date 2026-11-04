@@ -421,6 +421,39 @@ CREATE TABLE perf_days (
   PRIMARY KEY (day, metric)
   ) WITHOUT ROWID;
 
+CREATE TABLE photos (
+  id TEXT PRIMARY KEY,
+  drive_id TEXT,
+  name TEXT NOT NULL,
+  format TEXT NOT NULL,
+  bytes INTEGER NOT NULL,
+  sha256 TEXT,
+  camera TEXT,
+  film TEXT,
+  width INTEGER,
+  height INTEGER,
+  taken_at INTEGER NOT NULL,
+  day TEXT NOT NULL,
+  rating INTEGER NOT NULL DEFAULT 0,
+  flag TEXT,
+  preview_key TEXT,
+  preview_sha TEXT,
+  deleted_at INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE INDEX photos_deleted ON photos (deleted_at) WHERE deleted_at IS NOT NULL;
+
+CREATE UNIQUE INDEX photos_drive ON photos (drive_id);
+
+CREATE TABLE photos_gone (
+  drive_id TEXT PRIMARY KEY,
+  purged_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE INDEX photos_shelf ON photos (day, taken_at) WHERE deleted_at IS NULL;
+
 CREATE TABLE podcast_follows (
   feed_url TEXT PRIMARY KEY,
   title TEXT NOT NULL,

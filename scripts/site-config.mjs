@@ -10,7 +10,7 @@ const SIGNIN = readFileSync(`${UI}csp-signin.txt`, 'utf8').trim();
 
 /** App routes without a page of their own: each gets a copy of the shell (storage hosting has no
  * SPA fallback). An existing page (e.g. astra/) is never overwritten. */
-export const APP_ROUTES = ['music', 'guitar', 'podcasts', 'media', 'settings', 'settings/password', 'settings/agents', 'settings/devices', 'settings/memory', 'share'];
+export const APP_ROUTES = ['music', 'guitar', 'podcasts', 'media', 'settings', 'settings/password', 'settings/agents', 'settings/devices', 'settings/memory', 'settings/photos', 'share'];
 
 /** The content type of every file kind the site may hold. stage.mjs refuses any other kind, and
  * deploy.sh uploads each kind with exactly this type, so nothing depends on the uploader guessing
@@ -54,7 +54,7 @@ export const MOVED_PAGES = ['guitar/index.html', 'music/index.html', 'media/inde
 
 /** New apps with a page of their own (Study, P7): their CSP's connect-src names the API host too,
  * after 'self' (no live socket). */
-export const OWN_PAGES = ['study/index.html'];
+export const OWN_PAGES = ['study/index.html', 'photos/index.html'];
 
 /** Adds the API host to the CSP of the shell and sign-in pages, and of a moved ported page or a new
  * app's own page (by its path); other pages are left alone. */

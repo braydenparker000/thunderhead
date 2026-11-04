@@ -80,7 +80,9 @@
       "R2_SIGN_ACCESS_KEY_ID",
       "R2_SIGN_SECRET",
       "MUSIC_UPLOAD_PUBLIC_KEYS",
-      "VAPID_PRIVATE_JWK"
+      "VAPID_PRIVATE_JWK",
+      "GOOGLE_CLIENT_ID",
+      "GOOGLE_CLIENT_SECRET"
     ]
   },
   "vars": {

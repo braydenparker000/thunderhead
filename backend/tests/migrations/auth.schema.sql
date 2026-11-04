@@ -30,6 +30,21 @@ CREATE TABLE credential (
   changed_at INTEGER NOT NULL
   );
 
+CREATE TABLE drive_grant (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  sealed TEXT NOT NULL,
+  folder_id TEXT NOT NULL,
+  folder_name TEXT NOT NULL,
+  connected_at INTEGER NOT NULL,
+  revoked_at INTEGER
+  );
+
+CREATE TABLE drive_states (
+  hash TEXT PRIMARY KEY,
+  origin TEXT NOT NULL,
+  expires_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
 CREATE TABLE meter_days (
   day TEXT NOT NULL,
   class TEXT NOT NULL,

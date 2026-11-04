@@ -36,7 +36,7 @@ describe('fields a prototype answers to are not fields', () => {
     ]);
     expect(check({ ...done, note: 'x'.repeat(201) }, schema)).toEqual(['note: at most 200 characters']);
     expect(check({ ...done, added: { songs: -1 } }, schema)).toEqual(['added.songs: at least 0']);
-    expect(check({ ...done, open: { app: 'photos', path: '/photos/' } }, schema)[0]).toMatch(/^open\.app: one of /);
+    expect(check({ ...done, open: { app: 'gallery', path: '/gallery/' } }, schema)[0]).toMatch(/^open\.app: one of /);
     expect(check({ added: {}, ids: [] }, schema)).toEqual(['note: required']);
   });
 });

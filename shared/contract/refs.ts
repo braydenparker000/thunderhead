@@ -23,6 +23,8 @@ export type RefKind =
   | 'podcast'
   | 'astra'
   | 'media'
+  // A photo on the shelf (PHOTOS.md): its Worker id.
+  | 'photo'
   // A count the Worker can make again: a routine of the senses (senses.ts routineRef), cited by a habit.
   | 'rollup';
 

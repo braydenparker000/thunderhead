@@ -15,7 +15,7 @@
 export const LIVE_PROTOCOL = 1;
 
 /** @type {readonly ChangeKind[]} */
-export const CHANGE_KINDS = Object.freeze(["message","thread","ledger","proposal","verb","plan","surface","notice","fact","day_note","open_thread","setting","mind_status","error","work","watch","prediction","routine"]);
+export const CHANGE_KINDS = Object.freeze(["message","thread","ledger","proposal","verb","plan","surface","notice","fact","day_note","open_thread","setting","mind_status","error","work","watch","prediction","routine","photo"]);
 
 /** @type {readonly FrameType[]} */
 export const FRAME_TYPES = Object.freeze(["hello","changed","typing","bye"]);
@@ -27,7 +27,7 @@ export const CLOSE_CODES = Object.freeze({"revoked":4401,"outdated":4426,"restar
 export const BUILT_PHASES = Object.freeze(["P1","P1b","P2","P3","P4","P5","P6","P7","P8","P9"]);
 
 /** @type {Readonly<Record<AppId, { path: string, name: string, phase: string }>>} */
-export const APPS = Object.freeze({"music":{"path":"/music/","name":"Music","phase":"P1b"},"guitar":{"path":"/guitar/","name":"Guitar","phase":"P1b"},"podcasts":{"path":"/podcasts/","name":"Podcasts","phase":"P1b"},"astra":{"path":"/astra/","name":"Astra","phase":"P1b"},"media":{"path":"/media/","name":"My Media","phase":"P1b"},"study":{"path":"/study/","name":"Study","phase":"P7"},"photos":{"path":"/photos/","name":"Photos","phase":"P9","deferred":"the photo editor comes later"}});
+export const APPS = Object.freeze({"music":{"path":"/music/","name":"Music","phase":"P1b"},"guitar":{"path":"/guitar/","name":"Guitar","phase":"P1b"},"podcasts":{"path":"/podcasts/","name":"Podcasts","phase":"P1b"},"astra":{"path":"/astra/","name":"Astra","phase":"P1b"},"media":{"path":"/media/","name":"My Media","phase":"P1b"},"study":{"path":"/study/","name":"Study","phase":"P7"},"photos":{"path":"/photos/","name":"Photos","phase":"P9"}});
 
 /** @type {readonly import('../../shared/contract/api.ts').MessageKind[]} */
 export const MESSAGE_KINDS = Object.freeze(["text","voice","progress","card","question","error"]);

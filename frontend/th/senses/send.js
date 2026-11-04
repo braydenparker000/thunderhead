@@ -25,6 +25,7 @@ if (/^\/(astra|media)\//.test(location.pathname)) import('./watch.js').then((m) 
 const APPS = /** @type {Record<string, string>} */ ({
   player: 'music',
   podcast: 'podcasts',
+  photo: 'photos',
   astra: 'media',
   mymedia: 'media',
   app: 'shell',

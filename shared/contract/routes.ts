@@ -3,6 +3,7 @@
 // and the generated appendix docs/engineering/CONTRACT.md. A route is added here first; the
 // scope test fails until the Worker registers exactly the built rows with exactly these
 // principals. Plain data with erasable types only, so Node can import it without a build.
+import { PHOTO_ROUTES } from './routes-photos.ts';
 import { ROUTINE_ROUTES } from './routes-routines.ts';
 
 /** D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci (API.md §13). */
@@ -286,10 +287,9 @@ export const ROUTES = {
   'POST /v1/ops/reports': { who: D, phase: 'P8', note: '{kind, body ≤ 32 KB}; at most 6 in any 5 minutes' },
   // Not CI: a batch is listening history by track id, and CI's logs are public.
   'GET /v1/ops/reports': { who: AGENTS_READ, phase: 'P8', note: '?kind=&since=&limit=&cursor=, newest first, ≤ 512 KB' },
+  ...PHOTO_ROUTES,
 } as const satisfies Record<string, RouteSpec>;
-
 export type RouteKey = keyof typeof ROUTES;
-
 /** The phases whose routes are live in this build (the scope test registers exactly these). */
 export const BUILT_PHASES: readonly Phase[] = ['P1', 'P1b', 'P2', 'P3', 'P4', 'P5', 'P6', 'P7', 'P8', 'P9'];
 

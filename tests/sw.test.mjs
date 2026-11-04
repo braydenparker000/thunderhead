@@ -73,7 +73,8 @@ test('the kill switch clears th-* caches and unregisters (OPERATIONS.md §3.3)',
 test('ui/icons.svg is built from ui/icons.txt, within budget, and the shell draws no inline paths', () => {
   const sprite = readFileSync(join(SITE, 'ui/icons.svg'), 'utf8');
   assert.equal(sprite, buildSprite(), 'ui/icons.svg is stale: run node scripts/icons.mjs');
-  assert.ok(Buffer.byteLength(sprite) <= 30_000, `sprite is ${Buffer.byteLength(sprite)} bytes`);
+  // The same measured budget as scripts/stage.mjs (2026-11-04, Photos: star, star-fill, flag, prohibit).
+  assert.ok(Buffer.byteLength(sprite) <= 30_722, `sprite is ${Buffer.byteLength(sprite)} bytes`);
   for (const f of ['index.html', 'apps/home/home.js'])
     assert.doesNotMatch(readFileSync(join(SITE, f), 'utf8'), /<path\b/, `${f} still draws an inline icon`);
   for (const [, name] of readFileSync(join(SITE, 'index.html'), 'utf8').matchAll(/icons\.svg#([a-z-]+)/g))

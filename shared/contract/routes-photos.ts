@@ -1,0 +1,19 @@
+// Photos' routes (photos.ts, API.md §11.26), kept beside routes.ts, which spreads them into ROUTES:
+// no import here, so the registry stays importable on its own. Only the owner's phone calls them;
+// the callback is Google's redirect back with the consent, checked by its one-use state.
+export const PHOTO_ROUTES = {
+  'GET /v1/photos/drive': { who: ['D'], phase: 'P9', note: 'connected or not, the folder by name, a revoked grant' },
+  'POST /v1/photos/drive/connect': { who: ['D'], phase: 'P9', note: "Google's consent address, scope drive.file, a state good for 10 minutes" },
+  'GET /v1/photos/drive/callback': { who: 'P', phase: 'P9', note: "Google's redirect: ?code=&state=; stores the grant sealed, makes the folder, back to /photos/" },
+  'DELETE /v1/photos/drive': { who: ['D'], phase: 'P9', note: 'forgets the grant (the files stay in Drive)' },
+  'POST /v1/photos/upload-token': { who: ['D'], phase: 'P9', note: 'a Drive access token for the phone’s own upload, and the folder id' },
+  'GET /v1/photos': { who: ['D'], phase: 'P9', note: '?before=<day>: days newest first, 4 photos and a count each; ?day=: one day' },
+  'GET /v1/photos/deleted': { who: ['D'], phase: 'P9', note: 'Recently deleted, newest first: 30 days' },
+  'PUT /v1/photos/:id': { who: ['D'], phase: 'P9', note: 'registers an upload: Drive id, size, hash, camera, capture time, format' },
+  'GET /v1/photos/:id': { who: ['D'], phase: 'P9' },
+  'PATCH /v1/photos/:id': { who: ['D'], phase: 'P9', note: '{rating 0–5, flag pick|reject|null}' },
+  'DELETE /v1/photos/:id': { who: ['D'], phase: 'P9', note: 'to Recently deleted' },
+  'POST /v1/photos/:id/restore': { who: ['D'], phase: 'P9' },
+  'PUT /v1/photos/:id/preview': { who: ['D'], phase: 'P9', note: 'the JPEG preview, ≤ 400 KB' },
+  'GET /v1/photos/:id/preview': { who: ['D'], phase: 'P9', note: 'the preview bytes, private; an ETag' },
+} as const;

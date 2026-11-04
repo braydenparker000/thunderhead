@@ -120,7 +120,9 @@ const budgets = [
   // (2026-11-04, settings second) +1,205 measured (77,169 → 78,374): th/copy.js's `mindName()` (the
   // mind's name wherever the copy says "the mind") and `keepShell()` (the name and the owner's hours
   // kept from home's read of the settings, for the copy and ui/theme.js's Auto).
-  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 78_374],
+  // (2026-11-04, Photos) +27 measured (78,374 → 78,401): th/contract.js's Photos built and its change
+  // kind, th/session.js forgetting the shelf kept offline at sign-out.
+  ['shell th JS bytes', sum(/^th\/[^/]+\.js$/), 78_401],
   // Replies render rich text (th/chat/rich.js, 2026-10-30), which took over the menu's prose.js;
   // then follow-ups, the time over a turn, folded long replies and the tap for a reply's actions;
   // then (2026-10-30) sending a message's files and drawing a message's attachments.
@@ -223,7 +225,8 @@ const budgets = [
   // its licence forbids changing it; Quicksand was 28.2 KB, Fraunces and Inter 133 KB).
   ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 48_000],
   ['precache bytes', list.filter((f) => precached(f.path)).reduce((n, f) => n + f.size, 0), 3_000_000],
-  ['icon sprite bytes', sum(/^ui\/icons\.svg$/), 30_000],
+  // (2026-11-04, Photos) 30,000 → 30,722 measured: star, star-fill, flag and prohibit for rating and culling.
+  ['icon sprite bytes', sum(/^ui\/icons\.svg$/), 30_722],
 ];
 const over = budgets.filter(([, value, limit]) => value > limit);
 for (const [name, value, limit] of budgets) console.log(`${name}: ${value} (limit ${limit})`);

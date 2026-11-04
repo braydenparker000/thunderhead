@@ -642,5 +642,29 @@
   "music.history: the file's whole import in one alarm, 5,000 rows (Core)": {
     "rows_read_max": 98,
     "rows_written_max": 19
+  },
+  "PUT /v1/photos/:id (an import) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 4
+  },
+  "PUT /v1/photos/:id/preview (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 2
+  },
+  "GET /v1/photos (14 days of 6) (Core)": {
+    "rows_read_max": 140,
+    "rows_written_max": 0
+  },
+  "GET /v1/photos?day= (6 photos) (Core)": {
+    "rows_read_max": 7,
+    "rows_written_max": 0
+  },
+  "PATCH /v1/photos/:id (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 2
+  },
+  "DELETE /v1/photos/:id (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 7
   }
 }

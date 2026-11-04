@@ -31,7 +31,7 @@ export type SenseField = 'id' | 'ref' | 'ids' | 'ms' | 'int' | 'num' | 'bool' | 
 /** Whose privacy switch an event falls under: `privacy.senses.<app>` (shared/contract/settings.ts).
  * Astra and My Media share `media`; the ring, the island, app opens and settings are `shell`; what
  * the mind says on home (lines, cards, chips, the Briefing's tiles) is `home`. */
-export const SENSE_APPS = ['music', 'podcasts', 'guitar', 'study', 'media', 'shell', 'home'] as const;
+export const SENSE_APPS = ['music', 'podcasts', 'guitar', 'study', 'photos', 'media', 'shell', 'home'] as const;
 export type SenseApp = (typeof SENSE_APPS)[number];
 
 export interface SenseTypeSpec {
@@ -115,6 +115,10 @@ export const SENSE_TYPES = {
   'study.read': t('study', ['book'], { pages: 'int', ms: 'ms' }, 'Reading in a book, on leaving it or hiding the page.'),
   'study.search': t('study', [], { hits: 'int' }, 'A search shows its results (the count only, never the words).'),
   'study.highlight': t('study', ['book'], {}, 'A highlight made in a book (nothing on the phone makes one yet).', 1),
+  // Photos (apps/photos): `photo:<id>`; the format and numbers only, never a name or a pixel.
+  'photo.import': t('photos', ['photo'], { format: ['raf', 'dng', 'jpeg', 'heic', 'other'] }, 'A photo imported: in Drive and on the shelf.'),
+  'photo.delete': t('photos', ['photo'], {}, 'A photo moved to Recently deleted.'),
+  'photo.rate': t('photos', ['photo'], { rating: 'int', flag: ['pick', 'reject', 'none'] }, 'A photo rated, flagged or rejected.'),
   // Astra and My Media (th/senses/watch.js, from each app's own progress): `astra:<type>:<id>` (an
   // episode adds `:<season>:<episode>`) or `media:<drive file id>`.
   'astra.open': t('media', [], {}, "Astra's page opens."),

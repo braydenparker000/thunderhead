@@ -53,7 +53,7 @@ import { coreInstance } from '../http/sandbox';
 import { attempt } from '../lib/result';
 import { dayBefore } from '../lib/time';
 import type { Caller } from './caller';
-import { CoreVerbs } from './core-verbs';
+import { CorePhotos } from './core-photos';
 import { sensesObject } from './senses';
 
 /** Every job kind Core runs, by kind (JOBS.md §4.4). */
@@ -67,7 +67,7 @@ const JOB_HANDLERS: Record<string, JobHandler> = {
   [embedJob.kind]: embedJob,
 };
 
-export class Core extends CoreVerbs {
+export class Core extends CorePhotos {
   // --- the conversation ------------------------------------------------------------------------
 
   today(): TodayResponse {
