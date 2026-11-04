@@ -7,6 +7,9 @@
 export const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
 export const DRIVE_FILES = 'https://www.googleapis.com/drive/v3/files';
 const CHUNK = 8 * 1024 * 1024;
+const FOLDER = 'application/vnd.google-apps.folder';
+/** Where exports go in Drive: beside the app's folder (shared/contract/photos.ts DRIVE_EXPORTS). */
+export const EXPORTS_FOLDER = 'Thunderhead Exports';
 
 /** @param {number} ms */
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -120,4 +123,21 @@ export async function fetchOriginal(token, id, range) {
   });
   if (!res.ok) throw Object.assign(new Error('drive'), { status: res.status });
   return res.blob();
+}
+
+/** The "Thunderhead Exports" folder beside the app's folder (the same parent), made on first use;
+ * exports go there by the same resumable upload as originals. @param {string} token @param {string} folder */
+export async function exportsFolder(token, folder) {
+  const auth = { Authorization: `Bearer ${token}` };
+  const get = async (/** @type {string} */ url, /** @type {RequestInit} */ o = {}) => {
+    const res = await fetch(url, { ...o, headers: { ...auth, ...(o.headers ?? {}) } });
+    if (!res.ok) throw Object.assign(new Error('drive'), { status: res.status });
+    return res.json();
+  };
+  const parent = (await get(`${DRIVE_FILES}/${encodeURIComponent(folder)}?fields=parents`)).parents?.[0] ?? 'root';
+  const q = `name = '${EXPORTS_FOLDER}' and mimeType = '${FOLDER}' and '${parent}' in parents and trashed = false`;
+  const found = await get(`${DRIVE_FILES}?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1`);
+  if (found.files?.[0]?.id) return String(found.files[0].id);
+  const made = await get(`${DRIVE_FILES}?fields=id`, { method: 'POST', headers: { 'Content-Type': 'application/json; charset=UTF-8' }, body: JSON.stringify({ name: EXPORTS_FOLDER, mimeType: FOLDER, parents: [parent] }) });
+  return String(made.id);
 }

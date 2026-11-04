@@ -3,6 +3,8 @@
 // for each canvas pixel, from the proxy (or the 1:1 detail proxy where it covers), the two blur
 // levels and the tone lookup, sRGB-encoded out.
 import { body } from './develop-body.js';
+import { caBody, geoBody } from './geometry-body.js';
+import { UNIFORMS } from '../uniforms.js';
 
 const glsl = (/** @type {string} */ s) =>
   s.replace(/\bD1 /g, 'float ').replace(/\bD2 /g, 'vec2 ').replace(/\bD3 /g, 'vec3 ').replace(/\bD4 /g, 'vec4 ').replace(/\bDI /g, 'int ')
@@ -15,7 +17,7 @@ uniform sampler2D P1;
 uniform sampler2D B2;
 uniform sampler2D B3;
 uniform sampler2D LUT;
-uniform vec4 u[28];
+uniform vec4 u[${UNIFORMS}];
 out vec4 o;
 const vec3 Y709 = vec3(0.2126, 0.7152, 0.0722);
 const float HCS[9] = float[9](0.0, 30.0, 60.0, 120.0, 180.0, 240.0, 270.0, 300.0, 360.0);
@@ -41,13 +43,16 @@ float vnoise(vec2 p) {
 }
 void main() {
   vec2 px = vec2(gl_FragCoord.x, u[21].z > 0.5 ? u[21].y - gl_FragCoord.y : gl_FragCoord.y);
-  vec2 uv = px * u[18].xy + u[18].zw;
+  vec2 q = px * u[18].xy + u[18].zw;
+  if (q.x < 0.0 || q.y < 0.0 || q.x > 1.0 || q.y > 1.0) { o = vec4(0.0, 0.0, 0.0, 1.0); return; }
+${geoBody(glsl)}
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0) { o = vec4(0.0, 0.0, 0.0, 1.0); return; }
   bool t = u[20].z > 0.5 && uv.x >= u[19].z && uv.y >= u[19].w && uv.x <= u[20].x && uv.y <= u[20].y;
   vec2 s = t ? (uv - u[19].zw) / (u[20].xy - u[19].zw) : uv;
   vec2 ts = t ? u[22].xy : u[19].xy;
   #define TAP(c) (t ? textureLod(P1, c, 0.0) : textureLod(P0, c, 0.0))
   vec4 c0 = TAP(s);
+${caBody(glsl)}
 ${body(glsl)}
   o = vec4(clamp(e, 0.0, 1.0), 1.0);
 }`;

@@ -421,6 +421,18 @@ CREATE TABLE perf_days (
   PRIMARY KEY (day, metric)
   ) WITHOUT ROWID;
 
+CREATE TABLE photo_versions (
+  id TEXT PRIMARY KEY,
+  photo_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  name TEXT,
+  recipe_json TEXT NOT NULL,
+  recipe_sha TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
+CREATE INDEX photo_versions_photo ON photo_versions (photo_id, kind, created_at);
+
 CREATE TABLE photos (
   id TEXT PRIMARY KEY,
   drive_id TEXT,

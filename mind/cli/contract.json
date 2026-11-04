@@ -1845,6 +1845,37 @@
       "status": "built",
       "note": "the edit as a recipe (crs names); the same hash again writes nothing; a ledger row, undo = the recipe before"
     },
+    "GET /v1/photos/:id/versions": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "the versions, newest first: 20 automatic and 20 named at most"
+    },
+    "POST /v1/photos/:id/versions": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "{id, kind auto|named, name?, recipe}; an automatic one equal to the newest writes nothing; the oldest automatic goes past 20"
+    },
+    "PATCH /v1/photos/:id/versions/:vid": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "{name}: renames (an automatic one becomes named)"
+    },
+    "DELETE /v1/photos/:id/versions/:vid": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built"
+    },
     "PUT /v1/photos/:id/preview": {
       "who": [
         "D"
@@ -3476,6 +3507,7 @@
                   "photo.import",
                   "photo.delete",
                   "photo.edit",
+                  "photo.export",
                   "photo.rate",
                   "astra.open",
                   "mymedia.open",

@@ -28,7 +28,7 @@
 .echip{flex:none;min-height:36px;padding:0 14px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:none;color:rgba(255,255,255,.78);font:500 var(--fs-chip)/var(--lh-compact) var(--ui);cursor:pointer;transition:background calc(var(--d-base) / 2) var(--ease-default)}
 .echip[aria-selected="true"]{background:#fff;border-color:#fff;color:#000}
 .echip.on:not([aria-selected="true"]){border-color:var(--photos);color:#fff}
-.estrip{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid rgba(255,255,255,.08)}
+.estrip{display:grid;grid-template-columns:repeat(7,1fr);border-top:1px solid rgba(255,255,255,.08)}
 .epanel{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:56px;border:0;background:none;color:rgba(255,255,255,.55);font:500 var(--fs-small)/var(--lh-compact) var(--ui);cursor:pointer}
 .epanel[aria-current="true"]{color:#fff}
 .epanel[aria-current="true"] .i{color:var(--photos)}
@@ -48,4 +48,37 @@
 .wdot{position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;border:2px solid #fff;border-radius:50%;box-shadow:0 0 2px #000}
 .curvebox{display:flex;flex-direction:column;align-items:center;gap:8px}
 .curve{width:min(200px,52vw);aspect-ratio:1;border-radius:8px;background:rgba(255,255,255,.04);touch-action:none}
-@media (prefers-reduced-motion:reduce){.echip{transition:none}}
+/* Crop and geometry: the frame over the whole straightened photo, the outside dimmed. */
+.coverlay{position:absolute;inset:0;touch-action:none;cursor:crosshair}
+.ccrop{position:absolute;inset:0;width:100%;height:100%}
+.cmask{fill:rgba(0,0,0,.58)}
+.cgrid{fill:none;stroke:rgba(255,255,255,.4);stroke-width:1}
+.cbox{fill:none;stroke:#fff;stroke-width:1.5}
+.chandle{fill:none;stroke:#fff;stroke-width:4;stroke-linecap:square}
+.cline{stroke:var(--photos);stroke-width:2}
+.eexport{margin-left:auto}
+/* Versions: a filmstrip, newest first; two side by side to compare. */
+.vhead{flex-wrap:wrap;gap:8px}
+.vstrip{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;overscroll-behavior:contain}
+.vcard{flex:none;display:flex;flex-direction:column;gap:4px;width:88px;padding:4px;border:1px solid rgba(255,255,255,.16);border-radius:10px;background:none;color:rgba(255,255,255,.8);font:500 var(--fs-small)/var(--lh-tight) var(--ui);text-align:left;cursor:pointer}
+.vcard.on{border-color:var(--photos);color:#fff}
+.vthumb{display:flex;align-items:center;justify-content:center;height:58px;border-radius:6px;background:#1c1c20;overflow:hidden}
+.vthumb canvas{max-width:100%;max-height:100%}
+.vlabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vname{flex:1;min-width:0;min-height:44px;padding:0 12px;border:1px solid rgba(255,255,255,.2);border-radius:10px;background:rgba(255,255,255,.06);color:#fff;font:400 var(--fs-body)/var(--lh-tight) var(--ui)}
+.vcompare{position:absolute;inset:0;z-index:2;display:grid;grid-auto-flow:row;align-content:center;gap:12px;padding:calc(64px + env(safe-area-inset-top,0px)) 12px 12px;background:#000}
+.vcompare figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:6px}
+.vcompare canvas{max-width:100%;max-height:34vh;border-radius:6px}
+.vcompare figcaption{font:500 var(--fs-small)/var(--lh-tight) var(--ui);color:rgba(255,255,255,.75)}
+.vclose{position:absolute;right:8px;top:calc(6px + env(safe-area-inset-top,0px))}
+/* Export: a sheet over the editor. */
+.xdim{position:absolute;inset:0;background:rgba(0,0,0,.5)}
+.xsheet{position:absolute;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px;padding:16px;border-radius:22px;background:#1a1a1e;color:#fff;border:1px solid rgba(255,255,255,.1)}
+.xsheet h2{margin:0 0 4px;font:600 var(--fs-body)/var(--lh-tight) var(--ui)}
+.xlabel{margin:4px 0 0;font:500 var(--fs-small)/var(--lh-tight) var(--ui);color:rgba(255,255,255,.65)}
+.xrow{display:flex;align-items:baseline;justify-content:space-between}
+.xq{width:100%;accent-color:var(--photos)}
+.xbar{height:6px;border-radius:3px;background:rgba(255,255,255,.15);overflow:hidden}
+.xbar span{display:block;width:0;height:100%;background:var(--photos);transition:width var(--d-base) var(--ease-default)}
+.xgo{justify-content:center;margin-top:6px}
+@media (prefers-reduced-motion:reduce){.echip,.xbar span{transition:none}}

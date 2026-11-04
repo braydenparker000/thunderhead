@@ -1,15 +1,15 @@
 {
-  "id": "2026-11-04-photos-edit",
+  "id": "2026-11-04-photos-export",
   "date": "2026-11-04",
   "lines": [
     {
-      "text": "Photos can edit now: open a photo, tap Edit, and use Light, Color, Effects and Detail, one slider at a time."
+      "text": "The Photos editor can crop, straighten, flip and fix perspective now, and Optics removes colour fringes."
     },
     {
-      "text": "RAF files from your Fujifilm open in full; hold the photo to see it as shot, use two fingers for the histogram."
+      "text": "Versions keep your edits as you go: name one, compare two side by side, and restore any of them."
     },
     {
-      "text": "Your edits save as you go, even offline, and never change the original in your Drive."
+      "text": "Export makes a full-size, 2,048 or 1,080 px JPEG with your edit inside, to share, to Files or to Drive."
     }
   ]
 }

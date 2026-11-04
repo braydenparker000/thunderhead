@@ -3,7 +3,7 @@
 // `?gpu=webgl2` to try the fallback). Both give the same five calls: source, detail, clearDetail,
 // draw and read.
 
-/** @typedef {{ kind: 'planar', width: number, height: number, data: Uint16Array } | { kind: 'bitmap', width: number, height: number, bitmap: ImageBitmap }} Source */
+/** @typedef {{ kind: 'planar', width: number, height: number, data: Uint16Array, x?: number, y?: number } | { kind: 'bitmap', width: number, height: number, bitmap: ImageBitmap }} Source */
 /** @typedef {Awaited<ReturnType<typeof import('./gl.js').webgl2>> | Awaited<ReturnType<typeof import('./webgpu.js').webgpu>>} Renderer */
 
 /** @param {HTMLCanvasElement} canvas @returns {Promise<{ r: Renderer, canvas: HTMLCanvasElement }>} */

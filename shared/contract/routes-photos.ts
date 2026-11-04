@@ -15,6 +15,10 @@ export const PHOTO_ROUTES = {
   'DELETE /v1/photos/:id': { who: ['D'], phase: 'P9', note: 'to Recently deleted' },
   'POST /v1/photos/:id/restore': { who: ['D'], phase: 'P9' },
   'PUT /v1/photos/:id/recipe': { who: ['D'], phase: 'P9', note: 'the edit as a recipe (crs names); the same hash again writes nothing; a ledger row, undo = the recipe before' },
+  'GET /v1/photos/:id/versions': { who: ['D'], phase: 'P9', note: 'the versions, newest first: 20 automatic and 20 named at most' },
+  'POST /v1/photos/:id/versions': { who: ['D'], phase: 'P9', note: '{id, kind auto|named, name?, recipe}; an automatic one equal to the newest writes nothing; the oldest automatic goes past 20' },
+  'PATCH /v1/photos/:id/versions/:vid': { who: ['D'], phase: 'P9', note: '{name}: renames (an automatic one becomes named)' },
+  'DELETE /v1/photos/:id/versions/:vid': { who: ['D'], phase: 'P9' },
   'PUT /v1/photos/:id/preview': { who: ['D'], phase: 'P9', note: 'the JPEG preview, ≤ 400 KB' },
   'GET /v1/photos/:id/preview': { who: ['D'], phase: 'P9', note: 'the preview bytes, private; an ETag' },
 } as const;

@@ -6,7 +6,8 @@
 // (local contrast at three scales) → Sharpening → Noise reduction → Vignette → Grain → sRGB. The
 // neighbourhood steps are measured on the source (log2 luminance in the proxy's alpha) and applied as
 // luminance changes at their place, so the chain stays one pass. D1–D4 and DI declare a float, vectors and an int
-// (each dialect spells them); V2, V3 and F build them.
+// (each dialect spells them); V2, V3 and F build them. uv is the photo's point, q the output's (geometry-body.js):
+// vignette and grain are laid on the output, after the crop.
 
 /** @param {(s: string) => string} t the dialect's rewrite */
 export const body = (t) => t(`
@@ -44,7 +45,7 @@ export const body = (t) => t(`
   dL = dL + U(3).y * 0.7 * (L - b2.r) * mid;
   D1 base = b3.r + ev;
   dL = dL + U(1).z * 1.6 * (1.0 - smoothstep(-7.0, -2.0, base)) + U(1).y * 1.6 * smoothstep(-3.5, 0.5, base);
-  D3 lin = ch * exp2(L + dL) * U(0).rgb * U(0).a;
+  D3 lin = ch * exp2(L + dL) * U(0).rgb * U(0).a * lv;
   D1 k = U(3).z;
   D1 hz = clamp(b3.g * U(0).a, 0.0, 1.0);
   if (k > 0.0) {
@@ -84,7 +85,7 @@ export const body = (t) => t(`
   e = e + U(8).rgb * wS + U(9).rgb * wM + U(10).rgb * wH;
   e = e * (1.0 + (U(8).a * wS + U(9).a * wM + U(10).a * wH) * 0.35);
   D1 asp = U(11).z;
-  D2 q2 = (uv - V2(0.5)) * 2.0;
+  D2 q2 = (q - V2(0.5)) * 2.0;
   D2 circ = q2 * V2(asp, 1.0) / max(asp, 1.0);
   q2 = mix(q2, circ, max(U(6).w, 0.0));
   D1 nn = mix(2.0, 6.0, max(-U(6).w, 0.0));
@@ -95,7 +96,7 @@ export const body = (t) => t(`
   D1 a = U(6).x;
   if (a < 0.0) { e = e * (1.0 + a * vt); } else { e = mix(e, V3(1.0), a * vt * 0.8); }
   if (U(7).x > 0.0) {
-    D2 gp = uv * V2(U(7).w, U(7).w / asp) / mix(1.2, 5.0, U(7).y);
+    D2 gp = q * V2(U(7).w, U(7).w / asp) / mix(1.2, 5.0, U(7).y);
     D1 gn = mix(vnoise(gp), vnoise(gp * 2.7 + V2(13.1)), U(7).z * 0.6) - 0.5;
     D1 yy = clamp(dot(e, Y709), 0.0, 1.0);
     e = e + V3(U(7).x * 0.5 * gn * (yy * (1.0 - yy) * 2.4 + 0.2));

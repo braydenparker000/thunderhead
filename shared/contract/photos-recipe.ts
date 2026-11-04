@@ -71,6 +71,18 @@ export const RECIPE_NUMBERS = {
   LuminanceNoiseReductionDetail: [0, 100, 50],
   ColorNoiseReduction: [0, 100, 25],
   ColorNoiseReductionDetail: [0, 100, 50],
+  // Optics: manual distortion (+ corrects barrel) and the lens's own vignetting (+ lightens the corners)
+  LensManualDistortionAmount: [-100, 100, 0],
+  VignetteAmount: [-100, 100, 0],
+  // Crop and geometry: the crop's edges as fractions of the straightened frame, its angle in degrees,
+  // and the two perspective corrections (applied before the crop, the crop last before output)
+  CropTop: [0, 1, 0],
+  CropLeft: [0, 1, 0],
+  CropBottom: [0, 1, 1],
+  CropRight: [0, 1, 1],
+  CropAngle: [-45, 45, 0],
+  PerspectiveVertical: [-100, 100, 0],
+  PerspectiveHorizontal: [-100, 100, 0],
 } as const satisfies Record<string, readonly [number, number, number]>;
 export type RecipeNumber = keyof typeof RECIPE_NUMBERS;
 
@@ -82,11 +94,15 @@ export const RECIPE_CURVES = ['ToneCurvePV2012', 'ToneCurvePV2012Red', 'ToneCurv
 export type RecipeCurve = (typeof RECIPE_CURVES)[number];
 export const CURVE_POINTS = { min: 2, max: 16 } as const;
 
-export type PhotoRecipe = { [K in RecipeNumber]?: number } & { [K in RecipeCurve]?: [number, number][] } & {
+/** On or off: black and white, remove chromatic aberration, the lens's own corrections, keep the crop
+ * inside the warped photo, and the two flips (ours: Lightroom keeps a flip in the file's orientation). */
+export const RECIPE_FLAGS = ['ConvertToGrayscale', 'AutoLateralCA', 'LensProfileEnable', 'CropConstrainToWarp', 'FlipHorizontal', 'FlipVertical'] as const;
+export type RecipeFlag = (typeof RECIPE_FLAGS)[number];
+
+export type PhotoRecipe = { [K in RecipeNumber]?: number } & { [K in RecipeCurve]?: [number, number][] } & { [K in RecipeFlag]?: boolean } & {
   WhiteBalance?: (typeof WB_MODES)[number];
   Temperature?: number;
   Tint?: number;
-  ConvertToGrayscale?: boolean;
 };
 
 /** PUT /v1/photos/:id/recipe. The same recipe again (by its hash) writes nothing. */
@@ -95,7 +111,7 @@ export interface PutRecipeRequest {
 }
 
 /** The panels a `photo.edit` sense names (no values ever leave the phone in a sense). */
-export const EDIT_PANELS = ['light', 'color', 'effects', 'detail'] as const;
+export const EDIT_PANELS = ['light', 'color', 'effects', 'detail', 'optics', 'crop', 'versions'] as const;
 
 /** The recipe without its defaults, keys sorted: what is stored and hashed, so equal edits are equal. */
 export function canonicalRecipe(r: PhotoRecipe): PhotoRecipe {
@@ -105,7 +121,7 @@ export function canonicalRecipe(r: PhotoRecipe): PhotoRecipe {
     const n = RECIPE_NUMBERS[k as RecipeNumber];
     if (v === undefined || (n && v === n[2])) continue;
     if (k === 'WhiteBalance' && v === 'As Shot') continue;
-    if (k === 'ConvertToGrayscale' && v === false) continue;
+    if (RECIPE_FLAGS.includes(k as RecipeFlag) && v === false) continue;
     if ((k === 'Temperature' || k === 'Tint') && r.WhiteBalance !== 'Custom') continue;
     if (RECIPE_CURVES.includes(k as RecipeCurve) && isLinear(v as [number, number][])) continue;
     out[k] = v;

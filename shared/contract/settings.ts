@@ -268,6 +268,13 @@ export const SETTINGS = [
   { key: 'photos.keep', group: 'photos', section: 'On this phone', label: 'What stays on the phone', kind: 'choice', ...IN_WORKER,
     default: 'previews', options: o('previews:Previews only', 'recent:Recent originals too'),
     detail: 'Previews keep the shelf working offline. Keeping recent originals comes with editing.' },
+  // Export (PHOTOS.md, Export): what the Export sheet starts with; each export can change it.
+  { key: 'photos.export_size', group: 'photos', section: 'Export', label: 'Export size', kind: 'choice', ...IN_WORKER,
+    default: '2048', options: o('full:Full size', '2048:2,048 px', '1080:1,080 px'),
+    detail: 'The long side of an exported photo. Full size takes longest and makes the biggest file.' },
+  { key: 'photos.export_format', group: 'photos', section: 'Export', label: 'Export format', kind: 'choice', ...IN_WORKER,
+    default: 'jpeg', options: o('jpeg:JPEG', 'heic:HEIC where the phone writes it'),
+    detail: 'JPEG carries your edit inside it, so other apps can read it. HEIC is smaller, up to 2,048 px.' },
   // Retention (conversation/retention.ts): once a day, conversations past it are purged as a deleted one is.
   { key: 'privacy.retention', group: 'privacy', section: 'Conversations', label: 'Keep conversations', kind: 'choice', ...IN_WORKER,
     default: 'forever', options: o('forever:Forever', '1y:1 year', '90d:90 days'),

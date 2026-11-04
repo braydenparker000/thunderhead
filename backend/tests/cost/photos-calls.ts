@@ -72,5 +72,40 @@ export async function photosCalls(cost: Cost, grant: (ip: string, password?: str
     200,
     k,
   );
+  // Versions: an automatic one (and the same again, which writes nothing), a named one, the list, a
+  // rename and a delete.
+  const auto = { id: uuidv7(), kind: 'auto', recipe };
+  await cost(
+    'POST /v1/photos/:id/versions (automatic) (Core)',
+    () => api('POST', `/v1/photos/${id}/versions`, { ...d, body: auto }),
+    201,
+    k,
+  );
+  await cost(
+    'POST /v1/photos/:id/versions (the same again) (Core)',
+    () => api('POST', `/v1/photos/${id}/versions`, { ...d, body: { ...auto, id: uuidv7() } }),
+    200,
+    k,
+  );
+  const named = { id: uuidv7(), kind: 'named', name: 'A look', recipe: { Exposure2012: -0.3 } };
+  await cost(
+    'POST /v1/photos/:id/versions (named) (Core)',
+    () => api('POST', `/v1/photos/${id}/versions`, { ...d, body: named }),
+    201,
+    k,
+  );
+  await cost('GET /v1/photos/:id/versions (2) (Core)', () => api('GET', `/v1/photos/${id}/versions`, d), 200, k);
+  await cost(
+    'PATCH /v1/photos/:id/versions/:vid (Core)',
+    () => api('PATCH', `/v1/photos/${id}/versions/${named.id}`, { ...d, body: { name: 'Another look' } }),
+    200,
+    k,
+  );
+  await cost(
+    'DELETE /v1/photos/:id/versions/:vid (Core)',
+    () => api('DELETE', `/v1/photos/${id}/versions/${named.id}`, d),
+    200,
+    k,
+  );
   await cost('DELETE /v1/photos/:id (Core)', () => api('DELETE', `/v1/photos/${id}`, d), 200, k);
 }

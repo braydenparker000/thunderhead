@@ -103,7 +103,54 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
   Worker has it (offline too), idempotent by hash, a ledger row per change whose undo is the recipe
   before. The sense `photo.edit` names the panel only.
 
-## 5. Next
+## 5. The editor's second half (§3.3 and §3.4 of the plan: Optics, Crop, Versions, Export, as built)
 
-P1c crop, optics, versions, copy recipe, export;
-P1d the camera look and the mind; P2 masks, saved looks and culling.
+The strip is now Light · Color · Effects · Detail · Optics · Crop · Versions, and Export sits in the
+top bar.
+
+- **Crop and geometry**: while the Crop panel is open the photo shows its whole straightened frame
+  with the crop over it (corner handles, the rule-of-thirds grid, the outside dimmed): drag a corner or
+  an edge to resize, inside to move. Aspect: Original (the default lock), 1:1, 4:5, 3:2, 16:9, Free, and
+  a turn between landscape and portrait. Rotate is the wheel, ±45° in tenths; Level: draw a line along
+  the horizon or an edge and the photo turns to make it level (or upright, past 45°). Flip across or
+  over; Vertical and Horizontal perspective ±100; Constrain crop keeps the crop inside the photo after
+  perspective and distortion (rotation always is); Reset. In the develop pass geometry is a mapping
+  from each output pixel back to the photo (`edit/geometry.js` and `shaders/geometry-body.js`, the
+  same steps): flip, crop, the straightened frame's zoom, rotation, perspective, lens distortion. So
+  the crop is the last step before output, and vignette and grain lie on the cropped frame. The
+  crop's edges are fractions of the straightened frame (not of the original, as Lightroom's are).
+- **Optics**: Remove chromatic aberration measures this photo's lateral fringes on the RAW working
+  copy (the radial scale of red and blue that best lines each up with green at the strongest edges of
+  the outer frame) and samples red and blue at those scales; a camera JPEG comes with this done. The
+  RAF's own lens tables (LightCraft's `raf_lens`, the X-E5 among its checked bodies) are not exposed
+  by our engine build yet, so Distortion and Lens vignetting (±100) are set by hand.
+- **Versions**: an automatic version when an editing session ends (leaving the editor, or ten minutes
+  without a change), named ones (Create version, rename, delete), at most 20 of each per photo in
+  Core. The panel is a filmstrip, newest first, each drawn small with the current crop: tap one to
+  restore, rename or delete it; tap a second to compare the two side by side with the same crop.
+  Restore is a recipe put, so the toast's Undo (and the ledger's) puts the one before back.
+- **Export**: Size (full, 2,048 or 1,080 px on the long side), Format (JPEG; HEIC where the browser
+  writes it, up to 2,048 px; Chromium and today's Safari do not), Quality 10–100 (90), and where: the
+  share sheet, Files (a download) or a "Thunderhead Exports" folder the phone makes beside the app's
+  folder in Drive, by the same resumable upload as originals. Settings › Photos holds the size and
+  format it starts with. Each photo renders from its original: the output in bands of 256 rows, each
+  band in blocks of 1,024 columns; a block's region of the photo (through the geometry, padded) comes
+  from a 1:1 engine tile when the export is finer than the working copy, else from the working copy;
+  the band goes to our streaming JPEG encoder in a worker (decisions.md, 2026-11-04). sRGB (JFIF).
+  The sheet takes a batch of up to 20 with progress and Cancel; today it opens from the editor with
+  one photo. The sense `photo.export` names the size, format and where.
+- **The XMP names**: the JPEG's APP1 carries the recipe as XMP: `crs:` (Camera Raw settings) for every
+  key Lightroom has (all but the flips: `Exposure2012`, `Contrast2012`, the HSL and grading keys,
+  `PostCropVignette*`, `Grain*`, `Sharpness`, `SharpenRadius`, `LuminanceSmoothing`, `Crop*`,
+  `CropAngle`, `PerspectiveVertical`, `PerspectiveHorizontal`, `LensManualDistortionAmount`,
+  `VignetteAmount`, `AutoLateralCA`, `LensProfileEnable`, `CropConstrainToWarp`, `WhiteBalance`,
+  `Temperature`, `Tint`, `ConvertToGrayscale`, the `ToneCurvePV2012*` sequences), with `crs:HasCrop`
+  when cropped and `crs:AlreadyApplied="True"` so a reader knows the pixels carry the edit; the flips
+  go under our own namespace `urn:thunderhead:photos:1.0` (`th:FlipHorizontal`, `th:FlipVertical`).
+  The names are Lightroom's; the numbers mean ours, close but not identical.
+
+## 6. Next
+
+Copy recipe (copy all or chosen panels, paste to many from the shelf by long-press, one ledger row
+for a batch) and the shelf's multi-select that also feeds a batch export; the RAF's own lens tables
+through the engine; P1d the camera look and the mind; P2 masks, saved looks and culling.
