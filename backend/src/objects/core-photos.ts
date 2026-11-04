@@ -8,12 +8,14 @@ import {
   PHOTO_LIMITS as L,
   type PatchPhotoRequest,
   type PhotoItem,
+  type PhotoResponse,
   type PhotoShelfResponse,
   type PutPhotoRequest,
 } from '../../../shared/contract/photos.ts';
 import { logicalDay } from '../areas/conversation/day';
 import { quotaHold } from '../areas/meter/quota';
 import * as ops from '../areas/photos/ops';
+import * as recipe from '../areas/photos/recipe';
 import * as store from '../areas/photos/store';
 import { getSetting, putSetting } from '../areas/settings/store';
 import { uuidv7 } from '../lib/ids';
@@ -43,6 +45,17 @@ export abstract class CorePhotos extends CoreVerbs {
   photo(id: string): PhotoItem | null {
     const r = store.byId(this.db, id);
     return r ? store.toItem(r) : null;
+  }
+
+  /** One photo with its recipe (`{}` as shot). */
+  photoWithRecipe(id: string): PhotoResponse | null {
+    const r = store.byId(this.db, id);
+    return r ? { photo: store.toItem(r), recipe: recipe.recipeOf(this.db, id) } : null;
+  }
+
+  /** The recipe in its canonical JSON and hash (routes.ts seals it); the same hash writes nothing. */
+  putPhotoRecipe(id: string, json: string, sha: string): Out<{ photo: PhotoItem; changed: boolean }> {
+    return this.run((w) => recipe.put(w, id, json, sha));
   }
 
   photoPreviewKey(id: string): { key: string; sha: string } | null {

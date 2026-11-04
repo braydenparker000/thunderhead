@@ -6,7 +6,7 @@ import { readFile } from 'node:fs/promises';
 const FILES = [
   'ui/tokens.css', 'ui/shell.css', 'ui/forms.css', 'ui/auth.css', 'ui/plain.css', 'ui/fonts.css',
   'apps/home/home.css', 'apps/home/chat.css', 'apps/home/menu.css', 'apps/home/blocks.css',
-  'apps/settings/settings.css', 'apps/study/study.css', 'apps/photos/photos.css',
+  'apps/settings/settings.css', 'apps/study/study.css', 'apps/photos/photos.css', 'apps/photos/edit.css',
   'th/island/island.css', 'th/attach/attach.css', 'th/reply/tools.css',
 ];
 

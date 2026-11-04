@@ -1,0 +1,23 @@
+{
+  "lightcraft": {
+    "git": "https://github.com/storytold/lightcraft",
+    "rev": "ae7ac42a109e3a18481c916d55516ed60535e49f"
+  },
+  "patch": {
+    "file": "engine/photos/patches/lightcraft-memory.diff",
+    "sha256": "a669c553bfa01a398bdab2e48c1d70a1517fa3ea01db00eebd5efea8c4b93c87"
+  },
+  "rustc": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+  "wasm_bindgen": "wasm-bindgen 0.2.129",
+  "profile": "release (opt-level s, fat LTO, 1 codegen unit, panic abort), default features (JPEG XL in DNG)",
+  "files": {
+    "photos_engine_bg.wasm": {
+      "bytes": 2242867,
+      "sha256": "def5e33720f0c80499154bbf7f688606ef85177ae7b7b09de587d1ddd3d9e08d"
+    },
+    "photos_engine.js": {
+      "bytes": 12593,
+      "sha256": "a14546ddcf816f2fb742a5866a8aa6c8732b91e88eb04f00ac1d9f494668efe9"
+    }
+  }
+}

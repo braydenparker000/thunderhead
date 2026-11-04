@@ -21,6 +21,7 @@ import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 import { sha256 } from '../import/vault';
 import { fileMeta } from './google';
+import { recipeBody, sealRecipe } from './recipe';
 import { accessToken } from './token';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -101,9 +102,19 @@ export const photosRoutes = new Hono<AppEnv>()
     const out = value(await fresh(coreObject(c.env).putPhoto(id, body)));
     return c.json({ photo: out.photo }, out.created ? 201 : 200);
   })
-  .get('/photos/:id', guard('GET /v1/photos/:id'), async (c) =>
-    c.json({ photo: found(await fresh(coreObject(c.env).photo(idParam(c)))) }),
-  )
+  .get('/photos/:id', guard('GET /v1/photos/:id'), async (c) => {
+    const out = await fresh(coreObject(c.env).photoWithRecipe(idParam(c)));
+    if (!out) throw new ApiError('not_found');
+    return c.json(out);
+  })
+  // The edit as the sliders move (debounced on the phone): validated, canonical, idempotent by hash.
+  .put('/photos/:id/recipe', guard('PUT /v1/photos/:id/recipe'), async (c) => {
+    const id = idParam(c);
+    const body = await json(c, recipeBody);
+    const sealed = await sealRecipe(body.recipe);
+    const out = value(await fresh(coreObject(c.env).putPhotoRecipe(id, sealed.json, sealed.sha)));
+    return c.json({ photo: out.photo, recipe: JSON.parse(sealed.json), changed: out.changed });
+  })
   .patch('/photos/:id', guard('PATCH /v1/photos/:id'), async (c) => {
     const id = idParam(c);
     const body = await json(c, patchBody);

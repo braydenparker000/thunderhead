@@ -1811,7 +1811,8 @@
         "D"
       ],
       "phase": "P9",
-      "status": "built"
+      "status": "built",
+      "note": "the photo and its recipe"
     },
     "PATCH /v1/photos/:id": {
       "who": [
@@ -1835,6 +1836,14 @@
       ],
       "phase": "P9",
       "status": "built"
+    },
+    "PUT /v1/photos/:id/recipe": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "the edit as a recipe (crs names); the same hash again writes nothing; a ledger row, undo = the recipe before"
     },
     "PUT /v1/photos/:id/preview": {
       "who": [
@@ -3466,6 +3475,7 @@
                   "study.highlight",
                   "photo.import",
                   "photo.delete",
+                  "photo.edit",
                   "photo.rate",
                   "astra.open",
                   "mymedia.open",

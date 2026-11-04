@@ -1,6 +1,6 @@
 // @ts-check
 // One photo full-bleed (PHOTOS.md §3.1): its preview edge to edge on black, the day, the camera and
-// its film simulation; hold it (or tap More) for Pick, Reject, a rating of 1 to 5 and Delete (to
+// its film simulation; Edit opens the editor (edit/editor.js); hold it (or tap More) for Pick, Reject, a rating of 1 to 5 and Delete (to
 // Recently deleted, 30 days). One day whole; Recently deleted with Restore. A photo the daily Drive
 // pass found gets its preview made here the first time it is opened.
 import { confirmSheet, el, toast } from '/th/ui.js';
@@ -20,7 +20,9 @@ export async function photoScreen(box, id) {
   const marks = el('div', { class: 'marks', 'aria-live': 'polite' });
   const close = el('button', { type: 'button', class: 'vback', 'aria-label': 'Back to the shelf' }, [icon('caret-left')]);
   const moreBtn = el('button', { type: 'button', class: 'vmore', 'aria-label': 'Rate, flag or delete' }, [icon('star')]);
-  const view = el('div', { class: 'view', role: 'dialog', 'aria-label': 'Photo' }, [img, el('div', { class: 'vtop' }, [close, info, moreBtn]), marks]);
+  const editBtn = el('button', { type: 'button', class: 'vedit', 'aria-label': 'Edit' }, [icon('pencil-simple')]);
+  editBtn.addEventListener('click', () => go(`?edit=${id}`));
+  const view = el('div', { class: 'view', role: 'dialog', 'aria-label': 'Photo' }, [img, el('div', { class: 'vtop' }, [close, info, editBtn, moreBtn]), marks]);
   box.replaceChildren(view);
   close.addEventListener('click', back);
   /** @type {data.PhotoItem} */

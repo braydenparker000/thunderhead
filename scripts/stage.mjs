@@ -226,7 +226,11 @@ const budgets = [
   ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 48_000],
   ['precache bytes', list.filter((f) => precached(f.path)).reduce((n, f) => n + f.size, 0), 3_000_000],
   // (2026-11-04, Photos) 30,000 → 30,722 measured: star, star-fill, flag and prohibit for rating and culling.
-  ['icon sprite bytes', sum(/^ui\/icons\.svg$/), 30_722],
+  // (2026-11-04, Photos' editor) +2,000 measured (32,722): sun, triangle, magic-wand and circle-half.
+  ['icon sprite bytes', sum(/^ui\/icons\.svg$/), 32_722],
+  // (2026-11-04, Photos' editor) the RAW engine as built (engine/photos/build.json): LightCraft's
+  // decoders with JPEG XL for DNG, measured 2,242,867 bytes raw (595 KB brotli). A rebuild changes it.
+  ['photos engine wasm bytes', sum(/^photos\/engine\/.*\.wasm$/), 2_242_867],
 ];
 const over = budgets.filter(([, value, limit]) => value > limit);
 for (const [name, value, limit] of budgets) console.log(`${name}: ${value} (limit ${limit})`);

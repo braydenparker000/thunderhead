@@ -58,7 +58,7 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-sm
 .view{position:absolute;inset:0;background:#000;color:#fff;display:flex;align-items:center;justify-content:center;touch-action:pan-y}
 .full{max-width:100%;max-height:100%;object-fit:contain;-webkit-touch-callout:none;user-select:none}
 .vtop{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:8px;padding:calc(6px + env(safe-area-inset-top,0px)) 8px 24px;background:linear-gradient(rgba(0,0,0,.55),transparent)}
-.vback,.vmore{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:999px;background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
+.vback,.vmore,.vedit{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;border:0;border-radius:999px;background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
 .info{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font:400 var(--fs-small)/var(--lh-tight) var(--ui);color:rgba(255,255,255,.75)}
 .info b{font:600 var(--fs-body)/var(--lh-tight) var(--ui);color:#fff}
 .marks{position:absolute;left:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));display:flex;gap:6px}

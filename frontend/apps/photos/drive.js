@@ -109,10 +109,13 @@ export async function upload(o) {
   throw Object.assign(new Error('drive'), { status: 0 });
 }
 
+/** The address of an original's bytes in Drive (the editor's engine streams it). @param {string} id */
+export const mediaUrl = (id) => `${DRIVE_FILES}/${encodeURIComponent(id)}?alt=media`;
+
 /** Bytes of an original in Drive (a byte range, or all of it), for a photo found by the daily
  * pass that has no preview yet. @param {string} token @param {string} id @param {[number, number]} [range] */
 export async function fetchOriginal(token, id, range) {
-  const res = await fetch(`${DRIVE_FILES}/${encodeURIComponent(id)}?alt=media`, {
+  const res = await fetch(mediaUrl(id), {
     headers: { Authorization: `Bearer ${token}`, ...(range ? { Range: `bytes=${range[0]}-${range[1] - 1}` } : {}) },
   });
   if (!res.ok) throw Object.assign(new Error('drive'), { status: res.status });

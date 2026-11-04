@@ -853,12 +853,21 @@ public and checked by its one-use state.
   another Drive file on the same id 409. Its day is `taken_at`'s in the owner's zone.
 - `GET /v1/photos?before=<day>` → `{days: [{day, count, photos (≤ 4)}], next}`, 14 days a page,
   newest first; `?day=<day>` one day whole (≤ 200 photos).
-- `GET /v1/photos/:id` → `{photo}`; `PATCH` `{rating 0–5, flag 'pick'|'reject'|null}`;
+- `GET /v1/photos/:id` → `{photo, recipe}` (`recipe` `{}` as shot; `photo.edited` says whether it has one); `PATCH` `{rating 0–5, flag 'pick'|'reject'|null}`;
   `DELETE` moves it to Recently deleted; `POST …/restore` brings it back; `GET /v1/photos/deleted`
   lists Recently deleted (newest first, ≤ 200). A deleted photo is purged 30 days on with its preview.
 - `PUT /v1/photos/:id/preview` (`image/jpeg`, ≤ 400 KB) → `{photo}`; `GET` the bytes, private, with
   an ETag (304 on a match), `Cache-Control: private, no-store` and `Content-Security-Policy: sandbox`. A
   deleted photo takes no preview (404, no bytes written). Kept in `thunderhead-private` under `photos/previews/<id>.jpg`.
+- `PUT /v1/photos/:id/recipe` `{recipe}` → `{photo, recipe, changed}`: the editor's recipe
+  (`shared/contract/photos-recipe.ts`, Lightroom's crs names where they map: `Exposure2012` ±5,
+  the tone, HSL, grading, effects and detail controls in their ranges, `WhiteBalance`
+  `As Shot|Auto|Custom` with `Temperature` 2,000–50,000 and `Tint` ±150, four point curves of 2–16
+  `[in, out]` points 0–255 with inputs rising, `ConvertToGrayscale`); unknown keys and out-of-range
+  values are 422. Stored canonical (defaults dropped, keys sorted, ≤ 8 KB) with its SHA-256: the same
+  recipe again is `changed: false` and writes nothing. A change writes a ledger row whose undo
+  (`photo.recipe`) puts the recipe before back, 409 once the photo was edited again since. Deleted: 404.
+  Core step 42.
 
 ## 12. WebSocket protocol (`/v1/live`)
 

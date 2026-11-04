@@ -666,5 +666,13 @@
   "DELETE /v1/photos/:id (Core)": {
     "rows_read_max": 2,
     "rows_written_max": 7
+  },
+  "PUT /v1/photos/:id/recipe (a change) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 6
+  },
+  "PUT /v1/photos/:id/recipe (the same again) (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
   }
 }
