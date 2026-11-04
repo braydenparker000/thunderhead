@@ -2,11 +2,16 @@
 // the mocked Worker (mock-api.mjs), signed in, with the page's clock standing still once the page
 // is up, so a test moves time itself (the tap guard, the filter's pause, the 10 s undo). No guessed
 // delays: `until` waits on what the page shows or what the mock saw.
+// The clock stops only once the shell has finished starting (the chat's first sync and its live
+// socket), so nothing the shell deferred is left frozen half-way, and only once the 500 ms tap guard
+// has let go on that clock: a tap the guard drops is silent, and a test then waits its whole timeout
+// for what the tap should have done.
 import assert from 'node:assert/strict';
 import { isDeepStrictEqual } from 'node:util';
 import { chromium } from 'playwright';
 import { serve } from '../../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './mock-api.mjs';
+import { guardOpen, until as waitUntil } from './waits.mjs';
 
 export { API };
 
@@ -27,7 +32,17 @@ export function memoryPages() {
       const page = await ctx.newPage();
       const errors = [];
       page.on('pageerror', (e) => errors.push(e.message));
-      page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+      page.on('console', (m) => {
+        if (m.type() === 'error') errors.push(m.text());
+        if (m.text().startsWith('th-test:')) console.log(`# ${m.text()}`);
+      });
+      // A tap the tap guard drops does nothing visible; say so in the log, so a wait that then times
+      // out names its cause.
+      await page.addInitScript(() => {
+        let soon = () => false;
+        import('/th/ui.js').then((m) => { soon = m.tooSoon; }, () => {});
+        addEventListener('click', (e) => { if (e.isTrusted && soon()) console.info(`th-test: the tap guard dropped a tap on ${/** @type {Element} */ (e.target).outerHTML.slice(0, 80)}`); }, true);
+      });
       await page.addInitScript((t) => { try { localStorage.setItem('th-theme', t); } catch {} }, theme);
       await page.clock.install();
       const api = await mockApi(page, mock);
@@ -44,29 +59,35 @@ export function memoryPages() {
       }), [TOKEN]);
       errors.length = 0;
       await page.goto(`${base}/settings/memory/`, { waitUntil: 'load' });
-      await ready(page);
+      // A reused context replays its clock's pause into the new page, whose shell then waits for the
+      // test's clock: only a fresh one has a chat to wait for.
+      await ready(page, context ? null : api);
       return { page, context: ctx, errors, api };
     },
   };
 }
 
-/** The page drew its sections; time then stops, 800 ms on (past the 500 ms tap guard), by when the
- * page has slid into place (settings.js moves it on the page's own frames, which the clock runs). */
-export async function ready(page) {
+/** The page drew its sections and the shell has started (the chat's live socket is open, when `api`
+ * is given: a reload's page keeps the socket the mock already counted); time then stops, 800 ms on
+ * (past the 500 ms tap guard), by when the page has slid into place (settings.js moves it on the
+ * page's own frames, which the clock runs), and the guard is checked open on that clock. */
+export async function ready(page, api = null) {
   await page.waitForSelector('.msections:not([aria-busy])');
+  if (api) await waitUntil(() => api.state.chat.sockets.length > 0, { message: "the chat's live socket never opened" });
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 800));
   // On a slow runner the pause can land mid-slide: run the page's frames on until it is in place.
   for (let i = 0; i < 20 && !(await page.$('.spage.in:not(.moving)')); i++) await page.clock.runFor(100);
   await page.waitForSelector('.spage.in:not(.moving)');
+  await guardOpen(page, { held: true });
 }
 
 export const headings = (page) => page.$$eval('.msec h2', (hs) => hs.map((h) => h.textContent));
 export const ops = (api) => api.calls.filter((c) => c.call === 'POST /v1/memory/ops').map((c) => c.body.ops[0]);
 export const forgets = (api) => ops(api).filter((o) => o.op === 'forget').map((o) => o.id);
 
-/** Reads until the value is `want` (5 s at most), then asserts it. */
+/** Reads until the value is `want` (15 s at most), then asserts it. */
 export async function until(read, want, message) {
-  const end = Date.now() + 5_000;
+  const end = Date.now() + 15_000;
   let got = await read();
   while (!isDeepStrictEqual(got, want) && Date.now() < end) {
     await new Promise((r) => setTimeout(r, 20));

@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
 import { briefingState } from './fixtures/mock-briefing.mjs';
+import { outlast, resting, until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -45,9 +46,14 @@ async function open({ theme = 'light', briefing, touch = false } = {}) {
   errors.length = 0;
   await page.goto(`${base}/`, { waitUntil: 'load' });
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'brief' })));
-  await page.waitForTimeout(500);
+  await briefRest(page);
   return { page, context, errors, api };
 }
+/** The Briefing in view and at rest (home.js go(): it stops being inert, then the springs settle). */
+const briefRest = async (page) => {
+  await page.waitForFunction(() => !document.querySelector('#brief').inert);
+  await resting(page);
+};
 const shot = async (page, name, theme) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-${theme === 'light' ? 'day' : 'night'}.png` }); };
 
 test('the Briefing shows what waits and Muse\'s line, day and night, with nothing sideways', opts, async () => {
@@ -92,7 +98,8 @@ test('a long press arranges a tile: earlier, later, hidden and shown again, kept
   assert.deepEqual(first.slice(-2), ['waiting:Waiting on you', NOTE]);
   const press = async (key) => {
     const b = await page.$eval(`#brief .tile[data-key="${key}"]`, (t) => { const r = t.getBoundingClientRect(); return { x: r.left + 20, y: r.top + 20 }; });
-    await page.mouse.move(b.x, b.y); await page.mouse.down(); await page.waitForTimeout(600); await page.mouse.up();
+    // Held past the 450 ms press (briefing/page.js), on the page's own timers so the press's runs first.
+    await page.mouse.move(b.x, b.y); await page.mouse.down(); await outlast(page, 600); await page.mouse.up();
     await page.waitForSelector('#brief .tilearr');
   };
   const url = page.url();
@@ -103,14 +110,16 @@ test('a long press arranges a tile: earlier, later, hidden and shown again, kept
   await page.reload({ waitUntil: 'load' });
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'brief' })));
   await page.waitForSelector(`#brief .tile[data-key="${NOTE}"]`);
-  await page.waitForTimeout(700); // the page slides in before it is pressed
+  await briefRest(page); // the page slides in before it is pressed
   assert.deepEqual((await keys(page)).slice(-2), [NOTE, 'waiting:Waiting on you'], 'kept after a reload');
   await press(NOTE);
   await page.click('#brief .tilearr button:text("Hide")');
   assert.equal((await keys(page)).includes(NOTE), false);
   await page.click('.toast.show .tact');
   assert.equal((await keys(page)).includes(NOTE), true, 'Undo brings it back');
-  await page.waitForTimeout(400); // the toast fades before the next press
+  // The toast fades before the next press.
+  await page.waitForFunction(() => !document.querySelector('.toast.show'));
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {}))));
   await press(NOTE);
   await page.click('#brief .tilearr button:text("Hide")');
   assert.equal(await page.textContent('#brief .bhidden'), 'One tile hidden · Show');
@@ -134,8 +143,7 @@ test('pulled down at the top, the Briefing refreshes with the bottom light breat
   for (let i = 1; i <= 10; i++) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(300 + i * 10), timestamp: t0 + i * 0.02 });
   assert.equal(await page.$eval('#brief .pullfind', (h) => h.textContent), 'Release to refresh');
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: t0 + 0.3 });
-  await page.waitForFunction((n) => true, before);
-  for (let i = 0; i < 50 && reads() === before; i++) await page.waitForTimeout(40);
+  await until(() => reads() !== before).catch(() => {});
   assert.equal(reads(), before + 1, 'read again');
   assert.deepEqual(errors, []);
   await context.close();

@@ -15,6 +15,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { resting } from './fixtures/waits.mjs';
 import { PLAN, T } from './fixtures/mock-threads.mjs';
 
 const live = Boolean(process.env.SITE_URL);
@@ -58,7 +59,7 @@ async function open({ theme = 'light' } = {}) {
   return { page, context, errors, api };
 }
 async function eventually(read, want, message) {
-  const end = Date.now() + 5_000;
+  const end = Date.now() + 15_000;
   let got = await read();
   while (!isDeepStrictEqual(got, want) && Date.now() < end) {
     await new Promise((r) => setTimeout(r, 20));
@@ -66,11 +67,26 @@ async function eventually(read, want, message) {
   }
   assert.deepEqual(got, want, message);
 }
-const shot = async (page, name, theme) => { if (SHOTS) await page.screenshot({ path: `${SHOTS}/${name}-${theme === 'light' ? 'day' : 'night'}.png` }); };
+/** A screenshot once everything on the page has finished moving (only with SHOTS). */
+const shot = async (page, name, theme) => {
+  if (!SHOTS) return;
+  await settled(page);
+  await page.screenshot({ path: `${SHOTS}/${name}-${theme === 'light' ? 'day' : 'night'}.png` });
+};
+/** The springs at rest and no transition or one-off animation still running. */
+const settled = async (page) => {
+  await resting(page);
+  await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => {}))));
+};
+/** Home's places (home.js go()): `side` (the menu), `home` or `brief`, once it has slid there. */
+const go = async (page, where) => {
+  await page.evaluate((w) => document.dispatchEvent(new CustomEvent('th:go', { detail: w })), where);
+  await page.waitForFunction(() => !document.querySelector('#side').classList.contains('moving'));
+  await resting(page);
+};
 const menu = async (page) => {
-  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' })));
+  await go(page, 'side');
   await page.waitForSelector('#convos .row.thr');
-  await page.waitForTimeout(450);
 };
 const menuOpen = (page) => page.$eval('#side', (s) => s.classList.contains('open'));
 /** A row as "title | date | tag | second line". */
@@ -89,7 +105,8 @@ test('the menu groups conversations by the calendar: Now, Yesterday, Earlier thi
     const { page, context, errors } = await open({ theme });
     await page.evaluate(() => localStorage.removeItem('th.convos.closed'));
     await menu(page);
-    assert.equal(await page.textContent('#now small'), partOfDay(new Date().getUTCHours()), 'Now carries its part of the day');
+    // Now's card is drawn from today's thread, which the menu may have after its rows.
+    await eventually(() => page.textContent('#now small'), partOfDay(new Date().getUTCHours()), 'Now carries its part of the day');
     assert.match(await page.textContent('#now .sub'), /^Thursday 29 October( · \d+ messages?)?$/, "Now's card says which day it is");
     // The mock's today is Thursday 29 October: its week began on Monday 26, so Saturday 24 is last week.
     assert.deepEqual(await section(page), [
@@ -125,7 +142,6 @@ test('the menu groups conversations by the calendar: Now, Yesterday, Earlier thi
     assert.deepEqual(await page.$$eval('.allconvos [data-g="m:2026-09"] .row.thr', (r) => r.map((x) => [x.querySelector('.tl').textContent, x.querySelector('.when').textContent])),
       [['Planning the garden beds', 'Sat 19'], ['<img src=x onerror="document.title=1">Tags stay text', 'Wed 2']]);
     assert.equal(await page.$('#app img'), null, 'a title is text, never markup');
-    await page.waitForTimeout(400);
     await shot(page, 'all', theme);
     await page.getByRole('button', { name: 'Show more', exact: true }).click();
     await eventually(rows, 42);
@@ -165,7 +181,6 @@ test('an older conversation shows read-only with Back to now; Back, the pill, No
     assert.equal(await page.$eval('#past .reply', (r) => getComputedStyle(r).fontStyle), 'normal', 'read as home reads it');
     for (const sel of ['#talk']) assert.ok(await hidden(page, sel), `${sel} steps aside`);
     assert.equal(await page.$('#past button.retry, #past .chip'), null, 'nothing to act on');
-    await page.waitForTimeout(300);
     await shot(page, 'past', theme);
     // Back
     await page.goBack();
@@ -178,17 +193,14 @@ test('an older conversation shows read-only with Back to now; Back, the pill, No
     await page.waitForFunction(() => !document.querySelector('#home.pastview'));
     // Now, in the menu: back to today and the menu closes; tapped again it says it is already here.
     await openYesterday();
-    await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' })));
-    await page.waitForTimeout(450);
+    await go(page, 'side');
     await page.click('#now');
     await page.waitForFunction(() => !document.querySelector('#home.pastview'));
     await eventually(() => menuOpen(page), false);
-    await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' })));
-    await page.waitForTimeout(450);
+    await go(page, 'side');
     await page.click('#now');
     await eventually(() => page.textContent('#toast'), 'This is the current conversation');
-    await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'home' })));
-    await page.waitForTimeout(450);
+    await go(page, 'home');
     // Sending returns to now first, then sends.
     await openYesterday();
     await page.fill('#q', 'Back to today then');
@@ -219,7 +231,6 @@ test('a Markdown reply reads as rich text in the voice: a heading, lists, bold, 
     assert.ok((await page.textContent(p)).includes('<img src=x onerror="document.title=1">'));
     assert.equal(PLAN.split('\n')[0], '## Practice plan for the weekend');
     assert.ok(await page.$eval('#convo', (c) => c.scrollWidth <= c.clientWidth), 'nothing scrolls sideways');
-    await page.waitForTimeout(300);
     await shot(page, 'prose', theme);
     assert.deepEqual(errors, []);
     await context.close();
@@ -267,8 +278,8 @@ test('search: this phone first, the Worker appended, accent-folded, Show all, a 
       return out;
     }, g);
     // One character shows nothing.
+    // Drawn in the keystroke's own event (search.js changed()): nothing to wait for.
     await page.fill('.sbox input', 'c');
-    await page.waitForTimeout(300);
     assert.deepEqual(await page.$$eval('.sres > *', (e) => e.length), 0);
     // Local rows at once, then the Worker's appended after them: the title hit stays first.
     await page.fill('.sbox input', 'calm');
@@ -303,8 +314,10 @@ test('search: this phone first, the Worker appended, accent-folded, Show all, a 
     await page.fill('.sbox input', 'canción');
     await eventually(async () => (await rows('Conversations')).length, 1);
     const folded = await rows('Conversations');
+    // The same rows as before, so wait for the Worker's answer to this query before reading them.
+    const answered = page.waitForResponse((r) => new URL(r.url()).pathname === '/v1/search' && new URL(r.url()).searchParams.get('q') === 'cancion');
     await page.fill('.sbox input', 'cancion');
-    await page.waitForTimeout(400);
+    await answered;
     await eventually(() => rows('Conversations'), folded);
     assert.deepEqual(folded, ['Bars 9 to 12, slow then up to tempo · 27 Oct | Can you find the canción from the evening walk?']);
     await page.click('.sres .srow');
@@ -348,14 +361,16 @@ test('the list and a thread say when they cannot load, and Retry or reopening lo
   const { page, context, errors, api } = await open();
   api.state.chat.fail['/v1/threads'] = 1;
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' })));
-  await page.waitForSelector('#convos .cline');
-  assert.match(await page.textContent('#convos .cline'), /^Couldn't load your conversations\./);
-  await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'home' })));
-  await page.waitForTimeout(450);
+  // Read as it shows: the chat's own first sync may load the list again (and well) a moment later.
+  const said = await (await page.waitForFunction(() => document.querySelector('#convos .cline')?.textContent)).jsonValue();
+  assert.match(said, /^Couldn't load your conversations\./);
+  await go(page, 'home');
   await menu(page);
   assert.equal(await page.$('#convos .cline'), null);
   // Offline: the list this phone has, and a thread that waits with Retry.
   await context.setOffline(true);
+  // The page knows it is offline before the menu is told to load again.
+  await page.waitForFunction(() => !navigator.onLine);
   await page.evaluate(() => { dispatchEvent(new Event('offline')); document.dispatchEvent(new CustomEvent('th:changed', { detail: ['thread'] })); });
   await eventually(() => page.textContent('#convos .cline'), 'Offline: showing what this phone has.');
   await page.click(`#convos [data-id="${T.monday}"]`);
@@ -403,7 +418,8 @@ test('the menu and every Settings page use shared controls at phone size in day 
       if (name === 'devices') await page.waitForSelector('.spage .slist:not([aria-busy])');
       if (name === 'export') await page.waitForSelector('.xport button');
       if (name === 'agents') await page.getByRole('button', { name: 'New agent key', exact: true }).click();
-      await page.waitForTimeout(600);
+      await page.waitForSelector('.spage.in:not(.moving)');
+      await settled(page);
       await primitiveControls(page, '.spage');
       assert.ok(await page.$eval('.spage', (e) => e.scrollWidth <= e.clientWidth), `${name}: no sideways scroll`);
     }
@@ -477,7 +493,7 @@ test('held conversation actions use a sheet that settles after a short drag and 
   await page.mouse.down();
   await page.waitForSelector('.sheet');
   await page.mouse.up();
-  await page.waitForTimeout(600);
+  await resting(page);
   await primitiveControls(page, '.sheet');
   assert.deepEqual(await page.locator('.sheet .row').allTextContents(), ['Continue this', 'Rename', 'Pin', 'Delete']);
   const handle = await page.locator('.sheet-handle').boundingBox();
@@ -485,7 +501,7 @@ test('held conversation actions use a sheet that settles after a short drag and 
   await page.mouse.move(x, y);
   await page.mouse.down();
   await page.mouse.move(x, y + 12, { steps: 4 });
-  await page.waitForTimeout(150);
+  await page.waitForTimeout(150); // the finger rests before it lifts, so the release is no flick (input, not a wait)
   await page.mouse.up();
   await page.waitForFunction(() => {
     const sheet = document.querySelector('.sheet');

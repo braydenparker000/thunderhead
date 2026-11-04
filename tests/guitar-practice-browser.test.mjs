@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { outlast } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (stubbed tab source)' };
@@ -122,7 +123,7 @@ test('the ladder: opens on the worst bars, asks after each pass, steps up after 
   await page.evaluate(() => localStorage.setItem('th.p.settings', JSON.stringify({ 'privacy.senses.guitar': false })));
   await page.goto(`${base}/guitar/#play=${encodeURIComponent(SONG)}`);
   await page.waitForFunction(() => document.querySelector('.tp-play') && !document.querySelector('.tp-play').disabled, null, { timeout: 30_000 });
-  await page.waitForTimeout(500);
+  await outlast(page, 500); // a negative read: nothing to wait for but time, on the page's own timers
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('th.p.senses') || '[]').length), before, 'nothing kept to send');
   assert.deepEqual(errors, []);
   await context.close();

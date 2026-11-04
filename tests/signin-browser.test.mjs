@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, RECOVERY, TOKEN } from './fixtures/mock-api.mjs';
+import { afterFirstPaint, guardOpen } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -41,7 +42,8 @@ async function open(path, { theme = 'light', mock = {}, session = false } = {}) 
     errors.length = 0; // the 404 page used to reach the origin
   }
   await page.goto(base + path, { waitUntil: 'load' });
-  await page.waitForTimeout(300);
+  // The page's first-paint work has run; a page that sends the owner elsewhere has loaded there.
+  await afterFirstPaint(page).catch(() => page.waitForLoadState('load'));
   return { page, errors, api };
 }
 const session = page => page.evaluate(() => new Promise(resolve => {
@@ -107,7 +109,7 @@ test('too many tries count down 3, 2, 1, then Sign in, disabled throughout', opt
   await page.click('#go');
   const seen = [];
   const t0 = Date.now();
-  while (Date.now() - t0 < 4500) {
+  while (Date.now() - t0 < 15_000) {
     const [text, disabled] = await page.$eval('#go', b => [b.textContent, b.disabled]);
     if (seen.at(-1)?.[0] !== text) seen.push([text, disabled]);
     if (text === 'Sign in') break;
@@ -151,6 +153,8 @@ test('Home without a session goes to /signin/ with next; an open setup goes on t
 
 test('setup: fingerprint, wait for it, create the account, confirm the recovery code', opts, async () => {
   const { page, errors, api } = await open('/setup/', { mock: { setup: 'open', setup_fp: 'missing' } });
+  // The fingerprint shows "…" until the page has made it.
+  await page.waitForFunction(() => document.querySelector('#fp')?.textContent !== '…');
   const fp = await page.textContent('#fp');
   assert.match(fp, /^thfp_[A-Za-z0-9_-]{43}$/);
   await page.click('#done');
@@ -205,7 +209,7 @@ test('a new-device notice sits on Home with the gold edge; Not me signs that dev
   await page.waitForSelector('.notice');
   assert.match(await page.textContent('.notice .q'), /^New sign-in: Windows · Edge · Region, XX · today \d\d:\d\d$/);
   assert.ok(await page.$eval('#edge', e => e.classList.contains('gold')));
-  await page.waitForTimeout(300);
+  await guardOpen(page); // the notice's buttons ignore taps in the page's first 500 ms (boot.js)
   await page.click('.notice button.yes');
   await page.waitForFunction(() => !document.querySelector('.notice') || document.querySelector('.notice').classList.contains('gone'));
   assert.deepEqual(api.calls.find(c => c.call === 'POST /v1/auth/notices/n1/ack').body, { answer: 'not_me' });
@@ -218,12 +222,12 @@ test('a new-device notice sits on Home with the gold edge; Not me signs that dev
 test('Devices: this device first, sign out another after a confirm, sign out everywhere wipes', opts, async () => {
   const { page, errors, api } = await open('/settings/devices/', { session: true });
   await page.waitForSelector('.spage .srow');
-  await page.waitForTimeout(400);
+  await page.waitForSelector('.spage.in:not(.moving)');
   assert.deepEqual(await page.evaluate(() => [document.querySelector('#app').scrollLeft, Math.round(document.querySelector('.spage').getBoundingClientRect().left)]), [0, 0], 'the page sits flush, nothing scrolled sideways');
   const rows = await page.$$eval('.spage .srow', rs => rs.map(r => r.textContent));
   assert.match(rows[0], /This device/);
   assert.match(rows[1], /Windows · Edge.*Region, XX · approximate.*yesterday|2 days ago/);
-  await page.waitForTimeout(300);
+  await guardOpen(page); // Sign out ignores taps in the page's first 500 ms (th/ui.js)
   await page.click('.spage .srow .sbtn');
   await page.waitForSelector('.csheet.on');
   assert.equal(await page.textContent('.csheet h2'), 'Sign out Windows · Edge?');
@@ -249,7 +253,7 @@ test('Agents: a new key needs the password and shows once', opts, async () => {
   await page.check('#role-ci');
   assert.equal(await page.inputValue('#agent-name'), 'ci', 'the name follows the role until typed');
   await page.fill('#current-password', 'wrong');
-  await page.waitForTimeout(300);
+  await guardOpen(page); // the key's Create ignores taps in the page's first 500 ms (agents.js)
   await page.click('.sform button[type=submit]');
   await page.waitForFunction(() => document.querySelector('.sform .line')?.textContent === "That's not your current password.");
   await page.fill('#current-password', 'right password here');

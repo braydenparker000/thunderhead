@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { afterFirstPaint, until } from './fixtures/waits.mjs';
 
 // The worker's own requests (the push's words) go through the context's routes too.
 process.env.PW_EXPERIMENTAL_SERVICE_WORKER_NETWORK_EVENTS = '1';
@@ -76,7 +77,7 @@ test('Notifications: on, a test, off; a push shows its words, or a line that say
   }), TOKEN);
   await page.goto(`${base}/`, { waitUntil: 'load' });
   await page.evaluate(() => navigator.serviceWorker.ready);
-  await page.waitForTimeout(600);
+  await afterFirstPaint(page); // the shell's push recheck is queued after the first paint
 
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:open', { detail: { name: 'notifications' } })));
   const status = page.locator('.spage .shelp[role="status"]');
@@ -102,7 +103,7 @@ test('Notifications: on, a test, off; a push shows its words, or a line that say
   const regs = [];
   cdp.on('ServiceWorker.workerRegistrationUpdated', (e) => regs.push(...e.registrations));
   await cdp.send('ServiceWorker.enable');
-  for (let i = 0; i < 50 && !regs.some((r) => r.scopeURL === `${base}/`); i++) await page.waitForTimeout(50);
+  await until(() => regs.some((r) => r.scopeURL === `${base}/`)).catch(() => {});
   const registrationId = regs.find((r) => r.scopeURL === `${base}/`).registrationId;
   const shown = () => page.evaluate(async () => (await (await navigator.serviceWorker.ready).getNotifications()).map((n) => ({ title: n.title, body: n.body, tag: n.tag, url: n.data?.url })));
   // The headless shell can't show a notification at all (CI uses it); full Chromium can.
@@ -118,11 +119,11 @@ test('Notifications: on, a test, off; a push shows its words, or a line that say
   });
   const fetched = (id) => calls.includes(`SW GET ${id} Bearer ${TOKEN}`);
   await cdp.send('ServiceWorker.deliverPushMessage', { origin: base, registrationId, data: JSON.stringify({ k: 'nudge', id: 'nudge-0001' }) });
-  for (let i = 0; i < 60 && !(fetched('nudge-0001') && (!canShow || (await shown()).length)); i++) await page.waitForTimeout(50);
+  await until(async () => fetched('nudge-0001') && (!canShow || (await shown()).length)).catch(() => {});
   assert.ok(fetched('nudge-0001'), calls.join('\n'));
   if (canShow) assert.deepEqual(await shown(), [{ title: 'Leave by 16:40', body: 'The bus is 10 minutes early today.', tag: 'nudge-0001', url: '/' }]);
   await cdp.send('ServiceWorker.deliverPushMessage', { origin: base, registrationId, data: JSON.stringify({ k: 'nudge', id: 'gone-00000' }) });
-  for (let i = 0; i < 60 && !(fetched('gone-00000') && (!canShow || (await shown()).length > 1)); i++) await page.waitForTimeout(50);
+  await until(async () => fetched('gone-00000') && (!canShow || (await shown()).some((n) => n.tag === 'gone-00000')), { timeout: 30_000 }).catch(() => {});
   assert.ok(fetched('gone-00000'));
   if (canShow) assert.deepEqual((await shown()).find((n) => n.tag === 'gone-00000'), { title: 'Thunderhead', body: 'Thunderhead has something for you.', tag: 'gone-00000', url: '/' });
 

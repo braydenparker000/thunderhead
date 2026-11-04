@@ -10,6 +10,7 @@ import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
 import { EXPORT_ID } from './fixtures/mock-export.mjs';
+import { resting } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -46,7 +47,8 @@ async function open({ theme = 'light', exportState } = {}) {
   errors.length = 0;
   await page.goto(`${base}/`, { waitUntil: 'load' });
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'side' })));
-  await page.waitForTimeout(450);
+  await page.waitForFunction(() => !document.querySelector('#side').classList.contains('moving'));
+  await resting(page);
   // Settings opens from the menu's bar (2026-10-31); Export is one of its rows.
   await page.click('#settings');
   await page.waitForSelector('.spage.in .slink[data-page="export"]');
@@ -106,7 +108,7 @@ test('Export: leaving and coming back finds the export still building; a failed 
   await page.waitForSelector('.xport .xbar');
   // Back to Settings and in again: still building, without asking for the password.
   await page.click('.spage[aria-label="Export"] .sback');
-  await page.waitForTimeout(500);
+  await page.waitForSelector('.spage[aria-label="Export"]', { state: 'detached' });
   await page.click('.slink[data-page="export"]');
   await page.waitForSelector('.spage[aria-label="Export"] .xport .xbar');
   state.failed = true;

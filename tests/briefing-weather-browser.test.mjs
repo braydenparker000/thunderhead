@@ -9,6 +9,12 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { resting } from './fixtures/waits.mjs';
+/** The Briefing in view and at rest (home.js go(): it stops being inert, then the springs settle). */
+const briefRest = async (page) => {
+  await page.waitForFunction(() => !document.querySelector('#brief').inert);
+  await resting(page);
+};
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -46,7 +52,7 @@ test('the weather tile asks for a place, keeps one, and shows the next hours', o
   const tile = page.locator('#brief .tile.weather');
   await tile.waitFor();
   assert.deepEqual(await tile.evaluate((t) => [t.querySelector('.k').textContent, t.querySelector('.big'), t.querySelector('.s').textContent]), ['Weather', null, 'Set a place for the weather']);
-  await page.waitForTimeout(600);
+  await briefRest(page);
   await tile.click();
   const sheet = page.locator('.wsheet');
   await sheet.waitFor();
@@ -62,7 +68,7 @@ test('the weather tile asks for a place, keeps one, and shows the next hours', o
   // Tomorrow's high and low on the tile itself (2026-11-02), from the same forecast.
   assert.equal(await tile.locator('.s.wtom').textContent(), 'Tomorrow 21° / 10°');
   assert.match(await tile.getAttribute('aria-label'), /tomorrow high 21°, low 10°$/);
-  await page.waitForTimeout(600);
+  await briefRest(page);
   await tile.click();
   await sheet.waitFor();
   assert.equal(await sheet.locator('h2').textContent(), 'Testville');

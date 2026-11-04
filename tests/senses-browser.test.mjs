@@ -11,6 +11,7 @@ import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { SENSE_TYPES } from '../shared/contract/senses.ts';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { afterFirstPaint, outlast } from './fixtures/waits.mjs';
 import { proposal } from './fixtures/mock-proposals.mjs';
 
 const live = Boolean(process.env.SITE_URL);
@@ -65,7 +66,8 @@ async function open(settings = null) {
   ];
   // The shell's senses load after the first paint; the lines count as seen only once they are
   // watching, so wait for that before anything covers home (a loaded runner takes a while).
-  for (let i = 0; i < 100 && !(await senses()).some((e) => e.type === 'line.seen'); i++) await page.waitForTimeout(100);
+  // (th/senses/shell.js keeps the lines it has looked at in th.p.senses.lines, sent or switched off.)
+  await page.waitForFunction((ids) => ids.every((id) => (localStorage.getItem('th.p.senses.lines') ?? '').includes(id)), [L1, L2], { timeout: 30_000 });
   return { page, context, errors, api, senses };
 }
 
@@ -87,7 +89,7 @@ async function act(page) {
     document.dispatchEvent(new CustomEvent('th:app-ready', { detail: { app: 'podcasts', ms: 200, cold: true } }));
     setTimeout(() => { document.body.dataset.island = 'podcasts'; }, 50);
   });
-  await page.waitForTimeout(150);
+  await page.waitForFunction(() => document.body.dataset.island === 'podcasts');
   await page.evaluate(() => {
     const is = document.createElement('div');
     is.className = 'th-island';
@@ -109,7 +111,7 @@ test('the shell and home send what the owner does, ids and times only', opts, as
   const { page, context, errors, senses } = await open();
   await act(page);
   const want = ['line.seen', 'card.decide', 'briefing.open', 'settings.change', 'app.open', 'app.close', 'island.tap', 'reply.open_chip', 'ring.choice'];
-  for (let i = 0; i < 100; i++) {
+  for (let i = 0; i < 300; i++) {
     const got = new Set((await senses()).map((e) => e.type));
     if (want.every((t) => got.has(t))) break;
     await page.waitForTimeout(100);
@@ -131,7 +133,12 @@ test('the shell and home send what the owner does, ids and times only', opts, as
   // The same line seen again (a reload) is not sent again.
   await page.reload({ waitUntil: 'load' });
   await page.waitForSelector('#talk .note[data-ledger]');
-  await page.waitForTimeout(800);
+  // The shell watches the line (data-seen), its observer looks a frame later and decides at once; a
+  // sense it sent would then be kept after the session's read, which a later read follows.
+  await page.waitForSelector('#talk .note[data-ledger][data-seen]', { state: 'attached', timeout: 30_000 });
+  await afterFirstPaint(page);
+  await afterFirstPaint(page);
+  await page.evaluate(() => import('/th/session.js').then((m) => m.store.read()));
   assert.equal((await senses()).filter((e) => e.type === 'line.seen').length, 2);
   assert.deepEqual(errors.filter((e) => !/frame|music/i.test(e)), []);
   await context.close();
@@ -140,7 +147,8 @@ test('the shell and home send what the owner does, ids and times only', opts, as
 test('with home and the shell switched off, the same acts send nothing of theirs', opts, async () => {
   const { page, context, senses } = await open({ 'privacy.senses.home': false, 'privacy.senses.shell': false });
   await act(page);
-  await page.waitForTimeout(3_500);
+  // A negative read: past the 3 s the senses wait to look and to send (watch.js, send.js), on the page.
+  await outlast(page, 3_500);
   const types = (await senses()).map((e) => e.type);
   assert.deepEqual(types.filter((t) => ['home', 'shell'].includes(SENSE_TYPES[t]?.app)), []);
   await context.close();
@@ -195,7 +203,8 @@ test('Astra: time watched and a title finished, read from its own progress; noth
   await page.evaluate(() => localStorage.setItem('th.p.settings', JSON.stringify({ 'privacy.senses.media': false })));
   const before = sent.length;
   await pause({ ...entry(1200), id: 'tt0000009', videoId: 'tt0000009' });
-  await page.waitForTimeout(6_000);
+  // A negative read: past the 2 s look after a pause and the 3 s send (watch.js, send.js), on the page.
+  await outlast(page, 6_000);
   assert.equal(sent.length, before);
   await context.close();
 });

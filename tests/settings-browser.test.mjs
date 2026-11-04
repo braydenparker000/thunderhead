@@ -78,7 +78,7 @@ async function open({ theme = 'light', init } = {}) {
 }
 
 /** Waits until `ok()` holds, for what the mocked Worker has heard. */
-async function until(ok, ms = 3000) {
+async function until(ok, ms = 15_000) {
   const end = Date.now() + ms;
   while (!ok()) {
     if (Date.now() > end) throw new Error('timed out');

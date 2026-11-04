@@ -17,6 +17,7 @@ import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
 import { proposal } from './fixtures/mock-proposals.mjs';
+import { afterFirstPaint, guardOpen, outlast } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -54,12 +55,12 @@ async function open({ theme = 'light', proposals = [], chat = {}, touch = false 
   await page.goto(`${base}/`, { waitUntil: 'load' });
   await page.waitForSelector('#talk', { state: 'attached' });
   // Taps in the first 500 ms after the page appears are ignored on purpose (SECURITY.md §4.3).
-  await page.waitForTimeout(600);
+  await guardOpen(page);
   return { page, context, errors, api };
 }
 
 async function eventually(read, want, message) {
-  const end = Date.now() + 5_000;
+  const end = Date.now() + 15_000;
   let got = await read();
   while (!isDeepStrictEqual(got, want) && Date.now() < end) {
     await new Promise((r) => setTimeout(r, 20));
@@ -158,9 +159,9 @@ test('a tap right after the page comes back into view is ignored', opts, async (
   await page.waitForSelector('#decision .card.armed');
   await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
   await page.click('#decision .yes', { force: true });
-  await page.waitForTimeout(150);
+  await outlast(page, 150); // a negative read: a sent tap would have reached the mock
   assert.equal(api.proposals.state.decided.length, 0);
-  await page.waitForTimeout(500);
+  await guardOpen(page);
   await page.click('#decision .yes');
   await eventually(() => api.proposals.state.decided.length, 1);
   await context.close();
@@ -177,7 +178,7 @@ test('scrolled anywhere in a long day, the docked card stays in view above the b
   await page.waitForSelector('#decision .card');
   for (const to of ['top', 'end']) {
     await page.$eval('#convo', (c, t) => { c.scrollTop = t === 'end' ? c.scrollHeight : 0; }, to);
-    await page.waitForTimeout(150);
+    await afterFirstPaint(page); // the scroll's event and the frame that places the card
     assert.ok(await page.$eval('#decision .card', (c) => { const r = c.getBoundingClientRect(); return r.top >= 0 && r.bottom <= innerHeight; }), `in view at the ${to}`);
   }
   assert.equal(await page.$('#waiting'), null);
@@ -190,6 +191,7 @@ test('a card that arrives while home is open takes no tap until it has risen and
   // A finger already on its way as the card slides in under it: the tap lands in the same task the
   // card is attached in (watched from inside the page, so a slow runner can't let it settle first).
   const tap = page.evaluate(() => new Promise((resolve) => {
+    window.__watching = true;
     new MutationObserver((_, watch) => {
       const card = document.querySelector('#decision .card');
       if (!card) return;
@@ -199,10 +201,10 @@ test('a card that arrives while home is open takes no tap until it has risen and
       resolve(at);
     }).observe(document.body, { subtree: true, childList: true });
   }));
-  await page.waitForTimeout(50);
+  await page.waitForFunction(() => window.__watching);
   api.proposals.add(proposal({ question: 'Forget this fact for good?' }));
   const at = await tap;
-  await page.waitForTimeout(300);
+  await outlast(page, 300); // a negative read: a sent tap would have reached the mock
   assert.equal(api.proposals.state.decided.length, 0, `a tap at opacity ${at.opacity} was sent`);
   assert.equal(at.armed, false, 'tapped while it was still rising');
   await page.waitForSelector('#decision .card.armed');
@@ -219,9 +221,9 @@ for (const gap of [150, 400, 650, 900])
     await page.waitForSelector(`#decision .card.armed[data-id="${a.id}"]`);
     const box = await page.$eval('#decision .yes', (y) => { const r = y.getBoundingClientRect(); return { x: r.x + r.width / 2, y: r.y + r.height / 2 }; });
     await page.touchscreen.tap(box.x, box.y);
-    await page.waitForTimeout(gap);
+    await page.waitForTimeout(gap); // the gap between the two taps is the case itself (input, not a wait)
     await page.touchscreen.tap(box.x, box.y);
-    await page.waitForTimeout(400);
+    await outlast(page, 400); // a negative read: a second decision would have reached the mock
     assert.deepEqual(api.proposals.state.decided.map((d) => `${d.id === a.id ? 'a' : 'b'}:${d.decision}`), ['a:approve']);
     await context.close();
   });
