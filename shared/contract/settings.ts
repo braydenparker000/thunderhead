@@ -207,6 +207,10 @@ export const SETTINGS = [
     options: stops('min', 10, 30, 120), detail: 'How long I stay awake after the last message before I sleep.' },
   { ...MIND, section: 'Reaching you', key: 'mind.pushes', label: 'Notifications', kind: 'choice', default: 'normal',
     options: o('never:Never', 'urgent:Urgent only', 'normal:Normal'), detail: 'When I may send one. Normal keeps the budget of 2 a day and quiet hours.' },
+  // Speech (BEHAVIOR.md §3.7): as needed is no cap at all; the Worker holds the mind to the other two.
+  { ...MIND, section: 'Reaching you', key: 'mind.speech', label: 'Speaking up', kind: 'choice', default: 'as_needed',
+    options: o('as_needed:As needed', 'quiet:Quiet', 'silent:Silent'),
+    detail: 'As needed: when it helps you. Quiet: a line and a card a day at most. Silent: only when you ask; reminders still ring.' },
   { ...MIND, section: 'Reaching you', key: 'mind.ask_outside', label: 'Ask before outside sources', kind: 'switch', default: true,
     detail: 'I ask before I read the web or other outside text for you.' },
   { ...PERMIT, key: 'mind.permit.music', label: 'Music', default: 'quiet', detail: 'Playlists, the queue and what plays.' },

@@ -32,6 +32,9 @@ export interface PutPushRequest {
   topic_key: string;
   /** Dropped if no natural pause comes by then; default 3 hours. */
   deadline?: Ms;
+  /** The owner's message that asked for it ("tell me when it is done", lands.ts ASKED_HOURS): the
+   * one push "quiet" (`mind.speech`) lets through. */
+  asked_by?: string;
 }
 export interface PutPushResponse {
   queued_until: Ms;

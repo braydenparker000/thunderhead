@@ -52,7 +52,11 @@ export const SURFACE_KINDS = Object.freeze({"line":{"slots":{"home":"^line\\.[1-
 export const PROPOSAL_CLASSES = Object.freeze({"delete":{"ask_first":true,"label":"Can't be undone"},"money":{"ask_first":true,"label":"Costs money"},"access":{"ask_first":true,"label":"Changes access"},"reach_people":{"ask_first":true,"label":"Reaches someone else"},"permit":{"ask_first":true,"label":"You said to ask"},"memory_big":{"ask_first":false,"label":"Changes what I remember"}});
 
 /** @type {typeof import('../../shared/contract/proposals.ts').PROPOSAL_LIMITS} */
-export const PROPOSAL_LIMITS = Object.freeze({"question":80,"why":140,"if_ignored":140,"option":20,"waiting":3,"expires_days":7,"snoozes":3,"spec_bytes":8192});
+export const PROPOSAL_LIMITS = Object.freeze({"question":80,"why":140,"if_ignored":140,"option":20,"waiting":3,"expires_days":7,"snoozes":3,"spec_bytes":8192,"odds_min":0.05,"odds_max":0.95});
+
+/** A card's odds in words (shared/contract/proposals.ts oddsWords, copied as it is written there).
+ * @type {typeof import('../../shared/contract/proposals.ts').oddsWords} */
+export const oddsWords = (p) => (p < 0.4 ? 'a guess' : p <= 0.75 ? 'fairly sure' : 'sure');
 
 /** Memory (MEMORY.md §2–§8): fact kinds in profile order, sources, the confidence thresholds, and
  * the reasons an op can be refused. A kind or source not listed renders generically.

@@ -9,6 +9,7 @@ export * from './feed.ts';
 export { DICTATE_LIMITS, FILE_LIMITS } from './files.ts';
 export { HELD_LIMITS } from './held.ts';
 export * from './imports.ts';
+export { ASKED_HOURS, LANDS, SPEECH_POSITIONS, SPEECH_QUIET } from './lands.ts';
 export * from './memory.ts';
 export { LISTEN_KINDS, LISTEN_LIMITS, MOODS } from './listen.ts';
 export {
@@ -49,6 +50,8 @@ export {
   type ProposalClass,
   type ProposalOp,
   type ProposalOpName,
+  oddsRequired,
+  oddsWords,
   proposalOp,
 } from './proposals.ts';
 export { REMINDER_LIMITS } from './reminders.ts';

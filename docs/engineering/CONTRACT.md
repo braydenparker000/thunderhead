@@ -80,6 +80,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/surfaces` | D C N R | P2 | built |  |
 | `PUT /v1/surfaces/:app/:slot` | C N | P2 | built |  |
 | `DELETE /v1/surfaces/:app/:slot` | D C N | P2 | built |  |
+| `POST /v1/surfaces/topics/:key/reopen` | D C | P9 | built | a resting topic open again: a tap, or the owner's own words (by_message, checked as a card's) |
+| `POST /v1/surfaces/topics/:key/said` | C N | P9 | built | the mind said a topic went quiet (once: 409 already_said) |
 | `POST /v1/media/sign` | D C N | P2 | built | music: refs (device only, P5), book: refs (P7); file: refs are not signable yet; 503 not_configured until the signing key is set |
 | `POST /v1/mind/night` | N | P3 | built | the night run: start, step done, cursor, done |
 | `GET /v1/mind/day/:day` | N | P3 | built | a closed day's stats, messages, ledger and notes |
@@ -108,6 +110,8 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/predictions` | D C N | P9 | built | newest first; ?open=1 for the unresolved |
 | `GET /v1/predictions/skill` | D C N | P9 | built | Brier skill per category (EVALS.md M-18) |
 | `GET /v1/insight` | D C N | P9 | built | the meter: M-8, M-10, M-16, M-18 (EVALS.md §9), counts only |
+| `GET /v1/insight/topics` | D C N | P9 | built | what lands: per topic, 30 days of kept, undone, ignored and unseen, the streak and when a resting one reopens |
+| `GET /v1/predictions/calibration` | D C N | P9 | built | per category, the last 28 days: odds claimed against what happened (cards: against a yes) |
 | `GET /v1/ops/watchdogs` | D C N R I | P4 | built | every watchdog, its state and the SLO it guards |
 | `POST /v1/ops/watchdogs/:name/handled` | C N R | P4 | built | what a mind session did about a trip (the reflex reports each one) |
 | `POST /v1/ops/watchdogs/:name/drill` | D C | P4 | built | trip one watchdog by hand when the owner asks, to check that mind-reflex handles it (nothing is wrong) |
@@ -415,7 +419,7 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 
 ## Proposals
 
-Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80, why ≤ 140, if ignored ≤ 140, two options ≤ 20 each; at most 3 raised by agents wait at once; each expires after 7 days; "Not yet" brings it back the next morning at most 3 times; the canonical spec ≤ 8192 bytes. Only the owner decides: a tap on a device, or their own words recorded by mind:chat (`by_message`).
+Decision cards (`PUT /v1/proposals/:id`, `th propose`). A card: question ≤ 80, why ≤ 140, if ignored ≤ 140, two options ≤ 20 each; at most 3 raised by agents wait at once; each expires after 7 days; "Not yet" brings it back the next morning at most 3 times; the canonical spec ≤ 8192 bytes; odds, when given, 0.05–0.95, and required on a card of class `permit` (an arrangement): the card words them as "a guess", "fairly sure", "sure" (below .4, .4 to .75, above .75). Only the owner decides: a tap on a device, or their own words recorded by mind:chat (`by_message`).
 
 | Class | Ask first | Card label |
 |---|---|---|
@@ -504,6 +508,7 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `reset_already_pending` | 409 | A reset is already waiting. |
 | `agent_name_taken` | 409 | An active key already has that name. |
 | `agent_limit` | 409 | There are already 20 active keys. |
+| `already_said` | 409 | The mind already said this topic went quiet. |
 | `setup_done` | 410 | Setup is already done. |
 | `expired` | 410 | Past its time. |
 | `reset_cancelled` | 410 | This reset was cancelled. |
@@ -522,6 +527,8 @@ Each 15-minute tick runs every built watchdog; a trip writes one ledger note and
 | `invalid_result` | 422 | The result fails its schema. |
 | `too_sensitive` | 422 | This points at sensitive data. |
 | `username_invalid` | 422 | Use 3–32 letters, numbers, dots, dashes or underscores. |
+| `topic_quiet` | 422 | This topic rests: the owner passed it over three times in a row. |
+| `speech_budget` | 422 | The owner's speech setting holds this back today. |
 | `reset_not_ready` | 425 | The reset ticket is not usable yet. |
 | `client_outdated` | 426 | A newer client is required for writes. |
 | `rate_limited` | 429 | Too many attempts. Try again soon. |

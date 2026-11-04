@@ -41,6 +41,7 @@ export type ErrorCode =
   | 'reset_already_pending'
   | 'agent_name_taken'
   | 'agent_limit'
+  | 'already_said'
   // 410
   | 'setup_done'
   | 'expired'
@@ -61,6 +62,8 @@ export type ErrorCode =
   | 'invalid_result'
   | 'too_sensitive'
   | 'username_invalid'
+  | 'topic_quiet'
+  | 'speech_budget'
   // 425 / 426 / 429
   | 'reset_not_ready'
   | 'client_outdated'
@@ -107,6 +110,12 @@ export type ErrorDetails =
       /** A plan's step that was refused or failed (1-based), and its verb. */
       step?: number;
       verb?: string;
+      /** A resting topic (422 `topic_quiet`): when it reopens, and that owner-local day. */
+      until?: number;
+      reopens?: string;
+      /** The speech setting that refused (422 `speech_budget`) and what it has spent today. */
+      speech?: string;
+      spent?: { lines: number; cards: number };
     };
 
 export interface ErrorBody {
