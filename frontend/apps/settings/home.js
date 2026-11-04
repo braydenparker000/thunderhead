@@ -37,6 +37,7 @@ export const PAGES = /** @type {const} */ ([
   ['privacy', 'Privacy and data', 'shield-check'],
   ['account', 'Password', 'key'],
   ['devices', 'Devices', 'devices'],
+  ['agents', 'Agents', 'key'],
   ['export', 'Export', 'download-simple'],
   ['deleted', 'Recently deleted', 'trash'],
   ['about', 'About and diagnostics', 'info'],
