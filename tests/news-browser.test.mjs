@@ -9,6 +9,7 @@ import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { due } from '../frontend/th/news/news.js';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { afterFirstPaint } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -47,6 +48,8 @@ async function home(context, news, at = Date.now() - 30 * 86_400_000) {
   const page = await context.newPage();
   await mockApi(page, {});
   await page.route('**/whats-new.json', (r) => r.fulfill({ contentType: 'application/json', body: JSON.stringify(news) }));
+  // Home reads the lines after its first paint; a test that expects no card waits for that read.
+  page.newsRead = page.waitForEvent('requestfinished', { predicate: (r) => r.url().endsWith('/whats-new.json'), timeout: 30_000 });
   await page.goto(`${base}/no-such-page`);
   await page.evaluate(({ token, at }) => new Promise((resolve, reject) => {
     const req = indexedDB.open('th-auth', 1);
@@ -80,7 +83,8 @@ test('once per release: the card shows its lines by the bar, Got it folds it for
   await page.close();
   // Opened again: nothing; a new release's lines: a card again.
   page = await home(context, news);
-  await page.waitForTimeout(2500);
+  await page.newsRead;
+  await afterFirstPaint(page); // the lines read, and already seen on this phone: nothing to show
   assert.equal(await page.locator('#turns .card.news').count(), 0);
   await page.close();
   page = await home(context, { ...news, id: `${news.id}-2` });
@@ -92,7 +96,9 @@ test('a phone signed in since the release has it all already: no card', opts, as
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block' });
   const news = { ...NEWS, date: new Date(Date.now() - 86_400_000).toISOString().slice(0, 10) };
   const page = await home(context, news, Date.now());
-  await page.waitForTimeout(2500);
+  await page.newsRead;
+  // Signed in after the release: the lines are kept as seen without a card.
+  await page.waitForFunction((id) => localStorage.getItem('th.news.seen') === id, news.id);
   assert.equal(await page.locator('#turns .card.news').count(), 0);
   await context.close();
 });

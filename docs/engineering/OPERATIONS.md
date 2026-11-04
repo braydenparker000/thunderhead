@@ -72,7 +72,7 @@ Acceptance: a CI test parses `backend/src` for `env.<NAME>` and fails if a name 
 
 ### 3.1 Automatic deploy (every push to `main`)
 
-What `deploy.yml` does today (`th/.github/workflows/deploy.yml`). First, job `test` runs every check once (`checks.yml`): four jobs at once, the site and mind suites in three parts dealt by file size (`scripts/test-part.mjs`) and the Worker's suite, each with Node 24, `npm ci --ignore-scripts` and, for the site parts, Playwright's Chromium headless shell, with `SITE_URL`, `WORKER_URL` and the Drive settings empty. They are exactly what `npm test` runs, in about two minutes instead of five, and no secret reaches them. Nothing deploys unless all four pass. Then job `site`:
+What `deploy.yml` does today (`th/.github/workflows/deploy.yml`). First, job `test` runs every check once (`checks.yml`): five jobs at once, the site and mind suites in four parts dealt by measured time (`scripts/test-part.mjs`, `scripts/test-durations.json`) and the Worker's suite, each with Node 24, `npm ci --ignore-scripts` and, for the site parts, Playwright's Chromium headless shell, with `SITE_URL`, `WORKER_URL` and the Drive settings empty. They are exactly what `npm test` runs, in about two minutes instead of five, and no secret reaches them. Nothing deploys unless all five pass. Then job `site`:
 
 1. Runs only on `main` with `AZURE_DEPLOY_ENABLED=true`, after `test` passed and `api` succeeded or was skipped. Checks out the commit (dispatch `ref` or the pushed SHA) and refuses one that is not an ancestor of `origin/main`.
 2. Node 24, `npm ci --ignore-scripts`, Playwright Chromium headless shell (for the live check's browser test).

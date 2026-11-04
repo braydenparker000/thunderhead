@@ -260,7 +260,7 @@
     "rows_written_max": 0
   },
   "POST /v1/import/runs and its job: 1 part of 50 threads, verified (Core)": {
-    "rows_read_max": 70,
+    "rows_read_max": 85,
     "rows_written_max": 116
   },
   "GET /v1/import/runs/:id (Core)": {

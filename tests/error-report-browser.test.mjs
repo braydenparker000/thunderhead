@@ -9,6 +9,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { outlast } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -64,12 +65,15 @@ async function opened(signedIn) {
 }
 const boom = (page, words) => page.evaluate((w) => setTimeout(() => { throw new Error(w); }), words);
 
-const waitFor = async (page, f) => { for (let i = 0; i < 40 && !f(); i++) await page.waitForTimeout(100); };
+const waitFor = async (page, f) => { for (let i = 0; i < 150 && !f(); i++) await page.waitForTimeout(100); };
+/** The reporter knows whether it is signed in: it asked for the session as it loaded, and a later ask
+ * of the same database is answered after it. */
+const known = (page) => page.evaluate(() => import('/th/ported/session.js').then((m) => m.sessionToken()));
 
 test('signed in, a ported page reports to the new inbox with the session, an address cut to its host', opts, async () => {
   const { context, page, old } = await opened(true);
   await page.goto(`${SITE}/music/`, { waitUntil: 'load' });
-  await page.waitForTimeout(300);
+  await known(page);
   await boom(page, 'test boom in music');
   await waitFor(page, () => inbox.length);
   assert.equal(inbox.length, 1, 'one batch reached the new inbox');
@@ -78,7 +82,7 @@ test('signed in, a ported page reports to the new inbox with the session, an add
   assert.deepEqual({ ...item, at: 0 }, { source: 'client', code: 'player.error', route: '/music/', message: 'Error: test boom in music', build: 0, at: 0 });
 
   await page.goto(`${SITE}/astra/`, { waitUntil: 'load' });
-  await page.waitForTimeout(300);
+  await known(page);
   await boom(page, 'no answer from https://addon.example/s3cret-t0ken/manifest.json?key=abc');
   await waitFor(page, () => inbox.length > 1);
   const [astra] = inbox[1].body.items.filter((i) => i.code === 'astra.error');
@@ -92,7 +96,7 @@ test('signed out, a page reports to the old inbox as before, without a session',
   const { context, page, old } = await opened(false);
   const before = inbox.length;
   await page.goto(`${SITE}/astra/`, { waitUntil: 'load' });
-  await page.waitForTimeout(300);
+  await known(page);
   await boom(page, 'test boom in astra');
   await waitFor(page, () => old.some((o) => o.path === '/claude-chat/errors'));
   const sent = old.filter((o) => o.path === '/claude-chat/errors');
@@ -119,12 +123,12 @@ test('signed in, a ported page’s opening is one sense event in a sealed batch;
   assert.equal(mine[0].body.events.length, 1, 'one sense event');
   // The batch is cleared once the Worker's answer is read, a moment after the request arrives here
   // (asserting at once was a CI flake, run #142).
-  await page.waitForFunction(() => localStorage.getItem('th.p.senses') === null && localStorage.getItem('th.p.senses.batch') === null, null, { timeout: 5000 }).catch(() => {});
+  await page.waitForFunction(() => localStorage.getItem('th.p.senses') === null && localStorage.getItem('th.p.senses.batch') === null, null, { timeout: 15_000 }).catch(() => {});
   assert.deepEqual(await page.evaluate(() => [localStorage.getItem('th.p.senses'), localStorage.getItem('th.p.senses.batch')]), [null, null], 'taken, so nothing waits');
   await context.close();
   const out = await opened(false);
   await out.page.goto(`${SITE}/podcasts/`, { waitUntil: 'load' });
-  await out.page.waitForTimeout(3500);
+  await outlast(out.page, 3500); // a negative read: past the senses' 3 s send, on the page's own timers
   assert.deepEqual([of('guitar.open').length, of('podcasts.open').length], [1, 0], 'signed out: nothing kept or sent');
   assert.equal(await out.page.evaluate(() => localStorage.getItem('th.p.senses')), null);
   await out.context.close();

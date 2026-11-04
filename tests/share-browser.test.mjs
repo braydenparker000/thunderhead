@@ -8,6 +8,7 @@ import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { outlast } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -47,7 +48,9 @@ test('a shared link waits in the ask bar for the owner’s words', opts, async (
   await page.waitForFunction(() => document.querySelector('#q')?.value.startsWith('Shared:'));
   assert.equal(await page.inputValue('#q'), 'Shared: A talk on rivers · Worth an evening https://video.example/watch?v=abc123 ');
   assert.equal(new URL(page.url()).pathname + new URL(page.url()).search, '/');
-  await page.waitForTimeout(400);
+  // A negative read once the chat has the bar: a send by itself would have gone by now.
+  await page.waitForSelector('#ask .sendline', { state: 'attached' });
+  await outlast(page, 400);
   assert.deepEqual(api.calls.filter((c) => /^(PUT|POST) \/v1\/messages/.test(c.call)), [], 'nothing sent by itself');
   assert.ok(api.calls.some((c) => c.call === 'GET /v1/auth/me'), 'the mock saw the page start');
   assert.deepEqual(errors, []);

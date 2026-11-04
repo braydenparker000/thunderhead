@@ -130,7 +130,8 @@ const budgets = [
   // (2026-11-03, schedules) +2,726 measured (111,693): a plan's line on home with its Undo (today's
   // plans from the ledger, read so a failure never holds the chat; their cards, the undo call and
   // its words, and their cache).
-  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 111_693],
+  // (2026-11-04) +77 measured (111,770): the chat listens for offline before its first sync.
+  ['chat JS bytes', sum(/^th\/(chat|registry)\/.*\.js$/), 111_770],
   // A reply's actions and Find in today, loaded on the first tap or pull.
   ['reply tools JS bytes', sum(/^th\/reply\/.*\.js$/), 12_000],
   // The phone's own commands (th/commands, loaded once the chat starts) and dictation (th/dictate:

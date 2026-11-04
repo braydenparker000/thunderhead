@@ -133,7 +133,11 @@ test('the page hiding and then unloading sends a waiting Forget once', opts, asy
     dispatchEvent(new PageTransitionEvent('pagehide', { persisted: false }));
   });
   await until(() => sends, 1, 'one keepalive send');
-  await page.waitForTimeout(300);
+  // A request the page starts after both events: by the time it is seen, a second send would have been.
+  let marked = false;
+  context.on('request', (r) => { if (r.url().includes('th-test-after')) marked = true; });
+  await page.evaluate(() => { fetch('/th-test-after').catch(() => {}); });
+  await until(() => marked, true, 'the later request');
   assert.equal(sends, 1, 'not a second one for pagehide');
   await context.close();
 });

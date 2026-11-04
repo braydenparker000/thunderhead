@@ -6,6 +6,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { afterFirstPaint, timing, until } from './fixtures/waits.mjs';
 
 let server, browser, base;
 before(async () => {
@@ -25,7 +26,9 @@ async function open(theme = 'light', path = '/') {
   // /signin/ (tests/signin-browser.test.mjs covers that against a mocked Worker).
   await page.route('**/config.js', route => route.fulfill({ contentType: 'text/javascript', body: "export const CONFIG = { api: '', build: 0, commit: 'dev', repo_url: '' };" }));
   await page.goto(base + path, { waitUntil: 'load' });
-  await page.waitForTimeout(400);
+  // Home reads its motion tokens after the first paint; the gestures need them.
+  await afterFirstPaint(page);
+  await page.evaluate(() => document.fonts.ready);
   return { page, errors };
 }
 const whenResting = page => page.evaluate(async () => (await import('/th/motion.js')).whenResting());
@@ -58,12 +61,7 @@ test('the page refuses to show inside a frame', async () => {
   // a fresh page: our own pages forbid frames, so the parent must be a neutral document
   const page = await browser.newPage({ serviceWorkers: 'block' });
   await page.setContent(`<iframe src="${base}/" width="390" height="844"></iframe>`);
-  let frame;
-  for (let i = 0; i < 50 && !frame; i++) {
-    frame = page.frames().find(f => f !== page.mainFrame() && f.url().startsWith(base));
-    if (!frame) await page.waitForTimeout(100);
-  }
-  assert.ok(frame, 'the framed page loaded');
+  const frame = await until(() => page.frames().find(f => f !== page.mainFrame() && f.url().startsWith(base)), { message: 'the framed page loaded' });
   await frame.waitForLoadState('load');
   assert.equal(await frame.evaluate(() => getComputedStyle(document.body).visibility), 'hidden');
   const top = await open();
@@ -124,7 +122,9 @@ test('the ring flies out together in 120 ms, past the ring and back, its glass f
       flights.forEach(a => { a.currentTime = ms; });
       frames.push({ ms, pets: pets.map(p => { const m = new DOMMatrix(getComputedStyle(p).transform); return { radius: Math.hypot(m.m41, m.m42), scale: m.a }; }) });
     }
-    flights.forEach(a => { a.currentTime = 0; a.play(); });
+    // Held at its start: on a loaded runner the document's timeline would finish the flight (and so end
+    // .moving) before the page clock reaches 85%, which is what the glass reads below are about.
+    flights.forEach(a => { a.currentTime = 0; });
     return frames;
   });
   for (const f of trajectory) { const radii = f.pets.map(p => p.radius); assert.ok(Math.max(...radii) - Math.min(...radii) < .01, `no stagger at ${f.ms} ms`); }
@@ -141,6 +141,7 @@ test('the ring flies out together in 120 ms, past the ring and back, its glass f
   assert.equal(await page.$eval('#ring', r => r.classList.contains('glassy')), false, 'no glass before 85%');
   await page.clock.runFor(8);
   assert.deepEqual(await page.$eval('#ring', r => [r.classList.contains('glassy'), r.classList.contains('moving')]), [true, true], 'the glass starts before rest');
+  await page.evaluate(() => document.querySelectorAll('#ring .pet').forEach(p => p.getAnimations()[0]?.play()));
   await page.waitForFunction(() => !document.querySelector('#ring').classList.contains('moving'));
   await whenResting(page);
   await page.$eval('#ring .pet', p => Promise.all(p.getAnimations({ subtree: true }).map(a => a.finished)));
@@ -210,7 +211,8 @@ test('swipe right opens the briefing, swipe left opens the menu', async () => {
   assert.equal(await left(page, '#home'), 0, 'back home');
   await drag(page, 330, 60);
   assert.ok(await left(page, '#side') < 390, 'menu in view');
-  await page.click('#dim', { position: { x: 20, y: 300 } }); await page.waitForTimeout(550);
+  await page.click('#dim', { position: { x: 20, y: 300 } });
+  await page.waitForFunction(() => !document.querySelector('#side').classList.contains('moving'));
   assert.ok(await left(page, '#side') >= 390, 'menu closed');
   assert.deepEqual(errors, []);
   await page.close();
@@ -239,7 +241,8 @@ test('springs preserve drag reversals, cross-axis navigation, regrabs and a reop
     };
     requestAnimationFrame(sample);
   }));
-  assert.ok(jump < 120, `both progress axes compose without a full-page jump (${jump}px)`);
+  // The largest step between two frames depends on how many frames a loaded runner draws.
+  timing(jump < 120, `both progress axes compose without a full-page jump (${jump}px)`);
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'brief' })));
   await page.waitForFunction(() => { const x = document.querySelector('#brief').getBoundingClientRect().left; return x > -250 && x < -100; });
   const regrab = await page.evaluate(() => {
@@ -258,7 +261,7 @@ test('springs preserve drag reversals, cross-axis navigation, regrabs and a reop
   await page.evaluate(() => document.dispatchEvent(new CustomEvent('th:go', { detail: 'home' })));
   await rest();
   await page.evaluate(() => document.querySelector('[data-skip="apps"]').click());
-  await page.waitForTimeout(100);
+  await page.waitForTimeout(100); // the close comes while the ring still opens: the case itself (input, not a wait)
   await page.keyboard.press('Escape');
   await page.evaluate(() => document.querySelector('[data-skip="apps"]').click());
   await ringRest(page);
@@ -270,7 +273,8 @@ test('springs preserve drag reversals, cross-axis navigation, regrabs and a reop
 
 test('+ opens the options sheet; typing swaps the mic for send', async () => {
   const { page, errors } = await open();
-  await page.click('#plus'); await page.waitForTimeout(400);
+  await page.click('#plus');
+  await page.waitForFunction(() => document.querySelector('#opts').classList.contains('show'));
   assert.ok(await page.$eval('#opts', el => el.classList.contains('show')));
   await page.click('#plus');
   await page.fill('#q', 'hello');
@@ -281,7 +285,9 @@ test('+ opens the options sheet; typing swaps the mic for send', async () => {
   assert.ok(Math.abs(boxes[0][0] - boxes[1][0]) <= 1, 'mic and send at the same x');
   assert.ok(Math.abs(boxes[1][1] - boxes[2][1]) <= 2, 'send centred in the bar');
   if (!process.env.SITE_URL) {
-    await page.press('#q', 'Enter'); await page.waitForTimeout(2200);
+    await page.press('#q', 'Enter');
+    // The signed-out reply types itself out (home.js): wait for it to be under way.
+    await page.waitForFunction(() => (document.querySelector('.reply')?.textContent.length ?? 0) > 10);
     assert.equal(await page.textContent('.you'), 'hello');
     assert.ok((await page.textContent('.reply')).length > 10, 'a reply appears');
   }

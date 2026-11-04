@@ -159,7 +159,8 @@ test('the DJ shuffle: a sixth mode, a plan that follows the tags, a skip learned
     const { player, ctx } = window.__cp;
     const first = player.track.id;
     ctx.bus.post('bus_player_cmd', 'cmd_player_play_next_track', null, {});
-    await new Promise((r) => setTimeout(r, 300));
+    // The skip is learned as the next song takes over: wait for both, not for 300 ms.
+    for (const end = performance.now() + 10_000; performance.now() < end && !(player.track.id !== first && JSON.parse(localStorage.getItem('th.music.dj') ?? '{}').tracks?.[first]); ) await new Promise((r) => setTimeout(r, 20));
     return { first, now: player.track.id, stored: JSON.parse(localStorage.getItem('th.music.dj') ?? '{}') };
   });
   assert.notEqual(learned.now, learned.first);

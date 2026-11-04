@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
+import { outlast, until } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -23,6 +24,9 @@ async function open(zone) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, serviceWorkers: 'block', timezoneId: zone });
   const page = await context.newPage();
   const api = await mockApi(page, {});
+  // The chat's first complete sync (th/chat/index.js publishes th:changed after it), which is when
+  // its pass over the settings has sent the zone if it differs.
+  await page.addInitScript(() => document.addEventListener('th:changed', () => { window.__synced = true; }, { once: true }));
   await page.goto(`${base}/no-such-page`);
   await page.evaluate((token) => new Promise((resolve, reject) => {
     const req = indexedDB.open('th-auth', 1);
@@ -35,8 +39,7 @@ async function open(zone) {
     };
   }), TOKEN);
   await page.goto(`${base}/`);
-  await page.waitForFunction(() => document.querySelector('#ask'));
-  await page.waitForTimeout(1500);
+  await page.waitForFunction(() => window.__synced);
   return { context, page, api };
 }
 
@@ -46,10 +49,12 @@ test("a phone in another zone than the Worker's sends its own, once", opts, asyn
   const { context, page, api } = await open('Asia/Kolkata');
   // The phone's own name for it (Chromium may canonicalize to the older "Asia/Calcutta").
   const here = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
+  // The settings pass sends it without holding up the sync, so it may land a moment after.
+  await until(() => patches(api).length > 0).catch(() => {});
   assert.deepEqual(patches(api).map((c) => c.body), [{ 'owner.tz': here }]);
   // Another pass over the settings (a reconnect) sends nothing more.
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
-  await page.waitForTimeout(800);
+  await outlast(page, 800); // a negative read: nothing to wait for but time, on the page's own timers
   assert.equal(patches(api).length, 1);
   await context.close();
 });

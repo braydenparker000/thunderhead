@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { bestMatch } from '../frontend/th/astra/open.js';
+import { outlast } from './fixtures/waits.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (invented add-on)' };
@@ -76,8 +77,8 @@ test('a link opens the title’s Details; Streams keeps to the size asked until 
   assert.doesNotMatch(await shown(), /1\.2 GB/);
   await page.getByRole('button', { name: /Under 200 MB/ }).click();
   await page.waitForFunction(() => document.querySelector('.screen.streams .group-body')?.textContent.includes('1.2 GB'));
-  // Nothing plays by itself.
-  await page.waitForTimeout(500);
+  // Nothing plays by itself (a negative read, on the page's own timers).
+  await outlast(page, 500);
   assert.deepEqual(await page.evaluate(() => ({ player: document.querySelectorAll('.screen.player').length, playing: [...document.querySelectorAll('video')].filter((v) => !v.paused).length })), { player: 0, playing: 0 });
   assert.deepEqual(errors, []);
   await context.close();

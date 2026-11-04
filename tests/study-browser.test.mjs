@@ -15,6 +15,7 @@ import { join } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
+import { outlast, until } from './fixtures/waits.mjs';
 import { makePdf } from './fixtures/make-pdf.mjs';
 
 const live = Boolean(process.env.SITE_URL);
@@ -211,7 +212,7 @@ test('the reader: the book downloaded once and kept on the phone, printed page n
   await page.getByRole('button', { name: 'Go', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('.pill')?.textContent === 'p. 2');
   // The place goes to the Worker (2 s after the page settles).
-  for (let i = 0; i < 40 && !state.positions.some((p) => p.pdf_page === 3); i++) await page.waitForTimeout(100);
+  await until(() => state.positions.some((p) => p.pdf_page === 3)).catch(() => {});
   assert.ok(state.positions.some((p) => p.pdf_page === 3), JSON.stringify(state.positions));
   // With the API unreachable, the kept book still opens, from the phone, at its place.
   state.down = true;
@@ -241,13 +242,13 @@ test('opening again starts at the saved place; search shows snippets as text, gr
   await page.waitForFunction(() => document.querySelector('.pill')?.textContent === 'p. 2');
   // Reading, as a sense: over 10 s in the book, then the page hides: `study.read` with the book's
   // id, the pages shown and the time, never a page's words.
-  await page.waitForTimeout(10_500);
+  await outlast(page, 10_500); // past the 10 s that make a read (on the page's own timers)
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true });
     document.dispatchEvent(new Event('visibilitychange'));
   });
   const outbox = () => page.evaluate(() => JSON.parse(localStorage.getItem('th.p.senses') || '[]'));
-  for (let i = 0; i < 30 && !(await outbox()).some((e) => e.type === 'study.read'); i++) await page.waitForTimeout(100);
+  await until(async () => (await outbox()).some((e) => e.type === 'study.read')).catch(() => {});
   const read = (await outbox()).find((e) => e.type === 'study.read');
   assert.equal(read?.ref, `book:${state.books[0].id}`);
   assert.deepEqual(Object.keys(read.data), ['pages', 'ms']);
@@ -260,13 +261,13 @@ test('opening again starts at the saved place; search shows snippets as text, gr
   assert.deepEqual(searched.map((e) => [e.ref, e.data]), [[undefined, { hits: 1 }]]);
   assert.ok(!JSON.stringify(await outbox()).includes('morning'), 'never the words');
   // Sent a few seconds later, in a sealed batch.
-  for (let i = 0; i < 80 && !state.senses.some((e) => e.type === 'study.search'); i++) await page.waitForTimeout(100);
+  await until(() => state.senses.some((e) => e.type === 'study.search')).catch(() => {});
   assert.deepEqual(state.senses.filter((e) => e.type !== 'study.open').map((e) => e.type), ['study.read', 'study.search']);
   // With Study's senses switched off, the next search sends nothing.
   await page.evaluate(() => localStorage.setItem('th.p.settings', JSON.stringify({ 'privacy.senses.study': false })));
   await page.locator('input[type=search]').fill('light');
   await page.locator('.hit').first().waitFor();
-  await page.waitForTimeout(2_000);
+  await outlast(page, 2_000); // a negative read: a sense it kept would be in the outbox by now
   assert.equal((await outbox()).filter((e) => e.type === 'study.search').length + state.senses.filter((e) => e.type === 'study.search').length, 1);
   await page.evaluate(() => localStorage.removeItem('th.p.settings'));
   await page.goto(`${base}/study/?q=morning`);
