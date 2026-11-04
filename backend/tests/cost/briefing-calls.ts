@@ -116,4 +116,5 @@ export async function briefingCalls(cost: Cost, grant: (ip: string, password?: s
   await coreSql(`DELETE FROM settings WHERE key = 'briefing.calendars'`);
   await coreSql('DELETE FROM calendar_events');
   await coreSql('DELETE FROM calendar_feeds');
+  await import('./night-report-calls').then((m) => m.nightReportCalls(cost, d));
 }

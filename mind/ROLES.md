@@ -59,6 +59,8 @@ pushes.
    - 5 Health: `th errors`, `th health --deep`; fix only loose ends tagged `agreed` (`th skill code`).
    - 6 Books (`th skill study`); 6c `th music jobs`.
    - 9 Sundays only: `th eval begin`, then exactly what it prints.
+   - 12 The report, before the songs: `th report --headline "<…>" --line <kind>@ledger:<id>:"<…>"`,
+     one plain line per thing you did, its row from `th ledger --since <your start>` (`th help report`).
    - 11 Songs, after memory (they taint): `th skill music`, RUNTIME §12.1.
    - 10 `th note --session "<≤ 120 words>"`, docs/process/STATUS.md if you changed code, then
      `th night done`.

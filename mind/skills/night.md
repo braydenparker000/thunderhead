@@ -3,7 +3,7 @@
 ## What it is
 The night shift: one run on the day that just closed, after the 04:00 roll (the 06:07 schedule is
 the fallback). It reads the day, writes its memory, arranges the open day, checks health, ingests
-books, describes songs, and ends. `th night steps` lists the steps and budgets; ROLES.md has their
+books, reports what it did, describes songs, and ends. `th night steps` lists the steps and budgets; ROLES.md has their
 order. Aim for 30 minutes; the hard stop ends the run wherever it is.
 
 ## What you can read
@@ -23,6 +23,8 @@ order. Aim for 30 minutes; the hard stop ends the run wherever it is.
   (`th skill briefing`), up to 6 predictions with honest odds (`th predict …`).
 - Step 5: fix only loose ends tagged `agreed`, on a branch (`th skill code`); the next chat ships.
 - Steps 6, 6c, 9 (Sundays: `th eval begin`, then what it prints), 11 (songs, last: they taint).
+- Step 12, before 11: `th report`, the owner's first sight of the night. A headline, then up to 6
+  lines, each one thing done with its ledger row (`memory@ledger:<id>:"…"`) so the owner can undo it.
 - Step 10: `th note --session`, then `th night done`; out of time: `th night done --partial`.
 
 ## What you must not do

@@ -2,7 +2,7 @@
 // The Briefing page (BRIEFING.md), one swipe right of home: the date, the Thunderhead's line, the
 // day's counts in one line, and the tiles the Worker says have something to say (GET
 // /v1/briefing): the weather first with tomorrow's high and low (a tap opens its next hours and the
-// place, weather.js), "Waiting on you" (gold; a tap goes home to the card), "Today" (the owner's
+// place, weather.js), the night's report (a tap opens its lines, each with its Undo, report.js), "Waiting on you" (gold; a tap goes home to the card), "Today" (the owner's
 // calendar: what is still on today, all-day ones as one line, tomorrow's first), "Due" (a tap opens the
 // reminders, due.js), the night shift's tiles (a tap opens their place in their app), then
 // "Holidays". A line says when the night shift didn't arrange the page. It paints from this phone first
@@ -15,6 +15,7 @@
 import { api, signedIn } from '../client.js';
 import { kv } from '../idb.js';
 import { el, toast } from '../ui.js';
+import { reportTile } from './report.js';
 
 /** @typedef {import('../../../shared/contract/briefing.ts').BriefingResponse} BriefingResponse */
 
@@ -35,10 +36,8 @@ const icon = (/** @type {string} */ name) => {
 };
 
 let at = 0;
-/** @type {BriefingResponse | null} */
-let shown = null;
-/** @type {Promise<void> | null} */
-let loading = null;
+let shown = /** @type {BriefingResponse | null} */ (null);
+let loading = /** @type {Promise<void> | null} */ (null);
 
 /** Wires the page once (boot.js, after the first paint). */
 export async function startBriefing() {
@@ -180,7 +179,8 @@ function draw(b) {
   // An answer kept on this phone from before P8 has no weather.
   if (b.weather) tiles.push(keyed(weatherTile(b.weather), 'weather'));
   for (const t of b.tiles) {
-    if (t.kind === 'night') tiles.push(keyed(nightTile(t), `night:${t.label}`));
+    if (t.kind === 'report') tiles.push(keyed(reportTile(t, icon, () => { at = 0; refresh(); }), 'report'));
+    else if (t.kind === 'night') tiles.push(keyed(nightTile(t), `night:${t.label}`));
     else if (t.kind === 'due') tiles.push(keyed(dueTile(t), 'due'));
     else if (t.kind === 'calendar') tiles.push(keyed(calendarTile(t), 'calendar'));
     else if (t.kind === 'holiday') tiles.push(keyed(holidayTile(t), 'holiday'));

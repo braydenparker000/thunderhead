@@ -389,16 +389,16 @@ test('night role: day, daynote, facts, night progress', withFake({}, async fake 
   for (const n of ['1', '2', '3']) assert.equal((await th(['night', 'step', n, 'done'], e)).code, 0);
   assert.deepEqual((await th(['night', 'step', '4', 'cursor', 'msg:abc'], e)).json, {resume_from: 4, done: false, cursor: 'msg:abc', skipped: []});
   assert.equal((await th(['night', 'step', '2', 'cursor', 'x'], e)).code, 8, 'step 2 keeps no cursor, checked before the call');
-  assert.equal((await th(['night', 'step', '12', 'done'], e)).code, 8, 'no step 12');
+  assert.equal((await th(['night', 'step', '13', 'done'], e)).code, 8, 'no step 13');
   assert.equal((await th(['night', 'done'], e)).code, 7, 'steps are left');
-  assert.deepEqual((await th(['night', 'done', '--partial'], e)).json, {resume_from: 12, done: true, cursor: null, skipped: [4, 5, 6, 7, 8, 9, 11]});
+  assert.deepEqual((await th(['night', 'done', '--partial'], e)).json, {resume_from: 13, done: true, cursor: null, skipped: [4, 5, 6, 7, 8, 9, 11, 12]});
   assert.equal((await th(['day', '2026-10-28'], env(fake))).code, 6, 'chat may not read night input');
 }));
 
 test('night steps come from the contract; the day comes from the briefing or --day', withFake({}, async fake => {
   const e = env(fake, {TH_ROLE: 'night'});
   const r = await th(['night', 'steps'], e);
-  assert.deepEqual(r.json.steps.map(s => s.step), [1, 2, 3, 4, 7, 5, 6, 8, 9, 11, 10], 'in the run\'s order: 7, arranging, right after memory; 11, the songs, last before 10');
+  assert.deepEqual(r.json.steps.map(s => s.step), [1, 2, 3, 4, 7, 5, 6, 8, 9, 12, 11, 10], 'in the run\'s order: 7, arranging, right after memory; 12, the report, then 11, the songs, last before 10');
   assert.deepEqual(r.json.steps.filter(s => s.cursor).map(s => s.step), [4]);
   assert.deepEqual(r.json.budget_min, {target: 30, hard: 45, sunday_hard: 60});
   assert.equal(fake.state.requests.length, 0, 'listing the steps asks the Worker nothing');

@@ -160,7 +160,7 @@
     "rows_written_max": 30
   },
   "GET /v1/ledger (kind plan, today) (Core)": {
-    "rows_read_max": 30,
+    "rows_read_max": 34,
     "rows_written_max": 0
   },
   "PUT /v1/surfaces/home/:slot (Core)": {
@@ -590,6 +590,22 @@
   "GET /v1/briefing (Core, a new calendar link fetched: 30 events)": {
     "rows_read_max": 71,
     "rows_written_max": 61
+  },
+  "PUT /v1/briefing/report/:day (Core, first)": {
+    "rows_read_max": 52,
+    "rows_written_max": 6
+  },
+  "PUT /v1/briefing/report/:day (Core, the same again)": {
+    "rows_read_max": 5,
+    "rows_written_max": 0
+  },
+  "PUT /v1/briefing/report/:day (Core, replaced)": {
+    "rows_read_max": 55,
+    "rows_written_max": 6
+  },
+  "GET /v1/briefing (Core, with the night’s report)": {
+    "rows_read_max": 41,
+    "rows_written_max": 0
   },
   "search.embed step, 100 messages (Library)": {
     "rows_read_max": 0,

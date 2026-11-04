@@ -28,6 +28,7 @@ import {watch} from './lib/watch.mjs';
 import * as reflexCmds from './lib/reflex.mjs';
 import {ci} from './lib/ci.mjs';
 import {reports} from './lib/reports.mjs';
+import {report} from './lib/night-report.mjs';
 import {music} from './lib/music.mjs';
 import {podcasts} from './lib/podcasts.mjs';
 import * as later from './lib/plan.mjs';
@@ -41,7 +42,7 @@ export const COMMANDS = {
   wait: withFlags(wait),
   say: conv.say, amend: conv.amend, history: conv.history, file: conv.file, status: conv.status,
   title: conv.title, note: conv.note, pending: conv.pending, taint: conv.taint, health: conv.health,
-  errors: conv.errors, reports, ledger: conv.ledger, undo: conv.undo, get: conv.get,
+  errors: conv.errors, reports, report, ledger: conv.ledger, undo: conv.undo, get: conv.get,
   search: memory.recall, recall: memory.recall, remember: memory.remember, confirm: memory.confirm,
   supersede: memory.supersede, forget: memory.forget, thread: memory.thread, day: memory.day,
   daynote: memory.daynote, facts: memory.facts,

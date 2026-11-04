@@ -98,6 +98,18 @@ export const NIGHT_STEPS: readonly NightStep[] = [
     phase: 'P4',
     sunday: true,
   },
+  // The report (BRIEFING.md "The report card", 2026-11-04): what the night did, as the Briefing's
+  // first tile and the open day's first message. Before the songs, because reading songs' tags
+  // taints the session and a tainted session's words may not reach the owner; what step 11 then
+  // does joins the report's counts when the run is done, never as words.
+  {
+    step: 12,
+    name: 'the report',
+    budget_min: 1,
+    idempotent: 'the same report again answers the stored one; a new one from the same session replaces it',
+    cursor: false,
+    phase: 'P4',
+  },
   // What the mind knows of each song (RUNTIME.md §12.1, MUSIC.md §10.5): the next untagged songs'
   // notes, at most MUSIC_NOTE_LIMITS.night_songs a night, then a mix or two and Sunday's line. Its
   // number is the next free one; it runs last before the session note, after every step that
@@ -122,7 +134,7 @@ export const NIGHT_STEPS: readonly NightStep[] = [
 ];
 
 export const NIGHT_LAST_STEP = NIGHT_STEPS[NIGHT_STEPS.length - 1].step;
-/** The steps run in the list's order, not their numbers' (11 runs between 9 and 10). */
+/** The steps run in the list's order, not their numbers' (12 and 11 run between 9 and 10). */
 export const NIGHT_ORDER: readonly number[] = NIGHT_STEPS.map((s) => s.step);
 /** `resume_from` once the run is done: past every step's number. */
 export const NIGHT_END = Math.max(...NIGHT_ORDER) + 1;

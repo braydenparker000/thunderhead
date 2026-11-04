@@ -15,7 +15,7 @@ import { isDeepStrictEqual } from 'node:util';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { API, mockApi, TOKEN } from './fixtures/mock-api.mjs';
-import { resting } from './fixtures/waits.mjs';
+import { resting, until } from './fixtures/waits.mjs';
 import { PLAN, T } from './fixtures/mock-threads.mjs';
 
 const live = Boolean(process.env.SITE_URL);
@@ -248,7 +248,8 @@ test('a long imported old chat shows its newest 200, then earlier ones above', o
   assert.equal(await page.$$eval('#past .reply', (r) => r.every((x) => getComputedStyle(x).fontStyle === 'normal')), true, 'an old chat reads upright, as every reply does');
   const count = () => page.$$eval('#past [data-id]', (n) => n.length);
   assert.equal(await count(), 200);
-  assert.ok(await page.$eval('#convo', (c) => c.scrollHeight - c.scrollTop - c.clientHeight < 4), 'scrolled to the bottom');
+  // The scroll to the end lands after layout settles: a wait, not a read (TESTING.md §10.1).
+  await until(() => page.$eval('#convo', (c) => c.scrollHeight - c.scrollTop - c.clientHeight < 4), { message: 'scrolled to the bottom' });
   await page.click('#past .earlier');
   await eventually(count, 230);
   assert.equal(await page.$('#past .earlier'), null);

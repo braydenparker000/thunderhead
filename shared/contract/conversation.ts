@@ -28,7 +28,7 @@ export interface Thread {
 }
 
 export type MessageAuthor = 'owner' | 'mind' | 'muse' | 'system';
-export type MessageOrigin = 'owner_device' | 'mind' | 'system' | 'muse' | 'import';
+export type MessageOrigin = 'owner_device' | 'mind' | 'system' | 'muse' | 'import' | 'night'; // night: its report
 export type MessageKind = 'text' | 'voice' | 'progress' | 'card' | 'question' | 'error';
 
 /** The one action chip a mind reply may carry in `meta.chip` (API.md §11.7 rule 7). Tapping it

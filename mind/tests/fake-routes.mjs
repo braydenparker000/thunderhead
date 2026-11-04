@@ -192,11 +192,11 @@ export function extraRoutes(ctl) {
       const start = query.get('cursor') ? Number(query.get('cursor').slice(1)) : 0;
       return {items: rows.slice(start, start + size), next: start + size < rows.length ? `c${start + size}` : null};
     }],
-    // The run record: steps in the list's order (11, the songs, between 9 and 10; 409 with
-    // resume_from), 6, 8 and 9 skipped as not built, a cursor for step 4, done ending it (with
-    // --partial, before the last step) at 12, past every step's number.
+    // The run record: steps in the list's order (12, the report, and 11, the songs, between 9 and
+    // 10; 409 with resume_from), 6, 8 and 9 skipped as not built, a cursor for step 4, done ending
+    // it (with --partial, before the last step) at 13, past every step's number.
     ['POST', /^\/v1\/mind\/night$/, ['night'], ({body}) => {
-      const ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 10];
+      const ORDER = [1, 2, 3, 4, 5, 6, 7, 8, 9, 12, 11, 10];
       const pos = n => (ORDER.includes(n) ? ORDER.indexOf(n) : ORDER.length);
       const run = s.night.get(body.day) || {resume: 1, done: false, cursors: {}, skipped: []};
       const answer = () => ({resume_from: run.resume, done: run.done, cursor: run.cursors[run.resume] ?? null, skipped: [...run.skipped].sort((a, b) => a - b)});
@@ -213,7 +213,7 @@ export function extraRoutes(ctl) {
       if (body.action === 'done') {
         if (pos(run.resume) < pos(10) && !body.partial) throw new HttpError(409, 'conflict', 'steps left', {resume_from: run.resume});
         for (const n of ORDER.slice(pos(run.resume), pos(10))) if (!run.skipped.includes(n)) run.skipped.push(n);
-        run.resume = 12;
+        run.resume = 13;
         run.done = true;
       }
       return answer();

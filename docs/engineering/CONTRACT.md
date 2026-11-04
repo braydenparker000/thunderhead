@@ -137,6 +137,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/work/thread` | M D C N | P4 | built | Muse's own thread, never the owner's conversation |
 | `POST /v1/work/thread/messages` | M D C N | P4 | built |  |
 | `GET /v1/briefing` | D | P4 | built |  |
+| `PUT /v1/briefing/report/:day` | N | P4 | built | night step 12, the night's report (night-report.ts): a claimed, live, untainted night session; the same body again answers the stored report, a new one from the same session replaces it (undo), another session's is 409 |
 | `PUT /v1/briefing/place` | D | P8 | built | the weather's place, by a town's name |
 | `GET /v1/briefing/calendar` | D C N | P8 | built | ?days=1–14 (7): the owner's calendar events kept from today's midnight, each link by its host only; `source: outside` marks a shared link's words |
 | `GET /v1/music/catalog` | D | P5 | built | the ported player's format; ETag, 304; 409 before the import |
@@ -418,6 +419,7 @@ The steps in order (`POST /v1/mind/night`, `th night`). The run: target 30 min, 
 | 6 | indexing (Study’s books) | 10 | P7 | no | a book is claimed by one run at a time and goes on from its cursor; a page is put by its number |
 | 8 | built overnight | 1 | P4 | no | items are put by id |
 | 9 | weekly evals (the injection suite) (Sunday) | 15 | P4 | no | each fixture runs on a fresh sandbox; th eval end records one run |
+| 12 | the report | 1 | P4 | no | the same report again answers the stored one; a new one from the same session replaces it |
 | 11 | songs (notes, mixes) | 6 | P5 | no | a note is put by its track, the same note again writes nothing, and the next page is always the next songs without one |
 | 10 | session note and done | 2 | P3 | no | the run is marked done once |
 
