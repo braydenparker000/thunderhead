@@ -5,6 +5,11 @@
 # live. If anything fails or is cancelled after publishing starts, the previous live commit goes
 # back up and the run is marked failed. Nothing deploys unless `test` passed, and `site` starts
 # only after `api` succeeded or was skipped, so a new site never meets an old API.
+# Job `tested` runs first: when the pull request's head (a merge's second parent; for a plain push,
+# the commit itself) has exactly this commit's tree and a completed, successful Test run (ci.yml, the
+# same checks.yml), those files already passed, so `test` is skipped and `api` and `site` go on that
+# result (scripts/tree-tested.mjs). On any doubt (another tree, no such run, an API error) `test`
+# runs as before; Run workflow with `retest` ticked always runs it.
 # Manual deploy or rollback: Actions > Deploy > Run workflow (from main), with the commit to put
 # live and the target (OPERATIONS.md §3.2, §5.2).
 name: Deploy
@@ -20,6 +25,10 @@ on:
         required: false
       rollback_drill:
         description: Drill - publish, then fail the live check on purpose to prove the automatic rollback
+        type: boolean
+        default: false
+      retest:
+        description: Run the checks even when Test already passed on the same files
         type: boolean
         default: false
       target:
@@ -39,10 +48,39 @@ defaults:
   run:
     shell: bash
 jobs:
-  # The same commit `api` and `site` put live. Skipped only for an api-rollback, which puts back a
-  # version that already passed.
+  # Whether Test already passed on exactly these files (the note at the top). It never stops the
+  # run: `tested=true` only when sure; anything else, including this job failing, runs `test`.
+  tested:
+    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || (inputs.target != 'api-rollback' && !inputs.retest)) }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      tested: ${{ steps.look.outputs.tested }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.sha }}
+          # The commit and its parents: a merge's second parent is the pull request's head.
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Did Test pass on the same tree?
+        id: look
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          verdict=untested
+          # An older release (a deploy by commit) has no such script: its checks run.
+          if [[ -f scripts/tree-tested.mjs ]]; then verdict="$(node scripts/tree-tested.mjs || true)"; fi
+          if [[ "$verdict" == tested ]]; then echo "tested=true" >> "$GITHUB_OUTPUT"; else echo "tested=false" >> "$GITHUB_OUTPUT"; fi
+          echo "verdict: ${verdict:-untested}"
+  # The same commit `api` and `site` put live. Skipped for an api-rollback, which puts back a
+  # version that already passed, and when `tested` found these files already passed.
   test:
-    if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.target != 'api-rollback') }}
+    needs: tested
+    if: ${{ !cancelled() && needs.tested.outputs.tested != 'true' && github.ref == 'refs/heads/main' && (github.event_name == 'push' || inputs.target != 'api-rollback') }}
     permissions:
       contents: read
     uses: ./.github/workflows/checks.yml
@@ -53,8 +91,8 @@ jobs:
   # SITE_ORIGINS and, for the very first deploy only, WORKER_BOOTSTRAP=true. WORKER_URL is a
   # repository variable, shared with the site job.
   api:
-    needs: test
-    if: ${{ !cancelled() && (needs.test.result == 'success' || (needs.test.result == 'skipped' && inputs.target == 'api-rollback')) && github.ref == 'refs/heads/main' && vars.WORKER_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target != 'site') }}
+    needs: [tested, test]
+    if: ${{ !cancelled() && (needs.test.result == 'success' || (needs.test.result == 'skipped' && (inputs.target == 'api-rollback' || needs.tested.outputs.tested == 'true'))) && github.ref == 'refs/heads/main' && vars.WORKER_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target != 'site') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     environment: worker
@@ -231,8 +269,8 @@ jobs:
           npx wrangler rollback "$VERSION" --config "$CONFIG" --message "manual rollback" --yes
           node --test tests/live-api.test.mjs
   site:
-    needs: [test, api]
-    if: ${{ !cancelled() && needs.test.result == 'success' && (needs.api.result == 'success' || needs.api.result == 'skipped') && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target == 'site' || inputs.target == 'both') }}
+    needs: [tested, test, api]
+    if: ${{ !cancelled() && (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.tested.outputs.tested == 'true')) && (needs.api.result == 'success' || needs.api.result == 'skipped') && github.ref == 'refs/heads/main' && vars.AZURE_DEPLOY_ENABLED == 'true' && (github.event_name == 'push' || inputs.target == 'site' || inputs.target == 'both') }}
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     permissions:
