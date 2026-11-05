@@ -32,9 +32,19 @@ export async function looksCalls(cost: Cost, grant: (ip: string, password?: stri
   await api('PUT', `/v1/photos/${pid}/recipe`, { ...d, body: { recipe: { Exposure2012: 0.5, CropAngle: 2 } } });
   const k = core();
   const mine = { ...look(0), source: 'mine', name: 'Soft evening' };
-  await cost('PUT /v1/photos/looks (a look saved) (Core)', () => api('PUT', '/v1/photos/looks', { ...d, body: { items: [mine] } }), 201, k);
+  await cost(
+    'PUT /v1/photos/looks (a look saved) (Core)',
+    () => api('PUT', '/v1/photos/looks', { ...d, body: { items: [mine] } }),
+    201,
+    k,
+  );
   const twenty = Array.from({ length: 20 }, (_, i) => look(i + 1));
-  await cost('PUT /v1/photos/looks (20 presets) (Core)', () => api('PUT', '/v1/photos/looks', { ...d, body: { items: twenty } }), 201, k);
+  await cost(
+    'PUT /v1/photos/looks (20 presets) (Core)',
+    () => api('PUT', '/v1/photos/looks', { ...d, body: { items: twenty } }),
+    201,
+    k,
+  );
   await cost('GET /v1/photos/looks (21) (Core)', () => api('GET', '/v1/photos/looks', d), 200, k);
   await cost(
     'PATCH /v1/photos/looks/:lid (Core)',
@@ -42,7 +52,12 @@ export async function looksCalls(cost: Cost, grant: (ip: string, password?: stri
     200,
     k,
   );
-  await cost('DELETE /v1/photos/looks/:lid (Core)', () => api('DELETE', `/v1/photos/looks/${twenty[0]?.id}`, d), 200, k);
+  await cost(
+    'DELETE /v1/photos/looks/:lid (Core)',
+    () => api('DELETE', `/v1/photos/looks/${twenty[0]?.id}`, d),
+    200,
+    k,
+  );
   // Applying a look is the phone's recipe put: the look's panels replaced, the crop kept.
   const applied = { ...mine.recipe, CropAngle: 2 };
   await cost(
@@ -54,4 +69,5 @@ export async function looksCalls(cost: Cost, grant: (ip: string, password?: stri
 }
 
 /** Photos' calls, then the looks'. */
-export const photoCalls: typeof looksCalls = (cost, grant) => photosCalls(cost, grant).then(() => looksCalls(cost, grant));
+export const photoCalls: typeof looksCalls = (cost, grant) =>
+  photosCalls(cost, grant).then(() => looksCalls(cost, grant));

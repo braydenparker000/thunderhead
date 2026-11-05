@@ -117,7 +117,8 @@ export function put(w: Writer, items: PutLook[]): { items: PhotoLook[]; created:
 export function patch(w: Writer, id: string, p: { name?: string; recipe?: PhotoRecipe; panels?: PastePanel[] }) {
   const r = one(w.db, id);
   if (!r) throw new Fail('not_found');
-  const s = p.recipe || p.panels ? sealed(p.recipe ?? JSON.parse(r.recipe_json), p.panels ?? JSON.parse(r.panels)) : null;
+  const s =
+    p.recipe || p.panels ? sealed(p.recipe ?? JSON.parse(r.recipe_json), p.panels ?? JSON.parse(r.panels)) : null;
   w.db.run(
     'UPDATE photo_looks SET name = ?, recipe_json = ?, panels = ?, updated_at = ? WHERE id = ?',
     p.name ?? r.name,

@@ -8,7 +8,8 @@ import { api, apiJson, coreSql, setupOwner } from '../helpers';
 
 let D = '';
 type Put = { items: PhotoLook[]; created: number };
-const put = (items: Record<string, unknown>[]) => apiJson<Put>('PUT', '/v1/photos/looks', { token: D, body: { items } });
+const put = (items: Record<string, unknown>[]) =>
+  apiJson<Put>('PUT', '/v1/photos/looks', { token: D, body: { items } });
 const list = async () => (await apiJson<{ items: PhotoLook[] }>('GET', '/v1/photos/looks', { token: D })).body.items;
 const look = (o: Record<string, unknown> = {}) => ({
   id: uuidv7(),
@@ -26,11 +27,22 @@ beforeAll(async () => {
 describe('/v1/photos/looks', () => {
   it('adds looks canonical, lists them newest first, and the same id again replaces', async () => {
     const a = look({ recipe: { Exposure2012: 0.3, Contrast2012: 0, Vibrance: 12 } });
-    const b = look({ name: 'Faded film', source: 'xmp', tag: 'Invented pack', panels: ['effects'], recipe: { GrainAmount: 30 } });
+    const b = look({
+      name: 'Faded film',
+      source: 'xmp',
+      tag: 'Invented pack',
+      panels: ['effects'],
+      recipe: { GrainAmount: 30 },
+    });
     const r = await put([a, b]);
     expect(r.status).toBe(201);
     expect(r.body.created).toBe(2);
-    expect(r.body.items[0]).toMatchObject({ id: a.id, recipe: { Exposure2012: 0.3, Vibrance: 12 }, panels: ['color', 'light'], tag: null });
+    expect(r.body.items[0]).toMatchObject({
+      id: a.id,
+      recipe: { Exposure2012: 0.3, Vibrance: 12 },
+      panels: ['color', 'light'],
+      tag: null,
+    });
     expect(r.body.items[1]).toMatchObject({ source: 'xmp', tag: 'Invented pack', film: null, credit: null });
     const again = await put([{ ...a, name: 'Soft evening, warmer' }]);
     expect(again.status).toBe(200);
@@ -42,7 +54,14 @@ describe('/v1/photos/looks', () => {
 
   it('keeps a recipe look with its film simulation and credit', async () => {
     const r = await put([
-      look({ source: 'recipe', name: 'Example chrome', film: 'Classic Chrome', credit: 'An invented page title', panels: ['light', 'color', 'effects', 'detail'], recipe: { Highlights2012: -15, Saturation: 20, GrainAmount: 25 } }),
+      look({
+        source: 'recipe',
+        name: 'Example chrome',
+        film: 'Classic Chrome',
+        credit: 'An invented page title',
+        panels: ['light', 'color', 'effects', 'detail'],
+        recipe: { Highlights2012: -15, Saturation: 20, GrainAmount: 25 },
+      }),
     ]);
     expect(r.body.items[0]).toMatchObject({ film: 'Classic Chrome', credit: 'An invented page title' });
   });
@@ -50,14 +69,23 @@ describe('/v1/photos/looks', () => {
   it('renames, updates from an edit, and deletes', async () => {
     const a = look();
     await put([a]);
-    const named = await apiJson<{ look: PhotoLook }>('PATCH', `/v1/photos/looks/${a.id}`, { token: D, body: { name: 'Renamed' } });
+    const named = await apiJson<{ look: PhotoLook }>('PATCH', `/v1/photos/looks/${a.id}`, {
+      token: D,
+      body: { name: 'Renamed' },
+    });
     expect(named.body.look).toMatchObject({ name: 'Renamed', recipe: a.recipe });
     const upd = await apiJson<{ look: PhotoLook }>('PATCH', `/v1/photos/looks/${a.id}`, {
       token: D,
       body: { recipe: { Shadows2012: 25, Texture: 8 }, panels: ['light', 'effects'] },
     });
-    expect(upd.body.look).toMatchObject({ name: 'Renamed', recipe: { Shadows2012: 25, Texture: 8 }, panels: ['effects', 'light'] });
-    expect((await api('PATCH', `/v1/photos/looks/${a.id}`, { token: D, body: { recipe: { Vibrance: 3 } } })).status).toBe(422);
+    expect(upd.body.look).toMatchObject({
+      name: 'Renamed',
+      recipe: { Shadows2012: 25, Texture: 8 },
+      panels: ['effects', 'light'],
+    });
+    expect(
+      (await api('PATCH', `/v1/photos/looks/${a.id}`, { token: D, body: { recipe: { Vibrance: 3 } } })).status,
+    ).toBe(422);
     expect((await api('DELETE', `/v1/photos/looks/${a.id}`, { token: D })).status).toBe(200);
     expect((await api('DELETE', `/v1/photos/looks/${a.id}`, { token: D })).status).toBe(404);
     expect((await api('PATCH', `/v1/photos/looks/${uuidv7()}`, { token: D, body: { name: 'x' } })).status).toBe(404);
@@ -73,8 +101,14 @@ describe('/v1/photos/looks', () => {
     expect((await put([look({ credit: 'c'.repeat(121) })])).status).toBe(422);
     // Every control at a long decimal and four full curves: the largest recipe the schema takes fits 4 KB.
     const curve = Array.from({ length: 16 }, (_, i) => [i * 17, Math.min(255, i * 17 + 3)]);
-    const big: Record<string, unknown> = { ToneCurvePV2012: curve, ToneCurvePV2012Red: curve, ToneCurvePV2012Green: curve, ToneCurvePV2012Blue: curve };
-    for (const [k, [min, max]] of Object.entries(RECIPE_NUMBERS)) big[k] = min + (max - min) * (k.startsWith('Crop') ? 0.2 : 0.123456789012345);
+    const big: Record<string, unknown> = {
+      ToneCurvePV2012: curve,
+      ToneCurvePV2012Red: curve,
+      ToneCurvePV2012Green: curve,
+      ToneCurvePV2012Blue: curve,
+    };
+    for (const [k, [min, max]] of Object.entries(RECIPE_NUMBERS))
+      big[k] = min + (max - min) * (k.startsWith('Crop') ? 0.2 : 0.123456789012345);
     big.CropRight = big.CropBottom = 0.9;
     expect(JSON.stringify(big).length).toBeLessThan(4096);
     const all = look({ panels: ['light', 'color', 'effects', 'detail', 'optics', 'crop'], recipe: big });
