@@ -1,8 +1,9 @@
 // @ts-check
 // The prep and blur passes in GLSL ES 3.0 for WebGL2. Prep fills a proxy: mode 0 reads the engine's
 // planar f16 linear Rec.2020 working copy (three textures), mode 1 a browser-decoded sRGB bitmap
-// (linearised, to Rec.2020), mode 2 a proxy reduced to log2 luminance and the darkest channel (the
-// blur levels' input), mode 3 such a reduction reduced again; each output pixel averages n×n taps over
+// (linearised, to Rec.2020), mode 2 a proxy reduced to log2 luminance, the darkest channel and (log2
+// luminance + 6)² (the blur levels' input: mean and variance for the guided base), mode 3 such a
+// reduction reduced again; each output pixel averages n×n taps over
 // its footprint. Blur is a 9-tap Gaussian along one axis.
 
 export const VERT_GLSL = `#version 300 es
@@ -37,13 +38,13 @@ void main() {
   for (float j = 0.0; j < 4.0; j++) for (float i = 0.0; i < 4.0; i++) {
     if (i >= n || j >= n) continue;
     vec4 c = src(p[0].xy + (floor(gl_FragCoord.xy) + (vec2(i, j) + 0.5) / n) * cell, mode);
-    if (mode == 2) acc += vec4(c.a, max(min(min(c.r, c.g), c.b), 0.0), 0.0, 0.0);
-    else if (mode == 3) acc += vec4(c.rg, 0.0, 0.0);
+    if (mode == 2) acc += vec4(c.a, max(min(min(c.r, c.g), c.b), 0.0), (c.a + 6.0) * (c.a + 6.0), 0.0);
+    else if (mode == 3) acc += vec4(c.rgb, 0.0);
     else acc += vec4(max(c.rgb, vec3(0.0)), 0.0);
   }
   acc /= n * n;
   if (mode < 2) acc.a = log2(max(dot(acc.rgb, Y), exp2(-16.0)));
-  else acc.ba = vec2(0.0, 1.0);
+  else acc.a = 1.0;
   o = acc;
 }`;
 

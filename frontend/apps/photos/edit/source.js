@@ -3,14 +3,23 @@
 // embedded JPEG made at import, so the first frame needs no network), then the original from the
 // owner's Drive: a RAF or DNG through the engine in a worker (engine-worker.js), a JPEG or HEIC
 // decoded by the browser. Each gives a working copy (half size for RAW, at most 4096 px for JPEG) and
-// 1:1 tiles on demand. Offline, or with no Drive, the preview is what is edited.
+// 1:1 tiles on demand. Offline, or with no Drive, the preview is what is edited. A camera matrix fitted
+// from a body's own JPEG (fit.js) is kept on this phone per model, `th.photos.matrix.<model>`.
 import * as data from '../data.js';
 import { fetchOriginal, mediaUrl } from '../drive.js';
 
 /** @typedef {import('./renderer.js').Source} Source */
-/** @typedef {{ source: Source, raw: boolean, width: number, height: number, asShot: number[], camera: string | null, fallback: boolean, memory: number, ms: number, tile: (x: number, y: number, w: number, h: number) => Promise<Source>, close: () => void }} Original */
+/** @typedef {{ source: Source, raw: boolean, width: number, height: number, asShot: number[], camera: string | null, fallback: boolean, colour?: { source: string, ev?: number, why?: string }, cameraJpeg?: Blob | null, memory: number, ms: number, tile: (x: number, y: number, w: number, h: number) => Promise<Source>, close: () => void }} Original */
 
 const D65 = [0.3127, 0.329];
+const FIT = 'th.photos.matrix.';
+/** The fitted matrices this phone keeps, by camera model. @returns {Record<string, unknown>} */
+function fits() {
+  /** @type {Record<string, unknown>} */
+  const out = {};
+  try { for (const k of Object.keys(localStorage)) if (k.startsWith(FIT)) out[k.slice(FIT.length)] = JSON.parse(localStorage.getItem(k) ?? 'null'); } catch {}
+  return out;
+}
 const WORKING_SIDE = 4096;
 
 /** The preview (or thumbnail) as a bitmap source. @param {string} id @returns {Promise<Source | null>} */
@@ -52,10 +61,12 @@ function engineSource(p, token) {
   let n = 0;
   return new Promise((resolve, reject) => {
     /** @type {any} */
-    let meta = null;
+    let meta = null, jpeg = /** @type {Blob | null} */ (null);
     worker.onmessage = ({ data: m }) => {
-      if (m.type === 'meta') meta = m.meta;
+      if (m.type === 'meta') { meta = m.meta; jpeg = m.preview ? new Blob([m.preview], { type: 'image/jpeg' }) : null; }
       else if (m.type === 'working') {
+        const f = m.colour?.fit;
+        if (f?.ok) try { localStorage.setItem(FIT + meta.camera, JSON.stringify({ matrix: f.matrix, samples: f.samples, before: f.before, after: f.after, at: Date.now() })); } catch {}
         resolve({
           source: { kind: 'planar', width: m.width, height: m.height, data: m.data },
           raw: true,
@@ -63,7 +74,9 @@ function engineSource(p, token) {
           height: meta.height,
           asShot: meta.whiteXy,
           camera: meta.camera,
-          fallback: meta.matrixIsFallback,
+          fallback: meta.matrixIsFallback && m.colour?.source !== 'fitted',
+          colour: m.colour,
+          cameraJpeg: jpeg,
           memory: m.memory,
           ms: m.ms,
           tile: (x, y, w, h) => new Promise((ok, no) => {
@@ -84,6 +97,6 @@ function engineSource(p, token) {
     worker.onerror = (e) => { worker.terminate(); reject(new Error(e.message || 'the engine stopped')); };
     // DNG decodes whole, so its arena is made big enough for the working copy too (lib.rs).
     const reserve = p.format === 'dng' && p.width && p.height ? Math.ceil(p.width / 2) * Math.ceil(p.height / 2) * 6 : 0;
-    worker.postMessage({ type: 'open', url: mediaUrl(/** @type {string} */ (p.drive_id)), auth: `Bearer ${token}`, size: p.bytes, scale: 2, reserve });
+    worker.postMessage({ type: 'open', url: mediaUrl(/** @type {string} */ (p.drive_id)), auth: `Bearer ${token}`, size: p.bytes, scale: 2, reserve, fits: fits() });
   });
 }

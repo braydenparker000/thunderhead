@@ -28,6 +28,13 @@ export const NUMBERS = /** @type {Record<string, number[]>} */ ({
   PerspectiveVertical: pm(100), PerspectiveHorizontal: pm(100),
 });
 export const CURVES = ['ToneCurvePV2012', 'ToneCurvePV2012Red', 'ToneCurvePV2012Green', 'ToneCurvePV2012Blue'];
+/** The neutral tone a RAW starts from (PHOTOS.md, the colour pipeline), before any slider. The shoulder: on the
+ * brightest channel with the others kept in ratio (so hue holds), from `knee` (linear, one stop under white)
+ * a soft roll-off `k + (1 − k)·u / (1 + u^p)^(1/p)` toward white, so +2 EV compresses rather than clips (a
+ * JPEG gets it as Exposure goes from 0 to +1 EV). Then the base curve: points [in, out] on sRGB-encoded
+ * 0–255 through a monotone spline, a mild S that keeps mid-grey (118, 18 % linear) with a lifted toe and a
+ * soft top. Contrast's S pivots at that mid-grey in encoded values (close to perceptual lightness). */
+export const BASE_TONE = { knee: 0.5, power: 3, midGrey: 0.18, curve: [[0, 0], [10, 12], [40, 38], [118, 118], [190, 196], [235, 238], [255, 255]] };
 export const HUES = ['Red', 'Orange', 'Yellow', 'Green', 'Aqua', 'Blue', 'Purple', 'Magenta'];
 /** A JPEG has been sharpened and cleaned by its camera already: its as-shot Detail starts at zero. */
 const JPEG_ZERO = ['Sharpness', 'ColorNoiseReduction'];
