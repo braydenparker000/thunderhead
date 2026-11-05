@@ -95,6 +95,10 @@
     // The Worker's own origin, for Photos' fixed OAuth redirect (`<origin>/v1/photos/drive/callback`).
     // The real value is the `worker` environment's WORKER_URL through `--var`; this one matches nothing.
     "WORKER_ORIGIN": "https://thunderhead-api.zNN.workers.dev",
+    // Photos' browser key for Google's picker (SETUP.md §R5): public by design, restricted at Google
+    // to the Picker API and the site's origin. The real value is the repository variable
+    // GOOGLE_PICKER_KEY through `--var`; empty, Import from Drive says it needs one.
+    "GOOGLE_PICKER_KEY": "",
     // Fallback only. The owner's real time zone is the private Core setting `owner.tz`, set from
     // the phone, never written in this public repo.
     "OWNER_TZ": "UTC",

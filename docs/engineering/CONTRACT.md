@@ -216,6 +216,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/photos/drive/callback` | public | P9 | built | Google's redirect: ?code=&state=; stores the grant sealed, makes the folder, back to /photos/ |
 | `DELETE /v1/photos/drive` | D | P9 | built | forgets the grant (the files stay in Drive) |
 | `POST /v1/photos/upload-token` | D | P9 | built | a Drive access token for the phone’s own upload, and the folder id |
+| `POST /v1/photos/from-drive` | D | P9 | built | {ids ≤ 20}: files picked in Google’s picker, registered by reference with what Drive says of each (one Drive call a file); a known one is `already` |
 | `GET /v1/photos` | D | P9 | built | ?before=<day>: days newest first, 4 photos and a count each; ?day=: one day |
 | `GET /v1/photos/deleted` | D | P9 | built | Recently deleted, newest first: 30 days |
 | `PUT /v1/photos/:id` | D | P9 | built | registers an upload: Drive id, size, hash, camera, capture time, format |
@@ -361,7 +362,7 @@ Every event type the phone may send (`PUT /v1/senses/batches/:id`, API.md §11.1
 | `study.read` | study | `book:` | pages: int, ms: ms | 0 | Reading in a book, on leaving it or hiding the page. |
 | `study.search` | study | — | hits: int | 0 | A search shows its results (the count only, never the words). |
 | `study.highlight` | study | `book:` | — | 1 | A highlight made in a book (nothing on the phone makes one yet). |
-| `photo.import` | photos | `photo:` | format: `raf` \| `dng` \| `jpeg` \| `heic` \| `other` | 0 | A photo imported: in Drive and on the shelf. |
+| `photo.import` | photos | `photo:` | format: `raf` \| `dng` \| `jpeg` \| `heic` \| `other`, source: `phone` \| `drive` | 0 | A photo imported: in Drive and on the shelf, from this phone or picked in Drive. |
 | `photo.delete` | photos | `photo:` | — | 0 | A photo moved to Recently deleted. |
 | `photo.edit` | photos | `photo:` | panel: `light` \| `color` \| `effects` \| `detail` \| `optics` \| `crop` \| `versions` | 0 | A panel of the editor used on a photo (the panel only, never a value). |
 | `photo.export` | photos | `photo:` | size: `full` \| `2048` \| `1080`, format: `jpeg` \| `heic`, to: `share` \| `files` \| `drive` | 0 | A photo exported: the size, format and where, never a pixel. |

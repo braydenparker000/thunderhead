@@ -143,6 +143,11 @@ export abstract class CorePhotos extends CoreVerbs {
     });
   }
 
+  /** Files picked in Drive (areas/photos/pick.ts checked each with Drive), registered in one commit. */
+  photosFromDrive(files: DriveFile[]): Out<{ added: PhotoItem[]; already: string[] }> {
+    return this.run((w) => ops.fromDrive(w, files, this.tz(), uuidv7));
+  }
+
   // --- the purge, with the cron's prune pass ----------------------------------------------------
 
   protected override async pruneDaily(now: number, today: string): Promise<number> {

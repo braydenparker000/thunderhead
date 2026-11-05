@@ -1,5 +1,5 @@
 // Photos' calls of the cost suite (cost.test.ts checks every budget), metered in Core: an import
-// (the photo's row, then its preview's), the shelf's first page of 14 days with four photos each,
+// (the photo's row, then its preview's), 1 and 20 files picked in Drive, the shelf's first page of 14 days with four photos each,
 // one whole day, a rating, a recipe saved (a change, then the same again), versions and a delete;
 // then, after the ledger's own reads are measured, a paste onto 1 and onto 12 photos (pasteCalls). The shelf holds 15 days of 6 invented photos first.
 import { exports } from 'cloudflare:workers';
@@ -18,7 +18,7 @@ type Cost = (
 export async function photosCalls(cost: Cost, grant: (ip: string, password?: string) => Promise<SignedIn>) {
   const d = { token: (await grant('192.0.2.253', `${PASSWORD} new`)).token };
   // Registration checks the file with Drive (a fake Google here; the Worker never calls Google in tests).
-  fakeGoogle();
+  const g = fakeGoogle();
   await connectDrive(d.token);
   for (let day = 0; day < 15; day++)
     for (let i = 0; i < 6; i++)
@@ -54,6 +54,27 @@ export async function photosCalls(cost: Cost, grant: (ip: string, password?: str
   );
   await cost('GET /v1/photos (14 days of 6) (Core)', () => api('GET', '/v1/photos', d), 200, k);
   await cost('GET /v1/photos?day= (6 photos) (Core)', () => api('GET', '/v1/photos?day=2026-03-02', d), 200, k);
+  // Import from Drive: files picked in Google's picker, registered by reference (1, then 20 a request).
+  for (let i = 0; i < 21; i++)
+    g.picked[`picked-${i}`] = {
+      name: `DSCF${1000 + i}.RAF`,
+      size: '30000000',
+      mimeType: 'application/octet-stream',
+      createdTime: '2026-03-20T09:00:00.000Z',
+    };
+  await cost(
+    'POST /v1/photos/from-drive (1 file) (Core)',
+    () => api('POST', '/v1/photos/from-drive', { ...d, body: { ids: ['picked-0'] } }),
+    200,
+    k,
+  );
+  const twenty = Array.from({ length: 20 }, (_, i) => `picked-${i + 1}`);
+  await cost(
+    'POST /v1/photos/from-drive (20 files) (Core)',
+    () => api('POST', '/v1/photos/from-drive', { ...d, body: { ids: twenty } }),
+    200,
+    k,
+  );
   await cost(
     'PATCH /v1/photos/:id (Core)',
     () => api('PATCH', `/v1/photos/${id}`, { ...d, body: { rating: 3 } }),

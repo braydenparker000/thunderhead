@@ -51,9 +51,23 @@ test('no outside hosts anywhere in the site', async () => {
       // Photos uploads originals to the owner's own Drive itself (PHOTOS.md §3.7): Google's API host,
       // in its page's CSP and its upload module, and nowhere else.
       if (['photos/index.html', 'apps/photos/drive.js'].includes(relative(SITE, f)) && /^https:\/\/www\.googleapis\.com(\/(upload\/)?drive\/v3\/files)?;?$/.test(url)) continue;
+      // Google's picker (SECURITY.md §4.1): its loader script, loaded on tap in Photos only, and the
+      // picker's frame; named in that page's CSP and the picker module, and nowhere else.
+      if (relative(SITE, f) === 'photos/index.html' && /^https:\/\/(apis|docs)\.google\.com;$/.test(url)) continue;
+      if (relative(SITE, f) === 'apps/photos/pick.js' && url === 'https://apis.google.com/js/api.js') continue;
       assert.fail(`${relative(REPO, f)} reaches ${url}`);
     }
   }
+});
+
+test("Photos' CSP names Google's three hosts and no other: Drive's API, the picker's loader, its frame", async () => {
+  const html = await readFile(join(SITE, 'photos/index.html'), 'utf8');
+  const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(html)?.[1] ?? '';
+  assert.deepEqual([...csp.matchAll(/https:\/\/[^\s;]+/g)].map(m => m[0]).sort(), ['https://apis.google.com', 'https://docs.google.com', 'https://www.googleapis.com']);
+  assert.match(csp, /script-src 'self' 'wasm-unsafe-eval' https:\/\/apis\.google\.com;/);
+  assert.match(csp, /frame-src 'self' https:\/\/docs\.google\.com;/);
+  assert.match(csp, /connect-src 'self' https:\/\/www\.googleapis\.com;/);
+  assert.match(csp, /style-src 'self';/, "the picker's own <style> stays refused: photos.css styles its dialog");
 });
 
 test('pages fit the CSP: no inline scripts, no <style> blocks, no inline event handlers', async () => {

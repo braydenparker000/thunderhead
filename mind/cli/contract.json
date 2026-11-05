@@ -1782,6 +1782,14 @@
       "status": "built",
       "note": "a Drive access token for the phone’s own upload, and the folder id"
     },
+    "POST /v1/photos/from-drive": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "{ids ≤ 20}: files picked in Google’s picker, registered by reference with what Drive says of each (one Drive call a file); a known one is `already`"
+    },
     "GET /v1/photos": {
       "who": [
         "D"

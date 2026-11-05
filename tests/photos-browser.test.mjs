@@ -206,7 +206,7 @@ test('import a RAF: its preview at once, the original to Drive, the shelf by day
     return ['photo.import', 'photo.rate', 'photo.delete'].every((t) => types.has(t));
   }, { timeout: 20_000, message: 'the senses went' });
   const imp = state.senses.find((e) => e.type === 'photo.import');
-  assert.deepEqual([imp.ref, imp.data], [`photo:${state.registered.length && state.photos.at(-1).id}`, { format: 'raf' }]);
+  assert.deepEqual([imp.ref, imp.data], [`photo:${state.registered.length && state.photos.at(-1).id}`, { format: 'raf', source: 'phone' }]);
   assert.ok(!JSON.stringify(state.senses).includes('DSCF'), 'no file name travels');
   // Offline: the shelf and the view from this phone.
   await page.goto(`${base}/photos/`);

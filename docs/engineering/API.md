@@ -643,7 +643,7 @@ type MemoryOp =
 | Podcasts | `podcasts.open`, `podcast.play`, `podcast.finish`, `podcast.skip`, `podcast.follow`, `podcast.unfollow` (`podcast:<show id>/<episode id>`; the show's id is the hash of its feed) |
 | Guitar | `guitar.open`, `guitar.piece_opened`, `guitar.pass`, `guitar.bpm`, `guitar.session` (minutes as `seconds`, the sections marked, the tempo reached as `bpm`) |
 | Study | `study.open`, `study.read` (`pages`, `ms`), `study.search` (`hits` only), `study.highlight` (sensitive; nothing sends it yet) |
-| Photos | `photo.import` (`format` only), `photo.delete`, `photo.rate` (`rating`, `flag`); ref `photo:<id>`, never a name or a pixel; `photo.paste` (`count` and a switch per panel), no ref |
+| Photos | `photo.import` (`format`, `source` `phone`\|`drive`), `photo.delete`, `photo.rate` (`rating`, `flag`); ref `photo:<id>`, never a name or a pixel; `photo.paste` (`count` and a switch per panel), no ref |
 | Astra, My Media (`media`) | `astra.open`, `mymedia.open`, `media.watch` (`ms`), `media.finish`, `media.drop` (`astra:…` or `media:<id>`; read from each app's own progress by `th/senses/watch.js`) |
 | Shell | `app.open`, `app.close` (`ms` in front), `ring.choice`, `island.tap` (`to`), `briefing.open`, `settings.change` (`setting:<key>`, never the value) |
 | Home | `briefing.tile`, `line.seen`, `line.dismiss` (nothing sends it yet), `card.decide` (sensitive; the class only), `reply.open_chip` |
@@ -834,7 +834,7 @@ NEXT-BATCH.md part 7 ([PODCASTS.md §5.4](../product/apps/PODCASTS.md); types an
 Core step 41 and Auth step 4 ([DATA.md](DATA.md)). The owner's phone only (`D`); the callback is
 public and checked by its one-use state.
 
-- `GET /v1/photos/drive` → `{configured, connected, folder_name, revoked, connected_at, account}`
+- `GET /v1/photos/drive` → `{configured, connected, folder_name, revoked, connected_at, account, picker_key, picker_app}` (`picker_key`: the picker's public browser key, empty until set; `picker_app`: the Cloud project's number, the OAuth client id's first part)
   (`account`: the consenting Google address, stored sealed; the phone's alone).
 - `POST /v1/photos/drive/connect` → `{url}`: Google's consent address (scope `drive.file`,
   offline access, a state good for 10 minutes, stored as its SHA-256 with the site origin to go back to).
@@ -847,6 +847,12 @@ public and checked by its one-use state.
   (`details: drive`) when Drive is not connected or Google took the access back; 503
   `not_configured` without `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`. The phone uploads the original
   to Drive itself (resumable upload); its bytes never pass through the Worker.
+- `POST /v1/photos/from-drive` `{ids}` (1–20 Drive ids the owner picked in Google's picker; a pick
+  is at most 100, sent 20 a request) → `{added: PhotoItem[], already: string[], refused: [{id, issue}]}`:
+  one Drive call a file (name, size, times, SHA-256, EXIF time and dimensions); each file the shelf
+  does not know is registered with no preview, as the daily pass does, with no ledger row; a known
+  Drive id is `already`; a folder, a file in the trash, one Drive will not show and anything not RAF,
+  DNG, JPEG or HEIC is refused. 409 while Drive is not connected.
 - `PUT /v1/photos/:id` `{drive_id, name, format, bytes, sha256, camera?, film?, width?, height?, taken_at}`
   → 201 `{photo}`, after one check with Drive: the file is in the app's folder, not in the trash,
   with that size and (when Drive gives one) that SHA-256, else 422 on `drive_id`; the same id again is 200, a Drive file already on the shelf is that photo (200),

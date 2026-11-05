@@ -2,14 +2,34 @@
 // The shelf (PHOTOS.md §3.1): days newest first, like the Briefing's, each with up to four
 // thumbnails and a count; a day opens whole; pull down (or Import) to pick photos, each on the shelf
 // at once with its upload's progress. Thumbnails come from this phone (IndexedDB) or are made from
-// the Worker's preview once; offline, the kept shelf is shown with a plain line. A long press starts
-// choosing photos to paste a copied edit onto or to export (select.js).
+// the Worker's preview once; offline, the kept shelf is shown with a plain line. From Drive opens
+// Google's picker (pick.js) for files already in Drive, each on the shelf at once with its name until
+// its preview comes (from-drive.js). A long press starts choosing photos to paste a copied edit onto
+// or to export (select.js).
 import { el, toast } from '/th/ui.js';
 import * as data from './data.js';
 import { importFiles } from './import.js';
 import { go } from './nav.js';
 import { makeThumb } from './preview.js';
 import { chooser } from './select.js';
+
+const NO_KEY = 'Importing from Drive needs a picker key for your Worker first (SETUP.md, Photos).';
+const NOT_LINKED = 'Connect Google Drive in Settings › Photos to import from it.';
+/** Imports in progress: kept across the shelf's redraws (a finished one goes with the next). */
+const arriving = el('div', { class: 'arriving' });
+/** @type {Promise<import('../../../shared/contract/photos.ts').DriveStatus> | null} */
+let status = null;
+const driveStatus = () => (status ??= data.driveStatus().catch((e) => { status = null; throw e; }));
+// A preview made for a photo picked in Drive: its placeholder tile takes the thumbnail.
+document.addEventListener('photos:thumb', async (e) => {
+  const id = String(/** @type {CustomEvent} */ (e).detail);
+  const blob = await data.thumbOf(id);
+  for (const box of document.querySelectorAll(`.tile.blank[data-id="${CSS.escape(id)}"]`)) {
+    if (!blob) { box.replaceChildren(); continue; }
+    box.classList.remove('blank');
+    box.replaceChildren(el('img', { class: 'thumb', alt: '', decoding: 'async', src: URL.createObjectURL(blob) }));
+  }
+});
 
 const ACCEPT = '.raf,.RAF,.dng,.DNG,.jpg,.jpeg,.heic,.heif,image/jpeg,image/heic,image/heif';
 const icon = (/** @type {string} */ n) => {
@@ -40,7 +60,10 @@ export function thumb(p) {
       data.keepThumb(p.id, blob);
     }
     if (blob) box.append(el('img', { class: 'thumb', alt: '', decoding: 'async', src: URL.createObjectURL(blob) }));
-    else box.classList.add('blank');
+    else {
+      box.classList.add('blank');
+      if (data.coming.has(p.id)) box.append(el('span', { class: 'tname', text: p.name }), el('span', { class: 'tnote', text: 'Preview coming' }));
+    }
   })().catch(() => box.classList.add('blank'));
   return box;
 }
@@ -59,18 +82,21 @@ const dayRow = (d, wire) => {
 export async function shelfScreen(box) {
   const picker = /** @type {HTMLInputElement} */ (el('input', { type: 'file', multiple: '', accept: ACCEPT, hidden: '' }));
   const add = el('button', { type: 'button', class: 'add', 'aria-label': 'Import photos' }, [icon('plus'), el('span', { text: 'Import' })]);
+  const drive = /** @type {HTMLButtonElement} */ (el('button', { type: 'button', class: 'add alt', disabled: '', text: 'From Drive' }));
+  const dnote = el('p', { class: 'dnote', hidden: '' });
   const pull = el('div', { class: 'pull', 'aria-hidden': 'true', text: 'Pull to import' });
   const line = el('p', { class: 'line', role: 'status' });
-  const arriving = el('div', { class: 'arriving' });
+  for (const done of arriving.querySelectorAll('.arrival.in')) done.remove();
   const days = el('div', { class: 'days', 'aria-busy': 'true' });
   const more = el('button', { type: 'button', class: 'more', hidden: '', text: 'Earlier days' });
   const bin = el('button', { type: 'button', class: 'linkish', text: 'Recently deleted' });
   bin.addEventListener('click', () => go('?deleted=1'));
-  const head = el('div', { class: 'head' }, [el('h1', { text: 'Photos' }), add]);
+  const head = el('div', { class: 'head' }, [el('h1', { text: 'Photos' }), el('div', { class: 'adds' }, [drive, add])]);
   const shelf = el('div', { class: 'shelf' }, [
     pull,
     el('a', { class: 'back', href: '/', text: '‹ Home' }),
     head,
+    dnote,
     line,
     arriving,
     days,
@@ -87,6 +113,7 @@ export async function shelfScreen(box) {
     if (files.length) importFiles(files, (a) => arrival(arriving, a));
   });
   pullToImport(shelf, pull, () => picker.click());
+  fromDrive(drive, dnote);
 
   let next = /** @type {string | null} */ (null);
   const load = async (/** @type {string | null} */ before) => {
@@ -97,7 +124,7 @@ export async function shelfScreen(box) {
       more.hidden = !next;
       if (s.offline) line.textContent = 'Offline: this is the shelf as this phone last saw it.';
       if (!before && !s.days.length)
-        days.append(el('p', { class: 'empty', text: 'No photos yet. Pull down or tap Import to add some from this phone.' }));
+        days.append(el('p', { class: 'empty', text: 'No photos yet. Pull down or tap Import to add some from this phone, or From Drive for ones in your Drive.' }));
     } catch {
       line.textContent = 'The shelf did not load. Pull down to try again.';
     }
@@ -105,6 +132,49 @@ export async function shelfScreen(box) {
   };
   more.addEventListener('click', () => next && load(next));
   await load(null);
+}
+
+/** The From Drive button: on with a picker key and Drive linked, else off with why. On tap (never
+ * before), Google's picker; the photos picked go on the shelf. @param {HTMLButtonElement} b @param {HTMLElement} note */
+function fromDrive(b, note) {
+  driveStatus().then((s) => {
+    const off = !s.picker_key ? NO_KEY : !s.connected ? NOT_LINKED : '';
+    b.disabled = Boolean(off);
+    note.textContent = off;
+    note.hidden = !off;
+  }, () => {});
+  b.addEventListener('click', async () => {
+    b.disabled = true;
+    try {
+      const [s, t, m] = await Promise.all([driveStatus(), data.uploadToken(), import('./pick.js')]);
+      const docs = await m.pickFromDrive({ key: s.picker_key, app: s.picker_app, token: t.access_token, folder: t.folder_id });
+      const { files, skipped, over } = m.sortPicked(docs);
+      const left = [skipped && `${skipped} skipped: only RAF, DNG, JPEG and HEIC files import`, over && `${over} over 100: pick them next time`].filter(Boolean);
+      if (left.length) toast(`${left.join('. ')}.`);
+      if (files.length) (await import('./from-drive.js')).importPicked(files, driveRow());
+    } catch (e) {
+      toast(/** @type {{ code?: string }} */ (e)?.code === 'picker' ? 'Google’s picker did not load. Try again.' : (await import('./import.js')).why(e));
+    } finally {
+      b.disabled = false;
+    }
+  });
+}
+
+/** The row a pick from Drive shows while its photos go on the shelf. */
+function driveRow() {
+  const bar = el('span', { class: 'bar' });
+  const note = el('span', { class: 'anote', text: 'Going on the shelf' });
+  const row = el('div', { class: 'arrival fromdrive' }, [el('span', { class: 'thumb dicon' }, [icon('image')]), el('div', { class: 'acopy' }, [el('b', { text: 'From Drive' }), note, el('span', { class: 'track' }, [bar])])]);
+  arriving.prepend(row);
+  return {
+    note: (/** @type {string} */ t) => { note.textContent = t; },
+    progress: (/** @type {number} */ n, /** @type {number} */ total) => { bar.style.width = `${Math.round((100 * n) / Math.max(1, total))}%`; },
+    end: (/** @type {string} */ t, /** @type {boolean} */ failed = false) => {
+      note.textContent = t;
+      row.classList.add(failed ? 'failed' : 'in');
+      if (!failed) toast(t);
+    },
+  };
 }
 
 /** One photo arriving: its thumbnail at once, a bar while it uploads, on the shelf once in.

@@ -1,7 +1,8 @@
 // @ts-check
 // Photos' calls to the Worker and what this phone keeps (PHOTOS.md §3.1): the shelf's pages, each
 // photo's thumbnail and preview (IndexedDB `th-photos`, so the shelf and the full view work offline),
-// and an import in progress (its Drive session, so a dropped connection or a reload resumes it).
+// and an import in progress (its Drive session, so a dropped connection or a reload resumes it);
+// files picked in Drive, registered by reference.
 import { CONFIG } from '/config.js';
 import { api, signedIn } from '/th/client.js';
 import { kv } from '/th/idb.js';
@@ -71,6 +72,11 @@ export const deleted = async () => (await call('/v1/photos/deleted')).items;
 export const uploadToken = () => call('/v1/photos/upload-token', { method: 'POST' });
 /** @returns {Promise<import('../../../shared/contract/photos.ts').DriveStatus>} */
 export const driveStatus = () => call('/v1/photos/drive');
+/** Files picked in Drive, at most 20 a call. @param {string[]} ids
+ * @returns {Promise<import('../../../shared/contract/photos.ts').FromDriveResponse>} */
+export const fromDrive = (ids) => call('/v1/photos/from-drive', { method: 'POST', body: { ids } });
+/** Photos picked in Drive whose preview this phone is making (the shelf's placeholder tiles say so). */
+export const coming = new Set();
 /** @param {string} id @param {object} body @returns {Promise<PhotoItem>} */
 export const register = async (id, body) => (await call(`/v1/photos/${id}`, { method: 'PUT', body })).photo;
 /** The owner's preview size (Settings › Photos), as this phone last saw their settings. */

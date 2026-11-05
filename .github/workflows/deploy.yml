@@ -103,6 +103,8 @@ jobs:
       CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
       WORKER_URL: ${{ vars.WORKER_URL }}
       SITE_ORIGINS: ${{ vars.SITE_ORIGINS }}
+      # Photos' picker key (SETUP.md §R5): public by design, restricted at Google; empty is allowed.
+      GOOGLE_PICKER_KEY: ${{ vars.GOOGLE_PICKER_KEY }}
       WRANGLER_SEND_METRICS: 'false'
       CONFIG: backend/wrangler.jsonc
     steps:
@@ -192,6 +194,8 @@ jobs:
         run: |
           args=(--config "$CONFIG" --var "SITE_ORIGINS:$SITE_ORIGINS" --var "WORKER_ORIGIN:${WORKER_URL%/}" --var "R2_ACCOUNT_ID:$CLOUDFLARE_ACCOUNT_ID" --tag "$TAG" --message "deploy $(git rev-parse HEAD)")
           [[ -n "$SECRETS_FILE" ]] && args+=(--secrets-file "$SECRETS_FILE")
+          # Unset, the Worker keeps wrangler.jsonc's empty placeholder and Import from Drive says so.
+          [[ -n "$GOOGLE_PICKER_KEY" ]] && args+=(--var "GOOGLE_PICKER_KEY:$GOOGLE_PICKER_KEY")
           status=0
           npx wrangler deploy "${args[@]}" | tee "$RUNNER_TEMP/deploy.out" || status=$?
           [[ -n "$SECRETS_FILE" ]] && rm -f "$SECRETS_FILE"

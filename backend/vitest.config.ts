@@ -40,8 +40,10 @@ export default defineConfig({
           MUSIC_UPLOAD_PUBLIC_KEYS: 'none',
           VAPID_PRIVATE_JWK: VAPID,
           // Photos' OAuth client: invented values; Google itself is faked (areas/photos/google.ts useGoogle).
-          GOOGLE_CLIENT_ID: 'test-client.apps.example',
+          GOOGLE_CLIENT_ID: '100000000001-test-client.apps.example',
           GOOGLE_CLIENT_SECRET: 'test-client-secret',
+          // The picker's public browser key: an invented value.
+          GOOGLE_PICKER_KEY: 'test-picker-key',
           SITE_ORIGINS: 'https://site.example.test',
           WORKER_ORIGIN: 'https://api.example.test',
           // The cost suite's exact mode (tests/cost/cost.test.ts): TH_STRICT_COST=1 drops its 10% headroom.

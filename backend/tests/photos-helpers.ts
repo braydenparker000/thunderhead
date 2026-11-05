@@ -1,5 +1,5 @@
 // Photos' test helpers (PHOTOS.md): a fake Google that answers the consent's code, refresh tokens,
-// the folder, pages of the folder's listing and the trash, and records what it was asked; a photo's
+// the folder, pages of the folder's listing, picked files and the trash, and records what it was asked; a photo's
 // registration body. Every id, name, camera and token here is invented.
 import { exports } from 'cloudflare:workers';
 import { useGoogle } from '../src/areas/photos/google';
@@ -19,10 +19,22 @@ export interface FakeGoogle {
   meta: Record<string, { parents?: string[]; size?: number; sha256?: string } | 404>;
   /** A trash that fails, by id, with this status. */
   trashFail: Record<string, number>;
+  /** Files the owner picked in Drive, as Drive describes one (POST /v1/photos/from-drive), by id;
+   * an id not here is 404 (not shared with the app). */
+  picked: Record<string, Record<string, unknown>>;
 }
 
 export function fakeGoogle(): FakeGoogle {
-  const g: FakeGoogle = { calls: [], folder: [], revoked: false, minted: 0, trashed: [], meta: {}, trashFail: {} };
+  const g: FakeGoogle = {
+    calls: [],
+    folder: [],
+    revoked: false,
+    minted: 0,
+    trashed: [],
+    meta: {},
+    trashFail: {},
+    picked: {},
+  };
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
   useGoogle(async (input, init) => {
@@ -60,6 +72,13 @@ export function fakeGoogle(): FakeGoogle {
       if (g.trashFail[fileId]) return json({ error: { status: 'FAIL' } }, g.trashFail[fileId]);
       g.trashed.push(fileId);
       return json({ id: 'x' });
+    }
+    if (
+      u.pathname.startsWith('/drive/v3/files/') &&
+      (u.searchParams.get('fields') ?? '').includes('imageMediaMetadata')
+    ) {
+      const p = g.picked[fileId];
+      return p ? json({ id: fileId, ...p }) : json({ error: { status: 'NOT_FOUND' } }, 404);
     }
     if (u.pathname.startsWith('/drive/v3/files/')) {
       const m = g.meta[fileId] ?? {};

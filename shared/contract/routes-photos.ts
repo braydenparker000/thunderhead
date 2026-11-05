@@ -7,6 +7,7 @@ export const PHOTO_ROUTES = {
   'GET /v1/photos/drive/callback': { who: 'P', phase: 'P9', note: "Google's redirect: ?code=&state=; stores the grant sealed, makes the folder, back to /photos/" },
   'DELETE /v1/photos/drive': { who: ['D'], phase: 'P9', note: 'forgets the grant (the files stay in Drive)' },
   'POST /v1/photos/upload-token': { who: ['D'], phase: 'P9', note: 'a Drive access token for the phone’s own upload, and the folder id' },
+  'POST /v1/photos/from-drive': { who: ['D'], phase: 'P9', note: '{ids ≤ 20}: files picked in Google’s picker, registered by reference with what Drive says of each (one Drive call a file); a known one is `already`' },
   'GET /v1/photos': { who: ['D'], phase: 'P9', note: '?before=<day>: days newest first, 4 photos and a count each; ?day=: one day' },
   'GET /v1/photos/deleted': { who: ['D'], phase: 'P9', note: 'Recently deleted, newest first: 30 days' },
   'PUT /v1/photos/:id': { who: ['D'], phase: 'P9', note: 'registers an upload: Drive id, size, hash, camera, capture time, format' },

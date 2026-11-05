@@ -1,12 +1,15 @@
 {
-  "id": "2026-11-04-photos-paste",
-  "date": "2026-11-04",
+  "id": "2026-11-05-photos-from-drive",
+  "date": "2026-11-05",
   "lines": [
     {
-      "text": "Copy an edit in Photos (More, then Copy edit) and paste it onto up to 20 photos at once, with one Undo."
+      "text": "Photos can import from Google Drive: tap From Drive, pick up to 100 photos anywhere in your Drive."
     },
     {
-      "text": "Hold a photo on the shelf to start choosing; tap to add more, then Paste or Export them together."
+      "text": "They stay where they are in Drive and show on the shelf at once; their previews follow a few at a time."
+    },
+    {
+      "text": "Imports from this phone make their preview while the original uploads."
     }
   ]
 }
