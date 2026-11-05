@@ -617,7 +617,7 @@ says "A calendar link redirects elsewhere.", open the link in a browser and past
 ## R. Photos and your Google Drive (about 15 minutes, once; 2026-11-04)
 
 Photos keeps your originals in your own Google Drive. The app asks only for the files it makes
-(`drive.file`), in one folder, "Thunderhead Photos".
+(`drive.file`), in one folder, "Thunderhead Photos", and the ones you pick in Google's picker (R5).
 
 ### R1. A Google Cloud project with the Drive API
 
@@ -655,4 +655,32 @@ Import one photo and watch it reach "In Drive", then find it in the "Thunderhead
 The phone relies on Drive letting the browser read the upload session's address (the `Location`
 header of the resumable upload); the tests fake Google, so this is the first place it is proven.
 If the import stops at "This one did not upload", tell the agent.
+
+### R5. The picker key (about 5 minutes, any time; 2026-11-05)
+
+Photos' **From Drive** button opens Google's picker, which needs a browser key. The key is not a
+secret (every browser that opens the picker sees it); it is restricted at Google so it works only
+for the picker.
+
+1. console.cloud.google.com → the same project as R1 → **APIs & Services** → **Library** → search
+   **Google Picker API** → **Enable**.
+2. **APIs & Services** → **Credentials** → **Create credentials** → **API key**. The page shows the
+   key; copy it.
+3. Open the new key (**Edit API key**): under **Application restrictions** leave **None** (every
+   page of the site sends no referrer, SECURITY.md §4.1, and Google checks a Websites restriction by
+   referrer, so one would refuse the key); under **API restrictions** choose **Restrict key** and
+   tick only **Google Picker API** → **Save**. The key then opens the picker and nothing else, and
+   the picker shows only what the owner's own Drive token can see.
+4. github.com → this repository → **Settings** → **Secrets and variables** → **Actions** →
+   **Variables** → **New repository variable**: name `GOOGLE_PICKER_KEY`, the key as the value →
+   **Add variable**.
+5. The next deploy passes it to the Worker. To deploy now: **Actions** → **Deploy** → **Run
+   workflow** (target `api`).
+6. On your phone: Photos → **From Drive** → pick one photo anywhere in your Drive. It shows on the
+   shelf with "Preview coming", then its thumbnail. The tests fake Google, so this is the first place
+   the picker is proven: if it says the key is invalid, or the picker does not fit the screen, tell
+   the agent.
+
+The picker uses the OAuth client of R2 as it is (its project number is the picker's app id): no
+new consent, and the scope stays `drive.file`.
 

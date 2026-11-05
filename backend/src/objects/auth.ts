@@ -157,7 +157,7 @@ export class Auth extends OwnerObject {
     if (!p) throw new Error('AUTH_PEPPER is not set');
     return p;
   }
-  driveStatus(configured: boolean): Promise<DriveStatus> {
+  driveStatus(configured: boolean): Promise<Omit<DriveStatus, 'picker_key' | 'picker_app'>> {
     return grant.status(this.db, this.pepper, configured);
   }
   driveStateNew(hash: string, origin: string): void {

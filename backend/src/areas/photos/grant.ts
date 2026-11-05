@@ -38,7 +38,11 @@ const row = (db: Db) =>
   db.one<Row>('SELECT sealed, folder_id, folder_name, connected_at, revoked_at, account FROM drive_grant WHERE id = 1');
 
 /** For the owner's phone only (GET /v1/photos/drive is a device route): the account opened. */
-export async function status(db: Db, pepper: string, configured: boolean): Promise<DriveStatus> {
+export async function status(
+  db: Db,
+  pepper: string,
+  configured: boolean,
+): Promise<Omit<DriveStatus, 'picker_key' | 'picker_app'>> {
   const r = row(db);
   return {
     configured,

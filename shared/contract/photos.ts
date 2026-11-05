@@ -27,6 +27,11 @@ export const PHOTO_LIMITS = {
    * 200 files, so a run stays under 25 subrequests (the free plan allows 50). */
   trash_per_run: 20,
   reconcile_files: 200,
+  /** Import from Drive (POST /v1/photos/from-drive): files the picker hands over at once, and the
+   * ones one request registers (one Drive call each, so a request stays far under 50 subrequests;
+   * the phone sends the rest in further requests). */
+  pick_max: 100,
+  pick_per_request: 20,
   /** A file name, a camera's name and a film simulation's name, in characters. */
   name_chars: 200,
   camera_chars: 80,
@@ -124,6 +129,12 @@ export interface DriveStatus {
   connected_at: number | null;
   /** The Google account that gave the consent (the owner's phone only, never the mind). */
   account: string | null;
+  /** The browser key Google's picker needs (public by design, restricted at Google to the Picker
+   * API and the site's origin; SETUP.md §R5); empty until the owner sets GOOGLE_PICKER_KEY. */
+  picker_key: string;
+  /** The Cloud project's number (the OAuth client id's first part): the picker's app id, so a file
+   * picked is granted to this app; empty without a client. */
+  picker_app: string;
 }
 
 /** POST /v1/photos/upload-token: a short-lived Drive token for the phone's own resumable upload. */
@@ -133,13 +144,33 @@ export interface UploadTokenResponse {
   folder_id: string;
 }
 
-/** A file the daily reconciliation found in the folder (Drive's own words, checked). */
+/** A file the daily reconciliation found in the folder, or one the owner picked in Drive (Drive's
+ * own words, checked). `modified` is the file's own time: its last change for the listing, its
+ * creation for a pick; a pick also carries what Drive read from the image (`shot` is the EXIF time,
+ * `YYYY:MM:DD HH:MM:SS` on the camera's clock), its size and its SHA-256 when Drive gives them. */
 export interface DriveFile {
   id: string;
   name: string;
   size: number;
   modified: number;
   mime: string;
+  shot?: string | null;
+  width?: number | null;
+  height?: number | null;
+  sha256?: string | null;
+}
+
+/** POST /v1/photos/from-drive: Drive ids the owner picked (at most 20 a request). */
+export interface FromDriveRequest {
+  ids: string[];
+}
+
+/** The picked files now on the shelf (no preview yet: the phone makes them), the ones it already
+ * had, by Drive id, and the ones refused with why (not a photo, a folder, in the trash, not found). */
+export interface FromDriveResponse {
+  added: PhotoItem[];
+  already: string[];
+  refused: { id: string; issue: string }[];
 }
 
 /** A photo's format from its name and type, as the phone and the reconciliation both read it. */

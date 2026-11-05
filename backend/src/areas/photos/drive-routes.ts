@@ -3,13 +3,17 @@
 // Google comes back to the public callback with a one-use state, the Worker trades the code for a
 // refresh token, seals it in the Auth object, finds or makes the folder "Thunderhead Photos" and
 // sends the browser back to /photos/. The phone uploads originals itself with a short-lived token
-// from POST /v1/photos/upload-token: their bytes never pass through the Worker.
+// from POST /v1/photos/upload-token: their bytes never pass through the Worker. Files the owner
+// picks in Google's picker (with the public picker key GET /v1/photos/drive hands the phone) are
+// registered by reference through POST /v1/photos/from-drive (pick.ts).
 import { Hono } from 'hono';
 import { DRIVE_FOLDER, type DriveStatus, type UploadTokenResponse } from '../../../../shared/contract/photos.ts';
 import { type AppEnv, guard } from '../../http/auth';
 import { ApiError } from '../../http/errors';
+import { json } from '../../http/validate';
 import { authObject } from '../../objects/auth';
 import { account, consentUrl, exchange, folder, GoogleError, revoke } from './google';
+import { fromDrive, pickBody } from './pick';
 import { randomState, stateHash } from './seal';
 import { accessToken, clientOf } from './token';
 
@@ -22,8 +26,14 @@ const notConnected = (why: string) => new ApiError('conflict', [{ path: 'drive',
 export const driveRoutes = new Hono<AppEnv>()
   .get('/photos/drive', guard('GET /v1/photos/drive'), async (c) => {
     const s = await authObject(c.env).driveStatus(clientOf(c.env) !== null);
-    return c.json(s satisfies DriveStatus);
+    // Public by design (restricted at Google to the Picker API and the site's origin): never a secret.
+    const picker_key = (c.env.GOOGLE_PICKER_KEY ?? '').trim();
+    const picker_app = /^(\d{4,20})-/.exec(clientOf(c.env)?.id ?? '')?.[1] ?? '';
+    return c.json({ ...s, picker_key, picker_app } satisfies DriveStatus);
   })
+  .post('/photos/from-drive', guard('POST /v1/photos/from-drive'), async (c) =>
+    c.json(await fromDrive(c.env, (await json(c, pickBody)).ids)),
+  )
   .post('/photos/drive/connect', guard('POST /v1/photos/drive/connect'), async (c) => {
     const client = clientOf(c.env);
     if (!client) throw new ApiError('not_configured');

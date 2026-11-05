@@ -1,5 +1,5 @@
 // Google, as the Worker asks it (PHOTOS.md §3.7): the consent address, the code and refresh-token
-// exchanges, the app's folder, one page of the folder's files and a file to the trash. Scope
+// exchanges, the app's folder, one page of the folder's files, a picked file and a file to the trash. Scope
 // drive.file only: the app sees the files it made and nothing else in the Drive. Tests swap the
 // fetch (the Worker never calls Google in a test). Nothing here logs a token or a name.
 import { DRIVE_SCOPE, type DriveFile } from '../../../../shared/contract/photos.ts';
@@ -178,6 +178,48 @@ export async function fileMeta(token: string, id: string) {
     if (e instanceof GoogleError && (e.status === 404 || e.status === 403)) return null;
     throw e;
   }
+}
+
+type Picked = Listed & {
+  trashed?: boolean;
+  createdTime?: string;
+  sha256Checksum?: string;
+  imageMediaMetadata?: { time?: string; width?: number; height?: number };
+};
+const dim = (n: unknown) =>
+  Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 100_000 ? (n as number) : null;
+
+/** A file the owner picked in Google's picker (which made it visible to this app under drive.file),
+ * as Drive has it: one call. `folder` or `trashed` for those, null when Drive does not know it or it
+ * is not ours to see. Its time is its creation (else its last change); EXIF's from what Drive read. */
+export async function pickedFile(token: string, id: string): Promise<DriveFile | 'folder' | 'trashed' | null> {
+  const fields =
+    'id,name,size,mimeType,createdTime,modifiedTime,trashed,sha256Checksum,imageMediaMetadata(time,width,height)';
+  let f: Picked;
+  try {
+    f = await ask<Picked>(`${GOOGLE.files}/${encodeURIComponent(id)}?fields=${encodeURIComponent(fields)}`, {
+      headers: bearer(token),
+    });
+  } catch (e) {
+    if (e instanceof GoogleError && (e.status === 404 || e.status === 403)) return null;
+    throw e;
+  }
+  if (f.mimeType === FOLDER) return 'folder';
+  if (f.trashed) return 'trashed';
+  const at = [f.createdTime, f.modifiedTime].map((t) => Date.parse(t ?? '')).find(Number.isFinite);
+  const m = f.imageMediaMetadata ?? {};
+  return {
+    id,
+    name: String(f.name ?? 'Untitled'),
+    size: Number(f.size) || 0,
+    modified: at ?? Date.now(),
+    mime: String(f.mimeType ?? ''),
+    shot:
+      typeof m.time === 'string' && /^\d{4}:\d{2}:\d{2} \d{2}:\d{2}:\d{2}/.test(m.time) ? m.time.slice(0, 19) : null,
+    width: dim(m.width),
+    height: dim(m.height),
+    sha256: /^[0-9a-f]{64}$/.test(f.sha256Checksum ?? '') ? (f.sha256Checksum as string) : null,
+  };
 }
 
 /** The Google account that gave the consent, by its address (Settings › Photos shows it). */

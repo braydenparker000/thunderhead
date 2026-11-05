@@ -58,7 +58,18 @@ const SECRETS = [
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
 ];
-const VARS = ['SITE_ORIGINS', 'OWNER_TZ', 'AUTH_HIBP', 'LIVE_WAIT', 'R2_ACCOUNT_ID', 'WORKER_ORIGIN'];
+const VARS = [
+  'SITE_ORIGINS',
+  'OWNER_TZ',
+  'AUTH_HIBP',
+  'LIVE_WAIT',
+  'R2_ACCOUNT_ID',
+  'WORKER_ORIGIN',
+  'GOOGLE_PICKER_KEY',
+];
+/** The one var named a key: Google's picker's browser key, public by design (it ships to every
+ * browser that opens the picker) and restricted at Google to the Picker API and the site's origin. */
+const PUBLIC_KEYS = ['GOOGLE_PICKER_KEY'];
 const BINDINGS = ['VERSION', 'CORE', 'AUTH', 'MUSIC', 'SENSES', 'LIBRARY', 'VAULT', 'MEDIA', 'AI'];
 
 describe('source rules', () => {
@@ -102,7 +113,9 @@ describe('source rules', () => {
 
   it('no-secret-vars: vars hold no secret-looking names, real origins, account ids or locations', () => {
     expect(Object.keys(config.vars).sort()).toEqual([...VARS].sort());
-    for (const name of Object.keys(config.vars)) expect(name).not.toMatch(/KEY|SECRET|TOKEN|PEPPER|PASSWORD/);
+    for (const name of Object.keys(config.vars))
+      if (!PUBLIC_KEYS.includes(name)) expect(name).not.toMatch(/KEY|SECRET|TOKEN|PEPPER|PASSWORD/);
+    for (const name of PUBLIC_KEYS) expect(config.vars[name]).toBe('');
     expect(config.vars.SITE_ORIGINS).toBe('https://thunderhead.zNN.web.core.windows.net');
     expect(config.vars.WORKER_ORIGIN).toBe('https://thunderhead-api.zNN.workers.dev');
     expect(config.vars.OWNER_TZ).toBe('UTC');

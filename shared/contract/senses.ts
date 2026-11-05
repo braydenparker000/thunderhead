@@ -116,7 +116,7 @@ export const SENSE_TYPES = {
   'study.search': t('study', [], { hits: 'int' }, 'A search shows its results (the count only, never the words).'),
   'study.highlight': t('study', ['book'], {}, 'A highlight made in a book (nothing on the phone makes one yet).', 1),
   // Photos (apps/photos): `photo:<id>`; the format and numbers only, never a name or a pixel.
-  'photo.import': t('photos', ['photo'], { format: ['raf', 'dng', 'jpeg', 'heic', 'other'] }, 'A photo imported: in Drive and on the shelf.'),
+  'photo.import': t('photos', ['photo'], { format: ['raf', 'dng', 'jpeg', 'heic', 'other'], source: ['phone', 'drive'] }, 'A photo imported: in Drive and on the shelf, from this phone or picked in Drive.'),
   'photo.delete': t('photos', ['photo'], {}, 'A photo moved to Recently deleted.'),
   'photo.edit': t('photos', ['photo'], { panel: ['light', 'color', 'effects', 'detail', 'optics', 'crop', 'versions'] }, 'A panel of the editor used on a photo (the panel only, never a value).'),
   'photo.export': t('photos', ['photo'], { size: ['full', '2048', '1080'], format: ['jpeg', 'heic'], to: ['share', 'files', 'drive'] }, 'A photo exported: the size, format and where, never a pixel.'),

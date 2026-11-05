@@ -25,8 +25,27 @@ Step P1a, 2026-11-04: the shelf and the store. No editing yet.
   the file is in the app's folder with that size and, when Drive gives one, that SHA-256. Its day is the capture day in the owner's zone.
 - **The working preview**: made on the phone (`apps/photos/preview.js`) at 2,048 px on its longest
   side (Settings › Photos: 1,024 or 2,048), a JPEG of at most 400 KB, sent to the Worker
-  (`PUT /v1/photos/:id/preview`) and kept in the private bucket (`photos/previews/<id>.jpg`), read
-  back only through the Worker.
+  (`PUT /v1/photos/:id/preview`) right after the registration and kept in the private bucket
+  (`photos/previews/<id>.jpg`), read back only through the Worker. The embedded JPEG is decoded
+  once: one bitmap gives the thumbnail and then the preview, which is made while the upload runs
+  (the upload starts first). A failed preview never fails the import; the photo gets one when it is
+  first opened.
+- **Import from Drive** (From Drive, beside Import; 2026-11-05): for photos already in the owner's
+  Drive, put there on its own time (the Drive app, a laptop) instead of uploaded from the phone in
+  the foreground. A tap (never before) loads Google's picker (`apps/photos/pick.js`) with the Drive
+  token the phone already gets for uploads and a public picker key (SETUP.md §R5); it opens in the
+  app's folder and lets the owner go anywhere in their Drive, folders shown, up to 100 at once.
+  Under `drive.file` the app sees only files it made, so the picker is how the owner hands others
+  over: each file picked becomes visible to this app, and nothing else does (the scope never
+  widens). Only RAF, DNG, JPEG and HEIC are taken; a toast says how many others were skipped. The
+  phone sends the ids 20 a request (`POST /v1/photos/from-drive`, with "20 of 60" as it goes); the
+  Worker asks Drive for each file's name, size, times, SHA-256 and what Drive read from the image
+  (EXIF time, dimensions), one call a file, and registers the ones the shelf does not know the way
+  the daily pass does (no preview, no ledger row); a known one, however it came, is `already`. The
+  files stay where they are in Drive: the shelf keeps their ids. Each is on the shelf at once as a
+  tile with its name and "Preview coming", then the phone makes its thumbnail and preview from the
+  original in Drive (`previewFromDrive`: a RAF's header and embedded JPEG by ranged reads), three at
+  a time. Without a picker key, or with Drive not connected, the button is off and says why.
 - **The shelf**: days newest first, each with up to four thumbnails and a count; a day opens whole;
   14 days a page ("Earlier days"). Tap a photo for the full-bleed view (the preview on black, its day,
   camera and film simulation). Hold it (or tap the star) for Pick, Reject, a rating of 1–5 and
@@ -34,7 +53,8 @@ Step P1a, 2026-11-04: the shelf and the store. No editing yet.
 - **Recently deleted**: a deleted photo leaves the shelf at once and stays 30 days (Restore brings it
   back); then the cron's prune pass purges its row and preview (bytes first), and the next Drive pass
   moves its original to Drive's own trash (the owner can still take it back there).
-- **The daily Drive pass** (`areas/photos/reconcile.ts`, from the 15-minute cron once a logical day):
+- **The daily Drive pass** (`areas/photos/reconcile.ts`, from the 15-minute cron once a logical day;
+  it registers a file the same way as an import from Drive, `areas/photos/ops.ts`):
   moves at most 20 purged originals to Drive's trash (each on its own; a busy Drive's waits a day),
   then lists the app's folder from where the last pass stopped (oldest change first, one page of at
   most 200 files: a run makes at most 22 outbound calls, under the free plan's 50) and registers each file the shelf does not know with no preview; the phone makes
@@ -59,7 +79,7 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
 - **What the Worker keeps**: one row per photo (ids, numbers, the camera's words) and a preview of
   at most 400 KB (ten thousand photos of 300 KB is 3 GB, inside R2's free 10 GB).
 - **The mind** sees no pixel, no name and no token: the senses carry ids, formats and ratings only
-  (`photo.import`, `photo.delete`, `photo.rate`, `photo.edit` with the panel only, `photo.paste` with the count and panels only; `privacy.senses.photos` switches them off).
+  (`photo.import` with the format and `source` phone or drive, `photo.delete`, `photo.rate`, `photo.edit` with the panel only, `photo.paste` with the count and panels only; `privacy.senses.photos` switches them off).
 - **Rows**: an import is 1 read and 4 writes, its preview 3 and 2; the shelf's first page of 14 days
   of 6 photos reads 140 rows; a saved recipe 3 reads and 6 writes, the same one again 2 and 0 ([backend/tests/cost/budgets.json](../../../backend/tests/cost/budgets.json)).
   Drive's quotas are far above one person's use. Owner steps: [SETUP.md §R](../../process/SETUP.md).

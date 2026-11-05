@@ -1,14 +1,15 @@
 // @ts-check
-// An import (PHOTOS.md §3.1): for each picked file, its embedded preview is read and shown at once
-// (a thumbnail on the shelf in under a second), the original goes to Drive (drive.js) with its
-// progress, the photo is registered with what the file says (read.js), and the working preview is
-// made on the phone (preview.js) and sent to the Worker; `photo.import` says it happened (the id
-// and the format, never the name). A photo found in Drive by the daily pass gets its preview the
-// same way the first time it is opened (`previewFromDrive`).
+// An import (PHOTOS.md §3.1): for each picked file, its embedded preview is read and decoded once,
+// the thumbnail shown at once (on the shelf in under a second), the original's upload to Drive
+// started (drive.js, with its progress) and the working preview made from the same bitmap while it
+// runs (preview.js); the photo is registered with what the file says (read.js) and the preview sent
+// right after (a failed preview never fails the import). `photo.import` says it happened (the id,
+// the format and where from, never the name). A photo found in Drive by the daily pass, or picked
+// there (from-drive.js), gets its preview from its original in Drive (`previewFromDrive`).
 import { uuidv7 } from '/th/chat/model.js';
 import { fetchOriginal, upload } from './drive.js';
 import * as data from './data.js';
-import { makePreview, makeThumb } from './preview.js';
+import { decodeOnce } from './preview.js';
 import { formatOf, readPhoto } from './read.js';
 
 /** @typedef {{ id: string, name: string, thumb: Blob | null, taken_at: number }} Arrival */
@@ -21,19 +22,22 @@ async function hash(blob) {
 }
 
 /** The words for a failed import. @param {unknown} e */
-function why(e) {
+export function why(e) {
   const code = /** @type {{ code?: string, status?: number }} */ (e)?.code;
   if (code === 'conflict') return 'Connect Google Drive in Settings › Photos first.';
   if (code === 'not_configured') return 'Google Drive is not set up for your Worker yet.';
   return navigator.onLine === false ? 'Offline. Try again when you are back online.' : 'This one did not upload. Try again.';
 }
 
-/** Makes and sends the working preview; kept on this phone too. @param {string} id @param {Blob} source */
-export async function sendPreview(id, source) {
-  const p = await makePreview(source, data.previewSide());
-  await data.keepPreview(id, p.blob);
-  return data.putPreview(id, p.blob);
+/** Sends the working preview; kept on this phone too. @param {string} id @param {Blob} jpeg */
+async function sendPreview(id, jpeg) {
+  await data.keepPreview(id, jpeg);
+  return data.putPreview(id, jpeg);
 }
+
+/** `photo.import`: the id, the format and where from. @param {data.PhotoItem} p @param {'phone' | 'drive'} source */
+export const sensed = (p, source) =>
+  import('/th/senses/send.js').then((m) => m.sense('photo.import', `photo:${p.id}`, { format: p.format, source })).catch(() => {});
 
 /**
  * Imports the files one after another. `arrive` puts each on the shelf at once and returns how to
@@ -44,12 +48,14 @@ export async function importFiles(files, arrive) {
   for (const file of files) {
     const id = uuidv7();
     const meta = await readPhoto(file);
-    const thumb = meta.preview ? await makeThumb(meta.preview).catch(() => null) : null;
+    const once = meta.preview ? await decodeOnce(meta.preview).catch(() => null) : null;
+    const thumb = once?.thumb ?? null;
     if (thumb) data.keepThumb(id, thumb);
     const h = arrive({ id, name: file.name, thumb, taken_at: meta.taken_at });
+    let preview = /** @type {Promise<{ blob: Blob } | null>} */ (Promise.resolve(null));
     try {
       const kept = await data.store.get(`session:${file.name}:${file.size}`).catch(() => null);
-      const driveId = await upload({
+      const uploading = upload({
         file,
         name: file.name,
         token: data.uploadToken,
@@ -57,6 +63,9 @@ export async function importFiles(files, arrive) {
         keep: (s) => data.store.set(`session:${file.name}:${file.size}`, s).catch(() => {}),
         onProgress: h.progress,
       });
+      // The working preview from the same bitmap, made while the upload runs.
+      if (once) preview = once.preview(data.previewSide()).catch(() => null);
+      const driveId = await uploading;
       data.store.del(`session:${file.name}:${file.size}`).catch(() => {});
       let photo = await data.register(id, {
         drive_id: driveId,
@@ -72,11 +81,14 @@ export async function importFiles(files, arrive) {
       });
       // A Drive file the daily pass had already found is that photo: its thumbnail follows it.
       if (photo.id !== id && thumb) data.keepThumb(photo.id, thumb);
-      if (meta.preview) photo = await sendPreview(photo.id, meta.preview).catch(() => photo);
-      import('/th/senses/send.js').then((m) => m.sense('photo.import', `photo:${photo.id}`, { format: meta.format })).catch(() => {});
+      const made = await preview;
+      if (made) photo = await sendPreview(photo.id, made.blob).catch(() => photo);
+      sensed(photo, 'phone');
       h.done(photo);
     } catch (e) {
       h.failed(why(e));
+      // The bitmap goes either way.
+      await preview;
     }
   }
 }
@@ -98,7 +110,7 @@ export async function previewFromDrive(p) {
   if (formatOf(file) === 'other') return null;
   const meta = await readPhoto(file);
   if (!meta.preview) return null;
-  const thumb = await makeThumb(meta.preview).catch(() => null);
-  if (thumb) await data.keepThumb(p.id, thumb);
-  return sendPreview(p.id, meta.preview);
+  const once = await decodeOnce(meta.preview);
+  if (once.thumb) await data.keepThumb(p.id, once.thumb);
+  return sendPreview(p.id, (await once.preview(data.previewSide())).blob);
 }

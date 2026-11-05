@@ -659,6 +659,14 @@
     "rows_read_max": 7,
     "rows_written_max": 0
   },
+  "POST /v1/photos/from-drive (1 file) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 4
+  },
+  "POST /v1/photos/from-drive (20 files) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 80
+  },
   "PATCH /v1/photos/:id (Core)": {
     "rows_read_max": 2,
     "rows_written_max": 2

@@ -128,12 +128,20 @@ Decisions fix the host. Consequences for security:
 
 ### 4.1 CSP (meta, first element after `<meta charset>`)
 
-The one third-party origin a new page may name (2026-11-04): Photos' own page (`/photos/`) adds
-`https://www.googleapis.com` to `connect-src` and `blob:` to `img-src`, and nothing else. The phone
-uploads an original to the owner's Drive itself (a resumable upload with a short-lived token the
-Worker mints, scope `drive.file`) and reads an original back only to make a missing preview; no
-other page reaches Google, and `tests/site.test.mjs` allows that host only in that page and
-`apps/photos/drive.js`.
+The third-party origins a page may name (2026-11-04, 2026-11-05), all in Photos' own page
+(`/photos/`) and no other: `connect-src` adds `https://www.googleapis.com` (and `img-src` `blob:`):
+the phone uploads an original to the owner's Drive itself (a resumable upload with a short-lived
+token the Worker mints, scope `drive.file`) and reads an original back only to make a missing
+preview. `script-src` adds `https://apis.google.com` and `frame-src` `https://docs.google.com`:
+Google's picker, the site's one third-party script, loaded only when the owner taps From Drive,
+from `https://apis.google.com/js/api.js` (its loader then fetches the picker module from the same
+host, `/_/scs/…`); the picker runs in a `docs.google.com` frame with the owner's Drive token and a
+browser key that is public by design (restricted at Google to the Picker API only: a Websites
+restriction is checked by referrer, which every page here withholds, SETUP.md §R5). Measured against the real loader (2026-11-05): nothing else is fetched from the page,
+so `connect-src` gains nothing; the picker's own inline `<style>` is refused by `style-src 'self'`
+(one console line each time it opens) and `apps/photos/photos.css` styles its dialog instead.
+`tests/site.test.mjs` allows these three hosts only in that page, `apps/photos/drive.js` and
+`apps/photos/pick.js`, and checks the page names no other.
 
 App shell (`/index.html` and app stubs):
 ```
@@ -405,6 +413,8 @@ Names only. "Rotate" says who does it and how; runbooks are in §14. A test chec
 | Muse key | Muse's own settings | `ths_` key | Owner in Settings → Agents |
 | Session tokens, agent-key hashes, password verifier, recovery hash | `Auth` DO (hashes only) | — | Through the product (sign-out, change password, revoke) |
 | Password, recovery code | Owner's password manager / paper | — | Owner |
+
+Not a secret, so a `wrangler.jsonc` var (an empty placeholder) and a repository variable: `GOOGLE_PICKER_KEY` (P9, Photos), the browser key Google's picker needs, which every browser that opens the picker sees. It is restricted at Google to the Picker API only (a Websites restriction needs a referrer, which the site withholds; SETUP.md §R5); `GET /v1/photos/drive` hands it to the owner's phone. Rotate: a new key in Google Cloud → Credentials, the variable updated, the old key deleted.
 
 Never: Cloudflare, Azure or R2 credentials in any Claude environment; any secret as a `wrangler.jsonc` var; old-Worker secret values reused (new keys are issued at the switch).
 

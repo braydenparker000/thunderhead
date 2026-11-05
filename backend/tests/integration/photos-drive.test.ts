@@ -42,6 +42,8 @@ describe('connecting Google Drive', () => {
       revoked: false,
       connected_at: null,
       account: null,
+      picker_key: 'test-picker-key',
+      picker_app: '100000000001',
     });
     expect((await api('POST', '/v1/photos/upload-token', { token: D })).status).toBe(409);
   });
