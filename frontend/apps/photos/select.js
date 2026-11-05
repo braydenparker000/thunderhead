@@ -134,7 +134,7 @@ export function chooser(box, head) {
         if (on) { if (!chosen.has(p.id)) toggle(p); else draw(); return; }
         // Not choosing yet: the tile's menu (rate.js), whose Choose starts it with this photo.
         tileMenu(box, p, {
-          choose: () => { on = true; chosen.clear(); toggle(p); },
+          choose: () => { on = true; chosen.clear(); toggle(p); draw(); },
           changed: (q) => tile.querySelector('.tmarks')?.replaceWith(tileMarks(q)),
         });
       }, HOLD_MS);
