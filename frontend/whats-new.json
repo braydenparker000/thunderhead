@@ -1,5 +1,5 @@
 {
-  "id": "2026-11-05-photos-looks",
+  "id": "2026-11-05-photos-info",
   "date": "2026-11-05",
   "lines": [
     {
@@ -9,7 +9,7 @@
       "text": "Import .xmp presets from Files or Drive, one or many: only their numbers are kept, under Imported."
     },
     {
-      "text": "Paste a camera recipe's text into Recipes: tone, colour, grain and white balance shift apply; the film name is kept."
+      "text": "Photos has an Info sheet: tap the i in the editor, or hold a photo on the shelf and choose Info."
     },
     {
       "text": "Undo in a Photos message now takes a tap (it did not before)."

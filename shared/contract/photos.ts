@@ -3,12 +3,14 @@
 // per photo (ids, numbers, the camera's words) and a small JPEG preview in the private bucket. No
 // pixel and no Drive token ever reaches the mind. Plain data with erasable types only.
 
+import type { PhotoInfo } from './photos-info.ts';
 import type { PhotoRecipe } from './photos-recipe.ts';
 
 export * from './photos-recipe.ts';
 export * from './photos-paste.ts';
 export * from './photos-versions.ts';
 export * from './photos-looks.ts';
+export * from './photos-info.ts';
 
 export const PHOTO_LIMITS = {
   /** A preview the phone sends: a JPEG of at most this many bytes (2048 px at quality ~0.8). */
@@ -113,12 +115,16 @@ export interface PutPhotoRequest {
   height?: number | null;
   /** EXIF capture time; else the file's own time. */
   taken_at: number;
+  /** What the file says about itself (photos-info.ts): the Worker keeps the keys it knows. */
+  info?: PhotoInfo | null;
 }
 
 /** GET /v1/photos/:id: the photo and its recipe (`{}` as shot). */
 export interface PhotoResponse {
   photo: PhotoItem;
   recipe: PhotoRecipe;
+  /** Null until the phone has read the file (`{}`: read, nothing found). */
+  info: PhotoInfo | null;
 }
 
 /** A stack's rating, heart and flag go on both its photos. */

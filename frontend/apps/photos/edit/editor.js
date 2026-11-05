@@ -6,6 +6,7 @@
 // half a second after the last one; an editing session's end keeps an automatic version.
 import { el, toast } from '/th/ui.js';
 import * as data from '../data.js';
+import { infoButton } from '../info.js';
 import { back } from '../nav.js';
 import { icon } from '../shelf.js';
 import { neutralFor, srgbTo2020, tempTintOf } from './color.js';
@@ -58,6 +59,7 @@ export async function editScreen(box, id) {
   /** @type {data.PhotoItem} */
   let p;
   try { p = await data.photo(id); } catch { say('This photo is not on this phone yet.'); return; }
+  infoButton(root, p, () => small?.px ?? null);
   const rawPhoto = p.format === 'raf' || p.format === 'dng';
   const made = await makeRenderer(canvas).catch((e) => { say(`This phone cannot draw the editor (${e.message}).`); return null; });
   if (!made) return;

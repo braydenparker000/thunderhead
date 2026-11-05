@@ -64,8 +64,8 @@ export const tileMarks = (p) =>
     ...(p.rating ? [el('span', { class: 'tstars', 'aria-label': stars(p.rating), text: `★${p.rating}` })] : []),
   ]);
 
-/** The shelf's long-press menu: the stars and the heart, Choose (to paste or export), and for a
- * stack, Open the JPEG. @param {HTMLElement} host @param {PhotoItem} p
+/** The shelf's long-press menu: the stars and the heart, Choose (to paste or export), Info
+ * (info-sheet.js), and for a stack, Open the JPEG. @param {HTMLElement} host @param {PhotoItem} p
  * @param {{ choose: () => void, changed: (q: PhotoItem) => void }} o */
 export function tileMenu(host, p, o) {
   if (host.querySelector('.tmenu')) return;
@@ -81,7 +81,9 @@ export function tileMenu(host, p, o) {
   });
   const choose = el('button', { type: 'button', class: 'pact' }, [icon('check'), el('span', { text: 'Choose' })]);
   choose.addEventListener('click', () => { shut(); o.choose(); });
-  const acts = [choose];
+  const about = el('button', { type: 'button', class: 'pact' }, [icon('info'), el('span', { text: 'Info' })]);
+  about.addEventListener('click', () => { shut(); import('./info-sheet.js').then((m) => m.infoSheet(host, p)); });
+  const acts = [choose, about];
   if (p.pair_id) {
     const jpeg = el('button', { type: 'button', class: 'pact' }, [icon('image'), el('span', { text: 'Open the JPEG' })]);
     jpeg.addEventListener('click', () => { shut(); go(`?photo=${p.pair_id}`); });

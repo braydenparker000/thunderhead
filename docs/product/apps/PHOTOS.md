@@ -391,7 +391,43 @@ a setting the recipe does not name is the camera's zero.
 | White balance shift R, B (−9 … +9) | 2.5 mired warmer for each step of red over blue; Tint = 3 × (red + blue) (+ magenta) |
 | Film Simulation | kept as the look's film name (see above) |
 
-## 8. Next
+## 8. Info (as built)
+
+- **The sheet** (`info-sheet.js`): Info (ⓘ) in the editor's top bar, and Info in the shelf's tile
+  menu. Sections, a row each (48 px, the label left, the value right in tabular numbers): **Camera**
+  (body, lens, focal length with its 35 mm equivalent, the exposure as shutter · aperture · ISO, bias
+  in thirds, program, metering, flash, the camera's own stars); **Film** (film simulation, dynamic
+  range, DR priority, highlights, shadows, colour, sharpness, noise reduction, clarity, grain, colour
+  chrome and its blue, white balance and its shift, stabilisation; a black-and-white photo shows its
+  warm–cool and magenta–green instead of colour); **Image** (size, orientation, format, file size, when
+  it was taken in the owner's zone, software); **Histogram** (red, green and blue: in the editor the
+  live render's, from the shelf the preview's); **Edit** (edited or as shot, how many versions; the
+  app keeps no count of exports, so none is shown); **Drive** (In Drive or Uploading, the folder).
+  Copy at the bottom copies it as plain text. A row the file does not have is left out.
+- **Reading** (`exif.js`, `fuji.js`): from the JPEG the camera embedded (a RAF's) or the JPEG itself,
+  its APP1's IFD0 and EXIF IFD; from a DNG, its own IFDs. Fujifilm's maker note by tag, the ids as
+  ExifTool's public FujiFilm table documents them (no code copied): FilmMode 0x1401, the colour
+  0x1003 (and its black-and-white modes), dynamic range 0x1402 and 0x1403, DR priority 0x1443–0x1445,
+  highlight 0x1041 and shadow 0x1040, sharpness 0x1001, noise reduction 0x100E, clarity 0x100F, grain
+  0x1047 and 0x104C, colour chrome 0x1048 and 0x104E, white balance 0x1002 with 0x1005 and its fine
+  tune 0x100A, the monochrome warm–cool 0x1049 and magenta–green 0x104B, stabilisation 0x1422. The
+  smooth skin effect has no documented id (0x1049 is the monochrome adjustment there), so it is not
+  read. The codes are kept as the camera wrote them and put into its words on the phone (Classic
+  Chrome, DR400, +1, Strong); a code the table does not know shows as its number.
+- **Kept** (`photos.info`, step 46): the registration carries it (`PUT /v1/photos/:id` `info`); a
+  photo registered before, or found in Drive, gets it the first time it is opened: the editor reads
+  only the bytes that hold it from the original in Drive (a RAF's 92-byte header and the first 160 KB
+  of its embedded JPEG; a JPEG's first 160 KB; a DNG's first 512 KB) and sends it by
+  `PUT /v1/photos/:id/info`, with the camera and film for a photo that has none. An allowlist of
+  numbers and two names (lens, software, ≤ 80 characters), ≤ 2 KB; the Worker drops a key it does not
+  know and keeps it canonical, so the same info again writes nothing. `{}` is a file that said nothing.
+- **Never a place**: the GPS IFD (pointer 0x8825) is never followed and the allowlist has no place
+  key, so where a photo was taken is not read, shown, copied or sent (SECURITY.md §10).
+- **The mind**: nothing new. The info stays on the photo; no sense carries it.
+- **Cost**: an import with its info is 5 rows read and 5 written (3 and 4 without); opening a photo
+  with its info reads 3; the first open's info 3 and 2, the same again 2 and 0.
+
+## 9. Next
 
 The RAF's own lens tables through the engine; P1d the camera look and the mind; P2 masks;
 the camera's learned looks (RAW+JPEG pairs) fill Looks' Camera section. The fit keeps the first

@@ -2,6 +2,7 @@
 // count a day; `?day=` one whole day; `?filter=` a chip's), the photos either side of one (culling),
 // one photo, its stars, heart and flag, Recently deleted and back,
 // pending photos (a background upload's, registered before Drive has the file; the id comes by PATCH),
+// the file's info (info.ts: an allowlist, never GPS),
 // and its preview: a JPEG of at most 400 KB the phone made, kept in the private bucket under
 // photos/previews/ and served only through this Worker. The owner's phone only.
 import { Hono } from 'hono';
@@ -29,6 +30,7 @@ import { coreObject } from '../../objects/core';
 import { fresh } from '../../objects/rpc';
 import { sha256 } from '../import/vault';
 import { fileMeta } from './google';
+import { infoBody, infoField, sealInfo } from './info';
 import { normal, pasteBody } from './paste';
 import { recipeBody, recipeObject, sealRecipe } from './recipe';
 import { accessToken } from './token';
@@ -55,6 +57,7 @@ const putBody = z.strictObject({
   width: maybe(dim),
   height: maybe(dim),
   taken_at: z.number().check(z.int(), z.gte(0), z.lte(Number.MAX_SAFE_INTEGER)),
+  info: maybe(infoField),
 });
 const patchBody = z.strictObject({
   rating: z.optional(z.number().check(z.int(), z.gte(0), z.lte(5))),
@@ -126,9 +129,10 @@ export const photosRoutes = new Hono<AppEnv>()
   .put('/photos/:id', guard('PUT /v1/photos/:id'), async (c) => {
     const id = idParam(c);
     const body = await json(c, putBody);
+    const sealed = body.info ? sealInfo(body.info) : null;
     // A pending photo (a background upload) has no file in Drive yet: its id comes by PATCH.
     if (body.drive_id) await inDrive(c.env, { ...body, drive_id: body.drive_id });
-    const out = value(await fresh(coreObject(c.env).putPhoto(id, body)));
+    const out = value(await fresh(coreObject(c.env).putPhoto(id, { ...body, info: undefined }, sealed)));
     return c.json({ photo: out.photo }, out.created ? 201 : 200);
   })
   .get('/photos/:id/around', guard('GET /v1/photos/:id/around'), async (c) => {
@@ -200,6 +204,16 @@ export const photosRoutes = new Hono<AppEnv>()
   .post('/photos/:id/restore', guard('POST /v1/photos/:id/restore'), async (c) =>
     c.json({ photo: value(await fresh(coreObject(c.env).restorePhoto(idParam(c)))) }),
   )
+  // The file's info for a photo registered without it (the editor reads it on the first open).
+  .put('/photos/:id/info', guard('PUT /v1/photos/:id/info'), async (c) => {
+    const id = idParam(c);
+    const body = await json(c, infoBody);
+    const sealed = sealInfo(body.info);
+    const out = value(
+      await fresh(coreObject(c.env).putPhotoInfo(id, sealed, { camera: body.camera, film: body.film })),
+    );
+    return c.json({ photo: out.photo, changed: out.changed });
+  })
   .put('/photos/:id/preview', guard('PUT /v1/photos/:id/preview'), async (c) => {
     const id = idParam(c);
     if (inSandbox()) throw new ApiError('validation', [{ path: 'TH-Sandbox', issue: 'the sandbox keeps no previews' }]);

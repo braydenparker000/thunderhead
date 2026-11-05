@@ -467,7 +467,7 @@ CREATE TABLE photos (
   deleted_at INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
-  , recipe_json TEXT, recipe_sha TEXT, pair_id TEXT, favorite INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID;
+  , recipe_json TEXT, recipe_sha TEXT, pair_id TEXT, favorite INTEGER NOT NULL DEFAULT 0, info TEXT) WITHOUT ROWID;
 
 CREATE INDEX photos_deleted ON photos (deleted_at) WHERE deleted_at IS NOT NULL;
 

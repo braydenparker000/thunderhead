@@ -1,7 +1,7 @@
 // Photos' calls of the cost suite (cost.test.ts checks every budget), metered in Core: an import
 // (the photo's row, then its preview's), 1 and 20 files picked in Drive, the shelf's first page of 14 days with four photos each,
 // one whole day, the 4-star chip's first page and the photos either side of one (culling), a stack (a
-// JPEG meeting its RAF) and its heart, a rating, a recipe saved (a change, then the same again), versions, a pending photo
+// JPEG meeting its RAF) and its heart, a rating, a recipe saved (a change, then the same again), versions, info, a pending photo
 // (registered, listed, given its Drive id) and a delete;
 // then, after the ledger's own reads are measured, a paste onto 1 and onto 12 photos (pasteCalls). The shelf holds 15 days of 6 invented photos first.
 import { exports } from 'cloudflare:workers';
@@ -163,6 +163,47 @@ export async function photosCalls(cost: Cost, grant: (ip: string, password?: str
   await cost(
     'DELETE /v1/photos/:id/versions/:vid (Core)',
     () => api('DELETE', `/v1/photos/${id}/versions/${named.id}`, d),
+    200,
+    k,
+  );
+  // Info (PHOTOS.md § Info): an import that carries it, the photo opened with it, and a photo
+  // registered without it given its info on its first open (then the same again, which writes nothing).
+  const info = {
+    lens: 'XF23mmF2 R WR',
+    focal: 23,
+    focal35: 35,
+    exposure: 0.004,
+    fnumber: 2.8,
+    iso: 400,
+    film_mode: 0x600,
+    dr_dev: 400,
+    highlight: -16,
+    shadow: 16,
+    clarity: 2000,
+    grain: 32,
+    grain_size: 16,
+    chrome: 64,
+    wb: 0,
+    wb_fine_r: 40,
+    wb_fine_b: -20,
+  };
+  const told = uuidv7();
+  await cost(
+    'PUT /v1/photos/:id (an import with its info) (Core)',
+    () => api('PUT', `/v1/photos/${told}`, { ...d, body: { ...photoBody(), info } }),
+    201,
+    k,
+  );
+  await cost('GET /v1/photos/:id (with its info) (Core)', () => api('GET', `/v1/photos/${told}`, d), 200, k);
+  await cost(
+    'PUT /v1/photos/:id/info (on its first open) (Core)',
+    () => api('PUT', `/v1/photos/${id}/info`, { ...d, body: { info, camera: 'FUJIFILM X-E5' } }),
+    200,
+    k,
+  );
+  await cost(
+    'PUT /v1/photos/:id/info (the same again) (Core)',
+    () => api('PUT', `/v1/photos/${id}/info`, { ...d, body: { info, camera: 'FUJIFILM X-E5' } }),
     200,
     k,
   );

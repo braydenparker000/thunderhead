@@ -27,6 +27,7 @@ export const PHOTO_ROUTES = {
   'POST /v1/photos/:id/versions': { who: ['D'], phase: 'P9', note: '{id, kind auto|named, name?, recipe}; an automatic one equal to the newest writes nothing; the oldest automatic goes past 20' },
   'PATCH /v1/photos/:id/versions/:vid': { who: ['D'], phase: 'P9', note: '{name}: renames (an automatic one becomes named)' },
   'DELETE /v1/photos/:id/versions/:vid': { who: ['D'], phase: 'P9' },
+  'PUT /v1/photos/:id/info': { who: ['D'], phase: 'P9', note: '{info, camera?, film?}: what the file says (an allowlist, ≤ 2 KB; unknown keys dropped; never GPS) for a photo registered without it; camera and film only where it has none' },
   'PUT /v1/photos/:id/preview': { who: ['D'], phase: 'P9', note: 'the JPEG preview, ≤ 400 KB' },
   'GET /v1/photos/:id/preview': { who: ['D'], phase: 'P9', note: 'the preview bytes, private; an ETag' },
 } as const;
