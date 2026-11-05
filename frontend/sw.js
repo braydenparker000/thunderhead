@@ -3,7 +3,7 @@
 // /precache.json (which leaves out labs, vendor/ and Photos' RAW engine: site-config.mjs), and a new worker waits until the shell says it is a safe moment (§8.3).
 // Never touched: the API and every other host, the ported app folders and /assets/ (they keep
 // their own service workers), and anything that is not a GET. It also shows Web Push notifications
-// and finishes Photos' background uploads.
+// and finishes Photos' background uploads, and makes Photos' editor cross-origin isolated (`isolate`).
 const BUILD = 0;
 const CACHE = `th-${BUILD}`;
 const VENDOR = 'th-vendor';
@@ -13,6 +13,11 @@ const PORTED = ['/music/', '/guitar/', '/podcasts/', '/astra/', '/media/', '/ass
 const SHELL = ['/', '/settings/', '/settings/password/', '/settings/agents/', '/settings/devices/', '/settings/memory/', '/share/'];
 /** Read from the network first (3 s), the cache only when offline. */
 const FRESH = ['/release.json', '/config.js'];
+/** Photos' editor (`/photos/?edit=`) is cross-origin isolated so its RAW engine can run threads (PHOTOS.md, the isolation
+ * shim; SECURITY.md): the page gets COOP and COEP, and the workers it starts (the engine's) COEP. Nothing else does: the
+ * Drive picker's frame (docs.google.com sends no COEP) only ever opens on Photos' other places. */
+const EDITOR = (/** @type {URL} */ url) => url.pathname === '/photos/' && url.searchParams.has('edit');
+const ENGINE_WORKERS = /^\/(apps\/photos\/edit|photos\/engine)\//;
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -51,11 +56,22 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
   const path = url.pathname;
   if (PORTED.some((p) => path === p.slice(0, -1) || path.startsWith(p))) return;
-  if (req.mode === 'navigate') { event.respondWith(page(req, path)); return; }
+  if (req.mode === 'navigate') { event.respondWith(EDITOR(url) ? isolate(page(req, path), true) : page(req, path)); return; }
+  if (req.destination === 'worker' && ENGINE_WORKERS.test(path)) { event.respondWith(isolate(cached(req, path), false)); return; }
   if (FRESH.includes(path)) { event.respondWith(fresh(req, path)); return; }
   if (path.startsWith('/vendor/')) { event.respondWith(vendor(req)); return; }
   event.respondWith(cached(req, path));
 });
+
+/** The same response with COEP (and COOP for a page) added. @param {Promise<Response>} pending @param {boolean} doc */
+async function isolate(pending, doc) {
+  const res = await pending;
+  if (res.type === 'opaque' || res.type === 'opaqueredirect' || res.status < 200) return res;
+  const headers = new Headers(res.headers);
+  headers.set('Cross-Origin-Embedder-Policy', 'require-corp');
+  if (doc) headers.set('Cross-Origin-Opener-Policy', 'same-origin');
+  return new Response(res.body, { status: res.status, statusText: res.statusText, headers });
+}
 
 /** The cached copy of a precached file, else the network. */
 async function cached(req, path) {

@@ -55,6 +55,8 @@ test('no outside hosts anywhere in the site', async () => {
       // picker's frame; named in that page's CSP and the picker module, and nowhere else.
       if (relative(SITE, f) === 'photos/index.html' && /^https:\/\/(apis|docs)\.google\.com;$/.test(url)) continue;
       if (relative(SITE, f) === 'apps/photos/pick.js' && url === 'https://apis.google.com/js/api.js') continue;
+      // wasm-bindgen-rayon's worker script (the threaded RAW engine, PHOTOS.md): its licence notice and a bug link, comments, never fetched.
+      if (/^photos\/engine\/threads\/snippets\/wasm-bindgen-rayon-[0-9a-f]+\/src\/workerHelpers\.no-bundler\.js$/.test(relative(SITE, f)) && ['http://www.apache.org/licenses/LICENSE-2.0', 'https://bugzilla.mozilla.org/show_bug.cgi?id=1702191'].includes(url)) continue;
       assert.fail(`${relative(REPO, f)} reaches ${url}`);
     }
   }

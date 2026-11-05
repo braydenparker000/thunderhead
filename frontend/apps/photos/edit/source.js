@@ -3,13 +3,14 @@
 // embedded JPEG made at import, so the first frame needs no network), then the original from the
 // owner's Drive: a RAF or DNG through the engine in a worker (engine-worker.js), a JPEG or HEIC
 // decoded by the browser. Each gives a working copy (half size for RAW, at most 4096 px for JPEG) and
-// 1:1 tiles on demand. Offline, or with no Drive, the preview is what is edited. A camera matrix fitted
+// 1:1 tiles on demand. A RAF's first copy is binned with no demosaic; `refined` brings the demosaiced one. Offline, or with no Drive, the preview is what is edited. A camera matrix fitted
 // from a body's own JPEG (fit.js) is kept on this phone per model, `th.photos.matrix.<model>`.
 import * as data from '../data.js';
 import { fetchOriginal, mediaUrl } from '../drive.js';
 
 /** @typedef {import('./renderer.js').Source} Source */
-/** @typedef {{ source: Source, raw: boolean, width: number, height: number, asShot: number[], camera: string | null, fallback: boolean, colour?: { source: string, ev?: number, why?: string }, cameraJpeg?: Blob | null, memory: number, ms: number, tile: (x: number, y: number, w: number, h: number) => Promise<Source>, close: () => void }} Original */
+/** @typedef {{ source: Source, ms: number, memory: number }} Refined */
+/** @typedef {{ source: Source, raw: boolean, width: number, height: number, asShot: number[], camera: string | null, fallback: boolean, colour?: { source: string, ev?: number, why?: string }, cameraJpeg?: Blob | null, memory: number, ms: number, threads?: number, stages?: Record<string, number>, refined?: Promise<Refined | null>, tile: (x: number, y: number, w: number, h: number) => Promise<Source>, close: () => void }} Original */
 
 const D65 = [0.3127, 0.329];
 const FIT = 'th.photos.matrix.';
@@ -62,6 +63,10 @@ function engineSource(p, token) {
   return new Promise((resolve, reject) => {
     /** @type {any} */
     let meta = null, jpeg = /** @type {Blob | null} */ (null);
+    /** @type {(r: Refined | null) => void} */
+    let refine = () => {};
+    /** @type {Promise<Refined | null>} */
+    const refined = new Promise((ok) => { refine = ok; });
     worker.onmessage = ({ data: m }) => {
       if (m.type === 'meta') { meta = m.meta; jpeg = m.preview ? new Blob([m.preview], { type: 'image/jpeg' }) : null; }
       else if (m.type === 'working') {
@@ -79,17 +84,23 @@ function engineSource(p, token) {
           cameraJpeg: jpeg,
           memory: m.memory,
           ms: m.ms,
+          threads: m.threads,
+          stages: m.stages,
+          refined: m.stage === 'half' ? refined : Promise.resolve(null),
           tile: (x, y, w, h) => new Promise((ok, no) => {
             const id = ++n;
             waiting.set(id, (r) => (r.type === 'tile' ? ok({ kind: 'planar', width: r.width, height: r.height, data: r.data, x: r.x, y: r.y }) : no(new Error(r.message))));
             worker.postMessage({ type: 'tile', id, x, y, w, h });
           }),
-          close: () => worker.terminate(),
+          close: () => { refine(null); worker.terminate(); },
         });
+      } else if (m.type === 'full') {
+        refine({ source: { kind: 'planar', width: m.width, height: m.height, data: m.data }, ms: m.ms, memory: m.memory });
       } else if (m.id && waiting.has(m.id)) {
         waiting.get(m.id)?.(m);
         waiting.delete(m.id);
       } else if (m.type === 'error') {
+        refine(null);
         worker.terminate();
         reject(new Error(m.message));
       }

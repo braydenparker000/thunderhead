@@ -1,15 +1,12 @@
 {
-  "id": "2026-11-05-photos-colour",
+  "id": "2026-11-05-photos-speed",
   "date": "2026-11-05",
   "lines": [
     {
-      "text": "Photos: an X-E5 RAW now opens in true colour, learnt from the camera's own JPEG, at the camera's brightness."
+      "text": "Photos: a RAW photo is ready to edit much sooner, at half size first; full detail follows by itself."
     },
     {
-      "text": "Exposure rolls into white instead of clipping; Highlights and Shadows leave no halo at strong edges."
-    },
-    {
-      "text": "Keep holding the photo to see the camera's JPEG, or More › Compare with the camera's JPEG for a wipe."
+      "text": "The editor uses several cores when it can, and its title shows how long the photo took to decode."
     }
   ]
 }

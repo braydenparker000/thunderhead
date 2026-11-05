@@ -10,6 +10,27 @@ export class Engine {
         wasm.__wbg_engine_free(ptr, 0);
     }
     /**
+     * The half-size working copy with no demosaic (streaming RAF only; binned.rs), in chunks to `sink({ptr, x, y,
+     * width, height})`: the editor's first frame. Returns `{width, height}`.
+     * @param {Function} sink
+     * @returns {any}
+     */
+    binned(sink) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            wasm.engine_binned(retptr, this.__wbg_ptr, addHeapObject(sink));
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
+            if (r2) {
+                throw takeObject(r1);
+            }
+            return takeObject(r0);
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
      * Decodes the file written at `inputPtr`. `streaming` (RAF only, else ignored) keeps the file and reads
      * only its headers now. Returns `{width, height, camera, whiteBalance, previewJpeg, …}`.
      * @param {boolean} streaming
@@ -106,6 +127,14 @@ export class Engine {
         }
     }
     /**
+     * Threads rayon runs on (1 on plain wasm).
+     * @returns {number}
+     */
+    threads() {
+        const ret = wasm.engine_threads(this.__wbg_ptr);
+        return ret >>> 0;
+    }
+    /**
      * A full-resolution tile of the default crop at `(x, y)`, `w × h` (clamped to the crop), encoded as
      * `working` is. Returns `{ptr, x, y, width, height, planes: 3}`.
      * @param {number} x
@@ -131,14 +160,16 @@ export class Engine {
     }
     /**
      * The working copy at `1/scale` of the default crop: planar f16 linear Rec.2020, white balanced,
-     * highlights clipped at 1.0. Plane `c` starts at `ptr + c * width * height * 2`.
+     * highlights clipped at 1.0. Plane `c` starts at `ptr + c * width * height * 2`. With `sink` (streaming RAF)
+     * it goes out in bands instead, `sink({ptr, x, y, width, height})`, and the result holds no pixels.
      * @param {number} scale
+     * @param {Function | null} [sink]
      * @returns {any}
      */
-    working(scale) {
+    working(scale, sink) {
         try {
             const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
-            wasm.engine_working(retptr, this.__wbg_ptr, scale);
+            wasm.engine_working(retptr, this.__wbg_ptr, scale, isLikeNone(sink) ? 0 : addHeapObject(sink));
             var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
             var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
             var r2 = getDataViewMemory0().getInt32(retptr + 4 * 2, true);
@@ -162,6 +193,10 @@ function __wbg_get_imports() {
         __wbg___wbindgen_throw_41e9ee4f547fc59a: function(arg0, arg1) {
             throw new Error(getStringFromWasm0(arg0, arg1));
         },
+        __wbg_call_187d372bd5fdd4aa: function() { return handleError(function (arg0, arg1, arg2) {
+            const ret = getObject(arg0).call(getObject(arg1), getObject(arg2));
+            return addHeapObject(ret);
+        }, arguments); },
         __wbg_new_617a8cdb8bb1130e: function() {
             const ret = new Object();
             return addHeapObject(ret);
@@ -268,6 +303,10 @@ let heap = new Array(1024).fill(undefined);
 heap.push(undefined, null, true, false);
 
 let heap_next = heap.length;
+
+function isLikeNone(x) {
+    return x === undefined || x === null;
+}
 
 function passArray8ToWasm0(arg, malloc) {
     const ptr = malloc(arg.length * 1, 1) >>> 0;

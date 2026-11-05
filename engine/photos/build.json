@@ -5,19 +5,31 @@
   },
   "patch": {
     "file": "engine/photos/patches/lightcraft-memory.diff",
-    "sha256": "a669c553bfa01a398bdab2e48c1d70a1517fa3ea01db00eebd5efea8c4b93c87"
+    "sha256": "a61cbc741ea65af697d5ba39bcc164edff60b02b7af17e3a7c763ce0c0e0478c"
   },
   "rustc": "rustc 1.97.0 (2d8144b78 2026-07-07)",
   "wasm_bindgen": "wasm-bindgen 0.2.129",
-  "profile": "release (opt-level s, fat LTO, 1 codegen unit, panic abort), default features (JPEG XL in DNG)",
+  "profile": "release (opt-level s, fat LTO, 1 codegen unit, panic abort), default features (JPEG XL in DNG); threads/: + atomics, bulk-memory, mutable-globals, build-std, max memory 1 GiB",
   "files": {
-    "photos_engine_bg.wasm": {
-      "bytes": 2246192,
-      "sha256": "42bee0655858d3614767f087cb3ba9b041e5447315ad95fa942d489fd90b0b31"
-    },
     "photos_engine.js": {
-      "bytes": 14148,
-      "sha256": "9c3a4b0e7d6acdf6437657a57ca3a0b84be51ea82e474ad62e899fea30bcba7a"
+      "bytes": 15740,
+      "sha256": "ff52e50eb0afbe8f5fa83b49c23d48e4ae86c92c2e5d93aa202a78bc2e0dcbca"
+    },
+    "photos_engine_bg.wasm": {
+      "bytes": 2289856,
+      "sha256": "d022c6b1f657a8f90ed3614e4ca4446ea4d51557f6a2fb872c433a7269f11bf4"
+    },
+    "threads/photos_engine.js": {
+      "bytes": 20337,
+      "sha256": "39e15249f3b41f4c27f42523feb25df62f465bafa9857fcb1919380fab890001"
+    },
+    "threads/photos_engine_bg.wasm": {
+      "bytes": 2300058,
+      "sha256": "359d89087a284e9c8a0dd3330cedcf88d2167fc90efcfd77dc9953509f2c44e0"
+    },
+    "threads/snippets/wasm-bindgen-rayon-38edf6e439f6d70d/src/workerHelpers.no-bundler.js": {
+      "bytes": 2947,
+      "sha256": "9801503f464f848c6c7405462fca9a5c721556904c5fee5ee0afcb0887ea1b7f"
     }
   }
 }

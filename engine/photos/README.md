@@ -6,16 +6,20 @@ A small Rust crate built to WebAssembly for the Photos editor
 wasm-bindgen API. The editor runs it in a Web Worker (`frontend/apps/photos/edit/engine-worker.js`).
 
 - `src/lib.rs`: the API: `inputPtr`, `decode`, `decodeInput(streaming)` → `{width, height, camera,
-  whiteBalance, previewJpeg, whiteXy, matrixIsFallback, …}`, `working(scale)` (planar f16 linear
-  Rec.2020), `tile(x, y, w, h)`, `freeWorking`, `memoryBytes`, and `setMatrix(m)`: a camera matrix
+  whiteBalance, previewJpeg, whiteXy, matrixIsFallback, …}`, `binned(sink)` (a RAF's half-size copy
+  with no demosaic, in chunks to `sink`: the editor's first frame), `working(scale, sink?)` (planar f16
+  linear Rec.2020, demosaiced at full resolution; in bands to `sink` when given), `tile(x, y, w, h)`,
+  `freeWorking`, `memoryBytes`, `threads`, `initThreadPool(n)` (the threads build), and `setMatrix(m)`: a camera matrix
   from outside (the editor's fit from the camera's JPEG, `frontend/apps/photos/edit/fit.js`), the
   working copy re-expressed in it in place and later tiles made with it.
 - `src/stream.rs`: RAF in streaming mode: the working copy and tiles from sensor column bands, never
-  the whole mosaic.
+  the whole mosaic, the stripes decoded one per thread.
+- `src/binned.rs`: the binned half-size first frame (PHOTOS.md, the two-stage decode).
 - `src/kernel.rs`: white balance, the camera matrix and LightCraft's demosaic on a window plus an
   8 px margin (bit-identical to its whole-image demosaic: `PHOTOS_RAF=<file> cargo test --release`).
-- `patches/lightcraft-memory.diff`: our two memory patches to LightCraft (compressed RAF stripes in
-  batches; `raf_decode_header` and `raf_decode_columns` for streaming).
+- `patches/lightcraft-memory.diff`: our memory patches to LightCraft (compressed RAF stripes in
+  batches; `raf_decode_header` and `raf_decode_columns` for streaming; `raf_stripes`, each stripe
+  decoded on its own six rows at a time, for the parallel binned frame).
 
 ## The exact build
 
@@ -33,7 +37,9 @@ apply a patch file, so `node scripts/photos-engine.mjs`:
 5. writes `engine/photos/build.json`: the commit, the patch's SHA-256, rustc and
    wasm-bindgen versions, and each file's size and SHA-256.
 
-Built 2026-11-05 with rustc 1.97.0: `photos_engine_bg.wasm` 2,246,192 bytes (596 KB brotli), SHA-256
-`42bee0655858d3614767f087cb3ba9b041e5447315ad95fa942d489fd90b0b31`. `tests/photos-engine.test.mjs`
+Built 2026-11-05 with rustc 1.97.0, twice: `photos_engine_bg.wasm` 2,289,856 bytes and
+`threads/photos_engine_bg.wasm` 2,300,058 bytes (`+atomics,+bulk-memory,+mutable-globals`, std rebuilt
+with `-Z build-std` through `RUSTC_BOOTSTRAP=1`, shared memory up to 1 GiB, wasm-bindgen-rayon 1.3.0
+with `no-bundler`, whose worker script lands in `threads/snippets/`); the hashes are in `build.json`. `tests/photos-engine.test.mjs`
 checks the hashes and decodes the public CC0 X-E5 sample from raw.pixls.us, downloaded at test time
 (never committed). After a rebuild, set the engine line in `scripts/stage.mjs` to the new size.

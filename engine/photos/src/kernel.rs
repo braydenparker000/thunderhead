@@ -4,6 +4,7 @@
 
 use half::f16;
 use lightcraft_raw::{self as raw, Method, Normalized, RawData, RawImage, Rect};
+use rayon::prelude::*;
 
 /// Demosaic margin around a window: the X-Trans interpolation reads a 5×5 neighbourhood.
 pub(crate) const MARGIN: usize = 8;
@@ -58,36 +59,54 @@ pub(crate) struct Kernel {
     pub(crate) h2: usize,
 }
 
+/// The output planes the parallel blocks share: each block writes only its own pixels.
+struct Out(*mut u16);
+unsafe impl Send for Out {}
+unsafe impl Sync for Out {}
+impl Out {
+    /// SAFETY: `i` is in bounds and no other block writes it.
+    #[inline]
+    unsafe fn put(&self, i: usize, v: f32) {
+        unsafe { *self.0.add(i) = f16::from_f32(v).to_bits() }
+    }
+}
+
 impl Kernel {
-    /// Output columns `[ox0, ox1)` of every row, in blocks of `BLOCK_OUT`² output pixels.
-    pub(crate) fn produce(&self, src: &Src, meta: &RawImage, ox0: usize, ox1: usize, out: &mut [u16]) {
-        let (s, w2, h2, c) = (self.s, self.w2, self.h2, self.crop);
-        let plane = w2 * h2;
+    /// Output columns `[ox0, ox1)` of every row into `out`: planar, `ow` columns wide starting at output column
+    /// `ox0`, `h2` rows. Blocks of `BLOCK_OUT`² output pixels run in parallel (rayon; one thread on plain wasm).
+    pub(crate) fn produce(&self, src: &Src, meta: &RawImage, ox0: usize, ox1: usize, out: &mut [u16], ow: usize) {
+        let (s, h2, c) = (self.s, self.h2, self.crop);
+        let plane = ow * h2;
+        assert!(ox1 >= ox0 && ox1 - ox0 <= ow && out.len() >= 3 * plane, "output band too small");
         let inv = 1.0 / (s * s) as f32;
-        for oy in (0..h2).step_by(BLOCK_OUT) {
-            for ox in (ox0..ox1).step_by(BLOCK_OUT) {
-                let (rows, cols) = (BLOCK_OUT.min(h2 - oy), BLOCK_OUT.min(ox1 - ox));
-                let (dx, dy, rgb) = demosaic_window(src, meta, c.x + ox * s, c.y + oy * s, cols * s, rows * s);
-                for y in 0..rows {
-                    for x in 0..cols {
-                        let mut acc = [0f32; 3];
-                        for by in 0..s {
-                            let row = (dy + y * s + by) * rgb.width + dx + x * s;
-                            for px in &rgb.data[row..row + s] {
-                                acc[0] += px[0];
-                                acc[1] += px[1];
-                                acc[2] += px[2];
-                            }
+        let blocks: Vec<(usize, usize)> = (0..h2).step_by(BLOCK_OUT).flat_map(|oy| (ox0..ox1).step_by(BLOCK_OUT).map(move |ox| (oy, ox))).collect();
+        let o = Out(out.as_mut_ptr());
+        let o = &o;
+        blocks.par_iter().for_each(|&(oy, ox)| {
+            let (rows, cols) = (BLOCK_OUT.min(h2 - oy), BLOCK_OUT.min(ox1 - ox));
+            let (dx, dy, rgb) = demosaic_window(src, meta, c.x + ox * s, c.y + oy * s, cols * s, rows * s);
+            for y in 0..rows {
+                for x in 0..cols {
+                    let mut acc = [0f32; 3];
+                    for by in 0..s {
+                        let row = (dy + y * s + by) * rgb.width + dx + x * s;
+                        for px in &rgb.data[row..row + s] {
+                            acc[0] += px[0];
+                            acc[1] += px[1];
+                            acc[2] += px[2];
                         }
-                        let v = to_working(&self.matrix, &self.wb, [acc[0] * inv, acc[1] * inv, acc[2] * inv]);
-                        let i = (oy + y) * w2 + ox + x;
-                        out[i] = f16::from_f32(v[0]).to_bits();
-                        out[plane + i] = f16::from_f32(v[1]).to_bits();
-                        out[2 * plane + i] = f16::from_f32(v[2]).to_bits();
+                    }
+                    let v = to_working(&self.matrix, &self.wb, [acc[0] * inv, acc[1] * inv, acc[2] * inv]);
+                    let i = (oy + y) * ow + ox - ox0 + x;
+                    // SAFETY: blocks cover disjoint (row, column) ranges inside the asserted bounds
+                    unsafe {
+                        o.put(i, v[0]);
+                        o.put(plane + i, v[1]);
+                        o.put(2 * plane + i, v[2]);
                     }
                 }
             }
-        }
+        });
     }
 }
 
