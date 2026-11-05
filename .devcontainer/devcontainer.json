@@ -1,0 +1,22 @@
+{
+  "name": "thunderhead",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:1-24-bookworm",
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
+  },
+  "secrets": {
+    "ANTHROPIC_API_KEY": {
+      "description": "Billing for Claude Code in this codespace: a Console API key (pay as you go), so the session does not draw on a claude.ai plan."
+    }
+  },
+  "postCreateCommand": "npm ci --ignore-scripts && npx playwright install --with-deps --only-shell chromium && node scripts/fonts.mjs",
+  "containerEnv": {
+    "CHROMIUM_PATH": ""
+  },
+  "customizations": {
+    "codespaces": {
+      "openFiles": ["docs/handoff/NEXT-SESSION.md"]
+    }
+  },
+  "hostRequirements": { "cpus": 4, "memory": "8gb" }
+}
