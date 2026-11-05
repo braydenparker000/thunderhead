@@ -5,7 +5,7 @@
 
 /** @typedef {import('../../../../shared/contract/photos-recipe.ts').PhotoRecipe} Recipe */
 /** @typedef {{ key: string, label: string, step: number, unit?: string, up?: string, down?: string, zero?: string, raw?: number }} Control */
-/** @typedef {{ id: 'light'|'color'|'effects'|'detail'|'optics'|'crop'|'versions', label: string, icon: string, tools: (Control | { tool: string, label: string })[] }} Panel */
+/** @typedef {{ id: 'light'|'color'|'effects'|'detail'|'optics'|'crop'|'versions'|'looks', label: string, icon: string, tools: (Control | { tool: string, label: string })[] }} Panel */
 
 const pm = (/** @type {number} */ n) => [-n, n, 0];
 /** [min, max, default], the contract's RECIPE_NUMBERS. */
@@ -48,7 +48,7 @@ export function val(r, key, raw = true) {
 
 /** The value in words and its number, as the slider shows it. @param {Control} c @param {number} v @param {number} [def] */
 export function words(c, v, def = NUMBERS[c.key]?.[2] ?? 0) {
-  const n = c.unit === '°' && c.step < 1 ? `${v > 0 ? '+' : ''}${v.toFixed(1)}°` : c.step < 1 ? (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)) : c.unit === 'K' ? `${Math.round(v)} K` : c.unit === '°' ? `${Math.round(v)}°` : v > 0 && NUMBERS[c.key]?.[0] < 0 ? `+${Math.round(v)}` : String(Math.round(v));
+  const n = c.unit === '%' ? `${Math.round(v)}%` : c.unit === '°' && c.step < 1 ? `${v > 0 ? '+' : ''}${v.toFixed(1)}°` : c.step < 1 ? (v > 0 ? `+${v.toFixed(2)}` : v.toFixed(2)) : c.unit === 'K' ? `${Math.round(v)} K` : c.unit === '°' ? `${Math.round(v)}°` : v > 0 && NUMBERS[c.key]?.[0] < 0 ? `+${Math.round(v)}` : String(Math.round(v));
   const w = v > def ? c.up : v < def ? c.down : (c.zero ?? 'as shot');
   return { number: n, words: w ?? '' };
 }
@@ -117,6 +117,12 @@ export const PANELS = [
     { tool: 'all', label: 'All' },
     { tool: 'named', label: 'Named' },
     { tool: 'auto', label: 'Automatic' },
+  ] },
+  { id: 'looks', label: 'Looks', icon: 'swatches', tools: [
+    { tool: 'mine', label: 'Mine' },
+    { tool: 'xmp', label: 'Imported' },
+    { tool: 'recipe', label: 'Recipes' },
+    { tool: 'camera', label: 'Camera' },
   ] },
 ];
 

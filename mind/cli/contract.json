@@ -1798,6 +1798,37 @@
       "status": "built",
       "note": "?before=<day>: days newest first, 4 photos and a count each; ?day=: one day; ?filter= all|favorites|stars3|stars4|stars5|raw|jpeg|edited|unedited (a stack once, as its RAW)"
     },
+    "GET /v1/photos/looks": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "every look, newest first: at most 500"
+    },
+    "PUT /v1/photos/looks": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "{items ≤ 50: id, name, source mine|xmp|recipe|camera, recipe ≤ 4 KB in its panels, panels, tag?, film?, credit?}: each added or replaced by id; past 500 refused"
+    },
+    "PATCH /v1/photos/looks/:lid": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "{name?, recipe?, panels?}: renames, or updates it from the current edit"
+    },
+    "DELETE /v1/photos/looks/:lid": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built"
+    },
     "GET /v1/photos/deleted": {
       "who": [
         "D"
@@ -3541,6 +3572,7 @@
                   "photo.edit",
                   "photo.export",
                   "photo.paste",
+                  "photo.look",
                   "photo.rate",
                   "astra.open",
                   "mymedia.open",
