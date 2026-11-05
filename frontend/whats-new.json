@@ -1,18 +1,18 @@
 {
-  "id": "2026-11-05-photos-zoom",
-  "date": "2026-11-05",
+  "id": "2026-11-04-photos-looks",
+  "date": "2026-11-04",
   "lines": [
     {
-      "text": "Zooming a photo is smooth now: it stays under your fingers and keeps its sharp detail until a sharper one is ready."
+      "text": "The editor has Looks: save an edit as a look, then tap one to apply it to any photo, with Amount up to 200%."
     },
     {
-      "text": "A flick glides on, the edges give a little and spring back, and a double tap zooms in or out smoothly."
+      "text": "Import .xmp presets from Files or Drive, one or many: only their numbers are kept, under Imported."
     },
     {
-      "text": "Export on this phone says Download: each photo goes to Downloads in turn, and for more than three you can share."
+      "text": "Paste a camera recipe's text into Recipes: tone, colour, grain and white balance shift apply; the film name is kept."
     },
     {
-      "text": "Photos keeps uploading from this phone when you leave the app or lock the screen, on Android Chrome."
+      "text": "Undo in a Photos message now takes a tap (it did not before)."
     }
   ]
 }

@@ -91,3 +91,5 @@ flip-vertical
 stack
 columns
 export
+# Photos: the Looks panel
+swatches

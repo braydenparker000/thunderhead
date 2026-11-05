@@ -33,6 +33,7 @@ import { musicRoutes } from './areas/music/routes';
 import { BIG_OPS, UPLOAD_LIMITS, uploadRoutes } from './areas/music/upload';
 import { opsRoutes } from './areas/ops/routes';
 import { driveRoutes } from './areas/photos/drive-routes';
+import { looksRoutes } from './areas/photos/looks-routes';
 import { photosRoutes } from './areas/photos/routes';
 import { podcastsRoutes } from './areas/podcasts/routes';
 import { podcastSyncRoutes } from './areas/podcasts/sync-routes';
@@ -171,6 +172,7 @@ export const app = new Hono<AppEnv>()
   .route('/v1', ingestRoutes)
   .route('/v1', scriptureRoutes)
   .route('/v1', driveRoutes)
+  .route('/v1', looksRoutes)
   .route('/v1', photosRoutes)
   .notFound(notFound)
   .onError(onError);

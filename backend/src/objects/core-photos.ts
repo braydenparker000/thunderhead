@@ -9,14 +9,17 @@ import {
   type PastePhotosResponse,
   type PatchPhotoRequest,
   type PhotoItem,
+  type PhotoLook,
   type PhotoResponse,
   type PhotoShelfResponse,
   type PhotoVersion,
+  type PutLook,
   type PutPhotoRequest,
   type VersionKind,
 } from '../../../shared/contract/photos.ts';
 import { logicalDay } from '../areas/conversation/day';
 import { quotaHold } from '../areas/meter/quota';
+import * as looks from '../areas/photos/looks';
 import * as ops from '../areas/photos/ops';
 import * as paste from '../areas/photos/paste';
 import * as recipe from '../areas/photos/recipe';
@@ -84,6 +87,24 @@ export abstract class CorePhotos extends CoreVerbs {
 
   deletePhotoVersion(id: string, vid: string): Out<void> {
     return this.run((w) => versions.remove(w, id, vid));
+  }
+
+  // --- looks (areas/photos/looks.ts) -------------------------------------------------------------
+
+  photoLooks(): PhotoLook[] {
+    return looks.list(this.db);
+  }
+
+  putPhotoLooks(items: PutLook[]): Out<{ items: PhotoLook[]; created: number }> {
+    return this.run((w) => looks.put(w, items));
+  }
+
+  patchPhotoLook(id: string, p: Parameters<typeof looks.patch>[2]): Out<PhotoLook> {
+    return this.run((w) => looks.patch(w, id, p));
+  }
+
+  deletePhotoLook(id: string): Out<void> {
+    return this.run((w) => looks.remove(w, id));
   }
 
   photoPreviewKey(id: string): { key: string; sha: string } | null {

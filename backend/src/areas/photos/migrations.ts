@@ -1,7 +1,8 @@
 // Photos (PHOTOS.md, DATA.md §4.14): one row per photo on the shelf, and the Drive ids of photos
 // purged from Recently deleted until their originals are in Drive's own trash. Schema step 41; the
-// recipe's two columns, step 42; its versions, step 43.
-import { PHOTO_LIMITS } from '../../../../shared/contract/photos.ts';
+// recipe's two columns, step 42; its versions, step 43; the looks, step 44 (the next free
+// number when it merged).
+import { LOOK_LIMITS, PHOTO_LIMITS } from '../../../../shared/contract/photos.ts';
 import { DAY } from '../../lib/time';
 import type { Migration, TableInfo } from '../../objects/base';
 
@@ -72,6 +73,29 @@ export const PHOTOS_MIGRATIONS: Migration[] = [
       'CREATE INDEX photo_versions_photo ON photo_versions (photo_id, kind, created_at)',
     ],
   },
+  {
+    version: 44,
+    name: 'photo_looks',
+    kind: 'expand',
+    // A look: a canonical recipe (≤ 4 KB, only its panels' keys) and the panels it sets, where it came
+    // from, a preset's group as a tag, a recipe's film simulation and a credit line; at most 500
+    // (looks.ts holds the cap). thumb_key is kept for a thumbnail in the private bucket: null for now.
+    sql: [
+      `CREATE TABLE photo_looks (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        source TEXT NOT NULL,
+        recipe_json TEXT NOT NULL,
+        panels TEXT NOT NULL,
+        tag TEXT,
+        film TEXT,
+        credit TEXT,
+        thumb_key TEXT,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      ) WITHOUT ROWID`,
+    ],
+  },
 ];
 
 export const PHOTOS_TABLES: Record<string, TableInfo> = {
@@ -82,6 +106,11 @@ export const PHOTOS_TABLES: Record<string, TableInfo> = {
   },
   photo_versions: {
     retention: 'forever while its photo is kept (at most 20 automatic and 20 named); purged with it',
+    backup: true,
+    export: true,
+  },
+  photo_looks: {
+    retention: `forever until the owner deletes it (at most ${LOOK_LIMITS.max})`,
     backup: true,
     export: true,
   },

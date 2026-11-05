@@ -730,5 +730,29 @@
   "POST /v1/photos/paste (the same 12 again) (Core)": {
     "rows_read_max": 13,
     "rows_written_max": 0
+  },
+  "PUT /v1/photos/looks (a look saved) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 1
+  },
+  "PUT /v1/photos/looks (20 presets) (Core)": {
+    "rows_read_max": 21,
+    "rows_written_max": 20
+  },
+  "GET /v1/photos/looks (21) (Core)": {
+    "rows_read_max": 42,
+    "rows_written_max": 0
+  },
+  "PATCH /v1/photos/looks/:lid (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 1
+  },
+  "DELETE /v1/photos/looks/:lid (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 1
+  },
+  "PUT /v1/photos/:id/recipe (a look applied) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 6
   }
 }

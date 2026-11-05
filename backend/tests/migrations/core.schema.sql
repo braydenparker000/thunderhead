@@ -421,6 +421,20 @@ CREATE TABLE perf_days (
   PRIMARY KEY (day, metric)
   ) WITHOUT ROWID;
 
+CREATE TABLE photo_looks (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  source TEXT NOT NULL,
+  recipe_json TEXT NOT NULL,
+  panels TEXT NOT NULL,
+  tag TEXT,
+  film TEXT,
+  credit TEXT,
+  thumb_key TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+  ) WITHOUT ROWID;
+
 CREATE TABLE photo_versions (
   id TEXT PRIMARY KEY,
   photo_id TEXT NOT NULL,

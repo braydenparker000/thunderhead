@@ -156,7 +156,7 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
 
 ## 5. The editor's second half (§3.3 and §3.4 of the plan: Optics, Crop, Versions, Export, as built)
 
-The strip is now Light · Color · Effects · Detail · Optics · Crop · Versions, and Export sits in the
+The strip is now Light · Color · Effects · Detail · Optics · Crop · Versions (and Looks, §7), and Export sits in the
 top bar.
 
 - **Crop and geometry**: while the Crop panel is open the photo shows its whole straightened frame
@@ -234,7 +234,86 @@ top bar.
 - **Cost**: a paste onto 1 photo is 3 rows read and 8 written, onto 12 photos 48 read and 41 written,
   the same 12 again 13 read and none written (backend/tests/cost/budgets.json).
 
-## 7. Next
+## 7. Looks (P5a: saved looks, .xmp presets, pasted recipes, as built)
 
-The RAF's own lens tables through the engine; P1d the camera look and the mind; P2 masks, saved looks
-and culling.
+The strip's eighth panel, Looks (`edit/looks.js`), applies pre-made edits without leaving the site.
+Its chips are the sections: **Mine** (saved from an edit), **Imported** (.xmp presets), **Recipes**
+(pasted camera recipes) and **Camera** (empty for now: the camera's film simulations learn from
+RAW+JPEG pairs in a later release, and say so). Each look is a card in a strip, drawn small through
+this photo as shot with its current crop, cached per photo, look and crop, only as it scrolls into view.
+
+- **Apply**: a tap. The look is a recipe over chosen panels (the Copy sheet's): the photo keeps its keys
+  outside them and takes the look's inside them (`edit/looks-apply.js`), saved as an ordinary recipe
+  put, with Undo in the toast and the ledger's undo on the Worker. Two differences from a paste: a
+  look's **white balance is relative** (its Temperature reads against 5,500 K and its Tint against 0,
+  and applying it shifts the photo's own white balance by that much, in mired), and a look with no
+  white balance leaves the photo's. Then **Amount** (0–200 %) scales every number's way from the photo's
+  value before to the look's (200 % is twice the change, held inside each range); a curve moves point
+  by point; a switch, a hue and a white balance mode take the look's above 0. Any other edit ends the
+  Amount dial for that look.
+- **Save as a look** (at the top of every section): a name, and the panels as switches (Light, Color,
+  Effects and Detail on; Optics and Crop off), white balance kept as a shift from the photo's own.
+- **A long press** on a look: rename it, **Update from current edit** (its panels from this edit), or
+  delete it (Undo in the toast puts it back).
+- **Store**: `/v1/photos/looks` (API.md §11.26), Core step 44, table `photo_looks`: at most 500 looks;
+  each recipe checked by the recipe's schema, only its panels' keys, at most 4 KB. The phone keeps a
+  copy for offline. A thumbnail column is there for later; nothing fills it yet.
+- **Sense**: `photo.look` with the look's source and how many panels it sets, never its name or a value.
+- **Cost** (backend/tests/cost/budgets.json): the list of 21 looks is 42 rows read; a look saved 1 read
+  and 1 written; 20 presets in one PUT 21 read and 20 written; a rename 3 and 1; a delete 2 and 1; a
+  look applied is the recipe put, 3 read and 6 written.
+
+### .xmp presets (`edit/xmp-import.js`, `edit/looks-import.js`)
+
+Import .xmp takes one or many preset files of the common desktop editor (the crs namespace) from Files,
+or from Drive through the shelf's picker narrowed to .xmp files. Each is read on the phone; only the
+values our recipe has are kept, each held inside its range; everything else is counted and the toast
+says how many settings were skipped. The preset's `crs:Name` (else the file's name) is the look's name
+and its `crs:Group` a tag shown as a chip. Nothing else is read or kept: no author, no description, no
+embedded image. The same preset again (the same name and settings) is not added twice. A preset the
+owner downloads is theirs to use under its own terms; the app stores only the numbers, never the file.
+
+| In the preset (crs:) | In our recipe |
+|---|---|
+| `Exposure2012`, `Contrast2012`, `Highlights2012`, `Shadows2012`, `Whites2012`, `Blacks2012` | the same keys (Light) |
+| `ToneCurvePV2012`, `…Red`, `…Green`, `…Blue` (an `rdf:Seq` of "x, y") | the same curves; past 16 points, 16 spread along it |
+| `Texture`, `Clarity2012`, `Dehaze`, `PostCropVignette*`, `GrainAmount`, `GrainSize`, `GrainFrequency` | the same keys (Effects) |
+| `Vibrance`, `Saturation`, `Hue/Saturation/LuminanceAdjustment` × the eight colours | the same keys (Color) |
+| `SplitToningShadowHue/Saturation`, `SplitToningHighlightHue/Saturation`, `SplitToningBalance`, `ColorGradeMidtoneHue/Sat/Lum`, `ColorGradeShadowLum`, `ColorGradeHighlightLum`, `ColorGradeBlending` | the same keys (Grading) |
+| `WhiteBalance="Custom"` with `Temperature`, `Tint` | relative: kelvin read against 5,500 K; a JPEG preset's ±100 as about ±50 mired (+ warmer); Tint as is. `Auto` kept; `As Shot` or none: the photo's own |
+| `Sharpness`, `SharpenRadius`, `SharpenDetail`, `SharpenEdgeMasking`, `LuminanceSmoothing`, `LuminanceNoiseReductionDetail`, `ColorNoiseReduction`, `ColorNoiseReductionDetail` | the same keys (Detail) |
+| `ConvertToGrayscale`, `AutoLateralCA`, `LensProfileEnable`, `LensManualDistortionAmount`, `VignetteAmount` | the same switches and keys |
+| a `crs:Look` block's `crs:Parameters` | fill the keys the preset leaves out, scaled by the block's `crs:Amount` |
+| crop and angle, masks, local adjustments, profiles, anything else | skipped and counted |
+
+### Paste a recipe (`edit/recipe-text.js`)
+
+Paste a recipe takes the text of a camera recipe, the usual block of lines, read in any case and
+order, with the short names (WB, NR, DR, CCE, CCFXB, "Grain: Strong/Large"), and a **From** line
+(≤ 120 characters, a page title, optional) kept as its credit. Nothing is fetched. A line it cannot
+read (ISO, exposure compensation: how to shoot, not an edit) is counted, never guessed. The **film
+simulation** is kept as a name on the look (a chip), not rendered: the look applies everything but the
+simulation and says so, until the Camera section's learned looks supply it (decisions.md, 2026-11-05);
+a black and white one (Acros, Monochrome, Sepia) sets B&W. Panels: Light, Color, Effects and Detail, so
+a setting the recipe does not name is the camera's zero.
+
+| In the recipe | In our recipe |
+|---|---|
+| Highlight (−2 … +4) | Highlights2012 = 15 × the step (+ brighter, harder highlights) |
+| Shadow (−2 … +4) | Shadows2012 = −15 × the step (+ deeper, harder shadows) |
+| Dynamic Range DR100 / DR200 / DR400 | Highlights2012 0 / −10 / −20 more (a wider range holds the highlights back) |
+| Color (−4 … +4) | Saturation = 10 × the step |
+| Sharpness (−4 … +4) | Sharpness = 40 + 10 × the step |
+| Noise Reduction (−4 … +4) | LuminanceSmoothing = 20 + 5 × the step |
+| Clarity (−5 … +5) | Clarity2012 = 10 × the step |
+| Grain Effect Off / Weak / Strong, Small / Large | GrainAmount 0 / 25 / 50, GrainSize 25 / 50 |
+| Color Chrome Effect Weak / Strong (an approximation) | Red, Orange, Yellow, Green and Magenta: Luminance −5 / −10 and Saturation −3 / −6 (deep colours denser, a touch of saturation roll-off) |
+| Color Chrome FX Blue Weak / Strong | Blue Luminance −6 / −12 and Saturation −3 / −6; Aqua half that |
+| White Balance: Auto, Daylight, Shade, or kelvin | relative to 5,500 K: Auto and Daylight 5,500 K, Shade 7,500 K, kelvin as given; others skipped |
+| White balance shift R, B (−9 … +9) | 2.5 mired warmer for each step of red over blue; Tint = 3 × (red + blue) (+ magenta) |
+| Film Simulation | kept as the look's film name (see above) |
+
+## 8. Next
+
+The RAF's own lens tables through the engine; P1d the camera look and the mind; P2 masks and culling;
+the camera's learned looks (RAW+JPEG pairs) fill Looks' Camera section.
