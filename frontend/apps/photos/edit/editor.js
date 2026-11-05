@@ -14,7 +14,7 @@ import { cropOverlay } from './crop.js';
 import { exportSheet } from './export.js';
 import { renderExport } from './export-run.js';
 import { PANELS, withValue } from './fields.js';
-import { frameSize, geometry, photoBox } from './geometry.js';
+import { frameSize, geometry } from './geometry.js';
 import { photoGestures } from './gestures.js';
 import { autoStart, drawHistogram, greyWorld, histogram } from './histogram.js';
 import { lateralCA } from './optics.js';
@@ -26,6 +26,7 @@ import { touches } from './touch.js';
 import { pack, toneLut } from './uniforms.js';
 import { compareView, session, withGeometryOf } from './versions.js';
 import { xmpOf, xmpSegment } from './xmp.js';
+import { zoomer } from './zoom.js';
 
 const SMALL = 256;
 const CROPS = ['CropLeft', 'CropTop', 'CropRight', 'CropBottom'];
@@ -78,7 +79,8 @@ export async function editScreen(box, id) {
   const img = { raw: false, rawPhoto, asShot: [0.3127, 0.329], shot: ed.shot, auto: /** @type {any} */ (null), width: p.width ?? 1, height: p.height ?? 1, srcW: 1, ca: /** @type {number[] | undefined} */ (undefined) };
   ed.img = img;
   const sess = session(id, () => ed.recipe);
-  const view = { z: 1, cu: 0.5, cv: 0.5, pw: 1, ph: 1, tile: /** @type {null | { u0: number, v0: number, u1: number, v1: number, texel: number[] }} */ (null) };
+  /** @type {import('./zoom.js').View} */
+  const view = { z: 1, cu: 0.5, cv: 0.5, pw: 1, ph: 1, tile: null };
   /** @type {import('./source.js').Original | null} */
   let original = null;
   let lutKey = '', lut = /** @type {Uint16Array} */ (new Uint16Array(0)), frames = 0;
@@ -115,6 +117,7 @@ export async function editScreen(box, id) {
   let settleT = null;
   let queued = false;
   const draw = () => {
+    root.dataset.idle = 'false';
     if (queued) return;
     queued = true;
     requestAnimationFrame(() => {
@@ -122,15 +125,20 @@ export async function editScreen(box, id) {
       const rec = ed.before ? {} : shown(ed.recipe), f = frameOf(rec);
       if (Math.abs(f[0] - fr[0]) > 0.5 || Math.abs(f[1] - fr[1]) > 0.5) { fr = f; view.z = 1; view.cu = view.cv = 0.5; view.tile = null; r.clearDetail(); }
       r.draw(uniforms(rec, canvas.width, canvas.height, true), lut);
+      zoom.drawn();
       overlay?.update();
       root.dataset.frames = String(++frames);
       if (settleT) clearTimeout(settleT);
+      const at = frames;
       settleT = setTimeout(async () => {
         small = await readSmall(ed.recipe);
         if (!hist.hidden) drawHistogram(hist, histogram(small.px));
+        await zoom.idle();
+        if (frames === at && root.dataset.idle === 'false') root.dataset.idle = 'true';
       }, 150);
     });
   };
+  const zoom = zoomer({ stage, canvas, root, view, r, img, frame: () => fr, original: () => original, shown: () => shown(ed.recipe), draw, readSmall });
   const usedPanels = new Set();
   const changed = (/** @type {boolean} */ done) => {
     if (ed.recipe.AutoLateralCA && !img.ca) img.ca = original ? lateralCA(original.source) : [0, 0];
@@ -189,7 +197,7 @@ export async function editScreen(box, id) {
     const chosen = tid ?? (ids.includes(tools[pid]) ? tools[pid] : ids[pn.id === 'light' ? 1 : 0]);
     tools[pid] = chosen;
     tools.panel = pid;
-    if (pid === 'crop' && !overlay) { overlay = cropOverlay(stage, ed); view.z = 1; } else if (pid !== 'crop' && overlay) { overlay.remove(); overlay = null; }
+    if (pid === 'crop' && !overlay) { overlay = cropOverlay(stage, ed); view.z = 1; view.cu = view.cv = 0.5; } else if (pid !== 'crop' && overlay) { overlay.remove(); overlay = null; }
     root.dataset.panel = pid;
     draw();
     try { localStorage.setItem('th.photos.tools', JSON.stringify(tools)); } catch {}
@@ -211,53 +219,12 @@ export async function editScreen(box, id) {
   }
   pick(panel);
 
-  // The photo's gestures.
-  const uvAt = (/** @type {number} */ x, /** @type {number} */ y) => {
-    const b = stage.getBoundingClientRect(), v = viewOf(canvas.width, canvas.height, 0);
-    return [v.offset[0] + (x - b.left) * dpr() * v.scale[0], v.offset[1] + (y - b.top) * dpr() * v.scale[1]];
-  };
-  const zmax = () => Math.max(1, 1 / fitScale());
-  const clampView = () => {
-    const v = viewOf(canvas.width, canvas.height, 0), hu = (canvas.width * v.scale[0]) / 2, hv = (canvas.height * v.scale[1]) / 2;
-    view.cu = hu >= 0.5 ? 0.5 : Math.min(1 - hu, Math.max(hu, view.cu));
-    view.cv = hv >= 0.5 ? 0.5 : Math.min(1 - hv, Math.max(hv, view.cv));
-  };
-  let detailN = 0;
-  const settle = async () => {
-    const n = ++detailN;
-    if (view.z <= 1.05) { view.tile = null; r.clearDetail(); draw(); return; }
-    const v = viewOf(canvas.width, canvas.height, 0), dens = 1 / (v.scale[0] * fr[0]);
-    const q0 = [Math.max(0, v.offset[0]), Math.max(0, v.offset[1])];
-    const q1 = [Math.min(1, v.offset[0] + canvas.width * v.scale[0]), Math.min(1, v.offset[1] + canvas.height * v.scale[1])];
-    let [u0, v0, u1, v1] = photoBox(geometry(shown(ed.recipe), img.width, img.height), q0, q1, 8);
-    const full = original && dens > (original.source.width / img.width) * 1.05;
-    const tile = full && original ? await original.tile(Math.floor(u0 * img.width), Math.floor(v0 * img.height), Math.ceil((u1 - u0) * img.width), Math.ceil((v1 - v0) * img.height)).catch(() => null) : null;
-    if (n !== detailN) { if (tile?.kind === 'bitmap') tile.bitmap.close(); return; }
-    if (tile && 'x' in tile && typeof tile.x === 'number') [u0, v0, u1, v1] = [tile.x / img.width, Number(tile.y) / img.height, (tile.x + tile.width) / img.width, (Number(tile.y) + tile.height) / img.height];
-    const w = tile ? tile.width : Math.max(1, Math.round((u1 - u0) * img.width * dens)), h = tile ? tile.height : Math.max(1, Math.round((v1 - v0) * img.height * dens));
-    r.detail(tile, [u0, v0, u1, v1], w, h);
-    if (tile?.kind === 'bitmap') tile.bitmap.close();
-    view.tile = { u0, v0, u1, v1, texel: [1 / w, 1 / h] };
-    root.dataset.detail = tile ? 'tile' : 'working';
-    draw();
-  };
-  const zoomAt = (/** @type {number} */ z, /** @type {number} */ x, /** @type {number} */ y) => {
-    const [u, v] = uvAt(x, y);
-    view.z = Math.min(zmax(), Math.max(1, z));
-    const [u2, v2] = uvAt(x, y);
-    view.cu += u - u2; view.cv += v - v2;
-    clampView();
-    view.tile = null; r.clearDetail();
-    draw();
-  };
-  const touch = touches({ ed, asShot: () => img.asShot, uvAt, readSmall, asShotWb, small: () => small, changed, picked: () => pick('color', 'Temperature'), remix: () => tool.replaceChildren(toolView(ed, 'color', 'mix')) });
+  // The photo's gestures (zoom.js moves the photo; gestures.js reads the fingers).
+  const touch = touches({ ed, asShot: () => img.asShot, uvAt: zoom.uvAt, readSmall, asShotWb, small: () => small, changed, picked: () => pick('color', 'Temperature'), remix: () => tool.replaceChildren(toolView(ed, 'color', 'mix')) });
   photoGestures(stage, {
     before: (on) => { ed.before = on; hint.hidden = !on; hint.textContent = 'As shot'; root.dataset.before = String(on); draw(); },
     histogram: (on) => { hist.hidden = !on; root.dataset.histogram = String(on); if (on && small) drawHistogram(hist, histogram(small.px)); },
-    zoom: (f, x, y) => zoomAt(view.z * f, x, y),
-    pan: (dx, dy) => { const v = viewOf(canvas.width, canvas.height, 0); view.cu -= dx * dpr() * v.scale[0]; view.cv -= dy * dpr() * v.scale[1]; clampView(); draw(); },
-    settle,
-    doubleTap: (x, y) => { zoomAt(view.z > 1.05 ? 1 : zmax(), x, y); settle(); },
+    down: zoom.down, pinch: zoom.pinch, pan: zoom.pan, release: zoom.release, doubleTap: zoom.doubleTap,
     mode: () => (panel === 'crop' || ed.mode === 'level' ? 'view' : ed.mode),
     tap: (x, y) => touch.tap(x, y),
     target: (x, y, dy, done) => touch.target(x, y, dy, done),
@@ -284,11 +251,12 @@ export async function editScreen(box, id) {
       say('Editing the preview: the original did not load.');
     }
   } else say('Offline: editing the preview');
-  new ResizeObserver(() => { if (!root.isConnected) return; layout(); clampView(); draw(); }).observe(stage);
+  new ResizeObserver(() => { if (!root.isConnected) return; layout(); zoom.clamp(); draw(); }).observe(stage);
   // Test and diagnostics hook: the current render, small, read back.
   /** @type {any} */ (root).probe = async (/** @type {boolean} */ before) => readSmall(before ? {} : ed.recipe);
   /** @type {any} */ (root).recipe = () => ed.recipe;
-  exp.addEventListener('click', () => exportSheet(root, [{ id, name: p.name, render: (j) => renderExport({ r, img, recipe: ed.recipe, p0: [1 / view.pw, 1 / view.ph], working: img.srcW / img.width, tile: original?.tile ?? null, segments: [xmpSegment(xmpOf(ed.recipe))], ...j })
-    .finally(() => { view.tile = null; settle(); draw(); }) }]));
+  // An export takes the GPU's detail for its blocks: the screen leaves it until the export is done.
+  exp.addEventListener('click', () => exportSheet(root, [{ id, name: p.name, render: (j) => { view.tile = null; return renderExport({ r, img, recipe: ed.recipe, p0: [1 / view.pw, 1 / view.ph], working: img.srcW / img.width, tile: original?.tile ?? null, segments: [xmpSegment(xmpOf(ed.recipe))], ...j })
+    .finally(zoom.retile); } }]));
   root.addEventListener('photos:leave', () => { save.flush(); sess.end(); original?.close(); });
 }

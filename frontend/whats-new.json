@@ -1,15 +1,15 @@
 {
-  "id": "2026-11-05-photos-from-drive",
+  "id": "2026-11-05-photos-zoom",
   "date": "2026-11-05",
   "lines": [
     {
-      "text": "Photos can import from Google Drive: tap From Drive, pick up to 100 photos anywhere in your Drive."
+      "text": "Zooming a photo is smooth now: it stays under your fingers and keeps its sharp detail until a sharper one is ready."
     },
     {
-      "text": "They stay where they are in Drive and show on the shelf at once; their previews follow a few at a time."
+      "text": "A flick glides on, the edges give a little and spring back, and a double tap zooms in or out smoothly."
     },
     {
-      "text": "Imports from this phone make their preview while the original uploads."
+      "text": "Export on this phone says Download: each photo goes to Downloads in turn, and for more than three you can share."
     }
   ]
 }
