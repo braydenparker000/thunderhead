@@ -20,7 +20,31 @@ Step P1a, 2026-11-04: the shelf and the store. No editing yet.
   runs itself, in 8 MiB chunks with progress, with a token the Worker mints
   (`POST /v1/photos/upload-token`). A dropped connection asks Drive how far it got and goes on; the
   session is kept on the phone, so a reload resumes it. The bytes never pass through the Worker.
-- **Registered** once in Drive (`PUT /v1/photos/:id`): the Drive id, size, SHA-256, camera, capture
+- **In the background** (2026-11-05; `apps/photos/background.js`, `sw.js`): where the browser has
+  Background Fetch (Chrome on Android) and the service worker runs, leaving Photos or locking the
+  screen no longer pauses an import. The fast part happens in the page as before (the header and
+  embedded preview read, the thumbnail at once, the preview made and sent); the photo is registered
+  *pending* (`drive_id` null) and the page then hands each original to the browser: one Background
+  Fetch per file, a single `PUT` of the whole file to the Drive resumable session the page opened.
+  The system's notification shows "Uploading <file name>" and its progress, then "In Drive: <name>"
+  (or "Did not upload: <name>"); tapping it opens Photos. When it ends, the service worker tells
+  the Worker the photo's Drive id (`PATCH /v1/photos/:id {drive_id}`, checked with Drive) with this
+  phone's session and tells an open Photos page. A failure, or Drive's 308 (part of it arrived),
+  keeps the session on the phone; the row says "This one did not upload." with Try again, and the
+  same file picked again resumes the session by range. On the next open the page settles what is
+  left: a fetch still running shows its progress; one that ended without the Worker hearing of it
+  is finished from Drive's own word on the session. **The session's address is its own credential**:
+  the PUT carries no Drive token (as `drive.js` has always done for each chunk), so a long upload
+  never meets the token's one-hour life; Drive keeps a session about a week. Files over 2 GiB, and
+  browsers without Background Fetch (Safari), keep the page upload; Safari says so once ("Keep
+  Photos open while it uploads").
+- **Pending photos** are on the shelf with their thumbnail and a small "Uploading" mark; they cannot
+  be exported or pasted to until they are in Drive (`GET /v1/photos/pending` lists them). One still
+  pending after 7 days, or that this phone knows failed, is marked "Did not upload": import the same
+  file again to finish it (it becomes that photo, not a new one), or delete it. The daily pass
+  leaves pending photos alone, except that a file in the folder with a pending photo's name and size
+  is taken as that photo rather than registered twice.
+- **Registered** once in Drive, or pending before a background upload (`PUT /v1/photos/:id`): the Drive id, size, SHA-256, camera, capture
   time, format, dimensions and film simulation. The Worker checks with Drive first (one call) that
   the file is in the app's folder with that size and, when Drive gives one, that SHA-256. Its day is the capture day in the owner's zone.
 - **The working preview**: made on the phone (`apps/photos/preview.js`) at 2,048 px on its longest

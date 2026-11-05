@@ -91,6 +91,11 @@ export abstract class CorePhotos extends CoreVerbs {
     return r?.preview_key && r.preview_sha && r.deleted_at === null ? { key: r.preview_key, sha: r.preview_sha } : null;
   }
 
+  /** Photos whose background upload has no Drive id yet, newest first. */
+  photosPending(): PhotoItem[] {
+    return store.pending(this.db, L.pending_max).map(store.toItem);
+  }
+
   photosDeleted(): PhotoItem[] {
     return store.deleted(this.db, 200).map(store.toItem);
   }

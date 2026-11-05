@@ -40,6 +40,10 @@ export const PHOTO_LIMITS = {
   bytes_max: 2 * 1024 * 1024 * 1024,
   /** A recipe's canonical JSON, in bytes (all controls and four full curves fit in about 3 KB). */
   recipe_bytes: 8 * 1024,
+  /** A photo whose upload the browser runs in the background is pending (no Drive id yet); after
+   * this many days the shelf says it did not upload. GET /v1/photos/pending lists at most `pending_max`. */
+  pending_days: 7,
+  pending_max: 200,
 } as const;
 
 /** The formats the picker takes. HEIC only where the phone's browser decodes it. */
@@ -57,7 +61,8 @@ export const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 export interface PhotoItem {
   id: string;
-  /** The original's id in Drive; null until its upload finished. */
+  /** The original's id in Drive; null while its upload runs in the background (a pending photo:
+   * on the shelf with its thumbnail, but not exported or pasted to until the id comes). */
   drive_id: string | null;
   name: string;
   format: PhotoFormat;
@@ -82,9 +87,10 @@ export interface PhotoItem {
   created_at: number;
 }
 
-/** PUT /v1/photos/:id: what the phone read from the file once Drive has it. */
+/** PUT /v1/photos/:id: what the phone read from the file once Drive has it, or, with `drive_id`
+ * null, before a background upload starts (the Drive id comes later by PATCH). */
 export interface PutPhotoRequest {
-  drive_id: string;
+  drive_id: string | null;
   name: string;
   format: PhotoFormat;
   bytes: number;
@@ -106,6 +112,14 @@ export interface PhotoResponse {
 export interface PatchPhotoRequest {
   rating?: number;
   flag?: PhotoFlag | null;
+  /** A pending photo's Drive id once its background upload ended (checked with Drive; the same
+   * again writes nothing; another id on a photo that has one is a conflict). */
+  drive_id?: string;
+}
+
+/** GET /v1/photos/pending: photos whose upload has not finished, newest first. */
+export interface PhotoPendingResponse {
+  items: PhotoItem[];
 }
 
 export interface PhotoDay {

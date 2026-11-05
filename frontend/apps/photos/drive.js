@@ -1,7 +1,7 @@
 // @ts-check
 // The original straight to the owner's Google Drive (PHOTOS.md §3.1): a resumable upload the phone
 // runs itself with the short-lived token the Worker mints, so the bytes never pass through the
-// Worker. Chunks of 8 MiB with their progress; a dropped connection asks Drive how far it got and
+// Worker; where the browser can, background.js hands the same session to it to upload with Photos closed. Chunks of 8 MiB with their progress; a dropped connection asks Drive how far it got and
 // goes on from there, with the session kept on the phone, so even a reload resumes it.
 
 export const DRIVE_UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files';
@@ -14,9 +14,11 @@ export const EXPORTS_FOLDER = 'Thunderhead Exports';
 /** @param {number} ms */
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
-/** A new upload session for this file in the app's folder; its address. @param {string} token
+/** A new upload session for this file in the app's folder; its address. The address alone is
+ * the credential for the bytes (no token goes with a PUT to it; Drive keeps it about a week), so a
+ * background upload (background.js) needs no token that could run out. @param {string} token
  * @param {Blob} file @param {string} name @param {string} folder */
-async function begin(token, file, name, folder) {
+export async function open(token, file, name, folder) {
   const res = await fetch(`${DRIVE_UPLOAD}?uploadType=resumable&fields=id`, {
     method: 'POST',
     headers: {
@@ -77,7 +79,7 @@ export async function upload(o) {
     try {
       if (!session) {
         const t = await o.token();
-        session = await begin(t.access_token, o.file, o.name, t.folder_id);
+        session = await open(t.access_token, o.file, o.name, t.folder_id);
         o.keep?.(session);
         ask = false;
         start = 0;
@@ -110,6 +112,20 @@ export async function upload(o) {
     }
   }
   throw Object.assign(new Error('drive'), { status: 0 });
+}
+
+/** Where a kept session stands (background.js, after a background upload): Drive's file id once
+ * all of it arrived, else the next byte Drive wants (0 for a session Drive has forgotten).
+ * @param {string} session @param {number} size @returns {Promise<{ id: string | null, next: number }>} */
+export async function ask(session, size) {
+  const res = await fetch(session, { method: 'PUT', headers: { 'Content-Range': `bytes */${size}` } });
+  if (res.status === 200 || res.status === 201) {
+    const id = (await res.json().catch(() => null))?.id;
+    if (id) return { id: String(id), next: size };
+  }
+  if (res.status === 308) return { id: null, next: nextByte(res.headers.get('Range')) };
+  if (res.status >= 500 || res.status === 429) throw Object.assign(new Error('drive'), { status: res.status });
+  return { id: null, next: 0 };
 }
 
 /** The address of an original's bytes in Drive (the editor's engine streams it). @param {string} id */

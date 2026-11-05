@@ -3,17 +3,19 @@
 // the thumbnail shown at once (on the shelf in under a second), the original's upload to Drive
 // started (drive.js, with its progress) and the working preview made from the same bitmap while it
 // runs (preview.js); the photo is registered with what the file says (read.js) and the preview sent
-// right after (a failed preview never fails the import). `photo.import` says it happened (the id,
+// right after (a failed preview never fails the import); where the browser can, the upload goes on
+// in the background with Photos closed (background.js). `photo.import` says it happened (the id,
 // the format and where from, never the name). A photo found in Drive by the daily pass, or picked
 // there (from-drive.js), gets its preview from its original in Drive (`previewFromDrive`).
 import { uuidv7 } from '/th/chat/model.js';
+import { BACKGROUND_MAX, begin, follow, handOff, keptFor, manager, sayOnce } from './background.js';
 import { fetchOriginal, upload } from './drive.js';
 import * as data from './data.js';
 import { decodeOnce } from './preview.js';
 import { formatOf, readPhoto } from './read.js';
 
 /** @typedef {{ id: string, name: string, thumb: Blob | null, taken_at: number }} Arrival */
-/** @typedef {{ progress: (sent: number, total: number) => void, done: (p: data.PhotoItem) => void, failed: (why: string) => void }} Handle */
+/** @typedef {{ progress: (sent: number, total: number) => void, done: (p: data.PhotoItem) => void, failed: (why: string) => void, note?: (t: string) => void }} Handle */
 
 /** @param {Blob} blob */
 async function hash(blob) {
@@ -41,12 +43,21 @@ export const sensed = (p, source) =>
 
 /**
  * Imports the files one after another. `arrive` puts each on the shelf at once and returns how to
- * show its progress and its end.
+ * show its progress and its end. Where the browser uploads in the background (background.js), the
+ * photo is registered pending and the upload handed over; else, or for a file over 2 GiB, the page
+ * uploads it. A file that is a pending photo's (the same name and size) is that photo again: its
+ * kept session resumes by range.
  * @param {File[]} files @param {(a: Arrival) => Handle} arrive
  */
 export async function importFiles(files, arrive) {
+  const bg = await manager();
+  if (!bg) sayOnce();
+  const waiting = await data.pending().catch(() => []);
   for (const file of files) {
-    const id = uuidv7();
+    const name = file.name.slice(0, 200);
+    const was = waiting.find((p) => p.name === name && p.bytes === file.size);
+    const id = was?.id ?? uuidv7();
+    const kept = was ? await keptFor(was.id) : null;
     const meta = await readPhoto(file);
     const once = meta.preview ? await decodeOnce(meta.preview).catch(() => null) : null;
     const thumb = once?.thumb ?? null;
@@ -54,31 +65,52 @@ export async function importFiles(files, arrive) {
     const h = arrive({ id, name: file.name, thumb, taken_at: meta.taken_at });
     let preview = /** @type {Promise<{ blob: Blob } | null>} */ (Promise.resolve(null));
     try {
-      const kept = await data.store.get(`session:${file.name}:${file.size}`).catch(() => null);
-      const uploading = upload({
-        file,
-        name: file.name,
-        token: data.uploadToken,
-        session: kept,
-        keep: (s) => data.store.set(`session:${file.name}:${file.size}`, s).catch(() => {}),
-        onProgress: h.progress,
-      });
-      // The working preview from the same bitmap, made while the upload runs.
-      if (once) preview = once.preview(data.previewSide()).catch(() => null);
-      const driveId = await uploading;
-      data.store.del(`session:${file.name}:${file.size}`).catch(() => {});
-      let photo = await data.register(id, {
-        drive_id: driveId,
-        name: file.name.slice(0, 200),
+      const sha = hash(file);
+      const body = async (/** @type {string | null} */ drive_id) => ({
+        drive_id,
+        name,
         format: meta.format,
         bytes: file.size,
-        sha256: await hash(file),
+        sha256: await sha,
         camera: meta.camera?.slice(0, 80) || null,
         film: meta.film,
         width: meta.width,
         height: meta.height,
         taken_at: Math.max(0, Math.round(meta.taken_at)),
       });
+      const key = `session:${file.name}:${file.size}`;
+      let session = kept?.session ?? (await data.store.get(key).catch(() => null));
+      if (bg && !kept && file.size <= BACKGROUND_MAX) {
+        // The fast part here, the upload handed over: pending until the service worker says it is in Drive.
+        session = await begin(id, file);
+        let photo = await data.register(id, await body(null));
+        const job = await handOff(bg, id, file, session);
+        if (job) {
+          if (once) preview = once.preview(data.previewSide()).catch(() => null);
+          const made = await preview;
+          if (made) photo = await sendPreview(photo.id, made.blob).catch(() => photo);
+          sensed(photo, 'phone');
+          follow(job, h, file.size);
+          // On the shelf now, with its Uploading mark.
+          document.dispatchEvent(new CustomEvent('photos:changed'));
+          continue;
+        }
+      }
+      const uploading = upload({
+        file,
+        name: file.name,
+        token: data.uploadToken,
+        session,
+        keep: (s) => data.store.set(key, s).catch(() => {}),
+        onProgress: h.progress,
+      });
+      // The working preview from the same bitmap, made while the upload runs.
+      if (once) preview = once.preview(data.previewSide()).catch(() => null);
+      const driveId = await uploading;
+      data.store.del(key).catch(() => {});
+      data.store.del(`bg:${id}`).catch(() => {});
+      // A pending photo's own file takes its Drive id the same way.
+      let photo = await data.register(id, await body(driveId));
       // A Drive file the daily pass had already found is that photo: its thumbnail follows it.
       if (photo.id !== id && thumb) data.keepThumb(photo.id, thumb);
       const made = await preview;

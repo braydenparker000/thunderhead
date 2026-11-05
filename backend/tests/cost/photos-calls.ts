@@ -1,6 +1,7 @@
 // Photos' calls of the cost suite (cost.test.ts checks every budget), metered in Core: an import
 // (the photo's row, then its preview's), 1 and 20 files picked in Drive, the shelf's first page of 14 days with four photos each,
-// one whole day, a rating, a recipe saved (a change, then the same again), versions and a delete;
+// one whole day, a rating, a recipe saved (a change, then the same again), versions, a pending photo
+// (registered, listed, given its Drive id) and a delete;
 // then, after the ledger's own reads are measured, a paste onto 1 and onto 12 photos (pasteCalls). The shelf holds 15 days of 6 invented photos first.
 import { exports } from 'cloudflare:workers';
 import type { SignedIn } from '../../../shared/contract/api';
@@ -126,6 +127,21 @@ export async function photosCalls(cost: Cost, grant: (ip: string, password?: str
   await cost(
     'DELETE /v1/photos/:id/versions/:vid (Core)',
     () => api('DELETE', `/v1/photos/${id}/versions/${named.id}`, d),
+    200,
+    k,
+  );
+  // A background upload: the photo pending (no Drive id, no Drive call), the pending list, then its Drive id.
+  const later = uuidv7();
+  await cost(
+    'PUT /v1/photos/:id (pending) (Core)',
+    () => api('PUT', `/v1/photos/${later}`, { ...d, body: { ...photoBody(), drive_id: null } }),
+    201,
+    k,
+  );
+  await cost('GET /v1/photos/pending (Core)', () => api('GET', '/v1/photos/pending', d), 200, k);
+  await cost(
+    'PATCH /v1/photos/:id (its Drive id) (Core)',
+    () => api('PATCH', `/v1/photos/${later}`, { ...d, body: { drive_id: `drive-${later.slice(-12)}` } }),
     200,
     k,
   );

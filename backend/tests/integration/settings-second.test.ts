@@ -13,7 +13,14 @@ import { brief, freshSession, type Principals, principals } from '../memory-help
 let p: Principals;
 type Refused = { error?: { code: string; details?: { path: string; issue: string }[] } };
 const patch = (body: object) => apiJson<Refused>('PATCH', '/v1/settings', { token: p.D, body });
-const T0 = Date.now();
+// The logical day ends at 04:00 owner-local (UTC here; conversation/day.ts). The "same day" ticks
+// below go up to 30 minutes past T0, so a T0 taken in the last hour before 04:00 would cross into
+// the next day: then T0 moves one hour back, which keeps every tick's day as the test expects.
+const T0 = (() => {
+  const now = Date.now();
+  const sinceRoll = (now - 4 * 3_600_000) % DAY_MS;
+  return sinceRoll > DAY_MS - 3_600_000 ? now - 3_600_000 : now;
+})();
 
 /** A day's conversation of `n` messages, then aged: last changed `ago` days before T0. */
 async function oldDay(ago: number, n = 2, topic: string | null = null): Promise<string> {
