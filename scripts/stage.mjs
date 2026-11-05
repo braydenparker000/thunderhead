@@ -232,7 +232,9 @@ const budgets = [
   // (2026-11-04, Photos' editor) the RAW engine as built (engine/photos/build.json): LightCraft's
   // decoders with JPEG XL for DNG, measured 2,242,867 bytes raw (595 KB brotli). A rebuild changes it.
   // (2026-11-05, Photos colour) setMatrix for a fitted camera matrix: 2,246,192 measured (596 KB brotli).
-  ['photos engine wasm bytes', sum(/^photos\/engine\/.*\.wasm$/), 2_246_192],
+  // (2026-11-05, Photos speed) the binned first frame and rayon, built twice: the plain module 2,289,856 and threads/
+  // (shared memory, for the isolated editor) 2,300,058, measured; a phone loads one of them.
+  ['photos engine wasm bytes', sum(/^photos\/engine\/.*\.wasm$/), 4_589_914],
 ];
 const over = budgets.filter(([, value, limit]) => value > limit);
 for (const [name, value, limit] of budgets) console.log(`${name}: ${value} (limit ${limit})`);

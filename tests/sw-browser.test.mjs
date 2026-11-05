@@ -69,3 +69,29 @@ test('a new release waits while the ask bar holds text, then applies and drops t
   await page.waitForFunction(async () => !(await caches.keys()).includes('th-1'), null, { timeout: 10000 });
   await context.close();
 });
+
+test("Photos' editor is cross-origin isolated (COOP and COEP from the worker) and no other page is", async () => {
+  server.release(1);
+  const { context, page, errors } = await controlled();
+  const seen = {};
+  for (const path of ['/photos/?edit=0192aaaa-bbbb-7ccc-8ddd-eeeeffff0003', '/photos/', '/photos/?photo=0192aaaa-bbbb-7ccc-8ddd-eeeeffff0003', '/', '/signin/']) {
+    const res = await page.goto(`${base}${path}`, { waitUntil: 'load' });
+    seen[path] = [await page.evaluate(() => crossOriginIsolated), res?.headers()['cross-origin-embedder-policy'] ?? null];
+  }
+  assert.deepEqual(seen, {
+    '/photos/?edit=0192aaaa-bbbb-7ccc-8ddd-eeeeffff0003': [true, 'require-corp'],
+    '/photos/': [false, null],
+    '/photos/?photo=0192aaaa-bbbb-7ccc-8ddd-eeeeffff0003': [false, null],
+    '/': [false, null],
+    '/signin/': [false, null],
+  });
+  // the editor's engine worker gets COEP too, so it loads under the isolated page and can share memory
+  await page.goto(`${base}/photos/?edit=0192aaaa-bbbb-7ccc-8ddd-eeeeffff0003`, { waitUntil: 'load' });
+  const worker = await page.evaluate(async () => {
+    const r = await fetch('/apps/photos/edit/engine-worker.js');
+    return { sab: typeof SharedArrayBuffer, plain: r.headers.get('cross-origin-embedder-policy') };
+  });
+  assert.deepEqual(worker, { sab: 'function', plain: null }); // a plain fetch (not a worker) is left as it is
+  assert.deepEqual(errors.filter((e) => !/Failed to load resource|401|sign/i.test(e)), []);
+  await context.close();
+});

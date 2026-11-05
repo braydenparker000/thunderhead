@@ -1,12 +1,12 @@
 {
-  "id": "2026-11-05-photos-info",
+  "id": "2026-11-05-photos-speed",
   "date": "2026-11-05",
   "lines": [
     {
-      "text": "The editor has Looks: save an edit as a look, then tap one to apply it to any photo, with Amount up to 200%."
+      "text": "Photos: a RAW photo is ready to edit much sooner, at half size first; full detail follows by itself."
     },
     {
-      "text": "Import .xmp presets from Files or Drive, one or many: only their numbers are kept, under Imported."
+      "text": "The editor uses several cores when it can, and its title shows how long the photo took to decode."
     },
     {
       "text": "Photos has an Info sheet: tap the i in the editor, or hold a photo on the shelf and choose Info."

@@ -1,15 +1,17 @@
 // Builds Photos' RAW engine (engine/photos, README there) into frontend/photos/engine/, the files the
 // site serves as they are (it has no build step): LightCraft checked out at the pinned commit into
 // engine/photos/vendor/lightcraft, our memory patches applied, the crate built for wasm32 and bound
-// with wasm-bindgen, and the hashes written to engine/photos/build.json.
-//   node scripts/photos-engine.mjs           rebuilds (needs Rust with wasm32-unknown-unknown and
+// with wasm-bindgen, and the hashes written to engine/photos/build.json. Two builds: plain wasm32 (one thread,
+// every page) and `threads/` (shared memory and a rayon pool on Web Workers, for the cross-origin isolated
+// editor: the same rustc with its own std rebuilt with atomics, build-std through RUSTC_BOOTSTRAP).
+//   node scripts/photos-engine.mjs           rebuilds (needs Rust with wasm32-unknown-unknown and rust-src,
 //                                             wasm-bindgen-cli 0.2.129; WASM_BINDGEN names its path)
 //   node scripts/photos-engine.mjs --check    checks the committed .wasm and glue against build.json
 // LIGHTCRAFT_GIT names another clone source (a local mirror); the commit is the same either way.
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
 
 const repo = new URL('..', import.meta.url).pathname;
 const crate = join(repo, 'engine/photos');
@@ -37,21 +39,34 @@ if (process.argv.includes('--check')) {
   run('git', ['-C', vendor, 'clean', '-fdq'], { env });
   run('git', ['-C', vendor, 'apply', join(crate, 'patches/lightcraft-memory.diff')], { env });
   const t0 = Date.now();
-  run('cargo', ['build', '--release', '--locked', '--target', 'wasm32-unknown-unknown', '--manifest-path', join(crate, 'Cargo.toml')], { env, stdio: ['ignore', 'inherit', 'inherit'] });
-  const wasm = join(crate, 'target/wasm32-unknown-unknown/release/photos_engine.wasm');
   const bindgen = process.env.WASM_BINDGEN ?? 'wasm-bindgen';
-  run(bindgen, ['--target', 'web', '--no-typescript', '--out-dir', out, '--out-name', 'photos_engine', wasm], { env });
+  const cargo = ['build', '--release', '--locked', '--target', 'wasm32-unknown-unknown', '--manifest-path', join(crate, 'Cargo.toml')];
+  // shared memory capped at 1 GiB (a shared memory reserves its maximum up front), and the exports wasm-bindgen's
+  // thread start needs
+  const THREADS = '-C target-feature=+atomics,+bulk-memory,+mutable-globals -C link-arg=--shared-memory -C link-arg=--import-memory -C link-arg=--max-memory=1073741824 -C link-arg=--export=__wasm_init_tls -C link-arg=--export=__tls_size -C link-arg=--export=__tls_align -C link-arg=--export=__tls_base';
+  const variants = [
+    { dir: out, args: [], env },
+    { dir: join(out, 'threads'), args: ['--features', 'threads', '-Z', 'build-std=panic_abort,std', '--target-dir', join(crate, 'target/threads')],
+      env: { ...env, RUSTC_BOOTSTRAP: '1', RUSTFLAGS: THREADS } },
+  ];
+  for (const v of variants) {
+    run('cargo', [...cargo, ...v.args], { env: v.env, stdio: ['ignore', 'inherit', 'inherit'] });
+    const target = v.args.includes('--target-dir') ? join(crate, 'target/threads') : join(crate, 'target');
+    if (v.dir !== out) rmSync(v.dir, { recursive: true, force: true });
+    run(bindgen, ['--target', 'web', '--no-typescript', '--out-dir', v.dir, '--out-name', 'photos_engine', join(target, 'wasm32-unknown-unknown/release/photos_engine.wasm')], { env });
+    rmSync(join(v.dir, '.gitignore'), { force: true });
+  }
   const files = {};
-  for (const f of ['photos_engine_bg.wasm', 'photos_engine.js']) files[f] = { bytes: readFileSync(join(out, f)).length, sha256: sha(join(out, f)) };
+  const walk = (d) => readdirSync(d, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? walk(join(d, e.name)) : [join(d, e.name)]));
+  for (const f of walk(out).sort()) files[relative(out, f)] = { bytes: readFileSync(f).length, sha256: sha(f) };
   const build = {
     lightcraft: LIGHTCRAFT,
     patch: { file: 'engine/photos/patches/lightcraft-memory.diff', sha256: sha(join(crate, 'patches/lightcraft-memory.diff')) },
     rustc: run('rustc', ['--version'], { env }),
     wasm_bindgen: run(bindgen, ['--version'], { env }),
-    profile: 'release (opt-level s, fat LTO, 1 codegen unit, panic abort), default features (JPEG XL in DNG)',
+    profile: 'release (opt-level s, fat LTO, 1 codegen unit, panic abort), default features (JPEG XL in DNG); threads/: + atomics, bulk-memory, mutable-globals, build-std, max memory 1 GiB',
     files,
   };
   writeFileSync(join(crate, 'build.json'), `${JSON.stringify(build, null, 2)}\n`);
-  rmSync(join(out, '.gitignore'), { force: true });
   console.log(`built in ${Math.round((Date.now() - t0) / 1000)} s: ${JSON.stringify(files)}`);
 }

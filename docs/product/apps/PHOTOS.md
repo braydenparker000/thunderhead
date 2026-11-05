@@ -156,9 +156,9 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
 - **First frame**: the preview on this phone draws at once; the original then comes from the owner's
   Drive: a RAF or DNG through the engine (engine/photos, LightCraft's decoders) in a Web Worker, its
   half-size linear working copy uploaded to the GPU and the CPU copy freed; a JPEG or HEIC decoded by
-  the browser (at most 4,096 px). Offline, the preview is what is edited. Measured in headless Chromium
-  on the CC0 X-E5 sample (14-bit lossy, 40 MP): the preview at 0.1 s, the first real frame at 9.5 s
-  (single thread, x86), 107.7 MiB of wasm.
+  the browser (at most 4,096 px). Offline, the preview is what is edited. A RAF decodes in two stages
+  on threads when it can (below); the title reads "Decoded in 2.4 s · full 5.1 s" so the time on the
+  phone itself can be read.
 - **Colour**: the file's own matrices (DNG), else LightCraft's bundled ones for the body, else a matrix
   fitted from the camera's own JPEG (below), with the file's as-shot white balance; the neutral
   fallback (camera RGB taken as linear sRGB) only when the fit's gates fail.
@@ -190,6 +190,43 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
   gives like a rubber band and comes back. The detail proxy on screen stays until the new one is ready;
   a new one is asked for only when the fingers stop or lift, one at a time, and a stale one never draws.
   Measured in headless Chromium on the X-E5 working copy: no frame over 32 ms in a two-second pinch.
+
+### The two-stage decode and the isolation shim (P2b, as built)
+
+- **Half size first** (`engine/photos/src/binned.rs`, the engine's `binned`): a RAF's mosaic is binned
+  straight into the half-size working copy with no demosaic: each output pixel is, per colour, the
+  tent-weighted mean (1 2 2 1 on each axis) of the samples in the 4×4 window around its 2×2 block. A
+  plain 2×2 bin does not work for X-Trans (some 2×2 blocks are all green); any window of at least 2×4
+  samples holds all three colours. The stripes decode in parallel six rows at a time (a LightCraft
+  patch, `RafStripes`), and every 64 output rows go out of wasm to JS (`edit/planes.js`), so wasm holds
+  the file and a few small chunks. The editor works on it at once; the fit (`fit.js`) runs on it and
+  the copy already out of wasm is re-expressed in the fitted matrix in JS.
+- **Full resolution after** (`working(2, sink)`): LightCraft's demosaic over the whole frame at full
+  resolution, binned 2×2, in bands out of wasm; it replaces the first copy on the GPU when it is done
+  (mean |Δ| from the binned copy 0.0006 in linear light on the sample). 1:1 tiles and export use
+  `original.tile` as before; a tile asked for while the full stage runs waits for it.
+- **Threads**: the engine is built twice (`frontend/photos/engine/` plain, `threads/` with shared
+  memory and a rayon pool on min(4, cores) Web Workers through wasm-bindgen-rayon, Apache-2.0).
+  Shared memory needs a cross-origin isolated page, which needs COOP and COEP response headers, and the
+  storage site sends none. So `sw.js` adds them: `Cross-Origin-Opener-Policy: same-origin` and
+  `Cross-Origin-Embedder-Policy: require-corp` on the editor's page (`/photos/?edit=`) and COEP on the
+  worker scripts it starts. Only the editor: Google's picker frame (docs.google.com) sends no COEP and
+  `Cross-Origin-Resource-Policy: same-site`, so it cannot load in an isolated page with either COEP
+  value (`credentialless` relaxes subresources, not frames); it opens on Photos' other places, which
+  stay as they were. Going between the editor and the rest of Photos is therefore a new document
+  (`nav.js`), and an editor opened before the worker took control reloads once when it does. Without
+  the worker, or where the threaded module will not start, the plain one runs on one thread.
+- **Measured** on the CC0 X-E5 sample in headless Chromium on a shared 4-core x86 VM under load
+  (other jobs at load 5–9, software GL, the file served in ~1.3 s), from opening the editor: preview
+  0.22–0.34 s (0.96–1.3 s in the isolated runs); before this step the first real frame came at 9.5 s
+  unloaded (16.7 s for the old working copy under today's load), 107.7 MiB of wasm. Now the binned
+  frame at 5.9–7.9 s on one thread (35.3 MiB of wasm) and 6.6–8.8 s on four (43.5 MiB; the binned
+  stage itself 3.7 s against 5.5 s on one thread, the rest is the download, the pool's start and the
+  GPU upload), the full copy at 13–20 s (56–93 MiB). On this loaded VM four threads gave 1.5× on the
+  decode, not 4×; the phone's own numbers are the title's. `tests/photos-speed-browser.test.mjs` holds
+  the budget (preview < 0.5 s, the binned frame < 3 s × `CI_FACTOR` 3), enforced with
+  `TH_STRICT_TIMING=1`, and the half-size path under 60 MiB of wasm always. Leaving the editor ends
+  the worker, which frees all of it.
 
 ### The colour pipeline (P2a, as built)
 
@@ -432,4 +469,8 @@ a setting the recipe does not name is the camera's zero.
 The RAF's own lens tables through the engine; P1d the camera look and the mind; P2 masks;
 the camera's learned looks (RAW+JPEG pairs) fill Looks' Camera section. The fit keeps the first
 accepted photo's look per model: a frame shot in a strong film simulation teaches the matrix that
-simulation's colour (the sample was Astia); reading the film mode and preferring a Provia frame is next.
+simulation's colour (the sample was Astia); reading the film mode
+(maker note tag 0x1401), learning only from Provia or Astia frames and keeping a running median over up
+to five accepted photos per model is next. Speed: the RAF download itself (28 MiB lossy, 81 MiB
+uncompressed) now weighs as much as the decode; an uncompressed RAF still holds its whole file in wasm
+(over 60 MiB) until it is read through `Blob.slice()` stripe by stripe.

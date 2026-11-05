@@ -1,7 +1,8 @@
 // Photos' RAW engine (engine/photos, frontend/photos/engine): the committed .wasm and its glue match
 // the hashes the build recorded, and the built module decodes a real Fujifilm X-E5 RAF (X-Trans 5 HR,
 // 40 MP, 14-bit lossy compressed) the way the editor's worker does: streamed into wasm memory, the
-// headers and the embedded JPEG, the half-size working copy, a 1:1 tile, under 150 MiB of wasm. The
+// headers and the embedded JPEG, the binned half-size first frame in chunks under 60 MiB of wasm, the
+// demosaiced half-size working copy (whole, and in bands that match it), a 1:1 tile, under 150 MiB of wasm. The
 // sample is raw.pixls.us's public CC0 file, downloaded at test time into a temp directory and never
 // committed; offline, the decode test skips and says why.
 import { test } from 'node:test';
@@ -58,12 +59,30 @@ test('decodes the CC0 X-E5 sample: headers, preview, the working copy and a tile
   assert.equal(meta.whiteBalance.length, 3);
   // The X-E5 has no bundled matrix in LightCraft's decode crates: the neutral fallback, the file's own white balance.
   assert.equal(meta.matrixIsFallback, true);
+  const f16 = (h) => (h >> 10 === 0 ? 0 : 2 ** ((h >> 10) - 15) * (1 + (h & 1023) / 1024));
+  // The binned first frame (binned.rs), in chunks copied out of wasm: the same picture as the demosaiced copy below.
+  const n = 3864 * 2576, half = new Uint16Array(3 * n);
+  const b = e.binned((c) => {
+    const src = new Uint16Array(wasm.memory.buffer, c.ptr, 3 * c.width * c.height);
+    for (let p = 0; p < 3; p++) for (let y = 0; y < c.height; y++) half.set(src.subarray((p * c.height + y) * c.width, (p * c.height + y + 1) * c.width), p * n + (c.y + y) * 3864 + c.x);
+  });
+  const binMs = performance.now() - t0, binMib = e.memoryBytes() / 1048576;
+  assert.deepEqual([b.width, b.height], [3864, 2576]);
+  assert.ok(binMib < 60, `binned path ${binMib} MiB of wasm`);
+  const bands = new Uint16Array(3 * n);
+  e.working(2, (c) => { const src = new Uint16Array(wasm.memory.buffer, c.ptr, 3 * c.width * c.height); for (let p = 0; p < 3; p++) for (let y = 0; y < c.height; y++) bands.set(src.subarray((p * c.height + y) * c.width, (p * c.height + y + 1) * c.width), p * n + y * 3864 + c.x); });
+  const t1 = performance.now();
   const w = e.working(2);
-  const ms = performance.now() - t0;
+  const ms = performance.now() - t1;
   assert.deepEqual([w.width, w.height], [3864, 2576]);
+  const whole = new Uint16Array(wasm.memory.buffer, w.ptr, 3 * n);
+  let same = 0, apart = 0;
+  for (let i = 0; i < 3 * n; i += 101) { same += whole[i] === bands[i] ? 1 : 0; apart += Math.abs(f16(half[i] & 0x7fff) - f16(whole[i] & 0x7fff)); }
+  assert.equal(same, Math.ceil(3 * n / 101), 'bands equal the whole copy');
+  const off = apart / Math.ceil(3 * n / 101);
+  assert.ok(off < 0.003, `binned against demosaiced: mean |Δ| ${off}`);
   const g = new Uint16Array(wasm.memory.buffer, w.ptr + w.width * w.height * 2, w.width * w.height);
   let sum = 0;
-  const f16 = (h) => (h >> 10 === 0 ? 0 : 2 ** ((h >> 10) - 15) * (1 + (h & 1023) / 1024));
   for (let i = 0; i < g.length; i += 97) sum += f16(g[i] & 0x7fff);
   const mean = sum / Math.ceil(g.length / 97);
   assert.ok(mean > 0.005 && mean < 0.9, `green mean ${mean}`);
@@ -78,6 +97,6 @@ test('decodes the CC0 X-E5 sample: headers, preview, the working copy and a tile
   const t = e.tile(3303, 2202, 512, 512);
   assert.deepEqual([t.width, t.height], [512, 512]);
   const mib = e.memoryBytes() / 1048576;
-  console.log(`# X-E5 lossy: headers + working copy ${Math.round(ms)} ms, wasm ${mib.toFixed(1)} MiB, as-shot WB ${meta.whiteBalance.map((v) => v.toFixed(3)).join(' ')}`);
+  console.log(`# X-E5 lossy, one thread: headers + binned frame ${Math.round(binMs)} ms (wasm ${binMib.toFixed(1)} MiB, mean |Δ| ${off.toFixed(5)} from the demosaiced copy), demosaiced copy ${Math.round(ms)} ms, wasm ${mib.toFixed(1)} MiB, as-shot WB ${meta.whiteBalance.map((v) => v.toFixed(3)).join(' ')}`);
   assert.ok(mib < 150, `${mib} MiB of wasm`);
 });

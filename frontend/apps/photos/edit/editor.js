@@ -254,7 +254,19 @@ export async function editScreen(box, id) {
         if (original.memory) root.dataset.wasmMib = (original.memory / 1048576).toFixed(1);
         root.dataset.colour = `${original.colour?.source ?? 'jpeg'}${original.colour?.ev ? ` ${original.colour.ev.toFixed(2)} EV` : ''}`;
         if (original.cameraJpeg) cameraCompare(stage, original.cameraJpeg, { img, recipe: () => (ed.before ? {} : shown(ed.recipe)), view: () => viewOf(canvas.width, canvas.height, 0), pw: view.pw, ph: view.ph }).then((c) => { cam = c; }).catch(() => {});
-        say('');
+        const secs = (/** @type {string | undefined} */ ms) => `${(Number(ms) / 1000).toFixed(1)} s`;
+        root.dataset.threads = String(original.threads ?? 0);
+        if (original.stages) root.dataset.stages = Object.entries(original.stages).map(([k, v]) => `${k} ${Math.round(v)}`).join(', ');
+        say(original.raw ? `Decoded in ${secs(root.dataset.firstMs)}` : '');
+        // a RAF's binned first frame gives way to the demosaiced copy when it is ready (source.js)
+        original.refined?.then((f) => {
+          if (!f || !original || !root.isConnected) return;
+          original.source = f.source;
+          use(f.source, { raw: true, width: original.width, height: original.height, asShot: original.asShot });
+          zoom.retile();
+          Object.assign(root.dataset, { fullMs: String(Math.round(performance.now() - t0)), wasmMib: (f.memory / 1048576).toFixed(1) });
+          say(`Decoded in ${secs(root.dataset.firstMs)} · full ${secs(root.dataset.fullMs)}`);
+        });
       }
     } catch {
       say('Editing the preview: the original did not load.');

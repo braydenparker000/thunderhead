@@ -5,19 +5,26 @@
 //!   `ArrayBuffer` in JS); `decode(bytes)` is the copying form.
 //! - `decodeInput(streaming)` → `{width, height, camera, whiteBalance, previewJpeg, …}`. Streaming (RAF only)
 //!   reads the headers now and decodes the mosaic band by band later (stream.rs).
-//! - `working(scale)` → planar f16 linear Rec.2020 at `1/scale` (2 = half size), white balanced.
+//! - `binned(sink)` (streaming RAF) → the half-size working copy with no demosaic, in bands to `sink` (binned.rs): the
+//!   editor's first frame. `working(scale, sink?)` → planar f16 linear Rec.2020 at `1/scale` (2 = half size), white
+//!   balanced, demosaiced at full resolution; with `sink`, in bands (wasm never holds the whole copy).
 //! - `tile(x, y, w, h)` → the same at full resolution for one window (the 1:1 view).
 //! - `freeWorking()` once the copy lives in GPU textures, so a tile can reuse the space.
 //! - `setMatrix(m)` for a body with no matrix here: the editor's fit from the camera's JPEG (fit.js).
+//! - `initThreadPool(n)` (the `threads` build, cross-origin isolated pages only): rayon on n Web Workers.
 //!
 //! Buffers come back as `{ptr, width, height}`: JS makes zero-copy views on `memory.buffer`, valid until the
 //! next call that may allocate.
 
+mod binned;
 mod kernel;
 mod stream;
 
+#[cfg(feature = "threads")]
+pub use wasm_bindgen_rayon::init_thread_pool;
+
 use half::f16;
-use js_sys::{Array, Object, Reflect, Uint8Array};
+use js_sys::{Array, Function, Object, Reflect, Uint8Array};
 use kernel::Kernel;
 use lightcraft_color::{Mat3, REC2020, SRGB};
 use lightcraft_raw::{self as raw, RawImage, Rect};
@@ -62,6 +69,21 @@ fn buffer(ptr: *const u16, x: usize, y: usize, w: usize, h: usize) -> JsValue {
     set(&o, "height", h as u32);
     set(&o, "planes", 3u32);
     o.into()
+}
+
+/// One band (planar, `w × h` per plane, at output `(x, y)`) to a JS sink as `{ptr, x, y, width, height}`.
+fn send(f: &Function, band: &[u16], x: usize, y: usize, w: usize, h: usize) {
+    let _ = f.call1(&JsValue::NULL, &buffer(band.as_ptr(), x, y, w, h));
+}
+
+/// One band copied into the whole working copy (`w2 × h2` per plane) at column `x`.
+fn place(out: &mut [u16], band: &[u16], x: usize, w: usize, w2: usize, h2: usize) {
+    for p in 0..3 {
+        for y in 0..h2 {
+            let (s, d) = (p * w * h2 + y * w, p * w2 * h2 + y * w2 + x);
+            out[d..d + w].copy_from_slice(&band[s..s + w]);
+        }
+    }
 }
 
 #[wasm_bindgen]
@@ -152,24 +174,52 @@ impl Engine {
     }
 
     /// The working copy at `1/scale` of the default crop: planar f16 linear Rec.2020, white balanced,
-    /// highlights clipped at 1.0. Plane `c` starts at `ptr + c * width * height * 2`.
-    pub fn working(&mut self, scale: usize) -> Result<JsValue, JsError> {
+    /// highlights clipped at 1.0. Plane `c` starts at `ptr + c * width * height * 2`. With `sink` (streaming RAF)
+    /// it goes out in bands instead, `sink({ptr, x, y, width, height})`, and the result holds no pixels.
+    pub fn working(&mut self, scale: usize, sink: Option<Function>) -> Result<JsValue, JsError> {
         let img = self.raw.as_ref().ok_or_else(|| JsError::new("decode first"))?;
         let s = scale.max(1);
         let c = self.crop;
         let (w2, h2) = (c.width / s, c.height / s);
         let mut out = std::mem::take(&mut self.work);
         out.clear();
-        out.resize(w2 * h2 * 3, 0);
         let k = Kernel { matrix: self.matrix, wb: self.wb, crop: c, s, w2, h2 };
         if self.streaming {
             let bytes = &bytemuck::cast_slice::<u16, u8>(&self.input)[..self.input_len];
-            stream::working(bytes, img, &k, c, &mut out).map_err(err)?;
+            if sink.is_none() {
+                out.resize(w2 * h2 * 3, 0);
+            }
+            stream::working(bytes, img, &k, c, &mut |x, w, band| match &sink {
+                Some(f) => send(f, band, x, 0, w, h2),
+                None => place(&mut out, band, x, w, w2, h2),
+            })
+            .map_err(err)?;
         } else {
-            k.produce(&kernel::Src::Raw(img), img, 0, w2, &mut out);
+            out.resize(w2 * h2 * 3, 0);
+            k.produce(&kernel::Src::Raw(img), img, 0, w2, &mut out, w2);
         }
         self.work = out;
         Ok(buffer(self.work.as_ptr(), 0, 0, w2, h2))
+    }
+
+    /// The half-size working copy with no demosaic (streaming RAF only; binned.rs), in chunks to `sink({ptr, x, y,
+    /// width, height})`: the editor's first frame. Returns `{width, height}`.
+    pub fn binned(&mut self, sink: Function) -> Result<JsValue, JsError> {
+        let img = self.raw.as_ref().ok_or_else(|| JsError::new("decode first"))?;
+        if !self.streaming {
+            return Err(JsError::new("binned needs a streaming RAF"));
+        }
+        let c = self.crop;
+        let (w2, h2) = (c.width / 2, c.height / 2);
+        let k = Kernel { matrix: self.matrix, wb: self.wb, crop: c, s: 2, w2, h2 };
+        let bytes = &bytemuck::cast_slice::<u16, u8>(&self.input)[..self.input_len];
+        binned::binned(bytes, img, &k, &mut |c| send(&sink, &c.data, c.x, c.y, c.w, c.h)).map_err(err)?;
+        Ok(buffer(std::ptr::null(), 0, 0, w2, h2))
+    }
+
+    /// Threads rayon runs on (1 on plain wasm).
+    pub fn threads(&self) -> u32 {
+        rayon::current_num_threads() as u32
     }
 
     /// A full-resolution tile of the default crop at `(x, y)`, `w × h` (clamped to the crop), encoded as
@@ -190,7 +240,7 @@ impl Engine {
             let bytes = &bytemuck::cast_slice::<u16, u8>(&self.input)[..self.input_len];
             stream::tile(bytes, img, &k, fx, fy, &mut out).map_err(err)?;
         } else {
-            k.produce(&kernel::Src::Raw(img), img, 0, w, &mut out);
+            k.produce(&kernel::Src::Raw(img), img, 0, w, &mut out, w);
         }
         self.tile = out;
         Ok(buffer(self.tile.as_ptr(), x, y, w, h))
