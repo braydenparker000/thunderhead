@@ -7,13 +7,17 @@
 // its preview comes (from-drive.js). A long press starts choosing photos to paste a copied edit onto
 // or to export (select.js). A photo whose upload runs in the background (background.js) is on the
 // shelf with a small "Uploading" mark; on open, the uploads it left are settled or said to have failed.
+// The filter chips (shelf-filter.js) choose what the shelf shows; a RAW and its JPEG are one tile, the
+// RAW, with a RAW+JPEG badge; a long press opens the tile's menu (rate.js: stars, the heart, Choose).
 import { el, toast } from '/th/ui.js';
 import { pendingMark, resume } from './background.js';
 import * as data from './data.js';
 import { importFiles } from './import.js';
 import { go } from './nav.js';
 import { makeThumb } from './preview.js';
+import { tileMarks } from './rate.js';
 import { chooser } from './select.js';
+import { currentFilter, emptyUnder, filterChips } from './shelf-filter.js';
 
 const NO_KEY = 'Importing from Drive needs a picker key for your Worker first (SETUP.md, Photos).';
 const NOT_LINKED = 'Connect Google Drive in Settings › Photos to import from it.';
@@ -27,9 +31,10 @@ document.addEventListener('photos:thumb', async (e) => {
   const id = String(/** @type {CustomEvent} */ (e).detail);
   const blob = await data.thumbOf(id);
   for (const box of document.querySelectorAll(`.tile.blank[data-id="${CSS.escape(id)}"]`)) {
-    if (!blob) { box.replaceChildren(); continue; }
+    for (const t of box.querySelectorAll('.tname, .tnote')) t.remove();
+    if (!blob) continue;
     box.classList.remove('blank');
-    box.replaceChildren(el('img', { class: 'thumb', alt: '', decoding: 'async', src: URL.createObjectURL(blob) }));
+    box.prepend(el('img', { class: 'thumb', alt: '', decoding: 'async', src: URL.createObjectURL(blob) }));
   }
 });
 
@@ -56,13 +61,14 @@ export function thumb(p) {
   const box = el('button', { type: 'button', class: `tile${p.flag === 'reject' ? ' rejected' : ''}`, 'aria-label': `Photo, ${dayName(p.day)}`, 'data-id': p.id });
   box.addEventListener('click', () => go(`?photo=${p.id}`));
   if (!p.drive_id) box.append(el('span', { class: 'tmark', text: pendingMark(p) }));
+  box.append(tileMarks(p));
   (async () => {
     let blob = await data.thumbOf(p.id);
     if (!blob && p.preview) {
       blob = await makeThumb(await data.previewOf(p.id));
       data.keepThumb(p.id, blob);
     }
-    if (blob) box.append(el('img', { class: 'thumb', alt: '', decoding: 'async', src: URL.createObjectURL(blob) }));
+    if (blob) box.prepend(el('img', { class: 'thumb', alt: '', decoding: 'async', src: URL.createObjectURL(blob) }));
     else {
       box.classList.add('blank');
       if (data.coming.has(p.id)) box.append(el('span', { class: 'tname', text: p.name }), el('span', { class: 'tnote', text: 'Preview coming' }));
@@ -95,11 +101,14 @@ export async function shelfScreen(box) {
   const bin = el('button', { type: 'button', class: 'linkish', text: 'Recently deleted' });
   bin.addEventListener('click', () => go('?deleted=1'));
   const head = el('div', { class: 'head' }, [el('h1', { text: 'Photos' }), el('div', { class: 'adds' }, [drive, add])]);
+  let filter = currentFilter();
+  const chips = filterChips((f) => { filter = f; days.replaceChildren(); more.hidden = true; load(null); });
   const shelf = el('div', { class: 'shelf' }, [
     pull,
     el('a', { class: 'back', href: '/', text: '‹ Home' }),
     head,
     dnote,
+    chips,
     line,
     arriving,
     days,
@@ -120,16 +129,18 @@ export async function shelfScreen(box) {
   pullToImport(shelf, pull, () => picker.click());
   fromDrive(drive, dnote);
 
-  let next = /** @type {string | null} */ (null);
+  let next = /** @type {string | null} */ (null), gen = 0;
   const load = async (/** @type {string | null} */ before) => {
+    const n = ++gen;
     try {
-      const s = await data.shelf(before);
+      const s = await data.shelf(before, filter);
+      if (n !== gen) return;
       days.append(...s.days.map((d) => dayRow(d, pick.wire)));
       next = s.next;
       more.hidden = !next;
       if (s.offline) line.textContent = 'Offline: this is the shelf as this phone last saw it.';
       if (!before && !s.days.length)
-        days.append(el('p', { class: 'empty', text: 'No photos yet. Pull down or tap Import to add some from this phone, or From Drive for ones in your Drive.' }));
+        days.append(el('p', { class: 'empty', text: filter !== 'all' ? emptyUnder(filter) : 'No photos yet. Pull down or tap Import to add some from this phone, or From Drive for ones in your Drive.' }));
     } catch {
       line.textContent = 'The shelf did not load. Pull down to try again.';
     }

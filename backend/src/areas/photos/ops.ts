@@ -14,6 +14,7 @@ import {
 import { Fail } from '../../lib/result';
 import { DAY, ownerDay, zonedMinute } from '../../lib/time';
 import type { Writer } from '../../objects/commit';
+import { pairUp } from './pair';
 import * as store from './store';
 
 /** Registers a photo whose original is in Drive, or a pending one (`drive_id` null: its upload runs
@@ -41,7 +42,9 @@ export function put(w: Writer, id: string, r: PutPhotoRequest, tz: string): { ph
     taken_at: r.taken_at,
     day: ownerDay(r.taken_at, tz),
     rating: 0,
+    favorite: 0,
     flag: null,
+    pair_id: null,
     preview_key: null,
     preview_sha: null,
     recipe_sha: null,
@@ -51,7 +54,7 @@ export function put(w: Writer, id: string, r: PutPhotoRequest, tz: string): { ph
   };
   store.insert(w.db, row);
   w.change('photo', `photo:${id}`);
-  return { photo: store.toItem(row), created: true };
+  return { photo: store.toItem(pairUp(w, row, tz)), created: true };
 }
 
 /** A pending photo's Drive id, once (a deleted one takes it too, so its original goes to Drive's
@@ -76,25 +79,31 @@ export function patch(w: Writer, id: string, p: PatchPhotoRequest): PhotoItem {
     const had = store.byId(w.db, id);
     if (!had) throw new Fail('not_found');
     const item = attach(w, had, p.drive_id);
-    if (p.rating === undefined && p.flag === undefined) return item;
+    if (p.rating === undefined && p.flag === undefined && p.favorite === undefined) return item;
   }
   const r = live(w, id);
-  const rating = p.rating ?? r.rating;
-  const flag = p.flag === undefined ? r.flag : p.flag;
-  if (rating === r.rating && flag === r.flag) return store.toItem(r);
-  store.setRating(w.db, id, rating, flag, w.at);
+  const m = {
+    rating: p.rating ?? r.rating,
+    favorite: p.favorite === undefined ? r.favorite : p.favorite ? 1 : 0,
+    flag: p.flag === undefined ? r.flag : p.flag,
+  };
+  if (m.rating === r.rating && m.favorite === r.favorite && m.flag === r.flag) return store.toItem(r);
+  // A stack's marks are on both its photos.
+  store.setMarks(w.db, r.pair_id ? [id, r.pair_id] : [id], m, w.at);
   w.change('photo', `photo:${id}`);
-  return store.toItem({ ...r, rating, flag });
+  return store.toItem({ ...r, ...m });
 }
 
-/** To Recently deleted: off the shelf now, purged with its preview 30 days on. */
+/** To Recently deleted: off the shelf now, purged with its preview 30 days on; a stack, both. */
 export function remove(w: Writer, id: string): PhotoItem {
   const r = live(w, id);
+  const mate = r.pair_id ? store.byId(w.db, r.pair_id) : null;
   store.setDeleted(w.db, id, w.at, w.at);
+  if (mate && mate.deleted_at === null) store.setDeleted(w.db, mate.id, w.at, w.at);
   w.ledger({
     kind: 'note',
     actor: 'owner',
-    what: 'moved a photo to Recently deleted',
+    what: mate ? 'moved a RAW and its JPEG to Recently deleted' : 'moved a photo to Recently deleted',
     why: `kept ${L.deleted_days} days, then deleted with its preview and its original moved to Drive's trash`,
     ref: `photo:${id}`,
     undoable: false,
@@ -107,6 +116,8 @@ export function restore(w: Writer, id: string): PhotoItem {
   const r = store.byId(w.db, id);
   if (!r || r.deleted_at === null) throw new Fail('not_found');
   store.setDeleted(w.db, id, null, w.at);
+  const mate = r.pair_id ? store.byId(w.db, r.pair_id) : null;
+  if (mate && mate.deleted_at !== null) store.setDeleted(w.db, mate.id, null, w.at);
   w.change('photo', `photo:${id}`);
   return store.toItem({ ...r, deleted_at: null });
 }
@@ -142,7 +153,9 @@ function found(w: Writer, f: DriveFile, tz: string, newId: (at: number) => strin
     taken_at: at,
     day: ownerDay(at, tz),
     rating: 0,
+    favorite: 0,
     flag: null,
+    pair_id: null,
     preview_key: null,
     preview_sha: null,
     recipe_sha: null,
@@ -151,7 +164,7 @@ function found(w: Writer, f: DriveFile, tz: string, newId: (at: number) => strin
     updated_at: w.at,
   };
   store.insert(w.db, row);
-  return row;
+  return pairUp(w, row, tz);
 }
 
 /** The Drive pass's files (at most 200 a run): each one the shelf does not know, and that was not

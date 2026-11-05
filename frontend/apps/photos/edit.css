@@ -105,3 +105,12 @@
 .crow[aria-checked="true"] .cknob::after{transform:translateX(18px)}
 .xgo:disabled{opacity:.45;cursor:default}
 @media (prefers-reduced-motion:reduce){.echip,.xbar span,.cknob,.cknob::after{transition:none}}
+/* Culling: the star row between the photo and the panels (cull.js) */
+.erate{flex:none;display:flex;flex-direction:column;gap:8px;padding:8px 12px;background:#0c0c0e;border-top:1px solid rgba(255,255,255,.08)}
+.erate[hidden]{display:none}
+.erate .star,.erate .heart{color:rgba(255,255,255,.62)}
+.erate .star.on{color:var(--gold)}
+.erate .heart.on{color:var(--alarm)}
+.erate .camrate{background:rgba(255,255,255,.08);color:rgba(255,255,255,.8)}
+.erate .ejpeg{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.12);color:#fff}
+.erstar[aria-expanded="true"]{background:rgba(255,255,255,.22)}
