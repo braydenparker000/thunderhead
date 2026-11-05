@@ -12,12 +12,12 @@
   "profile": "release (opt-level s, fat LTO, 1 codegen unit, panic abort), default features (JPEG XL in DNG)",
   "files": {
     "photos_engine_bg.wasm": {
-      "bytes": 2242867,
-      "sha256": "def5e33720f0c80499154bbf7f688606ef85177ae7b7b09de587d1ddd3d9e08d"
+      "bytes": 2246192,
+      "sha256": "42bee0655858d3614767f087cb3ba9b041e5447315ad95fa942d489fd90b0b31"
     },
     "photos_engine.js": {
-      "bytes": 12593,
-      "sha256": "a14546ddcf816f2fb742a5866a8aa6c8732b91e88eb04f00ac1d9f494668efe9"
+      "bytes": 14148,
+      "sha256": "9c3a4b0e7d6acdf6437657a57ca3a0b84be51ea82e474ad62e899fea30bcba7a"
     }
   }
 }

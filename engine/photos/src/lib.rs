@@ -8,6 +8,7 @@
 //! - `working(scale)` → planar f16 linear Rec.2020 at `1/scale` (2 = half size), white balanced.
 //! - `tile(x, y, w, h)` → the same at full resolution for one window (the 1:1 view).
 //! - `freeWorking()` once the copy lives in GPU textures, so a tile can reuse the space.
+//! - `setMatrix(m)` for a body with no matrix here: the editor's fit from the camera's JPEG (fit.js).
 //!
 //! Buffers come back as `{ptr, width, height}`: JS makes zero-copy views on `memory.buffer`, valid until the
 //! next call that may allocate.
@@ -15,9 +16,10 @@
 mod kernel;
 mod stream;
 
+use half::f16;
 use js_sys::{Array, Object, Reflect, Uint8Array};
 use kernel::Kernel;
-use lightcraft_color::{REC2020, SRGB};
+use lightcraft_color::{Mat3, REC2020, SRGB};
 use lightcraft_raw::{self as raw, RawImage, Rect};
 use wasm_bindgen::prelude::*;
 
@@ -192,6 +194,32 @@ impl Engine {
         }
         self.tile = out;
         Ok(buffer(self.tile.as_ptr(), x, y, w, h))
+    }
+
+    /// Replaces the camera matrix (white-balanced camera RGB → linear Rec.2020, nine numbers row by row): a
+    /// body LightCraft has none for gets the editor's fit from its own camera JPEG (frontend/apps/photos/
+    /// edit/fit.js). A working copy already made is re-expressed in place (`new · old⁻¹`: exact, since the
+    /// kernel clips before the matrix); later tiles use it.
+    #[wasm_bindgen(js_name = setMatrix)]
+    pub fn set_matrix(&mut self, m: &[f32]) -> Result<(), JsError> {
+        if m.len() != 9 || m.iter().any(|v| !v.is_finite()) {
+            return Err(JsError::new("a matrix is nine finite numbers"));
+        }
+        let new = Mat3([0, 1, 2].map(|r| [0, 1, 2].map(|c| m[r * 3 + c] as f64)));
+        let old = Mat3(self.matrix.map(|r| r.map(|v| v as f64)));
+        let k = new.mul(&old.inverse().ok_or_else(|| JsError::new("the current matrix is singular"))?).to_f32();
+        let plane = self.work.len() / 3;
+        let (r, rest) = self.work.split_at_mut(plane);
+        let (g, b) = rest.split_at_mut(plane);
+        for i in 0..plane {
+            let p = [r[i], g[i], b[i]].map(|h| f16::from_bits(h).to_f32());
+            let q = [0, 1, 2].map(|j| k[j][0] * p[0] + k[j][1] * p[1] + k[j][2] * p[2]);
+            r[i] = f16::from_f32(q[0]).to_bits();
+            g[i] = f16::from_f32(q[1]).to_bits();
+            b[i] = f16::from_f32(q[2]).to_bits();
+        }
+        self.matrix = new.to_f32();
+        Ok(())
     }
 
     /// Drops the CPU working copy (it lives in GPU textures from here).

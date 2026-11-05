@@ -1,12 +1,14 @@
 // @ts-check
 // The photo's gestures in the editor (PHOTOS.md, the editor; GESTURES.md): hold for before/after
-// (the as-shot recipe while the finger stays), two fingers for the histogram, pinch to zoom up to
+// (the as-shot recipe while the finger stays; keep holding and a RAW shows the camera's own JPEG), two fingers for the histogram, pinch to zoom up to
 // 1:1 and drag to pan when zoomed, a double tap between fit and 1:1, a swipe for culling (cull.js),
 // and, when a tool asks for the photo (the white balance picker, Mix's targeted drag), a tap or a
 // vertical drag on it instead. What a
 // pinch, a drag and a double tap do to the view is zoom.js's: this reads the fingers.
 
 const HOLD_MS = 350;
+/** After As shot, how much longer the finger stays before the camera's JPEG shows (camera.js). */
+const CAMERA_MS = 650;
 const MOVE_PX = 8;
 const PINCH_PX = 12;
 const DOUBLE_MS = 300;
@@ -15,7 +17,7 @@ const DOUBLE_MS = 300;
  * @param {HTMLElement} stage
  * @param {{ before: (on: boolean) => void, histogram: (on: boolean) => void, down: () => void,
  *   pinch: (phase: 'start' | 'move' | 'end', ratio: number, x: number, y: number) => void,
- *   pan: (dx: number, dy: number, t: number) => void, release: () => void, doubleTap: (x: number, y: number) => void,
+ *   camera?: (on: boolean) => void, pan: (dx: number, dy: number, t: number) => void, release: () => void, doubleTap: (x: number, y: number) => void,
  *   mode: () => 'view' | 'pick' | 'target', tap: (x: number, y: number) => void, target: (x: number, y: number, dy: number, done: boolean) => void,
  *   swipe?: (dx: number, dy: number) => boolean }} on
  */
@@ -23,9 +25,14 @@ export function photoGestures(stage, on) {
   /** @type {Map<number, { x: number, y: number, x0: number, y0: number }>} */
   const down = new Map();
   /** @type {ReturnType<typeof setTimeout> | null} */
-  let hold = null;
+  let hold = null, cam = /** @type {ReturnType<typeof setTimeout> | null} */ (null), camOn = false;
   let holding = false, moved = false, pinching = false, two = false, lastTap = { t: 0, x: 0, y: 0 }, dist0 = 0;
-  const stopHold = () => { if (hold) clearTimeout(hold); hold = null; };
+  const stopHold = () => {
+    if (hold) clearTimeout(hold);
+    if (cam) clearTimeout(cam);
+    hold = cam = null;
+    if (camOn) { camOn = false; on.camera?.(false); }
+  };
   const spread = () => { const [a, b] = [...down.values()]; return Math.hypot(a.x - b.x, a.y - b.y); };
   const mid = () => { const [a, b] = [...down.values()]; return [(a.x + b.x) / 2, (a.y + b.y) / 2]; };
   stage.addEventListener('pointerdown', (e) => {
@@ -34,7 +41,10 @@ export function photoGestures(stage, on) {
     on.down();
     if (down.size === 1) {
       moved = false;
-      if (on.mode() === 'view') hold = setTimeout(() => { holding = true; on.before(true); }, HOLD_MS);
+      if (on.mode() === 'view') hold = setTimeout(() => {
+        holding = true; on.before(true);
+        cam = setTimeout(() => { camOn = true; on.camera?.(true); }, CAMERA_MS);
+      }, HOLD_MS);
     } else if (down.size === 2) {
       stopHold();
       if (holding) { holding = false; on.before(false); }

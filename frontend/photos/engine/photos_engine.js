@@ -84,6 +84,28 @@ export class Engine {
         return this;
     }
     /**
+     * Replaces the camera matrix (white-balanced camera RGB → linear Rec.2020, nine numbers row by row): a
+     * body LightCraft has none for gets the editor's fit from its own camera JPEG (frontend/apps/photos/
+     * edit/fit.js). A working copy already made is re-expressed in place (`new · old⁻¹`: exact, since the
+     * kernel clips before the matrix); later tiles use it.
+     * @param {Float32Array} m
+     */
+    setMatrix(m) {
+        try {
+            const retptr = wasm.__wbindgen_add_to_stack_pointer(-16);
+            const ptr0 = passArrayF32ToWasm0(m, wasm.__wbindgen_export2);
+            const len0 = WASM_VECTOR_LEN;
+            wasm.engine_setMatrix(retptr, this.__wbg_ptr, ptr0, len0);
+            var r0 = getDataViewMemory0().getInt32(retptr + 4 * 0, true);
+            var r1 = getDataViewMemory0().getInt32(retptr + 4 * 1, true);
+            if (r1) {
+                throw takeObject(r0);
+            }
+        } finally {
+            wasm.__wbindgen_add_to_stack_pointer(16);
+        }
+    }
+    /**
      * A full-resolution tile of the default crop at `(x, y)`, `w × h` (clamped to the crop), encoded as
      * `working` is. Returns `{ptr, x, y, width, height, planes: 3}`.
      * @param {number} x
@@ -212,6 +234,14 @@ function getDataViewMemory0() {
     return cachedDataViewMemory0;
 }
 
+let cachedFloat32ArrayMemory0 = null;
+function getFloat32ArrayMemory0() {
+    if (cachedFloat32ArrayMemory0 === null || cachedFloat32ArrayMemory0.byteLength === 0) {
+        cachedFloat32ArrayMemory0 = new Float32Array(wasm.memory.buffer);
+    }
+    return cachedFloat32ArrayMemory0;
+}
+
 function getStringFromWasm0(ptr, len) {
     return decodeText(ptr >>> 0, len);
 }
@@ -246,6 +276,13 @@ function passArray8ToWasm0(arg, malloc) {
     return ptr;
 }
 
+function passArrayF32ToWasm0(arg, malloc) {
+    const ptr = malloc(arg.length * 4, 4) >>> 0;
+    getFloat32ArrayMemory0().set(arg, ptr / 4);
+    WASM_VECTOR_LEN = arg.length;
+    return ptr;
+}
+
 function takeObject(idx) {
     const ret = getObject(idx);
     dropObject(idx);
@@ -274,6 +311,7 @@ function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     wasmModule = module;
     cachedDataViewMemory0 = null;
+    cachedFloat32ArrayMemory0 = null;
     cachedUint8ArrayMemory0 = null;
     return wasm;
 }

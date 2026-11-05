@@ -2,11 +2,21 @@
    bottom: one tool, the panel's chips, the panel strip. Photos' #0891b2 marks what is on. Needs
    ui/tokens.css and photos.css. */
 .editor{position:absolute;inset:0;display:flex;flex-direction:column;background:#000;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
-.estage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none}
+.estage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;isolation:isolate}
 .ecanvas{position:absolute;inset:0;display:block;width:100%;height:100%;transform-origin:0 0}
 .eback{position:absolute;left:0;top:0;transform-origin:0 0;pointer-events:none}
-.ehist{position:absolute;left:12px;top:calc(64px + env(safe-area-inset-top,0px));width:calc(100% - 24px);height:110px;border-radius:12px;background:rgba(0,0,0,.5);pointer-events:none}
-.ehint{position:absolute;left:50%;bottom:16px;transform:translateX(-50%);padding:5px 14px;border-radius:999px;background:rgba(0,0,0,.6);font:500 var(--fs-chip)/var(--lh-compact) var(--ui);pointer-events:none}
+.ehist{z-index:2;position:absolute;left:12px;top:calc(64px + env(safe-area-inset-top,0px));width:calc(100% - 24px);height:110px;border-radius:12px;background:rgba(0,0,0,.5);pointer-events:none}
+.ecam{z-index:1}
+.ecam[hidden],.ewipe[hidden],.ewdone[hidden]{display:none}
+.ewipe{position:absolute;top:0;bottom:0;z-index:2;width:44px;margin-left:-22px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;touch-action:none;cursor:ew-resize}
+.ewipe::before{content:'';position:absolute;top:0;bottom:0;left:21px;width:2px;background:rgba(255,255,255,.85)}
+.ewknob{position:relative;width:28px;height:28px;border-radius:50%;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.5)}
+.ewlabel{position:absolute;top:calc(76px + env(safe-area-inset-top,0px));padding:3px 8px;border-radius:999px;background:rgba(0,0,0,.6);font:500 var(--fs-chip)/var(--lh-compact) var(--ui);white-space:nowrap}
+.ewlabel:first-child{right:28px}
+.ewlabel:last-child{left:28px}
+.ewdone{position:absolute;right:8px;bottom:12px;z-index:2}
+.ecamera{margin-bottom:12px}
+.ehint{z-index:2;position:absolute;left:50%;bottom:16px;transform:translateX(-50%);padding:5px 14px;border-radius:999px;background:rgba(0,0,0,.6);font:500 var(--fs-chip)/var(--lh-compact) var(--ui);pointer-events:none}
 .etop{position:absolute;left:0;right:0;top:0;display:flex;align-items:center;gap:8px;padding:calc(6px + env(safe-area-inset-top,0px)) 8px 24px;background:linear-gradient(rgba(0,0,0,.55),transparent);pointer-events:none}
 .etop>*{pointer-events:auto}
 .etitle{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;font:400 var(--fs-small)/var(--lh-tight) var(--ui);color:rgba(255,255,255,.75)}
