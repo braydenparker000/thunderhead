@@ -1,18 +1,15 @@
 {
-  "id": "2026-11-05-photos-zoom",
+  "id": "2026-11-05-photos-colour",
   "date": "2026-11-05",
   "lines": [
     {
-      "text": "Zooming a photo is smooth now: it stays under your fingers and keeps its sharp detail until a sharper one is ready."
+      "text": "Photos: an X-E5 RAW now opens in true colour, learnt from the camera's own JPEG, at the camera's brightness."
     },
     {
-      "text": "A flick glides on, the edges give a little and spring back, and a double tap zooms in or out smoothly."
+      "text": "Exposure rolls into white instead of clipping; Highlights and Shadows leave no halo at strong edges."
     },
     {
-      "text": "Export on this phone says Download: each photo goes to Downloads in turn, and for more than three you can share."
-    },
-    {
-      "text": "Photos keeps uploading from this phone when you leave the app or lock the screen, on Android Chrome."
+      "text": "Keep holding the photo to see the camera's JPEG, or More › Compare with the camera's JPEG for a wipe."
     }
   ]
 }

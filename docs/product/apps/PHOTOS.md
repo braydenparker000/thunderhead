@@ -120,14 +120,14 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
   the browser (at most 4,096 px). Offline, the preview is what is edited. Measured in headless Chromium
   on the CC0 X-E5 sample (14-bit lossy, 40 MP): the preview at 0.1 s, the first real frame at 9.5 s
   (single thread, x86), 107.7 MiB of wasm.
-- **Colour**: the file's own matrices (DNG), else LightCraft's bundled ones for the body, else its
-  neutral fallback (camera RGB taken as linear sRGB), with the file's as-shot white balance. The X-E5
-  has no bundled matrix, so it gets the neutral fallback; the camera look is P1d.
+- **Colour**: the file's own matrices (DNG), else LightCraft's bundled ones for the body, else a matrix
+  fitted from the camera's own JPEG (below), with the file's as-shot white balance; the neutral
+  fallback (camera RGB taken as linear sRGB) only when the fit's gates fail.
 - **The pipeline** (ours, `frontend/apps/photos/edit/`): WebGPU where the phone has it, else WebGL2,
   the same three passes in WGSL and GLSL (`shaders/`): prep (the proxy at screen size, log luminance
   beside it), two blur levels, and develop per frame: white balance → exposure → tone (Highlights and
-  Shadows as local exposure from the large blur; Contrast, Whites, Blacks and the point curves in a
-  1,024-entry lookup; a soft base curve for RAW) → HSL in eight ranges → Vibrance, Saturation → B&W →
+  Shadows as local exposure from a guided base; the shoulder; the base curve for RAW, Contrast,
+  Whites, Blacks and the point curves in a 1,024-entry lookup) → HSL in eight ranges → Vibrance, Saturation → B&W →
   Grading → Texture, Clarity, Dehaze → Sharpening → Noise reduction (a 5×5 bilateral) → Vignette →
   Grain → sRGB. Zoomed past the proxy, a detail proxy of the visible part: from the working copy,
   and at 1:1 from a full-resolution tile the engine demosaics.
@@ -140,7 +140,9 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
   roundness; Grain amount, size, roughness). Detail (Sharpening amount, radius, detail, masking; noise
   and colour noise with their detail). A slider shows its value in words and as a number; drag
   anywhere on it, tap beside the thumb to nudge one step, double-tap to reset.
-- **Gestures**: hold the photo for as shot, two fingers for the histogram, pinch to zoom up to 1:1 and
+- **Gestures**: hold the photo for as shot (keep holding 0.65 s more and a RAW shows the camera's own
+  JPEG in its place, the same crop, zoom and pan, until the finger lifts; More › Compare with the
+  camera's JPEG opens a wipe you drag, the camera's on the left, yours on the right), two fingers for the histogram, pinch to zoom up to 1:1 and
   drag to pan, double-tap between fit and 1:1 (animated, 200 ms on the `--ease-out` curve). While a
   finger moves (`edit/zoom.js`), the frame last developed is moved by a CSS transform, over a backdrop
   of the whole photo for what the move uncovers, so a gesture costs no GPU pass; the photo develops
@@ -149,6 +151,42 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
   gives like a rubber band and comes back. The detail proxy on screen stays until the new one is ready;
   a new one is asked for only when the fingers stop or lift, one at a time, and a stale one never draws.
   Measured in headless Chromium on the X-E5 working copy: no frame over 32 ms in a two-second pinch.
+
+### The colour pipeline (P2a, as built)
+
+What neutral means for a RAW: accurate colour, a gentle curve, no film character, never the camera's
+film simulation as such. In numbers (`frontend/apps/photos/edit/fields.js` `BASE_TONE`):
+
+- **The matrix.** LightCraft (ae7ac42) bundles matrices for the X-T3, X-T4 and GFX 100 among Fujifilm
+  bodies, none for the 40 MP X-Trans 5 HR sensor (X-T5, X-H2, X-T50, X-E5). For a body with none, the
+  editor fits one from the RAF's own embedded JPEG (`edit/fit.js`, in the engine's worker): both reduced
+  to 192 × 128 cells; smooth, unclipped mid-tone cells paired (about 14,000 on the sample); the JPEG
+  linearised with the sRGB curve; the camera's own tone curve undone on luminance only, by a free scale
+  per cell; a 3×3 from white-balanced camera RGB to linear sRGB by least squares on chromaticity, white
+  kept white. Gates: 300 cells, 5 % coloured, 30 % closer than the fallback on a held-out third. Kept
+  on this phone per model (`th.photos.matrix.<model>`), so every photo from the body after the first
+  starts from the same matrix; the engine takes it through `setMatrix` and exports `cameraToRec2020`.
+  Undoing the camera's curve per channel instead gave 1.66× the camera's colourfulness on the sample.
+- **The baseline exposure**, per photo: the median mid-tone cell lands where the camera's JPEG puts it
+  (its metering and any Dynamic Range push: +1.78 EV on the sample). It rides in the matrix.
+- **The shoulder**: after exposure, on the brightest channel with the others kept in ratio (hue holds),
+  from 0.5 linear (one stop under white) `0.5 + 0.5·u / (1 + u³)^⅓`, u the distance above it in half
+  units; sensor white lands at 0.90, +2 EV reaches white at an input of 0.39 instead of clipping at
+  0.25. A JPEG gets it as Exposure goes from 0 to +1 EV, so as shot it is untouched.
+- **The base curve** (RAW only), sRGB-encoded 0–255 through a monotone spline: 0→0, 10→12 (the lifted
+  toe), 40→38, 118→118 (mid-grey, 18 % linear, kept), 190→196, 235→238, 255→255.
+- **Contrast** is an S in encoded values pivoted at that mid-grey (118 stays 118 at ±100). Whites and
+  Blacks move the end points as before.
+- **Highlights and Shadows**: ±1.6 stops of local exposure weighted by a guided base, the large blur's
+  mean and variance of log2 luminance giving per pixel `mix(mean, L, var / (var + 0.1))`. On a
+  synthetic backlit edge at Highlights −100 and Shadows +100 the band beside the edge stays within 0
+  and 1 of 255 of each side's plateau (the plain blurred base: 7 and 101); clouds keep 0.98 of their
+  local contrast when the sky comes down.
+- **Measured** (`tests/photos-edit-browser.test.mjs`, the CC0 X-E5 sample at defaults against its
+  camera JPEG at 256 px, CIE76): mean ΔE 24.24 before (the fallback matrix and the old base curve:
+  L* −23, colourfulness ×0.30), 5.06 now (L* +0.45, ×0.95). The same JPEG the fit learns from, so it
+  measures how close the start is to the camera, not colour accuracy. In a Node simulation of the same
+  render the spectral X-T4 matrix (a different sensor) scored 5.20 against the fit's 4.90.
 - **The recipe**: Lightroom's crs names where they map (`shared/contract/photos-recipe.ts`), defaults
   left out (as shot is `{}`); saved half a second after the last change, kept on the phone until the
   Worker has it (offline too), idempotent by hash, a ledger row per change whose undo is the recipe
@@ -237,4 +275,6 @@ top bar.
 ## 7. Next
 
 The RAF's own lens tables through the engine; P1d the camera look and the mind; P2 masks, saved looks
-and culling.
+and culling. The fit keeps the first accepted photo's look per model: a frame shot in a strong film
+simulation teaches the matrix that simulation's colour (the sample was Astia); reading the film mode and
+preferring a Provia frame is next.

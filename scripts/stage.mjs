@@ -230,7 +230,8 @@ const budgets = [
   ['icon sprite bytes', sum(/^ui\/icons\.svg$/), 34_743],
   // (2026-11-04, Photos' editor) the RAW engine as built (engine/photos/build.json): LightCraft's
   // decoders with JPEG XL for DNG, measured 2,242,867 bytes raw (595 KB brotli). A rebuild changes it.
-  ['photos engine wasm bytes', sum(/^photos\/engine\/.*\.wasm$/), 2_242_867],
+  // (2026-11-05, Photos colour) setMatrix for a fitted camera matrix: 2,246,192 measured (596 KB brotli).
+  ['photos engine wasm bytes', sum(/^photos\/engine\/.*\.wasm$/), 2_246_192],
 ];
 const over = budgets.filter(([, value, limit]) => value > limit);
 for (const [name, value, limit] of budgets) console.log(`${name}: ${value} (limit ${limit})`);

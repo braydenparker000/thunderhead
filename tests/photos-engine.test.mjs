@@ -67,6 +67,13 @@ test('decodes the CC0 X-E5 sample: headers, preview, the working copy and a tile
   for (let i = 0; i < g.length; i += 97) sum += f16(g[i] & 0x7fff);
   const mean = sum / Math.ceil(g.length / 97);
   assert.ok(mean > 0.005 && mean < 0.9, `green mean ${mean}`);
+  // setMatrix re-expresses the working copy in place: the same matrix twice as strong doubles it.
+  e.setMatrix(new Float32Array(meta.cameraToRec2020.map((v) => v * 2)));
+  const g2 = new Uint16Array(wasm.memory.buffer, w.ptr + w.width * w.height * 2, w.width * w.height);
+  let sum2 = 0;
+  for (let i = 0; i < g2.length; i += 97) sum2 += f16(g2[i] & 0x7fff);
+  assert.ok(Math.abs(sum2 / sum - 2) < 0.01, `×${sum2 / sum}`);
+  assert.throws(() => e.setMatrix(new Float32Array(4)));
   e.freeWorking();
   const t = e.tile(3303, 2202, 512, 512);
   assert.deepEqual([t.width, t.height], [512, 512]);

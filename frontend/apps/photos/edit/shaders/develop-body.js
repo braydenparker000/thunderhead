@@ -5,9 +5,18 @@
 // lookup) → HSL in eight ranges → Vibrance, Saturation → B&W → Grading → Texture, Clarity, Dehaze
 // (local contrast at three scales) → Sharpening → Noise reduction → Vignette → Grain → sRGB. The
 // neighbourhood steps are measured on the source (log2 luminance in the proxy's alpha) and applied as
-// luminance changes at their place, so the chain stays one pass. D1–D4 and DI declare a float, vectors and an int
+// luminance changes at their place, so the chain stays one pass. Highlights and Shadows read a guided base:
+// the large blur's mean and variance of log2 luminance give, per pixel, mix(mean, L, var / (var + ε)), so
+// across a strong edge the base is the pixel's own level (no halo) while inside a region it is the region's
+// (its local contrast kept). Exposure ends in a hue-keeping shoulder (fields.js BASE_TONE). D1–D4 and DI declare a float, vectors and an int
 // (each dialect spells them); V2, V3 and F build them. uv is the photo's point, q the output's (geometry-body.js):
 // vignette and grain are laid on the output, after the crop.
+
+import { BASE_TONE } from '../fields.js';
+
+const KNEE = BASE_TONE.knee.toFixed(4), PW = BASE_TONE.power.toFixed(4);
+/** Variance of log2 luminance (stops²) at which the guided base is half the region's, half the pixel's. */
+const EPS = '0.1';
 
 /** @param {(s: string) => string} t the dialect's rewrite */
 export const body = (t) => t(`
@@ -43,7 +52,8 @@ export const body = (t) => t(`
   D1 ev = log2(U(0).a);
   D1 mid = 1.0 - smoothstep(0.0, 1.0, abs(L + ev + 2.5) / 6.0);
   dL = dL + U(3).y * 0.7 * (L - b2.r) * mid;
-  D1 base = b3.r + ev;
+  D1 gv = max(b3.b - (b3.r + 6.0) * (b3.r + 6.0), 0.0);
+  D1 base = mix(b3.r, L, gv / (gv + ${EPS})) + ev;
   dL = dL + U(1).z * 1.6 * (1.0 - smoothstep(-7.0, -2.0, base)) + U(1).y * 1.6 * smoothstep(-3.5, 0.5, base);
   D3 lin = ch * exp2(L + dL) * U(0).rgb * U(0).a * lv;
   D1 k = U(3).z;
@@ -55,6 +65,12 @@ export const body = (t) => t(`
     lin = mix(lin, V3(0.48), -k * 0.45);
   }
   D3 sl = V3(dot(U(23).xyz, lin), dot(U(24).xyz, lin), dot(U(25).xyz, lin));
+  D1 mx = max(max(sl.r, sl.g), sl.b);
+  if (mx > ${KNEE}) {
+    D1 su = (mx - ${KNEE}) / (1.0 - ${KNEE});
+    D1 sm = ${KNEE} + (1.0 - ${KNEE}) * su / pow(1.0 + pow(su, ${PW}), 1.0 / ${PW});
+    sl = sl * mix(min(mx, 1.0), sm, U(3).w) / mx;
+  }
   D3 lt = clamp((log2(max(sl, V3(exp2(-12.0)))) + 12.0) / 14.0, V3(0.0), V3(1.0));
   D3 lc = (lt * 1023.0 + 0.5) / 1024.0;
   D3 e = V3(SAMPLE(LUT, V2(lc.r, 0.5)).r, SAMPLE(LUT, V2(lc.g, 0.5)).g, SAMPLE(LUT, V2(lc.b, 0.5)).b);
