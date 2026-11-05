@@ -7,6 +7,7 @@ import { el } from '/th/ui.js';
 import { icon } from '../shelf.js';
 import { cropTool } from './crop.js';
 import { curveTool } from './curve.js';
+import { looksTool } from './looks.js';
 import { opticsTool } from './optics.js';
 import { versionsTool } from './versions.js';
 import { HUES, PANELS, val, WHEELS } from './fields.js';
@@ -48,6 +49,7 @@ export function toolView(ed, panelId, toolId) {
   if (panelId === 'crop') return cropTool(ed, t.tool);
   if (panelId === 'optics') return opticsTool(ed);
   if (panelId === 'versions') return versionsTool(ed, t.tool);
+  if (panelId === 'looks') return looksTool(ed, t.tool);
   if (t.tool === 'auto') {
     const b = el('button', { type: 'button', class: 'eauto' }, [icon('magic-wand'), el('span', { text: 'Auto' })]);
     b.addEventListener('click', () => ed.runAuto());

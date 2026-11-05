@@ -3,13 +3,16 @@
   "date": "2026-11-05",
   "lines": [
     {
+      "text": "The editor has Looks: save an edit as a look, then tap one to apply it to any photo, with Amount up to 200%."
+    },
+    {
+      "text": "Import .xmp presets from Files or Drive, one or many: only their numbers are kept, under Imported."
+    },
+    {
       "text": "Photos has an Info sheet: tap the i in the editor, or hold a photo on the shelf and choose Info."
     },
     {
-      "text": "It shows the camera, lens and exposure, and the film simulation, dynamic range, tones and grain the camera set."
-    },
-    {
-      "text": "Copy at the bottom copies it all as text. Where a photo was taken is never read or kept."
+      "text": "Undo in a Photos message now takes a tap (it did not before)."
     }
   ]
 }

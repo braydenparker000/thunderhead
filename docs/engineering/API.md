@@ -643,7 +643,7 @@ type MemoryOp =
 | Podcasts | `podcasts.open`, `podcast.play`, `podcast.finish`, `podcast.skip`, `podcast.follow`, `podcast.unfollow` (`podcast:<show id>/<episode id>`; the show's id is the hash of its feed) |
 | Guitar | `guitar.open`, `guitar.piece_opened`, `guitar.pass`, `guitar.bpm`, `guitar.session` (minutes as `seconds`, the sections marked, the tempo reached as `bpm`) |
 | Study | `study.open`, `study.read` (`pages`, `ms`), `study.search` (`hits` only), `study.highlight` (sensitive; nothing sends it yet) |
-| Photos | `photo.import` (`format`, `source` `phone`\|`drive`), `photo.delete`, `photo.rate` (`rating`, `favorite`, `flag`); ref `photo:<id>`, never a name or a pixel; `photo.paste` (`count` and a switch per panel), no ref |
+| Photos | `photo.import` (`format`, `source` `phone`\|`drive`), `photo.delete`, `photo.rate` (`rating`, `favorite`, `flag`); ref `photo:<id>`, never a name or a pixel; `photo.paste` (`count` and a switch per panel), no ref; `photo.look` (`source`, `panels` a count), no ref |
 | Astra, My Media (`media`) | `astra.open`, `mymedia.open`, `media.watch` (`ms`), `media.finish`, `media.drop` (`astra:…` or `media:<id>`; read from each app's own progress by `th/senses/watch.js`) |
 | Shell | `app.open`, `app.close` (`ms` in front), `ring.choice`, `island.tap` (`to`), `briefing.open`, `settings.change` (`setting:<key>`, never the value) |
 | Home | `briefing.tile`, `line.seen`, `line.dismiss` (nothing sends it yet), `card.decide` (sensitive; the class only), `reply.open_chip` |
@@ -910,6 +910,18 @@ public and checked by its one-use state.
   `DELETE /versions/:vid` → `{ok}`. Versions leave no ledger row: restoring one is the recipe `PUT`
   above, with its undo. A photo in Recently deleted takes no new version (404); its versions go with it
   when it is purged. Core step 43.
+- `GET /v1/photos/looks` → `{items: PhotoLook[]}` newest first, at most 500 (`{id, name, source
+  'mine'|'xmp'|'recipe'|'camera', recipe, panels, tag, film, credit, created_at, updated_at}`,
+  `shared/contract/photos-looks.ts`). `PUT` `{items: 1–50 of {id (the phone's UUIDv7), name (≤ 60),
+  source, recipe, panels (of light, color, effects, detail, optics, crop), tag? (≤ 40), film? (≤ 40),
+  credit? (≤ 120)}}` → `201 {items, created}` (200 when every id was there already): each added or
+  replaced by its id in one commit; its recipe checked as a recipe put is, every key in a panel named
+  (else 422), stored canonical and at most 4 KB; past 500 looks in all `409 conflict`, the whole request
+  refused. A look's white balance is relative (its Temperature read against 5,500 K, its Tint against
+  0): the phone applies it as a shift of the photo's own. `PATCH /v1/photos/looks/:lid` `{name?,
+  recipe?, panels?}` → `{look}` (a rename, or Update from current edit); `DELETE` → `{ok}`; an unknown
+  look is 404. Looks leave no ledger row: applying one is the recipe `PUT` above, with its undo. Core
+  step 45.
 - `POST /v1/photos/paste` `{ids (1–20 photos), panels (of light, color, effects, detail, optics,
   crop), recipe (the copy's keys, each in a panel named, or 422)}` → `{items: [{id, changed, recipe,
   before}], ledger_id}` (`shared/contract/photos-paste.ts`): each photo's recipe with the named

@@ -118,7 +118,7 @@ export const SENSE_TYPES = {
   // Photos (apps/photos): `photo:<id>`; the format and numbers only, never a name or a pixel.
   'photo.import': t('photos', ['photo'], { format: ['raf', 'dng', 'jpeg', 'heic', 'other'], source: ['phone', 'drive'] }, 'A photo imported: in Drive and on the shelf, from this phone or picked in Drive.'),
   'photo.delete': t('photos', ['photo'], {}, 'A photo moved to Recently deleted.'),
-  'photo.edit': t('photos', ['photo'], { panel: ['light', 'color', 'effects', 'detail', 'optics', 'crop', 'versions'] }, 'A panel of the editor used on a photo (the panel only, never a value).'),
+  'photo.edit': t('photos', ['photo'], { panel: ['light', 'color', 'effects', 'detail', 'optics', 'crop', 'versions', 'looks'] }, 'A panel of the editor used on a photo (the panel only, never a value).'),
   'photo.export': t('photos', ['photo'], { size: ['full', '2048', '1080'], format: ['jpeg', 'heic'], to: ['share', 'files', 'drive'] }, 'A photo exported: the size, format and where, never a pixel.'),
   'photo.paste': t(
     'photos',
@@ -126,6 +126,7 @@ export const SENSE_TYPES = {
     { count: 'int', light: 'bool', color: 'bool', effects: 'bool', detail: 'bool', optics: 'bool', crop: 'bool' },
     'A copied edit pasted onto photos: how many and which panels, never a value or an id.',
   ),
+  'photo.look': t('photos', [], { source: ['mine', 'xmp', 'recipe', 'camera'], panels: 'int' }, 'A look applied to a photo: where the look came from and how many panels it sets, never its name or a value.'),
   'photo.rate': t('photos', ['photo'], { rating: 'int', favorite: 'bool', flag: ['pick', 'reject', 'none'] }, 'A photo rated, given or taken its heart, flagged or rejected.'),
   // Astra and My Media (th/senses/watch.js, from each app's own progress): `astra:<type>:<id>` (an
   // episode adds `:<season>:<episode>`) or `media:<drive file id>`.
