@@ -1,5 +1,6 @@
 // /v1/photos (PHOTOS.md §3.1, API.md §11.26): the shelf by day (newest first, four photos and a
-// count a day; `?day=` one whole day), one photo, its rating and flag, Recently deleted and back,
+// count a day; `?day=` one whole day; `?filter=` a chip's), the photos either side of one (culling),
+// one photo, its stars, heart and flag, Recently deleted and back,
 // pending photos (a background upload's, registered before Drive has the file; the id comes by PATCH),
 // and its preview: a JPEG of at most 400 KB the phone made, kept in the private bucket under
 // photos/previews/ and served only through this Worker. The owner's phone only.
@@ -7,8 +8,11 @@ import { Hono } from 'hono';
 import * as z from 'zod/mini';
 import {
   PHOTO_LIMITS as L,
+  PHOTO_FILTERS,
   PHOTO_FLAGS,
   PHOTO_FORMATS,
+  type PhotoAroundResponse,
+  type PhotoFilter,
   type PhotoItem,
   type PhotoPendingResponse,
   type PhotoShelfResponse,
@@ -54,6 +58,7 @@ const putBody = z.strictObject({
 });
 const patchBody = z.strictObject({
   rating: z.optional(z.number().check(z.int(), z.gte(0), z.lte(5))),
+  favorite: z.optional(z.boolean()),
   flag: z.optional(z.nullable(z.enum(PHOTO_FLAGS))),
   drive_id: z.optional(driveId),
 });
@@ -61,6 +66,12 @@ const vaultOf = (env: Env): R2Bucket => {
   const v = (env as { VAULT?: R2Bucket }).VAULT;
   if (!v) throw new ApiError('not_configured');
   return v;
+};
+const filterOf = (v: string | undefined): PhotoFilter => {
+  if (v === undefined) return 'all';
+  if (!(PHOTO_FILTERS as readonly string[]).includes(v))
+    throw new ApiError('validation', [{ path: 'filter', issue: PHOTO_FILTERS.join(', ') }]);
+  return v as PhotoFilter;
 };
 const found = (p: PhotoItem | null) => {
   if (!p) throw new ApiError('not_found');
@@ -101,8 +112,9 @@ export const photosRoutes = new Hono<AppEnv>()
       ['before', before],
     ] as const)
       if (v !== undefined && !DAY.test(v)) throw new ApiError('validation', [{ path: k, issue: 'a YYYY-MM-DD day' }]);
+    const filter = filterOf(c.req.query('filter'));
     const core = coreObject(c.env);
-    const out = day ? await fresh(core.photosDay(day)) : await fresh(core.photosShelf(before ?? null));
+    const out = day ? await fresh(core.photosDay(day, filter)) : await fresh(core.photosShelf(before ?? null, filter));
     return c.json(out satisfies PhotoShelfResponse);
   })
   .get('/photos/deleted', guard('GET /v1/photos/deleted'), async (c) =>
@@ -118,6 +130,12 @@ export const photosRoutes = new Hono<AppEnv>()
     if (body.drive_id) await inDrive(c.env, { ...body, drive_id: body.drive_id });
     const out = value(await fresh(coreObject(c.env).putPhoto(id, body)));
     return c.json({ photo: out.photo }, out.created ? 201 : 200);
+  })
+  .get('/photos/:id/around', guard('GET /v1/photos/:id/around'), async (c) => {
+    const filter = filterOf(c.req.query('filter'));
+    const out = await fresh(coreObject(c.env).photosAround(idParam(c), filter));
+    if (!out) throw new ApiError('not_found');
+    return c.json(out satisfies PhotoAroundResponse);
   })
   .get('/photos/:id', guard('GET /v1/photos/:id'), async (c) => {
     const out = await fresh(coreObject(c.env).photoWithRecipe(idParam(c)));

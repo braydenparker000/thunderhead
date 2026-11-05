@@ -59,6 +59,7 @@ export async function importFiles(files, arrive) {
     const id = was?.id ?? uuidv7();
     const kept = was ? await keptFor(was.id) : null;
     const meta = await readPhoto(file);
+    if (meta.rating) data.store.set(`camrating:${id}`, meta.rating).catch(() => {}); // the star row offers it (edit/cull.js)
     const once = meta.preview ? await decodeOnce(meta.preview).catch(() => null) : null;
     const thumb = once?.thumb ?? null;
     if (thumb) data.keepThumb(id, thumb);
@@ -141,6 +142,7 @@ export async function previewFromDrive(p) {
   } else file = new File([await fetchOriginal(t.access_token, p.drive_id)], p.name, { type: p.format === 'jpeg' ? 'image/jpeg' : '' });
   if (formatOf(file) === 'other') return null;
   const meta = await readPhoto(file);
+  if (meta.rating) data.store.set(`camrating:${p.id}`, meta.rating).catch(() => {});
   if (!meta.preview) return null;
   const once = await decodeOnce(meta.preview);
   if (once.thumb) await data.keepThumb(p.id, once.thumb);

@@ -127,7 +127,7 @@ export const SENSE_TYPES = {
     'A copied edit pasted onto photos: how many and which panels, never a value or an id.',
   ),
   'photo.look': t('photos', [], { source: ['mine', 'xmp', 'recipe', 'camera'], panels: 'int' }, 'A look applied to a photo: where the look came from and how many panels it sets, never its name or a value.'),
-  'photo.rate': t('photos', ['photo'], { rating: 'int', flag: ['pick', 'reject', 'none'] }, 'A photo rated, flagged or rejected.'),
+  'photo.rate': t('photos', ['photo'], { rating: 'int', favorite: 'bool', flag: ['pick', 'reject', 'none'] }, 'A photo rated, given or taken its heart, flagged or rejected.'),
   // Astra and My Media (th/senses/watch.js, from each app's own progress): `astra:<type>:<id>` (an
   // episode adds `:<season>:<episode>`) or `media:<drive file id>`.
   'astra.open': t('media', [], {}, "Astra's page opens."),

@@ -1,6 +1,7 @@
 // Photos' calls of the cost suite (cost.test.ts checks every budget), metered in Core: an import
 // (the photo's row, then its preview's), 1 and 20 files picked in Drive, the shelf's first page of 14 days with four photos each,
-// one whole day, a rating, a recipe saved (a change, then the same again), versions, a pending photo
+// one whole day, the 4-star chip's first page and the photos either side of one (culling), a stack (a
+// JPEG meeting its RAF) and its heart, a rating, a recipe saved (a change, then the same again), versions, a pending photo
 // (registered, listed, given its Drive id) and a delete;
 // then, after the ledger's own reads are measured, a paste onto 1 and onto 12 photos (pasteCalls). The shelf holds 15 days of 6 invented photos first.
 import { exports } from 'cloudflare:workers';
@@ -21,12 +22,15 @@ export async function photosCalls(cost: Cost, grant: (ip: string, password?: str
   // Registration checks the file with Drive (a fake Google here; the Worker never calls Google in tests).
   const g = fakeGoogle();
   await connectDrive(d.token);
+  const firsts: string[] = [];
   for (let day = 0; day < 15; day++)
-    for (let i = 0; i < 6; i++)
-      await api('PUT', `/v1/photos/${uuidv7()}`, {
-        ...d,
-        body: photoBody({ taken: Date.UTC(2026, 2, 1 + day, 9, i) }),
-      });
+    for (let i = 0; i < 6; i++) {
+      const pid = uuidv7();
+      await api('PUT', `/v1/photos/${pid}`, { ...d, body: photoBody({ taken: Date.UTC(2026, 2, 1 + day, 9, i) }) });
+      if (i === 0) firsts.push(pid);
+    }
+  // One photo a day has four stars, for the chip's page.
+  for (const pid of firsts) await api('PATCH', `/v1/photos/${pid}`, { ...d, body: { rating: 4 } });
   const id = uuidv7();
   const k = core();
   await cost(
@@ -55,6 +59,38 @@ export async function photosCalls(cost: Cost, grant: (ip: string, password?: str
   );
   await cost('GET /v1/photos (14 days of 6) (Core)', () => api('GET', '/v1/photos', d), 200, k);
   await cost('GET /v1/photos?day= (6 photos) (Core)', () => api('GET', '/v1/photos?day=2026-03-02', d), 200, k);
+  await cost(
+    'GET /v1/photos?filter=stars4 (14 days of 1 in 6) (Core)',
+    () => api('GET', '/v1/photos?filter=stars4', d),
+    200,
+    k,
+  );
+  await cost(
+    'GET /v1/photos/:id/around (4 stars) (Core)',
+    () => api('GET', `/v1/photos/${firsts[7]}/around?filter=stars4`, d),
+    200,
+    k,
+  );
+  // A stack: the RAF is on the shelf, its JPEG comes (the pairing's window read and both rows written).
+  const shot = Date.UTC(2026, 3, 2, 10, 0);
+  const stack = uuidv7();
+  await api('PUT', `/v1/photos/${stack}`, { ...d, body: photoBody({ taken: shot, name: 'DSCF0002.RAF' }) });
+  await cost(
+    'PUT /v1/photos/:id (its JPEG: a stack) (Core)',
+    () =>
+      api('PUT', `/v1/photos/${uuidv7()}`, {
+        ...d,
+        body: { ...photoBody({ taken: shot + 400, name: 'DSCF0002.JPG' }), format: 'jpeg' },
+      }),
+    201,
+    k,
+  );
+  await cost(
+    'PATCH /v1/photos/:id (a stack’s heart) (Core)',
+    () => api('PATCH', `/v1/photos/${stack}`, { ...d, body: { favorite: true } }),
+    200,
+    k,
+  );
   // Import from Drive: files picked in Google's picker, registered by reference (1, then 20 a request).
   for (let i = 0; i < 21; i++)
     g.picked[`picked-${i}`] = {

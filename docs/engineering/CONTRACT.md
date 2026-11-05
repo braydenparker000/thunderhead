@@ -217,7 +217,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `DELETE /v1/photos/drive` | D | P9 | built | forgets the grant (the files stay in Drive) |
 | `POST /v1/photos/upload-token` | D | P9 | built | a Drive access token for the phone’s own upload, and the folder id |
 | `POST /v1/photos/from-drive` | D | P9 | built | {ids ≤ 20}: files picked in Google’s picker, registered by reference with what Drive says of each (one Drive call a file); a known one is `already` |
-| `GET /v1/photos` | D | P9 | built | ?before=<day>: days newest first, 4 photos and a count each; ?day=: one day |
+| `GET /v1/photos` | D | P9 | built | ?before=<day>: days newest first, 4 photos and a count each; ?day=: one day; ?filter= all\|favorites\|stars3\|stars4\|stars5\|raw\|jpeg\|edited\|unedited (a stack once, as its RAW) |
 | `GET /v1/photos/looks` | D | P9 | built | every look, newest first: at most 500 |
 | `PUT /v1/photos/looks` | D | P9 | built | {items ≤ 50: id, name, source mine\|xmp\|recipe\|camera, recipe ≤ 4 KB in its panels, panels, tag?, film?, credit?}: each added or replaced by id; past 500 refused |
 | `PATCH /v1/photos/looks/:lid` | D | P9 | built | {name?, recipe?, panels?}: renames, or updates it from the current edit |
@@ -225,9 +225,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `GET /v1/photos/deleted` | D | P9 | built | Recently deleted, newest first: 30 days |
 | `GET /v1/photos/pending` | D | P9 | built | photos whose background upload has no Drive id yet, newest first: at most 200 |
 | `PUT /v1/photos/:id` | D | P9 | built | registers an upload: Drive id (null: pending, a background upload), size, hash, camera, capture time, format |
+| `GET /v1/photos/:id/around` | D | P9 | built | ?filter=: the newer and older photo beside this one in the shelf’s order, for culling |
 | `GET /v1/photos/:id` | D | P9 | built | the photo and its recipe |
-| `PATCH /v1/photos/:id` | D | P9 | built | {rating 0–5, flag pick\|reject\|null, drive_id: a pending photo’s, checked with Drive} |
-| `DELETE /v1/photos/:id` | D | P9 | built | to Recently deleted |
+| `PATCH /v1/photos/:id` | D | P9 | built | {rating 0–5, favorite, flag pick\|reject\|null (a stack’s on both its photos), drive_id: a pending photo’s, checked with Drive} |
+| `DELETE /v1/photos/:id` | D | P9 | built | to Recently deleted (a stack with both its photos) |
 | `POST /v1/photos/:id/restore` | D | P9 | built |  |
 | `PUT /v1/photos/:id/recipe` | D | P9 | built | the edit as a recipe (crs names); the same hash again writes nothing; a ledger row, undo = the recipe before |
 | `POST /v1/photos/paste` | D | P9 | built | {ids ≤ 20, panels, recipe}: each photo’s recipe with those panels replaced, an automatic version of an edit it replaces; one ledger row, undo = every recipe before |
@@ -373,7 +374,7 @@ Every event type the phone may send (`PUT /v1/senses/batches/:id`, API.md §11.1
 | `photo.export` | photos | `photo:` | size: `full` \| `2048` \| `1080`, format: `jpeg` \| `heic`, to: `share` \| `files` \| `drive` | 0 | A photo exported: the size, format and where, never a pixel. |
 | `photo.paste` | photos | — | count: int, light: bool, color: bool, effects: bool, detail: bool, optics: bool, crop: bool | 0 | A copied edit pasted onto photos: how many and which panels, never a value or an id. |
 | `photo.look` | photos | — | source: `mine` \| `xmp` \| `recipe` \| `camera`, panels: int | 0 | A look applied to a photo: where the look came from and how many panels it sets, never its name or a value. |
-| `photo.rate` | photos | `photo:` | rating: int, flag: `pick` \| `reject` \| `none` | 0 | A photo rated, flagged or rejected. |
+| `photo.rate` | photos | `photo:` | rating: int, favorite: bool, flag: `pick` \| `reject` \| `none` | 0 | A photo rated, given or taken its heart, flagged or rejected. |
 | `astra.open` | media | — | — | 0 | Astra's page opens. |
 | `mymedia.open` | media | — | — | 0 | My Media's page opens. |
 | `media.watch` | media | `astra:`, `media:` | ms: ms | 0 | Time watched of a title since the last report. |

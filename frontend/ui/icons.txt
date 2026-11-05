@@ -91,5 +91,8 @@ flip-vertical
 stack
 columns
 export
+# Photos: the heart (the shelf, culling)
+heart
+heart-fill
 # Photos: the Looks panel
 swatches

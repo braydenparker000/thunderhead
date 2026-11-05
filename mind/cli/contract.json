@@ -1796,7 +1796,7 @@
       ],
       "phase": "P9",
       "status": "built",
-      "note": "?before=<day>: days newest first, 4 photos and a count each; ?day=: one day"
+      "note": "?before=<day>: days newest first, 4 photos and a count each; ?day=: one day; ?filter= all|favorites|stars3|stars4|stars5|raw|jpeg|edited|unedited (a stack once, as its RAW)"
     },
     "GET /v1/photos/looks": {
       "who": [
@@ -1853,6 +1853,14 @@
       "status": "built",
       "note": "registers an upload: Drive id (null: pending, a background upload), size, hash, camera, capture time, format"
     },
+    "GET /v1/photos/:id/around": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "?filter=: the newer and older photo beside this one in the shelf’s order, for culling"
+    },
     "GET /v1/photos/:id": {
       "who": [
         "D"
@@ -1867,7 +1875,7 @@
       ],
       "phase": "P9",
       "status": "built",
-      "note": "{rating 0–5, flag pick|reject|null, drive_id: a pending photo’s, checked with Drive}"
+      "note": "{rating 0–5, favorite, flag pick|reject|null (a stack’s on both its photos), drive_id: a pending photo’s, checked with Drive}"
     },
     "DELETE /v1/photos/:id": {
       "who": [
@@ -1875,7 +1883,7 @@
       ],
       "phase": "P9",
       "status": "built",
-      "note": "to Recently deleted"
+      "note": "to Recently deleted (a stack with both its photos)"
     },
     "POST /v1/photos/:id/restore": {
       "who": [

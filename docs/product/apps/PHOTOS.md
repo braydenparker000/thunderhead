@@ -72,8 +72,30 @@ Step P1a, 2026-11-04: the shelf and the store. No editing yet.
   a time. Without a picker key, or with Drive not connected, the button is off and says why.
 - **The shelf**: days newest first, each with up to four thumbnails and a count; a day opens whole;
   14 days a page ("Earlier days"). Tap a photo for the full-bleed view (the preview on black, its day,
-  camera and film simulation). Hold it (or tap the star) for Pick, Reject, a rating of 1–5 and
+  camera and film simulation). Hold it (or tap the star) for Pick, Reject, 1–5 stars, the heart and
   Delete.
+- **RAW+JPEG stacks** (2026-11-05; `areas/photos/pair.ts`): a RAW (RAF or DNG) and a JPEG with the same
+  base name (`DSCF1234.RAF` and `DSCF1234.JPG`, any case) taken within 2 s of each other are one stack,
+  whichever arrives first and however (this phone, From Drive, the daily pass): the Worker pairs them
+  when the second is registered (a window read of the `photos_shelf` index; `pair_id` on both rows,
+  Core step 44). The shelf shows one tile, the RAW, with a small RAW+JPEG badge; it opens the RAW, and
+  the RAW is what the editor edits and Export exports. The JPEG, the camera's own rendering, is one
+  tap away: Open the JPEG in the tile's menu, and in the editor's star row beside the edit. Stars, the
+  heart and the flag of a stack are on both photos (the higher rating and either's heart when they
+  meet); a delete moves both to Recently deleted (shown once) and a restore brings both back. There is
+  no unpairing. A RAF the daily pass finds is dated by Drive's own word on it, which for a RAF is
+  often its upload time rather than its capture time, so such a RAF pairs only when that time agrees.
+- **Stars and the heart** (`apps/photos/rate.js`): 0–5 stars and a heart on each photo, set from the
+  tile's long-press menu on the shelf (five stars, the heart, Choose, and Open the JPEG for a stack),
+  the full view's sheet, and the editor (below). `PATCH /v1/photos/:id` `{rating}` / `{favorite}`, no
+  ledger row; the sense `photo.rate` carries the numbers and the heart with the ref `photo:<id>`, no
+  name. The tile shows the heart and `★4` in its corner.
+- **The filter** (`apps/photos/shelf-filter.js`): a row of chips under the title, All · Favourites ·
+  ★3+ · ★4+ · ★5 · RAW · JPEG · Edited · Unedited, kept per phone (localStorage `th.photos.filter`).
+  The Worker filters (`GET /v1/photos?filter=`), so a page is 14 days that have such photos and the
+  counts are theirs; a day opened shows that day under the chip. RAW is the stacks and lone RAWs; JPEG
+  is lone JPEG and HEIC photos. The stars read through `photos_rated` (each rating a seek), the heart
+  through `photos_favorite`, the rest through `photos_shelf`.
 - **Recently deleted**: a deleted photo leaves the shelf at once and stays 30 days (Restore brings it
   back); then the cron's prune pass purges its row and preview (bytes first), and the next Drive pass
   moves its original to Drive's own trash (the owner can still take it back there).
@@ -86,6 +108,20 @@ Step P1a, 2026-11-04: the shelf and the store. No editing yet.
   guard with the other heavy work; waits while Drive is not connected.
 - **Offline**: the shelf's pages, each photo, thumbnails and previews are kept on the phone
   (IndexedDB `th-photos`, dropped at sign-out); offline, the kept shelf shows with a plain line.
+
+### Culling (2026-11-05; `edit/cull.js`)
+
+- In the editor at fit zoom, a sideways swipe on the photo goes to the next photo in the shelf's order
+  under its chip (left: older, as the shelf reads down; right: newer), the photo sliding out with our
+  easing (none with reduced motion). The place is replaced, not stacked, so Back still leaves the
+  editor. The neighbours come from `GET /v1/photos/:id/around?filter=`, asked once as the editor opens;
+  at an end a toast says there is no older (or newer) photo.
+- A swipe up on the photo opens the star row between the photo and the panels (five stars and the
+  heart), a swipe down closes it, and the star in the top bar does either. While a photo is unrated,
+  the row offers the rating the camera wrote ("The camera gave it 3 stars: tap to keep"), read at
+  import from EXIF `Rating` (0x4746) or Fujifilm's MakerNote `Rating` (0x1431) and kept on the phone.
+  A stack's row also has the camera's JPEG beside this edit, side by side as Versions compares.
+- On a laptop: 0–5 set the stars, `f` the heart, ← and → go newer and older.
 
 ## 2. Settings › Photos (§3.6, as built)
 
@@ -103,9 +139,12 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
 - **What the Worker keeps**: one row per photo (ids, numbers, the camera's words) and a preview of
   at most 400 KB (ten thousand photos of 300 KB is 3 GB, inside R2's free 10 GB).
 - **The mind** sees no pixel, no name and no token: the senses carry ids, formats and ratings only
-  (`photo.import` with the format and `source` phone or drive, `photo.delete`, `photo.rate`, `photo.edit` with the panel only, `photo.paste` with the count and panels only; `privacy.senses.photos` switches them off).
+  (`photo.import` with the format and `source` phone or drive, `photo.delete`, `photo.rate` with the stars, the heart and the flag, `photo.edit` with the panel only, `photo.paste` with the count and panels only; `privacy.senses.photos` switches them off).
 - **Rows**: an import is 1 read and 4 writes, its preview 3 and 2; the shelf's first page of 14 days
-  of 6 photos reads 140 rows; a saved recipe 3 reads and 6 writes, the same one again 2 and 0 ([backend/tests/cost/budgets.json](../../../backend/tests/cost/budgets.json)).
+  of 6 photos reads 140 rows, the ★4+ chip's first page 103, the photos either side for culling 17; an
+  import reads 3 rows (the stack's window), a JPEG meeting its RAW 7 read and 7 written, a stack's
+  heart 3 and 5; a saved recipe 3 reads and 6 writes, the same one again 2 and 0 ([backend/tests/cost/budgets.json](../../../backend/tests/cost/budgets.json)).
+  A burst (many photos within 2 s) costs more: 20 files picked in Drive with one time read 271 rows.
   Drive's quotas are far above one person's use. Owner steps: [SETUP.md §R](../../process/SETUP.md).
 
 ## 4. The editor (§3.3 of the plan: Light, Color, Effects, Detail, as built)
@@ -256,7 +295,8 @@ top bar.
   key the copy leaves out is pasted as that panel's default: pasting Light from a photo with no
   contrast change sets contrast back to as shot.
 - **Choosing photos** (`select.js`): on the shelf or a whole day, a long press (450 ms, a short buzz
-  where the phone has one) starts choosing; then a tap adds or takes away. A bar on top counts them
+  where the phone has one) opens the tile's menu, and its Choose starts choosing with that photo
+  (since 2026-11-05: the menu also holds the stars and the heart); then a tap adds or takes away. A bar on top counts them
   and has Cancel, Paste (while an edit is copied) and Export; at most 20, and the 21st tap says so.
   While an edit is copied, a chip under the title names its panels, with × to let it go.
 - **Paste**: one call, `POST /v1/photos/paste` (API.md §11.26): each photo keeps its own keys outside
@@ -293,7 +333,7 @@ this photo as shot with its current crop, cached per photo, look and crop, only 
   Effects and Detail on; Optics and Crop off), white balance kept as a shift from the photo's own.
 - **A long press** on a look: rename it, **Update from current edit** (its panels from this edit), or
   delete it (Undo in the toast puts it back).
-- **Store**: `/v1/photos/looks` (API.md §11.26), Core step 44, table `photo_looks`: at most 500 looks;
+- **Store**: `/v1/photos/looks` (API.md §11.26), Core step 45, table `photo_looks`: at most 500 looks;
   each recipe checked by the recipe's schema, only its panels' keys, at most 4 KB. The phone keeps a
   copy for offline. A thumbnail column is there for later; nothing fills it yet.
 - **Sense**: `photo.look` with the look's source and how many panels it sets, never its name or a value.
@@ -353,7 +393,7 @@ a setting the recipe does not name is the camera's zero.
 
 ## 8. Next
 
-The RAF's own lens tables through the engine; P1d the camera look and the mind; P2 masks and culling;
+The RAF's own lens tables through the engine; P1d the camera look and the mind; P2 masks;
 the camera's learned looks (RAW+JPEG pairs) fill Looks' Camera section. The fit keeps the first
 accepted photo's look per model: a frame shot in a strong film simulation teaches the matrix that
 simulation's colour (the sample was Astia); reading the film mode and preferring a Provia frame is next.

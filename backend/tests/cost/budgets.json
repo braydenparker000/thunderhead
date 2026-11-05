@@ -644,7 +644,7 @@
     "rows_written_max": 19
   },
   "PUT /v1/photos/:id (an import) (Core)": {
-    "rows_read_max": 1,
+    "rows_read_max": 3,
     "rows_written_max": 4
   },
   "PUT /v1/photos/:id/preview (Core)": {
@@ -659,20 +659,36 @@
     "rows_read_max": 7,
     "rows_written_max": 0
   },
+  "GET /v1/photos?filter=stars4 (14 days of 1 in 6) (Core)": {
+    "rows_read_max": 103,
+    "rows_written_max": 0
+  },
+  "GET /v1/photos/:id/around (4 stars) (Core)": {
+    "rows_read_max": 17,
+    "rows_written_max": 0
+  },
+  "PUT /v1/photos/:id (its JPEG: a stack) (Core)": {
+    "rows_read_max": 7,
+    "rows_written_max": 7
+  },
+  "PATCH /v1/photos/:id (a stack’s heart) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 5
+  },
   "POST /v1/photos/from-drive (1 file) (Core)": {
-    "rows_read_max": 1,
+    "rows_read_max": 4,
     "rows_written_max": 4
   },
   "POST /v1/photos/from-drive (20 files) (Core)": {
-    "rows_read_max": 1,
+    "rows_read_max": 271,
     "rows_written_max": 80
   },
   "PATCH /v1/photos/:id (Core)": {
     "rows_read_max": 2,
-    "rows_written_max": 2
+    "rows_written_max": 3
   },
   "PUT /v1/photos/:id (pending) (Core)": {
-    "rows_read_max": 1,
+    "rows_read_max": 4,
     "rows_written_max": 4
   },
   "GET /v1/photos/pending (Core)": {

@@ -643,7 +643,7 @@ type MemoryOp =
 | Podcasts | `podcasts.open`, `podcast.play`, `podcast.finish`, `podcast.skip`, `podcast.follow`, `podcast.unfollow` (`podcast:<show id>/<episode id>`; the show's id is the hash of its feed) |
 | Guitar | `guitar.open`, `guitar.piece_opened`, `guitar.pass`, `guitar.bpm`, `guitar.session` (minutes as `seconds`, the sections marked, the tempo reached as `bpm`) |
 | Study | `study.open`, `study.read` (`pages`, `ms`), `study.search` (`hits` only), `study.highlight` (sensitive; nothing sends it yet) |
-| Photos | `photo.import` (`format`, `source` `phone`\|`drive`), `photo.delete`, `photo.rate` (`rating`, `flag`); ref `photo:<id>`, never a name or a pixel; `photo.paste` (`count` and a switch per panel), no ref; `photo.look` (`source`, `panels` a count), no ref |
+| Photos | `photo.import` (`format`, `source` `phone`\|`drive`), `photo.delete`, `photo.rate` (`rating`, `favorite`, `flag`); ref `photo:<id>`, never a name or a pixel; `photo.paste` (`count` and a switch per panel), no ref; `photo.look` (`source`, `panels` a count), no ref |
 | Astra, My Media (`media`) | `astra.open`, `mymedia.open`, `media.watch` (`ms`), `media.finish`, `media.drop` (`astra:…` or `media:<id>`; read from each app's own progress by `th/senses/watch.js`) |
 | Shell | `app.open`, `app.close` (`ms` in front), `ring.choice`, `island.tap` (`to`), `briefing.open`, `settings.change` (`setting:<key>`, never the value) |
 | Home | `briefing.tile`, `line.seen`, `line.dismiss` (nothing sends it yet), `card.decide` (sensitive; the class only), `reply.open_chip` |
@@ -862,8 +862,15 @@ public and checked by its one-use state.
 - `GET /v1/photos/pending` → `{items}`: photos on the shelf with no Drive id yet, newest first (≤ 200).
   A pending photo is on the shelf; a paste onto it is 409 `conflict` ("a photo is still uploading").
 - `GET /v1/photos?before=<day>` → `{days: [{day, count, photos (≤ 4)}], next}`, 14 days a page,
-  newest first; `?day=<day>` one day whole (≤ 200 photos).
-- `GET /v1/photos/:id` → `{photo, recipe}` (`recipe` `{}` as shot; `photo.edited` says whether it has one); `PATCH` `{rating 0–5, flag 'pick'|'reject'|null, drive_id?}`
+  newest first; `?day=<day>` one day whole (≤ 200 photos). `?filter=` (with either) is a shelf chip:
+  `all` (the default), `favorites`, `stars3`, `stars4`, `stars5` (that many stars or more), `raw`,
+  `jpeg` (JPEG and HEIC), `edited`, `unedited`; another value is 422. Paging and the counts follow the
+  filter. A stack (a RAW and a JPEG with the same base name taken within 2 s; `photo.pair_id` names the
+  other half) is one photo, its RAW, on the shelf and in Recently deleted.
+- `GET /v1/photos/:id/around?filter=` → `{newer, older}`: the ids beside this photo in the shelf's
+  order under the filter (null at an end), for culling in the editor; 404 for a photo not on the shelf's rows.
+- `GET /v1/photos/:id` → `{photo, recipe}` (`recipe` `{}` as shot; `photo.edited` says whether it has one); `PATCH` `{rating 0–5, favorite, flag 'pick'|'reject'|null, drive_id?}`
+  (no ledger row; a stack's `rating`, `favorite` and `flag` go on both its photos; a `DELETE` or a restore takes both)
   (`drive_id`: a pending photo's, once its background upload ended; checked with Drive against the
   registered size and SHA-256, 422 when it differs; the same id again writes nothing; another id, or a
   file another photo has, 409; a deleted pending photo takes it too, so its original goes to Drive's trash);
@@ -906,7 +913,7 @@ public and checked by its one-use state.
   0): the phone applies it as a shift of the photo's own. `PATCH /v1/photos/looks/:lid` `{name?,
   recipe?, panels?}` → `{look}` (a rename, or Update from current edit); `DELETE` → `{ok}`; an unknown
   look is 404. Looks leave no ledger row: applying one is the recipe `PUT` above, with its undo. Core
-  step 44.
+  step 45.
 - `POST /v1/photos/paste` `{ids (1–20 photos), panels (of light, color, effects, detail, optics,
   crop), recipe (the copy's keys, each in a panel named, or 422)}` → `{items: [{id, changed, recipe,
   before}], ledger_id}` (`shared/contract/photos-paste.ts`): each photo's recipe with the named

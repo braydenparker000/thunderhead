@@ -8,6 +8,8 @@ import {
   PHOTO_LIMITS as L,
   type PastePhotosResponse,
   type PatchPhotoRequest,
+  type PhotoAroundResponse,
+  type PhotoFilter,
   type PhotoItem,
   type PhotoLook,
   type PhotoResponse,
@@ -23,6 +25,7 @@ import * as looks from '../areas/photos/looks';
 import * as ops from '../areas/photos/ops';
 import * as paste from '../areas/photos/paste';
 import * as recipe from '../areas/photos/recipe';
+import * as shelf from '../areas/photos/shelf';
 import * as store from '../areas/photos/store';
 import * as versions from '../areas/photos/versions';
 import { getSetting, putSetting } from '../areas/settings/store';
@@ -31,23 +34,30 @@ import type { Out } from '../lib/result';
 import { CoreVerbs } from './core-verbs';
 
 export abstract class CorePhotos extends CoreVerbs {
-  /** Days before `before` (or the newest), newest first, each with its count and first four. */
-  photosShelf(before: string | null): PhotoShelfResponse {
-    const days = store.days(this.db, before, L.page_days + 1);
+  /** Days before `before` (or the newest), newest first, each with its count and first four, under
+   * the filter (a stack once, as its RAW). */
+  photosShelf(before: string | null, filter: PhotoFilter = 'all'): PhotoShelfResponse {
+    const days = shelf.days(this.db, filter, before, L.page_days + 1);
     const page = days.slice(0, L.page_days);
     return {
       days: page.map((d) => ({
         day: d.day,
         count: d.n,
-        photos: store.ofDay(this.db, d.day, L.day_thumbs).map(store.toItem),
+        photos: shelf.ofDay(this.db, filter, d.day, L.day_thumbs).map(store.toItem),
       })),
       next: days.length > L.page_days ? (page.at(-1)?.day ?? null) : null,
     };
   }
 
-  photosDay(day: string): PhotoShelfResponse {
-    const photos = store.ofDay(this.db, day, L.day_photos).map(store.toItem);
+  photosDay(day: string, filter: PhotoFilter = 'all'): PhotoShelfResponse {
+    const photos = shelf.ofDay(this.db, filter, day, L.day_photos).map(store.toItem);
     return { days: photos.length ? [{ day, count: photos.length, photos }] : [], next: null };
+  }
+
+  /** The photos either side of one in the shelf's order under the filter; null for a photo not here. */
+  photosAround(id: string, filter: PhotoFilter): PhotoAroundResponse | null {
+    const r = store.byId(this.db, id);
+    return r ? shelf.around(this.db, filter, r) : null;
   }
 
   photo(id: string): PhotoItem | null {

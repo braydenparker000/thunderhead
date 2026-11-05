@@ -1,6 +1,6 @@
 // Copy and paste, and export from the shelf, in Chromium (PHOTOS.md, Copy and paste; Export), against a
 // mock API and a fake Drive, on synthetic JPEGs drawn in the page: in the editor, More › Copy edit holds
-// the chosen panels (a reload keeps it); on the shelf a long press starts choosing, a tap adds a photo,
+// the chosen panels (a reload keeps it); on the shelf a long press and Choose start choosing, a tap adds a photo,
 // Paste changes both recipes in one call and Undo puts both back; two photos chosen export as two
 // files. At 390×844 and on the A35-sized profile.
 import { test, before, after } from 'node:test';
@@ -102,13 +102,15 @@ async function open(b, path, device = { viewport: { width: 390, height: 844 }, d
 }
 const shot = async (page, name) => { if (SHOTS) { mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: `${SHOTS}/photos-paste-${name}.png` }); } };
 const tile = (page, id) => page.locator(`.days .tile[data-id="${id}"]`);
-/** A long press on a tile: held until choosing starts, then let go. */
+/** A long press on a tile: held until its menu opens, let go, then Choose starts choosing. */
 async function hold(page, id) {
   const b = await tile(page, id).boundingBox();
   await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
   await page.mouse.down();
-  await until(() => page.locator('.selbar').isVisible(), { message: 'the long press did not start choosing' });
+  await until(() => page.locator('.tmenu').isVisible(), { message: 'the long press did not open the menu' });
   await page.mouse.up();
+  await page.locator('.tmenu .pact', { hasText: 'Choose' }).click();
+  await until(() => page.locator('.selbar').isVisible(), { message: 'Choose did not start choosing' });
 }
 
 test('copy in the editor, choose two on the shelf, paste, undo', opts, async () => {
