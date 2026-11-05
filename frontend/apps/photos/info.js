@@ -23,7 +23,7 @@ const DNG_HEAD = 512 * 1024;
  * @param {Blob} file @param {PhotoMeta} meta @returns {Promise<PhotoInfo | null>} */
 export async function readInfo(file, meta) {
   try {
-    const stars = /** @type {{ rating?: number }} */ (/** @type {unknown} */ (meta)).rating;
+    const stars = meta.rating;
     /** @type {PhotoInfo | null} */
     let info = {};
     if (meta.format === 'dng') info = await tiffInfo(blobRead(file), 0);
@@ -48,7 +48,7 @@ async function fromDrive(token, p) {
     } else jpeg = await bytes(0, HEAD);
     const info = await jpegInfo(jpeg);
     const words = await jpegWords(jpeg).catch(() => null);
-    const stars = /** @type {{ rating?: number } | null} */ (/** @type {unknown} */ (words))?.rating;
+    const stars = words?.rating;
     return info && { info: stars ? { ...info, rating: stars } : info, camera: words?.camera ?? null, film: words?.film ?? null };
   }
   if (p.format === 'dng') {

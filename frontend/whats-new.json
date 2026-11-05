@@ -3,10 +3,10 @@
   "date": "2026-11-05",
   "lines": [
     {
-      "text": "Photos has an Info sheet: tap the i in the editor for the camera, lens, exposure and the film settings."
+      "text": "Photos has an Info sheet: tap the i in the editor, or hold a photo on the shelf and choose Info."
     },
     {
-      "text": "It shows the film simulation, dynamic range, tones, grain and colour chrome as the camera set them."
+      "text": "It shows the camera, lens and exposure, and the film simulation, dynamic range, tones and grain the camera set."
     },
     {
       "text": "Copy at the bottom copies it all as text. Where a photo was taken is never read or kept."

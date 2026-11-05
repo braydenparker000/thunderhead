@@ -1,5 +1,5 @@
-// SQL for the shelf inside Core (DATA.md §4.14): photos by day in the owner's zone, newest first,
-// each day's count and its first few; one photo by id or Drive id; pending ones; Recently deleted; the purge.
+// SQL for the shelf inside Core (DATA.md §4.14): one photo by id or Drive id; pending ones; Recently
+// deleted; the purge. The shelf's days and filters are shelf.ts; stacks, pair.ts.
 import type { PhotoFlag, PhotoFormat, PhotoItem } from '../../../../shared/contract/photos.ts';
 import type { Db } from '../../objects/base';
 
@@ -17,7 +17,11 @@ export interface PhotoRow {
   taken_at: number;
   day: string;
   rating: number;
+  /** 0 or 1 (the item's boolean). */
+  favorite: number;
   flag: PhotoFlag | null;
+  /** The other photo of its stack. */
+  pair_id: string | null;
   /** The bucket key of its preview: the Worker's alone, never sent. */
   preview_key: string | null;
   preview_sha: string | null;
@@ -28,12 +32,12 @@ export interface PhotoRow {
   updated_at: number;
 }
 
-const COLS =
-  'id, drive_id, name, format, bytes, sha256, camera, film, width, height, taken_at, day, rating, flag, preview_key, preview_sha, recipe_sha, deleted_at, created_at, updated_at';
+export const COLS =
+  'id, drive_id, name, format, bytes, sha256, camera, film, width, height, taken_at, day, rating, favorite, flag, pair_id, preview_key, preview_sha, recipe_sha, deleted_at, created_at, updated_at';
 
 export function toItem(r: PhotoRow): PhotoItem {
-  const { preview_key, preview_sha: _sha, recipe_sha, updated_at: _u, ...rest } = r;
-  return { ...rest, preview: preview_key !== null, edited: recipe_sha !== null };
+  const { preview_key, preview_sha: _sha, recipe_sha, updated_at: _u, favorite, ...rest } = r;
+  return { ...rest, favorite: favorite === 1, preview: preview_key !== null, edited: recipe_sha !== null };
 }
 
 export const byId = (db: Db, id: string): PhotoRow | null =>
@@ -44,7 +48,7 @@ export const byDrive = (db: Db, driveId: string): PhotoRow | null =>
 
 export function insert(db: Db, r: PhotoRow): void {
   db.run(
-    `INSERT INTO photos (${COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO photos (${COLS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     r.id,
     r.drive_id,
     r.name,
@@ -58,7 +62,9 @@ export function insert(db: Db, r: PhotoRow): void {
     r.taken_at,
     r.day,
     r.rating,
+    r.favorite,
     r.flag,
+    r.pair_id,
     r.preview_key,
     r.preview_sha,
     r.recipe_sha,
@@ -67,19 +73,6 @@ export function insert(db: Db, r: PhotoRow): void {
     r.updated_at,
   );
 }
-
-/** The days before `before` (or the newest), each with its count of photos on the shelf. */
-export const days = (db: Db, before: string | null, limit: number): { day: string; n: number }[] =>
-  db.all(
-    `SELECT day, COUNT(*) AS n FROM photos WHERE deleted_at IS NULL AND day < ?
-     GROUP BY day ORDER BY day DESC LIMIT ?`,
-    before ?? '9999-12-31',
-    limit,
-  );
-
-/** A day's photos on the shelf, newest first. */
-export const ofDay = (db: Db, day: string, limit: number): PhotoRow[] =>
-  db.all(`SELECT ${COLS} FROM photos WHERE deleted_at IS NULL AND day = ? ORDER BY taken_at DESC LIMIT ?`, day, limit);
 
 /** Photos on the shelf whose background upload has no Drive id yet (the drive_id index finds them), newest first. */
 export const pending = (db: Db, limit: number): PhotoRow[] =>
@@ -92,11 +85,24 @@ export function setDrive(db: Db, id: string, driveId: string, at: number): void 
   db.run('UPDATE photos SET drive_id = ?, updated_at = ? WHERE id = ? AND drive_id IS NULL', driveId, at, id);
 }
 
+/** Recently deleted, a stack once (as its RAW). */
 export const deleted = (db: Db, limit: number): PhotoRow[] =>
-  db.all(`SELECT ${COLS} FROM photos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT ?`, limit);
+  db.all(
+    `SELECT ${COLS} FROM photos WHERE deleted_at IS NOT NULL AND (pair_id IS NULL OR format <> 'jpeg')
+     ORDER BY deleted_at DESC LIMIT ?`,
+    limit,
+  );
 
-export function setRating(db: Db, id: string, rating: number, flag: PhotoFlag | null, at: number): void {
-  db.run('UPDATE photos SET rating = ?, flag = ?, updated_at = ? WHERE id = ?', rating, flag, at, id);
+export function setMarks(db: Db, ids: string[], m: Pick<PhotoRow, 'rating' | 'favorite' | 'flag'>, at: number): void {
+  for (const id of ids)
+    db.run(
+      'UPDATE photos SET rating = ?, favorite = ?, flag = ?, updated_at = ? WHERE id = ?',
+      m.rating,
+      m.favorite,
+      m.flag,
+      at,
+      id,
+    );
 }
 
 export function setDeleted(db: Db, id: string, at: number | null, now: number): void {

@@ -1,6 +1,6 @@
 // Photos (PHOTOS.md, DATA.md §4.14): one row per photo on the shelf, and the Drive ids of photos
 // purged from Recently deleted until their originals are in Drive's own trash. Schema step 41; the
-// recipe's two columns, step 42; its versions, step 43; its info, step 45.
+// recipe's two columns, step 42; its versions, step 43; stacks, the heart and the filters' indexes, step 44; its info, step 45.
 import { PHOTO_LIMITS } from '../../../../shared/contract/photos.ts';
 import { DAY } from '../../lib/time';
 import type { Migration, TableInfo } from '../../objects/base';
@@ -70,6 +70,20 @@ export const PHOTOS_MIGRATIONS: Migration[] = [
         created_at INTEGER NOT NULL
       ) WITHOUT ROWID`,
       'CREATE INDEX photo_versions_photo ON photo_versions (photo_id, kind, created_at)',
+    ],
+  },
+  {
+    version: 44,
+    name: 'photos_stacks',
+    kind: 'expand',
+    // A stack (PHOTOS.md, the shelf): a RAW and its JPEG name each other in `pair_id` (found by the
+    // primary key, so it needs no index of its own); the heart; the filters' two indexes, partial so
+    // an unrated photo, or one without the heart, costs them no row.
+    sql: [
+      'ALTER TABLE photos ADD COLUMN pair_id TEXT',
+      'ALTER TABLE photos ADD COLUMN favorite INTEGER NOT NULL DEFAULT 0',
+      'CREATE INDEX photos_rated ON photos (rating, day, taken_at) WHERE deleted_at IS NULL AND rating > 0',
+      'CREATE INDEX photos_favorite ON photos (day, taken_at) WHERE deleted_at IS NULL AND favorite = 1',
     ],
   },
   {

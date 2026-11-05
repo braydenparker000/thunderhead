@@ -453,16 +453,20 @@ CREATE TABLE photos (
   deleted_at INTEGER,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
-  , recipe_json TEXT, recipe_sha TEXT, info TEXT) WITHOUT ROWID;
+  , recipe_json TEXT, recipe_sha TEXT, pair_id TEXT, favorite INTEGER NOT NULL DEFAULT 0, info TEXT) WITHOUT ROWID;
 
 CREATE INDEX photos_deleted ON photos (deleted_at) WHERE deleted_at IS NOT NULL;
 
 CREATE UNIQUE INDEX photos_drive ON photos (drive_id);
 
+CREATE INDEX photos_favorite ON photos (day, taken_at) WHERE deleted_at IS NULL AND favorite = 1;
+
 CREATE TABLE photos_gone (
   drive_id TEXT PRIMARY KEY,
   purged_at INTEGER NOT NULL
   ) WITHOUT ROWID;
+
+CREATE INDEX photos_rated ON photos (rating, day, taken_at) WHERE deleted_at IS NULL AND rating > 0;
 
 CREATE INDEX photos_shelf ON photos (day, taken_at) WHERE deleted_at IS NULL;
 

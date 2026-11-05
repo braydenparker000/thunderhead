@@ -12,6 +12,7 @@ import { icon } from '../shelf.js';
 import { neutralFor, srgbTo2020, tempTintOf } from './color.js';
 import { copyButton } from './copy.js';
 import { cropOverlay } from './crop.js';
+import { culling } from './cull.js';
 import { exportSheet } from './export.js';
 import { renderExport } from './export-run.js';
 import { PANELS, withValue } from './fields.js';
@@ -224,7 +225,9 @@ export async function editScreen(box, id) {
 
   // The photo's gestures (zoom.js moves the photo; gestures.js reads the fingers).
   const touch = touches({ ed, asShot: () => img.asShot, uvAt: zoom.uvAt, readSmall, asShotWb, small: () => small, changed, picked: () => pick('color', 'Temperature'), remix: () => tool.replaceChildren(toolView(ed, 'color', 'mix')) });
+  const cull = culling(root, p, { current: async () => canvasOf(await readSmall(ed.recipe, 480)) });
   photoGestures(stage, {
+    swipe: (dx, dy) => view.z <= 1.05 && panel !== 'crop' && cull.swipe(dx, dy),
     before: (on) => { ed.before = on; hint.hidden = !on; hint.textContent = 'As shot'; root.dataset.before = String(on); draw(); },
     camera: (on) => { if (!cam) return; cam.hold(on); hint.textContent = on ? 'Camera' : 'As shot'; },
     histogram: (on) => { hist.hidden = !on; root.dataset.histogram = String(on); if (on && small) drawHistogram(hist, histogram(small.px)); },

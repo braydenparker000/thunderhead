@@ -5,7 +5,7 @@
 // the camera and Fujifilm's film simulation. Only the bytes it needs are read (Blob slices), so an
 // 80 MB RAF costs its header and its preview. Pure: no network, no DOM.
 
-/** @typedef {{ format: 'raf'|'dng'|'jpeg'|'heic'|'other', preview: Blob | null, camera: string | null, film: string | null, taken_at: number, width: number | null, height: number | null }} PhotoMeta */
+/** @typedef {{ format: 'raf'|'dng'|'jpeg'|'heic'|'other', preview: Blob | null, camera: string | null, film: string | null, taken_at: number, width: number | null, height: number | null, rating?: number }} PhotoMeta */
 /** @typedef {(offset: number, length: number) => Promise<DataView>} Read */
 
 export const ascii = (/** @type {DataView} */ v, /** @type {number} */ o, /** @type {number} */ n) => {
@@ -84,6 +84,8 @@ async function words(t, read, base) {
   const taken = exifTime(await t.str(exif.get(0x9003)), await t.str(exif.get(0x9011)));
   const width = (await t.num(exif.get(0xa002))) ?? null, height = (await t.num(exif.get(0xa003))) ?? null;
   let film = null;
+  // The rating the camera wrote (EXIF Rating 0x4746, or Fujifilm's MakerNote Rating 0x1431): 1–5, or none.
+  let rating = (await t.num(ifd0.get(0x4746))) ?? 0;
   const note = exif.get(0x927c);
   if (note && note.count > 12) {
     const at = base + note.at;
@@ -98,9 +100,10 @@ async function words(t, read, base) {
       const sat = await get(0x1003);
       const mode = await get(0x1401);
       film = (sat !== null && MONO[/** @type {keyof typeof MONO} */ (sat)]) || (mode !== null ? (FILM[/** @type {keyof typeof FILM} */ (mode)] ?? null) : null);
+      rating = (await get(0x1431)) || rating;
     }
   }
-  return { camera: camera || null, taken, width, height, film, ifd0 };
+  return { camera: camera || null, taken, width, height, film, rating: rating >= 1 && rating <= 5 ? rating : 0, ifd0 };
 }
 
 /** A JPEG's EXIF (APP1 "Exif") words, or nothing. @param {Uint8Array} jpeg */
@@ -182,7 +185,7 @@ export async function readPhoto(file) {
       const r = await raf(file);
       if (!r) return base;
       const w = await jpegWords(r.jpeg);
-      return { ...base, preview: new Blob([r.jpeg], { type: 'image/jpeg' }), camera: w?.camera ?? r.camera, film: w?.film ?? null, taken_at: w?.taken ?? base.taken_at, width: w?.width ?? null, height: w?.height ?? null };
+      return { ...base, preview: new Blob([r.jpeg], { type: 'image/jpeg' }), camera: w?.camera ?? r.camera, film: w?.film ?? null, rating: w?.rating ?? 0, taken_at: w?.taken ?? base.taken_at, width: w?.width ?? null, height: w?.height ?? null };
     }
     if (format === 'dng') {
       const d = await dng(file);
