@@ -2,7 +2,9 @@
 // API and a fake Drive, on a synthetic JPEG drawn in the page: crop and rotate change the render; a
 // version made, compared with an automatic one and restored; an export produced, a valid JPEG whose
 // XMP carries the recipe's keys; at 390×844 and on the A35-sized profile. With the CC0 X-E5 sample
-// downloaded (tests/photos-engine.test.mjs), its export at 2,048 px and full size is timed.
+// downloaded (tests/photos-engine.test.mjs), its export at 2,048 px and full size is timed. Where it
+// goes, on three faked platforms: a save dialog (desktop), Downloads only (Android, an installed app
+// that drops a second download started at once), and the share sheet offered for a batch.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -71,8 +73,26 @@ before(async () => {
 });
 after(async () => { await browser?.close(); await flat?.close(); site?.close(); mock?.close(); });
 
-async function open(b, path, device = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 }) {
+// The platforms, faked before the page loads. Android: no save dialog, and a download started within
+// 300 ms of the last is dropped, as an installed app may do; the other tests run as Android.
+const android = () => {
+  Object.assign(window, { showSaveFilePicker: undefined, showDirectoryPicker: undefined, clicks: [] });
+  const click = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () { const t = performance.now(), c = /** @type {any} */ (window).clicks; if (this.download && t - (c.at(-1) ?? -1e9) < 300) return; c.push(t); click.call(this); };
+};
+const picker = () => {
+  const log = (/** @type {any} */ (window).saved = []);
+  const handle = (name) => ({ createWritable: async () => ({ write: async (b) => log.push([name, ...new Uint8Array(await b.arrayBuffer()).slice(0, 2)]), close: async () => {} }) });
+  Object.assign(window, { showSaveFilePicker: async (o) => { log.push(['dialog', o.suggestedName, navigator.userActivation.isActive]); return handle(o.suggestedName); }, showDirectoryPicker: async () => { log.push(['folder', '', navigator.userActivation.isActive]); return { getFileHandle: async (n) => handle(n) }; } });
+};
+const sharing = () => {
+  Object.assign(window, { showSaveFilePicker: undefined, showDirectoryPicker: undefined });
+  Object.assign(navigator, { canShare: (d) => Boolean(d?.files?.length), share: async (d) => { /** @type {any} */ (window).shared = d.files.map((f) => f.name); } });
+};
+
+async function open(b, path, device = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 }, platform = android) {
   const context = await b.newContext({ ...device, hasTouch: true });
+  await context.addInitScript(platform);
   await context.route('https://www.googleapis.com/drive/v3/files/**', (route) => {
     assert.equal(route.request().headers().authorization, 'Bearer fake-drive-token');
     route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'Content-Length', 'Content-Type': 'application/octet-stream' }, body: state.raf ?? state.jpeg });
@@ -176,7 +196,7 @@ test('crop and rotate change the render; a version made, compared and restored; 
   await shot(page, 'export');
   await page.locator('.xdim').click({ position: { x: 10, y: 10 } });
   const out = await exportOnce(page, '1080');
-  assert.match(out.name, /-edit\.jpg$/);
+  assert.equal(out.name, 'IMG_0001-1080.jpg');
   assert.deepEqual([...out.bytes.subarray(0, 2)], [0xff, 0xd8]);
   assert.deepEqual([...out.bytes.subarray(-2)], [0xff, 0xd9]);
   const size = await page.evaluate(async (b) => { const i = await createImageBitmap(new Blob([new Uint8Array(b)], { type: 'image/jpeg' })); return [i.width, i.height]; }, [...out.bytes]);
@@ -229,4 +249,47 @@ test('the X-E5 sample exported at 2,048 px and at full size from its tiles', { s
     state.raf = null;
     state.recipe = {};
   }
+});
+
+test('where an export goes: a save dialog at the tap, Downloads one at a time, the share sheet for a batch', opts, async () => {
+  // The sheet over the editor with `n` small photos that render at once (the render is tested above).
+  const sheet = (page, n) => page.evaluate(async (n) => {
+    const { exportSheet } = await import('/apps/photos/edit/export.js'), c = new OffscreenCanvas(64, 48), g = c.getContext('2d');
+    g.fillRect(0, 0, 64, 48);
+    const blob = await c.convertToBlob({ type: 'image/jpeg' });
+    await exportSheet(document.querySelector('.editor'), Array.from({ length: n }, (_, i) => ({ id: `0192aaaa-bbbb-7ccc-8ddd-00000000000${i}`, name: `IMG_000${i + 1}.JPG`, render: async () => blob })));
+  }, n);
+  const go = async (page) => { await page.locator('.xsheet .seg[data-id="1080"]').click(); await page.locator('.xsheet .seg[data-id="files"]').click(); await page.locator('.xgo').click(); };
+  const said = (page, text) => until(async () => (await page.locator('.toast').innerText().catch(() => '')) === text, { message: `no "${text}"` });
+  const names = (n) => Array.from({ length: n }, (_, i) => `IMG_000${i + 1}-1080.jpg`);
+  // Desktop: the dialog opens while the tap counts, before the render; a folder for several.
+  const a = await open(flat, `/photos/?edit=${ID}`, undefined, picker);
+  await ready(a.page); await sheet(a.page, 1);
+  assert.equal(await a.page.locator('.xsheet .seg[data-id="files"]').innerText(), 'Files');
+  await go(a.page);
+  await said(a.page, 'Saved.');
+  await sheet(a.page, 3); await go(a.page);
+  await said(a.page, 'Saved 3 photos.');
+  assert.deepEqual(await a.page.evaluate(() => window.saved), [['dialog', 'IMG_0001-1080.jpg', true], ['IMG_0001-1080.jpg', 0xff, 0xd8], ['folder', '', true], ...names(3).map((n) => [n, 0xff, 0xd8])]);
+  // Android, or the installed app: Download, one file at a time, every one arrives.
+  const b = await open(flat, `/photos/?edit=${ID}`);
+  await ready(b.page);
+  const downloads = [];
+  b.page.on('download', (d) => downloads.push(d.suggestedFilename()));
+  await sheet(b.page, 3);
+  assert.equal(await b.page.locator('.xsheet .seg[data-id="files"]').innerText(), 'Download');
+  await go(b.page);
+  await said(b.page, 'Saved 3 photos to Downloads.');
+  await until(() => downloads.length === 3, { message: `${downloads.length} of 3 downloads arrived` });
+  assert.deepEqual(downloads.sort(), names(3));
+  // More than three where the share sheet takes files: it is offered, with a tap of its own.
+  const c = await open(flat, `/photos/?edit=${ID}`, undefined, sharing);
+  await ready(c.page); await sheet(c.page, 5); await go(c.page);
+  await c.page.locator('.xsheet[data-state="ask"]').waitFor();
+  await shot(c.page, 'share-offer');
+  await c.page.locator('.xsheet [data-choice="share"]').click();
+  await said(c.page, '5 photos exported.');
+  assert.deepEqual(await c.page.evaluate(() => window.shared), names(5));
+  assert.deepEqual([...a.errors, ...b.errors, ...c.errors].filter((e) => !/cannot present/.test(e)), []);
+  for (const x of [a, b, c]) await x.context.close();
 });

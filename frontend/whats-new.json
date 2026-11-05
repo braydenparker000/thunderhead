@@ -1,15 +1,18 @@
 {
-  "id": "2026-11-05-photos-background",
+  "id": "2026-11-05-photos-zoom",
   "date": "2026-11-05",
   "lines": [
     {
+      "text": "Zooming a photo is smooth now: it stays under your fingers and keeps its sharp detail until a sharper one is ready."
+    },
+    {
+      "text": "A flick glides on, the edges give a little and spring back, and a double tap zooms in or out smoothly."
+    },
+    {
+      "text": "Export on this phone says Download: each photo goes to Downloads in turn, and for more than three you can share."
+    },
+    {
       "text": "Photos keeps uploading from this phone when you leave the app or lock the screen, on Android Chrome."
-    },
-    {
-      "text": "A notification shows each photo's progress; the shelf marks a photo Uploading until it is in Drive."
-    },
-    {
-      "text": "If one does not finish, Photos says so: pick the same file again and it goes on from where it stopped."
     }
   ]
 }
