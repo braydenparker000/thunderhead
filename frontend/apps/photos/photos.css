@@ -114,3 +114,21 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-sm
 /* A pending photo (its upload runs in the background): a small mark on its tile; a failed upload's Try again. */
 .tile .tmark{position:absolute;z-index:1;left:6px;bottom:6px;max-width:calc(100% - 12px);padding:2px 6px;border-radius:6px;background:rgba(0,0,0,.55);color:#fff;font:500 var(--fs-label)/var(--lh-tight) var(--ui);text-align:left;pointer-events:none}
 .arrival .retry{align-self:flex-start;min-height:44px;margin:0;padding:0;text-align:left}
+/* The filter chips, the tile's marks, the long-press menu, the heart (PHOTOS.md, the shelf) */
+.fchips{display:flex;gap:6px;margin:12px -16px 0;padding:0 16px 2px;overflow-x:auto;scrollbar-width:none}
+.fchips::-webkit-scrollbar{display:none}
+.fchip{flex:none;min-height:44px;padding:0 14px;border:1px solid var(--glass-line);border-radius:999px;background:var(--glass);color:var(--ink-2);font:500 var(--fs-chip)/var(--lh-compact) var(--ui);cursor:pointer;transition:background var(--d-fast) var(--ease-out),color var(--d-fast) var(--ease-out)}
+.fchip[aria-pressed="true"]{background:var(--photos);border-color:var(--photos);color:#fff}
+.tmarks{position:absolute;z-index:1;left:4px;right:4px;bottom:4px;display:flex;flex-wrap:wrap;gap:3px;align-items:center;pointer-events:none}
+.tmarks:empty{display:none}
+.tbadge,.tstars{padding:1px 5px;border-radius:999px;background:rgba(0,0,0,.62);color:#fff;font:600 var(--fs-x-10-5)/var(--lh-badge) var(--ui)}
+.tfav{display:inline-flex;padding:2px;border-radius:50%;background:rgba(0,0,0,.62);color:#fff}
+.tfav .i{width:12px;height:12px}
+.tdim{position:fixed;z-index:30}
+.psheet.tmenu{position:fixed;z-index:31}
+.tmenu .prow{grid-template-columns:repeat(auto-fit,minmax(0,1fr))}
+.heart{width:48px;height:48px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:12px;background:none;color:var(--ink-3);cursor:pointer}
+.heart.on{color:var(--alarm)}
+.heart .i{width:28px;height:28px}
+.camrate{min-height:44px;padding:0 12px;border:0;border-radius:12px;background:var(--glass);color:var(--ink-2);font:500 var(--fs-small)/var(--lh-tight) var(--ui);cursor:pointer}
+.camrate[hidden]{display:none}

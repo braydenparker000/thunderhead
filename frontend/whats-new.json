@@ -1,15 +1,18 @@
 {
-  "id": "2026-11-05-photos-colour",
+  "id": "2026-11-05-photos-shelf",
   "date": "2026-11-05",
   "lines": [
     {
       "text": "Photos: an X-E5 RAW now opens in true colour, learnt from the camera's own JPEG, at the camera's brightness."
     },
     {
-      "text": "Exposure rolls into white instead of clipping; Highlights and Shadows leave no halo at strong edges."
+      "text": "Photos shows a RAW and its JPEG as one photo, marked RAW+JPEG; the editor opens the RAW."
     },
     {
-      "text": "Keep holding the photo to see the camera's JPEG, or More › Compare with the camera's JPEG for a wipe."
+      "text": "Give a photo stars or a heart: hold it on the shelf, or swipe up on it in the editor."
+    },
+    {
+      "text": "In the editor, swipe left or right to go through your photos while you pick the best."
     }
   ]
 }

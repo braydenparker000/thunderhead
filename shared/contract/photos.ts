@@ -44,6 +44,8 @@ export const PHOTO_LIMITS = {
    * this many days the shelf says it did not upload. GET /v1/photos/pending lists at most `pending_max`. */
   pending_days: 7,
   pending_max: 200,
+  /** A RAW and a JPEG of the same base name taken within this many ms of each other are one stack. */
+  pair_ms: 2000,
 } as const;
 
 /** The formats the picker takes. HEIC only where the phone's browser decodes it. */
@@ -51,6 +53,10 @@ export const PHOTO_FORMATS = ['raf', 'dng', 'jpeg', 'heic', 'other'] as const;
 export type PhotoFormat = (typeof PHOTO_FORMATS)[number];
 export const PHOTO_FLAGS = ['pick', 'reject'] as const;
 export type PhotoFlag = (typeof PHOTO_FLAGS)[number];
+/** The shelf's filter chips (GET /v1/photos?filter=): a stack counts as its RAW; JPEG is the photos
+ * that are not RAW (JPEG and HEIC, not in a stack). */
+export const PHOTO_FILTERS = ['all', 'favorites', 'stars3', 'stars4', 'stars5', 'raw', 'jpeg', 'edited', 'unedited'] as const;
+export type PhotoFilter = (typeof PHOTO_FILTERS)[number];
 
 /** The folder the app makes in the owner's Drive on first connect. */
 export const DRIVE_FOLDER = 'Thunderhead Photos';
@@ -77,8 +83,13 @@ export interface PhotoItem {
   taken_at: number;
   /** Its day in the owner's zone, `YYYY-MM-DD`. */
   day: string;
+  /** 0–5 stars; a stack's two photos share it, and the heart. */
   rating: number;
+  favorite: boolean;
   flag: PhotoFlag | null;
+  /** The other photo of its stack (a RAW and its JPEG, the same base name, taken within 2 s), or null.
+   * The shelf shows a stack once, as its RAW. */
+  pair_id: string | null;
   /** Whether the Worker holds a preview (GET /v1/photos/:id/preview). */
   preview: boolean;
   /** Whether it has a recipe other than "as shot" (PUT /v1/photos/:id/recipe). */
@@ -109,8 +120,10 @@ export interface PhotoResponse {
   recipe: PhotoRecipe;
 }
 
+/** A stack's rating, heart and flag go on both its photos. */
 export interface PatchPhotoRequest {
   rating?: number;
+  favorite?: boolean;
   flag?: PhotoFlag | null;
   /** A pending photo's Drive id once its background upload ended (checked with Drive; the same
    * again writes nothing; another id on a photo that has one is a conflict). */
@@ -128,7 +141,14 @@ export interface PhotoDay {
   photos: PhotoItem[];
 }
 
-/** GET /v1/photos: days newest first (`?before=<day>` pages on; `?day=` one whole day). */
+/** GET /v1/photos/:id/around?filter=: the photos either side of this one in the shelf's order
+ * under that filter (newest first), for culling in the editor. */
+export interface PhotoAroundResponse {
+  newer: string | null;
+  older: string | null;
+}
+
+/** GET /v1/photos: days newest first (`?before=<day>` pages on; `?day=` one whole day; `?filter=`). */
 export interface PhotoShelfResponse {
   days: PhotoDay[];
   next: string | null;
