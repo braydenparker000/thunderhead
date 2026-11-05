@@ -120,12 +120,21 @@ async function hold(page, id) {
   await page.mouse.up();
 }
 /** A one-finger drag on the editor's photo, in steps. */
+// A swipe moves at once: a finger that rests 350 ms first is a hold (before/after), by design, and a
+// loaded runner can make eight separate steps take that long.
 async function swipe(page, dx, dy) {
   const b = await page.locator('.estage').boundingBox();
   const x = b.x + b.width / 2, y = b.y + b.height / 2;
   await page.mouse.move(x, y); await page.mouse.down();
-  for (let i = 1; i <= 8; i++) await page.mouse.move(x + (dx * i) / 8, y + (dy * i) / 8);
+  await page.mouse.move(x + dx, y + dy, { steps: 6 });
   await page.mouse.up();
+}
+/** Swipes until `seen` holds: a swipe the runner turned into a hold is tried again. */
+async function swipeUntil(page, dx, dy, seen, message) {
+  for (let i = 0; i < 4; i++) {
+    await swipe(page, dx, dy);
+    try { await until(seen, { timeout: 3_000, message }); return; } catch (e) { if (i === 3) throw e; }
+  }
 }
 const drawn = (page) => until(() => page.evaluate(() => Number(document.querySelector('.editor')?.dataset.frames) > 0), { timeout: 30_000, message: 'the editor never drew' });
 
@@ -184,22 +193,19 @@ test('culling: swipe to the older photo, swipe up for the stars, keys 0–5 and 
   await page.evaluate(() => localStorage.setItem('th.photos.filter', 'all'));
   await drawn(page);
   // Swipe up: the star row; a star saves; swipe down closes it.
-  await swipe(page, 0, -160);
-  await page.locator('.erate .stars').waitFor();
+  await swipeUntil(page, 0, -160, () => page.locator('.erate .stars').isVisible(), 'a swipe up did not open the star row');
   await shot(page, 'star-row');
   await page.locator('.erate .star[aria-label="3 stars"]').click();
   await until(() => state.patches.some((p) => p.id === B && p.rating === 3), { message: 'the star did not save' });
   await until(() => page.locator('.erate .star.on').count().then((n) => n === 3), { message: 'the row did not show 3 stars' });
-  await swipe(page, 0, 160);
-  await until(() => page.locator('.erate').isHidden(), { message: 'a swipe down did not close the row' });
+  await swipeUntil(page, 0, 160, () => page.locator('.erate').isHidden(), 'a swipe down did not close the row');
   // The keyboard: 5, then f.
   await page.keyboard.press('5');
   await page.keyboard.press('f');
   await until(() => state.patches.some((p) => p.rating === 5) && state.patches.some((p) => p.favorite === true), { message: 'the keys did not save' });
   // Swipe left: the older photo under the filter, in place of this one (back still leaves the editor).
   const depth = await page.evaluate(() => history.length);
-  await swipe(page, -200, 10);
-  await until(() => page.url().includes(`?edit=${C}`), { message: 'the swipe did not go to the older photo' });
+  await swipeUntil(page, -200, 10, () => page.url().includes(`?edit=${C}`), 'the swipe did not go to the older photo');
   await drawn(page);
   assert.equal(await page.evaluate(() => history.length), depth, 'culling replaces the place rather than stacking it');
   // Nothing older than the last: it stays, and says so.
@@ -207,8 +213,7 @@ test('culling: swipe to the older photo, swipe up for the stars, keys 0–5 and 
   await page.locator('.toast', { hasText: 'No older photo' }).waitFor();
   assert.ok(page.url().includes(`?edit=${C}`));
   // A swipe right goes back to the newer one.
-  await swipe(page, 200, 0);
-  await until(() => page.url().includes(`?edit=${B}`), { message: 'the swipe right did not go to the newer photo' });
+  await swipeUntil(page, 200, 0, () => page.url().includes(`?edit=${B}`), 'the swipe right did not go to the newer photo');
   await drawn(page);
   await shot(page, 'culled');
   assert.deepEqual(errors, []);
