@@ -1,10 +1,11 @@
 // @ts-check
 // A recipe as the GPU reads it (shaders/develop.*): 32 vec4s of controls, geometry and the view, and the tone
 // curve as a 1024-entry lookup (RGBA half floats). The lookup holds, per channel, what the sliders
-// that act on tone globally do in order: the base curve (RAW only: a soft shoulder and a little
-// contrast, since a linear RAW looks flat), Contrast, Whites and Blacks, then the point curves
-// (master, then the channel's), to sRGB-encoded output. Its input is log2 of linear light from 2^-12 to 4.
-import { CURVES, HUES, NUMBERS, val } from './fields.js';
+// that act on tone globally do in order: the base curve (RAW only, fields.js BASE_TONE; the shoulder
+// before it is in the develop pass, on the brightest channel), Contrast (an S around mid-grey), Whites and
+// Blacks, then the point curves (master, then the channel's), to sRGB-encoded output. Its input is log2
+// of linear light from 2^-12 to 4.
+import { BASE_TONE, CURVES, HUES, NUMBERS, val } from './fields.js';
 import { gainsFor, REC2020_TO_SRGB } from './color.js';
 import { frameSize, geometry } from './geometry.js';
 
@@ -47,14 +48,15 @@ const clamp01 = (/** @type {number} */ v) => Math.min(1, Math.max(0, v));
 /** @param {import('./fields.js').Recipe} r @param {boolean} raw @returns {Uint16Array} */
 export function toneLut(r, raw) {
   const out = new Uint16Array(LUT_SIZE * 4);
-  const k = (val(r, 'Contrast2012') / 100) * 0.45 + (raw ? 0.14 : 0);
+  const k = (val(r, 'Contrast2012') / 100) * 0.45, base = raw ? spline(/** @type {any} */ (BASE_TONE.curve)) : (/** @type {number} */ x) => x;
+  const g = Math.log(0.5) / Math.log(oetf(BASE_TONE.midGrey));
   const wh = 2 ** (-(val(r, 'Whites2012') / 100) * 0.9), bl = 2 ** (-(val(r, 'Blacks2012') / 100) * 0.9);
   const [m, cr, cg, cb] = CURVES.map((c) => spline(/** @type {any} */ (r)[c]));
   for (let i = 0; i < LUT_SIZE; i++) {
     const x = 2 ** ((i / (LUT_SIZE - 1)) * 14 - 12);
-    const y = raw ? (1.2 * x * (1 + (1.2 * x) / 23)) / (1 + 1.2 * x) : Math.min(x, 1);
-    let e = oetf(clamp01(y));
-    e = e + 2 * k * e * (1 - e) * (2 * e - 1);
+    let e = base(oetf(clamp01(x)));
+    const u = e ** g;
+    e = clamp01(u + 2 * k * u * (1 - u) * (2 * u - 1)) ** (1 / g);
     e = 1 - (1 - clamp01(e)) ** (1 / wh);
     e = clamp01(e) ** bl;
     const t = m(clamp01(e));
@@ -86,7 +88,7 @@ export function pack(r, img, view) {
   put(0, [...g, 2 ** v('Exposure2012')]);
   put(1, [v('Contrast2012') / 100, v('Highlights2012') / 100, v('Shadows2012') / 100, v('Whites2012') / 100]);
   put(2, [v('Blacks2012') / 100, v('Vibrance') / 100, v('Saturation') / 100, r.ConvertToGrayscale ? 1 : 0]);
-  put(3, [v('Texture') / 100, v('Clarity2012') / 100, v('Dehaze') / 100, 0]);
+  put(3, [v('Texture') / 100, v('Clarity2012') / 100, v('Dehaze') / 100, img.raw ? 1 : Math.min(1, Math.max(0, v('Exposure2012')))]);
   put(4, [v('Sharpness') / 100, v('SharpenRadius'), v('SharpenDetail') / 100, v('SharpenEdgeMasking') / 100]);
   put(5, [v('LuminanceSmoothing') / 100, v('LuminanceNoiseReductionDetail') / 100, v('ColorNoiseReduction') / 100, v('ColorNoiseReductionDetail') / 100]);
   put(6, [v('PostCropVignetteAmount') / 100, v('PostCropVignetteMidpoint') / 100, v('PostCropVignetteFeather') / 100, v('PostCropVignetteRoundness') / 100]);

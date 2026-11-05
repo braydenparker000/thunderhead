@@ -16,6 +16,7 @@ import { renderExport } from './export-run.js';
 import { PANELS, withValue } from './fields.js';
 import { frameSize, geometry, photoBox } from './geometry.js';
 import { photoGestures } from './gestures.js';
+import { cameraCompare } from './camera.js';
 import { autoStart, drawHistogram, greyWorld, histogram } from './histogram.js';
 import { lateralCA } from './optics.js';
 import { makeRenderer } from './renderer.js';
@@ -47,7 +48,7 @@ export async function editScreen(box, id) {
   const tool = el('div', { class: 'etool' });
   const chips = el('div', { class: 'echips', role: 'tablist', 'aria-label': 'Tools' });
   const strip = el('nav', { class: 'estrip', 'aria-label': 'Panels' });
-  const root = el('div', { class: 'editor', role: 'dialog', 'aria-label': 'Edit the photo' }, [stage, el('div', { class: 'etop' }, [close, el('div', { class: 'etitle' }, [el('b', { text: 'Edit' }), status]), exp, copyButton(() => ed.recipe)]), el('div', { class: 'ebottom' }, [tool, chips, strip])]);
+  const root = el('div', { class: 'editor', role: 'dialog', 'aria-label': 'Edit the photo' }, [stage, el('div', { class: 'etop' }, [close, el('div', { class: 'etitle' }, [el('b', { text: 'Edit' }), status]), exp, copyButton(() => ed.recipe, () => cam && (() => cam?.wipe()))]), el('div', { class: 'ebottom' }, [tool, chips, strip])]);
   box.replaceChildren(root);
   close.addEventListener('click', back);
   const say = (/** @type {string} */ s) => { status.textContent = s; };
@@ -80,7 +81,7 @@ export async function editScreen(box, id) {
   const sess = session(id, () => ed.recipe);
   const view = { z: 1, cu: 0.5, cv: 0.5, pw: 1, ph: 1, tile: /** @type {null | { u0: number, v0: number, u1: number, v1: number, texel: number[] }} */ (null) };
   /** @type {import('./source.js').Original | null} */
-  let original = null;
+  let original = null, cam = /** @type {Awaited<ReturnType<typeof cameraCompare>> | null} */ (null);
   let lutKey = '', lut = /** @type {Uint16Array} */ (new Uint16Array(0)), frames = 0;
   /** @type {{ px: Uint8Array, w: number, h: number } | null} */
   let small = null;
@@ -121,7 +122,7 @@ export async function editScreen(box, id) {
       queued = false;
       const rec = ed.before ? {} : shown(ed.recipe), f = frameOf(rec);
       if (Math.abs(f[0] - fr[0]) > 0.5 || Math.abs(f[1] - fr[1]) > 0.5) { fr = f; view.z = 1; view.cu = view.cv = 0.5; view.tile = null; r.clearDetail(); }
-      r.draw(uniforms(rec, canvas.width, canvas.height, true), lut);
+      r.draw(uniforms(rec, canvas.width, canvas.height, true), lut); cam?.draw();
       overlay?.update();
       root.dataset.frames = String(++frames);
       if (settleT) clearTimeout(settleT);
@@ -253,6 +254,7 @@ export async function editScreen(box, id) {
   const touch = touches({ ed, asShot: () => img.asShot, uvAt, readSmall, asShotWb, small: () => small, changed, picked: () => pick('color', 'Temperature'), remix: () => tool.replaceChildren(toolView(ed, 'color', 'mix')) });
   photoGestures(stage, {
     before: (on) => { ed.before = on; hint.hidden = !on; hint.textContent = 'As shot'; root.dataset.before = String(on); draw(); },
+    camera: (on) => { if (!cam) return; cam.hold(on); hint.textContent = on ? 'Camera' : 'As shot'; },
     histogram: (on) => { hist.hidden = !on; root.dataset.histogram = String(on); if (on && small) drawHistogram(hist, histogram(small.px)); },
     zoom: (f, x, y) => zoomAt(view.z * f, x, y),
     pan: (dx, dy) => { const v = viewOf(canvas.width, canvas.height, 0); view.cu -= dx * dpr() * v.scale[0]; view.cv -= dy * dpr() * v.scale[1]; clampView(); draw(); },
@@ -278,6 +280,8 @@ export async function editScreen(box, id) {
         root.dataset.frame = 'original';
         root.dataset.firstMs = String(Math.round(performance.now() - t0));
         if (original.memory) root.dataset.wasmMib = (original.memory / 1048576).toFixed(1);
+        root.dataset.colour = `${original.colour?.source ?? 'jpeg'}${original.colour?.ev ? ` ${original.colour.ev.toFixed(2)} EV` : ''}`;
+        if (original.cameraJpeg) cameraCompare(stage, original.cameraJpeg, { img, recipe: () => (ed.before ? {} : shown(ed.recipe)), view: () => viewOf(canvas.width, canvas.height, 0), pw: view.pw, ph: view.ph }).then((c) => { cam = c; }).catch(() => {});
         say('');
       }
     } catch {

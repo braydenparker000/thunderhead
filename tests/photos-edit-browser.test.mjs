@@ -3,7 +3,9 @@
 // then its original from Drive through the GPU pipeline; three sliders move it; a hold shows it as
 // shot; two fingers show the histogram; the recipe is saved (debounced) and found again after a
 // reload; the panels at 390×844 and on a Galaxy A35-sized phone (360×780 at 3×); and a WebGL2-only
-// run (WebGPU off by flag) draws the same within a tolerance. Screens go to TH_SHOTS when it is set.
+// run (WebGPU off by flag) draws the same within a tolerance. The CC0 X-E5 RAF, when downloaded: its colour
+// fitted from its camera JPEG and measured against it, the camera compare (held, and the wipe) and the
+// fit kept for the model. Screens go to TH_SHOTS when it is set.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
@@ -13,6 +15,7 @@ import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { serve } from '../scripts/serve.mjs';
 import { until } from './fixtures/waits.mjs';
+import { deltaE, rafJpeg } from './fixtures/colour.mjs';
 
 const live = Boolean(process.env.SITE_URL);
 const opts = { skip: live && 'local only (mocked API)' };
@@ -22,6 +25,9 @@ const SHOTS = process.env.TH_SHOTS;
 const state = { recipe: {}, puts: [], senses: [], jpeg: Buffer.alloc(0), preview: Buffer.alloc(0), raf: null };
 // The CC0 X-E5 sample tests/photos-engine.test.mjs downloads (never committed), when it is there.
 const RAF = join(tmpdir(), 'th-photos-engine-sample', 'xe5-8509.raf');
+// Mean ΔE (CIE76, 256 px) of the X-E5 sample at defaults against its camera JPEG: 24.24 with the neutral fallback
+// matrix and the old base curve, 5.06 now (PHOTOS.md); a loose ceiling so a regression shows, not a target yet.
+const DE_NOW = 5.06, DE_CEILING = 7;
 const photo = () => ({ id: ID, drive_id: 'drive-file-9', ...(state.raf ? { name: 'DSCF0001.RAF', format: 'raf', bytes: state.raf.length, width: 7728, height: 5152 } : { name: 'IMG_0001.JPG', format: 'jpeg', bytes: state.jpeg.length, width: 1500, height: 1000 }), sha256: 'c'.repeat(64), camera: 'Example Camera', film: null, taken_at: Date.UTC(2026, 9, 3, 9), day: '2026-10-03', rating: 0, flag: null, preview: true, edited: Object.keys(state.recipe).length > 0, deleted_at: null, created_at: 1 });
 let site, mock, browser, flat, base;
 
@@ -210,6 +216,45 @@ test('the X-E5 sample through the engine in a worker: the embedded preview first
     const d = await page.evaluate(() => ({ ...document.querySelector('.editor').dataset }));
     console.log(`# X-E5 in headless Chromium: preview drawn at ${d.previewMs} ms, first real frame at ${d.firstMs} ms, wasm ${d.wasmMib} MiB (${d.gpu})`);
     assert.ok(Number(d.wasmMib) < 150);
+    // Our render at defaults against the camera's own JPEG at the same size (CIE76, PHOTOS.md: the baseline).
+    const ours = await probe(page, true);
+    const jpeg = await page.evaluate(async ([b64, w, h]) => {
+      const bmp = await createImageBitmap(new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))]), { resizeWidth: w, resizeHeight: h, resizeQuality: 'high' });
+      const g = new OffscreenCanvas(w, h).getContext('2d');
+      g.drawImage(bmp, 0, 0);
+      return [...g.getImageData(0, 0, w, h).data];
+    }, [rafJpeg(state.raf).toString('base64'), 256, ours.length / 4 / 256]);
+    const de = deltaE(ours, jpeg);
+    console.log(`# X-E5 at defaults against its camera JPEG: mean ΔE ${de.mean.toFixed(2)}, L* ${de.dL.toFixed(2)}, chroma ×${de.chroma.toFixed(2)} (colour: ${d.colour ?? 'n/a'})`);
+    assert.ok(de.mean < DE_CEILING, `mean ΔE ${de.mean.toFixed(2)}, up from the recorded ${DE_NOW}`);
+    assert.match(d.colour, /^fitted /);
+    assert.ok(await page.evaluate(() => Boolean(localStorage.getItem('th.photos.matrix.FUJIFILM X-E5'))), 'the fit is kept for the model');
+    // Camera compare: keep holding past As shot for the camera's JPEG; the wipe from More, its line dragged.
+    const s = await page.locator('.estage').boundingBox();
+    const cam = () => page.evaluate(() => document.querySelector('.estage').dataset.camera);
+    await until(() => page.evaluate(() => Boolean(document.querySelector('.ecam'))), { message: 'no camera compare' });
+    await page.mouse.move(s.x + s.width / 2, s.y + s.height / 2);
+    await page.mouse.down();
+    await until(async () => (await cam()) === 'held', { message: 'the hold never showed the camera' });
+    assert.equal(await page.locator('.ehint').textContent(), 'Camera');
+    await shot(page, 'raf-camera');
+    await page.mouse.up();
+    await until(async () => (await cam()) === 'off');
+    await page.locator('.emore').click();
+    await page.locator('.ecamera').click();
+    await until(async () => (await cam()) === 'wipe');
+    const line = await page.locator('.ewipe').boundingBox();
+    await page.mouse.move(line.x + line.width / 2, line.y + line.height / 2); await page.mouse.down();
+    await page.mouse.move(s.x + s.width * 0.3, line.y + line.height / 2, { steps: 4 }); await page.mouse.up();
+    assert.match(await page.locator('.ecam').evaluate((c) => c.style.clipPath), /inset\(0(px)? 7\d(\.\d+)?% 0(px)? 0(px)?\)/);
+    await shot(page, 'raf-wipe');
+    await page.locator('.ewdone').click();
+    await until(async () => (await cam()) === 'off');
+    // Reloaded, the model's kept matrix is used and the render is the same.
+    await page.reload();
+    await until(() => page.evaluate(() => document.querySelector('.editor')?.dataset.frame === 'original'), { timeout: 150_000, message: 'the RAF never drew again' });
+    assert.match(await page.evaluate(() => document.querySelector('.editor').dataset.colour), /^fitted /);
+    assert.ok(deltaE(await probe(page, true), ours).mean < 0.5, 'the kept matrix renders as the fresh fit did');
     await drag(page, 'Exposure2012', 40);
     await page.locator('.estage').dblclick();
     await until(() => page.evaluate(() => document.querySelector('.editor').dataset.detail === 'tile'), { timeout: 60_000, message: 'no 1:1 tile' });

@@ -1,15 +1,15 @@
 {
-  "id": "2026-11-05-photos-from-drive",
+  "id": "2026-11-05-photos-colour",
   "date": "2026-11-05",
   "lines": [
     {
-      "text": "Photos can import from Google Drive: tap From Drive, pick up to 100 photos anywhere in your Drive."
+      "text": "Photos: an X-E5 RAW now opens in true colour, learnt from the camera's own JPEG, at the camera's brightness."
     },
     {
-      "text": "They stay where they are in Drive and show on the shelf at once; their previews follow a few at a time."
+      "text": "Exposure rolls into white instead of clipping; Highlights and Shadows leave no halo at strong edges."
     },
     {
-      "text": "Imports from this phone make their preview while the original uploads."
+      "text": "Keep holding the photo to see the camera's JPEG, or More › Compare with the camera's JPEG for a wipe."
     }
   ]
 }
