@@ -1,18 +1,18 @@
 {
-  "id": "2026-11-05-photos-shelf",
+  "id": "2026-11-05-photos-looks",
   "date": "2026-11-05",
   "lines": [
     {
-      "text": "Photos: an X-E5 RAW now opens in true colour, learnt from the camera's own JPEG, at the camera's brightness."
+      "text": "The editor has Looks: save an edit as a look, then tap one to apply it to any photo, with Amount up to 200%."
     },
     {
-      "text": "Photos shows a RAW and its JPEG as one photo, marked RAW+JPEG; the editor opens the RAW."
+      "text": "Import .xmp presets from Files or Drive, one or many: only their numbers are kept, under Imported."
     },
     {
-      "text": "Give a photo stars or a heart: hold it on the shelf, or swipe up on it in the editor."
+      "text": "Paste a camera recipe's text into Recipes: tone, colour, grain and white balance shift apply; the film name is kept."
     },
     {
-      "text": "In the editor, swipe left or right to go through your photos while you pick the best."
+      "text": "Undo in a Photos message now takes a tap (it did not before)."
     }
   ]
 }

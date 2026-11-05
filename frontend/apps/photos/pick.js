@@ -38,20 +38,21 @@ function load() {
 
 /**
  * Opens the picker; resolves with what the owner picked (none when they close it).
- * @param {{ key: string, app: string, token: string, folder: string }} o
+ * @param {{ key: string, app: string, token: string, folder: string, title?: string, query?: string }} o
  * @returns {Promise<Picked[]>}
  */
 export async function pickFromDrive(o) {
   const p = await load();
   return new Promise((resolve) => {
-    const view = (/** @type {string} */ parent) => new p.DocsView(p.ViewId.DOCS).setIncludeFolders(true).setParent(parent);
+    // A query (".xmp" for the Looks panel's presets) narrows each view to the files it matches.
+    const view = (/** @type {string} */ parent) => { const v = new p.DocsView(p.ViewId.DOCS).setIncludeFolders(true).setParent(parent); return o.query ? v.setQuery(o.query) : v; };
     const b = new p.PickerBuilder()
       .setDeveloperKey(o.key)
       .setOAuthToken(o.token)
       .setOrigin(location.origin)
       .enableFeature(p.Feature.MULTISELECT_ENABLED)
       .setMaxItems(PICK_MAX)
-      .setTitle('Choose photos to import')
+      .setTitle(o.title ?? 'Choose photos to import')
       // The app's folder first; My Drive next, to go anywhere in it.
       .addView(view(o.folder))
       .addView(view('root'))

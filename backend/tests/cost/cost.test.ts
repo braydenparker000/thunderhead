@@ -278,7 +278,7 @@ describe('rows per endpoint', () => {
     phoneCalls(cost, grant)
       .then(() => heldCalls(cost, grant))
       .then(() => import('./settings-calls').then((m) => m.settingsCalls(cost, grant)))
-      .then(() => import('./photos-calls').then((m) => m.photosCalls(cost, grant))));
+      .then(() => import('./looks-calls').then((m) => m.photoCalls(cost, grant))));
   // Recall by meaning, then a paste, last (recall-calls.ts, photos-calls.ts): they change what others read.
   it('measures the music notes and find, scheduled actions and plans, the listening history, then recall by meaning', () =>
     musicCalls(cost as never, grant)

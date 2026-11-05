@@ -111,7 +111,7 @@ export interface PutRecipeRequest {
 }
 
 /** The panels a `photo.edit` sense names (no values ever leave the phone in a sense). */
-export const EDIT_PANELS = ['light', 'color', 'effects', 'detail', 'optics', 'crop', 'versions'] as const;
+export const EDIT_PANELS = ['light', 'color', 'effects', 'detail', 'optics', 'crop', 'versions', 'looks'] as const;
 
 /** The recipe without its defaults, keys sorted: what is stored and hashed, so equal edits are equal. */
 export function canonicalRecipe(r: PhotoRecipe): PhotoRecipe {

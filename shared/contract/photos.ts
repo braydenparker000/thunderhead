@@ -8,6 +8,7 @@ import type { PhotoRecipe } from './photos-recipe.ts';
 export * from './photos-recipe.ts';
 export * from './photos-paste.ts';
 export * from './photos-versions.ts';
+export * from './photos-looks.ts';
 
 export const PHOTO_LIMITS = {
   /** A preview the phone sends: a JPEG of at most this many bytes (2048 px at quality ~0.8). */
