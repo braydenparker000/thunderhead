@@ -219,9 +219,10 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/photos/from-drive` | D | P9 | built | {ids ≤ 20}: files picked in Google’s picker, registered by reference with what Drive says of each (one Drive call a file); a known one is `already` |
 | `GET /v1/photos` | D | P9 | built | ?before=<day>: days newest first, 4 photos and a count each; ?day=: one day |
 | `GET /v1/photos/deleted` | D | P9 | built | Recently deleted, newest first: 30 days |
-| `PUT /v1/photos/:id` | D | P9 | built | registers an upload: Drive id, size, hash, camera, capture time, format |
+| `GET /v1/photos/pending` | D | P9 | built | photos whose background upload has no Drive id yet, newest first: at most 200 |
+| `PUT /v1/photos/:id` | D | P9 | built | registers an upload: Drive id (null: pending, a background upload), size, hash, camera, capture time, format |
 | `GET /v1/photos/:id` | D | P9 | built | the photo and its recipe |
-| `PATCH /v1/photos/:id` | D | P9 | built | {rating 0–5, flag pick\|reject\|null} |
+| `PATCH /v1/photos/:id` | D | P9 | built | {rating 0–5, flag pick\|reject\|null, drive_id: a pending photo’s, checked with Drive} |
 | `DELETE /v1/photos/:id` | D | P9 | built | to Recently deleted |
 | `POST /v1/photos/:id/restore` | D | P9 | built |  |
 | `PUT /v1/photos/:id/recipe` | D | P9 | built | the edit as a recipe (crs names); the same hash again writes nothing; a ledger row, undo = the recipe before |

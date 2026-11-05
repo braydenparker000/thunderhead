@@ -386,6 +386,7 @@ Chat files (HOME.md §4.6) live in `thunderhead-private` under `chat/files/` and
 - At most 2 non-security pushes a day; none before 06:30 local (owner ruling), security pushes included; they wait until 06:30.
 - Rotating VAPID invalidates every subscription. The shell compares the server key with its subscription's key at start and re-subscribes if they differ.
 - Measured elsewhere on a Free account: ~1.6 ms CPU per push inside a DO. Send pushes from a DO, not from the stateless Worker.
+- **Background uploads (Photos, Background Fetch; PHOTOS.md §1):** the service worker also finishes a photo's upload the browser ran in the background. It sends the Worker the Drive file id and nothing else (`PATCH /v1/photos/:id {drive_id}`, with this phone's own session token from `th-auth`, as for push text); the Worker checks that id with Drive against the size and SHA-256 the phone registered. It never calls Drive itself and holds no Drive token: the upload is one `PUT` to the resumable session's address, which is its own credential (no `Authorization` header; Drive keeps it about a week), kept in IndexedDB `th-photos` until the photo is in Drive. The system notification shows the file's name only ("Uploading <name>", "In Drive: <name>"), never a place, a camera or a picture; the icon is the app's own.
 
 ## 11. Secrets inventory
 

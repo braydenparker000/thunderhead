@@ -47,13 +47,21 @@ export function normal(b: PasteBody): PasteBody & { hash: string } {
   return { ids, panels, recipe, hash: hex(JSON.stringify({ ids, panels, recipe })) };
 }
 
-type Row = { id: string; recipe_json: string | null; recipe_sha: string | null; deleted_at: number | null };
+type Row = {
+  id: string;
+  drive_id: string | null;
+  recipe_json: string | null;
+  recipe_sha: string | null;
+  deleted_at: number | null;
+};
 type Step = { id: string; before: string | null; before_sha: string; after_sha: string };
 
 export function paste(w: Writer, b: ReturnType<typeof normal>): PastePhotosResponse {
   const rows = b.ids.map((id) => {
-    const r = w.db.one<Row>('SELECT id, recipe_json, recipe_sha, deleted_at FROM photos WHERE id = ?', id);
+    const r = w.db.one<Row>('SELECT id, drive_id, recipe_json, recipe_sha, deleted_at FROM photos WHERE id = ?', id);
     if (!r || r.deleted_at !== null) throw new Fail('not_found', { reason: 'a photo is not on the shelf' });
+    // A pending photo (its upload still running in the background) takes no paste until it is in Drive.
+    if (r.drive_id === null) throw new Fail('conflict', { reason: 'a photo is still uploading' });
     return r;
   });
   const steps: Step[] = [];

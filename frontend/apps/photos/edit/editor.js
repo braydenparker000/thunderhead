@@ -288,6 +288,7 @@ export async function editScreen(box, id) {
   // Test and diagnostics hook: the current render, small, read back.
   /** @type {any} */ (root).probe = async (/** @type {boolean} */ before) => readSmall(before ? {} : ed.recipe);
   /** @type {any} */ (root).recipe = () => ed.recipe;
+  if (!p.drive_id) exp.disabled = true; // a pending photo exports once its original is in Drive
   exp.addEventListener('click', () => exportSheet(root, [{ id, name: p.name, render: (j) => renderExport({ r, img, recipe: ed.recipe, p0: [1 / view.pw, 1 / view.ph], working: img.srcW / img.width, tile: original?.tile ?? null, segments: [xmpSegment(xmpOf(ed.recipe))], ...j })
     .finally(() => { view.tile = null; settle(); draw(); }) }]));
   root.addEventListener('photos:leave', () => { save.flush(); sess.end(); original?.close(); });

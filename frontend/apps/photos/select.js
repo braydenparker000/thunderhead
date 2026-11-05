@@ -59,6 +59,7 @@ export function chooser(box, head) {
   const leave = () => { on = false; chosen.clear(); draw(); };
   const toggle = (/** @type {data.PhotoItem} */ p) => {
     if (chosen.has(p.id)) chosen.delete(p.id);
+    else if (!p.drive_id) { toast('Still uploading: it can be exported or pasted to once it is in Drive.'); return; }
     else if (chosen.size >= MAX_PHOTOS) { toast(`Up to ${MAX_PHOTOS} photos at a time.`); return; }
     else chosen.set(p.id, p);
     draw();

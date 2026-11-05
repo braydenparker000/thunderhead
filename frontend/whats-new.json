@@ -1,15 +1,15 @@
 {
-  "id": "2026-11-05-photos-from-drive",
+  "id": "2026-11-05-photos-background",
   "date": "2026-11-05",
   "lines": [
     {
-      "text": "Photos can import from Google Drive: tap From Drive, pick up to 100 photos anywhere in your Drive."
+      "text": "Photos keeps uploading from this phone when you leave the app or lock the screen, on Android Chrome."
     },
     {
-      "text": "They stay where they are in Drive and show on the shelf at once; their previews follow a few at a time."
+      "text": "A notification shows each photo's progress; the shelf marks a photo Uploading until it is in Drive."
     },
     {
-      "text": "Imports from this phone make their preview while the original uploads."
+      "text": "If one does not finish, Photos says so: pick the same file again and it goes on from where it stopped."
     }
   ]
 }

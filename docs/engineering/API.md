@@ -857,9 +857,16 @@ public and checked by its one-use state.
   → 201 `{photo}`, after one check with Drive: the file is in the app's folder, not in the trash,
   with that size and (when Drive gives one) that SHA-256, else 422 on `drive_id`; the same id again is 200, a Drive file already on the shelf is that photo (200),
   another Drive file on the same id 409. Its day is `taken_at`'s in the owner's zone.
+  `drive_id: null` registers a **pending** photo (its upload runs in the background, PHOTOS.md §1)
+  with no call to Drive; the same photo's PUT again with its Drive id (the same SHA-256) takes it.
+- `GET /v1/photos/pending` → `{items}`: photos on the shelf with no Drive id yet, newest first (≤ 200).
+  A pending photo is on the shelf; a paste onto it is 409 `conflict` ("a photo is still uploading").
 - `GET /v1/photos?before=<day>` → `{days: [{day, count, photos (≤ 4)}], next}`, 14 days a page,
   newest first; `?day=<day>` one day whole (≤ 200 photos).
-- `GET /v1/photos/:id` → `{photo, recipe}` (`recipe` `{}` as shot; `photo.edited` says whether it has one); `PATCH` `{rating 0–5, flag 'pick'|'reject'|null}`;
+- `GET /v1/photos/:id` → `{photo, recipe}` (`recipe` `{}` as shot; `photo.edited` says whether it has one); `PATCH` `{rating 0–5, flag 'pick'|'reject'|null, drive_id?}`
+  (`drive_id`: a pending photo's, once its background upload ended; checked with Drive against the
+  registered size and SHA-256, 422 when it differs; the same id again writes nothing; another id, or a
+  file another photo has, 409; a deleted pending photo takes it too, so its original goes to Drive's trash);
   `DELETE` moves it to Recently deleted; `POST …/restore` brings it back; `GET /v1/photos/deleted`
   lists Recently deleted (newest first, ≤ 200). A deleted photo is purged 30 days on with its preview.
 - `PUT /v1/photos/:id/preview` (`image/jpeg`, ≤ 400 KB) → `{photo}`; `GET` the bytes, private, with
