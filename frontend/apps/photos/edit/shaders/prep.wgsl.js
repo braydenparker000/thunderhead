@@ -34,13 +34,13 @@ fn src(s: vec2f, mode: i32) -> vec4f {
     for (var i = 0.0; i < 4.0; i = i + 1.0) {
       if (i >= n || j >= n) { continue; }
       let c = src(u.p[0].xy + (floor(pos.xy) + (vec2f(i, j) + 0.5) / n) * cell, mode);
-      if (mode == 2) { acc = acc + vec4f(c.a, max(min(min(c.r, c.g), c.b), 0.0), 0.0, 0.0); }
-      else if (mode == 3) { acc = acc + vec4f(c.rg, 0.0, 0.0); }
+      if (mode == 2) { acc = acc + vec4f(c.a, max(min(min(c.r, c.g), c.b), 0.0), (c.a + 6.0) * (c.a + 6.0), 0.0); }
+      else if (mode == 3) { acc = acc + vec4f(c.rgb, 0.0); }
       else { acc = acc + vec4f(max(c.rgb, vec3f(0.0)), 0.0); }
     }
   }
   acc = acc / (n * n);
-  if (mode < 2) { acc.a = log2(max(dot(acc.rgb, Y), exp2(-16.0))); } else { acc.b = 0.0; acc.a = 1.0; }
+  if (mode < 2) { acc.a = log2(max(dot(acc.rgb, Y), exp2(-16.0))); } else { acc.a = 1.0; }
   return acc;
 }`;
 
