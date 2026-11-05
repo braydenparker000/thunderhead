@@ -180,7 +180,14 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
   and colour noise with their detail). A slider shows its value in words and as a number; drag
   anywhere on it, tap beside the thumb to nudge one step, double-tap to reset.
 - **Gestures**: hold the photo for as shot, two fingers for the histogram, pinch to zoom up to 1:1 and
-  drag to pan, double-tap between fit and 1:1.
+  drag to pan, double-tap between fit and 1:1 (animated, 200 ms on the `--ease-out` curve). While a
+  finger moves (`edit/zoom.js`), the frame last developed is moved by a CSS transform, over a backdrop
+  of the whole photo for what the move uncovers, so a gesture costs no GPU pass; the photo develops
+  again when the fingers stop for 120 ms or lift. A pinch zooms about the point between the fingers and
+  keeps it under them as they move. A fling glides a short way; past an edge or a zoom limit the photo
+  gives like a rubber band and comes back. The detail proxy on screen stays until the new one is ready;
+  a new one is asked for only when the fingers stop or lift, one at a time, and a stale one never draws.
+  Measured in headless Chromium on the X-E5 working copy: no frame over 32 ms in a two-second pinch.
 - **The recipe**: Lightroom's crs names where they map (`shared/contract/photos-recipe.ts`), defaults
   left out (as shot is `{}`); saved half a second after the last change, kept on the phone until the
   Worker has it (offline too), idempotent by hash, a ledger row per change whose undo is the recipe
@@ -214,8 +221,14 @@ top bar.
   Restore is a recipe put, so the toast's Undo (and the ledger's) puts the one before back.
 - **Export**: Size (full, 2,048 or 1,080 px on the long side), Format (JPEG; HEIC where the browser
   writes it, up to 2,048 px; Chromium and today's Safari do not), Quality 10–100 (90), and where: the
-  share sheet, Files (a download) or a "Thunderhead Exports" folder the phone makes beside the app's
-  folder in Drive, by the same resumable upload as originals. Settings › Photos holds the size and
+  share sheet, Files or a "Thunderhead Exports" folder the phone makes beside the app's folder in
+  Drive, by the same resumable upload as originals. Files is a save dialog where the browser has one
+  (desktop Chromium: asked at the tap, before the render, a folder for a batch); where it has none
+  (Chrome on Android, the installed app) it is called Download and saves to Downloads one file at a
+  time, half a second apart (a second download started at once can be dropped), and for more than
+  three where the share sheet takes files it offers Share or Download. A share that outlives the tap
+  asks for one more. Files are named after the photo and the size (`IMG_0001-2048.jpg`,
+  `-1080`, `-full`). Settings › Photos holds the size and
   format it starts with. Each photo renders from its original: the output in bands of 256 rows, each
   band in blocks of 1,024 columns; a block's region of the photo (through the geometry, padded) comes
   from a 1:1 engine tile when the export is finer than the working copy, else from the working copy;

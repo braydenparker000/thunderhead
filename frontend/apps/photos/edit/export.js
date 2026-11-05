@@ -1,13 +1,13 @@
 // @ts-check
 // The Export sheet (PHOTOS.md, Export): Size (full, 2,048 or 1,080 px on the long side), Format (JPEG,
-// or HEIC where this browser writes it), Quality 10–100, and where it goes: the share sheet, Files (a
-// download), or the "Thunderhead Exports" folder in your Drive. Each photo renders from its original
+// or HEIC where this browser writes it), Quality 10–100, and where it goes: the share sheet, Files (a save
+// dialog; Download where there is none, deliver.js), or the "Thunderhead Exports" folder in your Drive.
+// Each file is named after the photo and its size (IMG_0001-2048.jpg). Each photo renders from its original
 // in tiles (export-run.js), sRGB, its recipe inside as XMP; a batch of up to 20 shows its progress and
 // can be cancelled. Settings › Photos holds the size and format it starts with.
 import { el, toast } from '/th/ui.js';
-import * as data from '../data.js';
-import { exportsFolder, upload } from '../drive.js';
 import { icon } from '../shelf.js';
+import { canPick, deliver, pickTarget } from './deliver.js';
 import { heicWritable } from './export-run.js';
 import { segments } from './slider.js';
 
@@ -23,7 +23,7 @@ const defaults = () => {
   try { s = JSON.parse(localStorage.getItem('th.p.settings') || '{}'); mine = JSON.parse(localStorage.getItem('th.photos.export') || '{}'); } catch {}
   return { size: mine.size ?? s['photos.export_size'] ?? '2048', format: mine.format ?? s['photos.export_format'] ?? 'jpeg', quality: Number(mine.quality) || 90, to: mine.to ?? 'files' };
 };
-const fileName = (/** @type {string} */ name, /** @type {string} */ ext) => `${name.replace(/\.[^.]+$/, '') || 'photo'}-edit.${ext}`;
+const fileName = (/** @type {string} */ name, /** @type {string} */ size, /** @type {string} */ ext) => `${name.replace(/\.[^.]+$/, '') || 'photo'}-${size}.${ext}`;
 
 /** Opens the sheet for `items` (at most 20). @param {HTMLElement} host @param {Item[]} items */
 export async function exportSheet(host, items) {
@@ -45,7 +45,7 @@ export async function exportSheet(host, items) {
     const q = el('input', { type: 'range', min: '10', max: '100', step: '5', value: String(o.quality), class: 'xq', 'aria-label': 'Quality' });
     const qv = el('span', { class: 'snum', text: String(o.quality) });
     q.addEventListener('input', () => { o.quality = Number(/** @type {HTMLInputElement} */ (q).value); qv.textContent = String(o.quality); });
-    const to = segments([{ id: 'share', label: 'Share' }, { id: 'files', label: 'Files' }, { id: 'drive', label: 'Drive' }], o.to, (v) => { o.to = v; draw(); });
+    const to = segments([{ id: 'share', label: 'Share' }, { id: 'files', label: canPick() ? 'Files' : 'Download' }, { id: 'drive', label: 'Drive' }], o.to, (v) => { o.to = v; draw(); });
     const go = el('button', { type: 'button', class: 'eauto xgo' }, [icon('export'), el('span', { text: list.length > 1 ? `Export ${list.length} photos` : 'Export' })]);
     go.addEventListener('click', run);
     sheet.replaceChildren(
@@ -58,7 +58,17 @@ export async function exportSheet(host, items) {
       go,
     );
   };
+  /** Choices in the sheet once the photos are ready (a tap of its own, for what needs one). @type {(title: string, choices: { id: string, label: string }[]) => Promise<string>} */
+  const ask = (title, choices) => new Promise((ok) => {
+    sheet.replaceChildren(el('h2', { text: title }), ...choices.map((c) => { const b = el('button', { type: 'button', class: 'eauto xgo', 'data-choice': c.id, text: c.label }); b.addEventListener('click', () => ok(c.id)); return b; }));
+    sheet.dataset.state = 'ask';
+  });
   async function run() {
+    const ext = o.format === 'heic' ? 'heic' : 'jpg', names = list.map((it) => fileName(it.name, o.size, ext));
+    /** @type {null | { files?: any[], dir?: any }} */
+    let target = null;
+    // The save dialog opens now, while this tap still counts: after the render it would be refused.
+    if (o.to === 'files') try { target = await pickTarget(names); } catch (e) { toast(/** @type {Error} */ (e)?.name === 'AbortError' ? 'Cancelled.' : 'That did not open the save dialog.'); return; }
     running = true;
     stop = new AbortController();
     try { localStorage.setItem('th.photos.export', JSON.stringify(o)); } catch {}
@@ -76,14 +86,14 @@ export async function exportSheet(host, items) {
         const at = (/** @type {number} */ f) => { /** @type {HTMLElement} */ (bar.firstChild).style.width = `${(((i + f) / list.length) * 100).toFixed(1)}%`; line.textContent = list.length > 1 ? `Photo ${i + 1} of ${list.length}: ${Math.round(f * 100)} %` : `${Math.round(f * 100)} %`; };
         at(0);
         const blob = await it.render({ size: o.size, format: /** @type {'jpeg' | 'heic'} */ (o.format), quality: o.quality, onProgress: at, signal: stop.signal });
-        files.push(new File([blob], fileName(it.name, o.format === 'heic' ? 'heic' : 'jpg'), { type: blob.type }));
+        files.push(new File([blob], names[i], { type: blob.type }));
         import('/th/senses/send.js').then((m) => m.sense('photo.export', `photo:${it.id}`, { size: o.size, format: o.format, to: o.to })).catch(() => {});
       }
       host.dataset.exportMs = sheet.dataset.ms = String(Math.round(performance.now() - t0));
       sheet.dataset.bytes = String(files.reduce((n, f) => n + f.size, 0));
-      await deliver(files, o.to);
+      const said = await deliver(files, o.to, target, ask);
       sheet.dataset.state = 'done';
-      toast(o.to === 'drive' ? `In Drive, in ${'Thunderhead Exports'}.` : files.length > 1 ? `${files.length} photos exported.` : 'Exported.');
+      toast(said);
       close();
     } catch (e) {
       sheet.dataset.state = 'failed';
@@ -98,24 +108,3 @@ export async function exportSheet(host, items) {
   return sheet;
 }
 
-/** @param {File[]} files @param {string} to */
-async function deliver(files, to) {
-  if (to === 'share' && navigator.canShare?.({ files })) {
-    await navigator.share({ files });
-    return;
-  }
-  if (to === 'drive') {
-    const t = await data.uploadToken();
-    const folder = (await data.store.get('exports-folder').catch(() => null)) ?? (await exportsFolder(t.access_token, t.folder_id));
-    data.store.set('exports-folder', folder).catch(() => {});
-    for (const f of files) await upload({ file: f, name: f.name, token: async () => ({ access_token: (await data.uploadToken()).access_token, folder_id: folder }) });
-    return;
-  }
-  for (const f of files) {
-    const a = /** @type {HTMLAnchorElement} */ (el('a', { href: URL.createObjectURL(f), download: f.name }));
-    document.body.append(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 60_000);
-  }
-}

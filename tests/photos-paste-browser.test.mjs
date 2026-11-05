@@ -80,6 +80,7 @@ after(async () => { await browser?.close(); await flat?.close(); site?.close(); 
 
 async function open(b, path, device = { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 }) {
   const context = await b.newContext({ ...device, hasTouch: true, acceptDownloads: true });
+  await context.addInitScript(() => Object.assign(window, { showSaveFilePicker: undefined, showDirectoryPicker: undefined })); // Android: no save dialog
   await context.route('https://www.googleapis.com/drive/v3/files/**', (route) => route.fulfill({ status: 200, headers: { 'Access-Control-Allow-Origin': '*', 'Access-Control-Expose-Headers': 'Content-Length', 'Content-Type': 'application/octet-stream' }, body: state.jpeg }));
   const page = await context.newPage();
   const errors = [];
@@ -183,7 +184,7 @@ test('the A35 profile: two chosen on the shelf export as two files', opts, async
   await page.locator('.xgo').click();
   await until(() => downloads.length === 2, { timeout: 150_000, message: 'two files were not exported' });
   const names = downloads.map((d) => d.suggestedFilename()).sort();
-  assert.deepEqual(names, ['IMG_0001-edit.jpg', 'IMG_0002-edit.jpg']);
+  assert.deepEqual(names, ['IMG_0001-1080.jpg', 'IMG_0002-1080.jpg']);
   for (const d of downloads) {
     const bytes = readFileSync(await d.path());
     assert.deepEqual([...bytes.subarray(0, 2)], [0xff, 0xd8]);
