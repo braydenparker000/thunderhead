@@ -671,6 +671,18 @@
     "rows_read_max": 2,
     "rows_written_max": 2
   },
+  "PUT /v1/photos/:id (pending) (Core)": {
+    "rows_read_max": 1,
+    "rows_written_max": 4
+  },
+  "GET /v1/photos/pending (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 0
+  },
+  "PATCH /v1/photos/:id (its Drive id) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 3
+  },
   "DELETE /v1/photos/:id (Core)": {
     "rows_read_max": 2,
     "rows_written_max": 7

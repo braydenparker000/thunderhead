@@ -1,5 +1,6 @@
-// The service worker's release list, the safe-update rule, the icon sprite and the install
-// manifest, without a browser (ARCHITECTURE.md §8, DESIGN-SYSTEM.md §13, TESTING.md §4).
+// The service worker's release list, the safe-update rule, the icon sprite, the install manifest
+// and its Background Fetch handlers for Photos (a vm harness), without a browser (ARCHITECTURE.md
+// §8, DESIGN-SYSTEM.md §13, PHOTOS.md §3.1, TESTING.md §4).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -9,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 import { APP_ROUTES, PORTED, precached, swJs } from '../scripts/site-config.mjs';
 import { buildSprite } from '../scripts/icons.mjs';
 import { checkDue, safeToApply, CHECK_EVERY_MS } from '../frontend/th/update-rules.js';
+import { loadWorker } from './fixtures/sw-harness.mjs';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
 const SITE = join(REPO, 'frontend');
@@ -90,4 +92,71 @@ test('the install manifest has scope /, and every icon it names exists', () => {
   for (const i of m.icons) assert.ok(existsSync(join(SITE, i.src)), i.src);
   for (const page of ['index.html', 'signin/index.html', 'setup/index.html', 'recover/index.html'])
     assert.match(readFileSync(join(SITE, page), 'utf8'), /<link rel="manifest" href="\/manifest.webmanifest">/, page);
+});
+
+// Photos' background uploads (PHOTOS.md §3.1, SECURITY.md §10): the worker sends the Worker the
+// Drive id alone, with this phone's session; the notification names the file and nothing else.
+const PHOTO = '019a0000-0000-7000-8000-0000000000b1';
+const KEPT = { id: PHOTO, session: 'https://www.googleapis.com/upload/drive/v3/files?upload_id=s9', name: 'DSCF0400.RAF', size: 1000, at: 1 };
+function photosWorker({ patch = 200 } = {}) {
+  const w = loadWorker(async (url, init) => {
+    if (url === '/config.js') return new Response('export const CONFIG = {"api":"https://api.example.test"};');
+    if (url === `https://api.example.test/v1/photos/${PHOTO}` && init.method === 'PATCH')
+      return new Response(JSON.stringify({ photo: { id: PHOTO, drive_id: JSON.parse(init.body).drive_id } }), { status: patch });
+    return new Response('{}', { status: 404 });
+  });
+  w.dbs.set('th-auth', new Map([['session', { token: 'th1_example-session' }]]));
+  w.dbs.set('th-photos', new Map([[`bg:${PHOTO}`, KEPT]]));
+  return w;
+}
+const ended = (status, body, id = PHOTO) => {
+  const ui = [];
+  return {
+    ui,
+    event: {
+      registration: { id, matchAll: async () => [{ responseReady: Promise.resolve(new Response(body, { status })) }] },
+      updateUI: async (o) => { ui.push(structuredClone(o)); },
+    },
+  };
+};
+
+test('a background upload that ends in Drive: its Drive id to the Worker, the notification says so, the page is told', async () => {
+  const w = photosWorker();
+  const { event, ui } = ended(200, JSON.stringify({ id: 'drive-file-9' }));
+  await w.dispatch('backgroundfetchsuccess', event);
+  const call = w.fetched.find((f) => f.method === 'PATCH');
+  assert.equal(call.url, `https://api.example.test/v1/photos/${PHOTO}`);
+  assert.equal(call.headers.Authorization, 'Bearer th1_example-session');
+  assert.deepEqual(JSON.parse(call.body), { drive_id: 'drive-file-9' }, 'the Drive id, nothing else');
+  assert.ok(!w.fetched.some((f) => f.url.includes('googleapis')), 'nothing goes to Drive from the worker');
+  assert.deepEqual(ui, [{ title: 'In Drive: DSCF0400.RAF' }]);
+  assert.equal(w.dbs.get('th-photos').has(`bg:${PHOTO}`), false, 'the session is forgotten');
+  assert.deepEqual(w.told, [{ type: 'photos:upload', id: PHOTO, state: 'done', photo: { id: PHOTO, drive_id: 'drive-file-9' } }]);
+});
+
+test('a PATCH that does not go through keeps the Drive id for the page to finish', async () => {
+  const w = photosWorker({ patch: 503 });
+  await w.dispatch('backgroundfetchsuccess', ended(201, JSON.stringify({ id: 'drive-file-9' })).event);
+  assert.deepEqual(w.dbs.get('th-photos').get(`bg:${PHOTO}`), { ...KEPT, drive_id: 'drive-file-9' });
+  assert.equal(w.told[0].state, 'kept');
+});
+
+test('a failed, aborted or part-way (308) upload keeps its session and says it did not upload', async () => {
+  for (const [type, status] of [['backgroundfetchfail', 500], ['backgroundfetchsuccess', 308], ['backgroundfetchabort', 0]]) {
+    const w = photosWorker();
+    const { event, ui } = ended(status || 200, '');
+    await w.dispatch(type, event);
+    assert.ok(!w.fetched.some((f) => f.method === 'PATCH'), `${type}: no PATCH`);
+    assert.deepEqual(w.dbs.get('th-photos').get(`bg:${PHOTO}`), { ...KEPT, failed: true }, `${type}: the session kept`);
+    assert.deepEqual(ui, type === 'backgroundfetchabort' ? [] : [{ title: 'Did not upload: DSCF0400.RAF' }], type);
+    assert.deepEqual(w.told, [{ type: 'photos:upload', id: PHOTO, state: 'failed' }], type);
+  }
+});
+
+test('a fetch that is not a photo\'s upload is left alone; a tap on its notification opens Photos', async () => {
+  const w = photosWorker();
+  await w.dispatch('backgroundfetchsuccess', ended(200, JSON.stringify({ id: 'x' }), 'something-else').event);
+  assert.equal(w.fetched.length, 0);
+  assert.equal(w.told.length, 0);
+  assert.ok(w.listeners.has('backgroundfetchclick'));
 });

@@ -60,12 +60,14 @@ export async function photo(id) {
   }
 }
 
-/** @param {string} id @param {{ rating?: number, flag?: string | null }} body @returns {Promise<PhotoItem>} */
+/** @param {string} id @param {{ rating?: number, flag?: string | null, drive_id?: string }} body @returns {Promise<PhotoItem>} */
 export const patch = async (id, body) => (await call(`/v1/photos/${id}`, { method: 'PATCH', body })).photo;
 /** @param {string} id @returns {Promise<PhotoItem>} */
 export const remove = async (id) => (await call(`/v1/photos/${id}`, { method: 'DELETE' })).photo;
 /** @param {string} id @returns {Promise<PhotoItem>} */
 export const restore = async (id) => (await call(`/v1/photos/${id}/restore`, { method: 'POST' })).photo;
+/** Photos whose background upload has no Drive id yet. @returns {Promise<PhotoItem[]>} */
+export const pending = async () => (await call('/v1/photos/pending')).items;
 /** @returns {Promise<PhotoItem[]>} */
 export const deleted = async () => (await call('/v1/photos/deleted')).items;
 /** @returns {Promise<{ access_token: string, expires_at: number, folder_id: string }>} */

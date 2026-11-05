@@ -27,6 +27,8 @@ export async function cameraCompare(stage, jpeg, ed) {
   r.source({ kind: 'bitmap', width: bmp.width, height: bmp.height, bitmap: bmp }, ed.pw, ed.ph);
   bmp.close();
   const lut = toneLut({}, false);
+  // While a finger moves, zoom.js moves our last frame by a CSS transform: the camera's follows it.
+  new MutationObserver(() => { canvas.style.transform = ours.style.transform; }).observe(ours, { attributes: true, attributeFilter: ['style'] });
   let held = false, wiping = false, at = 0.5;
   const draw = () => {
     if (canvas.hidden) return;

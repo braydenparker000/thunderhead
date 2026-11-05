@@ -20,7 +20,31 @@ Step P1a, 2026-11-04: the shelf and the store. No editing yet.
   runs itself, in 8 MiB chunks with progress, with a token the Worker mints
   (`POST /v1/photos/upload-token`). A dropped connection asks Drive how far it got and goes on; the
   session is kept on the phone, so a reload resumes it. The bytes never pass through the Worker.
-- **Registered** once in Drive (`PUT /v1/photos/:id`): the Drive id, size, SHA-256, camera, capture
+- **In the background** (2026-11-05; `apps/photos/background.js`, `sw.js`): where the browser has
+  Background Fetch (Chrome on Android) and the service worker runs, leaving Photos or locking the
+  screen no longer pauses an import. The fast part happens in the page as before (the header and
+  embedded preview read, the thumbnail at once, the preview made and sent); the photo is registered
+  *pending* (`drive_id` null) and the page then hands each original to the browser: one Background
+  Fetch per file, a single `PUT` of the whole file to the Drive resumable session the page opened.
+  The system's notification shows "Uploading <file name>" and its progress, then "In Drive: <name>"
+  (or "Did not upload: <name>"); tapping it opens Photos. When it ends, the service worker tells
+  the Worker the photo's Drive id (`PATCH /v1/photos/:id {drive_id}`, checked with Drive) with this
+  phone's session and tells an open Photos page. A failure, or Drive's 308 (part of it arrived),
+  keeps the session on the phone; the row says "This one did not upload." with Try again, and the
+  same file picked again resumes the session by range. On the next open the page settles what is
+  left: a fetch still running shows its progress; one that ended without the Worker hearing of it
+  is finished from Drive's own word on the session. **The session's address is its own credential**:
+  the PUT carries no Drive token (as `drive.js` has always done for each chunk), so a long upload
+  never meets the token's one-hour life; Drive keeps a session about a week. Files over 2 GiB, and
+  browsers without Background Fetch (Safari), keep the page upload; Safari says so once ("Keep
+  Photos open while it uploads").
+- **Pending photos** are on the shelf with their thumbnail and a small "Uploading" mark; they cannot
+  be exported or pasted to until they are in Drive (`GET /v1/photos/pending` lists them). One still
+  pending after 7 days, or that this phone knows failed, is marked "Did not upload": import the same
+  file again to finish it (it becomes that photo, not a new one), or delete it. The daily pass
+  leaves pending photos alone, except that a file in the folder with a pending photo's name and size
+  is taken as that photo rather than registered twice.
+- **Registered** once in Drive, or pending before a background upload (`PUT /v1/photos/:id`): the Drive id, size, SHA-256, camera, capture
   time, format, dimensions and film simulation. The Worker checks with Drive first (one call) that
   the file is in the app's folder with that size and, when Drive gives one, that SHA-256. Its day is the capture day in the owner's zone.
 - **The working preview**: made on the phone (`apps/photos/preview.js`) at 2,048 px on its longest
@@ -116,11 +140,17 @@ and Recently deleted. [MENU-AND-SETTINGS.md §6.6c](../MENU-AND-SETTINGS.md).
   roundness; Grain amount, size, roughness). Detail (Sharpening amount, radius, detail, masking; noise
   and colour noise with their detail). A slider shows its value in words and as a number; drag
   anywhere on it, tap beside the thumb to nudge one step, double-tap to reset.
-- **Gestures**: hold the photo for as shot; keep holding (0.65 s more) and a RAW shows the camera's own
-  JPEG in its place, with the same crop, zoom and pan, until the finger lifts. More › Compare with the
-  camera's JPEG opens the wipe: a vertical line you drag, the camera's on the left, yours on the right,
-  × to end. Two fingers for the histogram, pinch to zoom up to 1:1 and drag to pan, double-tap between
-  fit and 1:1.
+- **Gestures**: hold the photo for as shot (keep holding 0.65 s more and a RAW shows the camera's own
+  JPEG in its place, the same crop, zoom and pan, until the finger lifts; More › Compare with the
+  camera's JPEG opens a wipe you drag, the camera's on the left, yours on the right), two fingers for the histogram, pinch to zoom up to 1:1 and
+  drag to pan, double-tap between fit and 1:1 (animated, 200 ms on the `--ease-out` curve). While a
+  finger moves (`edit/zoom.js`), the frame last developed is moved by a CSS transform, over a backdrop
+  of the whole photo for what the move uncovers, so a gesture costs no GPU pass; the photo develops
+  again when the fingers stop for 120 ms or lift. A pinch zooms about the point between the fingers and
+  keeps it under them as they move. A fling glides a short way; past an edge or a zoom limit the photo
+  gives like a rubber band and comes back. The detail proxy on screen stays until the new one is ready;
+  a new one is asked for only when the fingers stop or lift, one at a time, and a stale one never draws.
+  Measured in headless Chromium on the X-E5 working copy: no frame over 32 ms in a two-second pinch.
 
 ### The colour pipeline (P2a, as built)
 
@@ -190,8 +220,14 @@ top bar.
   Restore is a recipe put, so the toast's Undo (and the ledger's) puts the one before back.
 - **Export**: Size (full, 2,048 or 1,080 px on the long side), Format (JPEG; HEIC where the browser
   writes it, up to 2,048 px; Chromium and today's Safari do not), Quality 10–100 (90), and where: the
-  share sheet, Files (a download) or a "Thunderhead Exports" folder the phone makes beside the app's
-  folder in Drive, by the same resumable upload as originals. Settings › Photos holds the size and
+  share sheet, Files or a "Thunderhead Exports" folder the phone makes beside the app's folder in
+  Drive, by the same resumable upload as originals. Files is a save dialog where the browser has one
+  (desktop Chromium: asked at the tap, before the render, a folder for a batch); where it has none
+  (Chrome on Android, the installed app) it is called Download and saves to Downloads one file at a
+  time, half a second apart (a second download started at once can be dropped), and for more than
+  three where the share sheet takes files it offers Share or Download. A share that outlives the tap
+  asks for one more. Files are named after the photo and the size (`IMG_0001-2048.jpg`,
+  `-1080`, `-full`). Settings › Photos holds the size and
   format it starts with. Each photo renders from its original: the output in bands of 256 rows, each
   band in blocks of 1,024 columns; a block's region of the photo (through the geometry, padded) comes
   from a 1:1 engine tile when the export is finer than the working copy, else from the working copy;

@@ -2,7 +2,8 @@
 // number into BUILD; each release is precached whole into the cache th-<BUILD> from
 // /precache.json (which leaves out labs, vendor/ and Photos' RAW engine: site-config.mjs), and a new worker waits until the shell says it is a safe moment (§8.3).
 // Never touched: the API and every other host, the ported app folders and /assets/ (they keep
-// their own service workers), and anything that is not a GET. It also shows Web Push notifications.
+// their own service workers), and anything that is not a GET. It also shows Web Push notifications
+// and finishes Photos' background uploads.
 const BUILD = 0;
 const CACHE = `th-${BUILD}`;
 const VENDOR = 'th-vendor';
@@ -124,22 +125,81 @@ self.addEventListener('push', (event) => {
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const asked = new URL(event.notification.data?.url || '/', self.location.origin);
-  const url = asked.origin === self.location.origin ? asked.href : `${self.location.origin}/`;
-  event.waitUntil((async () => {
-    const open = (await self.clients.matchAll({ type: 'window' })).find((c) => new URL(c.url).origin === self.location.origin);
-    if (!open) return self.clients.openWindow(url);
-    await open.focus();
-    if (open.url !== url) await open.navigate(url).catch(() => {});
-  })());
+  event.waitUntil(openAt(event.notification.data?.url || '/'));
 });
 
-/** The session's token from IndexedDB `th-auth`, as the shell keeps it; null when signed out. */
-function session() {
+/** A place on this site, in an open window if there is one. @param {string} at */
+async function openAt(at) {
+  const asked = new URL(at, self.location.origin);
+  const url = asked.origin === self.location.origin ? asked.href : `${self.location.origin}/`;
+  const open = (await self.clients.matchAll({ type: 'window' })).find((c) => new URL(c.url).origin === self.location.origin);
+  if (!open) return self.clients.openWindow(url);
+  await open.focus();
+  if (open.url !== url) await open.navigate(url).catch(() => {});
+}
+
+// Background Fetch (PHOTOS.md §3.1, SECURITY.md §10): a photo's upload the Photos page handed to the
+// browser, one PUT of the whole file to its Drive session. When it ends this worker sends the Worker
+// the file's Drive id (nothing else) with this phone's session, says so in the notification (the
+// file's name only) and tells an open Photos page. Drive's 308 (part of it) or a failure keeps the
+// session for the page, which resumes it by range; a PATCH that did not go through keeps the id.
+const PHOTO_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+self.addEventListener('backgroundfetchsuccess', (event) => event.waitUntil(uploaded(event)));
+self.addEventListener('backgroundfetchfail', (event) => event.waitUntil(notUploaded(event)));
+self.addEventListener('backgroundfetchabort', (event) => event.waitUntil(notUploaded(event)));
+self.addEventListener('backgroundfetchclick', (event) => event.waitUntil(openAt('/photos/')));
+
+async function uploaded(event) {
+  const id = event.registration.id;
+  if (!PHOTO_ID.test(id)) return;
+  let driveId = '';
+  try {
+    const [record] = await event.registration.matchAll();
+    const res = await record?.responseReady;
+    if (res && (res.status === 200 || res.status === 201)) driveId = String((await res.json())?.id ?? '');
+  } catch {}
+  if (!/^[A-Za-z0-9_-]{1,160}$/.test(driveId)) return notUploaded(event);
+  const kept = await kv('th-photos', 'readonly', (s) => s.get(`bg:${id}`));
+  let photo = null;
+  try {
+    const [token, api] = await Promise.all([session(), apiOrigin()]);
+    if (token && api) {
+      const r = await fetch(`${api}/v1/photos/${id}`, {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ drive_id: driveId }),
+        cache: 'no-store',
+      });
+      if (r.ok) photo = (await r.json()).photo ?? null;
+    }
+  } catch {}
+  if (kept) await kv('th-photos', 'readwrite', (s) => (photo ? s.delete(`bg:${id}`) : s.put({ ...kept, drive_id: driveId }, `bg:${id}`)));
+  await event.updateUI({ title: kept?.name ? `In Drive: ${kept.name}` : 'In Drive' }).catch(() => {});
+  await tell({ type: 'photos:upload', id, state: photo ? 'done' : 'kept', photo });
+}
+
+async function notUploaded(event) {
+  const id = event.registration.id;
+  if (!PHOTO_ID.test(id)) return;
+  const kept = await kv('th-photos', 'readonly', (s) => s.get(`bg:${id}`));
+  if (kept) await kv('th-photos', 'readwrite', (s) => s.put({ ...kept, failed: true }, `bg:${id}`));
+  if (event.type !== 'backgroundfetchabort') await event.updateUI({ title: kept?.name ? `Did not upload: ${kept.name}` : 'Did not upload' }).catch(() => {});
+  await tell({ type: 'photos:upload', id, state: 'failed' });
+}
+
+/** A word to every open page of this site. @param {object} msg */
+async function tell(msg) {
+  for (const c of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) c.postMessage(msg);
+}
+
+/** One request on a database's `kv` store as th/idb.js keeps it, never creating it; its result,
+ * or null when there is none. @param {string} name @param {IDBTransactionMode} mode @param {(s: IDBObjectStore) => IDBRequest} run */
+function kv(name, mode, run) {
   return new Promise((resolve) => {
     let req;
     try {
-      req = indexedDB.open('th-auth');
+      req = indexedDB.open(name);
     } catch {
       return resolve(null);
     }
@@ -148,9 +208,10 @@ function session() {
     req.onsuccess = () => {
       const db = req.result;
       try {
-        const get = db.transaction('kv', 'readonly').objectStore('kv').get('session');
-        get.onsuccess = () => resolve(typeof get.result?.token === 'string' ? get.result.token : null);
-        get.onerror = () => resolve(null);
+        const t = db.transaction('kv', mode);
+        const r = run(t.objectStore('kv'));
+        t.oncomplete = () => resolve(r.result ?? null);
+        t.onerror = t.onabort = () => resolve(null);
       } catch {
         resolve(null);
       } finally {
@@ -158,6 +219,12 @@ function session() {
       }
     };
   });
+}
+
+/** The session's token from IndexedDB `th-auth`, as the shell keeps it; null when signed out. */
+async function session() {
+  const s = await kv('th-auth', 'readonly', (store) => store.get('session'));
+  return typeof s?.token === 'string' ? s.token : null;
 }
 
 /** The API's address from this site's config.js (written at deploy), or ''. */

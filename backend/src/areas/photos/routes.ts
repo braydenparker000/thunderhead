@@ -1,5 +1,6 @@
 // /v1/photos (PHOTOS.md §3.1, API.md §11.26): the shelf by day (newest first, four photos and a
 // count a day; `?day=` one whole day), one photo, its rating and flag, Recently deleted and back,
+// pending photos (a background upload's, registered before Drive has the file; the id comes by PATCH),
 // and its preview: a JPEG of at most 400 KB the phone made, kept in the private bucket under
 // photos/previews/ and served only through this Worker. The owner's phone only.
 import { Hono } from 'hono';
@@ -9,6 +10,7 @@ import {
   PHOTO_FLAGS,
   PHOTO_FORMATS,
   type PhotoItem,
+  type PhotoPendingResponse,
   type PhotoShelfResponse,
   VERSION_KINDS,
   VERSION_LIMITS,
@@ -37,8 +39,9 @@ const versionBody = z.strictObject({
   name: z.optional(text(VERSION_LIMITS.name_chars)),
   recipe: recipeObject,
 });
+const driveId = z.string().check(z.regex(/^[A-Za-z0-9_-]{1,160}$/));
 const putBody = z.strictObject({
-  drive_id: z.string().check(z.regex(/^[A-Za-z0-9_-]{1,160}$/)),
+  drive_id: z.nullable(driveId),
   name: text(L.name_chars),
   format: z.enum(PHOTO_FORMATS),
   bytes: z.number().check(z.int(), z.gte(1), z.lte(L.bytes_max)),
@@ -52,6 +55,7 @@ const putBody = z.strictObject({
 const patchBody = z.strictObject({
   rating: z.optional(z.number().check(z.int(), z.gte(0), z.lte(5))),
   flag: z.optional(z.nullable(z.enum(PHOTO_FLAGS))),
+  drive_id: z.optional(driveId),
 });
 const vaultOf = (env: Env): R2Bucket => {
   const v = (env as { VAULT?: R2Bucket }).VAULT;
@@ -65,7 +69,7 @@ const found = (p: PhotoItem | null) => {
 
 /** What the phone says it uploaded, checked with Drive (one call): the file is in the app's folder,
  * not in the trash, with the size and, when Drive gives one, the SHA-256 the phone sent. */
-async function inDrive(env: Env, b: { drive_id: string; bytes: number; sha256: string }): Promise<void> {
+async function inDrive(env: Env, b: { drive_id: string; bytes: number; sha256: string | null }): Promise<void> {
   let a: Awaited<ReturnType<typeof accessToken>>;
   let meta: Awaited<ReturnType<typeof fileMeta>>;
   try {
@@ -82,7 +86,7 @@ async function inDrive(env: Env, b: { drive_id: string; bytes: number; sha256: s
       ? "not a file in the app's Drive folder"
       : meta.size !== b.bytes
         ? 'its size in Drive differs'
-        : meta.sha256 && meta.sha256 !== b.sha256
+        : meta.sha256 && b.sha256 && meta.sha256 !== b.sha256
           ? 'its SHA-256 in Drive differs'
           : null;
   if (issue) throw new ApiError('validation', [{ path: 'drive_id', issue }]);
@@ -104,10 +108,14 @@ export const photosRoutes = new Hono<AppEnv>()
   .get('/photos/deleted', guard('GET /v1/photos/deleted'), async (c) =>
     c.json({ items: await fresh(coreObject(c.env).photosDeleted()) }),
   )
+  .get('/photos/pending', guard('GET /v1/photos/pending'), async (c) =>
+    c.json({ items: await fresh(coreObject(c.env).photosPending()) } satisfies PhotoPendingResponse),
+  )
   .put('/photos/:id', guard('PUT /v1/photos/:id'), async (c) => {
     const id = idParam(c);
     const body = await json(c, putBody);
-    await inDrive(c.env, body);
+    // A pending photo (a background upload) has no file in Drive yet: its id comes by PATCH.
+    if (body.drive_id) await inDrive(c.env, { ...body, drive_id: body.drive_id });
     const out = value(await fresh(coreObject(c.env).putPhoto(id, body)));
     return c.json({ photo: out.photo }, out.created ? 201 : 200);
   })
@@ -158,7 +166,15 @@ export const photosRoutes = new Hono<AppEnv>()
   .patch('/photos/:id', guard('PATCH /v1/photos/:id'), async (c) => {
     const id = idParam(c);
     const body = await json(c, patchBody);
-    return c.json({ photo: value(await fresh(coreObject(c.env).patchPhoto(id, body))) });
+    const core = coreObject(c.env);
+    // A pending photo's Drive id (the service worker's, once the background upload ended): the
+    // file is checked with Drive against what the phone registered; the same id again needs no check.
+    if (body.drive_id !== undefined) {
+      const p = found(await fresh(core.photo(id)));
+      if (p.drive_id !== body.drive_id)
+        await inDrive(c.env, { drive_id: body.drive_id, bytes: p.bytes, sha256: p.sha256 });
+    }
+    return c.json({ photo: value(await fresh(core.patchPhoto(id, body))) });
   })
   .delete('/photos/:id', guard('DELETE /v1/photos/:id'), async (c) =>
     c.json({ photo: value(await fresh(coreObject(c.env).deletePhoto(idParam(c)))) }),

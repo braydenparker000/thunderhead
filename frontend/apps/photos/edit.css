@@ -3,7 +3,8 @@
    ui/tokens.css and photos.css. */
 .editor{position:absolute;inset:0;display:flex;flex-direction:column;background:#000;color:#fff;user-select:none;-webkit-user-select:none;touch-action:none}
 .estage{position:relative;flex:1;min-height:0;overflow:hidden;touch-action:none;isolation:isolate}
-.ecanvas{position:absolute;inset:0;display:block;width:100%;height:100%}
+.ecanvas{position:absolute;inset:0;display:block;width:100%;height:100%;transform-origin:0 0}
+.eback{position:absolute;left:0;top:0;transform-origin:0 0;pointer-events:none}
 .ehist{z-index:2;position:absolute;left:12px;top:calc(64px + env(safe-area-inset-top,0px));width:calc(100% - 24px);height:110px;border-radius:12px;background:rgba(0,0,0,.5);pointer-events:none}
 .ecam{z-index:1}
 .ecam[hidden],.ewipe[hidden],.ewdone[hidden]{display:none}
