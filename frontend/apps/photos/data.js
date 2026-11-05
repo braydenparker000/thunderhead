@@ -17,13 +17,18 @@ export const store = kv('th-photos');
 /** @template T @param {string} path @param {{ method?: string, body?: unknown }} [o] @returns {Promise<T>} */
 const call = (path, o = {}) => signedIn((token) => api.call(path, { ...o, token }));
 
-/** The shelf from `before` (or the top). The top page is kept for the offline shelf.
- * @param {string | null} before @returns {Promise<Shelf & { offline?: boolean }>} */
-export async function shelf(before = null) {
-  const key = `shelf:${before ?? 'top'}`;
+const q = (/** @type {Record<string, string | null>} */ o) => {
+  const s = new URLSearchParams(Object.entries(o).filter(([k, v]) => v && !(k === 'filter' && v === 'all')).map(([k, v]) => [k, String(v)])).toString();
+  return s ? `?${s}` : '';
+};
+
+/** The shelf from `before` (or the top) under a filter chip. The top page is kept for the offline shelf.
+ * @param {string | null} before @param {string} [filter] @returns {Promise<Shelf & { offline?: boolean }>} */
+export async function shelf(before = null, filter = 'all') {
+  const key = `shelf:${filter === 'all' ? '' : `${filter}:`}${before ?? 'top'}`;
   try {
     /** @type {Shelf} */
-    const s = await call(`/v1/photos${before ? `?before=${before}` : ''}`);
+    const s = await call(`/v1/photos${q({ before, filter })}`);
     store.set(key, s).catch(() => {});
     return s;
   } catch (e) {
@@ -33,15 +38,16 @@ export async function shelf(before = null) {
   }
 }
 
-/** One whole day. @param {string} day @returns {Promise<Shelf & { offline?: boolean }>} */
-export async function day(day) {
+/** One whole day under a filter chip. @param {string} day @param {string} [filter] @returns {Promise<Shelf & { offline?: boolean }>} */
+export async function day(day, filter = 'all') {
+  const key = `day:${filter === 'all' ? '' : `${filter}:`}${day}`;
   try {
     /** @type {Shelf} */
-    const s = await call(`/v1/photos?day=${day}`);
-    store.set(`day:${day}`, s).catch(() => {});
+    const s = await call(`/v1/photos${q({ day, filter })}`);
+    store.set(key, s).catch(() => {});
     return s;
   } catch (e) {
-    const kept = await store.get(`day:${day}`).catch(() => null);
+    const kept = await store.get(key).catch(() => null);
     if (kept) return { ...kept, offline: true };
     throw e;
   }
@@ -60,8 +66,11 @@ export async function photo(id) {
   }
 }
 
-/** @param {string} id @param {{ rating?: number, flag?: string | null, drive_id?: string }} body @returns {Promise<PhotoItem>} */
+/** @param {string} id @param {{ rating?: number, favorite?: boolean, flag?: string | null, drive_id?: string }} body @returns {Promise<PhotoItem>} */
 export const patch = async (id, body) => (await call(`/v1/photos/${id}`, { method: 'PATCH', body })).photo;
+/** The photos either side of one in the shelf's order under a filter (culling).
+ * @param {string} id @param {string} filter @returns {Promise<import('../../../shared/contract/photos.ts').PhotoAroundResponse>} */
+export const around = (id, filter) => call(`/v1/photos/${id}/around${q({ filter })}`);
 /** @param {string} id @returns {Promise<PhotoItem>} */
 export const remove = async (id) => (await call(`/v1/photos/${id}`, { method: 'DELETE' })).photo;
 /** @param {string} id @returns {Promise<PhotoItem>} */

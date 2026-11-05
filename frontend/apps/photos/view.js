@@ -1,14 +1,16 @@
 // @ts-check
 // One photo full-bleed (PHOTOS.md §3.1): its preview edge to edge on black, the day, the camera and
-// its film simulation; Edit opens the editor (edit/editor.js); hold it (or tap More) for Pick, Reject, a rating of 1 to 5 and Delete (to
+// its film simulation; Edit opens the editor (edit/editor.js); hold it (or tap More) for Pick, Reject, 1 to 5 stars, the heart and Delete (to
 // Recently deleted, 30 days). One day whole; Recently deleted with Restore. A photo the daily Drive
 // pass found gets its preview made here the first time it is opened.
 import { confirmSheet, el, toast } from '/th/ui.js';
 import * as data from './data.js';
 import { previewFromDrive } from './import.js';
 import { back, go } from './nav.js';
+import { mark, marksRow } from './rate.js';
 import { chooser } from './select.js';
 import { dayName, icon, thumb } from './shelf.js';
+import { currentFilter } from './shelf-filter.js';
 
 const HOLD_MS = 450;
 const sense = (/** @type {string} */ type, /** @type {string} */ id, /** @type {Record<string, unknown> | null} */ d = null) =>
@@ -20,7 +22,7 @@ export async function photoScreen(box, id) {
   const info = el('div', { class: 'info' });
   const marks = el('div', { class: 'marks', 'aria-live': 'polite' });
   const close = el('button', { type: 'button', class: 'vback', 'aria-label': 'Back to the shelf' }, [icon('caret-left')]);
-  const moreBtn = el('button', { type: 'button', class: 'vmore', 'aria-label': 'Rate, flag or delete' }, [icon('star')]);
+  const moreBtn = el('button', { type: 'button', class: 'vmore', 'aria-label': 'Stars, heart, flag or delete' }, [icon('star')]);
   const editBtn = el('button', { type: 'button', class: 'vedit', 'aria-label': 'Edit' }, [icon('pencil-simple')]);
   editBtn.addEventListener('click', () => go(`?edit=${id}`));
   const view = el('div', { class: 'view', role: 'dialog', 'aria-label': 'Photo' }, [img, el('div', { class: 'vtop' }, [close, info, editBtn, moreBtn]), marks]);
@@ -40,6 +42,8 @@ export async function photoScreen(box, id) {
     marks.replaceChildren(
       ...(q.flag === 'pick' ? [el('span', { class: 'mark', text: 'Picked' })] : q.flag === 'reject' ? [el('span', { class: 'mark', text: 'Rejected' })] : []),
       ...(q.rating ? [el('span', { class: 'mark', text: '★'.repeat(q.rating) })] : []),
+      ...(q.favorite ? [el('span', { class: 'mark', text: '♥ Favourite' })] : []),
+      ...(q.pair_id ? [el('span', { class: 'mark', text: q.format === 'jpeg' ? 'The JPEG of a RAW+JPEG' : 'RAW+JPEG' })] : []),
     );
   };
   show(p);
@@ -77,27 +81,18 @@ function actions(host, p, show) {
   const dim = el('div', { class: 'pdim' });
   const shut = () => { dim.remove(); sheet.remove(); };
   dim.addEventListener('click', shut);
-  const set = async (/** @type {{ rating?: number, flag?: string | null }} */ body) => {
-    try {
-      const q = await data.patch(p.id, body);
-      show(q);
-      sense('photo.rate', p.id, { rating: q.rating, flag: q.flag ?? 'none' });
-      shut();
-    } catch {
-      toast('That did not save. Try again.');
-    }
+  const set = async (/** @type {import('./rate.js').Marks} */ body) => {
+    const q = await mark(p, body);
+    if (!q) return;
+    show(q);
+    shut();
   };
   const flag = (/** @type {'pick'|'reject'} */ f, /** @type {string} */ label, /** @type {string} */ ic) => {
     const b = el('button', { type: 'button', class: `pact${p.flag === f ? ' on' : ''}`, 'aria-pressed': String(p.flag === f) }, [icon(ic), el('span', { text: label })]);
     b.addEventListener('click', () => set({ flag: p.flag === f ? null : f }));
     return b;
   };
-  const stars = el('div', { class: 'stars', role: 'group', 'aria-label': 'Rating' });
-  for (let n = 1; n <= 5; n++) {
-    const s = el('button', { type: 'button', class: `star${n <= p.rating ? ' on' : ''}`, 'aria-label': `${n} star${n === 1 ? '' : 's'}`, 'aria-pressed': String(n === p.rating) }, [icon(n <= p.rating ? 'star-fill' : 'star')]);
-    s.addEventListener('click', () => set({ rating: n === p.rating ? 0 : n }));
-    stars.append(s);
-  }
+  const marks = marksRow(p, set);
   const del = el('button', { type: 'button', class: 'pact danger' }, [icon('trash'), el('span', { text: 'Delete' })]);
   del.addEventListener('click', async () => {
     shut();
@@ -114,7 +109,7 @@ function actions(host, p, show) {
   });
   const sheet = el('div', { class: 'psheet', role: 'dialog', 'aria-label': 'This photo' }, [
     el('div', { class: 'prow' }, [flag('pick', 'Pick', 'flag'), flag('reject', 'Reject', 'prohibit')]),
-    stars,
+    marks.row,
     del,
   ]);
   host.append(dim, sheet);
@@ -130,7 +125,7 @@ export async function dayScreen(box, day) {
   box.replaceChildren(el('div', { class: 'shelf' }, [top, title, grid]));
   const pick = chooser(box, title);
   try {
-    const s = await data.day(day);
+    const s = await data.day(day, currentFilter());
     grid.append(...(s.days[0]?.photos ?? []).map((p) => pick.wire(thumb(p), p)));
     if (!s.days.length) grid.append(el('p', { class: 'empty', text: 'Nothing on this day any more.' }));
   } catch {

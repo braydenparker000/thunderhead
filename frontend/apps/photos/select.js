@@ -1,6 +1,7 @@
 // @ts-check
 // Choosing photos (PHOTOS.md, Copy and paste): on the shelf or a whole day, a long press on a photo
-// starts choosing (a short buzz where the phone has one), a tap adds or takes away, the bar on top
+// opens its menu (a short buzz where the phone has one; rate.js), whose Choose starts choosing with
+// that photo; then a tap adds or takes away (and a long press adds), the bar on top
 // counts them and offers Paste (while an edit is copied), Export and Cancel; 20 at most, and the 21st
 // tap says so. Paste is one call (POST /v1/photos/paste) and one ledger row, with Undo for all of
 // them; Export opens the editor's Export sheet for the chosen photos (edit/batch.js). While an edit
@@ -9,6 +10,7 @@ import { api, signedIn } from '/th/client.js';
 import { el, toast } from '/th/ui.js';
 import { drop, held, MAX_PHOTOS, named, PANEL_NAMES } from './copied.js';
 import * as data from './data.js';
+import { tileMarks, tileMenu } from './rate.js';
 
 const HOLD_MS = 450;
 const SLOP = 10;
@@ -53,7 +55,7 @@ export function chooser(box, head) {
     if (c) {
       const x = el('button', { type: 'button', class: 'chipx', 'aria-label': 'Let the copied edit go' }, [icon('x')]);
       x.addEventListener('click', () => { drop(); draw(); });
-      chip.replaceChildren(icon('copy'), el('span', { text: `Copied: ${named(c.panels)}. Hold a photo to choose where it goes.` }), x);
+      chip.replaceChildren(icon('copy'), el('span', { text: `Copied: ${named(c.panels)}. Hold a photo and tap Choose to say where it goes.` }), x);
     }
   };
   const leave = () => { on = false; chosen.clear(); draw(); };
@@ -129,8 +131,12 @@ export function chooser(box, head) {
         t = null;
         fired = true;
         navigator.vibrate?.(12);
-        if (!on) { on = true; chosen.clear(); }
-        if (!chosen.has(p.id)) toggle(p); else draw();
+        if (on) { if (!chosen.has(p.id)) toggle(p); else draw(); return; }
+        // Not choosing yet: the tile's menu (rate.js), whose Choose starts it with this photo.
+        tileMenu(box, p, {
+          choose: () => { on = true; chosen.clear(); toggle(p); },
+          changed: (q) => tile.querySelector('.tmarks')?.replaceWith(tileMarks(q)),
+        });
       }, HOLD_MS);
     });
     tile.addEventListener('pointermove', (e) => { if (Math.hypot(e.clientX - x0, e.clientY - y0) > SLOP) stop(); });

@@ -5,13 +5,15 @@
 // image the test draws in the browser. Nothing here comes from a camera.
 
 /** A little-endian TIFF of IFD0 (Make, Model, the EXIF IFD) and the EXIF IFD, its values after it. */
-function exifTiff({ make, model, taken, zone, width, height, film }) {
+function exifTiff({ make, model, taken, zone, width, height, film, rating = 0 }) {
   const out = [];
   const u16 = (v) => out.push(v & 255, (v >> 8) & 255);
   const u32 = (v) => out.push(v & 255, (v >> 8) & 255, (v >> 16) & 255, (v >>> 24) & 255);
   const text = (s) => [...new TextEncoder().encode(s), 0];
-  // The MakerNote: "FUJIFILM", its IFD at 12 from its own start: Saturation 0 (colour), FilmMode.
-  const note = [...new TextEncoder().encode('FUJIFILM'), 12, 0, 0, 0, 2, 0, 0x03, 0x10, 3, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0x01, 0x14, 3, 0, 1, 0, 0, 0, film & 255, film >> 8, 0, 0, 0, 0, 0, 0];
+  // The MakerNote: "FUJIFILM", its IFD at 12 from its own start: Saturation 0 (colour), FilmMode, and
+  // the camera's Rating (0x1431) when one is given.
+  const tags = [[0x1003, 3, 0], [0x1401, 3, film], ...(rating ? [[0x1431, 4, rating]] : [])];
+  const note = [...new TextEncoder().encode('FUJIFILM'), 12, 0, 0, 0, tags.length, 0, ...tags.flatMap(([t, ty, v]) => [t & 255, t >> 8, ty, 0, 1, 0, 0, 0, v & 255, v >> 8, 0, 0]), 0, 0, 0, 0];
   const ifd0 = [[0x010f, 2, text(make)], [0x0110, 2, text(model)], [0x8769, 4, null]];
   const exif = [[0x9003, 2, text(taken)], [0x9011, 2, text(zone)], [0xa002, 4, width], [0xa003, 4, height], [0x927c, 7, note]];
   const size = (list) => 2 + list.length * 12 + 4;

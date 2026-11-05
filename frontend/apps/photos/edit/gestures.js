@@ -1,8 +1,9 @@
 // @ts-check
 // The photo's gestures in the editor (PHOTOS.md, the editor; GESTURES.md): hold for before/after
 // (the as-shot recipe while the finger stays), two fingers for the histogram, pinch to zoom up to
-// 1:1 and drag to pan when zoomed, a double tap between fit and 1:1, and, when a tool asks for the
-// photo (the white balance picker, Mix's targeted drag), a tap or a vertical drag on it instead.
+// 1:1 and drag to pan when zoomed, a double tap between fit and 1:1, a swipe at fit for culling
+// (cull.js), and, when a tool asks for the photo (the white balance picker, Mix's targeted drag), a
+// tap or a vertical drag on it instead.
 
 const HOLD_MS = 350;
 const MOVE_PX = 8;
@@ -13,7 +14,8 @@ const DOUBLE_MS = 300;
  * @param {HTMLElement} stage
  * @param {{ before: (on: boolean) => void, histogram: (on: boolean) => void, zoom: (factor: number, x: number, y: number) => void,
  *   pan: (dx: number, dy: number) => void, settle: () => void, doubleTap: (x: number, y: number) => void,
- *   mode: () => 'view' | 'pick' | 'target', tap: (x: number, y: number) => void, target: (x: number, y: number, dy: number, done: boolean) => void }} on
+ *   mode: () => 'view' | 'pick' | 'target', tap: (x: number, y: number) => void, target: (x: number, y: number, dy: number, done: boolean) => void,
+ *   swipe?: (dx: number, dy: number) => boolean }} on
  */
 export function photoGestures(stage, on) {
   /** @type {Map<number, { x: number, y: number, x0: number, y0: number }>} */
@@ -63,7 +65,7 @@ export function photoGestures(stage, on) {
     stopHold();
     if (holding) { holding = false; on.before(false); return; }
     if (two) { two = false; if (pinching) { pinching = false; on.settle(); } else on.histogram(false); return; }
-    if (moved) { if (on.mode() === 'target') on.target(p.x0, p.y0, p.y - p.y0, true); else on.settle(); return; }
+    if (moved) { if (on.mode() === 'target') on.target(p.x0, p.y0, p.y - p.y0, true); else if (!on.swipe?.(p.x - p.x0, p.y - p.y0)) on.settle(); return; }
     if (on.mode() !== 'view') { on.tap(p.x, p.y); return; }
     if (e.timeStamp - lastTap.t < DOUBLE_MS && Math.hypot(p.x - lastTap.x, p.y - lastTap.y) < 30) { lastTap.t = 0; on.doubleTap(p.x, p.y); return; }
     lastTap = { t: e.timeStamp, x: p.x, y: p.y };

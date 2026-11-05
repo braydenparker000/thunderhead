@@ -1,15 +1,18 @@
 {
-  "id": "2026-11-05-photos-background",
+  "id": "2026-11-05-photos-shelf",
   "date": "2026-11-05",
   "lines": [
     {
-      "text": "Photos keeps uploading from this phone when you leave the app or lock the screen, on Android Chrome."
+      "text": "Photos shows a RAW and its JPEG as one photo, marked RAW+JPEG; the editor opens the RAW."
     },
     {
-      "text": "A notification shows each photo's progress; the shelf marks a photo Uploading until it is in Drive."
+      "text": "Give a photo stars or a heart: hold it on the shelf, or swipe up on it in the editor."
     },
     {
-      "text": "If one does not finish, Photos says so: pick the same file again and it goes on from where it stopped."
+      "text": "Chips on the shelf show only favourites, 4 stars or more, RAW, edited and more."
+    },
+    {
+      "text": "In the editor, swipe left or right to go through your photos while you pick the best."
     }
   ]
 }
