@@ -70,7 +70,7 @@ before(async () => {
 });
 after(async () => { await browser?.close(); site?.close(); mock?.close(); });
 
-test('first open reads the info from the original, the sheet shows it at 390×844, Copy copies it, the place goes nowhere', opts, async () => {
+async function open(path) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true });
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
   await context.route('https://www.googleapis.com/drive/v3/files/**', (route) => {
@@ -92,7 +92,12 @@ test('first open reads the info from the original, the sheet shows it at 390×84
       tx.onerror = () => reject(tx.error);
     };
   }), TOKEN);
-  await page.goto(`${base}/photos/?edit=${ID}`, { waitUntil: 'load' });
+  await page.goto(`${base}${path}`, { waitUntil: 'load' });
+  return { context, page, errors };
+}
+
+test('first open reads the info from the original, the sheet shows it at 390×844, Copy copies it, the place goes nowhere', opts, async () => {
+  const { context, page, errors } = await open(`/photos/?edit=${ID}`);
 
   // The first open: the original's first bytes read (a range, never the whole file), the info sent.
   await until(() => state.infoPuts.length === 1, { message: 'the info was never sent' });
@@ -104,7 +109,8 @@ test('first open reads the info from the original, the sheet shows it at 390×84
   assert.equal(sent.info.lens, 'XF23mmF2 R WR');
   assert.doesNotMatch(state.infoPuts[0], PLACE);
 
-  // The sheet from the top bar.
+  // The sheet from the top bar, once the editor has drawn the original and settled.
+  await until(() => page.evaluate(() => { const e = document.querySelector('.editor'); return e?.dataset.frame === 'original' && e.dataset.idle === 'true'; }), { timeout: 30_000, message: 'the original never drew' });
   await page.locator('.einfo').click();
   await page.waitForSelector('.isheet .ibody:not([aria-busy])');
   const text = await page.locator('.isheet').innerText();
@@ -118,6 +124,7 @@ test('first open reads the info from the original, the sheet shows it at 390×84
   assert.ok(fits, 'the sheet fits the screen');
   // The histogram, drawn: some lit pixels.
   await until(() => page.evaluate(() => { const c = document.querySelector('.ihist'); return c && c.getContext('2d').getImageData(0, 0, c.width, c.height).data.some((v, i) => i % 4 === 3 && v > 0); }), { message: 'the histogram never drew' });
+  assert.equal(await page.locator('.ihist').getAttribute('data-from'), 'live', 'the editor’s histogram is its live render’s');
   if (SHOTS) { mkdirSync(SHOTS, { recursive: true }); await page.screenshot({ path: `${SHOTS}/photos-info-sheet.png` }); }
   await page.locator('.isheet').evaluate((s) => { s.scrollTop = s.scrollHeight; });
   if (SHOTS) await page.screenshot({ path: `${SHOTS}/photos-info-sheet-end.png` });
@@ -133,6 +140,28 @@ test('first open reads the info from the original, the sheet shows it at 390×84
   // Opened again, the info is known: no second read.
   await page.mouse.click(195, 40);
   await page.waitForSelector('.isheet', { state: 'detached' });
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('the shelf’s tile menu opens the same sheet over the shelf', opts, async () => {
+  const { context, page, errors } = await open('/photos/');
+  const tile = page.locator(`.days .tile[data-id="${ID}"]`);
+  const b = await tile.boundingBox();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await until(() => page.locator('.tmenu').isVisible(), { message: 'the long press did not open the menu' });
+  await page.mouse.up();
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/photos-info-menu.png` });
+  await page.locator('.tmenu .pact', { hasText: 'Info' }).click();
+  await page.waitForSelector('.psheet.isheet .ibody:not([aria-busy])');
+  const text = await page.locator('.isheet').innerText();
+  for (const s of ['Classic Chrome', 'XF23mmF2 R WR', 'In Drive']) assert.ok(text.includes(s), `the sheet shows ${s}`);
+  assert.doesNotMatch(text, PLACE);
+  await until(() => page.evaluate(() => { const c = document.querySelector('.ihist'); return c && c.getContext('2d').getImageData(0, 0, c.width, c.height).data.some((v, i) => i % 4 === 3 && v > 0); }), { message: 'the preview’s histogram never drew' });
+  assert.equal(await page.locator('.ihist').getAttribute('data-from'), 'preview');
+  if (SHOTS) await page.screenshot({ path: `${SHOTS}/photos-info-shelf.png` });
+  assert.equal(state.infoPuts.length, 1, 'the info, known, is not read again');
   assert.deepEqual(errors, []);
   await context.close();
 });

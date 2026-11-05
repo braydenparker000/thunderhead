@@ -49,7 +49,7 @@ export const asText = (s) => s.filter(([, rows]) => rows.length).map(([t, rows])
 export async function infoSheet(host, p, o = {}) {
   if (host.querySelector('.isheet')) return;
   const dark = Boolean(host.closest('.editor'));
-  const dim = el('div', { class: dark ? 'xdim' : 'pdim' });
+  const dim = el('div', { class: dark ? 'xdim' : 'pdim tdim' });
   const body = el('div', { class: 'ibody', 'aria-busy': 'true' });
   const copy = /** @type {HTMLButtonElement} */ (el('button', { type: 'button', class: 'pact icopy', disabled: '' }, [icon('copy'), el('span', { text: 'Copy' })]));
   const sheet = el('div', { class: `${dark ? 'xsheet' : 'psheet'} isheet`, role: 'dialog', 'aria-label': 'Info' }, [el('h2', { text: 'Info' }), body, copy]);
@@ -85,9 +85,11 @@ export async function infoSheet(host, p, o = {}) {
     }
   });
   // The editor's live render once it has one (before its first frame, none: the preview's).
+  /** @type {Uint8Array | null} */
   let px = null;
   try { px = o.pixels?.() ?? null; } catch {}
-  px ??= await previewPixels(p.id).catch(() => null);
+  hist.dataset.from = px?.length ? 'live' : 'preview';
+  if (!px?.length) px = await previewPixels(p.id).catch(() => null);
   if (px) drawHistogram(hist, histogram(px));
   else hist.replaceWith(el('p', { class: 'inote', text: 'No preview on this phone yet.' }));
 }
