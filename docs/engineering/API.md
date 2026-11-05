@@ -853,12 +853,20 @@ public and checked by its one-use state.
   does not know is registered with no preview, as the daily pass does, with no ledger row; a known
   Drive id is `already`; a folder, a file in the trash, one Drive will not show and anything not RAF,
   DNG, JPEG or HEIC is refused. 409 while Drive is not connected.
-- `PUT /v1/photos/:id` `{drive_id, name, format, bytes, sha256, camera?, film?, width?, height?, taken_at}`
+- `PUT /v1/photos/:id` `{drive_id, name, format, bytes, sha256, camera?, film?, width?, height?, taken_at, info?}`
   → 201 `{photo}`, after one check with Drive: the file is in the app's folder, not in the trash,
   with that size and (when Drive gives one) that SHA-256, else 422 on `drive_id`; the same id again is 200, a Drive file already on the shelf is that photo (200),
   another Drive file on the same id 409. Its day is `taken_at`'s in the owner's zone.
   `drive_id: null` registers a **pending** photo (its upload runs in the background, PHOTOS.md §1)
   with no call to Drive; the same photo's PUT again with its Drive id (the same SHA-256) takes it.
+  `info` is what the file says about itself (`shared/contract/photos-info.ts`): an allowlist of
+  numbers (the EXIF's and Fujifilm's maker note's codes) and two names (`lens`, `software`, ≤ 80
+  characters), ≤ 2 KB as sent (else 413); a key it does not know is dropped (no place key exists:
+  GPS is never sent), a known key out of its range 422; kept canonical in `photos.info`.
+- `PUT /v1/photos/:id/info` `{info, camera?, film?}` → `{photo, changed}`: the info for a photo
+  registered without it (the editor reads it the first time the photo is opened), checked as above;
+  `camera` and `film` only fill a photo that has none; the same again writes nothing (`changed: false`).
+  404 for a photo the shelf does not have or that is deleted.
 - `GET /v1/photos/pending` → `{items}`: photos on the shelf with no Drive id yet, newest first (≤ 200).
   A pending photo is on the shelf; a paste onto it is 409 `conflict` ("a photo is still uploading").
 - `GET /v1/photos?before=<day>` → `{days: [{day, count, photos (≤ 4)}], next}`, 14 days a page,
@@ -869,7 +877,7 @@ public and checked by its one-use state.
   other half) is one photo, its RAW, on the shelf and in Recently deleted.
 - `GET /v1/photos/:id/around?filter=` → `{newer, older}`: the ids beside this photo in the shelf's
   order under the filter (null at an end), for culling in the editor; 404 for a photo not on the shelf's rows.
-- `GET /v1/photos/:id` → `{photo, recipe}` (`recipe` `{}` as shot; `photo.edited` says whether it has one); `PATCH` `{rating 0–5, favorite, flag 'pick'|'reject'|null, drive_id?}`
+- `GET /v1/photos/:id` → `{photo, recipe, info}` (`recipe` `{}` as shot; `photo.edited` says whether it has one; `info` null until the file is read, `{}` when it said nothing; the shelf's items never carry it); `PATCH` `{rating 0–5, favorite, flag 'pick'|'reject'|null, drive_id?}`
   (no ledger row; a stack's `rating`, `favorite` and `flag` go on both its photos; a `DELETE` or a restore takes both)
   (`drive_id`: a pending photo's, once its background upload ended; checked with Drive against the
   registered size and SHA-256, 422 when it differs; the same id again writes nothing; another id, or a

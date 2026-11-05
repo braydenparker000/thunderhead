@@ -2,7 +2,7 @@
 // An import (PHOTOS.md §3.1): for each picked file, its embedded preview is read and decoded once,
 // the thumbnail shown at once (on the shelf in under a second), the original's upload to Drive
 // started (drive.js, with its progress) and the working preview made from the same bitmap while it
-// runs (preview.js); the photo is registered with what the file says (read.js) and the preview sent
+// runs (preview.js); the photo is registered with what the file says (read.js; its info, info.js) and the preview sent
 // right after (a failed preview never fails the import); where the browser can, the upload goes on
 // in the background with Photos closed (background.js). `photo.import` says it happened (the id,
 // the format and where from, never the name). A photo found in Drive by the daily pass, or picked
@@ -12,6 +12,7 @@ import { BACKGROUND_MAX, begin, follow, handOff, keptFor, manager, sayOnce } fro
 import { fetchOriginal, upload } from './drive.js';
 import * as data from './data.js';
 import { decodeOnce } from './preview.js';
+import { readInfo } from './info.js';
 import { formatOf, readPhoto } from './read.js';
 
 /** @typedef {{ id: string, name: string, thumb: Blob | null, taken_at: number }} Arrival */
@@ -67,6 +68,7 @@ export async function importFiles(files, arrive) {
     let preview = /** @type {Promise<{ blob: Blob } | null>} */ (Promise.resolve(null));
     try {
       const sha = hash(file);
+      const info = readInfo(file, meta);
       const body = async (/** @type {string | null} */ drive_id) => ({
         drive_id,
         name,
@@ -78,6 +80,7 @@ export async function importFiles(files, arrive) {
         width: meta.width,
         height: meta.height,
         taken_at: Math.max(0, Math.round(meta.taken_at)),
+        info: await info,
       });
       const key = `session:${file.name}:${file.size}`;
       let session = kept?.session ?? (await data.store.get(key).catch(() => null));

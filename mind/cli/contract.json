@@ -1939,6 +1939,14 @@
       "phase": "P9",
       "status": "built"
     },
+    "PUT /v1/photos/:id/info": {
+      "who": [
+        "D"
+      ],
+      "phase": "P9",
+      "status": "built",
+      "note": "{info, camera?, film?}: what the file says (an allowlist, ≤ 2 KB; unknown keys dropped; never GPS) for a photo registered without it; camera and film only where it has none"
+    },
     "PUT /v1/photos/:id/preview": {
       "who": [
         "D"

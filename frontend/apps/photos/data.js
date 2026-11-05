@@ -53,10 +53,16 @@ export async function day(day, filter = 'all') {
   }
 }
 
+/** Each photo's info as its GET brought it (null: its file not read yet), for the Info sheet (info.js).
+ * @type {Map<string, import('../../../shared/contract/photos-info.ts').PhotoInfo | null>} */
+export const infos = new Map();
+
 /** @param {string} id @returns {Promise<PhotoItem>} */
 export async function photo(id) {
   try {
-    const p = (await call(`/v1/photos/${id}`)).photo;
+    const r = await call(`/v1/photos/${id}`);
+    const p = r.photo;
+    infos.set(id, r.info ?? null);
     store.set(`photo:${id}`, p).catch(() => {});
     return p;
   } catch (e) {
@@ -90,6 +96,9 @@ export const fromDrive = (ids) => call('/v1/photos/from-drive', { method: 'POST'
 export const coming = new Set();
 /** @param {string} id @param {object} body @returns {Promise<PhotoItem>} */
 export const register = async (id, body) => (await call(`/v1/photos/${id}`, { method: 'PUT', body })).photo;
+/** The file's info for a photo registered without it. @param {string} id
+ * @param {import('../../../shared/contract/photos-info.ts').PutPhotoInfoRequest} body @returns {Promise<{ photo: PhotoItem, changed: boolean }>} */
+export const putInfo = (id, body) => call(`/v1/photos/${id}/info`, { method: 'PUT', body });
 /** The owner's preview size (Settings › Photos), as this phone last saw their settings. */
 export function previewSide() {
   try {

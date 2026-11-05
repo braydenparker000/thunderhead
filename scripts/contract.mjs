@@ -5,6 +5,7 @@
 //                                 error codes, the phrase lint
 //   docs/engineering/CONTRACT.md  the generated appendix to API.md
 //   frontend/apps/settings/catalog-data.js  the settings catalogue the Settings pages render
+//   frontend/apps/photos/info-limits.js     a photo's info: its numbers' ranges and its sizes
 //   node scripts/contract.mjs           rewrites them
 //   node scripts/contract.mjs --check   exits 1 naming any that are stale (tests/contract-gen.test.mjs)
 // Node strips the contract's types on import; nothing is built or bundled.
@@ -14,9 +15,10 @@ import { fileURLToPath } from 'node:url';
 import * as z from 'zod/mini';
 import * as c from '../shared/contract/index.ts';
 import { BANNED_PHRASES, BANNED_SHAPES, ONLY_A_LIST } from '../shared/contract/lint.ts';
+import { INFO_LIMITS, INFO_NUMBERS } from '../shared/contract/photos-info.ts';
 
 const REPO = fileURLToPath(new URL('../', import.meta.url));
-export const OUTPUTS = ['frontend/th/contract.js', 'mind/cli/contract.json', 'docs/engineering/CONTRACT.md', 'frontend/apps/settings/catalog-data.js'];
+export const OUTPUTS = ['frontend/th/contract.js', 'mind/cli/contract.json', 'docs/engineering/CONTRACT.md', 'frontend/apps/settings/catalog-data.js', 'frontend/apps/photos/info-limits.js'];
 
 const schema = (s) => {
   const { $schema: _, ...rest } = z.toJSONSchema(s, { io: 'input' });
@@ -491,6 +493,21 @@ function docs() {
   return `${L.join('\n')}`;
 }
 
+/** A photo's info for the phone (shared/contract/photos-info.ts): what the Worker keeps, so the
+ * phone sends only that and a strange file never makes a registration fail. */
+function infoLimits() {
+  const j = (v) => JSON.stringify(v);
+  return `// Generated from shared/contract/photos-info.ts by scripts/contract.mjs; do not edit (run \`node scripts/contract.mjs\`).
+// A photo's info (PHOTOS.md § Info): the numbers it may carry, each with its range, and its sizes.
+
+/** @type {Readonly<typeof import('../../../shared/contract/photos-info.ts').INFO_NUMBERS>} */
+export const INFO_NUMBERS = Object.freeze(${j(INFO_NUMBERS)});
+
+/** @type {Readonly<typeof import('../../../shared/contract/photos-info.ts').INFO_LIMITS>} */
+export const INFO_LIMITS = Object.freeze(${j(INFO_LIMITS)});
+`;
+}
+
 /** The settings catalogue for the phone's Settings pages (shared/contract/settings.ts): data only;
  * the pages check values with their own copy of validSetting. */
 function settings() {
@@ -509,7 +526,7 @@ ${c.SETTINGS.map((s) => `  ${j(s)},`).join('\n')}
 }
 
 export function render() {
-  return { [OUTPUTS[0]]: phone(), [OUTPUTS[1]]: mind(), [OUTPUTS[2]]: docs(), [OUTPUTS[3]]: settings() };
+  return { [OUTPUTS[0]]: phone(), [OUTPUTS[1]]: mind(), [OUTPUTS[2]]: docs(), [OUTPUTS[3]]: settings(), [OUTPUTS[4]]: infoLimits() };
 }
 
 /** Files whose committed text differs from what the contract gives. */

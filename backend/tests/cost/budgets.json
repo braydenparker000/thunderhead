@@ -727,6 +727,22 @@
     "rows_read_max": 5,
     "rows_written_max": 0
   },
+  "PUT /v1/photos/:id (an import with its info) (Core)": {
+    "rows_read_max": 5,
+    "rows_written_max": 5
+  },
+  "GET /v1/photos/:id (with its info) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 0
+  },
+  "PUT /v1/photos/:id/info (on its first open) (Core)": {
+    "rows_read_max": 3,
+    "rows_written_max": 2
+  },
+  "PUT /v1/photos/:id/info (the same again) (Core)": {
+    "rows_read_max": 2,
+    "rows_written_max": 0
+  },
   "PATCH /v1/photos/:id/versions/:vid (Core)": {
     "rows_read_max": 4,
     "rows_written_max": 3

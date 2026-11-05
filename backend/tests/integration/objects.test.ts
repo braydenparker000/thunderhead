@@ -27,7 +27,7 @@ describe('objects', () => {
     const { body } = await apiJson<DeepHealthResponse>('GET', '/v1/ops/health/deep', {
       token: (await loginOk()).token,
     });
-    expect(body.schema).toEqual({ core: 45, auth: 4, music: 5, senses: 2, library: 3 });
+    expect(body.schema).toEqual({ core: 46, auth: 4, music: 5, senses: 2, library: 3 });
     expect(body.ok).toBe(true);
   });
 
