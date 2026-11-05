@@ -1,5 +1,6 @@
 // The shelf's rules inside Core (PHOTOS.md §3.1): a photo is registered once its original is in
-// Drive (the same id again is a retry; a Drive file already on the shelf is that photo), rated and
+// Drive (the same id again is a retry; a Drive file already on the shelf is that photo), or pending
+// while the browser uploads it in the background, its Drive id coming later; rated and
 // flagged, moved to Recently deleted and back, given its preview; the daily Drive pass and an import
 // from Drive register files the shelf does not know. Its day is its capture day in the owner's zone.
 import {
@@ -15,12 +16,16 @@ import { DAY, ownerDay, zonedMinute } from '../../lib/time';
 import type { Writer } from '../../objects/commit';
 import * as store from './store';
 
-/** Registers a photo whose original is in Drive. Returns the photo and whether it is new. */
+/** Registers a photo whose original is in Drive, or a pending one (`drive_id` null: its upload runs
+ * in the background). The same id again is a retry; a pending photo's own file with its Drive id
+ * takes it. Returns the photo and whether it is new. */
 export function put(w: Writer, id: string, r: PutPhotoRequest, tz: string): { photo: PhotoItem; created: boolean } {
-  const had = store.byId(w.db, id) ?? store.byDrive(w.db, r.drive_id);
+  const had = store.byId(w.db, id) ?? (r.drive_id ? store.byDrive(w.db, r.drive_id) : null);
   if (had) {
-    if (had.drive_id !== r.drive_id) throw new Fail('conflict');
-    return { photo: store.toItem(had), created: false };
+    if (r.drive_id === null || had.drive_id === r.drive_id) return { photo: store.toItem(had), created: false };
+    if (had.drive_id === null && had.id === id && had.sha256 === r.sha256)
+      return { photo: attach(w, had, r.drive_id), created: false };
+    throw new Fail('conflict');
   }
   const row: store.PhotoRow = {
     id,
@@ -49,6 +54,17 @@ export function put(w: Writer, id: string, r: PutPhotoRequest, tz: string): { ph
   return { photo: store.toItem(row), created: true };
 }
 
+/** A pending photo's Drive id, once (a deleted one takes it too, so its original goes to Drive's
+ * trash with it): the same id again writes nothing; another id, or a file another photo has, is a conflict. */
+function attach(w: Writer, r: store.PhotoRow, driveId: string): PhotoItem {
+  if (r.drive_id === driveId) return store.toItem(r);
+  const other = store.byDrive(w.db, driveId);
+  if (r.drive_id !== null || other) throw new Fail('conflict');
+  store.setDrive(w.db, r.id, driveId, w.at);
+  w.change('photo', `photo:${r.id}`);
+  return store.toItem({ ...r, drive_id: driveId });
+}
+
 const live = (w: Writer, id: string): store.PhotoRow => {
   const r = store.byId(w.db, id);
   if (!r || r.deleted_at !== null) throw new Fail('not_found');
@@ -56,6 +72,12 @@ const live = (w: Writer, id: string): store.PhotoRow => {
 };
 
 export function patch(w: Writer, id: string, p: PatchPhotoRequest): PhotoItem {
+  if (p.drive_id !== undefined) {
+    const had = store.byId(w.db, id);
+    if (!had) throw new Fail('not_found');
+    const item = attach(w, had, p.drive_id);
+    if (p.rating === undefined && p.flag === undefined) return item;
+  }
   const r = live(w, id);
   const rating = p.rating ?? r.rating;
   const flag = p.flag === undefined ? r.flag : p.flag;
@@ -133,11 +155,19 @@ function found(w: Writer, f: DriveFile, tz: string, newId: (at: number) => strin
 }
 
 /** The Drive pass's files (at most 200 a run): each one the shelf does not know, and that was not
- * purged, becomes a photo with no preview. Returns how many. */
+ * purged, becomes a photo with no preview, unless it is a pending photo's own. Returns how many new. */
 export function reconcile(w: Writer, files: DriveFile[], tz: string, newId: (at: number) => string): number {
   let n = 0;
+  // A pending photo whose background upload ended with no word to the Worker: its file (the same
+  // name and size) is that photo, not a new one.
+  const pending = files.length ? store.pending(w.db, L.pending_max) : [];
   for (const f of files.slice(0, L.reconcile_files)) {
     if (store.byDrive(w.db, f.id) || store.isGone(w.db, f.id)) continue;
+    const mine = pending.findIndex((p) => p.name === f.name.slice(0, L.name_chars) && p.bytes === f.size);
+    if (mine >= 0) {
+      attach(w, pending.splice(mine, 1)[0] as store.PhotoRow, f.id);
+      continue;
+    }
     found(w, f, tz, newId);
     n++;
   }

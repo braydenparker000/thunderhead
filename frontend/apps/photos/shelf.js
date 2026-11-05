@@ -5,8 +5,10 @@
 // the Worker's preview once; offline, the kept shelf is shown with a plain line. From Drive opens
 // Google's picker (pick.js) for files already in Drive, each on the shelf at once with its name until
 // its preview comes (from-drive.js). A long press starts choosing photos to paste a copied edit onto
-// or to export (select.js).
+// or to export (select.js). A photo whose upload runs in the background (background.js) is on the
+// shelf with a small "Uploading" mark; on open, the uploads it left are settled or said to have failed.
 import { el, toast } from '/th/ui.js';
+import { pendingMark, resume } from './background.js';
 import * as data from './data.js';
 import { importFiles } from './import.js';
 import { go } from './nav.js';
@@ -53,6 +55,7 @@ const count = (/** @type {number} */ n) => `${n} photo${n === 1 ? '' : 's'}`;
 export function thumb(p) {
   const box = el('button', { type: 'button', class: `tile${p.flag === 'reject' ? ' rejected' : ''}`, 'aria-label': `Photo, ${dayName(p.day)}`, 'data-id': p.id });
   box.addEventListener('click', () => go(`?photo=${p.id}`));
+  if (!p.drive_id) box.append(el('span', { class: 'tmark', text: pendingMark(p) }));
   (async () => {
     let blob = await data.thumbOf(p.id);
     if (!blob && p.preview) {
@@ -110,8 +113,10 @@ export async function shelfScreen(box) {
   picker.addEventListener('change', () => {
     const files = [...(picker.files ?? [])];
     picker.value = '';
-    if (files.length) importFiles(files, (a) => arrival(arriving, a));
+    if (files.length) importFiles(files, (a) => arrival(arriving, a, again));
   });
+  const again = () => picker.click();
+  resume(async (k) => arrival(arriving, { id: k.id, name: k.name, thumb: await data.thumbOf(k.id), taken_at: 0 }, again)).catch(() => {});
   pullToImport(shelf, pull, () => picker.click());
   fromDrive(drive, dnote);
 
@@ -177,14 +182,17 @@ function driveRow() {
   };
 }
 
-/** One photo arriving: its thumbnail at once, a bar while it uploads, on the shelf once in.
- * @param {HTMLElement} host @param {import('./import.js').Arrival} a */
-function arrival(host, a) {
+/** One photo arriving: its thumbnail at once, a bar while it uploads, on the shelf once in; one
+ * that failed offers Try again (the same file picked again goes on from where it stopped).
+ * @param {HTMLElement} host @param {import('./import.js').Arrival} a @param {() => void} again */
+function arrival(host, a, again) {
   const bar = el('span', { class: 'bar' });
   const img = el('img', { class: 'thumb', alt: '' });
   if (a.thumb) img.src = URL.createObjectURL(a.thumb);
   const note = el('span', { class: 'anote', text: 'Uploading to Drive' });
   const row = el('div', { class: 'arrival', 'data-id': a.id }, [img, el('div', { class: 'acopy' }, [el('b', { text: a.name }), note, el('span', { class: 'track' }, [bar])])]);
+  // The same photo tried again: its row before goes.
+  for (const was of host.querySelectorAll(`.arrival[data-id="${CSS.escape(a.id)}"]`)) was.remove();
   host.prepend(row);
   return {
     progress: (/** @type {number} */ sent, /** @type {number} */ total) => {
@@ -200,7 +208,12 @@ function arrival(host, a) {
     failed: (/** @type {string} */ why) => {
       note.textContent = why;
       row.classList.add('failed');
+      const retry = el('button', { type: 'button', class: 'linkish retry', text: 'Try again' });
+      retry.addEventListener('click', again);
+      row.querySelector('.retry')?.remove();
+      note.after(retry);
     },
+    note: (/** @type {string} */ t) => { note.textContent = t; },
   };
 }
 

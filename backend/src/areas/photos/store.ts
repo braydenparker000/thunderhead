@@ -1,5 +1,5 @@
 // SQL for the shelf inside Core (DATA.md §4.14): photos by day in the owner's zone, newest first,
-// each day's count and its first few; one photo by id or Drive id; Recently deleted; the purge.
+// each day's count and its first few; one photo by id or Drive id; pending ones; Recently deleted; the purge.
 import type { PhotoFlag, PhotoFormat, PhotoItem } from '../../../../shared/contract/photos.ts';
 import type { Db } from '../../objects/base';
 
@@ -80,6 +80,17 @@ export const days = (db: Db, before: string | null, limit: number): { day: strin
 /** A day's photos on the shelf, newest first. */
 export const ofDay = (db: Db, day: string, limit: number): PhotoRow[] =>
   db.all(`SELECT ${COLS} FROM photos WHERE deleted_at IS NULL AND day = ? ORDER BY taken_at DESC LIMIT ?`, day, limit);
+
+/** Photos on the shelf whose background upload has no Drive id yet (the drive_id index finds them), newest first. */
+export const pending = (db: Db, limit: number): PhotoRow[] =>
+  db.all(
+    `SELECT ${COLS} FROM photos WHERE drive_id IS NULL AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ?`,
+    limit,
+  );
+
+export function setDrive(db: Db, id: string, driveId: string, at: number): void {
+  db.run('UPDATE photos SET drive_id = ?, updated_at = ? WHERE id = ? AND drive_id IS NULL', driveId, at, id);
+}
 
 export const deleted = (db: Db, limit: number): PhotoRow[] =>
   db.all(`SELECT ${COLS} FROM photos WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC LIMIT ?`, limit);
