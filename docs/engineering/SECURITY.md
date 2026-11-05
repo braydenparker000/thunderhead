@@ -136,8 +136,8 @@ preview. `script-src` adds `https://apis.google.com` and `frame-src` `https://do
 Google's picker, the site's one third-party script, loaded only when the owner taps From Drive,
 from `https://apis.google.com/js/api.js` (its loader then fetches the picker module from the same
 host, `/_/scs/…`); the picker runs in a `docs.google.com` frame with the owner's Drive token and a
-browser key that is public by design (restricted at Google to the Picker API and the site's origin,
-SETUP.md §R5). Measured against the real loader (2026-11-05): nothing else is fetched from the page,
+browser key that is public by design (restricted at Google to the Picker API only: a Websites
+restriction is checked by referrer, which every page here withholds, SETUP.md §R5). Measured against the real loader (2026-11-05): nothing else is fetched from the page,
 so `connect-src` gains nothing; the picker's own inline `<style>` is refused by `style-src 'self'`
 (one console line each time it opens) and `apps/photos/photos.css` styles its dialog instead.
 `tests/site.test.mjs` allows these three hosts only in that page, `apps/photos/drive.js` and
@@ -414,7 +414,7 @@ Names only. "Rotate" says who does it and how; runbooks are in §14. A test chec
 | Session tokens, agent-key hashes, password verifier, recovery hash | `Auth` DO (hashes only) | — | Through the product (sign-out, change password, revoke) |
 | Password, recovery code | Owner's password manager / paper | — | Owner |
 
-Not a secret, so a `wrangler.jsonc` var (an empty placeholder) and a repository variable: `GOOGLE_PICKER_KEY` (P9, Photos), the browser key Google's picker needs, which every browser that opens the picker sees. It is restricted at Google to the Picker API and the site's origin (SETUP.md §R5); `GET /v1/photos/drive` hands it to the owner's phone. Rotate: a new key in Google Cloud → Credentials, the variable updated, the old key deleted.
+Not a secret, so a `wrangler.jsonc` var (an empty placeholder) and a repository variable: `GOOGLE_PICKER_KEY` (P9, Photos), the browser key Google's picker needs, which every browser that opens the picker sees. It is restricted at Google to the Picker API only (a Websites restriction needs a referrer, which the site withholds; SETUP.md §R5); `GET /v1/photos/drive` hands it to the owner's phone. Rotate: a new key in Google Cloud → Credentials, the variable updated, the old key deleted.
 
 Never: Cloudflare, Azure or R2 credentials in any Claude environment; any secret as a `wrangler.jsonc` var; old-Worker secret values reused (new keys are issued at the switch).
 
