@@ -231,6 +231,7 @@ Who: D device · C mind:chat · N mind:night · R mind:reflex · M muse · I ci.
 | `POST /v1/photos/:id/versions` | D | P9 | built | {id, kind auto\|named, name?, recipe}; an automatic one equal to the newest writes nothing; the oldest automatic goes past 20 |
 | `PATCH /v1/photos/:id/versions/:vid` | D | P9 | built | {name}: renames (an automatic one becomes named) |
 | `DELETE /v1/photos/:id/versions/:vid` | D | P9 | built |  |
+| `PUT /v1/photos/:id/info` | D | P9 | built | {info, camera?, film?}: what the file says (an allowlist, ≤ 2 KB; unknown keys dropped; never GPS) for a photo registered without it; camera and film only where it has none |
 | `PUT /v1/photos/:id/preview` | D | P9 | built | the JPEG preview, ≤ 400 KB |
 | `GET /v1/photos/:id/preview` | D | P9 | built | the preview bytes, private; an ETag |
 

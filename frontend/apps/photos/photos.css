@@ -74,6 +74,18 @@ body{background:var(--bg);color:var(--ink);font-family:var(--ui);-webkit-font-sm
 .star{width:48px;height:48px;display:inline-flex;align-items:center;justify-content:center;border:0;border-radius:12px;background:none;color:var(--ink-3);cursor:pointer}
 .star.on{color:var(--gold)}
 .star .i{width:28px;height:28px}
+/* The Info sheet (info-sheet.js): sections of 48 px rows, the label left, the value right in tabular
+   numbers; over the shelf a .psheet, over the editor an .xsheet (edit.css). */
+.isheet{max-height:calc(100% - 72px - env(safe-area-inset-top,0px));overflow-y:auto;overscroll-behavior:contain;gap:0}
+.isheet h2{margin:0 0 4px;font:600 var(--fs-body)/var(--lh-tight) var(--ui)}
+.isheet h3{margin:14px 0 2px;font:600 var(--fs-small)/var(--lh-tight) var(--ui);opacity:.65}
+.irow{display:flex;align-items:center;justify-content:space-between;gap:16px;min-height:48px;border-bottom:1px solid color-mix(in srgb,currentColor 12%,transparent)}
+.irow span{flex:none;font:400 var(--fs-body)/var(--lh-tight) var(--ui);opacity:.75}
+.irow b{min-width:0;text-align:right;overflow-wrap:anywhere;font:500 var(--fs-body)/var(--lh-tight) var(--ui);font-variant-numeric:tabular-nums}
+.ihist{display:block;width:100%;height:96px;margin:6px 0;border-radius:12px;background:#000}
+.inote{margin:6px 0;font:400 var(--fs-small)/var(--lh-tight) var(--ui);opacity:.7}
+.icopy{margin-top:14px;flex:none}
+.xsheet .icopy{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.14);color:#fff}
 
 /* --- choosing photos (select.js): the bar on top, a ring and a dot on each tile, the copied edit's chip */
 .selbar{position:absolute;z-index:5;left:0;right:0;top:0;display:flex;align-items:center;gap:4px;padding:calc(4px + env(safe-area-inset-top,0px)) 8px 4px;background:light-dark(rgb(247,249,253),rgb(18,20,24));border-bottom:1px solid var(--glass-line)}

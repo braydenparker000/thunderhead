@@ -17,6 +17,7 @@ import {
 } from '../../../shared/contract/photos.ts';
 import { logicalDay } from '../areas/conversation/day';
 import { quotaHold } from '../areas/meter/quota';
+import * as info from '../areas/photos/info';
 import * as ops from '../areas/photos/ops';
 import * as paste from '../areas/photos/paste';
 import * as recipe from '../areas/photos/recipe';
@@ -52,10 +53,16 @@ export abstract class CorePhotos extends CoreVerbs {
     return r ? store.toItem(r) : null;
   }
 
-  /** One photo with its recipe (`{}` as shot). */
+  /** One photo with its recipe (`{}` as shot) and its info (null before the phone read the file). */
   photoWithRecipe(id: string): PhotoResponse | null {
     const r = store.byId(this.db, id);
-    return r ? { photo: store.toItem(r), recipe: recipe.recipeOf(this.db, id) } : null;
+    return r ? { photo: store.toItem(r), recipe: recipe.recipeOf(this.db, id), info: info.infoOf(this.db, id) } : null;
+  }
+
+  /** A photo's info read after its registration (areas/photos/info.ts sealed it), with its camera
+   * and film where it has none; the same again writes nothing. */
+  putPhotoInfo(id: string, json: string, words: { camera?: string | null; film?: string | null }) {
+    return this.run((w) => info.put(w, id, json, words));
   }
 
   /** The recipe in its canonical JSON and hash (routes.ts seals it); the same hash writes nothing. */
@@ -100,8 +107,13 @@ export abstract class CorePhotos extends CoreVerbs {
     return store.deleted(this.db, 200).map(store.toItem);
   }
 
-  putPhoto(id: string, r: PutPhotoRequest): Out<{ photo: PhotoItem; created: boolean }> {
-    return this.run((w) => ops.put(w, id, r, this.tz()));
+  /** A registration, with the file's info when the phone read it (`json`, sealed by info.ts). */
+  putPhoto(id: string, r: PutPhotoRequest, json: string | null = null): Out<{ photo: PhotoItem; created: boolean }> {
+    return this.run((w) => {
+      const out = ops.put(w, id, r, this.tz());
+      if (json !== null) info.keep(w, out.photo.id, json, out.created);
+      return out;
+    });
   }
 
   patchPhoto(id: string, p: PatchPhotoRequest): Out<PhotoItem> {

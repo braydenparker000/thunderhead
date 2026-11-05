@@ -1,6 +1,6 @@
 // Photos (PHOTOS.md, DATA.md §4.14): one row per photo on the shelf, and the Drive ids of photos
 // purged from Recently deleted until their originals are in Drive's own trash. Schema step 41; the
-// recipe's two columns, step 42; its versions, step 43.
+// recipe's two columns, step 42; its versions, step 43; its info, step 45.
 import { PHOTO_LIMITS } from '../../../../shared/contract/photos.ts';
 import { DAY } from '../../lib/time';
 import type { Migration, TableInfo } from '../../objects/base';
@@ -71,6 +71,14 @@ export const PHOTOS_MIGRATIONS: Migration[] = [
       ) WITHOUT ROWID`,
       'CREATE INDEX photo_versions_photo ON photo_versions (photo_id, kind, created_at)',
     ],
+  },
+  {
+    version: 45,
+    name: 'photos_info',
+    kind: 'expand',
+    // What the file says about itself (PHOTOS.md § Info): the allowlist's keys as canonical JSON of
+    // at most 2 KB, never a place. Null until a phone has read the file; read only for one photo.
+    sql: ['ALTER TABLE photos ADD COLUMN info TEXT'],
   },
 ];
 

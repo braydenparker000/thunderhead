@@ -8,7 +8,7 @@
 /** @typedef {{ format: 'raf'|'dng'|'jpeg'|'heic'|'other', preview: Blob | null, camera: string | null, film: string | null, taken_at: number, width: number | null, height: number | null }} PhotoMeta */
 /** @typedef {(offset: number, length: number) => Promise<DataView>} Read */
 
-const ascii = (/** @type {DataView} */ v, /** @type {number} */ o, /** @type {number} */ n) => {
+export const ascii = (/** @type {DataView} */ v, /** @type {number} */ o, /** @type {number} */ n) => {
   let s = '';
   for (let i = 0; i < n && o + i < v.byteLength; i++) {
     const c = v.getUint8(o + i);
@@ -18,18 +18,18 @@ const ascii = (/** @type {DataView} */ v, /** @type {number} */ o, /** @type {nu
   return s.trim();
 };
 /** @param {Blob} blob @returns {Read} */
-const blobRead = (blob) => async (o, n) => new DataView(await blob.slice(o, o + n).arrayBuffer());
+export const blobRead = (blob) => async (o, n) => new DataView(await blob.slice(o, o + n).arrayBuffer());
 /** @param {Uint8Array} u8 @returns {Read} */
-const bytesRead = (u8) => async (o, n) => new DataView(u8.buffer, u8.byteOffset + o, Math.max(0, Math.min(n, u8.byteLength - o)));
+export const bytesRead = (u8) => async (o, n) => new DataView(u8.buffer, u8.byteOffset + o, Math.max(0, Math.min(n, u8.byteLength - o)));
 
 /** Fujifilm's FilmMode (MakerNote 0x1401) and its black-and-white Saturation (0x1003), in its words. */
 const FILM = { 0x0: 'Provia', 0x100: 'Studio Portrait', 0x200: 'Velvia', 0x300: 'Studio Portrait Ex', 0x400: 'Velvia', 0x500: 'Pro Neg. Std', 0x501: 'Pro Neg. Hi', 0x600: 'Classic Chrome', 0x700: 'Eterna', 0x800: 'Classic Negative', 0x900: 'Eterna Bleach Bypass', 0xa00: 'Nostalgic Neg.', 0xb00: 'Reala Ace' };
 const MONO = { 0x300: 'Monochrome', 0x301: 'Monochrome + R', 0x302: 'Monochrome + Ye', 0x303: 'Monochrome + G', 0x310: 'Sepia', 0x500: 'Acros', 0x501: 'Acros + R', 0x502: 'Acros + Ye', 0x503: 'Acros + G' };
-const SIZES = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 7: 1, 9: 4, 10: 8 };
+const SIZES = { 1: 1, 2: 1, 3: 2, 4: 4, 5: 8, 6: 1, 7: 1, 8: 2, 9: 4, 10: 8 };
 
 /** One IFD's entries by tag: `{ type, count, at }`, `at` the value's offset from `base`.
  * @param {Read} read @param {number} base @param {number} off @param {boolean} le */
-async function ifd(read, base, off, le) {
+export async function ifd(read, base, off, le) {
   /** @type {Map<number, { type: number, count: number, at: number }>} */
   const tags = new Map();
   const head = await read(base + off, 2);
@@ -45,7 +45,7 @@ async function ifd(read, base, off, le) {
 }
 
 /** A small reader of one TIFF structure (an EXIF block or a DNG). @param {Read} read @param {number} base */
-async function tiff(read, base) {
+export async function tiff(read, base) {
   const h = await read(base, 8);
   const le = h.getUint16(0) === 0x4949;
   if (h.getUint16(0) !== (le ? 0x4949 : 0x4d4d) || h.getUint16(2, le) !== 42) return null;

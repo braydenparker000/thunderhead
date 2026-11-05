@@ -1,18 +1,15 @@
 {
-  "id": "2026-11-05-photos-zoom",
+  "id": "2026-11-05-photos-info",
   "date": "2026-11-05",
   "lines": [
     {
-      "text": "Zooming a photo is smooth now: it stays under your fingers and keeps its sharp detail until a sharper one is ready."
+      "text": "Photos has an Info sheet: tap the i in the editor for the camera, lens, exposure and the film settings."
     },
     {
-      "text": "A flick glides on, the edges give a little and spring back, and a double tap zooms in or out smoothly."
+      "text": "It shows the film simulation, dynamic range, tones, grain and colour chrome as the camera set them."
     },
     {
-      "text": "Export on this phone says Download: each photo goes to Downloads in turn, and for more than three you can share."
-    },
-    {
-      "text": "Photos keeps uploading from this phone when you leave the app or lock the screen, on Android Chrome."
+      "text": "Copy at the bottom copies it all as text. Where a photo was taken is never read or kept."
     }
   ]
 }

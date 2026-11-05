@@ -169,6 +169,8 @@ test('import a RAF: its preview at once, the original to Drive, the shelf by day
   assert.deepEqual({ drive_id: r.drive_id, format: r.format, camera: r.camera, film: r.film, taken_at: r.taken_at, bytes: r.bytes, w: r.width },
     { drive_id: 'drive-file-1', format: 'raf', camera: 'FUJIFILM X-E5', film: 'Classic Chrome', taken_at: Date.UTC(2026, 9, 30, 17, 0, 5), bytes: raf.length, w: 640 });
   assert.match(r.sha256, /^[0-9a-f]{64}$/);
+  // Its info (info.js): what the fixture's EXIF and maker note hold, the allowlist's keys only.
+  assert.deepEqual(r.info, { film_mode: 0x600, saturation: 0, width: 640, height: 427 });
   assert.ok(state.drive.dropped && state.drive.puts >= 3, 'a dropped chunk asked how far it got and went on');
   const prev = [...state.previews.values()][0];
   assert.ok(prev[0] === 0xff && prev[1] === 0xd8 && prev.length <= 400 * 1024, 'a JPEG preview of at most 400 KB');
