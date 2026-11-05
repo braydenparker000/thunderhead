@@ -1,5 +1,4 @@
 {
-<<<<<<< HEAD
   "id": "2026-11-05-photos-speed",
   "date": "2026-11-05",
   "lines": [
@@ -8,22 +7,12 @@
     },
     {
       "text": "The editor uses several cores when it can, and its title shows how long the photo took to decode."
-=======
-  "id": "2026-11-05-photos-looks",
-  "date": "2026-11-05",
-  "lines": [
+    },
     {
       "text": "The editor has Looks: save an edit as a look, then tap one to apply it to any photo, with Amount up to 200%."
     },
     {
-      "text": "Import .xmp presets from Files or Drive, one or many: only their numbers are kept, under Imported."
-    },
-    {
-      "text": "Paste a camera recipe's text into Recipes: tone, colour, grain and white balance shift apply; the film name is kept."
-    },
-    {
       "text": "Undo in a Photos message now takes a tap (it did not before)."
->>>>>>> origin/main
     }
   ]
 }

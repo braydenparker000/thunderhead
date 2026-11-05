@@ -351,15 +351,6 @@ top bar.
 
 ## 7. Looks (P5a: saved looks, .xmp presets, pasted recipes, as built)
 
-<<<<<<< HEAD
-The RAF's own lens tables through the engine; P1d the camera look and the mind; P2 masks and saved
-looks. The fit keeps the first accepted photo's look per model: a frame shot in a strong film
-simulation teaches the matrix that simulation's colour (the sample was Astia); reading the film mode
-(maker note tag 0x1401), learning only from Provia or Astia frames and keeping a running median over up
-to five accepted photos per model is next. Speed: the RAF download itself (28 MiB lossy, 81 MiB
-uncompressed) now weighs as much as the decode; an uncompressed RAF still holds its whole file in wasm
-(over 60 MiB) until it is read through `Blob.slice()` stripe by stripe.
-=======
 The strip's eighth panel, Looks (`edit/looks.js`), applies pre-made edits without leaving the site.
 Its chips are the sections: **Mine** (saved from an edit), **Imported** (.xmp presets), **Recipes**
 (pasted camera recipes) and **Camera** (empty for now: the camera's film simulations learn from
@@ -442,5 +433,8 @@ a setting the recipe does not name is the camera's zero.
 The RAF's own lens tables through the engine; P1d the camera look and the mind; P2 masks;
 the camera's learned looks (RAW+JPEG pairs) fill Looks' Camera section. The fit keeps the first
 accepted photo's look per model: a frame shot in a strong film simulation teaches the matrix that
-simulation's colour (the sample was Astia); reading the film mode and preferring a Provia frame is next.
->>>>>>> origin/main
+simulation's colour (the sample was Astia); reading the film mode
+(maker note tag 0x1401), learning only from Provia or Astia frames and keeping a running median over up
+to five accepted photos per model is next. Speed: the RAF download itself (28 MiB lossy, 81 MiB
+uncompressed) now weighs as much as the decode; an uncompressed RAF still holds its whole file in wasm
+(over 60 MiB) until it is read through `Blob.slice()` stripe by stripe.
