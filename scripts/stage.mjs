@@ -90,7 +90,9 @@ const portedRoots = [...Object.keys(ported.folders), 'assets', 'drawercast'];
 const shellFile = f => !portedRoots.some(r => f.path.startsWith(r + '/'));
 const budgets = [
   ['files', list.length, 2000],
-  ['total bytes', total, 40_000_000],
+  // (2026-11-08) Less the LightCraft test page (lab/lightcraft/, ~31 MB, its own budget below): it loads
+  // only when that page is opened, never with the shell or offline.
+  ['total bytes', total - sum(/^lab\/lightcraft\//), 40_000_000],
   ['home JS bytes', sum(/^(apps\/home|ui)\/.*\.js$/), 120_000],
   // th/ modules the shell loads at boot, and the conversation it loads after the first paint.
   // Task A: measured 72,232 bytes (+133 over the prior limit), including whenResting().
@@ -235,6 +237,9 @@ const budgets = [
   // (2026-11-05, Photos speed) the binned first frame and rayon, built twice: the plain module 2,289,856 and threads/
   // (shared memory, for the isolated editor) 2,300,058, measured; a phone loads one of them.
   ['photos engine wasm bytes', sum(/^photos\/engine\/.*\.wasm$/), 4_589_914],
+  // (2026-11-08) The LightCraft test page's build (engine/lightcraft-web/build.json): the whole editor with
+  // our two patches, 31,217,363 bytes raw (6.4 MB brotli), loaded only by /lab/lightcraft/. A rebuild changes it.
+  ['lightcraft lab wasm bytes', sum(/^lab\/lightcraft\/.*\.wasm$/), 31_217_363],
 ];
 const over = budgets.filter(([, value, limit]) => value > limit);
 for (const [name, value, limit] of budgets) console.log(`${name}: ${value} (limit ${limit})`);
