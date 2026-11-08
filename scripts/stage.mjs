@@ -237,9 +237,11 @@ const budgets = [
   // (2026-11-05, Photos speed) the binned first frame and rayon, built twice: the plain module 2,289,856 and threads/
   // (shared memory, for the isolated editor) 2,300,058, measured; a phone loads one of them.
   ['photos engine wasm bytes', sum(/^photos\/engine\/.*\.wasm$/), 4_589_914],
-  // (2026-11-08) The LightCraft test page's build (engine/lightcraft-web/build.json): the whole editor with
-  // our two patches, 31,217,363 bytes raw (6.4 MB brotli), loaded only by /lab/lightcraft/. A rebuild changes it.
-  ['lightcraft lab wasm bytes', sum(/^lab\/lightcraft\/.*\.wasm$/), 31_217_363],
+  // (2026-11-08) The LightCraft test page's builds (engine/lightcraft-web/build.json): the whole editor with our
+  // patches, loaded only by /lab/lightcraft/. Two: the page's own 31,220,371 bytes raw (6.4 MB brotli) and
+  // threads/ 30,968,326 for the render workers of an isolated page (a phone loads the second only where the
+  // service worker isolates the page). A rebuild changes them.
+  ['lightcraft lab wasm bytes', sum(/^lab\/lightcraft\/.*\.wasm$/), 62_188_697],
 ];
 const over = budgets.filter(([, value, limit]) => value > limit);
 for (const [name, value, limit] of budgets) console.log(`${name}: ${value} (limit ${limit})`);

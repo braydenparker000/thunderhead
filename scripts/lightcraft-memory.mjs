@@ -3,7 +3,8 @@
 // 4,000 px and a full-size JPEG. Each step prints LightCraft's own wasm memory (the page's instance, read
 // from its WebAssembly.Memory) and the renderer processes' RSS (the page and its workers, Linux only).
 //   node scripts/lightcraft-memory.mjs <file.RAF> [workers]
-// CHROMIUM_PATH names the browser (as in the tests). wasm memory never shrinks, so each row is the
+// CHROMIUM_PATH names the browser (as in the tests). ISOLATE=1 adds the COOP and COEP our service worker
+// gives the page on the site, so the render workers run the threads build. wasm memory never shrinks, so each row is the
 // highest so far.
 import { execSync } from 'node:child_process';
 import { chromium } from 'playwright';
@@ -21,9 +22,17 @@ const sampler = setInterval(() => { try { peak = Math.max(peak, rss()); } catch 
 
 const server = await serve(0);
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
-const page = await (await browser.newContext({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true })).newPage();
+const context = await browser.newContext({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true });
+if (process.env.ISOLATE) {
+  await context.route('**/lab/lightcraft/**', async (route) => {
+    const res = await route.fetch();
+    route.fulfill({ response: res, headers: { ...res.headers(), 'cross-origin-opener-policy': 'same-origin', 'cross-origin-embedder-policy': 'require-corp' } });
+  });
+}
+const page = await context.newPage();
 page.on('pageerror', (e) => console.log('page error:', e.message));
-page.on('console', (m) => { if (/panicked|out of memory/i.test(m.text())) console.log('console:', m.text().slice(0, 300)); });
+page.on('console', (m) => { if (/panicked|out of memory|render worker/i.test(m.text())) console.log('console:', m.text().slice(0, 300)); });
+page.on('worker', (w) => w.on('console', (m) => { if (/panicked|one thread|error/i.test(m.text())) console.log('worker:', m.text().slice(0, 300)); }));
 await page.addInitScript(() => {
   globalThis.__mems = [];
   const keep = (r) => { const m = (r.instance ?? r)?.exports?.memory; if (m) globalThis.__mems.push(m); return r; };
@@ -31,6 +40,7 @@ await page.addInitScript(() => {
   WebAssembly.instantiate = (...a) => instantiate.apply(WebAssembly, a).then(keep);
 });
 await page.goto(`http://127.0.0.1:${server.address().port}/lab/lightcraft/?workers=${workers}`);
+console.log(JSON.stringify({ isolated: await page.evaluate(() => crossOriginIsolated), workers }));
 await page.waitForFunction(() => globalThis.lightcraft, null, { timeout: 120_000 });
 const cmd = (id, params = {}) => page.evaluate(async ([i, p]) => JSON.parse(await globalThis.lightcraft.command(i, JSON.stringify(p)) || 'null'), [id, params]);
 const settle = async () => {

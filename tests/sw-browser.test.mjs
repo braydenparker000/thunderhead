@@ -70,11 +70,11 @@ test('a new release waits while the ask bar holds text, then applies and drops t
   await context.close();
 });
 
-test("Photos' editor is cross-origin isolated (COOP and COEP from the worker) and no other page is", async () => {
+test("Photos' editor and the LightCraft test page are cross-origin isolated (COOP and COEP from the worker) and no other page is", async () => {
   server.release(1);
   const { context, page, errors } = await controlled();
   const seen = {};
-  for (const path of ['/photos/?edit=0192aaaa-bbbb-7ccc-8ddd-eeeeffff0003', '/photos/', '/photos/?photo=0192aaaa-bbbb-7ccc-8ddd-eeeeffff0003', '/', '/signin/']) {
+  for (const path of ['/photos/?edit=0192aaaa-bbbb-7ccc-8ddd-eeeeffff0003', '/photos/', '/photos/?photo=0192aaaa-bbbb-7ccc-8ddd-eeeeffff0003', '/', '/signin/', '/lab/lightcraft/', '/lab/island/']) {
     const res = await page.goto(`${base}${path}`, { waitUntil: 'load' });
     seen[path] = [await page.evaluate(() => crossOriginIsolated), res?.headers()['cross-origin-embedder-policy'] ?? null];
   }
@@ -84,6 +84,8 @@ test("Photos' editor is cross-origin isolated (COOP and COEP from the worker) an
     '/photos/?photo=0192aaaa-bbbb-7ccc-8ddd-eeeeffff0003': [false, null],
     '/': [false, null],
     '/signin/': [false, null],
+    '/lab/lightcraft/': [true, 'require-corp'],
+    '/lab/island/': [false, null],
   });
   // the editor's engine worker gets COEP too, so it loads under the isolated page and can share memory
   await page.goto(`${base}/photos/?edit=0192aaaa-bbbb-7ccc-8ddd-eeeeffff0003`, { waitUntil: 'load' });

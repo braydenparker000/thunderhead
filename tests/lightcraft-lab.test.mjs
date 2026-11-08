@@ -49,14 +49,22 @@ function sample() {
   return ok() ? { file } : { why: 'the downloaded sample does not match its SHA-256' };
 }
 
-/** A phone-sized page on /lab/lightcraft/, with what it logged and any CSP violation. */
-async function open() {
+/** A phone-sized page on /lab/lightcraft/, with what it and its workers logged and any CSP violation.
+ * `isolated`: the COOP and COEP our service worker gives the page on the site (sw.js), added here. */
+async function open({ isolated = false } = {}) {
   const context = await browser.newContext({ viewport: { width: 412, height: 915 }, isMobile: true, hasTouch: true, serviceWorkers: 'block' });
+  if (isolated) {
+    await context.route('**/lab/lightcraft/**', async (route) => {
+      const res = await route.fetch();
+      await route.fulfill({ response: res, headers: { ...res.headers(), 'cross-origin-opener-policy': 'same-origin', 'cross-origin-embedder-policy': 'require-corp' } });
+    });
+  }
   const page = await context.newPage(), errors = [], logs = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => logs.push(m.text()));
+  page.on('worker', (w) => w.on('console', (m) => logs.push(`worker: ${m.text()}`)));
   await page.addInitScript(() => document.addEventListener('securitypolicyviolation', (e) => console.log(`CSP violation: ${e.violatedDirective} ${e.blockedURI}`)));
-  await page.goto(`${base}/lab/lightcraft/?workers=1`);
+  await page.goto(`${base}/lab/lightcraft/${isolated ? '' : '?workers=1'}`);
   await page.waitForFunction(() => globalThis.lightcraft, null, { timeout: 60_000 });
   const cmd = (id, params = {}) => page.evaluate(async ([i, p]) => JSON.parse(await globalThis.lightcraft.command(i, JSON.stringify(p))), [id, params]);
   return { context, page, errors, logs, cmd };
@@ -73,8 +81,10 @@ test('starts with the desktop layout on a phone, under its CSP', { skip: live &&
 });
 
 const got = live ? { why: 'local only' } : process.env.TH_OFFLINE ? { why: 'TH_OFFLINE is set' } : sample();
-test('an X-E5 RAF picked with Import Photos… imports and opens in Detail without a panic', { skip: got.why ?? false, timeout: 300_000 }, async () => {
-  const { context, page, errors, logs, cmd } = await open();
+test('an X-E5 RAF picked with Import Photos… imports and opens in Detail and at 1:1 on threads, without a panic', { skip: got.why ?? false, timeout: 300_000 }, async () => {
+  const { context, page, errors, logs, cmd } = await open({ isolated: true });
+  assert.equal(await page.evaluate(() => crossOriginIsolated), true);
+  assert.match(page.url(), /workers=2/, 'two render workers, each with its own threads');
   const before = (await cmd('library.state')).visibleCount;
   // File ▸ Import Photos… opens the browser's file picker, as the owner's tap does
   const chooser = page.waitForEvent('filechooser', { timeout: 30_000 });
@@ -83,13 +93,20 @@ test('an X-E5 RAF picked with Import Photos… imports and opens in Detail witho
   let state;
   for (let i = 0; i < 600 && (state = await cmd('library.state')).visibleCount <= before; i++) await page.waitForTimeout(200);
   assert.equal(state.visibleCount, before + 1, 'the RAF is in the library');
+  const settle = async () => {
+    for (let i = 0, quiet = 0; i < 1200 && quiet < 5; i++) {
+      const s = await cmd('web.stats');
+      quiet = s.renderQueue || s.rendersInFlight ? 0 : quiet + 1;
+      await page.waitForTimeout(100);
+    }
+  };
   await cmd('library.select', { ids: [state.selection.active] });
   await cmd('view.detail');
-  for (let i = 0, quiet = 0; i < 1200 && quiet < 5; i++) {
-    const s = await cmd('web.stats');
-    quiet = s.renderQueue || s.rendersInFlight ? 0 : quiet + 1;
-    await page.waitForTimeout(100);
-  }
+  await settle();
+  await cmd('view.zoomToggle'); // 1:1: the full-size decode, on the render worker's threads
+  await settle();
+  // a worker that could not start its threads says so and renders on one (worker.js)
+  assert.deepEqual(logs.filter((l) => /one thread/.test(l)), []);
   // a failed render of the photo logs `render Main, PhotoId(n), …: why` (ui-egui render.rs)
   assert.deepEqual(logs.filter((l) => /panicked|CSP violation|render Main, PhotoId/.test(l)), []);
   assert.deepEqual(errors, []);

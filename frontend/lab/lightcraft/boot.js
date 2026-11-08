@@ -5,7 +5,14 @@
 import init, { start, command } from './lightcraft_web.js';
 import { watch } from './status.js';
 
-const asked = Number(new URLSearchParams(location.search).get('width'));
+const params = new URLSearchParams(location.search);
+// Isolated (our service worker's COOP and COEP), each render worker runs the threads build with its own
+// rayon pool (worker.js), so two workers use the cores four did; LightCraft reads ?workers=N itself.
+if (globalThis.crossOriginIsolated && !params.has('workers')) {
+  params.set('workers', '2');
+  history.replaceState(null, '', `${location.pathname}?${params}`);
+}
+const asked = Number(params.get('width'));
 globalThis.lightcraftLayoutWidth = asked >= 600 && asked <= 2400 ? Math.round(asked) : 980;
 
 // Asks Chrome to keep this site's storage (the library and its originals) when space runs low.
