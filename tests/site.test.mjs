@@ -18,6 +18,8 @@ async function files(dir) {
   for (const e of await readdir(dir, { withFileTypes: true })) {
     if (['node_modules', '.git', '.deploy', 'test-results', '.wrangler', '.dev.vars'].includes(e.name)) continue;
     const p = join(dir, e.name);
+    // the engines' build inputs and outputs (engine/*/vendor, engine/*/target), gitignored: never in the repository
+    if (/^engine\/[^/]+\/(vendor|target)$/.test(relative(REPO, p))) continue;
     out.push(...(e.isDirectory() ? await files(p) : [p]));
   }
   return out;
@@ -55,8 +57,9 @@ test('no outside hosts anywhere in the site', async () => {
       // picker's frame; named in that page's CSP and the picker module, and nowhere else.
       if (relative(SITE, f) === 'photos/index.html' && /^https:\/\/(apis|docs)\.google\.com;$/.test(url)) continue;
       if (relative(SITE, f) === 'apps/photos/pick.js' && url === 'https://apis.google.com/js/api.js') continue;
-      // wasm-bindgen-rayon's worker script (the threaded RAW engine, PHOTOS.md): its licence notice and a bug link, comments, never fetched.
-      if (/^photos\/engine\/threads\/snippets\/wasm-bindgen-rayon-[0-9a-f]+\/src\/workerHelpers\.no-bundler\.js$/.test(relative(SITE, f)) && ['http://www.apache.org/licenses/LICENSE-2.0', 'https://bugzilla.mozilla.org/show_bug.cgi?id=1702191'].includes(url)) continue;
+      // wasm-bindgen-rayon's worker script (the threaded RAW engine, PHOTOS.md; the LightCraft test page's threads build,
+      // engine/lightcraft-web/README.md): its licence notice and a bug link, comments, never fetched.
+      if (/^(photos\/engine|lab\/lightcraft)\/threads\/snippets\/wasm-bindgen-rayon-[0-9a-f]+\/src\/workerHelpers\.no-bundler\.js$/.test(relative(SITE, f)) && ['http://www.apache.org/licenses/LICENSE-2.0', 'https://bugzilla.mozilla.org/show_bug.cgi?id=1702191'].includes(url)) continue;
       assert.fail(`${relative(REPO, f)} reaches ${url}`);
     }
   }

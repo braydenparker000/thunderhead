@@ -4,7 +4,8 @@
 // from its WebAssembly.Memory) and the renderer processes' RSS (the page and its workers, Linux only).
 //   node scripts/lightcraft-memory.mjs <file.RAF> [workers]
 // CHROMIUM_PATH names the browser (as in the tests). ISOLATE=1 adds the COOP and COEP our service worker
-// gives the page on the site, so the render workers run the threads build. wasm memory never shrinks, so each row is the
+// gives the page on the site, so the render workers run the threads build. SAVE_EXPORTS=<dir> keeps the two
+// exported JPEGs there (4000.jpg, full.jpg). wasm memory never shrinks, so each row is the
 // highest so far.
 import { execSync } from 'node:child_process';
 import { chromium } from 'playwright';
@@ -83,7 +84,8 @@ await step('zoom fit', () => cmd('view.zoomToggle'));
 const exported = async (width) => {
   const download = page.waitForEvent('download', { timeout: 600_000 });
   const r = await cmd('app.export', { format: 'jpeg', quality: 90, dir: 'Exports', ...(width ? { width } : {}) });
-  await download;
+  const d = await download;
+  if (process.env.SAVE_EXPORTS) await d.saveAs(`${process.env.SAVE_EXPORTS}/${width || 'full'}.jpg`);
   return `${r.files[0].width}×${r.files[0].height}`;
 };
 await step('export 4,000 px', () => exported(4000));
