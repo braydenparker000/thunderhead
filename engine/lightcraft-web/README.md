@@ -40,6 +40,8 @@ only in the phone's browser storage (no Drive, no backup yet).
   "Desktop site" uses, so the switch is never needed; `?width=N` tries another. A wide page viewport alone
   does not do it: eframe draws at the device's pixel density and sizes the UI from the canvas, so the
   patch sets egui's zoom from the canvas's pixel width (`globalThis.lightcraftLayoutWidth`, set by boot.js).
+  On a touch screen the same patch widens egui's interact radius to 18 points (`globalThis.lightcraftTouchReach`):
+  a press that close to a slider or button reaches it, without anything changing size or look.
 
 ## Measured (headless Chromium, 4-core x86, the CC0 X-E5 sample: 40 MP, 14-bit lossy, 4 render workers)
 

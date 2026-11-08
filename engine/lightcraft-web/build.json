@@ -10,7 +10,7 @@
     },
     {
       "file": "engine/lightcraft-web/patches/desktop-layout.diff",
-      "sha256": "f7ef31d01eb3f4fbd75cda2a8b20ada12118f6e44e6c53c5bc312f84be1fe9a9"
+      "sha256": "ba2faa13d13181ae5326e9c99db8adfbd26e6b0689481d7edda30fa6b0b352e7"
     },
     {
       "file": "engine/lightcraft-web/patches/threads.diff",
@@ -31,11 +31,11 @@
   "files": {
     "lightcraft_web.js": {
       "bytes": 111225,
-      "sha256": "2f635781d82672a90f42c9c599df8fc2b3a86a663688fe0c9f5f79c24f07bc7f"
+      "sha256": "20a645e33ef62dde9f35a870458e5ca948a3aec996c56a00ea906d7ddf87058b"
     },
     "lightcraft_web_bg.wasm": {
-      "bytes": 31219966,
-      "sha256": "5abc4e3e49abd18cfe8bcc8e55f458faa1562e89d6e73a4daa2f33fcd3618159"
+      "bytes": 31221405,
+      "sha256": "cf2f18d3f3c216ac8160b1d637dd4440646407e6c6de945b2fb5be9536e4a6b8"
     },
     "snippets/eframe-d31a8450ea12dfc1/inline0.js": {
       "bytes": 280,
@@ -43,11 +43,11 @@
     },
     "threads/lightcraft_web.js": {
       "bytes": 118587,
-      "sha256": "09847edd26b3bf83b2b2bf0a1ce78e18b7946163d8858e65b49b5236d02b4708"
+      "sha256": "cc3122eb44ffcf8fb810d150ba8f2c76378a630ef54123f979931426f163075a"
     },
     "threads/lightcraft_web_bg.wasm": {
-      "bytes": 30967647,
-      "sha256": "c7c4c9dc0678f32f22d9c70c5702075681453aa7d6c111536ec56ea814910d23"
+      "bytes": 30969001,
+      "sha256": "0557aac3261e3ab54abbb3bd16ef134b42442ebe5f9b8e688e7ffc6a645fd3ce"
     },
     "threads/snippets/eframe-d31a8450ea12dfc1/inline0.js": {
       "bytes": 280,
