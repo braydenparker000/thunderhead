@@ -3,6 +3,7 @@
 // points wide (the width Chrome's "Desktop site" uses), zoomed to fit a phone (patches/desktop-layout.diff);
 // ?width=N (600–2400) tries another width.
 import init, { start, command } from './lightcraft_web.js';
+import { watch } from './status.js';
 
 const asked = Number(new URLSearchParams(location.search).get('width'));
 globalThis.lightcraftLayoutWidth = asked >= 600 && asked <= 2400 ? Math.round(asked) : 980;
@@ -17,6 +18,7 @@ navigator.storage?.persist?.().catch(() => {});
   await init({ module_or_path: module });
   globalThis.lightcraft = { command }; // `await lightcraft.command("library.info", "{}")` → JSON text
   start(new Uint8Array()); // no Chinese font file: Chinese-only glyphs show as boxes
+  watch(command);
 })().catch((e) => {
   console.error(e);
   const el = document.getElementById('lightcraft_loading');

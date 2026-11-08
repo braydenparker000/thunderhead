@@ -7,3 +7,9 @@ canvas#lightcraft_canvas { position: absolute; inset: 0; width: 100%; height: 10
   color: #b8b8b8; font: 15px/1.4 system-ui, sans-serif; pointer-events: none;
 }
 #lightcraft_status { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; overflow: hidden; }
+/* The render status line (status.js): small, out of the way, never in the way of a touch. */
+#lightcraft_status_line {
+  position: absolute; left: 8px; bottom: 8px; padding: 4px 8px; border-radius: 6px; pointer-events: none;
+  background: rgb(0 0 0 / 0.6); color: #ddd; font: 12px/1.3 system-ui, sans-serif; max-width: 70%;
+}
+#lightcraft_status_line[hidden] { display: none; }

@@ -14,6 +14,10 @@ only in the phone's browser storage (no Drive, no backup yet).
   at LightCraft's locked version) into `frontend/lab/lightcraft/`; `--check` compares the committed files
   with `build.json`. Our `index.html`, `boot.js` and `lightcraft.css` there replace LightCraft's page,
   whose inline script and style our CSP refuses.
+- **Render status** (`frontend/lab/lightcraft/status.js`): a small line in the bottom corner says
+  "Rendering… N s" once a render runs past two seconds, then how long it took, or the render failure or
+  panic LightCraft logged, so a slow render on the phone can be told from a failed one.
+- **Memory**: `node scripts/lightcraft-memory.mjs <file.RAF> [workers]` measures the steps below.
 - **Desktop layout** (`desktop-layout.diff`): the UI lays out 980 points wide, the width Chrome's
   "Desktop site" uses, so the switch is never needed; `?width=N` tries another. A wide page viewport alone
   does not do it: eframe draws at the device's pixel density and sizes the UI from the canvas, so the
