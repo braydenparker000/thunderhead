@@ -14,6 +14,16 @@ only in the phone's browser storage (no Drive, no backup yet).
   at LightCraft's locked version) into `frontend/lab/lightcraft/`; `--check` compares the committed files
   with `build.json`. Our `index.html`, `boot.js` and `lightcraft.css` there replace LightCraft's page,
   whose inline script and style our CSP refuses.
+- **Threads** (`threads.diff`, `frontend/lab/lightcraft/worker.js`): LightCraft's decode and develop split their
+  work with rayon, which runs on one thread in its browser build. A second build (`threads/`: atomics, shared
+  memory up to 2 GiB, rayon on Web Workers through wasm-bindgen-rayon, Apache-2.0) runs in the render workers
+  when the page is cross-origin isolated (our service worker gives `/lab/lightcraft/` COOP and COEP, as it does
+  Photos' editor; SECURITY.md). The page itself keeps the plain build: WebGL, which draws its UI, refuses shared
+  memory, and its exports and auto adjustments run on one thread (rayon falls back to the calling thread where
+  threads can't start). Two render workers with half the cores each, at least two and at most four threads
+  (`?workers=N` still overrides); without isolation, or if the pool doesn't start in 10 s, the plain build as
+  before. Measured on a 4-core x86 VM with two threads a worker: 1:1 on the X-E5 sample 21.8 s → 12.9 s, no
+  more memory.
 - **Render status** (`frontend/lab/lightcraft/status.js`): a small line in the bottom corner says
   "Rendering… N s" once a render runs past two seconds, then how long it took, or the render failure or
   panic LightCraft logged, so a slow render on the phone can be told from a failed one.
