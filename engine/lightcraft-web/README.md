@@ -24,6 +24,14 @@ only in the phone's browser storage (no Drive, no backup yet).
   (`?workers=N` still overrides); without isolation, or if the pool doesn't start in 10 s, the plain build as
   before. Measured on a 4-core x86 VM with two threads a worker: 1:1 on the X-E5 sample 21.8 s → 12.9 s, no
   more memory.
+- **Export on a phone** (`phone-export.diff`, `export-bands.diff`): the browser build downloads every export (a
+  phone keeps it in Downloads), so the Export dialog's folder, subfolder and name-clash rows are one line, "Save
+  to: Downloads", and an export with no folder goes there instead of being refused. An 8-bit export of 4 MP or
+  more renders in bands of 768 rows with the loupe's margin of context (512 rows for 40 MP), reusing the source
+  the first band decoded: the X-E5 sample's full-size JPEG matches the whole-frame render (mean difference
+  0.0, largest 6 of 255, no seams) with 1,881 MiB of wasm instead of 3,792, in about twice the time. A 4,000 px
+  export gains little (1,362 → 1,248 MiB): most of it is the full-size decode on the page itself; exporting
+  from a render worker, which holds that decode already, is the next step.
 - **Render status** (`frontend/lab/lightcraft/status.js`): a small line in the bottom corner says
   "Rendering… N s" once a render runs past two seconds, then how long it took, or the render failure or
   panic LightCraft logged, so a slow render on the phone can be told from a failed one.
@@ -41,8 +49,8 @@ only in the phone's browser storage (no Drive, no backup yet).
 | RAF imported | 288 MiB | ~1.2 GiB |
 | Detail, exposure drag (~0.5 s a step) | 288 MiB | ~1.3 GiB |
 | 1:1 zoom | 387 MiB | ~2.0–2.4 GiB |
-| Export JPEG, 4,000 px | 1,461 MiB | ~3.2 GiB |
-| Export JPEG, full size (7,728 × 5,152) | 3,807 MiB | ~5.5 GiB |
+| Export JPEG, 4,000 px | 1,461 MiB (bands: 1,248) | ~3.2 GiB |
+| Export JPEG, full size (7,728 × 5,152) | 3,807 MiB (bands: 1,881) | ~5.5 GiB (bands: ~4.0) |
 
 wasm memory never shrinks, so the page stays at its highest step. Export develops the whole image at full
 size on the page's own instance, so even a small export costs gigabytes, and a full-size one comes within

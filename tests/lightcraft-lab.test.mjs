@@ -81,7 +81,7 @@ test('starts with the desktop layout on a phone, under its CSP', { skip: live &&
 });
 
 const got = live ? { why: 'local only' } : process.env.TH_OFFLINE ? { why: 'TH_OFFLINE is set' } : sample();
-test('an X-E5 RAF picked with Import Photos… imports and opens in Detail and at 1:1 on threads, without a panic', { skip: got.why ?? false, timeout: 300_000 }, async () => {
+test('an X-E5 RAF picked with Import Photos… imports and opens in Detail and at 1:1 on threads, without a panic', { skip: got.why ?? false, timeout: 480_000 }, async () => {
   const { context, page, errors, logs, cmd } = await open({ isolated: true });
   assert.equal(await page.evaluate(() => crossOriginIsolated), true);
   assert.match(page.url(), /workers=2/, 'two render workers, each with its own threads');
@@ -107,6 +107,12 @@ test('an X-E5 RAF picked with Import Photos… imports and opens in Detail and a
   await settle();
   // a worker that could not start its threads says so and renders on one (worker.js)
   assert.deepEqual(logs.filter((l) => /one thread/.test(l)), []);
+  // an export of 6 MP renders in bands (patches/export-bands.diff) and downloads, with no folder asked for
+  await cmd('view.zoomToggle');
+  const download = page.waitForEvent('download', { timeout: 240_000 });
+  const exported = await cmd('app.export', { format: 'jpeg', quality: 85, width: 3000 });
+  assert.deepEqual([exported.files[0].width, exported.files[0].height], [3000, 2000]);
+  assert.match((await download).suggestedFilename(), /\.jpg$/);
   // a failed render of the photo logs `render Main, PhotoId(n), …: why` (ui-egui render.rs)
   assert.deepEqual(logs.filter((l) => /panicked|CSP violation|render Main, PhotoId/.test(l)), []);
   assert.deepEqual(errors, []);

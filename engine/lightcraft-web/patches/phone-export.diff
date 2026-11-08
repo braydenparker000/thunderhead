@@ -1,0 +1,32 @@
+diff --git a/crates/ui-egui/src/control.rs b/crates/ui-egui/src/control.rs
+index 63403650..b4625d13 100644
+--- a/crates/ui-egui/src/control.rs
++++ b/crates/ui-egui/src/control.rs
+@@ -598,6 +598,9 @@ pub fn export_active(app: &mut LightcraftApp, p: &Value) -> Result<Value, String
+             last_dir.map(str::to_string).unwrap_or_else(default_export_dir)
+         }
+     };
++    // Thunderhead: the web build hands every exported file to the browser as a download (no folder to
++    // choose; a phone keeps it in Downloads), so a missing folder is no reason to refuse
++    let dir = if cfg!(target_arch = "wasm32") && dir.is_empty() { "Downloads".to_string() } else { dir };
+     let own_folders = opts.destination_mode == lightcraft_engine::export::DestinationMode::SameAsOriginal;
+     if dir.is_empty() && exact.is_none() && !own_folders {
+         return Err(NO_EXPORT_FOLDER.into());
+diff --git a/crates/ui-egui/src/dialogs.rs b/crates/ui-egui/src/dialogs.rs
+index 91d9dd26..dc5db960 100644
+--- a/crates/ui-egui/src/dialogs.rs
++++ b/crates/ui-egui/src/dialogs.rs
+@@ -1737,6 +1737,13 @@ fn export_naming_rows(ui: &mut egui::Ui, opts: &mut ExportOptions) {
+ 
+ /// Export dialog: where the files go and what happens when one exists.
+ fn export_destination_rows(app: &mut LightcraftApp, ui: &mut egui::Ui, t: &Tokens, opts: &mut ExportOptions, dir: &mut String) {
++    // Thunderhead: the web build hands every exported file to the browser as a download (a phone keeps it
++    // in Downloads), so it has no folder, subfolder or name clash to choose
++    if cfg!(target_arch = "wasm32") {
++        let _ = (&app, &opts, &dir);
++        field(ui, "Save to", |ui| ui.label(egui::RichText::new(crate::i18n::tr("Downloads")).color(t.text_dim)));
++        return;
++    }
+     // like Lightroom Classic's Export To: one folder, or each photo's own folder (not on
+     // the web, where originals live in the browser's storage, not in folders)
+     use lightcraft_engine::export::DestinationMode as D;
