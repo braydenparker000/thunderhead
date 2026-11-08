@@ -1,8 +1,8 @@
 diff --git a/apps/lightcraft-web/src/web.rs b/apps/lightcraft-web/src/web.rs
-index 79773918..6141d793 100644
+index 79773918..e9054d3f 100644
 --- a/apps/lightcraft-web/src/web.rs
 +++ b/apps/lightcraft-web/src/web.rs
-@@ -863,10 +863,31 @@ impl WebApp {
+@@ -863,10 +863,43 @@ impl WebApp {
      }
  }
  
@@ -26,11 +26,23 @@ index 79773918..6141d793 100644
 +    }
 +}
 +
++/// Thunderhead: when the page sets `globalThis.lightcraftTouchReach` (points; a touch screen), a press that
++/// far from a widget still reaches it, so a finger grabs a slider without the UI changing size or look.
++fn touch_reach(ctx: &egui::Context) {
++    let Some(w) = window() else { return };
++    let Some(reach) = js_sys::Reflect::get(&w, &"lightcraftTouchReach".into()).ok().and_then(|v| v.as_f64()) else { return };
++    let reach = reach.clamp(0.0, 40.0) as f32;
++    if (ctx.style_of(ctx.theme()).interaction.interact_radius - reach).abs() > 0.01 {
++        ctx.all_styles_mut(|s| s.interaction.interact_radius = reach);
++    }
++}
++
  impl eframe::App for WebApp {
      /// eframe's non-drawing pass for the browser host: drain safety notices and queued inbox work,
      /// load originals the UI requested, apply the cache budget, run the app's logic, then save.
      fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
 +        layout_width_zoom(ctx);
++        touch_reach(ctx);
          for text in safety::take_notices() {
              let now = self.app.tick_now();
              self.app.ui.toast = Some((text, now + NOTICE_SECS, None));

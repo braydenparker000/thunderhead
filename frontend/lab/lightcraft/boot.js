@@ -14,6 +14,10 @@ if (globalThis.crossOriginIsolated && !params.has('workers')) {
 }
 const asked = Number(params.get('width'));
 globalThis.lightcraftLayoutWidth = asked >= 600 && asked <= 2400 ? Math.round(asked) : 980;
+// On a touch screen a press up to 18 points from a slider or button still reaches it (egui's interact radius,
+// patches/desktop-layout.diff): a little under half the gap between two of the Edit panel's slider rows, so a
+// finger near a slider takes it and never its neighbour, and nothing on screen changes size.
+if (matchMedia('(pointer: coarse)').matches) globalThis.lightcraftTouchReach = 18;
 
 // Asks Chrome to keep this site's storage (the library and its originals) when space runs low.
 navigator.storage?.persist?.().catch(() => {});

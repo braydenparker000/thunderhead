@@ -22,7 +22,7 @@ const out = join(repo, 'frontend/lab/lightcraft');
 const vendor = join(home, 'vendor/lightcraft');
 const target = join(home, 'target');
 export const LIGHTCRAFT = { git: 'https://github.com/storytold/lightcraft', rev: 'b3b49987d4b2c99f582b80ae91b2ec42ab24d14e' };
-const PATCHES = ['web-clock.diff', 'desktop-layout.diff', 'threads.diff'];
+const PATCHES = ['web-clock.diff', 'desktop-layout.diff', 'threads.diff', 'export-bands.diff', 'phone-export.diff'];
 /** Built files the page loads; everything else in `out` is ours. */
 const BUILT = ['lightcraft_web.js', 'lightcraft_web_bg.wasm', 'snippets', 'threads'];
 const sha = (f) => createHash('sha256').update(readFileSync(f)).digest('hex');

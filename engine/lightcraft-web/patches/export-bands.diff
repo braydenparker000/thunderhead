@@ -1,0 +1,119 @@
+diff --git a/crates/engine/src/export.rs b/crates/engine/src/export.rs
+index 8ba08021..75f7e5d9 100644
+--- a/crates/engine/src/export.rs
++++ b/crates/engine/src/export.rs
+@@ -14,6 +14,7 @@ use serde::{Deserialize, Serialize};
+ #[cfg(test)]
+ use crate::text::{TEXT_FONT as WATERMARK_FONT, cell_glyphs as watermark_cell_glyphs, faces as watermark_fonts};
+ 
++mod bands;
+ mod batch;
+ mod encoding;
+ mod options;
+diff --git a/crates/engine/src/export/bands.rs b/crates/engine/src/export/bands.rs
+new file mode 100644
+index 00000000..089207de
+--- /dev/null
++++ b/crates/engine/src/export/bands.rs
+@@ -0,0 +1,80 @@
++//! Thunderhead: an 8-bit export rendered in bands of rows, for the browser (wasm32), where the page's
++//! own wasm memory holds the export. A whole-frame render of a 40 MP raw keeps several full-size float
++//! planes at once (~3.8 GB, near wasm32's 4 GiB); each band renders only a window of the output frame
++//! (the loupe's 1:1 windows, [`lightcraft_pipeline::PixelWindow`]) with rows of context above and below,
++//! so the spatial stages see what they read around the band's edges, and only its own rows are kept.
++//! The decoded source is read once, by the first band, and reused by the others.
++
++use lightcraft_pipeline::{OutputDepth, PixelWindow, Rendered};
++use lightcraft_raster::{Histogram, Rgba8};
++
++use crate::media::{RenderJob, SourceRef};
++
++/// Output rows a band keeps.
++const BAND_ROWS: usize = 768;
++/// An export smaller than this many output pixels renders whole.
++const MIN_PIXELS: usize = 4_000_000;
++
++/// Rows of context rendered above and below a band: as the loupe's windows (4.5 % of the long edge,
++/// on a 256 px grid), so a band's pixels match the whole-frame render's.
++fn margin(long: usize) -> usize {
++    let want = (long as f64 * 0.045).min(3072.0) as usize;
++    want.div_ceil(256).max(1) * 256
++}
++
++/// Whether `job` (an export's render) renders in bands: on wasm32, an 8-bit whole-frame render of at
++/// least [`MIN_PIXELS`] output pixels.
++pub(super) fn wanted(job: &RenderJob) -> bool {
++    let (w, h) = (job.request.max_w, job.request.max_h);
++    cfg!(target_arch = "wasm32")
++        && job.request.exact_size
++        && job.request.window.is_none()
++        && job.request.depth == OutputDepth::U8
++        && w.saturating_mul(h) >= MIN_PIXELS
++}
++
++/// Render `job` band by band into one 8-bit image of the job's exact output size.
++pub(super) fn render(mut job: RenderJob) -> Result<(Rendered, Option<String>), String> {
++    let (w, h) = (job.request.max_w, job.request.max_h);
++    let pad = margin(w.max(h));
++    let mut out = Rgba8::new(w, h);
++    let mut gpu_fallback = None;
++    let mut top = 0;
++    while top < h {
++        let rows = BAND_ROWS.min(h - top);
++        let y0 = top.saturating_sub(pad);
++        let y1 = (top + rows + pad).min(h);
++        let mut band = job.clone();
++        band.request.window = Some(PixelWindow { x: 0, y: y0, w, h: y1 - y0 });
++        band.key ^= ((top as u64) << 1) | 1;
++        let result = band.run();
++        if gpu_fallback.is_none() {
++            gpu_fallback = result.gpu_fallback;
++        }
++        // the first band decodes the source; the next ones develop from it
++        if let Some(src) = result.loaded {
++            job.source = SourceRef::Loaded(Box::new(src));
++        }
++        let img = result.rendered?.image;
++        if img.width != w || img.height != y1 - y0 {
++            return Err(format!("export band at row {top}: {}×{} rendered for a {w}×{} window", img.width, img.height, y1 - y0));
++        }
++        let skip = top - y0;
++        let (from, to) = (skip * w, (skip + rows) * w);
++        let (into, end) = (top * w, (top + rows) * w);
++        out.data.get_mut(into..end).ok_or("export band out of range")?.copy_from_slice(img.data.get(from..to).ok_or("export band too short")?);
++        top += rows;
++    }
++    let histogram = Histogram::of_srgb8(&out);
++    Ok((Rendered { image: out, histogram, deep: None }, gpu_fallback))
++}
++
++#[cfg(test)]
++mod tests {
++    #[test]
++    fn margin_matches_the_loupe() {
++        assert_eq!(super::margin(7728), 512);
++        assert_eq!(super::margin(4000), 256);
++        assert_eq!(super::margin(200_000), 3072);
++    }
++}
+diff --git a/crates/engine/src/export/prepare.rs b/crates/engine/src/export/prepare.rs
+index 56cc71a4..77f67038 100644
+--- a/crates/engine/src/export/prepare.rs
++++ b/crates/engine/src/export/prepare.rs
+@@ -213,9 +213,13 @@ impl PreparedExport {
+         match self.work {
+             Work::Render(w) => {
+                 let RenderWork { job, hdr_job, meta, opts } = *w;
+-                let result = job.run();
+-                let r = result.rendered?;
+-                let gpu_fallback = result.gpu_fallback;
++                // Thunderhead: a large 8-bit export in the browser renders in bands (bands.rs)
++                let (r, gpu_fallback) = if hdr_job.is_none() && super::bands::wanted(&job) {
++                    super::bands::render(job)?
++                } else {
++                    let result = job.run();
++                    (result.rendered?, result.gpu_fallback)
++                };
+                 let bytes = match hdr_job {
+                     Some(hj) => {
+                         let hr = hj.run().rendered?;
