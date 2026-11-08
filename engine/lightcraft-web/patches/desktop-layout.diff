@@ -1,0 +1,36 @@
+diff --git a/apps/lightcraft-web/src/web.rs b/apps/lightcraft-web/src/web.rs
+index 79773918..6141d793 100644
+--- a/apps/lightcraft-web/src/web.rs
++++ b/apps/lightcraft-web/src/web.rs
+@@ -863,10 +863,31 @@ impl WebApp {
+     }
+ }
+ 
++/// Thunderhead: when the page sets `globalThis.lightcraftLayoutWidth` (points), zoom egui so the UI lays
++/// out at least that many points wide on a narrower canvas (a phone gets the desktop layout). eframe
++/// measures the UI as canvas pixels / (device pixel ratio x zoom), so the zoom comes from the canvas's own
++/// pixel width; a wide page viewport alone leaves the UI phone-sized.
++fn layout_width_zoom(ctx: &egui::Context) {
++    let Some(w) = window() else { return };
++    let Some(target) = js_sys::Reflect::get(&w, &"lightcraftLayoutWidth".into()).ok().and_then(|v| v.as_f64()) else { return };
++    let Some(canvas) = w.document().and_then(|d| d.get_element_by_id("lightcraft_canvas")).and_then(|e| e.dyn_into::<web_sys::HtmlCanvasElement>().ok()) else {
++        return;
++    };
++    let (pixels, dpr) = (f64::from(canvas.width()), w.device_pixel_ratio());
++    if !(target.is_finite() && target > 0.0 && pixels > 0.0 && dpr.is_finite() && dpr > 0.0) {
++        return;
++    }
++    let zoom = (pixels / (dpr * target)).clamp(0.2, 1.0) as f32;
++    if (ctx.zoom_factor() - zoom).abs() > 0.001 {
++        ctx.set_zoom_factor(zoom);
++    }
++}
++
+ impl eframe::App for WebApp {
+     /// eframe's non-drawing pass for the browser host: drain safety notices and queued inbox work,
+     /// load originals the UI requested, apply the cache budget, run the app's logic, then save.
+     fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
++        layout_width_zoom(ctx);
+         for text in safety::take_notices() {
+             let now = self.app.tick_now();
+             self.app.ui.toast = Some((text, now + NOTICE_SECS, None));

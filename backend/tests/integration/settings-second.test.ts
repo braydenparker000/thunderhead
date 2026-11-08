@@ -8,7 +8,7 @@ import { ownerOnly } from '../../src/areas/settings/mind-set';
 import { uuidv7 } from '../../src/lib/ids';
 import { DAY_MS, threadRow, tick } from '../held-helpers';
 import { api, apiJson, coreSql } from '../helpers';
-import { brief, freshSession, type Principals, principals } from '../memory-helpers';
+import { as, brief, CHAT_SESSION, freshSession, type Principals, principals } from '../memory-helpers';
 
 let p: Principals;
 type Refused = { error?: { code: string; details?: { path: string; issue: string }[] } };
@@ -124,6 +124,8 @@ describe("the mind's name", () => {
   it("is in the briefing in one line, and section 1's now says the owner's day or evening by their hours", async () => {
     expect((await patch({ 'mind.day_start': '06:00', 'mind.night_start': '23:00' })).status).toBe(200);
     expect((await patch({ 'mind.night_start': '02:00' })).status).toBe(422);
+    // The first chat session lets go of the lease first (one chat session at a time), as other suites do.
+    await apiJson('POST', '/v1/mind/status', { ...as(p.C, CHAT_SESSION), body: { state: 'stopping' } });
     const s = await freshSession(p.C, 'chat', 'cse_settings_second_1');
     const { core, full } = (await brief(p.C, s, 'chat')).body;
     const first = core.slice(0, core.indexOf('\n## 2. '));

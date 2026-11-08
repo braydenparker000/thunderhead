@@ -14,6 +14,9 @@ once its tests and any second read pass, confirms it live, and says what changed
 `whats-new.json`. Batch 2 went live at `594d2b7` (PRs #16 to #20, under Last deploy), and the docs
 were tidied on 2026-11-02: history moved to [docs/archive/](../archive/README.md).
 
+**Photos → LightCraft (owner, 2026-11-08; decisions.md):** step 1, the test page `/lab/lightcraft/`
+(engine/lightcraft-web/README.md) for the owner's phone; step 2 is export and 1:1 memory (measured there).
+
 ## Current phase: what is live
 
 - **Home:** a chat; hold for the ring of seven apps, swipe right for the Briefing, left for the menu

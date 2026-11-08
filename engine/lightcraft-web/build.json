@@ -1,0 +1,37 @@
+{
+  "lightcraft": {
+    "git": "https://github.com/storytold/lightcraft",
+    "rev": "b3b49987d4b2c99f582b80ae91b2ec42ab24d14e"
+  },
+  "patches": [
+    {
+      "file": "engine/lightcraft-web/patches/web-clock.diff",
+      "sha256": "d795d9ae0582cae4ba063fd7b4f1768409e8864743251fbef707fc77ae9c01c6"
+    },
+    {
+      "file": "engine/lightcraft-web/patches/desktop-layout.diff",
+      "sha256": "f7ef31d01eb3f4fbd75cda2a8b20ada12118f6e44e6c53c5bc312f84be1fe9a9"
+    }
+  ],
+  "rustc": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+  "wasm_bindgen": "wasm-bindgen 0.2.129",
+  "profile": "LightCraft's `web` profile through `cargo xtask web`, no CRAFT_FONTS_DIR, no wasm-opt",
+  "files": {
+    "lightcraft_web.js": {
+      "bytes": 111225,
+      "sha256": "b443a8003d74e41fb9cb7de675b37e63aad73a0c6455648c9faf1e8ee9499a44"
+    },
+    "lightcraft_web_bg.wasm": {
+      "bytes": 31217363,
+      "sha256": "c8ea90795b6159d0d5403a1e8d64800f0f16553feecb68ebb8c5ad0fce063507"
+    },
+    "snippets/eframe-d31a8450ea12dfc1/inline0.js": {
+      "bytes": 280,
+      "sha256": "22a98f9d0c5a0532d291bdc9a3050439420b3d11143b4568fcfd3c66fff36995"
+    },
+    "worker.js": {
+      "bytes": 649,
+      "sha256": "c56f203f815546987d3cc60dd28c0c603a6d02ad8c050e348d0c4d32dfd006c6"
+    }
+  }
+}

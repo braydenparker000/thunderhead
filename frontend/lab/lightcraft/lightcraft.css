@@ -1,0 +1,9 @@
+/* LightCraft's own page styles (apps/lightcraft-web/index.html), moved out of the page for our CSP. */
+:root { color-scheme: dark; }
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1c1c1c; }
+canvas#lightcraft_canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#lightcraft_loading {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  color: #b8b8b8; font: 15px/1.4 system-ui, sans-serif; pointer-events: none;
+}
+#lightcraft_status { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; overflow: hidden; }
