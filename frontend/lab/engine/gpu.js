@@ -2,7 +2,8 @@
 // The engine test page's GPU stage (docs/engineering/ENGINE-RESEARCH.md). The binned proxy goes to the GPU
 // once; every change re-runs one compute pass, in the order the DNG specification and Camera Raw use for a
 // camera profile: white-balanced camera RGB → linear ProPhoto (ForwardMatrix) → HueSatMap → exposure →
-// Highlights and Shadows (by the tone mask, mask.js) → LookTable (then a look file's own, e.g. Adobe Color's) → the profile's tone curve (hue-preserving "RGB tone")
+// Highlights and Shadows (by the tone mask, mask.js) → Contrast, Whites and Blacks (one curve) → Saturation and
+// Vibrance → LookTable (then a look file's own, e.g. Adobe Color's) → the profile's tone curve (hue-preserving "RGB tone")
 // → a look's RGB table (Adobe RGB, γ 2.2) → sRGB on screen, turned upright. Without a profile it falls back to
 // the camera matrix and a filmic curve. Before all of it, colours the sensor clipped are rebuilt (wgsl.js).
 import { N, WGSL } from './wgsl.js';

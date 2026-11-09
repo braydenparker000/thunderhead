@@ -37,7 +37,7 @@ const draw = async () => {
   if (!eng) return;
   if (busy) { again = true; return; }
   busy = true;
-  const t = await eng.render(Number(ev.value) + shotEv, slope(), { highlights: at('hi'), shadows: at('sh'), whites: at('wh'), blacks: at('bl'), mask: on('mk'), showMask: on('sm'), rebuild: on('hl'), dither: on('dz'), exact: on('exact') });
+  const t = await eng.render(Number(ev.value) + shotEv, slope(), { highlights: at('hi'), shadows: at('sh'), whites: at('wh'), blacks: at('bl'), saturation: at('sa'), vibrance: at('vi'), mask: on('mk'), showMask: on('sm'), rebuild: on('hl'), dither: on('dz'), exact: on('exact') });
   busy = false;
   // a frame that re-made the colour table (a new profile, Contrast) is timed apart from one that only read it (Exposure)
   if (eng.last.baked) stats['Frame, colour table re-made'] = ms(t);
@@ -46,7 +46,7 @@ const draw = async () => {
   if (again) { again = false; draw(); }
 };
 ev.addEventListener('input', () => { $('evv').textContent = `${Number(ev.value) >= 0 ? '+' : ''}${Number(ev.value).toFixed(2)} EV`; draw(); });
-for (const id of ['ct', 'hi', 'sh', 'wh', 'bl']) $(id).addEventListener('input', () => { const v = Math.round(at(id) * 100); $(`${id}v`).textContent = `${v > 0 ? '+' : ''}${v}`; draw(); });
+for (const id of ['ct', 'hi', 'sh', 'wh', 'bl', 'vi', 'sa']) $(id).addEventListener('input', () => { const v = Math.round(at(id) * 100); $(`${id}v`).textContent = `${v > 0 ? '+' : ''}${v}`; draw(); });
 for (const id of ['hl', 'dz', 'exact', 'mk', 'sm']) $(id).addEventListener('change', () => { frames.length = 0; draw(); });
 
 /** Fills the picker for this camera and picks Adobe Color (Adobe Standard when the set has no Adobe Color). @param {string} model */
@@ -63,7 +63,8 @@ const usePick = () => {
   const e = list[Number(pick.value)] || null, k = eng.setProfile(e);
   $('kelvin').textContent = `${k} K`;
   $('which').textContent = e ? `${e.label}: ${e.profile.look2 ? `${e.profile.model} Adobe Standard + the look's table and curve` : e.profile.name}${e.table ? ' + look table' : ''}` : 'Camera matrix and a simple curve: no profile';
-  draw().then(check);
+  const drawn = draw(); drawn.then(check);
+  return drawn;
 };
 /** The colour check: this render against the camera's own JPEG (in the simulation it was shot with). */
 const check = async () => {
@@ -83,14 +84,16 @@ $('time').addEventListener('click', async () => {
   busy = true;
   for (const k of Object.keys(stats)) if (k.startsWith('Timed')) delete stats[k];
   const e = Number(ev.value) + shotEv, c = slope(), off = { rebuild: false, dither: false };
-  /** @type {[string, { highlights?: number, mask?: boolean, rebuild?: boolean, dither?: boolean, time?: 'bare' | 'nearest' }][]} */
+  /** each: its name, what to render, and whether Contrast moves a hair every frame (so the colour table is re-made each time)
+   * @type {[string, { highlights?: number, saturation?: number, mask?: boolean, rebuild?: boolean, dither?: boolean, time?: 'bare' | 'nearest' }, boolean?][]} */
   const steps = [['read and show only', { ...off, time: 'bare' }], ['+ colour table, nearest entry', { ...off, time: 'nearest' }], ['+ mixing its entries', off],
-    ['+ rebuilding blown highlights', { dither: false }], ['+ dither: a whole frame', {}], ['+ Highlights −50 by pixel', { highlights: -0.5, mask: false }], ['+ Highlights −50 by area', { highlights: -0.5 }]];
+    ['+ rebuilding blown highlights', { dither: false }], ['+ dither: a whole frame', {}], ['+ Highlights −50 by pixel', { highlights: -0.5, mask: false }], ['+ Highlights −50 by area', { highlights: -0.5 }],
+    ['a frame with Contrast moving (the colour table re-made)', {}, true], ['the same at Saturation +50', { saturation: 0.5 }, true]];
   await new Promise((r) => setTimeout(r, 1500));
   stats['Timed: a frame after a rest'] = ms(await g.render(e, c));
-  for (const [name, more] of steps) {
+  for (const [name, more, moving] of steps) {
     const t = [], first = await g.render(e, c, more), made = g.last.masked;
-    for (let k = 0; k < 9; k++) t.push(await g.render(e, c, more));
+    for (let k = 0; k < 9; k++) t.push(await g.render(e, moving ? c * (1 + (k + 1) * 1e-4) : c, more));
     const mid = t.sort((a, b) => a - b)[4];
     stats[`Timed: ${name}`] = ms(mid);
     if (made) stats['Timed: the area brightness, made once a photo'] = ms(first - mid);
@@ -134,8 +137,7 @@ $('file').addEventListener('change', async (e) => {
     /** @type {any} */ (window).__engine = eng;   // for the checks run from outside the page
     stats.GPU = eng.adapter; stats.Upload = ms(eng.uploadMs); stats.Status = 'Ready: move the sliders'; /** @type {HTMLButtonElement} */ ($('time')).disabled = false;
     if (files) await fillPicker(`${r.meta.make} ${r.meta.model}`);
-    usePick();
-    await draw();
+    await usePick();   // one frame: it makes the colour table and is the pipelines' first run, so it's far slower than a frame while editing
     stats['To developed image'] = ms(performance.now() - t0);
     show();
   } catch (err) { console.error(err); stats.Status = String(/** @type {any} */ (err)?.message || err); show(); }
