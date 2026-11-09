@@ -23,7 +23,7 @@
   </header>
 
   <sc-if value="{{isGrid}}" hint-placeholder-val="{{true}}">
-    <div class="vscroll" style="position: absolute; top: 56px; left: 0; right: 0; height: 734px">
+    <div class="vscroll" style="position: absolute; top: 56px; left: 0; right: 0; height: calc(734px - var(--cut))">
       <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
         <div style="position: sticky; top: 0; z-index: 1; padding: 10px 16px 6px; background: rgba(0,0,0,0.88); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: #a6b0bc">{{g.title}}<span style="color: #5d6166; margin-left: 8px">{{g.count}}</span></div>
         <div style="display: grid; grid-template-columns: repeat({{cols}}, minmax(0, 1fr)); gap: 2px">
@@ -43,7 +43,7 @@
   </sc-if>
 
   <sc-if value="{{isCull}}" hint-placeholder-val="{{false}}">
-    <div style="position: absolute; top: 56px; left: 0; width: 412px; height: 536px; display: flex; align-items: center; justify-content: center; overflow: hidden">
+    <div style="position: absolute; top: 56px; left: 0; width: 412px; height: calc(536px - var(--cut)); display: flex; align-items: center; justify-content: center; overflow: hidden">
       <img src="/lab/editor/assets/sample.jpg" alt="{{cur.aria}}" style="width: 392px; height: 392px; object-fit: cover; object-position: {{cur.pos}}; transform: scale({{cur.zoom}}); filter: {{cur.filter}}; opacity: {{cur.dim}}; display: block; border-radius: 4px">
       <span class="glass" style="position: absolute; left: 12px; top: 12px; padding: 5px 10px; border-radius: 12px; font-size: 11px; font-variant-numeric: tabular-nums">{{cur.meta}}</span>
       <span style="position: absolute; left: 22px; bottom: 58px; font-size: 22px; color: {{cur.flagInk}}; text-shadow: 0 1px 4px rgba(0,0,0,0.9)">{{cur.flag}}</span>
@@ -74,7 +74,7 @@
     </div>
   </sc-if>
   <sc-if value="{{isGrid}}" hint-placeholder-val="{{true}}">
-    <div style="position: absolute; left: 0; top: 790px; width: 412px; height: 125px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+    <div style="position: absolute; left: 0; top: calc(790px - var(--cut)); width: 412px; height: 125px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
       <nav aria-label="Show" style="position: absolute; left: 8px; right: 8px; top: 12px; height: 34px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr))">
         <sc-for list="{{filters}}" as="f" hint-placeholder-count="5">
           <button onClick="{{f.pick}}" aria-current="{{f.current}}" class="eng" style="position: relative; height: 34px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
@@ -93,7 +93,7 @@
   </sc-if>
 
   <sc-if value="{{isCull}}" hint-placeholder-val="{{false}}">
-    <div style="position: absolute; left: 0; top: 600px; width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+    <div style="position: absolute; left: 0; top: calc(600px - var(--cut)); width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
       <div role="status" aria-label="Photo {{pos}} of {{total}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, #050606, #0b0c0d); box-shadow: inset 0 2px 5px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.10)">
         <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">ROLL · {{rollName}}</span>
         <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{total}}</span>

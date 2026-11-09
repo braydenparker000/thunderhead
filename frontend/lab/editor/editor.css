@@ -4,7 +4,16 @@
 @font-face{font-family:Inter;font-style:normal;font-weight:600;font-display:swap;src:url(/lab/editor/assets/inter-600.woff2) format('woff2')}
 @font-face{font-family:Inter;font-style:normal;font-weight:700;font-display:swap;src:url(/lab/editor/assets/inter-700.woff2) format('woff2')}
 html,body{margin:0;height:100%;background:#000;overflow:hidden}
-#stage{position:absolute;left:0;top:0;width:412px;height:915px;transform-origin:0 0}
+#frame,body:not([data-board=App]) #stage{position:absolute;left:0;top:0;width:412px;height:915px;transform-origin:0 0;overflow:clip;--cut:0px}
+#frame #stage{position:absolute;inset:0;overflow:clip}
+#stage>div{height:calc(915px - var(--cut))!important;overflow:clip}
+#stage.enter{animation:enter 240ms cubic-bezier(0.2,0.85,0.2,1) both}@keyframes enter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+#dockveil{position:absolute;inset:0;z-index:9;background:rgba(0,0,0,0.25)}
+#dock{position:absolute;left:14px;bottom:18px;width:384px;height:64px;border-radius:32px;z-index:10;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));padding:0 6px;box-sizing:border-box;animation:enter 260ms cubic-bezier(0.2,0.85,0.2,1) both}
+#dock[hidden],#dockveil[hidden]{display:none}
+#dock button{font:500 10px Inter,system-ui,sans-serif;color:#dfe4ea;background:none;border:0;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer}
+#dock .lens{width:44px;height:30px;border-radius:15px;display:flex;align-items:center;justify-content:center;color:#eceff4;background:none;box-shadow:none}
+#dock button[aria-current=page] .lens{background:radial-gradient(ellipse at 50% 20%,rgba(255,255,255,0.34),rgba(255,255,255,0.10) 60%,rgba(255,255,255,0.06));box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),inset 0 -2px 6px rgba(0,0,0,0.25)}
 a{color:#6aa2ff}a:hover{color:#9cc0ff}
 button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
 .glass{background:linear-gradient(180deg,rgba(255,255,255,0.17),rgba(255,255,255,0.06));-webkit-backdrop-filter:blur(18px) saturate(1.8);backdrop-filter:blur(18px) saturate(1.8);border:1px solid rgba(255,255,255,0.22);box-shadow:inset 0 1px 0 rgba(255,255,255,0.38),inset 0 -1px 1px rgba(255,255,255,0.06),0 14px 34px rgba(0,0,0,0.55)}

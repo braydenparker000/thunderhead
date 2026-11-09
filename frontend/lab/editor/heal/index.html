@@ -27,7 +27,7 @@
     </div>
   </header>
 
-  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: 540px; overflow: hidden">
+  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(540px - var(--cut)); overflow: hidden">
     <div onPointerDown="{{pDown}}" onPointerMove="{{pMove}}" onPointerUp="{{pUp}}" onPointerCancel="{{pUp}}" aria-label="Photo. Tap a spot to {{toolVerb}} it."
          style="position: absolute; left: 20px; top: 146px; width: 372px; height: 248px; touch-action: none; cursor: crosshair">
       <img src="/lab/editor/assets/sample.jpg" alt="The photo being retouched" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block; filter: {{viz}}">
@@ -47,7 +47,7 @@
     <span class="glass" style="position: absolute; left: 12px; top: 12px; padding: 5px 10px; border-radius: 12px; font-size: 11px">{{status}}</span>
   </div>
 
-  <div style="position: absolute; left: 0; top: 600px; width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+  <div style="position: absolute; left: 0; top: calc(600px - var(--cut)); width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
     <div role="status" aria-label="{{ctl}} {{valText}} {{unit}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, #050606, #0b0c0d); box-shadow: inset 0 2px 5px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.10)">
       <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">{{ctlUp}}</span>
       <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{unit}}</span>
