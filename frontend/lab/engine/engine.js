@@ -31,7 +31,10 @@ let shotEv = 0;
 // this page has none: here nothing is open yet, so register or apply it and reload once. `isolation` says
 // which, for the Threads row.
 let isolation = crossOriginIsolated ? 'isolated' : 'not isolated';
-if (!crossOriginIsolated && navigator.serviceWorker) (async () => {
+// The service worker isolates /lab/engine/ only; the site also serves this page as /lab/engine and
+// /lab/engine/index.html, so go to the one address first.
+if (location.pathname !== '/lab/engine/') location.replace(`/lab/engine/${location.search}`);
+else if (!crossOriginIsolated && navigator.serviceWorker) (async () => {
   // at most one reload every 20 s, so a worker that never isolates can't loop the page
   const once = () => { try { if (Date.now() - Number(sessionStorage.getItem('engine-isolate') || 0) < 20_000) return; sessionStorage.setItem('engine-isolate', String(Date.now())); } catch { return; } location.reload(); };
   navigator.serviceWorker.addEventListener('controllerchange', () => { isolation = 'service worker changed, reloading'; once(); });
@@ -47,7 +50,7 @@ if (!crossOriginIsolated && navigator.serviceWorker) (async () => {
   });
   if (reg.waiting) { isolation = 'applying the waiting service worker'; skip(reg.waiting); }
   else if (reg.installing) { isolation = 'new service worker installing'; follow(reg.installing); }
-  else if (reg.active && navigator.serviceWorker.controller) { isolation = 'the service worker in charge does not isolate this page'; once(); }
+  else if (reg.active && navigator.serviceWorker.controller) { isolation = `the service worker in charge (${new URL(navigator.serviceWorker.controller.scriptURL).pathname}) does not isolate this page`; once(); }
   else if (reg.active) { isolation = 'page opened without the service worker: reloading'; once(); }
 })().catch((e) => { isolation = `service worker: ${e?.message || e}`; });
 
