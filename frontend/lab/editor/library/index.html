@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Editor test · Library</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/lab/editor/editor.css">
+<script type="module" src="/lab/editor/boot.js"></script>
+</head>
+<body data-board="LibraryPlate">
+<div id="stage"></div>
+<template data-dc="LibraryPlate">
+<div style="width: 412px; height: 915px; box-sizing: border-box; position: relative; background: #000000; color: #eceff4; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+  <header style="position: absolute; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; z-index: 2; background: linear-gradient(180deg, #000 70%, rgba(0,0,0,0))">
+    <div style="flex: 1; min-width: 0">
+      <div style="font-size: 20px; font-weight: 700; letter-spacing: -0.01em">{{title}}</div>
+      <div style="font-size: 11px; color: #8b95a1; font-variant-numeric: tabular-nums">{{subtitle}}</div>
+    </div>
+    <button onClick="{{toggleImport}}" aria-expanded="{{importing}}" style="height: 34px; padding: 0 14px; border-radius: 17px; background: #e8202a; color: #fff; font-size: 13px; font-weight: 600">Import</button>
+  </header>
+
+  <sc-if value="{{isGrid}}" hint-placeholder-val="{{true}}">
+    <div class="vscroll" style="position: absolute; top: 56px; left: 0; right: 0; height: 734px">
+      <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+        <div style="position: sticky; top: 0; z-index: 1; padding: 10px 16px 6px; background: rgba(0,0,0,0.88); font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: #a6b0bc">{{g.title}}<span style="color: #5d6166; margin-left: 8px">{{g.count}}</span></div>
+        <div style="display: grid; grid-template-columns: repeat({{cols}}, minmax(0, 1fr)); gap: 2px">
+          <sc-for list="{{g.items}}" as="p" hint-placeholder-count="6">
+            <button onClick="{{p.open}}" aria-label="{{p.aria}}" style="position: relative; aspect-ratio: 1; overflow: hidden; background: #111; opacity: {{p.dim}}">
+              <img src="/lab/editor/assets/sample.jpg" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {{p.pos}}; transform: scale({{p.zoom}}); filter: {{p.filter}}; display: block">
+              <span style="position: absolute; left: 5px; top: 4px; font-size: 11px; color: {{p.flagInk}}; text-shadow: 0 1px 2px rgba(0,0,0,0.9)">{{p.flag}}</span>
+              <span style="position: absolute; right: 5px; top: 5px; font-size: 7.5px; font-weight: 700; letter-spacing: 0.08em; padding: 1px 4px; border-radius: 4px; background: rgba(0,0,0,0.6); color: #dedbd4">{{p.sim}}</span>
+              <span style="position: absolute; left: 5px; bottom: 3px; font-size: 9px; letter-spacing: 1px; color: #f2efe8; text-shadow: 0 1px 2px rgba(0,0,0,0.9)">{{p.stars}}</span>
+              <span style="position: absolute; right: 6px; bottom: 6px; width: 6px; height: 6px; border-radius: 50%; background: {{p.edited}}"></span>
+            </button>
+          </sc-for>
+        </div>
+      </sc-for>
+      <div style="height: 20px"></div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isCull}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; top: 56px; left: 0; width: 412px; height: 536px; display: flex; align-items: center; justify-content: center; overflow: hidden">
+      <img src="/lab/editor/assets/sample.jpg" alt="{{cur.aria}}" style="width: 392px; height: 392px; object-fit: cover; object-position: {{cur.pos}}; transform: scale({{cur.zoom}}); filter: {{cur.filter}}; opacity: {{cur.dim}}; display: block; border-radius: 4px">
+      <span class="glass" style="position: absolute; left: 12px; top: 12px; padding: 5px 10px; border-radius: 12px; font-size: 11px; font-variant-numeric: tabular-nums">{{cur.meta}}</span>
+      <span style="position: absolute; left: 22px; bottom: 58px; font-size: 22px; color: {{cur.flagInk}}; text-shadow: 0 1px 4px rgba(0,0,0,0.9)">{{cur.flag}}</span>
+      <div class="hscroll" aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: 6px; height: 40px; display: flex; gap: 3px; justify-content: center">
+        <sc-for list="{{strip}}" as="s" hint-placeholder-count="9">
+          <span style="flex: none; width: 34px; height: 34px; margin-top: {{s.lift}}px; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 {{s.ringW}}px #e8202a; opacity: {{s.o}}"><img src="/lab/editor/assets/sample.jpg" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {{s.pos}}; filter: {{s.filter}}; display: block"></span>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{importing}}" hint-placeholder-val="{{false}}">
+    <div class="glass" role="dialog" aria-label="Import photos" style="position: absolute; left: 12px; right: 12px; top: 64px; padding: 14px; box-sizing: border-box; border-radius: 20px; z-index: 4">
+      <div style="font-size: 15px; font-weight: 600; margin-bottom: 4px">Import photos</div>
+      <div style="font-size: 11px; color: #a6b0bc; margin-bottom: 10px">RAFs stay on this phone. Thumbnails come from the preview inside each RAF, so they appear at once.</div>
+      <sc-for list="{{sources}}" as="o" hint-placeholder-count="3">
+        <button onClick="{{o.pick}}" style="width: 100%; min-height: 50px; margin-bottom: 6px; padding: 8px 12px; box-sizing: border-box; border-radius: 14px; display: flex; align-items: center; gap: 12px; text-align: left; background: rgba(255,255,255,0.07)">
+          <span aria-hidden="true" style="flex: none; width: 30px; height: 30px; border-radius: 9px; display: flex; align-items: center; justify-content: center; background: #e8202a; font-size: 15px">{{o.glyph}}</span>
+          <span style="display: flex; flex-direction: column; gap: 2px"><span style="font-size: 13px; font-weight: 600">{{o.name}}</span><span style="font-size: 10.5px; color: #a6b0bc">{{o.note}}</span></span>
+        </button>
+      </sc-for>
+      <sc-if value="{{progress}}" hint-placeholder-val="{{false}}">
+        <div role="status" style="margin-top: 4px; padding: 10px 12px; border-radius: 14px; background: rgba(0,0,0,0.35); font-size: 11.5px">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 7px"><span>{{progText}}</span><span style="color: #a6b0bc; font-variant-numeric: tabular-nums">{{progCount}}</span></div>
+          <div style="height: 3px; border-radius: 2px; background: #1c1e20"><div style="width: {{progPct}}%; height: 3px; border-radius: 2px; background: #e8202a; transition: width 300ms linear"></div></div>
+        </div>
+      </sc-if>
+    </div>
+  </sc-if>
+  <sc-if value="{{isGrid}}" hint-placeholder-val="{{true}}">
+    <div style="position: absolute; left: 0; top: 790px; width: 412px; height: 125px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+      <nav aria-label="Show" style="position: absolute; left: 8px; right: 8px; top: 12px; height: 34px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr))">
+        <sc-for list="{{filters}}" as="f" hint-placeholder-count="5">
+          <button onClick="{{f.pick}}" aria-current="{{f.current}}" class="eng" style="position: relative; height: 34px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+            <span aria-hidden="true" style="position: absolute; left: 50%; top: 0; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: {{f.dot}}"></span>
+            <span style="font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: {{f.ink}}">{{f.label}}</span>
+            <span style="font-size: 9px; color: {{f.countInk}}; font-variant-numeric: tabular-nums">{{f.count}}</span>
+          </button>
+        </sc-for>
+      </nav>
+      <div style="position: absolute; left: 14px; right: 14px; bottom: 22px; display: flex; gap: 8px">
+        <button class="key" onClick="{{toCull}}" style="height: 40px; padding: 0 16px; border-radius: 12px; display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: #e8202a; box-shadow: 0 0 6px rgba(232,32,42,0.7)"></span>CULL</button>
+        <button class="key" onClick="{{cycleSort}}" style="height: 40px; padding: 0 16px; border-radius: 12px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4">{{sortName}}</button>
+        <button class="key" onClick="{{cycleSize}}" aria-label="Thumbnail size" style="margin-left: auto; width: 40px; height: 40px; border-radius: 12px; font-size: 14px; color: #dedbd4">{{sizeGlyph}}</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{isCull}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; left: 0; top: 600px; width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+      <div role="status" aria-label="Photo {{pos}} of {{total}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, #050606, #0b0c0d); box-shadow: inset 0 2px 5px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.10)">
+        <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">ROLL · {{rollName}}</span>
+        <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{total}}</span>
+        <span style="position: absolute; left: 22px; right: 22px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #1c1e20"></span>
+        <sc-for list="{{marks}}" as="m" hint-placeholder-count="10"><span style="position: absolute; left: {{m.x}}px; top: 26px; width: 1.5px; height: 8px; background: {{m.c}}"></span></sc-for>
+        <span style="position: absolute; left: 22px; width: {{fillW}}px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #e8202a; box-shadow: 0 0 8px rgba(232,32,42,0.55)"></span>
+        <span style="position: absolute; left: {{numX}}px; top: 30px; transform: translate(-50%, -50%); height: 20px; padding: 0 8px; border-radius: 10px; display: flex; align-items: center; background: #0b0c0d; box-shadow: 0 0 0 1.5px #e8202a, 0 2px 6px rgba(0,0,0,0.8); color: #f2efe8; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap">{{pos}}</span>
+      </div>
+      <div aria-hidden="true" style="position: absolute; left: 0; top: 58px; width: 412px; height: 150px; background: url(/lab/editor/assets/dial-strip.webp) 0 {{spinY}}px / 412px 1800px no-repeat"></div>
+      <div role="slider" aria-label="Move through the roll" aria-valuemin="1" aria-valuemax="{{total}}" aria-valuenow="{{pos}}" tabindex="0"
+           onPointerDown="{{dDown}}" onPointerMove="{{dMove}}" onPointerUp="{{dUp}}" onPointerCancel="{{dUp}}" onKeyDown="{{dKey}}"
+           style="position: absolute; left: 0; top: 58px; width: 412px; height: 108px; touch-action: none; cursor: ew-resize; outline: none"></div>
+      <span aria-hidden="true" style="position: absolute; left: 50%; top: 64px; margin-left: -4px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #e8202a"></span>
+      <div role="radiogroup" aria-label="Rating" style="position: absolute; left: 14px; right: 14px; top: 166px; height: 36px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr))">
+        <sc-for list="{{rates}}" as="r" hint-placeholder-count="6">
+          <button role="radio" aria-checked="{{r.on}}" aria-label="{{r.aria}}" onClick="{{r.pick}}" class="eng" style="position: relative; height: 36px; font-size: {{r.size}}px; letter-spacing: 0.02em; color: {{r.ink}}">{{r.name}}<span aria-hidden="true" style="position: absolute; left: 50%; bottom: 0; width: 12px; height: 2px; margin-left: -6px; background: {{r.bar}}"></span></button>
+        </sc-for>
+      </div>
+      <nav aria-label="Flag" style="position: absolute; left: 14px; right: 14px; top: 206px; height: 30px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr))">
+        <sc-for list="{{flags}}" as="f" hint-placeholder-count="3">
+          <button onClick="{{f.pick}}" aria-pressed="{{f.on}}" class="eng" style="position: relative; height: 30px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: {{f.ink}}"><span aria-hidden="true" style="position: absolute; left: 50%; top: 0; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: {{f.dot}}"></span>{{f.label}}</button>
+        </sc-for>
+      </nav>
+      <div style="position: absolute; left: 14px; right: 14px; bottom: 22px; display: flex; gap: 8px">
+        <button class="key" onClick="{{toGrid}}" style="height: 40px; padding: 0 16px; border-radius: 12px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4">‹ GRID</button>
+        <button class="key" onClick="{{toggleSkip}}" aria-pressed="{{skip}}" style="height: 40px; padding: 0 14px; border-radius: 12px; display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: {{skipDot}}"></span>SKIP REJECTS</button>
+        <button onClick="{{noop}}" style="margin-left: auto; height: 40px; padding: 0 18px; border-radius: 12px; background: #e8202a; color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 0.14em; box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 2px 6px rgba(0,0,0,0.6)">EDIT ›</button>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</template>
+</body>
+</html>

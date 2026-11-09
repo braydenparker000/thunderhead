@@ -1,0 +1,11 @@
+/* The editor test page's index. */
+@font-face{font-family:Inter;font-weight:400;font-display:swap;src:url(/lab/editor/assets/inter-400.woff2) format('woff2')}
+@font-face{font-family:Inter;font-weight:600;font-display:swap;src:url(/lab/editor/assets/inter-600.woff2) format('woff2')}
+body{margin:0;background:#000;color:#eceff4;font:400 15px/1.45 Inter,system-ui,sans-serif}
+main{max-width:480px;margin:0 auto;padding:32px 16px}
+h1{font-weight:600;font-size:24px;margin:0 0 8px}
+p{color:#a6b0bc;margin:0 0 24px}
+nav{display:grid;gap:8px}
+a{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border-radius:14px;background:#232525;color:#f2efe8;text-decoration:none;font-weight:600;box-shadow:inset 0 1px 0 rgba(255,255,255,.08)}
+a span{font-weight:400;font-size:13px;color:#9a9ea4}
+a:focus-visible{outline:2px solid #e8202a;outline-offset:2px}

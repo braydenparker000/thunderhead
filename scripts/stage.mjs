@@ -225,7 +225,10 @@ const budgets = [
   ['later CSS bytes', sum(/^th\/.*\.css$/), 24_476],
   // One face since 2026-10-31: Switzer, variable 100–900 (43.2 KB, the official file, never subset:
   // its licence forbids changing it; Quicksand was 28.2 KB, Fraunces and Inter 133 KB).
-  ['shell font bytes', list.filter(f => shellFile(f) && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 48_000],
+  // (2026-11-09) The editor test page (lab/editor/) carries its own Inter, as designed (docs/design/EDITOR.md):
+  // loaded only by that page, never with the shell, so it has its own budget below.
+  ['shell font bytes', list.filter(f => shellFile(f) && !f.path.startsWith('lab/editor/') && /\.woff2$/.test(f.path)).reduce((n, f) => n + f.size, 0), 48_000],
+  ['editor lab bytes', sum(/^lab\/editor\//), 1_300_000],
   ['precache bytes', list.filter((f) => precached(f.path)).reduce((n, f) => n + f.size, 0), 3_000_000],
   // (2026-11-04, Photos) 30,000 → 30,722 measured: star, star-fill, flag and prohibit for rating and culling.
   // (2026-11-04, Photos' editor) +2,000 measured (32,722): sun, triangle, magic-wand and circle-half.
