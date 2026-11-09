@@ -58,8 +58,8 @@ test('no outside hosts anywhere in the site', async () => {
       if (relative(SITE, f) === 'photos/index.html' && /^https:\/\/(apis|docs)\.google\.com;$/.test(url)) continue;
       if (relative(SITE, f) === 'apps/photos/pick.js' && url === 'https://apis.google.com/js/api.js') continue;
       // wasm-bindgen-rayon's worker script (the threaded RAW engine, PHOTOS.md; the LightCraft test page's threads build,
-      // engine/lightcraft-web/README.md): its licence notice and a bug link, comments, never fetched.
-      if (/^(photos\/engine|lab\/lightcraft)\/threads\/snippets\/wasm-bindgen-rayon-[0-9a-f]+\/src\/workerHelpers\.no-bundler\.js$/.test(relative(SITE, f)) && ['http://www.apache.org/licenses/LICENSE-2.0', 'https://bugzilla.mozilla.org/show_bug.cgi?id=1702191'].includes(url)) continue;
+      // engine/lightcraft-web/README.md; the engine test page's pkg-threads/, engine/raw/README.md): its licence notice and a bug link, comments, never fetched.
+      if (/^(photos\/engine\/threads|lab\/lightcraft\/threads|lab\/engine\/pkg-threads)\/snippets\/wasm-bindgen-rayon-[0-9a-f]+\/src\/workerHelpers\.no-bundler\.js$/.test(relative(SITE, f)) && ['http://www.apache.org/licenses/LICENSE-2.0', 'https://bugzilla.mozilla.org/show_bug.cgi?id=1702191'].includes(url)) continue;
       assert.fail(`${relative(REPO, f)} reaches ${url}`);
     }
   }

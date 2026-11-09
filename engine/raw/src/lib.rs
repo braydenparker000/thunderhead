@@ -5,10 +5,15 @@
 //! camera RGB at about 2576 x 1717 for a 40 MP frame, with no demosaic needed.
 
 use rawler::decoders::RawDecodeParams;
+use rayon::prelude::*;
 use rawler::imgop::xyz::Illuminant;
 use rawler::rawimage::{RawImage, RawImageData, RawPhotometricInterpretation};
 use rawler::rawsource::RawSource;
 use wasm_bindgen::prelude::*;
+
+/// `initThreadPool(n)` for the threads build: the rayon pool rawler's decoders split their work across.
+#[cfg(all(target_arch = "wasm32", feature = "threads"))]
+pub use wasm_bindgen_rayon::init_thread_pool;
 
 /// A decoded frame: its metadata as JSON and the proxy as RGBA u16 (alpha unused), row by row.
 #[wasm_bindgen]
@@ -56,8 +61,11 @@ fn bin(raw: &RawImage) -> Result<(Vec<u16>, u32, u32), String> {
   let black: f32 = { let l = &raw.blacklevel.levels; if l.is_empty() { 0.0 } else { l.iter().map(level).sum::<f32>() / l.len() as f32 } };
   let white = *raw.whitelevel.0.first().unwrap_or(&65535) as f32;
   let scale = 65535.0 / (white - black).max(1.0);
+  // the colour of each site of the pattern, looked up once rather than per pixel
+  let (cw, ch) = (cfa.width, cfa.height);
+  let colour: Vec<usize> = (0..cw * ch).map(|i| cfa.color_at(i / cw, i % cw).min(2)).collect();
   let mut out = vec![0u16; pw * ph * 4];
-  for py in 0..ph {
+  out.par_chunks_mut(pw * 4).enumerate().for_each(|(py, line)| {
     for px in 0..pw {
       let (mut s, mut c) = ([0f32; 3], [0u32; 3]);
       for dy in 0..n {
@@ -65,18 +73,17 @@ fn bin(raw: &RawImage) -> Result<(Vec<u16>, u32, u32), String> {
         let row = &data[y * raw.width..(y + 1) * raw.width];
         for dx in 0..n {
           let x = x0 + px * n + dx;
-          let k = cfa.color_at(y, x).min(2);
+          let k = colour[(y % ch) * cw + x % cw];
           s[k] += row[x] as f32;
           c[k] += 1;
         }
       }
-      let o = (py * pw + px) * 4;
       for k in 0..3 {
         let v = if c[k] > 0 { (s[k] / c[k] as f32 - black) * scale } else { 0.0 };
-        out[o + k] = v.clamp(0.0, 65535.0) as u16;
+        line[px * 4 + k] = v.clamp(0.0, 65535.0) as u16;
       }
     }
-  }
+  });
   Ok((out, pw as u32, ph as u32))
 }
 

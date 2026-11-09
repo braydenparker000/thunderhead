@@ -93,7 +93,7 @@ $('file').addEventListener('change', async (e) => {
   });
   if (r.error) { stats.Status = `Couldn't open it: ${r.error}`; show(); return; }
   stats.Camera = `${r.meta.make} ${r.meta.model} · ${r.meta.width} × ${r.meta.height}`;
-  stats.Decode = `${ms(r.decodeMs)} (worker round trip ${ms(performance.now() - t1)})`;
+  stats.Decode = `${ms(r.decodeMs)} on ${r.threads} thread${r.threads > 1 ? "s" : ""} (worker round trip ${ms(performance.now() - t1)})`;
   stats['Editing copy'] = `${r.width} × ${r.height}`;
   try {
     eng = await engine(canvas, r, new URLSearchParams(location.search).has('readback'));
