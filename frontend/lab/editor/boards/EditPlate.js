@@ -32,7 +32,7 @@ export default class Component extends DCLogic {
       const on = name === section;
       return { label: name.toUpperCase(), current: on ? 'true' : 'false', count: counts[name] ? String(counts[name]) : '',
         ink: on ? '#f2efe8' : '#7d8187', dot: on ? '#e8202a' : 'transparent', countInk: on ? '#e8202a' : '#5d6166',
-        pick: () => set({ section: name, adj: sets[name][0][0], sub: null, wbMenu: false }) };
+        pick: () => { photo.pickWhite(false); set({ section: name, adj: sets[name][0][0], sub: null, wbMenu: false }); } };
     });
     // engraved markings on the plate: paint-filled when active, with a red bar under them
     const chip = (o) => ({
@@ -59,10 +59,10 @@ export default class Component extends DCLogic {
       dialLabel = wheel ? `${S.zone} Lum` : S.zone; actions = [{ name: 'RESET GRADING' }];
     } else {
       chips = list.map(([name, value]) => ({ name, value, on: name === current[0], pick: () => set({ adj: name }) }))
-        .concat((subs[section] || []).map(([key, name]) => ({ name: `${name} ›`, entry: true, pad: 10, pick: () => set({ sub: key, wbMenu: false }) })));
+        .concat((subs[section] || []).map(([key, name]) => ({ name: `${name} ›`, entry: true, pad: 10, pick: () => { photo.pickWhite(false); set({ sub: key, wbMenu: false }); } })));
       dialLabel = current[0]; unit = current[2] || '';
       actions = section === 'Color'
-        ? [{ name: '', aria: 'Pick white balance from the photo', dropper: true, pad: 12 }, { name: `WB · ${(real ? real.wb : S.wb).toUpperCase()}`, caret: true, expanded: String(S.wbMenu), pick: () => set({ wbMenu: !S.wbMenu }) }]
+        ? [{ name: '', aria: 'Pick white balance from the photo', dropper: true, pad: 12, pick: () => { photo.pickWhite(); set({ wbMenu: false }); } }, { name: `WB · ${(real ? real.wb : S.wb).toUpperCase()}`, caret: true, expanded: String(S.wbMenu), pick: () => set({ wbMenu: !S.wbMenu }) }]
         : [{ name: 'AUTO', auto: true }, { name: 'RESET', pick: () => photo.reset(current[0]) }];
     }
     // the row flies out of the section name that was tapped: each chip starts at that name and springs into place
@@ -96,7 +96,7 @@ export default class Component extends DCLogic {
       dialTurn: real && !sub ? (d) => photo.turn(current[0], d) : undefined, status: real?.status || '', hasStatus: !!real?.status,
       fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160', countText: real ? real.count : '3 / 24',
       actions: actions.map((a) => ({ name: a.name, aria: a.aria ?? a.name, pad: a.pad ?? 16, auto: !!a.auto, dropper: !!a.dropper, caret: !!a.caret, expanded: a.expanded ?? 'false', pick: a.pick ?? (() => {}) })),
-      close: () => set({ open: false, wbMenu: false }),
+      close: () => { photo.pickWhite(false); set({ open: false, wbMenu: false }); },
     };
   }
 }
