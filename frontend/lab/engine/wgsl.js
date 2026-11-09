@@ -140,18 +140,49 @@ fn tones(c0: vec3f) -> vec3f {
   let tx = shade(mx); let tn = shade(mn); let k = select((tx - tn) / (mx - mn), 0.0, mx - mn <= 1e-7 * mx);
   return vec3f(tn) + (c - vec3f(mn)) * k;
 }
-// Saturation and Vibrance (Vibrance spares colours that are already strong): a first version, every channel
-// moved from the pixel's luminance alike.
-fn lights(c: vec3f) -> vec3f {
-  let l = dot(c, LUM); let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b));
-  let sat = select((mx - mn) / mx, 0.0, mx <= 0.0);
-  return max(vec3f(l) + (c - vec3f(l)) * (1.0 + p.k.x) * (1.0 + p.k.y * (1.0 - sat)), vec3f(0.0));
+// Saturation and Vibrance, in Oklab (Björn Ottosson's): the colour is made stronger or weaker about its own
+// lightness, so its hue holds (a blue sky doesn't turn purple) and the same move looks the same on every
+// colour. Saturation moves every colour alike; Vibrance moves the muted ones most, goes easy on skin's
+// hues, and taken down fades the muted colours first. Neither pushes a colour off the edge of what the
+// screen can show: past the knee the move eases off towards the edge, where a plain one would clip to a
+// flat patch of the wrong hue. The tuning is ours.
+const SKIN = 0.5;                        // how much of Vibrance skin's hues are spared
+const SKIN_HUE = vec2f(0.530, 0.848);    // where skin sits: 58° in Oklab (light to dark skin runs 40°..76°)
+const KNEE = 0.75;                       // how near the edge a strengthened colour starts to ease off
+// How near a colour is to the strongest sRGB can show: 0 grey, 1 on the edge, more beyond it. The square
+// root allows for the tone curve to come, which strengthens colour.
+fn near(c: vec3f) -> f32 {
+  let s = mv(p.o0, p.o1, p.o2, c); let mx = max(s.r, max(s.g, s.b)); let mn = min(s.r, min(s.g, s.b));
+  if (mx <= 0.0) { return select(2.0, 0.0, mn >= 0.0); }
+  return 1.0 - sign(mn) * sqrt(abs(mn) / mx);
+}
+// Oklab's cone response r (lightness l) with its colour k times as strong, as linear ProPhoto.
+fn strong(r: vec3f, l: f32, k: f32) -> vec3f {
+  let n = vec3f(l) + (r - vec3f(l)) * k; let m = n * n * n;
+  return vec3f(dot(m, vec3f(1.7387399, -0.9884013, 0.2496614)), dot(m, vec3f(-0.7070029, 1.9343162, -0.2273134)), dot(m, vec3f(-0.0840634, -0.3575177, 1.4415810)));
+}
+fn vivid(c: vec3f) -> vec3f {
+  let q = vec3f(dot(c, vec3f(0.7153289, 0.3529082, -0.0682371)), dot(c, vec3f(0.2743544, 0.6678509, 0.0577947)), dot(c, vec3f(0.1097542, 0.1862089, 0.7040370)));
+  let r = sign(q) * pow(abs(q), vec3f(1.0 / 3.0)); let l = dot(r, vec3f(0.2104543, 0.7936178, -0.0040720));
+  let ab = vec2f(dot(r, vec3f(1.9779985, -2.4285922, 0.4505937)), dot(r, vec3f(0.0259040, 0.7827718, -0.8086758)));
+  let t = min(near(c), 1.0); let skin = pow(max(dot(ab, SKIN_HUE) / max(length(ab), 1e-9), 0.0), 8.0);
+  var k = (1.0 + p.k.x) * (1.0 + p.k.y * select(1.0 - 0.5 * t, (1.0 - t) * (1.0 - SKIN * skin), p.k.y > 0.0));
+  if (k > 1.0) {
+    let edge = max(KNEE, t); let x = near(strong(r, l, k));
+    if (edge > 0.999) { k = 1.0; } else if (x > edge) {
+      let goal = edge + (1.0 - edge) * (1.0 - exp((edge - x) / (1.0 - edge)));
+      var lo = 1.0; var hi = k;
+      for (var i = 0; i < 10; i++) { let mid = 0.5 * (lo + hi); if (near(strong(r, l, mid)) > goal) { hi = mid; } else { lo = mid; } }
+      k = lo;
+    }
+  }
+  return max(strong(r, l, k), vec3f(0.0));
 }
 fn develop(c0: vec3f) -> vec3f {
   var c = c0; let fl = p.size.w;
   if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
   if (p.f.y != 1.0 || p.g.z != 0.0 || p.g.w != 0.0) { c = tones(c); }
-  c = lights(c);
+  if (p.k.x != 0.0 || p.k.y != 0.0) { c = vivid(c); }
   if ((fl & 2u) != 0u) { c = hsd(c, p.look, (fl & 32u) != 0u); }
   if ((fl & 128u) != 0u) { c = hsd(c, p.look2, (fl & 256u) != 0u); }
   if ((fl & 4u) != 0u) { c = tone(c); } else { c = film(c); }
