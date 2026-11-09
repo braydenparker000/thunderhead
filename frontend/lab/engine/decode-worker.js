@@ -1,7 +1,9 @@
 // @ts-nocheck
 // The engine test page's decoder thread (docs/engineering/ENGINE-RESEARCH.md): rawler in wasm opens the
 // RAF and bins the X-Trans mosaic into the editing proxy, off the page's thread so the UI never stalls.
-import init, { decode } from './pkg/th_raw.js';
+// On a cross-origin isolated page (our service worker's COOP and COEP) it loads the threads build (pkg-threads/:
+// shared memory, a rayon pool on Web Workers) so rawler decodes the RAF's strips on every core; otherwise, or
+// if the pool does not start, the one-thread build.
 
 /** From the camera JPEG's Exif: how to turn the photo upright (rawler reads no orientation from a RAF), and
  * Fujifilm's DR setting (100, 200 or 400) from its maker notes: DR200 and DR400 shoot 1 and 2 stops darker on
@@ -20,7 +22,19 @@ function exifInfo(j) {
   return out;
 }
 
-const ready = init({ module_or_path: new URL('./pkg/th_raw_bg.wasm', import.meta.url) });
+const THREADS = Math.max(1, Math.min(8, navigator.hardwareConcurrency || 4));
+async function threaded() {
+  const glue = await import('./pkg-threads/th_raw.js');
+  await glue.default({ module_or_path: new URL('./pkg-threads/th_raw_bg.wasm', import.meta.url) });
+  await Promise.race([glue.initThreadPool(THREADS), new Promise((_, no) => setTimeout(() => no(new Error('the decode threads did not start')), 10_000))]);
+  return { decode: glue.decode, threads: THREADS };
+}
+async function plain() {
+  const glue = await import('./pkg/th_raw.js');
+  await glue.default({ module_or_path: new URL('./pkg/th_raw_bg.wasm', import.meta.url) });
+  return { decode: glue.decode, threads: 1 };
+}
+const ready = self.crossOriginIsolated && THREADS > 1 ? threaded().catch((err) => { console.warn(`decoder: one thread (${err})`); return plain(); }) : plain();
 self.onmessage = async (e) => {
   try {
     // the camera's own JPEG first (RAF header: its offset and length at bytes 84 and 88, big-endian), so the
@@ -34,14 +48,14 @@ self.onmessage = async (e) => {
         self.postMessage({ preview: new Blob([new Uint8Array(e.data, off, len)], { type: 'image/jpeg' }), dr: info.dr });
       }
     }
-    await ready;
+    const { decode, threads } = await ready;
     const t0 = performance.now();
     const d = decode(new Uint8Array(e.data));
     const t1 = performance.now();
     const proxy = d.proxy();
     const meta = JSON.parse(d.meta());
     if (meta.orientation === 'Normal') meta.orientation = info.orientation;
-    const msg = { meta, width: d.width(), height: d.height(), proxy, decodeMs: t1 - t0 };
+    const msg = { meta, width: d.width(), height: d.height(), proxy, decodeMs: t1 - t0, threads };
     d.free();
     self.postMessage(msg, [proxy.buffer]);
   } catch (err) { self.postMessage({ error: String(err?.message || err) }); }

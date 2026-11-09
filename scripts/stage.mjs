@@ -91,8 +91,9 @@ const shellFile = f => !portedRoots.some(r => f.path.startsWith(r + '/'));
 const budgets = [
   ['files', list.length, 2000],
   // (2026-11-08) Less the LightCraft test page (lab/lightcraft/, ~31 MB, its own budget below): it loads
-  // only when that page is opened, never with the shell or offline.
-  ['total bytes', total - sum(/^lab\/lightcraft\//), 40_000_000],
+  // only when that page is opened, never with the shell or offline. (2026-11-09) Less the engine test
+  // page's wasm too (lab/engine/, its own budget below), for the same reason.
+  ['total bytes', total - sum(/^lab\/lightcraft\//) - sum(/^lab\/engine\/.*\.wasm$/), 40_000_000],
   ['home JS bytes', sum(/^(apps\/home|ui)\/.*\.js$/), 120_000],
   // th/ modules the shell loads at boot, and the conversation it loads after the first paint.
   // Task A: measured 72,232 bytes (+133 over the prior limit), including whenResting().
@@ -245,7 +246,8 @@ const budgets = [
   // service worker isolates (a phone loads one of the two), 62,190,406 bytes together. A rebuild changes them.
   ['lightcraft lab wasm bytes', sum(/^lab\/lightcraft\/.*\.wasm$/), 62_190_406],
   // (2026-11-09) The new engine's test page (lab/engine/): rawler in wasm, loaded only by that page.
-  ['engine lab wasm bytes', sum(/^lab\/engine\/.*\.wasm$/), 7_000_000],
+  // (2026-11-09) Two builds of the RAW stage: pkg/ (one thread) and pkg-threads/ (a rayon pool, on the isolated page).
+  ['engine lab wasm bytes', sum(/^lab\/engine\/.*\.wasm$/), 11_500_000],
 ];
 const over = budgets.filter(([, value, limit]) => value > limit);
 for (const [name, value, limit] of budgets) console.log(`${name}: ${value} (limit ${limit})`);
