@@ -4,7 +4,8 @@
 // so the lab plays them exactly as designed under the site's CSP (no inline scripts, no eval). It knows
 // the canvas's small template language: {{path}} in text and attributes, on<Event>="{{fn}}", <sc-for
 // list as>, <sc-if value>, <dc-import name ...props>. Each render builds a light tree and patches the
-// DOM in place, so elements keep their identity (pointer capture survives a drag).
+// DOM in place, so elements keep their identity (pointer capture survives a drag). An element marked
+// data-keep is filled by the app, not the board (the editor's photo).
 
 export class DCLogic {
   constructor(props) { this.props = props || {}; this.state = {}; this._host = null; }
@@ -77,6 +78,8 @@ function patch(parent, list) {
     d._attrs = v.attrs;
     d._on = v.on;
     for (const type in v.on) if (!(d._bound || (d._bound = {}))[type]) { d._bound[type] = 1; d.addEventListener(type, (e) => d._on[type]?.(e)); }
+    // data-keep: the app fills this element itself (the developed photo); announce it once, never patch inside
+    if ('data-keep' in v.attrs) { if (!d._kept) { d._kept = true; document.dispatchEvent(new CustomEvent('dc:keep', { detail: d })); } return; }
     patch(d, v.kids);
   });
   while (parent.childNodes.length > list.length) parent.removeChild(parent.lastChild);

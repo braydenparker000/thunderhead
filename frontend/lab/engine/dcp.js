@@ -78,9 +78,10 @@ const D50 = [0.9642, 1, 0.8249];
 /** The shot's colour temperature from its camera neutral (DNG spec: iterate on the interpolated ColorMatrix),
  * then the weight that blends the two calibrations, and the matrix from white-balanced camera RGB to linear
  * ProPhoto. @param {Profile} p @param {number[]} neutral camera RGB of a white object (1/WB multipliers, G = 1) */
+const blend = (/** @type {number[]} */ a, /** @type {number[] | null} */ b, /** @type {number} */ w) => (b ? a.map((x, k) => x * w + b[k] * (1 - w)) : a);
+const weightOf = (/** @type {Profile} */ p, /** @type {number} */ t) => (p.cm2 ? Math.min(1, Math.max(0, (1 / t - 1 / p.t2) / (1 / p.t1 - 1 / p.t2))) : 1);
 export function cameraToProPhoto(p, neutral) {
-  const blend = (/** @type {number[]} */ a, /** @type {number[] | null} */ b, /** @type {number} */ w) => (b ? a.map((x, k) => x * w + b[k] * (1 - w)) : a);
-  const weight = (/** @type {number} */ t) => (p.cm2 ? Math.min(1, Math.max(0, (1 / t - 1 / p.t2) / (1 / p.t1 - 1 / p.t2))) : 1);
+  const weight = (/** @type {number} */ t) => weightOf(p, t);
   let t = 5000;
   for (let k = 0; k < 8; k++) {
     const xyz = apply(inv(blend(p.cm1, p.cm2, weight(t))), neutral), s = xyz[0] + xyz[1] + xyz[2], x = xyz[0] / s, y = xyz[1] / s;
@@ -92,4 +93,22 @@ export function cameraToProPhoto(p, neutral) {
   if (p.fm1) camToXyz = mul(blend(p.fm1, p.fm2, w), d);           // ForwardMatrix maps white-balanced camera RGB to XYZ D50
   else { const m = inv(blend(p.cm1, p.cm2, w)), white = apply(m, neutral); camToXyz = mul([D50[0] / white[0], 0, 0, 0, D50[1] / white[1], 0, 0, 0, D50[2] / white[2]], m); }
   return { kelvin: t, weight: w, matrix: mul(XYZ_TO_PROPHOTO, camToXyz) };
+}
+
+/* White balance as Temp and Tint (DNG SDK's convention): a colour temperature on the Planckian locus (CIE 1960
+   uv, Krystek's fit) and Tint as the offset across it, −3000 per unit of uv distance. */
+const planck = (/** @type {number} */ t) => [(0.860117757 + 1.54118254e-4 * t + 1.28641212e-7 * t * t) / (1 + 8.42420235e-4 * t + 7.08145163e-7 * t * t),
+  (0.317398726 + 4.22806245e-5 * t + 4.20481691e-8 * t * t) / (1 - 2.89741816e-5 * t + 1.61456053e-7 * t * t)];
+const across = (/** @type {number} */ t) => { const a = planck(t - 1), b = planck(t + 1), du = b[0] - a[0], dv = b[1] - a[1], l = Math.hypot(du, dv); return [-dv / l, du / l]; };
+/** The shot's white as Temp (K) and Tint. @param {Profile} p @param {number[]} neutral */
+export function whiteOf(p, neutral) {
+  const { kelvin } = cameraToProPhoto(p, neutral), xyz = apply(inv(blend(p.cm1, p.cm2, weightOf(p, kelvin))), neutral);
+  const d = xyz[0] + 15 * xyz[1] + 3 * xyz[2], u = (4 * xyz[0]) / d, v = (6 * xyz[1]) / d, [pu, pv] = planck(kelvin), [nu, nv] = across(kelvin);
+  return { kelvin, tint: ((u - pu) * nu + (v - pv) * nv) * -3000 };
+}
+/** The camera neutral for a Temp and Tint (G = 1). @param {Profile} p @param {number} kelvin @param {number} tint */
+export function neutralFor(p, kelvin, tint) {
+  const t = Math.min(15000, Math.max(2000, kelvin)), [pu, pv] = planck(t), [nu, nv] = across(t), u = pu + (nu * tint) / -3000, v = pv + (nv * tint) / -3000;
+  const x = (3 * u) / (2 * u - 8 * v + 4), y = (2 * v) / (2 * u - 8 * v + 4), n = apply(blend(p.cm1, p.cm2, weightOf(p, t)), [x / y, 1, (1 - x - y) / y]);
+  return [n[0] / n[1], 1, n[2] / n[1]];
 }

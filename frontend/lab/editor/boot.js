@@ -4,8 +4,10 @@
 // boards' photo and plate positions), so the camera plate ends at the bottom of the screen.
 // /lab/editor/ plays the screens as one app: Library first, EDIT › into the editor, the corner button
 // raises the tool dock, Export from the header, back arrows and the phone's back gesture go back.
-// /lab/editor/screens/ keeps each screen on its own page. Not wired to an engine.
+// /lab/editor/screens/ keeps each screen on its own page. The app is wired to the engine (app/session.js):
+// imported RAFs live on the phone (app/store.js) and open, developed, in Edit.
 import { mount } from './dc.js';
+import { init } from './app/store.js';
 
 const frame = /** @type {HTMLElement} */ (document.getElementById('frame') || document.getElementById('stage'));
 const stage = /** @type {HTMLElement} */ (document.getElementById('stage'));
@@ -55,5 +57,6 @@ else {
     go(to);
   }, true);
   history.replaceState({ name: 'Library' }, '');
-  show('Library');
+  // the Library shows the photos on this phone, so read them first (none yet: the design's sample roll)
+  init().catch((e) => console.warn('photos:', e)).finally(() => show('Library'));
 }

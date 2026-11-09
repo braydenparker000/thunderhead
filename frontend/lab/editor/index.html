@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Editor test</title>
@@ -20,8 +20,8 @@
   <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 0 8px; z-index: 2">
     <button aria-label="Back to Photos" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
     <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
-      <span style="font-size: 14px; font-weight: 600">DSCF0412</span>
-      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">23 mm · f/5.6 · 1/250 · ISO 160</span>
+      <span style="font-size: 14px; font-weight: 600">{{fileName}}</span>
+      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">{{shotLine}}</span>
     </div>
     <div style="display: flex; align-items: center">
       <button aria-label="Show histogram" aria-pressed="false" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a6b0bc" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
@@ -31,8 +31,9 @@
   </header>
 
   <div style="position: absolute; top: 52px; left: 0; right: 0; height: calc({{photoH}}px - var(--cut)); display: flex; align-items: center; justify-content: center; transition: height 480ms cubic-bezier(0.2, 0.85, 0.2, 1)">
-    <img src="/lab/editor/assets/sample.jpg" alt="The photo being edited" style="max-width: 100%; max-height: 100%; display: block">
-    <span style="position: absolute; top: 10px; right: 10px; font-size: 11px; font-weight: 500; padding: 4px 9px; border-radius: 11px; background: rgba(0,0,0,0.6); font-variant-numeric: tabular-nums">3 / 24</span>
+    <div data-keep="photo" style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center"></div>
+    <sc-if value="{{hasStatus}}"><span role="status" style="position: absolute; top: 10px; left: 10px; font-size: 11px; font-weight: 500; padding: 4px 9px; border-radius: 11px; background: rgba(0,0,0,0.6)">{{status}}</span></sc-if>
+    <span style="position: absolute; top: 10px; right: 10px; font-size: 11px; font-weight: 500; padding: 4px 9px; border-radius: 11px; background: rgba(0,0,0,0.6); font-variant-numeric: tabular-nums">{{countText}}</span>
   </div>
 
   <sc-if value="{{showCurve}}" hint-placeholder-val="{{false}}">
@@ -63,7 +64,7 @@
     </div>
 
     <div style="position: absolute; left: 0; top: 8px">
-      <dc-import name="DialPlate" label="{{dialLabel}}" unit="{{unit}}" hint-size="412px,200px"></dc-import>
+      <dc-import name="DialPlate" label="{{dialLabel}}" unit="{{unit}}" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" hint-size="412px,200px"></dc-import>
     </div>
 
     <nav aria-label="Edit sections" style="position: absolute; left: 14px; right: 14px; top: 206px; height: 30px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr))">
@@ -508,7 +509,7 @@
         <div style="display: grid; grid-template-columns: repeat({{cols}}, minmax(0, 1fr)); gap: 2px">
           <sc-for list="{{g.items}}" as="p" hint-placeholder-count="6">
             <button onClick="{{p.open}}" aria-label="{{p.aria}}" style="position: relative; aspect-ratio: 1; overflow: hidden; background: #111; opacity: {{p.dim}}">
-              <img src="/lab/editor/assets/sample.jpg" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {{p.pos}}; transform: scale({{p.zoom}}); filter: {{p.filter}}; display: block">
+              <img src="{{p.src}}" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {{p.pos}}; transform: scale({{p.zoom}}); filter: {{p.filter}}; display: block">
               <span style="position: absolute; left: 5px; top: 4px; font-size: 11px; color: {{p.flagInk}}; text-shadow: 0 1px 2px rgba(0,0,0,0.9)">{{p.flag}}</span>
               <span style="position: absolute; right: 5px; top: 5px; font-size: 7.5px; font-weight: 700; letter-spacing: 0.08em; padding: 1px 4px; border-radius: 4px; background: rgba(0,0,0,0.6); color: #dedbd4">{{p.sim}}</span>
               <span style="position: absolute; left: 5px; bottom: 3px; font-size: 9px; letter-spacing: 1px; color: #f2efe8; text-shadow: 0 1px 2px rgba(0,0,0,0.9)">{{p.stars}}</span>
@@ -523,12 +524,12 @@
 
   <sc-if value="{{isCull}}" hint-placeholder-val="{{false}}">
     <div style="position: absolute; top: 56px; left: 0; width: 412px; height: calc(536px - var(--cut)); display: flex; align-items: center; justify-content: center; overflow: hidden">
-      <img src="/lab/editor/assets/sample.jpg" alt="{{cur.aria}}" style="width: 392px; height: 392px; object-fit: cover; object-position: {{cur.pos}}; transform: scale({{cur.zoom}}); filter: {{cur.filter}}; opacity: {{cur.dim}}; display: block; border-radius: 4px">
+      <img src="{{cur.src}}" alt="{{cur.aria}}" style="width: 392px; height: 392px; object-fit: cover; object-position: {{cur.pos}}; transform: scale({{cur.zoom}}); filter: {{cur.filter}}; opacity: {{cur.dim}}; display: block; border-radius: 4px">
       <span class="glass" style="position: absolute; left: 12px; top: 12px; padding: 5px 10px; border-radius: 12px; font-size: 11px; font-variant-numeric: tabular-nums">{{cur.meta}}</span>
       <span style="position: absolute; left: 22px; bottom: 58px; font-size: 22px; color: {{cur.flagInk}}; text-shadow: 0 1px 4px rgba(0,0,0,0.9)">{{cur.flag}}</span>
       <div class="hscroll" aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: 6px; height: 40px; display: flex; gap: 3px; justify-content: center">
         <sc-for list="{{strip}}" as="s" hint-placeholder-count="9">
-          <span style="flex: none; width: 34px; height: 34px; margin-top: {{s.lift}}px; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 {{s.ringW}}px #e8202a; opacity: {{s.o}}"><img src="/lab/editor/assets/sample.jpg" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {{s.pos}}; filter: {{s.filter}}; display: block"></span>
+          <span style="flex: none; width: 34px; height: 34px; margin-top: {{s.lift}}px; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 {{s.ringW}}px #e8202a; opacity: {{s.o}}"><img src="{{s.src}}" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {{s.pos}}; filter: {{s.filter}}; display: block"></span>
         </sc-for>
       </div>
     </div>
