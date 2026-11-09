@@ -8,8 +8,9 @@ import { compare, grid } from './compare.js';
 import { isolate } from './isolate.js';
 
 const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
-const canvas = /** @type {HTMLCanvasElement} */ ($('view')), ev = /** @type {HTMLInputElement} */ ($('ev')), ct = /** @type {HTMLInputElement} */ ($('ct'));
-const hi = /** @type {HTMLInputElement} */ ($('hi')), sh = /** @type {HTMLInputElement} */ ($('sh'));
+const canvas = /** @type {HTMLCanvasElement} */ ($('view')), ev = /** @type {HTMLInputElement} */ ($('ev'));
+// a −100..100 slider as −1..1, and Contrast as the engine takes it: the tone curve's slope at middle grey, on the editor's scale
+const at = (/** @type {string} */ id) => Number(/** @type {HTMLInputElement} */ ($(id)).value) / 100, slope = () => 2 ** (at('ct') * 0.6);
 const pick = /** @type {HTMLSelectElement} */ ($('profile')), preview = /** @type {HTMLImageElement} */ ($('preview'));
 /** @type {Record<string, string>} */
 const stats = {};
@@ -36,7 +37,7 @@ const draw = async () => {
   if (!eng) return;
   if (busy) { again = true; return; }
   busy = true;
-  const t = await eng.render(Number(ev.value) + shotEv, Number(ct.value), { highlights: Number(hi.value) / 100, shadows: Number(sh.value) / 100, mask: on('mk'), showMask: on('sm'), rebuild: on('hl'), dither: on('dz'), exact: on('exact') });
+  const t = await eng.render(Number(ev.value) + shotEv, slope(), { highlights: at('hi'), shadows: at('sh'), whites: at('wh'), blacks: at('bl'), mask: on('mk'), showMask: on('sm'), rebuild: on('hl'), dither: on('dz'), exact: on('exact') });
   busy = false;
   // a frame that re-made the colour table (a new profile, Contrast) is timed apart from one that only read it (Exposure)
   if (eng.last.baked) stats['Frame, colour table re-made'] = ms(t);
@@ -45,8 +46,7 @@ const draw = async () => {
   if (again) { again = false; draw(); }
 };
 ev.addEventListener('input', () => { $('evv').textContent = `${Number(ev.value) >= 0 ? '+' : ''}${Number(ev.value).toFixed(2)} EV`; draw(); });
-ct.addEventListener('input', () => { $('ctv').textContent = Number(ct.value).toFixed(2); draw(); });
-for (const el of [hi, sh]) el.addEventListener('input', () => { $(`${el.id}v`).textContent = `${Number(el.value) > 0 ? '+' : ''}${el.value}`; draw(); });
+for (const id of ['ct', 'hi', 'sh', 'wh', 'bl']) $(id).addEventListener('input', () => { const v = Math.round(at(id) * 100); $(`${id}v`).textContent = `${v > 0 ? '+' : ''}${v}`; draw(); });
 for (const id of ['hl', 'dz', 'exact', 'mk', 'sm']) $(id).addEventListener('change', () => { frames.length = 0; draw(); });
 
 /** Fills the picker for this camera and picks Adobe Color (Adobe Standard when the set has no Adobe Color). @param {string} model */
@@ -82,7 +82,7 @@ $('time').addEventListener('click', async () => {
   if (!g || busy) return;
   busy = true;
   for (const k of Object.keys(stats)) if (k.startsWith('Timed')) delete stats[k];
-  const e = Number(ev.value) + shotEv, c = Number(ct.value), off = { rebuild: false, dither: false };
+  const e = Number(ev.value) + shotEv, c = slope(), off = { rebuild: false, dither: false };
   /** @type {[string, { highlights?: number, mask?: boolean, rebuild?: boolean, dither?: boolean, time?: 'bare' | 'nearest' }][]} */
   const steps = [['read and show only', { ...off, time: 'bare' }], ['+ colour table, nearest entry', { ...off, time: 'nearest' }], ['+ mixing its entries', off],
     ['+ rebuilding blown highlights', { dither: false }], ['+ dither: a whole frame', {}], ['+ Highlights −50 by pixel', { highlights: -0.5, mask: false }], ['+ Highlights −50 by area', { highlights: -0.5 }]];
