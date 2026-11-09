@@ -15,6 +15,13 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
 @group(0) @binding(1) var<uniform> p: P;
 @group(0) @binding(2) var dst: texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(3) var<storage, read> t: array<f32>;
+@group(0) @binding(4) var lutOut: texture_storage_3d<rgba16float, write>;
+@group(0) @binding(5) var lutIn: texture_3d<f32>;
+@group(0) @binding(6) var lin: sampler;
+const N = 48u;
+// the 3D table's input: log2 of linear ProPhoto from 2^-14 to 2^4, so shadows get as many cells as highlights
+fn shape(c: vec3f) -> vec3f { return clamp((log2(max(c, vec3f(6.1035e-5))) + 14.0) / 18.0, vec3f(0.0), vec3f(1.0)); }
+fn unshape(u: vec3f) -> vec3f { return exp2(u * 18.0 - 14.0); }
 fn mv(r0: vec4f, r1: vec4f, r2: vec4f, c: vec3f) -> vec3f { return vec3f(dot(r0.xyz, c), dot(r1.xyz, c), dot(r2.xyz, c)); }
 fn enc(x: f32) -> f32 { return select(1.055 * pow(x, 1.0 / 2.4) - 0.055, 12.92 * x, x <= 0.0031308); }
 fn dec(x: f32) -> f32 { return select(pow((x + 0.055) / 1.055, 2.4), x / 12.92, x <= 0.04045); }
@@ -68,6 +75,22 @@ fn tab(c: vec3f) -> vec3f {
   let lin = pow(acc, vec3f(2.2));
   return mix(c, mv(p.b0, p.b1, p.b2, lin), p.f.z);
 }
+// everything after exposure, baked into a 48³ table whenever the profile or Contrast changes: the HueSatMap
+// (its value axis is flat, so it commutes with exposure), Contrast, LookTable, tone curve, look table, sRGB
+@compute @workgroup_size(4, 4, 4)
+fn bake(@builtin(global_invocation_id) id: vec3u) {
+  if (any(id >= vec3u(N))) { return; }
+  var c = unshape(vec3f(id) / f32(N - 1u));
+  let fl = p.size.w;
+  if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
+  let y = max(dot(c, vec3f(0.288, 0.712, 0.0)), 1e-6);
+  c = c * (0.18 * pow(y / 0.18, p.f.y) / y);
+  if ((fl & 2u) != 0u) { c = hsd(c, p.look, (fl & 32u) != 0u); }
+  if ((fl & 4u) != 0u) { c = tone(c); } else { c = film(c); }
+  if ((fl & 8u) != 0u) { c = tab(c); }
+  let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0));
+  textureStore(lutOut, id, vec4f(enc(o.r), enc(o.g), enc(o.b), 1.0));
+}
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let w = p.size.x; let h = p.size.y; let fl = p.size.w;
@@ -75,17 +98,13 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let i = (id.y * w + id.x) * 2u;
   let rg = unpack2x16unorm(src[i]); let ba = unpack2x16unorm(src[i + 1u]);
   var c = max(mv(p.m0, p.m1, p.m2, vec3f(rg.x, rg.y, ba.x)), vec3f(0.0));
-  if ((fl & 1u) != 0u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
+  if ((fl & 1u) != 0u && p.hsm.z > 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
   c = c * exp2(p.f.x);
-  let y = max(dot(c, vec3f(0.288, 0.712, 0.0)), 1e-6);
-  c = c * (0.18 * pow(y / 0.18, p.f.y) / y);
-  if ((fl & 2u) != 0u) { c = hsd(c, p.look, (fl & 32u) != 0u); }
-  if ((fl & 4u) != 0u) { c = tone(c); } else { c = film(c); }
-  if ((fl & 8u) != 0u) { c = tab(c); }
-  let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0));
+  let u = shape(c) * (f32(N - 1u) / f32(N)) + 0.5 / f32(N);
+  let o = textureSampleLevel(lutIn, lin, u, 0.0).rgb;
   var at = vec2u(id.x, id.y);
   switch (p.size.z) { case 1u: { at = vec2u(h - 1u - id.y, id.x); } case 2u: { at = vec2u(w - 1u - id.x, h - 1u - id.y); } case 3u: { at = vec2u(id.y, w - 1u - id.x); } default: {} }
-  textureStore(dst, vec2i(at), vec4f(enc(o.r), enc(o.g), enc(o.b), 1.0));
+  textureStore(dst, vec2i(at), vec4f(o, 1.0));
 }`;
 
 const ROT = /** @type {Record<string, number>} */ ({ Rotate90: 1, Rotate180: 2, Rotate270: 3 });
@@ -127,21 +146,27 @@ export async function engine(canvas, img, readback = false) {
   device.queue.writeBuffer(src, 0, img.proxy.buffer, img.proxy.byteOffset, img.proxy.byteLength);
   const uni = device.createBuffer({ size: 288, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
-  const pipe = device.createComputePipeline({ layout: 'auto', compute: { module: device.createShaderModule({ code: WGSL }), entryPoint: 'main' } });
+  const module = device.createShaderModule({ code: WGSL });
+  const pipe = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'main' } });
+  const bakePipe = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'bake' } });
+  const lut = device.createTexture({ size: [48, 48, 48], dimension: '3d', format: 'rgba16float', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING });
+  const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge', addressModeW: 'clamp-to-edge' });
   const row = Math.ceil((ow * 4) / 256) * 256;
   const back = readback ? device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
   await device.queue.onSubmittedWorkDone();
   const uploadMs = performance.now() - t0;
   const neutral = img.meta.wb[1] ? [1 / img.meta.wb[0], 1, 1 / img.meta.wb[2]] : [0.5, 1, 0.6];
   const fallback = { cm1: img.meta.xyzToCamD65, cm2: null, fm1: null, fm2: null, t1: 6504, t2: 6504, hsm: null, look: null, tone: null, expOffset: 0, name: 'Camera matrix', model: '' };
-  let tab = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE }), bind = /** @type {GPUBindGroup | null} */ (null), state = { m: [], u: tables(null, 1).u, kelvin: 0 };
+  let tab = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE }), bind = /** @type {GPUBindGroup | null} */ (null), bakeBind = /** @type {GPUBindGroup | null} */ (null), baked = NaN, state = { m: /** @type {number[]} */ ([]), u: tables(null, 1).u, kelvin: 0 };
   /** @param {null | { profile: import('./dcp.js').Profile, table: any }} pick */
   const setProfile = (pick) => {
     const conv = cameraToProPhoto(/** @type {any} */ (pick?.profile || fallback), neutral), t = tables(pick, conv.weight);
     tab.destroy();
     tab = device.createBuffer({ size: t.all.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     device.queue.writeBuffer(tab, 0, t.all);
-    bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: src } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }] });
+    bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: src } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: sampler }] });
+    bakeBind = device.createBindGroup({ layout: bakePipe.getBindGroupLayout(0), entries: [{ binding: 1, resource: { buffer: uni } }, { binding: 3, resource: { buffer: tab } }, { binding: 4, resource: lut.createView() }] });
+    baked = NaN;
     state = { m: conv.matrix, u: t.u, kelvin: Math.round(conv.kelvin) };
     return state.kelvin;
   };
@@ -152,7 +177,11 @@ export async function engine(canvas, img, readback = false) {
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, 1, 0]);
     n.set([w, h, rot, state.u.flags, ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
     device.queue.writeBuffer(uni, 0, u);
-    const enc = device.createCommandEncoder(), pass = enc.beginComputePass();
+    const enc = device.createCommandEncoder();
+    if (baked !== contrast) {   // re-bake only when the profile or Contrast changed: a frame is then one table lookup
+      const bp = enc.beginComputePass(); bp.setPipeline(bakePipe); bp.setBindGroup(0, bakeBind); bp.dispatchWorkgroups(12, 12, 12); bp.end(); baked = contrast;
+    }
+    const pass = enc.beginComputePass();
     pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8)); pass.end();
     if (ctx) enc.copyTextureToTexture({ texture: out }, { texture: ctx.getCurrentTexture() }, [ow, oh]);
     if (back) enc.copyTextureToBuffer({ texture: out }, { buffer: back, bytesPerRow: row }, [ow, oh]);

@@ -3,6 +3,10 @@
 // and Adobe's binary RGB table (the looks Camera Raw keeps beside a profile), and works out the matrices
 // the DNG specification prescribes for a shot's white balance. The GPU applies the rest (gpu.js).
 
+import { ACR3 } from './acr3.js';
+
+/** The ACR3 default curve as (x, y) pairs. */
+const acr3Pairs = () => { const a = new Float32Array(ACR3.length * 2); ACR3.forEach((y, i) => { a[i * 2] = i / (ACR3.length - 1); a[i * 2 + 1] = y; }); return a; };
 const T = { model: 50708, cm1: 50721, cm2: 50722, ill1: 50778, ill2: 50779, name: 50936, hsmDims: 50937, hsm1: 50938, hsm2: 50939,
   tone: 50940, fm1: 50964, fm2: 50965, lookDims: 50981, look: 50982, hsmEnc: 51107, lookEnc: 51108, expOffset: 51109 };
 /** The light each calibration illuminant stands for, in kelvin (EXIF LightSource codes). */
@@ -38,7 +42,8 @@ export function parseDcp(buf) {
     t1: KELVIN[num(T.ill1, 17)] || 2856, t2: KELVIN[num(T.ill2, 21)] || 6504,
     hsm: hsmDims && tags.get(T.hsm1) ? { dims: hsmDims, d1: tags.get(T.hsm1), d2: tags.get(T.hsm2) || null, srgb: num(T.hsmEnc, 0) === 1 } : null,
     look: lookDims && tags.get(T.look) ? { dims: lookDims, d: tags.get(T.look), srgb: num(T.lookEnc, 0) === 1 } : null,
-    tone: tags.get(T.tone) || null, expOffset: num(T.expOffset, 0),
+    // an Adobe profile without a tone curve gets Camera Raw's default curve (ACR3), as Camera Raw does
+    tone: tags.get(T.tone) || (/Adobe/.test(String(tags.get(50942) || '')) ? acr3Pairs() : null), expOffset: num(T.expOffset, 0),
   };
 }
 
