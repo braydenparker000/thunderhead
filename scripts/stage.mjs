@@ -244,6 +244,8 @@ const budgets = [
   // patches, loaded only by /lab/lightcraft/: the page's own and threads/, for the render workers of a page the
   // service worker isolates (a phone loads one of the two), 62,190,406 bytes together. A rebuild changes them.
   ['lightcraft lab wasm bytes', sum(/^lab\/lightcraft\/.*\.wasm$/), 62_190_406],
+  // (2026-11-09) The new engine's test page (lab/engine/): rawler in wasm, loaded only by that page.
+  ['engine lab wasm bytes', sum(/^lab\/engine\/.*\.wasm$/), 7_000_000],
 ];
 const over = budgets.filter(([, value, limit]) => value > limit);
 for (const [name, value, limit] of budgets) console.log(`${name}: ${value} (limit ${limit})`);

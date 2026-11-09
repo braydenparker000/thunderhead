@@ -1,0 +1,23 @@
+[package]
+name = "th-raw"
+version = "0.1.0"
+edition = "2024"
+license = "LGPL-2.1-or-later"
+publish = false
+description = "The new photo engine's RAW stage (docs/engineering/ENGINE-RESEARCH.md): rawler decodes the RAF; this crate hands the browser the sensor data, its metadata and a 3x3-binned X-Trans proxy"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+rawler = "0.8.0"
+wasm-bindgen = "=0.2.129"
+
+# rawler pulls in uuid, which needs a randomness source on the web
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+uuid = { version = "1", features = ["js"] }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1

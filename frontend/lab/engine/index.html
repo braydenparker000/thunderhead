@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Engine test</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/lab/engine/engine.css">
+<script type="module" src="/lab/engine/engine.js"></script>
+</head>
+<body>
+<main>
+<h1>Engine test</h1>
+<p class="lead">The new engine's first slice: your RAF opened in the browser (rawler), binned to the 2576 px editing copy, and developed on the phone's graphics chip. Colour is a first pass; timings are what matter here.</p>
+<label class="pick">Open a RAF<input type="file" id="file" accept=".raf,.RAF,image/x-fuji-raf,*/*"></label>
+<canvas id="view" aria-label="The developed photo"></canvas>
+<div class="row"><label for="ev">Exposure</label><input id="ev" type="range" min="-3" max="3" step="0.01" value="0"><output id="evv">0.00 EV</output></div>
+<div class="row"><label for="ct">Contrast</label><input id="ct" type="range" min="0.6" max="1.6" step="0.01" value="1.1"><output id="ctv">1.10</output></div>
+<dl id="stats" aria-live="polite"></dl>
+</main>
+</body>
+</html>

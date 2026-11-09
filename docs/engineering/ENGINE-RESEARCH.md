@@ -8,6 +8,28 @@ MP5, 8 GB), as a static PWA with no server compute. Licence rule (AGENTS.md): no
 non-commercial ships; such projects are read for ideas only. Figures marked *estimate* are not measured
 yet; measuring them on the A35 is the first job of the build.
 
+## Revised pipeline (owner, 2026-11-09)
+
+The owner dropped the licence restriction: use the best existing work instead of rebuilding it. This
+supersedes the "write our own" choices below wherever they differ.
+
+- **Open the RAF:** rawler (dnglab), already in `engine/raw`; it knows the X-E5 (lossless, uncompressed
+  and lossy). Decoding is lossless, so the reader does not change quality.
+- **GPU backbone:** vkdt's compute modules (darktable's author's GPU engine), ported to WGSL: X-Trans
+  demosaic, local Laplacian, filmic, colour.
+- **Colour:** darktable's color calibration (CAT16) and color balance rgb; filmic / sigmoid / AgX; dcamprof
+  profiles; RawTherapee's highlight reconstruction and capture sharpening.
+- **Detail and noise:** RawTherapee and darktable demosaic and NR; BM3D; AI Denoise.
+- **Lens and geometry:** lensfun (library and database), darktable's rotate and perspective.
+- **Masks and Remove:** the strongest models regardless of licence (RMBG-2.0, SAM 2, BiRefNet, LaMa / MAT).
+- **Film simulations:** Fujifilm's official LUTs exist only for ETERNA and ETERNA Bleach Bypass (every
+  body's package, X-E5 v1.00 included). The other simulations need another exact source: the owner decides.
+
+**First slice, measured** (this machine's CPU; the A35 next): an X-T5 RAF (lossless compressed, 43 MB)
+decodes and bins in wasm in about 2.1 s on one thread (0.56 s natively with rawler's own threads); the
+2576 x 1717 proxy uploads in about 50 ms; a full development pass takes about 112 ms on SwiftShader
+(software), which a real GPU runs many times faster.
+
 ## The answer in one page
 
 1. **Decode on the CPU, everything else on the GPU.** RAF parsing and Fuji's lossless decompression run

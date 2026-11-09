@@ -24,8 +24,8 @@ when it helps, update it when you change what it describes, but it is not law.
 - Personal data lives only behind the owner's sign-in (the Worker and the private bucket). It never goes
   into this repository, GitHub Actions logs, or artifacts.
 - Examples in code, tests and docs are invented.
-- No GPL, AGPL or non-commercial dependencies, except named exceptions in decisions.md (libmedia in
-  Astra). Icons: Phosphor (MIT). Font: Switzer, fetched at build and never committed
+- Any licence is allowed for code, data and models (owner, 2026-11-09): use the best existing work, keep its
+  licence and notices with it, and keep GPL/AGPL sources available (this repository does). Icons: Phosphor (MIT). Font: Switzer, fetched at build and never committed
   (`node scripts/fonts.mjs`).
 
 ## Never
