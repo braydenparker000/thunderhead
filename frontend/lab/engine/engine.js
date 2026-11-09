@@ -26,6 +26,21 @@ const frames = /** @type {number[]} */ ([]);
 const BASELINE_EV = 0.25;
 let shotEv = 0;
 
+// Decoding on every core needs this page cross-origin isolated, which our service worker does (sw.js). A newer
+// worker waits for the shell's safe moment, which this page never gives: here nothing is open yet, so apply it
+// and reload once.
+if (!crossOriginIsolated && navigator.serviceWorker) (async () => {
+  const reg = await navigator.serviceWorker.getRegistration('/');
+  if (!reg) return;
+  const once = () => { try { if (sessionStorage.getItem('engine-isolate')) return; sessionStorage.setItem('engine-isolate', '1'); } catch { return; } location.reload(); };
+  navigator.serviceWorker.addEventListener('controllerchange', once);
+  await reg.update().catch(() => {});
+  const skip = (/** @type {ServiceWorker} */ w) => w.postMessage({ type: 'skipWaiting' });
+  if (reg.waiting) skip(reg.waiting);
+  else if (reg.installing) { const w = reg.installing; w.addEventListener('statechange', () => { if (w.state === 'installed') skip(w); }); }
+  else if (reg.active) once();
+})();
+
 const draw = async () => {
   if (!eng) return;
   if (busy) { again = true; return; }
@@ -86,7 +101,7 @@ $('file').addEventListener('change', async (e) => {
   const t1 = performance.now();
   const r = await new Promise((res) => {
     worker.onmessage = (m) => {
-      if (m.data.preview) { shotEv = BASELINE_EV + Math.log2((m.data.dr || 100) / 100); stats['DR mode'] = `DR${m.data.dr || 100}`; preview.src = URL.createObjectURL(m.data.preview); preview.hidden = false; stats["Camera's JPEG on screen"] = ms(performance.now() - t0); show(); return; }
+      if (m.data.preview) { shotEv = BASELINE_EV + Math.log2((m.data.dr || 100) / 100); stats['DR mode'] = `DR${m.data.dr || 100}`; if (m.data.settings) stats['Shot with'] = m.data.settings; preview.src = URL.createObjectURL(m.data.preview); preview.hidden = false; stats["Camera's JPEG on screen"] = ms(performance.now() - t0); show(); return; }
       res(m.data);
     };
     worker.postMessage(buf, [buf]);
