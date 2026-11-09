@@ -50,7 +50,8 @@ async function plain() {
   await glue.default({ module_or_path: new URL('./pkg/th_raw_bg.wasm', import.meta.url) });
   return { decode: glue.decode, threads: 1 };
 }
-const ready = self.crossOriginIsolated && THREADS > 1 ? threaded().catch((err) => { console.warn(`decoder: one thread (${err})`); return plain(); }) : plain();
+let threadsError = '';
+const ready = self.crossOriginIsolated && THREADS > 1 ? threaded().catch((err) => { threadsError = String(err?.message || err); console.warn(`decoder: one thread (${err})`); return plain(); }) : plain();
 self.onmessage = async (e) => {
   try {
     // the camera's own JPEG first (RAF header: its offset and length at bytes 84 and 88, big-endian), so the
@@ -71,7 +72,7 @@ self.onmessage = async (e) => {
     const proxy = d.proxy();
     const meta = JSON.parse(d.meta());
     if (meta.orientation === 'Normal') meta.orientation = info.orientation;
-    const msg = { meta, width: d.width(), height: d.height(), proxy, decodeMs: t1 - t0, threads };
+    const msg = { meta, width: d.width(), height: d.height(), proxy, decodeMs: t1 - t0, threads, threadsError };
     d.free();
     self.postMessage(msg, [proxy.buffer]);
   } catch (err) { self.postMessage({ error: String(err?.message || err) }); }
