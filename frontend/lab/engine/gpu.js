@@ -2,10 +2,11 @@
 // The engine test page's GPU stage (docs/engineering/ENGINE-RESEARCH.md). The binned proxy goes to the GPU
 // once; every change re-runs one compute pass, in the order the DNG specification and Camera Raw use for a
 // camera profile: white-balanced camera RGB → linear ProPhoto (ForwardMatrix) → HueSatMap → exposure →
-// LookTable (then a look file's own, e.g. Adobe Color's) → the profile's tone curve (hue-preserving "RGB tone")
+// Highlights and Shadows (by the tone mask, mask.js) → LookTable (then a look file's own, e.g. Adobe Color's) → the profile's tone curve (hue-preserving "RGB tone")
 // → a look's RGB table (Adobe RGB, γ 2.2) → sRGB on screen, turned upright. Without a profile it falls back to
 // the camera matrix and a filmic curve. Before all of it, colours the sensor clipped are rebuilt (wgsl.js).
 import { N, WGSL } from './wgsl.js';
+import { maskPipes, toneMask } from './mask.js';
 import { PROPHOTO_TO_SRGB, PROPHOTO_TO_ADOBE, cameraToProPhoto, inv, neutralFor, whiteOf } from './dcp.js';
 
 const ROT = /** @type {Record<string, number>} */ ({ Rotate90: 1, Rotate180: 2, Rotate270: 3 });
@@ -31,9 +32,9 @@ function tables(pick, w) {
   return { all, u };
 }
 
-/** @type {null | Promise<{ adapter: GPUAdapter, device: GPUDevice, pipe: GPUComputePipeline, bakePipe: GPUComputePipeline, lut: GPUTexture }>} */
+/** @type {null | Promise<{ adapter: GPUAdapter, device: GPUDevice, pipe: GPUComputePipeline, bakePipe: GPUComputePipeline, maskP: Awaited<ReturnType<typeof maskPipes>>, lut: GPUTexture }>} */
 let shared = null;
-/** The device, its two compiled pipelines and the 3D table, made once and kept for every photo (compiling
+/** The device, its compiled pipelines and the 3D table, made once and kept for every photo (compiling
  * the shader is the slow part on a phone). A lost device is made again on the next photo. */
 function gpu() {
   shared ??= (async () => {
@@ -43,10 +44,10 @@ function gpu() {
     const device = await adapter.requestDevice();
     device.lost.then((l) => { console.warn('GPU device lost:', l.message); shared = null; });
     const module = device.createShaderModule({ code: WGSL });
-    const [pipe, bakePipe] = await Promise.all([device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'main' } }),
-      device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'bake' } })]);
+    const [pipe, bakePipe, maskP] = await Promise.all([device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'main' } }),
+      device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'bake' } }), maskPipes(device)]);
     const lut = device.createTexture({ size: [N, N, N], dimension: '3d', format: 'rgba16float', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING });
-    return { adapter, device, pipe, bakePipe, lut };
+    return { adapter, device, pipe, bakePipe, maskP, lut };
   })();
   shared.catch(() => { shared = null; });
   return shared;
@@ -57,7 +58,7 @@ export const warm = () => gpu().then(() => true, () => false);
 /** Sets up the device and uploads the proxy; returns setProfile(pick) and render(ev, contrast) → GPU ms.
  * @param {HTMLCanvasElement} canvas @param {{ width: number, height: number, proxy: Uint16Array, meta: any }} img @param {boolean} readback */
 export async function engine(canvas, img, readback = false) {
-  const { adapter, device, pipe, bakePipe, lut } = await gpu();
+  const { adapter, device, pipe, bakePipe, maskP, lut } = await gpu();
   const { width: w, height: h } = img, rot = ROT[img.meta.orientation] || 0, [ow, oh] = rot % 2 ? [h, w] : [w, h];
   canvas.width = ow; canvas.height = oh;
   const ctx = readback ? null : /** @type {GPUCanvasContext} */ (canvas.getContext('webgpu'));
@@ -67,6 +68,7 @@ export async function engine(canvas, img, readback = false) {
   device.queue.writeBuffer(src, 0, img.proxy.buffer, img.proxy.byteOffset, img.proxy.byteLength);
   const uni = device.createBuffer({ size: 352, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
+  const mask = toneMask(device, maskP, src, uni, w, h);
   const row = Math.ceil((ow * 4) / 256) * 256;
   const back = readback ? device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
   await device.queue.onSubmittedWorkDone();
@@ -74,8 +76,8 @@ export async function engine(canvas, img, readback = false) {
   const asShot = img.meta.wb[1] ? [1 / img.meta.wb[0], 1, 1 / img.meta.wb[2]] : [0.5, 1, 0.6];
   let neutral = asShot, white = /** @type {null | { kelvin: number, tint: number }} */ (null), picked = /** @type {null | { profile: import('./dcp.js').Profile, table: any }} */ (null);
   const fallback = { cm1: img.meta.xyzToCamD65, cm2: null, fm1: null, fm2: null, t1: 6504, t2: 6504, hsm: null, look: null, tone: null, expOffset: 0, name: 'Camera matrix', model: '' };
-  let tab = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE }), bind = /** @type {GPUBindGroup | null} */ (null), bakeBind = /** @type {GPUBindGroup | null} */ (null), baked = '', state = { m: /** @type {number[]} */ ([]), u: tables(null, 1).u, kelvin: 0, wb: [1, 1, 1], chroma: [0, 0, 0] };
-  const last = { baked: false };   // whether the last render re-made the colour table (the test page's timing line)
+  let tab = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE }), bind = /** @type {GPUBindGroup | null} */ (null), bakeBind = /** @type {GPUBindGroup | null} */ (null), baked = '', masked = '', state = { m: /** @type {number[]} */ ([]), u: tables(null, 1).u, kelvin: 0, wb: [1, 1, 1], chroma: [0, 0, 0] };
+  const last = { baked: false, masked: false };   // whether the last render re-made the colour table, and the tone mask (the test page's timing lines)
   /** @param {null | { profile: import('./dcp.js').Profile, table: any }} pick */
   const setProfile = (pick) => {
     picked = pick;
@@ -85,9 +87,9 @@ export async function engine(canvas, img, readback = false) {
     tab.destroy();
     tab = device.createBuffer({ size: t.all.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     device.queue.writeBuffer(tab, 0, t.all);
-    bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: src } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }] });
+    bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: src } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: mask.view }] });
     bakeBind = device.createBindGroup({ layout: bakePipe.getBindGroupLayout(0), entries: [{ binding: 1, resource: { buffer: uni } }, { binding: 3, resource: { buffer: tab } }, { binding: 4, resource: lut.createView() }] });
-    baked = '';
+    baked = ''; masked = '';
     const wb = [neutral[1] / neutral[0], 1, neutral[1] / neutral[2]];
     state = { m: conv.matrix, u: t.u, kelvin: Math.round(conv.kelvin), wb, chroma: (img.meta.chroma ?? [0, 0, 0]).map((/** @type {number} */ c, /** @type {number} */ k) => c * wb[k]) };
     return state.kelvin;
@@ -98,23 +100,28 @@ export async function engine(canvas, img, readback = false) {
   /** The shot's own white as Temp and Tint, under the current profile. */
   const shotWhite = () => whiteOf(/** @type {any} */ (picked?.profile || fallback), asShot);
   /** @param {number} ev @param {number} contrast
-   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, amount?: number, screen?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean }} [more]
+   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, amount?: number, screen?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
    * each −1..1; amount: the look table's strength (1 = as made); screen: false renders without showing it; exact: every
    * pixel through the full maths, not the table (slow: the table's accuracy check); rebuild: false leaves clipped
-   * highlights as the sensor gave them; dither: false leaves the banding guard off (both for comparing) */
+   * highlights as the sensor gave them; dither: false leaves the banding guard off; mask: false sets Highlights and
+   * Shadows by each pixel's own brightness, not its area's; showMask draws the tone mask (all four for comparing);
+   * time, for the stage timer: 'bare' does no colour work at all, 'nearest' reads the table without mixing its entries */
   const render = async (ev, contrast, more = {}) => {
     const t = performance.now(), u = new ArrayBuffer(352), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, more.amount ?? 1, 0]);
-    n.set([w, h, rot, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
+    n.set([w, h, rot, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
     f.set(g, 68); n.set(state.u.look2, 76); f.set([...state.wb, 0, ...state.chroma, 0], 80);
-    const key = [contrast, more.amount ?? 1, ...g].join();
+    const key = [contrast, more.amount ?? 1, ...g.slice(2)].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();
     last.baked = baked !== key;
-    if (last.baked) {   // re-bake only when the profile or a tone or colour control changed: a frame is then one table lookup
+    if (last.baked) {   // re-bake only when the profile or a control inside the table changed: a frame is then one table lookup
       const bp = enc.beginComputePass(); bp.setPipeline(bakePipe); bp.setBindGroup(0, bakeBind); bp.dispatchWorkgroups(Math.ceil(N / 4), Math.ceil(N / 4), Math.ceil(N / 4)); bp.end(); baked = key;
     }
+    // the tone mask: made when Highlights or Shadows first need it, and again only after the profile, the white balance or the rebuild changes
+    last.masked = Boolean(g[0] || g[1] || more.showMask) && more.mask !== false && masked !== lit;
+    if (last.masked) { mask.run(enc); masked = lit; }
     const pass = enc.beginComputePass();
     pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8)); pass.end();
     if (ctx && more.screen !== false) enc.copyTextureToTexture({ texture: out }, { texture: ctx.getCurrentTexture() }, [ow, oh]);
@@ -142,6 +149,6 @@ export async function engine(canvas, img, readback = false) {
     return new ImageData(px, ow, oh);
   };
   /** Frees this photo's GPU memory (the device and pipelines stay for the next). */
-  const dispose = () => { for (const b of [src, uni, tab, back]) b?.destroy(); out.destroy(); };
+  const dispose = () => { for (const b of [src, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); };
   return { render, setProfile, setWhite, shotWhite, snapshot, dispose, last, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

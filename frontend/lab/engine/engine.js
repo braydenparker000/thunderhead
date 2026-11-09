@@ -9,6 +9,7 @@ import { isolate } from './isolate.js';
 
 const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const canvas = /** @type {HTMLCanvasElement} */ ($('view')), ev = /** @type {HTMLInputElement} */ ($('ev')), ct = /** @type {HTMLInputElement} */ ($('ct'));
+const hi = /** @type {HTMLInputElement} */ ($('hi')), sh = /** @type {HTMLInputElement} */ ($('sh'));
 const pick = /** @type {HTMLSelectElement} */ ($('profile')), preview = /** @type {HTMLImageElement} */ ($('preview'));
 /** @type {Record<string, string>} */
 const stats = {};
@@ -35,7 +36,7 @@ const draw = async () => {
   if (!eng) return;
   if (busy) { again = true; return; }
   busy = true;
-  const t = await eng.render(Number(ev.value) + shotEv, Number(ct.value), { rebuild: on('hl'), dither: on('dz'), exact: on('exact') });
+  const t = await eng.render(Number(ev.value) + shotEv, Number(ct.value), { highlights: Number(hi.value) / 100, shadows: Number(sh.value) / 100, mask: on('mk'), showMask: on('sm'), rebuild: on('hl'), dither: on('dz'), exact: on('exact') });
   busy = false;
   // a frame that re-made the colour table (a new profile, Contrast) is timed apart from one that only read it (Exposure)
   if (eng.last.baked) stats['Frame, colour table re-made'] = ms(t);
@@ -45,7 +46,8 @@ const draw = async () => {
 };
 ev.addEventListener('input', () => { $('evv').textContent = `${Number(ev.value) >= 0 ? '+' : ''}${Number(ev.value).toFixed(2)} EV`; draw(); });
 ct.addEventListener('input', () => { $('ctv').textContent = Number(ct.value).toFixed(2); draw(); });
-for (const id of ['hl', 'dz', 'exact']) $(id).addEventListener('change', () => { frames.length = 0; draw(); });
+for (const el of [hi, sh]) el.addEventListener('input', () => { $(`${el.id}v`).textContent = `${Number(el.value) > 0 ? '+' : ''}${el.value}`; draw(); });
+for (const id of ['hl', 'dz', 'exact', 'mk', 'sm']) $(id).addEventListener('change', () => { frames.length = 0; draw(); });
 
 /** Fills the picker for this camera and picks Adobe Color (Adobe Standard when the set has no Adobe Color). @param {string} model */
 const fillPicker = async (model) => {
@@ -72,6 +74,30 @@ const check = async () => {
   show();
 };
 pick.addEventListener('change', usePick);
+
+// What each part of a frame costs on this phone: the same frame with one more part switched on each time, the
+// median of nine. The first line is one frame after the chip has had a rest, as the first frame of a drag is.
+$('time').addEventListener('click', async () => {
+  const g = eng;
+  if (!g || busy) return;
+  busy = true;
+  for (const k of Object.keys(stats)) if (k.startsWith('Timed')) delete stats[k];
+  const e = Number(ev.value) + shotEv, c = Number(ct.value), off = { rebuild: false, dither: false };
+  /** @type {[string, { highlights?: number, mask?: boolean, rebuild?: boolean, dither?: boolean, time?: 'bare' | 'nearest' }][]} */
+  const steps = [['read and show only', { ...off, time: 'bare' }], ['+ colour table, nearest entry', { ...off, time: 'nearest' }], ['+ mixing its entries', off],
+    ['+ rebuilding blown highlights', { dither: false }], ['+ dither: a whole frame', {}], ['+ Highlights −50 by pixel', { highlights: -0.5, mask: false }], ['+ Highlights −50 by area', { highlights: -0.5 }]];
+  await new Promise((r) => setTimeout(r, 1500));
+  stats['Timed: a frame after a rest'] = ms(await g.render(e, c));
+  for (const [name, more] of steps) {
+    const t = [], first = await g.render(e, c, more), made = g.last.masked;
+    for (let k = 0; k < 9; k++) t.push(await g.render(e, c, more));
+    const mid = t.sort((a, b) => a - b)[4];
+    stats[`Timed: ${name}`] = ms(mid);
+    if (made) stats['Timed: the area brightness, made once a photo'] = ms(first - mid);
+    show();
+  }
+  busy = false; draw();
+});
 
 const loadSet = async (/** @type {ArrayBuffer} */ buf) => { files = await unzip(buf); await fillPicker(stats.Camera?.split(' · ')[0] || ''); };
 $('profiles').addEventListener('change', async (e) => {
@@ -106,7 +132,7 @@ $('file').addEventListener('change', async (e) => {
   try {
     eng = await engine(canvas, r, new URLSearchParams(location.search).has('readback'));
     /** @type {any} */ (window).__engine = eng;   // for the checks run from outside the page
-    stats.GPU = eng.adapter; stats.Upload = ms(eng.uploadMs); stats.Status = 'Ready: move the sliders';
+    stats.GPU = eng.adapter; stats.Upload = ms(eng.uploadMs); stats.Status = 'Ready: move the sliders'; /** @type {HTMLButtonElement} */ ($('time')).disabled = false;
     if (files) await fillPicker(`${r.meta.make} ${r.meta.model}`);
     usePick();
     await draw();
