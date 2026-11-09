@@ -115,7 +115,10 @@ test("Guitar: today's section on My songs, its why, Start on the bars, Dismiss f
   await p.page.click('.th-arr-x');
   await card.waitFor({ state: 'detached' });
   await p.went('arrangement.dismiss');
-  assert.ok(p.calls.some((c) => c.method === 'DELETE' && c.path === '/v1/surfaces/guitar/today'), 'the slot DELETEd');
+  // The DELETE can leave just after the dismiss event is recorded (seen on CI): wait up to 5 s for it.
+  const deleted = () => p.calls.some((c) => c.method === 'DELETE' && c.path === '/v1/surfaces/guitar/today');
+  for (const t0 = Date.now(); !deleted() && Date.now() - t0 < 5000;) await new Promise((r) => setTimeout(r, 50));
+  assert.ok(deleted(), 'the slot DELETEd');
   await p.page.reload();
   await p.page.locator('.pg-head').first().waitFor();
   await p.page.waitForFunction(() => document.querySelector('.th-arr') === null);
