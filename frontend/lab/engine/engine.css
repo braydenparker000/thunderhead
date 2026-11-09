@@ -13,6 +13,8 @@ dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:18px 0 0;colo
 dt{color:#8b95a1}dd{margin:0}
 .bar{display:flex;gap:10px;flex-wrap:wrap}
 .quiet{background:#2a2c2e}
+button{font:inherit;font-weight:600;padding:10px 16px;border:0;border-radius:12px;background:#2a2c2e;color:#fff}
+button:disabled{opacity:.4}
 select{width:100%;background:#1c1e20;color:#eceff4;border:1px solid #3a3c3f;border-radius:8px;padding:8px}
 .photo img{display:block;width:100%;height:auto;margin:16px 0 0;border-radius:6px}
 .note{color:#8b95a1;font-size:12px;margin:-8px 0 0}

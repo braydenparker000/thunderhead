@@ -1,12 +1,17 @@
 // @ts-check
-// The GPU stage's shader (gpu.js runs it): one pass per frame, and the pass that bakes the colour table.
+// The GPU stage's shaders (gpu.js runs them): one pass per frame, and the pass that bakes the colour table.
 /** The colour table's points per axis. */
 export const N = 65;
-export const WGSL = /* wgsl */ `
+/** Editing-copy pixels per cell of the tone mask, each way (mask.js). */
+export const CELL = 8;
+/** What every pass starts from: the frame's settings, the editing copy, and one of its pixels as linear ProPhoto. */
+export const HEAD = /* wgsl */ `
 struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0: vec4f, a1: vec4f, a2: vec4f, b0: vec4f, b1: vec4f, b2: vec4f,
   f: vec4f,      // ev, contrast, table amount, unused
   size: vec4u,   // w, h, rotation (0..3), flags (1 hsm, 2 look, 4 tone, 8 table, 16 hsm sRGB value, 32 look sRGB value,
-                 // 64 no table, 128 second look, 256 its value is sRGB, 512 leave clipped highlights as they are, 1024 no dither)
+                 // 64 no table, 128 second look, 256 its value is sRGB, 512 leave clipped highlights as they are, 1024 no dither,
+                 // 2048 Highlights and Shadows by the pixel's own brightness (no tone mask), 4096 show the tone mask,
+                 // and two for the test page's stage timer: 8192 the table's nearest entry, 16384 no colour work)
   hsm: vec4u, look: vec4u, tab: vec4u,     // dims h, s, v, offset · same · tone offset, table n, table offset, unused
   g: vec4f,      // highlights, shadows, whites, blacks (−1..1)
   k: vec4f,      // saturation, vibrance (−1..1), unused, unused
@@ -15,10 +20,38 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
   chroma: vec4f };   // the highlight rebuild's colour offsets, white-balanced (raw's chroma() × wb)
 @group(0) @binding(0) var<storage, read> src: array<u32>;
 @group(0) @binding(1) var<uniform> p: P;
+const CELL = ${CELL}u;
+const LUM = vec3f(0.288, 0.712, 0.0);   // luminance of linear ProPhoto
+const FLOOR = 1.0 / 16384.0;            // the darkest luminance a logarithm is taken of
+fn mv(r0: vec4f, r1: vec4f, r2: vec4f, c: vec3f) -> vec3f { return vec3f(dot(r0.xyz, c), dot(r1.xyz, c), dot(r2.xyz, c)); }
+// Blown highlights (after darktable's "inpaint opposed"): a colour the sensor clipped is rebuilt from the
+// pixel's other two, white-balanced: the cube of their mean cube root, plus how far the photo's own colours
+// near its clipped areas sit from that (raw's chroma(), fading as more colours clip). Only ever raised; with
+// all three clipped they settle on neutral at the brightest. Without it a clipped sky turns pink: the green
+// clips first, and the white balance then lifts red and blue above it.
+fn est(a: f32, b: f32) -> f32 { let m = 0.5 * (pow(max(a, 0.0), 1.0 / 3.0) + pow(max(b, 0.0), 1.0 / 3.0)); return m * m * m; }
+fn rebuild(raw: vec3f, bits: u32) -> vec3f {
+  var x = raw * p.wb.xyz; let ch = p.chroma.xyz * (0.5 * f32(3u - countOneBits(bits)));
+  for (var k = 0; k < 3; k++) {
+    if ((bits & 2u) != 0u) { x.g = max(x.g, est(x.r, x.b) + ch.g); }
+    if ((bits & 4u) != 0u) { x.b = max(x.b, est(x.r, x.g) + ch.b); }
+    if ((bits & 1u) != 0u) { x.r = max(x.r, est(x.g, x.b) + ch.r); }
+  }
+  return x / p.wb.xyz;
+}
+// one pixel of the editing copy: clipped colours rebuilt, then the camera matrix
+fn pixel(x: u32, y: u32) -> vec3f {
+  let i = (y * p.size.x + x) * 2u; let rg = unpack2x16unorm(src[i]); let ba = unpack2x16unorm(src[i + 1u]);
+  var raw = vec3f(rg.x, rg.y, ba.x); let bits = (src[i + 1u] >> 16u) & 7u;   // alpha: which colours clipped
+  if (bits != 0u && (p.size.w & 512u) == 0u) { raw = rebuild(raw, bits); }
+  return max(mv(p.m0, p.m1, p.m2, raw), vec3f(0.0));
+}`;
+export const WGSL = /* wgsl */ `${HEAD}
 @group(0) @binding(2) var dst: texture_storage_2d<rgba8unorm, write>;
 @group(0) @binding(3) var<storage, read> t: array<f32>;
 @group(0) @binding(4) var lutOut: texture_storage_3d<rgba16float, write>;
 @group(0) @binding(5) var lutIn: texture_3d<f32>;
+@group(0) @binding(6) var mask: texture_2d<f32>;
 const N = ${N}u;
 // the 3D table's input: log2 of linear ProPhoto over 16 stops, 2^-12 to 2^4, so shadows get as many points as
 // highlights: four cells a stop, with 1.0 (where the tone curve clips) on a point
@@ -35,7 +68,6 @@ fn lookup(c: vec3f) -> vec3f {
   let mx = max(f.x, max(f.y, f.z)); let mn = min(f.x, min(f.y, f.z)); let md = f.x + f.y + f.z - mx - mn;
   return at(i) * (1.0 - mx) + at(i + hi) * (mx - md) + at(i + 1u - lo) * (md - mn) + at(i + 1u) * mn;
 }
-fn mv(r0: vec4f, r1: vec4f, r2: vec4f, c: vec3f) -> vec3f { return vec3f(dot(r0.xyz, c), dot(r1.xyz, c), dot(r2.xyz, c)); }
 fn enc(x: f32) -> f32 { return select(1.055 * pow(x, 1.0 / 2.4) - 0.055, 12.92 * x, x <= 0.0031308); }
 fn dec(x: f32) -> f32 { return select(pow((x + 0.055) / 1.055, 2.4), x / 12.92, x <= 0.04045); }
 fn hsv(c: vec3f) -> vec3f {
@@ -88,25 +120,25 @@ fn tab(c: vec3f) -> vec3f {
   let lin = pow(acc, vec3f(2.2));
   return mix(c, mv(p.b0, p.b1, p.b2, lin), p.f.z);
 }
-// Highlights, Shadows, Whites, Blacks: stops added by how far a tone sits above or below middle grey (a global
-// first version: the local, edge-aware tone equalizer comes later), then Saturation and Vibrance (Vibrance
-// spares colours that are already strong). Hue-preserving: every channel is scaled alike.
+// Whites and Blacks: stops added by how far a tone sits above or below middle grey (a global first version),
+// then Saturation and Vibrance (Vibrance spares colours that are already strong). Hue-preserving: every
+// channel is scaled alike.
 fn lights(c0: vec3f) -> vec3f {
-  let y = max(dot(c0, vec3f(0.288, 0.712, 0.0)), 1e-6); let x = log2(y / 0.18);
-  let d = p.g.x * 1.2 * smoothstep(0.0, 2.5, x) + p.g.y * 1.2 * smoothstep(0.0, 3.0, -x)
-    + p.g.z * 0.8 * smoothstep(1.5, 3.5, x) + p.g.w * 0.8 * smoothstep(2.5, 5.5, -x);
+  let y = max(dot(c0, LUM), 1e-6); let x = log2(y / 0.18);
+  let d = p.g.z * 0.8 * smoothstep(1.5, 3.5, x) + p.g.w * 0.8 * smoothstep(2.5, 5.5, -x);
   var c = c0 * exp2(d);
-  let l = dot(c, vec3f(0.288, 0.712, 0.0)); let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b));
+  let l = dot(c, LUM); let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b));
   let sat = select((mx - mn) / mx, 0.0, mx <= 0.0);
   return max(vec3f(l) + (c - vec3f(l)) * (1.0 + p.k.x) * (1.0 + p.k.y * (1.0 - sat)), vec3f(0.0));
 }
-// everything after exposure: the HueSatMap (its value axis is flat, so it commutes with exposure), Contrast,
-// the tone and colour controls, LookTable (and a look file's), tone curve, look table, sRGB. Baked into the table whenever the
-// profile or one of those controls changes; flag 64 runs it on every pixel instead (the table's accuracy check)
+// everything after exposure and Highlights and Shadows: the HueSatMap (its value axis is flat, so it commutes
+// with both), Contrast, Whites, Blacks and the colour controls, LookTable (and a look file's), tone curve, look
+// table, sRGB. Baked into the table whenever the profile or one of those controls changes; flag 64 runs it on
+// every pixel instead (the table's accuracy check)
 fn develop(c0: vec3f) -> vec3f {
   var c = c0; let fl = p.size.w;
   if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
-  let y = max(dot(c, vec3f(0.288, 0.712, 0.0)), 1e-6);
+  let y = max(dot(c, LUM), 1e-6);
   c = c * (0.18 * pow(y / 0.18, p.f.y) / y);
   c = lights(c);
   if ((fl & 2u) != 0u) { c = hsd(c, p.look, (fl & 32u) != 0u); }
@@ -121,21 +153,6 @@ fn bake(@builtin(global_invocation_id) id: vec3u) {
   if (any(id >= vec3u(N))) { return; }
   textureStore(lutOut, id, vec4f(develop(unshape(vec3f(id) / f32(N - 1u))), 1.0));
 }
-// Blown highlights (after darktable's "inpaint opposed"): a colour the sensor clipped is rebuilt from the
-// pixel's other two, white-balanced: the cube of their mean cube root, plus how far the photo's own colours
-// near its clipped areas sit from that (raw's chroma(), fading as more colours clip). Only ever raised; with
-// all three clipped they settle on neutral at the brightest. Without it a clipped sky turns pink: the green
-// clips first, and the white balance then lifts red and blue above it.
-fn est(a: f32, b: f32) -> f32 { let m = 0.5 * (pow(max(a, 0.0), 1.0 / 3.0) + pow(max(b, 0.0), 1.0 / 3.0)); return m * m * m; }
-fn rebuild(raw: vec3f, bits: u32) -> vec3f {
-  var x = raw * p.wb.xyz; let ch = p.chroma.xyz * (0.5 * f32(3u - countOneBits(bits)));
-  for (var k = 0; k < 3; k++) {
-    if ((bits & 2u) != 0u) { x.g = max(x.g, est(x.r, x.b) + ch.g); }
-    if ((bits & 4u) != 0u) { x.b = max(x.b, est(x.r, x.g) + ch.b); }
-    if ((bits & 1u) != 0u) { x.r = max(x.r, est(x.g, x.b) + ch.r); }
-  }
-  return x / p.wb.xyz;
-}
 // Dither, against banding in skies: the screen holds 256 levels a channel, so each pixel gets a fixed
 // triangular-spread offset of up to one level (the same on all three channels: no colour speckle), fading
 // to none at pure black and white.
@@ -144,19 +161,41 @@ fn dither(o: vec3f, at: vec2u) -> vec3f {
   let n = (f32(s & 0xffffu) - f32(s >> 16u)) / 65536.0;
   return o + n * clamp(min(o, 1.0 - o) * 255.0, vec3f(0.0), vec3f(1.0)) / 255.0;
 }
+// Highlights and Shadows work on how bright the pixel's area is, not the pixel: the tone mask (mask.js) holds
+// a slope and an offset for each cell of 8 × 8 pixels, and the area's brightness in stops is the slope × the
+// pixel's own log2 luminance + the offset, read between the four cells around the pixel.
+fn area(at: vec2u, l: f32) -> f32 {
+  let n = vec2i(textureDimensions(mask)); let u = (vec2f(at) + 0.5) / f32(CELL) - 0.5; let i = vec2i(floor(u)); let f = u - floor(u);
+  let i0 = clamp(i, vec2i(0), n - 1); let i1 = clamp(i + 1, vec2i(0), n - 1);
+  let k = mix(mix(textureLoad(mask, i0, 0).xy, textureLoad(mask, vec2i(i1.x, i0.y), 0).xy, f.x),
+    mix(textureLoad(mask, vec2i(i0.x, i1.y), 0).xy, textureLoad(mask, i1, 0).xy, f.x), f.y);
+  return k.x * l + k.y;
+}
+// The stops they add for an area x stops from middle grey. Highlights: above it, in full from 3.5 stops up.
+// Shadows: below it, in full from 4 stops down, easing back to half in the deepest blacks (lifting those shows
+// noise, not detail). Recovering (darker highlights, lighter shadows) reaches 2 stops, the other way 1. The
+// slope stays above −1 a stop, so a brighter area never comes out darker than a dimmer one.
+fn relight(x: f32) -> f32 {
+  return p.g.x * select(2.0, 1.0, p.g.x > 0.0) * smoothstep(0.0, 3.5, x)
+    + p.g.y * select(1.0, 2.0, p.g.y > 0.0) * smoothstep(0.0, 4.0, -x) * (1.0 - 0.5 * smoothstep(6.0, 10.0, -x));
+}
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let w = p.size.x; let h = p.size.y; let fl = p.size.w;
   if (id.x >= w || id.y >= h) { return; }
-  let i = (id.y * w + id.x) * 2u;
-  let rg = unpack2x16unorm(src[i]); let ba = unpack2x16unorm(src[i + 1u]);
-  var raw = vec3f(rg.x, rg.y, ba.x); let bits = (src[i + 1u] >> 16u) & 7u;   // alpha: which colours clipped
-  if (bits != 0u && (fl & 512u) == 0u) { raw = rebuild(raw, bits); }
-  var c = max(mv(p.m0, p.m1, p.m2, raw), vec3f(0.0));
+  var c = pixel(id.x, id.y);
+  let l = log2(max(dot(c, LUM), FLOOR));
   if ((fl & 1u) != 0u && p.hsm.z > 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
   c = c * exp2(p.f.x);
-  var o = vec3f(0.0);
-  if ((fl & 64u) != 0u) { o = develop(c); } else { o = lookup(c); }
+  if (p.g.x != 0.0 || p.g.y != 0.0 || (fl & 4096u) != 0u) {
+    var m = l + p.f.x;
+    if ((fl & 2048u) == 0u) { m = area(id.xy, l) + p.f.x; }
+    if ((fl & 4096u) != 0u) { c = vec3f(exp2(m)); } else { c = c * exp2(relight(m - log2(0.18))); }
+  }
+  var o = c;
+  if ((fl & 16384u) == 0u) {
+    if ((fl & 64u) != 0u) { o = develop(c); } else if ((fl & 8192u) != 0u) { o = at(vec3u(shape(c) * f32(N - 1u) + 0.5)); } else { o = lookup(c); }
+  }
   var at = vec2u(id.x, id.y);
   switch (p.size.z) { case 1u: { at = vec2u(h - 1u - id.y, id.x); } case 2u: { at = vec2u(w - 1u - id.x, h - 1u - id.y); } case 3u: { at = vec2u(id.y, w - 1u - id.x); } default: {} }
   if ((fl & 1024u) == 0u) { o = dither(o, at); }
