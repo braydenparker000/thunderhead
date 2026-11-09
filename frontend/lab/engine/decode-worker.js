@@ -9,7 +9,7 @@
  * Fujifilm's DR setting (100, 200 or 400) from its maker notes: DR200 and DR400 shoot 1 and 2 stops darker on
  * purpose, and the developer adds it back. @param {DataView} j */
 function exifInfo(j) {
-  const out = { dr: 100, orientation: 'Normal' };
+  const out = { dr: 100, orientation: 'Normal', settings: '' };
   try {
     let a = 2; while (a < j.byteLength - 10 && !(j.getUint16(a) === 0xffe1 && j.getUint32(a + 4) === 0x45786966)) a += 2 + j.getUint16(a + 2);
     const t = a + 10, le = j.getUint16(t) === 0x4949, u16 = (o) => j.getUint16(t + o, le), u32 = (o) => j.getUint32(t + o, le);
@@ -17,9 +17,25 @@ function exifInfo(j) {
     const o = find(u32(4), 0x0112);
     if (o >= 0) out.orientation = { 3: 'Rotate180', 6: 'Rotate90', 8: 'Rotate270' }[u16(o + 8)] || 'Normal';
     const exif = u32(find(u32(4), 0x8769) + 8), mn = t + u32(find(exif, 0x927c) + 8), io = mn + j.getUint32(mn + 8, true);
-    for (let k = 0, n = j.getUint16(io, true); k < n; k++) if (j.getUint16(io + 2 + k * 12, true) === 0x1403) out.dr = j.getUint16(io + 10 + k * 12, true) || 100;
+    const mk = /** @type {Record<number, number>} */ ({});
+    for (let k = 0, n = j.getUint16(io, true); k < n; k++) {
+      const e = io + 2 + k * 12, type = j.getUint16(e + 2, true);
+      mk[j.getUint16(e, true)] = type === 3 ? j.getUint16(e + 8, true) : type === 8 ? j.getInt16(e + 8, true) : type === 9 ? j.getInt32(e + 8, true) : type === 4 ? j.getUint32(e + 8, true) : NaN;
+    }
+    out.dr = mk[0x1403] || 100;
+    out.settings = recipe(mk);
   } catch {}
   return out;
+}
+
+/** The shot's in-camera settings that change the camera's JPEG (Fujifilm maker notes, as exiftool names them):
+ * film simulation, highlight and shadow tone, colour. @param {Record<number, number>} mk */
+function recipe(mk) {
+  const FILM = /** @type {Record<number, string>} */ ({ 0: 'PROVIA', 0x120: 'ASTIA', 0x200: 'Velvia', 0x400: 'Velvia', 0x500: 'Pro Neg Std', 0x501: 'Pro Neg Hi', 0x600: 'CLASSIC CHROME', 0x700: 'ETERNA', 0x800: 'CLASSIC Neg', 0x900: 'ETERNA BB', 0xa00: 'NOSTALGIC Neg', 0xb00: 'REALA ACE' });
+  const SAT = /** @type {Record<number, string>} */ ({ 0: '0', 0x80: '+1', 0x100: '+2', 0xc0: '+3', 0xe0: '+4', 0x180: '-1', 0x400: '-2', 0x4c0: '-3', 0x4e0: '-4', 0x300: 'B&W', 0x500: 'ACROS', 0x8000: 'film' });
+  const tone = (/** @type {number} */ v) => (Number.isFinite(v) ? v === 0 ? '0' : `${v < 0 ? '+' : ''}${-v / 16}` : '?');
+  const film = 0x1401 in mk ? FILM[mk[0x1401]] ?? `0x${mk[0x1401].toString(16)}` : 'B&W';
+  return `${film} · highlights ${tone(mk[0x1041])} · shadows ${tone(mk[0x1040])} · colour ${SAT[mk[0x1003]] ?? `0x${(mk[0x1003] ?? 0).toString(16)}`}`;
 }
 
 const THREADS = Math.max(1, Math.min(8, navigator.hardwareConcurrency || 4));
@@ -40,12 +56,12 @@ self.onmessage = async (e) => {
     // the camera's own JPEG first (RAF header: its offset and length at bytes 84 and 88, big-endian), so the
     // photo shows while the RAW decodes
     const v = new DataView(e.data);
-    let info = { dr: 100, orientation: 'Normal' };
+    let info = { dr: 100, orientation: 'Normal', settings: '' };
     if (v.byteLength > 92 && new TextDecoder().decode(new Uint8Array(e.data, 0, 8)) === 'FUJIFILM') {
       const off = v.getUint32(84), len = v.getUint32(88);
       if (off + len <= v.byteLength) {
         info = exifInfo(new DataView(e.data, off, len));
-        self.postMessage({ preview: new Blob([new Uint8Array(e.data, off, len)], { type: 'image/jpeg' }), dr: info.dr });
+        self.postMessage({ preview: new Blob([new Uint8Array(e.data, off, len)], { type: 'image/jpeg' }), dr: info.dr, settings: info.settings });
       }
     }
     const { decode, threads } = await ready;
