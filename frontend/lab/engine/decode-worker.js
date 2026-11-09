@@ -6,6 +6,13 @@ import init, { decode } from './pkg/th_raw.js';
 const ready = init({ module_or_path: new URL('./pkg/th_raw_bg.wasm', import.meta.url) });
 self.onmessage = async (e) => {
   try {
+    // the camera's own JPEG first (RAF header: its offset and length at bytes 84 and 88, big-endian), so the
+    // photo shows while the RAW decodes
+    const v = new DataView(e.data);
+    if (v.byteLength > 92 && new TextDecoder().decode(new Uint8Array(e.data, 0, 8)) === 'FUJIFILM') {
+      const off = v.getUint32(84), len = v.getUint32(88);
+      if (off + len <= v.byteLength) self.postMessage({ preview: new Blob([new Uint8Array(e.data, off, len)], { type: 'image/jpeg' }) });
+    }
     await ready;
     const t0 = performance.now();
     const d = decode(new Uint8Array(e.data));
