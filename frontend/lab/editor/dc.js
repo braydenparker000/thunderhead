@@ -97,7 +97,9 @@ function mountChild(host, v) {
 
 class Host {
   constructor(el, C, name, props) { this.el = el; this.c = new C(props); this.c._host = this; this.tpl = document.querySelector(`template[data-dc="${name}"]`); }
-  render() { patch(this.el, build(this.tpl.content.childNodes, this.c.renderVals())); }
+  /** A board the app has replaced (another mounted on its element) or removed: it must not draw again. */
+  get stale() { return !this.el.isConnected || (this.el._root !== undefined && this.el._root !== this); }
+  render() { if (!this.stale) patch(this.el, build(this.tpl.content.childNodes, this.c.renderVals())); }
 }
 
 /** Mount the page's main board (and preload what it imports) into the element. */
@@ -105,5 +107,6 @@ export async function mount(el, name) {
   for (const t of document.querySelectorAll('template[data-dc]')) await load(t.dataset.dc);
   el._comp = name;
   const h = new Host(el, classes[name], name, {});
+  el._root = h;
   h.render();
 }

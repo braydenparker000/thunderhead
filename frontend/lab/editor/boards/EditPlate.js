@@ -9,7 +9,7 @@ export default class Component extends DCLogic {
   constructor(props) {
     super(props);
     this.state = { open: true, section: 'Light', adj: 'Exposure', sub: null, chan: 'RGB', mixColor: 'Blue', mixAttr: 'Hue', zone: 'Shadows', wb: 'As shot', wbMenu: false };
-    const hear = () => { if (this._host && !this._host.el.isConnected) photo.events.removeEventListener('change', hear); else this.setState({}); };
+    const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
   }
   renderVals() {

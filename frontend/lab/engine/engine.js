@@ -5,6 +5,7 @@
 import { engine } from './gpu.js';
 import { catalogue, saveSet, storedSet, unzip } from './profiles.js';
 import { compare, grid } from './compare.js';
+import { isolate } from './isolate.js';
 
 const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const canvas = /** @type {HTMLCanvasElement} */ ($('view')), ev = /** @type {HTMLInputElement} */ ($('ev')), ct = /** @type {HTMLInputElement} */ ($('ct'));
@@ -26,33 +27,9 @@ const frames = /** @type {number[]} */ ([]);
 const BASELINE_EV = 0.25;
 let shotEv = 0;
 
-// Decoding on every core needs this page cross-origin isolated, which our service worker does (sw.js). A newer
-// worker waits for the shell's safe moment, which this page never gives, and a phone that only ever opened
-// this page has none: here nothing is open yet, so register or apply it and reload once. `isolation` says
-// which, for the Threads row.
-let isolation = crossOriginIsolated ? 'isolated' : 'not isolated';
-// The service worker isolates /lab/engine/ only; the site also serves this page as /lab/engine and
-// /lab/engine/index.html, so go to the one address first.
-if (location.pathname !== '/lab/engine/') location.replace(`/lab/engine/${location.search}`);
-else if (!crossOriginIsolated && navigator.serviceWorker) (async () => {
-  // at most one reload every 20 s, so a worker that never isolates can't loop the page
-  const once = () => { try { if (Date.now() - Number(sessionStorage.getItem('engine-isolate') || 0) < 20_000) return; sessionStorage.setItem('engine-isolate', String(Date.now())); } catch { return; } location.reload(); };
-  navigator.serviceWorker.addEventListener('controllerchange', () => { isolation = 'service worker changed, reloading'; once(); });
-  let reg = await navigator.serviceWorker.getRegistration('/');
-  if (!reg) { isolation = 'no service worker yet: installing it'; reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }); }
-  else await reg.update().catch((e) => { isolation = `service worker update failed: ${e?.message || e}`; });
-  const skip = (/** @type {ServiceWorker} */ w) => w.postMessage({ type: 'skipWaiting' });
-  const follow = (/** @type {ServiceWorker} */ w) => w.addEventListener('statechange', () => {
-    isolation = `new service worker ${w.state}`;
-    if (w.state === 'installed') skip(w);
-    if (w.state === 'activated') once();
-    if (w.state === 'redundant') isolation = 'the new service worker failed to install';
-  });
-  if (reg.waiting) { isolation = 'applying the waiting service worker'; skip(reg.waiting); }
-  else if (reg.installing) { isolation = 'new service worker installing'; follow(reg.installing); }
-  else if (reg.active && navigator.serviceWorker.controller) { isolation = `the service worker in charge (${new URL(navigator.serviceWorker.controller.scriptURL).pathname}) does not isolate this page`; once(); }
-  else if (reg.active) { isolation = 'page opened without the service worker: reloading'; once(); }
-})().catch((e) => { isolation = `service worker: ${e?.message || e}`; });
+// Decoding on every core needs this page cross-origin isolated (isolate.js).
+const isolated = isolate('/lab/engine/');
+
 
 const draw = async () => {
   if (!eng) return;
@@ -122,7 +99,7 @@ $('file').addEventListener('change', async (e) => {
   if (r.error) { stats.Status = `Couldn't open it: ${r.error}`; show(); return; }
   stats.Camera = `${r.meta.make} ${r.meta.model} · ${r.meta.width} × ${r.meta.height}`;
   stats.Decode = `${ms(r.decodeMs)} on ${r.threads} thread${r.threads > 1 ? "s" : ""} (worker round trip ${ms(performance.now() - t1)})`;
-  stats.Threads = crossOriginIsolated ? (r.threadsError ? `pool failed: ${r.threadsError}` : `${r.threads} (page isolated)`) : `1: ${isolation}`;
+  stats.Threads = crossOriginIsolated ? (r.threadsError ? `pool failed: ${r.threadsError}` : `${r.threads} (page isolated)`) : `1: ${isolated()}`;
   stats['Editing copy'] = `${r.width} × ${r.height}`;
   try {
     eng = await engine(canvas, r, new URLSearchParams(location.search).has('readback'));

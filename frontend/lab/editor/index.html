@@ -379,8 +379,8 @@
   <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 0 8px; z-index: 2">
     <button aria-label="Back to Photos" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
     <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
-      <span style="font-size: 14px; font-weight: 600">DSCF0412</span>
-      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">23 mm · f/5.6 · 1/250 · ISO 160</span>
+      <span style="font-size: 14px; font-weight: 600">{{fileName}}</span>
+      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">{{shotLine}}</span>
     </div>
     <div style="display: flex; align-items: center">
       <button aria-label="Show histogram" aria-pressed="false" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a6b0bc" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
@@ -392,8 +392,11 @@
   <div style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(540px - var(--cut)); overflow: hidden">
     <div onPointerDown="{{holdOn}}" onPointerUp="{{holdOff}}" onPointerCancel="{{holdOff}}" onPointerLeave="{{holdOff}}" aria-label="Photo. Press and hold to see it without the look."
          style="position: absolute; left: 20px; top: 110px; width: 372px; height: 248px; touch-action: none">
+      <sc-if value="{{demo}}">
       <img src="/lab/editor/assets/sample.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block">
       <img src="/lab/editor/assets/sample.jpg" alt="The photo with the look" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block; filter: {{lookFilter}}; opacity: {{lookO}}; transition: opacity 160ms ease, filter 260ms ease">
+      </sc-if>
+      <sc-if value="{{real}}"><div data-keep="photo" style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center"></div></sc-if>
       <div aria-hidden="true" class="grain" style="position: absolute; inset: 0; opacity: {{grainO}}"></div>
       <sc-if value="{{comparing}}" hint-placeholder-val="{{false}}"><span class="glass" style="position: absolute; left: 8px; bottom: 8px; padding: 4px 10px; border-radius: 12px; font-size: 11px">Original</span></sc-if>
     </div>
@@ -414,7 +417,7 @@
       <sc-for list="{{tiles}}" as="t" hint-placeholder-count="6">
         <button role="option" aria-selected="{{t.on}}" onClick="{{t.pick}}" class="tile" style="--d: {{t.delay}}ms; animation-name: {{t.anim}}; flex: none; width: 66px; display: flex; flex-direction: column; align-items: center; gap: 5px">
           <span style="position: relative; width: 66px; height: 58px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 {{t.ringW}}px {{t.ring}}; background: {{t.plain}}">
-            <img src="/lab/editor/assets/sample.jpg" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: 55% 50%; filter: {{t.filter}}; display: {{t.imgShow}}">
+            <img src="{{t.src}}" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: 55% 50%; filter: {{t.filter}}; display: {{t.imgShow}}">
             <span style="position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font-size: 22px; color: #f2efe8; display: {{t.glyphShow}}">{{t.glyph}}</span>
             <span style="position: absolute; right: 4px; top: 3px; font-size: 10px; color: #e8202a; text-shadow: 0 1px 2px rgba(0,0,0,0.8)">{{t.star}}</span>
             <span style="position: absolute; left: 4px; bottom: 3px; font-size: 7.5px; font-weight: 700; letter-spacing: 0.08em; padding: 1px 4px; border-radius: 4px; background: rgba(0,0,0,0.65); color: #dedbd4; display: {{t.tagShow}}">{{t.tag}}</span>

@@ -8,6 +8,7 @@
 // imported RAFs live on the phone (app/store.js) and open, developed, in Edit.
 import { mount } from './dc.js';
 import { init } from './app/store.js';
+import { isolate } from '../engine/isolate.js';
 
 const frame = /** @type {HTMLElement} */ (document.getElementById('frame') || document.getElementById('stage'));
 const stage = /** @type {HTMLElement} */ (document.getElementById('stage'));
@@ -25,6 +26,8 @@ fit();
 const board = document.body.dataset.board || 'EditPlate';
 if (board !== 'App') mount(stage, board);
 else {
+  // the app decodes RAFs on every core once the page is cross-origin isolated (the screens pages don't decode)
+  isolate('/lab/editor/');
   const BOARDS = /** @type {Record<string, string>} */ ({ Library: 'LibraryPlate', Edit: 'EditPlate', Crop: 'CropPlate', Masks: 'MaskPlate', Looks: 'LooksPlate', Heal: 'HealPlate', Versions: 'ViewTools', Export: 'ExportPlate' });
   const dock = /** @type {HTMLElement} */ (document.getElementById('dock')), veil = /** @type {HTMLElement} */ (document.getElementById('dockveil'));
   let current = '';
