@@ -32,7 +32,8 @@ let shotEv = 0;
 // which, for the Threads row.
 let isolation = crossOriginIsolated ? 'isolated' : 'not isolated';
 if (!crossOriginIsolated && navigator.serviceWorker) (async () => {
-  const once = () => { try { if (sessionStorage.getItem('engine-isolate')) return; sessionStorage.setItem('engine-isolate', '1'); } catch { return; } location.reload(); };
+  // at most one reload every 20 s, so a worker that never isolates can't loop the page
+  const once = () => { try { if (Date.now() - Number(sessionStorage.getItem('engine-isolate') || 0) < 20_000) return; sessionStorage.setItem('engine-isolate', String(Date.now())); } catch { return; } location.reload(); };
   navigator.serviceWorker.addEventListener('controllerchange', () => { isolation = 'service worker changed, reloading'; once(); });
   let reg = await navigator.serviceWorker.getRegistration('/');
   if (!reg) { isolation = 'no service worker yet: installing it'; reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }); }
@@ -41,6 +42,7 @@ if (!crossOriginIsolated && navigator.serviceWorker) (async () => {
   const follow = (/** @type {ServiceWorker} */ w) => w.addEventListener('statechange', () => {
     isolation = `new service worker ${w.state}`;
     if (w.state === 'installed') skip(w);
+    if (w.state === 'activated') once();
     if (w.state === 'redundant') isolation = 'the new service worker failed to install';
   });
   if (reg.waiting) { isolation = 'applying the waiting service worker'; skip(reg.waiting); }
