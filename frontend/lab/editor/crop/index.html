@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Editor test · Crop</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="/lab/editor/editor.css">
+<script type="module" src="/lab/editor/boot.js"></script>
+</head>
+<body data-board="CropPlate">
+<div id="stage"></div>
+<template data-dc="CropPlate">
+<div style="width: 412px; height: 915px; box-sizing: border-box; position: relative; background: #000000; color: #eceff4; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+  <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 0 8px; z-index: 2">
+    <button aria-label="Back to Photos" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+      <span style="font-size: 14px; font-weight: 600">DSCF0412</span>
+      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">23 mm · f/5.6 · 1/250 · ISO 160</span>
+    </div>
+    <div style="display: flex; align-items: center">
+      <button aria-label="Show histogram" aria-pressed="false" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a6b0bc" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
+      <button aria-label="Undo" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg></button>
+      <button style="height: 32px; padding: 0 13px; margin-left: 4px; border-radius: 16px; background: #e8202a; color: #fff; font-size: 13px; font-weight: 600">Export</button>
+    </div>
+  </header>
+
+  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: 540px; overflow: hidden; perspective: 900px">
+    <div style="position: absolute; left: {{boxL}}px; top: {{boxT}}px; width: {{boxW}}px; height: {{boxH}}px">
+      <img src="/lab/editor/assets/sample.jpg" alt="The photo being cropped" style="position: absolute; left: 50%; top: 50%; width: {{imgW}}px; height: {{imgH}}px; margin: {{imgMT}}px 0 0 {{imgML}}px; transform: {{imgTf}}; transition: transform {{imgTr}}; display: block">
+      <div style="position: absolute; left: {{cx}}px; top: {{cy}}px; width: {{cw}}px; height: {{ch}}px; box-shadow: 0 0 0 1px rgba(255,255,255,0.85), 0 0 0 2000px rgba(0,0,0,0.62); transition: {{cropTr}}">
+        <sc-for list="{{grid}}" as="g" hint-placeholder-count="4">
+          <span aria-hidden="true" style="position: absolute; left: {{g.l}}; top: {{g.t}}; width: {{g.w}}; height: {{g.h}}; background: rgba(255,255,255,{{g.a}})"></span>
+        </sc-for>
+        <sc-for list="{{handles}}" as="h" hint-placeholder-count="4">
+          <span role="button" aria-label="Drag the {{h.name}} corner" onPointerDown="{{h.down}}" onPointerMove="{{h.move}}" onPointerUp="{{h.up}}" onPointerCancel="{{h.up}}"
+                style="position: absolute; left: {{h.l}}; top: {{h.t}}; width: 44px; height: 44px; margin: -22px 0 0 -22px; touch-action: none; cursor: nwse-resize">
+            <span aria-hidden="true" style="position: absolute; left: {{h.il}}px; top: {{h.it}}px; width: 18px; height: 18px; border-style: solid; border-color: #fff; border-width: {{h.bw}}; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7))"></span>
+          </span>
+        </sc-for>
+      </div>
+    </div>
+    <span style="position: absolute; right: 12px; top: 10px; font-size: 11px; font-weight: 500; padding: 4px 9px; border-radius: 11px; background: rgba(0,0,0,0.6); font-variant-numeric: tabular-nums">{{dims}}</span>
+  </div>
+
+  <div style="position: absolute; left: 0; top: 600px; width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+    <div role="status" aria-label="{{ctl}} {{valText}} {{unit}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, #050606, #0b0c0d); box-shadow: inset 0 2px 5px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.10)">
+      <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">{{ctlUp}}</span>
+      <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{unit}}</span>
+      <span style="position: absolute; left: 22px; right: 22px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #1c1e20"></span>
+      <span style="position: absolute; left: 50%; top: 30px; width: 1.5px; height: 10px; margin: -5px 0 0 -0.75px; background: #6a6e73"></span>
+      <span style="position: absolute; left: {{fillL}}px; width: {{fillW}}px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #e8202a; box-shadow: 0 0 8px rgba(232,32,42,0.55)"></span>
+      <span style="position: absolute; left: {{numX}}px; top: 30px; transform: translate(-50%, -50%); height: 20px; padding: 0 8px; border-radius: 10px; display: flex; align-items: center; background: #0b0c0d; box-shadow: 0 0 0 1.5px #e8202a, 0 2px 6px rgba(0,0,0,0.8); color: #f2efe8; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; transition: left 90ms ease-out">{{valText}}</span>
+      <span aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(170deg, rgba(255,255,255,0.06) 0, rgba(255,255,255,0) 40%)"></span>
+    </div>
+    <div aria-hidden="true" style="position: absolute; left: 0; top: 58px; width: 412px; height: 150px; background: url(/lab/editor/assets/dial-strip.webp) 0 {{spinY}}px / 412px 1800px no-repeat"></div>
+    <div role="slider" aria-label="{{ctl}}" aria-valuemin="{{vmin}}" aria-valuemax="{{vmax}}" aria-valuenow="{{valNow}}" aria-valuetext="{{valText}} {{unit}}" tabindex="0"
+         onPointerDown="{{dDown}}" onPointerMove="{{dMove}}" onPointerUp="{{dUp}}" onPointerCancel="{{dUp}}" onKeyDown="{{dKey}}"
+         style="position: absolute; left: 0; top: 58px; width: 412px; height: 108px; touch-action: none; cursor: ew-resize; outline: none"></div>
+    <span aria-hidden="true" style="position: absolute; left: 50%; top: 64px; margin-left: -4px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #e8202a"></span>
+
+    <div class="hscroll" role="toolbar" aria-label="{{group}} options" style="position: absolute; left: 0; right: 0; top: 166px; height: 36px; display: flex; align-items: center; gap: 4px; padding: 0 14px">
+      <sc-for list="{{chips}}" as="p" hint-placeholder-count="7">
+        <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" aria-label="{{p.aria}}" class="eng fly" style="--dx: {{p.dx}}px; animation-name: {{p.anim}}; animation-delay: {{p.delay}}ms; flex: none; position: relative; height: 34px; padding: 0 {{p.pad}}px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+          <span style="font-size: {{p.size}}px; font-weight: 600; letter-spacing: 0.14em; color: {{p.ink}}">{{p.name}}</span>
+          <span style="font-size: 9px; letter-spacing: 0.04em; color: {{p.valueInk}}; font-variant-numeric: tabular-nums">{{p.value}}</span>
+          <span aria-hidden="true" style="position: absolute; left: 50%; bottom: 0; width: 12px; height: 2px; margin-left: -6px; border-radius: 1px; background: {{p.bar}}"></span>
+        </button>
+      </sc-for>
+    </div>
+
+    <nav aria-label="Crop sections" style="position: absolute; left: 14px; right: 14px; top: 206px; height: 30px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+      <sc-for list="{{groups}}" as="s" hint-placeholder-count="4">
+        <button onClick="{{s.pick}}" aria-current="{{s.current}}" class="eng" style="position: relative; height: 30px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: {{s.ink}}">
+          <span aria-hidden="true" style="position: absolute; left: 50%; top: 0; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: {{s.dot}}"></span>{{s.label}}
+        </button>
+      </sc-for>
+    </nav>
+
+    <div style="position: absolute; left: 14px; bottom: 22px; display: flex; gap: 8px">
+      <button class="key" onClick="{{auto}}" style="height: 40px; padding: 0 16px; border-radius: 12px; display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: #e8202a; box-shadow: 0 0 6px rgba(232,32,42,0.7)"></span>AUTO</button>
+      <button class="key" onClick="{{reset}}" style="height: 40px; padding: 0 16px; border-radius: 12px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4">RESET</button>
+    </div>
+  </div>
+
+  <button class="glass" aria-label="Back to the tools" style="position: absolute; right: 14px; bottom: 18px; width: 56px; height: 56px; border-radius: 28px; display: flex; align-items: center; justify-content: center; z-index: 3">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg>
+  </button>
+</div>
+</template>
+</body>
+</html>

@@ -95,20 +95,23 @@ test('the three rows are on their pages; the name goes to the Worker and the she
 
 test('Auto flips at the owner’s hours, 07:00 and 22:00 unless set, with a faked clock', opts, async () => {
   const { page, context, errors, w } = await open({}, { theme: 'auto', clock: new Date('2026-11-04T21:59:00Z') });
-  const theme = () => page.evaluate(() => document.documentElement.dataset.theme);
-  assert.equal(await theme(), 'light', '21:59: day');
+  // A fast-forward fires the flip's timer, but its callback can land just after fastForward resolves
+  // (seen in the headless shell CI uses): wait up to 2 s for the expected theme, then assert as before.
+  const theme = (want) => page.waitForFunction((t) => document.documentElement.dataset.theme === t, want, { timeout: 2000 }).catch(() => {})
+    .then(() => page.evaluate(() => document.documentElement.dataset.theme));
+  assert.equal(await theme('light'), 'light', '21:59: day');
   await page.clock.fastForward('01:30');
-  assert.equal(await theme(), 'dark', '22:00: night');
+  assert.equal(await theme('dark'), 'dark', '22:00: night');
   // The owner moves their hours on another phone: home's next read of the settings brings them.
   Object.assign(w.stored, { 'mind.night_start': '23:00', 'mind.day_start': '06:00' });
   await page.evaluate((s) => import('/th/copy.js').then((m) => m.keepShell(s)), w.stored);
-  assert.equal(await theme(), 'light', '22:00 with evening from 23:00: day');
+  assert.equal(await theme('light'), 'light', '22:00 with evening from 23:00: day');
   await page.clock.fastForward(60 * 60_000);
-  assert.equal(await theme(), 'dark', '23:00: night');
+  assert.equal(await theme('dark'), 'dark', '23:00: night');
   await page.clock.fastForward((6 * 60 + 59) * 60_000);
-  assert.equal(await theme(), 'dark', '05:59: still night');
+  assert.equal(await theme('dark'), 'dark', '05:59: still night');
   await page.clock.fastForward(60_000);
-  assert.equal(await theme(), 'light', '06:00: day');
+  assert.equal(await theme('light'), 'light', '06:00: day');
   await shot(page, 'theme');
   assert.deepEqual(errors, []);
   await context.close();

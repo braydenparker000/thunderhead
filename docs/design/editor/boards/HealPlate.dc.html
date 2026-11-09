@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Heal · heal, clone, remove</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#000}
+a{color:#6aa2ff}a:hover{color:#9cc0ff}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.glass{background:linear-gradient(180deg,rgba(255,255,255,0.17),rgba(255,255,255,0.06));-webkit-backdrop-filter:blur(18px) saturate(1.8);backdrop-filter:blur(18px) saturate(1.8);border:1px solid rgba(255,255,255,0.22);box-shadow:inset 0 1px 0 rgba(255,255,255,0.38),inset 0 -1px 1px rgba(255,255,255,0.06),0 14px 34px rgba(0,0,0,0.55)}
+.lens{background:radial-gradient(ellipse at 50% 20%,rgba(255,255,255,0.34),rgba(255,255,255,0.10) 60%,rgba(255,255,255,0.06));box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),inset 0 -2px 6px rgba(0,0,0,0.25)}
+.hscroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hscroll::-webkit-scrollbar{display:none}
+.fly{animation-duration:440ms;animation-timing-function:cubic-bezier(0.2,0.9,0.25,1.15);animation-fill-mode:both}
+@keyframes fly0{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly1{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly2{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly3{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly4{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly5{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly6{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly7{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}
+.eng{text-shadow:0 -1px 0 rgba(0,0,0,0.85),0 1px 0 rgba(255,255,255,0.06)}
+.key{background:linear-gradient(180deg,#2c2e2f,#1b1c1d);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.5),0 0 0 1px #0b0c0c,0 2px 4px rgba(0,0,0,0.7)}
+</style>
+</helmet>
+<div style="width: 412px; height: 915px; box-sizing: border-box; position: relative; background: #000000; color: #eceff4; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+  <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 0 8px; z-index: 2">
+    <button aria-label="Back to Photos" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+      <span style="font-size: 14px; font-weight: 600">DSCF0412</span>
+      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">23 mm · f/5.6 · 1/250 · ISO 160</span>
+    </div>
+    <div style="display: flex; align-items: center">
+      <button aria-label="Show histogram" aria-pressed="false" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a6b0bc" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
+      <button aria-label="Undo" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg></button>
+      <button style="height: 32px; padding: 0 13px; margin-left: 4px; border-radius: 16px; background: #e8202a; color: #fff; font-size: 13px; font-weight: 600">Export</button>
+    </div>
+  </header>
+
+  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: 540px; overflow: hidden">
+    <div onPointerDown="{{pDown}}" onPointerMove="{{pMove}}" onPointerUp="{{pUp}}" onPointerCancel="{{pUp}}" aria-label="Photo. Tap a spot to {{toolVerb}} it."
+         style="position: absolute; left: 20px; top: 146px; width: 372px; height: 248px; touch-action: none; cursor: crosshair">
+      <img src="/_blob/ebb81bda9f92b6c6da9428edc5304d7b" alt="The photo being retouched" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block; filter: {{viz}}">
+      <sc-for list="{{patches}}" as="p" hint-placeholder-count="0">
+        <span aria-hidden="true" style="position: absolute; left: {{p.x}}px; top: {{p.y}}px; width: {{p.s}}px; height: {{p.s}}px; margin: {{p.m}}px 0 0 {{p.m}}px; border-radius: 50%; overflow: hidden; -webkit-mask-image: radial-gradient(circle, #000 {{p.hard}}%, transparent 72%); mask-image: radial-gradient(circle, #000 {{p.hard}}%, transparent 72%); opacity: {{p.o}}">
+          <img src="/_blob/ebb81bda9f92b6c6da9428edc5304d7b" alt="" style="position: absolute; left: {{p.il}}px; top: {{p.it}}px; width: 372px; height: 248px; max-width: none; filter: {{viz}}">
+        </span>
+      </sc-for>
+      <sc-for list="{{rings}}" as="r" hint-placeholder-count="0">
+        <svg aria-hidden="true" width="372" height="248" style="position: absolute; inset: 0; pointer-events: none; overflow: visible">
+          <line x1="{{r.x}}" y1="{{r.y}}" x2="{{r.sx}}" y2="{{r.sy}}" stroke="rgba(255,255,255,{{r.a}})" stroke-width="1.2" stroke-dasharray="3 3"/>
+          <circle cx="{{r.x}}" cy="{{r.y}}" r="{{r.r}}" fill="none" stroke="{{r.ink}}" stroke-width="{{r.w}}"/>
+          <circle cx="{{r.sx}}" cy="{{r.sy}}" r="{{r.r}}" fill="none" stroke="rgba(255,255,255,{{r.a}})" stroke-width="1.2" stroke-dasharray="4 3"/>
+        </svg>
+      </sc-for>
+    </div>
+    <span class="glass" style="position: absolute; left: 12px; top: 12px; padding: 5px 10px; border-radius: 12px; font-size: 11px">{{status}}</span>
+  </div>
+
+  <div style="position: absolute; left: 0; top: 600px; width: 412px; height: 315px; background: #232525 url(/_blob/bc712267550fdecbb140e0d1d15fef3f) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+    <div role="status" aria-label="{{ctl}} {{valText}} {{unit}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, #050606, #0b0c0d); box-shadow: inset 0 2px 5px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.10)">
+      <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">{{ctlUp}}</span>
+      <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{unit}}</span>
+      <span style="position: absolute; left: 22px; right: 22px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #1c1e20"></span>
+      <span style="position: absolute; left: 50%; top: 30px; width: 1.5px; height: 10px; margin: -5px 0 0 -0.75px; background: #6a6e73"></span>
+      <span style="position: absolute; left: {{fillL}}px; width: {{fillW}}px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #e8202a; box-shadow: 0 0 8px rgba(232,32,42,0.55)"></span>
+      <span style="position: absolute; left: {{numX}}px; top: 30px; transform: translate(-50%, -50%); height: 20px; padding: 0 8px; border-radius: 10px; display: flex; align-items: center; background: #0b0c0d; box-shadow: 0 0 0 1.5px #e8202a, 0 2px 6px rgba(0,0,0,0.8); color: #f2efe8; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; transition: left 90ms ease-out">{{valText}}</span>
+      <span aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(170deg, rgba(255,255,255,0.06) 0, rgba(255,255,255,0) 40%)"></span>
+    </div>
+    <div aria-hidden="true" style="position: absolute; left: 0; top: 58px; width: 412px; height: 150px; background: url(/_blob/a0c3786c44b0ef98460647f4fc2dbe4c) 0 {{spinY}}px / 412px 1800px no-repeat"></div>
+    <div role="slider" aria-label="{{ctl}}" aria-valuemin="{{vmin}}" aria-valuemax="{{vmax}}" aria-valuenow="{{valNow}}" aria-valuetext="{{valText}} {{unit}}" tabindex="0"
+         onPointerDown="{{dDown}}" onPointerMove="{{dMove}}" onPointerUp="{{dUp}}" onPointerCancel="{{dUp}}" onKeyDown="{{dKey}}"
+         style="position: absolute; left: 0; top: 58px; width: 412px; height: 108px; touch-action: none; cursor: ew-resize; outline: none"></div>
+    <span aria-hidden="true" style="position: absolute; left: 50%; top: 64px; margin-left: -4px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #e8202a"></span>
+
+    <div class="hscroll" role="toolbar" aria-label="{{group}} options" style="position: absolute; left: 0; right: 0; top: 166px; height: 36px; display: flex; align-items: center; gap: 4px; padding: 0 14px">
+      <sc-for list="{{chips}}" as="p" hint-placeholder-count="7">
+        <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" aria-label="{{p.aria}}" class="eng fly" style="--dx: {{p.dx}}px; animation-name: {{p.anim}}; animation-delay: {{p.delay}}ms; flex: none; position: relative; height: 34px; padding: 0 {{p.pad}}px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+          <span style="font-size: {{p.size}}px; font-weight: 600; letter-spacing: 0.14em; color: {{p.ink}}">{{p.name}}</span>
+          <span style="font-size: 9px; letter-spacing: 0.04em; color: {{p.valueInk}}; font-variant-numeric: tabular-nums">{{p.value}}</span>
+          <span aria-hidden="true" style="position: absolute; left: 50%; bottom: 0; width: 12px; height: 2px; margin-left: -6px; border-radius: 1px; background: {{p.bar}}"></span>
+        </button>
+      </sc-for>
+    </div>
+
+    <nav aria-label="Retouch tool" style="position: absolute; left: 14px; right: 14px; top: 206px; height: 30px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr))">
+      <sc-for list="{{groups}}" as="s" hint-placeholder-count="4">
+        <button onClick="{{s.pick}}" aria-current="{{s.current}}" class="eng" style="position: relative; height: 30px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: {{s.ink}}">
+          <span aria-hidden="true" style="position: absolute; left: 50%; top: 0; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: {{s.dot}}"></span>{{s.label}}
+        </button>
+      </sc-for>
+    </nav>
+
+    <div style="position: absolute; left: 14px; bottom: 22px; display: flex; gap: 8px">
+      <button class="key" onClick="{{auto}}" style="height: 40px; padding: 0 16px; border-radius: 12px; display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4">UNDO SPOT</button>
+      <button class="key" onClick="{{reset}}" style="height: 40px; padding: 0 16px; border-radius: 12px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4">CLEAR ALL</button>
+    </div>
+  </div>
+
+  <button class="glass" aria-label="Back to the tools" style="position: absolute; right: 14px; bottom: 18px; width: 56px; height: 56px; border-radius: 28px; display: flex; align-items: center; justify-content: center; z-index: 3">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg>
+  </button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { tool: 'Heal', ctl: 'Size', vals: { Size: 30, Feather: 50, Opacity: 100 }, spots: [{ x: 300, y: 52, sx: 262, sy: 40, s: 26, tool: 'Heal' }], sel: 0, viz: false, spin: 0 };
+    this.drag = null; this.tap = null;
+  }
+  renderVals() {
+    const S = this.state, set = (o) => this.setState(o), V = S.vals;
+    const size = 8 + (V.Size / 100) * 72;
+    const tools = ['Heal', 'Clone', 'Remove'];
+    const spots = S.spots;
+    const patches = spots.map((p) => ({ x: p.x, y: p.y, s: p.s, m: -p.s / 2, il: -p.sx + p.s / 2, it: -p.sy + p.s / 2,
+      hard: p.tool === 'Clone' ? 60 : Math.round(60 - (V.Feather / 100) * 40), o: (V.Opacity / 100) * (p.tool === 'Heal' ? 0.92 : 1) }));
+    const rings = spots.map((p, i) => ({ x: p.x, y: p.y, sx: p.sx, sy: p.sy, r: p.s / 2, ink: i === S.sel ? '#e8202a' : '#f2efe8', w: i === S.sel ? 2 : 1.2, a: i === S.sel ? 0.9 : 0.45 }));
+    const rows = { Heal: ['Size', 'Feather', 'Opacity'], Clone: ['Size', 'Feather', 'Opacity'], Remove: ['Size', 'Opacity'] };
+    const ctl = rows[S.tool].includes(S.ctl) ? S.ctl : 'Size', val = V[ctl];
+    const gi = tools.indexOf(S.tool), secX = 14 + (384 / 3) * (gi + 0.5);
+    let cx = 14;
+    const items = rows[S.tool].map((a) => ({ a, value: String(Math.round(V[a])) })).concat([{ a: 'Visualize', value: S.viz ? 'ON' : 'OFF', t: true }]);
+    const chips = items.map((o, i) => {
+      const w = 16 + o.a.length * 7.6, x = cx + w / 2; cx += w + 4; const on = o.t ? S.viz : o.a === ctl;
+      return { name: o.a.toUpperCase(), value: o.value, on: String(on), aria: o.a, pad: 8, size: 10, ink: on ? '#f2efe8' : '#80848a', valueInk: on ? '#e8202a' : '#6a6e73', bar: on ? '#e8202a' : 'transparent',
+        dx: (secX - x).toFixed(0), delay: i * 32, anim: 'fly' + gi, pick: () => (o.t ? set({ viz: !S.viz }) : set({ ctl: o.a })) };
+    });
+    const RD = 240, PERIOD = 360 / 72, frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
+    const pickSource = (x, y, s) => { const cands = [[-1.6, -0.6], [1.6, -0.6], [-1.6, 0.8], [1.6, 0.8]].map(([a, b]) => [x + a * s, y + b * s]).filter(([u, v]) => u > s / 2 && u < 372 - s / 2 && v > s / 2 && v < 248 - s / 2); return cands[0] || [x, y - s * 1.6]; };
+    return {
+      toolVerb: S.tool.toLowerCase(), viz: S.viz ? 'grayscale(1) contrast(3.2) brightness(1.1)' : 'none', patches, rings,
+      status: S.viz ? 'Visualize · dust and spots stand out' : `${spots.length} spot${spots.length === 1 ? '' : 's'} · tap to ${S.tool.toLowerCase()} · drag a dashed circle to move its source`,
+      pDown: (e) => {
+        const b = e.currentTarget.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
+        const hit = spots.findIndex((p) => Math.hypot(p.sx - x, p.sy - y) < p.s / 2 + 8);
+        if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
+        if (hit >= 0) { this.drag = { i: hit, b }; set({ sel: hit }); return; }
+        const near = spots.findIndex((p) => Math.hypot(p.x - x, p.y - y) < p.s / 2);
+        if (near >= 0) return set({ sel: near });
+        const [sx, sy] = pickSource(x, y, size);
+        set({ spots: spots.concat([{ x, y, sx, sy, s: size, tool: S.tool }]), sel: spots.length });
+      },
+      pMove: (e) => { const d = this.drag; if (!d) return; const x = e.clientX - d.b.left, y = e.clientY - d.b.top; this.setState({ spots: this.state.spots.map((p, i) => (i === d.i ? { ...p, sx: x, sy: y } : p)) }); },
+      pUp: () => { this.drag = null; },
+      ctl, ctlUp: `${S.tool.toUpperCase()} · ${ctl.toUpperCase()}`, unit: ctl === 'Size' ? 'px' : '%', valText: String(Math.round(ctl === 'Size' ? size : val)), valNow: String(Math.round(val)), vmin: 0, vmax: 100,
+      fillL: 22, fillW: ((val / 100) * 328).toFixed(1), numX: Math.max(34, Math.min(338, 22 + (val / 100) * 328)).toFixed(1), spinY: -Math.floor(frac * 12) * 150,
+      dDown: (e) => { this.dd = { x: e.clientX, s: S.spin, v: val }; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
+      dMove: (e) => {
+        const d = this.dd; if (!d) return; const deg = ((e.clientX - d.x) / RD) * (180 / Math.PI), v = Math.max(1, Math.min(100, d.v + deg * (100 / 180)));
+        const sz = 8 + (v / 100) * 72, st = this.state;
+        this.setState({ spin: d.s + deg, vals: { ...st.vals, [ctl]: v }, spots: ctl === 'Size' ? st.spots.map((p, i) => (i === st.sel ? { ...p, s: sz } : p)) : st.spots });
+      },
+      dUp: () => { this.dd = null; }, dKey: () => {},
+      group: S.tool, chips,
+      groups: tools.map((g) => ({ label: g.toUpperCase(), current: String(g === S.tool), ink: g === S.tool ? '#f2efe8' : '#7d8187', dot: g === S.tool ? '#e8202a' : 'transparent', pick: () => set({ tool: g }) })),
+      auto: () => set({ spots: spots.slice(0, -1), sel: Math.max(0, spots.length - 2) }),
+      reset: () => set({ spots: [], sel: 0 }),
+    };
+  }
+}
+</script>
+</body>
+</html>

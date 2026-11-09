@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Color grading · three wheels and global, all visible</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#2a2c2e}
+.gw{background:radial-gradient(circle closest-side,rgba(70,72,76,1) 0,rgba(70,72,76,0.85) 18%,rgba(70,72,76,0) 100%),conic-gradient(from 90deg,hsl(0 72% 50%),hsl(330 72% 50%),hsl(300 72% 50%),hsl(270 72% 50%),hsl(240 72% 50%),hsl(210 72% 50%),hsl(180 72% 50%),hsl(150 72% 50%),hsl(120 72% 50%),hsl(90 72% 50%),hsl(60 72% 50%),hsl(30 72% 50%),hsl(0 72% 50%))}
+</style>
+</helmet>
+<div style="width: 388px; height: 150px; position: relative; border-radius: 22px; background: rgba(8,9,11,0.55); -webkit-backdrop-filter: blur(16px) saturate(1.4); backdrop-filter: blur(16px) saturate(1.4); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16), 0 18px 40px rgba(0,0,0,0.5); font-family: Inter, system-ui, sans-serif; color: #eceff4">
+  <sc-for list="{{wheels}}" as="w" hint-placeholder-count="4">
+    <div style="position: absolute; left: {{w.x}}px; top: {{w.y}}px; width: {{w.d}}px">
+      <div class="gw" role="slider" aria-label="{{w.name}} hue and saturation" aria-valuetext="Hue {{w.hue}} degrees, saturation {{w.sat}}" tabindex="0"
+           onPointerDown="{{w.down}}" onPointerMove="{{w.move}}" onPointerUp="{{w.up}}" onPointerCancel="{{w.up}}"
+           style="position: relative; width: {{w.d}}px; height: {{w.d}}px; border-radius: 50%; touch-action: none; cursor: crosshair; outline: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.18), inset 0 0 12px rgba(0,0,0,0.45), 0 0 0 {{w.ringW}}px {{w.ring}}; opacity: {{w.dim}}; transition: opacity 200ms ease, box-shadow 200ms ease">
+        <span aria-hidden="true" style="position: absolute; left: {{w.px}}px; top: {{w.py}}px; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: {{w.puck}}; box-shadow: 0 0 0 2px #fff, 0 2px 6px rgba(0,0,0,0.7)"></span>
+      </div>
+      <div style="margin-top: 6px; text-align: center; font-size: 9px; font-weight: 600; letter-spacing: 0.14em; color: {{w.ink}}; white-space: nowrap">{{w.label}}</div>
+      <div style="margin-top: 2px; text-align: center; font-size: 9px; color: #8b95a1; font-variant-numeric: tabular-nums; white-space: nowrap">{{w.hue}}° · {{w.sat}}</div>
+    </div>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"zone":{"editor":"text","default":"Shadows"},"$preview":{"width":388,"height":150}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { pucks: { Shadows: [215, 14], Midtones: [40, 6], Highlights: [48, 18], Global: [0, 0] } };
+    this.drag = null;
+  }
+  renderVals() {
+    const zone = this.props.zone ?? 'Shadows';
+    // three equal wheels side by side so the split can be judged at a glance; global smaller at the end
+    const layout = [['Shadows', 10, 12, 92], ['Midtones', 110, 12, 92], ['Highlights', 210, 12, 92], ['Global', 314, 26, 64]];
+    const set = (name, h, s) => this.setState({ pucks: { ...this.state.pucks, [name]: [Math.round(((h % 360) + 360) % 360), Math.round(Math.max(0, Math.min(100, s)))] } });
+    const wheels = layout.map(([name, x, y, d]) => {
+      const [hue, sat] = this.state.pucks[name];
+      const rad = (hue * Math.PI) / 180, r = (sat / 100) * (d / 2), on = name === zone;
+      const fromEvent = (e) => {
+        const b = e.currentTarget.getBoundingClientRect();
+        const dx = e.clientX - b.left - d / 2, dy = b.top + d / 2 - e.clientY;
+        set(name, (Math.atan2(dy, dx) * 180) / Math.PI, (Math.hypot(dx, dy) / (d / 2)) * 100);
+      };
+      return {
+        name, x, y, d, hue, sat, label: name.toUpperCase(),
+        px: (d / 2 + r * Math.cos(rad)).toFixed(1), py: (d / 2 - r * Math.sin(rad)).toFixed(1),
+        puck: `hsl(${hue} ${Math.round(sat * 0.8)}% 50%)`,
+        ring: on ? '#e8202a' : 'transparent', ringW: on ? 2 : 0, ink: on ? '#f2efe8' : '#8b95a1', dim: on ? 1 : 0.8,
+        down: (e) => { this.drag = name; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); fromEvent(e); },
+        move: (e) => { if (this.drag === name) fromEvent(e); },
+        up: () => { this.drag = null; },
+      };
+    });
+    return { wheels };
+  }
+}
+</script>
+</body>
+</html>

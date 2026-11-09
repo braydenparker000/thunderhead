@@ -35,6 +35,7 @@ and win over any other page here. Historical pages are in [archive/](archive/REA
 - [DESIGN-SYSTEM.md](design/DESIGN-SYSTEM.md): tokens, type, motion, components.
 - [GESTURES.md](design/GESTURES.md): hold, swipe, ring, back.
 - [COPY.md](design/COPY.md): how the Thunderhead speaks, and every fixed string.
+- [EDITOR.md](design/EDITOR.md): the new photo editor: the camera plate, the dial, every screen; boards and assets in [design/editor/](design/editor/).
 
 ## The mind
 
@@ -47,6 +48,7 @@ and win over any other page here. Historical pages are in [archive/](archive/REA
 ## Engineering
 
 - [ARCHITECTURE.md](engineering/ARCHITECTURE.md): the parts, their boundaries, the repository layout.
+- [ENGINE-RESEARCH.md](engineering/ENGINE-RESEARCH.md): **[proposal]** the new photo engine: research and recommended design.
 - [DATA.md](engineering/DATA.md): every table and stored shape.
 - [API.md](engineering/API.md): the Worker's routes, exactly.
 - [CONTRACT.md](engineering/CONTRACT.md): the generated contract appendix (do not edit by hand).

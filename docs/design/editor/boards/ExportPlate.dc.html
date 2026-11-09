@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Export · full and small</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#000}
+a{color:#6aa2ff}a:hover{color:#9cc0ff}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.glass{background:linear-gradient(180deg,rgba(255,255,255,0.17),rgba(255,255,255,0.06));-webkit-backdrop-filter:blur(18px) saturate(1.8);backdrop-filter:blur(18px) saturate(1.8);border:1px solid rgba(255,255,255,0.22);box-shadow:inset 0 1px 0 rgba(255,255,255,0.38),inset 0 -1px 1px rgba(255,255,255,0.06),0 14px 34px rgba(0,0,0,0.55)}
+.lens{background:radial-gradient(ellipse at 50% 20%,rgba(255,255,255,0.34),rgba(255,255,255,0.10) 60%,rgba(255,255,255,0.06));box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),inset 0 -2px 6px rgba(0,0,0,0.25)}
+.hscroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hscroll::-webkit-scrollbar{display:none}
+.fly{animation-duration:440ms;animation-timing-function:cubic-bezier(0.2,0.9,0.25,1.15);animation-fill-mode:both}
+@keyframes fly0{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly1{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly2{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly3{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly4{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly5{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly6{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly7{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}
+.eng{text-shadow:0 -1px 0 rgba(0,0,0,0.85),0 1px 0 rgba(255,255,255,0.06)}
+.key{background:linear-gradient(180deg,#2c2e2f,#1b1c1d);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.5),0 0 0 1px #0b0c0c,0 2px 4px rgba(0,0,0,0.7)}
+.scan{animation:scan 1.1s linear infinite}@keyframes scan{from{background-position:120% 0}to{background-position:-120% 0}}
+.tile{animation-duration:360ms;animation-timing-function:cubic-bezier(0.2,0.9,0.25,1.1);animation-fill-mode:both;animation-delay:var(--d)}@keyframes tl0{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl1{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl2{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl3{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl4{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl5{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl6{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl7{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}
+.grain{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1.4 -0.45'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>");mix-blend-mode:overlay;pointer-events:none}
+</style>
+</helmet>
+<div style="width: 412px; height: 915px; box-sizing: border-box; position: relative; background: #000000; color: #eceff4; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+  <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center; gap: 6px; padding: 0 12px 0 8px; z-index: 2">
+    <button aria-label="Back to the editor" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div style="flex: 1; min-width: 0"><div style="font-size: 14px; font-weight: 600">Export</div><div style="font-size: 11px; color: #a6b0bc">{{who}}</div></div>
+  </header>
+
+  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: 400px; display: flex; align-items: center; justify-content: center">
+    <div style="position: relative; width: {{pvW}}px; height: {{pvH}}px; transition: width 300ms ease, height 300ms ease">
+      <img src="/_blob/ebb81bda9f92b6c6da9428edc5304d7b" alt="The edited photo" style="width: 100%; height: 100%; object-fit: cover; display: block; filter: contrast(1.12) saturate(0.85) sepia(0.08)">
+      <sc-if value="{{mark}}" hint-placeholder-val="{{false}}"><span style="position: absolute; right: 10px; bottom: 8px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: rgba(255,255,255,0.75); text-shadow: 0 1px 3px rgba(0,0,0,0.7)">© YOUR NAME</span></sc-if>
+      <sc-if value="{{working}}" hint-placeholder-val="{{false}}">
+        <div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 100%; height: {{bandPct}}%; background: rgba(232,32,42,0.16); border-bottom: 1.5px solid #e8202a; transition: height 200ms linear"></div>
+      </sc-if>
+    </div>
+  </div>
+
+  <div style="position: absolute; left: 12px; right: 12px; top: 462px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+    <sc-for list="{{cards}}" as="c" hint-placeholder-count="2">
+      <div class="glass" style="position: relative; height: 118px; border-radius: 16px; box-shadow: 0 0 0 {{c.ringW}}px #e8202a, 0 14px 34px rgba(0,0,0,0.55)">
+        <button onClick="{{c.pick}}" aria-pressed="{{c.sel}}" aria-label="Edit the {{c.name}} export" style="position: absolute; inset: 0; padding: 12px; box-sizing: border-box; text-align: left; display: flex; flex-direction: column; gap: 3px">
+          <span style="font-size: 13px; font-weight: 600">{{c.name}}</span>
+          <span style="font-size: 11px; color: #c9d0d8; font-variant-numeric: tabular-nums">{{c.dims}}</span>
+          <span style="font-size: 11px; color: #a6b0bc">{{c.fmt}}</span>
+          <span style="margin-top: auto; font-size: 11px; color: #a6b0bc; font-variant-numeric: tabular-nums">{{c.size}}</span>
+        </button>
+        <button onClick="{{c.toggle}}" role="switch" aria-checked="{{c.on}}" aria-label="Include the {{c.name}} export" style="position: absolute; right: 10px; top: 10px; width: 38px; height: 22px; border-radius: 11px; background: {{c.track}}; box-shadow: inset 0 1px 2px rgba(0,0,0,0.5)">
+          <span style="position: absolute; top: 2px; left: {{c.knob}}px; width: 18px; height: 18px; border-radius: 50%; background: #f2efe8; box-shadow: 0 1px 3px rgba(0,0,0,0.5); transition: left 180ms ease"></span>
+        </button>
+      </div>
+    </sc-for>
+  </div>
+
+  <sc-if value="{{showDone}}" hint-placeholder-val="{{false}}">
+    <div class="glass" role="status" style="position: absolute; left: 12px; right: 12px; top: 64px; padding: 12px 14px; box-sizing: border-box; border-radius: 16px; z-index: 3">
+      <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px">{{doneTitle}}</div>
+      <sc-for list="{{doneLines}}" as="d" hint-placeholder-count="2"><div style="font-size: 11px; color: #c9d0d8; font-variant-numeric: tabular-nums">{{d}}</div></sc-for>
+      <div style="display: flex; gap: 8px; margin-top: 10px">
+        <button style="height: 32px; padding: 0 14px; border-radius: 16px; background: rgba(255,255,255,0.14); font-size: 12px">Share…</button>
+        <button style="height: 32px; padding: 0 14px; border-radius: 16px; background: rgba(255,255,255,0.14); font-size: 12px">Open Downloads</button>
+      </div>
+    </div>
+  </sc-if>
+
+  <div style="position: absolute; left: 0; top: 600px; width: 412px; height: 315px; background: #232525 url(/_blob/bc712267550fdecbb140e0d1d15fef3f) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+    <div role="status" aria-label="{{ctlUp}} {{valText}} {{unit}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, #050606, #0b0c0d); box-shadow: inset 0 2px 5px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.10)">
+      <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">{{ctlUp}}</span>
+      <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{unit}}</span>
+      <span style="position: absolute; left: 22px; right: 22px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #1c1e20"></span>
+      <span style="position: absolute; left: 50%; top: 30px; width: 1.5px; height: 10px; margin: -5px 0 0 -0.75px; background: #6a6e73"></span>
+      <span style="position: absolute; left: 22px; width: {{fillW}}px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #e8202a; box-shadow: 0 0 8px rgba(232,32,42,0.55)"></span>
+      <span style="position: absolute; left: {{numX}}px; top: 30px; transform: translate(-50%, -50%); height: 20px; padding: 0 8px; border-radius: 10px; display: flex; align-items: center; background: #0b0c0d; box-shadow: 0 0 0 1.5px #e8202a, 0 2px 6px rgba(0,0,0,0.8); color: #f2efe8; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; transition: left 90ms ease-out">{{valText}}</span>
+      <span aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(170deg, rgba(255,255,255,0.06) 0, rgba(255,255,255,0) 40%)"></span>
+    </div>
+    <div aria-hidden="true" style="position: absolute; left: 0; top: 58px; width: 412px; height: 150px; background: url(/_blob/a0c3786c44b0ef98460647f4fc2dbe4c) 0 {{spinY}}px / 412px 1800px no-repeat"></div>
+    <div role="slider" aria-label="{{ctlUp}}" aria-valuetext="{{valText}} {{unit}}" tabindex="0"
+         onPointerDown="{{dDown}}" onPointerMove="{{dMove}}" onPointerUp="{{dUp}}" onPointerCancel="{{dUp}}" onKeyDown="{{dKey}}"
+         style="position: absolute; left: 0; top: 58px; width: 412px; height: 108px; touch-action: none; cursor: ew-resize; outline: none"></div>
+    <span aria-hidden="true" style="position: absolute; left: 50%; top: 64px; margin-left: -4px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #e8202a"></span>
+
+    <div class="hscroll" role="toolbar" aria-label="{{group}} settings" style="position: absolute; left: 0; right: 0; top: 166px; height: 36px; display: flex; align-items: center; gap: 4px; padding: 0 14px">
+      <sc-for list="{{chips}}" as="p" hint-placeholder-count="7">
+        <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" aria-label="{{p.aria}}" class="eng fly" style="--dx: {{p.dx}}px; animation-name: {{p.anim}}; animation-delay: {{p.delay}}ms; flex: none; position: relative; height: 34px; padding: 0 {{p.pad}}px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+          <span style="font-size: {{p.size}}px; font-weight: 600; letter-spacing: 0.14em; color: {{p.ink}}">{{p.name}}</span>
+          <span style="font-size: 9px; letter-spacing: 0.04em; color: {{p.valueInk}}; font-variant-numeric: tabular-nums">{{p.value}}</span>
+          <span aria-hidden="true" style="position: absolute; left: 50%; bottom: 0; width: 12px; height: 2px; margin-left: -6px; border-radius: 1px; background: {{p.bar}}"></span>
+        </button>
+      </sc-for>
+    </div>
+
+    <nav aria-label="Export settings" style="position: absolute; left: 14px; right: 14px; top: 206px; height: 30px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+      <sc-for list="{{groups}}" as="s" hint-placeholder-count="4">
+        <button onClick="{{s.pick}}" aria-current="{{s.current}}" class="eng" style="position: relative; height: 30px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: {{s.ink}}">
+          <span aria-hidden="true" style="position: absolute; left: 50%; top: 0; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: {{s.dot}}"></span>{{s.label}}
+        </button>
+      </sc-for>
+    </nav>
+
+    <div style="position: absolute; left: 14px; right: 84px; bottom: 22px; display: flex">
+      <button onClick="{{save}}" style="flex: 1; height: 40px; border-radius: 12px; background: #e8202a; color: #fff; font-size: 10.5px; font-weight: 700; letter-spacing: 0.14em; font-variant-numeric: tabular-nums; box-shadow: inset 0 1px 0 rgba(255,255,255,0.25), 0 2px 6px rgba(0,0,0,0.6)">{{saveLabel}}</button>
+    </div>
+  </div>
+
+  <button class="glass" aria-label="Back to the tools" style="position: absolute; right: 14px; bottom: 18px; width: 56px; height: 56px; border-radius: 28px; display: flex; align-items: center; justify-content: center; z-index: 3">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg>
+  </button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    const base = { fmt: 'JPEG', space: 'sRGB', sharpen: 'Off', amt: 'Standard', mark: false, meta: 'All', gps: false, naming: 'Camera name' };
+    this.state = { sel: 0, group: 'Size', ctl: 'long', presets: [{ ...base, name: 'Full', on: true, size: 'Full', long: 7728, q: 95 }, { ...base, name: 'Small', on: true, size: '2048', long: 2048, q: 85, sharpen: 'Screen', mark: true }],
+      working: null, done: false, spin: 0 };
+    this.drag = null;
+  }
+  renderVals() {
+    const S = this.state, set = (o) => this.setState(o), P = S.presets, p = P[S.sel];
+    const setP = (patch) => set({ presets: P.map((x, i) => (i === S.sel ? { ...x, ...patch } : x)), done: false });
+    const sizeList = [['Full', 7728], ['4K', 3840], ['2048', 2048], ['1080', 1080]], sizes = Object.fromEntries(sizeList);
+    const enums = { amt: ['Low', 'Standard', 'High'], meta: ['All', 'Copyright only', 'None'], naming: ['Camera name', 'Date + number', 'Shoot + number'] };
+    const nums = { long: [512, 7728, 64, 'px'], q: [50, 100, 1, ''] };
+    const short = (x) => Math.round(x.long / 1.5);
+    const est = (x) => { const px = x.long * short(x); const bpp = x.fmt === 'PNG' ? 1.9 : x.fmt === 'TIFF 16' ? 6 : 0.1 + Math.pow((x.q - 50) / 50, 1.6) * 0.55; const mb = (px * bpp) / 1e6; return mb >= 10 ? `${Math.round(mb)} MB` : `${mb.toFixed(1)} MB`; };
+    const fileName = (x) => { const stem = x.naming === 'Camera name' ? 'DSCF0412' : x.naming === 'Date + number' ? '2026-11-09_0412' : 'Oldtown_012'; return `${stem}${x.name === 'Small' ? '_small' : ''}.${x.fmt === 'JPEG' ? 'jpg' : x.fmt === 'PNG' ? 'png' : 'tif'}`; };
+    const rows = {
+      Size: sizeList.map(([k, px]) => ({ name: k, value: String(px), on: p.size === k, pick: () => setP({ size: k, long: px }) }))
+        .concat([{ name: 'Custom', value: p.size === 'Custom' ? String(p.long) : '', on: p.size === 'Custom', pick: () => { setP({ size: 'Custom' }); set({ ctl: 'long' }); } }]),
+      Format: ['JPEG', 'PNG', 'TIFF 16'].map((f) => ({ name: f, on: p.fmt === f, pick: () => setP({ fmt: f }) }))
+        .concat([{ name: 'Quality', value: p.fmt === 'JPEG' ? String(p.q) : '—', on: S.ctl === 'q', pick: () => set({ ctl: 'q' }) }, { name: 'Color space', value: p.space, pick: () => setP({ space: p.space === 'sRGB' ? 'Display P3' : 'sRGB' }) }]),
+      Output: ['Off', 'Screen', 'Print'].map((s) => ({ name: s === 'Off' ? 'No sharpen' : s, on: p.sharpen === s, pick: () => setP({ sharpen: s }) }))
+        .concat([{ name: 'Amount', value: p.amt, on: S.ctl === 'amt', pick: () => set({ ctl: 'amt' }) }, { name: 'Watermark', value: p.mark ? 'ON' : 'OFF', on: p.mark, pick: () => setP({ mark: !p.mark }) }]),
+      Info: [{ name: 'Metadata', value: p.meta, on: S.ctl === 'meta', pick: () => set({ ctl: 'meta' }) }, { name: 'Location', value: p.gps ? 'ON' : 'OFF', on: p.gps, pick: () => setP({ gps: !p.gps }) },
+        { name: 'File name', value: p.naming, on: S.ctl === 'naming', pick: () => set({ ctl: 'naming' }) }],
+    };
+    const defaultCtl = { Size: 'long', Format: 'q', Output: 'amt', Info: 'naming' };
+    const ctl = S.ctl, labels = { long: 'Long edge', q: 'Quality', amt: 'Sharpen amount', meta: 'Metadata', naming: 'File name' };
+    let valText, fillW, unit = '';
+    if (ctl in nums) { const [lo, hi, , u] = nums[ctl]; const v = p[ctl]; valText = String(v); unit = u; fillW = ((v - lo) / (hi - lo)) * 328; }
+    else { const o = enums[ctl], i = o.indexOf(p[ctl]); valText = p[ctl]; fillW = (i / (o.length - 1)) * 328; }
+    const groups = Object.keys(rows), gi = groups.indexOf(S.group), secX = 14 + (384 / 4) * (gi + 0.5);
+    let cx = 14;
+    const chips = rows[S.group].map((o, i) => {
+      const w = 16 + Math.max(o.name.length, String(o.value ?? '').length * 0.8) * 7.6, x = cx + w / 2; cx += w + 4;
+      return { name: o.name.toUpperCase(), value: o.value ?? '', on: String(!!o.on), aria: o.name, pad: 8, size: 10,
+        ink: o.on ? '#f2efe8' : '#80848a', valueInk: o.on ? '#e8202a' : '#6a6e73', bar: o.on ? '#e8202a' : 'transparent',
+        dx: (secX - x).toFixed(0), delay: i * 32, anim: 'fly' + (gi + S.sel * 4), pick: o.pick };
+    });
+    const RD = 240, PERIOD = 360 / 72, frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
+    const W = S.working, on = P.filter((x) => x.on);
+    const run = () => {
+      if (!on.length) return;
+      let k = 0; const total = on.length * 12;
+      const tick = () => { k++; this.setState({ working: { k, total } }); if (k < total) setTimeout(tick, 120); else setTimeout(() => this.setState({ working: null, done: true }), 300); };
+      set({ done: false, working: { k: 0, total } }); setTimeout(tick, 120);
+    };
+    const pvW = 372, pvH = Math.round(pvW / 1.5);
+    const cur = W ? on[Math.min(on.length - 1, Math.floor(W.k / 12))] : null;
+    return {
+      who: 'DSCF0412 · Classic Chrome · edited', pvW, pvH, mark: p.mark,
+      working: !!W, bandPct: W ? ((W.k % 12) / 12) * 100 : 0,
+      cards: P.map((x, i) => ({ name: x.name, sel: String(i === S.sel), on: String(x.on), ringW: i === S.sel ? 2 : 0,
+        dims: `${x.long} × ${short(x)} px`, fmt: `${x.fmt}${x.fmt === 'JPEG' ? ` ${x.q}` : ''} · ${x.space}${x.sharpen !== 'Off' ? ` · sharpen ${x.sharpen.toLowerCase()}` : ''}`,
+        size: x.on ? `≈ ${est(x)} · ${fileName(x)}` : 'Off · not saved', track: x.on ? '#e8202a' : '#3a3c3f', knob: x.on ? 18 : 2,
+        pick: () => set({ sel: i, ctl: defaultCtl[S.group] }), toggle: () => set({ presets: P.map((y, j) => (j === i ? { ...y, on: !y.on } : y)), done: false }) })),
+      showDone: S.done, doneTitle: 'Saved to Downloads', doneLines: on.map((x) => `${fileName(x)} · ${x.long} × ${short(x)} · ${est(x)}`),
+      ctlUp: `${p.name.toUpperCase()} · ${labels[ctl].toUpperCase()}`, unit, valText, fillW: Math.max(0, fillW).toFixed(1), numX: Math.max(34, Math.min(338, 22 + fillW)).toFixed(1),
+      spinY: -Math.floor(frac * 12) * 150,
+      dDown: (e) => { this.drag = { x: e.clientX, s: S.spin, v: p[ctl] }; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
+      dMove: (e) => {
+        const d = this.drag; if (!d) return; const deg = ((e.clientX - d.x) / RD) * (180 / Math.PI);
+        let v;
+        if (ctl in nums) { const [lo, hi, st] = nums[ctl]; const k = ctl === 'long' ? Math.round(deg / 3) : Math.round(deg / 4); v = Math.max(lo, Math.min(hi, d.v + k * st)); }
+        else { const o = enums[ctl]; v = o[Math.max(0, Math.min(o.length - 1, o.indexOf(d.v) + Math.round(deg / 12)))]; }
+        this.setState({ spin: d.s + deg, presets: this.state.presets.map((x, i) => (i === S.sel ? { ...x, [ctl]: v, ...(ctl === 'long' ? { size: (sizeList.find((z) => z[1] === v) || ['Custom'])[0] } : {}) } : x)), done: false });
+      },
+      dUp: () => { this.drag = null; },
+      dKey: () => {},
+      group: S.group, chips,
+      groups: groups.map((g) => ({ label: g.toUpperCase(), current: String(g === S.group), ink: g === S.group ? '#f2efe8' : '#7d8187', dot: g === S.group ? '#e8202a' : 'transparent', pick: () => set({ group: g, ctl: defaultCtl[g] }) })),
+      saveLabel: W ? `SAVING ${cur ? cur.name.toUpperCase() : ''} · ${Math.round((W.k / W.total) * 100)}%` : on.length === 2 ? 'SAVE BOTH' : on.length ? `SAVE ${on[0].name.toUpperCase()}` : 'NOTHING ON', save: run,
+    };
+  }
+}
+</script>
+</body>
+</html>
