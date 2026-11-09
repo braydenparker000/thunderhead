@@ -1,0 +1,13 @@
+/* The engine test page. */
+body{margin:0;background:#000;color:#eceff4;font:400 14px/1.45 system-ui,sans-serif}
+main{max-width:720px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:22px;margin:0 0 6px}
+.lead{color:#a6b0bc;margin:0 0 16px}
+.pick{display:inline-block;padding:12px 18px;border-radius:12px;background:#e8202a;color:#fff;font-weight:600;cursor:pointer}
+.pick input{display:none}
+canvas{display:block;width:100%;height:auto;margin:16px 0;background:#111;border-radius:6px}
+.row{display:grid;grid-template-columns:80px 1fr 70px;gap:10px;align-items:center;margin:10px 0}
+.row input{width:100%;accent-color:#e8202a}
+output{font-variant-numeric:tabular-nums;color:#c9d0d8;text-align:right}
+dl{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:18px 0 0;color:#c9d0d8;font-variant-numeric:tabular-nums}
+dt{color:#8b95a1}dd{margin:0}
