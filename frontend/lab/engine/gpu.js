@@ -4,13 +4,15 @@
 // camera profile: white-balanced camera RGB → linear ProPhoto (ForwardMatrix) → HueSatMap → exposure →
 // LookTable → the profile's tone curve (hue-preserving "RGB tone") → a look's RGB table (Adobe RGB, γ 2.2)
 // → sRGB on screen, turned upright. Without a profile it falls back to the camera matrix and a filmic curve.
-import { PROPHOTO_TO_SRGB, PROPHOTO_TO_ADOBE, cameraToProPhoto, inv } from './dcp.js';
+import { PROPHOTO_TO_SRGB, PROPHOTO_TO_ADOBE, cameraToProPhoto, inv, neutralFor, whiteOf } from './dcp.js';
 
 const WGSL = /* wgsl */ `
 struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0: vec4f, a1: vec4f, a2: vec4f, b0: vec4f, b1: vec4f, b2: vec4f,
   f: vec4f,      // ev, contrast, table amount, unused
   size: vec4u,   // w, h, rotation (0..3), flags (1 hsm, 2 look, 4 tone, 8 table, 16 hsm sRGB value, 32 look sRGB value)
-  hsm: vec4u, look: vec4u, tab: vec4u };   // dims h, s, v, offset · same · tone offset, table n, table offset, unused
+  hsm: vec4u, look: vec4u, tab: vec4u,     // dims h, s, v, offset · same · tone offset, table n, table offset, unused
+  g: vec4f,      // highlights, shadows, whites, blacks (−1..1)
+  k: vec4f };    // saturation, vibrance (−1..1), unused, unused
 @group(0) @binding(0) var<storage, read> src: array<u32>;
 @group(0) @binding(1) var<uniform> p: P;
 @group(0) @binding(2) var dst: texture_storage_2d<rgba8unorm, write>;
@@ -75,6 +77,18 @@ fn tab(c: vec3f) -> vec3f {
   let lin = pow(acc, vec3f(2.2));
   return mix(c, mv(p.b0, p.b1, p.b2, lin), p.f.z);
 }
+// Highlights, Shadows, Whites, Blacks: stops added by how far a tone sits above or below middle grey (a global
+// first version: the local, edge-aware tone equalizer comes later), then Saturation and Vibrance (Vibrance
+// spares colours that are already strong). Hue-preserving: every channel is scaled alike.
+fn lights(c0: vec3f) -> vec3f {
+  let y = max(dot(c0, vec3f(0.288, 0.712, 0.0)), 1e-6); let x = log2(y / 0.18);
+  let d = p.g.x * 1.2 * smoothstep(0.0, 2.5, x) + p.g.y * 1.2 * smoothstep(0.0, 3.0, -x)
+    + p.g.z * 0.8 * smoothstep(1.5, 3.5, x) + p.g.w * 0.8 * smoothstep(2.5, 5.5, -x);
+  var c = c0 * exp2(d);
+  let l = dot(c, vec3f(0.288, 0.712, 0.0)); let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b));
+  let sat = select((mx - mn) / mx, 0.0, mx <= 0.0);
+  return max(vec3f(l) + (c - vec3f(l)) * (1.0 + p.k.x) * (1.0 + p.k.y * (1.0 - sat)), vec3f(0.0));
+}
 // everything after exposure, baked into a 48³ table whenever the profile or Contrast changes: the HueSatMap
 // (its value axis is flat, so it commutes with exposure), Contrast, LookTable, tone curve, look table, sRGB
 @compute @workgroup_size(4, 4, 4)
@@ -85,6 +99,7 @@ fn bake(@builtin(global_invocation_id) id: vec3u) {
   if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
   let y = max(dot(c, vec3f(0.288, 0.712, 0.0)), 1e-6);
   c = c * (0.18 * pow(y / 0.18, p.f.y) / y);
+  c = lights(c);
   if ((fl & 2u) != 0u) { c = hsd(c, p.look, (fl & 32u) != 0u); }
   if ((fl & 4u) != 0u) { c = tone(c); } else { c = film(c); }
   if ((fl & 8u) != 0u) { c = tab(c); }
@@ -144,7 +159,7 @@ export async function engine(canvas, img, readback = false) {
   const t0 = performance.now();
   const src = device.createBuffer({ size: img.proxy.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   device.queue.writeBuffer(src, 0, img.proxy.buffer, img.proxy.byteOffset, img.proxy.byteLength);
-  const uni = device.createBuffer({ size: 288, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const uni = device.createBuffer({ size: 304, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
   const module = device.createShaderModule({ code: WGSL });
   const pipe = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'main' } });
@@ -155,31 +170,43 @@ export async function engine(canvas, img, readback = false) {
   const back = readback ? device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
   await device.queue.onSubmittedWorkDone();
   const uploadMs = performance.now() - t0;
-  const neutral = img.meta.wb[1] ? [1 / img.meta.wb[0], 1, 1 / img.meta.wb[2]] : [0.5, 1, 0.6];
+  const asShot = img.meta.wb[1] ? [1 / img.meta.wb[0], 1, 1 / img.meta.wb[2]] : [0.5, 1, 0.6];
+  let neutral = asShot, white = /** @type {null | { kelvin: number, tint: number }} */ (null), picked = /** @type {null | { profile: import('./dcp.js').Profile, table: any }} */ (null);
   const fallback = { cm1: img.meta.xyzToCamD65, cm2: null, fm1: null, fm2: null, t1: 6504, t2: 6504, hsm: null, look: null, tone: null, expOffset: 0, name: 'Camera matrix', model: '' };
-  let tab = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE }), bind = /** @type {GPUBindGroup | null} */ (null), bakeBind = /** @type {GPUBindGroup | null} */ (null), baked = NaN, state = { m: /** @type {number[]} */ ([]), u: tables(null, 1).u, kelvin: 0 };
+  let tab = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE }), bind = /** @type {GPUBindGroup | null} */ (null), bakeBind = /** @type {GPUBindGroup | null} */ (null), baked = '', state = { m: /** @type {number[]} */ ([]), u: tables(null, 1).u, kelvin: 0 };
   /** @param {null | { profile: import('./dcp.js').Profile, table: any }} pick */
   const setProfile = (pick) => {
+    picked = pick;
+    const prof = /** @type {any} */ (pick?.profile || fallback);
+    neutral = white ? neutralFor(prof, white.kelvin, white.tint) : asShot;
     const conv = cameraToProPhoto(/** @type {any} */ (pick?.profile || fallback), neutral), t = tables(pick, conv.weight);
     tab.destroy();
     tab = device.createBuffer({ size: t.all.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     device.queue.writeBuffer(tab, 0, t.all);
     bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: src } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: sampler }] });
     bakeBind = device.createBindGroup({ layout: bakePipe.getBindGroupLayout(0), entries: [{ binding: 1, resource: { buffer: uni } }, { binding: 3, resource: { buffer: tab } }, { binding: 4, resource: lut.createView() }] });
-    baked = NaN;
+    baked = '';
     state = { m: conv.matrix, u: t.u, kelvin: Math.round(conv.kelvin) };
     return state.kelvin;
   };
   setProfile(null);
-  /** @param {number} ev @param {number} contrast */
-  const render = async (ev, contrast) => {
-    const t = performance.now(), u = new ArrayBuffer(288), f = new Float32Array(u), n = new Uint32Array(u);
+  /** White balance: null for as shot, else a Temp (K) and Tint; returns the white now in use. @param {null | { kelvin: number, tint: number }} wb */
+  const setWhite = (wb) => { white = wb; setProfile(picked); return whiteOf(/** @type {any} */ (picked?.profile || fallback), neutral); };
+  /** The shot's own white as Temp and Tint, under the current profile. */
+  const shotWhite = () => whiteOf(/** @type {any} */ (picked?.profile || fallback), asShot);
+  /** @param {number} ev @param {number} contrast
+   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number }} [more] each −1..1 */
+  const render = async (ev, contrast, more = {}) => {
+    const t = performance.now(), u = new ArrayBuffer(304), f = new Float32Array(u), n = new Uint32Array(u);
+    const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, 1, 0]);
     n.set([w, h, rot, state.u.flags, ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
+    f.set(g, 68);
+    const key = [contrast, ...g].join();
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();
-    if (baked !== contrast) {   // re-bake only when the profile or Contrast changed: a frame is then one table lookup
-      const bp = enc.beginComputePass(); bp.setPipeline(bakePipe); bp.setBindGroup(0, bakeBind); bp.dispatchWorkgroups(12, 12, 12); bp.end(); baked = contrast;
+    if (baked !== key) {   // re-bake only when the profile or a tone or colour control changed: a frame is then one table lookup
+      const bp = enc.beginComputePass(); bp.setPipeline(bakePipe); bp.setBindGroup(0, bakeBind); bp.dispatchWorkgroups(12, 12, 12); bp.end(); baked = key;
     }
     const pass = enc.beginComputePass();
     pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8)); pass.end();
@@ -207,5 +234,5 @@ export async function engine(canvas, img, readback = false) {
     b.unmap(); b.destroy();
     return new ImageData(px, ow, oh);
   };
-  return { render, setProfile, snapshot, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  return { render, setProfile, setWhite, shotWhite, snapshot, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

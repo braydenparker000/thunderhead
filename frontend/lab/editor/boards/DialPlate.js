@@ -1,22 +1,28 @@
 // @ts-nocheck
-// The DialPlate board, as designed (docs/design/editor/boards/DialPlate.dc.html.dc.html): its logic, unchanged.
+// The DialPlate board, as designed (docs/design/editor/boards/DialPlate.dc.html.dc.html). Wired to a photo
+// (app/session.js): `value` (the dial's −5..5 position) follows the photo when it changes from elsewhere,
+// `text` is the value as the plate shows it, and `onturn` hears every turn.
 import { DCLogic } from '../dc.js';
 
 export default class Component extends DCLogic {
   constructor(props) { super(props); this.state = { angle: 12.6, active: false }; this.drag = null; }
   renderVals() {
     const PERIOD = 360 / 72, FRAMES = 12, FRAME_H = 150, R = 240;   // R = the dial's radius in css px, so the knurl tracks the finger
-    const { angle, active } = this.state;
     const label = this.props.label ?? 'Exposure', unit = this.props.unit ?? 'EV';
+    // a new adjustment, or a change made elsewhere (Reset, a preset): the dial goes to it; never mid-drag
+    if (typeof this.props.value === 'number' && (label !== this.seen || (!this.drag && Math.abs(this.props.value * 36 - this.state.angle) > 1))) {
+      this.seen = label; this.state.angle = Math.max(-180, Math.min(180, this.props.value * 36));
+    }
+    const { angle, active } = this.state;
     const ev = unit === 'EV';
     const frac = ((((-angle) / PERIOD) % 1) + 1) % 1;
     const v = Math.max(-5, Math.min(5, angle / 36));
     const show = (t) => ev ? t : Math.round(t * 20);
     const sign = (x) => (x > 0.004 ? '+' : x < -0.004 ? '−' : '');
-    const valueText = ev ? sign(v) + Math.abs(v).toFixed(2) : sign(show(v)) + Math.abs(show(v));
+    const valueText = this.props.text ?? (ev ? sign(v) + Math.abs(v).toFixed(2) : sign(show(v)) + Math.abs(show(v)));
     // the window: a red fill always runs from 0 to the value, the number riding at its end in a ringed box
     const half = (372 - 44) / 2, f = v / 5, end = 186 + f * half;
-    const setAngle = (a) => this.setState({ angle: Math.max(-180, Math.min(180, a)) });
+    const setAngle = (a) => { const c = Math.max(-180, Math.min(180, a)); this.setState({ angle: c }); this.props.onturn?.(c / 36); };
     return {
       label, unit, labelUp: label.toUpperCase(),
       offset: -Math.floor(frac * FRAMES) * FRAME_H, valueText, valueNow: v.toFixed(2),

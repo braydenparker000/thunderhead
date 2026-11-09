@@ -1,6 +1,18 @@
 // @ts-nocheck
-// The LibraryPlate board, as designed (docs/design/editor/boards/LibraryPlate.dc.html.dc.html): its logic, unchanged.
+// The LibraryPlate board, as designed (docs/design/editor/boards/LibraryPlate.dc.html.dc.html). Once photos are
+// imported (app/store.js: Choose photos copies RAFs onto the phone) it shows them, grouped by day, with the
+// camera's JPEG as each tile, and a tile opens that photo in the editor; until then it plays the design's roll.
 import { DCLogic } from '../dc.js';
+import * as store from '../app/store.js';
+import * as photo from '../app/session.js';
+
+const DAY = (/** @type {number} */ t) => { const d = new Date(t), today = new Date().toDateString() === d.toDateString(); return today ? 'TODAY' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase(); };
+/** The stored photos as the board's roll. */
+function roll() {
+  const real = store.photos(), days = [...new Set(real.map((p) => DAY(p.taken)))];
+  return { shoots: days, photos: real.map((p, i) => ({ id: i, key: p.id, name: p.name, src: store.urlNow(p.id), pos: '50% 50%', zoom: '1', sim: '', filter: 'none',
+    rating: p.rating, flag: p.flag, edited: false, shoot: days.indexOf(DAY(p.taken)) })) };
+}
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -13,27 +25,30 @@ export default class Component extends DCLogic {
       photos.push({ id: i, n: 412 + i, pos: `${(i * 37) % 100}% ${(i * 53) % 100}%`, zoom: (1.3 + ((i * 29) % 13) / 10).toFixed(2), sim: s[0], filter: s[1],
         rating: [0, 3, 0, 4, 2, 0, 5, 0, 1, 3][i % 10], flag: i % 9 === 4 ? 'reject' : i % 4 === 1 ? 'pick' : 'none', edited: i % 5 === 2, shoot: i < 12 ? 0 : i < 24 ? 1 : 2 });
     }
-    this.state = { view: 'grid', cullMode: false, filter: 'All', sort: 0, cols: 3, idx: 6, photos, importing: false, progress: null, skip: false, spin: 0 };
+    for (const p of photos) p.src = '/lab/editor/assets/sample.jpg';
+    const real = store.photos().length ? roll() : null;
+    this.state = { view: 'grid', cullMode: false, filter: 'All', sort: 0, cols: 3, idx: real ? 0 : 6, photos: real ? real.photos : photos, shoots: real?.shoots || null, importing: false, progress: null, skip: false, spin: 0 };
     this.drag = null;
   }
   renderVals() {
     const S = this.state, set = (o) => this.setState(o), P = S.photos;
-    const shoots = ['TODAY · OLD TOWN', 'NOV 7 · COAST', 'NOV 2 · HOME'];
+    const real = !!S.shoots, shoots = S.shoots || ['TODAY · OLD TOWN', 'NOV 7 · COAST', 'NOV 2 · HOME'];
+    const fname = (p) => p.name || `DSCF0${p.n}.RAF`;
     const tests = { All: () => true, Picks: (p) => p.flag === 'pick', Rated: (p) => p.rating > 0, Edited: (p) => p.edited, Rejects: (p) => p.flag === 'reject' };
     const shown = P.filter(tests[S.filter]);
     const sorts = ['NEWEST', 'OLDEST', 'RATING'];
     const order = (list) => S.sort === 1 ? [...list].reverse() : S.sort === 2 ? [...list].sort((a, b) => b.rating - a.rating) : list;
-    const tile = (p) => ({ aria: `DSCF0${p.n}${p.rating ? `, ${p.rating} stars` : ''}${p.flag !== 'none' ? `, ${p.flag}` : ''}`,
+    const tile = (p) => ({ src: p.src, aria: `${fname(p).replace(/\.RAF$/i, '')}${p.rating ? `, ${p.rating} stars` : ''}${p.flag !== 'none' ? `, ${p.flag}` : ''}`,
       pos: p.pos, zoom: p.zoom, filter: p.filter, sim: p.sim, stars: '★'.repeat(p.rating), edited: p.edited ? '#e8202a' : 'transparent',
       flag: p.flag === 'pick' ? '⚑' : p.flag === 'reject' ? '✕' : '', flagInk: p.flag === 'reject' ? '#e8202a' : '#f2efe8', dim: p.flag === 'reject' ? 0.45 : 1,
       // CULL on: a photo opens culling at it; off: it opens in the editor (the app takes editor:open)
-      open: () => (S.cullMode ? set({ view: 'cull', idx: p.id }) : document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Edit' }))) });
+      open: () => { if (S.cullMode) { set({ view: 'cull', idx: p.id }); return; } if (p.key) photo.open(p.key); document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Edit' })); } });
     const groups = S.sort === 2 ? [{ title: 'BY RATING', count: String(shown.length), items: order(shown).map(tile) }]
-      : (S.sort === 1 ? [2, 1, 0] : [0, 1, 2]).map((g) => ({ title: shoots[g], count: String(shown.filter((p) => p.shoot === g).length), items: order(shown.filter((p) => p.shoot === g)).map(tile) })).filter((g) => g.items.length);
+      : (S.sort === 1 ? shoots.map((_, i) => i).reverse() : shoots.map((_, i) => i)).map((g) => ({ title: shoots[g], count: String(shown.filter((p) => p.shoot === g).length), items: order(shown.filter((p) => p.shoot === g)).map(tile) })).filter((g) => g.items.length);
     const cur = P[S.idx], n = P.length;
     const curT = tile(cur);
     const step = (from, dir) => { let i = from; do { i += dir; } while (S.skip && i >= 0 && i < n && P[i].flag === 'reject'); return i < 0 || i >= n ? from : i; };
-    const setPhoto = (patch) => set({ photos: P.map((p) => (p.id === cur.id ? { ...p, ...patch } : p)) });
+    const setPhoto = (patch) => { if (cur.key) store.update(cur.key, patch); set({ photos: P.map((p) => (p.id === cur.id ? { ...p, ...patch } : p)) }); };
     const RD = 240, PERIOD = 360 / 72, frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
     const span = 328, fx = (i) => 22 + (i / (n - 1)) * span;
     const runImport = (label) => {
@@ -42,15 +57,27 @@ export default class Component extends DCLogic {
       const tick = () => { k = Math.min(total, k + 8); this.setState({ progress: { label, k, total } }); if (k < total) setTimeout(tick, 220); };
       setTimeout(tick, 220);
     };
+    // Choose photos: the phone's file picker, then each RAF copied onto the phone with the real count
+    const choose = () => {
+      const input = Object.assign(document.createElement('input'), { type: 'file', multiple: true, accept: '.raf,.RAF,image/x-fuji-raf' });
+      input.onchange = async () => {
+        const files = [...(input.files || [])];
+        this.setState({ progress: { label: 'Copying to this phone', k: 0, total: files.length } });
+        const n = await store.add(files, (k, total) => this.setState({ progress: { label: 'Copying to this phone', k, total } }));
+        const r = roll();
+        this.setState({ photos: r.photos, shoots: r.shoots, idx: 0, progress: { label: 'Copying to this phone', k: n, total: n, done: `Done · ${n} photo${n === 1 ? '' : 's'} on this phone` } });
+      };
+      input.click();
+    };
     const pr = S.progress;
     return {
-      title: S.view === 'grid' ? 'Library' : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cullMode ? 'Culling on · tap a photo to start there' : `${shown.length} of ${n} photos · 3 shoots`) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
+      title: S.view === 'grid' ? 'Library' : real ? shoots[cur.shoot] : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cullMode ? 'Culling on · tap a photo to start there' : `${shown.length} of ${n} photos · ${shoots.length} ${real ? (shoots.length === 1 ? 'day' : 'days') : 'shoots'}`) : real ? fname(cur) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
       isGrid: S.view === 'grid', isCull: S.view === 'cull', groups, cols: S.cols,
       importing: S.importing, toggleImport: () => set({ importing: !S.importing, progress: null }),
-      sources: [{ glyph: '▦', name: 'Choose photos', note: 'Pick RAFs or JPEGs from the phone’s files', pick: () => runImport('Reading previews') },
+      sources: [{ glyph: '▦', name: 'Choose photos', note: 'Pick RAFs or JPEGs from the phone’s files', pick: choose },
         { glyph: '▣', name: 'From a card or the camera', note: 'Plug in the SD reader or the X-E5 by USB-C, then pick its DCIM folder', pick: () => runImport('Copying from the card') },
         { glyph: '↻', name: 'Watch a folder', note: 'New RAFs in a chosen folder come in by themselves when the app opens', pick: () => runImport('Checking the folder') }],
-      progress: !!pr, progText: pr ? (pr.k < pr.total ? `${pr.label}…` : 'Done · 64 photos in Today') : '', progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round((pr.k / pr.total) * 100) : 0,
+      progress: !!pr, progText: pr ? (pr.k < pr.total ? `${pr.label}…` : pr.done || 'Done · 64 photos in Today') : '', progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round((pr.k / pr.total) * 100) : 0,
       filters: Object.keys(tests).map((f) => ({ label: f.toUpperCase(), count: String(P.filter(tests[f]).length), current: String(f === S.filter),
         ink: f === S.filter ? '#f2efe8' : '#7d8187', dot: f === S.filter ? '#e8202a' : 'transparent', countInk: f === S.filter ? '#e8202a' : '#5d6166', pick: () => set({ filter: f }) })),
       toCull: () => set({ cullMode: !S.cullMode }), cullOn: String(S.cullMode),
@@ -58,8 +85,8 @@ export default class Component extends DCLogic {
       cycleSize: () => set({ cols: S.cols === 3 ? 4 : S.cols === 4 ? 2 : 3 }), sizeGlyph: S.cols === 4 ? '▦' : S.cols === 2 ? '◫' : '▤',
       cur: { ...curT, meta: `${S.idx + 1} / ${n} · ${cur.sim}` },
       strip: [-4, -3, -2, -1, 0, 1, 2, 3, 4].map((d) => { const p = P[Math.max(0, Math.min(n - 1, S.idx + d))]; const out = S.idx + d < 0 || S.idx + d >= n;
-        return { pos: p.pos, filter: p.filter, ringW: d === 0 ? 2 : 0, lift: d === 0 ? 0 : 3, o: out ? 0 : d === 0 ? 1 : p.flag === 'reject' ? 0.3 : 0.65 }; }),
-      rollName: shoots[cur.shoot].split(' · ')[1], pos: String(S.idx + 1), total: String(n),
+        return { src: p.src, pos: p.pos, filter: p.filter, ringW: d === 0 ? 2 : 0, lift: d === 0 ? 0 : 3, o: out ? 0 : d === 0 ? 1 : p.flag === 'reject' ? 0.3 : 0.65 }; }),
+      rollName: shoots[cur.shoot].split(' · ')[1] ?? shoots[cur.shoot], pos: String(S.idx + 1), total: String(n),
       marks: P.map((p, i) => ({ x: fx(i).toFixed(1), c: p.flag === 'pick' ? 'rgba(242,239,232,0.75)' : p.flag === 'reject' ? 'rgba(232,32,42,0.6)' : 'transparent' })),
       fillW: (fx(S.idx) - 22).toFixed(1), numX: Math.max(30, Math.min(342, fx(S.idx))).toFixed(1), spinY: -Math.floor(frac * 12) * 150,
       dDown: (e) => { this.drag = { x: e.clientX, s: S.spin, i: S.idx }; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },

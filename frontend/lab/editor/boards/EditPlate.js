@@ -1,24 +1,31 @@
 // @ts-nocheck
-// The EditPlate board, as designed (docs/design/editor/boards/EditPlate.dc.html.dc.html): its logic, unchanged.
+// The EditPlate board, as designed (docs/design/editor/boards/EditPlate.dc.html.dc.html). With a photo open
+// (app/session.js) the values are the photo's, the dial turns the chosen one, Reset and the white balance
+// menu act on it; without one it plays the design's sample.
 import { DCLogic } from '../dc.js';
+import * as photo from '../app/session.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
     super(props);
     this.state = { open: true, section: 'Light', adj: 'Exposure', sub: null, chan: 'RGB', mixColor: 'Blue', mixAttr: 'Hue', zone: 'Shadows', wb: 'As shot', wbMenu: false };
+    const hear = () => { if (this._host && !this._host.el.isConnected) photo.events.removeEventListener('change', hear); else this.setState({}); };
+    photo.events.addEventListener('change', hear);
   }
   renderVals() {
     const S = this.state, set = (o) => this.setState(o);
     const { open, section, sub } = S;
-    const sets = {
+    const real = photo.current();
+    const sets0 = {
       Light: [['Exposure', '+0.35', 'EV'], ['Contrast', '+12'], ['Highlights', '−48'], ['Shadows', '+31'], ['Whites', '0'], ['Blacks', '−9']],
       Color: [['Temp', '5,450', 'K'], ['Tint', '+4'], ['Vibrance', '+15'], ['Saturation', '−6']],
       Effects: [['Texture', '0'], ['Clarity', '+8'], ['Dehaze', '+5'], ['Vignette', '−12'], ['Grain', '0']],
       Detail: [['Sharpening', '40'], ['Radius', '1.0'], ['Detail', '25'], ['Noise', '+10'], ['Color noise', '25']],
       Optics: [['Distortion', '0'], ['Vignetting', '0'], ['Defringe', '0']],
     };
+    const sets = real ? Object.fromEntries(Object.entries(sets0).map(([k, l]) => [k, l.map(([n, , u]) => [n, photo.text(n), u])])) : sets0;
     const subs = { Light: [['curve', 'Curve']], Color: [['mixer', 'Mixer'], ['grading', 'Grading']] };
-    const counts = { Light: 5, Color: 4, Effects: 0, Detail: 1, Optics: 1 };
+    const counts = real ? Object.fromEntries(Object.entries(sets).map(([k, l]) => [k, l.filter(([n]) => photo.edited(n)).length])) : { Light: 5, Color: 4, Effects: 0, Detail: 1, Optics: 1 };
     const list = sets[section];
     const current = list.find((a) => a[0] === S.adj) || list[0];
     const sections = Object.keys(sets).map((name) => {
@@ -55,8 +62,8 @@ export default class Component extends DCLogic {
         .concat((subs[section] || []).map(([key, name]) => ({ name: `${name} ›`, entry: true, pad: 10, pick: () => set({ sub: key, wbMenu: false }) })));
       dialLabel = current[0]; unit = current[2] || '';
       actions = section === 'Color'
-        ? [{ name: '', aria: 'Pick white balance from the photo', dropper: true, pad: 12 }, { name: `WB · ${S.wb.toUpperCase()}`, caret: true, expanded: String(S.wbMenu), pick: () => set({ wbMenu: !S.wbMenu }) }]
-        : [{ name: 'AUTO', auto: true }, { name: 'RESET' }];
+        ? [{ name: '', aria: 'Pick white balance from the photo', dropper: true, pad: 12 }, { name: `WB · ${(real ? real.wb : S.wb).toUpperCase()}`, caret: true, expanded: String(S.wbMenu), pick: () => set({ wbMenu: !S.wbMenu }) }]
+        : [{ name: 'AUTO', auto: true }, { name: 'RESET', pick: () => photo.reset(current[0]) }];
     }
     // the row flies out of the section name that was tapped: each chip starts at that name and springs into place
     const secX = 14 + (384 / 5) * (Object.keys(sets).indexOf(section) + 0.5);
@@ -66,7 +73,9 @@ export default class Component extends DCLogic {
       const c = cx + w / 2; cx += w + 4; return c;
     });
     const anim = 'fly' + ['Light', 'Color', 'Effects', 'Detail', 'Optics', 'curve', 'mixer', 'grading'].indexOf(sub || section);
-    const wbs = [['As shot', '5,450 K'], ['Auto', '5,210 K'], ['Daylight', '5,500 K'], ['Cloudy', '6,500 K'], ['Shade', '7,500 K'], ['Tungsten', '2,850 K'], ['Fluorescent', '3,800 K'], ['Flash', '5,500 K']];
+    const wbs = real ? Object.keys(photo.WB).map((n) => [n, `${photo.wbKelvin(n).toLocaleString('en-US')} K`])
+      : [['As shot', '5,450 K'], ['Auto', '5,210 K'], ['Daylight', '5,500 K'], ['Cloudy', '6,500 K'], ['Shade', '7,500 K'], ['Tungsten', '2,850 K'], ['Fluorescent', '3,800 K'], ['Flash', '5,500 K']];
+    const wbNow = real ? real.wb : S.wb;
     const tools = ['Looks', 'Crop', 'Edit', 'Masks', 'Heal', 'Versions'].map((name) => ({
       name, lens: name === 'Edit' ? 'lens' : '',
       isLooks: name === 'Looks', isCrop: name === 'Crop', isEdit: name === 'Edit', isMasks: name === 'Masks', isHeal: name === 'Heal', isVersions: name === 'Versions',
@@ -82,7 +91,10 @@ export default class Component extends DCLogic {
       showCurve: open && sub === 'curve', chan: S.chan,
       showTrio: open && sub === 'grading', zone: S.zone,
       wbMenu: open && S.wbMenu && section === 'Color' && !sub,
-      wbList: wbs.map(([name, k]) => ({ name, k, on: String(name === S.wb), bg: name === S.wb ? 'rgba(255,255,255,0.16)' : 'transparent', pick: () => set({ wb: name, wbMenu: false }) })),
+      wbList: wbs.map(([name, k]) => ({ name, k, on: String(name === wbNow), bg: name === wbNow ? 'rgba(255,255,255,0.16)' : 'transparent', pick: () => { if (real) photo.setWb(name); set({ wb: name, wbMenu: false }); } })),
+      dialValue: real && !sub ? photo.toDial(current[0]) : undefined, dialText: real && !sub ? photo.text(current[0]) : undefined,
+      dialTurn: real && !sub ? (d) => photo.turn(current[0], d) : undefined, status: real?.status || '', hasStatus: !!real?.status,
+      fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160', countText: real ? real.count : '3 / 24',
       actions: actions.map((a) => ({ name: a.name, aria: a.aria ?? a.name, pad: a.pad ?? 16, auto: !!a.auto, dropper: !!a.dropper, caret: !!a.caret, expanded: a.expanded ?? 'false', pick: a.pick ?? (() => {}) })),
       close: () => set({ open: false, wbMenu: false }),
     };
