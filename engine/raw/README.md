@@ -5,6 +5,11 @@ The new photo engine's RAW stage ([ENGINE-RESEARCH.md](../../docs/engineering/EN
 this crate hands the browser the metadata the colour pipeline needs and the editing proxy, each 3 x 3
 X-Trans cell averaged per colour (2576 x 1717 for a 40 MP frame, no demosaic).
 
+For the highlight rebuild (after darktable's "inpaint opposed"), the proxy's alpha says which of a pixel's
+colours had a clipped sensel (bits 0 to 2: R, G, B; clipped is within 3 % of the white level, since this
+sensor's blue stops about 2 % short of it), and the metadata's `chroma` is how far the photo's own colours
+sit from the rebuild's estimate, measured on the unclipped pixels beside the clipped ones.
+
 Build (writes `frontend/lab/engine/pkg/`):
 
     cargo build --release --target wasm32-unknown-unknown --lib
@@ -20,7 +25,7 @@ worker gives `/lab/engine/` COOP and COEP), else the one-thread build.
     wasm-bindgen --target web --no-typescript --out-dir ../../frontend/lab/engine/pkg-threads target/wasm32-unknown-unknown/release/th_raw.wasm
 
 Measured on the X-H2 lossless sample (4-core x86 VM): native 1.5 s on one thread, 0.5 s on four; in Chrome
-2.1 s on one, 1.2 s on four.
+2.1 s on one, 1.2 s on four. The clip flags and `chroma` add about 4 % on one thread.
 
 Time it natively: `cargo run --release --example time -- file.RAF`. Public test RAFs from the same
 40 MP sensor (CC0): raw.pixls.us, Fujifilm X-H2 (all three encodings), X-T5, X100VI.

@@ -3,6 +3,7 @@
 // profiles (a zip of DCPs, Adobe RGB tables and look XMPs) is loaded once, kept in this browser's own
 // storage (IndexedDB), never on the site, and turned into the list the profile picker shows.
 import { parseDcp, parseRgbTable } from './dcp.js';
+import { parseLook } from './look.js';
 
 /** Unzips a stored or deflated zip in the browser. @param {ArrayBuffer} buf @returns {Promise<Map<string, ArrayBuffer>>} */
 export async function unzip(buf) {
@@ -33,25 +34,31 @@ export const saveSet = (buf) => idb('put', buf);
 /** The stored zip, if any. @returns {Promise<ArrayBuffer | undefined>} */
 export const storedSet = () => /** @type {any} */ (idb('get'));
 
-/** The picker's entries: each base profile, and each look (a base profile plus an RGB table).
+/** The picker's entries: each base profile, each film-simulation look (a base profile plus an RGB table), and
+ * each Adobe look the engine can render in full (Adobe Color: the base profile, plus the look's own table
+ * and its point curve after the profile's tone curve).
  * @param {Map<string, ArrayBuffer>} files @param {string} model the camera, e.g. "Fujifilm X-E5" */
-export function catalogue(files, model) {
+export async function catalogue(files, model) {
   /** @type {{ id: string, label: string, profile: import('./dcp.js').Profile, table: null | ReturnType<typeof parseRgbTable> }[]} */
-  const list = [], byName = new Map();
+  const list = [], byName = new Map(), dcps = /** @type {import('./dcp.js').Profile[]} */ ([]);
   for (const [name, buf] of files) {
     if (!name.endsWith('.dcp')) continue;
     const p = parseDcp(buf);
-    byName.set(p.name, p);
+    byName.set(p.name, p); dcps.push(p);
     list.push({ id: name, label: p.name.replace(/^Camera /, ''), profile: p, table: null });
   }
   for (const [name, buf] of files) {
     if (!name.endsWith('.xmp')) continue;
     const text = new TextDecoder().decode(buf), base = /crs:CameraProfile="([^"]+)"/.exec(text)?.[1], label = /Camera ([^.]+)\.xmp$/.exec(name)?.[1];
     const tableFile = [...files.keys()].find((k) => k === `table ${label}.bin`);
-    if (base && label && tableFile && byName.has(base)) list.push({ id: name, label, profile: byName.get(base), table: parseRgbTable(/** @type {ArrayBuffer} */ (files.get(tableFile))) });
+    if (base && label && tableFile && byName.has(base)) { list.push({ id: name, label, profile: byName.get(base), table: parseRgbTable(/** @type {ArrayBuffer} */ (files.get(tableFile))) }); continue; }
+    const l = label ? null : await parseLook(text).catch(() => null), b = l && (dcps.find((p) => p.name === l.base && p.model === model) || byName.get(l.base));
+    if (!l?.look || l.needs.length || !b) continue;
+    const curve = l.curve, tone = curve && b.tone ? b.tone.map((/** @type {number} */ y, /** @type {number} */ k) => (k % 2 ? curve(y) : y)) : b.tone;
+    list.push({ id: name, label: l.name, profile: { ...b, name: l.name, look2: l.look, tone }, table: null });
   }
-  // Adobe Standard first (the base), then the film simulations in the camera's own order
-  const order = ['Adobe Standard', 'PROVIA', 'Velvia', 'ASTIA', 'CLASSIC CHROME', 'REALA ACE', 'Pro Neg Hi', 'Pro Neg Std', 'CLASSIC Neg', 'NOSTALGIC Neg', 'ETERNA', 'BLEACH BYPASS', 'ACROS', 'Monochrome', 'Sepia'];
+  // Adobe Color first (the base every edit starts from), then the film simulations in the camera's own order
+  const order = ['Adobe Color', 'Adobe Standard', 'Adobe Neutral', 'Adobe Portrait', 'PROVIA', 'Velvia', 'ASTIA', 'CLASSIC CHROME', 'REALA ACE', 'Pro Neg Hi', 'Pro Neg Std', 'CLASSIC Neg', 'NOSTALGIC Neg', 'ETERNA', 'BLEACH BYPASS', 'ACROS', 'Monochrome', 'Sepia'];
   const rank = (/** @type {string} */ l) => { const i = order.findIndex((o) => l.toUpperCase().startsWith(o.toUpperCase())); return i < 0 ? 99 : i; };
-  return list.filter((e) => !model || !e.profile.model || e.profile.model === model || /X-H2/.test(e.profile.model) || /Adobe Standard/.test(e.label)).sort((a, b) => rank(a.label) - rank(b.label) || a.label.localeCompare(b.label));
+  return list.filter((e) => !model || !e.profile.model || e.profile.model === model || /X-H2/.test(e.profile.model) || /^Adobe /.test(e.label)).sort((a, b) => rank(a.label) - rank(b.label) || a.label.localeCompare(b.label));
 }

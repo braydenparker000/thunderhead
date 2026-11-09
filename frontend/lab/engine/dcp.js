@@ -14,7 +14,8 @@ const KELVIN = /** @type {Record<number, number>} */ ({ 1: 5500, 2: 4200, 3: 285
 
 /** @typedef {{ name: string, model: string, cm1: number[], cm2: number[] | null, fm1: number[] | null, fm2: number[] | null, t1: number, t2: number,
  *   hsm: null | { dims: number[], d1: Float32Array, d2: Float32Array | null, srgb: boolean }, look: null | { dims: number[], d: Float32Array, srgb: boolean },
- *   tone: Float32Array | null, expOffset: number }} Profile */
+ *   tone: Float32Array | null, expOffset: number, look2?: null | { dims: number[], d: Float32Array, srgb: boolean } }} Profile
+ * look2: a look file's own table (look.js), applied after the profile's LookTable. */
 
 /** Reads the tags of a DCP's single IFD. @param {ArrayBuffer} buf @returns {Profile} */
 export function parseDcp(buf) {

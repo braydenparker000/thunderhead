@@ -1,5 +1,6 @@
 /**
- * A decoded frame: its metadata as JSON and the proxy as RGBA u16 (alpha unused), row by row.
+ * A decoded frame: its metadata as JSON and the proxy as RGBA u16, row by row. Alpha's low three bits say
+ * which of the pixel's colours (R, G, B) had at least one clipped sensel.
  */
 export class Decoded {
     static __wrap(ptr) {

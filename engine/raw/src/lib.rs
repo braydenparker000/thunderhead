@@ -2,7 +2,8 @@
 //! three Fujifilm encodings); this crate hands the browser the metadata the colour pipeline needs and the
 //! editing proxy: each 3 x 3 cell of the X-Trans mosaic (2 x 2 for Bayer) averaged per colour into one
 //! RGB pixel, black-subtracted and scaled to the white level, so the GPU starts from clean linear
-//! camera RGB at about 2576 x 1717 for a 40 MP frame, with no demosaic needed.
+//! camera RGB at about 2576 x 1717 for a 40 MP frame, with no demosaic needed. Each pixel also says which of
+//! its colours had a clipped sensel, for the highlight rebuild.
 
 use rawler::decoders::RawDecodeParams;
 use rayon::prelude::*;
@@ -15,7 +16,11 @@ use wasm_bindgen::prelude::*;
 #[cfg(all(target_arch = "wasm32", feature = "threads"))]
 pub use wasm_bindgen_rayon::init_thread_pool;
 
-/// A decoded frame: its metadata as JSON and the proxy as RGBA u16 (alpha unused), row by row.
+/// A sensel this close to the white level counts as clipped: the 40 MP X-Trans's blue stops about 2 % short of it.
+const CLIP: f32 = 0.97;
+
+/// A decoded frame: its metadata as JSON and the proxy as RGBA u16, row by row. Alpha's low three bits say
+/// which of the pixel's colours (R, G, B) had at least one clipped sensel.
 #[wasm_bindgen]
 pub struct Decoded {
   meta: String,
@@ -43,7 +48,8 @@ pub fn decode_native(bytes: &[u8]) -> Result<Decoded, String> {
   let decoder = rawler::get_decoder(&src).map_err(|e| format!("not a raw this engine reads: {e}"))?;
   let raw = decoder.raw_image(&src, &RawDecodeParams::default(), false).map_err(|e| format!("decode failed: {e}"))?;
   let (proxy, pw, ph) = bin(&raw)?;
-  Ok(Decoded { meta: meta(&raw, pw, ph), proxy, pw, ph })
+  let c = chroma(&proxy, pw as usize, ph as usize, &raw.wb_coeffs);
+  Ok(Decoded { meta: meta(&raw, pw, ph, c), proxy, pw, ph })
 }
 
 fn level(v: &rawler::formats::tiff::Rational) -> f32 { if v.d == 0 { 0.0 } else { v.n as f32 / v.d as f32 } }
@@ -61,13 +67,14 @@ fn bin(raw: &RawImage) -> Result<(Vec<u16>, u32, u32), String> {
   let black: f32 = { let l = &raw.blacklevel.levels; if l.is_empty() { 0.0 } else { l.iter().map(level).sum::<f32>() / l.len() as f32 } };
   let white = *raw.whitelevel.0.first().unwrap_or(&65535) as f32;
   let scale = 65535.0 / (white - black).max(1.0);
+  let clip = black + CLIP * (white - black);
   // the colour of each site of the pattern, looked up once rather than per pixel
   let (cw, ch) = (cfa.width, cfa.height);
   let colour: Vec<usize> = (0..cw * ch).map(|i| cfa.color_at(i / cw, i % cw).min(2)).collect();
   let mut out = vec![0u16; pw * ph * 4];
   out.par_chunks_mut(pw * 4).enumerate().for_each(|(py, line)| {
     for px in 0..pw {
-      let (mut s, mut c) = ([0f32; 3], [0u32; 3]);
+      let (mut s, mut c, mut clipped) = ([0f32; 3], [0u32; 3], 0u16);
       for dy in 0..n {
         let y = y0 + py * n + dy;
         let row = &data[y * raw.width..(y + 1) * raw.width];
@@ -76,24 +83,62 @@ fn bin(raw: &RawImage) -> Result<(Vec<u16>, u32, u32), String> {
           let k = colour[(y % ch) * cw + x % cw];
           s[k] += row[x] as f32;
           c[k] += 1;
+          if row[x] as f32 >= clip { clipped |= 1 << k; }
         }
       }
       for k in 0..3 {
         let v = if c[k] > 0 { (s[k] / c[k] as f32 - black) * scale } else { 0.0 };
         line[px * 4 + k] = v.clamp(0.0, 65535.0) as u16;
       }
+      line[px * 4 + 3] = clipped;
     }
   });
   Ok((out, pw as u32, ph as u32))
 }
 
+/// For the highlight rebuild (after darktable's "inpaint opposed"): a clipped colour is estimated from the
+/// pixel's other two (the cube of their mean cube root, white-balanced), and this is how far the photo's own
+/// colours sit from that estimate, averaged per colour over the unclipped pixels within three of a clipped
+/// one. In sensor units (divide the white balance back out), zero when too few pixels say.
+fn chroma(p: &[u16], pw: usize, ph: usize, wb_coeffs: &[f32]) -> [f32; 3] {
+  let ok = wb_coeffs.len() >= 3 && wb_coeffs[..3].iter().all(|x| x.is_finite() && *x > 0.0);
+  let wb: [f32; 3] = if ok { [wb_coeffs[0] / wb_coeffs[1], 1.0, wb_coeffs[2] / wb_coeffs[1]] } else { [2.0, 1.0, 1.667] };
+  // which colours are clipped within three pixels along the row; the rows above and below are joined next
+  let mut along = vec![0u8; pw * ph];
+  along.par_chunks_mut(pw).enumerate().for_each(|(y, line)| {
+    for x in 0..pw {
+      let f = p[(y * pw + x) * 4 + 3] as u8;
+      if f != 0 { for q in x.saturating_sub(3)..(x + 4).min(pw) { line[q] |= f; } }
+    }
+  });
+  let sums = (0..ph).into_par_iter().map(|y| {
+    let (mut acc, mut near) = ([0f64; 6], vec![0u8; pw]);
+    for q in y.saturating_sub(3)..(y + 4).min(ph) { for (n, a) in near.iter_mut().zip(&along[q * pw..(q + 1) * pw]) { *n |= a; } }
+    for x in 0..pw {
+      let i = (y * pw + x) * 4;
+      let want = near[x] & !(p[i + 3] as u8);
+      if want == 0 { continue; }
+      let v: [f32; 3] = std::array::from_fn(|k| p[i + k] as f32 / 65535.0 * wb[k]);
+      let r = v.map(f32::cbrt);
+      for k in 0..3 {
+        if want & (1 << k) == 0 || (p[i + k] as f32) < 0.2 * CLIP * 65535.0 { continue; }
+        let m = 0.5 * (r[(k + 1) % 3] + r[(k + 2) % 3]);
+        acc[k] += (v[k] - m * m * m) as f64;
+        acc[k + 3] += 1.0;
+      }
+    }
+    acc
+  }).reduce(|| [0f64; 6], |a, b| std::array::from_fn(|i| a[i] + b[i]));
+  std::array::from_fn(|k| if sums[k + 3] > 100.0 { (sums[k] / sums[k + 3]) as f32 / wb[k] } else { 0.0 })
+}
+
 /// What the GPU stage needs: white balance, the camera matrix for D65 (XYZ to camera), orientation.
-fn meta(raw: &RawImage, pw: u32, ph: u32) -> String {
+fn meta(raw: &RawImage, pw: u32, ph: u32, chroma: [f32; 3]) -> String {
   let m = raw.color_matrix.get(&Illuminant::D65).or_else(|| raw.color_matrix.values().next());
   let mat = m.map(|v| v.iter().take(9).map(|x| format!("{x}")).collect::<Vec<_>>().join(",")).unwrap_or_default();
   let wb = raw.wb_coeffs.iter().map(|x| format!("{}", if x.is_nan() { 0.0 } else { *x })).collect::<Vec<_>>().join(",");
   format!(
-    "{{\"make\":{:?},\"model\":{:?},\"width\":{},\"height\":{},\"proxyWidth\":{},\"proxyHeight\":{},\"wb\":[{}],\"xyzToCamD65\":[{}],\"orientation\":{:?}}}",
-    raw.clean_make, raw.clean_model, raw.width, raw.height, pw, ph, wb, mat, format!("{:?}", raw.orientation)
+    "{{\"make\":{:?},\"model\":{:?},\"width\":{},\"height\":{},\"proxyWidth\":{},\"proxyHeight\":{},\"wb\":[{}],\"xyzToCamD65\":[{}],\"orientation\":{:?},\"chroma\":[{},{},{}]}}",
+    raw.clean_make, raw.clean_model, raw.width, raw.height, pw, ph, wb, mat, format!("{:?}", raw.orientation), chroma[0], chroma[1], chroma[2]
   )
 }
