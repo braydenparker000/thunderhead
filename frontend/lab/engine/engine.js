@@ -27,19 +27,27 @@ const BASELINE_EV = 0.25;
 let shotEv = 0;
 
 // Decoding on every core needs this page cross-origin isolated, which our service worker does (sw.js). A newer
-// worker waits for the shell's safe moment, which this page never gives: here nothing is open yet, so apply it
-// and reload once.
+// worker waits for the shell's safe moment, which this page never gives, and a phone that only ever opened
+// this page has none: here nothing is open yet, so register or apply it and reload once. `isolation` says
+// which, for the Threads row.
+let isolation = crossOriginIsolated ? 'isolated' : 'not isolated';
 if (!crossOriginIsolated && navigator.serviceWorker) (async () => {
-  const reg = await navigator.serviceWorker.getRegistration('/');
-  if (!reg) return;
   const once = () => { try { if (sessionStorage.getItem('engine-isolate')) return; sessionStorage.setItem('engine-isolate', '1'); } catch { return; } location.reload(); };
-  navigator.serviceWorker.addEventListener('controllerchange', once);
-  await reg.update().catch(() => {});
+  navigator.serviceWorker.addEventListener('controllerchange', () => { isolation = 'service worker changed, reloading'; once(); });
+  let reg = await navigator.serviceWorker.getRegistration('/');
+  if (!reg) { isolation = 'no service worker yet: installing it'; reg = await navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }); }
+  else await reg.update().catch((e) => { isolation = `service worker update failed: ${e?.message || e}`; });
   const skip = (/** @type {ServiceWorker} */ w) => w.postMessage({ type: 'skipWaiting' });
-  if (reg.waiting) skip(reg.waiting);
-  else if (reg.installing) { const w = reg.installing; w.addEventListener('statechange', () => { if (w.state === 'installed') skip(w); }); }
-  else if (reg.active) once();
-})();
+  const follow = (/** @type {ServiceWorker} */ w) => w.addEventListener('statechange', () => {
+    isolation = `new service worker ${w.state}`;
+    if (w.state === 'installed') skip(w);
+    if (w.state === 'redundant') isolation = 'the new service worker failed to install';
+  });
+  if (reg.waiting) { isolation = 'applying the waiting service worker'; skip(reg.waiting); }
+  else if (reg.installing) { isolation = 'new service worker installing'; follow(reg.installing); }
+  else if (reg.active && navigator.serviceWorker.controller) { isolation = 'the service worker in charge does not isolate this page'; once(); }
+  else if (reg.active) { isolation = 'page opened without the service worker: reloading'; once(); }
+})().catch((e) => { isolation = `service worker: ${e?.message || e}`; });
 
 const draw = async () => {
   if (!eng) return;
@@ -109,6 +117,7 @@ $('file').addEventListener('change', async (e) => {
   if (r.error) { stats.Status = `Couldn't open it: ${r.error}`; show(); return; }
   stats.Camera = `${r.meta.make} ${r.meta.model} · ${r.meta.width} × ${r.meta.height}`;
   stats.Decode = `${ms(r.decodeMs)} on ${r.threads} thread${r.threads > 1 ? "s" : ""} (worker round trip ${ms(performance.now() - t1)})`;
+  stats.Threads = crossOriginIsolated ? (r.threadsError ? `pool failed: ${r.threadsError}` : `${r.threads} (page isolated)`) : `1: ${isolation}`;
   stats['Editing copy'] = `${r.width} × ${r.height}`;
   try {
     eng = await engine(canvas, r, new URLSearchParams(location.search).has('readback'));

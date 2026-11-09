@@ -209,8 +209,8 @@ test('culling: swipe to the older photo, swipe up for the stars, keys 0–5 and 
   await drawn(page);
   assert.equal(await page.evaluate(() => history.length), depth, 'culling replaces the place rather than stacking it');
   // Nothing older than the last: it stays, and says so.
-  await swipe(page, -200, 0);
-  await page.locator('.toast', { hasText: 'No older photo' }).waitFor();
+  // (a swipe the runner turns into a hold says nothing, so it is tried again like the others)
+  await swipeUntil(page, -200, 0, () => page.locator('.toast', { hasText: 'No older photo' }).isVisible(), 'the last photo did not say there is no older one');
   assert.ok(page.url().includes(`?edit=${C}`));
   // A swipe right goes back to the newer one.
   await swipeUntil(page, 200, 0, () => page.url().includes(`?edit=${B}`), 'the swipe right did not go to the newer photo');

@@ -10,6 +10,10 @@ on:
         description: Commit to check (empty = the caller's)
         type: string
         default: ''
+      lab:
+        description: "Test's lab scope (scripts/lab-scope.mjs): empty = every suite; else the test files of a lab-only change"
+        type: string
+        default: ''
 permissions:
   contents: read
 defaults:
@@ -33,11 +37,13 @@ jobs:
         with:
           node-version: 24
           package-manager-cache: false
-      - run: npm ci --ignore-scripts
-      - if: ${{ matrix.part != 'worker' }}
+      # A lab-only change (TESTING.md §1, "Lab changes"): part site 1/4 runs the lab checks, the others pass.
+      - if: ${{ inputs.lab == '' || matrix.part == 'site 1/4' }}
+        run: npm ci --ignore-scripts
+      - if: ${{ matrix.part != 'worker' && (inputs.lab == '' || matrix.part == 'site 1/4') }}
         run: npx playwright install --with-deps --only-shell chromium
       # Switzer is fetched, not kept here (its licence forbids a public repository; scripts/fonts.mjs).
-      - if: ${{ matrix.part != 'worker' }}
+      - if: ${{ matrix.part != 'worker' && (inputs.lab == '' || matrix.part == 'site 1/4') }}
         run: node scripts/fonts.mjs
       # Local checks only: the live checks run after a deploy, against what went live.
       - name: Test
@@ -46,8 +52,15 @@ jobs:
           SITE_URL: ''
           WORKER_URL: ''
           DRIVE_CONFIG_JSON: ''
+          LAB: ${{ inputs.lab }}
         run: |
-          if [[ "$PART" == worker ]]; then
+          if [[ -n "$LAB" ]]; then
+            if [[ "$PART" != 'site 1/4' ]]; then echo "lab-only change: part 1 runs its checks"; exit 0; fi
+            # the types, the contract and the page budgets as preflight checks them, then the lab tests
+            npx tsc && node scripts/contract.mjs --check && node scripts/stage.mjs "$(git rev-parse HEAD)"
+            read -ra files <<< "$LAB"
+            node --test "${files[@]}"
+          elif [[ "$PART" == worker ]]; then
             npm run test:backend
           else
             part="${PART#site }"

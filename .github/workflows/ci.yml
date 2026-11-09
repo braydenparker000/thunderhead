@@ -13,8 +13,29 @@ defaults:
   run:
     shell: bash
 jobs:
+  # A branch that changes only lab pages runs the lab checks, not every suite (scripts/lab-scope.mjs;
+  # TESTING.md §1, "Lab changes"). Any doubt, or this job failing, runs everything.
+  scope:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      lab: ${{ steps.look.outputs.lab }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - id: look
+        run: |
+          verdict="$(node scripts/lab-scope.mjs origin/main || echo all)"
+          echo "scope: $verdict"
+          if [[ "$verdict" == lab\ * ]]; then echo "lab=${verdict#lab }" >> "$GITHUB_OUTPUT"; else echo "lab=" >> "$GITHUB_OUTPUT"; fi
   test:
+    needs: scope
+    if: ${{ !cancelled() }}
     uses: ./.github/workflows/checks.yml
+    with:
+      lab: ${{ needs.scope.result == 'success' && needs.scope.outputs.lab || '' }}
   # The mind's weekly improvement (EVALS.md §7, RA-P9-02): its evals line must match the Worker's
   # record, no suite may drop, and it may not change an eval and the mind together.
   eval-diff:
