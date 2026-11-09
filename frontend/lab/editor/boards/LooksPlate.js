@@ -1,6 +1,10 @@
 // @ts-nocheck
-// The LooksPlate board, as designed (docs/design/editor/boards/LooksPlate.dc.html.dc.html): its logic, unchanged.
+// The LooksPlate board, as designed (docs/design/editor/boards/LooksPlate.dc.html.dc.html). With a photo open
+// (app/session.js), FILM SIMS are this phone's camera profiles: each tile is the photo drawn through it, the
+// one it was shot with is marked AS SHOT, a tap develops the photo with it, Amount sets a look table's
+// strength and press-and-hold shows it as shot. Recipes, Presets and Mine still play the design's samples.
 import { DCLogic } from '../dc.js';
+import * as photo from '../app/session.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -8,6 +12,9 @@ export default class Component extends DCLogic {
     this.state = { group: 'Recipes', coll: 'All', look: 'r-kchrome', amounts: {}, favs: { 'r-kchrome': 1, 's-cc': 1 }, card: true, param: null,
       edits: {}, importing: false, report: null, packs: [], comparing: false, spin: 0 };
     this.drag = null;
+    if (photo.current()) Object.assign(this.state, { group: 'Film', look: 'x:' + photo.look(), card: false });
+    const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
+    photo.events.addEventListener('change', hear);
   }
   renderVals() {
     const S = this.state, set = (o) => this.setState(o);
@@ -18,9 +25,14 @@ export default class Component extends DCLogic {
       ['Nostalgic Neg', 'contrast(1.04) saturate(1.05) sepia(0.22) brightness(1.03)'], ['Eterna', 'contrast(0.85) saturate(0.7) brightness(1.04)'],
       ['Bleach Bypass', 'contrast(1.3) saturate(0.4)'], ['Acros', 'grayscale(1) contrast(1.25)'], ['Acros +R', 'grayscale(1) contrast(1.4) brightness(0.95)'],
       ['Monochrome', 'grayscale(1) contrast(1.05)'], ['Sepia', 'sepia(0.85) contrast(1.05)']];
-    const looks = [];
-    sims.forEach(([n, f], i) => looks.push({ id: 's-' + i, name: n, group: 'Film', colls: ['All', i >= 11 ? 'B&W' : 'Color'], filter: f }));
-    looks.push({ id: 's-cc', name: 'As shot · Classic Chrome', group: 'Film', colls: ['All', 'Color'], filter: sims[3][1], tag: 'RAF' });
+    const looks = [], real = photo.current();
+    if (real) {
+      for (const e of photo.looks()) looks.push({ id: 'x:' + e.id, real: e.id, name: e.label, group: 'Film', colls: ['All', e.mono ? 'B&W' : 'Color'], filter: 'none', src: e.thumb || '', table: e.table, tag: e.asShot ? 'AS SHOT' : '' });
+      if (S.group === 'Film') queueMicrotask(() => photo.makeThumbs());
+    } else {
+      sims.forEach(([n, f], i) => looks.push({ id: 's-' + i, name: n, group: 'Film', colls: ['All', i >= 11 ? 'B&W' : 'Color'], filter: f }));
+      looks.push({ id: 's-cc', name: 'As shot · Classic Chrome', group: 'Film', colls: ['All', 'Color'], filter: sims[3][1], tag: 'RAF' });
+    }
     const rec = (id, name, film, f, p, credit) => looks.push({ id, name, group: 'Recipes', colls: ['All', film.toUpperCase()], filter: f, recipe: { Film: film, ...p }, credit, tag: 'RECIPE' });
     const P = (g, cc, fx, wb, r, b, dr, hi, sh, co, sp, nr, cl) => ({ Grain: g, 'Color chrome': cc, 'Chrome FX blue': fx, 'White balance': wb, 'WB red': r, 'WB blue': b, 'Dynamic range': dr, Highlight: hi, Shadow: sh, Color: co, Sharpness: sp, 'High ISO NR': nr, Clarity: cl });
     rec('r-kchrome', 'Kodachrome 64', 'Classic Chrome', 'contrast(1.15) saturate(0.95) sepia(0.12) hue-rotate(-8deg)', P('Weak · Small', 'Strong', 'Off', 'Daylight', 2, -5, 'DR200', 0, 0.5, 2, 1, -4, 3), 'Pasted recipe · credit kept with it');
@@ -35,7 +47,7 @@ export default class Component extends DCLogic {
     pk('p-t2', 'Teal & orange', 'TRAVEL', 'contrast(1.1) saturate(1.3) hue-rotate(-8deg)');
     S.packs.forEach((p) => pk(p.id, p.name, p.coll, p.filter));
     looks.push({ id: 'm-1', name: 'My street look', group: 'Mine', colls: ['All'], filter: 'contrast(1.12) saturate(0.85) brightness(0.97)', tag: '' });
-    const cur = looks.find((l) => l.id === S.look) || looks[0];
+    const cur = (real && S.group === 'Film' ? looks.find((l) => l.real === photo.look()) : null) || looks.find((l) => l.id === S.look) || looks[0];
     const groups = ['Film', 'Recipes', 'Presets', 'Mine'];
     const collsOf = (g) => ['All', '★'].concat([...new Set(looks.filter((l) => l.group === g).flatMap((l) => l.colls.slice(1)))]);
     const colls = collsOf(S.group), coll = colls.includes(S.coll) ? S.coll : 'All';
@@ -44,7 +56,8 @@ export default class Component extends DCLogic {
     const enums = { Grain: ['Off', 'Weak · Small', 'Weak · Large', 'Strong · Small', 'Strong · Large'], 'Color chrome': ['Off', 'Weak', 'Strong'], 'Chrome FX blue': ['Off', 'Weak', 'Strong'], 'Dynamic range': ['DR100', 'DR200', 'DR400'] };
     const nums = { 'WB red': [-9, 9], 'WB blue': [-9, 9], Highlight: [-2, 4], Shadow: [-2, 4], Color: [-4, 4], Sharpness: [-4, 4], 'High ISO NR': [-4, 4], Clarity: [-5, 5] };
     const recipe = cur.recipe ? { ...cur.recipe, ...(S.edits[cur.id] || {}) } : null;
-    const amount = S.amounts[cur.id] ?? 100;
+    const amount = cur.real ? photo.value('Amount') : S.amounts[cur.id] ?? 100;
+    const setAmt = (a) => (cur.real ? photo.setAmount(a) : this.setState({ amounts: { ...this.state.amounts, [cur.id]: Math.max(0, Math.min(150, a)) } }));
     const ctl = recipe && S.param && (S.param in enums || S.param in nums) ? S.param : 'Amount';
     const sgn = (x) => (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x);
     let valText, fillL, fillW, numX, unit = '';
@@ -63,11 +76,11 @@ export default class Component extends DCLogic {
     });
     const RD = 240, PERIOD = 360 / 72, frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
     const tiles = (S.group === 'Mine' ? [{ id: '+save', name: 'Save current', glyph: '+' }] : []).concat(inColl).map((l, i) => ({
-      on: String(l.id === cur.id), name: l.name, filter: l.filter || 'none', ring: l.id === cur.id ? '#e8202a' : 'rgba(255,255,255,0.15)', ringW: l.id === cur.id ? 2 : 1,
+      on: String(l.id === cur.id), name: l.name, filter: l.filter || 'none', src: l.real ? l.src || photo.jpeg() : '/lab/editor/assets/sample.jpg', ring: l.id === cur.id ? '#e8202a' : 'rgba(255,255,255,0.15)', ringW: l.id === cur.id ? 2 : 1,
       ink: l.id === cur.id ? '#f2efe8' : '#a6b0bc', star: S.favs[l.id] ? '★' : '', tag: l.tag || '', tagShow: l.tag ? 'block' : 'none',
       glyph: l.glyph || '', glyphShow: l.glyph ? 'block' : 'none', imgShow: l.glyph ? 'none' : 'block', plain: l.glyph ? 'rgba(232,32,42,0.25)' : '#000',
       delay: i * 24, anim: 'tl' + ((gi * 7 + colls.indexOf(coll)) % 8),
-      pick: () => (l.glyph ? null : set({ look: l.id, param: null })),
+      pick: () => { if (l.glyph) return; if (l.real) photo.pickLook(l.real); set({ look: l.id, param: null }); },
     }));
     const doImport = (kind) => {
       if (kind === 'files') {
@@ -82,7 +95,9 @@ export default class Component extends DCLogic {
       ink: k === ctl ? '#e8202a' : '#f2efe8', bg: k === ctl ? 'rgba(232,32,42,0.16)' : 'transparent', pick: () => set({ param: k in enums || k in nums ? k : null }) })) : [];
     return {
       lookFilter: cur.filter, lookO: S.comparing ? 0 : amount / 100, grainO: recipe && recipe.Grain !== 'Off' && !S.comparing ? (recipe.Grain.startsWith('Strong') ? 0.5 : 0.28) : 0,
-      comparing: S.comparing, holdOn: () => set({ comparing: true }), holdOff: () => { if (this.state.comparing) set({ comparing: false }); },
+      comparing: S.comparing, holdOn: () => { if (real) photo.hold(true); set({ comparing: true }); }, holdOff: () => { if (this.state.comparing) { if (real) photo.hold(false); set({ comparing: false }); } },
+      real: !!real, demo: !real,
+      fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160',
       card: S.card && !!recipe && !S.importing, lookName: cur.name, credit: cur.credit || '', params,
       tiles, collName: coll, importing: S.importing, report: !!S.report, reportLines: (S.report || []).map(([text, ink]) => ({ text, ink })),
       sources: [{ glyph: '⇪', name: 'Files', note: '.xmp · .lrtemplate · .cube · .zip, many at once', pick: () => doImport('files') },
@@ -93,7 +108,7 @@ export default class Component extends DCLogic {
       dDown: (e) => { this.drag = { x: e.clientX, s: S.spin, a: amount, v: recipe && ctl !== 'Amount' ? recipe[ctl] : null }; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
       dMove: (e) => {
         const d = this.drag; if (!d) return; const deg = ((e.clientX - d.x) / RD) * (180 / Math.PI);
-        if (ctl === 'Amount') return this.setState({ spin: d.s + deg, amounts: { ...this.state.amounts, [cur.id]: Math.max(0, Math.min(150, d.a + deg * (150 / 180))) } });
+        if (ctl === 'Amount') { setAmt(d.a + deg * (150 / 180)); return this.setState({ spin: d.s + deg }); }
         const steps = Math.round(deg / 10);                      // a detent every 10 degrees for settings that click
         let v;
         if (ctl in enums) { const o = enums[ctl]; v = o[Math.max(0, Math.min(o.length - 1, o.indexOf(d.v) + steps))]; }
@@ -101,7 +116,7 @@ export default class Component extends DCLogic {
         this.setState({ spin: d.s + deg, edits: { ...this.state.edits, [cur.id]: { ...(this.state.edits[cur.id] || {}), [ctl]: v } } });
       },
       dUp: () => { this.drag = null; },
-      dKey: (e) => { if (ctl === 'Amount') { const a = amount + (e.key === 'ArrowRight' ? 5 : e.key === 'ArrowLeft' ? -5 : 0); set({ amounts: { ...S.amounts, [cur.id]: Math.max(0, Math.min(150, a)) } }); } },
+      dKey: (e) => { if (ctl === 'Amount') setAmt(amount + (e.key === 'ArrowRight' ? 5 : e.key === 'ArrowLeft' ? -5 : 0)); },
       group: S.group, chips,
       groups: groups.map((g) => ({ label: g === 'Film' ? 'FILM SIMS' : g.toUpperCase(), current: String(g === S.group), ink: g === S.group ? '#f2efe8' : '#7d8187', dot: g === S.group ? '#e8202a' : 'transparent',
         pick: () => set({ group: g, coll: 'All', param: null }) })),

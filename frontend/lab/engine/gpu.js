@@ -144,14 +144,34 @@ function tables(pick, w) {
   return { all, u };
 }
 
+/** @type {null | Promise<{ adapter: GPUAdapter, device: GPUDevice, pipe: GPUComputePipeline, bakePipe: GPUComputePipeline, lut: GPUTexture, sampler: GPUSampler }>} */
+let shared = null;
+/** The device, its two compiled pipelines and the 3D table, made once and kept for every photo (compiling
+ * the shader is the slow part on a phone). A lost device is made again on the next photo. */
+function gpu() {
+  shared ??= (async () => {
+    if (!navigator.gpu) throw new Error('This browser has no WebGPU.');
+    const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+    if (!adapter) throw new Error('No GPU adapter.');
+    const device = await adapter.requestDevice();
+    device.lost.then((l) => { console.warn('GPU device lost:', l.message); shared = null; });
+    const module = device.createShaderModule({ code: WGSL });
+    const [pipe, bakePipe] = await Promise.all([device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'main' } }),
+      device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'bake' } })]);
+    const lut = device.createTexture({ size: [48, 48, 48], dimension: '3d', format: 'rgba16float', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING });
+    const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge', addressModeW: 'clamp-to-edge' });
+    return { adapter, device, pipe, bakePipe, lut, sampler };
+  })();
+  shared.catch(() => { shared = null; });
+  return shared;
+}
+/** Starts the GPU early (compiling while the RAF decodes). */
+export const warm = () => gpu().then(() => true, () => false);
+
 /** Sets up the device and uploads the proxy; returns setProfile(pick) and render(ev, contrast) → GPU ms.
  * @param {HTMLCanvasElement} canvas @param {{ width: number, height: number, proxy: Uint16Array, meta: any }} img @param {boolean} readback */
 export async function engine(canvas, img, readback = false) {
-  if (!navigator.gpu) throw new Error('This browser has no WebGPU.');
-  const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-  if (!adapter) throw new Error('No GPU adapter.');
-  const device = await adapter.requestDevice();
-  device.lost.then((l) => console.warn('GPU device lost:', l.message));
+  const { adapter, device, pipe, bakePipe, lut, sampler } = await gpu();
   const { width: w, height: h } = img, rot = ROT[img.meta.orientation] || 0, [ow, oh] = rot % 2 ? [h, w] : [w, h];
   canvas.width = ow; canvas.height = oh;
   const ctx = readback ? null : /** @type {GPUCanvasContext} */ (canvas.getContext('webgpu'));
@@ -161,11 +181,6 @@ export async function engine(canvas, img, readback = false) {
   device.queue.writeBuffer(src, 0, img.proxy.buffer, img.proxy.byteOffset, img.proxy.byteLength);
   const uni = device.createBuffer({ size: 304, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
-  const module = device.createShaderModule({ code: WGSL });
-  const pipe = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'main' } });
-  const bakePipe = device.createComputePipeline({ layout: 'auto', compute: { module, entryPoint: 'bake' } });
-  const lut = device.createTexture({ size: [48, 48, 48], dimension: '3d', format: 'rgba16float', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING });
-  const sampler = device.createSampler({ magFilter: 'linear', minFilter: 'linear', addressModeU: 'clamp-to-edge', addressModeV: 'clamp-to-edge', addressModeW: 'clamp-to-edge' });
   const row = Math.ceil((ow * 4) / 256) * 256;
   const back = readback ? device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
   await device.queue.onSubmittedWorkDone();
@@ -195,14 +210,15 @@ export async function engine(canvas, img, readback = false) {
   /** The shot's own white as Temp and Tint, under the current profile. */
   const shotWhite = () => whiteOf(/** @type {any} */ (picked?.profile || fallback), asShot);
   /** @param {number} ev @param {number} contrast
-   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number }} [more] each −1..1 */
+   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, amount?: number, screen?: boolean }} [more]
+   * each −1..1; amount: the look table's strength (1 = as made); screen: false renders without showing it */
   const render = async (ev, contrast, more = {}) => {
     const t = performance.now(), u = new ArrayBuffer(304), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
-    f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, 1, 0]);
+    f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, more.amount ?? 1, 0]);
     n.set([w, h, rot, state.u.flags, ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
     f.set(g, 68);
-    const key = [contrast, ...g].join();
+    const key = [contrast, more.amount ?? 1, ...g].join();
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();
     if (baked !== key) {   // re-bake only when the profile or a tone or colour control changed: a frame is then one table lookup
@@ -210,12 +226,12 @@ export async function engine(canvas, img, readback = false) {
     }
     const pass = enc.beginComputePass();
     pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8)); pass.end();
-    if (ctx) enc.copyTextureToTexture({ texture: out }, { texture: ctx.getCurrentTexture() }, [ow, oh]);
-    if (back) enc.copyTextureToBuffer({ texture: out }, { buffer: back, bytesPerRow: row }, [ow, oh]);
+    if (ctx && more.screen !== false) enc.copyTextureToTexture({ texture: out }, { texture: ctx.getCurrentTexture() }, [ow, oh]);
+    if (back && more.screen !== false) enc.copyTextureToBuffer({ texture: out }, { buffer: back, bytesPerRow: row }, [ow, oh]);
     device.queue.submit([enc.finish()]);
     await device.queue.onSubmittedWorkDone();
     const gpuMs = performance.now() - t;
-    if (back) {
+    if (back && more.screen !== false) {
       await back.mapAsync(GPUMapMode.READ);
       const b8 = new Uint8Array(back.getMappedRange()), px = new Uint8ClampedArray(ow * oh * 4);
       for (let y = 0; y < oh; y++) px.set(b8.subarray(y * row, y * row + ow * 4), y * ow * 4);
@@ -234,5 +250,7 @@ export async function engine(canvas, img, readback = false) {
     b.unmap(); b.destroy();
     return new ImageData(px, ow, oh);
   };
-  return { render, setProfile, setWhite, shotWhite, snapshot, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  /** Frees this photo's GPU memory (the device and pipelines stay for the next). */
+  const dispose = () => { for (const b of [src, uni, tab, back]) b?.destroy(); out.destroy(); };
+  return { render, setProfile, setWhite, shotWhite, snapshot, dispose, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

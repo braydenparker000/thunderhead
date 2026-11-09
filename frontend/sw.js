@@ -13,11 +13,11 @@ const PORTED = ['/music/', '/guitar/', '/podcasts/', '/astra/', '/media/', '/ass
 const SHELL = ['/', '/settings/', '/settings/password/', '/settings/agents/', '/settings/devices/', '/settings/memory/', '/share/'];
 /** Read from the network first (3 s), the cache only when offline. */
 const FRESH = ['/release.json', '/config.js'];
-/** Photos' editor (`/photos/?edit=`) and the LightCraft and engine test pages (`/lab/lightcraft/`, `/lab/engine/`) are cross-origin isolated so their
+/** Photos' editor (`/photos/?edit=`) and the LightCraft, engine and editor test pages (`/lab/lightcraft/`, `/lab/engine/`, `/lab/editor/`) are cross-origin isolated so their
  * RAW engines can run threads (PHOTOS.md, the isolation shim; SECURITY.md; engine/lightcraft-web/README.md): the page gets
  * COOP and COEP, and the workers it starts (the engine's) COEP. Nothing else does: the Drive picker's frame
  * (docs.google.com sends no COEP) only ever opens on Photos' other places. */
-const EDITOR = (/** @type {URL} */ url) => (url.pathname === '/photos/' && url.searchParams.has('edit')) || url.pathname === '/lab/lightcraft/' || url.pathname === '/lab/engine/';
+const EDITOR = (/** @type {URL} */ url) => (url.pathname === '/photos/' && url.searchParams.has('edit')) || url.pathname === '/lab/lightcraft/' || url.pathname === '/lab/engine/' || url.pathname === '/lab/editor/';
 const ENGINE_WORKERS = /^\/(apps\/photos\/edit|photos\/engine|lab\/lightcraft|lab\/engine)\//;
 
 self.addEventListener('install', (event) => {

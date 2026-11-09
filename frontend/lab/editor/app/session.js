@@ -3,12 +3,12 @@
 // shows at once, the RAF decodes on a worker (/lab/engine/'s), the GPU develops it through the camera profile
 // matching the shot's film simulation, and every adjustment the dial turns is saved to this phone as you go.
 // Boards read values through `value`/`text`/`toDial` and listen for `change`.
-import { engine } from '../../engine/gpu.js';
+import { engine, warm } from '../../engine/gpu.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
 import * as store from './store.js';
 
 /** Each adjustment's starting value (display units: EV, K, or −100..100). */
-const ZERO = /** @type {Record<string, number>} */ ({ Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0,
+const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0,
   Texture: 0, Clarity: 0, Dehaze: 0, Vignette: 0, Grain: 0, Sharpening: 40, Radius: 1, Detail: 25, Noise: 0, 'Color noise': 25, Distortion: 0, Vignetting: 0, Defringe: 0 });
 /** What the GPU applies today; the rest are kept with the edit and wait for their stage. */
 export const LIVE = new Set(['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Temp', 'Tint', 'Vibrance', 'Saturation']);
@@ -27,7 +27,16 @@ document.addEventListener('dc:keep', (e) => { const slot = /** @type {HTMLElemen
 let worker = /** @type {Worker | null} */ (null), eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
 /** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, shotEv: number, shotK: number, shotTint: number, status: string, shot: string, count: string } | null} */
 let cur = null;
-let list = /** @type {ReturnType<typeof catalogue>} */ ([]), saveT = 0, drawing = false, again = false;
+let list = /** @type {ReturnType<typeof catalogue>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
+// the slow parts made once, while the Library is up: the GPU's pipelines and the profiles read from the zip
+warm();
+const sets = /** @type {Map<string, Promise<ReturnType<typeof catalogue>>>} */ (new Map());
+const profilesFor = (/** @type {string} */ model) => {
+  if (!sets.has(model)) sets.set(model, storedSet().then(async (z) => (z ? catalogue(await unzip(z), model) : []), () => []));
+  return /** @type {Promise<ReturnType<typeof catalogue>>} */ (sets.get(model));
+};
+profilesFor('Fujifilm X-E5');
+const thumbs = /** @type {Map<string, string>} */ (new Map());
 
 const slot = () => document.querySelector('[data-keep="photo"]');
 const place = () => slot()?.replaceChildren(ready ? canvas : img);
@@ -40,12 +49,12 @@ export async function open(id) {
   if (!p || cur?.id === id) return;
   const edit = (await store.loadEdit(id)) || {};
   cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([, v]) => typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
-  ready = false; eng = null; img.src = await store.jpegUrl(id); place(); changed();
+  ready = false; eng?.dispose(); eng = null; film = ''; thumbs.clear(); img.src = await store.jpegUrl(id); place(); changed();
   worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' });
   const buf = await store.raw(id), me = cur;
   const r = await new Promise((res) => {
     /** @type {Worker} */ (worker).onmessage = (m) => {
-      if (m.data.preview) { me.shotEv = BASELINE_EV + Math.log2((m.data.dr || 100) / 100); if (!me.profile) me.profile = filmOf(m.data.settings); me.shot = m.data.settings || ''; changed(); return; }
+      if (m.data.preview) { me.shotEv = BASELINE_EV + Math.log2((m.data.dr || 100) / 100); film = filmOf(m.data.settings); me.shot = m.data.settings || ''; changed(); return; }
       res(m.data);
     };
     /** @type {Worker} */ (worker).postMessage(buf, [buf]);
@@ -53,9 +62,9 @@ export async function open(id) {
   if (cur !== me) return;
   if (r.error) { say(`Couldn't open it: ${r.error}`); return; }
   try {
-    eng = await engine(canvas, r, new URLSearchParams(location.search).has('readback'));
-    const set = await storedSet();
-    list = set ? catalogue(await unzip(set), `${r.meta.make} ${r.meta.model}`) : [];
+    const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback')), profilesFor(`${r.meta.make} ${r.meta.model}`)]);
+    if (cur !== me) { e.dispose(); return; }
+    eng = e; list = l;
     applyProfile();
     ready = true; place(); say(''); await draw();
   } catch (err) { say(String(/** @type {any} */ (err)?.message || err)); }
@@ -63,10 +72,15 @@ export async function open(id) {
 
 /** The shot's film simulation as a profile label to look for, from the camera's settings line. @param {string} [s] */
 const filmOf = (s) => (s || '').split(' · ')[0] || '';
-function applyProfile() {
+/** The profile the camera's film simulation stands for (Adobe Standard when none matches). */
+function asShot() {
+  const want = film.toUpperCase();
+  return list.find((e) => want && !e.table && e.label.toUpperCase().startsWith(want)) || list.find((e) => want && !e.table && e.label.toUpperCase().startsWith(want.split(' ')[0]))
+    || list.find((e) => /Adobe Standard/.test(e.label)) || null;
+}
+const chosen = () => list.find((e) => e.id === cur?.profile) || asShot();
+function applyProfile(pick = chosen()) {
   if (!eng || !cur) return;
-  const want = cur.profile.toUpperCase(), pick = list.find((e) => e.id === cur?.profile) || list.find((e) => want && e.label.toUpperCase().startsWith(want))
-    || list.find((e) => want && e.label.toUpperCase().startsWith(want.split(' ')[0])) || list.find((e) => /Adobe Standard/.test(e.label)) || null;
   eng.setProfile(pick);
   const w = eng.shotWhite(); cur.shotK = w.kelvin; cur.shotTint = w.tint;
   if (!cur.values.Temp) cur.values.Temp = Math.round(w.kelvin / 50) * 50;
@@ -83,7 +97,7 @@ async function draw() {
   if (drawing) { again = true; return; }
   drawing = true;
   const v = cur.values, h = (/** @type {string} */ k) => v[k] / 100;
-  await eng.render(v.Exposure + cur.shotEv, 2 ** (h('Contrast') * 0.6), { highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance') });
+  await eng.render(v.Exposure + cur.shotEv, 2 ** (h('Contrast') * 0.6), { amount: (cur.values.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance') });
   drawing = false;
   if (again) { again = false; draw(); }
 }
@@ -93,6 +107,8 @@ function save() {
   saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile }); }, 400);
 }
 
+/** The open photo's camera JPEG (for a tile still being drawn). */
+export const jpeg = () => img.src;
 /** Whether a photo is open. */
 export const current = () => cur;
 /** @param {string} name */
@@ -140,3 +156,41 @@ export function setWb(name) {
 }
 /** The Temp a preset stands for, for the menu. @param {string} name */
 export const wbKelvin = (name) => (WB[name] ? /** @type {[number, number]} */ (WB[name])[0] : Math.round((cur?.shotK || 5500) / 50) * 50);
+
+/* Looks: the camera profiles on this phone, each drawn small from this photo for its tile. */
+/** The looks for the open photo, with the one it was shot with first marked. */
+export const looks = () => { const shot = asShot(); return list.map((e) => ({ id: e.id, label: e.label, table: !!e.table, mono: /ACROS|Monochrome|Sepia/i.test(e.label), asShot: e === shot, thumb: thumbs.get(e.id) || '' })); };
+/** The look in use. */
+export const look = () => chosen()?.id || '';
+/** @param {string} id */
+export function pickLook(id) { if (!cur || !list.some((e) => e.id === id)) return; cur.profile = id; applyProfile(); changed(); draw(); save(); }
+/** The look's strength, 0..150 % (a look's RGB table; a profile alone is all or nothing). @param {number} pct */
+export function setAmount(pct) { if (!cur) return; cur.values.Amount = Math.max(0, Math.min(150, Math.round(pct))); changed(); draw(); save(); }
+/** Press and hold: the photo as shot, without the chosen look. @param {boolean} on */
+export function hold(on) { if (!eng || !cur) return; applyProfile(on ? asShot() : chosen()); draw(); }
+let thumbing = false;
+/** Draws each look's tile from this photo, one at a time, between the dial's frames. */
+export async function makeThumbs() {
+  if (thumbing || !eng || !cur) return;
+  thumbing = true;
+  const me = cur, sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
+  try {
+    for (const e of list) {
+      if (cur !== me || !eng) break;
+      if (thumbs.has(e.id)) continue;
+      while (drawing) await sleep(50);
+      drawing = true;
+      try {
+        const v = me.values, h = (/** @type {string} */ k) => v[k] / 100;
+        applyProfile(e);
+        await eng.render(v.Exposure + me.shotEv, 2 ** (h('Contrast') * 0.6), { screen: false, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance') });
+        const im = await eng.snapshot(), bm = await createImageBitmap(im, { resizeWidth: 132, resizeHeight: Math.round((132 * im.height) / im.width), resizeQuality: 'medium' });
+        const c = new OffscreenCanvas(bm.width, bm.height); /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d')).drawImage(bm, 0, 0);
+        thumbs.set(e.id, URL.createObjectURL(await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 })));
+      } finally { applyProfile(); drawing = false; }
+      changed();
+      if (again) { again = false; await draw(); }
+      await sleep(40);
+    }
+  } finally { thumbing = false; }
+}
