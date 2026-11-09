@@ -13,7 +13,7 @@ export default class Component extends DCLogic {
       photos.push({ id: i, n: 412 + i, pos: `${(i * 37) % 100}% ${(i * 53) % 100}%`, zoom: (1.3 + ((i * 29) % 13) / 10).toFixed(2), sim: s[0], filter: s[1],
         rating: [0, 3, 0, 4, 2, 0, 5, 0, 1, 3][i % 10], flag: i % 9 === 4 ? 'reject' : i % 4 === 1 ? 'pick' : 'none', edited: i % 5 === 2, shoot: i < 12 ? 0 : i < 24 ? 1 : 2 });
     }
-    this.state = { view: 'grid', filter: 'All', sort: 0, cols: 3, idx: 6, photos, importing: false, progress: null, skip: false, spin: 0 };
+    this.state = { view: 'grid', cullMode: false, filter: 'All', sort: 0, cols: 3, idx: 6, photos, importing: false, progress: null, skip: false, spin: 0 };
     this.drag = null;
   }
   renderVals() {
@@ -26,7 +26,8 @@ export default class Component extends DCLogic {
     const tile = (p) => ({ aria: `DSCF0${p.n}${p.rating ? `, ${p.rating} stars` : ''}${p.flag !== 'none' ? `, ${p.flag}` : ''}`,
       pos: p.pos, zoom: p.zoom, filter: p.filter, sim: p.sim, stars: '★'.repeat(p.rating), edited: p.edited ? '#e8202a' : 'transparent',
       flag: p.flag === 'pick' ? '⚑' : p.flag === 'reject' ? '✕' : '', flagInk: p.flag === 'reject' ? '#e8202a' : '#f2efe8', dim: p.flag === 'reject' ? 0.45 : 1,
-      open: () => set({ view: 'cull', idx: p.id }) });
+      // CULL on: a photo opens culling at it; off: it opens in the editor (the app takes editor:open)
+      open: () => (S.cullMode ? set({ view: 'cull', idx: p.id }) : document.dispatchEvent(new CustomEvent('editor:open', { detail: 'Edit' }))) });
     const groups = S.sort === 2 ? [{ title: 'BY RATING', count: String(shown.length), items: order(shown).map(tile) }]
       : (S.sort === 1 ? [2, 1, 0] : [0, 1, 2]).map((g) => ({ title: shoots[g], count: String(shown.filter((p) => p.shoot === g).length), items: order(shown.filter((p) => p.shoot === g)).map(tile) })).filter((g) => g.items.length);
     const cur = P[S.idx], n = P.length;
@@ -43,7 +44,7 @@ export default class Component extends DCLogic {
     };
     const pr = S.progress;
     return {
-      title: S.view === 'grid' ? 'Library' : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? `${shown.length} of ${n} photos · 3 shoots` : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
+      title: S.view === 'grid' ? 'Library' : ['Old town', 'Coast', 'Home'][cur.shoot], subtitle: S.view === 'grid' ? (S.cullMode ? 'Culling on · tap a photo to start there' : `${shown.length} of ${n} photos · 3 shoots`) : `DSCF0${cur.n}.RAF · ${cur.sim === 'AC' ? 'Acros' : cur.sim === 'CN' ? 'Classic Neg' : cur.sim === 'PV' ? 'Provia' : cur.sim === 'VV' ? 'Velvia' : 'Classic Chrome'}`,
       isGrid: S.view === 'grid', isCull: S.view === 'cull', groups, cols: S.cols,
       importing: S.importing, toggleImport: () => set({ importing: !S.importing, progress: null }),
       sources: [{ glyph: '▦', name: 'Choose photos', note: 'Pick RAFs or JPEGs from the phone’s files', pick: () => runImport('Reading previews') },
@@ -52,7 +53,8 @@ export default class Component extends DCLogic {
       progress: !!pr, progText: pr ? (pr.k < pr.total ? `${pr.label}…` : 'Done · 64 photos in Today') : '', progCount: pr ? `${pr.k} / ${pr.total}` : '', progPct: pr ? Math.round((pr.k / pr.total) * 100) : 0,
       filters: Object.keys(tests).map((f) => ({ label: f.toUpperCase(), count: String(P.filter(tests[f]).length), current: String(f === S.filter),
         ink: f === S.filter ? '#f2efe8' : '#7d8187', dot: f === S.filter ? '#e8202a' : 'transparent', countInk: f === S.filter ? '#e8202a' : '#5d6166', pick: () => set({ filter: f }) })),
-      toCull: () => set({ view: 'cull' }), cycleSort: () => set({ sort: (S.sort + 1) % 3 }), sortName: `${sorts[S.sort]} ▾`,
+      toCull: () => set({ cullMode: !S.cullMode }), cullOn: String(S.cullMode),
+      cullDot: S.cullMode ? '#e8202a' : '#4f5357', cullGlow: S.cullMode ? '0 0 6px rgba(232,32,42,0.7)' : 'none', cycleSort: () => set({ sort: (S.sort + 1) % 3 }), sortName: `${sorts[S.sort]} ▾`,
       cycleSize: () => set({ cols: S.cols === 3 ? 4 : S.cols === 4 ? 2 : 3 }), sizeGlyph: S.cols === 4 ? '▦' : S.cols === 2 ? '◫' : '▤',
       cur: { ...curT, meta: `${S.idx + 1} / ${n} · ${cur.sim}` },
       strip: [-4, -3, -2, -1, 0, 1, 2, 3, 4].map((d) => { const p = P[Math.max(0, Math.min(n - 1, S.idx + d))]; const out = S.idx + d < 0 || S.idx + d >= n;

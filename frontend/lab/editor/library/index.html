@@ -68,7 +68,7 @@
       <sc-if value="{{progress}}" hint-placeholder-val="{{false}}">
         <div role="status" style="margin-top: 4px; padding: 10px 12px; border-radius: 14px; background: rgba(0,0,0,0.35); font-size: 11.5px">
           <div style="display: flex; justify-content: space-between; margin-bottom: 7px"><span>{{progText}}</span><span style="color: #a6b0bc; font-variant-numeric: tabular-nums">{{progCount}}</span></div>
-          <div style="height: 3px; border-radius: 2px; background: #1c1e20"><div style="width: {{progPct}}%; height: 3px; border-radius: 2px; background: #e8202a; transition: width 300ms linear"></div></div>
+          <div style="height: 3px; border-radius: 2px; background: rgba(255,255,255,0.13); box-shadow: inset 0 1px 1px rgba(0,0,0,0.5)"><div style="width: {{progPct}}%; height: 3px; border-radius: 2px; background: #e8202a; transition: width 300ms linear"></div></div>
         </div>
       </sc-if>
     </div>
@@ -85,7 +85,7 @@
         </sc-for>
       </nav>
       <div style="position: absolute; left: 14px; right: 14px; bottom: 22px; display: flex; gap: 8px">
-        <button class="key" onClick="{{toCull}}" style="height: 40px; padding: 0 16px; border-radius: 12px; display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: #e8202a; box-shadow: 0 0 6px rgba(232,32,42,0.7)"></span>CULL</button>
+        <button class="key" onClick="{{toCull}}" aria-pressed="{{cullOn}}" style="height: 40px; padding: 0 16px; border-radius: 12px; display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: {{cullDot}}; box-shadow: {{cullGlow}}"></span>CULL</button>
         <button class="key" onClick="{{cycleSort}}" style="height: 40px; padding: 0 16px; border-radius: 12px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4">{{sortName}}</button>
         <button class="key" onClick="{{cycleSize}}" aria-label="Thumbnail size" style="margin-left: auto; width: 40px; height: 40px; border-radius: 12px; font-size: 14px; color: #dedbd4">{{sizeGlyph}}</button>
       </div>
@@ -94,10 +94,10 @@
 
   <sc-if value="{{isCull}}" hint-placeholder-val="{{false}}">
     <div style="position: absolute; left: 0; top: calc(600px - var(--cut)); width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
-      <div role="status" aria-label="Photo {{pos}} of {{total}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, #050606, #0b0c0d); box-shadow: inset 0 2px 5px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.10)">
+      <div role="status" aria-label="Photo {{pos}} of {{total}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, rgba(8,9,10,0.55), rgba(8,9,10,0.32)); -webkit-backdrop-filter: blur(5px) saturate(1.3); backdrop-filter: blur(5px) saturate(1.3); box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 2px 6px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.5)">
         <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">ROLL · {{rollName}}</span>
         <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{total}}</span>
-        <span style="position: absolute; left: 22px; right: 22px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #1c1e20"></span>
+        <span style="position: absolute; left: 22px; right: 22px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: rgba(255,255,255,0.13); box-shadow: inset 0 1px 1px rgba(0,0,0,0.5)"></span>
         <sc-for list="{{marks}}" as="m" hint-placeholder-count="10"><span style="position: absolute; left: {{m.x}}px; top: 26px; width: 1.5px; height: 8px; background: {{m.c}}"></span></sc-for>
         <span style="position: absolute; left: 22px; width: {{fillW}}px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #e8202a; box-shadow: 0 0 8px rgba(232,32,42,0.55)"></span>
         <span style="position: absolute; left: {{numX}}px; top: 30px; transform: translate(-50%, -50%); height: 20px; padding: 0 8px; border-radius: 10px; display: flex; align-items: center; background: #0b0c0d; box-shadow: 0 0 0 1.5px #e8202a, 0 2px 6px rgba(0,0,0,0.8); color: #f2efe8; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap">{{pos}}</span>

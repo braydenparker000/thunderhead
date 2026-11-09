@@ -36,6 +36,7 @@ else {
   };
   const go = (/** @type {string} */ name) => { if (name === current) { dock.hidden = veil.hidden = true; return; } history.pushState({ name }, ''); show(name); };
   addEventListener('popstate', (e) => show(e.state?.name || 'Library'));
+  document.addEventListener('editor:open', (e) => go(/** @type {CustomEvent} */ (e).detail || 'Edit'));
   veil.addEventListener('click', () => { dock.hidden = veil.hidden = true; });
   dock.addEventListener('click', (e) => { const b = /** @type {HTMLElement} */ (e.target).closest('button'); if (b?.dataset.go) go(b.dataset.go); });
   // The boards' own navigation buttons, taken over by the app (the boards stay exactly as designed).

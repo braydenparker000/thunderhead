@@ -17,16 +17,16 @@ body{margin:0;background:#232525}
 </helmet>
 <div style="width: 412px; height: 200px; position: relative; color: #eceff4; font-family: Inter, system-ui, sans-serif; user-select: none">
 
-  <div role="status" aria-label="{{label}} {{valueText}} {{unit}}" style="position: absolute; left: 20px; top: 2px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, #050606, #0b0c0d); box-shadow: inset 0 2px 5px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.10)">
+  <div role="status" aria-label="{{label}} {{valueText}} {{unit}}" style="position: absolute; left: 20px; top: 2px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, rgba(8,9,10,0.55), rgba(8,9,10,0.32)); -webkit-backdrop-filter: blur(5px) saturate(1.3); backdrop-filter: blur(5px) saturate(1.3); box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 2px 6px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.5)">
     <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">{{labelUp}}</span>
     <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{unit}}</span>
     <div aria-hidden="true" style="position: absolute; inset: 0; opacity: {{trackO}}; ">
-      <span style="position: absolute; left: 22px; right: 22px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #1c1e20"></span>
+      <span style="position: absolute; left: 22px; right: 22px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: rgba(255,255,255,0.13); box-shadow: inset 0 1px 1px rgba(0,0,0,0.5)"></span>
       <span style="position: absolute; left: 50%; top: 30px; width: 1.5px; height: 10px; margin: -5px 0 0 -0.75px; background: #6a6e73"></span>
-      <span style="position: absolute; left: {{fillL}}px; width: {{fillW}}px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #e8202a; box-shadow: 0 0 8px rgba(232,32,42,0.55); transition: left 120ms ease-out, width 120ms ease-out"></span>
+      <span style="position: absolute; left: {{fillL}}px; width: {{fillW}}px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #e8202a; box-shadow: 0 0 8px rgba(232,32,42,0.55)"></span>
     </div>
-    <span style="position: absolute; left: {{numX}}px; top: {{numY}}px; transform: translate(-50%, -50%); height: 20px; padding: 0 {{numPad}}px; border-radius: 10px; display: flex; align-items: center; background: {{numBg}}; box-shadow: {{numRing}}; color: #f2efe8; font-size: {{numSize}}px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; transition: left 90ms ease-out">{{valueText}}</span>
-    <span aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(170deg, rgba(255,255,255,0.06) 0, rgba(255,255,255,0) 40%)"></span>
+    <span style="position: absolute; left: {{numX}}px; top: {{numY}}px; transform: translate(-50%, -50%); height: 20px; padding: 0 {{numPad}}px; border-radius: 10px; display: flex; align-items: center; background: {{numBg}}; box-shadow: {{numRing}}; color: #f2efe8; font-size: {{numSize}}px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap">{{valueText}}</span>
+    <span aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(170deg, rgba(255,255,255,0.16) 0, rgba(255,255,255,0.05) 34%, rgba(255,255,255,0) 52%), radial-gradient(120% 60% at 50% 0, rgba(255,255,255,0.08), rgba(255,255,255,0) 70%)"></span>
   </div>
 
   <div class="wheelp" aria-hidden="true" style="position: absolute; left: 0; top: 50px; width: 412px; height: 150px; background-position: 0 {{offset}}px"></div>
