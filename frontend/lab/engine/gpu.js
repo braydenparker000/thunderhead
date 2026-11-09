@@ -10,6 +10,7 @@ import { N, WGSL } from './wgsl.js';
 import { maskPipes, toneMask } from './mask.js';
 import { PROPHOTO_TO_SRGB, PROPHOTO_TO_ADOBE, cameraToProPhoto, inv, neutralFor, whiteOf } from './dcp.js';
 import { neutralAt } from './white.js';
+import { autoTone } from './auto.js';
 
 const ROT = /** @type {Record<string, number>} */ ({ Rotate90: 1, Rotate180: 2, Rotate270: 3 });
 const rows = (/** @type {number[]} */ m) => [m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0];
@@ -160,5 +161,7 @@ export async function engine(canvas, img, readback = false) {
   };
   /** Frees this photo's GPU memory (the device and pipelines stay for the next). */
   const dispose = () => { for (const b of [src, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); };
-  return { render, setProfile, setWhite, shotWhite, whiteAt, snapshot, dispose, last, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  /** Auto's values for the Light controls (auto.js). @param {number} ev the exposure the photo shows at with Exposure at 0 */
+  const auto = (ev) => autoTone(img, state.m, ev + state.u.offset);
+  return { render, setProfile, setWhite, shotWhite, whiteAt, auto, snapshot, dispose, last, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

@@ -49,7 +49,7 @@ export async function open(id) {
   if (!p || cur?.id === id) return;
   const edit = (await store.loadEdit(id)) || {};
   cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
-  ready = false; picking = false; canvas.style.cursor = ''; eng?.dispose(); eng = null; film = ''; thumbs.clear(); img.src = await store.jpegUrl(id); place(); changed();
+  ready = false; picking = false; before = null; canvas.style.cursor = ''; eng?.dispose(); eng = null; film = ''; thumbs.clear(); img.src = await store.jpegUrl(id); place(); changed();
   worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' });
   const buf = await store.raw(id), me = cur;
   const r = await new Promise((res) => {
@@ -158,6 +158,16 @@ export function reset(name) {
   cur.values[name] = start(name);
   if (name === 'Temp' || name === 'Tint') custom();
   changed(); draw(); save();
+}
+let before = /** @type {Record<string, number> | null} */ (null);
+/** Auto for the Light controls, read from the photo (engine/auto.js). A second press, with none of them moved
+ * since, puts back what was there. */
+export function auto() {
+  if (!eng || !cur) return;
+  const v = cur.values, a = /** @type {Record<string, number>} */ (eng.auto(cur.shotEv)), names = Object.keys(a), on = !!before && names.every((k) => v[k] === a[k]);
+  const was = Object.fromEntries(names.map((k) => [k, v[k]])), me = cur, note = on ? 'Auto off' : 'Auto: tap again to undo';
+  Object.assign(v, on ? before : a); before = on ? null : was;
+  say(note); setTimeout(() => { if (cur === me && me.status === note) say(''); }, 2500); draw(); save();
 }
 /** A white balance preset from the plate's menu. @param {string} name */
 export function setWb(name) {
