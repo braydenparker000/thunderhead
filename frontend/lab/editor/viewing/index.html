@@ -15,7 +15,7 @@
 <div style="width: 412px; height: 915px; box-sizing: border-box; position: relative; background: #000000; color: #eceff4; font-family: Inter, system-ui, sans-serif; overflow: hidden">
 
   <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center; gap: 2px; padding: 0 10px 0 8px; z-index: 3">
-    <button aria-label="Back to Library" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <button aria-label="Back to the editor" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
     <div style="flex: 1; min-width: 0"><div style="font-size: 14px; font-weight: 600">DSCF0412</div><div style="font-size: 11px; color: #a6b0bc">23 mm · f/5.6 · 1/250 · ISO 160</div></div>
     <button onClick="{{tHist}}" aria-pressed="{{hist}}" aria-label="Histogram" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{histInk}}" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
     <button onClick="{{tHistory}}" aria-pressed="{{history}}" aria-label="History" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{historyInk}}" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></button>
@@ -87,8 +87,9 @@
         <button onClick="{{m.pick}}" aria-pressed="{{m.on}}" class="eng" style="position: relative; height: 34px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: {{m.ink}}"><span aria-hidden="true" style="position: absolute; left: 50%; top: 0; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: {{m.dot}}"></span>{{m.label}}</button>
       </sc-for>
     </nav>
-    <div style="position: absolute; left: 14px; right: 14px; bottom: 22px; font-size: 10.5px; line-height: 1.45; color: #8b8f95">{{hint}}</div>
+    <div style="position: absolute; left: 14px; right: 84px; bottom: 22px; font-size: 10.5px; line-height: 1.45; color: #8b8f95">{{hint}}</div>
   </div>
+  <button class="glass" aria-label="Back to the tools" style="position: absolute; right: 14px; bottom: 18px; width: 56px; height: 56px; border-radius: 28px; display: flex; align-items: center; justify-content: center; z-index: 3"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg></button>
 </div>
 </template>
 </body>
