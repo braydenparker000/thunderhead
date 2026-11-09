@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Edit · camera plate</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#000}
+a{color:#6aa2ff}a:hover{color:#9cc0ff}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.glass{background:linear-gradient(180deg,rgba(255,255,255,0.17),rgba(255,255,255,0.06));-webkit-backdrop-filter:blur(18px) saturate(1.8);backdrop-filter:blur(18px) saturate(1.8);border:1px solid rgba(255,255,255,0.22);box-shadow:inset 0 1px 0 rgba(255,255,255,0.38),inset 0 -1px 1px rgba(255,255,255,0.06),0 14px 34px rgba(0,0,0,0.55)}
+.lens{background:radial-gradient(ellipse at 50% 20%,rgba(255,255,255,0.34),rgba(255,255,255,0.10) 60%,rgba(255,255,255,0.06));box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),inset 0 -2px 6px rgba(0,0,0,0.25)}
+.hscroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hscroll::-webkit-scrollbar{display:none}
+.fly{animation-duration:440ms;animation-timing-function:cubic-bezier(0.2,0.9,0.25,1.15);animation-fill-mode:both}
+@keyframes fly0{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly1{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly2{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly3{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly4{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly5{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly6{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly7{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}
+.eng{text-shadow:0 -1px 0 rgba(0,0,0,0.85),0 1px 0 rgba(255,255,255,0.06)}
+.key{background:linear-gradient(180deg,#2c2e2f,#1b1c1d);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.5),0 0 0 1px #0b0c0c,0 2px 4px rgba(0,0,0,0.7)}
+</style>
+</helmet>
+<div style="width: 412px; height: 915px; box-sizing: border-box; position: relative; background: #000000; color: #eceff4; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+  <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 0 8px; z-index: 2">
+    <button aria-label="Back to Photos" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+      <span style="font-size: 14px; font-weight: 600">DSCF0412</span>
+      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">23 mm · f/5.6 · 1/250 · ISO 160</span>
+    </div>
+    <div style="display: flex; align-items: center">
+      <button aria-label="Show histogram" aria-pressed="false" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a6b0bc" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
+      <button aria-label="Undo" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg></button>
+      <button style="height: 32px; padding: 0 13px; margin-left: 4px; border-radius: 16px; background: #2468d8; color: #fff; font-size: 13px; font-weight: 600">Export</button>
+    </div>
+  </header>
+
+  <div style="position: absolute; top: 52px; left: 0; right: 0; height: {{photoH}}px; display: flex; align-items: center; justify-content: center; transition: height 480ms cubic-bezier(0.2, 0.85, 0.2, 1)">
+    <img src="/_blob/ebb81bda9f92b6c6da9428edc5304d7b" alt="The photo being edited" style="max-width: 100%; max-height: 100%; display: block">
+    <span style="position: absolute; top: 10px; right: 10px; font-size: 11px; font-weight: 500; padding: 4px 9px; border-radius: 11px; background: rgba(0,0,0,0.6); font-variant-numeric: tabular-nums">3 / 24</span>
+  </div>
+
+  <sc-if value="{{showCurve}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; left: 56px; top: 172px; z-index: 1">
+      <dc-import name="CurveOverlay" channel="{{chan}}" hint-size="300px,300px"></dc-import>
+    </div>
+  </sc-if>
+  <sc-if value="{{showTrio}}" hint-placeholder-val="{{false}}">
+    <div style="position: absolute; left: 12px; top: 432px; z-index: 1">
+      <dc-import name="GradeTrio" zone="{{zone}}" hint-size="388px,150px"></dc-import>
+    </div>
+  </sc-if>
+
+  <div style="position: absolute; left: 0; top: 600px; width: 412px; height: 315px; background: #232525 url(/_blob/bc712267550fdecbb140e0d1d15fef3f) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7); transform: translateY({{plateY}}); transition: transform 520ms cubic-bezier(0.2, 0.85, 0.2, 1); pointer-events: {{panelEvents}}">
+
+    <div class="hscroll" role="toolbar" aria-label="{{rowAria}}" style="position: absolute; left: 0; right: 0; top: 166px; height: 36px; display: flex; align-items: center; gap: 4px; padding: 0 14px">
+      <sc-if value="{{inSub}}" hint-placeholder-val="{{false}}">
+        <button onClick="{{backSub}}" aria-label="Back to {{section}}" class="eng" style="flex: none; height: 30px; padding: 0 8px 0 2px; font-size: 15px; color: #c9ccd1">‹</button>
+      </sc-if>
+      <sc-for list="{{chips}}" as="p" hint-placeholder-count="7">
+        <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" aria-label="{{p.aria}}" class="eng fly" style="--dx: {{p.dx}}px; animation-name: {{p.anim}}; animation-delay: {{p.delay}}ms; flex: none; position: relative; height: 34px; padding: 0 {{p.pad}}px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; border-radius: 6px; box-shadow: {{p.box}}">
+          <sc-if value="{{p.isDot}}" hint-placeholder-val="{{false}}"><span style="width: 13px; height: 13px; border-radius: 50%; background: {{p.dot}}; box-shadow: {{p.dotRing}}"></span></sc-if>
+          <span style="font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: {{p.ink}}">{{p.name}}</span>
+          <span style="font-size: 9px; letter-spacing: 0.04em; color: {{p.valueInk}}; font-variant-numeric: tabular-nums">{{p.value}}</span>
+          <span aria-hidden="true" style="position: absolute; left: 50%; bottom: 0; width: 12px; height: 2px; margin-left: -6px; border-radius: 1px; background: {{p.bar}}"></span>
+        </button>
+      </sc-for>
+    </div>
+
+    <div style="position: absolute; left: 0; top: 8px">
+      <dc-import name="DialPlate" label="{{dialLabel}}" unit="{{unit}}" hint-size="412px,200px"></dc-import>
+    </div>
+
+    <nav aria-label="Edit sections" style="position: absolute; left: 14px; right: 14px; top: 206px; height: 30px; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr))">
+      <sc-for list="{{sections}}" as="s" hint-placeholder-count="5">
+        <button onClick="{{s.pick}}" aria-current="{{s.current}}" class="eng" style="position: relative; height: 30px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: {{s.ink}}">
+          <span aria-hidden="true" style="position: absolute; left: 50%; top: 0; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: {{s.dot}}"></span>
+          {{s.label}}<sup style="font-size: 7.5px; letter-spacing: 0; margin-left: 2px; color: {{s.countInk}}">{{s.count}}</sup>
+        </button>
+      </sc-for>
+    </nav>
+
+    <div style="position: absolute; left: 14px; bottom: 22px; display: flex; gap: 8px">
+      <sc-for list="{{actions}}" as="a" hint-placeholder-count="2">
+        <button class="key" onClick="{{a.pick}}" aria-label="{{a.aria}}" aria-expanded="{{a.expanded}}" style="height: 40px; padding: 0 {{a.pad}}px; border-radius: 12px; display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4">
+          <sc-if value="{{a.auto}}" hint-placeholder-val="{{false}}"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: #e8202a; box-shadow: 0 0 6px rgba(232,32,42,0.7)"></span></sc-if>
+          <sc-if value="{{a.dropper}}" hint-placeholder-val="{{false}}"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#dedbd4" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.5 4.5l5 5M17 2.5l4.5 4.5-3 3-4.5-4.5z"/><path d="M15 9l-9 9-2.5.5.5-2.5 9-9"/></svg></sc-if>
+          {{a.name}}
+          <sc-if value="{{a.caret}}" hint-placeholder-val="{{false}}"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8b8f95" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></sc-if>
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <sc-if value="{{wbMenu}}" hint-placeholder-val="{{false}}">
+    <div class="glass" role="menu" aria-label="White balance" style="position: absolute; left: 14px; bottom: 70px; width: 200px; padding: 6px; box-sizing: border-box; border-radius: 18px; z-index: 4">
+      <sc-for list="{{wbList}}" as="w" hint-placeholder-count="8">
+        <button role="menuitemradio" aria-checked="{{w.on}}" onClick="{{w.pick}}" style="width: 100%; height: 36px; padding: 0 12px; border-radius: 12px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; background: {{w.bg}}">
+          <span>{{w.name}}</span><span style="font-size: 11px; color: #a6b0bc; font-variant-numeric: tabular-nums">{{w.k}}</span>
+        </button>
+      </sc-for>
+    </div>
+  </sc-if>
+
+  <nav aria-label="Tools" class="glass" style="position: absolute; bottom: 18px; left: {{dockLeft}}px; width: {{dockW}}px; height: {{dockH}}px; border-radius: 32px; overflow: hidden; z-index: 3; transition: left 480ms cubic-bezier(0.2, 0.85, 0.2, 1), width 480ms cubic-bezier(0.2, 0.85, 0.2, 1), height 480ms cubic-bezier(0.2, 0.85, 0.2, 1)">
+    <div style="position: absolute; left: 0; top: 0; width: 384px; height: 64px; display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); padding: 0 6px; box-sizing: border-box; opacity: {{toolsOpacity}}; transition: opacity 220ms ease; pointer-events: {{toolsEvents}}">
+      <sc-for list="{{tools}}" as="t" hint-placeholder-count="6">
+        <button aria-label="{{t.name}}" onClick="{{t.open}}" style="display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: #eceff4">
+          <span class="{{t.lens}}" style="width: 44px; height: 30px; border-radius: 15px; display: flex; align-items: center; justify-content: center" aria-hidden="true">
+            <sc-if value="{{t.isLooks}}" hint-placeholder-val="{{false}}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="9" cy="10" r="5.5"/><circle cx="15" cy="10" r="5.5"/><circle cx="12" cy="15" r="5.5"/></svg></sc-if>
+            <sc-if value="{{t.isCrop}}" hint-placeholder-val="{{false}}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 2v16h16"/><path d="M2 6h16v16"/></svg></sc-if>
+            <sc-if value="{{t.isEdit}}" hint-placeholder-val="{{false}}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></sc-if>
+            <sc-if value="{{t.isMasks}}" hint-placeholder-val="{{false}}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 010 17z" fill="currentColor" stroke="none"/></svg></sc-if>
+            <sc-if value="{{t.isHeal}}" hint-placeholder-val="{{false}}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="2.5" y="8.5" width="19" height="7" rx="3.5" transform="rotate(-45 12 12)"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg></sc-if>
+            <sc-if value="{{t.isVersions}}" hint-placeholder-val="{{false}}"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"><rect x="4" y="8" width="16" height="12" rx="2"/><path d="M7 5h10M9.5 2.5h5"/></svg></sc-if>
+          </span>
+          <span style="font-size: 10px; font-weight: 500; color: #dfe4ea">{{t.name}}</span>
+        </button>
+      </sc-for>
+    </div>
+    <button aria-label="Back to the tools" onClick="{{close}}" style="position: absolute; right: 0; top: 0; width: 56px; height: 56px; display: flex; align-items: center; justify-content: center; opacity: {{backOpacity}}; transition: opacity 260ms ease 200ms; pointer-events: {{panelEvents}}">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg>
+    </button>
+  </nav>
+
+  <sc-if value="{{closed}}" hint-placeholder-val="{{true}}">
+    <span style="position: absolute; left: 0; right: 0; bottom: 96px; text-align: center; font-size: 12px; color: #77828f">Tap Edit to open the section</span>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { open: true, section: 'Light', adj: 'Exposure', sub: null, chan: 'RGB', mixColor: 'Blue', mixAttr: 'Hue', zone: 'Shadows', wb: 'As shot', wbMenu: false };
+  }
+  renderVals() {
+    const S = this.state, set = (o) => this.setState(o);
+    const { open, section, sub } = S;
+    const sets = {
+      Light: [['Exposure', '+0.35', 'EV'], ['Contrast', '+12'], ['Highlights', '−48'], ['Shadows', '+31'], ['Whites', '0'], ['Blacks', '−9']],
+      Color: [['Temp', '5,450', 'K'], ['Tint', '+4'], ['Vibrance', '+15'], ['Saturation', '−6']],
+      Effects: [['Texture', '0'], ['Clarity', '+8'], ['Dehaze', '+5'], ['Vignette', '−12'], ['Grain', '0']],
+      Detail: [['Sharpening', '40'], ['Radius', '1.0'], ['Detail', '25'], ['Noise', '+10'], ['Color noise', '25']],
+      Optics: [['Distortion', '0'], ['Vignetting', '0'], ['Defringe', '0']],
+    };
+    const subs = { Light: [['curve', 'Curve']], Color: [['mixer', 'Mixer'], ['grading', 'Grading']] };
+    const counts = { Light: 5, Color: 4, Effects: 0, Detail: 1, Optics: 1 };
+    const list = sets[section];
+    const current = list.find((a) => a[0] === S.adj) || list[0];
+    const sections = Object.keys(sets).map((name) => {
+      const on = name === section;
+      return { label: name.toUpperCase(), current: on ? 'true' : 'false', count: counts[name] ? String(counts[name]) : '',
+        ink: on ? '#f2efe8' : '#7d8187', dot: on ? '#e8202a' : 'transparent', countInk: on ? '#e8202a' : '#5d6166',
+        pick: () => set({ section: name, adj: sets[name][0][0], sub: null, wbMenu: false }) };
+    });
+    // engraved markings on the plate: paint-filled when active, with a red bar under them
+    const chip = (o) => ({
+      name: o.name.toUpperCase(), value: o.value ?? '', on: String(!!o.on), aria: o.aria ?? o.name, pad: o.pad ?? 8,
+      ink: o.on ? '#f2efe8' : o.entry ? '#c9ccd1' : '#80848a',
+      valueInk: o.on ? '#e8202a' : (o.value === '0' ? '#4f5357' : '#6a6e73'),
+      bar: o.on ? '#e8202a' : 'transparent',
+      box: o.entry ? 'inset 0 0 0 1px rgba(255,255,255,0.14), inset 0 1px 2px rgba(0,0,0,0.6)' : 'none',
+      isDot: !!o.swatch, dot: o.swatch || 'transparent', dotRing: o.on ? '0 0 0 2px #232525, 0 0 0 3.5px #f2efe8' : 'inset 0 1px 2px rgba(0,0,0,0.6)',
+      pick: o.pick,
+    });
+    const colors = [['Red', '#e5484d'], ['Orange', '#f76b15'], ['Yellow', '#ffc53d'], ['Green', '#46a758'], ['Aqua', '#12a594'], ['Blue', '#3e63dd'], ['Purple', '#8e4ec6'], ['Magenta', '#d6409f']];
+    let chips, dialLabel, unit = '', actions;
+    if (sub === 'curve') {
+      chips = ['RGB', 'R', 'G', 'B'].map((c) => ({ name: c, on: c === S.chan, pad: 12, pick: () => set({ chan: c }) }));
+      dialLabel = 'Curve point'; actions = [{ name: 'RESET CURVE' }];
+    } else if (sub === 'mixer') {
+      chips = ['Hue', 'Sat', 'Lum'].map((a) => ({ name: a, on: a === S.mixAttr, pad: 6, pick: () => set({ mixAttr: a }) }))
+        .concat(colors.map(([c, hex]) => ({ name: '', aria: c, swatch: hex, on: c === S.mixColor, pad: 5, pick: () => set({ mixColor: c }) })));
+      dialLabel = `${S.mixColor} ${S.mixAttr}`; actions = [{ name: `RESET ${S.mixColor.toUpperCase()}` }, { name: 'RESET ALL' }];
+    } else if (sub === 'grading') {
+      chips = ['Shadows', 'Midtones', 'Highlights', 'Global', 'Blending', 'Balance'].map((z) => ({ name: z, on: z === S.zone, pick: () => set({ zone: z }) }));
+      const wheel = !['Blending', 'Balance'].includes(S.zone);
+      dialLabel = wheel ? `${S.zone} Lum` : S.zone; actions = [{ name: 'RESET GRADING' }];
+    } else {
+      chips = list.map(([name, value]) => ({ name, value, on: name === current[0], pick: () => set({ adj: name }) }))
+        .concat((subs[section] || []).map(([key, name]) => ({ name: `${name} ›`, entry: true, pad: 10, pick: () => set({ sub: key, wbMenu: false }) })));
+      dialLabel = current[0]; unit = current[2] || '';
+      actions = section === 'Color'
+        ? [{ name: '', aria: 'Pick white balance from the photo', dropper: true, pad: 12 }, { name: `WB · ${S.wb.toUpperCase()}`, caret: true, expanded: String(S.wbMenu), pick: () => set({ wbMenu: !S.wbMenu }) }]
+        : [{ name: 'AUTO', auto: true }, { name: 'RESET' }];
+    }
+    // the row flies out of the section name that was tapped: each chip starts at that name and springs into place
+    const secX = 14 + (384 / 5) * (Object.keys(sets).indexOf(section) + 0.5);
+    let cx = 14 + (sub ? 24 : 0);
+    const placed = chips.map((o) => {
+      const w = o.swatch ? 13 + 2 * (o.pad ?? 8) : 2 * (o.pad ?? 8) + Math.max(o.name.length, String(o.value ?? '').length * 0.8) * 7.6;
+      const c = cx + w / 2; cx += w + 4; return c;
+    });
+    const anim = 'fly' + ['Light', 'Color', 'Effects', 'Detail', 'Optics', 'curve', 'mixer', 'grading'].indexOf(sub || section);
+    const wbs = [['As shot', '5,450 K'], ['Auto', '5,210 K'], ['Daylight', '5,500 K'], ['Cloudy', '6,500 K'], ['Shade', '7,500 K'], ['Tungsten', '2,850 K'], ['Fluorescent', '3,800 K'], ['Flash', '5,500 K']];
+    const tools = ['Looks', 'Crop', 'Edit', 'Masks', 'Heal', 'Versions'].map((name) => ({
+      name, lens: name === 'Edit' ? 'lens' : '',
+      isLooks: name === 'Looks', isCrop: name === 'Crop', isEdit: name === 'Edit', isMasks: name === 'Masks', isHeal: name === 'Heal', isVersions: name === 'Versions',
+      open: () => set({ open: true }),
+    }));
+    return {
+      photoH: open ? 540 : 780, plateY: open ? '0' : '330px',
+      panelEvents: open ? 'auto' : 'none',
+      dockLeft: open ? 342 : 14, dockW: open ? 56 : 384, dockH: open ? 56 : 64,
+      toolsOpacity: open ? 0 : 1, toolsEvents: open ? 'none' : 'auto', backOpacity: open ? 1 : 0, closed: !open,
+      sections, section, chips: chips.map((o, i) => ({ ...chip(o), dx: (secX - placed[i]).toFixed(0), delay: i * 32, anim })), rowAria: sub ? `${section} ${sub}` : `${section} adjustments`, tools, dialLabel, unit,
+      inSub: !!sub, backSub: () => set({ sub: null }),
+      showCurve: open && sub === 'curve', chan: S.chan,
+      showTrio: open && sub === 'grading', zone: S.zone,
+      wbMenu: open && S.wbMenu && section === 'Color' && !sub,
+      wbList: wbs.map(([name, k]) => ({ name, k, on: String(name === S.wb), bg: name === S.wb ? 'rgba(255,255,255,0.16)' : 'transparent', pick: () => set({ wb: name, wbMenu: false }) })),
+      actions: actions.map((a) => ({ name: a.name, aria: a.aria ?? a.name, pad: a.pad ?? 16, auto: !!a.auto, dropper: !!a.dropper, caret: !!a.caret, expanded: a.expanded ?? 'false', pick: a.pick ?? (() => {}) })),
+      close: () => set({ open: false, wbMenu: false }),
+    };
+  }
+}
+</script>
+</body>
+</html>

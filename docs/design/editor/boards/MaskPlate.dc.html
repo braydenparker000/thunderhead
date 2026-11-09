@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Masks · camera plate</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#000}
+a{color:#6aa2ff}a:hover{color:#9cc0ff}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.glass{background:linear-gradient(180deg,rgba(255,255,255,0.17),rgba(255,255,255,0.06));-webkit-backdrop-filter:blur(18px) saturate(1.8);backdrop-filter:blur(18px) saturate(1.8);border:1px solid rgba(255,255,255,0.22);box-shadow:inset 0 1px 0 rgba(255,255,255,0.38),inset 0 -1px 1px rgba(255,255,255,0.06),0 14px 34px rgba(0,0,0,0.55)}
+.lens{background:radial-gradient(ellipse at 50% 20%,rgba(255,255,255,0.34),rgba(255,255,255,0.10) 60%,rgba(255,255,255,0.06));box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),inset 0 -2px 6px rgba(0,0,0,0.25)}
+.hscroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hscroll::-webkit-scrollbar{display:none}
+.fly{animation-duration:440ms;animation-timing-function:cubic-bezier(0.2,0.9,0.25,1.15);animation-fill-mode:both}
+@keyframes fly0{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly1{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly2{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly3{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly4{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly5{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly6{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly7{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}
+.eng{text-shadow:0 -1px 0 rgba(0,0,0,0.85),0 1px 0 rgba(255,255,255,0.06)}
+.key{background:linear-gradient(180deg,#2c2e2f,#1b1c1d);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.5),0 0 0 1px #0b0c0c,0 2px 4px rgba(0,0,0,0.7)}
+.scan{animation:scan 1.1s linear infinite}@keyframes scan{from{background-position:120% 0}to{background-position:-120% 0}}
+</style>
+</helmet>
+<div style="width: 412px; height: 915px; box-sizing: border-box; position: relative; background: #000000; color: #eceff4; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+  <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 0 8px; z-index: 2">
+    <button aria-label="Back to Photos" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+      <span style="font-size: 14px; font-weight: 600">DSCF0412</span>
+      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">23 mm · f/5.6 · 1/250 · ISO 160</span>
+    </div>
+    <div style="display: flex; align-items: center">
+      <button aria-label="Show histogram" aria-pressed="false" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a6b0bc" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
+      <button aria-label="Undo" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg></button>
+      <button style="height: 32px; padding: 0 13px; margin-left: 4px; border-radius: 16px; background: #e8202a; color: #fff; font-size: 13px; font-weight: 600">Export</button>
+    </div>
+  </header>
+
+  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: 540px; overflow: hidden">
+    <div onPointerDown="{{pDown}}" onPointerMove="{{pMove}}" onPointerUp="{{pUp}}" onPointerCancel="{{pUp}}" aria-label="{{photoAria}}"
+         style="position: absolute; left: 20px; top: 146px; width: 372px; height: 248px; touch-action: {{photoTouch}}; cursor: {{photoCursor}}">
+      <img src="/_blob/ebb81bda9f92b6c6da9428edc5304d7b" alt="The photo being masked" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block">
+      <div aria-hidden="true" style="position: absolute; inset: 0; background: {{overlay}}; -webkit-mask-image: {{lumMask}}; mask-image: {{lumMask}}; mask-size: 100% 100%; mask-mode: luminance; opacity: {{overlayO}}; transition: opacity 260ms ease"></div>
+      <sc-for list="{{dots}}" as="d" hint-placeholder-count="0">
+        <span aria-hidden="true" style="position: absolute; left: {{d.x}}px; top: {{d.y}}px; width: {{d.s}}px; height: {{d.s}}px; margin: {{d.m}}px 0 0 {{d.m}}px; border-radius: 50%; background: radial-gradient(circle, rgba(232,32,42,0.55) 0, rgba(232,32,42,0.55) 45%, rgba(232,32,42,0) 70%); opacity: {{overlayO}}"></span>
+      </sc-for>
+      <sc-if value="{{guides}}" hint-placeholder-val="{{false}}">
+        <div aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none">
+          <sc-for list="{{guideLines}}" as="g" hint-placeholder-count="3">
+            <span style="position: absolute; left: -40px; right: -40px; top: {{g.y}}px; height: 0; border-top: 1.5px {{g.style}} rgba(255,255,255,0.9); transform: rotate(-10deg)"></span>
+          </sc-for>
+          <sc-if value="{{isRadial}}" hint-placeholder-val="{{false}}"><span style="position: absolute; left: 30%; top: 18%; width: 30%; height: 62%; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.9); box-shadow: 0 0 0 1px rgba(0,0,0,0.3)"></span></sc-if>
+        </div>
+      </sc-if>
+      <sc-if value="{{detecting}}" hint-placeholder-val="{{false}}">
+        <div class="scan" aria-hidden="true" style="position: absolute; inset: 0; background: linear-gradient(100deg, rgba(232,32,42,0) 30%, rgba(232,32,42,0.45) 50%, rgba(232,32,42,0) 70%) 0 0 / 250% 100%"></div>
+      </sc-if>
+    </div>
+    <sc-if value="{{detecting}}" hint-placeholder-val="{{false}}">
+      <span role="status" class="glass" style="position: absolute; left: 50%; top: 410px; transform: translateX(-50%); padding: 7px 14px; border-radius: 16px; font-size: 12px; white-space: nowrap">Detecting {{detectName}}…</span>
+    </sc-if>
+
+    <div class="glass" role="listbox" aria-label="Masks" style="position: absolute; left: 12px; top: 12px; width: 168px; padding: 5px; box-sizing: border-box; border-radius: 16px">
+      <sc-for list="{{list}}" as="m" hint-placeholder-count="2">
+        <button role="option" aria-selected="{{m.on}}" onClick="{{m.pick}}" style="width: 100%; height: 36px; padding: 0 8px; box-sizing: border-box; border-radius: 11px; display: flex; align-items: center; gap: 8px; text-align: left; background: {{m.bg}}">
+          <span aria-hidden="true" style="flex: none; width: 22px; height: 22px; border-radius: 6px; background: {{m.thumb}}; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.25)"></span>
+          <span style="flex: 1; min-width: 0; font-size: 12px; font-weight: {{m.weight}}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{m.name}}</span>
+          <span style="font-size: 10px; color: {{m.countInk}}; font-variant-numeric: tabular-nums">{{m.count}}</span>
+        </button>
+      </sc-for>
+      <button onClick="{{openAdd}}" aria-expanded="{{adding}}" style="width: 100%; height: 34px; padding: 0 8px; box-sizing: border-box; border-radius: 11px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: #f2efe8">
+        <span aria-hidden="true" style="flex: none; width: 22px; height: 22px; border-radius: 6px; display: flex; align-items: center; justify-content: center; background: #e8202a; font-size: 16px; line-height: 1">+</span>Add mask
+      </button>
+    </div>
+
+    <sc-if value="{{adding}}" hint-placeholder-val="{{false}}">
+      <div class="glass" role="dialog" aria-label="Add a mask" style="position: absolute; left: 12px; right: 12px; top: 210px; padding: 12px; box-sizing: border-box; border-radius: 20px; z-index: 2">
+        <sc-for list="{{addGroups}}" as="grp" hint-placeholder-count="3">
+          <div style="font-size: 9px; font-weight: 600; letter-spacing: 0.16em; color: #a6b0bc; margin: 2px 4px 6px">{{grp.title}}</div>
+          <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 4px; margin-bottom: 8px">
+            <sc-for list="{{grp.items}}" as="it" hint-placeholder-count="5">
+              <button onClick="{{it.pick}}" style="height: 58px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; font-size: 10.5px; background: rgba(255,255,255,0.06)">
+                <span aria-hidden="true" style="width: 24px; height: 24px; border-radius: 7px; background: {{it.thumb}}; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.3)"></span>{{it.name}}
+              </button>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="position: absolute; left: 0; top: 600px; width: 412px; height: 315px; background: #232525 url(/_blob/bc712267550fdecbb140e0d1d15fef3f) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+    <div role="status" aria-label="{{ctl}} {{valText}} {{unit}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, #050606, #0b0c0d); box-shadow: inset 0 2px 5px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.10)">
+      <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">{{ctlUp}}</span>
+      <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{unit}}</span>
+      <span style="position: absolute; left: 22px; right: 22px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #1c1e20"></span>
+      <span style="position: absolute; left: 50%; top: 30px; width: 1.5px; height: 10px; margin: -5px 0 0 -0.75px; background: #6a6e73"></span>
+      <span style="position: absolute; left: {{fillL}}px; width: {{fillW}}px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #e8202a; box-shadow: 0 0 8px rgba(232,32,42,0.55)"></span>
+      <span style="position: absolute; left: {{numX}}px; top: 30px; transform: translate(-50%, -50%); height: 20px; padding: 0 8px; border-radius: 10px; display: flex; align-items: center; background: #0b0c0d; box-shadow: 0 0 0 1.5px #e8202a, 0 2px 6px rgba(0,0,0,0.8); color: #f2efe8; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; transition: left 90ms ease-out">{{valText}}</span>
+      <span aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(170deg, rgba(255,255,255,0.06) 0, rgba(255,255,255,0) 40%)"></span>
+    </div>
+    <div aria-hidden="true" style="position: absolute; left: 0; top: 58px; width: 412px; height: 150px; background: url(/_blob/a0c3786c44b0ef98460647f4fc2dbe4c) 0 {{spinY}}px / 412px 1800px no-repeat"></div>
+    <div role="slider" aria-label="{{ctl}}" aria-valuemin="{{vmin}}" aria-valuemax="{{vmax}}" aria-valuenow="{{valNow}}" aria-valuetext="{{valText}} {{unit}}" tabindex="0"
+         onPointerDown="{{dDown}}" onPointerMove="{{dMove}}" onPointerUp="{{dUp}}" onPointerCancel="{{dUp}}" onKeyDown="{{dKey}}"
+         style="position: absolute; left: 0; top: 58px; width: 412px; height: 108px; touch-action: none; cursor: ew-resize; outline: none"></div>
+    <span aria-hidden="true" style="position: absolute; left: 50%; top: 64px; margin-left: -4px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #e8202a"></span>
+
+    <div class="hscroll" role="toolbar" aria-label="{{group}} options" style="position: absolute; left: 0; right: 0; top: 166px; height: 36px; display: flex; align-items: center; gap: 4px; padding: 0 14px">
+      <sc-for list="{{chips}}" as="p" hint-placeholder-count="7">
+        <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" aria-label="{{p.aria}}" class="eng fly" style="--dx: {{p.dx}}px; animation-name: {{p.anim}}; animation-delay: {{p.delay}}ms; flex: none; position: relative; height: 34px; padding: 0 {{p.pad}}px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+          <span style="font-size: {{p.size}}px; font-weight: 600; letter-spacing: 0.14em; color: {{p.ink}}">{{p.name}}</span>
+          <span style="font-size: 9px; letter-spacing: 0.04em; color: {{p.valueInk}}; font-variant-numeric: tabular-nums">{{p.value}}</span>
+          <span aria-hidden="true" style="position: absolute; left: 50%; bottom: 0; width: 12px; height: 2px; margin-left: -6px; border-radius: 1px; background: {{p.bar}}"></span>
+        </button>
+      </sc-for>
+    </div>
+
+    <nav aria-label="Mask adjustment sections" style="position: absolute; left: 14px; right: 14px; top: 206px; height: 30px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+      <sc-for list="{{groups}}" as="s" hint-placeholder-count="4">
+        <button onClick="{{s.pick}}" aria-current="{{s.current}}" class="eng" style="position: relative; height: 30px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: {{s.ink}}">
+          <span aria-hidden="true" style="position: absolute; left: 50%; top: 0; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: {{s.dot}}"></span>{{s.label}}
+        </button>
+      </sc-for>
+    </nav>
+
+    <div style="position: absolute; left: 14px; bottom: 22px; display: flex; gap: 8px">
+      <sc-for list="{{actions}}" as="a" hint-placeholder-count="2">
+        <button class="key" onClick="{{a.pick}}" aria-pressed="{{a.pressed}}" style="height: 40px; padding: 0 16px; border-radius: 12px; display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4">
+          <sc-if value="{{a.dot}}" hint-placeholder-val="{{false}}"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: #e8202a; box-shadow: 0 0 6px rgba(232,32,42,0.7)"></span></sc-if>{{a.name}}
+        </button>
+      </sc-for>
+    </div>
+  </div>
+
+  <button class="glass" aria-label="Back to the tools" style="position: absolute; right: 14px; bottom: 18px; width: 56px; height: 56px; border-radius: 28px; display: flex; align-items: center; justify-content: center; z-index: 3">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg>
+  </button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      masks: [{ kind: 'Sky', n: 1, vals: { Exposure: -0.4, Highlights: -35, Dehaze: 12, Amount: 100 }, invert: false, erase: false, dots: [] },
+        { kind: 'Subject', n: 1, vals: { Exposure: 0.25, Clarity: 10, Amount: 100 }, invert: false, erase: false, dots: [] }],
+      sel: 0, group: 'Light', adj: 'Exposure', adding: false, detecting: null, overlay: true, spin: 0, turning: false,
+    };
+    this.drag = null; this.painting = false;
+  }
+  renderVals() {
+    const S = this.state, set = (o) => this.setState(o);
+    const R = 'rgba(232,32,42,0.5)', T = 'rgba(232,32,42,0)', G = '#3a3c3f', C = '#e8202a';
+    const shapes = {
+      Sky: [`linear-gradient(180deg, ${R} 0, ${R} 36%, ${T} 52%)`, `linear-gradient(180deg, ${T} 36%, ${R} 52%)`, `linear-gradient(${C} 0 50%, ${G} 50%)`],
+      Subject: [`radial-gradient(ellipse 16% 30% at 52% 62%, ${R} 70%, ${T} 100%)`, `radial-gradient(ellipse 16% 30% at 52% 62%, ${T} 70%, ${R} 100%)`, `radial-gradient(circle at 50% 60%, ${C} 0 35%, ${G} 40%)`],
+      Background: [`radial-gradient(ellipse 16% 30% at 52% 62%, ${T} 70%, ${R} 100%)`, `radial-gradient(ellipse 16% 30% at 52% 62%, ${R} 70%, ${T} 100%)`, `radial-gradient(circle at 50% 60%, ${G} 0 35%, ${C} 40%)`],
+      People: [`radial-gradient(ellipse 8% 26% at 70% 64%, ${R} 70%, ${T} 100%)`, `radial-gradient(ellipse 8% 26% at 70% 64%, ${T} 70%, ${R} 100%)`, `radial-gradient(circle at 50% 32%, ${C} 0 17%, transparent 19%), radial-gradient(ellipse at 50% 100%, ${C} 0 45%, ${G} 47%)`],
+      Object: [`radial-gradient(ellipse 14% 12% at 30% 72%, ${R} 70%, ${T} 100%)`, `radial-gradient(ellipse 14% 12% at 30% 72%, ${T} 70%, ${R} 100%)`, `radial-gradient(${C} 0 32%, ${G} 34%)`],
+      Brush: ['none', 'none', `radial-gradient(circle at 35% 40%, ${C} 0 24%, transparent 26%), radial-gradient(circle at 65% 62%, ${C} 0 24%, ${G} 26%)`],
+      Linear: [`linear-gradient(170deg, ${R} 0, ${R} 30%, ${T} 55%)`, `linear-gradient(170deg, ${T} 30%, ${R} 55%)`, `linear-gradient(160deg, ${C} 0 30%, ${G} 70%)`],
+      Radial: [`radial-gradient(ellipse 15% 31% at 45% 49%, ${R} 55%, ${T} 100%)`, `radial-gradient(ellipse 15% 31% at 45% 49%, ${T} 55%, ${R} 100%)`, `radial-gradient(circle, ${C} 0 30%, ${G} 60%)`],
+      Color: [R, R, `conic-gradient(${C}, #f2b632, #46a758, #3e63dd, ${C})`],
+      Luminance: [R, R, 'linear-gradient(90deg, #111, #eee)'],
+    };
+    const masks = S.masks, m = masks[Math.min(S.sel, masks.length - 1)];
+    const ai = ['Subject', 'Sky', 'Background', 'People', 'Object'];
+    const rows = {
+      Light: ['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks'],
+      Color: ['Temp', 'Tint', 'Hue', 'Saturation'],
+      Effects: ['Texture', 'Clarity', 'Dehaze', 'Sharpness', 'Noise'],
+      Mask: (m.kind === 'Brush' ? ['Size', 'Feather', 'Flow', 'Erase'] : ['Linear', 'Radial'].includes(m.kind) ? ['Feather'] : []).concat(['Amount', 'Invert', 'Delete']),
+    };
+    const toggles = { Erase: m.erase, Invert: m.invert };
+    const uni = { Size: 40, Feather: 50, Flow: 60, Amount: 100 };      // 0..100 settings and their defaults
+    const valOf = (a) => m.vals[a] ?? uni[a] ?? 0;
+    const spec = (a) => a === 'Exposure' ? [-4, 4, 'EV', 4 / 180] : uni[a] !== undefined ? [0, 100, '', 100 / 180] : [-100, 100, '', 100 / 180];
+    const fmt = (a, x) => a === 'Exposure' ? (x > 0.004 ? '+' : x < -0.004 ? '−' : '') + Math.abs(x).toFixed(2) : uni[a] !== undefined ? String(Math.round(x)) : (x > 0.5 ? '+' : x < -0.5 ? '−' : '') + Math.abs(Math.round(x));
+    const adj = rows[S.group].includes(S.adj) && !toggles.hasOwnProperty(S.adj) && S.adj !== 'Delete' ? S.adj : rows[S.group].find((a) => !(a in toggles) && a !== 'Delete') || 'Amount';
+    const [lo, hi, unit, perDeg] = spec(adj), val = valOf(adj);
+    const setMask = (patch) => set({ masks: masks.map((x, i) => (i === S.sel ? { ...x, ...patch } : x)) });
+    const setVal = (a, x) => setMask({ vals: { ...m.vals, [a]: Math.max(spec(a)[0], Math.min(spec(a)[1], x)) } });
+    // window: bipolar values fill from the centre, 0..100 settings fill from the left end
+    const span = 328, f = lo < 0 ? val / hi : val / hi;
+    const fillL = lo < 0 ? 186 + Math.min(0, f) * (span / 2) : 22, fillW = lo < 0 ? Math.abs(f) * (span / 2) : f * span;
+    const numX = lo < 0 ? 186 + f * (span / 2) : 22 + f * span;
+    const groups = Object.keys(rows), gi = groups.indexOf(S.group), secX = 14 + (384 / 4) * (gi + 0.5);
+    let cx = 14;
+    const chips = rows[S.group].map((a, i) => {
+      const isT = a in toggles, isDel = a === 'Delete', on = isT ? toggles[a] : !isDel && a === adj;
+      const value = isT ? (toggles[a] ? 'ON' : 'OFF') : isDel ? '' : fmt(a, valOf(a));
+      const w = 16 + Math.max(a.length, value.length * 0.8) * 7.6, c = cx + w / 2; cx += w + 4;
+      return { name: a.toUpperCase(), value, on: String(on), aria: a, pad: 8, size: 10,
+        ink: isDel ? '#e8202a' : on ? '#f2efe8' : '#80848a', valueInk: on ? '#e8202a' : (value === '0' || value === 'OFF' ? '#4f5357' : '#6a6e73'), bar: on ? '#e8202a' : 'transparent',
+        dx: (secX - c).toFixed(0), delay: i * 32, anim: 'fly' + (gi + (S.group === 'Mask' ? masks.length % 4 : 0)),
+        pick: () => {
+          if (a === 'Erase') return setMask({ erase: !m.erase });
+          if (a === 'Invert') return setMask({ invert: !m.invert });
+          if (a === 'Delete') return set({ masks: masks.length > 1 ? masks.filter((_, k) => k !== S.sel) : masks, sel: 0, group: 'Light', adj: 'Exposure' });
+          set({ adj: a });
+        } };
+    });
+    const label = (x) => (ai.includes(x.kind) || x.kind === 'Brush' || x.kind === 'Color' || x.kind === 'Luminance' ? x.kind : `${x.kind} gradient`) + (x.n > 1 ? ` ${x.n}` : '');
+    const edits = (x) => Object.entries(x.vals).filter(([k, v]) => !(k in uni) && Math.abs(v) > 0.004).length;
+    const add = (kind) => {
+      const n = masks.filter((x) => x.kind === kind).length + 1;
+      const next = [...masks, { kind, n, vals: {}, invert: false, erase: false, dots: [] }];
+      set({ masks: next, sel: next.length - 1, adding: false, group: kind === 'Brush' ? 'Mask' : 'Light', adj: kind === 'Brush' ? 'Size' : 'Exposure', detecting: ai.includes(kind) ? kind : null });
+      if (ai.includes(kind)) setTimeout(() => this.setState({ detecting: null }), 1100);
+    };
+    const groupsAdd = [['DETECT', ['Subject', 'Sky', 'Background', 'People', 'Object']], ['DRAW', ['Brush', 'Linear', 'Radial']], ['RANGE', ['Color', 'Luminance']]];
+    const shape = shapes[m.kind];
+    const isRange = m.kind === 'Color' || m.kind === 'Luminance';
+    const brushS = (valOf('Size') / 100) * 60 + 8;
+    const RD = 240, PERIOD = 360 / 72, frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
+    return {
+      overlay: shape[m.invert ? 1 : 0], lumMask: isRange ? 'url(/_blob/ebb81bda9f92b6c6da9428edc5304d7b)' : 'none',
+      overlayO: S.overlay && !S.detecting ? (valOf('Amount') / 100) * 0.9 + 0.1 : 0,
+      dots: m.kind === 'Brush' ? m.dots.map((d) => ({ x: d[0], y: d[1], s: d[2], m: -d[2] / 2 })) : [],
+      guides: ['Linear', 'Radial'].includes(m.kind) && S.overlay, isRadial: m.kind === 'Radial',
+      guideLines: m.kind === 'Linear' ? [{ y: 40, style: 'solid' }, { y: 74, style: 'dashed' }, { y: 108, style: 'solid' }] : [],
+      detecting: !!S.detecting, detectName: (S.detecting || '').toLowerCase(),
+      photoAria: m.kind === 'Brush' ? `Paint the brush mask, ${m.erase ? 'erasing' : 'adding'}` : 'Photo',
+      photoTouch: m.kind === 'Brush' ? 'none' : 'auto', photoCursor: m.kind === 'Brush' ? 'crosshair' : 'default',
+      pDown: (e) => { if (m.kind !== 'Brush') return; this.painting = true; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); this.paint(e, brushS); },
+      pMove: (e) => { if (this.painting) this.paint(e, brushS); },
+      pUp: () => { this.painting = false; },
+      list: masks.map((x, i) => ({ name: label(x), on: String(i === S.sel), weight: i === S.sel ? 600 : 500, bg: i === S.sel ? 'rgba(255,255,255,0.16)' : 'transparent',
+        thumb: shapes[x.kind][2], count: edits(x) ? String(edits(x)) : '', countInk: i === S.sel ? '#e8202a' : '#a6b0bc',
+        pick: () => set({ sel: i, adding: false, group: S.group === 'Mask' && x.kind !== m.kind ? 'Light' : S.group }) })),
+      adding: S.adding, openAdd: () => set({ adding: !S.adding }),
+      addGroups: groupsAdd.map(([title, kinds]) => ({ title, items: kinds.map((k) => ({ name: k, thumb: shapes[k][2], pick: () => add(k) })) })),
+      ctl: adj, ctlUp: `${label(m).toUpperCase()} · ${adj.toUpperCase()}`, unit, valText: fmt(adj, val), valNow: String(val), vmin: lo, vmax: hi,
+      fillL: fillL.toFixed(1), fillW: Math.max(0, fillW).toFixed(1), numX: Math.max(34, Math.min(338, numX)).toFixed(1),
+      spinY: -Math.floor(frac * 12) * 150,
+      dDown: (e) => { this.drag = { x: e.clientX, v: val, s: S.spin, a: adj }; set({ turning: true }); if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
+      dMove: (e) => { const d = this.drag; if (!d) return; const deg = ((e.clientX - d.x) / RD) * (180 / Math.PI); const cur = this.state.masks[this.state.sel];
+        this.setState({ spin: d.s + deg, masks: this.state.masks.map((x, i) => (i === this.state.sel ? { ...x, vals: { ...cur.vals, [d.a]: Math.max(lo, Math.min(hi, d.v + deg * perDeg)) } } : x)) }); },
+      dUp: () => { this.drag = null; set({ turning: false }); },
+      dKey: (e) => { const st = adj === 'Exposure' ? 0.05 : 1; if (e.key === 'ArrowRight') setVal(adj, val + st); if (e.key === 'ArrowLeft') setVal(adj, val - st); },
+      group: S.group, chips,
+      groups: groups.map((g) => ({ label: g.toUpperCase(), current: String(g === S.group), ink: g === S.group ? '#f2efe8' : '#7d8187', dot: g === S.group ? '#e8202a' : 'transparent',
+        pick: () => set({ group: g, adj: rows[g].find((a) => !(a in toggles) && a !== 'Delete') || 'Amount' }) })),
+      actions: [{ name: 'OVERLAY', dot: S.overlay, pick: () => set({ overlay: !S.overlay }), pressed: String(S.overlay) }, { name: 'RESET MASK', dot: false, pick: () => setMask({ vals: {}, dots: [], invert: false }), pressed: 'false' }],
+    };
+  }
+  paint(e, size) {
+    const b = e.currentTarget.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
+    const S = this.state, m = S.masks[S.sel];
+    const dots = m.erase ? m.dots.filter((d) => Math.hypot(d[0] - x, d[1] - y) > size / 2) : m.dots.concat([[x, y, size]]).slice(-400);
+    this.setState({ masks: S.masks.map((q, i) => (i === S.sel ? { ...q, dots } : q)) });
+  }
+}
+</script>
+</body>
+</html>

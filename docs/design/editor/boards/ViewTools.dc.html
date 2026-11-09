@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Viewing · histogram, compare, 100%, history, versions</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#000}
+a{color:#6aa2ff}a:hover{color:#9cc0ff}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.glass{background:linear-gradient(180deg,rgba(255,255,255,0.17),rgba(255,255,255,0.06));-webkit-backdrop-filter:blur(18px) saturate(1.8);backdrop-filter:blur(18px) saturate(1.8);border:1px solid rgba(255,255,255,0.22);box-shadow:inset 0 1px 0 rgba(255,255,255,0.38),inset 0 -1px 1px rgba(255,255,255,0.06),0 14px 34px rgba(0,0,0,0.55)}
+.lens{background:radial-gradient(ellipse at 50% 20%,rgba(255,255,255,0.34),rgba(255,255,255,0.10) 60%,rgba(255,255,255,0.06));box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),inset 0 -2px 6px rgba(0,0,0,0.25)}
+.hscroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hscroll::-webkit-scrollbar{display:none}
+.fly{animation-duration:440ms;animation-timing-function:cubic-bezier(0.2,0.9,0.25,1.15);animation-fill-mode:both}
+@keyframes fly0{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly1{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly2{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly3{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly4{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly5{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly6{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly7{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}
+.eng{text-shadow:0 -1px 0 rgba(0,0,0,0.85),0 1px 0 rgba(255,255,255,0.06)}
+.key{background:linear-gradient(180deg,#2c2e2f,#1b1c1d);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.5),0 0 0 1px #0b0c0c,0 2px 4px rgba(0,0,0,0.7)}
+.scan{animation:scan 1.1s linear infinite}@keyframes scan{from{background-position:120% 0}to{background-position:-120% 0}}
+.tile{animation-duration:360ms;animation-timing-function:cubic-bezier(0.2,0.9,0.25,1.1);animation-fill-mode:both;animation-delay:var(--d)}@keyframes tl0{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl1{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl2{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl3{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl4{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl5{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl6{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}@keyframes tl7{from{opacity:0;transform:translateY(14px) scale(0.9)}to{opacity:1;transform:none}}
+.grain{background-image:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 0 0.5 0 0 0 1.4 -0.45'/></filter><rect width='120' height='120' filter='url(%23n)'/></svg>");mix-blend-mode:overlay;pointer-events:none}
+</style>
+</helmet>
+<div style="width: 412px; height: 915px; box-sizing: border-box; position: relative; background: #000000; color: #eceff4; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+  <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center; gap: 2px; padding: 0 10px 0 8px; z-index: 3">
+    <button aria-label="Back to Library" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div style="flex: 1; min-width: 0"><div style="font-size: 14px; font-weight: 600">DSCF0412</div><div style="font-size: 11px; color: #a6b0bc">23 mm · f/5.6 · 1/250 · ISO 160</div></div>
+    <button onClick="{{tHist}}" aria-pressed="{{hist}}" aria-label="Histogram" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{histInk}}" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
+    <button onClick="{{tHistory}}" aria-pressed="{{history}}" aria-label="History" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{historyInk}}" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></button>
+    <button style="height: 32px; padding: 0 13px; margin-left: 4px; border-radius: 16px; background: #e8202a; color: #fff; font-size: 13px; font-weight: 600">Export</button>
+  </header>
+
+  <div onPointerDown="{{pDown}}" onPointerMove="{{pMove}}" onPointerUp="{{pUp}}" onPointerCancel="{{pUp}}" aria-label="{{photoAria}}"
+       style="position: absolute; top: 52px; left: 0; width: 412px; height: 738px; overflow: hidden; touch-action: none; background: #000">
+    <div style="position: absolute; left: {{imL}}px; top: {{imT}}px; width: {{imW}}px; height: {{imH}}px; transition: {{imTr}}">
+      <img src="/_blob/ebb81bda9f92b6c6da9428edc5304d7b" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: {{pix}}">
+      <div style="position: absolute; left: 0; top: 0; bottom: 0; width: {{afterW}}; overflow: hidden; direction: rtl; right: 0; left: auto">
+        <img src="/_blob/ebb81bda9f92b6c6da9428edc5304d7b" alt="" style="position: absolute; right: 0; top: 0; width: {{imW}}px; height: {{imH}}px; display: block; filter: {{after}}; image-rendering: {{pix}}">
+      </div>
+      <sc-if value="{{clip}}" hint-placeholder-val="{{false}}"><div aria-hidden="true" style="position: absolute; inset: 0; background: radial-gradient(ellipse 12% 9% at 72% 18%, rgba(232,32,42,0.85) 60%, transparent 70%), radial-gradient(ellipse 18% 10% at 22% 88%, rgba(60,110,255,0.85) 60%, transparent 70%)"></div></sc-if>
+    </div>
+    <sc-if value="{{split}}" hint-placeholder-val="{{false}}">
+      <div aria-hidden="true" style="position: absolute; top: 0; bottom: 0; left: {{splitX}}px; width: 2px; margin-left: -1px; background: #f2efe8; box-shadow: 0 0 6px rgba(0,0,0,0.6)">
+        <span class="glass" style="position: absolute; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px">⇔</span>
+      </div>
+      <span class="glass" style="position: absolute; left: 12px; bottom: 14px; padding: 4px 10px; border-radius: 12px; font-size: 11px">Before</span>
+      <span class="glass" style="position: absolute; right: 12px; bottom: 14px; padding: 4px 10px; border-radius: 12px; font-size: 11px">After</span>
+    </sc-if>
+    <sc-if value="{{zoomed}}" hint-placeholder-val="{{false}}">
+      <span class="glass" style="position: absolute; left: 12px; top: 12px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600">100%</span>
+      <div class="glass" aria-hidden="true" style="position: absolute; right: 12px; bottom: 14px; width: 96px; height: 64px; border-radius: 10px; overflow: hidden; padding: 0">
+        <img src="/_blob/ebb81bda9f92b6c6da9428edc5304d7b" alt="" style="width: 100%; height: 100%; display: block; filter: {{after}}; opacity: 0.85">
+        <span style="position: absolute; left: {{mmL}}%; top: {{mmT}}%; width: {{mmW}}%; height: {{mmH}}%; box-shadow: 0 0 0 1.5px #e8202a, 0 0 0 999px rgba(0,0,0,0.35)"></span>
+      </div>
+    </sc-if>
+    <sc-if value="{{hist}}" hint-placeholder-val="{{false}}">
+      <div class="glass" style="position: absolute; right: 12px; top: 12px; width: 168px; height: 92px; border-radius: 14px; padding: 0; overflow: hidden">
+        <svg width="168" height="70" viewBox="0 0 168 70" aria-label="Histogram" style="position: absolute; left: 0; top: 6px">
+          <path d="M8 66 C20 64 26 40 38 44 S58 20 70 30 S92 12 104 24 S130 50 142 40 S154 30 160 62 L160 66Z" fill="rgba(255,90,90,0.55)"/>
+          <path d="M8 66 C22 62 30 46 42 38 S62 26 76 22 S96 30 108 34 S132 42 144 48 S154 52 160 64 L160 66Z" fill="rgba(90,220,120,0.5)" style="mix-blend-mode: screen"/>
+          <path d="M8 66 C16 50 26 22 40 26 S60 44 74 40 S98 28 112 40 S138 58 150 60 S156 64 160 66Z" fill="rgba(100,150,255,0.55)" style="mix-blend-mode: screen"/>
+        </svg>
+        <button onClick="{{tClip}}" aria-pressed="{{clip}}" aria-label="Show clipped shadows and highlights" style="position: absolute; left: 8px; right: 8px; bottom: 4px; height: 18px; display: flex; justify-content: space-between; align-items: center; font-size: 9.5px; color: #c9d0d8; font-variant-numeric: tabular-nums">
+          <span style="color: {{clipInk}}">▲ 0.4%</span><span>{{histMeta}}</span><span style="color: {{clipInk}}">1.2% ▲</span>
+        </button>
+      </div>
+    </sc-if>
+    <sc-if value="{{history}}" hint-placeholder-val="{{false}}">
+      <div class="glass" role="list" aria-label="History" style="position: absolute; left: 12px; top: 12px; width: 230px; padding: 6px; box-sizing: border-box; border-radius: 16px; z-index: 2">
+        <sc-for list="{{steps}}" as="h" hint-placeholder-count="8">
+          <button role="listitem" onClick="{{h.pick}}" aria-current="{{h.cur}}" style="width: 100%; height: 30px; padding: 0 8px; box-sizing: border-box; border-radius: 9px; display: flex; align-items: center; gap: 8px; text-align: left; font-size: 12px; background: {{h.bg}}; opacity: {{h.o}}">
+            <span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: {{h.dot}}"></span><span style="flex: 1">{{h.name}}</span><span style="font-size: 10.5px; color: #a6b0bc; font-variant-numeric: tabular-nums">{{h.val}}</span>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+    <sc-if value="{{versions}}" hint-placeholder-val="{{false}}">
+      <div class="glass hscroll" role="listbox" aria-label="Versions" style="position: absolute; left: 8px; right: 8px; bottom: 12px; height: 104px; border-radius: 18px; display: flex; gap: 10px; padding: 10px; box-sizing: border-box; z-index: 2">
+        <sc-for list="{{vers}}" as="v" hint-placeholder-count="4">
+          <button role="option" aria-selected="{{v.on}}" onClick="{{v.pick}}" style="flex: none; width: 76px; display: flex; flex-direction: column; align-items: center; gap: 5px">
+            <span style="position: relative; width: 76px; height: 60px; border-radius: 10px; overflow: hidden; box-shadow: 0 0 0 {{v.ringW}}px {{v.ring}}; background: rgba(232,32,42,0.2)">
+              <img src="/_blob/ebb81bda9f92b6c6da9428edc5304d7b" alt="" style="width: 100%; height: 100%; object-fit: cover; filter: {{v.filter}}; display: {{v.imgShow}}">
+              <span style="position: absolute; inset: 0; display: {{v.plusShow}}; align-items: center; justify-content: center; font-size: 24px">+</span>
+            </span>
+            <span style="font-size: 10px; color: {{v.ink}}; white-space: nowrap">{{v.name}}</span>
+          </button>
+        </sc-for>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="position: absolute; left: 0; top: 790px; width: 412px; height: 125px; background: #232525 url(/_blob/bc712267550fdecbb140e0d1d15fef3f) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+    <nav aria-label="View" style="position: absolute; left: 8px; right: 8px; top: 12px; height: 34px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+      <sc-for list="{{modes}}" as="m" hint-placeholder-count="4">
+        <button onClick="{{m.pick}}" aria-pressed="{{m.on}}" class="eng" style="position: relative; height: 34px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: {{m.ink}}"><span aria-hidden="true" style="position: absolute; left: 50%; top: 0; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: {{m.dot}}"></span>{{m.label}}</button>
+      </sc-for>
+    </nav>
+    <div style="position: absolute; left: 14px; right: 14px; bottom: 22px; font-size: 10.5px; line-height: 1.45; color: #8b8f95">{{hint}}</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { mode: 'compare', hist: true, clip: false, history: false, step: 7, ver: 1, split: 206, zoom: false, cx: 0.62, cy: 0.38, holding: false };
+    this.drag = null; this.lastTap = 0;
+  }
+  renderVals() {
+    const S = this.state, set = (o) => this.setState(o);
+    const steps = [['Imported', 'RAF'], ['Look · Kodachrome 64', '100%'], ['Exposure', '+0.35'], ['Highlights', '−48'], ['Shadows', '+31'], ['Crop', '3:2'], ['Mask · Sky', '−0.40 EV'], ['Clarity', '+8']];
+    const looks = ['none', 'contrast(1.1) saturate(0.95) sepia(0.12) hue-rotate(-8deg)', 'contrast(1.1) saturate(0.95) sepia(0.12) hue-rotate(-8deg) brightness(1.06)', 'contrast(1.05) saturate(0.95) sepia(0.12) hue-rotate(-8deg) brightness(1.04)',
+      'contrast(1.0) saturate(0.95) sepia(0.12) hue-rotate(-8deg) brightness(1.07)', 'contrast(1.0) saturate(0.95) sepia(0.12) hue-rotate(-8deg) brightness(1.07)', 'contrast(1.04) saturate(0.98) sepia(0.12) hue-rotate(-8deg) brightness(1.05)', 'contrast(1.12) saturate(0.98) sepia(0.12) hue-rotate(-8deg) brightness(1.05)'];
+    const vers = [['Original', 'none'], ['Kodachrome', looks[S.step]], ['Tri-X', 'grayscale(1) contrast(1.35)'], ['Warm', 'saturate(1.15) sepia(0.28) brightness(1.04)']];
+    const after = S.holding ? 'none' : S.ver === 1 ? looks[S.step] : vers[S.ver][1];
+    const AW = 412, AH = 738, baseW = 412, baseH = 275, Z = 7;      // 100% = one RAF pixel per screen pixel on the A35, about 7x the fitted photo
+    const imW = S.zoom ? baseW * Z : baseW, imH = S.zoom ? baseH * Z : baseH;
+    const imL = S.zoom ? AW / 2 - S.cx * imW : 0, imT = S.zoom ? AH / 2 - S.cy * imH : (AH - baseH) / 2;
+    const split = S.mode === 'compare' && !S.zoom;
+    const splitRel = Math.max(0, Math.min(baseW, S.split - imL));
+    const mode = (m) => set({ mode: S.mode === m ? null : m, history: m === 'history' ? S.mode !== 'history' : false, zoom: m === 'zoom' ? S.mode !== 'zoom' : false });
+    const hints = {
+      compare: 'BEFORE / AFTER · drag the line. Anywhere else, press and hold the photo to see the original.',
+      zoom: '100% · drag to look around; the red box shows where you are. Double-tap the photo to go in and out, or pinch.',
+      history: 'HISTORY · tap a step to go back to it; the next edit starts a new branch from there. Long-press Undo opens this too.',
+      versions: 'VERSIONS · different edits of one photo, without copies of the RAF. + keeps the current edit as a new one.',
+    };
+    return {
+      hist: S.hist, histInk: S.hist ? '#e8202a' : '#a6b0bc', tHist: () => set({ hist: !S.hist }), clip: S.clip && S.hist, clipInk: S.clip ? '#e8202a' : '#c9d0d8', tClip: () => set({ clip: !S.clip }),
+      histMeta: S.clip ? 'clipping shown' : 'tap ▲ for clipping',
+      history: S.mode === 'history', historyInk: S.mode === 'history' ? '#e8202a' : '#a6b0bc', tHistory: () => mode('history'),
+      steps: steps.map(([name, val], i) => ({ name, val, cur: String(i === S.step), bg: i === S.step ? 'rgba(232,32,42,0.2)' : 'transparent', dot: i === S.step ? '#e8202a' : i < S.step ? '#f2efe8' : '#5d6166', o: i > S.step ? 0.45 : 1, pick: () => set({ step: i, ver: 1 }) })),
+      versions: S.mode === 'versions',
+      vers: vers.concat([['New', '']]).map(([name, f], i) => ({ name, filter: f || 'none', on: String(i === S.ver), ring: i === S.ver ? '#e8202a' : 'rgba(255,255,255,0.15)', ringW: i === S.ver ? 2 : 1, ink: i === S.ver ? '#f2efe8' : '#a6b0bc',
+        imgShow: name === 'New' ? 'none' : 'block', plusShow: name === 'New' ? 'flex' : 'none', pick: () => (name === 'New' ? null : set({ ver: i })) })),
+      after, imL, imT, imW, imH, imTr: this.drag ? 'none' : 'all 320ms cubic-bezier(0.2, 0.85, 0.2, 1)', pix: S.zoom ? 'auto' : 'auto',
+      afterW: split ? `${baseW - splitRel}px` : '100%', split, splitX: S.split, zoomed: S.zoom,
+      mmL: (((-imL) / imW) * 100).toFixed(1), mmT: (((-imT) / imH) * 100).toFixed(1), mmW: ((AW / imW) * 100).toFixed(1), mmH: ((AH / imH) * 100).toFixed(1),
+      photoAria: S.zoom ? 'Photo at 100%. Drag to look around; double-tap to fit.' : 'Photo. Double-tap for 100%; press and hold for the original.',
+      pDown: (e) => {
+        const now = Date.now(), b = e.currentTarget.getBoundingClientRect(), x = e.clientX - b.left, y = e.clientY - b.top;
+        if (now - this.lastTap < 300) { this.lastTap = 0; const z = !S.zoom; set({ zoom: z, mode: z ? 'zoom' : S.mode === 'zoom' ? null : S.mode, cx: z ? Math.max(0.05, Math.min(0.95, (x - imL) / imW)) : S.cx, cy: z ? Math.max(0.05, Math.min(0.95, (y - imT) / imH)) : S.cy }); return; }
+        this.lastTap = now;
+        this.drag = { x: e.clientX, y: e.clientY, cx: S.cx, cy: S.cy, onLine: split && Math.abs(x - S.split) < 40 };
+        if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId);
+        if (!S.zoom && !this.drag.onLine) this.holdTimer = setTimeout(() => this.setState({ holding: true }), 350);
+      },
+      pMove: (e) => {
+        const d = this.drag; if (!d) return;
+        const dx = e.clientX - d.x, dy = e.clientY - d.y;
+        if (Math.hypot(dx, dy) > 6) clearTimeout(this.holdTimer);
+        if (d.onLine) return this.setState({ split: Math.max(0, Math.min(412, S.split + (e.clientX - d.x))), }) || (d.x = e.clientX);
+        if (S.zoom) this.setState({ cx: Math.max(0.03, Math.min(0.97, d.cx - dx / imW)), cy: Math.max(0.03, Math.min(0.97, d.cy - dy / imH)) });
+      },
+      pUp: () => { this.drag = null; clearTimeout(this.holdTimer); if (this.state.holding) set({ holding: false }); },
+      modes: [['compare', 'COMPARE'], ['zoom', '100%'], ['history', 'HISTORY'], ['versions', 'VERSIONS']].map(([m, label]) => ({ label, on: String(S.mode === m), ink: S.mode === m ? '#f2efe8' : '#7d8187', dot: S.mode === m ? '#e8202a' : 'transparent', pick: () => mode(m) })),
+      hint: S.holding ? 'Showing the original while you hold.' : hints[S.mode] || 'Tap a tool above. The histogram and history also live in the header.',
+    };
+  }
+}
+</script>
+</body>
+</html>

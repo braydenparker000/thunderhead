@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Crop · camera plate</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#000}
+a{color:#6aa2ff}a:hover{color:#9cc0ff}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+.glass{background:linear-gradient(180deg,rgba(255,255,255,0.17),rgba(255,255,255,0.06));-webkit-backdrop-filter:blur(18px) saturate(1.8);backdrop-filter:blur(18px) saturate(1.8);border:1px solid rgba(255,255,255,0.22);box-shadow:inset 0 1px 0 rgba(255,255,255,0.38),inset 0 -1px 1px rgba(255,255,255,0.06),0 14px 34px rgba(0,0,0,0.55)}
+.lens{background:radial-gradient(ellipse at 50% 20%,rgba(255,255,255,0.34),rgba(255,255,255,0.10) 60%,rgba(255,255,255,0.06));box-shadow:inset 0 1px 0 rgba(255,255,255,0.5),inset 0 -2px 6px rgba(0,0,0,0.25)}
+.hscroll{overflow-x:auto;overflow-y:hidden;scrollbar-width:none;-webkit-overflow-scrolling:touch}.hscroll::-webkit-scrollbar{display:none}
+.fly{animation-duration:440ms;animation-timing-function:cubic-bezier(0.2,0.9,0.25,1.15);animation-fill-mode:both}
+@keyframes fly0{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly1{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly2{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly3{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly4{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly5{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly6{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}@keyframes fly7{from{opacity:0;transform:translate(var(--dx),44px) scale(0.35)}to{opacity:1;transform:none}}
+.eng{text-shadow:0 -1px 0 rgba(0,0,0,0.85),0 1px 0 rgba(255,255,255,0.06)}
+.key{background:linear-gradient(180deg,#2c2e2f,#1b1c1d);box-shadow:inset 0 1px 0 rgba(255,255,255,0.12),inset 0 -1px 0 rgba(0,0,0,0.5),0 0 0 1px #0b0c0c,0 2px 4px rgba(0,0,0,0.7)}
+</style>
+</helmet>
+<div style="width: 412px; height: 915px; box-sizing: border-box; position: relative; background: #000000; color: #eceff4; font-family: Inter, system-ui, sans-serif; overflow: hidden">
+
+  <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 0 8px; z-index: 2">
+    <button aria-label="Back to Photos" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+    <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+      <span style="font-size: 14px; font-weight: 600">DSCF0412</span>
+      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">23 mm · f/5.6 · 1/250 · ISO 160</span>
+    </div>
+    <div style="display: flex; align-items: center">
+      <button aria-label="Show histogram" aria-pressed="false" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a6b0bc" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
+      <button aria-label="Undo" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h10a6 6 0 010 12h-3"/></svg></button>
+      <button style="height: 32px; padding: 0 13px; margin-left: 4px; border-radius: 16px; background: #e8202a; color: #fff; font-size: 13px; font-weight: 600">Export</button>
+    </div>
+  </header>
+
+  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: 540px; overflow: hidden; perspective: 900px">
+    <div style="position: absolute; left: {{boxL}}px; top: {{boxT}}px; width: {{boxW}}px; height: {{boxH}}px">
+      <img src="/_blob/ebb81bda9f92b6c6da9428edc5304d7b" alt="The photo being cropped" style="position: absolute; left: 50%; top: 50%; width: {{imgW}}px; height: {{imgH}}px; margin: {{imgMT}}px 0 0 {{imgML}}px; transform: {{imgTf}}; transition: transform {{imgTr}}; display: block">
+      <div style="position: absolute; left: {{cx}}px; top: {{cy}}px; width: {{cw}}px; height: {{ch}}px; box-shadow: 0 0 0 1px rgba(255,255,255,0.85), 0 0 0 2000px rgba(0,0,0,0.62); transition: {{cropTr}}">
+        <sc-for list="{{grid}}" as="g" hint-placeholder-count="4">
+          <span aria-hidden="true" style="position: absolute; left: {{g.l}}; top: {{g.t}}; width: {{g.w}}; height: {{g.h}}; background: rgba(255,255,255,{{g.a}})"></span>
+        </sc-for>
+        <sc-for list="{{handles}}" as="h" hint-placeholder-count="4">
+          <span role="button" aria-label="Drag the {{h.name}} corner" onPointerDown="{{h.down}}" onPointerMove="{{h.move}}" onPointerUp="{{h.up}}" onPointerCancel="{{h.up}}"
+                style="position: absolute; left: {{h.l}}; top: {{h.t}}; width: 44px; height: 44px; margin: -22px 0 0 -22px; touch-action: none; cursor: nwse-resize">
+            <span aria-hidden="true" style="position: absolute; left: {{h.il}}px; top: {{h.it}}px; width: 18px; height: 18px; border-style: solid; border-color: #fff; border-width: {{h.bw}}; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7))"></span>
+          </span>
+        </sc-for>
+      </div>
+    </div>
+    <span style="position: absolute; right: 12px; top: 10px; font-size: 11px; font-weight: 500; padding: 4px 9px; border-radius: 11px; background: rgba(0,0,0,0.6); font-variant-numeric: tabular-nums">{{dims}}</span>
+  </div>
+
+  <div style="position: absolute; left: 0; top: 600px; width: 412px; height: 315px; background: #232525 url(/_blob/bc712267550fdecbb140e0d1d15fef3f) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+    <div role="status" aria-label="{{ctl}} {{valText}} {{unit}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, #050606, #0b0c0d); box-shadow: inset 0 2px 5px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.10)">
+      <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">{{ctlUp}}</span>
+      <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{unit}}</span>
+      <span style="position: absolute; left: 22px; right: 22px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #1c1e20"></span>
+      <span style="position: absolute; left: 50%; top: 30px; width: 1.5px; height: 10px; margin: -5px 0 0 -0.75px; background: #6a6e73"></span>
+      <span style="position: absolute; left: {{fillL}}px; width: {{fillW}}px; top: 30px; height: 3px; margin-top: -1.5px; border-radius: 2px; background: #e8202a; box-shadow: 0 0 8px rgba(232,32,42,0.55)"></span>
+      <span style="position: absolute; left: {{numX}}px; top: 30px; transform: translate(-50%, -50%); height: 20px; padding: 0 8px; border-radius: 10px; display: flex; align-items: center; background: #0b0c0d; box-shadow: 0 0 0 1.5px #e8202a, 0 2px 6px rgba(0,0,0,0.8); color: #f2efe8; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; transition: left 90ms ease-out">{{valText}}</span>
+      <span aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; background: linear-gradient(170deg, rgba(255,255,255,0.06) 0, rgba(255,255,255,0) 40%)"></span>
+    </div>
+    <div aria-hidden="true" style="position: absolute; left: 0; top: 58px; width: 412px; height: 150px; background: url(/_blob/a0c3786c44b0ef98460647f4fc2dbe4c) 0 {{spinY}}px / 412px 1800px no-repeat"></div>
+    <div role="slider" aria-label="{{ctl}}" aria-valuemin="{{vmin}}" aria-valuemax="{{vmax}}" aria-valuenow="{{valNow}}" aria-valuetext="{{valText}} {{unit}}" tabindex="0"
+         onPointerDown="{{dDown}}" onPointerMove="{{dMove}}" onPointerUp="{{dUp}}" onPointerCancel="{{dUp}}" onKeyDown="{{dKey}}"
+         style="position: absolute; left: 0; top: 58px; width: 412px; height: 108px; touch-action: none; cursor: ew-resize; outline: none"></div>
+    <span aria-hidden="true" style="position: absolute; left: 50%; top: 64px; margin-left: -4px; width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 6px solid #e8202a"></span>
+
+    <div class="hscroll" role="toolbar" aria-label="{{group}} options" style="position: absolute; left: 0; right: 0; top: 166px; height: 36px; display: flex; align-items: center; gap: 4px; padding: 0 14px">
+      <sc-for list="{{chips}}" as="p" hint-placeholder-count="7">
+        <button onClick="{{p.pick}}" aria-pressed="{{p.on}}" aria-label="{{p.aria}}" class="eng fly" style="--dx: {{p.dx}}px; animation-name: {{p.anim}}; animation-delay: {{p.delay}}ms; flex: none; position: relative; height: 34px; padding: 0 {{p.pad}}px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px">
+          <span style="font-size: {{p.size}}px; font-weight: 600; letter-spacing: 0.14em; color: {{p.ink}}">{{p.name}}</span>
+          <span style="font-size: 9px; letter-spacing: 0.04em; color: {{p.valueInk}}; font-variant-numeric: tabular-nums">{{p.value}}</span>
+          <span aria-hidden="true" style="position: absolute; left: 50%; bottom: 0; width: 12px; height: 2px; margin-left: -6px; border-radius: 1px; background: {{p.bar}}"></span>
+        </button>
+      </sc-for>
+    </div>
+
+    <nav aria-label="Crop sections" style="position: absolute; left: 14px; right: 14px; top: 206px; height: 30px; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr))">
+      <sc-for list="{{groups}}" as="s" hint-placeholder-count="4">
+        <button onClick="{{s.pick}}" aria-current="{{s.current}}" class="eng" style="position: relative; height: 30px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: {{s.ink}}">
+          <span aria-hidden="true" style="position: absolute; left: 50%; top: 0; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: {{s.dot}}"></span>{{s.label}}
+        </button>
+      </sc-for>
+    </nav>
+
+    <div style="position: absolute; left: 14px; bottom: 22px; display: flex; gap: 8px">
+      <button class="key" onClick="{{auto}}" style="height: 40px; padding: 0 16px; border-radius: 12px; display: flex; align-items: center; gap: 7px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4"><span aria-hidden="true" style="width: 6px; height: 6px; border-radius: 50%; background: #e8202a; box-shadow: 0 0 6px rgba(232,32,42,0.7)"></span>AUTO</button>
+      <button class="key" onClick="{{reset}}" style="height: 40px; padding: 0 16px; border-radius: 12px; font-size: 10px; font-weight: 600; letter-spacing: 0.14em; color: #dedbd4">RESET</button>
+    </div>
+  </div>
+
+  <button class="glass" aria-label="Back to the tools" style="position: absolute; right: 14px; bottom: 18px; width: 56px; height: 56px; border-radius: 28px; display: flex; align-items: center; justify-content: center; z-index: 3">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.6"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.6"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.6"/></svg>
+  </button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":412,"height":915}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { group: 'Straighten', ctl: 'Angle', aspect: 'Original', portrait: false, quarter: 0, flipH: false, flipV: false,
+      vals: { Angle: 0, Vertical: 0, Horizontal: 0, Scale: 0 }, spin: 0, turning: false, crop: null };
+    this.drag = null; this.corner = null;
+  }
+  renderVals() {
+    const S = this.state, set = (o) => this.setState(o);
+    // the image box: the photo fitted into the stage, turned by quarter turns
+    const odd = S.quarter % 2 === 1, natW = odd ? 1067 : 1600, natH = odd ? 1600 : 1067;
+    const k = Math.min(372 / natW, 500 / natH), boxW = natW * k, boxH = natH * k;
+    const ratios = { Original: 1600 / 1067, Free: null, '1:1': 1, '4:5': 4 / 5, '3:2': 3 / 2, '16:9': 16 / 9, '65:24': 65 / 24 };
+    let ratio = ratios[S.aspect];
+    if (S.aspect === 'Original' && odd) ratio = 1067 / 1600;
+    if (ratio && S.portrait && ratio !== 1 && S.aspect !== 'Original') ratio = 1 / ratio;   // the swap key turns 3:2 into 2:3
+    const fit = (r) => { let w = boxW, h = w / r; if (h > boxH) { h = boxH; w = h * r; } return { x: (boxW - w) / 2, y: (boxH - h) / 2, w, h }; };
+    const crop = S.crop || (ratio ? fit(ratio) : { x: 0, y: 0, w: boxW, h: boxH });
+    const v = S.vals, a = (v.Angle * Math.PI) / 180;
+    // scale the turned photo up just enough to keep the crop covered
+    const cover = Math.max(1, (crop.w * Math.cos(Math.abs(a)) + crop.h * Math.sin(Math.abs(a))) / boxW, (crop.w * Math.sin(Math.abs(a)) + crop.h * Math.cos(Math.abs(a))) / boxH);
+    const imgW = odd ? boxH : boxW, imgH = odd ? boxW : boxH;
+    const tf = `rotateX(${(v.Vertical * 0.18).toFixed(2)}deg) rotateY(${(-v.Horizontal * 0.18).toFixed(2)}deg) rotate(${S.quarter * 90 + v.Angle}deg) scale(${((S.flipH ? -1 : 1) * cover * (1 + v.Scale / 200)).toFixed(4)}, ${((S.flipV ? -1 : 1) * cover * (1 + v.Scale / 200)).toFixed(4)})`;
+    // grid: thirds at rest, a fine level grid while the dial turns
+    const n = S.turning ? 8 : 3, grid = [];
+    for (let i = 1; i < n; i++) {
+      const p = `${((i / n) * 100).toFixed(2)}%`, al = S.turning ? (i % 2 ? 0.16 : 0.3) : 0.35;
+      grid.push({ l: p, t: '0', w: '1px', h: '100%', a: al }, { l: '0', t: p, w: '100%', h: '1px', a: al });
+    }
+    const corners = [['top left', 0, 0], ['top right', 1, 0], ['bottom left', 0, 1], ['bottom right', 1, 1]];
+    const handles = corners.map(([name, fx, fy]) => ({
+      name, l: fx ? '100%' : '0', t: fy ? '100%' : '0', il: fx ? 22 - 18 + 2 : 22 - 2, it: fy ? 22 - 18 + 2 : 22 - 2,
+      bw: `${fy ? 0 : 3}px ${fx ? 3 : 0}px ${fy ? 3 : 0}px ${fx ? 0 : 3}px`,
+      down: (e) => { this.corner = { fx, fy, x: e.clientX, y: e.clientY, c: { ...crop } }; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
+      move: (e) => {
+        const d = this.corner; if (!d) return;
+        const c = d.c, dx = e.clientX - d.x, dy = e.clientY - d.y;
+        let x0 = c.x, y0 = c.y, x1 = c.x + c.w, y1 = c.y + c.h;
+        if (fx) x1 = Math.min(boxW, Math.max(x0 + 60, x1 + dx)); else x0 = Math.max(0, Math.min(x1 - 60, x0 + dx));
+        if (ratio) { const h = (x1 - x0) / ratio; if (fy) y1 = y0 + h; else y0 = y1 - h; if (y0 < 0 || y1 > boxH) return; }
+        else if (fy) y1 = Math.min(boxH, Math.max(y0 + 60, y1 + dy)); else y0 = Math.max(0, Math.min(y1 - 60, y0 + dy));
+        set({ crop: { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } });
+      },
+      up: () => { this.corner = null; },
+    }));
+    // the dial drives whichever control is active
+    const ranges = { Angle: [45, '°', 0.25], Vertical: [100, '', 100 / 180], Horizontal: [100, '', 100 / 180], Scale: [100, '', 100 / 180] };
+    const [range, unit, perDeg] = ranges[S.ctl];
+    const val = v[S.ctl], f = val / range, half = 164;
+    const fmt = (x, c) => (x > 0.04 ? '+' : x < -0.04 ? '−' : '') + (c === 'Angle' ? Math.abs(x).toFixed(1) : Math.round(Math.abs(x)));
+    const R = 240, PERIOD = 360 / 72;
+    const frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
+    const setVal = (c, x) => set({ vals: { ...this.state.vals, [c]: Math.max(-ranges[c][0], Math.min(ranges[c][0], x)) } });
+    // rows: what each section offers
+    const rows = {
+      Straighten: [{ name: 'Auto', pick: () => set({ ctl: 'Angle', vals: { ...v, Angle: -1.8 } }) }, { name: 'Angle', value: fmt(v.Angle, 'Angle') + '°', on: S.ctl === 'Angle', pick: () => set({ ctl: 'Angle' }) }],
+      Aspect: Object.keys(ratios).map((r) => ({ name: r, on: S.aspect === r, pick: () => set({ aspect: r, crop: null }) }))
+        .concat([{ name: '⇄', aria: 'Swap orientation', on: S.portrait, size: 14, pick: () => set({ portrait: !S.portrait, crop: null }) }]),
+      Rotate: [{ name: '⟲ 90°', pick: () => set({ quarter: (S.quarter + 3) % 4, crop: null }) }, { name: '⟳ 90°', pick: () => set({ quarter: (S.quarter + 1) % 4, crop: null }) },
+        { name: 'Flip ↔', on: S.flipH, pick: () => set({ flipH: !S.flipH }) }, { name: 'Flip ↕', on: S.flipV, pick: () => set({ flipV: !S.flipV }) }],
+      Geometry: [{ name: 'Upright', pick: () => set({ ctl: 'Vertical', vals: { ...v, Vertical: 22, Angle: -1.8 } }) }]
+        .concat(['Vertical', 'Horizontal', 'Scale'].map((c) => ({ name: c, value: fmt(v[c], c), on: S.ctl === c, pick: () => set({ ctl: c }) }))),
+    };
+    const groups = Object.keys(rows);
+    const gi = groups.indexOf(S.group), secX = 14 + (384 / 4) * (gi + 0.5);
+    let cx = 14;
+    const chips = rows[S.group].map((o, i) => {
+      const w = 16 + Math.max(o.name.length, String(o.value ?? '').length * 0.8) * 7.6, c = cx + w / 2; cx += w + 4;
+      return { name: o.name.toUpperCase(), value: o.value ?? '', on: String(!!o.on), aria: o.aria ?? o.name, pad: 8, size: o.size ?? 10,
+        ink: o.on ? '#f2efe8' : '#80848a', valueInk: o.on ? '#e8202a' : '#6a6e73', bar: o.on ? '#e8202a' : 'transparent',
+        dx: (secX - c).toFixed(0), delay: i * 32, anim: 'fly' + gi, pick: o.pick };
+    });
+    const fullW = odd ? 5152 : 7728, fullH = odd ? 7728 : 5152;          // the X-E5's 40 MP frame
+    const outW = Math.round((crop.w / boxW) * fullW), outH = Math.round((crop.h / boxH) * fullH);
+    return {
+      boxL: (412 - boxW) / 2, boxT: (540 - boxH) / 2, boxW, boxH, imgW, imgH, imgML: -imgW / 2, imgMT: -imgH / 2, imgTf: tf,
+      imgTr: S.turning ? '60ms linear' : '380ms cubic-bezier(0.2, 0.85, 0.2, 1)', cropTr: this.corner ? 'none' : 'all 320ms cubic-bezier(0.2, 0.85, 0.2, 1)',
+      cx: crop.x, cy: crop.y, cw: crop.w, ch: crop.h, grid, handles, dims: `${outW} × ${outH} · ${((outW * outH) / 1e6).toFixed(1)} MP`,
+      ctl: S.ctl === 'Angle' ? 'Straighten' : S.ctl, ctlUp: (S.ctl === 'Angle' ? 'Straighten' : S.ctl).toUpperCase(), unit,
+      valText: fmt(val, S.ctl) + unit, valNow: val.toFixed(1), vmin: -range, vmax: range,
+      fillL: (186 + Math.min(0, f) * half).toFixed(1), fillW: (Math.abs(f) * half).toFixed(1), numX: Math.max(34, Math.min(338, 186 + f * half)).toFixed(1),
+      spinY: -Math.floor(frac * 12) * 150,
+      dDown: (e) => { this.drag = { x: e.clientX, v: val, s: S.spin }; set({ turning: true }); if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
+      dMove: (e) => { const d = this.drag; if (!d) return; const deg = ((e.clientX - d.x) / R) * (180 / Math.PI); this.setState({ spin: d.s + deg, vals: { ...this.state.vals, [S.ctl]: Math.max(-range, Math.min(range, d.v + deg * perDeg)) } }); },
+      dUp: () => { this.drag = null; setTimeout(() => this.setState({ turning: false }), 250); },
+      dKey: (e) => { const st = S.ctl === 'Angle' ? 0.1 : 1; if (e.key === 'ArrowRight') setVal(S.ctl, val + st); if (e.key === 'ArrowLeft') setVal(S.ctl, val - st); },
+      group: S.group, chips,
+      groups: groups.map((g) => ({ label: g.toUpperCase(), current: String(g === S.group), ink: g === S.group ? '#f2efe8' : '#7d8187', dot: g === S.group ? '#e8202a' : 'transparent',
+        pick: () => set({ group: g, ctl: g === 'Geometry' ? 'Vertical' : 'Angle' }) })),
+      auto: () => set({ vals: { ...v, Angle: -1.8 }, ctl: 'Angle' }),
+      reset: () => set({ vals: { Angle: 0, Vertical: 0, Horizontal: 0, Scale: 0 }, aspect: 'Original', portrait: false, quarter: 0, flipH: false, flipV: false, crop: null, ctl: 'Angle' }),
+    };
+  }
+}
+</script>
+</body>
+</html>
