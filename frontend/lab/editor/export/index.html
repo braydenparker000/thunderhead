@@ -19,7 +19,7 @@
     <div style="flex: 1; min-width: 0"><div style="font-size: 14px; font-weight: 600">Export</div><div style="font-size: 11px; color: #a6b0bc">{{who}}</div></div>
   </header>
 
-  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: 400px; display: flex; align-items: center; justify-content: center">
+  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(400px - var(--cut)); display: flex; align-items: center; justify-content: center">
     <div style="position: relative; width: {{pvW}}px; height: {{pvH}}px; transition: width 300ms ease, height 300ms ease">
       <img src="/lab/editor/assets/sample.jpg" alt="The edited photo" style="width: 100%; height: 100%; object-fit: cover; display: block; filter: contrast(1.12) saturate(0.85) sepia(0.08)">
       <sc-if value="{{mark}}" hint-placeholder-val="{{false}}"><span style="position: absolute; right: 10px; bottom: 8px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: rgba(255,255,255,0.75); text-shadow: 0 1px 3px rgba(0,0,0,0.7)">© YOUR NAME</span></sc-if>
@@ -29,7 +29,7 @@
     </div>
   </div>
 
-  <div style="position: absolute; left: 12px; right: 12px; top: 462px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
+  <div style="position: absolute; left: 12px; right: 12px; top: calc(462px - var(--cut)); display: grid; grid-template-columns: 1fr 1fr; gap: 8px">
     <sc-for list="{{cards}}" as="c" hint-placeholder-count="2">
       <div class="glass" style="position: relative; height: 118px; border-radius: 16px; box-shadow: 0 0 0 {{c.ringW}}px #e8202a, 0 14px 34px rgba(0,0,0,0.55)">
         <button onClick="{{c.pick}}" aria-pressed="{{c.sel}}" aria-label="Edit the {{c.name}} export" style="position: absolute; inset: 0; padding: 12px; box-sizing: border-box; text-align: left; display: flex; flex-direction: column; gap: 3px">
@@ -56,7 +56,7 @@
     </div>
   </sc-if>
 
-  <div style="position: absolute; left: 0; top: 600px; width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+  <div style="position: absolute; left: 0; top: calc(600px - var(--cut)); width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
     <div role="status" aria-label="{{ctlUp}} {{valText}} {{unit}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, #050606, #0b0c0d); box-shadow: inset 0 2px 5px rgba(0,0,0,0.95), inset 0 0 0 1px rgba(0,0,0,0.8), 0 1px 0 rgba(255,255,255,0.10)">
       <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">{{ctlUp}}</span>
       <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{unit}}</span>
