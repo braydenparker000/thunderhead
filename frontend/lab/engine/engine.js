@@ -19,7 +19,7 @@ const worker = new Worker(new URL('./decode-worker.js', import.meta.url), { type
 let eng = null, busy = false, again = false;
 /** @type {Map<string, ArrayBuffer> | null} */
 let files = null;
-/** @type {ReturnType<typeof catalogue>} */
+/** @type {Awaited<ReturnType<typeof catalogue>>} */
 let list = [];
 const frames = /** @type {number[]} */ ([]);
 // Exposure the developer adds before your own: the camera's DR mode (DR200/DR400 shoot 1/2 stops under)
@@ -29,36 +29,38 @@ let shotEv = 0;
 
 // Decoding on every core needs this page cross-origin isolated (isolate.js).
 const isolated = isolate('/lab/engine/');
-
+const on = (/** @type {string} */ id) => /** @type {HTMLInputElement} */ ($(id)).checked;
 
 const draw = async () => {
   if (!eng) return;
   if (busy) { again = true; return; }
   busy = true;
-  const t = await eng.render(Number(ev.value) + shotEv, Number(ct.value));
+  const t = await eng.render(Number(ev.value) + shotEv, Number(ct.value), { rebuild: on('hl'), dither: on('dz'), exact: on('exact') });
   busy = false;
-  frames.push(t); if (frames.length > 30) frames.shift();
-  stats['Frame (GPU)'] = `${ms(t)} · median ${ms([...frames].sort((a, b) => a - b)[frames.length >> 1])}`;
+  // a frame that re-made the colour table (a new profile, Contrast) is timed apart from one that only read it (Exposure)
+  if (eng.last.baked) stats['Frame, colour table re-made'] = ms(t);
+  else { frames.push(t); if (frames.length > 30) frames.shift(); stats['Frame (GPU)'] = `${ms(t)} · median ${ms([...frames].sort((a, b) => a - b)[frames.length >> 1])}`; }
   show();
   if (again) { again = false; draw(); }
 };
 ev.addEventListener('input', () => { $('evv').textContent = `${Number(ev.value) >= 0 ? '+' : ''}${Number(ev.value).toFixed(2)} EV`; draw(); });
 ct.addEventListener('input', () => { $('ctv').textContent = Number(ct.value).toFixed(2); draw(); });
+for (const id of ['hl', 'dz', 'exact']) $(id).addEventListener('change', () => { frames.length = 0; draw(); });
 
-/** Fills the picker for this camera, Adobe Standard first. @param {string} model */
-const fillPicker = (model) => {
+/** Fills the picker for this camera and picks Adobe Color (Adobe Standard when the set has no Adobe Color). @param {string} model */
+const fillPicker = async (model) => {
   if (!files) return;
-  list = catalogue(files, model);
+  list = await catalogue(files, model);
   pick.replaceChildren(...[{ label: 'Camera matrix (no profile)' }, ...list].map((e, k) => Object.assign(document.createElement('option'), { value: String(k - 1), textContent: e.label })));
   pick.disabled = false;
-  const std = list.findIndex((e) => /Adobe Standard/.test(e.label));
-  pick.value = String(std);
+  const color = list.findIndex((e) => e.label === 'Adobe Color');
+  pick.value = String(color >= 0 ? color : list.findIndex((e) => /Adobe Standard/.test(e.label)));
 };
 const usePick = () => {
   if (!eng) return;
   const e = list[Number(pick.value)] || null, k = eng.setProfile(e);
   $('kelvin').textContent = `${k} K`;
-  $('which').textContent = e ? `${e.label}: ${e.profile.name}${e.table ? ' + look table' : ''}` : 'Camera matrix and a simple curve: no profile';
+  $('which').textContent = e ? `${e.label}: ${e.profile.look2 ? `${e.profile.model} Adobe Standard + the look's table and curve` : e.profile.name}${e.table ? ' + look table' : ''}` : 'Camera matrix and a simple curve: no profile';
   draw().then(check);
 };
 /** The colour check: this render against the camera's own JPEG (in the simulation it was shot with). */
@@ -71,7 +73,7 @@ const check = async () => {
 };
 pick.addEventListener('change', usePick);
 
-const loadSet = async (/** @type {ArrayBuffer} */ buf) => { files = await unzip(buf); fillPicker(stats.Camera?.split(' · ')[0] || ''); };
+const loadSet = async (/** @type {ArrayBuffer} */ buf) => { files = await unzip(buf); await fillPicker(stats.Camera?.split(' · ')[0] || ''); };
 $('profiles').addEventListener('change', async (e) => {
   const f = /** @type {HTMLInputElement} */ (e.target).files?.[0];
   if (!f) return;
@@ -103,8 +105,9 @@ $('file').addEventListener('change', async (e) => {
   stats['Editing copy'] = `${r.width} × ${r.height}`;
   try {
     eng = await engine(canvas, r, new URLSearchParams(location.search).has('readback'));
+    /** @type {any} */ (window).__engine = eng;   // for the checks run from outside the page
     stats.GPU = eng.adapter; stats.Upload = ms(eng.uploadMs); stats.Status = 'Ready: move the sliders';
-    if (files) fillPicker(`${r.meta.make} ${r.meta.model}`);
+    if (files) await fillPicker(`${r.meta.make} ${r.meta.model}`);
     usePick();
     await draw();
     stats['To developed image'] = ms(performance.now() - t0);

@@ -1,0 +1,164 @@
+// @ts-check
+// The GPU stage's shader (gpu.js runs it): one pass per frame, and the pass that bakes the colour table.
+/** The colour table's points per axis. */
+export const N = 65;
+export const WGSL = /* wgsl */ `
+struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0: vec4f, a1: vec4f, a2: vec4f, b0: vec4f, b1: vec4f, b2: vec4f,
+  f: vec4f,      // ev, contrast, table amount, unused
+  size: vec4u,   // w, h, rotation (0..3), flags (1 hsm, 2 look, 4 tone, 8 table, 16 hsm sRGB value, 32 look sRGB value,
+                 // 64 no table, 128 second look, 256 its value is sRGB, 512 leave clipped highlights as they are, 1024 no dither)
+  hsm: vec4u, look: vec4u, tab: vec4u,     // dims h, s, v, offset · same · tone offset, table n, table offset, unused
+  g: vec4f,      // highlights, shadows, whites, blacks (−1..1)
+  k: vec4f,      // saturation, vibrance (−1..1), unused, unused
+  look2: vec4u,  // a look file's own table, after the profile's: dims h, s, v, offset
+  wb: vec4f,     // the white balance as gains on camera R, G, B (green 1)
+  chroma: vec4f };   // the highlight rebuild's colour offsets, white-balanced (raw's chroma() × wb)
+@group(0) @binding(0) var<storage, read> src: array<u32>;
+@group(0) @binding(1) var<uniform> p: P;
+@group(0) @binding(2) var dst: texture_storage_2d<rgba8unorm, write>;
+@group(0) @binding(3) var<storage, read> t: array<f32>;
+@group(0) @binding(4) var lutOut: texture_storage_3d<rgba16float, write>;
+@group(0) @binding(5) var lutIn: texture_3d<f32>;
+const N = ${N}u;
+// the 3D table's input: log2 of linear ProPhoto over 16 stops, 2^-12 to 2^4, so shadows get as many points as
+// highlights: four cells a stop, with 1.0 (where the tone curve clips) on a point
+fn shape(c: vec3f) -> vec3f { return clamp((log2(max(c, vec3f(1e-9))) + 12.0) / 16.0, vec3f(0.0), vec3f(1.0)); }
+fn unshape(u: vec3f) -> vec3f { return exp2(u * 16.0 - 12.0); }
+fn at(i: vec3u) -> vec3f { return textureLoad(lutIn, i, 0).rgb; }
+// Reading the table: tetrahedral, not trilinear. Each cell is cut into six tetrahedra around its grey diagonal
+// and a colour mixes only its own four corners, so greys mix only greys, and the creases the hue-preserving
+// steps make where two channels are equal (r=g, g=b, b=r) lie on the cuts, not inside a cell.
+fn lookup(c: vec3f) -> vec3f {
+  let g = shape(c) * f32(N - 1u); let i = min(vec3u(g), vec3u(N - 2u)); let f = g - vec3f(i);
+  let ge = step(f.yzx, f.xyz); let lt = 1.0 - ge;               // x≥y, y≥z, z≥x, and the opposites
+  let hi = vec3u(ge * lt.zxy); let lo = vec3u(lt * ge.zxy);   // the axis with the largest fraction; the smallest
+  let mx = max(f.x, max(f.y, f.z)); let mn = min(f.x, min(f.y, f.z)); let md = f.x + f.y + f.z - mx - mn;
+  return at(i) * (1.0 - mx) + at(i + hi) * (mx - md) + at(i + 1u - lo) * (md - mn) + at(i + 1u) * mn;
+}
+fn mv(r0: vec4f, r1: vec4f, r2: vec4f, c: vec3f) -> vec3f { return vec3f(dot(r0.xyz, c), dot(r1.xyz, c), dot(r2.xyz, c)); }
+fn enc(x: f32) -> f32 { return select(1.055 * pow(x, 1.0 / 2.4) - 0.055, 12.92 * x, x <= 0.0031308); }
+fn dec(x: f32) -> f32 { return select(pow((x + 0.055) / 1.055, 2.4), x / 12.92, x <= 0.04045); }
+fn hsv(c: vec3f) -> vec3f {
+  let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b)); let d = mx - mn;
+  if (mx <= 0.0) { return vec3f(0.0); }
+  var h = 0.0;
+  if (d > 0.0) { if (mx == c.r) { h = (c.g - c.b) / d; } else if (mx == c.g) { h = 2.0 + (c.b - c.r) / d; } else { h = 4.0 + (c.r - c.g) / d; } }
+  if (h < 0.0) { h += 6.0; }
+  return vec3f(h, d / mx, mx);
+}
+fn rgb(x: vec3f) -> vec3f {
+  let h = x.x - 6.0 * floor(x.x / 6.0); let i = floor(h); let f = h - i; let v = x.z;
+  let p1 = v * (1.0 - x.y); let q = v * (1.0 - x.y * f); let r = v * (1.0 - x.y * (1.0 - f));
+  switch (u32(i)) { case 0u: { return vec3f(v, r, p1); } case 1u: { return vec3f(q, v, p1); } case 2u: { return vec3f(p1, v, r); }
+    case 3u: { return vec3f(p1, q, v); } case 4u: { return vec3f(r, p1, v); } default: { return vec3f(v, p1, q); } }
+}
+fn cell(o: u32, d: vec3u, h: u32, s: u32, v: u32) -> vec3f { let k = o + ((v * d.x + h) * d.y + s) * 3u; return vec3f(t[k], t[k + 1u], t[k + 2u]); }
+// a HueSatMap or LookTable: hue wraps, saturation and value clamp; entries are (hue shift °, sat scale, value scale)
+fn hsd(c: vec3f, d: vec4u, srgbV: bool) -> vec3f {
+  var x = hsv(max(c, vec3f(0.0)));
+  if (x.z <= 0.0) { return c; }
+  let vv = select(x.z, enc(min(x.z, 1.0)), srgbV);
+  let hf = x.x * f32(d.x) / 6.0; let h0 = u32(floor(hf)) % d.x; let h1 = (h0 + 1u) % d.x; let fh = fract(hf);
+  let sf = x.y * f32(d.y - 1u); let s0 = min(u32(floor(sf)), d.y - 1u); let s1 = min(s0 + 1u, d.y - 1u); let fs = sf - floor(sf);
+  let vf = clamp(vv, 0.0, 1.0) * f32(max(d.z, 1u) - 1u); let v0 = min(u32(floor(vf)), max(d.z, 1u) - 1u); let v1 = min(v0 + 1u, max(d.z, 1u) - 1u); let fv = vf - floor(vf);
+  let a = mix(mix(cell(d.w, d.xyz, h0, s0, v0), cell(d.w, d.xyz, h1, s0, v0), fh), mix(cell(d.w, d.xyz, h0, s1, v0), cell(d.w, d.xyz, h1, s1, v0), fh), fs);
+  let b = mix(mix(cell(d.w, d.xyz, h0, s0, v1), cell(d.w, d.xyz, h1, s0, v1), fh), mix(cell(d.w, d.xyz, h0, s1, v1), cell(d.w, d.xyz, h1, s1, v1), fh), fs);
+  let e = mix(a, b, fv);
+  x.x = x.x + e.x / 60.0; x.y = clamp(x.y * e.y, 0.0, 1.0);
+  if (srgbV && x.z <= 1.0) { x.z = dec(clamp(vv * e.z, 0.0, 1.0)); } else { x.z = x.z * e.z; }
+  return rgb(x);
+}
+fn curve(x: f32) -> f32 { let f = clamp(x, 0.0, 1.0) * 1023.0; let i = u32(floor(f)); let j = min(i + 1u, 1023u); return mix(t[p.tab.x + i], t[p.tab.x + j], f - floor(f)); }
+// Adobe's hue-preserving tone: the curve on the largest and smallest channel, the middle one in proportion
+fn tone(c0: vec3f) -> vec3f {
+  let c = clamp(c0, vec3f(0.0), vec3f(1.0)); let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b));
+  let tx = curve(mx); let tn = curve(mn); let k = select((tx - tn) / (mx - mn), 0.0, mx - mn <= 1e-6);
+  return vec3f(tn + (c.r - mn) * k, tn + (c.g - mn) * k, tn + (c.b - mn) * k);
+}
+fn film(c: vec3f) -> vec3f { let y = dot(c, vec3f(0.2126, 0.7152, 0.0722)); let ty = y / (1.0 + y * 0.6) * 1.6; return c * (ty / max(y, 1e-6)); }
+fn tab(c: vec3f) -> vec3f {
+  let n = p.tab.y; let a = clamp(mv(p.a0, p.a1, p.a2, c), vec3f(0.0), vec3f(1.0));
+  let g = pow(a, vec3f(1.0 / 2.2)) * f32(n - 1u); let i = min(vec3u(floor(g)), vec3u(n - 2u)); let f = g - vec3f(i);
+  var acc = vec3f(0.0);
+  for (var k = 0u; k < 8u; k++) {
+    let o = vec3u(k & 1u, (k >> 1u) & 1u, (k >> 2u) & 1u); let w = select(1.0 - f, f, o == vec3u(1u));
+    let q = p.tab.z + (((i.x + o.x) * n + (i.y + o.y)) * n + (i.z + o.z)) * 3u;
+    acc += vec3f(t[q], t[q + 1u], t[q + 2u]) * w.x * w.y * w.z;
+  }
+  let lin = pow(acc, vec3f(2.2));
+  return mix(c, mv(p.b0, p.b1, p.b2, lin), p.f.z);
+}
+// Highlights, Shadows, Whites, Blacks: stops added by how far a tone sits above or below middle grey (a global
+// first version: the local, edge-aware tone equalizer comes later), then Saturation and Vibrance (Vibrance
+// spares colours that are already strong). Hue-preserving: every channel is scaled alike.
+fn lights(c0: vec3f) -> vec3f {
+  let y = max(dot(c0, vec3f(0.288, 0.712, 0.0)), 1e-6); let x = log2(y / 0.18);
+  let d = p.g.x * 1.2 * smoothstep(0.0, 2.5, x) + p.g.y * 1.2 * smoothstep(0.0, 3.0, -x)
+    + p.g.z * 0.8 * smoothstep(1.5, 3.5, x) + p.g.w * 0.8 * smoothstep(2.5, 5.5, -x);
+  var c = c0 * exp2(d);
+  let l = dot(c, vec3f(0.288, 0.712, 0.0)); let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b));
+  let sat = select((mx - mn) / mx, 0.0, mx <= 0.0);
+  return max(vec3f(l) + (c - vec3f(l)) * (1.0 + p.k.x) * (1.0 + p.k.y * (1.0 - sat)), vec3f(0.0));
+}
+// everything after exposure: the HueSatMap (its value axis is flat, so it commutes with exposure), Contrast,
+// the tone and colour controls, LookTable (and a look file's), tone curve, look table, sRGB. Baked into the table whenever the
+// profile or one of those controls changes; flag 64 runs it on every pixel instead (the table's accuracy check)
+fn develop(c0: vec3f) -> vec3f {
+  var c = c0; let fl = p.size.w;
+  if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
+  let y = max(dot(c, vec3f(0.288, 0.712, 0.0)), 1e-6);
+  c = c * (0.18 * pow(y / 0.18, p.f.y) / y);
+  c = lights(c);
+  if ((fl & 2u) != 0u) { c = hsd(c, p.look, (fl & 32u) != 0u); }
+  if ((fl & 128u) != 0u) { c = hsd(c, p.look2, (fl & 256u) != 0u); }
+  if ((fl & 4u) != 0u) { c = tone(c); } else { c = film(c); }
+  if ((fl & 8u) != 0u) { c = tab(c); }
+  let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0));
+  return vec3f(enc(o.r), enc(o.g), enc(o.b));
+}
+@compute @workgroup_size(4, 4, 4)
+fn bake(@builtin(global_invocation_id) id: vec3u) {
+  if (any(id >= vec3u(N))) { return; }
+  textureStore(lutOut, id, vec4f(develop(unshape(vec3f(id) / f32(N - 1u))), 1.0));
+}
+// Blown highlights (after darktable's "inpaint opposed"): a colour the sensor clipped is rebuilt from the
+// pixel's other two, white-balanced: the cube of their mean cube root, plus how far the photo's own colours
+// near its clipped areas sit from that (raw's chroma(), fading as more colours clip). Only ever raised; with
+// all three clipped they settle on neutral at the brightest. Without it a clipped sky turns pink: the green
+// clips first, and the white balance then lifts red and blue above it.
+fn est(a: f32, b: f32) -> f32 { let m = 0.5 * (pow(max(a, 0.0), 1.0 / 3.0) + pow(max(b, 0.0), 1.0 / 3.0)); return m * m * m; }
+fn rebuild(raw: vec3f, bits: u32) -> vec3f {
+  var x = raw * p.wb.xyz; let ch = p.chroma.xyz * (0.5 * f32(3u - countOneBits(bits)));
+  for (var k = 0; k < 3; k++) {
+    if ((bits & 2u) != 0u) { x.g = max(x.g, est(x.r, x.b) + ch.g); }
+    if ((bits & 4u) != 0u) { x.b = max(x.b, est(x.r, x.g) + ch.b); }
+    if ((bits & 1u) != 0u) { x.r = max(x.r, est(x.g, x.b) + ch.r); }
+  }
+  return x / p.wb.xyz;
+}
+// Dither, against banding in skies: the screen holds 256 levels a channel, so each pixel gets a fixed
+// triangular-spread offset of up to one level (the same on all three channels: no colour speckle), fading
+// to none at pure black and white.
+fn dither(o: vec3f, at: vec2u) -> vec3f {
+  var s = at.x * 1664525u + at.y * 22695477u + 1013904223u; s = (s ^ (s >> 16u)) * 2246822519u; s = (s ^ (s >> 13u)) * 3266489917u; s = s ^ (s >> 16u);
+  let n = (f32(s & 0xffffu) - f32(s >> 16u)) / 65536.0;
+  return o + n * clamp(min(o, 1.0 - o) * 255.0, vec3f(0.0), vec3f(1.0)) / 255.0;
+}
+@compute @workgroup_size(8, 8)
+fn main(@builtin(global_invocation_id) id: vec3u) {
+  let w = p.size.x; let h = p.size.y; let fl = p.size.w;
+  if (id.x >= w || id.y >= h) { return; }
+  let i = (id.y * w + id.x) * 2u;
+  let rg = unpack2x16unorm(src[i]); let ba = unpack2x16unorm(src[i + 1u]);
+  var raw = vec3f(rg.x, rg.y, ba.x); let bits = (src[i + 1u] >> 16u) & 7u;   // alpha: which colours clipped
+  if (bits != 0u && (fl & 512u) == 0u) { raw = rebuild(raw, bits); }
+  var c = max(mv(p.m0, p.m1, p.m2, raw), vec3f(0.0));
+  if ((fl & 1u) != 0u && p.hsm.z > 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
+  c = c * exp2(p.f.x);
+  var o = vec3f(0.0);
+  if ((fl & 64u) != 0u) { o = develop(c); } else { o = lookup(c); }
+  var at = vec2u(id.x, id.y);
+  switch (p.size.z) { case 1u: { at = vec2u(h - 1u - id.y, id.x); } case 2u: { at = vec2u(w - 1u - id.x, h - 1u - id.y); } case 3u: { at = vec2u(id.y, w - 1u - id.x); } default: {} }
+  if ((fl & 1024u) == 0u) { o = dither(o, at); }
+  textureStore(dst, vec2i(at), vec4f(o, 1.0));
+}`;

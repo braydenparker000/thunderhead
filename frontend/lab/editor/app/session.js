@@ -27,13 +27,13 @@ document.addEventListener('dc:keep', (e) => { const slot = /** @type {HTMLElemen
 let worker = /** @type {Worker | null} */ (null), eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
 /** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, shotEv: number, shotK: number, shotTint: number, status: string, shot: string, count: string } | null} */
 let cur = null;
-let list = /** @type {ReturnType<typeof catalogue>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
+let list = /** @type {Awaited<ReturnType<typeof catalogue>>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
 // the slow parts made once, while the Library is up: the GPU's pipelines and the profiles read from the zip
 warm();
-const sets = /** @type {Map<string, Promise<ReturnType<typeof catalogue>>>} */ (new Map());
+const sets = /** @type {Map<string, ReturnType<typeof catalogue>>} */ (new Map());
 const profilesFor = (/** @type {string} */ model) => {
   if (!sets.has(model)) sets.set(model, storedSet().then(async (z) => (z ? catalogue(await unzip(z), model) : []), () => []));
-  return /** @type {Promise<ReturnType<typeof catalogue>>} */ (sets.get(model));
+  return /** @type {ReturnType<typeof catalogue>} */ (sets.get(model));
 };
 profilesFor('Fujifilm X-E5');
 const thumbs = /** @type {Map<string, string>} */ (new Map());
@@ -72,11 +72,11 @@ export async function open(id) {
 
 /** The shot's film simulation as a profile label to look for, from the camera's settings line. @param {string} [s] */
 const filmOf = (s) => (s || '').split(' · ')[0] || '';
-/** The profile the camera's film simulation stands for (Adobe Standard when none matches). */
+/** The profile the camera's film simulation stands for (Adobe Color when none matches, else Adobe Standard). */
 function asShot() {
   const want = film.toUpperCase();
   return list.find((e) => want && !e.table && e.label.toUpperCase().startsWith(want)) || list.find((e) => want && !e.table && e.label.toUpperCase().startsWith(want.split(' ')[0]))
-    || list.find((e) => /Adobe Standard/.test(e.label)) || null;
+    || list.find((e) => e.label === 'Adobe Color') || list.find((e) => /Adobe Standard/.test(e.label)) || null;
 }
 const chosen = () => list.find((e) => e.id === cur?.profile) || asShot();
 function applyProfile(pick = chosen()) {

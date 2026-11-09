@@ -43,3 +43,11 @@ export function compare(ours, cam) {
   const d = idx.map((i) => de2000(lab(ours[i], ours[i + 1], ours[i + 2], k), lab(cam[i], cam[i + 1], cam[i + 2]))).sort((a, b) => a - b);
   return { ev: Math.log2(k), mean: d.reduce((s, x) => s + x, 0) / Math.max(1, d.length), p90: d[Math.floor(d.length * 0.9)] || 0, n: d.length };
 }
+/** How far two renders of the same photo are apart, pixel by pixel (every `step`th): mean, 99th-percentile and worst ΔE2000.
+ * @param {ImageData} a @param {ImageData} b @param {number} step */
+export function gap(a, b, step = 7) {
+  const d = [];
+  for (let i = 0; i < a.data.length; i += 4 * step) d.push(de2000(lab(a.data[i], a.data[i + 1], a.data[i + 2]), lab(b.data[i], b.data[i + 1], b.data[i + 2])));
+  d.sort((x, y) => x - y);
+  return { mean: d.reduce((s, x) => s + x, 0) / Math.max(1, d.length), p99: d[Math.floor(d.length * 0.99)] || 0, max: d[d.length - 1] || 0, n: d.length };
+}
