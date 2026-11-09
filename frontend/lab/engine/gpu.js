@@ -9,6 +9,7 @@
 import { N, WGSL } from './wgsl.js';
 import { maskPipes, toneMask } from './mask.js';
 import { PROPHOTO_TO_SRGB, PROPHOTO_TO_ADOBE, cameraToProPhoto, inv, neutralFor, whiteOf } from './dcp.js';
+import { neutralAt } from './white.js';
 
 const ROT = /** @type {Record<string, number>} */ ({ Rotate90: 1, Rotate180: 2, Rotate270: 3 });
 const rows = (/** @type {number[]} */ m) => [m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0];
@@ -100,6 +101,14 @@ export async function engine(canvas, img, readback = false) {
   const setWhite = (wb) => { white = wb; setProfile(picked); return whiteOf(/** @type {any} */ (picked?.profile || fallback), neutral); };
   /** The shot's own white as Temp and Tint, under the current profile. */
   const shotWhite = () => whiteOf(/** @type {any} */ (picked?.profile || fallback), asShot);
+  /** The white that makes a point of the shown photo neutral (the eyedropper): `u` across and `v` down it,
+   * 0..1. Null where the sensor clipped. @param {number} u @param {number} v */
+  const whiteAt = (u, v) => {
+    const X = Math.min(ow - 1, Math.max(0, Math.floor(u * ow))), Y = Math.min(oh - 1, Math.max(0, Math.floor(v * oh)));
+    const [x, y] = [[X, Y], [Y, h - 1 - X], [w - 1 - X, h - 1 - Y], [w - 1 - Y, X]][rot];
+    const n = neutralAt(img, x, y);
+    return n && whiteOf(/** @type {any} */ (picked?.profile || fallback), n);
+  };
   /** @param {number} ev @param {number} contrast
    * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, amount?: number, screen?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
    * each −1..1; amount: the look table's strength (1 = as made); screen: false renders without showing it; exact: every
@@ -151,5 +160,5 @@ export async function engine(canvas, img, readback = false) {
   };
   /** Frees this photo's GPU memory (the device and pipelines stay for the next). */
   const dispose = () => { for (const b of [src, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); };
-  return { render, setProfile, setWhite, shotWhite, snapshot, dispose, last, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  return { render, setProfile, setWhite, shotWhite, whiteAt, snapshot, dispose, last, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

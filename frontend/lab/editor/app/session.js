@@ -25,7 +25,7 @@ img.src = '/lab/editor/assets/sample.jpg';
 document.addEventListener('dc:keep', (e) => { const slot = /** @type {HTMLElement} */ (/** @type {CustomEvent} */ (e).detail); if (slot.dataset.keep === 'photo') slot.replaceChildren(ready ? canvas : img); });
 
 let worker = /** @type {Worker | null} */ (null), eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
-/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, shotEv: number, shotK: number, shotTint: number, status: string, shot: string, count: string } | null} */
+/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
 let cur = null;
 let list = /** @type {Awaited<ReturnType<typeof catalogue>>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
 // the slow parts made once, while the Library is up: the GPU's pipelines and the profiles read from the zip
@@ -48,8 +48,8 @@ export async function open(id) {
   const p = store.photos().find((x) => x.id === id);
   if (!p || cur?.id === id) return;
   const edit = (await store.loadEdit(id)) || {};
-  cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([, v]) => typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
-  ready = false; eng?.dispose(); eng = null; film = ''; thumbs.clear(); img.src = await store.jpegUrl(id); place(); changed();
+  cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
+  ready = false; picking = false; canvas.style.cursor = ''; eng?.dispose(); eng = null; film = ''; thumbs.clear(); img.src = await store.jpegUrl(id); place(); changed();
   worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' });
   const buf = await store.raw(id), me = cur;
   const r = await new Promise((res) => {
@@ -79,17 +79,27 @@ function asShot() {
     || list.find((e) => e.label === 'Adobe Color') || list.find((e) => /Adobe Standard/.test(e.label)) || null;
 }
 const chosen = () => list.find((e) => e.id === cur?.profile) || asShot();
+/** The shot's own white as the plate shows it: Temp to 50 K, Tint whole. */
+const shotWb = () => [Math.round((cur?.shotK || 5500) / 50) * 50, Math.round(cur?.shotTint || 0)];
 function applyProfile(pick = chosen()) {
   if (!eng || !cur) return;
   eng.setProfile(pick);
   const w = eng.shotWhite(); cur.shotK = w.kelvin; cur.shotTint = w.tint;
-  if (!cur.values.Temp) cur.values.Temp = Math.round(w.kelvin / 50) * 50;
+  // edits saved before Tint became the photo's own number kept it as a distance from the shot's
+  if (cur.oldTint) { cur.values.Tint += Math.round(w.tint); cur.oldTint = false; }
+  if (cur.wb === 'As shot') [cur.values.Temp, cur.values.Tint] = shotWb();
+  else if (WB[cur.wb]) [cur.values.Temp, cur.values.Tint] = /** @type {[number, number]} */ (WB[cur.wb]);
   white();
 }
+/** Temp and Tint are the photo's own (as Lightroom shows them); "As shot" is the camera's white exactly. */
 function white() {
-  if (!eng || !cur) return;
-  const preset = WB[cur.wb], moved = cur.values.Temp !== Math.round(cur.shotK / 50) * 50 || cur.values.Tint !== 0;
-  eng.setWhite(preset ? { kelvin: preset[0], tint: preset[1] } : moved ? { kelvin: cur.values.Temp, tint: cur.shotTint + cur.values.Tint } : null);
+  if (eng && cur) eng.setWhite(cur.wb === 'As shot' ? null : { kelvin: cur.values.Temp, tint: cur.values.Tint });
+}
+/** After Temp or Tint moved by hand: back on the shot's own values is "As shot" again. */
+function custom() {
+  if (!cur) return;
+  const [k, t] = shotWb();
+  cur.wb = cur.values.Temp === k && cur.values.Tint === t ? 'As shot' : 'Custom'; white();
 }
 
 async function draw() {
@@ -104,7 +114,7 @@ async function draw() {
 function save() {
   clearTimeout(saveT);
   const me = cur;
-  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile }); }, 400);
+  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile, v: 2 }); }, 400);
 }
 
 /** The open photo's camera JPEG (for a tile still being drawn). */
@@ -126,36 +136,53 @@ export function toDial(name) {
   const v = value(name);
   if (name === 'Exposure') return v;
   if (name === 'Temp') return cur ? Math.log2(v / cur.shotK) / 0.25 : 0;
-  if (name === 'Tint') return v / 30;
+  if (name === 'Tint') return (v - shotWb()[1]) / 30;
   return v / 20;
 }
 /** The dial turned to `d`. @param {string} name @param {number} d */
 export function turn(name, d) {
   if (!cur) return;
-  const v = name === 'Exposure' ? Math.round(d * 100) / 100 : name === 'Temp' ? Math.round((cur.shotK * 2 ** (d * 0.25)) / 50) * 50 : name === 'Tint' ? Math.round(d * 30) : Math.round(d * 20);
+  const v = name === 'Exposure' ? Math.round(d * 100) / 100 : name === 'Temp' ? Math.round((cur.shotK * 2 ** (d * 0.25)) / 50) * 50 : name === 'Tint' ? shotWb()[1] + Math.round(d * 30) : Math.round(d * 20);
   if (cur.values[name] === v) return;
   cur.values[name] = v;
-  if (name === 'Temp' || name === 'Tint') { cur.wb = 'Custom'; white(); }
+  if (name === 'Temp' || name === 'Tint') custom();
   changed(); draw(); save();
 }
+/** Where an adjustment starts for this photo. @param {string} name */
+const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : ZERO[name] ?? 0);
 /** Whether an adjustment has moved from where the photo started. @param {string} name */
-export const edited = (name) => !!cur && cur.values[name] !== (name === 'Temp' ? Math.round(cur.shotK / 50) * 50 : ZERO[name] ?? 0);
+export const edited = (name) => !!cur && cur.values[name] !== start(name);
 /** @param {string} name */
 export function reset(name) {
   if (!cur) return;
-  cur.values[name] = name === 'Temp' ? Math.round(cur.shotK / 50) * 50 : ZERO[name] ?? 0;
-  if (name === 'Temp' || name === 'Tint') { cur.wb = 'As shot'; white(); }
+  cur.values[name] = start(name);
+  if (name === 'Temp' || name === 'Tint') custom();
   changed(); draw(); save();
 }
 /** A white balance preset from the plate's menu. @param {string} name */
 export function setWb(name) {
   if (!cur || !(name in WB)) return;
-  cur.wb = name; const p = WB[name];
-  cur.values.Temp = p ? p[0] : Math.round(cur.shotK / 50) * 50; cur.values.Tint = 0;
+  pickWhite(false); cur.wb = name; [cur.values.Temp, cur.values.Tint] = WB[name] || shotWb();
   white(); changed(); draw(); save();
 }
+let picking = false;
+/** The eyedropper: armed, the next tap on the photo makes what is under it neutral. Tapping its key again
+ * puts it away. @param {boolean} [on] */
+export function pickWhite(on = !picking) {
+  if (!eng || !cur || on === picking) return;
+  picking = on; canvas.style.cursor = on ? 'crosshair' : '';
+  say(on ? 'Tap something white or grey' : '');
+}
+canvas.addEventListener('click', (e) => {
+  if (!picking || !eng || !cur) return;
+  const w = eng.whiteAt(e.offsetX / canvas.clientWidth, e.offsetY / canvas.clientHeight);
+  if (!w) { say('Too bright there: tap somewhere else'); return; }
+  picking = false; canvas.style.cursor = ''; cur.status = '';
+  cur.values.Temp = Math.round(Math.min(15000, Math.max(2000, w.kelvin)) / 50) * 50; cur.values.Tint = Math.round(w.tint);
+  custom(); changed(); draw(); save();
+});
 /** The Temp a preset stands for, for the menu. @param {string} name */
-export const wbKelvin = (name) => (WB[name] ? /** @type {[number, number]} */ (WB[name])[0] : Math.round((cur?.shotK || 5500) / 50) * 50);
+export const wbKelvin = (name) => (WB[name] || shotWb())[0];
 
 /* Looks: the camera profiles on this phone, each drawn small from this photo for its tile. */
 /** The looks for the open photo, with the one it was shot with first marked. */
