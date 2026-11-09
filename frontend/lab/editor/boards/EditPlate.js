@@ -63,7 +63,7 @@ export default class Component extends DCLogic {
       dialLabel = current[0]; unit = current[2] || '';
       actions = section === 'Color'
         ? [{ name: '', aria: 'Pick white balance from the photo', dropper: true, pad: 12, pick: () => { photo.pickWhite(); set({ wbMenu: false }); } }, { name: `WB · ${(real ? real.wb : S.wb).toUpperCase()}`, caret: true, expanded: String(S.wbMenu), pick: () => set({ wbMenu: !S.wbMenu }) }]
-        : [{ name: 'AUTO', auto: true }, { name: 'RESET', pick: () => photo.reset(current[0]) }];
+        : [{ name: 'AUTO', auto: true, pick: section === 'Light' ? photo.auto : undefined }, { name: 'RESET', pick: () => photo.reset(current[0]) }];
     }
     // the row flies out of the section name that was tapped: each chip starts at that name and springs into place
     const secX = 14 + (384 / 5) * (Object.keys(sets).indexOf(section) + 0.5);
