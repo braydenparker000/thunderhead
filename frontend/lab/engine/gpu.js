@@ -197,5 +197,15 @@ export async function engine(canvas, img, readback = false) {
     }
     return gpuMs;
   };
-  return { render, setProfile, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  /** The last render's pixels, for the colour check. */
+  const snapshot = async () => {
+    const b = device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }), enc = device.createCommandEncoder();
+    enc.copyTextureToBuffer({ texture: out }, { buffer: b, bytesPerRow: row }, [ow, oh]); device.queue.submit([enc.finish()]);
+    await b.mapAsync(GPUMapMode.READ);
+    const b8 = new Uint8Array(b.getMappedRange()), px = new Uint8ClampedArray(ow * oh * 4);
+    for (let y = 0; y < oh; y++) px.set(b8.subarray(y * row, y * row + ow * 4), y * ow * 4);
+    b.unmap(); b.destroy();
+    return new ImageData(px, ow, oh);
+  };
+  return { render, setProfile, snapshot, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

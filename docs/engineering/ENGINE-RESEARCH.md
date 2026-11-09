@@ -286,3 +286,10 @@ files; lensfun (LGPL-3 / CC BY-SA 3.0); LSD on IPOL (AGPL-3); bm3d (non-commerci
 MAT, SegFormer licences; MediaPipe image segmenter docs; WebGPU limits survey (web3dsurvey.com); Dawn
 source (Mali workarounds); Chrome File System Access docs; Chrome Memory64 intent; raw.pixls.us
 (Fujifilm X-H2, X-T5, X100VI samples, CC0).
+
+**Colour check (2026-11-09).** `/lab/engine/` now compares each render with the camera's own JPEG on a
+96 × 64 grid: the brightness gap in EV, then mean ΔE2000 once brightness is equalised. Measured here:
+X-T5, PROVIA, ΔE 2.6; the X-H2 portrait sample, 4.1–8.3 across profiles. A +0.25 EV baseline plus
+Fuji's DR setting (maker note 0x1403) keeps every file within ±0.17 EV of the camera. rawler reads no orientation from
+a RAF, so it comes from the camera JPEG's Exif 0x0112. On the owner's A15, with a 46 MB X-E5 file:
+decode 5.3 s, first developed image 6.9 s, frame 21 ms median.

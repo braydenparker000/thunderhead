@@ -4,6 +4,7 @@
 // set (kept in this browser only), and show what each step costs on this phone.
 import { engine } from './gpu.js';
 import { catalogue, saveSet, storedSet, unzip } from './profiles.js';
+import { compare, grid } from './compare.js';
 
 const $ = (/** @type {string} */ id) => /** @type {HTMLElement} */ (document.getElementById(id));
 const canvas = /** @type {HTMLCanvasElement} */ ($('view')), ev = /** @type {HTMLInputElement} */ ($('ev')), ct = /** @type {HTMLInputElement} */ ($('ct'));
@@ -20,12 +21,16 @@ let files = null;
 /** @type {ReturnType<typeof catalogue>} */
 let list = [];
 const frames = /** @type {number[]} */ ([]);
+// Exposure the developer adds before your own: the camera's DR mode (DR200/DR400 shoot 1/2 stops under)
+// and a per-camera baseline (what Adobe's converter adds), measured against the camera JPEG.
+const BASELINE_EV = 0.25;
+let shotEv = 0;
 
 const draw = async () => {
   if (!eng) return;
   if (busy) { again = true; return; }
   busy = true;
-  const t = await eng.render(Number(ev.value), Number(ct.value));
+  const t = await eng.render(Number(ev.value) + shotEv, Number(ct.value));
   busy = false;
   frames.push(t); if (frames.length > 30) frames.shift();
   stats['Frame (GPU)'] = `${ms(t)} · median ${ms([...frames].sort((a, b) => a - b)[frames.length >> 1])}`;
@@ -49,7 +54,15 @@ const usePick = () => {
   const e = list[Number(pick.value)] || null, k = eng.setProfile(e);
   $('kelvin').textContent = `${k} K`;
   $('which').textContent = e ? `${e.label}: ${e.profile.name}${e.table ? ' + look table' : ''}` : 'Camera matrix and a simple curve: no profile';
-  draw();
+  draw().then(check);
+};
+/** The colour check: this render against the camera's own JPEG (in the simulation it was shot with). */
+const check = async () => {
+  if (!eng || preview.hidden || !preview.complete) return;
+  const shot = await eng.snapshot(), c = compare(grid(await createImageBitmap(shot)), grid(preview));
+  stats['Vs camera JPEG'] = `brightness ${c.ev >= 0 ? '+' : ''}${c.ev.toFixed(2)} EV · colour ΔE ${c.mean.toFixed(1)} (90%: ${c.p90.toFixed(1)})`;
+  /** @type {any} */ (window).__check = { ...c, profile: pick.selectedOptions[0]?.textContent };
+  show();
 };
 pick.addEventListener('change', usePick);
 
@@ -73,7 +86,7 @@ $('file').addEventListener('change', async (e) => {
   const t1 = performance.now();
   const r = await new Promise((res) => {
     worker.onmessage = (m) => {
-      if (m.data.preview) { preview.src = URL.createObjectURL(m.data.preview); preview.hidden = false; stats["Camera's JPEG on screen"] = ms(performance.now() - t0); show(); return; }
+      if (m.data.preview) { shotEv = BASELINE_EV + Math.log2((m.data.dr || 100) / 100); stats['DR mode'] = `DR${m.data.dr || 100}`; preview.src = URL.createObjectURL(m.data.preview); preview.hidden = false; stats["Camera's JPEG on screen"] = ms(performance.now() - t0); show(); return; }
       res(m.data);
     };
     worker.postMessage(buf, [buf]);
