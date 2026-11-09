@@ -120,26 +120,37 @@ fn tab(c: vec3f) -> vec3f {
   let lin = pow(acc, vec3f(2.2));
   return mix(c, mv(p.b0, p.b1, p.b2, lin), p.f.z);
 }
-// Whites and Blacks: stops added by how far a tone sits above or below middle grey (a global first version),
-// then Saturation and Vibrance (Vibrance spares colours that are already strong). Hue-preserving: every
-// channel is scaled alike.
-fn lights(c0: vec3f) -> vec3f {
-  let y = max(dot(c0, LUM), 1e-6); let x = log2(y / 0.18);
-  let d = p.g.z * 0.8 * smoothstep(1.5, 3.5, x) + p.g.w * 0.8 * smoothstep(2.5, 5.5, -x);
-  var c = c0 * exp2(d);
+// Contrast, Whites and Blacks are one curve over stops from middle grey, which stays where it is: Contrast is
+// the curve's slope there. Above grey it runs to white (1.0, where the profile's curve ends), below to black
+// (BLACK stops under grey), and Whites and Blacks move the scene brightness that lands on each: a stop either
+// way for Whites, four for Blacks. Each half is the one-bend curve through (0,0) and (1,1) with slope a at the
+// start and 1/a at the end, carried on straight past the end, so nothing clips that didn't before.
+const WHITE = 2.474;   // stops from middle grey to white: log2(1 / 0.18)
+const BLACK = 8.0;     // stops from middle grey to what counts as black
+fn bend(u: f32, a: f32) -> f32 { return select(a * u / (1.0 + (a - 1.0) * u), 1.0 + (u - 1.0) / a, u > 1.0); }
+fn shade(v: f32) -> f32 {
+  let x = log2(max(v, 1e-9) / 0.18);
+  if (x >= 0.0) { let w = WHITE - p.g.z; return 0.18 * exp2(WHITE * bend(x / w, p.f.y * w / WHITE)); }
+  let b = BLACK + 4.0 * p.g.w; return 0.18 * exp2(-BLACK * bend(-x / b, p.f.y * b / BLACK));
+}
+// The curve goes on as the profile's own does (tone()): on the largest and smallest channel, the middle one
+// keeping its place between them. Hue stays, and colour strengthens with contrast, as it does in Lightroom.
+fn tones(c0: vec3f) -> vec3f {
+  let c = max(c0, vec3f(0.0)); let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b));
+  let tx = shade(mx); let tn = shade(mn); let k = select((tx - tn) / (mx - mn), 0.0, mx - mn <= 1e-7 * mx);
+  return vec3f(tn) + (c - vec3f(mn)) * k;
+}
+// Saturation and Vibrance (Vibrance spares colours that are already strong): a first version, every channel
+// moved from the pixel's luminance alike.
+fn lights(c: vec3f) -> vec3f {
   let l = dot(c, LUM); let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b));
   let sat = select((mx - mn) / mx, 0.0, mx <= 0.0);
   return max(vec3f(l) + (c - vec3f(l)) * (1.0 + p.k.x) * (1.0 + p.k.y * (1.0 - sat)), vec3f(0.0));
 }
-// everything after exposure and Highlights and Shadows: the HueSatMap (its value axis is flat, so it commutes
-// with both), Contrast, Whites, Blacks and the colour controls, LookTable (and a look file's), tone curve, look
-// table, sRGB. Baked into the table whenever the profile or one of those controls changes; flag 64 runs it on
-// every pixel instead (the table's accuracy check)
 fn develop(c0: vec3f) -> vec3f {
   var c = c0; let fl = p.size.w;
   if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
-  let y = max(dot(c, LUM), 1e-6);
-  c = c * (0.18 * pow(y / 0.18, p.f.y) / y);
+  if (p.f.y != 1.0 || p.g.z != 0.0 || p.g.w != 0.0) { c = tones(c); }
   c = lights(c);
   if ((fl & 2u) != 0u) { c = hsd(c, p.look, (fl & 32u) != 0u); }
   if ((fl & 128u) != 0u) { c = hsd(c, p.look2, (fl & 256u) != 0u); }
