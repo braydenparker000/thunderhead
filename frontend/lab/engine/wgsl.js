@@ -249,12 +249,20 @@ fn relight(x: f32, hi: f32, sh: f32) -> f32 {
     + sh * select(1.0, 2.0, sh > 0.0) * smoothstep(0.0, 4.0, -x) * (1.0 - 0.5 * smoothstep(6.0, 10.0, -x));
 }
 ${LOCAL}
+// How bright a pixel is, in stops, for the tools that work by areas (Highlights, Shadows, Clarity, Texture, Dehaze).
+// A full-size view takes it over the three pixels each way that make one of the editing copy's, so those tools do
+// at full size exactly what the fitted photo showed, and leave the finest detail and the grain to Sharpening and Noise.
+fn lightAt(q: vec2i, c: vec3f) -> f32 {
+  var s = dot(c, LUM);
+  if ((p.size.w & 524288u) != 0u) { s = 0.0; for (var j = -1; j <= 1; j++) { for (var i = -1; i <= 1; i++) { let t = vec2u(clamp(q + vec2i(i, j), vec2i(0), vec2i(p.size.xy) - 1)); s += dot(pixel(t.x, t.y), LUM) / 9.0; } } }
+  return log2(max(s, FLOOR));
+}
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let w = p.size.x; let h = p.size.y; let fl = p.size.w;
   if (id.x >= w || id.y >= h) { return; }
   var c = pixel(id.x, id.y);
-  let l = log2(max(dot(c, LUM), FLOOR));
+  let l = lightAt(vec2i(id.xy), c);
   let spot = ((vec2f(id.xy) + 0.5) * p.f.w + p.k.zw) / max(p.noise.zw, vec2f(1.0));   // 0..1 across the picture
   // what the masks add here to the photo's own exposure, highlights and shadows, and clarity, texture, dehaze
   var ev = p.f.x; var hi = p.g.x; var sh = p.g.y; var fx = p.fx.xyz; var lo = Local(vec4f(0.0), vec4f(0.0), vec3f(0.0), vec4f(0.0), 0.0);
