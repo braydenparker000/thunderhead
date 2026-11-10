@@ -375,13 +375,16 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   vkdt's ratio-to-green red and blue, which carry less false colour than Markesteijn's own. On the sample at
   100 % the solar panels' fine lines no longer break into coloured dashes. `info.wb` (the shot's white balance)
   is now needed by `demosaicer`: the guesses compare a site's own colour with green.
-- Next: Texture and Clarity at full size. Read again before starting: they already use the full-size pixel's
-  own brightness against the editing copy's area mask (`wgsl.js` main), so they do reach the finest detail. What
-  is wrong is the opposite: at full size Texture also lifts the one-to-three-pixel band (noise, and what
-  sharpening already handles) that the editing copy cannot show, so the export differs a little from the fitted
-  photo and a high-ISO photo gets grainier. The fix to measure: take Texture's detail from a lightly smoothed
-  brightness at full size (about the editing copy's own three pixels), leaving the finest band to Sharpening.
-- Then noise reduction (`denoise.js`: measure it on a high-ISO RAF against a clean frame of the same scene, or
+- **The area tools at full size: done.** Highlights, Shadows, Clarity, Texture and Dehaze judge a pixel's
+  brightness against an area mask made from the editing copy. At full size they used the single sensor pixel's
+  own brightness, so Texture and Clarity also lifted the one-to-three-pixel band (grain, and what Sharpening
+  already handles) that the fitted photo never showed. A full-size view now takes that brightness over three
+  pixels each way (`wgsl.js` `lightAt`), which is what one of the editing copy's pixels is: the tools do at
+  100 % and in an export what the fitted photo showed. Measured as the mean difference between the 100 % view
+  averaged three by three and the editing copy under it (of 255): plain 1.24; Texture +100 went from 1.46 to
+  1.31, Clarity +100 from 1.42 to 1.29. Texture below zero now smooths the middle detail and keeps the finest
+  (1.25 to 1.31), which is how Lightroom's behaves.
+- Next: noise reduction (`denoise.js`: measure it on a high-ISO RAF against a clean frame of the same scene, or
   on a clean crop with the sensor's own noise model added: `noise.js` has the profile), deconvolution in place of
   the unsharp mask in `finish.js`, and a heal blend that matches gradients (`mend.js`).
 
