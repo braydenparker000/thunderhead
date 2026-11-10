@@ -145,6 +145,9 @@ async function shrink(w) {
 
 /* 100 % (zoom.js): the sensor's pixels once they are on the GPU, and what the view needs of the photo. */
 export const whole = () => big;
+/** Brings the engine's colour table and tone mask back to the photo as it is on screen: a look's tile or the
+ * 100 % view's map may have drawn it another way since. For work that draws without a frame of its own (export). */
+export const settle = () => paint({ fit: false });
 /** One band of an export's JPEG, encoded on the decoder's thread (the engine's files.js asks).
  * @param {Uint8Array} rgb @param {number} w @param {number} h @param {number} quality @param {boolean} fine @returns {Promise<Uint8Array>} */
 export const jpegBand = (rgb, w, h, quality, fine) => new Promise((res, rej) => {
