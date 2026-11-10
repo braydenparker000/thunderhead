@@ -14,6 +14,7 @@ export default class Component extends DCLogic {
     const base = { fmt: 'JPEG', space: 'sRGB', sharpen: 'Off', amt: 'Standard', mark: false, meta: 'All', gps: false, naming: 'Camera name' };
     this.state = { sel: 0, group: 'Size', ctl: 'long', presets: [{ ...base, name: 'Full', on: true, size: 'Full', long: 7728, q: 95 }, { ...base, name: 'Small', on: true, size: '2048', long: 2048, q: 85, sharpen: 'Screen', mark: true }],
       working: null, done: false, day: '', saved: null, note: '' };
+    this.keep('Export', ['sel', 'group', 'ctl', 'presets']);
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
     if (photo.current()) day().then((d) => this.setState({ day: d }), () => {});
@@ -58,10 +59,10 @@ export default class Component extends DCLogic {
     const run = () => {
       if (!on.length || W) return;
       if (real) {
-        const total = on.length * 12;
+        const total = on.length * 12, began = performance.now();
         set({ done: false, saved: null, note: '', working: { k: 0, total } });
         save(on.map((x) => ({ fmt: x.fmt, long: x.long, q: x.q, meta: x.meta, gps: x.gps, file: fileName(x), sharpen: x.sharpen, amt: x.amt })), (i, d) => this.setState({ working: { k: Math.min(total - 0.01, (i + d) * 12), total } }))
-          .then((saved) => this.setState({ working: null, done: true, saved }), (err) => this.setState({ working: null, done: true, note: String(err?.message || err) }));
+          .then((saved) => { photo.took.save = (performance.now() - began) / 1000; this.setState({ working: null, done: true, saved }); }, (err) => this.setState({ working: null, done: true, note: String(err?.message || err) }));
         return;
       }
       let k = 0; const total = on.length * 12;
@@ -79,7 +80,7 @@ export default class Component extends DCLogic {
         ink: x.on ? '#f2efe8' : '#80848a', track: x.on ? '#e8202a' : '#3a3c3f', knob: x.on ? 18 : 2,
         pick: () => set({ sel: i, ctl: defaultCtl[S.group] }), toggle: () => set({ presets: P.map((y, j) => (j === i ? { ...y, on: !y.on } : y)), done: false }) })),
       canShare: !real || (shares.length > 0 && !!navigator.canShare?.({ files: shares })), share: () => { if (shares.length) navigator.share({ files: shares }).catch(() => {}); },
-      showDone: S.done, doneTitle: S.note ? 'Not saved' : 'Saved to Downloads',
+      showDone: S.done, doneTitle: S.note ? 'Not saved' : `Saved to Downloads${real && photo.took.save > 0 ? ` · ${Math.round(photo.took.save)} s` : ''}`,
       doneLines: S.note ? [S.note] : S.saved ? S.saved.map((x) => `${x.file} · ${x.width} × ${x.height} · ${mb(x.bytes / 1e6)}`) : on.map((x) => `${fileName(x)} · ${x.long} × ${short(x)} · ${est(x)}`),
       dialLabel: `${p.name} · ${labels[ctl]}`, unit: isNum ? nums[ctl][3] : '', dialValue: (share * 2 - 1) * span, dialSpan: span, dialText: String(p[ctl]),
       dialTurn: (d) => { const patch = turned(d); if (patch) setP(patch); }, dialReset: () => setP(start[ctl]),

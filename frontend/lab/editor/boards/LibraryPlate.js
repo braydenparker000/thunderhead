@@ -31,6 +31,7 @@ export default class Component extends DCLogic {
     this.state = { view: 'grid', cullMode: false, filter: 'All', sort: 0, cols: 3, idx: real ? 0 : 6, photos: real ? real.photos : photos, shoots: real?.shoots || null, importing: false, progress: null, skip: false, spin: 0 };
     this.drag = null;
     // a photo's tile follows its edit, so the roll is read again when the open photo changes; and what the photos take on this phone
+    this.keep('Library', ['filter', 'sort', 'cols']);
     const hear = () => { if (this._host?.stale) { photo.events.removeEventListener('change', hear); return; } if (this.state.shoots) { const r = roll(), some = r.photos.length > 0; this.setState({ photos: some ? r.photos : this.demo, shoots: some ? r.shoots : null, idx: some ? Math.min(this.state.idx, r.photos.length - 1) : 6 }); } };
     photo.events.addEventListener('change', hear);
     this.app = document.body.dataset.board === 'App';

@@ -42,6 +42,8 @@ let worker = /** @type {Worker | null} */ (null);
 export let eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
 /** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, geo: import('../../engine/crop.js').Crop | null, curve: import('../../engine/grade.js').Curves | null, cube: string, masks: import('../../engine/local.js').Mask[], spots: import('../../engine/heal.js').Spot[], shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
 export let cur = null;
+/** How long the open photo's last waits were, in seconds (0: not yet): to open, for 100 % to turn sharp, to save. The boards say them, so the phone's own speed can be read off the screen. */
+export const took = { open: 0, detail: 0, save: 0 };
 export const view = { mask: -1 };   // the mask laid over the picture in red while the Masks board is up (masks.js)
 let masking = false;
 let bent = '', base = false, whole0 = [7728, 5152];   // what the engine's geometry was last made with; whether the picture shows uncropped (the Crop board); its uncropped size
@@ -69,6 +71,7 @@ export const noiseStart = (iso) => Math.max(0, Math.min(40, Math.round(20 * Math
 export async function open(id) {
   const p = store.photos().find((x) => x.id === id);
   if (!p || cur?.id === id) return;
+  const began = performance.now(); took.open = took.detail = took.save = 0;
   const edit = (await store.loadEdit(id)) || {};
   cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, cube: typeof edit.cube === 'string' ? edit.cube : '', masks: Array.isArray(edit.masks) ? /** @type {any} */ (edit.masks) : [], spots: Array.isArray(edit.spots) ? /** @type {any} */ (edit.spots) : [], shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
   ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: { ...ZERO }, wb: 'As shot', profile: '' }, state()); img.src = await store.jpegUrl(id); place(); changed();
@@ -96,7 +99,7 @@ export async function open(id) {
     if (typeof edit.Noise !== 'number') { me.values.Noise = me.noise0; if (past) for (const st of past.steps) st.st.values.Noise = me.noise0; }
     eng = e; list = l; whole0 = /Rotate(90|270)/.test(r.meta.orientation) ? [r.meta.fullHeight, r.meta.fullWidth] : [r.meta.fullWidth, r.meta.fullHeight];
     applyProfile();
-    ready = true; place(); say(''); await draw();
+    ready = true; place(); say(''); await draw(); if (cur === me) took.open = (performance.now() - began) / 1000;
     mosaic.then(async (m) => {
       const b = cur === me ? await full(e, r, m) : null;
       /** @type {any} */ (m.buffer).transfer?.(0);   // its 80 MB given back now: the GPU has its own copy

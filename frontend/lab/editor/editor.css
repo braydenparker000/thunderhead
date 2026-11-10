@@ -13,6 +13,7 @@ button{transition:transform 90ms ease,filter 90ms ease,opacity 90ms ease}
 .eng:active,[role=option]:active{opacity:0.6}
 .glass:active{filter:brightness(1.25)}
 header button:active{opacity:0.6}
+.busy::after{content:'';display:inline-block;width:5px;height:5px;margin:0 0 1px 7px;border-radius:50%;background:#e8202a;animation:beat 900ms ease-in-out infinite}@keyframes beat{0%,100%{opacity:0.25}50%{opacity:1}}
 #frame,body:not([data-board=App]) #stage{position:absolute;left:0;top:0;width:412px;height:915px;transform-origin:0 0;overflow:clip;--cut:0px}
 #frame #stage{position:absolute;inset:0;overflow:clip}
 #stage>div{height:calc(915px - var(--cut))!important;overflow:clip}

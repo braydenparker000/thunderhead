@@ -14,6 +14,7 @@ export default class Component extends DCLogic {
     this.state = { tool: 'Heal', ctl: 'Size', vals: { Size: 30, Feather: 50, Opacity: 100 }, spots: [{ x: 300, y: 52, sx: 262, sy: 40, s: 26, tool: 'Heal' }], sel: 0, viz: false };
     this.drag = null; this.tap = null;
     if (photo.current()) Object.assign(this.state, { sel: Math.max(0, heal.list().length - 1) });
+    this.keep('Heal', ['tool', 'ctl', 'vals']);
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
   }

@@ -7,10 +7,15 @@
 // DOM in place, so elements keep their identity (pointer capture survives a drag). An element marked
 // data-keep is filled by the app, not the board (the editor's photo).
 
+const kept = /** @type {Record<string, any>} */ ({});   // what boards asked to have kept, by name, while the page lives
 export class DCLogic {
   constructor(props) { this.props = props || {}; this.state = {}; this._host = null; }
+  /** A board finds itself as it was left: called in its constructor once `this.state` is set, this puts back what was
+   * kept under `name` and keeps those keys from then on (the section it was on, the control, a brush's size). */
+  keep(name, keys) { this._keep = [name, keys]; Object.assign(this.state, kept[name] || {}); }
   setState(patch) {
     this.state = { ...this.state, ...patch };
+    if (this._keep) kept[this._keep[0]] = Object.fromEntries(this._keep[1].map((k) => [k, this.state[k]]));
     if (this._host && !this._queued) { this._queued = true; queueMicrotask(() => { this._queued = false; this._host.render(); }); }
   }
 }

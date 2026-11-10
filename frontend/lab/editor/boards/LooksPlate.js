@@ -18,6 +18,7 @@ export default class Component extends DCLogic {
   constructor(props) {
     super(props);
     this.state = { face: 'Presets', look: '', del: '', note: '' };
+    this.keep('Looks', ['face']);
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
   }

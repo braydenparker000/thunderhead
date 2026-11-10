@@ -360,6 +360,11 @@ same panel as the rest (its two files as cards along the top, Save in the header
 shared layer. The Library is as it was. The page behaves as an app under the finger: keys give when pressed, a tap
 leaves no grey flash, nothing pulls to refresh, and a long press brings no browser menu (`editor.css`, `boot.js`).
 A choice on a dial (Export's sharpen amount, metadata, file name) steps with a short turn (`DialPlate` `span`).
+A board is found as it was left (`dc.js` `keep`: Edit's section and control, Heal's tool and brush, Export's
+settings, the Library's filter), until the page is reloaded. The header's histogram key opens the View board.
+While the sensor's pixels are being made for a zoomed photo a dot beats on the zoom badge. The View board's
+header says how long the photo took to open and to turn sharp, and Export's message how long the save took
+(`session.js` `took`): the owner can read the phone's speed off the screen.
 The header's Export key is blue on every board now (Edit's was, the others' were red).
 
 Check scripts (not in the repo) drive each board in headless Chromium on a landscape and a portrait RAF: the drum
