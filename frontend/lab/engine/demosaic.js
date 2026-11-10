@@ -10,13 +10,17 @@
 // The 2 × 2 eigen solver in gauss is Christoph Peters's, as vkdt marks it. The result is in the editing copy's
 // own form (two u32 a pixel, the clipped colours flagged), so the frame pass (wgsl.js) develops it unchanged.
 
+import { SPOTS, SPOT_ROWS, mendWGSL } from './mend.js';
+
 /** The pattern as vkdt lays it out (0 red, 1 green, 2 blue): green at the corners and centre of each 3 × 3 block. */
 const LAYOUT = '101121212010101121121101010212121101';
 const WGSL = /* wgsl */ `
 struct D { at: vec4i,       // the rectangle being made: x, y, width, height, in sensor pixels
            blocks: vec4i,   // the first block of directions kept (x, y), and how many across and down
            phase: vec2i,    // added to a sensor position, it lands on the pattern as laid out above
-           black: f32, scale: f32 };
+           black: f32, scale: f32,
+           n: vec4u,        // spots to retouch (heal.js): how many
+           sp: array<vec4f, ${SPOTS * SPOT_ROWS}> };
 @group(0) @binding(0) var mosaic: texture_2d<u32>;
 @group(0) @binding(1) var<uniform> d: D;
 @group(0) @binding(2) var<storage, read_write> cov: array<vec4f>;   // a block's direction: the two axes' spreads, then the first axis
@@ -25,17 +29,27 @@ struct D { at: vec4i,       // the rectangle being made: x, y, width, height, in
 const CLIP = 0.97;   // a site this near the sensor's white has clipped (raw's own threshold for the editing copy)
 // a position off the frame reads the same colour's site one pattern (6 pixels) in
 fn fold(q: vec2i) -> vec2i { let n = vec2i(textureDimensions(mosaic)); return q + select(vec2i(0), vec2i(6), q < vec2i(0)) - select(vec2i(0), vec2i(6), q >= n); }
-fn raw(q: vec2i) -> f32 { return (f32(textureLoad(mosaic, fold(q), 0).r) - d.black) * d.scale; }
+fn own(q: vec2i) -> f32 { return (f32(textureLoad(mosaic, fold(q), 0).r) - d.black) * d.scale; }
 fn colour(q: vec2i) -> u32 {   // 0 red, 1 green, 2 blue
   let s = q + d.phase + 6; let b = s / 3; let m = s - b * 3;
   if (((m.x + m.y) & 1) == 0) { return 1u; }
   return select(0u, 2u, (((b.x + b.y) & 1) == 1) != (m.y == 1));
+}
+${mendWGSL('d.sp', 'd.n.x')}
+// a site's value: its own, or near a retouched spot what the spot puts there (a site of the same colour, a whole
+// number of patterns away)
+fn raw(q: vec2i) -> f32 {
+  var v = own(q); if (near == 0u) { return v; }
+  let c = colour(q); let s = vec2f(q) + 0.5;
+  for (var i = 0u; i < d.n.x; i++) { if ((near & (1u << i)) == 0u) { continue; } let k = spot(i, s, c); if (k.x > 0.0) { v = mix(v, own(q + vec2i(d.sp[i * 5u + 1u].xy)) * k.y, k.x); } }
+  return v;
 }
 const SITE = array<vec2i, 5>(vec2i(0, 0), vec2i(2, 0), vec2i(1, 1), vec2i(0, 2), vec2i(2, 2));
 @compute @workgroup_size(8, 8)
 fn gauss(@builtin(global_invocation_id) id: vec3u) {
   if (any(vec2i(id.xy) >= d.blocks.zw)) { return; }
   let o = (d.blocks.xy + vec2i(id.xy)) * 3 - d.phase;   // the block's first sensor pixel
+  nearby(vec2f(o) + 1.5, 12.0);
   var v: array<f32, 5>; var mw = vec2f(0.0); var mb = vec2f(0.0); var smw = 0.0; var smb = 0.0;
   for (var k = 0; k < 5; k++) { let px = max(raw(o + SITE[k]), 1e-4); v[k] = px; let q = vec2f(SITE[k]); mw += q * px; smw += px; mb += q / px; smb += 1.0 / px; }
   mw /= smw; mb /= smb;
@@ -68,6 +82,7 @@ fn splat(@builtin(global_invocation_id) id: vec3u) {
   if (i32(id.x) >= gw || i32(id.y) >= d.at.w + 4) { return; }
   let q = d.at.xy - 2 + vec2i(id.xy);
   if (any(q < vec2i(0)) || any(q >= vec2i(textureDimensions(mosaic)))) { return; }
+  nearby(vec2f(q) + 0.5, 12.0);
   let b = (q + d.phase) / 3 - d.blocks.xy; let c = cov[b.y * d.blocks.z + b.x];
   let ev = clamp(c.xy, vec2f(0.01), vec2f(25.0));
   var sum = 0.0; var wsum = 0.0;
@@ -84,6 +99,7 @@ fn greenAt(q: vec2i) -> f32 { let s = fold(q) - d.at.xy + 2; return max(green[s.
 fn fix(@builtin(global_invocation_id) id: vec3u) {
   if (any(vec2i(id.xy) >= d.at.zw)) { return; }
   let q = d.at.xy + vec2i(id.xy); let gc = greenAt(q);
+  nearby(vec2f(q) + 0.5, 12.0);
   let b = (q + d.phase + 1) / 3 - d.blocks.xy; let c = cov[b.y * d.blocks.z + b.x];
   let ev = 3.0 * clamp(c.xy, vec2f(1.0), vec2f(10.0));
   var sum = vec3f(0.0); var wsum = vec3f(0.0); var clip = 0u;
@@ -135,21 +151,23 @@ function pipes(device) {
 export async function demosaicer(device, mosaic, info, maxW, maxH) {
   const [gauss, splat, fix] = await pipes(device), W = mosaic.width, H = mosaic.height, [px, py] = info.phase;
   const buf = (/** @type {number} */ size, /** @type {number} */ usage) => device.createBuffer({ size, usage });
-  const uni = buf(48, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+  const SIZE = 64 + SPOTS * SPOT_ROWS * 16, uni = buf(SIZE, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
   const cov = buf((Math.ceil(maxW / 3) + 4) * (Math.ceil(maxH / 3) + 4) * 16, GPUBufferUsage.STORAGE);
   const green = buf((maxW + 4) * (maxH + 4) * 4, GPUBufferUsage.STORAGE);
   const out = buf(maxW * maxH * 8, GPUBufferUsage.STORAGE);
   const all = [{ binding: 0, resource: mosaic.createView() }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: { buffer: cov } }, { binding: 3, resource: { buffer: green } }, { binding: 4, resource: { buffer: out } }];
   const group = (/** @type {GPUComputePipeline} */ pipe, /** @type {number} */ n) => ({ pipe, bind: device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: all.slice(0, n) }) });
   const steps = [group(gauss, 3), group(splat, 4), group(fix, 5)];
-  /** @param {GPUCommandEncoder} enc @param {number} rx @param {number} ry @param {number} rw @param {number} rh */
-  const run = (enc, rx, ry, rw, rh) => {
+  /** @param {GPUCommandEncoder} enc @param {number} rx @param {number} ry @param {number} rw @param {number} rh
+   * @param {Float32Array | null} [spots] retouching, as heal.js's `spotRows` gives it */
+  const run = (enc, rx, ry, rw, rh, spots) => {
     // the blocks whose direction a pixel of the rectangle, or of the 2 around it, reads
     const first = (/** @type {number} */ r, /** @type {number} */ ph) => Math.floor((Math.max(r - 2, 0) + ph) / 3);
     const count = (/** @type {number} */ r, /** @type {number} */ n, /** @type {number} */ N, /** @type {number} */ ph) => Math.floor((Math.min(r + n + 1, N - 1) + ph + 1) / 3) - first(r, ph) + 1;
     const bx = first(rx, px), by = first(ry, py), bw = count(rx, rw, W, px), bh = count(ry, rh, H, py);
-    const u = new ArrayBuffer(48), n = new Int32Array(u), f = new Float32Array(u);
+    const u = new ArrayBuffer(SIZE), n = new Int32Array(u), f = new Float32Array(u);
     n.set([rx, ry, rw, rh, bx, by, bw, bh, px, py]); f[10] = info.black; f[11] = 1 / (info.white - info.black);
+    if (spots) { n[12] = spots[0]; f.set(spots.subarray(4), 16); }
     device.queue.writeBuffer(uni, 0, u);
     const pass = enc.beginComputePass(), sizes = [[bw, bh], [rw + 4, rh + 4], [rw, rh]];
     steps.forEach((s, k) => { pass.setPipeline(s.pipe); pass.setBindGroup(0, s.bind); pass.dispatchWorkgroups(Math.ceil(sizes[k][0] / 8), Math.ceil(sizes[k][1] / 8)); });

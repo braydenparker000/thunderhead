@@ -792,8 +792,8 @@
   <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 0 8px; z-index: 2">
     <button aria-label="Back to Photos" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
     <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
-      <span style="font-size: 14px; font-weight: 600">DSCF0412</span>
-      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">23 mm · f/5.6 · 1/250 · ISO 160</span>
+      <span style="font-size: 14px; font-weight: 600">{{fileName}}</span>
+      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">{{shotLine}}</span>
     </div>
     <div style="display: flex; align-items: center">
       <button aria-label="Show histogram" aria-pressed="false" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a6b0bc" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
@@ -804,8 +804,9 @@
 
   <div style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(540px - var(--cut)); overflow: hidden">
     <div onPointerDown="{{pDown}}" onPointerMove="{{pMove}}" onPointerUp="{{pUp}}" onPointerCancel="{{pUp}}" aria-label="Photo. Tap a spot to {{toolVerb}} it."
-         style="position: absolute; left: 20px; top: 146px; width: 372px; height: 248px; touch-action: none; cursor: crosshair">
-      <img src="/lab/editor/assets/sample.jpg" alt="The photo being retouched" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block; filter: {{viz}}">
+         style="position: absolute; left: {{pL}}px; top: {{pT}}px; width: {{pW}}px; height: {{pH}}px; touch-action: none; cursor: crosshair">
+      <sc-if value="{{demo}}"><img src="/lab/editor/assets/sample.jpg" alt="The photo being retouched" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block; filter: {{viz}}"></sc-if>
+      <sc-if value="{{real}}"><div data-keep="photo" class="fillphoto" style="position: absolute; inset: 0; filter: {{viz}}"></div></sc-if>
       <sc-for list="{{patches}}" as="p" hint-placeholder-count="0">
         <span aria-hidden="true" style="position: absolute; left: {{p.x}}px; top: {{p.y}}px; width: {{p.s}}px; height: {{p.s}}px; margin: {{p.m}}px 0 0 {{p.m}}px; border-radius: 50%; overflow: hidden; -webkit-mask-image: radial-gradient(circle, #000 {{p.hard}}%, transparent 72%); mask-image: radial-gradient(circle, #000 {{p.hard}}%, transparent 72%); opacity: {{p.o}}">
           <img src="/lab/editor/assets/sample.jpg" alt="" style="position: absolute; left: {{p.il}}px; top: {{p.it}}px; width: 372px; height: 248px; max-width: none; filter: {{viz}}">

@@ -28,6 +28,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Curve (RGB and each colour, over the photo's histogram), colour mixer (eight colours), grading (three ranges and the whole, Blending, Balance), Vignette, Grain | `grade.js`, `wgsl.js`, `boards/CurveOverlay.js`, `boards/GradeTrio.js`, `boards/EditPlate.js` |
 | Looks board: `.cube` looks brought in and kept on the phone (Presets), an edit saved as a look of one's own (Mine), each tile this photo wearing it | `cube.js`, `editor/app/looks.js`, `boards/LooksPlate.js` |
 | Masks board: a brush, linear and radial gradients laid on the picture, ranges of colour and of brightness picked with a tap; each with its own Light, Color and Effects adjustments, Amount, Invert; shown in red | `local.js`, `brush.js`, `wgsl.js` main, `editor/app/masks.js`, `boards/MaskPlate.js` |
+| Heal board: Heal, Clone and Remove spots, each replaced from a source the engine picks nearby (it can be dragged); Size, Feather, Opacity; Visualize | `heal.js`, `mend.js`, `warp.js`, `demosaic.js`, `editor/app/heal.js`, `boards/HealPlate.js` |
 | Library: tiles that show the edit, an Edited filter, what the photos take on the phone, deleting rejects for good | `boards/LibraryPlate.js`, `editor/app/store.js` |
 | Export: Full or smaller, JPEG (bands joined by restart markers), PNG, 16-bit TIFF, Exif carried | `export.js`, `files.js`, `exif.js`, `editor/app/save.js` |
 
@@ -49,7 +50,36 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Steps 1 to 6 are done. Next: heal (7)
+## Steps 1 to 7 are done. What is left waits on the owner (8, 9) or was left out along the way
+
+Step 7, retouching (`engine/heal.js` for the maths, `mend.js` for the rule the two passes share):
+
+- **A spot is replaced by another place in the photo, on the sensor's own values, before anything else sees
+  them.** There are two places a photo's pixels enter the pipeline, and both follow the one rule: the editing copy
+  as it is laid out as the picture (`warp.js`, where it reads a source pixel), and full resolution as it is made
+  from the sensor (`demosaic.js`, where it reads a site). So a retouch is there at every zoom, in every tile, in
+  the masks made from the picture, and in the export; at 100 % the sensor's pixels match the editing copy inside
+  a spot as well as outside it (0.8 of a level, the same as anywhere).
+- The source is a whole number of the sensor's colour pattern away (6 pixels: 2 of the editing copy's), so each
+  site takes a site of its own colour. Each pass first notes which spots are near the pixel it is making (a
+  bit each, `nearby`); a pixel near none, which is nearly all of them, pays nothing more.
+- **Clone** copies the source as it is. **Heal** and **Remove** also bring it to what surrounds the spot: sixteen
+  samples of the editing copy round the spot and round the source give, for each colour, the stops to add at the
+  centre and across and down (a tilted plane), so a source from brighter sky comes in at the spot's own
+  brightness. Remove differs from Heal only in looking further afield for its source.
+- `findSource` picks the source: of 48 or 72 places round the spot, the one whose surroundings are most like
+  the spot's own once that plane is allowed for. It can be dragged anywhere.
+- A spot is kept in mask units (as masks are) with its tool, feather and opacity, in the edit's `spots`; the
+  engine gets them with the geometry (`setGeometry({ spots })`), so a change lays the picture out again (once, not
+  each frame). 32 spots at most.
+- Limits, said plainly: spots do not build on each other (each reads the photo as shot, so a spot laid over
+  another's result does not see it); Heal matches brightness and colour as a plane, not the full blend Lightroom
+  solves for, which shows only where the surroundings change sharply across the spot; Remove is not content-
+  aware fill. A feathered edge fades over at most the outer 0.62 of the radius.
+- On the board: a tap makes a spot with the chosen tool; the red ring is the chosen spot, the dashed ring its
+  source; the dial sets Size, Feather and Opacity for the chosen spot and the next; Visualize is the design's
+  high-contrast view of the photo; UNDO SPOT and CLEAR ALL.
+
 
 Step 6b, the brush (`engine/brush.js`):
 
@@ -142,8 +172,8 @@ Step 5, the colour tools. None of them costs anything per frame:
   the chosen range's brightness, Blending or Balance, and in Curve lifts the point last touched. A section's
   count includes them.
 - The wheels and the curve read a touch by their own size on screen: the page is scaled to the phone
-  (`boot.js`), so design pixels are not screen pixels. The Heal board still assumes they are (fix when it is
-  made real).
+  (`boot.js`), so design pixels are not screen pixels. (The Masks and Heal boards did; fixed as
+  each was made real.)
 - Checked through the board on a landscape and a portrait sample (each control changes the photo the right
   way, one history step a gesture, Reset puts the picture back exactly, a reload keeps it), and an export
   with everything on matches the screen to about one level in every patch.

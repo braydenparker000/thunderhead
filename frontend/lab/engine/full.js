@@ -94,7 +94,7 @@ export async function full(e, img, mosaic) {
         const c = u.slice(0), n = new Uint32Array(c), f = new Float32Array(c);
         if (cleaned !== `${f[100]},${f[101]}`) { cleaned = `${f[100]},${f[101]}`; fresh = false; }   // noise reduction is part of the rectangle's colours
         if (!fresh) {
-          dm.run(enc, at.rx, at.ry, at.rw, at.rh);
+          dm.run(enc, at.rx, at.ry, at.rw, at.rh, e.gpu.geo().spots);
           if (f[100] > 0 || f[101] > 0) dn.run(enc, at.rw, at.rh, e.gpu.noise, f[100], f[101]);
           bend.run(enc, e.gpu.geo(), { x: at.X, y: at.Y, scale: 1, w: at.cw, h: at.ch }, { x: at.rx, y: at.ry, scale: 1, w: at.rw, h: at.rh });
           fresh = true;
