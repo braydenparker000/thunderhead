@@ -345,7 +345,8 @@ What was built, and where:
   The curve and one grading wheel at a time (`boards/GradeWheel.js`) are in the panel. Profile is a strip of
   pictures (`boards/Strip.js`) sorted All, Film, Adobe, B&W, with Amount in a slim window.
 - **Crop** (`boards/CropPlate.js`): the frame always fills the room; the photo is dragged and pinched under it;
-  eight handles (corners and sides).
+  eight handles (corners and sides). Faces Straighten, Aspect, Rotate, Geometry; Auto level is the key in the
+  dial's window and Reset a key in the row. Crop still shows the photo in its own frame, not the shared layer.
 - **Looks** (`boards/LooksPlate.js`): faces Presets and Mine, the same strip, Import, Save current and Delete as
   keys in the row. The recipe samples are gone until recipes are read.
 - **Masks** (`boards/MaskPlate.js`): the masks are pills along the panel's top with Add and the overlay's eye;
@@ -355,6 +356,12 @@ What was built, and where:
   script from `index.html` (each page's board and what it imports); do not edit them by hand.
 
 Not done yet: the View board's versions and history still lie over the photo; Export and Library are as they were.
+The header's Export key is blue on every board now (Edit's was, the others' were red).
+
+Check scripts (not in the repo) drive each board in headless Chromium on a landscape and a portrait RAF: the drum
+(tap, drag, flick), the dial (drag, flick, two taps, Auto), profiles and looks as strips under the photo, masks,
+brush, heal, crop gestures, zoom across boards. Run them one at a time on a frozen copy of the tree: two at once
+on the software GPU give false failures.
 
 ## How to work here
 
