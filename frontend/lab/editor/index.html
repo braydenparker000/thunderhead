@@ -501,7 +501,7 @@
   <header style="position: absolute; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; z-index: 2; background: linear-gradient(180deg, #000 70%, rgba(0,0,0,0))">
     <div style="flex: 1; min-width: 0">
       <div style="font-size: 20px; font-weight: 700; letter-spacing: -0.01em">{{title}}</div>
-      <div style="font-size: 11px; color: #8b95a1; font-variant-numeric: tabular-nums">{{subtitle}}</div>
+      <div onClick="{{subTap}}" role="{{subRole}}" style="font-size: 11px; color: {{subInk}}; font-variant-numeric: tabular-nums">{{subtitle}}</div>
     </div>
     <button onClick="{{toggleImport}}" aria-expanded="{{importing}}" style="height: 34px; padding: 0 14px; border-radius: 17px; background: #e8202a; color: #fff; font-size: 13px; font-weight: 600">Import</button>
   </header>

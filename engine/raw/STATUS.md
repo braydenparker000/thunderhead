@@ -25,6 +25,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Zoom on the Edit and View screens: free pinch from fitted to 300 %, drag, double-tap for 100 %; the percentage and a map while zoomed | `editor/app/zoom.js` (any slot marked `data-zoom`) |
 | Undo and history (every step keeps the whole edit), versions, saved with the edit | `editor/app/past.js`, `session.js` |
 | View board: before/after against the photo as imported, histogram and clipping overlay | `boards/ViewTools.js`, `editor/app/scope.js`, `tiles.js` |
+| Library: tiles that show the edit, an Edited filter, what the photos take on the phone, deleting rejects for good | `boards/LibraryPlate.js`, `editor/app/store.js` |
 | Export: Full or smaller, JPEG (bands joined by restart markers), PNG, 16-bit TIFF, Exif carried | `export.js`, `files.js`, `exif.js`, `editor/app/save.js` |
 
 ## The plan, in order (agreed with the owner 2026-11-10)
@@ -45,7 +46,20 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Steps 1 to 3 are done. Next: step 4 (the Library)
+## Steps 1 to 4 are done. Next: step 5 (curve, colour mixer, grading, vignette, grain)
+
+Step 4, the Library. Ratings, flags, filters, sorting and culling were already real. Added:
+
+- A photo's tile is its edit: 1.5 s after the last change the session keeps a 480 px JPEG of it in OPFS
+  (`thumb/<id>.jpg`) and marks the record `edited`; back as imported, the tile is the camera's JPEG again.
+- The subtitle shows what the site keeps on the phone (`navigator.storage.estimate()`).
+- Deleting: the design has no delete control, so the Rejects filter's subtitle is the control. It reads
+  "N rejects · tap here to delete them"; a first tap asks, a second within 5 s deletes the RAF, its JPEGs, its
+  record and its edit. Not shown while culling mode is on.
+- "From a card or the camera" opens the same file picker (it can browse a card); "Watch a folder" says it
+  is not possible yet in Chrome on Android.
+
+Not done: camera import over USB (the plan leaves it out), and nothing renames or moves a photo.
 
 Step 3 turned out to be two different machines, not one:
 

@@ -152,11 +152,11 @@ export async function alone(job) {
   try { await job(); } finally { drawing = false; }
   if (again) { again = false; await draw(); }
 }
-/** The photo as last rendered, `w` pixels wide (0: the editing copy's own size): a JPEG's URL. @param {number} w */
-async function shrink(w) {
+/** The photo as last rendered, `w` pixels wide (0: the editing copy's own size), as a JPEG. @param {number} w */
+async function small(w) {
   const im = await /** @type {NonNullable<typeof eng>} */ (eng).snapshot(), bm = await createImageBitmap(im, w ? { resizeWidth: w, resizeHeight: Math.round((w * im.height) / im.width), resizeQuality: 'medium' } : {});
   const c = new OffscreenCanvas(bm.width, bm.height); /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d')).drawImage(bm, 0, 0);
-  return URL.createObjectURL(await c.convertToBlob({ type: 'image/jpeg', quality: w ? 0.8 : 0.92 }));
+  return c.convertToBlob({ type: 'image/jpeg', quality: w ? 0.8 : 0.92 });
 }
 /** The edit as it stands. @returns {hist.State} */
 export const state = () => hist.copy({ values: cur?.values || {}, wb: cur?.wb || 'As shot', profile: cur?.profile || '', geo: cur?.geo });
@@ -169,7 +169,7 @@ export async function picture(st, w, more) {
     if (cur !== me || !eng || !me) return;
     const was = state(), shown = base;
     base = false;   // always the picture as cropped, whatever board is up
-    try { if (st) { put(st); applyProfile(); } await paint({ screen: false, ...more }); url = await shrink(w); } finally { base = shown; if (st) { put(was); applyProfile(); } }
+    try { if (st) { put(st); applyProfile(); } await paint({ screen: false, ...more }); url = URL.createObjectURL(await small(w)); } finally { base = shown; if (st) { put(was); applyProfile(); } }
   });
   return url;
 }
@@ -212,8 +212,19 @@ export function save(key, name, val) {
   clearTimeout(saveT);
   const me = cur, p = past;
   if (me && p && name !== undefined) hist.note(p, key || '', name, val || '', state());
+  clearTimeout(tileT); tileT = setTimeout(() => keepTile(me), 1500);
   saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile, geo: me.geo, v: 2, ...(p ? hist.dump(p) : {}) }); }, 400);
 }
+let tileT = 0;
+/** The photo's Library tile follows its edit: a small picture of it as it now looks, or none once it is back as imported. */
+async function keepTile(/** @type {typeof cur} */ me) {
+  if (!me || cur !== me || !past) return;
+  let blob = /** @type {Blob | null} */ (null);
+  if (!hist.same(state(), past.steps[0].st)) await alone(async () => { if (cur !== me || !eng) return; const shown = base; base = false; try { await paint({ screen: false }); blob = await small(480); } finally { base = shown; } });
+  if (cur === me) { await store.saveTile(me.id, blob); changed(); }
+}
+/** Closes the open photo (it was deleted). */
+export function shut() { big?.dispose(); big = null; eng?.dispose(); eng = null; cur = null; past = null; ready = false; img.src = '/lab/editor/assets/sample.jpg'; place(); changed(); }
 /** The photo's history: each step's name and value, and the step it is at. */
 export const history = () => ({ steps: past ? past.steps.map(({ name, val }) => ({ name, val })) : [], at: past ? past.at : 0 });
 /** Back, or forward again, to a step: the edit as it stood then. @param {number} i */
