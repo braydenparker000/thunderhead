@@ -17,7 +17,9 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
   k: vec4f,      // saturation, vibrance (−1..1), then where this frame's first pixel sits in the tone mask's photo (x, y)
   look2: vec4u,  // a look file's own table, after the profile's: dims h, s, v, offset
   wb: vec4f,     // the white balance as gains on camera R, G, B (green 1); then what the stored values are multiplied by (warp.js keeps room above them)
-  chroma: vec4f };   // the highlight rebuild's colour offsets, white-balanced (raw's chroma() × wb)
+  chroma: vec4f, // the highlight rebuild's colour offsets, white-balanced (raw's chroma() × wb)
+  fx: vec4f,     // clarity, texture, dehaze (−1..1)
+  air: vec4f };  // the haze's own colour, for Dehaze (haze.js)
 @group(0) @binding(0) var<storage, read> src: array<u32>;
 @group(0) @binding(1) var<uniform> p: P;
 const CELL = ${CELL}u;
@@ -52,6 +54,8 @@ export const WGSL = /* wgsl */ `${HEAD}
 @group(0) @binding(4) var lutOut: texture_storage_3d<rgba16float, write>;
 @group(0) @binding(5) var lutIn: texture_3d<f32>;
 @group(0) @binding(6) var mask: texture_2d<f32>;
+@group(0) @binding(7) var fine: texture_2d<f32>;   // the finer mask, for Texture (mask.js)
+@group(0) @binding(8) var haze: texture_2d<f32>;   // how much of the air's light each area holds, for Dehaze
 const N = ${N}u;
 // the 3D table's input: log2 of linear ProPhoto over 16 stops, 2^-12 to 2^4, so shadows get as many points as
 // highlights: four cells a stop, with 1.0 (where the tone curve clips) on a point
@@ -206,13 +210,14 @@ fn dither(o: vec3f, at: vec2u) -> vec3f {
 // Highlights and Shadows work on how bright the pixel's area is, not the pixel: the tone mask (mask.js) holds
 // a slope and an offset for each cell of 8 × 8 pixels, and the area's brightness in stops is the slope × the
 // pixel's own log2 luminance + the offset, read between the four cells around the pixel.
-fn area(at: vec2u, l: f32) -> f32 {
-  let n = vec2i(textureDimensions(mask)); let u = ((vec2f(at) + 0.5) * p.f.w + p.k.zw) / f32(CELL) - 0.5; let i = vec2i(floor(u)); let f = u - floor(u);
+fn areaOf(m: texture_2d<f32>, cell: f32, at: vec2u, l: f32) -> f32 {
+  let n = vec2i(textureDimensions(m)); let u = ((vec2f(at) + 0.5) * p.f.w + p.k.zw) / cell - 0.5; let i = vec2i(floor(u)); let f = u - floor(u);
   let i0 = clamp(i, vec2i(0), n - 1); let i1 = clamp(i + 1, vec2i(0), n - 1);
-  let k = mix(mix(textureLoad(mask, i0, 0).xy, textureLoad(mask, vec2i(i1.x, i0.y), 0).xy, f.x),
-    mix(textureLoad(mask, vec2i(i0.x, i1.y), 0).xy, textureLoad(mask, i1, 0).xy, f.x), f.y);
+  let k = mix(mix(textureLoad(m, i0, 0).xy, textureLoad(m, vec2i(i1.x, i0.y), 0).xy, f.x),
+    mix(textureLoad(m, vec2i(i0.x, i1.y), 0).xy, textureLoad(m, i1, 0).xy, f.x), f.y);
   return k.x * l + k.y;
 }
+fn area(at: vec2u, l: f32) -> f32 { return areaOf(mask, f32(CELL), at, l); }
 // The stops they add for an area x stops from middle grey. Highlights: above it, in full from 3.5 stops up.
 // Shadows: below it, in full from 4 stops down, easing back to half in the deepest blacks (lifting those shows
 // noise, not detail). Recovering (darker highlights, lighter shadows) reaches 2 stops, the other way 1. The
@@ -227,13 +232,21 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= w || id.y >= h) { return; }
   var c = pixel(id.x, id.y);
   let l = log2(max(dot(c, LUM), FLOOR));
+  // Dehaze: an area holding a share d of the air's light lets 1 − d of the scene through; take the air's part out
+  // and scale what is left back up. Less than none lays the air's colour over everything instead.
+  if (p.fx.z > 0.0) { let t = max(1.0 - 0.65 * p.fx.z * clamp(areaOf(haze, f32(CELL), id.xy, l), 0.0, 1.0), 0.15); c = max((c - p.air.rgb * (1.0 - t)) / t, vec3f(0.0)); }
+  else if (p.fx.z < 0.0) { c = mix(c, p.air.rgb, -0.2 * p.fx.z); }
   if ((fl & 1u) != 0u && p.hsm.z > 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
   c = c * exp2(p.f.x);
-  if (p.g.x != 0.0 || p.g.y != 0.0 || (fl & 4096u) != 0u) {
+  if (p.g.x != 0.0 || p.g.y != 0.0 || p.fx.x != 0.0 || (fl & 4096u) != 0u) {
     var m = l + p.f.x;
     if ((fl & 2048u) == 0u) { m = area(id.xy, l) + p.f.x; }
-    if ((fl & 4096u) != 0u) { c = vec3f(exp2(m)); } else { c = c * exp2(relight(m - log2(0.18))); }
+    // Clarity: what the pixel adds to its area's brightness, in stops, made more or less; eased off in areas near black or white
+    let local = p.fx.x * select(0.6, 0.8, p.fx.x > 0.0) * (l + p.f.x - m) * (1.0 - smoothstep(3.0, 6.0, abs(m - log2(0.18))));
+    if ((fl & 4096u) != 0u) { c = vec3f(exp2(m)); } else { c = c * exp2(relight(m - log2(0.18)) + local); }
   }
+  // Texture: the same against the finer mask, so it is the small detail that moves
+  if (p.fx.y != 0.0) { c = c * exp2(p.fx.y * select(0.7, 0.9, p.fx.y > 0.0) * (l - areaOf(fine, 4.0, id.xy, l))); }
   var o = c;
   if ((fl & 16384u) == 0u) {
     if ((fl & 64u) != 0u) { o = develop(c); } else if ((fl & 8192u) != 0u) { o = at(vec3u(shape(c) * f32(N - 1u) + 0.5)); } else { o = lookup(c); }

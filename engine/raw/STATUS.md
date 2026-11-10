@@ -18,6 +18,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Colour: Adobe camera profiles and looks (the owner's private zip, in IndexedDB; never commit or serve them) | `dcp.js`, `gpu.js`, `profiles.js` |
 | Light and Color sliders, white balance presets, eyedropper, Auto tone, Reset | `wgsl.js`, `mask.js`, `auto.js`, `editor/app/session.js` |
 | Geometry: one pass lays the photo out as the picture; the lens's own corrections (distortion, fringing, darkened corners) from the RAF; Distortion and Vignetting by hand | `warp.js`, `lens.js` |
+| Effects: Clarity, Texture, Dehaze (each from a small mask, so they cost one lookup a pixel and match at every zoom) | `mask.js`, `haze.js`, `wgsl.js` main |
 | Crop board: crop with aspect, straighten (and Auto level), quarter turns, flips, perspective (Vertical, Horizontal, Scale) | `crop.js`, `level.js`, `boards/CropPlate.js` |
 | Full size: X-Trans demosaic (vkdt's) of the rectangle looked at, developed by the same frame pass | `demosaic.js`, `full.js` |
 | Zoom on the Edit and View screens: free pinch from fitted to 300 %, drag, double-tap for 100 %; the percentage and a map while zoomed | `editor/app/zoom.js` (any slot marked `data-zoom`) |
@@ -43,7 +44,25 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Steps 1 and 2 are done. Next: step 3 (the filter stage)
+## Steps 1, 2 and 3a are done. Next: step 3b (sharpening and noise reduction)
+
+Step 3 turned out to be two different machines, not one:
+
+- **3a, done: Clarity, Texture, Dehaze.** No full-size filtering. `mask.js` makes three small guided-filter
+  masks from the picture: the tone mask (cells of 8, also Highlights and Shadows), a finer one (cells of 4) and
+  a haze mask (the dark channel, He et al., as in darktable's haze removal; the air's colour from `haze.js`).
+  The frame pass reads them per pixel: Clarity and Texture scale what a pixel adds to its area's brightness,
+  Dehaze takes the air's share out. Because the masks are picture-sized and tiny, 100 % views and export get
+  the same result by the same lookup. Strengths are first guesses for the owner's eye (Dehaze was halved after
+  +100 turned skies purple).
+- **3b, next: Sharpening and noise reduction, at full size only** (the editing copy is a 3 × 3 bin: neither shows
+  on it). Planned in `full.js`'s region path: demosaic → noise reduction on the sensor rectangle (an à-trous
+  wavelet in a variance-stabilised luma/chroma space, as darktable's profiled denoise does; noise by ISO from
+  its X-T5/X-H2 profiles, the same sensor) → warp → frame pass into 16-bit float → one last pass that sharpens
+  (unsharp mask on luminance: Amount, Radius, Detail) and dithers → the view. Noise reduction is cached with
+  the demosaic (it runs when the rectangle moves, not per slider frame); the region's margin must grow by the
+  wavelet's reach (about 32 px). Export sharpening (Screen, Print) is the same unsharp mask on the reduced rows.
+  ISO has to be read from the camera JPEG's Exif in `decode-worker.js`. Defringe is left for after.
 
 How geometry works (step 2a), for whoever touches it:
 
