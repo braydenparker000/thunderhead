@@ -23,7 +23,7 @@ comes first, and that a heavy feature may take up to about ten seconds on the ph
 | Sharpening (Amount, Radius, Detail), Defringe, and noise reduction (Noise, Color noise) on the sensor's own pixels: 100 % and export | `finish.js`, `denoise.js`, `noise.js`, `full.js` |
 | Effects: Clarity, Texture, Dehaze (each from a small mask, so they cost one lookup a pixel and match at every zoom) | `mask.js`, `haze.js`, `wgsl.js` main |
 | Crop board: crop with aspect, straighten (and Auto level), quarter turns, flips, perspective (Vertical, Horizontal, Scale) | `crop.js`, `level.js`, `boards/CropPlate.js` |
-| Full size: X-Trans demosaic (vkdt's) of the rectangle looked at, developed by the same frame pass | `demosaic.js`, `full.js` |
+| Full size: X-Trans demosaic of the rectangle looked at (Markesteijn's green chosen by the greens alone, vkdt's red and blue), developed by the same frame pass | `demosaic.js`, `full.js`, measured by `engine/raw/quality/` |
 | One photo across the tools: the picture lives in its own layer under the boards and keeps its zoom and place from Edit to Looks, Masks and Heal. Free pinch from fitted to 300 %, drag, double-tap for 100 %; on Masks and Heal two fingers zoom and move the photo, one works the tool | `editor/app/zoom.js` (a board's `data-keep="photo" data-zoom` slot is only a window onto the layer; `data-zoom="tool"` for a tool board) |
 | Undo and history (every step keeps the whole edit), versions, saved with the edit | `editor/app/past.js`, `session.js` |
 | View board: before/after against the photo as imported, histogram and clipping overlay | `boards/ViewTools.js`, `editor/app/scope.js`, `tiles.js` |
@@ -362,6 +362,28 @@ Check scripts (not in the repo) drive each board in headless Chromium on a lands
 (tap, drag, flick), the dial (drag, flick, two taps, Auto), profiles and looks as strips under the photo, masks,
 brush, heal, crop gestures, zoom across boards. Run them one at a time on a frozen copy of the tree: two at once
 on the software GPU give false failures.
+
+## The quality pass (begun 2026-11-10)
+
+The owner asked whether each part is truly the best it can be, and said to choose quality over speed (up to about
+ten seconds for a heavy feature is acceptable). The order agreed: demosaic, full-resolution Texture and Clarity,
+noise reduction, deconvolution sharpening, a proper heal blend. Each step is measured before it is changed.
+
+- **Demosaic: done.** `engine/raw/quality/` holds the harness and what it said (its README). vkdt's green was
+  the weak part: 2 to 3 dB behind Markesteijn's. The engine now makes green Markesteijn's way (four guesses a
+  red or blue site, the smoothest kept, judged by the greens alone: five light passes instead of three) and keeps
+  vkdt's ratio-to-green red and blue, which carry less false colour than Markesteijn's own. On the sample at
+  100 % the solar panels' fine lines no longer break into coloured dashes. `info.wb` (the shot's white balance)
+  is now needed by `demosaicer`: the guesses compare a site's own colour with green.
+- Next: Texture and Clarity at full size. Read again before starting: they already use the full-size pixel's
+  own brightness against the editing copy's area mask (`wgsl.js` main), so they do reach the finest detail. What
+  is wrong is the opposite: at full size Texture also lifts the one-to-three-pixel band (noise, and what
+  sharpening already handles) that the editing copy cannot show, so the export differs a little from the fitted
+  photo and a high-ISO photo gets grainier. The fix to measure: take Texture's detail from a lightly smoothed
+  brightness at full size (about the editing copy's own three pixels), leaving the finest band to Sharpening.
+- Then noise reduction (`denoise.js`: measure it on a high-ISO RAF against a clean frame of the same scene, or
+  on a clean crop with the sensor's own noise model added: `noise.js` has the profile), deconvolution in place of
+  the unsharp mask in `finish.js`, and a heal blend that matches gradients (`mend.js`).
 
 ## How to work here
 
