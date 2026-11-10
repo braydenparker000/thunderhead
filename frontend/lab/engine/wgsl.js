@@ -7,14 +7,14 @@ export const CELL = 8;
 /** What every pass starts from: the frame's settings, the editing copy, and one of its pixels as linear ProPhoto. */
 export const HEAD = /* wgsl */ `
 struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0: vec4f, a1: vec4f, a2: vec4f, b0: vec4f, b1: vec4f, b2: vec4f,
-  f: vec4f,      // ev, contrast, table amount, unused
+  f: vec4f,      // ev, contrast, table amount, tone-mask pixels per pixel (1; a full-resolution view: 1/3)
   size: vec4u,   // w, h, rotation (0..3), flags (1 hsm, 2 look, 4 tone, 8 table, 16 hsm sRGB value, 32 look sRGB value,
                  // 64 no table, 128 second look, 256 its value is sRGB, 512 leave clipped highlights as they are, 1024 no dither,
                  // 2048 Highlights and Shadows by the pixel's own brightness (no tone mask), 4096 show the tone mask,
                  // and two for the test page's stage timer: 8192 the table's nearest entry, 16384 no colour work)
   hsm: vec4u, look: vec4u, tab: vec4u,     // dims h, s, v, offset · same · tone offset, table n, table offset, unused
   g: vec4f,      // highlights, shadows, whites, blacks (−1..1)
-  k: vec4f,      // saturation, vibrance (−1..1), unused, unused
+  k: vec4f,      // saturation, vibrance (−1..1), then where this frame's first pixel sits in the tone mask's photo (x, y)
   look2: vec4u,  // a look file's own table, after the profile's: dims h, s, v, offset
   wb: vec4f,     // the white balance as gains on camera R, G, B (green 1)
   chroma: vec4f };   // the highlight rebuild's colour offsets, white-balanced (raw's chroma() × wb)
@@ -207,7 +207,7 @@ fn dither(o: vec3f, at: vec2u) -> vec3f {
 // a slope and an offset for each cell of 8 × 8 pixels, and the area's brightness in stops is the slope × the
 // pixel's own log2 luminance + the offset, read between the four cells around the pixel.
 fn area(at: vec2u, l: f32) -> f32 {
-  let n = vec2i(textureDimensions(mask)); let u = (vec2f(at) + 0.5) / f32(CELL) - 0.5; let i = vec2i(floor(u)); let f = u - floor(u);
+  let n = vec2i(textureDimensions(mask)); let u = ((vec2f(at) + 0.5) * p.f.w + p.k.zw) / f32(CELL) - 0.5; let i = vec2i(floor(u)); let f = u - floor(u);
   let i0 = clamp(i, vec2i(0), n - 1); let i1 = clamp(i + 1, vec2i(0), n - 1);
   let k = mix(mix(textureLoad(mask, i0, 0).xy, textureLoad(mask, vec2i(i1.x, i0.y), 0).xy, f.x),
     mix(textureLoad(mask, vec2i(i0.x, i1.y), 0).xy, textureLoad(mask, i1, 0).xy, f.x), f.y);

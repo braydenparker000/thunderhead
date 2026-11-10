@@ -45,6 +45,17 @@ export class Decoded {
         }
     }
     /**
+     * The sensor data under the proxy, row by row: `cell` sensels a proxy pixel each way (meta's fullWidth x
+     * fullHeight), black level still on. Cropped in place and handed over, so this frame is left without it.
+     * @returns {Uint16Array}
+     */
+    mosaic() {
+        const ret = wasm.decoded_mosaic(this.__wbg_ptr);
+        var v1 = getArrayU16FromWasm0(ret[0], ret[1]).slice();
+        wasm.__wbindgen_free(ret[0], ret[1] * 2, 2);
+        return v1;
+    }
+    /**
      * @returns {Uint16Array}
      */
     proxy() {

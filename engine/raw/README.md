@@ -10,6 +10,11 @@ colours had a clipped sensel (bits 0 to 2: R, G, B; clipped is within 3 % of the
 sensor's blue stops about 2 % short of it), and the metadata's `chroma` is how far the photo's own colours
 sit from the rebuild's estimate, measured on the unclipped pixels beside the clipped ones.
 
+For 100 % and export, `mosaic()` hands over the sensor's own pixels (one 16-bit value a pixel, the black level
+still on, cropped to whole cells so it lines up with the proxy three to one), and the metadata says where black
+and white are and how the X-Trans pattern lies (`black`, `white`, `cfa`, `cfaWidth`, `fullWidth`, `fullHeight`).
+The page demosaics only what is looked at, on the GPU (`frontend/lab/engine/demosaic.js`, after vkdt's).
+
 Build (writes `frontend/lab/engine/pkg/`):
 
     cargo build --release --target wasm32-unknown-unknown --lib

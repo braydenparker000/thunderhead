@@ -4,6 +4,7 @@
 // matching the shot's film simulation, and every adjustment the dial turns is saved to this phone as you go.
 // Boards read values through `value`/`text`/`toDial` and listen for `change`.
 import { engine, warm } from '../../engine/gpu.js';
+import { full } from '../../engine/full.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
 import * as store from './store.js';
 
@@ -28,6 +29,9 @@ let worker = /** @type {Worker | null} */ (null), eng = /** @type {null | Awaite
 /** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
 let cur = null;
 let list = /** @type {Awaited<ReturnType<typeof catalogue>>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
+// the sensor's own pixels, for 100 % and export (they follow the editing copy); the 100 % view's small map
+let big = /** @type {Awaited<ReturnType<typeof full>>} */ (null), asked = 0, mini = '', stale = true;
+const sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
 // the slow parts made once, while the Library is up: the GPU's pipelines and the profiles read from the zip
 warm();
 const sets = /** @type {Map<string, ReturnType<typeof catalogue>>} */ (new Map());
@@ -49,15 +53,19 @@ export async function open(id) {
   if (!p || cur?.id === id) return;
   const edit = (await store.loadEdit(id)) || {};
   cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
-  ready = false; picking = false; before = null; canvas.style.cursor = ''; eng?.dispose(); eng = null; film = ''; thumbs.clear(); img.src = await store.jpegUrl(id); place(); changed();
+  ready = false; picking = false; before = null; canvas.style.cursor = ''; big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; thumbs.clear(); URL.revokeObjectURL(mini); mini = ''; stale = true; img.src = await store.jpegUrl(id); place(); changed();
   worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' });
-  const buf = await store.raw(id), me = cur;
+  const buf = await store.raw(id), me = cur, tag = ++asked;
+  let sensor = (/** @type {Uint16Array} */ m) => {};
+  const mosaic = /** @type {Promise<Uint16Array>} */ (new Promise((res) => { sensor = res; }));
   const r = await new Promise((res) => {
     /** @type {Worker} */ (worker).onmessage = (m) => {
+      if (m.data.tag !== tag) return;   // a photo left behind, still answering
+      if (m.data.mosaic) { sensor(m.data.mosaic); return; }
       if (m.data.preview) { me.shotEv = BASELINE_EV + Math.log2((m.data.dr || 100) / 100); film = filmOf(m.data.settings); me.shot = m.data.settings || ''; changed(); return; }
       res(m.data);
     };
-    /** @type {Worker} */ (worker).postMessage(buf, [buf]);
+    /** @type {Worker} */ (worker).postMessage({ buf, full: true, tag }, [buf]);
   });
   if (cur !== me) return;
   if (r.error) { say(`Couldn't open it: ${r.error}`); return; }
@@ -67,6 +75,11 @@ export async function open(id) {
     eng = e; list = l;
     applyProfile();
     ready = true; place(); say(''); await draw();
+    mosaic.then(async (m) => {
+      const b = cur === me ? await full(e, r, m) : null;
+      /** @type {any} */ (m.buffer).transfer?.(0);   // its 80 MB given back now: the GPU has its own copy
+      if (cur === me) { big = b; changed(); } else b?.dispose();
+    }).catch(() => {});
   } catch (err) { say(String(/** @type {any} */ (err)?.message || err)); }
 }
 
@@ -102,14 +115,45 @@ function custom() {
   cur.wb = cur.values.Temp === k && cur.values.Tint === t ? 'As shot' : 'Custom'; white();
 }
 
-async function draw() {
+/** One render with the photo's values. @param {Parameters<NonNullable<typeof eng>['render']>[2]} [more] */
+function paint(more) {
+  const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
+  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), ...more });
+}
+/** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is */
+async function draw(fit = true) {
   if (!eng || !cur) return;
   if (drawing) { again = true; return; }
-  drawing = true;
-  const v = cur.values, h = (/** @type {string} */ k) => v[k] / 100;
-  await eng.render(v.Exposure + cur.shotEv, 2 ** (h('Contrast') * 0.6), { amount: (cur.values.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance') });
+  drawing = true; stale ||= fit;
+  await paint({ fit });
   drawing = false;
   if (again) { again = false; draw(); }
+}
+/** Runs a job that needs the engine to itself, between the dial's frames. @param {() => Promise<void>} job */
+async function alone(job) {
+  while (drawing) await sleep(30);
+  drawing = true;
+  try { await job(); } finally { drawing = false; }
+  if (again) { again = false; await draw(); }
+}
+/** The photo as last rendered, `w` pixels wide: a JPEG's URL. @param {number} w */
+async function shrink(w) {
+  const im = await /** @type {NonNullable<typeof eng>} */ (eng).snapshot(), bm = await createImageBitmap(im, { resizeWidth: w, resizeHeight: Math.round((w * im.height) / im.width), resizeQuality: 'medium' });
+  const c = new OffscreenCanvas(bm.width, bm.height); /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d')).drawImage(bm, 0, 0);
+  return URL.createObjectURL(await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 }));
+}
+
+/* 100 % (zoom.js): the sensor's pixels once they are on the GPU, and what the view needs of the photo. */
+export const whole = () => big;
+/** The upright photo's size in sensor pixels. */
+export const shape = () => (ready ? [canvas.width * 3, canvas.height * 3] : img.naturalWidth ? [img.naturalWidth, img.naturalHeight] : [7728, 5152]);
+/** Draws the 100 % view where it now looks. */
+export async function frame() { while (drawing) await sleep(8); await draw(false); }
+/** The whole photo as edited, small, for the 100 % view's map: '' until it is made (a change follows). */
+export function small() {
+  const me = cur;
+  if (stale && eng && me) { stale = false; alone(async () => { if (cur !== me || !eng) return; await paint({ screen: false }); const url = await shrink(192); if (cur !== me) return; URL.revokeObjectURL(mini); mini = url; }).then(changed); }
+  return mini;
 }
 function save() {
   clearTimeout(saveT);
@@ -210,23 +254,16 @@ let thumbing = false;
 export async function makeThumbs() {
   if (thumbing || !eng || !cur) return;
   thumbing = true;
-  const me = cur, sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
+  const me = cur;
   try {
     for (const e of list) {
       if (cur !== me || !eng) break;
       if (thumbs.has(e.id)) continue;
-      while (drawing) await sleep(50);
-      drawing = true;
-      try {
-        const v = me.values, h = (/** @type {string} */ k) => v[k] / 100;
-        applyProfile(e);
-        await eng.render(v.Exposure + me.shotEv, 2 ** (h('Contrast') * 0.6), { screen: false, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance') });
-        const im = await eng.snapshot(), bm = await createImageBitmap(im, { resizeWidth: 132, resizeHeight: Math.round((132 * im.height) / im.width), resizeQuality: 'medium' });
-        const c = new OffscreenCanvas(bm.width, bm.height); /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d')).drawImage(bm, 0, 0);
-        thumbs.set(e.id, URL.createObjectURL(await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 })));
-      } finally { applyProfile(); drawing = false; }
+      await alone(async () => {
+        if (cur !== me || !eng) return;
+        try { applyProfile(e); await paint({ screen: false, amount: 1 }); thumbs.set(e.id, await shrink(132)); } finally { applyProfile(); }
+      });
       changed();
-      if (again) { again = false; await draw(); }
       await sleep(40);
     }
   } finally { thumbing = false; }

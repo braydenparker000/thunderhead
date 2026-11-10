@@ -3,7 +3,8 @@
 //! editing proxy: each 3 x 3 cell of the X-Trans mosaic (2 x 2 for Bayer) averaged per colour into one
 //! RGB pixel, black-subtracted and scaled to the white level, so the GPU starts from clean linear
 //! camera RGB at about 2576 x 1717 for a 40 MP frame, with no demosaic needed. Each pixel also says which of
-//! its colours had a clipped sensel, for the highlight rebuild.
+//! its colours had a clipped sensel, for the highlight rebuild. The sensor data under the proxy goes out too, as
+//! decoded, for the full-resolution view and export (demosaiced on the GPU).
 
 use rawler::decoders::RawDecodeParams;
 use rayon::prelude::*;
@@ -27,6 +28,11 @@ pub struct Decoded {
   proxy: Vec<u16>,
   pw: u32,
   ph: u32,
+  /// the sensor data as decoded, its row length, and where the proxy starts in it
+  raw: Vec<u16>,
+  stride: usize,
+  at: (usize, usize),
+  cell: usize,
 }
 
 #[wasm_bindgen]
@@ -35,6 +41,16 @@ impl Decoded {
   pub fn proxy(&self) -> Vec<u16> { self.proxy.clone() }
   pub fn width(&self) -> u32 { self.pw }
   pub fn height(&self) -> u32 { self.ph }
+  /// The sensor data under the proxy, row by row: `cell` sensels a proxy pixel each way (meta's fullWidth x
+  /// fullHeight), black level still on. Cropped in place and handed over, so this frame is left without it.
+  pub fn mosaic(&mut self) -> Vec<u16> {
+    let (w, h) = (self.pw as usize * self.cell, self.ph as usize * self.cell);
+    let mut d = std::mem::take(&mut self.raw);
+    if d.len() < (self.at.1 + h - 1) * self.stride + self.at.0 + w { return Vec::new(); }
+    for y in 0..h { let s = (self.at.1 + y) * self.stride + self.at.0; d.copy_within(s..s + w, y * w); }
+    d.truncate(w * h);
+    d
+  }
 }
 
 /// Decodes a RAF (or any raw rawler reads) held in memory.
@@ -46,16 +62,22 @@ pub fn decode(bytes: &[u8]) -> Result<Decoded, JsError> {
 pub fn decode_native(bytes: &[u8]) -> Result<Decoded, String> {
   let src = RawSource::new_from_slice(bytes);
   let decoder = rawler::get_decoder(&src).map_err(|e| format!("not a raw this engine reads: {e}"))?;
-  let raw = decoder.raw_image(&src, &RawDecodeParams::default(), false).map_err(|e| format!("decode failed: {e}"))?;
-  let (proxy, pw, ph) = bin(&raw)?;
-  let c = chroma(&proxy, pw as usize, ph as usize, &raw.wb_coeffs);
-  Ok(Decoded { meta: meta(&raw, pw, ph, c), proxy, pw, ph })
+  let mut raw = decoder.raw_image(&src, &RawDecodeParams::default(), false).map_err(|e| format!("decode failed: {e}"))?;
+  let b = bin(&raw)?;
+  let c = chroma(&b.proxy, b.pw, b.ph, &raw.wb_coeffs);
+  let meta = meta(&raw, &b, c);
+  let data = match std::mem::replace(&mut raw.data, RawImageData::Integer(Vec::new())) { RawImageData::Integer(d) => d, RawImageData::Float(_) => Vec::new() };
+  Ok(Decoded { meta, proxy: b.proxy, pw: b.pw as u32, ph: b.ph as u32, raw: data, stride: raw.width, at: (b.x0, b.y0), cell: b.n })
 }
 
 fn level(v: &rawler::formats::tiff::Rational) -> f32 { if v.d == 0 { 0.0 } else { v.n as f32 / v.d as f32 } }
 
+/// The proxy, where it starts in the sensor data, sensels a pixel each way, the black and white levels, and the
+/// colour (0 R, 1 G, 2 B) of each site of the pattern from the proxy's first sensel on, row by row.
+struct Bin { proxy: Vec<u16>, pw: usize, ph: usize, x0: usize, y0: usize, n: usize, black: f32, white: f32, cfa: String, cfa_width: usize }
+
 /// The binned proxy over the crop (or active) area.
-fn bin(raw: &RawImage) -> Result<(Vec<u16>, u32, u32), String> {
+fn bin(raw: &RawImage) -> Result<Bin, String> {
   let data = match &raw.data { RawImageData::Integer(d) => d, RawImageData::Float(_) => return Err("float raws are not handled yet".into()) };
   let cfa = match &raw.photometric { RawPhotometricInterpretation::Cfa(c) => c.cfa.clone(), _ => return Err("not a mosaic raw".into()) };
   let n = if cfa.width == 6 { 3 } else { 2 };
@@ -93,7 +115,8 @@ fn bin(raw: &RawImage) -> Result<(Vec<u16>, u32, u32), String> {
       line[px * 4 + 3] = clipped;
     }
   });
-  Ok((out, pw as u32, ph as u32))
+  let sites: String = (0..cw * ch).map(|i| char::from(b'0' + colour[((y0 + i / cw) % ch) * cw + (x0 + i % cw) % cw] as u8)).collect();
+  Ok(Bin { proxy: out, pw, ph, x0, y0, n, black, white, cfa: sites, cfa_width: cw })
 }
 
 /// For the highlight rebuild (after darktable's "inpaint opposed"): a clipped colour is estimated from the
@@ -133,12 +156,13 @@ fn chroma(p: &[u16], pw: usize, ph: usize, wb_coeffs: &[f32]) -> [f32; 3] {
 }
 
 /// What the GPU stage needs: white balance, the camera matrix for D65 (XYZ to camera), orientation.
-fn meta(raw: &RawImage, pw: u32, ph: u32, chroma: [f32; 3]) -> String {
+fn meta(raw: &RawImage, b: &Bin, chroma: [f32; 3]) -> String {
   let m = raw.color_matrix.get(&Illuminant::D65).or_else(|| raw.color_matrix.values().next());
   let mat = m.map(|v| v.iter().take(9).map(|x| format!("{x}")).collect::<Vec<_>>().join(",")).unwrap_or_default();
   let wb = raw.wb_coeffs.iter().map(|x| format!("{}", if x.is_nan() { 0.0 } else { *x })).collect::<Vec<_>>().join(",");
   format!(
-    "{{\"make\":{:?},\"model\":{:?},\"width\":{},\"height\":{},\"proxyWidth\":{},\"proxyHeight\":{},\"wb\":[{}],\"xyzToCamD65\":[{}],\"orientation\":{:?},\"chroma\":[{},{},{}]}}",
-    raw.clean_make, raw.clean_model, raw.width, raw.height, pw, ph, wb, mat, format!("{:?}", raw.orientation), chroma[0], chroma[1], chroma[2]
+    "{{\"make\":{:?},\"model\":{:?},\"width\":{},\"height\":{},\"proxyWidth\":{},\"proxyHeight\":{},\"wb\":[{}],\"xyzToCamD65\":[{}],\"orientation\":{:?},\"chroma\":[{},{},{}],\"fullWidth\":{},\"fullHeight\":{},\"black\":{},\"white\":{},\"cfa\":{:?},\"cfaWidth\":{}}}",
+    raw.clean_make, raw.clean_model, raw.width, raw.height, b.pw, b.ph, wb, mat, format!("{:?}", raw.orientation), chroma[0], chroma[1], chroma[2],
+    b.pw * b.n, b.ph * b.n, b.black, b.white, b.cfa, b.cfa_width
   )
 }
