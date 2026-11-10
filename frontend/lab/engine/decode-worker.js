@@ -5,6 +5,8 @@
 // shared memory, a rayon pool on Web Workers) so rawler decodes the RAF's strips on every core; otherwise, or
 // if the pool does not start, the one-thread build.
 
+import { lensOf } from './lens.js';
+
 /** From the camera JPEG's Exif: how to turn the photo upright (rawler reads no orientation from a RAF), and
  * Fujifilm's DR setting (100, 200 or 400) from its maker notes: DR200 and DR400 shoot 1 and 2 stops darker on
  * purpose, and the developer adds it back. @param {DataView} j */
@@ -75,6 +77,7 @@ self.onmessage = async (e) => {
         self.postMessage({ preview: new Blob([new Uint8Array(buf, off, len)], { type: 'image/jpeg' }), dr: info.dr, settings: info.settings, tag });
       }
     }
+    const lens = lensOf(buf);
     const { decode, threads } = await ready;
     const t0 = performance.now();
     const d = decode(new Uint8Array(buf));
@@ -82,6 +85,7 @@ self.onmessage = async (e) => {
     const proxy = d.proxy();
     const meta = JSON.parse(d.meta());
     if (meta.orientation === 'Normal') meta.orientation = info.orientation;
+    meta.lens = lens;   // the lens's own corrections, from the RAF (lens.js)
     const msg = { meta, width: d.width(), height: d.height(), proxy, decodeMs: t1 - t0, threads, threadsError, tag };
     self.postMessage(msg, [proxy.buffer]);
     // the sensor's pixels follow the editing copy, so the photo is on screen first

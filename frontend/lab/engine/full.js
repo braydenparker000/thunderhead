@@ -2,10 +2,12 @@
 // Full resolution, for 100 % and export: the sensor's own pixels on the GPU, and views of them. A view is a
 // rectangle of the upright photo at one sensor pixel a pixel. demosaic.js makes its colours; the frame pass
 // that develops the editing copy (wgsl.js) then develops them, with the same colour table and tone mask, so a
-// view matches the fitted photo and follows every control. Only what is looked at is ever made: a screenful at
+// view matches the fitted photo and follows every control. Between the two the rectangle is laid out as the
+// picture (warp.js): demosaic.js makes the part of the sensor it draws on, which is a little more than itself. Only what is looked at is ever made: a screenful at
 // 100 %, or one band of an export.
 import { demosaicer, phaseOf } from './demosaic.js';
 import { WGSL } from './wgsl.js';
+import { reach, warper } from './warp.js';
 
 // the frame pass writing 16-bit floats, for export: compiled at the first export, kept with its device
 const deeps = /** @type {WeakMap<GPUDevice, Promise<GPUComputePipeline>>} */ (new WeakMap());
@@ -20,7 +22,7 @@ const deepPipe = (/** @type {GPUDevice} */ device) => {
  * @param {Awaited<ReturnType<typeof import('./gpu.js').engine>>} e the photo's engine @param {{ meta: any }} img
  * @param {Uint16Array} mosaic the decoder's mosaic(): the GPU keeps its own copy, so let go of this one after */
 export async function full(e, img, mosaic) {
-  const { device, lut, rot, views } = e.gpu, W = /** @type {number} */ (img.meta.fullWidth), H = /** @type {number} */ (img.meta.fullHeight), phase = phaseOf(img.meta);
+  const { device, lut, views, bendP } = e.gpu, g0 = e.gpu.geo(), W = /** @type {number} */ (img.meta.fullWidth), H = /** @type {number} */ (img.meta.fullHeight), phase = phaseOf(img.meta);
   if (!phase || mosaic.length !== W * H || Math.max(W, H) > device.limits.maxTextureDimension2D) return null;
   const tex = device.createTexture({ size: [W, H], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
   const BAND = 1024;   // rows a step: 80 MB goes over without holding the page still
@@ -28,7 +30,7 @@ export async function full(e, img, mosaic) {
     device.queue.writeTexture({ texture: tex, origin: [0, y] }, mosaic, { offset: y * W * 2, bytesPerRow: W * 2 }, [W, Math.min(BAND, H - y)]);
     await new Promise((r) => setTimeout(r));
   }
-  const [fw, fh] = rot % 2 ? [H, W] : [W, H], info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white) };
+  const fw = g0.ow, fh = g0.oh, info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white) };
   const open = /** @type {Set<() => void>} */ (new Set());
   /** A view of up to maxW × maxH pixels, shown on `canvas` if one is given. Once it has a place it follows the
    * engine's renders: `onframe` is called, in the task that draws it, with the rectangle each one shows.
@@ -38,7 +40,10 @@ export async function full(e, img, mosaic) {
   const view = async (maxW, maxH, canvas = null, readback = false, deep = false) => {
     [maxW, maxH] = [Math.min(maxW, fw), Math.min(maxH, fh)];
     const pipe = deep ? await deepPipe(device) : e.gpu.pipe, size = deep ? 8 : 4;
-    const dm = await demosaicer(device, tex, info, rot % 2 ? maxH : maxW, rot % 2 ? maxW : maxH);
+    // the sensor rectangle a view draws on is larger than the view by the lens's stretch and the resampling's margin
+    const [dw, dh] = (g0.rot % 2 ? [maxH, maxW] : [maxW, maxH]).map((v, k) => Math.min(k ? H : W, Math.ceil(v * 1.25) + 16));
+    const dm = await demosaicer(device, tex, info, dw, dh);
+    const flat = device.createBuffer({ size: maxW * maxH * 8, usage: GPUBufferUsage.STORAGE }), bend = warper(device, bendP, dm.out, flat);
     const uni = device.createBuffer({ size: 352, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const out = device.createTexture({ size: [maxW, maxH], format: deep ? 'rgba16float' : 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
     const ctx = canvas && !readback ? /** @type {GPUCanvasContext} */ (canvas.getContext('webgpu')) : null;
@@ -62,18 +67,24 @@ export async function full(e, img, mosaic) {
     async function read() { return new ImageData(await bytes(), /** @type {Rect} */ (made).cw); }
     async function halves() { return new Uint16Array((await bytes()).buffer); }
     const hook = {
+      /** The geometry changed: the same rectangle of the picture now draws on another part of the sensor. */
+      bent: () => { const a = at; if (a) { at = null; place(a.X, a.Y, a.cw, a.ch); } },
       /** @param {GPUBuffer} tab the profile's tables, re-made with each profile */
-      bind: (tab) => { bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: dm.out } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: e.gpu.mask }] }); },
+      bind: (tab) => { bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: flat } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: e.gpu.mask }] }); },
       /** The view's part of a render: the rectangle's colours if it moved, then the frame pass over it with the
        * frame's settings, its own size, and where it sits in the tone mask. @param {GPUCommandEncoder} enc @param {ArrayBuffer} u */
       frame: (enc, u) => {
         if (!at || !bind) return;
-        if (!fresh) { dm.run(enc, at.rx, at.ry, at.rw, at.rh); fresh = true; }
+        if (!fresh) {
+          dm.run(enc, at.rx, at.ry, at.rw, at.rh);
+          bend.run(enc, e.gpu.geo(), { x: at.X, y: at.Y, scale: 1, w: at.cw, h: at.ch }, { x: at.rx, y: at.ry, scale: 1, w: at.rw, h: at.rh });
+          fresh = true;
+        }
         const c = u.slice(0), n = new Uint32Array(c), f = new Float32Array(c);
-        n[52] = at.rw; n[53] = at.rh; if (deep) n[55] |= 1024; f[51] = 1 / 3; f[74] = at.rx / 3; f[75] = at.ry / 3;
+        n[52] = at.cw; n[53] = at.ch; if (deep) n[55] |= 1024; f[51] = 1 / 3; f[74] = at.X / 3; f[75] = at.Y / 3;
         device.queue.writeBuffer(uni, 0, c);
         const pass = enc.beginComputePass();
-        pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(at.rw / 8), Math.ceil(at.rh / 8)); pass.end();
+        pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(at.cw / 8), Math.ceil(at.ch / 8)); pass.end();
         made = at;
         if (canvas && (canvas.width !== at.cw || canvas.height !== at.ch)) { canvas.width = at.cw; canvas.height = at.ch; }
         if (ctx) enc.copyTextureToTexture({ texture: out }, { texture: ctx.getCurrentTexture() }, [at.cw, at.ch]);
@@ -92,7 +103,7 @@ export async function full(e, img, mosaic) {
       cw = Math.max(8, Math.min(Math.round(cw), maxW)); ch = Math.max(8, Math.min(Math.round(ch), maxH));
       X = Math.max(0, Math.min(Math.round(X), fw - cw)); Y = Math.max(0, Math.min(Math.round(Y), fh - ch));
       if (at && at.X === X && at.Y === Y && at.cw === cw && at.ch === ch) return at;
-      const [rx, ry, rw, rh] = [[X, Y, cw, ch], [Y, H - X - cw, ch, cw], [W - X - cw, H - Y - ch, cw, ch], [W - Y - ch, X, ch, cw]][rot];
+      const [rx, ry, rw, rh] = reach(e.gpu.geo(), X, Y, cw, ch).map((v, k) => (k === 2 ? Math.min(v, dw) : k === 3 ? Math.min(v, dh) : v));
       fresh = false;
       return (at = { X, Y, cw, ch, rx, ry, rw, rh });
     }
@@ -106,7 +117,7 @@ export async function full(e, img, mosaic) {
       await hook.after();
       return r;
     }
-    function dispose() { if (!open.delete(dispose)) return; views.splice(views.indexOf(hook), 1); dm.destroy(); uni.destroy(); out.destroy(); }
+    function dispose() { if (!open.delete(dispose)) return; views.splice(views.indexOf(hook), 1); dm.destroy(); bend.destroy(); flat.destroy(); uni.destroy(); out.destroy(); }
     hook.bind(e.gpu.tab()); views.push(hook); open.add(dispose);
     return self;
   };

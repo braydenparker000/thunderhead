@@ -5,12 +5,14 @@
 // Highlights and Shadows (by the tone mask, mask.js) → Contrast, Whites and Blacks (one curve) → Saturation and
 // Vibrance → LookTable (then a look file's own, e.g. Adobe Color's) → the profile's tone curve (hue-preserving "RGB tone")
 // → a look's RGB table (Adobe RGB, γ 2.2) → sRGB on screen, turned upright. Without a profile it falls back to
-// the camera matrix and a filmic curve. Before all of it, colours the sensor clipped are rebuilt (wgsl.js).
+// the camera matrix and a filmic curve. Before all of it, colours the sensor clipped are rebuilt (wgsl.js), and
+// before that the photo is laid out as the picture: the lens's faults undone, cropped, upright (warp.js).
 import { N, WGSL } from './wgsl.js';
 import { maskPipes, toneMask } from './mask.js';
 import { PROPHOTO_TO_SRGB, PROPHOTO_TO_ADOBE, cameraToProPhoto, inv, neutralFor, whiteOf } from './dcp.js';
 import { neutralAt } from './white.js';
 import { autoTone } from './auto.js';
+import { geometry, toSensor, warpPipe, warper } from './warp.js';
 
 const ROT = /** @type {Record<string, number>} */ ({ Rotate90: 1, Rotate180: 2, Rotate270: 3 });
 const rows = (/** @type {number[]} */ m) => [m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0];
@@ -47,10 +49,10 @@ function gpu() {
     const device = await adapter.requestDevice();
     device.lost.then((l) => { console.warn('GPU device lost:', l.message); shared = null; });
     const module = device.createShaderModule({ code: WGSL });
-    const [pipe, bakePipe, maskP] = await Promise.all([device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'main' } }),
-      device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'bake' } }), maskPipes(device)]);
+    const [pipe, bakePipe, maskP, bendP] = await Promise.all([device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'main' } }),
+      device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint: 'bake' } }), maskPipes(device), warpPipe(device)]);
     const lut = device.createTexture({ size: [N, N, N], dimension: '3d', format: 'rgba16float', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING });
-    return { adapter, device, pipe, bakePipe, maskP, lut };
+    return { adapter, device, pipe, bakePipe, maskP, bendP, lut };
   })();
   shared.catch(() => { shared = null; });
   return shared;
@@ -61,8 +63,9 @@ export const warm = () => gpu().then(() => true, () => false);
 /** Sets up the device and uploads the proxy; returns setProfile(pick) and render(ev, contrast) → GPU ms.
  * @param {HTMLCanvasElement} canvas @param {{ width: number, height: number, proxy: Uint16Array, meta: any }} img @param {boolean} readback */
 export async function engine(canvas, img, readback = false) {
-  const { adapter, device, pipe, bakePipe, maskP, lut } = await gpu();
-  const { width: w, height: h } = img, rot = ROT[img.meta.orientation] || 0, [ow, oh] = rot % 2 ? [h, w] : [w, h];
+  const { adapter, device, pipe, bakePipe, maskP, bendP, lut } = await gpu();
+  const { width: w, height: h } = img, rot = ROT[img.meta.orientation] || 0, [ow, oh] = rot % 2 ? [h, w] : [w, h], cell = (img.meta.fullWidth ??= w * 3) / w;
+  img.meta.fullHeight ??= h * 3;
   canvas.width = ow; canvas.height = oh;
   const ctx = readback ? null : /** @type {GPUCanvasContext} */ (canvas.getContext('webgpu'));
   ctx?.configure({ device, format: 'rgba8unorm', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT, alphaMode: 'opaque' });
@@ -71,7 +74,10 @@ export async function engine(canvas, img, readback = false) {
   device.queue.writeBuffer(src, 0, img.proxy.buffer, img.proxy.byteOffset, img.proxy.byteLength);
   const uni = device.createBuffer({ size: 352, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   const out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
-  const mask = toneMask(device, maskP, src, uni, w, h);
+  // the photo laid out as the picture (warp.js): what the tone mask and every frame read
+  const flat = device.createBuffer({ size: ow * oh * 8, usage: GPUBufferUsage.STORAGE }), bend = warper(device, bendP, src, flat);
+  let geo = geometry(img.meta), bent = false;
+  const mask = toneMask(device, maskP, flat, uni, ow, oh);
   const row = Math.ceil((ow * 4) / 256) * 256;
   const back = readback ? device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
   await device.queue.onSubmittedWorkDone();
@@ -80,7 +86,7 @@ export async function engine(canvas, img, readback = false) {
   let neutral = asShot, white = /** @type {null | { kelvin: number, tint: number }} */ (null), picked = /** @type {null | { profile: import('./dcp.js').Profile, table: any }} */ (null);
   const fallback = { cm1: img.meta.xyzToCamD65, cm2: null, fm1: null, fm2: null, t1: 6504, t2: 6504, hsm: null, look: null, tone: null, expOffset: 0, name: 'Camera matrix', model: '' };
   let tab = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE }), bind = /** @type {GPUBindGroup | null} */ (null), bakeBind = /** @type {GPUBindGroup | null} */ (null), baked = '', masked = '', state = { m: /** @type {number[]} */ ([]), u: tables(null, 1).u, kelvin: 0, wb: [1, 1, 1], chroma: [0, 0, 0] };
-  /** Full-resolution views (full.js): each adds its own frame pass to a render. @type {{ bind: (tab: GPUBuffer) => void, frame: (enc: GPUCommandEncoder, u: ArrayBuffer) => void, after: () => Promise<void> }[]} */
+  /** Full-resolution views (full.js): each adds its own frame pass to a render. @type {{ bind: (tab: GPUBuffer) => void, bent: () => void, frame: (enc: GPUCommandEncoder, u: ArrayBuffer) => void, after: () => Promise<void> }[]} */
   const views = [];
   let lastU = new ArrayBuffer(352);   // the last shown frame's settings
   const last = { baked: false, masked: false };   // whether the last render re-made the colour table, and the tone mask (the test page's timing lines)
@@ -93,7 +99,7 @@ export async function engine(canvas, img, readback = false) {
     tab.destroy();
     tab = device.createBuffer({ size: t.all.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     device.queue.writeBuffer(tab, 0, t.all);
-    bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: src } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: mask.view }] });
+    bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: flat } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: mask.view }] });
     bakeBind = device.createBindGroup({ layout: bakePipe.getBindGroupLayout(0), entries: [{ binding: 1, resource: { buffer: uni } }, { binding: 3, resource: { buffer: tab } }, { binding: 4, resource: lut.createView() }] });
     for (const v of views) v.bind(tab);
     baked = ''; masked = '';
@@ -110,7 +116,7 @@ export async function engine(canvas, img, readback = false) {
    * 0..1. Null where the sensor clipped. @param {number} u @param {number} v */
   const whiteAt = (u, v) => {
     const X = Math.min(ow - 1, Math.max(0, Math.floor(u * ow))), Y = Math.min(oh - 1, Math.max(0, Math.floor(v * oh)));
-    const [x, y] = [[X, Y], [Y, h - 1 - X], [w - 1 - X, h - 1 - Y], [w - 1 - Y, X]][rot];
+    const [sx, sy] = toSensor(geo, (X + 0.5) * cell, (Y + 0.5) * cell), x = Math.min(w - 1, Math.max(0, Math.floor(sx / cell))), y = Math.min(h - 1, Math.max(0, Math.floor(sy / cell)));
     const n = neutralAt(img, x, y);
     return n && whiteOf(/** @type {any} */ (picked?.profile || fallback), n);
   };
@@ -126,11 +132,12 @@ export async function engine(canvas, img, readback = false) {
     const t = performance.now(), u = new ArrayBuffer(352), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, more.amount ?? 1, 1]);
-    n.set([w, h, rot, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
-    f.set(g, 68); n.set(state.u.look2, 76); f.set([...state.wb, 0, ...state.chroma, 0], 80);
+    n.set([ow, oh, 0, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
+    f.set(g, 68); n.set(state.u.look2, 76); f.set([...state.wb, geo.head, ...state.chroma, 0], 80);
     const key = [contrast, more.amount ?? 1, ...g.slice(2)].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();
+    if (!bent) { bend.run(enc, geo, { x: 0, y: 0, scale: cell, w: ow, h: oh }, { x: 0, y: 0, scale: cell, w, h }); bent = true; masked = ''; }
     last.baked = baked !== key;
     if (last.baked) {   // re-bake only when the profile or a control inside the table changed: a frame is then one table lookup
       const bp = enc.beginComputePass(); bp.setPipeline(bakePipe); bp.setBindGroup(0, bakeBind); bp.dispatchWorkgroups(Math.ceil(N / 4), Math.ceil(N / 4), Math.ceil(N / 4)); bp.end(); baked = key;
@@ -170,10 +177,13 @@ export async function engine(canvas, img, readback = false) {
     return new ImageData(px, ow, oh);
   };
   /** Frees this photo's GPU memory (the device and pipelines stay for the next). */
-  const dispose = () => { for (const b of [src, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); };
+  const dispose = () => { for (const b of [src, flat, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); bend.destroy(); };
+  /** The lens corrections added by hand (each −1..1): the picture is laid out again at the next render.
+   * @param {{ distortion?: number, vignetting?: number }} o */
+  const setGeometry = (o) => { geo = geometry(img.meta, o); bent = false; for (const v of views) v.bent(); };
   /** Auto's values for the Light controls (auto.js). @param {number} ev the exposure the photo shows at with Exposure at 0 */
   const auto = (ev) => autoTone(img, state.m, ev + state.u.offset);
   /** What full.js builds on. */
-  const base = { device, pipe, lut, mask: mask.view, rot, views, tab: () => tab, settings: () => lastU };
-  return { render, setProfile, setWhite, shotWhite, whiteAt, auto, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  const base = { device, pipe, bendP, lut, mask: mask.view, views, tab: () => tab, settings: () => lastU, geo: () => geo };
+  return { render, setProfile, setWhite, setGeometry, shotWhite, whiteAt, auto, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }
