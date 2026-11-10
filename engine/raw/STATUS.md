@@ -18,6 +18,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Colour: Adobe camera profiles and looks (the owner's private zip, in IndexedDB; never commit or serve them) | `dcp.js`, `gpu.js`, `profiles.js` |
 | Light and Color sliders, white balance presets, eyedropper, Auto tone, Reset | `wgsl.js`, `mask.js`, `auto.js`, `editor/app/session.js` |
 | Geometry: one pass lays the photo out as the picture; the lens's own corrections (distortion, fringing, darkened corners) from the RAF; Distortion and Vignetting by hand | `warp.js`, `lens.js` |
+| Sharpening (Amount, Radius, Detail) on the sensor's own pixels: 100 % and export | `finish.js`, `full.js` |
 | Effects: Clarity, Texture, Dehaze (each from a small mask, so they cost one lookup a pixel and match at every zoom) | `mask.js`, `haze.js`, `wgsl.js` main |
 | Crop board: crop with aspect, straighten (and Auto level), quarter turns, flips, perspective (Vertical, Horizontal, Scale) | `crop.js`, `level.js`, `boards/CropPlate.js` |
 | Full size: X-Trans demosaic (vkdt's) of the rectangle looked at, developed by the same frame pass | `demosaic.js`, `full.js` |
@@ -44,7 +45,7 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Steps 1, 2 and 3a are done. Next: step 3b (sharpening and noise reduction)
+## Steps 1, 2, 3a and sharpening are done. Next: noise reduction, then step 4
 
 Step 3 turned out to be two different machines, not one:
 
@@ -55,14 +56,20 @@ Step 3 turned out to be two different machines, not one:
   Dehaze takes the air's share out. Because the masks are picture-sized and tiny, 100 % views and export get
   the same result by the same lookup. Strengths are first guesses for the owner's eye (Dehaze was halved after
   +100 turned skies purple).
-- **3b, next: Sharpening and noise reduction, at full size only** (the editing copy is a 3 × 3 bin: neither shows
-  on it). Planned in `full.js`'s region path: demosaic → noise reduction on the sensor rectangle (an à-trous
-  wavelet in a variance-stabilised luma/chroma space, as darktable's profiled denoise does; noise by ISO from
-  its X-T5/X-H2 profiles, the same sensor) → warp → frame pass into 16-bit float → one last pass that sharpens
-  (unsharp mask on luminance: Amount, Radius, Detail) and dithers → the view. Noise reduction is cached with
-  the demosaic (it runs when the rectangle moves, not per slider frame); the region's margin must grow by the
-  wavelet's reach (about 32 px). Export sharpening (Screen, Print) is the same unsharp mask on the reduced rows.
-  ISO has to be read from the camera JPEG's Exif in `decode-worker.js`. Defringe is left for after.
+- **3b, sharpening: done.** Every full-size view now runs the frame pass into a 16-bit float texture and a last
+  pass (`finish.js`) that sharpens and dithers: an unsharp mask on brightness (Amount, Radius, Detail). The
+  editing copy is never sharpened (a third of the size: it would not show). Export develops each tile 4 px
+  past its edges so both sides of a join see the same neighbours. On a sample at 100 %, fine detail
+  (Laplacian spread) is 10 unsharpened, 15 at the default, 21 in the camera's own JPEG.
+- **3b, noise reduction: next**, also at full size only, in `full.js`'s region path between the demosaic and the
+  warp, cached with the demosaic (it runs when the rectangle moves, not per slider frame). Plan: variance
+  stabilised by the camera's noise profile (darktable's X-T5/X-H2 numbers: the same sensor; ISO read from the
+  camera JPEG's Exif in `decode-worker.js`); colour noise taken out with a guided filter of chroma by luma at
+  a quarter size (small buffers, a lookup per pixel, like the masks); brightness noise with an edge-stopping
+  à-trous blur, dm.out and one more buffer to and fro. A full wavelet shrink at view size would need several
+  16-byte-a-pixel buffers: too much memory for the A15. The region's margin must grow by the blur's reach.
+  Then export's output sharpening (Screen, Print) on the reduced rows, and Defringe.
+- The dial's window spans the real range of controls that don't run −100..100 (`adjust.js` `SPAN`).
 
 How geometry works (step 2a), for whoever touches it:
 
