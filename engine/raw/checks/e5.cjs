@@ -25,7 +25,7 @@ const S = __dirname, E = process.env, TAG = E.TAG || 'a', FILE = E.FILE || 'raf/
   fs.writeFileSync(`${S}/out/e5-${TAG}-screen.png`, Buffer.from(png.split(',')[1], 'base64'));
   await p.locator('header button', { hasText: /^Export$/ }).click(); await p.waitForTimeout(2000);
   await p.getByRole('button', { name: /SAVE/ }).first().click();
-  await p.waitForFunction(() => /Saved to Downloads|Not saved/.test(document.body.textContent), null, { timeout: 800000 }).catch(() => console.log("never finished"));
+  await p.waitForFunction(() => /Saved to Downloads|Not saved/.test(document.body.textContent), null, { timeout: 800000 }).catch((e) => console.log("never finished", String(e).slice(0, 300)));
   await p.waitForTimeout(2500); console.log('saved', (await Promise.all(saves)).join(' '), '·', await p.evaluate(() => { const t = document.body.innerText, k = t.search(/Saved to Downloads|Not saved/i); return k < 0 ? '(no message)' : t.slice(k, k + 260).replace(/\n+/g, ' | '); }));
   console.log(logs.length ? logs.slice(0, 6).join('\n') : 'no console errors');
   await b.close();

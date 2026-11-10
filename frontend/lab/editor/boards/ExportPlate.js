@@ -1,10 +1,11 @@
 // @ts-nocheck
-// The ExportPlate board, as designed (docs/design/editor/boards/ExportPlate.dc.html.dc.html). With a photo open it
-// saves for real (app/save.js): size, format, quality, output sharpening, metadata, location and file name are the
-// photo's own;
-// the watermark and Display P3 wait for their stage and say so.
+// The Export board. With a photo open it saves for real (app/save.js): size, format, quality, output sharpening,
+// metadata, location and file name are the photo's own; the watermark and Display P3 wait for their stage and say
+// so. The two files to save (Full, Small) are cards along the panel's top; the drum's faces are Size, Format,
+// Output and Info; the dial sets the long edge, the quality, or steps through a choice; Save is in the header.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
+import '../app/zoom.js';   // the photo's own layer: it stays as it was on the board before
 import { day, save } from '../app/save.js';
 
 export default class Component extends DCLogic {
@@ -12,8 +13,7 @@ export default class Component extends DCLogic {
     super(props);
     const base = { fmt: 'JPEG', space: 'sRGB', sharpen: 'Off', amt: 'Standard', mark: false, meta: 'All', gps: false, naming: 'Camera name' };
     this.state = { sel: 0, group: 'Size', ctl: 'long', presets: [{ ...base, name: 'Full', on: true, size: 'Full', long: 7728, q: 95 }, { ...base, name: 'Small', on: true, size: '2048', long: 2048, q: 85, sharpen: 'Screen', mark: true }],
-      working: null, done: false, spin: 0, day: '', saved: null, note: '' };
-    this.drag = null;
+      working: null, done: false, day: '', saved: null, note: '' };
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
     if (photo.current()) day().then((d) => this.setState({ day: d }), () => {});
@@ -43,18 +43,16 @@ export default class Component extends DCLogic {
     };
     const defaultCtl = { Size: 'long', Format: 'q', Output: 'amt', Info: 'naming' };
     const ctl = S.ctl, labels = { long: 'Long edge', q: 'Quality', amt: 'Sharpen amount', meta: 'Metadata', naming: 'File name' };
-    let valText, fillW, unit = '';
-    if (ctl in nums) { const [lo, hi, , u] = nums[ctl]; const v = p[ctl]; valText = String(v); unit = u; fillW = ((v - lo) / (hi - lo)) * 328; }
-    else { const o = enums[ctl], i = o.indexOf(p[ctl]); valText = p[ctl]; fillW = (i / (o.length - 1)) * 328; }
-    const groups = Object.keys(rows), gi = groups.indexOf(S.group), secX = 14 + (384 / 4) * (gi + 0.5);
-    let cx = 14;
-    const chips = rows[S.group].map((o, i) => {
-      const w = 16 + Math.max(o.name.length, String(o.value ?? '').length * 0.8) * 7.6, x = cx + w / 2; cx += w + 4;
-      return { name: o.name.toUpperCase(), value: o.value ?? '', on: String(!!o.on), aria: o.name, pad: 8, size: 10,
-        ink: o.on ? '#f2efe8' : '#80848a', valueInk: o.on ? '#e8202a' : '#6a6e73', bar: o.on ? '#e8202a' : 'transparent',
-        dx: (secX - x).toFixed(0), delay: i * 32, anim: 'fly' + (gi + S.sel * 4), pick: o.pick };
-    });
-    const RD = 240, PERIOD = 360 / 72, frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
+    // the dial's window runs -5..5 over a number's whole range, or over a choice's options (it stops on each)
+    const groups = Object.keys(rows), gi = groups.indexOf(S.group), isNum = ctl in nums, opts = isNum ? null : enums[ctl];
+    const share = isNum ? (p[ctl] - nums[ctl][0]) / (nums[ctl][1] - nums[ctl][0]) : opts.indexOf(p[ctl]) / (opts.length - 1);
+    const turned = (d) => {
+      const t = Math.max(0, Math.min(1, (d + 5) / 10));
+      if (isNum) { const [lo, hi, st] = nums[ctl], v = Math.max(lo, Math.min(hi, Math.round((lo + t * (hi - lo)) / st) * st)); return v === p[ctl] ? null : { [ctl]: v, ...(ctl === 'long' ? { size: (sizeList.find((z) => z[1] === v) || ['Custom'])[0] } : {}) }; }
+      const v = opts[Math.round(t * (opts.length - 1))]; return v === p[ctl] ? null : { [ctl]: v };
+    };
+    const start = { long: { size: 'Full', long: full }, q: { q: p.name === 'Small' ? 85 : 95 }, amt: { amt: 'Standard' }, meta: { meta: 'All' }, naming: { naming: 'Camera name' } };
+    const chips = rows[S.group].map((o) => ({ name: o.name, value: o.value ?? '', on: !!o.on, pick: o.pick }));
     const W = S.working, on = P.filter((x) => x.on);
     const run = () => {
       if (!on.length || W) return;
@@ -71,33 +69,22 @@ export default class Component extends DCLogic {
     };
     // the files just saved, for the phone's share sheet (where it takes files)
     const shares = real && S.saved ? S.saved.map((x) => new File([x.blob], x.file, { type: x.blob.type })) : [];
-    const fit = Math.min(372 / fw, 248 / fh), pvW = Math.round(fw * fit), pvH = Math.round(fh * fit);
     const cur = W ? on[Math.min(on.length - 1, Math.floor(W.k / 12))] : null;
     return {
-      real: !!real, demo: !real, who: real ? `${stem0} · ${(photo.looks().find((l) => l.id === photo.look()) || {}).label || 'RAF'}${[...photo.LIVE].some((n) => photo.edited(n)) ? ' · edited' : ''}` : 'DSCF0412 · Classic Chrome · edited', pvW, pvH, mark: p.mark,
-      working: !!W, bandPct: W ? ((W.k % 12) / 12) * 100 : 0,
+      real: !!real, demo: !real, who: real ? `${stem0} · ${(photo.looks().find((l) => l.id === photo.look()) || {}).label || 'RAF'}${[...photo.LIVE].some((n) => photo.edited(n)) ? ' · edited' : ''}` : 'DSCF0412 · Classic Chrome · edited',
+      working: !!W, donePct: W ? (W.k / W.total) * 100 : 0,
       cards: P.map((x, i) => ({ name: x.name, sel: String(i === S.sel), on: String(x.on), ringW: i === S.sel ? 2 : 0,
-        dims: `${x.long} × ${short(x)} px`, fmt: `${x.fmt}${x.fmt === 'JPEG' ? ` ${x.q}` : ''} · ${x.space}${x.sharpen !== 'Off' ? ` · sharpen ${x.sharpen.toLowerCase()}` : ''}`,
-        size: x.on ? `≈ ${est(x)} · ${fileName(x)}` : 'Off · not saved', track: x.on ? '#e8202a' : '#3a3c3f', knob: x.on ? 18 : 2,
+        fmt: `${x.fmt}${x.fmt === 'JPEG' ? ` ${x.q}` : ''}${x.sharpen !== 'Off' ? ` · ${x.sharpen.toLowerCase()}` : ''}`, line: x.on ? `${x.long} × ${short(x)} · ≈ ${est(x)}` : 'Off · not saved',
+        ink: x.on ? '#f2efe8' : '#80848a', track: x.on ? '#e8202a' : '#3a3c3f', knob: x.on ? 18 : 2,
         pick: () => set({ sel: i, ctl: defaultCtl[S.group] }), toggle: () => set({ presets: P.map((y, j) => (j === i ? { ...y, on: !y.on } : y)), done: false }) })),
       canShare: !real || (shares.length > 0 && !!navigator.canShare?.({ files: shares })), share: () => { if (shares.length) navigator.share({ files: shares }).catch(() => {}); },
       showDone: S.done, doneTitle: S.note ? 'Not saved' : 'Saved to Downloads',
       doneLines: S.note ? [S.note] : S.saved ? S.saved.map((x) => `${x.file} · ${x.width} × ${x.height} · ${mb(x.bytes / 1e6)}`) : on.map((x) => `${fileName(x)} · ${x.long} × ${short(x)} · ${est(x)}`),
-      ctlUp: `${p.name.toUpperCase()} · ${labels[ctl].toUpperCase()}`, unit, valText, fillW: Math.max(0, fillW).toFixed(1), numX: Math.max(34, Math.min(338, 22 + fillW)).toFixed(1),
-      spinY: -Math.floor(frac * 12) * 150,
-      dDown: (e) => { this.drag = { x: e.clientX, s: S.spin, v: p[ctl] }; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
-      dMove: (e) => {
-        const d = this.drag; if (!d) return; const deg = ((e.clientX - d.x) / RD) * (180 / Math.PI);
-        let v;
-        if (ctl in nums) { const [lo, hi, st] = nums[ctl]; const k = ctl === 'long' ? Math.round(deg / 3) : Math.round(deg / 4); v = Math.max(lo, Math.min(hi, d.v + k * st)); }
-        else { const o = enums[ctl]; v = o[Math.max(0, Math.min(o.length - 1, o.indexOf(d.v) + Math.round(deg / 12)))]; }
-        this.setState({ spin: d.s + deg, presets: this.state.presets.map((x, i) => (i === S.sel ? { ...x, [ctl]: v, ...(ctl === 'long' ? { size: (sizeList.find((z) => z[1] === v) || ['Custom'])[0] } : {}) } : x)), done: false });
-      },
-      dUp: () => { this.drag = null; },
-      dKey: () => {},
-      group: S.group, chips,
-      groups: groups.map((g) => ({ label: g.toUpperCase(), current: String(g === S.group), ink: g === S.group ? '#f2efe8' : '#7d8187', dot: g === S.group ? '#e8202a' : 'transparent', pick: () => set({ group: g, ctl: defaultCtl[g] }) })),
-      saveLabel: W ? `SAVING ${cur ? cur.name.toUpperCase() : ''} · ${Math.round((W.k / W.total) * 100)}%` : on.length === 2 ? 'SAVE BOTH' : on.length ? `SAVE ${on[0].name.toUpperCase()}` : 'NOTHING ON', save: run,
+      dialLabel: `${p.name} · ${labels[ctl]}`, unit: isNum ? nums[ctl][3] : '', dialValue: share * 10 - 5, dialText: String(p[ctl]),
+      dialTurn: (d) => { const patch = turned(d); if (patch) setP(patch); }, dialReset: () => setP(start[ctl]),
+      faces: groups.map((g) => ({ label: g, count: 0 })), faceAt: gi, pickFace: (i) => set({ group: groups[i], ctl: defaultCtl[groups[i]] }),
+      chips, rowAria: `${S.group} options`, rowSeed: gi + S.sel * 4, dialLeft: true,
+      saveLabel: W ? `SAVING ${cur ? cur.name.toUpperCase() : ''} · ${Math.round((W.k / W.total) * 100)}%` : on.length === 2 ? 'SAVE BOTH' : on.length ? `SAVE ${on[0].name.toUpperCase()}` : 'NOTHING ON', save: run, saveBg: on.length && !W ? '#2468d8' : '#3a3c3f',
     };
   }
 }

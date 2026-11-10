@@ -4,7 +4,7 @@ const S = __dirname, E = process.env, FILE = E.FILE || 'raf/DSCF0021.RAF', BASE 
 (async () => {
   const b = await chromium.launch({ args: ['--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader'] });
   const ctx = await b.newContext({ viewport: { width: 384, height: 780 }, deviceScaleFactor: 2, hasTouch: true });
-  const p = await ctx.newPage(), cdp = await ctx.newCDPSession(p), logs = []; p.on('console', (m) => { if (/error|warn/i.test(m.type())) logs.push(m.text().slice(0, 300)); }); p.on('pageerror', (e) => logs.push('ERR ' + e.message));
+  const p = await ctx.newPage(), cdp = await ctx.newCDPSession(p), logs = []; p.on('console', (m) => { if (/error|warn/i.test(m.type())) logs.push(m.text().slice(0, 700)); }); p.on('pageerror', (e) => logs.push('ERR ' + e.message));
   await p.goto(BASE + '/'); await p.waitForTimeout(3000);
   await p.goto(BASE + '/lab/editor/index.html?readback'); await p.waitForTimeout(5000);
   await p.getByRole('button', { name: 'Import' }).click(); await p.waitForTimeout(300);
