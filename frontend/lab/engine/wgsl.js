@@ -19,7 +19,8 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
   wb: vec4f,     // the white balance as gains on camera R, G, B (green 1); then what the stored values are multiplied by (warp.js keeps room above them)
   chroma: vec4f, // the highlight rebuild's colour offsets, white-balanced (raw's chroma() × wb)
   fx: vec4f,     // clarity, texture, dehaze (−1..1)
-  air: vec4f };  // the haze's own colour, for Dehaze (haze.js)
+  air: vec4f,    // the haze's own colour, for Dehaze (haze.js)
+  sharp: vec4f };   // sharpening's amount, radius in pixels and detail (0..1): used by full-size views alone (finish.js)
 @group(0) @binding(0) var<storage, read> src: array<u32>;
 @group(0) @binding(1) var<uniform> p: P;
 const CELL = ${CELL}u;
@@ -47,6 +48,15 @@ fn pixel(x: u32, y: u32) -> vec3f {
   var raw = vec3f(rg.x, rg.y, ba.x) * p.wb.w; let bits = (src[i + 1u] >> 16u) & 7u;   // alpha: which colours clipped
   if (bits != 0u && (p.size.w & 512u) == 0u) { raw = rebuild(raw, bits); }
   return max(mv(p.m0, p.m1, p.m2, raw), vec3f(0.0));
+}`;
+export const DITHER = /* wgsl */ `
+// Dither, against banding in skies: the screen holds 256 levels a channel, so each pixel gets a fixed
+// triangular-spread offset of up to one level (the same on all three channels: no colour speckle), fading
+// to none at pure black and white.
+fn dither(o: vec3f, at: vec2u) -> vec3f {
+  var s = at.x * 1664525u + at.y * 22695477u + 1013904223u; s = (s ^ (s >> 16u)) * 2246822519u; s = (s ^ (s >> 13u)) * 3266489917u; s = s ^ (s >> 16u);
+  let n = (f32(s & 0xffffu) - f32(s >> 16u)) / 65536.0;
+  return o + n * clamp(min(o, 1.0 - o) * 255.0, vec3f(0.0), vec3f(1.0)) / 255.0;
 }`;
 export const WGSL = /* wgsl */ `${HEAD}
 @group(0) @binding(2) var dst: texture_storage_2d<rgba8unorm, write>;
@@ -199,14 +209,7 @@ fn bake(@builtin(global_invocation_id) id: vec3u) {
   if (any(id >= vec3u(N))) { return; }
   textureStore(lutOut, id, vec4f(develop(unshape(vec3f(id) / f32(N - 1u))), 1.0));
 }
-// Dither, against banding in skies: the screen holds 256 levels a channel, so each pixel gets a fixed
-// triangular-spread offset of up to one level (the same on all three channels: no colour speckle), fading
-// to none at pure black and white.
-fn dither(o: vec3f, at: vec2u) -> vec3f {
-  var s = at.x * 1664525u + at.y * 22695477u + 1013904223u; s = (s ^ (s >> 16u)) * 2246822519u; s = (s ^ (s >> 13u)) * 3266489917u; s = s ^ (s >> 16u);
-  let n = (f32(s & 0xffffu) - f32(s >> 16u)) / 65536.0;
-  return o + n * clamp(min(o, 1.0 - o) * 255.0, vec3f(0.0), vec3f(1.0)) / 255.0;
-}
+${DITHER}
 // Highlights and Shadows work on how bright the pixel's area is, not the pixel: the tone mask (mask.js) holds
 // a slope and an offset for each cell of 8 × 8 pixels, and the area's brightness in stops is the slope × the
 // pixel's own log2 luminance + the offset, read between the four cells around the pixel.

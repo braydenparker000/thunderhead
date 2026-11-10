@@ -4,6 +4,8 @@
 // which hands these on as its own (boards import session.js alone).
 import { WB, ZERO, canvas, changed, cur, custom, draw, eng, save, say, shotWb, white } from './session.js';
 
+/** The controls that don't run −100..100: lowest, highest, step. The dial's whole window (−5..5) spans them. */
+const SPAN = /** @type {Record<string, number[]>} */ ({ Sharpening: [0, 150, 1], Radius: [0.5, 3, 0.1], Detail: [0, 100, 1], Noise: [0, 100, 1], 'Color noise': [0, 100, 1] });
 /** @param {string} name */
 export const value = (name) => cur?.values[name] ?? ZERO[name] ?? 0;
 /** The value as the plate shows it. @param {string} name */
@@ -11,7 +13,7 @@ export function text(name) {
   const v = value(name), sign = (/** @type {number} */ x) => (x > 0 ? '+' : x < 0 ? '−' : '');
   if (name === 'Exposure') return `${sign(v)}${Math.abs(v).toFixed(2)}`;
   if (name === 'Temp') return Math.round(v).toLocaleString('en-US');
-  if (name === 'Radius') return v.toFixed(1);
+  if (SPAN[name]) return name === 'Radius' ? v.toFixed(1) : String(Math.round(v));
   return `${sign(v)}${Math.abs(Math.round(v))}`;
 }
 /** The dial's position for a value (its window runs −5..5). @param {string} name */
@@ -20,12 +22,14 @@ export function toDial(name) {
   if (name === 'Exposure') return v;
   if (name === 'Temp') return cur ? Math.log2(v / cur.shotK) / 0.25 : 0;
   if (name === 'Tint') return (v - shotWb()[1]) / 30;
+  if (SPAN[name]) return ((v - SPAN[name][0]) / (SPAN[name][1] - SPAN[name][0])) * 10 - 5;
   return v / 20;
 }
 /** The dial turned to `d`. @param {string} name @param {number} d */
 export function turn(name, d) {
   if (!cur) return;
-  const v = name === 'Exposure' ? Math.round(d * 100) / 100 : name === 'Temp' ? Math.round((cur.shotK * 2 ** (d * 0.25)) / 50) * 50 : name === 'Tint' ? shotWb()[1] + Math.round(d * 30) : Math.round(d * 20);
+  const [lo, hi, step] = SPAN[name] || [0, 0, 0], spanned = Math.round((lo + ((Math.max(-5, Math.min(5, d)) + 5) / 10) * (hi - lo)) / (step || 1)) * (step || 1);
+  const v = SPAN[name] ? +spanned.toFixed(1) : name === 'Exposure' ? Math.round(d * 100) / 100 : name === 'Temp' ? Math.round((cur.shotK * 2 ** (d * 0.25)) / 50) * 50 : name === 'Tint' ? shotWb()[1] + Math.round(d * 30) : Math.round(d * 20);
   if (cur.values[name] === v) return;
   cur.values[name] = v;
   if (name === 'Temp' || name === 'Tint') custom();
