@@ -21,7 +21,8 @@
 
   <div style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(400px - var(--cut)); display: flex; align-items: center; justify-content: center">
     <div style="position: relative; width: {{pvW}}px; height: {{pvH}}px; transition: width 300ms ease, height 300ms ease">
-      <img src="/lab/editor/assets/sample.jpg" alt="The edited photo" style="width: 100%; height: 100%; object-fit: cover; display: block; filter: contrast(1.12) saturate(0.85) sepia(0.08)">
+      <sc-if value="{{demo}}"><img src="/lab/editor/assets/sample.jpg" alt="The edited photo" style="width: 100%; height: 100%; object-fit: cover; display: block; filter: contrast(1.12) saturate(0.85) sepia(0.08)"></sc-if>
+      <sc-if value="{{real}}"><div data-keep="photo" class="fillphoto" style="position: absolute; inset: 0"></div></sc-if>
       <sc-if value="{{mark}}" hint-placeholder-val="{{false}}"><span style="position: absolute; right: 10px; bottom: 8px; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; color: rgba(255,255,255,0.75); text-shadow: 0 1px 3px rgba(0,0,0,0.7)">© YOUR NAME</span></sc-if>
       <sc-if value="{{working}}" hint-placeholder-val="{{false}}">
         <div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 100%; height: {{bandPct}}%; background: rgba(232,32,42,0.16); border-bottom: 1.5px solid #e8202a; transition: height 200ms linear"></div>
@@ -50,13 +51,13 @@
       <div style="font-size: 13px; font-weight: 600; margin-bottom: 4px">{{doneTitle}}</div>
       <sc-for list="{{doneLines}}" as="d" hint-placeholder-count="2"><div style="font-size: 11px; color: #c9d0d8; font-variant-numeric: tabular-nums">{{d}}</div></sc-for>
       <div style="display: flex; gap: 8px; margin-top: 10px">
-        <button style="height: 32px; padding: 0 14px; border-radius: 16px; background: rgba(255,255,255,0.14); font-size: 12px">Share…</button>
-        <button style="height: 32px; padding: 0 14px; border-radius: 16px; background: rgba(255,255,255,0.14); font-size: 12px">Open Downloads</button>
+        <sc-if value="{{canShare}}"><button onClick="{{share}}" style="height: 32px; padding: 0 14px; border-radius: 16px; background: rgba(255,255,255,0.14); font-size: 12px">Share…</button></sc-if>
+        <sc-if value="{{demo}}"><button style="height: 32px; padding: 0 14px; border-radius: 16px; background: rgba(255,255,255,0.14); font-size: 12px">Open Downloads</button></sc-if>
       </div>
     </div>
   </sc-if>
 
-  <div style="position: absolute; left: 0; top: calc(600px - var(--cut)); width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+  <div class="plate" style="position: absolute; left: 0; top: calc(600px - var(--cut)); width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
     <div role="status" aria-label="{{ctlUp}} {{valText}} {{unit}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, rgba(8,9,10,0.55), rgba(8,9,10,0.32)); -webkit-backdrop-filter: blur(5px) saturate(1.3); backdrop-filter: blur(5px) saturate(1.3); box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 2px 6px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.5)">
       <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">{{ctlUp}}</span>
       <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{unit}}</span>

@@ -3,7 +3,8 @@
 // dial's −5..5 position) follows the photo when it changes from elsewhere, `text` is the value as the plate shows
 // it, and `onturn` hears every turn. A drag turns it one for one with the finger; let go while moving and it runs
 // on, slowing, until it stops or is touched; two quick taps ask for the value's start (`onreset`). `auto`, when
-// given, is the name of a small key in the window's corner (`onauto`).
+// given, is the name of a small key in the window's corner (`onauto`). `left`: the value runs from the window's
+// left end, not out from its middle (a strength, 0 upwards). `slim`: no wheel, the window itself is dragged and the number stays under the finger.
 import { DCLogic } from '../dc.js';
 
 export default class Component extends DCLogic {
@@ -23,7 +24,7 @@ export default class Component extends DCLogic {
     const sign = (x) => (x > 0.004 ? '+' : x < -0.004 ? '−' : '');
     const valueText = this.props.text ?? (ev ? sign(v) + Math.abs(v).toFixed(2) : sign(show(v)) + Math.abs(show(v)));
     // the window: a red fill runs from the middle to the value, the number riding at its end in a ringed box; the Auto key takes the right end
-    const auto = this.props.auto || '', L = 22, Rt = auto ? 372 - 74 : 372 - 22, mid = (L + Rt) / 2, half = (Rt - L) / 2, f = v / 5, end = mid + f * half;
+    const auto = this.props.auto || '', slim = !!this.props.slim, left = !!this.props.left, L = 22, Rt = auto ? 372 - 74 : 372 - 22, mid = (L + Rt) / 2, half = (Rt - L) / 2, f = v / 5, end = mid + f * half;
     const setAngle = (a) => { const c = Math.max(-180, Math.min(180, a)); this.setState({ angle: c }); this.props.onturn?.(c / 36); return c; };
     const stop = () => { cancelAnimationFrame(this.spin); this.spin = 0; };
     const run = (v0) => {   // degrees a millisecond, dying away
@@ -39,13 +40,14 @@ export default class Component extends DCLogic {
     return {
       label, unit, labelUp: label.toUpperCase() + (unit ? ` · ${unit}` : ''),
       offset: -Math.floor(frac * FRAMES) * FRAME_H, valueText, valueNow: v.toFixed(2),
-      trackL: L, trackW: Rt - L, midX: mid, fillL: (mid + Math.min(0, f) * half).toFixed(1), fillW: (Math.abs(f) * half).toFixed(1),
+      trackL: L, trackW: Rt - L, midX: left ? L : mid, fillL: left ? L : (mid + Math.min(0, f) * half).toFixed(1), fillW: (left ? end - L : Math.abs(f) * half).toFixed(1),
+      wheel: !slim, tall: slim ? 44 : 144, hitT: slim ? 2 : 46, hitW: slim ? (auto ? 320 : 412) : 412, hitH: slim ? 40 : 96,
       numX: Math.max(L + 12, Math.min(Rt - 6, end)).toFixed(1),
       hasAuto: !!auto, auto, pressAuto: () => this.props.onauto?.(),
       down: (e) => { stop(); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
       move: (e) => {
         const d = this.drag; if (!d) return;
-        const deg = (px) => (px / d.k / R) * (180 / Math.PI), dt = e.timeStamp - d.lt;
+        const deg = (px) => (slim ? (px / d.k / (Rt - L)) * 360 : (px / d.k / R) * (180 / Math.PI)), dt = e.timeStamp - d.lt;   // slim: the number rides under the finger
         d.far = Math.max(d.far, Math.abs(e.clientX - d.x));
         if (dt > 0) { d.v = d.v * 0.55 + (deg(e.clientX - d.lx) / dt) * 0.45; d.lx = e.clientX; d.lt = e.timeStamp; }
         setAngle(d.a + deg(e.clientX - d.x));
@@ -56,7 +58,7 @@ export default class Component extends DCLogic {
           if (e.timeStamp - this.tapped < 360) { this.tapped = -1e9; this.props.onreset?.(); } else this.tapped = e.timeStamp;
           return;
         }
-        if (e.type === 'pointerup' && e.timeStamp - d.lt < 80 && Math.abs(d.v) > 0.05) run(d.v);
+        if (!slim && e.type === 'pointerup' && e.timeStamp - d.lt < 80 && Math.abs(d.v) > 0.05) run(d.v);
       },
       key: (e) => { if (e.key === 'ArrowRight') setAngle(this.state.angle + 3.6); if (e.key === 'ArrowLeft') setAngle(this.state.angle - 3.6); if (e.key === 'Home') this.props.onreset?.(); },
     };
