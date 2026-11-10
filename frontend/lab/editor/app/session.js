@@ -63,6 +63,8 @@ const place = () => { const s = /** @type {HTMLElement | null} */ (document.quer
 /** @param {string} status */
 export const say = (status) => { if (cur) { cur.status = status; changed(); } };
 
+/** Where Noise starts for a photo shot at an ISO: nothing up to 400, then 20 more for each doubling, to 40 from 1600 up. @param {number} iso */
+export const noiseStart = (iso) => Math.max(0, Math.min(40, Math.round(20 * Math.log2((iso || 100) / 400))));
 /** Opens a photo from the Library. @param {string} id */
 export async function open(id) {
   const p = store.photos().find((x) => x.id === id);
@@ -88,6 +90,10 @@ export async function open(id) {
   try {
     const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback')), profilesFor(`${r.meta.make} ${r.meta.model}`), kept.ready]);
     if (cur !== me) { e.dispose(); return; }
+    // A photo not opened before starts with the noise reduction its ISO wants (measured: it helps at every ISO and
+    // most at the highest); one opened before keeps the start it was given then (none, before this was so).
+    me.noise0 = typeof edit.noise0 === 'number' ? edit.noise0 : typeof edit.Noise === 'number' ? 0 : noiseStart(r.meta.iso || 0);
+    if (typeof edit.Noise !== 'number') { me.values.Noise = me.noise0; if (past) for (const st of past.steps) st.st.values.Noise = me.noise0; }
     eng = e; list = l; whole0 = /Rotate(90|270)/.test(r.meta.orientation) ? [r.meta.fullHeight, r.meta.fullWidth] : [r.meta.fullWidth, r.meta.fullHeight];
     applyProfile();
     ready = true; place(); say(''); await draw();
@@ -226,7 +232,7 @@ export function save(key, name, val) {
   const me = cur, p = past;
   if (me && p && name !== undefined) hist.note(p, key || '', name, val || '', state());
   clearTimeout(tileT); tileT = setTimeout(() => keepTile(me), 1500);
-  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, cube: me.cube, masks: me.masks, spots: me.spots, v: 2, ...(p ? hist.dump(p) : {}) }); }, 400);
+  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, noise0: me.noise0 || 0, wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, cube: me.cube, masks: me.masks, spots: me.spots, v: 2, ...(p ? hist.dump(p) : {}) }); }, 400);
 }
 let tileT = 0;
 /** The photo's Library tile follows its edit: a small picture of it as it now looks, or none once it is back as imported. */

@@ -52,6 +52,7 @@ struct D { at: vec4i,       // the rectangle being made: x, y, width, height, in
 @group(0) @binding(4) var<storage, read_write> rgb: array<u32>;     // the result, two a pixel
 @group(0) @binding(5) var<storage, read_write> ways: array<u32>;    // green four ways (half floats, two u32 a pixel): the rectangle and 6 more each way
 @group(0) @binding(6) var<storage, read_write> calm: array<u32>;    // how level each way is (a byte each): the rectangle and 4 more each way
+const OWN = 0.5;   // how far a red or blue site's own reading is trusted over what its neighbours say (measured: half gains 0.5 to 0.6 dB and costs next to no false colour; all of it gains 0.8 and costs 0.5 to 1 dB of colour)
 const CLIP = 0.97;   // a site this near the sensor's white has clipped (raw's own threshold for the editing copy)
 // a position off the frame reads the same colour's site one pattern (6 pixels) in
 fn fold(q: vec2i) -> vec2i { let n = vec2i(textureDimensions(mosaic)); return q + select(vec2i(0), vec2i(6), q < vec2i(0)) - select(vec2i(0), vec2i(6), q >= n); }
@@ -67,7 +68,7 @@ ${mendWGSL('d.sp', 'd.n.x')}
 fn raw(q: vec2i) -> f32 {
   var v = own(q); if (near == 0u) { return v; }
   let c = colour(q); let s = vec2f(q) + 0.5;
-  for (var i = 0u; i < d.n.x; i++) { if ((near & (1u << i)) == 0u) { continue; } let k = spot(i, s, c); if (k.x > 0.0) { v = mix(v, own(q + vec2i(d.sp[i * 5u + 1u].xy)) * k.y, k.x); } }
+  for (var i = 0u; i < d.n.x; i++) { if ((near & (1u << i)) == 0u) { continue; } let k = spot(i, s, c); if (k.x > 0.0) { v = mix(v, own(q + vec2i(d.sp[i * ${SPOT_ROWS}u + 1u].xy)) * k.y, k.x); } }
   return v;
 }
 const SITE = array<vec2i, 5>(vec2i(0, 0), vec2i(2, 0), vec2i(1, 1), vec2i(0, 2), vec2i(2, 2));
@@ -177,6 +178,7 @@ fn fix(@builtin(global_invocation_id) id: vec3u) {
     sum += m * (v * (1e-4 + gc) / (1e-4 + greenAt(at)) * wt); wsum += m * wt;
   } }
   var c3 = sum / max(vec3f(1e-8), wsum); c3.g = gc;
+  let me = colour(q); if (me != 1u) { c3[me] = mix(c3[me], raw(q), OWN); }   // a red or blue site mostly keeps its own reading
   let u = vec3u(clamp(c3, vec3f(0.0), vec3f(1.0)) * 65535.0 + 0.5);
   let n = (id.y * u32(d.at.z) + id.x) * 2u;
   rgb[n] = u.x | (u.y << 16u); rgb[n + 1u] = u.z | (clip << 16u);

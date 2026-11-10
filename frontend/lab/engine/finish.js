@@ -1,8 +1,8 @@
 // @ts-check
 // The last pass of a full-size view (full.js): sharpening, defringing, then the dither. Sharpening is only ever done on the
 // sensor's own pixels (100 % and export): the editing copy is a third of their size, where it would not show.
-// It is an unsharp mask on brightness, the standard one (Lightroom's Amount, Radius and Detail; RawTherapee's
-// unsharp mask with its halo control): each pixel moves away from a Gaussian blur of its surroundings. Detail
+// The photo's own Sharpening is deconv.js's, done before this on the rectangle's linear values. What is left here
+// is a mask's Sharpness: an unsharp mask on brightness (each pixel moves away from a Gaussian blur of its surroundings). Detail
 // decides what counts: low, only clear edges are sharpened (small differences are mostly noise) and no edge
 // may pass its neighbours' brightest and darkest; high, everything is and edges may overshoot a little. A mask's own
 // Sharpness (local.js) comes with each pixel, in the frame pass's fourth value: more sharpening there, or with less

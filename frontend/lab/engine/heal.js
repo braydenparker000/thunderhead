@@ -22,9 +22,9 @@ function around(/** @type {{ proxy: Uint16Array, width: number, height: number }
   for (let y = y0 - 1; y <= y0 + 1; y++) for (let x = x0 - 1; x <= x0 + 1; x++) { const i = (Math.min(h - 1, Math.max(0, y)) * w + Math.min(w - 1, Math.max(0, x))) * 4; s[0] += d[i]; s[1] += d[i + 1]; s[2] += d[i + 2]; }
   return s;
 }
-/** How a source's surroundings differ from the spot's own: for each colour, the stops to add at the centre and
- * across and down the spot (a tilted plane, fitted to the ring), and how badly even that fits (the texture that
- * differs). @param {number[]} c the spot's centre on the sensor @param {number} r @param {number[]} o the way to the source */
+/** How a source's surroundings differ from the spot's own: for each colour, the stops to add at the centre, across
+ * and down the spot (a tilt), and as a saddle and a three-fold bend (seven numbers, two rows: mend.js adds them up),
+ * fitted to the ring; and how badly a tilt alone fits (the texture that differs). @param {number[]} c the spot's centre on the sensor @param {number} r @param {number[]} o the way to the source */
 function fit(/** @type {any} */ img, /** @type {number} */ cell, c, r, o) {
   const rows = [], n = RING; let miss = 0;
   const L = [0, 1, 2].map(() => new Float64Array(n));
@@ -36,9 +36,10 @@ function fit(/** @type {any} */ img, /** @type {number} */ cell, c, r, o) {
     let a = 0, b = 0, cc = 0;
     for (let k = 0; k < n; k++) { const t = (k / n) * 2 * Math.PI; a += L[ch][k] / n; b += (L[ch][k] * Math.cos(t) * 2) / n / OUT; cc += (L[ch][k] * Math.sin(t) * 2) / n / OUT; }
     for (let k = 0; k < n; k++) { const t = (k / n) * 2 * Math.PI; miss += (L[ch][k] - a - OUT * (b * Math.cos(t) + cc * Math.sin(t))) ** 2; }
-    rows.push([Math.max(-2, Math.min(2, a)), Math.max(-1, Math.min(1, b)), Math.max(-1, Math.min(1, cc)), 0]);
+    const bend = [2, 2, 3, 3].map((m, i) => { let s = 0; for (let k = 0; k < n; k++) { const t = (k / n) * 2 * Math.PI; s += L[ch][k] * (i % 2 ? Math.sin(m * t) : Math.cos(m * t)); } return Math.max(-0.5, Math.min(0.5, (2 * s) / n / OUT ** m)); });
+    rows.push([Math.max(-2, Math.min(2, a)), Math.max(-1, Math.min(1, b)), Math.max(-1, Math.min(1, cc)), bend[0]], [bend[1], bend[2], bend[3], 0]);
   }
-  return { rows, miss: miss / n, lift: Math.abs(rows[1][0]) };
+  return { rows, miss: miss / n, lift: Math.abs(rows[2][0]) };
 }
 /** A spot on the sensor: its centre, its radius, and the way to its source in whole patterns. @param {Spot} s @param {import('./warp.js').Geo} g */
 function placed(s, g) {
@@ -46,15 +47,15 @@ function placed(s, g) {
   return { c, r: Math.max(2, Math.hypot(e[0] - c[0], e[1] - c[1])), o: [Math.round((src[0] - c[0]) / 6) * 6, Math.round((src[1] - c[1]) / 6) * 6] };
 }
 
-/** The spots as the passes carry them, five rows each: centre and radius on the sensor, feather · the way to the
- * source, opacity · then for red, green and blue the stops to add (at the centre, across, down). Null for none.
+/** The spots as the passes carry them, eight rows each: centre and radius on the sensor, feather · the way to the
+ * source, opacity · then for red, green and blue two rows of the stops to add (`fit`). Null for none.
  * @param {Spot[] | null | undefined} spots @param {import('./warp.js').Geo} g @param {{ proxy: Uint16Array, width: number, height: number }} img the editing copy */
 export function spotRows(spots, g, img) {
   if (!spots?.length) return null;
   const live = spots.slice(0, MOST), out = new Float32Array(4 + FLOATS), cell = g.W / img.width;
   out[0] = live.length;
   live.forEach((s, k) => {
-    const p = placed(s, g), f = s.tool === 'Clone' ? [[0, 0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0]] : fit(img, cell, p.c, p.r, p.o).rows;
+    const p = placed(s, g), f = s.tool === 'Clone' ? Array.from({ length: 6 }, () => [0, 0, 0, 0]) : fit(img, cell, p.c, p.r, p.o).rows;
     out.set([p.c[0], p.c[1], p.r, 0.02 + 0.6 * Math.min(1, Math.max(0, s.feather)),   // the outer share of the radius that fades out: at most 0.62, so the middle is always fully replaced
        p.o[0], p.o[1], Math.min(1, Math.max(0, s.opacity)), 0, ...f.flat()], 4 + k * ROWS * 4);
   });

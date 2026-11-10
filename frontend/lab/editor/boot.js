@@ -62,6 +62,7 @@ else {
     e.stopPropagation(); e.preventDefault();
     go(to);
   }, true);
+  addEventListener('contextmenu', (e) => { if (!(/** @type {HTMLElement} */ (e.target)).closest('input, textarea')) e.preventDefault(); });   // a long press is the app's own (hold to compare), not the browser's menu
   history.replaceState({ name: 'Library' }, '');
   // the Library shows the photos on this phone, so read them first (none yet: the design's sample roll)
   init().catch((e) => console.warn('photos:', e)).finally(() => show('Library'));

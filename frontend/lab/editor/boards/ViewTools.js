@@ -31,7 +31,9 @@ export default class Component extends DCLogic {
     const after = S.holding ? 'none' : S.ver === 1 ? looks[S.step] : vers[S.ver][1];
     // the photo's box in its area: the sample's is the design's (100% about 7x the fitted photo); a photo's own comes from zoom.js
     const box = real ? zoom.fitted() : null, zi = real ? zoom.info() : null, zoomed = real ? zi.on : S.zoom;
-    const AW = 412, AH = 738, baseW = box ? box.width : 412, baseH = box ? box.height : 275, Z = 7;
+    // the panel grows for the history's row and the versions' strip, and the photo's room gives way: nothing lies over the photo
+    const now = real && zoomed ? 'zoom' : S.mode, more = now === 'versions' ? 96 : now === 'history' ? 50 : 0, plateH = 125 + more;
+    const AW = 412, AH = 738 - more, baseW = box ? box.width : 412, baseH = box ? box.height : 275, Z = 7;
     const imW = !real && S.zoom ? baseW * Z : baseW, imH = !real && S.zoom ? baseH * Z : baseH;
     const fitc = (c, size, area) => (size <= area ? 0.5 : Math.max(area / 2 / size, Math.min(1 - area / 2 / size, c)));
     const cx = fitc(S.cx, imW, AW), cy = fitc(S.cy, imH, AH);
@@ -60,15 +62,17 @@ export default class Component extends DCLogic {
     const stepList = past ? past.steps.map((s, i) => [s.name, s.val, i === past.at, i > past.at, () => photo.goto(i)]) : steps.map(([name, val], i) => [name, val, i === S.step, i > S.step, () => set({ step: i, ver: 1 })]);
     const verList = real ? photo.versions().map((v, i) => ({ name: v.name, src: tile(`ver:${JSON.stringify(v.st)}`, v.st, 152), filter: 'none', sel: v.on, pick: () => photo.version(i) })).concat([{ name: 'New', pick: () => photo.keep() }])
       : vers.concat([['New', '']]).map(([name, f], i) => ({ name, src: SAMPLE, filter: f || 'none', sel: i === S.ver, pick: () => (name === 'New' ? null : set({ ver: i })) }));
+    // the history's row comes to the step the photo is at, when it opens and when that step changes
+    const here = shownMode === 'history' ? stepList.findIndex((x) => x[2]) : -1;
+    if (here !== this.here) { this.here = here; if (here >= 0) requestAnimationFrame(() => { const row = this._host?.el.querySelector('[role=list][aria-label=History]'), b = row?.children[here]; if (b) row.scrollTo({ left: b.offsetLeft - (row.clientWidth - b.offsetWidth) / 2, behavior: 'smooth' }); }); }
     return {
       real: !!real, demo: !real, fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160',
       hist: !!sc, histInk: S.hist ? '#e8202a' : '#a6b0bc', tHist: () => set({ hist: !S.hist }), clip: S.clip && !!sc, clipDemo: S.clip && !!sc && !real, clipInk: S.clip ? '#e8202a' : '#c9d0d8', tClip: () => set({ clip: !S.clip }),
       hR: sc?.r, hG: sc?.g, hB: sc?.b, clipLo: sc?.lo, clipHi: sc?.hi, histMeta: S.clip ? 'clipping shown' : 'tap ▲ for clipping',
       history: shownMode === 'history', historyInk: shownMode === 'history' ? '#e8202a' : '#a6b0bc', tHistory: () => mode('history'),
       steps: stepList.map(([name, val, cur, ahead, pick]) => ({ name, val, cur: String(cur), bg: cur ? 'rgba(232,32,42,0.2)' : 'transparent', dot: cur ? '#e8202a' : ahead ? '#5d6166' : '#f2efe8', o: ahead ? 0.45 : 1, pick })),
-      versions: shownMode === 'versions',
-      vers: verList.map((v) => ({ name: v.name, src: v.src || SAMPLE, filter: v.filter || 'none', on: String(!!v.sel), ring: v.sel ? '#e8202a' : 'rgba(255,255,255,0.15)', ringW: v.sel ? 2 : 1, ink: v.sel ? '#f2efe8' : '#a6b0bc',
-        imgShow: v.name === 'New' || !v.src ? 'none' : 'block', plusShow: v.name === 'New' ? 'flex' : 'none', pick: v.pick })),
+      versions: shownMode === 'versions', plateTop: 915 - plateH, photoH: 915 - 52 - plateH, hintTop: 56 + more,
+      vers: verList.map((v) => (v.name === 'New' ? { name: 'New', glyph: '+', pick: v.pick } : { name: v.name, src: v.src || SAMPLE, filter: v.filter || 'none', on: !!v.sel, pick: v.pick })),
       after, imL, imT, imW, imH, imTr: this.drag ? 'none' : 'all 320ms cubic-bezier(0.2, 0.85, 0.2, 1)', pix: 'auto',
       afterW: split ? `${baseW - splitRel}px` : '100%', split, splitX: S.split, zoomed: S.zoom && !real,
       beforeOn: !!beforeSrc, beforeSrc, beforeW: S.holding ? baseW : splitRel,

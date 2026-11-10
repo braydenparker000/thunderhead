@@ -27,16 +27,29 @@ node engine/raw/quality/sites.mjs /tmp/q/a.bin /tmp/q/a.gpu.f32               # 
 white-balanced values (`score.mjs` does): it works on colour differences. Its sixth argument makes green only,
 chosen by the greens alone: the engine's green is that, and should score within a few hundredths of a dB of it.
 
-What it said on 2026-11-10 (two crops: roofs and solar panels; a stone church):
+What it said on 2026-11-10 (two crops: roofs and solar panels; a stone church), on the 6 × 6 picture:
 
 | | PSNR | green | colour |
 |---|---|---|---|
 | vkdt's demosaic, as the engine had it | 33.3, 31.8 dB | 34.3, 32.3 | 36.0, 35.1 |
-| Markesteijn, 3 passes | 35.8, 34.0 | 37.9, 35.2 | 34.6, 33.0 |
-| the engine now: Markesteijn's green (one pass, chosen by the greens alone), vkdt's red and blue | 35.2, 33.7 | 37.2, 34.6 | 36.8, 36.3 |
+| Markesteijn, 3 passes (the port here) | 35.8, 34.0 | 37.9, 35.2 | 34.6, 33.0 |
+| Markesteijn's green chosen by the greens alone, vkdt's red and blue | 35.2, 33.7 | 37.2, 34.6 | 36.8, 36.3 |
+| the same, each red and blue site trusting its own reading by half (the engine now) | 35.8, 34.3 | 37.2, 34.6 | 36.7, 35.7 |
 
-Still on the table: Markesteijn's three-pass green (about 0.6 dB more green; it needs red and blue made four ways
-first), and keeping each red and blue site's own reading (about 1 dB more PSNR, about 0.7 dB less on colour).
+## Against darktable's own code
+
+`dng.mjs` writes a harness mosaic as a DNG (`node dng.mjs <crop.bin> <crop>.remade.f32 out.dng`), which darktable
+opens: `darktable-cli out.dng out.tif --icc-type LIN_REC2020 --apply-custom-presets false --core --conf
+plugins/darkroom/workflow=none --conf plugins/imageio/format/tiff/bpp=16`. Its TIFF is in its own colour space,
+so a 3 × 3 matrix fitted against the known picture carries it back before scoring (a few lines of numpy:
+least squares of the picture on the TIFF's linear values, then `score.mjs` on the result). darktable 4.6.1 on the
+roofs crop at `K=3`: PSNR 38.1 dB, green 40.7, colour 37.0. The engine on the same file: 37.5, 39.9, 37.6. So
+darktable's demosaic is ahead by 0.6 dB overall, all of it green (its 3-pass Markesteijn chooses a way by all three
+colours); the engine has the less false colour. RawTherapee 5.10 does not read this DNG's X-Trans pattern
+correctly (a magenta, patterned picture at every offset tried), so it has not been scored.
+
+Still on the table: Markesteijn's own choice of way (red and blue made four ways first, then the smoothest judged on
+all three colours): about 0.5 to 0.8 dB more green.
 
 ## Noise reduction
 
@@ -66,8 +79,42 @@ What it said on 2026-11-10 (the roofs crop, ISO 6400, `K=3`; without noise the d
 | Noise 100, Color noise 50 | 34.8 | 36.9 | 36.5 |
 | non-local means (15 × 15 search, 5 × 5 patches), its best setting | 34.9 | 37.8 | 35.2 |
 
-Read: the engine's colour noise reduction (the guided filter) is good and should stay; past 25 it starts to cost
-real colour. Its brightness step (two rounds of an edge-stopping blur) is the weak part: non-local means finds
-about 0.9 dB more green from the same data. The next change to try is a patch-based or wavelet brightness step
-under the same colour step; how heavy it may be is the phone's to say (a 15 × 15 search is over a thousand reads
-a pixel).
+Read then: the colour step was good; the brightness step (two rounds of a blur that weighed a neighbour by its
+own brightness against the pixel's) was the weak part.
+
+Since then the brightness step weighs a neighbour by the 3 × 3 patch round it against the patch round the pixel
+(`luma.mjs` is where it was tried first; its `steps` method). The same table now, with the engine's demosaic as it
+is now (36.9 became 37.5 without noise):
+
+| | PSNR | green | colour |
+|---|---|---|---|
+| no noise reduction | 34.4 dB | 36.5 | 35.7 |
+| Noise 50, Color noise 25 | 35.5 | 37.6 | 36.9 |
+| Noise 100, Color noise 25 | 35.8 | 37.9 | 37.1 |
+| the old brightness step at 100, 25, on the same demosaic | 35.4 | 37.1 | 37.3 |
+
+At ISO 800, 3200 and 12800, Noise 100 gains 0.3, 0.9 and 1.9 dB over none and never loses, so a photo not opened
+before starts with Noise by its ISO (0 to ISO 400, 20 at 800, 40 from 1600; `session.js` `noiseStart`).
+
+## Sharpening
+
+`BLUR=0.8 node score.mjs <crop.bin>` makes the mosaic from the picture blurred as a lens would (a Gaussian of that
+sigma) and still scores against the sharp picture: what sharpening has to win back. `sharp.mjs` holds the unsharp
+mask as the engine had it and Richardson and Lucy's deconvolution in plain code; `SHARP=40,1,25 node engine.cjs`
+runs the engine's own (Sharpening, Radius, Detail as the plate shows them).
+
+On the roofs crop, `K=3`, blurred by 0.8 of a pixel (32.4 dB unsharpened):
+
+| | no noise | ISO 1600, Noise 40 |
+|---|---|---|
+| unsharpened | 32.4 dB | 32.1 |
+| the unsharp mask, its best amount | 33.4 | 32.7 |
+| the engine now, as a photo opens (it takes the spread to be 0.7) | 34.9 | 34.1 |
+| the engine now, Radius 1.15 (the spread it really was) | 35.4 | 34.5 |
+
+## Heal
+
+`node heal.mjs <crop.bin>` places 300 spots at random on the known picture, each healed from a source 2.4 radii
+away, and compares the smoothed result with what is really there. Letting the correction bend to third order (a
+saddle and a three-fold bend on top of the level and tilt) lowers the error at a spot's rim by 6 % (0.308 to 0.289
+stops on the roofs crop, where random spots land on edges and no correction can be right).

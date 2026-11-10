@@ -355,7 +355,11 @@ What was built, and where:
 - The sample pages (`edit/`, `looks/` …) hold copies of the templates they play. They are brought up to date by
   script from `index.html` (each page's board and what it imports); do not edit them by hand.
 
-Not done yet: the View board's versions and history still lie over the photo; Export and Library are as they were.
+The View board's history is a row and its versions a strip in its panel, which grows for them; Export has the
+same panel as the rest (its two files as cards along the top, Save in the header) and shows the photo in the
+shared layer. The Library is as it was. The page behaves as an app under the finger: keys give when pressed, a tap
+leaves no grey flash, nothing pulls to refresh, and a long press brings no browser menu (`editor.css`, `boot.js`).
+A choice on a dial (Export's sharpen amount, metadata, file name) steps with a short turn (`DialPlate` `span`).
 The header's Export key is blue on every board now (Edit's was, the others' were red).
 
 Check scripts (not in the repo) drive each board in headless Chromium on a landscape and a portrait RAF: the drum
@@ -384,14 +388,30 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   averaged three by three and the editing copy under it (of 255): plain 1.24; Texture +100 went from 1.46 to
   1.31, Clarity +100 from 1.42 to 1.29. Texture below zero now smooths the middle detail and keeps the finest
   (1.25 to 1.31), which is how Lightroom's behaves.
-- **Noise reduction: measured, not yet changed.** `engine/raw/quality/` lays the sensor's own noise on the
-  harness mosaic and scores the engine's noise reduction against the clean picture, beside a reference (non-local
-  means). At ISO 6400 the colour step is good (keep it, and Color noise past 25 costs real colour); the brightness
-  step is the weak part, about 0.9 dB of green behind non-local means on the same data. Next: a patch-based or
-  wavelet brightness step under the same colour step. It waits on the owner's timings: how long the phone takes
-  for 100 % and an export now says how heavy that step may be.
-- After that: deconvolution in place of the unsharp mask in `finish.js`, and a heal blend that matches gradients
-  (`mend.js`). Both want the same treatment: a known picture, a number, then the change.
+- **Against darktable's own code** (4.6.1, installed in the session; `quality/README.md` says how): its demosaic
+  scores 38.1 dB on the roofs crop where ours scored 36.9, all of the lead in green, with more false colour than
+  ours. Letting each red and blue site trust its own reading by half closed half of that (37.5) at no cost in
+  colour (`demosaic.js` `OWN`). What is left is Markesteijn's own choice of way, judged on all three colours: it
+  needs red and blue made four ways first (about 0.5 to 0.8 dB of green). RawTherapee could not be scored: it
+  misreads the harness's DNG. darktable's denoise and sharpening could not be scripted from its command line.
+- **Noise reduction: done.** The colour step stays. The brightness step weighs a neighbour by the 3 × 3 patch round
+  it against the patch round the pixel, not by one value against one (`denoise.js` `blur`): at ISO 6400, +0.5 dB
+  overall and +0.8 dB of green over the old step, and ahead of a plain non-local means. A photo not opened before
+  starts with Noise by its ISO (`session.js` `noiseStart`, kept with the edit as `noise0`); photos opened before
+  keep 0.
+- **Sharpening: done.** The photo's own Sharpening is now deconvolution (`deconv.js`, Richardson and Lucy, eight
+  rounds, on the rectangle's linear brightness before the picture is laid out), not the unsharp mask: on a known
+  picture blurred by 0.8 of a pixel it wins back 2.5 dB where the mask won 0.9, and with ISO 1600 noise 2 dB against
+  0.5. Sharpening 40 takes the spread out, less takes part of it, more goes past it; Radius is the spread (1 is 0.7
+  of a pixel); Detail is how little is held back as noise. `finish.js` keeps the unsharp mask for a mask's own
+  Sharpness. Changing Sharpening at 100 % re-makes the rectangle (demosaic, noise, sharpening): heavier than it
+  was. The export's pieces overlap by 12 pixels now, not 4.
+- **Heal: done, a small gain.** The correction that brings a source to a spot's surroundings may bend (to third
+  order: `mend.js`, `heal.js` `fit`; eight rows a spot, not five): 6 % less error at the rim. A true
+  gradient-domain blend was not built: the measurement did not promise enough.
+- Cost, to check on the phone: while a rectangle is made the engine holds about 20 bytes a pixel more than this
+  morning (demosaic 12, noise 8; sharpening works in the noise step's buffers), and a 100 % view runs about 45
+  passes where it ran 10. In headless Chromium saving the Full and Small files of a 40 MP photo takes about 13 minutes.
 
 ## How to work here
 
