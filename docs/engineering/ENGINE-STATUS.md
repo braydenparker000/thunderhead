@@ -1,5 +1,10 @@
 # The new photo engine: where it stands (2026-11-09)
 
+> **Replaced on 2026-11-10.** The working note is now [engine/raw/STATUS.md](../../engine/raw/STATUS.md): what is
+> live, how each part works, the traps met, and what waits on the owner. It sits beside the engine so that a change
+> to the editor's test pages can update it without running every suite. What follows is the state on 2026-11-09,
+> kept for its account of the decode, the colour pipeline and the test page.
+
 A handoff for whoever picks this up next. The research and the owner's decisions are in
 [ENGINE-RESEARCH.md](ENGINE-RESEARCH.md) (read its "Revised pipeline" section first), the design in
 [../design/EDITOR.md](../design/EDITOR.md). The owner shoots a Fujifilm X-E5 (40 MP X-Trans 5, lossless
