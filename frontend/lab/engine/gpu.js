@@ -147,7 +147,7 @@ export async function engine(canvas, img, readback = false) {
     return toneOf([0, 3, 6].map((o) => Math.max(0, m[o] * s[0] + m[o + 1] * s[1] + m[o + 2] * s[2]) * k));
   };
   /** @param {number} ev @param {number} contrast
-   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, clarity?: number, texture?: number, dehaze?: number, sharpen?: number, radius?: number, detail?: number, noise?: number, colorNoise?: number, vignette?: number, grain?: number, cube?: number, masks?: import('./local.js').Mask[] | null, showMaskNo?: number, baseEv?: number, mixer?: Float32Array | null, grade?: Float32Array | null, curve?: Float32Array | null, amount?: number, screen?: boolean, fit?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
+   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, clarity?: number, texture?: number, dehaze?: number, sharpen?: number, radius?: number, detail?: number, noise?: number, colorNoise?: number, vignette?: number, grain?: number, cube?: number, defringe?: number, masks?: import('./local.js').Mask[] | null, showMaskNo?: number, baseEv?: number, mixer?: Float32Array | null, grade?: Float32Array | null, curve?: Float32Array | null, amount?: number, screen?: boolean, fit?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
    * each −1..1; amount: the look table's strength (1 = as made); screen: false renders without showing it; fit: false leaves the
    * fitted photo as it is and re-makes only the full-resolution views (100 %); exact: every
    * pixel through the full maths, not the table (slow: the table's accuracy check); rebuild: false leaves clipped
@@ -169,6 +169,7 @@ export async function engine(canvas, img, readback = false) {
     if (more.curve) { f.set(more.curve, 156); n[55] |= 131072; }
     const lo = localRows(more.masks, geo, more.showMaskNo ?? -1, (more.baseEv ?? ev) + state.u.offset);   // the masks: laid on in the frame pass, not the table
     if (lo) f.set(lo, 668);
+    f[683] = more.defringe || 0;   // for the full-size views' last pass (finish.js)
     const key = [contrast, more.amount ?? 1, ...g.slice(2), more.cube ?? 1, more.mixer?.join(), more.grade?.join(), more.curve?.join()].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();

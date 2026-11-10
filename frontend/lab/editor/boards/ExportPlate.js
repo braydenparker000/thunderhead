@@ -1,7 +1,8 @@
 // @ts-nocheck
 // The ExportPlate board, as designed (docs/design/editor/boards/ExportPlate.dc.html.dc.html). With a photo open it
-// saves for real (app/save.js): size, format, quality, metadata, location and file name are the photo's own;
-// output sharpening, the watermark and Display P3 wait for their stage and say so.
+// saves for real (app/save.js): size, format, quality, output sharpening, metadata, location and file name are the
+// photo's own;
+// the watermark and Display P3 wait for their stage and say so.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import { day, save } from '../app/save.js';
@@ -21,7 +22,7 @@ export default class Component extends DCLogic {
     const S = this.state, set = (o) => this.setState(o);
     // a photo's own size and name; what its export can't do yet is off, whatever the preset says
     const real = photo.current(), [fw, fh] = real ? photo.shape() : [7728, 5152], full = Math.max(fw, fh), stem0 = real ? real.name.replace(/\.\w+$/, '') : 'DSCF0412';
-    const P = real ? S.presets.map((x) => ({ ...x, long: x.size === 'Full' ? full : Math.min(full, x.long), space: 'sRGB', sharpen: 'Off', mark: false, naming: x.naming === 'Shoot + number' ? 'Camera name' : x.naming })) : S.presets, p = P[S.sel];
+    const P = real ? S.presets.map((x) => ({ ...x, long: x.size === 'Full' ? full : Math.min(full, x.long), space: 'sRGB', mark: false, naming: x.naming === 'Shoot + number' ? 'Camera name' : x.naming })) : S.presets, p = P[S.sel];
     const setP = (patch) => set({ presets: S.presets.map((x, i) => (i === S.sel ? { ...x, ...patch } : x)), done: false });
     const sizeList = [['Full', full], ['4K', 3840], ['2048', 2048], ['1080', 1080]].filter(([k, px]) => k === 'Full' || px < full);
     const enums = { amt: ['Low', 'Standard', 'High'], meta: ['All', 'Copyright only', 'None'], naming: real ? ['Camera name', 'Date + number'] : ['Camera name', 'Date + number', 'Shoot + number'] };
@@ -35,8 +36,8 @@ export default class Component extends DCLogic {
         .concat([{ name: 'Custom', value: p.size === 'Custom' ? String(p.long) : '', on: p.size === 'Custom', pick: () => { setP({ size: 'Custom' }); set({ ctl: 'long' }); } }]),
       Format: ['JPEG', 'PNG', 'TIFF 16'].map((f) => ({ name: f, on: p.fmt === f, pick: () => setP({ fmt: f }) }))
         .concat([{ name: 'Quality', value: p.fmt === 'JPEG' ? String(p.q) : '—', on: S.ctl === 'q', pick: () => set({ ctl: 'q' }) }, { name: 'Color space', value: p.space, pick: () => (real ? null : setP({ space: p.space === 'sRGB' ? 'Display P3' : 'sRGB' })) }]),
-      Output: real ? [{ name: 'Sharpen', value: 'LATER', pick: () => {} }, { name: 'Watermark', value: 'LATER', pick: () => {} }] : ['Off', 'Screen', 'Print'].map((s) => ({ name: s === 'Off' ? 'No sharpen' : s, on: p.sharpen === s, pick: () => setP({ sharpen: s }) }))
-        .concat([{ name: 'Amount', value: p.amt, on: S.ctl === 'amt', pick: () => set({ ctl: 'amt' }) }, { name: 'Watermark', value: p.mark ? 'ON' : 'OFF', on: p.mark, pick: () => setP({ mark: !p.mark }) }]),
+      Output: ['Off', 'Screen', 'Print'].map((s) => ({ name: s === 'Off' ? 'No sharpen' : s, on: p.sharpen === s, pick: () => setP({ sharpen: s }) }))
+        .concat([{ name: 'Amount', value: p.amt, on: S.ctl === 'amt', pick: () => set({ ctl: 'amt' }) }, real ? { name: 'Watermark', value: 'LATER', pick: () => {} } : { name: 'Watermark', value: p.mark ? 'ON' : 'OFF', on: p.mark, pick: () => setP({ mark: !p.mark }) }]),
       Info: [{ name: 'Metadata', value: p.meta, on: S.ctl === 'meta', pick: () => set({ ctl: 'meta' }) }, { name: 'Location', value: p.gps ? 'ON' : 'OFF', on: p.gps, pick: () => setP({ gps: !p.gps }) },
         { name: 'File name', value: p.naming, on: S.ctl === 'naming', pick: () => set({ ctl: 'naming' }) }],
     };
@@ -60,7 +61,7 @@ export default class Component extends DCLogic {
       if (real) {
         const total = on.length * 12;
         set({ done: false, saved: null, note: '', working: { k: 0, total } });
-        save(on.map((x) => ({ fmt: x.fmt, long: x.long, q: x.q, meta: x.meta, gps: x.gps, file: fileName(x) })), (i, d) => this.setState({ working: { k: Math.min(total - 0.01, (i + d) * 12), total } }))
+        save(on.map((x) => ({ fmt: x.fmt, long: x.long, q: x.q, meta: x.meta, gps: x.gps, file: fileName(x), sharpen: x.sharpen, amt: x.amt })), (i, d) => this.setState({ working: { k: Math.min(total - 0.01, (i + d) * 12), total } }))
           .then((saved) => this.setState({ working: null, done: true, saved }), (err) => this.setState({ working: null, done: true, note: String(err?.message || err) }));
         return;
       }

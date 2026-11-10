@@ -99,9 +99,9 @@ export async function full(e, img, mosaic) {
           bend.run(enc, e.gpu.geo(), { x: at.X, y: at.Y, scale: 1, w: at.cw, h: at.ch }, { x: at.rx, y: at.ry, scale: 1, w: at.rw, h: at.rh });
           fresh = true;
         }
-        n[52] = at.cw; n[53] = at.ch; n[55] |= 1024; f[51] = 1 / 3; f[74] = at.X / 3; f[75] = at.Y / 3;   // no dither yet: the last pass does it
+        n[52] = at.cw; n[53] = at.ch; n[55] |= 1024 | 524288; f[51] = 1 / 3; f[74] = at.X / 3; f[75] = at.Y / 3;   // no dither yet: the last pass does it
         device.queue.writeBuffer(uni, 0, c);
-        const fu = new ArrayBuffer(32); new Uint32Array(fu).set([at.cw, at.ch, deep ? 0 : 1, 0]); new Float32Array(fu).set([f[96], f[97], f[98], 0], 4);
+        const fu = new ArrayBuffer(32); new Uint32Array(fu).set([at.cw, at.ch, deep ? 0 : 1, 0]); new Float32Array(fu).set([f[96], f[97], f[98], f[683]], 4);   // sharpening's three, and defringe
         device.queue.writeBuffer(funi, 0, fu);
         const pass = enc.beginComputePass();
         pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(at.cw / 8), Math.ceil(at.ch / 8));

@@ -18,7 +18,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Colour: Adobe camera profiles and looks (the owner's private zip, in IndexedDB; never commit or serve them) | `dcp.js`, `gpu.js`, `profiles.js` |
 | Light and Color sliders, white balance presets, eyedropper, Auto tone, Reset | `wgsl.js`, `mask.js`, `auto.js`, `editor/app/session.js` |
 | Geometry: one pass lays the photo out as the picture; the lens's own corrections (distortion, fringing, darkened corners) from the RAF; Distortion and Vignetting by hand | `warp.js`, `lens.js` |
-| Sharpening (Amount, Radius, Detail) and noise reduction (Noise, Color noise) on the sensor's own pixels: 100 % and export | `finish.js`, `denoise.js`, `noise.js`, `full.js` |
+| Sharpening (Amount, Radius, Detail), Defringe, and noise reduction (Noise, Color noise) on the sensor's own pixels: 100 % and export | `finish.js`, `denoise.js`, `noise.js`, `full.js` |
 | Effects: Clarity, Texture, Dehaze (each from a small mask, so they cost one lookup a pixel and match at every zoom) | `mask.js`, `haze.js`, `wgsl.js` main |
 | Crop board: crop with aspect, straighten (and Auto level), quarter turns, flips, perspective (Vertical, Horizontal, Scale) | `crop.js`, `level.js`, `boards/CropPlate.js` |
 | Full size: X-Trans demosaic (vkdt's) of the rectangle looked at, developed by the same frame pass | `demosaic.js`, `full.js` |
@@ -30,7 +30,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Masks board: a brush, linear and radial gradients laid on the picture, ranges of colour and of brightness picked with a tap; each with its own Light, Color and Effects adjustments, Amount, Invert; shown in red | `local.js`, `brush.js`, `wgsl.js` main, `editor/app/masks.js`, `boards/MaskPlate.js` |
 | Heal board: Heal, Clone and Remove spots, each replaced from a source the engine picks nearby (it can be dragged); Size, Feather, Opacity; Visualize | `heal.js`, `mend.js`, `warp.js`, `demosaic.js`, `editor/app/heal.js`, `boards/HealPlate.js` |
 | Library: tiles that show the edit, an Edited filter, what the photos take on the phone, deleting rejects for good | `boards/LibraryPlate.js`, `editor/app/store.js` |
-| Export: Full or smaller, JPEG (bands joined by restart markers), PNG, 16-bit TIFF, Exif carried | `export.js`, `files.js`, `exif.js`, `editor/app/save.js` |
+| Export: Full or smaller, JPEG (bands joined by restart markers), PNG, 16-bit TIFF, Exif carried, output sharpening for Screen or Print | `export.js`, `files.js`, `exif.js`, `editor/app/save.js` |
 
 ## The plan, in order (agreed with the owner 2026-11-10)
 
@@ -51,6 +51,23 @@ Steps are grouped by the engine machinery they share, so each is built once.
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
 ## Steps 1 to 7 are done. What is left waits on the owner (8, 9) or was left out along the way
+
+Three things left out of earlier steps, done after step 7 (all in the full-size finishing, so they show at 100 %
+and in the export, not on the fitted photo):
+
+- **Output sharpening** (Export › Output: No sharpen, Screen, Print; Amount Low, Standard, High). After the photo is
+  brought to its export size, `export.js` `crisp` sharpens it once more on the way to the file: the same unsharp
+  mask as the engine's at its smallest (the nine pixels around each), a row behind the rows it is given. On a
+  2048 px export at Screen, Standard, fine detail goes from 0.0148 to 0.0184 with the mean colour unchanged.
+  The Small preset starts at Screen, the Full one at none.
+- **Defringe** (Optics, 0 to 100). `finish.js`: where brightness changes sharply and the pixel is purple or green
+  (red and blue both over green, or green over both), its colour is drawn back to grey. On the sample's crane
+  cable at 100 %, the purple at edges falls from 0.080 to 0.023. It cannot tell a purple thing from a purple
+  fringe: at 100 a hard-edged purple object loses colour too.
+- **A mask's own Sharpness** (Masks › Effects). The frame pass hands the masks' sum to the last pass in its fourth
+  value (1 + the sum, for full-size views only: flag 524288); `finish.js` adds twice it to the photo's amount,
+  and with less than none softens towards the blur. Noise for a mask is still not built (noise reduction runs
+  before the frame pass, which is where masks are known).
 
 Zoom on the tool boards (after step 7), for fine painting and for dust:
 
@@ -145,8 +162,7 @@ Step 6a, masks (`engine/local.js` is the place to read first):
   (size; along one axis near that axis's end). A range mask takes a tap. OVERLAY lays the chosen mask over the
   picture in red (drawn by the engine, so it is the real weight); it comes off while the dial turns. The red
   only shows in the Masks board's slot (`data-masks`), never in a tile or a file.
-- Not built: detection (Subject, Sky …: step 9), Sharpness and Noise for a mask (they need the mask in the
-  full-size passes), more than eight masks.
+- Not built: detection (Subject, Sky …: step 9), Noise for a mask, more than eight masks.
 - Strengths are first guesses: Temp ±100 is ±0.35 stops on red against blue, Hue ±100 is ±180°.
 
 
@@ -238,7 +254,7 @@ Step 3 turned out to be two different machines, not one:
 - Tested by adding the profile's ISO 6400 noise to a clean photo's sensor data: 38.3 dB unfiltered, 39.2 at the
   default (Color noise 25), 40.5 with Noise 50 as well. Past Color noise 50 or Noise 50 it gives detail away
   faster than it removes noise. No real high-ISO RAF was at hand: the owner's own are the real test.
-- Left out of step 3: export's output sharpening (Screen, Print: the board reads LATER) and Defringe.
+- Left out of step 3 then, done since (above): export's output sharpening and Defringe.
 - The dial's window spans the real range of controls that don't run −100..100 (`adjust.js` `SPAN`).
 
 How geometry works (step 2a), for whoever touches it:
@@ -327,9 +343,34 @@ and versions, and a reload. Sample pages `/lab/editor/viewing/` and `/lab/editor
   script must wait for what it reads, not for a fixed time (`session.busy()` says whether a frame is still owed). A tile's `img` holds the camera's JPEG (also a
   `blob:`) until its own picture is made.
 
+## What is left, and who it waits on
+
+Left out on purpose or not reached, none of it blocking:
+
+- Upright (Crop reads LATER) and Fuji's 1.25× crop modes; Crop's history steps are all named "Crop".
+- Noise for a mask; detection masks (Subject, Sky, Background, People, Object).
+- Search on the Looks board; `.xmp`, `.lrtemplate` and `.zip` looks; recipes (the board still shows samples).
+- Watermark and Display P3 on export; camera import over USB; renaming or moving a photo.
+- Retouch spots that build on each other; a true content-aware Remove.
+- `docs/engineering/ENGINE-STATUS.md` is out of date: this file replaced it. A pointer from the docs is owed (a
+  docs change runs the full test suite, so it goes in a change of its own).
+
+Step 8 (sliders that answer like Lightroom's, then `.xmp` presets and recipes) needs the owner's reference
+exports from Lightroom. Step 9 is the owner's decisions: detection models, Auto white balance, profiles on their
+Worker, backups, replacing the old editor.
+
 ## Waiting on the owner
 
-How the sliders feel (Clarity, Texture, Dehaze, Sharpening and the two Noise sliders are first guesses; noise
-reduction wants their own high-ISO photos); how the zoom feels (smoothness of the pinch, how long detail takes to land at 50 % and at
-100 %); how fast export is on the A15, and whether the tab ever reloads (a photo keeps about 80 MB more on the
-GPU); five or six of their own RAFs to test on, if they want to share them.
+Everything since step 1 was checked in headless Chrome on a software GPU, never on the phone. What only the owner
+can tell:
+
+- **Speed and memory on the A15.** How long a photo takes to open, how the dial feels, how long 100 % and an
+  export take, and whether the tab ever reloads (a photo keeps about 80 MB on the GPU for its sensor pixels, 35 MB
+  for the editing copy, and each full-size view its own buffers).
+- **How the controls feel.** Every strength is a first guess: Clarity, Texture, Dehaze, Sharpening, the two Noise
+  sliders, the mixer, grading, vignette, grain, the masks' Temp and Hue, Defringe, the heal's feather.
+- **Touch.** The pinch, painting a mask, laying a gradient, dragging a heal source, two fingers against one on
+  the Masks and Heal boards: all were driven by synthetic events here.
+- **Their own photos.** High-ISO RAFs for noise reduction, a dusty sky for heal, a backlit edge for Defringe,
+  five or six RAFs they would really edit.
+- Whether the Library's delete (the Rejects subtitle, two taps) is acceptable or wants a real button.

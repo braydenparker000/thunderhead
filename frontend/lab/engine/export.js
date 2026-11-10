@@ -47,15 +47,49 @@ function reducer(sw, sh, ow, oh, out) {
   };
 }
 
+/** Output sharpening: a writer that sharpens what passes through it on the way to `out`. It is the same unsharp
+ * mask as the engine's (finish.js) at its smallest, on the finished picture at its final size: each pixel moves
+ * away from the mean of the nine around it, by `amount`, and never past the brightest or darkest of them by more
+ * than a little. A row waits for the row after it. @param {import('./files.js').Writer} out @param {number} ow @param {number} amount */
+export function crisp(out, ow, amount) {
+  const line = ow * 3, OVER = 0.03 * 65535;
+  /** @typedef {{ px: Uint16Array, l: Float32Array }} Row a row and its brightness */
+  const row = (/** @type {Uint16Array} */ px) => { const l = new Float32Array(ow); for (let x = 0, i = 0; x < ow; x++, i += 3) l[x] = 0.2126 * px[i] + 0.7152 * px[i + 1] + 0.0722 * px[i + 2]; return { px, l }; };
+  let above = /** @type {Row | null} */ (null), here = /** @type {Row | null} */ (null);
+  const sharp = (/** @type {Row} */ a, /** @type {Row} */ b, /** @type {Row} */ c, /** @type {Uint16Array} */ to, /** @type {number} */ at) => {
+    for (let x = 0; x < ow; x++) {
+      const x0 = x ? x - 1 : 0, x1 = x + 1 < ow ? x + 1 : x, l = b.l[x];
+      const n = [a.l[x0], a.l[x], a.l[x1], b.l[x0], b.l[x1], c.l[x0], c.l[x], c.l[x1]];
+      const blur = (4 * l + 2 * (n[1] + n[3] + n[4] + n[6]) + n[0] + n[2] + n[5] + n[7]) / 16, lo = Math.min(l, ...n) - OVER, hi = Math.max(l, ...n) + OVER;
+      const d = Math.min(hi, Math.max(lo, l + amount * (l - blur))) - l, i = x * 3, o = at + i;
+      to[o] = Math.min(65535, Math.max(0, Math.round(b.px[i] + d))); to[o + 1] = Math.min(65535, Math.max(0, Math.round(b.px[i + 1] + d))); to[o + 2] = Math.min(65535, Math.max(0, Math.round(b.px[i + 2] + d)));
+    }
+  };
+  return {
+    rows: async (/** @type {Uint16Array} */ px, /** @type {number} */ n) => {
+      const to = new Uint16Array(n * line); let made = 0;
+      for (let r = 0; r < n; r++) {
+        const next = row(px.slice(r * line, (r + 1) * line));
+        if (here) sharp(above || here, here, next, to, made++ * line);
+        above = here; here = next;
+      }
+      if (made) await out.rows(made === n ? to : to.slice(0, made * line), made);   // a writer may take the whole buffer
+    },
+    done: async () => { if (here) { const to = new Uint16Array(line); sharp(above || here, here, here, to, 0); await out.rows(to, 1); } return out.done(); },
+  };
+}
+/** How strong output sharpening is, by what the picture is for and how much was asked. */
+export const OUTPUT = /** @type {Record<string, Record<string, number>>} */ ({ Screen: { Low: 0.3, Standard: 0.5, High: 0.8 }, Print: { Low: 0.5, Standard: 0.8, High: 1.3 } });
+
 /** Develops the photo as it now looks on screen, at `long` pixels on its long edge (no larger than the sensor's).
  * @param {NonNullable<Awaited<ReturnType<typeof import('./full.js').full>>>} big the photo's sensor pixels
  * @param {number} long @param {(w: number, h: number) => import('./files.js').Writer} open the file to write, given its size
- * @param {(done: number) => void} [progress] 0 to 1 */
-export async function develop(big, long, open, progress) {
+ * @param {(done: number) => void} [progress] 0 to 1 @param {number} [sharpen] output sharpening's strength (`OUTPUT`; 0 for none) */
+export async function develop(big, long, open, progress, sharpen = 0) {
   const sw = big.width, sh = big.height, f = Math.min(1, long / Math.max(sw, sh)), ow = Math.max(1, Math.round(sw * f)), oh = Math.max(1, Math.round(sh * f));
   const v = await big.view(Math.min(sw, TILE) + 2 * EDGE, BAND + 2 * EDGE, null, false, true);
   try {
-    const out = open(ow, oh), push = reducer(sw, sh, ow, oh, out);
+    const file = open(ow, oh), out = sharpen > 0 ? crisp(file, ow, sharpen) : file, push = reducer(sw, sh, ow, oh, out);
     const [tw, th] = v.room().map((r) => Math.max(8, r - 2 * EDGE));
     for (let y = 0; y < sh; y += th) {
       const n = Math.min(th, sh - y), band = new Uint16Array(sw * n * 4);

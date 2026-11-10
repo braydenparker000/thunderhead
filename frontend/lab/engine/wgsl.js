@@ -18,7 +18,8 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
                  // 64 no table, 128 second look, 256 its value is sRGB, 512 leave clipped highlights as they are, 1024 no dither,
                  // 2048 Highlights and Shadows by the pixel's own brightness (no tone mask), 4096 show the tone mask,
                  // two for the test page's stage timer: 8192 the table's nearest entry, 16384 no colour work,
-                 // and 32768 the mixer, 65536 grading, 131072 the point curve)
+                 // 32768 the mixer, 65536 grading, 131072 the point curve, 262144 a look's own table (cube.js),
+                 // and 524288 for a full-size view: its fourth value out is 1 + the masks' sharpness here)
   hsm: vec4u, look: vec4u, tab: vec4u,     // dims h, s, v, offset · same · tone offset, table n, table offset, unused
   g: vec4f,      // highlights, shadows, whites, blacks (−1..1)
   k: vec4f,      // saturation, vibrance (−1..1), then where this frame's first pixel sits in the tone mask's photo (x, y)
@@ -33,7 +34,7 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
   mx: array<vec4f, 8>,     // the colour mixer: hue, saturation and brightness for each of its eight colours (grade.js)
   gr: array<vec4f, 5>,     // colour grading: a tint and stops for shadows, midtones, highlights and the whole; then blending, balance
   crv: array<vec4f, 128>,  // the point curve: all three channels', then red's, green's, blue's, at 128 steps
-  mh: array<vec4f, 3>, mi: vec4f, mk: array<vec4f, 56> };   // masks (local.js): the 3 × 3 from the picture to mask units · how many, the one shown, the stops range masks read at · seven rows a mask
+  mh: array<vec4f, 3>, mi: vec4f, mk: array<vec4f, 56> };   // masks (local.js): the 3 × 3 from the picture to mask units · how many, the one shown, the stops range masks read at (then defringe, for finish.js) · seven rows a mask
 @group(0) @binding(0) var<storage, read> src: array<u32>;
 @group(0) @binding(1) var<uniform> p: P;
 const CELL = ${CELL}u;
@@ -256,8 +257,8 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   let l = log2(max(dot(c, LUM), FLOOR));
   let spot = ((vec2f(id.xy) + 0.5) * p.f.w + p.k.zw) / max(p.noise.zw, vec2f(1.0));   // 0..1 across the picture
   // what the masks add here to the photo's own exposure, highlights and shadows, and clarity, texture, dehaze
-  var ev = p.f.x; var hi = p.g.x; var sh = p.g.y; var fx = p.fx.xyz; var lo = Local(vec4f(0.0), vec4f(0.0), vec3f(0.0), vec3f(0.0), 0.0);
-  if (p.mi.x > 0.0) { lo = locals(spot, c); ev += lo.a.x; hi += lo.a.z; sh += lo.a.w; fx = clamp(fx + lo.fx, vec3f(-1.0), vec3f(1.0)); c = c * exp2(lo.wb); }
+  var ev = p.f.x; var hi = p.g.x; var sh = p.g.y; var fx = p.fx.xyz; var lo = Local(vec4f(0.0), vec4f(0.0), vec3f(0.0), vec4f(0.0), 0.0);
+  if (p.mi.x > 0.0) { lo = locals(spot, c); ev += lo.a.x; hi += lo.a.z; sh += lo.a.w; fx = clamp(fx + lo.fx.xyz, vec3f(-1.0), vec3f(1.0)); c = c * exp2(lo.wb); }
   // Dehaze: an area holding a share d of the air's light lets 1 − d of the scene through; take the air's part out
   // and scale what is left back up. Less than none lays the air's colour over everything instead.
   if (fx.z > 0.0) { let t = max(1.0 - 0.65 * fx.z * clamp(areaOf(haze, f32(CELL), id.xy, l), 0.0, 1.0), 0.15); c = max((c - p.air.rgb * (1.0 - t)) / t, vec3f(0.0)); }
@@ -286,5 +287,5 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   if (p.sharp.w > 0.0) { o = grain(o, spot); }
   let at = id.xy;
   if ((fl & 1024u) == 0u) { o = dither(o, at); }
-  textureStore(dst, vec2i(at), vec4f(o, 1.0));
+  textureStore(dst, vec2i(at), vec4f(o, select(1.0, clamp(1.0 + lo.fx.w, 0.0, 2.0), (fl & 524288u) != 0u)));   // a full-size view's last pass (finish.js) reads the masks' sharpness here
 }`;

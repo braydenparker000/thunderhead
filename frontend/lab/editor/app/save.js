@@ -1,13 +1,14 @@
 // @ts-check
 // Export from the editor (docs/design/EDITOR.md): the open photo, as edited, developed from the sensor's own
 // pixels at the size asked for and saved to the phone's Downloads, once for each preset that is on.
-import { develop } from '../../engine/export.js';
+import { OUTPUT, develop } from '../../engine/export.js';
 import { block, carry, taken } from '../../engine/exif.js';
 import * as files from '../../engine/files.js';
 import * as photo from './session.js';
 import * as store from './store.js';
 
-/** @typedef {{ fmt: string, long: number, q: number, meta: 'All' | 'Copyright only' | 'None', gps: boolean, file: string }} Preset */
+/** @typedef {{ fmt: string, long: number, q: number, meta: 'All' | 'Copyright only' | 'None', gps: boolean, file: string, sharpen?: string, amt?: string }} Preset
+ * `sharpen`: output sharpening for Screen or Print (anything else: none), `amt` how much (Low, Standard, High) */
 
 /** The day the open photo was taken (2026-11-09), for file names; '' when its Exif doesn't say. */
 export async function day() { const p = photo.current(); return p ? taken(await store.jpegHead(p.id)) : ''; }
@@ -31,7 +32,7 @@ export async function save(presets, progress) {
       const r = await develop(big, x.long, (w, h) => {
         const kept = carry(head, x.meta, x.gps, w, h);
         return x.fmt === 'JPEG' ? files.jpeg(w, h, x.q, photo.jpegBand, kept && block(kept)) : x.fmt === 'PNG' ? files.png(w, h, kept && block(kept)) : files.tiff(w, h, kept);
-      }, (d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(k, d); });
+      }, (d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(k, d); }, OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0);
       download(r.blob, x.file);
       saved.push({ file: x.file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob });
     }
