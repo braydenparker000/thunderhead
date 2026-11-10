@@ -1,94 +1,176 @@
 // @ts-check
-// The View board's 100 % (docs/design/EDITOR.md): one sensor pixel to one screen pixel. The board sizes and moves
-// the photo's wrapper; in it the editing copy, stretched, stands in while the wrapper animates, while the
-// sensor's pixels are still loading, and at the edges during a drag. Over it lies this module's canvas: the
-// engine's full-resolution view (../../engine/full.js) of the part on screen, laid on whole screen pixels.
+// Zoom on the photo (docs/design/EDITOR.md), wherever a board marks its slot data-zoom: pinch freely from the
+// fitted photo to 300 %, drag to look around, double-tap for 100 % and back. While fingers move nothing is
+// drawn: the picture on screen is moved and scaled. When they stop, the sensor's pixels are drawn over the
+// editing copy (../../engine/full.js): from 100 % up in one pass that then follows every control live; from
+// 40 % to 100 %, where more than a screenful of the sensor shows, in a few passes onto a still canvas (a
+// control moved there shows the editing copy until it rests). Below 40 % the editing copy is sharp enough.
 import * as photo from './session.js';
+import { tile } from './tiles.js';
 
 /** @typedef {NonNullable<ReturnType<typeof photo.whole>>} Big */
 /** @typedef {Awaited<ReturnType<Big['view']>>} View */
-/** @typedef {ReturnType<View['place']>} Rect */
-const READBACK = new URLSearchParams(location.search).has('readback');
-const canvas = document.createElement('canvas');
-canvas.setAttribute('aria-hidden', 'true');
-canvas.style.cssText = 'position: absolute; left: 0; top: 0; transform-origin: 0 0; opacity: 0';
-// the board marks the canvas's place with data-keep="detail": the photo's area, over the wrapper
-let slot = /** @type {HTMLElement | null} */ (null);
-document.addEventListener('dc:keep', (e) => { const el = /** @type {HTMLElement} */ (/** @type {CustomEvent} */ (e).detail); if (el.dataset.keep === 'detail') { slot = el; el.replaceChildren(canvas); } });
+const READBACK = new URLSearchParams(location.search).has('readback'), EASE = 'transform 260ms cubic-bezier(0.2, 0.85, 0.2, 1)';
+const make = (/** @type {string} */ tag, /** @type {string} */ css, cls = '') => { const e = document.createElement(tag); e.style.cssText = css; e.className = cls; e.setAttribute('aria-hidden', 'true'); return e; };
+const LAYER = 'position: absolute; pointer-events: none; display: none';
+const wrap = make('div', 'position: absolute; transform-origin: 0 0; will-change: transform', 'fillphoto');
+const over = /** @type {HTMLImageElement} */ (make('img', `${LAYER}; inset: 0; image-rendering: pixelated`));   // the clipping overlay
+const still = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER)), live = /** @type {HTMLCanvasElement} */ (make('canvas', LAYER));
+const badge = make('span', 'position: absolute; left: 12px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; display: none', 'glass');
+const map = make('div', 'position: absolute; right: 12px; bottom: 14px; border-radius: 10px; overflow: hidden; padding: 0; display: none', 'glass');
+const mapImg = /** @type {HTMLImageElement} */ (make('img', 'width: 100%; height: 100%; display: block; opacity: 0.85')), box = make('span', 'position: absolute; box-shadow: 0 0 0 1.5px #e8202a, 0 0 0 999px rgba(0,0,0,0.35)');
+map.append(mapImg, box);
 
-let from = /** @type {Big | null} */ (null), view = /** @type {View | null} */ (null), cap = 0, making = /** @type {Promise<View | null> | null} */ (null);
-let target = /** @type {{ imL: number, imT: number } | null} */ (null);   // where the board has the wrapper, while 100 % is on
-let shown = /** @type {Rect | null} */ (null), hold = 0, busy = false;   // what the canvas holds; when the wrapper's animation ends
+let slot = /** @type {HTMLElement | null} */ (null), shown = /** @type {unknown} */ (null);   // the board's slot; the photo it holds
+let f = { W: 0, H: 0, w: 1, h: 1, ox: 0, oy: 0, fw: 1, fh: 1 };   // the slot, and the photo fitted in it (design pixels); the photo's sensor size
+let z = 1, tx = 0, ty = 0, job = 0, timer = 0, tiled = -1;   // the wrap's scale and shift from fitted; the detail being made
+let view = /** @type {View | null} */ (null), from = /** @type {Big | null} */ (null), cap = 0, making = /** @type {Promise<View | null> | null} */ (null);
 
 const frame = () => /** @type {HTMLElement} */ (document.getElementById('frame'));
 /** Screen pixels in one of the design's (the page's frame is the 412-wide design, scaled to the screen). */
 const scale = () => (frame().getBoundingClientRect().width / 412) * devicePixelRatio;
+const full = () => f.fw / (f.w * scale());   // the wrap's scale at 100 %: a sensor pixel to a screen pixel
+const most = () => Math.max(1, 3 * full());
+/** Whether the photo is zoomed, and to what per cent of the sensor's pixels. */
+export const info = () => ({ on: z > 1.02, pct: Math.round((z / full()) * 100) });
+/** The fitted photo's box in its slot, in design pixels (a board lays its before/after over it). */
+export const fitted = () => ({ left: f.ox, top: f.oy, width: f.w, height: f.h });
 
-/** The photo area's height and the fitted photo's size, in design pixels, and how many times larger 100 % is. */
-export function geometry() {
-  const ah = 738 - (parseFloat(frame().style.getPropertyValue('--cut')) || 0), [fw, fh] = photo.shape(), f = Math.min(412 / fw, ah / fh);
-  return { ah, w: fw * f, h: fh * f, z: 1 / (f * scale()) };
+function hold() {   // the photo keeps covering the slot (or sits in its middle, where smaller)
+  const lim = (/** @type {number} */ t, /** @type {number} */ size, /** @type {number} */ room, /** @type {number} */ o) => (size <= room ? (room - size) / 2 - o : Math.max(room - size - o, Math.min(-o, t)));
+  tx = lim(tx, f.w * z, f.W, f.ox); ty = lim(ty, f.h * z, f.H, f.oy);
 }
+function apply(ease = false) {
+  wrap.style.transition = ease ? EASE : 'none';
+  wrap.style.transform = `translate(${tx}px, ${ty}px) scale(${z})`;
+  const on = z > 1.02, pct = (/** @type {number} */ v) => `${(Math.max(0, Math.min(1, v)) * 100).toFixed(1)}%`;
+  badge.style.display = map.style.display = on ? 'block' : 'none';
+  if (!on) return;
+  badge.textContent = `${info().pct}%`;
+  box.style.left = pct(-(f.ox + tx) / (f.w * z)); box.style.top = pct(-(f.oy + ty) / (f.h * z));
+  box.style.width = pct(f.W / (f.w * z)); box.style.height = pct(f.H / (f.h * z));
+}
+/** To scale `to`, the photo's point under (x, y) of the slot staying there. @param {number} to @param {number} x @param {number} y */
+function zoomAt(to, x, y, ease = false) {
+  const px = (x - f.ox - tx) / z, py = (y - f.oy - ty) / z;
+  z = Math.max(1, Math.min(most(), to)); tx = x - f.ox - px * z; ty = y - f.oy - py * z;
+  hold(); apply(ease);
+}
+function layout() {
+  if (!slot) return;
+  const r = slot.getBoundingClientRect(), s = r.width / (slot.offsetWidth || 1), [fw, fh] = photo.shape(), W = r.width / s, H = r.height / s, k = Math.min(W / fw, H / fh);
+  if (!(W > 0 && H > 0)) return;
+  f = { W, H, w: fw * k, h: fh * k, ox: (W - fw * k) / 2, oy: (H - fh * k) / 2, fw, fh };
+  Object.assign(wrap.style, { left: `${f.ox}px`, top: `${f.oy}px`, width: `${f.w}px`, height: `${f.h}px` });
+  Object.assign(map.style, { width: `${fw >= fh ? 96 : (96 * fw) / fh}px`, height: `${fw >= fh ? (96 * fh) / fw : 96}px` });
+  z = Math.min(z, most()); hold(); apply();
+}
+const watch = new ResizeObserver(() => { layout(); rest(); });
 
-/** The photo's view, made at the first 100 % and kept: as large as the photo's area can be on this screen, and a
- * pixel more on every side, so the canvas covers the area wherever the whole-pixel rounding puts it. */
-const ensure = () => (making ||= make().finally(() => { making = null; }));
-async function make() {
+/** The session hands over the photo's element for a zoomable slot (and again when the element changes). */
+photo.hooks.fill = (s, el) => {
+  if (s !== slot || photo.current() !== shown) {   // another board, or another photo: fitted again
+    if (slot) watch.unobserve(slot);
+    slot = s; shown = photo.current(); z = 1; tx = ty = 0; job++; hide(); watch.observe(s);
+    badge.style.top = s.dataset.zoom === 'low' ? '' : '12px'; badge.style.bottom = s.dataset.zoom === 'low' ? '14px' : '';
+    if (!s.dataset.heard) { s.dataset.heard = '1'; for (const t of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) s.addEventListener(t, (e) => touch(/** @type {PointerEvent} */ (e))); }
+  }
+  wrap.replaceChildren(el, over, still, live); s.replaceChildren(wrap, badge, map);
+  layout();
+};
+/** The clipping overlay to lay over the photo ('' for none): it zooms with it. @param {string} url */
+export function clip(url) { if (over.getAttribute('src') !== url) over.src = url; over.style.display = url ? 'block' : 'none'; if (url) Object.assign(over.style, { width: '100%', height: '100%' }); }
+
+/* Gestures: one finger drags a zoomed photo, two pinch, two quick taps go to 100 % and back. */
+const pts = /** @type {Map<number, { x: number, y: number }>} */ (new Map());
+let g = /** @type {null | { pinch: boolean, x: number, y: number, tx: number, ty: number, z: number, d: number, far: number }} */ (null), tap = { t: 0, x: 0, y: 0 };
+function touch(/** @type {PointerEvent} */ e) {
+  if (!slot) return;
+  const r = slot.getBoundingClientRect(), s = r.width / f.W, at = { x: (e.clientX - r.left) / s, y: (e.clientY - r.top) / s };
+  const mid = () => { const [a, b = a] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) || 1 }; };
+  const begin = () => { const m = mid(); g = { pinch: pts.size > 1, x: m.x, y: m.y, tx, ty, z, d: m.d, far: g ? 99 : 0 }; };
+  if (e.type === 'pointerdown') {
+    if (pts.size > 1) return;
+    pts.set(e.pointerId, at); begin();
+    if (pts.size > 1) for (const id of pts.keys()) slot.setPointerCapture(id);
+  } else if (e.type === 'pointermove') {
+    if (!pts.has(e.pointerId) || !g) return;
+    pts.set(e.pointerId, at);
+    const m = mid();
+    g.far = Math.max(g.far, Math.hypot(m.x - g.x, m.y - g.y));
+    if (g.pinch) { const px = (g.x - f.ox - g.tx) / g.z, py = (g.y - f.oy - g.ty) / g.z; z = Math.max(1, Math.min(most(), (g.z * m.d) / g.d)); tx = m.x - f.ox - px * z; ty = m.y - f.oy - py * z; }
+    else if (z > 1.02 && g.far > 6) { if (!slot.hasPointerCapture(e.pointerId)) slot.setPointerCapture(e.pointerId); tx = g.tx + m.x - g.x; ty = g.ty + m.y - g.y; }
+    else return;
+    hold(); apply();
+  } else if (pts.delete(e.pointerId)) {
+    if (pts.size) { begin(); return; }   // one finger of a pinch lifted: the other drags on
+    const was = g, now = performance.now(); g = null;
+    if (was && was.far < 8 && !was.pinch) {   // a tap: the second of two quick ones zooms
+      if (now - tap.t < 320 && Math.hypot(at.x - tap.x, at.y - tap.y) < 36) { tap.t = 0; zoomAt(z > 1.02 ? 1 : full(), at.x, at.y, true); settle(300); } else tap = { t: now, x: at.x, y: at.y };
+      return;
+    }
+    const p = z / full();
+    if (z < 1.04) zoomAt(1, f.W / 2, f.H / 2, true); else if (Math.abs(p - 1) < 0.07) zoomAt(full(), f.W / 2, f.H / 2, true);   // near fitted or near 100 %: exactly that
+    settle(z < 1.04 || Math.abs(p - 1) < 0.07 ? 300 : 60);
+  }
+}
+/** Between fitted and 100 %, about the slot's middle (a board's 100 % key). */
+export function toggle() { zoomAt(z > 1.02 ? 1 : full(), f.W / 2, f.H / 2, true); settle(300); }
+
+/* Detail: the sensor's pixels, drawn once the photo rests. */
+function hide() { still.style.display = live.style.display = 'none'; tiled = -1; view?.rest(); }
+const rest = () => settle(120);
+/** The photo has come to rest (or will, in `ms`): tell the boards, and draw what the zoom now needs. @param {number} ms */
+function settle(ms) {
+  clearTimeout(timer); job++;
+  timer = setTimeout(() => { photo.events.dispatchEvent(new Event('change')); detail(job).catch(() => {}); }, ms);
+}
+const ensure = () => (making ||= (async () => {
   const big = photo.whole(), k = scale(), need = Math.ceil(412 * k) + 2;
   if (big !== from) { from = big; view = null; cap = 0; }   // a photo's views go with it (the session's dispose)
   if (!big) return null;
   if (view && cap >= need) return view;
   view?.dispose();
-  const v = await big.view(need, Math.ceil(738 * k) + 2, canvas, READBACK);
+  const v = await big.view(need, Math.ceil(738 * k) + 2, live, READBACK);
   if (photo.whole() !== big) { v.dispose(); return null; }
-  v.onframe = onframe;
+  v.onframe = (at) => { if (!live.isConnected || z / full() < 0.999) { v.rest(); return; } place(live, at.X, at.Y, at.cw, at.ch); };
   cap = need;
   return (view = v);
+})().finally(() => { making = null; }));
+/** Lays a detail canvas over the sensor rectangle it holds, in the wrap's own space, and shows it. */
+function place(/** @type {HTMLCanvasElement} */ c, /** @type {number} */ X, /** @type {number} */ Y, /** @type {number} */ w, /** @type {number} */ h) {
+  const q = f.w / f.fw;
+  Object.assign(c.style, { left: `${X * q}px`, top: `${Y * q}px`, width: `${w * q}px`, height: `${h * q}px`, display: 'block' });
 }
-
-const hide = () => { canvas.style.transition = 'none'; canvas.style.opacity = '0'; };
-function reveal() {
-  if (!target || !shown || performance.now() < hold) return;
-  canvas.style.transition = 'opacity 140ms'; canvas.style.opacity = '1';
-}
-/** Puts the canvas where its pixels belong under the wrapper, on whole screen pixels. */
-function lay() {
-  if (!target || !shown || !slot) return;
-  const k = scale(), dpr = devicePixelRatio, a = slot.getBoundingClientRect(), ax = a.left * dpr, ay = a.top * dpr;
-  const x = Math.round(ax + target.imL * k + shown.X) - ax, y = Math.round(ay + target.imT * k + shown.Y) - ay;
-  canvas.style.width = `${shown.cw / k}px`; canvas.style.height = `${shown.ch / k}px`;
-  canvas.style.transform = `translate(${x / k}px, ${y / k}px)`;
-}
-/** The engine drew the view (in this task): the canvas now holds `at`. @param {Rect} at */
-function onframe(at) {
-  if (!target || !canvas.isConnected) { view?.rest(); hide(); return; }   // left behind by another board's frames
-  shown = at; lay(); reveal();
-}
-/** Draws the part on screen, again while the photo keeps moving. */
-async function chase() {
-  if (busy) return;
-  busy = true;
-  try {
-    while (target && slot?.isConnected) {
-      const v = await ensure();
-      if (!v || !target) break;
-      const a = slot.getBoundingClientRect(), k = scale(), dpr = devicePixelRatio;
-      const want = v.place(-target.imL * k - 1, -target.imT * k - 1, a.width * dpr + 2, a.height * dpr + 2);
-      if (want === shown) break;
-      await photo.frame();
-      if (shown !== want) break;   // nothing drew it (the photo is closing)
-    }
-  } finally { busy = false; }
-}
-
-/** The board says, each time it renders, whether 100 % is on and where the photo's wrapper sits in its area
- * (design pixels). @param {boolean} on @param {number} imL @param {number} imT */
-export function aim(on, imL, imT) {
-  if (!on) {
-    if (target) { target = null; shown = null; hide(); view?.rest(); }
+async function detail(/** @type {number} */ mine) {
+  mapImg.src = z > 1.02 ? tile(`map:${photo.stamp()}`, null, 192, {}, true) || photo.jpeg() : '';
+  const p = z / full(), k = scale(), q = f.fw / (f.w * z);   // sensor pixels to a design pixel, as shown
+  if (!slot?.isConnected || p < 0.4 || !photo.whole()) { hide(); return; }
+  const v = await ensure();
+  if (mine !== job || !v || !slot) return;
+  const X = Math.max(0, Math.floor(-(f.ox + tx) * q)), Y = Math.max(0, Math.floor(-(f.oy + ty) * q));
+  const X1 = Math.min(f.fw, Math.ceil((f.W - f.ox - tx) * q)), Y1 = Math.min(f.fh, Math.ceil((f.H - f.oy - ty) * q));
+  if (p >= 0.999) {   // one pass, and it follows the engine's frames from here
+    const r = slot.getBoundingClientRect(), dx = r.left * devicePixelRatio + (f.ox + tx) * k, dy = r.top * devicePixelRatio + (f.oy + ty) * k;
+    if (Math.abs(p - 1) < 0.001) { tx += (Math.round(dx) - dx) / k; ty += (Math.round(dy) - dy) / k; apply(); }   // at 100 % exactly, on whole screen pixels
+    v.place(X - 1, Y - 1, X1 - X + 2, Y1 - Y + 2);
+    await photo.frame();
+    if (mine === job) { still.style.display = 'none'; tiled = -1; }
     return;
   }
-  if (!target) { hold = performance.now() + 340; setTimeout(reveal, 350); }   // the wrapper takes 320 ms to get there
-  target = { imL, imT };
-  lay(); chase();
+  // 40 % to 100 %: more than the view holds, so a tile at a time onto the still canvas
+  const w = Math.round((X1 - X) * p), h = Math.round((Y1 - Y) * p), ctx = /** @type {CanvasRenderingContext2D} */ (still.getContext('2d')), at0 = v.at(), LAP = 8;
+  const tw = Math.ceil(412 * k) - LAP, th = Math.ceil(600 * k) - LAP, stamp = photo.stamp();
+  live.style.display = 'none'; still.style.display = 'none'; still.width = w; still.height = h; ctx.imageSmoothingQuality = 'high';
+  for (let y = Y; y < Y1; y += th) for (let x = X; x < X1; x += tw) {
+    let im = /** @type {ImageData | null} */ (null), at = at0;
+    await photo.alone(async () => { if (mine !== job) return; await photo.settle(); at = await v.region(x, y, Math.min(tw + LAP, X1 - x), Math.min(th + LAP, Y1 - y)); im = await v.read(); v.rest(); });
+    if (mine !== job || !im || !at) return;
+    const bm = await createImageBitmap(im);
+    ctx.drawImage(bm, (at.X - X) * p, (at.Y - Y) * p, at.cw * p, at.ch * p); bm.close();
+  }
+  if (mine !== job) return;
+  place(still, X, Y, X1 - X, Y1 - Y); tiled = stamp;
 }
+// an edit while the still canvas shows: it is of the photo as it was, so the editing copy shows until the control rests
+photo.events.addEventListener('change', () => { if (tiled >= 0 && tiled !== photo.stamp()) { still.style.display = 'none'; tiled = -1; settle(350); } });
