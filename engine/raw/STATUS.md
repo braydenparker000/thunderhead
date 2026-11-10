@@ -22,7 +22,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Effects: Clarity, Texture, Dehaze (each from a small mask, so they cost one lookup a pixel and match at every zoom) | `mask.js`, `haze.js`, `wgsl.js` main |
 | Crop board: crop with aspect, straighten (and Auto level), quarter turns, flips, perspective (Vertical, Horizontal, Scale) | `crop.js`, `level.js`, `boards/CropPlate.js` |
 | Full size: X-Trans demosaic (vkdt's) of the rectangle looked at, developed by the same frame pass | `demosaic.js`, `full.js` |
-| Zoom on the Edit and View screens: free pinch from fitted to 300 %, drag, double-tap for 100 %; the percentage and a map while zoomed | `editor/app/zoom.js` (any slot marked `data-zoom`) |
+| Zoom on the Edit and View screens: free pinch from fitted to 300 %, drag, double-tap for 100 %; the percentage and a map while zoomed. On Masks and Heal: two fingers zoom and move the photo, one works the tool | `editor/app/zoom.js` (any slot marked `data-zoom`; `data-zoom="tool"` for a tool board) |
 | Undo and history (every step keeps the whole edit), versions, saved with the edit | `editor/app/past.js`, `session.js` |
 | View board: before/after against the photo as imported, histogram and clipping overlay | `boards/ViewTools.js`, `editor/app/scope.js`, `tiles.js` |
 | Curve (RGB and each colour, over the photo's histogram), colour mixer (eight colours), grading (three ranges and the whole, Blending, Balance), Vignette, Grain | `grade.js`, `wgsl.js`, `boards/CurveOverlay.js`, `boards/GradeTrio.js`, `boards/EditPlate.js` |
@@ -51,6 +51,25 @@ Steps are grouped by the engine machinery they share, so each is built once.
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
 ## Steps 1 to 7 are done. What is left waits on the owner (8, 9) or was left out along the way
+
+Zoom on the tool boards (after step 7), for fine painting and for dust:
+
+- A board whose one finger is a tool marks its slot `data-zoom="tool"`. There `zoom.js` hears gestures on the
+  slot's parent (so they count wherever the fingers land), only two fingers zoom or move the photo, and there is
+  no double-tap. Whatever the board marks `data-zoom-with` (the layer it lays over the photo: guides, rings, the
+  touch surface) is given the photo's own shift and scale while fingers move; the board binds the same value
+  (`zoom.transform()`) when it next draws, so the two agree.
+- Because that layer is scaled with the photo, a touch read against its box on screen is already a place in the
+  photo: the boards needed no other change to work zoomed. Lines keep their weight (`1 / zoom.mag()`), and the
+  brush and a new spot keep their size on screen, so zooming in makes them finer on the photo.
+- A touch of the tool waits for the finger to move or lift (a range's pick, a brush's first dab, a new heal
+  spot): a second finger landing first makes it a pinch, and nothing is painted or retouched.
+- At 40 % and up the sensor's own pixels are drawn at rest as on the Edit board, masks, red overlay and retouch
+  included.
+- Fixed on the way: a photo zoomed before its sensor pixels had reached the GPU (a second or so after it opens)
+  stayed without detail until the next gesture; `zoom.js` now draws it when they arrive. And an error while
+  drawing detail is logged, not swallowed.
+
 
 Step 7, retouching (`engine/heal.js` for the maths, `mend.js` for the rule the two passes share):
 
@@ -127,7 +146,7 @@ Step 6a, masks (`engine/local.js` is the place to read first):
   picture in red (drawn by the engine, so it is the real weight); it comes off while the dial turns. The red
   only shows in the Masks board's slot (`data-masks`), never in a tile or a file.
 - Not built: detection (Subject, Sky …: step 9), Sharpness and Noise for a mask (they need the mask in the
-  full-size passes), zoom on the Masks board (so fine painting is limited by the finger), more than eight masks.
+  full-size passes), more than eight masks.
 - Strengths are first guesses: Temp ±100 is ±0.35 stops on red against blue, Hue ±100 is ±180°.
 
 
@@ -305,7 +324,7 @@ and versions, and a reload. Sample pages `/lab/editor/viewing/` and `/lab/editor
 - The page is scaled to the phone (`boot.js`): a board that reads a touch must divide by its own size on screen,
   not assume design pixels.
 - Headless Chrome draws each off-screen picture in about 3 s (a phone's GPU: a fraction of that): a check
-  script must wait for what it reads, not for a fixed time. A tile's `img` holds the camera's JPEG (also a
+  script must wait for what it reads, not for a fixed time (`session.busy()` says whether a frame is still owed). A tile's `img` holds the camera's JPEG (also a
   `blob:`) until its own picture is made.
 
 ## Waiting on the owner

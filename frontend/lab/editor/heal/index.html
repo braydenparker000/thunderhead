@@ -28,10 +28,10 @@
   </header>
 
   <div style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(540px - var(--cut)); overflow: hidden">
-    <div onPointerDown="{{pDown}}" onPointerMove="{{pMove}}" onPointerUp="{{pUp}}" onPointerCancel="{{pUp}}" aria-label="Photo. Tap a spot to {{toolVerb}} it."
-         style="position: absolute; left: {{pL}}px; top: {{pT}}px; width: {{pW}}px; height: {{pH}}px; touch-action: none; cursor: crosshair">
+    <sc-if value="{{real}}"><div data-keep="photo" data-zoom="tool" style="position: absolute; inset: 0; overflow: hidden; touch-action: none; filter: {{viz}}"></div></sc-if>
+    <div data-zoom-with onPointerDown="{{pDown}}" onPointerMove="{{pMove}}" onPointerUp="{{pUp}}" onPointerCancel="{{pUp}}" aria-label="Photo. Tap a spot to {{toolVerb}} it."
+         style="position: absolute; left: {{pL}}px; top: {{pT}}px; width: {{pW}}px; height: {{pH}}px; touch-action: none; cursor: crosshair; transform: {{zoomT}}; transform-origin: 0 0">
       <sc-if value="{{demo}}"><img src="/lab/editor/assets/sample.jpg" alt="The photo being retouched" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block; filter: {{viz}}"></sc-if>
-      <sc-if value="{{real}}"><div data-keep="photo" class="fillphoto" style="position: absolute; inset: 0; filter: {{viz}}"></div></sc-if>
       <sc-for list="{{patches}}" as="p" hint-placeholder-count="0">
         <span aria-hidden="true" style="position: absolute; left: {{p.x}}px; top: {{p.y}}px; width: {{p.s}}px; height: {{p.s}}px; margin: {{p.m}}px 0 0 {{p.m}}px; border-radius: 50%; overflow: hidden; -webkit-mask-image: radial-gradient(circle, #000 {{p.hard}}%, transparent 72%); mask-image: radial-gradient(circle, #000 {{p.hard}}%, transparent 72%); opacity: {{p.o}}">
           <img src="/lab/editor/assets/sample.jpg" alt="" style="position: absolute; left: {{p.il}}px; top: {{p.it}}px; width: 372px; height: 248px; max-width: none; filter: {{viz}}">
@@ -39,9 +39,9 @@
       </sc-for>
       <sc-for list="{{rings}}" as="r" hint-placeholder-count="0">
         <svg aria-hidden="true" width="372" height="248" style="position: absolute; inset: 0; pointer-events: none; overflow: visible">
-          <line x1="{{r.x}}" y1="{{r.y}}" x2="{{r.sx}}" y2="{{r.sy}}" stroke="rgba(255,255,255,{{r.a}})" stroke-width="1.2" stroke-dasharray="3 3"/>
+          <line x1="{{r.x}}" y1="{{r.y}}" x2="{{r.sx}}" y2="{{r.sy}}" stroke="rgba(255,255,255,{{r.a}})" stroke-width="{{r.thin}}" stroke-dasharray="{{r.d1}}"/>
           <circle cx="{{r.x}}" cy="{{r.y}}" r="{{r.r}}" fill="none" stroke="{{r.ink}}" stroke-width="{{r.w}}"/>
-          <circle cx="{{r.sx}}" cy="{{r.sy}}" r="{{r.r}}" fill="none" stroke="rgba(255,255,255,{{r.a}})" stroke-width="1.2" stroke-dasharray="4 3"/>
+          <circle cx="{{r.sx}}" cy="{{r.sy}}" r="{{r.r}}" fill="none" stroke="rgba(255,255,255,{{r.a}})" stroke-width="{{r.thin}}" stroke-dasharray="{{r.d2}}"/>
         </svg>
       </sc-for>
     </div>

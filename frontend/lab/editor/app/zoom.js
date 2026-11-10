@@ -5,6 +5,10 @@
 // editing copy (../../engine/full.js): from 100 % up in one pass that then follows every control live; from
 // 40 % to 100 %, where more than a screenful of the sensor shows, in a few passes onto a still canvas (a
 // control moved there shows the editing copy until it rests). Below 40 % the editing copy is sharp enough.
+//
+// A board whose one finger is a tool (Masks, Heal) marks its slot data-zoom="tool": there only two fingers zoom
+// and move the photo, heard on the slot's parent so they count wherever they land, and whatever the board marks
+// data-zoom-with (what it lays over the photo) is moved and scaled with it.
 import * as photo from './session.js';
 import { tile } from './tiles.js';
 
@@ -35,6 +39,15 @@ const most = () => Math.max(1, 3 * full());
 export const info = () => ({ on: z > 1.02, pct: Math.round((z / full()) * 100) });
 /** The fitted photo's box in its slot, in design pixels (a board lays its before/after over it). */
 export const fitted = () => ({ left: f.ox, top: f.oy, width: f.w, height: f.h });
+const tool = () => slot?.dataset.zoom === 'tool';
+/** Where gestures are heard, and what holds the fingers of a pinch: the slot, or for a tool board its parent. */
+const ear = () => /** @type {HTMLElement} */ (tool() ? slot?.parentElement : slot);
+/** Whether two fingers are on the photo: a tool board's one-finger tool stands down. */
+export const pinching = () => pts.size > 1 || !!g?.two;
+/** The photo's shift and scale from fitted, as CSS: for what a tool board lays over it (zoom.js keeps it up to date while fingers move). */
+export const transform = () => `translate(${tx}px, ${ty}px) scale(${z})`;
+/** How many times its fitted size the photo is shown (a brush keeps its size on screen, so it covers less of a zoomed photo). */
+export const mag = () => z;
 
 function hold() {   // the photo keeps covering the slot (or sits in its middle, where smaller)
   const lim = (/** @type {number} */ t, /** @type {number} */ size, /** @type {number} */ room, /** @type {number} */ o) => (size <= room ? (room - size) / 2 - o : Math.max(room - size - o, Math.min(-o, t)));
@@ -42,7 +55,8 @@ function hold() {   // the photo keeps covering the slot (or sits in its middle,
 }
 function apply(ease = false) {
   wrap.style.transition = ease ? EASE : 'none';
-  wrap.style.transform = `translate(${tx}px, ${ty}px) scale(${z})`;
+  wrap.style.transform = transform();
+  if (tool()) for (const el of /** @type {NodeListOf<HTMLElement>} */ (ear().querySelectorAll('[data-zoom-with]'))) { el.style.transition = wrap.style.transition; el.style.transform = wrap.style.transform; }
   const on = z > 1.02, pct = (/** @type {number} */ v) => `${(Math.max(0, Math.min(1, v)) * 100).toFixed(1)}%`;
   badge.style.display = map.style.display = on ? 'block' : 'none';
   if (!on) return;
@@ -74,8 +88,9 @@ photo.hooks.fill = (s, el) => {
   if (s !== slot || photo.current() !== shown) {   // another board, or another photo: fitted again
     if (slot) watch.unobserve(slot);
     slot = s; shown = photo.current(); z = 1; tx = ty = 0; job++; hide(); watch.observe(s);
-    badge.style.top = s.dataset.zoom === 'low' ? '' : '12px'; badge.style.bottom = s.dataset.zoom === 'low' ? '14px' : '';
-    if (!s.dataset.heard) { s.dataset.heard = '1'; for (const t of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) s.addEventListener(t, (e) => touch(/** @type {PointerEvent} */ (e))); }
+    const low = s.dataset.zoom !== 'top', on = ear();
+    badge.style.top = low ? '' : '12px'; badge.style.bottom = low ? '14px' : '';
+    if (!on.dataset.heard) { on.dataset.heard = '1'; for (const t of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) on.addEventListener(t, (e) => touch(/** @type {PointerEvent} */ (e))); }
   }
   wrap.replaceChildren(el, over, still, live); s.replaceChildren(wrap, badge, map);
   layout();
@@ -85,28 +100,29 @@ export function clip(url) { if (over.getAttribute('src') !== url) over.src = url
 
 /* Gestures: one finger drags a zoomed photo, two pinch, two quick taps go to 100 % and back. */
 const pts = /** @type {Map<number, { x: number, y: number }>} */ (new Map());
-let g = /** @type {null | { pinch: boolean, x: number, y: number, tx: number, ty: number, z: number, d: number, far: number }} */ (null), tap = { t: 0, x: 0, y: 0 };
+let g = /** @type {null | { pinch: boolean, two: boolean, x: number, y: number, tx: number, ty: number, z: number, d: number, far: number }} */ (null), tap = { t: 0, x: 0, y: 0 };
 function touch(/** @type {PointerEvent} */ e) {
   if (!slot) return;
   const r = slot.getBoundingClientRect(), s = r.width / f.W, at = { x: (e.clientX - r.left) / s, y: (e.clientY - r.top) / s };
   const mid = () => { const [a, b = a] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) || 1 }; };
-  const begin = () => { const m = mid(); g = { pinch: pts.size > 1, x: m.x, y: m.y, tx, ty, z, d: m.d, far: g ? 99 : 0 }; };
+  const begin = () => { const m = mid(); g = { pinch: pts.size > 1, two: pts.size > 1 || !!g?.two, x: m.x, y: m.y, tx, ty, z, d: m.d, far: g ? 99 : 0 }; };   // two: two fingers were down at some point of this gesture
   if (e.type === 'pointerdown') {
     if (pts.size > 1) return;
     pts.set(e.pointerId, at); begin();
-    if (pts.size > 1) for (const id of pts.keys()) slot.setPointerCapture(id);
+    if (pts.size > 1) for (const id of pts.keys()) ear().setPointerCapture(id);
   } else if (e.type === 'pointermove') {
     if (!pts.has(e.pointerId) || !g) return;
     pts.set(e.pointerId, at);
     const m = mid();
     g.far = Math.max(g.far, Math.hypot(m.x - g.x, m.y - g.y));
     if (g.pinch) { const px = (g.x - f.ox - g.tx) / g.z, py = (g.y - f.oy - g.ty) / g.z; z = Math.max(1, Math.min(most(), (g.z * m.d) / g.d)); tx = m.x - f.ox - px * z; ty = m.y - f.oy - py * z; }
-    else if (z > 1.02 && g.far > 6) { if (!slot.hasPointerCapture(e.pointerId)) slot.setPointerCapture(e.pointerId); tx = g.tx + m.x - g.x; ty = g.ty + m.y - g.y; }
+    else if (!tool() && z > 1.02 && g.far > 6) { if (!slot.hasPointerCapture(e.pointerId)) slot.setPointerCapture(e.pointerId); tx = g.tx + m.x - g.x; ty = g.ty + m.y - g.y; }
     else return;
     hold(); apply();
   } else if (pts.delete(e.pointerId)) {
     if (pts.size) { begin(); return; }   // one finger of a pinch lifted: the other drags on
     const was = g, now = performance.now(); g = null;
+    if (tool() && !was?.two) return;   // one finger on a tool board is the board's
     if (was && was.far < 8 && !was.pinch) {   // a tap: the second of two quick ones zooms
       if (now - tap.t < 320 && Math.hypot(at.x - tap.x, at.y - tap.y) < 36) { tap.t = 0; zoomAt(z > 1.02 ? 1 : full(), at.x, at.y, true); settle(300); } else tap = { t: now, x: at.x, y: at.y };
       return;
@@ -125,7 +141,7 @@ const rest = () => settle(120);
 /** The photo has come to rest (or will, in `ms`): tell the boards, and draw what the zoom now needs. @param {number} ms */
 function settle(ms) {
   clearTimeout(timer); job++;
-  timer = setTimeout(() => { photo.events.dispatchEvent(new Event('change')); detail(job).catch(() => {}); }, ms);
+  timer = setTimeout(() => { photo.events.dispatchEvent(new Event('change')); detail(job).catch((e) => console.error('zoom detail', e)); }, ms);
 }
 const ensure = () => (making ||= (async () => {
   const big = photo.whole(), k = scale(), need = Math.ceil(412 * k) + 2;
@@ -178,3 +194,6 @@ async function detail(/** @type {number} */ mine) {
 }
 // an edit while the still canvas shows: it is of the photo as it was, so the editing copy shows until the control rests
 photo.events.addEventListener('change', () => { if (tiled >= 0 && tiled !== photo.stamp()) { still.style.display = 'none'; tiled = -1; settle(350); } });
+// the sensor's pixels reach the GPU a little after a photo opens: a photo already zoomed by then gets its detail now
+let had = /** @type {unknown} */ (null);
+photo.events.addEventListener('change', () => { const big = photo.whole(); if (big === had) return; had = big; if (big && slot?.isConnected && z / full() >= 0.4) settle(60); });
