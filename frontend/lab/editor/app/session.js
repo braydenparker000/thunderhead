@@ -23,8 +23,11 @@ const canvas = document.createElement('canvas'), img = document.createElement('i
 canvas.setAttribute('aria-label', 'The photo being edited'); img.alt = 'The photo being edited';
 for (const el of [canvas, img]) el.style.cssText = 'max-width: 100%; max-height: 100%; display: block';
 img.src = '/lab/editor/assets/sample.jpg';
-// boards mark where the photo goes with data-keep="photo" (dc.js leaves its insides alone)
-document.addEventListener('dc:keep', (e) => { const slot = /** @type {HTMLElement} */ (/** @type {CustomEvent} */ (e).detail); if (slot.dataset.keep === 'photo') slot.replaceChildren(ready ? canvas : img); });
+// boards mark where the photo goes with data-keep="photo" (dc.js leaves its insides alone); a slot that is also
+// data-zoom is filled by zoom.js, which puts itself here
+export const hooks = { fill: /** @type {null | ((slot: HTMLElement, el: HTMLElement) => void)} */ (null) };
+const fill = (/** @type {HTMLElement} */ s) => { const el = ready ? canvas : img; if (s.dataset.zoom !== undefined && hooks.fill) hooks.fill(s, el); else s.replaceChildren(el); };
+document.addEventListener('dc:keep', (e) => { const s = /** @type {HTMLElement} */ (/** @type {CustomEvent} */ (e).detail); if (s.dataset.keep === 'photo') fill(s); });
 
 let worker = /** @type {Worker | null} */ (null), eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
 /** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
@@ -43,8 +46,7 @@ const profilesFor = (/** @type {string} */ model) => {
 };
 profilesFor('Fujifilm X-E5');
 
-const slot = () => document.querySelector('[data-keep="photo"]');
-const place = () => slot()?.replaceChildren(ready ? canvas : img);
+const place = () => { const s = /** @type {HTMLElement | null} */ (document.querySelector('[data-keep="photo"]')); if (s) fill(s); };
 /** @param {string} status */
 const say = (status) => { if (cur) { cur.status = status; changed(); } };
 

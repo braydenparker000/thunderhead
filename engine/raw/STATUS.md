@@ -1,8 +1,9 @@
 # The photo editor: status and plan
 
 The working note for whoever continues (a person, or an agent after its context was compacted). Read this
-first, then [../docs/engineering/ENGINE-RESEARCH.md](../docs/engineering/ENGINE-RESEARCH.md) for the reasoning.
-It lives here, not under `docs/`, so that updating it stays a lab-only change (the fast checks).
+first, then [../../docs/engineering/ENGINE-RESEARCH.md](../../docs/engineering/ENGINE-RESEARCH.md) for the reasoning.
+It lives in `engine/raw/`, not under `docs/`, so that updating it stays a lab-only change (the fast checks:
+`scripts/lab-scope.mjs` counts only `frontend/lab/<page>/` and `engine/<crate>/`).
 `docs/engineering/ENGINE-STATUS.md` is older (it stops before white balance presets); this note replaces it.
 
 The owner shoots a Fujifilm X-E5 (40 MP X-Trans, lossless RAF) and edits in Chrome on a Galaxy A15 (4 GB,
@@ -17,7 +18,9 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Colour: Adobe camera profiles and looks (the owner's private zip, in IndexedDB; never commit or serve them) | `dcp.js`, `gpu.js`, `profiles.js` |
 | Light and Color sliders, white balance presets, eyedropper, Auto tone, Reset | `wgsl.js`, `mask.js`, `auto.js`, `editor/app/session.js` |
 | Full size: X-Trans demosaic (vkdt's) of the rectangle looked at, developed by the same frame pass | `demosaic.js`, `full.js` |
-| 100 % view (View board; fit or 100 % only, being reworked in step 1) | `editor/app/zoom.js`, `boards/ViewTools.js` |
+| Zoom on the Edit and View screens: free pinch from fitted to 300 %, drag, double-tap for 100 %; the percentage and a map while zoomed | `editor/app/zoom.js` (any slot marked `data-zoom`) |
+| Undo and history (every step keeps the whole edit), versions, saved with the edit | `editor/app/past.js`, `session.js` |
+| View board: before/after against the photo as imported, histogram and clipping overlay | `boards/ViewTools.js`, `editor/app/scope.js`, `tiles.js` |
 | Export: Full or smaller, JPEG (bands joined by restart markers), PNG, 16-bit TIFF, Exif carried | `export.js`, `files.js`, `exif.js`, `editor/app/save.js` |
 
 ## The plan, in order (agreed with the owner 2026-11-10)
@@ -38,18 +41,28 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Step 1: what was decided
+## Step 1 is done (plan row 1). Next: step 2
 
-- Zoom is on the Edit screen too (the owner pinched there and Chrome zoomed the page, which the app's fit code
-  then fought). Stop the browser's own zoom over the app; the fit code must ignore page magnification.
-- Free pinch from fit to 300 %; double-tap jumps between fit and 100 %; the badge shows the percentage; a pinch
-  ending near 100 % snaps to it.
-- Nothing renders while fingers move: the picture on screen is moved and scaled (a transform). Detail is drawn
-  once the gesture stops.
-- Up to about 40 % the editing copy is what shows (it is a third of the sensor's size, so sharp to 33 %).
-  From 40 % to 100 % the sensor's pixels are drawn in a few passes after the gesture stops (memory stays one
-  screenful); a slider dragged there shows the editing copy until released. From 100 % up, one pass, and
-  sliders update the real pixels live.
+How zoom works, for whoever touches it:
+
+- `zoom.js` owns what is inside a `data-keep="photo" data-zoom` slot: a wrap (moved and scaled by a transform)
+  holding the editing copy and two detail canvases, plus the badge and the map. Boards don't draw any of it.
+- Nothing renders while fingers move. At rest: below 40 % nothing more; 40 % to 100 % the sensor's pixels in
+  tiles onto a 2D canvas (the view holds one screenful, so memory is flat); from 100 % one live pass on the
+  view's own canvas, which then follows the engine's frames.
+- Detail canvases are placed by a transform from their own pixel size. A laid-out size is rounded to 1/64
+  pixel, which the wrap's scale turned into a blur at 100 %.
+- The browser's own pinch zoom is off over the app (`touch-action` on `#frame`), and `boot.js` sizes the app from
+  the layout, not from a magnified visual viewport.
+- `tiles.js` makes every small picture (look tiles, version tiles, the map, the photo as imported) through
+  `session.picture()`, off screen.
+
+Not done in step 1, on purpose: a long press on Undo does not open History; the 40 % threshold and the snap
+to 100 % are first guesses for the owner's hand.
+
+Check script (not in the repo): import a RAF, pinch to 55 %, 100 %, 300 %, compare the detail canvas with the
+editing copy under it, move a slider at 100 %, Undo, then the View board's before/after, histogram, history
+and versions, and a reload. Sample pages `/lab/editor/viewing/` and `/lab/editor/export/` must still play.
 
 ## How to work here
 
@@ -61,7 +74,8 @@ Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera i
 - Merge PRs as merge commits. Check `/release.json` and the served files before saying something is live.
 - Headless: Chromium with `--enable-unsafe-webgpu --use-webgpu-adapter=swiftshader`, the page with `?readback`.
   Its timings mean nothing; the phone is the instrument. Public sample RAFs (raw.pixls.us) are not in the repo.
-- Every source file stays under 300 lines. `editor/app/session.js` is at the limit: split it before adding.
+- Every source file stays under 300 lines. `editor/app/session.js` is at 295: split it (the adjustments, lines
+  "value" to "wbKelvin", are the natural half) before step 2 adds to it.
 - Port methods plainly from open work (darktable, RawTherapee, vkdt); the fine tuning waits for the owner's eye.
 
 ## Traps met
@@ -73,5 +87,6 @@ Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera i
 
 ## Waiting on the owner
 
-How the sliders feel; how fast 100 % and export are on the A15, and whether the tab ever reloads (a photo now
-keeps about 80 MB more on the GPU); five or six of their own RAFs to test on, if they want to share them.
+How the sliders feel; how the zoom feels (smoothness of the pinch, how long detail takes to land at 50 % and at
+100 %); how fast export is on the A15, and whether the tab ever reloads (a photo keeps about 80 MB more on the
+GPU); five or six of their own RAFs to test on, if they want to share them.

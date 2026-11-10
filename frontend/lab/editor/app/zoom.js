@@ -60,7 +60,9 @@ function layout() {
   if (!slot) return;
   const r = slot.getBoundingClientRect(), s = r.width / (slot.offsetWidth || 1), [fw, fh] = photo.shape(), W = r.width / s, H = r.height / s, k = Math.min(W / fw, H / fh);
   if (!(W > 0 && H > 0)) return;
+  const was = `${f.ox},${f.oy},${f.w},${f.h}`;
   f = { W, H, w: fw * k, h: fh * k, ox: (W - fw * k) / 2, oy: (H - fh * k) / 2, fw, fh };
+  if (was !== `${f.ox},${f.oy},${f.w},${f.h}`) queueMicrotask(() => photo.events.dispatchEvent(new Event('change')));   // a board lays things over the fitted photo
   Object.assign(wrap.style, { left: `${f.ox}px`, top: `${f.oy}px`, width: `${f.w}px`, height: `${f.h}px` });
   Object.assign(map.style, { width: `${fw >= fh ? 96 : (96 * fw) / fh}px`, height: `${fw >= fh ? (96 * fh) / fw : 96}px` });
   z = Math.min(z, most()); hold(); apply();
@@ -137,10 +139,11 @@ const ensure = () => (making ||= (async () => {
   cap = need;
   return (view = v);
 })().finally(() => { making = null; }));
-/** Lays a detail canvas over the sensor rectangle it holds, in the wrap's own space, and shows it. */
+/** Lays a detail canvas over the sensor rectangle it holds, in the wrap's own space, and shows it. By a transform
+ * from its own pixel size: a laid-out size is rounded to 1/64 pixel, which the wrap's scale would turn into a blur. */
 function place(/** @type {HTMLCanvasElement} */ c, /** @type {number} */ X, /** @type {number} */ Y, /** @type {number} */ w, /** @type {number} */ h) {
   const q = f.w / f.fw;
-  Object.assign(c.style, { left: `${X * q}px`, top: `${Y * q}px`, width: `${w * q}px`, height: `${h * q}px`, display: 'block' });
+  Object.assign(c.style, { left: '0', top: '0', width: `${c.width}px`, height: `${c.height}px`, transformOrigin: '0 0', transform: `translate(${X * q}px, ${Y * q}px) scale(${(w * q) / c.width}, ${(h * q) / c.height})`, display: 'block' });
 }
 async function detail(/** @type {number} */ mine) {
   mapImg.src = z > 1.02 ? tile(`map:${photo.stamp()}`, null, 192, {}, true) || photo.jpeg() : '';
