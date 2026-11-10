@@ -1,0 +1,23 @@
+const { chromium } = require('playwright');
+const S = __dirname, FILE = 'raf/DSCF0021.RAF';
+(async () => {
+  const b = await chromium.launch({ args: ['--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader'] });
+  const ctx = await b.newContext({ viewport: { width: 384, height: 780 }, deviceScaleFactor: 1, hasTouch: true });
+  const p = await ctx.newPage(); p.on('console', (m) => console.log('LOG', m.text().slice(0, 300))); p.on('pageerror', (e) => console.log('ERR ' + e.message));
+  await p.goto((process.env.BASE || 'http://127.0.0.1:8080') + '/'); await p.waitForTimeout(3000);
+  await p.goto((process.env.BASE || 'http://127.0.0.1:8080') + '/lab/editor/index.html?readback'); await p.waitForTimeout(5000);
+  await p.getByRole('button', { name: 'Import' }).click(); await p.waitForTimeout(300);
+  const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.getByText('Choose photos').click()]);
+  await fc.setFiles([S + '/' + FILE]);
+  await p.waitForFunction(() => /Done/.test(document.body.textContent), null, { timeout: 90000 });
+  await p.getByRole('button', { name: 'Import' }).click().catch(() => {});
+  await p.locator('[role=list] button, button[aria-label$="RAF"], button[aria-label*="X-"], button[aria-label*="DSCF"]').first().click(); await p.waitForFunction(() => document.querySelector('canvas[aria-label="The photo being edited"]')?.isConnected, null, { timeout: 120000 }); await p.waitForTimeout(8000);
+  const mean = () => p.evaluate(() => { const c = document.querySelector('canvas[aria-label="The photo being edited"]')?.isConnected, d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, s = [0, 0, 0]; let n = 0; for (let i = 0; i < d.length; i += 4 * 7) { s[0] += d[i]; s[1] += d[i + 1]; s[2] += d[i + 2]; n++; } return s.map((x) => +(x / n).toFixed(1)); });
+  console.log('base', await mean());
+  const out = await p.evaluate(async () => { const s = await import('/lab/editor/app/session.js'), k = await import('/lab/editor/app/looks.js'); const w = (ms) => new Promise((r) => setTimeout(r, ms));
+    s.turn('Exposure', 1); s.setValues({ Contrast: 30 }, '', 'Test'); await w(3000); const m = await k.addMine('Dusk', s.state()); await w(500);
+    s.goto(0); const a = s.value('Exposure'); s.turn('Exposure', -0.5); const b2 = s.value('Exposure'); await w(3000); const c = s.value('Exposure'); const wn = s.worn(m.st).values.Exposure; s.wear(m.st, 'Dusk'); const d = s.value('Exposure'); await w(3000);
+    return { saved: m.st.values.Exposure, afterGoto: a, afterTurn: b2, later: c, worn: wn, afterWear: d, end: s.value('Exposure'), con: s.value('Contrast') }; });
+  console.log(JSON.stringify(out));
+  await b.close();
+})();

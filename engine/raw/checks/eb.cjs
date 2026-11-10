@@ -1,0 +1,34 @@
+// Export after the Looks board drew its tiles: the saved file must have the photo's own look, not a tile's.
+const { chromium } = require('playwright');
+const S = __dirname, E = process.env, TAG = E.TAG || 'a', FILE = E.FILE || 'raf2/X-E4__fuji_xe4_32_lossless.RAF';
+(async () => {
+  const b = await chromium.launch({ args: ['--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader'] });
+  const ctx = await b.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1, acceptDownloads: true });
+  const p = await ctx.newPage(); const logs = []; p.on('console', (m) => logs.push(m.type() + ': ' + m.text())); p.on('pageerror', (e) => logs.push('ERR ' + e.message));
+  const saves = []; p.on('download', (d) => saves.push(d.saveAs(`${S}/out/eb-${TAG}-${d.suggestedFilename()}`).then(() => d.suggestedFilename())));
+  await p.goto((process.env.BASE || 'http://127.0.0.1:8080') + '/'); await p.waitForTimeout(3000);
+  await p.goto((process.env.BASE || 'http://127.0.0.1:8080') + '/lab/engine/'); await p.waitForTimeout(3000); await p.setInputFiles('#profiles', S + '/xe5-profiles.zip'); await p.waitForTimeout(2500);
+  await p.goto((process.env.BASE || 'http://127.0.0.1:8080') + '/lab/editor/index.html?readback'); await p.waitForTimeout(5000);
+  await p.getByRole('button', { name: 'Import' }).click(); await p.waitForTimeout(300);
+  const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.getByText('Choose photos').click()]);
+  await fc.setFiles([S + '/' + FILE]);
+  await p.waitForFunction(() => /Done/.test(document.body.textContent), null, { timeout: 90000 });
+  await p.getByRole('button', { name: 'Import' }).click().catch(() => {});
+  await p.locator('[role=list] button, button[aria-label$="RAF"], button[aria-label*="X-"]').first().click();
+  await p.waitForFunction(() => document.querySelector('canvas[aria-label="The photo being edited"]')?.isConnected, null, { timeout: 120000 }); await p.waitForTimeout(9000);
+  const mean = () => p.evaluate(() => { const c = document.querySelector('canvas[aria-label="The photo being edited"]')?.isConnected, d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data, s = [0, 0, 0]; for (let i = 0; i < d.length; i += 4 * 7) { s[0] += d[i]; s[1] += d[i + 1]; s[2] += d[i + 2]; } return s.map((x) => +(x / (d.length / 28)).toFixed(2)); });
+  await p.getByRole('button', { name: /Back to the tools/i }).click(); await p.waitForTimeout(400);
+  await p.locator('#dock button[data-go="Looks"]').click(); await p.waitForTimeout(500);
+  await p.waitForFunction(() => [...document.querySelectorAll('[role=option] img')].filter((i) => i.src.startsWith('blob:') && i.naturalWidth && i.naturalWidth < 200).length > 20, null, { timeout: 240000 }).catch(() => console.log('thumbs timeout'));
+  await p.waitForTimeout(6000);
+  console.log('looks made:', await p.evaluate(() => [...document.querySelectorAll('[role=option] img')].filter((i) => i.src.startsWith('blob:')).length), '· on screen', JSON.stringify(await mean()));
+  await p.getByRole('button', { name: /Back to the tools/i }).click(); await p.waitForTimeout(400);
+  await p.locator('#dock button[data-go="Edit"]').click(); await p.waitForTimeout(1200);
+  await p.locator('header button', { hasText: /^Export$/ }).click(); await p.waitForTimeout(2000);
+  console.log('who:', await p.evaluate(() => document.querySelector('header')?.innerText.replace(/\s+/g, ' ')), '· on screen', JSON.stringify(await mean()));
+  await p.getByRole('button', { name: /SAVE BOTH/ }).click();
+  await p.waitForFunction(() => /Saved to Downloads|Not saved/.test(document.body.textContent), null, { timeout: 400000 }).catch(() => console.log('never finished'));
+  await p.waitForTimeout(2500); console.log('saved', (await Promise.all(saves)).join(' '));
+  console.log(logs.filter((l) => !/deprecated|Slow network|willReadFrequently/.test(l)).slice(0, 8).join('\n'));
+  await b.close();
+})();

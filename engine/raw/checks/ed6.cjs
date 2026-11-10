@@ -1,0 +1,36 @@
+const { chromium } = require('playwright');
+(async () => {
+  const b = await chromium.launch({ args: ['--enable-unsafe-webgpu', '--use-webgpu-adapter=swiftshader'] });
+  const ctx = await b.newContext({ viewport: { width: 412, height: 915 }, deviceScaleFactor: 1 });
+  const p = await ctx.newPage(); const logs = []; p.on('console', m => logs.push(m.type() + ': ' + m.text())); p.on('pageerror', e => logs.push('ERR ' + e.message));
+  p.on('worker', w => w.on('console', m => logs.push('w: ' + m.text())));
+  await p.goto((process.env.BASE || 'http://127.0.0.1:8080') + '/'); await p.waitForTimeout(3000);
+  await p.goto((process.env.BASE || 'http://127.0.0.1:8080') + '/lab/engine/'); await p.waitForTimeout(3000); await p.setInputFiles('#profiles', process.env.S + '/xe5-profiles.zip'); await p.waitForTimeout(1500);
+  await p.goto((process.env.BASE || 'http://127.0.0.1:8080') + '/lab/editor/index.html?readback'); await p.waitForTimeout(5000);
+  console.log('url', p.url(), 'isolated', await p.evaluate(() => crossOriginIsolated));
+  await p.getByRole('button', { name: 'Import' }).click(); await p.waitForTimeout(300);
+  const [fc] = await Promise.all([p.waitForEvent('filechooser'), p.getByText('Choose photos').click()]);
+  await fc.setFiles([process.env.S + '/raf/Fuji-X-H2-Lossless-Compressed-Raw.RAF']);
+  await p.waitForFunction(() => /Done/.test(document.body.textContent), null, { timeout: 30000 });
+  await p.getByRole('button', { name: 'Import' }).click().catch(() => {});
+  const t0 = Date.now();
+  await p.locator('button[aria-label^="Fuji-X-H2"]').first().click();
+  await p.waitForFunction(() => document.querySelector('canvas[aria-label="The photo being edited"]')?.isConnected, null, { timeout: 60000 });
+  console.log('developed in', Date.now() - t0, 'ms');
+  await p.waitForTimeout(800); await p.screenshot({ path: process.env.S + '/shots/ed3-edit.png' });
+  // dock → Looks
+  await p.getByRole('button', { name: /Back to the tools/i }).click(); await p.waitForTimeout(400);
+  await p.locator('#dock button[data-go="Looks"]').click(); await p.waitForTimeout(500);
+  await p.waitForFunction(() => [...document.querySelectorAll('[role=option] img')].filter(i => i.src.startsWith('blob:') && i.naturalWidth && i.naturalWidth < 200).length > 5, null, { timeout: 120000 }).catch(e => console.log('thumbs timeout'));
+  await p.evaluate(() => { window.__o = document.querySelector('[role=option]'); window.__o.__tag = 1; window.__chain = []; for (let e = window.__o; e; e = e.parentElement) window.__chain.push(e); });
+  await p.waitForTimeout(3000);
+  console.log('chain alive:', await p.evaluate(() => window.__chain.map(e => e.localName + (e.isConnected ? '+' : '-')).join(' ')));
+  console.log('same element after 3 s:', await p.evaluate(() => document.querySelector('[role=option]') === window.__o, ), await p.evaluate(() => window.__o.isConnected));
+  await p.screenshot({ path: process.env.S + '/shots/ed3-looks.png' });
+  await p.locator('[role=option]', { hasText: /CLASSIC Neg/ }).first().click(); await p.waitForTimeout(1500);
+  await p.screenshot({ path: process.env.S + '/shots/ed3-cneg.png' });
+  console.log(JSON.stringify(await p.evaluate(() => [...document.querySelectorAll('[role=option]')].slice(0,4).map(o => { const r = o.getBoundingClientRect(), cs = getComputedStyle(o); return [Math.round(r.x), Math.round(r.y), Math.round(r.width), cs.opacity, cs.animationName, cs.transform]; }))));
+  console.log(await p.evaluate(() => [...document.querySelectorAll('[role=option]')].map(o => o.textContent.trim().replace(/\s+/g, ' ')).join(' | ')));
+  console.log(logs.filter(l => !/deprecated/.test(l)).slice(0, 8).join('\n'));
+  await b.close();
+})();
