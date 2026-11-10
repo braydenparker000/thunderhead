@@ -384,9 +384,14 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   averaged three by three and the editing copy under it (of 255): plain 1.24; Texture +100 went from 1.46 to
   1.31, Clarity +100 from 1.42 to 1.29. Texture below zero now smooths the middle detail and keeps the finest
   (1.25 to 1.31), which is how Lightroom's behaves.
-- Next: noise reduction (`denoise.js`: measure it on a high-ISO RAF against a clean frame of the same scene, or
-  on a clean crop with the sensor's own noise model added: `noise.js` has the profile), deconvolution in place of
-  the unsharp mask in `finish.js`, and a heal blend that matches gradients (`mend.js`).
+- **Noise reduction: measured, not yet changed.** `engine/raw/quality/` lays the sensor's own noise on the
+  harness mosaic and scores the engine's noise reduction against the clean picture, beside a reference (non-local
+  means). At ISO 6400 the colour step is good (keep it, and Color noise past 25 costs real colour); the brightness
+  step is the weak part, about 0.9 dB of green behind non-local means on the same data. Next: a patch-based or
+  wavelet brightness step under the same colour step. It waits on the owner's timings: how long the phone takes
+  for 100 % and an export now says how heavy that step may be.
+- After that: deconvolution in place of the unsharp mask in `finish.js`, and a heal blend that matches gradients
+  (`mend.js`). Both want the same treatment: a known picture, a number, then the change.
 
 ## How to work here
 
