@@ -5,6 +5,7 @@
 // strength and press-and-hold shows it as shot. Recipes, Presets and Mine still play the design's samples.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
+import { tile } from '../app/tiles.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -27,8 +28,7 @@ export default class Component extends DCLogic {
       ['Monochrome', 'grayscale(1) contrast(1.05)'], ['Sepia', 'sepia(0.85) contrast(1.05)']];
     const looks = [], real = photo.current();
     if (real) {
-      for (const e of photo.looks()) looks.push({ id: 'x:' + e.id, real: e.id, name: e.label, group: 'Film', colls: ['All', e.mono ? 'B&W' : 'Color'], filter: 'none', src: e.thumb || '', table: e.table, tag: e.asShot ? 'AS SHOT' : '' });
-      if (S.group === 'Film') queueMicrotask(() => photo.makeThumbs());
+      for (const e of photo.looks()) looks.push({ id: 'x:' + e.id, real: e.id, name: e.label, group: 'Film', colls: ['All', e.mono ? 'B&W' : 'Color'], filter: 'none', src: S.group === 'Film' ? tile('look:' + e.id, { ...photo.state(), profile: e.id }, 132, { amount: 1 }) : '', table: e.table, tag: e.asShot ? 'AS SHOT' : '' });
     } else {
       sims.forEach(([n, f], i) => looks.push({ id: 's-' + i, name: n, group: 'Film', colls: ['All', i >= 11 ? 'B&W' : 'Color'], filter: f }));
       looks.push({ id: 's-cc', name: 'As shot · Classic Chrome', group: 'Film', colls: ['All', 'Color'], filter: sims[3][1], tag: 'RAF' });

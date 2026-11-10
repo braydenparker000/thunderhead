@@ -4,6 +4,7 @@
 // menu act on it; without one it plays the design's sample.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
+import '../app/zoom.js';   // the photo's slot zooms
 
 export default class Component extends DCLogic {
   constructor(props) {

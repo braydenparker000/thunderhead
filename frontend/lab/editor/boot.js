@@ -8,12 +8,14 @@
 // imported RAFs live on the phone (app/store.js) and open, developed, in Edit.
 import { mount } from './dc.js';
 import { init } from './app/store.js';
+import { undo } from './app/session.js';
 import { isolate } from '../engine/isolate.js';
 
 const frame = /** @type {HTMLElement} */ (document.getElementById('frame') || document.getElementById('stage'));
 const stage = /** @type {HTMLElement} */ (document.getElementById('stage'));
 const fit = () => {
-  const vw = window.visualViewport?.width || innerWidth, vh = window.visualViewport?.height || innerHeight;
+  // the layout's size: a page the browser has magnified is not a smaller screen (the app's own zoom is the photo's)
+  const m = window.visualViewport?.scale || 1, vw = (window.visualViewport?.width || innerWidth) * m, vh = (window.visualViewport?.height || innerHeight) * m;
   const s = vw / 412, cut = Math.max(0, Math.min(260, 915 - vh / s));
   frame.style.setProperty('--cut', `${cut}px`);
   frame.style.height = `${915 - cut}px`;
@@ -50,6 +52,7 @@ else {
     if (!b) return;
     const label = b.getAttribute('aria-label') || '', text = (b.textContent || '').trim();
     let to = '';
+    if (label === 'Undo') { undo(); return; }
     if (label === 'Back to the tools') { e.stopPropagation(); e.preventDefault(); dock.hidden = veil.hidden = false; return; }
     if (label === 'Back to Photos' || label === 'Back to Library') to = 'Library';
     else if (label === 'Back to the editor') to = 'Edit';
