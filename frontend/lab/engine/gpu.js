@@ -17,11 +17,11 @@ import { autoTone } from './auto.js';
 import { geometry, toSensor, warpPipe, warper } from './warp.js';
 
 const rows = (/** @type {number[]} */ m) => [m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0];
-/** The profile's tables in one buffer, and what the shader needs to find them. @param {null | { profile: import('./dcp.js').Profile, table: any }} pick @param {number} w */
+/** The profile's tables in one buffer, and what the shader needs to find them. @param {null | { profile?: import('./dcp.js').Profile, table?: any, cube?: import('./cube.js').Cube | null }} pick @param {number} w */
 function tables(pick, w) {
   const parts = /** @type {Float32Array[]} */ ([]); let off = 0;
   const add = (/** @type {Float32Array} */ a) => { parts.push(a); const o = off; off += a.length; return o; };
-  const p = pick?.profile, u = { hsm: [0, 0, 0, 0], look: [0, 0, 0, 0], look2: [0, 0, 0, 0], tab: [0, 0, 0, 0], flags: 0, offset: p?.expOffset || 0 };
+  const p = pick?.profile, u = { hsm: [0, 0, 0, 0], look: [0, 0, 0, 0], look2: [0, 0, 0, 0], tab: [0, 0, 0, 0], cube: 0, flags: 0, offset: p?.expOffset || 0 };
   if (p?.hsm) {
     const d = p.hsm.d2 ? p.hsm.d1.map((x, k) => x * w + /** @type {Float32Array} */ (p.hsm?.d2)[k] * (1 - w)) : p.hsm.d1;
     u.hsm = [p.hsm.dims[0], p.hsm.dims[1], p.hsm.dims[2] || 1, add(d)]; u.flags |= 1 | (p.hsm.srgb ? 16 : 0);
@@ -34,6 +34,7 @@ function tables(pick, w) {
     u.tab[0] = add(out); u.flags |= 4;
   }
   if (pick?.table) { u.tab[1] = pick.table.n; u.tab[2] = add(pick.table.d); u.flags |= 8; }
+  if (pick?.cube) { u.cube = pick.cube.n; u.tab[3] = add(pick.cube.d); u.flags |= 262144; }   // a look's own table, on the finished picture
   const all = new Float32Array(Math.max(4, off)); let o = 0; for (const a of parts) { all.set(a, o); o += a.length; }
   return { all, u };
 }
@@ -100,7 +101,7 @@ export async function engine(canvas, img, readback = false) {
   const views = [];
   let lastU = new ArrayBuffer(2672);   // the last shown frame's settings
   const last = { baked: false, masked: false };   // whether the last render re-made the colour table, and the tone mask (the test page's timing lines)
-  /** @param {null | { profile: import('./dcp.js').Profile, table: any }} pick */
+  /** @param {null | { profile?: import('./dcp.js').Profile, table?: any, cube?: import('./cube.js').Cube | null }} pick */
   const setProfile = (pick) => {
     picked = pick;
     const prof = /** @type {any} */ (pick?.profile || fallback);
@@ -131,7 +132,7 @@ export async function engine(canvas, img, readback = false) {
     return n && whiteOf(/** @type {any} */ (picked?.profile || fallback), n);
   };
   /** @param {number} ev @param {number} contrast
-   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, clarity?: number, texture?: number, dehaze?: number, sharpen?: number, radius?: number, detail?: number, noise?: number, colorNoise?: number, vignette?: number, grain?: number, mixer?: Float32Array | null, grade?: Float32Array | null, curve?: Float32Array | null, amount?: number, screen?: boolean, fit?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
+   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, clarity?: number, texture?: number, dehaze?: number, sharpen?: number, radius?: number, detail?: number, noise?: number, colorNoise?: number, vignette?: number, grain?: number, cube?: number, mixer?: Float32Array | null, grade?: Float32Array | null, curve?: Float32Array | null, amount?: number, screen?: boolean, fit?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
    * each −1..1; amount: the look table's strength (1 = as made); screen: false renders without showing it; fit: false leaves the
    * fitted photo as it is and re-makes only the full-resolution views (100 %); exact: every
    * pixel through the full maths, not the table (slow: the table's accuracy check); rebuild: false leaves clipped
@@ -142,15 +143,15 @@ export async function engine(canvas, img, readback = false) {
     const t = performance.now(), u = new ArrayBuffer(2672), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, more.amount ?? 1, 1]);
-    n.set([ow, oh, 0, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
+    n.set([ow, oh, state.u.cube, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
     f.set(g, 68); n.set(state.u.look2, 76); f.set([...state.wb, geo.head, ...state.chroma, 0], 80);
     if (more.dehaze && airFor !== state.m) { air = airOf(img, state.m); airFor = state.m; }   // the haze's colour, once for each profile and white balance
-    f.set([more.clarity || 0, more.texture || 0, more.dehaze || 0, more.vignette || 0, ...air, 0, more.sharpen || 0, more.radius || 1, more.detail ?? 0.25, more.grain || 0, 2.5 * (more.noise || 0), 4 * (more.colorNoise || 0), ow, oh], 88);
+    f.set([more.clarity || 0, more.texture || 0, more.dehaze || 0, more.vignette || 0, ...air, more.cube ?? 1, more.sharpen || 0, more.radius || 1, more.detail ?? 0.25, more.grain || 0, 2.5 * (more.noise || 0), 4 * (more.colorNoise || 0), ow, oh], 88);
     // the tools inside the colour table (grade.js): each is switched on by its rows being there
     if (more.mixer) { f.set(more.mixer, 104); n[55] |= 32768; }
     if (more.grade) { f.set(more.grade, 136); n[55] |= 65536; }
     if (more.curve) { f.set(more.curve, 156); n[55] |= 131072; }
-    const key = [contrast, more.amount ?? 1, ...g.slice(2), more.mixer?.join(), more.grade?.join(), more.curve?.join()].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
+    const key = [contrast, more.amount ?? 1, ...g.slice(2), more.cube ?? 1, more.mixer?.join(), more.grade?.join(), more.curve?.join()].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();
     if (!bent) { bend.run(enc, geo, { x: 0, y: 0, scale: cell, w: ow, h: oh }, { x: 0, y: 0, scale: cell, w, h }, fine); bent = true; masked = fined = hazed = ''; }

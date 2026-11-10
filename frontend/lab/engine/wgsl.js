@@ -213,6 +213,7 @@ fn develop(c0: vec3f) -> vec3f {
   if ((fl & 4u) != 0u) { c = tone(c); } else { c = film(c); }
   if ((fl & 8u) != 0u) { c = tab(c); }
   let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0)); var e = vec3f(enc(o.r), enc(o.g), enc(o.b));
+  if ((fl & 262144u) != 0u) { e = cube(e); }
   if ((fl & 131072u) != 0u) { e = vec3f(point(point(e.r, 0u), 1u), point(point(e.g, 0u), 2u), point(point(e.b, 0u), 3u)); }
   return e;
 }
@@ -277,8 +278,7 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
     let lum = dot(o, vec3f(0.2126, 0.7152, 0.0722));
     o = o + ((f32(s & 0xffffu) + f32(s >> 16u)) / 65536.0 - 1.0) * p.sharp.w * 0.10 * sqrt(max(4.0 * lum * (1.0 - lum), 0.0)) * select(1.0, 0.45, p.f.w >= 1.0);
   }
-  var at = vec2u(id.x, id.y);
-  switch (p.size.z) { case 1u: { at = vec2u(h - 1u - id.y, id.x); } case 2u: { at = vec2u(w - 1u - id.x, h - 1u - id.y); } case 3u: { at = vec2u(id.y, w - 1u - id.x); } default: {} }
+  let at = id.xy;
   if ((fl & 1024u) == 0u) { o = dither(o, at); }
   textureStore(dst, vec2i(at), vec4f(o, 1.0));
 }`;

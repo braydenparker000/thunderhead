@@ -2,10 +2,12 @@
 // The LooksPlate board, as designed (docs/design/editor/boards/LooksPlate.dc.html.dc.html). With a photo open
 // (app/session.js), FILM SIMS are this phone's camera profiles: each tile is the photo drawn through it, the
 // one it was shot with is marked AS SHOT, a tap develops the photo with it, Amount sets a look table's
-// strength and press-and-hold shows it as shot. Recipes, Presets and Mine still play the design's samples.
+// strength and press-and-hold shows it as shot. PRESETS are the `.cube` looks brought in through IMPORT, MINE the
+// edits saved as looks (app/looks.js): each tile is this photo wearing it. Recipes still play the design's samples.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import { tile } from '../app/tiles.js';
+import * as kept from '../app/looks.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -16,6 +18,26 @@ export default class Component extends DCLogic {
     if (photo.current()) Object.assign(this.state, { group: 'Film', look: 'x:' + photo.look(), card: false });
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
+  }
+  /** IMPORT › Files with a photo open: `.cube` looks are read and kept; the other kinds say they are not read yet. */
+  pickFiles() {
+    const i = document.createElement('input'); i.type = 'file'; i.multiple = true;
+    i.onchange = async () => {
+      const lines = [];
+      for (const f of i.files || []) {
+        if (!/\.cube$/i.test(f.name)) { lines.push([`${f.name} · not read yet: only .cube looks so far`, '#a6b0bc']); continue; }
+        try { await kept.addCube(f); lines.push([`${f.name} · added to Presets`, '#f2efe8']); } catch (e) { lines.push([`${f.name} · not added: ${e.message}`, '#e8a0a4']); }
+      }
+      if (lines.length) this.setState({ report: lines.slice(0, 6).concat(lines.length > 6 ? [[`and ${lines.length - 6} more`, '#a6b0bc']] : []), group: lines.some((l) => /added/.test(l[0])) ? 'Presets' : this.state.group, coll: 'All' });
+    };
+    i.click();
+  }
+  /** DELETE, for a look kept on this phone: the first tap asks, a second within 5 s deletes it. */
+  drop(look) {
+    if (this.state.del !== look.id) { this.setState({ del: look.id }); clearTimeout(this.delT); this.delT = setTimeout(() => this.setState({ del: null }), 5000); return; }
+    clearTimeout(this.delT);
+    if (look.cube && photo.cubeOn() === look.cube) photo.pickCube(look.cube);   // off this photo first
+    kept.remove(look.cube || look.mine).then(() => this.setState({ del: null, look: '' }));
   }
   renderVals() {
     const S = this.state, set = (o) => this.setState(o);
@@ -42,12 +64,18 @@ export default class Component extends DCLogic {
     rec('r-trix', 'Tri-X 400', 'Acros', 'grayscale(1) contrast(1.35)', P('Strong · Large', 'Off', 'Off', 'Auto', 0, 0, 'DR200', 1, 2, 0, 1, -4, 2), 'Pasted recipe');
     rec('r-americana', 'Americana', 'Nostalgic Neg', 'contrast(1.05) saturate(1.1) sepia(0.25)', P('Weak · Small', 'Weak', 'Weak', 'Daylight', 3, -5, 'DR400', -0.5, 0.5, 3, 0, -4, -1), 'Pasted recipe');
     const pk = (id, name, coll, f) => looks.push({ id, name, group: 'Presets', colls: ['All', coll], filter: f, tag: 'XMP' });
+    if (real) {
+      for (const l of kept.list('cube')) looks.push({ id: 'c:' + l.id, cube: l.id, name: l.name, group: 'Presets', colls: ['All', 'CUBE'], filter: 'none', src: S.group === 'Presets' ? tile('cube:' + l.id, { ...photo.state(), cube: l.id }, 132, { cube: 1 }) : '', tag: 'CUBE' });
+      for (const l of kept.list('mine')) looks.push({ id: 'm:' + l.id, mine: l.id, name: l.name, group: 'Mine', colls: ['All'], filter: 'none', src: S.group === 'Mine' ? tile('mine:' + l.id, photo.worn(l.st), 132) : '', tag: '' });
+    } else {
     pk('p-m1', 'Moody 01', 'MOODY FILM.ZIP', 'contrast(1.2) saturate(0.7) brightness(0.92)'); pk('p-m2', 'Moody 02', 'MOODY FILM.ZIP', 'contrast(1.1) saturate(0.6) hue-rotate(-10deg) brightness(0.95)');
     pk('p-m3', 'Moody 03', 'MOODY FILM.ZIP', 'contrast(1.25) saturate(0.8) sepia(0.15) brightness(0.9)'); pk('p-t1', 'Golden', 'TRAVEL', 'saturate(1.2) sepia(0.25) brightness(1.05)');
     pk('p-t2', 'Teal & orange', 'TRAVEL', 'contrast(1.1) saturate(1.3) hue-rotate(-8deg)');
     S.packs.forEach((p) => pk(p.id, p.name, p.coll, p.filter));
     looks.push({ id: 'm-1', name: 'My street look', group: 'Mine', colls: ['All'], filter: 'contrast(1.12) saturate(0.85) brightness(0.97)', tag: '' });
-    const cur = (real && S.group === 'Film' ? looks.find((l) => l.real === photo.look()) : null) || looks.find((l) => l.id === S.look) || looks[0];
+    }
+    const cur = (real && S.group === 'Film' ? looks.find((l) => l.real === photo.look()) : null) || (real && S.group === 'Presets' ? looks.find((l) => l.cube && l.cube === photo.cubeOn()) : null) || looks.find((l) => l.id === S.look && (!real || l.group === S.group)) || (real ? looks.find((l) => l.real === photo.look()) : null) || looks[0];
+    const own = real && (cur.cube || cur.mine);   // a look kept on this phone: it can be deleted
     const groups = ['Film', 'Recipes', 'Presets', 'Mine'];
     const collsOf = (g) => ['All', '★'].concat([...new Set(looks.filter((l) => l.group === g).flatMap((l) => l.colls.slice(1)))]);
     const colls = collsOf(S.group), coll = colls.includes(S.coll) ? S.coll : 'All';
@@ -56,8 +84,8 @@ export default class Component extends DCLogic {
     const enums = { Grain: ['Off', 'Weak · Small', 'Weak · Large', 'Strong · Small', 'Strong · Large'], 'Color chrome': ['Off', 'Weak', 'Strong'], 'Chrome FX blue': ['Off', 'Weak', 'Strong'], 'Dynamic range': ['DR100', 'DR200', 'DR400'] };
     const nums = { 'WB red': [-9, 9], 'WB blue': [-9, 9], Highlight: [-2, 4], Shadow: [-2, 4], Color: [-4, 4], Sharpness: [-4, 4], 'High ISO NR': [-4, 4], Clarity: [-5, 5] };
     const recipe = cur.recipe ? { ...cur.recipe, ...(S.edits[cur.id] || {}) } : null;
-    const amount = cur.real ? photo.value('Amount') : S.amounts[cur.id] ?? 100;
-    const setAmt = (a) => (cur.real ? photo.setAmount(a) : this.setState({ amounts: { ...this.state.amounts, [cur.id]: Math.max(0, Math.min(150, a)) } }));
+    const amount = cur.real ? photo.value('Amount') : cur.cube && real ? photo.value('Cube') : S.amounts[cur.id] ?? 100;
+    const setAmt = (a) => (cur.real ? photo.setAmount(a) : cur.cube && real ? photo.setAmount(a, 'Cube') : this.setState({ amounts: { ...this.state.amounts, [cur.id]: Math.max(0, Math.min(150, a)) } }));
     const ctl = recipe && S.param && (S.param in enums || S.param in nums) ? S.param : 'Amount';
     const sgn = (x) => (x > 0 ? '+' : x < 0 ? '−' : '') + Math.abs(x);
     let valText, fillL, fillW, numX, unit = '';
@@ -75,14 +103,20 @@ export default class Component extends DCLogic {
         dx: (secX - x).toFixed(0), delay: i * 32, anim: 'fly' + gi, pick: () => set({ coll: c }) };
     });
     const RD = 240, PERIOD = 360 / 72, frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
+    const lit = (l) => (l.cube && real ? l.cube === photo.cubeOn() : l.id === cur.id);   // a .cube look is lit while it is on the photo
     const tiles = (S.group === 'Mine' ? [{ id: '+save', name: 'Save current', glyph: '+' }] : []).concat(inColl).map((l, i) => ({
-      on: String(l.id === cur.id), name: l.name, filter: l.filter || 'none', src: l.real ? l.src || photo.jpeg() : '/lab/editor/assets/sample.jpg', ring: l.id === cur.id ? '#e8202a' : 'rgba(255,255,255,0.15)', ringW: l.id === cur.id ? 2 : 1,
-      ink: l.id === cur.id ? '#f2efe8' : '#a6b0bc', star: S.favs[l.id] ? '★' : '', tag: l.tag || '', tagShow: l.tag ? 'block' : 'none',
+      on: String(lit(l)), name: l.name, filter: l.filter || 'none', src: l.real || l.cube || l.mine ? l.src || photo.jpeg() : '/lab/editor/assets/sample.jpg', ring: lit(l) ? '#e8202a' : 'rgba(255,255,255,0.15)', ringW: lit(l) ? 2 : 1,
+      ink: lit(l) ? '#f2efe8' : '#a6b0bc', star: S.favs[l.id] ? '★' : '', tag: l.tag || '', tagShow: l.tag ? 'block' : 'none',
       glyph: l.glyph || '', glyphShow: l.glyph ? 'block' : 'none', imgShow: l.glyph ? 'none' : 'block', plain: l.glyph ? 'rgba(232,32,42,0.25)' : '#000',
       delay: i * 24, anim: 'tl' + ((gi * 7 + colls.indexOf(coll)) % 8),
-      pick: () => { if (l.glyph) return; if (l.real) photo.pickLook(l.real); set({ look: l.id, param: null }); },
+      pick: () => {
+        if (l.glyph) { const name = real ? prompt('Name this look', `My look ${kept.list('mine').length + 1}`) : ''; if (name?.trim()) kept.addMine(name.trim().slice(0, 40), photo.state()).then((m) => set({ look: 'm:' + m.id })); return; }
+        if (l.real) photo.pickLook(l.real); else if (l.cube && real) photo.pickCube(l.cube); else if (l.mine && real) photo.wear(kept.get(l.mine).st, l.name);
+        set({ look: l.id, param: null });
+      },
     }));
     const doImport = (kind) => {
+      if (real) return kind === 'files' ? this.pickFiles() : set({ report: [[kind === 'paste' ? 'Recipes as text are not read yet' : 'Each RAF already opens with its own simulation as “As shot”', '#c9d0d8']] });
       if (kind === 'files') {
         const id = 'pk' + S.packs.length;
         const add = [['Portra 160', 'contrast(1.0) saturate(0.85) sepia(0.15) brightness(1.06)'], ['Portra 400', 'contrast(1.04) saturate(0.9) sepia(0.2)'], ['Portra 800', 'contrast(1.08) saturate(0.95) sepia(0.18) brightness(0.98)'], ['Ektar 100', 'contrast(1.12) saturate(1.35)'], ['Gold 200', 'saturate(1.1) sepia(0.3) brightness(1.04)']];
@@ -122,7 +156,8 @@ export default class Component extends DCLogic {
         pick: () => set({ group: g, coll: 'All', param: null }) })),
       actions: [{ name: 'IMPORT', dot: S.importing, pressed: String(S.importing), pick: () => set({ importing: !S.importing, report: null }) },
         { name: S.favs[cur.id] ? '★ SAVED' : '☆ FAVOURITE', dot: false, pressed: String(!!S.favs[cur.id]), pick: () => set({ favs: { ...S.favs, [cur.id]: S.favs[cur.id] ? 0 : 1 } }) },
-        { name: 'RECIPE', dot: S.card && !!recipe, pressed: String(S.card), pick: () => set({ card: !S.card }) }],
+        own ? { name: S.del === cur.id ? 'TAP AGAIN TO DELETE' : 'DELETE', dot: S.del === cur.id, pressed: 'false', pick: () => this.drop(cur) }
+          : { name: 'RECIPE', dot: S.card && !!recipe, pressed: String(S.card), pick: () => set({ card: !S.card }) }],
     };
   }
 }

@@ -26,6 +26,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Undo and history (every step keeps the whole edit), versions, saved with the edit | `editor/app/past.js`, `session.js` |
 | View board: before/after against the photo as imported, histogram and clipping overlay | `boards/ViewTools.js`, `editor/app/scope.js`, `tiles.js` |
 | Curve (RGB and each colour, over the photo's histogram), colour mixer (eight colours), grading (three ranges and the whole, Blending, Balance), Vignette, Grain | `grade.js`, `wgsl.js`, `boards/CurveOverlay.js`, `boards/GradeTrio.js`, `boards/EditPlate.js` |
+| Looks board: `.cube` looks brought in and kept on the phone (Presets), an edit saved as a look of one's own (Mine), each tile this photo wearing it | `cube.js`, `editor/app/looks.js`, `boards/LooksPlate.js` |
 | Library: tiles that show the edit, an Edited filter, what the photos take on the phone, deleting rejects for good | `boards/LibraryPlate.js`, `editor/app/store.js` |
 | Export: Full or smaller, JPEG (bands joined by restart markers), PNG, 16-bit TIFF, Exif carried | `export.js`, `files.js`, `exif.js`, `editor/app/save.js` |
 
@@ -47,7 +48,28 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Steps 1 to 4 and the tools of step 5 are done. Next: the rest of step 5 (save a look, `.cube` looks, search), then step 6
+## Steps 1 to 5 are done. Next: step 6 (masks)
+
+Step 5, looks kept on the phone (`editor/app/looks.js`, their own IndexedDB database `th-looks`):
+
+- **`.cube` looks.** IMPORT › Files reads `.cube` files (`cube.js`: 3D tables up to 65 a side, values 0 to 1) and
+  says, file by file, what was added and why another was not. They show under PRESETS, each tile this photo
+  wearing it. One can be on a photo at a time, on top of the film simulation and every slider: a tap puts it
+  on, a tap on the one that is on takes it off, the dial sets its amount (0 to 150 %). The edit holds its id
+  (`cube`) and amount (`Cube`). In the engine it is one more stage inside the colour table, on the finished
+  sRGB value just before the point curve (flag 262144; its size in `size.z`, where the unused quarter-turn was;
+  its place in the table buffer in `tab.w`; its amount in `air.w`). These files are nearly always made for a
+  finished sRGB picture; one made for log video will look too strong, and nothing in the file says which.
+- **Looks of one's own.** MINE › Save current asks for a name and keeps the whole edit. Putting one on brings
+  everything but what is the photo's own: exposure, white balance, lens corrections, crop. DELETE (two taps)
+  removes a look kept on the phone.
+- With a photo open PRESETS and MINE show only what is really there. RECIPES still plays the design's samples
+  (step 8), and the Amount dial does nothing for a look of one's own.
+- Not done: search (it earns its place once preset packs can be read, step 8), `.xmp`, `.lrtemplate`, `.zip`.
+- A bug this turned up, fixed: a tile drawn off screen used to put its own edit in the photo's place while the
+  GPU worked, so a tap that landed meanwhile was lost when the photo's edit was put back. Now the frame is sent
+  and the photo's edit restored in the same breath (`session.js` `unseen`): nothing can run in between.
+
 
 Step 5, the colour tools. None of them costs anything per frame:
 
@@ -197,6 +219,13 @@ and versions, and a reload. Sample pages `/lab/editor/viewing/` and `/lab/editor
   call `session.settle()` first, or it inherits whatever a look's tile last baked.
 - `dc.js` patches by position: an element marked `data-keep` is filled by the app and never patched inside.
 - A view's `region()` draws with the last shown frame's settings; `place()` waits for the next render.
+- Never leave the photo's edit swapped for another across an `await`: taps arrive in between. Off-screen
+  pictures go through `session.js` `unseen`, which restores it before returning.
+- The page is scaled to the phone (`boot.js`): a board that reads a touch must divide by its own size on screen,
+  not assume design pixels.
+- Headless Chrome draws each off-screen picture in about 3 s (a phone's GPU: a fraction of that): a check
+  script must wait for what it reads, not for a fixed time. A tile's `img` holds the camera's JPEG (also a
+  `blob:`) until its own picture is made.
 
 ## Waiting on the owner
 

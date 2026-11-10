@@ -11,10 +11,11 @@ import { START, curveRows, gradeRows, mixerRows } from '../../engine/grade.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
 import { forget, pickAt } from './adjust.js';
 import * as hist from './past.js';
+import * as kept from './looks.js';
 import * as store from './store.js';
 
 /** Each adjustment's starting value (display units: EV, K, or −100..100). */
-export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0,
+export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Cube: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0,
   Texture: 0, Clarity: 0, Dehaze: 0, Vignette: 0, Grain: 0, Sharpening: 40, Radius: 1, Detail: 25, Noise: 0, 'Color noise': 25, Distortion: 0, Vignetting: 0, Defringe: 0, ...START });
 /** What the GPU applies today; the rest are kept with the edit and wait for their stage. */
 export const LIVE = new Set(['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Temp', 'Tint', 'Vibrance', 'Saturation', 'Distortion', 'Vignetting', 'Texture', 'Clarity', 'Dehaze', 'Sharpening', 'Radius', 'Detail', 'Noise', 'Color noise', 'Vignette', 'Grain', ...Object.keys(START)]);
@@ -39,7 +40,7 @@ document.addEventListener('dc:keep', (e) => { const s = /** @type {HTMLElement} 
 
 let worker = /** @type {Worker | null} */ (null);
 export let eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
-/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, geo: import('../../engine/crop.js').Crop | null, curve: import('../../engine/grade.js').Curves | null, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
+/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, geo: import('../../engine/crop.js').Crop | null, curve: import('../../engine/grade.js').Curves | null, cube: string, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
 export let cur = null;
 let bent = '', base = false, whole0 = [7728, 5152];   // what the engine's geometry was last made with; whether the picture shows uncropped (the Crop board); its uncropped size
 let list = /** @type {Awaited<ReturnType<typeof catalogue>>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
@@ -65,7 +66,7 @@ export async function open(id) {
   const p = store.photos().find((x) => x.id === id);
   if (!p || cur?.id === id) return;
   const edit = (await store.loadEdit(id)) || {};
-  cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
+  cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, cube: typeof edit.cube === 'string' ? edit.cube : '', shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
   ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: { ...ZERO }, wb: 'As shot', profile: '' }, state()); img.src = await store.jpegUrl(id); place(); changed();
   worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' });
   const buf = await store.raw(id), me = cur, tag = ++asked;
@@ -83,7 +84,7 @@ export async function open(id) {
   if (cur !== me) return;
   if (r.error) { say(`Couldn't open it: ${r.error}`); return; }
   try {
-    const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback')), profilesFor(`${r.meta.make} ${r.meta.model}`)]);
+    const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback')), profilesFor(`${r.meta.make} ${r.meta.model}`), kept.ready]);
     if (cur !== me) { e.dispose(); return; }
     eng = e; list = l; whole0 = /Rotate(90|270)/.test(r.meta.orientation) ? [r.meta.fullHeight, r.meta.fullWidth] : [r.meta.fullWidth, r.meta.fullHeight];
     applyProfile();
@@ -107,9 +108,9 @@ function asShot() {
 const chosen = () => list.find((e) => e.id === cur?.profile) || asShot();
 /** The shot's own white as the plate shows it: Temp to 50 K, Tint whole. */
 export const shotWb = () => [Math.round((cur?.shotK || 5500) / 50) * 50, Math.round(cur?.shotTint || 0)];
-function applyProfile(pick = chosen()) {
+function applyProfile(pick = chosen(), bare = false) {
   if (!eng || !cur) return;
-  eng.setProfile(pick);
+  eng.setProfile({ .../** @type {any} */ (pick || {}), cube: bare ? null : kept.get(cur.cube)?.cube || null });   // the profile, and a .cube look on top
   const w = eng.shotWhite(); cur.shotK = w.kelvin; cur.shotTint = w.tint;
   // edits saved before Tint became the photo's own number kept it as a distance from the shot's
   if (cur.oldTint) { cur.values.Tint += Math.round(w.tint); cur.oldTint = false; }
@@ -133,7 +134,7 @@ function paint(more) {
   const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
   const crop = base ? null : c.geo, key = `${v.Distortion},${v.Vignetting},${JSON.stringify(crop)}`;
   if (bent !== key) { bent = key; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting'), crop }); }   // Optics by hand, or the crop: the picture is laid out again
-  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), texture: h('Texture'), clarity: h('Clarity'), dehaze: h('Dehaze'), sharpen: v.Sharpening / 40, radius: v.Radius, detail: h('Detail'), noise: h('Noise'), colorNoise: h('Color noise'), vignette: h('Vignette'), grain: h('Grain'), mixer: mixerRows(v), grade: gradeRows(v), curve: curveRows(c.curve), ...more });
+  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), texture: h('Texture'), clarity: h('Clarity'), dehaze: h('Dehaze'), sharpen: v.Sharpening / 40, radius: v.Radius, detail: h('Detail'), noise: h('Noise'), colorNoise: h('Color noise'), vignette: h('Vignette'), grain: h('Grain'), cube: v.Cube / 100, mixer: mixerRows(v), grade: gradeRows(v), curve: curveRows(c.curve), ...more });
 }
 /** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is */
 export async function draw(fit = true) {
@@ -160,24 +161,27 @@ async function small(w) {
   return c.convertToBlob({ type: 'image/jpeg', quality: w ? 0.8 : 0.92 });
 }
 /** The edit as it stands. @returns {hist.State} */
-export const state = () => hist.copy({ values: cur?.values || {}, wb: cur?.wb || 'As shot', profile: cur?.profile || '', geo: cur?.geo, curve: cur?.curve });
-const put = (/** @type {hist.State} */ st) => { if (cur) Object.assign(cur, { values: { ...ZERO, ...st.values }, wb: st.wb, profile: st.profile, geo: st.geo || null, curve: st.curve || null }); };
+export const state = () => hist.copy({ values: cur?.values || {}, wb: cur?.wb || 'As shot', profile: cur?.profile || '', geo: cur?.geo, curve: cur?.curve, cube: cur?.cube });
+const put = (/** @type {hist.State} */ st) => { if (cur) Object.assign(cur, { values: { ...ZERO, ...st.values }, wb: st.wb, profile: st.profile, geo: st.geo || null, curve: st.curve || null, cube: st.cube || '' }); };
 /** The photo developed off screen (tiles.js): as it is now, or as the edit `st` would have it. A JPEG's URL, `w`
  * pixels wide; '' if the photo closes first. @param {hist.State | null} st @param {number} w @param {Parameters<typeof paint>[0]} [more] */
 export async function picture(st, w, more) {
   const me = cur; let url = '';
-  await alone(async () => {
-    if (cur !== me || !eng || !me) return;
-    const was = state(), shown = base;
-    base = false;   // always the picture as cropped, whatever board is up
-    try { if (st) { put(st); applyProfile(); } await paint({ screen: false, ...more }); url = URL.createObjectURL(await small(w)); } finally { base = shown; if (st) { put(was); applyProfile(); } }
-  });
+  await alone(async () => { if (cur === me && eng && me) { await unseen(st, more); url = URL.createObjectURL(await small(w)); } });
   return url;
+}
+/** One frame off screen, of the edit `st` (null: the photo's own), always as cropped whatever board is up. The frame is
+ * sent to the GPU and the photo's own edit put back in the same breath, before anything else can run: a tap that
+ * lands while a tile is being drawn must find the photo's edit, not the tile's. @param {hist.State | null} st @param {Parameters<typeof paint>[0]} [more] */
+function unseen(st, more) {
+  const was = state(), shown = base;
+  base = false;
+  try { if (st) { put(st); applyProfile(); } return paint({ screen: false, ...more }); } finally { base = shown; if (st) { put(was); applyProfile(); } }
 }
 /** The fitted photo's pixels as it is now (the histogram's); null if the photo closes first. */
 export async function pixels() {
   const me = cur; let im = /** @type {ImageData | null} */ (null);
-  await alone(async () => { if (cur === me && eng && me) { await paint({ screen: false }); im = await eng.snapshot(); } });
+  await alone(async () => { if (cur === me && eng && me) { await unseen(null); im = await eng.snapshot(); } });
   return im;
 }
 /** The crop (engine/crop.js; null for none), and the upright picture's size before it. */
@@ -218,14 +222,14 @@ export function save(key, name, val) {
   const me = cur, p = past;
   if (me && p && name !== undefined) hist.note(p, key || '', name, val || '', state());
   clearTimeout(tileT); tileT = setTimeout(() => keepTile(me), 1500);
-  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, v: 2, ...(p ? hist.dump(p) : {}) }); }, 400);
+  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, cube: me.cube, v: 2, ...(p ? hist.dump(p) : {}) }); }, 400);
 }
 let tileT = 0;
 /** The photo's Library tile follows its edit: a small picture of it as it now looks, or none once it is back as imported. */
 async function keepTile(/** @type {typeof cur} */ me) {
   if (!me || cur !== me || !past) return;
   let blob = /** @type {Blob | null} */ (null);
-  if (!hist.same(state(), past.steps[0].st)) await alone(async () => { if (cur !== me || !eng) return; const shown = base; base = false; try { await paint({ screen: false }); blob = await small(480); } finally { base = shown; } });
+  if (!hist.same(state(), past.steps[0].st)) await alone(async () => { if (cur === me && eng) { await unseen(null); blob = await small(480); } });
   if (cur === me) { await store.saveTile(me.id, blob); changed(); }
 }
 /** Closes the open photo (it was deleted). */
@@ -256,7 +260,16 @@ export const looks = () => { const shot = asShot(); return list.map((e) => ({ id
 export const look = () => chosen()?.id || '';
 /** @param {string} id */
 export function pickLook(id) { if (!cur || !list.some((e) => e.id === id)) return; cur.profile = id; applyProfile(); changed(); draw(); save('look', `Look · ${chosen()?.label || ''}`, ''); }
-/** The look's strength, 0..150 % (a look's RGB table; a profile alone is all or nothing). @param {number} pct */
-export function setAmount(pct) { if (!cur) return; cur.values.Amount = Math.max(0, Math.min(150, Math.round(pct))); changed(); draw(); save('Amount', 'Look amount', `${cur.values.Amount}%`); }
+/** A look's strength, 0..150 %: the profile's RGB table (a profile alone is all or nothing), or as `Cube` the .cube look's. @param {number} pct @param {string} [name] */
+export function setAmount(pct, name = 'Amount') { if (!cur) return; cur.values[name] = Math.max(0, Math.min(150, Math.round(pct))); changed(); draw(); save(name, 'Look amount', `${cur.values[name]}%`); }
+/** The `.cube` look on the photo (looks.js), '' for none. */
+export const cubeOn = () => cur?.cube || '';
+/** Puts a `.cube` look on; the one that is on comes off. @param {string} id */
+export function pickCube(id) { if (!cur) return; cur.cube = cur.cube === id ? '' : id; applyProfile(); changed(); draw(); save('look', cur.cube ? `Look · ${kept.get(id)?.name || ''}` : 'Look off', ''); }
+/** The edit as it would be wearing a saved look: everything the look holds but what is the photo's own (its exposure,
+ * white balance, lens corrections and crop). @param {hist.State} st @returns {hist.State} */
+export function worn(st) { const now = state(), v = { ...st.values }; for (const k of ['Exposure', 'Temp', 'Tint', 'Distortion', 'Vignetting']) delete v[k]; return { ...now, values: { ...now.values, ...v }, profile: st.profile, curve: st.curve || null, cube: st.cube || '' }; }
+/** Puts a saved look on, a step of the history. @param {hist.State} st @param {string} name */
+export function wear(st, name) { if (!cur) return; put(worn(st)); applyProfile(); changed(); draw(); save('', `Look · ${name}`, ''); }
 /** Press and hold: the photo as shot, without the chosen look. @param {boolean} on */
-export function hold(on) { if (!eng || !cur) return; applyProfile(on ? asShot() : chosen()); draw(); }
+export function hold(on) { if (!eng || !cur) return; applyProfile(on ? asShot() : chosen(), on); draw(); }
