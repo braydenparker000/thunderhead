@@ -352,8 +352,6 @@ Left out on purpose or not reached, none of it blocking:
 - Search on the Looks board; `.xmp`, `.lrtemplate` and `.zip` looks; recipes (the board still shows samples).
 - Watermark and Display P3 on export; camera import over USB; renaming or moving a photo.
 - Retouch spots that build on each other; a true content-aware Remove.
-- `docs/engineering/ENGINE-STATUS.md` is out of date: this file replaced it. A pointer from the docs is owed (a
-  docs change runs the full test suite, so it goes in a change of its own).
 
 Step 8 (sliders that answer like Lightroom's, then `.xmp` presets and recipes) needs the owner's reference
 exports from Lightroom. Step 9 is the owner's decisions: detection models, Auto white balance, profiles on their
@@ -364,7 +362,9 @@ Worker, backups, replacing the old editor.
 Everything since step 1 was checked in headless Chrome on a software GPU, never on the phone. What only the owner
 can tell:
 
-- **Speed and memory on the A15.** How long a photo takes to open, how the dial feels, how long 100 % and an
+- **Speed and memory on the A15.** How long a photo takes to open (the frame's shader has grown with every step:
+  on the software GPU the first frame came within about 12 s at step 5 and takes about 18 s now; a real GPU may
+  not notice, but it is the first thing to look at), how the dial feels, how long 100 % and an
   export take, and whether the tab ever reloads (a photo keeps about 80 MB on the GPU for its sensor pixels, 35 MB
   for the editing copy, and each full-size view its own buffers).
 - **How the controls feel.** Every strength is a first guess: Clarity, Texture, Dehaze, Sharpening, the two Noise
