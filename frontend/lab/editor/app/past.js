@@ -9,7 +9,7 @@
 /** @typedef {{ steps: Step[], at: number, versions: { name: string, st: State }[] }} Past */
 const MOST = 60, PAUSE = 1500;   // steps kept; a control still for this long starts a new step when it moves again
 
-export const copy = (/** @type {State} */ st) => ({ values: { ...st.values }, wb: st.wb, profile: st.profile, geo: st.geo ? { ...st.geo, rect: st.geo.rect && { ...st.geo.rect } } : null, curve: st.curve ? JSON.parse(JSON.stringify(st.curve)) : null, cube: st.cube || '', masks: st.masks?.length ? JSON.parse(JSON.stringify(st.masks)) : [] });
+export const copy = (/** @type {State} */ st) => ({ values: { ...st.values }, wb: st.wb, profile: st.profile, geo: st.geo ? { ...st.geo, rect: st.geo.rect && { ...st.geo.rect } } : null, curve: st.curve ? JSON.parse(JSON.stringify(st.curve)) : null, cube: st.cube || '', masks: (st.masks || []).map((m) => ({ ...m, vals: { ...m.vals } })) });   // where a mask lies and what was painted are never changed in place (masks.js), so steps share them
 /** Whether two edits are one. Temp and Tint only count when set by hand: otherwise the white balance's name says it. @param {State} a @param {State} b */
 export const same = (a, b) => a.wb === b.wb && a.profile === b.profile && (a.cube || '') === (b.cube || '') && JSON.stringify(a.masks || []) === JSON.stringify(b.masks || []) && JSON.stringify(a.geo || null) === JSON.stringify(b.geo || null) && JSON.stringify(a.curve || null) === JSON.stringify(b.curve || null)
   && Object.keys({ ...a.values, ...b.values }).every((k) => ((k === 'Temp' || k === 'Tint') && a.wb !== 'Custom') || a.values[k] === b.values[k]);
