@@ -2,15 +2,16 @@
 // Masks: adjustments that reach only part of the picture. A mask says how much of itself each place gets (0..1):
 // a linear or a radial gradient laid on the picture, or a range of colour or of brightness picked from it. Its
 // own adjustments are then added to the photo's, pixel by pixel, in the frame pass (wgsl.js `main`), so they
-// cost one sum a mask and are the same at every zoom and in the export.
+// cost one sum a mask and are the same at every zoom and in the export. A brush mask's weight is painted (brush.js).
 //
 // A mask's shape lives in the upright, uncropped picture, in units of its width (x 0..1, y 0..height/width):
 // crop, straighten or turn the photo and the mask stays on what it was laid on.
+import { LAYERS } from './brush.js';
 
 /** @typedef {{ kind: 'Linear' | 'Radial' | 'Color' | 'Luminance' | 'Brush', n: number, vals: Record<string, number>, invert: boolean,
- *   a?: number[] | null, pick?: number[] | null }} Mask
+ *   a?: number[] | null, pick?: number[] | null, strokes?: import('./brush.js').Stroke[] }} Mask
  * `a`: a linear gradient's two points (in full at the first, gone by the second), or a radial's centre and radii;
- * `pick`: the colour (two numbers) or brightness (one) a range mask was given by a tap. */
+ * `pick`: the colour (two numbers) or brightness (one) a range mask was given by a tap; `strokes`: what was painted. */
 export const MOST = 8, ROWS = 7, FLOATS = 16 + MOST * ROWS * 4;
 const KIND = { Brush: 1, Linear: 2, Radial: 3, Color: 4, Luminance: 5 };
 
@@ -45,16 +46,18 @@ export function toneOf(c) {
 export function localRows(masks, g, show, base) {
   if (!masks?.length) return null;
   const out = new Float32Array(FLOATS), h = toMask(g), live = masks.slice(0, MOST);
+  let painted = 0;   // brush masks so far: each has the next layer (brush.js), while there are layers
   out.set([h[0], h[1], h[2], 0, h[3], h[4], h[5], 0, h[6], h[7], h[8], 0, live.length, show + 1, base, 0]);
   live.forEach((m, k) => {
     const v = (/** @type {string} */ n, d = 0) => m.vals[n] ?? d, f = v('Feather', 50) / 100, range = v('Range', 30) / 100, o = 16 + k * ROWS * 4, a = m.a, p = m.pick;
-    let kind = 0, s = [0, 0, 0, 0], e = [0, 0, 0, 0];
-    if (m.kind === 'Linear' && a) { kind = KIND.Linear; s = a.slice(0, 4); e = [f, 0, 0, 0]; }
+    let kind = 0, layer = 0, s = [0, 0, 0, 0], e = [0, 0, 0, 0];
+    if (m.kind === 'Brush') { if (painted < LAYERS) { kind = KIND.Brush; layer = painted; } painted++; }
+    else if (m.kind === 'Linear' && a) { kind = KIND.Linear; s = a.slice(0, 4); e = [f, 0, 0, 0]; }
     else if (m.kind === 'Radial' && a) { kind = KIND.Radial; s = a.slice(0, 4); e = [1, 0, f, 0]; }
     else if (m.kind === 'Color' && p) { kind = KIND.Color; s = [p[0], p[1], 0.01 + 0.3 * range * range, f]; }   // colours sit close together in these units: the dial's low end is fine
     else if (m.kind === 'Luminance' && p) { kind = KIND.Luminance; s = [p[0], 0.03 + 0.5 * range, f, 0]; }
     const temp = v('Temp') / 100, tint = v('Tint') / 100;
-    out.set([kind, v('Amount', 100) / 100, m.invert ? 1 : 0, 0, ...s, ...e,
+    out.set([kind, v('Amount', 100) / 100, m.invert ? 1 : 0, layer, ...s, ...e,
       v('Exposure'), (v('Contrast') / 100) * 0.6, v('Highlights') / 100, v('Shadows') / 100,
       v('Whites') / 100, v('Blacks') / 100, v('Saturation') / 100, (v('Hue') / 100) * Math.PI,
       0.35 * temp + 0.1 * tint, -0.2 * tint, -0.35 * temp + 0.1 * tint, 0,
@@ -68,10 +71,18 @@ export const LOCAL = /* wgsl */ `
 // What the masks add at one place: exposure, contrast, highlights, shadows · whites, blacks, saturation, hue ·
 // white balance (stops on each colour) · texture, clarity, dehaze · and how much of the mask being shown is here.
 struct Local { a: vec4f, b: vec4f, wb: vec3f, fx: vec3f, show: f32 }
+@group(0) @binding(9) var brushed: texture_2d_array<f32>;   // the painted masks, a layer each (brush.js)
+fn painted(q: vec2f, layer: i32) -> f32 {
+  let n = vec2i(textureDimensions(brushed)); let t = q * f32(n.x) - 0.5; let i = vec2i(floor(t)); let f = t - floor(t);
+  let a = clamp(i, vec2i(0), n - 1); let b = clamp(i + 1, vec2i(0), n - 1);
+  return mix(mix(textureLoad(brushed, a, layer, 0).r, textureLoad(brushed, vec2i(b.x, a.y), layer, 0).r, f.x),
+    mix(textureLoad(brushed, vec2i(a.x, b.y), layer, 0).r, textureLoad(brushed, b, layer, 0).r, f.x), f.y);
+}
 // How much of mask k a place gets. q: the place in mask units; tone: its lightness and its colour as local.js's toneOf gives them.
 fn weigh(k: u32, q: vec2f, tone: vec3f) -> f32 {
   let r = p.mk[k * 7u]; let s = p.mk[k * 7u + 1u]; let e = p.mk[k * 7u + 2u]; var w = 0.0;
   switch (u32(r.x)) {
+    case 1u: { w = painted(q, i32(r.w)); }
     case 2u: { let d = s.zw - s.xy; let t = dot(q - s.xy, d) / max(dot(d, d), 1e-9); w = 1.0 - smoothstep(0.5 - 0.5 * e.x, 0.5 + 0.5 * e.x + 1e-4, t); }
     case 3u: { let v = q - s.xy; let d = vec2f(v.x * e.x + v.y * e.y, v.y * e.x - v.x * e.y) / max(s.zw, vec2f(1e-5)); w = 1.0 - smoothstep(1.0 - e.z, 1.0001, length(d)); }
     case 4u: { w = 1.0 - smoothstep(s.z * (1.0 - s.w), s.z * 1.0001, distance(tone.yz, s.xy)); }

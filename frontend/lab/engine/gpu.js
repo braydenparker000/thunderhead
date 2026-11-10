@@ -9,6 +9,7 @@
 // before that the photo is laid out as the picture: the lens's faults undone, cropped, upright (warp.js).
 import { N, USIZE, WGSL } from './wgsl.js';
 import { fromMask, localRows, through, toMask, toneOf } from './local.js';
+import { brushes } from './brush.js';
 import { maskPipes, masks } from './mask.js';
 import { airOf } from './haze.js';
 import { noiseAt } from './noise.js';
@@ -102,6 +103,7 @@ export async function engine(canvas, img, readback = false) {
   const views = [];
   let lastU = new ArrayBuffer(USIZE);   // the last shown frame's settings
   const last = { baked: false, masked: false };   // whether the last render re-made the colour table, and the tone mask (the test page's timing lines)
+  const painted = brushes(device, geo.rot % 2 ? geo.H : geo.W, geo.rot % 2 ? geo.W : geo.H);   // the brush masks' layers (brush.js)
   /** @param {null | { profile?: import('./dcp.js').Profile, table?: any, cube?: import('./cube.js').Cube | null }} pick */
   const setProfile = (pick) => {
     picked = pick;
@@ -111,7 +113,7 @@ export async function engine(canvas, img, readback = false) {
     tab.destroy();
     tab = device.createBuffer({ size: t.all.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
     device.queue.writeBuffer(tab, 0, t.all);
-    bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: flat } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: mask.tone.view }, { binding: 7, resource: mask.fine.view }, { binding: 8, resource: mask.haze.view }] });
+    bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: flat } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: mask.tone.view }, { binding: 7, resource: mask.fine.view }, { binding: 8, resource: mask.haze.view }, { binding: 9, resource: painted.view() }] });
     bakeBind = device.createBindGroup({ layout: bakePipe.getBindGroupLayout(0), entries: [{ binding: 1, resource: { buffer: uni } }, { binding: 3, resource: { buffer: tab } }, { binding: 4, resource: lut.createView() }] });
     for (const v of views) v.bind(tab);
     baked = ''; masked = fined = hazed = '';
@@ -152,6 +154,7 @@ export async function engine(canvas, img, readback = false) {
    * Shadows by each pixel's own brightness, not its area's; showMask draws the tone mask (all four for comparing);
    * time, for the stage timer: 'bare' does no colour work at all, 'nearest' reads the table without mixing its entries */
   const render = async (ev, contrast, more = {}) => {
+    if (painted.sync(more.masks)) setProfile(picked);   // a first brush mask made the layers' texture: everything that binds it binds again
     const t = performance.now(), u = new ArrayBuffer(USIZE), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, more.amount ?? 1, 1]);
@@ -211,7 +214,7 @@ export async function engine(canvas, img, readback = false) {
     return new ImageData(px, ow, oh);
   };
   /** Frees this photo's GPU memory (the device and pipelines stay for the next). */
-  const dispose = () => { for (const b of [src, flat, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); bend.destroy(); };
+  const dispose = () => { for (const b of [src, flat, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); bend.destroy(); painted.destroy(); };
   /** The lens corrections added by hand (each −1..1): the picture is laid out again at the next render.
    * and the crop (crop.js). A crop that changes the picture's size makes its surfaces anew. `draft` lays it out
    * the quick way (two taps, no fringing pass), for while a control moves.
@@ -220,6 +223,6 @@ export async function engine(canvas, img, readback = false) {
   /** Auto's values for the Light controls (auto.js). @param {number} ev the exposure the photo shows at with Exposure at 0 */
   const auto = (ev) => autoTone(img, state.m, ev + state.u.offset);
   /** What full.js builds on. */
-  const base = { device, pipe, bendP, lut, get mask() { return mask.tone.view; }, get fine() { return mask.fine.view; }, get haze() { return mask.haze.view; }, views, tab: () => tab, settings: () => lastU, geo: () => geo, noise: noiseAt(img.meta.iso || 200) };
+  const base = { device, pipe, bendP, lut, get mask() { return mask.tone.view; }, get fine() { return mask.fine.view; }, get brushed() { return painted.view(); }, get haze() { return mask.haze.view; }, views, tab: () => tab, settings: () => lastU, geo: () => geo, noise: noiseAt(img.meta.iso || 200) };
   return { render, setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, auto, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

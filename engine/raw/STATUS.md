@@ -27,7 +27,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | View board: before/after against the photo as imported, histogram and clipping overlay | `boards/ViewTools.js`, `editor/app/scope.js`, `tiles.js` |
 | Curve (RGB and each colour, over the photo's histogram), colour mixer (eight colours), grading (three ranges and the whole, Blending, Balance), Vignette, Grain | `grade.js`, `wgsl.js`, `boards/CurveOverlay.js`, `boards/GradeTrio.js`, `boards/EditPlate.js` |
 | Looks board: `.cube` looks brought in and kept on the phone (Presets), an edit saved as a look of one's own (Mine), each tile this photo wearing it | `cube.js`, `editor/app/looks.js`, `boards/LooksPlate.js` |
-| Masks board: linear and radial gradients laid on the picture, ranges of colour and of brightness picked with a tap; each with its own Light, Color and Effects adjustments, Amount, Invert; shown in red | `local.js`, `wgsl.js` main, `editor/app/masks.js`, `boards/MaskPlate.js` |
+| Masks board: a brush, linear and radial gradients laid on the picture, ranges of colour and of brightness picked with a tap; each with its own Light, Color and Effects adjustments, Amount, Invert; shown in red | `local.js`, `brush.js`, `wgsl.js` main, `editor/app/masks.js`, `boards/MaskPlate.js` |
 | Library: tiles that show the edit, an Edited filter, what the photos take on the phone, deleting rejects for good | `boards/LibraryPlate.js`, `editor/app/store.js` |
 | Export: Full or smaller, JPEG (bands joined by restart markers), PNG, 16-bit TIFF, Exif carried | `export.js`, `files.js`, `exif.js`, `editor/app/save.js` |
 
@@ -49,7 +49,24 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Steps 1 to 5 and the first half of 6 are done. Next: the brush (6b), then heal (7)
+## Steps 1 to 6 are done. Next: heal (7)
+
+Step 6b, the brush (`engine/brush.js`):
+
+- A brush mask's weight is painted. A stroke is kept as the points the finger went through, in mask units,
+  with the brush it was made with (radius, feather, flow, erase) and an id. `lay()` puts it down as soft round
+  dabs a quarter of a radius apart: add lays weight on (flow at a time, so slow passes build up), erase takes
+  it off. The dabs fall in the same places whether a stroke is laid at once or as it grows, so painting live
+  and drawing again after Undo or a reload give the same picture (checked: 0 difference).
+- The weights live in one texture, four layers of 1024 on the long side (`r8unorm`, 2.8 MB), made when a photo
+  first has a brush mask; the frame pass reads a layer between its four nearest values (binding 9). The CPU
+  keeps each layer in 16 bits so low flow adds up. `sync()` carries a grown stroke on from where it stood and
+  sends only the rectangle touched; anything else (Undo, another photo's masks) is laid again from nothing.
+- A photo takes four painted masks (of its eight). Size, Feather and Flow are the brush's, kept by the board,
+  not the edit: they shape the next stroke. A stroke is one step of the history. RESET MASK clears the paint.
+- History steps share what was painted (`past.js` `copy` no longer deep-copies a mask's points: `masks.js` never
+  changes them in place), and IndexedDB stores shared arrays once.
+
 
 Step 6a, masks (`engine/local.js` is the place to read first):
 
@@ -79,8 +96,8 @@ Step 6a, masks (`engine/local.js` is the place to read first):
   (size; along one axis near that axis's end). A range mask takes a tap. OVERLAY lays the chosen mask over the
   picture in red (drawn by the engine, so it is the real weight); it comes off while the dial turns. The red
   only shows in the Masks board's slot (`data-masks`), never in a tile or a file.
-- Not built: the brush (6b: a painted weight in a texture), detection (Subject, Sky …: step 9), Sharpness and
-  Noise for a mask (they need the mask in the full-size passes), zoom on the Masks board, more than eight masks.
+- Not built: detection (Subject, Sky …: step 9), Sharpness and Noise for a mask (they need the mask in the
+  full-size passes), zoom on the Masks board (so fine painting is limited by the finger), more than eight masks.
 - Strengths are first guesses: Temp ±100 is ±0.35 stops on red against blue, Hue ±100 is ±180°.
 
 
@@ -125,8 +142,8 @@ Step 5, the colour tools. None of them costs anything per frame:
   the chosen range's brightness, Blending or Balance, and in Curve lifts the point last touched. A section's
   count includes them.
 - The wheels and the curve read a touch by their own size on screen: the page is scaled to the phone
-  (`boot.js`), so design pixels are not screen pixels. The Heal and Masks boards still assume they are (fix
-  when they are made real).
+  (`boot.js`), so design pixels are not screen pixels. The Heal board still assumes they are (fix when it is
+  made real).
 - Checked through the board on a landscape and a portrait sample (each control changes the photo the right
   way, one history step a gesture, Reset puts the picture back exactly, a reload keeps it), and an export
   with everything on matches the screen to about one level in every patch.
