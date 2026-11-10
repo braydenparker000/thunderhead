@@ -18,6 +18,7 @@ export default class Component extends DCLogic {
     const g = photo.current() && photo.geo();   // the photo's crop as saved: the board starts from it
     if (g) Object.assign(this.state, { quarter: g.quarter, flipH: g.flipH, flipV: g.flipV, aspect: g.aspect || 'Free', portrait: !!g.portrait, vals: { Angle: g.angle, Vertical: g.vertical, Horizontal: g.horizontal, Scale: g.scale } });
     this.rect0 = g ? g.rect : null;
+    this.keep('Crop', ['group', 'ctl']);
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
   }

@@ -20,6 +20,7 @@ export default class Component extends DCLogic {
     };
     this.drag = null; this.painting = false; this.grab = null;
     if (photo.current()) Object.assign(this.state, { sel: 0, adding: !mk.list().length });
+    this.keep('Masks', ['group', 'adj', 'overlay', 'brush']);
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
   }

@@ -25,6 +25,7 @@ export default class Component extends DCLogic {
   constructor(props) {
     super(props);
     this.state = { face: 'Light', adj: { Light: 'Exposure' }, chan: 'RGB', mixColor: 'Blue', mixAttr: 'Hue', zone: 'Shadows', wb: 'As shot', wbMenu: false, kind: 'All' };
+    this.keep('Edit', ['face', 'adj', 'chan', 'mixColor', 'mixAttr', 'zone', 'kind']);
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
   }

@@ -30,5 +30,6 @@ RAFs, the snapshot and the outputs out of the repository.
 | `e5`, `ex` | A full-size export (slow: about 13 minutes here); the Export board's controls, saving nothing |
 | `tx` | How far the 100 % view, averaged three by three, is from the editing copy with Texture, Clarity, Shadows on |
 | `dz`, `dbg` | A 100 % screenshot about a point; a full-size view driven directly with the GPU's errors printed |
+| `kp` | Boards found as they were left; the header's histogram key; the page's touch behaviour |
 | `sp`, `sp2` | A sample page (no photo) as a picture, plain or after a button |
 | `sync.py` | Brings the sample pages' templates up to date with `frontend/lab/editor/index.html`: run it after changing a template |

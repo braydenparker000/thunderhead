@@ -19,6 +19,7 @@ export default class Component extends DCLogic {
     super(props);
     this.state = { mode: 'compare', hist: true, clip: false, step: 7, ver: 1, split: 206, zoom: false, cx: 0.62, cy: 0.38, holding: false };
     this.drag = null; this.lastTap = 0; this.pts = new Map(); this.pinch = null;
+    this.keep('View', ['mode', 'hist', 'clip', 'split']);
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
     photo.events.addEventListener('change', hear);
   }
@@ -65,8 +66,9 @@ export default class Component extends DCLogic {
     // the history's row comes to the step the photo is at, when it opens and when that step changes
     const here = shownMode === 'history' ? stepList.findIndex((x) => x[2]) : -1;
     if (here !== this.here) { this.here = here; if (here >= 0) requestAnimationFrame(() => { const row = this._host?.el.querySelector('[role=list][aria-label=History]'), b = row?.children[here]; if (b) row.scrollTo({ left: b.offsetLeft - (row.clientWidth - b.offsetWidth) / 2, behavior: 'smooth' }); }); }
+    const secs = (what, t) => (t > 0 ? ` · ${what} ${t < 10 ? t.toFixed(1) : Math.round(t)} s` : '');   // the photo's own waits, to read off the phone
     return {
-      real: !!real, demo: !real, fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160',
+      real: !!real, demo: !real, fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' + secs('opened in', photo.took.open) + secs('sharp in', photo.took.detail) : '23 mm · f/5.6 · 1/250 · ISO 160',
       hist: !!sc, histInk: S.hist ? '#e8202a' : '#a6b0bc', tHist: () => set({ hist: !S.hist }), clip: S.clip && !!sc, clipDemo: S.clip && !!sc && !real, clipInk: S.clip ? '#e8202a' : '#c9d0d8', tClip: () => set({ clip: !S.clip }),
       hR: sc?.r, hG: sc?.g, hB: sc?.b, clipLo: sc?.lo, clipHi: sc?.hi, histMeta: S.clip ? 'clipping shown' : 'tap ▲ for clipping',
       history: shownMode === 'history', historyInk: shownMode === 'history' ? '#e8202a' : '#a6b0bc', tHistory: () => mode('history'),

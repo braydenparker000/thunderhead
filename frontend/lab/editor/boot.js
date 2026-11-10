@@ -55,6 +55,7 @@ else {
     if (label === 'Undo') { undo(); return; }
     if (label === 'Back to the tools') { e.stopPropagation(); e.preventDefault(); dock.hidden = veil.hidden = false; return; }
     if (label === 'Back to Photos' || label === 'Back to Library') to = 'Library';
+    else if (label === 'Show histogram') to = 'Versions';   // the View board holds the histogram and its clipping
     else if (label === 'Back to the editor') to = 'Edit';
     else if (text === 'Export' && b.closest('header')) to = 'Export';
     else if (text === 'EDIT ›') to = 'Edit';
