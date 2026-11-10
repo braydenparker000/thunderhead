@@ -61,7 +61,7 @@ export function localRows(masks, g, show, base) {
       v('Exposure'), (v('Contrast') / 100) * 0.6, v('Highlights') / 100, v('Shadows') / 100,
       v('Whites') / 100, v('Blacks') / 100, v('Saturation') / 100, (v('Hue') / 100) * Math.PI,
       0.35 * temp + 0.1 * tint, -0.2 * tint, -0.35 * temp + 0.1 * tint, 0,
-      v('Texture') / 100, v('Clarity') / 100, v('Dehaze') / 100, 0], o);
+      v('Texture') / 100, v('Clarity') / 100, v('Dehaze') / 100, v('Sharpness') / 100], o);
   });
   return out;
 }
@@ -69,8 +69,8 @@ export function localRows(masks, g, show, base) {
 /** The masks' part of the frame's shader (wgsl.js puts it before `main`; `lab` is grade.js's). */
 export const LOCAL = /* wgsl */ `
 // What the masks add at one place: exposure, contrast, highlights, shadows · whites, blacks, saturation, hue ·
-// white balance (stops on each colour) · texture, clarity, dehaze · and how much of the mask being shown is here.
-struct Local { a: vec4f, b: vec4f, wb: vec3f, fx: vec3f, show: f32 }
+// white balance (stops on each colour) · texture, clarity, dehaze, sharpness · and how much of the mask being shown is here.
+struct Local { a: vec4f, b: vec4f, wb: vec3f, fx: vec4f, show: f32 }
 @group(0) @binding(9) var brushed: texture_2d_array<f32>;   // the painted masks, a layer each (brush.js)
 fn painted(q: vec2f, layer: i32) -> f32 {
   let n = vec2i(textureDimensions(brushed)); let t = q * f32(n.x) - 0.5; let i = vec2i(floor(t)); let f = t - floor(t);
@@ -92,14 +92,14 @@ fn weigh(k: u32, q: vec2f, tone: vec3f) -> f32 {
   return mix(w, 1.0 - w, r.z) * r.y;
 }
 fn locals(spot: vec2f, c: vec3f) -> Local {
-  var o = Local(vec4f(0.0), vec4f(0.0), vec3f(0.0), vec3f(0.0), 0.0);
+  var o = Local(vec4f(0.0), vec4f(0.0), vec3f(0.0), vec4f(0.0), 0.0);
   let h = vec3f(dot(p.mh[0].xyz, vec3f(spot, 1.0)), dot(p.mh[1].xyz, vec3f(spot, 1.0)), dot(p.mh[2].xyz, vec3f(spot, 1.0)));
   let v = lab(c * exp2(p.mi.z)); let tone = vec3f(clamp(v.x, 0.0, 1.0), v.yz / max(v.x, 1e-4));
   for (var k = 0u; k < u32(p.mi.x); k++) {
     let w = weigh(k, h.xy / h.z, tone);
     if (f32(k) + 1.0 == p.mi.y) { o.show = w; }
     if (w <= 0.0) { continue; }
-    o.a += w * p.mk[k * 7u + 3u]; o.b += w * p.mk[k * 7u + 4u]; o.wb += w * p.mk[k * 7u + 5u].xyz; o.fx += w * p.mk[k * 7u + 6u].xyz;
+    o.a += w * p.mk[k * 7u + 3u]; o.b += w * p.mk[k * 7u + 4u]; o.wb += w * p.mk[k * 7u + 5u].xyz; o.fx += w * p.mk[k * 7u + 6u];
   }
   return o;
 }

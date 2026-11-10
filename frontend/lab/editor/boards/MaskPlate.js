@@ -4,7 +4,7 @@
 // on the picture with a finger, and ranges of colour or brightness picked with a tap; the dial turns the chosen
 // mask's own adjustments and the engine lays the mask over the picture in red. Without one it plays the design's
 // sample. A brush mask is painted on the photo (Size, Feather and Flow are the brush's, Erase rubs out). Not built
-// yet, so not offered with a photo: detection (Subject, Sky …), Sharpness and Noise.
+// yet, so not offered with a photo: detection (Subject, Sky …), and Noise for a mask.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import * as mk from '../app/masks.js';
@@ -46,7 +46,7 @@ export default class Component extends DCLogic {
     const rows = {
       Light: ['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks'],
       Color: ['Temp', 'Tint', 'Hue', 'Saturation'],
-      Effects: real ? ['Texture', 'Clarity', 'Dehaze'] : ['Texture', 'Clarity', 'Dehaze', 'Sharpness', 'Noise'],
+      Effects: real ? ['Texture', 'Clarity', 'Dehaze', 'Sharpness'] : ['Texture', 'Clarity', 'Dehaze', 'Sharpness', 'Noise'],
       Mask: (m.kind === 'Brush' ? ['Size', 'Feather', 'Flow', 'Erase'] : ['Linear', 'Radial'].includes(m.kind) ? ['Feather'] : real ? ['Range', 'Feather'] : []).concat(['Amount', 'Invert', 'Delete']),
     };
     const toggles = { Erase: real ? !!S.erase : m.erase, Invert: m.invert };
