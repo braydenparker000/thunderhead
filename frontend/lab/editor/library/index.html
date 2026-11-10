@@ -17,7 +17,7 @@
   <header style="position: absolute; top: 0; left: 0; right: 0; height: 56px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; z-index: 2; background: linear-gradient(180deg, #000 70%, rgba(0,0,0,0))">
     <div style="flex: 1; min-width: 0">
       <div style="font-size: 20px; font-weight: 700; letter-spacing: -0.01em">{{title}}</div>
-      <div style="font-size: 11px; color: #8b95a1; font-variant-numeric: tabular-nums">{{subtitle}}</div>
+      <div onClick="{{subTap}}" role="{{subRole}}" style="font-size: 11px; color: {{subInk}}; font-variant-numeric: tabular-nums">{{subtitle}}</div>
     </div>
     <button onClick="{{toggleImport}}" aria-expanded="{{importing}}" style="height: 34px; padding: 0 14px; border-radius: 17px; background: #e8202a; color: #fff; font-size: 13px; font-weight: 600">Import</button>
   </header>
@@ -29,7 +29,7 @@
         <div style="display: grid; grid-template-columns: repeat({{cols}}, minmax(0, 1fr)); gap: 2px">
           <sc-for list="{{g.items}}" as="p" hint-placeholder-count="6">
             <button onClick="{{p.open}}" aria-label="{{p.aria}}" style="position: relative; aspect-ratio: 1; overflow: hidden; background: #111; opacity: {{p.dim}}">
-              <img src="/lab/editor/assets/sample.jpg" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {{p.pos}}; transform: scale({{p.zoom}}); filter: {{p.filter}}; display: block">
+              <img src="{{p.src}}" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {{p.pos}}; transform: scale({{p.zoom}}); filter: {{p.filter}}; display: block">
               <span style="position: absolute; left: 5px; top: 4px; font-size: 11px; color: {{p.flagInk}}; text-shadow: 0 1px 2px rgba(0,0,0,0.9)">{{p.flag}}</span>
               <span style="position: absolute; right: 5px; top: 5px; font-size: 7.5px; font-weight: 700; letter-spacing: 0.08em; padding: 1px 4px; border-radius: 4px; background: rgba(0,0,0,0.6); color: #dedbd4">{{p.sim}}</span>
               <span style="position: absolute; left: 5px; bottom: 3px; font-size: 9px; letter-spacing: 1px; color: #f2efe8; text-shadow: 0 1px 2px rgba(0,0,0,0.9)">{{p.stars}}</span>
@@ -44,12 +44,12 @@
 
   <sc-if value="{{isCull}}" hint-placeholder-val="{{false}}">
     <div style="position: absolute; top: 56px; left: 0; width: 412px; height: calc(536px - var(--cut)); display: flex; align-items: center; justify-content: center; overflow: hidden">
-      <img src="/lab/editor/assets/sample.jpg" alt="{{cur.aria}}" style="width: 392px; height: 392px; object-fit: cover; object-position: {{cur.pos}}; transform: scale({{cur.zoom}}); filter: {{cur.filter}}; opacity: {{cur.dim}}; display: block; border-radius: 4px">
+      <img src="{{cur.src}}" alt="{{cur.aria}}" style="width: 392px; height: 392px; object-fit: cover; object-position: {{cur.pos}}; transform: scale({{cur.zoom}}); filter: {{cur.filter}}; opacity: {{cur.dim}}; display: block; border-radius: 4px">
       <span class="glass" style="position: absolute; left: 12px; top: 12px; padding: 5px 10px; border-radius: 12px; font-size: 11px; font-variant-numeric: tabular-nums">{{cur.meta}}</span>
       <span style="position: absolute; left: 22px; bottom: 58px; font-size: 22px; color: {{cur.flagInk}}; text-shadow: 0 1px 4px rgba(0,0,0,0.9)">{{cur.flag}}</span>
       <div class="hscroll" aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: 6px; height: 40px; display: flex; gap: 3px; justify-content: center">
         <sc-for list="{{strip}}" as="s" hint-placeholder-count="9">
-          <span style="flex: none; width: 34px; height: 34px; margin-top: {{s.lift}}px; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 {{s.ringW}}px #e8202a; opacity: {{s.o}}"><img src="/lab/editor/assets/sample.jpg" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {{s.pos}}; filter: {{s.filter}}; display: block"></span>
+          <span style="flex: none; width: 34px; height: 34px; margin-top: {{s.lift}}px; border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 {{s.ringW}}px #e8202a; opacity: {{s.o}}"><img src="{{s.src}}" alt="" style="width: 100%; height: 100%; object-fit: cover; object-position: {{s.pos}}; filter: {{s.filter}}; display: block"></span>
         </sc-for>
       </div>
     </div>
@@ -93,7 +93,7 @@
   </sc-if>
 
   <sc-if value="{{isCull}}" hint-placeholder-val="{{false}}">
-    <div style="position: absolute; left: 0; top: calc(600px - var(--cut)); width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
+    <div class="plate" style="position: absolute; left: 0; top: calc(600px - var(--cut)); width: 412px; height: 315px; background: #232525 url(/lab/editor/assets/plate.webp) 0 0 / 412px 315px no-repeat; box-shadow: 0 -10px 24px rgba(0,0,0,0.7)">
       <div role="status" aria-label="Photo {{pos}} of {{total}}" style="position: absolute; left: 20px; top: 10px; width: 372px; height: 44px; border-radius: 10px; overflow: hidden; background: linear-gradient(180deg, rgba(8,9,10,0.55), rgba(8,9,10,0.32)); -webkit-backdrop-filter: blur(5px) saturate(1.3); backdrop-filter: blur(5px) saturate(1.3); box-shadow: inset 0 1px 0 rgba(255,255,255,0.22), inset 0 -1px 0 rgba(255,255,255,0.06), inset 0 0 0 1px rgba(255,255,255,0.10), inset 0 2px 6px rgba(0,0,0,0.55), 0 2px 8px rgba(0,0,0,0.5)">
         <span style="position: absolute; left: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #7d8187">ROLL · {{rollName}}</span>
         <span style="position: absolute; right: 12px; top: 6px; font-size: 8.5px; font-weight: 600; letter-spacing: 0.16em; color: #5d6166">{{total}}</span>

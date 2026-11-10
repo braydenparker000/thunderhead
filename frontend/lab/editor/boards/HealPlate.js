@@ -1,9 +1,8 @@
 // @ts-nocheck
-// The HealPlate board, as designed (docs/design/editor/boards/HealPlate.dc.html.dc.html). With a photo open
-// (app/session.js) the spots are the photo's own (app/heal.js, engine/heal.js): a tap retouches a spot from a source
-// the engine picks nearby, the dashed circle is that source and can be dragged, the dial sets the chosen spot's
-// size, feather and opacity (and the next one's), and the photo itself shows the result. Without one it plays the
-// design's sample.
+// The Heal board. With a photo open (app/session.js) the spots are the photo's own (app/heal.js, engine/heal.js):
+// a tap retouches a spot from a source the engine picks nearby, the dashed circle is that source and can be
+// dragged, and the photo itself shows the result. The drum chooses the tool (Heal, Clone, Remove); the dial sets
+// the chosen spot's size, feather and opacity (and the next one's). Without a photo it plays a sample.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import * as heal from '../app/heal.js';
@@ -12,7 +11,7 @@ import * as zoom from '../app/zoom.js';   // two fingers zoom and move the photo
 export default class Component extends DCLogic {
   constructor(props) {
     super(props);
-    this.state = { tool: 'Heal', ctl: 'Size', vals: { Size: 30, Feather: 50, Opacity: 100 }, spots: [{ x: 300, y: 52, sx: 262, sy: 40, s: 26, tool: 'Heal' }], sel: 0, viz: false, spin: 0 };
+    this.state = { tool: 'Heal', ctl: 'Size', vals: { Size: 30, Feather: 50, Opacity: 100 }, spots: [{ x: 300, y: 52, sx: 262, sy: 40, s: 26, tool: 'Heal' }], sel: 0, viz: false };
     this.drag = null; this.tap = null;
     if (photo.current()) Object.assign(this.state, { sel: Math.max(0, heal.list().length - 1) });
     const hear = () => { if (this._host?.stale) photo.events.removeEventListener('change', hear); else this.setState({}); };
@@ -24,9 +23,9 @@ export default class Component extends DCLogic {
     const tools = ['Heal', 'Clone', 'Remove'];
     // with a photo: where it sits in its room, and its spots as the board draws them (in the room's pixels)
     const real = photo.current(), eng = real && photo.eng;
-    let box = [20, 146, 372, 248], spots = S.spots;
+    let box = [20, 200, 372, 248], spots = S.spots;
     if (real) {
-      const [w, h] = photo.shape(), room = 540 - (parseFloat(getComputedStyle(document.getElementById('frame') || document.body).getPropertyValue('--cut')) || 0), k = Math.min(412 / w, room / h);
+      const [w, h] = photo.shape(), room = 649 - (parseFloat(getComputedStyle(document.getElementById('frame') || document.body).getPropertyValue('--cut')) || 0), k = Math.min(412 / w, room / h);
       box = [(412 - w * k) / 2, (room - h * k) / 2, w * k, h * k];
       const px = (x, y) => { const [u, v] = eng ? eng.shownPoint(x, y) : [0, 0]; return [u * box[2], v * box[3]]; };
       spots = heal.list().map((p) => { const c = px(p.x, p.y), e = px(p.x + p.r, p.y), q = px(p.sx, p.sy); return { x: c[0], y: c[1], sx: q[0], sy: q[1], s: 2 * Math.hypot(e[0] - c[0], e[1] - c[1]), tool: p.tool }; });
@@ -38,15 +37,17 @@ export default class Component extends DCLogic {
     const rings = spots.map((p, i) => ({ x: p.x, y: p.y, sx: p.sx, sy: p.sy, r: p.s / 2, ink: i === sel ? '#e8202a' : '#f2efe8', w: (i === sel ? 2 : 1.2) * fine, thin: 1.2 * fine, d1: `${3 * fine} ${3 * fine}`, d2: `${4 * fine} ${3 * fine}`, a: i === sel ? 0.9 : 0.45 }));
     const rows = { Heal: ['Size', 'Feather', 'Opacity'], Clone: ['Size', 'Feather', 'Opacity'], Remove: ['Size', 'Opacity'] };
     const ctl = rows[S.tool].includes(S.ctl) ? S.ctl : 'Size', val = V[ctl];
-    const gi = tools.indexOf(S.tool), secX = 14 + (384 / 3) * (gi + 0.5);
-    let cx = 14;
-    const items = rows[S.tool].map((a) => ({ a, value: String(Math.round(V[a])) })).concat([{ a: 'Visualize', value: S.viz ? 'ON' : 'OFF', t: true }]);
-    const chips = items.map((o, i) => {
-      const w = 16 + o.a.length * 7.6, x = cx + w / 2; cx += w + 4; const on = o.t ? S.viz : o.a === ctl;
-      return { name: o.a.toUpperCase(), value: o.value, on: String(on), aria: o.a, pad: 8, size: 10, ink: on ? '#f2efe8' : '#80848a', valueInk: on ? '#e8202a' : '#6a6e73', bar: on ? '#e8202a' : 'transparent',
-        dx: (secX - x).toFixed(0), delay: i * 32, anim: 'fly' + gi, pick: () => (o.t ? set({ viz: !S.viz }) : set({ ctl: o.a })) };
-    });
-    const RD = 240, PERIOD = 360 / 72, frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
+    const START = { Size: 30, Feather: 50, Opacity: 100 };
+    const undoSpot = () => { if (real) heal.undoSpot(); set({ spots: real ? S.spots : spots.slice(0, -1), sel: Math.max(0, spots.length - 2) }); };
+    const chips = rows[S.tool].map((a) => ({ name: a, value: String(Math.round(V[a])), on: a === ctl, pick: () => set({ ctl: a }) }))
+      .concat([{ name: 'Visualize', value: S.viz ? 'ON' : 'OFF', on: S.viz, pick: () => set({ viz: !S.viz }) }, { name: 'Undo spot', entry: true, pick: undoSpot },
+        { name: 'Clear all', entry: true, hot: true, pick: () => { if (real) heal.clear(); set({ spots: real ? S.spots : [], sel: 0 }); } }]);
+    // the dial set to `v` (1..100): the chosen spot takes it, and so does the next one made
+    const setCtl = (v0) => {
+      const v = Math.max(1, Math.min(100, v0)), sz = 8 + (v / 100) * 72, st = this.state;
+      if (real && heal.list()[sel]) { if (ctl === 'Size') heal.resize(sel, sz / box[2] / zoom.mag(), String(Math.round(sz))); else heal.set(sel, { [ctl.toLowerCase()]: Math.round(v) / 100 }, ctl, `Spot ${ctl.toLowerCase()}`, String(Math.round(v))); }
+      this.setState({ vals: { ...st.vals, [ctl]: v }, spots: ctl === 'Size' ? st.spots.map((p, i) => (i === st.sel ? { ...p, s: sz } : p)) : st.spots });
+    };
     const pickSource = (x, y, s) => { const cands = [[-1.6, -0.6], [1.6, -0.6], [-1.6, 0.8], [1.6, 0.8]].map(([a, b]) => [x + a * s, y + b * s]).filter(([u, v]) => u > s / 2 && u < 372 - s / 2 && v > s / 2 && v < 248 - s / 2); return cands[0] || [x, y - s * 1.6]; };
     // a touch on the photo, in the board's own pixels whatever the page is scaled by
     const at = (e, b = e.currentTarget.getBoundingClientRect()) => [((e.clientX - b.left) / b.width) * box[2], ((e.clientY - b.top) / b.height) * box[3]];
@@ -74,20 +75,10 @@ export default class Component extends DCLogic {
         const t = this.tap; this.drag = this.tap = null;
         if (real && t && e?.type === 'pointerup' && !zoom.pinching()) { const i = heal.add(S.tool, t.x / box[2], t.y / box[3], size / box[2] / zoom.mag(), V.Feather / 100, V.Opacity / 100); if (i >= 0) set({ sel: i }); }
       },
-      ctl, ctlUp: `${S.tool.toUpperCase()} · ${ctl.toUpperCase()}`, unit: ctl === 'Size' ? 'px' : '%', valText: String(Math.round(ctl === 'Size' ? size : val)), valNow: String(Math.round(val)), vmin: 0, vmax: 100,
-      fillL: 22, fillW: ((val / 100) * 328).toFixed(1), numX: Math.max(34, Math.min(338, 22 + (val / 100) * 328)).toFixed(1), spinY: -Math.floor(frac * 12) * 150,
-      dDown: (e) => { this.dd = { x: e.clientX, s: S.spin, v: val }; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
-      dMove: (e) => {
-        const d = this.dd; if (!d) return; const deg = ((e.clientX - d.x) / RD) * (180 / Math.PI), v = Math.max(1, Math.min(100, d.v + deg * (100 / 180)));
-        const sz = 8 + (v / 100) * 72, st = this.state;
-        if (real && heal.list()[sel]) { if (ctl === 'Size') heal.resize(sel, sz / box[2] / zoom.mag(), String(Math.round(sz))); else heal.set(sel, { [ctl.toLowerCase()]: Math.round(v) / 100 }, ctl, `Spot ${ctl.toLowerCase()}`, String(Math.round(v))); }
-        this.setState({ spin: d.s + deg, vals: { ...st.vals, [ctl]: v }, spots: ctl === 'Size' ? st.spots.map((p, i) => (i === st.sel ? { ...p, s: sz } : p)) : st.spots });
-      },
-      dUp: () => { this.dd = null; }, dKey: () => {},
-      group: S.tool, chips,
-      groups: tools.map((g) => ({ label: g.toUpperCase(), current: String(g === S.tool), ink: g === S.tool ? '#f2efe8' : '#7d8187', dot: g === S.tool ? '#e8202a' : 'transparent', pick: () => set({ tool: g }) })),
-      auto: () => { if (real) heal.undoSpot(); set({ spots: real ? S.spots : spots.slice(0, -1), sel: Math.max(0, spots.length - 2) }); },
-      reset: () => { if (real) heal.clear(); set({ spots: real ? S.spots : [], sel: 0 }); },
+      dialLabel: `${S.tool} · ${ctl}`, unit: ctl === 'Size' ? 'px' : '%', dialValue: val / 10 - 5, dialText: String(Math.round(ctl === 'Size' ? size : val)),
+      dialTurn: (d) => setCtl((d + 5) * 10), dialReset: () => setCtl(START[ctl]),
+      faces: tools.map((t) => ({ label: t, count: (real ? heal.list() : spots).filter((p) => p.tool === t).length })), faceAt: tools.indexOf(S.tool), pickFace: (i) => set({ tool: tools[i] }),
+      chips, rowAria: `${S.tool} options`, dialLeft: true,
     };
   }
 }

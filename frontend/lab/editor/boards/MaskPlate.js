@@ -1,10 +1,10 @@
 // @ts-nocheck
-// The MaskPlate board, as designed (docs/design/editor/boards/MaskPlate.dc.html.dc.html). With a photo open
-// (app/session.js) the masks are the photo's own (app/masks.js, engine/local.js): linear and radial gradients laid
-// on the picture with a finger, and ranges of colour or brightness picked with a tap; the dial turns the chosen
-// mask's own adjustments and the engine lays the mask over the picture in red. Without one it plays the design's
-// sample. A brush mask is painted on the photo (Size, Feather and Flow are the brush's, Erase rubs out). Not built
-// yet, so not offered with a photo: detection (Subject, Sky …), and Noise for a mask.
+// The Masks board. With a photo open (app/session.js) the masks are the photo's own (app/masks.js,
+// engine/local.js): linear and radial gradients laid on the picture with a finger, ranges of colour or brightness
+// picked with a tap, and brush masks painted on it (Size, Feather and Flow are the brush's, Erase rubs out). The
+// panel holds the masks in a row along its top, the dial that turns the chosen mask's own adjustments, and the drum
+// with its row (Mask, Light, Color, Effects); the engine lays the mask over the picture in red. Without a photo it
+// plays a sample. Not built yet, so not offered with a photo: detection (Subject, Sky …), and Noise for a mask.
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import * as mk from '../app/masks.js';
@@ -16,7 +16,7 @@ export default class Component extends DCLogic {
     this.state = {
       masks: [{ kind: 'Sky', n: 1, vals: { Exposure: -0.4, Highlights: -35, Dehaze: 12, Amount: 100 }, invert: false, erase: false, dots: [] },
         { kind: 'Subject', n: 1, vals: { Exposure: 0.25, Clarity: 10, Amount: 100 }, invert: false, erase: false, dots: [] }],
-      sel: 0, group: 'Light', adj: 'Exposure', adding: false, detecting: null, overlay: true, spin: 0, turning: false,
+      sel: 0, group: 'Light', adj: 'Exposure', adding: false, detecting: null, overlay: true, turning: false,
     };
     this.drag = null; this.painting = false; this.grab = null;
     if (photo.current()) Object.assign(this.state, { sel: 0, adding: !mk.list().length });
@@ -47,32 +47,28 @@ export default class Component extends DCLogic {
       Light: ['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks'],
       Color: ['Temp', 'Tint', 'Hue', 'Saturation'],
       Effects: real ? ['Texture', 'Clarity', 'Dehaze', 'Sharpness'] : ['Texture', 'Clarity', 'Dehaze', 'Sharpness', 'Noise'],
-      Mask: (m.kind === 'Brush' ? ['Size', 'Feather', 'Flow', 'Erase'] : ['Linear', 'Radial'].includes(m.kind) ? ['Feather'] : real ? ['Range', 'Feather'] : []).concat(['Amount', 'Invert', 'Delete']),
+      Mask: (m.kind === 'Brush' ? ['Size', 'Feather', 'Flow', 'Erase'] : ['Linear', 'Radial'].includes(m.kind) ? ['Feather'] : real ? ['Range', 'Feather'] : []).concat(['Amount', 'Invert', 'Reset', 'Delete']),
     };
     const toggles = { Erase: real ? !!S.erase : m.erase, Invert: m.invert };
     const tool = real && m.kind === 'Brush' ? ['Size', 'Feather', 'Flow'] : [];   // the brush's own settings: the board's, not the edit's
     const uni = { Size: 40, Feather: 50, Flow: 60, Amount: 100, ...(real ? mk.UNI : {}) };      // 0..100 settings and their defaults
     const valOf = (a) => (tool.includes(a) ? S.brush?.[a] : m.vals[a]) ?? uni[a] ?? 0;
-    const spec = (a) => a === 'Exposure' ? [-4, 4, 'EV', 4 / 180] : uni[a] !== undefined ? [0, 100, '', 100 / 180] : [-100, 100, '', 100 / 180];
+    const spec = (a) => a === 'Exposure' ? [-4, 4, 'EV'] : uni[a] !== undefined ? [0, 100, ''] : [-100, 100, ''];
     const fmt = (a, x) => a === 'Exposure' ? (x > 0.004 ? '+' : x < -0.004 ? '−' : '') + Math.abs(x).toFixed(2) : uni[a] !== undefined ? String(Math.round(x)) : (x > 0.5 ? '+' : x < -0.5 ? '−' : '') + Math.abs(Math.round(x));
-    const adj = rows[S.group].includes(S.adj) && !toggles.hasOwnProperty(S.adj) && S.adj !== 'Delete' ? S.adj : rows[S.group].find((a) => !(a in toggles) && a !== 'Delete') || 'Amount';
-    const [lo, hi, unit, perDeg] = spec(adj), val = valOf(adj);
+    const keys = ['Reset', 'Delete'], turns = (a) => !(a in toggles) && !keys.includes(a);   // what the dial can turn
+    const adj = rows[S.group].includes(S.adj) && turns(S.adj) ? S.adj : rows[S.group].find(turns) || 'Amount';
+    const [lo, , unit] = spec(adj), val = valOf(adj);
     const setMask = (patch) => set({ masks: masks.map((x, i) => (i === S.sel ? { ...x, ...patch } : x)) });
     const setVal = (a, x) => { const v = Math.max(spec(a)[0], Math.min(spec(a)[1], x)), r = a === 'Exposure' ? Math.round(v * 100) / 100 : Math.round(v); if (tool.includes(a)) set({ brush: { ...S.brush, [a]: r } }); else if (real) { if (has) mk.setVal(sel, a, r, fmt(a, r)); } else setMask({ vals: { ...m.vals, [a]: v } }); };
-    // window: bipolar values fill from the centre, 0..100 settings fill from the left end
-    const span = 328, f = lo < 0 ? val / hi : val / hi;
-    const fillL = lo < 0 ? 186 + Math.min(0, f) * (span / 2) : 22, fillW = lo < 0 ? Math.abs(f) * (span / 2) : f * span;
-    const numX = lo < 0 ? 186 + f * (span / 2) : 22 + f * span;
-    const groups = Object.keys(rows), gi = groups.indexOf(S.group), secX = 14 + (384 / 4) * (gi + 0.5);
-    let cx = 14;
-    const chips = rows[S.group].map((a, i) => {
-      const isT = a in toggles, isDel = a === 'Delete', on = isT ? toggles[a] : !isDel && a === adj;
-      const value = isT ? (toggles[a] ? 'ON' : 'OFF') : isDel ? '' : fmt(a, valOf(a));
-      const w = 16 + Math.max(a.length, value.length * 0.8) * 7.6, c = cx + w / 2; cx += w + 4;
-      return { name: a.toUpperCase(), value, on: String(on), aria: a, pad: 8, size: 10,
-        ink: isDel ? '#e8202a' : on ? '#f2efe8' : '#80848a', valueInk: on ? '#e8202a' : (value === '0' || value === 'OFF' ? '#4f5357' : '#6a6e73'), bar: on ? '#e8202a' : 'transparent',
-        dx: (secX - c).toFixed(0), delay: i * 32, anim: 'fly' + (gi + (S.group === 'Mask' ? masks.length % 4 : 0)),
+    // the dial's window runs −5..5: exposure in stops, the others −100..100, the 0..100 settings from its left end
+    const toDial = adj === 'Exposure' ? val : lo < 0 ? val / 20 : val / 10 - 5, fromDial = (d) => (adj === 'Exposure' ? d : lo < 0 ? d * 20 : (d + 5) * 10);
+    const groups = ['Mask', 'Light', 'Color', 'Effects'], gi = groups.indexOf(S.group);
+    const resetMask = () => (real ? has && mk.reset(sel) : setMask({ vals: {}, dots: [], invert: false }));
+    const chips = rows[S.group].map((a) => {
+      const isT = a in toggles, key = keys.includes(a), on = isT ? toggles[a] : !key && a === adj;
+      return { name: a, value: isT ? (toggles[a] ? 'ON' : 'OFF') : key ? '' : fmt(a, valOf(a)), on, entry: key, hot: a === 'Delete', aria: a === 'Reset' ? 'Reset mask' : a,
         pick: () => {
+          if (a === 'Reset') return resetMask();
           if (real && (a === 'Invert' || a === 'Delete')) { if (has) { if (a === 'Invert') mk.invert(sel); else { mk.remove(sel); set({ sel: 0, group: 'Light', adj: 'Exposure', adding: mk.list().length === 0 }); } } return; }
           if (a === 'Erase') return real ? set({ erase: !S.erase }) : setMask({ erase: !m.erase });
           if (a === 'Invert') return setMask({ invert: !m.invert });
@@ -93,11 +89,10 @@ export default class Component extends DCLogic {
     const shape = shapes[m.kind];
     const isRange = m.kind === 'Color' || m.kind === 'Luminance';
     const brushS = (valOf('Size') / 100) * 60 + 8;
-    const RD = 240, PERIOD = 360 / 72, frac = ((((-S.spin) / PERIOD) % 1) + 1) % 1;
     // where the photo sits in its room, and the gradient's guides over it (a mask's place is in mask units: the engine turns them to and from the picture as shown)
-    let box = [20, 146, 372, 248], lines = m.kind === 'Linear' ? [40, 74, 108].map((y, i) => ({ x: 186, y, w: 452, ml: -226, rot: -10, t: 1.5, style: i === 1 ? 'dashed' : 'solid' })) : [], rad = { l: '30%', t: '18%', w: '30%', h: '62%', rot: 0, b: 1.5 }, note = S.detecting ? `Detecting ${S.detecting.toLowerCase()}…` : '';
+    let box = [20, 182, 372, 248], lines = m.kind === 'Linear' ? [40, 74, 108].map((y, i) => ({ x: 186, y, w: 452, ml: -226, rot: -10, t: 1.5, style: i === 1 ? 'dashed' : 'solid' })) : [], rad = { l: '30%', t: '18%', w: '30%', h: '62%', rot: 0, b: 1.5 }, note = S.detecting ? `Detecting ${S.detecting.toLowerCase()}…` : '';
     if (real) {
-      const [w, h] = photo.shape(), room = 540 - (parseFloat(getComputedStyle(document.getElementById('frame') || document.body).getPropertyValue('--cut')) || 0), k = Math.min(412 / w, room / h);
+      const [w, h] = photo.shape(), room = 613 - (parseFloat(getComputedStyle(document.getElementById('frame') || document.body).getPropertyValue('--cut')) || 0), k = Math.min(412 / w, room / h);
       box = [(412 - w * k) / 2, (room - h * k) / 2, w * k, h * k];
       const px = (x, y) => { const [u, v] = eng ? eng.shownPoint(x, y) : [0, 0]; return [u * box[2], v * box[3]]; }, a = has && eng ? m.a : null, t = 1.5 / zoom.mag();   // lines keep their weight on screen
       lines = []; rad.b = t;
@@ -108,7 +103,7 @@ export default class Component extends DCLogic {
       note = !has ? 'Add a mask to change part of the photo' : S.adding && masks.length >= 8 ? 'A photo can have eight masks' : m.kind === 'Brush' && !m.strokes?.length ? 'Paint on the photo' : mk.RANGE.includes(m.kind) && !m.pick ? `Tap the photo to pick a ${m.kind === 'Color' ? 'colour' : 'brightness'}` : '';
     }
     return {
-      real: !!real, demo: !real, pL: box[0], pT: box[1], pW: box[2], pH: box[3], zoomT: real ? zoom.transform() : 'none', rad, hasNote: !!note, note, noteT: real ? Math.max(60, box[1] + box[3] - 46) : 410,
+      real: !!real, demo: !real, pL: box[0], pT: box[1], pW: box[2], pH: box[3], zoomT: real ? zoom.transform() : 'none', rad, hasNote: !!note, note, noteT: Math.max(60, box[1] + box[3] - 46),
       fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160',
       overlay: real ? 'none' : shape[m.invert ? 1 : 0], lumMask: isRange && !real ? 'url(/lab/editor/assets/sample.jpg)' : 'none',
       overlayO: real ? 0 : S.overlay && !S.detecting ? (valOf('Amount') / 100) * 0.9 + 0.1 : 0,
@@ -121,24 +116,18 @@ export default class Component extends DCLogic {
       pDown: (e) => { if (real) return this.down(e, m, sel, has, { size: brushS / box[2] / zoom.mag(), feather: valOf('Feather') / 100, flow: valOf('Flow') / 100, erase: !!S.erase }); if (m.kind !== 'Brush') return; this.painting = true; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); this.paint(e, brushS); },
       pMove: (e) => { if (real) return this.move(e, sel); if (this.painting) this.paint(e, brushS); },
       pUp: (e) => { this.painting = false; if (real && e?.type === 'pointerup') this.up(sel); this.grab = null; },
-      list: masks.map((x, i) => ({ name: label(x), on: String(i === sel), weight: i === sel ? 600 : 500, bg: i === sel ? 'rgba(255,255,255,0.16)' : 'transparent',
+      list: masks.map((x, i) => ({ name: label(x), on: String(i === sel), weight: i === sel ? 600 : 500, bg: i === sel ? 'rgba(255,255,255,0.13)' : 'transparent', ink: i === sel ? '#f2efe8' : '#a6aab0',
+        ring: i === sel ? 'inset 0 0 0 1px rgba(255,255,255,0.22)' : 'inset 0 0 0 1px rgba(255,255,255,0.07)',
         thumb: shapes[x.kind][2], count: edits(x) ? String(edits(x)) : '', countInk: i === sel ? '#e8202a' : '#a6b0bc',
         pick: () => set({ sel: i, adding: false, group: S.group === 'Mask' && x.kind !== m.kind ? 'Light' : S.group }) })),
       adding: S.adding, openAdd: () => set({ adding: !S.adding }),
       addGroups: groupsAdd.map(([title, kinds]) => ({ title, items: kinds.map((k) => ({ name: k, thumb: shapes[k][2], pick: () => add(k) })) })),
-      ctl: adj, ctlUp: `${label(m).toUpperCase()} · ${adj.toUpperCase()}`, unit, valText: fmt(adj, val), valNow: String(val), vmin: lo, vmax: hi,
-      fillL: fillL.toFixed(1), fillW: Math.max(0, fillW).toFixed(1), numX: Math.max(34, Math.min(338, numX)).toFixed(1),
-      spinY: -Math.floor(frac * 12) * 150,
-      dDown: (e) => { this.drag = { x: e.clientX, v: val, s: S.spin, a: adj }; set({ turning: true }); if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
-      dMove: (e) => { const d = this.drag; if (!d) return; const deg = ((e.clientX - d.x) / RD) * (180 / Math.PI); const cur = this.state.masks[this.state.sel];
-        if (real) { this.setState({ spin: d.s + deg }); return setVal(d.a, d.v + deg * perDeg); }
-        this.setState({ spin: d.s + deg, masks: this.state.masks.map((x, i) => (i === this.state.sel ? { ...x, vals: { ...cur.vals, [d.a]: Math.max(lo, Math.min(hi, d.v + deg * perDeg)) } } : x)) }); },
-      dUp: () => { this.drag = null; set({ turning: false }); },
-      dKey: (e) => { const st = adj === 'Exposure' ? 0.05 : 1; if (e.key === 'ArrowRight') setVal(adj, val + st); if (e.key === 'ArrowLeft') setVal(adj, val - st); },
-      group: S.group, chips,
-      groups: groups.map((g) => ({ label: g.toUpperCase(), current: String(g === S.group), ink: g === S.group ? '#f2efe8' : '#7d8187', dot: g === S.group ? '#e8202a' : 'transparent',
-        pick: () => set({ group: g, adj: rows[g].find((a) => !(a in toggles) && a !== 'Delete') || 'Amount' }) })),
-      actions: [{ name: 'OVERLAY', dot: S.overlay, pick: () => set({ overlay: !S.overlay }), pressed: String(S.overlay) }, { name: 'RESET MASK', dot: false, pick: () => (real ? has && mk.reset(sel) : setMask({ vals: {}, dots: [], invert: false })), pressed: 'false' }],
+      dialLabel: `${label(m)} · ${adj}`, unit, dialValue: toDial, dialText: fmt(adj, val), dialLeft: lo === 0,
+      dialTurn: (d) => setVal(adj, fromDial(d)), dialReset: () => setVal(adj, uni[adj] ?? 0), dialHold: (on) => set({ turning: on }),
+      faces: groups.map((g) => ({ label: g, count: g === 'Mask' ? 0 : rows[g].filter((a) => Math.abs(m.vals[a] || 0) > 0.004).length })), faceAt: gi,
+      pickFace: (i) => set({ group: groups[i], adj: rows[groups[i]].find(turns) || 'Amount' }),
+      chips, rowAria: `${S.group} options`, rowSeed: gi + (S.group === 'Mask' ? masks.length : 0),
+      overlayOn: String(S.overlay), overlayDot: S.overlay ? '#e8202a' : '#4f5357', overlayGlow: S.overlay ? '0 0 6px rgba(232,32,42,0.7)' : 'none', toggleOverlay: () => set({ overlay: !S.overlay }),
     };
   }
   /** A finger on the photo, with a photo open: a range mask picks what is under it; a gradient is taken hold of — a
