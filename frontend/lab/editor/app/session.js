@@ -130,7 +130,7 @@ async function draw(fit = true) {
   if (again) { again = false; draw(); }
 }
 /** Runs a job that needs the engine to itself, between the dial's frames. @param {() => Promise<void>} job */
-async function alone(job) {
+export async function alone(job) {
   while (drawing) await sleep(30);
   drawing = true;
   try { await job(); } finally { drawing = false; }
@@ -145,6 +145,14 @@ async function shrink(w) {
 
 /* 100 % (zoom.js): the sensor's pixels once they are on the GPU, and what the view needs of the photo. */
 export const whole = () => big;
+/** One band of an export's JPEG, encoded on the decoder's thread (the engine's files.js asks).
+ * @param {Uint8Array} rgb @param {number} w @param {number} h @param {number} quality @param {boolean} fine @returns {Promise<Uint8Array>} */
+export const jpegBand = (rgb, w, h, quality, fine) => new Promise((res, rej) => {
+  const to = worker, tag = `j${++asked}`;
+  if (!to) { rej(new Error('no decoder')); return; }
+  const hear = (/** @type {MessageEvent} */ m) => { if (m.data.tag !== tag) return; to.removeEventListener('message', hear); if (m.data.jpeg) res(m.data.jpeg); else rej(new Error(m.data.error)); };
+  to.addEventListener('message', hear); to.postMessage({ jpeg: [rgb, w, h, quality, fine], tag }, [rgb.buffer]);
+});
 /** The upright photo's size in sensor pixels. */
 export const shape = () => (ready ? [canvas.width * 3, canvas.height * 3] : img.naturalWidth ? [img.naturalWidth, img.naturalHeight] : [7728, 5152]);
 /** Draws the 100 % view where it now looks. */

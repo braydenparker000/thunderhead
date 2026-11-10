@@ -14,6 +14,7 @@ rawler = "0.8.0"
 wasm-bindgen = "=0.2.129"
 # the proxy's rows binned in parallel (rawler uses it too; one thread where there are no threads)
 rayon = "1"
+jpeg-encoder = { version = "0.7.1", default-features = false }
 
 # rawler pulls in uuid, which needs a randomness source on the web
 [target.'cfg(target_arch = "wasm32")'.dependencies]

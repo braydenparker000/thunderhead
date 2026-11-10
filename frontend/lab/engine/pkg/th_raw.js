@@ -85,6 +85,29 @@ export function decode(bytes) {
     }
     return Decoded.__wrap(ret[0]);
 }
+
+/**
+ * One band of a JPEG: `rgb` is w x h pixels, three bytes each, top row first. Every band made at one quality
+ * shares its tables (the standard Huffman ones), so the page joins the bands' scans with restart markers into
+ * one file and never holds more than a band. `fine` keeps colour at full resolution (4:4:4); else 4:2:0.
+ * @param {Uint8Array} rgb
+ * @param {number} w
+ * @param {number} h
+ * @param {number} quality
+ * @param {boolean} fine
+ * @returns {Uint8Array}
+ */
+export function jpeg(rgb, w, h, quality, fine) {
+    const ptr0 = passArray8ToWasm0(rgb, wasm.__wbindgen_malloc);
+    const len0 = WASM_VECTOR_LEN;
+    const ret = wasm.jpeg(ptr0, len0, w, h, quality, fine);
+    if (ret[3]) {
+        throw takeFromExternrefTable0(ret[2]);
+    }
+    var v2 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
+    return v2;
+}
 function __wbg_get_imports() {
     const import0 = {
         __proto__: null,
@@ -118,6 +141,11 @@ const DecodedFinalization = (typeof FinalizationRegistry === 'undefined')
 function getArrayU16FromWasm0(ptr, len) {
     ptr = ptr >>> 0;
     return getUint16ArrayMemory0().subarray(ptr / 2, ptr / 2 + len);
+}
+
+function getArrayU8FromWasm0(ptr, len) {
+    ptr = ptr >>> 0;
+    return getUint8ArrayMemory0().subarray(ptr / 1, ptr / 1 + len);
 }
 
 function getStringFromWasm0(ptr, len) {

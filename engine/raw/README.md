@@ -15,6 +15,10 @@ still on, cropped to whole cells so it lines up with the proxy three to one), an
 and white are and how the X-Trans pattern lies (`black`, `white`, `cfa`, `cfaWidth`, `fullWidth`, `fullHeight`).
 The page demosaics only what is looked at, on the GPU (`frontend/lab/engine/demosaic.js`, after vkdt's).
 
+For export, `jpeg()` encodes one band of a JPEG with [jpeg-encoder](https://github.com/vstroebel/jpeg-encoder)
+(MIT or Apache-2.0, and the IJG licence). Every band shares its tables, so the page joins the bands' scans with
+restart markers into one file (`frontend/lab/engine/files.js`) and a 40 MP photo is never held whole.
+
 Build (writes `frontend/lab/engine/pkg/`):
 
     cargo build --release --target wasm32-unknown-unknown --lib
