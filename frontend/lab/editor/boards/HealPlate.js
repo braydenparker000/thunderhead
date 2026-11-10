@@ -7,6 +7,7 @@
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import * as heal from '../app/heal.js';
+import * as zoom from '../app/zoom.js';   // two fingers zoom and move the photo; one retouches
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -33,7 +34,8 @@ export default class Component extends DCLogic {
     const sel = Math.max(0, Math.min(S.sel, spots.length - 1));
     const patches = (real ? [] : spots).map((p) => ({ x: p.x, y: p.y, s: p.s, m: -p.s / 2, il: -p.sx + p.s / 2, it: -p.sy + p.s / 2,
       hard: p.tool === 'Clone' ? 60 : Math.round(60 - (V.Feather / 100) * 40), o: (V.Opacity / 100) * (p.tool === 'Heal' ? 0.92 : 1) }));
-    const rings = spots.map((p, i) => ({ x: p.x, y: p.y, sx: p.sx, sy: p.sy, r: p.s / 2, ink: i === sel ? '#e8202a' : '#f2efe8', w: i === sel ? 2 : 1.2, a: i === sel ? 0.9 : 0.45 }));
+    const fine = real ? 1 / zoom.mag() : 1;   // lines keep their weight on screen however far the photo is zoomed
+    const rings = spots.map((p, i) => ({ x: p.x, y: p.y, sx: p.sx, sy: p.sy, r: p.s / 2, ink: i === sel ? '#e8202a' : '#f2efe8', w: (i === sel ? 2 : 1.2) * fine, thin: 1.2 * fine, d1: `${3 * fine} ${3 * fine}`, d2: `${4 * fine} ${3 * fine}`, a: i === sel ? 0.9 : 0.45 }));
     const rows = { Heal: ['Size', 'Feather', 'Opacity'], Clone: ['Size', 'Feather', 'Opacity'], Remove: ['Size', 'Opacity'] };
     const ctl = rows[S.tool].includes(S.ctl) ? S.ctl : 'Size', val = V[ctl];
     const gi = tools.indexOf(S.tool), secX = 14 + (384 / 3) * (gi + 0.5);
@@ -49,7 +51,7 @@ export default class Component extends DCLogic {
     // a touch on the photo, in the board's own pixels whatever the page is scaled by
     const at = (e, b = e.currentTarget.getBoundingClientRect()) => [((e.clientX - b.left) / b.width) * box[2], ((e.clientY - b.top) / b.height) * box[3]];
     return {
-      real: !!real, demo: !real, pL: box[0], pT: box[1], pW: box[2], pH: box[3],
+      real: !!real, demo: !real, pL: box[0], pT: box[1], pW: box[2], pH: box[3], zoomT: real ? zoom.transform() : 'none',
       fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160',
       toolVerb: S.tool.toLowerCase(), viz: S.viz ? 'grayscale(1) contrast(3.2) brightness(1.1)' : 'none', patches, rings,
       status: S.viz ? 'Visualize · dust and spots stand out' : `${spots.length} spot${spots.length === 1 ? '' : 's'} · tap to ${S.tool.toLowerCase()} · drag a dashed circle to move its source`,
@@ -60,19 +62,25 @@ export default class Component extends DCLogic {
         if (hit >= 0) { this.drag = { i: hit, b }; set({ sel: hit }); return; }
         const near = spots.findIndex((p) => Math.hypot(p.x - x, p.y - y) < p.s / 2);
         if (near >= 0) return set({ sel: near });
-        if (real) { const i = heal.add(S.tool, x / box[2], y / box[3], size / box[2], V.Feather / 100, V.Opacity / 100); if (i >= 0) set({ sel: i }); return; }
+        if (real) { this.tap = { x, y, cx: e.clientX, cy: e.clientY }; return; }   // the spot is made when the finger lifts where it landed: a second finger makes it a pinch (zoom.js)
         const [sx, sy] = pickSource(x, y, size);
         set({ spots: spots.concat([{ x, y, sx, sy, s: size, tool: S.tool }]), sel: spots.length });
       },
-      pMove: (e) => { const d = this.drag; if (!d) return; const [x, y] = at(e, d.b); if (real) return heal.moveSource(d.i, x / box[2], y / box[3]); this.setState({ spots: this.state.spots.map((p, i) => (i === d.i ? { ...p, sx: x, sy: y } : p)) }); },
-      pUp: () => { this.drag = null; },
+      pMove: (e) => {
+        if (real && zoom.pinching()) { this.drag = this.tap = null; return; }
+        if (this.tap && Math.hypot(e.clientX - this.tap.cx, e.clientY - this.tap.cy) > 10) this.tap = null;
+        const d = this.drag; if (!d) return; const [x, y] = at(e, d.b); if (real) return heal.moveSource(d.i, x / box[2], y / box[3]); this.setState({ spots: this.state.spots.map((p, i) => (i === d.i ? { ...p, sx: x, sy: y } : p)) }); },
+      pUp: (e) => {
+        const t = this.tap; this.drag = this.tap = null;
+        if (real && t && e?.type === 'pointerup' && !zoom.pinching()) { const i = heal.add(S.tool, t.x / box[2], t.y / box[3], size / box[2] / zoom.mag(), V.Feather / 100, V.Opacity / 100); if (i >= 0) set({ sel: i }); }
+      },
       ctl, ctlUp: `${S.tool.toUpperCase()} · ${ctl.toUpperCase()}`, unit: ctl === 'Size' ? 'px' : '%', valText: String(Math.round(ctl === 'Size' ? size : val)), valNow: String(Math.round(val)), vmin: 0, vmax: 100,
       fillL: 22, fillW: ((val / 100) * 328).toFixed(1), numX: Math.max(34, Math.min(338, 22 + (val / 100) * 328)).toFixed(1), spinY: -Math.floor(frac * 12) * 150,
       dDown: (e) => { this.dd = { x: e.clientX, s: S.spin, v: val }; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
       dMove: (e) => {
         const d = this.dd; if (!d) return; const deg = ((e.clientX - d.x) / RD) * (180 / Math.PI), v = Math.max(1, Math.min(100, d.v + deg * (100 / 180)));
         const sz = 8 + (v / 100) * 72, st = this.state;
-        if (real && heal.list()[sel]) { if (ctl === 'Size') heal.resize(sel, sz / box[2], String(Math.round(sz))); else heal.set(sel, { [ctl.toLowerCase()]: Math.round(v) / 100 }, ctl, `Spot ${ctl.toLowerCase()}`, String(Math.round(v))); }
+        if (real && heal.list()[sel]) { if (ctl === 'Size') heal.resize(sel, sz / box[2] / zoom.mag(), String(Math.round(sz))); else heal.set(sel, { [ctl.toLowerCase()]: Math.round(v) / 100 }, ctl, `Spot ${ctl.toLowerCase()}`, String(Math.round(v))); }
         this.setState({ spin: d.s + deg, vals: { ...st.vals, [ctl]: v }, spots: ctl === 'Size' ? st.spots.map((p, i) => (i === st.sel ? { ...p, s: sz } : p)) : st.spots });
       },
       dUp: () => { this.dd = null; }, dKey: () => {},

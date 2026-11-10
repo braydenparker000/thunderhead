@@ -28,10 +28,10 @@
   </header>
 
   <div style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(540px - var(--cut)); overflow: hidden">
-    <div onPointerDown="{{pDown}}" onPointerMove="{{pMove}}" onPointerUp="{{pUp}}" onPointerCancel="{{pUp}}" aria-label="{{photoAria}}"
-         style="position: absolute; left: {{pL}}px; top: {{pT}}px; width: {{pW}}px; height: {{pH}}px; touch-action: {{photoTouch}}; cursor: {{photoCursor}}">
+    <sc-if value="{{real}}"><div data-keep="photo" data-zoom="tool" data-masks style="position: absolute; inset: 0; overflow: hidden; touch-action: none"></div></sc-if>
+    <div data-zoom-with onPointerDown="{{pDown}}" onPointerMove="{{pMove}}" onPointerUp="{{pUp}}" onPointerCancel="{{pUp}}" aria-label="{{photoAria}}"
+         style="position: absolute; left: {{pL}}px; top: {{pT}}px; width: {{pW}}px; height: {{pH}}px; touch-action: {{photoTouch}}; cursor: {{photoCursor}}; transform: {{zoomT}}; transform-origin: 0 0">
       <sc-if value="{{demo}}"><img src="/lab/editor/assets/sample.jpg" alt="The photo being masked" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block"></sc-if>
-      <sc-if value="{{real}}"><div data-keep="photo" data-masks class="fillphoto" style="position: absolute; inset: 0"></div></sc-if>
       <div aria-hidden="true" style="position: absolute; inset: 0; background: {{overlay}}; -webkit-mask-image: {{lumMask}}; mask-image: {{lumMask}}; mask-size: 100% 100%; mask-mode: luminance; opacity: {{overlayO}}; transition: opacity 260ms ease"></div>
       <sc-for list="{{dots}}" as="d" hint-placeholder-count="0">
         <span aria-hidden="true" style="position: absolute; left: {{d.x}}px; top: {{d.y}}px; width: {{d.s}}px; height: {{d.s}}px; margin: {{d.m}}px 0 0 {{d.m}}px; border-radius: 50%; background: radial-gradient(circle, rgba(232,32,42,0.55) 0, rgba(232,32,42,0.55) 45%, rgba(232,32,42,0) 70%); opacity: {{overlayO}}"></span>
@@ -39,9 +39,9 @@
       <sc-if value="{{guides}}" hint-placeholder-val="{{false}}">
         <div aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none">
           <sc-for list="{{guideLines}}" as="g" hint-placeholder-count="3">
-            <span style="position: absolute; left: {{g.x}}px; top: {{g.y}}px; width: {{g.w}}px; margin-left: {{g.ml}}px; height: 0; border-top: 1.5px {{g.style}} rgba(255,255,255,0.9); box-shadow: 0 1px 0 rgba(0,0,0,0.35); transform: rotate({{g.rot}}deg)"></span>
+            <span style="position: absolute; left: {{g.x}}px; top: {{g.y}}px; width: {{g.w}}px; margin-left: {{g.ml}}px; height: 0; border-top: {{g.t}}px {{g.style}} rgba(255,255,255,0.9); box-shadow: 0 1px 0 rgba(0,0,0,0.35); transform: rotate({{g.rot}}deg)"></span>
           </sc-for>
-          <sc-if value="{{isRadial}}" hint-placeholder-val="{{false}}"><span style="position: absolute; left: {{rad.l}}; top: {{rad.t}}; width: {{rad.w}}; height: {{rad.h}}; box-sizing: border-box; border-radius: 50%; border: 1.5px solid rgba(255,255,255,0.9); box-shadow: 0 0 0 1px rgba(0,0,0,0.3); transform: rotate({{rad.rot}}deg)"></span></sc-if>
+          <sc-if value="{{isRadial}}" hint-placeholder-val="{{false}}"><span style="position: absolute; left: {{rad.l}}; top: {{rad.t}}; width: {{rad.w}}; height: {{rad.h}}; box-sizing: border-box; border-radius: 50%; border: {{rad.b}}px solid rgba(255,255,255,0.9); box-shadow: 0 0 0 1px rgba(0,0,0,0.3); transform: rotate({{rad.rot}}deg)"></span></sc-if>
         </div>
       </sc-if>
       <sc-if value="{{detecting}}" hint-placeholder-val="{{false}}">
