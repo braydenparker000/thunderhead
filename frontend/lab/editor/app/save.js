@@ -26,6 +26,7 @@ export async function save(presets, progress) {
   if (!p || !big) throw new Error('The full-size photo is still loading. Try again in a moment.');
   const head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
   await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
+    await photo.settle();
     for (const [k, x] of presets.entries()) {
       const r = await develop(big, x.long, (w, h) => {
         const kept = carry(head, x.meta, x.gps, w, h);
