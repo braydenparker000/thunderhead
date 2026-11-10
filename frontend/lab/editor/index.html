@@ -703,7 +703,7 @@
 
   <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: flex; align-items: center; gap: 2px; padding: 0 10px 0 8px; z-index: 3">
     <button aria-label="Back to the editor" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
-    <div style="flex: 1; min-width: 0"><div style="font-size: 14px; font-weight: 600">DSCF0412</div><div style="font-size: 11px; color: #a6b0bc">23 mm · f/5.6 · 1/250 · ISO 160</div></div>
+    <div style="flex: 1; min-width: 0"><div style="font-size: 14px; font-weight: 600">{{fileName}}</div><div style="font-size: 11px; color: #a6b0bc">{{shotLine}}</div></div>
     <button onClick="{{tHist}}" aria-pressed="{{hist}}" aria-label="Histogram" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{histInk}}" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
     <button onClick="{{tHistory}}" aria-pressed="{{history}}" aria-label="History" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="{{historyInk}}" stroke-width="1.7" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 7v5l3 2"/></svg></button>
     <button style="height: 32px; padding: 0 13px; margin-left: 4px; border-radius: 16px; background: #e8202a; color: #fff; font-size: 13px; font-weight: 600">Export</button>
@@ -712,12 +712,16 @@
   <div onPointerDown="{{pDown}}" onPointerMove="{{pMove}}" onPointerUp="{{pUp}}" onPointerCancel="{{pUp}}" aria-label="{{photoAria}}"
        style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(738px - var(--cut)); overflow: hidden; touch-action: none; background: #000">
     <div style="position: absolute; left: {{imL}}px; top: {{imT}}px; width: {{imW}}px; height: {{imH}}px; transition: {{imTr}}">
+      <sc-if value="{{demo}}">
       <img src="/lab/editor/assets/sample.jpg" alt="" style="position: absolute; inset: 0; width: 100%; height: 100%; display: block; image-rendering: {{pix}}">
       <div style="position: absolute; left: 0; top: 0; bottom: 0; width: {{afterW}}; overflow: hidden; direction: rtl; right: 0; left: auto">
         <img src="/lab/editor/assets/sample.jpg" alt="" style="position: absolute; right: 0; top: 0; width: {{imW}}px; height: {{imH}}px; display: block; filter: {{after}}; image-rendering: {{pix}}">
       </div>
       <sc-if value="{{clip}}" hint-placeholder-val="{{false}}"><div aria-hidden="true" style="position: absolute; inset: 0; background: radial-gradient(ellipse 12% 9% at 72% 18%, rgba(232,32,42,0.85) 60%, transparent 70%), radial-gradient(ellipse 18% 10% at 22% 88%, rgba(60,110,255,0.85) 60%, transparent 70%)"></div></sc-if>
+      </sc-if>
+      <sc-if value="{{real}}"><div data-keep="photo" class="fillphoto" style="position: absolute; inset: 0"></div></sc-if>
     </div>
+    <sc-if value="{{real}}"><div data-keep="detail" aria-hidden="true" style="position: absolute; inset: 0; pointer-events: none; overflow: hidden"></div></sc-if>
     <sc-if value="{{split}}" hint-placeholder-val="{{false}}">
       <div aria-hidden="true" style="position: absolute; top: 0; bottom: 0; left: {{splitX}}px; width: 2px; margin-left: -1px; background: #f2efe8; box-shadow: 0 0 6px rgba(0,0,0,0.6)">
         <span class="glass" style="position: absolute; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px 0 0 -18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 13px">⇔</span>
@@ -727,8 +731,8 @@
     </sc-if>
     <sc-if value="{{zoomed}}" hint-placeholder-val="{{false}}">
       <span class="glass" style="position: absolute; left: 12px; top: 12px; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600">100%</span>
-      <div class="glass" aria-hidden="true" style="position: absolute; right: 12px; bottom: 14px; width: 96px; height: 64px; border-radius: 10px; overflow: hidden; padding: 0">
-        <img src="/lab/editor/assets/sample.jpg" alt="" style="width: 100%; height: 100%; display: block; filter: {{after}}; opacity: 0.85">
+      <div class="glass" aria-hidden="true" style="position: absolute; right: 12px; bottom: 14px; width: {{mapW}}px; height: {{mapH}}px; border-radius: 10px; overflow: hidden; padding: 0">
+        <img src="{{mapSrc}}" alt="" style="width: 100%; height: 100%; display: block; filter: {{after}}; opacity: 0.85">
         <span style="position: absolute; left: {{mmL}}%; top: {{mmT}}%; width: {{mmW}}%; height: {{mmH}}%; box-shadow: 0 0 0 1.5px #e8202a, 0 0 0 999px rgba(0,0,0,0.35)"></span>
       </div>
     </sc-if>

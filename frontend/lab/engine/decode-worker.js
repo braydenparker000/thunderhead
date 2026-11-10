@@ -52,28 +52,35 @@ async function plain() {
 }
 let threadsError = '';
 const ready = self.crossOriginIsolated && THREADS > 1 ? threaded().catch((err) => { threadsError = String(err?.message || err); console.warn(`decoder: one thread (${err})`); return plain(); }) : plain();
+// A message is a RAF's bytes, or { buf, full: true, tag } to also get the sensor's own pixels, for 100 % and
+// export. Every answer carries the request's tag, so a page that has moved on to another photo can tell.
 self.onmessage = async (e) => {
+  const tag = e.data.tag;
   try {
+    const buf = e.data.buf ?? e.data;
     // the camera's own JPEG first (RAF header: its offset and length at bytes 84 and 88, big-endian), so the
     // photo shows while the RAW decodes
-    const v = new DataView(e.data);
+    const v = new DataView(buf);
     let info = { dr: 100, orientation: 'Normal', settings: '' };
-    if (v.byteLength > 92 && new TextDecoder().decode(new Uint8Array(e.data, 0, 8)) === 'FUJIFILM') {
+    if (v.byteLength > 92 && new TextDecoder().decode(new Uint8Array(buf, 0, 8)) === 'FUJIFILM') {
       const off = v.getUint32(84), len = v.getUint32(88);
       if (off + len <= v.byteLength) {
-        info = exifInfo(new DataView(e.data, off, len));
-        self.postMessage({ preview: new Blob([new Uint8Array(e.data, off, len)], { type: 'image/jpeg' }), dr: info.dr, settings: info.settings });
+        info = exifInfo(new DataView(buf, off, len));
+        self.postMessage({ preview: new Blob([new Uint8Array(buf, off, len)], { type: 'image/jpeg' }), dr: info.dr, settings: info.settings, tag });
       }
     }
     const { decode, threads } = await ready;
     const t0 = performance.now();
-    const d = decode(new Uint8Array(e.data));
+    const d = decode(new Uint8Array(buf));
     const t1 = performance.now();
     const proxy = d.proxy();
     const meta = JSON.parse(d.meta());
     if (meta.orientation === 'Normal') meta.orientation = info.orientation;
-    const msg = { meta, width: d.width(), height: d.height(), proxy, decodeMs: t1 - t0, threads, threadsError };
-    d.free();
+    const msg = { meta, width: d.width(), height: d.height(), proxy, decodeMs: t1 - t0, threads, threadsError, tag };
     self.postMessage(msg, [proxy.buffer]);
-  } catch (err) { self.postMessage({ error: String(err?.message || err) }); }
+    // the sensor's pixels follow the editing copy, so the photo is on screen first
+    const mosaic = e.data.full && meta.cfaWidth === 6 ? d.mosaic() : null;
+    d.free();
+    if (mosaic?.length) self.postMessage({ mosaic, tag }, [mosaic.buffer]);
+  } catch (err) { self.postMessage({ error: String(err?.message || err), tag }); }
 };
