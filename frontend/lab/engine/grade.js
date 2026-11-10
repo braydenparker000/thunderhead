@@ -104,4 +104,12 @@ fn cube(e: vec3f) -> vec3f {
   }
   return clamp(mix(e, acc, p.air.w), vec3f(0.0), vec3f(1.0));
 }
+// Grain: a speck for each 1.5 sensor pixels, so it keeps its size at any zoom; strongest in the mid-tones. The
+// editing copy, a third of the size, shows it fainter, as it would average out. spot: 0..1 across the picture.
+fn grain(o: vec3f, spot: vec2f) -> vec3f {
+  let g = vec2u(spot * p.noise.zw * 2.0);
+  var s = g.x * 2246822519u + g.y * 3266489917u + 374761393u; s = (s ^ (s >> 15u)) * 2246822519u; s = (s ^ (s >> 13u)) * 3266489917u; s = s ^ (s >> 16u);
+  let lum = dot(o, vec3f(0.2126, 0.7152, 0.0722));
+  return o + ((f32(s & 0xffffu) + f32(s >> 16u)) / 65536.0 - 1.0) * p.sharp.w * 0.10 * sqrt(max(4.0 * lum * (1.0 - lum), 0.0)) * select(1.0, 0.45, p.f.w >= 1.0);
+}
 fn point(x: f32, k: u32) -> f32 { let f = clamp(x, 0.0, 1.0) * 127.0; let i = u32(f); let j = min(i + 1u, 127u); return mix(p.crv[i][k], p.crv[j][k], f - f32(i)); }`;

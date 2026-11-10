@@ -27,6 +27,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | View board: before/after against the photo as imported, histogram and clipping overlay | `boards/ViewTools.js`, `editor/app/scope.js`, `tiles.js` |
 | Curve (RGB and each colour, over the photo's histogram), colour mixer (eight colours), grading (three ranges and the whole, Blending, Balance), Vignette, Grain | `grade.js`, `wgsl.js`, `boards/CurveOverlay.js`, `boards/GradeTrio.js`, `boards/EditPlate.js` |
 | Looks board: `.cube` looks brought in and kept on the phone (Presets), an edit saved as a look of one's own (Mine), each tile this photo wearing it | `cube.js`, `editor/app/looks.js`, `boards/LooksPlate.js` |
+| Masks board: linear and radial gradients laid on the picture, ranges of colour and of brightness picked with a tap; each with its own Light, Color and Effects adjustments, Amount, Invert; shown in red | `local.js`, `wgsl.js` main, `editor/app/masks.js`, `boards/MaskPlate.js` |
 | Library: tiles that show the edit, an Edited filter, what the photos take on the phone, deleting rejects for good | `boards/LibraryPlate.js`, `editor/app/store.js` |
 | Export: Full or smaller, JPEG (bands joined by restart markers), PNG, 16-bit TIFF, Exif carried | `export.js`, `files.js`, `exif.js`, `editor/app/save.js` |
 
@@ -48,7 +49,40 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Steps 1 to 5 are done. Next: step 6 (masks)
+## Steps 1 to 5 and the first half of 6 are done. Next: the brush (6b), then heal (7)
+
+Step 6a, masks (`engine/local.js` is the place to read first):
+
+- **A mask is a weight, 0 to 1, for each place in the picture.** Linear: in full at its first line, gone by its
+  second (Feather is how much of the way between them the fade takes). Radial: in full inside, fading out to
+  its rim. Colour range and brightness range: how near the place's own colour or lightness is to what a tap
+  picked (Range is how near counts, Feather how softly it ends). Amount scales it; Invert turns it round.
+- **Its adjustments are added to the photo's own, pixel by pixel, in the frame pass** (`wgsl.js` `main`,
+  `locals()`): exposure, highlights, shadows, texture, clarity and dehaze are added to the photo's values before
+  those stages run; white balance (Temp, Tint) is a gain on each colour; contrast, whites and blacks are the
+  photo's own curve (`tones`) laid on with the mask's numbers; saturation and hue turn and scale the colour in
+  Oklab. Nothing is in the colour table, so a mask costs one sum a pixel, and 100 % and export match the screen
+  (checked: three masks on a cropped, straightened, tilted photo, within one level).
+- **Where a mask lies is kept in mask units**: the upright, uncropped picture, in units of its width. The frame
+  carries one 3 × 3 from the picture as shown to those units (`toMask`: the crop's own matrix and enlargement,
+  the same numbers `warp.js` uses; checked against `toSensor` to 0.0000 px over turned, flipped, cropped and
+  tilted pictures). Crop or turn the photo and the mask stays on what it was laid on.
+- Range masks read the pixel before the photo's own exposure and tone (at the shot's base exposure), so moving
+  Exposure does not move what they select. Colour is compared as Oklab a and b over lightness, which does not
+  change with brightness. `engine.toneAt` reads the same from the editing copy for the tap.
+- The settings block is now 3632 bytes (`wgsl.js` `USIZE`): after the curve come `mh` (the 3 × 3), `mi` (how
+  many masks, the one shown in red, the base stops) and `mk` (seven rows a mask, eight masks at most).
+- The edit holds `masks` (kind, number, values, invert, where it lies or what it picked), part of history and
+  versions. A saved look does not carry masks.
+- On the board: with a photo open the add menu offers Linear, Radial, Color, Luminance. A gradient is taken
+  hold of on the photo: a linear one by either end or its middle, a radial one by its middle (move) or rim
+  (size; along one axis near that axis's end). A range mask takes a tap. OVERLAY lays the chosen mask over the
+  picture in red (drawn by the engine, so it is the real weight); it comes off while the dial turns. The red
+  only shows in the Masks board's slot (`data-masks`), never in a tile or a file.
+- Not built: the brush (6b: a painted weight in a texture), detection (Subject, Sky …: step 9), Sharpness and
+  Noise for a mask (they need the mask in the full-size passes), zoom on the Masks board, more than eight masks.
+- Strengths are first guesses: Temp ±100 is ±0.35 stops on red against blue, Hue ±100 is ±180°.
+
 
 Step 5, looks kept on the phone (`editor/app/looks.js`, their own IndexedDB database `th-looks`):
 
