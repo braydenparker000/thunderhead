@@ -4,6 +4,15 @@
 @font-face{font-family:Inter;font-style:normal;font-weight:600;font-display:swap;src:url(/lab/editor/assets/inter-600.woff2) format('woff2')}
 @font-face{font-family:Inter;font-style:normal;font-weight:700;font-display:swap;src:url(/lab/editor/assets/inter-700.woff2) format('woff2')}
 html,body{margin:0;height:100%;background:#000;overflow:hidden}
+/* an app, not a page: nothing scrolls past its end or pulls to refresh, a tap leaves no grey flash, a long press selects no text and lifts no picture */
+html,body{overscroll-behavior:none;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+img{-webkit-user-drag:none}
+/* a key gives under the finger */
+button{transition:transform 90ms ease,filter 90ms ease,opacity 90ms ease}
+.key:active{transform:translateY(1px);filter:brightness(0.82)}
+.eng:active,[role=option]:active{opacity:0.6}
+.glass:active{filter:brightness(1.25)}
+header button:active{opacity:0.6}
 #frame,body:not([data-board=App]) #stage{position:absolute;left:0;top:0;width:412px;height:915px;transform-origin:0 0;overflow:clip;--cut:0px}
 #frame #stage{position:absolute;inset:0;overflow:clip}
 #stage>div{height:calc(915px - var(--cut))!important;overflow:clip}

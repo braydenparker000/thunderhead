@@ -357,7 +357,9 @@ What was built, and where:
 
 The View board's history is a row and its versions a strip in its panel, which grows for them; Export has the
 same panel as the rest (its two files as cards along the top, Save in the header) and shows the photo in the
-shared layer. The Library is as it was.
+shared layer. The Library is as it was. The page behaves as an app under the finger: keys give when pressed, a tap
+leaves no grey flash, nothing pulls to refresh, and a long press brings no browser menu (`editor.css`, `boot.js`).
+A choice on a dial (Export's sharpen amount, metadata, file name) steps with a short turn (`DialPlate` `span`).
 The header's Export key is blue on every board now (Edit's was, the others' were red).
 
 Check scripts (not in the repo) drive each board in headless Chromium on a landscape and a portrait RAF: the drum

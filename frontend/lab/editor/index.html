@@ -4,6 +4,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; style-src-attr 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; worker-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
 <title>Editor test</title>
 <link rel="icon" href="data:,">
 <link rel="stylesheet" href="/lab/editor/editor.css">
@@ -511,7 +512,7 @@
       </sc-for>
     </div>
     <div style="position: absolute; left: 0; top: 56px">
-      <dc-import name="DialPlate" label="{{dialLabel}}" unit="{{unit}}" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" onreset="{{dialReset}}" left="{{dialLeft}}" hint-size="412px,144px"></dc-import>
+      <dc-import name="DialPlate" label="{{dialLabel}}" unit="{{unit}}" value="{{dialValue}}" text="{{dialText}}" onturn="{{dialTurn}}" onreset="{{dialReset}}" left="{{dialLeft}}" span="{{dialSpan}}" hint-size="412px,144px"></dc-import>
     </div>
     <div style="position: absolute; left: 10px; top: 202px">
       <dc-import name="Drum" faces="{{faces}}" at="{{faceAt}}" onpick="{{pickFace}}" hint-size="80px,52px"></dc-import>

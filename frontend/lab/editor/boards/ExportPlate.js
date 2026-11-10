@@ -45,9 +45,10 @@ export default class Component extends DCLogic {
     const ctl = S.ctl, labels = { long: 'Long edge', q: 'Quality', amt: 'Sharpen amount', meta: 'Metadata', naming: 'File name' };
     // the dial's window runs -5..5 over a number's whole range, or over a choice's options (it stops on each)
     const groups = Object.keys(rows), gi = groups.indexOf(S.group), isNum = ctl in nums, opts = isNum ? null : enums[ctl];
+    const span = isNum ? 5 : 1.2;   // a choice steps with a short turn
     const share = isNum ? (p[ctl] - nums[ctl][0]) / (nums[ctl][1] - nums[ctl][0]) : opts.indexOf(p[ctl]) / (opts.length - 1);
     const turned = (d) => {
-      const t = Math.max(0, Math.min(1, (d + 5) / 10));
+      const t = Math.max(0, Math.min(1, (d / span + 1) / 2));
       if (isNum) { const [lo, hi, st] = nums[ctl], v = Math.max(lo, Math.min(hi, Math.round((lo + t * (hi - lo)) / st) * st)); return v === p[ctl] ? null : { [ctl]: v, ...(ctl === 'long' ? { size: (sizeList.find((z) => z[1] === v) || ['Custom'])[0] } : {}) }; }
       const v = opts[Math.round(t * (opts.length - 1))]; return v === p[ctl] ? null : { [ctl]: v };
     };
@@ -80,7 +81,7 @@ export default class Component extends DCLogic {
       canShare: !real || (shares.length > 0 && !!navigator.canShare?.({ files: shares })), share: () => { if (shares.length) navigator.share({ files: shares }).catch(() => {}); },
       showDone: S.done, doneTitle: S.note ? 'Not saved' : 'Saved to Downloads',
       doneLines: S.note ? [S.note] : S.saved ? S.saved.map((x) => `${x.file} · ${x.width} × ${x.height} · ${mb(x.bytes / 1e6)}`) : on.map((x) => `${fileName(x)} · ${x.long} × ${short(x)} · ${est(x)}`),
-      dialLabel: `${p.name} · ${labels[ctl]}`, unit: isNum ? nums[ctl][3] : '', dialValue: share * 10 - 5, dialText: String(p[ctl]),
+      dialLabel: `${p.name} · ${labels[ctl]}`, unit: isNum ? nums[ctl][3] : '', dialValue: (share * 2 - 1) * span, dialSpan: span, dialText: String(p[ctl]),
       dialTurn: (d) => { const patch = turned(d); if (patch) setP(patch); }, dialReset: () => setP(start[ctl]),
       faces: groups.map((g) => ({ label: g, count: 0 })), faceAt: gi, pickFace: (i) => set({ group: groups[i], ctl: defaultCtl[groups[i]] }),
       chips, rowAria: `${S.group} options`, rowSeed: gi + S.sel * 4, dialLeft: true,

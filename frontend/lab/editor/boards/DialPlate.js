@@ -4,7 +4,8 @@
 // it, and `onturn` hears every turn. A drag turns it one for one with the finger; let go while moving and it runs
 // on, slowing, until it stops or is touched; two quick taps ask for the value's start (`onreset`). `auto`, when
 // given, is the name of a small key in the window's corner (`onauto`). `left`: the value runs from the window's
-// left end, not out from its middle (a strength, 0 upwards). `slim`: no wheel, the window itself is dragged and the number stays under the finger. `onhold` hears true when a
+// left end, not out from its middle (a strength, 0 upwards). `span`: the position at the window's end (5 unless given: a
+// choice of a few options spans less, so a short turn steps it). `slim`: no wheel, the window itself is dragged and the number stays under the finger. `onhold` hears true when a
 // finger takes the dial and false once it has let go and the dial is still.
 import { DCLogic } from '../dc.js';
 
@@ -25,7 +26,7 @@ export default class Component extends DCLogic {
     const sign = (x) => (x > 0.004 ? '+' : x < -0.004 ? '−' : '');
     const valueText = this.props.text ?? (ev ? sign(v) + Math.abs(v).toFixed(2) : sign(show(v)) + Math.abs(show(v)));
     // the window: a red fill runs from the middle to the value, the number riding at its end in a ringed box; the Auto key takes the right end
-    const auto = this.props.auto || '', slim = !!this.props.slim, left = !!this.props.left, L = 22, Rt = auto ? 372 - 74 : 372 - 22, mid = (L + Rt) / 2, half = (Rt - L) / 2, f = v / 5, end = mid + f * half;
+    const auto = this.props.auto || '', slim = !!this.props.slim, left = !!this.props.left, L = 22, Rt = auto ? 372 - 74 : 372 - 22, mid = (L + Rt) / 2, half = (Rt - L) / 2, f = Math.max(-1, Math.min(1, v / (this.props.span || 5))), end = mid + f * half;
     const setAngle = (a) => { const c = Math.max(-180, Math.min(180, a)); this.setState({ angle: c }); this.props.onturn?.(c / 36); return c; };
     const stop = () => { cancelAnimationFrame(this.spin); this.spin = 0; };
     const run = (v0) => {   // degrees a millisecond, dying away

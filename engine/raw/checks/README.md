@@ -27,7 +27,7 @@ RAFs, the snapshot and the outputs out of the repository.
 | `cr`, `cr2` | Crop: what the engine draws against the board; its gestures |
 | `z1`, `z7` | Zoom to 55 %, 100 %, 300 % with the detail aligned; the View board; zoom on the tool boards |
 | `lb` | Library: import, flags, delete |
-| `e5` | A full-size export (slow: about 20 minutes here) |
+| `e5`, `ex` | A full-size export (slow: about 13 minutes here); the Export board's controls, saving nothing |
 | `tx` | How far the 100 % view, averaged three by three, is from the editing copy with Texture, Clarity, Shadows on |
 | `dz`, `dbg` | A 100 % screenshot about a point; a full-size view driven directly with the GPU's errors printed |
 | `sp`, `sp2` | A sample page (no photo) as a picture, plain or after a button |
