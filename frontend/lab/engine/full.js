@@ -22,7 +22,7 @@ const deepPipe = (/** @type {GPUDevice} */ device) => {
  * @param {Awaited<ReturnType<typeof import('./gpu.js').engine>>} e the photo's engine @param {{ meta: any }} img
  * @param {Uint16Array} mosaic the decoder's mosaic(): the GPU keeps its own copy, so let go of this one after */
 export async function full(e, img, mosaic) {
-  const { device, lut, views, bendP } = e.gpu, g0 = e.gpu.geo(), W = /** @type {number} */ (img.meta.fullWidth), H = /** @type {number} */ (img.meta.fullHeight), phase = phaseOf(img.meta);
+  const { device, lut, views, bendP } = e.gpu, W = /** @type {number} */ (img.meta.fullWidth), H = /** @type {number} */ (img.meta.fullHeight), phase = phaseOf(img.meta);
   if (!phase || mosaic.length !== W * H || Math.max(W, H) > device.limits.maxTextureDimension2D) return null;
   const tex = device.createTexture({ size: [W, H], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
   const BAND = 1024;   // rows a step: 80 MB goes over without holding the page still
@@ -30,7 +30,7 @@ export async function full(e, img, mosaic) {
     device.queue.writeTexture({ texture: tex, origin: [0, y] }, mosaic, { offset: y * W * 2, bytesPerRow: W * 2 }, [W, Math.min(BAND, H - y)]);
     await new Promise((r) => setTimeout(r));
   }
-  const fw = g0.ow, fh = g0.oh, info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white) };
+  const pic = () => { const g = e.gpu.geo(); return [g.ow, g.oh]; }, info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white) };
   const open = /** @type {Set<() => void>} */ (new Set());
   /** A view of up to maxW × maxH pixels, shown on `canvas` if one is given. Once it has a place it follows the
    * engine's renders: `onframe` is called, in the task that draws it, with the rectangle each one shows.
@@ -38,11 +38,20 @@ export async function full(e, img, mosaic) {
    * @param {boolean} [readback] show through a 2D canvas (headless Chromium can't present a WebGPU one)
    * @param {boolean} [deep] for export: 16-bit floats and no dither, read with `read()` as half floats */
   const view = async (maxW, maxH, canvas = null, readback = false, deep = false) => {
-    [maxW, maxH] = [Math.min(maxW, fw), Math.min(maxH, fh)];
     const pipe = deep ? await deepPipe(device) : e.gpu.pipe, size = deep ? 8 : 4;
-    // the sensor rectangle a view draws on is larger than the view by the lens's stretch and the resampling's margin
-    const [dw, dh] = (g0.rot % 2 ? [maxH, maxW] : [maxW, maxH]).map((v, k) => Math.min(k ? H : W, Math.ceil(v * 1.25) + 16));
-    const dm = await demosaicer(device, tex, info, dw, dh);
+    // The sensor rectangle a view draws on is larger than the view: by the lens's stretch, the resampling's
+    // margin and, most, a straighten angle. The demosaic's buffers hold 1.6 times the view's pixels in any
+    // shape; `room` is the largest rectangle of the picture, in the view's proportions, that never needs more.
+    const side = Math.ceil(Math.sqrt(maxW * maxH * 1.6)) + 32, dm = await demosaicer(device, tex, info, side, side);
+    const room = () => {
+      const [pw, ph] = pic(), g = e.gpu.geo();
+      for (let s = 1; s > 0.2; s *= 0.9) {
+        const w = Math.max(8, Math.min(pw, Math.floor(maxW * s))), h = Math.max(8, Math.min(ph, Math.floor(maxH * s)));
+        if ([0, 0.5, 1].every((u) => [0, 0.5, 1].every((v) => { const r = reach(g, (pw - w) * u, (ph - h) * v, w, h); return (r[2] + 8) * (r[3] + 8) <= side * side; }))) return [w, h];
+      }
+      return [8, 8];
+    };
+    let fit = room();
     const flat = device.createBuffer({ size: maxW * maxH * 8, usage: GPUBufferUsage.STORAGE }), bend = warper(device, bendP, dm.out, flat);
     const uni = device.createBuffer({ size: 352, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     const out = device.createTexture({ size: [maxW, maxH], format: deep ? 'rgba16float' : 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
@@ -51,7 +60,7 @@ export async function full(e, img, mosaic) {
     /** @typedef {{ X: number, Y: number, cw: number, ch: number, rx: number, ry: number, rw: number, rh: number }} Rect */
     let bind = /** @type {GPUBindGroup | null} */ (null);
     let at = /** @type {Rect | null} */ (null), made = at, fresh = false;   // asked for; drawn; its colours are made
-    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, at: () => at, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
+    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, room: () => fit, at: () => at, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
     /** The view's pixels as last drawn, four values each: bytes, or a deep view's half floats. */
     async function bytes() {
       if (!made) throw new Error('no region yet');
@@ -68,7 +77,7 @@ export async function full(e, img, mosaic) {
     async function halves() { return new Uint16Array((await bytes()).buffer); }
     const hook = {
       /** The geometry changed: the same rectangle of the picture now draws on another part of the sensor. */
-      bent: () => { const a = at; if (a) { at = null; place(a.X, a.Y, a.cw, a.ch); } },
+      bent: () => { fit = room(); const a = at; if (a) { at = null; place(a.X, a.Y, a.cw, a.ch); } },
       /** @param {GPUBuffer} tab the profile's tables, re-made with each profile */
       bind: (tab) => { bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: flat } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: e.gpu.mask }] }); },
       /** The view's part of a render: the rectangle's colours if it moved, then the frame pass over it with the
@@ -96,14 +105,15 @@ export async function full(e, img, mosaic) {
         /** @type {CanvasRenderingContext2D} */ (canvas.getContext('2d')).putImageData(px, 0, 0); self.onframe?.(was);
       },
     };
-    /** Aims the view at the rectangle whose top left is (X, Y) in the upright photo, cw × ch pixels (kept inside
-     * the photo and the view's size). The engine's next render draws it. Returns where it ended up.
+    /** Aims the view at the rectangle whose top left is (X, Y) in the picture, cw × ch pixels (kept inside the
+     * picture and the view's room). The engine's next render draws it. Returns where it ended up.
      * @param {number} X @param {number} Y @param {number} cw @param {number} ch */
     function place(X, Y, cw, ch) {
-      cw = Math.max(8, Math.min(Math.round(cw), maxW)); ch = Math.max(8, Math.min(Math.round(ch), maxH));
+      const [fw, fh] = pic();
+      cw = Math.max(8, Math.min(Math.round(cw), fit[0])); ch = Math.max(8, Math.min(Math.round(ch), fit[1]));
       X = Math.max(0, Math.min(Math.round(X), fw - cw)); Y = Math.max(0, Math.min(Math.round(Y), fh - ch));
       if (at && at.X === X && at.Y === Y && at.cw === cw && at.ch === ch) return at;
-      const [rx, ry, rw, rh] = reach(e.gpu.geo(), X, Y, cw, ch).map((v, k) => (k === 2 ? Math.min(v, dw) : k === 3 ? Math.min(v, dh) : v));
+      const [rx, ry, rw, rh] = reach(e.gpu.geo(), X, Y, cw, ch);
       fresh = false;
       return (at = { X, Y, cw, ch, rx, ry, rw, rh });
     }
@@ -121,5 +131,5 @@ export async function full(e, img, mosaic) {
     hook.bind(e.gpu.tab()); views.push(hook); open.add(dispose);
     return self;
   };
-  return { width: fw, height: fh, view, dispose: () => { for (const d of [...open]) d(); tex.destroy(); } };
+  return { get width() { return pic()[0]; }, get height() { return pic()[1]; }, view, dispose: () => { for (const d of [...open]) d(); tex.destroy(); } };
 }

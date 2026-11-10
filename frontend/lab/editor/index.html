@@ -183,8 +183,8 @@
   <header style="position: absolute; top: 0; left: 0; right: 0; height: 52px; display: grid; grid-template-columns: 44px minmax(0, 1fr) auto; align-items: center; gap: 4px; padding: 0 8px; z-index: 2">
     <button aria-label="Back to Photos" style="width: 44px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#eceff4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
     <div style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
-      <span style="font-size: 14px; font-weight: 600">DSCF0412</span>
-      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">23 mm · f/5.6 · 1/250 · ISO 160</span>
+      <span style="font-size: 14px; font-weight: 600">{{fileName}}</span>
+      <span style="font-size: 11px; color: #a6b0bc; white-space: nowrap; font-variant-numeric: tabular-nums">{{shotLine}}</span>
     </div>
     <div style="display: flex; align-items: center">
       <button aria-label="Show histogram" aria-pressed="false" style="width: 40px; height: 44px; display: flex; align-items: center; justify-content: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a6b0bc" stroke-width="1.7" stroke-linejoin="round" aria-hidden="true"><path d="M3 20h18"/><path d="M4 20V14l3-5 3 6 3-9 3 7 2-3 2 4v6"/></svg></button>
@@ -193,9 +193,10 @@
     </div>
   </header>
 
-  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(540px - var(--cut)); overflow: hidden; perspective: 900px">
+  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(540px - var(--cut)); overflow: hidden; perspective: 900px; perspective-origin: 206px 270px">
     <div style="position: absolute; left: {{boxL}}px; top: {{boxT}}px; width: {{boxW}}px; height: {{boxH}}px">
-      <img src="/lab/editor/assets/sample.jpg" alt="The photo being cropped" style="position: absolute; left: 50%; top: 50%; width: {{imgW}}px; height: {{imgH}}px; margin: {{imgMT}}px 0 0 {{imgML}}px; transform: {{imgTf}}; transition: transform {{imgTr}}; display: block">
+      <sc-if value="{{demo}}"><img src="/lab/editor/assets/sample.jpg" alt="The photo being cropped" style="position: absolute; left: 50%; top: 50%; width: {{imgW}}px; height: {{imgH}}px; margin: {{imgMT}}px 0 0 {{imgML}}px; transform: {{imgTf}}; transition: transform {{imgTr}}; display: block"></sc-if>
+      <sc-if value="{{real}}"><div data-keep="photo" data-base class="fillphoto" style="position: absolute; left: 50%; top: 50%; width: {{imgW}}px; height: {{imgH}}px; margin: {{imgMT}}px 0 0 {{imgML}}px; transform: {{imgTf}}; transition: transform {{imgTr}}"></div></sc-if>
       <div style="position: absolute; left: {{cx}}px; top: {{cy}}px; width: {{cw}}px; height: {{ch}}px; box-shadow: 0 0 0 1px rgba(255,255,255,0.85), 0 0 0 2000px rgba(0,0,0,0.62); transition: {{cropTr}}">
         <sc-for list="{{grid}}" as="g" hint-placeholder-count="4">
           <span aria-hidden="true" style="position: absolute; left: {{g.l}}; top: {{g.t}}; width: {{g.w}}; height: {{g.h}}; background: rgba(255,255,255,{{g.a}})"></span>

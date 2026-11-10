@@ -14,7 +14,6 @@ import { neutralAt } from './white.js';
 import { autoTone } from './auto.js';
 import { geometry, toSensor, warpPipe, warper } from './warp.js';
 
-const ROT = /** @type {Record<string, number>} */ ({ Rotate90: 1, Rotate180: 2, Rotate270: 3 });
 const rows = (/** @type {number[]} */ m) => [m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0];
 /** The profile's tables in one buffer, and what the shader needs to find them. @param {null | { profile: import('./dcp.js').Profile, table: any }} pick @param {number} w */
 function tables(pick, w) {
@@ -64,22 +63,31 @@ export const warm = () => gpu().then(() => true, () => false);
  * @param {HTMLCanvasElement} canvas @param {{ width: number, height: number, proxy: Uint16Array, meta: any }} img @param {boolean} readback */
 export async function engine(canvas, img, readback = false) {
   const { adapter, device, pipe, bakePipe, maskP, bendP, lut } = await gpu();
-  const { width: w, height: h } = img, rot = ROT[img.meta.orientation] || 0, [ow, oh] = rot % 2 ? [h, w] : [w, h], cell = (img.meta.fullWidth ??= w * 3) / w;
-  img.meta.fullHeight ??= h * 3;
-  canvas.width = ow; canvas.height = oh;
+  const { width: w, height: h } = img, cell = (img.meta.fullWidth ??= w * 3) / w;
+  img.meta.fullHeight ??= h * 3; img.meta.width = w;
   const ctx = readback ? null : /** @type {GPUCanvasContext} */ (canvas.getContext('webgpu'));
   ctx?.configure({ device, format: 'rgba8unorm', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT, alphaMode: 'opaque' });
   const t0 = performance.now();
   const src = device.createBuffer({ size: img.proxy.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   device.queue.writeBuffer(src, 0, img.proxy.buffer, img.proxy.byteOffset, img.proxy.byteLength);
   const uni = device.createBuffer({ size: 352, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-  const out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
-  // the photo laid out as the picture (warp.js): what the tone mask and every frame read
-  const flat = device.createBuffer({ size: ow * oh * 8, usage: GPUBufferUsage.STORAGE }), bend = warper(device, bendP, src, flat);
-  let geo = geometry(img.meta), bent = false;
-  const mask = toneMask(device, maskP, flat, uni, ow, oh);
-  const row = Math.ceil((ow * 4) / 256) * 256;
-  const back = readback ? device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
+  // The photo laid out as the picture (warp.js) is what the tone mask and every frame read. It, the frame's
+  // output, the canvas and the mask are the picture's size, so a crop makes them anew (`lay`).
+  let geo = geometry(img.meta), bent = false, fine = true, ow = 0, oh = 0, row = 0;
+  const none = /** @type {any} */ (null);
+  let out = /** @type {GPUTexture} */ (none), flat = /** @type {GPUBuffer} */ (none), bend = /** @type {ReturnType<typeof warper>} */ (none), mask = /** @type {ReturnType<typeof toneMask>} */ (none), back = /** @type {GPUBuffer | null} */ (null);
+  const lay = () => {
+    const nw = Math.round(geo.ow / cell), nh = Math.round(geo.oh / cell);
+    if (nw === ow && nh === oh) return false;
+    for (const b of [flat, back]) b?.destroy(); out?.destroy(); mask?.destroy(); bend?.destroy();
+    ow = nw; oh = nh; row = Math.ceil((ow * 4) / 256) * 256;
+    out = device.createTexture({ size: [ow, oh], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
+    flat = device.createBuffer({ size: ow * oh * 8, usage: GPUBufferUsage.STORAGE }); bend = warper(device, bendP, src, flat);
+    mask = toneMask(device, maskP, flat, uni, ow, oh);
+    back = readback ? device.createBuffer({ size: row * oh, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ }) : null;
+    return true;
+  };
+  lay(); canvas.width = ow; canvas.height = oh;
   await device.queue.onSubmittedWorkDone();
   const uploadMs = performance.now() - t0;
   const asShot = img.meta.wb[1] ? [1 / img.meta.wb[0], 1, 1 / img.meta.wb[2]] : [0.5, 1, 0.6];
@@ -137,7 +145,7 @@ export async function engine(canvas, img, readback = false) {
     const key = [contrast, more.amount ?? 1, ...g.slice(2)].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();
-    if (!bent) { bend.run(enc, geo, { x: 0, y: 0, scale: cell, w: ow, h: oh }, { x: 0, y: 0, scale: cell, w, h }); bent = true; masked = ''; }
+    if (!bent) { bend.run(enc, geo, { x: 0, y: 0, scale: cell, w: ow, h: oh }, { x: 0, y: 0, scale: cell, w, h }, fine); bent = true; masked = ''; }
     last.baked = baked !== key;
     if (last.baked) {   // re-bake only when the profile or a control inside the table changed: a frame is then one table lookup
       const bp = enc.beginComputePass(); bp.setPipeline(bakePipe); bp.setBindGroup(0, bakeBind); bp.dispatchWorkgroups(Math.ceil(N / 4), Math.ceil(N / 4), Math.ceil(N / 4)); bp.end(); baked = key;
@@ -146,6 +154,7 @@ export async function engine(canvas, img, readback = false) {
     last.masked = Boolean(g[0] || g[1] || more.showMask) && more.mask !== false && masked !== lit;
     if (last.masked) { mask.run(enc); masked = lit; }
     const shown = more.screen !== false, fit = more.fit !== false;
+    if (shown && fit && (canvas.width !== ow || canvas.height !== oh)) { canvas.width = ow; canvas.height = oh; }   // the canvas takes a crop's size when it is first shown
     if (fit) {
       const pass = enc.beginComputePass();
       pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(ow / 8), Math.ceil(oh / 8)); pass.end();
@@ -179,11 +188,13 @@ export async function engine(canvas, img, readback = false) {
   /** Frees this photo's GPU memory (the device and pipelines stay for the next). */
   const dispose = () => { for (const b of [src, flat, uni, tab, back]) b?.destroy(); out.destroy(); mask.destroy(); bend.destroy(); };
   /** The lens corrections added by hand (each −1..1): the picture is laid out again at the next render.
-   * @param {{ distortion?: number, vignetting?: number }} o */
-  const setGeometry = (o) => { geo = geometry(img.meta, o); bent = false; for (const v of views) v.bent(); };
+   * and the crop (crop.js). A crop that changes the picture's size makes its surfaces anew. `draft` lays it out
+   * the quick way (two taps, no fringing pass), for while a control moves.
+   * @param {{ distortion?: number, vignetting?: number, crop?: import('./crop.js').Crop | null, draft?: boolean }} o */
+  const setGeometry = (o) => { geo = geometry(img.meta, o); fine = !o.draft; bent = false; if (lay()) setProfile(picked); for (const v of views) v.bent(); };
   /** Auto's values for the Light controls (auto.js). @param {number} ev the exposure the photo shows at with Exposure at 0 */
   const auto = (ev) => autoTone(img, state.m, ev + state.u.offset);
   /** What full.js builds on. */
-  const base = { device, pipe, bendP, lut, mask: mask.view, views, tab: () => tab, settings: () => lastU, geo: () => geo };
+  const base = { device, pipe, bendP, lut, get mask() { return mask.view; }, views, tab: () => tab, settings: () => lastU, geo: () => geo };
   return { render, setProfile, setWhite, setGeometry, shotWhite, whiteAt, auto, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

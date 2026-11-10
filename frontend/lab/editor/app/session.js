@@ -5,6 +5,8 @@
 // Boards read values through `value`/`text`/`toDial` and listen for `change`.
 import { engine, warm } from '../../engine/gpu.js';
 import { full } from '../../engine/full.js';
+import { isNone } from '../../engine/crop.js';
+import { tilt } from '../../engine/level.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
 import { forget, pickAt } from './adjust.js';
 import * as hist from './past.js';
@@ -27,14 +29,18 @@ img.src = '/lab/editor/assets/sample.jpg';
 // boards mark where the photo goes with data-keep="photo" (dc.js leaves its insides alone); a slot that is also
 // data-zoom is filled by zoom.js, which puts itself here
 export const hooks = { fill: /** @type {null | ((slot: HTMLElement, el: HTMLElement) => void)} */ (null) };
-const fill = (/** @type {HTMLElement} */ s) => { const el = ready ? canvas : img; if (s.dataset.zoom !== undefined && hooks.fill) hooks.fill(s, el); else s.replaceChildren(el); };
+const fill = (/** @type {HTMLElement} */ s) => {
+  const el = ready ? canvas : img, b = s.dataset.base !== undefined;
+  if (s.dataset.zoom !== undefined && hooks.fill) hooks.fill(s, el); else s.replaceChildren(el);
+  if (b !== base) { base = b; if (ready) draw(); }   // the Crop board's slot (data-base) shows the picture before its crop
+};
 document.addEventListener('dc:keep', (e) => { const s = /** @type {HTMLElement} */ (/** @type {CustomEvent} */ (e).detail); if (s.dataset.keep === 'photo') fill(s); });
 
 let worker = /** @type {Worker | null} */ (null);
 export let eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
-/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
+/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, geo: import('../../engine/crop.js').Crop | null, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
 export let cur = null;
-let bent = '0,0';   // the Optics values the engine's geometry was last made with
+let bent = '', base = false, whole0 = [7728, 5152];   // what the engine's geometry was last made with; whether the picture shows uncropped (the Crop board); its uncropped size
 let list = /** @type {Awaited<ReturnType<typeof catalogue>>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
 // the sensor's own pixels, for 100 % and export (they follow the editing copy); the photo's history and versions;
 // a count that moves whenever the fitted photo is drawn anew
@@ -58,8 +64,8 @@ export async function open(id) {
   const p = store.photos().find((x) => x.id === id);
   if (!p || cur?.id === id) return;
   const edit = (await store.loadEdit(id)) || {};
-  cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
-  ready = false; bent = '0,0'; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: { ...ZERO }, wb: 'As shot', profile: '' }, state()); img.src = await store.jpegUrl(id); place(); changed();
+  cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
+  ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: { ...ZERO }, wb: 'As shot', profile: '' }, state()); img.src = await store.jpegUrl(id); place(); changed();
   worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' });
   const buf = await store.raw(id), me = cur, tag = ++asked;
   let sensor = (/** @type {Uint16Array} */ m) => {};
@@ -78,7 +84,7 @@ export async function open(id) {
   try {
     const [e, l] = await Promise.all([engine(canvas, r, new URLSearchParams(location.search).has('readback')), profilesFor(`${r.meta.make} ${r.meta.model}`)]);
     if (cur !== me) { e.dispose(); return; }
-    eng = e; list = l;
+    eng = e; list = l; whole0 = /Rotate(90|270)/.test(r.meta.orientation) ? [r.meta.fullHeight, r.meta.fullWidth] : [r.meta.fullWidth, r.meta.fullHeight];
     applyProfile();
     ready = true; place(); say(''); await draw();
     mosaic.then(async (m) => {
@@ -124,7 +130,8 @@ export function custom() {
 /** One render with the photo's values. @param {Parameters<NonNullable<typeof eng>['render']>[2]} [more] */
 function paint(more) {
   const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
-  if (bent !== `${v.Distortion},${v.Vignetting}`) { bent = `${v.Distortion},${v.Vignetting}`; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting') }); }   // Optics, by hand: the picture is laid out again
+  const crop = base ? null : c.geo, key = `${v.Distortion},${v.Vignetting},${JSON.stringify(crop)}`;
+  if (bent !== key) { bent = key; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting'), crop }); }   // Optics by hand, or the crop: the picture is laid out again
   return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), ...more });
 }
 /** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is */
@@ -132,7 +139,9 @@ export async function draw(fit = true) {
   if (!eng || !cur) return;
   if (drawing) { again = true; return; }
   drawing = true; if (fit) gen++;
+  const was = `${canvas.width},${canvas.height}`;
   await paint({ fit });
+  if (was !== `${canvas.width},${canvas.height}`) { place(); changed(); }   // a crop changed the picture's size: its slot lays it out again
   drawing = false;
   if (again) { again = false; draw(); }
 }
@@ -150,16 +159,17 @@ async function shrink(w) {
   return URL.createObjectURL(await c.convertToBlob({ type: 'image/jpeg', quality: w ? 0.8 : 0.92 }));
 }
 /** The edit as it stands. @returns {hist.State} */
-export const state = () => ({ values: { ...cur?.values }, wb: cur?.wb || 'As shot', profile: cur?.profile || '' });
-const put = (/** @type {hist.State} */ st) => { if (cur) Object.assign(cur, { values: { ...ZERO, ...st.values }, wb: st.wb, profile: st.profile }); };
+export const state = () => hist.copy({ values: cur?.values || {}, wb: cur?.wb || 'As shot', profile: cur?.profile || '', geo: cur?.geo });
+const put = (/** @type {hist.State} */ st) => { if (cur) Object.assign(cur, { values: { ...ZERO, ...st.values }, wb: st.wb, profile: st.profile, geo: st.geo || null }); };
 /** The photo developed off screen (tiles.js): as it is now, or as the edit `st` would have it. A JPEG's URL, `w`
  * pixels wide; '' if the photo closes first. @param {hist.State | null} st @param {number} w @param {Parameters<typeof paint>[0]} [more] */
 export async function picture(st, w, more) {
   const me = cur; let url = '';
   await alone(async () => {
     if (cur !== me || !eng || !me) return;
-    const was = state();
-    try { if (st) { put(st); applyProfile(); } await paint({ screen: false, ...more }); url = await shrink(w); } finally { if (st) { put(was); applyProfile(); } }
+    const was = state(), shown = base;
+    base = false;   // always the picture as cropped, whatever board is up
+    try { if (st) { put(st); applyProfile(); } await paint({ screen: false, ...more }); url = await shrink(w); } finally { base = shown; if (st) { put(was); applyProfile(); } }
   });
   return url;
 }
@@ -169,6 +179,13 @@ export async function pixels() {
   await alone(async () => { if (cur === me && eng && me) { await paint({ screen: false }); im = await eng.snapshot(); } });
   return im;
 }
+/** The crop (engine/crop.js; null for none), and the upright picture's size before it. */
+export const geo = () => cur?.geo || null;
+export const uncropped = () => (ready ? whole0 : shape());
+/** Sets the crop, a step of the history. While the Crop board is up the picture stays uncropped under its frame. @param {import('../../engine/crop.js').Crop} g */
+export function setGeo(g) { if (!cur) return; cur.geo = isNone(g) ? null : g; changed(); if (!base) draw(); save('crop', 'Crop', ''); }
+/** How far the picture's lines lean, in degrees clockwise (engine/level.js), read from it as it is shown. */
+export async function level() { const im = await pixels(); return im ? tilt(im) : 0; }
 /** Moves whenever the fitted photo is drawn anew or another photo opens: what was made from it is then old. */
 export const stamp = () => gen;
 
@@ -195,7 +212,7 @@ export function save(key, name, val) {
   clearTimeout(saveT);
   const me = cur, p = past;
   if (me && p && name !== undefined) hist.note(p, key || '', name, val || '', state());
-  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile, v: 2, ...(p ? hist.dump(p) : {}) }); }, 400);
+  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile, geo: me.geo, v: 2, ...(p ? hist.dump(p) : {}) }); }, 400);
 }
 /** The photo's history: each step's name and value, and the step it is at. */
 export const history = () => ({ steps: past ? past.steps.map(({ name, val }) => ({ name, val })) : [], at: past ? past.at : 0 });
