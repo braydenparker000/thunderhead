@@ -10,6 +10,7 @@
 import { N, USIZE, WGSL } from './wgsl.js';
 import { fromMask, localRows, through, toMask, toneOf } from './local.js';
 import { brushes } from './brush.js';
+import { findSource, spotRows } from './heal.js';
 import { maskPipes, masks } from './mask.js';
 import { airOf } from './haze.js';
 import { noiseAt } from './noise.js';
@@ -171,7 +172,7 @@ export async function engine(canvas, img, readback = false) {
     const key = [contrast, more.amount ?? 1, ...g.slice(2), more.cube ?? 1, more.mixer?.join(), more.grade?.join(), more.curve?.join()].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();
-    if (!bent) { bend.run(enc, geo, { x: 0, y: 0, scale: cell, w: ow, h: oh }, { x: 0, y: 0, scale: cell, w, h }, fine); bent = true; masked = fined = hazed = ''; }
+    if (!bent) { bend.run(enc, geo, { x: 0, y: 0, scale: cell, w: ow, h: oh }, { x: 0, y: 0, scale: cell, w, h }, fine, true); bent = true; masked = fined = hazed = ''; }
     last.baked = baked !== key;
     if (last.baked) {   // re-bake only when the profile or a control inside the table changed: a frame is then one table lookup
       const bp = enc.beginComputePass(); bp.setPipeline(bakePipe); bp.setBindGroup(0, bakeBind); bp.dispatchWorkgroups(Math.ceil(N / 4), Math.ceil(N / 4), Math.ceil(N / 4)); bp.end(); baked = key;
@@ -218,11 +219,13 @@ export async function engine(canvas, img, readback = false) {
   /** The lens corrections added by hand (each −1..1): the picture is laid out again at the next render.
    * and the crop (crop.js). A crop that changes the picture's size makes its surfaces anew. `draft` lays it out
    * the quick way (two taps, no fringing pass), for while a control moves.
-   * @param {{ distortion?: number, vignetting?: number, crop?: import('./crop.js').Crop | null, draft?: boolean }} o */
-  const setGeometry = (o) => { geo = geometry(img.meta, o); fine = !o.draft; bent = false; if (lay()) setProfile(picked); for (const v of views) v.bent(); };
+   * @param {{ distortion?: number, vignetting?: number, crop?: import('./crop.js').Crop | null, draft?: boolean, spots?: import('./heal.js').Spot[] | null }} o */
+  const setGeometry = (o) => { geo = geometry(img.meta, o); geo.spots = spotRows(o.spots, geo, img); fine = !o.draft; bent = false; if (lay()) setProfile(picked); for (const v of views) v.bent(); };
   /** Auto's values for the Light controls (auto.js). @param {number} ev the exposure the photo shows at with Exposure at 0 */
   const auto = (ev) => autoTone(img, state.m, ev + state.u.offset);
   /** What full.js builds on. */
   const base = { device, pipe, bendP, lut, get mask() { return mask.tone.view; }, get fine() { return mask.fine.view; }, get brushed() { return painted.view(); }, get haze() { return mask.haze.view; }, views, tab: () => tab, settings: () => lastU, geo: () => geo, noise: noiseAt(img.meta.iso || 200) };
-  return { render, setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, auto, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  /** Retouching (heal.js): where a spot's replacement is best taken from. @param {{ x: number, y: number, r: number }} s @param {boolean} [wide] */
+  const healSource = (s, wide) => findSource(s, geo, img, wide);
+  return { render, setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, healSource, auto, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }
