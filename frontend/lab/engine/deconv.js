@@ -64,6 +64,9 @@ const pipes = (/** @type {GPUDevice} */ device) => {
   return all;
 };
 
+/** Starts compiling the passes, so the first 100 % does not wait for them. */
+export const compile = pipes;
+
 /** Sharpens rectangles held in `raw` (the demosaic's result, two u32 a pixel), in place.
  * @param {GPUDevice} device @param {GPUBuffer} raw
  * @param {GPUBuffer[]} [spare] three buffers of at least a value a pixel that are free while this runs (the noise reduction's): saves making its own */

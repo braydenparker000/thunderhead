@@ -81,15 +81,20 @@ export function crisp(out, ow, amount) {
 /** How strong output sharpening is, by what the picture is for and how much was asked. */
 export const OUTPUT = /** @type {Record<string, Record<string, number>>} */ ({ Screen: { Low: 0.3, Standard: 0.5, High: 0.8 }, Print: { Low: 0.5, Standard: 0.8, High: 1.3 } });
 
-/** Develops the photo as it now looks on screen, at `long` pixels on its long edge (no larger than the sensor's).
+/** Develops the photo as it now looks on screen, once, for every file asked for: each at its own size (`long` pixels
+ * on its long edge, no larger than the sensor's), into its own writer. The photo is developed at full size a band at
+ * a time and each file takes the band down to its size, so two files cost one development, not two.
  * @param {NonNullable<Awaited<ReturnType<typeof import('./full.js').full>>>} big the photo's sensor pixels
- * @param {number} long @param {(w: number, h: number) => import('./files.js').Writer} open the file to write, given its size
- * @param {(done: number) => void} [progress] 0 to 1 @param {number} [sharpen] output sharpening's strength (`OUTPUT`; 0 for none) */
-export async function develop(big, long, open, progress, sharpen = 0) {
-  const sw = big.width, sh = big.height, f = Math.min(1, long / Math.max(sw, sh)), ow = Math.max(1, Math.round(sw * f)), oh = Math.max(1, Math.round(sh * f));
+ * @param {{ long: number, open: (w: number, h: number) => import('./files.js').Writer, sharpen?: number }[]} jobs each file: its size, its writer given
+ *   that size, and output sharpening's strength (`OUTPUT`; 0 or none for none) @param {(done: number) => void} [progress] 0 to 1 */
+export async function develop(big, jobs, progress) {
+  const sw = big.width, sh = big.height;
   const v = await big.view(Math.min(sw, TILE) + 2 * EDGE, BAND + 2 * EDGE, null, false, true);
   try {
-    const file = open(ow, oh), out = sharpen > 0 ? crisp(file, ow, sharpen) : file, push = reducer(sw, sh, ow, oh, out);
+    const outs = jobs.map((j) => {
+      const f = Math.min(1, j.long / Math.max(sw, sh)), ow = Math.max(1, Math.round(sw * f)), oh = Math.max(1, Math.round(sh * f)), file = j.open(ow, oh), out = (j.sharpen || 0) > 0 ? crisp(file, ow, j.sharpen || 0) : file;
+      return { ow, oh, out, push: reducer(sw, sh, ow, oh, out) };
+    });
     const [tw, th] = v.room().map((r) => Math.max(8, r - 2 * EDGE));
     for (let y = 0; y < sh; y += th) {
       const n = Math.min(th, sh - y), band = new Uint16Array(sw * n * 4);
@@ -97,9 +102,9 @@ export async function develop(big, long, open, progress, sharpen = 0) {
         const w = Math.min(tw, sw - x), at = await v.region(x - EDGE, y - EDGE, w + 2 * EDGE, n + 2 * EDGE), half = await v.halves();   // at the picture's edge it is drawn from further in
         for (let r = 0; r < n; r++) { const from = ((y - at.Y + r) * at.cw + x - at.X) * 4; band.set(half.subarray(from, from + w * 4), (r * sw + x) * 4); }
       }
-      await push(band, n);
+      for (const o of outs) await o.push(band, n);   // each file takes the band down to its own size (none keeps the band itself)
       progress?.((y + n) / sh);
     }
-    return { blob: await out.done(), width: ow, height: oh };
+    return Promise.all(outs.map(async (o) => ({ blob: await o.out.done(), width: o.ow, height: o.oh })));
   } finally { v.dispose(); }
 }

@@ -1,6 +1,6 @@
 // @ts-check
 // Export from the editor (docs/design/EDITOR.md): the open photo, as edited, developed from the sensor's own
-// pixels at the size asked for and saved to the phone's Downloads, once for each preset that is on.
+// pixels and saved to the phone's Downloads: one file for each preset that is on, all from one development.
 import { OUTPUT, develop } from '../../engine/export.js';
 import { block, carry, taken } from '../../engine/exif.js';
 import * as files from '../../engine/files.js';
@@ -20,22 +20,19 @@ function download(blob, name) {
   setTimeout(() => URL.revokeObjectURL(url), 120_000);
 }
 
-/** Saves the open photo for each preset, in turn. `progress` hears which one and how far along it is (0 to 1).
- * @param {Preset[]} presets @param {(k: number, done: number) => void} progress */
+/** Saves the open photo for each preset: developed once, each file taking its own size from it. `progress` hears how
+ * far along it is (0 to 1). @param {Preset[]} presets @param {(done: number) => void} progress */
 export async function save(presets, progress) {
   const p = photo.current(), big = photo.whole();
   if (!p || !big) throw new Error('The full-size photo is still loading. Try again in a moment.');
   const head = await store.jpegHead(p.id), saved = /** @type {{ file: string, width: number, height: number, bytes: number, blob: Blob }[]} */ ([]);
   await photo.alone(async () => {   // the engine to itself: no frame of the dial's between the bands
     await photo.settle();
-    for (const [k, x] of presets.entries()) {
-      const r = await develop(big, x.long, (w, h) => {
-        const kept = carry(head, x.meta, x.gps, w, h);
-        return x.fmt === 'JPEG' ? files.jpeg(w, h, x.q, photo.jpegBand, kept && block(kept)) : x.fmt === 'PNG' ? files.png(w, h, kept && block(kept)) : files.tiff(w, h, kept);
-      }, (d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(k, d); }, OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0);
-      download(r.blob, x.file);
-      saved.push({ file: x.file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob });
-    }
+    const made = await develop(big, presets.map((x) => ({ long: x.long, sharpen: OUTPUT[x.sharpen || '']?.[x.amt || 'Standard'] || 0, open: (w, h) => {
+      const kept = carry(head, x.meta, x.gps, w, h);
+      return x.fmt === 'JPEG' ? files.jpeg(w, h, x.q, photo.jpegBand, kept && block(kept)) : x.fmt === 'PNG' ? files.png(w, h, kept && block(kept)) : files.tiff(w, h, kept);
+    } })), (d) => { if (photo.whole() !== big) throw new Error('The photo was closed.'); progress(d); });
+    for (const [k, r] of made.entries()) { download(r.blob, presets[k].file); saved.push({ file: presets[k].file, width: r.width, height: r.height, bytes: r.blob.size, blob: r.blob }); }
   });
   return saved;
 }
