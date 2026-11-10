@@ -5,12 +5,12 @@
 // view matches the fitted photo and follows every control. Between the two the rectangle is laid out as the
 // picture (warp.js): demosaic.js makes the part of the sensor it draws on, which is a little more than itself. Only what is looked at is ever made: a screenful at
 // 100 %, or one band of an export.
-import { demosaicer, phaseOf } from './demosaic.js';
+import { compile as compileDemosaic, demosaicer, phaseOf } from './demosaic.js';
 import { USIZE, WGSL } from './wgsl.js';
 import { reach, warper } from './warp.js';
 import { finishPipe } from './finish.js';
-import { denoiser } from './denoise.js';
-import { sharpener } from './deconv.js';
+import { compile as compileNoise, denoiser } from './denoise.js';
+import { compile as compileSharp, sharpener } from './deconv.js';
 
 // the frame pass writing 16-bit floats, which every view uses (its last pass, finish.js, sharpens them): compiled
 // at the first view, kept with its device
@@ -29,6 +29,8 @@ export async function full(e, img, mosaic) {
   const { device, lut, views, bendP } = e.gpu, W = /** @type {number} */ (img.meta.fullWidth), H = /** @type {number} */ (img.meta.fullHeight), phase = phaseOf(img.meta);
   if (!phase || mosaic.length !== W * H || Math.max(W, H) > device.limits.maxTextureDimension2D) return null;
   const tex = device.createTexture({ size: [W, H], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
+  // the full-size passes compile now, behind the photo already on screen: the first zoom to 100 % then only has to draw
+  for (const p of [compileDemosaic(device), compileNoise(device), compileSharp(device), deepPipe(device), finishPipe(device, 'rgba8unorm')]) Promise.resolve(p).catch(() => {});
   const BAND = 1024;   // rows a step: 80 MB goes over without holding the page still
   for (let y = 0; y < H; y += BAND) {
     device.queue.writeTexture({ texture: tex, origin: [0, y] }, mosaic, { offset: y * W * 2, bytesPerRow: W * 2 }, [W, Math.min(BAND, H - y)]);

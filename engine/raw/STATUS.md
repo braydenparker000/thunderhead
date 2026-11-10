@@ -365,6 +365,10 @@ settings, the Library's filter), until the page is reloaded. The header's histog
 While the sensor's pixels are being made for a zoomed photo a dot beats on the zoom badge. The View board's
 header says how long the photo took to open and to turn sharp, and Export's message how long the save took
 (`session.js` `took`): the owner can read the phone's speed off the screen.
+The full-size passes (demosaic, noise, sharpening, the 16-bit frame pass, the last pass) start compiling as soon as
+a photo's sensor pixels are on the GPU, not at the first zoom: on the software GPU the first 100 % then turns sharp
+in about 3 s where it took 11. Saving develops the photo once for all its files (`export.js` `develop` takes the
+list), not once for each: Full and Small together cost one development.
 The header's Export key is blue on every board now (Edit's was, the others' were red).
 
 Check scripts (not in the repo) drive each board in headless Chromium on a landscape and a portrait RAF: the drum
@@ -416,7 +420,7 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   gradient-domain blend was not built: the measurement did not promise enough.
 - Cost, to check on the phone: while a rectangle is made the engine holds about 20 bytes a pixel more than this
   morning (demosaic 12, noise 8; sharpening works in the noise step's buffers), and a 100 % view runs about 45
-  passes where it ran 10. In headless Chromium saving the Full and Small files of a 40 MP photo takes about 13 minutes.
+  passes where it ran 10. In headless Chromium saving the Full and Small files of a 40 MP photo takes about 6 minutes.
 
 ## How to work here
 

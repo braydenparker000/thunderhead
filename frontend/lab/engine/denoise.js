@@ -119,6 +119,7 @@ const pipes = (/** @type {GPUDevice} */ device) => {
 
 /** Noise reduction for a demosaicer's rectangles: `run` adds its passes to a frame's commands and leaves the
  * result where it found the rectangle, in `raw`. @param {GPUDevice} device @param {GPUBuffer} raw the demosaic's result, two u32 a pixel */
+export const compile = pipes;   // starts compiling the passes, so the first 100 % does not wait for them
 export async function denoiser(device, raw) {
   const P = await pipes(device), buf = (/** @type {number} */ size, /** @type {number} */ usage) => device.createBuffer({ size, usage });
   const uni = buf(64, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST), other = buf(raw.size, GPUBufferUsage.STORAGE), y = [0, 1].map(() => buf(raw.size / 2, GPUBufferUsage.STORAGE));   // brightness before and after the first step

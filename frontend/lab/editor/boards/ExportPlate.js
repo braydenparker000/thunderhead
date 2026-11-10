@@ -61,7 +61,7 @@ export default class Component extends DCLogic {
       if (real) {
         const total = on.length * 12, began = performance.now();
         set({ done: false, saved: null, note: '', working: { k: 0, total } });
-        save(on.map((x) => ({ fmt: x.fmt, long: x.long, q: x.q, meta: x.meta, gps: x.gps, file: fileName(x), sharpen: x.sharpen, amt: x.amt })), (i, d) => this.setState({ working: { k: Math.min(total - 0.01, (i + d) * 12), total } }))
+        save(on.map((x) => ({ fmt: x.fmt, long: x.long, q: x.q, meta: x.meta, gps: x.gps, file: fileName(x), sharpen: x.sharpen, amt: x.amt })), (d) => this.setState({ working: { k: Math.min(total - 0.01, d * total), total } }))
           .then((saved) => { photo.took.save = (performance.now() - began) / 1000; this.setState({ working: null, done: true, saved }); }, (err) => this.setState({ working: null, done: true, note: String(err?.message || err) }));
         return;
       }
@@ -71,7 +71,6 @@ export default class Component extends DCLogic {
     };
     // the files just saved, for the phone's share sheet (where it takes files)
     const shares = real && S.saved ? S.saved.map((x) => new File([x.blob], x.file, { type: x.blob.type })) : [];
-    const cur = W ? on[Math.min(on.length - 1, Math.floor(W.k / 12))] : null;
     return {
       real: !!real, demo: !real, who: real ? `${stem0} · ${(photo.looks().find((l) => l.id === photo.look()) || {}).label || 'RAF'}${[...photo.LIVE].some((n) => photo.edited(n)) ? ' · edited' : ''}` : 'DSCF0412 · Classic Chrome · edited',
       working: !!W, donePct: W ? (W.k / W.total) * 100 : 0,
@@ -86,7 +85,7 @@ export default class Component extends DCLogic {
       dialTurn: (d) => { const patch = turned(d); if (patch) setP(patch); }, dialReset: () => setP(start[ctl]),
       faces: groups.map((g) => ({ label: g, count: 0 })), faceAt: gi, pickFace: (i) => set({ group: groups[i], ctl: defaultCtl[groups[i]] }),
       chips, rowAria: `${S.group} options`, rowSeed: gi + S.sel * 4, dialLeft: true,
-      saveLabel: W ? `SAVING ${cur ? cur.name.toUpperCase() : ''} · ${Math.round((W.k / W.total) * 100)}%` : on.length === 2 ? 'SAVE BOTH' : on.length ? `SAVE ${on[0].name.toUpperCase()}` : 'NOTHING ON', save: run, saveBg: on.length && !W ? '#2468d8' : '#3a3c3f',
+      saveLabel: W ? `SAVING · ${Math.round((W.k / W.total) * 100)}%` : on.length === 2 ? 'SAVE BOTH' : on.length ? `SAVE ${on[0].name.toUpperCase()}` : 'NOTHING ON', save: run, saveBg: on.length && !W ? '#2468d8' : '#3a3c3f',
     };
   }
 }

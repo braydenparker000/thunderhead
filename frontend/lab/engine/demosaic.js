@@ -211,6 +211,9 @@ function pipes(device) {
   return p;
 }
 
+/** Starts compiling the passes, so the first 100 % does not wait for them. @param {GPUDevice} device */
+export const compile = (device) => pipes(device);
+
 /** Makes rectangles of the photo at full resolution, each up to maxW × maxH sensor pixels. `run` adds the five
  * passes to a frame's commands (one rectangle a submit: its place is written when `run` is called); the result
  * is in `out`, rw pixels a row.
