@@ -27,21 +27,23 @@
     </div>
   </header>
 
-  <div style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(540px - var(--cut)); overflow: hidden; perspective: 900px">
-    <div style="position: absolute; left: {{boxL}}px; top: {{boxT}}px; width: {{boxW}}px; height: {{boxH}}px">
-      <img src="/lab/editor/assets/sample.jpg" alt="The photo being cropped" style="position: absolute; left: 50%; top: 50%; width: {{imgW}}px; height: {{imgH}}px; margin: {{imgMT}}px 0 0 {{imgML}}px; transform: {{imgTf}}; transition: transform {{imgTr}}; display: block">
-      <div style="position: absolute; left: {{cx}}px; top: {{cy}}px; width: {{cw}}px; height: {{ch}}px; box-shadow: 0 0 0 1px rgba(255,255,255,0.85), 0 0 0 2000px rgba(0,0,0,0.62); transition: {{cropTr}}">
-        <sc-for list="{{grid}}" as="g" hint-placeholder-count="4">
-          <span aria-hidden="true" style="position: absolute; left: {{g.l}}; top: {{g.t}}; width: {{g.w}}; height: {{g.h}}; background: rgba(255,255,255,{{g.a}})"></span>
-        </sc-for>
-        <sc-for list="{{handles}}" as="h" hint-placeholder-count="4">
-          <span role="button" aria-label="Drag the {{h.name}} corner" onPointerDown="{{h.down}}" onPointerMove="{{h.move}}" onPointerUp="{{h.up}}" onPointerCancel="{{h.up}}"
-                style="position: absolute; left: {{h.l}}; top: {{h.t}}; width: 44px; height: 44px; margin: -22px 0 0 -22px; touch-action: none; cursor: nwse-resize">
-            <span aria-hidden="true" style="position: absolute; left: {{h.il}}px; top: {{h.it}}px; width: 18px; height: 18px; border-style: solid; border-color: #fff; border-width: {{h.bw}}; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7))"></span>
-          </span>
-        </sc-for>
-      </div>
+  <div onPointerDown="{{sDown}}" onPointerMove="{{sMove}}" onPointerUp="{{sUp}}" onPointerCancel="{{sUp}}" style="position: absolute; top: 52px; left: 0; width: 412px; height: calc(540px - var(--cut)); overflow: hidden; touch-action: none">
+    <div style="position: absolute; left: {{boxL}}px; top: {{boxT}}px; width: {{boxW}}px; height: {{boxH}}px; transform-origin: 0 0; transform: {{viewTf}}; transition: transform {{viewTr}}; perspective: 900px; perspective-origin: 50% 50%">
+      <sc-if value="{{demo}}"><img src="/lab/editor/assets/sample.jpg" alt="The photo being cropped" style="position: absolute; left: 50%; top: 50%; width: {{imgW}}px; height: {{imgH}}px; margin: {{imgMT}}px 0 0 {{imgML}}px; transform: {{imgTf}}; transition: transform {{imgTr}}; display: block"></sc-if>
+          </div>
+    <div style="position: absolute; left: {{cx}}px; top: {{cy}}px; width: {{cw}}px; height: {{ch}}px; box-shadow: 0 0 0 1px rgba(255,255,255,0.85), 0 0 0 2000px rgba(0,0,0,0.62); transition: {{cropTr}}">
+      <sc-for list="{{grid}}" as="g" hint-placeholder-count="4">
+        <span aria-hidden="true" style="position: absolute; left: {{g.l}}; top: {{g.t}}; width: {{g.w}}; height: {{g.h}}; background: rgba(255,255,255,{{g.a}})"></span>
+      </sc-for>
+      <sc-for list="{{handles}}" as="h" hint-placeholder-count="8">
+        <span role="button" aria-label="Drag the {{h.name}}" onPointerDown="{{h.down}}" onPointerMove="{{h.move}}" onPointerUp="{{h.up}}" onPointerCancel="{{h.up}}"
+              style="position: absolute; left: {{h.l}}; top: {{h.t}}; width: 44px; height: 44px; margin: -22px 0 0 -22px; touch-action: none; cursor: {{h.cursor}}">
+          <sc-if value="{{h.corner}}"><span aria-hidden="true" style="position: absolute; left: {{h.il}}px; top: {{h.it}}px; width: 18px; height: 18px; border-style: solid; border-color: #fff; border-width: {{h.bw}}; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7))"></span></sc-if>
+          <span aria-hidden="true" style="position: absolute; left: {{h.bl}}px; top: {{h.bt}}px; width: {{h.bwid}}px; height: {{h.bhgt}}px; border-radius: 1.5px; background: #fff; opacity: {{h.bar}}; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.7))"></span>
+        </span>
+      </sc-for>
     </div>
+
     <span style="position: absolute; right: 12px; top: 10px; font-size: 11px; font-weight: 500; padding: 4px 9px; border-radius: 11px; background: rgba(0,0,0,0.6); font-variant-numeric: tabular-nums">{{dims}}</span>
   </div>
 
