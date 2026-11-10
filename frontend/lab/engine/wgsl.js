@@ -16,7 +16,7 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
   g: vec4f,      // highlights, shadows, whites, blacks (−1..1)
   k: vec4f,      // saturation, vibrance (−1..1), then where this frame's first pixel sits in the tone mask's photo (x, y)
   look2: vec4u,  // a look file's own table, after the profile's: dims h, s, v, offset
-  wb: vec4f,     // the white balance as gains on camera R, G, B (green 1)
+  wb: vec4f,     // the white balance as gains on camera R, G, B (green 1); then what the stored values are multiplied by (warp.js keeps room above them)
   chroma: vec4f };   // the highlight rebuild's colour offsets, white-balanced (raw's chroma() × wb)
 @group(0) @binding(0) var<storage, read> src: array<u32>;
 @group(0) @binding(1) var<uniform> p: P;
@@ -42,7 +42,7 @@ fn rebuild(raw: vec3f, bits: u32) -> vec3f {
 // one pixel of the editing copy: clipped colours rebuilt, then the camera matrix
 fn pixel(x: u32, y: u32) -> vec3f {
   let i = (y * p.size.x + x) * 2u; let rg = unpack2x16unorm(src[i]); let ba = unpack2x16unorm(src[i + 1u]);
-  var raw = vec3f(rg.x, rg.y, ba.x); let bits = (src[i + 1u] >> 16u) & 7u;   // alpha: which colours clipped
+  var raw = vec3f(rg.x, rg.y, ba.x) * p.wb.w; let bits = (src[i + 1u] >> 16u) & 7u;   // alpha: which colours clipped
   if (bits != 0u && (p.size.w & 512u) == 0u) { raw = rebuild(raw, bits); }
   return max(mv(p.m0, p.m1, p.m2, raw), vec3f(0.0));
 }`;

@@ -6,20 +6,21 @@
 import { engine, warm } from '../../engine/gpu.js';
 import { full } from '../../engine/full.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
+import { forget, pickAt } from './adjust.js';
 import * as hist from './past.js';
 import * as store from './store.js';
 
 /** Each adjustment's starting value (display units: EV, K, or −100..100). */
-const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0,
+export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0,
   Texture: 0, Clarity: 0, Dehaze: 0, Vignette: 0, Grain: 0, Sharpening: 40, Radius: 1, Detail: 25, Noise: 0, 'Color noise': 25, Distortion: 0, Vignetting: 0, Defringe: 0 });
 /** What the GPU applies today; the rest are kept with the edit and wait for their stage. */
-export const LIVE = new Set(['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Temp', 'Tint', 'Vibrance', 'Saturation']);
+export const LIVE = new Set(['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Temp', 'Tint', 'Vibrance', 'Saturation', 'Distortion', 'Vignetting']);
 export const WB = /** @type {Record<string, [number, number] | null>} */ ({ 'As shot': null, Daylight: [5500, 10], Cloudy: [6500, 10], Shade: [7500, 10], Tungsten: [2850, 0], Fluorescent: [3800, 21], Flash: [5500, 0] });
 const BASELINE_EV = 0.25;   // measured against the camera's JPEG (/lab/engine/'s colour check)
 
 export const events = new EventTarget();
-const changed = () => events.dispatchEvent(new Event('change'));
-const canvas = document.createElement('canvas'), img = document.createElement('img');
+export const changed = () => events.dispatchEvent(new Event('change'));
+export const canvas = document.createElement('canvas'), img = document.createElement('img');
 canvas.setAttribute('aria-label', 'The photo being edited'); img.alt = 'The photo being edited';
 for (const el of [canvas, img]) el.style.cssText = 'max-width: 100%; max-height: 100%; display: block';
 img.src = '/lab/editor/assets/sample.jpg';
@@ -29,9 +30,11 @@ export const hooks = { fill: /** @type {null | ((slot: HTMLElement, el: HTMLElem
 const fill = (/** @type {HTMLElement} */ s) => { const el = ready ? canvas : img; if (s.dataset.zoom !== undefined && hooks.fill) hooks.fill(s, el); else s.replaceChildren(el); };
 document.addEventListener('dc:keep', (e) => { const s = /** @type {HTMLElement} */ (/** @type {CustomEvent} */ (e).detail); if (s.dataset.keep === 'photo') fill(s); });
 
-let worker = /** @type {Worker | null} */ (null), eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
+let worker = /** @type {Worker | null} */ (null);
+export let eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
 /** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
-let cur = null;
+export let cur = null;
+let bent = '0,0';   // the Optics values the engine's geometry was last made with
 let list = /** @type {Awaited<ReturnType<typeof catalogue>>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
 // the sensor's own pixels, for 100 % and export (they follow the editing copy); the photo's history and versions;
 // a count that moves whenever the fitted photo is drawn anew
@@ -48,7 +51,7 @@ profilesFor('Fujifilm X-E5');
 
 const place = () => { const s = /** @type {HTMLElement | null} */ (document.querySelector('[data-keep="photo"]')); if (s) fill(s); };
 /** @param {string} status */
-const say = (status) => { if (cur) { cur.status = status; changed(); } };
+export const say = (status) => { if (cur) { cur.status = status; changed(); } };
 
 /** Opens a photo from the Library. @param {string} id */
 export async function open(id) {
@@ -56,7 +59,7 @@ export async function open(id) {
   if (!p || cur?.id === id) return;
   const edit = (await store.loadEdit(id)) || {};
   cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
-  ready = false; picking = false; before = null; canvas.style.cursor = ''; big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: { ...ZERO }, wb: 'As shot', profile: '' }, state()); img.src = await store.jpegUrl(id); place(); changed();
+  ready = false; bent = '0,0'; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: { ...ZERO }, wb: 'As shot', profile: '' }, state()); img.src = await store.jpegUrl(id); place(); changed();
   worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' });
   const buf = await store.raw(id), me = cur, tag = ++asked;
   let sensor = (/** @type {Uint16Array} */ m) => {};
@@ -96,7 +99,7 @@ function asShot() {
 }
 const chosen = () => list.find((e) => e.id === cur?.profile) || asShot();
 /** The shot's own white as the plate shows it: Temp to 50 K, Tint whole. */
-const shotWb = () => [Math.round((cur?.shotK || 5500) / 50) * 50, Math.round(cur?.shotTint || 0)];
+export const shotWb = () => [Math.round((cur?.shotK || 5500) / 50) * 50, Math.round(cur?.shotTint || 0)];
 function applyProfile(pick = chosen()) {
   if (!eng || !cur) return;
   eng.setProfile(pick);
@@ -108,11 +111,11 @@ function applyProfile(pick = chosen()) {
   white();
 }
 /** Temp and Tint are the photo's own (as Lightroom shows them); "As shot" is the camera's white exactly. */
-function white() {
+export function white() {
   if (eng && cur) eng.setWhite(cur.wb === 'As shot' ? null : { kelvin: cur.values.Temp, tint: cur.values.Tint });
 }
 /** After Temp or Tint moved by hand: back on the shot's own values is "As shot" again. */
-function custom() {
+export function custom() {
   if (!cur) return;
   const [k, t] = shotWb();
   cur.wb = cur.values.Temp === k && cur.values.Tint === t ? 'As shot' : 'Custom'; white();
@@ -121,10 +124,11 @@ function custom() {
 /** One render with the photo's values. @param {Parameters<NonNullable<typeof eng>['render']>[2]} [more] */
 function paint(more) {
   const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
+  if (bent !== `${v.Distortion},${v.Vignetting}`) { bent = `${v.Distortion},${v.Vignetting}`; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting') }); }   // Optics, by hand: the picture is laid out again
   return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), ...more });
 }
 /** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is */
-async function draw(fit = true) {
+export async function draw(fit = true) {
   if (!eng || !cur) return;
   if (drawing) { again = true; return; }
   drawing = true; if (fit) gen++;
@@ -187,7 +191,7 @@ export const shape = () => (ready ? [canvas.width * 3, canvas.height * 3] : img.
 export async function frame() { while (drawing) await sleep(8); await draw(false); }
 /** Saves the edit to this phone, shortly. Given a name, the change is first noted as a step of the photo's history
  * (past.js): `key` is the control, so one that keeps moving stays one step. @param {string} [key] @param {string} [name] @param {string} [val] */
-function save(key, name, val) {
+export function save(key, name, val) {
   clearTimeout(saveT);
   const me = cur, p = past;
   if (me && p && name !== undefined) hist.note(p, key || '', name, val || '', state());
@@ -209,78 +213,8 @@ export function version(i) { const v = versions()[i]; if (!cur || !v) return; pu
 export const jpeg = () => img.src;
 /** Whether a photo is open. */
 export const current = () => cur;
-/** @param {string} name */
-export const value = (name) => cur?.values[name] ?? ZERO[name] ?? 0;
-/** The value as the plate shows it. @param {string} name */
-export function text(name) {
-  const v = value(name), sign = (/** @type {number} */ x) => (x > 0 ? '+' : x < 0 ? '−' : '');
-  if (name === 'Exposure') return `${sign(v)}${Math.abs(v).toFixed(2)}`;
-  if (name === 'Temp') return Math.round(v).toLocaleString('en-US');
-  if (name === 'Radius') return v.toFixed(1);
-  return `${sign(v)}${Math.abs(Math.round(v))}`;
-}
-/** The dial's position for a value (its window runs −5..5). @param {string} name */
-export function toDial(name) {
-  const v = value(name);
-  if (name === 'Exposure') return v;
-  if (name === 'Temp') return cur ? Math.log2(v / cur.shotK) / 0.25 : 0;
-  if (name === 'Tint') return (v - shotWb()[1]) / 30;
-  return v / 20;
-}
-/** The dial turned to `d`. @param {string} name @param {number} d */
-export function turn(name, d) {
-  if (!cur) return;
-  const v = name === 'Exposure' ? Math.round(d * 100) / 100 : name === 'Temp' ? Math.round((cur.shotK * 2 ** (d * 0.25)) / 50) * 50 : name === 'Tint' ? shotWb()[1] + Math.round(d * 30) : Math.round(d * 20);
-  if (cur.values[name] === v) return;
-  cur.values[name] = v;
-  if (name === 'Temp' || name === 'Tint') custom();
-  changed(); draw(); save(name, name, text(name));
-}
-/** Where an adjustment starts for this photo. @param {string} name */
-const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : ZERO[name] ?? 0);
-/** Whether an adjustment has moved from where the photo started. @param {string} name */
-export const edited = (name) => !!cur && cur.values[name] !== start(name);
-/** @param {string} name */
-export function reset(name) {
-  if (!cur) return;
-  cur.values[name] = start(name);
-  if (name === 'Temp' || name === 'Tint') custom();
-  changed(); draw(); save(name, name, text(name));
-}
-let before = /** @type {Record<string, number> | null} */ (null);
-/** Auto for the Light controls, read from the photo (engine/auto.js). A second press, with none of them moved
- * since, puts back what was there. */
-export function auto() {
-  if (!eng || !cur) return;
-  const v = cur.values, a = /** @type {Record<string, number>} */ (eng.auto(cur.shotEv)), names = Object.keys(a), on = !!before && names.every((k) => v[k] === a[k]);
-  const was = Object.fromEntries(names.map((k) => [k, v[k]])), me = cur, note = on ? 'Auto off' : 'Auto: tap again to undo';
-  Object.assign(v, on ? before : a); before = on ? null : was;
-  say(note); setTimeout(() => { if (cur === me && me.status === note) say(''); }, 2500); draw(); save('', on ? 'Auto off' : 'Auto', '');
-}
-/** A white balance preset from the plate's menu. @param {string} name */
-export function setWb(name) {
-  if (!cur || !(name in WB)) return;
-  pickWhite(false); cur.wb = name; [cur.values.Temp, cur.values.Tint] = WB[name] || shotWb();
-  white(); changed(); draw(); save('wb', 'White balance', name);
-}
-let picking = false;
-/** The eyedropper: armed, the next tap on the photo makes what is under it neutral. Tapping its key again
- * puts it away. @param {boolean} [on] */
-export function pickWhite(on = !picking) {
-  if (!eng || !cur || on === picking) return;
-  picking = on; canvas.style.cursor = on ? 'crosshair' : '';
-  say(on ? 'Tap something white or grey' : '');
-}
-canvas.addEventListener('click', (e) => {
-  if (!picking || !eng || !cur) return;
-  const w = eng.whiteAt(e.offsetX / canvas.clientWidth, e.offsetY / canvas.clientHeight);
-  if (!w) { say('Too bright there: tap somewhere else'); return; }
-  picking = false; canvas.style.cursor = ''; cur.status = '';
-  cur.values.Temp = Math.round(Math.min(15000, Math.max(2000, w.kelvin)) / 50) * 50; cur.values.Tint = Math.round(w.tint);
-  custom(); changed(); draw(); save('', 'White balance', 'Picked');
-});
-/** The Temp a preset stands for, for the menu. @param {string} name */
-export const wbKelvin = (name) => (WB[name] || shotWb())[0];
+export * from './adjust.js';
+canvas.addEventListener('click', (e) => pickAt(e.offsetX / canvas.clientWidth, e.offsetY / canvas.clientHeight));
 
 /* Looks: the camera profiles on this phone, each drawn small from this photo for its tile. */
 /** The looks for the open photo, with the one it was shot with first marked. */

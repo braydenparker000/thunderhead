@@ -17,6 +17,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Decode on every core, 3×3-binned editing copy, the sensor's own pixels for full size | `engine/raw`, `frontend/lab/engine/decode-worker.js` |
 | Colour: Adobe camera profiles and looks (the owner's private zip, in IndexedDB; never commit or serve them) | `dcp.js`, `gpu.js`, `profiles.js` |
 | Light and Color sliders, white balance presets, eyedropper, Auto tone, Reset | `wgsl.js`, `mask.js`, `auto.js`, `editor/app/session.js` |
+| Geometry: one pass lays the photo out as the picture; the lens's own corrections (distortion, fringing, darkened corners) from the RAF; Distortion and Vignetting by hand | `warp.js`, `lens.js` |
 | Full size: X-Trans demosaic (vkdt's) of the rectangle looked at, developed by the same frame pass | `demosaic.js`, `full.js` |
 | Zoom on the Edit and View screens: free pinch from fitted to 300 %, drag, double-tap for 100 %; the percentage and a map while zoomed | `editor/app/zoom.js` (any slot marked `data-zoom`) |
 | Undo and history (every step keeps the whole edit), versions, saved with the edit | `editor/app/past.js`, `session.js` |
@@ -41,7 +42,32 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Step 1 is done (plan row 1). Next: step 2
+## Steps 1 and 2a are done. Next: step 2b (the Crop board)
+
+How geometry works (step 2a), for whoever touches it:
+
+- `warp.js` runs once whenever the geometry changes, never per frame: it writes `flat`, a copy of the photo
+  already laid out as the picture (upright, lens faults undone), in the editing copy's packed form. The frame
+  pass, the tone mask and the 3D table are unchanged and read `flat` one pixel for one.
+- From a picture point back to the sensor: crop centre and straighten angle, the perspective's 3 × 3, flips,
+  quarter turns, then the lens table (`lens.js`) once for each colour. `toSensor()` is the same maths in JS;
+  `reach()` gives the sensor rectangle a rectangle of the picture draws on.
+- The uniform and the shader already carry crop, angle, perspective and flips; `geometry()` still fills them
+  with "none". Step 2b sets them, and must then resize `flat`, `out`, the canvas and the tone mask (they are
+  made once per photo at the uncropped size today), and tell `full.js` the picture's new size.
+- Lens data: a RAF's raw directory 0xf000 holds 0xf00b (distortion), 0xf00f (fringing), 0xf010 (brightness);
+  the method is darktable's "embedded metadata" correction. Checked against the camera's JPEG on an 18 mm
+  shot: patches were off by a mean of 4.3 px (of 1288) without it, about 0.5 with.
+- Corner gain can exceed 1, so `flat` is stored divided by the largest gain and the frame pass multiplies it
+  back (`wb.w`).
+- A full-size view draws on more of the sensor than itself: its demosaic buffer is a quarter larger each way.
+  A strong straighten will need more than that (grow it in 2b).
+- Export develops each band in tiles of 2048, so a straightened band doesn't draw on a huge sensor rectangle.
+- Not handled: Fuji's 1.25× crop modes (darktable scales the table by 1.25 for them).
+
+Step 2b, the Crop board (`boards/CropPlate.js` is still the design's sample): crop with aspect, straighten
+(±45°, Auto), quarter turns and flips, perspective (Vertical, Horizontal, Scale, Upright). Draw the editing
+copy with `fine = false` (two-tap, no fringing pass) while a control moves, fine at rest.
 
 How zoom works, for whoever touches it:
 
@@ -74,8 +100,9 @@ and versions, and a reload. Sample pages `/lab/editor/viewing/` and `/lab/editor
 - Merge PRs as merge commits. Check `/release.json` and the served files before saying something is live.
 - Headless: Chromium with `--enable-unsafe-webgpu --use-webgpu-adapter=swiftshader`, the page with `?readback`.
   Its timings mean nothing; the phone is the instrument. Public sample RAFs (raw.pixls.us) are not in the repo.
-- Every source file stays under 300 lines. `editor/app/session.js` is at 295: split it (the adjustments, lines
-  "value" to "wbKelvin", are the natural half) before step 2 adds to it.
+- Every source file stays under 300 lines. The dial's adjustments live in `editor/app/adjust.js`; `session.js`
+  hands them on as its own (a deliberate import cycle: `adjust.js` must not use anything of `session.js` at its
+  top level).
 - Port methods plainly from open work (darktable, RawTherapee, vkdt); the fine tuning waits for the owner's eye.
 
 ## Traps met

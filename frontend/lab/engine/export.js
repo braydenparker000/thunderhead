@@ -2,7 +2,7 @@
 // Export: the whole photo developed from the sensor's own pixels, a band at a time (full.js), brought to the
 // size asked for by averaging in linear light, and handed to a file's writer (files.js) as it comes.
 
-const BAND = 256;   // sensor rows a step: as much as a screenful at 100 %
+const BAND = 256, TILE = 2048;   // the picture's rows a step, and how wide a piece of them is developed at once
 const decode = (/** @type {number} */ s) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4);
 const encode = (/** @type {number} */ v) => (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055);
 // A half float's bits to its value held to 0..1: as 16 bits (SAME), and as light (LIGHT). ENC turns light back
@@ -52,12 +52,16 @@ function reducer(sw, sh, ow, oh, out) {
  * @param {(done: number) => void} [progress] 0 to 1 */
 export async function develop(big, long, open, progress) {
   const sw = big.width, sh = big.height, f = Math.min(1, long / Math.max(sw, sh)), ow = Math.max(1, Math.round(sw * f)), oh = Math.max(1, Math.round(sh * f));
-  const v = await big.view(sw, BAND, null, false, true);
+  const v = await big.view(Math.min(sw, TILE), BAND, null, false, true);
   try {
     const out = open(ow, oh), push = reducer(sw, sh, ow, oh, out);
     for (let y = 0; y < sh; y += BAND) {
-      const n = Math.min(BAND, sh - y), at = await v.region(0, y, sw, n), half = await v.halves();   // a last band under 8 rows is drawn from higher up
-      await push(half.subarray((y - at.Y) * sw * 4), n);
+      const n = Math.min(BAND, sh - y), band = new Uint16Array(sw * n * 4);
+      for (let x = 0; x < sw; x += TILE) {   // a tile at a time: a straightened band draws on far more of the sensor than a tile of it does
+        const w = Math.min(TILE, sw - x), at = await v.region(x, y, w, n), half = await v.halves();   // a tile under 8 pixels is drawn from further back
+        for (let r = 0; r < n; r++) { const from = ((y - at.Y + r) * at.cw + x - at.X) * 4; band.set(half.subarray(from, from + w * 4), (r * sw + x) * 4); }
+      }
+      await push(band, n);
       progress?.((y + n) / sh);
     }
     return { blob: await out.done(), width: ow, height: oh };
