@@ -7,7 +7,8 @@
 // → a look's RGB table (Adobe RGB, γ 2.2) → sRGB on screen, turned upright. Without a profile it falls back to
 // the camera matrix and a filmic curve. Before all of it, colours the sensor clipped are rebuilt (wgsl.js), and
 // before that the photo is laid out as the picture: the lens's faults undone, cropped, upright (warp.js).
-import { N, WGSL } from './wgsl.js';
+import { N, USIZE, WGSL } from './wgsl.js';
+import { fromMask, localRows, through, toMask, toneOf } from './local.js';
 import { maskPipes, masks } from './mask.js';
 import { airOf } from './haze.js';
 import { noiseAt } from './noise.js';
@@ -73,7 +74,7 @@ export async function engine(canvas, img, readback = false) {
   const t0 = performance.now();
   const src = device.createBuffer({ size: img.proxy.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   device.queue.writeBuffer(src, 0, img.proxy.buffer, img.proxy.byteOffset, img.proxy.byteLength);
-  const uni = device.createBuffer({ size: 2672, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const uni = device.createBuffer({ size: USIZE, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   // The photo laid out as the picture (warp.js) is what the tone mask and every frame read. It, the frame's
   // output, the canvas and the mask are the picture's size, so a crop makes them anew (`lay`).
   let geo = geometry(img.meta), bent = false, fine = true, ow = 0, oh = 0, row = 0;
@@ -99,7 +100,7 @@ export async function engine(canvas, img, readback = false) {
   let tab = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE }), bind = /** @type {GPUBindGroup | null} */ (null), bakeBind = /** @type {GPUBindGroup | null} */ (null), baked = '', masked = '', fined = '', hazed = '', air = [1, 1, 1], airFor = /** @type {number[] | null} */ (null), state = { m: /** @type {number[]} */ ([]), u: tables(null, 1).u, kelvin: 0, wb: [1, 1, 1], chroma: [0, 0, 0] };
   /** Full-resolution views (full.js): each adds its own frame pass to a render. @type {{ bind: (tab: GPUBuffer) => void, bent: () => void, frame: (enc: GPUCommandEncoder, u: ArrayBuffer) => void, after: () => Promise<void> }[]} */
   const views = [];
-  let lastU = new ArrayBuffer(2672);   // the last shown frame's settings
+  let lastU = new ArrayBuffer(USIZE);   // the last shown frame's settings
   const last = { baked: false, masked: false };   // whether the last render re-made the colour table, and the tone mask (the test page's timing lines)
   /** @param {null | { profile?: import('./dcp.js').Profile, table?: any, cube?: import('./cube.js').Cube | null }} pick */
   const setProfile = (pick) => {
@@ -131,8 +132,19 @@ export async function engine(canvas, img, readback = false) {
     const n = neutralAt(img, x, y);
     return n && whiteOf(/** @type {any} */ (picked?.profile || fallback), n);
   };
+  /** Masks (local.js): a place in the picture as shown (0..1 across and down) in mask units, and back; and what a
+   * range mask picks up there (lightness, then colour), read at `base` stops. @param {number} u @param {number} v */
+  const maskPoint = (u, v) => through(toMask(geo), u, v);
+  const shownPoint = (/** @type {number} */ x, /** @type {number} */ y) => through(fromMask(geo), x, y);
+  const toneAt = (/** @type {number} */ u, /** @type {number} */ v, /** @type {number} */ base) => {
+    const [sx, sy] = toSensor(geo, u * ow * cell, v * oh * cell), x0 = Math.round(sx / cell), y0 = Math.round(sy / cell), s = [0, 0, 0], d = img.proxy; let got = 0;
+    for (let y = Math.max(0, y0 - 5); y <= Math.min(h - 1, y0 + 5); y++) for (let x = Math.max(0, x0 - 5); x <= Math.min(w - 1, x0 + 5); x++) { const i = (y * w + x) * 4; s[0] += d[i]; s[1] += d[i + 1]; s[2] += d[i + 2]; got++; }
+    if (!got) return null;
+    const k = 2 ** (base + state.u.offset) / 65535 / got, m = state.m;
+    return toneOf([0, 3, 6].map((o) => Math.max(0, m[o] * s[0] + m[o + 1] * s[1] + m[o + 2] * s[2]) * k));
+  };
   /** @param {number} ev @param {number} contrast
-   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, clarity?: number, texture?: number, dehaze?: number, sharpen?: number, radius?: number, detail?: number, noise?: number, colorNoise?: number, vignette?: number, grain?: number, cube?: number, mixer?: Float32Array | null, grade?: Float32Array | null, curve?: Float32Array | null, amount?: number, screen?: boolean, fit?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
+   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, clarity?: number, texture?: number, dehaze?: number, sharpen?: number, radius?: number, detail?: number, noise?: number, colorNoise?: number, vignette?: number, grain?: number, cube?: number, masks?: import('./local.js').Mask[] | null, showMaskNo?: number, baseEv?: number, mixer?: Float32Array | null, grade?: Float32Array | null, curve?: Float32Array | null, amount?: number, screen?: boolean, fit?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
    * each −1..1; amount: the look table's strength (1 = as made); screen: false renders without showing it; fit: false leaves the
    * fitted photo as it is and re-makes only the full-resolution views (100 %); exact: every
    * pixel through the full maths, not the table (slow: the table's accuracy check); rebuild: false leaves clipped
@@ -140,7 +152,7 @@ export async function engine(canvas, img, readback = false) {
    * Shadows by each pixel's own brightness, not its area's; showMask draws the tone mask (all four for comparing);
    * time, for the stage timer: 'bare' does no colour work at all, 'nearest' reads the table without mixing its entries */
   const render = async (ev, contrast, more = {}) => {
-    const t = performance.now(), u = new ArrayBuffer(2672), f = new Float32Array(u), n = new Uint32Array(u);
+    const t = performance.now(), u = new ArrayBuffer(USIZE), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, more.amount ?? 1, 1]);
     n.set([ow, oh, state.u.cube, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
@@ -151,6 +163,8 @@ export async function engine(canvas, img, readback = false) {
     if (more.mixer) { f.set(more.mixer, 104); n[55] |= 32768; }
     if (more.grade) { f.set(more.grade, 136); n[55] |= 65536; }
     if (more.curve) { f.set(more.curve, 156); n[55] |= 131072; }
+    const lo = localRows(more.masks, geo, more.showMaskNo ?? -1, (more.baseEv ?? ev) + state.u.offset);   // the masks: laid on in the frame pass, not the table
+    if (lo) f.set(lo, 668);
     const key = [contrast, more.amount ?? 1, ...g.slice(2), more.cube ?? 1, more.mixer?.join(), more.grade?.join(), more.curve?.join()].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();
@@ -207,5 +221,5 @@ export async function engine(canvas, img, readback = false) {
   const auto = (ev) => autoTone(img, state.m, ev + state.u.offset);
   /** What full.js builds on. */
   const base = { device, pipe, bendP, lut, get mask() { return mask.tone.view; }, get fine() { return mask.fine.view; }, get haze() { return mask.haze.view; }, views, tab: () => tab, settings: () => lastU, geo: () => geo, noise: noiseAt(img.meta.iso || 200) };
-  return { render, setProfile, setWhite, setGeometry, shotWhite, whiteAt, auto, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
+  return { render, setProfile, setWhite, setGeometry, shotWhite, whiteAt, maskPoint, shownPoint, toneAt, auto, snapshot, dispose, last, gpu: base, uploadMs, adapter: adapter.info?.description || adapter.info?.architecture || adapter.info?.vendor || 'GPU', keep: [adapter, device] };
 }

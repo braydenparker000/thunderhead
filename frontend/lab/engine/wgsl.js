@@ -2,6 +2,10 @@
 // The GPU stage's shaders (gpu.js runs them): one pass per frame, and the pass that bakes the colour table.
 /** The colour table's points per axis. */
 import { TOOLS } from './grade.js';
+import { LOCAL } from './local.js';
+
+/** The frame's settings in bytes (struct P below). */
+export const USIZE = 3632;
 
 export const N = 65;
 /** Editing-copy pixels per cell of the tone mask, each way (mask.js). */
@@ -28,7 +32,8 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
                  // (denoise.js); then the picture's size in editing-copy pixels
   mx: array<vec4f, 8>,     // the colour mixer: hue, saturation and brightness for each of its eight colours (grade.js)
   gr: array<vec4f, 5>,     // colour grading: a tint and stops for shadows, midtones, highlights and the whole; then blending, balance
-  crv: array<vec4f, 128> };   // the point curve: all three channels', then red's, green's, blue's, at 128 steps
+  crv: array<vec4f, 128>,  // the point curve: all three channels', then red's, green's, blue's, at 128 steps
+  mh: array<vec4f, 3>, mi: vec4f, mk: array<vec4f, 56> };   // masks (local.js): the 3 × 3 from the picture to mask units · how many, the one shown, the stops range masks read at · seven rows a mask
 @group(0) @binding(0) var<storage, read> src: array<u32>;
 @group(0) @binding(1) var<uniform> p: P;
 const CELL = ${CELL}u;
@@ -150,16 +155,16 @@ fn tab(c: vec3f) -> vec3f {
 const WHITE = 2.474;   // stops from middle grey to white: log2(1 / 0.18)
 const BLACK = 8.0;     // stops from middle grey to what counts as black
 fn bend(u: f32, a: f32) -> f32 { return select(a * u / (1.0 + (a - 1.0) * u), 1.0 + (u - 1.0) / a, u > 1.0); }
-fn shade(v: f32) -> f32 {
+fn shade(v: f32, con: f32, wh: f32, bl: f32) -> f32 {
   let x = log2(max(v, 1e-9) / 0.18);
-  if (x >= 0.0) { let w = WHITE - p.g.z; return 0.18 * exp2(WHITE * bend(x / w, p.f.y * w / WHITE)); }
-  let b = BLACK + 4.0 * p.g.w; return 0.18 * exp2(-BLACK * bend(-x / b, p.f.y * b / BLACK));
+  if (x >= 0.0) { let w = WHITE - wh; return 0.18 * exp2(WHITE * bend(x / w, con * w / WHITE)); }
+  let b = BLACK + 4.0 * bl; return 0.18 * exp2(-BLACK * bend(-x / b, con * b / BLACK));
 }
 // The curve goes on as the profile's own does (tone()): on the largest and smallest channel, the middle one
 // keeping its place between them. Hue stays, and colour strengthens with contrast, as it does in Lightroom.
-fn tones(c0: vec3f) -> vec3f {
+fn tones(c0: vec3f, con: f32, wh: f32, bl: f32) -> vec3f {
   let c = max(c0, vec3f(0.0)); let mx = max(c.r, max(c.g, c.b)); let mn = min(c.r, min(c.g, c.b));
-  let tx = shade(mx); let tn = shade(mn); let k = select((tx - tn) / (mx - mn), 0.0, mx - mn <= 1e-7 * mx);
+  let tx = shade(mx, con, wh, bl); let tn = shade(mn, con, wh, bl); let k = select((tx - tn) / (mx - mn), 0.0, mx - mn <= 1e-7 * mx);
   return vec3f(tn) + (c - vec3f(mn)) * k;
 }
 // Saturation and Vibrance, in Oklab (Björn Ottosson's): the colour is made stronger or weaker about its own
@@ -204,7 +209,7 @@ ${TOOLS}
 fn develop(c0: vec3f) -> vec3f {
   var c = c0; let fl = p.size.w;
   if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
-  if (p.f.y != 1.0 || p.g.z != 0.0 || p.g.w != 0.0) { c = tones(c); }
+  if (p.f.y != 1.0 || p.g.z != 0.0 || p.g.w != 0.0) { c = tones(c, p.f.y, p.g.z, p.g.w); }
   if (p.k.x != 0.0 || p.k.y != 0.0) { c = vivid(c); }
   if ((fl & 32768u) != 0u) { c = mixer(c); }
   if ((fl & 65536u) != 0u) { c = grade(c); }
@@ -238,46 +243,47 @@ fn area(at: vec2u, l: f32) -> f32 { return areaOf(mask, f32(CELL), at, l); }
 // Shadows: below it, in full from 4 stops down, easing back to half in the deepest blacks (lifting those shows
 // noise, not detail). Recovering (darker highlights, lighter shadows) reaches 2 stops, the other way 1. The
 // slope stays above −1 a stop, so a brighter area never comes out darker than a dimmer one.
-fn relight(x: f32) -> f32 {
-  return p.g.x * select(2.0, 1.0, p.g.x > 0.0) * smoothstep(0.0, 3.5, x)
-    + p.g.y * select(1.0, 2.0, p.g.y > 0.0) * smoothstep(0.0, 4.0, -x) * (1.0 - 0.5 * smoothstep(6.0, 10.0, -x));
+fn relight(x: f32, hi: f32, sh: f32) -> f32 {
+  return hi * select(2.0, 1.0, hi > 0.0) * smoothstep(0.0, 3.5, x)
+    + sh * select(1.0, 2.0, sh > 0.0) * smoothstep(0.0, 4.0, -x) * (1.0 - 0.5 * smoothstep(6.0, 10.0, -x));
 }
+${LOCAL}
 @compute @workgroup_size(8, 8)
 fn main(@builtin(global_invocation_id) id: vec3u) {
   let w = p.size.x; let h = p.size.y; let fl = p.size.w;
   if (id.x >= w || id.y >= h) { return; }
   var c = pixel(id.x, id.y);
   let l = log2(max(dot(c, LUM), FLOOR));
+  let spot = ((vec2f(id.xy) + 0.5) * p.f.w + p.k.zw) / max(p.noise.zw, vec2f(1.0));   // 0..1 across the picture
+  // what the masks add here to the photo's own exposure, highlights and shadows, and clarity, texture, dehaze
+  var ev = p.f.x; var hi = p.g.x; var sh = p.g.y; var fx = p.fx.xyz; var lo = Local(vec4f(0.0), vec4f(0.0), vec3f(0.0), vec3f(0.0), 0.0);
+  if (p.mi.x > 0.0) { lo = locals(spot, c); ev += lo.a.x; hi += lo.a.z; sh += lo.a.w; fx = clamp(fx + lo.fx, vec3f(-1.0), vec3f(1.0)); c = c * exp2(lo.wb); }
   // Dehaze: an area holding a share d of the air's light lets 1 − d of the scene through; take the air's part out
   // and scale what is left back up. Less than none lays the air's colour over everything instead.
-  if (p.fx.z > 0.0) { let t = max(1.0 - 0.65 * p.fx.z * clamp(areaOf(haze, f32(CELL), id.xy, l), 0.0, 1.0), 0.15); c = max((c - p.air.rgb * (1.0 - t)) / t, vec3f(0.0)); }
-  else if (p.fx.z < 0.0) { c = mix(c, p.air.rgb, -0.2 * p.fx.z); }
+  if (fx.z > 0.0) { let t = max(1.0 - 0.65 * fx.z * clamp(areaOf(haze, f32(CELL), id.xy, l), 0.0, 1.0), 0.15); c = max((c - p.air.rgb * (1.0 - t)) / t, vec3f(0.0)); }
+  else if (fx.z < 0.0) { c = mix(c, p.air.rgb, -0.2 * fx.z); }
   if ((fl & 1u) != 0u && p.hsm.z > 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
-  c = c * exp2(p.f.x);
-  if (p.g.x != 0.0 || p.g.y != 0.0 || p.fx.x != 0.0 || (fl & 4096u) != 0u) {
-    var m = l + p.f.x;
-    if ((fl & 2048u) == 0u) { m = area(id.xy, l) + p.f.x; }
+  c = c * exp2(ev);
+  if (hi != 0.0 || sh != 0.0 || fx.x != 0.0 || (fl & 4096u) != 0u) {
+    var m = l + ev;
+    if ((fl & 2048u) == 0u) { m = area(id.xy, l) + ev; }
     // Clarity: what the pixel adds to its area's brightness, in stops, made more or less; eased off in areas near black or white
-    let local = p.fx.x * select(0.6, 0.8, p.fx.x > 0.0) * (l + p.f.x - m) * (1.0 - smoothstep(3.0, 6.0, abs(m - log2(0.18))));
-    if ((fl & 4096u) != 0u) { c = vec3f(exp2(m)); } else { c = c * exp2(relight(m - log2(0.18)) + local); }
+    let local = fx.x * select(0.6, 0.8, fx.x > 0.0) * (l + ev - m) * (1.0 - smoothstep(3.0, 6.0, abs(m - log2(0.18))));
+    if ((fl & 4096u) != 0u) { c = vec3f(exp2(m)); } else { c = c * exp2(relight(m - log2(0.18), hi, sh) + local); }
   }
   // Texture: the same against the finer mask, so it is the small detail that moves
-  if (p.fx.y != 0.0) { c = c * exp2(p.fx.y * select(0.7, 0.9, p.fx.y > 0.0) * (l - areaOf(fine, 4.0, id.xy, l))); }
+  if (fx.y != 0.0) { c = c * exp2(fx.y * select(0.7, 0.9, fx.y > 0.0) * (l - areaOf(fine, 4.0, id.xy, l))); }
+  // the masks' own contrast, whites and blacks (the photo's curve, laid on here alone), then their saturation and hue
+  if (lo.a.y != 0.0 || lo.b.x != 0.0 || lo.b.y != 0.0) { c = tones(c, exp2(lo.a.y), lo.b.x, lo.b.y); }
+  if (lo.b.z != 0.0 || lo.b.w != 0.0) { c = tinted(c, lo.b.z, lo.b.w); }
   // Vignette, after the crop: the picture's corners darker or lighter by up to 2 stops, easing in from near its middle
-  let spot = ((vec2f(id.xy) + 0.5) * p.f.w + p.k.zw) / max(p.noise.zw, vec2f(1.0));   // 0..1 across the picture
   if (p.fx.w != 0.0) { let d = (spot - 0.5) * 2.0; c = c * exp2(p.fx.w * 2.0 * smoothstep(0.1, 1.1, 0.5 * dot(d, d))); }
   var o = c;
   if ((fl & 16384u) == 0u) {
     if ((fl & 64u) != 0u) { o = develop(c); } else if ((fl & 8192u) != 0u) { o = at(vec3u(shape(c) * f32(N - 1u) + 0.5)); } else { o = lookup(c); }
   }
-  // Grain: a speck for each 1.5 sensor pixels, so it keeps its size at any zoom; strongest in the mid-tones. The
-  // editing copy, a third of the size, shows it fainter, as it would average out
-  if (p.sharp.w > 0.0) {
-    let g = vec2u(spot * p.noise.zw * 2.0);
-    var s = g.x * 2246822519u + g.y * 3266489917u + 374761393u; s = (s ^ (s >> 15u)) * 2246822519u; s = (s ^ (s >> 13u)) * 3266489917u; s = s ^ (s >> 16u);
-    let lum = dot(o, vec3f(0.2126, 0.7152, 0.0722));
-    o = o + ((f32(s & 0xffffu) + f32(s >> 16u)) / 65536.0 - 1.0) * p.sharp.w * 0.10 * sqrt(max(4.0 * lum * (1.0 - lum), 0.0)) * select(1.0, 0.45, p.f.w >= 1.0);
-  }
+  o = mix(o, vec3f(0.91, 0.13, 0.16), 0.55 * lo.show);   // the mask being worked on, in red
+  if (p.sharp.w > 0.0) { o = grain(o, spot); }
   let at = id.xy;
   if ((fl & 1024u) == 0u) { o = dither(o, at); }
   textureStore(dst, vec2i(at), vec4f(o, 1.0));
