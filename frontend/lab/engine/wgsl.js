@@ -20,7 +20,8 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
   chroma: vec4f, // the highlight rebuild's colour offsets, white-balanced (raw's chroma() × wb)
   fx: vec4f,     // clarity, texture, dehaze (−1..1)
   air: vec4f,    // the haze's own colour, for Dehaze (haze.js)
-  sharp: vec4f };   // sharpening's amount, radius in pixels and detail (0..1): used by full-size views alone (finish.js)
+  sharp: vec4f,  // sharpening's amount, radius in pixels and detail (0..1): used by full-size views alone (finish.js)
+  noise: vec4f };   // noise reduction, in multiples of the sensor's noise: brightness, colour (0: off); full-size views alone (denoise.js)
 @group(0) @binding(0) var<storage, read> src: array<u32>;
 @group(0) @binding(1) var<uniform> p: P;
 const CELL = ${CELL}u;

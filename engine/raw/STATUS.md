@@ -18,7 +18,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Colour: Adobe camera profiles and looks (the owner's private zip, in IndexedDB; never commit or serve them) | `dcp.js`, `gpu.js`, `profiles.js` |
 | Light and Color sliders, white balance presets, eyedropper, Auto tone, Reset | `wgsl.js`, `mask.js`, `auto.js`, `editor/app/session.js` |
 | Geometry: one pass lays the photo out as the picture; the lens's own corrections (distortion, fringing, darkened corners) from the RAF; Distortion and Vignetting by hand | `warp.js`, `lens.js` |
-| Sharpening (Amount, Radius, Detail) on the sensor's own pixels: 100 % and export | `finish.js`, `full.js` |
+| Sharpening (Amount, Radius, Detail) and noise reduction (Noise, Color noise) on the sensor's own pixels: 100 % and export | `finish.js`, `denoise.js`, `noise.js`, `full.js` |
 | Effects: Clarity, Texture, Dehaze (each from a small mask, so they cost one lookup a pixel and match at every zoom) | `mask.js`, `haze.js`, `wgsl.js` main |
 | Crop board: crop with aspect, straighten (and Auto level), quarter turns, flips, perspective (Vertical, Horizontal, Scale) | `crop.js`, `level.js`, `boards/CropPlate.js` |
 | Full size: X-Trans demosaic (vkdt's) of the rectangle looked at, developed by the same frame pass | `demosaic.js`, `full.js` |
@@ -45,7 +45,7 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Steps 1, 2, 3a and sharpening are done. Next: noise reduction, then step 4
+## Steps 1 to 3 are done. Next: step 4 (the Library)
 
 Step 3 turned out to be two different machines, not one:
 
@@ -61,14 +61,18 @@ Step 3 turned out to be two different machines, not one:
   editing copy is never sharpened (a third of the size: it would not show). Export develops each tile 4 px
   past its edges so both sides of a join see the same neighbours. On a sample at 100 %, fine detail
   (Laplacian spread) is 10 unsharpened, 15 at the default, 21 in the camera's own JPEG.
-- **3b, noise reduction: next**, also at full size only, in `full.js`'s region path between the demosaic and the
-  warp, cached with the demosaic (it runs when the rectangle moves, not per slider frame). Plan: variance
-  stabilised by the camera's noise profile (darktable's X-T5/X-H2 numbers: the same sensor; ISO read from the
-  camera JPEG's Exif in `decode-worker.js`); colour noise taken out with a guided filter of chroma by luma at
-  a quarter size (small buffers, a lookup per pixel, like the masks); brightness noise with an edge-stopping
-  à-trous blur, dm.out and one more buffer to and fro. A full wavelet shrink at view size would need several
-  16-byte-a-pixel buffers: too much memory for the A15. The region's margin must grow by the blur's reach.
-  Then export's output sharpening (Screen, Print) on the reduced rows, and Defringe.
+- **3b, noise reduction: done**, at full size only, in `full.js`'s region path between the demosaic and the warp,
+  cached with the demosaic (it runs when the rectangle or its two sliders move, not per frame). Values are
+  first rescaled by the sensor's noise at the shot's ISO (`noise.js`: darktable's own X-E5 profile; ISO from
+  the camera JPEG's Exif) so that noise is size 1 everywhere: thresholds are then in "times the noise", and a
+  low-ISO photo passes untouched (62 dB against itself at the default). Colour noise: a guided filter of the
+  colour differences by brightness over cells of 8; brightness noise: an edge-stopping blur in two steps
+  (`dm.out` to a second buffer and back, so the warp's source never changes). A sensor rectangle is drawn 36 px
+  past what the picture needs, for the neighbourhoods.
+- Tested by adding the profile's ISO 6400 noise to a clean photo's sensor data: 38.3 dB unfiltered, 39.2 at the
+  default (Color noise 25), 40.5 with Noise 50 as well. Past Color noise 50 or Noise 50 it gives detail away
+  faster than it removes noise. No real high-ISO RAF was at hand: the owner's own are the real test.
+- Left out of step 3: export's output sharpening (Screen, Print: the board reads LATER) and Defringe.
 - The dial's window spans the real range of controls that don't run −100..100 (`adjust.js` `SPAN`).
 
 How geometry works (step 2a), for whoever touches it:
@@ -152,6 +156,7 @@ and versions, and a reload. Sample pages `/lab/editor/viewing/` and `/lab/editor
 
 ## Waiting on the owner
 
-How the sliders feel; how the zoom feels (smoothness of the pinch, how long detail takes to land at 50 % and at
+How the sliders feel (Clarity, Texture, Dehaze, Sharpening and the two Noise sliders are first guesses; noise
+reduction wants their own high-ISO photos); how the zoom feels (smoothness of the pinch, how long detail takes to land at 50 % and at
 100 %); how fast export is on the A15, and whether the tab ever reloads (a photo keeps about 80 MB more on the
 GPU); five or six of their own RAFs to test on, if they want to share them.
