@@ -81,7 +81,7 @@ ${mendWGSL('g.sp', 'g.mode.w')}
 fn one(q: vec2i, colour: u32) -> f32 {
   var v = own(q, colour); if (near == 0u) { return v; }
   let s = (vec2f(q) + 0.5) * g.src.z + g.src.xy;
-  for (var i = 0u; i < g.mode.w; i++) { if ((near & (1u << i)) == 0u) { continue; } let k = spot(i, s, colour); if (k.x > 0.0) { v = mix(v, own(q + vec2i(g.sp[i * 5u + 1u].xy / g.src.z), colour) * k.y, k.x); } }
+  for (var i = 0u; i < g.mode.w; i++) { if ((near & (1u << i)) == 0u) { continue; } let k = spot(i, s, colour); if (k.x > 0.0) { v = mix(v, own(q + vec2i(g.sp[i * ${SPOT_ROWS}u + 1u].xy / g.src.z), colour) * k.y, k.x); } }
   return v;
 }
 fn cubic(t: f32) -> vec4f { let t2 = t * t; let t3 = t2 * t; return vec4f(-0.5 * t3 + t2 - 0.5 * t, 1.5 * t3 - 2.5 * t2 + 1.0, -1.5 * t3 + 2.0 * t2 + 0.5 * t, 0.5 * t3 - 0.5 * t2); }

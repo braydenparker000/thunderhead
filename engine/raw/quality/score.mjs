@@ -13,7 +13,13 @@ const fc = (r, c) => +cfa[(r % 6) * 6 + (c % 6)], K = +(process.env.K || 6), w =
   const big = process.env.TRUTH ? new Float32Array(fs.readFileSync(process.env.TRUTH).buffer.slice(0)) : markesteijn(full, W, H, cfa, 3, wb);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let c = 0; c < 3; c++) { let s = 0; for (let v = 0; v < K; v++) for (let u = 0; u < K; u++) s += big[((y * K + v) * W + x * K + u) * 3 + c]; truth[(y * w + x) * 3 + c] = s / (K * K); } }
 if (process.env.GREY) for (let i = 0; i < w * h; i++) { const g = truth[i * 3 + 1]; truth[i * 3] = g / wb[0]; truth[i * 3 + 2] = g / wb[2]; }   // a grey picture: red and blue must then do equally well
-const mosaic = new Float32Array(w * h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) mosaic[y * w + x] = truth[(y * w + x) * 3 + fc(y, x)];
+// BLUR=<sigma>: the mosaic is made from the picture blurred as a lens would (a Gaussian, in pixels), and the scores are
+// still against the sharp picture: what sharpening has to win back.
+let seen = truth;
+if (process.env.BLUR) { const sg = +process.env.BLUR, r = Math.ceil(sg * 3), kern = Array.from({ length: 2 * r + 1 }, (_, i) => Math.exp(-0.5 * ((i - r) / sg) ** 2)), ks = kern.reduce((a, b) => a + b), tmp = new Float32Array(w * h * 3); seen = new Float32Array(w * h * 3);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let c = 0; c < 3; c++) { let v = 0; for (let i = -r; i <= r; i++) v += kern[i + r] * truth[(y * w + Math.min(w - 1, Math.max(0, x + i))) * 3 + c]; tmp[(y * w + x) * 3 + c] = v / ks; }
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) for (let c = 0; c < 3; c++) { let v = 0; for (let i = -r; i <= r; i++) v += kern[i + r] * tmp[(Math.min(h - 1, Math.max(0, y + i)) * w + x) * 3 + c]; seen[(y * w + x) * 3 + c] = v / ks; } }
+const mosaic = new Float32Array(w * h); for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) mosaic[y * w + x] = seen[(y * w + x) * 3 + fc(y, x)];
 fs.writeFileSync(bin.replace(/\.bin$/, '.truth.f32'), Buffer.from(truth.buffer)); fs.writeFileSync(bin.replace(/\.bin$/, '.remade.f32'), Buffer.from(mosaic.buffer));
 const tone = (v, c) => Math.min(1, Math.max(0, v * wb[c] * 4)) ** (1 / 2.2);
 function score(name, got) {

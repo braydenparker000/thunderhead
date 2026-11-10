@@ -43,7 +43,7 @@ export function setValues(patch, key, name, val = '') { if (!cur) return; Object
 /** Puts adjustments back where they start, as one step. @param {string[]} names @param {string} name */
 export const resetAll = (names, name) => setValues(Object.fromEntries(names.map((n) => [n, start(n)])), '', name);
 /** Where an adjustment starts for this photo. @param {string} name */
-const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : ZERO[name] ?? 0);
+const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : name === 'Noise' ? cur?.noise0 || 0 : ZERO[name] ?? 0);
 /** Whether an adjustment has moved from where the photo started. @param {string} name */
 export const edited = (name) => !!cur && cur.values[name] !== start(name);
 /** @param {string} name */

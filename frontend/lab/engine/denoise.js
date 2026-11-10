@@ -10,8 +10,11 @@
 //             within the noise they are replaced, far outside it (a real coloured thing) they are kept.
 //             (Tried and dropped: a bilateral mean against the cells' own means. It blurred real colour
 //             detail and scored 4 dB worse on a noise test.)
-//   brightness an edge-stopping blur in two widening steps (à trous; Dammertz et al.), which mixes a pixel only
-//             with neighbours whose brightness is within the noise of its own
+//   brightness a blur in two widening steps (à trous; Dammertz et al.) that mixes a pixel only with neighbours
+//             that look like it: not by their own brightness against its own, which is itself noisy, but by the
+//             3 × 3 patch round each against the patch round it (the weight of non-local means; Buades, Coll
+//             and Morel). Measured at ISO 6400 it keeps about 0.4 dB more of the green than the single-value
+//             weight did, nearly what a full non-local means finds, for a twelfth of its reads.
 const WGSL = /* wgsl */ `
 struct D { at: vec4u,    // the rectangle's width and height, its cells across and down
            a: vec4f, b: vec4f,   // the noise: a value x has variance a·x + b, for red, green, blue
@@ -21,6 +24,8 @@ struct D { at: vec4u,    // the rectangle's width and height, its cells across a
 @group(0) @binding(2) var<storage, read_write> outp: array<u32>;
 @group(0) @binding(3) var<storage, read> sIn: array<vec4f>;
 @group(0) @binding(4) var<storage, read_write> sOut: array<vec4f>;
+@group(0) @binding(5) var<storage, read> yIn: array<f32>;          // brightness, in the noise's own scale, a value a pixel
+@group(0) @binding(6) var<storage, read_write> yOut: array<f32>;
 const R = 2;          // a neighbourhood's reach in cells
 const EPS = 2.0;      // how much brightness must vary across it before colour is taken to follow brightness
 fn off() -> vec3f { let q = d.b.xyz / d.a.xyz; return 0.375 + q * q; }
@@ -64,15 +69,24 @@ fn down(@builtin(global_invocation_id) id: vec3u) {
   let i = (id.y * d.at.z + id.x) * 2u; sOut[i] = mean(id.xy, vec2i(0, 1), 0u); sOut[i + 1u] = vec4f(0.0);
 }
 fn cell(q: vec2i) -> vec4f { let c = clamp(q, vec2i(0), vec2i(d.at.zw) - 1); return sIn[(u32(c.y) * d.at.z + u32(c.x)) * 2u]; }
-// brightness: the pixels two each way, a hole apart, weighted by distance and by how near their brightness is
-fn blur(at: vec2i, hole: i32) -> vec3f {
-  let c0 = px(at);
-  if (d.k.x <= 0.0) { return c0; }
-  let y0 = ycc(c0).x; let w1 = vec3f(0.375, 0.25, 0.0625); let s2 = -0.5 / (d.k.x * d.k.x * 0.375); var sum = vec3f(0.0); var ws = 0.0;
+fn yAt(q: vec2i) -> f32 { let c = clamp(q, vec2i(0), vec2i(d.at.xy) - 1); return yIn[u32(c.y) * d.at.x + u32(c.x)]; }
+@compute @workgroup_size(8, 8)
+fn lum(@builtin(global_invocation_id) id: vec3u) { if (id.x >= d.at.x || id.y >= d.at.y) { return; } yOut[id.y * d.at.x + id.x] = ycc(px(vec2i(id.xy))).x; }
+// brightness: the pixels two each way, a hole apart, weighted by distance and by how alike the 3 × 3 patch of
+// brightness round each is to the one round this pixel. The last value: what two such patches differ by from noise alone.
+// Returns brightness and the two colour differences. Colour is mixed by the plainer weight (a neighbour's own
+// brightness against this pixel's): it reaches further, and soft colour is forgiven where soft detail is not.
+fn blur(at: vec2i, hole: i32, own: f32) -> vec3f {
+  if (d.k.x <= 0.0) { return ycc(px(at)); }
+  var mine: array<f32, 9>;
+  for (var k = 0; k < 9; k++) { mine[k] = yAt(at + vec2i(k % 3 - 1, k / 3 - 1)); }
+  let w1 = vec3f(0.375, 0.25, 0.0625); let s2 = -1.0 / (d.k.x * d.k.x * 0.288); let sc = -0.5 / (d.k.x * d.k.x * 0.375); var sum = vec3f(0.0); var ws = vec2f(0.0);
   for (var y = -2; y <= 2; y++) { for (var x = -2; x <= 2; x++) {
-    let c = px(at + vec2i(x, y) * hole); let dy = ycc(c).x - y0; let w = w1[abs(x)] * w1[abs(y)] * exp(s2 * dy * dy); sum += w * c; ws += w;
+    let q = at + vec2i(x, y) * hole; var far = 0.0;
+    for (var k = 0; k < 9; k++) { let e = mine[k] - yAt(q + vec2i(k % 3 - 1, k / 3 - 1)); far += e * e; }
+    let dy = yAt(q) - mine[4]; let w = w1[abs(x)] * w1[abs(y)] * vec2f(exp(s2 * max(far / 9.0 - own, 0.0)), exp(sc * dy * dy)); let v = ycc(px(q)); sum += vec3f(w.x * v.x, w.y * v.yz); ws += w;
   } }
-  return sum / ws;
+  return sum / ws.xyy;
 }
 fn put(at: vec2u, c: vec3f) {
   let i = (at.y * d.at.x + at.x) * 2u; let o = vec3u(clamp(back(c) * 65535.0, vec3f(0.0), vec3f(65535.0)) + 0.5);
@@ -81,24 +95,24 @@ fn put(at: vec2u, c: vec3f) {
 @compute @workgroup_size(8, 8)
 fn first(@builtin(global_invocation_id) id: vec3u) {
   if (id.x >= d.at.x || id.y >= d.at.y) { return; }
-  var v = ycc(blur(vec2i(id.xy), 1));
+  var v = blur(vec2i(id.xy), 1, 0.75);
   if (d.k.y > 0.0) {
     let u = (vec2f(id.xy) + 0.5) / 8.0 - 0.5; let i = vec2i(floor(u)); let f = u - floor(u);
     let ab = mix(mix(cell(i), cell(i + vec2i(1, 0)), f.x), mix(cell(i + vec2i(0, 1)), cell(i + vec2i(1, 1)), f.x), f.y);
     let want = ab.xz * v.x + ab.yw; let far = (v.yz - want) / (d.k.y * 1.414);
     v = vec3f(v.x, want + (v.yz - want) * (1.0 - exp(-dot(far, far))));   // within the noise: the neighbourhood's colour; far outside it: its own
   }
-  let g = v.x - 0.25 * (v.y + v.z); put(id.xy, vec3f(g + v.y, g, g + v.z));
+  let g = v.x - 0.25 * (v.y + v.z); put(id.xy, vec3f(g + v.y, g, g + v.z)); yOut[id.y * d.at.x + id.x] = v.x;
 }
 @compute @workgroup_size(8, 8)
-fn second(@builtin(global_invocation_id) id: vec3u) { if (id.x >= d.at.x || id.y >= d.at.y) { return; } put(id.xy, blur(vec2i(id.xy), 2)); }`;
+fn second(@builtin(global_invocation_id) id: vec3u) { if (id.x >= d.at.x || id.y >= d.at.y) { return; } let v = blur(vec2i(id.xy), 2, 0.25); let g = v.x - 0.25 * (v.y + v.z); put(id.xy, vec3f(g + v.y, g, g + v.z)); }`;
 
 const made = /** @type {WeakMap<GPUDevice, Promise<Record<string, GPUComputePipeline>>>} */ (new WeakMap());
 const pipes = (/** @type {GPUDevice} */ device) => {
   const have = made.get(device);
   if (have) return have;
   const module = device.createShaderModule({ code: WGSL });
-  const all = Promise.all(['stat', 'across', 'fitted', 'down', 'first', 'second'].map(async (entryPoint) => [entryPoint, await device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })])).then(Object.fromEntries);
+  const all = Promise.all(['stat', 'across', 'fitted', 'down', 'lum', 'first', 'second'].map(async (entryPoint) => [entryPoint, await device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })])).then(Object.fromEntries);
   made.set(device, all);
   return all;
 };
@@ -107,11 +121,11 @@ const pipes = (/** @type {GPUDevice} */ device) => {
  * result where it found the rectangle, in `raw`. @param {GPUDevice} device @param {GPUBuffer} raw the demosaic's result, two u32 a pixel */
 export async function denoiser(device, raw) {
   const P = await pipes(device), buf = (/** @type {number} */ size, /** @type {number} */ usage) => device.createBuffer({ size, usage });
-  const uni = buf(64, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST), other = buf(raw.size, GPUBufferUsage.STORAGE);
+  const uni = buf(64, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST), other = buf(raw.size, GPUBufferUsage.STORAGE), y = [0, 1].map(() => buf(raw.size / 2, GPUBufferUsage.STORAGE));   // brightness before and after the first step
   const cells = Math.ceil(raw.size / 8 / 64) + 4096, s = [0, 1].map(() => buf(cells * 32, GPUBufferUsage.STORAGE));   // a rectangle's cells, whatever its shape
   const group = (/** @type {string} */ name, /** @type {Record<number, GPUBuffer>} */ at) => ({ pipe: P[name], bind: device.createBindGroup({ layout: P[name].getBindGroupLayout(0), entries: [[1, uni], ...Object.entries(at)].map(([binding, buffer]) => ({ binding: +binding, resource: { buffer: /** @type {GPUBuffer} */ (buffer) } })) }) });
   const small = [group('stat', { 0: raw, 4: s[0] }), group('across', { 3: s[0], 4: s[1] }), group('fitted', { 3: s[1], 4: s[0] }), group('across', { 3: s[0], 4: s[1] }), group('down', { 3: s[1], 4: s[0] })];
-  const big = [group('first', { 0: raw, 2: other, 3: s[0] }), group('second', { 0: other, 2: raw })];
+  const big = [group('lum', { 0: raw, 6: y[0] }), group('first', { 0: raw, 2: other, 3: s[0], 5: y[0], 6: y[1] }), group('second', { 0: other, 2: raw, 5: y[1] })];
   return {
     /** @param {GPUCommandEncoder} enc @param {number} rw @param {number} rh the rectangle's size
      * @param {{ a: number[], b: number[] }} noise the sensor's, at the shot's ISO @param {number} luma @param {number} colour how many times the noise counts as noise (0: off) */
@@ -124,6 +138,8 @@ export async function denoiser(device, raw) {
       for (const g of big) { pass.setPipeline(g.pipe); pass.setBindGroup(0, g.bind); pass.dispatchWorkgroups(Math.ceil(rw / 8), Math.ceil(rh / 8)); }
       pass.end();
     },
-    destroy: () => { for (const b of [uni, other, ...s]) b.destroy(); },
+    /** Buffers free once `run` has been added to a frame: sharpening (deconv.js), which comes next, works in them. */
+    spare: [y[0], y[1], other],
+    destroy: () => { for (const b of [uni, other, ...s, ...y]) b.destroy(); },
   };
 }

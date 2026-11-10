@@ -2,7 +2,7 @@
 // Export: the whole photo developed from the sensor's own pixels, a band at a time (full.js), brought to the
 // size asked for by averaging in linear light, and handed to a file's writer (files.js) as it comes.
 
-const BAND = 256, TILE = 1024, EDGE = 4;   // the picture's rows a step and how wide a piece of them is developed at once (less, strongly
+const BAND = 256, TILE = 1024, EDGE = 12;   // the picture's rows a step and how wide a piece of them is developed at once (less, strongly
 // straightened); and how far past a piece it is developed, so sharpening sees the same neighbours either side of a join
 const decode = (/** @type {number} */ s) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4);
 const encode = (/** @type {number} */ v) => (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055);
