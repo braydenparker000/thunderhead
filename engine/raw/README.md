@@ -13,7 +13,8 @@ sit from the rebuild's estimate, measured on the unclipped pixels beside the cli
 For 100 % and export, `mosaic()` hands over the sensor's own pixels (one 16-bit value a pixel, the black level
 still on, cropped to whole cells so it lines up with the proxy three to one), and the metadata says where black
 and white are and how the X-Trans pattern lies (`black`, `white`, `cfa`, `cfaWidth`, `fullWidth`, `fullHeight`).
-The page demosaics only what is looked at, on the GPU (`frontend/lab/engine/demosaic.js`, after vkdt's).
+The page demosaics only what is looked at, on the GPU (`frontend/lab/engine/demosaic.js`: green as Markesteijn's
+method makes it, after darktable's code, GPL 3; red and blue after vkdt's, BSD 2-clause). `quality/` measures it.
 
 For export, `jpeg()` encodes one band of a JPEG with [jpeg-encoder](https://github.com/vstroebel/jpeg-encoder)
 (MIT or Apache-2.0, and the IJG licence). Every band shares its tables, so the page joins the bands' scans with
