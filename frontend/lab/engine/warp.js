@@ -9,6 +9,7 @@
 // perspective, across the flips, back through the quarter turns, then outwards or inwards along the line from
 // the centre by the lens table, once for each colour.
 import { N, REACH, lensTable } from './lens.js';
+import { frame, isNone } from './crop.js';
 
 const ROT = /** @type {Record<string, number>} */ ({ Rotate90: 1, Rotate180: 2, Rotate270: 3 });
 const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
@@ -17,13 +18,18 @@ const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
  * upright picture; the picture's size; the perspective's 3 × 3; the lens table and its largest gain */
 
 /** A photo's geometry. @param {any} meta the decoder's (orientation, fullWidth, fullHeight, lens)
- * @param {{ distortion?: number, vignetting?: number }} [o] added by hand, each −1..1 @returns {Geo} */
+ * @param {{ distortion?: number, vignetting?: number, crop?: import('./crop.js').Crop | null }} [o] the lens corrections added by
+ * hand, each −1..1; the crop (none: the whole upright picture) @returns {Geo} */
 export function geometry(meta, o = {}) {
   const W = meta.fullWidth, H = meta.fullHeight, rot = ROT[meta.orientation] || 0, [uw, uh] = rot % 2 ? [H, W] : [W, H];
   const lens = lensTable(meta.lens || null, W, H, o.distortion || 0, o.vignetting || 0) || new Float32Array(N * 4).fill(1);
   let head = 1;
   for (let j = 3; j < lens.length; j += 4) head = Math.max(head, lens[j]);
-  return { W, H, rot, flip: 0, cos: 1, sin: 0, cx: uw / 2, cy: uh / 2, ow: uw, oh: uh, h: IDENTITY, lens, head };
+  if (!o.crop || isNone(o.crop)) return { W, H, rot, flip: 0, cos: 1, sin: 0, cx: uw / 2, cy: uh / 2, ow: uw, oh: uh, h: IDENTITY, lens, head };
+  // the crop's frame in its box, enlarged (cos holds the enlargement: the crop's own turns and flips are in its 3 × 3);
+  // the picture's size in whole editing-copy pixels
+  const c = frame(o.crop, uw, uh), cell = W / meta.width || 3, whole = (/** @type {number} */ v) => Math.max(8 * cell, Math.round(v / cell) * cell);
+  return { W, H, rot, flip: 0, cos: c.mag, sin: 0, cx: c.rect.x + c.rect.w / 2, cy: c.rect.y + c.rect.h / 2, ow: whole(c.ow), oh: whole(c.oh), h: c.h, lens, head };
 }
 /** Where a point of the picture was recorded on the sensor (both in sensor pixels, a pixel's middle at .5).
  * @param {Geo} g @param {number} x @param {number} y @param {number} [colour] 0 red, 1 green, 2 blue */

@@ -156,14 +156,15 @@ async function detail(/** @type {number} */ mine) {
   if (p >= 0.999) {   // one pass, and it follows the engine's frames from here
     const r = slot.getBoundingClientRect(), dx = r.left * devicePixelRatio + (f.ox + tx) * k, dy = r.top * devicePixelRatio + (f.oy + ty) * k;
     if (Math.abs(p - 1) < 0.001) { tx += (Math.round(dx) - dx) / k; ty += (Math.round(dy) - dy) / k; apply(); }   // at 100 % exactly, on whole screen pixels
-    v.place(X - 1, Y - 1, X1 - X + 2, Y1 - Y + 2);
+    const [rw, rh] = v.room(), w = Math.min(X1 - X + 2, rw), h = Math.min(Y1 - Y + 2, rh);   // strongly straightened, the view holds less than a screenful: its middle
+    v.place(X - 1 + (X1 - X + 2 - w) / 2, Y - 1 + (Y1 - Y + 2 - h) / 2, w, h);
     await photo.frame();
     if (mine === job) { still.style.display = 'none'; tiled = -1; }
     return;
   }
   // 40 % to 100 %: more than the view holds, so a tile at a time onto the still canvas
   const w = Math.round((X1 - X) * p), h = Math.round((Y1 - Y) * p), ctx = /** @type {CanvasRenderingContext2D} */ (still.getContext('2d')), at0 = v.at(), LAP = 8;
-  const tw = Math.ceil(412 * k) - LAP, th = Math.ceil(600 * k) - LAP, stamp = photo.stamp();
+  const tw = Math.min(Math.ceil(412 * k), v.room()[0]) - LAP, th = Math.min(Math.ceil(600 * k), v.room()[1]) - LAP, stamp = photo.stamp();
   live.style.display = 'none'; still.style.display = 'none'; still.width = w; still.height = h; ctx.imageSmoothingQuality = 'high';
   for (let y = Y; y < Y1; y += th) for (let x = X; x < X1; x += tw) {
     let im = /** @type {ImageData | null} */ (null), at = at0;

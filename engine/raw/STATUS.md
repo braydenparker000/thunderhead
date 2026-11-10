@@ -18,6 +18,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Colour: Adobe camera profiles and looks (the owner's private zip, in IndexedDB; never commit or serve them) | `dcp.js`, `gpu.js`, `profiles.js` |
 | Light and Color sliders, white balance presets, eyedropper, Auto tone, Reset | `wgsl.js`, `mask.js`, `auto.js`, `editor/app/session.js` |
 | Geometry: one pass lays the photo out as the picture; the lens's own corrections (distortion, fringing, darkened corners) from the RAF; Distortion and Vignetting by hand | `warp.js`, `lens.js` |
+| Crop board: crop with aspect, straighten (and Auto level), quarter turns, flips, perspective (Vertical, Horizontal, Scale) | `crop.js`, `level.js`, `boards/CropPlate.js` |
 | Full size: X-Trans demosaic (vkdt's) of the rectangle looked at, developed by the same frame pass | `demosaic.js`, `full.js` |
 | Zoom on the Edit and View screens: free pinch from fitted to 300 %, drag, double-tap for 100 %; the percentage and a map while zoomed | `editor/app/zoom.js` (any slot marked `data-zoom`) |
 | Undo and history (every step keeps the whole edit), versions, saved with the edit | `editor/app/past.js`, `session.js` |
@@ -42,7 +43,7 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Steps 1 and 2a are done. Next: step 2b (the Crop board)
+## Steps 1 and 2 are done. Next: step 3 (the filter stage)
 
 How geometry works (step 2a), for whoever touches it:
 
@@ -52,22 +53,33 @@ How geometry works (step 2a), for whoever touches it:
 - From a picture point back to the sensor: crop centre and straighten angle, the perspective's 3 × 3, flips,
   quarter turns, then the lens table (`lens.js`) once for each colour. `toSensor()` is the same maths in JS;
   `reach()` gives the sensor rectangle a rectangle of the picture draws on.
-- The uniform and the shader already carry crop, angle, perspective and flips; `geometry()` still fills them
-  with "none". Step 2b sets them, and must then resize `flat`, `out`, the canvas and the tone mask (they are
-  made once per photo at the uncropped size today), and tell `full.js` the picture's new size.
+- The crop (`crop.js`) is the Crop board's own model: the picture in a box, turned, tilted as seen from a fixed
+  distance, flipped, enlarged until the frame is covered. `frame()` turns it into one 3 × 3 (box to picture) and
+  an enlargement; `geometry()` hands those to the pass. The board previews with the design's CSS transform from
+  the same numbers: preview and engine agree to about a pixel in 640.
+- While the Crop board is up (its slot is `data-base`) the engine shows the picture uncropped; the crop is laid
+  out when another board's slot takes the photo.
+- A crop changes the picture's size: `gpu.js` `lay()` makes `flat`, `out`, the tone mask and the readback
+  buffer anew, and the canvas takes the size at the next shown frame. `full.js` reads the size from the
+  geometry each time.
 - Lens data: a RAF's raw directory 0xf000 holds 0xf00b (distortion), 0xf00f (fringing), 0xf010 (brightness);
   the method is darktable's "embedded metadata" correction. Checked against the camera's JPEG on an 18 mm
   shot: patches were off by a mean of 4.3 px (of 1288) without it, about 0.5 with.
 - Corner gain can exceed 1, so `flat` is stored divided by the largest gain and the frame pass multiplies it
   back (`wb.w`).
-- A full-size view draws on more of the sensor than itself: its demosaic buffer is a quarter larger each way.
-  A strong straighten will need more than that (grow it in 2b).
-- Export develops each band in tiles of 2048, so a straightened band doesn't draw on a huge sensor rectangle.
+- A full-size view draws on more of the sensor than itself (lens stretch, margin, above all a straighten
+  angle). Its demosaic buffers hold 1.6 times its pixels in any shape; `view.room()` is the largest rectangle
+  that always fits, and zoom and export step by it.
+- Export develops each band in tiles (`room()` of 1024 × 256), so a straightened band doesn't draw on a huge
+  sensor rectangle.
 - Not handled: Fuji's 1.25× crop modes (darktable scales the table by 1.25 for them).
 
-Step 2b, the Crop board (`boards/CropPlate.js` is still the design's sample): crop with aspect, straighten
-(±45°, Auto), quarter turns and flips, perspective (Vertical, Horizontal, Scale, Upright). Draw the editing
-copy with `fine = false` (two-tap, no fringing pass) while a control moves, fine at rest.
+Left for later in step 2: Upright (automatic perspective) reads "LATER"; every Crop control is a history step
+named just "Crop"; a small picture with another crop (a version's tile) lays the whole editing copy out again
+the fine way (use `draft` for tiles if that proves slow on the phone).
+
+Every check script runs on a portrait sample too: #98 shipped a pass sized by the sensor, not the picture,
+and only a portrait photo showed it (fixed in #99).
 
 How zoom works, for whoever touches it:
 

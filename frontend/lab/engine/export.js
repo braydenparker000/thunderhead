@@ -2,7 +2,7 @@
 // Export: the whole photo developed from the sensor's own pixels, a band at a time (full.js), brought to the
 // size asked for by averaging in linear light, and handed to a file's writer (files.js) as it comes.
 
-const BAND = 256, TILE = 2048;   // the picture's rows a step, and how wide a piece of them is developed at once
+const BAND = 256, TILE = 1024;   // the picture's rows a step, and how wide a piece of them is developed at once (less, strongly straightened)
 const decode = (/** @type {number} */ s) => (s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4);
 const encode = (/** @type {number} */ v) => (v <= 0.0031308 ? v * 12.92 : 1.055 * v ** (1 / 2.4) - 0.055);
 // A half float's bits to its value held to 0..1: as 16 bits (SAME), and as light (LIGHT). ENC turns light back
@@ -55,10 +55,11 @@ export async function develop(big, long, open, progress) {
   const v = await big.view(Math.min(sw, TILE), BAND, null, false, true);
   try {
     const out = open(ow, oh), push = reducer(sw, sh, ow, oh, out);
-    for (let y = 0; y < sh; y += BAND) {
-      const n = Math.min(BAND, sh - y), band = new Uint16Array(sw * n * 4);
-      for (let x = 0; x < sw; x += TILE) {   // a tile at a time: a straightened band draws on far more of the sensor than a tile of it does
-        const w = Math.min(TILE, sw - x), at = await v.region(x, y, w, n), half = await v.halves();   // a tile under 8 pixels is drawn from further back
+    const [tw, th] = v.room();
+    for (let y = 0; y < sh; y += th) {
+      const n = Math.min(th, sh - y), band = new Uint16Array(sw * n * 4);
+      for (let x = 0; x < sw; x += tw) {   // a tile at a time: a straightened band draws on far more of the sensor than a tile of it does
+        const w = Math.min(tw, sw - x), at = await v.region(x, y, w, n), half = await v.halves();   // a tile under 8 pixels is drawn from further back
         for (let r = 0; r < n; r++) { const from = ((y - at.Y + r) * at.cw + x - at.X) * 4; band.set(half.subarray(from, from + w * 4), (r * sw + x) * 4); }
       }
       await push(band, n);
