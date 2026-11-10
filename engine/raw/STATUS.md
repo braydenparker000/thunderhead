@@ -8,7 +8,9 @@ It lives in `engine/raw/`, not under `docs/`, so that updating it stays a lab-on
 
 The owner shoots a Fujifilm X-E5 (40 MP X-Trans, lossless RAF) and edits in Chrome on a Galaxy A15 (4 GB,
 Mali-G57), an A35 next. This is their main editor for months without a computer. They want Lightroom quality.
-The editor's look (the camera-plate boards) is approved and stays as built.
+The editor's look (the camera-plate material) is approved. Its layout was reworked on the owner's notes of
+2026-11-10: see "The interface" below. The owner has said the code is the agent's own to shape, that quality
+comes first, and that a heavy feature may take up to about ten seconds on the phone if the result earns it.
 
 ## Live
 
@@ -22,11 +24,11 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Effects: Clarity, Texture, Dehaze (each from a small mask, so they cost one lookup a pixel and match at every zoom) | `mask.js`, `haze.js`, `wgsl.js` main |
 | Crop board: crop with aspect, straighten (and Auto level), quarter turns, flips, perspective (Vertical, Horizontal, Scale) | `crop.js`, `level.js`, `boards/CropPlate.js` |
 | Full size: X-Trans demosaic (vkdt's) of the rectangle looked at, developed by the same frame pass | `demosaic.js`, `full.js` |
-| Zoom on the Edit and View screens: free pinch from fitted to 300 %, drag, double-tap for 100 %; the percentage and a map while zoomed. On Masks and Heal: two fingers zoom and move the photo, one works the tool | `editor/app/zoom.js` (any slot marked `data-zoom`; `data-zoom="tool"` for a tool board) |
+| One photo across the tools: the picture lives in its own layer under the boards and keeps its zoom and place from Edit to Looks, Masks and Heal. Free pinch from fitted to 300 %, drag, double-tap for 100 %; on Masks and Heal two fingers zoom and move the photo, one works the tool | `editor/app/zoom.js` (a board's `data-keep="photo" data-zoom` slot is only a window onto the layer; `data-zoom="tool"` for a tool board) |
 | Undo and history (every step keeps the whole edit), versions, saved with the edit | `editor/app/past.js`, `session.js` |
 | View board: before/after against the photo as imported, histogram and clipping overlay | `boards/ViewTools.js`, `editor/app/scope.js`, `tiles.js` |
-| Curve (RGB and each colour, over the photo's histogram), colour mixer (eight colours), grading (three ranges and the whole, Blending, Balance), Vignette, Grain | `grade.js`, `wgsl.js`, `boards/CurveOverlay.js`, `boards/GradeTrio.js`, `boards/EditPlate.js` |
-| Looks board: `.cube` looks brought in and kept on the phone (Presets), an edit saved as a look of one's own (Mine), each tile this photo wearing it | `cube.js`, `editor/app/looks.js`, `boards/LooksPlate.js` |
+| Curve (RGB and each colour, over the photo's histogram), colour mixer (eight colours), grading (three ranges and the whole, Blending, Balance), Vignette, Grain | `grade.js`, `wgsl.js`, `boards/CurveOverlay.js`, `boards/GradeWheel.js`, `boards/EditPlate.js` |
+| Profiles (the camera's renderings) as pictures on the Edit board's last face; the Looks board for `.cube` looks brought in (Presets) and edits saved as looks (Mine): each a small picture of this photo wearing it, in a strip in the panel | `cube.js`, `editor/app/looks.js`, `boards/Strip.js`, `boards/LooksPlate.js`, `boards/EditPlate.js` |
 | Masks board: a brush, linear and radial gradients laid on the picture, ranges of colour and of brightness picked with a tap; each with its own Light, Color and Effects adjustments, Amount, Invert; shown in red | `local.js`, `brush.js`, `wgsl.js` main, `editor/app/masks.js`, `boards/MaskPlate.js` |
 | Heal board: Heal, Clone and Remove spots, each replaced from a source the engine picks nearby (it can be dragged); Size, Feather, Opacity; Visualize | `heal.js`, `mend.js`, `warp.js`, `demosaic.js`, `editor/app/heal.js`, `boards/HealPlate.js` |
 | Library: tiles that show the edit, an Edited filter, what the photos take on the phone, deleting rejects for good | `boards/LibraryPlate.js`, `editor/app/store.js` |
@@ -314,6 +316,46 @@ Check script (not in the repo): import a RAF, pinch to 55 %, 100 %, 300 %, compa
 editing copy under it, move a slider at 100 %, Undo, then the View board's before/after, histogram, history
 and versions, and a reload. Sample pages `/lab/editor/viewing/` and `/lab/editor/export/` must still play.
 
+## The interface (reworked 2026-11-10 on the owner's notes)
+
+The owner's ten notes, in short: the panel took too much of the screen; a drum on the left for the sections with
+the adjustments flying out of it; grading and the curve must not cover the photo; the crop could not be moved or
+zoomed; profiles belong at the end of Edit's sections and presets on Looks, neither over the photo; drop the dial
+where a screen does not need it; the app should feel like one thing, not pages; no photo counter; a dial that can
+be flung and still scrubs finely; two taps on the dial in place of Reset, and a small Auto.
+
+What was built, and where:
+
+- **One photo layer** (`app/zoom.js`). The canvas sits in one element under `#stage`; a board's
+  `data-keep="photo" data-zoom` slot is a window whose rectangle the layer follows, gliding when another board's
+  window takes over. Boards that use it have transparent roots (`#frame` is black). Crop and Export still take
+  the canvas into their own frames (`hooks.away`). A zoomed photo keeps its size on screen when the room changes.
+- **The panel** is 210 design pixels on most boards (it was 315): the value's window, the dial, and one row with
+  a drum and its markings. It grows only where a face needs it (Curve 340, a grading wheel 262, Masks 246) and
+  the photo's room gives way (`transition` on the window's height and the panel's top).
+- **`boards/Drum.js`**: the vertical drum. Faces are a board's sections; drag, flick (up to 2.5 faces) or tap
+  above or below the middle. **`boards/Row.js`**: the markings beside it, each flying out from the drum
+  (`pop0..9` in `editor.css`); `entry` makes a boxed key, `hot` a red one.
+- **`boards/DialPlate.js`**: the shared dial. A drag turns it one for one; let go while moving and it runs on
+  (decays over about a third of a second, stops under a finger); two taps within 360 ms call `onreset`; `auto`
+  puts a small key in the window; `left` fills from the left end (0-upwards values); `slim` is the window alone,
+  dragged like a slider; `onhold` tells a board when the dial is in use (Masks takes the red off meanwhile).
+  Every board's dial is this one now: a value is given as a position −5..5 and its text.
+- **Edit** (`boards/EditPlate.js`): faces Light, Curve, Color, Mixer, Grading, Effects, Detail, Optics, Profile.
+  The curve and one grading wheel at a time (`boards/GradeWheel.js`) are in the panel. Profile is a strip of
+  pictures (`boards/Strip.js`) sorted All, Film, Adobe, B&W, with Amount in a slim window.
+- **Crop** (`boards/CropPlate.js`): the frame always fills the room; the photo is dragged and pinched under it;
+  eight handles (corners and sides).
+- **Looks** (`boards/LooksPlate.js`): faces Presets and Mine, the same strip, Import, Save current and Delete as
+  keys in the row. The recipe samples are gone until recipes are read.
+- **Masks** (`boards/MaskPlate.js`): the masks are pills along the panel's top with Add and the overlay's eye;
+  faces Mask, Light, Color, Effects. **Heal** (`boards/HealPlate.js`): the drum chooses Heal, Clone or Remove;
+  Undo spot and Clear all are keys in the row.
+- The sample pages (`edit/`, `looks/` …) hold copies of the templates they play. They are brought up to date by
+  script from `index.html` (each page's board and what it imports); do not edit them by hand.
+
+Not done yet: the View board's versions and history still lie over the photo; Export and Library are as they were.
+
 ## How to work here
 
 - The owner wants it lean: one PR per step (two only if half a step is usable alone), lab checks only, no
@@ -349,7 +391,7 @@ Left out on purpose or not reached, none of it blocking:
 
 - Upright (Crop reads LATER) and Fuji's 1.25× crop modes; Crop's history steps are all named "Crop".
 - Noise for a mask; detection masks (Subject, Sky, Background, People, Object).
-- Search on the Looks board; `.xmp`, `.lrtemplate` and `.zip` looks; recipes (the board still shows samples).
+- Search on the Looks board; `.xmp`, `.lrtemplate` and `.zip` looks; recipes (their samples left the Looks board).
 - Watermark and Display P3 on export; camera import over USB; renaming or moving a photo.
 - Retouch spots that build on each other; a true content-aware Remove.
 

@@ -4,7 +4,8 @@
 // it, and `onturn` hears every turn. A drag turns it one for one with the finger; let go while moving and it runs
 // on, slowing, until it stops or is touched; two quick taps ask for the value's start (`onreset`). `auto`, when
 // given, is the name of a small key in the window's corner (`onauto`). `left`: the value runs from the window's
-// left end, not out from its middle (a strength, 0 upwards). `slim`: no wheel, the window itself is dragged and the number stays under the finger.
+// left end, not out from its middle (a strength, 0 upwards). `slim`: no wheel, the window itself is dragged and the number stays under the finger. `onhold` hears true when a
+// finger takes the dial and false once it has let go and the dial is still.
 import { DCLogic } from '../dc.js';
 
 export default class Component extends DCLogic {
@@ -33,7 +34,7 @@ export default class Component extends DCLogic {
         const dt = Math.min(40, now - last); last = now;
         const a = setAngle(this.state.angle + vel * dt); vel *= Math.exp(-dt / 320);
         this.spin = Math.abs(vel) < 0.012 || Math.abs(a) >= 180 ? 0 : requestAnimationFrame(step);
-        if (!this.spin) this.setState({});
+        if (!this.spin) { this.setState({}); this.props.onhold?.(false); }
       };
       this.spin = requestAnimationFrame(step);
     };
@@ -44,7 +45,7 @@ export default class Component extends DCLogic {
       wheel: !slim, tall: slim ? 44 : 144, hitT: slim ? 2 : 46, hitW: slim ? (auto ? 320 : 412) : 412, hitH: slim ? 40 : 96,
       numX: Math.max(L + 12, Math.min(Rt - 6, end)).toFixed(1),
       hasAuto: !!auto, auto, pressAuto: () => this.props.onauto?.(),
-      down: (e) => { stop(); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
+      down: (e) => { stop(); this.props.onhold?.(true); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
       move: (e) => {
         const d = this.drag; if (!d) return;
         const deg = (px) => (slim ? (px / d.k / (Rt - L)) * 360 : (px / d.k / R) * (180 / Math.PI)), dt = e.timeStamp - d.lt;   // slim: the number rides under the finger
@@ -56,9 +57,8 @@ export default class Component extends DCLogic {
         const d = this.drag; this.drag = null; if (!d) return;
         if (d.far < 5 && e.timeStamp - d.t < 320) {   // a tap: the second of two quick ones puts the value back where it starts
           if (e.timeStamp - this.tapped < 360) { this.tapped = -1e9; this.props.onreset?.(); } else this.tapped = e.timeStamp;
-          return;
-        }
-        if (!slim && e.type === 'pointerup' && e.timeStamp - d.lt < 80 && Math.abs(d.v) > 0.05) run(d.v);
+        } else if (!slim && e.type === 'pointerup' && e.timeStamp - d.lt < 80 && Math.abs(d.v) > 0.05) return run(d.v);
+        this.props.onhold?.(false);
       },
       key: (e) => { if (e.key === 'ArrowRight') setAngle(this.state.angle + 3.6); if (e.key === 'ArrowLeft') setAngle(this.state.angle - 3.6); if (e.key === 'Home') this.props.onreset?.(); },
     };

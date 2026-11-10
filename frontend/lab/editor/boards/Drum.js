@@ -21,7 +21,7 @@ export default class Component extends DCLogic {
     const settle = (a) => { const to = Math.round(a / step) * step; this.setState({ angle: to, ease: true }); if (face(to) !== at) this.props.onpick?.(face(to)); };
     return {
       r: r.toFixed(2), fh: FACE, half: FACE / 2, angle: this.state.angle.toFixed(2), ease: this.state.ease ? 'transform 280ms cubic-bezier(0.2, 0.85, 0.25, 1.1)' : 'none',
-      faces: Array.from({ length: slots }, (_, i) => { const f = faces[i % n] || {}, on = i % n === at; return { label: String(f.label || '').toUpperCase(), count: f.count ? String(f.count) : '', a: (-i * step).toFixed(2), on: String(on), ink: on ? '#f2efe8' : '#8b8f95', countInk: on ? '#e8202a' : '#5d6166' }; }),
+      faces: Array.from({ length: slots }, (_, i) => { const f = faces[i % n] || {}, on = i % n === at; const long = String(f.label || '').length; return { label: String(f.label || '').toUpperCase(), size: long > 8 ? 8.5 : 10, gap: long > 8 ? 0.04 : long > 7 ? 0.08 : 0.14, count: f.count ? String(f.count) : '', a: (-i * step).toFixed(2), on: String(on), ink: on ? '#f2efe8' : '#8b8f95', countInk: on ? '#e8202a' : '#5d6166' }; }),
       now: faces[at]?.label || '',
       down: (e) => { const b = e.currentTarget.getBoundingClientRect(); this.drag = { y: e.clientY, y0: e.clientY, a: this.state.angle, t: e.timeStamp, lt: e.timeStamp, ly: e.clientY, v: 0, far: 0, k: b.height / 52 || 1, mid: b.top + b.height / 2 }; this.setState({ ease: false }); try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
       move: (e) => {

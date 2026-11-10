@@ -36,7 +36,7 @@ let f = { W: 0, H: 0, w: 1, h: 1, ox: 0, oy: 0, fw: 1, fh: 1 };   // the slot, a
 let z = 1, tx = 0, ty = 0, job = 0, timer = 0, tiled = -1;   // the wrap's scale and shift from fitted; the detail being made
 let view = /** @type {View | null} */ (null), from = /** @type {Big | null} */ (null), cap = 0, making = /** @type {Promise<View | null> | null} */ (null);
 
-const frame = () => /** @type {HTMLElement} */ (document.getElementById('frame'));
+const frame = () => /** @type {HTMLElement} */ (document.getElementById('frame') || document.getElementById('stage')?.parentElement);
 /** Screen pixels in one of the design's (the page's frame is the 412-wide design, scaled to the screen). */
 const scale = () => (frame().getBoundingClientRect().width / 412) * devicePixelRatio;
 const full = () => f.fw / (f.w * scale());   // the wrap's scale at 100 %: a sensor pixel to a screen pixel
@@ -100,8 +100,10 @@ function follow() {
   if (!win?.isConnected) { home.style.display = 'none'; return; }
   const fr = frame().getBoundingClientRect(), r = win.getBoundingClientRect(), k = fr.width / 412 || 1;
   Object.assign(home.style, { display: 'block', left: `${(r.left - fr.left) / k}px`, top: `${(r.top - fr.top) / k}px`, width: `${r.width / k}px`, height: `${r.height / k}px` });
+  wrap.style.filter = win.style.filter || 'none';   // what a board lays on its window (Heal's Visualize) is laid on the photo
 }
 const seen = new ResizeObserver(follow);   // the window moves or resizes (a panel opening), or leaves with its board
+const styled = new MutationObserver(follow);   // or its board gives it another style
 addEventListener('resize', follow);
 
 /** The session hands over the photo's element for a zoomable slot (and again when the element changes). */
@@ -114,7 +116,7 @@ photo.hooks.fill = (s, el) => {
   if (s !== win) {   // another board's window: the layer glides to it, zoomed as it was
     const moved = !!win && home.style.display !== 'none';
     if (win) seen.unobserve(win);
-    win = s; seen.observe(s); pts.clear(); g = null;
+    win = s; seen.observe(s); styled.disconnect(); styled.observe(s, { attributes: true, attributeFilter: ['style'] }); pts.clear(); g = null;
     const low = s.dataset.zoom !== 'top';
     badge.style.top = low ? '' : '12px'; badge.style.bottom = low ? '14px' : '';
     clearTimeout(glide); home.style.transition = moved ? GLIDE : 'none'; glide = setTimeout(() => { home.style.transition = 'none'; }, 360);
@@ -123,7 +125,7 @@ photo.hooks.fill = (s, el) => {
   follow(); layout();
 };
 /** The photo's element went into a board's own slot (Crop, Export): the layer is put away until a window asks again. */
-photo.hooks.away = () => { if (win) seen.unobserve(win); win = null; pts.clear(); g = null; home.style.display = 'none'; };
+photo.hooks.away = () => { if (win) seen.unobserve(win); styled.disconnect(); wrap.style.filter = 'none'; win = null; pts.clear(); g = null; home.style.display = 'none'; };
 /** The clipping overlay to lay over the photo ('' for none): it zooms with it. @param {string} url */
 export function clip(url) { if (over.getAttribute('src') !== url) over.src = url; over.style.display = url ? 'block' : 'none'; if (url) Object.assign(over.style, { width: '100%', height: '100%' }); }
 
