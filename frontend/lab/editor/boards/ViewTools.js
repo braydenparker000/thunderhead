@@ -5,6 +5,7 @@
 import { DCLogic } from '../dc.js';
 import * as photo from '../app/session.js';
 import * as zoom from '../app/zoom.js';
+import { tile } from '../app/tiles.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -44,7 +45,7 @@ export default class Component extends DCLogic {
     };
     return {
       real: !!real, demo: !real, fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160',
-      mapSrc: !real ? '/lab/editor/assets/sample.jpg' : S.zoom ? photo.small() || photo.jpeg() : '', mapW: mapW.toFixed(1), mapH: mapH.toFixed(1),
+      mapSrc: !real ? '/lab/editor/assets/sample.jpg' : S.zoom ? tile('map:' + photo.stamp(), null, 192, {}, true) || photo.jpeg() : '', mapW: mapW.toFixed(1), mapH: mapH.toFixed(1),
       hist: S.hist && !real, histInk: S.hist && !real ? '#e8202a' : '#a6b0bc', tHist: () => set({ hist: !S.hist }), clip: S.clip && S.hist, clipInk: S.clip ? '#e8202a' : '#c9d0d8', tClip: () => set({ clip: !S.clip }),
       histMeta: S.clip ? 'clipping shown' : 'tap ▲ for clipping',
       history: S.mode === 'history', historyInk: S.mode === 'history' ? '#e8202a' : '#a6b0bc', tHistory: () => mode('history'),

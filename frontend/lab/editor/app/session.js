@@ -6,6 +6,7 @@
 import { engine, warm } from '../../engine/gpu.js';
 import { full } from '../../engine/full.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
+import * as hist from './past.js';
 import * as store from './store.js';
 
 /** Each adjustment's starting value (display units: EV, K, or −100..100). */
@@ -29,8 +30,9 @@ let worker = /** @type {Worker | null} */ (null), eng = /** @type {null | Awaite
 /** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
 let cur = null;
 let list = /** @type {Awaited<ReturnType<typeof catalogue>>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
-// the sensor's own pixels, for 100 % and export (they follow the editing copy); the 100 % view's small map
-let big = /** @type {Awaited<ReturnType<typeof full>>} */ (null), asked = 0, mini = '', stale = true;
+// the sensor's own pixels, for 100 % and export (they follow the editing copy); the photo's history and versions;
+// a count that moves whenever the fitted photo is drawn anew
+let big = /** @type {Awaited<ReturnType<typeof full>>} */ (null), asked = 0, past = /** @type {hist.Past | null} */ (null), gen = 0;
 const sleep = (/** @type {number} */ ms) => new Promise((r) => setTimeout(r, ms));
 // the slow parts made once, while the Library is up: the GPU's pipelines and the profiles read from the zip
 warm();
@@ -40,7 +42,6 @@ const profilesFor = (/** @type {string} */ model) => {
   return /** @type {ReturnType<typeof catalogue>} */ (sets.get(model));
 };
 profilesFor('Fujifilm X-E5');
-const thumbs = /** @type {Map<string, string>} */ (new Map());
 
 const slot = () => document.querySelector('[data-keep="photo"]');
 const place = () => slot()?.replaceChildren(ready ? canvas : img);
@@ -53,7 +54,7 @@ export async function open(id) {
   if (!p || cur?.id === id) return;
   const edit = (await store.loadEdit(id)) || {};
   cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
-  ready = false; picking = false; before = null; canvas.style.cursor = ''; big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; thumbs.clear(); URL.revokeObjectURL(mini); mini = ''; stale = true; img.src = await store.jpegUrl(id); place(); changed();
+  ready = false; picking = false; before = null; canvas.style.cursor = ''; big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: { ...ZERO }, wb: 'As shot', profile: '' }, state()); img.src = await store.jpegUrl(id); place(); changed();
   worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' });
   const buf = await store.raw(id), me = cur, tag = ++asked;
   let sensor = (/** @type {Uint16Array} */ m) => {};
@@ -124,7 +125,7 @@ function paint(more) {
 async function draw(fit = true) {
   if (!eng || !cur) return;
   if (drawing) { again = true; return; }
-  drawing = true; stale ||= fit;
+  drawing = true; if (fit) gen++;
   await paint({ fit });
   drawing = false;
   if (again) { again = false; draw(); }
@@ -136,12 +137,34 @@ export async function alone(job) {
   try { await job(); } finally { drawing = false; }
   if (again) { again = false; await draw(); }
 }
-/** The photo as last rendered, `w` pixels wide: a JPEG's URL. @param {number} w */
+/** The photo as last rendered, `w` pixels wide (0: the editing copy's own size): a JPEG's URL. @param {number} w */
 async function shrink(w) {
-  const im = await /** @type {NonNullable<typeof eng>} */ (eng).snapshot(), bm = await createImageBitmap(im, { resizeWidth: w, resizeHeight: Math.round((w * im.height) / im.width), resizeQuality: 'medium' });
+  const im = await /** @type {NonNullable<typeof eng>} */ (eng).snapshot(), bm = await createImageBitmap(im, w ? { resizeWidth: w, resizeHeight: Math.round((w * im.height) / im.width), resizeQuality: 'medium' } : {});
   const c = new OffscreenCanvas(bm.width, bm.height); /** @type {OffscreenCanvasRenderingContext2D} */ (c.getContext('2d')).drawImage(bm, 0, 0);
-  return URL.createObjectURL(await c.convertToBlob({ type: 'image/jpeg', quality: 0.8 }));
+  return URL.createObjectURL(await c.convertToBlob({ type: 'image/jpeg', quality: w ? 0.8 : 0.92 }));
 }
+/** The edit as it stands. @returns {hist.State} */
+export const state = () => ({ values: { ...cur?.values }, wb: cur?.wb || 'As shot', profile: cur?.profile || '' });
+const put = (/** @type {hist.State} */ st) => { if (cur) Object.assign(cur, { values: { ...ZERO, ...st.values }, wb: st.wb, profile: st.profile }); };
+/** The photo developed off screen (tiles.js): as it is now, or as the edit `st` would have it. A JPEG's URL, `w`
+ * pixels wide; '' if the photo closes first. @param {hist.State | null} st @param {number} w @param {Parameters<typeof paint>[0]} [more] */
+export async function picture(st, w, more) {
+  const me = cur; let url = '';
+  await alone(async () => {
+    if (cur !== me || !eng || !me) return;
+    const was = state();
+    try { if (st) { put(st); applyProfile(); } await paint({ screen: false, ...more }); url = await shrink(w); } finally { if (st) { put(was); applyProfile(); } }
+  });
+  return url;
+}
+/** The fitted photo's pixels as it is now (the histogram's); null if the photo closes first. */
+export async function pixels() {
+  const me = cur; let im = /** @type {ImageData | null} */ (null);
+  await alone(async () => { if (cur === me && eng && me) { await paint({ screen: false }); im = await eng.snapshot(); } });
+  return im;
+}
+/** Moves whenever the fitted photo is drawn anew or another photo opens: what was made from it is then old. */
+export const stamp = () => gen;
 
 /* 100 % (zoom.js): the sensor's pixels once they are on the GPU, and what the view needs of the photo. */
 export const whole = () => big;
@@ -160,17 +183,25 @@ export const jpegBand = (rgb, w, h, quality, fine) => new Promise((res, rej) => 
 export const shape = () => (ready ? [canvas.width * 3, canvas.height * 3] : img.naturalWidth ? [img.naturalWidth, img.naturalHeight] : [7728, 5152]);
 /** Draws the 100 % view where it now looks. */
 export async function frame() { while (drawing) await sleep(8); await draw(false); }
-/** The whole photo as edited, small, for the 100 % view's map: '' until it is made (a change follows). */
-export function small() {
-  const me = cur;
-  if (stale && eng && me) { stale = false; alone(async () => { if (cur !== me || !eng) return; await paint({ screen: false }); const url = await shrink(192); if (cur !== me) return; URL.revokeObjectURL(mini); mini = url; }).then(changed); }
-  return mini;
-}
-function save() {
+/** Saves the edit to this phone, shortly. Given a name, the change is first noted as a step of the photo's history
+ * (past.js): `key` is the control, so one that keeps moving stays one step. @param {string} [key] @param {string} [name] @param {string} [val] */
+function save(key, name, val) {
   clearTimeout(saveT);
-  const me = cur;
-  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile, v: 2 }); }, 400);
+  const me = cur, p = past;
+  if (me && p && name !== undefined) hist.note(p, key || '', name, val || '', state());
+  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile, v: 2, ...(p ? hist.dump(p) : {}) }); }, 400);
 }
+/** The photo's history: each step's name and value, and the step it is at. */
+export const history = () => ({ steps: past ? past.steps.map(({ name, val }) => ({ name, val })) : [], at: past ? past.at : 0 });
+/** Back, or forward again, to a step: the edit as it stood then. @param {number} i */
+export function goto(i) { if (!cur || !past?.steps[i]) return; past.at = i; put(past.steps[i].st); applyProfile(); changed(); draw(); save(); }
+export const undo = () => { if (past && past.at > 0) goto(past.at - 1); };
+/** The photo's versions: as imported, then the edits kept by name. `on` marks the one the edit now equals. */
+export const versions = () => (past ? [{ name: 'Original', st: past.steps[0].st }, ...past.versions].map((v) => ({ ...v, on: hist.same(v.st, state()) })) : []);
+/** Keeps the edit as it stands as a new version. */
+export function keep() { if (!cur || !past) return; past.versions.push({ name: `Version ${past.versions.length + 1}`, st: state() }); changed(); save(); }
+/** Puts a version on: a step of the history like any other. @param {number} i */
+export function version(i) { const v = versions()[i]; if (!cur || !v) return; put(v.st); applyProfile(); changed(); draw(); save('', `Version · ${v.name}`, ''); }
 
 /** The open photo's camera JPEG (for a tile still being drawn). */
 export const jpeg = () => img.src;
@@ -201,7 +232,7 @@ export function turn(name, d) {
   if (cur.values[name] === v) return;
   cur.values[name] = v;
   if (name === 'Temp' || name === 'Tint') custom();
-  changed(); draw(); save();
+  changed(); draw(); save(name, name, text(name));
 }
 /** Where an adjustment starts for this photo. @param {string} name */
 const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : ZERO[name] ?? 0);
@@ -212,7 +243,7 @@ export function reset(name) {
   if (!cur) return;
   cur.values[name] = start(name);
   if (name === 'Temp' || name === 'Tint') custom();
-  changed(); draw(); save();
+  changed(); draw(); save(name, name, text(name));
 }
 let before = /** @type {Record<string, number> | null} */ (null);
 /** Auto for the Light controls, read from the photo (engine/auto.js). A second press, with none of them moved
@@ -222,13 +253,13 @@ export function auto() {
   const v = cur.values, a = /** @type {Record<string, number>} */ (eng.auto(cur.shotEv)), names = Object.keys(a), on = !!before && names.every((k) => v[k] === a[k]);
   const was = Object.fromEntries(names.map((k) => [k, v[k]])), me = cur, note = on ? 'Auto off' : 'Auto: tap again to undo';
   Object.assign(v, on ? before : a); before = on ? null : was;
-  say(note); setTimeout(() => { if (cur === me && me.status === note) say(''); }, 2500); draw(); save();
+  say(note); setTimeout(() => { if (cur === me && me.status === note) say(''); }, 2500); draw(); save('', on ? 'Auto off' : 'Auto', '');
 }
 /** A white balance preset from the plate's menu. @param {string} name */
 export function setWb(name) {
   if (!cur || !(name in WB)) return;
   pickWhite(false); cur.wb = name; [cur.values.Temp, cur.values.Tint] = WB[name] || shotWb();
-  white(); changed(); draw(); save();
+  white(); changed(); draw(); save('wb', 'White balance', name);
 }
 let picking = false;
 /** The eyedropper: armed, the next tap on the photo makes what is under it neutral. Tapping its key again
@@ -244,38 +275,19 @@ canvas.addEventListener('click', (e) => {
   if (!w) { say('Too bright there: tap somewhere else'); return; }
   picking = false; canvas.style.cursor = ''; cur.status = '';
   cur.values.Temp = Math.round(Math.min(15000, Math.max(2000, w.kelvin)) / 50) * 50; cur.values.Tint = Math.round(w.tint);
-  custom(); changed(); draw(); save();
+  custom(); changed(); draw(); save('', 'White balance', 'Picked');
 });
 /** The Temp a preset stands for, for the menu. @param {string} name */
 export const wbKelvin = (name) => (WB[name] || shotWb())[0];
 
 /* Looks: the camera profiles on this phone, each drawn small from this photo for its tile. */
 /** The looks for the open photo, with the one it was shot with first marked. */
-export const looks = () => { const shot = asShot(); return list.map((e) => ({ id: e.id, label: e.label, table: !!e.table, mono: /ACROS|Monochrome|Sepia/i.test(e.label), asShot: e === shot, thumb: thumbs.get(e.id) || '' })); };
+export const looks = () => { const shot = asShot(); return list.map((e) => ({ id: e.id, label: e.label, table: !!e.table, mono: /ACROS|Monochrome|Sepia/i.test(e.label), asShot: e === shot })); };
 /** The look in use. */
 export const look = () => chosen()?.id || '';
 /** @param {string} id */
-export function pickLook(id) { if (!cur || !list.some((e) => e.id === id)) return; cur.profile = id; applyProfile(); changed(); draw(); save(); }
+export function pickLook(id) { if (!cur || !list.some((e) => e.id === id)) return; cur.profile = id; applyProfile(); changed(); draw(); save('look', `Look · ${chosen()?.label || ''}`, ''); }
 /** The look's strength, 0..150 % (a look's RGB table; a profile alone is all or nothing). @param {number} pct */
-export function setAmount(pct) { if (!cur) return; cur.values.Amount = Math.max(0, Math.min(150, Math.round(pct))); changed(); draw(); save(); }
+export function setAmount(pct) { if (!cur) return; cur.values.Amount = Math.max(0, Math.min(150, Math.round(pct))); changed(); draw(); save('Amount', 'Look amount', `${cur.values.Amount}%`); }
 /** Press and hold: the photo as shot, without the chosen look. @param {boolean} on */
 export function hold(on) { if (!eng || !cur) return; applyProfile(on ? asShot() : chosen()); draw(); }
-let thumbing = false;
-/** Draws each look's tile from this photo, one at a time, between the dial's frames. */
-export async function makeThumbs() {
-  if (thumbing || !eng || !cur) return;
-  thumbing = true;
-  const me = cur;
-  try {
-    for (const e of list) {
-      if (cur !== me || !eng) break;
-      if (thumbs.has(e.id)) continue;
-      await alone(async () => {
-        if (cur !== me || !eng) return;
-        try { applyProfile(e); await paint({ screen: false, amount: 1 }); thumbs.set(e.id, await shrink(132)); } finally { applyProfile(); }
-      });
-      changed();
-      await sleep(40);
-    }
-  } finally { thumbing = false; }
-}
