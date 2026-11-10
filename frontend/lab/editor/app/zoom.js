@@ -80,8 +80,13 @@ function layout() {
   if (!win) return;
   const r = slot.getBoundingClientRect(), s = r.width / (slot.offsetWidth || 1), [fw, fh] = photo.shape(), W = r.width / s, H = r.height / s, k = Math.min(W / fw, H / fh);
   if (!(W > 0 && H > 0)) return;
-  const was = `${f.ox},${f.oy},${f.w},${f.h}`;
+  const was = `${f.ox},${f.oy},${f.w},${f.h}`, o = f;
   f = { W, H, w: fw * k, h: fh * k, ox: (W - fw * k) / 2, oy: (H - fh * k) / 2, fw, fh };
+  if (z > 1.02 && o.fw === fw && o.fh === fh && o.w > 1 && (o.w !== f.w || o.W !== W || o.H !== H)) {
+    // the room changed under a zoomed photo (another board's window, a panel growing): it keeps its size on screen, and what was at the room's middle stays there
+    const px = (o.W / 2 - o.ox - tx) / (o.w * z), py = (o.H / 2 - o.oy - ty) / (o.h * z);
+    z = Math.max(1, (z * o.w) / f.w); tx = W / 2 - f.ox - px * f.w * z; ty = H / 2 - f.oy - py * f.h * z;
+  }
   if (was !== `${f.ox},${f.oy},${f.w},${f.h}`) queueMicrotask(() => photo.events.dispatchEvent(new Event('change')));   // a board lays things over the fitted photo
   Object.assign(wrap.style, { left: `${f.ox}px`, top: `${f.oy}px`, width: `${f.w}px`, height: `${f.h}px` });
   Object.assign(map.style, { width: `${fw >= fh ? 96 : (96 * fw) / fh}px`, height: `${fw >= fh ? (96 * fh) / fw : 96}px` });

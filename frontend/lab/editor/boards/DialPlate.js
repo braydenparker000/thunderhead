@@ -42,7 +42,7 @@ export default class Component extends DCLogic {
       trackL: L, trackW: Rt - L, midX: mid, fillL: (mid + Math.min(0, f) * half).toFixed(1), fillW: (Math.abs(f) * half).toFixed(1),
       numX: Math.max(L + 12, Math.min(Rt - 6, end)).toFixed(1),
       hasAuto: !!auto, auto, pressAuto: () => this.props.onauto?.(),
-      down: (e) => { stop(); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
+      down: (e) => { stop(); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* a pointer that cannot be held still turns it */ } },
       move: (e) => {
         const d = this.drag; if (!d) return;
         const deg = (px) => (px / d.k / R) * (180 / Math.PI), dt = e.timeStamp - d.lt;
