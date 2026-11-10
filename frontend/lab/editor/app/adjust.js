@@ -5,7 +5,7 @@
 import { WB, ZERO, canvas, changed, cur, custom, draw, eng, save, say, shotWb, white } from './session.js';
 
 /** The controls that don't run −100..100: lowest, highest, step. The dial's whole window (−5..5) spans them. */
-const SPAN = /** @type {Record<string, number[]>} */ ({ Sharpening: [0, 150, 1], Radius: [0.5, 3, 0.1], Detail: [0, 100, 1], Noise: [0, 100, 1], 'Color noise': [0, 100, 1] });
+const SPAN = /** @type {Record<string, number[]>} */ ({ Sharpening: [0, 150, 1], Radius: [0.5, 3, 0.1], Detail: [0, 100, 1], Noise: [0, 100, 1], 'Color noise': [0, 100, 1], Grain: [0, 100, 1], Blending: [0, 100, 1] });
 /** @param {string} name */
 export const value = (name) => cur?.values[name] ?? ZERO[name] ?? 0;
 /** The value as the plate shows it. @param {string} name */
@@ -35,6 +35,11 @@ export function turn(name, d) {
   if (name === 'Temp' || name === 'Tint') custom();
   changed(); draw(); save(name, name, text(name));
 }
+/** Several adjustments set at once, as one step of the history (a grading wheel's hue and saturation; a reset of
+ * many). @param {Record<string, number>} patch @param {string} key what keeps moving, for the history @param {string} name @param {string} [val] */
+export function setValues(patch, key, name, val = '') { if (!cur) return; Object.assign(cur.values, patch); changed(); draw(); save(key, name, val); }
+/** Puts adjustments back where they start, as one step. @param {string[]} names @param {string} name */
+export const resetAll = (names, name) => setValues(Object.fromEntries(names.map((n) => [n, start(n)])), '', name);
 /** Where an adjustment starts for this photo. @param {string} name */
 const start = (name) => (name === 'Temp' ? shotWb()[0] : name === 'Tint' ? shotWb()[1] : ZERO[name] ?? 0);
 /** Whether an adjustment has moved from where the photo started. @param {string} name */
@@ -46,6 +51,8 @@ export function reset(name) {
   if (name === 'Temp' || name === 'Tint') custom();
   changed(); draw(); save(name, name, text(name));
 }
+/** The curve's point the dial turns: the one last touched on the curve board. */
+export const picked = { i: 1 };
 let before = /** @type {Record<string, number> | null} */ (null);
 /** Auto for the Light controls, read from the photo (engine/auto.js). A second press, with none of them moved
  * since, puts back what was there. */

@@ -26,7 +26,7 @@ export default class Component extends DCLogic {
     };
     const sets = real ? Object.fromEntries(Object.entries(sets0).map(([k, l]) => [k, l.map(([n, , u]) => [n, photo.text(n), u])])) : sets0;
     const subs = { Light: [['curve', 'Curve']], Color: [['mixer', 'Mixer'], ['grading', 'Grading']] };
-    const counts = real ? Object.fromEntries(Object.entries(sets).map(([k, l]) => [k, l.filter(([n]) => photo.edited(n)).length])) : { Light: 5, Color: 4, Effects: 0, Detail: 1, Optics: 1 };
+    const counts = real ? Object.fromEntries(Object.entries(sets).map(([k, l]) => [k, l.filter(([n]) => photo.edited(n)).length + (k === 'Light' && photo.curve() ? 1 : 0) + (k === 'Color' ? ['Mix', 'Grade'].filter((t) => Object.keys(photo.ZERO).some((n) => n.startsWith(t + ' ') && photo.edited(n))).length : 0)])) : { Light: 5, Color: 4, Effects: 0, Detail: 1, Optics: 1 };
     const list = sets[section];
     const current = list.find((a) => a[0] === S.adj) || list[0];
     const sections = Object.keys(sets).map((name) => {
@@ -46,18 +46,25 @@ export default class Component extends DCLogic {
       pick: o.pick,
     });
     const colors = [['Red', '#e5484d'], ['Orange', '#f76b15'], ['Yellow', '#ffc53d'], ['Green', '#46a758'], ['Aqua', '#12a594'], ['Blue', '#3e63dd'], ['Purple', '#8e4ec6'], ['Magenta', '#d6409f']];
-    let chips, dialLabel, unit = '', actions;
+    let chips, dialLabel, unit = '', actions, subCtl = '', point = null;   // subCtl: the adjustment the dial turns inside Mixer and Grading; point: the curve's point it turns
     if (sub === 'curve') {
       chips = ['RGB', 'R', 'G', 'B'].map((c) => ({ name: c, on: c === S.chan, pad: 12, pick: () => set({ chan: c }) }));
-      dialLabel = 'Curve point'; actions = [{ name: 'RESET CURVE' }];
+      dialLabel = 'Curve point'; actions = [{ name: 'RESET CURVE', pick: () => photo.setCurve() }];
+      if (real) {   // the dial lifts or lowers the point last touched: finer than a finger on the curve
+        const pts = photo.curve()?.[S.chan] || [[0, 0], [1, 1]], i = Math.min(photo.picked.i, pts.length - 1), [x, y] = pts[i];
+        point = { value: (y - x) * 5, text: String(Math.round(y * 255)), turn: (d) => photo.setCurve(S.chan, pts.map((q, j) => (j === i ? [x, Math.max(0, Math.min(1, x + d / 5))] : q))) };
+      }
     } else if (sub === 'mixer') {
       chips = ['Hue', 'Sat', 'Lum'].map((a) => ({ name: a, on: a === S.mixAttr, pad: 6, pick: () => set({ mixAttr: a }) }))
         .concat(colors.map(([c, hex]) => ({ name: '', aria: c, swatch: hex, on: c === S.mixColor, pad: 5, pick: () => set({ mixColor: c }) })));
-      dialLabel = `${S.mixColor} ${S.mixAttr}`; actions = [{ name: `RESET ${S.mixColor.toUpperCase()}` }, { name: 'RESET ALL' }];
+      dialLabel = `${S.mixColor} ${S.mixAttr}`; subCtl = `Mix ${S.mixColor} ${S.mixAttr}`;
+      const mix = (cs) => cs.flatMap((c) => ['Hue', 'Sat', 'Lum'].map((a) => `Mix ${c} ${a}`));
+      actions = [{ name: `RESET ${S.mixColor.toUpperCase()}`, pick: () => photo.resetAll(mix([S.mixColor]), `Mixer · ${S.mixColor} reset`) }, { name: 'RESET ALL', pick: () => photo.resetAll(mix(colors.map((c) => c[0])), 'Mixer reset') }];
     } else if (sub === 'grading') {
       chips = ['Shadows', 'Midtones', 'Highlights', 'Global', 'Blending', 'Balance'].map((z) => ({ name: z, on: z === S.zone, pick: () => set({ zone: z }) }));
       const wheel = !['Blending', 'Balance'].includes(S.zone);
-      dialLabel = wheel ? `${S.zone} Lum` : S.zone; actions = [{ name: 'RESET GRADING' }];
+      dialLabel = wheel ? `${S.zone} Lum` : S.zone; subCtl = wheel ? `Grade ${S.zone} Lum` : S.zone;
+      actions = [{ name: 'RESET GRADING', pick: () => photo.resetAll(['Shadows', 'Midtones', 'Highlights', 'Global'].flatMap((z) => ['Hue', 'Sat', 'Lum'].map((a) => `Grade ${z} ${a}`)).concat(['Blending', 'Balance']), 'Grading reset') }];
     } else {
       chips = list.map(([name, value]) => ({ name, value, on: name === current[0], pick: () => set({ adj: name }) }))
         .concat((subs[section] || []).map(([key, name]) => ({ name: `${name} ›`, entry: true, pad: 10, pick: () => { photo.pickWhite(false); set({ sub: key, wbMenu: false }); } })));
@@ -66,6 +73,7 @@ export default class Component extends DCLogic {
         ? [{ name: '', aria: 'Pick white balance from the photo', dropper: true, pad: 12, pick: () => { photo.pickWhite(); set({ wbMenu: false }); } }, { name: `WB · ${(real ? real.wb : S.wb).toUpperCase()}`, caret: true, expanded: String(S.wbMenu), pick: () => set({ wbMenu: !S.wbMenu }) }]
         : [{ name: 'AUTO', auto: true, pick: section === 'Light' ? photo.auto : undefined }, { name: 'RESET', pick: () => photo.reset(current[0]) }];
     }
+    const ctl = sub ? subCtl : current[0];
     // the row flies out of the section name that was tapped: each chip starts at that name and springs into place
     const secX = 14 + (384 / 5) * (Object.keys(sets).indexOf(section) + 0.5);
     let cx = 14 + (sub ? 24 : 0);
@@ -93,8 +101,8 @@ export default class Component extends DCLogic {
       showTrio: open && sub === 'grading', zone: S.zone,
       wbMenu: open && S.wbMenu && section === 'Color' && !sub,
       wbList: wbs.map(([name, k]) => ({ name, k, on: String(name === wbNow), bg: name === wbNow ? 'rgba(255,255,255,0.16)' : 'transparent', pick: () => { if (real) photo.setWb(name); set({ wb: name, wbMenu: false }); } })),
-      dialValue: real && !sub ? photo.toDial(current[0]) : undefined, dialText: real && !sub ? photo.text(current[0]) : undefined,
-      dialTurn: real && !sub ? (d) => photo.turn(current[0], d) : undefined, status: real?.status || '', hasStatus: !!real?.status,
+      dialValue: point ? point.value : real && ctl ? photo.toDial(ctl) : undefined, dialText: point ? point.text : real && ctl ? photo.text(ctl) : undefined,
+      dialTurn: point ? point.turn : real && ctl ? (d) => photo.turn(ctl, d) : undefined, status: real?.status || '', hasStatus: !!real?.status,
       fileName: real ? real.name.replace(/\.RAF$/i, '') : 'DSCF0412', shotLine: real ? (real.shot.split(' · ')[0] || 'Fujifilm') + ' · RAF' : '23 mm · f/5.6 · 1/250 · ISO 160', countText: real ? real.count : '3 / 24',
       actions: actions.map((a) => ({ name: a.name, aria: a.aria ?? a.name, pad: a.pad ?? 16, auto: !!a.auto, dropper: !!a.dropper, caret: !!a.caret, expanded: a.expanded ?? 'false', pick: a.pick ?? (() => {}) })),
       close: () => { photo.pickWhite(false); set({ open: false, wbMenu: false }); },

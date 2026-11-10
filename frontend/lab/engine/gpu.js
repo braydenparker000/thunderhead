@@ -72,7 +72,7 @@ export async function engine(canvas, img, readback = false) {
   const t0 = performance.now();
   const src = device.createBuffer({ size: img.proxy.byteLength, usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST });
   device.queue.writeBuffer(src, 0, img.proxy.buffer, img.proxy.byteOffset, img.proxy.byteLength);
-  const uni = device.createBuffer({ size: 416, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+  const uni = device.createBuffer({ size: 2672, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
   // The photo laid out as the picture (warp.js) is what the tone mask and every frame read. It, the frame's
   // output, the canvas and the mask are the picture's size, so a crop makes them anew (`lay`).
   let geo = geometry(img.meta), bent = false, fine = true, ow = 0, oh = 0, row = 0;
@@ -98,7 +98,7 @@ export async function engine(canvas, img, readback = false) {
   let tab = device.createBuffer({ size: 16, usage: GPUBufferUsage.STORAGE }), bind = /** @type {GPUBindGroup | null} */ (null), bakeBind = /** @type {GPUBindGroup | null} */ (null), baked = '', masked = '', fined = '', hazed = '', air = [1, 1, 1], airFor = /** @type {number[] | null} */ (null), state = { m: /** @type {number[]} */ ([]), u: tables(null, 1).u, kelvin: 0, wb: [1, 1, 1], chroma: [0, 0, 0] };
   /** Full-resolution views (full.js): each adds its own frame pass to a render. @type {{ bind: (tab: GPUBuffer) => void, bent: () => void, frame: (enc: GPUCommandEncoder, u: ArrayBuffer) => void, after: () => Promise<void> }[]} */
   const views = [];
-  let lastU = new ArrayBuffer(416);   // the last shown frame's settings
+  let lastU = new ArrayBuffer(2672);   // the last shown frame's settings
   const last = { baked: false, masked: false };   // whether the last render re-made the colour table, and the tone mask (the test page's timing lines)
   /** @param {null | { profile: import('./dcp.js').Profile, table: any }} pick */
   const setProfile = (pick) => {
@@ -131,7 +131,7 @@ export async function engine(canvas, img, readback = false) {
     return n && whiteOf(/** @type {any} */ (picked?.profile || fallback), n);
   };
   /** @param {number} ev @param {number} contrast
-   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, clarity?: number, texture?: number, dehaze?: number, sharpen?: number, radius?: number, detail?: number, noise?: number, colorNoise?: number, amount?: number, screen?: boolean, fit?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
+   * @param {{ highlights?: number, shadows?: number, whites?: number, blacks?: number, saturation?: number, vibrance?: number, clarity?: number, texture?: number, dehaze?: number, sharpen?: number, radius?: number, detail?: number, noise?: number, colorNoise?: number, vignette?: number, grain?: number, mixer?: Float32Array | null, grade?: Float32Array | null, curve?: Float32Array | null, amount?: number, screen?: boolean, fit?: boolean, exact?: boolean, rebuild?: boolean, dither?: boolean, mask?: boolean, showMask?: boolean, time?: 'bare' | 'nearest' }} [more]
    * each −1..1; amount: the look table's strength (1 = as made); screen: false renders without showing it; fit: false leaves the
    * fitted photo as it is and re-makes only the full-resolution views (100 %); exact: every
    * pixel through the full maths, not the table (slow: the table's accuracy check); rebuild: false leaves clipped
@@ -139,14 +139,18 @@ export async function engine(canvas, img, readback = false) {
    * Shadows by each pixel's own brightness, not its area's; showMask draws the tone mask (all four for comparing);
    * time, for the stage timer: 'bare' does no colour work at all, 'nearest' reads the table without mixing its entries */
   const render = async (ev, contrast, more = {}) => {
-    const t = performance.now(), u = new ArrayBuffer(416), f = new Float32Array(u), n = new Uint32Array(u);
+    const t = performance.now(), u = new ArrayBuffer(2672), f = new Float32Array(u), n = new Uint32Array(u);
     const g = [more.highlights || 0, more.shadows || 0, more.whites || 0, more.blacks || 0, more.saturation || 0, more.vibrance || 0, 0, 0];
     f.set([...rows(state.m), ...rows(PROPHOTO_TO_SRGB), ...rows(PROPHOTO_TO_ADOBE), ...rows(inv(PROPHOTO_TO_ADOBE)), ev + state.u.offset, contrast, more.amount ?? 1, 1]);
     n.set([ow, oh, 0, state.u.flags | (more.exact ? 64 : 0) | (more.rebuild === false ? 512 : 0) | (more.dither === false ? 1024 : 0) | (more.mask === false ? 2048 : 0) | (more.showMask ? 4096 : 0) | (more.time === 'nearest' ? 8192 : more.time === 'bare' ? 16384 : 0), ...state.u.hsm, ...state.u.look, ...state.u.tab], 52);
     f.set(g, 68); n.set(state.u.look2, 76); f.set([...state.wb, geo.head, ...state.chroma, 0], 80);
     if (more.dehaze && airFor !== state.m) { air = airOf(img, state.m); airFor = state.m; }   // the haze's colour, once for each profile and white balance
-    f.set([more.clarity || 0, more.texture || 0, more.dehaze || 0, 0, ...air, 0, more.sharpen || 0, more.radius || 1, more.detail ?? 0.25, 0, 2.5 * (more.noise || 0), 4 * (more.colorNoise || 0), 0, 0], 88);
-    const key = [contrast, more.amount ?? 1, ...g.slice(2)].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
+    f.set([more.clarity || 0, more.texture || 0, more.dehaze || 0, more.vignette || 0, ...air, 0, more.sharpen || 0, more.radius || 1, more.detail ?? 0.25, more.grain || 0, 2.5 * (more.noise || 0), 4 * (more.colorNoise || 0), ow, oh], 88);
+    // the tools inside the colour table (grade.js): each is switched on by its rows being there
+    if (more.mixer) { f.set(more.mixer, 104); n[55] |= 32768; }
+    if (more.grade) { f.set(more.grade, 136); n[55] |= 65536; }
+    if (more.curve) { f.set(more.curve, 156); n[55] |= 131072; }
+    const key = [contrast, more.amount ?? 1, ...g.slice(2), more.mixer?.join(), more.grade?.join(), more.curve?.join()].join(), lit = more.rebuild === false ? 'clipped' : 'rebuilt';
     device.queue.writeBuffer(uni, 0, u);
     const enc = device.createCommandEncoder();
     if (!bent) { bend.run(enc, geo, { x: 0, y: 0, scale: cell, w: ow, h: oh }, { x: 0, y: 0, scale: cell, w, h }, fine); bent = true; masked = fined = hazed = ''; }
