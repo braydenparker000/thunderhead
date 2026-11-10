@@ -1,6 +1,6 @@
 // @ts-check
 // The colour tools that live inside the colour table (wgsl.js, develop): the mixer's eight colours, grading's
-// four wheels, and the point curve. This turns what the boards hold into the rows the frame's settings carry.
+// four wheels, a look's own table (cube.js), and the point curve. This turns what the boards hold into the rows the frame's settings carry.
 // None of them costs anything per frame: they are baked into the table with the look and the tone curve.
 
 export const COLOURS = ['Red', 'Orange', 'Yellow', 'Green', 'Aqua', 'Blue', 'Purple', 'Magenta'];
@@ -93,4 +93,15 @@ fn grade(c: vec3f) -> vec3f {
   return unlab(vec3f(v.x * exp2(g.z * 0.5), v.yz + g.xy * (0.3 + 0.7 * clamp(v.x, 0.0, 1.0))));
 }
 // the point curve, on the finished value as the screen holds it: first the curve for all three channels, then the channel's own
+// A look's own 3D table (cube.js): the finished colour in, the look's colour out, mixed between its eight nearest entries.
+fn cube(e: vec3f) -> vec3f {
+  let n = p.size.z; let g = clamp(e, vec3f(0.0), vec3f(1.0)) * f32(n - 1u); let i = min(vec3u(floor(g)), vec3u(n - 2u)); let f = g - vec3f(i);
+  var acc = vec3f(0.0);
+  for (var k = 0u; k < 8u; k++) {
+    let o = vec3u(k & 1u, (k >> 1u) & 1u, (k >> 2u) & 1u); let w = select(1.0 - f, f, o == vec3u(1u));
+    let q = p.tab.w + (((i.z + o.z) * n + (i.y + o.y)) * n + (i.x + o.x)) * 3u;
+    acc += vec3f(t[q], t[q + 1u], t[q + 2u]) * w.x * w.y * w.z;
+  }
+  return clamp(mix(e, acc, p.air.w), vec3f(0.0), vec3f(1.0));
+}
 fn point(x: f32, k: u32) -> f32 { let f = clamp(x, 0.0, 1.0) * 127.0; let i = u32(f); let j = min(i + 1u, 127u); return mix(p.crv[i][k], p.crv[j][k], f - f32(i)); }`;
