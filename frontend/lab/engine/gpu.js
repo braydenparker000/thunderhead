@@ -148,7 +148,7 @@ export async function engine(canvas, img, readback = false) {
     const shown = more.screen !== false, fit = more.fit !== false;
     if (fit) {
       const pass = enc.beginComputePass();
-      pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(w / 8), Math.ceil(h / 8)); pass.end();
+      pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(ow / 8), Math.ceil(oh / 8)); pass.end();
       if (ctx && shown) enc.copyTextureToTexture({ texture: out }, { texture: ctx.getCurrentTexture() }, [ow, oh]);
       if (back && shown) enc.copyTextureToBuffer({ texture: out }, { buffer: back, bytesPerRow: row }, [ow, oh]);
     }
