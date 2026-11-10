@@ -11,14 +11,16 @@ import { lensOf } from './lens.js';
  * Fujifilm's DR setting (100, 200 or 400) from its maker notes: DR200 and DR400 shoot 1 and 2 stops darker on
  * purpose, and the developer adds it back. @param {DataView} j */
 function exifInfo(j) {
-  const out = { dr: 100, orientation: 'Normal', settings: '' };
+  const out = { dr: 100, orientation: 'Normal', settings: '', iso: 0 };
   try {
     let a = 2; while (a < j.byteLength - 10 && !(j.getUint16(a) === 0xffe1 && j.getUint32(a + 4) === 0x45786966)) a += 2 + j.getUint16(a + 2);
     const t = a + 10, le = j.getUint16(t) === 0x4949, u16 = (o) => j.getUint16(t + o, le), u32 = (o) => j.getUint32(t + o, le);
     const find = (/** @type {number} */ ifd, /** @type {number} */ tag) => { for (let k = 0, n = u16(ifd); k < n; k++) if (u16(ifd + 2 + k * 12) === tag) return ifd + 2 + k * 12; return -1; };
     const o = find(u32(4), 0x0112);
     if (o >= 0) out.orientation = { 3: 'Rotate180', 6: 'Rotate90', 8: 'Rotate270' }[u16(o + 8)] || 'Normal';
-    const exif = u32(find(u32(4), 0x8769) + 8), mn = t + u32(find(exif, 0x927c) + 8), io = mn + j.getUint32(mn + 8, true);
+    const exif = u32(find(u32(4), 0x8769) + 8), sens = find(exif, 0x8827);
+    if (sens >= 0) out.iso = u16(sens + 8);
+    const mn = t + u32(find(exif, 0x927c) + 8), io = mn + j.getUint32(mn + 8, true);
     const mk = /** @type {Record<number, number>} */ ({});
     for (let k = 0, n = j.getUint16(io, true); k < n; k++) {
       const e = io + 2 + k * 12, type = j.getUint16(e + 2, true);
@@ -69,7 +71,7 @@ self.onmessage = async (e) => {
     // the camera's own JPEG first (RAF header: its offset and length at bytes 84 and 88, big-endian), so the
     // photo shows while the RAW decodes
     const v = new DataView(buf);
-    let info = { dr: 100, orientation: 'Normal', settings: '' };
+    let info = { dr: 100, orientation: 'Normal', settings: '', iso: 0 };
     if (v.byteLength > 92 && new TextDecoder().decode(new Uint8Array(buf, 0, 8)) === 'FUJIFILM') {
       const off = v.getUint32(84), len = v.getUint32(88);
       if (off + len <= v.byteLength) {
@@ -85,7 +87,7 @@ self.onmessage = async (e) => {
     const proxy = d.proxy();
     const meta = JSON.parse(d.meta());
     if (meta.orientation === 'Normal') meta.orientation = info.orientation;
-    meta.lens = lens;   // the lens's own corrections, from the RAF (lens.js)
+    meta.iso = info.iso; meta.lens = lens;   // the lens's own corrections, from the RAF (lens.js)
     const msg = { meta, width: d.width(), height: d.height(), proxy, decodeMs: t1 - t0, threads, threadsError, tag };
     self.postMessage(msg, [proxy.buffer]);
     // the sensor's pixels follow the editing copy, so the photo is on screen first

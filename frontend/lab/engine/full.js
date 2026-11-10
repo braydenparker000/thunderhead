@@ -9,6 +9,7 @@ import { demosaicer, phaseOf } from './demosaic.js';
 import { WGSL } from './wgsl.js';
 import { reach, warper } from './warp.js';
 import { finishPipe } from './finish.js';
+import { denoiser } from './denoise.js';
 
 // the frame pass writing 16-bit floats, which every view uses (its last pass, finish.js, sharpens them): compiled
 // at the first view, kept with its device
@@ -53,9 +54,10 @@ export async function full(e, img, mosaic) {
       }
       return [8, 8];
     };
-    let fit = room();
+    let fit = room(), cleaned = '';
+    const dn = await denoiser(device, dm.out);
     const flat = device.createBuffer({ size: maxW * maxH * 8, usage: GPUBufferUsage.STORAGE }), bend = warper(device, bendP, dm.out, flat);
-    const uni = device.createBuffer({ size: 400, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), funi = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
+    const uni = device.createBuffer({ size: 416, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST }), funi = device.createBuffer({ size: 32, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
     // the frame pass writes `mid`; the last pass sharpens that into `out`
     const mid = device.createTexture({ size: [maxW, maxH], format: 'rgba16float', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.TEXTURE_BINDING });
     const out = device.createTexture({ size: [maxW, maxH], format, usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
@@ -89,12 +91,14 @@ export async function full(e, img, mosaic) {
        * frame's settings, its own size, and where it sits in the tone mask. @param {GPUCommandEncoder} enc @param {ArrayBuffer} u */
       frame: (enc, u) => {
         if (!at || !bind) return;
+        const c = u.slice(0), n = new Uint32Array(c), f = new Float32Array(c);
+        if (cleaned !== `${f[100]},${f[101]}`) { cleaned = `${f[100]},${f[101]}`; fresh = false; }   // noise reduction is part of the rectangle's colours
         if (!fresh) {
           dm.run(enc, at.rx, at.ry, at.rw, at.rh);
+          if (f[100] > 0 || f[101] > 0) dn.run(enc, at.rw, at.rh, e.gpu.noise, f[100], f[101]);
           bend.run(enc, e.gpu.geo(), { x: at.X, y: at.Y, scale: 1, w: at.cw, h: at.ch }, { x: at.rx, y: at.ry, scale: 1, w: at.rw, h: at.rh });
           fresh = true;
         }
-        const c = u.slice(0), n = new Uint32Array(c), f = new Float32Array(c);
         n[52] = at.cw; n[53] = at.ch; n[55] |= 1024; f[51] = 1 / 3; f[74] = at.X / 3; f[75] = at.Y / 3;   // no dither yet: the last pass does it
         device.queue.writeBuffer(uni, 0, c);
         const fu = new ArrayBuffer(32); new Uint32Array(fu).set([at.cw, at.ch, deep ? 0 : 1, 0]); new Float32Array(fu).set([f[96], f[97], f[98], 0], 4);
@@ -135,7 +139,7 @@ export async function full(e, img, mosaic) {
       await hook.after();
       return r;
     }
-    function dispose() { if (!open.delete(dispose)) return; views.splice(views.indexOf(hook), 1); dm.destroy(); bend.destroy(); flat.destroy(); uni.destroy(); funi.destroy(); mid.destroy(); out.destroy(); }
+    function dispose() { if (!open.delete(dispose)) return; views.splice(views.indexOf(hook), 1); dm.destroy(); dn.destroy(); bend.destroy(); flat.destroy(); uni.destroy(); funi.destroy(); mid.destroy(); out.destroy(); }
     hook.bind(e.gpu.tab()); views.push(hook); open.add(dispose);
     return self;
   };
