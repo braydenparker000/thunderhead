@@ -1,38 +1,64 @@
 // @ts-nocheck
-// The DialPlate board, as designed (docs/design/editor/boards/DialPlate.dc.html.dc.html). Wired to a photo
-// (app/session.js): `value` (the dial's −5..5 position) follows the photo when it changes from elsewhere,
-// `text` is the value as the plate shows it, and `onturn` hears every turn.
+// The dial: a knurled wheel under a window that shows the value. Wired to a photo (app/session.js): `value` (the
+// dial's −5..5 position) follows the photo when it changes from elsewhere, `text` is the value as the plate shows
+// it, and `onturn` hears every turn. A drag turns it one for one with the finger; let go while moving and it runs
+// on, slowing, until it stops or is touched; two quick taps ask for the value's start (`onreset`). `auto`, when
+// given, is the name of a small key in the window's corner (`onauto`).
 import { DCLogic } from '../dc.js';
 
 export default class Component extends DCLogic {
-  constructor(props) { super(props); this.state = { angle: 12.6, active: false }; this.drag = null; }
+  constructor(props) { super(props); this.state = { angle: 12.6, active: false }; this.drag = null; this.spin = 0; this.tapped = -1e9; }
   renderVals() {
-    const PERIOD = 360 / 72, FRAMES = 12, FRAME_H = 150, R = 240;   // R = the dial's radius in css px, so the knurl tracks the finger
+    const PERIOD = 360 / 72, FRAMES = 12, FRAME_H = 150, R = 240;   // R = the dial's radius in the design's pixels, so the knurl tracks the finger
     const label = this.props.label ?? 'Exposure', unit = this.props.unit ?? 'EV';
-    // a new adjustment, or a change made elsewhere (Reset, a preset): the dial goes to it; never mid-drag
-    if (typeof this.props.value === 'number' && (label !== this.seen || (!this.drag && Math.abs(this.props.value * 36 - this.state.angle) > 1))) {
+    // a new adjustment, or a change made elsewhere (a preset, Undo): the dial goes to it; never under a finger or while it runs on
+    if (typeof this.props.value === 'number' && (label !== this.seen || (!this.drag && !this.spin && Math.abs(this.props.value * 36 - this.state.angle) > 1))) {
       this.seen = label; this.state.angle = Math.max(-180, Math.min(180, this.props.value * 36));
     }
-    const { angle, active } = this.state;
+    const { angle } = this.state;
     const ev = unit === 'EV';
     const frac = ((((-angle) / PERIOD) % 1) + 1) % 1;
     const v = Math.max(-5, Math.min(5, angle / 36));
     const show = (t) => ev ? t : Math.round(t * 20);
     const sign = (x) => (x > 0.004 ? '+' : x < -0.004 ? '−' : '');
     const valueText = this.props.text ?? (ev ? sign(v) + Math.abs(v).toFixed(2) : sign(show(v)) + Math.abs(show(v)));
-    // the window: a red fill always runs from 0 to the value, the number riding at its end in a ringed box
-    const half = (372 - 44) / 2, f = v / 5, end = 186 + f * half;
-    const setAngle = (a) => { const c = Math.max(-180, Math.min(180, a)); this.setState({ angle: c }); this.props.onturn?.(c / 36); };
+    // the window: a red fill runs from the middle to the value, the number riding at its end in a ringed box; the Auto key takes the right end
+    const auto = this.props.auto || '', L = 22, Rt = auto ? 372 - 74 : 372 - 22, mid = (L + Rt) / 2, half = (Rt - L) / 2, f = v / 5, end = mid + f * half;
+    const setAngle = (a) => { const c = Math.max(-180, Math.min(180, a)); this.setState({ angle: c }); this.props.onturn?.(c / 36); return c; };
+    const stop = () => { cancelAnimationFrame(this.spin); this.spin = 0; };
+    const run = (v0) => {   // degrees a millisecond, dying away
+      let vel = v0, last = performance.now();
+      const step = (now) => {
+        const dt = Math.min(40, now - last); last = now;
+        const a = setAngle(this.state.angle + vel * dt); vel *= Math.exp(-dt / 320);
+        this.spin = Math.abs(vel) < 0.012 || Math.abs(a) >= 180 ? 0 : requestAnimationFrame(step);
+        if (!this.spin) this.setState({});
+      };
+      this.spin = requestAnimationFrame(step);
+    };
     return {
-      label, unit, labelUp: label.toUpperCase(),
+      label, unit, labelUp: label.toUpperCase() + (unit ? ` · ${unit}` : ''),
       offset: -Math.floor(frac * FRAMES) * FRAME_H, valueText, valueNow: v.toFixed(2),
-      trackO: 1, fillL: (186 + Math.min(0, f) * half).toFixed(1), fillW: (Math.abs(f) * half).toFixed(1),
-      numX: Math.max(34, Math.min(338, end)).toFixed(1), numY: 30, numPad: 8, numSize: 12, numBg: '#0b0c0d',
-      numRing: '0 0 0 1.5px #e8202a, 0 2px 6px rgba(0,0,0,0.8)',
-      down: (e) => { this.drag = { x: e.clientX, a: this.state.angle }; this.setState({ active: true }); if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
-      move: (e) => { if (!this.drag) return; setAngle(this.drag.a + ((e.clientX - this.drag.x) / R) * (180 / Math.PI)); },
-      up: () => { this.drag = null; },
-      key: (e) => { if (e.key === 'ArrowRight') setAngle(this.state.angle + 3.6); if (e.key === 'ArrowLeft') setAngle(this.state.angle - 3.6); },
+      trackL: L, trackW: Rt - L, midX: mid, fillL: (mid + Math.min(0, f) * half).toFixed(1), fillW: (Math.abs(f) * half).toFixed(1),
+      numX: Math.max(L + 12, Math.min(Rt - 6, end)).toFixed(1),
+      hasAuto: !!auto, auto, pressAuto: () => this.props.onauto?.(),
+      down: (e) => { stop(); const k = e.currentTarget.getBoundingClientRect().width / 412 || 1; this.drag = { x: e.clientX, a: this.state.angle, t: e.timeStamp, lx: e.clientX, lt: e.timeStamp, v: 0, far: 0, k }; if (e.currentTarget.setPointerCapture) e.currentTarget.setPointerCapture(e.pointerId); },
+      move: (e) => {
+        const d = this.drag; if (!d) return;
+        const deg = (px) => (px / d.k / R) * (180 / Math.PI), dt = e.timeStamp - d.lt;
+        d.far = Math.max(d.far, Math.abs(e.clientX - d.x));
+        if (dt > 0) { d.v = d.v * 0.55 + (deg(e.clientX - d.lx) / dt) * 0.45; d.lx = e.clientX; d.lt = e.timeStamp; }
+        setAngle(d.a + deg(e.clientX - d.x));
+      },
+      up: (e) => {
+        const d = this.drag; this.drag = null; if (!d) return;
+        if (d.far < 5 && e.timeStamp - d.t < 320) {   // a tap: the second of two quick ones puts the value back where it starts
+          if (e.timeStamp - this.tapped < 360) { this.tapped = -1e9; this.props.onreset?.(); } else this.tapped = e.timeStamp;
+          return;
+        }
+        if (e.type === 'pointerup' && e.timeStamp - d.lt < 80 && Math.abs(d.v) > 0.05) run(d.v);
+      },
+      key: (e) => { if (e.key === 'ArrowRight') setAngle(this.state.angle + 3.6); if (e.key === 'ArrowLeft') setAngle(this.state.angle - 3.6); if (e.key === 'Home') this.props.onreset?.(); },
     };
   }
 }

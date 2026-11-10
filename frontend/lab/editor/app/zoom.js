@@ -7,8 +7,12 @@
 // control moved there shows the editing copy until it rests). Below 40 % the editing copy is sharp enough.
 //
 // A board whose one finger is a tool (Masks, Heal) marks its slot data-zoom="tool": there only two fingers zoom
-// and move the photo, heard on the slot's parent so they count wherever they land, and whatever the board marks
-// data-zoom-with (what it lays over the photo) is moved and scaled with it.
+// and move the photo, wherever in the photo's room they land, and whatever the board marks data-zoom-with (what
+// it lays over the photo) is moved and scaled with it.
+//
+// The photo is not inside any board. It lives in one layer of its own (`home`) under the boards, and a board's
+// slot is only a window: the layer takes the window's place and glides to the next board's. So changing tool
+// neither redraws the photo nor loses where it was zoomed to.
 import * as photo from './session.js';
 import { tile } from './tiles.js';
 
@@ -25,7 +29,9 @@ const map = make('div', 'position: absolute; right: 12px; bottom: 14px; border-r
 const mapImg = /** @type {HTMLImageElement} */ (make('img', 'width: 100%; height: 100%; display: block; opacity: 0.85')), box = make('span', 'position: absolute; box-shadow: 0 0 0 1.5px #e8202a, 0 0 0 999px rgba(0,0,0,0.35)');
 map.append(mapImg, box);
 
-let slot = /** @type {HTMLElement | null} */ (null), shown = /** @type {unknown} */ (null);   // the board's slot; the photo it holds
+const home = make('div', 'position: absolute; left: 0; top: 0; width: 0; height: 0; overflow: hidden; display: none');   // the photo's own layer, under the boards
+const slot = home;
+let win = /** @type {HTMLElement | null} */ (null), shown = /** @type {unknown} */ (null);   // the board's window on the photo; the photo it shows
 let f = { W: 0, H: 0, w: 1, h: 1, ox: 0, oy: 0, fw: 1, fh: 1 };   // the slot, and the photo fitted in it (design pixels); the photo's sensor size
 let z = 1, tx = 0, ty = 0, job = 0, timer = 0, tiled = -1;   // the wrap's scale and shift from fitted; the detail being made
 let view = /** @type {View | null} */ (null), from = /** @type {Big | null} */ (null), cap = 0, making = /** @type {Promise<View | null> | null} */ (null);
@@ -39,9 +45,9 @@ const most = () => Math.max(1, 3 * full());
 export const info = () => ({ on: z > 1.02, pct: Math.round((z / full()) * 100) });
 /** The fitted photo's box in its slot, in design pixels (a board lays its before/after over it). */
 export const fitted = () => ({ left: f.ox, top: f.oy, width: f.w, height: f.h });
-const tool = () => slot?.dataset.zoom === 'tool';
-/** Where gestures are heard, and what holds the fingers of a pinch: the slot, or for a tool board its parent. */
-const ear = () => /** @type {HTMLElement} */ (tool() ? slot?.parentElement : slot);
+const tool = () => win?.dataset.zoom === 'tool';
+/** Where gestures are heard, and what holds the fingers of a pinch: the page's frame, over photo and boards alike. */
+const ear = frame;
 /** Whether two fingers are on the photo: a tool board's one-finger tool stands down. */
 export const pinching = () => pts.size > 1 || !!g?.two;
 /** The photo's shift and scale from fitted, as CSS: for what a tool board lays over it (zoom.js keeps it up to date while fingers move). */
@@ -71,7 +77,7 @@ function zoomAt(to, x, y, ease = false) {
   hold(); apply(ease);
 }
 function layout() {
-  if (!slot) return;
+  if (!win) return;
   const r = slot.getBoundingClientRect(), s = r.width / (slot.offsetWidth || 1), [fw, fh] = photo.shape(), W = r.width / s, H = r.height / s, k = Math.min(W / fw, H / fh);
   if (!(W > 0 && H > 0)) return;
   const was = `${f.ox},${f.oy},${f.w},${f.h}`;
@@ -82,19 +88,37 @@ function layout() {
   z = Math.min(z, most()); hold(); apply();
 }
 const watch = new ResizeObserver(() => { layout(); rest(); });
+const GLIDE = 'left 320ms cubic-bezier(0.2, 0.85, 0.2, 1), top 320ms cubic-bezier(0.2, 0.85, 0.2, 1), width 320ms cubic-bezier(0.2, 0.85, 0.2, 1), height 320ms cubic-bezier(0.2, 0.85, 0.2, 1)';
+let glide = 0;
+/** The layer takes its window's place (in the frame's own pixels); with no window on the page it is put away. */
+function follow() {
+  if (!win?.isConnected) { home.style.display = 'none'; return; }
+  const fr = frame().getBoundingClientRect(), r = win.getBoundingClientRect(), k = fr.width / 412 || 1;
+  Object.assign(home.style, { display: 'block', left: `${(r.left - fr.left) / k}px`, top: `${(r.top - fr.top) / k}px`, width: `${r.width / k}px`, height: `${r.height / k}px` });
+}
+const seen = new ResizeObserver(follow);   // the window moves or resizes (a panel opening), or leaves with its board
+addEventListener('resize', follow);
 
 /** The session hands over the photo's element for a zoomable slot (and again when the element changes). */
 photo.hooks.fill = (s, el) => {
-  if (s !== slot || photo.current() !== shown) {   // another board, or another photo: fitted again
-    if (slot) watch.unobserve(slot);
-    slot = s; shown = photo.current(); z = 1; tx = ty = 0; job++; hide(); watch.observe(s);
-    const low = s.dataset.zoom !== 'top', on = ear();
-    badge.style.top = low ? '' : '12px'; badge.style.bottom = low ? '14px' : '';
-    if (!on.dataset.heard) { on.dataset.heard = '1'; for (const t of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) on.addEventListener(t, (e) => touch(/** @type {PointerEvent} */ (e))); }
+  if (!home.isConnected) {   // once: the layer goes under the boards, and the frame hears the gestures
+    const fr = frame(); fr.insertBefore(home, fr.firstChild); home.replaceChildren(wrap, badge, map); watch.observe(home);
+    for (const t of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) fr.addEventListener(t, (e) => touch(/** @type {PointerEvent} */ (e)));
   }
-  wrap.replaceChildren(el, over, still, live); s.replaceChildren(wrap, badge, map);
-  layout();
+  if (photo.current() !== shown) { shown = photo.current(); z = 1; tx = ty = 0; job++; hide(); }   // another photo: fitted again
+  if (s !== win) {   // another board's window: the layer glides to it, zoomed as it was
+    const moved = !!win && home.style.display !== 'none';
+    if (win) seen.unobserve(win);
+    win = s; seen.observe(s); pts.clear(); g = null;
+    const low = s.dataset.zoom !== 'top';
+    badge.style.top = low ? '' : '12px'; badge.style.bottom = low ? '14px' : '';
+    clearTimeout(glide); home.style.transition = moved ? GLIDE : 'none'; glide = setTimeout(() => { home.style.transition = 'none'; }, 360);
+  }
+  if (el.parentElement !== wrap) wrap.replaceChildren(el, over, still, live);
+  follow(); layout();
 };
+/** The photo's element went into a board's own slot (Crop, Export): the layer is put away until a window asks again. */
+photo.hooks.away = () => { if (win) seen.unobserve(win); win = null; pts.clear(); g = null; home.style.display = 'none'; };
 /** The clipping overlay to lay over the photo ('' for none): it zooms with it. @param {string} url */
 export function clip(url) { if (over.getAttribute('src') !== url) over.src = url; over.style.display = url ? 'block' : 'none'; if (url) Object.assign(over.style, { width: '100%', height: '100%' }); }
 
@@ -102,7 +126,9 @@ export function clip(url) { if (over.getAttribute('src') !== url) over.src = url
 const pts = /** @type {Map<number, { x: number, y: number }>} */ (new Map());
 let g = /** @type {null | { pinch: boolean, two: boolean, x: number, y: number, tx: number, ty: number, z: number, d: number, far: number }} */ (null), tap = { t: 0, x: 0, y: 0 };
 function touch(/** @type {PointerEvent} */ e) {
-  if (!slot) return;
+  if (!win?.isConnected) return;
+  // a gesture starts in the photo's window; on a tool board anywhere in the photo's room (the board's own layers lie over the window)
+  if (e.type === 'pointerdown' && !(tool() ? win.parentElement : win)?.contains(/** @type {Node} */ (e.target))) return;
   const r = slot.getBoundingClientRect(), s = r.width / f.W, at = { x: (e.clientX - r.left) / s, y: (e.clientY - r.top) / s };
   const mid = () => { const [a, b = a] = [...pts.values()]; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y) || 1 }; };
   const begin = () => { const m = mid(); g = { pinch: pts.size > 1, two: pts.size > 1 || !!g?.two, x: m.x, y: m.y, tx, ty, z, d: m.d, far: g ? 99 : 0 }; };   // two: two fingers were down at some point of this gesture
@@ -116,7 +142,7 @@ function touch(/** @type {PointerEvent} */ e) {
     const m = mid();
     g.far = Math.max(g.far, Math.hypot(m.x - g.x, m.y - g.y));
     if (g.pinch) { const px = (g.x - f.ox - g.tx) / g.z, py = (g.y - f.oy - g.ty) / g.z; z = Math.max(1, Math.min(most(), (g.z * m.d) / g.d)); tx = m.x - f.ox - px * z; ty = m.y - f.oy - py * z; }
-    else if (!tool() && z > 1.02 && g.far > 6) { if (!slot.hasPointerCapture(e.pointerId)) slot.setPointerCapture(e.pointerId); tx = g.tx + m.x - g.x; ty = g.ty + m.y - g.y; }
+    else if (!tool() && z > 1.02 && g.far > 6) { if (!ear().hasPointerCapture(e.pointerId)) ear().setPointerCapture(e.pointerId); tx = g.tx + m.x - g.x; ty = g.ty + m.y - g.y; }
     else return;
     hold(); apply();
   } else if (pts.delete(e.pointerId)) {
@@ -164,9 +190,9 @@ function place(/** @type {HTMLCanvasElement} */ c, /** @type {number} */ X, /** 
 async function detail(/** @type {number} */ mine) {
   mapImg.src = z > 1.02 ? tile(`map:${photo.stamp()}`, null, 192, {}, true) || photo.jpeg() : '';
   const p = z / full(), k = scale(), q = f.fw / (f.w * z);   // sensor pixels to a design pixel, as shown
-  if (!slot?.isConnected || p < 0.4 || !photo.whole()) { hide(); return; }
+  if (!win?.isConnected || p < 0.4 || !photo.whole()) { hide(); return; }
   const v = await ensure();
-  if (mine !== job || !v || !slot) return;
+  if (mine !== job || !v || !win) return;
   const X = Math.max(0, Math.floor(-(f.ox + tx) * q)), Y = Math.max(0, Math.floor(-(f.oy + ty) * q));
   const X1 = Math.min(f.fw, Math.ceil((f.W - f.ox - tx) * q)), Y1 = Math.min(f.fh, Math.ceil((f.H - f.oy - ty) * q));
   if (p >= 0.999) {   // one pass, and it follows the engine's frames from here
@@ -196,4 +222,4 @@ async function detail(/** @type {number} */ mine) {
 photo.events.addEventListener('change', () => { if (tiled >= 0 && tiled !== photo.stamp()) { still.style.display = 'none'; tiled = -1; settle(350); } });
 // the sensor's pixels reach the GPU a little after a photo opens: a photo already zoomed by then gets its detail now
 let had = /** @type {unknown} */ (null);
-photo.events.addEventListener('change', () => { const big = photo.whole(); if (big === had) return; had = big; if (big && slot?.isConnected && z / full() >= 0.4) settle(60); });
+photo.events.addEventListener('change', () => { const big = photo.whole(); if (big === had) return; had = big; if (big && win?.isConnected && z / full() >= 0.4) settle(60); });

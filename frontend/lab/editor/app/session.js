@@ -30,10 +30,10 @@ for (const el of [canvas, img]) el.style.cssText = 'max-width: 100%; max-height:
 img.src = '/lab/editor/assets/sample.jpg';
 // boards mark where the photo goes with data-keep="photo" (dc.js leaves its insides alone); a slot that is also
 // data-zoom is filled by zoom.js, which puts itself here
-export const hooks = { fill: /** @type {null | ((slot: HTMLElement, el: HTMLElement) => void)} */ (null) };
+export const hooks = { fill: /** @type {null | ((slot: HTMLElement, el: HTMLElement) => void)} */ (null), away: /** @type {null | (() => void)} */ (null) };
 const fill = (/** @type {HTMLElement} */ s) => {
   const el = ready ? canvas : img, b = s.dataset.base !== undefined, mk = s.dataset.masks !== undefined;
-  if (s.dataset.zoom !== undefined && hooks.fill) hooks.fill(s, el); else s.replaceChildren(el);
+  if (s.dataset.zoom !== undefined && hooks.fill) hooks.fill(s, el); else { hooks.away?.(); s.replaceChildren(el); }
   if (b !== base || mk !== masking) { base = b; masking = mk; if (ready) draw(); }   // the Crop board's slot (data-base) shows the picture before its crop; the Masks board's (data-masks) may show a mask in red
 };
 document.addEventListener('dc:keep', (e) => { const s = /** @type {HTMLElement} */ (/** @type {CustomEvent} */ (e).detail); if (s.dataset.keep === 'photo') fill(s); });
