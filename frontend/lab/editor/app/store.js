@@ -77,6 +77,10 @@ export async function jpegUrl(id) {
   }
   return urls.get(id);
 }
+/** The first bytes of the photo's camera JPEG: its Exif is in them. @param {string} id */
+export async function jpegHead(id) {
+  try { return new Uint8Array(await (await (await (await dir('jpg')).getFileHandle(`${id}.jpg`)).getFile()).slice(0, 1 << 17).arrayBuffer()); } catch { return new Uint8Array(0); }
+}
 /** The URL once loaded (init and add load them all). @param {string} id */
 export const urlNow = (id) => urls.get(id) || '/lab/editor/assets/sample.jpg';
 /** The original RAF. @param {string} id */

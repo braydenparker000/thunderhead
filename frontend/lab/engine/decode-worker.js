@@ -43,20 +43,26 @@ async function threaded() {
   const glue = await import('./pkg-threads/th_raw.js');
   await glue.default({ module_or_path: new URL('./pkg-threads/th_raw_bg.wasm', import.meta.url) });
   await Promise.race([glue.initThreadPool(THREADS), new Promise((_, no) => setTimeout(() => no(new Error('the decode threads did not start')), 10_000))]);
-  return { decode: glue.decode, threads: THREADS };
+  return { decode: glue.decode, jpeg: glue.jpeg, threads: THREADS };
 }
 async function plain() {
   const glue = await import('./pkg/th_raw.js');
   await glue.default({ module_or_path: new URL('./pkg/th_raw_bg.wasm', import.meta.url) });
-  return { decode: glue.decode, threads: 1 };
+  return { decode: glue.decode, jpeg: glue.jpeg, threads: 1 };
 }
 let threadsError = '';
 const ready = self.crossOriginIsolated && THREADS > 1 ? threaded().catch((err) => { threadsError = String(err?.message || err); console.warn(`decoder: one thread (${err})`); return plain(); }) : plain();
 // A message is a RAF's bytes, or { buf, full: true, tag } to also get the sensor's own pixels, for 100 % and
 // export. Every answer carries the request's tag, so a page that has moved on to another photo can tell.
+// { jpeg: [rgb, width, rows, quality, fine], tag } is one band of an export's JPEG to encode (files.js).
 self.onmessage = async (e) => {
   const tag = e.data.tag;
   try {
+    if (e.data.jpeg) {
+      const out = (await ready).jpeg(...e.data.jpeg);
+      self.postMessage({ jpeg: out, tag }, [out.buffer]);
+      return;
+    }
     const buf = e.data.buf ?? e.data;
     // the camera's own JPEG first (RAF header: its offset and length at bytes 84 and 88, big-endian), so the
     // photo shows while the RAW decodes

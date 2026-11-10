@@ -166,3 +166,17 @@ fn meta(raw: &RawImage, b: &Bin, chroma: [f32; 3]) -> String {
     b.pw * b.n, b.ph * b.n, b.black, b.white, b.cfa, b.cfa_width
   )
 }
+
+/// One band of a JPEG: `rgb` is w x h pixels, three bytes each, top row first. Every band made at one quality
+/// shares its tables (the standard Huffman ones), so the page joins the bands' scans with restart markers into
+/// one file and never holds more than a band. `fine` keeps colour at full resolution (4:4:4); else 4:2:0.
+#[wasm_bindgen]
+pub fn jpeg(rgb: &[u8], w: u16, h: u16, quality: u8, fine: bool) -> Result<Vec<u8>, JsError> {
+  use jpeg_encoder::{ChromaSubsamplingMethod, ColorType, Encoder, SamplingFactor};
+  let mut out = Vec::with_capacity(rgb.len() / 4);
+  let mut e = Encoder::new(&mut out, quality);
+  e.set_sampling_factor(if fine { SamplingFactor::R_4_4_4 } else { SamplingFactor::R_4_2_0 });
+  e.set_chroma_subsampling_method(ChromaSubsamplingMethod::Average);
+  e.encode(rgb, w, h, ColorType::Rgb).map_err(|x| JsError::new(&x.to_string()))?;
+  Ok(out)
+}

@@ -5,13 +5,22 @@
 // view matches the fitted photo and follows every control. Only what is looked at is ever made: a screenful at
 // 100 %, or one band of an export.
 import { demosaicer, phaseOf } from './demosaic.js';
+import { WGSL } from './wgsl.js';
+
+// the frame pass writing 16-bit floats, for export: compiled at the first export, kept with its device
+const deeps = /** @type {WeakMap<GPUDevice, Promise<GPUComputePipeline>>} */ (new WeakMap());
+const deepPipe = (/** @type {GPUDevice} */ device) => {
+  const made = deeps.get(device) || device.createComputePipelineAsync({ layout: 'auto', compute: { module: device.createShaderModule({ code: WGSL.replace('texture_storage_2d<rgba8unorm, write>', 'texture_storage_2d<rgba16float, write>') }), entryPoint: 'main' } });
+  deeps.set(device, made);
+  return made;
+};
 
 /** Puts a photo's sensor pixels on the GPU. Null where full resolution is not offered (a sensor that is not
  * X-Trans, or one wider than the GPU's textures).
  * @param {Awaited<ReturnType<typeof import('./gpu.js').engine>>} e the photo's engine @param {{ meta: any }} img
  * @param {Uint16Array} mosaic the decoder's mosaic(): the GPU keeps its own copy, so let go of this one after */
 export async function full(e, img, mosaic) {
-  const { device, pipe, lut, rot, views } = e.gpu, W = /** @type {number} */ (img.meta.fullWidth), H = /** @type {number} */ (img.meta.fullHeight), phase = phaseOf(img.meta);
+  const { device, lut, rot, views } = e.gpu, W = /** @type {number} */ (img.meta.fullWidth), H = /** @type {number} */ (img.meta.fullHeight), phase = phaseOf(img.meta);
   if (!phase || mosaic.length !== W * H || Math.max(W, H) > device.limits.maxTextureDimension2D) return null;
   const tex = device.createTexture({ size: [W, H], format: 'r16uint', usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST });
   const BAND = 1024;   // rows a step: 80 MB goes over without holding the page still
@@ -24,30 +33,34 @@ export async function full(e, img, mosaic) {
   /** A view of up to maxW × maxH pixels, shown on `canvas` if one is given. Once it has a place it follows the
    * engine's renders: `onframe` is called, in the task that draws it, with the rectangle each one shows.
    * @param {number} maxW @param {number} maxH @param {HTMLCanvasElement | null} [canvas]
-   * @param {boolean} [readback] show through a 2D canvas (headless Chromium can't present a WebGPU one) */
-  const view = async (maxW, maxH, canvas = null, readback = false) => {
+   * @param {boolean} [readback] show through a 2D canvas (headless Chromium can't present a WebGPU one)
+   * @param {boolean} [deep] for export: 16-bit floats and no dither, read with `read()` as half floats */
+  const view = async (maxW, maxH, canvas = null, readback = false, deep = false) => {
     [maxW, maxH] = [Math.min(maxW, fw), Math.min(maxH, fh)];
+    const pipe = deep ? await deepPipe(device) : e.gpu.pipe, size = deep ? 8 : 4;
     const dm = await demosaicer(device, tex, info, rot % 2 ? maxH : maxW, rot % 2 ? maxW : maxH);
     const uni = device.createBuffer({ size: 352, usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST });
-    const out = device.createTexture({ size: [maxW, maxH], format: 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
+    const out = device.createTexture({ size: [maxW, maxH], format: deep ? 'rgba16float' : 'rgba8unorm', usage: GPUTextureUsage.STORAGE_BINDING | GPUTextureUsage.COPY_SRC });
     const ctx = canvas && !readback ? /** @type {GPUCanvasContext} */ (canvas.getContext('webgpu')) : null;
     ctx?.configure({ device, format: 'rgba8unorm', usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.RENDER_ATTACHMENT, alphaMode: 'opaque' });
     /** @typedef {{ X: number, Y: number, cw: number, ch: number, rx: number, ry: number, rw: number, rh: number }} Rect */
     let bind = /** @type {GPUBindGroup | null} */ (null);
     let at = /** @type {Rect | null} */ (null), made = at, fresh = false;   // asked for; drawn; its colours are made
-    const self = { place, rest: () => { at = null; }, region, read, dispose, at: () => at, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
-    /** The view's pixels as last drawn. */
-    async function read() {
+    const self = { place, rest: () => { at = null; }, region, read, halves, dispose, at: () => at, onframe: /** @type {null | ((at: Rect) => void)} */ (null) };
+    /** The view's pixels as last drawn, four values each: bytes, or a deep view's half floats. */
+    async function bytes() {
       if (!made) throw new Error('no region yet');
-      const { cw, ch } = made, row = Math.ceil((cw * 4) / 256) * 256, enc = device.createCommandEncoder();
+      const { cw, ch } = made, row = Math.ceil((cw * size) / 256) * 256, enc = device.createCommandEncoder();
       const b = device.createBuffer({ size: row * ch, usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ });
       enc.copyTextureToBuffer({ texture: out }, { buffer: b, bytesPerRow: row }, [cw, ch]); device.queue.submit([enc.finish()]);
       await b.mapAsync(GPUMapMode.READ);
-      const b8 = new Uint8Array(b.getMappedRange()), px = new Uint8ClampedArray(cw * ch * 4);
-      for (let y = 0; y < ch; y++) px.set(b8.subarray(y * row, y * row + cw * 4), y * cw * 4);
+      const b8 = new Uint8Array(b.getMappedRange()), px = new Uint8ClampedArray(cw * ch * size);
+      for (let y = 0; y < ch; y++) px.set(b8.subarray(y * row, y * row + cw * size), y * cw * size);
       b.unmap(); b.destroy();
-      return new ImageData(px, cw, ch);
+      return px;
     }
+    async function read() { return new ImageData(await bytes(), /** @type {Rect} */ (made).cw); }
+    async function halves() { return new Uint16Array((await bytes()).buffer); }
     const hook = {
       /** @param {GPUBuffer} tab the profile's tables, re-made with each profile */
       bind: (tab) => { bind = device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: [{ binding: 0, resource: { buffer: dm.out } }, { binding: 1, resource: { buffer: uni } }, { binding: 2, resource: out.createView() }, { binding: 3, resource: { buffer: tab } }, { binding: 5, resource: lut.createView() }, { binding: 6, resource: e.gpu.mask }] }); },
@@ -57,7 +70,7 @@ export async function full(e, img, mosaic) {
         if (!at || !bind) return;
         if (!fresh) { dm.run(enc, at.rx, at.ry, at.rw, at.rh); fresh = true; }
         const c = u.slice(0), n = new Uint32Array(c), f = new Float32Array(c);
-        n[52] = at.rw; n[53] = at.rh; f[51] = 1 / 3; f[74] = at.rx / 3; f[75] = at.ry / 3;
+        n[52] = at.rw; n[53] = at.rh; if (deep) n[55] |= 1024; f[51] = 1 / 3; f[74] = at.rx / 3; f[75] = at.ry / 3;
         device.queue.writeBuffer(uni, 0, c);
         const pass = enc.beginComputePass();
         pass.setPipeline(pipe); pass.setBindGroup(0, bind); pass.dispatchWorkgroups(Math.ceil(at.rw / 8), Math.ceil(at.rh / 8)); pass.end();
