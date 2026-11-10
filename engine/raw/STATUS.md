@@ -25,6 +25,7 @@ The editor's look (the camera-plate boards) is approved and stays as built.
 | Zoom on the Edit and View screens: free pinch from fitted to 300 %, drag, double-tap for 100 %; the percentage and a map while zoomed | `editor/app/zoom.js` (any slot marked `data-zoom`) |
 | Undo and history (every step keeps the whole edit), versions, saved with the edit | `editor/app/past.js`, `session.js` |
 | View board: before/after against the photo as imported, histogram and clipping overlay | `boards/ViewTools.js`, `editor/app/scope.js`, `tiles.js` |
+| Curve (RGB and each colour, over the photo's histogram), colour mixer (eight colours), grading (three ranges and the whole, Blending, Balance), Vignette, Grain | `grade.js`, `wgsl.js`, `boards/CurveOverlay.js`, `boards/GradeTrio.js`, `boards/EditPlate.js` |
 | Library: tiles that show the edit, an Edited filter, what the photos take on the phone, deleting rejects for good | `boards/LibraryPlate.js`, `editor/app/store.js` |
 | Export: Full or smaller, JPEG (bands joined by restart markers), PNG, 16-bit TIFF, Exif carried | `export.js`, `files.js`, `exif.js`, `editor/app/save.js` |
 
@@ -46,7 +47,36 @@ Steps are grouped by the engine machinery they share, so each is built once.
 
 Left out unless asked for: `.lrtemplate` and preset packs, recipe text, camera import over USB, watermark, Display P3.
 
-## Steps 1 to 4 are done. Next: step 5 (curve, colour mixer, grading, vignette, grain)
+## Steps 1 to 4 and the tools of step 5 are done. Next: the rest of step 5 (save a look, `.cube` looks, search), then step 6
+
+Step 5, the colour tools. None of them costs anything per frame:
+
+- **Mixer, grading and the point curve are inside the colour table** (`wgsl.js` `develop`, text in `grade.js`
+  `TOOLS`). The mixer works in Oklab: each of eight colours has a place round the hue circle, a pixel takes
+  a share of the two its hue lies between, and greys are left alone. Grading adds a tint (the wheel's hue as a
+  direction in Oklab, times its saturation) and a brightness change for shadows, midtones and highlights by
+  brightness, with Blending (how wide the ranges overlap) and Balance (where they meet), and once for the whole.
+  The point curve is the last thing in the table, on the finished value: one curve for all three colours, then
+  one for each, through the same monotone cubic the board draws (128 samples a curve in the settings).
+- The settings block grew to 2672 bytes: `mx` (8 rows), `gr` (5 rows), `crv` (128 rows); flags 32768, 65536,
+  131072 switch each on. `grade.js` turns the photo's values and curve points into those rows; a null means off.
+- **Vignette and grain are in the frame pass**: the vignette before the table (so it darkens like exposure), by
+  the pixel's place in the cropped picture; grain after it, a speck for about 1.5 sensor pixels, so it looks
+  the same at every zoom and in the file.
+- The edit holds the new values under names: `Mix <Colour> Hue|Sat|Lum`, `Grade <Zone> Hue|Sat|Lum`, `Blending`,
+  `Balance`, and `curve` (points for RGB, R, G, B; null while straight), each part of history and versions.
+- On the Edit board: Mixer and Grading under Color, Curve under Light. The dial turns the chosen mixer value,
+  the chosen range's brightness, Blending or Balance, and in Curve lifts the point last touched. A section's
+  count includes them.
+- The wheels and the curve read a touch by their own size on screen: the page is scaled to the phone
+  (`boot.js`), so design pixels are not screen pixels. The Heal and Masks boards still assume they are (fix
+  when they are made real).
+- Checked through the board on a landscape and a portrait sample (each control changes the photo the right
+  way, one history step a gesture, Reset puts the picture back exactly, a reload keeps it), and an export
+  with everything on matches the screen to about one level in every patch.
+- Strengths are first guesses for the owner's eye: grading's tint at full saturation is 0.08 in Oklab, the
+  mixer turns a hue up to 29°, the vignette reaches two stops at the corners.
+
 
 Step 4, the Library. Ratings, flags, filters, sorting and culling were already real. Added:
 

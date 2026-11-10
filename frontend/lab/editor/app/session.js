@@ -7,6 +7,7 @@ import { engine, warm } from '../../engine/gpu.js';
 import { full } from '../../engine/full.js';
 import { isNone } from '../../engine/crop.js';
 import { tilt } from '../../engine/level.js';
+import { START, curveRows, gradeRows, mixerRows } from '../../engine/grade.js';
 import { catalogue, storedSet, unzip } from '../../engine/profiles.js';
 import { forget, pickAt } from './adjust.js';
 import * as hist from './past.js';
@@ -14,9 +15,9 @@ import * as store from './store.js';
 
 /** Each adjustment's starting value (display units: EV, K, or −100..100). */
 export const ZERO = /** @type {Record<string, number>} */ ({ Amount: 100, Exposure: 0, Contrast: 0, Highlights: 0, Shadows: 0, Whites: 0, Blacks: 0, Temp: 0, Tint: 0, Vibrance: 0, Saturation: 0,
-  Texture: 0, Clarity: 0, Dehaze: 0, Vignette: 0, Grain: 0, Sharpening: 40, Radius: 1, Detail: 25, Noise: 0, 'Color noise': 25, Distortion: 0, Vignetting: 0, Defringe: 0 });
+  Texture: 0, Clarity: 0, Dehaze: 0, Vignette: 0, Grain: 0, Sharpening: 40, Radius: 1, Detail: 25, Noise: 0, 'Color noise': 25, Distortion: 0, Vignetting: 0, Defringe: 0, ...START });
 /** What the GPU applies today; the rest are kept with the edit and wait for their stage. */
-export const LIVE = new Set(['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Temp', 'Tint', 'Vibrance', 'Saturation', 'Distortion', 'Vignetting', 'Texture', 'Clarity', 'Dehaze', 'Sharpening', 'Radius', 'Detail', 'Noise', 'Color noise']);
+export const LIVE = new Set(['Exposure', 'Contrast', 'Highlights', 'Shadows', 'Whites', 'Blacks', 'Temp', 'Tint', 'Vibrance', 'Saturation', 'Distortion', 'Vignetting', 'Texture', 'Clarity', 'Dehaze', 'Sharpening', 'Radius', 'Detail', 'Noise', 'Color noise', 'Vignette', 'Grain', ...Object.keys(START)]);
 export const WB = /** @type {Record<string, [number, number] | null>} */ ({ 'As shot': null, Daylight: [5500, 10], Cloudy: [6500, 10], Shade: [7500, 10], Tungsten: [2850, 0], Fluorescent: [3800, 21], Flash: [5500, 0] });
 const BASELINE_EV = 0.25;   // measured against the camera's JPEG (/lab/engine/'s colour check)
 
@@ -38,7 +39,7 @@ document.addEventListener('dc:keep', (e) => { const s = /** @type {HTMLElement} 
 
 let worker = /** @type {Worker | null} */ (null);
 export let eng = /** @type {null | Awaited<ReturnType<typeof engine>>} */ (null), ready = false;
-/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, geo: import('../../engine/crop.js').Crop | null, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
+/** @type {{ id: string, name: string, values: Record<string, number>, wb: string, profile: string, geo: import('../../engine/crop.js').Crop | null, curve: import('../../engine/grade.js').Curves | null, shotEv: number, shotK: number, shotTint: number, oldTint: boolean, status: string, shot: string, count: string } | null} */
 export let cur = null;
 let bent = '', base = false, whole0 = [7728, 5152];   // what the engine's geometry was last made with; whether the picture shows uncropped (the Crop board); its uncropped size
 let list = /** @type {Awaited<ReturnType<typeof catalogue>>} */ ([]), saveT = 0, drawing = false, again = false, film = '';
@@ -64,7 +65,7 @@ export async function open(id) {
   const p = store.photos().find((x) => x.id === id);
   if (!p || cur?.id === id) return;
   const edit = (await store.loadEdit(id)) || {};
-  cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
+  cur = { id, name: p.name, values: { ...ZERO, ...Object.fromEntries(Object.entries(edit).filter(([k, v]) => k in ZERO && typeof v === 'number')) }, wb: String(edit.wb || 'As shot'), profile: String(edit.profile || ''), geo: edit.geo && typeof edit.geo === 'object' ? /** @type {any} */ (edit.geo) : null, curve: edit.curve && typeof edit.curve === 'object' ? /** @type {any} */ (edit.curve) : null, shotEv: BASELINE_EV, shotK: 5500, shotTint: 0, oldTint: edit.wb === 'Custom' && edit.v !== 2, status: 'Opening…', shot: '', count: `${store.photos().indexOf(p) + 1} / ${store.photos().length}` };
   ready = false; bent = ''; forget(); big?.dispose(); big = null; eng?.dispose(); eng = null; film = ''; gen++; past = hist.load(edit, { values: { ...ZERO }, wb: 'As shot', profile: '' }, state()); img.src = await store.jpegUrl(id); place(); changed();
   worker ??= new Worker(new URL('../../engine/decode-worker.js', import.meta.url), { type: 'module' });
   const buf = await store.raw(id), me = cur, tag = ++asked;
@@ -132,7 +133,7 @@ function paint(more) {
   const e = /** @type {NonNullable<typeof eng>} */ (eng), c = /** @type {NonNullable<typeof cur>} */ (cur), v = c.values, h = (/** @type {string} */ k) => v[k] / 100;
   const crop = base ? null : c.geo, key = `${v.Distortion},${v.Vignetting},${JSON.stringify(crop)}`;
   if (bent !== key) { bent = key; e.setGeometry({ distortion: h('Distortion'), vignetting: h('Vignetting'), crop }); }   // Optics by hand, or the crop: the picture is laid out again
-  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), texture: h('Texture'), clarity: h('Clarity'), dehaze: h('Dehaze'), sharpen: v.Sharpening / 40, radius: v.Radius, detail: h('Detail'), noise: h('Noise'), colorNoise: h('Color noise'), ...more });
+  return e.render(v.Exposure + c.shotEv, 2 ** (h('Contrast') * 0.6), { amount: (v.Amount ?? 100) / 100, highlights: h('Highlights'), shadows: h('Shadows'), whites: h('Whites'), blacks: h('Blacks'), saturation: h('Saturation'), vibrance: h('Vibrance'), texture: h('Texture'), clarity: h('Clarity'), dehaze: h('Dehaze'), sharpen: v.Sharpening / 40, radius: v.Radius, detail: h('Detail'), noise: h('Noise'), colorNoise: h('Color noise'), vignette: h('Vignette'), grain: h('Grain'), mixer: mixerRows(v), grade: gradeRows(v), curve: curveRows(c.curve), ...more });
 }
 /** @param {boolean} [fit] false: only the 100 % view is drawn again, the fitted photo left as it is */
 export async function draw(fit = true) {
@@ -159,8 +160,8 @@ async function small(w) {
   return c.convertToBlob({ type: 'image/jpeg', quality: w ? 0.8 : 0.92 });
 }
 /** The edit as it stands. @returns {hist.State} */
-export const state = () => hist.copy({ values: cur?.values || {}, wb: cur?.wb || 'As shot', profile: cur?.profile || '', geo: cur?.geo });
-const put = (/** @type {hist.State} */ st) => { if (cur) Object.assign(cur, { values: { ...ZERO, ...st.values }, wb: st.wb, profile: st.profile, geo: st.geo || null }); };
+export const state = () => hist.copy({ values: cur?.values || {}, wb: cur?.wb || 'As shot', profile: cur?.profile || '', geo: cur?.geo, curve: cur?.curve });
+const put = (/** @type {hist.State} */ st) => { if (cur) Object.assign(cur, { values: { ...ZERO, ...st.values }, wb: st.wb, profile: st.profile, geo: st.geo || null, curve: st.curve || null }); };
 /** The photo developed off screen (tiles.js): as it is now, or as the edit `st` would have it. A JPEG's URL, `w`
  * pixels wide; '' if the photo closes first. @param {hist.State | null} st @param {number} w @param {Parameters<typeof paint>[0]} [more] */
 export async function picture(st, w, more) {
@@ -184,6 +185,10 @@ export const geo = () => cur?.geo || null;
 export const uncropped = () => (ready ? whole0 : shape());
 /** Sets the crop, a step of the history. While the Crop board is up the picture stays uncropped under its frame. @param {import('../../engine/crop.js').Crop} g */
 export function setGeo(g) { if (!cur) return; cur.geo = isNone(g) ? null : g; changed(); if (!base) draw(); save('crop', 'Crop', ''); }
+/** The point curve (engine/grade.js): each channel's points, or null while all are straight. */
+export const curve = () => cur?.curve || null;
+/** Sets one channel's points (RGB, R, G or B); none, with no channel, straightens them all. @param {string} [ch] @param {number[][]} [pts] */
+export function setCurve(ch, pts) { if (!cur) return; cur.curve = ch && pts ? { ...cur.curve, [ch]: pts } : null; changed(); draw(); save('curve', ch ? `Curve · ${ch}` : 'Curve reset', ''); }
 /** How far the picture's lines lean, in degrees clockwise (engine/level.js), read from it as it is shown. */
 export async function level() { const im = await pixels(); return im ? tilt(im) : 0; }
 /** Moves whenever the fitted photo is drawn anew or another photo opens: what was made from it is then old. */
@@ -213,7 +218,7 @@ export function save(key, name, val) {
   const me = cur, p = past;
   if (me && p && name !== undefined) hist.note(p, key || '', name, val || '', state());
   clearTimeout(tileT); tileT = setTimeout(() => keepTile(me), 1500);
-  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile, geo: me.geo, v: 2, ...(p ? hist.dump(p) : {}) }); }, 400);
+  saveT = setTimeout(() => { if (me) store.saveEdit(me.id, { ...me.values, wb: me.wb, profile: me.profile, geo: me.geo, curve: me.curve, v: 2, ...(p ? hist.dump(p) : {}) }); }, 400);
 }
 let tileT = 0;
 /** The photo's Library tile follows its edit: a small picture of it as it now looks, or none once it is back as imported. */

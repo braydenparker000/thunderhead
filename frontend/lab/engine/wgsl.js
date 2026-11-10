@@ -1,6 +1,8 @@
 // @ts-check
 // The GPU stage's shaders (gpu.js runs them): one pass per frame, and the pass that bakes the colour table.
 /** The colour table's points per axis. */
+import { TOOLS } from './grade.js';
+
 export const N = 65;
 /** Editing-copy pixels per cell of the tone mask, each way (mask.js). */
 export const CELL = 8;
@@ -11,17 +13,22 @@ struct P { m0: vec4f, m1: vec4f, m2: vec4f, o0: vec4f, o1: vec4f, o2: vec4f, a0:
   size: vec4u,   // w, h, rotation (0..3), flags (1 hsm, 2 look, 4 tone, 8 table, 16 hsm sRGB value, 32 look sRGB value,
                  // 64 no table, 128 second look, 256 its value is sRGB, 512 leave clipped highlights as they are, 1024 no dither,
                  // 2048 Highlights and Shadows by the pixel's own brightness (no tone mask), 4096 show the tone mask,
-                 // and two for the test page's stage timer: 8192 the table's nearest entry, 16384 no colour work)
+                 // two for the test page's stage timer: 8192 the table's nearest entry, 16384 no colour work,
+                 // and 32768 the mixer, 65536 grading, 131072 the point curve)
   hsm: vec4u, look: vec4u, tab: vec4u,     // dims h, s, v, offset · same · tone offset, table n, table offset, unused
   g: vec4f,      // highlights, shadows, whites, blacks (−1..1)
   k: vec4f,      // saturation, vibrance (−1..1), then where this frame's first pixel sits in the tone mask's photo (x, y)
   look2: vec4u,  // a look file's own table, after the profile's: dims h, s, v, offset
   wb: vec4f,     // the white balance as gains on camera R, G, B (green 1); then what the stored values are multiplied by (warp.js keeps room above them)
   chroma: vec4f, // the highlight rebuild's colour offsets, white-balanced (raw's chroma() × wb)
-  fx: vec4f,     // clarity, texture, dehaze (−1..1)
+  fx: vec4f,     // clarity, texture, dehaze (−1..1), vignette (−1 darker corners .. 1 lighter)
   air: vec4f,    // the haze's own colour, for Dehaze (haze.js)
-  sharp: vec4f,  // sharpening's amount, radius in pixels and detail (0..1): used by full-size views alone (finish.js)
-  noise: vec4f };   // noise reduction, in multiples of the sensor's noise: brightness, colour (0: off); full-size views alone (denoise.js)
+  sharp: vec4f,  // sharpening's amount, radius in pixels and detail (0..1): used by full-size views alone (finish.js); then grain (0..1)
+  noise: vec4f,  // noise reduction, in multiples of the sensor's noise: brightness, colour (0: off): full-size views alone
+                 // (denoise.js); then the picture's size in editing-copy pixels
+  mx: array<vec4f, 8>,     // the colour mixer: hue, saturation and brightness for each of its eight colours (grade.js)
+  gr: array<vec4f, 5>,     // colour grading: a tint and stops for shadows, midtones, highlights and the whole; then blending, balance
+  crv: array<vec4f, 128> };   // the point curve: all three channels', then red's, green's, blue's, at 128 steps
 @group(0) @binding(0) var<storage, read> src: array<u32>;
 @group(0) @binding(1) var<uniform> p: P;
 const CELL = ${CELL}u;
@@ -193,17 +200,21 @@ fn vivid(c: vec3f) -> vec3f {
   }
   return max(strong(r, l, k), vec3f(0.0));
 }
+${TOOLS}
 fn develop(c0: vec3f) -> vec3f {
   var c = c0; let fl = p.size.w;
   if ((fl & 1u) != 0u && p.hsm.z <= 1u) { c = hsd(c, p.hsm, (fl & 16u) != 0u); }
   if (p.f.y != 1.0 || p.g.z != 0.0 || p.g.w != 0.0) { c = tones(c); }
   if (p.k.x != 0.0 || p.k.y != 0.0) { c = vivid(c); }
+  if ((fl & 32768u) != 0u) { c = mixer(c); }
+  if ((fl & 65536u) != 0u) { c = grade(c); }
   if ((fl & 2u) != 0u) { c = hsd(c, p.look, (fl & 32u) != 0u); }
   if ((fl & 128u) != 0u) { c = hsd(c, p.look2, (fl & 256u) != 0u); }
   if ((fl & 4u) != 0u) { c = tone(c); } else { c = film(c); }
   if ((fl & 8u) != 0u) { c = tab(c); }
-  let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0));
-  return vec3f(enc(o.r), enc(o.g), enc(o.b));
+  let o = clamp(mv(p.o0, p.o1, p.o2, c), vec3f(0.0), vec3f(1.0)); var e = vec3f(enc(o.r), enc(o.g), enc(o.b));
+  if ((fl & 131072u) != 0u) { e = vec3f(point(point(e.r, 0u), 1u), point(point(e.g, 0u), 2u), point(point(e.b, 0u), 3u)); }
+  return e;
 }
 @compute @workgroup_size(4, 4, 4)
 fn bake(@builtin(global_invocation_id) id: vec3u) {
@@ -251,9 +262,20 @@ fn main(@builtin(global_invocation_id) id: vec3u) {
   }
   // Texture: the same against the finer mask, so it is the small detail that moves
   if (p.fx.y != 0.0) { c = c * exp2(p.fx.y * select(0.7, 0.9, p.fx.y > 0.0) * (l - areaOf(fine, 4.0, id.xy, l))); }
+  // Vignette, after the crop: the picture's corners darker or lighter by up to 2 stops, easing in from near its middle
+  let spot = ((vec2f(id.xy) + 0.5) * p.f.w + p.k.zw) / max(p.noise.zw, vec2f(1.0));   // 0..1 across the picture
+  if (p.fx.w != 0.0) { let d = (spot - 0.5) * 2.0; c = c * exp2(p.fx.w * 2.0 * smoothstep(0.1, 1.1, 0.5 * dot(d, d))); }
   var o = c;
   if ((fl & 16384u) == 0u) {
     if ((fl & 64u) != 0u) { o = develop(c); } else if ((fl & 8192u) != 0u) { o = at(vec3u(shape(c) * f32(N - 1u) + 0.5)); } else { o = lookup(c); }
+  }
+  // Grain: a speck for each 1.5 sensor pixels, so it keeps its size at any zoom; strongest in the mid-tones. The
+  // editing copy, a third of the size, shows it fainter, as it would average out
+  if (p.sharp.w > 0.0) {
+    let g = vec2u(spot * p.noise.zw * 2.0);
+    var s = g.x * 2246822519u + g.y * 3266489917u + 374761393u; s = (s ^ (s >> 15u)) * 2246822519u; s = (s ^ (s >> 13u)) * 3266489917u; s = s ^ (s >> 16u);
+    let lum = dot(o, vec3f(0.2126, 0.7152, 0.0722));
+    o = o + ((f32(s & 0xffffu) + f32(s >> 16u)) / 65536.0 - 1.0) * p.sharp.w * 0.10 * sqrt(max(4.0 * lum * (1.0 - lum), 0.0)) * select(1.0, 0.45, p.f.w >= 1.0);
   }
   var at = vec2u(id.x, id.y);
   switch (p.size.z) { case 1u: { at = vec2u(h - 1u - id.y, id.x); } case 2u: { at = vec2u(w - 1u - id.x, h - 1u - id.y); } case 3u: { at = vec2u(id.y, w - 1u - id.x); } default: {} }

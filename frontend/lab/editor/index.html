@@ -128,7 +128,7 @@
 <div onPointerDown="{{down}}" onPointerMove="{{move}}" onPointerUp="{{up}}" onPointerCancel="{{up}}" role="group" aria-label="Tone curve, {{channel}} channel. Drag a point; tap the line to add one."
      style="width: 300px; height: 300px; position: relative; border-radius: 18px; overflow: hidden; touch-action: none; background: rgba(8,9,11,0.55); -webkit-backdrop-filter: blur(14px) saturate(1.4); backdrop-filter: blur(14px) saturate(1.4); box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16), 0 18px 40px rgba(0,0,0,0.5); font-family: Inter, system-ui, sans-serif">
   <svg width="300" height="300" viewBox="0 0 300 300" style="position: absolute; inset: 0" aria-hidden="true">
-    <path d="M14 286 C40 280 52 230 74 236 S110 160 128 190 S170 120 190 150 S236 210 252 240 S280 270 286 286 Z" fill="rgba(255,255,255,0.07)"/>
+    <path d="{{hill}}" fill="rgba(255,255,255,0.07)"/>
     <path d="M14 105.3H286M14 196.7H286M105.3 14V286M196.7 14V286" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
     <path d="M14 286L286 14" stroke="rgba(255,255,255,0.18)" stroke-width="1" stroke-dasharray="3 4"/>
     <path d="{{path}}" fill="none" stroke="{{ink}}" stroke-width="2.2" stroke-linecap="round"/>

@@ -1,6 +1,8 @@
 // @ts-nocheck
-// The GradeTrio board, as designed (docs/design/editor/boards/GradeTrio.dc.html.dc.html): its logic, unchanged.
+// The GradeTrio board, as designed (docs/design/editor/boards/GradeTrio.dc.html.dc.html). With a photo open each wheel's
+// puck is the photo's own grading for that range (app/session.js).
 import { DCLogic } from '../dc.js';
+import * as photo from '../app/session.js';
 
 export default class Component extends DCLogic {
   constructor(props) {
@@ -12,13 +14,15 @@ export default class Component extends DCLogic {
     const zone = this.props.zone ?? 'Shadows';
     // three equal wheels side by side so the split can be judged at a glance; global smaller at the end
     const layout = [['Shadows', 10, 12, 92], ['Midtones', 110, 12, 92], ['Highlights', 210, 12, 92], ['Global', 314, 26, 64]];
-    const set = (name, h, s) => this.setState({ pucks: { ...this.state.pucks, [name]: [Math.round(((h % 360) + 360) % 360), Math.round(Math.max(0, Math.min(100, s)))] } });
+    const real = photo.current();
+    const set = (name, h, s) => { const hue = Math.round(((h % 360) + 360) % 360), sat = Math.round(Math.max(0, Math.min(100, s)));
+      if (real) photo.setValues({ [`Grade ${name} Hue`]: hue, [`Grade ${name} Sat`]: sat }, `Grade ${name}`, `Grading · ${name}`, `${hue}° ${sat}`); else this.setState({ pucks: { ...this.state.pucks, [name]: [hue, sat] } }); };
     const wheels = layout.map(([name, x, y, d]) => {
-      const [hue, sat] = this.state.pucks[name];
+      const [hue, sat] = real ? [photo.value(`Grade ${name} Hue`), photo.value(`Grade ${name} Sat`)] : this.state.pucks[name];
       const rad = (hue * Math.PI) / 180, r = (sat / 100) * (d / 2), on = name === zone;
       const fromEvent = (e) => {
-        const b = e.currentTarget.getBoundingClientRect();
-        const dx = e.clientX - b.left - d / 2, dy = b.top + d / 2 - e.clientY;
+        const b = e.currentTarget.getBoundingClientRect(), k = b.width / d || 1;   // the page is scaled to the screen (boot.js)
+        const dx = (e.clientX - b.left) / k - d / 2, dy = d / 2 - (e.clientY - b.top) / k;
         set(name, (Math.atan2(dy, dx) * 180) / Math.PI, (Math.hypot(dx, dy) / (d / 2)) * 100);
       };
       return {
