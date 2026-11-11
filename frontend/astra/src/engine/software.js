@@ -30,12 +30,18 @@ const READ_CHUNK = 1 << 20;
 
 /** Video codecs (Mediabunny names) this path can decode. */
 export const SOFTWARE_VIDEO = new Set(['avc', 'hevc', 'vp8', 'vp9', 'av1']);
-/** Audio codecs it can decode. TrueHD, MPEG Layer II and ALAC have no decoder here; Windows Media Audio it decodes in an AVI only. */
+/** Audio codecs it can decode. TrueHD and ALAC have no decoder here; Windows Media Audio it decodes in an AVI only.
+ * MPEG Layer I and II (the sound of DVDs' MPG files and of broadcast TS) have no build of their own: the MP3
+ * build decodes them, being the same decoder for all three layers. libmedia's MPG and TS readers already
+ * name that sound MP3; a Matroska file's is renamed as it is read (fixMkvLayers). Heard with
+ * scripts/astra/heard.cjs: the test tone at its pitch and level in MPG, TS and MKV. */
 export const SOFTWARE_AUDIO = new Set(['aac', 'ac3', 'eac3', 'dts', 'mp3', 'opus', 'flac', 'vorbis']);
+// Sound Mediabunny has no name for, by the name the Matroska file gives it.
+const OTHER_AUDIO = /^A_MPEG\/L[12]$/i;
 // Codecs Mediabunny has no name for, by the name the Matroska or MP4 file gives them.
 const OTHER_VIDEO = /^(V_MPEG[12]|V_MPEG4\/ISO\/(SP|ASP|AP)|V_MPEG4\/MS\/V3|V_THEORA|V_MJPEG|V_MS\/VFW\/FOURCC|V_MPEGI\/ISO\/VVC|mp4v|vvc1|vvi1)$/i;
 export const softwareVideo = track => SOFTWARE_VIDEO.has(track.codec) || (!track.codec && OTHER_VIDEO.test(String(track.internalCodec ?? '')));
-export const softwareAudio = track => SOFTWARE_AUDIO.has(track.codec) || String(track.codec ?? '').startsWith('pcm');
+export const softwareAudio = track => SOFTWARE_AUDIO.has(track.codec) || String(track.codec ?? '').startsWith('pcm') || (!track.codec && OTHER_AUDIO.test(String(track.internalCodec ?? '')));
 
 let library = null;
 export function loadLibmedia() {
@@ -94,6 +100,20 @@ export function fixAviTags(bytes) {
   return bytes;
 }
 
+/** How far into a Matroska file its track list is looked for (it is at the start unless the file was written oddly). */
+const MKV_HEAD = 4 << 20;
+/** Names MPEG Layer I and II sound as Layer III in the bytes of a Matroska file's track list ("A_MPEG/L2" to
+ * "A_MPEG/L3": the same length). libmedia opens its MP3 build only for a track it reads as Layer III, and that
+ * build decodes all three layers, each frame saying which it is. A name split across two reads is missed, and
+ * the film then plays without sound, as it did. */
+export function fixMkvLayers(bytes) {
+  const NAME = [0x41, 0x5f, 0x4d, 0x50, 0x45, 0x47, 0x2f, 0x4c]; // "A_MPEG/L"
+  for (let i = bytes.indexOf(0x41); i >= 0 && i + 8 < bytes.length; i = bytes.indexOf(0x41, i + 1)) {
+    if (NAME.every((c, k) => bytes[i + k] === c) && (bytes[i + 8] === 0x31 || bytes[i + 8] === 0x32)) bytes[i + 8] = 0x33;
+  }
+  return bytes;
+}
+
 /** A libmedia reader over Astra's HttpSource. */
 function sourceLoader(AVPlayer, source, ext = '') {
   return new class extends AVPlayer.IOLoader.CustomIOLoader {
@@ -106,7 +126,7 @@ function sourceLoader(AVPlayer, source, ext = '') {
       if (this.stopped || this.pos >= source.size) return IO_END;
       const n = Math.min(buffer.length, source.size - this.pos, READ_CHUNK);
       const bytes = await source.read(this.pos, this.pos + n);
-      buffer.set(ext === 'avi' && this.pos < 65536 ? fixAviTags(bytes.slice()) : bytes);
+      buffer.set(ext === 'avi' && this.pos < 65536 ? fixAviTags(bytes.slice()) : ext === 'mkv' && this.pos < MKV_HEAD ? fixMkvLayers(bytes.slice()) : bytes);
       this.pos += bytes.length;
       return bytes.length;
     }

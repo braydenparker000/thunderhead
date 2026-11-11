@@ -342,7 +342,11 @@ body:has(.astra.has-screen) .toast { bottom: calc(var(--safe-bottom) + 16px); }
 /* The add-on chips stay at the top while the list scrolls, as in Nuvio. Their
    band reaches up under the floating back button (so the list never shows
    behind it); at rest the hero and resume line, drawn above, hide that band. */
-.streams .filter-chips { position: sticky; top: 0; z-index: 2; margin-top: calc(-48px - var(--safe-top)); padding-top: calc(56px + var(--safe-top)); background: var(--bg); }
+.streams .chip-band { position: sticky; top: 0; z-index: 2; margin-top: calc(-48px - var(--safe-top)); padding-top: calc(56px + var(--safe-top)); background: var(--bg); }
+/* The owner's filters, under the add-ons: smaller chips, the chosen ones filled. */
+.streams .filter-chips.facts { padding-top: 0; }
+.filter-chips.facts .chip { min-height: 32px; padding: 0 12px; font-size: 13px; white-space: nowrap; flex: none; }
+.filter-chips.facts .chip.clear { background: none; color: var(--muted); }
 .streams-hero, .streams .resume-pill { position: relative; z-index: 3; }
 /* Nothing to list: Nuvio's open empty state, centred, not a card. */
 .stream-list > .state-card { margin: 16px 0; padding: 32px 16px; background: none; text-align: center; }

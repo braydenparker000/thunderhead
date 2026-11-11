@@ -205,8 +205,10 @@ never switches pipeline mid-play:
 
 Seventy-two short test films, one for each container and codec pairing
 worth trying, were played through `/astra/lab/` in desktop Chrome (which has
-no HEVC decoder of its own, so HEVC shows the software route): 56 play
-(four of them without sound), 12 stop with a reason and 4 still fail.
+no HEVC decoder of its own, so HEVC shows the software route): 57 play,
+11 stop with a reason and 4 still fail (as of 2026-11-11; on the 10th it
+read "56 play, four of them without sound", and that was the checker's
+fault: see MPEG Layer II below).
 Before this pass 38 of the first 64 played and 14 showed black or stalled.
 
 | Picture | Where | How |
@@ -226,11 +228,21 @@ plays the file); Windows Media Audio and ADPCM in an AVI.
 Stops with a reason (and the offer of another app): the Windows Media
 container (WMV, ASF) and RealMedia, which nothing here unpacks; Theora in
 an Ogg file; H.263 in 3GP; Motion JPEG in MOV; Sorenson Spark in FLV;
-ProRes; a file whose only sound is TrueHD, ALAC, MPEG Layer II or WMA in an
-MKV. Plays without sound: MPEG Layer II in MPG and TS (the usual sound of
-VCDs and DVB recordings). Still broken: H.264 inside an AVI, where libmedia
-1.3.1's reader fails; it stops with "could not show a picture" after six
-seconds of sound.
+ProRes; a file whose only sound is TrueHD, ALAC or WMA in an MKV. Still
+broken: H.264 inside an AVI, where libmedia 1.3.1 fails on a stream with
+no decoder setup in its header ("Offset is outside the bounds of the
+DataView" in its worker); it stops with "could not show a picture" after
+six seconds of sound.
+
+**MPEG Layer II** (the usual sound of VCDs, DVDs' MPG files and DVB
+recordings) plays, in MPG, TS and, since 2026-11-11, MKV. There is no
+decoder build for it: libmedia's MP3 build decodes all three layers, its
+MPG and TS readers already name that sound MP3, and a Matroska file's
+track is renamed as it is read (`fixMkvLayers` in `engine/software.js`).
+The note of 2026-11-10 that MPG and TS played "without sound" was wrong:
+`scripts/astra/tone.cjs` listens to the video element, and the software
+decoder plays through its own audio graph. `scripts/astra/heard.cjs` taps
+what really reaches the speakers and hears the test tone in all of them.
 
 The decoders added on 2026-11-10 (`mpeg2video`, `mpeg4`, `msmpeg4`,
 `mjpeg`, `theora`, `h263`, `wmv`, `wma`, `speex`, `adpcm`, `vvc`) are the

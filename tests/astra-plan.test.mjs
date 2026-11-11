@@ -4,7 +4,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { planPlayback } from '../frontend/astra/src/engine/plan.js';
-import { fixAviTags, sniffContainer, softwareAudio, softwareVideo } from '../frontend/astra/src/engine/software.js';
+import { fixAviTags, fixMkvLayers, sniffContainer, softwareAudio, softwareVideo } from '../frontend/astra/src/engine/software.js';
 
 // A phone like the owner's: H.264, VP9 and AV1 through Media Source; VP8 and Vorbis only in a WebM it plays itself.
 const caps = (over = {}) => ({
@@ -58,13 +58,17 @@ test('sound only the software decoder has takes the whole file there', () => {
   assert.equal(ac3.mode, 'software');
   assert.match(ac3.notes.join(' '), /Dolby Digital in this file plays only through Astra's software decoder/);
   // Sound nothing here decodes: refused, or silent when the viewer said so.
-  for (const [id, label] of [['A_TRUEHD', 'Dolby TrueHD'], ['A_MPEG/L2', 'MPEG Layer II'], ['A_MS/ACM', 'Windows audio (WMA)']]) {
+  for (const [id, label] of [['A_TRUEHD', 'Dolby TrueHD'], ['A_MS/ACM', 'Windows audio (WMA)']]) {
     const film = file('Matroska', video('avc', 'avc1.64001e'), [audio(null, null, { internalCodec: id, label })]);
     assert.equal(plan(film).mode, 'unsupported', id);
     assert.equal(plan(film).silent, true);
     assert.match(plan(film).reason, new RegExp(label.replace(/[()]/g, '\\$&')));
     assert.equal(plan(film, caps(), { allowSilent: true }).mode, 'remux');
   }
+  // MPEG Layer II (a DVD's or a broadcast's sound, kept in a Matroska file): the software decoder's MP3 build decodes it.
+  const mp2 = plan(file('Matroska', video('avc', 'avc1.64001e'), [audio(null, null, { internalCodec: 'A_MPEG/L2', label: 'MPEG Layer II' })]));
+  assert.equal(mp2.mode, 'software');
+  assert.match(mp2.notes.join(' '), /MPEG Layer II in this file plays only through Astra's software decoder/);
 });
 
 test('a file Astra cannot unpack: the software decoder where it reads the container, a reason where nothing does', () => {
@@ -95,7 +99,8 @@ test('the software decoder names what it can decode', () => {
   assert.equal(softwareVideo({ codec: 'prores' }), false);
   assert.equal(softwareAudio({ codec: 'dts' }), true);
   assert.equal(softwareAudio({ codec: 'pcm-s24' }), true);
-  assert.equal(softwareAudio({ codec: null, internalCodec: 'A_MPEG/L2' }), false);
+  assert.equal(softwareAudio({ codec: null, internalCodec: 'A_MPEG/L2' }), true);
+  assert.equal(softwareAudio({ codec: null, internalCodec: 'A_TRUEHD' }), false);
 });
 
 test('containers are told apart by their first bytes', () => {
@@ -123,3 +128,12 @@ test("an AVI's codec tags are put in the case the software decoder knows", () =>
   fixAviTags(b);
   assert.equal(read(32), 'mp4v');
 });
+
+test('a Matroska track of MPEG Layer I or II is named Layer III as the file is read, and nothing else is touched', () => {
+  const bytes = (text) => Uint8Array.from(text, (c) => c.charCodeAt(0));
+  const text = (b) => String.fromCharCode(...b);
+  assert.equal(text(fixMkvLayers(bytes('..\x86A_MPEG/L2..A_MPEG/L1..A_MPEG/L3..A_AC3..A_MPEG/L'))), '..\x86A_MPEG/L3..A_MPEG/L3..A_MPEG/L3..A_AC3..A_MPEG/L');
+  assert.equal(text(fixMkvLayers(bytes('A_MPEG/L4 V_MPEG2 A_MPEG2/L2'))), 'A_MPEG/L4 V_MPEG2 A_MPEG2/L2');
+  assert.equal(fixMkvLayers(new Uint8Array(0)).length, 0);
+});
+
