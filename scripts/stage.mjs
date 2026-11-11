@@ -9,7 +9,8 @@ import { cp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FONTS, needed, present } from './fonts.mjs';
-import { APP_ROUTES, CONTENT_TYPES, configJs, precacheJson, precached, swJs, withApi } from './site-config.mjs';
+import { createHash } from 'node:crypto';
+import { APP_ROUTES, CONTENT_TYPES, configJs, keptLab, labJson, precacheJson, precached, swJs, withApi } from './site-config.mjs';
 
 const sha = process.argv[2] ?? '';
 if (!/^[0-9a-f]{40}$/.test(sha)) throw new Error(`not a full commit sha: "${sha}"`);
@@ -74,6 +75,10 @@ for (const f of list.filter(f => f.path.endsWith('.html'))) {
 const manifest = precacheJson(build, list);
 await writeFile(join(out, 'precache.json'), manifest);
 list.push({ path: 'precache.json', size: Buffer.byteLength(manifest) });
+// The editor's own list (kept for use with no signal once it has been opened: sw.js `keepEditor`), with a hash a file.
+const labList = labJson(build, await Promise.all(list.filter(f => keptLab(f.path)).map(async f => ({ ...f, hash: createHash('sha256').update(await readFile(join(out, f.path))).digest('hex') }))));
+await writeFile(join(out, 'lab/offline.json'), labList);
+list.push({ path: 'lab/offline.json', size: Buffer.byteLength(labList) });
 const kinds = [...new Set(list.map(f => extname(f.path)))].sort();
 const unknown = list.filter(f => !CONTENT_TYPES[extname(f.path)]).map(f => f.path);
 if (unknown.length) throw new Error(`no content type for: ${unknown.join(', ')} (add it to CONTENT_TYPES in site-config.mjs)`);

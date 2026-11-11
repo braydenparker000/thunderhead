@@ -111,15 +111,18 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
 
 ## Stage 5: one Photos app
 
-- JPEG and HEIC open in the new editor (M). The Drive library moves over (M). It works with no signal (M).
-  The old editor is retired.
-- **Culling** (new, M): swipe through a shoot at full speed on the camera's own JPEGs (no decoding), keep or
-  reject, then only the keepers are developed.
+- JPEG and HEIC open in the new editor (M). The Drive library moves over (M). The old editor is retired.
+- **It works with no signal: built 2026-11-11.** Opened once with a signal, the editor, its engine and the decoder
+  are kept (13 MB the first time, then only what a release changed) and open with none; an older release's
+  editor still opens when a newer one has not been fetched yet (`sw.js` `keepEditor`, `/lab/offline.json`,
+  `tests/lab-editor-offline-browser.test.mjs`). The owner's "Keep the editor for offline use" turns it off.
+- **Culling: there already** in the Library (CULL: the camera's own JPEGs, stars, pick and reject, rejects deleted
+  for good). Left: swiping, and developing only the keepers.
 - **The library grows up** (new, M): ratings, flags, albums, search by date, camera, lens, ISO; bursts and
   brackets shown as one stack; two photos side by side.
 - **Bring in from the card or the camera** (new, M): pick a folder on a card reader; over USB if the phone allows.
 - **Export many** (new, M): a queue that works through a whole album with the screen off.
-- **Share** (new, S): hand a finished file straight to another app.
+- **Share: there already.** The Export board hands the files it saved to the phone's share sheet (`ExportPlate.js`).
 - A layout for a tablet or a laptop (new, M): the same editor with room to breathe, and keys.
 
 ## Stage 6: detail and noise, the large step

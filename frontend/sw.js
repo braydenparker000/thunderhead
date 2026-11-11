@@ -49,7 +49,60 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data?.type === 'skipWaiting') self.skipWaiting();
+  // The editor asks, each time it opens with a signal, to be kept for when there is none.
+  if (event.data?.type === 'keepEditor') event.waitUntil(keepEditor().then((r) => r, (e) => ({ kept: false, fetched: 0, why: String(e?.message || e) })).then((r) => event.source?.postMessage({ type: 'editorKept', build: BUILD, ...r })));
 });
+
+// The new editor with no signal. Its files (lab/editor/, lab/engine/: 13 MB, most of it the RAW decoder) are not
+// precached: every release would fetch them again on every phone. Once the editor has been opened with a
+// signal they are kept in th-lab-<BUILD> from /lab/offline.json, which lists each with its size and a hash, so
+// a later release fetches only the files that changed and takes the rest from the release before. With no
+// signal the editor opens from what is kept, even when that is an older release's (whole, so its files agree).
+const LAB = /^\/lab\/(editor|engine)\//, LAB_LIST = '/lab/offline.json', LAB_CACHE = /^th-lab-\d+$/;
+/** The newest release whose editor is kept whole, as its cache's name, or ''. */
+async function keptLab() {
+  const names = (await caches.keys()).filter((n) => LAB_CACHE.test(n)).sort((a, b) => Number(b.slice(7)) - Number(a.slice(7)));
+  for (const n of names) if (await caches.match(LAB_LIST, { cacheName: n })) return n;
+  return '';
+}
+async function keepEditor() {
+  const name = `th-lab-${BUILD}`;
+  if (await caches.match(LAB_LIST, { cacheName: name })) return { kept: true, fetched: 0 };
+  const res = await fetch(LAB_LIST, { cache: 'no-store' });
+  if (!res.ok) throw new Error(`${LAB_LIST}: ${res.status}`);
+  const list = await res.clone().json();
+  if (list.build !== BUILD) throw new Error(`the list is release ${list.build}, this worker is ${BUILD}`);
+  const old = await keptLab(), had = old ? await (await caches.match(LAB_LIST, { cacheName: old })).json() : { files: [] };
+  const same = new Map(had.files.map((f) => [f.path, f.hash])), cache = await caches.open(name);
+  let fetched = 0;
+  for (const f of list.files) {
+    const key = `/${f.path}`;
+    let r = old && same.get(f.path) === f.hash ? await caches.match(key, { cacheName: old }) : undefined;
+    if (!r) {
+      r = await fetch(key, { cache: 'reload' });
+      const size = (await r.clone().arrayBuffer()).byteLength;
+      if (!r.ok || size !== f.size) throw new Error(`${key}: ${r.status}, ${size} of ${f.size} bytes`);
+      fetched += size;
+    }
+    await cache.put(key, r);
+  }
+  await cache.put(LAB_LIST, res);   // last: its being there says the rest is whole
+  for (const n of await caches.keys()) if (LAB_CACHE.test(n) && n !== name) await caches.delete(n);
+  return { kept: true, fetched };
+}
+/** One of the editor's files: this release's kept copy, else the network, else (no signal) the newest kept. */
+async function lab(req, path) {
+  const key = path.endsWith('/') ? `${path}index.html` : path;
+  const mine = await caches.match(key, { cacheName: `th-lab-${BUILD}` });
+  if (mine) return mine;
+  try {
+    return await fetch(req);
+  } catch (e) {
+    const name = await keptLab(), hit = name && (await caches.match(key, { cacheName: name }));
+    if (hit) return hit;
+    throw e;
+  }
+}
 
 self.addEventListener('fetch', (event) => {
   const req = event.request;
@@ -57,11 +110,11 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
   const path = url.pathname;
   if (PORTED.some((p) => path === p.slice(0, -1) || path.startsWith(p))) return;
-  if (req.mode === 'navigate') { event.respondWith(EDITOR(url) ? isolate(page(req, path), true) : page(req, path)); return; }
-  if (req.destination === 'worker' && ENGINE_WORKERS.test(path)) { event.respondWith(isolate(cached(req, path), false)); return; }
+  if (req.mode === 'navigate') { event.respondWith(EDITOR(url) ? isolate(LAB.test(path) ? lab(req, path) : page(req, path), true) : page(req, path)); return; }
+  if (req.destination === 'worker' && ENGINE_WORKERS.test(path)) { event.respondWith(isolate(LAB.test(path) ? lab(req, path) : cached(req, path), false)); return; }
   if (FRESH.includes(path)) { event.respondWith(fresh(req, path)); return; }
   if (path.startsWith('/vendor/')) { event.respondWith(vendor(req)); return; }
-  event.respondWith(cached(req, path));
+  event.respondWith(LAB.test(path) ? lab(req, path) : cached(req, path));
 });
 
 /** The same response with COEP (and COOP for a page) added. @param {Promise<Response>} pending @param {boolean} doc */

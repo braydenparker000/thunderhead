@@ -289,6 +289,7 @@ Acceptance: `tests/registries.test.mjs` checks the registries against the contra
 | Navigation inside scope `/`, except the ported folders (`/music/`, `/guitar/`, `/podcasts/`, `/astra/`, `/media/`) and `/assets/` | The cached `/index.html` from `th-<build>`; the network if it is missing. Offline still opens the app. |
 | Anything under a ported folder or `/assets/` | **Not intercepted** by the shell worker (network, or the ported app's own service worker, which keeps its own folder scope, e.g. `/music/`, as on the old site) |
 | Same-origin code, CSS, fonts, icons | Cache-first from `th-<build>`. Everything is precached at install. |
+| The new photo editor's own files (`/lab/editor/`, `/lab/engine/`: 13 MB, most of it the RAW decoder) | Not precached (every release would fetch them again on every phone). Kept in `th-lab-<build>` once the editor has been opened with a signal (`sw.js` `keepEditor`, from `/lab/offline.json`: each file with its size and hash, so a later release fetches only what changed and takes the rest from the release before). Served from this release's kept copy, else the network, else, with no signal, the newest release kept whole. The owner's `photos.offline` turns the keeping off. |
 | `/vendor/<lib>-<version>/…` | Cache-first from `th-vendor`, shared across builds (paths never change content). |
 | `/release.json`, `/config.js` | Network-first with a 3 s timeout, then cache. |
 | Worker API, WebSocket | **Not intercepted.** |
