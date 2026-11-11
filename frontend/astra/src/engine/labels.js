@@ -6,8 +6,11 @@ const AUDIO_NAMES = {aac: 'AAC', opus: 'Opus', mp3: 'MP3', vorbis: 'Vorbis', fla
 const INTERNAL_NAMES = {
   A_TRUEHD: 'Dolby TrueHD', A_MLP: 'MLP', 'A_DTS/LOSSLESS': 'DTS-HD MA', 'A_DTS/EXPRESS': 'DTS Express', A_ALAC: 'ALAC',
   A_MPEG: 'MPEG audio', 'A_REAL/COOK': 'RealAudio', V_MPEG2: 'MPEG-2', V_MPEG1: 'MPEG-1', 'V_MPEG4/ISO/ASP': 'MPEG-4 (Xvid/DivX)',
-  'V_MPEG4/ISO/SP': 'MPEG-4 Part 2', 'V_MS/VFW/FOURCC': 'Video for Windows (Xvid/DivX)', 'V_REAL/RV40': 'RealVideo',
+  'V_MPEG4/ISO/SP': 'MPEG-4 Part 2', 'V_MS/VFW/FOURCC': 'Video for Windows', 'V_REAL/RV40': 'RealVideo',
   V_THEORA: 'Theora', V_MPEGH_ISO_HEVC: 'HEVC', mp4v: 'MPEG-4 Part 2', 'ac-4': 'Dolby AC-4', mlpa: 'Dolby TrueHD',
+  'A_MPEG/L2': 'MPEG Layer II', 'A_MPEG/L1': 'MPEG Layer I', 'A_MS/ACM': 'Windows audio (WMA)', alac: 'ALAC', A_SPEEX: 'Speex',
+  V_MJPEG: 'Motion JPEG', jpeg: 'Motion JPEG', mjpa: 'Motion JPEG', mjpb: 'Motion JPEG', s263: 'H.263', h263: 'H.263',
+  'V_MPEG4/MS/V3': 'MS-MPEG4', 'V_MPEG4/ISO/AP': 'MPEG-4 Part 2', 'V_MPEGI/ISO/VVC': 'VVC', vvc1: 'VVC', vvi1: 'VVC',
 };
 
 export function videoCodecName(track) {

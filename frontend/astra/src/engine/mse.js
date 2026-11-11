@@ -74,7 +74,7 @@ export class AppendQueue {
   /** Removes media more than `keep` seconds behind the playhead. */
   async evict(keep) {
     const before = this.video.currentTime - keep;
-    const ranges = this.buffer.buffered;
+    const ranges = rangesOf(this.buffer);
     if (!ranges.length || ranges.start(0) >= before - 1) return false;
     try { await this.run(() => this.buffer.remove(0, before)); return true; } catch { return false; }
   }
@@ -100,9 +100,14 @@ export class AppendQueue {
   }
 }
 
+/** A SourceBuffer's ranges; none once it has been taken off its media source (reading them then throws). */
+function rangesOf(buffer) {
+  try { return buffer.buffered; } catch { return {length: 0}; }
+}
+
 /** True when `time` (and `ahead` seconds after it, or the end) is buffered. */
 export function bufferedAt(buffer, time, ahead = 0.5, duration = Infinity) {
-  const r = buffer.buffered;
+  const r = rangesOf(buffer);
   for (let i = 0; i < r.length; i++) {
     if (r.start(i) <= time + 0.1 && (r.end(i) >= Math.min(time + ahead, duration - 0.2))) return true;
   }
@@ -111,7 +116,7 @@ export function bufferedAt(buffer, time, ahead = 0.5, duration = Infinity) {
 
 /** Seconds buffered ahead of `time` in one contiguous range. */
 export function bufferedAhead(buffer, time) {
-  const r = buffer.buffered;
+  const r = rangesOf(buffer);
   for (let i = 0; i < r.length; i++) if (r.start(i) <= time + 0.1 && r.end(i) > time) return r.end(i) - time;
   return 0;
 }

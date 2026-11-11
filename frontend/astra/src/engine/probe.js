@@ -7,6 +7,7 @@ import {readMp4Subtitles} from './mp4.js';
 import {languageName} from './languages.js';
 import {videoCodecName, audioCodecName} from './labels.js';
 import {adaptiveKind} from './plan.js';
+import {sniffContainer} from './software.js';
 
 /**
  * Opens and describes a file. Resolves {readable: true, source, input, info}
@@ -39,7 +40,8 @@ export async function probe(url, {headers = {}, signal, onStatus = () => {}, onS
     input.dispose();
     // The source stays open: the software decoder reads formats Mediabunny does not (the caller closes it otherwise).
     source.doneProbing();
-    return {readable: true, source, info: null, error: new SourceError('format', 'This is not a video file Astra recognises.', String(error?.message || error))};
+    const container = sniffContainer(await source.read(0, Math.min(source.size, 400)).catch(() => new Uint8Array(0)));
+    return {readable: true, source, info: null, container, error: new SourceError('format', 'This is not a video file Astra recognises.', String(error?.message || error))};
   }
   const container = String(format.name || '').toLowerCase();
   const tracks = await input.getTracks();
@@ -77,12 +79,16 @@ export async function probe(url, {headers = {}, signal, onStatus = () => {}, onS
     try { subtitles = await readMp4Subtitles((s, e) => source.read(s, e), source.size); } catch {}
   }
   for (const s of subtitles) s.languageName = languageName(s.language);
+  // Mediabunny lists no picture it cannot name in a transport stream (MPEG-2) or an Ogg file (Theora).
+  const hiddenVideo = video.length ? '' : container.includes('transport') ? 'ts' : container.includes('ogg') && (/\.ogv$/i.test(pathOf(url)) || /^video\//i.test(opened.contentType || '')) ? 'ogg' : '';
   source.doneProbing();
   return {
     readable: true, source, input,
-    info: {container: format.name || container, mime: await input.getMimeType().catch(() => ''), size: source.size, duration, video, audio, subtitles, layout},
+    info: {container: format.name || container, mime: await input.getMimeType().catch(() => ''), size: source.size, duration, video, audio, subtitles, layout, hiddenVideo},
   };
 }
+
+const pathOf = url => { try { return new URL(url).pathname; } catch { return String(url); } };
 
 /** A plain-object copy of the info for reports (no track handles or bytes). */
 export function describeInfo(info) {

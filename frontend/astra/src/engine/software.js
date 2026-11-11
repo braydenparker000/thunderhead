@@ -1,6 +1,9 @@
 // Software decoding, for files the phone's own decoders cannot take through
 // Media Source: HEVC, AV1 or VP9 without hardware support, 10-bit and 4:2:2
-// H.264, and containers Mediabunny does not read (AVI, FLV, MPEG-PS).
+// H.264, the older codecs no browser decodes (MPEG-1/2, MPEG-4 ASP as in
+// Xvid and DivX, MS-MPEG4, WMV, Motion JPEG, Theora, H.263, VVC; Windows
+// Media Audio, Speex, ADPCM), and containers Mediabunny does not read (AVI,
+// FLV, MPEG-PS).
 //
 // libmedia's AVPlayer (LGPL-3.0, shipped under frontend/assets/libmedia/ with
 // its licenses, see docs/PLAYBACK-0.32.md)
@@ -16,15 +19,23 @@
 
 const BASE = new URL('../../../assets/libmedia/', import.meta.url);
 // libmedia codec ids -> its decoder builds.
-const WASM = {27: 'h264', 173: 'hevc', 139: 'vp8', 167: 'vp9', 225: 'av1', 86018: 'aac', 86019: 'ac3', 86056: 'eac3', 86020: 'dca', 86017: 'mp3', 86076: 'opus', 86028: 'flac', 86021: 'vorbis'};
+const WASM = {
+  27: 'h264', 173: 'hevc', 196: 'vvc', 139: 'vp8', 167: 'vp9', 225: 'av1', 1: 'mpeg2video', 2: 'mpeg2video', 12: 'mpeg4',
+  14: 'msmpeg4', 15: 'msmpeg4', 16: 'msmpeg4', 17: 'wmv', 18: 'wmv', 71: 'wmv', 4: 'h263', 19: 'h263', 20: 'h263', 7: 'mjpeg', 30: 'theora',
+  86018: 'aac', 86019: 'ac3', 86056: 'eac3', 86020: 'dca', 86017: 'mp3', 86076: 'opus', 86028: 'flac', 86021: 'vorbis',
+  86023: 'wma', 86024: 'wma', 86052: 'wma', 86053: 'wma', 86054: 'wma', 86051: 'speex',
+};
 const IO_END = -1048576; // libmedia's end-of-stream for custom loaders
 const READ_CHUNK = 1 << 20;
 
 /** Video codecs (Mediabunny names) this path can decode. */
 export const SOFTWARE_VIDEO = new Set(['avc', 'hevc', 'vp8', 'vp9', 'av1']);
-/** Audio codecs it can decode. TrueHD and others have no decoder here. */
+/** Audio codecs it can decode. TrueHD, MPEG Layer II and ALAC have no decoder here; Windows Media Audio it decodes in an AVI only. */
 export const SOFTWARE_AUDIO = new Set(['aac', 'ac3', 'eac3', 'dts', 'mp3', 'opus', 'flac', 'vorbis']);
-export const softwareAudio = codec => SOFTWARE_AUDIO.has(codec) || String(codec).startsWith('pcm');
+// Codecs Mediabunny has no name for, by the name the Matroska or MP4 file gives them.
+const OTHER_VIDEO = /^(V_MPEG[12]|V_MPEG4\/ISO\/(SP|ASP|AP)|V_MPEG4\/MS\/V3|V_THEORA|V_MJPEG|V_MS\/VFW\/FOURCC|V_MPEGI\/ISO\/VVC|mp4v|vvc1|vvi1)$/i;
+export const softwareVideo = track => SOFTWARE_VIDEO.has(track.codec) || (!track.codec && OTHER_VIDEO.test(String(track.internalCodec ?? '')));
+export const softwareAudio = track => SOFTWARE_AUDIO.has(track.codec) || String(track.codec ?? '').startsWith('pcm');
 
 let library = null;
 export function loadLibmedia() {
@@ -47,7 +58,7 @@ export function loadLibmedia() {
 }
 
 function wasmUrl(type, id) {
-  const codec = WASM[id] || (id >= 65536 && id <= 65572 ? 'pcm' : null);
+  const codec = WASM[id] || (id >= 65536 && id <= 65572 ? 'pcm' : id >= 69632 && id <= 69683 ? 'adpcm' : null);
   const path = type === 'decoder' && codec ? `decode/${codec}-simd.wasm` : type === 'resampler' ? 'resample/resample-simd.wasm' : type === 'stretchpitcher' ? 'stretchpitch/stretchpitch-simd.wasm' : null;
   return path ? new URL(path, BASE).href : '';
 }
@@ -62,7 +73,25 @@ export function sniffContainer(b) {
   if (b[0] === 0 && b[1] === 0 && b[2] === 1 && b[3] === 0xba) return 'mpg';
   if (b[0] === 0x47 && b[188] === 0x47) return 'ts';
   if (ascii(0, 4) === 'OggS') return 'ogg';
+  if (b[0] === 0x30 && b[1] === 0x26 && b[2] === 0xb2 && b[3] === 0x75) return 'asf';
+  if (ascii(0, 4) === '.RMF') return 'rm';
   return '';
+}
+/** Containers libmedia has no reader for, by the name a person knows. */
+export const UNREADABLE = {asf: 'Windows Media (WMV, ASF)', rm: 'RealMedia'};
+
+// libmedia matches an AVI's codec tag by exact case; files also carry these in lower case.
+const AVI_TAGS = new Set(['XVID', 'DIVX', 'DX50', 'DIV3', 'DIV4', 'MP43', 'MP42', 'MJPG', 'WMV1', 'WMV2', 'WMV3', 'FMP4', 'H264']);
+/** Writes a video stream's codec tags in the case libmedia knows, in the bytes of an AVI's header. */
+export function fixAviTags(bytes) {
+  const tag = at => String.fromCharCode(bytes[at], bytes[at + 1], bytes[at + 2], bytes[at + 3]);
+  const upper = at => { const t = tag(at).toUpperCase(); if (t !== tag(at) && AVI_TAGS.has(t)) for (let i = 0; i < 4; i++) bytes[at + i] = t.charCodeAt(i); };
+  for (let i = 0; i + 64 < bytes.length && i < 65536; i++) {
+    if (tag(i) !== 'strh' || tag(i + 8) !== 'vids') continue;
+    upper(i + 12); // fccHandler
+    for (let k = i + 16; k < i + 200 && k + 28 < bytes.length; k++) if (tag(k) === 'strf') { upper(k + 24); break; } // biCompression
+  }
+  return bytes;
 }
 
 /** A libmedia reader over Astra's HttpSource. */
@@ -77,7 +106,7 @@ function sourceLoader(AVPlayer, source, ext = '') {
       if (this.stopped || this.pos >= source.size) return IO_END;
       const n = Math.min(buffer.length, source.size - this.pos, READ_CHUNK);
       const bytes = await source.read(this.pos, this.pos + n);
-      buffer.set(bytes);
+      buffer.set(ext === 'avi' && this.pos < 65536 ? fixAviTags(bytes.slice()) : bytes);
       this.pos += bytes.length;
       return bytes.length;
     }
@@ -117,7 +146,7 @@ export class SoftwareSession extends EventTarget {
     this.emit('status', 'Loading the software decoder…');
     const AVPlayer = await loadLibmedia();
     if (this.destroyed) return;
-    AVPlayer.setLogLevel(5);
+    AVPlayer.setLogLevel(globalThis.ASTRA_DECODER_LOG ?? 5); // 5 is silent; the lab sets a lower number to hear the decoder
     this.stream = new MediaStream();
     const engine = this.engine = new AVPlayer({
       container: this.stream, checkUseMSE: () => false, enableHardware: true, enableWebCodecs: true,
@@ -129,8 +158,13 @@ export class SoftwareSession extends EventTarget {
     const ext = sniffContainer(await this.source.read(0, Math.min(this.source.size, 400)));
     await Promise.race([engine.load(sourceLoader(AVPlayer, this.source, ext), {ext}), failed]);
     if (this.destroyed) return;
-    const streams = engine.getStreams();
-    if (!streams.some(s => String(s.mediaType).toLowerCase() === 'video')) throw Error('The software decoder found no video in this file.');
+    const streams = engine.getStreams(), kind = s => String(s.mediaType).toLowerCase();
+    // In an FLV file libmedia calls Sorenson Spark H.263, which its H.263 decoder does not decode.
+    const decodable = s => !!wasmUrl('decoder', Number(s.codecparProxy?.codecId)) && !(ext === 'flv' && Number(s.codecparProxy?.codecId) === 4);
+    if (!streams.some(s => kind(s) === 'video')) throw Error('The software decoder found no video in this file.');
+    if (!streams.some(s => kind(s) === 'video' && decodable(s))) throw Object.assign(Error('Astra has no decoder for the video in this file.'), {external: true});
+    /** True when the file has sound and none of it can be decoded. */
+    this.silent = streams.some(s => kind(s) === 'audio') && !streams.some(s => kind(s) === 'audio' && decodable(s));
     this.duration = Number(engine.getDuration()) / 1000;
     this.attachClock();
     engine.on('time', () => this.dispatch('timeupdate'));
@@ -146,6 +180,9 @@ export class SoftwareSession extends EventTarget {
     const deadline = new Promise((_, reject) => { timer = setTimeout(() => reject(Error('The software decoder could not show a picture from this file.')), 20000); });
     const step = promise => Promise.race([promise, failed, deadline]);
     const firstFrame = new Promise(resolve => engine.on('firstVideoRendered', resolve));
+    // Sound that runs on for seconds with no picture means the picture will not come.
+    const soundOnly = new Promise((_, reject) => engine.on('firstAudioRendered', () => setTimeout(() => reject(Error('The software decoder could not show a picture from this file.')), 6000)));
+    soundOnly.catch(() => {});
     const muted = this.video.muted;
     try {
       await step(engine.play({audio: true, video: true, subtitle: false}));
@@ -155,7 +192,7 @@ export class SoftwareSession extends EventTarget {
       if (!autoplay) this.video.muted = true;
       await step(engine.resume().catch(() => {}));
       this.nativePlay().catch(() => {});
-      await step(firstFrame);
+      await Promise.race([step(firstFrame), soundOnly]);
     } finally { clearTimeout(timer); }
     if (this.destroyed) return;
     if (!autoplay) { await engine.pause(); this.nativePause(); this.video.muted = muted; }
@@ -195,12 +232,12 @@ export class SoftwareSession extends EventTarget {
     });
   }
 
-  /** Audio streams libmedia found: [{id, language, title, codecId, active}]. */
+  /** Audio streams libmedia found: [{id, language, title, active, decodable}]. */
   audioStreams() {
     if (!this.engine) return [];
     const active = this.engine.getSelectedAudioStreamId?.();
     return this.engine.getStreams().filter(s => String(s.mediaType).toLowerCase() === 'audio')
-      .map(s => ({id: s.id, language: s.metadata?.language || '', title: s.metadata?.title || '', active: s.id === active}));
+      .map(s => ({id: s.id, language: s.metadata?.language || '', title: s.metadata?.title || '', active: s.id === active, decodable: !!wasmUrl('decoder', Number(s.codecparProxy?.codecId))}));
   }
 
   setAudioStream(id) { return this.serial(() => this.engine.selectAudio(Number(id))); }

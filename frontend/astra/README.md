@@ -159,19 +159,23 @@ never switches pipeline mid-play:
    header gives the container, video codec, every audio track (language,
    codec, channels) and every subtitle track. If the host does not let a web
    page read the file (CORS) or ignores ranges, that is known at once.
-2. **Decide once** (`plan.js`, pure and unit-tested). Using answers from the
-   browser itself (`capabilities.js`): `native` for a plain one-track
-   MP4/WebM or an unreadable host, `remux` for everything else Astra can
+2. **Decide once** (`plan.js`, pure, tested in `tests/astra-plan.test.mjs`).
+   Using answers from the browser itself (`capabilities.js`): `native` for a
+   plain one-track MP4/WebM the browser plays whole (its picture and its
+   sound together, so a WebM with VP8 and Vorbis or an MP4 with MP3 is not
+   unpacked) or an unreadable host, `remux` for everything else Astra can
    play, `software` when the phone has no browser decoder for the video
-   (HEVC, AV1 or VP9 without hardware support, 10-bit H.264) or Mediabunny
-   cannot read the container (AVI, FLV, MPEG-PS), `hls`/`dash` for adaptive
-   streams, or `unsupported` with a reason and an offer to play the file in
-   another app. Audio tracks are `direct` (AAC, Opus, FLAC), `rebuilt` (AC-3,
-   E-AC-3, DTS, Vorbis, MP3, PCM: decoded and re-encoded to Opus on the
-   device) or `unsupported` (TrueHD and other codecs no browser decoder
-   exists for); a file with only unplayable audio can be played without
-   sound when the viewer asks. Dolby Vision profiles are read from the MKV
-   header and explained (profile 5 has no standard picture underneath).
+   (HEVC, AV1 or VP9 without hardware support, 10-bit H.264, and the older
+   codecs in the table below), when Mediabunny cannot read the container
+   (AVI, FLV, MPEG-PS) or did not list the picture (MPEG-2 in a transport
+   stream), `hls`/`dash` for adaptive streams, or `unsupported` with a
+   reason and an offer to play the file in another app. Audio tracks are
+   `direct` (AAC, Opus, FLAC), `rebuilt` (AC-3, E-AC-3, DTS, Vorbis, MP3,
+   PCM: decoded and re-encoded to Opus on the device) or `unsupported`
+   (TrueHD and other codecs no browser decoder exists for); a file with
+   only unplayable audio can be played without sound when the viewer asks.
+   Dolby Vision profiles are read from the MKV header and explained
+   (profile 5 has no standard picture underneath).
 3. **Play** (`remux.js`, `mse.js`). Video packets are re-wrapped as
    fragmented MP4 untouched, so the phone's hardware decoder does the work;
    audio has its own SourceBuffer, so changing track refills only the audio.
@@ -187,10 +191,51 @@ never switches pipeline mid-play:
    reader. The session gives the element the file's clock, so the player,
    subtitles and picture-in-picture work unchanged. If Astra's own unpacking
    or Chrome fails to decode before the first frame, playback switches to it
-   once by itself.
+   once by itself. A decoder that gives up while the film plays (a hardware
+   decoder taken away, a seek into an open GOP in Chrome's own H.264
+   decoder) is met first with a fresh pipeline at the same place, then with
+   the software decoder there. A file whose picture has no decoder stops
+   with that reason at once; one whose sound has none plays with a notice.
 5. **Another app**: when nothing in the browser can play a file, the player
    offers it to the phone's video apps (VLC, MX Player…) through an Android
    intent with the title and position (`src/player/external.js`).
+
+### What plays (measured 2026-11-10)
+
+Seventy-two short test films, one for each container and codec pairing
+worth trying, were played through `/astra/lab/` in desktop Chrome (which has
+no HEVC decoder of its own, so HEVC shows the software route): 56 play
+(four of them without sound), 12 stop with a reason and 4 still fail.
+Before this pass 38 of the first 64 played and 14 showed black or stalled.
+
+| Picture | Where | How |
+|---|---|---|
+| H.264, VP9, AV1 | MP4, MOV, MKV, WebM, TS, M2TS | the phone's decoder (`native` or `remux`) |
+| H.264 | FLV | software decoder |
+| HEVC (8 and 10 bit) | MP4, MKV, TS | the phone's decoder where it has one, else software |
+| VP8 | WebM as it is; MKV in software | |
+| MPEG-4 ASP (Xvid, DivX), MS-MPEG4, WMV 7/8/9, Motion JPEG | AVI, MKV; MPEG-4 also in MP4 | software decoder |
+| MPEG-1, MPEG-2 | MPG, VOB, TS, MKV | software decoder |
+| Theora | MKV | software decoder |
+
+Sound: AAC, Opus, FLAC and MP3 as they are; AC-3, E-AC-3, DTS, Vorbis and
+PCM converted as they play (or decoded by the software decoder when it
+plays the file); Windows Media Audio and ADPCM in an AVI.
+
+Stops with a reason (and the offer of another app): the Windows Media
+container (WMV, ASF) and RealMedia, which nothing here unpacks; Theora in
+an Ogg file; H.263 in 3GP; Motion JPEG in MOV; Sorenson Spark in FLV;
+ProRes; a file whose only sound is TrueHD, ALAC, MPEG Layer II or WMA in an
+MKV. Plays without sound: MPEG Layer II in MPG and TS (the usual sound of
+VCDs and DVB recordings). Still broken: H.264 inside an AVI, where libmedia
+1.3.1's reader fails; it stops with "could not show a picture" after six
+seconds of sound.
+
+The decoders added on 2026-11-10 (`mpeg2video`, `mpeg4`, `msmpeg4`,
+`mjpeg`, `theora`, `h263`, `wmv`, `wma`, `speex`, `adpcm`, `vvc`) are the
+unmodified builds from the same libmedia commit as the rest
+(`frontend/assets/libmedia/licenses/`). VVC, Speex and H.263 in an AVI are
+wired but were not tried: no test film could be made here.
 
 ## The player screen
 
