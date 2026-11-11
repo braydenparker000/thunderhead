@@ -40,14 +40,22 @@ export const languageOf = (given: string | undefined): string | undefined =>
 
 /** The words in `bytes`, `''` when none were heard. Throws when the model fails, answers no
  * words field or the deadline passes: dictation tells "nothing heard" from "couldn't hear". */
-export async function hear(ai: Transcriber, bytes: ArrayBuffer, type: string, ms: number, language?: string): Promise<string> {
+export async function hear(
+  ai: Transcriber,
+  bytes: ArrayBuffer,
+  type: string,
+  ms: number,
+  language?: string,
+): Promise<string> {
   const deadline = AbortSignal.timeout(ms);
   const late = new Promise<never>((_, reject) => {
     deadline.addEventListener('abort', () => reject(new Error('timeout')), { once: true });
   });
   late.catch(() => undefined); // the deadline may pass after the words came: nobody waits then
   const run = async (audio: unknown) => {
-    const text = words(await Promise.race([ai.run(WHISPER, { audio, ...(language ? { language } : {}) }, { signal: deadline }), late]));
+    const text = words(
+      await Promise.race([ai.run(WHISPER, { audio, ...(language ? { language } : {}) }, { signal: deadline }), late]),
+    );
     if (text === null) throw new Error('no words field');
     return text;
   };
