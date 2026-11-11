@@ -28,6 +28,7 @@ async function render() {
   else if (photo && /^[0-9a-f-]{36}$/.test(photo)) await (await import('./view.js')).photoScreen(box, photo);
   else if (day && /^\d{4}-\d{2}-\d{2}$/.test(day)) await (await import('./view.js')).dayScreen(box, day);
   else if (q.has('deleted')) await (await import('./view.js')).deletedScreen(box);
+  else if (q.has('backup')) await (await import('./backup-screen.js')).backupScreen(box);
   else await (await import('./shelf.js')).shelfScreen(box);
   if (n !== drawn) box.remove();
 }

@@ -141,6 +141,20 @@ export async function fetchOriginal(token, id, range) {
   return res.blob();
 }
 
+/** A small file of the app's own, by its exact name (the editor's backup of an edit, lab/editor/app/backup.js):
+ * its Drive id, or null. The app sees only files it made, so the name alone finds it. @param {string} token @param {string} name */
+export async function findByName(token, name) {
+  const q = `name = '${name.replace(/['\\]/g, '')}' and trashed = false`;
+  const res = await fetch(`${DRIVE_FILES}?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1&orderBy=modifiedTime desc`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw Object.assign(new Error('drive'), { status: res.status });
+  return /** @type {string | null} */ ((await res.json()).files?.[0]?.id ?? null);
+}
+/** New bytes for a file already in Drive (the same id, the same name). @param {string} token @param {string} id @param {Blob} blob */
+export async function replace(token, id, blob) {
+  const res = await fetch(`${DRIVE_UPLOAD}/${encodeURIComponent(id)}?uploadType=media&fields=id`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}`, 'Content-Type': blob.type || 'application/octet-stream' }, body: blob });
+  if (!res.ok) throw Object.assign(new Error('drive'), { status: res.status });
+}
+
 /** The "Thunderhead Exports" folder beside the app's folder (the same parent), made on first use;
  * exports go there by the same resumable upload as originals. @param {string} token @param {string} folder */
 export async function exportsFolder(token, folder) {

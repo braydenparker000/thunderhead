@@ -5,7 +5,9 @@
 // keeps all of it when space runs low.
 
 const DB = 'th-editor';
-/** @typedef {{ id: string, name: string, size: number, taken: number, added: number, film: string, rating: number, flag: 'none' | 'pick' | 'reject', edited?: boolean, source?: string }} Photo */
+/** @typedef {{ id: string, name: string, size: number, taken: number, added: number, film: string, rating: number, flag: 'none' | 'pick' | 'reject', edited?: boolean, source?: string,
+ *   editFile?: string, backed?: string }} Photo `source`: where it came from or is backed up to (`photos:<id>`, the owner's library in Drive);
+ *   `editFile`: its edit's backup in Drive; `backed`: a mark of the edit as last backed up (app/backup.js) */
 /** @typedef {Record<string, number | string>} Edit */
 
 const open = () => /** @type {Promise<IDBDatabase>} */ (new Promise((res, rej) => {
@@ -94,8 +96,9 @@ export async function fromSource(source) {
   const all = /** @type {Photo[]} */ (await tx('photos', (s) => s.getAll()));
   return all.find((p) => p.source === source)?.id ?? null;
 }
-/** @param {File} file @param {string} source @returns {Promise<string>} the photo's id here */
-export async function addFrom(file, source) {
+/** @param {File} file @param {string} source @param {Partial<Photo>} [more] what is already known of it (a backup's rating, flag and marks)
+ * @returns {Promise<string>} the photo's id here */
+export async function addFrom(file, source, more = {}) {
   const had = await fromSource(source);
   if (had) return had;
   const buf = await file.arrayBuffer(), jpg = embedded(buf), id = crypto.randomUUID();
@@ -103,7 +106,7 @@ export async function addFrom(file, source) {
   await write('raw', `${id}.raf`, buf);
   await write('jpg', `${id}.jpg`, jpg);
   /** @type {Photo} */
-  const p = { id, name: file.name, size: file.size, taken: file.lastModified, added: Date.now(), film: '', rating: 0, flag: 'none', source };
+  const p = { id, name: file.name, size: file.size, taken: file.lastModified, added: Date.now(), film: '', rating: 0, flag: 'none', ...more, source };
   await tx('photos', (s) => s.put(p), 'readwrite');
   return id;
 }
@@ -148,6 +151,20 @@ export async function remove(ids) {
 }
 /** How many bytes this site keeps on the phone (the photos are nearly all of it). */
 export const usage = async () => (await navigator.storage?.estimate?.())?.usage ?? cache.reduce((s, p) => s + p.size, 0);
+/** The original RAF as a file on disk, under its own name (nothing is read until something reads it). @param {string} id */
+export async function rawFile(id) {
+  const p = cache.find((x) => x.id === id), f = await (await (await dir('raw')).getFileHandle(`${id}.raf`)).getFile();
+  return new File([f], p?.name || `${id}.raf`, { lastModified: p?.taken || f.lastModified });
+}
+/** Every saved edit, by photo id. @returns {Promise<Map<string, Edit>>} */
+export async function edits() {
+  const d = await open();
+  return new Promise((res, rej) => {
+    const out = new Map(), q = d.transaction('edits').objectStore('edits').openCursor();
+    q.onsuccess = () => { const c = q.result; if (c) { out.set(String(c.key), c.value); c.continue(); } else res(out); };
+    q.onerror = () => rej(q.error);
+  });
+}
 /** The original RAF. @param {string} id */
 export const raw = async (id) => (await (await (await dir('raw')).getFileHandle(`${id}.raf`)).getFile()).arrayBuffer();
 

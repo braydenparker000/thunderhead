@@ -6,6 +6,7 @@ import { DCLogic } from '../dc.js';
 import * as store from '../app/store.js';
 import * as photo from '../app/session.js';
 import { cutOff } from '../app/save.js';
+import * as backup from '../app/backup.js';
 
 const DAY = (/** @type {number} */ t) => { const d = new Date(t), today = new Date().toDateString() === d.toDateString(); return today ? 'TODAY' : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }).toUpperCase(); };
 /** The stored photos as the board's roll. */
@@ -40,6 +41,8 @@ export default class Component extends DCLogic {
     // an export the page did not live to finish is offered again, once (app/save.js)
     const cut = this.app ? cutOff() : null;
     if (cut) this.state.cut = cut;
+    // Backup to Drive (app/backup.js): an extra. What there is to back up is read here, with no network.
+    if (this.app) backup.state().then((b) => { if (!this._host?.stale) this.setState({ backup: b }); }, () => {});
   }
   renderVals() {
     const S = this.state, set = (o) => this.setState(o), P = S.photos;
@@ -80,6 +83,14 @@ export default class Component extends DCLogic {
       };
       input.click();
     };
+    // Back up to Drive: the originals not there yet (Photos' own import) and the edits that changed
+    const B = S.backup, mb = (/** @type {number} */ n) => (n >= 1e9 ? `${(n / 1e9).toFixed(1)} GB` : `${Math.round(n / 1e6)} MB`), count = (/** @type {number} */ k, /** @type {string} */ w) => `${k} ${w}${k === 1 ? '' : 's'}`;
+    const cell = /** @type {any} */ (navigator).connection?.type === 'cellular';
+    const backupNote = !B ? 'Your originals and edits, kept in your Google Drive' : !B.signedIn ? 'Sign in on the home screen first. The editor works without it'
+      : !B.originals.length && !B.edits.length ? 'Everything here is in your Drive'
+      : [B.originals.length ? `${count(B.originals.length, 'original')} (${mb(B.bytes)})` : '', B.edits.length ? count(B.edits.length, 'edit') : ''].filter(Boolean).join(' and ') + ` to back up${cell && B.originals.length ? ' · you are on mobile data' : ''}`;
+    // Photos' page does it (the one page that may reach Drive) and comes straight back
+    const backUp = () => { if (B?.signedIn && (B.originals.length || B.edits.length)) location.assign('/photos/?backup'); };
     const pr = S.progress;
     // the phone's storage, and deleting rejects for good: the subtitle says and does both (two taps, the second within 5 s)
     const gb = S.used ? ` · ${S.used >= 1e9 ? (S.used / 1e9).toFixed(1) + ' GB' : Math.round(S.used / 1e6) + ' MB'} on this phone${real && !store.kept() ? ', which Chrome may clear if space runs low' : ''}` : '';
@@ -100,6 +111,7 @@ export default class Component extends DCLogic {
       isGrid: S.view === 'grid', isCull: S.view === 'cull', groups, cols: S.cols,
       importing: S.importing, toggleImport: () => set({ importing: !S.importing, progress: null }),
       sources: [{ glyph: '▦', name: 'Choose photos', note: 'Pick RAFs or JPEGs from the phone’s files', pick: choose },
+        ...(this.app ? [{ glyph: '☁', name: 'Back up to Drive', note: backupNote, pick: backUp }] : []),
         { glyph: '▣', name: 'From a card or the camera', note: 'Plug in the SD reader or the X-E5 by USB-C, then pick its DCIM folder', pick: this.app ? choose : () => runImport('Copying from the card') },
         this.app ? { glyph: '↻', name: 'Watch a folder', note: 'Later: Chrome on Android cannot watch a folder yet', pick: () => {} }
           : { glyph: '↻', name: 'Watch a folder', note: 'New RAFs in a chosen folder come in by themselves when the app opens', pick: () => runImport('Checking the folder') }],
