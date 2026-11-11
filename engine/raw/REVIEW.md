@@ -70,35 +70,90 @@ the 40 MP sensor.
   Highlights slider is blamed for hard lines in faces.
 - **On a phone.** Lightroom on Android draws reports of slow and failing exports. Nobody reported on 40 MP files.
 
-## Against ours
+## Every step: ours, the best known, and how to get there
 
-| Stage | Best known | Ours | Gap |
+In the order a photo passes through. **Bold** steps are where ours is behind. Sizes: S one pull request,
+M several, L a project of its own.
+
+### The sensor's data
+
+| # | Step | Ours | Best known |
 |---|---|---|---|
-| Hot pixels, levels | Done on the mosaic, first | The same (`src/hot.rs`) | None |
-| Fringing (lateral CA) | Before the demosaic, or inside the network | After the demosaic, in the warp | Small; larger at frame edges with strong CA |
-| Demosaic, low ISO | Markesteijn 3-pass among classical; neural beyond | Measured at or above Markesteijn 3-pass | None among classical; unproven against Capture One and DxO |
-| Demosaic, flat or noisy areas | Blended with a smoother method | Not blended | Unmeasured: look for line patterns after sharpening |
-| Capture sharpening | Deconvolution, linear, after demosaic, ~8 rounds, masked | The same (`deconv.js`) | None |
-| Noise, high ISO | Joint neural demosaic and denoise | Classical, after the demosaic | The largest gap; two to three stops by the makers' claims |
-| Lens corrections | The maker's own data in the file | The same (`lens.js`) | None |
-| Colour model | Camp one: match the camera. Camp two: hue-stable tone mapping | Adobe's model exactly: its profiles, twists and hue-preserving curve | Matches Lightroom, flaws included; not fitted to the camera's own JPEGs |
-| Saturated colours | Brought into range smoothly | Clipped at output, as Lightroom does | Small; shows on neon, flowers, stage lights |
-| Working light | Linear until the tone curve | The same (linear ProPhoto) | None |
+| 1 | Read the file | rawler: lossless, all three Fuji encodings, every core | The same (a lossless read cannot be bettered) |
+| 2 | Black and white levels | One black level (the file's, averaged), the file's white | A black level for each colour; some subtract a dark frame |
+| 3 | Hot and dead pixels | Hot ones mended on the mosaic (`src/hot.rs`); dead ones not | Both, on the mosaic |
+| 4 | Blown highlights | A clipped colour rebuilt from the unclipped ones (darktable's "inpaint opposed") | The same for small areas; segment-based or neural for large ones |
+| **5** | Colour fringing | Undone after the demosaic, in the warp | Before the demosaic, or inside a network |
+| 6 | Demosaic | Markesteijn's green chosen twice, vkdt's red and blue: at or above Markesteijn 3-pass, measured | Markesteijn 3-pass among classical; neural beyond (Adobe, DxO) |
+| **7** | Flat and noisy areas | The same demosaic everywhere | A smoother demosaic blended in where contrast is low |
+| **8** | Noise reduction | Classical, after the demosaic: colour by a guided fit, brightness by patches, by ISO | One network that demosaics and denoises the mosaic together |
+| 9 | Capture sharpening | Richardson-Lucy, 8 rounds, linear brightness, noise held back | The same |
 
-So: at low ISO the pipeline is built the way the best classical ones are, step for step. It is behind the
-commercial best in one large way (noise at high ISO) and unproven in one (detail against Capture One and DxO,
-which needs the owner's exports). Its colour is Lightroom's, by choice.
+### Geometry
 
-## What would close the gaps, by worth
+| # | Step | Ours | Best known |
+|---|---|---|---|
+| 10 | Lens distortion, dark corners | The lens's own numbers in the RAF (darktable's method) | The same (Lightroom and Capture One use the maker's data too) |
+| 11 | Crop, straighten, perspective | One cubic resampling for all of it and the lens together | The same: resample once. Plus an automatic upright, which ours lacks |
 
-1. **The testing page**, since every number here is from a software GPU.
-2. **Film simulations fitted to the owner's camera** (the camera re-renders a RAF in every simulation; fit a table
-   per simulation): truer to the camera than Adobe's or Capture One's, and no more private Adobe files.
-3. **A worm check**: foliage at Sharpening 40 to 100, looked at and scored; a dual demosaic if patterns show.
-4. **Fringing before the demosaic**, measured with the harness first.
-5. **Saturated colours brought into range** at output.
-6. **Neural noise reduction** as a one-off action on a photo: the largest gain and by far the largest job; needs
-   many high-ISO RAFs, and minutes a photo on the phone.
+### Colour and tone
+
+| # | Step | Ours | Best known |
+|---|---|---|---|
+| 12 | White balance | As shot, presets, eyedropper, Temp and Tint by the DNG maths; no Auto (three methods measured worse than as shot) | The same, plus a learned Auto |
+| **13** | The camera's colour | Adobe's profile files (the owner's own, private): two lights, a hue and saturation table, a look table | For the camera's look: fitted to the camera's own JPEGs. For accuracy: measured from a chart |
+| 14 | Exposure | A plain gain in linear light; DR200 and DR400 allowed for | The same |
+| 15 | Highlights, Shadows, Whites, Blacks | By area: a guided filter on log brightness (darktable's tone equalizer idea) | The same family; strengths not yet matched to Lightroom's |
+| 16 | Tone curve | Adobe's hue-preserving curve, the profile's own or Camera Raw's default | The same if Lightroom is the aim; AgX or sigmoid if smooth, hue-stable highlights are |
+| 17 | Clarity, Texture, Dehaze | Local contrast against the same area masks; dark-channel dehaze | Local Laplacian pyramids; the same dehaze. Close; halos unmeasured |
+| 18 | Saturation, Vibrance, mixer, grading | In Oklab, skin protected, baked into one table | The same (a perceptual space) |
+| 19 | Looks | `.cube` tables, Adobe's looks, edits saved as looks | Also `.xmp` presets and camera recipes |
+| **20** | Masks | Brush, linear, radial, colour range, brightness range | Also subject, sky and people found by a model |
+| **21** | Heal and remove | A source patch fitted to the surroundings | Seamless (Poisson) blending; content-aware or generative remove |
+
+### Output
+
+| # | Step | Ours | Best known |
+|---|---|---|---|
+| **22** | Colours too strong for the screen | Clipped, as Lightroom does | Brought into range smoothly |
+| 23 | Resize | Area average in linear light | The same |
+| 24 | Output sharpening | Screen or Print, three amounts, after the resize | The same |
+| **25** | Colour space and depth | sRGB only; 8 bits dithered, or 16-bit TIFF | Also Display P3 with a profile embedded; HDR output for phone screens |
+| 26 | JPEG | Full colour resolution from quality 90, standard tables | A smarter encoder (jpegli): smaller files at the same quality |
+
+### Around it
+
+| # | Step | Ours | Best known |
+|---|---|---|---|
+| **27** | What is seen while editing | A 3 × 3 copy; sharpening and noise reduction only at 100 % and in the export | An approximation of both at every zoom |
+| **28** | Proof it is right | A harness run by hand, on a software GPU | Reference pictures checked on every change, and on the real device |
+| **29** | Keeping the photos | On the phone only | Backed up |
+
+### How to get there
+
+- **5, fringing first (M).** Give red and blue their corrected places while the demosaic makes them, so it never
+  sees misaligned colours. Lay fringing on the harness's known picture first and measure what it is worth.
+- **7, flat areas (S).** Where local contrast is low, take the plain mean of the four greens. Measure at ISO 6400.
+- **8, noise (L).** A small network that takes the mosaic and gives the picture, trained as DxO trains: clean
+  pictures (the harness's known ones, from public-domain RAFs) with our sensor noise model laid on. Run in tiles
+  on the phone's GPU as a one-off action. It will not match DxO, which reports about three years of H100 time on
+  its newest; a stop or more over ours is a fair hope. Until then: a second, coarser scale for colour noise (M).
+- **13, the camera's colour (M, needs the owner for an afternoon).** About thirty varied scenes; the camera
+  re-renders each RAF as a JPEG in every simulation; fit a table per simulation and check it on scenes held back.
+  Ends the dependence on the private Adobe files.
+- **15 and 17, strengths (S once the exports exist).** Fit each slider to the owner's Lightroom exports made at
+  known settings. A halo test on made-up edges can be done now.
+- **16, highlights (S to M, only if wanted).** An option that fades bright saturated colours towards white the
+  way AgX does. It leaves Lightroom's look, so it is a choice, not a fix.
+- **20, found masks (L, the owner's decision).** A segmentation model of some tens of megabytes, fetched once.
+- **21, heal (M then L).** Poisson blending first; a remove model after.
+- **22, strong colours (S).** Compress towards the screen's range before the last matrix; check on neon and flowers.
+- **25, P3 (S to M) and HDR (L).** Embed a profile and draw on a P3 canvas; an HDR gain map is its own piece.
+- **27, the fitted view (M).** Show noise reduction and sharpening from 50 % up, approximated from the copy.
+- **28, proof (M).** The testing page on the phone, and made-up mosaics rendered and compared in CI on every change.
+- **29, backup (M, the owner's decision on where).** Edits are small; originals that came from Drive are there already.
+- Small ones: 2 a black level for each colour, 3 dead pixels, 4 large blown areas, 11 upright, 12 Auto, 19 `.xmp`,
+  26 jpegli. None changes a picture much.
 
 ## Sources
 
