@@ -23,7 +23,7 @@ comes first, and that a heavy feature may take up to about ten seconds on the ph
 | Sharpening (Amount, Radius, Detail), Defringe, and noise reduction (Noise, Color noise) on the sensor's own pixels: 100 % and export | `finish.js`, `denoise.js`, `noise.js`, `full.js` |
 | Effects: Clarity, Texture, Dehaze (each from a small mask, so they cost one lookup a pixel and match at every zoom) | `mask.js`, `haze.js`, `wgsl.js` main |
 | Crop board: crop with aspect, straighten (and Auto level), quarter turns, flips, perspective (Vertical, Horizontal, Scale) | `crop.js`, `level.js`, `boards/CropPlate.js` |
-| Full size: X-Trans demosaic of the rectangle looked at (Markesteijn's green chosen by the greens alone, vkdt's red and blue), developed by the same frame pass | `demosaic.js`, `full.js`, measured by `engine/raw/quality/` |
+| Full size: X-Trans demosaic of the rectangle looked at (Markesteijn's green, chosen first by the greens alone and then again by all three colours; vkdt's red and blue), developed by the same frame pass | `demosaic.js`, `demosaic-again.js`, `full.js`, measured by `engine/raw/quality/` |
 | One photo across the tools: the picture lives in its own layer under the boards and keeps its zoom and place from Edit to Looks, Masks and Heal. Free pinch from fitted to 300 %, drag, double-tap for 100 %; on Masks and Heal two fingers zoom and move the photo, one works the tool | `editor/app/zoom.js` (a board's `data-keep="photo" data-zoom` slot is only a window onto the layer; `data-zoom="tool"` for a tool board) |
 | Undo and history (every step keeps the whole edit), versions, saved with the edit | `editor/app/past.js`, `session.js` |
 | View board: before/after against the photo as imported, histogram and clipping overlay | `boards/ViewTools.js`, `editor/app/scope.js`, `tiles.js` |
@@ -403,6 +403,13 @@ noise reduction, deconvolution sharpening, a proper heal blend. Each step is mea
   colour (`demosaic.js` `OWN`). What is left is Markesteijn's own choice of way, judged on all three colours: it
   needs red and blue made four ways first (about 0.5 to 0.8 dB of green). RawTherapee could not be scored: it
   misreads the harness's DNG. darktable's denoise and sharpening could not be scripted from its command line.
+- **The demosaic's second look: done** (2026-11-11, `demosaic-again.js`). That choice of way is now made, without
+  making red and blue four times: the first look's picture stands in for them, three of the four greens are made
+  again from it, and the ways are chosen by brightness and both colour differences. On five scenes from four
+  40 MP X-Trans bodies: 1.0 to 2.4 dB more green and 0.4 to 1.2 dB overall than before; ahead of Markesteijn's
+  three passes in four of five and in false colour in all (`quality/README.md`, "The second look", which also
+  says what else exists for this sensor: the next real step would be a neural demosaic, a project of its own).
+  Cost: the demosaic takes about twice as long and 8 bytes a pixel more while it runs; not yet timed on a phone.
 - **Noise reduction: done.** The colour step stays. The brightness step weighs a neighbour by the 3 × 3 patch round
   it against the patch round the pixel, not by one value against one (`denoise.js` `blur`): at ISO 6400, +0.5 dB
   overall and +0.8 dB of green over the old step, and ahead of a plain non-local means. A photo not opened before

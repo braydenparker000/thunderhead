@@ -15,9 +15,12 @@
 //   mean   green at every pixel: a green site's own reading; elsewhere the mean of the ways that are level most
 //          widely around it
 //   fix    red and blue at every pixel: the nearby sites of each, as a ratio to the green found there
+// That is the first look, made for the rectangle and 6 pixels more each way; demosaic-again.js then makes the
+// greens again from it, chooses among them by colour as well as brightness, and writes the result.
 // The 2 × 2 eigen solver in gauss is Christoph Peters's, as vkdt marks it. The result is in the editing copy's
 // own form (two u32 a pixel, the clipped colours flagged), so the frame pass (wgsl.js) develops it unchanged.
 
+import { AGAIN, REACH } from './demosaic-again.js';
 import { SPOTS, SPOT_ROWS, mendWGSL } from './mend.js';
 
 /** The pattern as vkdt lays it out (0 red, 1 green, 2 blue): green at the corners and centre of each 3 × 3 block. */
@@ -48,10 +51,10 @@ struct D { at: vec4i,       // the rectangle being made: x, y, width, height, in
 @group(0) @binding(0) var mosaic: texture_2d<u32>;
 @group(0) @binding(1) var<uniform> d: D;
 @group(0) @binding(2) var<storage, read_write> cov: array<vec4f>;   // a block's direction: the two axes' spreads, then the first axis
-@group(0) @binding(3) var<storage, read_write> green: array<f32>;   // the rectangle and 2 pixels more each way
+@group(0) @binding(3) var<storage, read_write> green: array<f32>;   // the rectangle and 8 pixels more each way
 @group(0) @binding(4) var<storage, read_write> rgb: array<u32>;     // the result, two a pixel
-@group(0) @binding(5) var<storage, read_write> ways: array<u32>;    // green four ways (half floats, two u32 a pixel): the rectangle and 6 more each way
-@group(0) @binding(6) var<storage, read_write> calm: array<u32>;    // how level each way is (a byte each): the rectangle and 4 more each way
+@group(0) @binding(5) var<storage, read_write> ways: array<u32>;    // green four ways (half floats, two u32 a pixel): the rectangle and 12 more each way
+@group(0) @binding(6) var<storage, read_write> calm: array<u32>;    // how level each way is (a byte each): the rectangle and 10 more each way
 const OWN = 0.5;   // how far a red or blue site's own reading is trusted over what its neighbours say (measured: half gains 0.5 to 0.6 dB and costs next to no false colour; all of it gains 0.8 and costs 0.5 to 1 dB of colour)
 const CLIP = 0.97;   // a site this near the sensor's white has clipped (raw's own threshold for the editing copy)
 // a position off the frame reads the same colour's site one pattern (6 pixels) in
@@ -107,9 +110,9 @@ const HEX = array<vec2i, 54>(${hexes()});
 const WAY = array<vec2i, 4>(vec2i(1, 0), vec2i(0, 1), vec2i(1, 1), vec2i(-1, 1));
 @compute @workgroup_size(8, 8)
 fn guess(@builtin(global_invocation_id) id: vec3u) {
-  let ww = d.at.z + 12;
-  if (i32(id.x) >= ww || i32(id.y) >= d.at.w + 12) { return; }
-  let q = d.at.xy - 6 + vec2i(id.xy); let k = colour(q);
+  let ww = d.at.z + 24;
+  if (i32(id.x) >= ww || i32(id.y) >= d.at.w + 24) { return; }
+  let q = d.at.xy - 12 + vec2i(id.xy); let k = colour(q);
   nearby(vec2f(q) + 0.5, 12.0);
   var c = vec4f(raw(q));
   if (k != 1u) {
@@ -126,12 +129,12 @@ fn guess(@builtin(global_invocation_id) id: vec3u) {
   let n = (id.y * u32(ww) + id.x) * 2u;
   ways[n] = pack2x16float(c.xy); ways[n + 1u] = pack2x16float(c.zw);
 }
-fn waysAt(q: vec2i) -> vec4f { let s = q - d.at.xy + 6; let n = u32(s.y * (d.at.z + 12) + s.x) * 2u; return vec4f(unpack2x16float(ways[n]), unpack2x16float(ways[n + 1u])); }
+fn waysAt(q: vec2i) -> vec4f { let s = q - d.at.xy + 12; let n = u32(s.y * (d.at.z + 24) + s.x) * 2u; return vec4f(unpack2x16float(ways[n]), unpack2x16float(ways[n + 1u])); }
 @compute @workgroup_size(8, 8)
 fn level(@builtin(global_invocation_id) id: vec3u) {
-  let fw = d.at.z + 8;
-  if (i32(id.x) >= fw || i32(id.y) >= d.at.w + 8) { return; }
-  let q = d.at.xy - 4 + vec2i(id.xy);
+  let fw = d.at.z + 20;
+  if (i32(id.x) >= fw || i32(id.y) >= d.at.w + 20) { return; }
+  let q = d.at.xy - 10 + vec2i(id.xy);
   var g: array<vec4f, 25>;
   for (var j = 0; j < 5; j++) { for (var i = 0; i < 5; i++) { g[j * 5 + i] = waysAt(q + vec2i(i - 2, j - 2)); } }
   var bend: array<vec4f, 9>;   // how much each way's green bends along its own line, here and at the eight around
@@ -147,27 +150,28 @@ fn level(@builtin(global_invocation_id) id: vec3u) {
 }
 @compute @workgroup_size(8, 8)
 fn mean(@builtin(global_invocation_id) id: vec3u) {
-  let gw = d.at.z + 4;
-  if (i32(id.x) >= gw || i32(id.y) >= d.at.w + 4) { return; }
-  let q = d.at.xy - 2 + vec2i(id.xy);
+  let gw = d.at.z + 16;
+  if (i32(id.x) >= gw || i32(id.y) >= d.at.w + 16) { return; }
+  let q = d.at.xy - 8 + vec2i(id.xy);
   var v = 0.0;
   if (colour(q) == 1u) { nearby(vec2f(q) + 0.5, 12.0); v = raw(q); }   // a green site keeps its own reading
   else {
-    var n = vec4u(0u); let s = q - d.at.xy + 4;
-    for (var j = -2; j <= 2; j++) { for (var i = -2; i <= 2; i++) { let f = calm[u32((s.y + j) * (d.at.z + 8) + s.x + i)]; n += vec4u(f & 255u, (f >> 8u) & 255u, (f >> 16u) & 255u, f >> 24u); } }
+    var n = vec4u(0u); let s = q - d.at.xy + 10;
+    for (var j = -2; j <= 2; j++) { for (var i = -2; i <= 2; i++) { let f = calm[u32((s.y + j) * (d.at.z + 20) + s.x + i)]; n += vec4u(f & 255u, (f >> 8u) & 255u, (f >> 16u) & 255u, f >> 24u); } }
     var most = max(max(n.x, n.y), max(n.z, n.w)); most -= most >> 3u;
     let take = vec4f(n >= vec4u(most));
     v = dot(waysAt(q), take) / (take.x + take.y + take.z + take.w);
   }
   green[id.y * u32(gw) + id.x] = v;
 }
-fn greenAt(q: vec2i) -> f32 { let s = fold(q) - d.at.xy + 2; return max(green[s.y * (d.at.z + 4) + s.x], 0.0); }
+fn greenAt(q: vec2i) -> f32 { let s = fold(q) - d.at.xy + 8; return max(green[s.y * (d.at.z + 16) + s.x], 0.0); }
 @compute @workgroup_size(8, 8)
 fn fix(@builtin(global_invocation_id) id: vec3u) {
-  if (any(vec2i(id.xy) >= d.at.zw)) { return; }
-  let q = d.at.xy + vec2i(id.xy); let gc = greenAt(q);
+  let ew = d.at.z + ${2 * REACH};
+  if (i32(id.x) >= ew || i32(id.y) >= d.at.w + ${2 * REACH}) { return; }
+  let q = d.at.xy - ${REACH} + vec2i(id.xy); let gc = greenAt(q);
   nearby(vec2f(q) + 0.5, 12.0);
-  let b = (q + d.phase + 1) / 3 - d.blocks.xy; let c = cov[b.y * d.blocks.z + b.x];
+  let b = clamp((max(q, vec2i(0)) + d.phase + 1) / 3 - d.blocks.xy, vec2i(0), d.blocks.zw - 1); let c = cov[b.y * d.blocks.z + b.x];
   let ev = 3.0 * clamp(c.xy, vec2f(1.0), vec2f(10.0));
   var sum = vec3f(0.0); var wsum = vec3f(0.0); var clip = 0u;
   for (var j = -2; j <= 2; j++) { for (var i = -2; i <= 2; i++) {
@@ -180,9 +184,10 @@ fn fix(@builtin(global_invocation_id) id: vec3u) {
   var c3 = sum / max(vec3f(1e-8), wsum); c3.g = gc;
   let me = colour(q); if (me != 1u) { c3[me] = mix(c3[me], raw(q), OWN); }   // a red or blue site mostly keeps its own reading
   let u = vec3u(clamp(c3, vec3f(0.0), vec3f(1.0)) * 65535.0 + 0.5);
-  let n = (id.y * u32(d.at.z) + id.x) * 2u;
-  rgb[n] = u.x | (u.y << 16u); rgb[n + 1u] = u.z | (clip << 16u);
-}`;
+  let n = (id.y * u32(ew) + id.x) * 2u;
+  est[n] = u.x | (u.y << 16u); est[n + 1u] = u.z | (clip << 16u);
+}
+${AGAIN}`;
 
 /** Where the sensor's pattern sits against vkdt's layout: what to add to a sensor position to land on it. Null
  * for a sensor that is not X-Trans. @param {{ cfa?: string, cfaWidth?: number }} meta @returns {null | [number, number]} */
@@ -200,12 +205,12 @@ export function phaseOf(meta) {
 
 /** @type {WeakMap<GPUDevice, Promise<GPUComputePipeline[]>>} */
 const made = new WeakMap();
-/** The five passes, compiled once for a device, the first time full resolution is wanted. @param {GPUDevice} device */
+/** The eight passes, compiled once for a device, the first time full resolution is wanted. @param {GPUDevice} device */
 function pipes(device) {
   let p = made.get(device);
   if (!p) {
     const module = device.createShaderModule({ code: WGSL });
-    p = Promise.all(['gauss', 'guess', 'level', 'mean', 'fix'].map((entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })));
+    p = Promise.all(['gauss', 'guess', 'level', 'mean', 'fix', 'again', 'level2', 'pick'].map((entryPoint) => device.createComputePipelineAsync({ layout: 'auto', compute: { module, entryPoint } })));
     made.set(device, p);
   }
   return p;
@@ -214,39 +219,41 @@ function pipes(device) {
 /** Starts compiling the passes, so the first 100 % does not wait for them. @param {GPUDevice} device */
 export const compile = (device) => pipes(device);
 
-/** Makes rectangles of the photo at full resolution, each up to maxW × maxH sensor pixels. `run` adds the five
+/** Makes rectangles of the photo at full resolution, each up to maxW × maxH sensor pixels. `run` adds the eight
  * passes to a frame's commands (one rectangle a submit: its place is written when `run` is called); the result
  * is in `out`, rw pixels a row.
  * @param {GPUDevice} device @param {GPUTexture} mosaic the sensor's pixels, r16uint
  * @param {{ phase: number[], black: number, white: number, wb: number[] }} info `wb`: the shot's white balance (red, green, blue)
  * @param {number} maxW @param {number} maxH */
 export async function demosaicer(device, mosaic, info, maxW, maxH) {
-  const [gauss, guess, level, mean, fix] = await pipes(device), W = mosaic.width, H = mosaic.height, [px, py] = info.phase;
+  const [gauss, guess, level, mean, fix, again, level2, pick] = await pipes(device), W = mosaic.width, H = mosaic.height, [px, py] = info.phase;
   const buf = (/** @type {number} */ size, /** @type {number} */ usage) => device.createBuffer({ size, usage });
   const SIZE = 80 + SPOTS * SPOT_ROWS * 16, uni = buf(SIZE, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
-  const cov = buf((Math.ceil(maxW / 3) + 4) * (Math.ceil(maxH / 3) + 4) * 16, GPUBufferUsage.STORAGE);
-  const green = buf((maxW + 4) * (maxH + 4) * 4, GPUBufferUsage.STORAGE);
+  const cov = buf((Math.ceil(maxW / 3) + 8) * (Math.ceil(maxH / 3) + 8) * 16, GPUBufferUsage.STORAGE);
+  const green = buf((maxW + 16) * (maxH + 16) * 4, GPUBufferUsage.STORAGE);
   const out = buf(maxW * maxH * 8, GPUBufferUsage.STORAGE);
-  const ways = buf((maxW + 12) * (maxH + 12) * 8, GPUBufferUsage.STORAGE), flat = buf((maxW + 8) * (maxH + 8) * 4, GPUBufferUsage.STORAGE);
-  const all = [mosaic.createView(), ...[uni, cov, green, out, ways, flat].map((buffer) => ({ buffer }))];
-  // each pass is given just what it uses: mosaic 0, settings 1, directions 2, green 3, result 4, the four greens 5, how level 6
+  const ways = buf((maxW + 24) * (maxH + 24) * 8, GPUBufferUsage.STORAGE), flat = buf((maxW + 20) * (maxH + 20) * 4, GPUBufferUsage.STORAGE);
+  const est = buf((maxW + 2 * REACH) * (maxH + 2 * REACH) * 8, GPUBufferUsage.STORAGE);
+  const all = [mosaic.createView(), ...[uni, cov, green, out, ways, flat, est].map((buffer) => ({ buffer }))];
+  // each pass is given just what it uses: mosaic 0, settings 1, directions 2, green 3, result 4, the four greens 5, how level 6, the first look 7
   const group = (/** @type {GPUComputePipeline} */ pipe, /** @type {number[]} */ uses) => ({ pipe, bind: device.createBindGroup({ layout: pipe.getBindGroupLayout(0), entries: uses.map((binding) => ({ binding, resource: all[binding] })) }) });
-  const steps = [group(gauss, [0, 1, 2]), group(guess, [0, 1, 5]), group(level, [1, 5, 6]), group(mean, [0, 1, 3, 5, 6]), group(fix, [0, 1, 2, 3, 4])];
+  const steps = [group(gauss, [0, 1, 2]), group(guess, [0, 1, 5]), group(level, [1, 5, 6]), group(mean, [0, 1, 3, 5, 6]), group(fix, [0, 1, 2, 3, 7]),
+    group(again, [0, 1, 5, 7]), group(level2, [0, 1, 5, 6, 7]), group(pick, [1, 4, 5, 6, 7])];
   /** @param {GPUCommandEncoder} enc @param {number} rx @param {number} ry @param {number} rw @param {number} rh
    * @param {Float32Array | null} [spots] retouching, as heal.js's `spotRows` gives it */
   const run = (enc, rx, ry, rw, rh, spots) => {
-    // the blocks whose direction a pixel of the rectangle, or of the 2 around it, reads
-    const first = (/** @type {number} */ r, /** @type {number} */ ph) => Math.floor((Math.max(r - 2, 0) + ph) / 3);
-    const count = (/** @type {number} */ r, /** @type {number} */ n, /** @type {number} */ N, /** @type {number} */ ph) => Math.floor((Math.min(r + n + 1, N - 1) + ph + 1) / 3) - first(r, ph) + 1;
+    // the blocks whose direction a pixel of the rectangle, or of the 8 around it (the first look's reach and 2), reads
+    const first = (/** @type {number} */ r, /** @type {number} */ ph) => Math.floor((Math.max(r - 8, 0) + ph) / 3);
+    const count = (/** @type {number} */ r, /** @type {number} */ n, /** @type {number} */ N, /** @type {number} */ ph) => Math.floor((Math.min(r + n + 7, N - 1) + ph + 1) / 3) - first(r, ph) + 1;
     const bx = first(rx, px), by = first(ry, py), bw = count(rx, rw, W, px), bh = count(ry, rh, H, py);
     const u = new ArrayBuffer(SIZE), n = new Int32Array(u), f = new Float32Array(u);
     n.set([rx, ry, rw, rh, bx, by, bw, bh, px, py]); f[10] = info.black; f[11] = 1 / (info.white - info.black);
     const g1 = info.wb?.[1] || 1; f.set([(info.wb?.[0] || g1) / g1, 1, (info.wb?.[2] || g1) / g1], 16);   // a photo with no white balance of its own: the colours as they are
     if (spots) { n[12] = spots[0]; f.set(spots.subarray(4), 20); }
     device.queue.writeBuffer(uni, 0, u);
-    const pass = enc.beginComputePass(), sizes = [[bw, bh], [rw + 12, rh + 12], [rw + 8, rh + 8], [rw + 4, rh + 4], [rw, rh]];
+    const pass = enc.beginComputePass(), sizes = [[bw, bh], [rw + 24, rh + 24], [rw + 20, rh + 20], [rw + 16, rh + 16], [rw + 12, rh + 12], [rw + 8, rh + 8], [rw + 4, rh + 4], [rw, rh]];
     steps.forEach((s, k) => { pass.setPipeline(s.pipe); pass.setBindGroup(0, s.bind); pass.dispatchWorkgroups(Math.ceil(sizes[k][0] / 8), Math.ceil(sizes[k][1] / 8)); });
     pass.end();
   };
-  return { out, run, destroy: () => { for (const b of [uni, cov, green, out, ways, flat]) b.destroy(); } };
+  return { out, run, destroy: () => { for (const b of [uni, cov, green, out, ways, flat, est]) b.destroy(); } };
 }
