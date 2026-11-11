@@ -224,7 +224,8 @@ export const nightBatchId = (day, part) => nameId(`night:${day}:4:${part}`);
 export async function facts(argv) {
   const {flags} = parseArgs(argv, {bool: ['night']});
   let parsed;
-  try { parsed = JSON.parse(readFileSync(need(flags, 'batch'), 'utf8')); } catch (e) { throw invalid(`--batch: ${e.message}`); }
+  // `-`: the batch on stdin, so the night writes no file and has no folder to look into.
+  try { parsed = JSON.parse(readFileSync(need(flags, 'batch') === '-' ? 0 : flags.batch, 'utf8')); } catch (e) { throw invalid(`--batch: ${e.message}`); }
   const list = Array.isArray(parsed) ? parsed : parsed.ops;
   if (!Array.isArray(list) || !list.length || list.length > 50) throw invalid('--batch must hold 1–50 ops');
   if (!flags.night) {

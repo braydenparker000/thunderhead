@@ -64,7 +64,17 @@ export const USAGE = {
     'a prediction about the open day, resolved from what the owner does once it ends: chat.any (they write), chat.count --n 2-50 (at least n messages), chat.before --time (their first message before then), decision.answered --card <id> (they answer that waiting card), app.open --app music|guitar|podcasts|astra|media|study (they open that app, as their phone reports it). Honest odds; at most 12 a day; a chat one only before their first message (P9)'],
   day: ['<YYYY-MM-DD> [--part messages|ledger|notes [--cursor <c>]]', 'the night\'s input: counts, routines (habits for step 4) and every part, or one page of a part (P3)'],
   daynote: ['<day> --summary --decisions <json> --importance <1-10>', 'the day note; prints its provenance (an outside one is shown marked, never evidence)'],
-  facts: ['--batch <file.json> [--night [--part <k>] [--day <day>]]', 'a batch of memory ops; --night: part k of step 4 for the night run\'s day (P3)'],
+  // The night of 2026-11-11 found no word here on what the batch holds, went looking in the source
+  // and its temp folder, and the listing labelled the session: so the shape is spelled out, and
+  // the batch can come on stdin, with no file or folder to look at.
+  facts: ['--batch <file.json | -> [--night [--part <k>] [--day <day>]]', [
+    'a batch of 1-50 memory ops, from a file or stdin (-); --night: part k of step 4 for the night run\'s day (P3)',
+    '  the batch: {"ops":[<op>, …]}, each <op> one of',
+    '    {"op":"add","kind":"<state|goal|preference|routine|habit|fact>","subject":"owner","text":"<the fact>","source":"<user|observed|inferred>","evidence":["msg:<message id>"]}',
+    '    {"op":"confirm","id":"<fact id>","evidence":["msg:<message id>"]}',
+    '    {"op":"supersede","id":"<fact id>","reason":"<why>","new":{"text":"<the fact now>","evidence":["msg:<message id>"]}}',
+    '  on stdin: th facts --batch - --night <<\'EOF\' … EOF. Do not ls, cat or sed anything to find this out: a look outside the repo labels the session.',
+  ].join('\n')],
   night: ['start | step <n> done | step <n> cursor <c> | done [--partial] | steps [--day <day>]', 'the night run: where it stands, each step done, a saved place (P3)'],
   report: ['--headline "<≤ 60>" [--line <kind>[@ledger:<id>|@app:<id>]:"<≤ 100>" …] [--day <day>]', 'night step 12: what the night did, the Briefing\'s first tile and the open day\'s first message; ≤ 6 plain lines; a ledger ref (a row this run wrote, th ledger --since) is the owner\'s Undo on the tile; the Worker adds the counts; the same report again changes nothing'],
 };
