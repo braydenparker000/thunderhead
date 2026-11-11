@@ -27,7 +27,7 @@ const round = (/** @type {number} */ v) => Math.round(v);
 
 /** The known mosaic developed on `device`: demosaic, then noise reduction and sharpening if asked.
  * @param {GPUDevice} device @param {ReturnType<typeof known>} k
- * @param {{ noise?: number, colour?: number, iso?: number, sharp?: number[] }} [o] the sliders as the plates show them */
+ * @param {{ noise?: number, colour?: number, iso?: number, sharp?: number[], quick?: boolean }} [o] the sliders as the plates show them; `quick`: the first look alone */
 async function developed(device, k, o = {}) {
   const n = k.n, make = device.createBuffer.bind(device);
   device.createBuffer = (d) => make({ ...d, usage: d.usage & GPUBufferUsage.MAP_READ ? d.usage : d.usage | GPUBufferUsage.COPY_SRC });   // so the result can be read back
@@ -36,7 +36,7 @@ async function developed(device, k, o = {}) {
     device.queue.writeTexture({ texture: tex }, k.mosaic, { bytesPerRow: n * 2 }, [n, n]);
     const phase = phaseOf(k.meta);
     if (!phase) throw new Error('the pattern was not recognised');
-    const dm = await demosaicer(device, tex, { phase, black: CAMERA.black, white: CAMERA.white, wb: CAMERA.wb }, n, n), enc = device.createCommandEncoder(), made = [dm];
+    const dm = await demosaicer(device, tex, { phase, black: CAMERA.black, white: CAMERA.white, wb: CAMERA.wb, quick: o.quick }, n, n), enc = device.createCommandEncoder(), made = [dm];
     dm.run(enc, 0, 0, n, n, null);
     if (o.noise || o.colour) { const dn = await denoiser(device, dm.out); made.push(dn); dn.run(enc, n, n, noiseAt(o.iso || 160), (2.5 * (o.noise || 0)) / 100, (4 * (o.colour || 0)) / 100); }
     if (o.sharp) { const sh = await sharpener(device, dm.out); made.push(sh); sh.run(enc, n, n, CAMERA.wb, o.sharp[0] / 40, o.sharp[1], o.sharp[2] / 100); }
@@ -64,6 +64,7 @@ export async function pictures() {
   const shots = {};
   try {
     shots.demosaic = score(await developed(device, clean), clean.truth, N);
+    shots.faster = score(await developed(device, clean, { quick: true }), clean.truth, N);   // Full-size detail: Faster
     shots.sharpened = score(await developed(device, clean, { sharp: [40, 1, 25] }), clean.crisp, N);   // against the scene before the lens
     shots.denoised = score(await developed(device, noisy, { iso: 6400, noise: 50, colour: 25 }), clean.truth, N);
     eng.setProfile(null);

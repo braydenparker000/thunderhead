@@ -38,7 +38,7 @@ test('the known photo develops to the reference numbers', opts, async () => {
   assert.match(await page.textContent('#bnow'), /^Done/);
   const run = await page.evaluate(() => window.__bench);
   const ref = JSON.parse(readFileSync(new URL('../frontend/lab/engine/bench-ref.json', import.meta.url), 'utf8')).shots;
-  assert.deepEqual(Object.keys(run.shots), ['demosaic', 'sharpened', 'denoised', 'frame', 'edited']);
+  assert.deepEqual(Object.keys(run.shots), ['demosaic', 'faster', 'sharpened', 'denoised', 'frame', 'edited']);
   for (const [name, v] of Object.entries(run.verdict)) {
     assert.equal(v.same, true, `${name} is the reference's picture`);
     assert.ok((v.db ?? 0) <= TIGHT.db && v.grid <= TIGHT.grid, `${name}: off by ${v.db} dB and ${v.grid}; if the change was meant, make the reference again`);
@@ -46,11 +46,12 @@ test('the known photo develops to the reference numbers', opts, async () => {
   // The numbers mean something: the demosaic is true to the scene, sharpening wins detail back against the scene
   // before the lens, and an edit changes the frame.
   assert.ok(ref.demosaic.psnr > 34 && ref.demosaic.green > 40, 'the demosaic');
+  assert.ok(ref.faster.psnr < ref.demosaic.psnr - 0.2 && ref.faster.psnr > 33, 'Faster is the first look alone: a little less true, still a fair picture');
   assert.ok(ref.sharpened.psnr > 29, 'sharpening');
   assert.ok(ref.denoised.psnr > 33, 'noise reduction at ISO 6400');
   assert.ok(ref.frame.grid.some((g, i) => Math.abs(g - ref.edited.grid[i]) > 0.02), 'the edited frame differs from the plain one');
   const text = await page.textContent('#bout');
-  assert.equal((text.match(/SAME/g) || []).length, 5);
+  assert.equal((text.match(/SAME/g) || []).length, 6);
   assert.doesNotMatch(text, /DIFFERENT/);
   assert.equal(await page.isEnabled('#bcopy'), true);
   // The run is kept on this phone and shown the next time the page opens.

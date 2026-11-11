@@ -13,6 +13,7 @@
 // The photo is not inside any board. It lives in one layer of its own (`home`) under the boards, and a board's
 // slot is only a window: the layer takes the window's place and glides to the next board's. So changing tool
 // neither redraws the photo nor loses where it was zoomed to.
+import { pref } from '/th/pref.js';
 import * as photo from './session.js';
 import { tile } from './tiles.js';
 
@@ -41,6 +42,8 @@ const frame = () => /** @type {HTMLElement} */ (document.getElementById('frame')
 const scale = () => (frame().getBoundingClientRect().width / 412) * devicePixelRatio;
 const full = () => f.fw / (f.w * scale());   // the wrap's scale at 100 %: a sensor pixel to a screen pixel
 const most = () => Math.max(1, 3 * full());
+/** Where a double-tap goes: 100 %, or 200 % with the owner's setting (Settings › Photos › Editor). */
+const tapTo = () => Math.min(most(), full() * (pref('photos.double_tap') === '200' ? 2 : 1));
 /** Whether the photo is zoomed, and to what per cent of the sensor's pixels. */
 export const info = () => ({ on: z > 1.02, pct: Math.round((z / full()) * 100) });
 /** The fitted photo's box in its slot, in design pixels (a board lays its before/after over it). */
@@ -157,7 +160,7 @@ function touch(/** @type {PointerEvent} */ e) {
     const was = g, now = performance.now(); g = null;
     if (tool() && !was?.two) return;   // one finger on a tool board is the board's
     if (was && was.far < 8 && !was.pinch) {   // a tap: the second of two quick ones zooms
-      if (now - tap.t < 320 && Math.hypot(at.x - tap.x, at.y - tap.y) < 36) { tap.t = 0; zoomAt(z > 1.02 ? 1 : full(), at.x, at.y, true); settle(300); } else tap = { t: now, x: at.x, y: at.y };
+      if (now - tap.t < 320 && Math.hypot(at.x - tap.x, at.y - tap.y) < 36) { tap.t = 0; zoomAt(z > 1.02 ? 1 : tapTo(), at.x, at.y, true); settle(300); } else tap = { t: now, x: at.x, y: at.y };
       return;
     }
     const p = z / full();

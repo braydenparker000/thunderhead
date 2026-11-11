@@ -83,7 +83,7 @@ fn level2(@builtin(global_invocation_id) id: vec3u) {
 fn pick(@builtin(global_invocation_id) id: vec3u) {
   if (any(vec2i(id.xy) >= d.at.zw)) { return; }
   let q = d.at.xy + vec2i(id.xy); let e = estAt(q); var g = e.g;
-  if (colour(q) != 1u) {
+  if (colour(q) != 1u && d.wb.w < 0.5) {   // the first look alone when asked to be quick (demosaic.js, quick)
     var n = vec4u(0u); let s = q - d.at.xy + 10;
     for (var j = -2; j <= 2; j++) { for (var i = -2; i <= 2; i++) { let f = calm[u32((s.y + j) * (d.at.z + 20) + s.x + i)]; n += vec4u(f & 255u, (f >> 8u) & 255u, (f >> 16u) & 255u, f >> 24u); } }
     var most = max(max(n.x, n.y), max(n.z, n.w)); most -= most >> 3u;

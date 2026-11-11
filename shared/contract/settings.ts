@@ -204,6 +204,21 @@ export const SETTINGS = [
   { key: 'photos.editor', group: 'photos', section: 'Editor', label: 'Photos opens', kind: 'choice', scope: 'phone', mind: false,
     default: 'new', options: o('new:The new editor', 'classic:Classic'),
     detail: 'The new editor and its Library, with your RAFs kept on this phone. Classic is the shelf and editor before, with your Drive.' },
+  // The new editor's own (lab/editor/app/session.js, zoom.js; engine/raw/ROADMAP.md stage 2): what a photo not
+  // opened before starts with, and how the full-size view behaves. Each is read when it is used.
+  { key: 'photos.new_profile', group: 'photos', section: 'Editor', label: 'New photos open in', kind: 'choice', scope: 'phone', mind: false,
+    default: 'shot', options: o('shot:The camera\'s film simulation', 'adobe-color:Adobe Color'),
+    detail: 'The look a photo has the first time it opens. Any photo can be changed on its Profile face.' },
+  { key: 'photos.new_noise', group: 'photos', section: 'Editor', label: 'Noise reduction by ISO', kind: 'switch', scope: 'phone', mind: false, default: true,
+    detail: 'A photo not opened before starts with the noise reduction its ISO calls for. Off: it starts at none.' },
+  { key: 'photos.new_auto', group: 'photos', section: 'Editor', label: 'Auto tone on new photos', kind: 'switch', scope: 'phone', mind: false, default: false,
+    detail: 'A photo not opened before starts with Auto on its Light controls. Auto on the plate undoes it.' },
+  { key: 'photos.double_tap', group: 'photos', section: 'Editor', label: 'Double-tap zooms to', kind: 'choice', scope: 'phone', mind: false,
+    default: '100', options: o('100:100 %', '200:200 %'),
+    detail: 'How far in a double-tap on the photo goes. 100 % is one sensor pixel to one screen pixel.' },
+  { key: 'photos.demosaic', group: 'photos', section: 'Editor', label: 'Full-size detail', kind: 'choice', scope: 'phone', mind: false,
+    default: 'best', options: o('best:Best', 'faster:Faster'),
+    detail: 'Best looks twice at fine detail when you zoom to 100 % or export. Faster looks once: about half the wait, a little less true. It applies from the next photo you open.' },
   // Export (PHOTOS.md, Export): what the Export sheet starts with; each export can change it.
   { key: 'photos.export_size', group: 'photos', section: 'Export', label: 'Export size', kind: 'choice', ...IN_WORKER,
     default: '2048', options: o('full:Full size', '2048:2,048 px', '1080:1,080 px'),
