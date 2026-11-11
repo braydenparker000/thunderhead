@@ -36,7 +36,7 @@ fn again(@builtin(global_invocation_id) id: vec3u) {
   let s = q + d.phase + 6; let m = s - (s / 3) * 3; let h = u32(m.y * 3 + m.x) * 6u; let wb = d.wb[k];
   var lo = 1e9; var hi = 0.0;
   for (var i = 0u; i < 6u; i++) { let v = raw(q + HEX[h + i]); lo = min(lo, v); hi = max(hi, v); }
-  let mine = raw(q) * wb;
+  let mine = select(mix(estAt(q)[k], raw(q), trust(q, k)), raw(q), d.cen.w == 0.0) * wb;   // its own reading, where that was recorded here (fringing: demosaic.js)
   var r: vec3f;   // the second, third and fourth guesses of guess(), made again
   for (var c = 0u; c < 3u; c++) {
     let hx = HEX[h + 3u + c]; let a = q - 2 * hx; let b = q + hx;
@@ -50,7 +50,7 @@ fn again(@builtin(global_invocation_id) id: vec3u) {
 // the picture at a place, once for each way: that way's green, red and blue by the first look's ratio to its
 // green (the site's own colour as read), on one scale, as brightness and two colour differences
 fn looks(x: vec2i) -> array<vec3f, 4> {
-  let k = colour(x); let e = estAt(x); let own = raw(x);
+  let k = colour(x); let e = estAt(x); let own = select(mix(e[min(k, 2u)], raw(x), trust(x, k)), raw(x), d.cen.w == 0.0 || k == 1u);
   let g4 = select(waysAt(x), vec4f(own), k == 1u);
   var o: array<vec3f, 4>;
   for (var w = 0; w < 4; w++) {

@@ -16,7 +16,7 @@ const ABOUT = 'What the known photo (known.js) comes to on the reference GPU (Sw
   console.log(await p.textContent('#bout'));
   await b.close();
   if (!run.shots) throw new Error('the check did not finish');
-  const json = JSON.stringify({ about: ABOUT, gpu: run.gpu, shots: run.shots }).replace(/"(demosaic|faster|sharpened|denoised|frame|cut|edited)":/g, '\n"$1":').replace(/\}\}$/, '}\n}');
+  const json = JSON.stringify({ about: ABOUT, gpu: run.gpu, shots: run.shots }).replace(/"(demosaic|faster|fringed|sharpened|denoised|frame|cut|edited)":/g, '\n"$1":').replace(/\}\}$/, '}\n}');
   fs.writeFileSync(path.join(__dirname, '../../../frontend/lab/engine/bench-ref.json'), json + '\n');
   console.log('wrote bench-ref.json');
 })();

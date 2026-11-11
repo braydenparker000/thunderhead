@@ -86,7 +86,12 @@ New: **a starting point for each camera and lens**, so a new body or lens gets i
   0.01 to 0.06 % of pixels, 2.8 % with Saturation at +50. Tried first and dropped: easing each channel in towards
   the brightest (the film industry's gamut compression): hue no better than cutting off (5.8° to 7.2°), and
   colours that were fine moved.
-- Fringing before the demosaic (5, M) if the measurement earns it. Dead pixels and a black level for each colour (S).
+- **Fringing (5): done 2026-11-11, and the largest gain of the stage.** Measured first, as planned: undone after
+  the demosaic it cost 3 dB at half a pixel and nearly 7 at one, and the sample lenses have 0.6 to 4 pixels of it
+  over most of the frame. The demosaic now reads red and blue from where the lens drew them
+  (`quality/README.md`, "Colour fringing"): 2 to 5.5 dB back, false colour whole. Left: a second round of the
+  colour pass, which may win back part of the green.
+- Dead pixels and a black level for each colour (S).
 - A second, coarser scale for colour noise (M).
 - **The fitted view (27): mostly so already.** The sensor's own pixels, with noise reduction and sharpening, are
   drawn from 40 % zoom up (`zoom.js`), not only at 100 % as REVIEW.md said; below that a 40 MP photo is shown

@@ -39,7 +39,7 @@ test('the known photo develops to the reference numbers', opts, async () => {
   assert.match(await page.textContent('#bnow'), /^Done/);
   const run = await page.evaluate(() => window.__bench);
   const ref = JSON.parse(readFileSync(new URL('../frontend/lab/engine/bench-ref.json', import.meta.url), 'utf8')).shots;
-  assert.deepEqual(Object.keys(run.shots), ['demosaic', 'faster', 'sharpened', 'denoised', 'frame', 'cut', 'edited']);
+  assert.deepEqual(Object.keys(run.shots), ['demosaic', 'faster', 'fringed', 'sharpened', 'denoised', 'frame', 'cut', 'edited']);
   for (const [name, v] of Object.entries(run.verdict)) {
     assert.equal(v.same, true, `${name} is the reference's picture`);
     assert.ok((v.db ?? 0) <= TIGHT.db && v.grid <= TIGHT.grid, `${name}: off by ${v.db} dB and ${v.grid}; if the change was meant, make the reference again`);
@@ -48,12 +48,13 @@ test('the known photo develops to the reference numbers', opts, async () => {
   // before the lens, and an edit changes the frame.
   assert.ok(ref.demosaic.psnr > 34 && ref.demosaic.green > 40, 'the demosaic');
   assert.ok(ref.faster.psnr < ref.demosaic.psnr - 0.2 && ref.faster.psnr > 33, 'Faster is the first look alone: a little less true, still a fair picture');
+  assert.ok(ref.fringed.psnr > ref.demosaic.psnr - 2.5 && ref.fringed.colour > ref.demosaic.colour - 1, 'through a lens that fringes by a pixel, the picture is nearly as true');
   assert.ok(ref.sharpened.psnr > 29, 'sharpening');
   assert.ok(ref.denoised.psnr > 33, 'noise reduction at ISO 6400');
   assert.ok(ref.frame.grid.some((g, i) => Math.abs(g - ref.edited.grid[i]) > 0.02), 'the edited frame differs from the plain one');
   assert.ok(ref.frame.grid.some((g, i) => Math.abs(g - ref.cut.grid[i]) > 0.02), 'easing strong colours in differs from cutting them off (the made-up camera has many)');
   const text = await page.textContent('#bout');
-  assert.equal((text.match(/SAME/g) || []).length, 7);
+  assert.equal((text.match(/SAME/g) || []).length, 8);
   assert.doesNotMatch(text, /DIFFERENT/);
   assert.equal(await page.isEnabled('#bcopy'), true);
   // The run is kept on this phone and shown the next time the page opens.

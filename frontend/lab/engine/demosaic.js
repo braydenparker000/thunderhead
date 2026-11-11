@@ -47,6 +47,8 @@ struct D { at: vec4i,       // the rectangle being made: x, y, width, height, in
            black: f32, scale: f32,
            n: vec4u,        // spots to retouch (heal.js): how many
            wb: vec4f,       // what brings red, green and blue to one scale (the shot's white balance): guess compares them
+           cen: vec4f,      // colour fringing: the lens's centre on the sensor (x, y), 15 over the furthest distance the table reaches, and 1 when there is any
+           ca: array<vec4f, 16>,   // by distance from the centre: how much further out red (x) and blue (y) are drawn than green, as a share of that distance
            sp: array<vec4f, ${SPOTS * SPOT_ROWS}> };
 @group(0) @binding(0) var mosaic: texture_2d<u32>;
 @group(0) @binding(1) var<uniform> d: D;
@@ -106,6 +108,22 @@ fn along(c: vec4f, ev: vec2f, i: i32, j: i32, least: f32) -> f32 {
   let t = vec2f(c.z * f32(i) + c.w * f32(j), -c.w * f32(i) + c.z * f32(j));
   return clamp(exp(-0.5 * dot(t / ev, t)), least, 1.0);
 }
+fn alongF(c: vec4f, ev: vec2f, o: vec2f, least: f32) -> f32 {   // the same, for a place between pixels
+  let t = vec2f(c.z * o.x + c.w * o.y, -c.w * o.x + c.z * o.y);
+  return clamp(exp(-0.5 * dot(t / ev, t)), least, 1.0);
+}
+// Colour fringing. A lens draws red and blue a hair larger or smaller than green, more so towards the corners,
+// so the red of what green records at x was recorded at x + lead(x, red): up to a few pixels on a 40 MP sensor.
+// Undone after the demosaic (as the warp did), every step that compares colours has already compared the
+// wrong places: measured on a known picture, half a pixel of it cost 3 dB and one pixel nearly 7. So red and
+// blue are read from where they were recorded and laid on green's places here, and what comes out is aligned.
+// Whether this site's own reading may stand for its own place (1), or is from too far off (0): trust(q, k).
+fn lead(x: vec2f, k: u32) -> vec2f {
+  if (d.cen.w == 0.0) { return vec2f(0.0); }
+  let v = x - d.cen.xy; let t = min(length(v) * d.cen.z, 15.0); let j = min(u32(t), 14u); let a = mix(d.ca[j], d.ca[j + 1u], t - f32(j));
+  return v * select(a.x, a.y, k == 2u);
+}
+fn trust(q: vec2i, k: u32) -> f32 { return clamp(1.0 - 2.0 * length(lead(vec2f(q), k)), 0.0, 1.0); }
 const HEX = array<vec2i, 54>(${hexes()});
 const WAY = array<vec2i, 4>(vec2i(1, 0), vec2i(0, 1), vec2i(1, 1), vec2i(-1, 1));
 @compute @workgroup_size(8, 8)
@@ -165,6 +183,11 @@ fn mean(@builtin(global_invocation_id) id: vec3u) {
   green[id.y * u32(gw) + id.x] = v;
 }
 fn greenAt(q: vec2i) -> f32 { let s = fold(q) - d.at.xy + 8; return max(green[s.y * (d.at.z + 16) + s.x], 0.0); }
+fn greenLin(x: vec2f) -> f32 {   // green at a place between pixels, kept inside what was made (8 round the rectangle)
+  let lo = vec2f(d.at.xy) - 8.0; let hi = vec2f(d.at.xy + d.at.zw) + 7.0; let p = clamp(x, lo, hi); let f = floor(p); let t = p - f;
+  let a = vec2i(f); let b = min(a + 1, vec2i(hi));
+  return mix(mix(greenAt(a), greenAt(vec2i(b.x, a.y)), t.x), mix(greenAt(vec2i(a.x, b.y)), greenAt(b), t.x), t.y);
+}
 @compute @workgroup_size(8, 8)
 fn fix(@builtin(global_invocation_id) id: vec3u) {
   let ew = d.at.z + ${2 * REACH};
@@ -177,12 +200,24 @@ fn fix(@builtin(global_invocation_id) id: vec3u) {
   for (var j = -2; j <= 2; j++) { for (var i = -2; i <= 2; i++) {
     let at = q + vec2i(i, j); let k = colour(at); let v = raw(at);
     if (max(abs(i), abs(j)) <= 1 && v >= CLIP) { clip |= 1u << k; }   // ours: which colours clipped beside this pixel
-    if (k == 1u) { continue; }
+    if (k == 1u || d.cen.w != 0.0) { continue; }
     let wt = along(c, ev, i, j, 1e-3); let m = select(vec3f(1.0, 0.0, 0.0), vec3f(0.0, 0.0, 1.0), k == 2u);
     sum += m * (v * (1e-4 + gc) / (1e-4 + greenAt(at)) * wt); wsum += m * wt;
   } }
+  if (d.cen.w != 0.0) {
+    // with fringing: each colour's sites are looked for round where that colour of this pixel was recorded, and
+    // each is weighed, and compared with green, at the place it belongs to
+    for (var kk = 0u; kk < 2u; kk++) {
+      let k = kk * 2u; let dk = lead(vec2f(q), k); let base = vec2i(round(vec2f(q) + dk)); let off = vec2f(base) - vec2f(q) - dk;
+      for (var j = -2; j <= 2; j++) { for (var i = -2; i <= 2; i++) {
+        let at = base + vec2i(i, j); if (colour(at) != k) { continue; }
+        let o = off + vec2f(f32(i), f32(j)); let wt = alongF(c, ev, o, 1e-3);
+        sum[k] += raw(at) * (1e-4 + gc) / (1e-4 + greenLin(vec2f(q) + o)) * wt; wsum[k] += wt;
+      } }
+    }
+  }
   var c3 = sum / max(vec3f(1e-8), wsum); c3.g = gc;
-  let me = colour(q); if (me != 1u) { c3[me] = mix(c3[me], raw(q), OWN); }   // a red or blue site mostly keeps its own reading
+  let me = colour(q); if (me != 1u) { c3[me] = mix(c3[me], raw(q), OWN * trust(q, me)); }   // a red or blue site mostly keeps its own reading (where it was recorded here)
   let u = vec3u(clamp(c3, vec3f(0.0), vec3f(1.0)) * 65535.0 + 0.5);
   let n = (id.y * u32(ew) + id.x) * 2u;
   est[n] = u.x | (u.y << 16u); est[n + 1u] = u.z | (clip << 16u);
@@ -223,13 +258,14 @@ export const compile = (device) => pipes(device);
  * passes to a frame's commands (one rectangle a submit: its place is written when `run` is called); the result
  * is in `out`, rw pixels a row.
  * @param {GPUDevice} device @param {GPUTexture} mosaic the sensor's pixels, r16uint
- * @param {{ phase: number[], black: number, white: number, wb: number[], quick?: boolean }} info `wb`: the shot's white balance (red, green, blue);
+ * @param {{ phase: number[], black: number, white: number, wb: number[], quick?: boolean, fringe?: null | { centre: number[], reach: number, table: Float32Array } }} info
+ *   `wb`: the shot's white balance (red, green, blue); `fringe`: the lens's colour fringing (lens.js `fringeOf`), undone here;
  *   `quick`: the first look alone, about half the work (the owner's "Full-size detail: Faster")
  * @param {number} maxW @param {number} maxH */
 export async function demosaicer(device, mosaic, info, maxW, maxH) {
   const [gauss, guess, level, mean, fix, again, level2, pick] = await pipes(device), W = mosaic.width, H = mosaic.height, [px, py] = info.phase;
   const buf = (/** @type {number} */ size, /** @type {number} */ usage) => device.createBuffer({ size, usage });
-  const SIZE = 80 + SPOTS * SPOT_ROWS * 16, uni = buf(SIZE, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
+  const SIZE = 352 + SPOTS * SPOT_ROWS * 16, uni = buf(SIZE, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST);
   const cov = buf((Math.ceil(maxW / 3) + 8) * (Math.ceil(maxH / 3) + 8) * 16, GPUBufferUsage.STORAGE);
   const green = buf((maxW + 16) * (maxH + 16) * 4, GPUBufferUsage.STORAGE);
   const out = buf(maxW * maxH * 8, GPUBufferUsage.STORAGE);
@@ -250,7 +286,8 @@ export async function demosaicer(device, mosaic, info, maxW, maxH) {
     const u = new ArrayBuffer(SIZE), n = new Int32Array(u), f = new Float32Array(u);
     n.set([rx, ry, rw, rh, bx, by, bw, bh, px, py]); f[10] = info.black; f[11] = 1 / (info.white - info.black);
     const g1 = info.wb?.[1] || 1; f.set([(info.wb?.[0] || g1) / g1, 1, (info.wb?.[2] || g1) / g1, info.quick ? 1 : 0], 16);   // a photo with no white balance of its own: the colours as they are
-    if (spots) { n[12] = spots[0]; f.set(spots.subarray(4), 20); }
+    if (info.fringe) { f.set([...info.fringe.centre, 15 / info.fringe.reach, 1], 20); f.set(info.fringe.table, 24); }
+    if (spots) { n[12] = spots[0]; f.set(spots.subarray(4), 88); }
     device.queue.writeBuffer(uni, 0, u);
     const pass = enc.beginComputePass(), sizes = [[bw, bh], [rw + 24, rh + 24], [rw + 20, rh + 20], [rw + 16, rh + 16], [rw + 12, rh + 12], [rw + 8, rh + 8], [rw + 4, rh + 4], [rw, rh]];
     steps.forEach((s, k) => { if (info.quick && (k === 5 || k === 6)) return; pass.setPipeline(s.pipe); pass.setBindGroup(0, s.bind); pass.dispatchWorkgroups(Math.ceil(sizes[k][0] / 8), Math.ceil(sizes[k][1] / 8)); });   // quick: no greens made again, none judged again

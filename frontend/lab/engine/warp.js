@@ -68,7 +68,7 @@ struct G { out: vec4f,    // this pass's first pixel in the picture (x, y); pict
            src: vec4f,    // the source's first pixel on the sensor (x, y); sensor pixels to one of its; 1 / the largest gain
            sen: vec4f,    // the sensor's size; unused
            dims: vec4u,   // this pass's size; the source's size
-           mode: vec4u,   // quarter turns; flips (1 across, 2 down); 1: fine (cubic, each colour from its own place); spots to retouch
+           mode: vec4u,   // quarter turns; flips (1 across, 2 down); 1: fine (cubic, each colour from its own place), 2: fine, the colours already in place; spots to retouch
            lens: array<vec4f, ${N}>,     // by distance from the centre: red, green and blue's shift, the gain
            sp: array<vec4f, ${SPOTS * SPOT_ROWS}> };   // retouching (heal.js), for the editing copy: the sensor's own pixels come already retouched
 @group(0) @binding(0) var<storage, read> src: array<u32>;
@@ -110,7 +110,7 @@ fn warp(@builtin(global_invocation_id) id: vec3u) {
   let at = c + v * k.g;
   nearby(at, 6.0 * g.src.z);
   var raw = vec3f(sample(at, 0u), sample(at, 1u), sample(at, 2u));
-  if (g.mode.z != 0u) { raw.r = sample(c + v * k.r, 0u); raw.b = sample(c + v * k.b, 2u); }
+  if (g.mode.z == 1u) { raw.r = sample(c + v * k.r, 0u); raw.b = sample(c + v * k.b, 2u); }   // 2: the demosaic has laid red and blue on green's places already
   let n = vec2i(floor((at - g.src.xy) / g.src.z - 0.5));   // a colour the sensor clipped in any of the four pixels around stays marked
   let bits = ((word(n, 1u) | word(n + vec2i(1, 0), 1u) | word(n + vec2i(0, 1), 1u) | word(n + vec2i(1, 1), 1u)) >> 16u) & 7u;
   let o = vec3u(clamp(raw * (k.a * g.src.w), vec3f(0.0), vec3f(65535.0)) + 0.5);
@@ -129,11 +129,12 @@ export function warper(device, pipe, src, dst) {
     /** @param {GPUCommandEncoder} enc @param {Geo} g
      * @param {{ x: number, y: number, scale: number, w: number, h: number }} to this pass's part of the picture, and its size in its own pixels
      * @param {{ x: number, y: number, scale: number, w: number, h: number }} from the source's place on the sensor, likewise @param {boolean} [fine]
-     * @param {boolean} [mend] retouch here (the editing copy): the geometry's spots are laid in */
-    run(enc, g, to, from, fine = true, mend = false) {
+     * @param {boolean} [mend] retouch here (the editing copy): the geometry's spots are laid in
+     * @param {boolean} [aligned] the source's red and blue are on green's places already (the demosaic undid the lens's fringing) */
+    run(enc, g, to, from, fine = true, mend = false, aligned = false) {
       const b = new ArrayBuffer(SIZE), f = new Float32Array(b), n = new Uint32Array(b), [uw, uh] = g.rot % 2 ? [g.H, g.W] : [g.W, g.H], m = g.h;
       f.set([to.x, to.y, to.scale, 0, g.ow, g.oh, g.cos, g.sin, g.cx, g.cy, uw, uh, m[0], m[1], m[2], 0, m[3], m[4], m[5], 0, m[6], m[7], m[8], 0, from.x, from.y, from.scale, 1 / g.head, g.W, g.H, 0, 0]);
-      n.set([to.w, to.h, from.w, from.h, g.rot, g.flip, fine ? 1 : 0, mend && g.spots ? g.spots[0] : 0], 32); f.set(g.lens, 40);
+      n.set([to.w, to.h, from.w, from.h, g.rot, g.flip, fine ? (aligned ? 2 : 1) : 0, mend && g.spots ? g.spots[0] : 0], 32); f.set(g.lens, 40);
       if (mend && g.spots) f.set(g.spots.subarray(4), 40 + N * 4);
       device.queue.writeBuffer(uni, 0, b);
       const pass = enc.beginComputePass();

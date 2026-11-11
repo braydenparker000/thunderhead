@@ -8,6 +8,7 @@
 import { compile as compileDemosaic, demosaicer, phaseOf } from './demosaic.js';
 import { USIZE, WGSL } from './wgsl.js';
 import { reach, warper } from './warp.js';
+import { fringeOf } from './lens.js';
 import { finishPipe } from './finish.js';
 import { compile as compileNoise, denoiser } from './denoise.js';
 import { compile as compileSharp, sharpener } from './deconv.js';
@@ -36,7 +37,8 @@ export async function full(e, img, mosaic) {
     device.queue.writeTexture({ texture: tex, origin: [0, y] }, mosaic, { offset: y * W * 2, bytesPerRow: W * 2 }, [W, Math.min(BAND, H - y)]);
     await new Promise((r) => setTimeout(r));
   }
-  const pic = () => { const g = e.gpu.geo(); return [g.ow, g.oh]; }, info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb), quick: !!img.meta.quick };
+  const pic = () => { const g = e.gpu.geo(); return [g.ow, g.oh]; }, info = { phase, black: /** @type {number} */ (img.meta.black), white: /** @type {number} */ (img.meta.white), wb: /** @type {number[]} */ (img.meta.wb), quick: !!img.meta.quick,
+    fringe: fringeOf(img.meta.lens, W, H) };   // the lens's colour fringing is undone in the demosaic, where it costs detail least (demosaic.js `lead`)
   const open = /** @type {Set<() => void>} */ (new Set());
   /** A view of up to maxW × maxH pixels, shown on `canvas` if one is given. Once it has a place it follows the
    * engine's renders: `onframe` is called, in the task that draws it, with the rectangle each one shows.
@@ -101,7 +103,7 @@ export async function full(e, img, mosaic) {
           dm.run(enc, at.rx, at.ry, at.rw, at.rh, e.gpu.geo().spots);
           if (f[100] > 0 || f[101] > 0) dn.run(enc, at.rw, at.rh, e.gpu.noise, f[100], f[101]);
           crisp.run(enc, at.rw, at.rh, info.wb, f[96], f[97], f[98]);   // Sharpening: the lens's spread taken out (deconv.js)
-          bend.run(enc, e.gpu.geo(), { x: at.X, y: at.Y, scale: 1, w: at.cw, h: at.ch }, { x: at.rx, y: at.ry, scale: 1, w: at.rw, h: at.rh });
+          bend.run(enc, e.gpu.geo(), { x: at.X, y: at.Y, scale: 1, w: at.cw, h: at.ch }, { x: at.rx, y: at.ry, scale: 1, w: at.rw, h: at.rh }, true, false, !!info.fringe);
           fresh = true;
         }
         n[52] = at.cw; n[53] = at.ch; n[55] |= 1024 | 524288; f[51] = 1 / 3; f[74] = at.X / 3; f[75] = at.Y / 3;   // no dither yet: the last pass does it

@@ -33,6 +33,18 @@ const lin = (/** @type {number[]} */ x, /** @type {number[]} */ y, /** @type {nu
 };
 export const N = 64, REACH = 1.25;   // the table's entries, and how far past the corner (1) it goes
 
+/** The lens's colour fringing as the demosaic takes it (demosaic.js `lead`): on a sensor `W` × `H`, how much
+ * further from the centre red and blue were recorded than green, as a share of the distance, at 16 steps out to
+ * `reach` pixels (a little past the corner). The same numbers the table below gives the warp, which then leaves
+ * the colours where the demosaic laid them. Null for a lens with none. @param {Lens | null | undefined} lens @param {number} W @param {number} H */
+export function fringeOf(lens, W, H) {
+  if (!lens || !(lens.red.some(Boolean) || lens.blue.some(Boolean))) return null;
+  const kn = lens.knots[0] > 0 ? [0, ...lens.knots] : lens.knots, pad = (/** @type {number[]} */ a) => (lens.knots[0] > 0 ? [0, ...a] : a), red = pad(lens.red), blue = pad(lens.blue);
+  const MOST = 1.05, table = new Float32Array(64);
+  for (let j = 0; j < 16; j++) table.set([lin(kn, red, (j / 15) * MOST), lin(kn, blue, (j / 15) * MOST), 0, 0], j * 4);
+  return { centre: [W / 2, H / 2], reach: (MOST * Math.hypot(W, H)) / 2, table };
+}
+
 /** The correction as a table by distance from the centre of the corrected picture (0 to REACH, a share of the
  * half diagonal): by how much to multiply that distance to find where red, green and blue were recorded, and
  * the gain that undoes the darkening there. With no lens data, or one that corrects nothing, null.
