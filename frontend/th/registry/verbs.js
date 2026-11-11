@@ -5,7 +5,7 @@
 // older phone. An executor returns its result and, for `undo: 'reported'` verbs, its inverse.
 import { VERBS } from '../contract.js';
 import { launch } from '../../ui/launch.js';
-import { appFor, deepLink } from './apps.js';
+import { appFor, deepLink, landing } from './apps.js';
 
 /** @typedef {{ ok: true, result: Record<string, unknown>, undo?: { verb: string, schema: number, args: Record<string, unknown> } } | { ok: false, error: { code: string, message?: string } }} Outcome */
 /** @typedef {(args: any) => Promise<Outcome>} Executor */
@@ -32,7 +32,7 @@ export const EXECUTORS = {
       const layer = to === appFor(app)?.path ? await import('../island/island.js').then((m) => m.openApp(app, { cover: () => cover }), () => false) : false;
       if (!layer) {
         await cover;
-        location.assign(to);
+        location.assign(landing(to));
       }
       return { ok: true, result: {} };
     },

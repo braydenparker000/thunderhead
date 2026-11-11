@@ -197,11 +197,11 @@ export const SETTINGS = [
   { key: 'photos.keep', group: 'photos', section: 'On this phone', label: 'What stays on the phone', kind: 'choice', ...IN_WORKER,
     default: 'previews', options: o('previews:Previews only', 'recent:Recent originals too'),
     detail: 'Previews keep the shelf working offline. Keeping recent originals comes with editing.' },
-  // Which editor Edit opens (apps/photos/to-editor.js): the new one takes a RAF with its original in
-  // Drive; everything else, and everything with Classic, opens in the one before.
-  { key: 'photos.editor', group: 'photos', section: 'Editor', label: 'Editor', kind: 'choice', scope: 'phone', mind: false,
-    default: 'new', options: o('new:New', 'classic:Classic'),
-    detail: 'New opens a RAF from its original and keeps the edit on this phone. Classic is the editor before; it also opens JPEG, HEIC and DNG.' },
+  // What Photos is (th/registry/apps.js `landing`): the new editor and its own Library, or, with
+  // Classic, the shelf and the editor before (kept on hand until its Drive side has moved over).
+  { key: 'photos.editor', group: 'photos', section: 'Editor', label: 'Photos opens', kind: 'choice', scope: 'phone', mind: false,
+    default: 'new', options: o('new:The new editor', 'classic:Classic'),
+    detail: 'The new editor and its Library, with your RAFs kept on this phone. Classic is the shelf and editor before, with your Drive.' },
   // Export (PHOTOS.md, Export): what the Export sheet starts with; each export can change it.
   { key: 'photos.export_size', group: 'photos', section: 'Export', label: 'Export size', kind: 'choice', ...IN_WORKER,
     default: '2048', options: o('full:Full size', '2048:2,048 px', '1080:1,080 px'),

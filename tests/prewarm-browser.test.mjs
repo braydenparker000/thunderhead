@@ -114,3 +114,24 @@ test('"Open apps ahead" off, or a phone on data saver: nothing is named and the 
   assert.deepEqual(await asked(saver.page), []);
   await saver.page.close();
 });
+
+test('Photos is the new editor: the ring, a chip and a tile land in its Library; Classic brings the shelf back', async () => {
+  const { page, errors } = await open();
+  const lands = () => page.evaluate(async () => { const { landing } = await import('/th/registry/apps.js'); return ['/photos/', '/photos/?photo=abc', '/guitar/', '/music/'].map(landing); });
+  assert.deepEqual(await lands(), ['/lab/editor/', '/photos/?photo=abc', '/guitar/', '/music/'], 'only the front page moves; a link into the shelf still goes there');
+  await hold(page);
+  await slideTo(page, 'photos');
+  await asks(page, ['/lab/editor/']);
+  // Let go on Photos: the new editor opens, not the shelf.
+  await page.route('**/lab/editor/', r => r.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Photos</title>' }));
+  await Promise.all([page.waitForURL('**/lab/editor/'), page.mouse.up()]);
+  assert.deepEqual(errors, []);
+  await page.close();
+
+  const classic = await open({ 'photos.editor': 'classic' });
+  assert.equal(await classic.page.evaluate(async () => (await import('/th/registry/apps.js')).landing('/photos/')), '/photos/');
+  await hold(classic.page);
+  await slideTo(classic.page, 'photos');
+  await asks(classic.page, ['/photos/']);
+  await classic.page.close();
+});
